@@ -1,0 +1,8 @@
++ MAYAVERSION:2022 PLATFORM:win64 HTools 1.0.0 ../inhouse
+PYTHONPATH +:= ./HTools
+
++ MAYAVERSION:2024 PLATFORM:win64 HTools 1.0.0 ../inhouse
+PYTHONPATH +:= ./HTools
+
++ MAYAVERSION:2026 PLATFORM:win64 HTools 1.0.0 ../inhouse
+PYTHONPATH +:= ./HTools
