@@ -1,0 +1,10 @@
+[submodule "maya/external/mgear4"]
+	path = maya/external/mgear4
+	url = https://github.com/mgear-dev/mgear4.git
+[submodule "maya/external/mgear5"]
+	path = maya/external/mgear5
+	url = https://github.com/mgear-dev/mgear.git
+	branch = mGear5
+[submodule "maya/external/cymel"]
+	path = maya/external/cymel
+	url = https://github.com/ryusas/cymel.git
