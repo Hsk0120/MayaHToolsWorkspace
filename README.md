@@ -1,0 +1,2 @@
+# MayaHToolsWorkspace
+Maya用のHToolsを組み込んだ専用環境
