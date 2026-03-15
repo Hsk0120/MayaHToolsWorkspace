@@ -8,21 +8,25 @@
 [submodule "maya/external/cymel"]
 	path = maya/external/cymel
 	url = https://github.com/ryusas/cymel.git
+	ignore = dirty
 [submodule "maya/external/CharcoalEditor2"]
 	path = maya/external/CharcoalEditor2
 	url = https://github.com/Hsk0120/CharcoalEditor2.git
 [submodule "maya/external/AnimationAid"]
 	path = maya/external/AnimationAid
 	url = https://github.com/Hsk0120/AnimationAid.git
+	ignore = dirty
 [submodule "maya/external/AriTools"]
 	path = maya/external/AriTools
 	url = https://github.com/Hsk0120/AriTools.git
 [submodule "maya/external/jlr_sort_attributes"]
 	path = maya/external/jlr_sort_attributes
 	url = https://github.com/jlararigger/jlr_sort_attributes.git
+	ignore = dirty
 [submodule "maya/external/PoseDriverConnect"]
 	path = maya/external/PoseDriverConnect
 	url = https://github.com/Hsk0120/PoseDriverConnect.git
 [submodule "maya/external/SIWeightEditor"]
 	path = maya/external/SIWeightEditor
 	url = https://github.com/ShikouYamaue/SIWeightEditor.git
+	ignore = dirty
