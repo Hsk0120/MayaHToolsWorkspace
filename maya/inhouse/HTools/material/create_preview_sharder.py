@@ -15,7 +15,6 @@ def main():
 	"""
 	attribute_mapping = {
 		"color": "color",
-		"normal": "transparency",
 		"emissive": "incandescence",
 	}
 
@@ -65,6 +64,55 @@ def main():
 						source_plug
 					)
 				)
+
+		# transparency は source の color 入力ノードの outTransparency を使う
+		color_plug = "{0}.color".format(source_shader)
+		color_inputs = cmds.listConnections(
+			color_plug,
+			source=True,
+			destination=False,
+			plugs=True,
+			skipConversionNodes=True,
+		) or []
+
+		if not color_inputs:
+			cmds.warning(
+				"{0} に入力がないため transparency は接続しませんでした。".format(
+					color_plug
+				)
+			)
+			return transferred_count
+
+		if len(color_inputs) > 1:
+			cmds.warning(
+				"{0} には複数入力があります。先頭のみ transparency に使用しました。".format(
+					color_plug
+				)
+			)
+
+		color_input_node = color_inputs[0].split(".", 1)[0]
+		if not cmds.objExists(color_input_node):
+			cmds.warning(
+				"{0} が存在しないため transparency は接続しませんでした。".format(
+					color_input_node
+				)
+			)
+			return transferred_count
+
+		if not cmds.attributeQuery("outTransparency", node=color_input_node, exists=True):
+			cmds.warning(
+				"{0}.outTransparency が無いため transparency は接続しませんでした。".format(
+					color_input_node
+				)
+			)
+			return transferred_count
+
+		cmds.connectAttr(
+			"{0}.outTransparency".format(color_input_node),
+			"{0}.transparency".format(target_shader),
+			force=True,
+		)
+		transferred_count += 1
 
 		return transferred_count
 
