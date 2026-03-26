@@ -66,15 +66,13 @@ def connect_visibility_attr(src_mesh, dup_mesh):
         cmds.warning(u'Info: visibility の接続に失敗しました。 {} -> {}'.format(src_mesh, dup_mesh))
 
 
-def duplicate_and_copy_skin_weights(prefix='prv_'):
-    sels = cmds.ls(sl=True, long=True) or []
-    if not sels:
-        cmds.error(u'スキニング済みメッシュを選択してください。')
-
-    results = []
+def get_selected_mesh_transforms():
+    """現在選択からメッシュ transform 一覧を返す（重複除去済み）"""
+    sels = cmds.ls(sl=True, long=True, objectsOnly=True) or []
+    meshes = []
+    seen = set()
 
     for sel in sels:
-        # shape選択でも transform に寄せる
         if cmds.nodeType(sel) == 'mesh':
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
             if not parents:
@@ -83,11 +81,28 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         else:
             mesh = sel
 
-        # mesh transform か確認
         shapes = cmds.listRelatives(mesh, shapes=True, noIntermediate=True, fullPath=True) or []
         if not shapes or cmds.nodeType(shapes[0]) != 'mesh':
             cmds.warning(u'Skip: {} はメッシュではありません。'.format(mesh))
             continue
+
+        if mesh in seen:
+            continue
+
+        seen.add(mesh)
+        meshes.append(mesh)
+
+    return meshes
+
+
+def duplicate_and_copy_skin_weights(prefix='prv_'):
+    meshes = get_selected_mesh_transforms()
+    if not meshes:
+        cmds.error(u'スキニング済みメッシュを選択してください。')
+
+    results = []
+
+    for mesh in meshes:
 
         src_skin = get_skin_cluster(mesh)
         if not src_skin:
