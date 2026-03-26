@@ -45,6 +45,27 @@ def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
     cmds.sets(dup_mesh, e=True, forceElement=target_sgs[0])
 
 
+def connect_visibility_attr(src_mesh, dup_mesh):
+    """複製元の visibility を複製先へ接続する"""
+    src_attr = src_mesh + '.visibility'
+    dup_attr = dup_mesh + '.visibility'
+
+    if not cmds.objExists(src_attr) or not cmds.objExists(dup_attr):
+        return
+
+    incoming = cmds.listConnections(dup_attr, source=True, destination=False, plugs=True) or []
+    for src_plug in incoming:
+        try:
+            cmds.disconnectAttr(src_plug, dup_attr)
+        except Exception:
+            pass
+
+    try:
+        cmds.connectAttr(src_attr, dup_attr, force=True)
+    except Exception:
+        cmds.warning(u'Info: visibility の接続に失敗しました。 {} -> {}'.format(src_mesh, dup_mesh))
+
+
 def duplicate_and_copy_skin_weights(prefix='prv_'):
     sels = cmds.ls(sl=True, long=True) or []
     if not sels:
@@ -92,6 +113,9 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
                 dup = cmds.rename(dup, target_name)
             except Exception:
                 cmds.warning(u'Info: {} の末尾 1 を除去できませんでした。'.format(dup_short_name))
+
+        # 複製元の visibility を複製先へ接続
+        connect_visibility_attr(mesh, dup)
 
         # prefix 付きシェーダーが存在する場合は複製側へ適用
         assign_prefixed_shader_if_exists(mesh, dup, prefix=prefix)
