@@ -290,9 +290,6 @@ def get_vertices_by_axis_equal_count(mesh, axis='y', segment_count=3):
     top_vertices = [vtx for vtx, _ in values[-end_count:]]
     middle_vertices = [vtx for vtx, _ in values[end_count:-end_count]]
 
-    if not middle_vertices:
-        raise RuntimeError(u'No middle vertices found in equal count split: {}'.format(mesh))
-
     min_val = values[0][1]
     max_val = values[-1][1]
 
@@ -418,8 +415,6 @@ def get_vertices_by_axis_apex(mesh, axis='y', expected_top_count=1):
     top_set = set(top_vertices)
     bottom_set = set(bottom_vertices)
     middle_vertices = [vtx for vtx in all_vertices if vtx not in top_set and vtx not in bottom_set]
-    if not middle_vertices:
-        raise RuntimeError(u'No middle vertices from axis apex: {}'.format(mesh))
 
     return {
         'top': top_vertices,
@@ -562,9 +557,6 @@ def get_vertices_by_geodesic_band(mesh, axis='y', endpoint_count_priority=True):
     bottom_vertices = [vtx for vtx, _ in scored[:bottom_count]]
     top_vertices = [vtx for vtx, _ in scored[-top_count:]]
     middle_vertices = [vtx for vtx, _ in scored[bottom_count:-top_count]]
-
-    if not middle_vertices:
-        raise RuntimeError(u'No middle vertices found in geodesic split: {}'.format(mesh))
 
     axis_values = [pos[axis_index] for pos in positions]
     return {
@@ -738,9 +730,6 @@ def get_vertices_by_end_rings(mesh, axis='y'):
     top_set = set(top_vertices)
     bottom_set = set(bottom_vertices)
     middle_vertices = [vtx for vtx in all_vertices if vtx not in top_set and vtx not in bottom_set]
-
-    if not middle_vertices:
-        raise RuntimeError(u'No middle vertices found after ring extraction: {}'.format(mesh))
 
     min_val = min(cmds.pointPosition(vtx, world=True)[axis_index] for vtx in all_vertices)
     max_val = max(cmds.pointPosition(vtx, world=True)[axis_index] for vtx in all_vertices)
@@ -979,8 +968,6 @@ def auto_two_influence_band_smooth(
             raise RuntimeError(u'No top vertices found: {}'.format(target_mesh))
         if not bottom_vertices:
             raise RuntimeError(u'No bottom vertices found: {}'.format(target_mesh))
-        if not middle_vertices:
-            raise RuntimeError(u'No middle vertices found: {}'.format(target_mesh))
 
         # 1. 端部をベタ固定
         set_two_influence_weights(
@@ -996,16 +983,17 @@ def auto_two_influence_band_smooth(
             normalize=True
         )
 
-        # 2. middle を選択しておく
-        cmds.select(middle_vertices, r=True)
-
-        # 3. Maya 標準 smooth 実行
-        for _ in range(max(1, int(smooth_passes))):
-            smooth_skincluster_weights(
-                skin_cluster=target_skin_cluster,
-                smooth_weights=smooth_weights,
-                max_iterations=smooth_iterations
-            )
+        # 2. middle がある場合のみ smooth 実行
+        if middle_vertices:
+            cmds.select(middle_vertices, r=True)
+            for _ in range(max(1, int(smooth_passes))):
+                smooth_skincluster_weights(
+                    skin_cluster=target_skin_cluster,
+                    smooth_weights=smooth_weights,
+                    max_iterations=smooth_iterations
+                )
+        elif verbose:
+            cmds.warning(u'No middle vertices on {}. Skip smooth pass and keep endpoints fixed.'.format(target_mesh))
 
         # 4. 端部を再固定
         set_two_influence_weights(
