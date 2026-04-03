@@ -34,7 +34,9 @@ def main():
 		preview_name = "prv_{0}".format(shader)
 		if cmds.objExists(preview_name):
 			cmds.error("同名ノードが既に存在します: {0}".format(preview_name))
-		return cmds.shadingNode("blinn", asShader=True, name=preview_name)
+		preview_shader = cmds.shadingNode("blinn", asShader=True, name=preview_name)
+		cmds.setAttr("{0}.eccentricity".format(preview_shader), 0)
+		return preview_shader
 
 	def transfer_input_connections(source_shader, target_shader):
 		transferred_count = 0

@@ -24,25 +24,156 @@ def get_assigned_materials(mesh_transform):
     return materials
 
 
-def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
-    """元メッシュのマテリアルに対応する prefix 付きマテリアルがあれば複製側へ割り当てる"""
-    src_materials = get_assigned_materials(src_mesh)
-    if not src_materials:
-        return
+def get_or_create_shading_engine(material):
+    """マテリアルに接続された shadingEngine を返す。無ければ作成する。"""
+    if not cmds.objExists(material):
+        return None
 
-    src_mat = src_materials[0]
-    src_short = src_mat.split('|')[-1]
-    target_mat = src_short if src_short.startswith(prefix) else prefix + src_short
+    mat_nodes = cmds.ls(material, long=True) or [material]
+    mat_node = mat_nodes[0]
 
-    if not cmds.objExists(target_mat):
-        return
-
-    target_sgs = cmds.listConnections(target_mat, type='shadingEngine') or []
+    target_sgs = cmds.listConnections(mat_node, source=False, destination=True, type='shadingEngine') or []
     if not target_sgs:
-        cmds.warning(u'Info: {} の shadingEngine が見つかりません。'.format(target_mat))
+        target_sgs = cmds.listConnections(mat_node, source=True, destination=False, type='shadingEngine') or []
+
+    if target_sgs:
+        return target_sgs[0]
+
+    mat_short = mat_node.split('|')[-1]
+    sg_name = mat_short + 'SG'
+    try:
+        sg = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=sg_name)
+    except Exception:
+        sg = cmds.sets(renderable=True, noSurfaceShader=True, empty=True)
+
+    try:
+        if cmds.attributeQuery('outColor', node=mat_node, exists=True):
+            cmds.connectAttr(mat_node + '.outColor', sg + '.surfaceShader', force=True)
+        elif cmds.attributeQuery('outValue', node=mat_node, exists=True):
+            cmds.connectAttr(mat_node + '.outValue', sg + '.surfaceShader', force=True)
+        else:
+            cmds.warning(u'Info: {} に接続可能な出力属性が見つかりません。'.format(mat_short))
+            return None
+    except Exception:
+        cmds.warning(u'Info: {} の shadingEngine 作成に失敗しました。'.format(mat_short))
+        return None
+
+    return sg
+
+
+def get_mesh_shapes(mesh_transform):
+    """メッシュ transform から表示用 shape 一覧を返す"""
+    return cmds.listRelatives(mesh_transform, shapes=True, noIntermediate=True, fullPath=True) or []
+
+
+def build_shape_mapping(src_mesh, dup_mesh):
+    """複製元 shape と複製先 shape の対応表を返す"""
+    src_shapes = get_mesh_shapes(src_mesh)
+    dup_shapes = get_mesh_shapes(dup_mesh)
+
+    if not src_shapes or not dup_shapes:
+        return {}
+
+    if len(src_shapes) != len(dup_shapes):
+        cmds.warning(
+            u'Info: shape 数が一致しません。 {} -> {} ({} -> {})'.format(
+                src_mesh,
+                dup_mesh,
+                len(src_shapes),
+                len(dup_shapes)
+            )
+        )
+
+    shape_map = {}
+    for src_shape, dup_shape in zip(src_shapes, dup_shapes):
+        shape_map[src_shape] = dup_shape
+
+    return shape_map
+
+
+def member_belongs_to_source(member, src_shape, src_mesh):
+    """set member が src_shape または src_mesh に属するか判定する"""
+    src_shape_short = src_shape.split('|')[-1]
+    src_mesh_short = src_mesh.split('|')[-1]
+
+    candidates = (src_shape, src_shape_short, src_mesh, src_mesh_short)
+    for base in candidates:
+        if member == base or member.startswith(base + '.'):
+            return True
+    return False
+
+
+def remap_member_to_duplicate(member, src_shape, dup_shape, src_mesh, dup_mesh):
+    """src 側 member 文字列を dup 側 member 文字列へ変換する"""
+    pairs = [
+        (src_shape, dup_shape),
+        (src_shape.split('|')[-1], dup_shape.split('|')[-1]),
+        (src_mesh, dup_mesh),
+        (src_mesh.split('|')[-1], dup_mesh.split('|')[-1]),
+    ]
+
+    for src_name, dup_name in pairs:
+        if member == src_name:
+            return dup_name
+        if member.startswith(src_name + '.'):
+            return dup_name + member[len(src_name):]
+
+    return None
+
+
+def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
+    """複製元のコンポーネント割り当てを維持したまま prefix 材質へ置換する"""
+    shape_map = build_shape_mapping(src_mesh, dup_mesh)
+    if not shape_map:
         return
 
-    cmds.sets(dup_mesh, e=True, forceElement=target_sgs[0])
+    warned_missing = set()
+
+    for src_shape, dup_shape in shape_map.items():
+        shading_engines = cmds.listConnections(src_shape, type='shadingEngine') or []
+        if not shading_engines:
+            continue
+
+        for sg in shading_engines:
+            if sg == 'initialShadingGroup':
+                continue
+
+            mats = cmds.listConnections(sg + '.surfaceShader', source=True, destination=False) or []
+            if not mats:
+                continue
+
+            src_mat = mats[0]
+            src_short = src_mat.split('|')[-1]
+            target_mat = src_short if src_short.startswith(prefix) else prefix + src_short
+
+            if not cmds.objExists(target_mat):
+                if target_mat not in warned_missing:
+                    warned_missing.add(target_mat)
+                    cmds.warning(u'Info: {} が存在しないため割り当てを維持します。'.format(target_mat))
+                continue
+
+            target_sg = get_or_create_shading_engine(target_mat)
+            if not target_sg:
+                cmds.warning(u'Info: {} の shadingEngine が見つかりません。'.format(target_mat))
+                continue
+
+            members = cmds.sets(sg, q=True) or []
+            remapped_members = []
+            for member in members:
+                if not member_belongs_to_source(member, src_shape, src_mesh):
+                    continue
+                dup_member = remap_member_to_duplicate(member, src_shape, dup_shape, src_mesh, dup_mesh)
+                if dup_member:
+                    remapped_members.append(dup_member)
+
+            if not remapped_members:
+                continue
+
+            for dup_member in sorted(set(remapped_members)):
+                try:
+                    cmds.sets(dup_member, e=True, forceElement=target_sg)
+                except Exception:
+                    cmds.warning(u'Info: マテリアル適用に失敗しました。 {} -> {}'.format(dup_member, target_sg))
 
 
 def connect_visibility_attr(src_mesh, dup_mesh):
