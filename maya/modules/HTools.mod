@@ -6,3 +6,6 @@ PYTHONPATH +:= ./HTools
 
 + MAYAVERSION:2026 PLATFORM:win64 HTools 1.0.0 ../inhouse
 PYTHONPATH +:= ./HTools
+
++ MAYAVERSION:2027 PLATFORM:win64 HTools 1.0.0 ../inhouse
+PYTHONPATH +:= ./HTools

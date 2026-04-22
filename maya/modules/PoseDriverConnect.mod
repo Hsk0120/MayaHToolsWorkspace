@@ -1,7 +1,11 @@
 # Copyright Epic Games, Inc. All Rights Reserved.
 
-+ MAYAVERSION:2024 PLATFORM:win64 PoseDriverConnect 1.0 ../external/PoseDriverConnect
-MAYA_PLUG_IN_PATH+:=plug-ins/windows/2024
++ MAYAVERSION:2027 PLATFORM:win64 PoseDriverConnect 1.0 ../external/PoseDriverConnect
+MAYA_PLUG_IN_PATH+:=plug-ins/windows/2027
+PYTHONPATH+:=python
+
++ MAYAVERSION:2026 PLATFORM:win64 PoseDriverConnect 1.0 ../external/PoseDriverConnect
+MAYA_PLUG_IN_PATH+:=plug-ins/windows/2026
 PYTHONPATH+:=python
 
 + MAYAVERSION:2024 PLATFORM:linux PoseDriverConnect 1.0 ../external/PoseDriverConnect
