@@ -30,3 +30,6 @@
 	path = maya/external/SIWeightEditor
 	url = https://github.com/ShikouYamaue/SIWeightEditor.git
 	ignore = dirty
+[submodule "maya/external/AdvancedSkeleton"]
+	path = maya/external/AdvancedSkeleton
+	url = https://github.com/Hsk0120/AdvancedSkeleton.git
