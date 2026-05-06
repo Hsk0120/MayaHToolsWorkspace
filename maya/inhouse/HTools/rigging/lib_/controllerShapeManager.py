@@ -1,4 +1,6 @@
-﻿import maya.cmds as cmds
+﻿"""コントローラ形状カーブ生成ライブラリ。"""
+
+import maya.cmds as cmds
 import math
 import inspect
 import sys
@@ -54,6 +56,17 @@ def _transform_point(point, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=0.0, rz=0.0, sx=1
 
 
 def _transform_points(points, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=0.0, rz=0.0, sx=1.0, sy=1.0, sz=1.0):
+    """ポイント列へ一括で TRS 変換を適用します。
+
+    Args:
+        points (list[tuple[float, float, float]]): 入力ポイント列。
+        tx, ty, tz (float): 平行移動オフセット。
+        rx, ry, rz (float): 回転オフセット（度）。
+        sx, sy, sz (float): スケール係数。
+
+    Returns:
+        list[tuple[float, float, float]]: 変換後ポイント列。
+    """
     if (
         (tx, ty, tz, rx, ry, rz) == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         and (sx, sy, sz) == (1.0, 1.0, 1.0)
@@ -110,13 +123,13 @@ def _curve(
         tx,ty,tz: 位置オフセット
         rx,ry,rz: 回転オフセット（degree）
         sx,sy,sz: スケール係数
-    Return:
+    Returns:
         str: カーブオブジェクト名
     """
     points = _transform_points(points, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
     knots = [i for i in range(len(points))]
 
-    # If a transform with existing nurbsCurve shapes is selected, swap only the curve shapes.
+    # 既存コントローラ選択時は transform を残し、nurbsCurve shape のみ差し替える。
     target_transform = None
     selected = cmds.ls(selection=True, long=True)
     print("selected:", selected)

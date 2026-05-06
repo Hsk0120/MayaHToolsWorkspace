@@ -1,7 +1,9 @@
+"""選択メッシュのスキニング influence ジョイントを選択するツール。"""
+
 import maya.cmds as cmds
 
-
-if __name__ == "__main__":
+def select_skinning_joints_from_selection():
+    """現在選択の先頭メッシュから influence ジョイントを選択します。"""
     # 選択取得
     sel = cmds.ls(sl=True, long=True)
     if not sel:
@@ -23,8 +25,10 @@ if __name__ == "__main__":
 
     skin = skin_clusters[0]
 
-    # influence joint を取得
+    # influence joint を取得して選択
     joints = cmds.skinCluster(skin, q=True, influence=True)
-
-    # 選択
     cmds.select(joints, replace=True)
+
+
+if __name__ == "__main__":
+    select_skinning_joints_from_selection()

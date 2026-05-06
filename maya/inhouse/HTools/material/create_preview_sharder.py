@@ -1,3 +1,5 @@
+"""選択シェーダーからプレビュー用 blinn を生成するツール。"""
+
 import maya.cmds as cmds
 
 
@@ -19,6 +21,7 @@ def main():
 	}
 
 	def get_selected_shader():
+		"""選択ノードからシェーダーを1件取得します。"""
 		selection = cmds.ls(selection=True, long=False) or []
 		if not selection:
 			cmds.error("シェーダーを1つ選択してください。")
@@ -31,6 +34,7 @@ def main():
 		return shader
 
 	def create_preview_blinn(shader):
+		"""`prv_` プレフィックス付き blinn を作成します。"""
 		preview_name = "prv_{0}".format(shader)
 		if cmds.objExists(preview_name):
 			cmds.error("同名ノードが既に存在します: {0}".format(preview_name))
@@ -39,8 +43,10 @@ def main():
 		return preview_shader
 
 	def transfer_input_connections(source_shader, target_shader):
+		"""指定属性の入力接続を複製し transparency も補完接続します。"""
 		transferred_count = 0
 
+		# 基本属性の入力接続を対応表に従って移植する。
 		for source_attr, target_attr in attribute_mapping.items():
 			source_plug = "{0}.{1}".format(source_shader, source_attr)
 			target_plug = "{0}.{1}".format(target_shader, target_attr)
@@ -67,7 +73,7 @@ def main():
 					)
 				)
 
-		# transparency は source の color 入力ノードの outTransparency を使う
+		# transparency は color 入力ノードの outTransparency を利用して補完する。
 		color_plug = "{0}.color".format(source_shader)
 		color_inputs = cmds.listConnections(
 			color_plug,

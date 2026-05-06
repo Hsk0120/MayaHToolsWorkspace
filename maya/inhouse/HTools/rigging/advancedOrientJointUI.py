@@ -36,11 +36,27 @@ _DEBUG_ORIENT = True
 _DEBUG_ORIENT_VERBOSE_NEXT_CHILDREN = True
 
 def _compute_axis_vector(axis_name):
-    """軸名から `om2.MVector` を返します。"""
+    """軸名から基準ベクトルを取得します。
+
+    Args:
+        axis_name (str): 軸名（``x`` / ``y`` / ``z``）。
+
+    Returns:
+        maya.api.OpenMaya.MVector: 指定軸の基準ベクトル。
+            不正値の場合は ``y`` 軸ベクトルを返却します。
+    """
     return om2.MVector(_AXIS_VECTORS.get(axis_name, om2.MVector.kYaxisVector))
 
 def _compute_normalized_vector(vec):
-    """ベクトルを安全に正規化して返します。"""
+    """ベクトルを安全に正規化して返却します。
+
+    Args:
+        vec (maya.api.OpenMaya.MVector): 入力ベクトル。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None: 正規化済みベクトル。
+            長さがほぼ 0 の場合は ``None``。
+    """
     nvec = om2.MVector(vec)
     if nvec.length() <= 1e-8:
         return None
@@ -155,7 +171,7 @@ def _compute_secondary_orient_local(joint_name, local_reference_axis, direction)
     return _compute_flipped_direction_label(axis_label) if direction == "-" else axis_label
 
 def _compute_target_joints(joints, include_children):
-    """対象ジョイントを収集し、重複のないロングネームで返します。
+    """対象ジョイントを収集し、重複のないロングネームで返却します。
 
     Args:
         joints (list[str]): 元になるジョイント一覧。
@@ -201,16 +217,51 @@ def _compute_skin_clusters_from_joints(joints):
     return clusters
 
 def _compute_world_matrix(node_name):
-    """ノードのワールド行列を `om2.MMatrix` として取得します。"""
+    """ノードのワールド行列を取得します。
+
+    Args:
+        node_name (str): DAG ノード名。
+
+    Returns:
+        maya.api.OpenMaya.MMatrix: ワールド行列。
+    """
     return om2.MMatrix(cmds.xform(node_name, q=True, ws=True, m=True))
 
 def _compute_world_position(node_name):
-    """ノードのワールド座標を `om2.MVector` として取得します。"""
+    """ノードのワールド座標を取得します。
+
+    Args:
+        node_name (str): DAG ノード名。
+
+    Returns:
+        maya.api.OpenMaya.MVector: ワールド空間座標。
+    """
     x, y, z = cmds.xform(node_name, q=True, ws=True, t=True)
     return om2.MVector(x, y, z)
 
 def _compute_primary_world_vector(joint_name, return_debug=False):
-    """ジョイントの主軸方向（ワールド）を計算します。"""
+    """ジョイントチェーンから主軸方向ベクトルを推定します。
+
+    まず最初の子ジョイント方向を優先し、子がない場合は親方向を
+    フォールバックとして使用します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        return_debug (bool): ``True`` の場合、デバッグ情報も返却します。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None |
+        tuple[maya.api.OpenMaya.MVector | None, PrimaryWorldVectorDebugInfo]:
+        ``return_debug`` が ``False`` の場合は
+        主軸ベクトルまたは ``None``。``True`` の場合は
+        ``(ベクトルまたはNone, デバッグ辞書)``。
+
+    PrimaryWorldVectorDebugInfo:
+        source (str): ``none`` / ``child`` / ``parentFallback``。
+        driver_joint (str | None): 方向算出に使ったジョイント名。
+        raw_vector (maya.api.OpenMaya.MVector | None): 正規化前ベクトル。
+        normalized_vector (maya.api.OpenMaya.MVector | None): 正規化済みベクトル。
+    """
     joint_pos = _compute_world_position(joint_name)
     child_joints = cmds.listRelatives(joint_name, c=True, type="joint", f=True) or []
     debug_info = {
@@ -220,6 +271,7 @@ def _compute_primary_world_vector(joint_name, return_debug=False):
         "normalized_vector": None,
     }
 
+    # 優先: 子ジョイント方向を主軸とみなす（チェーン方向に合わせるため）。
     if child_joints:
         vec = _compute_world_position(child_joints[0]) - joint_pos
         debug_info["source"] = "child"
@@ -230,6 +282,7 @@ def _compute_primary_world_vector(joint_name, return_debug=False):
         if nvec is not None:
             return (nvec, debug_info) if return_debug else nvec
 
+    # 子がない末端では、親→自分方向をフォールバックとして利用する。
     parent = cmds.listRelatives(joint_name, p=True, type="joint", f=True)
     if parent:
         vec = joint_pos - _compute_world_position(parent[0])
@@ -244,7 +297,14 @@ def _compute_primary_world_vector(joint_name, return_debug=False):
     return (None, debug_info) if return_debug else None
 
 def _compute_primary_space_mode(primary_space_value):
-    """UI 表示文字列を primary_space の内部キーに正規化します。"""
+    """UI 表示文字列を主軸参照モードの内部キーへ正規化します。
+
+    Args:
+        primary_space_value (str): UI で選択された表示文字列。
+
+    Returns:
+        str: ``world`` / ``local`` / ``chain`` のいずれか。
+    """
     value = (primary_space_value or "").strip().lower()
     if value in ("world", "world axis"):
         return "world"
@@ -253,16 +313,37 @@ def _compute_primary_space_mode(primary_space_value):
     return "chain"
 
 def _compute_primary_vector_from_mode(joint_name, primary_axis, primary_space, primary_ref_axis):
-    """primary_space の内部キーに応じて主軸ベクトル（ワールド）を返します。"""
+    """主軸参照モードに応じて主軸ベクトル（ワールド）を返却します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        primary_axis (str): UI 上の主軸キー（互換維持のため受け取りのみ）。
+        primary_space (str): 主軸参照モード（``world`` / ``local`` / ``chain``）。
+        primary_ref_axis (str): ``world`` / ``local`` 時の参照軸。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None: 主軸ベクトル。
+    """
+    # local: 現在姿勢のローカル軸をワールドへ変換して使用。
     if primary_space == "local":
         world_matrix = _compute_world_matrix(joint_name)
         return _compute_axis_world_vector_from_matrix(world_matrix, primary_ref_axis)
+    # world: ワールド固定軸をそのまま使用。
     if primary_space == "world":
         return _compute_axis_vector(primary_ref_axis)
+    # chain: 子(または親フォールバック)方向から自動推定。
     return _compute_primary_world_vector(joint_name)
 
 def _compute_vector_to_first_child(joint_name):
-    """最初の子ジョイントへの方向ベクトル（正規化）を返します。"""
+    """最初の子ジョイントへの方向ベクトルを返却します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None: 正規化ベクトル。
+            子ジョイントが存在しない場合は ``None``。
+    """
     child_joints = cmds.listRelatives(joint_name, c=True, type="joint", f=True) or []
     if not child_joints:
         return None
@@ -271,12 +352,43 @@ def _compute_vector_to_first_child(joint_name):
     return _compute_normalized_vector(child_pos - joint_pos)
 
 def _compute_axis_world_vector_from_matrix(world_matrix, axis_name):
-    """ワールド行列から指定ローカル軸のワールド方向ベクトルを得ます。"""
+    """行列からローカル軸のワールド方向ベクトルを計算します。
+
+    Args:
+        world_matrix (maya.api.OpenMaya.MMatrix): 回転を含む行列。
+        axis_name (str): 軸名（``x`` / ``y`` / ``z``）。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None: 正規化済みワールド方向ベクトル。
+    """
     base = _compute_axis_vector(axis_name)
     return _compute_normalized_vector(base * world_matrix)
 
 def _compute_up_world_vector(joint_name, up_axis, up_direction, up_space, return_debug=False):
-    """UI 設定に基づく up ベクトル（ワールド）を計算します。"""
+    """UI 設定に基づく Up ベクトル（ワールド）を計算します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        up_axis (str): 参照軸（``x`` / ``y`` / ``z``）。
+        up_direction (str): 符号（``+`` または ``-``）。
+        up_space (str): 参照空間（``world`` / ``local`` / ``next/children``）。
+        return_debug (bool): ``True`` の場合はデバッグ情報も返却します。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None |
+        tuple[maya.api.OpenMaya.MVector | None, UpWorldVectorDebugInfo]:
+        ``return_debug`` が ``False`` の場合は
+        Up ベクトルまたは ``None``。``True`` の場合は
+        ``(ベクトルまたはNone, デバッグ辞書)``。
+
+    UpWorldVectorDebugInfo:
+        space (str): ``world`` / ``local`` / ``next/children``。
+        sign (float): 方向符号（+1.0 または -1.0）。
+        source (str): ベクトル算出元（``axis`` / ``local`` / ``world`` / ``next/children``）。
+        base_vector (maya.api.OpenMaya.MVector | None): 符号適用前の基準ベクトル。
+        vector (maya.api.OpenMaya.MVector | None): 符号適用後の最終ベクトル。
+        base_info (PrimaryWorldVectorDebugInfo | None): ``next/children`` 利用時の詳細情報。
+    """
     sign = -1.0 if up_direction == "-" else 1.0
     debug_info = {
         "space": up_space,
@@ -286,6 +398,7 @@ def _compute_up_world_vector(joint_name, up_axis, up_direction, up_space, return
         "vector": None,
         "base_info": None,
     }
+    # next/children: チェーン方向を Up の基準として再利用する。
     if up_space == "next/children":
         up_vec, base_info = _compute_primary_world_vector(joint_name, return_debug=True)
         debug_info["source"] = "next/children"
@@ -295,6 +408,7 @@ def _compute_up_world_vector(joint_name, up_axis, up_direction, up_space, return
         debug_info["base_vector"] = up_vec
         debug_info["vector"] = up_vec * sign
         return (debug_info["vector"], debug_info) if return_debug else debug_info["vector"]
+    # local: ローカル軸をワールド方向へ投影して Up を作る。
     if up_space == "local":
         world_matrix = _compute_world_matrix(joint_name)
         base_vec = _compute_axis_world_vector_from_matrix(world_matrix, up_axis)
@@ -302,6 +416,7 @@ def _compute_up_world_vector(joint_name, up_axis, up_direction, up_space, return
         debug_info["base_vector"] = base_vec
         debug_info["vector"] = base_vec * sign if base_vec is not None else None
         return (debug_info["vector"], debug_info) if return_debug else debug_info["vector"]
+    # world: ワールド固定軸を Up として採用。
     base_vec = _compute_axis_vector(up_axis)
     debug_info["source"] = "world"
     debug_info["base_vector"] = base_vec
@@ -309,14 +424,42 @@ def _compute_up_world_vector(joint_name, up_axis, up_direction, up_space, return
     return (debug_info["vector"], debug_info) if return_debug else debug_info["vector"]
 
 def _compute_fallback_secondary_vector(primary_vec):
-    """主軸とほぼ平行な up 指定時のフォールバック副軸を返します。"""
+    """副軸計算失敗時のフォールバック副軸を計算します。
+
+    Args:
+        primary_vec (maya.api.OpenMaya.MVector): 主軸ベクトル。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None: 主軸と直交する代替副軸。
+    """
     world_y = _compute_axis_vector("y")
     world_x = _compute_axis_vector("x")
     ref = world_y if abs(primary_vec * world_y) < 0.999 else world_x
     return _compute_normalized_vector(ref ^ primary_vec)
 
 def _compute_secondary_world_vector(primary_vec, up_vec, return_debug=False):
-    """主軸に直交する副軸を up ベクトルから計算します。"""
+    """主軸に直交する副軸ベクトルを計算します。
+
+    Args:
+        primary_vec (maya.api.OpenMaya.MVector): 主軸ベクトル。
+        up_vec (maya.api.OpenMaya.MVector): Up ベクトル。
+        return_debug (bool): ``True`` の場合はデバッグ情報を含めます。
+
+    Returns:
+        tuple[maya.api.OpenMaya.MVector | None, bool] |
+        tuple[maya.api.OpenMaya.MVector | None, bool, SecondaryWorldVectorDebugInfo]:
+        ``(副軸ベクトル, フォールバック使用フラグ)``。
+            ``return_debug=True`` の場合は
+            ``(副軸ベクトル, フォールバック使用フラグ, デバッグ辞書)``。
+
+    SecondaryWorldVectorDebugInfo:
+        projected_component (maya.api.OpenMaya.MVector):
+            Up のうち主軸方向へ射影された成分。
+        orthogonal_component (maya.api.OpenMaya.MVector):
+            主軸へ直交化した成分（正規化前）。
+        fallback_used (bool): フォールバック副軸を使用したかどうか。
+    """
+    # Up の主軸成分を取り除き、主軸に直交する成分だけを抽出する。
     projected_component = primary_vec * (primary_vec * up_vec)
     secondary_vec = up_vec - projected_component
     nvec = _compute_normalized_vector(secondary_vec)
@@ -326,6 +469,7 @@ def _compute_secondary_world_vector(primary_vec, up_vec, return_debug=False):
         "fallback_used": False,
     }
     if nvec is None:
+        # Up と主軸がほぼ平行な場合は直交成分が作れないため代替軸を使う。
         fallback_vec = _compute_fallback_secondary_vector(primary_vec)
         debug_info["fallback_used"] = True
         if return_debug:
@@ -336,19 +480,40 @@ def _compute_secondary_world_vector(primary_vec, up_vec, return_debug=False):
     return nvec, False
 
 def _compute_debug_vector_label(vec):
-    """デバッグ表示用のベクトル文字列を返します。"""
+    """デバッグ表示向けにベクトルを文字列化します。
+
+    Args:
+        vec (maya.api.OpenMaya.MVector | None): 表示対象ベクトル。
+
+    Returns:
+        str: 表示文字列。
+    """
     if vec is None:
         return "None"
     return "({:.6f}, {:.6f}, {:.6f})".format(vec.x, vec.y, vec.z)
 
 def _compute_is_next_children_debug_enabled(primary_space, up_space):
-    """Next/Children 詳細ログを有効化するかどうかを返します。"""
+    """Next/Children 詳細ログの有効判定を返却します。
+
+    Args:
+        primary_space (str): 主軸参照モード。
+        up_space (str): 副軸参照モード。
+
+    Returns:
+        bool: 詳細ログを出す場合は ``True``。
+    """
     if not _DEBUG_ORIENT or not _DEBUG_ORIENT_VERBOSE_NEXT_CHILDREN:
         return False
     return primary_space == "chain" or up_space == "next/children"
 
 def _compute_debug_log_matrix_axes(joint_name, label, matrix_obj):
-    """回転行列の XYZ 軸ベクトルをログ出力します。"""
+    """回転行列の XYZ 軸ベクトルをログ出力します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        label (str): ログラベル。
+        matrix_obj (maya.api.OpenMaya.MMatrix): 出力対象行列。
+    """
     x_vec = _compute_axis_world_vector_from_matrix(matrix_obj, "x")
     y_vec = _compute_axis_world_vector_from_matrix(matrix_obj, "y")
     z_vec = _compute_axis_world_vector_from_matrix(matrix_obj, "z")
@@ -363,7 +528,15 @@ def _compute_debug_log_matrix_axes(joint_name, label, matrix_obj):
     )
 
 def _compute_debug_log_matrix_alignment(joint_name, label_a, matrix_a, label_b, matrix_b):
-    """2つの回転行列の軸整合性をログ出力します。"""
+    """2つの回転行列の軸整合性をログ出力します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        label_a (str): 比較元ラベル。
+        matrix_a (maya.api.OpenMaya.MMatrix): 比較元行列。
+        label_b (str): 比較先ラベル。
+        matrix_b (maya.api.OpenMaya.MMatrix): 比較先行列。
+    """
     x_a = _compute_axis_world_vector_from_matrix(matrix_a, "x")
     y_a = _compute_axis_world_vector_from_matrix(matrix_a, "y")
     z_a = _compute_axis_world_vector_from_matrix(matrix_a, "z")
@@ -387,7 +560,16 @@ def _compute_debug_log_matrix_alignment(joint_name, label_a, matrix_a, label_b, 
     )
 
 def _compute_debug_log_euler_rebuild(joint_name, euler_rotation, target_matrix):
-    """Euler 再構築行列と目標行列の一致度をログ出力します。"""
+    """Euler 再構築行列と目標行列の一致度をログ出力します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        euler_rotation (maya.api.OpenMaya.MEulerRotation): 比較用 Euler 回転。
+        target_matrix (maya.api.OpenMaya.MMatrix): 目標行列。
+
+    Returns:
+        dict[str, maya.api.OpenMaya.MMatrix | str]: 再構築行列情報。
+    """
     rotate_order_index = int(cmds.getAttr("{}.rotateOrder".format(joint_name)))
     rotate_order_enum = _ROTATE_ORDER_ENUMS.get(rotate_order_index, om2.MEulerRotation.kXYZ)
     rotate_order_label = _ROTATE_ORDER_LABELS.get(rotate_order_index, "xyz")
@@ -435,7 +617,13 @@ def _compute_debug_log_euler_rebuild(joint_name, euler_rotation, target_matrix):
     }
 
 def _compute_debug_log_joint_orient_order_hypothesis(joint_name, orient_degrees, current_local_rot):
-    """jointOrient の角度解釈順を総当たりで推定してログ出力します。"""
+    """jointOrient の角度解釈順を総当たり推定してログ出力します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        orient_degrees (list[float]): 計算済みの jointOrient 角度（度）。
+        current_local_rot (maya.api.OpenMaya.MMatrix): 現在のローカル回転行列。
+    """
     rx = math.radians(orient_degrees[0])
     ry = math.radians(orient_degrees[1])
     rz = math.radians(orient_degrees[2])
@@ -495,7 +683,12 @@ def _compute_debug_log_joint_orient_order_hypothesis(joint_name, orient_degrees,
         )
 
 def _compute_debug_log_post_apply_attr_state(joint_name, expected_orient_degrees):
-    """jointOrient/rotate の設定反映状態と接続をログ出力します。"""
+    """適用後の jointOrient/rotate 状態をログ出力します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        expected_orient_degrees (list[float]): 期待する orient 角度（度）。
+    """
     actual_orient = cmds.getAttr("{}.jointOrient".format(joint_name))[0]
     actual_rotate = cmds.getAttr("{}.rotate".format(joint_name))[0]
     rotate_order_index = int(cmds.getAttr("{}.rotateOrder".format(joint_name)))
@@ -551,6 +744,7 @@ def _compute_debug_log_next_children_inputs(
     primary_vec_for_secondary = None
     up_vec_for_secondary = None
 
+    # チェーン由来ベクトルの出どころと符号反転結果を可視化する。
     if primary_space == "chain":
         primary_vec_raw, primary_info = _compute_primary_world_vector(joint_name, return_debug=True)
         primary_vec_for_secondary = primary_vec_raw
@@ -568,6 +762,7 @@ def _compute_debug_log_next_children_inputs(
             )
         )
 
+    # Up 側も同様に、基準ベクトルと最終ベクトルを分けてログする。
     if up_space == "next/children":
         up_vec, up_info = _compute_up_world_vector(
             joint_name,
@@ -589,6 +784,7 @@ def _compute_debug_log_next_children_inputs(
             )
         )
 
+    # 最終的な副軸の生成結果を出して、投影/フォールバックの状態を追跡する。
     if primary_vec_for_secondary is not None and up_vec_for_secondary is not None:
         secondary_vec, used_fallback, sec_debug = _compute_secondary_world_vector(
             primary_vec_for_secondary,
@@ -606,12 +802,23 @@ def _compute_debug_log_next_children_inputs(
         )
 
 def _compute_axis_basis_from_ui(primary_axis, secondary_axis, primary_vec, secondary_vec):
-    """主軸/副軸指定と方向ベクトルから右手系の XYZ 基底を組み立てます。"""
+    """UI 指定に基づいて右手系の XYZ 基底を組み立てます。
+
+    Args:
+        primary_axis (str): 主軸キー。
+        secondary_axis (str): 副軸キー。
+        primary_vec (maya.api.OpenMaya.MVector): 主軸方向ベクトル。
+        secondary_vec (maya.api.OpenMaya.MVector): 副軸方向ベクトル。
+
+    Returns:
+        dict[str, maya.api.OpenMaya.MVector | None]: XYZ 基底ベクトル辞書。
+    """
     axes = {
         primary_axis: primary_vec,
         secondary_axis: secondary_vec,
     }
 
+    # 未指定の残り1軸を外積で補完し、右手系の基底を完成させる。
     if "x" not in axes:
         axes["x"] = _compute_normalized_vector(axes["y"] ^ axes["z"])
     elif "y" not in axes:
@@ -619,6 +826,7 @@ def _compute_axis_basis_from_ui(primary_axis, secondary_axis, primary_vec, secon
     elif "z" not in axes:
         axes["z"] = _compute_normalized_vector(axes["x"] ^ axes["y"])
 
+    # secondary 軸指定を優先して再直交化し、軸の一貫性を保つ。
     if secondary_axis == "x":
         axes["x"] = _compute_normalized_vector(axes["y"] ^ axes["z"])
     elif secondary_axis == "y":
@@ -629,7 +837,14 @@ def _compute_axis_basis_from_ui(primary_axis, secondary_axis, primary_vec, secon
     return axes
 
 def _compute_rotation_matrix_from_axes(axes):
-    """XYZ 軸ベクトルから回転行列を生成します。"""
+    """XYZ 軸ベクトルから回転行列を生成します。
+
+    Args:
+        axes (dict[str, maya.api.OpenMaya.MVector]): XYZ 軸ベクトル。
+
+    Returns:
+        maya.api.OpenMaya.MMatrix: 回転行列。
+    """
     x_axis = axes["x"]
     y_axis = axes["y"]
     z_axis = axes["z"]
@@ -641,14 +856,28 @@ def _compute_rotation_matrix_from_axes(axes):
     ])
 
 def _compute_rotate_axis_matrix(joint_name):
-    """ジョイントの rotateAxis 行列を返します（度指定）。"""
+    """ジョイントの rotateAxis 行列を取得します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+
+    Returns:
+        maya.api.OpenMaya.MMatrix: rotateAxis 由来の回転行列。
+    """
     rx = math.radians(cmds.getAttr("{}.rotateAxisX".format(joint_name)))
     ry = math.radians(cmds.getAttr("{}.rotateAxisY".format(joint_name)))
     rz = math.radians(cmds.getAttr("{}.rotateAxisZ".format(joint_name)))
     return om2.MEulerRotation(rx, ry, rz).asMatrix()
 
 def _compute_has_non_zero_rotate_axis(joint_name):
-    """rotateAxis が実質ゼロかどうかを返します。"""
+    """rotateAxis が実質ゼロかどうかを判定します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+
+    Returns:
+        bool: いずれかの軸が閾値より大きい場合は ``True``。
+    """
     vals = [
         cmds.getAttr("{}.rotateAxisX".format(joint_name)),
         cmds.getAttr("{}.rotateAxisY".format(joint_name)),
@@ -657,7 +886,11 @@ def _compute_has_non_zero_rotate_axis(joint_name):
     return any(abs(v) > 1e-6 for v in vals)
 
 def _compute_debug_log_joint_axis_alignment(joint_name):
-    """ジョイント X 軸と最初の子方向の整合性をログ出力します。"""
+    """ジョイント X 軸と最初の子方向の整合性をログ出力します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+    """
     child_dir = _compute_vector_to_first_child(joint_name)
     if child_dir is None:
         om2.MGlobal.displayInfo("[OrientDebug] {}: no child joint".format(joint_name))
@@ -676,7 +909,15 @@ def _compute_debug_log_joint_axis_alignment(joint_name):
     )
 
 def _compute_debug_angle_deg(vec_a, vec_b):
-    """2ベクトルの内積と角度(度)を返します。"""
+    """2ベクトルの内積と角度（度）を返却します。
+
+    Args:
+        vec_a (maya.api.OpenMaya.MVector): 比較ベクトル A。
+        vec_b (maya.api.OpenMaya.MVector): 比較ベクトル B。
+
+    Returns:
+        tuple[float, float]: ``(内積, 角度[deg])``。
+    """
     dot = vec_a * vec_b
     dot_clamped = max(-1.0, min(1.0, dot))
     return dot, math.degrees(math.acos(dot_clamped))
@@ -763,7 +1004,36 @@ def _compute_joint_orient_degrees(
     debug_verbose=False,
     return_debug_data=False,
 ):
-    """UI 設定から `jointOrient` に設定する XYZ 角度（度）を計算します。"""
+    """UI 設定から jointOrient の XYZ 角度（度）を計算します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        primary_axis (str): 主軸キー。
+        primary_space (str): 主軸参照モード。
+        primary_ref_axis (str): 主軸参照軸。
+        primary_direction (str): 主軸方向符号。
+        secondary_axis (str): 副軸キー。
+        up_axis (str): Up 参照軸。
+        up_direction (str): Up 方向符号。
+        up_space (str): Up 参照空間。
+        debug_verbose (bool): 詳細デバッグログを出力するかどうか。
+        return_debug_data (bool): 追加デバッグデータを返却するかどうか。
+
+    Returns:
+        list[float] | None | tuple[list[float] | None, OrientJointDebugData | None]:
+        通常は ``[x, y, z]``（度）。
+            ``return_debug_data=True`` の場合は
+            ``(角度リストまたはNone, デバッグ辞書またはNone)``。
+
+    OrientJointDebugData:
+        target_world_rot (maya.api.OpenMaya.MMatrix): 目標ワールド回転行列。
+        local_rot (maya.api.OpenMaya.MMatrix): 親基準のローカル回転行列。
+        joint_orient_rot (maya.api.OpenMaya.MMatrix): rotateAxis 補正後の行列。
+        euler_rebuild (dict[str, maya.api.OpenMaya.MMatrix | str] | None):
+            Euler 再構築の比較用データ。
+        orient_degrees (list[float]): ``jointOrient`` に書き込む角度（度）。
+        parent_joint (str | None): 親ジョイント名。
+    """
     primary_vec = _compute_primary_vector_from_mode(
         joint_name,
         primary_axis,
@@ -787,20 +1057,25 @@ def _compute_joint_orient_degrees(
     else:
         secondary_vec, _ = _compute_secondary_world_vector(primary_vec, up_vec)
         secondary_debug = None
+
+    # 主軸/副軸から最終姿勢のワールド回転を組み立てる。
     axes = _compute_axis_basis_from_ui(primary_axis, secondary_axis, primary_vec, secondary_vec)
     if any(v is None for v in axes.values()):
         return (None, None) if return_debug_data else None
 
+    # UI で決まった主軸/副軸から、最終的に狙うワールド回転行列を構築する。
     target_world_rot = _compute_rotation_matrix_from_axes(axes)
 
     parent = cmds.listRelatives(joint_name, p=True, type="joint", f=True)
     if parent:
+        # 目標ワールド回転を親空間へ変換し、ローカル回転として解く。
         parent_world_matrix = _compute_world_matrix(parent[0])
         parent_world_rot = om2.MTransformationMatrix(parent_world_matrix).asRotateMatrix()
         local_rot = target_world_rot * parent_world_rot.inverse()
     else:
         local_rot = target_world_rot
 
+    # Maya の最終回転は rotateAxis を含むため、jointOrient 側へ移項して解く。
     rotate_axis_matrix = _compute_rotate_axis_matrix(joint_name)
     joint_orient_rot = local_rot * rotate_axis_matrix.inverse()
 
@@ -820,6 +1095,7 @@ def _compute_joint_orient_degrees(
         _compute_debug_log_matrix_axes(joint_name, "LocalToParent", local_rot)
         _compute_debug_log_matrix_axes(joint_name, "JointOrientRot", joint_orient_rot)
 
+    # 求めた回転行列を jointOrient に設定可能な Euler 角（rad）へ変換する。
     euler = om2.MTransformationMatrix(joint_orient_rot).rotation()
     euler_rebuild = None
     if debug_verbose:
@@ -827,6 +1103,7 @@ def _compute_joint_orient_degrees(
 
     orient_degrees = [math.degrees(euler.x), math.degrees(euler.y), math.degrees(euler.z)]
 
+    # 比較検証用に中間行列を返して、適用後の差分調査を容易にする。
     if return_debug_data:
         return orient_degrees, {
             "target_world_rot": target_world_rot,
@@ -840,7 +1117,14 @@ def _compute_joint_orient_degrees(
     return orient_degrees
 
 def _compute_descendant_world_matrices(joint_name):
-    """子孫ジョイントのワールド行列を退避します。"""
+    """子孫ジョイントのワールド行列を退避します。
+
+    Args:
+        joint_name (str): 退避元の親ジョイント。
+
+    Returns:
+        dict[str, list[float]]: ``node -> 4x4 matrix(flat)`` の辞書。
+    """
     descendants = cmds.listRelatives(joint_name, ad=True, type="joint", f=True) or []
     descendants = sorted(set(descendants), key=lambda n: n.count("|"))
     return {
@@ -849,7 +1133,12 @@ def _compute_descendant_world_matrices(joint_name):
     }
 
 def _compute_restore_world_matrices(node_to_world_matrix):
-    """退避済みワールド行列を復元します。"""
+    """退避済みワールド行列を復元します。
+
+    Args:
+        node_to_world_matrix (dict[str, list[float]]): 復元対象の行列辞書。
+    """
+    # 親から順に復元し、下位ノードのローカル評価崩れを避ける。
     restore_nodes = sorted(node_to_world_matrix.keys(), key=lambda n: n.count("|"))
     for node in restore_nodes:
         if not cmds.objExists(node):
@@ -907,6 +1196,7 @@ def _apply_orient_from_ui(*_):
     Args:
         *_: Maya コールバック用の未使用引数。
     """
+    # UI から全設定値を収集し、内部計算で扱いやすい形式へ正規化する。
     primary = cmds.optionMenuGrp("oj_primary", q=True, v=True).lower()
     primary_space = _compute_primary_space_mode(cmds.optionMenuGrp("oj_primary_space", q=True, v=True))
     primary_ref_axis = cmds.optionMenuGrp("oj_primary_ref_axis", q=True, v=True).lower()
@@ -922,11 +1212,13 @@ def _apply_orient_from_ui(*_):
         return
 
     try:
+        # 無効な軸組み合わせはここで弾いて以降の処理を中断する。
         _compute_joint_orient_order(primary, secondary)
     except ValueError as e:
         cmds.warning(str(e))
         return
 
+    # 変形破綻を避けるため、影響する skinCluster を事前に保護モードへ切り替える。
     target_joints = _compute_target_joints(joints, include_children=True)
     skin_clusters = _compute_skin_clusters_from_joints(target_joints)
     previous_modes = _preserve_enable_move_joints_mode(skin_clusters)
@@ -975,8 +1267,10 @@ def _apply_orient_from_ui(*_):
                 cmds.warning("Skip {}: could not resolve orient direction.".format(j))
                 continue
 
+            # 親の向き変更前に子孫のワールド姿勢を退避しておく。
             child_world_matrices = _compute_descendant_world_matrices(j)
 
+            # orient 値を書き込み、rotate をゼロに戻して回転を jointOrient 側へ集約する。
             cmds.setAttr(
                 "{}.jointOrient".format(j),
                 orient_degrees[0], orient_degrees[1], orient_degrees[2],
@@ -984,10 +1278,12 @@ def _apply_orient_from_ui(*_):
             )
             cmds.setAttr("{}.rotate".format(j), 0.0, 0.0, 0.0, type="double3")
 
+            # 親の向き更新で子のワールド姿勢が変わらないよう、退避行列を復元する。
             if child_world_matrices:
                 _compute_restore_world_matrices(child_world_matrices)
 
             if next_children_debug and orient_debug_data is not None:
+                # 適用後の行列を期待値と比較し、誤差原因を追えるようにする。
                 _compute_debug_log_post_apply_attr_state(j, orient_degrees)
                 current_world_rot = om2.MTransformationMatrix(_compute_world_matrix(j)).asRotateMatrix()
                 _compute_debug_log_matrix_axes(j, "CurrentWorldAfterApply", current_world_rot)
@@ -1035,6 +1331,7 @@ def _apply_orient_from_ui(*_):
                         )
 
             if _DEBUG_ORIENT:
+                # 通常デバッグ: rotateAxis 影響と最終軸整合を簡易確認する。
                 if _compute_has_non_zero_rotate_axis(j):
                     om2.MGlobal.displayInfo(
                         "[OrientDebug] {}: rotateAxis=({:.6f}, {:.6f}, {:.6f})deg".format(
@@ -1057,6 +1354,7 @@ def _apply_orient_from_ui(*_):
                     up_space=up_space,
                 )
     finally:
+        # skinCluster の退避状態は、処理成否に関わらず必ず復元する。
         if skin_clusters:
             _preserve_recache_bind_matrices(skin_clusters)
         if previous_modes:
@@ -1076,7 +1374,11 @@ def _ui_update_state(*_):
     cmds.optionMenuGrp("oj_up_axis", e=True, en=(secondary_space in ("world", "local")))
 
 def show_orient_joint_like_window():
-    """カスタム Orient Joint オプションウィンドウを作成して表示します。"""
+    """カスタム Orient Joint オプションウィンドウを作成して表示します。
+
+    Returns:
+        None: UI を生成して表示します。
+    """
     if cmds.windowPref(_WIN, exists=True):
         cmds.windowPref(_WIN, remove=True)
 
@@ -1088,7 +1390,7 @@ def show_orient_joint_like_window():
     label_width = 170
     field_width = 180
 
-    # Primary Settings
+    # Primary 設定セクション
     cmds.frameLayout(label="Primary Settings", collapsable=True, collapse=False, mw=10, mh=10)
     cmds.columnLayout(adj=True, rs=6)
 
@@ -1116,7 +1418,7 @@ def show_orient_joint_like_window():
     cmds.setParent("..")
     cmds.setParent("..")
 
-    # Secondary Settings
+    # Secondary 設定セクション
     cmds.frameLayout(label="Secondary Settings", collapsable=True, collapse=False, mw=10, mh=10)
     cmds.columnLayout(adj=True, rs=6)
 
@@ -1145,7 +1447,7 @@ def show_orient_joint_like_window():
     cmds.setParent("..")
     cmds.setParent("..")
 
-    # Buttons
+    # 操作ボタン
     cmds.separator(h=4, style="none")
     cmds.rowLayout(nc=2, cw2=(210,210), ct2=("both","both"))
     cmds.button(label="Apply", c=_apply_orient_from_ui)

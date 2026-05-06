@@ -1,4 +1,6 @@
-﻿import inspect
+﻿"""Controller Shape Manager の Maya UI 実装。"""
+
+import inspect
 from importlib import reload
 
 try:
@@ -14,7 +16,7 @@ reload(controllerShapeManager)
 
 
 class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
-    """Controller Shape Manager UI using PySide6"""
+    """コントローラ形状を生成・編集するためのダイアログ UI。"""
     
     WINDOW_NAME = "ControllerShapeManagerWindow"
     SHAPE_BUTTON_MIN_WIDTH = 100
@@ -70,6 +72,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         return QtGui.QColor(255, 255, 255) if cls._relative_luminance(background_color) < 0.45 else QtGui.QColor(20, 20, 20)
     
     def __init__(self, parent=None):
+        """UI 状態を初期化してウィジェットを構築します。"""
         super(ControllerShapeManagerUI, self).__init__(parent)
         
         # 現在選択されているシェイプの情報
@@ -232,10 +235,12 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         }
 
     def _on_shape_button_clicked(self, section_key, func_name, params, label, section_color):
+        """形状ボタン押下時にパラメータ更新と再生成を実行します。"""
         self.update_parameter_area(section_key, func_name, params, label, section_color)
         self.generate_shape()
 
     def _on_global_scale_changed(self, value):
+        """全体スケール変更時の自動再生成ハンドラ。"""
         if getattr(self, "_suspend_auto_regenerate", False):
             return
         if not self.current_shape["func_name"]:
@@ -245,6 +250,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.generate_shape()
 
     def _on_parameters_changed(self, *args, **kwargs):
+        """個別パラメータ変更時の自動再生成ハンドラ。"""
         if getattr(self, "_suspend_auto_regenerate", False):
             return
         if not self.current_shape["func_name"]:
@@ -282,6 +288,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         QtCore.QTimer.singleShot(0, _do_resize)
 
     def eventFilter(self, watched, event):
+        """Shapes タブのリサイズ時にボタン配置を再計算します。"""
         if event.type() == QtCore.QEvent.Resize and watched in self._shape_viewports:
             self._reflow_shape_buttons()
         return super().eventFilter(watched, event)
@@ -297,6 +304,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         return min(columns, 10)
 
     def _reflow_shape_buttons(self):
+        """表示幅に応じて shape ボタンをグリッド再配置します。"""
         for grid_info in self._shape_button_grids:
             grid_layout = grid_info["grid"]
             buttons = grid_info["buttons"]
@@ -312,7 +320,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             if columns < 1:
                 columns = 1
 
-            # 既存の配置を外して再配置（ウィジェットは破棄しない）
+            # 既存アイテムを外して再配置する（ボタン自体は再利用）。
             while grid_layout.count():
                 item = grid_layout.takeAt(0)
                 if item.widget():
@@ -332,7 +340,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         Returns:
             [(section_key, [(func_name, params_list), ...]), ...] の形式のリスト
         """
-        # library から shape classes を取得
+        # ライブラリ側の shape クラスを列挙し、UI 表示用メタ情報へ変換する。
         section_classes_dict = controllerShapeManager.get_shape_classes()
         section_classes = list(section_classes_dict.items())
 
@@ -340,7 +348,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         for section_key, section_class in section_classes:
             shapes = []
 
-            # クラスのすべての静的メソッドを取得
+            # 公開メソッドのみを shape 候補として扱う。
             for method_name, method in inspect.getmembers(section_class, predicate=inspect.isfunction):
                 if method_name.startswith('_'):  # プライベートメソッドをスキップ
                     continue
@@ -355,7 +363,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                     # デフォルト値を取得
                     default = param.default if param.default != inspect.Parameter.empty else 1.0
 
-                    # 最小値・最大値を決定
+                    # UI の編集しやすさを優先した最小/最大レンジを決める。
                     # NOTE: デフォルト値が 0 のパラメータ（角度など）は 0..360 を想定する
                     if isinstance(default, int):
                         if int(default) == 0:

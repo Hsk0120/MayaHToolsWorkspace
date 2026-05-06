@@ -1,3 +1,5 @@
+"""現在シーンのフルパスをクリップボードへコピーするユーティリティ。"""
+
 import maya.cmds as cmds
 
 try:
@@ -7,6 +9,7 @@ except ImportError:
 
 
 def copy_current_scene_path():
+    """現在シーンパスを取得してクリップボードへコピーします。"""
     scene_path = cmds.file(q=True, sn=True)
     if not scene_path:
         cmds.warning("シーンが未保存のため、パスがありません。")
@@ -17,6 +20,7 @@ def copy_current_scene_path():
         cmds.warning("QApplication が取得できません。")
         return
 
+    # Maya から取得した絶対パスをそのままコピーする。
     app.clipboard().setText(scene_path)
     print("Copied:", scene_path)
 

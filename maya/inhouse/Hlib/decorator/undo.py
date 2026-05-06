@@ -6,13 +6,7 @@ import maya.cmds as cmds
 
 @contextlib.contextmanager
 def undo_chunk(name=None):
-    """Group operations into a single Maya undo step.
-
-    Usage:
-        with undo_chunk("MyTool"):
-            # multiple cmds.* calls
-            pass
-    """
+    """複数の Maya 操作を 1 回の Undo チャンクにまとめます。"""
     opened = False
     try:
         kwargs = {"openChunk": True}
@@ -30,17 +24,7 @@ def undo_chunk(name=None):
 
 
 def undoable(name=None):
-    """Decorator form of :func:`undo_chunk`.
-
-    Usage:
-        @undoable()
-        def build():
-            ...
-
-        @undoable("Build Controller")
-        def build2():
-            ...
-    """
+    """`undo_chunk` のデコレータ版を返します。"""
 
     def decorator(func):
         chunk_name = name or getattr(func, "__name__", "UndoChunk")

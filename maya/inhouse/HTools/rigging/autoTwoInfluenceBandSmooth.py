@@ -35,6 +35,7 @@ def _get_skin_cluster(mesh):
 
 
 def _get_axis_index(axis):
+    """軸文字を座標インデックスへ変換します。"""
     axis = axis.lower()
     table = {'x': 0, 'y': 1, 'z': 2}
     if axis not in table:
@@ -43,6 +44,7 @@ def _get_axis_index(axis):
 
 
 def _all_vertices(mesh):
+    """メッシュの全頂点コンポーネントを返します。"""
     shape = _to_shape(mesh)
     return cmds.ls('{}.vtx[*]'.format(shape), fl=True) or []
 
@@ -153,6 +155,7 @@ def _vertices_center(vertices):
 
 
 def _collect_influence_positions(skin_cluster, joints_only=True):
+    """influence のワールド座標一覧を収集します。"""
     influences = cmds.skinCluster(skin_cluster, q=True, influence=True) or []
     pairs = []
     for inf in influences:
@@ -166,12 +169,14 @@ def _collect_influence_positions(skin_cluster, joints_only=True):
         except Exception:
             continue
 
+    # joint 限定で取れない場合は全 influence へフォールバックする。
     if not pairs and joints_only:
         return _collect_influence_positions(skin_cluster, joints_only=False)
     return pairs
 
 
 def _nearest_influence(influence_positions, target_pos, exclude=None):
+    """目標座標に最も近い influence を返します。"""
     exclude = set(exclude or [])
     best_name = None
     best_dist = None
@@ -429,6 +434,7 @@ def get_vertices_by_axis_apex(mesh, axis='y', expected_top_count=1):
 
 
 def _build_vertex_graph(mesh):
+    """メッシュ頂点の隣接グラフを構築します。"""
     vertices = _all_vertices(mesh)
     if not vertices:
         raise RuntimeError(u'No vertices found: {}'.format(mesh))
@@ -440,6 +446,7 @@ def _build_vertex_graph(mesh):
     edges = cmds.ls('{}.e[*]'.format(shape), fl=True) or []
     adjacency = [[] for _ in vertices]
 
+    # エッジ長を重みとして無向グラフを作る。
     for edge in edges:
         edge_vertices = cmds.ls(
             cmds.polyListComponentConversion(edge, fromEdge=True, toVertex=True),
@@ -467,6 +474,7 @@ def _build_vertex_graph(mesh):
 
 
 def _dijkstra_distances(adjacency, start_index):
+    """始点からの最短距離配列を Dijkstra で計算します。"""
     inf = float('inf')
     dist = [inf] * len(adjacency)
     dist[start_index] = 0.0
@@ -486,6 +494,7 @@ def _dijkstra_distances(adjacency, start_index):
 
 
 def _argmax_finite(values):
+    """有限値のみ対象に最大値インデックスを返します。"""
     best_idx = None
     best_val = None
     for i, v in enumerate(values):
@@ -507,6 +516,7 @@ def get_vertices_by_geodesic_band(mesh, axis='y', endpoint_count_priority=True):
     if len(vertices) < 3:
         raise RuntimeError(u'Not enough vertices for geodesic split: {}'.format(mesh))
 
+    # 軸下端付近を seed にし、直径端点を2回の最遠探索で推定する。
     seed = min(range(len(vertices)), key=lambda i: positions[i][axis_index])
     dist_seed = _dijkstra_distances(adjacency, seed)
     end_a = _argmax_finite(dist_seed)
@@ -528,6 +538,7 @@ def get_vertices_by_geodesic_band(mesh, axis='y', endpoint_count_priority=True):
     dist_bottom = _dijkstra_distances(adjacency, bottom_end)
     dist_top = _dijkstra_distances(adjacency, top_end)
 
+    # 各頂点を bottom->top の相対位置 t(0..1) に写像する。
     scored = []
     for i, vtx in enumerate(vertices):
         db = dist_bottom[i]

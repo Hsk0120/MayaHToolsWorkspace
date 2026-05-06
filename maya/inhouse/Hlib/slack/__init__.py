@@ -1,3 +1,5 @@
+"""Slack 通知送信ユーティリティ。"""
+
 import os
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -12,6 +14,7 @@ def post_message(text, channel="random", thread_ts=None):
         channel : 送りたいチャンネル デフォルトはrandomチャンネル
         thread_ts : 送りたいスレッドid, デフォルトNoneの場合メッセージになる
     """
+    # Bot Token は環境変数から取得する。
     slack_token = os.getenv("SLACK_API_BOT_TOKEN")
     client = WebClient(token=slack_token)
 

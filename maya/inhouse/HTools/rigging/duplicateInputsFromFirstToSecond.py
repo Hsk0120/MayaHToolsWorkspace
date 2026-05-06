@@ -1,3 +1,5 @@
+"""選択2ノード間で入力接続を複製する簡易ツール。"""
+
 import maya.cmds as cmds
 
 def duplicate_all_inputs_from_first_to_second(source=None, target=None):
@@ -32,6 +34,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
     failed = 0
 
     for i in range(0, len(pairs), 2):
+        # source 側の入力先属性名を target 側の同名属性へマッピングする。
         print(sel[1])
         print(pairs[i].split("."))
         dst_plug = sel[1] + "." + pairs[i].split(".")[1]      # upstream plug

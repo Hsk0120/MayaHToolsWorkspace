@@ -1,3 +1,5 @@
+"""mGear ガイド取得・更新の補助関数。"""
+
 import maya.cmds as cmds
 from mgear.shifter import guide_template
 
@@ -17,6 +19,7 @@ def get_guide(isReference=False):
     for node in node_list:
         if not isReference and cmds.referenceQuery(node, isNodeReferenced=True):
             continue
+        # isGearGuide 属性を持つ transform をガイドとみなす。
         for attr in cmds.listAttr(node):
             if not "isGearGuide" in attr:
                 continue
