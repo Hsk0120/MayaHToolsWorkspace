@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
+"""選択ジョイントのウェイトを親へ統合する LOD 補助ツール。"""
+
 import maya.cmds as cmds
 
 def _is_joint(node):
+    """ノードが joint かどうかを判定します。"""
     return cmds.objExists(node) and cmds.nodeType(node) == 'joint'
 
 def _get_parent_joint(jnt):
+    """親ジョイントを取得します。"""
     parents = cmds.listRelatives(jnt, parent=True, type='joint', fullPath=True) or []
     return parents[0] if parents else None
 
@@ -23,13 +27,16 @@ def _find_skinclusters_using_influence(inf):
     return out
 
 def _get_influences(sc):
+    """skinCluster の influence 一覧を返します。"""
     return cmds.skinCluster(sc, q=True, inf=True) or []
 
 def _get_uuid(node):
+    """ノード UUID を1件だけ返します。"""
     uuids = cmds.ls(node, uuid=True) or []
     return uuids[0] if len(uuids) == 1 else None
 
 def _is_influence_in_skincluster(sc, inf):
+    """指定 influence が skinCluster に登録済みか判定します。"""
     target_uuid = _get_uuid(inf)
     if not target_uuid:
         return False
@@ -45,6 +52,7 @@ def _get_geometries(sc):
     return geos
 
 def _get_joint_liw(jnt):
+    """ジョイントの lockInfluenceWeights 状態を取得します。"""
     attr = jnt + ".liw"
     if not cmds.objExists(attr):
         return None
@@ -54,6 +62,7 @@ def _get_joint_liw(jnt):
         return None
 
 def _set_joint_liw_safe(jnt, value):
+    """lockInfluenceWeights を安全に設定します。"""
     attr = jnt + ".liw"
     if not cmds.objExists(attr):
         return False
@@ -64,6 +73,7 @@ def _set_joint_liw_safe(jnt, value):
         return False
 
 def _unlock_joint_liw_temporarily(jnt):
+    """liw を一時解除し、元状態を返します。"""
     prev = _get_joint_liw(jnt)
     if prev is None:
         return None
@@ -71,12 +81,14 @@ def _unlock_joint_liw_temporarily(jnt):
     return prev
 
 def _restore_joint_liw(jnt, prev):
+    """liw を元の状態へ復元します。"""
     if prev is None:
         return
     if not _set_joint_liw_safe(jnt, prev):
         cmds.warning("liw 復元に失敗: %s" % jnt)
 
 def _list_geo_vertices(geo):
+    """ポリゴン頂点コンポーネント一覧を返します。"""
     try:
         vtx_count = cmds.polyEvaluate(geo, v=True)
     except RuntimeError:
@@ -86,6 +98,7 @@ def _list_geo_vertices(geo):
     return ["%s.vtx[%d]" % (geo, i) for i in range(vtx_count)]
 
 def _ensure_influence(sc, inf, weight=0.0):
+    """influence 未登録時のみ addInfluence します。"""
     if _is_influence_in_skincluster(sc, inf):
         return
     prev_liw = _unlock_joint_liw_temporarily(inf)
@@ -106,6 +119,7 @@ def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
         return
 
     # ウェイト転送
+    # child のウェイトを parent へ加算してから child を 0 にする。
     for comp in affected:
         try:
             c_w = cmds.skinPercent(sc, comp, q=True, t=child) or 0.0
@@ -129,6 +143,7 @@ def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
         cmds.skinPercent(sc, comp, tv=[(child, 0.0)], normalize=True)
 
 def _remove_influence_safe(sc, inf):
+    """influence を安全に削除します。"""
     if not _is_influence_in_skincluster(sc, inf):
         return
     prev_liw = _unlock_joint_liw_temporarily(inf)
@@ -164,8 +179,8 @@ def lod_like_collapse_selected_joints(
         cmds.warning("joint を選択してください。")
         return
 
-    # 処理順：子→親の順が安全（階層が混ざって選択されていても崩れにくい）
-    # DAG 深度でソート（深い＝子を先）
+    # 処理順は子→親が安全。
+    # 親を先に処理すると、後続子の親参照やスキン状態が変わって不安定になる。
     def depth(n):
         p = cmds.listRelatives(n, parent=True, fullPath=True) or []
         d = 0
@@ -203,6 +218,7 @@ def lod_like_collapse_selected_joints(
                     pass
             continue
 
+        # 子が使われている全 skinCluster に対して転送処理を行う。
         for sc in skinclusters:
             # 親が未登録なら addInfluence
             _ensure_influence(sc, parent, weight=0.0)

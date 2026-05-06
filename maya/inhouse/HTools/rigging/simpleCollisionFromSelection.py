@@ -1,3 +1,5 @@
+"""選択メッシュから OBB コリジョンを生成するユーティリティ。"""
+
 import math
 
 import maya.cmds as cmds
@@ -5,6 +7,15 @@ import maya.api.OpenMaya as om
 
 
 def _safe_normalize(vector, fallback):
+	"""ベクトルを安全に正規化します。
+
+	Args:
+		vector (maya.api.OpenMaya.MVector): 入力ベクトル。
+		fallback (maya.api.OpenMaya.MVector): 長さゼロ時の代替ベクトル。
+
+	Returns:
+		maya.api.OpenMaya.MVector: 正規化ベクトル。
+	"""
 	vec = om.MVector(vector)
 	if vec.length() < 1e-10:
 		return om.MVector(fallback)
@@ -13,6 +24,11 @@ def _safe_normalize(vector, fallback):
 
 
 def _selected_mesh_points_world():
+	"""現在選択からメッシュ頂点座標（ワールド）を収集します。
+
+	Returns:
+		list[maya.api.OpenMaya.MPoint]: 対象ポイント一覧。
+	"""
 	points = []
 	selection = om.MGlobal.getActiveSelectionList()
 	iterator = om.MItSelectionList(selection)
@@ -24,6 +40,7 @@ def _selected_mesh_points_world():
 			dag_path = iterator.getDagPath()
 			component = om.MObject.kNullObj
 
+		# Transform が選択されている場合は shape まで降りる。
 		if dag_path.apiType() == om.MFn.kTransform:
 			dag_path.extendToShape()
 
@@ -33,6 +50,7 @@ def _selected_mesh_points_world():
 
 		mesh_fn = om.MFnMesh(dag_path)
 
+		# 頂点コンポーネント選択時は選択頂点のみを収集する。
 		if component and not component.isNull() and component.hasFn(om.MFn.kMeshVertComponent):
 			comp_fn = om.MFnSingleIndexedComponent(component)
 			mesh_points = mesh_fn.getPoints(om.MSpace.kWorld)
@@ -47,6 +65,14 @@ def _selected_mesh_points_world():
 
 
 def _build_sample_directions(count=64):
+	"""凸包近似用の方向ベクトル群を生成します。
+
+	Args:
+		count (int): 球面サンプル方向数。
+
+	Returns:
+		list[maya.api.OpenMaya.MVector]: サンプル方向一覧。
+	"""
 	directions = [
 		om.MVector(1.0, 0.0, 0.0),
 		om.MVector(-1.0, 0.0, 0.0),
@@ -56,6 +82,7 @@ def _build_sample_directions(count=64):
 		om.MVector(0.0, 0.0, -1.0),
 	]
 
+	# Fibonacci sphere に近い分布で方向サンプルを生成する。
 	golden_angle = math.pi * (3.0 - math.sqrt(5.0))
 	count = max(int(count), 8)
 
@@ -71,6 +98,15 @@ def _build_sample_directions(count=64):
 
 
 def _convex_hull_extreme_points(points, direction_count=64):
+	"""方向サンプルに対する極値点集合を抽出します。
+
+	Args:
+		points (list[maya.api.OpenMaya.MPoint]): 入力ポイント群。
+		direction_count (int): 方向サンプル数。
+
+	Returns:
+		list[maya.api.OpenMaya.MPoint]: OBB 推定に使う代表点集合。
+	"""
 	if len(points) <= 8:
 		return list(points)
 
@@ -78,6 +114,7 @@ def _convex_hull_extreme_points(points, direction_count=64):
 	directions = _build_sample_directions(direction_count)
 	hull_indices = set()
 
+	# 各方向の最大/最小投影点を拾い、外形を近似する。
 	for direction in directions:
 		max_dot = float("-inf")
 		min_dot = float("inf")
@@ -105,6 +142,7 @@ def _convex_hull_extreme_points(points, direction_count=64):
 
 
 def _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180):
+	"""主軸固定で YZ 面回転を走査し断面面積最小の副軸を選びます。"""
 	best_axis_y = axis_y
 	best_axis_z = axis_z
 	best_area = float("inf")
@@ -112,6 +150,7 @@ def _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180):
 	steps = max(int(steps), 8)
 	half_pi = math.pi * 0.5
 
+	# minor 軸平面内を走査し、投影矩形面積が最小の向きを選択する。
 	for i in range(steps):
 		theta = (half_pi * i) / float(steps)
 		cos_t = math.cos(theta)
@@ -147,6 +186,7 @@ def _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180):
 
 
 def _project_extents(points, axis_x, axis_y, axis_z):
+	"""指定基底へ投影した各軸の最小最大値を返します。"""
 	min_x = float("inf")
 	min_y = float("inf")
 	min_z = float("inf")
@@ -171,6 +211,7 @@ def _project_extents(points, axis_x, axis_y, axis_z):
 
 
 def _obb_volume(points, axis_x, axis_y, axis_z):
+	"""基底に対する OBB 体積を計算します。"""
 	min_x, max_x, min_y, max_y, min_z, max_z = _project_extents(points, axis_x, axis_y, axis_z)
 	extent_x = max(max_x - min_x, 1e-6)
 	extent_y = max(max_y - min_y, 1e-6)
@@ -179,6 +220,7 @@ def _obb_volume(points, axis_x, axis_y, axis_z):
 
 
 def _rotate_basis(axis_x, axis_y, axis_z, rot_axis, angle_radians):
+	"""基底を任意軸回転し、再直交化した基底を返します。"""
 	quat = om.MQuaternion(angle_radians, rot_axis)
 	new_x = _safe_normalize(axis_x.rotateBy(quat), axis_x)
 	new_y = _safe_normalize(axis_y.rotateBy(quat), axis_y)
@@ -189,6 +231,7 @@ def _rotate_basis(axis_x, axis_y, axis_z, rot_axis, angle_radians):
 
 
 def _refine_axes_by_volume_local_search(points, axis_x, axis_y, axis_z, initial_deg=10.0, min_deg=0.05, decay=0.5):
+	"""局所探索で OBB 体積が小さくなる軸向きを探索します。"""
 	current_x = axis_x
 	current_y = axis_y
 	current_z = axis_z
@@ -197,6 +240,7 @@ def _refine_axes_by_volume_local_search(points, axis_x, axis_y, axis_z, initial_
 	step = math.radians(max(initial_deg, 0.1))
 	min_step = math.radians(max(min_deg, 0.01))
 
+	# 3 軸まわりの微小回転を繰り返し、改善が止まったらステップを縮小する。
 	while step >= min_step:
 		improved = False
 		for rot_axis in (current_x, current_y, current_z):
@@ -221,6 +265,7 @@ def _refine_axes_by_volume_local_search(points, axis_x, axis_y, axis_z, initial_
 
 
 def _covariance_matrix(points):
+	"""ポイント群の共分散行列を計算します。"""
 	count = float(len(points))
 	centroid = om.MVector()
 	for point in points:
@@ -258,6 +303,7 @@ def _covariance_matrix(points):
 
 
 def _jacobi_eigen_decomposition_3x3(matrix, max_iter=32, epsilon=1e-10):
+	"""3x3 対称行列の固有値/固有ベクトルを Jacobi 法で求めます。"""
 	a = [row[:] for row in matrix]
 	v = [[1.0, 0.0, 0.0],
 		 [0.0, 1.0, 0.0],
@@ -321,9 +367,18 @@ def _jacobi_eigen_decomposition_3x3(matrix, max_iter=32, epsilon=1e-10):
 
 
 def _compute_obb_from_points(points):
+	"""ポイント群から OBB の中心・軸・サイズを推定します。
+
+	Args:
+		points (list[maya.api.OpenMaya.MPoint]): 入力ポイント群。
+
+	Returns:
+		dict[str, object]: OBB 情報（center, axes, size）。
+	"""
 	covariance = _covariance_matrix(points)
 	eigenvalues, eigenvectors = _jacobi_eigen_decomposition_3x3(covariance)
 
+	# 最大固有値方向を長軸候補として採用する。
 	order = sorted(range(3), key=lambda i: eigenvalues[i], reverse=True)
 	axis_x = _safe_normalize(eigenvectors[order[0]], om.MVector.kXaxisVector)
 	axis_y = _safe_normalize(eigenvectors[order[1]], om.MVector.kYaxisVector)
@@ -357,11 +412,24 @@ def _compute_obb_from_points(points):
 
 
 def create_obb_collision_from_selection(name="obbCollision_geo", use_hull_points=True, hull_direction_count=64, return_obb_data=False):
+	"""選択から OBB コリジョンメッシュを生成します。
+
+	Args:
+		name (str): 生成するコリジョン名。
+		use_hull_points (bool): 極値点近似を使うか。
+		hull_direction_count (int): 極値抽出の方向サンプル数。
+		return_obb_data (bool): OBB 計算結果を辞書で返すか。
+
+	Returns:
+		str | dict[str, object] | None: 通常は生成コリジョン名。
+		return_obb_data=True 時は OBB 情報辞書。
+	"""
 	points = _selected_mesh_points_world()
 	if len(points) < 3:
 		om.MGlobal.displayError("Select mesh object or mesh vertices (3 points minimum).")
 		return None
 
+	# 高密度メッシュでは極値点近似を使い、計算量を抑えつつ形状を保持する。
 	obb_points = points
 	if use_hull_points:
 		obb_points = _convex_hull_extreme_points(points, direction_count=hull_direction_count)
@@ -385,6 +453,7 @@ def create_obb_collision_from_selection(name="obbCollision_geo", use_hull_points
 		om.MGlobal.displayError("Failed to create polyCube for OBB collision.")
 		return None
 
+	# 軸方向にサイズを掛けた行列を構築し、位置を中心に合わせる。
 	matrix = om.MMatrix([
 		axis_x.x * size_x, axis_x.y * size_x, axis_x.z * size_x, 0.0,
 		axis_y.x * size_y, axis_y.y * size_y, axis_y.z * size_y, 0.0,

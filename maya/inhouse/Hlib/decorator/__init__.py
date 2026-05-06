@@ -1,3 +1,5 @@
+"""デコレータ関連ユーティリティを公開するパッケージ。"""
+
 import maya.standalone
 import maya.cmds as cmds
 
@@ -8,6 +10,7 @@ def maya_standalone(func):
     mayaをスタンドアロンで起動するためのデコレータ
     """
     def wrapper(*args, **kwargs):
+        # 実行前後で Maya Standalone の初期化/終了を保証する。
         try: 			
             maya.standalone.initialize()
             func(*args, **kwargs) 

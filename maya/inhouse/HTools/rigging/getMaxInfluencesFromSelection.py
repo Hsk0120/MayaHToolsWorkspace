@@ -1,3 +1,5 @@
+"""選択メッシュの skinCluster.maxInfluences を収集するユーティリティ。"""
+
 import maya.cmds as cmds
 
 def _to_dag_object(node):
@@ -42,6 +44,14 @@ def _find_skin_clusters_from_shape(shape):
     return list(dict.fromkeys(skins))
 
 def get_max_influences_from_selection(verbose=True):
+    """選択中メッシュ shape ごとの maxInfluences を取得します。
+
+    Args:
+        verbose (bool): 取得ログを出力するか。
+
+    Returns:
+        dict[str, dict[str, int]]: ``shape -> {skinCluster: maxInfluences}``。
+    """
     sel = cmds.ls(sl=True, long=True) or []
     if not sel:
         cmds.warning("オブジェクトが選択されていません。")
@@ -63,6 +73,7 @@ def get_max_influences_from_selection(verbose=True):
                     cmds.warning(f"skinCluster が見つかりません: {shape}")
                 continue
 
+            # 1 shape に複数 skinCluster があるケースも全件収集する。
             for skin in skins:
                 try:
                     max_inf = cmds.getAttr(f"{skin}.maxInfluences")

@@ -1,6 +1,9 @@
+"""全ジョイントの segmentScaleCompensate を無効化するツール。"""
+
 import maya.cmds as cmds
 
 def main():
+    """シーン内ジョイントの segmentScaleCompensate を一括で OFF にします。"""
     joints = cmds.ls(type='joint') or []
 
     for j in joints:

@@ -30,6 +30,7 @@ INHOUSE_TRACE_SCRIPT_NAME = "inhouse"
 
 
 def _inhouse_get_trace_file_path():
+    """trace ログファイルの保存先パスを返します。"""
     maya_app_dir = os.environ.get("MAYA_APP_DIR")
     if not maya_app_dir:
         maya_app_dir = str(Path.home() / "Documents" / "maya")
@@ -37,6 +38,7 @@ def _inhouse_get_trace_file_path():
 
 
 def _inhouse_get_trace_session():
+    """現在セッション識別子を返します（未設定時は PID 由来）。"""
     session = os.environ.get("MAYA_USERSETUP_TRACE_SESSION")
     if session:
         return session
@@ -46,6 +48,7 @@ def _inhouse_get_trace_session():
 
 
 def _inhouse_trace_event(phase, detail=""):
+    """trace 有効時に userSetup イベントを標準出力とファイルへ記録します。"""
     if os.environ.get("MAYA_USERSETUP_TRACE") != "1":
         return
 
@@ -73,10 +76,12 @@ def _inhouse_get_maya_main_window():
 
 
 def _inhouse_is_already_initialized():
+    """同一 Maya セッション内で初期化済みか判定します。"""
     return os.environ.get("MAYA_INHOUSE_USERSETUP_INITIALIZED") == "1"
 
 
 def _inhouse_mark_initialized():
+    """初期化済みフラグを環境変数へ記録します。"""
     os.environ["MAYA_INHOUSE_USERSETUP_INITIALIZED"] = "1"
 
 
@@ -92,6 +97,7 @@ def _inhouse_execute_module(module_name):
 
 
 def _inhouse_get_searchable_menu_class():
+    """SearchableMenu クラスを動的 import して返します。"""
     current_file = Path(inspect.getfile(inspect.currentframe()))
     htools_dir = current_file.parent
     htools_dir_path = str(htools_dir)
@@ -132,6 +138,7 @@ def _inhouse_ensure_hotbox_menu_proxy(menu_name, menu_label):
 
 
 def _inhouse_move_menu_before_help(menu_name):
+    """指定メニューを Help メニュー直前へ移動します。"""
     maya_window = _inhouse_get_maya_main_window()
     menu_bar = maya_window.findChild(QtWidgets.QMenuBar)
     if menu_bar is None:
@@ -160,6 +167,7 @@ def _inhouse_move_menu_before_help(menu_name):
         else help_action
     )
 
+    # Maya 起動順でメニュー位置がぶれるため、Help 直前へ明示再配置する。
     if help_qaction is not None and target_qaction is not help_qaction:
         menu_bar.removeAction(target_qaction)
         menu_bar.insertAction(help_qaction, target_qaction)
@@ -177,7 +185,7 @@ def _inhouse_add_htools_menu_items(main_menu):
     current_file = Path(inspect.getfile(inspect.currentframe()))
     HTools_dir = current_file.parent
 
-    # Get list of folders in HTools directory
+    # HTools 配下のディレクトリをカテゴリとしてメニュー化する。
     folders = [
         d.name
         for d in HTools_dir.iterdir()
@@ -200,7 +208,7 @@ def _inhouse_add_htools_menu_items(main_menu):
         if hasattr(submenu, "setTearOffEnabled"):
             submenu.setTearOffEnabled(True)
         
-        # Get Python files in folder
+        # 各カテゴリ配下の Python ファイルをツール項目として追加する。
         py_files = []
         for file in Path(HTools_dir / folder).iterdir():
             print("file:", file)
@@ -321,6 +329,7 @@ def _inhouse_install_htools_menu():
 
 
 def _inhouse_open_command_ports():
+    """Maya commandPort(7001/7002) を必要に応じて開きます。"""
     print("[userSetup] commandPort initialization start")
     port_settings = (
         (":7001", "mel"),
@@ -347,6 +356,7 @@ def _inhouse_open_command_ports():
 
 
 def _inhouse_install_htools_menu_deferred():
+    """遅延実行コンテキストで HTools メニューをインストールします。"""
     _inhouse_trace_event("deferred_start", "_inhouse_install_htools_menu")
     try:
         _inhouse_install_htools_menu()
@@ -361,6 +371,7 @@ def _inhouse_install_htools_menu_deferred():
 
 
 def _inhouse_open_command_ports_deferred():
+    """遅延実行コンテキストで commandPort 初期化を実行します。"""
     _inhouse_trace_event("deferred_start", "_inhouse_open_command_ports")
     try:
         _inhouse_open_command_ports()
@@ -369,7 +380,7 @@ def _inhouse_open_command_ports_deferred():
 
 
 def _inhouse_install_optional_external_tools():
-    """Initialize optional external tools without hard dependency."""
+    """依存があれば外部ツールを任意初期化します（未導入時はスキップ）。"""
     _inhouse_trace_event("optional_tools_start", "jlr_sort_attributes")
     try:
         jlr_sort_attributes = importlib.import_module("jlr_sort_attributes")
@@ -384,6 +395,7 @@ def _inhouse_install_optional_external_tools():
 
 
 def _inhouse_eval_deferred_low_priority(callback, trace_detail):
+    """lowestPriority の evalDeferred でコールバックを登録します。"""
     _inhouse_trace_event("register", f"evalDeferred(lowestPriority):{trace_detail}")
     try:
         cmds.evalDeferred(callback, lowestPriority=True)

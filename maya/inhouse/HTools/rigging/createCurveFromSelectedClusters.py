@@ -1,12 +1,21 @@
+"""選択した clusterHandle 位置からカーブを生成するツール。"""
+
 import maya.cmds as cmds
 import cymel.core as cm
 
 def _resolve_cluster_handle_transform(node):
-    """Resolve any cluster-related node to its clusterHandle transform path."""
+    """cluster 関連ノードを clusterHandle の Transform へ解決します。
+
+    Args:
+        node (str): cluster / clusterHandle / transform。
+
+    Returns:
+        str | None: clusterHandle Transform。解決できない場合は None。
+    """
     node_type = cmds.nodeType(node)
 
     if node_type == "clusterHandle":
-        # clusterHandle is a shape node; use its parent transform for world position.
+        # clusterHandle は shape なので、位置取得に使う親 Transform へ変換する。
         parents = cmds.listRelatives(node, parent=True, fullPath=True) or []
         return parents[0] if parents else None
 
@@ -32,12 +41,12 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
 
     Args:
         degree (int): カーブの degree
-        use_handle (bool): Trueなら clusterHandle の位置を使う
-                           Falseなら deformer(cluster) から handle を辿る
+        use_handle (bool): 互換引数（現在は常に handle 解決を行う）。
     Returns:
         str | None: 作成された curve 名
     """
 
+    # 選択順をそのままカーブ通過順として使う。
     selection = cmds.ls(sl=True, long=True) or []
     if not selection:
         cmds.warning("クラスターを選択してください。")
@@ -52,7 +61,7 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
         else:
             cmds.warning(u"クラスターではないノードをスキップしました: {0}".format(node))
 
-    # Keep selection order while dropping duplicates.
+    # 選択順を維持したまま重複ハンドルだけを除去する。
     cluster_handles = list(dict.fromkeys(cluster_handles))
 
     if len(cluster_handles) < 2:

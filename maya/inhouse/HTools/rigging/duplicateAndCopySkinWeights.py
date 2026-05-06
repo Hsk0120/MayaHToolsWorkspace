@@ -1,3 +1,5 @@
+"""選択メッシュを複製し、スキンウェイトと関連設定を引き継ぐツール。"""
+
 import maya.cmds as cmds
 
 
@@ -227,6 +229,11 @@ def get_selected_mesh_transforms():
 
 
 def duplicate_and_copy_skin_weights(prefix='prv_'):
+    """選択メッシュを複製して同一インフルエンスで再バインドし、ウェイトをコピーします。
+
+    Args:
+        prefix (str): 複製メッシュ名・ターゲット材質探索に使う接頭辞。
+    """
     meshes = get_selected_mesh_transforms()
     if not meshes:
         cmds.error(u'スキニング済みメッシュを選択してください。')
@@ -246,7 +253,8 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
             cmds.warning(u'Skip: {} の influence が取得できません。'.format(mesh))
             continue
 
-        # duplicate
+        # 複製名は接頭辞付きで生成する。
+        # 既存命名規則に合わせるため短名ベースで組み立てる。
         short_name = mesh.split('|')[-1]
         dup_name = prefix + short_name
         dup = cmds.duplicate(mesh, rr=True, name=dup_name)[0]
@@ -274,7 +282,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
             except Exception:
                 pass
 
-        # 元 skinCluster の主な設定を引き継ぎ
+        # 元 skinCluster の主要パラメータを複製側にも反映する。
         max_influences = cmds.skinCluster(src_skin, q=True, maximumInfluences=True)
         maintain_max_influences = cmds.getAttr(src_skin + '.maintainMaxInfluences')
         normalize_weights = cmds.getAttr(src_skin + '.normalizeWeights')
@@ -294,7 +302,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         cmds.setAttr(dup_skin + '.maxInfluences', max_influences)
         cmds.setAttr(dup_skin + '.maintainMaxInfluences', maintain_max_influences)
 
-        # スキンウェイトをコピー
+        # コピー時は名前一致を優先し、補助として closestJoint/oneToOne を使う。
         cmds.copySkinWeights(
             sourceSkin=src_skin,
             destinationSkin=dup_skin,

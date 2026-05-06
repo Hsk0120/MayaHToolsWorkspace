@@ -1,6 +1,9 @@
+"""選択ノードの直結 animCurve を複製して再配線するツール。"""
+
 import maya.cmds as cmds
 
 def _safe_name(base):
+    """衝突しないノード名を返します。"""
     if not cmds.objExists(base):
         return base
     i = 1
@@ -9,12 +12,14 @@ def _safe_name(base):
     return f"{base}{i}"
 
 def _incoming_plugs(dest_plug):
+    """指定プラグへの入力接続プラグ一覧を取得します。"""
     try:
         return cmds.listConnections(dest_plug, s=True, d=False, p=True) or []
     except Exception:
         return []
 
 def _is_animcurve(node):
+    """ノードが animCurve 系か判定します。"""
     try:
         nt = cmds.nodeType(node)
     except Exception:
@@ -32,11 +37,17 @@ def _find_direct_animcurve(dest_plug):
 def _list_keyable_scalar_plugs(node):
     """
     keyable 属性の plug を列挙（compound は子へ展開）。
+
+    Args:
+        node (str): 対象ノード。
+
+    Returns:
+        list[str]: 複製対象プラグ一覧。
     """
     plugs = []
     attrs = cmds.listAttr(node, keyable=True) or []
     for a in attrs:
-        # compound（translate等）は子へ
+        # compound（translate 等）は子属性に展開して処理する。
         try:
             children = cmds.attributeQuery(a, node=node, listChildren=True) or []
         except Exception:
@@ -53,7 +64,7 @@ def _list_keyable_scalar_plugs(node):
         if not cmds.objExists(p):
             continue
 
-        # lock / multi は除外
+        # lock / multi は安全のため除外。
         try:
             if cmds.getAttr(p, lock=True):
                 continue
@@ -73,7 +84,13 @@ def _list_keyable_scalar_plugs(node):
 def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
     """
     cmds.duplicate() を使わず、同型 animCurve を作って copyKey/pasteKey で複製する。
-    失敗時は None。
+
+    Args:
+        src_anim (str): 複製元 animCurve。
+        suffix (str): 複製ノード名サフィックス。
+
+    Returns:
+        str | None: 複製後 animCurve 名。失敗時は None。
     """
     if not src_anim or not cmds.objExists(src_anim):
         return None
@@ -93,7 +110,7 @@ def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
         except Exception:
             pass
 
-    # キー複製（copyKey/pasteKey は animCurve で安定しやすい）
+    # キー複製（copyKey/pasteKey は animCurve で比較的安定）。
     try:
         cmds.copyKey(src_anim)  # 全キー
         # replaceCompletely: dst の内容を完全置換
@@ -118,6 +135,15 @@ def duplicate_anim_only_and_rewire_selected_v2(
 ):
     """
     選択ノードの keyable 属性について、直結 animCurve を「キー複製方式」で作り直して差し替える。
+
+    Args:
+        suffix (str): 複製 animCurve 名のサフィックス。
+        disconnect_old (bool): 旧カーブ接続を外すか。
+        keep_old_curve (bool): 旧カーブを削除せず残すか。
+        verbose (bool): 警告ログを出すか。
+
+    Returns:
+        list[dict[str, str | int]]: ノードごとの処理結果サマリ。
     """
     sels = cmds.ls(sl=True, long=True) or []
     if not sels:
@@ -126,7 +152,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
 
     results = []
     for n in sels:
-        # shape選択だった場合は transform に寄せる
+        # shape 選択時は親 Transform を実処理対象にする。
         try:
             if cmds.nodeType(n) != "transform":
                 parents = cmds.listRelatives(n, parent=True, fullPath=True) or []
@@ -154,14 +180,14 @@ def duplicate_anim_only_and_rewire_selected_v2(
                     cmds.warning(f"複製失敗（キー複製方式でもNG）: {src_anim} -> {dest_plug}")
                 continue
 
-            # 旧カーブの切断（想定: src_anim.output -> dest_plug）
+            # 旧カーブの切断（想定: src_anim.output -> dest_plug）。
             if disconnect_old:
                 try:
                     cmds.disconnectAttr(f"{src_anim}.output", dest_plug)
                 except Exception:
                     pass
 
-            # 新カーブ接続
+            # 新カーブを同じ属性へ接続して差し替える。
             try:
                 cmds.connectAttr(f"{dst_anim}.output", dest_plug, f=True)
                 rewired += 1

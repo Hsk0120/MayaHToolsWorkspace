@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Searchable Menu component for Maya Qt.
-
-Provides a menu with a search/filter field for quick navigation.
-"""
+"""Maya Qt 用の検索可能メニューコンポーネント。"""
 try:
     from PySide6 import QtWidgets, QtCore, QtGui
 except ImportError:
@@ -15,21 +12,16 @@ except AttributeError:
 
 
 class SearchableMenu(QtWidgets.QMenu):
-    """A menu with built-in search/filter functionality.
-    
-    This menu includes a search field at the top that allows users to
-    filter menu items in real-time as they type. Matches are displayed
-    as a flat list with category information.
-    """
+    """検索/フィルタ機能を備えたメニュークラス。"""
     
     def __init__(self, title="", parent=None, enable_search=True, flat_results=False):
-        """Initialize the SearchableMenu.
-        
+        """SearchableMenu を初期化します。
+
         Args:
-            title (str): The menu title.
-            parent (QtWidgets.QWidget, optional): Parent widget.
-            enable_search (bool): Whether to enable search widget (default True).
-            flat_results (bool): Whether to show results as flat list (default False).
+            title (str): メニュータイトル。
+            parent (QtWidgets.QWidget | None): 親ウィジェット。
+            enable_search (bool): 検索 UI を有効化するか。
+            flat_results (bool): 検索結果をフラット表示するか。
         """
         super().__init__(title, parent)
         self._search_field = None
@@ -48,7 +40,7 @@ class SearchableMenu(QtWidgets.QMenu):
             self.aboutToShow.connect(self._on_menu_shown)
     
     def _init_search_widget(self):
-        """Initialize and add the search widget to the menu."""
+        """検索入力ウィジェットを生成してメニュー先頭に追加します。"""
         # Create a widget container for the search field
         search_container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(search_container)
@@ -63,7 +55,7 @@ class SearchableMenu(QtWidgets.QMenu):
         
         layout.addWidget(self._search_field)
         
-        # Add widget action to menu
+        # QWidgetAction として埋め込み、通常メニュー項目と共存させる。
         widget_action = QtWidgets.QWidgetAction(self)
         widget_action.setDefaultWidget(search_container)
         self.addAction(widget_action)
@@ -72,12 +64,7 @@ class SearchableMenu(QtWidgets.QMenu):
         self.addSeparator()
     
     def addAction(self, *args):
-        """Override addAction to track menu items.
-        
-        Args:
-            Can be called with (text), (icon, text), (text, callable),
-            or (icon, text, callable) signatures.
-        """
+        """メニュー項目追跡のため addAction をオーバーライドします。"""
         action = super().addAction(*args)
         
         # Only track non-separator actions that aren't the search widget
@@ -87,11 +74,7 @@ class SearchableMenu(QtWidgets.QMenu):
         return action
     
     def addMenu(self, *args):
-        """Override addMenu to track submenu actions.
-        
-        Args:
-            Can be called with (menu), (title), or (icon, title).
-        """
+        """サブメニュー追跡のため addMenu をオーバーライドします。"""
         result = super().addMenu(*args)
 
         menu = None
@@ -114,17 +97,13 @@ class SearchableMenu(QtWidgets.QMenu):
         return result
     
     def addSeparator(self):
-        """Override addSeparator to track separators."""
+        """区切り線追跡のため addSeparator をオーバーライドします。"""
         separator = super().addSeparator()
         self._separators.append(separator)
         return separator
     
     def _collect_flat_items(self):
-        """Collect all items from menu and submenus as a flat list.
-        
-        Returns:
-            list: List of tuples (action, category_name)
-        """
+        """メニュー/サブメニュー項目をフラットな一覧に収集します。"""
         items = []
         actions = self.actions()
         skip_count = 2 if self._enable_search else 0
@@ -149,15 +128,7 @@ class SearchableMenu(QtWidgets.QMenu):
         return items
     
     def _collect_submenu_items(self, menu, category_name):
-        """Recursively collect items from a submenu.
-        
-        Args:
-            menu (QtWidgets.QMenu): The submenu to collect items from.
-            category_name (str): The category/parent menu name.
-            
-        Returns:
-            list: List of tuples (action, category_name)
-        """
+        """サブメニュー配下の項目を再帰的に収集します。"""
         items = []
         
         for action in menu.actions():
@@ -174,15 +145,11 @@ class SearchableMenu(QtWidgets.QMenu):
         return items
     
     def _show_flat_results(self, search_text):
-        """Show search results as a flat list.
-        
-        Args:
-            search_text (str): The search/filter text.
-        """
+        """検索一致項目をフラット一覧として表示します。"""
         actions = self.actions()
         skip_count = 2 if self._enable_search else 0
         
-        # Hide all original menu items
+        # 元メニュー項目を一旦隠し、検索結果専用アクションを出す。
         for action in actions[skip_count:]:
             action.setVisible(False)
         
@@ -203,7 +170,7 @@ class SearchableMenu(QtWidgets.QMenu):
         # Add search result actions
         if matching_items:
             for i, (action, category) in enumerate(matching_items):
-                # Create new action with category prefix
+                # 結果は元アクションを直接動かせるよう trigger を中継する。
                 if category:
                     display_text = f"{action.text()} ({category})"
                 else:
@@ -215,11 +182,7 @@ class SearchableMenu(QtWidgets.QMenu):
                 self._search_result_actions.append(result_action)
     
     def _filter_items(self, search_text):
-        """Filter menu items based on search text.
-        
-        Args:
-            search_text (str): The search/filter text.
-        """
+        """検索文字列に応じて表示モードを切り替えて絞り込みます。"""
         search_text = search_text.lower().strip()
         
         if self._flat_results and search_text:
@@ -230,11 +193,7 @@ class SearchableMenu(QtWidgets.QMenu):
             self._show_hierarchical_results(search_text)
     
     def _show_hierarchical_results(self, search_text):
-        """Show search results maintaining menu hierarchy.
-        
-        Args:
-            search_text (str): The search/filter text.
-        """
+        """階層構造を維持したまま検索結果を表示します。"""
         # Remove search result actions if any
         for action in self._search_result_actions:
             self.removeAction(action)
@@ -273,15 +232,7 @@ class SearchableMenu(QtWidgets.QMenu):
             self._update_separator_visibility(actions[skip_count:])
     
     def _filter_submenu(self, menu, search_text):
-        """Recursively filter a submenu and its items.
-        
-        Args:
-            menu (QtWidgets.QMenu): The submenu to filter.
-            search_text (str): The search/filter text.
-            
-        Returns:
-            bool: True if submenu has any visible items.
-        """
+        """サブメニューを再帰的に絞り込み、表示可否を返します。"""
         has_visible = False
         actions = menu.actions()
         
@@ -305,25 +256,11 @@ class SearchableMenu(QtWidgets.QMenu):
         return has_visible
     
     def _is_separator(self, action):
-        """Check if an action is a separator.
-        
-        Args:
-            action (QtWidgets.QAction): The action to check.
-            
-        Returns:
-            bool: True if the action is a separator.
-        """
+        """アクションが区切り線かどうかを返します。"""
         return action in self._separators
     
     def _update_separator_visibility(self, actions):
-        """Update separator visibility based on adjacent items.
-        
-        Separators should only be visible if they have visible items
-        on both sides.
-        
-        Args:
-            actions (list): List of actions to process.
-        """
+        """前後の可視項目に基づいて区切り線表示を更新します。"""
         for i, action in enumerate(actions):
             if self._is_separator(action):
                 # Check if there are visible items before and after
@@ -340,22 +277,18 @@ class SearchableMenu(QtWidgets.QMenu):
                 action.setVisible(has_visible_before and has_visible_after)
     
     def clearSearch(self):
-        """Clear the search field and show all items."""
+        """検索フィールドをクリアし、通常表示に戻します。"""
         if self._search_field:
             self._search_field.clear()
     
     def _on_menu_shown(self):
-        """Handle menu shown event - auto-focus search field."""
+        """メニュー表示時に検索フィールドへ自動フォーカスします。"""
         if self._search_field:
             self._search_field.setFocus()
             self._search_field.selectAll()
     
     def get_visible_items(self):
-        """Get list of currently visible menu items.
-        
-        Returns:
-            list: List of visible action texts.
-        """
+        """現在可視なメニュー項目テキスト一覧を返します。"""
         visible = []
         skip_count = 2 if self._enable_search else 0
         

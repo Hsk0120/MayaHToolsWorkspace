@@ -1,6 +1,9 @@
+"""UVChannel_1 を map1 に転送し、元 UV セットを削除するツール。"""
+
 import maya.cmds as cmds
 
 def transfer_uvchannel_to_map():
+    """選択メッシュの UVChannel_1 を map1 へコピーして置換します。"""
     # 選択中のトランスフォーム/シェイプからメッシュシェイプを収集
     selection = cmds.ls(sl=True, long=True) or []
     if not selection:
@@ -16,6 +19,7 @@ def transfer_uvchannel_to_map():
             shapes = cmds.listRelatives(node, shapes=True, fullPath=True) or []
             mesh_shapes.extend([s for s in shapes if cmds.nodeType(s) == 'mesh'])
 
+    # 重複 shape を排除して同一メッシュの二重処理を防ぐ。
     mesh_shapes = list(set(mesh_shapes))
 
     if not mesh_shapes:

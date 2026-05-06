@@ -1,8 +1,23 @@
+"""汎用ユーティリティ（進捗表示など）を提供します。"""
+
 import time
 import sys
 from HTools.slack import post_message
 
 def progress_bar(iterable, prefix="", size=60, file=sys.stdout, slack_channel=None, slack_thread_ts=None):
+    """進捗バーを表示しながら iterable を順次 yield します。
+
+    Args:
+        iterable (Sequence): 進捗対象シーケンス（len 必須）。
+        prefix (str): 先頭表示文字列。
+        size (int): バー表示幅。
+        file: 出力先ストリーム。
+        slack_channel (str | None): 指定時はチャンネルにも投稿。
+        slack_thread_ts (str | None): 指定時はスレッドにも投稿。
+
+    Yields:
+        object: iterable の各要素。
+    """
     count = len(iterable)
     
     def show(j):
@@ -11,7 +26,7 @@ def progress_bar(iterable, prefix="", size=60, file=sys.stdout, slack_channel=No
         file.write(text)
         file.flush()
 
-        # チャンネル指定がある場合、チャンネルに送信
+        # チャンネル指定がある場合、進捗テキストをチャンネルに送信。
         if slack_channel:
             post_message(text, channel=slack_channel)
 

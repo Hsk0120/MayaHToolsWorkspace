@@ -1,3 +1,5 @@
+"""選択フェースをカーブに沿って均一押し出しするツール。"""
+
 import maya.cmds as cmds
 from maya import OpenMayaUI as omui
 
@@ -6,6 +8,17 @@ from shiboken6 import wrapInstance
 
 
 def extrude_face_along_curve_even(face, curve, divisions=3, curve_spans=12):
+    """フェースをカーブに沿って均一分割で押し出します。
+
+    Args:
+        face (str): 押し出し元フェースコンポーネント。
+        curve (str): ガイドカーブ Transform。
+        divisions (int): 押し出し分割数。
+        curve_spans (int): 事前 rebuild するカーブスパン数。
+
+    Returns:
+        str: 作成された polyExtrude ノード名。
+    """
     # カーブを均一化
     cmds.rebuildCurve(
         curve,
@@ -32,6 +45,11 @@ def extrude_face_along_curve_even(face, curve, divisions=3, curve_spans=12):
 
 
 def _get_selected_face_and_curve():
+    """選択からフェース1つとカーブ1つを解決します。
+
+    Returns:
+        tuple[str, str]: (face, curve_transform)
+    """
     sel = cmds.ls(sl=True, long=True) or []
     if not sel:
         cmds.error("1つのフェースと1つのカーブを選択してください。")
@@ -41,6 +59,7 @@ def _get_selected_face_and_curve():
         cmds.error("フェースが選択されていません。")
 
     curve_transform = None
+    # 選択ノードまたはその shape から nurbsCurve を探索する。
     for node in sel:
         if ".f[" in node:
             continue
@@ -64,6 +83,7 @@ def _get_selected_face_and_curve():
 
 
 def extrude_selected_face_along_curve_even(divisions=3, curve_spans=20):
+    """現在選択を使って押し出し処理を実行します。"""
     face, curve = _get_selected_face_and_curve()
     return extrude_face_along_curve_even(
         face,
@@ -74,6 +94,7 @@ def extrude_selected_face_along_curve_even(divisions=3, curve_spans=20):
 
 
 def _maya_main_window():
+    """Maya メインウィンドウを Qt 親として返します。"""
     main_window_ptr = omui.MQtUtil.mainWindow()
     if main_window_ptr is None:
         return None
@@ -81,10 +102,12 @@ def _maya_main_window():
 
 
 class ExtrudeFaceAlongCurveEvenUI(QtWidgets.QDialog):
+    """均一押し出しの簡易 UI。"""
     WINDOW_TITLE = "Extrude Face Along Curve Even"
     WINDOW_OBJECT_NAME = "extrudeFaceAlongCurveEvenUI"
 
     def __init__(self, parent=_maya_main_window()):
+        """UI を初期化します。"""
         super().__init__(parent)
         self.setWindowTitle(self.WINDOW_TITLE)
         self.setObjectName(self.WINDOW_OBJECT_NAME)
@@ -95,6 +118,7 @@ class ExtrudeFaceAlongCurveEvenUI(QtWidgets.QDialog):
         self._create_connections()
 
     def _build_ui(self):
+        """UI ウィジェットを構築します。"""
         self.divisions_spin = QtWidgets.QSpinBox()
         self.divisions_spin.setRange(1, 200)
         self.divisions_spin.setValue(3)
@@ -119,10 +143,12 @@ class ExtrudeFaceAlongCurveEvenUI(QtWidgets.QDialog):
         main_layout.addLayout(btn_layout)
 
     def _create_connections(self):
+        """シグナル接続を設定します。"""
         self.execute_btn.clicked.connect(self._on_execute)
         self.close_btn.clicked.connect(self.close)
 
     def _on_execute(self):
+        """Execute ボタン押下時に押し出し処理を実行します。"""
         try:
             result = extrude_selected_face_along_curve_even(
                 divisions=self.divisions_spin.value(),
@@ -138,6 +164,7 @@ _extrude_face_along_curve_even_ui = None
 
 
 def show_extrude_face_along_curve_even_ui():
+    """ツールウィンドウを表示します。"""
     global _extrude_face_along_curve_even_ui
 
     if _extrude_face_along_curve_even_ui is not None:

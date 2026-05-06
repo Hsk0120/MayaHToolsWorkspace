@@ -1,6 +1,17 @@
+"""選択2ノード間で入力接続を複製するユーティリティ。"""
+
 import maya.cmds as cmds
 
 def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=False):
+    """1つ目ノードの入力接続を2つ目ノードへ複製します。
+
+    Args:
+        force (bool): 既存接続があっても強制接続するか。
+        skip_conversion (bool): unitConversion をスキップして元接続元を使うか。
+
+    Returns:
+        dict[str, object]: コピー結果サマリ。
+    """
     sel = cmds.ls(sl=True, long=True) or []
     if len(sel) < 2:
         raise RuntimeError('ノードを2つ選択してください。1つ目=元、2つ目=複製先')
@@ -25,7 +36,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
             continue
 
         try:
-            # 入力接続されているアトリビュートか確認
+            # 入力接続されている属性だけを対象にする。
             if not cmds.connectionInfo(src_plug, isDestination=True):
                 continue
 
@@ -34,7 +45,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
             if not input_src:
                 continue
 
-            # unitConversion を飛ばしたい場合
+            # unitConversion を飛ばす場合、実質的な接続元プラグを再取得する。
             if skip_conversion:
                 cons = cmds.listConnections(
                     src_plug,
@@ -45,7 +56,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
                 if cons:
                     input_src = cons[0]
 
-            # すでに同じ接続があるなら何もしない
+            # 既に同接続がある場合は重複接続を避ける。
             if cmds.isConnected(input_src, dst_plug):
                 continue
 
