@@ -40,7 +40,7 @@ def transfer_uvchannel_to_map():
         try:
             # UVChannel_1 を current にして map1 へコピー
             cmds.polyUVSet(mesh, currentUVSet=True, uvSet='UVChannel_1')
-            cmds.polyCopyUV(mesh, uvSetNameInput='UVChannel_1', uvSetName='map1', ch=False)
+            cmds.polyCopyUV(mesh, uvSetNameInput='UVChannel_1', uvSetName='UVMap', ch=False)
 
             # current が削除対象だと失敗しやすいので map1 を current に変更
             cmds.polyUVSet(mesh, currentUVSet=True, uvSet='map1')
