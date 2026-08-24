@@ -33,3 +33,6 @@
 [submodule "maya/external/AdvancedSkeleton"]
 	path = maya/external/AdvancedSkeleton
 	url = https://github.com/Hsk0120/AdvancedSkeleton.git
+[submodule "maya/external/MetaHumanForMaya"]
+	path = maya/external/MetaHumanForMaya
+	url = https://github.com/Hsk0120/MetaHumanForMaya.git
