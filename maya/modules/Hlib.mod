@@ -4,6 +4,9 @@ PYTHONPATH +:= ./Hlib
 + MAYAVERSION:2024 PLATFORM:win64 Hlib 1.0.0 ../inhouse
 PYTHONPATH +:= ./Hlib
 
++ MAYAVERSION:2025 PLATFORM:win64 Hlib 1.0.0 ../inhouse
+PYTHONPATH +:= ./Hlib
+
 + MAYAVERSION:2026 PLATFORM:win64 Hlib 1.0.0 ../inhouse
 PYTHONPATH +:= ./Hlib
 
