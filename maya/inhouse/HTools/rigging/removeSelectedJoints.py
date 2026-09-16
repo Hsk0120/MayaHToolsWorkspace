@@ -176,8 +176,7 @@ class SkinCluster:
             target_joints
         )
 
-        new_weights = om.MDoubleArray()
-
+        # Apply with cmds so this transfer is captured by Maya undo.
         for vertex_number in range(vertex_count):
             target_weight = weights[
                 vertex_number * 2
@@ -187,19 +186,23 @@ class SkinCluster:
                 vertex_number * 2 + 1
             ]
 
-            new_weights.append(
-                target_weight + source_weight
+            if source_weight <= 0.0:
+                continue
+
+            component = "{}.vtx[{}]".format(
+                self.mesh,
+                vertex_number
             )
 
-            new_weights.append(0.0)
-
-        self.fn.setWeights(
-            self.mesh_path,
-            all_vertices,
-            target_joints,
-            new_weights,
-            False
-        )
+            cmds.skinPercent(
+                self.name,
+                component,
+                transformValue=[
+                    (target_joint, target_weight + source_weight),
+                    (source_joint, 0.0),
+                ],
+                normalize=False
+            )
 
     def remove_influence(self, joint):
         cmds.skinCluster(
