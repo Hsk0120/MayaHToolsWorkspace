@@ -161,6 +161,18 @@ class SkinCluster:
         )
 
     def transfer_weight(self, source_joint, target_joint):
+        failures = self.transfer_weights_batch([
+            (source_joint, target_joint)
+        ])
+
+        if source_joint in failures:
+            raise RuntimeError(failures[source_joint])
+
+    def _transfer_weight_with_api(
+        self,
+        source_joint,
+        target_joint
+    ):
         all_vertices, vertex_count = (
             self._get_all_vertices()
         )
@@ -176,7 +188,8 @@ class SkinCluster:
             target_joints
         )
 
-        # Apply with cmds so this transfer is captured by Maya undo.
+        new_weights = om.MDoubleArray()
+
         for vertex_number in range(vertex_count):
             target_weight = weights[
                 vertex_number * 2
@@ -186,23 +199,73 @@ class SkinCluster:
                 vertex_number * 2 + 1
             ]
 
-            if source_weight <= 0.0:
-                continue
-
-            component = "{}.vtx[{}]".format(
-                self.mesh,
-                vertex_number
+            new_weights.append(
+                target_weight + source_weight
             )
 
-            cmds.skinPercent(
-                self.name,
-                component,
-                transformValue=[
-                    (target_joint, target_weight + source_weight),
-                    (source_joint, 0.0),
-                ],
-                normalize=False
-            )
+            new_weights.append(0.0)
+
+        self.fn.setWeights(
+            self.mesh_path,
+            all_vertices,
+            target_joints,
+            new_weights,
+            False
+        )
+
+    def transfer_weights_batch(self, source_target_pairs):
+        original_selection = cmds.ls(sl=True, long=True) or []
+        failures = {}
+
+        try:
+            for source_joint, target_joint in source_target_pairs:
+                try:
+                    # transformMoveWeights acts on selected components.
+                    cmds.skinCluster(
+                        self.name,
+                        edit=True,
+                        selectInfluenceVerts=source_joint
+                    )
+
+                    if not cmds.ls(sl=True):
+                        continue
+
+                    cmds.skinPercent(
+                        self.name,
+                        transformMoveWeights=[
+                            source_joint,
+                            target_joint,
+                        ]
+                    )
+                except RuntimeError as error:
+                    error_message = str(error)
+
+                    if (
+                        "skinning layers are present"
+                        in error_message.lower()
+                    ):
+                        try:
+                            # Fallback for scenes where cmds skin writes
+                            # are blocked by skin layers.
+                            self._transfer_weight_with_api(
+                                source_joint,
+                                target_joint
+                            )
+                        except RuntimeError as api_error:
+                            failures[source_joint] = str(api_error)
+                        continue
+
+                    failures[source_joint] = error_message
+        finally:
+            if original_selection:
+                cmds.select(
+                    original_selection,
+                    replace=True
+                )
+            else:
+                cmds.select(clear=True)
+
+        return failures
 
     def remove_influence(self, joint):
         cmds.skinCluster(
@@ -298,70 +361,148 @@ def _reparent_child_joints(child_joint, parent_joint):
         cmds.parent(joint, parent_joint)
 
 
-def _process_single_joint(child_joint):
-    if not cmds.objExists(child_joint):
-        return False, "Joint does not exist"
+def _build_joint_jobs(target_joints):
+    skin_cache = {}
+    joint_jobs = {}
+    failed_reasons = {}
 
-    if cmds.nodeType(child_joint) != "joint":
-        return False, "Node is not a joint"
-
-    parent_joint = _get_parent_joint(child_joint)
-
-    if not parent_joint:
-        return False, "Selected joint has no parent joint"
-
-    skin_cluster_names = _find_skin_clusters_using_influence(
-        child_joint
-    )
-
-    if not skin_cluster_names:
-        return False, "No skinCluster connected to joint"
-
-    has_failure = False
-    processed_count = 0
-
-    for skin_cluster_name in skin_cluster_names:
-        try:
-            skin = SkinCluster(skin_cluster_name)
-        except RuntimeError as error:
-            cmds.warning(str(error))
-            has_failure = True
+    for child_joint in target_joints:
+        if not cmds.objExists(child_joint):
+            failed_reasons[child_joint] = "Joint does not exist"
             continue
 
-        target_joint = _find_target_influence_joint(
-            skin,
+        if cmds.nodeType(child_joint) != "joint":
+            failed_reasons[child_joint] = "Node is not a joint"
+            continue
+
+        parent_joint = _get_parent_joint(child_joint)
+
+        if not parent_joint:
+            failed_reasons[child_joint] = (
+                "Selected joint has no parent joint"
+            )
+            continue
+
+        skin_cluster_names = _find_skin_clusters_using_influence(
             child_joint
         )
 
-        if not target_joint:
-            cmds.warning(
-                "No ancestor influence found in {} for {}".format(
-                    skin_cluster_name,
-                    child_joint
-                )
+        if not skin_cluster_names:
+            failed_reasons[child_joint] = (
+                "No skinCluster connected to joint"
             )
-            has_failure = True
             continue
 
-        try:
-            skin.transfer_weight(child_joint, target_joint)
-            skin.remove_influence(child_joint)
-            processed_count += 1
-        except RuntimeError as error:
-            cmds.warning(
-                "Failed to process {}: {}".format(
+        operations = []
+        has_plan_failure = False
+
+        for skin_cluster_name in skin_cluster_names:
+            skin = skin_cache.get(skin_cluster_name)
+
+            if skin is None:
+                try:
+                    skin = SkinCluster(skin_cluster_name)
+                except RuntimeError as error:
+                    cmds.warning(str(error))
+                    has_plan_failure = True
+                    continue
+
+                skin_cache[skin_cluster_name] = skin
+
+            target_joint = _find_target_influence_joint(
+                skin,
+                child_joint
+            )
+
+            if not target_joint:
+                cmds.warning(
+                    "No ancestor influence found in {} for {}".format(
+                        skin_cluster_name,
+                        child_joint
+                    )
+                )
+                has_plan_failure = True
+                continue
+
+            operations.append((skin_cluster_name, target_joint))
+
+        if not operations:
+            failed_reasons[child_joint] = "No skinCluster was processed"
+            continue
+
+        joint_jobs[child_joint] = {
+            "parent_joint": parent_joint,
+            "operations": operations,
+            "has_plan_failure": has_plan_failure,
+        }
+
+    return skin_cache, joint_jobs, failed_reasons
+
+
+def _group_operations_by_skin(target_joints, joint_jobs):
+    operations_by_skin = {}
+
+    for child_joint in target_joints:
+        job = joint_jobs.get(child_joint)
+        if not job:
+            continue
+
+        for skin_cluster_name, target_joint in job["operations"]:
+            if skin_cluster_name not in operations_by_skin:
+                operations_by_skin[skin_cluster_name] = []
+
+            operations_by_skin[skin_cluster_name].append(
+                (child_joint, target_joint)
+            )
+
+    return operations_by_skin
+
+
+def _apply_grouped_operations(operations_by_skin, skin_cache):
+    processed_counts = {}
+    runtime_failures = {}
+
+    for skin_cluster_name, source_target_pairs in (
+        operations_by_skin.items()
+    ):
+        skin = skin_cache[skin_cluster_name]
+        transfer_failures = skin.transfer_weights_batch(
+            source_target_pairs
+        )
+
+        for source_joint, target_joint in source_target_pairs:
+            if source_joint in transfer_failures:
+                message = "Failed to process {}: {}".format(
+                    skin_cluster_name,
+                    transfer_failures[source_joint]
+                )
+                cmds.warning(message)
+                runtime_failures.setdefault(
+                    source_joint,
+                    []
+                ).append(message)
+                continue
+
+            try:
+                skin.remove_influence(source_joint)
+                processed_counts[source_joint] = (
+                    processed_counts.get(source_joint, 0) + 1
+                )
+            except RuntimeError as error:
+                message = "Failed to process {}: {}".format(
                     skin_cluster_name,
                     error
                 )
-            )
-            has_failure = True
+                cmds.warning(message)
+                runtime_failures.setdefault(
+                    source_joint,
+                    []
+                ).append(message)
 
-    if processed_count == 0:
-        return False, "No skinCluster was processed"
+    return processed_counts, runtime_failures
 
-    if has_failure:
-        return False, "Some skinClusters failed"
 
+def _finalize_joint_deletion(child_joint, parent_joint):
     try:
         _reparent_child_joints(child_joint, parent_joint)
     except RuntimeError as error:
@@ -369,7 +510,11 @@ def _process_single_joint(child_joint):
             error
         )
 
-    cmds.delete(child_joint)
+    try:
+        cmds.delete(child_joint)
+    except RuntimeError as error:
+        return False, "Failed to delete joint: {}".format(error)
+
     return True, ""
 
 
@@ -386,7 +531,7 @@ def remove_selected_joint():
 
     target_joints = _sorted_unique_joints(selected_joints)
     success_joints = []
-    failed_joints = []
+    failed_reasons = {}
 
     chunk_opened = False
 
@@ -397,13 +542,69 @@ def remove_selected_joint():
         )
         chunk_opened = True
 
+        skin_cache, joint_jobs, planning_failures = (
+            _build_joint_jobs(target_joints)
+        )
+        failed_reasons.update(planning_failures)
+
+        operations_by_skin = _group_operations_by_skin(
+            target_joints,
+            joint_jobs
+        )
+
+        processed_counts, runtime_failures = (
+            _apply_grouped_operations(
+                operations_by_skin,
+                skin_cache
+            )
+        )
+
         for child_joint in target_joints:
-            succeeded, reason = _process_single_joint(
-                child_joint
+            if child_joint in failed_reasons:
+                continue
+
+            job = joint_jobs.get(child_joint)
+            if not job:
+                failed_reasons[child_joint] = (
+                    "No skinCluster was processed"
+                )
+                continue
+
+            if processed_counts.get(child_joint, 0) == 0:
+                failed_reasons[child_joint] = (
+                    "No skinCluster was processed"
+                )
+                continue
+
+            if (
+                job["has_plan_failure"]
+                or child_joint in runtime_failures
+            ):
+                failed_reasons[child_joint] = (
+                    "Some skinClusters failed"
+                )
+                continue
+
+            succeeded, reason = _finalize_joint_deletion(
+                child_joint,
+                job["parent_joint"]
             )
 
             if succeeded:
                 success_joints.append(child_joint)
+                continue
+
+            failed_reasons[child_joint] = reason
+    finally:
+        if chunk_opened:
+            cmds.undoInfo(closeChunk=True)
+
+    if failed_reasons:
+        failed_joints = []
+
+        for child_joint in target_joints:
+            reason = failed_reasons.get(child_joint)
+            if reason is None:
                 continue
 
             failed_joints.append(child_joint)
@@ -413,11 +614,7 @@ def remove_selected_joint():
                     reason
                 )
             )
-    finally:
-        if chunk_opened:
-            cmds.undoInfo(closeChunk=True)
 
-    if failed_joints:
         cmds.warning(
             "Completed with failures. Success: {}, Failed: {} ({})"
             .format(
