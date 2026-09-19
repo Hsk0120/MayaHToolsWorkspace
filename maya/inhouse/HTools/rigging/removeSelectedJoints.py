@@ -1,14 +1,21 @@
+"""選択ジョイントのウェイトを親インフルエンスへ移し、ジョイントを削除するツール。"""
+
 import functools
 
 import maya.cmds as cmds
-import maya.api.OpenMaya as om
-import maya.api.OpenMayaAnim as oma
-
-
-_SKIN_LAYER_DETECTION_TOKENS = ("ngskin", "ngst", "ngskintools", "skinlayer", "skinninglayer", "layerdata")
-
+import maya.api.OpenMaya as om2
+import maya.api.OpenMayaAnim as oma2
 
 def undo_chunk(name=None):
+    """1つの Undo チャンクで関数を実行するデコレータを返す。
+
+    Args:
+        name (str or None): Undo チャンク名。None の場合は関数名を使う。
+
+    Returns:
+        callable: 関数を Undo チャンクで包むデコレータ。
+    """
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -24,304 +31,809 @@ def undo_chunk(name=None):
     return decorator
 
 
-def _has_skinning_layer_connections(skin_cluster):
-    connected_nodes = cmds.listConnections(skin_cluster, source=True, destination=True) or []
+class Hlib:
+    """このツール内で使用する Maya API wrapper の名前空間。"""
 
-    for node in connected_nodes:
-        node_name = node.lower()
-        node_type = cmds.nodeType(node).lower()
+    @staticmethod
+    def ls(*args, **kwargs):
+        """Mayaの検索結果をHlibのドメインオブジェクトへ変換する。"""
 
-        if any(token in node_name or token in node_type for token in _SKIN_LAYER_DETECTION_TOKENS):
-            return True
+        names = cmds.ls(*args, **kwargs) or []
+        node_type = kwargs.get("type")
 
-    return False
+        if node_type == "joint":
+            return Joints(names)
+
+        if node_type == "skinCluster":
+            return SkinClusters(names)
+
+        return [Hlib.Node(name) for name in names]
+
+    class Node:
+        """DAG/DG ノードに共通する Maya ノード基底クラス。"""
+
+        def __init__(self, node):
+            self._mobject = None
+            self._dag_path = None
+            self._resolve(node)
+
+        def _resolve(self, node):
+            selection = om2.MSelectionList()
+
+            if isinstance(node, str):
+                selection.add(node)
+                self._mobject = selection.getDependNode(0)
+            elif isinstance(node, om2.MDagPath):
+                self._dag_path = om2.MDagPath(node)
+                self._mobject = self._dag_path.node()
+            elif isinstance(node, om2.MObject):
+                self._mobject = om2.MObject(node)
+                if self._mobject.hasFn(om2.MFn.kDagNode):
+                    self._dag_path = om2.MFnDagNode(self._mobject).getPath()
+            else:
+                raise TypeError("node must be a name, MObject, or MDagPath")
+
+        def is_valid(self):
+            if self._mobject is None or self._mobject.isNull():
+                return False
+            return om2.MObjectHandle(self._mobject).isValid()
+
+        def is_alive(self):
+            if self._mobject is None or self._mobject.isNull():
+                return False
+            return om2.MObjectHandle(self._mobject).isAlive()
+
+        def mobject(self):
+            return self._mobject
+
+        @property
+        def uuid(self):
+            if not self.is_valid():
+                return None
+            return om2.MFnDependencyNode(self._mobject).uuid().asString()
+
+        @property
+        def name(self):
+            if not self.is_valid():
+                return ""
+            if self._dag_path is not None:
+                return self._dag_path.fullPathName()
+            return om2.MFnDependencyNode(self._mobject).name()
+
+        def __str__(self):
+            return self.name
+
+    class DGNode(Node):
+        """DAGパスを持たない DG ノードの基底クラス。"""
+
+        def dependency_node(self):
+            return om2.MFnDependencyNode(self.mobject())
+
+    class DAGNode(Node):
+        """階層構造を持つ DAG ノードの基底クラス。"""
+
+        def dag_path(self):
+            if self._dag_path is None and self.is_valid():
+                self._dag_path = om2.MFnDagNode(self.mobject()).getPath()
+            return self._dag_path
+
+        def dag_node(self):
+            return om2.MFnDagNode(self.dag_path())
+
+        def parent_node(self):
+            if not self.is_valid() or self.dag_node().parentCount() == 0:
+                return None
+
+            parent_path = om2.MDagPath(self.dag_path())
+            parent_path.pop()
+            return Hlib.DAGNode(parent_path)
+
+        def child_nodes(self):
+            if not self.is_valid():
+                return []
+
+            dag_path = self.dag_path()
+            dag_fn = self.dag_node()
+            children = []
+
+            for index in range(dag_fn.childCount()):
+                child_path = om2.MDagPath(dag_path)
+                child_path.push(dag_fn.child(index))
+                children.append(Hlib.DAGNode(child_path))
+
+            return children
 
 
-def _raise_if_skinning_layers_present(skin_cluster):
-    if _has_skinning_layer_connections(skin_cluster):
-        raise RuntimeError("skinning layersが存在するため実行できません。")
+class Joint(Hlib.DAGNode):
+    """Maya のジョイントを扱うラッパークラス。
+
+    The class keeps the public API compact while centralizing the
+    joint-specific operations used by the remover pipeline.
+    """
+
+    def __init__(self, name):
+        """ジョイント名を保持して初期化する。
+
+        Args:
+            name (str): 操作対象ジョイントの名前。
+        """
+
+        super().__init__(name)
+
+    def parent(self):
+        """親ジョイントを返す。
+
+        Returns:
+            str or None: 親ジョイント名。親がなければ None。
+        """
+
+        if not self.is_valid():
+            return None
+
+        parent = self.parent_node()
+        if parent is None or not parent.is_valid() or not parent.mobject().hasFn(om2.MFn.kJoint):
+            return None
+
+        return parent.name
+
+    def children(self):
+        """子ジョイント一覧を返す。
+
+        Returns:
+            list[str]: 子ジョイント名一覧。
+        """
+
+        if not self.is_valid():
+            return []
+
+        return [
+            child.name
+            for child in self.child_nodes()
+            if child.mobject().hasFn(om2.MFn.kJoint)
+        ]
+
+    def depth(self):
+        """階層深さを返す。
+
+        Returns:
+            int: 親方向の深さ。
+        """
+
+        depth = 0
+        current_joint = self.parent()
+
+        while current_joint:
+            depth += 1
+            current_joint = Joint(current_joint).parent()
+
+        return depth
+
+    def is_joint(self):
+        """有効なジョイントか判定する。
+
+        Returns:
+            bool: joint ノードなら True。
+        """
+
+        return self.is_valid() and self.mobject().hasFn(om2.MFn.kJoint)
+
+    def skin_clusters(self):
+        """このジョイントをインフルエンスに持つ skinCluster を返す。
+
+        Returns:
+            list[SkinCluster]: 関連する SkinCluster 一覧。
+        """
+
+        names = cmds.listConnections(self.name, type="skinCluster") or []
+        names = self._unique_ordered(names)
+        return [SkinCluster(name) for name in names]
+
+    def transfer_target(self, skin):
+        """ウェイト移動先候補の親インフルエンスを返す。
+
+        Args:
+            skin (SkinCluster): 調査対象の skinCluster。
+
+        Returns:
+            str or None: 移動先ジョイント名。
+        """
+
+        ancestor = self.parent()
+
+        while ancestor:
+            if skin.has_influence(ancestor):
+                return ancestor
+
+            ancestor = Joint(ancestor).parent()
+
+        return None
+
+    def reparent_children(self, parent_joint):
+        """子ジョイントを指定親へ再配置する。
+
+        Args:
+            parent_joint (str): 付け替え先親ジョイント名。
+        """
+
+        for child_joint in self.children():
+            cmds.parent(child_joint, parent_joint)
+
+    @staticmethod
+    def _unique_ordered(items):
+        """入力順を維持して重複を除去する。"""
+
+        seen = set()
+        unique_items = []
+
+        for item in items:
+            if item in seen:
+                continue
+
+            seen.add(item)
+            unique_items.append(item)
+
+        return unique_items
+
+    def __str__(self):
+        """文字列表現を返す。
+
+        Returns:
+            str: ジョイント名。
+        """
+
+        return self.name
+
+    def __eq__(self, other):
+        """UUIDを基準にジョイントの同一性を判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool: 同じUUIDを持つジョイントなら True。
+        """
+
+        if not isinstance(other, Joint):
+            return NotImplemented
+
+        return self.uuid == other.uuid
+
+    def __hash__(self):
+        """UUIDをハッシュ値として返す。
+
+        Returns:
+            int: UUIDのハッシュ値。
+        """
+
+        return hash(self.uuid)
 
 
-class SkinCluster:
+class Joints:
+    """複数ジョイントをまとめて扱うコレクション。"""
+
+    def __init__(self, names):
+        """ジョイント名一覧からコレクションを作成する。
+
+        Args:
+            names (list[str]): 初期化対象のジョイント名一覧。
+        """
+
+        self._items = []
+        seen = set()
+
+        for item in names:
+            joint = item if isinstance(item, Joint) else Joint(item)
+
+            if not joint.is_joint() or joint.uuid in seen:
+                continue
+
+            seen.add(joint.uuid)
+            self._items.append(joint)
+
+    @property
+    def names(self):
+        """ジョイント名一覧を返す。
+
+        Returns:
+            list[str]: ジョイント名一覧。
+        """
+
+        return [joint.name for joint in self._items]
+
+    def sorted_by_depth(self):
+        """深い順に並べた Joints を返す。
+
+        Returns:
+            Joints: 深さ順にソートされたコレクション。
+        """
+
+        ordered = sorted(self._items, key=lambda joint: joint.depth(), reverse=True)
+        return Joints(ordered)
+
+    def skin_clusters(self):
+        """このコレクションを処理する SkinClusters を返す。
+
+        Returns:
+            SkinClusters: 処理対象ジョイントに対応する skinCluster 集合。
+        """
+
+        skin_clusters = []
+        seen = set()
+
+        for joint in self._items:
+            for skin in joint.skin_clusters():
+                if skin.uuid in seen:
+                    continue
+
+                seen.add(skin.uuid)
+                skin_clusters.append(skin)
+
+        return SkinClusters(skin_clusters)
+
+    def delete(self):
+        """ウェイトを移動して、このコレクションのジョイントを削除する。"""
+
+        self.skin_clusters().remove_joints(self)
+
+    def __iter__(self):
+        """イテレータを返す。
+
+        Returns:
+            iterator: ジョイントオブジェクト反復子。
+        """
+
+        return iter(self._items)
+
+
+class SkinCluster(Hlib.DGNode):
+    """skinCluster ノードに対する操作をまとめたユーティリティ。"""
+
+    _LAYER_TOKENS = ("ngskin", "ngst", "ngskintools", "skinlayer", "skinninglayer", "layerdata")
+
     def __init__(self, skin_cluster):
-        self.name = skin_cluster
-        self.mesh = self._find_mesh()
+        """操作対象となる skinCluster ラッパーを初期化する。
+
+        Args:
+            skin_cluster (str): skinCluster ノード名。
+        """
+
+        super().__init__(skin_cluster)
+        self.mesh = self._mesh()
 
         self.mesh_path = self._get_dag_path(self.mesh)
-        self.fn = oma.MFnSkinCluster(self._get_mobject(self.name))
+        self.fn = oma2.MFnSkinCluster(self.mobject())
 
-    def _get_mobject(self, name):
-        selection = om.MSelectionList()
+    def _mobj(self, name):
+        """ノード名から MObject を取得する。
+
+        Args:
+            name (str): 取得対象ノード名。
+
+        Returns:
+            om2.MObject: 対象ノードの MObject。
+        """
+
+        selection = om2.MSelectionList()
         selection.add(name)
         return selection.getDependNode(0)
 
-    def _get_uuid(self, node):
+    def _uuid(self, node):
+        """ノードの UUID を取得する。
+
+        Args:
+            node (str): UUID を調べるノード名。
+
+        Returns:
+            str or None: UUID。取得できない場合は None。
+        """
+
         uuids = cmds.ls(node, uuid=True) or []
         return uuids[0] if uuids else None
 
     def _get_dag_path(self, name):
-        selection = om.MSelectionList()
+        """ノード名から MDagPath を取得し、必要に応じて shape へ拡張する。
+
+        Args:
+            name (str): 取得対象ノード名。
+
+        Returns:
+            om2.MDagPath: 対象ノードの DAG パス。
+        """
+
+        selection = om2.MSelectionList()
         selection.add(name)
 
         path = selection.getDagPath(0)
 
-        if path.node().hasFn(om.MFn.kTransform):
+        if path.node().hasFn(om2.MFn.kTransform):
             path.extendToShape()
 
         return path
 
-    def _find_mesh(self):
+    def _mesh(self):
+        """skinCluster に紐付く先頭ジオメトリ名を返す。
+
+        Returns:
+            str: skinCluster にバインドされたメッシュ名。
+        """
+
         geometries = cmds.skinCluster(self.name, query=True, geometry=True) or []
 
         return geometries[0]
 
-    def _get_joint_number(self, joint):
-        target_uuid = self._get_uuid(joint)
-        joints = self.fn.influenceObjects()
+    def _jnt_index(self, joint):
+        """インフルエンス配列内のジョイント番号を取得する。
 
-        for number, path in enumerate(joints):
-            influence_name = path.fullPathName()
+        UUID 一致を優先し、見つからない場合は partialPathName で判定する。
 
-            if target_uuid:
-                influence_uuid = self._get_uuid(influence_name)
+        Args:
+            joint (str): 検索対象ジョイント名。
 
-                if influence_uuid == target_uuid:
-                    return number
+        Returns:
+            int or None: 見つかったインフルエンス番号。未検出なら None。
+        """
 
+        uuid = self._uuid(joint)
+        infs = self.fn.influenceObjects()
+
+        for idx, path in enumerate(infs):
+            if uuid and self._uuid(path.fullPathName()) == uuid:
+                return idx
             if path.partialPathName() == joint:
-                return number
+                return idx
+
         return None
 
-    def _get_all_vertices(self):
-        vertex_count = om.MFnMesh(self.mesh_path).numVertices
+    def _all_verts(self):
+        """対象メッシュの全頂点コンポーネントを作成する。
 
-        component_fn = om.MFnSingleIndexedComponent()
+        Returns:
+            tuple: (全頂点コンポーネント, 頂点数)。
+        """
 
-        all_vertices = component_fn.create(om.MFn.kMeshVertComponent)
+        vtx_count = om2.MFnMesh(self.mesh_path).numVertices
 
-        component_fn.addElements(range(vertex_count))
+        comp_fn = om2.MFnSingleIndexedComponent()
 
-        return all_vertices, vertex_count
+        verts = comp_fn.create(om2.MFn.kMeshVertComponent)
 
-    def _get_target_joints(self, joints):
-        return om.MIntArray([self._get_joint_number(joint) for joint in joints])
+        comp_fn.addElements(range(vtx_count))
+
+        return verts, vtx_count
+
+    def _jnt_indices(self, joints):
+        """ジョイント名配列をインフルエンス番号配列へ変換する。
+
+        Args:
+            joints (list[str]): 変換対象ジョイント名一覧。
+
+        Returns:
+            om2.MIntArray: インフルエンス番号配列。
+        """
+
+        return om2.MIntArray([self._jnt_index(joint) for joint in joints])
 
     def influences(self):
+        """保持中のインフルエンス名一覧を返す。
+
+        Returns:
+            list[str]: インフルエンスの partialPathName 一覧。
+        """
+
         return [path.partialPathName() for path in self.fn.influenceObjects()]
 
     def has_influence(self, joint):
-        target_uuid = self._get_uuid(joint)
+        """指定ジョイントがインフルエンスとして存在するか判定する。
 
-        if not target_uuid:
+        Args:
+            joint (str): 判定対象ジョイント名。
+
+        Returns:
+            bool: インフルエンスに存在すれば True。
+        """
+
+        uuid = self._uuid(joint)
+
+        if not uuid:
             return False
 
-        for path in self.fn.influenceObjects():
-            influence_uuid = self._get_uuid(path.fullPathName())
+        return any(self._uuid(path.fullPathName()) == uuid for path in self.fn.influenceObjects())
 
-            if influence_uuid == target_uuid:
+    def get_weights(self, joints):
+        """指定インフルエンスのウェイトを取得する。
+
+        Args:
+            joints (list[str]): 取得対象インフルエンス名一覧。
+
+        Returns:
+            tuple: MFnSkinCluster.getWeights の戻り値。
+        """
+
+        verts, vtx_count = self._all_verts()
+
+        jnt_ids = self._jnt_indices(joints)
+
+        return self.fn.getWeights(self.mesh_path, verts, jnt_ids)
+
+    def set_weights(self, joints, weights):
+        """指定インフルエンスのウェイトを設定する。
+
+        Args:
+            joints (list[str]): 設定対象インフルエンス名一覧。
+            weights (sequence[float]): 設定するウェイト配列。
+        """
+
+        verts, vtx_count = self._all_verts()
+
+        jnt_ids = self._jnt_indices(joints)
+
+        self.fn.setWeights(self.mesh_path, verts, jnt_ids, om2.MDoubleArray(weights), False)
+
+    def transfer_weight(self, source_joint, target_joint):
+        """1組のジョイント間でウェイトを移動する。
+
+        Args:
+            source_joint (str): 移動元インフルエンス。
+            target_joint (str): 移動先インフルエンス。
+        """
+
+        self.transfer_weights_batch([(source_joint, target_joint)])
+
+    def _xfer_pair(self, source_joint, target_joint):
+        """1組のジョイント間でウェイト移動コマンドを実行する。
+
+        Args:
+            source_joint (str): 移動元インフルエンス。
+            target_joint (str): 移動先インフルエンス。
+        """
+
+        cmds.skinCluster(self.name, edit=True, selectInfluenceVerts=source_joint)
+
+        if not cmds.ls(sl=True):
+            return
+
+        cmds.skinPercent(self.name, transformMoveWeights=[source_joint, target_joint])
+
+    def _restore_sel(self, original_selection):
+        """一時変更した選択状態を復元する。
+
+        Args:
+            original_selection (list[str]): 復元対象の選択ノード一覧。
+        """
+
+        if original_selection:
+            cmds.select(original_selection, replace=True)
+            return
+
+        cmds.select(clear=True)
+
+    def transfer_weights_batch(self, source_target_pairs):
+        """複数ジョイントペアのウェイト移動を一括実行する。
+
+        Args:
+            source_target_pairs (list[tuple[str, str]]): (移動元, 移動先) の組。
+
+        Raises:
+            RuntimeError: スキニングレイヤーが存在し編集不可な場合。
+        """
+
+        self._raise_if_layers()
+        orig_sel = cmds.ls(sl=True, long=True) or []
+
+        try:
+            for source_joint, target_joint in source_target_pairs:
+                self._xfer_pair(source_joint, target_joint)
+        finally:
+            self._restore_sel(orig_sel)
+
+    def remove_influence(self, joint):
+        """インフルエンスから指定ジョイントを削除する。
+
+        Args:
+            joint (str): 削除対象ジョイント名。
+
+        Raises:
+            RuntimeError: スキニングレイヤーが存在し編集不可な場合。
+        """
+
+        self._raise_if_layers()
+        cmds.skinCluster(self.name, edit=True, removeInfluence=joint)
+
+    def _has_layer_plugs(self):
+        """スキニングレイヤー関連ノード接続があるか判定する。"""
+
+        nodes = cmds.listConnections(self.name, source=True, destination=True) or []
+
+        for node in nodes:
+            node_name = node.lower()
+            node_type = cmds.nodeType(node).lower()
+
+            if any(token in node_name or token in node_type for token in self._LAYER_TOKENS):
                 return True
 
         return False
 
-    def get_weights(self, joints):
-        all_vertices, vertex_count = self._get_all_vertices()
+    def _raise_if_layers(self):
+        """スキニングレイヤー関連接続があれば例外を送出する。"""
 
-        target_joints = self._get_target_joints(joints)
-
-        return self.fn.getWeights(self.mesh_path, all_vertices, target_joints)
-
-    def set_weights(self, joints, weights):
-        all_vertices, vertex_count = self._get_all_vertices()
-
-        target_joints = self._get_target_joints(joints)
-
-        self.fn.setWeights(self.mesh_path, all_vertices, target_joints, om.MDoubleArray(weights), False)
-
-    def transfer_weight(self, source_joint, target_joint):
-        self.transfer_weights_batch([(source_joint, target_joint)])
-
-    def transfer_weights_batch(self, source_target_pairs):
-        _raise_if_skinning_layers_present(self.name)
-        original_selection = cmds.ls(sl=True, long=True) or []
-
-        try:
-            for source_joint, target_joint in source_target_pairs:
-                cmds.skinCluster(self.name, edit=True, selectInfluenceVerts=source_joint)
-
-                if not cmds.ls(sl=True):
-                    continue
-
-                cmds.skinPercent(self.name, transformMoveWeights=[source_joint, target_joint])
-        finally:
-            if original_selection:
-                cmds.select(original_selection, replace=True)
-            else:
-                cmds.select(clear=True)
-
-    def remove_influence(self, joint):
-        _raise_if_skinning_layers_present(self.name)
-        cmds.skinCluster(self.name, edit=True, removeInfluence=joint)
+        if self._has_layer_plugs():
+            raise RuntimeError("skinning layersが存在するため実行できません。")
 
 
-def _get_parent_joint(joint):
-    parents = cmds.listRelatives(joint, parent=True, type="joint", fullPath=True) or []
-
-    return parents[0] if parents else None
+Hlib.Joint = Joint
+Hlib.SkinCluster = SkinCluster
 
 
-def _get_joint_depth(joint):
-    depth = 0
-    current_joint = joint
+class SkinClusters:
+    """複数 skinCluster に対するジョイント削除処理を管理する。"""
 
-    while True:
-        current_joint = _get_parent_joint(current_joint)
+    def __init__(self, names=()):
+        """skinClusterオブジェクトの集合を初期化する。
 
-        if not current_joint:
-            break
+        Args:
+            names (iterable[str]): skinClusterノード名の iterable。
+        """
 
-        depth += 1
+        self._items = []
+        self.cache = {}
+        self.ops = {}
+        self.parents = {}
+        self.op_counts = {}
+        self.counts = {}
 
-    return depth
+        for item in names:
+            skin = item if isinstance(item, SkinCluster) else SkinCluster(item)
+            name = skin.name
 
+            if name in self.cache:
+                continue
 
-def _sorted_unique_joints(joints):
-    seen = set()
-    unique_joints = []
+            self._items.append(skin)
+            self.cache[name] = skin
 
-    for joint in joints:
-        if joint in seen:
-            continue
+    def __iter__(self):
+        """保持しているSkinClusterオブジェクトを反復する。"""
 
-        seen.add(joint)
-        unique_joints.append(joint)
+        return iter(self._items)
 
-    return sorted(unique_joints, key=_get_joint_depth, reverse=True)
+    def gather(self, joints):
+        """skinClusterごとのウェイト移動操作を収集する。
 
+        Args:
+            joints (Joints): 処理対象ジョイントのコレクション。
+        """
 
-def _find_skin_clusters_using_influence(joint):
-    skin_clusters = cmds.listConnections(joint, type="skinCluster") or []
+        for joint in joints:
+            if not joint.is_joint():
+                continue
 
-    seen = set()
-    unique_clusters = []
+            parent_jnt = joint.parent()
+            if not parent_jnt:
+                continue
 
-    for skin_cluster in skin_clusters:
-        if skin_cluster in seen:
-            continue
+            skins = joint.skin_clusters()
+            if not skins:
+                continue
 
-        seen.add(skin_cluster)
-        unique_clusters.append(skin_cluster)
+            op_count = self._ops_for_joint(joint, skins)
+            if op_count == 0:
+                continue
 
-    return unique_clusters
+            self.parents[joint.uuid] = parent_jnt
+            self.op_counts[joint.uuid] = op_count
 
+    def apply(self):
+        """収集済み操作を skinCluster 単位で適用する。"""
 
-def _find_target_influence_joint(skin, child_joint):
-    ancestor_joint = _get_parent_joint(child_joint)
+        for sc_name, pairs in self.ops.items():
+            sc = self.cache[sc_name]
+            sc.transfer_weights_batch(pairs)
+            self._remove_influences(sc, pairs)
 
-    while ancestor_joint:
-        if skin.has_influence(ancestor_joint):
-            return ancestor_joint
+    def finalize(self, joints):
+        """処理完了したジョイントを再配置して削除する。
 
-        ancestor_joint = _get_parent_joint(ancestor_joint)
+        Args:
+            joints (Joints): 処理対象ジョイントのコレクション。
+        """
 
-    return None
+        for joint in joints:
+            if not self._can_finalize(joint):
+                continue
 
+            parent_jnt = self.parents[joint.uuid]
+            joint.reparent_children(parent_jnt)
+            cmds.delete(joint.name)
 
-def _reparent_child_joints(child_joint, parent_joint):
-    child_joints = cmds.listRelatives(child_joint, children=True, type="joint") or []
+    def _skin(self, skin_cluster):
+        """skinClusterラッパーをキャッシュから取得する。"""
 
-    for joint in child_joints:
-        cmds.parent(joint, parent_joint)
+        if isinstance(skin_cluster, SkinCluster):
+            skin = self.cache.get(skin_cluster.name)
+            if skin is not None:
+                return skin
 
+            self._items.append(skin_cluster)
+            self.cache[skin_cluster.name] = skin_cluster
+            return skin_cluster
 
-def _collect_operations(target_joints):
-    skin_cache = {}
-    joint_parents = {}
-    operation_counts = {}
-    operations_by_skin = {}
+        skin = self.cache.get(skin_cluster)
+        if skin is not None:
+            return skin
 
-    for child_joint in target_joints:
-        if not cmds.objExists(child_joint):
-            continue
+        skin = SkinCluster(skin_cluster)
+        self._items.append(skin)
+        self.cache[skin_cluster] = skin
+        return skin
 
-        if cmds.nodeType(child_joint) != "joint":
-            continue
+    def _ops_for_joint(self, joint, skin_clusters):
+        """1ジョイント分のウェイト移動操作を収集する。"""
 
-        parent_joint = _get_parent_joint(child_joint)
-        if not parent_joint:
-            continue
+        op_count = 0
+        child_joint = joint.name
 
-        skin_cluster_names = _find_skin_clusters_using_influence(child_joint)
-        if not skin_cluster_names:
-            continue
+        for skin in skin_clusters:
+            skin = self._skin(skin)
+            target_joint = joint.transfer_target(skin)
 
-        joint_parents[child_joint] = parent_joint
-
-        for skin_cluster_name in skin_cluster_names:
-            skin = skin_cache.get(skin_cluster_name)
-
-            if skin is None:
-                skin = SkinCluster(skin_cluster_name)
-                skin_cache[skin_cluster_name] = skin
-
-            target_joint = _find_target_influence_joint(skin, child_joint)
             if not target_joint:
                 continue
 
-            if skin_cluster_name not in operations_by_skin:
-                operations_by_skin[skin_cluster_name] = []
+            self.ops.setdefault(skin.name, []).append((child_joint, target_joint))
+            op_count += 1
 
-            operations_by_skin[skin_cluster_name].append((child_joint, target_joint))
-            operation_counts[child_joint] = operation_counts.get(child_joint, 0) + 1
+        return op_count
 
-    return skin_cache, operations_by_skin, joint_parents, operation_counts
+    def _remove_influences(self, skin, pairs):
+        """ウェイト移動済みインフルエンスを削除する。"""
 
-
-def _apply_operations(operations_by_skin, skin_cache):
-    processed_counts = {}
-
-    for skin_cluster_name, source_target_pairs in operations_by_skin.items():
-        skin = skin_cache[skin_cluster_name]
-        skin.transfer_weights_batch(source_target_pairs)
-
-        for source_joint, _ in source_target_pairs:
+        for source_joint, _ in pairs:
             skin.remove_influence(source_joint)
-            processed_counts[source_joint] = processed_counts.get(source_joint, 0) + 1
+            self.counts[source_joint] = self.counts.get(source_joint, 0) + 1
 
-    return processed_counts
+    def _can_finalize(self, joint):
+        """ジョイント削除フェーズへ進めるか判定する。"""
 
+        expected = self.op_counts.get(joint.uuid, 0)
+        if expected == 0:
+            return False
 
-def _finalize_joints(
-    target_joints,
-    joint_parents,
-    operation_counts,
-    processed_counts,
-):
-    for child_joint in target_joints:
-        if operation_counts.get(child_joint, 0) == 0:
-            continue
+        return self.counts.get(joint.name, 0) == expected and bool(
+            self.parents.get(joint.uuid)
+        )
 
-        if processed_counts.get(child_joint, 0) != operation_counts[child_joint]:
-            continue
+    def remove_joints(self, joints):
+        """指定されたJointsのウェイト移動とジョイント削除を実行する。
 
-        parent_joint = joint_parents.get(child_joint)
-        if not parent_joint:
-            continue
+        Args:
+            joints (Joints): 処理対象ジョイントのコレクション。
+        """
 
-        _reparent_child_joints(child_joint, parent_joint)
-        cmds.delete(child_joint)
+        target_jnts = joints.sorted_by_depth()
+        self.gather(target_jnts)
+        self.apply()
+        self.finalize(target_jnts)
+
+    def remove_influences(self, joints):
+        """指定されたJointsのインフルエンスだけを削除する。
+
+        ウェイトを親インフルエンスへ移し、対象ジョイントと階層は残す。
+
+        Args:
+            joints (Joints): 処理対象ジョイントのコレクション。
+        """
+
+        target_jnts = joints.sorted_by_depth()
+        self.gather(target_jnts)
+        self.apply()
 
 
 @undo_chunk("removeSelectedJoints")
 def remove_selected_joint():
-    selected_joints = cmds.ls(sl=True, type="joint", long=True) or []
+    """選択ジョイントのウェイト移動・インフルエンス削除・ジョイント削除を実行する。"""
 
-    target_joints = _sorted_unique_joints(selected_joints)
-
-    skin_cache, operations_by_skin, joint_parents, operation_counts = _collect_operations(target_joints)
-
-    processed_counts = _apply_operations(operations_by_skin, skin_cache)
-
-    _finalize_joints(target_joints, joint_parents, operation_counts, processed_counts)
+    joints = Hlib.ls(sl=True, type="joint", long=True)
+    joints.delete()
 
 if __name__ == "__main__":
     remove_selected_joint()
