@@ -98,13 +98,7 @@ def _inhouse_execute_module(module_name):
 
 def _inhouse_get_searchable_menu_class():
     """SearchableMenu クラスを動的 import して返します。"""
-    current_file = Path(inspect.getfile(inspect.currentframe()))
-    htools_dir = current_file.parent
-    htools_dir_path = str(htools_dir)
-    if htools_dir_path not in sys.path:
-        sys.path.insert(0, htools_dir_path)
-
-    module = importlib.import_module("searchable_menu")
+    module = importlib.import_module("HTools.searchable_menu")
     return module.SearchableMenu
 
 

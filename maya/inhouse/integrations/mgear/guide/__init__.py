@@ -1,14 +1,14 @@
 """mGear ガイド取得・更新の補助関数。"""
 
 import maya.cmds as cmds
-from mgear.shifter import guide_template
 
-def get_guide(isReference=False):
+
+def get_guide(is_reference=False):
     """
     シーン内のガイドを取得する関数
 
     args:
-        isReference(bool) : リファレンスしているノードも取得するかどうか
+        is_reference(bool) : リファレンスしているノードも取得するかどうか
 
     return:
         guide_list(list[str, str]) : ガイドをリストで取得する
@@ -17,7 +17,7 @@ def get_guide(isReference=False):
     
     guide_list = []
     for node in node_list:
-        if not isReference and cmds.referenceQuery(node, isNodeReferenced=True):
+        if not is_reference and cmds.referenceQuery(node, isNodeReferenced=True):
             continue
         # isGearGuide 属性を持つ transform をガイドとみなす。
         for attr in cmds.listAttr(node):
@@ -25,8 +25,12 @@ def get_guide(isReference=False):
                 continue
             guide_list.append(node)
     return guide_list
-    
-if __name__ == "__main__":
-    guide_list = get_guide()
-    cmds.select(guide_list)
+
+
+def update_guide():
+    """Update mGear guides, requiring mGear only when invoked."""
+    try:
+        from mgear.shifter import guide_template
+    except ImportError as error:
+        raise RuntimeError("mGear is required to update guides") from error
     guide_template.updateGuide()

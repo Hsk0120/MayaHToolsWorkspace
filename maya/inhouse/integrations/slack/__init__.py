@@ -1,9 +1,7 @@
 """Slack 通知送信ユーティリティ。"""
 
 import os
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
-import maya.cmds as cmds
+
 
 def post_message(text, channel="random", thread_ts=None):
     """
@@ -14,8 +12,15 @@ def post_message(text, channel="random", thread_ts=None):
         channel : 送りたいチャンネル デフォルトはrandomチャンネル
         thread_ts : 送りたいスレッドid, デフォルトNoneの場合メッセージになる
     """
-    # Bot Token は環境変数から取得する。
+    try:
+        from slack_sdk import WebClient
+        from slack_sdk.errors import SlackApiError
+    except ImportError as error:
+        raise RuntimeError("slack_sdk is required to post Slack messages") from error
+
     slack_token = os.getenv("SLACK_API_BOT_TOKEN")
+    if not slack_token:
+        raise RuntimeError("SLACK_API_BOT_TOKEN is not set")
     client = WebClient(token=slack_token)
 
     try:
@@ -31,6 +36,5 @@ def post_message(text, channel="random", thread_ts=None):
                 text=text
             )
         return response["ts"]
-    except SlackApiError as e:
-        cmds.warning(e)
-        cmds.warning(e.response["error"])
+    except SlackApiError as error:
+        raise RuntimeError(error.response["error"]) from error

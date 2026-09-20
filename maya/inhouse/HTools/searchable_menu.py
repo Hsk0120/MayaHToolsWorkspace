@@ -296,4 +296,3 @@ class SearchableMenu(QtWidgets.QMenu):
             if action.isVisible() and action.text():
                 visible.append(action.text())
         return visible
-

@@ -6,7 +6,14 @@ import maya.cmds as cmds
 
 @contextlib.contextmanager
 def undo_chunk(name=None):
-    """複数の Maya 操作を 1 回の Undo チャンクにまとめます。"""
+    """複数の Maya 操作を 1 回の Undo チャンクにまとめる。
+
+    Args:
+        name (str | None): Maya Undo キューに表示するチャンク名。
+
+    Yields:
+        None: コンテキスト内で実行した Maya 操作を同じ Undo として扱う。
+    """
     opened = False
     try:
         kwargs = {"openChunk": True}
@@ -24,7 +31,14 @@ def undo_chunk(name=None):
 
 
 def undoable(name=None):
-    """`undo_chunk` のデコレータ版を返します。"""
+    """関数を Maya の単一 Undo チャンクで実行するデコレータを返す。
+
+    Args:
+        name (str | None): Undo チャンク名。省略時は関数名を使用する。
+
+    Returns:
+        Callable: 対象関数をラップするデコレータ。
+    """
 
     def decorator(func):
         chunk_name = name or getattr(func, "__name__", "UndoChunk")
