@@ -1,7 +1,9 @@
 """Hlib の公開 API と Maya ノードラッパーを提供するパッケージ。"""
 
 import importlib
+import pkgutil
 import sys
+import types
 
 import maya.cmds as cmds
 
@@ -22,96 +24,54 @@ from .math import (
 	Translation,
 	Vector,
 )
-from .node import (
-	Camera,
-	Joint,
-	Joints,
-	Mesh,
-	Node,
-	Shape,
-	SkinCluster,
-	SkinClusters,
-	Transform,
-)
+def _initialize_node_api():
+	"""node package を読み込み、公開 class と registry を構築する。"""
+	global _node_package, _node_wrappers, _node_exports
+	global Node, Shape, Transform, NODE_REGISTRY
+
+	_node_package = importlib.import_module(__name__ + ".node")
+	if not hasattr(_node_package, "_discovered_wrappers"):
+		_node_package = importlib.reload(_node_package)
+
+	_node_wrappers = _node_package._discovered_wrappers
+	_node_exports = _node_package._discovered_exports
+	for export_name in _node_exports:
+		globals().pop(export_name, None)
+	globals().update(_node_exports)
+
+	Node = _node_package.Node
+	Shape = _node_package.Shape
+	Transform = _node_package.Transform
+	NODE_REGISTRY = NodeRegistry(Node)
+	for node_type, wrapper_class in _node_wrappers.items():
+		NODE_REGISTRY.register(node_type, wrapper_class)
 
 
-NODE_REGISTRY = NodeRegistry(Node)
-NODE_REGISTRY.register("transform", Transform)
-NODE_REGISTRY.register("joint", Joint)
-NODE_REGISTRY.register("mesh", Mesh)
-NODE_REGISTRY.register("camera", Camera)
-NODE_REGISTRY.register("skinCluster", SkinCluster)
+_initialize_node_api()
 
 
 def reload_all():
-	"""読み込み済みの Hlib モジュールを依存順に再読み込みする。
+	"""Hlib 配下の Python module を検出し、依存順に再読み込みする。
 
-	旧フォルダ構成のモジュールキャッシュを削除してから、依存先を先に
-	再読み込みする。Maya の Script Editor で Hlib を開発中に更新を反映する
-	用途を想定している。
+	現在存在する module を package から走査するため、新しい wrapper の追加や
+	既存 module の削除も Maya の Script Editor から反映できる。依存関係は各
+	module の globals にある Hlib class / function / module 参照から推定する。
 
 	Returns:
-		tuple[module]: 再読み込みしたモジュール。Hlib パッケージ本体は最後に含まれる。
+		tuple[module]: 再読み込みした module の tuple。
 	"""
 	package_name = __name__
-	legacy_modules = (
-		package_name + ".camera",
-		package_name + ".datatypes",
-		package_name + ".euler_rotation",
-		package_name + ".joint",
-		package_name + ".matrix",
-		package_name + ".mesh",
-		package_name + ".plug",
-		package_name + ".quaternion",
-		package_name + ".registry",
-		package_name + ".rotation",
-		package_name + ".scale",
-		package_name + ".shape",
-		package_name + ".shear",
-		package_name + ".skincluster",
-		package_name + ".transform",
-		package_name + ".translation",
-		package_name + ".vector",
-	)
-	for module_name in legacy_modules:
-		sys.modules.pop(module_name, None)
-
-	module_names = [
+	module_names = _discover_module_names(package_name)
+	loaded_names = {
 		name
 		for name in sys.modules
 		if name == package_name or name.startswith(package_name + ".")
-	]
-
-	# 依存先を先に再読み込みし、公開 API を持つパッケージ本体は最後に更新する。
-	priority = {
-		package_name + ".decorator": 1,
-		package_name + ".math.vector": 2,
-		package_name + ".math.quaternion": 3,
-		package_name + ".math.rotation": 3,
-		package_name + ".math.scale": 3,
-		package_name + ".math.shear": 3,
-		package_name + ".math.translation": 3,
-		package_name + ".math.euler_rotation": 4,
-		package_name + ".math.matrix": 5,
-		package_name + ".math": 6,
-		package_name + ".core.registry": 3,
-		package_name + ".core.plug": 4,
-		package_name + ".core": 5,
-		package_name + ".node.node": 6,
-		package_name + ".node.transform": 7,
-		package_name + ".node.joint": 8,
-		package_name + ".node.shape": 8,
-		package_name + ".node.camera": 9,
-		package_name + ".node.mesh": 9,
-		package_name + ".node.skincluster": 9,
-		package_name + ".node": 10,
-		package_name + ".utils.progress": 11,
-		package_name + ".utils": 12,
-		package_name: 99,
 	}
-	module_names.sort(
-		key=lambda name: (priority.get(name, 10), name.count("."), name)
-	)
+	for stale_name in loaded_names - set(module_names):
+		sys.modules.pop(stale_name, None)
+	for module_name in module_names:
+		importlib.import_module(module_name)
+	module_names = _reload_order(module_names)
 	reloaded = []
 	for module_name in module_names:
 		module = sys.modules.get(module_name)
@@ -120,6 +80,78 @@ def reload_all():
 		reloaded.append(importlib.reload(module))
 
 	return tuple(reloaded)
+
+
+def _discover_module_names(package_name):
+	"""パッケージ配下の現在存在する Python module 名を取得する。
+
+	Args:
+		package_name (str): module を走査する package の完全修飾名。
+
+	Returns:
+		tuple[str]: package 自身を含む検出済み module 名。
+	"""
+	package = sys.modules[package_name]
+	names = {package_name}
+	for module_info in pkgutil.walk_packages(package.__path__, package_name + "."):
+		names.add(module_info.name)
+	return tuple(sorted(names))
+
+
+def _reload_order(module_names):
+	"""module 内の参照から依存先を推定し、reload 順を作る。
+
+	Args:
+		module_names (iterable[str]): reload 対象の完全修飾 module 名。
+
+	Returns:
+		list[str]: 依存先が先になる reload 順の module 名。
+	"""
+	module_set = set(module_names)
+	dependencies = {
+		name: _module_dependencies(sys.modules[name], module_set)
+		for name in module_names
+	}
+	order = []
+	visited = set()
+	visiting = set()
+
+	def visit(name):
+		if name in visited:
+			return
+		if name in visiting:
+			return
+		visiting.add(name)
+		for dependency in sorted(dependencies[name]):
+			visit(dependency)
+		visiting.remove(name)
+		visited.add(name)
+		order.append(name)
+
+	for name in sorted(module_names):
+		visit(name)
+	return order
+
+
+def _module_dependencies(module, module_names):
+	"""module の globals から Hlib 内の依存 module 名を抽出する。
+
+	Args:
+		module (types.ModuleType): 依存関係を調べる module。
+		module_names (set[str]): reload 対象として許可する module 名。
+
+	Returns:
+		set[str]: module が参照している Hlib module 名。
+	"""
+	dependencies = set()
+	for value in vars(module).values():
+		if isinstance(value, types.ModuleType):
+			owner = value.__name__
+		else:
+			owner = getattr(value, "__module__", None)
+		if owner in module_names and owner != module.__name__:
+			dependencies.add(owner)
+	return dependencies
 
 
 def ls(*args, **kwargs):
@@ -138,9 +170,9 @@ def ls(*args, **kwargs):
 	names = cmds.ls(*args, **kwargs) or []
 	node_type = kwargs.get("type")
 	if node_type == "joint":
-		return Joints(names)
+		return _node_package.Joints(names)
 	if node_type == "skinCluster":
-		return SkinClusters(names)
+		return _node_package.SkinClusters(names)
 	return [_wrap_node(name) for name in names]
 
 
@@ -169,29 +201,5 @@ def _wrap_node(name):
 	return NODE_REGISTRY.wrap(name, cmds.nodeType(name))
 
 
-__all__ = [
-	"Camera",
-	"EulerRotation",
-	"Joint",
-	"Joints",
-	"Matrix",
-	"Mesh",
-	"Node",
-	"NodeRegistry",
-	"NODE_REGISTRY",
-	"Plug",
-	"Rotation",
-	"Quaternion",
-	"Scale",
-	"Shear",
-	"Shape",
-	"SkinCluster",
-	"SkinClusters",
-	"Transform",
-	"Translation",
-	"Vector",
-	"ls",
-	"node",
-	"reload_all",
-]
+__all__ = ["ls", "node", "reload_all", *sorted(_node_exports)]
 

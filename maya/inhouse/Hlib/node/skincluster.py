@@ -4,10 +4,12 @@ import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 
+from ..core.registry import collection_export, node_wrapper
 from .joint import Joint
 from .node import Node
 
 
+@node_wrapper("skinCluster")
 class SkinCluster(Node):
     """Wrapper around a Maya skinCluster node."""
 
@@ -133,6 +135,7 @@ class SkinCluster(Node):
             raise RuntimeError("skinning layersが存在するため実行できません。")
 
 
+@collection_export()
 class SkinClusters:
     """Batch skinCluster operations for a collection of joints."""
 

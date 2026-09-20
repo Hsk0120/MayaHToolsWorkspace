@@ -6,10 +6,12 @@ import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
 from ..decorator.undo import undoable
+from ..core.registry import node_wrapper
 from ..math import Matrix
 from .node import Node
 
 
+@node_wrapper("transform")
 class Transform(Node):
     """Maya transform ノードを matrix-first API で扱うラッパー。
 

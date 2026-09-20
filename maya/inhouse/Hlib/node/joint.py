@@ -5,10 +5,12 @@ import math
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
+from ..core.registry import collection_export, node_wrapper
 from ..math import EulerRotation, Scale
 from .transform import Transform
 
 
+@node_wrapper("joint")
 class Joint(Transform):
     """Maya joint ノード用の Transform ラッパー。
 
@@ -161,6 +163,7 @@ class Joint(Transform):
         return hash(self.uuid)
 
 
+@collection_export()
 class Joints:
     """重複を除いた Joint ラッパーコレクション。
 

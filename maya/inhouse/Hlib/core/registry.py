@@ -1,4 +1,54 @@
-"""Node wrapper type registry for Hlib."""
+"""Node wrapper type registry and discovery helpers for Hlib."""
+
+from .discovery import discover_node_package
+
+
+def node_wrapper(node_type, public=True):
+    """Maya の nodeType と Python wrapper class の対応を宣言する。
+
+    Args:
+        node_type (str): Maya の ``nodeType`` 名。
+        public (bool): Hlib のトップレベル API として公開するか。
+
+    Returns:
+        callable: wrapper class を受け取り metadata を付与する decorator。
+
+    Raises:
+        ValueError: node_type が空文字列または文字列以外の場合。
+    """
+    if not isinstance(node_type, str) or not node_type:
+        raise ValueError("node_type must be a non-empty string")
+
+    def decorate(wrapper_class):
+        """wrapper class に nodeType と公開設定を付与する。"""
+        if not isinstance(wrapper_class, type):
+            raise TypeError("wrapper_class must be a class")
+        wrapper_class.__hlib_node_type__ = node_type
+        wrapper_class.__hlib_public__ = bool(public)
+        return wrapper_class
+
+    return decorate
+
+
+def collection_export(public=True):
+    """Node collection class を Hlib の公開 export として宣言する。
+
+    Args:
+        public (bool): Hlib のトップレベル API として公開するか。
+
+    Returns:
+        callable: collection class を受け取り metadata を付与する decorator。
+    """
+
+    def decorate(collection_class):
+        """collection class に公開設定を付与する。"""
+        if not isinstance(collection_class, type):
+            raise TypeError("collection_class must be a class")
+        collection_class.__hlib_collection__ = True
+        collection_class.__hlib_public__ = bool(public)
+        return collection_class
+
+    return decorate
 
 
 class NodeRegistry:
@@ -29,6 +79,16 @@ class NodeRegistry:
         if not isinstance(wrapper_class, type):
             raise TypeError("wrapper_class must be a class")
         self._classes[node_type] = wrapper_class
+
+    def clear(self):
+        """登録済みの Maya nodeType 対応をすべて解除する。"""
+        self._classes.clear()
+
+    def register_discovered(self, wrappers):
+        """発見済み wrapper の対応表を registry へ登録する。"""
+        self.clear()
+        for node_type, wrapper_class in wrappers.items():
+            self.register(node_type, wrapper_class)
 
     def wrapper_class(self, node_type):
         """ノード型に対応するクラス、またはフォールバッククラスを返す。
@@ -87,4 +147,9 @@ class NodeRegistry:
         return self.wrapper_class(node_type)(node)
 
 
-__all__ = ["NodeRegistry"]
+__all__ = [
+    "NodeRegistry",
+    "collection_export",
+    "discover_node_package",
+    "node_wrapper",
+]

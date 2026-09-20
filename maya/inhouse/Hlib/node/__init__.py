@@ -1,21 +1,19 @@
 """Typed Maya node wrappers for Hlib."""
 
-from .camera import Camera
-from .joint import Joint, Joints
-from .mesh import Mesh
+from ..core.discovery import discover_node_package
 from .node import Node
 from .shape import Shape
-from .skincluster import SkinCluster, SkinClusters
 from .transform import Transform
 
+
+for _export_name in globals().get("_discovered_exports", {}):
+    globals().pop(_export_name, None)
+_discovered_wrappers, _discovered_exports = discover_node_package(__name__)
+globals().update(_discovered_exports)
+
 __all__ = [
-    "Camera",
-    "Joint",
-    "Joints",
-    "Mesh",
     "Node",
     "Shape",
-    "SkinCluster",
-    "SkinClusters",
     "Transform",
+    *sorted(_discovered_exports),
 ]

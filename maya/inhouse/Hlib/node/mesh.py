@@ -2,9 +2,11 @@
 
 import maya.api.OpenMaya as om2
 
+from ..core.registry import node_wrapper
 from .shape import Shape
 
 
+@node_wrapper("mesh")
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
