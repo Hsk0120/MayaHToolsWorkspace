@@ -6,7 +6,7 @@ import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
 from ..core.registry import collection_export, node_wrapper
-from ..math import EulerRotation, Scale
+from ..maths import EulerRotation, Matrix, Scale
 from .transform import Transform
 
 
@@ -26,6 +26,52 @@ class Joint(Transform):
         """
         values = self._compound_values("jointOrient")
         return EulerRotation(*(math.radians(value) for value in values))
+
+    def _rotation_order(self):
+        """Maya の rotateOrder を API の回転順序へ変換する。"""
+        order_index = int(self.plug("ro").get())
+        return (
+            om2.MEulerRotation.kXYZ,
+            om2.MEulerRotation.kYZX,
+            om2.MEulerRotation.kZXY,
+            om2.MEulerRotation.kXZY,
+            om2.MEulerRotation.kYXZ,
+            om2.MEulerRotation.kZYX,
+        )[order_index]
+
+    def _rotation_quaternion(self, attribute):
+        """Euler の Maya degrees 属性を API quaternion へ変換する。"""
+        values = self._compound_values(attribute)
+        rotation = om2.MEulerRotation(*(math.radians(value) for value in values), self._rotation_order())
+        return rotation.asQuaternion()
+
+    def _remove_segment_scale_compensation(self, matrix):
+        """ssc と inverseScale が適用された後の行列から補正前の値を戻す。"""
+        if not self.plug("ssc").get():
+            return matrix
+        inverse_scale = self._compound_values("inverseScale")
+        if any(abs(value) < 1e-12 for value in inverse_scale):
+            raise ValueError("inverseScale components must be non-zero when segmentScaleCompensate is enabled")
+        compensation = Matrix(scale=tuple(1.0 / value for value in inverse_scale))
+        return matrix * compensation
+
+    def _apply_local_matrix(self, matrix):
+        """jointOrient と rotateAxis を保持して local 行列を適用する。"""
+        matrix = self._remove_segment_scale_compensation(matrix)
+        target = om2.MTransformationMatrix(matrix.to_mmatrix())
+        target_quaternion = target.rotation(asQuaternion=True)
+        rotate_axis = self._rotation_quaternion("rotateAxis")
+        joint_orient = self._rotation_quaternion("jointOrient")
+        rotate_quaternion = rotate_axis.conjugate() * target_quaternion * joint_orient.conjugate()
+        rotation = om2.MEulerRotation()
+        rotation.setValue(rotate_quaternion)
+        rotation.reorderIt(self._rotation_order())
+
+        name = self.full_name
+        cmds.setAttr(f"{name}.translate", *matrix.translate)
+        cmds.setAttr(f"{name}.rotate", *(math.degrees(component) for component in rotation))
+        cmds.setAttr(f"{name}.scale", *matrix.scale)
+        cmds.setAttr(f"{name}.shear", *matrix.shear)
 
     @property
     def orientation(self):

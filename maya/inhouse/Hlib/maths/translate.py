@@ -3,5 +3,5 @@
 from .vector import Vector
 
 
-class Translation(Vector):
+class Translate(Vector):
     """位置を表す意味付き 3 次元ベクトル。"""

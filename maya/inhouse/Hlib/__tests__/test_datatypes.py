@@ -11,12 +11,12 @@ PACKAGE_NAME = "hlib_math_test"
 package = types.ModuleType(PACKAGE_NAME)
 package.__path__ = [str(ROOT)]
 sys.modules[PACKAGE_NAME] = package
-module = importlib.import_module(f"{PACKAGE_NAME}.math")
+module = importlib.import_module(f"{PACKAGE_NAME}.maths")
 
 
 Vector = module.Vector
-Translation = module.Translation
-Rotation = module.Rotation
+Translate = module.Translate
+Rotate = module.Rotate
 Quaternion = module.Quaternion
 EulerRotation = module.EulerRotation
 Scale = module.Scale
@@ -25,13 +25,13 @@ Matrix = module.Matrix
 
 
 def test_translation_is_vector_like():
-    t = Translation(1.0, 2.0, 3.0)
+    t = Translate(1.0, 2.0, 3.0)
     assert isinstance(t, Vector)
     assert tuple(t) == (1.0, 2.0, 3.0)
 
 
 def test_scale_and_shear_are_distinct():
-    rotation = Rotation(0.0, 90.0, 0.0)
+    rotation = Rotate(0.0, 90.0, 0.0)
     scale = Scale(2.0, 3.0, 4.0)
     shear = Shear(0.1, 0.2, 0.3)
     assert isinstance(rotation, Vector)
@@ -48,6 +48,13 @@ def test_euler_rotation_converts_to_a_unit_quaternion():
     assert tuple(quaternion) == (0.0, 0.0, 0.0, 1.0)
 
 
+def test_euler_rotation_displays_degrees_but_stores_radians():
+    rotation = EulerRotation(math.pi / 2.0, 0.0, -math.pi / 4.0)
+    assert tuple(rotation) == (math.pi / 2.0, 0.0, -math.pi / 4.0)
+    assert rotation.as_degrees() == (90.0, 0.0, -45.0)
+    assert "degrees=(90, 0, -45)" in repr(rotation)
+
+
 def test_xyz_euler_quaternion_round_trip_preserves_angles():
     rotation = EulerRotation(0.2, -0.4, 0.6)
     round_trip = rotation.to_quaternion().to_euler()
@@ -60,8 +67,9 @@ def test_matrix_exposes_translation_scale_and_shear_values():
         scale=(2.0, 3.0, 4.0),
         shear=(0.1, 0.2, 0.3),
     )
-    assert isinstance(m.translate, Translation)
-    assert isinstance(m.rotation, Rotation)
+    assert isinstance(m.translate, Translate)
+    assert isinstance(m.rotation, EulerRotation)
+    assert isinstance(m.rotation, Rotate)
     assert isinstance(m.euler, EulerRotation)
     assert isinstance(m.quaternion, Quaternion)
     assert isinstance(m.scale, Scale)

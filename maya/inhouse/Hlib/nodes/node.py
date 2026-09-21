@@ -2,6 +2,28 @@
 
 import maya.api.OpenMaya as om2
 
+from ..utils import error
+
+
+def _node_type_of(node):
+    """ノード名、MObject、または MDagPath から Maya nodeType 名を得る。"""
+    if isinstance(node, str):
+        selection = om2.MSelectionList()
+        try:
+            selection.add(node)
+        except RuntimeError as original_error:
+            message = f"ノードが見つかりません: {node}"
+            error(message)
+            raise RuntimeError(message) from original_error
+        mobject = selection.getDependNode(0)
+    elif isinstance(node, om2.MDagPath):
+        mobject = node.node()
+    elif isinstance(node, om2.MObject):
+        mobject = node
+    else:
+        raise TypeError("node には名前、MObject、または MDagPath を指定してください")
+    return om2.MFnDependencyNode(mobject).typeName
+
 
 class Node:
     """Maya の dependency node / DAG node を表す共通ラッパー。
@@ -14,6 +36,17 @@ class Node:
         TypeError: 対応していない型の値を指定した場合。
     """
 
+    _registry = None  #: Hlib.__init__ が構築後に注入する NodeRegistry。
+
+    def __new__(cls, node, *args, **kwargs):
+        registry = cls._registry
+        if registry is not None:
+            node_type = _node_type_of(node)
+            resolved_class = registry.wrapper_class(node_type)
+            if resolved_class is not cls:
+                return resolved_class(node, *args, **kwargs)
+        return super().__new__(cls)
+
     def __init__(self, node):
         """ノード入力を解決し、MObject と必要に応じた MDagPath を保持する。"""
         self._mobject = None
@@ -24,7 +57,12 @@ class Node:
         """ノード名、MObject、または MDagPath を内部 API オブジェクトへ変換する。"""
         if isinstance(node, str):
             selection = om2.MSelectionList()
-            selection.add(node)
+            try:
+                selection.add(node)
+            except RuntimeError as original_error:
+                message = f"ノードが見つかりません: {node}"
+                error(message)
+                raise RuntimeError(message) from original_error
             self._mobject = selection.getDependNode(0)
             if self._mobject.hasFn(om2.MFn.kDagNode):
                 self._dag_path = selection.getDagPath(0)
@@ -38,7 +76,7 @@ class Node:
             if self._mobject.hasFn(om2.MFn.kDagNode):
                 self._dag_path = om2.MFnDagNode(self._mobject).getPath()
             return
-        raise TypeError("node must be a name, MObject, or MDagPath")
+        raise TypeError("node には名前、MObject、または MDagPath を指定してください")
 
     def is_valid(self):
         """Maya シーン上でノードが有効か判定する。
@@ -72,6 +110,14 @@ class Node:
         """
         return self._mobject
 
+    def type(self):
+        """Maya の nodeType 名を返す。
+
+        Returns:
+            str: 対応する Maya nodeType。
+        """
+        return om2.MFnDependencyNode(self._mobject).typeName
+
     def plug(self, name):
         """属性パスに対応する Plug を取得する。
 
@@ -87,15 +133,15 @@ class Node:
             AttributeError: 属性を解決できない場合。
         """
         if not isinstance(name, str) or not name:
-            raise ValueError("name must be a non-empty attribute path")
+            raise ValueError("name には空でない属性パスを指定してください")
         if not self.is_valid():
-            raise RuntimeError("Cannot access attributes on an invalid node")
-        from ..core.plug import Plug
+            raise RuntimeError("無効なノードの属性にはアクセスできません")
+        from ..plugs.plug import Plug
 
         try:
             mplug = om2.MFnDependencyNode(self._mobject).findPlug(name, False)
         except RuntimeError as error:
-            raise AttributeError(f"No attribute exists: {self.name}.{name}") from error
+            raise AttributeError(f"属性が見つかりません: {self.name}.{name}") from error
         return Plug(self, mplug)
 
     def attr(self, name):
@@ -188,6 +234,6 @@ class Node:
         try:
             return self.plug(name)
         except AttributeError as error:
-            raise AttributeError(f"No attribute exists: {self.name}.{name}") from error
+            raise AttributeError(f"属性が見つかりません: {self.name}.{name}") from error
 
 

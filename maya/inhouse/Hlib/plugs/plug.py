@@ -1,13 +1,16 @@
-"""Maya API 2.0 based attribute plug wrapper."""
+"""Maya API 2.0 based scalar attribute plug wrapper."""
 
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
-from ..decorator.undo import undoable
+from ..decorators.undo import undoable
 
 
 class Plug:
-    """Maya API 2.0 MPlug を扱う属性ラッパー。
+    """Maya API 2.0 MPlug を扱う scalar 属性ラッパー。
+
+    ``Plug(node, mplug)`` を呼ぶだけで、属性データ型（``_registry`` に登録済みの
+    型）や array/compound 属性は自動的に対応する専用クラスのインスタンスとして返る。
 
     Args:
         node (Node): このプラグを所有する Hlib ノード。
@@ -15,6 +18,26 @@ class Plug:
 
     属性の書き込み・接続・ロック変更は、すべて Maya の Undo に対応する。
     """
+
+    _registry = None  #: initialize_plug_api() が構築後に注入する PlugRegistry。
+
+    def __new__(cls, node, mplug):
+        if cls is Plug:
+            # ArrayPlug/CompoundPlug との循環importを避けるため呼び出し時に遅延importする。
+            from .array_plug import ArrayPlug
+            from .compound_plug import CompoundPlug
+
+            wrapped = om2.MPlug(mplug)
+            if wrapped.isArray:
+                return ArrayPlug(node, mplug)
+            if cls._registry is not None:
+                attr_type = cmds.getAttr(wrapped.name(), type=True)
+                resolved_class = cls._registry.lookup(attr_type)
+                if resolved_class is not None:
+                    return resolved_class(node, mplug)
+            if wrapped.isCompound:
+                return CompoundPlug(node, mplug)
+        return super().__new__(cls)
 
     def __init__(self, node, mplug):
         """所有ノードと API 2.0 MPlug のコピーを保持する。"""
@@ -68,6 +91,14 @@ class Plug:
             str: MFnAttribute が返す属性名。
         """
         return om2.MFnAttribute(self._mplug.attribute()).name
+
+    def type(self):
+        """このプラグを表す現在の Hlib クラスを返す。
+
+        Returns:
+            type: 解決済みの Plug サブクラス（例: ``DoubleLinearPlug``）。
+        """
+        return type(self)
 
     @property
     def is_array(self):
@@ -154,17 +185,15 @@ class Plug:
         cmds.setAttr(self.full_name, lock=bool(state))
         return self
 
-    def get(self):
+    def get(self, ws=False):
         """評価済みの Maya 属性値を取得する。
 
+        Args:
+            ws (bool): ワールド空間値を要求する。汎用 scalar Plug では無視される。
+
         Returns:
-            object: scalar は Maya の ``getAttr`` 値、compound は tuple、array は
-            論理インデックスをキーとする dict。
+            object: Maya の ``getAttr`` が返す scalar 値。
         """
-        if self.is_array:
-            return {index: self.element(index).get() for index in self._mplug.getExistingArrayAttributeIndices()}
-        if self.is_compound:
-            return tuple(self.child(index).get() for index in range(self._mplug.numChildren()))
         value = cmds.getAttr(self.full_name)
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
             return tuple(value[0])
@@ -175,25 +204,11 @@ class Plug:
         """プラグ値を変更する。
 
         Args:
-            value (object): 設定する Maya 互換値。compound には子数と同数の
-                シーケンスを指定する。
+            value (object): 設定する Maya 互換値。
 
         Returns:
             Plug: 自身。
-
-        Raises:
-            TypeError: array プラグへ直接値を設定した場合。
-            ValueError: compound 値の要素数が一致しない場合。
         """
-        if self.is_array:
-            raise TypeError("Set an array element instead of the array plug")
-        if self.is_compound:
-            values = tuple(value)
-            if len(values) != self._mplug.numChildren():
-                raise ValueError("Compound plug value length does not match its child count")
-            for index, child_value in enumerate(values):
-                self.child(index).set(child_value)
-            return self
         if isinstance(value, str):
             cmds.setAttr(self.full_name, value, type="string")
         elif isinstance(value, (tuple, list)):
@@ -259,102 +274,6 @@ class Plug:
             cmds.disconnectAttr(self.full_name, destination.full_name)
         return self
 
-    def child(self, name_or_index):
-        """compound 属性の子 Plug を取得する。
-
-        Args:
-            name_or_index (str | int): 子のロング名、ショート名、または子インデックス。
-
-        Returns:
-            Plug: 子プラグ。
-
-        Raises:
-            TypeError: compound プラグでない場合。
-            AttributeError: 指定した子が存在しない場合。
-        """
-        if not self.is_compound:
-            raise TypeError(f"{self.full_name} is not a compound plug")
-        if isinstance(name_or_index, int):
-            return Plug(self._node, self._mplug.child(name_or_index))
-        for index in range(self._mplug.numChildren()):
-            child = self._mplug.child(index)
-            attribute = om2.MFnAttribute(child.attribute())
-            if name_or_index in (attribute.name, attribute.shortName):
-                return Plug(self._node, child)
-        raise AttributeError(f"No child named {name_or_index!r} on {self.full_name}")
-
-    def children(self):
-        """compound 属性の直接の子 Plug を取得する。
-
-        Returns:
-            list[Plug]: 子プラグ。compound でない場合は空リスト。
-        """
-        if not self.is_compound:
-            return []
-        return [self.child(index) for index in range(self._mplug.numChildren())]
-
-    def element(self, index, create=False):
-        """multi 属性の論理インデックス要素を取得する。
-
-        Args:
-            index (int): 論理インデックス。
-            create (bool): 存在しない要素も作成対象として取得するか。
-
-        Returns:
-            Plug: 要素プラグ。
-
-        Raises:
-            TypeError: multi 属性でない場合。
-            IndexError: create が ``False`` で要素が存在しない場合。
-        """
-        if not self.is_array:
-            raise TypeError(f"{self.full_name} is not an array plug")
-        existing_indices = self._mplug.getExistingArrayAttributeIndices()
-        if not create and index not in existing_indices:
-            raise IndexError(f"No element at logical index {index} on {self.full_name}")
-        mplug = self._mplug.elementByLogicalIndex(index)
-        return Plug(self._node, mplug)
-
-    def elements(self):
-        """存在する multi 属性要素をすべて取得する。
-
-        Returns:
-            list[Plug]: 既存要素。multi 属性でない場合は空リスト。
-        """
-        if not self.is_array:
-            return []
-        return [self.element(index) for index in self._mplug.getExistingArrayAttributeIndices()]
-
-    def __getitem__(self, index):
-        """multi 属性の論理インデックス要素を取得する。
-
-        Args:
-            index (int): 論理インデックス。
-
-        Returns:
-            Plug: 対応する要素プラグ。
-        """
-        return self.element(index)
-
-    def __getattr__(self, name):
-        """compound 属性の子を Python 属性形式で取得する。
-
-        Args:
-            name (str): 子属性名。
-
-        Returns:
-            Plug: 解決した子プラグ。
-
-        Raises:
-            AttributeError: private 名または存在しない子を指定した場合。
-        """
-        if name.startswith("_"):
-            raise AttributeError(name)
-        try:
-            return self.child(name)
-        except (AttributeError, TypeError) as error:
-            raise AttributeError(f"No plug member named {name!r}") from error
-
     def __str__(self):
         """完全修飾した Maya プラグ名を返す。"""
         return self.full_name
@@ -373,6 +292,6 @@ class Plug:
     @staticmethod
     def _node_from_mplug(mplug):
         """MPlug の所有 MObject から汎用 Node ラッパーを生成する。"""
-        from ..node.node import Node
+        from ..nodes.node import Node
 
         return Node(mplug.node())

@@ -3,10 +3,10 @@
 import math
 
 from .quaternion import Quaternion
-from .rotation import Rotation
+from .rotate import Rotate
 
 
-class EulerRotation(Rotation):
+class EulerRotation(Rotate):
     """Maya の回転順序を保持する Euler 回転値。
 
     Args:
@@ -28,8 +28,15 @@ class EulerRotation(Rotation):
         self.order = normalized_order
 
     def __repr__(self):
-        """回転成分と回転順序を含むデバッグ表現を返す。"""
-        return f"EulerRotation({self.x}, {self.y}, {self.z}, order={self.order!r})"
+        """度数法の回転成分と回転順序を含むデバッグ表現を返す。"""
+        values = ", ".join(f"{value:.15g}" for value in self.as_degrees())
+        return f"EulerRotation(degrees=({values}), order={self.order!r})"
+
+    def as_degrees(self):
+        """回転成分を度数法の 3 要素 tuple として取得する。"""
+        return tuple(math.degrees(value) for value in self)
+
+    asDegrees = as_degrees
 
     def to_quaternion(self):
         """Quaternion へ変換する。

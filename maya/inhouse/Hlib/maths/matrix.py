@@ -4,10 +4,9 @@ import math
 
 from .euler_rotation import EulerRotation
 from .quaternion import Quaternion
-from .rotation import Rotation
 from .scale import Scale
 from .shear import Shear
-from .translation import Translation
+from .translate import Translate
 from .vector import Vector
 
 
@@ -19,7 +18,7 @@ class Matrix:
     Args:
         values (Iterable[float] | om2.MMatrix | None): 16 要素、4x4 行列、または
             Maya MMatrix。省略時は TRS/shear から合成する。
-        translate (Iterable[float]): Translation 値。
+        translate (Iterable[float]): Translate 値。
         rotate (Iterable[float] | Quaternion): Euler 回転値（radian）または四元数。
         rotation (Iterable[float] | None): ``rotate`` の互換別名。
         scale (Iterable[float]): Scale 値。
@@ -51,7 +50,7 @@ class Matrix:
         """TRS/shear 成分から Matrix を合成する。
 
         Args:
-            translate (Iterable[float]): Translation 値。
+            translate (Iterable[float]): Translate 値。
             rotate (Iterable[float] | Quaternion): Euler 値または四元数。
             scale (Iterable[float]): Scale 値。
             shear (Iterable[float]): Shear 値。
@@ -106,16 +105,16 @@ class Matrix:
 
     @property
     def translate(self):
-        """Translation 成分を取得または設定する。
+        """Translate 成分を取得または設定する。
 
         Returns:
-            Translation: 行列の平行移動成分。
+            Translate: 行列の平行移動成分。
         """
-        return Translation(self._values[12], self._values[13], self._values[14])
+        return Translate(self._values[12], self._values[13], self._values[14])
 
     @translate.setter
     def translate(self, value):
-        """Translation 成分を置き換えて行列を再合成する。"""
+        """Translate 成分を置き換えて行列を再合成する。"""
         self._recompose(translate=value)
 
     @property
@@ -166,12 +165,12 @@ class Matrix:
 
     @property
     def rotation(self):
-        """回転成分を互換用 Rotation として取得または設定する。
+        """回転成分を EulerRotation として取得または設定する。
 
         Returns:
-            Rotation: 分解した Euler 回転成分。
+            EulerRotation: 分解した Euler 回転成分（radian）。
         """
-        return Rotation(*self.euler)
+        return self.euler
 
     @rotation.setter
     def rotation(self, value):
@@ -183,7 +182,7 @@ class Matrix:
         """``rotation`` の Maya 風別名を取得または設定する。
 
         Returns:
-            Rotation: 分解した Euler 回転成分。
+            EulerRotation: 分解した Euler 回転成分（radian）。
         """
         return self.rotation
 
@@ -231,11 +230,12 @@ class Matrix:
             axis_x = self._multiply(axis_x, -1.0)
 
         quaternion = self._quaternion_from_row_axes(axis_x, axis_y, axis_z)
+        euler = quaternion.to_euler()
         return {
             "translate": self.translate,
-            "rotation": Rotation(*quaternion.to_euler()),
+            "rotation": euler,
             "quaternion": quaternion,
-            "euler": quaternion.to_euler(),
+            "euler": euler,
             "scale": Scale(scale_x, scale_y, scale_z),
             "shear": Shear(shear_xy_raw / scale_y, shear_xz_raw / scale_z, shear_yz_raw / scale_z),
         }
@@ -267,7 +267,7 @@ class Matrix:
     def transform_point(self, value):
         """Transform a position using homogeneous coordinate $w = 1$."""
         x, y, z = value
-        return Translation(
+        return Translate(
             x * self._values[0] + y * self._values[4] + z * self._values[8] + self._values[12],
             x * self._values[1] + y * self._values[5] + z * self._values[9] + self._values[13],
             x * self._values[2] + y * self._values[6] + z * self._values[10] + self._values[14],
@@ -339,7 +339,7 @@ class Matrix:
     @classmethod
     def _compose_values(cls, translate, rotate, scale, shear):
         """TRS/shear 成分を Maya row-vector 規約の 16 要素へ変換する。"""
-        translation = Translation(*translate)
+        translation = Translate(*translate)
         scale = Scale(*scale)
         shear = Shear(*shear)
         quaternion = rotate if isinstance(rotate, Quaternion) else EulerRotation(*rotate).to_quaternion()

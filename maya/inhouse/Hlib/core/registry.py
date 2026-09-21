@@ -51,6 +51,33 @@ def collection_export(public=True):
     return decorate
 
 
+def plug_wrapper(attr_type, public=True):
+    """Maya の属性データ型と Python wrapper class の対応を宣言する。
+
+    Args:
+        attr_type (str): ``cmds.getAttr(..., type=True)`` が返す型名。
+        public (bool): Hlib のトップレベル API として公開するか。
+
+    Returns:
+        callable: wrapper class を受け取り metadata を付与する decorator。
+
+    Raises:
+        ValueError: attr_type が空文字列または文字列以外の場合。
+    """
+    if not isinstance(attr_type, str) or not attr_type:
+        raise ValueError("attr_type must be a non-empty string")
+
+    def decorate(wrapper_class):
+        """wrapper class に属性型と公開設定を付与する。"""
+        if not isinstance(wrapper_class, type):
+            raise TypeError("wrapper_class must be a class")
+        wrapper_class.__hlib_plug_type__ = attr_type
+        wrapper_class.__hlib_public__ = bool(public)
+        return wrapper_class
+
+    return decorate
+
+
 class NodeRegistry:
     """Maya ノード型と Hlib ラッパークラスの対応を管理する。
 
@@ -100,6 +127,20 @@ class NodeRegistry:
             type: 登録済みまたはフォールバックのラッパークラス。
         """
         return self._classes.get(node_type, self._fallback_class)
+
+    def lookup(self, key):
+        """登録済みクラスを返す。未登録なら ``None``。
+
+        フォールバックを伴わずに「完全一致する登録があるか」だけを知りたい場合に使う
+        （例: Plug の属性型 dispatch）。
+
+        Args:
+            key (str): 登録キー（nodeType または属性型など）。
+
+        Returns:
+            type | None: 登録済みクラス。
+        """
+        return self._classes.get(key)
 
     def get(self, node_type):
         """ノード型に対応するラッパークラスを返す。
