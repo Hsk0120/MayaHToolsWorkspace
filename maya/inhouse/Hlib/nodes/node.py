@@ -4,7 +4,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..decorators.undo import undoable
-from ..utils import error
+from ..utils import raise_with_notify
 
 
 def _node_type_of(node):
@@ -25,9 +25,7 @@ def _node_type_of(node):
         try:
             selection.add(node)
         except RuntimeError as original_error:
-            message = f"ノードが見つかりません: {node}"
-            error(message)
-            raise RuntimeError(message) from original_error
+            raise_with_notify(RuntimeError, f"ノードが見つかりません: {node}", from_exception=original_error)
         mobject = selection.getDependNode(0)
     elif isinstance(node, om2.MDagPath):
         mobject = node.node()
@@ -122,9 +120,7 @@ class Node:
             try:
                 selection.add(node)
             except RuntimeError as original_error:
-                message = f"ノードが見つかりません: {node}"
-                error(message)
-                raise RuntimeError(message) from original_error
+                raise_with_notify(RuntimeError, f"ノードが見つかりません: {node}", from_exception=original_error)
             self._mobject = selection.getDependNode(0)
             if self._mobject.hasFn(om2.MFn.kDagNode):
                 self._dag_path = selection.getDagPath(0)
@@ -255,6 +251,8 @@ class Node:
         Returns:
             Namespace: ノードが属するNamespace。
         """
+        # scene.namespace が ..nodes を逆方向 import するため、
+        # 循環回避のためここで遅延 import する（Hlib で意図的な相互依存の一つ）。
         from ..scene import Namespace
 
         node_name = self.node_name()
@@ -292,6 +290,7 @@ class Node:
             ValueError: namespaceが空文字列または文字列でない場合。
             RuntimeError: namespace移動に失敗した場合。
         """
+        # scene.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
         from ..scene import Namespace
 
         if isinstance(namespace, Namespace):
@@ -321,6 +320,8 @@ class Node:
         Returns:
             list[Plug]: 接続先の外部Plugを重複なしで格納したリスト。
         """
+        # plugs.plug が ..nodes.node を逆方向 import するため、
+        # 循環回避のためここで遅延 import する（Hlib で意図的な相互依存の一つ）。
         from ..plugs.plug import Plug
 
         plugs = []
@@ -422,6 +423,7 @@ class Node:
             raise ValueError("name には空でない属性パスを指定してください")
         if not self.is_valid():
             raise RuntimeError("無効なノードの属性にはアクセスできません")
+        # plugs.plug ⇔ nodes の相互依存を避けるための遅延 import。inputs()/outputs() と同じ理由。
         from ..plugs.plug import Plug
 
         try:

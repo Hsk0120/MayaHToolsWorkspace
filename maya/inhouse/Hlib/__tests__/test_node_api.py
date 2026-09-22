@@ -1,5 +1,6 @@
 """Hlib Node/DAG APIを検証するMaya内テスト。"""
 
+import math
 import sys
 import unittest
 
@@ -9,6 +10,7 @@ import Hlib
 Hlib.reload_all()
 from Hlib import Namespace
 from Hlib.nodes import Node
+from Hlib.maths import Matrix, Scale, Translate
 
 
 class NodeApiTest(unittest.TestCase):
@@ -88,6 +90,37 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual([plug.full_name for plug in target.inputs()], [source.plug("translateX").full_name])
         self.assertEqual([plug.full_name for plug in source.outputs()], [target.plug("translateX").full_name])
         self.assertEqual(len(source.connections()), 1)
+
+    def test_transform_matrix_round_trip_uses_dataclass_maths_values(self):
+        transform = self.create_transform("hlibNodeApiMatrix")
+
+        transform.set_translate((1.0, 2.0, 3.0))
+        transform.set_rotate((0.0, math.radians(90.0), 0.0))
+        transform.set_scale((2.0, 1.0, 1.0))
+
+        translate = transform.get_translate()
+        self.assertIsInstance(translate, Translate)
+        self.assertEqual(translate, Translate(1.0, 2.0, 3.0))
+
+        scale = transform.get_scale()
+        self.assertIsInstance(scale, Scale)
+        self.assertAlmostEqual(scale.x, 2.0, places=6)
+
+        matrix = transform.get_matrix()
+        self.assertIsInstance(matrix, Matrix)
+        self.assertEqual(matrix.translate, translate)
+
+        # Translate/Scale は dataclass 化により同一クラス同士のみ等価になる。
+        self.assertNotEqual(translate, Scale(1.0, 2.0, 3.0))
+
+    def test_unresolvable_node_name_raises_runtime_error(self):
+        with self.assertRaises(RuntimeError) as context:
+            Node("hlibNodeApiDoesNotExist")
+        self.assertIsInstance(context.exception.__cause__, RuntimeError)
+
+    def test_unsupported_node_input_type_raises_type_error(self):
+        with self.assertRaises(TypeError):
+            Node(12345)
 
 
 if __name__ == "__main__":

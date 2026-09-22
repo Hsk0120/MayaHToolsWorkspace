@@ -1,42 +1,37 @@
 """回転順序を保持するラジアンのオイラー回転値。"""
 
 import math
+from dataclasses import dataclass, field
 
 from .quaternion import Quaternion
 from .rotate import Rotate
 
 
+@dataclass(frozen=True, repr=False)
 class EulerRotation(Rotate):
-    """ラジアンの3成分と回転順序を保持するオイラー回転値。
+    """ラジアンの3成分と回転順序を保持する不変なオイラー回転値。
 
-    表示用の文字列は度に変換する。Vector から継承した等値比較では
-    回転順序は比較せず、XYZ 成分のみを比較する。"""
+    表示用の文字列は度に変換する。回転順序（order）は等価比較・ハッシュの
+    対象から除外し、XYZ 成分のみで比較する（Vector 系と同じ挙動を維持する）。"""
 
-    __slots__ = ("order",)
+    order: str = field(default="xyz", compare=False)
+
     _VALID_ORDERS = {"xyz", "yzx", "zxy", "xzy", "yxz", "zyx"}
 
-    def __init__(self, x, y=None, z=None, order="xyz"):
-        """回転成分と Maya 回転順序から EulerRotation を初期化する。
-
-        回転成分はラジアンで保持する。Vector と同じ入力形式で初期化する。
-
-        Args:
-            x (float | Iterable[float]): X 成分、または3成分の反復可能オブジェクト。
-            y (float | None): Y 成分。3成分入力の場合は省略する。
-            z (float | None): Z 成分。3成分入力の場合は省略する。
-            order (str): xyz、yzx、zxy、xzy、yxz、zyx のいずれか。小文字に正規化する。
+    def __post_init__(self):
+        """XYZ 成分を float 化し、回転順序を検証・正規化する。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            ValueError: 未対応の回転順序、3要素でない入力、または数値変換に失敗した場合。
+            ValueError: 未対応の回転順序、または数値変換に失敗した場合。
         """
-        super().__init__(x, y, z)
-        normalized_order = order.lower()
+        super().__post_init__()
+        normalized_order = self.order.lower()
         if normalized_order not in self._VALID_ORDERS:
-            raise ValueError(f"Unsupported rotation order: {order}")
-        self.order = normalized_order
+            raise ValueError(f"Unsupported rotation order: {self.order}")
+        object.__setattr__(self, "order", normalized_order)
 
     def __repr__(self):
         """度数法の回転成分と回転順序を含むデバッグ表現を返す。

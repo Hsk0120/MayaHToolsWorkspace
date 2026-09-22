@@ -2,9 +2,11 @@
 
 import maya.cmds as cmds
 from .core import initialize_node_api, initialize_plug_api, reload_package
-from .nodes import Node, Joints, SkinClusters
-from .plugs import Plug, ArrayPlug, CompoundPlug
 from .scene import Namespace, Scene
+
+# Node/Joints/SkinClusters/Plug/ArrayPlug/CompoundPlug などは
+# initialize_node_api/initialize_plug_api が globals() へ直接書き込むため、
+# ここで .nodes/.plugs を明示 import する必要はない（二重初期化を避ける）。
 
 _exports = sorted(set(initialize_node_api(__name__, globals())) | set(initialize_plug_api(__name__, globals())))
 __all__ = ["create_node", "ls", "reload_all", "Namespace", "Scene", *_exports]

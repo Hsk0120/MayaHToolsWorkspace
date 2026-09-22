@@ -1,46 +1,57 @@
 """3成分を保持する汎用ベクトルと基本演算。"""
 
+from dataclasses import dataclass
 
+
+@dataclass(frozen=True, repr=False)
 class Vector:
-    """3成分のベクトル値。
+    """3成分の不変なベクトル値。
 
-    3要素入力では各値をそのまま保持し、個別の成分指定では float に変換する。
-    加減算・スカラー乗算の結果は、派生クラスでも常に Vector となる。"""
+    加減算・スカラー乗算の結果は、派生クラスでも常に Vector となる。
+    等価比較・ハッシュは dataclass が生成し、同一クラス同士でのみ成分比較する。"""
 
-    __slots__ = ("x", "y", "z")
+    x: float
+    y: float
+    z: float
 
-    def __init__(self, x, y=None, z=None):
-        """3 成分または 3 要素シーケンスからベクトルを初期化する。
+    def __post_init__(self):
+        """各成分を float へ正規化する。
 
-        3要素入力は各成分をそのまま保持する。x、y、z を個別に指定した場合のみ float に変換する。
-
-        Args:
-            x (float | Iterable[float]): X 成分、または3成分の反復可能オブジェクト。
-            y (float | None): Y 成分。3成分入力の場合は省略する。
-            z (float | None): Z 成分。3成分入力の場合は省略する。
+        frozen のため通常の属性代入はできず、object.__setattr__ で書き換える。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            ValueError: 反復可能入力が3要素でない場合、または数値変換に失敗した場合。
-            TypeError: 3成分指定で y または z だけを省略した場合など、float 変換できない場合。
+            TypeError: float へ変換できない値を指定した場合。
         """
-        if y is None and z is None:
-            values = tuple(x)
-            if len(values) != 3:
-                raise ValueError("Vector expects 3 values")
-            self.x, self.y, self.z = values
-        else:
-            self.x = float(x)
-            self.y = float(y)
-            self.z = float(z)
+        object.__setattr__(self, "x", float(self.x))
+        object.__setattr__(self, "y", float(self.y))
+        object.__setattr__(self, "z", float(self.z))
+
+    @classmethod
+    def from_iterable(cls, values):
+        """3要素の反復可能オブジェクトから生成する。
+
+        Args:
+            values (Iterable[float]): 3要素の反復可能オブジェクト。
+
+        Returns:
+            Vector: 呼び出したクラスの新しいインスタンス。
+
+        Raises:
+            ValueError: 要素数が3でない場合。
+        """
+        values = tuple(values)
+        if len(values) != 3:
+            raise ValueError(f"{cls.__name__} expects 3 values")
+        return cls(*values)
 
     def __iter__(self):
         """X、Y、Z の順で成分を反復する。
 
         Yields:
-            object: X、Y、Z 順の保持値。通常は数値。3要素入力では元の型を維持する。
+            float: X、Y、Z 順の成分。
         """
         yield self.x
         yield self.y
@@ -83,19 +94,6 @@ class Vector:
             str: __repr__ と同じ文字列。
         """
         return repr(self)
-
-    def __eq__(self, other):
-        """同じ Vector 系オブジェクトとの成分一致を判定する。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: Vector 同士の成分の完全一致。異なる型では NotImplemented。許容誤差は使わない。
-        """
-        if not isinstance(other, Vector):
-            return NotImplemented
-        return tuple(self) == tuple(other)
 
     def __add__(self, other):
         """別の Vector 系オブジェクトとの成分ごとの加算を行う。

@@ -1,34 +1,35 @@
 """四元数の保持・演算とオイラー回転への変換。"""
 
 import math
+from dataclasses import dataclass
 
 
+@dataclass(frozen=True, repr=False)
 class Quaternion:
-    """XYZW 成分で保持する四元数。
+    """XYZW 成分で保持する不変な四元数。
 
     四元数成分自体は角度ではない。生成時や積の計算時に正規化は行わない。
-    オイラー回転との変換に用いる角度はラジアン。"""
+    オイラー回転との変換に用いる角度はラジアン。
+    等価比較・ハッシュは dataclass が生成する。"""
 
-    __slots__ = ("x", "y", "z", "w")
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    w: float = 1.0
 
-    def __init__(self, x=0.0, y=0.0, z=0.0, w=1.0):
-        """4 成分から四元数を初期化する。
+    def __post_init__(self):
+        """各成分を float へ正規化する。
 
-        既定値 (0, 0, 0, 1) は単位四元数。入力時には正規化しない。
-
-        Args:
-            x (float): X 成分。float に変換する。
-            y (float): Y 成分。float に変換する。
-            z (float): Z 成分。float に変換する。
-            w (float): W 成分。float に変換する。
+        既定値 (0, 0, 0, 1) は単位四元数。入力時には正規化しない。frozen のため
+        通常の属性代入はできず、object.__setattr__ で書き換える。
 
         Returns:
             None: 値を返さない。
         """
-        self.x = float(x)
-        self.y = float(y)
-        self.z = float(z)
-        self.w = float(w)
+        object.__setattr__(self, "x", float(self.x))
+        object.__setattr__(self, "y", float(self.y))
+        object.__setattr__(self, "z", float(self.z))
+        object.__setattr__(self, "w", float(self.w))
 
     def __iter__(self):
         """X、Y、Z、W の順で成分を反復する。
@@ -48,19 +49,6 @@ class Quaternion:
             str: 型名と現在の成分を含む文字列表現。
         """
         return f"Quaternion({self.x}, {self.y}, {self.z}, {self.w})"
-
-    def __eq__(self, other):
-        """別の Quaternion との成分一致を判定する。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: Quaternion 同士の成分の完全一致。異なる型では NotImplemented。許容誤差は使わない。
-        """
-        if not isinstance(other, Quaternion):
-            return NotImplemented
-        return tuple(self) == tuple(other)
 
     def __mul__(self, other):
         """別の Quaternion との Hamilton 積を返す。

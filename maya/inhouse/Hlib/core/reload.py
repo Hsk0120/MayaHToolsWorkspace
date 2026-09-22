@@ -104,6 +104,11 @@ def _reload_order(module_names):
 def _module_dependencies(module, module_names):
     """module の globals から Hlib 内の依存 module 名を抽出する。
 
+    循環依存を避けるために関数内で遅延 import している参照（例: nodes.node と
+    plugs.plug の相互参照）は module の globals に現れないため、ここでは検出でき
+    ない。これらは reload 順序に影響しないが、実行時には呼び出しの都度その時点の
+    sys.modules から解決されるため、reload 漏れにはならない。
+
     Args:
         module (types.ModuleType): 依存関係を調べる module。
         module_names (set[str]): reload 対象として許可する module 名。

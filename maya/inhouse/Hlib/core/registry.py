@@ -208,41 +208,6 @@ class NodeRegistry:
         """
         return self.wrapper_class(node_type)
 
-    def resolve(self, node, node_type=None):
-        """入力ノードに対応する最適な Hlib ラッパーを生成する。
-
-        Args:
-            node (str | object): ノード名、または wrapper_class が受け入れる入力値。
-            node_type (str | None): 明示する Maya nodeType。省略時は node が文字列の
-                場合に Maya から取得する。
-
-        Returns:
-            object: 対応する登録クラスまたはフォールバッククラスを node で初期化した結果。
-
-        Raises:
-            TypeError: node_type を推論できない入力を指定した場合。
-        """
-        if node_type is None:
-            if not isinstance(node, str):
-                raise TypeError("node_type is required unless node is a Maya node name")
-            import maya.cmds as cmds
-
-            node_type = cmds.nodeType(node)
-        return self.wrap(node, node_type)
-
-    def wrap(self, node, node_type):
-        """解決済みのノード型を使ってラッパーを生成する。
-
-        Args:
-            node (object): ラッパークラスへ渡すノード入力。
-            node_type (str): 解決済みの Maya nodeType 名。
-
-        Returns:
-            object: 対応する登録クラスまたはフォールバッククラスを node で初期化した結果。
-        """
-        return self.wrapper_class(node_type)(node)
-
-
 __all__ = [
     "NodeRegistry",
     "collection_export",

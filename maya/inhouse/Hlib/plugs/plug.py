@@ -332,6 +332,8 @@ class Plug:
         Returns:
             Node: 所有ノードの型登録に従って解決したラッパー。
         """
+        # nodes.node が ..plugs.plug を逆方向 import するため、
+        # 循環回避のためここで遅延 import する（Hlib で意図的な相互依存の一つ）。
         from ..nodes.node import Node
 
         return Node(mplug.node())

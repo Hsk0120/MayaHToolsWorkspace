@@ -1,8 +1,11 @@
 """XY・XZ・YZ のシアーを表す3成分のベクトル値。"""
 
+from dataclasses import dataclass
+
 from .vector import Vector
 
 
+@dataclass(frozen=True, repr=False)
 class Shear(Vector):
     """XY・XZ・YZ のシアーを表す3成分の Vector 派生型。
 

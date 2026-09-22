@@ -105,6 +105,8 @@ class Namespace:
         """
         if not self.exists():
             return []
+        # nodes.node が ..scene を逆方向 import するため、
+        # 循環回避のためここで遅延 import する（Hlib で意図的な相互依存の一つ）。
         from ..nodes import Node
 
         names = cmds.namespaceInfo(
