@@ -110,3 +110,28 @@ def test_matrix_decompose_round_trip_preserves_trs_and_shear():
         shear=components["shear"],
     )
     assert all(math.isclose(actual, expected, abs_tol=1e-8) for actual, expected in zip(rebuilt, original))
+
+
+if __name__ == "__main__":
+    import unittest
+
+    # Reload only this test's isolated math package to pick up saved edits.
+    for _module_name in list(sys.modules):
+        if _module_name.startswith(PACKAGE_NAME + "."):
+            del sys.modules[_module_name]
+    importlib.invalidate_caches()
+    module = importlib.import_module(f"{PACKAGE_NAME}.maths")
+    for _type_name in (
+        "Vector", "Translate", "Rotate", "Quaternion", "EulerRotation",
+        "Scale", "Shear", "Matrix",
+    ):
+        globals()[_type_name] = getattr(module, _type_name)
+
+    _tests = [
+        unittest.FunctionTestCase(value, description=name)
+        for name, value in list(globals().items())
+        if name.startswith("test_") and isinstance(value, types.FunctionType)
+    ]
+    _result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(_tests))
+    if not _result.wasSuccessful():
+        raise AssertionError("Hlib datatype tests failed; see test output above.")

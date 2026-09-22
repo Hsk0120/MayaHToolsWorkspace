@@ -322,31 +322,6 @@ def _inhouse_install_htools_menu():
         cmds.warning(f"[userSetup] Failed to install {main_menu_name}: {error}")
 
 
-def _inhouse_open_command_ports():
-    """Maya commandPort(7001/7002) を必要に応じて開きます。"""
-    print("[userSetup] commandPort initialization start")
-    port_settings = (
-        (":7001", "mel"),
-        (":7002", "python"),
-    )
-
-    for port_name, source_type in port_settings:
-        try:
-            is_open = cmds.commandPort(port_name, q=True)
-        except Exception:
-            is_open = False
-
-        if is_open:
-            print(f"[userSetup] commandPort {port_name} ({source_type}) already open")
-            continue
-
-        try:
-            cmds.commandPort(name=port_name, sourceType=source_type, echoOutput=False)
-            print(f"[userSetup] commandPort {port_name} ({source_type}) opened")
-        except Exception as error:
-            cmds.warning(f"Failed to open commandPort {port_name} ({source_type}): {error}")
-
-    print("[userSetup] commandPort initialization done")
 
 
 def _inhouse_install_htools_menu_deferred():
@@ -364,13 +339,6 @@ def _inhouse_install_htools_menu_deferred():
         _inhouse_trace_event("deferred_end", "_inhouse_install_htools_menu")
 
 
-def _inhouse_open_command_ports_deferred():
-    """遅延実行コンテキストで commandPort 初期化を実行します。"""
-    _inhouse_trace_event("deferred_start", "_inhouse_open_command_ports")
-    try:
-        _inhouse_open_command_ports()
-    finally:
-        _inhouse_trace_event("deferred_end", "_inhouse_open_command_ports")
 
 
 def _inhouse_install_optional_external_tools():
@@ -410,7 +378,5 @@ else:
         _inhouse_install_htools_menu_deferred,
         "_inhouse_install_htools_menu",
     )
-    _inhouse_trace_event("register", "executeDeferred:_inhouse_open_command_ports")
-    maya_utils.executeDeferred(_inhouse_open_command_ports_deferred)
     _inhouse_trace_event("register", "executeDeferred:_inhouse_install_optional_external_tools")
     maya_utils.executeDeferred(_inhouse_install_optional_external_tools)

@@ -58,3 +58,8 @@ git submodule update --init --recursive
 
 - `maya_core.bat`は、上記バージョン別バッチから呼ばれる共通処理です。
 - `%USERPROFILE%\Documents\maya\<version>\Maya.env`が存在する場合、起動時に読み込まれます。
+## VS CodeからMayaへ実行
+
+`MayaHToolsWorkspace.code-workspace`をVS Codeで開き、Pythonファイルを保存して **Ctrl+Shift+B** でMayaへ送信します。
+送信はMaya 2027のmayapyを使用し、追加拡張機能は不要です。
+設定・バージョン変更は[VS Codeの使い方](docs/vscode.md)を参照してください。

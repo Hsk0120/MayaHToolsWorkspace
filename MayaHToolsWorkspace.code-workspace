@@ -1,0 +1,38 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "maya.pythonExecutable": "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe",
+    "python.defaultInterpreterPath": "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe",
+    "task.saveBeforeRun": "always"
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Maya: Run current Python file",
+        "type": "process",
+        "command": "${config:maya.pythonExecutable}",
+        "args": [
+          "${workspaceFolder}/tools/send_to_maya.py",
+          "${file}"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": [],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated"
+        }
+      }
+    ]
+  }
+}
