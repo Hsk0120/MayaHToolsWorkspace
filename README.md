@@ -22,6 +22,7 @@ maya_2024_en.bat
 maya_2025_en.bat
 maya_2026_en.bat
 maya_2027_en.bat
+rem 日本語: *_ja.bat
 ```
 
 - `maya_2022_en.bat`: Maya 2022 (en_US)
@@ -29,6 +30,24 @@ maya_2027_en.bat
 - `maya_2025_en.bat`: Maya 2025 (en_US)
 - `maya_2026_en.bat`: Maya 2026 (en_US)
 - `maya_2027_en.bat`: Maya 2027 (en_US)
+- `maya_<version>_ja.bat`: 日本語UI (`ja_JP`)
+
+起動バッチはファイル名の `maya_<version>_<language>.bat` を解析して、
+Mayaのバージョンと言語を共通処理へ渡します。ファイル名と起動設定を別々に変更する必要はありません。
+
+### macOS
+
+macOSでは`.command`ランチャーを使用します。ファイル名からバージョンと言語を判定します。
+
+```bash
+cd maya
+chmod +x maya_core.command maya_*_en.command maya_*_ja.command
+./maya_2027_en.command
+./maya_2027_ja.command
+```
+
+標準のMaya配置は`/Applications/Autodesk/maya<version>/Maya.app`です。
+別の場所にインストールしている場合は、起動前に`MAYA_EXE`へMaya実行ファイルのパスを指定してください。
 
 ## ▼構造イメージ
 
@@ -44,6 +63,9 @@ maya/
 ├ maya_2027_en.bat      <- Maya起動バッチ
 └ maya_core.bat         <- 共通設定バッチ
 ```
+
+macOS用の起動ファイルは`maya_<version>_<language>.command`と
+`maya_core.command`です。
 
 ## ▼ディレクトリ補足
 

@@ -17,6 +17,6 @@ SET MAYA_CORE = ./maya_core.bat
 ::      MEL=%4
 ::----------------------------------------------------------------
 
-CALL MAYA_CORE 2024 en_US
+CALL MAYA_CORE "%~n0" %*
 
 EXIT

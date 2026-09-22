@@ -8,11 +8,14 @@ CD /d %~dp0
 ::----------------------------------------------------------------
 ::Args
 ::----------------------------------------------------------------
-SET MAYA_VERSION=%1
-SET MAYA_UI_LANGUAGE=%2
-SET OPEN_FILE=%3
-SET MEL=%4
-SET PYTHON_SCRIPT=%5
+SET LAUNCHER_NAME=%~1
+FOR /F "tokens=2,3 delims=_" %%A IN ("%LAUNCHER_NAME%") DO (
+    SET "MAYA_VERSION=%%A"
+    SET "MAYA_LANGUAGE=%%B"
+)
+SET OPEN_FILE=%2
+SET MEL=%3
+SET PYTHON_SCRIPT=%4
 
 SET MAYA_EXE="C:\Program Files\Autodesk\Maya%MAYA_VERSION%\bin\maya.exe"
 
@@ -42,6 +45,12 @@ IF EXIST "%MAYA_ENV_FILE%" (
         )
     )
 )
+
+::----------------------------------------------------------------
+::Set language from launcher filename after Maya.env
+::----------------------------------------------------------------
+IF /I "%MAYA_LANGUAGE%" == "en" SET "MAYA_UI_LANGUAGE=en_US"
+IF /I "%MAYA_LANGUAGE%" == "ja" SET "MAYA_UI_LANGUAGE=ja_JP"
 
 ::---------------------------------------------------
 ::MEL Tools
