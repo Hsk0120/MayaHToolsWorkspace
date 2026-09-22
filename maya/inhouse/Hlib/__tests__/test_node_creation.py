@@ -2,29 +2,46 @@
 
 import sys
 import unittest
+import importlib
 
 import maya.cmds as cmds
 
 import Hlib
-Hlib.reload_all()
+Hlib.reload()
+hlib_cmds = importlib.import_module("Hlib.cmds")
 from Hlib.nodes import Node
 from Hlib.nodes.joint import Joint
 
 
 class NodeCreationTest(unittest.TestCase):
-    """Node.create と Hlib.create_node の基本動作を検証する。"""
+    """Node.create と Hlib.cmds.create_node の基本動作を検証する。"""
+
+    def setUp(self):
+        self.previous_namespace = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
+        cmds.namespace(set=":")
 
     def tearDown(self):
         for name in ("hlibCreateJoint", "hlibCreateTransform"):
             if cmds.objExists(name):
                 cmds.delete(name)
+        cmds.namespace(set=self.previous_namespace)
 
     def test_create_node_returns_registered_wrapper(self):
-        joint = Hlib.create_node(type="joint", name="hlibCreateJoint")
+        joint = hlib_cmds.create_node(type="joint", name="hlibCreateJoint")
 
         self.assertIsInstance(joint, Joint)
         self.assertEqual(joint.name(), "hlibCreateJoint")
         self.assertEqual(joint.type(), "joint")
+
+    def test_cmds_package_reexports_node_commands(self):
+        self.assertTrue(callable(hlib_cmds.create_node))
+        self.assertTrue(callable(hlib_cmds.ls))
+        self.assertIs(Hlib.create_node, hlib_cmds.create_node)
+        self.assertIs(Hlib.ls, hlib_cmds.ls)
+        transform = hlib_cmds.create_node(type="transform", name="hlibCreateTransform")
+
+        self.assertIsInstance(transform, Node)
+        self.assertEqual(transform.name(), "hlibCreateTransform")
 
     def test_node_create_forwards_create_node_flags(self):
         transform = Node.create(type="transform", name="hlibCreateTransform")
@@ -35,7 +52,7 @@ class NodeCreationTest(unittest.TestCase):
 
     def test_create_node_rejects_invalid_node_type(self):
         with self.assertRaises(ValueError):
-            Hlib.create_node(type="")
+            hlib_cmds.create_node(type="")
 
 
 if __name__ == "__main__":

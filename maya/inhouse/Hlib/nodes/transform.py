@@ -19,6 +19,69 @@ class Transform(Node):
     倣い、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
     """
 
+    @undoable("HlibTransformAddConstraint")
+    def add_constraint(self, sources, type="parent", maintainOffset=False):
+        """自身を拘束するコンストレイントを作成する。
+
+        Args:
+            sources (Node | str | Iterable[Node | str]): 拘束元の単一ノードまたはノード列。
+            type (str): parent、point、orient、scale、aim、poleVector、
+                geometry、normal、tangent、pointOnPoly。または Constraint 接尾辞付きの型名。
+            maintainOffset (bool): True の場合は現在の相対位置・回転を維持する。
+                False の場合は Maya の既定動作で拘束する。
+
+        Returns:
+            Constraint: 対応する具象ラッパー。同じ種類が既存なら Maya の規則で
+                ターゲットが追加される場合がある。
+
+        Raises:
+            ValueError: 未対応の型または空のソースの場合。
+            TypeError: 型名やターゲットの入力型が不正な場合。
+            RuntimeError: ノードが無効、または Maya が作成を拒否した場合。
+
+        PoleVector は RP IK ハンドル、Geometry/Normal/PointOnPoly は適切な形状、
+        Tangent は NURBS カーブが必要。選択状態による対象補完は行わない。
+        """
+        from .constraint import Constraint
+
+        if not isinstance(type, str):
+            raise TypeError("type must be a string")
+        command_name = type if type.endswith("Constraint") else type + "Constraint"
+        # 型登録を重複管理せず、登録メタデータを持つ具象クラスから対象を判定する。
+        supported = {
+            cls.__dict__["__hlib_node_type__"]
+            for cls in Constraint.__subclasses__()
+            if "__hlib_node_type__" in cls.__dict__
+        }
+        if command_name not in supported:
+            raise ValueError(f"Unsupported constraint type: {type}")
+        if not self.is_valid():
+            raise RuntimeError("Cannot constrain an invalid transform")
+        if isinstance(sources, (Node, str)):
+            sources = [sources]
+        names = []
+        for source in sources:
+            if isinstance(source, Node):
+                if not source.is_valid():
+                    raise RuntimeError("Constraint target is invalid")
+                source = source.full_name
+            if not isinstance(source, str) or not source:
+                raise TypeError("Constraint sources must be non-empty names or Node objects")
+            names.append(source)
+        if not names:
+            raise ValueError("At least one constraint source is required")
+        command_kwargs = {}
+        if command_name in {
+            "parentConstraint",
+            "pointConstraint",
+            "orientConstraint",
+            "scaleConstraint",
+            "aimConstraint",
+        }:
+            command_kwargs["maintainOffset"] = maintainOffset
+        result = getattr(cmds, command_name)(*names, self.full_name, **command_kwargs)
+        return Node(result[0])
+
     def dag_path(self):
         """Transform の MDagPath を取得する。
 
@@ -102,6 +165,38 @@ class Transform(Node):
             child_path.push(child)
             shapes.append(Shape(child_path))
         return shapes
+
+    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None):
+        """直下のすべてのShapeのジオメトリをミラーする。
+
+        直下の各Shape（Mesh、NurbsCurveなど mirror を実装するもの）へ同じ引数で
+        処理を委譲する。indices は Shape ごとの要素番号（Mesh は頂点、NurbsCurve は
+        CV）として解釈される。Transform自身の行列やShapeの構造は変更しない。
+
+        Args:
+            axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
+                x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
+            ws (bool): True はワールド軸、False はオブジェクト空間の軸。既定は False。
+            pivot (Iterable[float]): 指定空間での反転中心。既定はその空間の原点。
+                単位は Maya の現在の距離単位。Transform のピボットとは独立する。
+            indices (Iterable[int] | None): 各Shapeへそのまま渡す要素番号。
+                None は全要素、空列は変更なし。
+
+        Returns:
+            Transform: 編集した自身。
+
+        Raises:
+            ValueError: 軸・空間・中心が不正、またはワールド変換が数値的にほぼ特異な場合。
+            TypeError: 要素番号が整数でない場合、または直下のShapeが mirror を実装しない場合。
+            IndexError: 要素番号が範囲外の場合。
+            RuntimeError: Maya が形状の取得・編集を拒否した場合。
+
+        複数のShapeを持つ場合、途中のShapeで失敗すると以降のShapeは処理されない
+        （それまでに成功した分はロールバックしない）。
+        """
+        for shape in self.shapes():
+            shape.mirror(axis=axis, ws=ws, pivot=pivot, indices=indices)
+        return self
 
     def shape(self, index=0, intermediates=False):
         """指定位置のShapeを取得する。

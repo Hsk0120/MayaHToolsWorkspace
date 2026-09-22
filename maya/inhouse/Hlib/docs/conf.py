@@ -14,7 +14,22 @@ class _DynamicExportFilter(logging.Filter):
         }
 
 
+class _ReexportedSubpackageFilter(logging.Filter):
+    """Hlib/__init__.py がサブパッケージをトップレベル属性として再代入する箇所
+    （例: ``cmds = importlib.import_module(...)``）で、AutoAPI が同じオブジェクトを
+    親ページとサブパッケージページの両方に載せてしまう重複警告だけを無視する。"""
+
+    _IGNORED_MESSAGE_PREFIXES = (
+        "duplicate object description of Hlib.cmds,",
+    )
+
+    def filter(self, record):
+        message = record.getMessage()
+        return not message.startswith(self._IGNORED_MESSAGE_PREFIXES)
+
+
 logging.getLogger("sphinx.autoapi._mapper").addFilter(_DynamicExportFilter())
+logging.getLogger("sphinx").addFilter(_ReexportedSubpackageFilter())
 
 project = "Hlib"
 language = "ja"

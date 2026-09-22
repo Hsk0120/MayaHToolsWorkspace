@@ -8,7 +8,7 @@ import sys
 import unittest
 
 import Hlib
-Hlib.reload_all()
+Hlib.reload()
 from Hlib.core.registry import NodeRegistry, collection_export, node_wrapper, plug_wrapper
 
 

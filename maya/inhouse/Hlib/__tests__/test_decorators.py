@@ -1,4 +1,4 @@
-"""Hlib.decorators (undo_chunk/undoable) を検証するMaya内テスト。"""
+"""Hlib.decorators (undo_chunk/undoable/preserved_selection) を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -6,8 +6,8 @@ import unittest
 import maya.cmds as cmds
 
 import Hlib
-Hlib.reload_all()
-from Hlib.decorators import undo_chunk, undoable
+Hlib.reload()
+from Hlib.decorators import preserved_selection, undo_chunk, undoable
 
 
 class UndoDecoratorsTest(unittest.TestCase):
@@ -46,6 +46,50 @@ class UndoDecoratorsTest(unittest.TestCase):
 
         self.assertEqual(sample_function.__name__, "sample_function")
         self.assertEqual(sample_function(), 42)
+
+
+class PreservedSelectionTest(unittest.TestCase):
+    """preserved_selection が選択状態を保存・復元することを検証する。"""
+
+    def setUp(self):
+        self.nodes = [
+            cmds.createNode("transform", name="hlibPreservedSelectionA"),
+            cmds.createNode("transform", name="hlibPreservedSelectionB"),
+            cmds.createNode("transform", name="hlibPreservedSelectionC"),
+        ]
+
+    def tearDown(self):
+        for name in self.nodes:
+            if cmds.objExists(name):
+                cmds.delete(name)
+        cmds.select(clear=True)
+
+    def test_restores_original_selection_after_block(self):
+        cmds.select(self.nodes[0], replace=True)
+
+        with preserved_selection():
+            cmds.select(self.nodes[1], replace=True)
+            self.assertEqual(cmds.ls(sl=True, long=True), cmds.ls(self.nodes[1], long=True))
+
+        self.assertEqual(cmds.ls(sl=True, long=True), cmds.ls(self.nodes[0], long=True))
+
+    def test_restores_empty_selection_when_nothing_was_selected(self):
+        cmds.select(clear=True)
+
+        with preserved_selection():
+            cmds.select(self.nodes[2], replace=True)
+
+        self.assertEqual(cmds.ls(sl=True), [])
+
+    def test_restores_selection_even_when_block_raises(self):
+        cmds.select(self.nodes[0], replace=True)
+
+        with self.assertRaises(RuntimeError):
+            with preserved_selection():
+                cmds.select(self.nodes[1], replace=True)
+                raise RuntimeError("boom")
+
+        self.assertEqual(cmds.ls(sl=True, long=True), cmds.ls(self.nodes[0], long=True))
 
 
 if __name__ == "__main__":

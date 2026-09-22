@@ -19,12 +19,16 @@
 cd maya
 maya_2022_en.bat
 maya_2024_en.bat
+maya_2025_en.bat
 maya_2026_en.bat
+maya_2027_en.bat
 ```
 
 - `maya_2022_en.bat`: Maya 2022 (en_US)
 - `maya_2024_en.bat`: Maya 2024 (en_US)
+- `maya_2025_en.bat`: Maya 2025 (en_US)
 - `maya_2026_en.bat`: Maya 2026 (en_US)
+- `maya_2027_en.bat`: Maya 2027 (en_US)
 
 ## ▼構造イメージ
 
@@ -35,14 +39,16 @@ maya/
 ├ modules               <- Maya用 .mod ファイル
 ├ maya_2022_en.bat      <- Maya起動バッチ
 ├ maya_2024_en.bat      <- Maya起動バッチ
+├ maya_2025_en.bat      <- Maya起動バッチ
 ├ maya_2026_en.bat      <- Maya起動バッチ
+├ maya_2027_en.bat      <- Maya起動バッチ
 └ maya_core.bat         <- 共通設定バッチ
 ```
 
 ## ▼ディレクトリ補足
 
 - `maya/external`: 外部サブモジュール群(mGear, cymel, AnimationAid ほか)
-- `maya/inhouse/Hlib`: 共通ライブラリ(検索付きメニュー部品など)
+- `maya/inhouse/Hlib`: Mayaノード・属性ラッパー、形状操作、数学型などの共通ライブラリ
 - `maya/inhouse/HTools`: Mayaメニューから起動する社内ツール
 - `maya/modules`: 各ツールをMayaへ認識させる`.mod`定義
 

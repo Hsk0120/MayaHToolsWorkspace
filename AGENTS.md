@@ -59,7 +59,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 
 - ノード・属性ラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
 - 型の追加は `core/discovery.py` / `core/registry.py` と既存の `@node_wrapper` / `@plug_wrapper` に合わせる。自動登録を重複する手動登録を加えない。
-- `Hlib.reload_all()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
+- `Hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
 - `Hlib/maths/` のMaya非依存性を維持する。角度の度・ラジアン、行列の規約は対象型の実装とテストに合わせる。
 
 ### 外部ツールと連携

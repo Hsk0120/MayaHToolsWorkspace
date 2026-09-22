@@ -35,7 +35,7 @@
 - Mayaは `maya/maya_<version>_en.bat` から起動する。対象バージョンのインストールを確認する。
 - VS Codeでは `MayaHToolsWorkspace.code-workspace` を開き、Maya GUIを起動してから保存済みPythonファイルを `Ctrl+Shift+B` で送信する。
 - `mayapy.exe` は送信スクリプトを実行するだけで、対象コードは `localhost:7002` 経由で起動中のMaya GUI内に実行される。
-- import済みモジュールは自動リロードされない。必要な場合は既存の `Hlib.reload_all()` などの手段を確認する。
+- import済みモジュールは自動リロードされない。必要な場合は `Hlib.reload()` を使用する。
 - 送信の終了コードは、正常終了0、対象コードの例外1、接続・ファイル等の失敗2。タイムアウトしてもMaya側の処理がキャンセルされたとは限らない。
 
 ## 検証

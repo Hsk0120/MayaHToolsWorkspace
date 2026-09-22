@@ -11,15 +11,19 @@
    * - パッケージ
      - 役割
    * - ``nodes``
-     - Node、Transform、Joint、Mesh などのノードラッパー
+     - Node、Transform、Joint、Mesh、NurbsCurve、IkHandle、各種 Constraint ラッパー
    * - ``plugs``
      - 属性型に応じた Plug ラッパー、配列・複合属性
+   * - ``components``
+     - Vertex/CV/Edge/Face/UV とその複数形。シーンを参照する座標コンポーネント
    * - ``scene``
      - Scene と Namespace によるシーン・名前空間操作
    * - ``maths``
-     - Vector、Matrix、Quaternion などの数学型
+     - Vector、Matrix、Quaternion などの数学型（Matrix 以外は frozen dataclass）
+   * - ``cmds``
+     - ``maya.cmds`` 相当の手続き的 API（create_node、ls、constraint）
    * - ``decorators``
-     - Undo チャンクとデコレータ
+     - Undo チャンク、選択状態の保存・復元、Undo チャンク化デコレータ
    * - ``utils``
      - ログと進捗表示
    * - ``core``
@@ -63,3 +67,18 @@ Hlib は実行時にラッパーを発見して公開 API を構成するため�
 生成 HTML は ``maya/inhouse/Hlib/docs/_build/html`` に出力し、Git には含めません。
 
 参考: `Sphinx AutoAPI の公式ドキュメント <https://sphinx-autoapi.readthedocs.io/en/latest/>`_
+
+
+コンポーネントの構成
+--------------------
+
+``components/component.py`` の ``Component`` / ``Components`` は、
+単体のシェイプ・番号の参照と、同一シェイプの要素群を担当します。
+``components/point_component.py`` の ``PointComponent`` / ``PointComponents`` は、
+XYZ 座標の取得・設定と一括ミラーを担当します。
+
+``vertex.py``、``cv.py``、``edge.py``、``face.py``、``uv.py`` には、
+それぞれ単体型と複数形をまとめます。Vertex / CV は PointComponent、
+Vertices / CVs は PointComponents を継承します。
+Edge / Face / UV は Component、Edges / Faces / UVs は Components を継承します。
+基底クラスは ``Hlib.components`` から import できます。

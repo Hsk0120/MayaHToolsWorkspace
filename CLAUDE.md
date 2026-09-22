@@ -34,7 +34,8 @@ pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提
 
 - `maya/inhouse/Hlib/__tests__/test_datatypes.py` を開いて Ctrl+Shift+B で送信すると、`Hlib.maths`(Vector/Translate/Rotate/Scale/Shear/Quaternion/EulerRotation/Matrix)を対象とした unittest が全9件走り、VS Codeターミナルと Maya の両方に各テスト結果とOK/FAILEDが出力される。Maya非依存の純粋ロジックだが、実行手段はこのリポジトリの標準に合わせてMaya経由である。
 - 個別テストだけ実行したい場合は、同ファイル末尾の `if __name__ == "__main__":` ブロックが `test_` で始まる関数を `globals()` から収集して実行しているため、一時的に対象外の関数名を変える、または別のtest_*.pyとして必要な関数だけをコピーして送信する。
-- `test_maya_standalone.py` / `test_slack_postMessage.py`(`Hlib/__tests__/`)は疎通確認用の手動スクリプト。後者は環境変数 `SLACK_API_BOT_TOKEN` が必須で、Slackへ実際にメッセージを投稿する副作用がある点に注意。
+- 他の `Hlib/__tests__/test_*.py`(`test_decorators.py`/`test_registry.py`/`test_node_creation.py`/`test_node_api.py`/`test_namespace_api.py`/`test_scene_api.py`/`test_skincluster.py`/`test_shapes_constraints.py`)も同様に `unittest.TestCase` を Maya 内で実行する形式で、対応するパッケージ(decorators/core.registry/nodes/scene/components 等)の単体テストを提供する。いずれもテスト対象ノードは専用の一時名前空間やユニーク名で作成し、tearDown で削除する。
+- `test_maya_standalone.py` / `test_slack_postMessage.py`(`Hlib/__tests__/`)は疎通確認用の手動スクリプト。後者は環境変数 `SLACK_API_BOT_TOKEN` が必須で、Slackへ実際にメッセージを投稿する副作用がある点に注意。前者は `HTools.decorator`(存在しないモジュール)を参照しており、現状インポートに失敗する。
 
 ## アーキテクチャ
 
@@ -68,13 +69,15 @@ tools/
 
 Maya公式 `maya.cmds` ではなく `maya.api.OpenMaya`(API 2.0)を主に用いた、ノード/属性(plug)のラッパーとメンテナンス性重視の動的登録機構を提供する。
 
-- **動的wrapper登録** (`Hlib/core/discovery.py`, `Hlib/core/registry.py`): `Hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`Hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、パッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/属性型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけでよく、`__init__.py` 等の手動編集は不要**。同一型に複数クラスを登録しようとすると `ValueError` になる。
+- **動的wrapper登録** (`Hlib/core/discovery.py`, `Hlib/core/registry.py`): `Hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`Hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、パッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/属性型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけでよく、`__init__.py` 等の手動編集は不要**。同一型に複数クラスを登録しようとすると `ValueError` になる。ノード側は `Node`/`Transform`/`Shape`/`Joint`/`Mesh`/`Camera`/`NurbsCurve`/`SkinCluster`/`IkHandle`に加え、`Constraint` 系(Parent/Point/Orient/Scale/Aim/PoleVector/Geometry/Normal/Tangent/PointOnPoly の10種)を提供する。
 - **ファクトリパターン**: `Node.__new__`(`Hlib/nodes/node.py`)が対象の実際の Maya nodeType を調べ、登録済みのサブクラス(例: `Joint`, `SkinCluster`)があれば自動的にそちらへ差し替えてインスタンス化する。属性未定義の場合は `__getattr__` がMayaのplugとして解決を試みる(`Plug` を返す)。
-- **依存順リロード** (`Hlib/core/reload.py`): `Hlib.reload_all()` がパッケージ配下の現存モジュールをmodule globals内の相互参照から依存グラフを推定し、依存先を先に安全な順序でreloadする。Script Editor上での開発・修正の反映に使う。
-- `Hlib/maths/`: `Vector`/`Translate`/`Rotate`/`Scale`/`Shear`/`Quaternion`/`EulerRotation`/`Matrix` などMaya非依存(標準`math`のみ)の値型。`EulerRotation` は内部値がradian、表示・入出力はdegreesである点に注意。
-- `Hlib/decorators/undo.py`: `undo_chunk` コンテキストマネージャと `undoable` デコレータで、複数のMaya操作を単一のUndoチャンクにまとめる。
+- **依存順リロード** (`Hlib/core/reload.py`): `Hlib.reload()` がパッケージ配下の現存モジュールをmodule globals内の相互参照から依存グラフを推定し、依存先を先に安全な順序でreloadする。Script Editor上での開発・修正の反映に使う。
+- `Hlib/maths/`: `Vector`/`Translate`/`Rotate`/`Scale`/`Shear`/`Quaternion`/`EulerRotation`/`Matrix` などMaya非依存(標準`math`のみ)の値型。`Matrix` を除き `@dataclass(frozen=True)` の不変値オブジェクトで、等価比較・ハッシュは自動生成される(`slots=True` はMaya 2022同梱のPython 3.7と非互換のため不使用)。`EulerRotation` は内部値がradian、表示・入出力はdegreesである点に注意。
+- `Hlib/components/`: Mesh/NurbsCurveの部分要素を、作成時に番号を固定した参照として提供する(`Vertex`/`Vertices`、`CV`/`CVs`、`Edge`/`Edges`、`Face`/`Faces`、`UV`/`UVs`)。座標は都度シーンから取得し、`Vertex`/`CV`(`PointComponent`系)は代入で即座にシーンへ反映しUndoできる。トポロジー変更後の番号の同一性は保証しない。
+- `Hlib/cmds/`: `maya.cmds` 相当の手続き的API(`create_node`、`ls`、`constraint`)を集約する。`Hlib/__init__.py` が起動時にここを走査し、`Hlib.cmds.create_node` と `Hlib.create_node` の両方から呼べるようフラットに再公開する。
+- `Hlib/decorators/`: `undo.py` の `undo_chunk` コンテキストマネージャと `undoable` デコレータで複数のMaya操作を単一のUndoチャンクにまとめる。`selection.py` の `preserved_selection` コンテキストマネージャはブロックの前後でMayaの選択状態を保存・復元する(ブロック内で例外が起きても復元される)。
 - `Hlib/utils/`: `logger.py`(ログ出力)、`progress.py`(Maya非依存の進捗バー、Slack通知等への`notify`コールバック対応)。
-- トップレベル `Hlib/__init__.py` は `ls(*args, **kwargs)` (`maya.cmds.ls` 相当を各種ラッパーへ変換して返す)と `reload_all()` を公開し、`initialize_node_api` / `initialize_plug_api` を通じて発見した全公開クラスを `__all__` に含める。
+- トップレベル `Hlib/__init__.py` は `Hlib/cmds` の公開関数をフラットに再公開し(`Hlib.create_node`/`Hlib.ls`/`Hlib.constraint`)、`reload()` を公開する。`initialize_node_api` / `initialize_plug_api` を通じて発見した全公開クラスを `__all__` に含める。
 
 ### MayaCommandPorts
 

@@ -5,6 +5,7 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 
 from ..core.registry import collection_export, node_wrapper
+from ..decorators.selection import preserved_selection
 from .joint import Joint
 from .node import Node
 
@@ -205,25 +206,11 @@ class SkinCluster(Node):
         if cmds.ls(sl=True):
             cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
 
-    @staticmethod
-    def _restore_selection(original_selection):
-        """処理前に保存した Maya 選択状態を復元する。
-
-        Args:
-            original_selection (Sequence[str]): 復元する選択名。空なら選択を解除する。
-
-        Returns:
-            None: 値を返さない。
-        """
-        if original_selection:
-            cmds.select(original_selection, replace=True)
-        else:
-            cmds.select(clear=True)
-
     def transfer_weights_batch(self, source_target_pairs):
         """複数のsource/target組についてウェイトを移す。
 
-        処理が途中で失敗しても finally で選択の復元を試みる。完了済みのウェイト変更はロールバックしない。
+        処理が途中で失敗しても選択状態は preserved_selection により復元される。完了済みの
+        ウェイト変更はロールバックしない。
 
         Args:
             source_target_pairs (Iterable[tuple[str, str]]): (移送元, 移送先) の influence 名の組。
@@ -235,12 +222,9 @@ class SkinCluster(Node):
             RuntimeError: 接続ノード名・型名からスキニングレイヤーを検出した場合、または Maya 操作に失敗した場合。
         """
         self._raise_if_layers()
-        original_selection = cmds.ls(sl=True, long=True) or []
-        try:
+        with preserved_selection():
             for source_joint, target_joint in source_target_pairs:
                 self._xfer_pair(source_joint, target_joint)
-        finally:
-            self._restore_selection(original_selection)
 
     def remove_influence(self, joint):
         """指定したjointをskinClusterのinfluenceから削除する。

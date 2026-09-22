@@ -8,7 +8,7 @@ from pathlib import Path
 import maya.cmds as cmds
 
 import Hlib
-Hlib.reload_all()
+Hlib.reload()
 from Hlib import Scene
 from Hlib.scene import Scene as SceneFromPackage
 

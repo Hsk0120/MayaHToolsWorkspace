@@ -6,7 +6,7 @@ import unittest
 import maya.cmds as cmds
 
 import Hlib
-Hlib.reload_all()
+Hlib.reload()
 from Hlib import Namespace
 from Hlib.nodes import Node
 
