@@ -1,4 +1,4 @@
-"""double3 (compound numeric triple) attribute plug wrapper."""
+"""double3 属性を意味付きの3成分値として扱う。"""
 
 import math
 
@@ -26,11 +26,13 @@ class Double3Plug(CompoundPlug):
     def get(self, ws=False):
         """3つの子要素を属性の意味に対応するベクトルとして取得する。
 
+        ローカル回転の取得は Maya の角度単位が度であることを前提とする。
+
         Args:
-            ws (bool): ``True`` で変換属性をワールド空間で取得する。
+            ws (bool): True で既知の変換属性に対応するノードの取得メソッドを呼ぶ。それ以外は子属性の値を使う。
 
         Returns:
-            Vector: 3成分の値。既知の変換属性では意味付きサブクラス。
+            Vector | Translate | EulerRotation | Scale | Shear: 属性名に応じた3成分値。ローカルの rotate は度からラジアンに変換し、rotateOrder を保持する。
         """
         if ws and self.attribute in self._value_types:
             getters = {
@@ -55,7 +57,21 @@ class Double3Plug(CompoundPlug):
         return value_type(*values)
 
     def set(self, value, ws=False, unit="rad"):
-        """変換属性をローカルまたはワールド空間へ設定する。"""
+        """変換属性をローカルまたはワールド空間へ設定する。
+
+        対応するノードメソッドがあればローカル指定でも委譲する。なければ各子プラグへ順に設定する。
+
+        Args:
+            value (Iterable[float] | Quaternion): 設定値。通常は3成分。回転メソッドへの委譲時はその受け入れ型に従う。
+            ws (bool): True ならノードの変換設定メソッドへワールド指定で委譲する。
+            unit (str): 回転の委譲時のみ使用する入力単位 rad または deg。その他の属性では無視する。
+
+        Returns:
+            Double3Plug: 自身。
+
+        Raises:
+            ValueError: 対応する設定メソッドがない属性で ws=True を指定、値の要素数が不正、または委譲先の変換条件が不正の場合。
+        """
         setters = {
             "translate": "set_translate",
             "t": "set_translate",

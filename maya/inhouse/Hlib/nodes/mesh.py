@@ -1,4 +1,4 @@
-"""Mesh shape wrapper."""
+"""Maya のメッシュシェイプを扱う。"""
 
 import maya.api.OpenMaya as om2
 

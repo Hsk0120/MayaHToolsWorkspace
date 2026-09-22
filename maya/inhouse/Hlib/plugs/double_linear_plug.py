@@ -1,4 +1,4 @@
-"""doubleLinear (linear distance) attribute plug wrapper."""
+"""距離属性を汎用 Plug の読み書き機能で扱う。"""
 
 from ..core.registry import plug_wrapper
 from .plug import Plug

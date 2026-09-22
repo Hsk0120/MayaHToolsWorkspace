@@ -1,4 +1,4 @@
-"""Dependency-free utility functions for Hlib."""
+"""ログ通知と進捗表示の共通機能を公開する。"""
 
 from .logger import debug, error, get_logger, raise_with_notify, warning
 from .progress import progress_bar

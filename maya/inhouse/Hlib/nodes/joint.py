@@ -1,4 +1,4 @@
-"""Joint wrappers and collections for Hlib."""
+"""joint ラッパーと joint コレクションを提供する。"""
 
 import math
 
@@ -28,7 +28,11 @@ class Joint(Transform):
         return EulerRotation(*(math.radians(value) for value in values))
 
     def _rotation_order(self):
-        """Maya の rotateOrder を API の回転順序へ変換する。"""
+        """Maya の rotateOrder を API の回転順序へ変換する。
+
+        Returns:
+            int: rotateOrder に対応する Maya API 2.0 の MEulerRotation 定数。
+        """
         order_index = int(self.plug("ro").get())
         return (
             om2.MEulerRotation.kXYZ,
@@ -40,13 +44,32 @@ class Joint(Transform):
         )[order_index]
 
     def _rotation_quaternion(self, attribute):
-        """Euler の Maya degrees 属性を API quaternion へ変換する。"""
+        """Euler の Maya degrees 属性を API quaternion へ変換する。
+
+        属性値は度であると仮定してラジアンへ変換する。
+
+        Args:
+            attribute (str): 度の3成分として読み取る回転属性名。
+
+        Returns:
+            om2.MQuaternion: ノードの rotateOrder で解釈した回転。
+        """
         values = self._compound_values(attribute)
         rotation = om2.MEulerRotation(*(math.radians(value) for value in values), self._rotation_order())
         return rotation.asQuaternion()
 
     def _remove_segment_scale_compensation(self, matrix):
-        """ssc と inverseScale が適用された後の行列から補正前の値を戻す。"""
+        """ssc と inverseScale が適用された後の行列から補正前の値を戻す。
+
+        Args:
+            matrix (Matrix): スケール補正を取り除く対象行列。
+
+        Returns:
+            Matrix: ssc が無効なら入力そのもの。有効なら inverseScale の逆数からなる行列を右から乗じた新しい行列。
+
+        Raises:
+            ValueError: ssc が有効で inverseScale の成分の絶対値が 1e-12 未満の場合。
+        """
         if not self.plug("ssc").get():
             return matrix
         inverse_scale = self._compound_values("inverseScale")
@@ -56,7 +79,20 @@ class Joint(Transform):
         return matrix * compensation
 
     def _apply_local_matrix(self, matrix):
-        """jointOrient と rotateAxis を保持して local 行列を適用する。"""
+        """jointOrient と rotateAxis を保持して local 行列を適用する。
+
+        jointOrient と rotateAxis を回転から除き、rotateOrder に並べ替えて書き込む。角度の読み書きは Maya の角度単位が度であることを前提とする。
+
+        Args:
+            matrix (Matrix): 適用するローカル行列。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
+            RuntimeError: Maya が属性の書き込みを拒否した場合。
+        """
         matrix = self._remove_segment_scale_compensation(matrix)
         target = om2.MTransformationMatrix(matrix.to_mmatrix())
         target_quaternion = target.rotation(asQuaternion=True)
@@ -92,7 +128,14 @@ class Joint(Transform):
         return Scale(*self._compound_values("inverseScale"))
 
     def _compound_values(self, attribute):
-        """compound 属性を 3 要素の tuple として取得する。"""
+        """compound 属性を 3 要素の tuple として取得する。
+
+        Args:
+            attribute (str): 読み取る複合属性名。
+
+        Returns:
+            tuple: 属性値のタプル。無効なノードでは (0.0, 0.0, 0.0)。有効時は要素数を検査しない。
+        """
         if not self.is_valid():
             return (0.0, 0.0, 0.0)
         values = cmds.getAttr(f"{self.full_name}.{attribute}")
@@ -181,14 +224,24 @@ class Joint(Transform):
         """子 joint を指定した親 joint へ付け替える。
 
         Args:
-            parent_joint (str): 子 joint の新しい親 joint 名。
+            parent_joint (str): 直接の子 joint を付け替える親ノード名。
+
+        Returns:
+            None: 値を返さない。
         """
         for child_joint in self.children():
             cmds.parent(child_joint, parent_joint)
 
     @staticmethod
     def _unique_ordered(items):
-        """順序を保ったまま重複要素を除外する。"""
+        """順序を保ったまま重複要素を除外する。
+
+        Args:
+            items (Iterable[Hashable]): 重複を除去するハッシュ可能な要素。
+
+        Returns:
+            list: 最初の出現順を維持した要素リスト。
+        """
         seen = set()
         unique_items = []
         for item in items:
@@ -199,26 +252,40 @@ class Joint(Transform):
         return unique_items
 
     def __eq__(self, other):
-        """UUID を基準に別の Joint と同一か判定する。"""
+        """UUID を基準に別の Joint と同一か判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: Joint 同士は UUID の一致。相手が Joint でなければ NotImplemented。両方が無効で UUID が None なら一致する。
+        """
         if not isinstance(other, Joint):
             return NotImplemented
         return self.uuid == other.uuid
 
     def __hash__(self):
-        """UUID を使ったハッシュ値を返す。"""
+        """UUID を使ったハッシュ値を返す。
+
+        Returns:
+            int: 現在の UUID のハッシュ。無効な場合は None のハッシュ。
+        """
         return hash(self.uuid)
 
 
 @collection_export()
 class Joints:
-    """重複を除いた Joint ラッパーコレクション。
-
-    Args:
-        names (Iterable[str | Joint]): joint 名または Joint のシーケンス。
-    """
+    """UUID で重複を除いた Joint ラッパーのコレクション。"""
 
     def __init__(self, names=()):
-        """joint 名または Joint のシーケンスから重複なしコレクションを作成する。"""
+        """joint 名または Joint のシーケンスから重複なしコレクションを作成する。
+
+        Args:
+            names (Iterable[str | Joint]): ノード名または Joint。UUID の重複と有効な joint でないラッパーを除外する。
+
+        Returns:
+            None: 値を返さない。
+        """
         self._items = []
         seen = set()
         for item in names:
@@ -264,9 +331,19 @@ class Joints:
         return SkinClusters(skin_clusters)
 
     def delete(self):
-        """ウェイト移送後にコレクション内の joint を削除する。"""
+        """ウェイト移送後にコレクション内の joint を削除する。
+
+        親 influence への移送を収集でき、すべての削除処理が完了した joint のみ削除する。対象全件の削除は保証しない。
+
+        Returns:
+            None: 値を返さない。
+        """
         self.skin_clusters().remove_joints(self)
 
     def __iter__(self):
-        """保持している Joint を順に反復する。"""
+        """保持している Joint を順に反復する。
+
+        Returns:
+            Iterator[Joint]: 保存順に Joint を返すイテレータ。
+        """
         return iter(self._items)

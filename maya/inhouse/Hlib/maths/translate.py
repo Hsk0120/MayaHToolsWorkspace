@@ -1,4 +1,4 @@
-"""Semantic translation vector value."""
+"""平行移動を表す3成分のベクトル値。"""
 
 from .vector import Vector
 

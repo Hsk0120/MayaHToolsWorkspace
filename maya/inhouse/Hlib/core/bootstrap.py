@@ -1,4 +1,4 @@
-"""Node API bootstrap helpers for Hlib."""
+"""ノード・属性ラッパーの登録表と公開 API を初期化する。"""
 
 import importlib
 

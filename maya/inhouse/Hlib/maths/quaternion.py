@@ -1,46 +1,76 @@
-"""Quaternion rotation value."""
+"""四元数の保持・演算とオイラー回転への変換。"""
 
 import math
 
 
 class Quaternion:
-    """Maya の radian 規約を使う四元数回転値。
+    """XYZW 成分で保持する四元数。
 
-    Args:
-        x (float): X 成分。
-        y (float): Y 成分。
-        z (float): Z 成分。
-        w (float): スカラー成分。
-    """
+    四元数成分自体は角度ではない。生成時や積の計算時に正規化は行わない。
+    オイラー回転との変換に用いる角度はラジアン。"""
 
     __slots__ = ("x", "y", "z", "w")
 
     def __init__(self, x=0.0, y=0.0, z=0.0, w=1.0):
-        """4 成分から四元数を初期化する。"""
+        """4 成分から四元数を初期化する。
+
+        既定値 (0, 0, 0, 1) は単位四元数。入力時には正規化しない。
+
+        Args:
+            x (float): X 成分。float に変換する。
+            y (float): Y 成分。float に変換する。
+            z (float): Z 成分。float に変換する。
+            w (float): W 成分。float に変換する。
+
+        Returns:
+            None: 値を返さない。
+        """
         self.x = float(x)
         self.y = float(y)
         self.z = float(z)
         self.w = float(w)
 
     def __iter__(self):
-        """X、Y、Z、W の順で成分を反復する。"""
+        """X、Y、Z、W の順で成分を反復する。
+
+        Yields:
+            float: X、Y、Z、W 順の成分。
+        """
         yield self.x
         yield self.y
         yield self.z
         yield self.w
 
     def __repr__(self):
-        """クラス名と 4 成分を含むデバッグ表現を返す。"""
+        """クラス名と 4 成分を含むデバッグ表現を返す。
+
+        Returns:
+            str: 型名と現在の成分を含む文字列表現。
+        """
         return f"Quaternion({self.x}, {self.y}, {self.z}, {self.w})"
 
     def __eq__(self, other):
-        """別の Quaternion との成分一致を判定する。"""
+        """別の Quaternion との成分一致を判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: Quaternion 同士の成分の完全一致。異なる型では NotImplemented。許容誤差は使わない。
+        """
         if not isinstance(other, Quaternion):
             return NotImplemented
         return tuple(self) == tuple(other)
 
     def __mul__(self, other):
-        """別の Quaternion との Hamilton 積を返す。"""
+        """別の Quaternion との Hamilton 積を返す。
+
+        Args:
+            other (object): 右側から乗算する Quaternion。
+
+        Returns:
+            Quaternion | types.NotImplementedType: Hamilton 積。結果は正規化しない。相手が Quaternion でなければ NotImplemented。
+        """
         if not isinstance(other, Quaternion):
             return NotImplemented
         return Quaternion(
@@ -74,7 +104,7 @@ class Quaternion:
             EulerRotation: radian の Euler 回転値。
 
         Raises:
-            ValueError: 未対応の回転順序を指定した場合。
+            ValueError: order が大文字小文字を無視して xyz 以外の場合、またはゼロ四元数の場合。
         """
         if order.lower() != "xyz":
             raise ValueError("Only xyz Euler conversion is currently supported")

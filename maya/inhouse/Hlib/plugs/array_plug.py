@@ -1,4 +1,4 @@
-"""multi (array) attribute plug wrapper."""
+"""配列属性の論理インデックスと要素プラグを扱う。"""
 
 from .plug import Plug
 
@@ -19,6 +19,12 @@ class ArrayPlug(Plug):
 
     def set(self, value):
         """array プラグへの直接の値設定を禁止する。
+
+        Args:
+            value (object): 設定要求値。内容に関係なく拒否する。
+
+        Returns:
+            NoReturn: 必ず TypeError を送出する。
 
         Raises:
             TypeError: 常に送出される。要素プラグへ設定すること。
@@ -60,5 +66,8 @@ class ArrayPlug(Plug):
 
         Returns:
             Plug: 対応する要素プラグ。
+
+        Raises:
+            IndexError: 指定した論理インデックスが存在しない場合。
         """
         return self.element(index)

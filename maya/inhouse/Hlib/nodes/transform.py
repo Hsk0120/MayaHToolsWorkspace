@@ -1,4 +1,4 @@
-"""Transform node wrapper."""
+"""変換行列を介して Transform ノードを操作する。"""
 
 import math
 
@@ -16,7 +16,7 @@ class Transform(Node):
     """Maya transform ノードを matrix-first API で扱うラッパー。
 
     評価済み値を取得する ``get_*`` 系メソッドは cymel の ``getMatrix(ws=...)`` に
-    倣い、``ws=False``（既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
+    倣い、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
     """
 
     def dag_path(self):
@@ -135,9 +135,9 @@ class Transform(Node):
         """Transformの親を変更する。
 
         Args:
-            parent (Node | str | None): 新しい親Transform。``None`` でワールド直下にする。
-            relative (bool): ``True`` の場合は現在のワールド位置を維持する。
-            add (bool): ``True`` の場合は追加の親として設定する。
+            parent (Node | str | None): 新しい親。None はワールド直下。
+            relative (bool): True は親変更前のローカル変換を保持する。False は Maya の既定動作。
+            add (bool): True は既存の親を維持して追加の親を設定する。parent が None の場合は渡されない。
 
         Returns:
             Transform: 自身。
@@ -152,15 +152,15 @@ class Transform(Node):
     def get_matrix(self, ws=False):
         """変換行列を取得する。
 
-        Maya が評価・キャッシュ済みの ``matrix``/``worldMatrix`` 属性値をそのまま
-        使うため、``jnt.plug("matrix")``/``jnt.plug("worldMatrix")`` と常に一致する。
+        Maya が評価・キャッシュ済みの ``matrix`` / ``worldMatrix`` 属性値をそのまま
+        使うため、``jnt.plug("matrix")`` / ``jnt.plug("worldMatrix")`` と常に一致する。
 
         Args:
-            ws (bool): ``True`` でワールド空間（``worldMatrix``）、``False``（既定）で
+            ws (bool): ``True`` でワールド空間（``worldMatrix``）、``False`` （既定）で
                 ローカル空間（``matrix``）の値を取得する。
 
         Returns:
-            Matrix: Translate、Rotate、Scale、Shear を含む Hlib 行列。
+            Matrix: 指定空間の評価済み行列。ノードが無効な場合は単位行列。
         """
         if not self.is_valid():
             return Matrix()
@@ -172,7 +172,7 @@ class Transform(Node):
         """Translate を取得する。
 
         Args:
-            ws (bool): ``True`` でワールド空間、``False``（既定）でローカル空間の値を取得する。
+            ws (bool): ``True`` でワールド空間、``False`` （既定）でローカル空間の値を取得する。
 
         Returns:
             Translate: 評価済みの位置。
@@ -183,7 +183,7 @@ class Transform(Node):
         """Euler 回転値を取得する。
 
         Args:
-            ws (bool): ``True`` でワールド空間、``False``（既定）でローカル空間の値を取得する。
+            ws (bool): ``True`` でワールド空間、``False`` （既定）でローカル空間の値を取得する。
 
         Returns:
             EulerRotation: 評価済みの回転値（radian）。
@@ -194,7 +194,7 @@ class Transform(Node):
         """Scale を取得する。
 
         Args:
-            ws (bool): ``True`` でワールド空間、``False``（既定）でローカル空間の値を取得する。
+            ws (bool): ``True`` でワールド空間、``False`` （既定）でローカル空間の値を取得する。
 
         Returns:
             Scale: 評価済みのスケール値。
@@ -205,7 +205,7 @@ class Transform(Node):
         """Shear を取得する。
 
         Args:
-            ws (bool): ``True`` でワールド空間、``False``（既定）でローカル空間の値を取得する。
+            ws (bool): ``True`` でワールド空間、``False`` （既定）でローカル空間の値を取得する。
 
         Returns:
             Shear: 評価済みの shear 値。
@@ -216,7 +216,7 @@ class Transform(Node):
         """Quaternion を取得する。
 
         Args:
-            ws (bool): ``True`` でワールド空間、``False``（既定）でローカル空間の値を取得する。
+            ws (bool): ``True`` でワールド空間、``False`` （既定）でローカル空間の値を取得する。
 
         Returns:
             Quaternion: 評価済みの回転値。
@@ -227,7 +227,7 @@ class Transform(Node):
         """EulerRotation を取得する。
 
         Args:
-            ws (bool): ``True`` でワールド空間、``False``（既定）でローカル空間の値を取得する。
+            ws (bool): ``True`` でワールド空間、``False`` （既定）でローカル空間の値を取得する。
 
         Returns:
             EulerRotation: 評価済みの回転値（radian）。
@@ -235,25 +235,42 @@ class Transform(Node):
         return self.get_matrix(ws=ws).euler
 
     def decompose(self, ws=True):
-        """変換行列を TRS/shear 成分として取得する。
+        """指定空間の変換行列を取得する互換メソッド。
 
         Args:
-            ws (bool): ``True``（既定）でワールド空間、``False`` でローカル空間の値を取得する。
+            ws (bool): ``True`` （既定）でワールド空間、``False`` でローカル空間の値を取得する。
 
         Returns:
-            Matrix: 評価済みの Matrix。
+            Matrix: get_matrix(ws=ws) の結果。成分辞書は返さない。
         """
         return self.get_matrix(ws=ws)
 
     def _parent_world_matrix(self):
-        """親Transformのワールド行列を取得する。"""
+        """親Transformのワールド行列を取得する。
+
+        Returns:
+            Matrix: 親のワールド行列。親がない、または親に get_matrix がなければ単位行列。
+        """
         parent = self.parent_node()
         if parent is None or not hasattr(parent, "get_matrix"):
             return Matrix()
         return parent.get_matrix(ws=True)
 
     def _apply_local_matrix(self, matrix):
-        """ローカル行列の各成分をMaya属性へ適用する。"""
+        """ローカル行列の各成分をMaya属性へ適用する。
+
+        平行移動・XYZ のオイラー回転・スケール・シアーを順に書き込む。回転はラジアンから度へ変換するため、Maya の角度単位が度であることを前提とする。ピボットや rotateAxis の補正は行わない。
+
+        Args:
+            matrix (Matrix): ローカル空間の変換行列。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: 行列を分解できない場合。
+            RuntimeError: Maya が属性の書き込みを拒否した場合。
+        """
         name = self.full_name
         cmds.setAttr(f"{name}.translate", *matrix.translate)
         cmds.setAttr(f"{name}.rotate", *(math.degrees(component) for component in matrix.euler))
@@ -270,6 +287,10 @@ class Transform(Node):
 
         Returns:
             Transform: 自身。
+
+        Raises:
+            RuntimeError: 無効なノード、または Maya が属性設定を拒否した場合。
+            ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
         """
         if not isinstance(matrix, Matrix):
             matrix = Matrix(matrix)
@@ -289,6 +310,10 @@ class Transform(Node):
 
         Returns:
             Transform: 自身。
+
+        Raises:
+            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
+            RuntimeError: ノードが無効、または属性を書き込めない場合。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.translate = value
@@ -299,12 +324,16 @@ class Transform(Node):
         """Euler回転を設定する。
 
         Args:
-            value (EulerRotation | sequence): 新しい回転値。
-            unit (str): 入力単位。``"rad"`` または ``"deg"``。
-            ws (bool): ``True`` でワールド空間に設定する。
+            value (Iterable[float] | Quaternion): XYZ 回転値。unit が rad の場合は Quaternion も受け入れる。EulerRotation の order は引き継がない。
+            unit (str): rad はラジアン、deg は度の3成分。既定は rad。
+            ws (bool): True はワールド、False はローカル空間。
 
         Returns:
             Transform: 自身。
+
+        Raises:
+            ValueError: unit が rad/deg 以外、行列が分解不能、または必要な親行列が反転不能の場合。
+            RuntimeError: ノードが無効、または属性を書き込めない場合。
         """
         if unit not in ("rad", "deg"):
             raise ValueError("unit must be 'rad' or 'deg'")
@@ -324,6 +353,10 @@ class Transform(Node):
 
         Returns:
             Transform: 自身。
+
+        Raises:
+            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
+            RuntimeError: ノードが無効、または属性を書き込めない場合。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.scale = value
@@ -339,6 +372,10 @@ class Transform(Node):
 
         Returns:
             Transform: 自身。
+
+        Raises:
+            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
+            RuntimeError: ノードが無効、または属性を書き込めない場合。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.shear = value
@@ -349,14 +386,16 @@ class Transform(Node):
         """Matrix の TRS/shear 成分をローカルまたはワールド空間へ適用する。
 
         Args:
-            matrix (Matrix): 適用する Hlib Matrix。回転値は radian として扱う。
+            matrix (Matrix): 適用する Hlib 行列。
+            ws (bool): True はワールド、False はローカル空間として解釈する。
 
         Returns:
             Transform: 自身。
 
         Raises:
-            TypeError: matrix が Hlib Matrix でない場合。
-            RuntimeError: Transform が無効な場合。
+            TypeError: matrix が Matrix でない場合。
+            RuntimeError: ノードが無効、または属性を書き込めない場合。
+            ValueError: 行列を分解できない、または必要な親行列を反転できない場合。
         """
         if not isinstance(matrix, Matrix):
             raise TypeError("matrix must be an Hlib Matrix")

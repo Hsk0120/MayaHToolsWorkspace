@@ -24,7 +24,19 @@ def reload_all():
 
 
 def create_node(type, **kwargs):
-	"""Maya ノードを作成し、対応する Hlib wrapper として返す。"""
+	"""Maya ノードを作成し、対応する Hlib wrapper として返す。
+
+	Args:
+	    type (str): 作成する Maya ノード型名。空文字列は不可。
+	    **kwargs (object): maya.cmds.createNode に渡すキーワード引数。
+
+	Returns:
+	    Node: 型登録に従って選択したノードラッパー。
+
+	Raises:
+	    ValueError: type が空文字列または文字列以外の場合。
+	    RuntimeError: Maya がノードを作成できない場合。
+	"""
 	return Node.create(type, **kwargs)
 
 

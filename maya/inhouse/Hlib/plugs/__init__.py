@@ -1,4 +1,4 @@
-"""Attribute plug wrappers for Hlib."""
+"""属性ラッパーを検出して公開する。"""
 
 from ..core.discovery import discover_plug_package
 from .plug import Plug

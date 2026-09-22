@@ -1,4 +1,4 @@
-"""Legacy three-component rotation value."""
+"""Vector と同じ演算を持つ互換用の回転3成分値。"""
 
 from .vector import Vector
 

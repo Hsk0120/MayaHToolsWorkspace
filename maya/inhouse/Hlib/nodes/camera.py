@@ -1,4 +1,4 @@
-"""Camera shape wrapper."""
+"""Maya のカメラシェイプを扱う。"""
 
 import maya.api.OpenMaya as om2
 

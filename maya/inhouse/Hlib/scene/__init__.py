@@ -1,4 +1,4 @@
-"""Maya scene abstraction classes for Hlib."""
+"""シーンと名前空間のラッパーを公開する。"""
 
 from .namespace import Namespace
 from .scene import Scene

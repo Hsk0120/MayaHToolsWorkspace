@@ -63,3 +63,9 @@ git submodule update --init --recursive
 `MayaHToolsWorkspace.code-workspace`をVS Codeで開き、Pythonファイルを保存して **Ctrl+Shift+B** でMayaへ送信します。
 送信はMaya 2027のmayapyを使用し、追加拡張機能は不要です。
 設定・バージョン変更は[VS Codeの使い方](docs/vscode.md)を参照してください。
+
+## Hlib ドキュメント
+
+Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/Hlib/docs` に用意しています。
+Maya を起動せず、ソースから HTML を生成できます。
+手順は[Hlib ドキュメントのビルド](maya/inhouse/Hlib/docs/README.md)を参照してください。

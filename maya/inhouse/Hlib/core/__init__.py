@@ -1,4 +1,4 @@
-"""Core runtime support for Hlib."""
+"""Hlib の型登録・検出・初期化・再読み込み機能を公開する。"""
 
 from .registry import (
 	NodeRegistry,

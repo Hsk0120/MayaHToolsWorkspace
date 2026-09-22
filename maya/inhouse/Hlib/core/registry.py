@@ -1,4 +1,4 @@
-"""Node wrapper type registry and discovery helpers for Hlib."""
+"""Maya の型名とラッパークラスの対応を宣言・管理する。"""
 
 from .discovery import discover_node_package
 
@@ -20,7 +20,17 @@ def node_wrapper(node_type, public=True):
         raise ValueError("node_type must be a non-empty string")
 
     def decorate(wrapper_class):
-        """wrapper class に nodeType と公開設定を付与する。"""
+        """wrapper class に nodeType と公開設定を付与する。
+
+        Args:
+            wrapper_class (type): メタデータを付与するクラス。
+
+        Returns:
+            type: メタデータを設定した入力クラスそのもの。
+
+        Raises:
+            TypeError: wrapper_class がクラスでない場合。
+        """
         if not isinstance(wrapper_class, type):
             raise TypeError("wrapper_class must be a class")
         wrapper_class.__hlib_node_type__ = node_type
@@ -41,7 +51,17 @@ def collection_export(public=True):
     """
 
     def decorate(collection_class):
-        """collection class に公開設定を付与する。"""
+        """collection class に公開設定を付与する。
+
+        Args:
+            collection_class (type): メタデータを付与するクラス。
+
+        Returns:
+            type: メタデータを設定した入力クラスそのもの。
+
+        Raises:
+            TypeError: collection_class がクラスでない場合。
+        """
         if not isinstance(collection_class, type):
             raise TypeError("collection_class must be a class")
         collection_class.__hlib_collection__ = True
@@ -68,7 +88,17 @@ def plug_wrapper(attr_type, public=True):
         raise ValueError("attr_type must be a non-empty string")
 
     def decorate(wrapper_class):
-        """wrapper class に属性型と公開設定を付与する。"""
+        """wrapper class に属性型と公開設定を付与する。
+
+        Args:
+            wrapper_class (type): メタデータを付与するクラス。
+
+        Returns:
+            type: メタデータを設定した入力クラスそのもの。
+
+        Raises:
+            TypeError: wrapper_class がクラスでない場合。
+        """
         if not isinstance(wrapper_class, type):
             raise TypeError("wrapper_class must be a class")
         wrapper_class.__hlib_plug_type__ = attr_type
@@ -79,23 +109,31 @@ def plug_wrapper(attr_type, public=True):
 
 
 class NodeRegistry:
-    """Maya ノード型と Hlib ラッパークラスの対応を管理する。
-
-    Args:
-        fallback_class (type): 未登録の Maya ノード型に使用するラッパークラス。
-    """
+    """ノード型・属性型などの文字列キーとラッパークラスを対応付ける登録表。"""
 
     def __init__(self, fallback_class):
-        """フォールバッククラスと空のノード型対応表を初期化する。"""
+        """フォールバッククラスと空のノード型対応表を初期化する。
+
+        Args:
+            fallback_class (type): 未登録キーに対して使用するクラス。
+
+        Returns:
+            None: 値を返さない。
+        """
         self._fallback_class = fallback_class
         self._classes = {}
 
     def register(self, node_type, wrapper_class):
         """Maya ノード型へラッパークラスを登録する。
 
+        同じキーが既にある場合は上書きする。
+
         Args:
             node_type (str): Maya の nodeType 名。
             wrapper_class (type): ノードをラップする Hlib クラス。
+
+        Returns:
+            None: 値を返さない。
 
         Raises:
             ValueError: node_type が空文字列または文字列以外の場合。
@@ -108,11 +146,28 @@ class NodeRegistry:
         self._classes[node_type] = wrapper_class
 
     def clear(self):
-        """登録済みの Maya nodeType 対応をすべて解除する。"""
+        """登録済みの Maya nodeType 対応をすべて解除する。
+
+        Returns:
+            None: 値を返さない。
+        """
         self._classes.clear()
 
     def register_discovered(self, wrappers):
-        """発見済み wrapper の対応表を registry へ登録する。"""
+        """発見済み wrapper の対応表を registry へ登録する。
+
+        登録表を消去してから順に登録する。途中で失敗した場合は部分的に登録された状態になる。
+
+        Args:
+            wrappers (Mapping[str, type]): 型名からラッパークラスへの対応表。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: キーが空文字列または文字列以外の場合。
+            TypeError: 値がクラスでない場合。
+        """
         self.clear()
         for node_type, wrapper_class in wrappers.items():
             self.register(node_type, wrapper_class)
@@ -162,7 +217,7 @@ class NodeRegistry:
                 場合に Maya から取得する。
 
         Returns:
-            Node: 解決したラッパーインスタンス。
+            object: 対応する登録クラスまたはフォールバッククラスを node で初期化した結果。
 
         Raises:
             TypeError: node_type を推論できない入力を指定した場合。
@@ -183,7 +238,7 @@ class NodeRegistry:
             node_type (str): 解決済みの Maya nodeType 名。
 
         Returns:
-            Node: 対応する Hlib ラッパー。
+            object: 対応する登録クラスまたはフォールバッククラスを node で初期化した結果。
         """
         return self.wrapper_class(node_type)(node)
 

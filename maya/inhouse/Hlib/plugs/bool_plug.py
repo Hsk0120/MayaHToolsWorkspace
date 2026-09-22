@@ -1,4 +1,4 @@
-"""bool attribute plug wrapper."""
+"""真偽値属性と値の反転操作を提供する。"""
 
 from ..core.registry import plug_wrapper
 from .plug import Plug

@@ -1,4 +1,4 @@
-"""Maya API 2.0 based scalar attribute plug wrapper."""
+"""Maya API 2.0 の MPlug を属性ラッパーとして扱う。"""
 
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
@@ -7,21 +7,24 @@ from ..decorators.undo import undoable
 
 
 class Plug:
-    """Maya API 2.0 MPlug を扱う scalar 属性ラッパー。
+    """Maya API 2.0 の MPlug を保持する属性ラッパー。
 
-    ``Plug(node, mplug)`` を呼ぶだけで、属性データ型（``_registry`` に登録済みの
-    型）や array/compound 属性は自動的に対応する専用クラスのインスタンスとして返る。
-
-    Args:
-        node (Node): このプラグを所有する Hlib ノード。
-        mplug (om2.MPlug): ラップする Maya API 2.0 プラグ。
-
-    属性の書き込み・接続・ロック変更は、すべて Maya の Undo に対応する。
-    """
+    Plug(node, mplug) は配列・登録済み属性型・複合属性の順で
+    専用クラスを選択する。基底クラスの書き込み・接続・ロック操作は
+    Undo チャンクで囲まれる。派生クラス独自の経路は各メソッドを参照する。"""
 
     _registry = None  #: initialize_plug_api() が構築後に注入する PlugRegistry。
 
     def __new__(cls, node, mplug):
+        """配列・登録属性型・複合属性の順にラッパー型を選ぶ。
+
+        Args:
+            node (Node): プラグを所有するノードラッパー。
+            mplug (om2.MPlug): ラップする Maya API 2.0 のプラグ。
+
+        Returns:
+            Plug: 適切な派生クラスのインスタンス。派生クラスから直接呼んだ場合はそのクラスを割り当てる。
+        """
         if cls is Plug:
             # ArrayPlug/CompoundPlug との循環importを避けるため呼び出し時に遅延importする。
             from .array_plug import ArrayPlug
@@ -40,7 +43,15 @@ class Plug:
         return super().__new__(cls)
 
     def __init__(self, node, mplug):
-        """所有ノードと API 2.0 MPlug のコピーを保持する。"""
+        """所有ノードと API 2.0 MPlug のコピーを保持する。
+
+        Args:
+            node (Node): プラグを所有するノードラッパー。
+            mplug (om2.MPlug): ラップする Maya API 2.0 のプラグ。
+
+        Returns:
+            None: 値を返さない。
+        """
         self._node = node
         self._mplug = om2.MPlug(mplug)
 
@@ -192,7 +203,7 @@ class Plug:
             ws (bool): ワールド空間値を要求する。汎用 scalar Plug では無視される。
 
         Returns:
-            object: Maya の ``getAttr`` が返す scalar 値。
+            object: getAttr の結果。1要素のリストにタプルが入っている場合のみ、そのタプルを返す。文字列、数値、配列、None など実際の属性型に依存する。
         """
         value = cmds.getAttr(self.full_name)
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
@@ -262,6 +273,10 @@ class Plug:
 
         Returns:
             Plug: 自身。
+
+        Raises:
+            TypeError: target が None または Plug 以外の場合。
+            RuntimeError: Maya が接続解除を拒否した場合。
         """
         if target is not None:
             target = self._coerce_plug(target)
@@ -275,23 +290,48 @@ class Plug:
         return self
 
     def __str__(self):
-        """完全修飾した Maya プラグ名を返す。"""
+        """完全修飾した Maya プラグ名を返す。
+
+        Returns:
+            str: ノード名を含むプラグ名。
+        """
         return self.full_name
 
     def __repr__(self):
-        """デバッグ用に完全修飾プラグ名を含む表現を返す。"""
+        """デバッグ用に完全修飾プラグ名を含む表現を返す。
+
+        Returns:
+            str: Plug と完全修飾プラグ名を含む文字列表現。
+        """
         return f"Plug({self.full_name!r})"
 
     @staticmethod
     def _coerce_plug(value):
-        """接続先入力が Plug であることを検証する。"""
+        """接続先入力が Plug であることを検証する。
+
+        Args:
+            value (object): 型を確認する入力。
+
+        Returns:
+            Plug: 入力と同じオブジェクト。
+
+        Raises:
+            TypeError: value が Plug またはその派生クラスでない場合。
+        """
         if not isinstance(value, Plug):
             raise TypeError("target must be an Hlib Plug")
         return value
 
     @staticmethod
     def _node_from_mplug(mplug):
-        """MPlug の所有 MObject から汎用 Node ラッパーを生成する。"""
+        """MPlug の所有 MObject から汎用 Node ラッパーを生成する。
+
+        Args:
+            mplug (om2.MPlug): 所有ノードを取得するプラグ。
+
+        Returns:
+            Node: 所有ノードの型登録に従って解決したラッパー。
+        """
         from ..nodes.node import Node
 
         return Node(mplug.node())

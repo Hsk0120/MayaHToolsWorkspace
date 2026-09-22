@@ -1,4 +1,4 @@
-"""Hlib package discovery helpers."""
+"""型メタデータを持つラッパークラスをパッケージから検出する。"""
 
 import importlib
 import inspect

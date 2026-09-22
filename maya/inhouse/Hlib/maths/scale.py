@@ -1,4 +1,4 @@
-"""Semantic scale vector value."""
+"""スケールを表す3成分のベクトル値。"""
 
 from .vector import Vector
 

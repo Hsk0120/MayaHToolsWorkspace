@@ -1,4 +1,4 @@
-"""Typed Maya node wrappers for Hlib."""
+"""ノードラッパーを検出して公開する。"""
 
 from ..core.discovery import discover_node_package
 from .node import Node

@@ -1,10 +1,9 @@
-"""Semantic shear vector value."""
+"""XY・XZ・YZ のシアーを表す3成分のベクトル値。"""
 
 from .vector import Vector
 
 
 class Shear(Vector):
-    """Shear を表す意味付き 3 次元ベクトル。
+    """XY・XZ・YZ のシアーを表す3成分の Vector 派生型。
 
-    Scale と別型にすることで、意味のない演算を区別しやすくする。
-    """
+    型によって用途を識別するが、演算を禁止する検査は行わない。"""

@@ -1,4 +1,4 @@
-"""Dependency-ordered module reload helpers for Hlib."""
+"""パッケージ内の参照関係に従ってモジュールを再読み込みする。"""
 
 import importlib
 import pkgutil
@@ -75,6 +75,16 @@ def _reload_order(module_names):
     visiting = set()
 
     def visit(name):
+        """依存先から再帰的に訪問し、再読み込み順を組み立てる。
+
+        訪問済み、または現在訪問中なら処理を打ち切り、循環依存による無限再帰を避ける。
+
+        Args:
+            name (str): 訪問するモジュールの完全修飾名。
+
+        Returns:
+            None: 値を返さない。
+        """
         if name in visited:
             return
         if name in visiting:

@@ -1,4 +1,4 @@
-"""compound attribute plug wrapper."""
+"""複合属性とその子プラグを扱う。"""
 
 import maya.api.OpenMaya as om2
 
@@ -22,11 +22,13 @@ class CompoundPlug(Plug):
     def set(self, value):
         """子数と同数のシーケンスを各子プラグへ設定する。
 
+        要素数は先に検査する。設定途中の失敗時に、先に設定した子の値を戻す処理はない。
+
         Args:
-            value (object): 子数と同数のシーケンス。
+            value (Iterable[object]): 子プラグと同じ数の値。先頭から順に設定する。
 
         Returns:
-            Plug: 自身。
+            CompoundPlug: 自身。
 
         Raises:
             ValueError: 要素数が子数と一致しない場合。
@@ -41,6 +43,8 @@ class CompoundPlug(Plug):
     def child(self, name_or_index):
         """子 Plug を取得する。
 
+        整数の場合は MPlug.child に直接渡す。範囲外の添字による例外は Maya API から伝播する。
+
         Args:
             name_or_index (str | int): 子のロング名、ショート名、または子インデックス。
 
@@ -48,7 +52,7 @@ class CompoundPlug(Plug):
             Plug: 子プラグ。
 
         Raises:
-            AttributeError: 指定した子が存在しない場合。
+            AttributeError: 名前に一致する子属性がない場合。
         """
         if isinstance(name_or_index, int):
             return Plug(self._node, self._mplug.child(name_or_index))

@@ -1,4 +1,4 @@
-"""Standard logging integration for Hlib and Maya's user feedback surfaces."""
+"""標準 logging と Maya のメッセージ表示を連携する。"""
 
 import html
 import logging
@@ -13,14 +13,31 @@ _VIEWPORT_COLORS = {
 
 
 def _message_from(record):
-    """Return the fully formatted text without exposing exception objects to Maya."""
+    """ログレコードのメッセージと引数を文字列へ整形する。
+
+    Args:
+        record (logging.LogRecord): 整形するレコード。
+
+    Returns:
+        str: getMessage() の結果。例外トレースや Formatter は適用しない。
+    """
     return record.getMessage()
 
 
 class MayaHandler(logging.Handler):
-    """Route Hlib log records to Maya's Script Editor and viewport."""
+    """ログレコードを Maya の Script Editor とビューポートへ出力するハンドラ。"""
 
     def emit(self, record):
+        """ログを Script Editor と必要に応じてビューポートへ出力する。
+
+        WARNING 以上ではビューポートにも表示する。Maya API を import できなければ出力しない。Maya 表示時の RuntimeError は抑制する。
+
+        Args:
+            record (logging.LogRecord): 出力するレコード。
+
+        Returns:
+            None: 値を返さない。
+        """
         message = _message_from(record)
         try:
             import maya.api.OpenMaya as om2
@@ -53,7 +70,11 @@ class MayaHandler(logging.Handler):
 
 
 def get_logger():
-    """Return the shared Hlib logger, installing the Maya handler once."""
+    """Maya 向けハンドラを設定した共有ロガーを取得する。
+
+    Returns:
+        logging.Logger: 名前が Hlib のロガー。DEBUG レベル、親への伝播なし。現在の MayaHandler 型がなければ追加する。
+    """
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
@@ -63,22 +84,68 @@ def get_logger():
 
 
 def debug(message, *args, **kwargs):
-    """Write a diagnostic record without showing a viewport notification."""
+    """診断レベルのログを出力する。
+
+    Maya 上ではScript Editor に出力する。
+
+    Args:
+        message (object): ログメッセージまたは書式文字列。
+        *args (object): logging に渡すメッセージ書式引数。
+        **kwargs (object): exc_info、extra、stack_info、stacklevel など logging に渡すオプション。
+
+    Returns:
+        None: 値を返さない。
+    """
     get_logger().debug(message, *args, **kwargs)
 
 
 def warning(message, *args, **kwargs):
-    """Write a warning record and show a fading viewport notification."""
+    """警告レベルのログを出力する。
+
+    Maya 上ではScript Editor とビューポートに出力する。例外は送出しない。
+
+    Args:
+        message (object): ログメッセージまたは書式文字列。
+        *args (object): logging に渡すメッセージ書式引数。
+        **kwargs (object): exc_info、extra、stack_info、stacklevel など logging に渡すオプション。
+
+    Returns:
+        None: 値を返さない。
+    """
     get_logger().warning(message, *args, **kwargs)
 
 
 def error(message, *args, **kwargs):
-    """Write an error record and show a red fading viewport notification."""
+    """エラーレベルのログを出力する。
+
+    Maya 上ではScript Editor とビューポートに出力する。例外は送出しない。
+
+    Args:
+        message (object): ログメッセージまたは書式文字列。
+        *args (object): logging に渡すメッセージ書式引数。
+        **kwargs (object): exc_info、extra、stack_info、stacklevel など logging に渡すオプション。
+
+    Returns:
+        None: 値を返さない。
+    """
     get_logger().error(message, *args, **kwargs)
 
 
 def raise_with_notify(exception_type, message, *args, **kwargs):
-    """Log an error, then raise the requested exception with the same message."""
+    """エラーを通知してから指定型の例外を送出する。
+
+    Args:
+        exception_type (type[Exception]): 生成する例外クラス。
+        message (str): 通知と例外の先頭引数に使うメッセージ。
+        *args (object): 例外コンストラクタへ渡す追加位置引数。ログには渡さない。
+        **kwargs (object): 例外コンストラクタへ渡すキーワード引数。ログには渡さない。
+
+    Returns:
+        NoReturn: 正常には戻らない。
+
+    Raises:
+        Exception: exception_type で指定した例外。コンストラクタが失敗した場合はその例外。
+    """
     error(message)
     raise exception_type(message, *args, **kwargs)
 

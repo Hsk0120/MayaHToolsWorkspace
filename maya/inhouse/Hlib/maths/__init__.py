@@ -1,4 +1,4 @@
-"""Mathematical values and transform operations for Hlib."""
+"""Hlib の数学型と変換演算を公開する。"""
 
 from .euler_rotation import EulerRotation
 from .matrix import Matrix

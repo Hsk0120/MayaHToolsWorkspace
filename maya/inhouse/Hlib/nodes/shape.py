@@ -1,4 +1,4 @@
-"""Base DAG shape wrapper."""
+"""DAG シェイプの共通操作を提供する。"""
 
 import maya.api.OpenMaya as om2
 
