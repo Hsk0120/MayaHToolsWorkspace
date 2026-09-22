@@ -113,7 +113,7 @@ class Joint(Transform):
             return None
         if not parent.mobject().hasFn(om2.MFn.kJoint):
             return None
-        return parent.name
+        return parent.name()
 
     def children(self):
         """直接の子 joint 名を取得する。
@@ -124,7 +124,7 @@ class Joint(Transform):
         if not self.is_valid():
             return []
         return [
-            child.name
+            child.name()
             for child in self.child_nodes()
             if child.mobject().hasFn(om2.MFn.kJoint)
         ]
@@ -158,7 +158,7 @@ class Joint(Transform):
         """
         from .skincluster import SkinCluster
 
-        names = cmds.listConnections(self.name, type="skinCluster") or []
+        names = cmds.listConnections(self.name(), type="skinCluster") or []
         return [SkinCluster(name) for name in self._unique_ordered(names)]
 
     def transfer_target(self, skin):
@@ -235,7 +235,7 @@ class Joints:
         Returns:
             list[str]: joint 名のリスト。
         """
-        return [joint.name for joint in self._items]
+        return [joint.name() for joint in self._items]
 
     def sorted_by_depth(self):
         """深い joint から順に並べた新しいコレクションを返す。

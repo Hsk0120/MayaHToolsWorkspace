@@ -43,7 +43,7 @@ class Transform(Node):
         Returns:
             om2.MDagPath | None: 親のパス。親がない場合は ``None``。
         """
-        if not self.is_valid() or self.dag_node().parentCount() == 0:
+        if not self.is_valid() or self.dag_path().length() <= 1:
             return None
         parent_path = om2.MDagPath(self.dag_path())
         parent_path.pop()
@@ -74,6 +74,80 @@ class Transform(Node):
             child_path.push(dag_fn.child(index))
             children.append(Node(child_path))
         return children
+
+    def shapes(self, intermediates=False):
+        """このTransform直下のShapeを取得する。
+
+        Args:
+            intermediates (bool): ``True`` の場合は中間Shapeも含める。
+
+        Returns:
+            list[Shape]: 条件に一致するShapeのリスト。
+        """
+        from .shape import Shape
+
+        if not self.is_valid():
+            return []
+        shapes = []
+        dag_path = self.dag_path()
+        dag_fn = self.dag_node()
+        for index in range(dag_fn.childCount()):
+            child = dag_fn.child(index)
+            if not child.hasFn(om2.MFn.kShape):
+                continue
+            child_fn = om2.MFnDagNode(child)
+            if not intermediates and child_fn.isIntermediateObject:
+                continue
+            child_path = om2.MDagPath(dag_path)
+            child_path.push(child)
+            shapes.append(Shape(child_path))
+        return shapes
+
+    def shape(self, index=0, intermediates=False):
+        """指定位置のShapeを取得する。
+
+        Args:
+            index (int): Shapeのインデックス。
+            intermediates (bool): ``True`` の場合は中間Shapeも含める。
+
+        Returns:
+            Shape: 指定位置のShape。
+
+        Raises:
+            IndexError: 指定したインデックスにShapeがない場合。
+        """
+        shapes = self.shapes(intermediates=intermediates)
+        try:
+            return shapes[index]
+        except IndexError as original_error:
+            raise IndexError(f"Shape index out of range: {index}") from original_error
+
+    def transform(self):
+        """Transform自身を返す。
+
+        Returns:
+            Transform: 自身。
+        """
+        return self
+
+    @undoable("HlibTransformSetParent")
+    def set_parent(self, parent=None, relative=False, add=False):
+        """Transformの親を変更する。
+
+        Args:
+            parent (Node | str | None): 新しい親Transform。``None`` でワールド直下にする。
+            relative (bool): ``True`` の場合は現在のワールド位置を維持する。
+            add (bool): ``True`` の場合は追加の親として設定する。
+
+        Returns:
+            Transform: 自身。
+        """
+        if parent is None:
+            cmds.parent(self.name(), world=True, relative=relative)
+        else:
+            parent_name = parent.name() if isinstance(parent, Node) else parent
+            cmds.parent(self.name(), parent_name, relative=relative, add=add)
+        return self
 
     def get_matrix(self, ws=False):
         """変換行列を取得する。
@@ -172,12 +246,14 @@ class Transform(Node):
         return self.get_matrix(ws=ws)
 
     def _parent_world_matrix(self):
+        """親Transformのワールド行列を取得する。"""
         parent = self.parent_node()
         if parent is None or not hasattr(parent, "get_matrix"):
             return Matrix()
         return parent.get_matrix(ws=True)
 
     def _apply_local_matrix(self, matrix):
+        """ローカル行列の各成分をMaya属性へ適用する。"""
         name = self.full_name
         cmds.setAttr(f"{name}.translate", *matrix.translate)
         cmds.setAttr(f"{name}.rotate", *(math.degrees(component) for component in matrix.euler))
@@ -186,7 +262,15 @@ class Transform(Node):
 
     @undoable("HlibTransformSetMatrix")
     def set_matrix(self, matrix, ws=False):
-        """行列をローカルまたはワールド空間で設定する。"""
+        """行列をローカルまたはワールド空間で設定する。
+
+        Args:
+            matrix (Matrix | sequence): 適用する変換行列。
+            ws (bool): ``True`` でワールド空間、``False`` でローカル空間に設定する。
+
+        Returns:
+            Transform: 自身。
+        """
         if not isinstance(matrix, Matrix):
             matrix = Matrix(matrix)
         if not self.is_valid():
@@ -197,14 +281,31 @@ class Transform(Node):
 
     @undoable("HlibTransformSetTranslate")
     def set_translate(self, value, ws=False):
-        """平行移動をローカルまたはワールド空間で設定する。"""
+        """平行移動をローカルまたはワールド空間で設定する。
+
+        Args:
+            value (Translate | sequence): 新しい平行移動値。
+            ws (bool): ``True`` でワールド空間に設定する。
+
+        Returns:
+            Transform: 自身。
+        """
         matrix = self.get_matrix(ws=ws)
         matrix.translate = value
         return self.set_matrix(matrix, ws=ws)
 
     @undoable("HlibTransformSetRotate")
     def set_rotate(self, value, unit="rad", ws=False):
-        """Euler 回転を設定する。入力単位は rad または deg。"""
+        """Euler回転を設定する。
+
+        Args:
+            value (EulerRotation | sequence): 新しい回転値。
+            unit (str): 入力単位。``"rad"`` または ``"deg"``。
+            ws (bool): ``True`` でワールド空間に設定する。
+
+        Returns:
+            Transform: 自身。
+        """
         if unit not in ("rad", "deg"):
             raise ValueError("unit must be 'rad' or 'deg'")
         if unit == "deg":
@@ -215,14 +316,30 @@ class Transform(Node):
 
     @undoable("HlibTransformSetScale")
     def set_scale(self, value, ws=False):
-        """スケールをローカルまたはワールド空間で設定する。"""
+        """スケールをローカルまたはワールド空間で設定する。
+
+        Args:
+            value (Scale | sequence): 新しいスケール値。
+            ws (bool): ``True`` でワールド空間に設定する。
+
+        Returns:
+            Transform: 自身。
+        """
         matrix = self.get_matrix(ws=ws)
         matrix.scale = value
         return self.set_matrix(matrix, ws=ws)
 
     @undoable("HlibTransformSetShear")
     def set_shear(self, value, ws=False):
-        """Shear をローカルまたはワールド空間で設定する。"""
+        """Shearをローカルまたはワールド空間で設定する。
+
+        Args:
+            value (Shear | sequence): 新しいShear値。
+            ws (bool): ``True`` でワールド空間に設定する。
+
+        Returns:
+            Transform: 自身。
+        """
         matrix = self.get_matrix(ws=ws)
         matrix.shear = value
         return self.set_matrix(matrix, ws=ws)

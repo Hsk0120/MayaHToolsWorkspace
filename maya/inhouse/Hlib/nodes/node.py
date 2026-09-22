@@ -1,7 +1,9 @@
 """Base Maya node wrapper."""
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 
+from ..decorators.undo import undoable
 from ..utils import error
 
 
@@ -37,6 +39,25 @@ class Node:
     """
 
     _registry = None  #: Hlib.__init__ が構築後に注入する NodeRegistry。
+
+    @classmethod
+    def create(cls, type, **kwargs):
+        """ノードを作成し、対応する Hlib wrapper として返す。
+
+        Args:
+            type (str): Maya の nodeType 名。
+            **kwargs: ``maya.cmds.createNode`` に渡すキーワード引数。
+
+        Returns:
+            Node: 作成したノードに対応する wrapper。
+
+        Raises:
+            ValueError: type が空文字列または文字列以外の場合。
+        """
+        if not isinstance(type, str) or not type:
+            raise ValueError("type must be a non-empty string")
+        created_name = cmds.createNode(type, **kwargs)
+        return cls(created_name)
 
     def __new__(cls, node, *args, **kwargs):
         registry = cls._registry
@@ -118,6 +139,176 @@ class Node:
         """
         return om2.MFnDependencyNode(self._mobject).typeName
 
+    def path(self, full=False):
+        """DAG ノードのパス名を返す。
+
+        Args:
+            full (bool): ``True`` の場合はフルDAGパス、``False`` の場合は
+                パーシャルパスを返す。
+        """
+        if self._dag_path is None:
+            raise RuntimeError("DAG ノードではありません")
+        if full:
+            return self._dag_path.fullPathName()
+        return self._dag_path.partialPathName()
+
+    def partial_path(self):
+        """DAG ノードのパーシャルパス名を返す互換メソッド。"""
+        return self.path()
+
+    def full_path(self):
+        """DAG ノードのフルパス名を返す互換メソッド。"""
+        return self.path(full=True)
+
+    def is_root(self):
+        """DAG ノードがワールド直下か判定する。"""
+        if self._dag_path is None:
+            raise RuntimeError("DAG ノードではありません")
+        return self._dag_path.length() == 1
+
+    def node_name(self, remove_namespace=False):
+        """DAG パスを除いたノード名を返す。
+
+        Args:
+            remove_namespace (bool): ``True`` の場合はnamespaceも除外する。
+
+        Returns:
+            str: namespaceを含むノード名。``remove_namespace`` が ``True`` の場合は
+                namespaceを含まないノード名。
+        """
+        node_name = om2.MFnDependencyNode(self._mobject).name()
+        if remove_namespace:
+            node_name = node_name.rsplit(":", 1)[-1]
+        return node_name
+
+    def namespace(self):
+        """ノードが属するネームスペースを返す。
+
+        Returns:
+            Namespace: ノードが属するNamespace。
+        """
+        from ..scene import Namespace
+
+        node_name = self.node_name()
+        if ":" not in node_name:
+            return Namespace(":")
+        return Namespace(node_name.rsplit(":", 1)[0])
+
+    @undoable("HlibNodeRename")
+    def rename(self, name, ignore_shape=False):
+        """ノード名を変更し、変更後の名前を返す。
+
+        Args:
+            name (str): 新しいノード名。
+            ignore_shape (bool): ``True`` の場合はShapeの名前変更を抑制する。
+
+        Returns:
+            str: Mayaが確定した変更後のノード名。
+
+        Raises:
+            RuntimeError: ノード名を変更できない場合。
+        """
+        return cmds.rename(self.name(), name, ignoreShape=ignore_shape)
+
+    @undoable("HlibNodeSetNamespace")
+    def set_namespace(self, namespace):
+        """ノードを指定したネームスペースへ移動する。
+
+        Args:
+            namespace (str | Namespace): 移動先のnamespace名。末尾の ``":"`` は任意。
+
+        Returns:
+            str: Mayaが確定したnamespace付きノード名。
+
+        Raises:
+            ValueError: namespaceが空文字列または文字列でない場合。
+            RuntimeError: namespace移動に失敗した場合。
+        """
+        from ..scene import Namespace
+
+        if isinstance(namespace, Namespace):
+            target_namespace = namespace
+        elif isinstance(namespace, str) and namespace:
+            target_namespace = Namespace(namespace)
+        else:
+            raise ValueError("namespace must be a non-empty string")
+        if not target_namespace.exists() and target_namespace.name() != ":":
+            target_namespace = Namespace.create(target_namespace)
+        namespace_name = target_namespace.name()
+        node_name = self.node_name(True)
+        new_name = (
+            f"{namespace_name}:{node_name}"
+            if namespace_name != ":"
+            else node_name
+        )
+        return cmds.rename(self.name(), new_name)
+
+    def _connected_plugs(self, as_source, as_destination):
+        """ノードの指定方向に接続された外部Plugを収集する。
+
+        Args:
+            as_source (bool): 接続元Plugを検索対象に含めるかどうか。
+            as_destination (bool): 接続先Plugを検索対象に含めるかどうか。
+
+        Returns:
+            list[Plug]: 接続先の外部Plugを重複なしで格納したリスト。
+        """
+        from ..plugs.plug import Plug
+
+        plugs = []
+        seen = set()
+        for mplug in om2.MFnDependencyNode(self._mobject).getConnections():
+            for connected in mplug.connectedTo(as_source, as_destination):
+                key = connected.name()
+                if key not in seen:
+                    seen.add(key)
+                    plugs.append(Plug(Node(connected.node()), connected))
+        return plugs
+
+    def inputs(self):
+        """このノードへ入力する接続元Plugを返す。"""
+        return self._connected_plugs(True, False)
+
+    def outputs(self):
+        """このノードから出力する接続先Plugを返す。"""
+        return self._connected_plugs(False, True)
+
+    def connections(self):
+        """このノードに接続された外部Plugを返す。"""
+        plugs = []
+        seen = set()
+        for plug in self.inputs() + self.outputs():
+            if plug.full_name in seen:
+                continue
+            seen.add(plug.full_name)
+            plugs.append(plug)
+        return plugs
+
+    @undoable("HlibNodeAddAttr")
+    def add_attr(
+        self,
+        long_name,
+        attribute_type=None,
+        data_type=None,
+        default_value=None,
+        **kwargs,
+    ):
+        """属性を追加し、追加したPlugを返す。"""
+        if not isinstance(long_name, str) or not long_name:
+            raise ValueError("long_name must be a non-empty string")
+        if attribute_type is None and data_type is None:
+            raise ValueError("attribute_type or data_type is required")
+        add_kwargs = dict(kwargs)
+        add_kwargs["ln"] = long_name
+        if attribute_type is not None:
+            add_kwargs["at"] = attribute_type
+        if data_type is not None:
+            add_kwargs["dt"] = data_type
+        if default_value is not None:
+            add_kwargs["dv"] = default_value
+        cmds.addAttr(self.name(), **add_kwargs)
+        return self.plug(long_name)
+
     def plug(self, name):
         """属性パスに対応する Plug を取得する。
 
@@ -141,7 +332,7 @@ class Node:
         try:
             mplug = om2.MFnDependencyNode(self._mobject).findPlug(name, False)
         except RuntimeError as error:
-            raise AttributeError(f"属性が見つかりません: {self.name}.{name}") from error
+            raise AttributeError(f"属性が見つかりません: {self.name()}.{name}") from error
         return Plug(self, mplug)
 
     def attr(self, name):
@@ -181,7 +372,6 @@ class Node:
             return None
         return om2.MFnDependencyNode(self._mobject).uuid().asString()
 
-    @property
     def name(self):
         """Maya の最短一意ノード名を返す。
 
@@ -209,12 +399,12 @@ class Node:
 
     def __str__(self):
         """Maya の最短一意ノード名を文字列として返す。"""
-        return self.name
+        return self.name()
 
     def __repr__(self):
         """デバッグ用にクラス名とノード名を含む表現を返す。"""
         if self.is_valid():
-            return f"{type(self).__name__}({self.name!r})"
+            return f"{type(self).__name__}({self.name()!r})"
         return f"<{type(self).__name__} invalid>"
 
     def __getattr__(self, name):
@@ -234,6 +424,6 @@ class Node:
         try:
             return self.plug(name)
         except AttributeError as error:
-            raise AttributeError(f"属性が見つかりません: {self.name}.{name}") from error
+            raise AttributeError(f"属性が見つかりません: {self.name()}.{name}") from error
 
 

@@ -4,9 +4,10 @@ import maya.cmds as cmds
 from .core import initialize_node_api, initialize_plug_api, reload_package
 from .nodes import Node, Joints, SkinClusters
 from .plugs import Plug, ArrayPlug, CompoundPlug
+from .scene import Namespace, Scene
 
 _exports = sorted(set(initialize_node_api(__name__, globals())) | set(initialize_plug_api(__name__, globals())))
-__all__ = ["ls", "reload_all", *_exports]
+__all__ = ["create_node", "ls", "reload_all", "Namespace", "Scene", *_exports]
 
 
 def reload_all():
@@ -20,6 +21,11 @@ def reload_all():
 		tuple[module]: 再読み込みした module の tuple。
 	"""
 	return reload_package(__name__)
+
+
+def create_node(type, **kwargs):
+	"""Maya ノードを作成し、対応する Hlib wrapper として返す。"""
+	return Node.create(type, **kwargs)
 
 
 def ls(*args, **kwargs):

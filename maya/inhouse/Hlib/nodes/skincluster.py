@@ -38,7 +38,7 @@ class SkinCluster(Node):
 
     def _mesh(self):
         """skinCluster が変形する先頭 geometry 名を取得する。"""
-        geometries = cmds.skinCluster(self.name, query=True, geometry=True) or []
+        geometries = cmds.skinCluster(self.name(), query=True, geometry=True) or []
         return geometries[0]
 
     def _jnt_index(self, joint):
@@ -64,9 +64,22 @@ class SkinCluster(Node):
         return om2.MIntArray([self._jnt_index(joint) for joint in joints])
 
     def influences(self):
+        """influence joint名のリストを取得する。
+
+        Returns:
+            list[str]: influence joint名のリスト。
+        """
         return [path.partialPathName() for path in self.fn.influenceObjects()]
 
     def has_influence(self, joint):
+        """指定したjointがinfluenceに含まれるか判定する。
+
+        Args:
+            joint (str): 判定するjoint名。
+
+        Returns:
+            bool: influenceに含まれる場合は ``True``。
+        """
         uuid = self._uuid(joint)
         if not uuid:
             return False
@@ -76,10 +89,12 @@ class SkinCluster(Node):
         )
 
     def get_weights(self, joints):
+        """指定したjointの全頂点ウェイトを取得する。"""
         vertices, _ = self._all_verts()
         return self.fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
 
     def set_weights(self, joints, weights):
+        """指定したjointの全頂点ウェイトを設定する。"""
         vertices, _ = self._all_verts()
         self.fn.setWeights(
             self.mesh_path,
@@ -90,13 +105,14 @@ class SkinCluster(Node):
         )
 
     def transfer_weight(self, source_joint, target_joint):
+        """単一のsource influenceからtarget influenceへウェイトを移す。"""
         self.transfer_weights_batch([(source_joint, target_joint)])
 
     def _xfer_pair(self, source_joint, target_joint):
         """選択された source influence 頂点のウェイトを target へ移す。"""
-        cmds.skinCluster(self.name, edit=True, selectInfluenceVerts=source_joint)
+        cmds.skinCluster(self.name(), edit=True, selectInfluenceVerts=source_joint)
         if cmds.ls(sl=True):
-            cmds.skinPercent(self.name, transformMoveWeights=[source_joint, target_joint])
+            cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
 
     @staticmethod
     def _restore_selection(original_selection):
@@ -107,6 +123,7 @@ class SkinCluster(Node):
             cmds.select(clear=True)
 
     def transfer_weights_batch(self, source_target_pairs):
+        """複数のsource/target組についてウェイトを移す。"""
         self._raise_if_layers()
         original_selection = cmds.ls(sl=True, long=True) or []
         try:
@@ -116,12 +133,13 @@ class SkinCluster(Node):
             self._restore_selection(original_selection)
 
     def remove_influence(self, joint):
+        """指定したjointをskinClusterのinfluenceから削除する。"""
         self._raise_if_layers()
-        cmds.skinCluster(self.name, edit=True, removeInfluence=joint)
+        cmds.skinCluster(self.name(), edit=True, removeInfluence=joint)
 
     def _has_layer_plugs(self):
         """スキニングレイヤー関連ノードが接続されているか判定する。"""
-        nodes = cmds.listConnections(self.name, source=True, destination=True) or []
+        nodes = cmds.listConnections(self.name(), source=True, destination=True) or []
         for node in nodes:
             node_name = node.lower()
             node_type = cmds.nodeType(node).lower()
@@ -149,16 +167,17 @@ class SkinClusters:
         self.counts = {}
         for item in names:
             skin = item if isinstance(item, SkinCluster) else SkinCluster(item)
-            if skin.name in self.cache:
+            if skin.name() in self.cache:
                 continue
             self._items.append(skin)
-            self.cache[skin.name] = skin
+            self.cache[skin.name()] = skin
 
     def __iter__(self):
         """保持している SkinCluster を順に反復する。"""
         return iter(self._items)
 
     def gather(self, joints):
+        """削除対象jointに必要なウェイト移送操作を収集する。"""
         for joint in joints:
             if not joint.is_joint():
                 continue
@@ -174,27 +193,29 @@ class SkinClusters:
                 self.op_counts[joint.uuid] = op_count
 
     def apply(self):
+        """収集済みのウェイト移送とinfluence削除を実行する。"""
         for skin_name, pairs in self.ops.items():
             skin = self.cache[skin_name]
             skin.transfer_weights_batch(pairs)
             self._remove_influences(skin, pairs)
 
     def finalize(self, joints):
+        """処理済みjointの子を再親付けしてjointを削除する。"""
         for joint in joints:
             if not self._can_finalize(joint):
                 continue
             parent_joint = self.parents[joint.uuid]
             joint.reparent_children(parent_joint)
-            cmds.delete(joint.name)
+            cmds.delete(joint.name())
 
     def _skin(self, skin_cluster):
         """入力をキャッシュ済みまたは新規 SkinCluster ラッパーへ正規化する。"""
         if isinstance(skin_cluster, SkinCluster):
-            skin = self.cache.get(skin_cluster.name)
+            skin = self.cache.get(skin_cluster.name())
             if skin is not None:
                 return skin
             self._items.append(skin_cluster)
-            self.cache[skin_cluster.name] = skin_cluster
+            self.cache[skin_cluster.name()] = skin_cluster
             return skin_cluster
         skin = self.cache.get(skin_cluster)
         if skin is not None:
@@ -212,7 +233,7 @@ class SkinClusters:
             target_joint = joint.transfer_target(skin)
             if not target_joint:
                 continue
-            self.ops.setdefault(skin.name, []).append((joint.name, target_joint))
+            self.ops.setdefault(skin.name(), []).append((joint.name(), target_joint))
             op_count += 1
         return op_count
 
@@ -227,17 +248,19 @@ class SkinClusters:
         expected = self.op_counts.get(joint.uuid, 0)
         return bool(
             expected
-            and self.counts.get(joint.name, 0) == expected
+            and self.counts.get(joint.name(), 0) == expected
             and self.parents.get(joint.uuid)
         )
 
     def remove_joints(self, joints):
+        """joint階層を深い順に処理し、ウェイト移送後にjointを削除する。"""
         target_joints = joints.sorted_by_depth()
         self.gather(target_joints)
         self.apply()
         self.finalize(target_joints)
 
     def remove_influences(self, joints):
+        """joint階層を深い順に処理し、influenceだけを削除する。"""
         target_joints = joints.sorted_by_depth()
         self.gather(target_joints)
         self.apply()

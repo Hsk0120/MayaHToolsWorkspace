@@ -33,7 +33,7 @@ class Shape(Node):
         Returns:
             om2.MDagPath | None: 親パス。親がない場合は ``None``。
         """
-        if not self.is_valid() or self.dag_node().parentCount() == 0:
+        if not self.is_valid() or self.dag_path().length() <= 1:
             return None
         parent_path = om2.MDagPath(self.dag_path())
         parent_path.pop()
@@ -49,3 +49,11 @@ class Shape(Node):
         if parent_path is None or not parent_path.node().hasFn(om2.MFn.kTransform):
             return None
         return Transform(parent_path)
+
+    def transform(self):
+        """このShapeの親Transformを返す。
+
+        Returns:
+            Transform | None: 親Transform。存在しない場合は ``None``。
+        """
+        return self.parent_transform()
