@@ -53,9 +53,9 @@ Mayaがダイアログ表示中などの場合は実行が待機することが�
 Mayaのインストールパスだけ各環境に合わせてください。
 認証トークン、追加サーバー、自動インストール設定はありません。
 
-## Hlib datatypesテスト
+## hlib datatypesテスト
 
-`maya/inhouse/Hlib/__tests__/test_datatypes.py`を開いてCtrl+Shift+Bで送信すると、全9件のテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
+`maya/inhouse/hlib/__tests__/test_datatypes.py`を開いてCtrl+Shift+Bで送信すると、全9件のテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
 
 ## 出力の取得範囲
 

@@ -16,7 +16,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 | パス | 役割 |
 | --- | --- |
 | `maya/inhouse/HTools/` | Mayaメニューから実行する内製ツール |
-| `maya/inhouse/Hlib/` | ノード・属性ラッパー、数学型、共通ユーティリティ |
+| `maya/inhouse/hlib/` | ノード・属性ラッパー、数学型、共通ユーティリティ |
 | `maya/inhouse/MayaCommandPorts/` | GUI起動時のcommandPort初期化 |
 | `maya/inhouse/integrations/` | SlackやmGearとの連携 |
 | `maya/external/` | 外部ツール。Git submoduleの定義は `.gitmodules` を参照 |
@@ -37,7 +37,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 リポジトリルートからPowerShellで既存テストを送信する例（Maya GUI起動済みが前提）:
 
 ```powershell
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/send_to_maya.py maya/inhouse/Hlib/__tests__/test_datatypes.py
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/send_to_maya.py maya/inhouse/hlib/__tests__/test_datatypes.py
 ```
 
 - 対象はこのワークスペース内の保存済み `.py` ファイル全体。選択範囲送信やブレークポイントには対応しない。
@@ -53,26 +53,26 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 - `HTools/userSetup.py` がGUI起動時にメニューを作成する。バッチモードのスキップと同一セッションでの二重初期化防止を維持する。
 - カテゴリフォルダ内のツール用 `.py` は動的にメニューへ登録され、`runpy.run_module(..., run_name="__main__")` で実行される。追加前に既存カテゴリと走査条件を確認する。
 - UIのPySide6優先・PySide2フォールバックを維持する。対象MayaのPython・Qtで使用できるAPIを選ぶ。
-- シーンを変更する処理は既存のUndo対応に合わせ、必要に応じて `Hlib/decorators/undo.py` を利用する。
+- シーンを変更する処理は既存のUndo対応に合わせ、必要に応じて `hlib/decorators/undo.py` を利用する。
 
-### Hlib
+### hlib
 
 - ノード・属性ラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
-- 型の追加は `core/discovery.py` / `core/registry.py` と既存の `@node_wrapper` / `@plug_wrapper` に合わせる。自動登録を重複する手動登録を加えない。
-- `Hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
-- `Hlib/maths/` のMaya非依存性を維持する。角度の度・ラジアン、行列の規約は対象型の実装とテストに合わせる。
+- 型の追加は `_core/discovery.py` / `_core/registry.py` と既存の `@node_wrapper` / `@plug_wrapper` に合わせる。自動登録を重複する手動登録を加えない。
+- `hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
+- `hlib/maths/` のMaya非依存性を維持する。角度の度・ラジアン、行列の規約は対象型の実装とテストに合わせる。
 
 ### 外部ツールと連携
 
 - 外部submoduleを内製コードと混同しない。変更が依頼に必要な場合は対象submoduleの状態と独自のガイドを確認し、親リポジトリの参照更新も区別して扱う。
 - 無関係なsubmodule更新や外部ライブラリの一括整形を行わない。
-- `MayaCommandPorts` はHTools/Hlibから独立した構成を維持する。
+- `MayaCommandPorts` はHTools/hlibから独立した構成を維持する。
 - Slackへの実投稿など外部への送信を伴うスクリプトは、ユーザーから送信の指示がある場合にのみ実行する。認証トークンをコードやログへ出さない。
 
 ## 検証
 
 - 共通のpytest/CIコマンドを前提にせず、変更対象の既存テストと実行方法を確認する。
-- 数学型の変更は `maya/inhouse/Hlib/__tests__/test_datatypes.py` で検証する。標準の実行経路は上記のMaya送信タスク。
+- 数学型の変更は `maya/inhouse/hlib/__tests__/test_datatypes.py` で検証する。標準の実行経路は上記のMaya送信タスク。
 - `test_maya_standalone.py` や `test_slack_postMessage.py` は手動スクリプト。名前だけで安全な一括テストと判断せず、実行前に副作用を確認する。
 - Maya依存コードは通常のPythonでimportできると仮定しない。構文チェックとMaya内の動作確認を区別する。
 - UI・起動処理の変更では、対象Mayaでの起動、メニュー表示、操作結果を必要な範囲で確認する。実行環境が使えない場合は、その制約と確認手順を報告する。

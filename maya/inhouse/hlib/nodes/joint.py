@@ -1,0 +1,432 @@
+"""joint ラッパーと joint コレクションを提供する。"""
+
+import math
+
+import maya.cmds as cmds
+import maya.api.OpenMaya as om2
+
+from .._core.registry import collection_export, node_wrapper
+from ..maths import EulerRotation, Matrix, Scale
+from .transform import Transform
+
+
+@node_wrapper("joint")
+class Joint(Transform):
+    """Maya joint ノード用の Transform ラッパー。
+
+    Joint 固有の orientation、親子探索、skinCluster 連携を提供する。
+    """
+
+    @property
+    def joint_orient(self):
+        """jointOrient 属性を EulerRotation として取得する。
+
+        Returns:
+            EulerRotation: radian に変換した jointOrient 値。
+        """
+        values = self._compound_values("jointOrient", angle=True)
+        return EulerRotation(*(math.radians(value) for value in values))
+
+    def _rotation_order(self):
+        """Maya の rotateOrder を API の回転順序へ変換する。
+
+        Returns:
+            int: rotateOrder に対応する Maya API 2.0 の MEulerRotation 定数。
+        """
+        order_index = int(self.plug("ro").get())
+        return (
+            om2.MEulerRotation.kXYZ,
+            om2.MEulerRotation.kYZX,
+            om2.MEulerRotation.kZXY,
+            om2.MEulerRotation.kXZY,
+            om2.MEulerRotation.kYXZ,
+            om2.MEulerRotation.kZYX,
+        )[order_index]
+
+    def _rotation_quaternion(self, attribute):
+        """Euler の Maya degrees 属性を API quaternion へ変換する。
+
+        属性値は度であると仮定してラジアンへ変換する。
+
+        Args:
+            attribute (str): 度の3成分として読み取る回転属性名。
+
+        Returns:
+            om2.MQuaternion: ノードの rotateOrder で解釈した回転。
+        """
+        values = self._compound_values(attribute, angle=True)
+        rotation = om2.MEulerRotation(*(math.radians(value) for value in values), self._rotation_order())
+        return rotation.asQuaternion()
+
+    def _remove_segment_scale_compensation(self, matrix):
+        """ssc と inverseScale が適用された後の行列から補正前の値を戻す。
+
+        Args:
+            matrix (Matrix): スケール補正を取り除く対象行列。
+
+        Returns:
+            Matrix: ssc が無効なら入力そのもの。有効なら inverseScale の逆数からなる行列を右から乗じた新しい行列。
+
+        Raises:
+            ValueError: ssc が有効で inverseScale の成分の絶対値が 1e-12 未満の場合。
+        """
+        if not self.plug("ssc").get():
+            return matrix
+        inverse_scale = self._compound_values("inverseScale")
+        if any(abs(value) < 1e-12 for value in inverse_scale):
+            raise ValueError("inverseScale components must be non-zero when segmentScaleCompensate is enabled")
+        compensation = Matrix(scale=tuple(1.0 / value for value in inverse_scale))
+        return matrix * compensation
+
+    def _apply_local_matrix(self, matrix):
+        """jointOrient と rotateAxis を保持して local 行列を適用する。
+
+        jointOrient と rotateAxis を回転から除き、rotateOrder に並べ替えて書き込む。角度の読み書きは Maya の角度単位が度であることを前提とする。
+
+        Args:
+            matrix (Matrix): 適用するローカル行列。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
+            RuntimeError: Maya が属性の書き込みを拒否した場合。
+        """
+        matrix = self._remove_segment_scale_compensation(matrix)
+        target = om2.MTransformationMatrix(matrix.to_mmatrix())
+        target_quaternion = target.rotation(asQuaternion=True)
+        rotate_axis = self._rotation_quaternion("rotateAxis")
+        joint_orient = self._rotation_quaternion("jointOrient")
+        rotate_quaternion = rotate_axis.conjugate() * target_quaternion * joint_orient.conjugate()
+        rotation = om2.MEulerRotation()
+        rotation.setValue(rotate_quaternion)
+        rotation.reorderIt(self._rotation_order())
+
+        name = self.full_name
+        cmds.setAttr(f"{name}.translate", *matrix.translate)
+        cmds.setAttr(f"{name}.rotate", *(math.degrees(component) for component in rotation))
+        cmds.setAttr(f"{name}.scale", *matrix.scale)
+        cmds.setAttr(f"{name}.shear", *matrix.shear)
+
+    @property
+    def orientation(self):
+        """joint の orientation 成分を取得する。
+
+        Returns:
+            EulerRotation: 現在は ``joint_orient`` と同じ値。
+        """
+        return self.joint_orient
+
+    @property
+    def inverse_scale(self):
+        """inverseScale 属性を意味付き Scale として取得する。
+
+        Returns:
+            Scale: joint の inverseScale 値。
+        """
+        return Scale(*self._compound_values("inverseScale"))
+
+    def _compound_values(self, attribute, angle=False):
+        """compound 属性を 3 要素の tuple として取得する。
+
+        Args:
+            attribute (str): 読み取る複合属性名。
+            angle (bool): True の場合、各子を角度属性として度数法の値で取得する
+                (``cmds.getAttr`` が角度属性を現在の角度単位で返すのに合わせる)。
+                False の場合は単位変換のない生の double として取得する。
+
+        Returns:
+            tuple: 属性値のタプル。無効なノードでは (0.0, 0.0, 0.0)。有効時は要素数を検査しない。
+        """
+        if not self.is_valid():
+            return (0.0, 0.0, 0.0)
+        plug = om2.MFnDependencyNode(self._mobject).findPlug(attribute, False)
+        if angle:
+            return tuple(plug.child(index).asMAngle().asDegrees() for index in range(3))
+        return tuple(plug.child(index).asDouble() for index in range(3))
+
+    def parent(self):
+        """親 joint の名前を取得する。
+
+        Returns:
+            str | None: 親 joint 名。親が joint でない場合は ``None``。
+        """
+        if not self.is_valid():
+            return None
+        parent = self.parent_node()
+        if parent is None or not parent.is_valid():
+            return None
+        if not parent.mobject().hasFn(om2.MFn.kJoint):
+            return None
+        return parent.name()
+
+    def children(self):
+        """直接の子 joint 名を取得する。
+
+        Returns:
+            list[str]: 子 joint 名のリスト。
+        """
+        if not self.is_valid():
+            return []
+        return [
+            child.name()
+            for child in self.child_nodes()
+            if child.mobject().hasFn(om2.MFn.kJoint)
+        ]
+
+    def depth(self):
+        """joint 階層内の深さを取得する。
+
+        Returns:
+            int: root joint を 0 とする階層深度。
+        """
+        depth = 0
+        current_joint = self.parent()
+        while current_joint:
+            depth += 1
+            current_joint = Joint(current_joint).parent()
+        return depth
+
+    def is_joint(self):
+        """ラップ対象が joint か判定する。
+
+        Returns:
+            bool: 有効な joint の場合は ``True``。
+        """
+        return self.is_valid() and self.mobject().hasFn(om2.MFn.kJoint)
+
+    def skin_clusters(self):
+        """この joint に接続する skinCluster を取得する。
+
+        Returns:
+            list[SkinCluster]: 重複を除いた skinCluster ラッパー。
+        """
+        from .skinCluster import SkinCluster
+
+        if not self.is_valid():
+            return []
+        seen = set()
+        result = []
+        for plug in self.connections(type="skinCluster"):
+            node = plug.node
+            if node.uuid in seen:
+                continue
+            seen.add(node.uuid)
+            result.append(SkinCluster(node.mobject()))
+        return result
+
+    def transfer_target(self, skin):
+        """ウェイト移送先となる最も近い親 influence を探索する。
+
+        Args:
+            skin (SkinCluster): influence の有無を調べる skinCluster。
+
+        Returns:
+            str | None: 移送先の親 joint 名。見つからない場合は ``None``。
+        """
+        ancestor = self.parent()
+        while ancestor:
+            if skin.has_influence(ancestor):
+                return ancestor
+            ancestor = Joint(ancestor).parent()
+        return None
+
+    def reparent_children(self, parent_joint):
+        """子 joint を指定した親 joint へ付け替える。
+
+        Args:
+            parent_joint (str): 直接の子 joint を付け替える親ノード名。
+
+        Returns:
+            None: 値を返さない。
+        """
+        for child_joint in self.children():
+            cmds.parent(child_joint, parent_joint)
+
+    @staticmethod
+    def _unique_ordered(items):
+        """順序を保ったまま重複要素を除外する。
+
+        Args:
+            items (Iterable[Hashable]): 重複を除去するハッシュ可能な要素。
+
+        Returns:
+            list: 最初の出現順を維持した要素リスト。
+        """
+        seen = set()
+        unique_items = []
+        for item in items:
+            if item in seen:
+                continue
+            seen.add(item)
+            unique_items.append(item)
+        return unique_items
+
+    def chain_from_here(self, to=None):
+        """自身を起点とする joint チェーンを順に取得する。
+
+        Args:
+            to (Joint | str | None): チェーンの終端 joint。指定した場合は自身から
+                その joint までの経路を辿る（子孫でなければならない）。省略時は、
+                子 joint がちょうど1つの間だけ辿り、分岐（子が0または2つ以上）に
+                達したところで止める。
+
+        Returns:
+            list[Joint]: 自身から to まで、または最初の分岐点までの joint。
+                自身を含む。
+
+        Raises:
+            RuntimeError: 自身が無効な場合。
+            ValueError: to が自身の子孫でない場合。
+        """
+        if not self.is_valid():
+            raise RuntimeError("Cannot build a chain from an invalid joint")
+        if to is None:
+            chain = [self]
+            current = self
+            while True:
+                children = current.children()
+                if len(children) != 1:
+                    return chain
+                current = Joint(children[0])
+                chain.append(current)
+        target = to if isinstance(to, Joint) else Joint(to)
+        if not self.is_ancestor_of(target):
+            raise ValueError("to must be a descendant of this joint")
+        chain = [self]
+        current = self
+        while current.uuid != target.uuid:
+            next_joint = next(
+                (
+                    Joint(name) for name in current.children()
+                    if Joint(name).uuid == target.uuid or Joint(name).is_ancestor_of(target)
+                ),
+                None,
+            )
+            if next_joint is None:
+                raise ValueError("to must be a descendant of this joint")
+            chain.append(next_joint)
+            current = next_joint
+        return chain
+
+    def ik_handles(self):
+        """自身を start joint とする IK ハンドルを取得する。
+
+        自身が IK チェーンの途中や末端の joint である場合は対象にならない。
+        Maya は IK ハンドルの ``startJoint`` への接続を通じてのみ joint から
+        IK ハンドルを解決できるため。
+
+        Returns:
+            list[IkHandle]: 自身を start joint とする IkHandle。無ければ空リスト。
+        """
+        from .ikHandle import IkHandle
+
+        if not self.is_valid():
+            return []
+        seen = set()
+        result = []
+        for plug in self.connections(type="ikHandle"):
+            node = plug.node
+            if node.uuid in seen:
+                continue
+            seen.add(node.uuid)
+            result.append(IkHandle(node.mobject()))
+        return result
+
+    def __eq__(self, other):
+        """UUID を基準に別の Joint と同一か判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: Joint 同士は UUID の一致。相手が Joint でなければ NotImplemented。両方が無効で UUID が None なら一致する。
+        """
+        if not isinstance(other, Joint):
+            return NotImplemented
+        return self.uuid == other.uuid
+
+    def __hash__(self):
+        """UUID を使ったハッシュ値を返す。
+
+        Returns:
+            int: 現在の UUID のハッシュ。無効な場合は None のハッシュ。
+        """
+        return hash(self.uuid)
+
+
+@collection_export()
+class Joints:
+    """UUID で重複を除いた Joint ラッパーのコレクション。"""
+
+    def __init__(self, names=()):
+        """joint 名または Joint のシーケンスから重複なしコレクションを作成する。
+
+        Args:
+            names (Iterable[str | Joint]): ノード名または Joint。UUID の重複と有効な joint でないラッパーを除外する。
+
+        Returns:
+            None: 値を返さない。
+        """
+        self._items = []
+        seen = set()
+        for item in names:
+            joint = item if isinstance(item, Joint) else Joint(item)
+            if not joint.is_joint() or joint.uuid in seen:
+                continue
+            seen.add(joint.uuid)
+            self._items.append(joint)
+
+    @property
+    def names(self):
+        """コレクション内の joint 名を取得する。
+
+        Returns:
+            list[str]: joint 名のリスト。
+        """
+        return [joint.name() for joint in self._items]
+
+    def sorted_by_depth(self):
+        """深い joint から順に並べた新しいコレクションを返す。
+
+        Returns:
+            Joints: 子 joint を先に処理できる深さ順コレクション。
+        """
+        return Joints(sorted(self._items, key=lambda joint: joint.depth(), reverse=True))
+
+    def skin_clusters(self):
+        """全 joint に関連する skinCluster を取得する。
+
+        Returns:
+            SkinClusters: 重複を除いた skinCluster コレクション。
+        """
+        from .skinCluster import SkinClusters
+
+        skin_clusters = []
+        seen = set()
+        for joint in self._items:
+            for skin in joint.skin_clusters():
+                if skin.uuid in seen:
+                    continue
+                seen.add(skin.uuid)
+                skin_clusters.append(skin)
+        return SkinClusters(skin_clusters)
+
+    def delete(self):
+        """ウェイト移送後にコレクション内の joint を削除する。
+
+        親 influence への移送を収集でき、すべての削除処理が完了した joint のみ削除する。対象全件の削除は保証しない。
+
+        Returns:
+            None: 値を返さない。
+        """
+        self.skin_clusters().remove_joints(self)
+
+    def __iter__(self):
+        """保持している Joint を順に反復する。
+
+        Returns:
+            Iterator[Joint]: 保存順に Joint を返すイテレータ。
+        """
+        return iter(self._items)

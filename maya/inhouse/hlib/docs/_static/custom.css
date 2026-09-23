@@ -1,0 +1,278 @@
+@charset "UTF-8";
+
+/*
+ * hlib ドキュメント ダークテーマ。
+ * sphinxdoc テーマ（basic.css + sphinxdoc.css）の配色を上書きする。
+ * 構造・レイアウトは変更せず、色のみをダーク向けに置き換える。
+ */
+
+:root {
+    --hlib-bg-page: #14161a;
+    --hlib-bg-doc: #1b1e22;
+    --hlib-bg-sidebar: #191c20;
+    --hlib-bg-panel: #22262b;
+    --hlib-bg-code: #21252b;
+    --hlib-text: #ccd2d8;
+    --hlib-text-muted: #8b939b;
+    --hlib-heading: #5fc4d6;
+    --hlib-heading-dim: #b9c0c7;
+    --hlib-accent: #5fc4d6;
+    --hlib-link: #6cb6ff;
+    --hlib-link-hover: #9ad4ff;
+    --hlib-link-visited: #b699e0;
+    --hlib-border: #33383e;
+    --hlib-border-strong: #464c53;
+    --hlib-warn-bg: #3a2222;
+    --hlib-warn-border: #7a3a3a;
+    --hlib-warn-title: #8a3a3a;
+}
+
+/* -- page layout ------------------------------------------------------- */
+
+body {
+    margin: 0 5px;
+    background-color: var(--hlib-bg-page);
+    color: var(--hlib-text);
+    border-color: var(--hlib-border);
+}
+
+div.document {
+    background-color: var(--hlib-bg-doc);
+    background-image: none;
+    color: var(--hlib-text);
+}
+
+div.bodywrapper {
+    border-right: 1px solid var(--hlib-border);
+}
+
+div.related ul {
+    background-image: none;
+    background-color: var(--hlib-bg-panel);
+    border-top: 1px solid var(--hlib-border);
+    border-bottom: 1px solid var(--hlib-border);
+}
+
+div.related ul li a {
+    color: var(--hlib-accent);
+}
+
+div.related ul li a:hover {
+    color: var(--hlib-link-hover);
+}
+
+/* -- sidebar ------------------------------------------------------------ */
+
+div.sphinxsidebar {
+    color: var(--hlib-text);
+}
+
+div.sphinxsidebar h3, div.sphinxsidebar h4 {
+    color: #eef4f7;
+    border: 1px solid var(--hlib-border-strong);
+    background-color: #2a3239;
+}
+
+div.sphinxsidebar h3 a {
+    color: #eef4f7;
+}
+
+div.sphinxsidebar a {
+    color: var(--hlib-link);
+}
+
+div.sphinxsidebar a:hover {
+    color: var(--hlib-link-hover);
+}
+
+div.sphinxsidebar input[type="text"],
+div.sphinxsidebar input[type="submit"] {
+    background-color: var(--hlib-bg-panel);
+    color: var(--hlib-text);
+    border: 1px solid var(--hlib-border-strong);
+}
+
+/* -- footer / relbar ----------------------------------------------------- */
+
+div.footer {
+    background-color: var(--hlib-bg-page);
+    color: var(--hlib-text-muted);
+}
+
+div.footer a {
+    color: var(--hlib-text-muted);
+}
+
+/* -- headings ------------------------------------------------------------ */
+
+h1 {
+    padding: 0.7em 0 0.3em 0.2em;
+    margin-bottom: 0.6em;
+    color: var(--hlib-heading);
+    border-bottom: 3px solid var(--hlib-heading);
+}
+
+h2, h3, h4, h5, h6 {
+    padding: 0.2em 0 0.3em 0.2em;
+    margin-bottom: 0.6em;
+    color: var(--hlib-heading-dim);
+    border-bottom: 1px dotted var(--hlib-border-strong);
+}
+
+h2 { border-bottom: 3px solid var(--hlib-border-strong); }
+h3 { border-bottom: 1px solid var(--hlib-border); }
+
+div.body h1 a, div.body h2 a, div.body h3 a,
+div.body h4 a, div.body h5 a, div.body h6 a {
+    color: inherit !important;
+}
+
+h1 a.anchor, h2 a.anchor, h3 a.anchor, h4 a.anchor, h5 a.anchor, h6 a.anchor {
+    color: var(--hlib-text-muted) !important;
+}
+
+h1:hover a.anchor:hover, h2:hover a.anchor:hover, h3:hover a.anchor:hover,
+h4:hover a.anchor:hover, h5:hover a.anchor:hover, h6:hover a.anchor:hover {
+    color: var(--hlib-text) !important;
+    background-color: var(--hlib-bg-panel);
+}
+
+a.headerlink {
+    color: #d97a7a !important;
+}
+
+a.headerlink:hover {
+    background-color: var(--hlib-bg-panel);
+    color: var(--hlib-link-hover) !important;
+}
+
+/* -- links ---------------------------------------------------------------- */
+
+a {
+    color: var(--hlib-link);
+}
+
+a:hover {
+    color: var(--hlib-link-hover);
+}
+
+a:visited {
+    color: var(--hlib-link-visited);
+}
+
+/* -- inline code / code blocks -------------------------------------------- */
+
+pre, cite, code, tt {
+    font-family: 'Consolas', 'Deja Vu Sans Mono', 'Lucida Grande', 'Lucida Sans Unicode', 'Geneva', 'sans-serif';
+}
+
+i, cite, em, var, address, dfn { font-style: normal; font-weight: bold; }
+
+code {
+    background-color: var(--hlib-bg-code);
+    border-bottom: 1px solid var(--hlib-border-strong);
+    color: #e0c88a;
+}
+
+a code {
+    color: var(--hlib-link);
+}
+
+a code:hover {
+    color: var(--hlib-link-hover);
+}
+
+pre {
+    background-color: var(--hlib-bg-code);
+    color: var(--hlib-text);
+    border: 1px solid var(--hlib-border);
+}
+
+td.linenos pre {
+    background-color: transparent;
+    color: var(--hlib-text-muted);
+}
+
+div.code-block-caption {
+    background-color: var(--hlib-bg-panel);
+    color: var(--hlib-text);
+    border: 1px solid var(--hlib-border);
+}
+
+/* -- tables ---------------------------------------------------------------- */
+
+table.align-default { margin-left: 1em; }
+
+table.docutils td, table.docutils th {
+    border-bottom: 1px solid var(--hlib-border-strong);
+}
+
+table.indextable tr.cap {
+    background-color: var(--hlib-bg-panel);
+}
+
+/* -- admonitions / topics --------------------------------------------------- */
+
+nav.contents, aside.topic, div.topic, div.quotebar {
+    background-color: var(--hlib-bg-panel);
+    border-color: var(--hlib-border);
+}
+
+div.admonition, div.warning {
+    border: 1px solid var(--hlib-border-strong);
+    background-color: var(--hlib-bg-panel);
+    color: var(--hlib-text);
+}
+
+div.admonition p.admonition-title, div.warning p.admonition-title {
+    color: #eef4f7;
+    border-bottom: 1px solid var(--hlib-border-strong);
+    background-color: #2a3239;
+}
+
+div.warning {
+    border: 1px solid var(--hlib-warn-border);
+}
+
+div.warning p.admonition-title {
+    background-color: var(--hlib-warn-title);
+    border-bottom-color: var(--hlib-warn-border);
+}
+
+div.versioninfo {
+    border: 1px solid var(--hlib-border);
+    background-color: var(--hlib-bg-panel);
+    color: var(--hlib-text);
+}
+
+/* -- misc -------------------------------------------------------------- */
+
+hr {
+    border: 1px solid var(--hlib-border-strong);
+}
+
+dt:target, span.highlighted {
+    background-color: #4a3f1e;
+    color: var(--hlib-text);
+}
+
+.system-message {
+    background-color: #3a2222;
+    border: 3px solid #7a3a3a;
+    color: var(--hlib-text);
+}
+
+.footnote:target {
+    background-color: #3a3520;
+}
+
+div.viewcode-block:target {
+    background-color: #2a3239;
+    border-top: 1px solid var(--hlib-border-strong);
+    border-bottom: 1px solid var(--hlib-border-strong);
+}
+
+::selection {
+    background-color: #2c5a75;
+    color: #fff;
+}

@@ -36,3 +36,66 @@
 [submodule "maya/external/MetaHumanForMaya"]
 	path = maya/external/MetaHumanForMaya
 	url = https://github.com/Hsk0120/MetaHumanForMaya.git
+[submodule "maya/external/pymel"]
+	path = maya/external/pymel
+	url = https://github.com/LumaPictures/pymel.git
+[submodule "maya/external/AL_omx"]
+	path = maya/external/AL_omx
+	url = https://github.com/AnimalLogic/AL_omx.git
+[submodule "maya/external/paya"]
+	path = maya/external/paya
+	url = https://github.com/kimonmatara/paya.git
+[submodule "maya/external/mikan"]
+	path = maya/external/mikan
+	url = https://github.com/Citrus-Software/mikan.git
+[submodule "maya/external/maya-pulse"]
+	path = maya/external/maya-pulse
+	url = https://github.com/bohdon/maya-pulse.git
+[submodule "maya/external/crab"]
+	path = maya/external/crab
+	url = https://github.com/mikemalinowski/crab.git
+[submodule "maya/external/nl_rigging_tools"]
+	path = maya/external/nl_rigging_tools
+	url = https://github.com/nickyliux/nl_rigging_tools.git
+[submodule "maya/external/ml_tools"]
+	path = maya/external/ml_tools
+	url = https://github.com/morganloomis/ml_tools.git
+[submodule "maya/external/gt-tools"]
+	path = maya/external/gt-tools
+	url = https://github.com/TrevisanGMW/gt-tools.git
+[submodule "maya/external/animation-retargeting-tool"]
+	path = maya/external/animation-retargeting-tool
+	url = https://github.com/joaen/animation-retargeting-tool.git
+[submodule "maya/external/guppy_animation_tools"]
+	path = maya/external/guppy_animation_tools
+	url = https://github.com/assumptionsoup/guppy_animation_tools.git
+[submodule "maya/external/fossil"]
+	path = maya/external/fossil
+	url = https://github.com/patcorwin/fossil.git
+[submodule "maya/external/skinner"]
+	path = maya/external/skinner
+	url = https://github.com/AKEric/skinner.git
+[submodule "maya/external/defWeightTransfer"]
+	path = maya/external/defWeightTransfer
+	url = https://github.com/saurabh121/defWeightTransfer.git
+[submodule "maya/external/MayaMeshRetarget"]
+	path = maya/external/MayaMeshRetarget
+	url = https://github.com/yamahigashi/MayaMeshRetarget.git
+[submodule "maya/external/trigger"]
+	path = maya/external/trigger
+	url = https://github.com/masqu3rad3/trigger.git
+[submodule "maya/external/SkinPowerTool"]
+	path = maya/external/SkinPowerTool
+	url = https://github.com/Ryumo0205/SkinPowerTool.git
+[submodule "maya/external/maya-skinning-tools"]
+	path = maya/external/maya-skinning-tools
+	url = https://github.com/robertjoosten/maya-skinning-tools.git
+[submodule "maya/external/studiolibrary"]
+	path = maya/external/studiolibrary
+	url = https://github.com/krathjen/studiolibrary.git
+[submodule "maya/external/Red9_StudioPack"]
+	path = maya/external/Red9_StudioPack
+	url = https://github.com/markj3d/Red9_StudioPack.git
+[submodule "maya/external/aTools"]
+	path = maya/external/aTools
+	url = https://github.com/mottosso/aTools.git

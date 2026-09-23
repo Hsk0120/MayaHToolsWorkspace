@@ -6,7 +6,7 @@
 CD /d %~dp0
 
 :: This is Maya Core Settings Bat
-SET MAYA_CORE = ./maya_core.bat
+SET MAYA_CORE=maya_core.bat
 
 ::----------------------------------------------------------------
 ::Startup Maya
@@ -17,6 +17,6 @@ SET MAYA_CORE = ./maya_core.bat
 ::      MEL=%4
 ::----------------------------------------------------------------
 
-CALL MAYA_CORE "%~n0" %*
+CALL "%~dp0%MAYA_CORE%" "%~n0" %*
 
 EXIT

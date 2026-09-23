@@ -1,10 +1,10 @@
 """Menu-compatible entry point for selected joint removal."""
 
-import Hlib
-from Hlib.decorators import undoable
+import hlib
+from hlib.decorators import undoable
 
-Hlib.reload()
-from Hlib import cmds as hlib_cmds
+hlib.reload()
+from hlib import cmds as hlib_cmds
 
 @undoable("removeSelectedJoints")
 def remove_selected_joint():

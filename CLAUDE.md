@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-Maya用のカスタム作業環境リポジトリ。バッチファイル経由でMayaを起動し、内製ツール(HTools/Hlib)と外部ツール(mGear, cymel等、Git submodule)を標準環境に影響を与えずロードする。ビルドやパッケージングの工程は無く、`PYTHONPATH` / `MAYA_MODULE_PATH` を介してMaya起動時にそのままロードされるPythonコード群である。
+Maya用のカスタム作業環境リポジトリ。バッチファイル経由でMayaを起動し、内製ツール(HTools/hlib)と外部ツール(mGear, cymel等、Git submodule)を標準環境に影響を与えずロードする。ビルドやパッケージングの工程は無く、`PYTHONPATH` / `MAYA_MODULE_PATH` を介してMaya起動時にそのままロードされるPythonコード群である。
 
 ## 起動・実行コマンド
 
@@ -32,10 +32,12 @@ maya_2026_en.bat
 
 pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提。
 
-- `maya/inhouse/Hlib/__tests__/test_datatypes.py` を開いて Ctrl+Shift+B で送信すると、`Hlib.maths`(Vector/Translate/Rotate/Scale/Shear/Quaternion/EulerRotation/Matrix)を対象とした unittest が全9件走り、VS Codeターミナルと Maya の両方に各テスト結果とOK/FAILEDが出力される。Maya非依存の純粋ロジックだが、実行手段はこのリポジトリの標準に合わせてMaya経由である。
+- `maya/inhouse/hlib/__tests__/test_datatypes.py` を開いて Ctrl+Shift+B で送信すると、`hlib.maths`(Vector/Translate/Rotate/Scale/Shear/Quaternion/EulerRotation/Matrix)を対象とした unittest が全9件走り、VS Codeターミナルと Maya の両方に各テスト結果とOK/FAILEDが出力される。Maya非依存の純粋ロジックだが、実行手段はこのリポジトリの標準に合わせてMaya経由である。
 - 個別テストだけ実行したい場合は、同ファイル末尾の `if __name__ == "__main__":` ブロックが `test_` で始まる関数を `globals()` から収集して実行しているため、一時的に対象外の関数名を変える、または別のtest_*.pyとして必要な関数だけをコピーして送信する。
-- 他の `Hlib/__tests__/test_*.py`(`test_decorators.py`/`test_registry.py`/`test_node_creation.py`/`test_node_api.py`/`test_namespace_api.py`/`test_scene_api.py`/`test_skincluster.py`/`test_shapes_constraints.py`)も同様に `unittest.TestCase` を Maya 内で実行する形式で、対応するパッケージ(decorators/core.registry/nodes/scene/components 等)の単体テストを提供する。いずれもテスト対象ノードは専用の一時名前空間やユニーク名で作成し、tearDown で削除する。
-- `test_maya_standalone.py` / `test_slack_postMessage.py`(`Hlib/__tests__/`)は疎通確認用の手動スクリプト。後者は環境変数 `SLACK_API_BOT_TOKEN` が必須で、Slackへ実際にメッセージを投稿する副作用がある点に注意。前者は `HTools.decorator`(存在しないモジュール)を参照しており、現状インポートに失敗する。
+- 他の `hlib/__tests__/test_*.py`(`test_decorators.py`/`test_registry.py`/`test_node_creation.py`/`test_node_api.py`/`test_namespace_api.py`/`test_scene_api.py`/`test_scene_ui.py`/`test_skincluster.py`/`test_shapes_constraints.py`/`test_objectset.py`/`test_blendshape.py`/`test_displaylayer.py`/`test_cluster.py`/`test_locator.py`/`test_joint.py`/`test_units.py`/`test_plugin.py`/`test_workspace.py`/`test_reference.py`/`test_coerce.py`/`test_logger.py`/`test_progress.py` 等)も同様に `unittest.TestCase` を Maya 内で実行する形式で、対応するパッケージの単体テストを提供する。いずれもテスト対象ノードは専用の一時名前空間やユニーク名で作成し、tearDown で削除する。
+- **cmds突き合わせ(回帰防止の体系的な仕組み)**: `hlib/__tests__/test_cmds_parity.py` は、`development.rst` の「maya.cmds と OpenMaya API 2.0 の使い分け」方針でcmds→om2に置き換えた読み取り専用メソッドについて、hlib側の戻り値とcmds側の生の値を**同一テスト内で突き合わせる**専任ファイル。他のtest_*.pyにある「固定の期待値になるか」だけのテストと異なり、Mayaバージョン変更やAPIの挙動変化・リファクタによる回帰を継続的に検知する目的を持つ。新しくcmds→om2の置き換えを行った場合はこのファイルに対応する突き合わせを追加するのが規約(既存の突き合わせ一覧はファイル冒頭のdocstringを参照)。
+- **一括実行**: `hlib/__tests__/run_all_tests.py` を Ctrl+Shift+B で送信すると、同ディレクトリの対象 `test_*.py`(後述の除外ファイルを除く全件、`test_cmds_parity.py`含む)を同一 Maya セッション内で連続実行し、成功/失敗をファイル単位で集計する。各ファイルの標準出力を保持したまま `hlib/__tests__/.logs/YYYYMMDD_HHMMSS.log`(`*.log` として gitignore 済み)へ書き出し、1件でも失敗すれば `AssertionError` を送出して `[Maya] FAILED` になる。`run_all(notify=...)` は集計後のサマリ文字列を受け取るコールバックを渡せる(`hlib/utils/progress.py` の `notify` と同じ設計で、将来 Slack 通知等を差し込む接続点)。`test_scene_api.py` は setUp/tearDown で現在のシーンを `new(force=True)` するため、一括実行(および単体実行)前に必要な変更は保存しておくこと。
+- `test_maya_standalone.py` / `test_slack_postMessage.py` / `test_command_discovery.py`(`hlib/__tests__/`)は一括実行の対象外。前2つは疎通確認用の手動スクリプトで、`test_slack_postMessage.py` は環境変数 `SLACK_API_BOT_TOKEN` が必須でSlackへ実際にメッセージを投稿する副作用があり、`test_maya_standalone.py` は `HTools.decorator`(存在しないモジュール)を参照しており現状インポートに失敗する。`test_command_discovery.py` は `subprocess` で mayapy を別プロセス起動する疎通確認用スクリプトで、Maya GUI の commandPort 経由で実行すると新しい Maya.exe が起動してしまうため単体でも Maya GUI 経由では実行しないこと。
 
 ## アーキテクチャ
 
@@ -43,19 +45,63 @@ pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提
 
 ```
 maya/
-├ external/     外部ツール(Git submodule): mGear4, mGear5, cymel, AnimationAid, AriTools,
-│               CharcoalEditor2, PoseDriverConnect, SIWeightEditor, AdvancedSkeleton,
-│               MetaHumanForMaya, jlr_sort_attributes。直接編集せず、変更は各submodule側で行う。
+├ external/     外部ツール(Git submodule、32個。一覧は下記「external ― 外部ツール一覧」参照)。
+│               直接編集せず、変更は各submodule側で行う。
 ├ inhouse/      内製ツール本体
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
-│  ├ Hlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)
-│  ├ MayaCommandPorts/  HTools/Hlibから独立したcommandPort初期化モジュール
+│  ├ hlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)
+│  ├ MayaCommandPorts/  HTools/hlibから独立したcommandPort初期化モジュール
 │  └ integrations/   外部サービス連携(Slack, mGearガイド操作)
 ├ modules/      各ツールをMayaに認識させる .mod ファイル(2022/2024/2025/2026/2027対応)
 └ maya_*.bat, maya_core.bat  起動バッチ
 tools/
 └ send_to_maya.py  VS Code タスクが実行するMaya送信スクリプト
 ```
+
+### external ― 外部ツール一覧
+
+`maya/external/` 配下の Git submodule 32個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
+
+**Python基盤/ラッパーライブラリ**
+- `cymel`: Maya APIとコマンドの軽量ラッパーモジュール。
+- `pymel`: `maya.cmds` の直訳的で非pythonicな部分を解消する、Mayaコマンドのpythonicなラッパー(nodetypes.pyを自動生成)。
+- `paya`: `cmds`/OpenMaya自体を再ラップせず、その上に機能を足すリガー向けオブジェクト指向ツールキット(PyMELライクなAPI)。
+- `AL_omx`: Animal Logic製、Maya APIとコマンドの薄いラッパーライブラリ(PyPi配布)。
+
+**リギング/オートリグフレームワーク**
+- `mgear4`, `mgear5`: mGear(既存記載の通り、モジュラーリギングフレームワーク)。
+- `crab`: コンポーネント(腕・脊椎・脚など)単位でスケルトンとコントロールリグを構築するモジュラーリギングツール。
+- `fossil`: リギング・アニメーションツール群。
+- `maya-pulse`: リギングフレームワーク/ツールキット(開発中)。
+- `mikan`: Maya/Tangerine向けのブループリント式モジュラーオートリギングフレームワーク。
+- `trigger`: モジュラーなリギング・自動化ツール。
+- `nl_rigging_tools`(nlRT): リギングツール集。
+- `AdvancedSkeleton`, `AnimationAid`, `AriTools`(既存記載): オートリグ/リギング支援ツール。
+
+**アニメーション**
+- `aTools`: Alan Camilo氏制作のアニメーションツールキット。
+- `animation-retargeting-tool`: リグ間、またはモーキャプ→カスタムリグへのアニメーション転送ツール。
+- `guppy_animation_tools`: Arc Tracerなどアニメーション制作支援ツール集。
+- `ml_tools`: Morgan Loomis氏のアニメーションツールをまとめたリポジトリ。
+- `Red9_StudioPack`: テクニカルアニメーション向けの総合Mayaツールパック。
+- `studiolibrary`: ポーズ/アニメーションを保存・管理するQtベースのライブラリツール。
+- `PoseDriverConnect`(既存記載): ポーズドリブン関連ツール。
+
+**スキン/ウェイト編集**
+- `SkinPowerTool`: SkinMagicプラグインの代替となるスキンウェイト編集ツール。
+- `defWeightTransfer`: デフォーマウェイト(bend/cluster/FFD等)の転送・ミラー・変換ツール。
+- `maya-skinning-tools`: スキニング支援ツール集(スムーズウェイト等)。
+- `skinner`: スキンウェイトのエクスポート/インポート/転送ツール。
+- `SIWeightEditor`(既存記載): Softimage風のスキンウェイト編集ツール。
+
+**メッシュ/リターゲット**
+- `MayaMeshRetarget`: RBF補間とスキンウェイトベースのクラスタリングでメッシュ変形をソース→ターゲットへ転送するツール。
+- `MetaHumanForMaya`(既存記載): MetaHuman関連ツール。
+
+**その他**
+- `gt-tools`: 汎用のアニメーション/リギング補助ツール集(GT Tools)。
+- `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義属性を並び替えるツール。
+- `CharcoalEditor2`(既存記載): エディタ系ツール。
 
 ### HTools ― メニュー登録の仕組み
 
@@ -65,23 +111,24 @@ tools/
 - `HTools/searchable_menu.py` の `SearchableMenu`(`QtWidgets.QMenu` 拡張)が検索フィールドとフラット/階層表示切り替えを提供する。
 - PySide6を優先し、無ければPySide2にフォールバックする実装(Maya 2025以降はPySide6、2022はPySide2)。
 
-### Hlib ― Maya API 2.0 ベースの共通ライブラリ
+### hlib ― Maya API 2.0 ベースの共通ライブラリ
 
 Maya公式 `maya.cmds` ではなく `maya.api.OpenMaya`(API 2.0)を主に用いた、ノード/属性(plug)のラッパーとメンテナンス性重視の動的登録機構を提供する。
 
-- **動的wrapper登録** (`Hlib/core/discovery.py`, `Hlib/core/registry.py`): `Hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`Hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、パッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/属性型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけでよく、`__init__.py` 等の手動編集は不要**。同一型に複数クラスを登録しようとすると `ValueError` になる。ノード側は `Node`/`Transform`/`Shape`/`Joint`/`Mesh`/`Camera`/`NurbsCurve`/`SkinCluster`/`IkHandle`に加え、`Constraint` 系(Parent/Point/Orient/Scale/Aim/PoleVector/Geometry/Normal/Tangent/PointOnPoly の10種)を提供する。
-- **ファクトリパターン**: `Node.__new__`(`Hlib/nodes/node.py`)が対象の実際の Maya nodeType を調べ、登録済みのサブクラス(例: `Joint`, `SkinCluster`)があれば自動的にそちらへ差し替えてインスタンス化する。属性未定義の場合は `__getattr__` がMayaのplugとして解決を試みる(`Plug` を返す)。
-- **依存順リロード** (`Hlib/core/reload.py`): `Hlib.reload()` がパッケージ配下の現存モジュールをmodule globals内の相互参照から依存グラフを推定し、依存先を先に安全な順序でreloadする。Script Editor上での開発・修正の反映に使う。
-- `Hlib/maths/`: `Vector`/`Translate`/`Rotate`/`Scale`/`Shear`/`Quaternion`/`EulerRotation`/`Matrix` などMaya非依存(標準`math`のみ)の値型。`Matrix` を除き `@dataclass(frozen=True)` の不変値オブジェクトで、等価比較・ハッシュは自動生成される(`slots=True` はMaya 2022同梱のPython 3.7と非互換のため不使用)。`EulerRotation` は内部値がradian、表示・入出力はdegreesである点に注意。
-- `Hlib/components/`: Mesh/NurbsCurveの部分要素を、作成時に番号を固定した参照として提供する(`Vertex`/`Vertices`、`CV`/`CVs`、`Edge`/`Edges`、`Face`/`Faces`、`UV`/`UVs`)。座標は都度シーンから取得し、`Vertex`/`CV`(`PointComponent`系)は代入で即座にシーンへ反映しUndoできる。トポロジー変更後の番号の同一性は保証しない。
-- `Hlib/cmds/`: `maya.cmds` 相当の手続き的API(`create_node`、`ls`、`constraint`)を集約する。`Hlib/__init__.py` が起動時にここを走査し、`Hlib.cmds.create_node` と `Hlib.create_node` の両方から呼べるようフラットに再公開する。
-- `Hlib/decorators/`: `undo.py` の `undo_chunk` コンテキストマネージャと `undoable` デコレータで複数のMaya操作を単一のUndoチャンクにまとめる。`selection.py` の `preserved_selection` コンテキストマネージャはブロックの前後でMayaの選択状態を保存・復元する(ブロック内で例外が起きても復元される)。
-- `Hlib/utils/`: `logger.py`(ログ出力)、`progress.py`(Maya非依存の進捗バー、Slack通知等への`notify`コールバック対応)。
-- トップレベル `Hlib/__init__.py` は `Hlib/cmds` の公開関数をフラットに再公開し(`Hlib.create_node`/`Hlib.ls`/`Hlib.constraint`)、`reload()` を公開する。`initialize_node_api` / `initialize_plug_api` を通じて発見した全公開クラスを `__all__` に含める。
+- **動的wrapper登録** (`hlib/_core/discovery.py`, `hlib/_core/registry.py`): `hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、サブパッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/属性型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけでよく、`__init__.py` 等の手動編集は不要**。同一型に複数クラスを登録しようとすると `ValueError` になる。ノード側は `Node`/`Transform`/`Shape`/`Joint`/`Mesh`/`Camera`/`NurbsCurve`/`SkinCluster`/`IkHandle`/`ObjectSet`/`BlendShape`/`DisplayLayer`/`Cluster`/`Locator`/`Reference`に加え、`Constraint` 系(Parent/Point/Orient/Scale/Aim/PoleVector/Geometry/Normal/Tangent/PointOnPoly の10種)を提供する。これらのクラスは `hlib` 直下には公開されず、`hlib.nodes.Joint` のように所属パッケージ(`hlib.nodes`/`hlib.plugs`/`hlib.maths`/`hlib.components`/`hlib.scenes`)から import する。
+- **ファクトリパターン**: `Node.__new__`(`hlib/nodes/node.py`)が対象の実際の Maya nodeType を調べ、登録済みのサブクラス(例: `Joint`, `SkinCluster`)があれば自動的にそちらへ差し替えてインスタンス化する。呼び出したクラス自身と実際の型が異なれば差し替わる点に注意(例: 非jointノード名を渡して `Joint("name")` を呼んでも、実際の型が `Transform` ならその型が返る)。属性未定義の場合は `__getattr__` がMayaのplugとして解決を試みる(`Plug` を返す)。
+- **`hlib/cmds/` ― ファイル名駆動のコマンド自動公開**: `cmds/<コマンド名>.py` に同名の関数(例: `createNode.py` の `createNode()`)を定義するだけで、`hlib.cmds.<コマンド名>` と `hlib.<コマンド名>` の両方から呼べるようになる(`cmds/__init__.py` の編集は不要。非公開名・サブパッケージ・同名関数を持たないファイルは対象外)。既存コマンドは `createNode`/`ls`/`node`/`constraint`/`scene`。命名は Maya コマンドに合わせてキャメルケース。各モジュールの docstring は Synopsis/Return value/Flags/Examples 形式で書き、Sphinx側の専用テンプレートで個別ページとして生成される。`hlib.reload()` は追加・変更・削除を検出して両方の公開名に反映する。
+- **依存順リロード** (`hlib/_core/reload.py`): `hlib.reload()` がパッケージ配下の現存モジュールをmodule globals内の相互参照から依存グラフを推定し、依存先を先に安全な順序でreloadする。Script Editor上での開発・修正の反映に使う。
+- `hlib/maths/`: `Vector`/`Translate`/`Rotate`/`Scale`/`Shear`/`Quaternion`/`EulerRotation`/`Matrix` などMaya非依存(標準`math`のみ)の値型。`Matrix` を除き `@dataclass(frozen=True)` の不変値オブジェクトで、等価比較・ハッシュは自動生成される(`slots=True` はMaya 2022同梱のPython 3.7と非互換のため不使用)。`EulerRotation` は内部値がradian、表示・入出力はdegreesである点に注意。
+- `hlib/components/`: Mesh/NurbsCurveの部分要素を、作成時に番号を固定した参照として提供する(`Vertex`/`Vertices`、`CV`/`CVs`、`Edge`/`Edges`、`Face`/`Faces`、`UV`/`UVs`)。座標は都度シーンから取得し、`Vertex`/`CV`(`PointComponent`系)は代入で即座にシーンへ反映しUndoできる。トポロジー変更後の番号の同一性は保証しない。
+- `hlib/scenes/`: `Scene`(`Scene(path=None)`。`None`は現在のシーン、指定時はそのパスを取得時点で保持するだけで読み込まない)と `Namespace` を提供する。`save()`/`save_as()`/`is_modified()` は保持パスが現在のシーンと一致する場合のみ使用でき、一致しなければ `RuntimeError`。既存エディター(UIは作成しない)を参照する `Viewport`/`Outliner`(共通基底 `_Editor`)、タイムライン操作の `TimeSlider`、UI単位の `Units`(取得・設定とも `cmds.currentUnit` 文字列表現)と内部単位を一時強制する `native_units()`、プラグインのロード状態を扱う `Plugin`/`Plugins`、プロジェクト設定を扱う `Workspace`、シーン内の参照を列挙する `list_references()`(参照ノード自体は `hlib.nodes.Reference`)も提供する。
+- `hlib/decorators/`: `undo.py` の `undo_chunk` コンテキストマネージャと `undoable` デコレータで複数のMaya操作を単一のUndoチャンクにまとめる。`selection.py` の `preserved_selection` コンテキストマネージャはブロックの前後でMayaの選択状態を保存・復元する(ブロック内で例外が起きても復元される)。
+- `hlib/utils/`: `logger.py`(ログ出力)、`progress.py`(Maya非依存の進捗バー、Slack通知等への`notify`コールバック対応)。
+- トップレベル `hlib/__init__.py` は `cmds`/`nodes`/`plugs`/`components`/`scenes`/`maths` サブパッケージと `reload()` のみを直接公開し、加えて `hlib.cmds` の公開コマンド関数をフラットに再公開する(`hlib.createNode`/`hlib.ls`/`hlib.node`/`hlib.constraint`/`hlib.scene`)。`Node`/`Joint`/`Matrix` などのクラスは `hlib.Node` のようには公開されず、必ず `hlib.nodes.Node` のように所属パッケージから import する。
 
 ### MayaCommandPorts
 
-HTools/Hlibから独立した最小モジュール(依存は `maya.cmds` / `maya.utils` のみ)。GUI起動時のみ遅延実行でcommandPortを `:7001`(MEL)/`:7002`(Python)に開く。既存ポートは開き直さず、失敗はwarning出力に留める。VS Code連携(`tools/send_to_maya.py`)はこの `:7002` を使用する。無効化するには `maya/modules/MayaCommandPorts.mod` をmodules検索対象外へ移動する。
+HTools/hlibから独立した最小モジュール(依存は `maya.cmds` / `maya.utils` のみ)。GUI起動時のみ遅延実行でcommandPortを `:7001`(MEL)/`:7002`(Python)に開く。既存ポートは開き直さず、失敗はwarning出力に留める。VS Code連携(`tools/send_to_maya.py`)はこの `:7002` を使用する。無効化するには `maya/modules/MayaCommandPorts.mod` をmodules検索対象外へ移動する。
 
 ### integrations
 

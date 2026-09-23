@@ -69,8 +69,8 @@ instance/
 .scrapy
 
 # Sphinx documentation
-maya/inhouse/Hlib/docs/_build/
-maya/inhouse/Hlib/docs/autoapi/
+maya/inhouse/hlib/docs/_build/
+maya/inhouse/hlib/docs/autoapi/
 
 # PyBuilder
 .pybuilder/
@@ -209,6 +209,9 @@ __marimo__/
 
 # Temporary Maya execution output
 .maya-output/
+
+# hlib run_all_tests.py output logs
+maya/inhouse/hlib/__tests__/.logs/
 
 # macOS
 .DS_Store

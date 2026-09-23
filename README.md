@@ -70,7 +70,7 @@ macOS用の起動ファイルは`maya_<version>_<language>.command`と
 ## ▼ディレクトリ補足
 
 - `maya/external`: 外部サブモジュール群(mGear, cymel, AnimationAid ほか)
-- `maya/inhouse/Hlib`: Mayaノード・属性ラッパー、形状操作、数学型などの共通ライブラリ
+- `maya/inhouse/hlib`: Mayaノード・属性ラッパー、形状操作、数学型などの共通ライブラリ
 - `maya/inhouse/HTools`: Mayaメニューから起動する社内ツール
 - `maya/modules`: 各ツールをMayaへ認識させる`.mod`定義
 
@@ -92,8 +92,8 @@ git submodule update --init --recursive
 送信はMaya 2027のmayapyを使用し、追加拡張機能は不要です。
 設定・バージョン変更は[VS Codeの使い方](docs/vscode.md)を参照してください。
 
-## Hlib ドキュメント
+## hlib ドキュメント
 
-Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/Hlib/docs` に用意しています。
+Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/hlib/docs` に用意しています。
 Maya を起動せず、ソースから HTML を生成できます。
-手順は[Hlib ドキュメントのビルド](maya/inhouse/Hlib/docs/README.md)を参照してください。
+手順は[hlib ドキュメントのビルド](maya/inhouse/hlib/docs/README.md)を参照してください。
