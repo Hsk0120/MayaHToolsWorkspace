@@ -9,8 +9,8 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.scenes import Scene
-from hlib.scenes import Scene as SceneFromPackage
+from hlib.files import Scene
+from hlib.files import Scene as SceneFromPackage
 
 
 class SceneApiTest(unittest.TestCase):

@@ -8,7 +8,7 @@ Synopsis
 
 既存ノードを取得し、Maya のノード型に対応するラッパーを返します。
 ノードの作成や選択状態の変更は行いません。
-``hlib.cmds.node(value)`` でも同じ関数を呼び出せます。
+``import hlib`` の後に ``hlib.node(value)`` として呼び出します。
 
 Return value
 ------------

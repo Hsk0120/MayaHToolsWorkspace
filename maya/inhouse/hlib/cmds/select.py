@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.select(nodes=None, **kwargs)
+    hlib.select(nodes=None, **kwargs)
 
 指定したノードを選択します。``nodes`` を省略すると ``**kwargs`` だけで
 ``maya.cmds.select`` を呼びます（``clear=True`` など）。
@@ -63,11 +63,11 @@ Examples
 
     import hlib
 
-    a = hlib.cmds.createNode("transform", name="a")
-    b = hlib.cmds.createNode("transform", name="b")
-    hlib.cmds.select([a, b])
-    print(hlib.cmds.ls(selection=True))
-    hlib.cmds.select(clear=True)
+    a = hlib.createNode("transform", name="a")
+    b = hlib.createNode("transform", name="b")
+    hlib.select([a, b])
+    print(hlib.ls(selection=True))
+    hlib.select(clear=True)
 """
 
 import maya.cmds as cmds

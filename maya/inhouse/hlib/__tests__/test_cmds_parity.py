@@ -35,7 +35,7 @@ import maya.cmds as cmds
 import hlib
 hlib.reload()
 from hlib.nodes import Node
-from hlib.scenes import Namespace
+from hlib.namespaces import Namespace
 
 
 class NodeAliasesParityTest(unittest.TestCase):

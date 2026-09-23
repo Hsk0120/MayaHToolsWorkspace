@@ -1,4 +1,4 @@
-"""hlib.scenes.plugin の Plugin/Plugins を検証するMaya内テスト。"""
+"""hlib.plugins.plugin の Plugin/Plugins を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.scenes import Plugin, Plugins
+from hlib.plugins import Plugin, Plugins
 
 
 class PluginTest(unittest.TestCase):

@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.constraint(sources, target, type="parent", maintainOffset=False)
+    hlib.constraint(sources, target, type="parent", maintainOffset=False)
 
 拘束元 sources から拘束先 target へのコンストレイントを作成します。選択状態は使用しません。
 
@@ -58,9 +58,9 @@ Examples
 
     import hlib
 
-    source = hlib.cmds.createNode("transform", name="source")
-    target = hlib.cmds.createNode("transform", name="target")
-    result = hlib.cmds.constraint(source, target, type="point", maintainOffset=True)
+    source = hlib.createNode("transform", name="source")
+    target = hlib.createNode("transform", name="target")
+    result = hlib.constraint(source, target, type="point", maintainOffset=True)
 """
 
 def constraint(sources, target, type="parent", maintainOffset=False):

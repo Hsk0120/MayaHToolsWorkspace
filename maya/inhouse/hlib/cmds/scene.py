@@ -59,6 +59,6 @@ def scene(path=None):
     Raises:
         ValueError: パスが空または未対応の型の場合。
     """
-    from ..scenes import Scene
+    from ..files import Scene
 
     return Scene(path)

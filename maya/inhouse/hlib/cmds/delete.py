@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.delete(nodes)
+    hlib.delete(nodes)
 
 指定したノードを削除します。
 
@@ -46,8 +46,8 @@ Examples
 
     import hlib
 
-    node = hlib.cmds.createNode("transform", name="example")
-    hlib.cmds.delete(node)
+    node = hlib.createNode("transform", name="example")
+    hlib.delete(node)
 """
 
 import maya.cmds as cmds

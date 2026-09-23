@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.setKeyframe(target=None, **kwargs)
+    hlib.setKeyframe(target=None, **kwargs)
 
 指定したノードまたはプラグにキーフレームを設定します。``target`` を省略すると
 ``**kwargs`` だけで ``maya.cmds.setKeyframe`` を呼びます（現在の選択が対象）。
@@ -57,11 +57,11 @@ Examples
 
     import hlib
 
-    node = hlib.cmds.createNode("transform", name="example")
-    hlib.cmds.currentTime(1)
-    hlib.cmds.setKeyframe(node.attr("translateX"), value=0.0)
-    hlib.cmds.currentTime(24)
-    hlib.cmds.setKeyframe(node.attr("translateX"), value=10.0)
+    node = hlib.createNode("transform", name="example")
+    hlib.currentTime(1)
+    hlib.setKeyframe(node.attr("translateX"), value=0.0)
+    hlib.currentTime(24)
+    hlib.setKeyframe(node.attr("translateX"), value=10.0)
 """
 
 import maya.cmds as cmds

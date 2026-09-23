@@ -3,7 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from ..utils import raise_with_notify
 
 
@@ -397,14 +397,14 @@ class Node:
         """
         # scene.namespace が ..nodes を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from ..scenes import Namespace
+        from ..namespaces import Namespace
 
         node_name = self.node_name()
         if ":" not in node_name:
             return Namespace(":")
         return Namespace(node_name.rsplit(":", 1)[0])
 
-    @undoable("hlibNodeRename")
+    @undo_chunk("hlibNodeRename")
     def rename(self, name, ignore_shape=False):
         """ノード名を変更し、変更後の名前を返す。
 
@@ -420,7 +420,7 @@ class Node:
         """
         return cmds.rename(self.name(), name, ignoreShape=ignore_shape)
 
-    @undoable("hlibNodeSetNamespace")
+    @undo_chunk("hlibNodeSetNamespace")
     def set_namespace(self, namespace):
         """ノードを指定したネームスペースへ移動する。
 
@@ -435,7 +435,7 @@ class Node:
             RuntimeError: namespace移動に失敗した場合。
         """
         # scene.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
-        from ..scenes import Namespace
+        from ..namespaces import Namespace
 
         if isinstance(namespace, Namespace):
             target_namespace = namespace
@@ -580,7 +580,7 @@ class Node:
             pairs.append((alias_name, Plug(self, selection.getPlug(0))))
         return pairs
 
-    @undoable("hlibNodeAddAttr")
+    @undo_chunk("hlibNodeAddAttr")
     def add_attr(
         self,
         long_name,

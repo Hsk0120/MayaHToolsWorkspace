@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.createNode(type, **kwargs)
+    hlib.createNode(type, **kwargs)
 
 指定した Maya ノードを作成し、型に応じた hlib ラッパーを返します。
 
@@ -58,7 +58,7 @@ Examples
 
     import hlib
 
-    node = hlib.cmds.createNode("transform", name="example")
+    node = hlib.createNode("transform", name="example")
     print(node.full_name)
 """
 

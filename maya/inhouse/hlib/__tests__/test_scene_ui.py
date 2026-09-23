@@ -19,13 +19,13 @@ class SceneUiTest(unittest.TestCase):
         self.panel = self.view.panel()
 
     def test_public_api_and_reload(self):
-        for name, cls in (("timeSlider", hlib.scenes.TimeSlider),
-                          ("viewport", hlib.scenes.Viewport),
-                          ("outliner", hlib.scenes.Outliner)):
+        for name, cls in (("timeSlider", hlib.editors.TimeSlider),
+                          ("viewport", hlib.editors.Viewport),
+                          ("outliner", hlib.editors.Outliner)):
             self.assertIs(getattr(hlib, name), getattr(hlib.cmds, name))
-        self.assertIsInstance(hlib.timeSlider(), hlib.scenes.TimeSlider)
-        self.assertIsInstance(self.view, hlib.scenes.Viewport)
-        self.assertIsInstance(self.outliner, hlib.scenes.Outliner)
+        self.assertIsInstance(hlib.timeSlider(), hlib.editors.TimeSlider)
+        self.assertIsInstance(self.view, hlib.editors.Viewport)
+        self.assertIsInstance(self.outliner, hlib.editors.Outliner)
         self.assertEqual(self.view.panel(), self.panel)
 
     def test_viewport_restore_after_exception_and_nesting(self):
@@ -46,7 +46,7 @@ class SceneUiTest(unittest.TestCase):
         self.assertEqual(self.view.camera(), camera)
 
     def test_main_pane_suspend_exception_nested_and_already_disabled(self):
-        view = hlib.scenes.Viewport
+        view = hlib.editors.Viewport
         before = view.is_enabled()
         calls = []
         try:

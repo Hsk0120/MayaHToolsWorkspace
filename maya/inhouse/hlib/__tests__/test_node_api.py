@@ -8,7 +8,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.scenes import Namespace
+from hlib.namespaces import Namespace
 from hlib.nodes import Node
 from hlib.maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translate, Vector
 

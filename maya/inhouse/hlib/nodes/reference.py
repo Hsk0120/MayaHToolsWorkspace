@@ -4,7 +4,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from .node import Node
 
 
@@ -40,9 +40,9 @@ class Reference(Node):
         Returns:
             Namespace: 参照の名前空間。
         """
-        # scenes.namespace が ..nodes を逆方向 import しないため単純な import で足りるが、
+        # namespaces.namespace が ..nodes を逆方向 import しないため単純な import で足りるが、
         # hlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
-        from ..scenes import Namespace
+        from ..namespaces import Namespace
 
         return Namespace(self.reference_fn().associatedNamespace(False))
 
@@ -78,7 +78,7 @@ class Reference(Node):
             return None
         return Reference(parent)
 
-    @undoable("hlibReferenceLoad")
+    @undo_chunk("hlibReferenceLoad")
     def load(self):
         """参照をロードする。
 
@@ -91,7 +91,7 @@ class Reference(Node):
         cmds.file(loadReference=self.name())
         return self
 
-    @undoable("hlibReferenceUnload")
+    @undo_chunk("hlibReferenceUnload")
     def unload(self):
         """参照をアンロードする。
 
@@ -104,7 +104,7 @@ class Reference(Node):
         cmds.file(unloadReference=self.name())
         return self
 
-    @undoable("hlibReferenceRemove")
+    @undo_chunk("hlibReferenceRemove")
     def remove(self):
         """参照を削除する(参照ノードとその内容をシーンから除去する)。
 

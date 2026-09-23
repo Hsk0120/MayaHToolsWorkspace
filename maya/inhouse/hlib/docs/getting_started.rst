@@ -9,8 +9,32 @@ hlib入門
 以下は Maya の Script Editor の Python タブで実行する例です。
 ノード作成例は現在のシーンにノードを追加します。
 
+使用例では ``import hlib`` を基本とし、コマンドは ``hlib.createNode()`` や
+``hlib.ls()`` のように hlib 直下から呼び出します。クラスを直接利用する場合は、
+``hlib.nodes.Node`` など所属パッケージから取得します。
+
 ノードと属性
 ------------
+
+Undoをまとめる場合は ``undo_chunk`` を使います。``with`` とデコレータの両方に対応します。
+旧 ``undoable`` は廃止しました。名前を省略すると関数名は自動設定されないため、
+Undoキューに表示する名前が必要な場合は明示してください。
+
+.. code-block:: python
+
+   import hlib
+   from hlib.decorators import undo_chunk
+
+   @undo_chunk("createControl")
+   def create_control():
+       return hlib.createNode("transform", name="control")
+
+   with undo_chunk("createControls"):
+       create_control()
+       create_control()
+
+ブロックや関数で例外が発生してもチャンクを閉じます。完了済みの操作を自動で
+取り消す処理や、API直接書き込みにUndoを追加する処理は行いません。
 
 .. code-block:: python
 
@@ -18,12 +42,12 @@ hlib入門
    from hlib.decorators.undo import undo_chunk
 
    with undo_chunk("hlib example"):
-       node = hlib.cmds.createNode("transform", name="hlibExample")
+       node = hlib.createNode("transform", name="hlibExample")
        node.attr("visibility").set(False)
 
    print(node.name())
    print(node.attr("visibility").get())
-   print(hlib.cmds.ls(type="transform"))
+   print(hlib.ls(type="transform"))
 
 ``createNode`` は ``maya.cmds.createNode`` にキーワード引数を渡し、
 対応するラッパーを返します。既存ノードは ``hlib.node("ノード名")`` で取得できます。
@@ -38,15 +62,15 @@ hlib入門
 
    import hlib
 
-   a = hlib.cmds.createNode("transform", name="a")
-   b = hlib.cmds.createNode("transform", name="b")
+   a = hlib.createNode("transform", name="a")
+   b = hlib.createNode("transform", name="b")
 
-   print(hlib.cmds.objExists(a))          # True
-   copy = hlib.cmds.duplicate(a, name="aCopy")
-   parent = hlib.cmds.group([a, b], name="grp")
-   empty = hlib.cmds.group(name="emptyGrp", empty=True)
+   print(hlib.objExists(a))          # True
+   copy = hlib.duplicate(a, name="aCopy")
+   parent = hlib.group([a, b], name="grp")
+   empty = hlib.group(name="emptyGrp", empty=True)
 
-   hlib.cmds.delete(copy)
+   hlib.delete(copy)
 
 ``duplicate``/``group`` はいずれも作成したノードのラッパーを返します。
 ``group`` は ``nodes`` を省略すると ``maya.cmds.group`` と同じく現在の選択を
@@ -61,19 +85,19 @@ hlib入門
 
    import hlib
 
-   a = hlib.cmds.createNode("transform", name="a")
-   b = hlib.cmds.createNode("transform", name="b")
+   a = hlib.createNode("transform", name="a")
+   b = hlib.createNode("transform", name="b")
 
-   hlib.cmds.select([a, b])
-   print(hlib.cmds.ls(selection=True))
-   hlib.cmds.select(clear=True)
+   hlib.select([a, b])
+   print(hlib.ls(selection=True))
+   hlib.select(clear=True)
 
-   hlib.cmds.currentTime(1)
-   hlib.cmds.setKeyframe(a.attr("translateX"), value=0.0)
-   hlib.cmds.currentTime(24)
-   hlib.cmds.setKeyframe(a.attr("translateX"), value=10.0)
+   hlib.currentTime(1)
+   hlib.setKeyframe(a.attr("translateX"), value=0.0)
+   hlib.currentTime(24)
+   hlib.setKeyframe(a.attr("translateX"), value=10.0)
 
-   hlib.cmds.bakeResults(a, time=(1, 24), attribute=["translateX"], simulation=True)
+   hlib.bakeResults(a, time=(1, 24), attribute=["translateX"], simulation=True)
 
 ``select`` は ``maya.cmds.select`` と同じ引数を受け付けます。``nodes`` を省略すると
 ``clear=True`` のような選択操作専用のフラグだけで呼び出せます。
@@ -198,9 +222,9 @@ Transform のピボット
 
 .. code-block:: python
 
-   grandparent = hlib.cmds.createNode("transform", name="grandparent")
-   parent = hlib.cmds.createNode("transform", name="parent")
-   child = hlib.cmds.createNode("transform", name="child")
+   grandparent = hlib.createNode("transform", name="grandparent")
+   parent = hlib.createNode("transform", name="parent")
+   child = hlib.createNode("transform", name="child")
    parent.set_parent(grandparent)
    child.set_parent(parent)
 
@@ -225,8 +249,8 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 
 .. code-block:: python
 
-   source = hlib.cmds.createNode("transform", name="connSource")
-   target = hlib.cmds.createNode("transform", name="connTarget")
+   source = hlib.createNode("transform", name="connSource")
+   target = hlib.createNode("transform", name="connTarget")
    source.attr("translateX").connect(target.attr("translateX"))
 
    print(len(target.inputs()))                    # 1
@@ -260,7 +284,7 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 
    import maya.cmds as cmds
 
-   node = hlib.cmds.createNode("transform", name="attrMetaExample")
+   node = hlib.createNode("transform", name="attrMetaExample")
    cmds.addAttr(node.name(), longName="strength", attributeType="double",
                 min=0, max=10, defaultValue=5, hidden=True)
    cmds.addAttr(node.name(), longName="mode", attributeType="enum",
@@ -294,13 +318,13 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 
 .. code-block:: python
 
-   node = hlib.cmds.createNode("transform", name="channelBoxExample")
+   node = hlib.createNode("transform", name="channelBoxExample")
    plug = node.attr("translateX")
 
    plug.set_keyable(False)          # キー不可（チャンネルボックスからも隠れる）
    plug.set_channel_box(True)       # キー不可のままチャンネルボックスにのみ表示
 
-   other = hlib.cmds.createNode("transform", name="channelBoxOther")
+   other = hlib.createNode("transform", name="channelBoxOther")
    plug.connect(other.attr("translateX"))
    print(plug.is_connected_to(other.attr("translateX")))   # True
    print(other.attr("translateX").is_connected_to(plug))   # True（向き不問）
@@ -314,13 +338,13 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 
 .. code-block:: python
 
-   node = hlib.cmds.createNode("transform", name="classifyExample")
+   node = hlib.createNode("transform", name="classifyExample")
    print(node.type_id)                 # int（セッション内でのみ有効な内部ID）
    print(node.classification())        # ["drawdb/geometry/transform"]
 
-   root = hlib.cmds.createNode("transform", name="root")
-   branch = hlib.cmds.createNode("transform", name="branch")
-   leaf = hlib.cmds.createNode("transform", name="leaf")
+   root = hlib.createNode("transform", name="root")
+   branch = hlib.createNode("transform", name="branch")
+   leaf = hlib.createNode("transform", name="leaf")
    branch.set_parent(root)
    leaf.set_parent(branch)
 
@@ -340,7 +364,7 @@ animCurve とミュート
 
 .. code-block:: python
 
-   node = hlib.cmds.createNode("transform", name="animExample")
+   node = hlib.createNode("transform", name="animExample")
    plug = node.attr("translateX")
    print(plug.anim_curve())   # None（まだキーが無い）
 
@@ -365,9 +389,9 @@ animCurve とミュート
 
 .. code-block:: python
 
-   grandparent = hlib.cmds.createNode("transform", name="grandparent2")
-   parent = hlib.cmds.createNode("transform", name="parent2")
-   child = hlib.cmds.createNode("transform", name="child2")
+   grandparent = hlib.createNode("transform", name="grandparent2")
+   parent = hlib.createNode("transform", name="parent2")
+   child = hlib.createNode("transform", name="child2")
    parent.set_parent(grandparent)
    child.set_parent(parent)
 
@@ -400,7 +424,7 @@ animCurve とミュート
 
 .. code-block:: python
 
-   transform = hlib.cmds.createNode("transform", name="rigControl")
+   transform = hlib.createNode("transform", name="rigControl")
 
    transform.hide()
    print(transform.attr("visibility").get())   # False
@@ -410,7 +434,7 @@ animCurve とミュート
    transform.make_identity(apply=True, translate=True)
    print(transform.get_translate())             # Translate(0.0, 0.0, 0.0)
 
-   driver = hlib.cmds.createNode("transform", name="rigDriver")
+   driver = hlib.createNode("transform", name="rigDriver")
    driver.attr("translateX").connect(transform.attr("translateX"))
    transform.attr("translate").set_locked(True)
    transform.release_srt()
@@ -443,8 +467,8 @@ animCurve とミュート
 
 .. code-block:: python
 
-   driver = hlib.cmds.createNode("transform", name="hlibDriver")
-   driven = hlib.cmds.createNode("transform", name="hlibDriven")
+   driver = hlib.createNode("transform", name="hlibDriver")
+   driven = hlib.createNode("transform", name="hlibDriven")
    constraint = driven.add_constraint(driver, "parent", maintainOffset=True)
    print(constraint.targets())
    print(constraint.weight_aliases(), constraint.weights())
@@ -543,7 +567,7 @@ displayLayer の基本操作
    import maya.cmds as cmds
    from hlib.nodes import Node
 
-   a = hlib.cmds.createNode("transform", name="layerMemberA")
+   a = hlib.createNode("transform", name="layerMemberA")
    layer = Node(cmds.createDisplayLayer(name="myLayer", empty=True))
 
    layer.add_members(a)
@@ -567,8 +591,8 @@ objectSet の基本操作
    import maya.cmds as cmds
    from hlib.nodes import Node
 
-   a = hlib.cmds.createNode("transform", name="setMemberA")
-   b = hlib.cmds.createNode("transform", name="setMemberB")
+   a = hlib.createNode("transform", name="setMemberA")
+   b = hlib.createNode("transform", name="setMemberB")
    object_set = Node(cmds.sets(name="controlSet", empty=True))
 
    object_set.add(a, b)
@@ -619,7 +643,7 @@ weight 配列のインデックス順ではなく ``cmds.aliasAttr`` が返す�
 
 .. code-block:: python
 
-   node = hlib.cmds.createNode("transform", name="arrayPlugExample")
+   node = hlib.createNode("transform", name="arrayPlugExample")
    array_plug = node.attr("worldMatrix")
 
    print(array_plug.next_available())   # 0（既存要素が無ければ）
@@ -661,7 +685,7 @@ influence がすべて現在の skinCluster に存在することを要求しま
 
 .. code-block:: python
 
-   from hlib.scenes import Scene
+   from hlib.files import Scene
 
    scene = Scene()
    print(scene.path())  # 未保存なら None
@@ -672,7 +696,7 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.scenes import Units, native_units
+   from hlib.units import Units, native_units
 
    print(Units.linear(), Units.angle(), Units.time())  # 例: "cm" "deg" "film"
    Units.set_linear("m")
@@ -695,7 +719,7 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.scenes import Plugin, Plugins
+   from hlib.plugins import Plugin, Plugins
 
    plugin = Plugin("matrixNodes")
    print(plugin.is_loaded(), plugin.path(), plugin.version())
@@ -713,7 +737,7 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.scenes import Workspace
+   from hlib.workspace import Workspace
 
    print(Workspace.root())               # 現在のワークスペースのルート
    print(Workspace.rule("scene"))        # 例: "scenes"
@@ -729,7 +753,7 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.scenes import list_references
+   from hlib.files import list_references
 
    for reference in list_references():
        print(reference.filename(), reference.namespace(), reference.is_loaded())
@@ -890,7 +914,19 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 ``new()``、``open()``、``save_as()`` を自身で実行した場合は保持パスも更新します。
 ``save()``、``save_as()``、``is_modified()`` は現在のシーンとパスが一致する場合のみ
 使用できます。未保存シーン同士はパスで区別できません。
-クラスの定義先は ``hlib.scenes.Scene``、名前空間クラスは ``hlib.scenes.Namespace`` です。
+クラスの定義先は ``hlib.files.Scene``、名前空間クラスは ``hlib.namespaces.Namespace`` です。
+
+旧 ``hlib.scenes`` / ``hlib.session`` は廃止しました。直接importする場合は次の分類を使います。
+``hlib.scene()`` など、コマンドから取得する入口は従来どおりです。
+
+.. code-block:: python
+
+    from hlib.files import Scene, list_references
+    from hlib.namespaces import Namespace
+    from hlib.plugins import Plugin, Plugins
+    from hlib.units import Units, native_units
+    from hlib.workspace import Workspace
+    from hlib.editors import TimeSlider, Viewport, Outliner
 
 タイムスライダー・ビューポート・アウトライナー
 ----------------------------------------------
@@ -900,21 +936,21 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
     import hlib
     hlib.reload()
 
-    slider = hlib.timeSlider()  # hlib.scenes.TimeSlider
+    slider = hlib.timeSlider()  # hlib.editors.TimeSlider
     print(slider.current_time(), slider.playback_range())
     slider.set_playback_range(1, 120)
     with slider.preserve_time():
         slider.set_current_time(24)
     print(slider.selected_range())  # 未選択はNone。選択範囲の終端は含まない
 
-    view = hlib.viewport()  # hlib.scenes.Viewport
+    view = hlib.viewport()  # hlib.editors.Viewport
     print(view.panel(), view.camera())
     with view.temporary_settings(grid=False, joints=False):
         pass  # 終了時に指定した表示設定を復元
     with view.suspend():
         pass  # 重い処理。例外時もメインペインの表示状態を復元
 
-    outliner = hlib.outliner()  # hlib.scenes.Outliner
+    outliner = hlib.outliner()  # hlib.editors.Outliner
     outliner.set_settings(showShapes=True, showNamespace=True)
     outliner.expand_all()       # 展開
     outliner.expand_all(False)  # 折りたたむ

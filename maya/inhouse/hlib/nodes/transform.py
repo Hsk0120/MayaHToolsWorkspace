@@ -5,7 +5,7 @@ import math
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from .._core.registry import node_wrapper
 from ..maths import Matrix, Translate, Vector
 from .node import Node
@@ -19,7 +19,7 @@ class Transform(Node):
     倣い、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
     """
 
-    @undoable("hlibTransformAddConstraint")
+    @undo_chunk("hlibTransformAddConstraint")
     def add_constraint(self, sources, type="parent", maintainOffset=False):
         """自身を拘束するコンストレイントを作成する。
 
@@ -124,7 +124,7 @@ class Transform(Node):
         point = self.transform_fn().rotatePivot(space)
         return Translate(point.x, point.y, point.z)
 
-    @undoable("hlibTransformSetPivot")
+    @undo_chunk("hlibTransformSetPivot")
     def set_pivot(self, value, ws=False):
         """回転ピボットとスケールピボットを同じ位置にまとめて設定する。
 
@@ -379,7 +379,7 @@ class Transform(Node):
         """
         return self
 
-    @undoable("hlibTransformSetParent")
+    @undo_chunk("hlibTransformSetParent")
     def set_parent(self, parent=None, relative=False, add=False):
         """Transformの親を変更する。
 
@@ -526,7 +526,7 @@ class Transform(Node):
         cmds.setAttr(f"{name}.scale", *matrix.scale)
         cmds.setAttr(f"{name}.shear", *matrix.shear)
 
-    @undoable("hlibTransformSetMatrix")
+    @undo_chunk("hlibTransformSetMatrix")
     def set_matrix(self, matrix, ws=False):
         """行列をローカルまたはワールド空間で設定する。
 
@@ -549,7 +549,7 @@ class Transform(Node):
         self._apply_local_matrix(local_matrix)
         return self
 
-    @undoable("hlibTransformSetTranslate")
+    @undo_chunk("hlibTransformSetTranslate")
     def set_translate(self, value, ws=False):
         """平行移動をローカルまたはワールド空間で設定する。
 
@@ -568,7 +568,7 @@ class Transform(Node):
         matrix.translate = value
         return self.set_matrix(matrix, ws=ws)
 
-    @undoable("hlibTransformSetRotate")
+    @undo_chunk("hlibTransformSetRotate")
     def set_rotate(self, value, unit="rad", ws=False):
         """Euler回転を設定する。
 
@@ -592,7 +592,7 @@ class Transform(Node):
         matrix.rotation = value
         return self.set_matrix(matrix, ws=ws)
 
-    @undoable("hlibTransformSetScale")
+    @undo_chunk("hlibTransformSetScale")
     def set_scale(self, value, ws=False):
         """スケールをローカルまたはワールド空間で設定する。
 
@@ -611,7 +611,7 @@ class Transform(Node):
         matrix.scale = value
         return self.set_matrix(matrix, ws=ws)
 
-    @undoable("hlibTransformSetShear")
+    @undo_chunk("hlibTransformSetShear")
     def set_shear(self, value, ws=False):
         """Shearをローカルまたはワールド空間で設定する。
 
@@ -630,7 +630,7 @@ class Transform(Node):
         matrix.shear = value
         return self.set_matrix(matrix, ws=ws)
 
-    @undoable("hlibTransformCompose")
+    @undo_chunk("hlibTransformCompose")
     def compose(self, matrix, ws=False):
         """Matrix の TRS/shear 成分をローカルまたはワールド空間へ適用する。
 
@@ -654,7 +654,7 @@ class Transform(Node):
         self._apply_local_matrix(local_matrix)
         return self
 
-    @undoable("hlibTransformShow")
+    @undo_chunk("hlibTransformShow")
     def show(self):
         """visibility を True に設定する。
 
@@ -664,7 +664,7 @@ class Transform(Node):
         self.plug("visibility").set(True)
         return self
 
-    @undoable("hlibTransformHide")
+    @undo_chunk("hlibTransformHide")
     def hide(self):
         """visibility を False に設定する。
 
@@ -674,7 +674,7 @@ class Transform(Node):
         self.plug("visibility").set(False)
         return self
 
-    @undoable("hlibTransformMakeIdentity")
+    @undo_chunk("hlibTransformMakeIdentity")
     def make_identity(self, **kwargs):
         """cmds.makeIdentity のシンプルなラッパー。
 
@@ -693,7 +693,7 @@ class Transform(Node):
         cmds.makeIdentity(self.full_name, **kwargs)
         return self
 
-    @undoable("hlibTransformReleaseSRT")
+    @undo_chunk("hlibTransformReleaseSRT")
     def release_srt(self):
         """translate/rotate/scale/shear とその子チャンネルを一括でアンロック・切断する。
 
@@ -754,7 +754,7 @@ class Transform(Node):
                 best_axis = name
         return best_axis
 
-    @undoable("hlibTransformCreateOffsetGroups")
+    @undo_chunk("hlibTransformCreateOffsetGroups")
     def create_offset_groups(self, *names):
         """自身を現在のワールド行列に一致させたオフセット(ゼロ)グループで包む。
 

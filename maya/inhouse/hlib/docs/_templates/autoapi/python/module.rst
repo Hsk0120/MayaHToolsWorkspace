@@ -5,7 +5,7 @@ hlib コマンドリファレンス
 .. py:module:: hlib.cmds
 
 コマンド名を選ぶと、構文・戻り値・フラグ・使用例を確認できます。
-Python では ``hlib.cmds.<コマンド名>()`` として呼び出します。
+Python では ``hlib.<コマンド名>()`` として呼び出します。
 
 .. toctree::
    :maxdepth: 1
@@ -26,7 +26,7 @@ Python では ``hlib.cmds.<コマンド名>()`` として呼び出します。
    :depth: 1
 
 {% for function in obj.functions %}
-.. py:currentmodule:: hlib.cmds
+.. py:currentmodule:: hlib
 
 .. py:function:: {{ function.short_name }}({{ function.args }})
    :no-index-entry:

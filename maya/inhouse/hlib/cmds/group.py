@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.group(nodes=None, **kwargs)
+    hlib.group(nodes=None, **kwargs)
 
 指定したノードをまとめる新規 Transform を作成し、そのラッパーを返します。
 ``nodes`` を省略すると maya.cmds.group と同じく現在の選択をグループ化します。
@@ -65,10 +65,10 @@ Examples
 
     import hlib
 
-    a = hlib.cmds.createNode("transform", name="a")
-    b = hlib.cmds.createNode("transform", name="b")
-    parent = hlib.cmds.group([a, b], name="grp")
-    empty = hlib.cmds.group(name="emptyGrp", world=True, empty=True)
+    a = hlib.createNode("transform", name="a")
+    b = hlib.createNode("transform", name="b")
+    parent = hlib.group([a, b], name="grp")
+    empty = hlib.group(name="emptyGrp", world=True, empty=True)
 """
 
 import maya.cmds as cmds

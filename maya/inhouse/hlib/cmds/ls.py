@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.ls(*args, **kwargs)
+    hlib.ls(*args, **kwargs)
 
 名前や条件で Maya ノードを検索し、検索結果を hlib ラッパーへ変換します。
 
@@ -62,9 +62,9 @@ Examples
 
     import hlib
 
-    nodes = hlib.cmds.ls(type="transform")
-    joints = hlib.cmds.ls(type="joint")
-    selected = hlib.cmds.ls(selection=True)
+    nodes = hlib.ls(type="transform")
+    joints = hlib.ls(type="joint")
+    selected = hlib.ls(selection=True)
 """
 
 import maya.cmds as cmds

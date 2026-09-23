@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.bakeResults(nodes, **kwargs)
+    hlib.bakeResults(nodes, **kwargs)
 
 指定したノードのアニメーションをキーフレームへベイクします。
 
@@ -57,8 +57,8 @@ Examples
 
     import hlib
 
-    node = hlib.cmds.createNode("transform", name="example")
-    hlib.cmds.bakeResults(node, time=(1, 24), attribute=["translateX"])
+    node = hlib.createNode("transform", name="example")
+    hlib.bakeResults(node, time=(1, 24), attribute=["translateX"])
 """
 
 import maya.cmds as cmds

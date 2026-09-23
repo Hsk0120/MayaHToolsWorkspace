@@ -1,7 +1,7 @@
 """Mesh の現在の UV セットを参照する UV 型。"""
 import maya.cmds as cmds
 from .component import Component, Components
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 
 
 class UV(Component):
@@ -20,7 +20,7 @@ class UV(Component):
         mesh_fn = self.shape.mesh_fn()
         return tuple(mesh_fn.getUV(self._index, uvSet=mesh_fn.currentUVSetName()))
 
-    @undoable("hlibUVPosition")
+    @undo_chunk("hlibUVPosition")
     def set_position(self, value):
         """UV 座標を設定する。
 

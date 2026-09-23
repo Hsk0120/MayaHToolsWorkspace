@@ -1,4 +1,4 @@
-"""hlib.decorators (undo_chunk/undoable/preserved_selection) を検証するMaya内テスト。"""
+"""hlib.decorators (undo_chunk/preserved_selection) を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,16 +7,35 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.decorators import preserved_selection, undo_chunk, undoable
+from hlib.decorators import preserved_selection, undo_chunk
 
 
 class UndoDecoratorsTest(unittest.TestCase):
-    """undo_chunk と undoable が単一Undoチャンクとして機能することを検証する。"""
+    """undo_chunk のwith構文とデコレータ が単一Undoチャンクとして機能することを検証する。"""
 
     def tearDown(self):
         for name in ("hlibUndoChunkNode", "hlibUndoableNode"):
             if cmds.objExists(name):
                 cmds.delete(name)
+
+    def test_decorator_repeated_calls_and_nested_chunks(self):
+        @undo_chunk("outer")
+        def create_and_move():
+            """Nested chunk example."""
+            with undo_chunk("inner"):
+                node = cmds.createNode("transform", name="hlibUndoChunkNode")
+                cmds.setAttr(node + ".translateX", 7)
+            return node
+
+        self.assertEqual(create_and_move.__doc__, "Nested chunk example.")
+        for _ in range(2):
+            node = create_and_move()
+            self.assertEqual(cmds.undoInfo(query=True, undoName=True), "outer")
+            cmds.undo()
+            self.assertFalse(cmds.objExists(node))
+            cmds.redo()
+            self.assertEqual(cmds.getAttr(node + ".translateX"), 7)
+            cmds.undo()
 
     def test_undo_chunk_groups_multiple_operations(self):
         with undo_chunk("hlibTestChunk"):
@@ -27,8 +46,8 @@ class UndoDecoratorsTest(unittest.TestCase):
         cmds.undo()
         self.assertFalse(cmds.objExists("hlibUndoChunkNode"))
 
-    def test_undoable_wraps_function_in_single_chunk(self):
-        @undoable("hlibTestUndoable")
+    def test_undo_chunk_wraps_function_in_single_chunk(self):
+        @undo_chunk("hlibTestUndoable")
         def create_and_move():
             cmds.createNode("transform", name="hlibUndoableNode")
             cmds.setAttr("hlibUndoableNode.translateX", 3.0)
@@ -52,19 +71,19 @@ class UndoDecoratorsTest(unittest.TestCase):
             cmds.setAttr("hlibUndoChunkNode.translateX", 9.0)
         self.assertEqual(cmds.getAttr("hlibUndoChunkNode.translateX"), 9.0)
 
-    def test_undoable_propagates_exception_without_rollback(self):
-        @undoable("hlibTestUndoableError")
+    def test_undo_chunk_propagates_exception_without_rollback(self):
+        @undo_chunk("hlibTestUndoableError")
         def create_then_fail():
             cmds.createNode("transform", name="hlibUndoableNode")
             raise ValueError("boom")
 
         with self.assertRaises(ValueError):
             create_then_fail()
-        # undoable は完了済み操作を自動ロールバックしない。
+        # undo_chunk は完了済み操作を自動ロールバックしない。
         self.assertTrue(cmds.objExists("hlibUndoableNode"))
 
-    def test_undoable_preserves_function_metadata_and_return_value(self):
-        @undoable()
+    def test_undo_chunk_preserves_function_metadata_and_return_value(self):
+        @undo_chunk()
         def sample_function():
             """docstring for sample_function."""
             return 42

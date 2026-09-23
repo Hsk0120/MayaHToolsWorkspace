@@ -22,6 +22,6 @@ def viewport(panel=None):
     Raises:
         RuntimeError: 使用できるmodelPanelがない場合。
     """
-    from ..scenes import Viewport
+    from ..editors import Viewport
 
     return Viewport(panel)

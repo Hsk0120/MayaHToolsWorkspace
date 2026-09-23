@@ -3,7 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 
 
 class Namespace:
@@ -109,7 +109,7 @@ class Namespace:
         return [Node(mobject) for mobject in mobjects]
 
     @classmethod
-    @undoable("hlibNamespaceCreate")
+    @undo_chunk("hlibNamespaceCreate")
     def create(cls, name, parent=":"):
         """Namespaceを作成し、作成したNamespaceを返す。
 
@@ -140,7 +140,7 @@ class Namespace:
         cmds.namespace(add=leaf_name, parent=parent_namespace.name())
         return namespace
 
-    @undoable("hlibNamespaceRename")
+    @undo_chunk("hlibNamespaceRename")
     def rename(self, name):
         """Namespace自身の名前を変更する。
 
@@ -163,7 +163,7 @@ class Namespace:
         self._name = target.name()
         return self
 
-    @undoable("hlibNamespaceMove")
+    @undo_chunk("hlibNamespaceMove")
     def move(self, parent=":"):
         """Namespaceを指定した親Namespaceへ移動する。
 
@@ -211,7 +211,7 @@ class Namespace:
         cmds.namespace(moveNamespace=(self._name, target.name()), force=True)
         cmds.namespace(removeNamespace=self._name)
 
-    @undoable("hlibNamespaceRemove")
+    @undo_chunk("hlibNamespaceRemove")
     def remove(self, destination=":"):
         """内容を移動してNamespaceを削除する。
 

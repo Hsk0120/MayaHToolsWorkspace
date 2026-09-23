@@ -4,7 +4,7 @@ import math
 
 import maya.cmds as cmds
 
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from .component import Component, Components
 
 
@@ -34,7 +34,7 @@ class PointComponent(Component):
         space = {"worldSpace": True} if ws else {"objectSpace": True}
         return tuple(cmds.xform(self.full_name, query=True, translation=True, **space))
 
-    @undoable("hlibComponentPosition")
+    @undo_chunk("hlibComponentPosition")
     def set_position(self, value, ws=False):
         """座標を設定する。
 
@@ -141,7 +141,7 @@ class PointComponents(Components):
             raise ValueError("ws must be a bool")
         return [component.position(ws) for component in self]
 
-    @undoable("hlibComponentsMirror")
+    @undo_chunk("hlibComponentsMirror")
     def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0)):
         """保持している頂点または CV をまとめてミラーする。
 

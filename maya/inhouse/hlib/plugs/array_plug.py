@@ -2,7 +2,7 @@
 
 import maya.cmds as cmds
 
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from .plug import Plug
 
 
@@ -85,7 +85,7 @@ class ArrayPlug(Plug):
             index += 1
         return index
 
-    @undoable("hlibArrayPlugAddElement")
+    @undo_chunk("hlibArrayPlugAddElement")
     def add_element(self):
         """次の空きインデックス(next_available())へ要素を作成して返す。
 
@@ -94,7 +94,7 @@ class ArrayPlug(Plug):
         """
         return self.element(self.next_available(), create=True)
 
-    @undoable("hlibArrayPlugRemoveElement")
+    @undo_chunk("hlibArrayPlugRemoveElement")
     def remove_element(self, index):
         """指定した論理インデックスの要素を削除する。
 

@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.duplicate(node, **kwargs)
+    hlib.duplicate(node, **kwargs)
 
 指定したノードを複製し、複製された Transform を返します。
 
@@ -55,8 +55,8 @@ Examples
 
     import hlib
 
-    node = hlib.cmds.createNode("transform", name="example")
-    copy = hlib.cmds.duplicate(node, name="exampleCopy")
+    node = hlib.createNode("transform", name="example")
+    copy = hlib.duplicate(node, name="exampleCopy")
 """
 
 import maya.cmds as cmds

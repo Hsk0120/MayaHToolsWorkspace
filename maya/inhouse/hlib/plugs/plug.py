@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 
 
 class Plug:
@@ -179,7 +179,7 @@ class Plug:
         """
         return self._mplug.isKeyable
 
-    @undoable("hlibPlugSetKeyable")
+    @undo_chunk("hlibPlugSetKeyable")
     def set_keyable(self, state):
         """キー可能状態を変更する。
 
@@ -193,7 +193,7 @@ class Plug:
         cmds.setAttr(self.full_name, keyable=bool(state))
         return self
 
-    @undoable("hlibPlugSetChannelBox")
+    @undo_chunk("hlibPlugSetChannelBox")
     def set_channel_box(self, state):
         """キー不可のままチャンネルボックスへの表示状態を変更する。
 
@@ -490,7 +490,7 @@ class Plug:
         """
         return self._mplug.isLocked
 
-    @undoable("hlibPlugLock")
+    @undo_chunk("hlibPlugLock")
     def set_locked(self, state):
         """プラグのロック状態を変更する。
 
@@ -512,7 +512,7 @@ class Plug:
         """
         return bool(cmds.mute(self.full_name, query=True))
 
-    @undoable("hlibPlugMute")
+    @undo_chunk("hlibPlugMute")
     def mute(self):
         """アトリビュートをミュートする（現在の出力値で固定する）。
 
@@ -525,7 +525,7 @@ class Plug:
         cmds.mute(self.full_name)
         return self
 
-    @undoable("hlibPlugUnmute")
+    @undo_chunk("hlibPlugUnmute")
     def unmute(self):
         """アトリビュートのミュートを解除する。
 
@@ -535,7 +535,7 @@ class Plug:
         cmds.mute(self.full_name, disable=True, force=True)
         return self
 
-    @undoable("hlibPlugDeleteAttr")
+    @undo_chunk("hlibPlugDeleteAttr")
     def delete_attr(self, force=False):
         """この属性をノードから削除する。
 
@@ -641,7 +641,7 @@ class Plug:
             return self._mplug.asMTime().asUnits(om2.MTime.uiUnit())
         return None
 
-    @undoable("hlibPlugSet")
+    @undo_chunk("hlibPlugSet")
     def set(self, value):
         """プラグ値を変更する。
 
@@ -713,7 +713,7 @@ class Plug:
             for connected in self._mplug.connectedTo(True, True)
         )
 
-    @undoable("hlibPlugConnect")
+    @undo_chunk("hlibPlugConnect")
     def connect(self, target, force=False):
         """このプラグを別のプラグへ接続する。
 
@@ -731,7 +731,7 @@ class Plug:
         cmds.connectAttr(self.full_name, target.full_name, force=force)
         return target
 
-    @undoable("hlibPlugDisconnect")
+    @undo_chunk("hlibPlugDisconnect")
     def disconnect(self, target=None):
         """プラグ接続を解除する。
 

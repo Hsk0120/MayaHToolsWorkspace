@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.currentTime(time=None, **kwargs)
+    hlib.currentTime(time=None, **kwargs)
 
 現在のタイムラインの時間を取得、または設定します。
 
@@ -49,8 +49,8 @@ Examples
 
     import hlib
 
-    print(hlib.cmds.currentTime())
-    hlib.cmds.currentTime(24)
+    print(hlib.currentTime())
+    hlib.currentTime(24)
 """
 
 import maya.cmds as cmds

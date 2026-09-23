@@ -4,7 +4,7 @@ import maya.cmds as cmds
 
 from .._core.coerce import to_name, to_names
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from .node import Node
 
 
@@ -25,7 +25,7 @@ class ObjectSet(Node):
         names = cmds.sets(self.name(), query=True) or []
         return [name if "." in name else Node(name) for name in names]
 
-    @undoable("hlibObjectSetAdd")
+    @undo_chunk("hlibObjectSetAdd")
     def add(self, *members):
         """メンバーを追加する。
 
@@ -40,7 +40,7 @@ class ObjectSet(Node):
             cmds.sets(to_names(members), add=self.name())
         return self
 
-    @undoable("hlibObjectSetRemove")
+    @undo_chunk("hlibObjectSetRemove")
     def remove(self, *members):
         """メンバーを除外する。
 

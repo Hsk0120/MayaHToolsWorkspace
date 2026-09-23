@@ -1,4 +1,4 @@
-"""hlib.nodes.reference の Reference と hlib.scenes.list_references を検証するMaya内テスト。"""
+"""hlib.nodes.reference の Reference と hlib.files.list_references を検証するMaya内テスト。"""
 
 import os
 import sys
@@ -11,7 +11,8 @@ import hlib
 hlib.reload()
 from hlib.nodes import Node
 from hlib.nodes.reference import Reference
-from hlib.scenes import Namespace, list_references
+from hlib.namespaces import Namespace
+from hlib.files import list_references
 
 
 class ReferenceTest(unittest.TestCase):

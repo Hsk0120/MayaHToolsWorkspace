@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 
 from .._core.coerce import to_node
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from .node import Node
 
 
@@ -48,7 +48,7 @@ class Constraint(Node):
         """
         return [plug.get() for plug in self.weight_plugs()]
 
-    @undoable("hlibConstraintSetWeight")
+    @undo_chunk("hlibConstraintSetWeight")
     def set_weight(self, weight, *targets):
         """ターゲットのウェイトをまとめて設定する。
 

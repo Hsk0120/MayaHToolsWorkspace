@@ -16,8 +16,16 @@
      - 属性型に応じた Plug ラッパー、配列・複合属性
    * - ``components``
      - Vertex/CV/Edge/Face/UV とその複数形。シーンを参照する座標コンポーネント
-   * - ``scenes``
-     - Scene と Namespace によるシーン・名前空間操作
+   * - ``files``
+     - Scene と参照ファイル操作
+   * - ``namespaces``
+     - Namespace による名前空間操作
+   * - ``plugins``
+     - Plugin / Plugins によるプラグイン管理
+   * - ``units.py`` / ``workspace.py``
+     - Units による単位操作 / Workspace によるプロジェクト操作
+   * - ``editors``
+     - TimeSlider、Viewport、Outliner によるタイムライン・エディター操作
    * - ``maths``
      - Vector、Matrix、Quaternion などの数学型（Matrix 以外は frozen dataclass）
    * - ``cmds``
@@ -75,7 +83,7 @@ maya.cmds と OpenMaya API 2.0 の使い分け
 hlib 内部の実装では、``maya.cmds``(``cmds``)は **シーンに変化を与え、かつ
 Undo 対応が必要な操作にのみ** 使用します(ノード・アトリビュート・接続の
 作成/削除/設定、親子付け、選択変更、名前空間の作成/移動/削除など)。
-これらは既存の ``@undoable`` デコレータ(``hlib/decorators/undo.py``)や
+これらは既存の ``@undo_chunk`` デコレータ(``hlib/decorators/undo.py``)や
 ``cmds.undoInfo`` の Undo チャンクに乗せる前提で cmds を使い続けます。
 
 それ以外の **読み取り専用の照会** は ``maya.api.OpenMaya``(``om2``、
@@ -92,7 +100,7 @@ Undo 対応が必要な操作にのみ** 使用します(ノード・アトリ�
   選択状態の取得・復元(``decorators/selection.py`` の
   ``preserved_selection`` を参照。コンポーネント選択も文字列化せずに
   ``MSelectionList`` のまま保存・復元する)
-- ``MNamespace`` による名前空間の存在確認・列挙(``scenes/namespace.py``)
+- ``MNamespace`` による名前空間の存在確認・列挙(``namespaces/namespace.py``)
 - ``MFnGeometryFilter.getOutputGeometry()`` による blendShape/cluster 等の
   デフォーマの出力ジオメトリ取得
 
@@ -139,7 +147,7 @@ Edge / Face / UV は Component、Edges / Faces / UVs は Components を継承し
 ``cmds/__init__.py`` の編集は不要です。追加・変更・削除後は ``hlib.reload()``
 で反映します。非公開名（先頭が ``_``）、サブパッケージ、同名関数を持たない
 ファイル、他モジュールから取り込んだ関数は公開対象外です。利用時は
-``hlib.cmds.<コマンド名>(...)`` として呼び出します。
+``hlib.<コマンド名>(...)`` として呼び出します。
 モジュールの docstring に Synopsis、Return value、Related commands、Flags、
 Examples を記述すると、コマンド専用テンプレートで個別ページを生成します。
 
@@ -197,10 +205,11 @@ hlib 独自の意味付け型（``Vector`` の派生）のため対象外です�
 
 クラスは所属するサブパッケージから利用します。
 ``hlib.nodes.Node``、``hlib.plugs.Plug``、``hlib.components.Vertex``、
-``hlib.scenes.Scene``、``hlib.maths.Matrix``、``hlib.cmds.createNode`` のように
+``hlib.files.Scene``、``hlib.maths.Matrix`` のように
 所属するパッケージから利用します。``hlib.reload()`` は再読み込みの入口です。
 ``hlib.Node`` は利用できません。
-コマンドは自動検出後に hlib 直下にも公開されます。
+コマンドの実装は ``cmds`` に配置し、自動検出後に hlib 直下にも公開されます。
+利用者向けの構文・使用例は ``hlib.createNode()`` や ``hlib.ls()`` に統一します。
 ``hlib.ls`` と ``hlib.cmds.ls`` は同じ関数です。追加・変更・削除は
 ``hlib.reload()`` で両方に反映されます。既存の公開名（``reload`` や
 サブパッケージ名）と衝突するコマンドは ``hlib.cmds`` 側だけで利用できます。

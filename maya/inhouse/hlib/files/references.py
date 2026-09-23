@@ -16,7 +16,7 @@ def list_references(top_level_only=False):
     Returns:
         list[Reference]: 参照ラッパーの一覧。参照が無ければ空リスト。
     """
-    # nodes.reference が ..scenes を逆方向 import しないが、
+    # nodes.reference が ..namespaces を逆方向 import しないが、
     # hlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
     from ..nodes.reference import Reference
 

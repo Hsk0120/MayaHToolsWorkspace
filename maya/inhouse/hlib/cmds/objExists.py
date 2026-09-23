@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    hlib.cmds.objExists(name)
+    hlib.objExists(name)
 
 指定した名前のノードが現在のシーンに存在するか判定します。
 
@@ -44,8 +44,8 @@ Examples
 
     import hlib
 
-    print(hlib.cmds.objExists("persp"))
-    print(hlib.cmds.objExists("doesNotExist"))
+    print(hlib.objExists("persp"))
+    print(hlib.objExists("doesNotExist"))
 """
 
 import maya.api.OpenMaya as om2

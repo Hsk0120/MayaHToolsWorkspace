@@ -1,4 +1,4 @@
-"""hlib.scenes.units の Units/native_units を検証するMaya内テスト。"""
+"""hlib.units の Units/native_units を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -8,7 +8,7 @@ import maya.api.OpenMaya as om2
 
 import hlib
 hlib.reload()
-from hlib.scenes import Units, native_units
+from hlib.units import Units, native_units
 
 
 class UnitsTest(unittest.TestCase):

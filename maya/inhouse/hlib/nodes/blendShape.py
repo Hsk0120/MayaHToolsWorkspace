@@ -5,7 +5,7 @@ import maya.cmds as cmds
 
 from .._core.coerce import to_name
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoable
+from ..decorators.undo import undo_chunk
 from .node import Node
 
 
@@ -46,7 +46,7 @@ class BlendShape(Node):
         """
         return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mobject()).getOutputGeometry()]
 
-    @undoable("hlibBlendShapeAddTarget")
+    @undo_chunk("hlibBlendShapeAddTarget")
     def add_target(self, target, base=None, weight_index=None, full_weight=1.0):
         """ターゲットを追加する。
 

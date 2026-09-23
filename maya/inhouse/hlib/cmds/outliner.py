@@ -22,6 +22,6 @@ def outliner(editor=None):
     Raises:
         RuntimeError: 対象アウトライナーが存在しない場合。
     """
-    from ..scenes import Outliner
+    from ..editors import Outliner
 
     return Outliner(editor)

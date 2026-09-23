@@ -20,6 +20,6 @@ def timeSlider(control=None):
     Returns:
         TimeSlider: 現在のタイムラインを操作するオブジェクト。
     """
-    from ..scenes import TimeSlider
+    from ..editors import TimeSlider
 
     return TimeSlider(control)
