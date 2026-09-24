@@ -19,7 +19,8 @@ CASES = [
     ("autoapi/hlib/maths/matrix/Matrix.html", "hlib.maths.matrix.Matrix"),
     ("development.html", "hlib.nodes.node.Node"),
 ]
-ASSETS = ["_static/mermaid.min.js", "_static/mermaid-init.js"]
+ASSETS = ["_static/mermaid.min.js", "_static/mermaid-init.js",
+          "_static/custom.css", "_static/mermaid.css"]
 
 
 def stamp(directory, sha):
