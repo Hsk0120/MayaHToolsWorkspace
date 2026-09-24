@@ -152,4 +152,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        # CIの公開チェックにも原因を残し、ログ権限がない場合にも診断できるようにする。
+        message = str(error).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::error title=Documentation browser verification::{message}", flush=True)
+        raise
