@@ -17,11 +17,7 @@ Contents
    installation
    whyhlib
    getting_started
-   matrices
-   selection_and_channelbox
-   component_collections
-   bulk_collections
-   animation_nodes
+   usage
    modules
 
 Indices and tables
