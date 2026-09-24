@@ -1,0 +1,17 @@
+@charset "UTF-8";
+
+/*
+ * Mermaid クラス図(継承図・全体クラス図)のレイアウト。
+ * 図はページ幅に収まらないことが多いため、縮小せず横スクロールで見せる。
+ */
+
+pre.mermaid {
+    overflow-x: auto;
+    background: transparent;
+    border: none;
+    padding: 0.5em 0;
+    line-height: normal;
+}
+
+/* SVGの実サイズ指定は mermaid-init.js が描画後にインラインstyleで行う。
+   ここで !important を使うと、そのインラインstyleを上書きしてしまうため指定しない。 */

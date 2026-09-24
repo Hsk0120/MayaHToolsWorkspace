@@ -10,6 +10,10 @@ class UV(Component):
     component_type = "map"
     count_attribute = "num_uvs"
 
+    def get_position(self):
+        """tuple[float, float]: position()と同じUV座標。"""
+        return self.position()
+
     def position(self):
         """UV 座標を取得する。
 
@@ -88,6 +92,67 @@ class UV(Component):
 class UVs(Components):
     """同一 Mesh の現在の UV セットの UV 群。"""
     component_class = UV
+
+    def get_position(self):
+        """list[tuple[float, float]]: 保持順のUV座標列。"""
+        return self.positions()
+
+    def position(self):
+        """list[tuple[float, float]]: 単体と同名の座標取得。平均位置ではない。"""
+        return self.positions()
+
+    def get_positions(self):
+        """list[tuple[float, float]]: positions()と同じ。"""
+        return self.positions()
+
+    def set_position(self, value):
+        """全UVを同じ座標へ設定する。
+
+        Args:
+            value (Iterable[float]): 有限のU、V座標。
+        Returns:
+            UVs: 自身。要素別の指定にはset_positionsを使う。
+        """
+        point = Component._finite_coordinates(value, 2)
+        return self.set_positions([point] * len(self))
+
+    @undo_chunk("hlibUVsSetPositions")
+    def set_positions(self, values):
+        """保持順にUV座標を設定する。全件の座標・対象を先に検証する。
+
+        Args:
+            values (Iterable[Iterable[float]]): 要素数と同じ数のU、V座標。
+        Returns:
+            UVs: 自身。空集合と空列は何もしない。
+        Raises:
+            ValueError: 件数・座標が不正な場合。
+            RuntimeError: Mayaが拒否した場合。完了済み変更は自動で戻さない。
+        """
+        rows = self._coordinate_rows(values, 2)
+        components = list(self)
+        for item, point in zip(components, rows):
+            item.set_position(point)
+        return self
+
+    @property
+    def u(self):
+        """list[float]: 保持順のU座標。"""
+        return [p[0] for p in self.positions()]
+
+    @u.setter
+    def u(self, value):
+        """Uだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
+        self.set_positions(self._axis_rows(self.positions(), 0, value))
+
+    @property
+    def v(self):
+        """list[float]: 保持順のV座標。"""
+        return [p[1] for p in self.positions()]
+
+    @v.setter
+    def v(self, value):
+        """Vだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
+        self.set_positions(self._axis_rows(self.positions(), 1, value))
 
     def positions(self):
         """保持順の UV 座標を取得する。

@@ -171,6 +171,46 @@ class Components:
         """
         return len(self._indices)
 
+    @property
+    def full_names(self):
+        """list[str]: 保持順の完全コンポーネント名。全要素を再検証する。"""
+        return [item.full_name for item in self]
+
+    def _coordinate_rows(self, values, size):
+        """要素別座標を全件検証する。個数・座標不正はValueError。
+
+        Args:
+            values (Iterable[Iterable[float]]): 保持順の座標列。
+            size (int): 1座標の成分数。
+        Returns:
+            list[tuple[float, ...]]: 検証済みの座標列。
+        """
+        rows = [Component._finite_coordinates(value, size) for value in values]
+        if len(rows) != len(self):
+            raise ValueError("Coordinate count must match component count")
+        return rows
+
+    def _axis_rows(self, positions, axis, value):
+        """軸の一括設定用座標を作る。スカラーは全要素、列は保持順に対応する。
+
+        Args:
+            positions (Iterable[Iterable[float]]): 現在座標。
+            axis (int): 成分番号。
+            value (float | Iterable[float]): 軸の値。
+        Returns:
+            list[list[float]]: 更新後の座標列。シーンは変更しない。
+        """
+        try:
+            values = list(value)
+        except TypeError:
+            values = [value] * len(self)
+        if len(values) != len(self):
+            raise ValueError("Axis value count must match component count")
+        rows = [list(position) for position in positions]
+        for row, item in zip(rows, values):
+            row[axis] = item
+        return rows
+
     def __iter__(self):
         """保持順に単体ラッパーを返す。
 

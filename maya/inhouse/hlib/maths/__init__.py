@@ -1,5 +1,6 @@
 """hlib の数学型と変換演算を公開する。"""
 
+from . import easing
 from .eulerRotation import EulerRotation
 from .matrix import Matrix
 from .quaternion import Quaternion
@@ -18,4 +19,5 @@ __all__ = [
     "Shear",
     "Translate",
     "Vector",
+    "easing",
 ]

@@ -588,7 +588,7 @@ class Plug:
                 return value
         elif attr.hasFn(om2.MFn.kEnumAttribute):
             return self._mplug.asInt()
-        elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType == om2.MFnData.kString:
+        elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
             return self._mplug.asString()
 
         value = cmds.getAttr(self.full_name)

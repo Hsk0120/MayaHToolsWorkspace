@@ -71,6 +71,7 @@ instance/
 # Sphinx documentation
 maya/inhouse/hlib/docs/_build/
 maya/inhouse/hlib/docs/autoapi/
+maya/inhouse/hlib/docs/_generated/
 
 # PyBuilder
 .pybuilder/

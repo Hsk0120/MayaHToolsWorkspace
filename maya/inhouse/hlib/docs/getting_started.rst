@@ -24,10 +24,10 @@ hlib入門
    import hlib
 
    node = hlib.createNode("transform", name="hlibExample")
-   node.attr("visibility").set(False)
+   node.plug("visibility").set(False)
 
    print(node.name())
-   print(node.attr("visibility").get())
+   print(node.plug("visibility").get())
    print(hlib.ls(type="transform"))
 
 この例では、属性変更とノード作成は別々のUndoになります。
@@ -78,9 +78,9 @@ hlib入門
    hlib.select(clear=True)
 
    hlib.currentTime(1)
-   hlib.setKeyframe(a.attr("translateX"), value=0.0)
+   hlib.setKeyframe(a.plug("translateX"), value=0.0)
    hlib.currentTime(24)
-   hlib.setKeyframe(a.attr("translateX"), value=10.0)
+   hlib.setKeyframe(a.plug("translateX"), value=10.0)
 
    hlib.bakeResults(a, time=(1, 24), attribute=["translateX"], simulation=True)
 
@@ -91,8 +91,13 @@ hlib入門
 ``bakeResults`` は ``time=(start, end)`` を省略すると Maya の現在の再生範囲が使われます。
 
 アトリビュートの取得・設定・接続（``getAttr``/``setAttr``/``connectAttr``/``addAttr``）は
-コマンドとしては用意していません。``node.attr("attrName")`` が返す ``Plug`` の
+コマンドとしては用意していません。``node.plug("attrName")`` が返す ``Plug`` の
 ``get()``/``set()``/``connect()``、および ``node.add_attr()`` を使ってください。
+
+ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.plug` で取得した
+:class:`~hlib.plugs.plug.Plug` オブジェクトを通して操作します。
+本ドキュメントの使用例は ``plug()`` に統一しています。
+``attr()`` は既存コードとの互換性のために残している ``plug()`` の別名です。
 
 クラスを直接importして使う
 ---------------------------
@@ -220,7 +225,7 @@ Transform のピボット
    print(grandparent.is_ancestor_of(child))         # True
    print(child.root() is grandparent or child.root().full_name == grandparent.full_name)
 
-   plug = child.attr("translateX")
+   plug = child.plug("translateX")
    print(plug.is_keyable)                          # True
    print(plug.parent.full_name)                    # child.translate
 
@@ -236,7 +241,7 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 
    source = hlib.createNode("transform", name="connSource")
    target = hlib.createNode("transform", name="connTarget")
-   source.attr("translateX").connect(target.attr("translateX"))
+   source.plug("translateX").connect(target.plug("translateX"))
 
    print(len(target.inputs()))                    # 1
    print(target.inputs(type="transform"))          # 同じ1件（接続元が transform）
@@ -246,7 +251,7 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
    plugs = target.plugs(keyable=True)              # cmds.listAttr(keyable=True) 相当
    print(any(plug.attribute == "translateX" for plug in plugs))   # True
 
-   cmds.aliasAttr("myAlias", target.attr("translateY").full_name)
+   cmds.aliasAttr("myAlias", target.plug("translateY").full_name)
    for alias_name, plug in target.aliases():
        print(alias_name, plug.full_name)           # myAlias connTarget.myAlias
 
@@ -275,14 +280,14 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
    cmds.addAttr(node.name(), longName="mode", attributeType="enum",
                 enumName="Off:Low:High", defaultValue=1)
 
-   plug = node.attr("strength")
+   plug = node.plug("strength")
    print(plug.is_dynamic)   # True（addAttr で追加したカスタム属性）
    print(plug.is_hidden)    # True
    print(plug.has_min, plug.min)   # True 0.0
    print(plug.has_max, plug.max)   # True 10.0
    print(plug.default)             # 5.0
 
-   mode_plug = node.attr("mode")
+   mode_plug = node.plug("mode")
    print(mode_plug.enum_name())    # "Low"（既定値 1 に対応する名前）
 
 ``min``/``max``/``default`` は数値属性では ``float`` をそのまま返しますが、
@@ -304,15 +309,15 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 .. code-block:: python
 
    node = hlib.createNode("transform", name="channelBoxExample")
-   plug = node.attr("translateX")
+   plug = node.plug("translateX")
 
    plug.set_keyable(False)          # キー不可（チャンネルボックスからも隠れる）
    plug.set_channel_box(True)       # キー不可のままチャンネルボックスにのみ表示
 
    other = hlib.createNode("transform", name="channelBoxOther")
-   plug.connect(other.attr("translateX"))
-   print(plug.is_connected_to(other.attr("translateX")))   # True
-   print(other.attr("translateX").is_connected_to(plug))   # True（向き不問）
+   plug.connect(other.plug("translateX"))
+   print(plug.is_connected_to(other.plug("translateX")))   # True
+   print(other.plug("translateX").is_connected_to(plug))   # True（向き不問）
 
 ``set_keyable``/``set_channel_box`` は ``cmds.setAttr(keyable=...)``/
 ``cmds.setAttr(channelBox=...)`` のラッパーです。``is_connected_to`` は入力・出力
@@ -350,7 +355,7 @@ animCurve とミュート
 .. code-block:: python
 
    node = hlib.createNode("transform", name="animExample")
-   plug = node.attr("translateX")
+   plug = node.plug("translateX")
    print(plug.anim_curve())   # None（まだキーが無い）
 
    import maya.cmds as cmds
@@ -388,10 +393,10 @@ animCurve とミュート
 
    import maya.cmds as cmds
    cmds.addAttr(child.name(), longName="temp", attributeType="double")
-   child.attr("temp").delete_attr()          # 動的属性を削除
+   child.plug("temp").delete_attr()          # 動的属性を削除
 
    cmds.addAttr(child.name(), longName="lockedTemp", attributeType="double")
-   locked_plug = child.attr("lockedTemp")
+   locked_plug = child.plug("lockedTemp")
    locked_plug.set_locked(True)
    # locked_plug.delete_attr()             # ロック中は RuntimeError
    locked_plug.delete_attr(force=True)     # 一時的に解除してから削除
@@ -412,7 +417,7 @@ animCurve とミュート
    transform = hlib.createNode("transform", name="rigControl")
 
    transform.hide()
-   print(transform.attr("visibility").get())   # False
+   print(transform.plug("visibility").get())   # False
    transform.show()
 
    transform.set_translate((1.0, 2.0, 3.0))
@@ -420,11 +425,11 @@ animCurve とミュート
    print(transform.get_translate())             # Translate(0.0, 0.0, 0.0)
 
    driver = hlib.createNode("transform", name="rigDriver")
-   driver.attr("translateX").connect(transform.attr("translateX"))
-   transform.attr("translate").set_locked(True)
+   driver.plug("translateX").connect(transform.plug("translateX"))
+   transform.plug("translate").set_locked(True)
    transform.release_srt()
-   print(transform.attr("translate").is_locked)      # False
-   print(transform.attr("translateX").source())       # None（接続も解除される）
+   print(transform.plug("translate").is_locked)      # False
+   print(transform.plug("translateX").source())       # None（接続も解除される）
 
    from hlib.maths import Vector
    print(transform.closest_axis_to_vector(Vector(0, -1, 0)))   # "-y"
@@ -629,7 +634,7 @@ weight 配列のインデックス順ではなく ``cmds.aliasAttr`` が返す�
 .. code-block:: python
 
    node = hlib.createNode("transform", name="arrayPlugExample")
-   array_plug = node.attr("worldMatrix")
+   array_plug = node.plug("worldMatrix")
 
    print(array_plug.next_available())   # 0（既存要素が無ければ）
 
@@ -664,6 +669,30 @@ influence がすべて現在の skinCluster に存在することを要求しま
 一致しない場合はウェイトを変更せず ``ValueError`` を送出します
 （influence 名が異なる、mesh のトポロジーが変わった状態への読み込みは
 このメソッドの対象外です）。
+
+スキン変形を保ったままjointの姿勢を編集する
+--------------------------------------------------
+
+.. code-block:: python
+
+   from hlib.decorators import preserved_skin_shape
+   from hlib.nodes.joint import Joint
+
+   joint = Joint("hlibExampleJoint")
+   with preserved_skin_shape([joint]):
+       # ここで jointOrient/rotate/rotateAxis や階層をどう変更しても、
+       # ブロックを抜けた時点でメッシュの見た目は変わらない。
+       joint.plug("jointOrientZ").set(45.0)
+
+``preserved_skin_shape`` は Maya標準の ``skinCluster -moveJointsMode`` /
+``-recacheBindMatrices`` を使い、ブロック内での joint 姿勢変更を
+「新しいバインド姿勢」として扱います。関節の向きを付け直す、
+リグを組み替えるといった作業で、既存のスキニングを壊したくない場合に使います。
+ブロック全体(モード切り替え・編集・bind行列の再計算)は一回の Undo にまとまります。
+
+頂点位置の編集(``hlib.components`` の ``Vertex``/``CV`` の ``set_position()``)は
+``cmds.xform`` 経由でtweakノードを介して書き込むため、このデコレータなしでも
+既にスキニングを崩しません。
 
 シーン情報
 ----------

@@ -1,6 +1,7 @@
 """Maya のロード済み/登録済みプラグインを扱う。"""
 
 import maya.cmds as cmds
+from .._core.collection import BulkCollection, bulk_api
 
 
 class Plugin:
@@ -153,7 +154,8 @@ class Plugin:
         return f"Plugin({self._name!r})"
 
 
-class Plugins:
+@bulk_api(Plugin, undo=False)
+class Plugins(BulkCollection):
     """プラグイン名または Plugin の列を、名前の重複を除いて保持するコレクション。"""
 
     def __init__(self, names=()):

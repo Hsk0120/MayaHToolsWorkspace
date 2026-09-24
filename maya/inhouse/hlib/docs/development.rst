@@ -26,7 +26,7 @@
    @undo_chunk("createControl")
    def create_control():
        node = hlib.createNode("transform", name="control")
-       node.attr("visibility").set(False)
+       node.plug("visibility").set(False)
        return node
 
 このツールでは作成と属性変更を一回のUndoで戻せます。内部のチャンクはネストできます。
@@ -70,11 +70,14 @@ APIは参照やメモリ上の計算に利用します。例外時はチャン�
    * - ``cmds``
      - ``maya.cmds`` 相当の手続き的 API（createNode、ls、constraint）
    * - ``decorators``
-     - Undo チャンク、選択状態の保存・復元、Undo チャンク化デコレータ
+     - Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの
+       joint姿勢編集、Undo チャンク化デコレータ
    * - ``utils``
      - ログと進捗表示
    * - ``_core``
      - 型登録、ラッパー検出、初期化、再読み込み、Node/文字列入力の正規化(coerce)の内部基盤
+
+.. include:: _generated/full_class_diagram.rst
 
 API の生成方針
 --------------

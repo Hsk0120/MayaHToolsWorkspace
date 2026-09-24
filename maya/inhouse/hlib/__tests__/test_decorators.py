@@ -1,4 +1,4 @@
-"""hlib.decorators (undo_chunk/preserved_selection) を検証するMaya内テスト。"""
+"""hlib.decorators (undo_chunk/preserved_selection/preserved_skin_shape) を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,7 +7,8 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.decorators import preserved_selection, undo_chunk
+from hlib.decorators import preserved_selection, preserved_skin_shape, undo_chunk
+from hlib.nodes.joint import Joint
 
 
 class UndoDecoratorsTest(unittest.TestCase):
@@ -162,6 +163,88 @@ class PreservedSelectionTest(unittest.TestCase):
                 raise RuntimeError("boom")
 
         self.assertEqual(cmds.ls(sl=True, long=True), cmds.ls(self.nodes[0], long=True))
+
+
+class PreservedSkinShapeTest(unittest.TestCase):
+    """preserved_skin_shape がjoint姿勢の変更中もスキン変形を保つことを検証する。"""
+
+    def setUp(self):
+        self.joint = cmds.createNode("joint", name="hlibPreservedSkinShapeJoint")
+        cmds.setAttr(self.joint + ".translateY", 1.0)
+        self.mesh_transform, _ = cmds.polyCube(name="hlibPreservedSkinShapeMesh")
+        cmds.move(0, 1, 0, self.mesh_transform, relative=True)
+        self.skin_name = cmds.skinCluster(self.joint, self.mesh_transform)[0]
+
+    def tearDown(self):
+        if cmds.objExists(self.mesh_transform):
+            cmds.delete(self.mesh_transform)
+        if cmds.objExists(self.joint):
+            cmds.delete(self.joint)
+        cmds.select(clear=True)
+
+    def _vertex_positions(self):
+        return cmds.xform(self.mesh_transform + ".vtx[*]", query=True, worldSpace=True, translation=True)
+
+    def test_reorienting_joint_does_not_move_the_mesh(self):
+        before = self._vertex_positions()
+        before_world_matrix = cmds.xform(self.joint, query=True, worldSpace=True, matrix=True)
+
+        with preserved_skin_shape([Joint(self.joint)]) as skins:
+            self.assertEqual([skin.full_name for skin in skins], [self.skin_name])
+            cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
+
+        after_world_matrix = cmds.xform(self.joint, query=True, worldSpace=True, matrix=True)
+        self.assertNotEqual(after_world_matrix, before_world_matrix)
+        after = self._vertex_positions()
+        for a, b in zip(after, before):
+            self.assertAlmostEqual(a, b, places=6)
+
+    def test_normal_deformation_resumes_after_the_block(self):
+        # cmds.skinCluster(query=True, moveJointsMode=True) は常にNoneを返す既知のMaya挙動
+        # のため、フラグ値ではなく「ブロックを抜けた後は通常通りjointの回転がメッシュへ
+        # 反映される(=moveJointsModeが元に戻っている)」という観測可能な挙動で検証する。
+        with preserved_skin_shape([Joint(self.joint)]):
+            cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
+
+        before = self._vertex_positions()
+        cmds.setAttr(self.joint + ".rotateZ", 30.0)
+        after = self._vertex_positions()
+        self.assertNotEqual(after, before)
+
+    def test_normal_deformation_resumes_even_when_block_raises(self):
+        with self.assertRaises(RuntimeError):
+            with preserved_skin_shape([Joint(self.joint)]):
+                raise RuntimeError("boom")
+
+        before = self._vertex_positions()
+        cmds.setAttr(self.joint + ".rotateZ", 30.0)
+        after = self._vertex_positions()
+        self.assertNotEqual(after, before)
+
+    def test_is_undoable_as_a_single_step(self):
+        before = self._vertex_positions()
+        original_orient = cmds.getAttr(self.joint + ".jointOrientZ")
+
+        with preserved_skin_shape([Joint(self.joint)]):
+            cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
+
+        cmds.undo()
+
+        self.assertAlmostEqual(cmds.getAttr(self.joint + ".jointOrientZ"), original_orient, places=6)
+        after = self._vertex_positions()
+        for a, b in zip(after, before):
+            self.assertAlmostEqual(a, b, places=6)
+
+    def test_ignores_joints_without_a_skin_cluster(self):
+        lone_joint = cmds.createNode("joint", name="hlibPreservedSkinShapeLoneJoint")
+        try:
+            with preserved_skin_shape([Joint(lone_joint)]) as skins:
+                self.assertEqual(list(skins), [])
+                cmds.setAttr(lone_joint + ".jointOrientZ", 45.0)
+            self.assertAlmostEqual(cmds.getAttr(lone_joint + ".jointOrientZ"), 45.0, places=6)
+        finally:
+            if cmds.objExists(lone_joint):
+                cmds.delete(lone_joint)
 
 
 if __name__ == "__main__":

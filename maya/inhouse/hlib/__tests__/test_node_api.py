@@ -718,6 +718,89 @@ class NodeApiTest(unittest.TestCase):
         plug.toggle()
         self.assertTrue(plug.get())
 
+    def test_user_attribute_names_excludes_compound_children(self):
+        node = self.create_transform("hlibNodeApiUserAttrNames")
+        node.add_attr("attrA", attribute_type="double", default_value=0.0)
+        cmds.addAttr(node.full_name, longName="attrCompound", attributeType="double3")
+        cmds.addAttr(node.full_name, longName="attrCompoundX", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name, longName="attrCompoundY", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name, longName="attrCompoundZ", attributeType="double", parent="attrCompound")
+        node.add_attr("attrB", attribute_type="double", default_value=0.0)
+
+        self.assertEqual(node.user_attribute_names(), ["attrA", "attrCompound", "attrB"])
+
+    def test_move_attribute_reorders_and_preserves_state_and_connections(self):
+        node = self.create_transform("hlibNodeApiMoveAttrNode")
+        source = self.create_transform("hlibNodeApiMoveAttrSource")
+        node.add_attr("attrA", attribute_type="double", default_value=1.0, keyable=True)
+        node.add_attr("attrB", attribute_type="double", default_value=2.0, keyable=True)
+        node.add_attr("attrC", attribute_type="double", default_value=3.0, keyable=True)
+        node.attr("attrB").set(5.0)
+        node.attr("attrB").set_locked(True)
+        source.attr("translateX").set(7.0)
+        source.attr("translateX").connect(node.attr("attrC"))
+        self.assertEqual(node.user_attribute_names(), ["attrA", "attrB", "attrC"])
+
+        result = node.move_attribute("attrC", -2)
+
+        self.assertIs(result, node)
+        self.assertEqual(node.user_attribute_names(), ["attrC", "attrA", "attrB"])
+        self.assertEqual(node.attr("attrA").get(), 1.0)
+        self.assertEqual(node.attr("attrB").get(), 5.0)
+        self.assertTrue(node.attr("attrB").is_locked)
+        # attrC は接続で駆動されているため、再作成後も接続元の値がそのまま反映される。
+        self.assertEqual(node.attr("attrC").get(), 7.0)
+        reconnected_source = node.attr("attrC").source()
+        self.assertIsNotNone(reconnected_source)
+        self.assertEqual(reconnected_source.full_name, source.attr("translateX").full_name)
+
+    def test_move_attribute_supports_enum_and_string_attributes(self):
+        node = self.create_transform("hlibNodeApiMoveAttrEnumString")
+        node.add_attr("attrA", attribute_type="double", default_value=0.0)
+        node.add_attr("attrMode", attribute_type="enum", enumName="Off:On:Auto", default_value=1)
+        node.add_attr("attrLabel", data_type="string")
+        node.attr("attrMode").set(2)
+        node.attr("attrLabel").set("hello world")
+
+        node.move_attribute("attrMode", 1)
+
+        self.assertEqual(node.user_attribute_names(), ["attrA", "attrLabel", "attrMode"])
+        self.assertEqual(node.attr("attrMode").get(), 2)
+        self.assertEqual(node.attr("attrMode").enum_name(), "Auto")
+        self.assertEqual(node.attr("attrLabel").get(), "hello world")
+
+    def test_move_attribute_offset_clamps_and_is_a_noop_within_bounds(self):
+        node = self.create_transform("hlibNodeApiMoveAttrClamp")
+        node.add_attr("attrA", attribute_type="double", default_value=0.0)
+        node.add_attr("attrB", attribute_type="double", default_value=0.0)
+
+        result = node.move_attribute("attrA", 0)
+        self.assertIs(result, node)
+        self.assertEqual(node.user_attribute_names(), ["attrA", "attrB"])
+
+        node.move_attribute("attrA", 100)
+        self.assertEqual(node.user_attribute_names(), ["attrB", "attrA"])
+
+        node.move_attribute("attrA", -100)
+        self.assertEqual(node.user_attribute_names(), ["attrA", "attrB"])
+
+    def test_move_attribute_raises_for_unknown_name_and_unsupported_type(self):
+        node = self.create_transform("hlibNodeApiMoveAttrErrors")
+        node.add_attr("attrA", attribute_type="double", default_value=0.0)
+        cmds.addAttr(node.full_name, longName="attrCompound", attributeType="double3")
+        cmds.addAttr(node.full_name, longName="attrCompoundX", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name, longName="attrCompoundY", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name, longName="attrCompoundZ", attributeType="double", parent="attrCompound")
+        node.add_attr("attrB", attribute_type="double", default_value=0.0)
+
+        with self.assertRaises(ValueError):
+            node.move_attribute("doesNotExist", 1)
+
+        with self.assertRaises(TypeError):
+            node.move_attribute("attrB", -1)
+        # 型エラー時は何も削除・変更されていない(ダンプ段階での検証が先に走るため)。
+        self.assertEqual(node.user_attribute_names(), ["attrA", "attrCompound", "attrB"])
+
     def test_unresolvable_node_name_raises_runtime_error(self):
         with self.assertRaises(RuntimeError) as context:
             Node("hlibNodeApiDoesNotExist")

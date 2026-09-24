@@ -482,6 +482,43 @@ class Matrix:
             x * self._values[2] + y * self._values[6] + z * self._values[10],
         )
 
+    def mirrored(self, axis=0):
+        """指定したワールド軸に対する「ビヘイビア」ミラー行列を返す。
+
+        平行移動は axis 成分を反転し、回転行列の各行(ローカル軸)は axis 以外の
+        2成分を反転する。Maya の ``mirrorJoint -mirrorBehavior`` と同じ規約で、
+        軸そのものは反転せず 180 度回転した姿勢になるため、行列式の符号は保存される
+        (幾何学的な鏡像とは異なり、対になったノードを同じローカル操作で
+        対称に動かせる)。スケール・シアーは変更しない。
+
+        Args:
+            axis (int): 鏡映面の法線となる軸。0 で X、1 で Y、2 で Z。
+
+        Returns:
+            Matrix: 呼び出したクラスのミラー後の行列。
+
+        Raises:
+            ValueError: axis が 0/1/2 以外、またはいずれかのスケール軸がゼロで
+                分解できない場合。
+        """
+        if axis not in (0, 1, 2):
+            raise ValueError("axis must be 0, 1, or 2")
+        components = self.decompose()
+        translate = list(components["translate"])
+        translate[axis] = -translate[axis]
+        rows = [list(row) for row in self._row_rotation_matrix(components["quaternion"].normalized())]
+        for row in rows:
+            for other in range(3):
+                if other != axis:
+                    row[other] = -row[other]
+        quaternion = self._quaternion_from_row_axes(*rows)
+        return type(self).compose(
+            translate=translate,
+            rotate=quaternion,
+            scale=components["scale"],
+            shear=components["shear"],
+        )
+
     def __iter__(self):
         """row-major 順の 16 行列要素を反復する。
 

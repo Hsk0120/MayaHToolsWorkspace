@@ -8,6 +8,7 @@ import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
 from .._core.registry import collection_export, node_wrapper
+from .._core.collection import BulkCollection, bulk_api
 from ..maths import EulerRotation, Matrix, Scale
 from .transform import Transform
 
@@ -360,7 +361,8 @@ class Joint(Transform):
 
 
 @collection_export()
-class Joints:
+@bulk_api(Joint)
+class Joints(BulkCollection):
     """UUID で重複を除いた Joint ラッパーのコレクション。"""
 
     def __init__(self, names=()):
@@ -419,10 +421,16 @@ class Joints:
     def delete(self):
         """ウェイト移送後にコレクション内の joint を削除する。
 
-        親 influence への移送を収集でき、すべての削除処理が完了した joint のみ削除する。対象全件の削除は保証しない。
+        未スキニングjointも削除する。子Transform（jointを含む）は親へ移し、
+        親がない場合はワールドへ移す。同じskinClusterの祖先influenceがあれば加算し、
+        移送先がない場合のウェイト処理はMaya標準のcmds.deleteに任せる。
+        途中の失敗は例外で停止し、完了済み変更は自動ロールバックしない。全体はUndoに対応。
 
         Returns:
             None: 値を返さない。
+
+        Raises:
+            RuntimeError: ウェイト移送・子の再親付け・削除ができない場合。
         """
         self.skin_clusters().remove_joints(self)
 

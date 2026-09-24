@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hlib-docs",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8321",
+        "--directory",
+        "maya/inhouse/hlib/docs/_build/html"
+      ],
+      "port": 8321
+    }
+  ]
+}

@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 基本方針
+
+- このリポジトリでの説明・作業報告は日本語で行う。
+- Claude Code / Codex / GitHub Copilot を並行運用する前提のリポジトリ。作業開始前に
+  `WORK_LOG.md` を確認し、他ツールが進行中の範囲と重ならないか確認する。作業開始時に
+  「進行中」へ自分の行を追加し、完了時に「完了履歴」へ移す(運用ルールは同ファイル参照)。
+
 ## プロジェクト概要
 
 Maya用のカスタム作業環境リポジトリ。バッチファイル経由でMayaを起動し、内製ツール(HTools/hlib)と外部ツール(mGear, cymel等、Git submodule)を標準環境に影響を与えずロードする。ビルドやパッケージングの工程は無く、`PYTHONPATH` / `MAYA_MODULE_PATH` を介してMaya起動時にそのままロードされるPythonコード群である。

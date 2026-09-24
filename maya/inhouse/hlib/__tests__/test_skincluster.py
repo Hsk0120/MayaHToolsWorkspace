@@ -12,6 +12,7 @@ hlib.reload()
 from hlib.nodes.joint import Joint, Joints
 from hlib.nodes.skinCluster import SkinCluster
 from hlib.decorators import undo_chunk
+from hlib.maths import easing
 
 
 class SkinClusterTransferWeightsBatchTest(unittest.TestCase):
@@ -251,6 +252,73 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.skin.load_weights(self.path)
+
+
+class SkinClusterRedistributeWeightsTest(unittest.TestCase):
+    """redistribute_weights によるイージング再分配を検証する。"""
+
+    def setUp(self):
+        self.root = cmds.createNode("joint", name="hlibSkinRedistributeRoot")
+        self.child = cmds.createNode("joint", name="hlibSkinRedistributeChild", parent=self.root)
+        cmds.setAttr(self.child + ".translateY", 1.0)
+        self.mesh_transform, _ = cmds.polyCube(name="hlibSkinRedistributeMesh")
+        skin_name = cmds.skinCluster(self.root, self.child, self.mesh_transform)[0]
+        self.skin = SkinCluster(skin_name)
+
+    def tearDown(self):
+        if cmds.objExists(self.mesh_transform):
+            cmds.delete(self.mesh_transform)
+        if cmds.objExists(self.root):
+            cmds.delete(self.root)
+
+    def test_redistribute_weights_applies_easing_and_keeps_each_vertex_normalized(self):
+        self.skin.set_weights([self.root, self.child], [0.75, 0.25])
+
+        self.skin.redistribute_weights([0, 3], method="cubic")
+
+        eased_root = easing.ease_in_out_cubic(0.75)
+        eased_child = easing.ease_in_out_cubic(0.25)
+        eased_total = eased_root + eased_child
+        expected_root = eased_root / eased_total
+        expected_child = eased_child / eased_total
+        weights = list(self.skin.get_weights([self.root, self.child]))
+        for vertex in (0, 3):
+            self.assertAlmostEqual(weights[vertex * 2], expected_root, places=9)
+            self.assertAlmostEqual(weights[vertex * 2 + 1], expected_child, places=9)
+        for vertex in range(8):
+            if vertex in (0, 3):
+                continue
+            self.assertAlmostEqual(weights[vertex * 2], 0.75, places=9)
+            self.assertAlmostEqual(weights[vertex * 2 + 1], 0.25, places=9)
+        for vertex in range(8):
+            self.assertAlmostEqual(weights[vertex * 2] + weights[vertex * 2 + 1], 1.0, places=9)
+
+    def test_redistribute_weights_is_undoable(self):
+        self.skin.set_weights([self.root, self.child], [0.75, 0.25])
+        before = list(self.skin.get_weights([self.root, self.child]))
+
+        self.skin.redistribute_weights([0], method="cubic")
+        after = list(self.skin.get_weights([self.root, self.child]))
+        self.assertNotEqual(after, before)
+
+        cmds.undo()
+        self.assertEqual(list(self.skin.get_weights([self.root, self.child])), before)
+        cmds.redo()
+        self.assertEqual(list(self.skin.get_weights([self.root, self.child])), after)
+
+    def test_redistribute_weights_empty_vertices_is_a_noop(self):
+        self.skin.set_weights([self.root, self.child], [0.75, 0.25])
+        before = list(self.skin.get_weights([self.root, self.child]))
+
+        self.skin.redistribute_weights([], method="cubic")
+
+        self.assertEqual(list(self.skin.get_weights([self.root, self.child])), before)
+
+    def test_redistribute_weights_raises_for_unsupported_method_and_out_of_range_vertex(self):
+        with self.assertRaises(ValueError):
+            self.skin.redistribute_weights([0], method="not_a_method")
+        with self.assertRaises(IndexError):
+            self.skin.redistribute_weights([999], method="cubic")
 
 
 if __name__ == "__main__":

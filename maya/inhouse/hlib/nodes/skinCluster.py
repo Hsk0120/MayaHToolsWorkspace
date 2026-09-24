@@ -10,7 +10,9 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 
 from .._core.registry import collection_export, node_wrapper
+from .._core.collection import BulkCollection, bulk_api
 from ..decorators.selection import preserved_selection
+from ..maths import easing
 from .joint import Joint
 from .node import Node
 
@@ -295,6 +297,60 @@ class SkinCluster(Node):
             raise ValueError(f"Influences missing from this skinCluster: {missing}")
         self.set_weights(influences, payload["weights"])
 
+    @undo_chunk("hlib.nodes.skinCluster.redistribute_weights")
+    def redistribute_weights(self, vertices, method="cubic"):
+        """指定頂点のウェイト分布をイージングカーブで非線形に再分配する。
+
+        各頂点ごとに現在の influence 別ウェイトを合計1へ正規化し、
+        ``hlib.maths.easing`` のイージング関数を個別の値へ適用してから
+        再度合計1へ正規化する。影響する influence の組み合わせ自体は
+        変えず、配分の偏りだけを変える(急峻/緩やかな境界への寄せ)。
+
+        Args:
+            vertices (Iterable[int]): 対象頂点インデックス。
+            method (str): 適用するイージング名。``hlib.maths.easing`` の
+                ``ease_in_out_<method>`` に対応する接尾辞
+                ("quadratic"、"cubic"、"quartic"、"quintic"、"sinusoidal"、
+                "exponential"、"circular")。
+
+        Returns:
+            None: 値を返さない。一回の Undo で戻せる。
+
+        Raises:
+            ValueError: method が未対応、または対象頂点のウェイト合計が0の場合。
+            IndexError: 頂点インデックスが mesh の範囲外の場合。
+        """
+        ease = getattr(easing, "ease_in_out_" + method, None)
+        if ease is None:
+            raise ValueError(f"Unsupported easing method: {method}")
+        vertex_count = om2.MFnMesh(self.mesh_path).numVertices
+        vertex_indices = sorted({int(index) for index in vertices})
+        for vertex in vertex_indices:
+            if not (0 <= vertex < vertex_count):
+                raise IndexError(f"Vertex index out of range: {vertex}")
+        if not vertex_indices:
+            return
+        influence_paths = self.fn.influenceObjects()
+        all_indices = om2.MIntArray(range(len(influence_paths)))
+        logical_indices = [self.fn.indexForInfluenceObject(path) for path in influence_paths]
+        name = self.full_name
+        for vertex in vertex_indices:
+            component_fn = om2.MFnSingleIndexedComponent()
+            component = component_fn.create(om2.MFn.kMeshVertComponent)
+            component_fn.addElement(vertex)
+            row = list(self.fn.getWeights(self.mesh_path, component, all_indices))
+            total = sum(row)
+            if total <= 0.0:
+                raise ValueError(f"Vertex {vertex} has no weight to redistribute")
+            normalized = [value / total for value in row]
+            eased = [ease(value) for value in normalized]
+            eased_total = sum(eased)
+            if eased_total <= 0.0:
+                raise ValueError(f"Vertex {vertex} produced a zero-sum weight distribution")
+            final = [value / eased_total for value in eased]
+            for logical_index, value in zip(logical_indices, final):
+                cmds.setAttr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value)
+
     @undo_chunk("hlib.nodes.skinCluster.transfer_weight")
     def transfer_weight(self, source_joint, target_joint):
         """単一のsource influenceからtarget influenceへウェイトを移す。
@@ -369,10 +425,10 @@ class SkinCluster(Node):
         Returns:
             bool: 接続ノードの名前または型名にレイヤー判定用トークンが含まれる場合は True。実際のレイヤーデータの有無は調べない。
         """
-        for plug in self.connections():
-            node = plug.node
-            node_name = node.name().lower()
-            node_type = node.type().lower()
+        # ノード名・型だけが必要。generic属性を含む接続のPlug生成は避ける。
+        for name in cmds.listConnections(self.full_name, source=True, destination=True) or []:
+            node_name = name.lower()
+            node_type = cmds.nodeType(name).lower()
             if any(token in node_name or token in node_type for token in self._LAYER_TOKENS):
                 return True
         return False
@@ -391,7 +447,8 @@ class SkinCluster(Node):
 
 
 @collection_export()
-class SkinClusters:
+@bulk_api(SkinCluster, per_item_only=("dump_weights", "load_weights"))
+class SkinClusters(BulkCollection):
     """skinCluster と移送操作のキャッシュを保持するコレクション。"""
 
     def __init__(self, names=()):
@@ -562,18 +619,54 @@ class SkinClusters:
     def remove_joints(self, joints):
         """joint階層を深い順に処理し、ウェイト移送後にjointを削除する。
 
-        移送先の親 influence が見つかった対象を処理する。完了した joint の子を再親付けしてノードも削除する。
+        未スキニングjointも削除する。子Transform（jointを含む）は直接の親へ、
+        親がなければワールドへ移す。同じskinClusterの祖先influenceがある場合だけ
+        ウェイトを移送する。移送先なしの場合はcmds.deleteの標準処理に任せる。
+        途中で失敗した場合は例外で停止する。完了済みの変更は自動では戻さない。
 
         Args:
             joints (Joints): 深さ順に処理する joint コレクション。
 
         Returns:
             None: 値を返さない。
+
+        Raises:
+            RuntimeError: 無効なjoint、移送対象のスキニングレイヤー、
+                またはウェイト移送・再親付け・削除に失敗した場合。
         """
         target_joints = joints.sorted_by_depth()
-        self.gather(target_joints)
-        self.apply()
-        self.finalize(target_joints)
+        # 祖先influenceへ加算できる組だけを計画する。それ以外は標準削除に任せる。
+        plans = []
+        for joint in target_joints:
+            if not joint.is_joint():
+                raise RuntimeError("Cannot delete an invalid joint")
+            transfers = []
+            for skin in joint.skin_clusters():
+                target = joint.transfer_target(skin)
+                if target:
+                    skin._raise_if_layers()
+                    transfers.append((skin, target))
+            plans.append((joint, transfers))
+        for joint, transfers in plans:
+            name = joint.full_name
+            stage = "transfer weights"
+            try:
+                for skin, target in transfers:
+                    skin.transfer_weight(joint.full_name, target)
+                    stage = "remove influence"
+                    skin.remove_influence(joint.full_name)
+                    stage = "transfer weights"
+                stage = "reparent children"
+                parent = joint.parent_node()
+                for child in joint.child_transforms():
+                    if parent is None:
+                        cmds.parent(child.full_name, world=True)
+                    else:
+                        cmds.parent(child.full_name, parent.full_name)
+                stage = "delete joint"
+                cmds.delete(joint.full_name)
+            except Exception as exc:
+                raise RuntimeError(f"Failed to {stage} for {name}: {exc}") from exc
 
     @undo_chunk("hlib.nodes.skinCluster.remove_influences")
     def remove_influences(self, joints):

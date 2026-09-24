@@ -290,6 +290,40 @@ def test_matrix_values_and_rows_accessors():
     assert rows[3] == (1.0, 2.0, 3.0, 1.0)
 
 
+def test_matrix_mirrored_is_a_180_degree_behavior_mirror():
+    # 単位行列をX軸でミラーすると、X軸周りに180度回転した姿勢になる
+    # (Maya の mirrorJoint -mirrorBehavior と同じ規約。行列式の符号は保存される)。
+    mirrored_identity = Matrix.identity().mirrored(axis=0)
+    assert mirrored_identity.rows == (
+        (1.0, 0.0, 0.0, 0.0),
+        (0.0, -1.0, 0.0, 0.0),
+        (0.0, 0.0, -1.0, 0.0),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+    assert math.isclose(mirrored_identity.determinant(), 1.0)
+
+    # 平行移動はミラーした軸成分だけが反転する。
+    translate_only = Matrix(translate=(1.0, 2.0, 3.0))
+    assert tuple(translate_only.mirrored(axis=0).translate) == (-1.0, 2.0, 3.0)
+    assert tuple(translate_only.mirrored(axis=1).translate) == (1.0, -2.0, 3.0)
+    assert tuple(translate_only.mirrored(axis=2).translate) == (1.0, 2.0, -3.0)
+
+    # 回転を含む行列でも行列式の符号(=固有ハンド性)は変わらない。
+    rotated = Matrix(translate=(1.0, 2.0, 3.0), rotate=(0.3, -0.6, 1.1))
+    for axis in (0, 1, 2):
+        mirrored = rotated.mirrored(axis=axis)
+        assert math.isclose(mirrored.determinant(), rotated.determinant(), abs_tol=1e-9)
+        # ミラーは対合(involution): 同じ軸で2回適用すると元に戻る。
+        assert mirrored.mirrored(axis=axis).is_equivalent(rotated, tolerance=1e-9)
+
+    try:
+        Matrix.identity().mirrored(axis=3)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("mirrored with an invalid axis should raise ValueError")
+
+
 def test_vector_from_iterable():
     v = Vector.from_iterable([1.0, 2.0, 3.0])
     assert isinstance(v, Vector)

@@ -11,8 +11,21 @@
 .. py:{{ obj.type }}:: {% if is_own_page %}{{ obj.id }}{% else %}{{ obj.short_name }}{% endif %}{% if obj.type_params %}[{{ obj.type_params }}]{% endif %}{% if obj.args %}({{ obj.args }}){% endif %}
 
 {% if obj.bases and "show-inheritance" in autoapi_options %}
+
    ベースクラス: {% for base in obj.bases %}{{ base|link_objs }}{% if not loop.last %}, {% endif %}{% endfor %}
 
+{% endif %}
+{% if is_own_page %}
+{% set diagram = ancestor_class_diagram(obj.short_name) %}
+{% if diagram %}
+
+   .. raw:: html
+
+      <pre class="mermaid">
+{{ diagram }}
+      </pre>
+
+{% endif %}
 {% endif %}
 {% if obj.docstring %}
    {{ obj.docstring|indent(3) }}

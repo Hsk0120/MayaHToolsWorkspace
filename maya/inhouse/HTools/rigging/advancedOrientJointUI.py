@@ -9,6 +9,11 @@ import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 import math
 
+import hlib
+from hlib.decorators import preserved_skin_shape
+
+hlib.reload()
+
 _WIN = "OrientJointLikeWin"
 _AXES = ("x", "y", "z")
 _AXIS_VECTORS = {
@@ -195,26 +200,6 @@ def _compute_target_joints(joints, include_children):
         seen.add(name)
         unique.append(name)
     return unique
-
-def _compute_skin_clusters_from_joints(joints):
-    """指定ジョイントに接続された skinCluster を取得します。
-
-    Args:
-        joints (list[str]): ジョイント名一覧。
-
-    Returns:
-        list[str]: 重複のない skinCluster ノード名一覧。
-    """
-    clusters = []
-    seen = set()
-    for j in joints:
-        connected = cmds.listConnections(j, type='skinCluster') or []
-        for sc in connected:
-            if sc in seen:
-                continue
-            seen.add(sc)
-            clusters.append(sc)
-    return clusters
 
 def _compute_world_matrix(node_name):
     """ノードのワールド行列を取得します。
@@ -1148,48 +1133,6 @@ def _compute_restore_world_matrices(node_to_world_matrix):
         except Exception:
             pass
 
-def _preserve_enable_move_joints_mode(skin_clusters):
-    """`moveJointsMode` を有効化し、以前の状態を退避します。
-
-    Args:
-        skin_clusters (list[str]): skinCluster ノード名一覧。
-
-    Returns:
-        dict[str, bool]: skinCluster ごとの退避済み `moveJointsMode`。
-    """
-    previous_modes = {}
-    for sc in skin_clusters:
-        try:
-            previous_modes[sc] = bool(cmds.skinCluster(sc, q=True, moveJointsMode=True))
-            cmds.skinCluster(sc, e=True, moveJointsMode=True)
-        except Exception:
-            pass
-    return previous_modes
-
-def _preserve_restore_move_joints_mode(previous_modes):
-    """退避しておいた `moveJointsMode` の状態を復元します。
-
-    Args:
-        previous_modes (dict[str, bool]): 退避済み状態のマッピング。
-    """
-    for sc, state in previous_modes.items():
-        try:
-            cmds.skinCluster(sc, e=True, moveJointsMode=state)
-        except Exception:
-            pass
-
-def _preserve_recache_bind_matrices(skin_clusters):
-    """skinCluster の bind 行列を再キャッシュして変形差分を抑えます。
-
-    Args:
-        skin_clusters (list[str]): skinCluster ノード名一覧。
-    """
-    for sc in skin_clusters:
-        try:
-            cmds.skinCluster(sc, e=True, recacheBindMatrices=True)
-        except Exception:
-            pass
-
 def _apply_orient_from_ui(*_):
     """現在の UI 設定に基づいて Orient Joint を適用します。
 
@@ -1218,13 +1161,12 @@ def _apply_orient_from_ui(*_):
         cmds.warning(str(e))
         return
 
-    # 変形破綻を避けるため、影響する skinCluster を事前に保護モードへ切り替える。
+    # 変形破綻を避けるため、影響する skinCluster を hlib.decorators.preserved_skin_shape
+    # (skinCluster -moveJointsMode / -recacheBindMatrices) で保護する。
     target_joints = _compute_target_joints(joints, include_children=True)
-    skin_clusters = _compute_skin_clusters_from_joints(target_joints)
-    previous_modes = _preserve_enable_move_joints_mode(skin_clusters)
     next_children_debug = _compute_is_next_children_debug_enabled(primary_space, up_space)
 
-    try:
+    with preserved_skin_shape(target_joints):
         for j in joints:
             if next_children_debug:
                 _compute_debug_log_next_children_inputs(
@@ -1353,12 +1295,6 @@ def _apply_orient_from_ui(*_):
                     up_direction=up_direction,
                     up_space=up_space,
                 )
-    finally:
-        # skinCluster の退避状態は、処理成否に関わらず必ず復元する。
-        if skin_clusters:
-            _preserve_recache_bind_matrices(skin_clusters)
-        if previous_modes:
-            _preserve_restore_move_joints_mode(previous_modes)
 
     cmds.inViewMessage(amg="Orient Joint applied.", pos="midCenterTop", fade=True)
 

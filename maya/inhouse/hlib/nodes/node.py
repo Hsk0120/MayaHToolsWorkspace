@@ -42,6 +42,107 @@ def _resolve_node(node):
     raise TypeError("node には名前、MObject、または MDagPath を指定してください")
 
 
+_MOVABLE_NUMERIC_TYPES = {
+    om2.MFnNumericData.kBoolean: "bool",
+    om2.MFnNumericData.kByte: "byte",
+    om2.MFnNumericData.kShort: "short",
+    om2.MFnNumericData.kInt: "long",
+    om2.MFnNumericData.kLong: "long",
+    om2.MFnNumericData.kFloat: "float",
+    om2.MFnNumericData.kDouble: "double",
+}  #: move_attribute() が再作成できる数値属性型と cmds.addAttr(attributeType=) の対応。
+
+
+def _dump_movable_attr(plug):
+    """並び替え対応の単純な動的属性から再作成に必要な情報を集める。
+
+    数値(bool/byte/short/long/float/double)、enum、文字列型の非複合・非配列
+    トップレベル動的属性のみ対応する。
+
+    Args:
+        plug (Plug): ダンプ対象の動的属性プラグ。
+
+    Returns:
+        dict: add_attr() での再作成と値・状態の復元に必要な情報。
+
+    Raises:
+        TypeError: 複合・配列属性、または対応しない属性型の場合。
+    """
+    if plug.is_array or plug.is_compound:
+        raise TypeError(f"Cannot reorder compound or array attributes: {plug.full_name}")
+    attr = plug.mplug().attribute()
+    info = {
+        "long_name": plug.attribute,
+        "nice_name": plug.nice_name(),
+        "hidden": plug.is_hidden,
+        "keyable": plug.is_keyable,
+        "channel_box": bool(cmds.getAttr(plug.full_name, channelBox=True)),
+        "locked": plug.is_locked,
+        "value": plug.get(),
+        "source": plug.source(),
+        "destinations": plug.destinations(),
+    }
+    if attr.hasFn(om2.MFn.kNumericAttribute):
+        numeric_type = om2.MFnNumericAttribute(attr).numericType()
+        type_name = _MOVABLE_NUMERIC_TYPES.get(numeric_type)
+        if type_name is None:
+            raise TypeError(f"Unsupported numeric attribute type for reordering: {plug.full_name}")
+        info["attribute_type"] = type_name
+        if plug.has_min:
+            info["min"] = plug.min
+        if plug.has_max:
+            info["max"] = plug.max
+        info["default_value"] = plug.default
+    elif attr.hasFn(om2.MFn.kEnumAttribute):
+        info["attribute_type"] = "enum"
+        info["enum_name"] = cmds.attributeQuery(plug.attribute, node=plug.node.full_name, listEnum=True)[0]
+        info["default_value"] = plug.default
+    elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
+        info["data_type"] = "string"
+    else:
+        raise TypeError(f"Unsupported attribute type for reordering: {plug.full_name}")
+    return info
+
+
+def _create_movable_attr(node, info):
+    """_dump_movable_attr() が集めた情報から属性を再作成し、値・状態を復元する。
+
+    Args:
+        node (Node): 属性を追加する対象ノード。
+        info (dict): _dump_movable_attr() が返した情報。
+
+    Returns:
+        Plug: 再作成した属性プラグ。
+    """
+    kwargs = {"hidden": info["hidden"]}
+    if info["nice_name"]:
+        kwargs["niceName"] = info["nice_name"]
+    if "min" in info:
+        kwargs["minValue"] = info["min"]
+    if "max" in info:
+        kwargs["maxValue"] = info["max"]
+    if "enum_name" in info:
+        kwargs["enumName"] = info["enum_name"]
+    plug = node.add_attr(
+        info["long_name"],
+        attribute_type=info.get("attribute_type"),
+        data_type=info.get("data_type"),
+        default_value=info.get("default_value"),
+        **kwargs,
+    )
+    plug.set(info["value"])
+    plug.set_keyable(info["keyable"])
+    if not info["keyable"]:
+        plug.set_channel_box(info["channel_box"])
+    if info["source"] is not None:
+        info["source"].connect(plug)
+    for destination in info["destinations"]:
+        plug.connect(destination)
+    if info["locked"]:
+        plug.set_locked(True)
+    return plug
+
+
 def _node_type_of(node):
     """ノード名、MObject、または MDagPath から Maya nodeType 名を得る。
 
@@ -708,8 +809,69 @@ class Node:
         cmds.addAttr(self.name(), **add_kwargs)
         return self.plug(long_name)
 
+    def user_attribute_names(self):
+        """トップレベルのユーザー定義属性名を現在の並び順で取得する。
+
+        複合属性の子は含まない。
+
+        Returns:
+            list[str]: ロング名のリスト。並び順は Channel Box の表示順。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        if not self.is_valid():
+            raise RuntimeError("無効なノードの属性は列挙できません")
+        names = cmds.listAttr(self.full_name, userDefined=True) or []
+        return [name for name in names if not self.plug(name).is_child]
+
+    @undo_chunk("hlibNodeMoveAttribute")
+    def move_attribute(self, name, offset):
+        """ユーザー定義属性を Channel Box 上で前後に移動する。
+
+        Maya には属性の並び替え API が無いため、移動元と移動先の間にある
+        属性をまとめて削除し、新しい順序で再作成することで実現する
+        (数値・enum・文字列型の非複合・非配列トップレベル動的属性のみ対応。
+        対応しない属性が移動範囲に含まれる場合は何も変更せず例外を送出する)。
+
+        Args:
+            name (str): 移動するユーザー定義属性のロング名。
+            offset (int): 正の値で末尾方向、負の値で先頭方向へ移動する位置数。
+                範囲を超える指定は先頭・末尾で止まる。
+
+        Returns:
+            Node: 自身。全変更を一回の Undo にまとめる。
+
+        Raises:
+            ValueError: name がトップレベルのユーザー定義属性一覧に無い場合。
+            TypeError: 移動範囲に複合・配列属性、または対応しない属性型が
+                含まれる場合。
+            RuntimeError: ノードが無効な場合。
+        """
+        names = self.user_attribute_names()
+        if name not in names:
+            raise ValueError(f"{name} is not a top-level user-defined attribute of {self.full_name}")
+        old_index = names.index(name)
+        new_index = max(0, min(len(names) - 1, old_index + offset))
+        if new_index == old_index:
+            return self
+        names.remove(name)
+        names.insert(new_index, name)
+        window_start = min(old_index, new_index)
+        to_recreate = names[window_start:]
+
+        infos = [_dump_movable_attr(self.plug(attr_name)) for attr_name in to_recreate]
+        for attr_name in to_recreate:
+            self.plug(attr_name).delete_attr(force=True)
+        for info in infos:
+            _create_movable_attr(self, info)
+        return self
+
     def plug(self, name):
-        """属性パスに対応する Plug を取得する。
+        """アトリビュートを扱う Plug オブジェクトを取得する。
+
+        ノードのアトリビュート操作には、このメソッドを使用します。
+        返された Plug で値の取得・設定や、ほかのプラグとの接続を行えます。
 
         Args:
             name (str): 属性名または Maya が解決可能な属性パス。
@@ -736,14 +898,7 @@ class Node:
         return Plug(self, mplug)
 
     def attr(self, name):
-        """属性プラグを取得する ``plug`` の別名。
-
-        Args:
-            name (str): 属性名または属性パス。
-
-        Returns:
-            Plug: 解決した属性プラグ。
-        """
+        """互換用の別名。使い方・引数・戻り値は :meth:`plug` を参照してください。"""
         return self.plug(name)
 
     def has_attr(self, name):

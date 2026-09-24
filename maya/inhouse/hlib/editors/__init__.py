@@ -3,5 +3,6 @@
 from .timeSlider import TimeSlider
 from .viewport import Viewport
 from .outliner import Outliner
+from .channelBox import ChannelBox
 
-__all__ = ["TimeSlider", "Viewport", "Outliner"]
+__all__ = ["TimeSlider", "Viewport", "Outliner", "ChannelBox"]

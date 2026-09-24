@@ -1,10 +1,12 @@
 """デコレータ関連ユーティリティを公開するパッケージ。"""
 
 from .selection import preserved_selection
+from .skin import preserved_skin_shape
 from .undo import undo_chunk
 
 __all__ = [
     "preserved_selection",
+    "preserved_skin_shape",
     "undo_chunk",
 ]
 

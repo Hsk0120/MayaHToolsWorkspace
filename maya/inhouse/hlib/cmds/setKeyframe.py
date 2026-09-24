@@ -59,9 +59,9 @@ Examples
 
     node = hlib.createNode("transform", name="example")
     hlib.currentTime(1)
-    hlib.setKeyframe(node.attr("translateX"), value=0.0)
+    hlib.setKeyframe(node.plug("translateX"), value=0.0)
     hlib.currentTime(24)
-    hlib.setKeyframe(node.attr("translateX"), value=10.0)
+    hlib.setKeyframe(node.plug("translateX"), value=10.0)
 """
 
 from ..decorators.undo import undo_chunk

@@ -11,6 +11,10 @@ from .component import Component, Components
 class PointComponent(Component):
     """XYZ 座標を持つ頂点または CV。座標はシーンの現在値を参照する。"""
 
+    def get_position(self, ws=False):
+        """tuple[float, float, float]: position(ws)と同じ。wsはワールド空間指定。"""
+        return self.position(ws=ws)
+
     def position(self, ws=False):
         """現在の座標を取得する。
 
@@ -127,6 +131,81 @@ class PointComponent(Component):
 
 class PointComponents(Components):
     """XYZ 座標を持つコンポーネント群。"""
+
+    def get_position(self, ws=False):
+        """list[tuple[float, float, float]]: 保持順の座標列。wsはワールド空間指定。"""
+        return self.positions(ws=ws)
+
+    def position(self, ws=False):
+        """list[tuple[float, float, float]]: 単体と同名の座標取得。平均位置ではない。"""
+        return self.positions(ws=ws)
+
+    def get_positions(self, ws=False):
+        """list[tuple[float, float, float]]: positions(ws)と同じ。"""
+        return self.positions(ws=ws)
+
+    def set_position(self, value, ws=False):
+        """全要素を同じ座標へ設定する。要素別にはset_positionsを使う。
+
+        Args:
+            value (Iterable[float]): 有限のXYZ座標。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。
+        Returns:
+            PointComponents: 自身。全要素が同じ位置に集まる。
+        """
+        point = Component._finite_coordinates(value, 3)
+        return self.set_positions([point] * len(self), ws=ws)
+
+    @undo_chunk("hlibComponentsSetPositions")
+    def set_positions(self, values, ws=False):
+        """保持順の座標列を設定する。全件の座標・対象を検証してから書き込む。
+
+        Args:
+            values (Iterable[Iterable[float]]): 要素数と同じ数のXYZ座標。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。
+        Returns:
+            PointComponents: 自身。空集合と空座標列は何もしない。
+        Raises:
+            ValueError: 件数・座標・wsが不正な場合。
+            RuntimeError: Mayaが編集を拒否した場合。完了済み変更は自動で戻さない。
+        """
+        if not isinstance(ws, bool):
+            raise ValueError("ws must be a bool")
+        rows = self._coordinate_rows(values, 3)
+        components = list(self)
+        for component, point in zip(components, rows):
+            component.set_position(point, ws=ws)
+        return self
+
+    @property
+    def x(self):
+        """list[float]: 保持順のオブジェクト空間X座標。"""
+        return [p[0] for p in self.positions()]
+
+    @x.setter
+    def x(self, value):
+        """Xだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
+        self.set_positions(self._axis_rows(self.positions(), 0, value))
+
+    @property
+    def y(self):
+        """list[float]: 保持順のオブジェクト空間Y座標。"""
+        return [p[1] for p in self.positions()]
+
+    @y.setter
+    def y(self, value):
+        """Yだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
+        self.set_positions(self._axis_rows(self.positions(), 1, value))
+
+    @property
+    def z(self):
+        """list[float]: 保持順のオブジェクト空間Z座標。"""
+        return [p[2] for p in self.positions()]
+
+    @z.setter
+    def z(self, value):
+        """Zだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
+        self.set_positions(self._axis_rows(self.positions(), 2, value))
 
     def positions(self, ws=False):
         """保持順に現在の座標を取得する。
