@@ -12,15 +12,15 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main():
+def main(output_dir=None, finished=None):
     import maya.cmds as cmds
     import maya.OpenMaya as om
     import maya.OpenMayaUI as omui
     try:
-        from PySide6 import QtWidgets
+        from PySide6 import QtCore, QtWidgets
         from shiboken6 import wrapInstance
     except ImportError:
-        from PySide2 import QtWidgets
+        from PySide2 import QtCore, QtWidgets
         from shiboken2 import wrapInstance
     import hlib
 
@@ -30,8 +30,8 @@ def main():
         raise RuntimeError("Stop playback before running GUI tests")
     if not cmds.undoInfo(query=True, state=True):
         raise RuntimeError("Enable Undo before running GUI tests")
-    output = ROOT / ".maya-output/gui-tests" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    output.mkdir(parents=True)
+    output = Path(output_dir) if output_dir else ROOT / ".maya-output/gui-tests" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    output.mkdir(parents=True, exist_ok=True)
     tests = ROOT / "maya/inhouse/hlib/__tests__"
     scene_tests = runpy.run_path(str(tests / "test_scene_ui.py"))["SceneUiTest"]
     selection = hlib.captureSelection()
@@ -77,6 +77,8 @@ def main():
             result["status"] = "failed"
         (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         print("GUI test results: " + str(output))
+        if finished is not None:
+            finished(result)
 
     try:
         cmds.namespace(add=prefix)
@@ -116,7 +118,10 @@ def main():
                 if not pointer:
                     raise RuntimeError("UI control not found: " + control)
                 widget = wrapInstance(int(pointer), QtWidgets.QWidget)
-                if not widget.grab().save(str(path)):
+                if not widget.isVisible():
+                    raise RuntimeError("UI control is not visible: " + control)
+                screenshot = widget.grab()
+                if screenshot.isNull() or not screenshot.save(str(path)):
                     raise RuntimeError("Failed to save UI screenshot")
             else:
                 view = omui.M3dView()
@@ -134,6 +139,15 @@ def main():
                 self.panel = panel
 
         class VisualTests(unittest.TestCase):
+            def test_editor_snapshot_read_only(self):
+                saved = hlib.json.loads(hlib.json.dumps(hlib.json.capture(
+                    [hlib.viewport(panel), hlib.outliner(editor)], kind="editor")))
+                before = hlib.viewport(panel).settings()
+                self.assertTrue(saved.plan().errors)
+                with self.assertRaises(NotImplementedError):
+                    saved.apply()
+                self.assertEqual(hlib.viewport(panel).settings(), before)
+
             def test_colors_disable_undo_redo(self):
                 for node, override, rgb in zip(curves, (13, (0, .75, 1), (1, .4, 0)),
                                                ((1, .15, .15), (0, .75, 1), (1, .4, 0))):
@@ -191,6 +205,7 @@ def main():
                     outliner.expand_all(True)
                     capture("outliner_shapes", cmds.outlinerEditor(editor, query=True, control=True))
                     outliner.expand_all(False)
+                    capture("outliner_collapsed", cmds.outlinerEditor(editor, query=True, control=True))
 
             def test_logger_notification(self):
                 import logging
@@ -221,7 +236,7 @@ def main():
 
         result["status"] = "running"
         (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-        cmds.evalDeferred(execute, lowestPriority=True)
+        QtCore.QTimer.singleShot(500, execute)
         scheduled = True
         print("GUI tests scheduled: " + str(output))
     except BaseException:

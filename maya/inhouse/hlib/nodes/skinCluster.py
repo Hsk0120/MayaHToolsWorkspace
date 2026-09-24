@@ -4,6 +4,7 @@ from ..decorators.undo import undo_chunk
 
 import json
 import math
+from decimal import Decimal, localcontext, ROUND_FLOOR
 
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
@@ -252,7 +253,7 @@ class SkinCluster(Node):
         if unused and len(unused) == len(self.influences()):
             raise ValueError("Cannot remove every influence from a skinCluster")
         for node in unused:
-            self.remove_influence(node.full_name)
+            self.remove_influence(node.full_name, transfer_to_parent=False)
         return unused
 
     def has_influence(self, joint):
@@ -492,20 +493,152 @@ class SkinCluster(Node):
                 self._xfer_pair(source_joint, target_joint)
 
     @undo_chunk("hlib.nodes.skinCluster.remove_influence")
-    def remove_influence(self, joint):
-        """指定したjointをskinClusterのinfluenceから削除する。
+    def remove_influence(self, joint, transfer_to_parent=True):
+        """祖先influenceへ加算後、登録を外す。jointノードは削除しない。
+
+        同じskinClusterの最も近い祖先influenceを移送先にする。
+        移送先がなければMaya標準のremoveInfluenceに再配分を任せる。
+        最後の一つのinfluenceは削除しない。全体は一回のUndoで戻せる。
 
         Args:
-            joint (str): 削除対象の influence 名。
+            joint (Joint | str): 削除対象の influence。
+            transfer_to_parent (bool): 祖先への移送を行うか。Falseは標準削除のみ。
 
         Returns:
             None: 値を返さない。
 
         Raises:
+            ValueError: 未登録、または最後の一つのinfluenceの場合。
             RuntimeError: スキニングレイヤーを検出、または Maya が削除を拒否した場合。
         """
+        source, target = self._influence_removal_target(joint, transfer_to_parent)
+        if target is not None:
+            # skinPercentの移送は正規化設定に依存するため、保存値を明示的に加算する。
+            weights = list(self.get_weights([source.full_name, target]))
+            summed = []
+            for i in range(0, len(weights), 2):
+                summed.extend((0.0, weights[i] + weights[i + 1]))
+            self.set_weights([source.full_name, target], summed)
+        cmds.skinCluster(self.name(), edit=True, removeInfluence=source.full_name)
+
+    def _influence_removal_target(self, joint, transfer_to_parent=True):
+        """削除可否と祖先移送先を変更前に確認する。"""
         self._raise_if_layers()
-        cmds.skinCluster(self.name(), edit=True, removeInfluence=joint)
+        source = joint if isinstance(joint, Node) else Node(joint)
+        if not source.is_valid() or not self.has_influence(source.full_name):
+            raise ValueError("Joint is not an influence of this skinCluster")
+        if len(self.influences()) <= 1:
+            raise ValueError("Cannot remove the last influence")
+        target = source.transfer_target(self) if transfer_to_parent and isinstance(source, Joint) else None
+        if target is not None:
+            self._editable_weights()
+        return source, target
+
+    def _editable_weights(self):
+        """先頭meshの全influence値を取得し、ロック・接続・レイヤーを拒否する。"""
+        self._raise_if_layers()
+        names = self.influences()
+        if not names:
+            raise ValueError("No influences")
+        for name in names:
+            if cmds.objExists(name + ".lockInfluenceWeights") and cmds.getAttr(name + ".lockInfluenceWeights"):
+                raise RuntimeError("Influence is locked: " + name)
+        path = self.full_name + ".weightList"
+        if cmds.getAttr(path, lock=True) or cmds.listConnections(path, source=True, destination=False):
+            raise RuntimeError("Weights are locked or connected")
+        for attr in cmds.listAttr(path, multi=True) or []:
+            if cmds.getAttr(self.full_name + "." + attr, lock=True):
+                raise RuntimeError("Weight element is locked: " + attr)
+        weights = list(self.get_weights(names))
+        if any(not math.isfinite(v) or v < 0 for v in weights):
+            raise ValueError("Weights must be finite and non-negative")
+        return names, weights
+
+    def _normalized_weights(self, decimals=None, limit=None):
+        """正規化結果をメモリ上で計算する。丸めは最大剰余法で合計を維持する。"""
+        if decimals is not None and (type(decimals) is not int or not 0 <= decimals <= 15):
+            raise ValueError("decimals must be an integer between 0 and 15")
+        names, weights = self._editable_weights()
+        width, result = len(names), []
+        with localcontext() as context:
+            context.prec = 64
+            for start in range(0, len(weights), width):
+                row = [Decimal(str(v)) for v in weights[start:start + width]]
+                if limit is not None:
+                    keep = set(sorted(range(width), key=lambda i: (-row[i], i))[:limit])
+                    row = [v if i in keep else Decimal(0) for i, v in enumerate(row)]
+                total = sum(row)
+                if not total:
+                    raise ValueError("Cannot normalize zero-total weights at vertex {}".format(start // width))
+                row = [v / total for v in row]
+                if decimals is not None:
+                    scale = 10 ** decimals
+                    scaled = [v * scale for v in row]
+                    ticks = [int(v.to_integral_value(rounding=ROUND_FLOOR)) for v in scaled]
+                    remaining = scale - sum(ticks)
+                    order = sorted(range(width), key=lambda i: (-(scaled[i] - ticks[i]), i))
+                    for i in order[:remaining]:
+                        ticks[i] += 1
+                    row = [Decimal(v) / scale for v in ticks]
+                result.extend(float(v) for v in row)
+        return names, result
+
+    @undo_chunk("hlibSkinClusterNormalizeWeights")
+    def normalize_weights(self, decimals=None):
+        """先頭meshの各頂点ウェイトを合計1へ正規化する。
+
+        Args:
+            decimals (int | None): 0〜15の小数桁数。Noneは桁丸めなし。
+                桁指定時は端数を配分し、十進数として合計1を維持する。
+                同率の場合はinfluenceの登録順を優先する。
+        Returns:
+            SkinCluster: 自身。
+        Raises:
+            ValueError: 不正な桁数、負値・非有限値・合計ゼロの頂点の場合。
+            RuntimeError: ロック・接続・レイヤー、またはMayaの編集失敗。
+
+        全頂点を事前検証する。normalizeWeights設定・influence数は変更しない。
+        保存値は浮動小数点のため合計に機械精度の誤差は生じ得る。Undo対応。
+        """
+        names, values = self._normalized_weights(decimals)
+        self.set_weights(names, values)
+        return self
+
+    def max_influences(self):
+        """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
+        return cmds.getAttr(self.full_name + ".maxInfluences")
+
+    @undo_chunk("hlibSkinClusterSetMaxInfluences")
+    def set_max_influences(self, count, maintain=True, prune=False):
+        """最大influence設定を変更し、任意で既存ウェイトも制限する。
+
+        Args:
+            count (int): 1以上の最大数。
+            maintain (bool): maintainMaxInfluencesを有効にするか。
+            prune (bool): Trueで先頭meshの各頂点の大きいcount個だけを残し正規化。
+                Falseは設定だけ変更し、既存ウェイトを変更しない。
+        Returns:
+            SkinCluster: 自身。
+        Raises:
+            ValueError: 不正なcount、またはprune時に正規化できないウェイト。
+            TypeError: maintain/pruneがboolでない場合。
+            RuntimeError: ロック・レイヤー・Mayaの編集失敗。
+
+        skinCluster編集コマンドの再バインドを避け、属性を直接設定する。Undo対応。
+        """
+        if type(count) is not int or not 1 <= count <= 2147483647:
+            raise ValueError("count must be a positive 32-bit integer")
+        if type(maintain) is not bool or type(prune) is not bool:
+            raise TypeError("maintain and prune must be bool")
+        for attr in ("maxInfluences", "maintainMaxInfluences"):
+            if not cmds.getAttr(self.full_name + "." + attr, settable=True):
+                raise RuntimeError("Setting is locked or connected: " + attr)
+        computed = self._normalized_weights(limit=count) if prune else None
+        cmds.setAttr(self.full_name + ".maxInfluences", count)
+        cmds.setAttr(self.full_name + ".maintainMaxInfluences", maintain)
+        if computed:
+            self.set_weights(*computed)
+        return self
 
     def _has_layer_plugs(self):
         """スキニングレイヤー関連ノードが接続されているか判定する。
@@ -684,7 +817,7 @@ class SkinClusters(BulkCollection):
             None: 値を返さない。
         """
         for source_joint, _ in pairs:
-            skin.remove_influence(source_joint)
+            skin.remove_influence(source_joint, transfer_to_parent=False)
             self.counts[source_joint] = self.counts.get(source_joint, 0) + 1
 
     def _can_finalize(self, joint):
@@ -742,7 +875,7 @@ class SkinClusters(BulkCollection):
                 for skin, target in transfers:
                     skin.transfer_weight(joint.full_name, target)
                     stage = "remove influence"
-                    skin.remove_influence(joint.full_name)
+                    skin.remove_influence(joint.full_name, transfer_to_parent=False)
                     stage = "transfer weights"
                 stage = "reparent children"
                 parent = joint.parent_node()

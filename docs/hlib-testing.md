@@ -61,8 +61,8 @@ Pythonからも`python tools/run_hlib_tests.py --versions 2027`として実行�
 | `test_slack_postMessage.py` | 実際に外部へメッセージを送信するため |
 
 個々のテスト内でもGUI専用ケースなどがskipされることがあります。詳細ログの`skipped`を確認してください。
-Maya 2022ではタイムライン範囲変更のUndoを補うため、hlib内部のPythonプラグインを
-初回の範囲編集時にロードします。ユーザーのautoload設定は変更しません。
+Maya 2022では`playbackOptions`自体がUndo履歴を作らないため、タイムライン範囲変更(`TimeSlider.set_playback_range`/
+`set_animation_range`)はこのバージョンに限りUndo/Redoできません(Mayaネイティブの制限で、hlibは独自プラグインでは補いません)。
 GUI操作の確認は対象バージョンのMayaで別途行います。一括テストはシーンを新規作成するテストを含むため、GUIへ送る場合は未保存の作業がない状態で実行してください。
 
 ## 結果

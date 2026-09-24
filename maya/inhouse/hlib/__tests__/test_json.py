@@ -177,20 +177,24 @@ class JsonTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             ref.resolve(namespace_map={self.ns: "missing_namespace"})
 
-    def test_editor_timeline_and_undo(self):
+    def test_editor_timeline_read_only(self):
         original = hlib.json.capture(hlib.timeSlider(), kind="editor")
         try:
             saved = self.roundtrip(original)
             original_time = cmds.currentTime(query=True)
             cmds.currentTime(original_time + 3)
-            saved.apply()
-            self.assertEqual(cmds.currentTime(query=True), original_time)
-            cmds.undo()
+            plan = saved.plan()
+            self.assertTrue(plan.errors)
+            self.assertEqual(plan.changes[0]["before"]["values"]["currentTime"], original_time + 3)
+            self.assertFalse(saved.validate().valid)
+            with patch.object(cmds, "loadPlugin", side_effect=AssertionError("Plugin loading forbidden")):
+                with self.assertRaises(NotImplementedError):
+                    saved.apply()
+                with self.assertRaises(NotImplementedError):
+                    plan.apply()
             self.assertEqual(cmds.currentTime(query=True), original_time + 3)
-            cmds.redo()
-            self.assertEqual(cmds.currentTime(query=True), original_time)
         finally:
-            original.apply()
+            cmds.currentTime(original_time)
 
     def test_all_animation_types(self):
         for suffix in ("TA", "TL", "TT", "TU", "UA", "UL", "UT", "UU"):
@@ -226,7 +230,7 @@ class JsonTest(unittest.TestCase):
         self.assertEqual(hlib.json.loads(hlib.json.dumps({"ok": 1})), {"ok": 1})
 
     @unittest.skipIf(cmds.about(batch=True), "Requires Maya GUI")
-    def test_editor_panels_undo(self):
+    def test_editor_panels_read_only(self):
         window = cmds.window(title="hlib JSON editor test")
         try:
             cmds.paneLayout(configuration="vertical2")
@@ -237,12 +241,10 @@ class JsonTest(unittest.TestCase):
             saved = self.roundtrip(hlib.json.capture([viewport, outliner], kind="editor"))
             original = viewport.settings("grid")["grid"]
             viewport.set_settings(grid=not original)
-            saved.apply()
-            self.assertEqual(viewport.settings("grid")["grid"], original)
-            cmds.undo()
+            self.assertTrue(saved.plan().errors)
+            with self.assertRaises(NotImplementedError):
+                saved.apply()
             self.assertEqual(viewport.settings("grid")["grid"], not original)
-            cmds.redo()
-            self.assertEqual(viewport.settings("grid")["grid"], original)
             self.assertEqual(outliner.settings(), saved.records[1]["values"])
         finally:
             cmds.deleteUI(window)

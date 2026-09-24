@@ -10,6 +10,9 @@ hlib.reload()
 
 
 class JointDeleteTest(unittest.TestCase):
+    def delete_joint(self, name):
+        hlib.nodes.Joints([name]).delete()
+
     def setUp(self):
         self.ns = "hlibDelete_" + uuid.uuid4().hex
         cmds.namespace(add=self.ns)
@@ -29,7 +32,7 @@ class JointDeleteTest(unittest.TestCase):
         ctrl = self.node("ctrl", "transform", parent=root)
         cmds.setAttr(root + ".translateX", 3)
         before = cmds.xform(leaf, query=True, worldSpace=True, matrix=True)
-        hlib.nodes.Joints([root]).delete()
+        self.delete_joint(root)
         self.assertFalse(cmds.objExists(root))
         self.assertTrue(cmds.objExists(ctrl))
         self.assertFalse(cmds.listRelatives(leaf, parent=True))
@@ -72,7 +75,7 @@ class JointDeleteTest(unittest.TestCase):
                     cmds.delete(joint)
                     expected = self.skin_state(skin, mesh)
                     cmds.undo()
-                    hlib.nodes.Joints([joint]).delete()
+                    self.delete_joint(joint)
                     self.assertFalse(cmds.objExists(joint))
                     self.assertEqual(self.skin_state(skin, mesh), expected)
                     cmds.undo()
@@ -93,7 +96,7 @@ class JointDeleteTest(unittest.TestCase):
         cmds.delete(joint)
         expected = self.skin_state(b, meshes[1])
         cmds.undo()
-        hlib.nodes.Joints([joint]).delete()
+        self.delete_joint(joint)
         self.assertEqual(cmds.skinCluster(a, query=True, influence=True), [parent])
         self.assertAlmostEqual(cmds.skinPercent(a, meshes[0] + ".vtx[0]", query=True, transform=parent), 1)
         self.assertEqual(self.skin_state(b, meshes[1]), expected)
@@ -103,11 +106,25 @@ class JointDeleteTest(unittest.TestCase):
         leaf = self.node("leaf", parent=root)
         with patch.object(cmds, "delete", side_effect=RuntimeError("simulated failure")):
             with self.assertRaisesRegex(RuntimeError, "delete joint.*simulated failure"):
-                hlib.nodes.Joints([root]).delete()
+                self.delete_joint(root)
         self.assertTrue(cmds.objExists(root))
         self.assertFalse(cmds.listRelatives(leaf, parent=True))
         cmds.undo()
         self.assertEqual(cmds.listRelatives(leaf, parent=True), [root])
+
+
+class SingleJointDeleteTest(JointDeleteTest):
+    """単体入口にも同じ移送・標準削除比較・Undo・例外テストを適用する。"""
+
+    def delete_joint(self, name):
+        hlib.node(name).delete()
+
+    def test_invalid_joint_raises(self):
+        name = self.node("removed")
+        joint = hlib.node(name)
+        cmds.delete(name)
+        with self.assertRaisesRegex(RuntimeError, "invalid joint"):
+            joint.delete()
 
 
 if __name__ == "__main__":

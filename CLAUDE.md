@@ -54,14 +54,15 @@ pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提
 
 ```
 maya/
-├ external/     外部ツール(Git submodule、32個。一覧は下記「external ― 外部ツール一覧」参照)。
+├ external/     外部ツール(Git submodule、37個。一覧は下記「external ― 外部ツール一覧」参照)。
 │               直接編集せず、変更は各submodule側で行う。
 ├ inhouse/      内製ツール本体
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
 │  ├ hlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)
 │  ├ MayaCommandPorts/  HTools/hlibから独立したcommandPort初期化モジュール
 │  └ integrations/   外部サービス連携(Slack, mGearガイド操作)
-├ modules/      各ツールをMayaに認識させる .mod ファイル(2022/2024/2025/2026/2027対応)
+├ modules/      各ツールをMayaに認識させる .mod ファイル(2022/2024/2025/2026/2027対応、MAYA_MODULE_PATHの対象)
+├ modules_disabled/  上記と同形式だが未登録の .mod ファイル(無効化されたツール/汎用ライブラリ)。有効化するには modules/ へ移動する
 └ maya_*.bat, maya_core.bat  起動バッチ
 tools/
 └ send_to_maya.py  VS Code タスクが実行するMaya送信スクリプト
@@ -69,7 +70,7 @@ tools/
 
 ### external ― 外部ツール一覧
 
-`maya/external/` 配下の Git submodule 32個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
+`maya/external/` 配下の Git submodule 37個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
 
 **Python基盤/ラッパーライブラリ**
 - `cymel`: Maya APIとコマンドの軽量ラッパーモジュール。
@@ -112,6 +113,14 @@ tools/
 - `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義属性を並び替えるツール。
 - `CharcoalEditor2`(既存記載): エディタ系ツール。
 
+**汎用Pythonライブラリ(Maya専用ツールではない)**
+- `rich`: ターミナル出力の表・プログレスバー・シンタックスハイライト等を行うライブラリ。
+- `pyyaml`: YAML パーサ/エミッタ(実体は `lib/yaml` 配下。トップレベルの `yaml/` は未使用のCython版ソース)。
+- `tqdm`: プログレスバー。
+- `tabulate`: テキストでの表整形。
+- `natsort`: 自然順ソート。
+- 上記5つは対応する `.mod` を `maya/modules_disabled/` に用意済みだが、`maya/modules/` へは未登録(MAYA_MODULE_PATH対象外)のため起動時に自動ロードされない。有効化するにはそのバージョン用の `.mod` を `maya/modules/` へコピー/移動する。個別スクリプトで使うだけなら `.mod` を経由せず `sys.path` へ直接追加してもよい。
+
 ### HTools ― メニュー登録の仕組み
 
 - `HTools/userSetup.py` がMaya起動時に評価される。GUI起動時のみ・同一セッション内では1回のみ実行される(`MAYA_INHOUSE_USERSETUP_INITIALIZED` 環境変数で二重初期化防止、バッチモードはスキップ)。
@@ -149,3 +158,4 @@ HTools/hlibから独立した最小モジュール(依存は `maya.cmds` / `maya
 - Pythonの単体実行環境(venv/pip install)は用意されていない。全てMaya本体(GUIまたはmayapy)を介して動作する前提で、純粋ロジックのテストであってもMaya経由で実行するのがこのリポジトリの標準的な方法。
 - `maya/external/*` はGit submodule。変更が必要な場合は各submoduleのリポジトリ側で行う(親リポジトリからの直接コミット対象ではない)。
 - 新規clone後は `git submodule update --init --recursive` が必要。
+- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.plugins`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。

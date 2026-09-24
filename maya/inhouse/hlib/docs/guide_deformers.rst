@@ -20,6 +20,46 @@ Jointをウェイト0で登録します。既存ウェイトの正規化・再�
 Joint以外の対象は追加前に例外にします。操作は1回のUndo/Redoに対応し、
 ``SkinClusters`` からも同名メソッドを一括実行できます。
 
+influenceを取り除き、親へウェイトを加算する
+------------------------------------------------
+
+.. code-block:: python
+
+   skin = hlib.node("skinCluster1")
+   joint = hlib.node("extra_joint")
+   skin.remove_influence(joint)
+   # またはjoint側から、接続する全skinClusterを対象にする
+   # joint.remove_influence()
+   # 対象を一つに限定する場合
+   # joint.remove_influence(skin)
+
+同じskinClusterに登録された最も近い祖先influenceへ元ウェイトを加算し、
+指定jointのinfluence登録だけを外します。jointノードや子階層は変更しません。
+親が直接登録されていなければさらに祖先を探し、移送先がなければMaya標準の
+removeInfluenceによる再配分に任せます。最後の一つのinfluenceはエラーにします。
+``transfer_to_parent=False`` をSkinCluster側へ渡すと標準除去のみ行います。
+``Joint.remove_influence()`` は未スキニングなら何もしません。
+
+ウェイトの正規化と最大influence数
+-----------------------------------
+
+.. code-block:: python
+
+   skin.normalize_weights()            # 各頂点の合計を1にする
+   skin.normalize_weights(decimals=3)  # 小数3桁へ丸め、端数を配分して合計1にする
+   skin.set_max_influences(4)          # 設定のみ。既存ウェイトは変更しない
+   skin.set_max_influences(4, prune=True)  # 大きい4個を残し、残りを0にして正規化
+   print(skin.max_influences())
+
+正規化とpruneは先頭meshの全頂点が対象です。小数桁数は0〜15を指定できます。
+例えば同じ重みが3つなら、小数2桁では0.34、0.33、0.33とし、同率時は登録順を
+優先します。浮動小数点の保存値には機械精度の誤差があり得ます。
+合計0・負値・非有限値、ロック・入力接続・スキニングレイヤーは編集前に拒否します。
+``normalize_weights`` は ``normalizeWeights`` 設定を変えません。
+``set_max_influences`` は既定で ``maintainMaxInfluences`` も有効にします。
+``maintain=False`` で無効にできます。設定だけでは既存の非ゼロ数は制限されません。
+これらの変更は一回のUndoで戻せます。実行途中の例外は通知し、自動ロールバックはしません。
+
 cluster と locator
 --------------------
 

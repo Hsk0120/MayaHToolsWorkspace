@@ -24,7 +24,11 @@ def _state(kind, name, flags=None):
 
 
 class EditorSnapshot(Snapshot):
-    """Viewport/Outlinerの公開設定とTimeSliderの時刻・範囲。選択範囲と再生状態は含めない。"""
+    """Viewport/Outlinerの公開設定とTimeSliderの時刻・範囲を保存・比較する。
+
+    標準コマンドだけでは全設定のUndoを保証できないため、applyは未対応。
+    独自プラグインは使用しない。選択範囲と再生状態は含めない。
+    """
 
     def plan(self, mapping=None, namespace_map=None):
         """UI名のmappingを適用して前後の設定を検証する。"""
@@ -60,19 +64,19 @@ class EditorSnapshot(Snapshot):
                 plan.changes.append({"target": target, "before": current, "after": after})
             except (KeyError, TypeError, ValueError, RuntimeError) as error:
                 plan.errors.append(str(error))
+        plan.errors.append("EditorSnapshot.apply is unsupported: native commands cannot guarantee Undo for all editor state; custom plugins are not used")
         return plan
 
     def apply(self, mapping=None, namespace_map=None):
-        """検証後に専用Undoコマンドで設定する。Undo対象のUIは存続している必要がある。"""
-        from maya import cmds
-        from . import _editor_command
-        plan = self.plan(mapping, namespace_map)
-        if plan.errors:
-            raise ValueError("\n".join(plan.errors))
-        if not cmds.undoInfo(query=True, state=True):
-            raise RuntimeError("Snapshot.apply requires Undo enabled")
-        _editor_command.apply(plan.changes)
-        return plan
+        """変更前にNotImplementedErrorを送出する。保存・読み込み・比較のみ対応。
+
+        Args:
+            mapping (dict | None): API互換のため受け取るが適用しない。
+            namespace_map (dict | None): API互換のため受け取るが適用しない。
+        Raises:
+            NotImplementedError: 全エディター状態のUndoを標準コマンドだけでは保証できないため。
+        """
+        raise NotImplementedError("EditorSnapshot supports capture/load/plan only; applying editor state without guaranteed Undo is not supported")
 
 
 def capture_editors(targets):

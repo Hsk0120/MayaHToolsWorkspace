@@ -9,7 +9,7 @@ import maya.cmds as cmds
 import hlib
 hlib.reload()
 hlib_cmds = importlib.import_module("hlib.cmds")
-from hlib.nodes import Node
+from hlib.nodes import Node, Transform
 from hlib.nodes.joint import Joint, Joints
 from hlib.nodes.skinCluster import SkinClusters
 
@@ -55,6 +55,16 @@ class NodeCreationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             hlib_cmds.createNode(type="")
 
+
+    def test_node_resolves_unregistered_derived_type_via_inheritance(self):
+        # airField はhlibが個別登録していない組み込みノードタイプだが、Mayaの
+        # 継承チェーン上は transform の派生であるため、Transform で解決される。
+        name = cmds.createNode("airField", name="hlibCreateAirField")
+        try:
+            wrapped = hlib.node(name)
+            self.assertIsInstance(wrapped, Transform)
+        finally:
+            cmds.delete(name)
 
     def test_node_wraps_existing_nodes_without_scene_changes(self):
         name = cmds.createNode("joint", name="hlibCreateJoint")

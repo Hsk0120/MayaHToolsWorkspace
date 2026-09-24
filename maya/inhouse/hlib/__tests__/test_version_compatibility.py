@@ -41,6 +41,16 @@ class VersionCompatibilityTest(unittest.TestCase):
         slider = hlib.timeSlider()
         playback, animation = slider.playback_range(), slider.animation_range()
         try:
+            if str(cmds.about(version=True)).startswith("2022"):
+                before = cmds.undoInfo(query=True, undoName=True)
+                slider.set_playback_range(-12, 103)
+                hlib.reload()
+                self.assertEqual(slider.playback_range(), (-12, 103))
+                self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
+                slider.set_animation_range(-24, 206)
+                self.assertEqual(slider.animation_range(), (-24, 206))
+                self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
+                return  # Maya 2022では履歴を作らない。直前の別操作をUndoしない。
             slider.set_playback_range(-12, 103)
             hlib.reload()
             cmds.undo()

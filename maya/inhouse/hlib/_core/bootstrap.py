@@ -15,7 +15,7 @@ def initialize_node_api(package_name):
         NodeRegistry: 初期化した型登録表。
     """
     package = importlib.import_module(package_name + ".nodes")
-    registry = NodeRegistry(package.Node)
+    registry = NodeRegistry(package.Node, resolve_inherited_types=True)
     for type_name, wrapper in sorted(package._discovered_wrappers.items()):
         registry.register(type_name, wrapper)
     package.Node._registry = registry

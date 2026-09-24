@@ -1,6 +1,7 @@
 """Maya の型名とラッパークラスの対応を宣言・管理する。"""
 
 from .discovery import discover_node_package
+from .type_hierarchy import inherited_node_types
 
 
 def node_wrapper(node_type, public=True):
@@ -111,16 +112,21 @@ def plug_wrapper(attr_type, public=True):
 class NodeRegistry:
     """ノード型・属性型などの文字列キーとラッパークラスを対応付ける登録表。"""
 
-    def __init__(self, fallback_class):
+    def __init__(self, fallback_class, resolve_inherited_types=False):
         """フォールバッククラスと空のノード型対応表を初期化する。
 
         Args:
             fallback_class (type): 未登録キーに対して使用するクラス。
+            resolve_inherited_types (bool): ``True`` の場合、完全一致が
+                無いキーに対して Maya のノードタイプ継承チェーンを辿り、
+                最も近い登録済み祖先型のクラスを返す(Plug の属性型など、
+                Mayaのノードタイプ継承と無関係なキー体系では使わない)。
 
         Returns:
             None: 値を返さない。
         """
         self._fallback_class = fallback_class
+        self._resolve_inherited_types = resolve_inherited_types
         self._classes = {}
 
     def register(self, node_type, wrapper_class):
@@ -175,13 +181,27 @@ class NodeRegistry:
     def wrapper_class(self, node_type):
         """ノード型に対応するクラス、またはフォールバッククラスを返す。
 
+        完全一致する登録が無く ``resolve_inherited_types`` が有効な場合、
+        Maya のノードタイプ継承チェーンを直接の親から基底型へ向かって辿り、
+        最初に見つかった登録済み祖先型のクラスを返す。例えばプラグインが
+        ``locator`` を継承した独自ノードタイプを追加した場合でも、
+        ``locator`` 用に登録済みのクラスが選ばれる。
+
         Args:
             node_type (str): Maya の nodeType 名。
 
         Returns:
-            type: 登録済みまたはフォールバックのラッパークラス。
+            type: 登録済み、継承チェーン経由、またはフォールバックのラッパークラス。
         """
-        return self._classes.get(node_type, self._fallback_class)
+        resolved = self._classes.get(node_type)
+        if resolved is not None:
+            return resolved
+        if self._resolve_inherited_types:
+            for ancestor in inherited_node_types(node_type)[1:]:
+                resolved = self._classes.get(ancestor)
+                if resolved is not None:
+                    return resolved
+        return self._fallback_class
 
     def lookup(self, key):
         """登録済みクラスを返す。未登録なら ``None``。

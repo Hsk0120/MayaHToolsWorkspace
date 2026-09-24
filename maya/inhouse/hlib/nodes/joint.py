@@ -199,6 +199,25 @@ class Joint(Transform):
         """
         return self.is_valid() and self.mobject().hasFn(om2.MFn.kJoint)
 
+    def delete(self):
+        """祖先influenceへウェイトを移送し、このjointを削除する。
+
+        Joints.delete()と同じ処理を使う。同じskinClusterの最も近い祖先
+        influenceがある場合だけ加算し、なければMaya標準の削除に任せる。
+        未スキニングjointも削除する。子Transformは直接の親へ、親がなければ
+        ワールドへ移す。全体は一回のUndoにまとまり、途中失敗は例外で通知する。
+        完了済みの変更は自動ロールバックしない。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: 無効なjoint、ウェイト移送・再親付け・削除の失敗。
+        """
+        if not self.is_joint():
+            raise RuntimeError("Cannot delete an invalid joint")
+        Joints([self]).delete()
+
     def skin_clusters(self):
         """この joint に接続する skinCluster を取得する。
 
@@ -218,6 +237,31 @@ class Joint(Transform):
             seen.add(node.uuid)
             result.append(SkinCluster(node.mobject()))
         return result
+
+    @undo_chunk("hlibJointRemoveInfluence")
+    def remove_influence(self, skin_cluster=None):
+        """祖先へウェイトを移しinfluence登録を外す。joint自体は残す。
+
+        Args:
+            skin_cluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
+        Returns:
+            Joint: 自身。未スキニングで対象省略の場合は何もしない。
+        Raises:
+            ValueError: 未登録の対象、または最後の一つのinfluenceの場合。
+            RuntimeError: 無効joint、レイヤー、移送・削除失敗。
+
+        祖先influenceがなければMaya標準の再配分に任せる。全対象の削除可否を
+        事前検証する。途中失敗は例外で停止し、完了済み操作は一回のUndoで戻せる。
+        """
+        from .skinCluster import SkinCluster
+        if not self.is_joint():
+            raise RuntimeError("Cannot remove an invalid joint influence")
+        skins = self.skin_clusters() if skin_cluster is None else [skin_cluster if isinstance(skin_cluster, SkinCluster) else SkinCluster(skin_cluster)]
+        for skin in skins:
+            skin._influence_removal_target(self)
+        for skin in skins:
+            skin.remove_influence(self)
+        return self
 
     def transfer_target(self, skin):
         """ウェイト移送先となる最も近い親 influence を探索する。

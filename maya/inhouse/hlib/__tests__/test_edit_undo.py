@@ -76,6 +76,16 @@ class EditUndoTest(unittest.TestCase):
         slider = hlib.timeSlider()
         playback, animation = slider.playback_range(), slider.animation_range()
         try:
+            if str(cmds.about(version=True)).startswith("2022"):
+                # 空のUndoチャンクではネイティブの非Undo操作を補えない。
+                before = cmds.undoInfo(query=True, undoName=True)
+                with undo_chunk("rangeTool"):
+                    slider.set_animation_range(-20, 200)
+                    slider.set_playback_range(-10, 100)
+                self.assertEqual(slider.playback_range(), (-10, 100))
+                self.assertEqual(slider.animation_range(), (-20, 200))
+                self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
+                return
             with undo_chunk("rangeTool"):
                 slider.set_animation_range(-20, 200)
                 slider.set_playback_range(-10, 100)

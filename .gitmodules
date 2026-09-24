@@ -99,3 +99,18 @@
 [submodule "maya/external/aTools"]
 	path = maya/external/aTools
 	url = https://github.com/mottosso/aTools.git
+[submodule "maya/external/rich"]
+	path = maya/external/rich
+	url = https://github.com/Textualize/rich.git
+[submodule "maya/external/pyyaml"]
+	path = maya/external/pyyaml
+	url = https://github.com/yaml/pyyaml.git
+[submodule "maya/external/tqdm"]
+	path = maya/external/tqdm
+	url = https://github.com/tqdm/tqdm.git
+[submodule "maya/external/tabulate"]
+	path = maya/external/tabulate
+	url = https://github.com/astanin/python-tabulate.git
+[submodule "maya/external/natsort"]
+	path = maya/external/natsort
+	url = https://github.com/SethMMorton/natsort.git
