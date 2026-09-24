@@ -6,6 +6,7 @@ import math
 import maya.cmds as cmds
 import maya.mel as mel
 
+from ..decorators.undo import undo_chunk
 
 class TimeSlider:
     """現在のタイムラインを参照する。時刻の単位はMayaの現在の時間単位。
@@ -72,6 +73,7 @@ class TimeSlider:
             raise ValueError("Range start must not exceed end")
         cmds.playbackOptions(**{start_flag: start, end_flag: end})
 
+    @undo_chunk("hlibTimeSliderPlaybackRange")
     def set_playback_range(self, start, end):
         """再生範囲を設定する。
 
@@ -84,6 +86,7 @@ class TimeSlider:
         """
         self._set_range(start, end, "minTime", "maxTime")
 
+    @undo_chunk("hlibTimeSliderAnimationRange")
     def set_animation_range(self, start, end):
         """アニメーション全体の範囲を設定する。
 

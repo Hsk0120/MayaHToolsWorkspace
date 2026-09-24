@@ -131,9 +131,25 @@ class NodeApiTest(unittest.TestCase):
         result = transform.set_pivot((1.0, 2.0, 3.0))
         self.assertIs(result, transform)
         self.assertEqual(transform.pivot(), Translate(1.0, 2.0, 3.0))
+        cmds.undo()
+        self.assertEqual(transform.pivot(), default_pivot)
+        cmds.redo()
+        self.assertEqual(transform.pivot(), Translate(1.0, 2.0, 3.0))
 
         transform.set_translate((10.0, 0.0, 0.0))
         self.assertEqual(transform.pivot(ws=True), Translate(11.0, 2.0, 3.0))
+
+        previous_unit = cmds.currentUnit(query=True, linear=True)
+        try:
+            cmds.currentUnit(linear="m")
+            transform.set_pivot((25.0, 50.0, 75.0), ws=True)
+            self.assertEqual(transform.pivot(ws=True), Translate(25.0, 50.0, 75.0))
+            cmds.undo()
+            self.assertEqual(transform.pivot(ws=True), Translate(11.0, 2.0, 3.0))
+            cmds.redo()
+            self.assertEqual(transform.pivot(ws=True), Translate(25.0, 50.0, 75.0))
+        finally:
+            cmds.currentUnit(linear=previous_unit)
 
     def test_transform_bounding_box_local_and_world(self):
         mesh_transform_name = cmds.polyCube(name="hlibNodeApiBoundingBoxMesh", constructionHistory=False)[0]

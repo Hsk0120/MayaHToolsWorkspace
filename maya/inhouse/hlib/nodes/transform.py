@@ -138,11 +138,9 @@ class Transform(Node):
         Raises:
             RuntimeError: ノードが無効、または Maya が設定を拒否した場合。
         """
-        space = om2.MSpace.kWorld if ws else om2.MSpace.kTransform
         point = om2.MPoint(*value)
-        fn = self.transform_fn()
-        fn.setRotatePivot(point, space, False)
-        fn.setScalePivot(point, space, False)
+        coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in (point.x, point.y, point.z)]
+        cmds.xform(self.full_name, pivots=coordinates, worldSpace=ws, objectSpace=not ws, preserve=False)
         return self
 
     def bounding_box(self, ws=False):

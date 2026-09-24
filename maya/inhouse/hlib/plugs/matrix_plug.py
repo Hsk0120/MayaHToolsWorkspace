@@ -1,5 +1,7 @@
 """行列属性と所有ノードの変換行列を扱う。"""
 
+from ..decorators.undo import undo_chunk
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
@@ -28,6 +30,7 @@ class MatrixPlug(Plug):
             return self.node.get_matrix(ws=True)
         return Matrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
+    @undo_chunk("hlib.plugs.matrix_plug.set")
     def set(self, value, ws=False):
         """行列値を設定する。
 

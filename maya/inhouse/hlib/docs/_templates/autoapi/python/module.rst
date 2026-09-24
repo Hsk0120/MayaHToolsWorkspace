@@ -25,7 +25,7 @@ Python では ``hlib.<コマンド名>()`` として呼び出します。
    :local:
    :depth: 1
 
-{% for function in obj.functions %}
+{% for function in obj.functions if function.short_name == obj.short_name %}
 .. py:currentmodule:: hlib
 
 .. py:function:: {{ function.short_name }}({{ function.args }})

@@ -46,6 +46,34 @@ class UndoDecoratorsTest(unittest.TestCase):
         cmds.undo()
         self.assertFalse(cmds.objExists("hlibUndoChunkNode"))
 
+    def test_public_operations_have_separate_undo_steps(self):
+        node = hlib.createNode("transform", name="hlibUndoChunkNode")
+        node.attr("visibility").set(False)
+        cmds.undo()
+        self.assertTrue(cmds.objExists("hlibUndoChunkNode"))
+        self.assertTrue(cmds.getAttr("hlibUndoChunkNode.visibility"))
+        cmds.undo()
+        self.assertFalse(cmds.objExists("hlibUndoChunkNode"))
+        cmds.redo()
+        cmds.redo()
+        self.assertFalse(cmds.getAttr("hlibUndoChunkNode.visibility"))
+
+    def test_tool_groups_public_operations_and_queries_add_no_step(self):
+        @undo_chunk("createControlTool")
+        def create_control():
+            node = hlib.createNode("transform", name="hlibUndoChunkNode")
+            node.attr("visibility").set(False)
+            return node
+
+        node = create_control()
+        hlib.ls(type="transform")
+        hlib.node(node.name())
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "createControlTool")
+        cmds.undo()
+        self.assertFalse(cmds.objExists("hlibUndoChunkNode"))
+        cmds.redo()
+        self.assertFalse(cmds.getAttr("hlibUndoChunkNode.visibility"))
+
     def test_undo_chunk_wraps_function_in_single_chunk(self):
         @undo_chunk("hlibTestUndoable")
         def create_and_move():

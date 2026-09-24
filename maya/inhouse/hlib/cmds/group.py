@@ -71,9 +71,12 @@ Examples
     empty = hlib.group(name="emptyGrp", world=True, empty=True)
 """
 
+from ..decorators.undo import undo_chunk
+
 import maya.cmds as cmds
 
 
+@undo_chunk("hlib.cmds.group.group")
 def group(nodes=None, **kwargs):
     """指定したノードを新規 Transform でグループ化し、そのラッパーを返す。
 

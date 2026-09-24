@@ -1,6 +1,9 @@
 """skinCluster のウェイト操作と joint 削除を支援する。"""
 
+from ..decorators.undo import undo_chunk
+
 import json
+import math
 
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
@@ -161,26 +164,48 @@ class SkinCluster(Node):
         vertices, _ = self._all_verts()
         return self.fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
 
+    @undo_chunk("hlibSkinClusterSetWeights")
     def set_weights(self, joints, weights):
         """指定したjointの全頂点ウェイトを設定する。
 
-        MFnSkinCluster.setWeights に normalize=False を渡す。API による直接書き込みで、Undo チャンクは作成しない。
+        cmds.setAttr で指定 influence のみを書き換える。正規化は行わず、
+        influence のロック設定や未指定のウェイトは変更しない。一回の Undo で戻せる。
 
         Args:
             joints (Iterable[str]): 設定する登録済み influence 名。
-            weights (Iterable[float]): API の setWeights が受け取る平坦な配列。通常は頂点数×influence数。influence数だけなら各頂点に共通適用する。
+            weights (Iterable[float]): 頂点順、各頂点内は指定 influence 順の平坦な配列。
+                頂点数×influence数、または全頂点に共通適用するinfluence数の値。
 
         Returns:
             None: 値を返さない。
+
+        Raises:
+            ValueError: influence が空・未登録・重複、値の数が不一致、または非有限値の場合。
+            TypeError: ウェイトを数値に変換できない場合。
+            RuntimeError: 属性がロックされているなど、Maya が設定を拒否した場合。
         """
-        vertices, _ = self._all_verts()
-        self.fn.setWeights(
-            self.mesh_path,
-            vertices,
-            self._jnt_indices(joints),
-            om2.MDoubleArray(weights),
-            False,
-        )
+        joints = list(joints)
+        physical_indices = [self._jnt_index(joint) for joint in joints]
+        if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
+            raise ValueError("Influences must be non-empty, registered and unique")
+        values = [float(value) for value in weights]
+        vertex_count = om2.MFnMesh(self.mesh_path).numVertices
+        width = len(joints)
+        if len(values) not in (width, vertex_count * width):
+            raise ValueError("Weight count must match influence count or vertex count times influence count")
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("Weights must be finite")
+        influences = self.fn.influenceObjects()
+        # 削除済み influence による配列の穴を考慮し、物理番号を属性の論理番号へ変換する。
+        logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
+        name = self.full_name
+        for vertex in range(vertex_count):
+            offset = 0 if len(values) == width else vertex * width
+            for column, logical_index in enumerate(logical_indices):
+                cmds.setAttr(
+                    f"{name}.weightList[{vertex}].weights[{logical_index}]",
+                    values[offset + column],
+                )
 
     def dump_weights(self, path):
         """全 influence の頂点ウェイトを JSON ファイルへ書き出す。
@@ -204,6 +229,7 @@ class SkinCluster(Node):
         with open(path, "w", encoding="utf-8") as file:
             json.dump(payload, file)
 
+    @undo_chunk("hlibSkinClusterLoadWeights")
     def load_weights(self, path):
         """dump_weights() が書き出した JSON ファイルからウェイトを読み込み設定する。
 
@@ -236,6 +262,7 @@ class SkinCluster(Node):
             raise ValueError(f"Influences missing from this skinCluster: {missing}")
         self.set_weights(influences, payload["weights"])
 
+    @undo_chunk("hlib.nodes.skinCluster.transfer_weight")
     def transfer_weight(self, source_joint, target_joint):
         """単一のsource influenceからtarget influenceへウェイトを移す。
 
@@ -266,6 +293,7 @@ class SkinCluster(Node):
         if om2.MGlobal.getActiveSelectionList().length():
             cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
 
+    @undo_chunk("hlib.nodes.skinCluster.transfer_weights_batch")
     def transfer_weights_batch(self, source_target_pairs):
         """複数のsource/target組についてウェイトを移す。
 
@@ -286,6 +314,7 @@ class SkinCluster(Node):
             for source_joint, target_joint in source_target_pairs:
                 self._xfer_pair(source_joint, target_joint)
 
+    @undo_chunk("hlib.nodes.skinCluster.remove_influence")
     def remove_influence(self, joint):
         """指定したjointをskinClusterのinfluenceから削除する。
 
@@ -387,6 +416,7 @@ class SkinClusters:
                 self.parents[joint.uuid] = parent_joint
                 self.op_counts[joint.uuid] = op_count
 
+    @undo_chunk("hlib.nodes.skinCluster.apply")
     def apply(self):
         """収集済みのウェイト移送とinfluence削除を実行する。
 
@@ -400,6 +430,7 @@ class SkinClusters:
             skin.transfer_weights_batch(pairs)
             self._remove_influences(skin, pairs)
 
+    @undo_chunk("hlib.nodes.skinCluster.finalize")
     def finalize(self, joints):
         """処理済みjointの子を再親付けしてjointを削除する。
 
@@ -494,6 +525,7 @@ class SkinClusters:
             and self.parents.get(joint.uuid)
         )
 
+    @undo_chunk("hlib.nodes.skinCluster.remove_joints")
     def remove_joints(self, joints):
         """joint階層を深い順に処理し、ウェイト移送後にjointを削除する。
 
@@ -510,6 +542,7 @@ class SkinClusters:
         self.apply()
         self.finalize(target_joints)
 
+    @undo_chunk("hlib.nodes.skinCluster.remove_influences")
     def remove_influences(self, joints):
         """joint階層を深い順に処理し、influenceだけを削除する。
 

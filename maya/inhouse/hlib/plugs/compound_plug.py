@@ -2,6 +2,7 @@
 
 import maya.api.OpenMaya as om2
 
+from ..decorators.undo import undo_chunk
 from .plug import Plug
 
 
@@ -19,10 +20,12 @@ class CompoundPlug(Plug):
         """
         return tuple(self.child(index).get() for index in range(self._mplug.numChildren()))
 
+    @undo_chunk("hlibCompoundPlugSet")
     def set(self, value):
         """子数と同数のシーケンスを各子プラグへ設定する。
 
-        要素数は先に検査する。設定途中の失敗時に、先に設定した子の値を戻す処理はない。
+        子の変更を一回のUndoにまとめる。要素数は先に検査する。
+        設定途中の失敗時に、先に設定した子の値を自動で戻す処理はない。
 
         Args:
             value (Iterable[object]): 子プラグと同じ数の値。先頭から順に設定する。

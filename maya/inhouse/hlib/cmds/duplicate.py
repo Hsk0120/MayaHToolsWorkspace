@@ -59,9 +59,12 @@ Examples
     copy = hlib.duplicate(node, name="exampleCopy")
 """
 
+from ..decorators.undo import undo_chunk
+
 import maya.cmds as cmds
 
 
+@undo_chunk("hlib.cmds.duplicate.duplicate")
 def duplicate(node, **kwargs):
     """指定したノードを複製し、対応する hlib wrapper として返す。
 

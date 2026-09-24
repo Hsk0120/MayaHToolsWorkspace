@@ -11,6 +11,7 @@ import hlib
 hlib.reload()
 from hlib.nodes.joint import Joint, Joints
 from hlib.nodes.skinCluster import SkinCluster
+from hlib.decorators import undo_chunk
 
 
 class SkinClusterTransferWeightsBatchTest(unittest.TestCase):
@@ -187,6 +188,55 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
 
         self.skin.load_weights(self.path)
         self.assertEqual(list(self.skin.get_weights([self.root, self.child])), original_weights)
+        cmds.undo()
+        self.assertEqual(list(self.skin.get_weights([self.root, self.child])), [1.0, 0.0] * 8)
+        cmds.redo()
+        self.assertEqual(list(self.skin.get_weights([self.root, self.child])), original_weights)
+
+    def test_set_weights_undo_redo_with_flat_values(self):
+        joints = [self.root, self.child]
+        before = list(self.skin.get_weights(joints))
+        values = [value for i in range(8) for value in (i / 16.0, 0.25)]
+        self.skin.set_weights(joints, values)
+        self.assertEqual(list(self.skin.get_weights(joints)), values)
+        cmds.undo()
+        self.assertEqual(list(self.skin.get_weights(joints)), before)
+        cmds.redo()
+        self.assertEqual(list(self.skin.get_weights(joints)), values)
+
+    def test_partial_weights_and_tool_chunk(self):
+        joints = [self.root, self.child]
+        before = list(self.skin.get_weights(joints))
+        with undo_chunk("weightTool"):
+            self.skin.set_weights([self.child], [0.125])
+            hlib.node(self.mesh_transform).attr("visibility").set(False)
+        after = list(self.skin.get_weights(joints))
+        self.assertEqual(after[0::2], before[0::2])
+        self.assertEqual(after[1::2], [0.125] * 8)
+        cmds.undo()
+        self.assertEqual(list(self.skin.get_weights(joints)), before)
+        self.assertTrue(cmds.getAttr(self.mesh_transform + ".visibility"))
+        cmds.redo()
+        self.assertEqual(list(self.skin.get_weights(joints)), after)
+        self.assertFalse(cmds.getAttr(self.mesh_transform + ".visibility"))
+
+    def test_sparse_influence_indices(self):
+        extra = cmds.createNode("joint", parent=self.root)
+        cmds.skinCluster(self.skin.name(), edit=True, addInfluence=extra, weight=0)
+        cmds.skinCluster(self.skin.name(), edit=True, removeInfluence=self.child)
+        before = list(self.skin.get_weights([self.root, extra]))
+        self.skin.set_weights([extra, self.root], [0.25, 0.75])
+        self.assertEqual(list(self.skin.get_weights([self.root, extra])), [0.75, 0.25] * 8)
+        cmds.undo()
+        self.assertEqual(list(self.skin.get_weights([self.root, extra])), before)
+
+    def test_invalid_weights_do_not_partially_write(self):
+        joints = [self.root, self.child]
+        before = list(self.skin.get_weights(joints))
+        for values in ([0.5] * 3, [float("nan"), 1], [1, float("inf")]):
+            with self.assertRaises(ValueError):
+                self.skin.set_weights(joints, values)
+            self.assertEqual(list(self.skin.get_weights(joints)), before)
 
     def test_load_raises_when_influence_missing(self):
         self.skin.dump_weights(self.path)

@@ -67,6 +67,7 @@ class Node:
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
 
     @classmethod
+    @undo_chunk("hlib.nodes.node.create")
     def create(cls, type, **kwargs):
         """ノードを作成し、対応する hlib wrapper として返す。
 

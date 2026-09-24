@@ -70,9 +70,12 @@ Examples
     hlib.select(clear=True)
 """
 
+from ..decorators.undo import undo_chunk
+
 import maya.cmds as cmds
 
 
+@undo_chunk("hlib.cmds.select.select")
 def select(nodes=None, **kwargs):
     """指定したノードを選択する。
 

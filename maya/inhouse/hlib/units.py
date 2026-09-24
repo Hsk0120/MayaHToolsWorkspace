@@ -1,5 +1,7 @@
 """シーンの距離・角度・時間の UI 単位を扱う。"""
 
+from .decorators.undo import undo_chunk
+
 from contextlib import contextmanager
 
 import maya.api.OpenMaya as om2
@@ -25,6 +27,7 @@ class Units:
         return cmds.currentUnit(query=True, linear=True)
 
     @staticmethod
+    @undo_chunk("hlib.units.set_linear")
     def set_linear(unit):
         """距離 UI 単位を変更する。
 
@@ -50,6 +53,7 @@ class Units:
         return cmds.currentUnit(query=True, angle=True)
 
     @staticmethod
+    @undo_chunk("hlib.units.set_angle")
     def set_angle(unit):
         """角度 UI 単位を変更する。
 
@@ -74,6 +78,7 @@ class Units:
         return cmds.currentUnit(query=True, time=True)
 
     @staticmethod
+    @undo_chunk("hlib.units.set_time")
     def set_time(unit):
         """時間 UI 単位を変更する。
 
@@ -99,8 +104,7 @@ def native_units():
     ``om2.MDistance``/``om2.MAngle`` の ``setUIUnit`` を直接呼ぶため MEL の
     往復が無く、時間単位には影響しない。表示単位の変更はシーンデータ自体を
     変更しないため、この切り替え自体は Maya の Undo キューに乗らない
-    (``preserved_selection`` と同様、cleanup であり操作そのもののロール
-    バックは行わない)。
+    （計算中の単位変換用の一時状態であり、操作そのもののロールバックは行わない）。
 
     Yields:
         None: ブロック内では距離=センチメートル、角度=ラジアンとして扱ってよい。

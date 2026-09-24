@@ -3,6 +3,9 @@
 import contextlib
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
+
+from .undo import undo_chunk
 
 
 @contextlib.contextmanager
@@ -11,15 +14,21 @@ def preserved_selection():
 
     ブロック内で選択状態を変更する操作を行っても、ブロックを抜ける際（例外時を含む）に
     開始時点の選択状態へ復元する。undo_chunk と同様、復元は cleanup であり、ブロック内で
-    行った操作そのもののロールバックは行わない（この復元操作自体も Undo の対象にはならない）。
-    ``MSelectionList`` をそのまま保存・復元するため、コンポーネント選択
-    （例: 頂点の範囲選択）も文字列化を経ずに正確に復元される。
+    行った操作そのもののロールバックは行わない。
+    選択の復元にはUndo対応のselectを使い、ブロック全体を一回のUndoにまとめる。
+    コンポーネント選択も保持する。ブロック内で削除された対象は復元対象から除く。
 
     Yields:
         None: ブロック内で自由に選択状態を変更してよい。
     """
     original = om2.MGlobal.getActiveSelectionList()
-    try:
-        yield
-    finally:
-        om2.MGlobal.setActiveSelectionList(original)
+    with undo_chunk("hlibPreservedSelection"):
+        try:
+            yield
+        finally:
+            names = original.getSelectionStrings()
+            surviving = [name for name in names if cmds.objExists(name)]
+            if surviving:
+                cmds.select(surviving, replace=True, noExpand=True)
+            else:
+                cmds.select(clear=True)

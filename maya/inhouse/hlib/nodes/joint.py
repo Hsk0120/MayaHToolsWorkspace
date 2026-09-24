@@ -1,5 +1,7 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
+from ..decorators.undo import undo_chunk
+
 import math
 
 import maya.cmds as cmds
@@ -232,6 +234,7 @@ class Joint(Transform):
             ancestor = Joint(ancestor).parent()
         return None
 
+    @undo_chunk("hlib.nodes.joint.reparent_children")
     def reparent_children(self, parent_joint):
         """子 joint を指定した親 joint へ付け替える。
 

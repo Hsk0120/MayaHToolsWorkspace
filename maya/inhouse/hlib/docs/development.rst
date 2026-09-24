@@ -1,6 +1,45 @@
 構成とドキュメント更新
 ======================
 
+.. _tool-undo-chunk:
+
+ツール単位のUndo
+----------------
+
+通常の利用では、hlibの編集コマンドやメソッドをそのまま呼び出します。
+作成・削除・複製・グループ化・選択・キー設定・ベイク・コンストレイント作成は
+各コマンド内で ``undo_chunk`` を使い、複数の内部操作を一回のUndoにまとめます。
+属性・トランスフォーム・コンポーネントの編集や、ウェイト移送とjoint削除の
+複合処理も、対応するメソッド内でチャンクを管理します。
+複合属性の ``CompoundPlug.set()`` は全子属性を一回で戻します。
+``preserved_selection()`` は選択の復元もUndo対応のコマンドで行い、
+ブロック内の編集と選択変更をまとめてUndo／Redoします。
+タイムスライダーの再生範囲・アニメーション範囲の変更も対応しています。
+
+複数の公開操作をまとめたツールを開発するときに限り、外側でもまとめます。
+
+.. code-block:: python
+
+   import hlib
+   from hlib.decorators import undo_chunk
+
+   @undo_chunk("createControl")
+   def create_control():
+       node = hlib.createNode("transform", name="control")
+       node.attr("visibility").set(False)
+       return node
+
+このツールでは作成と属性変更を一回のUndoで戻せます。内部のチャンクはネストできます。
+処理ブロックをまとめる場合は ``with undo_chunk("処理名"):`` も使用できます。
+デコレータには括弧が必要です。名前の省略時はMayaの既定表示を使います。
+
+照会やラッパー取得はチャンクの対象にしません。時刻変更・UI表示・ファイル操作・
+プラグイン管理など、Maya標準のUndoで戻せない操作をUndo可能にするものではありません。
+``SkinCluster.set_weights()`` と ``load_weights()`` もUndo／Redoに対応します。
+シーンデータの編集にはUndo対応のMayaコマンドを使い、API直接書き込みは行いません。
+APIは参照やメモリ上の計算に利用します。例外時はチャンクを閉じますが、
+完了済み操作を自動ロールバックはしません。
+
 パッケージ構成
 --------------
 

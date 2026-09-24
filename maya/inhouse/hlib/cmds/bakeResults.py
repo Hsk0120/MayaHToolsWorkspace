@@ -63,7 +63,10 @@ Examples
 
 import maya.cmds as cmds
 
+from ..decorators.undo import undo_chunk
 
+
+@undo_chunk("hlib.cmds.bakeResults.bakeResults")
 def bakeResults(nodes, **kwargs):
     """指定したノードのアニメーションをキーフレームへベイクする。
 

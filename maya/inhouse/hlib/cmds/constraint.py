@@ -63,6 +63,9 @@ Examples
     result = hlib.constraint(source, target, type="point", maintainOffset=True)
 """
 
+from ..decorators.undo import undo_chunk
+
+@undo_chunk("hlib.cmds.constraint.constraint")
 def constraint(sources, target, type="parent", maintainOffset=False):
     """ソースノードからターゲットノードへのコンストレイントを作成する。"""
     from .._core.coerce import to_node

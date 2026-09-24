@@ -62,6 +62,9 @@ Examples
     print(node.full_name)
 """
 
+from ..decorators.undo import undo_chunk
+
+@undo_chunk("hlib.cmds.createNode.createNode")
 def createNode(type, **kwargs):
     """Mayaノードを作成し、対応するhlib wrapperとして返す。"""
     from ..nodes import Node

@@ -16,38 +16,23 @@ hlib入門
 ノードと属性
 ------------
 
-Undoをまとめる場合は ``undo_chunk`` を使います。``with`` とデコレータの両方に対応します。
-旧 ``undoable`` は廃止しました。名前を省略すると関数名は自動設定されないため、
-Undoキューに表示する名前が必要な場合は明示してください。
+通常の編集はコマンド・メソッドの内部でUndoをまとめるため、外側を
+``undo_chunk`` で囲む必要はありません。各呼び出しを個別の操作として扱います。
 
 .. code-block:: python
 
    import hlib
-   from hlib.decorators import undo_chunk
 
-   @undo_chunk("createControl")
-   def create_control():
-       return hlib.createNode("transform", name="control")
-
-   with undo_chunk("createControls"):
-       create_control()
-       create_control()
-
-ブロックや関数で例外が発生してもチャンクを閉じます。完了済みの操作を自動で
-取り消す処理や、API直接書き込みにUndoを追加する処理は行いません。
-
-.. code-block:: python
-
-   import hlib
-   from hlib.decorators.undo import undo_chunk
-
-   with undo_chunk("hlib example"):
-       node = hlib.createNode("transform", name="hlibExample")
-       node.attr("visibility").set(False)
+   node = hlib.createNode("transform", name="hlibExample")
+   node.attr("visibility").set(False)
 
    print(node.name())
    print(node.attr("visibility").get())
    print(hlib.ls(type="transform"))
+
+この例では、属性変更とノード作成は別々のUndoになります。
+複数の呼び出し全体を一回で戻すツールを開発する場合のみ、
+:ref:`tool-undo-chunk` の方法でまとめます。
 
 ``createNode`` は ``maya.cmds.createNode`` にキーワード引数を渡し、
 対応するラッパーを返します。既存ノードは ``hlib.node("ノード名")`` で取得できます。

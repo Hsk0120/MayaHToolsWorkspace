@@ -64,9 +64,12 @@ Examples
     hlib.setKeyframe(node.attr("translateX"), value=10.0)
 """
 
+from ..decorators.undo import undo_chunk
+
 import maya.cmds as cmds
 
 
+@undo_chunk("hlib.cmds.setKeyframe.setKeyframe")
 def setKeyframe(target=None, **kwargs):
     """指定したノードまたはプラグにキーフレームを設定する。
 
