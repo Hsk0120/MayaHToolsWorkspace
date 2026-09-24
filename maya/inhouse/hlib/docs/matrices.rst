@@ -190,5 +190,4 @@ Maya API 2.0 の ``MTransformationMatrix`` とも相互変換できます。
 
 * :class:`~hlib.maths.matrix.Matrix` — 合成・分解・積・逆行列の API
 * :class:`~hlib.nodes.transform.Transform` — ノードからの取得と適用
-* :doc:`common_methods` — multMatrix・decomposeMatrix などのノード操作
 * `cymel入門のMatrix解説 <https://ryusas.github.io/cymel/ja/gettingstarted.html#matrix>`_ — 説明構成の参考。上記の使用例は hlib の実装に合わせています。

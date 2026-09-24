@@ -26,6 +26,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-24 | hlib/docs/common_methods.rst, index.rst, matrices.rst | 共通処理ページ自体を削除、目次・関連リンクも除去。クリーンビルド警告なし、旧HTML・検索項目が残らないことを確認 |
 | Codex | 2026-09-24 | .gitignore・公開ドキュメント・作業ガイド | 調査資料をローカル保持しGit追跡・Sphinx公開から除外。使用方法の説明は保持。再登録防止ルール追加、クリーンビルド警告なし・検索とダウンロード非掲載確認。履歴書換えなし |
 | Codex | 2026-09-24 | hlib/docs/conf.py | docs補助モジュールの検索パスを明示。GitHub Pagesと同じルート起点のSphinx -E -a -Wビルド成功。行列ガイド・継承図は8df225bでorigin/mainへpush済み、この修正も追送 |
 | Codex | 2026-09-24 | hlib/docs, Git | 行列ガイド・各クラス継承図更新をコミット対象に集約。Sphinx警告なし・差分検査済み、origin/mainと同期確認。ユーザー指示により本コミットをpushする |

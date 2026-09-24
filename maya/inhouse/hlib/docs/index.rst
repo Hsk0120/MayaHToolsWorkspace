@@ -18,7 +18,6 @@ Contents
    whyhlib
    getting_started
    matrices
-   common_methods
    selection_and_channelbox
    component_collections
    bulk_collections
