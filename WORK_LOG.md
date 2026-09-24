@@ -26,6 +26,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-24 | .gitignore・公開ドキュメント・作業ガイド | 調査資料をローカル保持しGit追跡・Sphinx公開から除外。使用方法の説明は保持。再登録防止ルール追加、クリーンビルド警告なし・検索とダウンロード非掲載確認。履歴書換えなし |
 | Codex | 2026-09-24 | hlib/docs/conf.py | docs補助モジュールの検索パスを明示。GitHub Pagesと同じルート起点のSphinx -E -a -Wビルド成功。行列ガイド・継承図は8df225bでorigin/mainへpush済み、この修正も追送 |
 | Codex | 2026-09-24 | hlib/docs, Git | 行列ガイド・各クラス継承図更新をコミット対象に集約。Sphinx警告なし・差分検査済み、origin/mainと同期確認。ユーザー指示により本コミットをpushする |
 | Codex | 2026-09-24 | hlib/docs/_mermaid_classes.py, _templates/autoapi/python/class.rst | 既存継承図に見出し・矢印説明と直接派生クラスを追加。全85クラスHTMLとAnimCurve8派生・Joint祖先を検証、Sphinx警告なし。ブラウザのfile URLはポリシー拒否のため描画未検証。未プッシュ |
@@ -40,9 +41,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 | Codex | 2026-09-24 | hlib/nodes/joint.py, nodes/skinCluster.py, __tests__/test_joint_delete.py | 直前の仕様を更新。同じskinClusterの祖先influenceがある場合のみ加算し、それ以外はcmds.deleteの標準処理へ委譲。単一influence・親なし・混在skinで標準削除と比較、Undo/Redo確認。レイヤー検出の不要なPlug生成を除去。Maya2027 standalone32ファイル失敗なし（GUI1件スキップ）、Sphinx警告なし。未コミット |
 | Codex | 2026-09-24 | hlib/nodes/joint.py, nodes/skinCluster.py, __tests__/test_joint_delete.py | Joints.deleteが未スキニング・ルートjointも削除し、子Transformを親/worldへ退避。全skinの移送先を事前検査、実行失敗は対象・段階付きRuntimeErrorで伝播（自動ロールバックなし）。Maya2027 standaloneで32テストファイル失敗なし・GUI1件スキップ、Sphinx警告なし。未コミット |
 | Codex | 2026-09-24 | joint.py / skinCluster.py（読み取りのみ） | Joints.deleteのウェイト移送・influence解除・子joint再親付け・削除条件を確認。移送先なしのskinClusterが予定数から除外される点も説明。実装変更・Maya実行なし |
-| Codex | 2026-09-24 | maya/inhouse/hlib/docs/extension_survey.rst, docs/extension_inventory.json, docs/index.rst | external32リポジトリのPython/MEL3,648ファイルを横断検索、HTools28ファイルと既存hlibを照合。28拡張候補・優先順位・参照元・調査限界を文書化。JSON集計・参照パス検証成功、Sphinx警告なし。実装変更・Maya実行なし。未コミット |
 | Codex | 2026-09-24 | maya/inhouse/hlib/nodes/animCurve*.py, nodes/blendWeighted.py, __tests__/test_animation_nodes.py, docs/animation_nodes*.rst, docs/index.rst | 連携ルール確認時に直前の完了作業を追記。AnimCurve基底・8具象型とBlendWeighted、Undo対応編集を追加。Maya 2027 standaloneで既存分含む299テスト成功・GUI1件スキップ、Sphinx警告なし。未コミット |
 | Codex | 2026-09-24 | maya/inhouse/hlib/editors/channelBox.py, editors/__init__.py, selection.py, cmds/channelBox.py, cmds/captureSelection.py, __tests__/test_channel_box.py, __tests__/test_selection.py, docs/selection_and_channelbox.rst | 連携ルール確認時に完了作業を追記。ChannelBoxとSelectionを追加。選択復元・Undo・属性解決をstandaloneで検証。ChannelBoxの実UI選択・解除は未検証。未コミット |
 | Claude Code | 2026-09-24 | maya/inhouse/hlib/nodes/node.py, skinCluster.py, maths/matrix.py, maths/easing.py(新規), utils/naming.py(新規), plugs/plug.py | 属性並び替え(move_attribute)・非線形ウェイト再分配(redistribute_weights)・行列ミラー(Matrix.mirrored)・名前サニタイズ(legalize_name)を追加。plug.py の attrType() 呼び出し漏れバグを修正 |
 | Claude Code | 2026-09-24 | WORK_LOG.md(新規), CLAUDE.md, AGENTS.md, .github/copilot-instructions.md | Claude Code/Codex/Copilot並行運用のためのハンドオフファイル(WORK_LOG.md)を新設し、3つの指示ファイルに参照ルールを追記 |
-| Claude Code | 2026-09-24 | docs/research/hlib-expansion-patterns-2026-09-24-claude.md(新規、読み取り調査のみ) | 内製ツール(HTools/integrations)と外部32submoduleを横断調査し、hlib拡張候補を頻度・重複度ベースで整理。コード変更なし |

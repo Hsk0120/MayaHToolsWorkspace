@@ -58,4 +58,3 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
 編集メソッドは内部でUndoチャンクにまとめるため、通常は外側にundo_chunkは不要です。
 
 SDKの自動構築・間接接続の探索・保存復元は今後の拡張です。
-これらの設計案は :doc:`animation_nodes_research` を参照してください。

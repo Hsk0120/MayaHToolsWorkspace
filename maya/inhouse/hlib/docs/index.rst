@@ -22,10 +22,7 @@ Contents
    selection_and_channelbox
    component_collections
    bulk_collections
-   concept_classes
-   animation_nodes_research
    animation_nodes
-   extension_survey
    modules
 
 Indices and tables

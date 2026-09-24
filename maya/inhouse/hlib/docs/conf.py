@@ -54,7 +54,11 @@ autoapi_template_dir = "_templates/autoapi"
 autoapi_add_toctree_entry = False
 autoapi_keep_files = False
 
-exclude_patterns = ["_build", "_templates", ".venv", "README.md", "_generated"]
+exclude_patterns = [
+    "_build", "_templates", ".venv", "README.md", "_generated",
+    "research", "*_research.rst", "*_survey.rst", "*_inventory.json",
+    "concept_classes.rst",
+]
 html_theme = "sphinxdoc"
 pygments_style = "one-dark"
 html_static_path = ["_static"]

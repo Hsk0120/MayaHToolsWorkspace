@@ -216,3 +216,12 @@ maya/inhouse/hlib/__tests__/.logs/
 
 # macOS
 .DS_Store
+
+# Local research notes and inventories (not published)
+/docs/research/
+/research/
+/maya/inhouse/hlib/docs/research/
+/maya/inhouse/hlib/docs/*_research.rst
+/maya/inhouse/hlib/docs/*_survey.rst
+/maya/inhouse/hlib/docs/*_inventory.json
+/maya/inhouse/hlib/docs/concept_classes.rst
