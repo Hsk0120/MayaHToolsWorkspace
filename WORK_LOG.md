@@ -26,6 +26,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-24 | hlib/docs/conf.py | docs補助モジュールの検索パスを明示。GitHub Pagesと同じルート起点のSphinx -E -a -Wビルド成功。行列ガイド・継承図は8df225bでorigin/mainへpush済み、この修正も追送 |
 | Codex | 2026-09-24 | hlib/docs, Git | 行列ガイド・各クラス継承図更新をコミット対象に集約。Sphinx警告なし・差分検査済み、origin/mainと同期確認。ユーザー指示により本コミットをpushする |
 | Codex | 2026-09-24 | hlib/docs/_mermaid_classes.py, _templates/autoapi/python/class.rst | 既存継承図に見出し・矢印説明と直接派生クラスを追加。全85クラスHTMLとAnimCurve8派生・Joint祖先を検証、Sphinx警告なし。ブラウザのfile URLはポリシー拒否のため描画未検証。未プッシュ |
 | Codex | 2026-09-24 | hlib/docs/matrices.rst, index.rst, getting_started.rst | 行列取得・Plug・合成分解・積と逆行列・座標変換・適用・API変換のガイド追加。Maya2027 standaloneで掲載8ブロックと数値結果・Undo確認、Sphinx警告なし。GUI未検証・未プッシュ |

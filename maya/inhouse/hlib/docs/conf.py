@@ -2,6 +2,10 @@
 
 from pathlib import Path
 import logging
+import sys
+
+# リポジトリルートからのCIビルドでも、docs内の補助モジュールを解決する。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _mermaid_classes import ancestor_class_diagram, collect_class_hierarchy, overall_class_diagram
 
