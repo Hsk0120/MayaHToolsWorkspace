@@ -5,6 +5,7 @@ development.rst の「ビルド時に hlib・Maya を import せず」方針に�
 """
 
 import ast
+import posixpath
 from pathlib import Path
 
 _IGNORE_DIR_NAMES = {"__tests__", "docs", "__pycache__", ".venv"}
@@ -63,6 +64,23 @@ def collect_class_hierarchy(hlib_root):
     return classes
 
 
+def _class_page(qualname):
+    """完全修飾クラス名から、HTMLルートを基準としたAutoAPIページを返す。"""
+    return "autoapi/" + qualname.replace(".", "/") + ".html"
+
+
+def _class_links(names, hierarchy, source_page):
+    """図に含まれるhlibクラスだけに、現在のページからの相対リンクを付ける。"""
+    links = []
+    for name in sorted(names):
+        if name not in hierarchy:
+            continue
+        qualname = hierarchy[name]["qualname"]
+        target = posixpath.relpath(_class_page(qualname), posixpath.dirname(source_page) or ".")
+        links.append(f'    click {name} href "{target}#{qualname}" "{qualname}"')
+    return links
+
+
 def ancestor_class_diagram(class_name, hierarchy, indent=6):
     """祖先チェーンと直接の派生クラスを含むMermaid図を返す。
 
@@ -109,8 +127,13 @@ def ancestor_class_diagram(class_name, hierarchy, indent=6):
             if edge not in visited_edges:
                 visited_edges.add(edge)
                 body.append(f"    {class_name} <|-- {name}")
+            visited_nodes.add(name)
     if len(body) == 1:
         body.append(f"    class {class_name}")
+
+    body.extend(_class_links(
+        visited_nodes, hierarchy, _class_page(hierarchy[class_name]["qualname"])
+    ))
 
     prefix = " " * indent
     return "\n".join(prefix + line for line in body)
@@ -146,6 +169,8 @@ def overall_class_diagram(hierarchy, indent=6):
             edges.add((base_short, name))
     for base_short, name in sorted(edges):
         body.append(f"    {base_short} <|-- {name}")
+
+    body.extend(_class_links(hierarchy, hierarchy, "development.html"))
 
     prefix = " " * indent
     return "\n".join(prefix + line for line in body)
