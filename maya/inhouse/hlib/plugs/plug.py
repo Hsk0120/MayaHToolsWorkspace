@@ -659,6 +659,38 @@ class Plug:
             cmds.setAttr(self.full_name, value)
         return self
 
+    @undo_chunk("hlibPlugReset")
+    def reset(self):
+        """数値・単位・enum属性を定義上の既定値へ戻す。
+
+        単位属性は現在のMaya表示単位へ変換する。複合属性は子ごとに処理する。
+        接続の切断やロック解除はしない。失敗前の変更は自動では戻さない。
+
+        Returns:
+            Plug: 自身。一回のUndoで全変更を戻せる。
+
+        Raises:
+            TypeError: 配列全体・文字列・messageなど既定値を扱えない属性の場合。
+            RuntimeError: ロック・入力接続などで変更できない場合。
+        """
+        if self.is_array:
+            raise TypeError("Reset an array element instead of the array plug")
+        if self._mplug.isCompound:
+            for index in range(self._mplug.numChildren()):
+                Plug(self._node, self._mplug.child(index)).reset()
+            return self
+        value = self.default
+        if value is None:
+            raise TypeError(f"No supported default value for {self.full_name}")
+        if isinstance(value, om2.MAngle):
+            value = value.asUnits(om2.MAngle.uiUnit())
+        elif isinstance(value, om2.MDistance):
+            value = value.asUnits(om2.MDistance.uiUnit())
+        elif isinstance(value, om2.MTime):
+            value = value.asUnits(om2.MTime.uiUnit())
+        self.set(value)
+        return self
+
     def source(self):
         """入力接続元の Plug を取得する。
 

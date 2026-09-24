@@ -528,6 +528,93 @@ class Node:
             plugs.append(plug)
         return plugs
 
+    def history(self, type=None, future=False):
+        """構築履歴を検索し、対応するノードラッパーを返す。
+
+        Args:
+            type (str | None): 継承型を含むノード型フィルター。Noneは全型。
+            future (bool): Trueは下流、Falseは上流を検索する。
+
+        Returns:
+            list[Node]: Mayaの履歴順。自身と重複を除く。該当なしなら空リスト。
+
+        Raises:
+            RuntimeError: 無効なノード、またはMayaの履歴検索が失敗した場合。
+        """
+        names = cmds.listHistory(self.full_name, future=future) or []
+        result, seen = [], {self.uuid}
+        for name in names:
+            node = Node(name)
+            if node.uuid in seen:
+                continue
+            seen.add(node.uuid)
+            if type is None or node.is_type(type):
+                result.append(node)
+        return result
+
+    @undo_chunk("hlibNodeResetAttrs")
+    def reset_attrs(self, attributes=None):
+        """指定属性、または書き込み可能なキー設定対象属性を既定値へ戻す。
+
+        Args:
+            attributes (str | Iterable[str] | None): 属性名。Noneはキー設定可能な
+                数値・単位・enum属性を対象とし、ロック・入力接続・非対応型は除外する。
+                明示指定した属性のエラーは除外せず送出する。
+
+        Returns:
+            list[Plug]: リセットした属性。全変更を一回のUndoにまとめる。
+
+        Raises:
+            AttributeError: 指定属性が存在しない場合。
+            TypeError: 明示指定した属性がリセット非対応の場合。
+            RuntimeError: 明示指定した属性がロック・接続済みなどで書き込みできない場合。
+        """
+        if attributes is None:
+            plugs = [plug for plug in self.plugs(keyable=True, scalar=True)
+                     if plug.default is not None and not plug.is_destination
+                     and cmds.getAttr(plug.full_name, settable=True)]
+        else:
+            if isinstance(attributes, str):
+                attributes = [attributes]
+            plugs = [self.plug(name) for name in attributes]
+        for plug in plugs:
+            plug.reset()
+        return plugs
+
+    @undo_chunk("hlibNodeSetAttrFlags")
+    def set_attr_flags(self, attributes, locked=None, keyable=None, channel_box=None):
+        """指定した属性のロック・キー設定可否・Channel Box表示をまとめて変更する。
+
+        Args:
+            attributes (str | Iterable[str]): 属性名。選択状態やChannel Box選択は使用しない。
+                複合属性の子まで変更する場合は子属性名を明示する。
+            locked (bool | None): ロック状態。Noneは変更しない。
+            keyable (bool | None): キー設定可否。Noneは変更しない。
+            channel_box (bool | None): Channel Box表示。Noneは変更しない。
+                keyable=Trueの属性はMayaの仕様により表示される。
+
+        Returns:
+            Node: 自身。全変更を一回のUndoにまとめる。
+
+        Raises:
+            AttributeError: 指定属性が存在しない場合。全属性を変更前に解決する。
+            TypeError: 状態にboolまたはNone以外を指定した場合。
+            RuntimeError: Mayaが変更を拒否した場合。途中の変更は自動では戻さない。
+        """
+        flags = {}
+        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channel_box)):
+            if value is not None:
+                if not isinstance(value, bool):
+                    raise TypeError(f"{name} must be bool or None")
+                flags[name] = value
+        if isinstance(attributes, str):
+            attributes = [attributes]
+        plugs = [self.plug(name) for name in attributes]
+        if flags:
+            for plug in plugs:
+                cmds.setAttr(plug.full_name, **flags)
+        return self
+
     def plugs(self, **kwargs):
         """ノードの属性を Plug のリストとして列挙する。
 

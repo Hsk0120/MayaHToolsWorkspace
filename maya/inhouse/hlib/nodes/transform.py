@@ -143,6 +143,23 @@ class Transform(Node):
         cmds.xform(self.full_name, pivots=coordinates, worldSpace=ws, objectSpace=not ws, preserve=False)
         return self
 
+    @undo_chunk("hlibTransformCenterPivot")
+    def center_pivot(self):
+        """Maya標準のバウンディングボックス中心へ両ピボットを移動する。
+
+        xformのcenterPivotsと同じ対象範囲を使用する。preserve=Trueで
+        オブジェクトの変換結果を維持し、回転・スケールピボットを変更する。
+        コンポーネントの選択状態は使用しない。
+
+        Returns:
+            Transform: 自身。一回のUndoで戻せる。
+
+        Raises:
+            RuntimeError: 無効なノードやロックなどでMayaが変更を拒否した場合。
+        """
+        cmds.xform(self.full_name, centerPivots=True, preserve=True)
+        return self
+
     def bounding_box(self, ws=False):
         """直下の Shape 階層を含むバウンディングボックスを取得する。
 
@@ -394,6 +411,37 @@ class Transform(Node):
         else:
             parent_name = parent.name() if isinstance(parent, Node) else parent
             cmds.parent(self.name(), parent_name, relative=relative, add=add)
+        return self
+
+    @undo_chunk("hlibTransformMatch")
+    def match_transform(self, target, position=True, rotation=True, scale=True, pivots=False):
+        """自身の変換を指定Transformへ合わせる。選択状態は使用しない。
+
+        Args:
+            target (Transform | str): 合わせ先のTransformまたはjoint。
+            position (bool): 位置を合わせる。
+            rotation (bool): 回転を合わせる。
+            scale (bool): スケールを合わせる。
+            pivots (bool): 回転・スケールピボットも合わせる。
+
+        Returns:
+            Transform: 自身。全フラグFalseなら何も変更しない。
+
+        Raises:
+            TypeError: targetがTransformではない場合。
+            RuntimeError: ノードが無効、またはMayaが変更を拒否した場合。
+
+        maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
+        shearの一致や行列全体のコピーは保証しない。
+        """
+        from .._core.coerce import to_node
+
+        target = to_node(target)
+        if not isinstance(target, Transform):
+            raise TypeError("Target must be a transform or joint")
+        if any((position, rotation, scale, pivots)):
+            cmds.matchTransform(self.full_name, target.full_name, position=position,
+                                rotation=rotation, scale=scale, pivots=pivots)
         return self
 
     def get_matrix(self, ws=False):

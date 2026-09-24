@@ -17,6 +17,7 @@ Contents
    installation
    whyhlib
    getting_started
+   common_methods
    modules
 
 Indices and tables

@@ -120,7 +120,7 @@ maya.cmds と OpenMaya API 2.0 の使い分け
 ------------------------------------------
 
 hlib 内部の実装では、``maya.cmds``(``cmds``)は **シーンに変化を与え、かつ
-Undo 対応が必要な操作にのみ** 使用します(ノード・アトリビュート・接続の
+Undo 対応が必要な操作** に使用します(ノード・アトリビュート・接続の
 作成/削除/設定、親子付け、選択変更、名前空間の作成/移動/削除など)。
 これらは既存の ``@undo_chunk`` デコレータ(``hlib/decorators/undo.py``)や
 ``cmds.undoInfo`` の Undo チャンクに乗せる前提で cmds を使い続けます。
@@ -135,10 +135,8 @@ Undo 対応が必要な操作にのみ** 使用します(ノード・アトリ�
   (``plugs/plug.py`` の ``Plug.get()`` を参照。角度は度、距離・時間は
   現在の UI 単位へ変換し、``cmds.getAttr`` と同じ値になるようにする)
 - ``MFnDependencyNode.getConnections()``/``MPlug.connectedTo()`` による接続の列挙
-- ``MGlobal.getActiveSelectionList()``/``setActiveSelectionList()`` による
-  選択状態の取得・復元(``decorators/selection.py`` の
-  ``preserved_selection`` を参照。コンポーネント選択も文字列化せずに
-  ``MSelectionList`` のまま保存・復元する)
+- ``MGlobal.getActiveSelectionList()`` による選択状態の取得。
+  復元はUndo対応の ``cmds.select`` で行う（``preserved_selection`` を参照）。
 - ``MNamespace`` による名前空間の存在確認・列挙(``namespaces/namespace.py``)
 - ``MFnGeometryFilter.getOutputGeometry()`` による blendShape/cluster 等の
   デフォーマの出力ジオメトリ取得
@@ -149,6 +147,12 @@ Undo 対応が必要な操作にのみ** 使用します(ノード・アトリ�
 **Maya API 2.0 に対応する API が存在しない MEL 専用コマンド** は、
 読み取り専用であっても cmds のまま残します。無理に om2 で再実装せず、
 対応する API が無いことを実装コメントか docstring に明記してください。
+
+Mayaコマンド独自の判定をそのまま提供する処理も例外です。
+``Node.history()`` は ``listHistory`` の構築履歴順、
+``SkinCluster.unused_influences()`` は ``weightedInfluence`` の使用判定、
+``Node.reset_attrs()`` は ``getAttr(settable=True)`` の書き込み可否を使用します。
+APIのグラフ走査や個別フラグから似た判定を再構築して意味を変えないためです。
 
 変換の際は必ず ``cmds`` ベースの旧実装と ``om2`` ベースの新実装を
 同一ノードで比較するスクリプトを Maya 上で実行し、値の一致(特に単位変換と、

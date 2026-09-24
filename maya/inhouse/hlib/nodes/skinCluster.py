@@ -135,6 +135,39 @@ class SkinCluster(Node):
         """
         return [path.partialPathName() for path in self.fn.influenceObjects()]
 
+    def unused_influences(self):
+        """ウェイトを持たないinfluenceを検索する。シーンは変更しない。
+
+        Returns:
+            list[Node]: influence順のノードラッパー。微小値も使用中として扱い、
+                閾値による切り捨てはしない。全geometryをMayaのweightedInfluenceで判定する。
+
+        Raises:
+            RuntimeError: skinClusterが無効、または照会に失敗した場合。
+        """
+        weighted = cmds.skinCluster(self.full_name, query=True, weightedInfluence=True) or []
+        used = {Node(name).uuid for name in weighted}
+        return [Node(path.node()) for path in self.fn.influenceObjects()
+                if Node(path.node()).uuid not in used]
+
+    @undo_chunk("hlibSkinClusterRemoveUnusedInfluences")
+    def remove_unused_influences(self):
+        """未使用influenceの登録を外す。jointノード自体は削除しない。
+
+        Returns:
+            list[Node]: 登録を外したノード。変更は一回のUndoで戻せる。
+
+        Raises:
+            ValueError: 全influenceが未使用で、削除すると登録が空になる場合。
+            RuntimeError: Mayaが削除を拒否した場合。完了済み処理は自動では戻さない。
+        """
+        unused = self.unused_influences()
+        if unused and len(unused) == len(self.influences()):
+            raise ValueError("Cannot remove every influence from a skinCluster")
+        for node in unused:
+            self.remove_influence(node.full_name)
+        return unused
+
     def has_influence(self, joint):
         """指定したjointがinfluenceに含まれるか判定する。
 
