@@ -110,9 +110,14 @@ def check_browser(base, output):
                             landed.close()
                         assert not errors, errors
                         print(f"PASS {label}: {source} -> {destination}", flush=True)
-                except Exception:
+                except Exception as error:
                     page.screenshot(path=str(output / f"{label}-failure.png"), full_page=True)
-                    raise
+                    geometry = page.locator(".mermaid").evaluate_all("""elements => elements.map(el => ({
+                        box: el.getBoundingClientRect().toJSON(), scrollLeft: el.scrollLeft,
+                        scrollTop: el.scrollTop, width: el.clientWidth, height: el.clientHeight,
+                        svg: el.querySelector('svg')?.getBoundingClientRect().toJSON()
+                    }))""")
+                    raise RuntimeError(f"{label} {source}: {error}\nDiagram geometry: {geometry}") from error
                 finally:
                     context.tracing.stop(path=str(output / f"{label}-trace.zip"))
                     context.close()
