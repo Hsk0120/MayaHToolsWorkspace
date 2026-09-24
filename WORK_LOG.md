@@ -21,6 +21,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-24 | .github/workflows/hlib-docs.yml, tools/docs検証 | Chromiumクリック検証と公開コミット確認をCIへ追加 |
 
 ## 完了履歴
 
