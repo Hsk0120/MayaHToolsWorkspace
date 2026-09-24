@@ -21,12 +21,13 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-09-24 | .github/workflows/hlib-docs.yml, tools/docs検証 | Chromiumクリック検証と公開コミット確認をCIへ追加 |
+| Claude Code | 2026-09-24 | maya/inhouse/hlib/ 配下の全docstring(コードのみ、docs/*.rstは対象外) | 実装とdocstringの不一致を監査・修正中 |
 
 ## 完了履歴
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-24 | .github/workflows/hlib-docs.yml, tools/check_hlib_docs.py, tools/docs-browser-requirements.txt, hlib/docs/_static/custom.css | 公開前後のChromiumテスト(PC/モバイル各4ケース)、コミット・HTML/JS/CSSハッシュ確認、失敗注記・画面・trace保存を追加。実検証で見つかったモバイル固定幅によるクリックずれを修正。187c1a4のActions run 36007110999でbuild/deploy/verify-publication全成功。認証情報の取得は承認審査拒否で未実行、公開APIの注記で診断完了 |
 | Codex | 2026-09-24 | hlib/docs/_mermaid_classes.py・class.rst | 各クラス継承図と全体図へ相対リンク追加。85クラス・332リンクのHTMLとアンカー検証、Sphinx警告なし。外部クラスにはリンクを生成しない。実ブラウザでのクリック未検証 |
 | Codex | 2026-09-24 | hlib/docs/getting_started.rst, guide_*.rst, usage.rst, index.rst | 入門を92行に縮小、詳細を11ページへ分割。36節・Python39例を保持して機能別ガイドへ整理。Sphinx警告なし・差分検査済み。コード変更なし、Maya再実行なし |
 | Codex | 2026-09-24 | hlib/docs/installation.rst | 指定された閲覧・自動公開・手動再公開の3節を削除。Sphinx警告なし、生成HTMLから削除を確認。公開ワークフロー自体は変更なし |
