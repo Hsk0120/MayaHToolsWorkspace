@@ -4,6 +4,12 @@
 - 標準環境へ影響を与えない構成にすることで、環境起因の問題切り分けを行いやすくしています。
 - https://github.com/Hsk0120/MayaHToolsWorkspace
 
+## ▼hlib ドキュメント
+
+[hlib Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/)
+
+hlibの導入方法・使用例・APIリファレンスを閲覧できます。スマートフォンからもアクセスできます。
+
 ## ▼カスタム内容
 
 - `maya_core.bat`で各種ツールパスを設定し、起動バッチで環境を切り替えています。
