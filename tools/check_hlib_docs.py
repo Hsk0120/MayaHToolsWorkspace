@@ -90,15 +90,19 @@ def check_browser(base, output):
                                 chosen = candidate
                                 break
                         assert chosen is not None, f"Missing SVG link: {source} -> {destination}"
-                        chosen.scroll_into_view_if_needed()
+                        # 空のメンバー欄を含むSVG枠の中心ではなく、ユーザーが読むクラス名を押す。
+                        # 大きな全体図でも文字の位置を基準にスクロール・クリックする。
+                        label_element = chosen.locator(".classTitle")
+                        expect(label_element).to_be_visible()
+                        label_element.scroll_into_view_if_needed()
                         page.screenshot(path=str(output / f"{label}-{index}.png"))
                         if chosen.get_attribute("target") == "_blank":
                             with page.expect_popup() as popup:
-                                chosen.click()
+                                label_element.click()
                             landed = popup.value
                             landed.wait_for_load_state()
                         else:
-                            chosen.click()
+                            label_element.click()
                             landed = page
                         expect(landed).to_have_url(re.compile(re.escape("#" + destination) + "$"))
                         expect(landed.locator('[id="' + destination + '"]')).to_be_visible()
