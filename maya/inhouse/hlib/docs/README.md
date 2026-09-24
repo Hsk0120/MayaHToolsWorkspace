@@ -1,6 +1,23 @@
 # hlib ドキュメントのビルド
 
 デザインには Sphinxdoc テーマと `_static/custom.css` を使用しています。
+コードブロックは `_static/code-dark-plus.css` でVS Code Dark+に近い配色にしています。
+Pygmentsによる静的な分類のため、VS Codeのセマンティックハイライトとは一部異なります。
+
+## 公開版と自動更新
+
+公開URL: [hlib ドキュメント](https://hsk0120.github.io/MayaHToolsWorkspace/)
+
+`.github/workflows/hlib-docs.yml` が、`main` へのpush時にSphinxをビルドし、
+GitHub Pagesへ公開します。対象は `maya/inhouse/hlib/**` またはワークフロー自体の変更です。
+Mayaや外部submoduleは不要で、Python 3.11と本フォルダーの `requirements.txt` を使用します。
+生成HTMLのコミットは不要です。ローカルの再ビルドだけでは公開版は更新されません。
+
+[Actionsの実行履歴](https://github.com/Hsk0120/MayaHToolsWorkspace/actions/workflows/hlib-docs.yml)
+で `build`・`deploy` の成功を確認できます。手動実行は `Run workflow` → `main` です。
+詳しい仕組みとトラブル時の確認方法は `installation.rst` に記載しています。
+
+## ローカルビルド
 
 Python 3.11 以上を使用します。Maya や mayapy は不要です。
 リポジトリルートから PowerShell で実行してください。

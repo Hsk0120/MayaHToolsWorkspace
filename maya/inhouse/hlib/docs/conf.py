@@ -52,7 +52,7 @@ exclude_patterns = ["_build", "_templates", ".venv", "README.md"]
 html_theme = "sphinxdoc"
 pygments_style = "one-dark"
 html_static_path = ["_static"]
-html_css_files = ["custom.css"]
+html_css_files = ["custom.css", "code-dark-plus.css"]
 html_title = "hlib ドキュメント"
 
 
