@@ -64,7 +64,7 @@ def collect_class_hierarchy(hlib_root):
 
 
 def ancestor_class_diagram(class_name, hierarchy, indent=6):
-    """class_name の祖先チェーンをたどり、字下げ済みのMermaid classDiagramソースを返す。
+    """祖先チェーンと直接の派生クラスを含むMermaid図を返す。
 
     hierarchy に無い基底クラス(組み込み型・外部クラス)は終端ノードとして扱う
     (それ以上は展開しない)。
@@ -101,6 +101,14 @@ def ancestor_class_diagram(class_name, hierarchy, indent=6):
             walk(base_short)
 
     walk(class_name)
+    # 基底クラスのページでも、次に参照する具象クラスを把握できるようにする。
+    # 孫以降は各派生クラスのページで表示し、全体図の巨大化を避ける。
+    for name, info in sorted(hierarchy.items()):
+        if any(base.rsplit(".", 1)[-1] == class_name for base in info["bases"]):
+            edge = (class_name, name)
+            if edge not in visited_edges:
+                visited_edges.add(edge)
+                body.append(f"    {class_name} <|-- {name}")
     if len(body) == 1:
         body.append(f"    class {class_name}")
 

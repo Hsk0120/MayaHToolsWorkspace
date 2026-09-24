@@ -26,6 +26,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-24 | hlib/docs, Git | 行列ガイド・各クラス継承図更新をコミット対象に集約。Sphinx警告なし・差分検査済み、origin/mainと同期確認。ユーザー指示により本コミットをpushする |
+| Codex | 2026-09-24 | hlib/docs/_mermaid_classes.py, _templates/autoapi/python/class.rst | 既存継承図に見出し・矢印説明と直接派生クラスを追加。全85クラスHTMLとAnimCurve8派生・Joint祖先を検証、Sphinx警告なし。ブラウザのfile URLはポリシー拒否のため描画未検証。未プッシュ |
+| Codex | 2026-09-24 | hlib/docs/matrices.rst, index.rst, getting_started.rst | 行列取得・Plug・合成分解・積と逆行列・座標変換・適用・API変換のガイド追加。Maya2027 standaloneで掲載8ブロックと数値結果・Undo確認、Sphinx警告なし。GUI未検証・未プッシュ |
 | Codex | 2026-09-24 | hlib/docs, nodes/node.py, cmds/setKeyframe.py | 使用例をplug()に統一、attr()説明はplugへの互換参照に集約。Nodeのdocstring除外AST一致、Sphinx警告なしで再ビルド。処理変更なし・Maya未実行。未コミット |
 | Claude Code | 2026-09-24 | maya/inhouse/hlib/docs/conf.py, _mermaid_classes.py(新規), _templates/autoapi/python/class.rst, development.rst, _static/mermaid.min.js・mermaid.css・mermaid-init.js(新規), .claude/launch.json(新規), .gitignore | 各クラスページに継承チェーンのMermaid図を追加(astのみで静的解析、hlib/Mayaはimportしない)。development.rstに全85クラスの全体クラス図を追加(サブパッケージ単位でnamespace分け)。ベースクラスへのリンクは既存のlink_objsをそのまま使用(図自体はクリック不可、視覚的な補助)。mermaid.jsは_staticにバンドルしCDN依存なし。classDiagramのclassDef複数プロパティがパースエラーになる不具合を回避、SVGサイズがコンテナ幅に潰れる問題をJSで実サイズ指定して解決。Sphinx `-W --keep-going`で警告ゼロを確認、ローカルhttpサーバー+ブラウザでMermaid実描画(テキストラベル・寸法)を確認 |
 | Claude Code | 2026-09-24 | maya/inhouse/hlib/docs/_templates/autoapi/python/class.rst | 「ベースクラス:」行が常にプレーンテキスト`:py:obj:\`...\`` のまま表示され、実際にはリンクになっていなかった既存バグを修正(自分の直前作業でraw::htmlブロックに適用したのと同じ原因: `.. py:class::` 直後の空白テンプレート行がJinjaのtrim_blocksで消費され、後続の「ベースクラス:」行がシグネチャの続きとして誤認識され、role記法が一切解決されていなかった)。obj.bases if-block内に明示的な空白行を追加して修正。Joint等で実際にクリック可能なリンク(`<a href="../transform/Transform.html#...">`)になることをブラウザで確認、bases無し/外部クラス(logging.Handler)のケースも回帰なし、Sphinx `-W --keep-going`で警告ゼロ |

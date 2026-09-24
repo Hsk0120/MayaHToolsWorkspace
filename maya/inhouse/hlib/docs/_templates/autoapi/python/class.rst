@@ -19,6 +19,10 @@
 {% set diagram = ancestor_class_diagram(obj.short_name) %}
 {% if diagram %}
 
+   .. rubric:: クラス継承図
+
+   このクラスの祖先と直接の派生クラスを表示します。矢印の先が基底クラスです。
+
    .. raw:: html
 
       <pre class="mermaid">

@@ -985,3 +985,5 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 参照: `modelEditor <https://help.autodesk.com/cloudhelp/2026/ENU/Maya-Tech-Docs/CommandsPython/modelEditor.html>`_、
 `outlinerEditor <https://help.autodesk.com/cloudhelp/2026/ENU/Maya-Tech-Docs/CommandsPython/outlinerEditor.html>`_、
 `timeControl <https://help.autodesk.com/cloudhelp/2024/ENU/Maya-Tech-Docs/CommandsPython/timeControl.html>`_。
+
+行列の取得と計算の詳しい例は :doc:`matrices` を参照してください。
