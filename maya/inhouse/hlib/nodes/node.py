@@ -167,6 +167,82 @@ class Node:
 
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
 
+    @staticmethod
+    def _display_rgb(value):
+        """0～1の有限なRGB三要素を返す。不正値はValueError。"""
+        import math
+
+        values = tuple(float(v) for v in value)
+        if len(values) != 3 or not all(math.isfinite(v) and 0 <= v <= 1 for v in values):
+            raise ValueError("Expected three finite RGB values between 0 and 1")
+        return values
+
+    def outliner_color(self):
+        """tuple[float, float, float] | None: Outliner色。無効ならNone。"""
+        if not cmds.getAttr(self.full_name + ".useOutlinerColor"):
+            return None
+        return tuple(cmds.getAttr(self.full_name + ".outlinerColor")[0])
+
+    @undo_chunk("hlibNodeOutlinerColor")
+    def set_outliner_color(self, color):
+        """このノードのOutliner色を設定する。
+
+        Args:
+            color (Iterable[float] | None): 0～1のRGB。Noneでカスタム色を無効化。
+        Returns:
+            Node: 自身。
+        Raises:
+            ValueError: RGBの値・要素数が不正な場合。
+            RuntimeError: 属性がない、ロックされているなど変更できない場合。
+        """
+        values = None if color is None else self._display_rgb(color)
+        if values is not None:
+            cmds.setAttr(self.full_name + ".outlinerColor", *values, type="float3")
+        cmds.setAttr(self.full_name + ".useOutlinerColor", values is not None)
+        return self
+
+    def override_color(self):
+        """int | tuple[float, float, float] | None: このノードの表示色設定。
+
+        無効ならNone。親や表示レイヤー、選択ハイライトを合成した最終表示色ではない。
+        属性を持たないノードはRuntimeError。
+        """
+        if not cmds.getAttr(self.full_name + ".overrideEnabled"):
+            return None
+        if cmds.getAttr(self.full_name + ".overrideRGBColors"):
+            return tuple(cmds.getAttr(self.full_name + ".overrideColorRGB")[0])
+        return cmds.getAttr(self.full_name + ".overrideColor")
+
+    @undo_chunk("hlibNodeOverrideColor")
+    def set_override_color(self, color):
+        """このノードのDrawing Overrides色を設定する。子Shapeへは転送しない。
+
+        Args:
+            color (int | Iterable[float] | None): 0～31のインデックス、0～1のRGB、
+                またはNone。NoneはoverrideEnabledを無効化するため表示タイプ等にも影響する。
+        Returns:
+            Node: 自身。
+        Raises:
+            ValueError: インデックスやRGBが不正な場合。
+            RuntimeError: 属性がない、ロックされているなど変更できない場合。
+        """
+        if color is None:
+            cmds.setAttr(self.full_name + ".overrideEnabled", False)
+            return self
+        if isinstance(color, bool):
+            raise ValueError("Color index must be an integer from 0 to 31")
+        if isinstance(color, int):
+            if not 0 <= color <= 31:
+                raise ValueError("Color index must be between 0 and 31")
+            cmds.setAttr(self.full_name + ".overrideColor", color)
+            cmds.setAttr(self.full_name + ".overrideRGBColors", False)
+        else:
+            values = self._display_rgb(color)
+            cmds.setAttr(self.full_name + ".overrideColorRGB", *values, type="float3")
+            cmds.setAttr(self.full_name + ".overrideRGBColors", True)
+        cmds.setAttr(self.full_name + ".overrideEnabled", True)
+        return self
+
     @classmethod
     @undo_chunk("hlib.nodes.node.create")
     def create(cls, type, **kwargs):
@@ -497,7 +573,7 @@ class Node:
         Returns:
             Namespace: ノードが属するNamespace。
         """
-        # scene.namespace が ..nodes を逆方向 import するため、
+        # namespaces.namespace が ..nodes を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
         from ..namespaces import Namespace
 
@@ -536,7 +612,7 @@ class Node:
             ValueError: namespaceが空文字列または文字列でない場合。
             RuntimeError: namespace移動に失敗した場合。
         """
-        # scene.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
+        # namespaces.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
         from ..namespaces import Namespace
 
         if isinstance(namespace, Namespace):
@@ -829,10 +905,12 @@ class Node:
     def move_attribute(self, name, offset):
         """ユーザー定義属性を Channel Box 上で前後に移動する。
 
-        Maya には属性の並び替え API が無いため、移動元と移動先の間にある
-        属性をまとめて削除し、新しい順序で再作成することで実現する
-        (数値・enum・文字列型の非複合・非配列トップレベル動的属性のみ対応。
-        対応しない属性が移動範囲に含まれる場合は何も変更せず例外を送出する)。
+        Maya には属性の並び替え API が無いため、移動元と移動先のうち手前側の
+        位置から末尾までの属性をまとめて削除し、新しい順序で再作成すること
+        で実現する(移動先より後ろにある、移動と無関係な属性も再作成対象に
+        含まれる。数値・enum・文字列型の非複合・非配列トップレベル動的属性
+        のみ対応。対応しない属性が再作成対象に含まれる場合は何も変更せず
+        例外を送出する)。
 
         Args:
             name (str): 移動するユーザー定義属性のロング名。

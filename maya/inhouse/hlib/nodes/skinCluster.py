@@ -137,6 +137,91 @@ class SkinCluster(Node):
         """
         return [path.partialPathName() for path in self.fn.influenceObjects()]
 
+    @undo_chunk("hlibSkinClusterAddInfluences")
+    def add_influences(self, joints):
+        """ジョイントをウェイト0で登録する。既存influence・重複指定は無視する。
+
+        Args:
+            joints (Joint | str | Iterable[Joint | str]): 追加するジョイント。空は何もしない。
+        Returns:
+            SkinCluster: 自身。
+        Raises:
+            ValueError: Joint以外を指定した場合。全対象を編集前に検査する。
+            RuntimeError: 対象が無効、またはMayaが追加を拒否した場合。
+
+        既存ウェイトの再配分や正規化は行わず、既存のロック設定も変更しない。
+        """
+        from .._core.coerce import to_names
+
+        existing = {Node(path.node()).uuid for path in self.fn.influenceObjects()}
+        names = []
+        for name in to_names(joints):
+            node = Node(name)
+            if not node.is_type("joint"):
+                raise ValueError(f"Expected a joint: {name}")
+            if node.uuid not in existing:
+                existing.add(node.uuid)
+                names.append(node.full_name)
+        if names:
+            cmds.skinCluster(self.full_name, edit=True, addInfluence=names, weight=0.0)
+        return self
+
+    def bind_pose(self):
+        """bindPose属性に接続された保存ポーズを取得する。
+
+        Returns:
+            DagPose | None: 接続されたポーズ。未接続ならNone。
+
+        Raises:
+            RuntimeError: skinClusterが無効、または接続先がdagPoseでない場合。
+        """
+        from .dagPose import DagPose
+
+        return DagPose.from_skin_cluster(self)
+
+    @undo_chunk("hlibSkinClusterRestoreBindPose")
+    def restore_bind_pose(self, ws=True):
+        """接続されたポーズの全メンバーを保存姿勢へ復元する。
+
+        ポーズを共有する別のskinClusterや、influence以外のメンバーにも影響する。
+        ロックや入力接続は解除しない。
+
+        Args:
+            ws (bool): Trueならワールド姿勢、Falseならローカル姿勢を復元する。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
+        """
+        pose = self.bind_pose()
+        if pose is None:
+            raise RuntimeError(f"No bind pose connected to {self.full_name}")
+        pose.restore(ws=ws)
+        return self
+
+    @undo_chunk("hlibSkinClusterResetBindPose")
+    def reset_bind_pose(self):
+        """このskinClusterのinfluenceの保存姿勢を現在の姿勢へ更新する。
+
+        接続されたポーズ内のinfluenceだけを更新する。共有ポーズを参照する他の
+        skinClusterからも更新が見える。bindPreMatrixやウェイトは変更しない。
+        ポーズに存在しないinfluenceは自動追加せず、更新前に例外を出す。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            ValueError: influenceが空、またはポーズに含まれていない場合。
+            RuntimeError: ポーズが未接続、ノードが無効、またはMayaが更新を拒否した場合。
+        """
+        pose = self.bind_pose()
+        if pose is None:
+            raise RuntimeError(f"No bind pose connected to {self.full_name}")
+        pose.reset(self.influences())
+        return self
+
     def unused_influences(self):
         """ウェイトを持たないinfluenceを検索する。シーンは変更しない。
 
@@ -363,6 +448,9 @@ class SkinCluster(Node):
 
         Returns:
             None: 値を返さない。
+
+        Raises:
+            RuntimeError: スキニングレイヤーを検出、または Maya の操作に失敗した場合。
         """
         self.transfer_weights_batch([(source_joint, target_joint)])
 

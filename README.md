@@ -100,6 +100,8 @@ git submodule update --init --recursive
 
 ## hlib ドキュメント
 
+Maya 2022～2027の個別・一括テストは [hlibのバージョン別テスト](docs/hlib-testing.md) を参照してください。
+
 Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/hlib/docs` に用意しています。
 Maya を起動せず、ソースから HTML を生成できます。
 手順は[hlib ドキュメントのビルド](maya/inhouse/hlib/docs/README.md)を参照してください。

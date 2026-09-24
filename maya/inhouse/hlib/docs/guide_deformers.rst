@@ -6,6 +6,20 @@ cluster・blendShape・skinClusterと、スキン変形を保持した編集を�
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
 最初に ``import hlib`` を実行してください。
 
+ウェイトを変えずにinfluenceを追加する
+------------------------------------------
+
+.. code-block:: python
+
+   skin = hlib.node("skinCluster1")
+   skin.add_influences("extra_joint")
+   skin.add_influences(["extra_joint2", hlib.node("extra_joint3")])
+
+Jointをウェイト0で登録します。既存ウェイトの正規化・再配分は行いません。
+既存influenceと重複指定は無視し、空リストは何もしません。
+Joint以外の対象は追加前に例外にします。操作は1回のUndo/Redoに対応し、
+``SkinClusters`` からも同名メソッドを一括実行できます。
+
 cluster と locator
 --------------------
 

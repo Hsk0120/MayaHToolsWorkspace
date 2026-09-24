@@ -71,7 +71,18 @@ class TimeSlider:
         start, end = self._time(start), self._time(end)
         if start > end:
             raise ValueError("Range start must not exceed end")
-        cmds.playbackOptions(**{start_flag: start, end_flag: end})
+        if cmds.about(apiVersion=True) < 20230000:
+            # Maya 2022のplaybackOptionsはUndo履歴を作らない。
+            from .._core._playback_range_command import set_range
+            set_range(start_flag, end_flag, start, end)
+        else:
+            if start_flag == "minTime":
+                # 自動拡張されたanimation範囲は標準Undoで戻らないため明示的に記録する。
+                animation_start, animation_end = self.animation_range()
+                expanded = (min(animation_start, start), max(animation_end, end))
+                if expanded != (animation_start, animation_end):
+                    cmds.playbackOptions(animationStartTime=expanded[0], animationEndTime=expanded[1])
+            cmds.playbackOptions(**{start_flag: start, end_flag: end})
 
     @undo_chunk("hlibTimeSliderPlaybackRange")
     def set_playback_range(self, start, end):

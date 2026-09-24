@@ -246,6 +246,9 @@ class Matrix:
 
         Returns:
             Quaternion: 分解した回転値。
+
+        Raises:
+            ValueError: 行列を分解できない場合（いずれかのスケール軸がゼロなど）。
         """
         return self.decompose()["quaternion"]
 
@@ -255,6 +258,9 @@ class Matrix:
 
         Returns:
             EulerRotation: 分解した回転値（radian）。
+
+        Raises:
+            ValueError: 行列を分解できない場合（いずれかのスケール軸がゼロなど）。
         """
         return self.quaternion.to_euler()
 

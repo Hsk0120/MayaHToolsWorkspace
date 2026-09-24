@@ -82,8 +82,7 @@ def setKeyframe(target=None, **kwargs):
         int: 設定したキー数。
 
     Raises:
-        TypeError: target が Node/Plug/str 以外の場合。
-        ValueError: target が空文字列の場合。
+        TypeError: target が Node/Plug/str 以外の場合、または空文字列の場合。
         RuntimeError: Maya がキー設定を拒否した場合。
     """
     from ..nodes import Node

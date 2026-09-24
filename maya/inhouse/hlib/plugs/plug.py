@@ -6,6 +6,16 @@ import maya.api.OpenMaya as om2
 from ..decorators.undo import undo_chunk
 
 
+#: cmds.setAttr へ値をそのまま(型名付きで、長さ指定なし)渡せば済むスカラー配列型。
+_SCALAR_ARRAY_TYPES = frozenset(("doubleArray", "floatArray", "Int32Array", "Int64Array"))
+
+#: cmds.setAttr へ ``長さ, *値, type=...`` の形で渡す必要がある配列型。
+_LENGTH_PREFIXED_ARRAY_TYPES = frozenset((
+    "stringArray", "vectorArray", "floatVectorArray", "pointArray", "matrixArray",
+    "componentList",
+))
+
+
 class Plug:
     """Maya API 2.0 の MPlug を保持する属性ラッパー。
 
@@ -645,6 +655,15 @@ class Plug:
     def set(self, value):
         """プラグ値を変更する。
 
+        doubleArray/floatArray/Int32Array/Int64Array のようなスカラー配列型と、
+        stringArray/vectorArray/floatVectorArray/pointArray/matrixArray/
+        componentList のような長さ指定が必要な配列型は、``cmds.setAttr`` が
+        要求する引数の形(単純な ``*value`` 展開ではなく、型名や要素数の
+        明示)が数値コンパウンド(double3 等)や matrix と異なるため、
+        ``cmds.getAttr(..., type=True)`` で実際の属性型を判定してから
+        対応する形で呼び出す。それ以外の型(数値コンパウンド、matrix 等)は
+        従来通り ``*value`` で展開する。
+
         Args:
             value (object): 設定する Maya 互換値。
 
@@ -653,10 +672,17 @@ class Plug:
         """
         if isinstance(value, str):
             cmds.setAttr(self.full_name, value, type="string")
-        elif isinstance(value, (tuple, list)):
-            cmds.setAttr(self.full_name, *value)
-        else:
-            cmds.setAttr(self.full_name, value)
+            return self
+        if isinstance(value, (tuple, list)):
+            attr_type = cmds.getAttr(self.full_name, type=True)
+            if attr_type in _SCALAR_ARRAY_TYPES:
+                cmds.setAttr(self.full_name, value, type=attr_type)
+            elif attr_type in _LENGTH_PREFIXED_ARRAY_TYPES:
+                cmds.setAttr(self.full_name, len(value), *value, type=attr_type)
+            else:
+                cmds.setAttr(self.full_name, *value)
+            return self
+        cmds.setAttr(self.full_name, value)
         return self
 
     @undo_chunk("hlibPlugReset")
@@ -749,9 +775,16 @@ class Plug:
     def connect(self, target, force=False):
         """このプラグを別のプラグへ接続する。
 
+        target がロックされている場合、``cmds.connectAttr(force=True)`` は
+        既存の入力接続を置き換えられても、ロック自体は解除しないため失敗する。
+        force=True 指定時は、target がロックされていれば接続の前後で
+        一時的にアンロック・再ロックする(ロックされていなければ何もしない)。
+        一連の操作は一回の Undo にまとまる。
+
         Args:
             target (Plug): 接続先プラグ。
-            force (bool): 既存入力接続を強制的に置き換えるか。
+            force (bool): 既存入力接続を強制的に置き換えるか。ロックされた
+                target への接続もこの場合のみ一時アンロックして許可する。
 
         Returns:
             Plug: 接続先プラグ。
@@ -760,7 +793,14 @@ class Plug:
             TypeError: target が Plug でない場合。
         """
         target = self._coerce_plug(target)
-        cmds.connectAttr(self.full_name, target.full_name, force=force)
+        should_unlock = force and target.is_locked
+        if should_unlock:
+            target.set_locked(False)
+        try:
+            cmds.connectAttr(self.full_name, target.full_name, force=force)
+        finally:
+            if should_unlock:
+                target.set_locked(True)
         return target
 
     @undo_chunk("hlibPlugDisconnect")

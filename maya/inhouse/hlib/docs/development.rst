@@ -40,6 +40,20 @@
 APIは参照やメモリ上の計算に利用します。例外時はチャンクを閉じますが、
 完了済み操作を自動ロールバックはしません。
 
+例外時に完了済みの操作も自動でロールバックしたい場合は、``undo_chunk`` の代わりに
+``undo_transaction`` を使用します。ブロック内で例外が発生すると、チャンクを閉じたうえで
+``cmds.undo()`` を1回実行してブロック内の変更を全て巻き戻してから、元の例外をそのまま
+再送出します。正常終了時は ``undo_chunk`` と同様、通常の1回のUndoにまとまります。
+
+.. code-block:: python
+
+   from hlib.decorators import undo_transaction
+
+   with undo_transaction("importRig"):
+       rig_root = hlib.createNode("transform", name="rig")
+       # ここで例外が発生すると rig の作成も含めて全て巻き戻る
+       validate_rig(rig_root)
+
 パッケージ構成
 --------------
 

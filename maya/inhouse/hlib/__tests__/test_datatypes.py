@@ -128,6 +128,73 @@ def test_xyz_euler_quaternion_round_trip_preserves_angles():
     assert all(math.isclose(actual, expected, abs_tol=1e-12) for actual, expected in zip(round_trip, rotation))
 
 
+def _quaternions_represent_the_same_rotation(a, b, tolerance=1e-9):
+    # 四元数の二重被覆(q と -q は同じ回転)を考慮した近似比較。
+    return math.isclose(abs(a.dot(b)), 1.0, abs_tol=tolerance)
+
+
+def test_euler_quaternion_round_trip_all_rotation_orders():
+    orders = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
+    angle_sets = (
+        (0.2, -0.4, 0.6),
+        (1.1, 0.3, -2.5),
+        (-3.0, 2.8, 0.05),
+        (0.0, 0.0, 0.0),
+    )
+    for order in orders:
+        for angles in angle_sets:
+            rotation = EulerRotation(*angles, order)
+            quaternion = rotation.to_quaternion()
+            round_trip = quaternion.to_euler(order)
+            assert round_trip.order == order
+            assert _quaternions_represent_the_same_rotation(quaternion, round_trip.to_quaternion())
+
+
+def test_euler_quaternion_round_trip_at_gimbal_lock():
+    # 各回転順序で中間軸が正負それぞれ90度(ジンバルロック)になる姿勢を確認する。
+    orders_and_middle_axis = (("xyz", 1), ("yzx", 2), ("zxy", 0), ("xzy", 2), ("yxz", 0), ("zyx", 1))
+    for order, middle_axis in orders_and_middle_axis:
+        for sign in (1.0, -1.0):
+            angles = [0.7, -1.2, 2.1]
+            angles[middle_axis] = sign * math.pi / 2.0
+            rotation = EulerRotation(*angles, order)
+            quaternion = rotation.to_quaternion()
+            round_trip = quaternion.to_euler(order)
+            assert _quaternions_represent_the_same_rotation(quaternion, round_trip.to_quaternion())
+
+
+def test_quaternion_to_euler_rejects_unsupported_order():
+    try:
+        Quaternion().to_euler("abc")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("to_euler with an unsupported order should raise ValueError")
+
+
+def test_euler_rotation_to_quaternion_matches_maya_rotate_order():
+    import maya.api.OpenMaya as om2
+
+    orders = {
+        "xyz": om2.MEulerRotation.kXYZ, "yzx": om2.MEulerRotation.kYZX, "zxy": om2.MEulerRotation.kZXY,
+        "xzy": om2.MEulerRotation.kXZY, "yxz": om2.MEulerRotation.kYXZ, "zyx": om2.MEulerRotation.kZYX,
+    }
+    angles = (0.3, -0.5, 0.9)
+    for order, om2_order in orders.items():
+        rotation = EulerRotation(*angles, order)
+        quaternion = rotation.to_quaternion()
+        expected = om2.MEulerRotation(*angles, om2_order).asQuaternion()
+        assert _quaternions_represent_the_same_rotation(
+            quaternion, Quaternion(expected.x, expected.y, expected.z, expected.w)
+        )
+        round_trip = quaternion.to_euler(order)
+        expected_euler = expected.asEulerRotation()
+        expected_euler.reorderIt(om2_order)
+        assert math.isclose(round_trip.x, expected_euler.x, abs_tol=1e-9)
+        assert math.isclose(round_trip.y, expected_euler.y, abs_tol=1e-9)
+        assert math.isclose(round_trip.z, expected_euler.z, abs_tol=1e-9)
+
+
 def test_euler_rotation_from_degrees():
     rotation = EulerRotation.from_degrees(90.0, 0.0, -45.0)
     assert isinstance(rotation, EulerRotation)
@@ -177,6 +244,30 @@ def test_quaternion_axis_angle_round_trip():
     recovered_axis, recovered_angle = quaternion.to_axis_angle()
     assert math.isclose(recovered_angle, math.pi / 2.0, abs_tol=1e-9)
     assert recovered_axis.is_equivalent(axis, tolerance=1e-9)
+
+
+def test_quaternion_swing_twist_recomposes_and_isolates_twist_axis():
+    axis = Vector(1.0, 0.0, 0.0)
+
+    # 捻りのみ(axis周りの回転)なら swing は単位四元数になる。
+    pure_twist = Quaternion.from_axis_angle(axis, math.radians(40.0))
+    swing, twist = pure_twist.to_swing_twist(axis)
+    assert swing.angle_to(Quaternion()) < 1e-9
+    assert twist.angle_to(pure_twist) < 1e-9
+
+    # 曲げのみ(axisに直交する回転)なら twist は単位四元数になる。
+    pure_swing = Quaternion.from_axis_angle(Vector(0.0, 1.0, 0.0), math.radians(65.0))
+    swing, twist = pure_swing.to_swing_twist(axis)
+    assert twist.angle_to(Quaternion()) < 1e-9
+    assert swing.angle_to(pure_swing) < 1e-9
+
+    # 任意姿勢でも swing * twist が元の回転を再現し、twist は axis 周りのみ。
+    mixed = Quaternion.from_axis_angle(Vector(0.3, 0.6, -0.2), math.radians(133.0))
+    swing, twist = mixed.to_swing_twist(axis)
+    recomposed = swing * twist
+    assert recomposed.angle_to(mixed) < 1e-9
+    assert twist.rotate_vector(axis).is_equivalent(axis, tolerance=1e-9)
+    assert swing.rotate_vector(axis).is_equivalent(mixed.rotate_vector(axis), tolerance=1e-9)
 
 
 def test_matrix_exposes_translation_scale_and_shear_values():

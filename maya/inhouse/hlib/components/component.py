@@ -184,6 +184,8 @@ class Components:
             size (int): 1座標の成分数。
         Returns:
             list[tuple[float, ...]]: 検証済みの座標列。
+        Raises:
+            ValueError: 座標が不正、または values の件数が保持している要素数と一致しない場合。
         """
         rows = [Component._finite_coordinates(value, size) for value in values]
         if len(rows) != len(self):
@@ -199,6 +201,8 @@ class Components:
             value (float | Iterable[float]): 軸の値。
         Returns:
             list[list[float]]: 更新後の座標列。シーンは変更しない。
+        Raises:
+            ValueError: value を反復した要素数が保持している要素数と一致しない場合。
         """
         try:
             values = list(value)

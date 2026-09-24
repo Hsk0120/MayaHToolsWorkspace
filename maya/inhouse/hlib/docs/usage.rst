@@ -10,6 +10,8 @@
 
    guide_commands
    guide_nodes
+   node_colors
+   blend_colors
    guide_plugs
    bulk_collections
 
@@ -21,14 +23,17 @@
    component_collections
    guide_rigging
    guide_deformers
+   dag_pose
    guide_sets
    animation_nodes
+   driven_keys
 
 .. toctree::
    :maxdepth: 1
    :caption: シーンと操作環境
 
    guide_files
+   json
    guide_environment
    guide_editors
    selection_and_channelbox

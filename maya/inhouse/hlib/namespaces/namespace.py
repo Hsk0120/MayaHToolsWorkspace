@@ -1,5 +1,7 @@
 """Maya の名前空間の参照・作成・移動・削除を提供する。"""
 
+from contextlib import contextmanager
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
@@ -101,12 +103,57 @@ class Namespace:
         """
         if not self.exists():
             return []
-        # nodes.node が ..scene を逆方向 import するため、
+        # nodes.node が ..namespaces を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
         from ..nodes import Node
 
         mobjects = om2.MNamespace.getNamespaceObjects(self._name, recurse) or []
         return [Node(mobject) for mobject in mobjects]
+
+    @classmethod
+    def current(cls):
+        """カレントNamespaceを返す。
+
+        Returns:
+            Namespace: 現在のカレントNamespace。
+        """
+        return cls(om2.MNamespace.currentNamespace())
+
+    @undo_chunk("hlibNamespaceSetCurrent")
+    def set_as_current(self):
+        """カレントNamespaceを自身へ切り替える。
+
+        Returns:
+            Namespace: 自身。
+
+        Raises:
+            RuntimeError: 自身が存在しない場合。
+        """
+        if not self.exists():
+            raise RuntimeError(f"Namespace does not exist: {self._name}")
+        cmds.namespace(set=self._name)
+        return self
+
+    @contextmanager
+    def as_current(self):
+        """カレントNamespaceを自身へ一時的に切り替える。
+
+        ブロックを抜けると、例外が発生した場合も含めて元のカレントNamespaceへ戻す。
+        ブロック内で元のNamespaceが削除された場合は復元しない。
+
+        Yields:
+            Namespace: 自身。
+
+        Raises:
+            RuntimeError: 自身が存在しない場合。
+        """
+        previous = Namespace.current()
+        self.set_as_current()
+        try:
+            yield self
+        finally:
+            if previous.exists():
+                previous.set_as_current()
 
     @classmethod
     @undo_chunk("hlibNamespaceCreate")

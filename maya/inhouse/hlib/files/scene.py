@@ -180,6 +180,36 @@ class Scene:
         cmds.file(**kwargs)
         return self
 
+    def import_file(self, path, namespace=None, preserve_references=False):
+        """他のシーンファイルの内容を現在のシーンへインポートする。
+
+        インポート先は常に現在のシーンであり、保持パス(self)自体は変化しない。
+
+        Args:
+            path (str | Path): インポートするファイルのパス。
+            namespace (str | None): インポートしたノードに付ける名前空間。
+                省略時はMayaの既定(ファイル名ベース)を使う。
+            preserve_references (bool): ``True`` の場合、インポート元が持つ
+                参照を参照のまま維持する。``False`` の場合は参照先ノードも実体化する。
+
+        Returns:
+            list[Node]: インポートによって新規に作成されたノード。
+
+        Raises:
+            ValueError: path が不正な場合。
+            RuntimeError: 保持パスが現在のシーンと一致しない、または Maya がインポートに失敗した場合。
+        """
+        self._require_current()
+        from ..nodes.node import Node
+
+        scene_path = self._path_arg(path)
+        kwargs = {"returnNewNodes": True, "preserveReferences": preserve_references}
+        kwargs["import"] = True
+        if namespace is not None:
+            kwargs["namespace"] = namespace
+        new_names = cmds.file(str(scene_path), **kwargs) or []
+        return [Node(name) for name in new_names]
+
     @staticmethod
     def _path_arg(path):
         """Scene操作用のパス引数をPathへ変換する。

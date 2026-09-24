@@ -20,7 +20,7 @@ def outliner(editor=None):
         Outliner: 表示設定と階層展開を操作するオブジェクト。
 
     Raises:
-        RuntimeError: 対象アウトライナーが存在しない場合。
+        RuntimeError: 対象アウトライナーが存在しない、またはバッチ実行の場合。
     """
     from ..editors import Outliner
 

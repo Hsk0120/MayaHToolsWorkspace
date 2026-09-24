@@ -215,6 +215,9 @@ class PointComponents(Components):
 
         Returns:
             list[tuple[float, float, float]]: Maya の現在の距離単位での座標列。
+
+        Raises:
+            ValueError: ws が bool でない場合。
         """
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")

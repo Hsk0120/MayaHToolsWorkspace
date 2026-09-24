@@ -78,6 +78,92 @@ class Reference(Node):
             return None
         return Reference(parent)
 
+    def children(self):
+        """自身を親に持つ、直下にネストした子 Reference を取得する。
+
+        Returns:
+            list[Reference]: 子参照。無ければ空リスト。孫以下は含めない。
+        """
+        from ..files.references import list_references
+
+        own_name = self.full_name
+        children = []
+        for reference in list_references():
+            parent = reference.parent_reference()
+            if parent is not None and parent.full_name == own_name:
+                children.append(reference)
+        return children
+
+    def root(self):
+        """ネストの最上位(トップレベル)の Reference を取得する。
+
+        Returns:
+            Reference: トップレベルの参照。自身がトップレベルならそのまま自身。
+        """
+        reference = self
+        parent = reference.parent_reference()
+        while parent is not None:
+            reference = parent
+            parent = reference.parent_reference()
+        return reference
+
+    def is_root(self):
+        """トップレベル(親を持たない)の参照か判定する。
+
+        Returns:
+            bool: 親参照が無ければ True。
+        """
+        return self.parent_reference() is None
+
+    def edit_strings(self, successful=True, failed=False):
+        """このReferenceに対するEdit(MELコマンド文字列)一覧を取得する。
+
+        Args:
+            successful (bool): 実際に適用された(成功した)Editを含めるか。
+            failed (bool): 適用に失敗したEditを含めるか。
+
+        Returns:
+            list[str]: Editを表すMELコマンド文字列。無ければ空リスト。
+        """
+        return cmds.referenceQuery(
+            self.name(), editStrings=True,
+            successfulEdits=successful, failedEdits=failed,
+        ) or []
+
+    def edit_nodes(self, successful=True, failed=False):
+        """Editの影響を受けたノードのフルパス名一覧を取得する。
+
+        Args:
+            successful (bool): 実際に適用された(成功した)Editを含めるか。
+            failed (bool): 適用に失敗したEditを含めるか。
+
+        Returns:
+            list[str]: Editが加えられたノードのフルパス名(重複あり得る)。無ければ空リスト。
+        """
+        return cmds.referenceQuery(
+            self.name(), editNodes=True,
+            successfulEdits=successful, failedEdits=failed,
+        ) or []
+
+    def edit_attrs(self, successful=True, failed=False):
+        """Editの影響を受けた属性の短縮名一覧を取得する。
+
+        Maya の ``referenceQuery -editAttrs`` 自体がノード名を含まない属性名の
+        みを返す(コンパウンド属性の子を編集した場合は親の短縮名になる)。
+        どのノードの属性かは ``edit_nodes()`` や ``edit_strings()`` と合わせて判断する。
+
+        Args:
+            successful (bool): 実際に適用された(成功した)Editを含めるか。
+            failed (bool): 適用に失敗したEditを含めるか。
+
+        Returns:
+            list[str]: Edit対象の属性の短縮名(重複あり得る)。無ければ空リスト。
+        """
+        return cmds.referenceQuery(
+            self.name(), editAttrs=True,
+            successfulEdits=successful, failedEdits=failed,
+        ) or []
+
     @undo_chunk("hlibReferenceLoad")
     def load(self):
         """参照をロードする。

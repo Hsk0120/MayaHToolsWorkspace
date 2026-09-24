@@ -20,7 +20,7 @@ def viewport(panel=None):
         Viewport: 表示設定を操作するオブジェクト。
 
     Raises:
-        RuntimeError: 使用できるmodelPanelがない場合。
+        RuntimeError: 使用できるmodelPanelがない、またはバッチ実行の場合。
     """
     from ..editors import Viewport
 

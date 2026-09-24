@@ -2,7 +2,7 @@
 
 # 旧構成を読み込み済みのセッションでも、ルートの再公開名を残さない。
 for _name in globals().get("__all__", ()):
-    if _name not in {"cmds", "nodes", "plugs", "components", "files", "namespaces", "plugins", "units", "workspace", "editors", "maths", "reload"}:
+    if _name not in {"cmds", "nodes", "plugs", "components", "files", "namespaces", "plugins", "units", "workspace", "editors", "maths", "json", "reload"}:
         globals().pop(_name, None)
 for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
               "NODE_REGISTRY", "PLUG_REGISTRY", "initialize_node_api",
@@ -11,7 +11,7 @@ for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
 
 import importlib as _importlib
 
-from . import cmds, nodes, plugs, components, files, namespaces, plugins, units, workspace, editors, maths
+from . import cmds, nodes, plugs, components, files, namespaces, plugins, units, workspace, editors, maths, json
 globals().pop("scene", None)
 from ._core import bootstrap as _bootstrap
 from ._core.reload import reload_package as _reload_package
@@ -22,6 +22,7 @@ _bootstrap.initialize_node_api(__name__)
 _bootstrap.initialize_plug_api(__name__)
 
 __all__ = ["cmds", "nodes", "plugs", "components", "files", "namespaces", "plugins", "units", "workspace", "editors", "maths", "reload"]
+__all__.append("json")
 
 
 def reload():

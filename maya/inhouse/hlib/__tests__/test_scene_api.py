@@ -19,14 +19,19 @@ class SceneApiTest(unittest.TestCase):
     def setUp(self):
         self.scene = Scene()
         self.path = Path(tempfile.gettempdir()) / "hlib_scene_api.ma"
+        self.import_path = Path(tempfile.gettempdir()) / "hlib_scene_api_import_source.ma"
         if self.path.exists():
             self.path.unlink()
+        if self.import_path.exists():
+            self.import_path.unlink()
         self.scene.new(force=True, prompt=False)
 
     def tearDown(self):
         self.scene.new(force=True, prompt=False)
         if self.path.exists():
             self.path.unlink()
+        if self.import_path.exists():
+            self.import_path.unlink()
 
     def test_public_api_and_new_scene_state(self):
         self.assertIs(Scene, SceneFromPackage)
@@ -54,6 +59,27 @@ class SceneApiTest(unittest.TestCase):
     def test_invalid_save_as_extension(self):
         with self.assertRaises(ValueError):
             self.scene.save_as(self.path.with_suffix(".txt"))
+
+    def test_import_file_brings_in_nodes_under_namespace(self):
+        cmds.createNode("transform", name="hlibImportSourceNode")
+        self.scene.save_as(self.import_path)
+        self.scene.new(force=True, prompt=False)
+        cmds.createNode("transform", name="hlibSceneApiNode")
+
+        new_nodes = self.scene.import_file(self.import_path, namespace="hlibImportedNs")
+        imported_names = [node.name() for node in new_nodes]
+        self.assertTrue(any(name.endswith("hlibImportSourceNode") for name in imported_names))
+        self.assertTrue(cmds.objExists("hlibImportedNs:hlibImportSourceNode"))
+        self.assertTrue(cmds.objExists("hlibSceneApiNode"))
+
+    def test_import_file_requires_current_scene(self):
+        cmds.createNode("transform", name="hlibImportSourceNode")
+        self.scene.save_as(self.import_path)
+        self.scene.new(force=True, prompt=False)
+
+        stale = Scene(self.import_path)
+        with self.assertRaises(RuntimeError):
+            stale.import_file(self.import_path)
 
     def test_scene_command_snapshots_without_opening(self):
         self.assertIs(hlib.scene, hlib.cmds.scene)

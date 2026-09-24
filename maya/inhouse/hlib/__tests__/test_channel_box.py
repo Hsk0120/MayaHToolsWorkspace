@@ -66,29 +66,8 @@ class ChannelBoxTest(unittest.TestCase):
                 hlib.channelBox("missing")
 
 
-@unittest.skipIf(cmds.about(batch=True), "Requires Maya GUI")
-class ChannelBoxGuiTest(unittest.TestCase):
-    def test_selection_and_clear_in_isolated_control(self):
-        previous = hlib.captureSelection()
-        node = cmds.createNode("transform", name="hlibChannelGuiTest")
-        window = cmds.window()
-        try:
-            cmds.columnLayout()
-            control = cmds.channelBox()
-            cmds.showWindow(window)
-            cmds.select(node)
-            cmds.refresh()
-            channel = hlib.channelBox(control)
-            cmds.channelBox(control, edit=True, select=node + ".translateX")
-            self.assertEqual([plug.full_name for plug in channel.selected_plugs()], [node + ".translateX"])
-            channel.clear_selection()
-            self.assertEqual(channel.selected_plugs(), [])
-            self.assertEqual(cmds.ls(selection=True), [node])
-        finally:
-            cmds.deleteUI(window)
-            cmds.delete(node)
-            previous.restore()
-
+# 実GUIの選択・解除は tools/run_hlib_gui_tests.py へ移管。
+# Channel Boxの表示準備にMayaのアイドル処理が必要なため、遅延実行する。
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])

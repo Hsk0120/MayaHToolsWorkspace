@@ -50,13 +50,17 @@ class _Editor:
             raise ValueError(f"Unsupported display flags: {sorted(unknown)}")
 
     def set_settings(self, **flags):
-        """表示設定を変更する。値の検証はMayaへ委譲する。
+        """表示設定を変更する。フラグ値の検証はMayaへ委譲する。
 
         Args:
             **flags (object): 対応するMayaの長いフラグ名と値。
 
         Returns:
             None: 値を返さない。複数設定の原子的な変更は保証しない。
+
+        Raises:
+            ValueError: 未対応のフラグの場合。
+            RuntimeError: エディターが存在しない場合。
         """
         self._validate_flags(flags)
         self._require_exists()
@@ -72,6 +76,10 @@ class _Editor:
 
         Yields:
             _Editor: このインスタンス。削除されたエディターは再作成しない。
+
+        Raises:
+            ValueError: 未対応のフラグの場合。
+            RuntimeError: エディターが存在しない場合。
         """
         previous = self.settings(*flags) if flags else {}
         try:

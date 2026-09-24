@@ -89,6 +89,7 @@ def select(nodes=None, **kwargs):
 
     Raises:
         TypeError: nodes の要素が Node/str 以外の場合。
+        ValueError: nodes の要素に空文字列が含まれる場合。
         RuntimeError: Maya が選択を拒否した場合。
     """
     from .._core.coerce import to_names

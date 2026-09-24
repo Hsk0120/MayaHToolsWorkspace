@@ -22,6 +22,7 @@ class Selection:
         Args:
             items (Iterable[Node | Plug | Component | Components | str]): 対象。
                 文字列には範囲指定も使える。単一対象も指定可能。
+                full_name が重複する対象は最初の1件のみを保持する。
 
         Raises:
             TypeError: 非対応型、またはMesh/NurbsCurve以外のコンポーネントの場合。
@@ -86,7 +87,8 @@ class Selection:
         return cls(cls._resolve(om2.MGlobal.getActiveSelectionList()))
 
     def items(self):
-        """list[Node | Plug | Component]: 保持順の対象。削除済み参照も保持する。"""
+        """list[Node | Plug | Component]: 保持順の対象。削除済み参照も保持する。
+        full_name が重複する対象は構築時に除かれている(__init__ 参照)。"""
         return list(self._items)
 
     def nodes(self, type=None):
@@ -200,7 +202,8 @@ class Selection:
         return self
 
     def __len__(self):
-        """int: 保持数。コンポーネントは単体で数え、削除済み参照も含む。"""
+        """int: 保持数。コンポーネントは単体で数え、削除済み参照も含む。
+        full_name が重複する対象は構築時に除かれている(__init__ 参照)。"""
         return len(self._items)
 
     def __iter__(self):

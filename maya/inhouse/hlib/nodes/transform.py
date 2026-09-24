@@ -406,10 +406,21 @@ class Transform(Node):
         Returns:
             Transform: 自身。
         """
+        if not self.is_valid():
+            raise RuntimeError("Cannot parent an invalid transform")
         if parent is None:
+            if self.parent_path() is None and not self.dag_path().isInstanced():
+                return self
             cmds.parent(self.name(), world=True, relative=relative)
         else:
-            parent_name = parent.name() if isinstance(parent, Node) else parent
+            target = parent if isinstance(parent, Node) else Node(parent)
+            parent_name = target.full_name
+            # 古いMayaでは同じ親への再parentがエラーになる。
+            # add=Trueはインスタンス操作なのでMayaの判定に委ねる。
+            current = self.parent_path()
+            if (not add and not self.dag_path().isInstanced() and current is not None
+                    and current.fullPathName() == parent_name):
+                return self
             cmds.parent(self.name(), parent_name, relative=relative, add=add)
         return self
 

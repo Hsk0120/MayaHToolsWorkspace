@@ -96,6 +96,6 @@ class EulerRotation(Rotate):
             "z": Quaternion(0.0, 0.0, math.sin(half_angles["z"]), math.cos(half_angles["z"])),
         }
         quaternion = Quaternion()
-        for axis in self.order:
+        for axis in reversed(self.order):
             quaternion = quaternion * axis_quaternions[axis]
         return quaternion.normalized()

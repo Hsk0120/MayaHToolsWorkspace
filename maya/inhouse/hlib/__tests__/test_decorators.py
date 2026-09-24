@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.decorators import preserved_selection, preserved_skin_shape, undo_chunk
+from hlib.decorators import preserved_selection, preserved_skin_shape, undo_chunk, undo_transaction
 from hlib.nodes.joint import Joint
 
 
@@ -119,6 +119,74 @@ class UndoDecoratorsTest(unittest.TestCase):
 
         self.assertEqual(sample_function.__name__, "sample_function")
         self.assertEqual(sample_function(), 42)
+
+
+class UndoTransactionTest(unittest.TestCase):
+    """undo_transaction が例外時のみ自動ロールバックすることを検証する。"""
+
+    def tearDown(self):
+        for name in ("hlibUndoTxnBefore", "hlibUndoTxnNode", "hlibUndoTxnA", "hlibUndoTxnB"):
+            if cmds.objExists(name):
+                cmds.delete(name)
+
+    def test_commits_normally_when_no_exception(self):
+        with undo_transaction("hlibUndoTxnCommit"):
+            cmds.createNode("transform", name="hlibUndoTxnNode")
+            cmds.setAttr("hlibUndoTxnNode.translateX", 5.0)
+
+        self.assertTrue(cmds.objExists("hlibUndoTxnNode"))
+        # 正常終了時はロールバックせず、undo_chunk と同様に1回のUndoにまとまる。
+        cmds.undo()
+        self.assertFalse(cmds.objExists("hlibUndoTxnNode"))
+
+    def test_rolls_back_all_operations_on_exception(self):
+        with self.assertRaises(RuntimeError):
+            with undo_transaction("hlibUndoTxnRollback"):
+                cmds.createNode("transform", name="hlibUndoTxnA")
+                cmds.createNode("transform", name="hlibUndoTxnB")
+                raise RuntimeError("boom")
+
+        self.assertFalse(cmds.objExists("hlibUndoTxnA"))
+        self.assertFalse(cmds.objExists("hlibUndoTxnB"))
+
+    def test_exception_type_and_message_are_preserved(self):
+        with self.assertRaises(ValueError) as context:
+            with undo_transaction("hlibUndoTxnMessage"):
+                cmds.createNode("transform", name="hlibUndoTxnNode")
+                raise ValueError("specific message")
+        self.assertEqual(str(context.exception), "specific message")
+        self.assertFalse(cmds.objExists("hlibUndoTxnNode"))
+
+    def test_empty_body_exception_does_not_undo_unrelated_prior_operation(self):
+        # チャンク内で実際の変更が無いまま例外になっても、直前の無関係な
+        # 操作を巻き込んでUndoしてはならない(空チャンクの既定挙動への対策)。
+        cmds.createNode("transform", name="hlibUndoTxnBefore")
+        self.assertTrue(cmds.objExists("hlibUndoTxnBefore"))
+
+        with self.assertRaises(RuntimeError):
+            with undo_transaction("hlibUndoTxnEmptyBody"):
+                raise RuntimeError("boom before any Maya operation")
+
+        self.assertTrue(cmds.objExists("hlibUndoTxnBefore"))
+
+    def test_decorator_usage_rolls_back_on_exception(self):
+        @undo_transaction("hlibUndoTxnDecorator")
+        def create_then_fail():
+            cmds.createNode("transform", name="hlibUndoTxnNode")
+            raise ValueError("boom")
+
+        with self.assertRaises(ValueError):
+            create_then_fail()
+        self.assertFalse(cmds.objExists("hlibUndoTxnNode"))
+
+    def test_decorator_usage_commits_on_success(self):
+        @undo_transaction("hlibUndoTxnDecoratorOk")
+        def create():
+            cmds.createNode("transform", name="hlibUndoTxnNode")
+            return 42
+
+        self.assertEqual(create(), 42)
+        self.assertTrue(cmds.objExists("hlibUndoTxnNode"))
 
 
 class PreservedSelectionTest(unittest.TestCase):
