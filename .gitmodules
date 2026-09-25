@@ -114,3 +114,6 @@
 [submodule "maya/external/natsort"]
 	path = maya/external/natsort
 	url = https://github.com/SethMMorton/natsort.git
+[submodule "maya/inhouse/MayaCinematicCameraHUD"]
+	path = maya/inhouse/MayaCinematicCameraHUD
+	url = https://github.com/Hsk0120/MayaCinematicCameraHUD.git

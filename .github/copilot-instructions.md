@@ -20,6 +20,7 @@
 - `maya/inhouse/HTools/`: Mayaメニューから起動する内製ツール。
 - `maya/inhouse/hlib/`: Maya API 2.0 のノード・属性ラッパー、数学型、共通ユーティリティ。
 - `maya/inhouse/MayaCommandPorts/`: GUI起動時のcommandPort初期化。HTools/hlibとは独立。
+- `maya/inhouse/MayaCinematicCameraHUD/`: C++プラグイン(別リポジトリのsubmodule)。ビルドは `tools/build_maya_plugin.py`、ロードは `maya/modules/*.mod`。
 - `maya/inhouse/integrations/`: Slack、mGearなどとの連携。
 - `maya/external/`: 外部ツールのGit submodule。原則として直接編集しない。
 - `maya/modules/`: Maya用 `.mod` 定義。

@@ -225,3 +225,31 @@ maya/inhouse/hlib/__tests__/.logs/
 /maya/inhouse/hlib/docs/*_survey.rst
 /maya/inhouse/hlib/docs/*_inventory.json
 /maya/inhouse/hlib/docs/concept_classes.rst
+
+# C++ Mayaプラグイン開発(ビルドの一時ファイルとIDE生成物)。
+# ビルドフォルダは tools/build_maya_plugin.py が .maya-output/ 配下に作る(上で除外済み)。
+# プラグイン本体(.mll)はリリース物なので無視しない。各プラグインのリポジトリは自前の .gitignore を持つ。
+build_*/
+# Visual Studio / CMake 生成物
+.vs/
+.vscode/ipch/
+*.user
+*.suo
+*.sln.docstates
+x64/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+cmake-build-*/
+compile_commands.json
+.cache/
+
+# MSVC のビルド中間物・デバッグ情報
+*.idb
+*.tlog
+*.exp
+*.ilk
+*.pdb
+*.obj
+*.iobj
+*.ipdb

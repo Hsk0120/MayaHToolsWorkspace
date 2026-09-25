@@ -13,7 +13,7 @@ from run_hlib_tests import ROOT, VERSIONS, isolated_environment, maya_executable
 from _maya_test_process import monitor_process, stop_owned_process
 
 
-def worker(version, directory):
+def worker(version, directory, suite_path=None):
     """このランナーが起動した空シーンのGUI内だけで実行する。"""
     import runpy
     from maya import cmds, mel
@@ -25,6 +25,7 @@ def worker(version, directory):
         from PySide2 import QtCore, QtWidgets
         from shiboken2 import wrapInstance
     directory = Path(directory)
+    write_json(directory / "worker-entered.json", {"pid": os.getpid(), "version": version})
 
     def finish(result):
         write_json(directory / "shutdown.json", {"requested": True, "suite_status": result["status"]})
@@ -40,7 +41,7 @@ def worker(version, directory):
             if actual != version or cmds.about(batch=True):
                 raise RuntimeError("Requested GUI {} but started {}".format(version, actual))
             write_json(directory / "started.json", {"maya_version": actual, "pid": os.getpid()})
-            suite = runpy.run_path(str(ROOT / "tools/run_hlib_gui_tests.py"))
+            suite = runpy.run_path(str(suite_path or ROOT / "tools/run_hlib_gui_tests.py"))
             suite["main"](output_dir=directory, finished=finish)
         except BaseException:
             result = {"status": "error", "error": traceback.format_exc()}
@@ -50,6 +51,11 @@ def worker(version, directory):
     def wait_for_main_window():
         pointer = OpenMayaUI.MQtUtil.mainWindow()
         window = wrapInstance(int(pointer), QtWidgets.QWidget) if pointer else None
+        write_json(directory / "gui-readiness.json", {
+            "main_window_exists": window is not None,
+            "visible": bool(window and window.isVisible()),
+            "minimized": bool(window and window.isMinimized()),
+        })
         if window is not None and window.isVisible() and not window.isMinimized():
             # 起動途中にもidle処理は実行されるため、表示完了後のイベントループで開始する。
             QtCore.QTimer.singleShot(1000, execute)
@@ -58,19 +64,21 @@ def worker(version, directory):
     QtCore.QTimer.singleShot(500, wait_for_main_window)
 
 
-def run_version(version, directory, install_root, timeout, shutdown_timeout=15):
+def run_version(version, directory, install_root, timeout, shutdown_timeout=15,
+                suite_path=None, environment=None):
     directory.mkdir(parents=True)
     executable = maya_executable(version, install_root).with_name("maya.exe")
     if not executable.is_file():
         return {"requested_version": version, "status": "missing", "executable": str(executable)}
     env = isolated_environment(executable, directory)
+    env.update(environment or {})
     prefs = directory / "maya_app" / version / "prefs"
     prefs.mkdir(parents=True)
     (prefs / "userPrefs.mel").write_text(
         'optionVar -iv "showHomeScreenOnStartup" 0;\n'
         'optionVar -iv "SafeModeExecUserSetupScript" 0;\n', encoding="utf-8")
     # MELのpython()引数をJSON文字列規則で引用。シェルには渡さない。
-    script = "import sys; sys.path.insert(0, {!r}); import run_hlib_gui_versions as runner; runner.worker({!r}, {!r})".format(str(ROOT / "tools"), version, str(directory))
+    script = "import sys; sys.path.insert(0, {!r}); import run_hlib_gui_versions as runner; runner.worker({!r}, {!r}, {!r})".format(str(ROOT / "tools"), version, str(directory), str(suite_path) if suite_path else None)
     command = "python({})".format(json.dumps(script))
     args = [str(executable), "-noAutoloadPlugins", "-log", str(directory / "maya.log"), "-command", command]
     if version == "2022":

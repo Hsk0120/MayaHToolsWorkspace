@@ -1,0 +1,3 @@
+# PoseDriverConnect v2のモデルAPIが使用するPython依存。
+# 本体epic_pose_wranglerとMaya対応プラグインは製品側から別途導入する。
+six>=1.16

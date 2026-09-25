@@ -25,6 +25,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 | `maya/inhouse/HTools/` | Mayaメニューから実行する内製ツール |
 | `maya/inhouse/hlib/` | ノード・属性ラッパー、数学型、共通ユーティリティ |
 | `maya/inhouse/MayaCommandPorts/` | GUI起動時のcommandPort初期化 |
+| `maya/inhouse/MayaCinematicCameraHUD/` | C++プラグイン(別リポジトリのsubmodule)。ビルドは `tools/build_maya_plugin.py`、ロードは `maya/modules/*.mod` |
 | `maya/inhouse/integrations/` | SlackやmGearとの連携 |
 | `maya/external/` | 外部ツール。Git submoduleの定義は `.gitmodules` を参照 |
 | `maya/modules/` | Maya用の `.mod` 定義 |
@@ -68,6 +69,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 - 型の追加は `_core/discovery.py` / `_core/registry.py` と既存の `@node_wrapper` / `@plug_wrapper` に合わせる。自動登録を重複する手動登録を加えない。
 - `hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
 - `hlib/maths/` のMaya非依存性を維持する。角度の度・ラジアン、行列の規約は対象型の実装とテストに合わせる。
+- Mayaの信頼済みプラグインの場所(`optionVar SafeModeAllowedlistPaths`)をスクリプトから変更しない。MayaのSafeModeが拒否する設定で、迂回せずユーザーがPreferences > Securityで登録する。
 - hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.plugins`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
 
 ### 外部ツールと連携

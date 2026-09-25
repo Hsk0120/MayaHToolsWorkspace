@@ -42,3 +42,8 @@ _command_exports = tuple(name for name in cmds.__all__ if name not in globals())
 for _name in _command_exports:
     globals()[_name] = getattr(cmds, _name)
 __all__ += list(_command_exports)
+
+# 標準APIを利用できる状態にしてから任意拡張を検出する。
+from . import extensions
+extensions._initialize()
+__all__.append("extensions")

@@ -62,7 +62,8 @@ maya/
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
 │  ├ hlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)
 │  ├ MayaCommandPorts/  HTools/hlibから独立したcommandPort初期化モジュール
-│  └ integrations/   外部サービス連携(Slack, mGearガイド操作)
+│  ├ integrations/   外部サービス連携(Slack, mGearガイド操作)
+│  └ MayaCinematicCameraHUD/  C++プラグイン(別リポジトリのsubmodule。このワークスペースで編集・ビルドする)
 ├ modules/      各ツールをMayaに認識させる .mod ファイル(2022/2024/2025/2026/2027対応、MAYA_MODULE_PATHの対象)
 ├ modules_disabled/  上記と同形式だが未登録の .mod ファイル(無効化されたツール/汎用ライブラリ)。有効化するには modules/ へ移動する
 └ maya_*.bat, maya_core.bat  起動バッチ
@@ -154,6 +155,16 @@ HTools/hlibから独立した最小モジュール(依存は `maya.cmds` / `maya
 
 - `integrations/slack/`: `post_message(text, channel="random", thread_ts=None)`。環境変数 `SLACK_API_BOT_TOKEN` が未設定または `slack_sdk` が無い場合は `RuntimeError`。
 - `integrations/mgear/guide/`: mGearガイド(`isGearGuide` 属性を持つtransform)の取得・更新ヘルパー。`update_guide()` は呼び出し時に初めて `mgear` を import するため、mGear未導入でも本モジュール自体のimportは可能。
+
+### C++プラグイン(別リポジトリ)
+
+C++のMayaプラグインは別リポジトリで管理し、submoduleとして取り込む。現在の対象は `maya/inhouse/MayaCinematicCameraHUD`(`.mll` を `release/plug-ins/windows/<Mayaバージョン>/` にコミットする構成)。
+
+- **置き場所の規則**: このワークスペースで**編集する**リポジトリは `maya/inhouse/` 、編集せず成果物を使うだけのものは `maya/external/` にsubmoduleとして置く。編集後はまずプラグイン側リポジトリでコミットし、その後に親リポジトリでsubmoduleの参照を更新する。
+- **ビルド**: `tools/build_maya_plugin.py <プラグインのフォルダ> --versions <年...>`(2022/2024/2025/2026/2027 で実ビルドとロードを確認済み)(または VS Code のタスク「Maya plugin: Build MayaCinematicCameraHUD」)。Visual Studio・CMake・ツールセットを自動検出し、ビルドフォルダは `.maya-output/plugin-build/` 配下(Git対象外)に作る。`--list` で検出結果を確認できる。
+- **devkit**: 別配布のdevkitは不要。Maya 2025/2027 のようにインストール先に `cmake/pluginEntry.cmake` が無い版や、Qt用zipが未展開の版は、`tools/maya_devkit.py` がインストール先(ヘッダ・lib・moc・Qt用zip)から `.maya-output/devkit/<年>/` にローカルdevkitを自動生成する(Program Files配下は書き換えず、管理者権限も不要)。別途入手したdevkitを使う場合は環境変数 `MAYA_DEVKIT_<年>` に `devkitBase` を指定する。ツールセットの対応は 2022=v142、2024=v143、2025=v143、2026=v145、2027=v145(`tools/build_maya_plugin.py` の `TOOLSETS`)。Maya 2023 は未インストールのためビルド未対応。
+- **ロード**: `maya/modules/<名前>.mod` の `MAYA_PLUG_IN_PATH` で検索パスに通すだけで、自動ロードはしない(Plug-in Manager または `cmds.loadPlugin` で読み込む)。初回ロード時にMayaの「信頼されていない場所からのロード」警告ダイアログが出てGUI(とcommandPort経由の送信実行)が止まるため、ロード前に信頼済みの場所へ登録しておく。登録は Preferences > Security > Plug-ins の「My trusted plugin locations」で「Add」するか、警告ダイアログで「Apply to all plugins in this location」にチェックして Allow する(各フォルダ1回のみ。プラグインのフォルダはバージョン別なので使う版の分だけ)。**スクリプトからの登録はできない**: `optionVar SafeModeAllowedlistPaths` への追記はMayaのSafeModeが拒否する(戻り値1・値は変化せずセキュリティログに reject/Deny)ため、迂回せず手動で行う。HToolsの「system > checkWorkspacePluginTrust」は、`maya/inhouse/` 配下で未登録の場所を確認して一覧表示し、Preferences画面を開く読み取り専用ツール。自動テストやCIでは、警告が出ないmayapy(`tools/run_hlib_tests.py` 等)を使う。
+- **注意**: 上記の「hlib内では独自プラグインを用意しない」方針は hlib のコードに対するもので、別リポジトリのC++プラグインは対象外。ビルドすると追跡対象の `release/**/*.mll` が書き換わるため、リリースとしてコミットする意図が無い場合は `git checkout -- release/` で戻す。
 
 ## 開発上の注意
 

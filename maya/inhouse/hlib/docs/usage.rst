@@ -11,6 +11,7 @@
    guide_commands
    flag_aliases
    api_naming
+   extensions
    guide_nodes
    node_colors
    blend_colors

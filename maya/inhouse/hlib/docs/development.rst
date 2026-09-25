@@ -311,7 +311,9 @@ Mayaの現在値を照会するAPIはメソッド、保持するデータはプ�
 
 ``hlib._core`` は型登録・検出・初期化・再読み込みを担当する内部パッケージです。
 通常のツールからはアクセスせず、コマンド、各クラス、``hlib.reload()`` を利用します。
-``node_wrapper``、``plug_wrapper``、``collection_export`` も内部APIです。
+外部拡張では ``hlib.extensions.node_wrapper`` / ``plug_wrapper`` を利用できます。
+拡張の配置・依存確認・自動登録は :doc:`extensions` を参照してください。
+``collection_export`` は内部APIです。
 hlib 内にラッパーを追加する際は、既存実装と同じく
 ``from .._core.registry import node_wrapper`` などを使用します。
 旧パス ``hlib.core`` は廃止しました。

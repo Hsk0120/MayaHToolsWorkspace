@@ -7,7 +7,16 @@
   "settings": {
     "maya.pythonExecutable": "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe",
     "python.defaultInterpreterPath": "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe",
-    "task.saveBeforeRun": "always"
+    "task.saveBeforeRun": "always",
+    "C_Cpp.default.includePath": [
+      "C:/Program Files/Autodesk/Maya2026/include"
+    ],
+    "C_Cpp.default.defines": [
+      "NT_PLUGIN",
+      "REQUIRE_IOSTREAM",
+      "_BOOL"
+    ],
+    "C_Cpp.default.cppStandard": "c++17"
   },
   "tasks": {
     "version": "2.0.0",
@@ -32,6 +41,35 @@
           "reveal": "always",
           "panel": "dedicated"
         }
+      },
+      {
+        "label": "Maya plugin: Build MayaCinematicCameraHUD",
+        "type": "process",
+        "command": "${config:maya.pythonExecutable}",
+        "args": [
+          "${workspaceFolder}/tools/build_maya_plugin.py",
+          "${workspaceFolder}/maya/inhouse/MayaCinematicCameraHUD",
+          "--versions",
+          "${input:mayaVersion}"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "group": "build",
+        "problemMatcher": "$msCompile",
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated"
+        }
+      }
+    ],
+    "inputs": [
+      {
+        "id": "mayaVersion",
+        "type": "pickString",
+        "description": "ビルドするMayaバージョン",
+        "options": ["2026", "2024", "2022", "2025", "2027"],
+        "default": "2026"
       }
     ]
   }
