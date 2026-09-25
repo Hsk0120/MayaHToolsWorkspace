@@ -1,5 +1,9 @@
 """Maya API 2.0 の MPlug を属性ラッパーとして扱う。"""
 
+from ..decorators._fast import fast_edit, is_fast
+from .._core.fast_write import set_attr
+from .._core.fast_write import set_plug
+
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
@@ -189,31 +193,39 @@ class Plug:
         """
         return self._mplug.isKeyable
 
+    @fast_edit
     @undo_chunk("hlibPlugSetKeyable")
-    def set_keyable(self, state):
+    def set_keyable(self, state, *, fast=False):
         """キー可能状態を変更する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             state (bool): ``True`` でキー可能にする。``False`` にするとチャンネル
                 ボックスからも隠れる（``set_channel_box(True)`` で明示的に表示可能）。
 
         Returns:
             Plug: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
-        cmds.setAttr(self.full_name, keyable=bool(state))
+        set_attr(self.full_name, keyable=bool(state))
         return self
 
+    @fast_edit
     @undo_chunk("hlibPlugSetChannelBox")
-    def set_channel_box(self, state):
+    def set_channel_box(self, state, *, fast=False):
         """キー不可のままチャンネルボックスへの表示状態を変更する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             state (bool): ``True`` でチャンネルボックスに表示する。``False`` で隠す。
 
         Returns:
             Plug: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
-        cmds.setAttr(self.full_name, channelBox=bool(state))
+        set_attr(self.full_name, channelBox=bool(state))
         return self
 
     @property
@@ -500,17 +512,21 @@ class Plug:
         """
         return self._mplug.isLocked
 
+    @fast_edit
     @undo_chunk("hlibPlugLock")
-    def set_locked(self, state):
+    def set_locked(self, state, *, fast=False):
         """プラグのロック状態を変更する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             state (bool): ``True`` でロック、``False`` で解除する。
 
         Returns:
             Plug: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
-        cmds.setAttr(self.full_name, lock=bool(state))
+        set_attr(self.full_name, lock=bool(state))
         return self
 
     @property
@@ -566,7 +582,7 @@ class Plug:
                 削除を試みた場合など、Maya が削除を拒否した場合。
         """
         if force and self.is_locked:
-            cmds.setAttr(self.full_name, lock=False)
+            set_attr(self.full_name, lock=False)
         cmds.deleteAttr(self.full_name)
 
     def get(self, ws=False):
@@ -651,8 +667,9 @@ class Plug:
             return self._mplug.asMTime().asUnits(om2.MTime.uiUnit())
         return None
 
+    @fast_edit
     @undo_chunk("hlibPlugSet")
-    def set(self, value):
+    def set(self, value, *, fast=False):
         """プラグ値を変更する。
 
         doubleArray/floatArray/Int32Array/Int64Array のようなスカラー配列型と、
@@ -665,32 +682,42 @@ class Plug:
         従来通り ``*value`` で展開する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (object): 設定する Maya 互換値。
 
         Returns:
             Plug: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
+        if is_fast():
+            set_plug(self._mplug, value)
+            return self
         if isinstance(value, str):
-            cmds.setAttr(self.full_name, value, type="string")
+            set_attr(self.full_name, value, type="string")
             return self
         if isinstance(value, (tuple, list)):
             attr_type = cmds.getAttr(self.full_name, type=True)
             if attr_type in _SCALAR_ARRAY_TYPES:
-                cmds.setAttr(self.full_name, value, type=attr_type)
+                set_attr(self.full_name, value, type=attr_type)
             elif attr_type in _LENGTH_PREFIXED_ARRAY_TYPES:
-                cmds.setAttr(self.full_name, len(value), *value, type=attr_type)
+                set_attr(self.full_name, len(value), *value, type=attr_type)
             else:
-                cmds.setAttr(self.full_name, *value)
+                set_attr(self.full_name, *value)
             return self
-        cmds.setAttr(self.full_name, value)
+        set_attr(self.full_name, value)
         return self
 
+    @fast_edit
     @undo_chunk("hlibPlugReset")
-    def reset(self):
+    def reset(self, *, fast=False):
         """数値・単位・enum属性を定義上の既定値へ戻す。
 
         単位属性は現在のMaya表示単位へ変換する。複合属性は子ごとに処理する。
         接続の切断やロック解除はしない。失敗前の変更は自動では戻さない。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Plug: 自身。一回のUndoで全変更を戻せる。
@@ -698,6 +725,8 @@ class Plug:
         Raises:
             TypeError: 配列全体・文字列・messageなど既定値を扱えない属性の場合。
             RuntimeError: ロック・入力接続などで変更できない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         if self.is_array:
             raise TypeError("Reset an array element instead of the array plug")

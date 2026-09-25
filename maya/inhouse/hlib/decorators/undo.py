@@ -2,6 +2,7 @@
 import contextlib
 
 import maya.cmds as cmds
+from ._fast import is_fast
 
 # importlib.reloadでも廃止した公開名を残さない。
 globals().pop("undoable", None)
@@ -23,6 +24,9 @@ def undo_chunk(name=None):
     Yields:
         None: コンテキスト内で実行した Maya 操作を同じ Undo として扱う。
     """
+    if is_fast():
+        yield
+        return
     opened = False
     try:
         kwargs = {"openChunk": True}

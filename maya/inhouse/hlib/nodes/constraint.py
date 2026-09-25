@@ -1,5 +1,7 @@
 """Maya の標準コンストレイントに共通するターゲット・ウェイトの取得と設定を扱う。"""
 
+from ..decorators._fast import fast_edit
+
 import maya.cmds as cmds
 
 from .._core.coerce import to_node
@@ -48,11 +50,13 @@ class Constraint(Node):
         """
         return [plug.get() for plug in self.weight_plugs()]
 
+    @fast_edit
     @undo_chunk("hlibConstraintSetWeight")
-    def set_weight(self, weight, *targets):
+    def set_weight(self, weight, *targets, fast=False):
         """ターゲットのウェイトをまとめて設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             weight (float): 設定するウェイト値。
             targets (Node | str): 値を設定するターゲット。省略時は全ターゲットに設定する。
 
@@ -61,6 +65,8 @@ class Constraint(Node):
 
         Raises:
             ValueError: 指定したターゲットがこのコンストレイントのターゲットに含まれない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         weight_plugs = self.weight_plugs()
         if not targets:

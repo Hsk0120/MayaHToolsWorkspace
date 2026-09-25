@@ -1,5 +1,8 @@
 """変換行列を介して Transform ノードを操作する。"""
 
+from ..decorators._fast import fast_edit
+from .._core.fast_write import set_attr
+
 import math
 
 import maya.cmds as cmds
@@ -335,7 +338,8 @@ class Transform(Node):
             shapes.append(Shape(child_path))
         return shapes
 
-    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None):
+    @fast_edit
+    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下のすべてのShapeのジオメトリをミラーする。
 
         直下の各Shape（Mesh、NurbsCurveなど mirror を実装するもの）へ同じ引数で
@@ -343,6 +347,7 @@ class Transform(Node):
         CV）として解釈される。Transform自身の行列やShapeの構造は変更しない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
             ws (bool): True はワールド軸、False はオブジェクト空間の軸。既定は False。
@@ -362,6 +367,8 @@ class Transform(Node):
 
         複数のShapeを持つ場合、途中のShapeで失敗すると以降のShapeは処理されない
         （それまでに成功した分はロールバックしない）。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         for shape in self.shapes():
             shape.mirror(axis=axis, ws=ws, pivot=pivot, indices=indices)
@@ -578,16 +585,18 @@ class Transform(Node):
             RuntimeError: Maya が属性の書き込みを拒否した場合。
         """
         name = self.full_name
-        cmds.setAttr(f"{name}.translate", *matrix.translate)
-        cmds.setAttr(f"{name}.rotate", *(math.degrees(component) for component in matrix.euler))
-        cmds.setAttr(f"{name}.scale", *matrix.scale)
-        cmds.setAttr(f"{name}.shear", *matrix.shear)
+        set_attr(f"{name}.translate", *matrix.translate)
+        set_attr(f"{name}.rotate", *(math.degrees(component) for component in matrix.euler))
+        set_attr(f"{name}.scale", *matrix.scale)
+        set_attr(f"{name}.shear", *matrix.shear)
 
+    @fast_edit
     @undo_chunk("hlibTransformSetMatrix")
-    def set_matrix(self, matrix, ws=False):
+    def set_matrix(self, matrix, ws=False, *, fast=False):
         """行列をローカルまたはワールド空間で設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             matrix (Matrix | sequence): 適用する変換行列。
             ws (bool): ``True`` でワールド空間、``False`` でローカル空間に設定する。
 
@@ -597,6 +606,8 @@ class Transform(Node):
         Raises:
             RuntimeError: 無効なノード、または Maya が属性設定を拒否した場合。
             ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         if not isinstance(matrix, Matrix):
             matrix = Matrix(matrix)
@@ -606,11 +617,13 @@ class Transform(Node):
         self._apply_local_matrix(local_matrix)
         return self
 
+    @fast_edit
     @undo_chunk("hlibTransformSetTranslate")
-    def set_translate(self, value, ws=False):
+    def set_translate(self, value, ws=False, *, fast=False):
         """平行移動をローカルまたはワールド空間で設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Translate | sequence): 新しい平行移動値。
             ws (bool): ``True`` でワールド空間に設定する。
 
@@ -620,16 +633,20 @@ class Transform(Node):
         Raises:
             ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
             RuntimeError: ノードが無効、または属性を書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.translate = value
         return self.set_matrix(matrix, ws=ws)
 
+    @fast_edit
     @undo_chunk("hlibTransformSetRotate")
-    def set_rotate(self, value, unit="rad", ws=False):
+    def set_rotate(self, value, unit="rad", ws=False, *, fast=False):
         """Euler回転を設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float] | Quaternion): XYZ 回転値。unit が rad の場合は Quaternion も受け入れる。EulerRotation の order は引き継がない。
             unit (str): rad はラジアン、deg は度の3成分。既定は rad。
             ws (bool): True はワールド、False はローカル空間。
@@ -640,6 +657,8 @@ class Transform(Node):
         Raises:
             ValueError: unit が rad/deg 以外、行列が分解不能、または必要な親行列が反転不能の場合。
             RuntimeError: ノードが無効、または属性を書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         if unit not in ("rad", "deg"):
             raise ValueError("unit must be 'rad' or 'deg'")
@@ -649,11 +668,13 @@ class Transform(Node):
         matrix.rotation = value
         return self.set_matrix(matrix, ws=ws)
 
+    @fast_edit
     @undo_chunk("hlibTransformSetScale")
-    def set_scale(self, value, ws=False):
+    def set_scale(self, value, ws=False, *, fast=False):
         """スケールをローカルまたはワールド空間で設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Scale | sequence): 新しいスケール値。
             ws (bool): ``True`` でワールド空間に設定する。
 
@@ -663,16 +684,20 @@ class Transform(Node):
         Raises:
             ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
             RuntimeError: ノードが無効、または属性を書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.scale = value
         return self.set_matrix(matrix, ws=ws)
 
+    @fast_edit
     @undo_chunk("hlibTransformSetShear")
-    def set_shear(self, value, ws=False):
+    def set_shear(self, value, ws=False, *, fast=False):
         """Shearをローカルまたはワールド空間で設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Shear | sequence): 新しいShear値。
             ws (bool): ``True`` でワールド空間に設定する。
 
@@ -682,16 +707,20 @@ class Transform(Node):
         Raises:
             ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
             RuntimeError: ノードが無効、または属性を書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.shear = value
         return self.set_matrix(matrix, ws=ws)
 
+    @fast_edit
     @undo_chunk("hlibTransformCompose")
-    def compose(self, matrix, ws=False):
+    def compose(self, matrix, ws=False, *, fast=False):
         """Matrix の TRS/shear 成分をローカルまたはワールド空間へ適用する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             matrix (Matrix): 適用する hlib 行列。
             ws (bool): True はワールド、False はローカル空間として解釈する。
 
@@ -702,6 +731,8 @@ class Transform(Node):
             TypeError: matrix が Matrix でない場合。
             RuntimeError: ノードが無効、または属性を書き込めない場合。
             ValueError: 行列を分解できない、または必要な親行列を反転できない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         if not isinstance(matrix, Matrix):
             raise TypeError("matrix must be an hlib Matrix")
@@ -711,22 +742,34 @@ class Transform(Node):
         self._apply_local_matrix(local_matrix)
         return self
 
+    @fast_edit
     @undo_chunk("hlibTransformShow")
-    def show(self):
+    def show(self, *, fast=False):
         """visibility を True に設定する。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Transform: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         self.plug("visibility").set(True)
         return self
 
+    @fast_edit
     @undo_chunk("hlibTransformHide")
-    def hide(self):
+    def hide(self, *, fast=False):
         """visibility を False に設定する。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Transform: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         self.plug("visibility").set(False)
         return self

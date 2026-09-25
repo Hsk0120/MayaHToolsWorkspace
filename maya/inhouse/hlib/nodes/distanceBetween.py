@@ -1,5 +1,7 @@
 """二点間、またはTransformの原点間の距離を扱う。"""
 
+from ..decorators._fast import fast_edit
+
 from .._core.coerce import to_node
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
@@ -11,11 +13,13 @@ from .transform import Transform
 class DistanceBetween(Node):
     """inMatrix1/2で変換したpoint1/2間の距離を評価する。"""
 
+    @fast_edit
     @undo_chunk("hlibDistanceBetweenSetPoints")
-    def set_points(self, point1, point2):
+    def set_points(self, point1, point2, *, fast=False):
         """各入力行列の空間における二点を設定する。行列は変更しない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             point1 (Iterable[float]): 第一の点。Mayaの現在の距離表示単位。
             point2 (Iterable[float]): 第二の点。同じ単位。
 
@@ -25,6 +29,8 @@ class DistanceBetween(Node):
         Raises:
             ValueError: 座標が3要素でない、または非有限値の場合。
             RuntimeError: 属性ロックなどで設定できない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         import math
 

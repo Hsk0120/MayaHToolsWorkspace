@@ -1,5 +1,7 @@
 """Maya の NURBS カーブシェイプを扱う。"""
 
+from ..decorators._fast import fast_edit
+
 import maya.api.OpenMaya as om2
 
 from .._core.registry import node_wrapper
@@ -11,10 +13,12 @@ from .shape import Shape
 class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。"""
 
-    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None):
+    @fast_edit
+    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """CV の位置をミラーし、自身を更新する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
             ws (bool): True はワールド軸、False はオブジェクト空間の軸。既定は False。
@@ -36,6 +40,8 @@ class NurbsCurve(Shape):
         カーブの複製やパラメータ方向の反転は行わない。1回の Undo で戻せる。
         周期カーブの重複 CV は Maya の連動規則に従う。
         インスタンス形状はデータを共有する全インスタンスへ影響する。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         self.cvs(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self

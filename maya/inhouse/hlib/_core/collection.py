@@ -42,7 +42,8 @@ class BulkCollection:
         functions = [getattr(item, method) for item in self._items]
         for function, row, flags in zip(functions, args, kwargs):
             inspect.signature(function).bind(*row, **flags)
-        context = undo_chunk("hlibBulk_" + method) if self._bulk_undo else contextlib.nullcontext()
+        all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
+        context = undo_chunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
         result = []
         with context:
             for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):

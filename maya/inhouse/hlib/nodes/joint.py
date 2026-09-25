@@ -1,5 +1,8 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
+from ..decorators._fast import fast_edit
+from .._core.fast_write import set_attr
+
 from ..decorators.undo import undo_chunk
 
 import math
@@ -45,6 +48,88 @@ class Joint(Transform):
             om2.MEulerRotation.kYXZ,
             om2.MEulerRotation.kZYX,
         )[order_index]
+
+    def _joint_rotation_transfer_values(self, to_orient=False):
+        """書込み可否を検証し、合成後の回転を現在の角度単位で返す。
+
+        Args:
+            to_orient (bool): TrueでjointOrient用XYZ、FalseでrotateOrderのrotate用。
+        Returns:
+            tuple[float, float, float] | None: 合成値。移送元が0ならNone。
+        Raises:
+            RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
+        """
+        if not self.is_joint():
+            raise RuntimeError("Cannot change orientation of an invalid joint")
+        orient = self._compound_values("jointOrient", angle=True)
+        rotate = self._compound_values("rotate", angle=True)
+        if not any(rotate if to_orient else orient):
+            return None
+        name = self.full_name
+        for attribute in ("rotate", "jointOrient"):
+            for suffix in ("", "X", "Y", "Z"):
+                plug = name + "." + attribute + suffix
+                if (not cmds.getAttr(plug, settable=True)
+                        or cmds.connectionInfo(plug, isDestination=True)):
+                    raise RuntimeError("Attribute must be unlocked and have no input connection: " + plug)
+        rotation = om2.MEulerRotation(
+            *(math.radians(v) for v in rotate),
+            self._rotation_order())
+        # jointOrientはrotateOrderに関係なくXYZ。MayaのR * JOを合成する。
+        orientation = om2.MEulerRotation(*(math.radians(v) for v in orient))
+        combined = om2.MTransformationMatrix(rotation.asMatrix() * orientation.asMatrix())
+        result = combined.rotation(asQuaternion=True).asEulerRotation()
+        result.reorderIt(om2.MEulerRotation.kXYZ if to_orient else self._rotation_order())
+        return tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in result)
+
+    @fast_edit
+    def joint_orient_to_rotate(self, *, fast=False):
+        """現在の姿勢を保ち、jointOrientをrotateに合成して0にする。
+
+        XYZの数値加算ではなく回転を合成する。rotateOrder、rotateAxis、移動、
+        スケールは保持する。現在フレームの操作であり、アニメーションのベイクは
+        行わない。rotate/jointOrientに入力接続やロックがある場合は変更前に拒否する。
+        jointOrientが既に0なら何もしない。Undo一回で元へ戻せる。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Joint: 自身。
+        Raises:
+            RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        """
+        if not self.is_joint():
+            raise RuntimeError("Cannot change orientation of an invalid joint")
+        Joints([self]).joint_orient_to_rotate()
+        return self
+
+    @fast_edit
+    def freeze_rotation(self, *, fast=False):
+        """姿勢を保ち、rotateをjointOrientへ合成してrotateを0にする。
+
+        スキニング済みjointにも使用できる。jointの行列を保持するため、
+        skinClusterのウェイト・bindPreMatrix・バインドポーズは変更しない。
+        rotateAxis、rotateOrder、移動、スケールも保持する。現在フレームの操作で、
+        アニメーションをベイクしない。rotate/jointOrientのロックや入力接続は拒否する。
+        rotateが既に0なら何もしない。Undo一回で戻せる。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Joint: 自身。
+        Raises:
+            RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        """
+        if not self.is_joint():
+            raise RuntimeError("Cannot freeze rotation of an invalid joint")
+        Joints([self]).freeze_rotation()
+        return self
 
     def _rotation_quaternion(self, attribute):
         """Euler の Maya degrees 属性を API quaternion へ変換する。
@@ -107,10 +192,10 @@ class Joint(Transform):
         rotation.reorderIt(self._rotation_order())
 
         name = self.full_name
-        cmds.setAttr(f"{name}.translate", *matrix.translate)
-        cmds.setAttr(f"{name}.rotate", *(math.degrees(component) for component in rotation))
-        cmds.setAttr(f"{name}.scale", *matrix.scale)
-        cmds.setAttr(f"{name}.shear", *matrix.shear)
+        set_attr(f"{name}.translate", *matrix.translate)
+        set_attr(f"{name}.rotate", *(math.degrees(component) for component in rotation))
+        set_attr(f"{name}.scale", *matrix.scale)
+        set_attr(f"{name}.shear", *matrix.shear)
 
     @property
     def orientation(self):
@@ -443,6 +528,59 @@ class Joints(BulkCollection):
             Joints: 子 joint を先に処理できる深さ順コレクション。
         """
         return Joints(sorted(self._items, key=lambda joint: joint.depth(), reverse=True))
+
+    @fast_edit
+    @undo_chunk("hlibJointsJointOrientToRotate")
+    def joint_orient_to_rotate(self, *, fast=False):
+        """全jointの姿勢を保ち、jointOrientをrotateへ合成して0にする。
+
+        全対象の値と書込み可否を変更前に検証する。回転順序・角度単位に対応し、
+        jointOrientが0の対象は変更しない。全体を一回のUndoで戻せる。
+        途中でMayaの編集が失敗した場合は例外で停止し、完了済み変更はUndoで戻せる。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Joints: 自身。
+        Raises:
+            RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        """
+        plans = [(joint, joint._joint_rotation_transfer_values()) for joint in self]
+        for joint, values in plans:
+            if values is not None:
+                set_attr(joint.full_name + ".jointOrient", 0, 0, 0)
+                set_attr(joint.full_name + ".rotate", *values)
+        return self
+
+    @fast_edit
+    @undo_chunk("hlibJointsFreezeRotation")
+    def freeze_rotation(self, *, fast=False):
+        """全jointのrotateをjointOrientへ移し、姿勢を保ってrotateを0にする。
+
+        スキニング済みでも実行でき、ウェイト・bindPreMatrix・バインドポーズを
+        変更しない。全対象を事前検証し、全体を一回のUndoで戻せる。
+        移動・スケールのフリーズやアニメーションのベイクは行わない。
+        途中の編集失敗は例外で停止し、完了済み変更はUndoで戻せる。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Joints: 自身。
+        Raises:
+            RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        """
+        plans = [(joint, joint._joint_rotation_transfer_values(to_orient=True)) for joint in self]
+        for joint, values in plans:
+            if values is not None:
+                set_attr(joint.full_name + ".jointOrient", *values)
+                set_attr(joint.full_name + ".rotate", 0, 0, 0)
+        return self
 
     def skin_clusters(self):
         """全 joint に関連する skinCluster を取得する。

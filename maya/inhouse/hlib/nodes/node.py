@@ -1,5 +1,8 @@
 """Maya の依存ノードと DAG ノードを扱う基底ラッパー。"""
 
+from ..decorators._fast import fast_edit
+from .._core.fast_write import set_attr
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
@@ -183,22 +186,26 @@ class Node:
             return None
         return tuple(cmds.getAttr(self.full_name + ".outlinerColor")[0])
 
+    @fast_edit
     @undo_chunk("hlibNodeOutlinerColor")
-    def set_outliner_color(self, color):
+    def set_outliner_color(self, color, *, fast=False):
         """このノードのOutliner色を設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             color (Iterable[float] | None): 0～1のRGB。Noneでカスタム色を無効化。
         Returns:
             Node: 自身。
         Raises:
             ValueError: RGBの値・要素数が不正な場合。
             RuntimeError: 属性がない、ロックされているなど変更できない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         values = None if color is None else self._display_rgb(color)
         if values is not None:
-            cmds.setAttr(self.full_name + ".outlinerColor", *values, type="float3")
-        cmds.setAttr(self.full_name + ".useOutlinerColor", values is not None)
+            set_attr(self.full_name + ".outlinerColor", *values, type="float3")
+        set_attr(self.full_name + ".useOutlinerColor", values is not None)
         return self
 
     def override_color(self):
@@ -213,11 +220,13 @@ class Node:
             return tuple(cmds.getAttr(self.full_name + ".overrideColorRGB")[0])
         return cmds.getAttr(self.full_name + ".overrideColor")
 
+    @fast_edit
     @undo_chunk("hlibNodeOverrideColor")
-    def set_override_color(self, color):
+    def set_override_color(self, color, *, fast=False):
         """このノードのDrawing Overrides色を設定する。子Shapeへは転送しない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             color (int | Iterable[float] | None): 0～31のインデックス、0～1のRGB、
                 またはNone。NoneはoverrideEnabledを無効化するため表示タイプ等にも影響する。
         Returns:
@@ -225,22 +234,24 @@ class Node:
         Raises:
             ValueError: インデックスやRGBが不正な場合。
             RuntimeError: 属性がない、ロックされているなど変更できない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         if color is None:
-            cmds.setAttr(self.full_name + ".overrideEnabled", False)
+            set_attr(self.full_name + ".overrideEnabled", False)
             return self
         if isinstance(color, bool):
             raise ValueError("Color index must be an integer from 0 to 31")
         if isinstance(color, int):
             if not 0 <= color <= 31:
                 raise ValueError("Color index must be between 0 and 31")
-            cmds.setAttr(self.full_name + ".overrideColor", color)
-            cmds.setAttr(self.full_name + ".overrideRGBColors", False)
+            set_attr(self.full_name + ".overrideColor", color)
+            set_attr(self.full_name + ".overrideRGBColors", False)
         else:
             values = self._display_rgb(color)
-            cmds.setAttr(self.full_name + ".overrideColorRGB", *values, type="float3")
-            cmds.setAttr(self.full_name + ".overrideRGBColors", True)
-        cmds.setAttr(self.full_name + ".overrideEnabled", True)
+            set_attr(self.full_name + ".overrideColorRGB", *values, type="float3")
+            set_attr(self.full_name + ".overrideRGBColors", True)
+        set_attr(self.full_name + ".overrideEnabled", True)
         return self
 
     @classmethod
@@ -758,11 +769,13 @@ class Node:
             plug.reset()
         return plugs
 
+    @fast_edit
     @undo_chunk("hlibNodeSetAttrFlags")
-    def set_attr_flags(self, attributes, locked=None, keyable=None, channel_box=None):
+    def set_attr_flags(self, attributes, locked=None, keyable=None, channel_box=None, *, fast=False):
         """指定した属性のロック・キー設定可否・Channel Box表示をまとめて変更する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             attributes (str | Iterable[str]): 属性名。選択状態やChannel Box選択は使用しない。
                 複合属性の子まで変更する場合は子属性名を明示する。
             locked (bool | None): ロック状態。Noneは変更しない。
@@ -777,6 +790,8 @@ class Node:
             AttributeError: 指定属性が存在しない場合。全属性を変更前に解決する。
             TypeError: 状態にboolまたはNone以外を指定した場合。
             RuntimeError: Mayaが変更を拒否した場合。途中の変更は自動では戻さない。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         flags = {}
         for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channel_box)):
@@ -789,7 +804,7 @@ class Node:
         plugs = [self.plug(name) for name in attributes]
         if flags:
             for plug in plugs:
-                cmds.setAttr(plug.full_name, **flags)
+                set_attr(plug.full_name, **flags)
         return self
 
     def plugs(self, **kwargs):

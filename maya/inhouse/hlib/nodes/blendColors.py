@@ -1,5 +1,8 @@
 """二つのRGB入力をblenderで補間する。"""
 
+from ..decorators._fast import fast_edit
+from .._core.fast_write import set_attr
+
 import math
 import maya.cmds as cmds
 from .._core.registry import node_wrapper
@@ -28,11 +31,13 @@ class BlendColors(Node):
         """
         return self.plug(f"color{self._index(index)}")
 
+    @fast_edit
     @undo_chunk("hlibBlendColorsSetColor")
-    def set_color(self, index, value):
+    def set_color(self, index, value, *, fast=False):
         """入力色を設定する。既存接続は切断しない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 1または2。
             value (Iterable[float]): RGB順の有限な3要素。0～1には制限しない。
         Returns:
@@ -40,12 +45,14 @@ class BlendColors(Node):
         Raises:
             ValueError: 番号、要素数、数値が不正な場合。
             RuntimeError: ロックや接続によりMayaが設定を拒否した場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         target = self.color(index)
         values = tuple(float(v) for v in value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Color must contain three finite values")
-        cmds.setAttr(target.full_name, *values, type="float3")
+        set_attr(target.full_name, *values, type="float3")
         return self
 
     @undo_chunk("hlibBlendColorsConnectColor")
@@ -66,17 +73,21 @@ class BlendColors(Node):
         """Plug: 補間係数。0ならcolor2、1ならcolor1。"""
         return self.plug("blender")
 
+    @fast_edit
     @undo_chunk("hlibBlendColorsSetBlender")
-    def set_blender(self, value):
+    def set_blender(self, value, *, fast=False):
         """補間係数を設定する。既存接続は切断しない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (float): 0～1の有限値。
         Returns:
             BlendColors: 自身。
         Raises:
             ValueError: 非有限値または範囲外の場合。
             RuntimeError: ロックや接続により設定できない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         value = float(value)
         if not math.isfinite(value) or not 0 <= value <= 1:

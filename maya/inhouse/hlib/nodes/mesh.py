@@ -1,5 +1,7 @@
 """Maya のメッシュシェイプを扱う。"""
 
+from ..decorators._fast import fast_edit
+
 import maya.api.OpenMaya as om2
 
 from .._core.registry import node_wrapper
@@ -14,10 +16,12 @@ from .shape import Shape
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
-    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None):
+    @fast_edit
+    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """頂点位置をミラーし、自身を更新する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
             ws (bool): True はワールド軸、False はオブジェクト空間の軸。既定は False。
@@ -39,6 +43,8 @@ class Mesh(Shape):
         複製・結合・片側からの対称化・法線反転は行わない。奇数軸で反転すると
         面の向きが反転するため、必要な法線処理は別途行う。1回の Undo で戻せる。
         インスタンス形状はデータを共有する全インスタンスへ影響する。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         self.vertices(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self

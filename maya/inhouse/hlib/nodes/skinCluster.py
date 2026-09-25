@@ -1,5 +1,9 @@
 """skinCluster のウェイト操作と joint 削除を支援する。"""
 
+from ..decorators._fast import fast_edit, is_fast
+from .._core.fast_write import set_attr
+from .._core.fast_write import writable, check_range
+
 from ..decorators.undo import undo_chunk
 
 import json
@@ -285,14 +289,16 @@ class SkinCluster(Node):
         vertices, _ = self._all_verts()
         return self.fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
 
+    @fast_edit
     @undo_chunk("hlibSkinClusterSetWeights")
-    def set_weights(self, joints, weights):
+    def set_weights(self, joints, weights, *, fast=False):
         """指定したjointの全頂点ウェイトを設定する。
 
         cmds.setAttr で指定 influence のみを書き換える。正規化は行わず、
         influence のロック設定や未指定のウェイトは変更しない。一回の Undo で戻せる。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             joints (Iterable[str]): 設定する登録済み influence 名。
             weights (Iterable[float]): 頂点順、各頂点内は指定 influence 順の平坦な配列。
                 頂点数×influence数、または全頂点に共通適用するinfluence数の値。
@@ -304,6 +310,8 @@ class SkinCluster(Node):
             ValueError: influence が空・未登録・重複、値の数が不一致、または非有限値の場合。
             TypeError: ウェイトを数値に変換できない場合。
             RuntimeError: 属性がロックされているなど、Maya が設定を拒否した場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         joints = list(joints)
         physical_indices = [self._jnt_index(joint) for joint in joints]
@@ -319,11 +327,27 @@ class SkinCluster(Node):
         influences = self.fn.influenceObjects()
         # 削除済み influence による配列の穴を考慮し、物理番号を属性の論理番号へ変換する。
         logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
+        if is_fast():
+            weights_plug = om2.MFnDependencyNode(self.mobject()).findPlug("weightList", False)
+            edits = []
+            for vertex in range(vertex_count):
+                row = weights_plug.elementByLogicalIndex(vertex).child(0)
+                offset = 0 if len(values) == width else vertex * width
+                for column, index in enumerate(logical_indices):
+                    plug = row.elementByLogicalIndex(index)
+                    writable(plug)
+                    check_range(plug, values[offset + column])
+                    edits.append((plug, values[offset + column]))
+            # MFnSkinCluster.setWeightsはliw等の設定によって未指定値を再配分する。
+            # 通常モードと同じ生値を維持するため、MPlugに直接書き込む。
+            for plug, value in edits:
+                plug.setDouble(value)
+            return
         name = self.full_name
         for vertex in range(vertex_count):
             offset = 0 if len(values) == width else vertex * width
             for column, logical_index in enumerate(logical_indices):
-                cmds.setAttr(
+                set_attr(
                     f"{name}.weightList[{vertex}].weights[{logical_index}]",
                     values[offset + column],
                 )
@@ -350,8 +374,9 @@ class SkinCluster(Node):
         with open(path, "w", encoding="utf-8") as file:
             json.dump(payload, file)
 
+    @fast_edit
     @undo_chunk("hlibSkinClusterLoadWeights")
-    def load_weights(self, path):
+    def load_weights(self, path, *, fast=False):
         """dump_weights() が書き出した JSON ファイルからウェイトを読み込み設定する。
 
         ファイルに記録された influence がすべてこの skinCluster に存在し、
@@ -359,6 +384,7 @@ class SkinCluster(Node):
         ウェイトを変更せず例外を送出する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             path (str): 読み込むファイルパス。
 
         Returns:
@@ -367,6 +393,8 @@ class SkinCluster(Node):
         Raises:
             ValueError: 頂点数が現在の mesh と一致しない、またはファイルに
                 記録された influence の一部がこの skinCluster に存在しない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         with open(path, "r", encoding="utf-8") as file:
             payload = json.load(file)
@@ -435,7 +463,7 @@ class SkinCluster(Node):
                 raise ValueError(f"Vertex {vertex} produced a zero-sum weight distribution")
             final = [value / eased_total for value in eased]
             for logical_index, value in zip(logical_indices, final):
-                cmds.setAttr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value)
+                set_attr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value)
 
     @undo_chunk("hlib.nodes.skinCluster.transfer_weight")
     def transfer_weight(self, source_joint, target_joint):
@@ -583,11 +611,13 @@ class SkinCluster(Node):
                 result.extend(float(v) for v in row)
         return names, result
 
+    @fast_edit
     @undo_chunk("hlibSkinClusterNormalizeWeights")
-    def normalize_weights(self, decimals=None):
+    def normalize_weights(self, decimals=None, *, fast=False):
         """先頭meshの各頂点ウェイトを合計1へ正規化する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             decimals (int | None): 0〜15の小数桁数。Noneは桁丸めなし。
                 桁指定時は端数を配分し、十進数として合計1を維持する。
                 同率の場合はinfluenceの登録順を優先する。
@@ -599,6 +629,8 @@ class SkinCluster(Node):
 
         全頂点を事前検証する。normalizeWeights設定・influence数は変更しない。
         保存値は浮動小数点のため合計に機械精度の誤差は生じ得る。Undo対応。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         names, values = self._normalized_weights(decimals)
         self.set_weights(names, values)
@@ -608,11 +640,13 @@ class SkinCluster(Node):
         """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
         return cmds.getAttr(self.full_name + ".maxInfluences")
 
+    @fast_edit
     @undo_chunk("hlibSkinClusterSetMaxInfluences")
-    def set_max_influences(self, count, maintain=True, prune=False):
+    def set_max_influences(self, count, maintain=True, prune=False, *, fast=False):
         """最大influence設定を変更し、任意で既存ウェイトも制限する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             count (int): 1以上の最大数。
             maintain (bool): maintainMaxInfluencesを有効にするか。
             prune (bool): Trueで先頭meshの各頂点の大きいcount個だけを残し正規化。
@@ -625,6 +659,8 @@ class SkinCluster(Node):
             RuntimeError: ロック・レイヤー・Mayaの編集失敗。
 
         skinCluster編集コマンドの再バインドを避け、属性を直接設定する。Undo対応。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         if type(count) is not int or not 1 <= count <= 2147483647:
             raise ValueError("count must be a positive 32-bit integer")
@@ -634,8 +670,8 @@ class SkinCluster(Node):
             if not cmds.getAttr(self.full_name + "." + attr, settable=True):
                 raise RuntimeError("Setting is locked or connected: " + attr)
         computed = self._normalized_weights(limit=count) if prune else None
-        cmds.setAttr(self.full_name + ".maxInfluences", count)
-        cmds.setAttr(self.full_name + ".maintainMaxInfluences", maintain)
+        set_attr(self.full_name + ".maxInfluences", count)
+        set_attr(self.full_name + ".maintainMaxInfluences", maintain)
         if computed:
             self.set_weights(*computed)
         return self

@@ -1,5 +1,7 @@
 """double3 属性を意味付きの3成分値として扱う。"""
 
+from ..decorators._fast import fast_edit
+
 import math
 
 from .._core.registry import plug_wrapper
@@ -56,12 +58,14 @@ class Double3Plug(CompoundPlug):
             return EulerRotation(*(math.radians(value) for value in values), order=order)
         return value_type(*values)
 
-    def set(self, value, ws=False, unit="rad"):
+    @fast_edit
+    def set(self, value, ws=False, unit="rad", *, fast=False):
         """変換属性をローカルまたはワールド空間へ設定する。
 
         対応するノードメソッドがあればローカル指定でも委譲する。なければ各子プラグへ順に設定する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float] | Quaternion): 設定値。通常は3成分。回転メソッドへの委譲時はその受け入れ型に従う。
             ws (bool): True ならノードの変換設定メソッドへワールド指定で委譲する。
             unit (str): 回転の委譲時のみ使用する入力単位 rad または deg。その他の属性では無視する。
@@ -71,6 +75,8 @@ class Double3Plug(CompoundPlug):
 
         Raises:
             ValueError: 対応する設定メソッドがない属性で ws=True を指定、値の要素数が不正、または委譲先の変換条件が不正の場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         setters = {
             "translate": "set_translate",

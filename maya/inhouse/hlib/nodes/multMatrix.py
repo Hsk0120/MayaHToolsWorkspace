@@ -1,5 +1,7 @@
 """行列を配列の順番で乗算するmultMatrixを扱う。"""
 
+from ..decorators._fast import fast_edit
+
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from ..maths import Matrix
@@ -17,11 +19,13 @@ class MultMatrix(Node):
             raise ValueError("Matrix index must be a non-negative integer")
         return index
 
+    @fast_edit
     @undo_chunk("hlibMultMatrixSetInput")
-    def set_input(self, index, value):
+    def set_input(self, index, value, *, fast=False):
         """指定スロットに定数行列を設定する。入力接続は切断しない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 非負の論理インデックス。
             value (Matrix | Iterable[float]): Maya規約の行列。
 
@@ -31,6 +35,8 @@ class MultMatrix(Node):
         Raises:
             ValueError: インデックスや行列が不正な場合。
             RuntimeError: ロックや入力接続により設定できない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         index = self._index(index)
         value = Matrix(value)

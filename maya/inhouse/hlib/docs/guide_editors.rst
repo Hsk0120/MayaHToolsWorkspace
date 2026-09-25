@@ -51,3 +51,25 @@
 `timeControl <https://help.autodesk.com/cloudhelp/2024/ENU/Maya-Tech-Docs/CommandsPython/timeControl.html>`_。
 
 ChannelBoxと選択状態の操作は :doc:`selection_and_channelbox` を参照してください。
+
+処理中の画面停止
+----------------
+
+``hlib.bakeResults()`` はGUIでのベイク中、自動でメインペインを非表示にします。
+正常終了・例外のどちらでも元の表示状態へ戻します。
+ベイク以外のツールには ``viewport_off()`` をデコレーターまたはコンテキストとして使えます。
+
+.. code-block:: python
+
+    from hlib.decorators import viewport_off
+
+    @viewport_off()
+    def build_animation():
+        hlib.bakeResults("pCube1", time=(1, 120), attribute="translateX")
+
+    with viewport_off():
+        build_animation()
+
+括弧付きの ``@viewport_off()`` を使用します。入れ子でも途中で表示は戻りません。
+バッチ実行では表示操作を省略し、ブロックの処理だけ実行します。
+OGS・refresh・評価設定は変更しません。例外時に処理を自動再実行することもありません。

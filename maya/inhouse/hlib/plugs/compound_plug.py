@@ -1,5 +1,7 @@
 """複合属性とその子プラグを扱う。"""
 
+from ..decorators._fast import fast_edit
+
 import maya.api.OpenMaya as om2
 
 from ..decorators.undo import undo_chunk
@@ -20,14 +22,16 @@ class CompoundPlug(Plug):
         """
         return tuple(self.child(index).get() for index in range(self._mplug.numChildren()))
 
+    @fast_edit
     @undo_chunk("hlibCompoundPlugSet")
-    def set(self, value):
+    def set(self, value, *, fast=False):
         """子数と同数のシーケンスを各子プラグへ設定する。
 
         子の変更を一回のUndoにまとめる。要素数は先に検査する。
         設定途中の失敗時に、先に設定した子の値を自動で戻す処理はない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[object]): 子プラグと同じ数の値。先頭から順に設定する。
 
         Returns:
@@ -35,6 +39,8 @@ class CompoundPlug(Plug):
 
         Raises:
             ValueError: 要素数が子数と一致しない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         values = tuple(value)
         if len(values) != self._mplug.numChildren():

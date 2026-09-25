@@ -46,6 +46,50 @@ PointOnPoly のターゲットUV等も Maya の仕様に従い、必要に応じ
 joint チェーンと IK ハンドル
 ------------------------------
 
+jointOrientをrotateへ移す
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+現在の姿勢を保ち、jointOrientを0にするには次のように実行します。
+
+.. code-block:: python
+
+   joint = hlib.node("leg_RF_knee_IK_jnt")
+   joint.joint_orient_to_rotate()
+
+   joints = hlib.ls(selection=True, type="joint")
+   joints.joint_orient_to_rotate()
+
+XYZの値を単純加算せず、回転を合成してrotateOrderに合わせたrotateへ変換します。
+rotateAxis・移動・スケールと子の姿勢を保持し、度・ラジアンのどちらの角度単位でも使えます。
+単体はJoint自身、複数はJoints自身を返し、一回のUndoで戻せます。
+複数の場合は全対象を事前検証します。jointOrientが既に0なら変更しません。
+入力接続（アニメーションカーブやコンストレイントを含む）・ロックがある対象は
+エラーになります。現在フレームの処理であり、アニメーションのベイクは行いません。
+
+スキニング済みjointの回転フリーズ
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+逆方向の操作は ``freeze_rotation()`` です。現在のrotateをjointOrientへ合成し、
+rotateを0にします。ジョイントと子の姿勢を保持するため、スキニング後でも使用できます。
+
+.. code-block:: python
+
+   joint = hlib.node("leg_RF_knee_IK_jnt")
+   joint.freeze_rotation()
+
+   joints = hlib.ls(selection=True, type="joint")
+   joints.freeze_rotation()
+
+回転だけが対象です。translate・scale・rotateAxis・rotateOrderは変更しません。
+skinClusterのウェイト・bindPreMatrixや保存済みバインドポーズも変更せず、
+現在のメッシュの変形を保ちます。バインドポーズの再設定やアニメーションのベイクではありません。
+rotateが既に0の対象は何もしません。それ以外でrotate／jointOrientにロックや入力接続が
+ある場合は変更前にエラーになります。単体はJoint自身、複数はJoints自身を返し、
+複数jointも一回のUndoで戻せます。
+
+チェーンの取得
+^^^^^^^^^^^^^^
+
 .. code-block:: python
 
    from hlib.nodes import Joint

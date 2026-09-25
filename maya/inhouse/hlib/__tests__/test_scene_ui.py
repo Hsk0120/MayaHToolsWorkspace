@@ -67,6 +67,45 @@ class SceneUiTest(unittest.TestCase):
         finally:
             view.set_enabled(before)
 
+    def test_viewport_off_and_bake(self):
+        from unittest.mock import patch
+        from hlib.decorators import viewport_off
+        view = hlib.editors.Viewport
+        before = view.is_enabled()
+        calls = []
+
+        @viewport_off()
+        def operation(fail=False):
+            calls.append(1)
+            self.assertFalse(view.is_enabled())
+            with viewport_off():
+                self.assertFalse(view.is_enabled())
+            if fail:
+                raise RuntimeError('viewport test failure')
+            return 42
+
+        try:
+            self.assertEqual(operation(), 42)
+            self.assertEqual(view.is_enabled(), before)
+            with self.assertRaisesRegex(RuntimeError, 'viewport test failure'):
+                operation(True)
+            self.assertEqual(calls, [1, 1])
+            self.assertEqual(view.is_enabled(), before)
+            view.set_enabled(False)
+            operation()
+            self.assertFalse(view.is_enabled())
+            view.set_enabled(before)
+            def failed_bake(*args, **kwargs):
+                self.assertFalse(view.is_enabled())
+                raise RuntimeError('bake failure')
+            with patch.object(cmds, 'bakeResults', side_effect=failed_bake) as bake:
+                with self.assertRaisesRegex(RuntimeError, 'bake failure'):
+                    hlib.bakeResults('unused')
+                self.assertEqual(bake.call_count, 1)
+            self.assertEqual(view.is_enabled(), before)
+        finally:
+            view.set_enabled(before)
+
     def test_outliner_settings(self):
         before = self.outliner.settings()
         with self.assertRaisesRegex(RuntimeError, "test failure"):

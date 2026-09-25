@@ -14,6 +14,7 @@
    blend_colors
    guide_plugs
    bulk_collections
+   fast_edit
 
 .. toctree::
    :maxdepth: 1

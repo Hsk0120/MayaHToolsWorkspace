@@ -1,5 +1,7 @@
 """配列属性の論理インデックスと要素プラグを扱う。"""
 
+from ..decorators._fast import fast_edit
+
 import maya.cmds as cmds
 
 from ..decorators.undo import undo_chunk
@@ -20,10 +22,12 @@ class ArrayPlug(Plug):
         """
         return {index: self.element(index).get() for index in self._mplug.getExistingArrayAttributeIndices()}
 
-    def set(self, value):
+    @fast_edit
+    def set(self, value, *, fast=False):
         """array プラグへの直接の値設定を禁止する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (object): 設定要求値。内容に関係なく拒否する。
 
         Returns:
@@ -31,6 +35,8 @@ class ArrayPlug(Plug):
 
         Raises:
             TypeError: 常に送出される。要素プラグへ設定すること。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         raise TypeError("Set an array element instead of the array plug")
 

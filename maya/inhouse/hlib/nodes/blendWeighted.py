@@ -1,5 +1,8 @@
 """重み付き加算ノード。ウェイトの正規化はしない。"""
 
+from ..decorators._fast import fast_edit
+from .._core.fast_write import set_attr
+
 import math
 import maya.cmds as cmds
 from .._core.registry import node_wrapper
@@ -35,30 +38,38 @@ class BlendWeighted(Node):
         index, value = self._index(index), float(value)
         if not math.isfinite(value):
             raise ValueError("Expected a finite value")
-        cmds.setAttr(f"{self.full_name}.{attr}[{index}]", value)
+        set_attr(f"{self.full_name}.{attr}[{index}]", value)
         return self
 
+    @fast_edit
     @undo_chunk("hlibBlendWeightedInput")
-    def set_input(self, index, value):
+    def set_input(self, index, value, *, fast=False):
         """定数入力を設定する。既存接続は切断しない。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 非負の論理番号。
             value (float): 有限の入力値。
         Returns:
             BlendWeighted: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         return self._set("input", index, value)
 
+    @fast_edit
     @undo_chunk("hlibBlendWeightedWeight")
-    def set_weight(self, index, value):
+    def set_weight(self, index, value, *, fast=False):
         """ウェイトを設定する。負値も使用可能。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 非負の論理番号。
             value (float): 有限の倍率。
         Returns:
             BlendWeighted: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         """
         return self._set("weight", index, value)
 
@@ -77,7 +88,7 @@ class BlendWeighted(Node):
         target = f"{self.full_name}.input[{index}]"
         if index in self.input_indices() and not cmds.listConnections(target, source=True, destination=False):
             # connectAttrのUndoだけでは配列要素の定数値が失われるため履歴に記録する。
-            cmds.setAttr(target, cmds.getAttr(target))
+            set_attr(target, cmds.getAttr(target))
         cmds.connectAttr(source.full_name, target, force=force)
         return self
 

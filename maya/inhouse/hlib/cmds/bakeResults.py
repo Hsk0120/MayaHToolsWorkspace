@@ -8,6 +8,9 @@ Synopsis
 
 指定したノードのアニメーションをキーフレームへベイクします。
 
+GUIではベイク中にメインペインを非表示にし、終了・例外時に元の表示状態へ戻します。
+バッチ実行では表示操作を行いません。
+
 作成・編集操作です。Maya の Undo に対応します。``time=(start, end)`` を
 指定しないと Maya の現在の再生範囲が使われます。
 
@@ -64,9 +67,11 @@ Examples
 import maya.cmds as cmds
 
 from ..decorators.undo import undo_chunk
+from ..decorators.viewport import viewport_off
 
 
 @undo_chunk("hlib.cmds.bakeResults.bakeResults")
+@viewport_off()
 def bakeResults(nodes, **kwargs):
     """指定したノードのアニメーションをキーフレームへベイクする。
 
