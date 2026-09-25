@@ -39,6 +39,10 @@ maya_2026_en.bat
 
 実体は `tools/send_to_maya.py`(mayapy経由でタスク実行)が `localhost:7002` へ実行コマンドを送り、対象ツール自体は**起動中のMaya GUIプロセス内**で実行される仕組み(`MayaCommandPorts` が開くPythonポートを利用)。対象は保存済みファイル全体(`__name__ == "__main__"`)で、選択範囲送信・ブレークポイントは非対応。import済み依存モジュールは自動リロードされない。結果受け渡しは `.maya-output/` 配下の実行ごとのJSONファイル(取得後は削除、gitignore対象)。別バージョン/インストール先を使う場合は `MayaHToolsWorkspace.code-workspace` の `maya.pythonExecutable` と `python.defaultInterpreterPath` を対象の `mayapy.exe` に変更する。
 
+### 静的解析(Pylance/pyright)
+
+`python tools/setup_maya_typings.py` で型スタブ(`types-maya`)を `typings/maya/` へ配置する(Git対象外)。設定はリポジトリ直下の `pyrightconfig.json`(解析対象・`extraPaths`・重大度)。スタブの不完全さに起因する指摘は警告にしてあり、エラーは実際の誤りだけ。コマンドラインでは `pyright --pythonpath "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe"`。詳細は `docs/vscode.md`。
+
 ### テストの実行
 
 pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提。
@@ -136,7 +140,7 @@ tools/
 
 Maya公式 `maya.cmds` ではなく `maya.api.OpenMaya`(API 2.0)を主に用いた、ノード/属性(plug)のラッパーとメンテナンス性重視の動的登録機構を提供する。
 
-- **動的wrapper登録** (`hlib/_core/discovery.py`, `hlib/_core/registry.py`): `hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、サブパッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/属性型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけでよく、`__init__.py` 等の手動編集は不要**。同一型に複数クラスを登録しようとすると `ValueError` になる。ノード側は `Node`/`Transform`/`Shape`/`Joint`/`Mesh`/`Camera`/`NurbsCurve`/`SkinCluster`/`IkHandle`/`ObjectSet`/`BlendShape`/`DisplayLayer`/`Cluster`/`Locator`/`Reference`に加え、`Constraint` 系(Parent/Point/Orient/Scale/Aim/PoleVector/Geometry/Normal/Tangent/PointOnPoly の10種)を提供する。これらのクラスは `hlib` 直下には公開されず、`hlib.nodes.Joint` のように所属パッケージ(`hlib.nodes`/`hlib.plugs`/`hlib.maths`/`hlib.components`/`hlib.files`/`hlib.namespaces`/`hlib.plugins`/`hlib.units`/`hlib.workspace`/`hlib.editors`)から import する。
+- **動的wrapper登録** (`hlib/_core/discovery.py`, `hlib/_core/registry.py`): `hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、サブパッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/属性型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけで実行時には登録される**。ただしエディターの静的解析向けに、`hlib/nodes/__init__.py`(ノードクラス)と、コマンドなら `hlib/__init__.py`・`hlib/cmds/__init__.py` の `if TYPE_CHECKING:` ブロックへの追記も必要(漏れは `test_typing_exports.py` が検出する)。同一型に複数クラスを登録しようとすると `ValueError` になる。ノード側は `Node`/`Transform`/`Shape`/`Joint`/`Mesh`/`Camera`/`NurbsCurve`/`SkinCluster`/`IkHandle`/`ObjectSet`/`BlendShape`/`DisplayLayer`/`Cluster`/`Locator`/`Reference`に加え、`Constraint` 系(Parent/Point/Orient/Scale/Aim/PoleVector/Geometry/Normal/Tangent/PointOnPoly の10種)を提供する。これらのクラスは `hlib` 直下には公開されず、`hlib.nodes.Joint` のように所属パッケージ(`hlib.nodes`/`hlib.plugs`/`hlib.maths`/`hlib.components`/`hlib.files`/`hlib.namespaces`/`hlib.plugins`/`hlib.units`/`hlib.workspace`/`hlib.editors`)から import する。
 - **ファクトリパターン**: `Node.__new__`(`hlib/nodes/node.py`)が対象の実際の Maya nodeType を調べ、登録済みのサブクラス(例: `Joint`, `SkinCluster`)があれば自動的にそちらへ差し替えてインスタンス化する。呼び出したクラス自身と実際の型が異なれば差し替わる点に注意(例: 非jointノード名を渡して `Joint("name")` を呼んでも、実際の型が `Transform` ならその型が返る)。属性未定義の場合は `__getattr__` がMayaのplugとして解決を試みる(`Plug` を返す)。
 - **`hlib/cmds/` ― ファイル名駆動のコマンド自動公開**: `cmds/<コマンド名>.py` に同名の関数(例: `createNode.py` の `createNode()`)を定義するだけで、`hlib.cmds.<コマンド名>` と `hlib.<コマンド名>` の両方から呼べるようになる(`cmds/__init__.py` の編集は不要。非公開名・サブパッケージ・同名関数を持たないファイルは対象外)。既存コマンドは `createNode`/`ls`/`node`/`constraint`/`scene`。命名は Maya コマンドに合わせてキャメルケース。各モジュールの docstring は Synopsis/Return value/Flags/Examples 形式で書き、Sphinx側の専用テンプレートで個別ページとして生成される。`hlib.reload()` は追加・変更・削除を検出して両方の公開名に反映する。
 - **依存順リロード** (`hlib/_core/reload.py`): `hlib.reload()` がパッケージ配下の現存モジュールをmodule globals内の相互参照から依存グラフを推定し、依存先を先に安全な順序でreloadする。Script Editor上での開発・修正の反映に使う。

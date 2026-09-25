@@ -253,3 +253,6 @@ compile_commands.json
 *.obj
 *.iobj
 *.ipdb
+
+# 型スタブ(tools/setup_maya_typings.py で生成)
+/typings/

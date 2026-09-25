@@ -10,6 +10,7 @@ for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
     globals().pop(_name, None)
 
 import importlib as _importlib
+from typing import TYPE_CHECKING
 
 from . import cmds, nodes, plugs, components, files, namespaces, plugins, units, workspace, editors, maths, json
 globals().pop("scene", None)
@@ -23,6 +24,31 @@ _bootstrap.initialize_plug_api(__name__)
 
 __all__ = ["cmds", "nodes", "plugs", "components", "files", "namespaces", "plugins", "units", "workspace", "editors", "maths", "reload"]
 __all__.append("json")
+
+# 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
+# 公開名の一覧との一致は test_typing_exports.py が検証する。
+if TYPE_CHECKING:
+    from .cmds import (
+        bakeResults,
+        captureSelection,
+        channelBox,
+        constraint,
+        createNode,
+        currentTime,
+        delete,
+        drivenKey,
+        duplicate,
+        group,
+        ls,
+        node,
+        objExists,
+        outliner,
+        scene,
+        select,
+        setKeyframe,
+        timeSlider,
+        viewport,
+    )
 
 
 def reload():

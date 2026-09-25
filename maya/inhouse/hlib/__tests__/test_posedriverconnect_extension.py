@@ -1,6 +1,5 @@
 """同梱の外部SDKと対応バイナリがある場合にサンプルを実機検証する。"""
 from pathlib import Path
-import importlib.util
 import sys
 import unittest
 import uuid
@@ -26,12 +25,6 @@ class PoseDriverConnectTest(unittest.TestCase):
             hlib.reload()
             self.assertEqual(set(cmds.pluginInfo(query=True, listPlugins=True) or []), before_plugins)
             state = hlib.extensions.status()['hlib_posedriverconnect']
-            if importlib.util.find_spec('six') is None:
-                self.assertEqual(state['state'], 'error')
-                self.assertIn('six', state['reason'])
-                self.assertIsNone(hlib.nodes.Node._registry.lookup('UERBFSolverNode'))
-                self.assertIsNotNone(hlib.nodes.Node._registry.lookup('transform'))
-                self.skipTest('Dependency-error isolation passed; PoseDriverConnect requires six')
             self.assertEqual(state['state'], 'loaded', state['reason'])
             self.assertIsNotNone(hlib.nodes.Node._registry.lookup('UERBFSolverNode'))
             binary = EXTERNAL / 'plug-ins/windows' / str(cmds.about(version=True)).split('.')[0] / 'MayaUERBFPlugin.mll'

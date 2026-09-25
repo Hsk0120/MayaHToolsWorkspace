@@ -53,6 +53,8 @@
 - 数学型の変更は `maya/inhouse/hlib/__tests__/test_datatypes.py` をMaya経由で実行する。
 - Maya依存コードは通常のPython環境でimportできると仮定せず、必要なら構文チェックとMaya内実行を分けて報告する。
 - UI・起動処理の変更では、対象Mayaでの起動、メニュー表示、操作結果を確認する。
+- 静的解析(Pylance/pyright)の設定はリポジトリ直下の `pyrightconfig.json`。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
+- `hlib.createNode` など実行時に動的公開される名前は、`hlib/__init__.py`・`hlib/cmds/__init__.py`・`hlib/nodes/__init__.py` の `if TYPE_CHECKING:` ブロックで静的解析へ宣言している。コマンドやノードラッパーを追加したら同ブロックにも追記する(`test_typing_exports.py` が不一致を検出する)。
 - 変更後は可能な限り対象を絞った検証を先に行い、実行できなかった検証項目と理由を明記する。
 
 ## Gitと外部依存

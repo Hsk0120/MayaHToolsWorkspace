@@ -7,6 +7,7 @@
 import importlib as _importlib
 import inspect as _inspect
 import pkgutil as _pkgutil
+from typing import TYPE_CHECKING
 
 # reload 時には、削除・改名されたコマンドの公開名も取り除く。
 for _name in globals().get("__all__", ()):
@@ -27,6 +28,29 @@ for _info in sorted(_pkgutil.iter_modules(__path__), key=lambda item: item.name)
     else:
         # import が親パッケージに設定したモジュール属性も公開しない。
         globals().pop(_info.name, None)
+
+# 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
+# 公開名の一覧との一致は test_typing_exports.py が検証する。
+if TYPE_CHECKING:
+    from .bakeResults import bakeResults
+    from .captureSelection import captureSelection
+    from .channelBox import channelBox
+    from .constraint import constraint
+    from .createNode import createNode
+    from .currentTime import currentTime
+    from .delete import delete
+    from .drivenKey import drivenKey
+    from .duplicate import duplicate
+    from .group import group
+    from .ls import ls
+    from .node import node
+    from .objExists import objExists
+    from .outliner import outliner
+    from .scene import scene
+    from .select import select
+    from .setKeyframe import setKeyframe
+    from .timeSlider import timeSlider
+    from .viewport import viewport
 
 
 def _prepare_reload():

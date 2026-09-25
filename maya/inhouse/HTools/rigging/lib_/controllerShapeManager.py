@@ -5,7 +5,7 @@ import math
 import inspect
 import sys
 from importlib import reload
-import HTools.decorator.undo as undo; reload(undo)
+import hlib.decorators.undo as undo; reload(undo)
 
 
 DEFAULT_SHAPE_NAME = "controller1"

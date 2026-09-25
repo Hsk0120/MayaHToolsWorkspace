@@ -185,7 +185,6 @@ def _inhouse_add_htools_menu_items(main_menu):
         for d in HTools_dir.iterdir()
         if d.is_dir() and not d.name.startswith("__")
     ]
-    print("folders:", folders)
     
     # Sort folders alphabetically
     folders.sort()
@@ -205,7 +204,6 @@ def _inhouse_add_htools_menu_items(main_menu):
         # 各カテゴリ配下の Python ファイルをツール項目として追加する。
         py_files = []
         for file in Path(HTools_dir / folder).iterdir():
-            print("file:", file)
             if "__init__.py" in file.name:
                 continue
             if ".py" in file.name:
@@ -223,7 +221,6 @@ def _inhouse_add_htools_menu_items(main_menu):
 
 def _inhouse_install_htools_menu():
     """Install HTools menu in Maya."""
-    print("Installing HTools menu...")
     main_menu_name = "HTools"
 
     _inhouse_trace_event("menu_create_start", main_menu_name)

@@ -64,7 +64,7 @@ def worker(version, directory, suite_path=None):
     QtCore.QTimer.singleShot(500, wait_for_main_window)
 
 
-def run_version(version, directory, install_root, timeout, shutdown_timeout=15,
+def run_version(version, directory, install_root, timeout, shutdown_timeout=120,
                 suite_path=None, environment=None):
     directory.mkdir(parents=True)
     executable = maya_executable(version, install_root).with_name("maya.exe")
@@ -74,9 +74,13 @@ def run_version(version, directory, install_root, timeout, shutdown_timeout=15,
     env.update(environment or {})
     prefs = directory / "maya_app" / version / "prefs"
     prefs.mkdir(parents=True)
+    # ヘッダー(Maya Preference行と optionVar -version)が無い userPrefs.mel はMayaに無視される。
+    # 無視されるとSafeModeExecUserSetupScriptが既定の1になり、標準プラグイン(MASH等)の
+    # userSetup.py に対するセキュリティ確認ダイアログが終了時に出て、Mayaが終了できなくなる。
     (prefs / "userPrefs.mel").write_text(
+        "//Maya Preference {} (Release 1)\n//\n//\n\noptionVar -version 3;\n"
         'optionVar -iv "showHomeScreenOnStartup" 0;\n'
-        'optionVar -iv "SafeModeExecUserSetupScript" 0;\n', encoding="utf-8")
+        'optionVar -iv "SafeModeExecUserSetupScript" 0;\n'.format(version), encoding="utf-8")
     # MELのpython()引数をJSON文字列規則で引用。シェルには渡さない。
     script = "import sys; sys.path.insert(0, {!r}); import run_hlib_gui_versions as runner; runner.worker({!r}, {!r}, {!r})".format(str(ROOT / "tools"), version, str(directory), str(suite_path) if suite_path else None)
     command = "python({})".format(json.dumps(script))
@@ -113,7 +117,7 @@ def main():
     parser.add_argument("--versions", nargs="+", choices=VERSIONS, default=list(VERSIONS))
     parser.add_argument("--install-root", type=Path, default=Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk")
     parser.add_argument("--timeout", type=int, default=240)
-    parser.add_argument("--shutdown-timeout", type=int, default=15)
+    parser.add_argument("--shutdown-timeout", type=int, default=120)
     parser.add_argument("--allow-missing", action="store_true")
     args = parser.parse_args()
     if args.timeout <= 0 or args.shutdown_timeout <= 0:

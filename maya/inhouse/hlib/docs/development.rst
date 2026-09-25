@@ -237,9 +237,11 @@ Edge / Face / UV は Component、Edges / Faces / UVs は Components を継承し
 コマンドの追加
 --------------
 
-``cmds/<コマンド名>.py`` に同名の関数を定義すると、自動で公開されます。
-``cmds/__init__.py`` の編集は不要です。追加・変更・削除後は ``hlib.reload()``
-で反映します。非公開名（先頭が ``_``）、サブパッケージ、同名関数を持たない
+``cmds/<コマンド名>.py`` に同名の関数を定義すると、実行時に自動で公開されます。
+実行時の公開に ``cmds/__init__.py`` の編集は不要です。追加・変更・削除後は ``hlib.reload()``
+で反映します。エディターの静的解析(Pylance)は動的公開を追跡できないため、
+``hlib/__init__.py`` と ``cmds/__init__.py`` の ``if TYPE_CHECKING:`` ブロックにも
+同名の import を追記してください。追記漏れは ``test_typing_exports.py`` が検出します。非公開名（先頭が ``_``）、サブパッケージ、同名関数を持たない
 ファイル、他モジュールから取り込んだ関数は公開対象外です。利用時は
 ``hlib.<コマンド名>(...)`` として呼び出します。
 モジュールの docstring に Synopsis、Return value、Related commands、Flags、

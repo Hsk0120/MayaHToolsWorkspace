@@ -1,5 +1,7 @@
 """Maya の依存ノードと DAG ノードを扱う基底ラッパー。"""
 
+from typing import Any
+
 from ..decorators._fast import fast_edit
 from .._core.fast_write import set_attr
 
@@ -1060,8 +1062,11 @@ class Node:
             return f"{type(self).__name__}({self.name()!r})"
         return f"<{type(self).__name__} invalid>"
 
-    def __getattr__(self, name):
+    def __getattr__(self, name) -> Any:
         """通常属性にない名前を Maya Plug として動的に解決する。
+
+        静的解析では、具象クラス(BlendShape 等)のメソッドを基底の Node 型で呼んだ場合に
+        Plug 型と誤判定しないよう、戻り値の注釈は Any としている。
 
         Args:
             name (str): 取得しようとした Python 属性名。

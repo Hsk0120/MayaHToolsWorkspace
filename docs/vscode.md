@@ -46,6 +46,19 @@ import済みの依存モジュールは自動リロードしません。
 Mayaがダイアログ表示中などの場合は実行が待機することがあります。
 300秒で応答待ちは終了しますが、Maya側の処理はキャンセルされません。
 
+## 補完と静的解析(Pylance)
+
+Mayaの`maya.cmds`や`maya.api.OpenMaya`はPythonソースの無い`.pyd`/`.pyc`のため、そのままでは補完・引数チェックが効きません。次の準備で解決します。
+
+1. `python tools/setup_maya_typings.py`を1回実行します。型スタブ`types-maya`（MIT）を`typings/maya/`へ配置します（Git対象外、ネットワークが必要）。
+2. VS Codeで`MayaHToolsWorkspace.code-workspace`を開き直すか、`Developer: Reload Window`を実行します。
+
+設定はリポジトリ直下の`pyrightconfig.json`に集約しています（Pylanceが読み込みます）。解析対象、`extraPaths`（`maya/inhouse`・cymel・mgear等）、スタブの場所（`typings`）、ルールの重大度を定義しています。ユーザー設定の`python.analysis.extraPaths`は、この設定ファイルの`extraPaths`が優先されます。
+
+- スタブは完全ではないため、Mayaの実挙動と食い違う指摘は**警告**にしています。エラー（赤）として残るのは、未定義変数などの実際の誤りです。
+- `hlib.createNode`のように実行時に動的公開される名前は、各`__init__.py`の`if TYPE_CHECKING:`ブロックで静的解析へ宣言しています。コマンドやノードラッパーを追加したら、このブロックにも追記してください（`test_typing_exports.py`が不一致を検出します）。
+- コマンドラインでも同じ設定で確認できます: `pip install pyright`のあと、リポジトリ直下で`pyright --pythonpath "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe"`。
+
 ## GitHub共有
 
 ワークスペース、`tools/send_to_maya.py`、本書をコミット対象にします。

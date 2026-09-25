@@ -1,0 +1,44 @@
+{
+  "include": [
+    "maya/inhouse/hlib",
+    "maya/inhouse/hlib_posedriverconnect",
+    "maya/inhouse/HTools",
+    "maya/inhouse/MayaCommandPorts",
+    "maya/inhouse/integrations",
+    "tools"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "**/docs/_build",
+    "maya/external",
+    ".maya-output",
+    "typings"
+  ],
+  "extraPaths": [
+    "maya/inhouse",
+    "maya/inhouse/hlib_posedriverconnect/scripts",
+    "maya/external/PoseDriverConnect/python",
+    "maya/external/cymel/python",
+    "maya/external/mgear5/release/scripts"
+  ],
+  "stubPath": "typings",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "none",
+  "reportAttributeAccessIssue": "warning",
+  "reportCallIssue": "warning",
+  "reportArgumentType": "warning",
+  "reportIndexIssue": "warning",
+  "reportOperatorIssue": "warning",
+  "reportGeneralTypeIssues": "warning",
+  "reportAssignmentType": "warning",
+  "reportOptionalMemberAccess": "warning",
+  "reportOptionalSubscript": "warning",
+  "reportOptionalOperand": "warning",
+  "reportOptionalCall": "warning",
+  "reportIncompatibleMethodOverride": "warning",
+  "reportPossiblyUnbound": "warning",
+  "reportUnsupportedDunderAll": "none"
+}
