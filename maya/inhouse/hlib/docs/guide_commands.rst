@@ -36,8 +36,8 @@
 
    import hlib
 
-   a = hlib.createNode("transform", name="a")
-   b = hlib.createNode("transform", name="b")
+   a = hlib.createNode("transform", name="animationA")
+   b = hlib.createNode("transform", name="animationB")
 
    hlib.select([a, b])
    print(hlib.ls(selection=True))
@@ -54,7 +54,9 @@
 ``clear=True`` のような選択操作専用のフラグだけで呼び出せます。
 ``setKeyframe`` はノードまたは ``Plug`` を対象にでき、``target`` を省略すると
 現在の選択が対象になります。``currentTime`` は引数を省略すると現在時間を照会します。
-``bakeResults`` は ``time=(start, end)`` を省略すると Maya の現在の再生範囲が使われます。
+``bakeResults`` は時間範囲を補いません。``time=(start, end)`` を明示してください。
+``simulation`` の既定値はFalseです。シーン全体の評価が必要ならTrueを指定します。
+GUIではベイク中のメインペインを非表示にし、終了時に元の状態へ戻します。
 
 アトリビュートの取得・設定・接続（``getAttr``/``setAttr``/``connectAttr``/``addAttr``）は
 コマンドとしては用意していません。``node.plug("attrName")`` が返す ``Plug`` の

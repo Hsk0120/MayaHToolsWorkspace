@@ -66,7 +66,15 @@ from ..decorators.undo import undo_chunk
 
 @undo_chunk("hlib.cmds.createNode.createNode")
 def createNode(type, **kwargs):
-    """Mayaノードを作成し、対応するhlib wrapperとして返す。"""
+    """Mayaノードを作成し、実際の型に対応するラッパーを返す。
+
+    Args:
+        type (str): Mayaノード型名。
+        **kwargs (object): maya.cmds.createNodeへ渡すフラグ。
+    Returns:
+        Node: 作成したノードのラッパー。
+    Raises:
+        RuntimeError: Mayaが作成を拒否した場合。"""
     from ..nodes import Node
 
     return Node.create(type, **kwargs)

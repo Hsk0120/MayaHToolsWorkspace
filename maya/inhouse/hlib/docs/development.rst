@@ -14,7 +14,8 @@
 複合属性の ``CompoundPlug.set()`` は全子属性を一回で戻します。
 ``preserved_selection()`` は選択の復元もUndo対応のコマンドで行い、
 ブロック内の編集と選択変更をまとめてUndo／Redoします。
-タイムスライダーの再生範囲・アニメーション範囲の変更も対応しています。
+タイムスライダーの範囲変更はMayaのバージョンによりUndo対応が異なります。
+各メソッドの制限を参照してください。
 
 複数の公開操作をまとめたツールを開発するときに限り、外側でもまとめます。
 
@@ -36,14 +37,17 @@
 照会やラッパー取得はチャンクの対象にしません。時刻変更・UI表示・ファイル操作・
 プラグイン管理など、Maya標準のUndoで戻せない操作をUndo可能にするものではありません。
 ``SkinCluster.set_weights()`` と ``load_weights()`` もUndo／Redoに対応します。
-シーンデータの編集にはUndo対応のMayaコマンドを使い、API直接書き込みは行いません。
-APIは参照やメモリ上の計算に利用します。例外時はチャンクを閉じますが、
-完了済み操作を自動ロールバックはしません。
+通常のシーン編集はUndo対応のMayaコマンドを使います。対応メソッドの
+``fast=True`` はOpenMayaへ直接書き込み、Undo対象外です（:doc:`fast_edit`）。
+例外時はチャンクを閉じますが、
+完了済み操作を自動ロールバックしません。
 
 例外時に完了済みの操作も自動でロールバックしたい場合は、``undo_chunk`` の代わりに
 ``undo_transaction`` を使用します。ブロック内で例外が発生すると、チャンクを閉じたうえで
-``cmds.undo()`` を1回実行してブロック内の変更を全て巻き戻してから、元の例外をそのまま
+``cmds.undo()`` を1回実行してブロック内のUndo対象操作を巻き戻してから、元の例外をそのまま
 再送出します。正常終了時は ``undo_chunk`` と同様、通常の1回のUndoにまとまります。
+Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外の変更は復元できません。
+ロールバック自体の失敗は抑制されるため、全変更の復元を保証するものではありません。
 
 .. code-block:: python
 
@@ -78,14 +82,16 @@ APIは参照やメモリ上の計算に利用します。例外時はチャン�
    * - ``units.py`` / ``workspace.py``
      - Units による単位操作 / Workspace によるプロジェクト操作
    * - ``editors``
-     - TimeSlider、Viewport、Outliner によるタイムライン・エディター操作
+     - TimeSlider、Viewport、Outliner、ChannelBoxによるエディター操作
    * - ``maths``
      - Vector、Matrix、Quaternion などの数学型（Matrix 以外は frozen dataclass）
    * - ``cmds``
      - ``maya.cmds`` 相当の手続き的 API（createNode、ls、constraint）
    * - ``decorators``
      - Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの
-       joint姿勢編集、Undo チャンク化デコレータ
+       joint姿勢編集、画面表示の一時停止
+   * - ``animation`` / ``selection`` / ``json``
+     - DrivenKey関係、選択スナップショット、状態のJSON保存・復元
    * - ``utils``
      - ログと進捗表示
    * - ``_core``
@@ -149,8 +155,8 @@ Undo 対応が必要な操作** に使用します(ノード・アトリビュ�
 - ``MSelectionList`` によるノード名解決・存在確認(``cmds.objExists`` の代替)
 - ``MPlug`` の ``asDouble``/``asInt``/``asBool``/``asString``/``asMAngle``/
   ``asMDistance``/``asMTime`` 等によるアトリビュート値の取得
-  (``plugs/plug.py`` の ``Plug.get()`` を参照。角度は度、距離・時間は
-  現在の UI 単位へ変換し、``cmds.getAttr`` と同じ値になるようにする)
+  (``plugs/plug.py`` の ``Plug.get()`` を参照。現実装の単一角度Plugは度、
+  距離・時間は現在のUI単位。角度UI単位がradの場合はcmds.getAttrと異なる)
 - ``MFnDependencyNode.getConnections()``/``MPlug.connectedTo()`` による接続の列挙
 - ``MGlobal.getActiveSelectionList()`` による選択状態の取得。
   復元はUndo対応の ``cmds.select`` で行う（``preserved_selection`` を参照）。

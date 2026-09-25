@@ -134,8 +134,8 @@ skinCluster ウェイトのバックアップ・復元
 ``load_weights`` は、書き出し時の頂点数が現在の mesh と一致し、記録された
 influence がすべて現在の skinCluster に存在することを要求します。
 一致しない場合はウェイトを変更せず ``ValueError`` を送出します
-（influence 名が異なる、mesh のトポロジーが変わった状態への読み込みは
-このメソッドの対象外です）。
+（influence 名が異なる、頂点数が変わった状態への読み込みは
+このメソッドの対象外です。同じ頂点数での接続順序変更は検出しません）。
 
 スキン変形を保ったままjointの姿勢を編集する
 --------------------------------------------------
@@ -147,8 +147,7 @@ influence がすべて現在の skinCluster に存在することを要求しま
 
    joint = Joint("hlibExampleJoint")
    with preserved_skin_shape([joint]):
-       # ここで jointOrient/rotate/rotateAxis や階層をどう変更しても、
-       # ブロックを抜けた時点でメッシュの見た目は変わらない。
+       # 現在のjoint姿勢をスキニング基準へ反映する。
        joint.plug("jointOrientZ").set(45.0)
 
 ``preserved_skin_shape`` は Maya標準の ``skinCluster -moveJointsMode`` /
@@ -157,6 +156,10 @@ influence がすべて現在の skinCluster に存在することを要求しま
 リグを組み替えるといった作業で、既存のスキニングを壊したくない場合に使います。
 ブロック全体(モード切り替え・編集・bind行列の再計算)は一回の Undo にまとまります。
 
-頂点位置の編集(``hlib.components`` の ``Vertex``/``CV`` の ``set_position()``)は
-``cmds.xform`` 経由でtweakノードを介して書き込むため、このデコレータなしでも
-既にスキニングを崩しません。
+任意の階層変更・influence削除や全フレームの変形保持を保証する機能ではありません。
+モード変更・再キャッシュ・復元のRuntimeErrorは実装上抑制されるため、
+処理後の形状とモードは呼び出し側でも確認してください。
+頂点・CVの座標編集はjointのバインド基準変更とは別の処理です。
+
+このページのUndoの説明は通常モード（``fast=False``）を前提とします。
+対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

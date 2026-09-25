@@ -45,6 +45,8 @@ class Mesh(Shape):
         インスタンス形状はデータを共有する全インスタンスへ影響する。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         self.vertices(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self

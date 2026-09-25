@@ -92,7 +92,10 @@ rotateが既に0の対象は何もしません。それ以外でrotate／jointOr
 
 .. code-block:: python
 
+   import maya.cmds as cmds
    from hlib.nodes import Joint
+
+   cmds.select(clear=True)
 
    root = Joint(cmds.joint(position=(0, 0, 0)))
    mid = Joint(cmds.joint(position=(2, 0, 0)))
@@ -121,3 +124,6 @@ Maya は IK ハンドルの ``startJoint`` への接続からしか joint 側を
 ``cmds.ikHandle(query=True, jointList=True)`` をラップしており、これは仕様上
 末端 joint を含まないため、必要なら ``include_tip=True`` を指定してください。
 ``get_end_joint`` は ikEffector ノードの translate 接続元を辿って解決します。
+
+このページのUndoの説明は通常モード（``fast=False``）を前提とします。
+対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

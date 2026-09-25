@@ -207,6 +207,7 @@ class Plug:
             Plug: 自身。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         set_attr(self.full_name, keyable=bool(state))
         return self
@@ -224,6 +225,7 @@ class Plug:
             Plug: 自身。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         set_attr(self.full_name, channelBox=bool(state))
         return self
@@ -525,6 +527,7 @@ class Plug:
             Plug: 自身。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         set_attr(self.full_name, lock=bool(state))
         return self
@@ -648,15 +651,16 @@ class Plug:
         return None
 
     def _get_unit_value(self, attr):
-        """MFnUnitAttribute の値を Maya の現在の UI 単位で取得する。
+        """MFnUnitAttributeの値を角度は度、距離・時間はUI単位で取得する。
 
-        cmds.getAttr と同じく、角度は度、距離・時間は現在の UI 単位に変換する。
+        角度はUI設定によらず度、距離・時間は現在のUI単位に変換する。
+        角度UI単位がradの場合はcmds.getAttrの戻り値と異なる。
 
         Args:
             attr (om2.MObject): 角度・距離・時間属性の MObject。
 
         Returns:
-            float | None: UI 単位での値。対応しない単位種別では ``None``。
+            float | None: 角度は度、距離・時間はUI単位の値。対応外は ``None``。
         """
         unit_type = om2.MFnUnitAttribute(attr).unitType()
         if unit_type == om2.MFnUnitAttribute.kAngle:
@@ -689,6 +693,7 @@ class Plug:
             Plug: 自身。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if is_fast():
             set_plug(self._mplug, value)
@@ -727,6 +732,7 @@ class Plug:
             RuntimeError: ロック・入力接続などで変更できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if self.is_array:
             raise TypeError("Reset an array element instead of the array plug")

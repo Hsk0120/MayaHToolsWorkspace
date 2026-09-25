@@ -26,6 +26,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-25 | hlib docstring・Sphinx全体見直し | 835関数の引数構造とArgs記載を走査、公開29ページと117コードブロックを構文確認。ベイク既定値/短縮フラグ、fastとUndo、単位、Quaternion.inverse、SDK実装済み案内、スキン復元制限、同名ノード/配列編集例、コマンド/JSON詳細を修正。主要9ガイド36例はMaya2022/2027で成功（必要な既存ノードをテスト用に用意）。28Pythonファイルはdocstring除外AST一致で動作変更なし。Sphinx -W成功、git diff --check成功。GUI/全例の副作用を伴う実行は未実施、未プッシュ。 |
 | Codex | 2026-09-25 | 未コミット変更全体の公開 | ユーザー依頼でJoint回転移送/フリーズ・fastモード・viewport_offとベイク適用・テスト・ドキュメントをまとめてコミットしmainへpushする。各実装時の検証結果を引き継ぎ、差分チェック成功。 |
 | Codex | 2026-09-25 | decorators/viewport・bakeResults・テスト・docs | viewport_off()をcontextmanagerで公開しbakeResultsへ適用。既存Viewport.suspendのmanage方式を再利用、batchはno-op、入れ子/元非表示/例外伝播と再実行なし。通常テスト2022/2027各45ファイル成功。2027 GUI15件成功・cleanup成功、終了は15秒timeoutで所有プロセス停止（正常終了ではない）。Sphinx -W成功。GUI画像の目視レビューは未実施。未プッシュ。 |
 | Codex | 2026-09-25 | hlib値更新API・fastモード・テスト・docs | 対応するPlug/Transform/Joint/座標/色/utility/skin値更新にfast=False追加。TrueはOpenMaya直接更新でUndoなし、既存Undo設定維持。skinは未指定ウェイトを保つMPlug方式。形状は入力履歴・周期カーブを拒否。範囲/ロック/接続検査。全44ファイルが2022/24/25/26/27で成功（2023未導入）、追加8テストで値・単位・Undo履歴・bulk・API専用経路・疎なinfluence検証。Sphinx -W成功。3721頂点参考計測0.419秒→0.047秒。GUI未実行・未プッシュ。 |

@@ -67,6 +67,7 @@ class Constraint(Node):
             ValueError: 指定したターゲットがこのコンストレイントのターゲットに含まれない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         weight_plugs = self.weight_plugs()
         if not targets:

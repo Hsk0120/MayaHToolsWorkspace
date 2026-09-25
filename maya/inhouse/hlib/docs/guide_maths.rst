@@ -64,8 +64,8 @@ Vector・Quaternion・EulerRotationなどの値を使った計算を説明しま
    axis, angle = q.to_axis_angle()     # (Vector, float) へ分解
    Quaternion.from_axis_angle(axis, angle)  # 軸・角度から逆生成
 
-``rotate_vector``/``slerp``/``angle_to``/``inverse`` はいずれも呼び出し前に自身を
-正規化するため、正規化していない四元数を渡してもスケールの影響は受けません。
+``rotate_vector``/``slerp``/``angle_to`` は正規化した回転として扱います。
+``inverse`` は共役を長さの二乗で割った逆四元数を返し、長さを1には揃えません。
 
 .. code-block:: python
 

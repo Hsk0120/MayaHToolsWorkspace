@@ -11,6 +11,8 @@
 
 .. code-block:: python
 
+   import maya.cmds as cmds
+
    source = hlib.createNode("transform", name="connSource")
    target = hlib.createNode("transform", name="connTarget")
    source.plug("translateX").connect(target.plug("translateX"))
@@ -125,14 +127,16 @@ animCurve とミュート
 
 .. code-block:: python
 
-   node = hlib.createNode("transform", name="arrayPlugExample")
-   array_plug = node.plug("worldMatrix")
+   node = hlib.createNode("network", name="arrayPlugExample")
+   node.add_attr("values", attribute_type="double", multi=True)
+   array_plug = node.plug("values")
 
    print(array_plug.next_available())   # 0（既存要素が無ければ）
 
    element = array_plug.add_element()   # 空きインデックスへ要素を作成
-   print(element.full_name)             # arrayPlugExample.worldMatrix[0]
+   print(element.full_name)             # arrayPlugExample.values[0]
 
+   element.set(1.0)                    # 要素に値を設定
    array_plug.remove_element(0)         # 要素を削除
 
 ``next_available`` は ``getExistingArrayAttributeIndices()`` に含まれない
@@ -142,3 +146,10 @@ animCurve とミュート
 指定インデックスの要素を削除します（存在しなければ ``IndexError``）。
 
 アニメーションカーブそのものの操作は :doc:`animation_nodes` を参照してください。
+
+このページのUndoの説明は通常モード（``fast=False``）を前提とします。
+対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
+
+単一の角度Plugの ``get()`` は現在の実装では常に度を返します。
+一方、``set()`` は現在のMaya角度UI単位で受け取ります。UI単位がradのとき、
+``set(get())`` は同じ角度を維持しません。角度の単位を明示して変換してください。

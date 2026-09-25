@@ -61,6 +61,8 @@ class PointComponent(Component):
             ValueError: 座標または ws が不正な場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
@@ -170,6 +172,8 @@ class PointComponents(Components):
             PointComponents: 自身。全要素が同じ位置に集まる。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
         point = Component._finite_coordinates(value, 3)
         return self.set_positions([point] * len(self), ws=ws)
@@ -190,6 +194,8 @@ class PointComponents(Components):
             RuntimeError: Mayaが編集を拒否した場合。完了済み変更は自動で戻さない。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
@@ -274,6 +280,8 @@ class PointComponents(Components):
         全インスタンスに影響する。周期 CV は Maya の連動規則に従う。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
         if not isinstance(axis, str) or not axis or any(a not in "xyz" for a in axis.lower()):
             raise ValueError("axis must contain x, y, or z")

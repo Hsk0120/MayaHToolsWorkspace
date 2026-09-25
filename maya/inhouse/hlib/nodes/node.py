@@ -201,6 +201,7 @@ class Node:
             RuntimeError: 属性がない、ロックされているなど変更できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         values = None if color is None else self._display_rgb(color)
         if values is not None:
@@ -236,6 +237,7 @@ class Node:
             RuntimeError: 属性がない、ロックされているなど変更できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if color is None:
             set_attr(self.full_name + ".overrideEnabled", False)
@@ -792,6 +794,7 @@ class Node:
             RuntimeError: Mayaが変更を拒否した場合。途中の変更は自動では戻さない。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         flags = {}
         for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channel_box)):

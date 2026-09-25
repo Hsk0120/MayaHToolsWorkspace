@@ -369,6 +369,7 @@ class Transform(Node):
         （それまでに成功した分はロールバックしない）。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         for shape in self.shapes():
             shape.mirror(axis=axis, ws=ws, pivot=pivot, indices=indices)
@@ -608,6 +609,7 @@ class Transform(Node):
             ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if not isinstance(matrix, Matrix):
             matrix = Matrix(matrix)
@@ -635,6 +637,7 @@ class Transform(Node):
             RuntimeError: ノードが無効、または属性を書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.translate = value
@@ -659,6 +662,7 @@ class Transform(Node):
             RuntimeError: ノードが無効、または属性を書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if unit not in ("rad", "deg"):
             raise ValueError("unit must be 'rad' or 'deg'")
@@ -686,6 +690,7 @@ class Transform(Node):
             RuntimeError: ノードが無効、または属性を書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.scale = value
@@ -709,6 +714,7 @@ class Transform(Node):
             RuntimeError: ノードが無効、または属性を書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         matrix = self.get_matrix(ws=ws)
         matrix.shear = value
@@ -733,6 +739,7 @@ class Transform(Node):
             ValueError: 行列を分解できない、または必要な親行列を反転できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if not isinstance(matrix, Matrix):
             raise TypeError("matrix must be an hlib Matrix")
@@ -754,6 +761,7 @@ class Transform(Node):
             Transform: 自身。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         self.plug("visibility").set(True)
         return self
@@ -770,6 +778,7 @@ class Transform(Node):
             Transform: 自身。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         self.plug("visibility").set(False)
         return self

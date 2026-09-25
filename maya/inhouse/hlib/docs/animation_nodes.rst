@@ -57,4 +57,8 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
 接続の上書きには ``connect_input(..., force=True)`` を明示します。
 編集メソッドは内部でUndoチャンクにまとめるため、通常は外側にundo_chunkは不要です。
 
-SDKの自動構築・間接接続の探索・保存復元は今後の拡張です。
+SDKの作成と対応経路の探索は :doc:`driven_keys`、
+既存のアニメーション・SDK接続の保存復元は :doc:`json` を参照してください。
+
+このページのUndoの説明は通常モード（``fast=False``）を前提とします。
+対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

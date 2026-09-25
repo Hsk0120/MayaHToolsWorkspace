@@ -49,7 +49,7 @@ Flags
    * - ``maintainOffset``
      - ``bool``
      - False
-     - parent、point、orient、scale、aim の作成時に相対関係を維持します。他の型では使用されません。
+     - parent、point、orient、scale、aim の作成時に相対関係を維持します。他の型にも渡されるため、非対応型ではMayaが拒否します。
 
 Examples
 --------
@@ -67,7 +67,22 @@ from ..decorators.undo import undo_chunk
 
 @undo_chunk("hlib.cmds.constraint.constraint")
 def constraint(sources, target, type="parent", maintainOffset=False):
-    """ソースノードからターゲットノードへのコンストレイントを作成する。"""
+    """拘束元から対象へのコンストレイントを作成する。
+
+    Args:
+        sources (Node | str | Iterable[Node | str]): 拘束元。
+        target (Node | str): 拘束されるTransformまたはIkHandle。
+        type (str): parent等の型名。既定parent。
+        maintainOffset (bool): 同名フラグとしてMayaへ常に渡す。既定False。
+    Returns:
+        Constraint: 作成またはターゲット追加された拘束ノード。
+    Raises:
+        ValueError: 未対応型・空の拘束元の場合。
+        TypeError: 入力の型が不正な場合。
+        AttributeError: targetにadd_constraintがない場合。
+        RuntimeError: Mayaが作成またはフラグを拒否した場合。
+
+    maintainOffset非対応の拘束にはtarget.add_constraint(sources, type=...)を使う。"""
     from .._core.coerce import to_node
 
     target_node = to_node(target)

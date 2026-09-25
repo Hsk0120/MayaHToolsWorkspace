@@ -38,7 +38,7 @@ class MatrixPlug(Plug):
     def set(self, value, ws=False, *, fast=False):
         """行列値を設定する。
 
-        所有ノードに set_matrix があれば、対象属性名にかかわらずノードの変換を更新する。なければ対象プラグへ type="matrix" で直接書き込む。この直接書き込み経路は独自の Undo チャンクを作らない。
+        所有ノードに set_matrix があれば、対象属性名にかかわらずノードの変換を更新する。なければ対象プラグへ type="matrix" で直接書き込む。通常モードでは直接書き込みもこのメソッドのUndoチャンクに含める。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
@@ -52,6 +52,7 @@ class MatrixPlug(Plug):
             TypeError: worldMatrix 属性への書き込みの場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if self.attribute in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")

@@ -28,6 +28,7 @@ class DecomposeMatrix(Node):
             RuntimeError: ロックや入力接続により設定できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         self.plug("inputMatrix").set(Matrix(value))
         return self
@@ -65,6 +66,7 @@ class DecomposeMatrix(Node):
             ValueError: 未対応の回転順序の場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         orders = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
         if order not in orders:

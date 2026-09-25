@@ -71,7 +71,18 @@ import maya.cmds as cmds
 
 
 def ls(*args, **kwargs):
-    """Mayaノードを検索し、対応するhlib wrapperとして返す。"""
+    """Mayaノードを検索し、対応するラッパーとして返す。
+
+    Args:
+        *args (object): maya.cmds.lsへ渡す名前・名前列・パターン。
+        **kwargs (object): maya.cmds.lsへ渡す検索フラグ。
+    Returns:
+        list[Node] | Joints | SkinClusters: 長名typeがjoint/skinClusterの場合は専用コレクション。それ以外はリスト。
+    Raises:
+        RuntimeError: 検索結果をノードとして解決できない場合。
+
+    ノード名を返す検索用。コンポーネント・属性・型名等を返すMayaフラグは
+    ラッパー化できない場合がある。検索結果が空なら空コレクションまたは空リスト。"""
     from ..nodes import Joints, Node, SkinClusters
 
     names = cmds.ls(*args, **kwargs) or []

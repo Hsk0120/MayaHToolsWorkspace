@@ -12,7 +12,11 @@ GUIではベイク中にメインペインを非表示にし、終了・例外�
 バッチ実行では表示操作を行いません。
 
 作成・編集操作です。Maya の Undo に対応します。``time=(start, end)`` を
-指定しないと Maya の現在の再生範囲が使われます。
+指定しない場合の範囲はMayaコマンドに委譲します。hlibは再生範囲を補いません。
+
+フラグの詳細は `Maya bakeResultsリファレンス
+<https://help.autodesk.com/cloudhelp/2026/ENU/Maya-Tech-Docs/CommandsPython/bakeResults.html>`_
+を参照してください。
 
 Return value
 ------------
@@ -42,12 +46,12 @@ Flags
      - ベイク対象のノード、またはその列。
    * - ``time (t)``
      - ``tuple[float, float]``
-     - 再生範囲
+     - Mayaの既定動作
      - ベイクする時間範囲 (start, end)。
-   * - ``simulation (sim)``
+   * - ``simulation (sm)``
      - ``bool``
-     - True
-     - 各フレームを実評価してベイクします。
+     - False
+     - Trueでシーン全体を各時刻で評価します。
    * - ``**kwargs``
      - ``object``
      - 省略可

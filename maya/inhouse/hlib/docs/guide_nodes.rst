@@ -16,7 +16,8 @@ Transform のピボット
    transform.set_pivot((1.0, 2.0, 3.0))  # 回転・スケールピボットをまとめて設定
    print(transform.pivot(ws=True))       # ワールド空間での現在位置
 
-``pivot``/``set_pivot`` は ``MFnTransform`` の回転・スケールピボットを扱います。
+``pivot`` は ``MFnTransform`` で回転ピボットを読み取り、
+``set_pivot`` は ``cmds.xform`` で回転・スケールピボットを更新します。
 ``set_pivot`` は常に回転・スケールピボットを同じ位置に揃えて設定するため、
 片方だけを個別に動かすことはできません。値・戻り値は Maya API の内部距離単位です。
 
@@ -165,3 +166,6 @@ Maya 組み込みのノード型では空文字列になります。
 引数を省略すると ``"<自身の名前>_offset"`` という1個のグループになります。
 
 複数ノードへの操作は :doc:`bulk_collections`、行列の計算は :doc:`matrices` を参照してください。
+
+このページのUndoの説明は通常モード（``fast=False``）を前提とします。
+対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

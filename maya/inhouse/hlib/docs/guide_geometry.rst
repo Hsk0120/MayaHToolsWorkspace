@@ -99,3 +99,6 @@ UV は現在の UV セットを参照し、セットを切り替えると切替�
 既存の ``mesh.mirror()`` / ``curve.mirror()`` も複数形へ委譲して使用できます。
 
 詳しい一括操作は :doc:`component_collections` を参照してください。
+
+このページのUndoの説明は通常モード（``fast=False``）を前提とします。
+対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

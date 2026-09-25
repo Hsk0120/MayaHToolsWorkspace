@@ -47,6 +47,7 @@ class BlendColors(Node):
             RuntimeError: ロックや接続によりMayaが設定を拒否した場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         target = self.color(index)
         values = tuple(float(v) for v in value)
@@ -88,6 +89,7 @@ class BlendColors(Node):
             RuntimeError: ロックや接続により設定できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         value = float(value)
         if not math.isfinite(value) or not 0 <= value <= 1:

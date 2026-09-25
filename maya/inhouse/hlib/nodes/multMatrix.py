@@ -37,6 +37,7 @@ class MultMatrix(Node):
             RuntimeError: ロックや入力接続により設定できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         index = self._index(index)
         value = Matrix(value)

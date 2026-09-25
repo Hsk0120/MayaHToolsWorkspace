@@ -100,6 +100,7 @@ class Joint(Transform):
             RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if not self.is_joint():
             raise RuntimeError("Cannot change orientation of an invalid joint")
@@ -125,6 +126,7 @@ class Joint(Transform):
             RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if not self.is_joint():
             raise RuntimeError("Cannot freeze rotation of an invalid joint")
@@ -547,6 +549,7 @@ class Joints(BulkCollection):
             RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         plans = [(joint, joint._joint_rotation_transfer_values()) for joint in self]
         for joint, values in plans:
@@ -574,6 +577,7 @@ class Joints(BulkCollection):
             RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         plans = [(joint, joint._joint_rotation_transfer_values(to_orient=True)) for joint in self]
         for joint, values in plans:

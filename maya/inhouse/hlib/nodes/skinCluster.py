@@ -312,6 +312,7 @@ class SkinCluster(Node):
             RuntimeError: 属性がロックされているなど、Maya が設定を拒否した場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         joints = list(joints)
         physical_indices = [self._jnt_index(joint) for joint in joints]
@@ -395,6 +396,7 @@ class SkinCluster(Node):
                 記録された influence の一部がこの skinCluster に存在しない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         with open(path, "r", encoding="utf-8") as file:
             payload = json.load(file)
@@ -631,6 +633,7 @@ class SkinCluster(Node):
         保存値は浮動小数点のため合計に機械精度の誤差は生じ得る。Undo対応。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         names, values = self._normalized_weights(decimals)
         self.set_weights(names, values)
@@ -661,6 +664,7 @@ class SkinCluster(Node):
         skinCluster編集コマンドの再バインドを避け、属性を直接設定する。Undo対応。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if type(count) is not int or not 1 <= count <= 2147483647:
             raise ValueError("count must be a positive 32-bit integer")

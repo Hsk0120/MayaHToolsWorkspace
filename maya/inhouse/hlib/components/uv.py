@@ -43,6 +43,8 @@ class UV(Component):
             ValueError: 座標が不正な場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         u, v = self._finite_coordinates(value, 2)
         if is_fast():
@@ -127,6 +129,8 @@ class UVs(Components):
             UVs: 自身。要素別の指定にはset_positionsを使う。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         point = Component._finite_coordinates(value, 2)
         return self.set_positions([point] * len(self))
@@ -146,6 +150,8 @@ class UVs(Components):
             RuntimeError: Mayaが拒否した場合。完了済み変更は自動で戻さない。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         rows = self._coordinate_rows(values, 2)
         components = list(self)

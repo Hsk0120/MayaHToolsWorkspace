@@ -31,6 +31,7 @@ class DistanceBetween(Node):
             RuntimeError: 属性ロックなどで設定できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         import math
 

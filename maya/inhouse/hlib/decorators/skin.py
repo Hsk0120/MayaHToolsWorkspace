@@ -11,25 +11,18 @@ from .undo import undo_chunk
 def preserved_skin_shape(joints):
     """指定jointに影響するskinClusterの変形を保ったまま、jointの姿勢を編集する。
 
-    Maya標準の ``skinCluster -moveJointsMode`` を使う(``HTools/rigging/
-    advancedOrientJointUI.py`` の Orient Joint ツールと同じ仕組み)。ブロック内で
-    jointの translate/rotate/jointOrient/rotateAxis 等をどう変更しても、ブロックを
-    抜けた時点でメッシュの見た目はブロック開始前と変わらない
-    (``recacheBindMatrices`` によって、その時点の joint 姿勢を新しいバインド姿勢として
-    バインド行列を再計算するため)。関節の向きを付け直す、階層構造を組み替える、
-    ジョイントを移動するなど、スキニング後にリグを調整する場面全般で使える。
+    対象に接続するskinClusterをmoveJointsModeへ切り替え、終了時に
+    recacheBindMatricesを実行して、取得できた以前のモードへ戻す。
+    現在の姿勢をスキニング基準へ反映するため、保存済みバインド行列を変更する。
+    任意の階層変更・influence削除や全フレームの変形保持を保証するものではない。
 
-    頂点位置の編集(``hlib.components`` の ``Vertex``/``CV`` の ``set_position()``)は
-    ``cmds.xform`` 経由でtweakノードを介して書き込むため、既にスキニングを崩さない。
-    このコンテキストマネージャは joint の姿勢変更にのみ必要。
-
-    ブロック全体(moveJointsModeの切り替え、ブロック内の編集、bind行列の再計算)を
-    一回の Undo にまとめる。ブロックを抜ける際(例外時を含む)に必ず
-    moveJointsMode を元の状態へ戻す。
+    モード照会・切り替え・再キャッシュ・復元で発生したRuntimeErrorは抑制する。
+    そのため復元に失敗した場合も通知されない。ブロック内の例外は伝播する。
+    通常のUndo対象操作を一回のチャンクにまとめるが、fast=Trueの直接更新は戻せない。
 
     Args:
-        joints (Iterable[Joint | str]): 姿勢を編集する対象の joint 群。joint 以外や
-            無効な要素は ``hlib.nodes.joint.Joints`` と同様に黙って除外する。
+        joints (Iterable[Joint | str]): 姿勢を編集する対象のjoint群。
+            joint以外の解決済みノードは除外する。未存在の名前等は解決時に例外となる。
 
     Yields:
         SkinClusters: 保護対象になった skinCluster のコレクション。

@@ -49,6 +49,9 @@ Utilities
    autoapi/hlib/editors/index
    autoapi/hlib/decorators/index
    autoapi/hlib/utils/index
+   autoapi/hlib/animation/index
+   autoapi/hlib/selection/index
+   autoapi/hlib/json/index
 
 Development
 -----------

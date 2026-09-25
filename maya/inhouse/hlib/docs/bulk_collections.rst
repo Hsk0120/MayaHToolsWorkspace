@@ -17,7 +17,7 @@ Joints・SkinClusters・Pluginsに、単体の公開インスタンスメソッ�
    joints.set_attr_flags(["visibility"], keyable=False)
 
 引数は単体メソッドと同じで、全要素へ同じ引数を渡します。
-戻り値は保持順のリストです。設定メソッドも各単体の戻り値のリストを返します。
+自動追加されたメソッドの戻り値は保持順のリストです。設定メソッドも各単体の戻り値のリストを返します。
 リストを返す単体メソッドでは二重リストになります。Noneも削除しません。
 空コレクションでは空リストです。uuid/full_name等の読取プロパティもリストになります。
 属性名の暗黙アクセスは転送しません。属性取得には ``joints.plug("translateX")`` を使います。
@@ -45,6 +45,7 @@ call_eachのargumentsは、各要素への位置引数タプルを並べた列�
 * Joints.delete: ウェイト移送と子の退避を行う既存の削除処理。
 * Joints.skin_clusters: 重複を除いたSkinClustersを返す。
 * Joints.names、sorted_by_depth: 既存の型・意味を維持する。
+* Joints.joint_orient_to_rotate、freeze_rotation: 全対象を事前検証し、Joints自身を返す。
 * SkinClusters.gather/apply/finalize/remove_joints/remove_influences: 既存の移送操作。
 * Plugins.loaded: ロード済みプラグインからコレクションを作る既存classmethod。
 
@@ -83,3 +84,6 @@ Pluginのロード・アンロードとファイル入出力はシーンUndo対�
 コンポーネントの一括座標編集は :doc:`component_collections` を参照してください。
 Selectionは異種対象の取得時点の集合で、単一の単体型に対応しないため、この自動転送の対象外です。
 今回、未存在のNodesやTransforms等の新しいコレクションは追加していません。
+
+このページのUndoの説明は通常モード（``fast=False``）を前提とします。
+対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

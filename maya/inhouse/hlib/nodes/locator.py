@@ -31,6 +31,7 @@ class Locator(Shape):
             Locator: 自身。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         self.plug("localPosition").set(tuple(value))
         return self

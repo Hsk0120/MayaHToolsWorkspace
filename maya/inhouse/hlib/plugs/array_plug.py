@@ -27,7 +27,7 @@ class ArrayPlug(Plug):
         """array プラグへの直接の値設定を禁止する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): 互換シグネチャ用。値にかかわらず配列全体への設定を拒否する。
             value (object): 設定要求値。内容に関係なく拒否する。
 
         Returns:
@@ -36,7 +36,7 @@ class ArrayPlug(Plug):
         Raises:
             TypeError: 常に送出される。要素プラグへ設定すること。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastにかかわらず要素Plugのset()を使用する。
         """
         raise TypeError("Set an array element instead of the array plug")
 

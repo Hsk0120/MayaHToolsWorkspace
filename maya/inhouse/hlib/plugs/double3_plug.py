@@ -28,7 +28,7 @@ class Double3Plug(CompoundPlug):
     def get(self, ws=False):
         """3つの子要素を属性の意味に対応するベクトルとして取得する。
 
-        ローカル回転の取得は Maya の角度単位が度であることを前提とする。
+        ローカル回転は子Plug.get()が返す度をラジアンへ変換する。
 
         Args:
             ws (bool): True で既知の変換属性に対応するノードの取得メソッドを呼ぶ。それ以外は子属性の値を使う。
@@ -77,6 +77,7 @@ class Double3Plug(CompoundPlug):
             ValueError: 対応する設定メソッドがない属性で ws=True を指定、値の要素数が不正、または委譲先の変換条件が不正の場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         setters = {
             "translate": "set_translate",
