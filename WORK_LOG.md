@@ -21,7 +21,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-09-26 | HEditorログ共有・実行経路・テスト | Maya共通の出力へ実行結果を流し、標準Script Editor等の出力もHEditorで購読する。 |
+| Codex | 2026-09-26 | HEditorログ共有・実行経路・テスト | Maya共通の出力へ実行結果を流し、標準Script Editor等の出力もHEditorで購読する。(Codex停止中の途中状態を2026-09-26にClaude Codeがコミット・プッシュ) |
 
 
 ## 完了履歴
