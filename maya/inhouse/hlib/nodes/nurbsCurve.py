@@ -81,7 +81,6 @@ class NurbsCurve(Shape):
         """
         return om2.MFnNurbsCurve(self.dag_path())
 
-    @property
     def num_cvs(self):
         """CV 数を取得する。
 
@@ -90,7 +89,6 @@ class NurbsCurve(Shape):
         """
         return self.curve_fn().numCVs
 
-    @property
     def num_spans(self):
         """スパン数を取得する。
 
@@ -99,7 +97,6 @@ class NurbsCurve(Shape):
         """
         return self.curve_fn().numSpans
 
-    @property
     def degree(self):
         """カーブの次数を取得する。
 
@@ -108,7 +105,6 @@ class NurbsCurve(Shape):
         """
         return self.curve_fn().degree
 
-    @property
     def form(self):
         """カーブの開閉形式を取得する。
 

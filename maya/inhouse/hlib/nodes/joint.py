@@ -23,7 +23,6 @@ class Joint(Transform):
     Joint 固有の orientation、親子探索、skinCluster 連携を提供する。
     """
 
-    @property
     def joint_orient(self):
         """jointOrient 属性を EulerRotation として取得する。
 
@@ -65,7 +64,7 @@ class Joint(Transform):
         rotate = self._compound_values("rotate", angle=True)
         if not any(rotate if to_orient else orient):
             return None
-        name = self.full_name
+        name = self.full_name()
         for attribute in ("rotate", "jointOrient"):
             for suffix in ("", "X", "Y", "Z"):
                 plug = name + "." + attribute + suffix
@@ -193,22 +192,20 @@ class Joint(Transform):
         rotation.setValue(rotate_quaternion)
         rotation.reorderIt(self._rotation_order())
 
-        name = self.full_name
+        name = self.full_name()
         set_attr(f"{name}.translate", *matrix.translate)
         set_attr(f"{name}.rotate", *(math.degrees(component) for component in rotation))
         set_attr(f"{name}.scale", *matrix.scale)
         set_attr(f"{name}.shear", *matrix.shear)
 
-    @property
     def orientation(self):
         """joint の orientation 成分を取得する。
 
         Returns:
             EulerRotation: 現在は ``joint_orient`` と同じ値。
         """
-        return self.joint_orient
+        return self.joint_orient()
 
-    @property
     def inverse_scale(self):
         """inverseScale 属性を意味付き Scale として取得する。
 
@@ -236,7 +233,7 @@ class Joint(Transform):
             return tuple(plug.child(index).asMAngle().asDegrees() for index in range(3))
         return tuple(plug.child(index).asDouble() for index in range(3))
 
-    def parent(self):
+    def parent_joint_name(self):
         """親 joint の名前を取得する。
 
         Returns:
@@ -251,7 +248,7 @@ class Joint(Transform):
             return None
         return parent.name()
 
-    def children(self):
+    def child_joint_names(self):
         """直接の子 joint 名を取得する。
 
         Returns:
@@ -272,10 +269,10 @@ class Joint(Transform):
             int: root joint を 0 とする階層深度。
         """
         depth = 0
-        current_joint = self.parent()
+        current_joint = self.parent_joint_name()
         while current_joint:
             depth += 1
-            current_joint = Joint(current_joint).parent()
+            current_joint = Joint(current_joint).parent_joint_name()
         return depth
 
     def is_joint(self):
@@ -319,9 +316,9 @@ class Joint(Transform):
         result = []
         for plug in self.connections(type="skinCluster"):
             node = plug.node
-            if node.uuid in seen:
+            if node.uuid() in seen:
                 continue
-            seen.add(node.uuid)
+            seen.add(node.uuid())
             result.append(SkinCluster(node.mobject()))
         return result
 
@@ -359,11 +356,11 @@ class Joint(Transform):
         Returns:
             str | None: 移送先の親 joint 名。見つからない場合は ``None``。
         """
-        ancestor = self.parent()
+        ancestor = self.parent_joint_name()
         while ancestor:
             if skin.has_influence(ancestor):
                 return ancestor
-            ancestor = Joint(ancestor).parent()
+            ancestor = Joint(ancestor).parent_joint_name()
         return None
 
     @undo_chunk("hlib.nodes.joint.reparent_children")
@@ -376,7 +373,7 @@ class Joint(Transform):
         Returns:
             None: 値を返さない。
         """
-        for child_joint in self.children():
+        for child_joint in self.child_joint_names():
             cmds.parent(child_joint, parent_joint)
 
     @staticmethod
@@ -421,7 +418,7 @@ class Joint(Transform):
             chain = [self]
             current = self
             while True:
-                children = current.children()
+                children = current.child_joint_names()
                 if len(children) != 1:
                     return chain
                 current = Joint(children[0])
@@ -431,11 +428,11 @@ class Joint(Transform):
             raise ValueError("to must be a descendant of this joint")
         chain = [self]
         current = self
-        while current.uuid != target.uuid:
+        while current.uuid() != target.uuid():
             next_joint = next(
                 (
-                    Joint(name) for name in current.children()
-                    if Joint(name).uuid == target.uuid or Joint(name).is_ancestor_of(target)
+                    Joint(name) for name in current.child_joint_names()
+                    if Joint(name).uuid() == target.uuid() or Joint(name).is_ancestor_of(target)
                 ),
                 None,
             )
@@ -463,9 +460,9 @@ class Joint(Transform):
         result = []
         for plug in self.connections(type="ikHandle"):
             node = plug.node
-            if node.uuid in seen:
+            if node.uuid() in seen:
                 continue
-            seen.add(node.uuid)
+            seen.add(node.uuid())
             result.append(IkHandle(node.mobject()))
         return result
 
@@ -480,7 +477,7 @@ class Joint(Transform):
         """
         if not isinstance(other, Joint):
             return NotImplemented
-        return self.uuid == other.uuid
+        return self.uuid() == other.uuid()
 
     def __hash__(self):
         """UUID を使ったハッシュ値を返す。
@@ -488,7 +485,7 @@ class Joint(Transform):
         Returns:
             int: 現在の UUID のハッシュ。無効な場合は None のハッシュ。
         """
-        return hash(self.uuid)
+        return hash(self.uuid())
 
 
 @collection_export()
@@ -509,12 +506,11 @@ class Joints(BulkCollection):
         seen = set()
         for item in names:
             joint = item if isinstance(item, Joint) else Joint(item)
-            if not joint.is_joint() or joint.uuid in seen:
+            if not joint.is_joint() or joint.uuid() in seen:
                 continue
-            seen.add(joint.uuid)
+            seen.add(joint.uuid())
             self._items.append(joint)
 
-    @property
     def names(self):
         """コレクション内の joint 名を取得する。
 
@@ -554,8 +550,8 @@ class Joints(BulkCollection):
         plans = [(joint, joint._joint_rotation_transfer_values()) for joint in self]
         for joint, values in plans:
             if values is not None:
-                set_attr(joint.full_name + ".jointOrient", 0, 0, 0)
-                set_attr(joint.full_name + ".rotate", *values)
+                set_attr(joint.full_name() + ".jointOrient", 0, 0, 0)
+                set_attr(joint.full_name() + ".rotate", *values)
         return self
 
     @fast_edit
@@ -582,8 +578,8 @@ class Joints(BulkCollection):
         plans = [(joint, joint._joint_rotation_transfer_values(to_orient=True)) for joint in self]
         for joint, values in plans:
             if values is not None:
-                set_attr(joint.full_name + ".jointOrient", *values)
-                set_attr(joint.full_name + ".rotate", 0, 0, 0)
+                set_attr(joint.full_name() + ".jointOrient", *values)
+                set_attr(joint.full_name() + ".rotate", 0, 0, 0)
         return self
 
     def skin_clusters(self):
@@ -598,9 +594,9 @@ class Joints(BulkCollection):
         seen = set()
         for joint in self._items:
             for skin in joint.skin_clusters():
-                if skin.uuid in seen:
+                if skin.uuid() in seen:
                     continue
-                seen.add(skin.uuid)
+                seen.add(skin.uuid())
                 skin_clusters.append(skin)
         return SkinClusters(skin_clusters)
 
@@ -618,7 +614,9 @@ class Joints(BulkCollection):
         Raises:
             RuntimeError: ウェイト移送・子の再親付け・削除ができない場合。
         """
-        self.skin_clusters().remove_joints(self)
+        from .._core.joint_deletion import _JointDeletion
+
+        _JointDeletion(self).execute()
 
     def __iter__(self):
         """保持している Joint を順に反復する。

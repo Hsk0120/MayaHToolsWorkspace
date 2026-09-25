@@ -322,7 +322,7 @@ class Quaternion:
         order = order.lower()
         if order not in _EULER_ORDER_AXES:
             raise ValueError(f"Unsupported rotation order: {order!r}")
-        from .eulerRotation import EulerRotation
+        from .euler_rotation import EulerRotation
 
         quaternion = self.normalized()
         x, y, z, w = quaternion.x, quaternion.y, quaternion.z, quaternion.w

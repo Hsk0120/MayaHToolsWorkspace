@@ -24,7 +24,7 @@ Undo不要の値更新
 
 * Plugの ``set`` / ``reset`` とロック・keyable・channelBoxの設定。
   配列は要素Plugを取得して設定します。
-* Transformの行列・translate・rotate・scale・shear・compose・show・hide・形状ミラー。
+* Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー。
 * Joint / Jointsの ``freeze_rotation`` と ``joint_orient_to_rotate``。
 * NodeのOutliner色・override色・属性表示フラグ。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。

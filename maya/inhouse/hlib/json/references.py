@@ -13,7 +13,7 @@ class NodeRef:
     def capture(cls, node):
         """Nodeまたは一意な名前から参照を取得する。"""
         from maya import cmds
-        name = getattr(node, "full_name", node)
+        name = (node.full_name() if hasattr(node, "full_name") else node)
         names = cmds.ls(name, long=True) or []
         if len(names) != 1 or "." in names[0]:
             raise ValueError("Expected one node: {}".format(name))
@@ -29,7 +29,7 @@ class NodeRef:
         mapping, namespace_map = mapping or {}, namespace_map or {}
         explicit = self.path in mapping
         name = mapping.get(self.path, self.path)
-        name = getattr(name, "full_name", name)
+        name = (name.full_name() if hasattr(name, "full_name") else name)
         if not explicit and namespace_map:
             parts = name.split("|")
             for i, part in enumerate(parts):
@@ -66,7 +66,7 @@ class PlugRef:
     @classmethod
     def capture(cls, plug):
         """Plugまたは属性名を参照へ変換する。"""
-        name = getattr(plug, "full_name", plug)
+        name = (plug.full_name() if hasattr(plug, "full_name") else plug)
         node, attr = name.split(".", 1)
         return cls(NodeRef.capture(node), attr)
 
@@ -76,7 +76,7 @@ class PlugRef:
         key = self.node.path + "." + self.attribute
         if key in mapping:
             from ..nodes.node import Node
-            name = getattr(mapping[key], "full_name", mapping[key])
+            name = (mapping[key].full_name() if hasattr(mapping[key], "full_name") else mapping[key])
             node, attr = name.split(".", 1)
             return NodeRef.capture(node).resolve().plug(attr)
         return self.node.resolve(**kwargs).plug(self.attribute)
@@ -94,9 +94,9 @@ class ComponentRef:
     def capture(cls, component):
         """hlibの単体コンポーネントから参照を取得する。"""
         from maya import cmds
-        name = component.full_name
+        name = component.full_name()
         kind = name.rsplit(".", 1)[1].split("[")[0]
-        uv = (cmds.polyUVSet(component.shape.full_name, query=True, currentUVSet=True) or [""])[0] if kind == "map" else ""
+        uv = (cmds.polyUVSet(component.shape.full_name(), query=True, currentUVSet=True) or [""])[0] if kind == "map" else ""
         return cls(NodeRef.capture(component.shape), kind, component.index, uv)
 
     def resolve(self, **kwargs):
@@ -105,6 +105,6 @@ class ComponentRef:
         from ..components import Vertex, CV, Edge, Face, UV
         types = {"vtx": Vertex, "cv": CV, "e": Edge, "f": Face, "map": UV}
         node = self.node.resolve(**kwargs)
-        if self.uv_set and (cmds.polyUVSet(node.full_name, query=True, currentUVSet=True) or [""])[0] != self.uv_set:
+        if self.uv_set and (cmds.polyUVSet(node.full_name(), query=True, currentUVSet=True) or [""])[0] != self.uv_set:
             raise ValueError("UV set mismatch")
         return types[self.kind](node, self.index)

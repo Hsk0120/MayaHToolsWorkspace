@@ -3,6 +3,7 @@
 import contextlib
 import inspect
 from ..decorators.undo import undo_chunk
+from .flags import normalize_flags
 
 
 class BulkCollection:
@@ -40,6 +41,7 @@ class BulkCollection:
         if len(args) != len(self) or len(kwargs) != len(self):
             raise ValueError("Argument count must match collection length")
         functions = [getattr(item, method) for item in self._items]
+        kwargs = [normalize_flags(function, flags) for function, flags in zip(functions, kwargs)]
         for function, row, flags in zip(functions, args, kwargs):
             inspect.signature(function).bind(*row, **flags)
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)

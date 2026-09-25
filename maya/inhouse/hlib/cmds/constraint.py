@@ -8,7 +8,7 @@ Synopsis
 
 拘束元 sources から拘束先 target へのコンストレイントを作成します。選択状態は使用しません。
 
-作成操作は1回の Undo で戻せます。照会・編集モードや短縮フラグはありません。poleVector は RP IK ハンドル、geometry / normal / pointOnPoly は適切な形状、tangent は NURBS カーブが必要です。
+作成操作は1回の Undo で戻せます。照会・編集モードはありません。短縮フラグは typ / mo を使用できます。poleVector は RP IK ハンドル、geometry / normal / pointOnPoly は適切な形状、tangent は NURBS カーブが必要です。
 
 Return value
 ------------
@@ -49,7 +49,7 @@ Flags
    * - ``maintainOffset``
      - ``bool``
      - False
-     - parent、point、orient、scale、aim の作成時に相対関係を維持します。他の型にも渡されるため、非対応型ではMayaが拒否します。
+     - parent、point、orient、scale、aim の作成時に相対関係を維持します。他の型では使用しません。
 
 Examples
 --------
@@ -63,8 +63,11 @@ Examples
     result = hlib.constraint(source, target, type="point", maintainOffset=True)
 """
 
+from .._core.flags import flag_aliases
+
 from ..decorators.undo import undo_chunk
 
+@flag_aliases(typ="type", mo="maintainOffset")
 @undo_chunk("hlib.cmds.constraint.constraint")
 def constraint(sources, target, type="parent", maintainOffset=False):
     """拘束元から対象へのコンストレイントを作成する。
@@ -72,8 +75,8 @@ def constraint(sources, target, type="parent", maintainOffset=False):
     Args:
         sources (Node | str | Iterable[Node | str]): 拘束元。
         target (Node | str): 拘束されるTransformまたはIkHandle。
-        type (str): parent等の型名。既定parent。
-        maintainOffset (bool): 同名フラグとしてMayaへ常に渡す。既定False。
+        type (str): parent等の型名。既定parent。短縮typ。
+        maintainOffset (bool): parent/point/orient/scale/aimで相対関係を維持する。他の型では未使用。短縮mo。
     Returns:
         Constraint: 作成またはターゲット追加された拘束ノード。
     Raises:
@@ -82,7 +85,7 @@ def constraint(sources, target, type="parent", maintainOffset=False):
         AttributeError: targetにadd_constraintがない場合。
         RuntimeError: Mayaが作成またはフラグを拒否した場合。
 
-    maintainOffset非対応の拘束にはtarget.add_constraint(sources, type=...)を使う。"""
+    長名と短名の同時指定はTypeError。"""
     from .._core.coerce import to_node
 
     target_node = to_node(target)

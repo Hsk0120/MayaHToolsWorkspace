@@ -26,7 +26,12 @@ def reload_package(package_name):
         if name == package_name or name.startswith(package_name + ".")
     }
     for stale_name in loaded_names - set(module_names):
-        sys.modules.pop(stale_name, None)
+        stale_module = sys.modules.pop(stale_name, None)
+        parent_name, _, child_name = stale_name.rpartition(".")
+        parent = sys.modules.get(parent_name)
+        if (isinstance(stale_module, types.ModuleType) and parent is not None
+                and getattr(parent, child_name, None) is stale_module):
+            delattr(parent, child_name)
     for module_name in module_names:
         importlib.import_module(module_name)
     module_names = _reload_order(module_names)

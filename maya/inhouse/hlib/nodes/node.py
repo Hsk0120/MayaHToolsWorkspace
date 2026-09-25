@@ -71,16 +71,16 @@ def _dump_movable_attr(plug):
     Raises:
         TypeError: 複合・配列属性、または対応しない属性型の場合。
     """
-    if plug.is_array or plug.is_compound:
-        raise TypeError(f"Cannot reorder compound or array attributes: {plug.full_name}")
+    if plug.is_array() or plug.is_compound():
+        raise TypeError(f"Cannot reorder compound or array attributes: {plug.full_name()}")
     attr = plug.mplug().attribute()
     info = {
-        "long_name": plug.attribute,
+        "long_name": plug.attribute(),
         "nice_name": plug.nice_name(),
-        "hidden": plug.is_hidden,
-        "keyable": plug.is_keyable,
-        "channel_box": bool(cmds.getAttr(plug.full_name, channelBox=True)),
-        "locked": plug.is_locked,
+        "hidden": plug.is_hidden(),
+        "keyable": plug.is_keyable(),
+        "channel_box": bool(cmds.getAttr(plug.full_name(), channelBox=True)),
+        "locked": plug.is_locked(),
         "value": plug.get(),
         "source": plug.source(),
         "destinations": plug.destinations(),
@@ -89,21 +89,21 @@ def _dump_movable_attr(plug):
         numeric_type = om2.MFnNumericAttribute(attr).numericType()
         type_name = _MOVABLE_NUMERIC_TYPES.get(numeric_type)
         if type_name is None:
-            raise TypeError(f"Unsupported numeric attribute type for reordering: {plug.full_name}")
+            raise TypeError(f"Unsupported numeric attribute type for reordering: {plug.full_name()}")
         info["attribute_type"] = type_name
-        if plug.has_min:
-            info["min"] = plug.min
-        if plug.has_max:
-            info["max"] = plug.max
-        info["default_value"] = plug.default
+        if plug.has_min():
+            info["min"] = plug.min()
+        if plug.has_max():
+            info["max"] = plug.max()
+        info["default_value"] = plug.default()
     elif attr.hasFn(om2.MFn.kEnumAttribute):
         info["attribute_type"] = "enum"
-        info["enum_name"] = cmds.attributeQuery(plug.attribute, node=plug.node.full_name, listEnum=True)[0]
-        info["default_value"] = plug.default
+        info["enum_name"] = cmds.attributeQuery(plug.attribute(), node=plug.node.full_name(), listEnum=True)[0]
+        info["default_value"] = plug.default()
     elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
         info["data_type"] = "string"
     else:
-        raise TypeError(f"Unsupported attribute type for reordering: {plug.full_name}")
+        raise TypeError(f"Unsupported attribute type for reordering: {plug.full_name()}")
     return info
 
 
@@ -182,9 +182,9 @@ class Node:
 
     def outliner_color(self):
         """tuple[float, float, float] | None: Outliner色。無効ならNone。"""
-        if not cmds.getAttr(self.full_name + ".useOutlinerColor"):
+        if not cmds.getAttr(self.full_name() + ".useOutlinerColor"):
             return None
-        return tuple(cmds.getAttr(self.full_name + ".outlinerColor")[0])
+        return tuple(cmds.getAttr(self.full_name() + ".outlinerColor")[0])
 
     @fast_edit
     @undo_chunk("hlibNodeOutlinerColor")
@@ -205,8 +205,8 @@ class Node:
         """
         values = None if color is None else self._display_rgb(color)
         if values is not None:
-            set_attr(self.full_name + ".outlinerColor", *values, type="float3")
-        set_attr(self.full_name + ".useOutlinerColor", values is not None)
+            set_attr(self.full_name() + ".outlinerColor", *values, type="float3")
+        set_attr(self.full_name() + ".useOutlinerColor", values is not None)
         return self
 
     def override_color(self):
@@ -215,11 +215,11 @@ class Node:
         無効ならNone。親や表示レイヤー、選択ハイライトを合成した最終表示色ではない。
         属性を持たないノードはRuntimeError。
         """
-        if not cmds.getAttr(self.full_name + ".overrideEnabled"):
+        if not cmds.getAttr(self.full_name() + ".overrideEnabled"):
             return None
-        if cmds.getAttr(self.full_name + ".overrideRGBColors"):
-            return tuple(cmds.getAttr(self.full_name + ".overrideColorRGB")[0])
-        return cmds.getAttr(self.full_name + ".overrideColor")
+        if cmds.getAttr(self.full_name() + ".overrideRGBColors"):
+            return tuple(cmds.getAttr(self.full_name() + ".overrideColorRGB")[0])
+        return cmds.getAttr(self.full_name() + ".overrideColor")
 
     @fast_edit
     @undo_chunk("hlibNodeOverrideColor")
@@ -240,20 +240,20 @@ class Node:
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if color is None:
-            set_attr(self.full_name + ".overrideEnabled", False)
+            set_attr(self.full_name() + ".overrideEnabled", False)
             return self
         if isinstance(color, bool):
             raise ValueError("Color index must be an integer from 0 to 31")
         if isinstance(color, int):
             if not 0 <= color <= 31:
                 raise ValueError("Color index must be between 0 and 31")
-            set_attr(self.full_name + ".overrideColor", color)
-            set_attr(self.full_name + ".overrideRGBColors", False)
+            set_attr(self.full_name() + ".overrideColor", color)
+            set_attr(self.full_name() + ".overrideRGBColors", False)
         else:
             values = self._display_rgb(color)
-            set_attr(self.full_name + ".overrideColorRGB", *values, type="float3")
-            set_attr(self.full_name + ".overrideRGBColors", True)
-        set_attr(self.full_name + ".overrideEnabled", True)
+            set_attr(self.full_name() + ".overrideColorRGB", *values, type="float3")
+            set_attr(self.full_name() + ".overrideRGBColors", True)
+        set_attr(self.full_name() + ".overrideEnabled", True)
         return self
 
     @classmethod
@@ -371,7 +371,6 @@ class Node:
         """
         return om2.MFnDependencyNode(self._mobject).typeName
 
-    @property
     def type_id(self):
         """Maya の内部 typeId を整数で返す。
 
@@ -383,7 +382,6 @@ class Node:
         """
         return om2.MFnDependencyNode(self._mobject).typeId.id()
 
-    @property
     def plugin_name(self):
         """ノード型がプラグイン由来の場合、そのプラグイン名を取得する。
 
@@ -420,20 +418,18 @@ class Node:
             raise ValueError("node_type must be a non-empty string")
         if not self.is_valid():
             return False
-        return node_type in (cmds.nodeType(self.full_name, inherited=True) or [])
+        return node_type in (cmds.nodeType(self.full_name(), inherited=True) or [])
 
-    @property
     def is_locked(self):
         """ノード自体がロックされているか判定する。
 
-        属性単位のロックは Plug.is_locked を参照する。
+        属性単位のロックは Plug.is_locked() を参照する。
 
         Returns:
             bool: ロックされている場合は True。
         """
         return om2.MFnDependencyNode(self._mobject).isLocked
 
-    @property
     def is_referenced(self):
         """ノードが参照ファイルから読み込まれたものか判定する。
 
@@ -458,8 +454,8 @@ class Node:
         from .._core.coerce import to_node
 
         other_node = to_node(other)
-        self_full = self.full_name
-        other_full = other_node.full_name
+        self_full = self.full_name()
+        other_full = other_node.full_name()
         if not self_full or not other_full:
             return False
         return other_full != self_full and other_full.startswith(self_full + "|")
@@ -479,8 +475,8 @@ class Node:
         from .._core.coerce import to_node
 
         other_node = to_node(other)
-        self_full = self.full_name
-        other_full = other_node.full_name
+        self_full = self.full_name()
+        other_full = other_node.full_name()
         if not self_full or not other_full:
             return False
         parent_prefix, separator, _ = other_full.rpartition("|")
@@ -712,9 +708,9 @@ class Node:
         plugs = []
         seen = set()
         for plug in self.inputs(type=type) + self.outputs(type=type):
-            if plug.full_name in seen:
+            if plug.full_name() in seen:
                 continue
-            seen.add(plug.full_name)
+            seen.add(plug.full_name())
             plugs.append(plug)
         return plugs
 
@@ -731,13 +727,13 @@ class Node:
         Raises:
             RuntimeError: 無効なノード、またはMayaの履歴検索が失敗した場合。
         """
-        names = cmds.listHistory(self.full_name, future=future) or []
-        result, seen = [], {self.uuid}
+        names = cmds.listHistory(self.full_name(), future=future) or []
+        result, seen = [], {self.uuid()}
         for name in names:
             node = Node(name)
-            if node.uuid in seen:
+            if node.uuid() in seen:
                 continue
-            seen.add(node.uuid)
+            seen.add(node.uuid())
             if type is None or node.is_type(type):
                 result.append(node)
         return result
@@ -761,8 +757,8 @@ class Node:
         """
         if attributes is None:
             plugs = [plug for plug in self.plugs(keyable=True, scalar=True)
-                     if plug.default is not None and not plug.is_destination
-                     and cmds.getAttr(plug.full_name, settable=True)]
+                     if plug.default() is not None and not plug.is_destination()
+                     and cmds.getAttr(plug.full_name(), settable=True)]
         else:
             if isinstance(attributes, str):
                 attributes = [attributes]
@@ -807,7 +803,7 @@ class Node:
         plugs = [self.plug(name) for name in attributes]
         if flags:
             for plug in plugs:
-                set_attr(plug.full_name, **flags)
+                set_attr(plug.full_name(), **flags)
         return self
 
     def plugs(self, **kwargs):
@@ -827,7 +823,7 @@ class Node:
         """
         if not self.is_valid():
             raise RuntimeError("無効なノードの属性は列挙できません")
-        names = cmds.listAttr(self.full_name, **kwargs) or []
+        names = cmds.listAttr(self.full_name(), **kwargs) or []
         plugs = []
         for name in names:
             try:
@@ -852,14 +848,14 @@ class Node:
         # 循環回避のためここで遅延 import する（plug() と同じ理由）。
         from ..plugs.plug import Plug
 
-        flat = cmds.aliasAttr(self.full_name, query=True) or []
+        flat = cmds.aliasAttr(self.full_name(), query=True) or []
         pairs = []
         for index in range(0, len(flat), 2):
             alias_name, attribute_name = flat[index], flat[index + 1]
             # 配列要素(例: "weight[0]")は findPlug が解決できないため、
             # ブラケット付き属性パスも扱える MSelectionList 経由で解決する。
             selection = om2.MSelectionList()
-            selection.add(f"{self.full_name}.{attribute_name}")
+            selection.add(f"{self.full_name()}.{attribute_name}")
             pairs.append((alias_name, Plug(self, selection.getPlug(0))))
         return pairs
 
@@ -916,8 +912,8 @@ class Node:
         """
         if not self.is_valid():
             raise RuntimeError("無効なノードの属性は列挙できません")
-        names = cmds.listAttr(self.full_name, userDefined=True) or []
-        return [name for name in names if not self.plug(name).is_child]
+        names = cmds.listAttr(self.full_name(), userDefined=True) or []
+        return [name for name in names if not self.plug(name).is_child()]
 
     @undo_chunk("hlibNodeMoveAttribute")
     def move_attribute(self, name, offset):
@@ -946,7 +942,7 @@ class Node:
         """
         names = self.user_attribute_names()
         if name not in names:
-            raise ValueError(f"{name} is not a top-level user-defined attribute of {self.full_name}")
+            raise ValueError(f"{name} is not a top-level user-defined attribute of {self.full_name()}")
         old_index = names.index(name)
         new_index = max(0, min(len(names) - 1, old_index + offset))
         if new_index == old_index:
@@ -1012,7 +1008,6 @@ class Node:
             return False
         return True
 
-    @property
     def uuid(self):
         """ノードの Maya UUID を返す。
 
@@ -1035,7 +1030,6 @@ class Node:
             return self._dag_path.partialPathName()
         return om2.MFnDependencyNode(self._mobject).name()
 
-    @property
     def full_name(self):
         """Maya の完全 DAG パスまたは DG ノード名を返す。
 

@@ -147,11 +147,11 @@ class Snapshot:
         for record in self.records:
             try:
                 if self.kind == "selection":
-                    names = [ref.resolve(**options).full_name for ref in record["items"]]
+                    names = [ref.resolve(**options).full_name() for ref in record["items"]]
                     plan.changes.append({"target": "selection", "before": cmds.ls(selection=True, long=True) or [], "after": names})
                     continue
                 node = record["node"].resolve(**options)
-                name = node.full_name
+                name = node.full_name()
                 if name in seen:
                     raise ValueError("Multiple records map to the same target: " + name)
                 seen.add(name)
@@ -190,7 +190,7 @@ class Snapshot:
         with undo_chunk("hlibJsonApply"):
             for record in self.records:
                 if self.kind == "selection":
-                    names = [ref.resolve(**options).full_name for ref in record["items"]]
+                    names = [ref.resolve(**options).full_name() for ref in record["items"]]
                     cmds.select(names, replace=True) if names else cmds.select(clear=True)
                 else:
                     _apply_record(self.kind, record["node"].resolve(**options), record, options)
@@ -209,7 +209,10 @@ class PoseSnapshot(Snapshot):
     """ローカルTRS・shear・回転順序・pivot・jointOrient等のポーズ。"""
 
 
-class CurveSnapshot(Snapshot):
+globals().pop("CurveSnapshot", None)
+
+
+class NurbsCurveSnapshot(Snapshot):
     """既存カーブのCV位置と表示色。同じ次数・ノット・ウェイトのみ適用可能。"""
 
 
@@ -226,7 +229,7 @@ class DrivenKeysSnapshot(Snapshot):
 
 
 _KINDS = {"selection": SelectionSnapshot, "attributes": AttributesSnapshot, "pose": PoseSnapshot,
-          "curve": CurveSnapshot, "skin_weights": SkinWeightsSnapshot, "animation": AnimationSnapshot,
+          "curve": NurbsCurveSnapshot, "skin_weights": SkinWeightsSnapshot, "animation": AnimationSnapshot,
           "driven_keys": DrivenKeysSnapshot}
 
 
@@ -262,14 +265,14 @@ def capture(targets=None, kind="pose", attributes=None):
             if node.type() == "nurbsCurve":
                 shapes.append(node)
             else:
-                children = cmds.listRelatives(node.full_name, shapes=True, noIntermediate=True, fullPath=True, type="nurbsCurve") or []
+                children = cmds.listRelatives(node.full_name(), shapes=True, noIntermediate=True, fullPath=True, type="nurbsCurve") or []
                 if not children:
-                    raise ValueError("Target has no nurbsCurve shapes: " + node.full_name)
+                    raise ValueError("Target has no nurbsCurve shapes: " + node.full_name())
                 shapes.extend(_node(x) for x in children)
         nodes = shapes
     if kind == "driven_keys":
         nodes = _sdk_nodes(nodes)
-    unique = {n.full_name: n for n in nodes}
+    unique = {n.full_name(): n for n in nodes}
     records = [_capture_record(kind, node, attributes) for node in unique.values()]
     if not records:
         raise ValueError("No supported targets")
@@ -284,7 +287,7 @@ def _sdk_nodes(nodes):
     """AnimCurve・blendWeighted・unitConversionを上流に辿る。"""
     from maya import cmds
     result, visited = [], set()
-    pending = [n.full_name for n in nodes]
+    pending = [n.full_name() for n in nodes]
     while pending:
         name = pending.pop()
         if name in visited:
@@ -309,7 +312,7 @@ def _connections(name):
 def _capture_record(kind, node, attributes=None):
     from maya import cmds
     record = {"node": NodeRef.capture(node)}
-    name = node.full_name
+    name = node.full_name()
     if kind in ("pose", "attributes"):
         attrs = attributes
         if kind == "pose":
@@ -340,7 +343,7 @@ def _capture_record(kind, node, attributes=None):
         record["attributes"] = [_attribute(name, attr) for attr in ("skinningMethod", "normalizeWeights", "maintainMaxInfluences", "maxInfluences")]
     elif kind in ("animation", "driven_keys"):
         if node.type().startswith("animCurve"):
-            record.update(inputs=node.inputs(), values=node.values(), tangents=[node.tangent(i) for i in range(node.key_count())], infinity=node.infinity())
+            record.update(inputs=node.key_inputs(), values=node.values(), tangents=[node.tangent(i) for i in range(node.key_count())], infinity=node.infinity())
         elif kind == "driven_keys" and node.type() in ("blendWeighted", "unitConversion"):
             attrs = ["conversionFactor"] if node.type() == "unitConversion" else ["weight[{}]".format(i) for i in cmds.getAttr(name + ".weight", multiIndices=True) or []]
             record["attributes"] = [_attribute(name, attr) for attr in attrs]
@@ -353,7 +356,7 @@ def _capture_record(kind, node, attributes=None):
 
 def _validate_record(kind, node, record, options):
     from maya import cmds
-    name = node.full_name
+    name = node.full_name()
     before = {}
     for attr in record.get("attributes", []):
         _check_attribute_value(attr)
@@ -380,11 +383,11 @@ def _validate_record(kind, node, record, options):
                     raise ValueError("CV is locked or connected")
             before["positions"] = [cmds.xform(name + ".cv[{}]".format(i), query=True, translation=True, objectSpace=True) for i in range(len(record["positions"]))]
         else:
-            geometry = record["geometry"].resolve(**options).full_name
+            geometry = record["geometry"].resolve(**options).full_name()
             if geometry != node.mesh_path.fullPathName():
                 raise ValueError("Skin geometry mapping differs")
-            names = [r.resolve(**options).full_name for r in record["influences"]]
-            current = [NodeRef.capture(x).resolve().full_name for x in node.influences()]
+            names = [r.resolve(**options).full_name() for r in record["influences"]]
+            current = [NodeRef.capture(x).resolve().full_name() for x in node.influences()]
             if len(names) != len(set(names)) or set(names) != set(current):
                 raise ValueError("Influence membership differs")
             size = record["topology"]["vertices"] * len(names)
@@ -422,10 +425,10 @@ def _validate_record(kind, node, record, options):
         for attr in ("ktv", "preInfinity", "postInfinity"):
             if cmds.getAttr(name + "." + attr, lock=True):
                 raise ValueError("Animation attribute locked: " + attr)
-        before.update(inputs=node.inputs(), values=node.values())
+        before.update(inputs=node.key_inputs(), values=node.values())
     if "connections" in record:
-        expected = {tuple(p.resolve(**options).full_name for p in pair) for pair in record["connections"]}
-        actual = {tuple(p.resolve().full_name for p in pair) for pair in _connections(name)}
+        expected = {tuple(p.resolve(**options).full_name() for p in pair) for pair in record["connections"]}
+        actual = {tuple(p.resolve().full_name() for p in pair) for pair in _connections(name)}
         if expected != actual:
             raise ValueError("Driven-key connections differ: " + name)
     from .codec import encode
@@ -435,14 +438,14 @@ def _validate_record(kind, node, record, options):
 
 def _apply_record(kind, node, record, options):
     from maya import cmds
-    name = node.full_name
+    name = node.full_name()
     for attr in record.get("attributes", []):
         _set_attribute(name, attr)
     if kind == "curve":
         for i, pos in enumerate(record["positions"]):
             cmds.xform(name + ".cv[{}]".format(i), objectSpace=True, translation=pos)
     elif kind == "skin_weights":
-        names = [r.resolve(**options).full_name for r in record["influences"]]
+        names = [r.resolve(**options).full_name() for r in record["influences"]]
         weights = [0.0] * (record["topology"]["vertices"] * len(names))
         for index, value in record["weights"]:
             weights[index] = value
@@ -454,7 +457,7 @@ def _apply_record(kind, node, record, options):
         for x, y in zip(record["inputs"], record["values"]):
             node.set_key(x, y)
         wanted = set(record["inputs"])
-        for i, x in reversed(list(enumerate(node.inputs()))):
+        for i, x in reversed(list(enumerate(node.key_inputs()))):
             if x not in wanted:
                 cmds.cutKey(name, clear=True, animation="objects", index=(i, i))
         for i, tangent in enumerate(record["tangents"]):

@@ -58,7 +58,7 @@ class SkinCluster(Node):
             str | None: 対応する UUID。ノードが存在しない場合は None。
         """
         try:
-            return Node(node).uuid
+            return Node(node).uuid()
         except RuntimeError:
             return None
 
@@ -158,17 +158,17 @@ class SkinCluster(Node):
         """
         from .._core.coerce import to_names
 
-        existing = {Node(path.node()).uuid for path in self.fn.influenceObjects()}
+        existing = {Node(path.node()).uuid() for path in self.fn.influenceObjects()}
         names = []
         for name in to_names(joints):
             node = Node(name)
             if not node.is_type("joint"):
                 raise ValueError(f"Expected a joint: {name}")
-            if node.uuid not in existing:
-                existing.add(node.uuid)
-                names.append(node.full_name)
+            if node.uuid() not in existing:
+                existing.add(node.uuid())
+                names.append(node.full_name())
         if names:
-            cmds.skinCluster(self.full_name, edit=True, addInfluence=names, weight=0.0)
+            cmds.skinCluster(self.full_name(), edit=True, addInfluence=names, weight=0.0)
         return self
 
     def bind_pose(self):
@@ -202,7 +202,7 @@ class SkinCluster(Node):
         """
         pose = self.bind_pose()
         if pose is None:
-            raise RuntimeError(f"No bind pose connected to {self.full_name}")
+            raise RuntimeError(f"No bind pose connected to {self.full_name()}")
         pose.restore(ws=ws)
         return self
 
@@ -223,7 +223,7 @@ class SkinCluster(Node):
         """
         pose = self.bind_pose()
         if pose is None:
-            raise RuntimeError(f"No bind pose connected to {self.full_name}")
+            raise RuntimeError(f"No bind pose connected to {self.full_name()}")
         pose.reset(self.influences())
         return self
 
@@ -237,10 +237,10 @@ class SkinCluster(Node):
         Raises:
             RuntimeError: skinClusterが無効、または照会に失敗した場合。
         """
-        weighted = cmds.skinCluster(self.full_name, query=True, weightedInfluence=True) or []
-        used = {Node(name).uuid for name in weighted}
+        weighted = cmds.skinCluster(self.full_name(), query=True, weightedInfluence=True) or []
+        used = {Node(name).uuid() for name in weighted}
         return [Node(path.node()) for path in self.fn.influenceObjects()
-                if Node(path.node()).uuid not in used]
+                if Node(path.node()).uuid() not in used]
 
     @undo_chunk("hlibSkinClusterRemoveUnusedInfluences")
     def remove_unused_influences(self):
@@ -257,7 +257,7 @@ class SkinCluster(Node):
         if unused and len(unused) == len(self.influences()):
             raise ValueError("Cannot remove every influence from a skinCluster")
         for node in unused:
-            self.remove_influence(node.full_name, transfer_to_parent=False)
+            self.remove_influence(node.full_name(), transfer_to_parent=False)
         return unused
 
     def has_influence(self, joint):
@@ -344,7 +344,7 @@ class SkinCluster(Node):
             for plug, value in edits:
                 plug.setDouble(value)
             return
-        name = self.full_name
+        name = self.full_name()
         for vertex in range(vertex_count):
             offset = 0 if len(values) == width else vertex * width
             for column, logical_index in enumerate(logical_indices):
@@ -449,7 +449,7 @@ class SkinCluster(Node):
         influence_paths = self.fn.influenceObjects()
         all_indices = om2.MIntArray(range(len(influence_paths)))
         logical_indices = [self.fn.indexForInfluenceObject(path) for path in influence_paths]
-        name = self.full_name
+        name = self.full_name()
         for vertex in vertex_indices:
             component_fn = om2.MFnSingleIndexedComponent()
             component = component_fn.create(om2.MFn.kMeshVertComponent)
@@ -544,18 +544,18 @@ class SkinCluster(Node):
         source, target = self._influence_removal_target(joint, transfer_to_parent)
         if target is not None:
             # skinPercentの移送は正規化設定に依存するため、保存値を明示的に加算する。
-            weights = list(self.get_weights([source.full_name, target]))
+            weights = list(self.get_weights([source.full_name(), target]))
             summed = []
             for i in range(0, len(weights), 2):
                 summed.extend((0.0, weights[i] + weights[i + 1]))
-            self.set_weights([source.full_name, target], summed)
-        cmds.skinCluster(self.name(), edit=True, removeInfluence=source.full_name)
+            self.set_weights([source.full_name(), target], summed)
+        cmds.skinCluster(self.name(), edit=True, removeInfluence=source.full_name())
 
     def _influence_removal_target(self, joint, transfer_to_parent=True):
         """削除可否と祖先移送先を変更前に確認する。"""
         self._raise_if_layers()
         source = joint if isinstance(joint, Node) else Node(joint)
-        if not source.is_valid() or not self.has_influence(source.full_name):
+        if not source.is_valid() or not self.has_influence(source.full_name()):
             raise ValueError("Joint is not an influence of this skinCluster")
         if len(self.influences()) <= 1:
             raise ValueError("Cannot remove the last influence")
@@ -573,11 +573,11 @@ class SkinCluster(Node):
         for name in names:
             if cmds.objExists(name + ".lockInfluenceWeights") and cmds.getAttr(name + ".lockInfluenceWeights"):
                 raise RuntimeError("Influence is locked: " + name)
-        path = self.full_name + ".weightList"
+        path = self.full_name() + ".weightList"
         if cmds.getAttr(path, lock=True) or cmds.listConnections(path, source=True, destination=False):
             raise RuntimeError("Weights are locked or connected")
         for attr in cmds.listAttr(path, multi=True) or []:
-            if cmds.getAttr(self.full_name + "." + attr, lock=True):
+            if cmds.getAttr(self.full_name() + "." + attr, lock=True):
                 raise RuntimeError("Weight element is locked: " + attr)
         weights = list(self.get_weights(names))
         if any(not math.isfinite(v) or v < 0 for v in weights):
@@ -641,7 +641,7 @@ class SkinCluster(Node):
 
     def max_influences(self):
         """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
-        return cmds.getAttr(self.full_name + ".maxInfluences")
+        return cmds.getAttr(self.full_name() + ".maxInfluences")
 
     @fast_edit
     @undo_chunk("hlibSkinClusterSetMaxInfluences")
@@ -671,11 +671,11 @@ class SkinCluster(Node):
         if type(maintain) is not bool or type(prune) is not bool:
             raise TypeError("maintain and prune must be bool")
         for attr in ("maxInfluences", "maintainMaxInfluences"):
-            if not cmds.getAttr(self.full_name + "." + attr, settable=True):
+            if not cmds.getAttr(self.full_name() + "." + attr, settable=True):
                 raise RuntimeError("Setting is locked or connected: " + attr)
         computed = self._normalized_weights(limit=count) if prune else None
-        set_attr(self.full_name + ".maxInfluences", count)
-        set_attr(self.full_name + ".maintainMaxInfluences", maintain)
+        set_attr(self.full_name() + ".maxInfluences", count)
+        set_attr(self.full_name() + ".maintainMaxInfluences", maintain)
         if computed:
             self.set_weights(*computed)
         return self
@@ -687,7 +687,7 @@ class SkinCluster(Node):
             bool: 接続ノードの名前または型名にレイヤー判定用トークンが含まれる場合は True。実際のレイヤーデータの有無は調べない。
         """
         # ノード名・型だけが必要。generic属性を含む接続のPlug生成は避ける。
-        for name in cmds.listConnections(self.full_name, source=True, destination=True) or []:
+        for name in cmds.listConnections(self.full_name(), source=True, destination=True) or []:
             node_name = name.lower()
             node_type = cmds.nodeType(name).lower()
             if any(token in node_name or token in node_type for token in self._LAYER_TOKENS):
@@ -710,237 +710,71 @@ class SkinCluster(Node):
 @collection_export()
 @bulk_api(SkinCluster, per_item_only=("dump_weights", "load_weights"))
 class SkinClusters(BulkCollection):
-    """skinCluster と移送操作のキャッシュを保持するコレクション。"""
+    """重複を除き、保持順にSkinClusterを操作するコレクション。"""
 
     def __init__(self, names=()):
-        """skinCluster 名またはラッパーから重複なしコレクションを初期化する。
-
-        Args:
-            names (Iterable[str | SkinCluster]): skinCluster 名またはラッパー。ノード名で重複を除外する。
-
-        Returns:
-            None: 値を返さない。
-        """
+        """Iterable[str | SkinCluster]からコレクションを構築する。"""
         self._items = []
-        self.cache = {}
-        self.ops = {}
-        self.parents = {}
-        self.op_counts = {}
-        self.counts = {}
+        seen = set()
         for item in names:
             skin = item if isinstance(item, SkinCluster) else SkinCluster(item)
-            if skin.name() in self.cache:
-                continue
-            self._items.append(skin)
-            self.cache[skin.name()] = skin
+            if skin.name() not in seen:
+                seen.add(skin.name())
+                self._items.append(skin)
 
     def __iter__(self):
-        """保持している SkinCluster を順に反復する。
-
-        Returns:
-            Iterator[SkinCluster]: 保存順にラッパーを返すイテレータ。
-        """
+        """Iterator[SkinCluster]: 保持順のスキンクラスター。"""
         return iter(self._items)
 
-    def gather(self, joints):
-        """削除対象jointに必要なウェイト移送操作を収集する。
+    @undo_chunk("hlibSkinClustersRemoveInfluences")
+    def remove_influences(self, joints, transfer_to_parent=True):
+        """保持するskinClusterのinfluence登録だけを解除する。
 
-        既存の操作キャッシュは消去しない。
+        jointノードや親子関係は変更しない。祖先influenceがあればウェイトを
+        加算し、なければMaya標準のremoveInfluenceに再配分を任せる。
+        未登録の組は無視する。全登録の解除は変更前に拒否する。
+        深いjointから順に処理し、全体を一回のUndoにまとめる。
+        実行途中のMayaエラーは伝播し、完了済み変更は自動では戻さない。
 
         Args:
-            joints (Iterable[Joint]): 処理対象の Joint。
-
+            joints (Joint | str | Iterable[Joint | str]): 登録を解除するjoint。
+            transfer_to_parent (bool): Trueは祖先へ移送。FalseはMaya標準の解除のみ。
         Returns:
             None: 値を返さない。
-        """
-        for joint in joints:
-            if not joint.is_joint():
-                continue
-            parent_joint = joint.parent()
-            if not parent_joint:
-                continue
-            skins = joint.skin_clusters()
-            if not skins:
-                continue
-            op_count = self._ops_for_joint(joint, skins)
-            if op_count:
-                self.parents[joint.uuid] = parent_joint
-                self.op_counts[joint.uuid] = op_count
-
-    @undo_chunk("hlib.nodes.skinCluster.apply")
-    def apply(self):
-        """収集済みのウェイト移送とinfluence削除を実行する。
-
-        収集済みの組ごとにウェイトを移送し、元 influence を削除する。実行後も操作キャッシュは保持する。
-
-        Returns:
-            None: 値を返さない。
-        """
-        for skin_name, pairs in self.ops.items():
-            skin = self.cache[skin_name]
-            skin.transfer_weights_batch(pairs)
-            self._remove_influences(skin, pairs)
-
-    @undo_chunk("hlib.nodes.skinCluster.finalize")
-    def finalize(self, joints):
-        """処理済みjointの子を再親付けしてjointを削除する。
-
-        記録した操作数だけ influence 削除が完了した joint のみ、子を親 joint へ移して削除する。
-
-        Args:
-            joints (Iterable[Joint]): 処理対象の Joint。
-
-        Returns:
-            None: 値を返さない。
-        """
-        for joint in joints:
-            if not self._can_finalize(joint):
-                continue
-            parent_joint = self.parents[joint.uuid]
-            joint.reparent_children(parent_joint)
-            cmds.delete(joint.name())
-
-    def _skin(self, skin_cluster):
-        """入力をキャッシュ済みまたは新規 SkinCluster ラッパーへ正規化する。
-
-        Args:
-            skin_cluster (str | SkinCluster): キャッシュから解決、または新規登録する skinCluster。
-
-        Returns:
-            SkinCluster: 既存または新規のラッパー。
-        """
-        if isinstance(skin_cluster, SkinCluster):
-            skin = self.cache.get(skin_cluster.name())
-            if skin is not None:
-                return skin
-            self._items.append(skin_cluster)
-            self.cache[skin_cluster.name()] = skin_cluster
-            return skin_cluster
-        skin = self.cache.get(skin_cluster)
-        if skin is not None:
-            return skin
-        skin = SkinCluster(skin_cluster)
-        self._items.append(skin)
-        self.cache[skin_cluster] = skin
-        return skin
-
-    def _ops_for_joint(self, joint, skin_clusters):
-        """joint のウェイト移送操作を収集し、操作数を返す。
-
-        Args:
-            joint (Joint): 移送元の joint。
-            skin_clusters (Iterable[str | SkinCluster]): 移送先となる祖先 influence を探す skinCluster 群。
-
-        Returns:
-            int: 移送先を見つけ、キャッシュに追加した組の数。
-        """
-        op_count = 0
-        for skin in skin_clusters:
-            skin = self._skin(skin)
-            target_joint = joint.transfer_target(skin)
-            if not target_joint:
-                continue
-            self.ops.setdefault(skin.name(), []).append((joint.name(), target_joint))
-            op_count += 1
-        return op_count
-
-    def _remove_influences(self, skin, pairs):
-        """移送済み influence を skinCluster から削除する。
-
-        削除した移送元名ごとに完了数を加算する。
-
-        Args:
-            skin (SkinCluster): influence を削除する skinCluster。
-            pairs (Iterable[tuple[str, str]]): 処理済みの (移送元, 移送先) 名の組。
-
-        Returns:
-            None: 値を返さない。
-        """
-        for source_joint, _ in pairs:
-            skin.remove_influence(source_joint, transfer_to_parent=False)
-            self.counts[source_joint] = self.counts.get(source_joint, 0) + 1
-
-    def _can_finalize(self, joint):
-        """すべての移送操作が完了し joint を削除可能か判定する。
-
-        Args:
-            joint (Joint): 削除可否を確認する joint。
-
-        Returns:
-            bool: 予定操作数が正で、削除済み数と一致し、移動先の親が記録されている場合は True。
-        """
-        expected = self.op_counts.get(joint.uuid, 0)
-        return bool(
-            expected
-            and self.counts.get(joint.name(), 0) == expected
-            and self.parents.get(joint.uuid)
-        )
-
-    @undo_chunk("hlib.nodes.skinCluster.remove_joints")
-    def remove_joints(self, joints):
-        """joint階層を深い順に処理し、ウェイト移送後にjointを削除する。
-
-        未スキニングjointも削除する。子Transform（jointを含む）は直接の親へ、
-        親がなければワールドへ移す。同じskinClusterの祖先influenceがある場合だけ
-        ウェイトを移送する。移送先なしの場合はcmds.deleteの標準処理に任せる。
-        途中で失敗した場合は例外で停止する。完了済みの変更は自動では戻さない。
-
-        Args:
-            joints (Joints): 深さ順に処理する joint コレクション。
-
-        Returns:
-            None: 値を返さない。
-
         Raises:
-            RuntimeError: 無効なjoint、移送対象のスキニングレイヤー、
-                またはウェイト移送・再親付け・削除に失敗した場合。
+            TypeError: transfer_to_parentがboolでない場合。
+            ValueError: 最後のinfluenceまで解除しようとした場合。
+            RuntimeError: 無効なjoint、編集不可、またはMayaの処理失敗。
         """
-        target_joints = joints.sorted_by_depth()
-        # 祖先influenceへ加算できる組だけを計画する。それ以外は標準削除に任せる。
+        from .joint import Joints
+
+        if not isinstance(transfer_to_parent, bool):
+            raise TypeError("transfer_to_parent must be a bool")
+        targets = Joints([joints] if isinstance(joints, (Node, str)) else joints)
+        if any(not joint.is_joint() for joint in targets):
+            raise RuntimeError("Expected valid joints")
+        targets = targets.sorted_by_depth()
         plans = []
-        for joint in target_joints:
-            if not joint.is_joint():
-                raise RuntimeError("Cannot delete an invalid joint")
-            transfers = []
-            for skin in joint.skin_clusters():
-                target = joint.transfer_target(skin)
-                if target:
-                    skin._raise_if_layers()
-                    transfers.append((skin, target))
-            plans.append((joint, transfers))
-        for joint, transfers in plans:
-            name = joint.full_name
-            stage = "transfer weights"
-            try:
-                for skin, target in transfers:
-                    skin.transfer_weight(joint.full_name, target)
-                    stage = "remove influence"
-                    skin.remove_influence(joint.full_name, transfer_to_parent=False)
-                    stage = "transfer weights"
-                stage = "reparent children"
-                parent = joint.parent_node()
-                for child in joint.child_transforms():
-                    if parent is None:
-                        cmds.parent(child.full_name, world=True)
-                    else:
-                        cmds.parent(child.full_name, parent.full_name)
-                stage = "delete joint"
-                cmds.delete(joint.full_name)
-            except Exception as exc:
-                raise RuntimeError(f"Failed to {stage} for {name}: {exc}") from exc
+        for skin in self:
+            names = [joint.full_name() for joint in targets if skin.has_influence(joint.full_name())]
+            if names and len(names) >= len(skin.influences()):
+                raise ValueError("Cannot remove all influences of " + skin.full_name())
+            for name in names:
+                skin._influence_removal_target(name, transfer_to_parent)
+                plans.append((skin, name))
+        for skin, name in plans:
+            skin.remove_influence(name, transfer_to_parent=transfer_to_parent)
 
-    @undo_chunk("hlib.nodes.skinCluster.remove_influences")
-    def remove_influences(self, joints):
-        """joint階層を深い順に処理し、influenceだけを削除する。
+    def remove_joints(self, joints, transfer_to_parent=True):
+        """指定jointをinfluenceから外す。jointノード自体は削除しない。
 
-        移送先の親 influence が見つかった対象を処理する。ウェイト移送と influence 削除まで行い、joint ノードは残す。
+        remove_influencesのjoint指定用入口。以前の同名APIと異なり、
+        ノードを削除するにはJoint.delete()/Joints.delete()を使う。
 
         Args:
-            joints (Joints): 深さ順に処理する joint コレクション。
-
+            joints (Joint | str | Iterable[Joint | str]): 登録を解除するjoint。
+            transfer_to_parent (bool): Trueは祖先へ移送。FalseはMaya標準の解除のみ。
         Returns:
-            None: 値を返さない。
+            None: 値を返さない。検証・例外・Undoはremove_influencesと同じ。
         """
-        target_joints = joints.sorted_by_depth()
-        self.gather(target_joints)
-        self.apply()
+        return self.remove_influences(joints, transfer_to_parent=transfer_to_parent)

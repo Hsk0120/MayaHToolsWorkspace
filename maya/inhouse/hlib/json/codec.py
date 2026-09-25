@@ -69,8 +69,8 @@ def decode(value):
         return Snapshot.from_data(decode(data))
     if kind.startswith("math:"):
         from .. import maths
-        name = kind[5:]
-        allowed = {"Vector", "Translate", "Rotate", "Scale", "Shear", "EulerRotation", "Quaternion", "Matrix"}
+        name = {"Translate": "Translation", "Rotate": "EulerRotation"}.get(kind[5:], kind[5:])
+        allowed = {"Vector", "Translation", "Scale", "Shear", "EulerRotation", "Quaternion", "Matrix"}
         if name not in allowed:
             raise ValueError("Unknown math type")
         args = decode(data)
@@ -78,6 +78,6 @@ def decode(value):
         if name == "Matrix":
             return cls(args["values"])
         if name == "EulerRotation":
-            return cls(*args["values"], order=args["order"])
+            return cls(*args["values"], order=args.get("order", "xyz"))
         return cls(*args["values"])
     raise ValueError("Unknown JSON type: {}".format(kind))

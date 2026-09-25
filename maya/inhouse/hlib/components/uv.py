@@ -14,10 +14,6 @@ class UV(Component):
     count_attribute = "num_uvs"
 
     def get_position(self):
-        """tuple[float, float]: position()と同じUV座標。"""
-        return self.position()
-
-    def position(self):
         """UV 座標を取得する。
 
         Returns:
@@ -51,21 +47,19 @@ class UV(Component):
             self._validate()
             fast_geometry.set_uvs(self.shape, [self.index], [(u, v)])
             return self
-        cmds.polyEditUV(self.full_name, relative=False, uValue=u, vValue=v,
+        cmds.polyEditUV(self.full_name(), relative=False, uValue=u, vValue=v,
                         uvSetName=self.shape.mesh_fn().currentUVSetName())
         return self
 
-    @property
-    def u(self):
+    def get_u(self):
         """U 座標を取得する。
 
         Returns:
             float: 現在の UV 座標。
         """
-        return self.position()[0]
+        return self.get_position()[0]
 
-    @u.setter
-    def u(self, value):
+    def set_u(self, value):
         """U 座標だけを設定する。
 
         Args:
@@ -74,21 +68,19 @@ class UV(Component):
         Returns:
             None: 値を返さない。
         """
-        position = list(self.position())
+        position = list(self.get_position())
         position[0] = value
         self.set_position(position)
 
-    @property
-    def v(self):
+    def get_v(self):
         """V 座標を取得する。
 
         Returns:
             float: 現在の UV 座標。
         """
-        return self.position()[1]
+        return self.get_position()[1]
 
-    @v.setter
-    def v(self, value):
+    def set_v(self, value):
         """V 座標だけを設定する。
 
         Args:
@@ -97,7 +89,7 @@ class UV(Component):
         Returns:
             None: 値を返さない。
         """
-        position = list(self.position())
+        position = list(self.get_position())
         position[1] = value
         self.set_position(position)
 
@@ -108,15 +100,7 @@ class UVs(Components):
 
     def get_position(self):
         """list[tuple[float, float]]: 保持順のUV座標列。"""
-        return self.positions()
-
-    def position(self):
-        """list[tuple[float, float]]: 単体と同名の座標取得。平均位置ではない。"""
-        return self.positions()
-
-    def get_positions(self):
-        """list[tuple[float, float]]: positions()と同じ。"""
-        return self.positions()
+        return self.get_positions()
 
     @fast_edit
     def set_position(self, value, *, fast=False):
@@ -162,30 +146,26 @@ class UVs(Components):
             item.set_position(point)
         return self
 
-    @property
-    def u(self):
+    def get_u(self):
         """list[float]: 保持順のU座標。"""
-        return [p[0] for p in self.positions()]
+        return [p[0] for p in self.get_positions()]
 
-    @u.setter
-    def u(self, value):
+    def set_u(self, value):
         """Uだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self.set_positions(self._axis_rows(self.positions(), 0, value))
+        self.set_positions(self._axis_rows(self.get_positions(), 0, value))
 
-    @property
-    def v(self):
+    def get_v(self):
         """list[float]: 保持順のV座標。"""
-        return [p[1] for p in self.positions()]
+        return [p[1] for p in self.get_positions()]
 
-    @v.setter
-    def v(self, value):
+    def set_v(self, value):
         """Vだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self.set_positions(self._axis_rows(self.positions(), 1, value))
+        self.set_positions(self._axis_rows(self.get_positions(), 1, value))
 
-    def positions(self):
+    def get_positions(self):
         """保持順の UV 座標を取得する。
 
         Returns:
             list[tuple[float, float]]: U、V 座標列。
         """
-        return [item.position() for item in self]
+        return [item.get_position() for item in self]

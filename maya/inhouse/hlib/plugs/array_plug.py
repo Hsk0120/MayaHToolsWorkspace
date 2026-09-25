@@ -55,7 +55,7 @@ class ArrayPlug(Plug):
         """
         existing_indices = self._mplug.getExistingArrayAttributeIndices()
         if not create and index not in existing_indices:
-            raise IndexError(f"No element at logical index {index} on {self.full_name}")
+            raise IndexError(f"No element at logical index {index} on {self.full_name()}")
         mplug = self._mplug.elementByLogicalIndex(index)
         return Plug(self._node, mplug)
 
@@ -115,8 +115,8 @@ class ArrayPlug(Plug):
             RuntimeError: Maya が削除を拒否した場合。
         """
         if index not in self._mplug.getExistingArrayAttributeIndices():
-            raise IndexError(f"No element at logical index {index} on {self.full_name}")
-        cmds.removeMultiInstance(f"{self.full_name}[{index}]", b=True)
+            raise IndexError(f"No element at logical index {index} on {self.full_name()}")
+        cmds.removeMultiInstance(f"{self.full_name()}[{index}]", b=True)
         return self
 
     def __getitem__(self, index):

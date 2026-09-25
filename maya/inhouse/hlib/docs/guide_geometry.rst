@@ -15,12 +15,12 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
 .. code-block:: python
 
    mesh = hlib.node("pCube1").shape()
-   print(mesh.num_vertices, mesh.num_edges, mesh.num_polygons)
+   print(mesh.num_vertices(), mesh.num_edges(), mesh.num_polygons())
    points = mesh.points(ws=True)
    normals = mesh.normals(ws=True, angle_weighted=True)
 
    curve = hlib.node("curve1").shape()
-   print(curve.degree, curve.num_cvs, curve.num_spans)
+   print(curve.degree(), curve.num_cvs(), curve.num_spans())
    print(curve.length())  # オブジェクト空間の弧長
    cvs = curve.cv_positions(ws=True)
 
@@ -63,23 +63,23 @@ Transform のピボット位置は自動では使用しません。
 コンポーネントと座標
 --------------------
 
-Vertex / CV はシーンを参照する単体ラッパーです。``x`` / ``y`` / ``z`` は
-オブジェクト空間の座標で、Maya の現在の距離単位を使用します。
-値を代入するとシーンを更新し、Undo できます。座標のスナップショットが
-必要な場合は ``position()`` が返すタプルを保持してください。
+Vertex / CV はシーンを参照する単体ラッパーです。``get_x()`` / ``get_y()`` /
+``get_z()`` はオブジェクト空間の座標を、Mayaの現在の距離単位で返します。
+``set_x(value)`` などのメソッドでシーンを更新し、Undoできます。座標のスナップショットが
+必要な場合は ``get_position()`` が返すタプルを保持してください。
 
 .. code-block:: python
 
     mesh = hlib.nodes.Mesh("pCubeShape1")
     vertex = mesh.vertex(0)
-    print(vertex.x, vertex.y, vertex.z)
-    vertex.x = 2.0
+    print(vertex.get_x(), vertex.get_y(), vertex.get_z())
+    vertex.set_x(2.0)
     vertex.set_position((1, 2, 3), ws=True)
-    print(vertex.position(ws=True))
+    print(vertex.get_position(ws=True))
 
     curve = hlib.nodes.NurbsCurve("curveShape1")
     cv = curve.cv(0)
-    cv.z = -cv.z
+    cv.set_z(-cv.get_z())
     curve.cvs().mirror(axis="z", ws=False)
     mesh.vertices([0, 1, 2]).mirror(axis="x", ws=True)
 
@@ -88,9 +88,9 @@ Vertex / CV はシーンを参照する単体ラッパーです。``x`` / ``y`` 
     mesh.edges([0, 1]).vertices().mirror(axis="x")
     vertices = mesh.faces([0, 1]).vertices()
     uv = mesh.uv(0)           # UV
-    uv.u = 0.25
-    uv.v = 0.75
-    print(mesh.uvs().positions())
+    uv.set_u(0.25)
+    uv.set_v(0.75)
+    print(mesh.uvs().get_positions())
 
 単体型は Vertex、CV、Edge、Face、UV、複数形は Vertices、CVs、Edges、Faces、UVs です。
 複数形は反復、添字、スライスに対応します。番号は作成時に固定し、座標は現在の値を

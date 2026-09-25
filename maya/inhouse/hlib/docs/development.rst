@@ -246,7 +246,7 @@ Edge / Face / UV は Component、Edges / Faces / UVs は Components を継承し
 Examples を記述すると、コマンド専用テンプレートで個別ページを生成します。
 
 Maya に対応するコマンドの関数名・ファイル名は Maya と同じキャメルケースに
-揃えます。例: ``createNode.py`` の ``createNode()``。クラス API の命名は維持します。
+揃えます。例: ``createNode.py`` の ``createNode()``。独自のクラスメソッドはsnake_caseにします。
 
 
 nodes のファイル名
@@ -281,17 +281,14 @@ attrType に 1:1 対応するファイルも含めて snake_case に統一しま
 maths のファイル名
 -------------------
 
-``maths/*.py`` は nodeType/attrType 文字列ではなく、``maya.api.OpenMaya`` の
-API 2.0 クラス名（``MVector``、``MMatrix``、``MQuaternion``、``MEulerRotation``
-など）に 1:1 対応するかどうかを基準にします。対応するクラスがある場合は、
-先頭の ``M`` を除いた名前をキャメルケースにしてファイル名にします。例:
-``MEulerRotation`` に対応する ``EulerRotation`` は ``maths/eulerRotation.py``。
-``MVector``/``MMatrix``/``MQuaternion`` に対応する ``vector.py``/``matrix.py``/
-``quaternion.py`` は元々小文字1語なので変わりません。
+``cmds`` はMayaに合わせたcamelCase、``nodes`` はMaya nodeTypeと同名にします。
+それ以外のモジュールはsnake_case、クラスはPascalCase、独自メソッドはsnake_caseです。
+例えば ``EulerRotation`` は ``maths/euler_rotation.py``、``ChannelBox`` は
+``editors/channel_box.py`` に置きます。移動の値型は ``Translation``、
+回転の値型は回転順序を持つ ``EulerRotation`` に統一しています。
 
-``Translate``/``Rotate``/``Scale``/``Shear`` は対応する API 2.0 クラスが無い
-hlib 独自の意味付け型（``Vector`` の派生）のため対象外ですが、いずれも
-元々小文字1語のファイル名（``translate.py`` など）であり見た目は変わりません。
+Mayaの現在値を照会するAPIはメソッド、保持するデータはプロパティまたはフィールドにします。
+詳しい移行先は :doc:`api_naming` を参照してください。
 
 
 公開 API の配置

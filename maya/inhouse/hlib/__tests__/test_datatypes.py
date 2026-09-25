@@ -15,17 +15,16 @@ module = importlib.import_module(f"{PACKAGE_NAME}.maths")
 
 
 Vector = module.Vector
-Translate = module.Translate
-Rotate = module.Rotate
-Quaternion = module.Quaternion
+Translation = module.Translation
 EulerRotation = module.EulerRotation
+Quaternion = module.Quaternion
 Scale = module.Scale
 Shear = module.Shear
 Matrix = module.Matrix
 
 
 def test_translation_is_vector_like():
-    t = Translate(1.0, 2.0, 3.0)
+    t = Translation(1.0, 2.0, 3.0)
     assert isinstance(t, Vector)
     assert tuple(t) == (1.0, 2.0, 3.0)
 
@@ -53,8 +52,8 @@ def test_vector_neg_truediv_and_length_squared():
 
 
 def test_vector_distance_to_and_angle_to():
-    a = Translate(0.0, 0.0, 0.0)
-    b = Translate(3.0, 4.0, 0.0)
+    a = Translation(0.0, 0.0, 0.0)
+    b = Translation(3.0, 4.0, 0.0)
     assert a.distance_to(b) == 5.0
     assert b.distance_to(a) == 5.0
 
@@ -98,7 +97,7 @@ def test_vector_normalized_rejects_zero_vector():
 
 
 def test_scale_and_shear_are_distinct():
-    rotation = Rotate(0.0, 90.0, 0.0)
+    rotation = EulerRotation(0.0, 90.0, 0.0)
     scale = Scale(2.0, 3.0, 4.0)
     shear = Shear(0.1, 0.2, 0.3)
     assert isinstance(rotation, Vector)
@@ -276,9 +275,9 @@ def test_matrix_exposes_translation_scale_and_shear_values():
         scale=(2.0, 3.0, 4.0),
         shear=(0.1, 0.2, 0.3),
     )
-    assert isinstance(m.translate, Translate)
+    assert isinstance(m.translate, Translation)
     assert isinstance(m.rotation, EulerRotation)
-    assert isinstance(m.rotation, Rotate)
+    assert isinstance(m.rotation, EulerRotation)
     assert isinstance(m.euler, EulerRotation)
     assert isinstance(m.quaternion, Quaternion)
     assert isinstance(m.scale, Scale)
@@ -438,7 +437,7 @@ if __name__ == "__main__":
     importlib.invalidate_caches()
     module = importlib.import_module(f"{PACKAGE_NAME}.maths")
     for _type_name in (
-        "Vector", "Translate", "Rotate", "Quaternion", "EulerRotation",
+        "Vector", "Translation", "Quaternion", "EulerRotation",
         "Scale", "Shear", "Matrix",
     ):
         globals()[_type_name] = getattr(module, _type_name)

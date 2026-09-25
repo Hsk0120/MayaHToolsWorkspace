@@ -48,16 +48,16 @@ Transform のピボット
    parent.set_parent(grandparent)
    child.set_parent(parent)
 
-   print(child.is_locked)                        # False
-   print(child.is_referenced)                     # False（参照シーンなら True）
+   print(child.is_locked())                        # False
+   print(child.is_referenced())                     # False（参照シーンなら True）
    print(child.is_type("transform"))               # True
    print(child.is_type("dagNode"))                 # True（継承チェーンも判定）
    print(grandparent.is_ancestor_of(child))         # True
-   print(child.root() is grandparent or child.root().full_name == grandparent.full_name)
+   print(child.root() is grandparent or child.root().full_name() == grandparent.full_name())
 
    plug = child.plug("translateX")
-   print(plug.is_keyable)                          # True
-   print(plug.parent.full_name)                    # child.translate
+   print(plug.is_keyable())                          # True
+   print(plug.parent().full_name())                    # child.translate
 
 ``is_type`` は ``cmds.nodeType(inherited=True)`` による継承チェーンで判定するため、
 mesh シェイプは ``is_type("shape")`` でも True になります。``root()`` は DAG 階層の
@@ -70,7 +70,7 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 .. code-block:: python
 
    node = hlib.createNode("transform", name="classifyExample")
-   print(node.type_id)                 # int（セッション内でのみ有効な内部ID）
+   print(node.type_id())                 # int（セッション内でのみ有効な内部ID）
    print(node.classification())        # ["drawdb/geometry/transform"]
 
    root = hlib.createNode("transform", name="root")
@@ -87,7 +87,7 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 向きません。同一セッション内での高速な型比較にのみ使ってください。
 ``siblings()`` は親が無い（ワールド直下の）場合、他のワールド直下 Transform
 （``persp`` / ``top`` などの既定カメラを含む）を対象にします。
-``node.plugin_name`` はプラグイン由来のノード型でプラグイン名を返し、
+``node.plugin_name()`` はプラグイン由来のノード型でプラグイン名を返し、
 Maya 組み込みのノード型では空文字列になります。
 
 直接の親子関係と属性削除
@@ -138,13 +138,13 @@ Maya 組み込みのノード型では空文字列になります。
 
    transform.set_translate((1.0, 2.0, 3.0))
    transform.make_identity(apply=True, translate=True)
-   print(transform.get_translate())             # Translate(0.0, 0.0, 0.0)
+   print(transform.get_translate())             # Translation(0.0, 0.0, 0.0)
 
    driver = hlib.createNode("transform", name="rigDriver")
    driver.plug("translateX").connect(transform.plug("translateX"))
    transform.plug("translate").set_locked(True)
-   transform.release_srt()
-   print(transform.plug("translate").is_locked)      # False
+   transform.unlock_and_disconnect_transform_channels()
+   print(transform.plug("translate").is_locked())      # False
    print(transform.plug("translateX").source())       # None（接続も解除される）
 
    from hlib.maths import Vector
@@ -156,7 +156,7 @@ Maya 組み込みのノード型では空文字列になります。
 
 ``show``/``hide`` は ``visibility`` の単純なオン・オフです。``make_identity`` は
 ``cmds.makeIdentity`` のラッパーで、キーワード引数をそのまま渡します。
-``release_srt`` は translate/rotate/scale/shear とその X/Y/Z 子をまとめて
+``unlock_and_disconnect_transform_channels`` は translate/rotate/scale/shear とその X/Y/Z 子をまとめて
 アンロック・接続解除します。``closest_axis_to_vector`` は自身のワールド行列
 （回転・スケールのみ、平行移動は無視）で各ローカル軸を変換し、指定した
 ワールド方向ベクトルに最も近いものを ``"x"``/``"-y"`` のような文字列で返します
@@ -164,6 +164,29 @@ Maya 組み込みのノード型では空文字列になります。
 自身の現在のワールド行列に一致するグループを外側から内側の順で作成し、
 自身を最も内側のグループへ付け替えます（ワールド位置は変化しません）。
 引数を省略すると ``"<自身の名前>_offset"`` という1個のグループになります。
+
+コンストレイントを削除する
+--------------------------
+
+``Transform.delete_constraints()`` は自身を拘束しているコンストレイントと、
+その入力経路にあるpairBlendを削除します。Jointでも使用できます。
+
+.. code-block:: python
+
+   import hlib
+
+   driven = hlib.node("rigControl")
+   deleted_names = driven.delete_constraints()
+   print(deleted_names)  # 削除前のノード名。該当がなければ []
+
+入力接続をpairBlend・unitConversionに限って上流へ辿ります。
+拘束元ノード、アニメーションカーブ、コンストレイントに繋がらないpairBlendは残します。
+unitConversion自体は削除対象に含めません。
+削除ノードの出力が他のノードにも使われている場合や、削除対象が参照・ロックされている場合は
+変更前にエラーにします。全体は一回のUndoで戻せます。
+
+現在姿勢の維持やベイク、pairBlendに接続されていたアニメーションの再接続は行いません。
+削除後に姿勢が変わる場合があります。
 
 複数ノードへの操作は :doc:`bulk_collections`、行列の計算は :doc:`matrices` を参照してください。
 

@@ -25,6 +25,9 @@ Related commands
 Flags
 -----
 
+Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
+処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
+
 .. list-table::
    :header-rows: 1
    :widths: 20 25 15 40
@@ -53,9 +56,12 @@ Examples
     hlib.currentTime(24)
 """
 
+from .._core.flags import flag_aliases
+
 import maya.cmds as cmds
 
 
+@flag_aliases("currentTime")
 def currentTime(time=None, **kwargs):
     """現在のタイムラインの時間を取得、または設定する。
 

@@ -30,8 +30,8 @@ class BulkCollectionsTest(unittest.TestCase):
         self.joints.call_each("set_translate", [((4, 5, 6),), ((7, 8, 9),)])
         self.assertEqual([tuple(p) for p in self.joints.get_translate()], [(4, 5, 6), (7, 8, 9)])
         self.assertEqual(self.joints.is_joint(), [True, True])
-        self.assertEqual(self.joints.full_name, [item.full_name for item in self.joints])
-        self.assertEqual(self.joints[:1].names, self.names[:1])
+        self.assertEqual(self.joints.full_name(), [item.full_name() for item in self.joints])
+        self.assertEqual(self.joints[:1].names(), self.names[:1])
         self.assertEqual(len(self.joints), 2)
         self.assertFalse(hasattr(self.joints, "create"))
         self.assertEqual(hlib.nodes.Joints().get_translate(), [])
@@ -58,13 +58,13 @@ class BulkCollectionsTest(unittest.TestCase):
         self.assertEqual(len(skins.influences()), 2)
         self.assertEqual(skins.has_influence(self.names[0]), [True, True])
         for skin, mesh in zip(skins, meshes):
-            cmds.skinPercent(skin.full_name, mesh, transformValue=[(self.names[0], 0.75), (self.names[1], 0.25)])
+            cmds.skinPercent(skin.full_name(), mesh, transformValue=[(self.names[0], 0.75), (self.names[1], 0.25)])
         skins.transfer_weight(self.names[0], self.names[1])
         for skin, mesh in zip(skins, meshes):
-            self.assertAlmostEqual(cmds.skinPercent(skin.full_name, mesh + ".vtx[0]", query=True, transform=self.names[1]), 1)
+            self.assertAlmostEqual(cmds.skinPercent(skin.full_name(), mesh + ".vtx[0]", query=True, transform=self.names[1]), 1)
         cmds.undo()
         for skin, mesh in zip(skins, meshes):
-            self.assertAlmostEqual(cmds.skinPercent(skin.full_name, mesh + ".vtx[0]", query=True, transform=self.names[0]), 0.75)
+            self.assertAlmostEqual(cmds.skinPercent(skin.full_name(), mesh + ".vtx[0]", query=True, transform=self.names[0]), 0.75)
         self.assertFalse(hasattr(skins, "dump_weights"))
         self.assertIn("dump_weights", skins._bulk_methods)
         self.assertEqual(len(skins[:1]), 1)

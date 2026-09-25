@@ -28,7 +28,7 @@ class IkHandle(Transform):
         source = effector_plug.node.plug("translateX").source()
         if source is None:
             return None
-        return Joint(source.node.full_name)
+        return Joint(source.node.full_name())
 
     def get_joint_list(self, include_tip=False):
         """IK チェーンを構成する joint を start joint から順に取得する。
@@ -49,7 +49,7 @@ class IkHandle(Transform):
 
         if not self.is_valid():
             raise RuntimeError("Cannot query the joint list of an invalid IK handle")
-        names = cmds.ikHandle(self.full_name, query=True, jointList=True) or []
+        names = cmds.ikHandle(self.full_name(), query=True, jointList=True) or []
         joints = [Joint(name) for name in names]
         if include_tip:
             tip = self.get_end_joint()

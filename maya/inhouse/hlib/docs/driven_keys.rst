@@ -28,7 +28,7 @@
 .. code-block:: python
 
    for curve in relation.curves():
-       print(curve.inputs(), curve.values())
+       print(curve.key_inputs(), curve.values())
        curve.set_tangent(0, outTangentType="flat")
 
 カーブ単体の補間やキー削除は :doc:`animation_nodes` のAnimCurveメソッドで行います。

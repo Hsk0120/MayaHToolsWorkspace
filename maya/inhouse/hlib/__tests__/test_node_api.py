@@ -10,7 +10,7 @@ import hlib
 hlib.reload()
 from hlib.namespaces import Namespace
 from hlib.nodes import Node
-from hlib.maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translate, Vector
+from hlib.maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
 
 
 class NodeApiTest(unittest.TestCase):
@@ -72,7 +72,7 @@ class NodeApiTest(unittest.TestCase):
             attribute_type="double",
             default_value=1.5,
         )
-        self.assertEqual(plug.name, "hlibNodeApiValue")
+        self.assertEqual(plug.name(), "hlibNodeApiValue")
         self.assertEqual(plug.get(), 1.5)
 
     def test_parent_and_connections(self):
@@ -87,12 +87,12 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsNone(child.parent_node())
 
         source.plug("translateX").connect(target.plug("translateX"))
-        self.assertEqual([plug.full_name for plug in target.inputs()], [source.plug("translateX").full_name])
-        self.assertEqual([plug.full_name for plug in source.outputs()], [target.plug("translateX").full_name])
+        self.assertEqual([plug.full_name() for plug in target.inputs()], [source.plug("translateX").full_name()])
+        self.assertEqual([plug.full_name() for plug in source.outputs()], [target.plug("translateX").full_name()])
         self.assertEqual(len(source.connections()), 1)
 
         def names(plugs):
-            return [plug.full_name for plug in plugs]
+            return [plug.full_name() for plug in plugs]
 
         self.assertEqual(names(target.inputs(type="transform")), names(target.inputs()))
         self.assertEqual(target.inputs(type="mesh"), [])
@@ -107,8 +107,8 @@ class NodeApiTest(unittest.TestCase):
         transform.set_scale((2.0, 1.0, 1.0))
 
         translate = transform.get_translate()
-        self.assertIsInstance(translate, Translate)
-        self.assertEqual(translate, Translate(1.0, 2.0, 3.0))
+        self.assertIsInstance(translate, Translation)
+        self.assertEqual(translate, Translation(1.0, 2.0, 3.0))
 
         scale = transform.get_scale()
         self.assertIsInstance(scale, Scale)
@@ -118,36 +118,36 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsInstance(matrix, Matrix)
         self.assertEqual(matrix.translate, translate)
 
-        # Translate/Scale は dataclass 化により同一クラス同士のみ等価になる。
+        # Translation/Scale は dataclass 化により同一クラス同士のみ等価になる。
         self.assertNotEqual(translate, Scale(1.0, 2.0, 3.0))
 
     def test_transform_pivot_get_set_local_and_world(self):
         transform = self.create_transform("hlibNodeApiPivot")
 
         default_pivot = transform.pivot()
-        self.assertIsInstance(default_pivot, Translate)
-        self.assertEqual(default_pivot, Translate(0.0, 0.0, 0.0))
+        self.assertIsInstance(default_pivot, Translation)
+        self.assertEqual(default_pivot, Translation(0.0, 0.0, 0.0))
 
         result = transform.set_pivot((1.0, 2.0, 3.0))
         self.assertIs(result, transform)
-        self.assertEqual(transform.pivot(), Translate(1.0, 2.0, 3.0))
+        self.assertEqual(transform.pivot(), Translation(1.0, 2.0, 3.0))
         cmds.undo()
         self.assertEqual(transform.pivot(), default_pivot)
         cmds.redo()
-        self.assertEqual(transform.pivot(), Translate(1.0, 2.0, 3.0))
+        self.assertEqual(transform.pivot(), Translation(1.0, 2.0, 3.0))
 
         transform.set_translate((10.0, 0.0, 0.0))
-        self.assertEqual(transform.pivot(ws=True), Translate(11.0, 2.0, 3.0))
+        self.assertEqual(transform.pivot(ws=True), Translation(11.0, 2.0, 3.0))
 
         previous_unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
             transform.set_pivot((25.0, 50.0, 75.0), ws=True)
-            self.assertEqual(transform.pivot(ws=True), Translate(25.0, 50.0, 75.0))
+            self.assertEqual(transform.pivot(ws=True), Translation(25.0, 50.0, 75.0))
             cmds.undo()
-            self.assertEqual(transform.pivot(ws=True), Translate(11.0, 2.0, 3.0))
+            self.assertEqual(transform.pivot(ws=True), Translation(11.0, 2.0, 3.0))
             cmds.redo()
-            self.assertEqual(transform.pivot(ws=True), Translate(25.0, 50.0, 75.0))
+            self.assertEqual(transform.pivot(ws=True), Translation(25.0, 50.0, 75.0))
         finally:
             cmds.currentUnit(linear=previous_unit)
 
@@ -180,12 +180,12 @@ class NodeApiTest(unittest.TestCase):
     def test_node_lock_and_referenced_and_type_checks(self):
         transform = self.create_transform("hlibNodeApiLockType")
 
-        self.assertFalse(transform.is_locked)
+        self.assertFalse(transform.is_locked())
         cmds.lockNode(transform.name(), lock=True)
-        self.assertTrue(transform.is_locked)
+        self.assertTrue(transform.is_locked())
         cmds.lockNode(transform.name(), lock=False)
 
-        self.assertFalse(transform.is_referenced)
+        self.assertFalse(transform.is_referenced())
 
         self.assertTrue(transform.is_type("transform"))
         self.assertTrue(transform.is_type("dagNode"))
@@ -206,30 +206,30 @@ class NodeApiTest(unittest.TestCase):
         self.assertFalse(child.is_ancestor_of(grandparent))
         self.assertFalse(grandparent.is_ancestor_of(grandparent))
 
-        self.assertEqual(child.root().full_name, grandparent.full_name)
-        self.assertEqual(parent.root().full_name, grandparent.full_name)
-        self.assertEqual(grandparent.root().full_name, grandparent.full_name)
+        self.assertEqual(child.root().full_name(), grandparent.full_name())
+        self.assertEqual(parent.root().full_name(), grandparent.full_name())
+        self.assertEqual(grandparent.root().full_name(), grandparent.full_name())
 
     def test_shape_is_intermediate_object(self):
         mesh_transform_name = cmds.polyCube(name="hlibNodeApiIntermediate", constructionHistory=False)[0]
         self.created.append(mesh_transform_name)
         shape = Node(mesh_transform_name).shape()
 
-        self.assertFalse(shape.is_intermediate_object)
-        cmds.setAttr(shape.full_name + ".intermediateObject", True)
-        self.assertTrue(shape.is_intermediate_object)
+        self.assertFalse(shape.is_intermediate_object())
+        cmds.setAttr(shape.full_name() + ".intermediateObject", True)
+        self.assertTrue(shape.is_intermediate_object())
 
     def test_plug_is_keyable_and_parent(self):
         transform = self.create_transform("hlibNodeApiPlugMeta")
         translate = transform.attr("translate")
         translate_x = transform.attr("translateX")
 
-        self.assertTrue(translate_x.is_keyable)
-        self.assertIsNone(translate.parent)
-        self.assertEqual(translate_x.parent.full_name, translate.full_name)
+        self.assertTrue(translate_x.is_keyable())
+        self.assertIsNone(translate.parent())
+        self.assertEqual(translate_x.parent().full_name(), translate.full_name())
 
-        cmds.setAttr(translate_x.full_name, keyable=False)
-        self.assertFalse(translate_x.is_keyable)
+        cmds.setAttr(translate_x.full_name(), keyable=False)
+        self.assertFalse(translate_x.is_keyable())
 
     def test_plug_hidden_dynamic_limits_default_and_enum(self):
         transform = self.create_transform("hlibNodeApiPlugAttrMeta")
@@ -241,28 +241,28 @@ class NodeApiTest(unittest.TestCase):
                      enumName="A:B:C", defaultValue=1)
 
         num_plug = transform.attr("hlibTestNum")
-        self.assertTrue(num_plug.is_dynamic)
-        self.assertTrue(num_plug.is_hidden)
-        self.assertTrue(num_plug.has_min)
-        self.assertTrue(num_plug.has_max)
-        self.assertEqual(num_plug.min, 0.0)
-        self.assertEqual(num_plug.max, 10.0)
-        self.assertEqual(num_plug.default, 5.0)
+        self.assertTrue(num_plug.is_dynamic())
+        self.assertTrue(num_plug.is_hidden())
+        self.assertTrue(num_plug.has_min())
+        self.assertTrue(num_plug.has_max())
+        self.assertEqual(num_plug.min(), 0.0)
+        self.assertEqual(num_plug.max(), 10.0)
+        self.assertEqual(num_plug.default(), 5.0)
 
         no_limit_plug = transform.attr("hlibTestNoLimit")
-        self.assertFalse(no_limit_plug.is_hidden)
-        self.assertFalse(no_limit_plug.has_min)
-        self.assertFalse(no_limit_plug.has_max)
-        self.assertIsNone(no_limit_plug.min)
-        self.assertIsNone(no_limit_plug.max)
-        self.assertEqual(no_limit_plug.default, 1.5)
+        self.assertFalse(no_limit_plug.is_hidden())
+        self.assertFalse(no_limit_plug.has_min())
+        self.assertFalse(no_limit_plug.has_max())
+        self.assertIsNone(no_limit_plug.min())
+        self.assertIsNone(no_limit_plug.max())
+        self.assertEqual(no_limit_plug.default(), 1.5)
 
         enum_plug = transform.attr("hlibTestEnum")
-        self.assertEqual(enum_plug.default, 1)
+        self.assertEqual(enum_plug.default(), 1)
         self.assertEqual(enum_plug.enum_name(), "B")
 
         # 静的（ノード組み込み）属性は動的属性ではない。
-        self.assertFalse(transform.attr("translateX").is_dynamic)
+        self.assertFalse(transform.attr("translateX").is_dynamic())
         with self.assertRaises(TypeError):
             transform.attr("translateX").enum_name()
 
@@ -272,27 +272,27 @@ class NodeApiTest(unittest.TestCase):
                      softMinValue=0, softMaxValue=10, defaultValue=2)
         plug = transform.attr("hlibSoftAttr")
 
-        self.assertTrue(plug.is_readable)
-        self.assertTrue(plug.is_writable)
-        self.assertTrue(plug.is_storable)
-        self.assertTrue(plug.has_soft_min)
-        self.assertTrue(plug.has_soft_max)
-        self.assertEqual(plug.soft_min, 0.0)
-        self.assertEqual(plug.soft_max, 10.0)
+        self.assertTrue(plug.is_readable())
+        self.assertTrue(plug.is_writable())
+        self.assertTrue(plug.is_storable())
+        self.assertTrue(plug.has_soft_min())
+        self.assertTrue(plug.has_soft_max())
+        self.assertEqual(plug.soft_min(), 0.0)
+        self.assertEqual(plug.soft_max(), 10.0)
 
         translate_x = transform.attr("translateX")
-        self.assertTrue(translate_x.is_readable)
-        self.assertTrue(translate_x.is_writable)
-        self.assertTrue(translate_x.is_storable)
-        self.assertFalse(translate_x.has_soft_min)
-        self.assertFalse(translate_x.has_soft_max)
+        self.assertTrue(translate_x.is_readable())
+        self.assertTrue(translate_x.is_writable())
+        self.assertTrue(translate_x.is_storable())
+        self.assertFalse(translate_x.has_soft_min())
+        self.assertFalse(translate_x.has_soft_max())
 
     def test_node_type_id_and_classification(self):
         transform = self.create_transform("hlibNodeApiTypeId")
-        self.assertIsInstance(transform.type_id, int)
+        self.assertIsInstance(transform.type_id(), int)
         self.assertEqual(transform.classification(), cmds.getClassification("transform"))
         # transform は Maya 組み込みノード型なのでプラグイン名は空文字列。
-        self.assertEqual(transform.plugin_name, "")
+        self.assertEqual(transform.plugin_name(), "")
 
     def test_transform_leaves_siblings_and_child_transforms(self):
         root = self.create_transform("hlibNodeApiLeavesRoot")
@@ -326,19 +326,19 @@ class NodeApiTest(unittest.TestCase):
 
         self.assertIsNone(plug.anim_curve())
 
-        cmds.setKeyframe(plug.full_name, time=1, value=0.0)
-        cmds.setKeyframe(plug.full_name, time=24, value=10.0)
+        cmds.setKeyframe(plug.full_name(), time=1, value=0.0)
+        cmds.setKeyframe(plug.full_name(), time=24, value=10.0)
 
         curve = plug.anim_curve()
         self.assertIsNotNone(curve)
         self.assertTrue(curve.is_type("animCurve"))
 
-        self.assertFalse(plug.is_muted)
+        self.assertFalse(plug.is_muted())
         result = plug.mute()
         self.assertIs(result, plug)
-        self.assertTrue(plug.is_muted)
+        self.assertTrue(plug.is_muted())
         plug.unmute()
-        self.assertFalse(plug.is_muted)
+        self.assertFalse(plug.is_muted())
 
         # 非 animCurve 接続では anim_curve() は None を返す。
         other = self.create_transform("hlibNodeApiAnimCurveOther")
@@ -390,7 +390,7 @@ class NodeApiTest(unittest.TestCase):
         transform = self.create_transform("hlibNodeApiPlugs")
 
         plugs = transform.plugs()
-        self.assertIn("translateX", {plug.attribute for plug in plugs})
+        self.assertIn("translateX", {plug.attribute() for plug in plugs})
         self.assertTrue(all(hasattr(plug, "get") for plug in plugs))
         # listAttr が報告する名前の一部（未確保の要素を持つ配列複合属性の子など）は
         # 実際には評価できず黙ってスキップされるため、件数は必ずしも一致しない。
@@ -398,18 +398,18 @@ class NodeApiTest(unittest.TestCase):
 
         keyable_names = set(cmds.listAttr(transform.name(), keyable=True) or [])
         keyable_plugs = transform.plugs(keyable=True)
-        self.assertEqual({plug.attribute for plug in keyable_plugs}, keyable_names)
+        self.assertEqual({plug.attribute() for plug in keyable_plugs}, keyable_names)
 
     def test_node_aliases_returns_alias_plug_pairs(self):
         transform = self.create_transform("hlibNodeApiAliases")
         self.assertEqual(transform.aliases(), [])
 
-        cmds.aliasAttr("hlibTx", transform.plug("translateX").full_name)
+        cmds.aliasAttr("hlibTx", transform.plug("translateX").full_name())
         aliases = transform.aliases()
         self.assertEqual(len(aliases), 1)
         alias_name, plug = aliases[0]
         self.assertEqual(alias_name, "hlibTx")
-        self.assertEqual(plug.full_name, transform.plug("translateX").full_name)
+        self.assertEqual(plug.full_name(), transform.plug("translateX").full_name())
 
     def test_plug_set_keyable_and_set_channel_box(self):
         transform = self.create_transform("hlibNodeApiKeyableCB")
@@ -417,14 +417,14 @@ class NodeApiTest(unittest.TestCase):
 
         result = plug.set_keyable(False)
         self.assertIs(result, plug)
-        self.assertFalse(plug.is_keyable)
+        self.assertFalse(plug.is_keyable())
 
         plug.set_channel_box(True)
-        self.assertFalse(plug.is_keyable)
-        self.assertTrue(cmds.getAttr(plug.full_name, channelBox=True))
+        self.assertFalse(plug.is_keyable())
+        self.assertTrue(cmds.getAttr(plug.full_name(), channelBox=True))
 
         plug.set_keyable(True)
-        self.assertTrue(plug.is_keyable)
+        self.assertTrue(plug.is_keyable())
 
     def test_plug_nice_name_and_is_connected_to(self):
         source = self.create_transform("hlibNodeApiNiceNameSource")
@@ -512,8 +512,8 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(array_plug.next_available(start=5), 5)
 
         element = array_plug.add_element()
-        self.assertEqual(element.attribute, "worldMatrix")
-        self.assertTrue(element.full_name.endswith("[1]"))
+        self.assertEqual(element.attribute(), "worldMatrix")
+        self.assertTrue(element.full_name().endswith("[1]"))
 
         array_plug.remove_element(1)
         self.assertNotIn(1, array_plug.get())
@@ -537,20 +537,20 @@ class NodeApiTest(unittest.TestCase):
 
         result = transform.make_identity(apply=True, translate=True)
         self.assertIs(result, transform)
-        self.assertEqual(transform.get_translate(), Translate(0.0, 0.0, 0.0))
+        self.assertEqual(transform.get_translate(), Translation(0.0, 0.0, 0.0))
 
-    def test_transform_release_srt_unlocks_and_disconnects(self):
+    def test_transform_unlock_and_disconnect_transform_channels_unlocks_and_disconnects(self):
         driver = self.create_transform("hlibNodeApiReleaseDriver")
         transform = self.create_transform("hlibNodeApiRelease")
         driver.plug("translateX").connect(transform.plug("translateX"))
         transform.plug("translate").set_locked(True)
         transform.plug("rotateY").set_locked(True)
 
-        result = transform.release_srt()
+        result = transform.unlock_and_disconnect_transform_channels()
         self.assertIs(result, transform)
-        self.assertFalse(transform.plug("translate").is_locked)
-        self.assertFalse(transform.plug("translateX").is_locked)
-        self.assertFalse(transform.plug("rotateY").is_locked)
+        self.assertFalse(transform.plug("translate").is_locked())
+        self.assertFalse(transform.plug("translateX").is_locked())
+        self.assertFalse(transform.plug("rotateY").is_locked())
         self.assertIsNone(transform.plug("translateX").source())
 
     def test_transform_closest_axis_to_vector(self):
@@ -580,7 +580,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(zero.get_translate(ws=True), world_translate)
         self.assertEqual(offset.get_translate(ws=True), world_translate)
         self.assertEqual(transform.get_translate(ws=True), world_translate)
-        self.assertEqual(transform.get_translate(), Translate(0.0, 0.0, 0.0))
+        self.assertEqual(transform.get_translate(), Translation(0.0, 0.0, 0.0))
 
     def test_node_is_valid_is_alive_and_has_attr(self):
         transform = self.create_transform("hlibNodeApiValidity")
@@ -614,26 +614,26 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsInstance(matrix, Matrix)
         self.assertEqual(matrix, transform.get_matrix(ws=True))
 
-    def test_transform_compose_round_trips_matrix_and_rejects_non_matrix(self):
+    def test_transform_set_matrix_round_trips_matrix_and_rejects_non_matrix(self):
         source = self.create_transform("hlibNodeApiComposeSource")
         source.set_translate((1.0, 2.0, 3.0))
         source.set_rotate((0.0, math.radians(45.0), 0.0))
         matrix = source.get_matrix(ws=True)
 
         target = self.create_transform("hlibNodeApiComposeTarget")
-        result = target.compose(matrix, ws=True)
+        result = target.set_matrix(matrix, ws=True)
         self.assertIs(result, target)
         self.assertTrue(target.get_matrix(ws=True).is_equivalent(matrix, tolerance=1e-6))
 
-        with self.assertRaises(TypeError):
-            target.compose((1, 2, 3))
+        with self.assertRaises(ValueError):
+            target.set_matrix((1, 2, 3))
 
     def test_transform_set_matrix_direct_accepts_raw_values_and_guards_invalid_node(self):
         transform = self.create_transform("hlibNodeApiSetMatrixDirect")
         matrix = Matrix(translate=(1.0, 2.0, 3.0))
         result = transform.set_matrix(matrix)
         self.assertIs(result, transform)
-        self.assertEqual(transform.get_translate(), Translate(1.0, 2.0, 3.0))
+        self.assertEqual(transform.get_translate(), Translation(1.0, 2.0, 3.0))
 
         # Matrix以外の16要素入力も内部でMatrixへ変換して受け付ける。
         transform.set_matrix((
@@ -642,7 +642,7 @@ class NodeApiTest(unittest.TestCase):
             0.0, 0.0, 1.0, 0.0,
             5.0, 6.0, 7.0, 1.0,
         ))
-        self.assertEqual(transform.get_translate(), Translate(5.0, 6.0, 7.0))
+        self.assertEqual(transform.get_translate(), Translation(5.0, 6.0, 7.0))
 
         cmds.delete(transform.name())
         with self.assertRaises(RuntimeError):
@@ -654,21 +654,21 @@ class NodeApiTest(unittest.TestCase):
         translate_x_plug = transform.attr("translateX")
         world_matrix_plug = transform.attr("worldMatrix")
 
-        self.assertTrue(translate_plug.is_compound)
-        self.assertFalse(translate_plug.is_array)
-        self.assertFalse(translate_plug.is_element)
-        self.assertFalse(translate_plug.is_child)
+        self.assertTrue(translate_plug.is_compound())
+        self.assertFalse(translate_plug.is_array())
+        self.assertFalse(translate_plug.is_element())
+        self.assertFalse(translate_plug.is_child())
 
-        self.assertTrue(translate_x_plug.is_child)
-        self.assertFalse(translate_x_plug.is_compound)
+        self.assertTrue(translate_x_plug.is_child())
+        self.assertFalse(translate_x_plug.is_compound())
 
-        self.assertTrue(world_matrix_plug.is_array)
+        self.assertTrue(world_matrix_plug.is_array())
 
         import maya.api.OpenMaya as om2
         self.assertIsInstance(translate_plug.mplug(), om2.MPlug)
 
         element = world_matrix_plug.element(0, create=True)
-        self.assertTrue(element.is_element)
+        self.assertTrue(element.is_element())
 
     def test_plug_connection_introspection_and_disconnect(self):
         source = self.create_transform("hlibNodeApiPlugConnSource")
@@ -676,25 +676,25 @@ class NodeApiTest(unittest.TestCase):
         source_plug = source.attr("translateX")
         target_plug = target.attr("translateX")
 
-        self.assertFalse(source_plug.is_connected)
-        self.assertFalse(source_plug.is_source)
-        self.assertFalse(target_plug.is_destination)
+        self.assertFalse(source_plug.is_connected())
+        self.assertFalse(source_plug.is_source())
+        self.assertFalse(target_plug.is_destination())
 
         source_plug.connect(target_plug)
-        self.assertTrue(source_plug.is_connected)
-        self.assertTrue(source_plug.is_source)
-        self.assertFalse(source_plug.is_destination)
-        self.assertTrue(target_plug.is_connected)
-        self.assertTrue(target_plug.is_destination)
-        self.assertFalse(target_plug.is_source)
+        self.assertTrue(source_plug.is_connected())
+        self.assertTrue(source_plug.is_source())
+        self.assertFalse(source_plug.is_destination())
+        self.assertTrue(target_plug.is_connected())
+        self.assertTrue(target_plug.is_destination())
+        self.assertFalse(target_plug.is_source())
 
         destinations = source_plug.destinations()
-        self.assertEqual([plug.full_name for plug in destinations], [target_plug.full_name])
+        self.assertEqual([plug.full_name() for plug in destinations], [target_plug.full_name()])
 
         result = source_plug.disconnect()
         self.assertIs(result, source_plug)
-        self.assertFalse(source_plug.is_connected)
-        self.assertFalse(target_plug.is_connected)
+        self.assertFalse(source_plug.is_connected())
+        self.assertFalse(target_plug.is_connected())
         self.assertEqual(source_plug.destinations(), [])
 
     def test_array_plug_elements_returns_all_existing(self):
@@ -704,7 +704,7 @@ class NodeApiTest(unittest.TestCase):
 
         elements = array_plug.elements()
         self.assertEqual(len(elements), 1)
-        self.assertTrue(elements[0].is_element)
+        self.assertTrue(elements[0].is_element())
 
     def test_bool_plug_toggle(self):
         transform = self.create_transform("hlibNodeApiBoolToggle")
@@ -721,10 +721,10 @@ class NodeApiTest(unittest.TestCase):
     def test_user_attribute_names_excludes_compound_children(self):
         node = self.create_transform("hlibNodeApiUserAttrNames")
         node.add_attr("attrA", attribute_type="double", default_value=0.0)
-        cmds.addAttr(node.full_name, longName="attrCompound", attributeType="double3")
-        cmds.addAttr(node.full_name, longName="attrCompoundX", attributeType="double", parent="attrCompound")
-        cmds.addAttr(node.full_name, longName="attrCompoundY", attributeType="double", parent="attrCompound")
-        cmds.addAttr(node.full_name, longName="attrCompoundZ", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name(), longName="attrCompound", attributeType="double3")
+        cmds.addAttr(node.full_name(), longName="attrCompoundX", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name(), longName="attrCompoundY", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
         node.add_attr("attrB", attribute_type="double", default_value=0.0)
 
         self.assertEqual(node.user_attribute_names(), ["attrA", "attrCompound", "attrB"])
@@ -747,12 +747,12 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(node.user_attribute_names(), ["attrC", "attrA", "attrB"])
         self.assertEqual(node.attr("attrA").get(), 1.0)
         self.assertEqual(node.attr("attrB").get(), 5.0)
-        self.assertTrue(node.attr("attrB").is_locked)
+        self.assertTrue(node.attr("attrB").is_locked())
         # attrC は接続で駆動されているため、再作成後も接続元の値がそのまま反映される。
         self.assertEqual(node.attr("attrC").get(), 7.0)
         reconnected_source = node.attr("attrC").source()
         self.assertIsNotNone(reconnected_source)
-        self.assertEqual(reconnected_source.full_name, source.attr("translateX").full_name)
+        self.assertEqual(reconnected_source.full_name(), source.attr("translateX").full_name())
 
     def test_move_attribute_supports_enum_and_string_attributes(self):
         node = self.create_transform("hlibNodeApiMoveAttrEnumString")
@@ -787,10 +787,10 @@ class NodeApiTest(unittest.TestCase):
     def test_move_attribute_raises_for_unknown_name_and_unsupported_type(self):
         node = self.create_transform("hlibNodeApiMoveAttrErrors")
         node.add_attr("attrA", attribute_type="double", default_value=0.0)
-        cmds.addAttr(node.full_name, longName="attrCompound", attributeType="double3")
-        cmds.addAttr(node.full_name, longName="attrCompoundX", attributeType="double", parent="attrCompound")
-        cmds.addAttr(node.full_name, longName="attrCompoundY", attributeType="double", parent="attrCompound")
-        cmds.addAttr(node.full_name, longName="attrCompoundZ", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name(), longName="attrCompound", attributeType="double3")
+        cmds.addAttr(node.full_name(), longName="attrCompoundX", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name(), longName="attrCompoundY", attributeType="double", parent="attrCompound")
+        cmds.addAttr(node.full_name(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
         node.add_attr("attrB", attribute_type="double", default_value=0.0)
 
         with self.assertRaises(ValueError):

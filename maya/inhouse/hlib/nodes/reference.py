@@ -86,11 +86,11 @@ class Reference(Node):
         """
         from ..files.references import list_references
 
-        own_name = self.full_name
+        own_name = self.full_name()
         children = []
         for reference in list_references():
             parent = reference.parent_reference()
-            if parent is not None and parent.full_name == own_name:
+            if parent is not None and parent.full_name() == own_name:
                 children.append(reference)
         return children
 

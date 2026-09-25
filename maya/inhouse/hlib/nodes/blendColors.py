@@ -53,7 +53,7 @@ class BlendColors(Node):
         values = tuple(float(v) for v in value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Color must contain three finite values")
-        set_attr(target.full_name, *values, type="float3")
+        set_attr(target.full_name(), *values, type="float3")
         return self
 
     @undo_chunk("hlibBlendColorsConnectColor")

@@ -67,10 +67,9 @@ class Component:
             raise RuntimeError("Component shape is invalid")
         if self._shape.type() != self.shape_type:
             raise TypeError(f"Expected a {self.shape_type} shape")
-        if not 0 <= self._index < getattr(self._shape, self.count_attribute):
+        if not 0 <= self._index < getattr(self._shape, self.count_attribute)():
             raise IndexError(f"Component index out of range: {self._index}")
 
-    @property
     def full_name(self):
         """現在の DAG パスを使ってコンポーネント名を取得する。
 
@@ -78,7 +77,7 @@ class Component:
             str: シェイプの完全パスとコンポーネントの種類・番号を含む名前。
         """
         self._validate()
-        return f"{self._shape.full_name}.{self.component_type}[{self._index}]"
+        return f"{self._shape.full_name()}.{self.component_type}[{self._index}]"
 
     def __str__(self):
         """コンポーネント名を返す。
@@ -86,7 +85,7 @@ class Component:
         Returns:
             str: 現在の完全パス付きコンポーネント名。
         """
-        return self.full_name
+        return self.full_name()
 
 
     @staticmethod
@@ -142,7 +141,7 @@ class Components:
             raise RuntimeError("Component shape is invalid")
         if shape.type() != self.component_class.shape_type:
             raise TypeError(f"Expected a {self.component_class.shape_type} shape")
-        selected = range(getattr(shape, self.component_class.count_attribute)) if indices is None else indices
+        selected = range(getattr(shape, self.component_class.count_attribute)()) if indices is None else indices
         self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
 
     @property
@@ -171,10 +170,9 @@ class Components:
         """
         return len(self._indices)
 
-    @property
     def full_names(self):
         """list[str]: 保持順の完全コンポーネント名。全要素を再検証する。"""
-        return [item.full_name for item in self]
+        return [item.full_name() for item in self]
 
     def _coordinate_rows(self, values, size):
         """要素別座標を全件検証する。個数・座標不正はValueError。

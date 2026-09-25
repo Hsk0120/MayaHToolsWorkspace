@@ -3,7 +3,7 @@
 from ..decorators._fast import fast_edit
 
 from .._core.registry import node_wrapper
-from ..maths import Translate
+from ..maths import Translation
 from .shape import Shape
 
 
@@ -15,9 +15,9 @@ class Locator(Shape):
         """localPosition を取得する。
 
         Returns:
-            Translate: localPosition の値。
+            Translation: localPosition の値。
         """
-        return Translate(*self.plug("localPosition").get())
+        return Translation(*self.plug("localPosition").get())
 
     @fast_edit
     def set_position(self, value, *, fast=False):
@@ -25,7 +25,7 @@ class Locator(Shape):
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Translate | Iterable[float]): 新しい localPosition。
+            value (Translation | Iterable[float]): 新しい localPosition。
 
         Returns:
             Locator: 自身。

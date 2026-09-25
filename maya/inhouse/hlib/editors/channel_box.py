@@ -56,7 +56,7 @@ class ChannelBox:
             flag = self._sections[part][0]
             for name in cmds.channelBox(self.name(), query=True, **{flag: True}) or []:
                 node = Node(name)
-                result.setdefault(node.full_name, node)
+                result.setdefault(node.full_name(), node)
         return list(result.values())
 
     def selected_attributes(self, section="main"):
@@ -93,11 +93,11 @@ class ChannelBox:
                 for attr in attrs:
                     selection = om2.MSelectionList()
                     try:
-                        selection.add(f"{node.full_name}.{attr}")
+                        selection.add(f"{node.full_name()}.{attr}")
                         plug = Plug(node, selection.getPlug(0))
                     except (RuntimeError, TypeError):
                         continue
-                    result.setdefault(plug.full_name, plug)
+                    result.setdefault(plug.full_name(), plug)
         return list(result.values())
 
     @undo_chunk("hlibChannelBoxClearSelection")

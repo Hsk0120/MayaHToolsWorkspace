@@ -98,7 +98,7 @@ class SkinClusterInfluenceTest(unittest.TestCase):
 
 
 class SkinClustersBatchTest(unittest.TestCase):
-    """SkinClusters(コレクション)の gather/apply/finalize、remove_joints/remove_influences を検証する。"""
+    """SkinClusters(コレクション)の influence解除とJoints.delete を検証する。"""
 
     def setUp(self):
         self.root = cmds.createNode("joint", name="hlibSkinBatchRoot")
@@ -129,14 +129,14 @@ class SkinClustersBatchTest(unittest.TestCase):
         ordered = [joint.name() for joint in joints.sorted_by_depth()]
         self.assertEqual(ordered, [self.leaf, self.mid, self.root])
 
-    def test_remove_joints_transfers_weight_reparents_children_and_deletes_joint(self):
+    def test_delete_joints_transfers_weight_reparents_children_and_deletes_joint(self):
         self.skin.set_weights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
 
         mid_joints = Joints([self.mid])
         skin_clusters = mid_joints.skin_clusters()
         self.assertEqual([skin.name() for skin in skin_clusters], [self.skin.name()])
 
-        skin_clusters.remove_joints(mid_joints)
+        mid_joints.delete()
 
         self.assertFalse(cmds.objExists(self.mid))
         self.assertTrue(cmds.objExists(self.leaf))

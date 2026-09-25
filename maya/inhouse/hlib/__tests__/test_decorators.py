@@ -258,7 +258,7 @@ class PreservedSkinShapeTest(unittest.TestCase):
         before_world_matrix = cmds.xform(self.joint, query=True, worldSpace=True, matrix=True)
 
         with preserved_skin_shape([Joint(self.joint)]) as skins:
-            self.assertEqual([skin.full_name for skin in skins], [self.skin_name])
+            self.assertEqual([skin.full_name() for skin in skins], [self.skin_name])
             cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
 
         after_world_matrix = cmds.xform(self.joint, query=True, worldSpace=True, matrix=True)

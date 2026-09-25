@@ -22,10 +22,19 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 
+
 ## 完了履歴
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-09-25 | リポジトリ全体(未コミット約110ファイル) | ユーザー指示で未コミット分(Codexの命名規則リファクタ・delete_constraints等を含む)をまとめてコミット・プッシュ。事前にrun_all_tests.pyを実行し49ファイル中48成功。test_datatypes.pyのみ失敗したが、Maya常駐セッションに残った旧`hlib_math_test`モジュールキャッシュが原因で、sys.modulesから除去して再実行すると32件全成功(コード側の問題なし)。 |
+| Codex | 2026-09-25 | Transform・test_shapes_constraints・guide_nodes | delete_constraints追加。入力側constraintと経由pairBlendのみ削除、共有出力/参照/ノードロックを事前拒否。4ケースで直接接続・pairBlend・animCurve保持・拘束先保持・共有拒否・Undo/Redoを確認。2022/24/25/26/27各48ファイル成功（20260925_140508_081652）、Sphinx -Wと差分確認成功。姿勢維持/再接続なしを明記。GUI未実行・未プッシュ。 |
+| Codex | 2026-09-25 | docs/hlib-api-design.md | パッケージ・Mayaコマンド・ノードファイル・その他ファイル・クラス・独自メソッドの命名規則と例を表で明文化。内容・差分確認済み。Markdownのみ、Maya実行不要・未プッシュ。 |
+| Codex | 2026-09-25 | SkinClusters・テスト・Sphinx | remove_jointsをjointノードを残すinfluence解除として追加。remove_influences共通化、祖先移送/標準再配分/全解除の事前拒否、対象skin限定とUndo/Redoを検証。2022/24/25/26/27各48ファイル成功（.maya-output/version-tests/20260925_134157_977670）、Sphinx -W成功、差分確認成功。GUI未実行・未プッシュ。 |
+| Codex | 2026-09-25 | docs/hlib-api-design.md・3種のAI作業ガイド | Maya照会はメソッド、保持値はプロパティの基準を具体例・キャッシュ/数学型/Plug属性アクセスの判断とともに明文化。AGENTS/CLAUDE/Copilotに同一文言で参照を追記。Markdown差分と参照先を確認。コード変更なし・Maya再テスト不要・未プッシュ。 |
+| Codex | 2026-09-25 | hlib命名・公開API整理 | inputsの継承衝突解消、Joint親子名の明示、SkinClusters削除処理を_core内部へ分離、compose統合、release_srt改名、照会propertyをmethodへ変更、座標API整理、Translation/EulerRotation/NurbsCurveSnapshotとsnake_caseモジュールへ統一。呼出・例・移行表更新、旧名reload残存を解消。2022/24/25/26/27各47ファイル成功（.maya-output/version-tests/20260925_133409_544757）、コマンド自動登録検証とSphinx -Wクリーンビルド成功、公開例90ブロック構文確認。GUI2024は15件成功・終了15秒timeoutで所有プロセス停止、2022ライセンスエラー、2025起動180秒timeout、2026/27はGUI開始前終了。2023未導入、GUI画像の全数目視未実施。未プッシュ、既存変更を保持。 |
+| Codex | 2026-09-25 | hlib全体・命名レビュー | Python定義を静的走査し、継承で意味が変わるinputs、SkinClustersの削除責務、Joint親子の名前返却、compose/release_srt、取得名/プロパティ/モジュールの揺れを確認。実装変更なし、Mayaテスト未実施。既存未コミット変更を保持。 |
+| Codex | 2026-09-25 | hlibフラグ別名・属性別名ガイド | Mayaのコマンド別helpを初回のみ取得して8コマンドの短名を長名へ正規化。constraint/add_constraintはtyp/mo対応、bulk事前検査も対応。二重指定は本体実行前にTypeError。lsのtypでも専用コレクションを維持。標準/ユーザー定義属性の長短名を回帰検証。2022/24/25/26/27各46ファイル成功、コマンド自動登録単体検証成功、Sphinx -W成功。2023未導入・GUI未実施・未プッシュ。 |
 | Codex | 2026-09-25 | hlib docstring・Sphinx全体見直し | 835関数の引数構造とArgs記載を走査、公開29ページと117コードブロックを構文確認。ベイク既定値/短縮フラグ、fastとUndo、単位、Quaternion.inverse、SDK実装済み案内、スキン復元制限、同名ノード/配列編集例、コマンド/JSON詳細を修正。主要9ガイド36例はMaya2022/2027で成功（必要な既存ノードをテスト用に用意）。28Pythonファイルはdocstring除外AST一致で動作変更なし。Sphinx -W成功、git diff --check成功。GUI/全例の副作用を伴う実行は未実施、未プッシュ。 |
 | Codex | 2026-09-25 | 未コミット変更全体の公開 | ユーザー依頼でJoint回転移送/フリーズ・fastモード・viewport_offとベイク適用・テスト・ドキュメントをまとめてコミットしmainへpushする。各実装時の検証結果を引き継ぎ、差分チェック成功。 |
 | Codex | 2026-09-25 | decorators/viewport・bakeResults・テスト・docs | viewport_off()をcontextmanagerで公開しbakeResultsへ適用。既存Viewport.suspendのmanage方式を再利用、batchはno-op、入れ子/元非表示/例外伝播と再実行なし。通常テスト2022/2027各45ファイル成功。2027 GUI15件成功・cleanup成功、終了は15秒timeoutで所有プロセス停止（正常終了ではない）。Sphinx -W成功。GUI画像の目視レビューは未実施。未プッシュ。 |

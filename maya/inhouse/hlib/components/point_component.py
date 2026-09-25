@@ -15,10 +15,6 @@ class PointComponent(Component):
     """XYZ 座標を持つ頂点または CV。座標はシーンの現在値を参照する。"""
 
     def get_position(self, ws=False):
-        """tuple[float, float, float]: position(ws)と同じ。wsはワールド空間指定。"""
-        return self.position(ws=ws)
-
-    def position(self, ws=False):
         """現在の座標を取得する。
 
         Args:
@@ -42,7 +38,7 @@ class PointComponent(Component):
         # あるため、cmds.xform のまま維持する(set_position の書き込み経路と
         # 読み取り単位・アドレッシングを一致させるため)。
         space = {"worldSpace": True} if ws else {"objectSpace": True}
-        return tuple(cmds.xform(self.full_name, query=True, translation=True, **space))
+        return tuple(cmds.xform(self.full_name(), query=True, translation=True, **space))
 
     @fast_edit
     @undo_chunk("hlibComponentPosition")
@@ -72,20 +68,18 @@ class PointComponent(Component):
             fast_geometry.set_positions(self.shape, [self.index], [value], ws)
             return self
         space = {"worldSpace": True} if ws else {"objectSpace": True}
-        cmds.xform(self.full_name, absolute=True, translation=value, **space)
+        cmds.xform(self.full_name(), absolute=True, translation=value, **space)
         return self
 
-    @property
-    def x(self):
+    def get_x(self):
         """オブジェクト空間の X 座標。
 
         Returns:
             float: Maya の現在の距離単位による座標。
         """
-        return self.position()[0]
+        return self.get_position()[0]
 
-    @x.setter
-    def x(self, value):
+    def set_x(self, value):
         """X 座標だけを更新する。
 
         Args:
@@ -94,21 +88,19 @@ class PointComponent(Component):
         Returns:
             None: 値を返さない。
         """
-        position = list(self.position())
+        position = list(self.get_position())
         position[0] = value
         self.set_position(position)
 
-    @property
-    def y(self):
+    def get_y(self):
         """オブジェクト空間の Y 座標。
 
         Returns:
             float: Maya の現在の距離単位による座標。
         """
-        return self.position()[1]
+        return self.get_position()[1]
 
-    @y.setter
-    def y(self, value):
+    def set_y(self, value):
         """Y 座標だけを更新する。
 
         Args:
@@ -117,21 +109,19 @@ class PointComponent(Component):
         Returns:
             None: 値を返さない。
         """
-        position = list(self.position())
+        position = list(self.get_position())
         position[1] = value
         self.set_position(position)
 
-    @property
-    def z(self):
+    def get_z(self):
         """オブジェクト空間の Z 座標。
 
         Returns:
             float: Maya の現在の距離単位による座標。
         """
-        return self.position()[2]
+        return self.get_position()[2]
 
-    @z.setter
-    def z(self, value):
+    def set_z(self, value):
         """Z 座標だけを更新する。
 
         Args:
@@ -140,7 +130,7 @@ class PointComponent(Component):
         Returns:
             None: 値を返さない。
         """
-        position = list(self.position())
+        position = list(self.get_position())
         position[2] = value
         self.set_position(position)
 
@@ -150,15 +140,7 @@ class PointComponents(Components):
 
     def get_position(self, ws=False):
         """list[tuple[float, float, float]]: 保持順の座標列。wsはワールド空間指定。"""
-        return self.positions(ws=ws)
-
-    def position(self, ws=False):
-        """list[tuple[float, float, float]]: 単体と同名の座標取得。平均位置ではない。"""
-        return self.positions(ws=ws)
-
-    def get_positions(self, ws=False):
-        """list[tuple[float, float, float]]: positions(ws)と同じ。"""
-        return self.positions(ws=ws)
+        return self.get_positions(ws=ws)
 
     @fast_edit
     def set_position(self, value, ws=False, *, fast=False):
@@ -208,37 +190,31 @@ class PointComponents(Components):
             component.set_position(point, ws=ws)
         return self
 
-    @property
-    def x(self):
+    def get_x(self):
         """list[float]: 保持順のオブジェクト空間X座標。"""
-        return [p[0] for p in self.positions()]
+        return [p[0] for p in self.get_positions()]
 
-    @x.setter
-    def x(self, value):
+    def set_x(self, value):
         """Xだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self.set_positions(self._axis_rows(self.positions(), 0, value))
+        self.set_positions(self._axis_rows(self.get_positions(), 0, value))
 
-    @property
-    def y(self):
+    def get_y(self):
         """list[float]: 保持順のオブジェクト空間Y座標。"""
-        return [p[1] for p in self.positions()]
+        return [p[1] for p in self.get_positions()]
 
-    @y.setter
-    def y(self, value):
+    def set_y(self, value):
         """Yだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self.set_positions(self._axis_rows(self.positions(), 1, value))
+        self.set_positions(self._axis_rows(self.get_positions(), 1, value))
 
-    @property
-    def z(self):
+    def get_z(self):
         """list[float]: 保持順のオブジェクト空間Z座標。"""
-        return [p[2] for p in self.positions()]
+        return [p[2] for p in self.get_positions()]
 
-    @z.setter
-    def z(self, value):
+    def set_z(self, value):
         """Zだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self.set_positions(self._axis_rows(self.positions(), 2, value))
+        self.set_positions(self._axis_rows(self.get_positions(), 2, value))
 
-    def positions(self, ws=False):
+    def get_positions(self, ws=False):
         """保持順に現在の座標を取得する。
 
         Args:
@@ -254,7 +230,7 @@ class PointComponents(Components):
             raise ValueError("ws must be a bool")
         if is_fast():
             return fast_geometry.positions(self._shape, [c.index for c in self], ws)
-        return [component.position(ws) for component in self]
+        return [component.get_position(ws) for component in self]
 
     @fast_edit
     @undo_chunk("hlibComponentsMirror")
@@ -305,7 +281,7 @@ class PointComponents(Components):
             magnitude = max(1.0, *(sum(abs(matrix[row * 4 + col]) for col in range(3)) for row in range(3)))
             if abs(matrix.det4x4()) <= 1e-12 * magnitude ** 3:
                 raise ValueError("Cannot mirror in world space with a near-singular transform")
-        points = self.positions(ws)
+        points = self.get_positions(ws)
         mirrored_axes = {"xyz".index(a) for a in axis}
         rows = [[2.0 * pivot[i] - value if i in mirrored_axes else value for i, value in enumerate(point)] for point in points]
         self.set_positions(rows, ws=ws)

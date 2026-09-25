@@ -23,7 +23,7 @@ class Constraint(Node):
         Returns:
             list[Node]: ターゲットのラッパー。登録がなければ空リスト。
         """
-        names = getattr(cmds, self.type())(self.full_name, query=True, targetList=True) or []
+        names = getattr(cmds, self.type())(self.full_name(), query=True, targetList=True) or []
         return [Node(name) for name in names]
 
     def weight_aliases(self):
@@ -32,7 +32,7 @@ class Constraint(Node):
         Returns:
             list[str]: targets() と同じ順序の属性別名。
         """
-        return getattr(cmds, self.type())(self.full_name, query=True, weightAliasList=True) or []
+        return getattr(cmds, self.type())(self.full_name(), query=True, weightAliasList=True) or []
 
     def weight_plugs(self):
         """ターゲットのウェイトプラグを取得する。
@@ -74,11 +74,11 @@ class Constraint(Node):
             for plug in weight_plugs:
                 plug.set(weight)
             return self
-        remaining = {to_node(target).full_name for target in targets}
+        remaining = {to_node(target).full_name() for target in targets}
         for target_node, plug in zip(self.targets(), weight_plugs):
-            if target_node.full_name in remaining:
+            if target_node.full_name() in remaining:
                 plug.set(weight)
-                remaining.discard(target_node.full_name)
+                remaining.discard(target_node.full_name())
         if remaining:
             raise ValueError(f"Targets not found on this constraint: {sorted(remaining)}")
         return self

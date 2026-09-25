@@ -26,7 +26,7 @@ class DagPoseTest(unittest.TestCase):
 
     def test_discovery_and_matrices(self):
         pose = self.pose()
-        self.assertIsInstance(hlib.node(pose.full_name), hlib.nodes.DagPose)
+        self.assertIsInstance(hlib.node(pose.full_name()), hlib.nodes.DagPose)
         self.assertFalse(pose.is_bind_pose())
         self.assertEqual(len(pose.members()), 2)
 
@@ -35,7 +35,7 @@ class DagPoseTest(unittest.TestCase):
         self.assertEqual(list(pose.get_matrix(self.child, ws=True)), cmds.getAttr(self.child + ".worldMatrix[0]"))
         self.assertTrue(pose.is_at_pose())
         cmds.setAttr(self.child + ".ty", 4)
-        self.assertEqual([x.full_name for x in pose.not_at_pose()], [hlib.node(self.child).full_name])
+        self.assertEqual([x.full_name() for x in pose.not_at_pose()], [hlib.node(self.child).full_name()])
         self.assertFalse(pose.is_at_pose())
 
     def test_sparse_member_indices(self):
@@ -103,15 +103,15 @@ class DagPoseTest(unittest.TestCase):
         pose_name = cmds.listConnections(skin + ".bindPose", source=True, destination=False)[0]
         cmds.rename(pose_name, self.ns + ":bindPose")
         pose = hlib.node(self.ns + ":bindPose")
-        self.assertEqual(hlib.nodes.DagPose.from_skin_cluster(skin).full_name, pose.full_name)
+        self.assertEqual(hlib.nodes.DagPose.from_skin_cluster(skin).full_name(), pose.full_name())
         self.assertTrue(pose.is_bind_pose())
-        self.assertEqual([x.full_name for x in pose.skin_clusters()], [skin])
+        self.assertEqual([x.full_name() for x in pose.skin_clusters()], [skin])
         before = cmds.getAttr(skin + ".bindPreMatrix[1]")
         cmds.setAttr(self.child + ".ty", 4)
         pose.reset()
         self.assertEqual(cmds.getAttr(skin + ".bindPreMatrix[1]"), before)
         self.assertTrue(pose.is_at_pose())
-        cmds.disconnectAttr(pose.full_name + ".message", skin + ".bindPose")
+        cmds.disconnectAttr(pose.full_name() + ".message", skin + ".bindPose")
         self.assertIsNone(hlib.nodes.DagPose.from_skin_cluster(skin))
         with self.assertRaises(ValueError):
             hlib.nodes.DagPose.from_skin_cluster(self.root)
@@ -120,7 +120,7 @@ class DagPoseTest(unittest.TestCase):
         mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
         name = cmds.skinCluster([self.root, self.child], mesh, name=self.ns + ":skin")[0]
         skin = hlib.node(name)
-        cmds.rename(skin.bind_pose().full_name, self.ns + ":bindPose")
+        cmds.rename(skin.bind_pose().full_name(), self.ns + ":bindPose")
         return skin
 
     def test_skin_restore_and_bulk(self):
@@ -135,7 +135,7 @@ class DagPoseTest(unittest.TestCase):
         cmds.redo()
         self.assertTrue(pose.is_at_pose())
         skins = hlib.nodes.SkinClusters([skin])
-        self.assertEqual(skins.bind_pose()[0].full_name, pose.full_name)
+        self.assertEqual(skins.bind_pose()[0].full_name(), pose.full_name())
         cmds.setAttr(self.child + ".ty", 7)
         self.assertEqual(len(skins.restore_bind_pose(ws=False)), 1)
         self.assertAlmostEqual(cmds.getAttr(self.child + ".ty"), 0)
@@ -149,13 +149,13 @@ class DagPoseTest(unittest.TestCase):
         pose.add(other)
         old_other = list(pose.get_matrix(other))
         old_child = list(pose.get_matrix(self.child))
-        old_bind = cmds.getAttr(skin.full_name + ".bindPreMatrix[1]")
+        old_bind = cmds.getAttr(skin.full_name() + ".bindPreMatrix[1]")
         cmds.setAttr(other + ".ty", 9)
         cmds.setAttr(self.child + ".ty", 4)
         self.assertIs(skin.reset_bind_pose(), skin)
         self.assertEqual(list(pose.get_matrix(other)), old_other)
         self.assertNotEqual(list(pose.get_matrix(self.child)), old_child)
-        self.assertEqual(cmds.getAttr(skin.full_name + ".bindPreMatrix[1]"), old_bind)
+        self.assertEqual(cmds.getAttr(skin.full_name() + ".bindPreMatrix[1]"), old_bind)
         cmds.undo()
         self.assertEqual(list(pose.get_matrix(self.child)), old_child)
         cmds.redo()
@@ -166,7 +166,7 @@ class DagPoseTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             skin.reset_bind_pose()
         self.assertEqual(list(pose.get_matrix(self.root)), root_before)
-        cmds.disconnectAttr(pose.full_name + ".message", skin.full_name + ".bindPose")
+        cmds.disconnectAttr(pose.full_name() + ".message", skin.full_name() + ".bindPose")
         self.assertIsNone(skin.bind_pose())
         with self.assertRaises(RuntimeError):
             skin.restore_bind_pose()
@@ -177,7 +177,7 @@ class DagPoseTest(unittest.TestCase):
         other = cmds.createNode("transform", name=self.ns + ":other")
         cmds.select(other)
         pose = self.pose(bind_pose=True)
-        name = pose.full_name
+        name = pose.full_name()
         self.assertTrue(pose.is_bind_pose())
         self.assertNotIn(hlib.node(other), pose.members())
         self.assertEqual(cmds.ls(selection=True), [other])

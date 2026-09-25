@@ -58,7 +58,6 @@ class Shape(Node):
         """
         return self.parent_transform()
 
-    @property
     def is_intermediate_object(self):
         """中間オブジェクト（履歴用の非表示Shape）か判定する。
 

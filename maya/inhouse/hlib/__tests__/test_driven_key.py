@@ -39,7 +39,7 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.undo()
         self.assertAlmostEqual(cmds.getAttr(self.b + ".rz"), 22.5, places=4)
         self.a = cmds.rename(self.a, self.ns + ":renamed")
-        self.assertIn("renamed", relation.driver().full_name)
+        self.assertIn("renamed", relation.driver().full_name())
         self.assertEqual(len(relation.curves()), 1)
 
     def test_multiple_drivers_and_find(self):
@@ -49,7 +49,7 @@ class DrivenKeyTest(unittest.TestCase):
         two.set_key(0, 0).set_key(10, 20)
         self.assertEqual(len(one.curves()), 1)
         self.assertEqual(len(two.curves()), 1)
-        self.assertNotEqual(one.curves()[0].full_name, two.curves()[0].full_name)
+        self.assertNotEqual(one.curves()[0].full_name(), two.curves()[0].full_name())
         found = hlib.animation.DrivenKeys.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
         cmds.setAttr(self.a + ".tx", 5)
@@ -72,8 +72,8 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.setDrivenKeyframe(blend + ".weight[0]", currentDriver=self.a + ".tz", driverValue=0, value=1)
         found = hlib.animation.DrivenKeys.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
-        self.assertEqual({p.full_name for p in found.driver()},
-                         {hlib.node(self.a).plug("tx").full_name, hlib.node(self.c).plug("tx").full_name})
+        self.assertEqual({p.full_name() for p in found.driver()},
+                         {hlib.node(self.a).plug("tx").full_name(), hlib.node(self.c).plug("tx").full_name()})
         relation = hlib.drivenKey(self.a + ".tx", self.b + ".ty")
         self.assertEqual(len(relation.curves()), 1)
         relation.set_key(10, 10)

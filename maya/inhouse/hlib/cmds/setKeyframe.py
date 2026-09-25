@@ -25,6 +25,9 @@ Related commands
 Flags
 -----
 
+Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
+処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
+
 .. list-table::
    :header-rows: 1
    :widths: 20 25 15 40
@@ -66,9 +69,12 @@ Examples
 
 from ..decorators.undo import undo_chunk
 
+from .._core.flags import flag_aliases
+
 import maya.cmds as cmds
 
 
+@flag_aliases("setKeyframe")
 @undo_chunk("hlib.cmds.setKeyframe.setKeyframe")
 def setKeyframe(target=None, **kwargs):
     """指定したノードまたはプラグにキーフレームを設定する。
@@ -91,7 +97,7 @@ def setKeyframe(target=None, **kwargs):
     if target is None:
         return cmds.setKeyframe(**kwargs)
     if isinstance(target, (Node, Plug)):
-        target = target.full_name
+        target = target.full_name()
     if not isinstance(target, str) or not target:
         raise TypeError("target には空でない名前、Node、または Plug を指定してください")
     return cmds.setKeyframe(target, **kwargs)

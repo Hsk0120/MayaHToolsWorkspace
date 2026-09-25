@@ -44,7 +44,7 @@ class Selection:
                 raise TypeError("Unsupported selection item")
         unique = {}
         for item in resolved:
-            unique.setdefault(item.full_name, item)
+            unique.setdefault(item.full_name(), item)
         self._items = tuple(unique.values())
         self._attributes = {id(item): om2.MObjectHandle(item.mplug().attribute())
                             for item in self._items if isinstance(item, Plug)}
@@ -113,7 +113,7 @@ class Selection:
         classes = {Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs}
         for item in self._items:
             if isinstance(item, Component) and self._valid(item):
-                key = (item.shape.full_name, item.__class__)
+                key = (item.shape.full_name(), item.__class__)
                 groups.setdefault(key, (item.shape, []))[1].append(item.index)
         return [classes[kind](shape, indices) for (_, kind), (shape, indices) in groups.items()]
 
@@ -123,7 +123,7 @@ class Selection:
         for item in self._items:
             if self._valid(item):
                 node = item if isinstance(item, Node) else item.shape if isinstance(item, Component) else item.node
-                result.setdefault(node.full_name, node)
+                result.setdefault(node.full_name(), node)
         return list(result.values())
 
     def filter(self, type):
@@ -155,7 +155,7 @@ class Selection:
             if isinstance(item, Plug):
                 if not item.node.is_valid() or not self._attributes[id(item)].isValid():
                     return False
-            return bool(cmds.objExists(item.full_name))
+            return bool(cmds.objExists(item.full_name()))
         except (RuntimeError, ValueError, IndexError):
             return False
 
@@ -166,7 +166,7 @@ class Selection:
         names = []
         for item in self._items:
             if self._valid(item):
-                names.append(item.full_name)
+                names.append(item.full_name())
             elif missing == "error":
                 raise RuntimeError("Selection contains a missing item")
         return names

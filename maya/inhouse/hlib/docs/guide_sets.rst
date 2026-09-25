@@ -46,7 +46,7 @@ objectSet の基本操作
    print(object_set.members())          # [Transform('setMemberA'), Transform('setMemberB')]
    print(object_set.is_member(a))       # True
 
-   object_set.add(a.full_name + ".tx")  # コンポーネント/プラグ文字列も追加可能
+   object_set.add(a.full_name() + ".tx")  # コンポーネント/プラグ文字列も追加可能
    object_set.remove(b)
    print(object_set.members())          # [Transform('setMemberA'), 'setMemberA.translateX']
 

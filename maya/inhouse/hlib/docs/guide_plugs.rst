@@ -23,11 +23,11 @@
    print(len(source.connections(type="transform")))  # 1
 
    plugs = target.plugs(keyable=True)              # cmds.listAttr(keyable=True) 相当
-   print(any(plug.attribute == "translateX" for plug in plugs))   # True
+   print(any(plug.attribute() == "translateX" for plug in plugs))   # True
 
-   cmds.aliasAttr("myAlias", target.plug("translateY").full_name)
+   cmds.aliasAttr("myAlias", target.plug("translateY").full_name())
    for alias_name, plug in target.aliases():
-       print(alias_name, plug.full_name)           # myAlias connTarget.myAlias
+       print(alias_name, plug.full_name())           # myAlias connTarget.myAlias
 
 ``inputs``/``outputs``/``connections`` の ``type`` 引数は接続先ノードの nodeType を
 ``is_type`` と同じ継承チェーンで絞り込みます（例: ``type="animCurve"``）。
@@ -38,7 +38,7 @@
 ``aliases`` は ``cmds.aliasAttr`` のクエリ結果を ``(エイリアス名, Plug)`` の
 タプル列として返します。エイリアスを設定すると Maya API の ``MPlug.name()``
 自体がロング名ではなくエイリアス名で表示されるようになるため、
-戻り値の ``Plug.full_name`` もロング名(``translateY``)ではなく
+戻り値の ``Plug.full_name()`` もロング名(``translateY``)ではなく
 エイリアス名(``myAlias``)を含む表記になります。
 
 属性のメタ情報
@@ -55,11 +55,11 @@
                 enumName="Off:Low:High", defaultValue=1)
 
    plug = node.plug("strength")
-   print(plug.is_dynamic)   # True（addAttr で追加したカスタム属性）
-   print(plug.is_hidden)    # True
-   print(plug.has_min, plug.min)   # True 0.0
-   print(plug.has_max, plug.max)   # True 10.0
-   print(plug.default)             # 5.0
+   print(plug.is_dynamic())   # True（addAttr で追加したカスタム属性）
+   print(plug.is_hidden())    # True
+   print(plug.has_min(), plug.min())   # True 0.0
+   print(plug.has_max(), plug.max())   # True 10.0
+   print(plug.default())             # 5.0
 
    mode_plug = node.plug("mode")
    print(mode_plug.enum_name())    # "Low"（既定値 1 に対応する名前）
@@ -107,13 +107,13 @@ animCurve とミュート
    print(plug.anim_curve())   # None（まだキーが無い）
 
    import maya.cmds as cmds
-   cmds.setKeyframe(plug.full_name, time=1, value=0.0)
-   cmds.setKeyframe(plug.full_name, time=24, value=10.0)
+   cmds.setKeyframe(plug.full_name(), time=1, value=0.0)
+   cmds.setKeyframe(plug.full_name(), time=24, value=10.0)
    print(plug.anim_curve())   # animExample_translateX（接続された animCurve ノード）
 
-   print(plug.is_muted)   # False
+   print(plug.is_muted())   # False
    plug.mute()
-   print(plug.is_muted)   # True
+   print(plug.is_muted())   # True
    plug.unmute()
 
 ``anim_curve`` は直接接続された animCurve ノードのみを解決します。
@@ -134,7 +134,7 @@ animCurve とミュート
    print(array_plug.next_available())   # 0（既存要素が無ければ）
 
    element = array_plug.add_element()   # 空きインデックスへ要素を作成
-   print(element.full_name)             # arrayPlugExample.values[0]
+   print(element.full_name())             # arrayPlugExample.values[0]
 
    element.set(1.0)                    # 要素に値を設定
    array_plug.remove_element(0)         # 要素を削除

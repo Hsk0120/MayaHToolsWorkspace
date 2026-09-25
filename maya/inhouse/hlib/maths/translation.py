@@ -6,5 +6,5 @@ from .vector import Vector
 
 
 @dataclass(frozen=True, repr=False)
-class Translate(Vector):
+class Translation(Vector):
     """位置を表す意味付き 3 次元ベクトル。"""

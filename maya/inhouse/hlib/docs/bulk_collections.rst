@@ -19,7 +19,7 @@ Joints・SkinClusters・Pluginsに、単体の公開インスタンスメソッ�
 引数は単体メソッドと同じで、全要素へ同じ引数を渡します。
 自動追加されたメソッドの戻り値は保持順のリストです。設定メソッドも各単体の戻り値のリストを返します。
 リストを返す単体メソッドでは二重リストになります。Noneも削除しません。
-空コレクションでは空リストです。uuid/full_name等の読取プロパティもリストになります。
+空コレクションでは空リストです。uuid()/full_name()等の照会メソッドも、保持順のリストを返します。
 属性名の暗黙アクセスは転送しません。属性取得には ``joints.plug("translateX")`` を使います。
 
 要素別の引数
@@ -39,14 +39,14 @@ call_eachのargumentsは、各要素への位置引数タプルを並べた列�
 値の意味やMaya側の制約は単体メソッドで検証するため、途中で失敗する場合があります。
 共有引数には再利用可能なlist/tupleを推奨します。消費されるiteratorは各要素用に分けます。
 
-既存の固有メソッドは維持
+コレクション固有の操作
 ------------------------------------------------------------
 
 * Joints.delete: ウェイト移送と子の退避を行う既存の削除処理。
 * Joints.skin_clusters: 重複を除いたSkinClustersを返す。
-* Joints.names、sorted_by_depth: 既存の型・意味を維持する。
+* Joints.names()、sorted_by_depth(): 名前の一覧・階層順のコレクションを返す。
 * Joints.joint_orient_to_rotate、freeze_rotation: 全対象を事前検証し、Joints自身を返す。
-* SkinClusters.gather/apply/finalize/remove_joints/remove_influences: 既存の移送操作。
+* SkinClusters.remove_influences: 保持するskinClusterのinfluence解除。joint削除はJoints.deleteを使います。
 * Plugins.loaded: ロード済みプラグインからコレクションを作る既存classmethod。
 
 自動追加APIより既存メソッドを優先します。同名で意味が異なる場合は、
@@ -87,3 +87,21 @@ Selectionは異種対象の取得時点の集合で、単一の単体型に対�
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
+
+
+ジョイントを残してinfluenceを解除
+------------------------------------------------------------
+
+.. code-block:: python
+
+   joints = hlib.ls(selection=True, type="joint")
+   skins = joints.skin_clusters()
+   skins.remove_joints(joints)  # jointノード・親子関係は残す
+
+``remove_influences(joints)`` と同じ処理です。保持するskinClusterだけを対象にし、
+未登録の組は無視します。既定では最も近い祖先influenceへウェイトを加算し、
+祖先がない場合はMaya標準の再配分を使います。
+``transfer_to_parent=False`` で標準解除のみを指定できます。
+各skinClusterに最低1つのinfluenceが残るか編集前に検査します。
+全体は一回のUndoで戻せます。実行途中の例外は伝播し、自動ロールバックはしません。
+ノード自体を削除する場合は ``joints.delete()`` を使用してください。

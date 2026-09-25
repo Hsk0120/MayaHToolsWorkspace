@@ -20,7 +20,7 @@ AnimCurve
    curve = hlib.createNode("animCurveUU")
    curve.set_key(0, 0).set_key(1, 10)
    print(curve.evaluate(0.5))  # 5.0
-   print(curve.inputs(), curve.values())
+   print(curve.key_inputs(), curve.values())
    curve.set_tangent(0, outTangentType="flat")
    curve.set_infinity(pre="constant", post="linear")
    curve.mirror(input=True, value=False)

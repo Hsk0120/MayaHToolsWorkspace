@@ -9,6 +9,8 @@
    :caption: ノードとアトリビュート
 
    guide_commands
+   flag_aliases
+   api_naming
    guide_nodes
    node_colors
    blend_colors

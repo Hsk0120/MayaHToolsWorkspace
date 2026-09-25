@@ -86,7 +86,6 @@ class Plug:
         """
         return self._node
 
-    @property
     def name(self):
         """ノード名を含まない短いプラグ名を取得する。
 
@@ -99,7 +98,6 @@ class Plug:
             useLongNames=False,
         )
 
-    @property
     def full_name(self):
         """ノード名を含む完全修飾プラグ名を取得する。
 
@@ -108,7 +106,6 @@ class Plug:
         """
         return self._mplug.name()
 
-    @property
     def attribute(self):
         """基になる Maya 属性のロング名を取得する。
 
@@ -124,7 +121,7 @@ class Plug:
             str: Attribute Editor 等で使われる表示名(例: ``translateX`` は
                 ``"Translate X"``)。
         """
-        return cmds.attributeName(self.full_name, nice=True)
+        return cmds.attributeName(self.full_name(), nice=True)
 
     def type(self):
         """このプラグを表す現在の hlib クラスを返す。
@@ -134,7 +131,6 @@ class Plug:
         """
         return type(self)
 
-    @property
     def is_array(self):
         """multi 属性か判定する。
 
@@ -143,7 +139,6 @@ class Plug:
         """
         return self._mplug.isArray
 
-    @property
     def is_compound(self):
         """compound 属性か判定する。
 
@@ -152,7 +147,6 @@ class Plug:
         """
         return self._mplug.isCompound
 
-    @property
     def is_element(self):
         """multi 属性の要素プラグか判定する。
 
@@ -161,7 +155,6 @@ class Plug:
         """
         return self._mplug.isElement
 
-    @property
     def is_child(self):
         """compound 属性の子プラグか判定する。
 
@@ -170,7 +163,6 @@ class Plug:
         """
         return self._mplug.isChild
 
-    @property
     def parent(self):
         """compound 属性の子プラグであれば、その親プラグを取得する。
 
@@ -181,7 +173,6 @@ class Plug:
             return None
         return Plug(self._node, self._mplug.parent())
 
-    @property
     def is_keyable(self):
         """チャンネルボックスでキー可能な属性か判定する。
 
@@ -209,7 +200,7 @@ class Plug:
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        set_attr(self.full_name, keyable=bool(state))
+        set_attr(self.full_name(), keyable=bool(state))
         return self
 
     @fast_edit
@@ -227,10 +218,9 @@ class Plug:
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        set_attr(self.full_name, channelBox=bool(state))
+        set_attr(self.full_name(), channelBox=bool(state))
         return self
 
-    @property
     def is_connected(self):
         """入出力接続を持つか判定する。
 
@@ -239,7 +229,6 @@ class Plug:
         """
         return self._mplug.isConnected
 
-    @property
     def is_source(self):
         """出力接続元か判定する。
 
@@ -248,7 +237,6 @@ class Plug:
         """
         return self._mplug.isSource
 
-    @property
     def is_destination(self):
         """入力接続先か判定する。
 
@@ -257,7 +245,6 @@ class Plug:
         """
         return self._mplug.isDestination
 
-    @property
     def is_hidden(self):
         """UI から隠された属性か判定する。
 
@@ -266,7 +253,6 @@ class Plug:
         """
         return om2.MFnAttribute(self._mplug.attribute()).hidden
 
-    @property
     def is_dynamic(self):
         """動的に追加された属性（addAttr によるカスタム属性等）か判定する。
 
@@ -275,7 +261,6 @@ class Plug:
         """
         return om2.MFnAttribute(self._mplug.attribute()).dynamic
 
-    @property
     def is_readable(self):
         """値を取得できる属性か判定する。
 
@@ -284,7 +269,6 @@ class Plug:
         """
         return om2.MFnAttribute(self._mplug.attribute()).readable
 
-    @property
     def is_writable(self):
         """値を設定できる属性か判定する。
 
@@ -293,7 +277,6 @@ class Plug:
         """
         return om2.MFnAttribute(self._mplug.attribute()).writable
 
-    @property
     def is_storable(self):
         """シーンファイルへ値が保存される属性か判定する。
 
@@ -302,7 +285,6 @@ class Plug:
         """
         return om2.MFnAttribute(self._mplug.attribute()).storable
 
-    @property
     def has_min(self):
         """最小値制限を持つ属性か判定する。
 
@@ -318,7 +300,6 @@ class Plug:
             return om2.MFnUnitAttribute(attr).hasMin()
         return False
 
-    @property
     def has_max(self):
         """最大値制限を持つ属性か判定する。
 
@@ -334,7 +315,6 @@ class Plug:
             return om2.MFnUnitAttribute(attr).hasMax()
         return False
 
-    @property
     def min(self):
         """設定されている最小値を取得する。
 
@@ -355,7 +335,6 @@ class Plug:
             return fn.getMin() if fn.hasMin() else None
         return None
 
-    @property
     def max(self):
         """設定されている最大値を取得する。
 
@@ -375,7 +354,6 @@ class Plug:
             return fn.getMax() if fn.hasMax() else None
         return None
 
-    @property
     def has_soft_min(self):
         """ソフト最小値（UIスライダーの下限）を持つ属性か判定する。
 
@@ -391,7 +369,6 @@ class Plug:
             return om2.MFnUnitAttribute(attr).hasSoftMin()
         return False
 
-    @property
     def has_soft_max(self):
         """ソフト最大値（UIスライダーの上限）を持つ属性か判定する。
 
@@ -407,7 +384,6 @@ class Plug:
             return om2.MFnUnitAttribute(attr).hasSoftMax()
         return False
 
-    @property
     def soft_min(self):
         """設定されているソフト最小値（UIスライダーの下限）を取得する。
 
@@ -427,7 +403,6 @@ class Plug:
             return fn.getSoftMin() if fn.hasSoftMin() else None
         return None
 
-    @property
     def soft_max(self):
         """設定されているソフト最大値（UIスライダーの上限）を取得する。
 
@@ -447,7 +422,6 @@ class Plug:
             return fn.getSoftMax() if fn.hasSoftMax() else None
         return None
 
-    @property
     def default(self):
         """属性の既定値を取得する。
 
@@ -505,7 +479,6 @@ class Plug:
                 continue
         raise ValueError(f"No enum field named {name!r}")
 
-    @property
     def is_locked(self):
         """プラグがロックされているか判定する。
 
@@ -529,17 +502,16 @@ class Plug:
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        set_attr(self.full_name, lock=bool(state))
+        set_attr(self.full_name(), lock=bool(state))
         return self
 
-    @property
     def is_muted(self):
         """アトリビュートがミュートされているか判定する。
 
         Returns:
             bool: ミュートされている場合は ``True``。
         """
-        return bool(cmds.mute(self.full_name, query=True))
+        return bool(cmds.mute(self.full_name(), query=True))
 
     @undo_chunk("hlibPlugMute")
     def mute(self):
@@ -551,7 +523,7 @@ class Plug:
         Raises:
             RuntimeError: Maya がミュートを拒否した場合。
         """
-        cmds.mute(self.full_name)
+        cmds.mute(self.full_name())
         return self
 
     @undo_chunk("hlibPlugUnmute")
@@ -561,7 +533,7 @@ class Plug:
         Returns:
             Plug: 自身。
         """
-        cmds.mute(self.full_name, disable=True, force=True)
+        cmds.mute(self.full_name(), disable=True, force=True)
         return self
 
     @undo_chunk("hlibPlugDeleteAttr")
@@ -584,9 +556,9 @@ class Plug:
             RuntimeError: force=False でロックされている場合や、静的属性の
                 削除を試みた場合など、Maya が削除を拒否した場合。
         """
-        if force and self.is_locked:
-            set_attr(self.full_name, lock=False)
-        cmds.deleteAttr(self.full_name)
+        if force and self.is_locked():
+            set_attr(self.full_name(), lock=False)
+        cmds.deleteAttr(self.full_name())
 
     def get(self, ws=False):
         """評価済みの Maya 属性値を取得する。
@@ -620,7 +592,7 @@ class Plug:
         elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
             return self._mplug.asString()
 
-        value = cmds.getAttr(self.full_name)
+        value = cmds.getAttr(self.full_name())
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
             return tuple(value[0])
         return value
@@ -699,18 +671,18 @@ class Plug:
             set_plug(self._mplug, value)
             return self
         if isinstance(value, str):
-            set_attr(self.full_name, value, type="string")
+            set_attr(self.full_name(), value, type="string")
             return self
         if isinstance(value, (tuple, list)):
-            attr_type = cmds.getAttr(self.full_name, type=True)
+            attr_type = cmds.getAttr(self.full_name(), type=True)
             if attr_type in _SCALAR_ARRAY_TYPES:
-                set_attr(self.full_name, value, type=attr_type)
+                set_attr(self.full_name(), value, type=attr_type)
             elif attr_type in _LENGTH_PREFIXED_ARRAY_TYPES:
-                set_attr(self.full_name, len(value), *value, type=attr_type)
+                set_attr(self.full_name(), len(value), *value, type=attr_type)
             else:
-                set_attr(self.full_name, *value)
+                set_attr(self.full_name(), *value)
             return self
-        set_attr(self.full_name, value)
+        set_attr(self.full_name(), value)
         return self
 
     @fast_edit
@@ -734,15 +706,15 @@ class Plug:
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if self.is_array:
+        if self.is_array():
             raise TypeError("Reset an array element instead of the array plug")
         if self._mplug.isCompound:
             for index in range(self._mplug.numChildren()):
                 Plug(self._node, self._mplug.child(index)).reset()
             return self
-        value = self.default
+        value = self.default()
         if value is None:
-            raise TypeError(f"No supported default value for {self.full_name}")
+            raise TypeError(f"No supported default value for {self.full_name()}")
         if isinstance(value, om2.MAngle):
             value = value.asUnits(om2.MAngle.uiUnit())
         elif isinstance(value, om2.MDistance):
@@ -828,11 +800,11 @@ class Plug:
             TypeError: target が Plug でない場合。
         """
         target = self._coerce_plug(target)
-        should_unlock = force and target.is_locked
+        should_unlock = force and target.is_locked()
         if should_unlock:
             target.set_locked(False)
         try:
-            cmds.connectAttr(self.full_name, target.full_name, force=force)
+            cmds.connectAttr(self.full_name(), target.full_name(), force=force)
         finally:
             if should_unlock:
                 target.set_locked(True)
@@ -855,13 +827,13 @@ class Plug:
         """
         if target is not None:
             target = self._coerce_plug(target)
-            cmds.disconnectAttr(self.full_name, target.full_name)
+            cmds.disconnectAttr(self.full_name(), target.full_name())
             return self
         source = self.source()
         if source is not None:
-            cmds.disconnectAttr(source.full_name, self.full_name)
+            cmds.disconnectAttr(source.full_name(), self.full_name())
         for destination in self.destinations():
-            cmds.disconnectAttr(self.full_name, destination.full_name)
+            cmds.disconnectAttr(self.full_name(), destination.full_name())
         return self
 
     def __str__(self):
@@ -870,7 +842,7 @@ class Plug:
         Returns:
             str: ノード名を含むプラグ名。
         """
-        return self.full_name
+        return self.full_name()
 
     def __repr__(self):
         """デバッグ用に完全修飾プラグ名を含む表現を返す。
@@ -878,7 +850,7 @@ class Plug:
         Returns:
             str: Plug と完全修飾プラグ名を含む文字列表現。
         """
-        return f"Plug({self.full_name!r})"
+        return f"Plug({self.full_name()!r})"
 
     @staticmethod
     def _coerce_plug(value):

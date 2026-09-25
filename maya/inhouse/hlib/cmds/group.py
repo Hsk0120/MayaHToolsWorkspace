@@ -27,6 +27,9 @@ Related commands
 Flags
 -----
 
+Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
+処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
+
 位置引数も含めた入力一覧です。括弧内は Maya に渡せる短縮名です。
 
 .. list-table::
@@ -73,9 +76,12 @@ Examples
 
 from ..decorators.undo import undo_chunk
 
+from .._core.flags import flag_aliases
+
 import maya.cmds as cmds
 
 
+@flag_aliases("group")
 @undo_chunk("hlib.cmds.group.group")
 def group(nodes=None, **kwargs):
     """指定したノードを新規 Transform でグループ化し、そのラッパーを返す。

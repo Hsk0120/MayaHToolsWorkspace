@@ -49,15 +49,15 @@ class NodeAliasesParityTest(unittest.TestCase):
             cmds.delete(self.node.name())
 
     def test_aliases_matches_cmds_aliasAttr(self):
-        cmds.aliasAttr("hlibParityAliasTx", self.node.attr("translateX").full_name)
-        cmds.aliasAttr("hlibParityAliasTy", self.node.attr("translateY").full_name)
+        cmds.aliasAttr("hlibParityAliasTx", self.node.attr("translateX").full_name())
+        cmds.aliasAttr("hlibParityAliasTy", self.node.attr("translateY").full_name())
 
         # cmds.aliasAttr(query=True) はフラットな [alias1, longName1, alias2, longName2, ...]
         # を返す。longName は Plug.attribute(ロング名)と直接比較できる。
         raw = cmds.aliasAttr(self.node.name(), query=True) or []
         expected = {(raw[index], raw[index + 1]) for index in range(0, len(raw), 2)}
 
-        actual = {(alias, plug.attribute) for alias, plug in self.node.aliases()}
+        actual = {(alias, plug.attribute()) for alias, plug in self.node.aliases()}
         self.assertEqual(actual, expected)
 
     def test_aliases_empty_matches_cmds_when_no_alias_set(self):
@@ -87,7 +87,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
         source.attr("translateX").connect(target.attr("translateX"))
 
         expected = set(cmds.listConnections(target.name(), source=True, destination=False, plugs=True) or [])
-        actual = {plug.full_name for plug in target.inputs()}
+        actual = {plug.full_name() for plug in target.inputs()}
         self.assertEqual(actual, expected)
 
     def test_outputs_matches_cmds_listConnections_destination_side(self):
@@ -96,7 +96,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
         source.attr("translateX").connect(target.attr("translateX"))
 
         expected = set(cmds.listConnections(source.name(), source=False, destination=True, plugs=True) or [])
-        actual = {plug.full_name for plug in source.outputs()}
+        actual = {plug.full_name() for plug in source.outputs()}
         self.assertEqual(actual, expected)
 
     def test_connections_type_filter_matches_cmds_listConnections_type_filter(self):
@@ -109,13 +109,13 @@ class NodeConnectionsParityTest(unittest.TestCase):
         expected_transform = set(
             cmds.listConnections(source.name(), source=False, destination=True, plugs=True, type="transform") or []
         )
-        actual_transform = {plug.full_name for plug in source.outputs(type="transform")}
+        actual_transform = {plug.full_name() for plug in source.outputs(type="transform")}
         self.assertEqual(actual_transform, expected_transform)
 
         expected_mesh = set(
             cmds.listConnections(source.name(), source=False, destination=True, plugs=True, type="mesh") or []
         )
-        actual_mesh = {plug.full_name for plug in source.outputs(type="mesh")}
+        actual_mesh = {plug.full_name() for plug in source.outputs(type="mesh")}
         self.assertEqual(actual_mesh, expected_mesh)
         self.assertEqual(actual_mesh, set())
 

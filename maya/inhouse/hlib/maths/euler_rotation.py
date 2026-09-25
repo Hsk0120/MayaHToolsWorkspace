@@ -4,11 +4,11 @@ import math
 from dataclasses import dataclass, field
 
 from .quaternion import Quaternion
-from .rotate import Rotate
+from .vector import Vector
 
 
 @dataclass(frozen=True, repr=False)
-class EulerRotation(Rotate):
+class EulerRotation(Vector):
     """ラジアンの3成分と回転順序を保持する不変なオイラー回転値。
 
     表示用の文字列は度に変換する。回転順序（order）は等価比較・ハッシュの
@@ -68,7 +68,6 @@ class EulerRotation(Rotate):
         """
         return tuple(math.degrees(value) for value in self)
 
-    asDegrees = as_degrees
 
     def to_quaternion(self):
         """Quaternion へ変換する。

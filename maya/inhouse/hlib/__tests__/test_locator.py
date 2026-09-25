@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.maths import Translate
+from hlib.maths import Translation
 from hlib.nodes import Node
 from hlib.nodes.locator import Locator
 
@@ -30,12 +30,12 @@ class LocatorTest(unittest.TestCase):
         self.assertIsInstance(self.locator, Locator)
 
     def test_get_position_default(self):
-        self.assertEqual(self.locator.get_position(), Translate(0.0, 0.0, 0.0))
+        self.assertEqual(self.locator.get_position(), Translation(0.0, 0.0, 0.0))
 
     def test_set_position_round_trips(self):
         result = self.locator.set_position((1.0, 2.0, 3.0))
         self.assertIs(result, self.locator)
-        self.assertEqual(self.locator.get_position(), Translate(1.0, 2.0, 3.0))
+        self.assertEqual(self.locator.get_position(), Translation(1.0, 2.0, 3.0))
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ class JsonTest(unittest.TestCase):
 
     def test_math_and_dict_tags(self):
         from hlib import maths
-        values = [maths.Vector(1, 2, 3), maths.Translate(1, 2, 3), maths.Rotate(.1, .2, .3),
+        values = [maths.Vector(1, 2, 3), maths.Translation(1, 2, 3), maths.EulerRotation(.1, .2, .3),
                   maths.Scale(1, 2, 3), maths.Shear(1, 2, 3), maths.EulerRotation(.1, .2, .3, "zyx"),
                   maths.Quaternion(0, 0, 0, 1), maths.Matrix()]
         for value in values:
@@ -64,14 +64,14 @@ class JsonTest(unittest.TestCase):
     def test_refs_and_explicit_mapping(self):
         first, second = self.node(suffix="a"), self.node(suffix="b")
         ref = self.roundtrip(first)
-        cmds.rename(first.full_name, self.ns + ":renamed")
-        self.assertEqual(ref.resolve().uuid, first.uuid)
-        self.assertEqual(ref.resolve(mapping={ref.path: second.full_name}).uuid, second.uuid)
+        cmds.rename(first.full_name(), self.ns + ":renamed")
+        self.assertEqual(ref.resolve().uuid(), first.uuid())
+        self.assertEqual(ref.resolve(mapping={ref.path: second.full_name()}).uuid(), second.uuid())
         with self.assertRaises(ValueError):
             ref.resolve(mapping={ref.path: "missing_json_target"})
         plug = self.roundtrip(second.plug("translateX"))
-        self.assertEqual(plug.resolve().full_name, second.plug("translateX").full_name)
-        cmds.delete(first.full_name)
+        self.assertEqual(plug.resolve().full_name(), second.plug("translateX").full_name())
+        cmds.delete(first.full_name())
         # 削除した参照もJSONとして読むことはできる。
         self.assertEqual(self.roundtrip(ref), ref)
         with self.assertRaises(ValueError):
@@ -79,21 +79,21 @@ class JsonTest(unittest.TestCase):
 
     def test_pose_apply_and_preflight(self):
         first, second = self.node(suffix="a"), self.node(suffix="b")
-        cmds.setAttr(first.full_name + ".tx", 5)
+        cmds.setAttr(first.full_name() + ".tx", 5)
         snapshot = self.roundtrip(hlib.json.capture([first, second], kind="pose"))
-        cmds.setAttr(first.full_name + ".tx", 10)
-        cmds.setAttr(second.full_name + ".tx", lock=True)
+        cmds.setAttr(first.full_name() + ".tx", 10)
+        cmds.setAttr(second.full_name() + ".tx", lock=True)
         with self.assertRaises(ValueError):
             snapshot.apply()
-        self.assertEqual(cmds.getAttr(first.full_name + ".tx"), 10)
-        cmds.setAttr(second.full_name + ".tx", lock=False)
+        self.assertEqual(cmds.getAttr(first.full_name() + ".tx"), 10)
+        cmds.setAttr(second.full_name() + ".tx", lock=False)
         self.assertTrue(snapshot.validate().valid)
         snapshot.apply()
-        self.assertEqual(cmds.getAttr(first.full_name + ".tx"), 5)
+        self.assertEqual(cmds.getAttr(first.full_name() + ".tx"), 5)
         cmds.undo()
-        self.assertEqual(cmds.getAttr(first.full_name + ".tx"), 10)
+        self.assertEqual(cmds.getAttr(first.full_name() + ".tx"), 10)
         cmds.redo()
-        self.assertEqual(cmds.getAttr(first.full_name + ".tx"), 5)
+        self.assertEqual(cmds.getAttr(first.full_name() + ".tx"), 5)
         snapshot.units["linear"] = "invalid"
         self.assertFalse(snapshot.validate().valid)
 
@@ -101,7 +101,7 @@ class JsonTest(unittest.TestCase):
         name = cmds.circle(name=self.ns + ":curve", constructionHistory=False)[0]
         curve = hlib.node(name)
         snapshot = self.roundtrip(hlib.json.capture(curve, kind="curve"))
-        cv = curve.shape().full_name + ".cv[0]"
+        cv = curve.shape().full_name() + ".cv[0]"
         before = cmds.xform(cv, query=True, translation=True, objectSpace=True)
         cmds.xform(cv, translation=(7, 8, 9), objectSpace=True)
         snapshot.apply()
@@ -128,21 +128,21 @@ class JsonTest(unittest.TestCase):
         expected = curve.tangent(0)
         curve.set_key(7, 8)
         snapshot.apply()
-        self.assertEqual(curve.inputs(), [0, 3])
+        self.assertEqual(curve.key_inputs(), [0, 3])
         for key in ("inAngle", "outAngle", "inWeight", "outWeight"):
             self.assertAlmostEqual(curve.tangent(0)[key], expected[key], places=5)
         cmds.undo()
-        self.assertEqual(curve.inputs(), [0, 3, 7])
+        self.assertEqual(curve.key_inputs(), [0, 3, 7])
 
     def test_skin_sparse_weights(self):
         joints = [self.node("joint", "j" + str(i)) for i in range(2)]
         mesh = cmds.polyCube(name=self.ns + ":mesh", constructionHistory=False)[0]
-        name = cmds.skinCluster([j.full_name for j in joints], mesh, name=self.ns + ":skin")[0]
+        name = cmds.skinCluster([j.full_name() for j in joints], mesh, name=self.ns + ":skin")[0]
         skin = hlib.node(name)
         pose = skin.bind_pose()
         if pose:
-            cmds.rename(pose.full_name, self.ns + ":pose")
-        names = [j.full_name for j in joints]
+            cmds.rename(pose.full_name(), self.ns + ":pose")
+        names = [j.full_name() for j in joints]
         skin.set_weights(names, [.25, .75])
         snapshot = self.roundtrip(hlib.json.capture(skin, kind="skin_weights"))
         skin.set_weights(names, [.9, .1])
@@ -162,17 +162,17 @@ class JsonTest(unittest.TestCase):
         self.assertEqual(sdk.curves()[0].key_count(), 2)
         cmds.undo()
         self.assertEqual(sdk.curves()[0].key_count(), 3)
-        cmds.disconnectAttr(driver.plug("tx").full_name, sdk.curves()[0].full_name + ".input")
+        cmds.disconnectAttr(driver.plug("tx").full_name(), sdk.curves()[0].full_name() + ".input")
         self.assertFalse(snapshot.validate().valid)
 
     def test_attributes_and_namespace_map(self):
         first, second = self.node(suffix="a"), self.node(suffix="b")
         for node in (first, second):
-            cmds.addAttr(node.full_name, longName="label", dataType="string")
-        cmds.setAttr(first.full_name + ".label", "日本語", type="string")
+            cmds.addAttr(node.full_name(), longName="label", dataType="string")
+        cmds.setAttr(first.full_name() + ".label", "日本語", type="string")
         snapshot = self.roundtrip(hlib.json.capture(first, kind="attributes", attributes=["label", "translate"]))
-        snapshot.apply(mapping={snapshot.records[0]["node"].path: second.full_name})
-        self.assertEqual(cmds.getAttr(second.full_name + ".label"), "日本語")
+        snapshot.apply(mapping={snapshot.records[0]["node"].path: second.full_name()})
+        self.assertEqual(cmds.getAttr(second.full_name() + ".label"), "日本語")
         ref = hlib.json.NodeRef.capture(first)
         with self.assertRaises(ValueError):
             ref.resolve(namespace_map={self.ns: "missing_namespace"})
@@ -212,18 +212,18 @@ class JsonTest(unittest.TestCase):
         saved = hlib.json.capture(first, kind="attributes", attributes=["tx"])
         plan = saved.plan()
         self.assertEqual(plan.errors, [])
-        cmds.connectAttr(second.full_name + ".ty", first.full_name + ".tx")
+        cmds.connectAttr(second.full_name() + ".ty", first.full_name() + ".tx")
         with self.assertRaises(ValueError):
             plan.apply()
 
     def test_edited_json_rejected_before_changes(self):
         first, second = self.node(suffix="a"), self.node(suffix="b")
         saved = hlib.json.capture([first, second], kind="attributes", attributes=["tx"])
-        cmds.setAttr(first.full_name + ".tx", 7)
+        cmds.setAttr(first.full_name() + ".tx", 7)
         saved.records[1]["attributes"][0]["value"] = "invalid"
         with self.assertRaises(ValueError):
             saved.apply()
-        self.assertEqual(cmds.getAttr(first.full_name + ".tx"), 7)
+        self.assertEqual(cmds.getAttr(first.full_name() + ".tx"), 7)
 
     def test_reload_entry(self):
         hlib.reload()

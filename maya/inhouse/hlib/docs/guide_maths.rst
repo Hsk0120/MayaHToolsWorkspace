@@ -23,7 +23,7 @@ Vector・Quaternion・EulerRotationなどの値を使った計算を説明しま
    Vector(3, 4, 0).length()  # 5.0
    tuple(Vector(0, 0, 5).normalized())  # (0.0, 0.0, 1.0)
 
-``dot``/``cross``/``length``/``normalized`` は ``Translate``/``Rotate``/``Scale``/``Shear``
+``dot``/``cross``/``length``/``normalized`` は ``Translation``/``EulerRotation``/``Scale``/``Shear``
 など ``Vector`` を継承する全ての型で使用できます。``cross``/``normalized`` の戻り値は
 派生クラスの型を保持せず常に ``Vector`` になります(``__add__``/``__sub__`` と同様)。
 ``normalized()`` はゼロベクトルに対して ``ValueError`` を送出します。

@@ -87,7 +87,7 @@ def main(output_dir=None, finished=None):
             name = cmds.circle(name=prefix + ":" + label, normal=(0, 0, 1), radius=1.3, constructionHistory=False)[0]
             cmds.setAttr(name + ".tx", x)
             curves.append(hlib.node(name))
-        cmds.addAttr(curves[0].full_name, longName="guiAmount", attributeType="double", keyable=True)
+        cmds.addAttr(curves[0].full_name(), longName="guiAmount", attributeType="double", keyable=True)
         camera, camera_shape = cmds.camera(name=prefix + ":camera", orthographic=True)
         cmds.setAttr(camera + ".tz", 20)
         cmds.setAttr(camera_shape + ".orthographicWidth", 15)
@@ -95,15 +95,15 @@ def main(output_dir=None, finished=None):
         pane = cmds.paneLayout(configuration="vertical3")
         connection = cmds.selectionConnection()
         for curve in curves:
-            cmds.selectionConnection(connection, edit=True, select=curve.full_name)
+            cmds.selectionConnection(connection, edit=True, select=curve.full_name())
         editor = cmds.outlinerEditor(parent=pane, mainListConnection=connection,
                                      showDagOnly=True, showShapes=False)
         panel = cmds.modelPanel(parent=pane, camera=camera, menuBarVisible=False)
         channel_connection = cmds.selectionConnection()
-        cmds.selectionConnection(channel_connection, edit=True, select=curves[0].full_name)
+        cmds.selectionConnection(channel_connection, edit=True, select=curves[0].full_name())
         channel = cmds.channelBox(parent=pane, mainListConnection=channel_connection)
         cmds.modelEditor(panel, edit=True, grid=False, cameras=False, displayAppearance="wireframe")
-        cmds.select([c.full_name for c in curves], replace=True)
+        cmds.select([c.full_name() for c in curves], replace=True)
         cmds.isolateSelect(panel, state=True)
         cmds.isolateSelect(panel, loadSelected=True)
         cmds.select(clear=True)
@@ -175,7 +175,7 @@ def main(output_dir=None, finished=None):
                     self.assertFalse(view.settings("nurbsCurves")["nurbsCurves"])
                     capture("curves_hidden")
                 capture("curves_restored")
-                cmds.select(curves[0].full_name + ".cv[0:2]", replace=True)
+                cmds.select(curves[0].full_name() + ".cv[0:2]", replace=True)
                 saved = hlib.captureSelection()
                 before = cmds.ls(selection=True, flatten=True, long=True)
                 cmds.select(clear=True)
@@ -186,10 +186,10 @@ def main(output_dir=None, finished=None):
 
             def test_channelbox_real_selection_and_display(self):
                 node = curves[0]
-                cmds.select(node.full_name, replace=True)
+                cmds.select(node.full_name(), replace=True)
                 cmds.refresh(force=True)
                 box = hlib.channelBox(channel)
-                cmds.channelBox(channel, edit=True, select=node.full_name + ".guiAmount")
+                cmds.channelBox(channel, edit=True, select=node.full_name() + ".guiAmount")
                 capture("channel_selected", channel)
                 self.assertEqual(len(box.selected_plugs()), 1,
                                  str(cmds.channelBox(channel, query=True, mainObjectList=True)))

@@ -5,7 +5,7 @@ from ..decorators._fast import fast_edit
 import math
 
 from .._core.registry import plug_wrapper
-from ..maths import EulerRotation, Scale, Shear, Translate, Vector
+from ..maths import EulerRotation, Scale, Shear, Translation, Vector
 from .compound_plug import CompoundPlug
 
 
@@ -14,8 +14,8 @@ class Double3Plug(CompoundPlug):
     """double3（3つの double からなる compound）属性用の Plug。"""
 
     _value_types = {
-        "translate": Translate,
-        "t": Translate,
+        "translate": Translation,
+        "t": Translation,
         "rotate": EulerRotation,
         "r": EulerRotation,
         "scale": Scale,
@@ -34,9 +34,9 @@ class Double3Plug(CompoundPlug):
             ws (bool): True で既知の変換属性に対応するノードの取得メソッドを呼ぶ。それ以外は子属性の値を使う。
 
         Returns:
-            Vector | Translate | EulerRotation | Scale | Shear: 属性名に応じた3成分値。ローカルの rotate は度からラジアンに変換し、rotateOrder を保持する。
+            Vector | Translation | EulerRotation | Scale | Shear: 属性名に応じた3成分値。ローカルの rotate は度からラジアンに変換し、rotateOrder を保持する。
         """
-        if ws and self.attribute in self._value_types:
+        if ws and self.attribute() in self._value_types:
             getters = {
                 "translate": "get_translate",
                 "t": "get_translate",
@@ -47,11 +47,11 @@ class Double3Plug(CompoundPlug):
                 "shear": "get_shear",
                 "sh": "get_shear",
             }
-            getter = getattr(self.node, getters[self.attribute], None)
+            getter = getattr(self.node, getters[self.attribute()], None)
             if getter is not None:
                 return getter(ws=True)
         values = tuple(self.child(index).get() for index in range(3))
-        value_type = self._value_types.get(self.attribute, Vector)
+        value_type = self._value_types.get(self.attribute(), Vector)
         if value_type is EulerRotation:
             order_index = self.node.plug("ro").get()
             order = self._rotation_orders[int(order_index)]
@@ -89,11 +89,11 @@ class Double3Plug(CompoundPlug):
             "shear": "set_shear",
             "sh": "set_shear",
         }
-        setter_name = setters.get(self.attribute)
+        setter_name = setters.get(self.attribute())
         setter = getattr(self.node, setter_name, None) if setter_name else None
         if setter is not None:
             kwargs = {"ws": ws}
-            if self.attribute in ("rotate", "r"):
+            if self.attribute() in ("rotate", "r"):
                 kwargs["unit"] = unit
             setter(value, **kwargs)
             return self

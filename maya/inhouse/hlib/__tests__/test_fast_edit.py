@@ -31,16 +31,16 @@ class FastEditTest(unittest.TestCase):
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
         cmds.undo()
         self.assertEqual(cmds.getAttr(sentinel + '.tx'), 0)
-        self.assertEqual(cmds.getAttr(node.full_name + '.tx'), 12)
+        self.assertEqual(cmds.getAttr(node.full_name() + '.tx'), 12)
         node.plug('tx').set(24)
         cmds.undo()
         self.assertEqual(node.plug('tx').get(), 12)
         with self.assertRaises(TypeError):
             node.plug('tx').set(0, fast=1)
-        cmds.setAttr(node.full_name + '.tx', lock=True)
+        cmds.setAttr(node.full_name() + '.tx', lock=True)
         with self.assertRaises(RuntimeError):
             node.plug('tx').set(0, fast=True)
-        cmds.setAttr(node.full_name + '.tx', lock=False)
+        cmds.setAttr(node.full_name() + '.tx', lock=False)
         node.plug('tx').set(33)
         cmds.undo()
         self.assertEqual(node.plug('tx').get(), 12)
@@ -66,21 +66,21 @@ class FastEditTest(unittest.TestCase):
         mesh = hlib.node(cmds.listRelatives(cmds.polyCube(ch=False)[0], shapes=True)[0])
         curve = hlib.node(cmds.listRelatives(cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3), (4, 2, 1)]), shapes=True)[0])
         for points in (mesh.vertices(), curve.cvs()):
-            before = points.positions()
+            before = points.get_positions()
             rows = [(x + .2, y * 2, z - .3) for x, y, z in before]
             points.set_positions(rows)
-            expected = points.positions()
+            expected = points.get_positions()
             points.set_positions(before)
             with self.api_only():
                 points.set_positions(rows, fast=True)
-            for actual, wanted in zip(points.positions(), expected):
+            for actual, wanted in zip(points.get_positions(), expected):
                 for a, b in zip(actual, wanted):
                     self.assertAlmostEqual(a, b, places=6)
         uvs = mesh.uvs()
         with self.api_only():
             uvs.set_position((.2, .3), fast=True)
         for uv in uvs:
-            for a, b in zip(uv.position(), (.2, .3)):
+            for a, b in zip(uv.get_position(), (.2, .3)):
                 self.assertAlmostEqual(a, b, places=6)
         history = hlib.node(cmds.listRelatives(cmds.polyCube()[0], shapes=True)[0])
         with self.assertRaises(NotImplementedError):
@@ -94,7 +94,7 @@ class FastEditTest(unittest.TestCase):
         joints = [cmds.createNode('joint') for _ in range(3)]
         skin = hlib.node(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
         for normalize in (0, 1, 2):
-            cmds.setAttr(skin.full_name + '.normalizeWeights', normalize)
+            cmds.setAttr(skin.full_name() + '.normalizeWeights', normalize)
             skin.set_weights(joints, [.2, .3, .5])
             expected = list(skin.get_weights(joints))
             skin.set_weights(joints, [1, 0, 0])
@@ -113,8 +113,8 @@ class FastEditTest(unittest.TestCase):
                     with self.api_only():
                         node.plug('rx').set(.4, fast=True)
                         node.plug('tx').set(.6, fast=True)
-                    self.assertAlmostEqual(cmds.getAttr(node.full_name + '.rx'), .4)
-                    self.assertAlmostEqual(cmds.getAttr(node.full_name + '.tx'), .6)
+                    self.assertAlmostEqual(cmds.getAttr(node.full_name() + '.rx'), .4)
+                    self.assertAlmostEqual(cmds.getAttr(node.full_name() + '.tx'), .6)
         finally:
             cmds.currentUnit(angle=old_angle, linear=old_linear)
         joints = [cmds.createNode('joint') for _ in range(2)]
@@ -124,7 +124,7 @@ class FastEditTest(unittest.TestCase):
             node.set_outliner_color((.1, .2, .3), fast=True)
             node.set_override_color(6, fast=True)
             node.set_attr_flags(['tx'], locked=True, keyable=False, channel_box=True, fast=True)
-        self.assertTrue(cmds.getAttr(node.full_name + '.tx', lock=True))
+        self.assertTrue(cmds.getAttr(node.full_name() + '.tx', lock=True))
         for joint in joints:
             self.assertEqual(cmds.getAttr(joint + '.translate')[0], (1, 2, 3))
 
@@ -132,11 +132,11 @@ class FastEditTest(unittest.TestCase):
         mesh = cmds.polyPlane(ch=False, sx=1, sy=1)[0]
         joints = [cmds.createNode('joint') for _ in range(4)]
         skin = hlib.node(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
-        cmds.skinCluster(skin.full_name, edit=True, removeInfluence=joints[1])
+        cmds.skinCluster(skin.full_name(), edit=True, removeInfluence=joints[1])
         joints.pop(1)
         for maintain in (False, True):
-            cmds.setAttr(skin.full_name + '.maxInfluences', 1)
-            cmds.setAttr(skin.full_name + '.maintainMaxInfluences', maintain)
+            cmds.setAttr(skin.full_name() + '.maxInfluences', 1)
+            cmds.setAttr(skin.full_name() + '.maintainMaxInfluences', maintain)
             cmds.setAttr(joints[2] + '.liw', True)
             skin.set_weights(joints, [.2, .3, .5])
             skin.set_weights([joints[2]], [.4, .3, .2, .1])
@@ -149,24 +149,24 @@ class FastEditTest(unittest.TestCase):
     def test_data_types_and_connections(self):
         node = hlib.node(cmds.createNode('network'))
         for name, kind in [('text', 'string'), ('numbers', 'doubleArray'), ('matrixValue', 'matrix')]:
-            cmds.addAttr(node.full_name, longName=name, dataType=kind)
-        cmds.addAttr(node.full_name, longName='timeValue', attributeType='time')
-        cmds.addAttr(node.full_name, longName='choice', attributeType='enum', enumName='a:b:c')
-        cmds.addAttr(node.full_name, longName='limited', attributeType='double', minValue=0, maxValue=1)
+            cmds.addAttr(node.full_name(), longName=name, dataType=kind)
+        cmds.addAttr(node.full_name(), longName='timeValue', attributeType='time')
+        cmds.addAttr(node.full_name(), longName='choice', attributeType='enum', enumName='a:b:c')
+        cmds.addAttr(node.full_name(), longName='limited', attributeType='double', minValue=0, maxValue=1)
         for value in (-1, 2):
             with self.assertRaises(RuntimeError):
                 node.plug('limited').set(value, fast=True)
-        self.assertEqual(cmds.getAttr(node.full_name + '.limited'), 0)
+        self.assertEqual(cmds.getAttr(node.full_name() + '.limited'), 0)
         with self.api_only():
             node.plug('text').set('hello', fast=True)
             node.plug('numbers').set([1., 2., 3.], fast=True)
             node.plug('matrixValue').set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1], fast=True)
             node.plug('timeValue').set(12, fast=True)
             node.plug('choice').set(2, fast=True)
-        self.assertEqual(cmds.getAttr(node.full_name + '.text'), 'hello')
-        self.assertEqual(list(cmds.getAttr(node.full_name + '.numbers')), [1, 2, 3])
-        self.assertEqual(cmds.getAttr(node.full_name + '.timeValue'), 12)
-        self.assertEqual(cmds.getAttr(node.full_name + '.choice'), 2)
+        self.assertEqual(cmds.getAttr(node.full_name() + '.text'), 'hello')
+        self.assertEqual(list(cmds.getAttr(node.full_name() + '.numbers')), [1, 2, 3])
+        self.assertEqual(cmds.getAttr(node.full_name() + '.timeValue'), 12)
+        self.assertEqual(cmds.getAttr(node.full_name() + '.choice'), 2)
         a, b = [cmds.createNode('transform') for _ in range(2)]
         cmds.connectAttr(a + '.tx', b + '.tx')
         with self.assertRaises(RuntimeError):
@@ -186,7 +186,7 @@ class FastEditTest(unittest.TestCase):
                 rows = [(1, 2, 3), (2, 4, 6), (3, 6, 9)]
                 with self.api_only():
                     points.set_positions(rows, ws=True, fast=True)
-                for actual, expected in zip(points.positions(ws=True), rows):
+                for actual, expected in zip(points.get_positions(ws=True), rows):
                     for a, b in zip(actual, expected):
                         # Mesh内部のfloat座標を非一様スケールで変換した丸め誤差。
                         self.assertAlmostEqual(a, b, delta=1e-5)

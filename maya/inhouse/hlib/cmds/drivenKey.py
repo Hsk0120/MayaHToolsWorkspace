@@ -19,6 +19,6 @@ def drivenKey(driver, driven):
     Returns:
         DrivenKey: 未作成の関係も保持できる。set_keyでキーを作成する。
     """
-    from ..animation.drivenKey import DrivenKey
+    from ..animation.driven_key import DrivenKey
 
     return DrivenKey(driver, driven)

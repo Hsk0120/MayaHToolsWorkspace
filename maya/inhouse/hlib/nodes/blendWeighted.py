@@ -23,22 +23,22 @@ class BlendWeighted(Node):
 
     def input_indices(self):
         """list[int]: 存在するinputの論理番号。疎な配列を保持する。"""
-        return cmds.getAttr(self.full_name + ".input", multiIndices=True) or []
+        return cmds.getAttr(self.full_name() + ".input", multiIndices=True) or []
 
-    def inputs(self):
+    def input_plugs(self):
         """dict[int, Plug]: 既存入力の番号とPlug。"""
         return {i: self.plug("input").element(i) for i in self.input_indices()}
 
     def weights(self):
         """dict[int, float]: 既存inputに対応するウェイト。未設定要素は1。"""
-        return {i: cmds.getAttr(f"{self.full_name}.weight[{i}]") for i in self.input_indices()}
+        return {i: cmds.getAttr(f"{self.full_name()}.weight[{i}]") for i in self.input_indices()}
 
     def _set(self, attr, index, value):
         """有限値をcmdsで設定する。呼び出し元がUndoをまとめる。"""
         index, value = self._index(index), float(value)
         if not math.isfinite(value):
             raise ValueError("Expected a finite value")
-        set_attr(f"{self.full_name}.{attr}[{index}]", value)
+        set_attr(f"{self.full_name()}.{attr}[{index}]", value)
         return self
 
     @fast_edit
@@ -87,11 +87,11 @@ class BlendWeighted(Node):
             BlendWeighted: 自身。
         """
         index = self._index(index)
-        target = f"{self.full_name}.input[{index}]"
+        target = f"{self.full_name()}.input[{index}]"
         if index in self.input_indices() and not cmds.listConnections(target, source=True, destination=False):
             # connectAttrのUndoだけでは配列要素の定数値が失われるため履歴に記録する。
             set_attr(target, cmds.getAttr(target))
-        cmds.connectAttr(source.full_name, target, force=force)
+        cmds.connectAttr(source.full_name(), target, force=force)
         return self
 
     def output(self):

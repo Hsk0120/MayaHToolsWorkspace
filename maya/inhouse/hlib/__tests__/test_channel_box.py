@@ -9,7 +9,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-module = importlib.import_module("hlib.editors.channelBox")
+module = importlib.import_module("hlib.editors.channel_box")
 
 
 class ChannelBoxTest(unittest.TestCase):
@@ -43,11 +43,11 @@ class ChannelBoxTest(unittest.TestCase):
         with patch.object(module.cmds, "about", return_value=False), patch.object(module.cmds, "channelBox", side_effect=self.query):
             channel = hlib.channelBox("testChannelBox")
             self.assertEqual(len(channel.displayed_nodes()), 2)
-            names = [plug.full_name for plug in channel.selected_plugs()]
+            names = [plug.full_name() for plug in channel.selected_plugs()]
             self.assertEqual(len(names), 3)
             self.assertIn(self.a + ".customAlias", names)
             cmds.setAttr(self.a + ".amount", 2.5)
-            alias_plug = next(plug for plug in channel.selected_plugs() if plug.full_name.endswith(".customAlias"))
+            alias_plug = next(plug for plug in channel.selected_plugs() if plug.full_name().endswith(".customAlias"))
             self.assertEqual(alias_plug.get(), 2.5)
             self.assertIn(self.b + ".translateX", names)
             self.assertEqual(channel.selected_attributes(), ["tx", "customAlias"])

@@ -140,7 +140,7 @@ hlib は Maya と同じ行ベクトル規約です。
    restored = matrix.inverse().transform_point(point)
    print(tuple(round(v, 6) for v in restored))    # (1.0, 0.0, 0.0)
 
-戻り値は、それぞれ ``Translate`` と ``Vector`` です。
+戻り値は、それぞれ ``Translation`` と ``Vector`` です。
 方向の長さが不要な場合は ``direction.normalized()`` で単位ベクトルにできます。
 これは法線専用の変換ではありません。非一様スケール下の法線変換とは区別してください。
 

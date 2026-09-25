@@ -32,6 +32,9 @@ Related commands
 Flags
 -----
 
+Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
+処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
+
 .. list-table::
    :header-rows: 1
    :widths: 20 25 15 40
@@ -68,12 +71,15 @@ Examples
     hlib.bakeResults(node, time=(1, 24), attribute=["translateX"])
 """
 
+from .._core.flags import flag_aliases
+
 import maya.cmds as cmds
 
 from ..decorators.undo import undo_chunk
 from ..decorators.viewport import viewport_off
 
 
+@flag_aliases("bakeResults")
 @undo_chunk("hlib.cmds.bakeResults.bakeResults")
 @viewport_off()
 def bakeResults(nodes, **kwargs):

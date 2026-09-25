@@ -2,11 +2,11 @@
 
 import math
 
-from .eulerRotation import EulerRotation
+from .euler_rotation import EulerRotation
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
-from .translate import Translate
+from .translation import Translation
 from .vector import Vector
 
 
@@ -154,20 +154,20 @@ class Matrix:
 
     @property
     def translate(self):
-        """Translate 成分を取得または設定する。
+        """Translation 成分を取得または設定する。
 
         設定時は3成分の反復可能オブジェクトを受け取り、現在の行列を
         分解して平行移動を置き換える。ゼロスケールなどで分解できなければ
         ValueError を送出する。
 
         Returns:
-            Translate: 行列の平行移動成分。
+            Translation: 行列の平行移動成分。
         """
-        return Translate(self._values[12], self._values[13], self._values[14])
+        return Translation(self._values[12], self._values[13], self._values[14])
 
     @translate.setter
     def translate(self, value):
-        """Translate 成分を置き換えて行列を再合成する。
+        """Translation 成分を置き換えて行列を再合成する。
 
         現在の行列を分解してから指定成分を置換し、再合成して自身を更新する。
 
@@ -461,10 +461,10 @@ class Matrix:
             value (Iterable[float]): XYZ の3成分。
 
         Returns:
-            Translate: 平行移動を含む変換結果。射影除算は行わない。
+            Translation: 平行移動を含む変換結果。射影除算は行わない。
         """
         x, y, z = value
-        return Translate(
+        return Translation(
             x * self._values[0] + y * self._values[4] + z * self._values[8] + self._values[12],
             x * self._values[1] + y * self._values[5] + z * self._values[9] + self._values[13],
             x * self._values[2] + y * self._values[6] + z * self._values[10] + self._values[14],
@@ -588,7 +588,7 @@ class Matrix:
             other (object): 右側の Matrix、または位置として扱う Vector。
 
         Returns:
-            Matrix | Translate | types.NotImplementedType: 行列同士は自身と同じクラスの積。Vector は平行移動を含む位置変換。未対応型は NotImplemented。
+            Matrix | Translation | types.NotImplementedType: 行列同士は自身と同じクラスの積。Vector は平行移動を含む位置変換。未対応型は NotImplemented。
         """
         if isinstance(other, Matrix):
             return type(self)([
@@ -609,7 +609,7 @@ class Matrix:
             other (object): 右側の Matrix、または位置として扱う Vector。
 
         Returns:
-            Matrix | Translate | types.NotImplementedType: ``__mul__`` と同じ。
+            Matrix | Translation | types.NotImplementedType: ``__mul__`` と同じ。
         """
         return self.__mul__(other)
 
@@ -652,7 +652,7 @@ class Matrix:
         Raises:
             ValueError: 回転四元数がゼロの場合。
         """
-        translation = Translate(*translate)
+        translation = Translation(*translate)
         scale = Scale(*scale)
         shear = Shear(*shear)
         quaternion = rotate if isinstance(rotate, Quaternion) else EulerRotation(*rotate).to_quaternion()

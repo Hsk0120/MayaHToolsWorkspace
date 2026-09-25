@@ -71,7 +71,7 @@ class BlendShape(Node):
             geometries = self.geometry()
             if not geometries:
                 raise RuntimeError("Cannot determine the base geometry for this blendShape")
-            base_name = geometries[0].full_name
+            base_name = geometries[0].full_name()
         else:
             base_name = to_name(base)
         if weight_index is None:

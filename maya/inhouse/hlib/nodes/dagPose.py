@@ -25,8 +25,8 @@ class DagPose(Node):
             node = Node(name)
             if not node.is_valid() or not node.is_type("transform"):
                 raise ValueError(f"Expected a valid transform or joint: {name}")
-            if node.full_name not in names:
-                names.append(node.full_name)
+            if node.full_name() not in names:
+                names.append(node.full_name())
         if not names:
             raise ValueError("At least one transform or joint is required")
         return names
@@ -35,7 +35,7 @@ class DagPose(Node):
         """有効なdagPoseの名前を返す。削除済みならRuntimeError。"""
         if not self.is_valid():
             raise RuntimeError("Cannot access an invalid dagPose")
-        return self.full_name
+        return self.full_name()
 
     @classmethod
     @undo_chunk("hlibDagPoseCreate")
@@ -89,7 +89,7 @@ class DagPose(Node):
             raise RuntimeError("Cannot access an invalid skinCluster")
         if not skin.is_type("skinCluster"):
             raise ValueError("Expected a skinCluster")
-        names = cmds.listConnections(skin.full_name + ".bindPose", source=True,
+        names = cmds.listConnections(skin.full_name() + ".bindPose", source=True,
                                      destination=False) or []
         if not names:
             return None
@@ -122,7 +122,7 @@ class DagPose(Node):
         """
         node = to_node(member)
         for index, item in zip(self.member_indices(), self.members()):
-            if item.full_name == node.full_name:
+            if item.full_name() == node.full_name():
                 return index
         raise ValueError(f"Not a member of {self._pose_name()}: {member}")
 

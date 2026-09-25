@@ -33,7 +33,7 @@ class CoerceTest(unittest.TestCase):
 
     def test_to_name_uses_full_name_for_node(self):
         node = self.create_transform("hlibCoerceToName")
-        self.assertEqual(to_name(node), node.full_name)
+        self.assertEqual(to_name(node), node.full_name())
 
     def test_to_name_rejects_invalid_types_and_empty_string(self):
         with self.assertRaises(TypeError):
@@ -43,13 +43,13 @@ class CoerceTest(unittest.TestCase):
 
     def test_to_names_wraps_single_node_or_string(self):
         node = self.create_transform("hlibCoerceToNamesSingle")
-        self.assertEqual(to_names(node), [node.full_name])
+        self.assertEqual(to_names(node), [node.full_name()])
         self.assertEqual(to_names("literalName"), ["literalName"])
 
     def test_to_names_converts_mixed_iterable(self):
         node = self.create_transform("hlibCoerceToNamesMixed")
         result = to_names([node, "literalName"])
-        self.assertEqual(result, [node.full_name, "literalName"])
+        self.assertEqual(result, [node.full_name(), "literalName"])
 
     def test_to_names_empty_iterable_returns_empty_list(self):
         self.assertEqual(to_names([]), [])
@@ -68,7 +68,7 @@ class CoerceTest(unittest.TestCase):
         node = self.create_transform("hlibCoerceToNodeResolve")
         resolved = to_node(node.name())
         self.assertIsInstance(resolved, Node)
-        self.assertEqual(resolved.full_name, node.full_name)
+        self.assertEqual(resolved.full_name(), node.full_name())
 
     def test_to_node_rejects_invalid_type(self):
         with self.assertRaises(TypeError):

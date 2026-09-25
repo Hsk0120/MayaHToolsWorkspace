@@ -46,16 +46,16 @@ class BlendColorsTest(unittest.TestCase):
         b.connect_color(1, source.output()).connect_blender(control.plug("tx"))
         self.assertEqual(b.result(), (0, 1, 0))
         cmds.undo()
-        self.assertFalse(cmds.listConnections(b.blender().full_name, source=True, destination=False))
+        self.assertFalse(cmds.listConnections(b.blender().full_name(), source=True, destination=False))
         cmds.redo()
         self.assertEqual(b.result(), (0, 1, 0))
         replacement = hlib.createNode("blendColors", name=self.ns + ":replacement")
         with self.assertRaises(RuntimeError):
             b.connect_color(1, replacement.output())
         b.connect_color(1, replacement.output(), force=True)
-        self.assertTrue(cmds.isConnected(replacement.output().full_name, b.color(1).full_name))
+        self.assertTrue(cmds.isConnected(replacement.output().full_name(), b.color(1).full_name()))
         cmds.undo()
-        self.assertTrue(cmds.isConnected(source.output().full_name, b.color(1).full_name))
+        self.assertTrue(cmds.isConnected(source.output().full_name(), b.color(1).full_name()))
         with self.assertRaises(RuntimeError):
             b.set_color(1, (1, 1, 1))
 

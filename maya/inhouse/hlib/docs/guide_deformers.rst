@@ -69,7 +69,7 @@ cluster と locator
    from hlib.nodes import Node
 
    mesh = hlib.node("pCube1")
-   cluster_name, handle_name = cmds.cluster(mesh.full_name + ".vtx[0:2]")
+   cluster_name, handle_name = cmds.cluster(mesh.full_name() + ".vtx[0:2]")
    cluster = Node(cluster_name)
 
    print(cluster.weighted_node())   # cluster1Handle（ハンドル transform）
@@ -79,13 +79,13 @@ cluster と locator
    loc_shape_name = cmds.listRelatives(loc_transform, shapes=True)[0]
    locator = Node(loc_shape_name)
 
-   print(locator.get_position())         # Translate(0.0, 0.0, 0.0)
+   print(locator.get_position())         # Translation(0.0, 0.0, 0.0)
    locator.set_position((1.0, 2.0, 3.0))
 
 ``cluster`` ノードは自動的に ``Cluster`` ラッパーへ解決されます。``weighted_node``
 はクラスタのハンドル transform（デフォーマ本体とは別ノード）、``geometry`` は
 変形対象の shape を返します。``locator`` シェイプは ``Locator`` ラッパーへ解決され、
-``get_position``/``set_position`` は ``localPosition`` 属性を ``Translate`` として
+``get_position``/``set_position`` は ``localPosition`` 属性を ``Translation`` として
 扱います。
 
 blendShape のターゲット操作
@@ -98,7 +98,7 @@ blendShape のターゲット操作
    base = hlib.node("pCube1")
    target = hlib.node("pCube2")   # base と同じトポロジーの別メッシュ
 
-   bs = Node(cmds.blendShape(target.full_name, base.full_name, name="myBlendShape")[0])
+   bs = Node(cmds.blendShape(target.full_name(), base.full_name(), name="myBlendShape")[0])
    print(bs.targets())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
    print(bs.weights())            # [0.0]
    bs.weight_plugs()[0].set(1.0)
@@ -114,7 +114,7 @@ weight 配列のインデックス順ではなく ``cmds.aliasAttr`` が返す�
 ``weight_index`` を省略すると ``plug("weight").next_available()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
 設定されるため、戻り値のプラグの ``full_name`` は ``weight[N]`` ではなく
-ターゲット名を含む表記になります（``attribute`` プロパティは常に ``"weight"``）。
+ターゲット名を含む表記になります（``attribute()`` メソッドは常に ``"weight"``）。
 
 skinCluster ウェイトのバックアップ・復元
 ------------------------------------------

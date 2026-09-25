@@ -83,7 +83,7 @@ def capture_editors(targets):
     """hlibのViewport/Outliner/TimeSliderまたはその列を取得する。"""
     from ..editors.viewport import Viewport
     from ..editors.outliner import Outliner
-    from ..editors.timeSlider import TimeSlider
+    from ..editors.time_slider import TimeSlider
     types = (Viewport, Outliner, TimeSlider)
     items = [targets] if isinstance(targets, types) else list(targets)
     records = []

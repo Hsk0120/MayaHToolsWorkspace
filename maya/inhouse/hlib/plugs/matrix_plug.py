@@ -54,10 +54,10 @@ class MatrixPlug(Plug):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if self.attribute in ("worldMatrix", "wm"):
+        if self.attribute() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
         if hasattr(self.node, "set_matrix"):
             self.node.set_matrix(Matrix(value), ws=ws)
             return self
-        set_attr(self.full_name, *tuple(value), type="matrix")
+        set_attr(self.full_name(), *tuple(value), type="matrix")
         return self

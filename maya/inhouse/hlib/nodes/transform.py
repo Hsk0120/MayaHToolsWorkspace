@@ -1,5 +1,6 @@
 """変換行列を介して Transform ノードを操作する。"""
 
+from .._core.flags import flag_aliases
 from ..decorators._fast import fast_edit
 from .._core.fast_write import set_attr
 
@@ -10,7 +11,7 @@ import maya.api.OpenMaya as om2
 
 from ..decorators.undo import undo_chunk
 from .._core.registry import node_wrapper
-from ..maths import Matrix, Translate, Vector
+from ..maths import Matrix, Translation, Vector
 from .node import Node
 
 
@@ -22,6 +23,7 @@ class Transform(Node):
     倣い、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
     """
 
+    @flag_aliases(typ="type", mo="maintainOffset")
     @undo_chunk("hlibTransformAddConstraint")
     def add_constraint(self, sources, type="parent", maintainOffset=False):
         """自身を拘束するコンストレイントを作成する。
@@ -44,6 +46,8 @@ class Transform(Node):
 
         PoleVector は RP IK ハンドル、Geometry/Normal/PointOnPoly は適切な形状、
         Tangent は NURBS カーブが必要。選択状態による対象補完は行わない。
+        typeはtyp、maintainOffsetはmoでも指定可能。同時指定はTypeError。
+        maintainOffsetはparent/point/orient/scale/aim以外では使用しない。
         """
         from .constraint import Constraint
 
@@ -67,7 +71,7 @@ class Transform(Node):
             if isinstance(source, Node):
                 if not source.is_valid():
                     raise RuntimeError("Constraint target is invalid")
-                source = source.full_name
+                source = source.full_name()
             if not isinstance(source, str) or not source:
                 raise TypeError("Constraint sources must be non-empty names or Node objects")
             names.append(source)
@@ -82,8 +86,73 @@ class Transform(Node):
             "aimConstraint",
         }:
             command_kwargs["maintainOffset"] = maintainOffset
-        result = getattr(cmds, command_name)(*names, self.full_name, **command_kwargs)
+        result = getattr(cmds, command_name)(*names, self.full_name(), **command_kwargs)
         return Node(result[0])
+
+    @undo_chunk("hlibTransformDeleteConstraints")
+    def delete_constraints(self):
+        """自身を拘束するconstraintと、経由するpairBlendを削除する。
+
+        入力接続をpairBlend・unitConversionに限って上流へ辿る。
+        constraintに到達した経路のpairBlendだけを削除し、拘束元の
+        TransformやanimCurve、無関係なpairBlendは残す。
+        削除ノードの出力が対象外ノードにも使われる場合は編集前に拒否する。
+        現在姿勢の維持・ベイク・アニメーション入力の再接続は行わない。
+        全体を一回のUndoで戻せる。
+
+        Returns:
+            list[str]: 削除前のノード名。該当がなければ空リスト。
+
+        Raises:
+            RuntimeError: 無効なTransform、共有出力、参照・ロックされた削除対象、
+                またはMayaによる削除失敗。
+        """
+        if not self.is_valid():
+            raise RuntimeError("Cannot edit an invalid transform")
+        owner = self.full_name()
+        deleting, bridges = set(), set()
+
+        def upstream(node, path):
+            if node in path:
+                return False
+            kind = cmds.nodeType(node)
+            if "constraint" in (cmds.nodeType(node, inherited=True) or []):
+                deleting.add(node)
+                return True
+            if kind not in ("pairBlend", "unitConversion"):
+                return False
+            found = False
+            for source in inputs(node):
+                found = upstream(source, path | {node}) or found
+            if found:
+                if kind == "pairBlend":
+                    deleting.add(node)
+                else:
+                    bridges.add(node)
+            return found
+
+        def inputs(node):
+            sources = cmds.listConnections(node, source=True, destination=False, plugs=True) or []
+            return {cmds.ls(plug.split(".", 1)[0], long=True)[0] for plug in sources
+                    if cmds.getAttr(plug, type=True) != "message"}
+
+        for source in inputs(owner):
+            upstream(source, {owner})
+        allowed = deleting | bridges | {owner}
+        for node in deleting | bridges:
+            for destination in cmds.listConnections(node, source=False, destination=True, plugs=True) or []:
+                if cmds.getAttr(destination, type=True) == "message":
+                    continue
+                target = cmds.ls(destination.split(".", 1)[0], long=True)[0]
+                if target not in allowed:
+                    raise RuntimeError("Constraint path has shared outputs: " + node)
+        for node in deleting:
+            if cmds.referenceQuery(node, isNodeReferenced=True) or cmds.lockNode(node, query=True, lock=True)[0]:
+                raise RuntimeError("Cannot delete referenced or locked node: " + node)
+        names = sorted(deleting)
+        if names:
+            cmds.delete(names)
+        return names
 
     def dag_path(self):
         """Transform の MDagPath を取得する。
@@ -121,11 +190,11 @@ class Transform(Node):
             ws (bool): True はワールド空間、False はオブジェクト空間(ローカル)。
 
         Returns:
-            Translate: ピボット位置。Maya API の内部距離単位。
+            Translation: ピボット位置。Maya API の内部距離単位。
         """
         space = om2.MSpace.kWorld if ws else om2.MSpace.kTransform
         point = self.transform_fn().rotatePivot(space)
-        return Translate(point.x, point.y, point.z)
+        return Translation(point.x, point.y, point.z)
 
     @undo_chunk("hlibTransformSetPivot")
     def set_pivot(self, value, ws=False):
@@ -143,7 +212,7 @@ class Transform(Node):
         """
         point = om2.MPoint(*value)
         coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in (point.x, point.y, point.z)]
-        cmds.xform(self.full_name, pivots=coordinates, worldSpace=ws, objectSpace=not ws, preserve=False)
+        cmds.xform(self.full_name(), pivots=coordinates, worldSpace=ws, objectSpace=not ws, preserve=False)
         return self
 
     @undo_chunk("hlibTransformCenterPivot")
@@ -160,7 +229,7 @@ class Transform(Node):
         Raises:
             RuntimeError: 無効なノードやロックなどでMayaが変更を拒否した場合。
         """
-        cmds.xform(self.full_name, centerPivots=True, preserve=True)
+        cmds.xform(self.full_name(), centerPivots=True, preserve=True)
         return self
 
     def bounding_box(self, ws=False):
@@ -288,10 +357,10 @@ class Transform(Node):
             candidates = parent.child_transforms()
         else:
             candidates = self._world_assemblies()
-        self_uuid = self.uuid
+        self_uuid = self.uuid()
         return [
             candidate for candidate in candidates
-            if isinstance(candidate, Transform) and candidate.uuid != self_uuid
+            if isinstance(candidate, Transform) and candidate.uuid() != self_uuid
         ]
 
     @staticmethod
@@ -422,7 +491,7 @@ class Transform(Node):
             cmds.parent(self.name(), world=True, relative=relative)
         else:
             target = parent if isinstance(parent, Node) else Node(parent)
-            parent_name = target.full_name
+            parent_name = target.full_name()
             # 古いMayaでは同じ親への再parentがエラーになる。
             # add=Trueはインスタンス操作なのでMayaの判定に委ねる。
             current = self.parent_path()
@@ -459,7 +528,7 @@ class Transform(Node):
         if not isinstance(target, Transform):
             raise TypeError("Target must be a transform or joint")
         if any((position, rotation, scale, pivots)):
-            cmds.matchTransform(self.full_name, target.full_name, position=position,
+            cmds.matchTransform(self.full_name(), target.full_name(), position=position,
                                 rotation=rotation, scale=scale, pivots=pivots)
         return self
 
@@ -483,13 +552,13 @@ class Transform(Node):
         return self.plug("matrix").get()
 
     def get_translate(self, ws=False):
-        """Translate を取得する。
+        """Translation を取得する。
 
         Args:
             ws (bool): ``True`` でワールド空間、``False`` （既定）でローカル空間の値を取得する。
 
         Returns:
-            Translate: 評価済みの位置。
+            Translation: 評価済みの位置。
         """
         return self.get_matrix(ws=ws).translate
 
@@ -585,7 +654,7 @@ class Transform(Node):
             ValueError: 行列を分解できない場合。
             RuntimeError: Maya が属性の書き込みを拒否した場合。
         """
-        name = self.full_name
+        name = self.full_name()
         set_attr(f"{name}.translate", *matrix.translate)
         set_attr(f"{name}.rotate", *(math.degrees(component) for component in matrix.euler))
         set_attr(f"{name}.scale", *matrix.scale)
@@ -626,7 +695,7 @@ class Transform(Node):
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Translate | sequence): 新しい平行移動値。
+            value (Translation | sequence): 新しい平行移動値。
             ws (bool): ``True`` でワールド空間に設定する。
 
         Returns:
@@ -720,34 +789,6 @@ class Transform(Node):
         matrix.shear = value
         return self.set_matrix(matrix, ws=ws)
 
-    @fast_edit
-    @undo_chunk("hlibTransformCompose")
-    def compose(self, matrix, ws=False, *, fast=False):
-        """Matrix の TRS/shear 成分をローカルまたはワールド空間へ適用する。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            matrix (Matrix): 適用する hlib 行列。
-            ws (bool): True はワールド、False はローカル空間として解釈する。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            TypeError: matrix が Matrix でない場合。
-            RuntimeError: ノードが無効、または属性を書き込めない場合。
-            ValueError: 行列を分解できない、または必要な親行列を反転できない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        if not isinstance(matrix, Matrix):
-            raise TypeError("matrix must be an hlib Matrix")
-        if not self.is_valid():
-            raise RuntimeError("Cannot compose an invalid transform")
-        local_matrix = matrix if not ws else matrix * self._parent_world_matrix().inverse()
-        self._apply_local_matrix(local_matrix)
-        return self
 
     @fast_edit
     @undo_chunk("hlibTransformShow")
@@ -799,11 +840,11 @@ class Transform(Node):
         """
         if not self.is_valid():
             raise RuntimeError("Cannot freeze transform of an invalid transform")
-        cmds.makeIdentity(self.full_name, **kwargs)
+        cmds.makeIdentity(self.full_name(), **kwargs)
         return self
 
     @undo_chunk("hlibTransformReleaseSRT")
-    def release_srt(self):
+    def unlock_and_disconnect_transform_channels(self):
         """translate/rotate/scale/shear とその子チャンネルを一括でアンロック・切断する。
 
         各チャンネルとその X/Y/Z 子の両方についてロック解除と接続解除を行う。
@@ -892,7 +933,7 @@ class Transform(Node):
         for name in names:
             kwargs = {}
             if parent is not None:
-                kwargs["parent"] = parent.full_name
+                kwargs["parent"] = parent.full_name()
             group = Transform(cmds.group(empty=True, name=name, **kwargs))
             group.set_matrix(matrix, ws=True)
             groups.append(group)

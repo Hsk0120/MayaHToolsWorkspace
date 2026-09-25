@@ -19,7 +19,7 @@ def to_name(value):
     """
     from ..nodes.node import Node
 
-    name = value.full_name if isinstance(value, Node) else value
+    name = value.full_name() if isinstance(value, Node) else value
     if not isinstance(name, str):
         raise TypeError("Node または文字列を指定してください")
     if not name:

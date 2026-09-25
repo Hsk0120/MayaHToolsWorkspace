@@ -5,7 +5,7 @@ Examples
 .. code-block:: python
 
     for plug in hlib.channelBox().selected_plugs():
-        print(plug.full_name)
+        print(plug.full_name())
 """
 
 
@@ -18,6 +18,6 @@ def channelBox(control=None):
         ChannelBox: 対象UIのラッパー。
     Raises:
         RuntimeError: GUIがない、または対象UIが存在しない場合。"""
-    from ..editors.channelBox import ChannelBox
+    from ..editors.channel_box import ChannelBox
 
     return ChannelBox(control)

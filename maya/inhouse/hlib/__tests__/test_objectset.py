@@ -51,7 +51,7 @@ class ObjectSetTest(unittest.TestCase):
         self.assertFalse(self.set.is_member(self.a))
         self.set.add(self.a)
         self.assertTrue(self.set.is_member(self.a))
-        self.assertTrue(self.set.is_member(self.a.full_name))
+        self.assertTrue(self.set.is_member(self.a.full_name()))
         self.assertFalse(self.set.is_member(self.b))
 
     def test_add_accepts_component_strings(self):

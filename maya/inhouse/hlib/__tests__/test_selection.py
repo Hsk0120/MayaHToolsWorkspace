@@ -57,7 +57,7 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual(len(selection.plugs()), 1)
         self.assertEqual(len(selection.filter(type="plug")), 1)
         cmds.renameAttr(self.joint + ".amount", "renamed")
-        self.assertTrue(selection.plugs()[0].full_name.endswith(".renamed"))
+        self.assertTrue(selection.plugs()[0].full_name().endswith(".renamed"))
         cmds.deleteAttr(self.joint + ".renamed")
         self.assertEqual(selection.plugs(), [])
         with self.assertRaises(RuntimeError):

@@ -24,6 +24,9 @@ Related commands
 Flags
 -----
 
+Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
+処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
+
 位置引数も含めた入力一覧です。括弧内は Maya に渡せる短縮名です。
 
 .. list-table::
@@ -41,7 +44,7 @@ Flags
    * - ``type (typ)``
      - ``str``
      - 省略可
-     - Maya のノード型で絞り込み。専用コレクションへの変換判定は長名 type のみ。
+     - Maya のノード型で絞り込み。type / typ のどちらも同じ専用コレクションへ変換します。
    * - ``selection (sl)``
      - ``bool``
      - False
@@ -67,9 +70,12 @@ Examples
     selected = hlib.ls(selection=True)
 """
 
+from .._core.flags import flag_aliases
+
 import maya.cmds as cmds
 
 
+@flag_aliases("ls")
 def ls(*args, **kwargs):
     """Mayaノードを検索し、対応するラッパーとして返す。
 
@@ -77,7 +83,7 @@ def ls(*args, **kwargs):
         *args (object): maya.cmds.lsへ渡す名前・名前列・パターン。
         **kwargs (object): maya.cmds.lsへ渡す検索フラグ。
     Returns:
-        list[Node] | Joints | SkinClusters: 長名typeがjoint/skinClusterの場合は専用コレクション。それ以外はリスト。
+        list[Node] | Joints | SkinClusters: typeまたはtypがjoint/skinClusterの場合は専用コレクション。それ以外はリスト。
     Raises:
         RuntimeError: 検索結果をノードとして解決できない場合。
 

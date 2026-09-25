@@ -31,16 +31,16 @@ class AnimCurve(Node):
 
     def key_count(self):
         """int: キー数。"""
-        return cmds.keyframe(self.full_name, query=True, keyframeCount=True) or 0
+        return cmds.keyframe(self.full_name(), query=True, keyframeCount=True) or 0
 
-    def inputs(self):
+    def key_inputs(self):
         """list[float]: キー順の入力。時間型は現在の時間単位、それ以外は単位なし。"""
         flag = "timeChange" if self.is_time_input() else "floatChange"
-        return cmds.keyframe(self.full_name, query=True, **{flag: True}) or []
+        return cmds.keyframe(self.full_name(), query=True, **{flag: True}) or []
 
     def values(self):
         """list[float]: キー順の出力値。角度・距離・時間は現在のUI単位。"""
-        return cmds.keyframe(self.full_name, query=True, valueChange=True) or []
+        return cmds.keyframe(self.full_name(), query=True, valueChange=True) or []
 
     def evaluate(self, input):
         """指定入力でカーブ単体を評価する。シーン時刻は変更しない。
@@ -52,7 +52,7 @@ class AnimCurve(Node):
         """
         value = self._finite(input)
         flag = "time" if self.is_time_input() else "float"
-        result = cmds.keyframe(self.full_name, query=True, eval=True, **{flag: (value, value)})
+        result = cmds.keyframe(self.full_name(), query=True, eval=True, **{flag: (value, value)})
         if not result:
             raise RuntimeError("Cannot evaluate an empty curve")
         return result[0]
@@ -71,7 +71,7 @@ class AnimCurve(Node):
         """
         position, value = self._finite(input), self._finite(value)
         flag = "time" if self.is_time_input() else "float"
-        cmds.setKeyframe(self.full_name, value=value, inTangentType=in_tangent,
+        cmds.setKeyframe(self.full_name(), value=value, inTangentType=in_tangent,
                         outTangentType=out_tangent, **{flag: position})
         return self
 
@@ -84,7 +84,7 @@ class AnimCurve(Node):
         Returns:
             AnimCurve: 自身。
         """
-        cmds.cutKey(self.full_name, index=self._index(index), clear=True, animation="objects")
+        cmds.cutKey(self.full_name(), index=self._index(index), clear=True, animation="objects")
         return self
 
     def tangent(self, index):
@@ -96,7 +96,7 @@ class AnimCurve(Node):
             dict: Mayaの接線フラグ名をキーとした型・角度・ウェイト・ロック情報。
         """
         span = self._index(index)
-        return {flag: cmds.keyTangent(self.full_name, query=True, index=span, **{flag: True})[0]
+        return {flag: cmds.keyTangent(self.full_name(), query=True, index=span, **{flag: True})[0]
                 for flag in ("inTangentType", "outTangentType", "inAngle", "outAngle",
                              "inWeight", "outWeight", "lock", "weightLock", "weightedTangents")}
 
@@ -115,13 +115,13 @@ class AnimCurve(Node):
                    "outWeight", "lock", "weightLock", "weightedTangents"}
         if not kwargs or set(kwargs) - allowed:
             raise ValueError("Specify supported tangent flags")
-        cmds.keyTangent(self.full_name, edit=True, index=self._index(index), animation="objects", **kwargs)
+        cmds.keyTangent(self.full_name(), edit=True, index=self._index(index), animation="objects", **kwargs)
         return self
 
     def infinity(self):
         """dict: pre/postをキーとした外挿方法名。"""
         names = {0: "constant", 1: "linear", 3: "cycle", 4: "cycleRelative", 5: "oscillate"}
-        return {key: names[cmds.getAttr(self.full_name + "." + key + "Infinity")]
+        return {key: names[cmds.getAttr(self.full_name() + "." + key + "Infinity")]
                 for key in ("pre", "post")}
 
     @undo_chunk("hlibAnimCurveInfinity")
@@ -137,8 +137,8 @@ class AnimCurve(Node):
         allowed = {"constant": 0, "linear": 1, "cycle": 3, "cycleRelative": 4, "oscillate": 5}
         if pre not in allowed or post not in allowed:
             raise ValueError("Unsupported infinity type")
-        cmds.setAttr(self.full_name + ".preInfinity", allowed[pre])
-        cmds.setAttr(self.full_name + ".postInfinity", allowed[post])
+        cmds.setAttr(self.full_name() + ".preInfinity", allowed[pre])
+        cmds.setAttr(self.full_name() + ".postInfinity", allowed[post])
         return self
 
     @undo_chunk("hlibAnimCurveShift")
@@ -154,7 +154,7 @@ class AnimCurve(Node):
         x, y = self._finite(input_offset), self._finite(value_offset)
         if self.key_count():
             flag = "timeChange" if self.is_time_input() else "floatChange"
-            cmds.keyframe(self.full_name, edit=True, relative=True, animation="objects",
+            cmds.keyframe(self.full_name(), edit=True, relative=True, animation="objects",
                           valueChange=y, **{flag: x})
         return self
 
@@ -175,7 +175,7 @@ class AnimCurve(Node):
             raise ValueError("Input scale cannot be zero")
         if self.key_count():
             prefix = "time" if self.is_time_input() else "float"
-            cmds.scaleKey(self.full_name, animation="objects", valueScale=y, valuePivot=py,
+            cmds.scaleKey(self.full_name(), animation="objects", valueScale=y, valuePivot=py,
                           **{prefix + "Scale": x, prefix + "Pivot": px})
         return self
 
