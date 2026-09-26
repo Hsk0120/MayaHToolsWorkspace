@@ -23,6 +23,14 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
     PARAM_FIELD_WIDTH = 80
     FLOAT_STEP = 1.0
     FLOAT_SLIDER_SCALE = 100
+    FLOAT_DECIMALS = 2
+
+    # 整数パラメータのうち、既定値からの推定では範囲が合わないものの入力範囲 (最小, 最大)。
+    INT_PARAM_RANGES = {
+        "sweep": (1, 360),  # 円弧の角度(度)
+        "arms": (1, 10),  # 放射状に並べる矢印の本数
+        "sides": (3, 10),  # 多角形の頂点数
+    }
 
     @staticmethod
     def _clamp_0_255(value):
@@ -334,11 +342,18 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         return isinstance(value, float)
     
     @staticmethod
+    def _build_shape_tooltip(func):
+        """形状ボタンのツールチップとして、形状関数の説明の1行目を返します。"""
+        doc = inspect.getdoc(func)
+        return doc.splitlines()[0] if doc else ""
+
+    @staticmethod
     def _get_shape_sections():
-        """クラス定義から SHAPE_SECTIONS を動的に生成
+        """ライブラリの形状定義から、UI に並べるセクションと形状の一覧を作ります。
 
         Returns:
-            [(section_key, [(func_name, params_list), ...]), ...] の形式のリスト
+            list: ``[(section_key, [(func_name, params_list, tooltip), ...]), ...]``。
+                セクションと形状はライブラリ側の表示順(定義順)に並ぶ。
         """
         # ライブラリ側の shape クラスを列挙し、UI 表示用メタ情報へ変換する。
         section_classes_dict = controllerShapeManager.get_shape_classes()
@@ -348,11 +363,8 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         for section_key, section_class in section_classes:
             shapes = []
 
-            # 公開メソッドのみを shape 候補として扱う。
-            for method_name, method in inspect.getmembers(section_class, predicate=inspect.isfunction):
-                if method_name.startswith('_'):  # プライベートメソッドをスキップ
-                    continue
-
+            # ライブラリが定義順に返す公開 staticmethod を shape 候補として扱う。
+            for method_name, method in controllerShapeManager.get_shape_functions(section_class):
                 sig = inspect.signature(method)
                 params = []
 
@@ -365,7 +377,9 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
                     # UI の編集しやすさを優先した最小/最大レンジを決める。
                     # NOTE: デフォルト値が 0 のパラメータ（角度など）は 0..360 を想定する
-                    if isinstance(default, int):
+                    if isinstance(default, int) and param_name in ControllerShapeManagerUI.INT_PARAM_RANGES:
+                        min_val, max_val = ControllerShapeManagerUI.INT_PARAM_RANGES[param_name]
+                    elif isinstance(default, int):
                         if int(default) == 0:
                             min_val = 0
                             max_val = 180
@@ -384,7 +398,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
                     params.append((param_name, default, param_name, min_val, max_val))
 
-                shapes.append((method_name, params))
+                shapes.append((method_name, params, ControllerShapeManagerUI._build_shape_tooltip(method)))
 
             result.append((section_key, shapes))
 
@@ -475,8 +489,10 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             grid_layout.setAlignment(QtCore.Qt.AlignTop)
 
             section_buttons = []
-            for idx, (func_name, params) in enumerate(shapes):
+            for idx, (func_name, params, tooltip) in enumerate(shapes):
                 button = QtWidgets.QPushButton(func_name)
+                if tooltip:
+                    button.setToolTip(tooltip)
                 button.setMinimumHeight(36)
                 button.setMinimumWidth(self.SHAPE_BUTTON_MIN_WIDTH)
                 button.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
@@ -682,24 +698,27 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         if self._is_float_value(default_value):
             # Float スライダー
             slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-            slider.setMinimum(int(min_val * self.FLOAT_SLIDER_SCALE))
-            slider.setMaximum(int(max_val * self.FLOAT_SLIDER_SCALE))
-            slider.setValue(int(default_value * self.FLOAT_SLIDER_SCALE))
+            # 0.29 * 100 = 28.999... のような誤差で目盛りがずれないよう、丸めてから整数にする。
+            slider.setMinimum(int(round(min_val * self.FLOAT_SLIDER_SCALE)))
+            slider.setMaximum(int(round(max_val * self.FLOAT_SLIDER_SCALE)))
+            slider.setValue(int(round(default_value * self.FLOAT_SLIDER_SCALE)))
             slider.setSingleStep(int(self.FLOAT_STEP * self.FLOAT_SLIDER_SCALE))
             slider.setPageStep(int(self.FLOAT_STEP * self.FLOAT_SLIDER_SCALE))
             
             # Float フィールド
             field = QtWidgets.QDoubleSpinBox()
+            # 既定値(0.44 など小数2桁)が丸められずに表示・適用されるよう、小数2桁まで扱う。
+            # 値は設定時点の桁数で丸められるため、範囲・値より先に桁数を決める。
+            field.setDecimals(self.FLOAT_DECIMALS)
             field.setMinimum(min_val)
             field.setMaximum(max_val)
             field.setValue(default_value)
             field.setSingleStep(self.FLOAT_STEP)
-            field.setDecimals(1)
             field.setFixedWidth(self.PARAM_FIELD_WIDTH)
-            
+
             # 連動
             slider.valueChanged.connect(lambda v: field.setValue(v / float(self.FLOAT_SLIDER_SCALE)))
-            field.valueChanged.connect(lambda v: slider.setValue(int(v * self.FLOAT_SLIDER_SCALE)))
+            field.valueChanged.connect(lambda v: slider.setValue(int(round(v * self.FLOAT_SLIDER_SCALE))))
             
         else:
             # Int スライダー

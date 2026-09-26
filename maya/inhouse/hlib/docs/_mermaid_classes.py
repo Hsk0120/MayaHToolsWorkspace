@@ -70,14 +70,18 @@ def _class_page(qualname):
 
 
 def _class_links(names, hierarchy, source_page):
-    """図に含まれるhlibクラスだけに、現在のページからの相対リンクを付ける。"""
+    """図に含まれるhlibクラスだけに、現在のページからの相対リンクを付ける。
+
+    Mermaid 11 はリンク先の指定が無いと新しいタブで開くため、``_self`` を明示して
+    通常のリンクと同じく同じタブで移動させる。
+    """
     links = []
     for name in sorted(names):
         if name not in hierarchy:
             continue
         qualname = hierarchy[name]["qualname"]
         target = posixpath.relpath(_class_page(qualname), posixpath.dirname(source_page) or ".")
-        links.append(f'    click {name} href "{target}#{qualname}" "{qualname}"')
+        links.append(f'    click {name} href "{target}#{qualname}" "{qualname}" _self')
     return links
 
 

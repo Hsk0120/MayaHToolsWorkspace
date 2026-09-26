@@ -1,292 +1,372 @@
 @charset "UTF-8";
 
 /*
- * hlib ドキュメント ダークテーマ。
- * sphinxdoc テーマ（basic.css + sphinxdoc.css）の配色を上書きする。
- * 構造・レイアウトは変更せず、色のみをダーク向けに置き換える。
+ * hlib ドキュメントの見た目(ダーク)。
+ *
+ * Sphinx 標準の sphinxdoc テーマを土台にし、その明るい既定色が残る箇所を
+ * 塗り替える。段組み(サイドバーの幅など)はテーマのものを使う。
+ * 独自に決めている意匠は次の3点。
+ *   - 広い画面では本文の列を最大幅で止め、中央に置く。
+ *   - 見出しの階層は、左端の縦線の太さと色で示す(下線は使わない)。
+ *   - 型名などの強調は斜体にせず、コードブロックと同じ「型の色」で示す。
+ * 色はすべて先頭の変数にまとめ、各ルールからは変数だけを参照する。
+ * コードブロック内の字句の色は code-dark-plus.css、Mermaid 図の配置は
+ * mermaid.css が受け持つ。
  */
 
 :root {
-    --hlib-bg-page: #14161a;
-    --hlib-bg-doc: #1b1e22;
-    --hlib-bg-sidebar: #191c20;
-    --hlib-bg-panel: #22262b;
-    --hlib-bg-code: #21252b;
-    --hlib-text: #ccd2d8;
-    --hlib-text-muted: #8b939b;
-    --hlib-heading: #5fc4d6;
-    --hlib-heading-dim: #b9c0c7;
-    --hlib-accent: #5fc4d6;
-    --hlib-link: #6cb6ff;
-    --hlib-link-hover: #9ad4ff;
-    --hlib-link-visited: #b699e0;
-    --hlib-border: #33383e;
-    --hlib-border-strong: #464c53;
-    --hlib-warn-bg: #3a2222;
-    --hlib-warn-border: #7a3a3a;
-    --hlib-warn-title: #8a3a3a;
+    color-scheme: dark;
+
+    /* 面: 外側ほど暗い */
+    --hd-canvas: #14161a;
+    --hd-surface: #1b1e22;
+    --hd-code: #21252b;
+    --hd-raised: #22262b;
+    --hd-band: #2a3239;
+
+    /* 文字 */
+    --hd-text: #ccd2d8;
+    --hd-text-soft: #8b939b;
+    --hd-text-bright: #eef4f7;
+    --hd-heading: #b9c0c7;
+    --hd-accent: #5fc4d6;
+    --hd-accent-dim: #3a7d8a;
+    --hd-literal: #e0c88a;
+    --hd-type: #4ec9b0;
+    --hd-permalink: #d97a7a;
+
+    /* リンク */
+    --hd-link: #6cb6ff;
+    --hd-link-hover: #9ad4ff;
+    --hd-link-visited: #b699e0;
+
+    /* 罫線 */
+    --hd-rule: #33383e;
+    --hd-rule-strong: #464c53;
+
+    /* 注意・強調の状態 */
+    --hd-alert-rule: #7a3a3a;
+    --hd-alert-band: #8a3a3a;
+    --hd-target: #4a3f1e;
+    --hd-selection: #2c5a75;
 }
 
-/* -- page layout ------------------------------------------------------- */
 
+/* ==== ページの外枠 ==================================================== */
+
+/* 横に長い行は読みにくいため、本文の列は 1600px で止めて中央に置く。 */
 body {
-    margin: 0 5px;
-    background-color: var(--hlib-bg-page);
-    color: var(--hlib-text);
-    border-color: var(--hlib-border);
+    max-width: 1600px;
+    margin: 0 auto;
+    background: var(--hd-canvas);
+    color: var(--hd-text);
+    border-color: var(--hd-rule);
 }
 
+/* テーマの背景画像(明るいグラデーション)も background で打ち消す。 */
 div.document {
-    background-color: var(--hlib-bg-doc);
-    background-image: none;
-    color: var(--hlib-text);
+    background: var(--hd-surface);
+    color: var(--hd-text);
 }
 
 div.bodywrapper {
-    border-right: 1px solid var(--hlib-border);
+    border-right-color: var(--hd-rule);
 }
-
-div.related ul {
-    background-image: none;
-    background-color: var(--hlib-bg-panel);
-    border-top: 1px solid var(--hlib-border);
-    border-bottom: 1px solid var(--hlib-border);
-}
-
-div.related ul li a {
-    color: var(--hlib-accent);
-}
-
-div.related ul li a:hover {
-    color: var(--hlib-link-hover);
-}
-
-/* -- sidebar ------------------------------------------------------------ */
-
-div.sphinxsidebar {
-    color: var(--hlib-text);
-}
-
-div.sphinxsidebar h3, div.sphinxsidebar h4 {
-    color: #eef4f7;
-    border: 1px solid var(--hlib-border-strong);
-    background-color: #2a3239;
-}
-
-div.sphinxsidebar h3 a {
-    color: #eef4f7;
-}
-
-div.sphinxsidebar a {
-    color: var(--hlib-link);
-}
-
-div.sphinxsidebar a:hover {
-    color: var(--hlib-link-hover);
-}
-
-div.sphinxsidebar input[type="text"],
-div.sphinxsidebar input[type="submit"] {
-    background-color: var(--hlib-bg-panel);
-    color: var(--hlib-text);
-    border: 1px solid var(--hlib-border-strong);
-}
-
-/* -- footer / relbar ----------------------------------------------------- */
 
 div.footer {
-    background-color: var(--hlib-bg-page);
-    color: var(--hlib-text-muted);
+    background: var(--hd-canvas);
+    color: var(--hd-text-soft);
 }
 
 div.footer a {
-    color: var(--hlib-text-muted);
+    color: inherit;
 }
 
-/* -- headings ------------------------------------------------------------ */
 
-h1 {
-    padding: 0.7em 0 0.3em 0.2em;
-    margin-bottom: 0.6em;
-    color: var(--hlib-heading);
-    border-bottom: 3px solid var(--hlib-heading);
+/* ==== 上下のナビゲーション帯 ========================================== */
+
+div.related ul {
+    background: var(--hd-raised);
+    border-top-color: var(--hd-rule);
+    border-bottom-color: var(--hd-rule);
 }
 
-h2, h3, h4, h5, h6 {
-    padding: 0.2em 0 0.3em 0.2em;
-    margin-bottom: 0.6em;
-    color: var(--hlib-heading-dim);
-    border-bottom: 1px dotted var(--hlib-border-strong);
+/* 訪問済みかどうかで色を変えず、帯の中は常にアクセント色で示す。 */
+div.related a[href] {
+    color: var(--hd-accent);
 }
 
-h2 { border-bottom: 3px solid var(--hlib-border-strong); }
-h3 { border-bottom: 1px solid var(--hlib-border); }
-
-div.body h1 a, div.body h2 a, div.body h3 a,
-div.body h4 a, div.body h5 a, div.body h6 a {
-    color: inherit !important;
+div.related a[href]:hover {
+    color: var(--hd-link-hover);
 }
 
-h1 a.anchor, h2 a.anchor, h3 a.anchor, h4 a.anchor, h5 a.anchor, h6 a.anchor {
-    color: var(--hlib-text-muted) !important;
+
+/* ==== サイドバー ====================================================== */
+
+div.sphinxsidebar {
+    color: var(--hd-text);
 }
 
-h1:hover a.anchor:hover, h2:hover a.anchor:hover, h3:hover a.anchor:hover,
-h4:hover a.anchor:hover, h5:hover a.anchor:hover, h6:hover a.anchor:hover {
-    color: var(--hlib-text) !important;
-    background-color: var(--hlib-bg-panel);
+div.sphinxsidebar :is(h3, h4) {
+    background: var(--hd-band);
+    border-color: var(--hd-rule-strong);
+    color: var(--hd-text-bright);
 }
 
-a.headerlink {
-    color: #d97a7a !important;
+div.sphinxsidebar a[href] {
+    color: var(--hd-link);
 }
 
-a.headerlink:hover {
-    background-color: var(--hlib-bg-panel);
-    color: var(--hlib-link-hover) !important;
+div.sphinxsidebar a[href]:hover {
+    color: var(--hd-link-hover);
 }
 
-/* -- links ---------------------------------------------------------------- */
+/* 見出し帯の中のリンク(「目次」など)は帯の文字色のままにする。 */
+div.sphinxsidebar :is(h3, h4) a[href] {
+    color: inherit;
+}
+
+div.sphinxsidebar input {
+    background: var(--hd-raised);
+    border: 1px solid var(--hd-rule-strong);
+    color: var(--hd-text);
+}
+
+
+/* ==== 本文の文字とリンク ============================================== */
 
 a {
-    color: var(--hlib-link);
-}
-
-a:hover {
-    color: var(--hlib-link-hover);
+    color: var(--hd-link);
 }
 
 a:visited {
-    color: var(--hlib-link-visited);
+    color: var(--hd-link-visited);
 }
 
-/* -- inline code / code blocks -------------------------------------------- */
-
-pre, cite, code, tt {
-    font-family: 'Consolas', 'Deja Vu Sans Mono', 'Lucida Grande', 'Lucida Sans Unicode', 'Geneva', 'sans-serif';
+a:hover {
+    color: var(--hd-link-hover);
 }
 
-i, cite, em, var, address, dfn { font-style: normal; font-weight: bold; }
+/*
+ * 注記の付かない em は、引数の説明に添える型名((str) など)が大半を占める。
+ * 斜体をやめ、コードブロックでクラス名に使う色と同じ色で型だと分かるようにする。
+ * 和文の強調に使われた場合も斜体にならない。リンクになっている型はリンクの色のまま。
+ * シグネチャの引数名(em.sig-param)は英字だけなので、テーマどおり斜体で残す。
+ */
+div.body em:not([class]) {
+    font-style: normal;
+    color: var(--hd-type);
+}
+
+div.body a em:not([class]) {
+    color: inherit;
+}
+
+hr {
+    border-color: var(--hd-rule-strong);
+}
+
+
+/* ==== 見出し ==========================================================
+ * 階層は左端の縦線で示す。h1 は帯を敷いたアクセント色の太線、h2 は細めの
+ * アクセント色、h3 は罫線色の細線とし、h4 以下は線を付けず文字だけにする。
+ * クラスページで「メソッド」などのまとまりを区切る rubric も同じ考え方で揃える。
+ */
+
+div.body :is(h1, h2, h3, h4, h5, h6) {
+    margin: 1.4em 0 0.5em;
+    padding: 0.1em 0 0.1em 0.55em;
+    line-height: 1.35;
+    color: var(--hd-heading);
+}
+
+div.body h1 {
+    margin-top: 0.5em;
+    padding: 0.35em 0.6em 0.35em 0.65em;
+    font-size: 1.6em;
+    color: var(--hd-accent);
+    background: var(--hd-raised);
+    border-left: 6px solid var(--hd-accent);
+}
+
+div.body h2 {
+    border-left: 4px solid var(--hd-accent-dim);
+}
+
+div.body h3 {
+    border-left: 2px solid var(--hd-rule-strong);
+}
+
+div.body :is(h4, h5, h6) {
+    padding-left: 0;
+}
+
+div.body p.rubric {
+    margin: 1.8em 0 0.6em;
+    padding: 0.1em 0 0.1em 0.55em;
+    color: var(--hd-text-bright);
+    border-left: 3px solid var(--hd-accent-dim);
+}
+
+/* テーマは見出し内リンクを黒に固定しているため、見出しの色に合わせ直す。 */
+div.body :is(h1, h2, h3, h4, h5, h6) a {
+    color: inherit !important;
+}
+
+/* 見出し以外(クラス・メソッドの宣言など)に付く ¶ リンク。 */
+a.headerlink {
+    color: var(--hd-permalink) !important;
+}
+
+a.headerlink:hover {
+    background: var(--hd-raised);
+    color: var(--hd-link-hover) !important;
+}
+
+
+/* ==== コード ========================================================== */
 
 code {
-    background-color: var(--hlib-bg-code);
-    border-bottom: 1px solid var(--hlib-border-strong);
-    color: #e0c88a;
+    background: var(--hd-code);
+    border-bottom-color: var(--hd-rule-strong);
+    color: var(--hd-literal);
 }
 
 a code {
-    color: var(--hlib-link);
+    color: var(--hd-link);
 }
 
 a code:hover {
-    color: var(--hlib-link-hover);
+    color: var(--hd-link-hover);
 }
 
 pre {
-    background-color: var(--hlib-bg-code);
-    color: var(--hlib-text);
-    border: 1px solid var(--hlib-border);
+    background: var(--hd-code);
+    border-color: var(--hd-rule);
+    color: var(--hd-text);
 }
 
 td.linenos pre {
-    background-color: transparent;
-    color: var(--hlib-text-muted);
+    background: transparent;
+    color: var(--hd-text-soft);
 }
 
 div.code-block-caption {
-    background-color: var(--hlib-bg-panel);
-    color: var(--hlib-text);
-    border: 1px solid var(--hlib-border);
+    background: var(--hd-raised);
+    border-color: var(--hd-rule);
+    color: var(--hd-text);
 }
 
-/* -- tables ---------------------------------------------------------------- */
 
-table.align-default { margin-left: 1em; }
+/* ==== 表・枠で囲む要素 ================================================ */
 
-table.docutils td, table.docutils th {
-    border-bottom: 1px solid var(--hlib-border-strong);
+/* 表(クラスページの早見表を含む)は中央に寄せず、本文と同じ左端から始める。 */
+table.align-default {
+    margin-left: 0;
+    margin-right: auto;
+}
+
+table.docutils :is(td, th) {
+    border-bottom-color: var(--hd-rule-strong);
 }
 
 table.indextable tr.cap {
-    background-color: var(--hlib-bg-panel);
+    background: var(--hd-raised);
 }
 
-/* -- admonitions / topics --------------------------------------------------- */
-
-nav.contents, aside.topic, div.topic, div.quotebar {
-    background-color: var(--hlib-bg-panel);
-    border-color: var(--hlib-border);
+:is(nav.contents, aside.topic, div.topic) {
+    background: var(--hd-raised);
+    border-color: var(--hd-rule);
 }
 
-div.admonition, div.warning {
-    border: 1px solid var(--hlib-border-strong);
-    background-color: var(--hlib-bg-panel);
-    color: var(--hlib-text);
+div.admonition {
+    background: var(--hd-raised);
+    border-color: var(--hd-rule-strong);
+    color: var(--hd-text);
 }
 
-div.admonition p.admonition-title, div.warning p.admonition-title {
-    color: #eef4f7;
-    border-bottom: 1px solid var(--hlib-border-strong);
-    background-color: #2a3239;
+div.admonition > p.admonition-title {
+    background: var(--hd-band);
+    border-bottom-color: var(--hd-rule-strong);
+    color: var(--hd-text-bright);
 }
 
-div.warning {
-    border: 1px solid var(--hlib-warn-border);
+/* 注意を促す種類の枠だけ、見出し帯と枠線を赤系にする。 */
+div.admonition:is(.warning, .caution, .danger, .error, .attention) {
+    border-color: var(--hd-alert-rule);
 }
 
-div.warning p.admonition-title {
-    background-color: var(--hlib-warn-title);
-    border-bottom-color: var(--hlib-warn-border);
+div.admonition:is(.warning, .caution, .danger, .error, .attention) > p.admonition-title {
+    background: var(--hd-alert-band);
+    border-bottom-color: var(--hd-alert-rule);
 }
 
-div.versioninfo {
-    border: 1px solid var(--hlib-border);
-    background-color: var(--hlib-bg-panel);
-    color: var(--hlib-text);
-}
 
-/* -- misc -------------------------------------------------------------- */
+/* ==== リンク先・検索語・選択範囲 ====================================== */
 
-hr {
-    border: 1px solid var(--hlib-border-strong);
-}
-
-dt:target, span.highlighted {
-    background-color: #4a3f1e;
-    color: var(--hlib-text);
-}
-
-.system-message {
-    background-color: #3a2222;
-    border: 3px solid #7a3a3a;
-    color: var(--hlib-text);
-}
-
-.footnote:target {
-    background-color: #3a3520;
-}
-
-div.viewcode-block:target {
-    background-color: #2a3239;
-    border-top: 1px solid var(--hlib-border-strong);
-    border-bottom: 1px solid var(--hlib-border-strong);
+dt:target,
+span.highlighted {
+    background: var(--hd-target);
+    color: var(--hd-text);
 }
 
 ::selection {
-    background-color: #2c5a75;
+    background: var(--hd-selection);
     color: #fff;
 }
 
-/* 狭い画面では740px固定幅による自動縮小を避け、図は領域内でスクロールする。 */
-@media (max-width: 740px) {
-    body { min-width: 0; margin: 0; }
-    div.bodywrapper { margin: 0; border-right: 0; }
-    div.documentwrapper { float: none; }
-    div.body { min-width: 0; overflow-wrap: anywhere; }
-    div.sphinxsidebar {
-        float: none; clear: both; width: auto; margin: 0; padding: 0 20px 20px;
+
+/* ==== 狭い画面 ========================================================
+ * sphinxdoc は画面幅 740px 以上を前提に組まれている。それより狭い画面では
+ * サイドバーを本文の下へ回し、収まらない要素はその要素の中だけで横に送る
+ * (ページ全体は横スクロールさせない)。
+ */
+
+@media screen and (max-width: 740px) {
+    body {
+        min-width: 0;
+        margin: 0;
     }
-    div.related ul { height: auto; min-height: 2em; overflow: auto; }
-    pre { max-width: 100%; overflow: auto; }
-    table.docutils { display: block; max-width: 100%; overflow-x: auto; }
+
+    div.documentwrapper,
+    div.sphinxsidebar {
+        float: none;
+    }
+
+    div.bodywrapper {
+        margin: 0;
+        border-right: none;
+    }
+
+    div.body {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    /* 長い完全修飾名のクラス見出しが何行にも折れないよう、h1 を小さくする。 */
+    div.body h1 {
+        font-size: 1.3em;
+    }
+
+    div.sphinxsidebar {
+        clear: both;
+        width: auto;
+        margin: 0;
+        padding: 0 20px 20px;
+    }
+
+    div.related ul {
+        height: auto;
+        min-height: 2em;
+        overflow-x: auto;
+    }
+
+    div.body :is(pre, table.docutils) {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    div.body table.docutils {
+        display: block;
+    }
 }

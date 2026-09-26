@@ -4,6 +4,9 @@ from pathlib import Path
 import logging
 import sys
 
+import autoapi
+from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
+
 # リポジトリルートからのCIビルドでも、docs内の補助モジュールを解決する。
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -38,6 +41,7 @@ logging.getLogger("sphinx.autoapi._mapper").addFilter(_DynamicExportFilter())
 logging.getLogger("sphinx").addFilter(_ReexportedSubpackageFilter())
 
 project = "hlib"
+copyright = "2026 Hsk0120"
 language = "ja"
 extensions = ["autoapi.extension", "sphinx.ext.napoleon"]
 
@@ -63,7 +67,19 @@ html_theme = "sphinxdoc"
 pygments_style = "one-dark"
 html_static_path = ["_static"]
 html_css_files = ["custom.css", "code-dark-plus.css", "mermaid.css"]
-html_js_files = ["mermaid.min.js", "mermaid-init.js"]
+
+# Mermaid はリポジトリに同梱せず、jsDelivr から正確な版を指定して読み込む。
+# 版を上げるときは、その版の dist/mermaid.min.js を取得して
+# ``sha384`` ダイジェストを base64 化した値で _MERMAID_SRI も必ず更新する。
+# (値が一致しないとブラウザが読み込みを拒否し、図が描画されない)
+_MERMAID_VERSION = "11.17.2"
+_MERMAID_URL = f"https://cdn.jsdelivr.net/npm/mermaid@{_MERMAID_VERSION}/dist/mermaid.min.js"
+_MERMAID_SRI = "sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2"
+# 大きなファイルの取得で本文の表示を止めないよう、どちらも defer で実行順だけを保つ。
+html_js_files = [
+    (_MERMAID_URL, {"integrity": _MERMAID_SRI, "crossorigin": "anonymous", "defer": "defer"}),
+    ("mermaid-init.js", {"defer": "defer"}),
+]
 html_title = "hlib ドキュメント"
 
 # hlib配下のクラス継承関係をast静的解析のみで集計する(hlib・Mayaをimportしない)。
@@ -82,11 +98,59 @@ def _include_constructors(app, what, name, obj, skip, options):
     return None
 
 
+# 独自テンプレートが sphinx-autoapi 同梱のテンプレートを複製せずに参照するための名前空間。
+# 例: ``{% include "autoapi-packaged/python/module.rst" %}``
+_PACKAGED_TEMPLATE_PREFIX = "autoapi-packaged"
+# 独自テンプレートが同梱側から実際に読み込むテンプレート(存在確認に使う)。
+_PACKAGED_TEMPLATES_IN_USE = ("python/module.rst",)
+
+
+def _find_packaged_templates():
+    """sphinx-autoapi が配布物に同梱しているテンプレートのフォルダを返す。
+
+    sphinx-autoapi の内部設定値には頼らず、インストールされたパッケージの
+    ``templates`` フォルダを直接指す。版の更新で配置が変わっていた場合は、
+    ページ生成中の分かりにくい TemplateNotFound ではなく、設定の読み込み時に
+    原因と確認先を示して止める。
+
+    Returns:
+        Path: 同梱テンプレートのフォルダ。
+
+    Raises:
+        RuntimeError: 独自テンプレートが参照する同梱テンプレートが見つからない場合。
+    """
+    template_dir = Path(autoapi.__file__).resolve().parent / "templates"
+    missing = [name for name in _PACKAGED_TEMPLATES_IN_USE if not (template_dir / name).is_file()]
+    if missing:
+        raise RuntimeError(
+            "sphinx-autoapi の同梱テンプレートが見つかりません: "
+            f"{', '.join(missing)} (探した場所: {template_dir})。"
+            "インストールされている sphinx-autoapi の版と requirements.txt を確認し、"
+            "_templates/autoapi/python/module.rst の include 先を合わせてください。"
+        )
+    return template_dir
+
+
+_PACKAGED_TEMPLATE_DIR = _find_packaged_templates()
+
+
 def _prepare_jinja_env(jinja_env):
-    """クラスページのテンプレートから継承図を組み立てられるようにする。"""
+    """AutoAPI のテンプレート環境へ、hlib 独自テンプレート用の設定を追加する。
+
+    - クラスページのテンプレートから継承図を組み立てる関数を登録する。
+    - 同梱テンプレートを ``autoapi-packaged/`` 接頭辞付きでも引けるようにする。
+      ``_templates/autoapi`` の同名ファイルが優先されるため、上書きした
+      テンプレートから元の既定表示へ処理を委ねるにはこの接頭辞で指定する。
+    """
     jinja_env.globals["ancestor_class_diagram"] = (
         lambda class_name: ancestor_class_diagram(class_name, _CLASS_HIERARCHY)
     )
+    jinja_env.loader = ChoiceLoader([
+        jinja_env.loader,
+        PrefixLoader({
+            _PACKAGED_TEMPLATE_PREFIX: FileSystemLoader(str(_PACKAGED_TEMPLATE_DIR)),
+        }),
+    ])
 
 
 autoapi_prepare_jinja_env = _prepare_jinja_env

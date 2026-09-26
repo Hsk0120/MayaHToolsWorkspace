@@ -276,8 +276,8 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
 
         self.skin.redistribute_weights([0, 3], method="cubic")
 
-        eased_root = easing.ease_in_out_cubic(0.75)
-        eased_child = easing.ease_in_out_cubic(0.25)
+        eased_root = easing.ease(0.75, "cubic")
+        eased_child = easing.ease(0.25, "cubic")
         eased_total = eased_root + eased_child
         expected_root = eased_root / eased_total
         expected_child = eased_child / eased_total
@@ -314,11 +314,70 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
 
         self.assertEqual(list(self.skin.get_weights([self.root, self.child])), before)
 
+    def test_redistribute_weights_accepts_every_curve_name(self):
+        for curve in easing.CURVES:
+            with self.subTest(curve=curve):
+                self.skin.set_weights([self.root, self.child], [0.75, 0.25])
+
+                self.skin.redistribute_weights([0], method=curve)
+
+                weights = list(self.skin.get_weights([self.root, self.child]))
+                self.assertAlmostEqual(weights[0] + weights[1], 1.0, places=9)
+                if curve == "linear":
+                    self.assertAlmostEqual(weights[0], 0.75, places=9)
+                else:
+                    # 大きい側の割合が強調され、0.75 より大きくなる。
+                    self.assertGreater(weights[0], 0.75)
+
+    def test_redistribute_weights_treats_legacy_sinusoidal_as_sine(self):
+        self.skin.set_weights([self.root, self.child], [0.75, 0.25])
+
+        self.skin.redistribute_weights([0], method="sinusoidal")
+        self.skin.redistribute_weights([1], method="sine")
+
+        weights = list(self.skin.get_weights([self.root, self.child]))
+        self.assertAlmostEqual(weights[0], weights[2], places=12)
+        self.assertAlmostEqual(weights[1], weights[3], places=12)
+        self.assertGreater(weights[0], 0.75)
+
     def test_redistribute_weights_raises_for_unsupported_method_and_out_of_range_vertex(self):
         with self.assertRaises(ValueError):
             self.skin.redistribute_weights([0], method="not_a_method")
+        with self.assertRaises(ValueError):
+            # 旧 API の関数名接頭辞付きの名前は受け付けない。
+            self.skin.redistribute_weights([0], method="ease_in_out_cubic")
         with self.assertRaises(IndexError):
             self.skin.redistribute_weights([999], method="cubic")
+
+    def test_redistribute_weights_raises_type_error_for_non_string_method(self):
+        self.skin.set_weights([self.root, self.child], [0.75, 0.25])
+        before = list(self.skin.get_weights([self.root, self.child]))
+
+        for method in (None, 3, ["cubic"]):
+            with self.subTest(method=method):
+                with self.assertRaises(TypeError):
+                    self.skin.redistribute_weights([0], method=method)
+
+        self.assertEqual(list(self.skin.get_weights([self.root, self.child])), before)
+
+    def test_redistribute_weights_keeps_zero_weight_influences_at_zero(self):
+        # どの曲線も ease(0) == 0 のため、効いていない influence に
+        # ウェイトが新たに配られることはない。
+        grandchild = cmds.createNode(
+            "joint", name="hlibSkinRedistributeGrandchild", parent=self.child
+        )
+        cmds.setAttr(grandchild + ".translateY", 1.0)
+        self.skin.add_influences(grandchild)
+        influences = [self.root, self.child, grandchild]
+        for curve in easing.CURVES:
+            with self.subTest(curve=curve):
+                self.skin.set_weights(influences, [0.75, 0.25, 0.0])
+
+                self.skin.redistribute_weights([0], method=curve)
+
+                weights = list(self.skin.get_weights(influences))
+                self.assertEqual(weights[2], 0.0)
+                self.assertAlmostEqual(weights[0] + weights[1], 1.0, places=9)
 
 
 if __name__ == "__main__":

@@ -79,6 +79,9 @@ macOS用の起動ファイルは`maya_<version>_<language>.command`と
 - `maya/inhouse/hlib`: Mayaノード・属性ラッパー、形状操作、数学型などの共通ライブラリ
 - `maya/inhouse/HTools`: Mayaメニューから起動する社内ツール
 - `maya/modules`: 各ツールをMayaへ認識させる`.mod`定義
+  - `metahuman_for_maya.mod`・`pose_driver_connect.mod`はこのワークスペースで記述した定義で、
+    Windows版だけを登録します(MetaHumanForMaya: Maya 2024〜2027、PoseDriverConnect: Maya 2022・2024・2026・2027)。
+    macOS・Linuxでは両製品を読み込みません。
 
 ## ▼セットアップ
 

@@ -9,6 +9,8 @@ PoseDriverConnect v2のPythonモデルAPIを使い、`UERBFSolverNode`と
 - hlib、PoseDriverConnectのPythonパッケージ`epic_pose_wrangler`をPython探索パスへ追加します。
 - 外部Pythonパッケージは不要です（Python標準ライブラリとMayaのみ）。依存するモジュールが読み込めない場合は拡張状態が`error`になり、hlib標準機能は継続します。
 - `maya/modules/hlib_posedriverconnect.mod`はこの拡張の`scripts/`を探索パスへ追加します。
+- PoseDriverConnect本体は、このワークスペースで記述した`maya/modules/pose_driver_connect.mod`で
+  読み込みます（Windows版Maya 2022・2024・2026・2027のみ。Maya 2023・2025とmacOS・Linux版は登録しません）。
 - `import hlib`で`hlib_*`拡張が検出されます。`userSetup.py`は不要です。
 - Maya上でノードを作成・評価するには、そのMayaバージョンに対応する製品のプラグインが必要です。拡張自身はロードしません。
 - 導入後の再検出は`hlib.reload()`で行います。取得済みオブジェクトは取得し直してください。

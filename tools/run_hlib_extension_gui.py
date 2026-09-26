@@ -76,7 +76,7 @@ def main(output_dir=None, finished=None):
         native_binary = ROOT / 'maya/external/PoseDriverConnect/plug-ins/windows' / version / 'MayaUERBFPlugin.mll'
         if native_binary.exists():
             check(state['state'] == 'loaded', 'PoseDriverConnect Python API registered')
-            check('PoseDriverConnect' in modules, 'Actual PoseDriverConnect.mod detected')
+            check('PoseDriverConnect' in modules, 'Actual pose_driver_connect.mod detected')
             # MetaHumanにも同名バイナリがあるため、.modのルートから対象を明示する。
             plugin_root = Path(cmds.moduleInfo(moduleName='PoseDriverConnect', path=True))
             native_binary = plugin_root / 'plug-ins/windows' / version / 'MayaUERBFPlugin.mll'

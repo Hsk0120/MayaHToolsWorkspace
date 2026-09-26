@@ -1,71 +1,107 @@
-﻿"""コントローラ形状カーブ生成ライブラリ。"""
+﻿"""コントローラ用カーブ形状の生成ライブラリ。
+
+形状はすべて寸法の引数から計算して求め、次数1(折れ線)の nurbsCurve として作成する
+(``Planar.circle`` のみ Maya の ``circle`` コマンドで次数3のカーブを作る)。
+形状の組み立て方は次の3通り。
+
+* 閉じた輪郭: 外周の点列を1周させる(平面図形、輪郭で描く矢印)。
+* ワイヤーフレーム: 線分の集合を :func:`_trace_strokes` で1本の折れ線にまとめる
+  (立体、線だけで描く矢印)。
+* 巻き付け: 平面上の輪郭を球面へ写す(``Markers.sphere_arrows``)。
+
+座標系は Y 軸が上で、平面図形は XZ 平面に置く。向きを持つ矢印は既定で -Z を指す。
+
+形状は :class:`Shape` を継承したセクションクラスの公開 staticmethod として定義し、
+UI(``HTools/rigging/controllerShapeManagerUI.py``)は :func:`get_shape_classes` と
+:func:`get_shape_functions` で得た順にタブとボタンを並べる。どの形状関数も、形状ごとの
+寸法の引数に加えて次の共通引数を受け取る。
+
+* ``name`` (str): 作成するカーブの名前。
+* ``tx``, ``ty``, ``tz`` (float): CV に加える平行移動。
+* ``rx``, ``ry``, ``rz`` (float): CV に加える回転(度、X→Y→Z の順に適用)。
+* ``sx``, ``sy``, ``sz`` (float): CV に加えるスケール。
+
+戻り値は作成(または形状を差し替え)したカーブの transform 名。ただし ``Planar.circle``
+だけは ``cmds.circle`` の戻り値(transform 名を先頭に含むリスト)をそのまま返す。
+"""
+
+import inspect
+import itertools
+import math
+import sys
+from collections import deque
+from importlib import reload
 
 import maya.cmds as cmds
-import math
-import inspect
-import sys
-from importlib import reload
-import hlib.decorators.undo as undo; reload(undo)
+
+import hlib.decorators.undo as undo
+reload(undo)
 
 
-DEFAULT_SHAPE_NAME = "controller1"
+DEFAULT_SHAPE_NAME = "ctrlCurve"
 DEFAULT_DEGREE = 1
 
+# XZ 平面上の角度は +X を 0 として +Z へ向かう向きを正とする(ラジアン)。
+_TOWARD_MINUS_Z = -0.5 * math.pi
 
+# 円弧を折れ線で近似するときの1区間の最大角度。
+_ARC_STEP = math.radians(10.0)
+
+# 球のワイヤーフレームで、大円1周を分割するときの1区間の角度。
+_SPHERE_RING_STEP = math.radians(15.0)
+
+# 放射状の形状で、1本の腕が隣の腕との中間線までの角度のうち、どれだけを使ってよいかの割合。
+# 腕の本数が多く外形がこれを超える場合は、腕の幅だけを狭めて隣の腕と重ならないようにする。
+_SECTOR_FILL = 0.8
+
+# 球面の矢印: 矢の先端が球の頂点から何度下った位置に来るか。
+_SPHERE_ARROW_REACH = math.radians(65.0)
+
+
+# ---------------------------------------------------------------------------
+# 変換
+# ---------------------------------------------------------------------------
 def _transform_point(point, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=0.0, rz=0.0, sx=1.0, sy=1.0, sz=1.0):
-    """Apply S->R->T transform to a 3D point.
-
-    Note:
-        Rotation order is X then Y then Z (xyz).
+    """1点へスケール→回転→平行移動の順で変換を適用します。
 
     Args:
-        point: (x, y, z)
-        tx,ty,tz: translate offsets
-        rx,ry,rz: rotate offsets in degrees
-        sx,sy,sz: scale factors
+        point (tuple[float, float, float]): 入力座標。
+        tx, ty, tz (float): 平行移動量。
+        rx, ry, rz (float): 回転角(度)。X→Y→Z の順に適用する。
+        sx, sy, sz (float): スケール係数。
+
+    Returns:
+        tuple[float, float, float]: 変換後の座標。
     """
     x, y, z = point
 
-    # Scale
     x *= sx
     y *= sy
     z *= sz
 
-    # Rotate (degrees -> radians)
     if rx or ry or rz:
-        rx_r = math.radians(rx)
-        ry_r = math.radians(ry)
-        rz_r = math.radians(rz)
+        cos_x, sin_x = math.cos(math.radians(rx)), math.sin(math.radians(rx))
+        cos_y, sin_y = math.cos(math.radians(ry)), math.sin(math.radians(ry))
+        cos_z, sin_z = math.cos(math.radians(rz)), math.sin(math.radians(rz))
 
-        cx, sx_sin = math.cos(rx_r), math.sin(rx_r)
-        cy, sy_sin = math.cos(ry_r), math.sin(ry_r)
-        cz, sz_sin = math.cos(rz_r), math.sin(rz_r)
+        y, z = (y * cos_x - z * sin_x), (y * sin_x + z * cos_x)
+        x, z = (x * cos_y + z * sin_y), (-x * sin_y + z * cos_y)
+        x, y = (x * cos_z - y * sin_z), (x * sin_z + y * cos_z)
 
-        # X
-        y, z = (y * cx - z * sx_sin), (y * sx_sin + z * cx)
-        # Y
-        x, z = (x * cy + z * sy_sin), (-x * sy_sin + z * cy)
-        # Z
-        x, y = (x * cz - y * sz_sin), (x * sz_sin + y * cz)
-
-    # Translate
-    x += tx
-    y += ty
-    z += tz
-    return (x, y, z)
+    return (x + tx, y + ty, z + tz)
 
 
 def _transform_points(points, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=0.0, rz=0.0, sx=1.0, sy=1.0, sz=1.0):
-    """ポイント列へ一括で TRS 変換を適用します。
+    """点列へまとめて変換を適用します。
 
     Args:
-        points (list[tuple[float, float, float]]): 入力ポイント列。
-        tx, ty, tz (float): 平行移動オフセット。
-        rx, ry, rz (float): 回転オフセット（度）。
+        points (list[tuple[float, float, float]]): 入力点列。
+        tx, ty, tz (float): 平行移動量。
+        rx, ry, rz (float): 回転角(度)。
         sx, sy, sz (float): スケール係数。
 
     Returns:
-        list[tuple[float, float, float]]: 変換後ポイント列。
+        list[tuple[float, float, float]]: 変換後の点列。変換が無い場合は入力をそのまま返す。
     """
     if (
         (tx, ty, tz, rx, ry, rz) == (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -76,7 +112,14 @@ def _transform_points(points, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=0.0, rz=0.0, sx
 
 
 def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=0.0, rz=0.0, sx=1.0, sy=1.0, sz=1.0):
-    """Apply TRS to all CVs of the curve shapes under the given transform."""
+    """transform 配下の全 nurbsCurve の CV へ変換を適用します。
+
+    Args:
+        curve_transform (str): 対象の transform。
+        tx, ty, tz (float): 平行移動量。
+        rx, ry, rz (float): 回転角(度)。
+        sx, sy, sz (float): スケール係数。
+    """
     if not curve_transform or not cmds.objExists(curve_transform):
         return
     if (
@@ -95,6 +138,10 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
             new_pos = _transform_point(pos, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
             cmds.xform(cv, objectSpace=True, absolute=True, translation=new_pos)
 
+
+# ---------------------------------------------------------------------------
+# カーブ作成
+# ---------------------------------------------------------------------------
 @undo.undo_chunk()
 def _curve(
     points,
@@ -110,50 +157,47 @@ def _curve(
     sy=1.0,
     sz=1.0,
 ):
-    """ポイントリストからカーブを生成
+    """点列からカーブを作成します。
 
-    If a transform (or a nurbsCurve shape under it) is currently selected and it already has
-    one or more nurbsCurve shapes, this function replaces only those nurbsCurve shapes with
-    the newly generated curve shape, keeping the original transform.
+    transform(またはその配下の nurbsCurve シェイプ)を選択していて、その transform が
+    nurbsCurve シェイプを持つ場合は、transform を残したまま nurbsCurve シェイプだけを
+    新しい形状へ差し替えます。
 
     Args:
-        points: ポイントリスト
-        name: カーブの名前
-        degree: カーブの次数
-        tx,ty,tz: 位置オフセット
-        rx,ry,rz: 回転オフセット（degree）
-        sx,sy,sz: スケール係数
+        points (list[tuple[float, float, float]]): CV の座標列。
+        name (str): 新規作成時のカーブ名。
+        degree (int): カーブの次数。
+        tx, ty, tz (float): 平行移動量。
+        rx, ry, rz (float): 回転角(度)。
+        sx, sy, sz (float): スケール係数。
+
     Returns:
-        str: カーブオブジェクト名
+        str: 作成した、または形状を差し替えた transform 名。
     """
     points = _transform_points(points, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-    knots = [i for i in range(len(points))]
+    knots = list(range(len(points)))
 
-    # 既存コントローラ選択時は transform を残し、nurbsCurve shape のみ差し替える。
     target_transform = None
     selected = cmds.ls(selection=True, long=True)
-    print("selected:", selected)
     if selected:
         sel = selected[0]
         sel_type = cmds.nodeType(sel)
-        print("sel_type:", sel_type)
         if sel_type == "transform":
             target_transform = sel
         elif sel_type == "nurbsCurve":
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
-            print("parents:", parents)
             if parents and cmds.nodeType(parents[0]) == "transform":
                 target_transform = parents[0]
 
-    print("target_transform:", target_transform)
     if target_transform and cmds.objExists(target_transform):
-        existing_curve_shapes = []
-        for shape in (cmds.listRelatives(target_transform, shapes=True, fullPath=True) or []):
-            if cmds.nodeType(shape) == "nurbsCurve":
-                existing_curve_shapes.append(shape)
+        existing_curve_shapes = [
+            shape
+            for shape in (cmds.listRelatives(target_transform, shapes=True, fullPath=True) or [])
+            if cmds.nodeType(shape) == "nurbsCurve"
+        ]
 
         if existing_curve_shapes:
-            # Create a temporary curve transform, then parent its shape(s) under target_transform.
+            # 一時カーブを作り、そのシェイプを選択中の transform の下へ移す。
             temp_curve_transform = cmds.curve(degree=degree, point=points, knot=knots, name=f"{name}__tmp")
             temp_shapes = [
                 s
@@ -180,15 +224,368 @@ def _curve(
     return cmds.curve(degree=degree, point=points, knot=knots, name=name)
 
 
+# ---------------------------------------------------------------------------
+# 幾何ヘルパー
+# ---------------------------------------------------------------------------
+def _on_xz(radius, angle, y=0.0):
+    """XZ 平面上で、原点から距離 radius・角度 angle(ラジアン)の位置を返します。"""
+    return (radius * math.cos(angle), y, radius * math.sin(angle))
+
+
+def _closed(points):
+    """始点を末尾に加えて閉じた点列を返します。"""
+    points = list(points)
+    return points + [points[0]]
+
+
+def _polygon(radius, sides, start_angle=0.0, y=0.0):
+    """XZ 平面に平行な正多角形の頂点列(閉じていない)を返します。
+
+    Args:
+        radius (float): 外接円の半径。
+        sides (int): 頂点数。
+        start_angle (float): 最初の頂点の角度(ラジアン)。
+        y (float): 多角形を置く高さ。
+    """
+    step = 2.0 * math.pi / sides
+    return [_on_xz(radius, start_angle + step * i, y) for i in range(sides)]
+
+
+def _arc(radius, start, end, max_step=_ARC_STEP, y=0.0):
+    """XZ 平面上の円弧を折れ線で近似した点列(両端を含む)を返します。
+
+    Args:
+        radius (float): 半径。
+        start (float): 開始角(ラジアン)。
+        end (float): 終了角(ラジアン)。
+        max_step (float): 1区間の最大角度(ラジアン)。
+        y (float): 円弧を置く高さ。
+    """
+    count = max(1, int(math.ceil(abs(end - start) / max_step - 1e-9)))
+    angles = [start + (end - start) * i / float(count) for i in range(count)] + [end]
+    return [_on_xz(radius, angle, y) for angle in angles]
+
+
+def _subdivide(points, max_length):
+    """各区間の長さが max_length 以下になるよう、線分の途中へ点を補います。"""
+    result = [tuple(points[0])]
+    for a, b in zip(points, points[1:]):
+        length = math.sqrt(sum((q - p) ** 2 for p, q in zip(a, b)))
+        count = max(1, int(math.ceil(length / max_length - 1e-9)))
+        for i in range(1, count + 1):
+            t = i / float(count)
+            result.append(tuple(p + (q - p) * t for p, q in zip(a, b)))
+    return result
+
+
+def _arm_point(angle, along, across):
+    """向き angle の腕に沿った局所座標を XZ 平面上の位置へ変換します。
+
+    Args:
+        angle (float): 腕の向き(ラジアン)。
+        along (float): 腕の向きへの距離。
+        across (float): 腕の向きから +90 度回した向きへの距離。
+    """
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    return (along * cos_a - across * sin_a, 0.0, along * sin_a + across * cos_a)
+
+
+def _sector_slope(arms):
+    """放射状に並ぶ腕1本の外形に許す、幅方向と長さ方向の比の上限を返します。
+
+    隣の腕との中間線までの角度に :data:`_SECTOR_FILL` を掛けた角度の正接を上限とします。
+
+    Args:
+        arms (int): 腕の本数。
+
+    Returns:
+        float or None: ``across / along`` の上限。腕が2本以下なら隣の腕と向き合わないため ``None``。
+    """
+    if arms <= 2:
+        return None
+    return math.tan(math.pi / arms * _SECTOR_FILL)
+
+
+def _radial_outline(arms, profile, root_half_width, start_angle=_TOWARD_MINUS_Z):
+    """原点から等間隔に伸びる腕の外周を、閉じた点列で返します。
+
+    腕が1本の場合は付け根側を直線で閉じます。腕が3本以上の場合は、隣り合う腕の付け根の
+    辺どうしが交わる点を内側の角にします(2本の場合は辺が一直線につながるため角を置かない)。
+    腕の外形が :func:`_sector_slope` の上限より広がる場合は、幅方向だけを一律に縮めて
+    隣の腕と重ならないようにします。
+
+    Args:
+        arms (int): 腕の本数(1以上)。
+        profile (list[tuple[float, float]]): 腕1本の外形を、across が負の側から先端を
+            回って正の側へ向かう順に並べた局所座標 ``(along, across)`` の列。
+        root_half_width (float): 腕の付け根の半幅。
+        start_angle (float): 最初の腕の向き(ラジアン)。
+
+    Returns:
+        list[tuple[float, float, float]]: 閉じた点列。
+    """
+    slope_limit = _sector_slope(arms)
+    if slope_limit is not None:
+        slopes = [abs(across) / along for along, across in profile if along > 1e-9]
+        widest = max(slopes) if slopes else 0.0
+        if widest > slope_limit:
+            narrow = slope_limit / widest
+            profile = [(along, across * narrow) for along, across in profile]
+            root_half_width *= narrow
+
+    step = 2.0 * math.pi / arms
+    points = []
+    for index in range(arms):
+        angle = start_angle + step * index
+        if arms == 1:
+            points.append(_arm_point(angle, 0.0, -root_half_width))
+        points.extend(_arm_point(angle, along, across) for along, across in profile)
+        if arms == 1:
+            points.append(_arm_point(angle, 0.0, root_half_width))
+        elif arms > 2:
+            points.append(_on_xz(root_half_width / math.sin(step * 0.5), angle + step * 0.5))
+    return _closed(points)
+
+
+def _arrow_profile(length, head_length, head_width, shaft_width):
+    """輪郭で描く矢印1本分の外形を、腕の局所座標で返します。
+
+    Args:
+        length (float): 付け根から先端までの長さ。
+        head_length (float): 矢じりの長さ(length を上限とする)。
+        head_width (float): 矢じりの幅。
+        shaft_width (float): 軸の幅。
+    """
+    neck = length - min(max(head_length, 0.0), length)
+    return [
+        (neck, -shaft_width * 0.5),
+        (neck, -head_width * 0.5),
+        (length, 0.0),
+        (neck, head_width * 0.5),
+        (neck, shaft_width * 0.5),
+    ]
+
+
+def _arrow_strokes(arms, length, head_length, head_width, start_angle=_TOWARD_MINUS_Z):
+    """線で描く矢印(軸線と V 字の矢じり)を、原点から放射状にストロークで返します。
+
+    矢じりが :func:`_sector_slope` の上限より開く場合は、隣の矢じりと交わらないよう
+    矢じりの幅を狭めます。
+
+    Args:
+        arms (int): 矢印の本数(1以上)。
+        length (float): 原点から先端までの長さ。
+        head_length (float): 矢じりの長さ(length を上限とする)。
+        head_width (float): 矢じりの幅。
+        start_angle (float): 最初の矢印の向き(ラジアン)。
+
+    Returns:
+        list[list[tuple[float, float, float]]]: ストロークの一覧。
+    """
+    neck = length - min(max(head_length, 0.0), length)
+    half_head = head_width * 0.5
+    slope_limit = _sector_slope(arms)
+    if slope_limit is not None:
+        half_head = min(half_head, neck * slope_limit)
+    step = 2.0 * math.pi / arms
+    strokes = []
+    for index in range(arms):
+        angle = start_angle + step * index
+        tip = _arm_point(angle, length, 0.0)
+        strokes.append([(0.0, 0.0, 0.0), tip])
+        strokes.append([_arm_point(angle, neck, -half_head), tip, _arm_point(angle, neck, half_head)])
+    return strokes
+
+
+def _shift_z(points, offset):
+    """点列を Z 方向へ offset だけ移動します。"""
+    return [(x, y, z + offset) for x, y, z in points]
+
+
+def _arc_span(radius, sweep, head_length):
+    """-X 方向を中心にした円弧の開始角・終了角と、矢じり1つ分の角度を返します。
+
+    Args:
+        radius (float): 円弧の半径。
+        sweep (float): 円弧の角度(度)。1〜360 に収める。
+        head_length (float): 矢じりの長さ(円弧に沿った長さ)。
+
+    Returns:
+        tuple[float, float, float]: ``(開始角, 終了角, 矢じりの角度)``(ラジアン)。
+            矢じりの角度は円弧の半分を上限とする。
+    """
+    span = math.radians(min(max(float(sweep), 1.0), 360.0))
+    start = math.pi - span * 0.5
+    end = math.pi + span * 0.5
+    head_angle = max(head_length, 0.0) / radius if radius > 0.0 else 0.0
+    return start, end, min(head_angle, span * 0.5)
+
+
+def _wrap_onto_sphere(points, radius, angle_per_unit):
+    """XZ 平面上の点を、原点からの距離に比例した角度だけ球の頂点から下った球面上へ写します。
+
+    原点は球の頂点 ``(0, radius, 0)`` へ写り、原点から距離 d の点は元の方位を保ったまま
+    頂点から ``d * angle_per_unit`` ラジアン下った位置へ写ります。
+
+    Args:
+        points (list[tuple[float, float, float]]): XZ 平面上の点列(Y は無視する)。
+        radius (float): 球の半径。
+        angle_per_unit (float): 平面上の距離1あたりの角度(ラジアン)。
+    """
+    wrapped = []
+    for x, _y, z in points:
+        planar = math.hypot(x, z)
+        if planar < 1e-12:
+            wrapped.append((0.0, radius, 0.0))
+            continue
+        polar = planar * angle_per_unit
+        ring = radius * math.sin(polar) / planar
+        wrapped.append((x * ring, radius * math.cos(polar), z * ring))
+    return wrapped
+
+
+def _bipyramid_strokes(radius, height, sides):
+    """Y=0 の正多角形と、その各頂点から上下の頂点へ向かう稜線をストロークで返します。
+
+    Args:
+        radius (float): 中央の多角形の外接円の半径。
+        height (float): 原点から上下それぞれの頂点までの距離。
+        sides (int): 中央の多角形の頂点数(3以上)。
+
+    Returns:
+        list[list[tuple[float, float, float]]]: ストロークの一覧。
+    """
+    ring = _polygon(radius, sides)
+    top = (0.0, height, 0.0)
+    bottom = (0.0, -height, 0.0)
+    return [_closed(ring)] + [[top, corner, bottom] for corner in ring]
+
+
+def _shortest_route(links, source, targets):
+    """幅優先探索で source から targets のいずれかへ至る最短の頂点列を返します。"""
+    previous = {source: None}
+    queue = deque([source])
+    while queue:
+        current = queue.popleft()
+        if current in targets:
+            route = []
+            while current is not None:
+                route.append(current)
+                current = previous[current]
+            return route[::-1]
+        for neighbor, _edge in links[current]:
+            if neighbor not in previous:
+                previous[neighbor] = current
+                queue.append(neighbor)
+    raise ValueError("形状の線分がつながっていません。")
+
+
+def _trace_strokes(strokes, precision=6):
+    """複数の折れ線を、全ての線分を通る1本の連続した点列にまとめます。
+
+    座標を precision 桁で丸めて一致する点は同じ頂点とみなし、重なる線分は1本にまとめます。
+    一筆書きできない形は、次数が奇数の頂点を近いものどうしで組にし、その間の最短経路の線分を
+    複製してから辿ります。複製した区間は同じ線分上を往復するだけなので、見た目は変わりません。
+
+    Args:
+        strokes (list[list[tuple[float, float, float]]]): 折れ線の一覧。
+        precision (int): 頂点を同一視するときの丸め桁数。
+
+    Returns:
+        list[tuple[float, float, float]]: 連続した点列。寸法が0で全ての点が重なる場合は、
+            その点を2つ並べた点列(長さ0のカーブになる)。
+
+    Raises:
+        ValueError: 点が無い、または線分が1つにつながっていない場合。
+    """
+    vertices = []
+    index_by_key = {}
+
+    def vertex_index(point):
+        key = tuple(round(value, precision) for value in point)
+        if key not in index_by_key:
+            index_by_key[key] = len(vertices)
+            vertices.append(tuple(point))
+        return index_by_key[key]
+
+    segments = []
+    registered = set()
+    for stroke in strokes:
+        indices = [vertex_index(point) for point in stroke]
+        for a, b in zip(indices, indices[1:]):
+            key = (min(a, b), max(a, b))
+            if a != b and key not in registered:
+                registered.add(key)
+                segments.append(key)
+    if not segments:
+        if not vertices:
+            raise ValueError("形状に点がありません。")
+        return [vertices[0], vertices[0]]
+
+    links = [[] for _ in vertices]
+    edge_total = [0]
+
+    def link(a, b):
+        edge = edge_total[0]
+        edge_total[0] += 1
+        links[a].append((b, edge))
+        links[b].append((a, edge))
+
+    for a, b in segments:
+        link(a, b)
+
+    # 奇数次数の頂点が2つ以下になるまで、近い組の間の経路を往復分として足す。
+    odd = [v for v in range(len(vertices)) if len(links[v]) % 2]
+    while len(odd) > 2:
+        source = odd.pop(0)
+        route = _shortest_route(links, source, set(odd))
+        odd.remove(route[-1])
+        for a, b in zip(route, route[1:]):
+            link(a, b)
+
+    # 各辺を1度ずつ通る経路を、行き止まりで巻き戻しながら組み立てる。
+    used = [False] * edge_total[0]
+    cursor = [0] * len(vertices)
+    stack = [odd[0] if odd else segments[0][0]]
+    walk = []
+    while stack:
+        current = stack[-1]
+        options = links[current]
+        while cursor[current] < len(options) and used[options[cursor[current]][1]]:
+            cursor[current] += 1
+        if cursor[current] == len(options):
+            walk.append(stack.pop())
+            continue
+        neighbor, edge = options[cursor[current]]
+        used[edge] = True
+        stack.append(neighbor)
+
+    if not all(used):
+        raise ValueError("形状の線分がつながっていません。")
+    walk.reverse()
+    return [vertices[i] for i in walk]
+
+
+# ---------------------------------------------------------------------------
+# 形状
+# ---------------------------------------------------------------------------
 class Shape:
-    """Base class for all shape groups."""
-    pass
+    """形状セクションの基底クラス。
+
+    サブクラスの公開 staticmethod が1つの形状に対応します。``order`` は UI のタブの並び順です。
+    """
+
+    order = 0
 
 
-class Flat(Shape):
+class Planar(Shape):
+    """XZ 平面に置く平面図形。"""
+
+    order = 10
+
     @staticmethod
-    def triangle(
-        side_length=1.0,
+    def circle(
+        diameter=1.0,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -200,24 +597,21 @@ class Flat(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """正三角形を計算で生成
+        """円(Maya の circle コマンドによる次数3のカーブ)を作成します。
+
+        選択中のカーブの形状を差し替える動作には対応しません。
 
         Args:
-            side_length: 一辺の長さ
-            name: カーブの名前
-        """
-        base_half = side_length * 0.5  # 底辺の半分
-        height = side_length * math.sqrt(3) / 2  # 高さ
-        height_front = height / 3  # 底辺のZ座標（前方）
-        height_back = -height * 2 / 3  # 頂点のZ座標（後方）
+            diameter (float): 直径。
 
-        points = [
-            (-base_half, 0, height_front),
-            (base_half, 0, height_front),
-            (0, 0, height_back),
-            (-base_half, 0, height_front),
-        ]
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+        Returns:
+            list[str]: ``cmds.circle`` の戻り値(先頭が transform 名)。
+        """
+        # 法線を +Y にして XZ 平面に置く。次数・分割数などは circle コマンドの既定値を使う。
+        created = cmds.circle(normal=(0, 1, 0), radius=diameter * 0.5, constructionHistory=False, name=name)
+        curve_transform = created[0] if isinstance(created, (list, tuple)) and created else created
+        _apply_trs_to_curve_cvs(curve_transform, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+        return created
 
     @staticmethod
     def square(
@@ -233,21 +627,35 @@ class Flat(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """正方形を計算で生成
+        """辺が X・Z 軸に平行な正方形を作成します。
 
         Args:
-            side_length: 一辺の長さ
-            name: カーブの名前
+            side_length (float): 一辺の長さ。
         """
-        half = side_length * 0.5
-        points = [
-            (half, 0, -half),  # 右下
-            (-half, 0, -half),  # 左下
-            (-half, 0, half),  # 左上
-            (half, 0, half),  # 右上
-            (half, 0, -half),  # 閉じる
-        ]
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+        corners = _polygon(side_length / math.sqrt(2.0), 4, math.radians(45.0))
+        return _curve(_closed(corners), name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+
+    @staticmethod
+    def triangle(
+        side_length=1.0,
+        name=DEFAULT_SHAPE_NAME,
+        tx=0.0,
+        ty=0.0,
+        tz=0.0,
+        rx=0.0,
+        ry=0.0,
+        rz=0.0,
+        sx=1.0,
+        sy=1.0,
+        sz=1.0,
+    ):
+        """重心が原点で、頂点の1つが -Z を指す正三角形を作成します。
+
+        Args:
+            side_length (float): 一辺の長さ。
+        """
+        corners = _polygon(side_length / math.sqrt(3.0), 3, _TOWARD_MINUS_Z)
+        return _curve(_closed(corners), name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
     def cross(
@@ -264,177 +672,23 @@ class Flat(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """十字形状を計算で生成
+        """X・Z 軸に沿った十字(プラス記号)の外形を作成します。
 
         Args:
-            axis_length: 中心軸の全長
-            line_width_ratio: 線幅の割合（中心軸に対する比率）
-            name: カーブの名前
+            axis_length (float): 腕の端から反対側の端までの長さ。
+            line_width_ratio (float): 腕の幅の axis_length に対する比率。
         """
-        line_width = axis_length * line_width_ratio
         half_length = axis_length * 0.5
-        half_width = line_width * 0.5
-        points = [
-            (half_width, 0, -half_width),
-            (half_width, 0, -half_length),
-            (-half_width, 0, -half_length),
-            (-half_width, 0, -half_width),
-            (-half_length, 0, -half_width),
-            (-half_length, 0, half_width),
-            (-half_width, 0, half_width),
-            (-half_width, 0, half_length),
-            (half_width, 0, half_length),
-            (half_width, 0, half_width),
-            (half_length, 0, half_width),
-            (half_length, 0, -half_width),
-            (half_width, 0, -half_width),
-        ]
+        half_width = axis_length * line_width_ratio * 0.5
+        profile = [(half_length, -half_width), (half_length, half_width)]
+        points = _radial_outline(4, profile, half_width)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
-    @staticmethod
-    def circle(
-        diameter=1.0,
-        name=DEFAULT_SHAPE_NAME,
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """円を生成
 
-        Args:
-            diameter: 円の直径
-            name: カーブの名前
-        """
-        radius = diameter / 2.0
-        created = cmds.circle(c=(0, 0, 0), nr=(0, 1, 0), sw=360, r=radius, d=3, ut=0, tol=0.01, s=8, ch=0, n=name)
-        curve_transform = created[0] if isinstance(created, (list, tuple)) and created else created
-        _apply_trs_to_curve_cvs(curve_transform, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-        return created
+class Solids(Shape):
+    """立体のワイヤーフレーム。"""
 
-
-class Prisms(Shape):
-    @staticmethod
-    def pyramid(
-        base_side_length=1.0,
-        apex_height=1.0,
-        name=DEFAULT_SHAPE_NAME,
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """正四角錐を計算で生成
-
-        Args:
-            base_side_length: 底面の一辺の長さ
-            apex_height: 頂点の高さ
-            name: カーブの名前
-        """
-        half = base_side_length * 0.5
-        apex = (0, apex_height, 0)
-        # 底面の4つの頂点（右後、左後、左前、右前）
-        base_br = (half, 0, -half)  # 右後
-        base_bl = (-half, 0, -half)  # 左後
-        base_fl = (-half, 0, half)  # 左前
-        base_fr = (half, 0, half)  # 右前
-
-        points = [
-            apex,
-            base_br,
-            base_bl,
-            apex,
-            base_fl,
-            base_fr,
-            apex,
-            base_br,  # 底面の描画開始
-            base_fr,
-            base_fl,
-            base_bl,
-        ]
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-
-    @staticmethod
-    def spear(
-        length=1.0,
-        name=DEFAULT_SHAPE_NAME,
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """3D槍型を計算で生成
-
-        Args:
-            length: 各方向の長さ
-            name: カーブの名前
-        """
-        points = [
-            (0, length, 0),
-            (0, 0, length),
-            (0, -length, 0),
-            (0, 0, -length),
-            (0, length, 0),
-            (0, -length, 0),
-            (0, 0, 0),
-            (0, 0, length),
-            (0, 0, -length),
-            (length, 0, 0),
-            (0, 0, length),
-            (-length, 0, 0),
-            (0, 0, -length),
-            (0, 0, length),
-            (0, 0, 0),
-            (-length, 0, 0),
-            (length, 0, 0),
-        ]
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-
-    @staticmethod
-    def half_spear(
-        length=1.0,
-        name=DEFAULT_SHAPE_NAME,
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """半分の槍型（上半球のみ）を計算で生成
-
-        Args:
-            length: 各方向の長さ
-            name: カーブの名前
-        """
-        points = [
-            (0, length, 0),
-            (0, 0, length),
-            (0, 0, -length),
-            (0, length, 0),
-            (-length, 0, 0),
-            (length, 0, 0),
-            (0, length, 0),
-        ]
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+    order = 20
 
     @staticmethod
     def cube(
@@ -450,31 +704,20 @@ class Prisms(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """立方体を計算で生成
+        """原点を中心とする立方体を作成します。
 
         Args:
-            side_length: 立方体の一辺の長さ
-            name: カーブの名前
+            side_length (float): 一辺の長さ。
         """
         half = side_length * 0.5
-        points = [
-            (half, half, half),
-            (half, half, -half),
-            (-half, half, -half),
-            (-half, -half, -half),
-            (half, -half, -half),
-            (half, half, -half),
-            (-half, half, -half),
-            (-half, half, half),
-            (half, half, half),
-            (half, -half, half),
-            (half, -half, -half),
-            (-half, -half, -half),
-            (-half, -half, half),
-            (half, -half, half),
-            (-half, -half, half),
-            (-half, half, half),
+        signs = list(itertools.product((-1.0, 1.0), repeat=3))
+        # 符号が1成分だけ異なる頂点の組が立方体の辺になる。
+        strokes = [
+            [tuple(half * c for c in a), tuple(half * c for c in b)]
+            for a, b in itertools.combinations(signs, 2)
+            if sum(1 for p, q in zip(a, b) if p != q) == 1
         ]
+        points = _trace_strokes(strokes)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
@@ -491,51 +734,74 @@ class Prisms(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """ワイヤーフレーム球を計算で生成
+        """XY・YZ・XZ 平面の3つの大円で表した球を作成します。
 
         Args:
-            diameter: 球の直径
-            name: カーブの名前
+            diameter (float): 直径。
         """
-        radius = diameter / 2.0
-        sqrt3_2 = radius * math.sqrt(3) / 2  # 0.866025
-        sqrt1_2 = radius * math.sqrt(2) / 2  # 0.707107
-
-        points = [
-            (0, 0, radius),
-            (0, radius * 0.5, sqrt3_2),
-            (0, sqrt3_2, radius * 0.5),
-            (0, radius, 0),
-            (0, sqrt3_2, -radius * 0.5),
-            (0, radius * 0.5, -sqrt3_2),
-            (0, 0, -radius),
-            (0, -radius * 0.5, -sqrt3_2),
-            (0, -sqrt3_2, -radius * 0.5),
-            (0, -radius, 0),
-            (0, -sqrt3_2, radius * 0.5),
-            (0, -radius * 0.5, sqrt3_2),
-            (0, 0, radius),
-            (sqrt1_2, 0, sqrt1_2),
-            (radius, 0, 0),
-            (sqrt1_2, 0, -sqrt1_2),
-            (0, 0, -radius),
-            (-sqrt1_2, 0, -sqrt1_2),
-            (-radius, 0, 0),
-            (-sqrt3_2, radius * 0.5, 0),
-            (-radius * 0.5, sqrt3_2, 0),
-            (0, radius, 0),
-            (radius * 0.5, sqrt3_2, 0),
-            (sqrt3_2, radius * 0.5, 0),
-            (radius, 0, 0),
-            (sqrt3_2, -radius * 0.5, 0),
-            (radius * 0.5, -sqrt3_2, 0),
-            (0, -radius, 0),
-            (-radius * 0.5, -sqrt3_2, 0),
-            (-sqrt3_2, -radius * 0.5, 0),
-            (-radius, 0, 0),
-            (-sqrt1_2, 0, sqrt1_2),
-            (0, 0, radius),
+        ring = _arc(diameter * 0.5, 0.0, 2.0 * math.pi, max_step=_SPHERE_RING_STEP)
+        strokes = [
+            ring,
+            [(x, z, 0.0) for x, _y, z in ring],
+            [(0.0, x, z) for x, _y, z in ring],
         ]
+        points = _trace_strokes(strokes)
+        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+
+    @staticmethod
+    def pyramid(
+        base_side_length=1.0,
+        apex_height=1.0,
+        name=DEFAULT_SHAPE_NAME,
+        tx=0.0,
+        ty=0.0,
+        tz=0.0,
+        rx=0.0,
+        ry=0.0,
+        rz=0.0,
+        sx=1.0,
+        sy=1.0,
+        sz=1.0,
+    ):
+        """底面が Y=0 にある正四角錐を作成します。
+
+        Args:
+            base_side_length (float): 底面の一辺の長さ。
+            apex_height (float): 頂点の高さ。
+        """
+        base = _polygon(base_side_length / math.sqrt(2.0), 4, math.radians(45.0))
+        apex = (0.0, apex_height, 0.0)
+        strokes = [_closed(base)] + [[corner, apex] for corner in base]
+        points = _trace_strokes(strokes)
+        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+
+    @staticmethod
+    def cone(
+        diameter=1.0,
+        height=1.0,
+        sides=10,
+        name=DEFAULT_SHAPE_NAME,
+        tx=0.0,
+        ty=0.0,
+        tz=0.0,
+        rx=0.0,
+        ry=0.0,
+        rz=0.0,
+        sx=1.0,
+        sy=1.0,
+        sz=1.0,
+    ):
+        """底面が Y=0 にある角錐を作成します。
+
+        Args:
+            diameter (float): 底面の外接円の直径。
+            height (float): 頂点の高さ。
+            sides (int): 底面の頂点数(3未満は3として扱う)。
+        """
+        base = _polygon(diameter * 0.5, max(3, int(sides)))
+        apex = (0.0, height, 0.0)
+        strokes = [_closed(base)] + [[corner, apex] for corner in base]
+        points = _trace_strokes(strokes)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
@@ -554,83 +820,22 @@ class Prisms(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """多角柱を計算で生成
+        """Y 軸に沿った角柱を作成します。
 
         Args:
-            diameter: 底面の多角形の直径
-            length: 多角柱の全長
-            sides: 底面の頂点数
-            name: カーブの名前
+            diameter (float): 断面の外接円の直径。
+            length (float): 全長。
+            sides (int): 断面の頂点数(3未満は3として扱う)。
         """
-        radius = diameter / 2.0
-        height = length / 2.0  # 高さの半分
-
-        # 底面の頂点を計算
-        angle_step = 2.0 * math.pi / sides
-        top_vertices = []
-        bottom_vertices = []
-        for i in range(sides):
-            angle = i * angle_step
-            x = radius * math.cos(angle)
-            z = radius * math.sin(angle)
-            top_vertices.append((x, height, z))
-            bottom_vertices.append((x, -height, z))
-
-        # 多角柱の辺を描画
-        points = []
-
-        # 上面と下面、側面の縦線を交互に描画
-        for i in range(sides):
-            current_top = top_vertices[i]
-            next_top = top_vertices[(i + 1) % sides]
-            current_bottom = bottom_vertices[i]
-            next_bottom = bottom_vertices[(i + 1) % sides]
-
-            # 上面の辺 → 縦線（下へ） → 下面の辺 → 縦線（上へ）
-            points.extend([current_top, next_top, next_bottom, current_bottom, current_top])
-
+        sides = max(3, int(sides))
+        top = _polygon(diameter * 0.5, sides, y=length * 0.5)
+        bottom = _polygon(diameter * 0.5, sides, y=-length * 0.5)
+        strokes = [_closed(top), _closed(bottom)] + [[a, b] for a, b in zip(top, bottom)]
+        points = _trace_strokes(strokes)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
-    def hexagon(
-        diameter=1.0,
-        length=1.0,
-        name=DEFAULT_SHAPE_NAME,
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """六角柱を生成（互換性のためprismを呼び出し）
-
-        Args:
-            diameter: 六角形の直径
-            length: 六角柱の全長
-            name: カーブの名前
-        """
-        return Prisms.prism(
-            diameter=diameter,
-            length=length,
-            sides=6,
-            name=name,
-            tx=tx,
-            ty=ty,
-            tz=tz,
-            rx=rx,
-            ry=ry,
-            rz=rz,
-            sx=sx,
-            sy=sy,
-            sz=sz,
-        )
-
-    @staticmethod
-    def rombus(
+    def octahedron(
         edge_length=1.0,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
@@ -643,83 +848,23 @@ class Prisms(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """菱形（3D八面体）を計算で生成
+        """頂点が各軸上にある正八面体を作成します。
+
+        正八面体を、XZ 平面上の正方形と上下(±Y)の頂点からなる双角錐として組み立てます。
 
         Args:
-            edge_length: 八面体の一辺の長さ
-            name: カーブの名前
+            edge_length (float): 辺の長さ。
         """
-        # 八面体の辺の長さから中心から頂点までの距離を計算
-        # edge_length = size * √2 なので size = edge_length / √2
-        size = edge_length / math.sqrt(2)
-        points = [
-            (0, size, 0),
-            (size, 0, 0),
-            (0, 0, size),
-            (-size, 0, 0),
-            (0, 0, -size),
-            (0, size, 0),
-            (0, 0, size),
-            (0, -size, 0),
-            (0, 0, -size),
-            (size, 0, 0),
-            (0, size, 0),
-            (-size, 0, 0),
-            (0, -size, 0),
-            (size, 0, 0),
-        ]
+        # 各軸上の頂点までの距離。隣り合う2頂点の間隔が edge_length になる。
+        reach = edge_length / math.sqrt(2.0)
+        points = _trace_strokes(_bipyramid_strokes(reach, reach, 4))
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
-    def cone(
-        diameter=1.0,
+    def bipyramid(
+        radius=0.4,
         height=1.0,
-        sides=10,
-        name="helperCone",
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """多角錐を計算で生成
-
-        Args:
-            diameter: 底面の多角形の直径
-            height: 錐の高さ（底面から頂点まで）
-            sides: 底面の頂点数
-            name: カーブの名前
-        """
-        base_radius = diameter / 2.0
-        apex = (0, height, 0)
-
-        # 底面の頂点を計算（角度ずつ）
-        angle_step = 2.0 * math.pi / sides
-        base_vertices = []
-        for i in range(sides):
-            angle = i * angle_step
-            x = base_radius * math.cos(angle)
-            z = base_radius * math.sin(angle)
-            base_vertices.append((x, 0, z))
-
-        # 錐の辺を描画（各底面の辺から頂点へ）
-        points = []
-        for i in range(sides):
-            current = base_vertices[i]
-            next_vertex = base_vertices[(i + 1) % sides]
-            points.extend([current, next_vertex, apex])
-
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-
-
-class Direction(Shape):
-    @staticmethod
-    def dir_single_thin(
-        length=1.0,
+        sides=4,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -731,29 +876,31 @@ class Direction(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """方向矢印（単一・細）を計算で生成
+        """Y=0 の多角形から上下へ尖る双角錐を作成します。
 
         Args:
-            length: 矢印の全長（先端から後端まで）
-            name: カーブの名前
+            radius (float): 中央の多角形の外接円の半径。
+            height (float): 原点から上下それぞれの頂点までの距離。
+            sides (int): 中央の多角形の頂点数(3未満は3として扱う)。
         """
-        # 全長に対する各部分の比率（元の値: tip=1.0, shaft=1.0, 合計=2.0）
-        tip_length = length * 0.5  # 1.0 / 2.0
-        shaft_length = length * 0.5  # 1.0 / 2.0
-        head_width = length * 0.5  # 1.0 / 2.0
-
-        points = [
-            (0, 0, shaft_length),  # 後端
-            (0, 0, -tip_length),  # 先端
-            (-head_width, 0, 0),  # 頭部左
-            (0, 0, -tip_length),  # 先端
-            (head_width, 0, 0),  # 頭部右
-        ]
+        points = _trace_strokes(_bipyramid_strokes(radius, height, max(3, int(sides))))
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
+
+class Arrows(Shape):
+    """XZ 平面に置く直線の矢印。1方向の矢印は -Z を指す。
+
+    既定の寸法は、矢印1本(付け根から先端まで)の長さを1としたとき、矢じりの長さ 0.44・
+    矢じりの幅 0.5・軸の幅 0.16 になるようにそろえている(矢じりの開き角は片側約30度)。
+    """
+
+    order = 30
+
     @staticmethod
-    def dir_single_normal(
+    def arrow_thin(
         length=1.0,
+        head_length=0.44,
+        head_width=0.5,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -765,34 +912,23 @@ class Direction(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """方向矢印（単一・通常）を計算で生成
+        """線で描く1方向の矢印を、全長の中点が原点に来るよう作成します。
 
         Args:
-            length: 矢印の全長（先端から後端まで）
-            name: カーブの名前
+            length (float): 後端から先端までの長さ。
+            head_length (float): 矢じりの長さ。
+            head_width (float): 矢じりの幅。
         """
-        # 全長に対する各部分の比率（元の値: tip=1.0, shaft=1.0, 合計=2.0）
-        # single_thinと同じ長さ比率で、軸の幅を追加
-        tip_length = length * 0.5  # 1.0 / 2.0
-        shaft_length = length * 0.5  # 1.0 / 2.0
-        head_width = length * 0.5  # 1.0 / 2.0
-        shaft_width = length * 0.166667  # head_widthの1/3
-
-        points = [
-            (0, 0, -tip_length),  # 矢印の先端
-            (-head_width, 0, 0),  # 頭部左
-            (-shaft_width, 0, 0),  # 軸の左
-            (-shaft_width, 0, shaft_length),  # 軸の後端左
-            (shaft_width, 0, shaft_length),  # 軸の後端右
-            (shaft_width, 0, 0),  # 軸の右
-            (head_width, 0, 0),  # 頭部右
-            (0, 0, -tip_length),  # 閉じる
-        ]
+        strokes = [_shift_z(stroke, length * 0.5) for stroke in _arrow_strokes(1, length, head_length, head_width)]
+        points = _trace_strokes(strokes)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
-    def dir_double_thin(
+    def arrow(
         length=1.0,
+        head_length=0.44,
+        head_width=0.5,
+        shaft_width=0.16,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -804,32 +940,23 @@ class Direction(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """方向矢印（両方向・細）を計算で生成
+        """輪郭で描く1方向の矢印を、全長の中点が原点に来るよう作成します。
 
         Args:
-            length: 矢印の全長（先端から先端まで）
-            name: カーブの名前
+            length (float): 後端から先端までの長さ。
+            head_length (float): 矢じりの長さ。
+            head_width (float): 矢じりの幅。
+            shaft_width (float): 軸の幅。
         """
-        # 全長に対する各部分の比率（元の値: tip=2.0, shaft_end=1.0, 片側合計=2.0）
-        tip_length = length * 0.5  # 2.0 / 4.0（両側合計）
-        shaft_end = length * 0.25  # 1.0 / 4.0
-        head_width = length * 0.25  # 1.0 / 4.0
-
-        points = [
-            (head_width, 0, shaft_end),
-            (0, 0, tip_length),
-            (-head_width, 0, shaft_end),
-            (0, 0, tip_length),
-            (0, 0, -tip_length),
-            (-head_width, 0, -shaft_end),
-            (0, 0, -tip_length),
-            (head_width, 0, -shaft_end),
-        ]
+        profile = _arrow_profile(length, head_length, head_width, shaft_width)
+        points = _shift_z(_radial_outline(1, profile, shaft_width * 0.5), length * 0.5)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
-    def dir_double_normal(
+    def double_arrow_thin(
         length=1.0,
+        head_length=0.22,
+        head_width=0.25,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -841,36 +968,22 @@ class Direction(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """方向矢印（両方向・通常）を計算で生成
+        """線で描く、Z 軸の両方向を指す矢印を作成します。
 
         Args:
-            length: 矢印の全長（先端から先端まで）
-            name: カーブの名前
+            length (float): 先端から反対側の先端までの長さ。
+            head_length (float): 矢じりの長さ。
+            head_width (float): 矢じりの幅。
         """
-        # 全長に対する各部分の比率（元の値: tip=2.31, shaft=0.99, 片側合計=2.31）
-        tip_length = length * 0.5  # 2.31 / 4.62（両側合計）
-        shaft_length = length * 0.214286  # 0.99 / 4.62
-        head_width = length * 0.214286  # 0.99 / 4.62
-        shaft_width = length * 0.071429  # 0.33 / 4.62
-
-        points = [
-            (0, 0, -tip_length),  # 前方先端
-            (-head_width, 0, -shaft_length),  # 前方頭部左
-            (-shaft_width, 0, -shaft_length),  # 前方軸左
-            (-shaft_width, 0, shaft_length),  # 後方軸左
-            (-head_width, 0, shaft_length),  # 後方頭部左
-            (0, 0, tip_length),  # 後方先端
-            (head_width, 0, shaft_length),  # 後方頭部右
-            (shaft_width, 0, shaft_length),  # 後方軸右
-            (shaft_width, 0, -shaft_length),  # 前方軸右
-            (head_width, 0, -shaft_length),  # 前方頭部右
-            (0, 0, -tip_length),  # 閉じる
-        ]
+        points = _trace_strokes(_arrow_strokes(2, length * 0.5, head_length, head_width))
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
-    def dir_four_thin(
+    def double_arrow(
         length=1.0,
+        head_length=0.22,
+        head_width=0.25,
+        shaft_width=0.08,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -882,44 +995,24 @@ class Direction(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """方向矢印（4方向・細）を計算で生成
+        """輪郭で描く、Z 軸の両方向を指す矢印を作成します。
 
         Args:
-            length: 矢印1本の全長（中心から先端まで）
-            name: カーブの名前
+            length (float): 先端から反対側の先端までの長さ。
+            head_length (float): 矢じりの長さ。
+            head_width (float): 矢じりの幅。
+            shaft_width (float): 軸の幅。
         """
-        # 全長に対する各部分の比率（元の値: tip=1.75, shaft_end=1.25）
-        tip_length = length  # 中心から先端まで
-        shaft_end = length * 0.714286  # 1.25 / 1.75
-        head_width = length * 0.285714  # 0.5 / 1.75
-
-        points = [
-            (shaft_end, 0, -head_width),  # +X矢印開始
-            (tip_length, 0, 0),
-            (shaft_end, 0, head_width),
-            (tip_length, 0, 0),
-            (-tip_length, 0, 0),  # -X矢印
-            (-shaft_end, 0, -head_width),
-            (-tip_length, 0, 0),
-            (-shaft_end, 0, head_width),
-            (-tip_length, 0, 0),
-            (0, 0, 0),  # 中心に戻る
-            (0, 0, tip_length),  # +Z矢印
-            (-head_width, 0, shaft_end),
-            (0, 0, tip_length),
-            (head_width, 0, shaft_end),
-            (0, 0, tip_length),
-            (0, 0, -tip_length),  # -Z矢印
-            (head_width, 0, -shaft_end),
-            (0, 0, -tip_length),
-            (-head_width, 0, -shaft_end),
-            (0, 0, -tip_length),
-        ]
+        profile = _arrow_profile(length * 0.5, head_length, head_width, shaft_width)
+        points = _radial_outline(2, profile, shaft_width * 0.5)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
-    def dir_four_normal(
+    def radial_arrow_thin(
         length=1.0,
+        arms=4,
+        head_length=0.44,
+        head_width=0.5,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -931,53 +1024,148 @@ class Direction(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """方向矢印（4方向・通常）を計算で生成
+        """線で描く、原点から等間隔に広がる複数の矢印を作成します。
 
         Args:
-            length: 矢印1本の全長（中心から先端まで）
-            name: カーブの名前
+            length (float): 原点から各先端までの長さ。
+            arms (int): 矢印の本数(1未満は1として扱う)。本数が多く隣の矢印と重なる場合は、
+                矢印の幅を自動で狭める。
+            head_length (float): 矢じりの長さ。
+            head_width (float): 矢じりの幅。
         """
-        # 全長に対する各部分の比率（元の値: tip=1.98, shaft=1.32）
-        tip_length = length  # 中心から先端まで
-        shaft_length = length * 0.666667  # 1.32 / 1.98
-        head_width = length * 0.25  # 0.495 / 1.98
-        shaft_width = length * 0.083333  # 0.165 / 1.98
+        strokes = _arrow_strokes(max(1, int(arms)), length, head_length, head_width)
+        points = _trace_strokes(strokes)
+        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
-        points = [
-            (0, 0, -tip_length),  # -Z先端
-            (-head_width, 0, -shaft_length),  # -Z頭部左
-            (-shaft_width, 0, -shaft_length),  # -Z軸左
-            (-shaft_width, 0, -shaft_width),  # クロス中心左下
-            (-shaft_length, 0, -shaft_width),  # -X軸下
-            (-shaft_length, 0, -head_width),  # -X頭部下
-            (-tip_length, 0, 0),  # -X先端
-            (-shaft_length, 0, head_width),  # -X頭部上
-            (-shaft_length, 0, shaft_width),  # -X軸上
-            (-shaft_width, 0, shaft_width),  # クロス中心左上
-            (-shaft_width, 0, shaft_length),  # +Z軸左
-            (-head_width, 0, shaft_length),  # +Z頭部左
-            (0, 0, tip_length),  # +Z先端
-            (head_width, 0, shaft_length),  # +Z頭部右
-            (shaft_width, 0, shaft_length),  # +Z軸右
-            (shaft_width, 0, shaft_width),  # クロス中心右上
-            (shaft_length, 0, shaft_width),  # +X軸上
-            (shaft_length, 0, head_width),  # +X頭部上
-            (tip_length, 0, 0),  # +X先端
-            (shaft_length, 0, -head_width),  # +X頭部下
-            (shaft_length, 0, -shaft_width),  # +X軸下
-            (shaft_width, 0, -shaft_width),  # クロス中心右下
-            (shaft_width, 0, -shaft_length),  # -Z軸右
-            (head_width, 0, -shaft_length),  # -Z頭部右
-            (0, 0, -tip_length),  # 閉じる
-        ]
+    @staticmethod
+    def radial_arrow(
+        length=1.0,
+        arms=4,
+        head_length=0.44,
+        head_width=0.5,
+        shaft_width=0.16,
+        name=DEFAULT_SHAPE_NAME,
+        tx=0.0,
+        ty=0.0,
+        tz=0.0,
+        rx=0.0,
+        ry=0.0,
+        rz=0.0,
+        sx=1.0,
+        sy=1.0,
+        sz=1.0,
+    ):
+        """輪郭で描く、原点から等間隔に広がる複数の矢印を作成します。
+
+        Args:
+            length (float): 原点から各先端までの長さ。
+            arms (int): 矢印の本数(1未満は1として扱う)。本数が多く隣の矢印と重なる場合は、
+                矢印の幅を自動で狭める。
+            head_length (float): 矢じりの長さ。
+            head_width (float): 矢じりの幅。
+            shaft_width (float): 軸の幅。
+        """
+        profile = _arrow_profile(length, head_length, head_width, shaft_width)
+        points = _radial_outline(max(1, int(arms)), profile, shaft_width * 0.5)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
 
-class Rotation(Shape):
+class Arcs(Shape):
+    """XZ 平面に置く、両端に矢じりのある円弧(回転方向の表示用)。円弧は -X 側に置く。"""
+
+    order = 40
+
     @staticmethod
-    def rot_180_thin(
+    def arc_arrow_thin(
+        radius=0.7,
+        sweep=180,
+        head_length=0.3,
+        head_width=0.3,
+        name=DEFAULT_SHAPE_NAME,
+        tx=0.0,
+        ty=0.0,
+        tz=0.0,
+        rx=0.0,
+        ry=0.0,
+        rz=0.0,
+        sx=1.0,
+        sy=1.0,
+        sz=1.0,
+    ):
+        """線で描く円弧の矢印を作成します。
+
+        Args:
+            radius (float): 円弧の半径。
+            sweep (int): 円弧の角度(度、1〜360)。
+            head_length (float): 矢じりの長さ(円弧に沿った長さ)。
+            head_width (float): 矢じりの幅。
+        """
+        start, end, head_angle = _arc_span(radius, sweep, head_length)
+        half_head = min(head_width * 0.5, radius * 0.95)
+        strokes = [_arc(radius, start, end)]
+        for tip_angle, neck_angle in ((start, start + head_angle), (end, end - head_angle)):
+            strokes.append([
+                _on_xz(radius + half_head, neck_angle),
+                _on_xz(radius, tip_angle),
+                _on_xz(radius - half_head, neck_angle),
+            ])
+        points = _trace_strokes(strokes)
+        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+
+    @staticmethod
+    def arc_arrow(
+        radius=1.0,
+        sweep=180,
+        head_length=0.4,
+        head_width=0.45,
+        band_width=0.16,
+        name=DEFAULT_SHAPE_NAME,
+        tx=0.0,
+        ty=0.0,
+        tz=0.0,
+        rx=0.0,
+        ry=0.0,
+        rz=0.0,
+        sx=1.0,
+        sy=1.0,
+        sz=1.0,
+    ):
+        """輪郭で描く円弧の矢印を作成します。
+
+        Args:
+            radius (float): 帯の中心線の半径。
+            sweep (int): 先端から先端までの角度(度、1〜360)。
+            head_length (float): 矢じりの長さ(中心線に沿った長さ)。
+            head_width (float): 矢じりの幅。
+            band_width (float): 円弧の帯の幅。
+        """
+        start, end, head_angle = _arc_span(radius, sweep, head_length)
+        half_head = min(head_width * 0.5, radius * 0.95)
+        half_band = min(band_width * 0.5, radius * 0.95)
+        neck_start = start + head_angle
+        neck_end = end - head_angle
+
+        points = [_on_xz(radius, start), _on_xz(radius + half_head, neck_start)]
+        points += _arc(radius + half_band, neck_start, neck_end)
+        points += [
+            _on_xz(radius + half_head, neck_end),
+            _on_xz(radius, end),
+            _on_xz(radius - half_head, neck_end),
+        ]
+        points += _arc(radius - half_band, neck_end, neck_start)
+        points.append(_on_xz(radius - half_head, neck_start))
+        return _curve(_closed(points), name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
+
+
+class Markers(Shape):
+    """用途を表す目印の形状。"""
+
+    order = 50
+
+    @staticmethod
+    def sphere_arrows(
         diameter=1.0,
-        arrow_offset=0.35,
+        arms=4,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -989,50 +1177,28 @@ class Rotation(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """回転矢印（180度・細）を計算で生成
+        """球の上側に沿って曲がる、放射状の矢印の輪郭を作成します。
+
+        平面上で作った放射状の矢印の輪郭を、中心が球の頂点(+Y)に来るよう球面へ巻き付けます。
+        矢の先端は頂点から 65 度下った位置になります。
 
         Args:
-            diameter: 円弧の直径
-            arrow_offset: 矢印の突出量
-            name: カーブの名前
+            diameter (float): 巻き付ける球の直径。
+            arms (int): 矢印の本数(1未満は1として扱う)。本数が多く隣の矢印と重なる場合は、
+                矢印の幅を自動で狭める。
         """
-        # 直径から半径を計算
-        radius = diameter / 2.0
-
-        # 矢印の先端・羽の計算
-        arrow_tip_offset = arrow_offset * 1.351664  # 0.446514 = 0.35 * 1.276
-        arrow_wing_x = arrow_offset * 0.0305837  # 0.0107043
-        arrow_wing_z_outer = radius * 1.001418
-        arrow_wing_z_inner = radius * 0.5442
-
-        # 円弧上の点（180度の円弧）
-        # 角度を使って計算
-        points = [
-            (-arrow_offset - arrow_tip_offset, 0, -radius * 1.351664),  # 上側矢印先端
-            (arrow_wing_x, 0, -arrow_wing_z_outer),  # 上側矢印羽外
-            (-arrow_offset + 0.106972, 0, -arrow_wing_z_inner),  # 上側矢印羽内
-            (arrow_wing_x, 0, -arrow_wing_z_outer),  # 上側矢印羽外に戻る
-            (-radius * 0.13006, 0, -radius),  # 円弧開始
-            (-radius * 0.393028, 0, -radius * 0.947932),
-            (-radius * 0.725413, 0, -radius * 0.725516),
-            (-radius * 0.947961, 0, -radius * 0.392646),
-            (-radius * 1.026019, 0, 0),  # 円弧中心
-            (-radius * 0.947961, 0, radius * 0.392646),
-            (-radius * 0.725413, 0, radius * 0.725516),
-            (-radius * 0.393028, 0, radius * 0.947932),
-            (-radius * 0.13006, 0, radius),  # 円弧終了
-            (0, 0, radius),  # 下側矢印軸
-            (-arrow_offset + 0.106972, 0, arrow_wing_z_inner),  # 下側矢印羽内
-            (0, 0, radius),  # 下側矢印軸に戻る
-            (-arrow_offset - arrow_tip_offset, 0, radius * 1.351664),  # 下側矢印先端
-        ]
+        # 矢の長さを1とした平面上の輪郭(比率は Arrows の既定値と同じ)。区間を細かく分けてから
+        # 巻き付け、球面に沿わせる。
+        profile = _arrow_profile(1.0, 0.44, 0.5, 0.16)
+        outline = _subdivide(_radial_outline(max(1, int(arms)), profile, 0.08), 0.2)
+        points = _wrap_onto_sphere(outline, diameter * 0.5, _SPHERE_ARROW_REACH)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
     @staticmethod
-    def rot_180_normal(
-        outer_radius=1.063053,
-        inner_radius=0.961797,
-        arrow_width=0.251045,
+    def aim(
+        length=1.0,
+        head_length=0.25,
+        head_width=0.2,
         name=DEFAULT_SHAPE_NAME,
         tx=0.0,
         ty=0.0,
@@ -1044,173 +1210,79 @@ class Rotation(Shape):
         sy=1.0,
         sz=1.0,
     ):
-        """回転矢印（180度・通常）を計算で生成
+        """3軸の線と、-Z 側の端に付けた四角錐の矢じりでエイム方向を示す目印を作成します。
 
         Args:
-            outer_radius: 外側円弧の半径
-            inner_radius: 内側円弧の半径
-            arrow_width: 矢印の幅
-            name: カーブの名前
+            length (float): 各軸の線の全長。
+            head_length (float): 矢じりの長さ。
+            head_width (float): 矢じりの底面の対角線の長さ。
         """
-        points = [
-            (-arrow_width, 0, -outer_radius * 1.015808),  # 上側矢印先端(外)
-            (-arrow_width - 0.510789, 0, -outer_radius * 0.979696),  # 上側矢印羽(外)
-            (-arrow_width - 0.235502, 0, -outer_radius * 0.930468),  # 上側矢印(外)
-            (-arrow_width - 0.319691, 0, -outer_radius * 0.886448),  # 上側(外)
-            (-arrow_width - 0.476815, 0, -outer_radius * 0.774834),
-            (-arrow_width - 0.658256, 0, -outer_radius * 0.550655),
-            (-arrow_width - 0.772854, 0, -outer_radius * 0.285854),
-            (-outer_radius, 0, 0),  # 外側円弧中心
-            (-arrow_width - 0.772854, 0, outer_radius * 0.285854),
-            (-arrow_width - 0.658256, 0, outer_radius * 0.550655),
-            (-arrow_width - 0.476815, 0, outer_radius * 0.774834),
-            (-arrow_width - 0.319691, 0, outer_radius * 0.886448),
-            (-arrow_width - 0.235502, 0, outer_radius * 0.930468),
-            (-arrow_width - 0.510789, 0, outer_radius * 0.979696),
-            (-arrow_width, 0, outer_radius * 1.015808),  # 下側矢印先端(外)
-            (-arrow_width - 0.247870, 0, inner_radius * 0.567734),  # 下側矢印(内)
-            (-arrow_width - 0.189157, 0, inner_radius * 0.841857),
-            (-arrow_width - 0.265310, 0, inner_radius * 0.802034),
-            (-arrow_width - 0.407533, 0, inner_radius * 0.701014),
-            (-arrow_width - 0.571631, 0, inner_radius * 0.498232),
-            (-arrow_width - 0.675354, 0, inner_radius * 0.258619),
-            (-inner_radius, 0, 0),  # 内側円弧中心
-            (-arrow_width - 0.675354, 0, -inner_radius * 0.258619),
-            (-arrow_width - 0.571631, 0, -inner_radius * 0.498232),
-            (-arrow_width - 0.407533, 0, -inner_radius * 0.701014),
-            (-arrow_width - 0.265310, 0, -inner_radius * 0.802034),
-            (-arrow_width - 0.189157, 0, -inner_radius * 0.841857),
-            (-arrow_width - 0.247870, 0, -inner_radius * 0.567734),
-            (-arrow_width, 0, -outer_radius * 1.015808),  # 閉じる
+        half = length * 0.5
+        origin = (0.0, 0.0, 0.0)
+        strokes = [
+            [(-half, 0.0, 0.0), origin, (half, 0.0, 0.0)],
+            [(0.0, -half, 0.0), origin, (0.0, half, 0.0)],
+            [(0.0, 0.0, half), origin, (0.0, 0.0, -half)],
         ]
+        tip = (0.0, 0.0, -half)
+        neck_z = -half + min(max(head_length, 0.0), length)
+        spread = head_width * 0.5
+        base = [(spread, 0.0, neck_z), (0.0, spread, neck_z), (-spread, 0.0, neck_z), (0.0, -spread, neck_z)]
+        strokes.append(_closed(base))
+        strokes.extend([corner, tip] for corner in base)
+        points = _trace_strokes(strokes)
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
 
 
-class Special(Shape):
-    @staticmethod
-    def arrows_on_ball(
-        diameter=1.0,
-        name=DEFAULT_SHAPE_NAME,
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """球面上の矢印（4方向）を計算で生成
-
-        Args:
-            diameter: 仕上がり直径
-            name: カーブの名前
-        """
-        # 直径指定に合わせてスケール
-        base_radius = 1.001567
-        base_depth = 0.954001
-        base_arrow_base_height = 0.35
-        base_arrow_width = 0.0959835
-
-        radius = diameter / 2.0
-        scale = radius / base_radius
-        depth = base_depth * scale
-        arrow_base_height = base_arrow_base_height * scale
-        arrow_width = base_arrow_width * scale
-
-        # 比率の計算（元の値から）
-        mid_height = arrow_base_height + (depth - arrow_base_height) * 0.5  # ≈ 0.677886
-        high_height = mid_height + (depth - mid_height) * 0.5  # ≈ 0.850458
-
-        # 矢印の羽の外側距離 (336638 / 1.001567 ≈ 0.3359)
-        arrow_outer_offset = radius * 0.3359
-        # 矢印の羽の内側距離 (500783 / 1.001567 ≈ 0.4995)
-        arrow_inner_offset = radius * 0.4995
-        # 矢印の側面矢印 (751175 / 1.001567 ≈ 0.7499)
-        arrow_side = radius * 0.7499
-
-        points = [
-            (0, arrow_base_height, -radius),
-            (-arrow_outer_offset, mid_height, -arrow_side),
-            (-arrow_width, mid_height, -arrow_side),
-            (-arrow_width, high_height, -arrow_inner_offset),
-            (-arrow_width, depth, -arrow_width),
-            (-arrow_inner_offset, high_height, -arrow_width),
-            (-arrow_side, mid_height, -arrow_width),
-            (-arrow_side, mid_height, -arrow_outer_offset),
-            (-radius, arrow_base_height, 0),
-            (-arrow_side, mid_height, arrow_outer_offset),
-            (-arrow_side, mid_height, arrow_width),
-            (-arrow_inner_offset, high_height, arrow_width),
-            (-arrow_width, depth, arrow_width),
-            (-arrow_width, high_height, arrow_inner_offset),
-            (-arrow_width, mid_height, arrow_side),
-            (-arrow_outer_offset, mid_height, arrow_side),
-            (0, arrow_base_height, radius),
-            (arrow_outer_offset, mid_height, arrow_side),
-            (arrow_width, mid_height, arrow_side),
-            (arrow_width, high_height, arrow_inner_offset),
-            (arrow_width, depth, arrow_width),
-            (arrow_inner_offset, high_height, arrow_width),
-            (arrow_side, mid_height, arrow_width),
-            (arrow_side, mid_height, arrow_outer_offset),
-            (radius, arrow_base_height, 0),
-            (arrow_side, mid_height, -arrow_outer_offset),
-            (arrow_side, mid_height, -arrow_width),
-            (arrow_inner_offset, high_height, -arrow_width),
-            (arrow_width, depth, -arrow_width),
-            (arrow_width, high_height, -arrow_inner_offset),
-            (arrow_width, mid_height, -arrow_side),
-            (arrow_outer_offset, mid_height, -arrow_side),
-            (0, arrow_base_height, -radius),
-        ]
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-
-    @staticmethod
-    def aim2(
-        arrow_length=1.0,
-        name=DEFAULT_SHAPE_NAME,
-        tx=0.0,
-        ty=0.0,
-        tz=0.0,
-        rx=0.0,
-        ry=0.0,
-        rz=0.0,
-        sx=1.0,
-        sy=1.0,
-        sz=1.0,
-    ):
-        """Aim用マーカー（十字形）を計算で生成
-
-        Args:
-            arrow_length: 矢印の長さ
-            name: カーブの名前
-        """
-        half = arrow_length * 0.5
-        points = [
-            (0, 0, half),
-            (0, 0, -half),
-            (0, half, 0),
-            (0, -half, 0),
-            (0, 0, -half),
-            (half, 0, 0),
-            (-half, 0, 0),
-            (0, 0, -half),
-        ]
-        return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
-    
-
+# ---------------------------------------------------------------------------
+# 形状の列挙
+# ---------------------------------------------------------------------------
 def get_shape_classes():
-    """モジュール内のすべてのシェイプクラスを取得
+    """形状セクションのクラスを表示順に返します。
 
     Returns:
-        {section_key: class} 形式の辞書
+        dict[str, type]: ``{セクション名(クラス名の小文字): クラス}``。``order`` の昇順。
     """
-    classes = {}
-    for name, cls in inspect.getmembers(sys.modules[__name__], inspect.isclass):
-        if name in {"Shape"}:
-            continue
-        if not name.startswith('_'):  # private classを除外
-            classes[name.lower()] = cls
-    return classes
+    module = sys.modules[__name__]
+    sections = [
+        cls
+        for _name, cls in inspect.getmembers(module, inspect.isclass)
+        if issubclass(cls, Shape) and cls is not Shape and cls.__module__ == module.__name__
+    ]
+    sections.sort(key=lambda cls: (cls.order, cls.__name__))
+    return {cls.__name__.lower(): cls for cls in sections}
+
+
+def get_shape_functions(section_class):
+    """セクションクラスに定義された形状関数を定義順に返します。
+
+    Args:
+        section_class (type): :func:`get_shape_classes` が返すクラス。
+
+    Returns:
+        list[tuple[str, callable]]: ``(形状名, 形状関数)`` のリスト。
+    """
+    return [
+        (attr_name, getattr(section_class, attr_name))
+        for attr_name, value in vars(section_class).items()
+        if not attr_name.startswith("_") and isinstance(value, staticmethod)
+    ]
+
+
+def find_shape(name):
+    """形状名から形状関数を返します。
+
+    Args:
+        name (str): 形状名(例: ``"cube"``、``"arc_arrow"``)。
+
+    Returns:
+        callable: 形状関数。
+
+    Raises:
+        KeyError: 該当する形状が無い場合。
+    """
+    for section_class in get_shape_classes().values():
+        for shape_name, func in get_shape_functions(section_class):
+            if shape_name == name:
+                return func
+    raise KeyError(f"形状が見つかりません: {name}")

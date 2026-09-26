@@ -415,29 +415,33 @@ class SkinCluster(Node):
 
     @undo_chunk("hlib.nodes.skinCluster.redistribute_weights")
     def redistribute_weights(self, vertices, method="cubic"):
-        """指定頂点のウェイト分布をイージングカーブで非線形に再分配する。
+        """頂点ごとのウェイト配分を、イージング曲線で強弱をつけて配り直す。
 
-        各頂点ごとに現在の influence 別ウェイトを合計1へ正規化し、
-        ``hlib.maths.easing`` のイージング関数を個別の値へ適用してから
-        再度合計1へ正規化する。影響する influence の組み合わせ自体は
-        変えず、配分の偏りだけを変える(急峻/緩やかな境界への寄せ)。
+        対象頂点それぞれについて、influence 別のウェイトを合計1に揃えた
+        割合として読み、各割合を ``hlib.maths.easing.ease`` の曲線に通す。
+        その結果をもう一度合計1に揃えて書き戻す。割合の大小の差が強調される
+        ため、境界がくっきりした配分に寄る。どの influence が効いているかは
+        変わらず、ウェイト0の influence は0のまま。
 
         Args:
-            vertices (Iterable[int]): 対象頂点インデックス。
-            method (str): 適用するイージング名。``hlib.maths.easing`` の
-                ``ease_in_out_<method>`` に対応する接尾辞
-                ("quadratic"、"cubic"、"quartic"、"quintic"、"sinusoidal"、
-                "exponential"、"circular")。
+            vertices (Iterable[int]): 対象頂点インデックス。重複は1回として扱う。
+            method (str): 曲線名。``hlib.maths.easing.CURVES`` のいずれか
+                (例: ``"cubic"``、``"sine"``、``"exponential"``)。互換のため
+                旧名 ``"sinusoidal"`` も ``"sine"`` として受け付ける。
+                ``"linear"`` は配分を変えない。
 
         Returns:
             None: 値を返さない。一回の Undo で戻せる。
 
         Raises:
+            TypeError: method が文字列でない場合。
             ValueError: method が未対応、または対象頂点のウェイト合計が0の場合。
             IndexError: 頂点インデックスが mesh の範囲外の場合。
         """
-        ease = getattr(easing, "ease_in_out_" + method, None)
-        if ease is None:
+        if not isinstance(method, str):
+            raise TypeError(f"Easing method must be a str, got {type(method).__name__}")
+        curve = {"sinusoidal": "sine"}.get(method, method)
+        if curve not in easing.CURVES:
             raise ValueError(f"Unsupported easing method: {method}")
         vertex_count = om2.MFnMesh(self.mesh_path).numVertices
         vertex_indices = sorted({int(index) for index in vertices})
@@ -459,7 +463,7 @@ class SkinCluster(Node):
             if total <= 0.0:
                 raise ValueError(f"Vertex {vertex} has no weight to redistribute")
             normalized = [value / total for value in row]
-            eased = [ease(value) for value in normalized]
+            eased = [easing.ease(value, curve) for value in normalized]
             eased_total = sum(eased)
             if eased_total <= 0.0:
                 raise ValueError(f"Vertex {vertex} produced a zero-sum weight distribution")
