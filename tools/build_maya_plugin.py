@@ -84,7 +84,7 @@ def run(cmd, env):
     return subprocess.run([str(c) for c in cmd], env=env).returncode
 
 
-def build(plugin, year, config, install_root, build_root):
+def build(plugin, year, config, install_root, build_root, generate_only=False):
     """1バージョン分をビルドする。(成功か, 生成した.mllのリスト) を返す。"""
     toolset = TOOLSETS[year]
     try:
@@ -109,6 +109,8 @@ def build(plugin, year, config, install_root, build_root):
     if run([cmake, "-S", plugin, "-B", build_dir, "-G", GENERATORS[vs["major"]], "-A", "x64",
             "-T", toolset, "-DMAYA_VERSION=%d" % year], env):
         return False, []
+    if generate_only:
+        return True, sorted(build_dir.glob("*.sln*"))
     if run([cmake, "--build", build_dir, "--config", config, "--parallel"], env):
         return False, []
     built = sorted(p for p in plugin.rglob("*.mll") if str(year) in p.parts and p.stat().st_mtime >= started - 1)
@@ -125,6 +127,7 @@ def main(argv=None):
     parser.add_argument("--install-root", default=r"C:\Program Files\Autodesk")
     parser.add_argument("--build-root", type=Path, default=ROOT / ".maya-output/plugin-build")
     parser.add_argument("--list", action="store_true", help="ビルドせず、環境の検出結果だけ表示する")
+    parser.add_argument("--generate-only", action="store_true", help="Visual Studioプロジェクトだけを生成し、コンパイルしない")
     args = parser.parse_args(argv)
 
     plugin = args.plugin.resolve()
@@ -145,7 +148,7 @@ def main(argv=None):
     failed = []
     for year in args.versions:
         print("==== Maya %d ====" % year)
-        ok, built = build(plugin, year, args.config, args.install_root, args.build_root)
+        ok, built = build(plugin, year, args.config, args.install_root, args.build_root, args.generate_only)
         for path in built:
             print("生成:", path)
         if not ok:
