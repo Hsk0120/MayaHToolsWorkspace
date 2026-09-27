@@ -19,8 +19,12 @@ class CompoundPlug(Plug):
 
         Returns:
             tuple: 子の数と同じ長さの値。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
-        return tuple(self.child(index).get() for index in range(self._mplug.numChildren()))
+        self._require_valid()
+        return tuple(self._child_at(index).get() for index in range(self._mplug.numChildren()))
 
     @fast_edit
     @undo_chunk("hlibCompoundPlugSet")
@@ -39,16 +43,29 @@ class CompoundPlug(Plug):
 
         Raises:
             ValueError: 要素数が子数と一致しない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         values = tuple(value)
         if len(values) != self._mplug.numChildren():
             raise ValueError("Compound plug value length does not match its child count")
         for index, child_value in enumerate(values):
-            self.child(index).set(child_value)
+            self._child_at(index).set(child_value)
         return self
+
+    def _child_at(self, index):
+        """有効性を確かめ済みの前提で、子インデックスの子 Plug を作る。
+
+        Args:
+            index (int): 子インデックス。
+
+        Returns:
+            Plug: 子プラグ。
+        """
+        return Plug(self._node, self._mplug.child(index))
 
     def child(self, name_or_index):
         """子 Plug を取得する。
@@ -63,9 +80,11 @@ class CompoundPlug(Plug):
 
         Raises:
             AttributeError: 名前に一致する子属性がない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         if isinstance(name_or_index, int):
-            return Plug(self._node, self._mplug.child(name_or_index))
+            return self._child_at(name_or_index)
         for index in range(self._mplug.numChildren()):
             child = self._mplug.child(index)
             attribute = om2.MFnAttribute(child.attribute())
@@ -78,8 +97,12 @@ class CompoundPlug(Plug):
 
         Returns:
             list[Plug]: 子プラグ。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
-        return [self.child(index) for index in range(self._mplug.numChildren())]
+        self._require_valid()
+        return [self._child_at(index) for index in range(self._mplug.numChildren())]
 
     def __getattr__(self, name):
         """子を Python 属性形式で取得する。
@@ -91,11 +114,13 @@ class CompoundPlug(Plug):
             Plug: 解決した子プラグ。
 
         Raises:
-            AttributeError: private 名または存在しない子を指定した場合。
+            AttributeError: private 名または存在しない子を指定した場合。所有ノード・属性が
+                削除済みの(無効な)Plug の場合も、``hasattr``/``getattr(..., default)`` が
+                使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
         """
         if name.startswith("_"):
             raise AttributeError(name)
         try:
             return self.child(name)
-        except (AttributeError, TypeError) as error:
+        except (AttributeError, TypeError, RuntimeError) as error:
             raise AttributeError(f"No plug member named {name!r}") from error

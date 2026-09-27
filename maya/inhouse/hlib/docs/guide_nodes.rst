@@ -64,6 +64,31 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 最上位祖先を返し、自身がワールド直下ならそのまま自身を返します。
 ``Shape`` には同様に ``is_intermediate_object`` があります。
 
+ノードの名前と取得
+------------------
+
+``str(node)`` と ``node.name()`` は maya.cmds で一意に解決できる最短名、
+``node.full_name()`` は完全な DAG パスを返します。どちらも呼び出すたびに求め直すため、
+名前変更・親子付け替えの後も同じ Node を ``cmds.select(node)`` のように
+maya.cmds へそのまま渡せます。削除済みのノードは空文字列です。
+
+``hlib.node(value)`` (``Node(value)`` と同じ)は、名前・MObject・MDagPath のほか、
+既存の Node、Plug・MPlug(所有ノード)、Vertex・Vertices などのコンポーネント
+(所有シェイプ)も受け付け、実際のノード型に対応するラッパーを返します。
+``"dup.tx"`` のように同じ短い名前のノードがあって複数の対象に一致する名前は、
+最初の一致を返さず ``RuntimeError`` になります。インスタンス化されたノードは
+指定したインスタンスのパスを保持し、そのインスタンスだけが削除された場合は
+残っている最初のインスタンスのパスへ切り替わります。
+
+.. code-block:: python
+
+   joint = hlib.createNode("joint", name="nameExampleJoint")
+   print(hlib.node(joint.plug("tx")))        # nameExampleJoint（Joint）
+   print(hlib.node(joint.name() + ".tx"))    # 属性名の文字列も所有ノードになる
+   copy = hlib.node(joint)                   # 同じノードを指す新しいラッパー
+
+詳しくは :doc:`cmds_interop` を参照してください。
+
 ノード型の分類とDAG階層クエリ
 ------------------------------
 
@@ -124,6 +149,9 @@ Maya 組み込みのノード型では空文字列になります。
 ロックされている属性は既定では削除できず ``RuntimeError`` になりますが、
 ``force=True`` を指定すると一時的にロックを解除してから削除します。
 接続がある属性は force に関わらず Maya が自動的に切断してから削除します。
+削除した属性の Plug は無効になり(``plug.is_valid()`` が ``False``、``str(plug)`` は空文字列)、
+``get()``/``set()`` は ``RuntimeError`` です。同じ名前で追加し直した属性は ``node.plug()`` で
+取得し直してください。
 
 表示・SRT解放・軸判定・オフセットグループ
 ------------------------------------------

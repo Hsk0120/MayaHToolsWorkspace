@@ -1,33 +1,60 @@
 """ドライバーPlugと駆動先Plugの組を扱う。"""
 
 import math
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from .._core.attribute_type import attribute_type
+from .._core.coerce import to_plug
 from .._core.collection import BulkCollection, bulk_api
 from ..decorators.undo import undo_chunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
 
 
+#: ドライバー・駆動先に使える数値スカラーの属性型名。
+_NUMERIC_SCALAR_TYPES = frozenset((
+    "double", "float", "doubleAngle", "doubleLinear", "time",
+    "bool", "byte", "char", "short", "long", "enum",
+))
+
+
 def _plug(value):
-    """Plugまたは属性名を、数値スカラーのPlugとして検証する。"""
-    if isinstance(value, Plug):
-        result = value
-    elif isinstance(value, str) and "." in value:
-        name, attribute = value.split(".", 1)
-        result = Node(name).plug(attribute)
+    """Plug・MPlug・属性名を、数値スカラーのPlugとして検証する。
+
+    文字列は ``to_plug`` で解決するため、``str(plug)`` が返す形式(``grp1|dup.tx``、
+    ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。
+    属性が見つからない、または名前が一意でない場合は RuntimeError、属性を指さない
+    文字列や対応しない型は TypeError。属性型は属性定義から判定するため
+    (:func:`hlib._core.attribute_type.attribute_type`)、検証でシーンは変更しない。
+    """
+    if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
+        result = to_plug(value)
     else:
-        raise TypeError("Expected a Plug or node.attribute string")
-    if not result.node.is_valid() or not cmds.objExists(result.full_name()):
+        raise TypeError("Expected a Plug, MPlug or node.attribute string")
+    if not result.is_valid() or not cmds.objExists(result.full_name()):
         raise RuntimeError("Cannot access an invalid plug")
     if result.mplug().isArray or result.mplug().isCompound:
         raise ValueError("Expected a scalar plug, not an array or compound")
-    if cmds.getAttr(result.full_name(), type=True) not in {
-        "double", "float", "doubleAngle", "doubleLinear", "time",
-        "bool", "byte", "char", "short", "long", "enum",
-    }:
+    if attribute_type(result.mplug()) not in _NUMERIC_SCALAR_TYPES:
         raise ValueError("Expected a numeric scalar plug")
     return result
+
+
+def _contains_plug(plugs, mplug):
+    """同じプラグ(所有ノード・属性・配列インデックスが一致)が含まれるか判定する。
+
+    インスタンス化されたシェイプの属性は、どのインスタンスのパスから取得しても同じ
+    プラグになる。名前(インスタンスのパスを含む ``full_name()``)では比較しない。
+
+    Args:
+        plugs (Iterable[om2.MPlug]): 比較対象のプラグ。
+        mplug (om2.MPlug): 探すプラグ。
+
+    Returns:
+        bool: 同じプラグが含まれる場合は True。
+    """
+    return any(candidate == mplug for candidate in plugs)
 
 
 def _sources(plug):
@@ -70,15 +97,15 @@ class DrivenKey:
         """既存の数値Plugを保持する。関係が未作成でも取得できる。
 
         Args:
-            driver (Plug | str): ドライバー属性。
-            driven (Plug | str): 駆動される属性。
+            driver (Plug | om2.MPlug | str): ドライバー属性。文字列は ``"node.attribute"`` 形式。
+            driven (Plug | om2.MPlug | str): 駆動される属性。
         Raises:
             ValueError: 非スカラー、非数値、または同一属性の場合。
-            TypeError: Plugでも属性名でもない場合。
+            TypeError: Plug・MPlug・属性名のいずれでもない場合。
             RuntimeError: 属性が存在しない場合。
         """
         self._driver, self._driven = _plug(driver), _plug(driven)
-        if self._driver.full_name() == self._driven.full_name():
+        if self._driver.mplug() == self._driven.mplug():
             raise ValueError("Driver and driven must be different plugs")
 
     def __repr__(self):
@@ -97,11 +124,13 @@ class DrivenKey:
         """list[AnimCurve]: この組に対応するカーブ。未作成・対象外の構成なら空。
 
         接続を毎回照会し、他ドライバーのカーブやblendWeightedのweight入力は含めない。
+        ドライバーは名前ではなくプラグ自体で照合するため、インスタンス化されたシェイプの
+        属性をどのインスタンスのパスから指定しても同じ関係として扱う。
         """
-        driver = self.driver().full_name()
+        driver = self.driver().mplug()
         return [curve for curve in _curves(self.driven())
-                if any(_plug(source).full_name() == driver
-                       for source in _sources(curve.full_name() + ".input"))]
+                if _contains_plug((to_plug(source).mplug()
+                                   for source in _sources(curve.full_name() + ".input")), driver)]
 
     def exists(self):
         """bool: 対応するカーブ接続が存在するか。キーが空でもTrue。"""
@@ -161,16 +190,25 @@ class DrivenKeys(BulkCollection):
         """駆動先に接続された関係を取得する。シーンは変更しない。
 
         Args:
-            driven (Plug | str): 検索する駆動先属性。
+            driven (Plug | om2.MPlug | str): 検索する駆動先属性。文字列は ``"node.attribute"`` 形式。
         Returns:
-            DrivenKeys: 対応するドライバーごとの関係。対象外の構成は含めない。
+            DrivenKeys: 対応するドライバーごとの関係。対象外の構成は含めない
+                (数値スカラーでないドライバー。``choice.output`` のような値によって型が
+                変わる generic 属性など)。同じドライバー(プラグ自体で照合する)は1件にまとめる。
+        Raises:
+            ValueError: driven が非スカラー・非数値の場合。
+            TypeError: driven が Plug・MPlug・属性名のいずれでもない場合。
+            RuntimeError: driven の属性が存在しない場合。
         """
         target = _plug(driven)
-        items, seen = [], set()
+        items, seen = [], []
         for curve in _curves(target):
             for source in _sources(curve.full_name() + ".input"):
-                driver = _plug(source)
-                if driver.full_name() not in seen:
-                    seen.add(driver.full_name())
+                try:
+                    driver = _plug(source)
+                except ValueError:
+                    continue  # 数値スカラーでないドライバーは DrivenKey の対象外。
+                if not _contains_plug(seen, driver.mplug()):
+                    seen.append(driver.mplug())
                     items.append(DrivenKey(driver, target))
         return cls(items)

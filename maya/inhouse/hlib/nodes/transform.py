@@ -15,6 +15,12 @@ from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation
 from ..maths.vector import _vector_of
 from .node import Node
 
+#: 拘束元の transform の値(位置・回転など)を使うコンストレイント。拘束元は Transform に限る。
+_TRANSFORM_SOURCE_CONSTRAINTS = frozenset((
+    "parentConstraint", "pointConstraint", "orientConstraint", "scaleConstraint",
+    "aimConstraint", "poleVectorConstraint",
+))
+
 
 _TRANSFORM_ATTRIBUTES = {}
 
@@ -110,7 +116,12 @@ class Transform(Node):
         """自身を拘束するコンストレイントを作成する。
 
         Args:
-            sources (Node | str | Iterable[Node | str]): 拘束元の単一ノードまたはノード列。
+            sources (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug | Iterable):
+                拘束元の単一ノードまたはノード列。Plug・MPlug・``"node.attribute"`` は
+                所有ノード、Component・Components・``"pCube1.vtx[0]"`` は所有シェイプとして扱う。
+                parent/point/orient/scale/aim/poleVector では、拘束元が Transform
+                (joint・IkHandle を含む)に解決される必要がある(シェイプ・Component・
+                DG ノードは TypeError)。
             type (str): parent、point、orient、scale、aim、poleVector、
                 geometry、normal、tangent、pointOnPoly。または Constraint 接尾辞付きの型名。
             maintainOffset (bool): True の場合は現在の相対位置・回転を維持する。
@@ -122,8 +133,12 @@ class Transform(Node):
 
         Raises:
             ValueError: 未対応の型または空のソースの場合。
-            TypeError: 型名やターゲットの入力型が不正な場合。
-            RuntimeError: ノードが無効、または Maya が作成を拒否した場合。
+            TypeError: 型名やターゲットの入力型が不正な場合。parent/point/orient/scale/aim/
+                poleVector の拘束元が Transform に解決されない場合(シェイプの Plug、
+                Component、``"pCube1.vtx[0]"`` など。maya.cmds はシェイプを拘束元にしても
+                ターゲットの無い拘束を黙って作るため)。
+            RuntimeError: ノードが無効、拘束元の名前を解決できない(存在しない、または
+                複数のノードに一致する)場合、または Maya が作成を拒否した場合。
 
         PoleVector は RP IK ハンドル、Geometry/Normal/PointOnPoly は適切な形状、
         Tangent は NURBS カーブが必要。選択状態による対象補完は行わない。
@@ -145,17 +160,33 @@ class Transform(Node):
             raise ValueError(f"Unsupported constraint type: {type}")
         if not self.is_valid():
             raise RuntimeError("Cannot constrain an invalid transform")
-        if isinstance(sources, (Node, str)):
+        from .._core.coerce import to_node
+        from ..components.component import Component, Components
+        from ..plugs.plug import Plug
+
+        # Components は要素へ展開せず、所有シェイプ1つの拘束元として扱う。
+        if isinstance(sources, (Node, str, Plug, Component, Components,
+                                om2.MObject, om2.MDagPath, om2.MPlug)):
             sources = [sources]
+        # 拘束元の transform の値を使う型。シェイプを拘束元にすると maya.cmds はターゲットの
+        # 無い(追従しない)拘束を黙って作るため、Transform 以外は TypeError にする。
+        requires_transform = command_name in _TRANSFORM_SOURCE_CONSTRAINTS
         names = []
         for source in sources:
-            if isinstance(source, Node):
-                if not source.is_valid():
-                    raise RuntimeError("Constraint target is invalid")
-                source = source.full_name()
-            if not isinstance(source, str) or not source:
+            if source is None or (isinstance(source, str) and not source):
                 raise TypeError("Constraint sources must be non-empty names or Node objects")
-            names.append(source)
+            # 文字列も含めて所有ノードへ解決する。Plug・MPlug・"node.attribute" は所有ノード、
+            # Component・"pCube1.vtx[0]" は所有シェイプを拘束元にする(maya.cmds へ
+            # プラグ名・コンポーネント名をそのまま渡すと拘束元として扱われないため)。
+            source = to_node(source)
+            if not source.is_valid():
+                raise RuntimeError("Constraint target is invalid")
+            if requires_transform and not source.mobject().hasFn(om2.MFn.kTransform):
+                raise TypeError(
+                    f"{command_name} の拘束元には Transform(joint・IkHandle を含む)を指定してください"
+                    f"(シェイプ・Component・DG ノードは不可): {source.__class__.__name__} {source.name()!r}"
+                )
+            names.append(source.full_name())
         if not names:
             raise ValueError("At least one constraint source is required")
         command_kwargs = {}
@@ -240,10 +271,10 @@ class Transform(Node):
 
         Returns:
             om2.MDagPath | None: 有効な DAG パス。取得できない場合は ``None``。
+                保持していたインスタンスのパスが削除された場合は、残っている最初の
+                インスタンスのパスを返す。
         """
-        if self._dag_path is None and self.is_valid():
-            self._dag_path = om2.MFnDagNode(self.mobject()).getPath()
-        return self._dag_path
+        return self._current_dag_path()
 
     def dag_node(self):
         """Transform 用の MFnDagNode を取得する。
@@ -556,7 +587,8 @@ class Transform(Node):
         """Transformの親を変更する。
 
         Args:
-            parent (Node | str | None): 新しい親。None はワールド直下。
+            parent (Node | str | om2.MObject | om2.MDagPath | None): 新しい親。None はワールド直下。
+                ``Node(parent)`` で解決できる型(Plug・Component は所有ノード)を受け付ける。
             relative (bool): True は親変更前のローカル変換を保持する。False は Maya の既定動作。
             add (bool): True は既存の親を維持して追加の親を設定する。parent が None の場合は渡されない。
 
@@ -586,7 +618,8 @@ class Transform(Node):
         """自身の変換を指定Transformへ合わせる。選択状態は使用しない。
 
         Args:
-            target (Transform | str): 合わせ先のTransformまたはjoint。
+            target (Transform | str | om2.MObject | om2.MDagPath): 合わせ先のTransformまたはjoint。
+                hlib._core.coerce.to_node が受け付ける型(Plug は所有ノード)を指定できる。
             position (bool): 位置を合わせる。
             rotation (bool): 回転を合わせる。
             scale (bool): スケールを合わせる。
@@ -626,11 +659,13 @@ class Transform(Node):
                 (``worldMatrix[<インスタンス番号>]``)を使う。
 
         Returns:
-            Matrix: 指定空間の評価済み行列の複製(om2.MMatrix の派生)。ノードが無効な
-            場合は単位行列。
+            Matrix: 指定空間の評価済み行列の複製(om2.MMatrix の派生)。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
         """
         if not self.is_valid():
-            return Matrix()
+            raise RuntimeError("無効なノードの行列は取得できません")
         # 名前による findPlug より速い、属性の MObject からの MPlug 生成を使う。
         plug = om2.MPlug(self.mobject(), _transform_attribute("worldMatrix" if ws else "matrix"))
         if ws:

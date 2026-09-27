@@ -28,7 +28,9 @@ class MatrixPlug(Plug):
 
         Raises:
             AttributeError: ws=True で所有ノードに get_matrix がない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         if ws:
             return self.node.get_matrix(ws=True)
         return Matrix.from_mmatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
@@ -50,10 +52,12 @@ class MatrixPlug(Plug):
 
         Raises:
             TypeError: worldMatrix 属性への書き込みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         if self.attribute() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
         if hasattr(self.node, "set_matrix"):

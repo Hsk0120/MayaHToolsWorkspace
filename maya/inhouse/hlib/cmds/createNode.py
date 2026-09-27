@@ -46,9 +46,9 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
      - Maya の既定値
      - ノード名。maya.cmds.createNode へ渡します。
    * - ``parent (p)``
-     - ``str``
+     - ``Node | Plug | Component | str | MObject | MDagPath | MPlug``
      - Maya の既定値
-     - 親ノード名。maya.cmds.createNode へ渡します。
+     - 親ノード。所有ノードの完全パスに変換して maya.cmds.createNode へ渡します。Plug と ``"node.attribute"`` は所有ノード、Component は所有シェイプを親にします。受け付ける型は :doc:`/cmds_interop` を参照。
    * - ``**kwargs``
      - ``object``
      - 省略可
@@ -76,11 +76,15 @@ def createNode(type, **kwargs):
 
     Args:
         type (str): Mayaノード型名。
-        **kwargs (object): maya.cmds.createNodeへ渡すフラグ。
+        **kwargs (object): maya.cmds.createNodeへ渡すフラグ。parent(p)はノードが必要な
+            引数として所有ノードの完全パスへ変換する(Plug・MPlug・"node.attribute" は
+            所有ノード、Component は所有シェイプ)。
     Returns:
         Node: 作成したノードのラッパー。
     Raises:
-        RuntimeError: Mayaが作成を拒否した場合。"""
+        TypeError: parent が対応しない型の場合。
+        ValueError: parent が空文字列、または削除済みの対象の場合。
+        RuntimeError: parent を解決できない場合、またはMayaが作成を拒否した場合。"""
     from ..nodes import Node
 
     return Node.create(type, **kwargs)

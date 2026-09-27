@@ -9,7 +9,7 @@ from .registry import (
 from .discovery import discover_node_package, discover_plug_package
 from .bootstrap import initialize_node_api, initialize_plug_api
 from .reload import reload_package
-from .coerce import to_name, to_names, to_node
+from .coerce import to_name, to_names, to_node, to_node_name, to_plug
 
 __all__ = [
 	"NodeRegistry",
@@ -24,4 +24,6 @@ __all__ = [
 	"to_name",
 	"to_names",
 	"to_node",
+	"to_node_name",
+	"to_plug",
 ]

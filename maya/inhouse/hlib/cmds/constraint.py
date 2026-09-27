@@ -35,13 +35,14 @@ Flags
      - 既定値
      - 説明
    * - ``sources``
-     - ``Node | str | Iterable[Node | str]``
+     - ``Node | Plug | Component | Components | str | MObject | MDagPath | MPlug | Iterable``
      - 必須
-     - 拘束元のノードまたはノード列。
+     - 拘束元のノードまたはノード列。文字列も含めて所有ノードへ解決し、Plug・MPlug・``"node.attribute"`` は所有ノード、Component・Components・``"pCube1.vtx[0]"`` は所有シェイプとして扱います（:doc:`/cmds_interop`）。parent、point、orient、scale、aim、poleVector では拘束元が Transform（joint・IkHandle を含む）に解決される必要があり、シェイプ（シェイプの Plug、Component などの所有シェイプ）や DG ノードは ``TypeError`` です（maya.cmds はターゲットの無い、追従しない拘束を黙って作るため）。シェイプ・Component を使えるのは geometry、normal、tangent、pointOnPoly です。
    * - ``target``
-     - ``Node | str``
+     - ``Node | Plug | Component | str | MObject | MDagPath | MPlug``
      - 必須
-     - 拘束される Transform または IkHandle。
+     - 拘束される Transform または IkHandle。sources と同じ型を受け付けます。解決したノードが
+       Transform でない場合(シェイプ、Component の所有シェイプなど)は ``TypeError``。
    * - ``type``
      - ``str``
      - "parent"
@@ -73,22 +74,33 @@ def constraint(sources, target, type="parent", maintainOffset=False):
     """拘束元から対象へのコンストレイントを作成する。
 
     Args:
-        sources (Node | str | Iterable[Node | str]): 拘束元。
-        target (Node | str): 拘束されるTransformまたはIkHandle。
+        sources (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug | Iterable):
+            拘束元。Plug・MPlug・``"node.attribute"`` は所有ノード、Component・
+            ``"pCube1.vtx[0]"`` は所有シェイプとして扱う。parent/point/orient/scale/aim/
+            poleVector では Transform(joint・IkHandle を含む)に解決される必要がある。
+        target (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+            拘束されるTransformまたはIkHandle。
         type (str): parent等の型名。既定parent。短縮typ。
         maintainOffset (bool): parent/point/orient/scale/aimで相対関係を維持する。他の型では未使用。短縮mo。
     Returns:
         Constraint: 作成またはターゲット追加された拘束ノード。
     Raises:
         ValueError: 未対応型・空の拘束元の場合。
-        TypeError: 入力の型が不正な場合。
-        AttributeError: targetにadd_constraintがない場合。
+        TypeError: 入力の型が不正な場合、target が Transform(IkHandle・joint を含む)に
+            解決されない場合(シェイプや Component の所有シェイプなど)、または
+            parent/point/orient/scale/aim/poleVector の拘束元が Transform に解決されない場合。
         RuntimeError: Mayaが作成またはフラグを拒否した場合。
 
     長名と短名の同時指定はTypeError。"""
     from .._core.coerce import to_node
+    from ..nodes.transform import Transform
 
     target_node = to_node(target)
+    if not isinstance(target_node, Transform):
+        raise TypeError(
+            f"target には Transform(joint・IkHandle を含む)を指定してください: "
+            f"{target_node.__class__.__name__} {target_node.name()!r}"
+        )
     return target_node.add_constraint(
         sources,
         type=type,

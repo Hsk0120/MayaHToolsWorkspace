@@ -9,6 +9,7 @@
    :caption: ノードとアトリビュート
 
    guide_commands
+   cmds_interop
    flag_aliases
    api_naming
    extensions

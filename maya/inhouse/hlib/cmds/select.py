@@ -6,8 +6,12 @@ Synopsis
 
     hlib.select(nodes=None, **kwargs)
 
-指定したノードを選択します。``nodes`` を省略すると ``**kwargs`` だけで
-``maya.cmds.select`` を呼びます（``clear=True`` など）。
+指定したノード・属性・コンポーネントを選択します。``nodes`` を省略すると
+``**kwargs`` だけで ``maya.cmds.select`` を呼びます（``clear=True`` など）。
+``nodes`` には Node・Plug・Component に加えて Vertices などのコレクション、
+Selection、Maya API 2.0 の MObject・MDagPath・MPlug、およびそれらのリストを
+指定できます。Vertices などのコレクションは連続する番号を範囲指定(``vtx[0:99]``)に
+まとめて渡すため、要素数が多くても高速です。対応する型は :doc:`/cmds_interop` を参照してください。
 
 選択状態を変更する操作です。Maya の Undo に対応します。
 
@@ -39,9 +43,9 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
      - 既定値
      - 説明
    * - ``nodes``
-     - ``Node | str | Iterable[Node | str] | None``
+     - ``Node | Plug | Component | Components | Selection | str | MObject | MDagPath | MPlug | Iterable | None``
      - None
-     - 選択するノード。None は kwargs だけで maya.cmds.select を呼ぶ。
+     - 選択する対象、またはその列。None は kwargs だけで maya.cmds.select を呼ぶ。空の列は ``maya.cmds.select([])`` と同じ。
    * - ``replace (r)``
      - ``bool``
      - True
@@ -83,19 +87,21 @@ import maya.cmds as cmds
 @flag_aliases("select")
 @undo_chunk("hlib.cmds.select.select")
 def select(nodes=None, **kwargs):
-    """指定したノードを選択する。
+    """指定したノード・属性・コンポーネントを選択する。
 
     Args:
-        nodes (Node | str | Iterable[Node | str] | None): 選択するノード。
+        nodes (Node | Plug | Component | Components | Selection | str | om2.MObject | om2.MDagPath | om2.MPlug | Iterable | None):
+            選択する対象、またはその列(入れ子のコレクションも展開する)。
             None は kwargs だけで maya.cmds.select を呼ぶ（clear=True など）。
+            空の列は maya.cmds.select([]) と同じく扱う。
         **kwargs (object): maya.cmds.select に渡すキーワード引数。
 
     Returns:
         None: 値を返さない。
 
     Raises:
-        TypeError: nodes の要素が Node/str 以外の場合。
-        ValueError: nodes の要素に空文字列が含まれる場合。
+        TypeError: nodes の要素が対応しない型の場合。
+        ValueError: nodes の要素に空文字列、または削除済みの対象が含まれる場合。
         RuntimeError: Maya が選択を拒否した場合。
     """
     from .._core.coerce import to_names
@@ -104,4 +110,4 @@ def select(nodes=None, **kwargs):
         cmds.select(**kwargs)
         return
     names = to_names(nodes)
-    cmds.select(*names, **kwargs)
+    cmds.select(names, **kwargs)

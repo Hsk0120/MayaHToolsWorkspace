@@ -105,6 +105,53 @@ class DrivenKeyTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             relation.set_key(0, 0)
 
+    def test_instanced_shape_driver_is_matched_by_plug_identity(self):
+        # インスタンス化されたシェイプの属性は、どのインスタンスのパスから指定しても同じプラグ。
+        # 2つ目のインスタンスのパスで指定したドライバーも、作成したカーブと照合できること。
+        box = cmds.polyCube(name=self.ns + ":box", constructionHistory=False)[0]
+        first_group = cmds.group(box, name=self.ns + ":ga")
+        second_group = cmds.createNode("transform", name=self.ns + ":gb")
+        instance = cmds.instance(cmds.listRelatives(first_group, children=True, fullPath=True)[0],
+                                 name=self.ns + ":box1")[0]
+        instance = cmds.parent(instance, second_group)[0]
+        first_shape = cmds.listRelatives(cmds.ls(first_group, long=True)[0], allDescendents=True,
+                                         type="mesh", fullPath=True)[0]
+        second_shape = cmds.listRelatives(cmds.ls(instance, long=True)[0], shapes=True, fullPath=True)[0]
+        self.assertNotEqual(first_shape, second_shape)
+        cmds.addAttr(first_shape, longName="drv", attributeType="double", keyable=True)
+        driver = hlib.node(second_shape).plug("drv")
+        relation = hlib.drivenKey(driver, self.c + ".tx")
+        relation.set_key(0, 0)
+        relation.set_key(1, 10)
+        self.assertEqual(len(relation.curves()), 1)
+        self.assertTrue(relation.exists())
+        # 1つ目のインスタンスのパスで指定しても同じ関係として見つかる。
+        same = hlib.drivenKey(hlib.node(first_shape).plug("drv"), self.c + ".tx")
+        self.assertEqual([curve.full_name() for curve in same.curves()],
+                         [curve.full_name() for curve in relation.curves()])
+        found = hlib.animation.DrivenKeys.find(self.c + ".tx")
+        self.assertEqual(len(found), 1)
+        cmds.setAttr(first_shape + ".drv", 1)
+        self.assertAlmostEqual(cmds.getAttr(self.c + ".tx"), 10.0)
+        with self.assertRaises(ValueError):
+            hlib.drivenKey(hlib.node(first_shape).plug("drv"), hlib.node(second_shape).plug("drv"))
+
+    def test_find_skips_non_numeric_drivers(self):
+        # 値によって型が変わる generic 属性(choice.output)のドライバーは対象外として除外し、
+        # 例外にしない。同じ駆動先の数値ドライバーは見つかる。
+        relation = hlib.drivenKey(self.a + ".tx", self.b + ".ty")
+        relation.set_key(0, 0).set_key(10, 10)
+        choice = cmds.createNode("choice", name=self.ns + ":choice")
+        cmds.connectAttr(self.c + ".tx", choice + ".input[0]")
+        curve = cmds.createNode("animCurveUU", name=self.ns + ":genericCurve")
+        cmds.setKeyframe(curve, float=0.0, value=0.0)
+        cmds.setKeyframe(curve, float=1.0, value=1.0)
+        cmds.connectAttr(choice + ".output", curve + ".input")
+        cmds.connectAttr(curve + ".output", self.b + ".tz")
+        self.assertEqual(len(hlib.animation.DrivenKeys.find(self.b + ".tz")), 0)
+        self.assertEqual(len(hlib.animation.DrivenKeys.find(self.b + ".ty")), 1)
+        self.assertEqual(len(hlib.animation.DrivenKeys.find(hlib.node(self.b).plug("ty").mplug())), 1)
+
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])

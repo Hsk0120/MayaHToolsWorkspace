@@ -24,11 +24,21 @@
 
    hlib.delete(copy)
 
+対象の引数には名前の文字列のほか、Node・Plug・Vertex などのコンポーネント、
+Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MDagPath・MPlug と
+それらのリストを指定できます。変換の規則と、hlib のオブジェクトを ``maya.cmds`` へ
+そのまま渡す場合の仕様は :doc:`cmds_interop` を参照してください。
+
 ``duplicate``/``group`` はいずれも作成したノードのラッパーを返します。
+``createNode``/``group`` の ``parent`` は所有ノードへ解決します(Plug を渡すとその
+ノードが親になります)。``group`` に空のリストを渡すと、現在の選択をグループ化せずに
+``ValueError`` になります。
 ``group`` は ``nodes`` を省略すると ``maya.cmds.group`` と同じく現在の選択を
 グループ化します。空のグループを作る場合は ``empty=True`` を指定してください
 （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。
-``delete`` は複数ノードもまとめて受け付けます。
+``delete`` は複数ノードもまとめて受け付けます。Plug(属性)を渡すと ``TypeError`` です
+(``maya.cmds.delete`` は属性を削除せず何もしないため)。動的属性の削除は
+``plug.delete_attr()``、所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
 
 選択とアニメーション
 --------------------
@@ -53,8 +63,9 @@
 
 ``select`` は ``maya.cmds.select`` と同じ引数を受け付けます。``nodes`` を省略すると
 ``clear=True`` のような選択操作専用のフラグだけで呼び出せます。
-``setKeyframe`` はノードまたは ``Plug`` を対象にでき、``target`` を省略すると
-現在の選択が対象になります。``currentTime`` は引数を省略すると現在時間を照会します。
+``setKeyframe`` はノードまたは ``Plug``、およびそれらのリストを対象にでき、
+``target`` を省略すると現在の選択が対象になります。空のリストは現在の選択へキーを
+打たないよう ``TypeError`` になります。``currentTime`` は引数を省略すると現在時間を照会します。
 ``bakeResults`` は時間範囲を補いません。``time=(start, end)`` を明示してください。
 ``simulation`` の既定値はFalseです。シーン全体の評価が必要ならTrueを指定します。
 GUIではベイク中のメインペインを非表示にし、終了時に元の状態へ戻します。
@@ -62,6 +73,8 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
 アトリビュートの取得・設定・接続（``getAttr``/``setAttr``/``connectAttr``/``addAttr``）は
 コマンドとしては用意していません。``node.plug("attrName")`` が返す ``Plug`` の
 ``get()``/``set()``/``connect()``、および ``node.add_attr()`` を使ってください。
+``Plug`` は ``maya.cmds.getAttr(plug)`` のように maya.cmds へそのまま渡すこともできます
+（:doc:`cmds_interop`）。
 
 ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.plug` で取得した
 :class:`~hlib.plugs.plug.Plug` オブジェクトを通して操作します。

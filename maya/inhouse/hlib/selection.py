@@ -3,6 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from ._core.coerce import selection_owner, to_plug
 from .components import Component, Components, Vertex, Vertices, CV, CVs, Edge, Edges, Face, Faces, UV, UVs
 from .decorators.undo import undo_chunk
 from .nodes.node import Node
@@ -14,44 +15,62 @@ class Selection:
 
     コンポーネントは単体に展開する。トポロジー変更後の番号の同一性、
     UVセット変更後のUVの同一性は保証しない。
+
+    反復可能なため、``cmds.select(selection)`` のように maya.cmds へそのまま渡すと
+    各要素(Node・Plug・Component)の一意な名前へ展開される。削除済みの要素を
+    含むと maya.cmds の呼び出しが失敗するため、選択の復元には :meth:`restore` を使う。
     """
 
     def __init__(self, items=()):
         """明示した対象を保持する。省略時は空。
 
         Args:
-            items (Iterable[Node | Plug | Component | Components | str]): 対象。
-                文字列には範囲指定も使える。単一対象も指定可能。
+            items (Iterable[Node | Plug | Component | Components | Selection | str |
+                om2.MObject | om2.MDagPath | om2.MPlug | om2.MSelectionList]): 対象。
+                文字列には範囲指定も使える。単一対象も指定可能。MObject・MDagPath は
+                ノード、MPlug は属性、MSelectionList と Selection はその要素として扱う。
                 full_name が重複する対象は最初の1件のみを保持する。
 
         Raises:
             TypeError: 非対応型、またはMesh/NurbsCurve以外のコンポーネントの場合。
             RuntimeError: 名前が解決できない場合。
         """
-        if isinstance(items, (str, Node, Plug, Component, Components)):
+        singles = (str, Node, Plug, Component, Components, Selection,
+                   om2.MObject, om2.MDagPath, om2.MPlug, om2.MSelectionList)
+        if isinstance(items, singles):
             items = [items]
         resolved = []
         for item in items:
             if isinstance(item, Components):
                 resolved.extend(item)
+            elif isinstance(item, Selection):
+                resolved.extend(item._items)
             elif isinstance(item, (Node, Plug, Component)):
                 resolved.append(item)
             elif isinstance(item, str):
                 selection = om2.MSelectionList()
                 selection.add(item)
-                resolved.extend(self._resolve(selection))
+                resolved.extend(self._resolve(selection, item))
+            elif isinstance(item, om2.MSelectionList):
+                resolved.extend(self._resolve(item))
+            elif isinstance(item, om2.MPlug):
+                resolved.append(to_plug(item))
+            elif isinstance(item, (om2.MObject, om2.MDagPath)):
+                resolved.append(Node(item))
             else:
                 raise TypeError("Unsupported selection item")
         unique = {}
         for item in resolved:
             unique.setdefault(item.full_name(), item)
         self._items = tuple(unique.values())
-        self._attributes = {id(item): om2.MObjectHandle(item.mplug().attribute())
-                            for item in self._items if isinstance(item, Plug)}
 
     @staticmethod
-    def _resolve(selection):
-        """MSelectionListをhlibの単体参照へ変換する。非対応要素はTypeError。"""
+    def _resolve(selection, name=None):
+        """MSelectionListをhlibの単体参照へ変換する。非対応要素はTypeError。
+
+        name は要素を追加したときの文字列で、1要素の場合にインスタンス化された
+        ノードの属性の所有インスタンスを求めるために使う(selection_owner 参照)。
+        """
         types = {om2.MFn.kMeshVertComponent: Vertex, om2.MFn.kMeshEdgeComponent: Edge,
                  om2.MFn.kMeshPolygonComponent: Face, om2.MFn.kMeshMapComponent: UV,
                  om2.MFn.kCurveCVComponent: CV}
@@ -62,7 +81,10 @@ class Selection:
             except (RuntimeError, TypeError):
                 plug = None
             if plug is not None and not plug.isNull:
-                result.append(Plug(Node(plug.node()), plug))
+                # インスタンス化されたノードの属性は、選択されたインスタンスのノードを所有ノードにする。
+                hint = name if selection.length() == 1 else None
+                mobject, path = selection_owner(selection, index, hint)
+                result.append(Plug(Node(path if path is not None else mobject), plug))
                 continue
             try:
                 path, component = selection.getComponent(index)
@@ -152,9 +174,9 @@ class Selection:
         try:
             if isinstance(item, Node):
                 return item.is_valid()
-            if isinstance(item, Plug):
-                if not item.node.is_valid() or not self._attributes[id(item)].isValid():
-                    return False
+            if isinstance(item, Plug) and not item.is_valid():
+                # 所有ノードの削除に加え、deleteAttr で削除された動的属性も無効として扱う。
+                return False
             return bool(cmds.objExists(item.full_name()))
         except (RuntimeError, ValueError, IndexError):
             return False

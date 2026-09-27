@@ -30,7 +30,22 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 
 - ``Node.aliases()`` と ``cmds.aliasAttr(query=True)``
 - ``Node.inputs/outputs/connections`` と ``cmds.listConnections(plugs=True)``
+  (短い名前が重複するノードを含む。``Plug.full_name()`` の一意な名前と一致すること)
 - ``Namespace`` と ``cmds.namespace``/``cmds.namespaceInfo``
+- Plug の属性型判定(属性定義から om2 で求める ``hlib._core.attribute_type.attribute_type``)と
+  ``cmds.getAttr(<プラグ名>, type=True)``。transform・mesh・nurbsCurve・blendShape・
+  plusMinusAverage・multiplyDivide・time・joint の代表的な属性、addAttr の全属性型・データ型の
+  動的属性、多数のノード型の既存プラグで突き合わせる。cmds へ問い合わせるのは存在する要素だけで、
+  存在しない要素は同じ属性の既存要素と同じ型名になり要素が作られないことを確かめる。
+  値によって型が変わる generic 属性(``choice`` の ``input``/``output``、``unitConversion``)は、
+  行列を保持する場合だけ cmds と同じ ``matrix`` (``MatrixPlug``)になることを確かめる
+  (入力接続のある要素は接続元の型、接続の無い要素は値、接続元も値によって型が変わる場合は
+  接続元を辿った結果)
+- コンポーネント名としても解釈される属性名(``pnts[i]``・``controlPoints[i]``)を
+  om2 で属性パスを辿って解決した ``to_plug`` と、``cmds.connectAttr`` が接続するプラグ
+- ワールド空間属性のインスタンス番号の要素(``instanceCount(True)``)と
+  ``cmds.ls(allPaths=True)``、インスタンスごとの ``Transform.get_matrix(ws=True)`` と
+  ``cmds.xform(query=True, matrix=True, worldSpace=True)``
 - ``Transform.get_matrix`` (om2 の MPlug から直接読む。ワールド空間はインスタンスごとの
   ``worldMatrix`` の要素)と ``cmds.getAttr``/``cmds.xform(query=True, matrix=True)``、
   ``hlib.maths.Matrix`` の分解(行列式が負の場合を含む)と ``cmds.xform(matrix=...)`` で
@@ -40,13 +55,17 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 
 import sys
 import unittest
+import uuid
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 import hlib
 hlib.reload()
 from hlib.nodes import Node
 from hlib.namespaces import Namespace
+from hlib.plugs import Plug
+from hlib._core.attribute_type import attribute_type
 
 
 class NodeAliasesParityTest(unittest.TestCase):
@@ -129,6 +148,29 @@ class NodeConnectionsParityTest(unittest.TestCase):
         actual_mesh = {plug.full_name() for plug in source.outputs(type="mesh")}
         self.assertEqual(actual_mesh, expected_mesh)
         self.assertEqual(actual_mesh, set())
+
+    def test_connections_with_duplicate_short_names_match_cmds_listConnections(self):
+        # grp1|dup と grp2|dup のように短い名前が重複しても、hlib の一意なプラグ名が
+        # cmds.listConnections の返す名前と一致し、どちらの接続も失われないこと。
+        groups = [self.create_transform("hlibParityDupGroup%d" % index) for index in (1, 2)]
+        duplicates = [
+            Node(cmds.createNode("transform", name="hlibParityDup", parent=group.full_name()))
+            for group in groups
+        ]
+        source = self.create_transform("hlibParityDupSource")
+        for duplicate in duplicates:
+            source.plug("translateX").connect(duplicate.plug("translateX"))
+            source.plug("translateY").connect(duplicate.plug("translateZ"))
+
+        expected = set(cmds.listConnections(source.name(), source=False, destination=True, plugs=True) or [])
+        actual = {plug.full_name() for plug in source.outputs()}
+        self.assertEqual(len(actual), 4)
+        self.assertEqual(actual, expected)
+        for duplicate in duplicates:
+            expected_inputs = set(
+                cmds.listConnections(duplicate.name(), source=True, destination=False, plugs=True) or []
+            )
+            self.assertEqual({plug.full_name() for plug in duplicate.inputs()}, expected_inputs)
 
 
 class NamespaceParityTest(unittest.TestCase):
@@ -307,6 +349,398 @@ class TransformMatrixParityTest(unittest.TestCase):
             expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
             wanted = om2.MEulerRotation(math.radians(10.0), math.radians(-20.0), math.radians(30.0), order)
             self.assertTrue(wanted.asMatrix().isEquivalent(expected.asMatrix(), 1e-9), order)
+
+class PlugAttributeTypeParityTest(unittest.TestCase):
+    """Plug の属性型判定が cmds.getAttr(type=True) と一致し続けることを検証する。
+
+    Plug(node, mplug) は登録済みラッパー(DoubleLinearPlug/Double3Plug 等)を選ぶために
+    ``cmds.getAttr(<プラグ名>, type=True)`` と同じ型名を使う。hlib はその型名を属性定義から
+    om2 で求める(``hlib._core.attribute_type.attribute_type``)ため、既存のプラグについて
+    cmds の生の値と一致することを確かめる。``cmds.getAttr(type=True)`` は存在しない配列要素を
+    問い合わせると要素を作る(Maya が異常終了する属性もある)ため、cmds へ問い合わせるのは
+    存在する要素(ワールド空間属性はインスタンス番号の要素)だけにする。
+    """
+
+    #: 動的属性として追加する attributeType(単体と multi)。
+    ATTRIBUTE_TYPES = ("bool", "long", "short", "byte", "char", "enum", "float", "double",
+                       "doubleAngle", "doubleLinear", "floatAngle", "floatLinear", "time",
+                       "message", "matrix", "fltMatrix")
+    #: 動的属性として追加する dataType。
+    DATA_TYPES = ("string", "stringArray", "matrix", "doubleArray", "floatArray", "Int32Array",
+                  "Int64Array", "vectorArray", "floatVectorArray", "pointArray", "matrixArray",
+                  "componentList", "mesh", "nurbsCurve", "nurbsSurface", "lattice", "sphere",
+                  "double2", "double3", "float2", "float3", "long2", "long3", "short2", "short3",
+                  "reflectanceRGB", "spectrumRGB")
+    #: 子属性とともに追加する複合属性の attributeType、子の attributeType、子の数。
+    COMPOUND_TYPES = (
+        ("double2", "double", 2), ("double3", "double", 3), ("double4", "double", 4),
+        ("float2", "float", 2), ("float3", "float", 3), ("long2", "long", 2), ("long3", "long", 3),
+        ("short2", "short", 2), ("short3", "short", 3), ("reflectance", "float", 3),
+        ("spectrum", "float", 3), ("compound", "double", 3),
+    )
+
+    def setUp(self):
+        self.namespace = "hlibParityPlugType_" + uuid.uuid4().hex[:12]
+        cmds.namespace(add=self.namespace)
+        cmds.namespace(setNamespace=":" + self.namespace)
+
+    def tearDown(self):
+        cmds.namespace(setNamespace=":")
+        if cmds.namespace(exists=":" + self.namespace):
+            cmds.namespace(removeNamespace=":" + self.namespace, deleteNamespaceContent=True)
+
+    @staticmethod
+    def exists(mplug):
+        """プラグの経路上の配列要素がすべて存在するか(cmds へ問い合わせてよいか)を返す。"""
+        current = mplug
+        while current.isElement or current.isChild:
+            if current.isElement:
+                array = current.array()
+                index = current.logicalIndex()
+                if index < 0:
+                    return False
+                instances = 0
+                node = array.node()
+                if node.hasFn(om2.MFn.kDagNode) and om2.MFnAttribute(array.attribute()).worldSpace:
+                    instances = om2.MFnDagNode(node).instanceCount(True)
+                if index >= instances and index not in list(array.getExistingArrayAttributeIndices()):
+                    return False
+                current = array
+            else:
+                current = current.parent()
+        return True
+
+    def assert_matches_cmds(self, plug):
+        """存在するプラグについて、hlib の型名・ラッパーが cmds の型名と一致することを確かめる。"""
+        self.assertTrue(self.exists(plug.mplug()), plug.full_name())
+        expected = cmds.getAttr(plug.full_name(), type=True)
+        self.assertEqual(attribute_type(plug.mplug()), expected)
+        resolved = Plug._registry.lookup(expected)
+        if resolved is not None:
+            self.assertIs(type(plug), resolved)
+        return expected
+
+    def plugs_of(self, node):
+        """ノードの全属性から、存在する配列要素と複合属性の子まで含めたプラグを列挙する。"""
+        fn = om2.MFnDependencyNode(node.mobject())
+        result = []
+
+        def visit(mplug, depth):
+            if depth > 6:
+                return
+            if mplug.isArray:
+                indices = list(mplug.getExistingArrayAttributeIndices())[:2]
+                if not indices and self.exists(mplug.elementByLogicalIndex(0)):
+                    indices = [0]  # 評価前のワールド空間属性のインスタンス番号の要素
+                for index in indices:
+                    visit(mplug.elementByLogicalIndex(index), depth + 1)
+                return
+            result.append(mplug)
+            if mplug.isCompound:
+                for index in range(mplug.numChildren()):
+                    visit(mplug.child(index), depth + 1)
+
+        for index in range(fn.attributeCount()):
+            attribute = fn.attribute(index)
+            if not om2.MFnAttribute(attribute).parent.isNull():
+                continue
+            visit(fn.findPlug(attribute, False), 0)
+        return result
+
+    def test_representative_plugs_match_cmds_getAttr_type(self):
+        transform = Node(cmds.createNode("transform", name="transform"))
+        mesh = Node(cmds.polyCube(name="cube", constructionHistory=False)[0]).shape()
+        cmds.setAttr(mesh.name() + ".pnts[0].pntx", 0.25)
+        curve = Node(cmds.curve(name="curve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).shape()
+        target = cmds.polyCube(name="target")[0]
+        base = cmds.polyCube(name="base")[0]
+        blend = Node(cmds.blendShape(target, base, name="blend")[0])
+        average = Node(cmds.createNode("plusMinusAverage", name="average"))
+        cmds.setAttr(average.name() + ".input1D[0]", 1.0)
+        cmds.setAttr(average.name() + ".input3D[0].input3Dx", 1.0)
+        multiply = Node(cmds.createNode("multiplyDivide", name="multiply"))
+        joint = Node(cmds.createNode("joint", name="joint"))
+        cases = [
+            (transform, "tx", "doubleLinear"), (transform, "t", "double3"), (transform, "r", "double3"),
+            (transform, "s", "double3"), (transform, "v", "bool"), (transform, "rotateOrder", "enum"),
+            (transform, "worldMatrix[0]", "matrix"), (transform, "parentMatrix[0]", "matrix"),
+            (transform, "rx", "doubleAngle"), (transform, "message", "message"),
+            (mesh, "pnts[0]", "float3"), (mesh, "pnts[0].pntx", "floatLinear"), (mesh, "outMesh", "mesh"),
+            (curve, "controlPoints[0]", "double3"), (curve, "controlPoints[0].xValue", "doubleLinear"),
+            (curve, "local", "nurbsCurve"),
+            (blend, "weight[0]", "float"), (blend, "envelope", "float"),
+            (average, "input1D[0]", "float"), (average, "input3D[0]", "float3"),
+            (average, "operation", "enum"),
+            (multiply, "input1", "float3"), (multiply, "input1X", "float"),
+            (Node("time1"), "outTime", "time"),
+            (joint, "jointOrient", "double3"), (joint, "jointOrientX", "doubleAngle"),
+        ]
+        for node, path, expected in cases:
+            with self.subTest(plug=node.name() + "." + path):
+                plug = node.plug(path)
+                self.assertEqual(self.assert_matches_cmds(plug), expected)
+
+    def test_mesh_control_points_are_float3_like_cmds(self):
+        # controlPoints は mesh と nurbsCurve が共有する double3 の属性定義だが、getAttr(type=True) は
+        # mesh で float3 を返す(Maya が float の頂点座標として扱うため)。hlib も同じ型名になること。
+        mesh = Node(cmds.polyCube(name="cpCube", constructionHistory=False)[0]).shape()
+        # controlPoints[i] の問い合わせで Maya が作る pnts[i] を先に作っておく。
+        cmds.setAttr(mesh.name() + ".pnts[0].pntx", 0.0)
+        point = mesh.plug("controlPoints[0]")
+        self.assertEqual(self.assert_matches_cmds(point), "float3")
+        self.assertEqual(type(point).__name__, "CompoundPlug")
+        self.assertEqual(self.assert_matches_cmds(point.child("xValue")), "doubleLinear")
+        curve = Node(cmds.curve(name="cpCurve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).shape()
+        self.assertEqual(type(curve.plug("controlPoints[0]")).__name__, "Double3Plug")
+
+    def test_dynamic_attributes_match_cmds_getAttr_type(self):
+        network = Node(cmds.createNode("network", name="network"))
+        name = network.name()
+        for attribute_type_name in self.ATTRIBUTE_TYPES:
+            kwargs = {"enumName": "a:b"} if attribute_type_name == "enum" else {}
+            cmds.addAttr(name, longName="at_" + attribute_type_name, attributeType=attribute_type_name, **kwargs)
+            cmds.addAttr(name, longName="multi_" + attribute_type_name, attributeType=attribute_type_name,
+                         multi=True, **kwargs)
+        for data_type in self.DATA_TYPES:
+            cmds.addAttr(name, longName="dt_" + data_type, dataType=data_type)
+        for parent_type, child_type, count in self.COMPOUND_TYPES:
+            parent = "cp_" + parent_type
+            kwargs = {"numberOfChildren": count} if parent_type == "compound" else {}
+            cmds.addAttr(name, longName=parent, attributeType=parent_type, **kwargs)
+            for index in range(count):
+                cmds.addAttr(name, longName="%s_%d" % (parent, index), attributeType=child_type, parent=parent)
+        cmds.addAttr(name, longName="cp_linear", attributeType="double3")
+        for axis in "XYZ":
+            cmds.addAttr(name, longName="cp_linear" + axis, attributeType="doubleLinear", parent="cp_linear")
+        # 動的属性の配列要素は、値の設定・接続で作ってから問い合わせる。
+        source = Node(cmds.createNode("transform", name="source"))
+        for attribute_type_name in self.ATTRIBUTE_TYPES:
+            element = "%s.multi_%s[0]" % (name, attribute_type_name)
+            if attribute_type_name == "message":
+                cmds.connectAttr(source.name() + ".message", element)
+            elif attribute_type_name in ("matrix", "fltMatrix"):
+                cmds.setAttr(element, *[1.0 if index % 5 == 0 else 0.0 for index in range(16)], type="matrix")
+            else:
+                cmds.setAttr(element, 1)
+        checked = {}
+        top_level = [attribute for attribute in cmds.listAttr(name, userDefined=True) or []
+                     if not network.plug(attribute).is_child()]
+        for plug in [network.plug(attribute) for attribute in top_level]:
+            plugs = [plug.element(0)] if plug.is_array() else [plug]
+            if plug.is_compound():
+                plugs.extend(plug.children())
+            for item in plugs:
+                with self.subTest(plug=item.full_name()):
+                    checked[item.name()] = self.assert_matches_cmds(item)
+        # 代表的な型名(登録ラッパーのキーを含む)が cmds と同じであること。
+        expected = {
+            "at_double": "double", "at_long": "long", "at_bool": "bool", "at_enum": "enum",
+            "at_matrix": "matrix", "at_fltMatrix": "matrix", "at_message": "message",
+            "multi_double[0]": "double", "multi_message[0]": "message", "dt_string": "string",
+            "dt_matrix": "matrix", "dt_Int64Array": "Int64Array", "dt_double3": "double3",
+            "cp_double3": "double3", "cp_float3": "float3", "cp_compound": "TdataCompound",
+            "cp_reflectance": "reflectanceRGB", "cp_linear": "double3", "cp_linearX": "doubleLinear",
+        }
+        self.assertEqual({key: checked.get(key) for key in expected}, expected)
+        self.assertGreater(len(checked), 80)
+
+    def test_existing_plugs_of_many_node_types_match_cmds(self):
+        cube, poly_cube = cmds.polyCube(name="cube")
+        curve = cmds.curve(name="curve", degree=3, point=[(0, 0, 0), (1, 0, 0), (2, 1, 0), (3, 0, 0)])
+        root = cmds.createNode("joint", name="rootJoint")
+        tip = cmds.createNode("joint", name="tipJoint", parent=root)
+        skin = cmds.skinCluster(root, tip, cube, name="skin")[0]
+        sphere = cmds.sphere(name="sphere", constructionHistory=False)[0]
+        target = cmds.polyCube(name="blendTarget")[0]
+        base = cmds.polyCube(name="blendBase")[0]
+        blend = cmds.blendShape(target, base, name="blend")[0]
+        names = [cube, poly_cube, curve, root, skin, sphere, blend, "time1",
+                 cmds.listRelatives(cube, shapes=True, fullPath=True)[0],
+                 cmds.listRelatives(curve, shapes=True, fullPath=True)[0],
+                 cmds.listRelatives(sphere, shapes=True, fullPath=True)[0],
+                 cmds.createNode("transform", name="transform"),
+                 cmds.createNode("multMatrix", name="multMatrix"),
+                 cmds.createNode("plusMinusAverage", name="average"),
+                 cmds.createNode("unitConversion", name="conversion"),
+                 cmds.createNode("pointLight", name="lightShape")]
+        checked = value_dependent = 0
+        for node in [Node(name) for name in names]:
+            for mplug in self.plugs_of(node):
+                name = node.name() + "." + mplug.partialName(False, True, True, True, False, True)
+                try:
+                    expected = cmds.getAttr(name, type=True)
+                except (RuntimeError, ValueError):
+                    continue  # mesh の内部属性など、maya.cmds が型を返さないプラグ
+                actual = attribute_type(mplug)
+                with self.subTest(plug=name):
+                    if actual is None:
+                        # 値によって型が変わる属性(generic 属性・任意データの typed 属性)だけが None。
+                        attribute = mplug.attribute()
+                        self.assertTrue(
+                            attribute.hasFn(om2.MFn.kGenericAttribute)
+                            or attribute.hasFn(om2.MFn.kTypedAttribute), name)
+                        value_dependent += 1
+                        continue
+                    self.assertEqual(actual, expected)
+                checked += 1
+        self.assertGreater(checked, 1000)
+        self.assertGreater(value_dependent, 0)
+
+    def test_generic_attributes_holding_matrices_match_cmds(self):
+        # 値によって型が変わる generic 属性は、属性定義からは型名が決まらない(None)。Plug の生成は
+        # 存在する要素の値が行列なら cmds.getAttr(type=True) と同じ "matrix" として MatrixPlug を選ぶ。
+        from hlib.plugs.plug import _held_matrix_type
+
+        source = Node(cmds.createNode("transform", name="genericSource"))
+        cmds.addAttr(source.name(), longName="dbl", attributeType="double")
+        cmds.addAttr(source.name(), longName="colour", attributeType="float3")
+        for axis in "RGB":
+            cmds.addAttr(source.name(), longName="colour" + axis, attributeType="float", parent="colour")
+        sources = ("worldMatrix[0]", "matrix", "translate", "colour", "tx", "visibility", "dbl")
+        checked = set()
+        choices = []
+        for index, attribute in enumerate(sources):
+            choice = Node(cmds.createNode("choice", name="genericChoice%d" % index))
+            choices.append(choice)
+            cmds.connectAttr(source.name() + "." + attribute, choice.name() + ".input[0]")
+            for path in ("output", "input[0]"):
+                plug = choice.plug(path)
+                name = plug.full_name()
+                with self.subTest(plug=name, source=attribute):
+                    self.assertTrue(self.exists(plug.mplug()))
+                    self.assertIsNone(attribute_type(plug.mplug()))
+                    expected = cmds.getAttr(name, type=True)
+                    checked.add(expected)
+                    if expected == "matrix":
+                        self.assertEqual(_held_matrix_type(plug.mplug()), "matrix")
+                        self.assertEqual(type(plug).__name__, "MatrixPlug")
+                        for value, reference in zip(plug.get(), cmds.getAttr(name)):
+                            self.assertAlmostEqual(value, reference)
+                    else:
+                        # double3・float3 などの数値の組や数値を保持する場合は基底の Plug。
+                        self.assertIsNone(_held_matrix_type(plug.mplug()))
+                        self.assertIs(type(plug), Plug)
+        self.assertTrue({"matrix", "double3", "float3"} <= checked, checked)
+        # 入力接続の無い要素は値を読み、接続元も値によって型が変わる属性なら接続元を辿る。
+        stored = Node(cmds.createNode("choice", name="genericStored"))
+        cmds.setAttr(stored.name() + ".input[2]", 3.0)
+        standalone = Node(cmds.createNode("unitConversion", name="genericStandalone"))
+        cmds.setAttr(standalone.name() + ".input", 3.0)
+        chained = Node(cmds.createNode("choice", name="genericChained"))
+        cmds.connectAttr(choices[0].name() + ".output", chained.name() + ".input[0]")
+        converted = Node(cmds.createNode("transform", name="genericConverted"))
+        cmds.connectAttr(source.name() + ".rx", converted.name() + ".tx")
+        conversion = Node(cmds.listConnections(converted.name() + ".tx", source=True, destination=False)[0])
+        for plug in (stored.plug("input[2]"), standalone.plug("input"), chained.plug("input[0]"),
+                     chained.plug("output"), conversion.plug("input"), conversion.plug("output")):
+            name = plug.full_name()
+            with self.subTest(plug=name):
+                expected = cmds.getAttr(name, type=True)
+                self.assertEqual(_held_matrix_type(plug.mplug()), "matrix" if expected == "matrix" else None)
+                self.assertEqual(type(plug).__name__, "MatrixPlug" if expected == "matrix" else "Plug")
+        self.assertEqual(type(chained.plug("input[0]")).__name__, "MatrixPlug")
+        self.assertEqual(standalone.plug("input").get(), 3.0)
+
+    def test_missing_elements_resolve_like_existing_elements_without_changes(self):
+        # 存在しない配列要素も属性定義から同じ型名になり、要素は作られない。cmds へは存在する
+        # 要素だけを問い合わせる(存在しない要素の問い合わせは要素を作るため)。
+        average = Node(cmds.createNode("plusMinusAverage", name="pma"))
+        cmds.setAttr(average.name() + ".input1D[0]", 1.0)
+        cmds.setAttr(average.name() + ".input3D[0].input3Dx", 1.0)
+        mesh = Node(cmds.polyCube(name="missingCube", constructionHistory=False)[0]).shape()
+        cmds.setAttr(mesh.name() + ".pnts[0].pntx", 0.0)
+        network = Node(cmds.createNode("network", name="missingNet"))
+        cmds.addAttr(network.name(), longName="vals", attributeType="double", multi=True)
+        cmds.setAttr(network.name() + ".vals[0]", 1.0)
+        base = cmds.polyCube(name="missingBase")[0]
+        target = cmds.polyCube(name="missingTarget")[0]
+        blend = Node(cmds.blendShape(target, base, name="missingBlend")[0])
+        item = "inputTarget[0].inputTargetGroup[0].inputTargetItem[6000]"
+        # (存在しない要素のプラグ, 同じ属性の既存要素のプラグ, 要素が作られうる配列)
+        cases = [
+            (average, "input1D[10]", "input1D[0]", "input1D"),
+            (average, "input3D[4].input3Dx", "input3D[0].input3Dx", "input3D"),
+            (average, "input3D[4]", "input3D[0]", "input3D"),
+            (mesh, "pnts[50].pntx", "pnts[0].pntx", "pnts"),
+            (mesh, "pnts[50]", "pnts[0]", "pnts"),
+            (network, "vals[4]", "vals[0]", "vals"),
+            (blend, "weight[5]", "weight[0]", "weight"),
+            (blend, "inputTarget[0].inputTargetGroup[3].inputTargetItem[6000].inputPointsTarget",
+             item + ".inputPointsTarget", "inputTarget[0].inputTargetGroup"),
+        ]
+        for node, missing, existing, array_path in cases:
+            with self.subTest(plug=missing):
+                existing_plug = node.plug(existing)
+                expected = self.assert_matches_cmds(existing_plug)
+                array = node.plug(array_path)
+                before = list(array.mplug().getExistingArrayAttributeIndices())
+                missing_plug = node.plug(missing)
+                self.assertFalse(self.exists(missing_plug.mplug()))
+                self.assertEqual(attribute_type(missing_plug.mplug()), expected)
+                self.assertIs(type(missing_plug), type(existing_plug))
+                self.assertEqual(list(array.mplug().getExistingArrayAttributeIndices()), before)
+
+
+class NameResolutionParityTest(unittest.TestCase):
+    """om2 で解決する名前・インスタンスの扱いが maya.cmds と一致し続けることを検証する。"""
+
+    def setUp(self):
+        self.namespace = "hlibParityNames_" + uuid.uuid4().hex[:12]
+        cmds.namespace(add=self.namespace)
+        cmds.namespace(setNamespace=":" + self.namespace)
+
+    def tearDown(self):
+        cmds.namespace(setNamespace=":")
+        if cmds.namespace(exists=":" + self.namespace):
+            cmds.namespace(removeNamespace=":" + self.namespace, deleteNamespaceContent=True)
+
+    def test_component_named_attributes_match_cmds_connectAttr(self):
+        from hlib._core.coerce import to_plug
+
+        cube = Node(cmds.polyCube(name="cube", constructionHistory=False)[0])
+        mesh = cube.shape()
+        curve = Node(cmds.curve(name="curve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).shape()
+        cmds.lattice(cmds.polyCube(name="latticed", constructionHistory=False)[0], name="lat")
+        lattice = Node(cmds.ls(self.namespace + ":*", type="lattice", long=True)[0])
+        source = Node(cmds.createNode("transform", name="source"))
+        other = Node(cmds.createNode("transform", name="other"))
+        # MSelectionList はこれらを頂点・CV として登録するが、cmds.connectAttr は属性として接続する。
+        # 単位変換ノードが挟まらないよう、距離・倍率の属性どうしを接続する。
+        cases = [
+            (source.plug("translate"), mesh.name() + ".pnts[3]"),
+            (source.plug("tx"), mesh.name() + ".pnts[4].pntx"),
+            (source.plug("ty"), mesh.name() + ".pt[5].py"),
+            (other.plug("translate"), cube.name() + ".pnts[6]"),
+            (source.plug("scale"), curve.name() + ".controlPoints[1]"),
+            (source.plug("sz"), lattice.name() + ".controlPoints[2].xValue"),
+        ]
+        for source_plug, text in cases:
+            with self.subTest(plug=text):
+                cmds.connectAttr(str(source_plug), text)
+                resolved = to_plug(text)
+                self.assertEqual(resolved.source().mplug(), source_plug.mplug())
+                self.assertIn(resolved.mplug(), list(source_plug.mplug().connectedTo(False, True)))
+                self.assertEqual(cmds.getAttr(str(resolved), type=True), cmds.getAttr(text, type=True))
+
+    def test_instance_elements_and_world_matrix_match_cmds(self):
+        group = cmds.createNode("transform", name="group")
+        child = cmds.createNode("transform", name="child", parent=group)
+        cmds.createNode("transform", name="leaf", parent=child)
+        instance = cmds.instance(group, name="groupInstance")[0]
+        cmds.setAttr(instance + ".translate", 3, 4, 5)
+        leaf = cmds.ls(self.namespace + ":leaf", long=True)[0]
+        paths = cmds.ls(leaf, allPaths=True, long=True)
+        self.assertEqual(len(paths), 2)
+        world = Node(leaf).plug("worldMatrix")
+        # 間接インスタンスを含むインスタンス数は cmds.ls(allPaths=True) の数と一致する。
+        self.assertEqual(sorted(world.get()), list(range(len(paths))))
+        for path in paths:
+            with self.subTest(path=path):
+                node = Node(path)
+                expected = cmds.xform(path, query=True, matrix=True, worldSpace=True)
+                actual = list(node.get_matrix(ws=True))
+                for value, reference in zip(actual, expected):
+                    self.assertAlmostEqual(value, reference)
 
 
 if __name__ == "__main__":

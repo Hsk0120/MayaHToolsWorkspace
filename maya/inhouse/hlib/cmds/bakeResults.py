@@ -44,9 +44,9 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
      - 既定値
      - 説明
    * - ``nodes``
-     - ``Node | str | Iterable[Node | str]``
+     - ``Node | Plug | Component | Components | Selection | str | MObject | MDagPath | MPlug | Iterable``
      - 必須
-     - ベイク対象のノード、またはその列。
+     - ベイク対象のノード・属性、またはその列。受け付ける型は :doc:`/cmds_interop` を参照。
    * - ``time (t)``
      - ``tuple[float, float]``
      - Mayaの既定動作
@@ -86,7 +86,8 @@ def bakeResults(nodes, **kwargs):
     """指定したノードのアニメーションをキーフレームへベイクする。
 
     Args:
-        nodes (Node | str | Iterable[Node | str]): ベイク対象のノード、またはその列。
+        nodes (Node | Plug | Component | Components | Selection | str | om2.MObject | om2.MDagPath | om2.MPlug | Iterable):
+            ベイク対象のノード・属性(Plug は ``node.attr`` として渡す)、またはその列。
         **kwargs (object): maya.cmds.bakeResults に渡すキーワード引数
             （``time=(start, end)`` など）。
 
@@ -94,8 +95,8 @@ def bakeResults(nodes, **kwargs):
         None: 値を返さない。
 
     Raises:
-        TypeError: nodes の要素が Node/str 以外の場合。
-        ValueError: nodes が空、または要素が空文字列の場合。
+        TypeError: nodes の要素が対応しない型の場合。
+        ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合。
         RuntimeError: Maya がベイクを拒否した場合。
     """
     from .._core.coerce import to_names

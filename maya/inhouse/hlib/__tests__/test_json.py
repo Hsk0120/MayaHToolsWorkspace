@@ -141,6 +141,20 @@ class JsonTest(unittest.TestCase):
             ref.resolve(mapping={ref.path: "missing_json_target"})
         plug = self.roundtrip(second.plug("translateX"))
         self.assertEqual(plug.resolve().full_name(), second.plug("translateX").full_name())
+        # 配列要素・子属性・エイリアスの属性パスも Node.plug() で解決できる(要素は作らない)。
+        average = self.node("plusMinusAverage", "average")
+        base = cmds.polyCube(name=self.ns + ":base")[0]
+        target = cmds.polyCube(name=self.ns + ":target")[0]
+        blend = hlib.node(cmds.blendShape(target, base, name=self.ns + ":blend")[0])
+        for element in (average.plug("input1D[3]"), average.plug("input3D[2].input3Dy"),
+                        second.plug("worldMatrix[0]"), blend.plug("weight")[0],
+                        blend.plug("inputTarget[0].inputTargetGroup[0].inputTargetItem[6000]"
+                                   ".inputComponentsTarget")):
+            with self.subTest(plug=element.full_name()):
+                restored = self.roundtrip(element).resolve()
+                self.assertEqual(restored.full_name(), element.full_name())
+                self.assertEqual(restored.mplug(), element.mplug())
+        self.assertEqual(cmds.getAttr(average.full_name() + ".input1D", multiIndices=True), None)
         cmds.delete(first.full_name())
         # 削除した参照もJSONとして読むことはできる。
         self.assertEqual(self.roundtrip(ref), ref)

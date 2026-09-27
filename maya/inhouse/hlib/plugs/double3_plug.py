@@ -37,7 +37,11 @@ class Double3Plug(CompoundPlug):
             ローカルの rotate は度からラジアンに変換し、ノードの rotateOrder を order に
             持つ EulerRotation(om2.MEulerRotation の派生で、Vector の派生ではない)。
             それ以外は om2.MVector の派生の Vector 系。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         if ws and self.attribute() in self._value_types:
             getters = {
                 "translate": "get_translate",
@@ -83,10 +87,12 @@ class Double3Plug(CompoundPlug):
 
         Raises:
             ValueError: 対応する設定メソッドがない属性で ws=True を指定、値の要素数が不正、または委譲先の変換条件が不正の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         setters = {
             "translate": "set_translate",
             "t": "set_translate",
