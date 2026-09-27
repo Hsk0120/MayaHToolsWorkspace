@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from .camera import Camera
     from .cluster import Cluster
     from .constraint import Constraint
+    from .container import Container
     from .dagPose import DagPose
     from .decomposeMatrix import DecomposeMatrix
     from .displayLayer import DisplayLayer
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
     from .multMatrix import MultMatrix
     from .normalConstraint import NormalConstraint
     from .nurbsCurve import NurbsCurve
+    from .nurbsSurface import NurbsSurface
     from .objectSet import ObjectSet
     from .orientConstraint import OrientConstraint
     from .parentConstraint import ParentConstraint

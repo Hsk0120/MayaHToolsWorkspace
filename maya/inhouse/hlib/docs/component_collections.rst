@@ -8,7 +8,7 @@ Vertices・CVs・UVsでも単体と同じ名前で座標を取得・設定でき
 
    import hlib
 
-   mesh = hlib.node("pCubeShape1")
+   mesh = hlib.getNode("pCubeShape1")
    vertices = mesh.vertices([2, 0, 5])
    points = vertices.get_position(ws=True)
    vertices.set_positions([(1, 2, 3), (4, 5, 6), (7, 8, 9)], ws=True)

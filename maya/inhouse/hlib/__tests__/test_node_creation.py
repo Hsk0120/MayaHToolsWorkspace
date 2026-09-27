@@ -7,6 +7,7 @@ import importlib
 import maya.cmds as cmds
 
 import hlib
+
 hlib.reload()
 hlib_cmds = importlib.import_module("hlib.cmds")
 from hlib.nodes import Node, Transform
@@ -55,13 +56,12 @@ class NodeCreationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             hlib_cmds.createNode(type="")
 
-
     def test_node_resolves_unregistered_derived_type_via_inheritance(self):
         # airField はhlibが個別登録していない組み込みノードタイプだが、Mayaの
         # 継承チェーン上は transform の派生であるため、Transform で解決される。
         name = cmds.createNode("airField", name="hlibCreateAirField")
         try:
-            wrapped = hlib.node(name)
+            wrapped = hlib.getNode(name)
             self.assertIsInstance(wrapped, Transform)
         finally:
             cmds.delete(name)
@@ -70,21 +70,21 @@ class NodeCreationTest(unittest.TestCase):
         name = cmds.createNode("joint", name="hlibCreateJoint")
         before = cmds.ls(long=True)
         selection = cmds.ls(sl=True, long=True)
-        self.assertIs(hlib.node, hlib_cmds.node)
-        wrapped = hlib.node(name)
+        self.assertIs(hlib.getNode, hlib_cmds.getNode)
+        wrapped = hlib.getNode(name)
         self.assertIsInstance(wrapped, Joint)
         for value in (wrapped.mobject(), wrapped.dag_path()):
-            self.assertIsInstance(hlib.node(value), Joint)
+            self.assertIsInstance(hlib.getNode(value), Joint)
         self.assertEqual(cmds.ls(long=True), before)
         self.assertEqual(cmds.ls(sl=True, long=True), selection)
         with self.assertRaises(RuntimeError):
-            hlib.node("__hlib_missing_node_for_test__")
+            hlib.getNode("__hlib_missing_node_for_test__")
         with self.assertRaises(TypeError):
-            hlib.node(None)
+            hlib.getNode(None)
 
 
 class SceneEditingCommandsTest(unittest.TestCase):
-    """hlib.cmds.delete/duplicate/group/objExists の基本動作を検証する。"""
+    """hlibの削除・複製・グループ化とmaya.cmdsの存在照会を検証する。"""
 
     def setUp(self):
         self.previous_namespace = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
@@ -132,11 +132,11 @@ class SceneEditingCommandsTest(unittest.TestCase):
         self.assertIn(skin_name, [item.name() for item in skin_result])
 
     def test_obj_exists_reflects_scene_state(self):
-        self.assertTrue(hlib_cmds.objExists("persp"))
-        self.assertFalse(hlib_cmds.objExists("hlibObjExistsMissing"))
+        self.assertTrue(cmds.objExists("persp"))
+        self.assertFalse(cmds.objExists("hlibObjExistsMissing"))
         node = self.create_transform("hlibObjExistsPresent")
-        self.assertTrue(hlib_cmds.objExists(node))
-        self.assertTrue(hlib_cmds.objExists(node.name()))
+        self.assertTrue(cmds.objExists(node))
+        self.assertTrue(cmds.objExists(node.name()))
 
     def test_delete_removes_single_and_multiple_nodes(self):
         a = self.create_transform("hlibDeleteA")
@@ -160,23 +160,25 @@ class SceneEditingCommandsTest(unittest.TestCase):
     def test_group_wraps_given_nodes_and_supports_empty_group(self):
         a = self.create_transform("hlibGroupA")
         b = self.create_transform("hlibGroupB")
-        grp = hlib_cmds.group([a, b], name="hlibGroupParent", world=True)
+        grp = hlib_cmds.createGroup([a, b], name="hlibGroupParent", world=True)
         self.created.append(grp.name())
 
         self.assertIsInstance(grp, Node)
-        self.assertEqual(cmds.listRelatives(grp.name(), children=True), ["hlibGroupA", "hlibGroupB"])
+        self.assertEqual(
+            cmds.listRelatives(grp.name(), children=True), ["hlibGroupA", "hlibGroupB"]
+        )
 
-        empty = hlib_cmds.group(name="hlibGroupEmpty", world=True, empty=True)
+        empty = hlib_cmds.createGroup(name="hlibGroupEmpty", world=True, empty=True)
         self.created.append(empty.name())
         self.assertEqual(cmds.listRelatives(empty.name(), children=True), None)
 
         cmds.select(clear=True)
         with self.assertRaises(RuntimeError):
-            hlib_cmds.group(name="hlibGroupShouldFail", world=True)
+            hlib_cmds.createGroup(name="hlibGroupShouldFail", world=True)
 
 
 class SelectionAndAnimationCommandsTest(unittest.TestCase):
-    """hlib.cmds.select/currentTime/setKeyframe/bakeResults の基本動作を検証する。"""
+    """hlibの選択・ベイクとmaya.cmdsの時刻・キー操作を検証する。"""
 
     def setUp(self):
         self.previous_namespace = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
@@ -211,27 +213,27 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
         self.assertEqual(cmds.ls(sl=True), [])
 
     def test_current_time_query_and_set_round_trip(self):
-        result = hlib_cmds.currentTime(10)
+        result = cmds.currentTime(10)
         self.assertEqual(result, 10.0)
-        self.assertEqual(hlib_cmds.currentTime(), 10.0)
+        self.assertEqual(cmds.currentTime(query=True), 10.0)
 
     def test_set_keyframe_on_plug_and_query_via_cmds(self):
         node = self.create_transform("hlibSetKeyframe")
 
-        hlib_cmds.currentTime(1)
-        hlib_cmds.setKeyframe(node.attr("translateX"), value=0.0)
-        hlib_cmds.currentTime(24)
-        hlib_cmds.setKeyframe(node.attr("translateX"), value=10.0)
+        cmds.currentTime(1)
+        cmds.setKeyframe(node.attr("translateX"), value=0.0)
+        cmds.currentTime(24)
+        cmds.setKeyframe(node.attr("translateX"), value=10.0)
 
         times = cmds.keyframe(node.full_name(), attribute="translateX", query=True, timeChange=True)
         self.assertEqual(sorted(times), [1.0, 24.0])
 
     def test_bake_results_creates_keys_across_range(self):
         node = self.create_transform("hlibBakeResults")
-        hlib_cmds.currentTime(1)
-        hlib_cmds.setKeyframe(node.attr("translateX"), value=0.0)
-        hlib_cmds.currentTime(10)
-        hlib_cmds.setKeyframe(node.attr("translateX"), value=9.0)
+        cmds.currentTime(1)
+        cmds.setKeyframe(node.attr("translateX"), value=0.0)
+        cmds.currentTime(10)
+        cmds.setKeyframe(node.attr("translateX"), value=9.0)
 
         hlib_cmds.bakeResults(node, time=(1, 10), attribute=["translateX"], simulation=True)
 

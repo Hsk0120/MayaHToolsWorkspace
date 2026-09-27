@@ -4,10 +4,11 @@ GUIのscriptJobを使用し、操作と接続変更を同じUndoへまとめる�
 設定はアニメーション用ではない。バッチではLimbRigのメソッドを使用する。
 """
 
-from functools import partial
 from maya import cmds
 
+from functools import partial
 import hlib
+
 from hlib.decorators.undo import undo_transaction
 
 # reload時に旧コールバックを残さない。hlibの再読込では所有参照を維持する。
@@ -16,7 +17,7 @@ for _owner in globals().get("_jobs", {}).values():
 if globals().get("_events") is not None:
     _events.stop()
 _jobs = {}
-_events = hlib.events.ScriptJobs()
+_events = hlib.general.ScriptJobs()
 _busy = False
 LAYERS = (
     "fk",
@@ -53,7 +54,7 @@ def _write(plug, value):
         plug (str): 表示属性の名前。
         value (bool | int): 適用済みの状態。
     """
-    hlib.plug(plug).set_if_changed(value, unlock=True)
+    hlib.getPlug(plug).set_if_changed(value, unlock=True)
 
 
 def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
@@ -70,7 +71,7 @@ def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
     args = {"long_name": name, "attribute_type": kind, "default_value": default}
     if enum:
         args["enumName"] = enum
-    reference = hlib.node(node)
+    reference = hlib.getNode(node)
     reference.add_attr(**args)
     reference.set_attr_flags([name], keyable=False, channel_box=True, locked=readonly)
 
@@ -110,7 +111,7 @@ def _states(rig):
         "foot": ik
         and detail
         and rig.layer_enabled("foot")
-        and hlib.node(rig.root.full_name()).has_attr("footMatrix"),
+        and hlib.getNode(rig.root.full_name()).has_attr("footMatrix"),
     }
     if rig.root.has_attr("targetSpace"):
         states["space"] = True
@@ -154,8 +155,8 @@ def sync_display(rig):
             _write(node + ".enabled", rig.layer_enabled(layer))
         _write(node + ".active", active)
         color = (0.35, 0.8, 0.45) if active else (0.4, 0.4, 0.4)
-        if any(abs(a - b) > 1e-6 for a, b in zip(hlib.plug(node + ".outlinerColor").get(), color)):
-            hlib.plug(node + ".outlinerColor").set((*color,))
+        if any(abs(a - b) > 1e-6 for a, b in zip(hlib.getPlug(node + ".outlinerColor").get(), color)):
+            hlib.getPlug(node + ".outlinerColor").set((*color,))
 
 
 @undo_transaction("hrig.channel_controls.attach")
@@ -181,16 +182,16 @@ def attach(rig):
         else root.rsplit("|", 1)[-1] + "_modules_grp"
     )
     names = [group_name, stem] + [stem + "_" + LABELS[layer] + "_layer" for layer in LAYERS]
-    if any(hlib.objExists(name) for name in names):
+    if any(cmds.objExists(name) for name in names):
         raise ValueError("Module display names already exist")
     nodes = []
     group = hlib.createNode("transform", name=group_name, parent=root, skipSelect=True).full_name()
-    cmds.reorder(group, front=True)
+    hlib.reorder(group, front=True)
     module = hlib.createNode("transform", name=stem, parent=group, skipSelect=True).full_name()
     nodes.extend((group, module))
     rig._bind("channelModule", module)
-    hlib.node(module).add_attr(long_name="hrigChannelRoot", attribute_type="message")
-    hlib.plug(root + ".message").connect(module + ".hrigChannelRoot")
+    hlib.getNode(module).add_attr(long_name="hrigChannelRoot", attribute_type="message")
+    hlib.getPlug(root + ".message").connect(module + ".hrigChannelRoot")
     _attribute(module, "mode", "enum", int(rig.mode() == "ik"), "FK:IK")
     _attribute(module, "lod", "enum", rig.lod(), "Low:Full")
     _attribute(module, "matchOnSwitch", default=True)
@@ -200,19 +201,18 @@ def attach(rig):
         rig._bind("channel_" + layer, node)
         if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             attr = "hrigEnabled_" + layer
-            if not hlib.node(root).has_attr(attr):
-                hlib.node(root).add_attr(long_name=attr, attribute_type="bool", default_value=True)
+            if not hlib.getNode(root).has_attr(attr):
+                hlib.getNode(root).add_attr(long_name=attr, attribute_type="bool", default_value=True)
             _attribute(node, "enabled", default=rig.layer_enabled(layer))
         _attribute(node, "active", readonly=True)
-        hlib.plug(node + ".useOutlinerColor").set(True)
+        hlib.getPlug(node + ".useOutlinerColor").set(True)
     for node in nodes:
         _lock_group(node)
-        hlib.node(node).set_attr_flags(
+        hlib.getNode(node).set_attr_flags(
             ["visibility"], keyable=False, channel_box=False, locked=True
         )
-    indices = cmds.getAttr(root + ".hrigOwned", multiIndices=True) or []
-    for index, node in enumerate(nodes, max(indices, default=-1) + 1):
-        hlib.plug(node + ".message").connect(root + ".hrigOwned[{}]".format(index))
+    for node in nodes:
+        hlib.getNode(root).plug("hrigOwned").append_message(node)
     sync_display(rig)
     install()
     return module
@@ -225,10 +225,10 @@ def apply(rig):
         rig (LimbRig): 構成表示を持つリグ。
     """
     module = rig._member("channelModule")
-    mode = ("fk", "ik")[hlib.plug(module + ".mode").get()]
-    lod = hlib.plug(module + ".lod").get()
+    mode = ("fk", "ik")[hlib.getPlug(module + ".mode").get()]
+    lod = hlib.getPlug(module + ".lod").get()
     enabled = {
-        layer: bool(hlib.plug(rig._member("channel_" + layer) + ".enabled").get())
+        layer: bool(hlib.getPlug(rig._member("channel_" + layer) + ".enabled").get())
         for layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch")
         if rig.root.has_attr("channel_" + layer)
     }
@@ -236,7 +236,7 @@ def apply(rig):
     if rig.root.has_attr("targetSpace"):
         for role in ("target", "pole"):
             switch = rig.space_switch(role)
-            requested = hlib.plug(rig._member(role) + ".space").get()
+            requested = hlib.getPlug(rig._member(role) + ".space").get()
             spaces[role] = switch.labels()[requested]
     if (
         all(rig.space_switch(role).current() == label for role, label in spaces.items())
@@ -250,7 +250,7 @@ def apply(rig):
             for role, label in spaces.items():
                 if rig.space_switch(role).current() != label:
                     rig.set_space(role, label)
-            if mode != rig.mode() and hlib.plug(module + ".matchOnSwitch").get():
+            if mode != rig.mode() and hlib.getPlug(module + ".matchOnSwitch").get():
                 # 通常のチャンネルボックス操作は一度に一属性だけ変更する。
                 # モードと詳細設定を同時変更するスクリプトは公開メソッドを順に使う。
                 if mode == "fk":
@@ -278,7 +278,7 @@ def _changed(root_uuid):
     global _busy
     if _busy:
         return
-    roots = cmds.ls(root_uuid, long=True) or []
+    roots = [item.full_name() for item in hlib.ls(root_uuid, long=True)] or []
     if not roots:
         return
     _busy = True
@@ -287,7 +287,7 @@ def _changed(root_uuid):
 
         apply(LimbRig(roots[0]))
     except Exception as error:
-        cmds.warning("hrig: " + str(error))
+        hlib.utils.logger.warning("hrig: " + str(error))
     finally:
         _busy = False
 
@@ -302,9 +302,9 @@ def refresh_jobs():
         if not hlib.ls(key) or not jobs.exists():
             jobs.stop()
             del _jobs[key]
-    for plug in cmds.ls("*.hrigChannelRoot", recursive=True) or []:
+    for plug in [item.full_name() for item in hlib.ls("*.hrigChannelRoot", recursive=True)] or []:
         module = plug.rsplit(".", 1)[0]
-        source = hlib.plug(plug).source()
+        source = hlib.getPlug(plug).source()
         if source is None:
             continue
         root = source.node
@@ -320,7 +320,7 @@ def refresh_jobs():
         ]
         if rig.root.has_attr("targetSpace"):
             attrs += [rig._member(role) + ".space" for role in ("target", "pole")]
-        jobs = hlib.events.ScriptJobs()
+        jobs = hlib.general.ScriptJobs()
         try:
             for attr in attrs:
                 jobs.add(

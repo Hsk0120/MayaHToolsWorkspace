@@ -1,4 +1,4 @@
-"""hlib.plugins の版比較・Module・PluginPackage と hlib.requirePlugins を検証するMaya内テスト。"""
+"""hlib.general の版比較・Module・PluginPackage と hlib.requirePlugins を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -8,9 +8,9 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.plugins import (LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, Module, Plugin, PluginPackage)
+from hlib.general import LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, Module, Plugin, PluginPackage
 from hlib.utils import Version
-import hlib.plugins.package as package_module
+import hlib.general.pluginPackage as package_module
 
 
 class PluginVersionTest(unittest.TestCase):
@@ -68,8 +68,8 @@ class ModuleTest(unittest.TestCase):
         self.assertEqual(module.path(), cmds.moduleInfo(path=True, moduleName=name) or None)
 
     def test_equality_hash_and_repr(self):
-        # 他のテストが hlib.reload() を呼んでも古いクラスを掴まないよう、都度 hlib.plugins から取得する。
-        module_class = hlib.plugins.Module
+        # 他のテストが hlib.reload() を呼んでも古いクラスを掴まないよう、都度 hlib.general から取得する。
+        module_class = hlib.general.Module
         self.assertEqual(module_class("a"), module_class("a"))
         self.assertNotEqual(module_class("a"), module_class("b"))
         self.assertNotEqual(module_class("a"), "a")
@@ -106,6 +106,9 @@ class PluginPackageFlowTest(unittest.TestCase):
         patcher = mock.patch.object(package_module, "cmds", self.fake)
         patcher.start()
         self.addCleanup(patcher.stop)
+        warning_patcher = mock.patch.object(package_module.logger, "warning", self.fake.warning)
+        warning_patcher.start()
+        self.addCleanup(warning_patcher.stop)
 
     def make(self, **kwargs):
         options = dict(plugins=("pluginA", "pluginB"), module="ModuleX", version_plugin="pluginA",

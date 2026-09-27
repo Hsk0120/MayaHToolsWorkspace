@@ -171,17 +171,17 @@ class ShapesConstraintsTest(unittest.TestCase):
             result.set_weight(1.0, unrelated)
 
     def test_top_level_constraint_command(self):
-        self.assertTrue(callable(hlib_cmds.constraint))
-        self.assertIs(hlib.constraint, hlib_cmds.constraint)
+        self.assertTrue(callable(hlib_cmds.addConstraint))
+        self.assertIs(hlib.addConstraint, hlib_cmds.addConstraint)
         source = self.transform()
         target = self.transform()
-        result = hlib_cmds.constraint(source, target, type='point')
+        result = hlib_cmds.addConstraint(source, target, type='point')
         self.assertIsInstance(result, hlib.nodes.PointConstraint)
         self.assertEqual([node.uuid() for node in result.targets()], [source.uuid()])
 
         source_name = self.transform()
         target_name = self.transform()
-        result = hlib_cmds.constraint(source_name.full_name(), target_name.full_name(), type='point')
+        result = hlib_cmds.addConstraint(source_name.full_name(), target_name.full_name(), type='point')
         self.assertEqual([node.uuid() for node in result.targets()], [source_name.uuid()])
 
     def test_specialized_constraints(self):

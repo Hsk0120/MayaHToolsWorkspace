@@ -4,7 +4,48 @@
 Mesh・NurbsCurveの形状情報、ミラー、頂点やCVなどの操作を説明します。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
-最初に ``import hlib`` を実行してください。
+最初に ``import hlib`` と ``from maya import cmds`` を実行してください。
+
+プリミティブの生成
+------------------
+
+``createPolygon`` は種類を ``type`` （短名 ``typ``）で指定し、単一の ``Mesh`` を返します。
+cube（既定）、sphere、cylinder、cone、plane、torus、pipe、pyramid、prism、helix、
+platonicSolidを使用できます。``polyCube`` 等のMayaコマンド名でも指定できます。
+寸法・分割数・履歴などのフラグは、選んだMayaコマンドの長名・短名に従います。
+
+.. code-block:: python
+
+   mesh = hlib.createPolygon(type="cube", name="body", width=2, constructionHistory=False)
+   sphere = hlib.createPolygon(typ="sphere", r=3, sx=24, sy=16)
+   mesh.transform().plug("translateX").set(5)
+   history = cmds.listHistory(sphere)
+
+``name`` は親Transformの名前です。履歴を有効にしても戻り値はMeshです。
+作成は1回のUndoで戻せます。query/editやobject=Falseは受け付けません。
+押し出し・結合など既存メッシュの編集コマンドはこの入口の対象外です。
+
+NURBSプリミティブの生成
+------------------------
+
+``createNurbs`` はMayaのCreate > NURBS Primitivesの8種類に対応します。
+``type`` （短名 ``typ``）でcircle（既定）、square、sphere、cube、cylinder、cone、
+plane、torusを選択します。寸法や分割数、履歴は各Mayaコマンドのフラグを使います。
+
+.. code-block:: python
+
+   circle = hlib.createNurbs(type="circle", radius=2)  # NurbsCurve
+   sphere = hlib.createNurbs(type="sphere", radius=3)  # NurbsSurface
+   faces = hlib.createNurbs(type="cube")  # list[NurbsSurface]（6枚）
+   edges = hlib.createNurbs(type="square")  # list[NurbsCurve]（4本）
+   circle.transform().plug("translateX").set(5)
+
+戻り値はシェイプです。Cube・Squareは複数シェイプのリストで、
+それぞれの ``transform()`` は構成パーツの親Transformです。
+``name`` は最上位Transformの名前を指定します。
+履歴の有無で戻り値は変わらず、生成全体を1回のUndoで戻せます。
+query/edit、object=False、polygonによる非NURBS出力は受け付けません。
+NurbsSurfaceはShape共通の属性・親Transform操作を提供します。
 
 形状情報
 --------
@@ -14,12 +55,12 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
 
 .. code-block:: python
 
-   mesh = hlib.node("pCube1").shape()
+   mesh = hlib.getNode("pCube1").shape()
    print(mesh.num_vertices(), mesh.num_edges(), mesh.num_polygons())
    points = mesh.points(ws=True)
    normals = mesh.normals(ws=True, angle_weighted=True)
 
-   curve = hlib.node("curve1").shape()
+   curve = hlib.getNode("curve1").shape()
    print(curve.degree(), curve.num_cvs(), curve.num_spans())
    print(curve.length())  # オブジェクト空間の弧長
    cvs = curve.cv_positions(ws=True)

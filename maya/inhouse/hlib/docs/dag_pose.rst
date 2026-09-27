@@ -11,7 +11,7 @@
 
    import hlib
 
-   pose = hlib.node("bindPose1")
+   pose = hlib.getNode("bindPose1")
    print(pose.is_bind_pose())
    print(pose.members())          # 保存されているTransform・Joint
    print(pose.skin_clusters())    # bindPoseとして参照するSkinCluster
@@ -23,7 +23,7 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
 .. code-block:: python
 
-   skin = hlib.node("skinCluster1")
+   skin = hlib.getNode("skinCluster1")
    pose = skin.bind_pose()
    if pose is not None:
        skin.restore_bind_pose()   # 既定ではワールド姿勢を復元

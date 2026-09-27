@@ -11,9 +11,9 @@ cluster・blendShape・skinClusterと、スキン変形を保持した編集を�
 
 .. code-block:: python
 
-   skin = hlib.node("skinCluster1")
+   skin = hlib.getNode("skinCluster1")
    skin.add_influences("extra_joint")
-   skin.add_influences(["extra_joint2", hlib.node("extra_joint3")])
+   skin.add_influences(["extra_joint2", hlib.getNode("extra_joint3")])
 
 Jointをウェイト0で登録します。既存ウェイトの正規化・再配分は行いません。
 既存influenceと重複指定は無視し、空リストは何もしません。
@@ -25,8 +25,8 @@ influenceを取り除き、親へウェイトを加算する
 
 .. code-block:: python
 
-   skin = hlib.node("skinCluster1")
-   joint = hlib.node("extra_joint")
+   skin = hlib.getNode("skinCluster1")
+   joint = hlib.getNode("extra_joint")
    skin.remove_influence(joint)
    # またはjoint側から、接続する全skinClusterを対象にする
    # joint.remove_influence()
@@ -68,7 +68,7 @@ cluster と locator
    import maya.cmds as cmds
    from hlib.nodes import Node
 
-   mesh = hlib.node("pCube1")
+   mesh = hlib.getNode("pCube1")
    cluster_name, handle_name = cmds.cluster(mesh.full_name() + ".vtx[0:2]")
    cluster = Node(cluster_name)
 
@@ -95,15 +95,15 @@ blendShape のターゲット操作
 
    from hlib.nodes import Node
 
-   base = hlib.node("pCube1")
-   target = hlib.node("pCube2")   # base と同じトポロジーの別メッシュ
+   base = hlib.getNode("pCube1")
+   target = hlib.getNode("pCube2")   # base と同じトポロジーの別メッシュ
 
    bs = Node(cmds.blendShape(target.full_name(), base.full_name(), name="myBlendShape")[0])
    print(bs.targets())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
    print(bs.weights())            # [0.0]
    bs.weight_plugs()[0].set(1.0)
 
-   new_target = hlib.node("pCube3")
+   new_target = hlib.getNode("pCube3")
    weight_plug = bs.add_target(new_target)   # 空いている weight インデックスへ追加
    weight_plug.set(0.5)
    print(bs.targets())            # ['pCube2', 'pCube3']

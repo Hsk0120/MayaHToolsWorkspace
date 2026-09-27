@@ -54,7 +54,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 - 単一の対象を表すクラス(`Node`・`Plug` など)に `__len__`/`__iter__` を追加しない。`maya.cmds` がシーケンスとして展開してしまう。複数の対象を表すコレクションは反復可能にしてよい。
 - ノードや属性を受け取るコマンド・メソッドは、文字列に加えて hlib のオブジェクトと Maya API 2.0 のオブジェクト(`MObject`・`MDagPath`・`MPlug`)を受け付ける。正規化は `hlib._core.coerce` で行い、各APIで独自に判定しない。
 - ノードが必要な引数(`parent` など)は、Plug を所有ノード、Component を所有シェイプへ解決する。プラグ名を `maya.cmds` へそのまま渡して黙って無視させない。
-- 名前を解決できない場合(存在しない・複数の対象に一致する)は最初の一致を黙って返さず例外にする(`"bulk*"` のようなパターンも同じ。パターンは `hlib.ls` で扱う)。対象を名前へ変換する引数(`to_name`/`to_names`/`to_node_name`)の例外の種類は、対応しない型が `TypeError`、空・削除済みの対象が `ValueError`、解決できない文字列が `RuntimeError` とする。既存の API が削除済みの対象を `RuntimeError` にしている場合(`Node(...)`/`hlib.node`、`hlib.constraint` の拘束元・拘束先)は、その規則を変えない(`to_node` は削除済みの Node などをそのまま返し、扱いを呼び出し側に任せる)。ただし所有ノードが有効なまま `deleteAttr` で属性が削除された Plug・MPlug は、所有ノードへ解決すると削除済みの対象を黙って受け付けるため、ノードが必要な引数でも `ValueError` にする(`DeletedAttributeError`。既存の規則を保つため `RuntimeError` の派生でもある)。削除済みの対象の判定メソッド(`is_parent_of` など)は `False` を返す。
+- 名前を解決できない場合(存在しない・複数の対象に一致する)は最初の一致を黙って返さず例外にする(`"bulk*"` のようなパターンも同じ。パターンは `hlib.ls` で扱う)。対象を名前へ変換する引数(`to_name`/`to_names`/`to_node_name`)の例外の種類は、対応しない型が `TypeError`、空・削除済みの対象が `ValueError`、解決できない文字列が `RuntimeError` とする。既存の API が削除済みの対象を `RuntimeError` にしている場合(`Node(...)`/`hlib.getNode`、`hlib.addConstraint` の拘束元・拘束先)は、その規則を変えない(`to_node` は削除済みの Node などをそのまま返し、扱いを呼び出し側に任せる)。ただし所有ノードが有効なまま `deleteAttr` で属性が削除された Plug・MPlug は、所有ノードへ解決すると削除済みの対象を黙って受け付けるため、ノードが必要な引数でも `ValueError` にする(`DeletedAttributeError`。既存の規則を保つため `RuntimeError` の派生でもある)。削除済みの対象の判定メソッド(`is_parent_of` など)は `False` を返す。
 - オブジェクトの取得・ラップ(`node.plug()` などによる Plug の生成)はシーンを変更しない。配列要素の作成などシーンの変更は `element(index, create=True)` のように明示的な操作で行う。評価も起こさないことを基本とし、例外は仕様として明記する。現在の例外は値によって型が変わる属性で、入力接続が無い場合と、接続元も値によって型が変わる属性の場合(`choice2.input[0]` ← `choice1.output` など)は、`cmds.getAttr(type=True)` と同じく値を読むため上流の評価が起こり、評価でワールド空間の出力の要素が作られる場合もある。
 - 番号を受け取る API は、Maya が範囲外の値を黙って別の値へ変換する場合(`MPlug.elementByLogicalIndex()` は 0〜2147483647 の外の論理インデックスを別の番号へ変換し、`4294967296` は `0` になる)でも、別の対象へ読み替えずに例外にする。
 - 解決したノードの種類を API が扱えない場合(parent/point などの拘束元に解決されたシェイプなど)は、`maya.cmds` のように黙って壊れた結果を作らず `TypeError` にする。
@@ -93,3 +93,16 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 改名・モジュール移動は `hlib.reload()` でも検証し、廃止した公開名が残らないこと。
 
 既存APIの変更前後の対応表は [APIの命名と移行](../maya/inhouse/hlib/docs/api_naming.rst) を参照する。
+
+## cmdsの動詞と対象
+
+公開関数とファイル名を同一にし、生成はcreate、既存対象への追加はadd、設定はset、
+参照・値の取得はgetを使う。`ls` は一覧取得の慣用名として維持する。
+`delete`・`duplicate`・`select`など既に操作を表す名前は維持する。
+
+`addConstraint`は追加のみで、照会は`Constraint.targets()`/`weight_plugs()`、
+編集は`set_weight()`などへ分ける。`createSet`も生成のみで、取得・追加・除外は
+`ObjectSet.members()`/`add()`/`remove()`を使う。
+`getDrivenKey`は関係を取得するだけで、キー生成は`DrivenKey.set_key()`で行う。
+属性の列挙名変更は`Plug.set_enum_names()`を使い、`addAttr`は属性追加に限定する。
+旧名の互換入口は設けず、使用側を更新する。

@@ -11,7 +11,7 @@ Transform のピボット
 
 .. code-block:: python
 
-   transform = hlib.node("pCube1")
+   transform = hlib.getNode("pCube1")
    print(transform.pivot())              # 既定は (0, 0, 0)
    transform.set_pivot((1.0, 2.0, 3.0))  # 回転・スケールピボットをまとめて設定
    print(transform.pivot(ws=True))       # ワールド空間での現在位置
@@ -26,7 +26,7 @@ Transform のピボット
 
 .. code-block:: python
 
-   mesh_transform = hlib.node("pCube1")
+   mesh_transform = hlib.getNode("pCube1")
    print(mesh_transform.bounding_box())          # 自身の変換は含むが親の変換は含まない
    print(mesh_transform.bounding_box(ws=True))    # 親の変換も含めたワールド空間
 
@@ -72,7 +72,7 @@ mesh シェイプは ``is_type("shape")`` でも True になります。``root()
 名前変更・親子付け替えの後も同じ Node を ``cmds.select(node)`` のように
 maya.cmds へそのまま渡せます。削除済みのノードは空文字列です。
 
-``hlib.node(value)`` (``Node(value)`` と同じ)は、名前・MObject・MDagPath のほか、
+``hlib.getNode(value)`` (``Node(value)`` と同じ)は、名前・MObject・MDagPath のほか、
 既存の Node、Plug・MPlug(所有ノード)、Vertex・Vertices などのコンポーネント
 (所有シェイプ)も受け付け、実際のノード型に対応するラッパーを返します。
 ``"dup.tx"`` のように同じ短い名前のノードがあって複数の対象に一致する名前は、
@@ -86,9 +86,9 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 .. code-block:: python
 
    joint = hlib.createNode("joint", name="nameExampleJoint")
-   print(hlib.node(joint.plug("tx")))        # nameExampleJoint（Joint）
-   print(hlib.node(joint.name() + ".tx"))    # 属性名の文字列も所有ノードになる
-   copy = hlib.node(joint)                   # 同じノードを指す新しいラッパー
+   print(hlib.getNode(joint.plug("tx")))        # nameExampleJoint（Joint）
+   print(hlib.getNode(joint.name() + ".tx"))    # 属性名の文字列も所有ノードになる
+   copy = hlib.getNode(joint)                   # 同じノードを指す新しいラッパー
 
 詳しくは :doc:`cmds_interop` を参照してください。
 
@@ -206,7 +206,7 @@ Maya 組み込みのノード型では空文字列になります。
 
    import hlib
 
-   driven = hlib.node("rigControl")
+   driven = hlib.getNode("rigControl")
    deleted_names = driven.delete_constraints()
    print(deleted_names)  # 削除前のノード名。該当がなければ []
 
@@ -223,3 +223,16 @@ unitConversion自体は削除対象に含めません。
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
+
+ノードの削除
+------------
+
+``node.delete()`` はそのノードクラスの削除処理を実行します。
+基底NodeはMaya標準の規則でDAGの子階層も削除します。
+``hlib.delete(nodes)`` は各入力を具象ノードへ解決し、入力順に ``node.delete()`` を
+呼び出します。先行処理で削除済みとなった対象や重複はスキップします。
+全体を1回のUndoで戻せます。
+
+``Joint.delete()`` はウェイト移送・子階層保持を伴う専用操作です。
+``hlib.delete(joint_name)`` でもこの専用操作が呼ばれます。
+独自ノードクラスも ``delete()`` の上書きで削除挙動を変更できます。

@@ -133,7 +133,7 @@ def encode(value):
     from ..nodes.node import Node
     from ..plugs.plug import Plug
     from ..components import Component, Components
-    from ..selection import Selection
+    from ..general.selection import Selection
     from .snapshots import Snapshot
     if isinstance(value, Node):
         value = NodeRef.capture(value)

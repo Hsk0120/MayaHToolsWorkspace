@@ -2,16 +2,16 @@
 
 from functools import partial
 
-from maya import cmds, mel, OpenMayaUI
+import hlib
+from hlib.general import MainWindow, NodeEditor, GraphEditor
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
-    from shiboken6 import wrapInstance, isValid
+    from shiboken6 import isValid
 except ImportError:
     from PySide2 import QtCore, QtGui, QtWidgets
-    from shiboken2 import wrapInstance, isValid
+    from shiboken2 import isValid
 
-import hlib
 from hlib.decorators.undo import undo_transaction
 from .sampleBuilder import SampleBuilder
 from .moduleRegistry import ModuleRegistry
@@ -76,8 +76,8 @@ class LayerEditor(QtWidgets.QDialog):
         self._busy = False
         self._pending = False
         self._closed = False
-        self._jobs = hlib.events.ScriptJobs()
-        self._attributes = hlib.events.ScriptJobs()
+        self._jobs = hlib.general.ScriptJobs()
+        self._attributes = hlib.general.ScriptJobs()
         self.setStyleSheet("""
             QDialog { background:#24262c; color:#e3e5ed; }
             QLabel { color:#d5d8e2; } QGroupBox { color:#aeb5c8; border:1px solid #424650;
@@ -272,7 +272,7 @@ class LayerEditor(QtWidgets.QDialog):
             LayerEditor: 表示中のインスタンス。
         """
         if cls._instance is None or not isValid(cls._instance):
-            parent = wrapInstance(int(OpenMayaUI.MQtUtil.mainWindow()), QtWidgets.QWidget)
+            parent = MainWindow.widget()
             cls._instance = cls(parent)
         cls._instance.show()
         cls._instance.raise_()
@@ -316,7 +316,7 @@ class LayerEditor(QtWidgets.QDialog):
         data = item.data(0, QtCore.Qt.UserRole) if item else None
         if not data:
             raise ValueError("モジュールまたはレイヤーを選択してください")
-        roots = cmds.ls(data["root"], long=True) or []
+        roots = [item.full_name() for item in hlib.ls(data["root"], long=True)] or []
         if not roots:
             raise ValueError("モジュールが削除されています")
         return ModuleRegistry.get(roots[0]), data
@@ -387,7 +387,7 @@ class LayerEditor(QtWidgets.QDialog):
                 for role, label in self.LABELS.items():
                     if not rig.root.has_attr("channel_" + role):
                         continue
-                    node = hlib.node(rig._member("channel_" + role))
+                    node = hlib.getNode(rig._member("channel_" + role))
                     item = self._row(
                         root_item,
                         label,
@@ -740,9 +740,9 @@ class LayerEditor(QtWidgets.QDialog):
             return
         data = item.data(0, QtCore.Qt.UserRole)
         enabled = item.checkState(0) == QtCore.Qt.Checked
-        roots = cmds.ls(data["root"], long=True) or []
+        roots = [item.full_name() for item in hlib.ls(data["root"], long=True)] or []
         if roots and data["role"].startswith("tweak:"):
-            group = hlib.node(cmds.ls(data["target"], long=True)[0])
+            group = hlib.getNode([item.full_name() for item in hlib.ls(data["target"], long=True)][0])
             with undo_transaction("hrig.Tweak.enabled"):
                 group.plug("enabled").set(enabled)
                 TweakLayer(ModuleRegistry.get(roots[0])).update()
@@ -825,7 +825,9 @@ class LayerEditor(QtWidgets.QDialog):
             else ("skirt" if self.module_type.currentIndex() >= 2 else "limb")
         )
         prefix = {6: "hand", 7: "look"}.get(self.module_type.currentIndex(), prefix)
-        self.module_name.setText(SampleBuilder.next_id(set(cmds.ls()), prefix))
+        self.module_name.setText(
+            SampleBuilder.next_id(set([item.name() for item in hlib.ls()]), prefix)
+        )
 
     def add_layer(self):
         """選択モジュールにサンプルを追加する。"""
@@ -833,7 +835,10 @@ class LayerEditor(QtWidgets.QDialog):
         if self.layer_type.currentData() == "tweak":
             selected = [
                 n
-                for n in (cmds.ls(selection=True, type="joint", long=True) or [])
+                for n in (
+                    [item.full_name() for item in hlib.ls(selection=True, type="joint", long=True)]
+                    or []
+                )
                 if n.startswith(rig.root.full_name() + "|")
             ]
             layer = TweakLayer(rig)
@@ -885,23 +890,25 @@ class LayerEditor(QtWidgets.QDialog):
     def select_node(self):
         """現在行の設定ノードをMayaで選択する。"""
         _, data = self.current()
-        names = cmds.ls(data["target"], long=True) or []
+        names = [item.full_name() for item in hlib.ls(data["target"], long=True)] or []
         if names:
             hlib.select(names, replace=True)
 
     def open_graph(self):
         """設定ノードを選択し、標準ノードエディターを開く。"""
         self.select_node()
-        mel.eval("NodeEditorWindow;")
+        NodeEditor.show()
 
     def open_curve(self):
         """SDKの詳細行を選択して、標準グラフエディターでカーブを編集する。"""
         _, data = self.current()
-        node = hlib.node((cmds.ls(data["target"], long=True) or [""])[0])
+        node = hlib.getNode(
+            ([item.full_name() for item in hlib.ls(data["target"], long=True)] or [""])[0]
+        )
         if not node.has_attr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
         hlib.select(node.plug("curve").source().node, replace=True)
-        mel.eval("GraphEditor;")
+        GraphEditor.show()
 
     def closeEvent(self, event):
         """自身の監視を解除して閉じる。

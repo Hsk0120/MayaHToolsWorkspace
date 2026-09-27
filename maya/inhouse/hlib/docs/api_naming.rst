@@ -164,18 +164,18 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 
    * - 旧モジュール
      - 新モジュール
-   * - hlib.editors.channelBox
-     - hlib.editors.channelBox
-   * - hlib.editors.timeSlider
-     - hlib.editors.timeSlider
-   * - hlib.animation.drivenKey
-     - hlib.animation.drivenKey
+   * - hlib.general.channelBox
+     - hlib.general.channelBox
+   * - hlib.general.timeSlider
+     - hlib.general.timeSlider
+   * - hlib.general.drivenKey
+     - hlib.general.drivenKey
    * - hlib.maths.eulerRotation
      - hlib.maths.eulerRotation
    * - hlib.maths.translate
      - hlib.maths.translation
 
-``hlib.channelBox()`` / ``hlib.timeSlider()`` / ``hlib.drivenKey()`` のコマンド名は変わりません。
+``hlib.getChannelBox()`` / ``hlib.getTimeSlider()`` / ``hlib.getDrivenKey()`` のコマンド名は変わりません。
 JSONに保存済みの ``math:Translate`` はTranslation、``math:Rotate`` はXYZ順の
 EulerRotationとして読み込めます。成分値は換算せず引き継ぎます。
 EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読み込み後は

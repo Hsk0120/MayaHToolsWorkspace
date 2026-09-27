@@ -1,6 +1,6 @@
 """hlib と Maya API 2.0 のオブジェクトを maya.cmds 用の名前・Node・Plug へ正規化する。
 
-hlib のコマンド(``hlib.select``/``hlib.delete``/``hlib.objExists`` など)と、
+hlib のコマンド(``hlib.select``/``hlib.delete`` など)と、
 ノードを引数に取るメソッドが共通で使う内部ヘルパー。受け付ける入力と変換結果:
 
 .. list-table::
@@ -39,7 +39,7 @@ list/tuple/set/ジェネレーターなどの反復可能オブジェクトを�
 空文字列・空の om2 オブジェクト・削除済みの対象は ``ValueError``、文字列を解決できない
 (存在しない、または複数の対象に一致する)場合は ``RuntimeError``。``to_node`` は削除済みの
 Node と、所有ノードが削除済みの Plug・Component をそのまま(無効な所有ノードとして)返し、
-有効性の扱いは呼び出し側の API に任せる(``Node(...)`` と ``hlib.constraint`` は ``RuntimeError``)。
+有効性の扱いは呼び出し側の API に任せる(``Node(...)`` と ``hlib.addConstraint`` は ``RuntimeError``)。
 ただし ``deleteAttr`` で削除された属性の Plug・MPlug(所有ノードは有効)は、返す Node で
 削除を表せないため、``to_node``・``Node(...)`` などノードを解決する処理でも
 :class:`DeletedAttributeError` (``ValueError``)にする。
@@ -66,8 +66,8 @@ class DeletedAttributeError(ValueError, RuntimeError):
     """``deleteAttr`` で削除された属性の Plug・MPlug を、ノードが必要な引数に渡した場合の例外。
 
     所有ノードは有効なまま属性だけが削除された Plug・MPlug は、所有ノードへ解決すると
-    削除済みの対象を黙って受け付けてしまうため、``to_node``・``Node(...)``/``hlib.node``・
-    ``hlib.constraint`` の拘束元・拘束先などでも例外にする。hlib のコマンド(``to_name``)と
+    削除済みの対象を黙って受け付けてしまうため、``to_node``・``Node(...)``/``hlib.getNode``・
+    ``hlib.addConstraint`` の拘束元・拘束先などでも例外にする。hlib のコマンド(``to_name``)と
     同じく ``ValueError`` として扱う。``Node(...)`` は解決できない対象をすべて
     ``RuntimeError`` にする規則のため、``RuntimeError`` としても捕捉できるようにしている
     (標準ライブラリの ``io.UnsupportedOperation`` が ``OSError`` と ``ValueError`` の両方を

@@ -9,7 +9,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-module = importlib.import_module("hlib.editors.channelBox")
+module = importlib.import_module("hlib.general.channelBox")
 
 
 class ChannelBoxTest(unittest.TestCase):
@@ -41,7 +41,7 @@ class ChannelBoxTest(unittest.TestCase):
 
     def test_section_mapping_alias_and_missing_attribute(self):
         with patch.object(module.cmds, "about", return_value=False), patch.object(module.cmds, "channelBox", side_effect=self.query):
-            channel = hlib.channelBox("testChannelBox")
+            channel = hlib.getChannelBox("testChannelBox")
             self.assertEqual(len(channel.displayed_nodes()), 2)
             names = [plug.full_name() for plug in channel.selected_plugs()]
             self.assertEqual(len(names), 3)
@@ -57,13 +57,13 @@ class ChannelBoxTest(unittest.TestCase):
     def test_no_selection_and_gui_unavailable(self):
         with patch.object(module.cmds, "about", return_value=True):
             with self.assertRaises(RuntimeError):
-                hlib.channelBox()
+                hlib.getChannelBox()
         self.responses["selectedMainAttributes"] = []
         self.responses["selectedHistoryAttributes"] = []
         with patch.object(module.cmds, "about", return_value=False), patch.object(module.cmds, "channelBox", side_effect=self.query):
-            self.assertEqual(hlib.channelBox("testChannelBox").selected_plugs(), [])
+            self.assertEqual(hlib.getChannelBox("testChannelBox").selected_plugs(), [])
             with self.assertRaises(RuntimeError):
-                hlib.channelBox("missing")
+                hlib.getChannelBox("missing")
 
 
 # 実GUIの選択・解除は tools/run_hlib_gui_tests.py へ移管。

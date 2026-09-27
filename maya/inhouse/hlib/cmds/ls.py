@@ -13,13 +13,13 @@ Synopsis
 Return value
 ------------
 
-``list[Node] | Joints | SkinClusters``
+``list[Node | Plug] | Joints | SkinClusters``
     type="joint" は Joints、type="skinCluster" は SkinClusters。それ以外は Node のリスト。検索結果がない場合は空のリストまたは空の専用コレクション。
 
 Related commands
 ----------------
 
-:doc:`createNode <../createNode/index>` / :doc:`constraint <../constraint/index>`
+:doc:`createNode <../createNode/index>` / :doc:`constraint <../addConstraint/index>`
 
 Flags
 -----
@@ -87,13 +87,13 @@ def ls(*args, **kwargs):
             結果なしのときに返す None をそのまま渡せる)。
         **kwargs (object): maya.cmds.lsへ渡す検索フラグ。
     Returns:
-        list[Node] | Joints | SkinClusters: typeまたはtypがjoint/skinClusterの場合は専用コレクション。それ以外はリスト。
+        list[Node | Plug] | Joints | SkinClusters: 属性はPlug。typeまたはtypがjoint/skinClusterの場合は専用コレクション。それ以外はリスト。
     Raises:
         TypeError: 位置引数に対応しない型が含まれる場合。
         ValueError: 位置引数に削除済みの対象が含まれる場合。
         RuntimeError: 検索結果をノードとして解決できない場合。
 
-    ノード名を返す検索用。コンポーネント・属性・型名等を返すMayaフラグは
+    ノード・属性名を返す検索用（属性はPlug）。コンポーネント・型名等を返すMayaフラグは
     ラッパー化できない場合がある。検索結果が空なら空コレクションまたは空リスト。"""
     from .._core.coerce import to_names
     from ..nodes import Joints, Node, SkinClusters
@@ -113,4 +113,5 @@ def ls(*args, **kwargs):
         return Joints(names)
     if node_type == "skinCluster":
         return SkinClusters(names)
-    return [Node(name) for name in names]
+    from .._core.commandResult import CommandResult
+    return CommandResult.references(names)

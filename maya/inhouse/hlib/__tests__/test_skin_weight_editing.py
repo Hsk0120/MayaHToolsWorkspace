@@ -18,7 +18,7 @@ class SkinWeightEditingTest(unittest.TestCase):
         self.child = cmds.createNode("joint", name=self.ns + ":child", parent=self.parent)
         self.other = cmds.createNode("joint", name=self.ns + ":other")
         self.mesh = cmds.polyCube(name=self.ns + ":mesh", constructionHistory=False)[0]
-        self.skin = hlib.node(cmds.skinCluster([self.parent, self.child, self.other], self.mesh, toSelectedBones=True, name=self.ns + ":skin")[0])
+        self.skin = hlib.getNode(cmds.skinCluster([self.parent, self.child, self.other], self.mesh, toSelectedBones=True, name=self.ns + ":skin")[0])
         pose = self.skin.bind_pose()
         if pose:
             cmds.rename(pose.full_name(), self.ns + ":pose")
@@ -33,7 +33,7 @@ class SkinWeightEditingTest(unittest.TestCase):
         return list(self.skin.get_weights(self.names))
 
     def test_remove_influence_transfers_and_keeps_joint(self):
-        self.skin.remove_influence(hlib.node(self.child))
+        self.skin.remove_influence(hlib.getNode(self.child))
         self.assertTrue(cmds.objExists(self.child))
         self.assertFalse(self.skin.has_influence(self.child))
         values = list(self.skin.get_weights([self.parent, self.other]))
@@ -46,7 +46,7 @@ class SkinWeightEditingTest(unittest.TestCase):
         self.assertFalse(self.skin.has_influence(self.child))
 
     def test_joint_entry_and_last_influence_guard(self):
-        joint = hlib.node(self.child)
+        joint = hlib.getNode(self.child)
         self.assertIs(joint.remove_influence(self.skin), joint)
         self.assertFalse(self.skin.has_influence(self.child))
         cmds.undo()
@@ -110,7 +110,7 @@ class SkinWeightEditingTest(unittest.TestCase):
         self.assertEqual(self.weights(), before)
         with patch.object(type(self.skin), "set_weights", side_effect=RuntimeError("transfer failed")):
             with self.assertRaisesRegex(RuntimeError, "transfer failed"):
-                hlib.node(self.child).remove_influence()
+                hlib.getNode(self.child).remove_influence()
         self.assertTrue(self.skin.has_influence(self.child))
 
     def test_transfer_preserves_non_normalized_totals(self):

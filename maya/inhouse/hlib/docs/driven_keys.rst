@@ -8,7 +8,7 @@
 
    import hlib
 
-   relation = hlib.drivenKey(driver="ctrl.rotateY", driven="joint.rotateZ")
+   relation = hlib.getDrivenKey(driver="ctrl.rotateY", driven="joint.rotateZ")
    relation.set_key(driver_value=0, value=0)
    relation.set_key(driver_value=90, value=45)
 
@@ -17,7 +17,7 @@
    print(relation.exists())
    print(relation.curves())
 
-``hlib.drivenKey()`` は既存の属性を保持し、取得だけではシーンを変更しません。
+``hlib.getDrivenKey()`` は既存の属性を保持し、取得だけではシーンを変更しません。
 ``set_key()`` でMayaのsetDrivenKeyframeを実行し、キーを作成・更新します。
 引数は現在のMaya UI単位で、ドライバーの現在値は変更しません。
 接線は既定でlinearです。通常、外側にundo_chunkを指定する必要はありません。
@@ -40,7 +40,7 @@
 
 .. code-block:: python
 
-   from hlib.animation import DrivenKeys
+   from hlib.general import DrivenKeys
 
    relations = DrivenKeys.find("joint.rotateZ")
    print(relations.driver())      # ドライバーPlugのリスト

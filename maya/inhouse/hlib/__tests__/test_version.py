@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from hlib.utils import Version
-from hlib.plugins import Module, Plugin, PluginPackage
+from hlib.general import Module, Plugin, PluginPackage
 
 
 class VersionTest(unittest.TestCase):

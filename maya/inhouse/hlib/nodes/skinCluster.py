@@ -48,6 +48,59 @@ class SkinCluster(Node):
         self.mesh_path = self._get_dag_path(self.mesh)
         self.fn = oma2.MFnSkinCluster(self.mobject())
 
+    @classmethod
+    @undo_chunk("hlib.SkinCluster.bind")
+    def bind(cls, mesh, influences, maximum_influences=4):
+        """未スキニングの形状を指定influenceへバインドする。
+
+        Args:
+            mesh (str | Node): Mayaがバインド可能な形状またはtransform。
+            influences (Sequence[str | Node]): バインドする骨等のtransform。
+            maximum_influences (int): 1頂点に割り当てる最大数。正の整数。
+
+        Returns:
+            SkinCluster: 作成したskinCluster。
+        """
+        mesh = Node(mesh)
+        influences = [Node(n) for n in influences]
+        if not influences or type(maximum_influences) is not int or maximum_influences < 1:
+            raise ValueError("Expected influences and a positive maximum influence count")
+        if cmds.ls(cmds.listHistory(mesh.full_name()) or [], type="skinCluster"):
+            raise ValueError("Geometry already has a skinCluster")
+        return cls(cmds.skinCluster([n.full_name() for n in influences], mesh.full_name(),
+                                   toSelectedBones=True, maximumInfluences=maximum_influences,
+                                   normalizeWeights=1)[0])
+
+    def deforms(self, geometry):
+        """指定形状の履歴に自身が含まれるか照会する。
+
+        Args:
+            geometry (str | Node): 調べる形状またはtransform。
+
+        Returns:
+            bool: 履歴内に存在する場合True。
+        """
+        history = cmds.ls(cmds.listHistory(Node(geometry).full_name()) or [], type="skinCluster") or []
+        return self.uuid() in [Node(n).uuid() for n in history]
+
+    @undo_chunk("hlib.SkinCluster.copy_weights_to")
+    def copy_weights_to(self, target):
+        """別skinClusterへ最近傍でウェイトを転送する。
+
+        Args:
+            target (str | SkinCluster): 別のバインド済み転送先。
+
+        Note:
+            closestPoint、name/closestJointによる近似転送で正規化する。
+            異なる基準姿勢の補正やメッシュ削減は行わない。
+        """
+        target = SkinCluster(target)
+        if target.uuid() == self.uuid():
+            raise ValueError("Source and destination skinClusters must differ")
+        cmds.copySkinWeights(sourceSkin=self.full_name(), destinationSkin=target.full_name(),
+                             noMirror=True, surfaceAssociation="closestPoint",
+                             influenceAssociation=["name", "closestJoint"], normalize=True)
+
     def _uuid(self, node):
         """ノード名から Maya UUID を取得する。
 

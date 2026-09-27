@@ -19,7 +19,7 @@ Return value
 Related commands
 ----------------
 
-:doc:`ls <../ls/index>` / :doc:`constraint <../constraint/index>`
+:doc:`ls <../ls/index>` / :doc:`constraint <../addConstraint/index>`
 
 Flags
 -----

@@ -210,7 +210,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
         before = list(self.skin.get_weights(joints))
         with undo_chunk("weightTool"):
             self.skin.set_weights([self.child], [0.125])
-            hlib.node(self.mesh_transform).attr("visibility").set(False)
+            hlib.getNode(self.mesh_transform).attr("visibility").set(False)
         after = list(self.skin.get_weights(joints))
         self.assertEqual(after[0::2], before[0::2])
         self.assertEqual(after[1::2], [0.125] * 8)

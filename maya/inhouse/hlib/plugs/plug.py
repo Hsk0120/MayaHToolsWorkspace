@@ -530,6 +530,18 @@ class Plug:
         """
         return type(self)
 
+    def data_type(self):
+        """属性定義からMayaのデータ型名を取得する。値の評価は行わない。
+
+        Returns:
+            str | None: doubleLinear等のMaya型名。値なしでは判定不能なgeneric等はNone。
+
+        Note:
+            type()はPythonラッパークラスを返す。未作成の配列要素を生成しない。
+        """
+        self._require_valid()
+        return attribute_type(self._mplug)
+
     def is_array(self):
         """multi 属性か判定する。
 
@@ -942,6 +954,34 @@ class Plug:
         if not attr.hasFn(om2.MFn.kEnumAttribute):
             raise TypeError("enum_name は enum 属性にのみ使用できます")
         return om2.MFnEnumAttribute(attr).fieldName(int(self.get()))
+
+    @undo_chunk("hlibPlugSetEnumNames")
+    def set_enum_names(self, names):
+        """enum属性の表示名を指定順に更新する。
+
+        Args:
+            names (Iterable[str]): 値0から順に対応する空でない名前列。
+
+        Returns:
+            Plug: 更新した自身。
+
+        Raises:
+            TypeError: enum属性でない、または名前が文字列でない場合。
+            ValueError: 空の列、空の名前、区切り文字を含む名前の場合。
+            RuntimeError: 属性が無効、またはMayaが変更を拒否した場合。
+        """
+        self._require_valid()
+        if not self._mplug.attribute().hasFn(om2.MFn.kEnumAttribute):
+            raise TypeError("set_enum_names requires an enum attribute")
+        if isinstance(names, str):
+            raise TypeError("names must be a sequence of strings")
+        names = list(names)
+        if any(not isinstance(name, str) for name in names):
+            raise TypeError("enum names must be strings")
+        if not names or any(not name or ":" in name or "=" in name for name in names):
+            raise ValueError("enum names must be non-empty and contain no ':' or '='")
+        cmds.addAttr(self.full_name(), edit=True, enumName=":".join(names))
+        return self
 
     def enum_value(self, name):
         """enum 属性のフィールド名に対応する値を取得する(enum_name の逆引き)。

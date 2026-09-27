@@ -27,7 +27,7 @@ Return value
 Related commands
 ----------------
 
-:doc:`setKeyframe <../setKeyframe/index>` / :doc:`currentTime <../currentTime/index>`
+``maya.cmds.setKeyframe`` / ``maya.cmds.currentTime``
 
 Flags
 -----

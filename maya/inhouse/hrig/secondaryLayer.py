@@ -1,14 +1,13 @@
 """スカートの手付けドライバーへ、揺れとポーズ補正を重ねる。"""
 
-import json
+from maya import cmds
+
 import math
 
-from maya import cmds
-from maya.api import OpenMaya as om
-
 import hlib
-from hlib.animation.dampedSpring import DampedSpring
-from hlib.animation.poseRbf import PoseRbf
+
+from hlib.utils.dampedSpring import DampedSpring
+from hrig.setups.poseRbf import PoseRbf
 from hlib.decorators.undo import undo_transaction
 
 
@@ -32,12 +31,7 @@ class SecondaryLayer:
         root = self.rig.root
         if not root.has_attr("secondaryGroups"):
             return {}
-        result = {}
-        for index in cmds.getAttr(root.full_name() + ".secondaryGroups", multiIndices=True) or []:
-            source = root.plug("secondaryGroups[{}]".format(index)).source()
-            if source is not None:
-                result[index] = source.node
-        return result
+        return root.plug("secondaryGroups").source_nodes()
 
     @staticmethod
     def _members(group, attr):
@@ -50,8 +44,7 @@ class SecondaryLayer:
         Returns:
             list[Node]: 参照先。
         """
-        indices = cmds.getAttr(group.full_name() + "." + attr, multiIndices=True) or []
-        return [group.plug("{}[{}]".format(attr, i)).source().node for i in indices]
+        return list(group.plug(attr).source_nodes().values())
 
     @staticmethod
     def _node(owner, kind, suffix):
@@ -65,9 +58,7 @@ class SecondaryLayer:
         Returns:
             Node: 生成ノード。
         """
-        node = hlib.createNode(kind, name=owner.name() + "_" + suffix, skipSelect=True)
-        cmds.container(owner.full_name(), edit=True, addNode=node.full_name())
-        return node
+        return hlib.nodes.Container(owner).create_node(kind, name=owner.name() + "_" + suffix)
 
     @undo_transaction("hrig.SecondaryLayer.add")
     def add(self, driver_index=0):
@@ -87,11 +78,19 @@ class SecondaryLayer:
         sources = chains[driver_index]
         root = self.rig.root
         stem = root.name() + "_secondary{:02d}".format(driver_index + 1)
-        if cmds.ls(stem + "_*"):
+        if [item.name() for item in hlib.ls(stem + "_*")]:
             raise ValueError("Secondary names already exist")
-        parent = cmds.listRelatives(sources[0].full_name(), parent=True, fullPath=True)[0]
+        parent = [
+            item.full_name()
+            for item in [
+                hlib.getNode(value)
+                for value in (
+                    cmds.listRelatives(sources[0].full_name(), parent=True, fullPath=True) or []
+                )
+            ]
+        ][0]
         group = hlib.createNode("transform", name=stem + "_grp", parent=parent, skipSelect=True)
-        owner = hlib.node(cmds.container(name=stem + "_graph"))
+        owner = hlib.nodes.Container.create(name=stem + "_graph")
         group.add_attr(long_name="graph", attribute_type="message")
         owner.plug("message").connect(group.plug("graph"))
         group.add_attr(long_name="baked", attribute_type="bool", default_value=False)
@@ -150,7 +149,7 @@ class SecondaryLayer:
                 node.plug("message").connect(group.plug("{}[{}]".format(attr, index)))
             for axis_index, axis in enumerate("XYZ"):
                 curve = self._node(owner, "animCurveTA", "cache{}_{}".format(index, axis))
-                hlib.plug("time1.outTime").connect(curve.plug("input"))
+                hlib.getPlug("time1.outTime").connect(curve.plug("input"))
                 curve.plug("message").connect(
                     group.plug("curves[{}]".format(index * 3 + axis_index))
                 )
@@ -159,9 +158,8 @@ class SecondaryLayer:
             if not root.has_attr(attr):
                 root.add_attr(long_name=attr, attribute_type="message", multi=True)
         group.plug("message").connect(root.plug("secondaryGroups[{}]".format(driver_index)))
-        indices = cmds.getAttr(root.full_name() + ".hrigOwned", multiIndices=True) or []
-        for i, node in enumerate((group, owner), max(indices, default=-1) + 1):
-            node.plug("message").connect(root.plug("hrigOwned[{}]".format(i)))
+        for node in (group, owner):
+            root.plug("hrigOwned").append_message(node)
         for kind in ("spring", "pose"):
             attr = "hrigEnabled_" + kind
             if not root.has_attr(attr):
@@ -204,14 +202,13 @@ class SecondaryLayer:
         frames = list(range(int(start), int(end) + 1))
         original = cmds.currentTime(query=True)
         rows = []
-        unit = om.MAngle.uiUnit()
         try:
             for frame in frames:
                 cmds.currentTime(frame, update=True)
                 row = [
-                    om.MAngle(v, unit).asDegrees()
+                    math.degrees(hlib.general.Units.angle_from_ui(v))
                     for source in sources
-                    for v in cmds.getAttr(source.full_name() + ".rotate")[0]
+                    for v in hlib.getAttr(source.plug("rotate"))
                 ]
                 if rows:
                     row = [
@@ -221,7 +218,7 @@ class SecondaryLayer:
             settings = {
                 name: group.plug(name).get() for name in ("frequency", "damping", "angleLimit")
             }
-            interval = om.MTime(1, om.MTime.uiUnit()).asUnits(om.MTime.kSeconds)
+            interval = hlib.general.Units.seconds_per_frame()
             solved = DampedSpring.solve(
                 rows, interval, settings["frequency"], settings["damping"], settings["angleLimit"]
             )
@@ -230,7 +227,7 @@ class SecondaryLayer:
                 # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
                 old_times = set(cmds.keyframe(curve.full_name(), query=True, timeChange=True) or [])
                 for frame, row in zip(frames, solved):
-                    value = om.MAngle(row[column], om.MAngle.kDegrees).asUnits(unit)
+                    value = hlib.general.Units.angle_to_ui(math.radians(row[column]))
                     cmds.setKeyframe(
                         curve.full_name(),
                         time=frame,
@@ -242,7 +239,9 @@ class SecondaryLayer:
                     cmds.cutKey(curve.full_name(), time=(time, time), clear=True)
             group.plug("baked").set(True)
             group.plug("bakeInfo").set(
-                json.dumps(dict(start=start, end=end, secondsPerFrame=interval, **settings))
+                hlib.json.JsonText.dumps(
+                    dict(start=start, end=end, secondsPerFrame=interval, **settings)
+                )
             )
             self.update()
         finally:
@@ -272,7 +271,7 @@ class SecondaryLayer:
         # フィードバックを避けるため入力は元の手付けドライバーの回転だけに限定する。
         allowed = {node.uuid() for chain in self.rig.driver_chains() for node in chain}
         for driver in drivers:
-            plug = hlib.plug(driver)
+            plug = hlib.getPlug(driver)
             if plug.node.uuid() not in allowed or plug.mplug().partialName(
                 useLongNames=True
             ) not in ("rotateX", "rotateY", "rotateZ"):
@@ -280,10 +279,7 @@ class SecondaryLayer:
         graph = PoseRbf.create(drivers, poses, values, scales, name=group.name() + "_poses")
         graph.container.plug("message").connect(group.plug("poseGraph"))
         root = self.rig.root
-        indices = cmds.getAttr(root.full_name() + ".hrigOwned", multiIndices=True) or []
-        graph.container.plug("message").connect(
-            root.plug("hrigOwned[{}]".format(max(indices, default=-1) + 1))
-        )
+        root.plug("hrigOwned").append_message(graph.container)
         owner = group.plug("graph").source().node
         for index in range(count):
             weight = self._node(owner, "multDoubleLinear", "poseWeight{}".format(index))
@@ -309,23 +305,23 @@ class SecondaryLayer:
             for old, new in zip(sources if active else targets, targets if active else sources)
         }
         for constraint in self.rig._members("constraints"):
-            connections = (
-                cmds.listConnections(
-                    constraint.full_name(),
-                    source=True,
-                    destination=False,
-                    plugs=True,
-                    connections=True,
+            connections = [
+                hlib.getPlug(value)
+                for value in (
+                    cmds.listConnections(
+                        constraint.full_name(),
+                        source=True,
+                        destination=False,
+                        plugs=True,
+                        connections=True,
+                    )
+                    or []
                 )
-                or []
-            )
-            for destination, source_name in zip(connections[::2], connections[1::2]):
-                source = hlib.plug(source_name)
+            ] or []
+            for destination, source in zip(connections[::2], connections[1::2]):
                 if source.node.uuid() in mapping:
                     source.disconnect(destination)
-                    mapping[source.node.uuid()].plug(source_name.split(".", 1)[1]).connect(
-                        destination
-                    )
+                    mapping[source.node.uuid()].plug(source.name()).connect(destination)
 
     def update(self):
         """停止レイヤーの入力を切断し、両方停止なら元の骨へ接続を戻す。"""

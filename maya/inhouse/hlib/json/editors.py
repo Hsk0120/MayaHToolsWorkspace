@@ -4,8 +4,8 @@ from .snapshots import Snapshot, ApplyPlan, _units
 
 def _state(kind, name, flags=None):
     from maya import cmds
-    from ..editors.viewport import Viewport
-    from ..editors.outliner import Outliner
+    from ..general.viewport import Viewport
+    from ..general.outliner import Outliner
     if kind == "timeline":
         values = {key: cmds.playbackOptions(query=True, **{key: True}) for key in
                   ("animationStartTime", "animationEndTime", "minTime", "maxTime")}
@@ -81,9 +81,9 @@ class EditorSnapshot(Snapshot):
 
 def capture_editors(targets):
     """hlibのViewport/Outliner/TimeSliderまたはその列を取得する。"""
-    from ..editors.viewport import Viewport
-    from ..editors.outliner import Outliner
-    from ..editors.timeSlider import TimeSlider
+    from ..general.viewport import Viewport
+    from ..general.outliner import Outliner
+    from ..general.timeSlider import TimeSlider
     types = (Viewport, Outliner, TimeSlider)
     items = [targets] if isinstance(targets, types) else list(targets)
     records = []

@@ -63,7 +63,7 @@ import maya.cmds as cmds
 import hlib
 hlib.reload()
 from hlib.nodes import Node
-from hlib.namespaces import Namespace
+from hlib.general import Namespace
 from hlib.plugs import Plug
 from hlib._core.attributeType import attribute_type
 

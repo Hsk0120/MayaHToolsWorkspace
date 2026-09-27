@@ -51,7 +51,7 @@ class CommonMethodsTest(unittest.TestCase):
 
     def test_center_pivot_preserves_geometry_and_undo(self):
         name = cmds.polyCube(name=self.namespace + ":pivotMesh")[0]
-        node = hlib.node(name)
+        node = hlib.getNode(name)
         cmds.move(3, 1, -2, name + ".vtx[*]", relative=True)
         cmds.setAttr(name + ".rotateY", 30)
         cmds.setAttr(name + ".scaleX", 2)
@@ -147,15 +147,15 @@ class CommonMethodsTest(unittest.TestCase):
     def skin(self):
         joints = [self.create("joint" + str(i), type="joint") for i in range(3)]
         mesh = cmds.polyCube(name=self.namespace + ":mesh")[0]
-        skin = hlib.node(cmds.skinCluster([j.full_name() for j in joints], mesh)[0])
-        return joints, hlib.node(mesh), skin
+        skin = hlib.getNode(cmds.skinCluster([j.full_name() for j in joints], mesh)[0])
+        return joints, hlib.getNode(mesh), skin
 
     def test_history_filtered_and_empty(self):
         joints, mesh, skin = self.skin()
         self.assertIn(skin.uuid(), [node.uuid() for node in mesh.history(type="skinCluster")])
         self.assertIn(skin.uuid(), [node.uuid() for node in mesh.history(type="geometryFilter")])
         native = cmds.listHistory(mesh.full_name()) or []
-        expected = list(dict.fromkeys(hlib.node(name).uuid() for name in native if hlib.node(name).uuid() != mesh.uuid()))
+        expected = list(dict.fromkeys(hlib.getNode(name).uuid() for name in native if hlib.getNode(name).uuid() != mesh.uuid()))
         self.assertEqual([node.uuid() for node in mesh.history()], expected)
         self.assertEqual(self.create("empty").history(type="skinCluster"), [])
 

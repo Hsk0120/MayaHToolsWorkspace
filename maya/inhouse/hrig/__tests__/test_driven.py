@@ -27,7 +27,7 @@ class DrivenTest(unittest.TestCase):
     def test_sample_and_sdk_lod(self):
         """SwingZ→SDK→移動を評価し、LOD/Enabled/Undoを確認する。"""
         target = SampleBuilder.layer(self.rig, "driven", component="swingZ")
-        graph = hlib.node(target)
+        graph = hlib.getNode(target)
         bone = graph.plug("drivenNode").source().node
         for angle in (-90, -45, 0, 45, 90):
             cmds.setAttr(self.rig.controls()["fk1"] + ".rz", angle)

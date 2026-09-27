@@ -3,6 +3,7 @@
 from maya import cmds
 
 import hlib
+
 from hlib.decorators.undo import undo_transaction
 from hrig import build_limb, limb_definition
 from hrig.reverse_foot import add_reverse_foot
@@ -27,7 +28,7 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
     prefix = "" if name == "rig" else name + "_"
     high_name, proxy_name = prefix + "body_geo", prefix + "body_proxy_geo"
     for node in (name, high_name, proxy_name):
-        if hlib.objExists(node):
+        if cmds.objExists(node):
             raise ValueError("Demo node already exists: " + node)
     rig = build_limb(limb_definition(name), backend=backend)
     if bend_helpers:
@@ -46,25 +47,39 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
         root, mid, tip = rig.joints()[:3]
         rig.add_twist("upper", root, mid, twist_count)
         rig.add_twist("lower", mid, tip, twist_count)
+    from hrig.setups import ControlShape
+
     for role, control in rig.controls().items():
-        curve = cmds.circle(normal=(0, 0, 1), radius=0.45, constructionHistory=False)[0]
-        for shape in cmds.listRelatives(curve, shapes=True, fullPath=True) or []:
-            shape = cmds.parent(shape, control, shape=True, relative=True)[0]
-            cmds.rename(shape, control.rsplit("|", 1)[-1] + "Shape")
-        hlib.delete(curve)
-        hlib.plug(control + ".overrideEnabled").set(True)
-        hlib.plug(control + ".overrideColor").set(17 if role.startswith("fk") else 6)
-    high = cmds.polyCube(
-        name=high_name, width=10, height=1, depth=1, subdivisionsX=16, constructionHistory=False
-    )[0]
-    proxy = cmds.polyCube(
-        name=proxy_name, width=10, height=1, depth=1, subdivisionsX=4, constructionHistory=False
-    )[0]
+        ControlShape.circle(control, radius=0.45, color=17 if role.startswith("fk") else 6)
+    high = hlib.createPolygon(
+        type="cube",
+        name=high_name,
+        width=10,
+        height=1,
+        depth=1,
+        subdivisionsX=16,
+        constructionHistory=False,
+    ).transform()
+    proxy = hlib.createPolygon(
+        type="cube",
+        name=proxy_name,
+        width=10,
+        height=1,
+        depth=1,
+        subdivisionsX=4,
+        constructionHistory=False,
+    ).transform()
     for mesh in (high, proxy):
-        hlib.plug(mesh + ".translateX").set(5)
-        cmds.makeIdentity(mesh, apply=True, translate=True)
-    high = cmds.parent(high, rig._member("moduleGeometry"))[0]
-    proxy = cmds.parent(proxy, rig._member("moduleGeometry"))[0]
+        mesh.plug("translateX").set(5)
+        hlib.makeIdentity(mesh, apply=True, translate=True)
+    high = [hlib.getNode(value) for value in (cmds.parent(high, rig._member("moduleGeometry")) or [])][
+        0
+    ]
+    proxy = [
+        hlib.getNode(value) for value in (cmds.parent(proxy, rig._member("moduleGeometry")) or [])
+    ][0]
+    # デモの公開戻り値は従来通り名前。構築中は型付き参照で扱う。
+    high, proxy = high.full_name(), proxy.full_name()
     high_skin = bind_mesh(rig, high)
     proxy_skin = create_skin_lod(rig, high, proxy, high_skin)
     rig._layer_members("moduleSet", [high, proxy, high_skin, proxy_skin])

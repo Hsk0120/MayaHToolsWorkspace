@@ -32,15 +32,7 @@
    guide_sets
    animation_nodes
    driven_keys
-   space_switch
-   twist_distribution
-   bend_correction
-   swing_twist
-   radial_weights
-   rotation_follow
-   secondary_motion
-   spline_ik
-   length_compensation
+   rig_foundations
    fbx_hik
 
 .. toctree::
@@ -53,6 +45,7 @@
    guide_editors
    selection_and_channelbox
    events
+   logging
 
 .. toctree::
    :maxdepth: 1

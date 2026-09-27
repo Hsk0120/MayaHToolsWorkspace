@@ -18,6 +18,10 @@ Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya
 同じ扱いです。
 
 削除操作です。Maya の Undo に対応します。照会・編集用コマンドではありません。
+各ノードを具象クラスへ解決し、その ``delete()`` を呼び出します。
+``Joint.delete()`` ではウェイト移送・子階層保持などの専用動作を使用します。
+入力順に処理し、先行する削除で無効になった対象はスキップします。
+コンポーネントは所有ノードを削除せず、Maya標準コマンドで処理します。
 
 Return value
 ------------
@@ -28,7 +32,7 @@ Return value
 Related commands
 ----------------
 
-:doc:`duplicate <../duplicate/index>` / :doc:`objExists <../objExists/index>`
+:doc:`duplicate <../duplicate/index>` / ``maya.cmds.objExists``
 
 Flags
 -----
@@ -83,8 +87,22 @@ def delete(nodes):
         RuntimeError: Maya が削除を拒否した場合。
     """
     from .._core.coerce import to_names
+    from ..nodes.node import Node
 
     names = to_names(nodes, allow_plugs=False)
     if not names:
         raise ValueError("nodes には1つ以上のノードを指定してください")
-    cmds.delete(*names)
+    # 属性・コンポーネント文字列は所有ノードへ変換せず、標準の扱いを維持する。
+    node_names = [name for name in names if "." not in name]
+    components = [name for name in names if "." in name]
+    nodes = []
+    for name in node_names:
+        # Maya標準のワイルドカード指定を実ノードへ展開してから検証する。
+        resolved = cmds.ls(name, long=True) if any(char in name for char in "*?[") else [name]
+        nodes.extend(Node(value) for value in (resolved or [name]))
+    if components:
+        cmds.delete(*components)
+    for node in nodes:
+        # 親・所有コンテナの削除や重複指定で既に消えた対象は再削除しない。
+        if node.is_valid():
+            node.delete()

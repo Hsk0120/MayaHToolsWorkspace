@@ -1,4 +1,4 @@
-"""hlib.nodes.reference の Reference と hlib.files.list_references を検証するMaya内テスト。"""
+"""hlib.nodes.reference の Reference と hlib.utils.references.list_references を検証するMaya内テスト。"""
 
 import os
 import sys
@@ -11,8 +11,8 @@ import hlib
 hlib.reload()
 from hlib.nodes import Node
 from hlib.nodes.reference import Reference
-from hlib.namespaces import Namespace
-from hlib.files import create_reference, list_references
+from hlib.general import Namespace
+from hlib.utils.references import create_reference, list_references
 
 
 class ReferenceTest(unittest.TestCase):
@@ -124,7 +124,7 @@ class ReferenceTest(unittest.TestCase):
 
 
 class CreateReferenceTest(unittest.TestCase):
-    """hlib.files.create_reference による参照の新規作成を検証する。"""
+    """hlib.utils.references.create_reference による参照の新規作成を検証する。"""
 
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()

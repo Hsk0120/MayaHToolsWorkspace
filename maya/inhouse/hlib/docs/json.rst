@@ -36,7 +36,7 @@ JSON変換や置換に失敗した場合、既存ファイルを成功したも�
         "description": "調整前",
         "position": Vector(1, 2, 3),
         "rotation": EulerRotation(0.1, 0.2, 0.3, "zyx"),
-        "target": hlib.node("control"),
+        "target": hlib.getNode("control"),
     }, metadata={"label": "backup"})
 
     data = hlib.json.load(path)
@@ -87,12 +87,12 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
 .. code-block:: python
 
     attrs = hlib.json.capture(
-        hlib.node("control"), kind="attributes",
+        hlib.getNode("control"), kind="attributes",
         attributes=["translate", "visibility", "customValue"],
     )
     selection = hlib.json.capture(kind="selection")
-    curves = hlib.json.capture(hlib.node("control"), kind="curve")
-    timeline = hlib.json.capture(hlib.timeSlider(), kind="editor")
+    curves = hlib.json.capture(hlib.getNode("control"), kind="curve")
+    timeline = hlib.json.capture(hlib.getTimeSlider(), kind="editor")
 
 属性は数値・enum・文字列・行列・数値2/3要素compoundに対応します。
 配列は要素を明示してください。任意のtyped arrayやカスタムデータ型は対象外です。
@@ -103,7 +103,7 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
 
 .. code-block:: python
 
-    saved = hlib.json.capture(hlib.node("characterA:control"), kind="pose")
+    saved = hlib.json.capture(hlib.getNode("characterA:control"), kind="pose")
     plan = saved.plan(namespace_map={"characterA": "characterB"})
     if not plan.errors:
         plan.apply()

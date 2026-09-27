@@ -1,4 +1,4 @@
-"""hlib.plugins.plugin の Plugin/Plugins を検証するMaya内テスト。"""
+"""hlib.general.plugin の Plugin/Plugins を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.plugins import Plugin, Plugins
+from hlib.general import Plugin, Plugins
 from hlib.utils import Version
 
 

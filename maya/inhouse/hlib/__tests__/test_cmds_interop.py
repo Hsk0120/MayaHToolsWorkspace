@@ -18,6 +18,7 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 import hlib
+
 hlib.reload()
 from hlib._core.attributeType import attribute_type, is_internal_data_type
 from hlib._core.coerce import to_names, to_plug
@@ -25,7 +26,7 @@ from hlib.components import Faces, Vertex, Vertices
 from hlib.maths import EulerRotation, Translation
 from hlib.nodes import Joint, Joints, Mesh, Node
 from hlib.plugs import ArrayPlug, CompoundPlug, Plug
-from hlib.selection import Selection
+from hlib.general.selection import Selection
 
 
 class _InteropCase(unittest.TestCase):
@@ -131,14 +132,18 @@ class DuplicateShortNameTest(_InteropCase):
 
     def test_selection_with_duplicate_short_names(self):
         dup1, dup2 = self.duplicates()
-        selection = Selection([dup1.plug("tx"), dup2.plug("tx"), dup1.name() + ".ty", dup2.plug("tz").mplug()])
+        selection = Selection(
+            [dup1.plug("tx"), dup2.plug("tx"), dup1.name() + ".ty", dup2.plug("tz").mplug()]
+        )
         self.assertEqual(len(selection.plugs()), 4)
         self.assertEqual(len({plug.full_name() for plug in selection.plugs()}), 4)
         selection.restore()
         self.assertEqual(len(cmds.ls(selection=True)), 4)
         captured = Selection([om2.MGlobal.getActiveSelectionList()])
-        self.assertEqual({plug.full_name() for plug in captured.plugs()},
-                         {plug.full_name() for plug in selection.plugs()})
+        self.assertEqual(
+            {plug.full_name() for plug in captured.plugs()},
+            {plug.full_name() for plug in selection.plugs()},
+        )
 
     def test_unresolved_index_plug_is_still_rejected(self):
         _, mesh = self.cube()
@@ -147,7 +152,9 @@ class DuplicateShortNameTest(_InteropCase):
         resolved = to_plug(name)
         self.assertEqual(attribute_type(resolved.mplug()), "componentList")
         self.assertEqual(resolved.full_name(), name)
-        self.assertEqual(mesh.plug("instObjGroups[0].objectGroups[0].objectGrpCompList").full_name(), name)
+        self.assertEqual(
+            mesh.plug("instObjGroups[0].objectGroups[0].objectGrpCompList").full_name(), name
+        )
         # 要素を指定しない子は cmp[-1].child のような maya.cmds で解決できないプラグになるため拒否する。
         # 配列複合属性の子の配列(cmp[-1].childArray)も同じ(ArrayPlug でも str() を解決できない)。
         for name in ("objectGrpCompList", "objectGroups"):
@@ -155,8 +162,10 @@ class DuplicateShortNameTest(_InteropCase):
                 with self.assertRaises(RuntimeError):
                     mesh.plug(name)
                 self.assertFalse(mesh.has_attr(name))
-        self.assertEqual(mesh.plug("instObjGroups[0].objectGroups").full_name(),
-                         mesh.name() + ".instObjGroups[0].objectGroups")
+        self.assertEqual(
+            mesh.plug("instObjGroups[0].objectGroups").full_name(),
+            mesh.name() + ".instObjGroups[0].objectGroups",
+        )
         # plugs() は未確定のインデックスを含むプラグを含まない(配列 Plug を含め、すべて解決できる)。
         plugs = mesh.plugs()
         self.assertTrue(any(plug.is_array() for plug in plugs))
@@ -164,12 +173,14 @@ class DuplicateShortNameTest(_InteropCase):
 
     def test_display_layer_members_with_duplicate_names(self):
         dup1, dup2 = self.duplicates()
-        layer = hlib.node(cmds.createDisplayLayer(name="lay", empty=True))
+        layer = hlib.getNode(cmds.createDisplayLayer(name="lay", empty=True))
         layer.add_members(dup1, dup2)
         # editDisplayLayerMembers の既定の問い合わせは葉の名前('dup')だけを返すため、
         # 完全パスで受け取って解決する。
-        self.assertEqual(sorted(member.full_name() for member in layer.members()),
-                         sorted([dup1.full_name(), dup2.full_name()]))
+        self.assertEqual(
+            sorted(member.full_name() for member in layer.members()),
+            sorted([dup1.full_name(), dup2.full_name()]),
+        )
 
 
 class NamingSpecTest(_InteropCase):
@@ -228,7 +239,9 @@ class NamingSpecTest(_InteropCase):
         self.assertAlmostEqual(cmds.getAttr(elements[1])[12], 5.0)
         self.assertAlmostEqual(cmds.getAttr(elements[0])[12], 0.0)
         vertex = Vertex(shape, 0)
-        self.assertAlmostEqual(cmds.xform(vertex, query=True, worldSpace=True, translation=True)[0], 4.5)
+        self.assertAlmostEqual(
+            cmds.xform(vertex, query=True, worldSpace=True, translation=True)[0], 4.5
+        )
 
     def test_invalid_node_names_are_empty(self):
         node = self.create("transform", "doomed")
@@ -249,7 +262,7 @@ class NamingSpecTest(_InteropCase):
         cmds.aliasAttr("myAlias", transform.name() + ".ty")
         base = cmds.polyCube(name="base")[0]
         target = cmds.polyCube(name="target")[0]
-        blend = hlib.node(cmds.blendShape(target, base, name="blend")[0])
+        blend = hlib.getNode(cmds.blendShape(target, base, name="blend")[0])
         average = self.create("plusMinusAverage", "pma")
         cmds.setAttr(average.name() + ".input3D[3].input3Dx", 1.0)
         dup1, dup2 = self.duplicates()
@@ -259,7 +272,17 @@ class NamingSpecTest(_InteropCase):
         underworld = hlib.createNode("transform", name="under", parent=mesh)  # cubeShape->under
         self.assertIn("->", underworld.name())
         checked = 0
-        for node in (transform, mesh, blend, average, dup1, dup2, instanced, underworld, Node("time1")):
+        for node in (
+            transform,
+            mesh,
+            blend,
+            average,
+            dup1,
+            dup2,
+            instanced,
+            underworld,
+            Node("time1"),
+        ):
             names = cmds.listAttr(node.full_name(), multi=True) or []
             plugs = []
             for name in names:
@@ -285,9 +308,13 @@ class PassToMayaCmdsTest(_InteropCase):
         parent = self.create("transform", "parent")
         child = self.create("transform", "child")
         cmds.parent(child, parent)
-        self.assertEqual(cmds.listRelatives(child, parent=True, fullPath=True), [parent.full_name()])
+        self.assertEqual(
+            cmds.listRelatives(child, parent=True, fullPath=True), [parent.full_name()]
+        )
         created = cmds.createNode("transform", name="created", parent=parent)
-        self.assertEqual(cmds.listRelatives(created, parent=True, fullPath=True), [parent.full_name()])
+        self.assertEqual(
+            cmds.listRelatives(created, parent=True, fullPath=True), [parent.full_name()]
+        )
         cmds.xform(child, translation=(1.0, 2.0, 3.0))
         self.assertEqual(cmds.xform(child, query=True, translation=True), [1.0, 2.0, 3.0])
         cmds.connectAttr(parent.plug("tx"), child.plug("ty"))
@@ -308,7 +335,9 @@ class PassToMayaCmdsTest(_InteropCase):
         cmds.xform(vertex, worldSpace=True, translation=(0.0, 5.0, 0.0))
         self.assertAlmostEqual(vertex.get_position(ws=True)[1], 5.0)
 
-        joints = Joints([cmds.createNode("joint", name="jointA"), cmds.createNode("joint", name="jointB")])
+        joints = Joints(
+            [cmds.createNode("joint", name="jointA"), cmds.createNode("joint", name="jointB")]
+        )
         cmds.select(joints)
         self.assertEqual(len(cmds.ls(selection=True)), 2)
 
@@ -327,7 +356,7 @@ class PassToMayaCmdsTest(_InteropCase):
         with self.assertRaises((TypeError, ValueError, RuntimeError)):
             cmds.select(network.mobject())
         # hlib のコマンドはどちらも受け付ける。
-        self.assertTrue(hlib.objExists(array_plug))
+        self.assertTrue(cmds.objExists(str(array_plug)))
         hlib.select(network.mobject())
         self.assertEqual(cmds.ls(selection=True), [network.name()])
 
@@ -376,24 +405,6 @@ class HlibCommandInputTest(_InteropCase):
         with self.assertRaises(TypeError):
             hlib.select(dup1.plug("tx").mplug().attribute())
 
-    def test_objExists(self):
-        node = self.create("transform", "node")
-        _, mesh = self.cube()
-        plug = node.plug("tx")
-        values = [node, plug, node.mobject(), node.dag_path(), plug.mplug()]
-        vertex = Vertex(mesh, 0)
-        for value in values + [vertex]:
-            with self.subTest(value=type(value).__name__):
-                self.assertTrue(hlib.objExists(value))
-        cmds.delete(node, mesh.transform())
-        for value in values + [vertex]:
-            with self.subTest(value=type(value).__name__):
-                self.assertFalse(hlib.objExists(value))
-        with self.assertRaises(ValueError):
-            hlib.objExists("")
-        with self.assertRaises(TypeError):
-            hlib.objExists(123)
-
     def test_delete(self):
         _, mesh = self.cube()
         hlib.delete(Faces(mesh, [0, 1]))
@@ -410,8 +421,13 @@ class HlibCommandInputTest(_InteropCase):
         # maya.cmds.delete は属性名を渡してもエラーを表示するだけで何もしないため、Plug は拒否する。
         d = self.create("transform", "d")
         d.add_attr("values", attribute_type="double", multi=True)
-        for value in (d.plug("tx"), d.plug("tx").mplug(), d.plug("values"), [d, d.plug("ty")],
-                      Selection([d, d.plug("tz")])):
+        for value in (
+            d.plug("tx"),
+            d.plug("tx").mplug(),
+            d.plug("values"),
+            [d, d.plug("ty")],
+            Selection([d, d.plug("tz")]),
+        ):
             with self.subTest(value=type(value).__name__):
                 with self.assertRaises(TypeError):
                     hlib.delete(value)
@@ -423,9 +439,11 @@ class HlibCommandInputTest(_InteropCase):
         base = cmds.polyCube(name="base")[0]
         first = cmds.polyCube(name="first")[0]
         second = cmds.polyCube(name="second")[0]
-        blend = hlib.node(cmds.blendShape(first, base, name="blend")[0])
+        blend = hlib.getNode(cmds.blendShape(first, base, name="blend")[0])
         # Plug・"node.attribute" は所有ノードをターゲット・ベースとして扱う。
-        weight = blend.add_target(hlib.node(second).plug("tx"), base=hlib.node(base).shape().plug("v"))
+        weight = blend.add_target(
+            hlib.getNode(second).plug("tx"), base=hlib.getNode(base).shape().plug("v")
+        )
         self.assertEqual(weight.full_name(), blend.name() + ".second")
         third = cmds.polyCube(name="third")[0]
         weight = blend.add_target(third + ".translateX")
@@ -444,7 +462,7 @@ class HlibCommandInputTest(_InteropCase):
         self.assertEqual(child.parent_node().full_name(), a.full_name())
         child2 = hlib.createNode("transform", name="child2", p=b.dag_path())
         self.assertEqual(child2.parent_node().full_name(), b.full_name())
-        group = hlib.group([child.mobject(), child2], name="grp", parent=a)
+        group = hlib.createGroup([child.mobject(), child2], name="grp", parent=a)
         self.assertEqual(group.parent_node().full_name(), a.full_name())
         self.assertEqual(child2.parent_node().full_name(), group.full_name())
         copy = hlib.duplicate(b.dag_path(), name="bCopy")
@@ -453,17 +471,15 @@ class HlibCommandInputTest(_InteropCase):
 
     def test_setKeyframe_and_drivenKey(self):
         node = self.create("transform", "keyed")
-        hlib.setKeyframe(node.plug("tx").mplug(), time=1, value=2.0)
+        cmds.setKeyframe(node.plug("tx"), time=1, value=2.0)
         self.assertEqual(cmds.keyframe(node.plug("tx"), query=True, valueChange=True), [2.0])
-        hlib.setKeyframe([node.plug("ty"), node.plug("tz").mplug()], time=1)
+        cmds.setKeyframe([node.plug("ty"), node.plug("tz")], time=1)
         self.assertEqual(cmds.keyframe(node.plug("ty"), query=True, keyframeCount=True), 1)
         self.assertEqual(cmds.keyframe(node.plug("tz"), query=True, keyframeCount=True), 1)
-        with self.assertRaises(TypeError):
-            hlib.setKeyframe([])
 
         driver = self.create("transform", "driver")
         driven = self.create("transform", "driven")
-        relation = hlib.drivenKey(driver.plug("tx").mplug(), driven.plug("ty"))
+        relation = hlib.getDrivenKey(driver.plug("tx").mplug(), driven.plug("ty"))
         relation.set_key(0.0, 0.0)
         relation.set_key(1.0, 2.0)
         self.assertTrue(relation.exists())
@@ -473,9 +489,12 @@ class HlibCommandInputTest(_InteropCase):
     def test_constraint_resolves_owner_nodes(self):
         source = self.create("transform", "source")
         target = self.create("transform", "target")
-        constraint = hlib.constraint(source.plug("tx"), target.mobject(), type="point")
+        constraint = hlib.addConstraint(source.plug("tx"), target.mobject(), type="point")
         self.assertEqual(
-            [Node(name).full_name() for name in cmds.pointConstraint(constraint, query=True, targetList=True)],
+            [
+                Node(name).full_name()
+                for name in cmds.pointConstraint(constraint, query=True, targetList=True)
+            ],
             [source.full_name()],
         )
         other = self.create("transform", "other")
@@ -490,7 +509,7 @@ class HlibCommandInputTest(_InteropCase):
         self.assertEqual(copy.full_name(), joint.full_name())
         self.assertIsInstance(Node(joint.plug("tx")), Joint)
         self.assertEqual(Node(joint.plug("tx").mplug()).full_name(), joint.full_name())
-        self.assertEqual(hlib.node(joint.plug("tx")).full_name(), joint.full_name())
+        self.assertEqual(hlib.getNode(joint.plug("tx")).full_name(), joint.full_name())
         self.assertEqual(Node(joint.name() + ".tx").full_name(), joint.full_name())
         _, mesh = self.cube()
         self.assertIsInstance(Node(Vertex(mesh, 0)), Mesh)
@@ -513,10 +532,15 @@ class NodeArgumentRulesTest(_InteropCase):
         expected_parent = group.full_name()
         # maya.cmds.createNode はプラグ名の parent を黙って無視してワールド直下に作るが、
         # hlib は所有ノードを親にする。
-        for index, parent in enumerate([
-            group.plug("tx"), group.plug("tx").mplug(), group.plug("worldMatrix"),
-            group.name() + ".translateX", group.plug("worldMatrix").element(0),
-        ]):
+        for index, parent in enumerate(
+            [
+                group.plug("tx"),
+                group.plug("tx").mplug(),
+                group.plug("worldMatrix"),
+                group.name() + ".translateX",
+                group.plug("worldMatrix").element(0),
+            ]
+        ):
             with self.subTest(parent=type(parent).__name__):
                 created = hlib.createNode("transform", name="k%d" % index, parent=parent)
                 self.assertEqual(created.parent_node().full_name(), expected_parent)
@@ -539,7 +563,7 @@ class NodeArgumentRulesTest(_InteropCase):
     def test_group_parent_and_empty_input(self):
         group = hlib.createNode("transform", name="g")
         item = hlib.createNode("transform", name="item")
-        result = hlib.group([item], name="G", parent=group.plug("tx"))
+        result = hlib.createGroup([item], name="G", parent=group.plug("tx"))
         self.assertEqual(result.parent_node().full_name(), group.full_name())
         # 空の列で maya.cmds.group が現在の選択をグループ化しないこと。
         selected = hlib.createNode("transform", name="selected")
@@ -548,10 +572,10 @@ class NodeArgumentRulesTest(_InteropCase):
         for empty in ([], (value for value in [])):
             with self.subTest(empty=type(empty).__name__):
                 with self.assertRaises(ValueError):
-                    hlib.group(empty, name="shouldNotExist")
+                    hlib.createGroup(empty, name="shouldNotExist")
         self.assertEqual(set(cmds.ls(type="transform", long=True)), before)
         self.assertEqual(selected.parent_node(), None)
-        created = hlib.group([], name="emptyGroup", empty=True)
+        created = hlib.createGroup([], name="emptyGroup", empty=True)
         self.assertIsNone(cmds.listRelatives(created.full_name(), children=True))
 
     def test_constraint_target_must_be_transform(self):
@@ -560,13 +584,15 @@ class NodeArgumentRulesTest(_InteropCase):
         for target in (mesh, Vertex(mesh, 0), mesh.plug("visibility")):
             with self.subTest(target=type(target).__name__):
                 with self.assertRaises(TypeError):
-                    hlib.constraint(source, target, type="point")
+                    hlib.addConstraint(source, target, type="point")
         target = self.create("transform", "target")
         # 拘束元の Components は所有シェイプ1つとして扱う(シェイプを使う geometry 拘束の例)。
-        constraint = hlib.constraint(Vertices(mesh, [0, 1, 2]), target.plug("tx"), type="geometry")
+        constraint = hlib.addConstraint(Vertices(mesh, [0, 1, 2]), target.plug("tx"), type="geometry")
         targets = cmds.geometryConstraint(constraint.full_name(), query=True, targetList=True)
         # Maya は拘束元のシェイプを、その親 Transform の名前で報告する。
-        self.assertEqual([Node(name).full_name() for name in targets], [mesh.transform().full_name()])
+        self.assertEqual(
+            [Node(name).full_name() for name in targets], [mesh.transform().full_name()]
+        )
 
     def test_constraint_sources_must_be_transforms_for_transform_types(self):
         transform, mesh = self.cube()
@@ -575,9 +601,13 @@ class NodeArgumentRulesTest(_InteropCase):
         # parent/point などは拘束元の transform の値を使う。maya.cmds はシェイプを拘束元にすると
         # ターゲットの無い(追従しない)拘束を黙って作るため、Transform 以外は TypeError。
         shape_sources = {
-            "shape": mesh, "shape Plug": mesh.plug("castsShadows"), "Vertex": Vertex(mesh, 0),
-            "Vertices": Vertices(mesh, [0, 1]), "vertex name": transform.name() + ".vtx[0]",
-            "shape MPlug": mesh.plug("castsShadows").mplug(), "DG node": network,
+            "shape": mesh,
+            "shape Plug": mesh.plug("castsShadows"),
+            "Vertex": Vertex(mesh, 0),
+            "Vertices": Vertices(mesh, [0, 1]),
+            "vertex name": transform.name() + ".vtx[0]",
+            "shape MPlug": mesh.plug("castsShadows").mplug(),
+            "DG node": network,
         }
         for kind in ("parent", "point", "orient", "scale", "aim", "poleVector"):
             for label, source in shape_sources.items():
@@ -585,20 +615,27 @@ class NodeArgumentRulesTest(_InteropCase):
                     target = self.create("transform", "t_%s_%s" % (kind, label.replace(" ", "")))
                     before = set(cmds.ls(type="constraint") or [])
                     with self.assertRaises(TypeError):
-                        hlib.constraint(source, target, type=kind)
+                        hlib.addConstraint(source, target, type=kind)
                     self.assertEqual(set(cmds.ls(type="constraint") or []), before)
         # Transform の Plug は所有 Transform を拘束元にする(拘束先が追従する)。
         followed = self.create("transform", "followed")
-        constraint = hlib.constraint(transform.plug("tx"), followed, type="point")
-        self.assertEqual([node.full_name() for node in constraint.targets()], [transform.full_name()])
+        constraint = hlib.addConstraint(transform.plug("tx"), followed, type="point")
+        self.assertEqual(
+            [node.full_name() for node in constraint.targets()], [transform.full_name()]
+        )
         self.assertAlmostEqual(followed.plug("tx").get(), 5.0)
         # シェイプを使う型はシェイプ・Component を拘束元にできる。
         for kind in ("geometry", "normal", "pointOnPoly"):
-            for label, source in (("shape Plug", mesh.plug("castsShadows")), ("Vertex", Vertex(mesh, 0))):
+            for label, source in (
+                ("shape Plug", mesh.plug("castsShadows")),
+                ("Vertex", Vertex(mesh, 0)),
+            ):
                 with self.subTest(kind=kind, source=label):
                     target = self.create("transform", "s_%s_%s" % (kind, label.replace(" ", "")))
-                    result = hlib.constraint(source, target, type=kind)
-                    self.assertEqual([node.full_name() for node in result.targets()], [transform.full_name()])
+                    result = hlib.addConstraint(source, target, type=kind)
+                    self.assertEqual(
+                        [node.full_name() for node in result.targets()], [transform.full_name()]
+                    )
 
     def test_constraint_string_sources_resolve_owner_nodes(self):
         dup1, dup2 = self.duplicates()
@@ -606,23 +643,31 @@ class NodeArgumentRulesTest(_InteropCase):
         target = self.create("transform", "target")
         # "node.attribute" の文字列も所有ノードを拘束元にする(maya.cmds へプラグ名のまま
         # 渡すと拘束元として扱われない)。
-        constraint = hlib.constraint(dup2.name() + ".tx", target, type="point")
+        constraint = hlib.addConstraint(dup2.name() + ".tx", target, type="point")
         self.assertEqual([node.full_name() for node in constraint.targets()], [dup2.full_name()])
         self.assertAlmostEqual(cmds.getAttr(target.plug("tx")), 5.0)
         _, mesh = self.cube()
         other = self.create("transform", "other")
         geometry = other.add_constraint(mesh.name() + ".vtx[0]", "geometry")
-        self.assertEqual([node.full_name() for node in geometry.targets()], [mesh.transform().full_name()])
-        for source, error in ((dup1.node_name(), RuntimeError), (self.ns("missing"), RuntimeError),
-                              ("", TypeError), (None, TypeError)):
+        self.assertEqual(
+            [node.full_name() for node in geometry.targets()], [mesh.transform().full_name()]
+        )
+        for source, error in (
+            (dup1.node_name(), RuntimeError),
+            (self.ns("missing"), RuntimeError),
+            ("", TypeError),
+            (None, TypeError),
+        ):
             with self.subTest(source=source):
                 with self.assertRaises(error):
-                    hlib.constraint(source, target, type="point")
+                    hlib.addConstraint(source, target, type="point")
 
     def duplicate_cubes(self):
         """短い名前が重複する |cg1|cb と |cg2|cb(シェイプはどちらも cbShape)を作成する。"""
         groups = [self.create("transform", "cg%d" % index) for index in (1, 2)]
-        first = cmds.parent(cmds.polyCube(name="cb", constructionHistory=False)[0], groups[0].full_name())[0]
+        first = cmds.parent(
+            cmds.polyCube(name="cb", constructionHistory=False)[0], groups[0].full_name()
+        )[0]
         copy = cmds.parent(cmds.duplicate(first)[0], groups[1].full_name())[0]
         copy = cmds.rename(copy, "cb")
         cmds.rename(cmds.listRelatives(copy, shapes=True, fullPath=True)[0], "cbShape")
@@ -634,49 +679,55 @@ class NodeArgumentRulesTest(_InteropCase):
         _, mesh = self.cube()
         self.duplicate_cubes()
         # 同名ノードがあるとプラグ名・コンポーネント名も複数に一致し、最初の一致を黙って返さない。
-        for name in (dup1.node_name() + ".tx", dup1.node_name(), self.ns("cbShape.vtx[0]"),
-                     self.ns("cb.worldMatrix[0]")):
+        for name in (
+            dup1.node_name() + ".tx",
+            dup1.node_name(),
+            self.ns("cbShape.vtx[0]"),
+            self.ns("cb.worldMatrix[0]"),
+        ):
             with self.subTest(name=name):
                 self.assertEqual(len(cmds.ls(name)), 2)
                 with self.assertRaises(RuntimeError) as context:
                     Node(name)
                 self.assertIn("一意", str(context.exception))
                 with self.assertRaises(RuntimeError):
-                    hlib.node(name)
+                    hlib.getNode(name)
         with self.assertRaises(RuntimeError) as context:
             Node(self.ns("doesNotExist"))
         self.assertIn("見つかりません", str(context.exception))
         # Components は所有シェイプ、属性の MObject は TypeError、空・削除済みは RuntimeError。
-        self.assertIsInstance(hlib.node(Vertices(mesh, [0, 1])), Mesh)
+        self.assertIsInstance(hlib.getNode(Vertices(mesh, [0, 1])), Mesh)
         with self.assertRaises(TypeError):
-            hlib.node(mesh.plug("visibility").mplug().attribute())
+            hlib.getNode(mesh.plug("visibility").mplug().attribute())
         with self.assertRaises(RuntimeError):
-            hlib.node(om2.MObject())
+            hlib.getNode(om2.MObject())
         with self.assertRaises(RuntimeError):
-            hlib.node(om2.MDagPath())
+            hlib.getNode(om2.MDagPath())
         doomed = self.create("transform", "doomed")
         handle_object, path = doomed.mobject(), doomed.dag_path()
         cmds.delete(doomed)
         for value in (handle_object, path):
             with self.subTest(value=type(value).__name__):
                 with self.assertRaises(RuntimeError):
-                    hlib.node(value)
+                    hlib.getNode(value)
 
     def test_patterns_matching_multiple_nodes_are_not_resolved_to_the_first(self):
-        # 以前の Node(...)/hlib.node はパターンの最初の一致を返していた。現在は RuntimeError で、
+        # 以前の Node(...)/hlib.getNode はパターンの最初の一致を返していた。現在は RuntimeError で、
         # パターンは hlib.ls で扱う(一致が1つだけのパターンはそのノードを返す)。
         bulk = [self.create("transform", "bulk%d" % index) for index in range(3)]
         lonely = self.create("transform", "lonely1")
         pattern = self.ns("bulk*")
         self.assertEqual(len(cmds.ls(pattern)), 3)
-        for factory in (Node, hlib.node):
+        for factory in (Node, hlib.getNode):
             with self.subTest(factory=factory.__name__):
                 with self.assertRaises(RuntimeError) as context:
                     factory(pattern)
                 self.assertIn("一意", str(context.exception))
-        self.assertEqual(hlib.node(self.ns("lonely*")).full_name(), lonely.full_name())
-        self.assertEqual(sorted(node.full_name() for node in hlib.ls(pattern)),
-                         sorted(node.full_name() for node in bulk))
+        self.assertEqual(hlib.getNode(self.ns("lonely*")).full_name(), lonely.full_name())
+        self.assertEqual(
+            sorted(node.full_name() for node in hlib.ls(pattern)),
+            sorted(node.full_name() for node in bulk),
+        )
 
 
 class InstanceSpecificWrapperTest(_InteropCase):
@@ -704,8 +755,8 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertEqual(str(second), first.name())
         self.assertEqual(str(plug), first.name() + ".castsShadows")
         self.assertEqual(str(vertex), first.full_name() + ".vtx[1]")
-        self.assertTrue(hlib.objExists(second))
-        self.assertTrue(hlib.objExists(plug))
+        self.assertTrue(cmds.objExists(second))
+        self.assertTrue(cmds.objExists(str(plug)))
         hlib.select(second)
         self.assertEqual(cmds.ls(selection=True, long=True), [first.full_name()])
         self.assertEqual(Node(second).full_name(), first.full_name())
@@ -714,13 +765,14 @@ class InstanceSpecificWrapperTest(_InteropCase):
     def test_names_keep_the_instance(self):
         first, second, _ = self.instanced_box()
         plug = second.plug("castsShadows")
-        self.assertEqual(hlib.node(str(plug)).full_name(), second.full_name())
-        self.assertEqual(hlib.node(plug.full_name()).full_name(), second.full_name())
+        self.assertEqual(hlib.getNode(str(plug)).full_name(), second.full_name())
+        self.assertEqual(hlib.getNode(plug.full_name()).full_name(), second.full_name())
         self.assertEqual(to_plug(str(plug)).node.full_name(), second.full_name())
-        self.assertEqual(hlib.node(str(first.plug("castsShadows"))).full_name(), first.full_name())
+        self.assertEqual(hlib.getNode(str(first.plug("castsShadows"))).full_name(), first.full_name())
         self.assertEqual(Node(str(Vertex(second, 0))).full_name(), second.full_name())
-        self.assertEqual([item.node.full_name() for item in Selection([str(plug)]).plugs()],
-                         [second.full_name()])
+        self.assertEqual(
+            [item.node.full_name() for item in Selection([str(plug)]).plugs()], [second.full_name()]
+        )
         # 現在の選択(MSelectionList)は属性のインスタンスを保持しないが、インスタンスごとの
         # 属性(worldMatrix[1])は要素番号のインスタンスとして取得できる。
         world = second.plug("worldMatrix").element(1)
@@ -737,10 +789,14 @@ class InstanceSpecificWrapperTest(_InteropCase):
         for text in (instance + ".castsShadows", self.ns("box1.castsShadows")):
             with self.subTest(text=text):
                 self.assertEqual(to_plug(text).node.full_name(), shape)
-                self.assertEqual(hlib.node(text).full_name(), shape)
-                self.assertEqual([item.node.full_name() for item in Selection([text]).plugs()], [shape])
-        self.assertEqual(to_plug(box.full_name() + ".castsShadows").node.full_name(),
-                         box.full_name() + "|" + self.ns("boxShape"))
+                self.assertEqual(hlib.getNode(text).full_name(), shape)
+                self.assertEqual(
+                    [item.node.full_name() for item in Selection([text]).plugs()], [shape]
+                )
+        self.assertEqual(
+            to_plug(box.full_name() + ".castsShadows").node.full_name(),
+            box.full_name() + "|" + self.ns("boxShape"),
+        )
 
     def test_world_space_attributes_follow_indirect_instances(self):
         group = self.create("transform", "g")
@@ -752,15 +808,19 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertEqual(second.dag_path().instanceNumber(), 1)
         # 祖先のインスタンス化による間接インスタンスも、評価前から要素として扱う。
         world = second.plug("worldMatrix")
-        self.assertEqual([plug.full_name() for plug in world.elements()],
-                         [world.full_name() + "[0]", world.full_name() + "[1]"])
+        self.assertEqual(
+            [plug.full_name() for plug in world.elements()],
+            [world.full_name() + "[0]", world.full_name() + "[1]"],
+        )
         self.assertEqual(sorted(world.get()), [0, 1])
         self.assertEqual(world[1].full_name(), world.full_name() + "[1]")
         # get_matrix(ws=True) はラッパーが保持するインスタンスの worldMatrix を使う。
         self.assertEqual(list(second.get_matrix(ws=True)), cmds.getAttr(world.full_name() + "[1]"))
         self.assertAlmostEqual(list(second.get_translate(ws=True))[0], 10.0)
         self.assertAlmostEqual(list(first.get_translate(ws=True))[0], 0.0)
-        self.assertEqual(list(first.get_matrix(ws=True)), cmds.getAttr(first.full_name() + ".worldMatrix[0]"))
+        self.assertEqual(
+            list(first.get_matrix(ws=True)), cmds.getAttr(first.full_name() + ".worldMatrix[0]")
+        )
 
 
 class ComponentNamedAttributeTest(_InteropCase):
@@ -772,7 +832,9 @@ class ComponentNamedAttributeTest(_InteropCase):
         # MSelectionList は "pcShape.pnts[3]" を頂点として登録するが、属性として解決できる。
         self.assertEqual(to_plug(str(point)).full_name(), point.full_name())
         self.assertEqual(to_plug(str(point) + ".pntx").full_name(), point.full_name() + ".pntx")
-        self.assertEqual(to_plug(mesh.name() + ".pt[3].px").full_name(), point.full_name() + ".pntx")
+        self.assertEqual(
+            to_plug(mesh.name() + ".pt[3].px").full_name(), point.full_name() + ".pntx"
+        )
         self.assertEqual(to_plug(transform.name() + ".pnts[3]").full_name(), point.full_name())
         source = self.create("transform", "src")
         source.plug("translate").connect(str(point))
@@ -782,7 +844,7 @@ class ComponentNamedAttributeTest(_InteropCase):
         control_point = curve.plug("controlPoints").element(1)
         self.assertEqual(to_plug(str(control_point)).full_name(), control_point.full_name())
         # ノードを求める場合は、コンポーネントと同じく所有シェイプになる。
-        self.assertEqual(hlib.node(str(point)).full_name(), mesh.full_name())
+        self.assertEqual(hlib.getNode(str(point)).full_name(), mesh.full_name())
         # コンポーネントの名前・範囲指定は属性ではない。
         for text in (mesh.name() + ".vtx[3]", mesh.name() + ".pnts[0:3]"):
             with self.subTest(text=text):
@@ -796,7 +858,9 @@ class ComponentNamedAttributeTest(_InteropCase):
         for suffix in (".controlPoints[2]", ".pnts[40]", ".controlPoints[40]", ".cp[5].xv"):
             with self.subTest(suffix=suffix):
                 to_plug(mesh.name() + suffix)
-                self.assertEqual(list(mesh.plug("pnts").mplug().getExistingArrayAttributeIndices()), [])
+                self.assertEqual(
+                    list(mesh.plug("pnts").mplug().getExistingArrayAttributeIndices()), []
+                )
         # ワールド空間属性も要素を作らない(属性型の判定で評価も起こさない)。
         world = transform.plug("worldMatrix").mplug()
         before = list(world.getExistingArrayAttributeIndices())
@@ -847,15 +911,21 @@ class PlugCreationSideEffectTest(_InteropCase):
     def test_blend_shape_weight_plugs_do_not_create_target_elements(self):
         base = cmds.polyCube(name="base")[0]
         target = cmds.polyCube(name="target")[0]
-        blend = hlib.node(cmds.blendShape(target, base, name="blend")[0])
-        arrays = ("weight", "parentDirectory", "nextTarget", "targetVisibility",
-                  "targetParentVisibility", "inputTarget[0].inputTargetGroup")
+        blend = hlib.getNode(cmds.blendShape(target, base, name="blend")[0])
+        arrays = (
+            "weight",
+            "parentDirectory",
+            "nextTarget",
+            "targetVisibility",
+            "targetParentVisibility",
+            "inputTarget[0].inputTargetGroup",
+        )
         before = {name: self.existing(blend.plug(name)) for name in arrays}
         # maya.cmds で weight[5] の型を問い合わせると parentDirectory[5] なども作られる。
         weight = to_plug(blend.name() + ".weight[5]")
         self.assertEqual(type(weight).__name__, "Plug")
         blend.plug("weight[7]")
-        hlib.drivenKey(self.create("transform", "driver").plug("tx"), blend.name() + ".weight[0]")
+        hlib.getDrivenKey(self.create("transform", "driver").plug("tx"), blend.name() + ".weight[0]")
         Selection([blend.name() + ".weight[6]"])
         self.assertEqual({name: self.existing(blend.plug(name)) for name in arrays}, before)
 
@@ -864,8 +934,13 @@ class PlugCreationSideEffectTest(_InteropCase):
         arrays = ("edge", "face", "vrts", "uvpt", "pnts")
         before = {name: self.existing(mesh.plug(name)) for name in arrays}
         # mesh の内部属性は maya.cmds.getAttr(type=True) では例外になるが、属性定義から型を求める。
-        for path, expected in (("edge[1]", "long3"), ("face[1]", "polyFaces"), ("vrts[10]", "float3"),
-                               ("uvpt[16]", "float2"), ("edge[500]", "long3")):
+        for path, expected in (
+            ("edge[1]", "long3"),
+            ("face[1]", "polyFaces"),
+            ("vrts[10]", "float3"),
+            ("uvpt[16]", "float2"),
+            ("edge[500]", "long3"),
+        ):
             with self.subTest(plug=path):
                 plug = mesh.plug(path)
                 self.assertEqual(attribute_type(plug.mplug()), expected)
@@ -882,8 +957,11 @@ class PlugCreationSideEffectTest(_InteropCase):
         # 内部のデータ型の存在しない要素は、値を読むと Maya が異常終了する場合があるため、
         # 値の取得と要素の作成を RuntimeError にする(maya.cmds・MPlug のどちらでも読まない)。
         self.assertTrue(is_internal_data_type(patch.mplug()))
-        for call in (lambda: patch.element(7, create=True), patch.add_element,
-                     lambda: surface.plug("patchUVIds[3]").get()):
+        for call in (
+            lambda: patch.element(7, create=True),
+            patch.add_element,
+            lambda: surface.plug("patchUVIds[3]").get(),
+        ):
             with self.assertRaises(RuntimeError):
                 call()
         self.assertEqual(len(self.existing(patch)), count)
@@ -895,8 +973,11 @@ class PlugCreationSideEffectTest(_InteropCase):
         source = self.create("transform", "src")
         source.plug("t").set((2.0, 0.0, 0.0))
         choices = {}
-        for label, plug in (("matrix", source.plug("worldMatrix[0]")), ("double3", source.plug("translate")),
-                            ("double", source.plug("tx"))):
+        for label, plug in (
+            ("matrix", source.plug("worldMatrix[0]")),
+            ("double3", source.plug("translate")),
+            ("double", source.plug("tx")),
+        ):
             choice = self.create("choice", "choice_" + label)
             cmds.connectAttr(str(plug), choice.name() + ".input[0]")
             choices[label] = choice
@@ -923,12 +1004,17 @@ class PlugCreationSideEffectTest(_InteropCase):
         counter = "hlibInteropEval_" + uuid.uuid4().hex[:8]
         source = self.create("transform", "src")
         middle = self.create("transform", "mid")
-        cmds.expression(string="global int $%s; $%s++; %s.rx = %s.tx * 2; %s.tx = %s.tx;" % (
-            counter, counter, middle.name(), source.name(), middle.name(), source.name()), name="counter")
+        cmds.expression(
+            string="global int $%s; $%s++; %s.rx = %s.tx * 2; %s.tx = %s.tx;"
+            % (counter, counter, middle.name(), source.name(), middle.name(), source.name()),
+            name="counter",
+        )
         choice = self.create("choice", "choice")
         cmds.connectAttr(middle.plug("worldMatrix[0]"), choice.name() + ".input[0]")
         driven = self.create("transform", "driven")
-        cmds.connectAttr(middle.plug("rx"), driven.plug("tx"))  # unitConversion(generic 属性)を経由する
+        cmds.connectAttr(
+            middle.plug("rx"), driven.plug("tx")
+        )  # unitConversion(generic 属性)を経由する
         cmds.getAttr(driven.plug("tx"))
         cmds.getAttr(choice.name() + ".output")
 
@@ -960,16 +1046,25 @@ class PlugCreationSideEffectTest(_InteropCase):
         counter = "hlibInteropChain_" + uuid.uuid4().hex[:8]
         source = self.create("transform", "src")
         middle = self.create("transform", "mid")
-        cmds.expression(string="global int $%s; $%s++; %s.rx = %s.tx * 2; %s.tx = %s.tx;" % (
-            counter, counter, middle.name(), source.name(), middle.name(), source.name()), name="counter")
+        cmds.expression(
+            string="global int $%s; $%s++; %s.rx = %s.tx * 2; %s.tx = %s.tx;"
+            % (counter, counter, middle.name(), source.name(), middle.name(), source.name()),
+            name="counter",
+        )
         driven = self.create("transform", "driven")
-        cmds.connectAttr(middle.plug("rx"), driven.plug("tx"))  # unitConversion(generic 属性)を経由する
-        conversion = cmds.listConnections(str(driven.plug("tx")), source=True, destination=False,
-                                          type="unitConversion")[0]
+        cmds.connectAttr(
+            middle.plug("rx"), driven.plug("tx")
+        )  # unitConversion(generic 属性)を経由する
+        conversion = cmds.listConnections(
+            str(driven.plug("tx")), source=True, destination=False, type="unitConversion"
+        )[0]
         upstream = self.create("choice", "upstream")
         cmds.connectAttr(middle.plug("worldMatrix[0]"), upstream.name() + ".input[0]")
         chains = {}
-        for label, output in (("unitConversion", conversion + ".output"), ("choice", upstream.name() + ".output")):
+        for label, output in (
+            ("unitConversion", conversion + ".output"),
+            ("choice", upstream.name() + ".output"),
+        ):
             downstream = self.create("choice", "down_" + label)
             cmds.connectAttr(output, downstream.name() + ".input[0]")
             chains[label] = downstream
@@ -1072,12 +1167,20 @@ class PlugValidityTest(_InteropCase):
                 self.assertFalse(item.is_valid())
                 self.assertEqual(str(item), "")
                 self.assertEqual(repr(item), "<Plug invalid>")
-                self.assertFalse(hlib.objExists(item))
+                self.assertFalse(cmds.objExists(str(item)))
                 with self.assertRaises(RuntimeError):
                     item.get()
-        for call in (lambda: plug.set(1.0), lambda: plug.set(1.0, fast=True), lambda: compound.set((1, 2, 3)),
-                     array_plug.elements, lambda: array_plug[2], array_plug.next_available,
-                     lambda: compound.child(0), plug.reset, child.parent):
+        for call in (
+            lambda: plug.set(1.0),
+            lambda: plug.set(1.0, fast=True),
+            lambda: compound.set((1, 2, 3)),
+            array_plug.elements,
+            lambda: array_plug[2],
+            array_plug.next_available,
+            lambda: compound.child(0),
+            plug.reset,
+            child.parent,
+        ):
             with self.assertRaises(RuntimeError):
                 call()
         with self.assertRaises(ValueError):
@@ -1114,10 +1217,13 @@ class PlugValidityTest(_InteropCase):
                             cmds.undoInfo(stateWithoutFlush=True)
                     self.assertFalse(mplug_attribute_exists(mplug))
                     cmds.select(clear=True)
-                    for call in (lambda: to_name(mplug), lambda: hlib.select(mplug), lambda: to_names([mplug])):
+                    for call in (
+                        lambda: to_name(mplug),
+                        lambda: hlib.select(mplug),
+                        lambda: to_names([mplug]),
+                    ):
                         with self.assertRaises(ValueError):
                             call()
-                    self.assertFalse(hlib.objExists(mplug))
                     self.assertEqual(cmds.ls(selection=True), [])
                     with self.assertRaises(RuntimeError):
                         to_plug(mplug)
@@ -1134,10 +1240,12 @@ class PlugValidityTest(_InteropCase):
         parent = self.create("transform", "parent")
         child = self.create("transform", "child", parent)
         target = self.create("transform", "target")
-        plugs = {"parent": parent.add_attr("foo", attribute_type="double"),
-                 "child": child.add_attr("foo", attribute_type="double")}
+        plugs = {
+            "parent": parent.add_attr("foo", attribute_type="double"),
+            "child": child.add_attr("foo", attribute_type="double"),
+        }
         mplugs = {key: om2.MPlug(plug.mplug()) for key, plug in plugs.items()}
-        self.assertEqual(hlib.node(mplugs["child"]).full_name(), child.full_name())
+        self.assertEqual(hlib.getNode(mplugs["child"]).full_name(), child.full_name())
         self.assertTrue(parent.is_parent_of(plugs["child"]))
         state = cmds.undoInfo(query=True, state=True)
         cmds.undoInfo(state=True)
@@ -1145,21 +1253,21 @@ class PlugValidityTest(_InteropCase):
             cmds.deleteAttr(parent.name() + ".foo")
             cmds.deleteAttr(child.name() + ".foo")
             with self.assertRaises(ValueError):
-                hlib.node(mplugs["child"])
+                hlib.getNode(mplugs["child"])
             # Undo で属性が戻れば、同じ Plug・MPlug を再び所有ノードへ解決できる。
             cmds.undo()
             for value in (plugs["child"], mplugs["child"]):
-                self.assertEqual(hlib.node(value).full_name(), child.full_name())
+                self.assertEqual(hlib.getNode(value).full_name(), child.full_name())
                 self.assertTrue(parent.is_parent_of(value))
             cmds.deleteAttr(child.name() + ".foo")
         finally:
             cmds.undoInfo(state=state)
         calls = {
             "Node": Node,
-            "hlib.node": hlib.node,
+            "hlib.getNode": hlib.getNode,
             "to_node": to_node,
-            "constraint source": lambda value: hlib.constraint(value, target, type="point"),
-            "constraint target": lambda value: hlib.constraint(target, value, type="point"),
+            "constraint source": lambda value: hlib.addConstraint(value, target, type="point"),
+            "constraint target": lambda value: hlib.addConstraint(target, value, type="point"),
             "add_constraint": lambda value: target.add_constraint(value, "point"),
             "match_transform": target.match_transform,
         }
@@ -1185,7 +1293,13 @@ class PlugValidityTest(_InteropCase):
     def test_parent_queries_return_false_for_deleted_api_objects(self):
         parent = self.create("transform", "parent")
         child = self.create("transform", "child", parent)
-        values = (child, child.plug("tx"), child.mobject(), child.dag_path(), om2.MPlug(child.plug("tx").mplug()))
+        values = (
+            child,
+            child.plug("tx"),
+            child.mobject(),
+            child.dag_path(),
+            om2.MPlug(child.plug("tx").mplug()),
+        )
         for value in values:
             self.assertTrue(parent.is_parent_of(value))
         cmds.delete(child.full_name())
@@ -1196,7 +1310,7 @@ class PlugValidityTest(_InteropCase):
                 self.assertFalse(parent.is_parent_of(value))
                 self.assertFalse(parent.is_ancestor_of(value))
         with self.assertRaises(RuntimeError):
-            hlib.node(values[2])
+            hlib.getNode(values[2])
         for value in (om2.MObject(), self.ns("missing")):
             with self.subTest(value=repr(value)):
                 with self.assertRaises(RuntimeError):
@@ -1245,8 +1359,14 @@ class PlugValidityTest(_InteropCase):
         cmds.addAttr(node.name(), longName="cmp", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(node.name(), longName="cmp" + axis, attributeType="double", parent="cmp")
-        plugs = [node.plug("arr[0]"), node.plug("arr"), node.plug("cmpX"), node.plug("cmp"),
-                 node.plug("tx"), node.plug("worldMatrix[0]")]
+        plugs = [
+            node.plug("arr[0]"),
+            node.plug("arr"),
+            node.plug("cmpX"),
+            node.plug("cmp"),
+            node.plug("tx"),
+            node.plug("worldMatrix[0]"),
+        ]
         state = cmds.undoInfo(query=True, state=True)
         cmds.undoInfo(stateWithoutFlush=False)
         try:
@@ -1259,11 +1379,22 @@ class PlugValidityTest(_InteropCase):
                 self.assertEqual(str(plug), "")
                 self.assertEqual(plug.name(), "")
                 self.assertEqual(repr(plug), "<Plug invalid>")
-                self.assertFalse(hlib.objExists(plug))
-                calls = [plug.attribute, plug.nice_name, plug.is_locked, plug.is_keyable,
-                         plug.is_connected, plug.is_dynamic, plug.is_hidden, plug.default,
-                         plug.parent, plug.source, plug.destinations, plug.get,
-                         lambda: plug.connect(self.create("transform", "x").plug("tx"))]
+                self.assertFalse(cmds.objExists(str(plug)))
+                calls = [
+                    plug.attribute,
+                    plug.nice_name,
+                    plug.is_locked,
+                    plug.is_keyable,
+                    plug.is_connected,
+                    plug.is_dynamic,
+                    plug.is_hidden,
+                    plug.default,
+                    plug.parent,
+                    plug.source,
+                    plug.destinations,
+                    plug.get,
+                    lambda: plug.connect(self.create("transform", "x").plug("tx")),
+                ]
                 if not isinstance(plug, ArrayPlug):
                     calls.append(lambda: plug.set(1.0))  # 配列全体の set() は常に TypeError
                 for call in calls:
@@ -1300,7 +1431,7 @@ class NodePlugPathTest(_InteropCase):
         transform = self.create("transform", "t")
         base = cmds.polyCube(name="base")[0]
         target = cmds.polyCube(name="target")[0]
-        blend = hlib.node(cmds.blendShape(target, base, name="blend")[0])
+        blend = hlib.getNode(cmds.blendShape(target, base, name="blend")[0])
         group = "inputTarget[0].inputTargetGroup"
         before = list(blend.plug(group).mplug().getExistingArrayAttributeIndices())
         cases = [
@@ -1322,8 +1453,16 @@ class NodePlugPathTest(_InteropCase):
                 self.assertTrue(node.has_attr(path))
         self.assertEqual(blend.plug("weight[0]").mplug(), blend.plug("target").mplug())
         self.assertEqual(list(blend.plug(group).mplug().getExistingArrayAttributeIndices()), before)
-        self.assertEqual(list(average.plug("input1D").mplug().getExistingArrayAttributeIndices()), [])
-        for path in ("input1D[3].foo", "missing[0]", "input1D[0:3]", "operation[0]", "missing.child"):
+        self.assertEqual(
+            list(average.plug("input1D").mplug().getExistingArrayAttributeIndices()), []
+        )
+        for path in (
+            "input1D[3].foo",
+            "missing[0]",
+            "input1D[0:3]",
+            "operation[0]",
+            "missing.child",
+        ):
             with self.subTest(path=path):
                 with self.assertRaises(AttributeError):
                     average.plug(path)
@@ -1340,7 +1479,11 @@ class NodePlugPathTest(_InteropCase):
                 self.assertFalse(blend.has_attr(path))
         self.assertEqual(type(blend.plug(group)).__name__, "ArrayPlug")
         # Python の属性アクセスでは hasattr/getattr の既定値が使えるよう AttributeError にする。
-        for node, name in ((average, "input3Dx"), (blend, "inputTargetGroup"), (average, "missingAttr")):
+        for node, name in (
+            (average, "input3Dx"),
+            (blend, "inputTargetGroup"),
+            (average, "missingAttr"),
+        ):
             with self.subTest(attribute=name):
                 self.assertFalse(hasattr(node, name))
                 self.assertIsNone(getattr(node, name, None))
@@ -1372,9 +1515,15 @@ class NodeConstructionTest(_InteropCase):
 
         node_module._resolve_node = counting
         try:
-            cases = [(Node, joint, Joint), (Node, transform, Transform), (Node, network, Node),
-                     (Transform, joint, Joint), (Joint, transform, Transform),
-                     (Node, Node(joint).mobject(), Joint), (hlib.node, joint, Joint)]
+            cases = [
+                (Node, joint, Joint),
+                (Node, transform, Transform),
+                (Node, network, Node),
+                (Transform, joint, Joint),
+                (Joint, transform, Transform),
+                (Node, Node(joint).mobject(), Joint),
+                (hlib.getNode, joint, Joint),
+            ]
             for factory, value, expected in cases:
                 with self.subTest(factory=getattr(factory, "__name__", factory), value=str(value)):
                     del calls[:]
@@ -1403,43 +1552,46 @@ class CommandEdgeCaseTest(_InteropCase):
         dup1, _ = self.duplicates()
         for name in (dup1.node_name(), dup1.node_name() + ".tx", self.ns("missing"), dup1.name()):
             with self.subTest(name=name):
-                self.assertEqual(hlib.objExists(name), bool(cmds.objExists(name)))
-        self.assertTrue(hlib.objExists(dup1.node_name()))
+                self.assertEqual(cmds.objExists(name), bool(cmds.objExists(name)))
+        self.assertTrue(cmds.objExists(dup1.node_name()))
 
     def test_drivenKey_accepts_plug_name_strings(self):
         base = cmds.polyCube(name="base")[0]
         target = cmds.polyCube(name="tgt")[0]
-        blend = hlib.node(cmds.blendShape(target, base, name="bs")[0])
+        blend = hlib.getNode(cmds.blendShape(target, base, name="bs")[0])
         weight = blend.plug("weight")[0]
         self.assertEqual(str(weight), self.ns("bs.tgt"))
         driver = self.create("transform", "driver")
-        relation = hlib.drivenKey(driver.plug("tx"), str(weight))
+        relation = hlib.getDrivenKey(driver.plug("tx"), str(weight))
         relation.set_key(0.0, 0.0)
         relation.set_key(1.0, 1.0)
         self.assertEqual(relation.driven().full_name(), weight.full_name())
-        found = hlib.animation.DrivenKeys.find(str(weight))
+        found = hlib.general.DrivenKeys.find(str(weight))
         self.assertEqual(len(found), 1)
-        self.assertEqual(len(hlib.animation.DrivenKeys.find(self.ns("bs.weight[0]"))), 1)
+        self.assertEqual(len(hlib.general.DrivenKeys.find(self.ns("bs.weight[0]"))), 1)
         network = self.create("network", "net")
         network.add_attr("vals", attribute_type="double", multi=True)
         network.plug("vals").element(2, create=True)
         dup1, dup2 = self.duplicates()
         for driven in (self.ns("net.vals[2]"), str(dup2.plug("ty")), self.ns("bs.weight[0]")):
             with self.subTest(driven=driven):
-                relation = hlib.drivenKey(dup1.plug("tx"), driven)
+                relation = hlib.getDrivenKey(dup1.plug("tx"), driven)
                 self.assertEqual(relation.driven().full_name(), to_plug(driven).full_name())
         with self.assertRaises(RuntimeError):
-            hlib.drivenKey(dup1.node_name() + ".tx", dup2.plug("tz"))  # 2つの dup に一致する
+            hlib.getDrivenKey(dup1.node_name() + ".tx", dup2.plug("tz"))  # 2つの dup に一致する
         with self.assertRaises(TypeError):
-            hlib.drivenKey(driver.name(), dup2.plug("tz"))
+            hlib.getDrivenKey(driver.name(), dup2.plug("tz"))
 
 
 class LargeComponentCollectionTest(_InteropCase):
     """多数の要素を持つコレクションを範囲指定の名前で受け渡すことを検証する。"""
 
     def test_large_collections_use_range_names(self):
-        plane = Node(cmds.polyPlane(name="plane", subdivisionsX=100, subdivisionsY=100,
-                                    constructionHistory=False)[0])
+        plane = Node(
+            cmds.polyPlane(
+                name="plane", subdivisionsX=100, subdivisionsY=100, constructionHistory=False
+            )[0]
+        )
         mesh = plane.shape()
         vertices = Vertices(mesh)
         self.assertEqual(len(vertices), 10201)

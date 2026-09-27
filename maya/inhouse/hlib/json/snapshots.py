@@ -244,7 +244,7 @@ def capture(targets=None, kind="pose", attributes=None):
         Snapshot: 未解決参照と値を持つ用途別Snapshot。
     """
     from maya import cmds
-    from ..selection import Selection
+    from ..general.selection import Selection
     from ..components import Component
     from ..plugs.plug import Plug
     if kind == "editor":

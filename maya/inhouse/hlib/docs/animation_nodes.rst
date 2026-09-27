@@ -5,7 +5,7 @@ AnimCurve
 ---------
 
 共通基底クラスAnimCurveと、Mayaの8型に対応する子クラスを実装しています。
-``hlib.node()`` / ``hlib.createNode()`` から具象クラスを自動取得します。
+``hlib.getNode()`` / ``hlib.createNode()`` から具象クラスを自動取得します。
 
 * AnimCurveTA / TL / TT / TU: 時間から角度・距離・時間・単位なし。
 * AnimCurveUA / UL / UT / UU: 単位なしから角度・距離・時間・単位なし。

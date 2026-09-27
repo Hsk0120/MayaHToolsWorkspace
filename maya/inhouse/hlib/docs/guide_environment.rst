@@ -11,19 +11,19 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.units import Units, native_units
+   from hlib.general.units import Units
 
    print(Units.linear(), Units.angle(), Units.time())  # 例: "cm" "deg" "film"
    Units.set_linear("m")
 
-   with native_units():
+   with Units.native_units():
        # このブロック内は距離=cm、角度=radianとして扱える
        ...
    # ブロックを抜けると開始時点のUI単位(distanceは"m"のまま)へ復元される
 
 ``Units`` の取得・設定はいずれも ``cmds.currentUnit`` の文字列表現
 (``"cm"``/``"m"``、``"deg"``/``"rad"``、``"film"``/``"ntsc"`` 等)を使います。
-設定は Maya の Undo に対応します。``native_units()`` は行列・ベクトル計算など
+設定は Maya の Undo に対応します。``Units.native_units()`` は行列・ベクトル計算など
 シーンの表示単位に依存しない処理をしたい場合に使うコンテキストマネージャで、
 ``om2.MDistance``/``om2.MAngle`` の ``setUIUnit`` を直接呼ぶため MEL の往復が
 無く、ブロックを抜ける際(例外時を含む)に開始時点の単位へ復元します
@@ -34,7 +34,7 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.plugins import Plugin, Plugins
+   from hlib.general import Plugin, Plugins
 
    plugin = Plugin("matrixNodes")
    print(plugin.is_loaded(), plugin.path(), plugin.version())
@@ -59,7 +59,7 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 
 .. code-block:: python
 
-   from hlib.plugins import Module, PluginPackage
+   from hlib.general import Module, PluginPackage
 
    print(Module("Bifrost").version())            # Versionの文字列表現(未登録なら None)
    print(Module("Bifrost").is_version_at_least("3.0.0"))
@@ -90,10 +90,10 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 実装の配置と版番号ユーティリティ
 ------------------------------------------------------------
 
-``hlib.plugins`` は1クラス1ファイルで構成します。
+``hlib.general`` は1クラス1ファイルで構成します。
 ``plugin.py`` は ``Plugin``、``plugins.py`` は ``Plugins``、
 ``module.py`` は ``Module``、``package.py`` は ``PluginPackage`` を定義します。
-利用側は引き続き ``from hlib.plugins import Plugin, Plugins, Module, PluginPackage``
+利用側は引き続き ``from hlib.general import Plugin, Plugins, Module, PluginPackage``
 で取得できます。
 
 ノード型に対応する標準プラグインのロードは ``Plugin.ensure_node_plugin(node_type)``
@@ -106,7 +106,7 @@ Mayaに依存しない不変の値クラスで、``hlib.utils`` からも取得�
 .. code-block:: python
 
    from hlib.utils import Version
-   from hlib.plugins import Plugin
+   from hlib.general import Plugin
 
    version = Plugin("bifrostGraph").version()
    if version is not None:
@@ -141,7 +141,7 @@ SemVerのプレリリース順序(例えばrc版が正式版より小さいと�
 
 .. code-block:: python
 
-   from hlib.workspace import Workspace
+   from hlib.general.workspace import Workspace
 
    print(Workspace.root())               # 現在のワークスペースのルート
    print(Workspace.rule("scene"))        # 例: "scenes"

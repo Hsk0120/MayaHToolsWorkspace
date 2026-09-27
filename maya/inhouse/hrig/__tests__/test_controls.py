@@ -75,7 +75,7 @@ class ControlsTest(unittest.TestCase):
             layer = TweakLayer(rig)
             control = layer.add("local1", rig.joints()[0])
             control.plug("ty").set(2)
-            joint = hlib.node(layer.joints()[0])
+            joint = hlib.getNode(layer.joints()[0])
             self.assertIn(joint.full_name(), rig.joints())
             self.assertAlmostEqual(joint.plug("offsetParentMatrix").get()[13], 2)
             rig.set_lod(0)

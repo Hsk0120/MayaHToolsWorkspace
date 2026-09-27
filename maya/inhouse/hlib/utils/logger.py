@@ -1,5 +1,6 @@
 """標準 logging と Maya のメッセージ表示を連携する。"""
 
+import builtins
 import html
 import logging
 
@@ -40,6 +41,10 @@ class MayaHandler(logging.Handler):
         """
         message = _message_from(record)
         try:
+            import maya.cmds as cmds
+            # mayapy初期化前はMGlobalの表示APIを呼ばない。
+            if not hasattr(cmds, "about"):
+                return
             import maya.api.OpenMaya as om2
         except ImportError:
             return
@@ -73,11 +78,20 @@ def get_logger():
     """Maya 向けハンドラを設定した共有ロガーを取得する。
 
     Returns:
-        logging.Logger: 名前が hlib のロガー。DEBUG レベル、親への伝播なし。現在の MayaHandler 型がなければ追加する。
+        logging.Logger: 名前がhlibのロガー。DEBUGレベル、親への伝播なし。
+            reload前のMayaHandlerは現在の型へ置換し、通知を重複させない。
     """
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
+    for handler in tuple(logger.handlers):
+        if (
+            type(handler).__module__ == __name__
+            and type(handler).__name__ == "MayaHandler"
+            and not isinstance(handler, MayaHandler)
+        ):
+            logger.removeHandler(handler)
+            handler.close()
     if not any(isinstance(handler, MayaHandler) for handler in logger.handlers):
         logger.addHandler(MayaHandler())
     return logger
@@ -97,6 +111,39 @@ def debug(message, *args, **kwargs):
         None: 値を返さない。
     """
     get_logger().debug(message, *args, **kwargs)
+
+
+def info(message, *args, **kwargs):
+    """通常の情報をINFOレベルでScript Editorへ出力する。
+
+    Args:
+        message (object): ログメッセージまたは書式文字列。
+        *args (object): loggingに渡す書式引数。
+        **kwargs (object): exc_info、extra等のloggingオプション。
+
+    Returns:
+        None: 値を返さない。
+    """
+    get_logger().info(message, *args, **kwargs)
+
+
+def print(*objects, sep=" ", end="\n", file=None, flush=False):
+    """Python標準のprintと同じ規則で出力する。
+
+    Mayaでは通常Script Editorへ表示する。ログレベル・ビューポート通知は付けず、
+    file指定や改行なし出力を維持する。INFOログが必要な場合はinfoを使う。
+
+    Args:
+        *objects (object): 出力する値。
+        sep (str | None): 値の区切り。Noneは標準値の空白。
+        end (str | None): 末尾。Noneは標準値の改行。
+        file (TextIO | None): 書込み先。Noneは現在のsys.stdout。
+        flush (bool): Trueなら出力先をフラッシュする。
+
+    Returns:
+        None: 値を返さない。
+    """
+    builtins.print(*objects, sep=sep, end=end, file=file, flush=flush)
 
 
 def warning(message, *args, **kwargs):
@@ -164,6 +211,8 @@ __all__ = [
     "debug",
     "error",
     "get_logger",
+    "info",
+    "print",
     "raise_with_notify",
     "warning",
 ]

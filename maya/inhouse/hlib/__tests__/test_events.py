@@ -23,7 +23,7 @@ class CommonRigApiTest(unittest.TestCase):
         """名前・ラッパー・MPlugが同じ属性を解決する。"""
         plug = self.node.plug("tx")
         for value in (plug.full_name(), plug, plug.mplug()):
-            self.assertEqual(hlib.plug(value).full_name(), plug.full_name())
+            self.assertEqual(hlib.getPlug(value).full_name(), plug.full_name())
 
     def test_changed_value_and_lock(self):
         """無変更は更新せず、ロック付き更新を一度のUndoで戻せる。"""
@@ -65,7 +65,7 @@ class CommonRigApiTest(unittest.TestCase):
         if not cmds.about(batch=True):
             self.skipTest("Batch-only guard")
         with self.assertRaises(RuntimeError):
-            hlib.events.ScriptJob(event="SelectionChanged", callback=lambda: None)
+            hlib.general.ScriptJob(event="SelectionChanged", callback=lambda: None)
 
     def test_owner_lifecycle(self):
         """Maya呼出を模倣し、重複防止・外部解除後の再登録・所有解除を検証する。"""
@@ -86,7 +86,7 @@ class CommonRigApiTest(unittest.TestCase):
         with patch.object(cmds, "about", return_value=False), patch.object(
             cmds, "scriptJob", side_effect=script_job
         ):
-            jobs = hlib.events.ScriptJobs()
+            jobs = hlib.general.ScriptJobs()
             first = jobs.add("selection", event="SelectionChanged", callback=lambda: None)
             self.assertIs(
                 first, jobs.add("selection", event="SelectionChanged", callback=lambda: None)

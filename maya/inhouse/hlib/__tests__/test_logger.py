@@ -1,16 +1,59 @@
 """hlib.utils.logger のロギングヘルパーを検証するMaya内テスト。"""
 
 import logging
+import io
+import contextlib
+from pathlib import Path
 import sys
 import unittest
 
 import hlib
 hlib.reload()
 from hlib.utils.logger import LOGGER_NAME, MayaHandler, debug, error, get_logger, raise_with_notify, warning
+from hlib.utils import logger as output
 
 
 class LoggerTest(unittest.TestCase):
     """get_logger/debug/warning/error/raise_with_notify/MayaHandler を検証する。"""
+
+    def test_info_supports_logging_format(self):
+        with self.assertLogs(LOGGER_NAME, level="INFO") as captured:
+            output.info("count=%s", 3)
+        self.assertEqual(captured.records[0].levelno, logging.INFO)
+        self.assertEqual(captured.records[0].getMessage(), "count=3")
+
+    def test_print_preserves_stream_separator_and_end(self):
+        stream = io.StringIO()
+        self.assertIsNone(output.print("腕", 3, sep=":", end="!", file=stream, flush=True))
+        self.assertEqual(stream.getvalue(), "腕:3!")
+        with contextlib.redirect_stdout(stream):
+            output.print("next")
+        self.assertEqual(stream.getvalue(), "腕:3!next\n")
+        with self.assertRaises(TypeError):
+            output.print("invalid", sep=1, file=stream)
+
+    def test_old_warning_command_is_removed(self):
+        self.assertFalse((Path(hlib.__file__).parent / "cmds" / "warning.py").exists())
+        self.assertFalse(hasattr(hlib.cmds, "warning"))
+        self.assertFalse(hasattr(hlib, "warning"))
+        self.assertIs(hlib.utils.warning, output.warning)
+
+    def test_old_handler_is_replaced_without_removing_external_handlers(self):
+        logger = get_logger()
+        old_type = type("MayaHandler", (logging.Handler,), {"__module__": output.__name__})
+        old_handler = old_type()
+        external = logging.NullHandler()
+        logger.addHandler(old_handler)
+        logger.addHandler(external)
+        try:
+            get_logger()
+            self.assertNotIn(old_handler, logger.handlers)
+            self.assertIn(external, logger.handlers)
+            self.assertEqual(sum(isinstance(h, output.MayaHandler) for h in logger.handlers), 1)
+        finally:
+            logger.removeHandler(external)
+            external.close()
+            logger.removeHandler(old_handler)
 
     def test_get_logger_is_idempotent_and_configured(self):
         logger = get_logger()

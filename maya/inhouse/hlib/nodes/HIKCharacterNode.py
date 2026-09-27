@@ -5,7 +5,7 @@ from maya import cmds, mel
 from .._core.registry import node_wrapper
 from .._core.coerce import to_node_name
 from ..decorators.undo import undo_chunk
-from ..plugins import Plugin
+from ..general import Plugin
 from .node import Node
 
 

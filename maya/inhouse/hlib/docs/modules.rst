@@ -41,17 +41,9 @@ Utilities
 .. toctree::
    :maxdepth: 1
 
-   autoapi/hlib/files/index
-   autoapi/hlib/namespaces/index
-   autoapi/hlib/plugins/index
-   autoapi/hlib/units/index
-   autoapi/hlib/workspace/index
-   autoapi/hlib/editors/index
-   autoapi/hlib/events/index
-   autoapi/hlib/decorators/index
+   autoapi/hlib/general/index
    autoapi/hlib/utils/index
-   autoapi/hlib/animation/index
-   autoapi/hlib/selection/index
+   autoapi/hlib/decorators/index
    autoapi/hlib/json/index
 
 Development

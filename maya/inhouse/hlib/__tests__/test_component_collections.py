@@ -13,9 +13,9 @@ class ComponentCollectionsTest(unittest.TestCase):
         self.ns = "hlibPoints_" + uuid.uuid4().hex
         cmds.namespace(add=self.ns)
         self.mesh_transform = cmds.polyCube(name=self.ns + ":mesh")[0]
-        self.mesh = hlib.node(cmds.listRelatives(self.mesh_transform, shapes=True, fullPath=True)[0])
+        self.mesh = hlib.getNode(cmds.listRelatives(self.mesh_transform, shapes=True, fullPath=True)[0])
         curve = cmds.curve(name=self.ns + ":curve", degree=1, point=[(0, 0, 0), (1, 2, 3), (4, 5, 6)])
-        self.curve = hlib.node(cmds.listRelatives(curve, shapes=True, fullPath=True)[0])
+        self.curve = hlib.getNode(cmds.listRelatives(curve, shapes=True, fullPath=True)[0])
 
     def tearDown(self):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)

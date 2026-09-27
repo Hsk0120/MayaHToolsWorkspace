@@ -26,9 +26,9 @@ Plugの接続
 
 .. code-block:: python
 
-   source = hlib.node("sourceBlend")   # 既存のblendColors
-   control = hlib.node("ctrl")
-   material = hlib.node("lambert1")
+   source = hlib.getNode("sourceBlend")   # 既存のblendColors
+   control = hlib.getNode("ctrl")
+   material = hlib.getNode("lambert1")
 
    blend.connect_color(1, source.output())
    blend.connect_blender(control.plug("blendWeight"))

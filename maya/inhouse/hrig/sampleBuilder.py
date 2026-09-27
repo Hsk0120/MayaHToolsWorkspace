@@ -31,13 +31,9 @@ class SampleBuilder:
         rig.set_layer_enabled("soft", False)
         rig.set_layer_enabled("helper", False)
         for role, control in rig.controls().items():
-            curve = cmds.circle(normal=(0, 0, 1), radius=0.45, constructionHistory=False)[0]
-            for shape in cmds.listRelatives(curve, shapes=True, fullPath=True) or []:
-                shape = cmds.parent(shape, control, shape=True, relative=True)[0]
-                cmds.rename(shape, control.rsplit("|", 1)[-1] + "Shape")
-            hlib.delete(curve)
-            hlib.plug(control + ".overrideEnabled").set(True)
-            hlib.plug(control + ".overrideColor").set(17 if role.startswith("fk") else 6)
+            from hrig.setups import ControlShape
+
+            ControlShape.circle(control, radius=0.45, color=17 if role.startswith("fk") else 6)
         return rig
 
     @staticmethod
@@ -120,7 +116,7 @@ class SampleBuilder:
 
             identifier = SampleBuilder.next_id(DrivenLayer(rig).graphs(), "sdk")
             group_name = rig.node_name("drivenSet").removesuffix("_set") + "_" + identifier + "_grp"
-            if hlib.objExists(group_name) or hlib.objExists(
+            if cmds.objExists(group_name) or cmds.objExists(
                 group_name.removesuffix("_grp") + "_jnt"
             ):
                 raise ValueError("SDK sample names already exist")
@@ -139,10 +135,7 @@ class SampleBuilder:
             graph = rig.add_driven(
                 identifier, rig.joints()[1], bone.plug("translateY"), component, axis
             )
-            indices = cmds.getAttr(rig.root.full_name() + ".hrigOwned", multiIndices=True) or []
-            group.plug("message").connect(
-                rig.root.plug("hrigOwned[{}]".format(max(indices, default=-1) + 1))
-            )
+            rig.root.plug("hrigOwned").append_message(group)
             rig._layer_members("drivenSet", [group.full_name()])
             target = graph.full_name()
         elif kind == "foot":

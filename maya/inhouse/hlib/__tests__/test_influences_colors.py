@@ -23,7 +23,7 @@ class InfluencesColorsTest(unittest.TestCase):
         joints = [self.node("joint") for _ in range(4)]
         mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
         name = cmds.skinCluster([j.full_name() for j in joints[:2]], mesh, name=self.ns + ":skin")[0]
-        skin = hlib.node(name)
+        skin = hlib.getNode(name)
         pose = skin.bind_pose()
         if pose:
             cmds.rename(pose.full_name(), self.ns + ":pose")
@@ -67,7 +67,7 @@ class InfluencesColorsTest(unittest.TestCase):
     def test_colors_and_undo(self):
         transform = self.node("transform")
         shape_name = cmds.createNode("nurbsCurve", name=self.ns + ":curveShape", parent=transform.full_name())
-        shape = hlib.node(shape_name)
+        shape = hlib.getNode(shape_name)
         self.assertIsNone(transform.outliner_color())
         transform.set_outliner_color((1, 0.5, 0))
         self.assertEqual(transform.outliner_color(), (1, 0.5, 0))

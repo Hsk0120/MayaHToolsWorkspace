@@ -2,17 +2,18 @@
 
 # 旧構成を読み込み済みのセッションでも、ルートの再公開名を残さない。
 for _name in globals().get("__all__", ()):
-    if _name not in {"cmds", "nodes", "plugs", "components", "files", "namespaces", "plugins", "units", "workspace", "editors", "events", "maths", "json", "reload"}:
+    if _name not in {"cmds", "nodes", "plugs", "components", "general", "utils", "decorators", "maths", "json", "reload"}:
         globals().pop(_name, None)
 for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
               "NODE_REGISTRY", "PLUG_REGISTRY", "initialize_node_api",
-              "initialize_plug_api", "reload_package", "importlib", "core", "scenes", "session"):
+              "initialize_plug_api", "reload_package", "importlib", "core", "scenes", "session", "units", "workspace", "selection",
+              "context", "editors", "events", "files", "namespaces", "plugins", "animation"):
     globals().pop(_name, None)
 
 import importlib as _importlib
 from typing import TYPE_CHECKING
 
-from . import cmds, nodes, plugs, components, files, namespaces, plugins, units, workspace, editors, events, maths, json
+from . import general, cmds, nodes, plugs, components, utils, decorators, maths, json
 globals().pop("scene", None)
 from ._core import bootstrap as _bootstrap
 from ._core.reload import reload_package as _reload_package
@@ -22,34 +23,41 @@ _importlib.reload(_bootstrap)
 _bootstrap.initialize_node_api(__name__)
 _bootstrap.initialize_plug_api(__name__)
 
-__all__ = ["cmds", "nodes", "plugs", "components", "files", "namespaces", "plugins", "units", "workspace", "editors", "events", "maths", "reload"]
+__all__ = ["general", "cmds", "nodes", "plugs", "components", "utils", "decorators", "maths", "reload"]
 __all__.append("json")
 
 # 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
 # 公開名の一覧との一致は test_typing_exports.py が検証する。
 if TYPE_CHECKING:
     from .cmds import (
+        createNurbs,
+        createCurve,
+        addAttr,
+        executeDeferred,
+        getAttr,
+        createIkHandle,
+        makeIdentity,
+        createPolygon,
+        reorder,
+        createSet,
         bakeResults,
         captureSelection,
-        channelBox,
-        constraint,
+        getChannelBox,
+        addConstraint,
         createNode,
-        currentTime,
         delete,
-        drivenKey,
+        getDrivenKey,
         duplicate,
-        group,
+        createGroup,
         ls,
-        node,
-        objExists,
-        outliner,
-        plug,
+        getNode,
+        getOutliner,
+        getPlug,
         requirePlugins,
-        scene,
+        getScene,
         select,
-        setKeyframe,
-        timeSlider,
-        viewport,
+        getTimeSlider,
+        getViewport,
     )
 
 

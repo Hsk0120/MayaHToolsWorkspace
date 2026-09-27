@@ -400,7 +400,7 @@ class Node:
 
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
-        from ..plugins import Plugin
+        from ..general import Plugin
         Plugin.ensure_node_plugin(type)
         for key in ("parent", "p"):
             if kwargs.get(key) is not None:
@@ -794,12 +794,29 @@ class Node:
         """
         # namespaces.namespace が ..nodes を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from ..namespaces import Namespace
+        from ..general import Namespace
 
         node_name = self.node_name()
         if ":" not in node_name:
             return Namespace(":")
         return Namespace(node_name.rsplit(":", 1)[0])
+
+    @undo_chunk("hlibNodeDelete")
+    def delete(self):
+        """自身をMaya標準の規則で削除する。
+
+        DAGの子も削除し、一回のUndoで戻せる。
+        派生クラスはこのメソッドを上書きして専用の削除処理を実装できる。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: 対象が無効、またはMayaが削除を拒否した場合。
+        """
+        if not self.is_valid():
+            raise RuntimeError("Cannot delete an invalid node")
+        cmds.delete(self.full_name())
 
     @undo_chunk("hlibNodeRename")
     def rename(self, name, ignore_shape=False):
@@ -832,7 +849,7 @@ class Node:
             RuntimeError: namespace移動に失敗した場合。
         """
         # namespaces.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
-        from ..namespaces import Namespace
+        from ..general import Namespace
 
         if isinstance(namespace, Namespace):
             target_namespace = namespace

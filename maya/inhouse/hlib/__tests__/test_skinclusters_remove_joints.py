@@ -28,7 +28,7 @@ class RemoveJointsTest(unittest.TestCase):
 
     def skin(self, joints):
         mesh = cmds.polyCube()[0]
-        return hlib.node(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
+        return hlib.getNode(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
 
     def test_parent_transfer_scope_and_undo(self):
         skin = self.skin([self.parent, self.child])

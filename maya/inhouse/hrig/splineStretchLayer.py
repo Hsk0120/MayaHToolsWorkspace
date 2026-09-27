@@ -1,11 +1,10 @@
 """Spline IKへ曲線長による伸縮と断面の体積補正を追加する。"""
 
-import json
 from maya import cmds
-from maya.api import OpenMaya as om
 
 import hlib
-from hlib.animation import LengthCompensation
+
+from hrig.setups import LengthCompensation
 from hlib.decorators.undo import undo_transaction
 
 
@@ -42,9 +41,7 @@ class SplineStretchLayer:
         Returns:
             Node: 生成ノード。
         """
-        node = hlib.createNode(kind, name=owner.name() + "_" + role, skipSelect=True)
-        cmds.container(owner.full_name(), edit=True, addNode=node.full_name())
-        return node
+        return hlib.nodes.Container(owner).create_node(kind, name=owner.name() + "_" + role)
 
     @undo_transaction("hrig.SplineStretchLayer.add")
     def add(self):
@@ -59,12 +56,10 @@ class SplineStretchLayer:
         if self.settings() is not None:
             return self.settings()
         rig, root = self.rig, self.rig.root
-        if any(cmds.listConnections(j, type="skinCluster") for j in rig.joints()):
+        if any(hlib.getNode(j).connections(type="skinCluster") for j in rig.joints()):
             raise ValueError("Add stretch before binding the spline")
         lengths = [
-            om.MDistance(
-                cmds.getAttr(j.full_name() + ".translateX"), om.MDistance.uiUnit()
-            ).asCentimeters()
+            hlib.general.Units.distance_from_ui(hlib.getAttr(j.full_name() + ".translateX"))
             for j in rig.members("ik")[1:]
         ]
         graph = LengthCompensation.create(sum(lengths), root.name() + "_stretchGraph")
@@ -77,7 +72,9 @@ class SplineStretchLayer:
         )
         group.add_attr(long_name="graph", attribute_type="message")
         owner.plug("message").connect(group.plug("graph"))
-        group.add_attr(long_name="restLengths", data_type="string").set(json.dumps(lengths))
+        group.add_attr(long_name="restLengths", data_type="string").set(
+            hlib.json.JsonText.dumps(lengths)
+        )
         group.add_attr(long_name="outputs", attribute_type="message", multi=True)
         group.add_attr(long_name="measurement", attribute_type="message")
         root.add_attr(long_name="stretchGroup", attribute_type="message")
@@ -101,7 +98,17 @@ class SplineStretchLayer:
             )
             group.plug(attr).connect(owner.plug(attr))
         curve = rig.graph().member("curve")
-        shape = hlib.node(cmds.listRelatives(curve.full_name(), shapes=True, fullPath=True)[0])
+        shape = hlib.getNode(
+            [
+                item.full_name()
+                for item in [
+                    hlib.getNode(value)
+                    for value in (
+                        cmds.listRelatives(curve.full_name(), shapes=True, fullPath=True) or []
+                    )
+                ]
+            ][0]
+        )
         measure = self._node(owner, "curveInfo", "localLength")
         # localカーブならモジュールの正の均等scaleは長さ比へ混入しない。
         shape.plug("local").connect(measure.plug("inputCurve"))
@@ -153,12 +160,22 @@ class SplineStretchLayer:
         curve = self.rig.graph().member("curve")
         target = measure.plug("inputCurve")
         if active and target.source() is None:
-            shape = hlib.node(cmds.listRelatives(curve.full_name(), shapes=True, fullPath=True)[0])
+            shape = hlib.getNode(
+                [
+                    item.full_name()
+                    for item in [
+                        hlib.getNode(value)
+                        for value in (
+                            cmds.listRelatives(curve.full_name(), shapes=True, fullPath=True) or []
+                        )
+                    ]
+                ][0]
+            )
             shape.plug("local").connect(target)
         elif not active and target.source() is not None:
             target.source().disconnect(target)
         measure.plug("nodeState").set(0 if active else 2)
-        lengths = json.loads(group.plug("restLengths").get())
+        lengths = hlib.json.JsonText.loads(group.plug("restLengths").get())
         for i, (joint, length) in enumerate(zip(self.rig.members("ik")[1:], lengths)):
             target = joint.plug("translateX")
             if target.source() is not None:
@@ -166,7 +183,7 @@ class SplineStretchLayer:
             if active:
                 group.plug("outputs[{}]".format(i)).source().node.plug("output").connect(target)
             else:
-                target.set(om.MDistance(length).asUnits(om.MDistance.uiUnit()))
+                target.set(hlib.general.Units.distance_to_ui(length))
         for source, joint in zip(
             self.rig.members("ik" if self.rig.active() else "fk"), self.rig.members("deform")
         ):

@@ -212,3 +212,36 @@ class ArrayPlug(Plug):
             IndexError: 指定した論理インデックスが存在しない場合(0〜2147483647 の範囲外を含む)。
         """
         return self.element(index)
+
+    def source_nodes(self):
+        """配列要素への接続元ノードを論理インデックス順に取得する。
+
+        Returns:
+            dict[int, Node]: 接続のある要素のみ。未接続の穴を維持して返す。
+        """
+        result = {}
+        for element in self.elements():
+            source = element.source()
+            if source is not None:
+                result[element.mplug().logicalIndex()] = source.node
+        return result
+
+    @undo_chunk("hlib.ArrayPlug.append_message")
+    def append_message(self, node):
+        """message配列の最大インデックスの次へノード参照を追加する。
+
+        Args:
+            node (str | Node): 保存する参照。
+
+        Returns:
+            int: 追加した論理インデックス。途中の穴は再利用しない。
+        """
+        from ..nodes.node import Node
+        self._require_valid()
+        if not self._mplug.attribute().hasFn(om2.MFn.kMessageAttribute):
+            raise TypeError("Expected a message array")
+        index = max(self._existing_indices(), default=-1) + 1
+        if index > MAX_LOGICAL_INDEX:
+            raise IndexError("Message array index limit reached")
+        Node(node).plug("message").connect(self.element(index, create=True))
+        return index

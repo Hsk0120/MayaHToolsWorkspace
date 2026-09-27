@@ -112,7 +112,7 @@ class Transform(Node):
 
     @flag_aliases(typ="type", mo="maintainOffset")
     @undo_chunk("hlibTransformAddConstraint")
-    def add_constraint(self, sources, type="parent", maintainOffset=False):
+    def add_constraint(self, sources, type="parent", maintainOffset=False, **kwargs):
         """自身を拘束するコンストレイントを作成する。
 
         Args:
@@ -126,6 +126,7 @@ class Transform(Node):
                 geometry、normal、tangent、pointOnPoly。または Constraint 接尾辞付きの型名。
             maintainOffset (bool): True の場合は現在の相対位置・回転を維持する。
                 False の場合は Maya の既定動作で拘束する。
+            **kwargs: aimVector・worldUpObject等の作成フラグ。短名も使用可能。
 
         Returns:
             Constraint: 対応する具象ラッパー。同じ種類が既存なら Maya の規則で
@@ -191,7 +192,13 @@ class Transform(Node):
             names.append(source.full_name())
         if not names:
             raise ValueError("At least one constraint source is required")
-        command_kwargs = {}
+        from .._core.flags import normalize_flags
+        from .._core.commandResult import CommandResult
+
+        command_kwargs = normalize_flags(command_name, kwargs)
+        if command_kwargs.get("query") or command_kwargs.get("edit"):
+            raise ValueError("add_constraint supports creation only; use hlib.addConstraint for query/edit")
+        command_kwargs = CommandResult.node_flags(command_kwargs, ("worldUpObject",))
         if command_name in {
             "parentConstraint",
             "pointConstraint",

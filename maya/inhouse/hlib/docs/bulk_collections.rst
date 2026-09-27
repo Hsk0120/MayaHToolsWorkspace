@@ -64,7 +64,7 @@ SkinClustersとPlugins
    flags = skins.has_influence("joint1")
    skins.call_each("dump_weights", [("C:/data/skinA.json",), ("C:/data/skinB.json",)])
 
-   from hlib.plugins import Plugins
+   from hlib.general import Plugins
    plugins = Plugins(["pluginA", "pluginB"])
    states = plugins.is_loaded()
    # 実際にロードしたい場合:

@@ -9,8 +9,8 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.files import Scene
-from hlib.files import Scene as SceneFromPackage
+from hlib.general import Scene
+from hlib.general import Scene as SceneFromPackage
 
 
 class SceneApiTest(unittest.TestCase):
@@ -82,9 +82,9 @@ class SceneApiTest(unittest.TestCase):
             stale.import_file(self.import_path)
 
     def test_scene_command_snapshots_without_opening(self):
-        self.assertIs(hlib.scene, hlib.cmds.scene)
-        self.assertEqual(str(hlib.scene()), "untitled")
-        other = hlib.scene(self.path)
+        self.assertIs(hlib.getScene, hlib.cmds.getScene)
+        self.assertEqual(str(hlib.getScene()), "untitled")
+        other = hlib.getScene(self.path)
         self.assertEqual(other.path(), self.path.resolve())
         self.assertEqual(str(other), str(self.path.resolve()))
         self.assertTrue(self.scene.is_new())
@@ -94,14 +94,14 @@ class SceneApiTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             other.is_modified()
         self.scene.save_as(self.path)
-        captured = hlib.scene()
+        captured = hlib.getScene()
         self.scene.new(force=True, prompt=False)
         self.assertEqual(captured.path(), self.path.resolve())
         captured.open(force=True, prompt=False)
         self.assertTrue(captured.is_current())
-        self.assertEqual(hlib.scene().path(), self.path.resolve())
+        self.assertEqual(hlib.getScene().path(), self.path.resolve())
         with self.assertRaises(ValueError):
-            hlib.scene("")
+            hlib.getScene("")
 
 
 

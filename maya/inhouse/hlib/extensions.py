@@ -1,12 +1,12 @@
 """Python探索パス直下のhlib_*拡張を検出する。独自Mayaプラグインはロードしない。"""
 
 import importlib
-import logging
 import os
 import pkgutil
 import re
 import sys
 
+from .utils import logger
 from ._core.discovery import discover_node_package, discover_plug_package
 from ._core.registry import node_wrapper, plug_wrapper
 
@@ -80,6 +80,6 @@ def _initialize():
                 _states[name] = {"state": "loaded", "reason": ""}
             except Exception as exc:
                 _states[name] = {"state": "error", "reason": str(exc)}
-                logging.getLogger(__name__).warning("hlib extension %s: %s", name, exc)
+                logger.warning("hlib extension %s: %s", name, exc)
     finally:
         _loading = False

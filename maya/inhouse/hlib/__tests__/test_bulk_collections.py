@@ -71,7 +71,7 @@ class BulkCollectionsTest(unittest.TestCase):
         self.assertTrue(callable(skins.remove_joints))
 
     def test_plugins_and_registration_coverage(self):
-        from hlib.plugins import Plugin, Plugins
+        from hlib.general import Plugin, Plugins
         plugins = Plugins(["hlibMissingA", "hlibMissingB"])
         self.assertEqual(plugins.name(), ["hlibMissingA", "hlibMissingB"])
         self.assertEqual(plugins.is_loaded(), [False, False])

@@ -21,9 +21,11 @@ def _maya_aliases(command):
 
 
 def normalize_flags(function, kwargs):
-    """登録済み別名だけを変換し、長名との重複を拒否したコピーを返す。"""
+    """関数の登録済み別名またはMayaコマンド名からフラグを正規化する。
+
+    長名と短名の重複は拒否し、入力辞書は変更しない。"""
     aliases = dict(getattr(function, "__hlib_flag_aliases__", {}))
-    command = getattr(function, "__hlib_maya_command__", None)
+    command = function if isinstance(function, str) else getattr(function, "__hlib_maya_command__", None)
     if command:
         aliases = dict(_maya_aliases(command), **aliases)
     result = dict(kwargs)

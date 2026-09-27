@@ -1,11 +1,12 @@
 """肘・膝の回転補間骨と内外の補正骨を管理する。"""
 
-import re
-
 from maya import cmds
 
+import re
+
 import hlib
-from hlib.animation.bendCorrection import BendCorrection
+
+from hrig.setups.bendCorrection import BendCorrection
 from hlib.decorators.undo import undo_transaction
 
 
@@ -29,12 +30,10 @@ class BendLayer:
         root = self.rig.root
         if not root.has_attr("bendGroups"):
             return {}
-        result = {}
-        for index in cmds.getAttr(root.full_name() + ".bendGroups", multiIndices=True) or []:
-            source = root.plug("bendGroups[{}]".format(index)).source()
-            if source is not None:
-                result[source.node.plug("bendId").get()] = source.node
-        return result
+        return {
+            node.plug("bendId").get(): node
+            for node in root.plug("bendGroups").source_nodes().values()
+        }
 
     def joints(self, identifier=None):
         """補間・内側・外側の順に骨を取得する。
@@ -83,25 +82,33 @@ class BendLayer:
             or bend_axis == push_axis
         ):
             raise ValueError("Choose two different axes from x, y, z")
-        joint = hlib.node(joint)
-        parents = cmds.listRelatives(joint.full_name(), parent=True, fullPath=True) or []
-        if joint.type() != "joint" or not parents or hlib.node(parents[0]).type() != "joint":
+        joint = hlib.getNode(joint)
+        parents = [
+            item.full_name()
+            for item in [
+                hlib.getNode(value)
+                for value in (
+                    cmds.listRelatives(joint.full_name(), parent=True, fullPath=True) or []
+                )
+            ]
+        ] or []
+        if joint.type() != "joint" or not parents or hlib.getNode(parents[0]).type() != "joint":
             raise ValueError("Expected a joint with a parent joint")
-        parent = hlib.node(parents[0])
+        parent = hlib.getNode(parents[0])
         stem = self.rig.node_name("bendSet").removesuffix("_set") + "_" + identifier
         names = [
             stem + suffix for suffix in ("_grp", "_graph", "_half_jnt", "_inner_jnt", "_outer_jnt")
         ]
-        if any(hlib.objExists(name) for name in names):
+        if any(cmds.objExists(name) for name in names):
             raise ValueError("Bend node names already exist")
         root = self.rig.root
         owned = []
         if not root.has_attr("bendSet"):
-            selection = cmds.sets(empty=True, name=self.rig.node_name("bendSet"))
+            selection = hlib.createSet(empty=True, name=self.rig.node_name("bendSet")).full_name()
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             root.add_attr(long_name="bendGroups", attribute_type="message", multi=True)
-            owned.append(hlib.node(selection))
+            owned.append(hlib.getNode(selection))
         group = hlib.createNode("transform", name=names[0], parent=parent, skipSelect=True)
         group.add_attr(long_name="bendId", data_type="string").set(identifier)
         group.add_attr(long_name="pushAxis", data_type="string").set(push_axis)
@@ -142,14 +149,10 @@ class BendLayer:
             group.add_attr(long_name=role, attribute_type="message")
             bone.plug("message").connect(group.plug(role))
             joints.append(bone)
-        indices = cmds.getAttr(root.full_name() + ".bendGroups", multiIndices=True) or []
-        group.plug("message").connect(
-            root.plug("bendGroups[{}]".format(max(indices, default=-1) + 1))
-        )
+        root.plug("bendGroups").append_message(group)
         owned.extend([group, owner])
-        indices = cmds.getAttr(root.full_name() + ".hrigOwned", multiIndices=True) or []
-        for index, node in enumerate(owned, max(indices, default=-1) + 1):
-            node.plug("message").connect(root.plug("hrigOwned[{}]".format(index)))
+        for node in owned:
+            root.plug("hrigOwned").append_message(node)
         self.rig._layer_members(
             "bendSet", [group.full_name(), owner.full_name()] + [n.full_name() for n in joints]
         )

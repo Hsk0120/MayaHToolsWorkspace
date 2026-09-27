@@ -1,4 +1,4 @@
-"""hlib.units の Units/native_units を検証するMaya内テスト。"""
+"""hlib.general.units の Units/native_units を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -8,7 +8,7 @@ import maya.api.OpenMaya as om2
 
 import hlib
 hlib.reload()
-from hlib.units import Units, native_units
+from hlib.general.units import Units
 
 
 class UnitsTest(unittest.TestCase):
@@ -52,7 +52,7 @@ class UnitsTest(unittest.TestCase):
         Units.set_linear("m")
         Units.set_angle("deg")
 
-        with native_units():
+        with Units.native_units():
             self.assertEqual(om2.MDistance.uiUnit(), om2.MDistance.kCentimeters)
             self.assertEqual(om2.MAngle.uiUnit(), om2.MAngle.kRadians)
 
@@ -64,7 +64,7 @@ class UnitsTest(unittest.TestCase):
     def test_native_units_restores_even_on_exception(self):
         Units.set_linear("m")
         with self.assertRaises(ValueError):
-            with native_units():
+            with Units.native_units():
                 self.assertEqual(om2.MDistance.uiUnit(), om2.MDistance.kCentimeters)
                 raise ValueError("boom")
         self.assertEqual(om2.MDistance.uiUnit(), om2.MDistance.kMeters)

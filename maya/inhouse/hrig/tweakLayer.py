@@ -1,8 +1,9 @@
 """既存の変形骨へ局所操作用の補助骨を追加する。"""
 
+from maya import cmds
+
 from functools import partial
 import re
-from maya import cmds
 import hlib
 from hlib.decorators.undo import undo_transaction
 
@@ -29,11 +30,10 @@ class TweakLayer:
         root = self.rig.root
         if not root.has_attr("tweakGroups"):
             return {}
-        nodes = [
-            root.plug("tweakGroups[{}]".format(i)).source().node
-            for i in (cmds.getAttr(root.full_name() + ".tweakGroups", multiIndices=True) or [])
-        ]
-        return {n.plug("tweakId").get(): n for n in nodes}
+        return {
+            node.plug("tweakId").get(): node
+            for node in root.plug("tweakGroups").source_nodes().values()
+        }
 
     def joints(self):
         """スキン対象の補助骨を取得する。
@@ -56,7 +56,7 @@ class TweakLayer:
         """
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", identifier) or identifier in self.groups():
             raise ValueError("Use a unique tweak identifier")
-        joint = hlib.node(joint)
+        joint = hlib.getNode(joint)
         root = self.rig.root
         if joint.type() != "joint" or not joint.full_name().startswith(root.full_name() + "|"):
             raise ValueError("Select a joint inside the module")
@@ -69,18 +69,15 @@ class TweakLayer:
         bone = hlib.createNode("joint", name=stem + "_jnt", parent=group, skipSelect=True)
         bone.plug("segmentScaleCompensate").set(False)
         bone.plug("radius").set(0.25)
-        from .splineRig import SplineRig
+        from hrig.setups import ControlShape
 
-        SplineRig._shape(control, 0.35, (1, 0, 0), 13)
+        ControlShape.circle(control, 0.35, (1, 0, 0), 13)
         for attr, node in (("control", control), ("joint", bone)):
             group.add_attr(long_name=attr, attribute_type="message")
             node.plug("message").connect(group.plug(attr))
         if not root.has_attr("tweakGroups"):
             root.add_attr(long_name="tweakGroups", attribute_type="message", multi=True)
-        indices = cmds.getAttr(root.full_name() + ".tweakGroups", multiIndices=True) or []
-        group.plug("message").connect(
-            root.plug("tweakGroups[{}]".format(max(indices, default=-1) + 1))
-        )
+        root.plug("tweakGroups").append_message(group)
         group.set_attr_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
         self.update()
         from .channel_controls import install
@@ -111,7 +108,7 @@ class TweakLayer:
         from .moduleRegistry import ModuleRegistry
 
         for key, jobs in list(cls._jobs.items()):
-            if not cmds.ls(key) or not jobs.exists():
+            if not [item.name() for item in hlib.ls(key)] or not jobs.exists():
                 jobs.stop()
                 del cls._jobs[key]
         for root in ModuleRegistry.roots():
@@ -120,7 +117,7 @@ class TweakLayer:
                 key = group.uuid()
                 if key in cls._jobs:
                     continue
-                jobs = hlib.events.ScriptJobs()
+                jobs = hlib.general.ScriptJobs()
                 for plug in (
                     group.plug("enabled"),
                     rig.root.plug("hrigLod" if rig.root.has_attr("hrigLod") else "lod"),
@@ -143,7 +140,7 @@ class TweakLayer:
         """
         from .moduleRegistry import ModuleRegistry
 
-        names = cmds.ls(root_uuid, long=True) or []
+        names = [item.full_name() for item in hlib.ls(root_uuid, long=True)] or []
         if not names:
             return
         layer = cls(ModuleRegistry.get(names[0]))

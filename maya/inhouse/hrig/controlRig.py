@@ -1,10 +1,10 @@
 """指・Aimの小規模モジュールに共通の所有と評価管理。"""
 
+from maya import cmds
+
 from functools import partial
-import json
 import re
 
-from maya import cmds
 import hlib
 from hlib.decorators.undo import undo_transaction
 
@@ -20,7 +20,7 @@ class ControlRig:
         Args:
             root (str | Node): モジュールルート。
         """
-        self.root = hlib.node(root)
+        self.root = hlib.getNode(root)
         if not self.root.has_attr("hrigControlDefinition"):
             raise ValueError("Not a control module")
 
@@ -35,11 +35,13 @@ class ControlRig:
         Returns:
             ControlRig: 作成したルートの参照。
         """
-        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) or cmds.ls(name + "*"):
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) or [
+            item.name() for item in hlib.ls(name + "*")
+        ]:
             raise ValueError("Use a unique module name")
         root = hlib.createNode("transform", name=name, skipSelect=True)
         root.add_attr(long_name="hrigControlDefinition", data_type="string").set(
-            json.dumps(dict(kind=kind))
+            hlib.json.JsonText.dumps(dict(kind=kind))
         )
         root.add_attr(long_name="lod", attribute_type="enum", enumName="Low:Full", default_value=1)
         root.add_attr(long_name="enabled", attribute_type="bool", default_value=True)
@@ -54,7 +56,9 @@ class ControlRig:
             root.add_attr(long_name=role + "Group", attribute_type="message")
             node.plug("message").connect(root.plug(role + "Group"))
         root.add_attr(long_name="graph", attribute_type="message")
-        hlib.node(cmds.container(name=name + "_graph")).plug("message").connect(root.plug("graph"))
+        hlib.nodes.Container.create(name=name + "_graph").plug("message").connect(
+            root.plug("graph")
+        )
         return cls(root)
 
     def kind(self):
@@ -63,7 +67,7 @@ class ControlRig:
         Returns:
             str: finger/aim。
         """
-        return json.loads(self.root.plug("hrigControlDefinition").get())["kind"]
+        return hlib.json.JsonText.loads(self.root.plug("hrigControlDefinition").get())["kind"]
 
     def group(self, role):
         """用途別グループを取得する。
@@ -83,10 +87,7 @@ class ControlRig:
             attr (str): message配列名。
             node (Node): 登録対象。
         """
-        indices = cmds.getAttr(self.root.full_name() + "." + attr, multiIndices=True) or []
-        node.plug("message").connect(
-            self.root.plug("{}[{}]".format(attr, max(indices, default=-1) + 1))
-        )
+        self.root.plug(attr).append_message(node)
 
     def members(self, attr):
         """登録順にノードを取得する。
@@ -97,10 +98,7 @@ class ControlRig:
         Returns:
             list[Node]: 登録ノード。
         """
-        return [
-            self.root.plug("{}[{}]".format(attr, i)).source().node
-            for i in (cmds.getAttr(self.root.full_name() + "." + attr, multiIndices=True) or [])
-        ]
+        return list(self.root.plug(attr).source_nodes().values())
 
     def own(self, node):
         """DGノードの寿命をモジュールにまとめる。
@@ -108,9 +106,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        cmds.container(
-            self.root.plug("graph").source().node.full_name(), edit=True, addNode=node.full_name()
-        )
+        hlib.nodes.Container(self.root.plug("graph").source().node).add(node)
 
     def joints(self):
         """変形骨とTweak骨を取得する。
@@ -198,15 +194,17 @@ class ControlRig:
         if cmds.about(batch=True):
             return
         for key, jobs in list(cls._jobs.items()):
-            if not cmds.ls(key) or not jobs.exists():
+            if not [item.name() for item in hlib.ls(key)] or not jobs.exists():
                 jobs.stop()
                 del cls._jobs[key]
-        for attr in cmds.ls("*.hrigControlDefinition", recursive=True) or []:
+        for attr in [
+            item.full_name() for item in hlib.ls("*.hrigControlDefinition", recursive=True)
+        ] or []:
             rig = cls(attr.rsplit(".", 1)[0])
             key = rig.root.uuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.events.ScriptJobs()
+            jobs = hlib.general.ScriptJobs()
             for name in ("lod", "enabled"):
                 jobs.add(
                     name,
@@ -224,7 +222,7 @@ class ControlRig:
         Args:
             key (str): ルートUUID。
         """
-        names = cmds.ls(key, long=True) or []
+        names = [item.full_name() for item in hlib.ls(key, long=True)] or []
         if names:
             rig = cls(names[0])
             active = rig.lod() == 1 and rig.layer_enabled(rig.kind())
@@ -234,7 +232,7 @@ class ControlRig:
     @undo_transaction("hrig.ControlRig.delete")
     def delete(self):
         """スキン未使用のモジュールを所有DGとともに削除する。"""
-        if any(cmds.listConnections(j, type="skinCluster") for j in self.joints()):
+        if any(hlib.getNode(j).connections(type="skinCluster") for j in self.joints()):
             raise ValueError("Unbind before deleting")
         hlib.delete(self.root.plug("graph").source().node)
         hlib.delete(self.root)

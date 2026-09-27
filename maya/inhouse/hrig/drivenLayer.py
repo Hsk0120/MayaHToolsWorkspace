@@ -1,13 +1,14 @@
 """Swing/Twist成分と単一属性のSDKを部位の所有レイヤーへ登録する。"""
 
+from maya import cmds
+
 import math
 import re
 
-from maya import cmds
-
 import hlib
-from hlib.animation.swingTwist import SwingTwist
-from hlib.animation.drivenKey import DrivenKey
+
+from hrig.setups.swingTwist import SwingTwist
+from hlib.general.drivenKey import DrivenKey
 from hlib.decorators.undo import undo_transaction
 
 
@@ -31,12 +32,10 @@ class DrivenLayer:
         root = self.rig.root
         if not root.has_attr("drivenGraphs"):
             return {}
-        result = {}
-        for index in cmds.getAttr(root.full_name() + ".drivenGraphs", multiIndices=True) or []:
-            source = root.plug("drivenGraphs[{}]".format(index)).source()
-            if source:
-                result[source.node.plug("drivenId").get()] = source.node
-        return result
+        return {
+            node.plug("drivenId").get(): node
+            for node in root.plug("drivenGraphs").source_nodes().values()
+        }
 
     @undo_transaction("hrig.DrivenLayer.add")
     def add(self, identifier, joint, driven, component="twist", axis="x", keys=None):
@@ -71,19 +70,41 @@ class DrivenLayer:
             or not all(math.isfinite(v) for p in pairs for v in p)
         ):
             raise ValueError("Provide at least two unique finite driver keys")
-        joint, driven = hlib.node(joint), hlib.plug(driven)
-        kind = cmds.getAttr(driven.full_name(), type=True)
+        joint, driven = hlib.getNode(joint), hlib.getPlug(driven)
+        kind = driven.data_type()
         if (
             kind not in ("double", "float", "doubleAngle", "doubleLinear", "long")
             or driven.source()
             or driven.is_locked()
         ):
             raise ValueError("Driven must be an unlocked, unconnected numeric scalar")
-        upstream = set(cmds.ls(cmds.listHistory(joint.full_name()) or [], long=True) or [])
+        upstream = set(
+            [
+                item.full_name()
+                for item in hlib.ls(
+                    [
+                        item.full_name()
+                        for item in [
+                            hlib.getNode(value)
+                            for value in (cmds.listHistory(joint.full_name()) or [])
+                        ]
+                    ]
+                    or [],
+                    long=True,
+                )
+            ]
+            or []
+        )
         upstream.add(joint.full_name())
         cursor = joint.full_name()
         while True:
-            parents = cmds.listRelatives(cursor, parent=True, fullPath=True) or []
+            parents = [
+                item.full_name()
+                for item in [
+                    hlib.getNode(value)
+                    for value in (cmds.listRelatives(cursor, parent=True, fullPath=True) or [])
+                ]
+            ] or []
             if not parents:
                 break
             cursor = parents[0]
@@ -93,7 +114,7 @@ class DrivenLayer:
         upstream.update(self.rig.joints()[:3])
         if driven.node.full_name() in upstream:
             raise ValueError("Driven target must not feed the source joint or its controls")
-        before = set(cmds.ls())
+        before = set([item.name() for item in hlib.ls()])
         stem = self.rig.node_name("drivenSet").removesuffix("_set") + "_" + identifier
         graph = SwingTwist.create(joint, name=stem + "_graph", axis=axis)
         owner = graph.container
@@ -116,25 +137,21 @@ class DrivenLayer:
         for attr, node in (("drivenNode", driven.node), ("curve", curve)):
             owner.add_attr(long_name=attr, attribute_type="message")
             node.plug("message").connect(owner.plug(attr))
-        members = set(cmds.container(owner.full_name(), query=True, nodeList=True) or [])
-        extra = set(cmds.ls()) - before - members - {owner.name()}
+        members = {n.name() for n in hlib.nodes.Container(owner).members()}
+        extra = set([item.name() for item in hlib.ls()]) - before - members - {owner.name()}
         if extra:
-            cmds.container(owner.full_name(), edit=True, addNode=list(extra))
+            hlib.nodes.Container(owner).add(*extra)
         root = self.rig.root
         owned = [owner]
         if not root.has_attr("drivenSet"):
-            selection = cmds.sets(empty=True, name=self.rig.node_name("drivenSet"))
+            selection = hlib.createSet(empty=True, name=self.rig.node_name("drivenSet")).full_name()
             self.rig._bind("drivenSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            owned.append(hlib.node(selection))
+            owned.append(hlib.getNode(selection))
             root.add_attr(long_name="drivenGraphs", attribute_type="message", multi=True)
-        indices = cmds.getAttr(root.full_name() + ".drivenGraphs", multiIndices=True) or []
-        owner.plug("message").connect(
-            root.plug("drivenGraphs[{}]".format(max(indices, default=-1) + 1))
-        )
-        indices = cmds.getAttr(root.full_name() + ".hrigOwned", multiIndices=True) or []
-        for index, node in enumerate(owned, max(indices, default=-1) + 1):
-            node.plug("message").connect(root.plug("hrigOwned[{}]".format(index)))
+        root.plug("drivenGraphs").append_message(owner)
+        for node in owned:
+            root.plug("hrigOwned").append_message(node)
         self.rig._layer_members("drivenSet", [owner.full_name()])
         self.update()
         from .channel_controls import sync_display

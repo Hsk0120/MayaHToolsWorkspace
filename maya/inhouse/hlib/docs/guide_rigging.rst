@@ -32,7 +32,7 @@
 対応する型は parent、point、orient、scale、aim、poleVector、geometry、normal、
 tangent、pointOnPoly です。PoleVector は RP IK ハンドル、Tangent は NURBS カーブ、
 Geometry／Normal／PointOnPoly は各 Maya コマンドに適した形状を指定してください。
-IK ハンドルは ``hlib.node(handle_name)`` から ``IkHandle`` として取得でき、
+IK ハンドルは ``hlib.getNode(handle_name)`` から ``IkHandle`` として取得でき、
 ``handle.add_constraint(driver, "poleVector")`` を使用できます。
 ``set_weight`` はターゲットを省略すると全ターゲット、指定すると該当ターゲットのみ
 ウェイトを設定します。``targets()`` に含まれないターゲットを指定すると ``ValueError``
@@ -53,7 +53,7 @@ jointOrientをrotateへ移す
 
 .. code-block:: python
 
-   joint = hlib.node("leg_RF_knee_IK_jnt")
+   joint = hlib.getNode("leg_RF_knee_IK_jnt")
    joint.joint_orient_to_rotate()
 
    joints = hlib.ls(selection=True, type="joint")
@@ -74,7 +74,7 @@ rotateを0にします。ジョイントと子の姿勢を保持するため、�
 
 .. code-block:: python
 
-   joint = hlib.node("leg_RF_knee_IK_jnt")
+   joint = hlib.getNode("leg_RF_knee_IK_jnt")
    joint.freeze_rotation()
 
    joints = hlib.ls(selection=True, type="joint")
@@ -106,7 +106,7 @@ rotateが既に0の対象は何もしません。それ以外でrotate／jointOr
 
    handle_name = cmds.ikHandle(startJoint=root.name(), endEffector=tip.name(),
                                 solver="ikRPsolver")[0]
-   handle = hlib.node(handle_name)
+   handle = hlib.getNode(handle_name)
 
    print(root.ik_handles())             # [IkHandle(...)]（自身が start joint の場合のみ）
    print(mid.ik_handles())              # []（途中の joint は対象外）

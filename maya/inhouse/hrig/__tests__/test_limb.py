@@ -7,7 +7,7 @@ from pathlib import Path
 from maya import cmds
 from hrig import build_limb
 from hrig.limb import LimbRig
-from hrig.soft_ik import softened_distance
+from hrig.setups import SoftIK
 from hrig.skin import bind_mesh, create_skin_lod, set_mesh_lod
 
 
@@ -20,8 +20,8 @@ class LimbTest(unittest.TestCase):
     def setUpClass(cls):
         """プラグイン初期化はテスト対象のUndoから分離する。"""
         if cls.backend == "bifrost":
-            from hlib_bifrost import ensure_available
-            ensure_available()
+            from hlib_bifrost.general import Bifrost
+            Bifrost.ensure_available()
 
     def setUp(self):
         """部位を空シーンに生成する。"""
@@ -41,7 +41,7 @@ class LimbTest(unittest.TestCase):
             self.rig.set_lod(0)
             self.assertAlmostEqual(math.dist(self.position(),(0,0,0)),min(distance,10),delta=0.002)
             self.rig.set_lod(1)
-            self.assertAlmostEqual(math.dist(self.position(),(0,0,0)),softened_distance(distance,10,1),delta=0.002)
+            self.assertAlmostEqual(math.dist(self.position(),(0,0,0)),SoftIK.distance(distance,10,1),delta=0.002)
 
     def test_matching(self):
         """曲がった姿勢のFK/IK往復で終端と中間関節を保持する。"""

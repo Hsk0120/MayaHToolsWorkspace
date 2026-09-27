@@ -14,21 +14,21 @@
     import hlib
     hlib.reload()
 
-    slider = hlib.timeSlider()  # hlib.editors.TimeSlider
+    slider = hlib.getTimeSlider()  # hlib.general.TimeSlider
     print(slider.current_time(), slider.playback_range())
     slider.set_playback_range(1, 120)
     with slider.preserve_time():
         slider.set_current_time(24)
     print(slider.selected_range())  # 未選択はNone。選択範囲の終端は含まない
 
-    view = hlib.viewport()  # hlib.editors.Viewport
+    view = hlib.getViewport()  # hlib.general.Viewport
     print(view.panel(), view.camera())
     with view.temporary_settings(grid=False, joints=False):
         pass  # 終了時に指定した表示設定を復元
     with view.suspend():
         pass  # 重い処理。例外時もメインペインの表示状態を復元
 
-    outliner = hlib.outliner()  # hlib.editors.Outliner
+    outliner = hlib.getOutliner()  # hlib.general.Outliner
     outliner.set_settings(showShapes=True, showNamespace=True)
     outliner.expand_all()       # 展開
     outliner.expand_all(False)  # 折りたたむ
@@ -41,8 +41,8 @@
 
 表示設定はMayaの長いフラグ名で指定します。``settings()`` は対応する表示設定のみを
 返し、UI全体やカメラ・階層展開状態は保存しません。
-対象を明示する場合は ``hlib.viewport("modelPanel4")``、
-``hlib.outliner("outlinerPanel1")`` のように指定します。UIの自動作成は行いません。
+対象を明示する場合は ``hlib.getViewport("modelPanel4")``、
+``hlib.getOutliner("outlinerPanel1")`` のように指定します。UIの自動作成は行いません。
 ビューポート・アウトライナー・スライダー選択範囲にはMaya GUIが必要です。
 時刻・再生範囲の操作はバッチでも利用できます。
 

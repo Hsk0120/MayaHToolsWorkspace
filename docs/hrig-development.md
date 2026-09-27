@@ -4,10 +4,10 @@ hrigはhlibを基本ライブラリとして使用する。Pythonコードの書
 
 ## 実装の境界
 
-- ノード生成・参照は `hlib.createNode()` / `hlib.node()`、属性と接続は `Node` / `Plug` の公開APIを優先する。hlibの `_core` など内部実装へ直接依存しない。
+- ノード生成・参照は `hlib.createNode()` / `hlib.getNode()`、属性と接続は `Node` / `Plug` の公開APIを優先する。hlibの `_core` など内部実装へ直接依存しない。
 - scriptJobの登録・生存確認・解除、汎用的な属性操作など、リグ以外でも使える処理はhlibへ実装する。リグの状態判断、FK/IKの姿勢合わせ、レイヤー依存関係はhrigに置く。
 - Mayaへの問い合わせやシーン更新はメソッドにする。プロパティは保持している参照や識別子などに使用する。Undo可能な更新を既定にする。
-- hlibに適切なAPIがない専門コマンドは `maya.cmds` を使用してよい。単に全コマンドを転送するラッパーは増やさず、再利用可能な責務がある場合に共通化する。
+- hrig本体・UI・startup・examplesでは `maya.cmds` を直接使用しない。既存hlib APIを優先し、不足する操作は `hlib.cmds` に既存コマンドと同じ規則で追加し、ノード・属性はhlib参照として返す。新しい操作はhlib側へ追加して検証する。テストは独立した検証のため直接cmdsを使用してよい。
 - 既定のリグとデモはMaya標準ノードだけで構築する。Bifrost/C++は明示選択する任意バックエンドとし、hrig起動時に自動ロードしない。
 - Bifrost固有操作はhlib_bifrost、独自C++リグノードはhrigの責務とする。hlibへ独自プラグインを追加しない。
 
@@ -36,3 +36,52 @@ def set_layer_enabled(self, layer, enabled):
 ## 検証
 
 共通APIはhlib側で検証し、hrig側ではFK/IK・LOD・保存読込・Undo/Redoの統合動作を検証する。scriptJobはGUIのアイドル処理で動くため、standaloneのテストだけで動作確認済みとしない。テストには隔離したシーン／Mayaプロセスを使い、ユーザーが編集中のシーンを破棄しない。
+
+
+## 共通処理の配置
+
+- 所有DGは`hlib.nodes.Container`の`create`・`create_node`・`add`・`members`を使う。
+  レイヤー固有のノード名、所有グラフの選択と有効状態判断はhrigで決める。
+- 保存用message配列は`ArrayPlug.source_nodes()`と`append_message()`を使う。
+  前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
+- 操作シェイプは`hrig.setups.ControlShape`、単位境界は`hlib.general.Units`を使う。
+  型名が必要な場合は`Plug.data_type()`を使用する（`Plug.type()`はPythonクラス）。
+- バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copy_weights_to`を使う。
+  どの骨をLODへ含めるか、どのメッシュを表示するかはhrigの責務とする。
+- 単位なし標準DG演算は`hlib.utils.scalarGraph.ScalarGraph`、Soft IKは`hrig.setups.SoftIK`。
+  Bifrostの演算構築は`hlib_bifrost.utils.MathBuilder`、Soft IKは`hrig.setups.bifrostSoftIK.SoftIK`へ置く。
+- 共通APIへ依存方向を逆転させない。hlib/hlib_bifrostからhrigをimportしない。
+  移動時は使用側を新しいAPIへ更新し、旧import用アダプターは残さない。
+- コマンド入口は `hlib.cmds`（および同一関数の `hlib` 再公開）へ置く。
+  短縮フラグ正規化、入力参照の解決、Undo規則を既存コマンドに合わせる。
+  ノードはNode、属性はPlug、UIはUiElementを返す。数値やboolの照会は値として返す。
+  汎用の生cmds転送クラスは追加しない。リグの保存済み名前形式が必要な境界だけ
+  `.name()` / `.full_name()` で明示変換する。
+
+- hrigからOpenMaya/OpenMayaUIを直接importしない。数学型は `hlib.maths` の
+  Matrix/Vector/EulerRotation等、位置変換は `Matrix.transform_point`、回転分解は
+  `Matrix.quaternion`・`Matrix.euler` を使う。位置と方向の変換を混同しない。
+  MayaのQt親ウィンドウは `hlib.general.MainWindow.widget()` で取得する。
+
+- `maya.mel` もhrigから直接使用しない。メインウィンドウ名は
+  `MainWindow.name()`、標準エディター起動は `NodeEditor.show()` / `GraphEditor.show()`
+  を使用する。必要なMEL操作はhlibに責務を持つメソッドとして追加する。
+
+- 標準 `json` をhrigで直接importしない。既存リグ属性の通常JSONは
+  `hlib.json.JsonText.dumps/loads` を使用し、外枠・型タグを追加しない。
+  hlib型・Snapshot保存用の既存 `hlib.json.dumps/loads` と用途を区別する。
+
+- `maya.utils` の直接importも行わない。Pythonの遅延呼出しは
+  `hlib.executeDeferred(callback, *args, **kwargs)` を使う。文字列コードは受け付けない。
+- 作業環境・単位・選択は `hlib.general.Workspace` / `Units` / `Selection` に配置する。
+  実装はgeneral配下の1クラス1ファイル。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
+
+## リグセットアップの境界
+
+Maya標準の概念・操作はhlibへ、リグの構成・追従・補正・コントロール設定は `hrig.setups` へ置く。標準ノードだけで構成していてもリグの組み方を決める処理はhrigの責務。Spline IKソルバーの作成は `hlib.createIkHandle`、CVコントロール接続・両端Twist・停止経路を組み合わせる構築は `hrig.setups.SplineIK` とする。
+
+`DrivenKey` / `DrivenKeys` は `hlib.general`、純粋なカーブ近似・減衰ばねは `hlib.utils`。hlibとhlib_bifrostにはhrigへの依存を作らず、セットアップのテスト・文書もhrigに置く。
+
+通知は `hlib.utils.logger.warning/error/info`、通常のPython出力は `logger.print` に集約する。`hlib.warning` / `hlib.cmds.warning` は使用しない。
+
+指定された標準操作（about/currentTime/cutKey/deleteUI/keyframe/listConnections/listHistory/listRelatives/menu/menuItem/objExists/parent/playbackOptions/setKeyframe）は `maya.cmds` を直接使用する。削除した同名hlibコマンドを再追加しない。名前の戻り値をhlibで扱う場合は使用側でNode/Plugへ変換し、connections=TrueはMayaの平坦なペア列として扱う。

@@ -178,7 +178,7 @@ class JsonTest(unittest.TestCase):
         average = self.node("plusMinusAverage", "average")
         base = cmds.polyCube(name=self.ns + ":base")[0]
         target = cmds.polyCube(name=self.ns + ":target")[0]
-        blend = hlib.node(cmds.blendShape(target, base, name=self.ns + ":blend")[0])
+        blend = hlib.getNode(cmds.blendShape(target, base, name=self.ns + ":blend")[0])
         for element in (average.plug("input1D[3]"), average.plug("input3D[2].input3Dy"),
                         second.plug("worldMatrix[0]"), blend.plug("weight")[0],
                         blend.plug("inputTarget[0].inputTargetGroup[0].inputTargetItem[6000]"
@@ -216,7 +216,7 @@ class JsonTest(unittest.TestCase):
 
     def test_curve_selection_and_undo(self):
         name = cmds.circle(name=self.ns + ":curve", constructionHistory=False)[0]
-        curve = hlib.node(name)
+        curve = hlib.getNode(name)
         snapshot = self.roundtrip(hlib.json.capture(curve, kind="curve"))
         cv = curve.shape().full_name() + ".cv[0]"
         before = cmds.xform(cv, query=True, translation=True, objectSpace=True)
@@ -255,7 +255,7 @@ class JsonTest(unittest.TestCase):
         joints = [self.node("joint", "j" + str(i)) for i in range(2)]
         mesh = cmds.polyCube(name=self.ns + ":mesh", constructionHistory=False)[0]
         name = cmds.skinCluster([j.full_name() for j in joints], mesh, name=self.ns + ":skin")[0]
-        skin = hlib.node(name)
+        skin = hlib.getNode(name)
         pose = skin.bind_pose()
         if pose:
             cmds.rename(pose.full_name(), self.ns + ":pose")
@@ -270,7 +270,7 @@ class JsonTest(unittest.TestCase):
 
     def test_sdk_graph_validation(self):
         driver, driven = self.node(suffix="driver"), self.node(suffix="driven")
-        sdk = hlib.drivenKey(driver.plug("tx"), driven.plug("ty"))
+        sdk = hlib.getDrivenKey(driver.plug("tx"), driven.plug("ty"))
         sdk.set_key(0, 1)
         sdk.set_key(2, 3)
         snapshot = self.roundtrip(hlib.json.capture(driven, kind="driven_keys"))
@@ -295,7 +295,7 @@ class JsonTest(unittest.TestCase):
             ref.resolve(namespace_map={self.ns: "missing_namespace"})
 
     def test_editor_timeline_read_only(self):
-        original = hlib.json.capture(hlib.timeSlider(), kind="editor")
+        original = hlib.json.capture(hlib.getTimeSlider(), kind="editor")
         try:
             saved = self.roundtrip(original)
             original_time = cmds.currentTime(query=True)
@@ -354,7 +354,7 @@ class JsonTest(unittest.TestCase):
             panel = cmds.modelPanel()
             editor = cmds.outlinerEditor()
             cmds.showWindow(window)
-            viewport, outliner = hlib.viewport(panel), hlib.outliner(editor)
+            viewport, outliner = hlib.getViewport(panel), hlib.getOutliner(editor)
             saved = self.roundtrip(hlib.json.capture([viewport, outliner], kind="editor"))
             original = viewport.settings("grid")["grid"]
             viewport.set_settings(grid=not original)

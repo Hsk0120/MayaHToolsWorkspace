@@ -1,11 +1,11 @@
 """対応済み3関節チェーンからhrigコントローラーへベイクする。"""
 
-import math
-import json
 from maya import cmds
 
+import math
 import hlib
-from maya.api import OpenMaya as om
+
+from hlib.maths import Matrix, Vector
 from hlib.decorators.undo import undo_transaction
 
 
@@ -33,12 +33,12 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         raise ValueError("mode must be fk or ik")
     if not all(math.isfinite(v) for v in (start, end, step)) or step <= 0 or end < start:
         raise ValueError("Invalid frame range")
-    sources = [hlib.node(node).full_name() for node in source_joints]
+    sources = [hlib.getNode(node).full_name() for node in source_joints]
     if len(sources) != 3 or len(set(sources)) != 3:
         raise ValueError("Expected three different source joints")
     root = rig.root.full_name()
     for source in sources:
-        if hlib.node(source).type() != "joint" or source.startswith(root + "|"):
+        if hlib.getNode(source).type() != "joint" or source.startswith(root + "|"):
             raise ValueError("Source must be an external joint")
     frames = [start + i * step for i in range(int(math.floor((end - start) / step)) + 1)]
     if frames[-1] < end - 1e-8:
@@ -51,16 +51,23 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         keyed += [controls["target"], controls["pole"]]
     for node in keyed:
         for attr in attributes:
-            if hlib.plug(node + "." + attr).is_locked():
+            if hlib.getPlug(node + "." + attr).is_locked():
                 raise ValueError("Locked control channel: " + node + "." + attr)
-            sources_in = (
-                cmds.listConnections(node + "." + attr, source=True, destination=False) or []
-            )
-            if any(not hlib.node(item).type().startswith("animCurve") for item in sources_in):
+            sources_in = [
+                item.full_name()
+                for item in [
+                    hlib.getNode(value)
+                    for value in (
+                        cmds.listConnections(node + "." + attr, source=True, destination=False)
+                        or []
+                    )
+                ]
+            ] or []
+            if any(not hlib.getNode(item).type().startswith("animCurve") for item in sources_in):
                 raise ValueError("Control channel is driven by a non-animation node")
     try:
         samples = []
-        definition = json.loads(hlib.plug(root + ".hrigDefinition").get())
+        definition = hlib.json.JsonText.loads(hlib.getPlug(root + ".hrigDefinition").get())
         from .definition import RigDefinition
 
         lengths = [
@@ -68,11 +75,11 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         ]
         for frame in frames:
             cmds.currentTime(frame)
-            matrices = [list(hlib.node(node).get_matrix(ws=True)) for node in sources]
+            matrices = [list(hlib.getNode(node).get_matrix(ws=True)) for node in sources]
             if mode == "ik":
-                inverse = om.MMatrix(hlib.plug(root + ".worldInverseMatrix[0]").get())
-                points = [om.MPoint(matrix[12:15]) * inverse for matrix in matrices]
-                if om.MVector(points[0]).length() > 1e-4:
+                inverse = Matrix(hlib.getPlug(root + ".worldInverseMatrix[0]").get())
+                points = [inverse.transform_point(matrix[12:15]) for matrix in matrices]
+                if Vector(points[0]).length() > 1e-4:
                     raise ValueError(
                         "IK source root must coincide with the rig root at each sample"
                     )

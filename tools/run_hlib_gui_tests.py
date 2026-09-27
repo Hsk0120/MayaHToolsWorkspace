@@ -86,7 +86,7 @@ def main(output_dir=None, finished=None):
         for x, label, color in ((-4, "INDEX_RED", 13), (0, "RGB_CYAN", (0, .75, 1)), (4, "RGB_ORANGE", (1, .4, 0))):
             name = cmds.circle(name=prefix + ":" + label, normal=(0, 0, 1), radius=1.3, constructionHistory=False)[0]
             cmds.setAttr(name + ".tx", x)
-            curves.append(hlib.node(name))
+            curves.append(hlib.getNode(name))
         cmds.addAttr(curves[0].full_name(), longName="guiAmount", attributeType="double", keyable=True)
         camera, camera_shape = cmds.camera(name=prefix + ":camera", orthographic=True)
         cmds.setAttr(camera + ".tz", 20)
@@ -134,19 +134,19 @@ def main(output_dir=None, finished=None):
 
         class IsolatedSceneTests(scene_tests):
             def setUp(self):
-                self.view = hlib.viewport(panel)
-                self.outliner = hlib.outliner(editor)
+                self.view = hlib.getViewport(panel)
+                self.outliner = hlib.getOutliner(editor)
                 self.panel = panel
 
         class VisualTests(unittest.TestCase):
             def test_editor_snapshot_read_only(self):
                 saved = hlib.json.loads(hlib.json.dumps(hlib.json.capture(
-                    [hlib.viewport(panel), hlib.outliner(editor)], kind="editor")))
-                before = hlib.viewport(panel).settings()
+                    [hlib.getViewport(panel), hlib.getOutliner(editor)], kind="editor")))
+                before = hlib.getViewport(panel).settings()
                 self.assertTrue(saved.plan().errors)
                 with self.assertRaises(NotImplementedError):
                     saved.apply()
-                self.assertEqual(hlib.viewport(panel).settings(), before)
+                self.assertEqual(hlib.getViewport(panel).settings(), before)
 
             def test_colors_disable_undo_redo(self):
                 for node, override, rgb in zip(curves, (13, (0, .75, 1), (1, .4, 0)),
@@ -170,7 +170,7 @@ def main(output_dir=None, finished=None):
                     capture(label + "_outliner", outliner_control)
 
             def test_visibility_and_component_selection(self):
-                view = hlib.viewport(panel)
+                view = hlib.getViewport(panel)
                 with view.temporary_settings(nurbsCurves=False):
                     self.assertFalse(view.settings("nurbsCurves")["nurbsCurves"])
                     capture("curves_hidden")
@@ -188,7 +188,7 @@ def main(output_dir=None, finished=None):
                 node = curves[0]
                 cmds.select(node.full_name(), replace=True)
                 cmds.refresh(force=True)
-                box = hlib.channelBox(channel)
+                box = hlib.getChannelBox(channel)
                 cmds.channelBox(channel, edit=True, select=node.full_name() + ".guiAmount")
                 capture("channel_selected", channel)
                 self.assertEqual(len(box.selected_plugs()), 1,
@@ -200,7 +200,7 @@ def main(output_dir=None, finished=None):
                 cmds.select(clear=True)
 
             def test_outliner_expansion_display(self):
-                outliner = hlib.outliner(editor)
+                outliner = hlib.getOutliner(editor)
                 with outliner.temporary_settings(showShapes=True):
                     outliner.expand_all(True)
                     capture("outliner_shapes", cmds.outlinerEditor(editor, query=True, control=True))

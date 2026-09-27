@@ -1,0 +1,61 @@
+"""Bifrost内部ノードの参照。"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .graph import Graph
+from maya import cmds
+
+
+@dataclass(frozen=True)
+class Node:
+    """グラフ内パスを保持する参照。内部ノード改名後は再取得する。"""
+
+    graph: Graph
+    path: str
+
+    def ports(self):
+        """tuple[str]: VNNが返すポート名を照会する。"""
+        return tuple(cmds.vnnNode(self.graph.name(), self.path, listPorts=True) or ())
+
+    def port(self, name):
+        """Port: 指定ポートを参照する。存在確認や作成は行わない。"""
+        from ..plugs.port import Port
+
+        return Port(self, self.identifier(name))
+
+    def add_port(self, name, data_type, output=False):
+        """内部ノードへ動的ポートを追加する。
+
+        Args:
+            name (str): 未使用のポート名。
+            data_type (str): Bifrost型名。
+            output (bool): 出力ポートならTrue。
+        Returns:
+            Port: 追加したポート。
+        """
+        name = self.identifier(name)
+        if name in [p.rsplit(".", 1)[-1] for p in self.ports()]:
+            raise ValueError("Port already exists: " + name)
+        flag = "createOutputPort" if output else "createInputPort"
+        cmds.vnnNode(self.graph.name(), self.path, **{flag: (name, data_type)})
+        return self.port(name)
+
+    @staticmethod
+    def identifier(value):
+        """VNN内部パスの単一識別子を検証する。
+
+        Args:
+            value (str): ポートまたはノード名。
+
+        Returns:
+            str: 検証した識別子。
+        """
+        import re
+
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError("Expected a simple identifier: {!r}".format(value))
+        return value

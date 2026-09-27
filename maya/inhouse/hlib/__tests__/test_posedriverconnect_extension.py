@@ -51,7 +51,7 @@ class PoseDriverConnectTest(unittest.TestCase):
             self.assertIsInstance(blender.envelope(), float)
             name = solver.full_name()
             hlib.reload()
-            solver = hlib.node(name)
+            solver = hlib.getNode(name)
             self.assertTrue(isinstance(solver, hlib.nodes.Node))
             self.assertAlmostEqual(solver.radius(), before + 10)
         finally:

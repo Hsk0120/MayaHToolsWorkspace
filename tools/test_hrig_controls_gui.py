@@ -1,5 +1,7 @@
 """専用Maya GUIで指・Aim・Tweak・Splineフィット・ポーズ登録を検証する。"""
 
+from maya import cmds
+
 import json
 from pathlib import Path
 import traceback
@@ -54,6 +56,21 @@ def main(output_dir=None, finished=None):
         from hrig.poseEditor import PoseEditor
         from hrig.moduleRegistry import ModuleRegistry
         from PySide6 import QtWidgets
+
+        import hlib
+
+        called = []
+        hlib.executeDeferred(lambda value: called.append(value), "deferred")
+        yield
+        check(called == ["deferred"], "Deferred callback via hlib")
+        item = cmds.menu(
+            "typedCommandTestMenu", label="Typed test", parent=hlib.general.MainWindow.name()
+        )
+        check(isinstance(item, str) and cmds.menu(item, exists=True), "Native menu reference")
+        child = cmds.menuItem(label="Test", parent=item)
+        check(cmds.menuItem(child, exists=True), "Native menuItem parent")
+        cmds.deleteUI(item, menu=True)
+        check(not cmds.menu(item, exists=True), "Delete native UI")
 
         cmds.file(new=True, force=True)
         cmds.undoInfo(state=True, infinity=True)
@@ -206,6 +223,17 @@ def main(output_dir=None, finished=None):
         from hrig.controlRig import ControlRig
 
         check(not ControlRig._jobs and not TweakLayer._jobs, "Scene cleanup releases new watchers")
+
+        # 標準エディターのidle処理を、シーン読込の監視検証から分離する。
+        from hlib.general import MainWindow, NodeEditor, GraphEditor
+
+        check(cmds.window(MainWindow.name(), exists=True), "Main window name")
+        NodeEditor.show()
+        yield
+        check(bool(cmds.getPanel(scriptType="nodeEditorPanel")), "Open standard Node Editor")
+        GraphEditor.show()
+        yield
+        check(bool(cmds.getPanel(scriptType="graphEditor")), "Open standard Graph Editor")
 
     iterator = steps()
 

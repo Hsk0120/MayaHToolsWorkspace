@@ -117,11 +117,11 @@ class SingleJointDeleteTest(JointDeleteTest):
     """単体入口にも同じ移送・標準削除比較・Undo・例外テストを適用する。"""
 
     def delete_joint(self, name):
-        hlib.node(name).delete()
+        hlib.getNode(name).delete()
 
     def test_invalid_joint_raises(self):
         name = self.node("removed")
-        joint = hlib.node(name)
+        joint = hlib.getNode(name)
         cmds.delete(name)
         with self.assertRaisesRegex(RuntimeError, "invalid joint"):
             joint.delete()

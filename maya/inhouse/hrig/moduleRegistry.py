@@ -1,7 +1,5 @@
 """シーン内のモジュール型を共通のUIから解決する。"""
 
-from maya import cmds
-
 import hlib
 
 
@@ -22,7 +20,7 @@ class ModuleRegistry:
         from .skirtRig import SkirtRig
         from .splineRig import SplineRig
 
-        node = hlib.node(root)
+        node = hlib.getNode(root)
         if node.has_attr("hrigControlDefinition"):
             from .controlRig import ControlRig
             from .fingerRig import FingerRig
@@ -48,5 +46,7 @@ class ModuleRegistry:
                 "hrigSplineDefinition",
                 "hrigControlDefinition",
             )
-            for attr in (cmds.ls("*." + marker, recursive=True) or [])
+            for attr in (
+                [item.full_name() for item in hlib.ls("*." + marker, recursive=True)] or []
+            )
         ]

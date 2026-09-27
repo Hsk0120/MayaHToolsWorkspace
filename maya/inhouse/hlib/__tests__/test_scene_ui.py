@@ -14,18 +14,18 @@ class SceneUiTest(unittest.TestCase):
     """既存UIの設定を一時変更し、finallyで元に戻す。"""
 
     def setUp(self):
-        self.view = hlib.viewport()
-        self.outliner = hlib.outliner()
+        self.view = hlib.getViewport()
+        self.outliner = hlib.getOutliner()
         self.panel = self.view.panel()
 
     def test_public_api_and_reload(self):
-        for name, cls in (("timeSlider", hlib.editors.TimeSlider),
-                          ("viewport", hlib.editors.Viewport),
-                          ("outliner", hlib.editors.Outliner)):
+        for name, cls in (("timeSlider", hlib.general.TimeSlider),
+                          ("viewport", hlib.general.Viewport),
+                          ("outliner", hlib.general.Outliner)):
             self.assertIs(getattr(hlib, name), getattr(hlib.cmds, name))
-        self.assertIsInstance(hlib.timeSlider(), hlib.editors.TimeSlider)
-        self.assertIsInstance(self.view, hlib.editors.Viewport)
-        self.assertIsInstance(self.outliner, hlib.editors.Outliner)
+        self.assertIsInstance(hlib.getTimeSlider(), hlib.general.TimeSlider)
+        self.assertIsInstance(self.view, hlib.general.Viewport)
+        self.assertIsInstance(self.outliner, hlib.general.Outliner)
         self.assertEqual(self.view.panel(), self.panel)
 
     def test_viewport_restore_after_exception_and_nesting(self):
@@ -46,7 +46,7 @@ class SceneUiTest(unittest.TestCase):
         self.assertEqual(self.view.camera(), camera)
 
     def test_main_pane_suspend_exception_nested_and_already_disabled(self):
-        view = hlib.editors.Viewport
+        view = hlib.general.Viewport
         before = view.is_enabled()
         calls = []
         try:
@@ -70,7 +70,7 @@ class SceneUiTest(unittest.TestCase):
     def test_viewport_off_and_bake(self):
         from unittest.mock import patch
         from hlib.decorators import viewport_off
-        view = hlib.editors.Viewport
+        view = hlib.general.Viewport
         before = view.is_enabled()
         calls = []
 
@@ -113,10 +113,10 @@ class SceneUiTest(unittest.TestCase):
                 self.assertNotEqual(self.outliner.settings("showShapes")["showShapes"], before["showShapes"])
                 raise RuntimeError("test failure")
         self.assertEqual(self.outliner.settings(), before)
-        self.assertEqual(hlib.outliner(self.outliner.name()).name(), self.outliner.name())
+        self.assertEqual(hlib.getOutliner(self.outliner.name()).name(), self.outliner.name())
 
     def test_timeline_validation_and_restore(self):
-        slider = hlib.timeSlider()
+        slider = hlib.getTimeSlider()
         playback = slider.playback_range()
         animation = slider.animation_range()
         time = slider.current_time()
@@ -147,7 +147,7 @@ class SceneUiTest(unittest.TestCase):
             slider.set_current_time(time)
 
     def test_time_slider_play_stop_and_is_playing(self):
-        slider = hlib.timeSlider()
+        slider = hlib.getTimeSlider()
         self.assertFalse(slider.is_playing())
         try:
             slider.play(forward=True)
@@ -163,11 +163,11 @@ class SceneUiTest(unittest.TestCase):
 
     def test_invalid_ui_names(self):
         with self.assertRaises(RuntimeError):
-            hlib.viewport("__hlibMissingPanel__")
+            hlib.getViewport("__hlibMissingPanel__")
         with self.assertRaises(RuntimeError):
-            hlib.outliner("__hlibMissingEditor__")
+            hlib.getOutliner("__hlibMissingEditor__")
         with self.assertRaises(RuntimeError):
-            hlib.timeSlider("__hlibMissingControl__").selected_range()
+            hlib.getTimeSlider("__hlibMissingControl__").selected_range()
 
 
 if __name__ == "__main__":

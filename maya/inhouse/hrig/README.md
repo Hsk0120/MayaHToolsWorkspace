@@ -258,7 +258,7 @@ print(rig.space_switch("ik").labels())
 print(rig.space_switch("ik").current())
 ```
 
-共通実装は`hlib.animation.SpaceSwitch`で、標準`choice`・`multMatrix`を使います。
+共通実装は`hrig.setups.SpaceSwitch`で、標準`choice`・`multMatrix`を使います。
 IK目標のローカル行列合成に空間レイヤー分を追加し、Soft IK・リバースフットへは
 引き続き部位空間で渡します。ワールドとの変換は参照空間をまたぐ部分に限定します。
 自己・子孫・通常のDG依存による循環と、自分の部位の変形骨／計算階層への追従は拒否します。
@@ -323,7 +323,7 @@ Pythonの書式・日本語Google形式docstringはhlibに合わせます。
 詳細は [hrig実装ルール](../../../docs/hrig-development.md) を参照してください。
 
 ノード生成・属性・接続・行列の操作にはhlibの公開APIを使用します。
-GUI監視は `hlib.events.ScriptJobs`、変更があるときだけ行う状態表示の更新は
+GUI監視は `hlib.general.ScriptJobs`、変更があるときだけ行う状態表示の更新は
 `Plug.set_if_changed()` を使用します。FK/IKやLODの判断、リグの再探索はhrig側の責務です。
 IKハンドル構築、スキン作成・ウェイト転送、プリミティブ作成などにはMaya専用コマンドを使用します。
 
@@ -417,7 +417,7 @@ Undo/Redo・シーン読込・Mode/LOD/Enabled変更を表示へ反映します�
 ## Swing / Twistドリブンキーレイヤー
 
 ジョイントのローカル回転をSwingとTwistへ分解し、その1成分から単一属性をSDKで駆動します。
-分解は`hlib.animation.SwingTwist`、SDK生成は既存の`hlib.animation.DrivenKey`を使用します。
+分解は`hrig.setups.SwingTwist`、SDK生成は既存の`hlib.general.DrivenKey`を使用します。
 
 ```python
 import hlib
@@ -508,7 +508,7 @@ Blend=0だけでは出力接続を切らないため、LODの評価停止と同�
 ## 回転追従補助骨レイヤー
 
 Twistのみ、Swingのみ、全回転の割合追従を追加できます。計算は
-`hlib.animation.RotationFollow`へ共通化し、標準ノードのQuaternion補間を使います。
+`hrig.setups.RotationFollow`へ共通化し、標準ノードのQuaternion補間を使います。
 
 ```python
 from hrig import build_limb
@@ -700,7 +700,7 @@ FKへ姿勢コピー済みなら、そのFK姿勢は保持します。strength=0
 レイヤー無効化と同じ計算停止ではありません。設定値にはキーを付けられますが、
 使用チェック・Mode・LODは構成切替用です。
 
-共通の比率計算は`hlib.animation.LengthCompensation`へ実装しています。
+共通の比率計算は`hrig.setups.LengthCompensation`へ実装しています。
 標準ノードのみで再生し、Bifrost・mGear・外部プラグインへ依存しません。
 負・非一様scale、shear、極端な圧縮、実制作メッシュでの性能・変形品質は未検証です。
 
@@ -769,3 +769,45 @@ control = TweakLayer(hand).add("tip", hand.joints()[-1])
 適用は1回のUndoで戻せます。Undo後は「シーンから再読込」で表も更新してください。
 列変更・再読込は未適用の表編集を破棄します。
 これはスカートの骨回転補正用UIで、Maya標準Pose Editorやメッシュのsculpt編集ではありません。
+
+
+## 共通ライブラリへの依存
+
+hrigは構成・命名・レイヤー有効状態・LOD・リグの姿勢合わせを担当し、
+以下の基礎処理はhlib/hlib_bifrostの公開APIを利用します。
+
+| 処理 | 実装先 |
+| --- | --- |
+| 計算ノードの所有・追加・列挙 | `hlib.nodes.Container` |
+| 保存用message配列 | `hlib.plugs.ArrayPlug.source_nodes / append_message` |
+| 操作カーブ | `hrig.setups.ControlShape` |
+| 表示単位変換 | `hlib.general.Units` |
+| スキンのバインド・最近傍ウェイト転送 | `hlib.nodes.SkinCluster` |
+| 標準演算とSoft IK | `hlib.utils.scalarGraph.ScalarGraph / SoftIK` |
+| Bifrost基本演算とSoft IK | `hlib_bifrost.utils.MathBuilder` / `hrig.setups.bifrostSoftIK.SoftIK` |
+
+Soft IKは`hrig.setups.SoftIK`、Bifrost版は`hrig.setups.bifrostSoftIK.SoftIK`を使用します。旧互換モジュールは廃止しています。
+標準バックエンドの既定値と生成リグの入出力・レイヤー設定は変更していません。
+Bifrostは明示指定時だけ使用し、hlib側からhrigに依存しません。
+
+## セットアップの配置
+
+`setups/` はSoft IK、空間切替、Twist分配、曲げ補正、回転追従、円周ウェイト、RBF補正、Spline IK構築、伸縮補正、操作形状を持ちます。標準Maya機能のラッパーはhlib、リグとしての組み方はhrigへ分離しています。
+
+```python
+from hrig.setups import SoftIK, SpaceSwitch, SplineIK
+from hlib.general import DrivenKey, DrivenKeys
+from hlib.utils.scalarGraph import ScalarGraph
+```
+
+セットアップの詳しい仕様:
+
+- [space_switch](docs/space_switch.rst)
+- [twist_distribution](docs/twist_distribution.rst)
+- [bend_correction](docs/bend_correction.rst)
+- [swing_twist](docs/swing_twist.rst)
+- [radial_weights](docs/radial_weights.rst)
+- [rotation_follow](docs/rotation_follow.rst)
+- [secondary_motion](docs/secondary_motion.rst)
+- [spline_ik](docs/spline_ik.rst)
+- [length_compensation](docs/length_compensation.rst)

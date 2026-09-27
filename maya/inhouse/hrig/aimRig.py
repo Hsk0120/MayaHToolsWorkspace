@@ -1,11 +1,10 @@
 """首と左右の視線を標準Aim constraintで操作するサンプル。"""
 
 import math
-from maya import cmds
 import hlib
 from hlib.decorators.undo import undo_transaction
 from .controlRig import ControlRig
-from .splineRig import SplineRig
+from hrig.setups import ControlShape
 
 
 class AimRig(ControlRig):
@@ -51,7 +50,7 @@ class AimRig(ControlRig):
             control = hlib.createNode(
                 "transform", name=stem + "_ctrl", parent=layer, skipSelect=True
             )
-            SplineRig._shape(control, size * 0.15, (0, 0, 1), 17)
+            ControlShape.circle(control, size * 0.15, (0, 0, 1), 17)
             target = hlib.createNode(
                 "transform", name=stem + "_target_ctrl", parent=rig.group("layer"), skipSelect=True
             )
@@ -61,17 +60,16 @@ class AimRig(ControlRig):
             )
             up.plug("translate").set((position[0], position[1] + size * 2, 0))
             for node in (target, up):
-                SplineRig._shape(node, size * 0.12, (0, 0, 1), 18)
-            constraint = hlib.node(
-                cmds.aimConstraint(
-                    target.full_name(),
-                    layer.full_name(),
-                    aimVector=(0, 0, 1),
-                    upVector=(0, 1, 0),
-                    worldUpType="object",
-                    worldUpObject=up.full_name(),
-                    maintainOffset=False,
-                )[0]
+                ControlShape.circle(node, size * 0.12, (0, 0, 1), 18)
+            constraint = hlib.addConstraint(
+                target,
+                layer,
+                type="aim",
+                aimVector=(0, 0, 1),
+                upVector=(0, 1, 0),
+                worldUpType="object",
+                worldUpObject=up,
+                maintainOffset=False,
             )
             bone = hlib.createNode(
                 "joint",

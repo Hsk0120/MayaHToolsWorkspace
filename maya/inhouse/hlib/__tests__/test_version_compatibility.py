@@ -14,17 +14,17 @@ class VersionCompatibilityTest(unittest.TestCase):
         parent = cmds.createNode("transform", name=prefix)
         joint = cmds.createNode("joint", name=prefix + "Joint", parent=parent)
         try:
-            node = hlib.node(joint)
+            node = hlib.getNode(joint)
             cmds.setAttr(joint + ".tx", 3)
             before = cmds.xform(joint, query=True, worldSpace=True, matrix=True)
-            for target in (parent, hlib.node(parent)):
+            for target in (parent, hlib.getNode(parent)):
                 self.assertIs(node.set_parent(target), node)
                 self.assertEqual(cmds.xform(node.full_name(), query=True, worldSpace=True, matrix=True), before)
             node.set_parent(None)
             self.assertIsNone(node.parent_path())
             node.set_parent(None)
             cmds.undo()
-            self.assertEqual(node.parent_path().fullPathName(), hlib.node(parent).full_name())
+            self.assertEqual(node.parent_path().fullPathName(), hlib.getNode(parent).full_name())
             cmds.redo()
             self.assertIsNone(node.parent_path())
             with self.assertRaises(RuntimeError):
@@ -38,7 +38,7 @@ class VersionCompatibilityTest(unittest.TestCase):
             cmds.delete(parent)
 
     def test_range_reload_undo_and_redo(self):
-        slider = hlib.timeSlider()
+        slider = hlib.getTimeSlider()
         playback, animation = slider.playback_range(), slider.animation_range()
         try:
             if str(cmds.about(version=True)).startswith("2022"):

@@ -1,13 +1,15 @@
 """GUIの準備後にチャンネルボックス操作の監視を登録する。"""
 
+from maya import cmds
+
 
 def initialize():
     """Maya 2025以降のGUIだけでhrigの操作監視を起動する。"""
-    from maya import cmds, utils
+    import hlib
 
     if cmds.about(batch=True) or int(cmds.about(apiVersion=True)) < 20250000:
         return
-    utils.executeDeferred(_install)
+    hlib.executeDeferred(_install)
 
 
 def _install():

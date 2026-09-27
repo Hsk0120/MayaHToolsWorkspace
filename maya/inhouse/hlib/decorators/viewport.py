@@ -22,7 +22,7 @@ def viewport_off():
     if cmds.about(batch=True):
         yield
         return
-    from ..editors.viewport import Viewport
+    from ..general.viewport import Viewport
 
     with Viewport.suspend():
         yield

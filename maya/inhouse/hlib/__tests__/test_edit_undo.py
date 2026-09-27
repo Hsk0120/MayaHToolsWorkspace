@@ -22,7 +22,7 @@ class EditUndoTest(unittest.TestCase):
         cmds.addAttr(self.node, longName="pair", attributeType="compound", numberOfChildren=2)
         for name in ("first", "second"):
             cmds.addAttr(self.node, longName=name, attributeType="double", parent="pair")
-        plug = hlib.node(self.node).attr("pair")
+        plug = hlib.getNode(self.node).attr("pair")
         plug.set((3, 7))
         self.assertEqual(plug.get(), (3, 7))
         cmds.undo()
@@ -35,7 +35,7 @@ class EditUndoTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             with preserved_selection():
                 cmds.select(clear=True)
-                hlib.node(self.node).attr("visibility").set(False)
+                hlib.getNode(self.node).attr("visibility").set(False)
                 raise ValueError("test")
         self.assertEqual(cmds.ls(selection=True), [self.node])
         cmds.undo()
@@ -63,7 +63,7 @@ class EditUndoTest(unittest.TestCase):
             before = cmds.ls(selection=True, flatten=True, long=True)
             with preserved_selection():
                 cmds.select(self.node, replace=True)
-                hlib.node(self.node).attr("visibility").set(False)
+                hlib.getNode(self.node).attr("visibility").set(False)
             self.assertEqual(cmds.ls(selection=True, flatten=True, long=True), before)
             cmds.undo()
             self.assertEqual(cmds.ls(selection=True, flatten=True, long=True), before)
@@ -73,7 +73,7 @@ class EditUndoTest(unittest.TestCase):
             cmds.delete(mesh)
 
     def test_ranges_group_with_tool(self):
-        slider = hlib.timeSlider()
+        slider = hlib.getTimeSlider()
         playback, animation = slider.playback_range(), slider.animation_range()
         try:
             if str(cmds.about(version=True)).startswith("2022"):

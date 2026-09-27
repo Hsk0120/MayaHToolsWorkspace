@@ -21,7 +21,7 @@ class FastEditTest(unittest.TestCase):
         return stack
 
     def test_plug_and_undo(self):
-        node = hlib.node(cmds.createNode('transform'))
+        node = hlib.getNode(cmds.createNode('transform'))
         sentinel = cmds.createNode('transform')
         cmds.setAttr(sentinel + '.tx', 5)
         undo_name = cmds.undoInfo(query=True, undoName=True)
@@ -47,7 +47,7 @@ class FastEditTest(unittest.TestCase):
 
     def test_transform_and_joint(self):
         for kind in ('transform', 'joint'):
-            node = hlib.node(cmds.createNode(kind))
+            node = hlib.getNode(cmds.createNode(kind))
             node.set_translate((2, 3, 4))
             node.set_rotate((15, 20, 30), unit='deg')
             expected = list(node.get_matrix())
@@ -63,8 +63,8 @@ class FastEditTest(unittest.TestCase):
                 self.assertAlmostEqual(a, b, places=7)
 
     def test_geometry(self):
-        mesh = hlib.node(cmds.listRelatives(cmds.polyCube(ch=False)[0], shapes=True)[0])
-        curve = hlib.node(cmds.listRelatives(cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3), (4, 2, 1)]), shapes=True)[0])
+        mesh = hlib.getNode(cmds.listRelatives(cmds.polyCube(ch=False)[0], shapes=True)[0])
+        curve = hlib.getNode(cmds.listRelatives(cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3), (4, 2, 1)]), shapes=True)[0])
         for points in (mesh.vertices(), curve.cvs()):
             before = points.get_positions()
             rows = [(x + .2, y * 2, z - .3) for x, y, z in before]
@@ -82,17 +82,17 @@ class FastEditTest(unittest.TestCase):
         for uv in uvs:
             for a, b in zip(uv.get_position(), (.2, .3)):
                 self.assertAlmostEqual(a, b, places=6)
-        history = hlib.node(cmds.listRelatives(cmds.polyCube()[0], shapes=True)[0])
+        history = hlib.getNode(cmds.listRelatives(cmds.polyCube()[0], shapes=True)[0])
         with self.assertRaises(NotImplementedError):
             history.vertices().set_position((1, 2, 3), fast=True)
-        periodic = hlib.node(cmds.listRelatives(cmds.circle(ch=False)[0], shapes=True)[0])
+        periodic = hlib.getNode(cmds.listRelatives(cmds.circle(ch=False)[0], shapes=True)[0])
         with self.assertRaises(NotImplementedError):
             periodic.cvs().mirror(fast=True)
 
     def test_skin(self):
         mesh = cmds.polyPlane(ch=False, sx=2, sy=2)[0]
         joints = [cmds.createNode('joint') for _ in range(3)]
-        skin = hlib.node(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
+        skin = hlib.getNode(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
         for normalize in (0, 1, 2):
             cmds.setAttr(skin.full_name() + '.normalizeWeights', normalize)
             skin.set_weights(joints, [.2, .3, .5])
@@ -103,7 +103,7 @@ class FastEditTest(unittest.TestCase):
             self.assertEqual(list(skin.get_weights(joints)), expected)
 
     def test_units_flags_and_bulk(self):
-        node = hlib.node(cmds.createNode('transform'))
+        node = hlib.getNode(cmds.createNode('transform'))
         old_angle = cmds.currentUnit(query=True, angle=True)
         old_linear = cmds.currentUnit(query=True, linear=True)
         try:
@@ -131,7 +131,7 @@ class FastEditTest(unittest.TestCase):
     def test_skin_sparse_subset_and_limits(self):
         mesh = cmds.polyPlane(ch=False, sx=1, sy=1)[0]
         joints = [cmds.createNode('joint') for _ in range(4)]
-        skin = hlib.node(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
+        skin = hlib.getNode(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
         cmds.skinCluster(skin.full_name(), edit=True, removeInfluence=joints[1])
         joints.pop(1)
         for maintain in (False, True):
@@ -147,7 +147,7 @@ class FastEditTest(unittest.TestCase):
             self.assertEqual(list(skin.get_weights(joints)), expected)
 
     def test_data_types_and_connections(self):
-        node = hlib.node(cmds.createNode('network'))
+        node = hlib.getNode(cmds.createNode('network'))
         for name, kind in [('text', 'string'), ('numbers', 'doubleArray'), ('matrixValue', 'matrix')]:
             cmds.addAttr(node.full_name(), longName=name, dataType=kind)
         cmds.addAttr(node.full_name(), longName='timeValue', attributeType='time')
@@ -170,14 +170,14 @@ class FastEditTest(unittest.TestCase):
         a, b = [cmds.createNode('transform') for _ in range(2)]
         cmds.connectAttr(a + '.tx', b + '.tx')
         with self.assertRaises(RuntimeError):
-            hlib.node(b).plug('tx').set(10, fast=True)
+            hlib.getNode(b).plug('tx').set(10, fast=True)
 
     def test_geometry_world_space_and_units(self):
         transform = cmds.polyCube(ch=False)[0]
         cmds.setAttr(transform + '.translate', 10, 20, 30)
         cmds.setAttr(transform + '.rotate', 20, 30, 40)
         cmds.setAttr(transform + '.scale', 2, 3, 4)
-        shape = hlib.node(cmds.listRelatives(transform, shapes=True)[0])
+        shape = hlib.getNode(cmds.listRelatives(transform, shapes=True)[0])
         points = shape.vertices([1, 3, 5])
         old = cmds.currentUnit(query=True, linear=True)
         try:

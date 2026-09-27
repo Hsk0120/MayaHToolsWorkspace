@@ -68,7 +68,7 @@ class UndoDecoratorsTest(unittest.TestCase):
 
         node = create_control()
         hlib.ls(type="transform")
-        hlib.node(node.name())
+        hlib.getNode(node.name())
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), "createControlTool")
         cmds.undo()
         self.assertFalse(cmds.objExists("hlibUndoChunkNode"))

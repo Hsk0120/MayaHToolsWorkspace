@@ -1,15 +1,15 @@
 """背骨・尻尾のFK骨列へ、標準Spline IKを重ねるモジュール。"""
 
+from maya import cmds
+
 from functools import partial
-import json
 import math
 import re
 
-from maya import cmds
-from maya.api import OpenMaya as om
-
 import hlib
-from hlib.animation import SplineIK
+from hlib.maths import Matrix, EulerRotation
+
+from hrig.setups import SplineIK
 from hlib.decorators.undo import undo_transaction
 
 
@@ -25,7 +25,7 @@ class SplineRig:
         Args:
             root (str | Node): モジュールルート。
         """
-        self.root = hlib.node(root)
+        self.root = hlib.getNode(root)
         if not self.root.has_attr("hrigSplineDefinition"):
             raise ValueError("Not an hrig spline module")
 
@@ -47,7 +47,7 @@ class SplineRig:
         if (
             not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
             or cmds.objExists(name)
-            or cmds.ls(name + "_*")
+            or [item.name() for item in hlib.ls(name + "_*")]
         ):
             raise ValueError("Use a unique unnamespaced module name")
         if type(joint_count) is not int or not 3 <= joint_count <= 64:
@@ -58,7 +58,7 @@ class SplineRig:
             raise ValueError("Use axis x/y/z and a positive finite length")
         root = hlib.createNode("transform", name=name, skipSelect=True)
         root.add_attr(long_name="hrigSplineDefinition", data_type="string").set(
-            json.dumps(
+            hlib.json.JsonText.dumps(
                 dict(
                     version=1,
                     joint_count=joint_count,
@@ -90,7 +90,7 @@ class SplineRig:
         groups["ik"].plug("visibility").set(False)
         groups["setup"].plug("visibility").set(False)
         rig = cls(root)
-        angle = om.MAngle(math.pi / 2).asUnits(om.MAngle.uiUnit())
+        angle = hlib.general.Units.angle_to_ui(math.pi / 2)
         orient = {"x": (0, 0, 0), "y": (0, 0, angle), "z": (0, -angle, 0)}[axis]
         for role in ("fk", "ik", "deform"):
             parent = groups[role]
@@ -159,12 +159,9 @@ class SplineRig:
             normal (tuple): 円の法線。
             color (int): Mayaカラー番号。
         """
-        curve = cmds.circle(normal=normal, radius=radius, constructionHistory=False)[0]
-        for shape in cmds.listRelatives(curve, shapes=True, fullPath=True) or []:
-            cmds.parent(shape, node.full_name(), shape=True, relative=True)
-        hlib.delete(curve)
-        node.plug("overrideEnabled").set(True)
-        node.plug("overrideColor").set(color)
+        from hrig.setups import ControlShape
+
+        ControlShape.circle(node, radius=radius, normal=normal, color=color)
 
     def members(self, attr):
         """message配列を順に解決する。
@@ -175,8 +172,7 @@ class SplineRig:
         Returns:
             list[Node]: 登録ノード。
         """
-        indices = cmds.getAttr(self.root.full_name() + "." + attr, multiIndices=True) or []
-        return [self.root.plug("{}[{}]".format(attr, i)).source().node for i in indices]
+        return list(self.root.plug(attr).source_nodes().values())
 
     def controls(self):
         """カーブ用コントロールを根元から取得する。
@@ -271,21 +267,18 @@ class SplineRig:
     def match_fk(self):
         """現在の変形骨の姿勢をFKへコピーする。キーの自動作成はしない。"""
         values = [
-            {
-                attr: cmds.getAttr(n.full_name() + "." + attr)[0]
-                for attr in ("translate", "rotate", "scale")
-            }
+            {attr: hlib.getAttr(n.plug(attr)) for attr in ("translate", "rotate", "scale")}
             for n in self.members("deform")
         ]
         for joint, data in zip(self.members("fk"), values):
             for attr, row in data.items():
-                parent_locked = cmds.getAttr(joint.plug(attr).full_name(), lock=True)
+                parent_locked = joint.plug(attr).is_locked()
                 if parent_locked:
                     joint.set_attr_flags([attr], locked=False)
                 try:
                     for axis, value in zip("XYZ", row):
                         plug = joint.plug(attr + axis)
-                        locked = cmds.getAttr(plug.full_name(), lock=True)
+                        locked = plug.is_locked()
                         if locked:
                             joint.set_attr_flags([attr + axis], locked=False)
                         try:
@@ -312,40 +305,45 @@ class SplineRig:
             FKの任意の折れ角・中間Twist・断面scaleは完全復元できない。
             キーは生成しない。両端のUp方向を合わせ、内部のひねりは補間する。
         """
-        from hlib.animation.curveFit import CurveFit
+        from hlib.utils.curveFit import CurveFit
 
         if tolerance is not None and (not math.isfinite(tolerance) or tolerance < 0):
             raise ValueError("Tolerance must be non-negative finite")
         if self.lod() != 1 or not self.layer_enabled():
             raise ValueError("Enable Spline and Full LOD before matching")
         joints = self.members("deform")
-        matrices = [om.MMatrix(n.get_matrix(ws=True)) for n in joints]
+        matrices = [Matrix(n.get_matrix(ws=True)) for n in joints]
         points = [[m[12], m[13], m[14]] for m in matrices]
         controls = self.controls()
         cvs = CurveFit.fit(points, len(controls))
-        axis = json.loads(self.root.plug("hrigSplineDefinition").get())["axis"]
-        rest = om.MEulerRotation(
+        axis = hlib.json.JsonText.loads(self.root.plug("hrigSplineDefinition").get())["axis"]
+        rest = EulerRotation(
             0, -math.pi / 2 if axis == "z" else 0, math.pi / 2 if axis == "y" else 0
-        ).asMatrix()
+        ).to_matrix()
         for i, (control, point) in enumerate(zip(controls, cvs)):
-            parent = hlib.node(
-                cmds.listRelatives(control.full_name(), parent=True, fullPath=True)[0]
+            parent = hlib.getNode(
+                [
+                    item.full_name()
+                    for item in [
+                        hlib.getNode(value)
+                        for value in (
+                            cmds.listRelatives(control.full_name(), parent=True, fullPath=True)
+                            or []
+                        )
+                    ]
+                ][0]
             )
-            parent_inverse = om.MMatrix(parent.get_matrix(ws=True)).inverse()
-            local = om.MPoint(point) * parent_inverse
+            parent_inverse = Matrix(parent.get_matrix(ws=True)).inverse()
+            local = parent_inverse.transform_point(point)
             for a, value in zip("XYZ", (local.x, local.y, local.z)):
-                control.plug("translate" + a).set(
-                    om.MDistance(value).asUnits(om.MDistance.uiUnit())
-                )
+                control.plug("translate" + a).set(hlib.general.Units.distance_to_ui(value))
             if i in (0, len(controls) - 1):
                 source = matrices[0 if i == 0 else -1]
-                rotation = om.MTransformationMatrix(source).rotation(asQuaternion=True).asMatrix()
-                local_rotation = om.MTransformationMatrix(
-                    rest.inverse() * rotation * parent_inverse
-                ).rotation()
+                rotation = source.quaternion.to_matrix()
+                local_rotation = Matrix(rest.inverse() * rotation * parent_inverse).euler
                 local_rotation.reorderIt(control.plug("rotateOrder").get())
                 for a, value in zip("XYZ", local_rotation):
-                    control.plug("rotate" + a).set(om.MAngle(value).asUnits(om.MAngle.uiUnit()))
+                    control.plug("rotate" + a).set(hlib.general.Units.angle_to_ui(value))
         mode = self.mode()
         try:
             self.set_mode("ik")
@@ -353,7 +351,7 @@ class SplineRig:
             for target, joint in zip(points, joints):
                 matrix = joint.get_matrix(ws=True)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
-            error = om.MDistance(max(errors)).asUnits(om.MDistance.uiUnit())
+            error = hlib.general.Units.distance_to_ui(max(errors))
         finally:
             self.set_mode(mode)
         if tolerance is not None and error > tolerance:
@@ -417,15 +415,17 @@ class SplineRig:
         if cmds.about(batch=True):
             return
         for key, jobs in list(cls._jobs.items()):
-            if not cmds.ls(key) or not jobs.exists():
+            if not [item.name() for item in hlib.ls(key)] or not jobs.exists():
                 jobs.stop()
                 del cls._jobs[key]
-        for attr in cmds.ls("*.hrigSplineDefinition", recursive=True) or []:
+        for attr in [
+            item.full_name() for item in hlib.ls("*.hrigSplineDefinition", recursive=True)
+        ] or []:
             rig = cls(attr.rsplit(".", 1)[0])
             key = rig.root.uuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.events.ScriptJobs()
+            jobs = hlib.general.ScriptJobs()
             attrs = ["mode", "lod", "enabled"]
             if rig.root.has_attr("hrigEnabled_stretch"):
                 attrs.append("hrigEnabled_stretch")
@@ -446,7 +446,7 @@ class SplineRig:
         Args:
             key (str): ルートUUID。
         """
-        roots = cmds.ls(key, long=True) or []
+        roots = [item.full_name() for item in hlib.ls(key, long=True)] or []
         if cls._busy or not roots:
             return
         cls._busy = True
@@ -468,7 +468,7 @@ class SplineRig:
     @undo_transaction("hrig.SplineRig.delete")
     def delete(self):
         """スキン未使用なら所有グラフと階層を削除する。"""
-        if any(cmds.listConnections(joint, type="skinCluster") for joint in self.joints()):
+        if any(hlib.getNode(joint).connections(type="skinCluster") for joint in self.joints()):
             raise ValueError("Unbind the spline before deleting its module")
         from .splineStretchLayer import SplineStretchLayer
 

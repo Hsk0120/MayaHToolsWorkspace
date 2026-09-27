@@ -1,11 +1,12 @@
 """Twist/Swing/割合回転を追従する補助骨レイヤー。"""
 
-import re
-
 from maya import cmds
 
+import re
+
 import hlib
-from hlib.animation.rotationFollow import RotationFollow
+
+from hrig.setups.rotationFollow import RotationFollow
 from hlib.decorators.undo import undo_transaction
 
 
@@ -29,12 +30,10 @@ class FollowLayer:
         root = self.rig.root
         if not root.has_attr("followGroups"):
             return {}
-        result = {}
-        for index in cmds.getAttr(root.full_name() + ".followGroups", multiIndices=True) or []:
-            source = root.plug("followGroups[{}]".format(index)).source()
-            if source is not None:
-                result[source.node.plug("followId").get()] = source.node
-        return result
+        return {
+            node.plug("followId").get(): node
+            for node in root.plug("followGroups").source_nodes().values()
+        }
 
     def joints(self, identifier=None):
         """生成した追従骨を取得する。
@@ -69,14 +68,25 @@ class FollowLayer:
             raise ValueError("Invalid follow identifier")
         if identifier in self.groups():
             raise ValueError("Follow identifier already exists")
-        joint = hlib.node(joint)
+        joint = hlib.getNode(joint)
         if joint.type() != "joint" or not joint.full_name().startswith(
             self.rig.root.full_name() + "|"
         ):
             raise ValueError("Expected a joint inside the module")
-        parent = (cmds.listRelatives(joint.full_name(), parent=True, fullPath=True) or [None])[0]
+        parent = (
+            [
+                item.full_name()
+                for item in [
+                    hlib.getNode(value)
+                    for value in (
+                        cmds.listRelatives(joint.full_name(), parent=True, fullPath=True) or []
+                    )
+                ]
+            ]
+            or [None]
+        )[0]
         stem = self.rig.root.name() + "_follow_" + identifier
-        if cmds.ls(stem + "_*"):
+        if [item.name() for item in hlib.ls(stem + "_*")]:
             raise ValueError("Follow names already exist")
         graph = RotationFollow.create(
             joint, name=stem + "_graph", mode=mode, axis=axis, ratio=ratio
@@ -117,9 +127,8 @@ class FollowLayer:
         if not root.has_attr("hrigEnabled_follow"):
             root.add_attr(long_name="hrigEnabled_follow", attribute_type="bool", default_value=True)
         for attr, nodes in (("followGroups", (group,)), ("hrigOwned", (group, graph.container))):
-            indices = cmds.getAttr(root.full_name() + "." + attr, multiIndices=True) or []
-            for index, node in enumerate(nodes, max(indices, default=-1) + 1):
-                node.plug("message").connect(root.plug("{}[{}]".format(attr, index)))
+            for node in nodes:
+                root.plug(attr).append_message(node)
         group.set_attr_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
         self.update()
         # スカートには腕脚の表示ノードを作らず、既存の監視入口を再登録する。

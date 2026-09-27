@@ -73,16 +73,9 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
      - 属性型に応じた Plug ラッパー、配列・複合属性
    * - ``components``
      - Vertex/CV/Edge/Face/UV とその複数形。シーンを参照する座標コンポーネント
-   * - ``files``
-     - Scene と参照ファイル操作
-   * - ``namespaces``
-     - Namespace による名前空間操作
-   * - ``plugins``
-     - Plugin / Plugins によるプラグイン管理
-   * - ``units.py`` / ``workspace.py``
-     - Units による単位操作 / Workspace によるプロジェクト操作
-   * - ``editors``
-     - TimeSlider、Viewport、Outliner、ChannelBoxによるエディター操作
+   * - ``general``
+     - Mayaの共通クラス。Scene、Namespace、Plugin、Plugins、PluginPackage、Module、
+       Units、Workspace、Selection、各エディター、ScriptJob、Deferred、DrivenKey、DrivenKeys
    * - ``maths``
      - OpenMaya API 2.0 の型を継承した可変の値型。Vector・Translation・Scale・Shear は
        ``MVector``、Quaternion は ``MQuaternion``、EulerRotation は ``MEulerRotation``、
@@ -93,13 +86,27 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
    * - ``decorators``
      - Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの
        joint姿勢編集、画面表示の一時停止
-   * - ``animation`` / ``selection`` / ``json``
-     - DrivenKey関係、選択スナップショット、状態のJSON保存・復元
+   * - ``json``
+     - JSONの読み書き、型付き状態の保存・復元
    * - ``utils``
-     - ログと進捗表示
+     - 汎用関数、FBX・参照操作、ログ・進捗表示・Version
    * - ``_core``
      - 型登録、ラッパー検出、初期化、再読み込み、コマンド入力の正規化(coerce: 文字列・
        Node・Plug・Component・om2 オブジェクトを名前・Node・Plug へ変換)の内部基盤
+
+新規ファイルも上記の既存分類へ追加します。ノード・属性以外のMaya共通クラスは
+``general``、汎用関数は ``utils``、デコレータは ``decorators`` とし、
+個々のサービスごとにフォルダを増やしません。``components`` は頂点・面などの要素型、
+リグ固有の計算構築は ``hrig.setups`` に置きます。Maya標準の関係型（DrivenKeyなど）は ``general`` へ追加します。
+``_core``、``__tests__``、``docs`` はそれぞれ内部基盤、検証、文書用です。
+旧配置の互換ファイルは置かず、使用側のimportを正式な配置へ更新します。
+
+.. code-block:: python
+
+   from hlib.general import Workspace, Units, Plugin, ScriptJob
+   from hlib.decorators import undo_chunk
+   from hlib.utils.fbx import import_fbx
+   from hlib.utils.references import list_references
 
 .. include:: _generated/full_class_diagram.rst
 
@@ -172,7 +179,7 @@ Undo 対応が必要な操作** に使用します(ノード・アトリビュ�
 - ``MFnDependencyNode.getConnections()``/``MPlug.connectedTo()`` による接続の列挙
 - ``MGlobal.getActiveSelectionList()`` による選択状態の取得。
   復元はUndo対応の ``cmds.select`` で行う（``preserved_selection`` を参照）。
-- ``MNamespace`` による名前空間の存在確認・列挙(``namespaces/namespace.py``)
+- ``MNamespace`` による名前空間の存在確認・列挙(``general/namespace.py``)
 - ``MFnGeometryFilter.getOutputGeometry()`` による blendShape/cluster 等の
   デフォーマの出力ジオメトリ取得
 
@@ -278,7 +285,7 @@ network を各 2000 個作成した実測。比較の基準は ``maya.cmds`` へ
 - ``Node(...)``・``node.plug()``・``hlib.ls()`` は以前の実装の約 0.3〜0.6 倍の時間です
   (``Node(...)`` は約 0.3〜0.4 倍、``node.plug()`` は transform の ``tx`` で約 0.3〜0.5 倍、
   DG ノードの動的属性で約 0.4〜0.6 倍)。``Plug(node, mplug)`` の所有ノードの確認
-  (``MPlug.node()`` との比較)を含みます。例外として、``Node(MPlug)``・``hlib.node(MPlug)``・
+  (``MPlug.node()`` との比較)を含みます。例外として、``Node(MPlug)``・``hlib.getNode(MPlug)``・
   ``to_node(MPlug)`` のように生の ``MPlug`` から所有ノードを解決する経路は、削除済み属性の
   確認が加わるため以前の約 1.4 倍です(1 回あたり約 +1.4µs)。hlib 内部の頻繁な処理は
   ``Node(mplug.node())`` (MObject)を使うため影響しません。
@@ -333,7 +340,7 @@ maya.cmds へ渡す名前と入力の正規化
   ``ValueError``、解決できない(存在しない・一意でない)文字列が ``RuntimeError`` です。
   ただし ``to_node`` は削除済みの Node と、所有ノードが削除済みの Plug・Component を
   そのまま(無効な所有ノードとして)返し、有効性の扱いは呼び出し側の API に任せます
-  (``Node(...)``/``hlib.node`` と ``hlib.constraint``/``Transform.add_constraint`` は
+  (``Node(...)``/``hlib.getNode`` と ``hlib.addConstraint``/``Transform.add_constraint`` は
   従来どおり ``RuntimeError``、``Node.is_parent_of`` などの判定は ``False``)。所有ノードが
   有効で属性だけが削除された Plug・MPlug は、返す Node で削除を表せないため ``to_node`` でも
   ``DeletedAttributeError`` (``ValueError``。``RuntimeError`` の派生でもある)です。
@@ -442,11 +449,11 @@ maths のファイル名
 ``cmds`` はMayaに合わせたcamelCase、``nodes`` はMaya nodeTypeと同名にします。
 それ以外の実装モジュールもlowerCamelCase、クラスはPascalCase、独自メソッドはsnake_caseです。
 例えば ``EulerRotation`` は ``maths/eulerRotation.py``、``ChannelBox`` は
-``editors/channelBox.py`` に置きます。移動の値型は ``Translation``、
+``general/channelBox.py`` に置きます。移動の値型は ``Translation``、
 回転の値型は回転順序を持つ ``EulerRotation`` に統一しています。
 
-この規則は ``events`` / ``editors`` / ``_core`` や ``hlib_*`` 拡張にも適用します。
-例: ``events/scriptJob.py``、``_core/attributeType.py``。
+この規則は ``general`` / ``_core`` や ``hlib_*`` 拡張にも適用します。
+例: ``general/scriptJob.py``、``_core/attributeType.py``。
 ``__init__.py`` 等の特殊名と、テスト探索用 ``test_*.py`` / テスト用スクリプト、
 内部用の先頭 ``_`` とパッケージ名は維持します。
 
@@ -459,7 +466,7 @@ Mayaの現在値を照会するAPIはメソッド、保持するデータはプ�
 
 クラスは所属するサブパッケージから利用します。
 ``hlib.nodes.Node``、``hlib.plugs.Plug``、``hlib.components.Vertex``、
-``hlib.files.Scene``、``hlib.maths.Matrix`` のように
+``hlib.general.Scene``、``hlib.maths.Matrix`` のように
 所属するパッケージから利用します。``hlib.reload()`` は再読み込みの入口です。
 ``hlib.Node`` は利用できません。
 コマンドの実装は ``cmds`` に配置し、自動検出後に hlib 直下にも公開されます。

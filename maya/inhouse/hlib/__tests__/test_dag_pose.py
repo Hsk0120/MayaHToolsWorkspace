@@ -26,7 +26,7 @@ class DagPoseTest(unittest.TestCase):
 
     def test_discovery_and_matrices(self):
         pose = self.pose()
-        self.assertIsInstance(hlib.node(pose.full_name()), hlib.nodes.DagPose)
+        self.assertIsInstance(hlib.getNode(pose.full_name()), hlib.nodes.DagPose)
         self.assertFalse(pose.is_bind_pose())
         self.assertEqual(len(pose.members()), 2)
 
@@ -35,7 +35,7 @@ class DagPoseTest(unittest.TestCase):
         self.assertEqual(list(pose.get_matrix(self.child, ws=True)), cmds.getAttr(self.child + ".worldMatrix[0]"))
         self.assertTrue(pose.is_at_pose())
         cmds.setAttr(self.child + ".ty", 4)
-        self.assertEqual([x.full_name() for x in pose.not_at_pose()], [hlib.node(self.child).full_name()])
+        self.assertEqual([x.full_name() for x in pose.not_at_pose()], [hlib.getNode(self.child).full_name()])
         self.assertFalse(pose.is_at_pose())
 
     def test_sparse_member_indices(self):
@@ -102,7 +102,7 @@ class DagPoseTest(unittest.TestCase):
         skin = cmds.skinCluster([self.root, self.child], mesh, name=self.ns + ":skin")[0]
         pose_name = cmds.listConnections(skin + ".bindPose", source=True, destination=False)[0]
         cmds.rename(pose_name, self.ns + ":bindPose")
-        pose = hlib.node(self.ns + ":bindPose")
+        pose = hlib.getNode(self.ns + ":bindPose")
         self.assertEqual(hlib.nodes.DagPose.from_skin_cluster(skin).full_name(), pose.full_name())
         self.assertTrue(pose.is_bind_pose())
         self.assertEqual([x.full_name() for x in pose.skin_clusters()], [skin])
@@ -119,7 +119,7 @@ class DagPoseTest(unittest.TestCase):
     def make_skin(self):
         mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
         name = cmds.skinCluster([self.root, self.child], mesh, name=self.ns + ":skin")[0]
-        skin = hlib.node(name)
+        skin = hlib.getNode(name)
         cmds.rename(skin.bind_pose().full_name(), self.ns + ":bindPose")
         return skin
 
@@ -179,7 +179,7 @@ class DagPoseTest(unittest.TestCase):
         pose = self.pose(bind_pose=True)
         name = pose.full_name()
         self.assertTrue(pose.is_bind_pose())
-        self.assertNotIn(hlib.node(other), pose.members())
+        self.assertNotIn(hlib.getNode(other), pose.members())
         self.assertEqual(cmds.ls(selection=True), [other])
         cmds.undo()
         self.assertFalse(cmds.objExists(name))

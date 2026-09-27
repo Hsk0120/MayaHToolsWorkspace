@@ -6,7 +6,7 @@ from unittest import mock
 from maya import cmds
 
 from hrig.__tests__ import test_limb
-from hrig.soft_ik import softened_distance
+from hrig.setups import SoftIK
 
 
 class StandardTest(test_limb.LimbTest):
@@ -38,9 +38,9 @@ class StandardTest(test_limb.LimbTest):
                 ratio = cmds.getAttr(graph + ".ratio")
                 self.assertTrue(math.isfinite(ratio))
                 self.assertAlmostEqual(distance * ratio,
-                                       softened_distance(distance, 10, softness), delta=0.0001)
+                                       SoftIK.distance(distance, 10, softness), delta=0.0001)
                 self.assertAlmostEqual(math.dist(self.position(), (0, 0, 0)),
-                                       softened_distance(distance, 10, softness), delta=0.002)
+                                       SoftIK.distance(distance, 10, softness), delta=0.002)
 
     def test_backend_exchange(self):
         """同一実装の再指定はノードを増やさず、削除時は内部演算も除去する。"""

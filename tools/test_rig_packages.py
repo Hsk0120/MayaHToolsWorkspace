@@ -18,7 +18,7 @@ def main():
         各テストは新規シーンへ切り替える。Maya GUI内へ送信しない。
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--suite',choices=('all','hlib','bifrost','native','standard'),default='all')
+    parser.add_argument('--suite',choices=('all','hlib','setups','bifrost','native','standard'),default='all')
     args = parser.parse_args()
     sys.path.insert(0,str(ROOT/'maya/inhouse'))
     import maya.standalone
@@ -33,7 +33,9 @@ def main():
             if plugin.is_file() and not cmds.pluginInfo('fbxmaya',q=True,loaded=True):
                 cmds.loadPlugin(str(plugin),quiet=True)
             files += ['hlib/__tests__/'+name+'.py' for name in (
-                'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events','test_space_switch','test_twist_distribution','test_bend_correction','test_swing_twist','test_radial_weights','test_rotation_follow','test_secondary','test_spline_ik','test_length_compensation','test_pose_edit')]
+                'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events')]
+        if args.suite in ('all','setups'):
+            files += ['hrig/__tests__/test_setup_'+name+'.py' for name in ('space_switch', 'twist_distribution', 'bend_correction', 'swing_twist', 'radial_weights', 'rotation_follow', 'secondary', 'spline_ik', 'length_compensation', 'pose_edit', 'rig_foundations')]
         if args.suite in ('all','bifrost','native','standard'):
             files.append('hrig/__tests__/test_definition.py')
         if args.suite in ('all','bifrost'):

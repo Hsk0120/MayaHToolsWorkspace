@@ -101,7 +101,7 @@ def main(output_dir=None, finished=None):
             result['radius'] = {'before': before_radius, 'after_redo': solver.radius()}
             name = solver.full_name()
             hlib.reload()
-            solver = hlib.node(name)
+            solver = hlib.getNode(name)
             check(isinstance(solver, hlib.nodes.Node) and hasattr(solver, 'radius'), 'Reload restores extension registration')
             result['plugin'] = cmds.pluginInfo('MayaUERBFPlugin', query=True, path=True)
         else:

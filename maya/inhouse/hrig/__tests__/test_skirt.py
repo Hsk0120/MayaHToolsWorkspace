@@ -9,7 +9,7 @@ from unittest import mock
 from maya import cmds
 
 import hlib
-from hlib.animation import RadialWeights
+from hrig.setups import RadialWeights
 from hrig import build_skirt
 from hrig.skirtRig import SkirtRig
 

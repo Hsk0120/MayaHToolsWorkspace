@@ -32,27 +32,34 @@ for _info in sorted(_pkgutil.iter_modules(__path__), key=lambda item: item.name)
 # 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
 # 公開名の一覧との一致は test_typing_exports.py が検証する。
 if TYPE_CHECKING:
+    from .createNurbs import createNurbs
+    from .createCurve import createCurve
+    from .addAttr import addAttr
+    from .executeDeferred import executeDeferred
+    from .getAttr import getAttr
+    from .createIkHandle import createIkHandle
+    from .makeIdentity import makeIdentity
+    from .createPolygon import createPolygon
+    from .reorder import reorder
+    from .createSet import createSet
     from .bakeResults import bakeResults
     from .captureSelection import captureSelection
-    from .channelBox import channelBox
-    from .constraint import constraint
+    from .getChannelBox import getChannelBox
+    from .addConstraint import addConstraint
     from .createNode import createNode
-    from .currentTime import currentTime
     from .delete import delete
-    from .drivenKey import drivenKey
+    from .getDrivenKey import getDrivenKey
     from .duplicate import duplicate
-    from .group import group
+    from .createGroup import createGroup
     from .ls import ls
-    from .node import node
-    from .objExists import objExists
-    from .outliner import outliner
-    from .plug import plug
+    from .getNode import getNode
+    from .getOutliner import getOutliner
+    from .getPlug import getPlug
     from .requirePlugins import requirePlugins
-    from .scene import scene
+    from .getScene import getScene
     from .select import select
-    from .setKeyframe import setKeyframe
-    from .timeSlider import timeSlider
-    from .viewport import viewport
+    from .getTimeSlider import getTimeSlider
+    from .getViewport import getViewport
 
 
 def _prepare_reload():

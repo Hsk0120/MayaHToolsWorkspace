@@ -1,7 +1,7 @@
 GUIイベント監視
 ===============
 
-``hlib.events`` は Maya GUI の ``scriptJob`` を所有者ごとに管理します。
+``hlib.general`` は Maya GUI の ``scriptJob`` を所有者ごとに管理します。
 importだけでは監視を開始しません。バッチでは登録を拒否します。
 評価ノードの代替ではなく、アイドル時に設定変更へ応答する用途です。
 再生中のフレーム評価には使用しません。
@@ -10,8 +10,8 @@ importだけでは監視を開始しません。バッチでは登録を拒否�
 
     import hlib
 
-    control = hlib.node("settings_ctrl")
-    jobs = hlib.events.ScriptJobs()
+    control = hlib.getNode("settings_ctrl")
+    jobs = hlib.general.ScriptJobs()
 
     def changed():
         print(control.plug("enabled").get())
@@ -43,7 +43,7 @@ importだけでは監視を開始しません。バッチでは登録を拒否�
 属性の取得と変更通知の抑制
 ------------------------------------------------------------
 
-``hlib.plug("settings_ctrl.enabled")`` は既存属性を型に対応するPlugへ解決します。
+``hlib.getPlug("settings_ctrl.enabled")`` は既存属性を型に対応するPlugへ解決します。
 Plug自身やOpenMaya API 2.0のMPlugも受け付けます。
 
 ``Plug.set_if_changed(value, unlock=False)`` はbool/int/float/strのスカラー値を

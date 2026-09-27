@@ -1,11 +1,10 @@
 """各指のFKへCurlとSpreadを加算する。"""
 
 import math
-from maya import cmds
 import hlib
 from hlib.decorators.undo import undo_transaction
 from .controlRig import ControlRig
-from .splineRig import SplineRig
+from hrig.setups import ControlShape
 
 
 class FingerRig(ControlRig):
@@ -78,7 +77,7 @@ class FingerRig(ControlRig):
                 rig.own(matrix)
                 rig.register("deform", bone)
                 if j < joint_count:
-                    SplineRig._shape(control, spacing * 0.25, (1, 0, 0), 17)
+                    ControlShape.circle(control, spacing * 0.25, (1, 0, 0), 17)
                     rig.register("controls", control)
                     weight_attr = "curlWeight{}_{}".format(f + 1, j + 1)
                     settings.add_attr(

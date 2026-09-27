@@ -13,14 +13,15 @@
 .. code-block:: python
 
    import hlib
+   from maya import cmds
 
    a = hlib.createNode("transform", name="a")
    b = hlib.createNode("transform", name="b")
 
-   print(hlib.objExists(a))          # True
+   print(cmds.objExists(a))          # True
    copy = hlib.duplicate(a, name="aCopy")
-   parent = hlib.group([a, b], name="grp")
-   empty = hlib.group(name="emptyGrp", empty=True)
+   parent = hlib.createGroup([a, b], name="grp")
+   empty = hlib.createGroup(name="emptyGrp", empty=True)
 
    hlib.delete(copy)
 
@@ -46,6 +47,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 .. code-block:: python
 
    import hlib
+   from maya import cmds
 
    a = hlib.createNode("transform", name="animationA")
    b = hlib.createNode("transform", name="animationB")
@@ -54,18 +56,17 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
    print(hlib.ls(selection=True))
    hlib.select(clear=True)
 
-   hlib.currentTime(1)
-   hlib.setKeyframe(a.plug("translateX"), value=0.0)
-   hlib.currentTime(24)
-   hlib.setKeyframe(a.plug("translateX"), value=10.0)
+   cmds.currentTime(1)
+   cmds.setKeyframe(a.plug("translateX"), value=0.0)
+   cmds.currentTime(24)
+   cmds.setKeyframe(a.plug("translateX"), value=10.0)
 
    hlib.bakeResults(a, time=(1, 24), attribute=["translateX"], simulation=True)
 
 ``select`` は ``maya.cmds.select`` と同じ引数を受け付けます。``nodes`` を省略すると
 ``clear=True`` のような選択操作専用のフラグだけで呼び出せます。
-``setKeyframe`` はノードまたは ``Plug``、およびそれらのリストを対象にでき、
-``target`` を省略すると現在の選択が対象になります。空のリストは現在の選択へキーを
-打たないよう ``TypeError`` になります。``currentTime`` は引数を省略すると現在時間を照会します。
+時刻やキー操作は ``maya.cmds`` を使用します。現在時刻の照会は
+``cmds.currentTime(query=True)`` と明示します。
 ``bakeResults`` は時間範囲を補いません。``time=(start, end)`` を明示してください。
 ``simulation`` の既定値はFalseです。シーン全体の評価が必要ならTrueを指定します。
 GUIではベイク中のメインペインを非表示にし、終了時に元の状態へ戻します。
@@ -80,3 +81,47 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
 :class:`~hlib.plugs.plug.Plug` オブジェクトを通して操作します。
 本ドキュメントの使用例は ``plug()`` に統一しています。
 ``attr()`` は既存コードとの互換性のために残している ``plug()`` の別名です。
+
+コマンドの命名と役割
+--------------------
+
+ファイル名と関数名を動詞+対象へ統一しています。``ls`` は一覧取得の慣用名として維持します。
+旧名の互換入口はありません。
+
+.. list-table::
+   :header-rows: 1
+
+   * - 旧名
+     - 現在の名前
+   * - ``constraint``
+     - ``addConstraint``
+   * - ``curve``
+     - ``createCurve``
+   * - ``ikHandle``
+     - ``createIkHandle``
+   * - ``sets``
+     - ``createSet``
+   * - ``group``
+     - ``createGroup``
+   * - ``node``
+     - ``getNode``
+   * - ``plug``
+     - ``getPlug``
+   * - ``scene``
+     - ``getScene``
+   * - ``channelBox``
+     - ``getChannelBox``
+   * - ``outliner``
+     - ``getOutliner``
+   * - ``timeSlider``
+     - ``getTimeSlider``
+   * - ``viewport``
+     - ``getViewport``
+   * - ``drivenKey``
+     - ``getDrivenKey``
+
+``create`` / ``add`` は生成・追加専用です。拘束の照会は
+``constraint.targets()`` / ``constraint.weight_plugs()``、編集は
+``constraint.set_weight()`` を使います。セットは
+``object_set.members()`` / ``add()`` / ``remove()`` を使います。
+``getDrivenKey`` は関係取得のみで、キーの生成は ``set_key()`` です。

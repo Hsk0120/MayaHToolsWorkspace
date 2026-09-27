@@ -4,7 +4,7 @@ import math
 import unittest
 from maya import cmds
 from hrig import build_limb
-from hrig.soft_ik import softened_distance
+from hrig.setups import SoftIK
 
 
 class NativeTest(unittest.TestCase):
@@ -25,7 +25,7 @@ class NativeTest(unittest.TestCase):
                 cmds.setAttr(target+'.tx',distance-8)
                 output=cmds.xform(self.rig.joints()[2],q=True,ws=True,t=True)
                 self.assertAlmostEqual(math.dist(output,(0,0,0)),
-                                       softened_distance(distance,10,softness),delta=0.002)
+                                       SoftIK.distance(distance,10,softness),delta=0.002)
         self.rig.set_mode('fk')
         self.assertEqual(cmds.getAttr(self.rig._member('softGraph')+'.nodeState'),2)
 

@@ -39,6 +39,7 @@ maya.cmds へそのまま渡せるもの
 
    import maya.cmds as cmds
    import hlib
+   from maya import cmds
    from hlib.components import Vertex
 
    grp1 = hlib.createNode("transform", name="grp1")
@@ -52,7 +53,7 @@ maya.cmds へそのまま渡せるもの
    print(cmds.getAttr(plug))       # 3.0（grp2|dup は変更されない）
    cmds.connectAttr(dup1.plug("ty"), dup2.plug("ty"))
 
-   cube = hlib.node(cmds.polyCube(name="cube")[0])
+   cube = hlib.getNode(cmds.polyCube(name="cube")[0])
    vertex = Vertex(cube.shape(), 3)
    cmds.select([dup1, vertex])     # Node と Component をまとめて選択
    cmds.xform(vertex, translation=(0, 1, 0), worldSpace=True)
@@ -78,7 +79,7 @@ maya.cmds へそのまま渡せるもの
   取り消した場合は再び有効になります)。削除済みのシェイプの Component は ``str()`` で
   例外になります。
 - インスタンス化されたノードの Node は、指定されたインスタンスのパスを保持します
-  (``hlib.node(<2つ目のインスタンスのパス>)``)。そのインスタンスだけが削除された場合は、
+  (``hlib.getNode(<2つ目のインスタンスのパス>)``)。そのインスタンスだけが削除された場合は、
   残っている最初のインスタンスのパスへ切り替わります(ノード自体は有効なままです)。
 - インスタンスごとの属性(``worldMatrix`` など)は、インスタンス化された祖先による
   間接インスタンスも含め、インスタンス番号の要素を評価前から存在する要素として扱います
@@ -164,22 +165,21 @@ maya.cmds へそのまま渡せるもの
      - ``str(array_plug)`` または ``array_plug.full_name()``。要素 Plug(``array_plug[0]``)はそのまま渡せる
    * - ``om2.MObject``
      - ``str()`` がオブジェクトの表現(``<OpenMaya.MObject ...>``)になる
-     - ``hlib.node(mobject)`` の戻り値、または hlib のコマンド
+     - ``hlib.getNode(mobject)`` の戻り値、または hlib のコマンド
    * - ``om2.MPlug``
      - ``str()`` が ``MPlug.name()`` で、短いノード名しか含まない。同じ短い名前のノードがあると曖昧になる
      - hlib の Plug(``hlib._core.coerce.to_plug`` 相当の変換は hlib のコマンドと ``Plug.connect()`` が行う)
 
 生の ``om2.MPlug`` は、削除操作をまたいで保持しないでください。hlib のコマンドと
-ノードが必要な引数(``hlib.node``、``hlib.constraint`` の拘束元・拘束先など)は
-``deleteAttr`` で削除された属性の MPlug を ``ValueError`` にします(``hlib.objExists`` は
-``False``、``Plug.connect()`` などの属性が必要な引数は ``RuntimeError``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
+ノードが必要な引数(``hlib.getNode``、``hlib.addConstraint`` の拘束元・拘束先など)は
+``deleteAttr`` で削除された属性の MPlug を ``ValueError`` にします(``Plug.connect()`` などの属性が必要な引数は ``RuntimeError``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
 状態での削除、``file(new=True)`` など)の MPlug は、``MPlug.node()`` の時点で Maya が
 異常終了し、API では検出できません。保持する場合は hlib の Plug(ノードの削除を検出できる)を
 使ってください。また MPlug はインスタンスの情報を持たないため、インスタンス化されたノードの
 MPlug は最初のインスタンスとして扱います(Plug と文字列は名前が指すインスタンスを保持します)。
 
 ワールド空間属性(``worldMatrix`` など)の ``ArrayPlug`` の ``str()`` (``g|c.worldMatrix``)は、
-maya.cmds・``to_plug()``・``hlib.node()`` では配列ではなく、名前が指すインスタンスの要素
+maya.cmds・``to_plug()``・``hlib.getNode()`` では配列ではなく、名前が指すインスタンスの要素
 (``worldMatrix[<インスタンス番号>]``)として解決されます。``cmds.getAttr(str(world), size=True)`` は
 インスタンスの数によらず ``1`` を返し、``to_plug(str(world))`` は要素の ``MatrixPlug`` です。
 配列の要素を扱う場合は ``world.elements()``・``world[1]`` を使ってください。
@@ -215,8 +215,8 @@ Plug の値は ``plug.get()``/``plug.set()`` でも扱えます。単位の扱�
 hlib のコマンドが受け付ける入力
 ------------------------------------------------------------
 
-``hlib.select``・``hlib.delete``・``hlib.objExists``・``hlib.duplicate``・``hlib.group``・
-``hlib.ls``・``hlib.setKeyframe``・``hlib.bakeResults`` は、対象を次の規則で名前に
+``hlib.select``・``hlib.delete``・``hlib.duplicate``・``hlib.createGroup``・
+``hlib.ls``・``hlib.bakeResults`` は、対象を次の規則で名前に
 変換してから maya.cmds を呼びます(``parent`` などノードが必要な引数は後述。
 ``hlib.delete`` は Plug・MPlug を ``TypeError`` にします。「コマンドごとの注意」を参照)。
 
@@ -252,25 +252,25 @@ hlib のコマンドが受け付ける入力
 
    import maya.api.OpenMaya as om2
    from hlib.components import Vertices
-   from hlib.selection import Selection
+   from hlib.general.selection import Selection
 
    hlib.select([dup1.plug("tx"), dup2.mobject(), Vertices(cube.shape(), [0, 1])])
-   print(hlib.objExists(dup1.plug("tx").mplug()))   # True
-   hlib.setKeyframe([dup1.plug("tx"), dup2.plug("ty")], time=1)
+   print(cmds.objExists(dup1.plug("tx").name()))   # True
+   cmds.setKeyframe([dup1.plug("tx"), dup2.plug("ty")], time=1)
    hlib.select(Selection([dup1, vertex]))
 
-対象としてノードが必要な引数(``hlib.node``、``hlib.constraint`` と
+対象としてノードが必要な引数(``hlib.getNode``、``hlib.addConstraint`` と
 ``Transform.add_constraint`` の拘束元・拘束先、``Node(...)``、
-``hlib.createNode``/``hlib.group`` の ``parent``、``Transform.set_parent``、
+``hlib.createNode``/``hlib.createGroup`` の ``parent``、``Transform.set_parent``、
 ``Node.is_parent_of`` など)は、Plug・MPlug・``"node.attribute"`` を所有ノード、
 Component・Components・``"pCube1.vtx[0]"`` を所有シェイプとして扱います。
 文字列も同じ規則で解決するため、maya.cmds のようにプラグ名・コンポーネント名が
 拘束元として扱われない(または黙って無視される)ことはありません。
 ``parent`` にシェイプ(Component の所有シェイプを含む)を指定した場合の配置は
-``maya.cmds.createNode`` と同じです。``hlib.constraint`` の ``target`` が Transform
+``maya.cmds.createNode`` と同じです。``hlib.addConstraint`` の ``target`` が Transform
 (joint・IkHandle を含む)に解決されない場合は ``TypeError`` です。
 
-``hlib.constraint``/``Transform.add_constraint`` の拘束元は、型によって扱いが異なります。
+``hlib.addConstraint``/``Transform.add_constraint`` の拘束元は、型によって扱いが異なります。
 
 - parent・point・orient・scale・aim・poleVector は拘束元の transform の値を使うため、
   拘束元が Transform(joint・IkHandle を含む)に解決される必要があります。シェイプ
@@ -285,12 +285,12 @@ Component・Components・``"pCube1.vtx[0]"`` を所有シェイプとして扱�
   ください(MPlug はインスタンスの情報を持たないため、最初のインスタンスになります)。
 
 属性が必要な引数(``Plug.connect``、``Plug.disconnect``、``Plug.is_connected_to``、
-``hlib.drivenKey``、``DrivenKeys.find``)は、Plug・MPlug と属性名の文字列を受け付けます。
+``hlib.getDrivenKey``、``DrivenKeys.find``)は、Plug・MPlug と属性名の文字列を受け付けます。
 文字列は ``str(plug)`` が返す形式(``grp1|dup.translateX``、``bs.weight[0]``、
 エイリアス名の ``bs.smile``、``cubeShape.pnts[2].pntx`` など)も maya.cmds と同じ規則で解決します。
 mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i]`` のように
 コンポーネント名としても解釈される名前は、``cmds.connectAttr`` と同じく属性として解決します
-(``Selection`` は ``cmds.select`` と同じく頂点・CV として扱います。``hlib.node`` は
+(``Selection`` は ``cmds.select`` と同じく頂点・CV として扱います。``hlib.getNode`` は
 どちらの解釈でも所有シェイプを返します)。
 ``|box1.castsShadows`` のように transform の名前でシェイプの属性を指す場合も、
 名前が指すインスタンスのシェイプ(``|box1|boxShape``)を所有ノードにします。
@@ -302,14 +302,14 @@ Plug は1つの属性を表すためです。シェイプの名前で指定し�
 
 .. code-block:: python
 
-   print(hlib.node(dup1.plug("tx")))    # grp1|dup
-   print(hlib.node(vertex))              # cubeShape（所有シェイプ）
-   hlib.constraint(dup1.plug("tx"), dup2.mobject(), type="orient")  # 拘束元は dup1
+   print(hlib.getNode(dup1.plug("tx")))    # grp1|dup
+   print(hlib.getNode(vertex))              # cubeShape（所有シェイプ）
+   hlib.addConstraint(dup1.plug("tx"), dup2.mobject(), type="orient")  # 拘束元は dup1
    dup1.plug("sx").connect(dup2.plug("sx").mplug())
 
 その他の規則です。
 
-- 対象を名前へ変換する引数(上の表のコマンドの対象と、``hlib.createNode``/``hlib.group``/
+- 対象を名前へ変換する引数(上の表のコマンドの対象と、``hlib.createNode``/``hlib.createGroup``/
   ``BlendShape.add_target`` などの ``parent``・ターゲットのようにノードの名前を渡す引数)の
   例外の種類は次のとおりです。
 
@@ -318,26 +318,22 @@ Plug は1つの属性を表すためです。シェイプの名前で指定し�
   - 文字列を解決できない(存在しない、または ``"dup.tx"`` のように同じ短い名前のノードが
     あって複数の対象に一致する): ``RuntimeError``
 
-  ``Node(...)``/``hlib.node`` は従来どおり、解決できない対象(空・削除済みを含む)を
+  ``Node(...)``/``hlib.getNode`` は従来どおり、解決できない対象(空・削除済みを含む)を
   すべて ``RuntimeError`` にします(依存ノード以外を指す MObject は ``TypeError``)。
-  ``hlib.constraint``/``Transform.add_constraint`` の拘束元・拘束先に削除済みの Node などを
+  ``hlib.addConstraint``/``Transform.add_constraint`` の拘束元・拘束先に削除済みの Node などを
   渡した場合も従来どおり ``RuntimeError`` です。
   ただし所有ノードは有効なまま ``deleteAttr`` で属性が削除された Plug・MPlug は、所有ノードへ
-  解決せず、ノードが必要な引数(``Node(...)``/``hlib.node``、``hlib.constraint`` の拘束元・
+  解決せず、ノードが必要な引数(``Node(...)``/``hlib.getNode``、``hlib.addConstraint`` の拘束元・
   拘束先、``hlib._core.coerce.to_node`` など)でも、名前へ変換する引数と同じく ``ValueError``
   です(``hlib._core.coerce.DeletedAttributeError``。``RuntimeError`` の派生でもあるため、
   ``Node(...)`` の失敗を ``except RuntimeError`` で捕捉するコードもそのまま使えます)。
   ``Node.is_parent_of``/``is_child_of``/``is_ancestor_of`` の判定は、削除済みの対象
   (削除済みの Node、所有ノードが削除済みの Plug・Component、属性が削除済みの Plug・MPlug、
   削除済みのノードを指す om2 オブジェクト)には ``False`` を返します。
-- ``hlib.objExists`` は、文字列を ``maya.cmds.objExists`` と同じ規則で判定します
-  (一意でない名前も一致があれば ``True``)。削除済みの Node・Plug・Component・
-  om2 オブジェクトには ``False`` を返します。
 - 空の列は、``hlib.select([])`` が ``maya.cmds.select([])`` と同じく選択を解除し、
   ``hlib.ls([])`` と ``hlib.ls(None)`` は空の結果を返します(``cmds.listRelatives`` などが
-  返す ``None`` をそのまま渡せます)。``hlib.delete([])`` と ``hlib.group([])`` は
-  ``ValueError`` (``group`` は ``empty=True`` を除く)、``hlib.setKeyframe([])`` は
-  ``TypeError`` です。いずれも maya.cmds のように現在の選択を対象にしないためです。
+  返す ``None`` をそのまま渡せます)。``hlib.delete([])`` と ``hlib.createGroup([])`` は
+  ``ValueError`` (``group`` は ``empty=True`` を除く)です。いずれも maya.cmds のように現在の選択を対象にしないためです。
 - ``Selection(...)`` も同じ型に加えて ``om2.MSelectionList`` を受け付けます。
 
 コマンドごとの注意
@@ -367,19 +363,19 @@ Plug・Component を受け付けるコマンドは一意な名前へ変換して
        オブジェクト全体を複製します。Maya 2022 では新しいシーンに立方体だけを作った状態などで
        ``RuntimeError`` (No object(s) to duplicate)になり、ほかのノードの作成後や頂点の選択中には
        オブジェクト全体を複製します)。オブジェクトを複製する場合はノードを渡してください。
-   * - ``hlib.group``
+   * - ``hlib.createGroup``
      - ``maya.cmds.group`` は属性・コンポーネントをグループ化しないため ``RuntimeError``
        (Not enough objects or values)になり、グループは作られません。``parent``/``p`` 引数の
        Plug は所有ノードを親にします。Component・シェイプは所有シェイプへ解決されますが、
        ``maya.cmds.group`` が Transform 以外の親を受け付けないため ``RuntimeError``
        (Transform node required for -parent flag)です。
-   * - ``hlib.select``・``hlib.setKeyframe``・``hlib.bakeResults``・``hlib.objExists``
+   * - ``hlib.select``・``hlib.bakeResults``
      - maya.cmds と同じく属性・コンポーネントとして扱います(属性の選択・キー設定など)。
 
 Node の生成
 ------------------------------------------------------------
 
-``Node(value)`` と ``hlib.node(value)`` は、名前・MObject・MDagPath に加えて次を受け付け、
+``Node(value)`` と ``hlib.getNode(value)`` は、名前・MObject・MDagPath に加えて次を受け付け、
 実際のノード型に対応するラッパー(``Joint``、``Mesh`` など)を返します。
 
 - 既存の ``Node``: 同じノードとインスタンスを指す新しいラッパー。
@@ -398,7 +394,7 @@ om2 オブジェクトを渡した場合は ``RuntimeError`` になります。�
 以前の hlib からの変更点
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-以前の ``Node(value)``/``hlib.node(value)`` は、複数のノードに一致する名前やパターン
+以前の ``Node(value)``/``hlib.getNode(value)`` は、複数のノードに一致する名前やパターン
 (``"bulk*"`` など)を渡すと最初に一致したノードを黙って返していました。現在は
 ``RuntimeError`` です(一致が1つだけのパターンは、そのノードを返します)。
 パターンに一致するノードを扱う場合は ``hlib.ls`` を使ってください。
@@ -406,6 +402,6 @@ om2 オブジェクトを渡した場合は ``RuntimeError`` になります。�
 .. code-block:: python
 
    # 以前: 最初の一致を返していた。現在は RuntimeError。
-   # node = hlib.node("bulk*")
+   # node = hlib.getNode("bulk*")
    nodes = hlib.ls("bulk*")       # 一致するすべてのノード
    first = nodes[0] if nodes else None

@@ -1,14 +1,13 @@
 """スカートのRBF回転補正を登録・編集するパネル。"""
 
 from functools import partial
-from maya import cmds
 
 try:
     from PySide6 import QtWidgets, QtCore
 except ImportError:
     from PySide2 import QtWidgets, QtCore
 
-from hlib.animation import PoseRbf
+from hrig.setups import PoseRbf
 from .secondaryLayer import SecondaryLayer
 
 

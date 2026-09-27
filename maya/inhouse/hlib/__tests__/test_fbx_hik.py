@@ -32,12 +32,12 @@ class StandardPluginsTest(unittest.TestCase):
 
     def test_fbx_animation_roundtrip(self):
         """選択と設定を復元し、骨アニメーションを再読込できる。"""
-        from hlib.files import export_fbx, import_fbx
+        from hlib.utils.fbx import export_fbx, import_fbx
         joint = cmds.createNode('joint',name='roundtripJoint')
         cmds.setKeyframe(joint,attribute='rotateZ',time=1,value=0)
         cmds.setKeyframe(joint,attribute='rotateZ',time=10,value=45)
         cmds.select(joint)
-        hlib.plugins.Plugin('fbxmaya').ensure_loaded()
+        hlib.general.Plugin('fbxmaya').ensure_loaded()
         old = mel.eval('FBXProperty Export|IncludeGrp|Animation -q;')
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'animation.fbx'

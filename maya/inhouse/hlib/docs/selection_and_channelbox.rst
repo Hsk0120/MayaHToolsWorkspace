@@ -41,7 +41,7 @@ Selection
 
 .. code-block:: python
 
-   from hlib.selection import Selection
+   from hlib.general.selection import Selection
 
    selection = Selection(["pCube1", "pCubeShape2.vtx[0:3]"])
 
@@ -67,7 +67,7 @@ RuntimeErrorになります。新しいUIは生成しません。
 
    import hlib
 
-   channel = hlib.channelBox()
+   channel = hlib.getChannelBox()
    plugs = channel.selected_plugs()
    nodes = channel.displayed_nodes()
    attributes = channel.selected_attributes()
@@ -87,6 +87,6 @@ RuntimeErrorになります。新しいUIは生成しません。
    channel.clear_selection()
 
 ``clear_selection()`` は属性のUI選択を解除します。
-``hlib.channelBox("既存コントロール名")`` で独自UIも参照できます。
+``hlib.getChannelBox("既存コントロール名")`` で独自UIも参照できます。
 Channel Boxの属性選択とシーンのアクティブ選択は別です。
 ``captureSelection()`` はChannel Boxの選択属性を取得しません。

@@ -1161,7 +1161,7 @@ def _apply_orient_from_ui(*_):
         cmds.warning(str(e))
         return
 
-    # 変形破綻を避けるため、影響する skinCluster を hlib.decorators.preserved_skin_shape
+    # 変形破綻を避けるため、影響する skinCluster を hlib.utils.preserved_skin_shape
     # (skinCluster -moveJointsMode / -recacheBindMatrices) で保護する。
     target_joints = _compute_target_joints(joints, include_children=True)
     next_children_debug = _compute_is_next_children_debug_enabled(primary_space, up_space)

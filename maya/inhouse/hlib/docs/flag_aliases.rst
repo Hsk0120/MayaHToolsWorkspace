@@ -28,9 +28,6 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
    * - select
      - replace / clear
      - r / cl
-   * - setKeyframe
-     - time / attribute / value
-     - t / at / v
    * - bakeResults
      - time / attribute / simulation
      - t / at / sm
@@ -38,11 +35,12 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 .. code-block:: python
 
    import hlib
+   from maya import cmds
 
    selected = hlib.ls(selection=True, type="joint")
    selected_short = hlib.ls(sl=True, typ="joint")  # どちらもJoints
    node = hlib.createNode("transform", n="example")
-   hlib.setKeyframe(node, t=1, at="tx", v=0)
+   cmds.setKeyframe(node, t=1, at="tx", v=0)
 
 ``ls`` の ``type`` の短名は **typ** です。``t`` へ一律に省略はしません。
 同じフラグの長名と短名を同時に渡すと、値が同じでも処理前に ``TypeError`` になります。
@@ -55,7 +53,7 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 独自メソッドの引数
 ------------------------------
 
-``hlib.constraint`` と ``Transform.add_constraint`` （Jointにも継承）は
+``hlib.addConstraint`` と ``Transform.add_constraint`` （Jointにも継承）は
 ``type`` / ``typ`` と ``maintainOffset`` / ``mo`` を受け付けます。
 これはhlibが明示した別名です。``Joints.add_constraint`` や
 ``call_each`` にも同じ指定を渡せます。位置引数と短名による二重指定もエラーです。

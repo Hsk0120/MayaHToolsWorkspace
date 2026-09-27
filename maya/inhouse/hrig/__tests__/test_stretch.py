@@ -96,9 +96,9 @@ class StretchTest(unittest.TestCase):
         group = rig.add_stretch()
         rig.set_mode("ik")
         rig.set_layer_enabled("soft", False)
-        hlib.plug(rig.controls()["target"] + ".tx").set(7)
+        hlib.getPlug(rig.controls()["target"] + ".tx").set(7)
         self.same(self.position(rig.joints()[2]), (15, 0, 0))
-        self.assertAlmostEqual(hlib.plug(rig._member("ik1") + ".tx").get(), 7.5)
+        self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 7.5)
         for i in range(3):
             self.same(self.position(rig.joints()[i]), self.position(rig._member("ik" + str(i))))
             self.assertAlmostEqual(
@@ -119,7 +119,7 @@ class StretchTest(unittest.TestCase):
         group.plug("maxStretch").set(1.2)
         self.assertAlmostEqual(self.position(rig.joints()[2])[0], 12, places=4)
         rig.set_layer_enabled("stretch", False)
-        self.assertAlmostEqual(hlib.plug(rig._member("ik1") + ".tx").get(), 5)
+        self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 5)
         cmds.undo()
         self.assertTrue(rig.layer_enabled("stretch"))
 
@@ -130,9 +130,9 @@ class StretchTest(unittest.TestCase):
         rig.set_mode("ik")
         rig.set_layer_enabled("soft", False)
         # 初期目標距離8ではsquash=0なので通常の肘曲げを維持する。
-        self.assertAlmostEqual(hlib.plug(rig._member("ik1") + ".tx").get(), 5)
+        self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 5)
         group.plug("squash").set(0.5)
-        self.assertAlmostEqual(hlib.plug(rig._member("ik1") + ".tx").get(), 4.5)
+        self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 4.5)
         before = [self.matrix(j) for j in rig.joints()[:3]]
         rig.match_fk()
         rig.set_mode("fk")
@@ -140,7 +140,7 @@ class StretchTest(unittest.TestCase):
             self.same(self.matrix(joint), matrix)
         rig.set_mode("ik")
         rig.set_lod(0)
-        self.assertIsNone(hlib.plug(rig._member("ik1") + ".tx").source())
+        self.assertIsNone(hlib.getPlug(rig._member("ik1") + ".tx").source())
         rig.set_lod(1)
         path = os.path.join(tempfile.gettempdir(), "hrig_stretch_limb.ma")
         root = rig.root.name()
@@ -148,7 +148,7 @@ class StretchTest(unittest.TestCase):
         cmds.file(save=True, type="mayaAscii", force=True)
         cmds.file(path, open=True, force=True, executeScriptNodes=False)
         rig = LimbRig(root)
-        self.assertIsNotNone(hlib.plug(rig._member("ik1") + ".tx").source())
+        self.assertIsNotNone(hlib.getPlug(rig._member("ik1") + ".tx").source())
         rig.delete()
         self.assertFalse(cmds.objExists(root + "_stretchGraph"))
 
@@ -179,7 +179,7 @@ class StretchTest(unittest.TestCase):
         target = rig.controls()["target"]
         for time, value in ((1, 0), (10, 7), (20, 3)):
             cmds.setKeyframe(target, attribute="tx", time=time, value=value)
-        hlib.plug(target + ".heelRoll").set(15)
+        hlib.getPlug(target + ".heelRoll").set(15)
         expected = {}
         for time in (1, 10, 20):
             cmds.currentTime(time)

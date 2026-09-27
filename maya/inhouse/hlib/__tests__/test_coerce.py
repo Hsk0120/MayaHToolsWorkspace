@@ -13,7 +13,7 @@ from hlib._core.coerce import plug_path, to_name, to_names, to_node, to_node_nam
 from hlib.components import Vertex, Vertices
 from hlib.nodes import Node
 from hlib.plugs import ArrayPlug, Plug
-from hlib.selection import Selection
+from hlib.general.selection import Selection
 
 
 class CoerceTest(unittest.TestCase):

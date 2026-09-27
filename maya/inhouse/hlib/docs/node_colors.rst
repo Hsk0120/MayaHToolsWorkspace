@@ -11,7 +11,7 @@ Outliner色
 
    import hlib
 
-   ctrl = hlib.node("ctrl")
+   ctrl = hlib.getNode("ctrl")
    ctrl.set_outliner_color((1, 0.5, 0))
    print(ctrl.outliner_color())
    ctrl.set_outliner_color(None)  # カスタム色を無効化
@@ -24,7 +24,7 @@ Shapeの表示色
 
 .. code-block:: python
 
-   shape = hlib.node("ctrlShape")
+   shape = hlib.getNode("ctrlShape")
    shape.set_override_color(13)             # Mayaのインデックス色
    shape.set_override_color((0, 0.5, 1))    # RGB色
    print(shape.override_color())

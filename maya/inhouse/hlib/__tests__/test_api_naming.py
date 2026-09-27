@@ -75,15 +75,15 @@ class ApiNamingTest(unittest.TestCase):
             self.assertEqual(tuple(value), (1, 2, 3))
 
     def test_module_paths(self):
-        for module, cls in (('editors.channelBox', 'ChannelBox'),
-                            ('editors.timeSlider', 'TimeSlider'),
-                            ('animation.drivenKey', 'DrivenKey'),
+        for module, cls in (('general.channelBox', 'ChannelBox'),
+                            ('general.timeSlider', 'TimeSlider'),
+                            ('general.drivenKey', 'DrivenKey'),
                             ('maths.eulerRotation', 'EulerRotation'),
                             ('maths.translation', 'Translation')):
             self.assertTrue(inspect.isclass(getattr(importlib.import_module('hlib.' + module), cls)))
-        self.assertTrue(callable(hlib.channelBox))
-        self.assertTrue(callable(hlib.timeSlider))
-        self.assertTrue(callable(hlib.drivenKey))
+        self.assertTrue(callable(hlib.getChannelBox))
+        self.assertTrue(callable(hlib.getTimeSlider))
+        self.assertTrue(callable(hlib.getDrivenKey))
         self.assertTrue(inspect.isclass(hlib.json.NurbsCurveSnapshot))
 
     def test_reload_removes_old_module_and_class_exports(self):

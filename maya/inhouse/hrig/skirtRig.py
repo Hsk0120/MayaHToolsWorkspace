@@ -1,15 +1,14 @@
 """少数の放射状ドライバーで、多数のスカート骨を制御する。"""
 
+from maya import cmds
+
 from functools import partial
-import json
 import math
 import re
 
-from maya import cmds
-from maya.api import OpenMaya as om2
-
 import hlib
-from hlib.animation.radialWeights import RadialWeights
+
+from hrig.setups.radialWeights import RadialWeights
 from hlib.decorators.undo import undo_transaction
 
 
@@ -25,7 +24,7 @@ class SkirtRig:
         Args:
             root (str | Node): スカートルート。
         """
-        self.root = hlib.node(root)
+        self.root = hlib.getNode(root)
         if not self.root.has_attr("hrigSkirtDefinition"):
             raise ValueError("Not an hrig skirt module")
 
@@ -58,7 +57,7 @@ class SkirtRig:
         """
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError("Use an unnamespaced Maya identifier")
-        if cmds.objExists(name) or cmds.ls(name + "_*"):
+        if cmds.objExists(name) or [item.name() for item in hlib.ls(name + "_*")]:
             raise ValueError("Module name or prefix already exists: " + name)
         if (
             isinstance(driver_count, bool)
@@ -83,7 +82,7 @@ class SkirtRig:
         root = hlib.createNode("transform", name=name, skipSelect=True)
         root.add_attr(long_name="hrigSkirtDefinition", data_type="string")
         root.plug("hrigSkirtDefinition").set(
-            json.dumps(
+            hlib.json.JsonText.dumps(
                 dict(
                     version=1,
                     driver_count=driver_count,
@@ -140,7 +139,7 @@ class SkirtRig:
                 offset.plug("translate").set(
                     (radius * math.cos(angle), 0, radius * math.sin(angle))
                 )
-                offset.plug("rotateY").set(om2.MAngle(-angle).asUnits(om2.MAngle.uiUnit()))
+                offset.plug("rotateY").set(hlib.general.Units.angle_to_ui(-angle))
                 parent = offset
                 for depth in range(joints_per_chain):
                     joint = hlib.createNode(
@@ -156,14 +155,9 @@ class SkirtRig:
                         root.plug("{}[{}]".format(registry, column * joints_per_chain + depth))
                     )
                     if role == "driver":
-                        curve = cmds.circle(
-                            normal=(0, 1, 0), radius=0.45, constructionHistory=False
-                        )[0]
-                        for shape in cmds.listRelatives(curve, shapes=True, fullPath=True) or []:
-                            cmds.parent(shape, joint.full_name(), shape=True, relative=True)
-                        hlib.delete(curve)
-                        joint.plug("overrideEnabled").set(True)
-                        joint.plug("overrideColor").set(17)
+                        from hrig.setups import ControlShape
+
+                        ControlShape.circle(joint, radius=0.45, normal=(0, 1, 0), color=17)
                         joint.set_attr_flags(
                             ["translate", "scale", "visibility"], locked=True, keyable=False
                         )
@@ -185,24 +179,18 @@ class SkirtRig:
                 rest.plug("translate").set(
                     (radius * math.cos(angle), -spacing * depth, radius * math.sin(angle))
                 )
-                rest.plug("rotateY").set(om2.MAngle(-angle).asUnits(om2.MAngle.uiUnit()))
-                constraint = hlib.node(
-                    cmds.parentConstraint(
-                        rest.full_name(),
-                        drivers[indices[0]][depth].full_name(),
-                        drivers[indices[1]][depth].full_name(),
-                        joint.full_name(),
-                        maintainOffset=True,
-                        skipTranslate=["x", "y", "z"],
-                        name=joint.name() + "_parentConstraint",
-                    )[0]
+                rest.plug("rotateY").set(hlib.general.Units.angle_to_ui(-angle))
+                constraint = hlib.addConstraint(
+                    [rest, drivers[indices[0]][depth], drivers[indices[1]][depth]],
+                    joint.full_name(),
+                    maintainOffset=True,
+                    skipTranslate=["x", "y", "z"],
+                    name=joint.name() + "_parentConstraint",
                 )
                 constraint.plug("interpType").set(2)  # 最短経路。履歴依存のNo Flipは使わない。
-                aliases = cmds.parentConstraint(
-                    constraint.full_name(), query=True, weightAliasList=True
-                )
+                aliases = constraint.weight_plugs()
                 for output, alias in zip(("restWeight", "weightA", "weightB"), aliases):
-                    graph.container.plug(output).connect(constraint.plug(alias))
+                    graph.container.plug(output).connect(alias)
                 constraint.add_attr(long_name="hrigDriven", attribute_type="message")
                 joint.plug("message").connect(constraint.plug("hrigDriven"))
                 constraint.plug("message").connect(
@@ -222,8 +210,7 @@ class SkirtRig:
         Returns:
             list[Node]: 参照先ノード。
         """
-        indices = cmds.getAttr(self.root.full_name() + "." + attr, multiIndices=True) or []
-        return [self.root.plug("{}[{}]".format(attr, i)).source().node for i in indices]
+        return list(self.root.plug(attr).source_nodes().values())
 
     def _chains(self, attr):
         """骨の参照配列を列単位に区切る。
@@ -234,7 +221,9 @@ class SkirtRig:
         Returns:
             list[list[Node]]: 円周順・根元から先端順の骨。
         """
-        size = json.loads(self.root.plug("hrigSkirtDefinition").get())["joints_per_chain"]
+        size = hlib.json.JsonText.loads(self.root.plug("hrigSkirtDefinition").get())[
+            "joints_per_chain"
+        ]
         members = self._members(attr)
         return [members[i : i + size] for i in range(0, len(members), size)]
 
@@ -449,15 +438,17 @@ class SkirtRig:
         if cmds.about(batch=True):
             return
         for key, jobs in list(cls._jobs.items()):
-            if not cmds.ls(key) or not jobs.exists():
+            if not [item.name() for item in hlib.ls(key)] or not jobs.exists():
                 jobs.stop()
                 del cls._jobs[key]
-        for attr in cmds.ls("*.hrigSkirtDefinition", recursive=True) or []:
+        for attr in [
+            item.full_name() for item in hlib.ls("*.hrigSkirtDefinition", recursive=True)
+        ] or []:
             rig = cls(attr.rsplit(".", 1)[0])
             key = rig.root.uuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.events.ScriptJobs()
+            jobs = hlib.general.ScriptJobs()
             attrs = ["enabled", "lod"]
             for kind in ("follow", "spring", "pose"):
                 if rig.root.has_attr("hrigEnabled_" + kind):
@@ -479,7 +470,7 @@ class SkirtRig:
         Args:
             key (str): ルートUUID。
         """
-        roots = cmds.ls(key, long=True) or []
+        roots = [item.full_name() for item in hlib.ls(key, long=True)] or []
         if cls._busy or not roots:
             return
         cls._busy = True
@@ -515,12 +506,12 @@ class SkirtRig:
     def delete(self):
         """所有DGと階層を削除する。スキン使用中なら拒否する。"""
         for joint in self.joints():
-            if cmds.listConnections(joint, type="skinCluster"):
+            if hlib.getNode(joint).connections(type="skinCluster"):
                 raise ValueError("Unbind the skirt before deleting its module")
         for graph in self._members("graphs"):
             hlib.delete(graph)
         if self.root.has_attr("hrigOwned"):
             for node in self._members("hrigOwned"):
-                if hlib.objExists(node.full_name()):
+                if cmds.objExists(node.full_name()):
                     hlib.delete(node)
         hlib.delete(self.root)

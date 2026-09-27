@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib.selection import Selection
+from hlib.general.selection import Selection
 
 
 class SelectionTest(unittest.TestCase):

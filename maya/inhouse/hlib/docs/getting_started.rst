@@ -38,7 +38,7 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 :ref:`tool-undo-chunk` の方法でまとめます。
 
 ``createNode`` は ``maya.cmds.createNode`` にキーワード引数を渡し、
-対応するラッパーを返します。既存ノードは ``hlib.node("ノード名")`` で取得できます。
+対応するラッパーを返します。既存ノードは ``hlib.getNode("ノード名")`` で取得できます。
 ``ls`` は ``maya.cmds.ls`` の引数を受け取り、通常はラッパーのリストを返します。
 ``type="joint"`` と ``type="skinCluster"`` は、それぞれ ``Joints`` と
 ``SkinClusters`` コレクションを返します。
@@ -51,7 +51,7 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 クラスを直接importして使う
 ---------------------------
 
-``hlib.createNode``/``hlib.ls``/``hlib.node`` などのコマンドは ``hlib`` 直下で
+``hlib.createNode``/``hlib.ls``/``hlib.getNode`` などのコマンドは ``hlib`` 直下で
 使える一方、``Node``/``Joint``/``Matrix`` のようなクラス自体は ``hlib`` 直下には
 公開されません。所属するサブパッケージから import します。
 
@@ -69,7 +69,7 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 同じファクトリパターンで動作します。指定した名前の実際の Maya nodeType が
 ``joint`` と一致しない場合は、呼び出したクラスではなく実際の型に対応する
 ラッパー(例: ``Transform``)が返ります。型を確定させたい場合は
-``isinstance()`` で確認するか、素直に ``hlib.node("ノード名")`` /
+``isinstance()`` で確認するか、素直に ``hlib.getNode("ノード名")`` /
 ``Node("ノード名")`` を使ってください。
 
 再読み込み

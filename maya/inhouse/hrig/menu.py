@@ -1,7 +1,10 @@
 """Maya上部のhrig実行メニュー。"""
 
+from maya import cmds
+
 from functools import partial
-from maya import cmds, mel
+import hlib
+from hlib.general import MainWindow
 
 
 class Menu:
@@ -20,7 +23,7 @@ class Menu:
             return None
         if cmds.menu(cls.NAME, exists=True):
             return cls.NAME
-        parent = mel.eval("$tmp = $gMainWindow")
+        parent = MainWindow.name()
         cmds.menu(cls.NAME, label="hrig", parent=parent, tearOff=True)
         cmds.menuItem(
             label="レイヤーエディタを開く", parent=cls.NAME, command=partial(cls.run, "editor")
@@ -59,7 +62,7 @@ class Menu:
         """
         from .moduleRegistry import ModuleRegistry
 
-        selected = cmds.ls(selection=True, long=True) or []
+        selected = [item.full_name() for item in hlib.ls(selection=True, long=True)] or []
         if not selected:
             raise ValueError("hrigのモジュールまたは配下のノードを選択してください")
         for root in ModuleRegistry.roots():
@@ -104,7 +107,7 @@ class Menu:
                 rig, joint = cls.selected_rig()
                 layer = TweakLayer(rig)
                 return layer.add(SampleBuilder.next_id(set(layer.groups()), "tweak"), joint)
-            name = SampleBuilder.next_id(set(cmds.ls()), action)
+            name = SampleBuilder.next_id(set([item.name() for item in hlib.ls()]), action)
             if action in ("limb", "demo"):
                 rig = SampleBuilder.module(name, demo=action == "demo")
             elif action in ("spine", "tail"):
@@ -121,7 +124,6 @@ class Menu:
                 rig = AimRig.create(name)
             else:
                 raise ValueError("Unknown menu action")
-            import hlib
 
             hlib.select(rig.root, replace=True)
             editor = show_layer_editor()
@@ -135,7 +137,7 @@ class Menu:
                     break
             return rig
         except Exception as error:
-            cmds.warning("hrig: " + str(error))
+            hlib.utils.logger.warning("hrig: " + str(error))
             return None
 
     @classmethod

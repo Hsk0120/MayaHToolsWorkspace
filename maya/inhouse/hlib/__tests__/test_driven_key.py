@@ -20,7 +20,7 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_creation_units_undo_and_rename(self):
-        relation = hlib.drivenKey(self.a + ".ry", hlib.node(self.b).plug("rz"))
+        relation = hlib.getDrivenKey(self.a + ".ry", hlib.getNode(self.b).plug("rz"))
         before = cmds.ls(type="animCurve") or []
         self.assertFalse(relation.exists())
         self.assertEqual(cmds.ls(type="animCurve") or [], before)
@@ -43,14 +43,14 @@ class DrivenKeyTest(unittest.TestCase):
         self.assertEqual(len(relation.curves()), 1)
 
     def test_multiple_drivers_and_find(self):
-        one = hlib.drivenKey(self.a + ".tx", self.b + ".ty")
-        two = hlib.drivenKey(self.c + ".tx", self.b + ".ty")
+        one = hlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
+        two = hlib.getDrivenKey(self.c + ".tx", self.b + ".ty")
         one.set_key(0, 0).set_key(10, 10)
         two.set_key(0, 0).set_key(10, 20)
         self.assertEqual(len(one.curves()), 1)
         self.assertEqual(len(two.curves()), 1)
         self.assertNotEqual(one.curves()[0].full_name(), two.curves()[0].full_name())
-        found = hlib.animation.DrivenKeys.find(self.b + ".ty")
+        found = hlib.general.DrivenKeys.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
         cmds.setAttr(self.a + ".tx", 5)
         cmds.setAttr(self.c + ".tx", 5)
@@ -70,11 +70,11 @@ class DrivenKeyTest(unittest.TestCase):
         blend = cmds.listConnections(self.b + ".ty", source=True, destination=False,
                                      type="blendWeighted", skipConversionNodes=True)[0]
         cmds.setDrivenKeyframe(blend + ".weight[0]", currentDriver=self.a + ".tz", driverValue=0, value=1)
-        found = hlib.animation.DrivenKeys.find(self.b + ".ty")
+        found = hlib.general.DrivenKeys.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
         self.assertEqual({p.full_name() for p in found.driver()},
-                         {hlib.node(self.a).plug("tx").full_name(), hlib.node(self.c).plug("tx").full_name()})
-        relation = hlib.drivenKey(self.a + ".tx", self.b + ".ty")
+                         {hlib.getNode(self.a).plug("tx").full_name(), hlib.getNode(self.c).plug("tx").full_name()})
+        relation = hlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
         self.assertEqual(len(relation.curves()), 1)
         relation.set_key(10, 10)
         self.assertEqual(relation.curves()[0].key_count(), 2)
@@ -82,17 +82,17 @@ class DrivenKeyTest(unittest.TestCase):
     def test_time_animation_is_not_replaced(self):
         cmds.setKeyframe(self.b + ".tx", time=1, value=2)
         before = cmds.listConnections(self.b + ".tx", source=True, destination=False, plugs=True)
-        relation = hlib.drivenKey(self.a + ".tx", self.b + ".tx")
+        relation = hlib.getDrivenKey(self.a + ".tx", self.b + ".tx")
         with self.assertRaises(RuntimeError):
             relation.set_key(0, 0)
         self.assertEqual(cmds.listConnections(self.b + ".tx", source=True, destination=False, plugs=True), before)
 
     def test_validation_and_unsupported_connections(self):
         with self.assertRaises(ValueError):
-            hlib.drivenKey(self.a + ".translate", self.b + ".ty")
+            hlib.getDrivenKey(self.a + ".translate", self.b + ".ty")
         with self.assertRaises(ValueError):
-            hlib.drivenKey(self.a + ".tx", self.a + ".translateX")
-        relation = hlib.drivenKey(self.a + ".tx", self.b + ".ty")
+            hlib.getDrivenKey(self.a + ".tx", self.a + ".translateX")
+        relation = hlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
         with self.assertRaises(ValueError):
             relation.set_key(float("nan"), 0)
         cmds.connectAttr(self.c + ".ty", self.b + ".ty")
@@ -100,7 +100,7 @@ class DrivenKeyTest(unittest.TestCase):
             relation.set_key(0, 0)
         self.assertTrue(cmds.isConnected(self.c + ".ty", self.b + ".ty"))
         self.assertFalse(relation.exists())
-        self.assertEqual(len(hlib.animation.DrivenKeys.find(self.b + ".ty")), 0)
+        self.assertEqual(len(hlib.general.DrivenKeys.find(self.b + ".ty")), 0)
         cmds.delete(self.a)
         with self.assertRaises(RuntimeError):
             relation.set_key(0, 0)
@@ -119,27 +119,27 @@ class DrivenKeyTest(unittest.TestCase):
         second_shape = cmds.listRelatives(cmds.ls(instance, long=True)[0], shapes=True, fullPath=True)[0]
         self.assertNotEqual(first_shape, second_shape)
         cmds.addAttr(first_shape, longName="drv", attributeType="double", keyable=True)
-        driver = hlib.node(second_shape).plug("drv")
-        relation = hlib.drivenKey(driver, self.c + ".tx")
+        driver = hlib.getNode(second_shape).plug("drv")
+        relation = hlib.getDrivenKey(driver, self.c + ".tx")
         relation.set_key(0, 0)
         relation.set_key(1, 10)
         self.assertEqual(len(relation.curves()), 1)
         self.assertTrue(relation.exists())
         # 1つ目のインスタンスのパスで指定しても同じ関係として見つかる。
-        same = hlib.drivenKey(hlib.node(first_shape).plug("drv"), self.c + ".tx")
+        same = hlib.getDrivenKey(hlib.getNode(first_shape).plug("drv"), self.c + ".tx")
         self.assertEqual([curve.full_name() for curve in same.curves()],
                          [curve.full_name() for curve in relation.curves()])
-        found = hlib.animation.DrivenKeys.find(self.c + ".tx")
+        found = hlib.general.DrivenKeys.find(self.c + ".tx")
         self.assertEqual(len(found), 1)
         cmds.setAttr(first_shape + ".drv", 1)
         self.assertAlmostEqual(cmds.getAttr(self.c + ".tx"), 10.0)
         with self.assertRaises(ValueError):
-            hlib.drivenKey(hlib.node(first_shape).plug("drv"), hlib.node(second_shape).plug("drv"))
+            hlib.getDrivenKey(hlib.getNode(first_shape).plug("drv"), hlib.getNode(second_shape).plug("drv"))
 
     def test_find_skips_non_numeric_drivers(self):
         # 値によって型が変わる generic 属性(choice.output)のドライバーは対象外として除外し、
         # 例外にしない。同じ駆動先の数値ドライバーは見つかる。
-        relation = hlib.drivenKey(self.a + ".tx", self.b + ".ty")
+        relation = hlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
         relation.set_key(0, 0).set_key(10, 10)
         choice = cmds.createNode("choice", name=self.ns + ":choice")
         cmds.connectAttr(self.c + ".tx", choice + ".input[0]")
@@ -148,9 +148,9 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.setKeyframe(curve, float=1.0, value=1.0)
         cmds.connectAttr(choice + ".output", curve + ".input")
         cmds.connectAttr(curve + ".output", self.b + ".tz")
-        self.assertEqual(len(hlib.animation.DrivenKeys.find(self.b + ".tz")), 0)
-        self.assertEqual(len(hlib.animation.DrivenKeys.find(self.b + ".ty")), 1)
-        self.assertEqual(len(hlib.animation.DrivenKeys.find(hlib.node(self.b).plug("ty").mplug())), 1)
+        self.assertEqual(len(hlib.general.DrivenKeys.find(self.b + ".tz")), 0)
+        self.assertEqual(len(hlib.general.DrivenKeys.find(self.b + ".ty")), 1)
+        self.assertEqual(len(hlib.general.DrivenKeys.find(hlib.getNode(self.b).plug("ty").mplug())), 1)
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ class JointOrientToRotateTest(unittest.TestCase):
                         cmds.setAttr(child + ".translateX", 5)
                         before, child_before = self.matrix(node), self.matrix(child)
                         cmds.currentUnit(angle=unit)
-                        wrapper = hlib.node(node)
+                        wrapper = hlib.getNode(node)
                         self.assertIs(wrapper.freeze_rotation(), wrapper)
                         self.assertEqual(cmds.getAttr(node + ".rotate")[0], (0, 0, 0))
                         self.assertMatrix(node, before)
@@ -98,21 +98,21 @@ class JointOrientToRotateTest(unittest.TestCase):
         a, b = self.joint(), self.joint()
         cmds.connectAttr(a + ".rotateX", b + ".rotateX")
         with self.assertRaises(RuntimeError):
-            hlib.node(b).joint_orient_to_rotate()
+            hlib.getNode(b).joint_orient_to_rotate()
         with self.assertRaises(RuntimeError):
-            hlib.node(b).freeze_rotation()
+            hlib.getNode(b).freeze_rotation()
         cmds.disconnectAttr(a + ".rotateX", b + ".rotateX")
         cmds.setKeyframe(b, attribute="rotateY", time=1)
         with self.assertRaises(RuntimeError):
-            hlib.node(b).joint_orient_to_rotate()
+            hlib.getNode(b).joint_orient_to_rotate()
         with self.assertRaises(RuntimeError):
-            hlib.node(b).freeze_rotation()
+            hlib.getNode(b).freeze_rotation()
 
     def test_zero_is_noop_and_invalid_raises(self):
         node = self.joint()
         cmds.setAttr(node + ".jointOrient", 0, 0, 0)
         cmds.setAttr(node + ".rotateX", 720)
-        wrapper = hlib.node(node)
+        wrapper = hlib.getNode(node)
         wrapper.joint_orient_to_rotate()
         self.assertEqual(cmds.getAttr(node + ".rotateX"), 720)
         cmds.delete(node)
@@ -148,7 +148,7 @@ class JointOrientToRotateTest(unittest.TestCase):
                     vertices = cmds.xform(mesh + ".vtx[*]", query=True, worldSpace=True, translation=True)
                     binds = cmds.getAttr(skin + ".bindPreMatrix[*]")
                     weights = [cmds.skinPercent(skin, mesh + ".vtx[{}]".format(i), query=True, value=True) for i in range(8)]
-                    target = hlib.nodes.Joints(nodes) if bulk else hlib.node(child)
+                    target = hlib.nodes.Joints(nodes) if bulk else hlib.getNode(child)
                     self.assertIs(target.freeze_rotation(), target)
 
                     def assert_skin_unchanged():

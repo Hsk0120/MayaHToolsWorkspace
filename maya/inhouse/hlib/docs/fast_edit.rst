@@ -8,11 +8,11 @@ Undo不要の値更新
 
    import hlib
 
-   node = hlib.node("pCube1")
+   node = hlib.getNode("pCube1")
    node.plug("translateX").set(10, fast=True)
    node.set_translate((1, 2, 3), fast=True)
 
-   shape = hlib.node("pCubeShape1")
+   shape = hlib.getNode("pCubeShape1")
    shape.vertices().set_position((0, 1, 0), fast=True)
    shape.vertices().mirror(axis="x", fast=True)
 
