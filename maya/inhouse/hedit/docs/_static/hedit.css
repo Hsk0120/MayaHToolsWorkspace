@@ -1,0 +1,3 @@
+/* hedit 固有の追加スタイル(基本の配色は hlib と共通の custom.css / code-dark-plus.css) */
+table.docutils td, table.docutils th { vertical-align: top; }
+.preference-key { font-family: Consolas, monospace; }

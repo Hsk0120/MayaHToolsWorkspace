@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from .node import node
     from .objExists import objExists
     from .outliner import outliner
+    from .plug import plug
     from .requirePlugins import requirePlugins
     from .scene import scene
     from .select import select

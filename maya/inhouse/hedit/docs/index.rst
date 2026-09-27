@@ -21,8 +21,6 @@ hedit は、Maya 用の Python / MEL スクリプトエディターです。VS C
    :maxdepth: 2
    :caption: はじめに
 
-   overview
-   install
    usage
 
 .. toctree::
@@ -39,6 +37,8 @@ hedit は、Maya 用の Python / MEL スクリプトエディターです。VS C
    :maxdepth: 2
    :caption: 開発・その他
 
+   overview
+   install
    limitations
    development
    changelog

@@ -47,6 +47,7 @@ Utilities
    autoapi/hlib/units/index
    autoapi/hlib/workspace/index
    autoapi/hlib/editors/index
+   autoapi/hlib/events/index
    autoapi/hlib/decorators/index
    autoapi/hlib/utils/index
    autoapi/hlib/animation/index

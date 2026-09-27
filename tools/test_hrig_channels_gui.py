@@ -50,6 +50,37 @@ def main(output_dir=None, finished=None):
     def steps():
         """各操作後にGUIのidleへ制御を返す。"""
         check(not cmds.about(batch=True), 'Maya GUI')
+        import hlib
+        common_owner = hlib.events.ScriptJobs()
+        external_owner = hlib.events.ScriptJobs()
+        probe = hlib.createNode('transform', name='eventProbe', skipSelect=True)
+        probe.add_attr('setting', attribute_type='long', default_value=0)
+        observed = []
+        external = external_owner.add('external', event='SelectionChanged', callback=lambda: None)
+        try:
+            first = common_owner.add('setting', attribute=probe.plug('setting'),
+                                     callback=lambda: observed.append(1), kill_with_scene=True)
+            check(first is common_owner.add('setting', attribute=probe.plug('setting'),
+                                            callback=lambda: None), 'Common jobs deduplicate by key')
+            probe.plug('setting').set(1)
+            yield
+            check(len(observed) == 1, 'Common attribute job executes on GUI idle')
+            probe.rename('renamedEventProbe')
+            probe.plug('setting').set(2)
+            yield
+            check(len(observed) == 2, 'Common attribute job survives rename')
+            common_owner.stop()
+            probe.plug('setting').set(3)
+            yield
+            check(len(observed) == 2 and external.exists(), 'Stopping owner preserves unrelated jobs')
+            common_owner.add('setting', attribute=probe.plug('setting'),
+                             callback=lambda: None, kill_with_scene=True)
+            cmds.file(new=True, force=True)
+            yield
+            check(not common_owner.exists() and external.exists(), 'Scene clear ends only scene jobs')
+        finally:
+            common_owner.stop()
+            external_owner.stop()
         rig = build_demo()['rig']
         module = rig._member('channelModule')
         check(cmds.getAttr(module+'.mode') == 1, 'Initial IK state synchronized')

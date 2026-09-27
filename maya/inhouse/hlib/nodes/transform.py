@@ -936,8 +936,8 @@ class Transform(Node):
           最も近いものを選ぶ(``om2.MEulerRotation.closestSolution``)。
 
         このため ``set_matrix(get_matrix())`` や ``set_translate`` はチャンネル値を
-        (浮動小数点の誤差を除いて)変えない。回転は度へ変換して書き込むため、Maya の
-        角度単位が度であることを前提とする。ピボットや rotateAxis の補正は行わない
+        (浮動小数点の誤差を除いて)変えない。回転は現在のMaya角度単位へ変換して書き込む。
+        ピボットや rotateAxis の補正は行わない
         (非ゼロの場合は未対応)。
 
         Args:
@@ -956,7 +956,7 @@ class Transform(Node):
         rotation = self._channel_rotation(quaternion, reference)
         name = self.full_name()
         set_attr(f"{name}.translate", *translate)
-        set_attr(f"{name}.rotate", *(math.degrees(component) for component in rotation))
+        set_attr(f"{name}.rotate", *(om2.MAngle(component).asUnits(om2.MAngle.uiUnit()) for component in rotation))
         set_attr(f"{name}.scale", *scale)
         set_attr(f"{name}.shear", *shear)
 

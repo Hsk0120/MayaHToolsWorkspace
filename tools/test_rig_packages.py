@@ -33,7 +33,7 @@ def main():
             if plugin.is_file() and not cmds.pluginInfo('fbxmaya',q=True,loaded=True):
                 cmds.loadPlugin(str(plugin),quiet=True)
             files += ['hlib/__tests__/'+name+'.py' for name in (
-                'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout')]
+                'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events')]
         if args.suite in ('all','bifrost','native'):
             files.append('hrig/__tests__/test_definition.py')
         if args.suite in ('all','bifrost'):

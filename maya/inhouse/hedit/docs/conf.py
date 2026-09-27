@@ -25,9 +25,9 @@ templates_path = []
 html_theme = "sphinxdoc"
 html_title = "hedit {} ドキュメント".format(release)
 html_static_path = ["_static"]
-html_css_files = ["custom.css"]
+html_css_files = ["custom.css", "code-dark-plus.css", "hedit.css"]
 html_show_sourcelink = False
-pygments_style = "default"
+pygments_style = "one-dark"
 
 # 表の見出し・脚注などの警告をエラーとして扱う(rebuild.bat は -W を付けて実行する)。
 nitpicky = False

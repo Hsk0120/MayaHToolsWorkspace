@@ -3,6 +3,8 @@
 from pathlib import Path
 from maya import cmds
 
+import hlib
+
 
 def create_soft_ik(name, length, backend='bifrost'):
     """計算ノードと所有するルートを返す。
@@ -11,12 +13,14 @@ def create_soft_ik(name, length, backend='bifrost'):
         name (str): ノード名。
         length (float): 部位の骨長。
         backend (str): bifrostまたはcpp。
+
     Returns:
         tuple[str, str]: 計算ノード名と削除対象ルート。
     """
     if backend == 'bifrost':
         from .soft_ik import build_graph
         graph = build_graph(name, length)
+        # Bifrostのカスタムshapeは汎用Nodeとして解決されるため、DAG親だけcmdsで照会する。
         return graph.name(), cmds.listRelatives(graph.name(), parent=True, fullPath=True)[0]
     if backend != 'cpp':
         raise ValueError('Unknown backend: ' + backend)
@@ -24,11 +28,11 @@ def create_soft_ik(name, length, backend='bifrost'):
     if int(version) < 2025:
         raise RuntimeError('hrig requires Maya 2025 or newer')
     plugin = Path(__file__).parent/'release'/'plug-ins'/'windows'/version/'hrigNodes.mll'
-    if not cmds.pluginInfo('hrigNodes',query=True,loaded=True):
+    if not hlib.plugins.Plugin('hrigNodes').is_loaded():
         if not plugin.is_file():
             raise RuntimeError('Build hrigNodes for Maya ' + version)
         # SafeModeの許可リストは変更しない。Mayaが拒否した場合はそのまま失敗する。
-        cmds.loadPlugin(str(plugin),quiet=True)
-    node = cmds.createNode('hrigSoftIK',name=name,skipSelect=True)
-    cmds.setAttr(node+'.length',length)
+        hlib.plugins.Plugin(str(plugin)).load(quiet=True)
+    node = hlib.createNode('hrigSoftIK', name=name, skipSelect=True).full_name()
+    hlib.plug(node+'.length').set(length)
     return node,node

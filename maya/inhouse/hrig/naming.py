@@ -6,6 +6,7 @@ def limb_names(definition):
 
     Args:
         definition (RigDefinition): 部位名と関節IDを持つ定義。
+
     Returns:
         dict[str, str]: rigは無接頭辞、他の部位は部位名を接頭辞にする。
     """

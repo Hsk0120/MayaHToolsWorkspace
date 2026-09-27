@@ -1159,6 +1159,35 @@ class Plug:
         set_attr(self.full_name(), value)
         return self
 
+    @undo_chunk("hlibPlugSetIfChanged")
+    def set_if_changed(self, value, *, unlock=False):
+        """スカラー値が変わる場合だけ更新し、不要な属性通知を避ける。
+
+        Args:
+            value (bool | int | float | str): 比較・設定する値。数値は厳密比較。
+            unlock (bool): ロックを一時解除する。失敗時も元のロックへ戻す。
+
+        Returns:
+            bool: 値を更新した場合はTrue。
+
+        Raises:
+            TypeError: スカラー以外を指定した場合。
+            RuntimeError: Mayaが属性更新を拒否した場合。
+        """
+        if not isinstance(value, (bool, int, float, str)):
+            raise TypeError("set_if_changed supports scalar values only")
+        if self.get() == value:
+            return False
+        locked = self.is_locked()
+        if unlock and locked:
+            self.set_locked(False)
+        try:
+            self.set(value)
+        finally:
+            if unlock and locked:
+                self.set_locked(True)
+        return True
+
     @fast_edit
     @undo_chunk("hlibPlugReset")
     def reset(self, *, fast=False):

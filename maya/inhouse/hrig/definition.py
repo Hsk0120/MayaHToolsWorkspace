@@ -6,26 +6,47 @@ from dataclasses import asdict, dataclass
 
 
 def _name(value):
-    """名前空間やパスを含まない安定識別子を検証する。"""
+    """名前空間やパスを含まない安定識別子を検証する。
+    
+    Args:
+        value (str): 英数字とアンダースコアで構成した識別子。
+    """
     if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', value):
         raise ValueError('Invalid identifier: {!r}'.format(value))
 
 
 def _level(value):
-    """0以上の整数LODを検証する。0が最軽量。"""
+    """0以上の整数LODを検証する。0が最軽量。
+    
+    Args:
+        value (int): 検証するLOD。boolは受け付けない。
+    """
     if type(value) is not int or value < 0:
         raise ValueError('LOD must be a non-negative integer')
 
 
 def _order(items, dependencies):
-    """依存が先になる安定順序を返し、循環・重複・欠落を拒否する。"""
+    """依存が先になる安定順序を返し、循環・重複・欠落を拒否する。
+    
+    Args:
+        items (Sequence): idを持つ定義の列。
+        dependencies (Callable): 定義から依存識別子の列を返す関数。
+    
+
+    Returns:
+        tuple: 依存順に並べた定義。
+    """
     lookup = {item.id: item for item in items}
     if len(lookup) != len(items):
         raise ValueError('Duplicate identifiers')
     result, visiting, visited = [], set(), set()
 
     def visit(key):
-        """深さ優先で依存を検査する。"""
+        """深さ優先で依存を検査する。
+        
+        Args:
+            key (str): 探索する定義の識別子。
+        """
         if key in visiting:
             raise ValueError('Dependency cycle: ' + key)
         if key not in lookup:
@@ -111,22 +132,48 @@ class RigDefinition:
         _order(self.layers, lambda layer: layer.dependencies)
 
     def joint_order(self):
-        """tuple[JointSpec]: 親を先にした安定順序を返す。"""
+        """親を先にした安定順序を取得する。
+        
+
+        Returns:
+            tuple[JointSpec, ...]: 親子関係順の骨定義。
+        """
         return _order(self.joints, lambda joint: (joint.parent,) if joint.parent else ())
 
     def active_layers(self, lod):
-        """有効レイヤーを依存順に返す。無効な依存を必要とするLODは拒否する。"""
+        """有効レイヤーを依存順に取得する。無効な依存が必要なLODは拒否する。
+        
+        Args:
+            lod (int): 0以上の詳細度。
+        
+
+        Returns:
+            tuple[LayerSpec, ...]: 指定LODで有効なレイヤー。
+        """
         _level(lod)
         return _order(tuple(layer for layer in self.layers if layer.min_lod <= lod),
                       lambda layer: layer.dependencies)
 
     def to_data(self):
-        """dict: JSONへそのまま保存できるデータを返す。"""
+        """JSONへ保存できる辞書へ変換する。
+        
+
+        Returns:
+            dict: 骨・レイヤー・スキーマの宣言。
+        """
         return asdict(self)
 
     @classmethod
     def from_data(cls, data):
-        """辞書から復元する。未知のフィールドやスキーマは拒否する。"""
+        """辞書から復元する。未知のフィールドやスキーマは拒否する。
+        
+        Args:
+            data (Mapping): to_data形式の宣言。
+        
+
+        Returns:
+            RigDefinition: 検証済み定義。
+        """
         data = dict(data)
         data['joints'] = tuple(JointSpec(**item) for item in data['joints'])
         data['layers'] = tuple(LayerSpec(**item) for item in data['layers'])
@@ -134,7 +181,15 @@ class RigDefinition:
 
 
 def limb_definition(name='limb'):
-    """RigDefinition: X軸に伸びる長さ5+5の最小検証用チェーン。"""
+    """X軸に伸びる長さ5+5の最小検証用チェーンを定義する。
+    
+    Args:
+        name (str): 部位ルート名。既定はlimb。
+    
+
+    Returns:
+        RigDefinition: FK/IK/Soft IK/補助骨レイヤーを含む定義。
+    """
     return RigDefinition(name, (
         JointSpec('root', None, (0, 0, 0)),
         JointSpec('mid', 'root', (5, 0, 0)),

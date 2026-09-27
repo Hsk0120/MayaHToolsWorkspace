@@ -27,6 +27,7 @@ def build_graph(name, length):
     Args:
         name (str): DGグラフ名。
         length (float): 正の固定チェーン長。
+
     Returns:
         Graph: distance、softness入力とratio出力を持つグラフ。
     """
@@ -44,7 +45,16 @@ def build_graph(name, length):
 
 
 def _populate_graph(graph, length):
-    """作成済みグラフへSoft IK演算を追加する。"""
+    """作成済みグラフへSoft IK演算を追加する。
+    
+    Args:
+        graph (Graph): 空のBifrostグラフ。
+        length (float): 正のチェーン長。距離はシーン単位。
+    
+
+    Returns:
+        Graph: 演算を追加したグラフ。
+    """
     from hlib_bifrost import Port
     root = graph.root
     root.add_port('distance', 'float')
@@ -52,21 +62,46 @@ def _populate_graph(graph, length):
     root.add_port('ratio', 'float', output=True)
 
     def feed(value, port):
-        """定数またはポートを演算入力へ割り当てる。"""
+        """定数またはポートを演算入力へ割り当てる。
+        
+        Args:
+            value (float | Port): 入力する値または接続元。
+            port (Port): 接続先のポート。
+        """
         if isinstance(value, Port):
             value.connect(port)
         else:
             port.set_default(value)
 
     def multi(kind, values, output='output'):
-        """同型の可変数入力演算を追加する。"""
+        """同型の可変数入力演算を追加する。
+        
+        Args:
+            kind (str): Core::Mathの演算名。
+            values (Sequence[float | Port]): 入力する定数またはポート。
+            output (str): 結果ポート名。既定はoutput。
+        
+
+        Returns:
+            Port: 生成した演算の結果ポート。
+        """
         node = root.add_node('BifrostGraph,Core::Math,' + kind)
         for index, value in enumerate(values):
             feed(value, node.add_port('v' + str(index), 'float'))
         return node.port(output)
 
     def clamp(value, low, high):
-        """既存clamp Compoundへ固定ポートで接続する。"""
+        """既存clamp Compoundへ固定ポートで接続する。
+        
+        Args:
+            value (float | Port): 制限対象。
+            low (float | Port): 下限。
+            high (float | Port): 上限。
+        
+
+        Returns:
+            Port: 制限後の結果ポート。
+        """
         node = root.add_node('BifrostGraph,Core::Math,clamp')
         for key, val in (('value', value), ('min', low), ('max', high)):
             feed(val, node.port(key))

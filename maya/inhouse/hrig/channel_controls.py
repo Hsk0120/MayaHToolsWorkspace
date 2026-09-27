@@ -6,10 +6,17 @@ GUIのscriptJobを使用し、操作と接続変更を同じUndoへまとめる�
 
 from functools import partial
 from maya import cmds
+
+import hlib
 from hlib.decorators.undo import undo_transaction
 
+# reload時に旧コールバックを残さない。hlibの再読込では所有参照を維持する。
+for _owner in globals().get('_jobs', {}).values():
+    _owner.stop()
+if globals().get('_events') is not None:
+    _events.stop()
 _jobs = {}
-_events = []
+_events = hlib.events.ScriptJobs()
 _busy = False
 LAYERS = ('fk', 'ik', 'soft', 'helper', 'foot')
 LABELS = {'fk': 'fk', 'ik': 'ik', 'soft': 'soft_ik',
@@ -17,45 +24,71 @@ LABELS = {'fk': 'fk', 'ik': 'ik', 'soft': 'soft_ik',
 
 
 def _write(plug, value):
-    """変化した値だけを書き、不要なUndoと属性通知を作らない。"""
-    if cmds.getAttr(plug) != value:
-        locked = cmds.getAttr(plug, lock=True)
-        if locked:
-            cmds.setAttr(plug, lock=False)
-        cmds.setAttr(plug, value)
-        if locked:
-            cmds.setAttr(plug, lock=True)
+    """表示属性を同期する。ロックと変更通知の管理はhlibに委譲する。
+
+    Args:
+        plug (str): 表示属性の名前。
+        value (bool | int): 適用済みの状態。
+    """
+    hlib.plug(plug).set_if_changed(value, unlock=True)
 
 
 def _attribute(node, name, kind='bool', default=0, enum=None, readonly=False):
-    """キー対象外の設定・状態属性をチャンネルボックスへ表示する。"""
-    args = {'longName': name, 'attributeType': kind, 'defaultValue': default}
+    """キー対象外の設定・状態属性をチャンネルボックスへ表示する。
+    
+    Args:
+        node (str): 追加先ノード。
+        name (str): 属性名。
+        kind (str): Mayaの属性型。既定はbool。
+        default (bool | int): 属性の既定値。
+        enum (str | None): コロン区切りのenum名。
+        readonly (bool): Trueなら属性をロックする。
+    """
+    args = {'long_name': name, 'attribute_type': kind, 'default_value': default}
     if enum:
         args['enumName'] = enum
-    cmds.addAttr(node, **args)
-    cmds.setAttr(node + '.' + name, keyable=False, channelBox=True, lock=readonly)
+    reference = hlib.node(node)
+    reference.add_attr(**args)
+    reference.set_attr_flags([name], keyable=False, channel_box=True, locked=readonly)
 
 
 def _exists(rig):
-    """bool: 構成表示が接続済みかを照会する。"""
-    root = rig.root.full_name()
-    return cmds.attributeQuery('channelModule', node=root, exists=True) and bool(
-        cmds.listConnections(root + '.channelModule', source=True, destination=False))
+    """構成表示が接続済みかを照会する。
+    
+    Args:
+        rig (LimbRig): 照会するリグ。
+    
+
+    Returns:
+        bool: 表示用モジュールの参照があればTrue。
+    """
+    return rig.root.has_attr('channelModule') and rig.root.plug('channelModule').source() is not None
 
 
 def _states(rig):
-    """dict: 実際に接続へ適用したレイヤー状態を計算する。"""
+    """計算経路へ適用したレイヤー状態を計算する。
+    
+    Args:
+        rig (LimbRig): 照会するリグ。
+    
+
+    Returns:
+        dict[str, bool]: レイヤー識別子と実際の有効状態。
+    """
     ik = rig.mode() == 'ik'
     detail = rig.lod() == 1
     return {'fk': not ik, 'ik': ik,
             'soft': ik and detail and rig.layer_enabled('soft'),
             'helper': detail and rig.layer_enabled('helper'),
-            'foot': ik and detail and rig.layer_enabled('foot') and cmds.attributeQuery(
-                'footMatrix', node=rig.root.full_name(), exists=True)}
+            'foot': ik and detail and rig.layer_enabled('foot') and hlib.node(rig.root.full_name()).has_attr('footMatrix')}
 
 
 def sync_display(rig):
-    """適用済み状態を表示へ同期する。Pythonの既存操作からも呼ばれる。"""
+    """適用済み状態を表示へ同期する。既存Python操作からも呼ばれる。
+    
+    Args:
+        rig (LimbRig): 状態の取得元リグ。
+    """
     if not _exists(rig):
         return
     module = rig._member('channelModule')
@@ -67,8 +100,8 @@ def sync_display(rig):
             _write(node + '.enabled', rig.layer_enabled(layer))
         _write(node + '.active', active)
         color = (0.35, 0.8, 0.45) if active else (0.4, 0.4, 0.4)
-        if any(abs(a-b) > 1e-6 for a,b in zip(cmds.getAttr(node + '.outlinerColor')[0], color)):
-            cmds.setAttr(node + '.outlinerColor', *color)
+        if any(abs(a-b) > 1e-6 for a,b in zip(hlib.plug(node + '.outlinerColor').get(), color)):
+            hlib.plug(node + '.outlinerColor').set((*color,))
 
 
 @undo_transaction('hrig.channel_controls.attach')
@@ -77,6 +110,7 @@ def attach(rig):
 
     Args:
         rig (LimbRig): 操作対象。
+
     Returns:
         str: チャンネルボックス操作用モジュール。
     """
@@ -88,36 +122,36 @@ def attach(rig):
     stem = rig.node_name('moduleSet').removesuffix('_set')
     group_name = 'modules_grp' if root.rsplit('|', 1)[-1] == 'rig' else root.rsplit('|', 1)[-1] + '_modules_grp'
     names = [group_name, stem] + [stem + '_' + LABELS[layer] + '_layer' for layer in LAYERS]
-    if any(cmds.objExists(name) for name in names):
+    if any(hlib.objExists(name) for name in names):
         raise ValueError('Module display names already exist')
     nodes = []
-    group = cmds.createNode('transform', name=group_name, parent=root, skipSelect=True)
+    group = hlib.createNode('transform', name=group_name, parent=root, skipSelect=True).full_name()
     cmds.reorder(group, front=True)
-    module = cmds.createNode('transform', name=stem, parent=group, skipSelect=True)
+    module = hlib.createNode('transform', name=stem, parent=group, skipSelect=True).full_name()
     nodes.extend((group, module))
     rig._bind('channelModule', module)
-    cmds.addAttr(module, longName='hrigChannelRoot', attributeType='message')
-    cmds.connectAttr(root + '.message', module + '.hrigChannelRoot')
+    hlib.node(module).add_attr(long_name='hrigChannelRoot', attribute_type='message')
+    hlib.plug(root + '.message').connect(module + '.hrigChannelRoot')
     _attribute(module, 'mode', 'enum', int(rig.mode() == 'ik'), 'FK:IK')
     _attribute(module, 'lod', 'enum', rig.lod(), 'Low:Full')
     _attribute(module, 'matchOnSwitch', default=True)
     for layer, name in zip(LAYERS, names[2:]):
-        node = cmds.createNode('transform', name=name, parent=module, skipSelect=True)
+        node = hlib.createNode('transform', name=name, parent=module, skipSelect=True).full_name()
         nodes.append(node)
         rig._bind('channel_' + layer, node)
         if layer in ('soft', 'helper', 'foot'):
             attr = 'hrigEnabled_' + layer
-            if not cmds.attributeQuery(attr, node=root, exists=True):
-                cmds.addAttr(root, longName=attr, attributeType='bool', defaultValue=True)
+            if not hlib.node(root).has_attr(attr):
+                hlib.node(root).add_attr(long_name=attr, attribute_type='bool', default_value=True)
             _attribute(node, 'enabled', default=rig.layer_enabled(layer))
         _attribute(node, 'active', readonly=True)
-        cmds.setAttr(node + '.useOutlinerColor', True)
+        hlib.plug(node + '.useOutlinerColor').set(True)
     for node in nodes:
         _lock_group(node)
-        cmds.setAttr(node + '.visibility', keyable=False, channelBox=False, lock=True)
+        hlib.node(node).set_attr_flags(['visibility'], keyable=False, channel_box=False, locked=True)
     indices = cmds.getAttr(root + '.hrigOwned', multiIndices=True) or []
     for index, node in enumerate(nodes, max(indices, default=-1) + 1):
-        cmds.connectAttr(node + '.message', root + '.hrigOwned[{}]'.format(index))
+        hlib.plug(node + '.message').connect(root + '.hrigOwned[{}]'.format(index))
     sync_display(rig)
     install()
     return module
@@ -130,16 +164,16 @@ def apply(rig):
         rig (LimbRig): 構成表示を持つリグ。
     """
     module = rig._member('channelModule')
-    mode = ('fk', 'ik')[cmds.getAttr(module + '.mode')]
-    lod = cmds.getAttr(module + '.lod')
-    enabled = {layer: bool(cmds.getAttr(rig._member('channel_' + layer) + '.enabled'))
+    mode = ('fk', 'ik')[hlib.plug(module + '.mode').get()]
+    lod = hlib.plug(module + '.lod').get()
+    enabled = {layer: bool(hlib.plug(rig._member('channel_' + layer) + '.enabled').get())
                for layer in ('soft', 'helper', 'foot')}
     if (mode == rig.mode() and lod == rig.lod()
             and all(value == rig.layer_enabled(layer) for layer, value in enabled.items())):
         return
     try:
         with undo_transaction('hrig.channel_controls.apply'):
-            if mode != rig.mode() and cmds.getAttr(module + '.matchOnSwitch'):
+            if mode != rig.mode() and hlib.plug(module + '.matchOnSwitch').get():
                 # 通常のチャンネルボックス操作は一度に一属性だけ変更する。
                 # モードと詳細設定を同時変更するスクリプトは公開メソッドを順に使う。
                 if mode == 'fk':
@@ -159,7 +193,11 @@ def apply(rig):
 
 
 def _changed(root_uuid):
-    """属性変更をまとめて適用する。削除・改名と再入を考慮する。"""
+    """属性変更をまとめて適用する。削除・改名と再入を考慮する。
+    
+    Args:
+        root_uuid (str): 操作対象ルートのUUID。
+    """
     global _busy
     if _busy:
         return
@@ -182,31 +220,36 @@ def refresh_jobs():
         return
     from .limb import LimbRig
     for key, jobs in list(_jobs.items()):
-        if not cmds.ls(key) or not all(cmds.scriptJob(exists=job) for job in jobs):
-            for job in jobs:
-                if cmds.scriptJob(exists=job):
-                    cmds.scriptJob(kill=job)
+        if not hlib.ls(key) or not jobs.exists():
+            jobs.stop()
             del _jobs[key]
     for plug in cmds.ls('*.hrigChannelRoot', recursive=True) or []:
         module = plug.rsplit('.', 1)[0]
-        roots = cmds.listConnections(plug, source=True, destination=False) or []
-        if len(roots) != 1:
+        source = hlib.plug(plug).source()
+        if source is None:
             continue
-        key = cmds.ls(roots[0], uuid=True)[0]
+        root = source.node
+        key = root.uuid()
         if key in _jobs:
             continue
-        rig = LimbRig(roots[0])
+        rig = LimbRig(root)
         attrs = [module + '.mode', module + '.lod']
         attrs += [rig._member('channel_' + layer) + '.enabled' for layer in ('soft', 'helper', 'foot')]
-        _jobs[key] = [cmds.scriptJob(attributeChange=[attr, partial(_changed, key)],
-                                    killWithScene=True, compressUndo=True) for attr in attrs]
+        jobs = hlib.events.ScriptJobs()
+        try:
+            for attr in attrs:
+                jobs.add(attr, attribute=attr, callback=partial(_changed, key),
+                         kill_with_scene=True, compress_undo=True)
+        except Exception:
+            jobs.stop()
+            raise
+        _jobs[key] = jobs
 
 
 def install():
     """GUIで監視を開始する。多重登録せず、シーンへ実行スクリプトを埋め込まない。"""
     if cmds.about(batch=True):
         return
-    if not _events:
-        for event in ('PostSceneRead', 'NewSceneOpened', 'Undo', 'Redo'):
-            _events.append(cmds.scriptJob(event=[event, refresh_jobs]))
+    for event in ('PostSceneRead', 'NewSceneOpened', 'Undo', 'Redo'):
+        _events.add(event, event=event, callback=refresh_jobs)
     refresh_jobs()
