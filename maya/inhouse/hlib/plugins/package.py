@@ -231,8 +231,8 @@ class PluginPackage:
             warn (bool): True で ``cmds.warning`` にも警告を出す。
 
         Returns:
-            str: ``SKIPPED``(対象外)/``LOADED``(ロードした)/``MISSING``(未導入・古い)/
-            ``OUTDATED``(既に古い版がロード済み)/``LOAD_FAILED``(一部をロードできない)。
+            str: ``SKIPPED`` (対象外)/``LOADED`` (ロードした)/``MISSING`` (未導入・古い)/
+            ``OUTDATED`` (既に古い版がロード済み)/``LOAD_FAILED`` (一部をロードできない)。
         """
         if not self.is_maya_supported():
             return SKIPPED

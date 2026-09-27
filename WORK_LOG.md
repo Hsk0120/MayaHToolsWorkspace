@@ -21,6 +21,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-27 | hlib/events・共通Node/Plug API・hrig・関連テスト/docs | scriptJob管理の共通化とhrigのhlib主体への移行 |
 
 
 ## 完了履歴
