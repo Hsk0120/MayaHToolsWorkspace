@@ -4,9 +4,15 @@
  * Maya APIはこのファイルで扱い、本文編集はeditor.cppへ分離する。
  */
 #include "editor.h"
+#include "dock.h"
+#include "modulescan.h"
 #include "embedded_python.h"
+#include "mayautil.h"
+#include "version.h"
 #include <maya/MFnPlugin.h>
 #include <maya/MPxCommand.h>
+#include <maya/MSyntax.h>
+#include <maya/MArgDatabase.h>
 #include <maya/MGlobal.h>
 #include <maya/MQtUtil.h>
 #include <maya/MCommandMessage.h>
@@ -16,10 +22,14 @@
 #include <QMutexLocker>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QPointer>
+#include <QTimer>
+#include <optional>
 #include <QDir>
 #include <QFile>
 #include <QSaveFile>
+#include <QFileInfo>
 #include <QApplication>
 #include <QThread>
 #include <QTextEdit>
@@ -100,6 +110,121 @@ QString python(const QString& expression) {
     MStatus status = MGlobal::executePythonCommand(script, result);
     return status ? QString::fromUtf8(result.asUTF8()) : QString("hedit: Python bridge failed; see Script Editor.");
 }
+using hedit::mel;
+using hedit::melQuote;
+/// importの行の補完に使う、sys.pathのトップレベル名の走査器(C++のスレッドで走査する)。
+hedit::ModuleScanner moduleScanner;
+/** @brief Python側の検索パスと、組み込み・読み込み済みのトップレベル名を取り出す。
+ * @param names 組み込みモジュールとsys.modulesのトップレベル名を入れる。
+ * @return sys.pathの各フォルダー(絶対パス)。
+ * @details sys.pathとsys.modulesはPythonのオブジェクトなので、ここだけPythonへ問い合わせる(約1ms)。
+ * フォルダーの走査はしない(ModuleScannerがC++のスレッドで行う)。
+ */
+QStringList pythonModulePaths(QSet<QString>* names) {
+    const auto data=QJsonDocument::fromJson(python("__import__('hedit.bridge', fromlist=['module_names']).module_names()").toUtf8()).object();
+    if (names) for (const auto& value: data.value("names").toArray()) names->insert(value.toString());
+    QStringList paths;
+    for (const auto& value: data.value("paths").toArray()) paths.append(value.toString());
+    return paths;
+}
+/** @brief 補完候補を返す。importの行のトップレベル名はC++で、それ以外はPythonで求める。
+ * @param source カーソルまでの本文。
+ * @return 補完のJSON(``items``と``pending``)。
+ * @details 最初の走査は編集画面の作成時に始めている。まだ終わっていなければ最大0.5秒だけ待ち、
+ * 最初のCtrl+Spaceから未読込のパッケージも候補に出す。以後の再走査は5秒間隔で裏で行う。
+ */
+QByteArray completion(const QString& source) {
+    QString prefix;
+    if (hedit::topLevelImportPrefix(source,&prefix)) {
+        QSet<QString> names;
+        moduleScanner.refresh(pythonModulePaths(&names));
+        moduleScanner.waitForFirst(500);
+        bool pending=false;
+        names.unite(moduleScanner.names(&pending));
+        return hedit::completionItems(names,prefix,pending);
+    }
+    QByteArray quoted=QJsonDocument(QJsonArray{source}).toJson(QJsonDocument::Compact);
+    quoted=quoted.mid(1,quoted.size()-2);
+    return python("__import__('hedit.bridge', fromlist=['complete']).complete("+QString::fromUtf8(quoted)+")").toUtf8();
+}
+/** @brief MayaのUI名から、reporterが表示に使うQtの文書を探す。
+ * @param control cmdScrollFieldReporterのUI名(フルパスでも可)。
+ * @return 表示文書。見つからなければnullptr。所有者はMayaのUI。
+ * @details reporterの実体はQTextEditまたはQPlainTextEdit、もしくはそれを子に持つ
+ * ウィジェットなので、本体→子の順に探す。
+ */
+QTextDocument* findReporterDocument(const QString& control) {
+    MString name; name.setUTF8(control.toUtf8().constData());
+    QWidget* widget=MQtUtil::findControl(name);
+    if (!widget) return nullptr;
+    auto rich=qobject_cast<QTextEdit*>(widget);
+    auto plain=qobject_cast<QPlainTextEdit*>(widget);
+    if (!rich && !plain) { rich=widget->findChild<QTextEdit*>(); plain=widget->findChild<QPlainTextEdit*>(); }
+    return rich ? rich->document() : plain ? plain->document() : nullptr;
+}
+/// ライブ出力の整形に使う専用reporterを入れた非表示ウィンドウのUI名。
+QString reporterWindow;
+/** @brief ライブ出力の整形専用に、非表示のreporterを作る。
+ * @return reporterのUI名。作れなければ空。
+ * @details 標準Script Editorの設定・履歴は変更しない。作成中に変わるMayaの
+ * 現在の親レイアウトは元に戻す(他ツールのUI作成へ影響させないため)。
+ * releaseOutputReporter()で破棄する。
+ */
+QString createOutputReporter() {
+    const QString previous=mel("setParent -q");
+    reporterWindow=mel("window");
+    mel("columnLayout");
+    const QString reporter=mel("cmdScrollFieldReporter");
+    if (!previous.isEmpty()) mel("setParent "+melQuote(previous));
+    return reporter;
+}
+/** @brief createOutputReporter()で作った非表示ウィンドウを破棄する。 */
+void releaseOutputReporter() {
+    if (!reporterWindow.isEmpty() && hedit::melBool("window -exists "+melQuote(reporterWindow)))
+        mel("deleteUI -window "+melQuote(reporterWindow));
+    reporterWindow.clear();
+}
+/** @brief Mayaが保持している過去の出力を、初回表示用に読み取る。
+ * @return 詰めた履歴(最大512Ki文字)。Maya側ですでに破棄された履歴は含まない。
+ * @details 標準Script Editorのreporterがあればその表示文書を読み、なければ標準の
+ * エディタを開かずに一時的な非表示reporterで読む。設定・選択・履歴は変更しない。
+ */
+QString outputHistory() {
+    QString reporter=mel("global string $gCommandReporter; string $heditReporter = $gCommandReporter;");
+    QString temporary;
+    if (reporter.isEmpty() || !hedit::melBool("cmdScrollFieldReporter -exists "+melQuote(reporter))) {
+        temporary=mel("window");
+        mel("columnLayout");
+        reporter=mel("cmdScrollFieldReporter");
+    }
+    QString text;
+    if (auto document=findReporterDocument(reporter)) text=document->toPlainText();
+    else text=mel("cmdScrollFieldReporter -q -text "+melQuote(reporter));
+    if (!temporary.isEmpty()) mel("deleteUI -window "+melQuote(temporary));
+    text=text.right(512*1024);
+    if (!text.isEmpty() && text.at(0).isLowSurrogate()) text.remove(0,1);
+    return hedit::compactHistory(text);
+}
+/** @brief Mayaのバージョン別のタブ復元先を決める。
+ * @return tabs.jsonの絶対パス(Windowsの区切り文字)。
+ * @details 環境変数HEDIT_SESSION_FILEがあればそれを使う(隔離テスト用)。
+ * 名前変更前の保存先heditorにある未保存タブ・UI状態・設定は、新しい保存先に同名の
+ * ファイルがまだない場合だけコピーする。旧データは削除しない。
+ */
+QString sessionPath() {
+    const QString override=qEnvironmentVariable("HEDIT_SESSION_FILE");
+    if (!override.isEmpty()) return override;
+    const QDir base(mel("internalVar -userPrefDir"));
+    const QDir destination(base.filePath("hedit")), legacy(base.filePath("heditor"));
+    for (const char* name: {"tabs.json","ui.json","preferences.ini"}) {
+        const QString source=legacy.filePath(name), target=destination.filePath(name);
+        if (QFileInfo(source).isFile() && !QFileInfo::exists(target)) {
+            QDir().mkpath(destination.path());
+            QFile::copy(source,target);
+        }
+    }
+    return QDir::toNativeSeparators(destination.filePath("tabs.json"));
+}
 /** @brief Maya自身の整形済み文書を差分購読する。
  * @return reporter文書へ接続できた場合true。
  * @details Pythonの#とMEL/APIの//を推測せず標準reporterの追記を使用する。
@@ -111,13 +236,7 @@ bool connectNativeOutput() {
         [](const MString&,MCommandMessage::MessageType type,void*) {
             if (qApp && QThread::currentThread()==qApp->thread()) nativeMessageType=type;
         });
-    const auto address=python("__import__('hedit.bridge', fromlist=['create_output_reporter']).create_output_reporter()").toULongLong();
-    auto widget=reinterpret_cast<QWidget*>(static_cast<quintptr>(address));
-    if (!widget) return false;
-    auto rich=qobject_cast<QTextEdit*>(widget);
-    auto plain=qobject_cast<QPlainTextEdit*>(widget);
-    if (!rich && !plain) { rich=widget->findChild<QTextEdit*>(); plain=widget->findChild<QPlainTextEdit*>(); }
-    nativeDocument=rich ? rich->document() : plain ? plain->document() : nullptr;
+    nativeDocument=findReporterDocument(createOutputReporter());
     if (!nativeDocument) return false;
     // hedit専用文書だけを制限し、長時間使用時の履歴メモリを有界にする。
     nativeDocument->setMaximumBlockCount(5000);
@@ -135,44 +254,36 @@ bool connectNativeOutput() {
         });
     return true;
 }
-/** @brief cmds.hedit()から編集画面のアドレスを返すコマンド。 */
-class Command : public MPxCommand {
-public:
-    /** @brief Maya用ファクトリー。 @return Mayaが所有するコマンド。 */
-    static void* creator() { return new Command; }
-    /** @brief 編集画面を一度だけ生成する。
-     * @param args 未使用のMayaコマンド引数。
-     * @return GUI生成成功でkSuccess。バッチ等ではkFailure。
-     */
-    MStatus doIt(const MArgList& args) override {
-        if (MGlobal::mayaState() != MGlobal::kInteractive) {
-            MGlobal::displayError("hedit UI requires interactive Maya."); return MS::kFailure;
-        }
-        if (!window) {
+/** @brief 編集画面を返す。未作成なら作る(初回はMayaの過去の出力も取り込む)。
+ * @param create falseなら作らずに既存の画面だけ返す。
+ * @return 編集画面。作れない・未作成(create=false)ならnullptr。所有者は親(ドック)。
+ */
+QMainWindow* ensureEditor(bool create) {
+    if (window || !create) return window.data();
+    if (MGlobal::mayaState() != MGlobal::kInteractive) {
+        MGlobal::displayError("hedit UI requires interactive Maya."); return nullptr;
+    }
+    {
+        {
             if (!nativeDocument) {
                 // 同じメインスレッドで履歴を一度取得してから購読を開始する。
                 // 既存ログと新規コールバックの境界を分け、二重表示を防ぐ。
-                auto snapshot=python("__import__('hedit.bridge', fromlist=['output_history']).output_history()");
-                auto history=QJsonDocument::fromJson(("["+snapshot+"]").toUtf8()).array();
-                if (!history.isEmpty()) {
-                    auto historyText=history.first().toString();
-                    historyText.replace("\r\n","\n"); historyText.replace('\r','\n');
-                    const auto lines=historyText.split('\n');
-                    QMutexLocker lock(&outputMutex);
-                    for (int i=0;i<lines.size();++i) {
-                        auto line=lines.at(i); if (i==lines.size()-1 && line.isEmpty()) break;
-                        auto kind=hedit::OutputKind::Normal;
-                        if (line.startsWith("// Result:") || line.startsWith("# Result:")) kind=hedit::OutputKind::Result;
-                        else if (line.startsWith("// Warning:") || line.startsWith("# Warning:")) kind=hedit::OutputKind::Warning;
-                        else if (line.startsWith("// Error:") || line.startsWith("# Error:")) kind=hedit::OutputKind::Error;
-                        pendingOutput.append({line+'\n',kind}); pendingSize+=line.size()+1;
-                    }
+                const auto lines=outputHistory().split('\n');
+                QMutexLocker lock(&outputMutex);
+                for (int i=0;i<lines.size();++i) {
+                    auto line=lines.at(i); if (i==lines.size()-1 && line.isEmpty()) break;
+                    auto kind=hedit::OutputKind::Normal;
+                    if (line.startsWith("// Result:") || line.startsWith("# Result:")) kind=hedit::OutputKind::Result;
+                    else if (line.startsWith("// Warning:") || line.startsWith("# Warning:")) kind=hedit::OutputKind::Warning;
+                    else if (line.startsWith("// Error:") || line.startsWith("# Error:")) kind=hedit::OutputKind::Error;
+                    pendingOutput.append({line+'\n',kind}); pendingSize+=line.size()+1;
                 }
+                lock.unlock();
                 if (!connectNativeOutput()) {
                     if (outputCallback) { MMessage::removeCallback(outputCallback); outputCallback=0; }
-                    python("__import__('hedit.bridge', fromlist=['release_output_reporter']).release_output_reporter()");
+                    releaseOutputReporter();
                     MGlobal::displayError("hedit: native output reporter unavailable.");
-                    return MS::kFailure;
+                    return nullptr;
                 }
             }
             window = hedit::createEditor(MQtUtil::mainWindow(), [](const QString& source) {
@@ -183,11 +294,7 @@ public:
                 MGlobal::executePythonCommand(script, true, false);
                 return QString();
             }, [] { return python("__import__('hedit.bridge', fromlist=['configuration']).configuration()").toUtf8(); }, takeOutput,
-            [](const QString& source) {
-                QByteArray quoted = QJsonDocument(QJsonArray{source}).toJson(QJsonDocument::Compact);
-                quoted = quoted.mid(1, quoted.size()-2);
-                return python("__import__('hedit.bridge', fromlist=['complete']).complete(" + QString::fromUtf8(quoted) + ")").toUtf8();
-            }, python("__import__('hedit.bridge', fromlist=['session_path']).session_path()"), [](const QString& source) {
+            completion, sessionPath(), [](const QString& source) {
                 QByteArray quoted=QJsonDocument(QJsonArray{source}).toJson(QJsonDocument::Compact);
                 quoted=quoted.mid(1,quoted.size()-2);
                 return python("__import__('hedit.analysis', fromlist=['analyze']).analyze("+QString::fromUtf8(quoted)+")").toUtf8();
@@ -196,8 +303,65 @@ public:
                 MGlobal::executeCommand(script,true,false);
                 return QString();
             });
+            // ドックの中で探せるよう名前を付ける(テストや旧版の回収処理が使う)。
+            window->setObjectName("hedit");
+            // importの補完に使うsys.pathの走査を先に始め、最初のCtrl+Spaceまでに終えておく。
+            moduleScanner.refresh(pythonModulePaths(nullptr));
         }
-        setResult(MString(QString::number(reinterpret_cast<quintptr>(window.data())).toLatin1().constData()));
+    }
+    return window.data();
+}
+/** @brief heditのMayaコマンド。
+ * @details フラグなしは編集画面を(未作成なら作って)そのアドレスを返す。
+ * 公開フラグ: ``-show``(``-sh``)/``-floating``(``-f``)/``-restore``(``-r``)/``-saveState``(``-ss``)/
+ * ``-sessionPath``(``-sp``)。内部フラグ: ``-closed``(``-cl``, ドックのcloseCommand)、
+ * ``-quitting``(``-qt``, 終了通知のscriptJob)。いずれもMELから呼べ、Pythonを必要としない。
+ */
+class Command : public MPxCommand {
+public:
+    /** @brief Maya用ファクトリー。 @return Mayaが所有するコマンド。 */
+    static void* creator() { return new Command; }
+    /** @brief コマンドのフラグを定義する。 @return 表示・復元・状態保存・復元先のフラグを持つ構文。 */
+    static MSyntax newSyntax() {
+        MSyntax syntax;
+        syntax.addFlag("-sh","-show");
+        syntax.addFlag("-f","-floating",MSyntax::kBoolean);
+        syntax.addFlag("-r","-restore");
+        syntax.addFlag("-ss","-saveState");
+        syntax.addFlag("-sp","-sessionPath");
+        syntax.addFlag("-cl","-closed");
+        syntax.addFlag("-qt","-quitting");
+        return syntax;
+    }
+    /** @brief フラグに応じて画面を開く・復元する・状態を保存する・復元先を返す。
+     * @param args Mayaコマンド引数。
+     * @return 成功でkSuccess。画面が必要な操作はバッチ等ではkFailure。
+     */
+    MStatus doIt(const MArgList& args) override {
+        MStatus status;
+        MArgDatabase database(syntax(),args,&status);
+        if (!status) return status;
+        if (database.isFlagSet("-sp")) {
+            // 画面を作らないためバッチ/mayapyでも使える。
+            setResult(hedit::toMString(sessionPath()));
+            return MS::kSuccess;
+        }
+        if (database.isFlagSet("-cl")) { hedit::dock::closed(); return MS::kSuccess; }
+        if (database.isFlagSet("-qt")) { hedit::dock::quitting(); return MS::kSuccess; }
+        if (database.isFlagSet("-ss")) { hedit::dock::record(); return MS::kSuccess; }
+        if (database.isFlagSet("-r")) return hedit::dock::restore() ? MS::kSuccess : MS::kFailure;
+        if (database.isFlagSet("-sh")) {
+            std::optional<bool> floating;
+            if (database.isFlagSet("-f")) { bool value=false; database.getFlagArgument("-f",0,value); floating=value; }
+            if (MGlobal::mayaState() != MGlobal::kInteractive) {
+                MGlobal::displayError("hedit UI requires interactive Maya."); return MS::kFailure;
+            }
+            hedit::dock::show(floating);
+            return MS::kSuccess;
+        }
+        QMainWindow* editor=ensureEditor(true);
+        if (!editor) return MS::kFailure;
+        setResult(MString(QString::number(reinterpret_cast<quintptr>(editor)).toLatin1().constData()));
         return MS::kSuccess;
     }
 };
@@ -250,8 +414,8 @@ MStatus installMenu(const QString& icon) {
         "        menuItem -parent $parent -divider true \"heditWindowMenuDivider\";\n"
         "    menuItem -parent $parent -label \"hedit - Python / MEL\"\n"
         "        -annotation \"Open hedit (additional script editor)\"\n"
-        "        -sourceType \"python\"\n"
-        "        -command \"import hedit; hedit.show()\"\n")
+        "        -sourceType \"mel\"\n"
+        "        -command \"hedit -show\"\n")
         + image +
         "        \"heditWindowMenuItem\";\n"
         "}\n"
@@ -270,22 +434,18 @@ MStatus uninstallMenu() {
     return MGlobal::executeCommand(mel, false, false);
 }
 }
-/** @brief コマンドを登録し、Windowメニュー登録(C++/MEL)とPython側の画面復元を予約する。
+/** @brief コマンドを登録し、Windowメニュー登録と前回画面の復元の予約を行う。
  * @param object Mayaのプラグインオブジェクト。
  * @return コマンド登録結果。
- * @details hedit本体(復元・補完・静的解析等)は``.mll``に同梱され、``scripts/``配下の
- * ``.py``ファイルには依存しない。``hedit.*``モジュールの実体はembedded_python.hに
- * 文字列として同梱し、ロード時にMaya同梱のCPython上へ``sys.modules``として直接展開する
- * (``embedded_python::installModules``)。Windowメニューの登録自体はPythonを介さず、
- * ここから直接``installMenu()``(MEL)で行う。前回画面の復元だけは``PySide``/
- * ``MayaQWidgetDockableMixin``が要るため``startup.plugin_loaded()``(Python)に委ねる。
- * ``scripts/userSetup.py``(起動時に``loadPlugin('hedit')``を呼ぶだけの最小ブートストラップ)・
- * Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのいずれでもここが呼ばれるため、
- * プラグインのロードだけでメニュー登録・前回の画面復元が完了するようにしている。
+ * @details メニュー登録(MEL)・ドッキングと開閉状態の復元(dock.cpp)はC++で行い、Pythonを介さない。
+ * 補完・構文チェック用のPythonはembedded_python.hに同梱し、import hookとして登録する。
+ * ``scripts/userSetup.py``(起動時に``loadPlugin('hedit')``を呼ぶだけ)・Plug-in Managerでの
+ * 明示ロード・Mayaのプラグインautoloadのいずれでもここが呼ばれるため、プラグインのロードだけで
+ * メニュー登録・前回の画面復元が完了する。
  */
 MStatus initializePlugin(MObject object) {
-    MFnPlugin plugin(object, "hedit", "0.2.10", "Any");
-    auto status=plugin.registerCommand("hedit", Command::creator);
+    MFnPlugin plugin(object, "hedit", HEDIT_VERSION, "Any");
+    auto status=plugin.registerCommand("hedit", Command::creator, Command::newSyntax);
     if (!status) return status;
     // import hookはmayapy(standalone)でも登録する。補完等のPython APIはGUIに依存しないため。
     auto installed=hedit::embedded::installModules();
@@ -297,8 +457,10 @@ MStatus initializePlugin(MObject object) {
     if (MGlobal::mayaState()==MGlobal::kInteractive) {
         exiting=false;
         exitCallback=MSceneMessage::addCallback(MSceneMessage::kMayaExiting, onMayaExiting);
+        hedit::dock::configure(ensureEditor, sessionPath);
         installMenu(writeMenuIcon());
-        MGlobal::executePythonCommand("from hedit import startup; startup.plugin_loaded()",false,false);
+        // プラグイン登録中の再入を避け、前回画面の復元は次のイベントループへ送る。
+        QTimer::singleShot(0, hedit::dock::lifetime(), [] { hedit::dock::restorePrevious(); });
     }
     return status;
 }
@@ -312,17 +474,19 @@ MStatus uninitializePlugin(MObject object) {
     if (window && !window->close()) return MS::kFailure;
     if (MGlobal::mayaState()==MGlobal::kInteractive) {
         uninstallMenu();
-        MGlobal::executePythonCommand("from hedit import startup; startup.uninstall()",false,false);
+        hedit::dock::uninstall();
     }
     QObject::disconnect(reporterConnection); nativeDocument=nullptr;
-    python("__import__('hedit.bridge', fromlist=['release_output_reporter']).release_output_reporter()");
+    releaseOutputReporter();
     if (outputCallback) {
         MStatus status = MMessage::removeCallback(outputCallback);
         if (!status) return status;
         outputCallback = 0;
     }
     if (exitCallback) { MMessage::removeCallback(exitCallback); exitCallback = 0; }
-    MGlobal::executePythonCommand("import sys\nif 'hedit.docking' in sys.modules: sys.modules['hedit.docking'].release()", false, false);
+    // 走査スレッドのコードはhedit.mllの中にあるため、アンロード前に止めて合流する。
+    moduleScanner.stop();
+    if (MGlobal::mayaState()==MGlobal::kInteractive) hedit::dock::release();
     delete window.data(); window = nullptr;
     takeOutput();
     MFnPlugin plugin(object); return plugin.deregisterCommand("hedit");

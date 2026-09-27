@@ -15,7 +15,14 @@
        hedit 本体の Python(``scripts/hedit/*.py``)を ``hedit.mll`` に同梱し、プラグインのロードだけで
        Window メニュー登録(C++/MEL、アイコンの SVG も同梱)と前回画面の復元まで完了するようにした。
        ``scripts/userSetup.py`` は起動時に ``loadPlugin`` を呼ぶだけ。Maya 終了時に閉じた画面へ出力を描画して
-       クラッシュする問題を修正
+       クラッシュする問題を修正。
+       さらにドッキング・開閉状態の保存と復元・起動時の出力履歴・出力用 reporter・タブ復元先の決定を Python から C++ へ移し、
+       ``MayaQWidgetDockableMixin`` を使わない構成にした。Python は補完と構文チェックだけ。
+       Window メニューと uiScript は MEL の ``hedit -show`` / ``hedit -restore``\ 。\ ``hedit`` コマンドに
+       ``-show`` / ``-floating`` / ``-restore`` / ``-saveState`` / ``-sessionPath`` を追加。
+       ``import xxx`` のトップレベル名の補完を C++ へ移し、\ ``sys.path`` の走査を GIL を取らない C++ のスレッドで
+       編集画面の作成時から行うようにした。最初の Ctrl+Space から未読込のパッケージが候補に出る
+       (以前は候補が空で約 0.5 秒後に出直し、走査中は Python のスレッドが画面を引っかからせていた)
    * - 0.2.9
      - Maya メインスレッドのログ通知を、タイマーを待たず最大約 40 fps で反映
    * - 0.2.7

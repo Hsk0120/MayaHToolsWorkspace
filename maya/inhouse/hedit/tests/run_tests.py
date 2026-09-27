@@ -38,6 +38,8 @@ def main():
         # hedit.*本体はsrc/embedded_python.hがloadPlugin時にsys.modulesへ展開する。
         env['PYTHONPATH'] += os.pathsep + str(PROJECT / 'scripts')
         unit = run([executable, PROJECT / 'tests/test_completion.py'], env, directory, 'unit')
+        # 保存先の決定(C++のhedit -sessionPath)は、隔離したMaya設定フォルダーで確かめる。
+        unit = unit or run([executable, PROJECT / 'tests/test_rename.py'], env, directory, 'rename')
         config = directory / 'configuration.json'
         maya = run([executable, PROJECT / 'tests/maya_smoke.py', config], env, directory, 'maya')
         ui = None

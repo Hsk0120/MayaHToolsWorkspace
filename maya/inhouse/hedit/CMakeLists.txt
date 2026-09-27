@@ -64,7 +64,7 @@ endif()
 set(PROJECT_NAME hedit)
 
 # set SOURCE_FILES
-set(SOURCE_FILES src/editor.cpp src/editor.h src/explorer.cpp src/explorer.h src/spelling.cpp src/spelling.h src/plugin.cpp src/embedded_python.h)
+set(SOURCE_FILES src/editor.cpp src/editor.h src/explorer.cpp src/explorer.h src/spelling.cpp src/spelling.h src/modulescan.cpp src/modulescan.h src/plugin.cpp src/dock.cpp src/dock.h src/mayautil.h src/version.h src/embedded_python.h)
 
 # set linking libraries
 set(LIBRARIES
@@ -80,7 +80,7 @@ build_plugin()
 target_link_libraries(hedit ole32)
 set_target_properties(hedit PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
-add_executable(hedit_ui_smoke src/editor.cpp src/explorer.cpp src/spelling.cpp tests/ui_smoke.cpp)
+add_executable(hedit_ui_smoke src/editor.cpp src/explorer.cpp src/spelling.cpp src/modulescan.cpp tests/ui_smoke.cpp)
 target_include_directories(hedit_ui_smoke PRIVATE src ${INCLUDE_DIRS})
 target_link_libraries(hedit_ui_smoke PRIVATE ${PACKAGE_LIBS} ole32)
 set_target_properties(hedit_ui_smoke PROPERTIES CXX_STANDARD 17)

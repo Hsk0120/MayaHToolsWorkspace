@@ -19,8 +19,11 @@ def main(output_dir, finished):
     original = path.with_name('original.py')
     text = '# 未保存の日本語\nprint("recovered")\n'
     try:
-        host = hedit.show()
-        window = host.editor
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import hedit_host
+        hedit.show()
+        window = hedit_host.editor()
         tabs = window.findChild(QtWidgets.QTabWidget)
         if os.environ['HEDIT_SESSION_STAGE'] == 'write':
             original.write_text('original = True\n', encoding='utf-8')

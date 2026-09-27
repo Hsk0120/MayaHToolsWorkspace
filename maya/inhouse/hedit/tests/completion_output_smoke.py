@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import sys
+import time
 import traceback
 
 
@@ -22,8 +23,10 @@ def main(output_dir, finished):
         # hedit.*はhedit.mllに同梱されており、プラグインのロードでimportできるようになる。
         cmds.loadPlugin('hedit', quiet=True)
         import hedit
-        host = hedit.show()
-        window = host.editor
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import hedit_host
+        hedit.show()
+        window = hedit_host.editor()
         output = window.findChild(QtWidgets.QPlainTextEdit, 'output')
         code = window.findChild(QtWidgets.QPlainTextEdit, 'codeEditor')
         wait(100)
@@ -34,13 +37,38 @@ def main(output_dir, finished):
         result['checks'].append('history_before_open_once_and_result_format')
         # 実際のhlibソースを候補に含める。補完によるimportはしない。
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        completer = code.findChild(QtWidgets.QCompleter)
+
+        def names():
+            model = completer.completionModel()
+            return [model.index(row, 0).data() for row in range(model.rowCount())]
+
+        def show_popup(timeout=10.0):
+            # テスト用のMayaは前面にいないことがあり、Windowsは前面でないアプリのポップアップを
+            # すぐ閉じる。また前面化は非同期で、直後のキーはフォーカスが無く補完されない。
+            # 前面化を待ってからCtrl+Spaceを送り、表示されるまでやり直す(実際の操作では起きない)。
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                window.activateWindow(); code.setFocus()
+                wait(100)
+                if not code.hasFocus():
+                    continue
+                QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier)
+                wait(200)
+                if completer.popup().isVisible() and completer.completionCount():
+                    return True
+            return False
+
         window.activateWindow(); code.setFocus()
         code.setPlainText('import hlib'); code.moveCursor(QtGui.QTextCursor.End)
         QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier)
         wait(250)
-        completer = code.findChild(QtWidgets.QCompleter)
+        # 最初のCtrl+Spaceだけで、未読込のパッケージ(hlib)が候補に入る。sys.pathの走査は
+        # C++のスレッドで編集画面の作成時に始めている(ポップアップの表示有無とは別に確かめる)。
+        assert 'hlib' in names(), names()
+        result['checks'].append('first_ctrl_space_lists_unloaded_package')
+        assert show_popup(), 'No completion popup'
         model = completer.completionModel()
-        assert completer.popup().isVisible(), 'No completion popup'
         row = next(i for i in range(model.rowCount()) if model.index(i, 0).data() == 'hlib')
         completer.popup().setCurrentIndex(model.index(row, 0))
         QtTest.QTest.keyClick(completer.popup(), QtCore.Qt.Key_Return)
@@ -55,9 +83,7 @@ def main(output_dir, finished):
         # 確定後も次の入力と手動補完は使用できる。
         code.setPlainText('import maya.cmds as cmds\ncmds.')
         code.moveCursor(QtGui.QTextCursor.End)
-        QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier)
-        wait(200)
-        assert completer.popup().isVisible() and completer.completionCount()
+        assert show_popup(), 'No completion popup after accepting a candidate'
         completer.popup().hide()
         result['checks'].append('subsequent_completion_still_available')
         window.grab().save(str(directory / 'completion-output.png'))

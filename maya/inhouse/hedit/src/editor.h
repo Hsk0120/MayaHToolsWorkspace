@@ -37,4 +37,11 @@ QMainWindow* createEditor(QWidget* parent, Execute execute, Configuration config
  * @param editor createEditorで作成した画面。nullptrは無視する。
  */
 void refreshEditorOutput(QMainWindow* editor);
+/** @brief Mayaのreporterに残っている過去の履歴を、初回表示用に詰めて返す。
+ * @param text reporterの表示文書の全文。
+ * @return 空行を省き、空白だけの行を前後の断片へつないだ文字列。
+ * @note 過去の通知の区切りはMayaが改行に変換済みで復元できないため、この整形は
+ * 初回の取り込みだけに使い、以後のライブ出力には適用しない。
+ */
+QString compactHistory(QString text);
 }

@@ -48,8 +48,13 @@ def main(output_dir, finished):
         runpy.run_path(str(Path(__file__).resolve().parents[2] / "scripts" / "userSetup.py"))
         wait(300)
         import hedit
-        host = hedit.show(floating=True)
-        window = host.editor
+        hedit.show(floating=True)
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests"))
+        import hedit_host
+        window = hedit_host.editor()
+        # 編集画面はworkspaceControlに直接入る。浮動ウィンドウ本体は window.window()。
+        host = window
         try:
             host.window().resize(1280, 860)
         except Exception:

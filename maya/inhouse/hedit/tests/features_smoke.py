@@ -131,6 +131,7 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     # WindowメニューはinitializePlugin(C++/MEL)がプラグインのロード時に登録する。
     menu = 'heditWindowMenuItem'
     assert cmds.menuItem(menu, exists=True)
-    assert 'hedit.show()' in cmds.menuItem(menu, query=True, command=True)
+    assert cmds.menuItem(menu, query=True, command=True) == 'hedit -show'
+    assert cmds.menuItem(menu, query=True, sourceType=True) == 'mel'
     assert Path(cmds.menuItem(menu, query=True, image=True)).is_file()
     window.grab().save(str(Path(directory) / 'features.png'))

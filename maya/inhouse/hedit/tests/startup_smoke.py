@@ -3,11 +3,11 @@
 import json
 import os
 from pathlib import Path
+import sys
 import traceback
 
-MENU = 'heditWindowMenuItem'
-MENU_COMMAND = 'import hedit; hedit.show()'
-# 復元はexecuteDeferred、メニュー登録はevalDeferredで次のidleに実行されるため、検証まで待つ。
+MENU_COMMAND = 'hedit -show'
+# 復元は次のイベントループ、メニュー登録は同期またはidleで行うため、検証まで待つ。
 SETTLE_MS = 2000
 
 
@@ -45,25 +45,28 @@ def main(output_dir, finished):
 
 
 def _check(stage, output_dir, result):
-    from maya import cmds, OpenMayaUI
-    assert cmds.menuItem(MENU, exists=True), 'Window menu item was not added by plugin load'
-    assert cmds.menuItem(MENU, query=True, command=True) == MENU_COMMAND
-    icon = Path(cmds.menuItem(MENU, query=True, image=True))
+    from maya import cmds, mel, OpenMayaUI
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import hedit_host as host
+    assert cmds.menuItem(host.MENU, exists=True), 'Window menu item was not added by plugin load'
+    assert cmds.menuItem(host.MENU, query=True, command=True) == MENU_COMMAND
+    assert cmds.menuItem(host.MENU, query=True, sourceType=True) == 'mel'
+    icon = Path(cmds.menuItem(host.MENU, query=True, image=True))
     assert icon.name == 'hedit.svg' and icon.is_file(), 'Window menu icon is missing: {}'.format(icon)
     result['checks'].append('window_menu_added_by_plugin_load')
-    from hedit import startup, docking
+    QtWidgets = host.QtWidgets
     if stage == 'write':
-        # Windowメニューのクリックと同じコマンドで開く。
-        exec(cmds.menuItem(MENU, query=True, command=True), {})
-        host = docking._host
-        assert host is not None and host.isVisible(), 'Window menu command did not show hedit'
+        # Windowメニューのクリックと同じコマンド(MEL)で開く。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        window = host.docked_editor()
+        assert window is not None and window.isVisible(), 'Window menu command did not show hedit'
         result['checks'].append('window_menu_command_opened_editor')
-        cmds.workspaceControl(docking.CONTROL, edit=True, dockToMainWindow=('right', False))
-        window = host.editor
-        tabs = window.findChild(docking.QtWidgets.QTabWidget)
+        cmds.workspaceControl(host.CONTROL, edit=True, dockToMainWindow=('right', False))
+        window = host.editor()
+        tabs = window.findChild(QtWidgets.QTabWidget)
         tabs.currentWidget().setPlainText('restart_probe = 91')
         tabs.currentWidget().document().setModified(True)
-        action_type = getattr(docking.QtWidgets, 'QAction', None)
+        action_type = getattr(QtWidgets, 'QAction', None)
         if action_type is None:
             from PySide6.QtGui import QAction
             action_type = QAction
@@ -71,38 +74,39 @@ def _check(stage, output_dir, result):
         tabs.currentWidget().setPlainText('int $restoreMel = 42;')
         tabs.currentWidget().document().setModified(True)
         tabs.setCurrentIndex(0)
-        startup.record()
+        host.save_state()
         # 子画面を閉じるとC++側のタブ保存が完了する。ドック自体は保持する。
         window.close()
         cmds.workspaceLayoutManager(save=True)
-        assert json.loads(startup.state_path().read_text(encoding='utf-8'))['open']
+        assert json.loads(host.state_path().read_text(encoding='utf-8'))['open']
         result['checks'].append('saved_open_right_dock_and_unsaved_code')
     elif stage == 'read':
-        assert docking._host is not None, 'Plugin load did not restore hedit'
-        assert cmds.workspaceControl(docking.CONTROL, exists=True)
-        assert not cmds.workspaceControl(docking.CONTROL, query=True, floating=True)
-        window = docking._host.editor
+        window = host.docked_editor()
+        assert window is not None, 'Plugin load did not restore hedit'
+        assert cmds.workspaceControl(host.CONTROL, exists=True)
+        assert not cmds.workspaceControl(host.CONTROL, query=True, floating=True)
         # 本文が存在するだけでは非表示reporterへの誤挿入を検出できない。
-        control = docking.wrapInstance(int(OpenMayaUI.MQtUtil.findControl(docking.CONTROL)), docking.QtWidgets.QWidget)
-        assert control.isAncestorOf(docking._host), 'Editor host was attached outside workspaceControl'
-        assert docking._host.isVisible() and window.isVisible(), 'Restored editor is hidden'
-        tabs = window.findChild(docking.QtWidgets.QTabWidget)
+        control = host.control()
+        assert control.isAncestorOf(window), 'Editor was attached outside workspaceControl'
+        assert window.isVisible(), 'Restored editor is hidden'
+        assert len(host.visible_editors()) == 1
+        tabs = window.findChild(QtWidgets.QTabWidget)
         assert tabs.currentWidget().isVisible(), 'Active restored tab is hidden'
         assert tabs.currentWidget().toPlainText() == 'restart_probe = 91'
         assert tabs.count() == 2 and tabs.widget(1).property('language') == 'mel'
         assert tabs.widget(1).toPlainText() == 'int $restoreMel = 42;'
         # 右側に置いたドックを、同じMaya設定フォルダーから復元できたか確認する。
-        main_window = docking.wrapInstance(int(OpenMayaUI.MQtUtil.mainWindow()), docking.QtWidgets.QWidget)
-        center = docking._host.mapToGlobal(docking.QtCore.QPoint(docking._host.width() // 2, 0)).x()
+        main_window = host.wrapInstance(int(OpenMayaUI.MQtUtil.mainWindow()), QtWidgets.QWidget)
+        center = window.mapToGlobal(window.rect().center()).x()
         assert center > main_window.mapToGlobal(main_window.rect().center()).x(), 'Right dock placement was lost'
         window.grab().save(str(Path(output_dir, 'restored.png')))
         result['checks'].append('plugin_load_restored_right_dock_state_and_code')
-        cmds.workspaceControl(docking.CONTROL, edit=True, close=True)
-        assert not json.loads(startup.state_path().read_text(encoding='utf-8'))['open']
+        cmds.workspaceControl(host.CONTROL, edit=True, close=True)
+        assert not json.loads(host.state_path().read_text(encoding='utf-8'))['open']
         cmds.workspaceLayoutManager(save=True)
     else:
-        assert not cmds.workspaceControl(docking.CONTROL, exists=True) or not cmds.workspaceControl(docking.CONTROL, query=True, visible=True)
+        assert not cmds.workspaceControl(host.CONTROL, exists=True) or not cmds.workspaceControl(host.CONTROL, query=True, visible=True)
         result['checks'].append('closed_editor_not_reopened')
         cmds.unloadPlugin('hedit')
-        assert not cmds.menuItem(MENU, exists=True), 'Window menu item remained after unload'
+        assert not cmds.menuItem(host.MENU, exists=True), 'Window menu item remained after unload'
         result['checks'].append('window_menu_removed_by_unload')

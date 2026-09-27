@@ -11,9 +11,9 @@
 (``hedit/release/plug-ins/windows/<Mayaの年>/<hedit の版>/``)と、
 起動時に ``hedit.mll`` を自動ロードするための最小の Python(``scripts/userSetup.py``)を設定します。
 
-hedit のロジック(復元・Window メニュー登録・補完・静的解析・タブ保存など)自体は
-``.py`` ファイルを持たず、``hedit.mll`` 自身に同梱されています(:doc:`development` 参照)。
-プラグインのロード時に、Maya 同梱の Python から ``import hedit`` できるようになります。
+hedit のロジック(Window メニュー登録・ドッキング・開閉状態の保存と復元・タブ保存・補完・静的解析など)は
+``.py`` ファイルを持たず、``hedit.mll`` 自身が持っています(:doc:`development` 参照)。
+画面・ドック・状態の保存は C++ で、補完と構文チェックだけを Maya 同梱の Python で行います。
 Plug-in Manager からの明示ロードでも、この ``userSetup.py`` 経由の自動ロードでも、
 起こることは同じです。``userSetup.py`` が行うのは ``cmds.loadPlugin('hedit')`` の
 呼び出しだけで、復元やメニュー登録のロジックはここには置いていません。
@@ -38,7 +38,13 @@ Maya の GUI が起動すると、\ ``userSetup.py`` が次の idle で ``hedit`
 Window メニューの末尾に区切り線と **hedit - Python / MEL**\ (緑の H アイコン)が追加されます。
 これをクリックして開くのが基本の起動方法です。プラグインをアンロードすると、この項目も取り除かれます。
 
-メニュー項目のコマンドは次と同じなので、Python タブからも開けます。
+メニュー項目のコマンドは MEL の ``hedit -show`` です。MEL タブ・シェルフ・ホットキーから同じように開けます。
+
+.. code-block:: text
+
+   hedit -show;
+
+Python からは、同じ動作をする ``hedit.show()`` を使えます(C++ の ``hedit`` コマンドを呼ぶだけの窓口です)。
 
 .. code-block:: python
 
@@ -55,19 +61,23 @@ mayapy(standalone)から補完などの Python API を使う場合も同様で�
    cmds.loadPlugin('hedit')   # .mod の MAYA_PLUG_IN_PATH から名前で見つかる
    import hedit
 
-``show()`` の引数:
+開き方の指定:
 
 .. list-table::
    :header-rows: 1
-   :widths: 25 75
+   :widths: 35 30 35
 
-   * - 呼び出し
+   * - MEL
+     - Python
      - 動作
-   * - ``hedit.show()``
+   * - ``hedit -show``
+     - ``hedit.show()``
      - 既存の配置を保ったまま開く。初回はフローティング表示。
-   * - ``hedit.show(floating=False)``
-     - コード側から下側へドッキングして開く。
-   * - ``hedit.show(floating=True)``
+   * - ``hedit -show -floating false``
+     - ``hedit.show(floating=False)``
+     - ドッキングして開く(初回は下側)。
+   * - ``hedit -show -floating true``
+     - ``hedit.show(floating=True)``
      - フローティング表示に戻す。
 
 繰り返し ``show()`` や Window メニューを実行すると、既存の本文を一度閉じて同じ画面を開き直します。

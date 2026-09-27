@@ -28,10 +28,13 @@ def main(output_dir, finished):
         wait_events(200)
         assert cmds.pluginInfo('hedit', query=True, loaded=True)
         import hedit
-        assert cmds.menuItem('heditWindowMenuItem', exists=True)
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import hedit_host as H
+        assert cmds.menuItem(H.MENU, exists=True)
         result['checks'].append('user_setup_autoload_and_menu')
-        host = hedit.show()
-        window = host.editor
+        hedit.show()
+        window = H.editor()
         assert window.isVisible()
         wait_events(100)
         initial_output=window.findChild(QtWidgets.QPlainTextEdit, 'output')
@@ -42,24 +45,27 @@ def main(output_dir, finished):
         assert '// Result: {}'.format(cmds.about(version=True)) in initial_output.toPlainText(), initial_output.toPlainText()
         result['checks'].append('initial_maya_history_and_result_format')
         result['checks'].append('window_visible')
-        from hedit import docking
         split = window.findChild(QtWidgets.QSplitter, 'editorSplitter')
         assert split.widget(0).objectName() == 'outputPanel'
         assert isinstance(split.widget(1), QtWidgets.QTabWidget)
-        cmds.workspaceControl(docking.CONTROL, edit=True, dockToMainWindow=('bottom', False))
-        assert not cmds.workspaceControl(docking.CONTROL, query=True, floating=True)
-        cmds.workspaceControl(docking.CONTROL, edit=True, floating=True)
-        assert cmds.workspaceControl(docking.CONTROL, query=True, floating=True)
-        cmds.workspaceControl(docking.CONTROL, edit=True, close=True)
-        assert hedit.show() is host
-        window = host.editor
+        # 初回はフローティング。ドッキング/フローティングの切り替え後も同じ画面を再表示する。
+        assert cmds.workspaceControl(H.CONTROL, query=True, floating=True)
+        cmds.workspaceControl(H.CONTROL, edit=True, dockToMainWindow=('bottom', False))
+        assert not cmds.workspaceControl(H.CONTROL, query=True, floating=True)
+        cmds.workspaceControl(H.CONTROL, edit=True, floating=True)
+        assert cmds.workspaceControl(H.CONTROL, query=True, floating=True)
+        first_editor = H.pointer(window)
+        cmds.workspaceControl(H.CONTROL, edit=True, close=True)
+        hedit.show()
+        window = H.editor()
+        assert H.pointer(window) == first_editor and H.docked_editor() is not None
         assert window.isVisible()
         result['checks'].append('output_above_code_dock_float_reopen')
-        # 明示再起動を繰り返しても本文と一つのホストを維持する。
+        # 明示再起動を繰り返しても本文と一つの画面を維持する。
         import importlib
         tabs_probe = window.findChild(QtWidgets.QTabWidget)
         tabs_probe.currentWidget().setPlainText('unsaved_reopen_probe = 42')
-        original_host = docking.getCppPointer(host)[0]
+        original_host = H.pointer(window)
         class CloseProbe(QtCore.QObject):
             def __init__(self):
                 super(CloseProbe, self).__init__(); self.count = 0
@@ -71,18 +77,16 @@ def main(output_dir, finished):
         window.installEventFilter(close_probe)
         for i in range(3):
             if i == 1:
-                importlib.reload(docking)
-                docking._host = None  # Python参照喪失も実際のQt所有ツリーから回収する。
-            reopened = hedit.show()
-            assert docking.getCppPointer(reopened)[0] == original_host
-            assert reopened.isVisible() and reopened.editor.isVisible()
+                # Pythonの窓口を読み直しても、画面と状態はC++側の一つを使い続ける。
+                importlib.reload(hedit)
+            hedit.show()
             # Qt5ではreparent/再表示後にPython側ラッパーが無効化されるため再取得する。
-            window = reopened.editor
+            window = H.editor()
+            assert H.pointer(window) == original_host
+            assert window.isVisible() and H.docked_editor() is not None
             tabs_probe = window.findChild(QtWidgets.QTabWidget)
             assert tabs_probe.currentWidget().toPlainText() == 'unsaved_reopen_probe = 42'
-            visible_hosts = [w for w in QtWidgets.QApplication.allWidgets()
-                             if w.objectName() == 'heditDock' and w.isVisible()]
-            assert len(visible_hosts) == 1
+            assert len(H.visible_editors()) == 1
         assert close_probe.count == 3, close_probe.count
         window.removeEventFilter(close_probe)
         split = window.findChild(QtWidgets.QSplitter, 'editorSplitter')
@@ -317,21 +321,24 @@ def main(output_dir, finished):
                         assert window.close()
                         stage('unload')
                         cmds.unloadPlugin('hedit')
-                        assert not cmds.workspaceControl(docking.CONTROL, exists=True)
+                        assert not cmds.workspaceControl(H.CONTROL, exists=True)
+                        assert not cmds.menuItem(H.MENU, exists=True)
                         result['checks'].append('close_and_unload')
-                        # 保存されたuiScriptからの再構築経路を同じGUI内で検証する。
+                        # 旧版で保存されたPythonのuiScriptからの再構築経路を同じGUI内で検証する。
+                        # hedit.restore()はプラグインをロードしてからC++のhedit -restoreを呼ぶ。
                         stage('restore_control')
-                        cmds.workspaceControl(docking.CONTROL, label='hedit', floating=True,
+                        cmds.workspaceControl(H.CONTROL, label='hedit', floating=True,
                                               retain=True, loadImmediately=True,
                                               uiScript='import hedit; hedit.restore()')
                         wait_events(80)
+                        assert cmds.pluginInfo('hedit', query=True, loaded=True)
                         stage('restore_show')
-                        restored = hedit.show()
-                        assert restored.editor.isVisible()
-                        assert len([w for w in QtWidgets.QApplication.allWidgets() if w.objectName() == 'hedit']) == 1
+                        hedit.show()
+                        assert H.editor().isVisible() and H.docked_editor() is not None
+                        assert len(H.editors()) == 1
                         stage('restore_unload')
                         cmds.unloadPlugin('hedit')
-                        assert not cmds.workspaceControl(docking.CONTROL, exists=True)
+                        assert not cmds.workspaceControl(H.CONTROL, exists=True)
                         result['checks'].append('workspace_ui_script_restore_and_unload')
                     except Exception:
                         result['status'] = 'error'

@@ -22,7 +22,10 @@ def main(output_dir, finished):
         loop=QtCore.QEventLoop(); QtCore.QTimer.singleShot(80,loop.quit)
         (loop.exec if hasattr(loop,'exec') else loop.exec_)()
     try:
-        host=hedit.show(); window=host.editor
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import hedit_host
+        hedit.show(); window=hedit_host.editor()
         output=window.findChild(QtWidgets.QPlainTextEdit,'output')
         temporary=cmds.window(); cmds.columnLayout()
         reporter=cmds.cmdScrollFieldReporter()

@@ -18,38 +18,37 @@
 namespace hedit {
 namespace embedded {
 
-/** @brief hedit.__init__ 相当。プラグインのロードとエディタ表示の窓口。 */
+/** @brief hedit.__init__ 相当。PythonからC++のheditコマンドを呼ぶ互換用の窓口。
+ * @details ドッキング・開閉状態の保存と復元はdock.cpp(C++)が行う。ここはPythonの
+ * スクリプトや、旧版で保存されたworkspaceControlのuiScript(``import hedit; hedit.restore()``)の入口。
+ */
 inline const char* kInitSource = R"HEDIT_INIT(
 __version__ = '0.2.10'
 
 
-def show(floating=None):
-    """hedit.mllをロードして編集画面を表示する。"""
+def _load():
     from maya import cmds
     if 'hedit' not in (cmds.pluginInfo(query=True, listPlugins=True) or []):
         cmds.loadPlugin('hedit')
-    from . import docking
-    host = docking.show(floating=floating)
-    from . import startup
-    startup.opened()
-    return host
+    return cmds
+
+
+def show(floating=None):
+    """編集画面を開く(MELの hedit -show と同じ)。
+
+    Args:
+        floating (bool | None): 指定時だけフローティング状態を変更する。
+    """
+    cmds = _load()
+    if floating is None:
+        cmds.hedit(show=True)
+    else:
+        cmds.hedit(show=True, floating=bool(floating))
 
 
 def restore():
-    """Mayaのワークスペース復元から呼び出す。"""
-    from maya import cmds, utils
-    from . import startup
-    reopen = startup.previous_open()
-    if not reopen:
-        # 閉じたドックは必要になるまでQt本体を生成しない。
-        utils.executeDeferred(startup.hide_if_closed)
-        return None
-    if 'hedit' not in (cmds.pluginInfo(query=True, listPlugins=True) or []):
-        cmds.loadPlugin('hedit')
-    from . import docking
-    host = docking.show(restore=True)
-    startup.opened()
-    return host
+    """旧版で保存されたworkspaceControlのuiScriptから呼ばれる(MELの hedit -restore と同じ)。"""
+    _load().hedit(restore=True)
 )HEDIT_INIT";
 
 /** @brief hedit.completion 相当。標準ライブラリだけの静的補完エンジン。 */
@@ -61,52 +60,23 @@ import keyword
 import os
 import re
 import sys
-import threading
-import time
 
 
 class Index:
-    def __init__(self, paths, modules=None, runtime=None, async_scan=False):
+    """モジュールの中身・ローカルの宣言の補完。
+
+    ``import xxx`` / ``from xxx`` のトップレベル名(sys.pathのフォルダー走査)はC++
+    (modulescan.cpp)が扱う。ここでの ``import`` の補完は組み込み・読み込み済みの名前だけ。
+    """
+    def __init__(self, paths, modules=None, runtime=None):
         self.paths = paths
         self.modules = modules or {}
         self.cache = {}
         self.runtime = runtime
         self.top = set(sys.builtin_module_names)
         self.top.update(name.split('.')[0] for name in self.modules)
-        self.top_scanned = False
-        self.async_scan = async_scan
-        self.scan_thread = None
-        self.scan_started = 0
         self.local_source = None
         self.local_symbols = {}
-
-    def scan_top(self):
-        """GUIではファイル列挙を同一プロセスの別スレッドで実行する。"""
-        if self.async_scan:
-            if self.scan_thread and (self.scan_thread.is_alive() or time.monotonic()-self.scan_started < 5):
-                return
-            self.scan_started = time.monotonic()
-            self.scan_thread = threading.Thread(target=self._scan_top, args=(tuple(self.paths), tuple(self.modules)), daemon=True)
-            self.scan_thread.start()
-        else:
-            self._scan_top(tuple(self.paths), tuple(self.modules))
-
-    def _scan_top(self, paths, modules):
-        """Maya APIやUIを呼ばず、完了した候補集合を一度に交換する。"""
-        top = set(sys.builtin_module_names)
-        top.update(name.split('.')[0] for name in modules)
-        for path in paths:
-            try:
-                with os.scandir(path) as entries:
-                    for entry in entries:
-                        if entry.name.endswith('.py'):
-                            top.add(entry.name[:-3])
-                        elif entry.is_dir() and entry.name.isidentifier():
-                            top.add(entry.name)
-            except OSError:
-                pass
-        self.top_scanned = True
-        self.top = top
 
     def locals(self, source):
         """同じ宣言部分を再解析せず、構文エラー時の全行再試行を最大4回に制限する。"""
@@ -255,7 +225,6 @@ class Index:
                 parent, prefix = token.rsplit('.', 1)
                 symbols = self.module(parent)
             else:
-                self.scan_top()
                 prefix, symbols = token, {name: {} for name in self.top | {n.split('.')[0] for n in self.modules}}
         else:
             # 編集途中の末尾行を順に除去し、確定した宣言を解析する。
@@ -280,72 +249,18 @@ class Index:
                 if name.startswith(prefix) and (prefix.startswith('_') or not name.startswith('_'))][:250]
 )HEDIT_COMPLETION";
 
-/** @brief hedit.bridge 相当。Maya出力履歴・タブ復元先・補完/静的解析の橋渡し。 */
+/** @brief hedit.bridge 相当。補完の橋渡しと、C++が決めるタブ復元先の参照。
+ * @details 出力履歴の取得・整形、出力用reporterの作成/破棄、復元先の決定はplugin.cppへ移した。
+ */
 inline const char* kBridgeSource = R"HEDIT_BRIDGE(
 """Mayaメインスレッド専用。補完のためのeval/importは行わない。"""
 import json
 import os
-import re
 import sys
 import types
 from .completion import Index
 
 _index = None
-
-
-def compact_history(text):
-    """既存reporterの履歴をコンパクトに表示する。
-
-    過去の通知境界はMayaが改行へ変換済みで復元できないため、空行を省略する。
-    print(a, b)の空白だけの通知は前後の断片に接続する。ライブ出力には適用しない。
-    """
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
-    text = re.sub(r'\n([ \t]+)\n', r'\1', text)
-    return '\n'.join(line for line in text.split('\n') if line.strip()) + ('\n' if text else '')
-
-
-def output_history():
-    """Mayaが保持している履歴を、初回表示用に読み取る。
-
-    Returns:
-        str: 既存履歴のJSON。設定・選択・標準エディタの履歴は変更しない。
-            Maya側ですでに破棄された履歴は復元できない。
-    """
-    from maya import cmds, mel
-    reporter = mel.eval('global string $gCommandReporter; string $heditReporter = $gCommandReporter;')
-    temporary = None
-    try:
-        if not reporter or not cmds.cmdScrollFieldReporter(reporter, exists=True):
-            # 標準エディタを開かず、Mayaが保持する履歴を非表示のreporterで読む。
-            temporary = cmds.window()
-            cmds.columnLayout()
-            reporter = cmds.cmdScrollFieldReporter()
-        # 既存の表示用文書を優先する。ただし遡及生成した文書にも通知区切りが
-        # 含まれるため、末尾で初期履歴専用のコンパクト化を行う。
-        from maya import OpenMayaUI
-        try:
-            from PySide6 import QtWidgets
-            from shiboken6 import wrapInstance
-        except ImportError:
-            from PySide2 import QtWidgets
-            from shiboken2 import wrapInstance
-        pointer = OpenMayaUI.MQtUtil.findControl(reporter)
-        text = None
-        if pointer:
-            widget = wrapInstance(int(pointer), QtWidgets.QWidget)
-            for kind in (QtWidgets.QTextEdit, QtWidgets.QPlainTextEdit):
-                document = (wrapInstance(int(pointer), kind) if widget.inherits(kind.__name__)
-                            else widget.findChild(kind))
-                if document is not None:
-                    # Maya内の既存PythonラッパーがQWidget型でもQtプロパティは読める。
-                    text = document.property('plainText')
-                    break
-        if text is None:
-            text = cmds.cmdScrollFieldReporter(reporter, query=True, text=True) or ''
-        return json.dumps(compact_history(text[-512 * 1024:]), ensure_ascii=True)
-    finally:
-        if temporary:
-            cmds.deleteUI(temporary)
 
 
 def runtime_module(name):
@@ -368,26 +283,6 @@ def runtime_module(name):
     return members(vars(module)), vars(module).get('__file__', '')
 
 
-def session_path():
-    """Mayaバージョン別のタブ復元先。環境変数は隔離テスト用にも使用する。"""
-    from maya import cmds
-    override = os.environ.get('HEDIT_SESSION_FILE')
-    if override:
-        return override
-    # 名前変更前の未保存タブ・設定を初回のみコピー。旧データは削除しない。
-    import shutil
-    from pathlib import Path
-    base = Path(cmds.internalVar(userPrefDir=True))
-    destination = base / 'hedit'
-    legacy = base / 'heditor'
-    for name in ('tabs.json', 'ui.json', 'preferences.ini'):
-        source = legacy / name
-        target = destination / name
-        if source.is_file() and not target.exists():
-            destination.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(source), str(target))
-    return str(destination / 'tabs.json')
-
 
 
 def configuration():
@@ -400,8 +295,19 @@ def configuration():
         "modules": modules,
     }
     # 過去の公開名を固定せず、補完対象ごとに現在の状態を読む。
-    _index = Index(data["paths"], modules=modules, runtime=runtime_module, async_scan=True)
+    _index = Index(data["paths"], modules=modules, runtime=runtime_module)
     return json.dumps({'ready': True})
+
+
+def module_names():
+    """str: C++のimport補完へ渡す検索パスと、組み込み・読み込み済みのトップレベル名(JSON)。
+
+    sys.pathのフォルダー走査はC++(modulescan.cpp)がGILを取らないスレッドで行う。
+    """
+    paths = [os.path.abspath(p or os.curdir) for p in sys.path if isinstance(p, str)]
+    names = set(sys.builtin_module_names)
+    names.update(name.split('.')[0] for name in list(sys.modules))
+    return json.dumps({'paths': paths, 'names': sorted(names)}, ensure_ascii=True)
 
 
 
@@ -414,182 +320,10 @@ def complete(source):
             _index.paths = [os.path.abspath(p or os.curdir) for p in sys.path if isinstance(p, str)]
             _index.modules = {name: {} for name in sys.modules}
         items = _index.complete(source)
-        return json.dumps({'items': items, 'pending': bool(_index.scan_thread and _index.scan_thread.is_alive())}, ensure_ascii=True)
+        return json.dumps({'items': items, 'pending': False}, ensure_ascii=True)
     except Exception as exc:
         return json.dumps({'error': str(exc)}, ensure_ascii=True)
-
-
-_native_reporter_window = None
-
-def create_output_reporter():
-    """ライブ整形専用の非表示reporterを保持する。
-
-    Returns:
-        str: C++側で表示文書を参照するためのQtウィジェットアドレス。
-
-    Note:
-        標準Script Editorの設定は変更せず、専用ウィンドウを作成する。
-        release_output_reporter()で破棄する。
-    """
-    global _native_reporter_window
-    from maya import cmds, OpenMayaUI
-    previous_parent = cmds.setParent(query=True)
-    try:
-        _native_reporter_window = cmds.window()
-        cmds.columnLayout()
-        reporter = cmds.cmdScrollFieldReporter()
-        return str(int(OpenMayaUI.MQtUtil.findControl(reporter)))
-    finally:
-        if previous_parent:
-            cmds.setParent(previous_parent)
-
-def release_output_reporter():
-    """プラグイン解除時に専用reporterを破棄する。"""
-    global _native_reporter_window
-    from maya import cmds
-    if _native_reporter_window and cmds.window(_native_reporter_window, exists=True):
-        cmds.deleteUI(_native_reporter_window)
-    _native_reporter_window = None
 )HEDIT_BRIDGE";
-
-/** @brief hedit.docking 相当。Maya標準ドッキングホスト(MayaQWidgetDockableMixin)。 */
-inline const char* kDockingSource = R"HEDIT_DOCKING(
-"""Maya標準のドッキングホスト。編集画面はC++製ウィジェットを使用する。"""
-from maya import cmds, OpenMayaUI
-from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
-try:
-    from PySide6 import QtCore, QtWidgets
-    from shiboken6 import wrapInstance, getCppPointer, isValid
-except ImportError:
-    from PySide2 import QtCore, QtWidgets
-    from shiboken2 import wrapInstance, getCppPointer, isValid
-
-from hedit import __version__
-
-WINDOW_TITLE = f'hedit {__version__} - Python / MEL'
-CONTROL = 'heditDockWorkspaceControl'
-# 保存済みの旧ドックがある場合はその配置を再利用する。画面名はheditに更新する。
-if (cmds.workspaceControl('HEditorDockWorkspaceControl', exists=True)
-        and not cmds.workspaceControl(CONTROL, exists=True)):
-    CONTROL = 'HEditorDockWorkspaceControl'
-_host = globals().get('_host')
-_opening = False
-
-
-class heditDock(MayaQWidgetDockableMixin, QtWidgets.QWidget):
-    """フローティングとMayaレイアウトへのドッキングを扱うホスト。"""
-    def __init__(self):
-        super(heditDock, self).__init__()
-        self.setObjectName('heditDock')
-        self.setWindowTitle(WINDOW_TITLE)
-        self.resize(1050, 740)
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        editor = wrapInstance(int(cmds.hedit()), QtWidgets.QMainWindow)
-        editor.setWindowFlags(QtCore.Qt.Widget)
-        layout.addWidget(editor)
-
-    @property
-    def editor(self):
-        # Qt5ではMaya側のreparentで既存のPythonラッパーが無効化される。
-        # Mayaコマンドが保持する生存中のQPointerから改めてラップする。
-        return wrapInstance(int(cmds.hedit()), QtWidgets.QMainWindow)
-
-
-def show(floating=None, restore=False):
-    """一つのホストを再利用し、明示起動では閉じてから開き直す。
-
-    Args:
-        floating (bool | None): 指定時だけ浮動状態を変更する。
-        restore (bool): Maya復元からの呼出。閉じ直す処理を行わない。
-
-    Returns:
-        QWidget: 未保存コードと配置を保持する唯一のホスト。
-    """
-    global _host, _opening
-    if _opening:
-        return _host
-    _opening = True
-    try:
-        # Pythonのreloadや参照消失後も、Mayaが所有するホストを回収する。
-        hosts = [widget for widget in QtWidgets.QApplication.allWidgets()
-                 if isValid(widget) and widget.objectName() == 'heditDock']
-        if _host is None or not isValid(_host):
-            _host = next((widget for widget in hosts
-                          if widget.findChild(QtWidgets.QMainWindow, 'hedit') is not None),
-                         hosts[0] if hosts else None)
-        for widget in hosts:
-            if widget is not _host:
-                widget.hide()
-        if _host is not None and not restore:
-            # 本体のcloseEventでタブを保存する。取消時は現在の画面をそのまま残す。
-            # workspaceControlは破棄せず、Mayaのドッキング配置を維持する。
-            if not _host.editor.close():
-                return _host
-            _host.hide()
-        return _show(floating=floating, restore=restore)
-    finally:
-        _opening = False
-
-
-def _show(floating=None, restore=False):
-    """既存ホストを再利用する。通常の閉じる操作ではタブを保持する。"""
-    global _host
-    # 本体生成は内部reporterなどのMaya UIを作るため、生成前に復元先を確定する。
-    # getCurrentParentを生成後に読むと、非表示reporter側へ誤挿入され得る。
-    restore_parent = None
-    if restore:
-        restore_parent = OpenMayaUI.MQtUtil.findControl(CONTROL) or OpenMayaUI.MQtUtil.getCurrentParent()
-    if cmds.workspaceControl(CONTROL, exists=True):
-        cmds.workspaceControl(CONTROL, edit=True, label=WINDOW_TITLE)
-    if _host is None or not isValid(_host):
-        _host = heditDock()
-        # 閉じたworkspaceControlのuiScriptは本体生成を遅延する。
-        # 明示的なshowで初めて生成した場合、既存のMayaレイアウトへ挿入する。
-        if not restore and cmds.workspaceControl(CONTROL, exists=True):
-            parent = OpenMayaUI.MQtUtil.findControl(CONTROL)
-            OpenMayaUI.MQtUtil.addWidgetToMayaLayout(int(getCppPointer(_host)[0]), int(parent))
-    _host.setWindowTitle(WINDOW_TITLE)
-    if restore:
-        parent = restore_parent
-        if not parent:
-            raise RuntimeError('hedit workspaceControl was not found')
-        OpenMayaUI.MQtUtil.addWidgetToMayaLayout(int(getCppPointer(_host)[0]), int(parent))
-        _host.setVisible(True)
-        _host.editor.show()
-        return _host
-    if cmds.workspaceControl(CONTROL, exists=True):
-        if floating is not None:
-            cmds.workspaceControl(CONTROL, edit=True, floating=floating)
-        # 旧版で別レイアウトへ入ったホストも、明示的な再表示時に修復する。
-        parent = OpenMayaUI.MQtUtil.findControl(CONTROL)
-        control = wrapInstance(int(parent), QtWidgets.QWidget)
-        if not control.isAncestorOf(_host):
-            OpenMayaUI.MQtUtil.addWidgetToMayaLayout(int(getCppPointer(_host)[0]), int(parent))
-        # Qt5ではuiScript直後の浮動ドックにrestoreを掛けるとネイティブ
-        # ウィンドウ再生成で落ちる場合がある。保持中のコントロールを表示する。
-        cmds.workspaceControl(CONTROL, edit=True, visible=True)
-        _host.setVisible(True)
-        _host.editor.show()
-    else:
-        _host.show(dockable=True, floating=True if floating is None else floating,
-                   area='bottom', retain=True, width=1050, height=740, plugins=['hedit'],
-                   uiScript='import hedit; hedit.restore()')
-    return _host
-
-
-def release():
-    """プラグイン解除時に空のドックを残さない。タブの保存はC++側で行う。"""
-    global _host
-    if cmds.workspaceControl(CONTROL, exists=True):
-        # deleteUI中のcloseCommandから配置を照会すると、Qt5では破棄中の
-        # workspaceControlへ再入してクラッシュする。状態はuninstallで保存済み。
-        cmds.workspaceControl(CONTROL, edit=True, closeCommand='')
-        cmds.deleteUI(CONTROL)
-    elif _host is not None and isValid(_host):
-        _host.deleteLater()
-    _host = None
-)HEDIT_DOCKING";
 
 /** @brief hedit.analysis 相当。compile()だけを使う構文・警告チェック。 */
 inline const char* kAnalysisSource = R"HEDIT_ANALYSIS(
@@ -620,213 +354,14 @@ def analyze(source):
     return json.dumps({'diagnostics': diagnostics[:100]}, ensure_ascii=True)
 )HEDIT_ANALYSIS";
 
-/** @brief hedit.startup 相当。Windowメニュー登録と前回画面の復元。 */
-inline const char* kStartupSource = R"HEDIT_STARTUP(
-"""Mayaのメニュー登録と、前回開いていたheditの復元。
-
-ユーザーのSecurity設定・プラグイン自動ロード設定は変更しない。
-開閉状態はhedit専用ui.json、ドック配置はMayaのワークスペースへ保存する。
-"""
-import json
-import os
-from pathlib import Path
-from maya import cmds, utils
-
-_timer = None
-_quitting = False
-_opened = False
-_quit_job = None
-_last = None
-
-
-def state_path():
-    """Path: 現在のMaya/隔離テストに対応するUI復元ファイル。"""
-    from .bridge import session_path
-    return Path(session_path()).with_name('ui.json')
-
-
-def _debug_log(event, **fields):
-    """開閉状態の変化を追記する調査用ログ(挙動には影響しない)。
-
-    「再起動時に復元されない」不具合の原因(誰が何をきっかけに閉じた扱いにしたか)を
-    次回の発生時に確認するための一時的な仕組み。失敗しても他の処理は継続する。
-    """
-    import time
-    try:
-        path = state_path().with_name('startup-debug.log')
-        line = {'time': time.strftime('%Y-%m-%d %H:%M:%S'), 'event': event}
-        line.update(fields)
-        with path.open('a', encoding='utf-8') as handle:
-            handle.write(json.dumps(line, ensure_ascii=False) + '\n')
-    except OSError:
-        pass
-
-
-def previous_open():
-    """bool: 保存済みの開閉状態。未保存の場合は明示的な復元を許可する。"""
-    try:
-        return bool(json.loads(state_path().read_text(encoding='utf-8')).get('open', True))
-    except (OSError, ValueError):
-        return True
-
-
-def hide_if_closed():
-    """Mayaが非表示ドックのuiScriptを呼んだ場合も、閉じた状態を維持する。"""
-    from .docking import CONTROL
-    if not _opened and cmds.workspaceControl(CONTROL, exists=True):
-        # uiScript直後のcloseはQt5の浮動ウィンドウを破棄し、次のrestoreで
-        # 無効なネイティブハンドルを参照し得る。復元済みUIを非表示に留める。
-        cmds.workspaceControl(CONTROL, edit=True, visible=False)
-
-
-def record():
-    """現在のドック状態を原子的に保存する。終了処理中は上書きしない。"""
-    global _last
-    from .docking import CONTROL
-    if _quitting or not cmds.workspaceControl(CONTROL, exists=True):
-        return
-    state = {'version': 1, 'open': _opened,
-             'floating': cmds.workspaceControl(CONTROL, query=True, floating=True),
-             'layout': cmds.workspaceLayoutManager(query=True, current=True)}
-    if state == _last:
-        return
-    path = state_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name('ui.{}.tmp'.format(os.getpid()))
-    try:
-        temporary.write_text(json.dumps(state, ensure_ascii=False), encoding='utf-8')
-        os.replace(str(temporary), str(path))
-        _last = state
-    except OSError as exc:
-        cmds.warning('hedit layout could not be saved: {}'.format(exc))
-
-
-def closed(*unused):
-    """ユーザーが閉じた時だけ、次回の自動表示を停止する。"""
-    global _opened
-    from .docking import CONTROL
-    _debug_log('closed', quitting=_quitting,
-               control_exists=cmds.workspaceControl(CONTROL, exists=True))
-    if not _quitting:
-        _opened = False
-        record()
-
-
-def quitting(*unused):
-    """MayaがUIを閉じる前に最終状態を保存し、以後の変更を凍結する。"""
-    global _quitting
-    _debug_log('quitting', opened=_opened)
-    # ドックの入れ子・タブグループはMaya自身のワークスペースに保存する。
-    # workspaceControl.stateStringは版によって空リストを返し、配置復元には使えない。
-    cmds.workspaceLayoutManager(save=True)
-    record()
-    _quitting = True
-    if _timer:
-        _timer.stop()
-
-
-def opened():
-    """表示後に配置の監視を始める。タイマーと終了通知は重複させない。"""
-    global _timer, _opened, _quit_job
-    from .docking import CONTROL, QtCore, _host
-    _opened = True
-    cmds.workspaceControl(CONTROL, edit=True, closeCommand='import hedit.startup; hedit.startup.closed()')
-    if _timer is None:
-        _timer = QtCore.QTimer(_host)
-        _timer.setInterval(1000)
-        _timer.timeout.connect(record)
-    _timer.start()
-    if _quit_job is None:
-        _quit_job = cmds.scriptJob(event=['quitApplication', quitting], runOnce=True)
-    _debug_log('opened')
-    record()
-
-
-def restore_previous():
-    """前回開いていた時だけ表示する。配置はMayaのワークスペース復元を優先する。"""
-    if cmds.about(batch=True):
-        return
-    try:
-        state = json.loads(state_path().read_text(encoding='utf-8'))
-    except (OSError, ValueError):
-        return
-    if state.get('version') != 1:
-        return
-    from .docking import CONTROL
-    existing = cmds.workspaceControl(CONTROL, exists=True)
-    visible = existing and cmds.workspaceControl(CONTROL, query=True, visible=True)
-    _debug_log('restore_previous', state=state, existing=existing, visible=visible)
-    if not state.get('open'):
-        hide_if_closed()
-        return
-    if visible:
-        # Mayaのワークスペース復元(保存済みworkspaceControlのuiScriptによる
-        # hedit.restore()呼び出し)が、この時点で既に表示・状態記録まで済ませている。
-        # ここで改めてhedit.show()を呼ぶと、既存の表示を一度close()してから
-        # 開き直すため、ユーザーが閉じた場合と同じcloseCommandが発火し、
-        # 「閉じた」記録が一瞬だけ残ってしまう。直後にMayaが終了する等
-        # タイミングが悪いと、その記録のまま保存され、次回起動時に復元
-        # されなくなる(再起動のたびに開かなくなる不具合の原因だった)。
-        # 二重に開き直さず、状態の記録だけ行う。
-        record()
-        return
-    if existing:
-        # 保存済みworkspaceControlが空のまま残っている(hedit.mllのロード前はuiScriptの
-        # import hedit が解決できず、Mayaが中身を作れなかった)。ここでhedit.show()により
-        # 本体を差し込むと、表示した瞬間にMayaがuiScript(hedit.restore())で中身を作り直し、
-        # 差し込んだ本体が破棄される。表示だけ行い、中身はMaya自身の復元経路に作らせる。
-        from .docking import isValid
-        from . import docking
-        cmds.workspaceControl(CONTROL, edit=True, visible=True)
-        if docking._host is not None and isValid(docking._host):
-            record()
-            return
-    import hedit
-    hedit.show(floating=None if existing else state.get('floating', True))
-    if not existing and not state.get('floating', True):
-        cmds.warning('hedit: saved workspace control is unavailable; docked at the bottom. Restore the saved Maya workspace for the original placement.')
-    record()
-
-
-def plugin_loaded():
-    """initializePlugin(C++)がロード完了時に呼ぶ。前回画面の復元を次のidleへ送る。
-
-    Windowメニューの登録自体はC++側(plugin.cppのinstallMenu、MEL経由)が別途行う。
-    ここではPySide/MayaQWidgetDockableMixinが要るドッキング復元だけを担当する。
-    userSetup.pyのような外部スクリプトを経由せず、プラグインがロードされた時点で
-    この1系統だけが復元を行う。Plug-in Managerでの明示ロード・Mayaのプラグイン
-    autoloadのいずれでも同じ経路になる。
-    """
-    if not cmds.about(batch=True):
-        utils.executeDeferred(restore_previous)
-
-
-def uninstall():
-    """解除時にhedit専用のタイマー・終了通知を取り除く。Windowメニューの削除はC++側で行う。"""
-    global _timer, _quit_job
-    if not _quitting:
-        closed()
-    if _timer:
-        _timer.stop()
-        _timer.deleteLater()
-        _timer = None
-    if _quit_job is not None and cmds.scriptJob(exists=_quit_job):
-        cmds.scriptJob(kill=_quit_job, force=True)
-    _quit_job = None
-)HEDIT_STARTUP";
-
 /** @brief 旧パッケージ名``heditor``のuiScript互換入口。新規コードではhedit側を使う。 */
 inline const char* kHeditorCompatSource = R"HEDIT_COMPAT(
 """旧ワークスペースのuiScript用互換入口。新規コードではheditを使う。"""
 
 def restore():
-    """保存済みの旧ドックを新しい実装で復元する。"""
-    from maya import cmds
+    """保存済みの旧ドックを新しい実装で復元する。旧名のドックの引き継ぎはC++(dock.cpp)が行う。"""
     import hedit
-    from hedit import docking
-    if cmds.workspaceControl('HEditorDockWorkspaceControl', exists=True):
-        docking.CONTROL = 'HEditorDockWorkspaceControl'
-    return hedit.restore()
+    hedit.restore()
 )HEDIT_COMPAT";
 
 /** @brief Python側へ渡す際の引用符・バックスラッシュ衝突を避けるためのhex変換。
@@ -847,12 +382,12 @@ inline std::string hexEncode(const char* text) {
 
 /** @brief 埋め込みPythonソースを配るimportフックをsys.meta_pathの先頭へ登録する。
  * @return 登録結果。失敗時は例外内容がScript Editorへ出力される。
- * @details ``import hedit``・``from . import docking``等は通常の.pyと同じくimport時に
+ * @details ``import hedit``・``from .completion import Index``等は通常の.pyと同じくimport時に
  * 初めて実行される。先頭へ置くのは、PYTHONPATH上に同名のフォルダー(旧版の
  * ``__pycache__``だけが残った``scripts/hedit``等)があっても、名前空間パッケージとして
  * 先に解決されないようにするため。そうした埋め込み以外で読まれた同名モジュールは除く。
- * 再ロード時に埋め込み由来の読み込み済みモジュールは残す(旧版の.pyと同じく、ドックの
- * ホスト・タイマー等の状態をアンロード/ロードで失わない)。
+ * 再ロード時に埋め込み由来の読み込み済みモジュールは残す(旧版の.pyと同じく、補完の
+ * キャッシュ等の状態をアンロード/ロードで失わない)。
  * ソース本体は引用符衝突を避けるためhexで渡す。
  * 一時関数は``__main__``(Script Editorの名前空間)へ名前を残さないよう実行後に削除する。
  */
@@ -879,7 +414,7 @@ inline MStatus installModules() {
         "__hedit_bootstrap({\n";
     const std::pair<const char*, const char*> modules[] = {
         {"hedit", kInitSource}, {"hedit.completion", kCompletionSource}, {"hedit.bridge", kBridgeSource},
-        {"hedit.docking", kDockingSource}, {"hedit.analysis", kAnalysisSource}, {"hedit.startup", kStartupSource},
+        {"hedit.analysis", kAnalysisSource},
         // 旧パッケージ名heditorのuiScript互換(保存済みワークスペースからのみ参照される)。
         {"heditor", kHeditorCompatSource},
     };

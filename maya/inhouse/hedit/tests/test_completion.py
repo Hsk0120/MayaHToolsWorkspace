@@ -9,7 +9,6 @@ import tempfile
 import time
 import unittest
 import types
-import threading
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,27 +23,15 @@ from hedit.analysis import analyze
 
 
 class CompletionTests(unittest.TestCase):
-    def test_history_compaction_is_only_for_legacy_snapshot(self):
-        self.assertEqual(bridge.compact_history('one\n\noptimization\n \non\n\n\nnext\n'),
-                         'one\noptimization on\nnext\n')
+    # import行のトップレベル名(sys.pathの走査)はC++(modulescan.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
-    def test_slow_import_scan_does_not_block_caller(self):
-        entered, release = threading.Event(), threading.Event()
-        def slow_scan(path):
-            entered.set()
-            release.wait(2)
-            raise OSError('offline directory')
-        index = Index(['offline'], {'available_module': {}}, async_scan=True)
-        try:
-            with mock.patch('os.scandir', side_effect=slow_scan):
-                start = time.perf_counter()
-                items = index.complete('import available')
-                self.assertLess(time.perf_counter()-start, .2)
-                self.assertEqual(items[0]['name'], 'available_module')
-                self.assertTrue(entered.wait(1))
-                release.set(); index.scan_thread.join(1)
-        finally:
-            release.set()
+    def test_top_level_names_come_from_cpp(self):
+        """C++へ渡す検索パスと、組み込み・読み込み済みのトップレベル名。フォルダーは走査しない。"""
+        with mock.patch('os.scandir', side_effect=AssertionError('must not scan')):
+            data = json.loads(bridge.module_names())
+        self.assertIn('sys', data['names'])
+        self.assertIn('maya', data['names'])
+        self.assertTrue(all(os.path.isabs(path) for path in data['paths']))
 
     def test_incomplete_large_source_has_bounded_parse_attempts(self):
         import ast
@@ -85,8 +72,7 @@ class CompletionTests(unittest.TestCase):
         self.assertIn('function', self.names('def function(arg):\n    pass\nfun'))
         self.assertEqual(self.names('import sample\nsample.Example.get_'), ['get_value'])
 
-    def test_from_import_and_discovery(self):
-        self.assertIn('sample', self.names('import sam'))
+    def test_from_import(self):
         self.assertEqual(self.names('from sample import cre'), ['create_node'])
         self.assertEqual(self.names('from sample import Example as E\nE.get'), ['get_value'])
 
@@ -139,13 +125,6 @@ class CompletionTests(unittest.TestCase):
             self.assertEqual([r['name'] for r in index.complete('import sample\nsample.Example.')], ['new_method'])
             (self.root / 'sample.py').write_text('class Example: (', encoding='utf-8')
             self.assertEqual([r['name'] for r in index.complete('import sample\nsample.Example.')], ['new_method'])
-
-    def test_new_and_removed_top_level_files(self):
-        self.names('import sam')
-        (self.root / 'newly_added.py').write_text('', encoding='utf-8')
-        self.assertIn('newly_added', self.names('import newly'))
-        (self.root / 'newly_added.py').unlink()
-        self.assertNotIn('newly_added', self.names('import newly'))
 
     def test_keyword_and_builtin_categories(self):
         self.assertEqual(self.index.complete('ret')[0]['kind'], 'keyword')

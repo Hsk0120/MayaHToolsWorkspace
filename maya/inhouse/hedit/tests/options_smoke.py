@@ -91,9 +91,9 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
         assert code.toPlainText() == 'a = 1\n# comment\n'
         code.undo()
         assert code.toPlainText() == 'a = 1  \n# comment\t'
-        from hedit.bridge import session_path
+        from maya import cmds
         from pathlib import Path
-        settings = QtCore.QSettings(str(Path(session_path()).with_name('preferences.ini')), QtCore.QSettings.IniFormat)
+        settings = QtCore.QSettings(str(Path(cmds.hedit(sessionPath=True)).with_name('preferences.ini')), QtCore.QSettings.IniFormat)
         assert str(settings.value('finalNewline')).lower() == 'true'
     finally:
         for key, state in original.items():

@@ -9,10 +9,10 @@ import time
 def main(output_dir, finished):
     from maya import cmds, OpenMaya
     try:
-        from PySide6 import QtCore, QtGui, QtWidgets
+        from PySide6 import QtCore, QtGui, QtWidgets, QtTest
         Action = QtGui.QAction
     except ImportError:
-        from PySide2 import QtCore, QtGui, QtWidgets
+        from PySide2 import QtCore, QtGui, QtWidgets, QtTest
         Action = QtWidgets.QAction
     def wait(ms=700):
         loop = QtCore.QEventLoop()
@@ -28,14 +28,17 @@ def main(output_dir, finished):
         # hedit.*はhedit.mllに同梱されており、プラグインのロードでimportできるようになる。
         cmds.loadPlugin('hedit', quiet=True)
         import hedit
-        host = hedit.show(); window = host.editor
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import hedit_host
+        hedit.show(); window = hedit_host.editor()
         output = window.findChild(QtWidgets.QPlainTextEdit, 'output')
         code = window.findChild(QtWidgets.QPlainTextEdit, 'codeEditor')
         wait()
         (directory / 'initial-output.txt').write_text(output.toPlainText(), encoding='utf-8')
         assert 'startup_optimization on\nstartup_line_A\nstartup_line_B\n' in output.toPlainText(), repr(output.toPlainText())
         assert 'startup_crlf_A\nstartup_crlf_B\n' in output.toPlainText(), repr(output.toPlainText())
-        assert '?' not in host.windowTitle() and '?' not in window.windowTitle()
+        label = cmds.workspaceControl(hedit_host.CONTROL, query=True, label=True)
+        assert label.startswith('hedit ') and '?' not in label and '?' not in window.windowTitle()
         assert output.lineWrapMode() == QtWidgets.QPlainTextEdit.NoWrap
         assert output.font().pixelSize() == code.font().pixelSize()-2
         output.verticalScrollBar().setValue(0)
@@ -69,32 +72,29 @@ def main(output_dir, finished):
         assert any(s.format.underlineStyle() == QtGui.QTextCharFormat.WaveUnderline for s in code.extraSelections())
         result['checks'].append('spell_default_on_camelcase_wave_off_on')
         window.grab().save(str(directory / 'output-spelling.png'))
-        # 遅いパス走査を注入しても、GUIのイベント処理が止まらないことを確認する。
-        from hedit import bridge
-        from hedit.completion import Index
-        saved_index = bridge._index
-        slow = Index([], async_scan=True)
-        def slow_scan(paths, modules):
-            time.sleep(.8)
-        slow._scan_top = slow_scan
-        bridge._index = slow
+        # importの行の補完は、C++のスレッド(GILを取らない)で走査したトップレベル名から答える。
+        # 実キーで補完しても、GUIのイベント処理が止まらないことを確認する。
         beats = []
         timer = QtCore.QTimer(); timer.setInterval(20)
         timer.timeout.connect(lambda: beats.append(time.perf_counter()))
         toggle.setChecked(False)
         try:
             code.setPlainText('import ma'); code.moveCursor(QtGui.QTextCursor.End)
-            code.setFocus(); timer.start()
-            QtCore.QTimer.singleShot(100, lambda: bridge.complete('import ma'))
+            window.activateWindow(); code.setFocus(); timer.start()
+            QtCore.QTimer.singleShot(100, lambda: QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier))
             wait(1300)
-            assert slow.scan_thread is not None, 'Import completion not requested'
+            completer = code.findChild(QtWidgets.QCompleter)
+            model = completer.completionModel()
+            names = [model.index(row, 0).data() for row in range(model.rowCount())]
+            assert 'maya' in names, names
+            completer.popup().hide()
             assert len(beats)>20, len(beats)
             gaps = [b-a for a,b in zip(beats,beats[1:])]
             result['gui_max_timer_gap_ms'] = round(max(gaps)*1000, 2)
             assert max(gaps)<.3, gaps
-            result['checks'].append('slow_import_scan_keeps_gui_responsive')
+            result['checks'].append('import_completion_keeps_gui_responsive')
         finally:
-            timer.stop(); bridge._index = saved_index
+            timer.stop()
         code.document().setModified(False); window.close(); cmds.unloadPlugin('hedit')
         result['status'] = 'passed'
     except Exception:

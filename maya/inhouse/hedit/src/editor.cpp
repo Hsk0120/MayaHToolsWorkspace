@@ -1269,6 +1269,14 @@ public:
 QMainWindow* createEditor(QWidget* parent, Execute execute, Configuration configuration, OutputReader outputReader, Completion completion, QString sessionPath, Completion analyzer, Execute melExecute) {
     return new Window(parent, execute, configuration, outputReader, completion, sessionPath, analyzer, melExecute);
 }
+QString compactHistory(QString text) {
+    text.replace("\r\n","\n"); text.replace('\r','\n');
+    // print(a, b)で分かれた空白だけの通知(例: "optimization\n \non")を前後の断片へつなぐ。
+    text.replace(QRegularExpression("\n([ \t]+)\n"),"\\1");
+    QStringList lines;
+    for (const auto& line: text.split('\n')) if (!line.trimmed().isEmpty()) lines.append(line);
+    return lines.join('\n') + (text.isEmpty() ? QString() : QString("\n"));
+}
 void refreshEditorOutput(QMainWindow* editor) {
     // Mayaのreporter追記の途中で同期描画するため、閉じたドックや終了処理中で
     // ネイティブウィンドウが無効な画面へは書かない(Qt5/6のアクセシビリティ更新で落ちる)。

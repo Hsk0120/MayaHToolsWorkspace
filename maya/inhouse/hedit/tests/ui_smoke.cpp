@@ -1,6 +1,10 @@
 // 本番と同じQtウィジェットをoffscreenで検証する。Maya GUIの検証とは区別する。
 #include "editor.h"
+#include "modulescan.h"
 #include <QApplication>
+#include <QElapsedTimer>
+#include <QJsonArray>
+#include <QTemporaryDir>
 #include <QCompleter>
 #include <QDir>
 #include <QFile>
@@ -19,6 +23,66 @@
 #include <windows.h>
 #endif
 
+/** @brief importの行のトップレベル名の補完(modulescan.cpp)を、一時フォルダーで検証する。
+ * @return すべて期待どおりならtrue。失敗した項目は標準エラーへ出す。
+ */
+bool moduleScanPasses() {
+    QTemporaryDir directory;
+    if (!directory.isValid()) return false;
+    const QDir root(directory.path());
+    auto touch=[&](const QString& name) { QFile file(root.filePath(name)); return file.open(QIODevice::WriteOnly); };
+    touch("sample.py"); touch("_private.py"); touch("note.txt");
+    root.mkdir("pkg"); root.mkdir("not-ident");
+    const auto names=hedit::scanTopLevel({root.path(), root.filePath("missing")});
+    if (!names.contains("sample") || !names.contains("pkg") || !names.contains("_private")
+        || names.contains("not-ident") || names.contains("note") || names.contains("note.txt")) {
+        qWarning() << "scanTopLevel" << names; return false;
+    }
+    QString prefix;
+    if (!hedit::topLevelImportPrefix("import sam",&prefix) || prefix!="sam") { qWarning() << "import prefix" << prefix; return false; }
+    if (!hedit::topLevelImportPrefix("x = 1\nfrom sa",&prefix) || prefix!="sa") { qWarning() << "from prefix" << prefix; return false; }
+    if (!hedit::topLevelImportPrefix("import ",&prefix) || !prefix.isEmpty()) { qWarning() << "empty prefix" << prefix; return false; }
+    // ドット付き・from x import y・importでない行はPython側の補完へ渡す。
+    for (const char* source: {"import maya.cm","from sample import cr","print(x)","import os\nos.pa"})
+        if (hedit::topLevelImportPrefix(source,nullptr)) { qWarning() << "handled" << source; return false; }
+    auto items=[](const QByteArray& json) {
+        QStringList result;
+        for (const auto& value: QJsonDocument::fromJson(json).object().value("items").toArray()) result.append(value.toObject().value("name").toString());
+        return result;
+    };
+    const QSet<QString> candidates{"sample","_private","pkg","Sample2"};
+    if (items(hedit::completionItems(candidates,"",false))!=QStringList{"Sample2","pkg","sample"}
+        || items(hedit::completionItems(candidates,"sa",false))!=QStringList{"sample"}
+        || items(hedit::completionItems(candidates,"_",false))!=QStringList{"_private"}
+        || !QJsonDocument::fromJson(hedit::completionItems(QSet<QString>(),"",true)).object().value("pending").toBool()) {
+        qWarning() << "completionItems" << items(hedit::completionItems(candidates,"",false)); return false;
+    }
+    // 走査は別スレッドで行い、呼出し元を待たせない。再走査でファイルの追加・削除に追従する。
+    hedit::ModuleScanner scanner(0);
+    QElapsedTimer timer; timer.start();
+    scanner.refresh({root.path()});
+    if (timer.elapsed()>50) { qWarning() << "refresh blocked" << timer.elapsed(); return false; }
+    if (!scanner.waitForFirst(2000) || !scanner.names().contains("sample")) { qWarning() << "first scan"; return false; }
+    // 1回の走査を始めて終わるまで待ち、その結果で判定する(数回までやり直す)。
+    auto eventually=[&](const QString& name, bool present) {
+        for (int attempt=0;attempt<20;++attempt) {
+            scanner.refresh({root.path()});
+            for (int wait=0;wait<200;++wait) {
+                bool pending=true; const auto current=scanner.names(&pending);
+                if (!pending) { if (current.contains(name)==present) return true; break; }
+                QThread::msleep(10);
+            }
+        }
+        return false;
+    };
+    touch("newly_added.py");
+    if (!eventually("newly_added",true)) { qWarning() << "added file not found"; return false; }
+    QFile::remove(root.filePath("newly_added.py"));
+    if (!eventually("newly_added",false)) { qWarning() << "removed file still listed"; return false; }
+    scanner.stop();
+    return true;
+}
+
 /** @brief MayaなしでQt画面の補完・表示・実行通知を検証する。
  * @param argc 引数数。3を要求する。
  * @param argv 実行ファイル名、設定JSON、画像保存先。
@@ -34,6 +98,10 @@ int main(int argc, char** argv) {
     QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/segoeui.ttf");
     QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/consola.ttf");
     if (argc != 3) return 2;
+    // 初回履歴の整形は過去の断片だけに使う。空行を省き、空白だけの行は前後をつなぐ。
+    if (hedit::compactHistory("one\r\n\noptimization\n \non\n\n\nnext\n")!="one\noptimization on\nnext\n"
+        || !hedit::compactHistory("").isEmpty()) return 11;
+    if (!moduleScanPasses()) return 12;
     QFile file(QString::fromLocal8Bit(argv[1])); if (!file.open(QIODevice::ReadOnly)) return 3;
     QByteArray config = file.readAll();
     bool outputSent=false;

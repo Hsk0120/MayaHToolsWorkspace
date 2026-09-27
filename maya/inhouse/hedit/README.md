@@ -8,9 +8,13 @@ Maya用のPython／MELスクリプトエディタです。VS CodeのDark+を参�
 
 各アイコンの操作はFile・Edit・History・View・Commandメニューからも選べます。Refresh completionはCommandメニューに移動しました。実行のCtrl+Enter／F5は従来どおりです。標準エディタの全機能を複製するものではなく、コードと出力のDark+配色も維持しています。
 
-ワークスペースの起動バッチでMayaを起動すると、`maya/modules/hedit.mod`経由の`scripts/userSetup.py`が起動時に`hedit`プラグインを自動ロードします。ロードした時点でWindowメニュー末尾に起動項目(緑のHアイコン)が追加され、前回開いていた場合は画面も自動で復元されます。`hedit`本体のロジック(復元・メニュー登録・補完・静的解析など)は`.py`ファイルを持たず、`hedit.mll`自身にC++の文字列として同梱されています(`src/embedded_python.h`。ロード時にMaya同梱のCPythonへ直接展開)。`scripts/userSetup.py`は`cmds.loadPlugin('hedit')`を呼ぶだけの最小ブートストラップで、Plug-in Managerでの明示ロードと同じ入口(`initializePlugin`)へ合流します。
+ワークスペースの起動バッチでMayaを起動すると、`maya/modules/hedit.mod`経由の`scripts/userSetup.py`が起動時に`hedit`プラグインを自動ロードします。ロードした時点でWindowメニュー末尾に起動項目(緑のHアイコン)が追加され、前回開いていた場合は画面も自動で復元されます。`hedit`本体のロジックは`.py`ファイルを持たず、`hedit.mll`自身が持っています。メニュー登録・ドッキング・開閉状態の保存と復元・出力の取得はC++で、補完と構文チェックだけをMaya同梱のPythonで行います(そのPythonも`src/embedded_python.h`に同梱)。`scripts/userSetup.py`は`cmds.loadPlugin('hedit')`を呼ぶだけの最小ブートストラップで、Plug-in Managerでの明示ロードと同じ入口(`initializePlugin`)へ合流します。
 
-ロード後はPythonタブからも開けます。
+Windowメニューの項目はMELの`hedit -show`を実行します。MEL・Pythonのどちらからでも開けます。
+
+```text
+hedit -show;
+```
 
 ```python
 import hedit
@@ -29,7 +33,7 @@ Plug-in Managerで`hedit`を明示ロード、または`hedit`行で「Auto load
 hedit.show(floating=False)
 ```
 
-`hedit.show(floating=True)`でフローティングに戻します。通常の`show()`は既存の配置を保持します。`MayaQWidgetDockableMixin`を継承したホストにC++編集画面を配置し、`workspaceControl`の復元用`uiScript`も登録します。
+`hedit.show(floating=True)`(MELは`hedit -show -floating true`)でフローティングに戻します。通常の`show()`は既存の配置を保持します。C++(`src/dock.cpp`)がMELの`workspaceControl`を作ってC++編集画面を直接入れ、復元用の`uiScript`(`hedit -restore`)も登録します。
 
 ### 未保存タブの自動復元
 
@@ -177,7 +181,7 @@ Jedi・Pyright等、追加のPythonライブラリは不要です。同一プロ
 
 `import maya.cmds as cmds`の別名、`from package import Class`、モジュールの公開名、ソース上のクラスの直接定義メソッド、トップレベルのローカル関数を補完します。ロード済みの`hlib.ls`など動的な公開名も対象です。関数の引数名は候補のツールチップで確認できます。
 
-0.1.7から、次の補完要求時に対象モジュールの現在の公開名と`sys.path`を取得します。`hlib.reload()`後や実行後のimportもRefresh completionなしで追従します。読み込み済みモジュールは既知の`.py`ファイルだけを更新日時・サイズで確認し、関数やクラスの直接定義も候補へ反映します。新しいトップレベルパッケージはimport補完時に同一プロセスのバックグラウンドスレッドで検出します（走査開始は最短5秒間隔）。走査中は既存候補を即時表示し、走査完了後の補完要求で新しい候補が使えます。Maya APIと公開名の取得はメインスレッドで行います。
+0.1.7から、次の補完要求時に対象モジュールの現在の公開名と`sys.path`を取得します。`hlib.reload()`後や実行後のimportもRefresh completionなしで追従します。読み込み済みモジュールは既知の`.py`ファイルだけを更新日時・サイズで確認し、関数やクラスの直接定義も候補へ反映します。`import xxx`/`from xxx`のトップレベルのパッケージ名は、`sys.path`の各フォルダーをC++のスレッド(PythonのGILを取らない)で走査して集めます(`src/modulescan.cpp`)。走査は編集画面を開いた時点で始めるため、最初のCtrl+Spaceから未読込のパッケージも候補に出ます(初回の走査が終わっていなければ最大0.5秒待ちます)。以後はimport補完のたびに裏で走査し直し(開始は最短5秒間隔)、走査中は直前の結果で即時表示します。Maya APIと公開名の取得はメインスレッドで行います。
 
 補完候補の更新と、Mayaで実行するライブラリの更新は別です。ソース保存直後に新しい候補が出ても、実行にはライブラリ自身のreloadが必要な場合があります。heditは対象を自動import・reloadしません。読み込み済みの公開名は実際に存在する間は残ります。解析中の構文エラーでは読み込み済みモジュールの最後の正常な静的候補を維持します。強制的に解析キャッシュを作り直す場合は **Refresh completion** を押してください。
 
@@ -244,7 +248,7 @@ GUI確認は次のコマンドで、既存のMayaとは別の空シーン・専�
 
 GUI内で表示、上下レイアウト、ドッキング／フローティング／再表示、右クリックによる出力消去、コード全体の実行、標準Script Editorとの双方向の出力・変数共有、日本語・警告・例外の表示、実際の補完候補の表示、Enterによる確定、選択範囲だけの実行、閉じる／アンロードを確認します。ショートカットはキーイベントで行編集・Undo/Redo・検索置換・タブ操作・折り返しを確認します。行番号入力、フォルダー/ファイル選択（Qtダイアログ）も自動テストに含めます。OSネイティブのファイルダイアログは別途確認が必要です。結果・画面・候補一覧の画像を`.maya-output/hedit-gui/<日時>/`に保存します。
 
-`run_startup.py`は同じ専用Maya設定を引き継いで3回起動し、右ドック・Python/MEL本文の復元と、閉じた場合の非表示を検証します。共通GUIランナーはuserSetupを無効化するため、復元の入口`startup.initialize()`を起動後に明示実行します。通常環境でのuserSetup自動実行そのものはこのテストの対象外です。
+`run_startup.py`は同じ専用Maya設定を引き継いで3回起動し、右ドック・Python/MEL本文の復元と、閉じた場合の非表示を検証します。あわせて、プラグインのロードだけでWindowメニューの項目とアイコンが追加されること、メニューのコマンド(`hedit -show`)で開けること、アンロードで項目が消えることも確認します。共通GUIランナーはuserSetupを無効化するため、`scripts/userSetup.py`と同じ`cmds.loadPlugin('hedit')`を起動後に明示実行します。通常環境でのuserSetup自動実行そのものはこのテストの対象外です。
 
 過去の検証結果と変更内容はリポジトリの`WORK_LOG.md`を参照してください。
 
@@ -266,7 +270,7 @@ GUI内で表示、上下レイアウト、ドッキング／フローティン�
 
 復元先はheditのworkspaceControlを明示的に使用し、内部の非表示ログウィンドウへ入らないようにしています。既存ドックを再表示する際は親ホストと本文の両方を表示します。
 
-前回開いていた場合は、Mayaの保存ワークスペースに登録された`uiScript`から画面を再構築します。プラグインのロード自体(C++側`initializePlugin`が呼ぶ`hedit.startup.plugin_loaded()`)を契機に復元の入口を遅延実行するため、Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのいずれでも同じ復元が行われます。ドックの入れ子・タブ位置はMaya標準のワークスペースに保持し、終了通知で現在の配置を保存します。ユーザーが閉じてから終了した場合は自動表示しません。
+前回開いていた場合は、Mayaの保存ワークスペースに登録された`uiScript`(`hedit -restore`)から画面を再構築します。プラグインのロード後、次のイベントループでC++(`src/dock.cpp`)が前回の状態を確かめて復元するため、Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのいずれでも同じ復元が行われます。ドックの入れ子・タブ位置はMaya標準のワークスペースに保持し、終了通知で現在の配置を保存します。ユーザーが閉じてから終了した場合は自動表示しません。
 
 タブ本文は`tabs.json`、開閉状態・フローティング状態・ワークスペース名は同じフォルダーの`ui.json`に保持します。終了中のUI破棄で「閉じた」扱いに書き換わることを防ぎます。元のMayaワークスペースが削除された場合は厳密な位置を復元できず、以前ドックしていた画面は下側に配置して警告します。Windowメニューまたは`hedit.show()`からも開けます。信頼設定を自動変更する機能はありません。
 
@@ -302,23 +306,22 @@ C++の説明は[内製C++コメント規約](../../../docs/cpp-documentation.md)
 `cmds.loadPlugin('hedit')`を1回呼ぶだけの最小ブートストラップで、復元・メニュー登録の
 ロジックは一切含みません。
 
-`hedit`のPythonロジック(`__init__`/`docking`/`bridge`/`completion`/`analysis`/`startup`相当)
-自体は`src/embedded_python.h`にC++の生文字列として同梱されており、`initializePlugin`
-(`plugin.cpp`)が`hedit::embedded::installModules()`で`sys.meta_path`の先頭へimportフックを
-登録します(通常の`.py`と同じくimport時に読み込まれ、mayapyでも使えます)。Windowメニューの
-登録自体はPythonを介さず、`initializePlugin`が直接`installMenu()`(MEL、`MGlobal::executeCommand`
+`initializePlugin`(`plugin.cpp`)は、Windowメニューの登録を`installMenu()`(MEL、`MGlobal::executeCommand`
 経由)で行います。メニューの緑のHアイコンもSVGを`plugin.cpp`に同梱し、ロード時に
 `<userPrefDir>/hedit/hedit.svg`へ書き出して使うため、`icons/`フォルダーは不要です。続けて
-`hedit.startup.plugin_loaded()`が前回画面の復元(PySide/`MayaQWidgetDockableMixin`が
-必要なためPython側)を次のidleへ予約するため、**`userSetup.py`経由の自動ロード・
-Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのどれでも、プラグインの
+次のイベントループで`src/dock.cpp`が前回画面の復元を行います。ドッキングはMELの`workspaceControl`と
+`MQtUtil::addWidgetToMayaLayout`で、`MayaQWidgetDockableMixin`は使いません。そのため**`userSetup.py`経由の
+自動ロード・Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのどれでも、プラグインの
 ロードだけでメニュー登録と前回画面の復元が完了します。**
+補完と構文チェックのPython(`hedit.completion`/`hedit.bridge`/`hedit.analysis`)と互換用の窓口(`hedit.show()`/
+`hedit.restore()`)は`src/embedded_python.h`に同梱し、`sys.meta_path`の先頭へ登録したimportフックから
+配ります(通常の`.py`と同じくimport時に読み込まれ、mayapyでも使えます)。
 初回はエディタ画面を開かず、前回開いていた場合だけ画面・タブを復元します。
 バッチ/standaloneでは画面を開きません(`userSetup.py`は`cmds.about(batch=True)`を検知して何もしません)。
 Mayaの永続autoload設定はhedit自身が変更しません。
 
-GUI回帰テストは隔離環境で`cmds.loadPlugin('hedit')`を明示実行し、埋め込みモジュールの展開・
-メニュー登録・復元を確認します。ユーザー環境の全外部ツールを含む起動バッチ実行とは区別しています。
+GUI回帰テストは隔離環境で`cmds.loadPlugin('hedit')`を明示実行し、メニュー登録・ドッキング・復元を
+確認します(C++の画面は`tests/hedit_host.py`経由で参照)。ユーザー環境の全外部ツールを含む起動バッチ実行とは区別しています。
 
 構文警告はMaya同梱Pythonの仕様に従います。例えば2022のPython 3.7では、定数への`is`比較で新しいPythonと同じ警告は出ません。
 
