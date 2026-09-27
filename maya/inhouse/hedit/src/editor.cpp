@@ -1270,6 +1270,9 @@ QMainWindow* createEditor(QWidget* parent, Execute execute, Configuration config
     return new Window(parent, execute, configuration, outputReader, completion, sessionPath, analyzer, melExecute);
 }
 void refreshEditorOutput(QMainWindow* editor) {
-    if (editor) static_cast<Window*>(editor)->refreshOutputNow();
+    // Mayaのreporter追記の途中で同期描画するため、閉じたドックや終了処理中で
+    // ネイティブウィンドウが無効な画面へは書かない(Qt5/6のアクセシビリティ更新で落ちる)。
+    // 非表示中の出力は有界キューに残り、表示中の25msタイマーで反映される。
+    if (editor && editor->isVisible()) static_cast<Window*>(editor)->refreshOutputNow();
 }
 }

@@ -34,6 +34,8 @@ def main():
         executable = Path('C:/Program Files/Autodesk/Maya' + version + '/bin/mayapy.exe')
         env = isolated_environment(executable, directory)
         env['MAYA_MODULE_PATH'] = str(ROOT / 'maya/modules')
+        # scripts/はuserSetup.py(起動時のloadPlugin('hedit')だけ)を含む。
+        # hedit.*本体はsrc/embedded_python.hがloadPlugin時にsys.modulesへ展開する。
         env['PYTHONPATH'] += os.pathsep + str(PROJECT / 'scripts')
         unit = run([executable, PROJECT / 'tests/test_completion.py'], env, directory, 'unit')
         config = directory / 'configuration.json'

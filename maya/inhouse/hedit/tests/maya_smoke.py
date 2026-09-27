@@ -8,16 +8,17 @@ import maya.standalone
 maya.standalone.initialize(name='python')
 try:
     from maya import cmds
-    import hedit
-    from hedit import bridge
-    from hedit.completion import Index
     root = Path(__file__).resolve().parents[1]
     version = str(cmds.about(version=True)).split('.')[0]
-    plugin = hedit._plugin_path(version)
-    plugin_name = cmds.loadPlugin(str(plugin))[0]
+    # hedit.mod(MAYA_PLUG_IN_PATH)経由でプラグイン名から解決する。
+    # hedit.pyは存在しない(src/embedded_python.hがinitializePlugin時にsys.modules['hedit']を展開する)。
+    plugin_name = cmds.loadPlugin('hedit')[0]
     assert cmds.pluginInfo(plugin_name, query=True, loaded=True)
     assert 'hedit' in cmds.pluginInfo(plugin_name, query=True, command=True)
     assert Path(cmds.moduleInfo(moduleName='hedit', path=True)).resolve() == root
+    import hedit
+    from hedit import bridge
+    from hedit.completion import Index
     # 実際のMayaで動的に公開された名前も補完対象になる。
     import hlib
     config = json.loads(bridge.configuration())

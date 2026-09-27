@@ -4,17 +4,22 @@
  * Maya APIはこのファイルで扱い、本文編集はeditor.cppへ分離する。
  */
 #include "editor.h"
+#include "embedded_python.h"
 #include <maya/MFnPlugin.h>
 #include <maya/MPxCommand.h>
 #include <maya/MGlobal.h>
 #include <maya/MQtUtil.h>
 #include <maya/MCommandMessage.h>
+#include <maya/MSceneMessage.h>
 #include <maya/MMessage.h>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QPointer>
+#include <QDir>
+#include <QFile>
+#include <QSaveFile>
 #include <QApplication>
 #include <QThread>
 #include <QTextEdit>
@@ -32,12 +37,15 @@ QMutex outputMutex;
 QList<hedit::OutputMessage> pendingOutput;
 int pendingSize=0;
 bool omittedOutput=false;
+MCallbackId exitCallback = 0;
+bool exiting=false;
 /** @brief Maya出力を有界キューへ追加し、メインスレッドの通知では表示も更新する。
  * @param message Mayaの出力文字列。
  * @param type 警告・エラー等の分類。
  * @param clientData 未使用。
  */
 void onOutput(const MString& message, MCommandMessage::MessageType type, void* clientData) {
+    if (exiting) return;
     QString text = QString::fromUtf8(message.asUTF8());
     // CRLFをQtの段落として二重に挿入しない。printの分割通知には改行を足さない。
     text.replace("\r\n","\n"); text.replace('\r','\n');
@@ -63,6 +71,16 @@ void onOutput(const MString& message, MCommandMessage::MessageType type, void* c
     // 読み込み中はQtタイマーが動かない。Mayaのメインスレッドからだけ直接描画する。
     // ワーカー通知は既存タイマーへ任せ、UIへの他スレッドアクセスを避ける。
     if (qApp && QThread::currentThread()==qApp->thread()) hedit::refreshEditorOutput(window.data());
+}
+/** @brief Maya終了の開始時に、reporterからhedit画面への出力転送を止める。
+ * @param clientData 未使用。
+ * @details 終了処理中もMayaはMELの履歴をreporterへ追記するが、その時点のhedit画面は
+ * ネイティブウィンドウの解体途中で、追記を描画するとQtのアクセシビリティ更新で落ちる。
+ */
+void onMayaExiting(void* clientData) {
+    exiting=true;
+    QObject::disconnect(reporterConnection);
+    nativeDocument=nullptr;
 }
 /** @brief ロック中にキューを交換する。 @return 未取得の出力。上限超過時は省略通知も含む。 */
 QList<hedit::OutputMessage> takeOutput() {
@@ -183,16 +201,105 @@ public:
         return MS::kSuccess;
     }
 };
+/** @brief Windowメニューの緑のHアイコン(旧icons/hedit.svg)。.mll単体で使えるよう同梱する。 */
+const char* kMenuIconSvg =
+    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\">\n"
+    "  <rect x=\"1\" y=\"1\" width=\"22\" height=\"22\" rx=\"4\" fill=\"#69b66c\"/>\n"
+    "  <path d=\"M7 6v12M17 6v12M7 12h10\" fill=\"none\" stroke=\"#17251a\" stroke-width=\"3\"/>\n"
+    "</svg>\n";
+/** @brief 同梱アイコンをユーザー設定フォルダーへ書き出し、そのパスを返す。
+ * @return アイコンの絶対パス。書き出せない場合は空(メニューはアイコンなしで登録する)。
+ * @details ``menuItem -image``はファイルのパスしか受け付けないため、メモリ上のSVGを
+ * タブ保存と同じ``<userPrefDir>/hedit/``へ置く。内容が同じなら書き直さない。
+ */
+QString writeMenuIcon() {
+    const QString prefs=QString::fromUtf8(MGlobal::executeCommandStringResult("internalVar -userPrefDir").asUTF8());
+    if (prefs.isEmpty() || !QDir().mkpath(prefs+"/hedit")) return QString();
+    const QString path=QDir::cleanPath(prefs+"/hedit/hedit.svg");
+    const QByteArray svg(kMenuIconSvg);
+    QFile current(path);
+    if (current.open(QIODevice::ReadOnly) && current.readAll()==svg) return path;
+    current.close();
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || file.write(svg)!=svg.size() || !file.commit()) return QString();
+    return path;
 }
-/** @brief コマンドとメニューを登録する。
+/** @brief Windowメニュー末尾へhedit項目を一度だけ登録する(MEL経由。Pythonは使わない)。
+ * @param icon メニュー項目のアイコン(緑のH)の絶対パス。空ならアイコンなしで登録する。
+ * @return MEL実行結果。
+ * @details クリック時のコマンド自体は``import hedit; hedit.show()``(Python)のままだが、
+ * これはエディタ本体の起動にPythonが必要なためで、メニュー登録処理自体はC++から
+ * ``MGlobal::executeCommand``でMELを直接実行する。メインメニューが既にあれば同期的に
+ * 登録する。``evalDeferred``はloadPluginの処理中にidleが回ると、Mayaがまだ未ロードと
+ * 扱う時点で実行され得るため、メインメニュー構築前(起動初期のautoload)だけに使う。
+ * べき等: 既存の項目があれば何もしない。
+ */
+MStatus installMenu(const QString& icon) {
+    // MEL文字列リテラルへ埋め込むため、バックスラッシュと二重引用符をエスケープする。
+    QString escaped=icon; escaped.replace("\\","\\\\"); escaped.replace("\"","\\\"");
+    const QString image=icon.isEmpty() ? QString() : "        -image \""+escaped+"\"\n";
+    QString mel = QString(
+        "global proc hedit_installMenu()\n"
+        "{\n"
+        "    if (`about -batch`) return;\n"
+        "    if (`menuItem -exists \"heditWindowMenuItem\"`) return;\n"
+        "    string $parent = \"MayaWindow|mainWindowMenu\";\n"
+        "    if (!`menu -exists $parent`) return;\n"
+        "    buildViewMenu MayaWindow|mainWindowMenu;\n"
+        "    if (!`menuItem -exists \"heditWindowMenuDivider\"`)\n"
+        "        menuItem -parent $parent -divider true \"heditWindowMenuDivider\";\n"
+        "    menuItem -parent $parent -label \"hedit - Python / MEL\"\n"
+        "        -annotation \"Open hedit (additional script editor)\"\n"
+        "        -sourceType \"python\"\n"
+        "        -command \"import hedit; hedit.show()\"\n")
+        + image +
+        "        \"heditWindowMenuItem\";\n"
+        "}\n"
+        "if (`menu -exists \"MayaWindow|mainWindowMenu\"`) hedit_installMenu();\n"
+        "else evalDeferred -lowestPriority \"hedit_installMenu\";\n";
+    MString command; command.setUTF8(mel.toUtf8().constData());
+    return MGlobal::executeCommand(command, false, false);
+}
+/** @brief プラグイン解除時にWindowメニュー項目を取り除く(MEL経由)。
+ * @return MEL実行結果。
+ */
+MStatus uninstallMenu() {
+    MString mel =
+        "if (`menuItem -exists \"heditWindowMenuItem\"`) deleteUI \"heditWindowMenuItem\";\n"
+        "if (`menuItem -exists \"heditWindowMenuDivider\"`) deleteUI \"heditWindowMenuDivider\";\n";
+    return MGlobal::executeCommand(mel, false, false);
+}
+}
+/** @brief コマンドを登録し、Windowメニュー登録(C++/MEL)とPython側の画面復元を予約する。
  * @param object Mayaのプラグインオブジェクト。
  * @return コマンド登録結果。
+ * @details hedit本体(復元・補完・静的解析等)は``.mll``に同梱され、``scripts/``配下の
+ * ``.py``ファイルには依存しない。``hedit.*``モジュールの実体はembedded_python.hに
+ * 文字列として同梱し、ロード時にMaya同梱のCPython上へ``sys.modules``として直接展開する
+ * (``embedded_python::installModules``)。Windowメニューの登録自体はPythonを介さず、
+ * ここから直接``installMenu()``(MEL)で行う。前回画面の復元だけは``PySide``/
+ * ``MayaQWidgetDockableMixin``が要るため``startup.plugin_loaded()``(Python)に委ねる。
+ * ``scripts/userSetup.py``(起動時に``loadPlugin('hedit')``を呼ぶだけの最小ブートストラップ)・
+ * Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのいずれでもここが呼ばれるため、
+ * プラグインのロードだけでメニュー登録・前回の画面復元が完了するようにしている。
  */
 MStatus initializePlugin(MObject object) {
     MFnPlugin plugin(object, "hedit", "0.2.10", "Any");
     auto status=plugin.registerCommand("hedit", Command::creator);
-    if (status && MGlobal::mayaState()==MGlobal::kInteractive)
+    if (!status) return status;
+    // import hookはmayapy(standalone)でも登録する。補完等のPython APIはGUIに依存しないため。
+    auto installed=hedit::embedded::installModules();
+    if (!installed) {
+        MGlobal::displayError("hedit: failed to install embedded Python modules.");
+        plugin.deregisterCommand("hedit");
+        return installed;
+    }
+    if (MGlobal::mayaState()==MGlobal::kInteractive) {
+        exiting=false;
+        exitCallback=MSceneMessage::addCallback(MSceneMessage::kMayaExiting, onMayaExiting);
+        installMenu(writeMenuIcon());
         MGlobal::executePythonCommand("from hedit import startup; startup.plugin_loaded()",false,false);
+    }
     return status;
 }
 /** @brief タブを保存し、通知・UI・コマンドを解除する。
@@ -203,8 +310,10 @@ MStatus initializePlugin(MObject object) {
 MStatus uninitializePlugin(MObject object) {
     // タブ復元データを保存。保存できない場合は確認し、キャンセルなら解除を拒否する。
     if (window && !window->close()) return MS::kFailure;
-    if (MGlobal::mayaState()==MGlobal::kInteractive)
+    if (MGlobal::mayaState()==MGlobal::kInteractive) {
+        uninstallMenu();
         MGlobal::executePythonCommand("from hedit import startup; startup.uninstall()",false,false);
+    }
     QObject::disconnect(reporterConnection); nativeDocument=nullptr;
     python("__import__('hedit.bridge', fromlist=['release_output_reporter']).release_output_reporter()");
     if (outputCallback) {
@@ -212,6 +321,7 @@ MStatus uninitializePlugin(MObject object) {
         if (!status) return status;
         outputCallback = 0;
     }
+    if (exitCallback) { MMessage::removeCallback(exitCallback); exitCallback = 0; }
     MGlobal::executePythonCommand("import sys\nif 'hedit.docking' in sys.modules: sys.modules['hedit.docking'].release()", false, false);
     delete window.data(); window = nullptr;
     takeOutput();

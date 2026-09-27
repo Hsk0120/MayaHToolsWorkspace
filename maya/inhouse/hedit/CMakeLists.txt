@@ -64,7 +64,7 @@ endif()
 set(PROJECT_NAME hedit)
 
 # set SOURCE_FILES
-set(SOURCE_FILES src/editor.cpp src/editor.h src/explorer.cpp src/explorer.h src/spelling.cpp src/spelling.h src/plugin.cpp)
+set(SOURCE_FILES src/editor.cpp src/editor.h src/explorer.cpp src/explorer.h src/spelling.cpp src/spelling.h src/plugin.cpp src/embedded_python.h)
 
 # set linking libraries
 set(LIBRARIES

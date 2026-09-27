@@ -21,14 +21,14 @@ def main(output_dir, finished):
     try:
         from maya.api import OpenMaya as om
         om.MGlobal.displayInfo('hedit_before_open_history_probe')
-        import hedit
         # GUIランナーは全userSetupを抑止するので、.mod内の実ファイルを明示実行する。
+        # userSetup.pyのloadPluginを契機に、hedit.mllがhedit.*のimportとWindowメニューを用意する。
         import runpy
-        runpy.run_path(str(Path(hedit.__file__).resolve().parents[1] / 'userSetup.py'))
+        runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts' / 'userSetup.py'))
         wait_events(200)
         assert cmds.pluginInfo('hedit', query=True, loaded=True)
-        from hedit import startup
-        assert cmds.menuItem(startup.MENU, exists=True)
+        import hedit
+        assert cmds.menuItem('heditWindowMenuItem', exists=True)
         result['checks'].append('user_setup_autoload_and_menu')
         host = hedit.show()
         window = host.editor

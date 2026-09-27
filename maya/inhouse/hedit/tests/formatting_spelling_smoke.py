@@ -25,6 +25,8 @@ def main(output_dir, finished):
         print('startup_optimization', 'on')
         print('startup_line_A')
         print('startup_line_B')
+        # hedit.*はhedit.mllに同梱されており、プラグインのロードでimportできるようになる。
+        cmds.loadPlugin('hedit', quiet=True)
         import hedit
         host = hedit.show(); window = host.editor
         output = window.findChild(QtWidgets.QPlainTextEdit, 'output')

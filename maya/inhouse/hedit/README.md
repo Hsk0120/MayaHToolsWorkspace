@@ -8,14 +8,16 @@ Maya用のPython／MELスクリプトエディタです。VS CodeのDark+を参�
 
 各アイコンの操作はFile・Edit・History・View・Commandメニューからも選べます。Refresh completionはCommandメニューに移動しました。実行のCtrl+Enter／F5は従来どおりです。標準エディタの全機能を複製するものではなく、コードと出力のDark+配色も維持しています。
 
-ワークスペースの起動バッチでMayaを起動し、Pythonタブで実行します。
+ワークスペースの起動バッチでMayaを起動すると、`maya/modules/hedit.mod`経由の`scripts/userSetup.py`が起動時に`hedit`プラグインを自動ロードします。ロードした時点でWindowメニュー末尾に起動項目(緑のHアイコン)が追加され、前回開いていた場合は画面も自動で復元されます。`hedit`本体のロジック(復元・メニュー登録・補完・静的解析など)は`.py`ファイルを持たず、`hedit.mll`自身にC++の文字列として同梱されています(`src/embedded_python.h`。ロード時にMaya同梱のCPythonへ直接展開)。`scripts/userSetup.py`は`cmds.loadPlugin('hedit')`を呼ぶだけの最小ブートストラップで、Plug-in Managerでの明示ロードと同じ入口(`initializePlugin`)へ合流します。
+
+ロード後はPythonタブからも開けます。
 
 ```python
 import hedit
 hedit.show()
 ```
 
-`maya/modules/hedit.mod` がPythonパスとバージョン別プラグインパスを設定します。通常は `show()` または前回開いていた画面の起動復元時にロードします。Plugin Managerで明示ロードした場合もWindowメニュー末尾に起動項目を追加します。緑のHアイコンが目印です。起動済みのMayaには、`.mod` を追加した後の再起動が必要です。
+Plug-in Managerで`hedit`を明示ロード、または`hedit`行で「Auto load」をチェックしてロードすることもできます(Maya標準の永続設定で、hedit自身は変更しません)。起動済みのMayaには、`.mod` を追加した後の再起動が必要です。
 
 プラグインの信頼確認が出た場合はMayaの画面で確認してください。heditはSecurity設定を変更しません。
 
@@ -264,9 +266,9 @@ GUI内で表示、上下レイアウト、ドッキング／フローティン�
 
 復元先はheditのworkspaceControlを明示的に使用し、内部の非表示ログウィンドウへ入らないようにしています。既存ドックを再表示する際は親ホストと本文の両方を表示します。
 
-前回開いていた場合は、Mayaの保存ワークスペースに登録された`uiScript`から画面を再構築します。.modで有効になった`scripts/userSetup.py`からも復元の入口を遅延実行します。ドックの入れ子・タブ位置はMaya標準のワークスペースに保持し、終了通知で現在の配置を保存します。ユーザーが閉じてから終了した場合は自動表示しません。
+前回開いていた場合は、Mayaの保存ワークスペースに登録された`uiScript`から画面を再構築します。プラグインのロード自体(C++側`initializePlugin`が呼ぶ`hedit.startup.plugin_loaded()`)を契機に復元の入口を遅延実行するため、Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのいずれでも同じ復元が行われます。ドックの入れ子・タブ位置はMaya標準のワークスペースに保持し、終了通知で現在の配置を保存します。ユーザーが閉じてから終了した場合は自動表示しません。
 
-タブ本文は`tabs.json`、開閉状態・フローティング状態・ワークスペース名は同じフォルダーの`ui.json`に保持します。終了中のUI破棄で「閉じた」扱いに書き換わることを防ぎます。元のMayaワークスペースが削除された場合は厳密な位置を復元できず、以前ドックしていた画面は下側に配置して警告します。SecurityでuserSetup実行を無効化している場合は補助的な自動起動が動きません。Windowメニューまたは`hedit.show()`からも開けます。信頼設定を自動変更する機能はありません。
+タブ本文は`tabs.json`、開閉状態・フローティング状態・ワークスペース名は同じフォルダーの`ui.json`に保持します。終了中のUI破棄で「閉じた」扱いに書き換わることを防ぎます。元のMayaワークスペースが削除された場合は厳密な位置を復元できず、以前ドックしていた画面は下側に配置して警告します。Windowメニューまたは`hedit.show()`からも開けます。信頼設定を自動変更する機能はありません。
 
 ### Visual Studioプロジェクトだけを生成
 
@@ -284,23 +286,39 @@ C++の説明は[内製C++コメント規約](../../../docs/cpp-documentation.md)
 
 ## 名称変更
 
-フォルダ、Pythonパッケージ、プラグイン、メニューと画面の名称は小文字の`hedit`です。
-起動は`import hedit; hedit.show()`を使用します。
+フォルダ、プラグイン、メニューと画面の名称は小文字の`hedit`です。
+起動は`import hedit; hedit.show()`を使用します(`hedit`プラグインが一度でもロードされていれば、
+`.py`ファイルなしで`sys.modules['hedit']`から解決されます)。
 旧版から切り替えるときはMayaを再起動してください。旧保存先`heditor`の未保存タブ・UI状態・設定は、
 新保存先`hedit`に対応するファイルがまだない場合だけコピーします。旧データは削除しません。
-保存済みワークスペースの旧uiScriptに限り、互換用の`heditor.restore()`を残しています。
+保存済みワークスペースの旧uiScriptに限り、互換用の`heditor.restore()`を残しています
+(`src/embedded_python.h`の`kHeditorCompatSource`)。
 
-## ワークスペース起動時の自動ロード
+## プラグインロードだけで復元・メニュー登録が完結する仕組み
 
 `maya/maya_core.bat`は`maya/modules`を`MAYA_MODULE_PATH`へ追加しています。
-`hedit.mod`がバージョン別バイナリと`scripts`を登録し、`scripts/userSetup.py`がGUI初期化後に
-`hedit.startup.initialize()`を実行してプラグインとWindowメニューをロードします。
-初回はエディタ画面を開かず、前回開いていた場合だけ画面・タブを復元します。
-既にロード済みなら重複ロードしません。Mayaの永続autoload設定は変更しません。
-バッチ/standaloneでは自動ロードせず、SecurityでuserSetupが禁止されている場合も迂回しません。
+`hedit.mod`はバージョン別の`MAYA_PLUG_IN_PATH`に加え、`scripts/userSetup.py`を
+見つけるための`PYTHONPATH +:= scripts`を設定します。`userSetup.py`はGUI初期化後に
+`cmds.loadPlugin('hedit')`を1回呼ぶだけの最小ブートストラップで、復元・メニュー登録の
+ロジックは一切含みません。
 
-GUI回帰テストは隔離環境で実際の`userSetup.py`を明示実行し、遅延ロードとメニュー登録を確認します。
-ユーザー環境の全外部ツールを含む起動バッチ実行とは区別しています。
+`hedit`のPythonロジック(`__init__`/`docking`/`bridge`/`completion`/`analysis`/`startup`相当)
+自体は`src/embedded_python.h`にC++の生文字列として同梱されており、`initializePlugin`
+(`plugin.cpp`)が`hedit::embedded::installModules()`で`sys.meta_path`の先頭へimportフックを
+登録します(通常の`.py`と同じくimport時に読み込まれ、mayapyでも使えます)。Windowメニューの
+登録自体はPythonを介さず、`initializePlugin`が直接`installMenu()`(MEL、`MGlobal::executeCommand`
+経由)で行います。メニューの緑のHアイコンもSVGを`plugin.cpp`に同梱し、ロード時に
+`<userPrefDir>/hedit/hedit.svg`へ書き出して使うため、`icons/`フォルダーは不要です。続けて
+`hedit.startup.plugin_loaded()`が前回画面の復元(PySide/`MayaQWidgetDockableMixin`が
+必要なためPython側)を次のidleへ予約するため、**`userSetup.py`経由の自動ロード・
+Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのどれでも、プラグインの
+ロードだけでメニュー登録と前回画面の復元が完了します。**
+初回はエディタ画面を開かず、前回開いていた場合だけ画面・タブを復元します。
+バッチ/standaloneでは画面を開きません(`userSetup.py`は`cmds.about(batch=True)`を検知して何もしません)。
+Mayaの永続autoload設定はhedit自身が変更しません。
+
+GUI回帰テストは隔離環境で`cmds.loadPlugin('hedit')`を明示実行し、埋め込みモジュールの展開・
+メニュー登録・復元を確認します。ユーザー環境の全外部ツールを含む起動バッチ実行とは区別しています。
 
 構文警告はMaya同梱Pythonの仕様に従います。例えば2022のPython 3.7では、定数への`is`比較で新しいPythonと同じ警告は出ません。
 

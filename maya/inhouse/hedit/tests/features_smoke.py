@@ -5,7 +5,6 @@ from pathlib import Path
 def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     """現在のMayaに対して安全なコードと一時ファイルで機能を検証する。"""
     from maya import cmds, mel
-    from hedit import startup
 
     def wait(ms=100):
         loop = QtCore.QEventLoop()
@@ -129,8 +128,9 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
         tabs.setCurrentIndex(tabs.count() - 1); tabs.currentWidget().document().setModified(False)
         action('Close tab').trigger()
     wait()
-    startup.install_menu()
-    assert cmds.menuItem(startup.MENU, exists=True)
-    assert 'hedit.show()' in cmds.menuItem(startup.MENU, query=True, command=True)
-    assert Path(cmds.menuItem(startup.MENU, query=True, image=True)).is_file()
+    # WindowメニューはinitializePlugin(C++/MEL)がプラグインのロード時に登録する。
+    menu = 'heditWindowMenuItem'
+    assert cmds.menuItem(menu, exists=True)
+    assert 'hedit.show()' in cmds.menuItem(menu, query=True, command=True)
+    assert Path(cmds.menuItem(menu, query=True, image=True)).is_file()
     window.grab().save(str(Path(directory) / 'features.png'))

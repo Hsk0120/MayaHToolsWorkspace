@@ -7,25 +7,71 @@
 .. code-block:: text
 
    hedit/
-   ├ CMakeLists.txt        C++ プラグインのビルド定義(Maya devkit の pluginEntry.cmake を利用)
-   ├ generate_vs.bat       Visual Studio のプロジェクトだけを生成する
-   ├ src/                  C++ / Qt のエディター本体
-   │  ├ plugin.cpp         プラグインの登録(コマンド hedit)と、Maya 側の処理をエディターへ渡す接続
-   │  ├ editor.h/.cpp      画面全体(Window)、コード欄(Code)、出力欄(Output)、行番号(NumberedText)
-   │  ├ explorer.h/.cpp    Explorer(フォルダーツリー)
-   │  └ spelling.h/.cpp    Windows の辞書を使った英語スペルチェック
-   ├ scripts/hedit/        Maya 側の Python
-   │  ├ __init__.py        show() / restore() と版(__version__)
-   │  ├ docking.py         MayaQWidgetDockableMixin のドックと workspaceControl
-   │  ├ bridge.py          コード実行・出力の購読・補完/静的解析の呼び出し・保存先
-   │  ├ completion.py      ast による補完の索引(Index)
-   │  ├ analysis.py        構文の静的解析
-   │  └ startup.py         起動時の自動ロード・Window メニュー・画面の復元
-   ├ scripts/userSetup.py  .mod から起動時に startup.initialize() を遅延実行
-   ├ release/plug-ins/     ビルド済みの hedit.mll(windows/<Mayaの年>/<版>/)
-   ├ tests/                補完・standalone・GUI・復元の自動テスト
-   ├ icons/                アイコン
-   └ docs/                 このドキュメント
+   ├ CMakeLists.txt          C++ プラグインのビルド定義(Maya devkit の pluginEntry.cmake を利用)
+   ├ generate_vs.bat         Visual Studio のプロジェクトだけを生成する
+   ├ src/                    C++ / Qt のエディター本体
+   │  ├ plugin.cpp           プラグインの登録(コマンド hedit)、埋め込みPythonの展開、Maya 側処理の接続
+   │  ├ embedded_python.h    旧 scripts/hedit/*.py 相当をC++文字列として同梱するブートストラップ
+   │  ├ editor.h/.cpp        画面全体(Window)、コード欄(Code)、出力欄(Output)、行番号(NumberedText)
+   │  ├ explorer.h/.cpp      Explorer(フォルダーツリー)
+   │  └ spelling.h/.cpp      Windows の辞書を使った英語スペルチェック
+   ├ scripts/userSetup.py    起動時に cmds.loadPlugin('hedit') を1回呼ぶだけの最小ブートストラップ
+   ├ release/plug-ins/       ビルド済みの hedit.mll(windows/<Mayaの年>/<版>/)
+   ├ tests/                  補完・standalone・GUI・復元の自動テスト
+   ├ icons/                  アイコンの元データ(実行時は plugin.cpp に同梱した SVG を使う)
+   └ docs/                   このドキュメント
+
+hedit本体のロジックは「scripts/」配下のファイルとしては存在しない
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+旧版にあった ``scripts/hedit/__init__.py`` / ``docking.py`` / ``bridge.py`` / ``completion.py`` /
+``analysis.py`` / ``startup.py`` は、内容をそのまま ``src/embedded_python.h`` の生文字列リテラルへ移しました。
+``initializePlugin``(``plugin.cpp``)が ``hedit::embedded::installModules()`` で ``sys.meta_path`` の
+先頭へ import フックを登録し、``import hedit`` や ``from . import docking`` は通常の ``.py`` と同じく
+import した時点で同梱ソースから読み込まれます(バッチ/mayapy でも登録するため、補完などの
+Python API は standalone でも使えます)。ディスク上にこれらの ``.py`` ファイルは存在しません。
+**Plug-in Manager での明示ロードだけでも、復元・Window メニュー登録まで含めて完結します。**
+
+ロード時の処理の分担は次のとおりです。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - 処理
+     - 実装
+   * - Window メニューの項目追加・削除
+     - ``plugin.cpp`` の ``installMenu`` / ``uninstallMenu``。Python を介さず ``MGlobal::executeCommand`` で MEL を実行する。
+       メインメニューがあれば同期的に登録し、起動初期でまだ無い場合だけ ``evalDeferred -lowestPriority`` に回す。
+   * - メニューの緑の H アイコン
+     - ``plugin.cpp`` の ``kMenuIconSvg`` に SVG を同梱。``menuItem -image`` はファイルパスしか受け付けないため、
+       ロード時に ``<userPrefDir>/hedit/hedit.svg`` へ書き出して使う(内容が同じなら書き直さない)。
+   * - 前回画面の復元
+     - ``hedit.startup.plugin_loaded()``(PySide の ``MayaQWidgetDockableMixin`` が必要なため Python)。
+       保存済みの空の workspaceControl が残っている場合は、表示するだけにして Maya 自身の ``uiScript``
+       (``hedit.restore()``)に中身を作らせる。
+   * - Maya 終了時の出力転送の停止
+     - ``plugin.cpp`` の ``onMayaExiting``(``kMayaExiting``)。終了処理中の reporter 追記を hedit 画面へ描画しない。
+
+.. note::
+
+   MSVC の制約で、生文字列リテラルの区切り子は16文字以内、1つのリテラルは約16KB以内に保ってください。
+
+``scripts/userSetup.py`` だけは残しています。Maya 起動時に(ユーザーが毎回 Plug-in Manager を
+開かなくても)自動で ``hedit`` がロードされるようにするための入口で、行うのは
+``cmds.loadPlugin('hedit')`` の呼び出しだけです。復元・メニュー登録などの実処理は一切含みません。
+``.mod`` は ``MAYA_PLUG_IN_PATH`` に加え、この ``userSetup.py`` を見つけるための
+``PYTHONPATH +:= scripts`` を設定します。
+
+Python 自体を廃止したわけではありません。補完(``ast``)や構文チェック(``compile()``)は
+Python 言語の解析そのものが必要なため、Maya に同梱された CPython を
+``MGlobal::executePythonCommand`` 経由で呼び出す構成を維持しています。変更したのは
+「hedit 本体のロジックが ``.py`` ファイルに依存しない」点であり、実行時に Python を
+使わなくしたわけではありません。
+
+``embedded_python.h`` 内のソースを編集した場合、対応する ``.py`` は存在しないため
+``hlib`` のような ``reload()`` は使えません。編集後は Maya を再起動してビルド済み
+``.mll`` を読み込み直してください。
 
 エディターの役割分担
 ~~~~~~~~~~~~~~~~~~~~

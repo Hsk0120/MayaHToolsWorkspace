@@ -1,4 +1,7 @@
-"""名称変更で未保存タブや設定を失わないことを検証する。"""
+"""名称変更で未保存タブや設定を失わないことを検証する。
+
+hedit.bridgeはhedit.mllに同梱されているため、mayapyでプラグインをロードしてから読む。
+"""
 import os
 from pathlib import Path
 import sys
@@ -6,7 +9,11 @@ import tempfile
 import types
 import unittest
 from unittest import mock
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+
+import maya.standalone
+maya.standalone.initialize(name='python')
+from maya import cmds
+cmds.loadPlugin('hedit')
 from hedit import bridge
 
 class RenameTests(unittest.TestCase):

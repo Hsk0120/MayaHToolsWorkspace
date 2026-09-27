@@ -19,6 +19,8 @@ def main(output_dir, finished):
     directory = Path(output_dir)
     try:
         OpenMaya.MGlobal.displayInfo('history_before_hedit_probe')
+        # hedit.*はhedit.mllに同梱されており、プラグインのロードでimportできるようになる。
+        cmds.loadPlugin('hedit', quiet=True)
         import hedit
         host = hedit.show()
         window = host.editor

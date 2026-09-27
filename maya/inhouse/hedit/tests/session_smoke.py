@@ -7,6 +7,8 @@ import traceback
 
 def main(output_dir, finished):
     from maya import cmds
+    # hedit.*はhedit.mllに同梱されており、プラグインのロードでimportできるようになる。
+    cmds.loadPlugin('hedit', quiet=True)
     import hedit
     try:
         from PySide6 import QtCore, QtGui, QtWidgets
@@ -46,10 +48,27 @@ def main(output_dir, finished):
             assert tabs.widget(1).document().isModified()
             result['checks'].append('restored_tabs_text_paths_selection_active_modified')
 
-        def verify():
+        # 自動保存は1秒間隔の確認で入力停止1.5秒後に行うため、固定時間ではなく保存を待つ。
+        # 待機は壁時計ではなくイベントループが回った回数(200ms×25回)で数える。Maya 2024では
+        # 起動直後にArnold(mtoa)の遅延登録がGUIスレッドを約5秒止めるため、壁時計だと停止中に
+        # 期限が切れ、停止明けに自動保存のタイマーより先にこの確認が走って誤って失敗する。
+        remaining = [25]
+
+        def saved():
             try:
                 data = json.loads(path.read_text(encoding='utf-8'))
-                assert len(data['tabs']) == 2 and data['tabs'][0]['text'] == text
+            except (OSError, ValueError):
+                return None
+            return data if len(data.get('tabs', [])) == 2 and data['tabs'][0]['text'] == text else None
+
+        def verify():
+            if saved() is None and remaining[0] > 0:
+                remaining[0] -= 1
+                QtCore.QTimer.singleShot(200, verify)
+                return
+            try:
+                data = saved()
+                assert data is not None, 'Tabs were not autosaved: {}'.format(path)
                 assert original.read_text(encoding='utf-8') == 'original = True\n'
                 result['checks'].append('autosaved_without_overwriting_original')
                 # 未保存のまま解除しても保存ダイアログで停止しない。
@@ -60,7 +79,7 @@ def main(output_dir, finished):
                 result['error'] = traceback.format_exc()
             Path(output_dir, 'result.json').write_text(json.dumps(result), encoding='utf-8')
             finished(result)
-        QtCore.QTimer.singleShot(1600, verify)
+        QtCore.QTimer.singleShot(200, verify)
     except Exception:
         result['error'] = traceback.format_exc()
         Path(output_dir, 'result.json').write_text(json.dumps(result), encoding='utf-8')

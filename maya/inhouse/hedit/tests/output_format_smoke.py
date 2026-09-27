@@ -12,6 +12,8 @@ def main(output_dir, finished):
     except ImportError:
         from PySide2 import QtCore, QtGui, QtWidgets
         from shiboken2 import wrapInstance
+    # hedit.*はhedit.mllに同梱されており、プラグインのロードでimportできるようになる。
+    cmds.loadPlugin('hedit', quiet=True)
     import hedit
     result={'status':'error', 'cases':[]}
     callback=None

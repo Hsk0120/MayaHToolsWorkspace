@@ -1,4 +1,6 @@
-"""Maya初期化不要の補完テスト。外部パッケージは不要。"""
+"""補完エンジン自体はMaya API非依存だが、実体はsrc/embedded_python.hにC++文字列として
+同梱されているため、importにはプラグインロード(=Maya standalone起動)が必要。
+"""
 import json
 import os
 from pathlib import Path
@@ -11,7 +13,11 @@ import threading
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'scripts'))
+
+import maya.standalone
+maya.standalone.initialize(name='python')
+from maya import cmds
+cmds.loadPlugin('hedit')
 from hedit.completion import Index
 from hedit import bridge
 from hedit.analysis import analyze
