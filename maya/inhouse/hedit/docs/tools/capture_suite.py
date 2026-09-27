@@ -85,20 +85,29 @@ def main(output_dir, finished):
         top.raise_()
         top.activateWindow()
         wait(1200)
-        screen = top.screen()
-        frame = top.frameGeometry()
-        origin = screen.geometry().topLeft()
-        result["frame"] = [frame.x(), frame.y(), frame.width(), frame.height(), origin.x(), origin.y()]
-        shot = screen.grabWindow(0, frame.x() - origin.x(), frame.y() - origin.y(), frame.width(), frame.height())
-        # 枠の外側の1〜2pxには背後のウィンドウが写り込むため、上端を切り落とす。
-        shot = shot.copy(0, 2, shot.width(), shot.height() - 2)
-        margin = 28
-        canvas = QtGui.QPixmap(shot.width() + margin * 2, shot.height() + margin * 2)
-        canvas.fill(QtGui.QColor("#1b1e22"))
-        painter = QtGui.QPainter(canvas)
-        painter.drawPixmap(margin, margin, shot)
-        painter.end()
-        save(canvas, "main.png")
+        def save_framed(name):
+            screen = top.screen()
+            frame = top.frameGeometry()
+            origin = screen.geometry().topLeft()
+            shot = screen.grabWindow(0, frame.x() - origin.x(), frame.y() - origin.y(), frame.width(), frame.height())
+            # 枠の外側の1〜2pxには背後のウィンドウが写り込むため、上端を切り落とす。
+            shot = shot.copy(0, 2, shot.width(), shot.height() - 2)
+            margin = 28
+            canvas = QtGui.QPixmap(shot.width() + margin * 2, shot.height() + margin * 2)
+            canvas.fill(QtGui.QColor("#1b1e22"))
+            painter = QtGui.QPainter(canvas)
+            painter.drawPixmap(margin, margin, shot)
+            painter.end()
+            save(canvas, name)
+
+        save_framed("main.png")
+        # トップページ用: Explorer を隠した版。
+        explorer = find_action(find_menu(window, "View"), "Explorer")
+        explorer.trigger()
+        wait(900)
+        save_framed("top.png")
+        explorer.trigger()
+        wait(400)
         top.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint, False)
         top.show()
         top.resize(1280, 860)
