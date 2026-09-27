@@ -71,12 +71,40 @@ def main(output_dir, finished):
         cmds.warning("cmds.warning() の警告も黄色で表示されます")
         wait(300)
         output.verticalScrollBar().setValue(output.verticalScrollBar().maximum())
-        splitter.setSizes([260, 560])
         tabs.setCurrentIndex(0)
         code = tabs.currentWidget()
         code.setFocus()
-        wait(400)
-        save(window.grab(), "main.png")
+
+        # トップページ用: タイトルバーごと、少し横長の小さなウィンドウで撮り、周囲に余白を付ける。
+        top = host.window()
+        top.resize(940, 470)
+        splitter.setSizes([150, 170])
+        # 他のウィンドウに隠れないよう、撮影の間だけ最前面に固定する(画面上の実際の見た目を撮るため)。
+        top.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint, True)
+        top.show()
+        top.raise_()
+        top.activateWindow()
+        wait(1200)
+        screen = top.screen()
+        frame = top.frameGeometry()
+        origin = screen.geometry().topLeft()
+        result["frame"] = [frame.x(), frame.y(), frame.width(), frame.height(), origin.x(), origin.y()]
+        shot = screen.grabWindow(0, frame.x() - origin.x(), frame.y() - origin.y(), frame.width(), frame.height())
+        # 枠の外側の1〜2pxには背後のウィンドウが写り込むため、上端を切り落とす。
+        shot = shot.copy(0, 2, shot.width(), shot.height() - 2)
+        margin = 28
+        canvas = QtGui.QPixmap(shot.width() + margin * 2, shot.height() + margin * 2)
+        canvas.fill(QtGui.QColor("#1b1e22"))
+        painter = QtGui.QPainter(canvas)
+        painter.drawPixmap(margin, margin, shot)
+        painter.end()
+        save(canvas, "main.png")
+        top.setWindowFlag(QtCore.Qt.WindowStaysOnTopHint, False)
+        top.show()
+        top.resize(1280, 860)
+        splitter.setSizes([260, 560])
+        wait(500)
+        code.setFocus()
 
         # 補完: cmds. の後の候補一覧。ポップアップは別ウィンドウなので、本体の画像へ重ねて保存する。
         code.setPlainText("import maya.cmds as cmds\n\ncmds.")
