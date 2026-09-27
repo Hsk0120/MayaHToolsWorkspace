@@ -62,17 +62,23 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 
 ## 命名と継承
 
+- クラスの実装は1クラス1ファイルにする。コレクションクラスも単体クラスとは別ファイルに置き、`__init__.py` は公開用importを基本とする。
+- クラスに関係する処理は、そのクラスのインスタンス／クラス／静的メソッドへ配置する。補助関数だけを置くファイルをクラスのパッケージ内に増やさない。
+- 特定クラスに依存しない汎用関数は `hlib.utils` 配下に用途単位でまとめる。版番号のように保持値と関連操作があるものは `hlib.utils.version.Version` のような値クラスにまとめる。既存のMaya互換コマンド入口 (`cmds`) は、その公開方式を維持する。
+
 | 対象 | 推奨ルール | 例 |
 | --- | --- | --- |
 | パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`editors` |
 | Mayaコマンドとそのファイル | Mayaと同じcamelCase | `createNode.py` / `createNode()` |
 | Mayaノードのファイル | nodeTypeと同じ表記 | `skinCluster.py`、`animCurveTL.py` |
-| その他のファイル | snake_case | `channel_box.py`、`time_slider.py`、`euler_rotation.py` |
+| その他の実装ファイル | lowerCamelCase | `channelBox.py`、`timeSlider.py`、`eulerRotation.py` |
 | クラス | PascalCase | `SkinCluster`、`ChannelBox` |
 | 独自メソッド | snake_case | `get_matrix()`、`set_weights()` |
 
 Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優先する。
-例えば `cmds/channelBox.py` はコマンド、`editors/channel_box.py` はエディターの実装なので、それぞれの規則を適用する。
+例えば `cmds/channelBox.py` はコマンド、`editors/channelBox.py` はエディターの実装で、どちらも同じファイル名の表記を使う。
+
+このファイル名規則はhlibとすべての `hlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。関数・独自メソッド・変数のsnake_caseは維持する。
 
 - 値の取得・設定を対にするAPIは `get_position()` / `set_position()` のようにする。名前や判定の照会は `name()` / `is_locked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
 - 子クラスで基底メソッドと同名の別機能を公開しない。`Node.inputs(type=...)` は接続検索を維持し、`AnimCurve.key_inputs()` と `BlendWeighted.input_plugs()` は専用名を使う。

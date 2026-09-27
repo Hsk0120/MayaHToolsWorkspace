@@ -10,7 +10,7 @@ from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
 # リポジトリルートからのCIビルドでも、docs内の補助モジュールを解決する。
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _mermaid_classes import ancestor_class_diagram, collect_class_hierarchy, overall_class_diagram
+from _mermaidClasses import ancestor_class_diagram, collect_class_hierarchy, overall_class_diagram
 
 
 class _DynamicExportFilter(logging.Filter):

@@ -1,7 +1,7 @@
 """行列属性と所有ノードの変換行列を扱う。"""
 
 from ..decorators._fast import fast_edit
-from .._core.fast_write import set_attr
+from .._core.fastWrite import set_attr
 
 from ..decorators.undo import undo_chunk
 
@@ -36,7 +36,7 @@ class MatrixPlug(Plug):
         return Matrix.from_mmatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
     @fast_edit
-    @undo_chunk("hlib.plugs.matrix_plug.set")
+    @undo_chunk("hlib.plugs.matrixPlug.set")
     def set(self, value, ws=False, *, fast=False):
         """行列値を設定する。
 

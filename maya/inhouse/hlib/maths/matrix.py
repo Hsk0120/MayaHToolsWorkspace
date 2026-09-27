@@ -4,7 +4,7 @@ from operator import index as _as_index
 
 import maya.api.OpenMaya as om2
 
-from .euler_rotation import EulerRotation
+from .eulerRotation import EulerRotation
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear

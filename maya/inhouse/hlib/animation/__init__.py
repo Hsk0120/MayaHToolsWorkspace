@@ -1,5 +1,5 @@
 """ノードをまたぐアニメーションの関係を扱う。"""
 
-from .driven_key import DrivenKey, DrivenKeys
+from .drivenKey import DrivenKey, DrivenKeys
 
 __all__ = ["DrivenKey", "DrivenKeys"]

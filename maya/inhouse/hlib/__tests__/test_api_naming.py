@@ -75,10 +75,10 @@ class ApiNamingTest(unittest.TestCase):
             self.assertEqual(tuple(value), (1, 2, 3))
 
     def test_module_paths(self):
-        for module, cls in (('editors.channel_box', 'ChannelBox'),
-                            ('editors.time_slider', 'TimeSlider'),
-                            ('animation.driven_key', 'DrivenKey'),
-                            ('maths.euler_rotation', 'EulerRotation'),
+        for module, cls in (('editors.channelBox', 'ChannelBox'),
+                            ('editors.timeSlider', 'TimeSlider'),
+                            ('animation.drivenKey', 'DrivenKey'),
+                            ('maths.eulerRotation', 'EulerRotation'),
                             ('maths.translation', 'Translation')):
             self.assertTrue(inspect.isclass(getattr(importlib.import_module('hlib.' + module), cls)))
         self.assertTrue(callable(hlib.channelBox))

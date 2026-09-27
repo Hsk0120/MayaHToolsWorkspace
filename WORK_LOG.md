@@ -21,13 +21,20 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-09-27 | hlib/events・共通Node/Plug API・hrig・関連テスト/docs | scriptJob管理の共通化とhrigのhlib主体への移行 |
 
 
 ## 完了履歴
 
+
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-27 | 未コミット変更全体 | ユーザー指示でhlib/hrigの実装・テスト・Sphinx・規約の変更をコミット対象として確認。origin/mainとの乖離なし、diff checkと既存のMaya2022/2027・Sphinx成功記録を確認。研究資料とテスト生成物はGit除外を維持。コミット・プッシュ結果はGit履歴を参照。 |
+| Codex | 2026-09-27 | hlib外の利用側コード・参照 | hrig/HTools/hedit/hlib拡張/tools/外部ツールを検索し旧モジュールimport残存なし。Git除外資料も検索しdocs/research/hlib-submodule-review-2026-09-24.mdのarrayPlugへのリンクを修正。実行コードは追加変更不要。diff check成功、Maya再実行なし。ワークスペース外は未調査。 |
+| Codex | 2026-09-27 | hlibの19モジュール・import/テスト/docs・AGENTS/API規約 | eulerRotation/scriptJob/channelBox/arrayPlug等へ改名し、内部_coreとdocs補助もlowerCamelCase化。hlib_*にも同規則を明記。テスト探索名/特殊名/パッケージ名/Maya nodeType名とメソッド名は維持。旧構成を読込済みのMaya2027プロセスからhlib.reload移行成功、旧モジュール除去とregistry確認。Maya2022関連192件、2027 Bifrostリグ15件成功。残存旧importなし、Sphinx -Wとdiff check成功。GUI操作とPoseDriverConnectバイナリは今回未検証。証跡.maya-output/camel-modules。 |
+| Codex | 2026-09-27 | hlib/utils/version・plugins・hrig起動・版番号テスト/docs | 不変Version値クラスを1ファイルに実装。parts/suffix/major/minor/patch/build・parse・replace・比較/hashを集約。Plugin/Module.versionとPackageの版照会をVersion化、生文字列version_textと既存version_tupleを提供。utils/versions関数を廃止し利用箇所/ドキュメントを更新。Maya2027関連60件成功、2022は56成功4skip、hlib.reload・diff check・Sphinx -W成功。GUI未実施。証跡.maya-output/version-class。 |
+| Codex | 2026-09-27 | hlib/plugins・utils/versions・Node作成・hrig起動・テスト/docs | Pluginsをplugins.pyへ分割。standard.ensure_node_pluginをPluginクラスメソッド、package._maya_yearをクラス内へ移動。versionsをutilsへ移し旧plugins関数公開を削除、呼出/規約/ガイド更新。Maya2022 plugin35件(2skip)+bulk4件・共通28件成功、2027 plugin35+bulk4件成功、reload旧名除去/構造/diff検証とSphinx -W成功。初回2027 flowWedgingはユーザーログ先へのsandbox書込拒否で失敗、旧実装でも再現し許可付き隔離mayapyで再検証成功。GUI未実施。証跡.maya-output/plugins-layout。 |
+| Codex | 2026-09-27 | hlib/events・test_events | ScriptJobをscript_job.py、ScriptJobsをscript_jobs.pyへ分割し、__init__は再公開のみ。公開API維持。Maya2022共通28件成功、hlib.reload後のクラス再公開一致確認、diff check成功。GUI発火の再検証は未実施（実装本体変更なし）。 |
+| Codex | 2026-09-27 | hlib/events・plug・Transform・hrig・AGENTS/docs・関連テスト | hrigの生成/属性/接続/行列をhlib公開APIへ移行。ScriptJob/ScriptJobs、hlib.plug、Plug.set_if_changedを共通化。行列適用の角度単位を修正。hrig本体の書式・日本語Google docstringを統一しdocs/hrig-development.mdとAGENTSへ規約追加。Maya2022共通28件、2025 native7件、2027 Bifrost統合15件、隔離GUI29項目成功。GUIはdirty化試験を含めexit0。Sphinx -W成功・diff check成功。2025GUI未実施。初期の親参照/rename戻り値の移行不備は修正して再検証済み。証跡.maya-output/hrig-hlib。 |
 | Claude Code | 2026-09-27 | maya/inhouse/hedit/docs/(新規) | heditのSphinxドキュメント(利用ガイド・Preferences13項目の詳細・補完/出力/復元・開発)とスクリーンショット7枚(docs/tools/run_capture.pyで専用GUIから再撮影可)。Sphinx -W 警告0でビルド確認。hedit本体のソースは未編集。未コミット |
 | Codex | 2026-09-27 | hrig/channel_controls・limb/animation・startup・demo・README・関連テスト・tools/run_hlib_gui_versions.py | modules_grp配下のMode/Lod/Match On Switch・レイヤーEnabled/Activeを標準チャンネルへ公開。GUI scriptJobで接続更新とUndo圧縮、読込/Undo後に再登録、無効状態グレー。FK合わせのxformワールド指定がRedoで崩れる問題をローカルTRS適用へ修正。2027 GUI23項目成功・画像確認、standalone15成功、2025 native7成功。終了直前にdirty化する試験でも専用GUIは保存確認なしexit0(.maya-output/rig-channels/gui-13)。終了時はdeferred内でmodified解除とquit forceを連続実行。普段のMayaは対象外。2025GUI・別プロセス初回起動での自動再登録は未検証。初期GUI試行の停止/失敗あり、最終版で正常終了。未コミット |
 | Codex | 2026-09-27 | hrig naming/limb/reverse_foot/examples・README・テスト | RigNamingRule.maを読取参照しrig/geo_grp/jnt_grp/ctrl_grpとjnt/ctrl/ctrl_ofs/Shape命名を適用。モジュール/レイヤーDAG整理と階層化選択セット、setup非表示、整理group TRSロック。controlをゼロ化しローカルmatrixにoffset合成、FK/IKマッチ・足・backend交換を維持。2027 grouped15テスト、2025 native5、最終2027回帰10成功(exit0)。確認シーン.maya-output/rig-naming/hrig-demo.ma保存。GUI目視未実施、既存リグ自動移行なし、参照シーン/他作業変更なし。 |

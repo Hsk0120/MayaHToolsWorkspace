@@ -24,7 +24,7 @@ class DecomposeMatrixRotateOrderTest(unittest.TestCase):
         return cmds.getAttr(self.node.full_name() + ".inputRotateOrder")
 
     def test_accepts_names_and_order_numbers(self):
-        names = hlib.maths.euler_rotation.ORDER_NAMES
+        names = hlib.maths.eulerRotation.ORDER_NAMES
         for index, name in enumerate(names):
             self.assertIs(self.node.set_rotate_order(name), self.node)
             self.assertEqual(self.rotate_order(), index)

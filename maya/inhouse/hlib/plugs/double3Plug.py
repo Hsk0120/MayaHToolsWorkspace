@@ -6,7 +6,7 @@ import math
 
 from .._core.registry import plug_wrapper
 from ..maths import EulerRotation, Scale, Shear, Translation, Vector
-from .compound_plug import CompoundPlug
+from .compoundPlug import CompoundPlug
 
 
 @plug_wrapper("double3")

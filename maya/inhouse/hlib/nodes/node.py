@@ -9,7 +9,7 @@ from .._core.coerce import (
     mplug_attribute_exists,
     selection_owner,
 )
-from .._core.fast_write import set_attr
+from .._core.fastWrite import set_attr
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -400,8 +400,8 @@ class Node:
 
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
-        from ..plugins.standard import ensure_node_plugin
-        ensure_node_plugin(type)
+        from ..plugins import Plugin
+        Plugin.ensure_node_plugin(type)
         for key in ("parent", "p"):
             if kwargs.get(key) is not None:
                 kwargs[key] = to_node_name(kwargs[key])

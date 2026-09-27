@@ -69,6 +69,9 @@ def main(output_dir=None, finished=None):
             probe.plug('setting').set(2)
             yield
             check(len(observed) == 2, 'Common attribute job survives rename')
+            import importlib
+            importlib.reload(hlib.events)
+            check(first.exists(), 'Common job ownership survives library reload')
             common_owner.stop()
             probe.plug('setting').set(3)
             yield

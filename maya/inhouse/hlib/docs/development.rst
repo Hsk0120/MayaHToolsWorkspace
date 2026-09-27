@@ -191,7 +191,7 @@ APIのグラフ走査や個別フラグから似た判定を再構築して意�
 
 ``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶための属性型名は、
 ``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列(``PlugRegistry`` のキー)を、
-属性定義から om2 で求めます(``_core/attribute_type.py`` の ``attribute_type()``。
+属性定義から om2 で求めます(``_core/attributeType.py`` の ``attribute_type()``。
 ``MFnNumericAttribute.numericType()``、``MFnUnitAttribute``・enum・message・matrix の
 apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデータ型は
 ``MFnAttribute.getAddAttrCmd()`` の型指定)。``cmds.getAttr(type=True)`` は使いません。
@@ -382,7 +382,7 @@ hlib は ``MFnPlugin`` によるコマンド登録・ノード登録など、May
 
 ``components/component.py`` の ``Component`` / ``Components`` は、
 単体のシェイプ・番号の参照と、同一シェイプの要素群を担当します。
-``components/point_component.py`` の ``PointComponent`` / ``PointComponents`` は、
+``components/pointComponent.py`` の ``PointComponent`` / ``PointComponents`` は、
 XYZ 座標の取得・設定と一括ミラーを担当します。
 
 ``vertex.py``、``cv.py``、``edge.py``、``face.py``、``uv.py`` には、
@@ -420,8 +420,8 @@ nodes のファイル名
 変わりません。
 
 対応する Maya nodeType が無いファイル（``node.py``、``shape.py`` など、型文字列
-ではなく実行時のノード種別で判定するもの）はこの対象外で、従来どおり
-snake_case のままです。
+ではなく実行時のノード種別で判定するもの）は一般のlowerCamelCase規則を使います。
+単語が1つの場合は小文字のままです。
 
 ``Constraint`` 系は1クラス1ファイルに分割しています。共通基底 ``Constraint``
 （nodeType を持たない）は ``constraint.py`` に残し、``ParentConstraint`` 〜
@@ -431,21 +431,24 @@ snake_case のままです。
 plugs のファイル名
 -------------------
 
-``plugs/*.py`` は nodes とは異なり、``@plug_wrapper("<attrType>")`` で Maya
-attrType に 1:1 対応するファイルも含めて snake_case に統一します
-（``bool_plug.py``、``double_linear_plug.py``、``double3_plug.py``、
-``matrix_plug.py``）。``_plug`` は Maya 由来ではなく hlib 側で付与する接尾辞
-のため、attrType 部分だけをキャメルケースにすると
-``doubleLinear`` + ``_plug`` のように表記が混在してしまうことを避けています。
+``plugs/*.py`` もlowerCamelCaseに統一します。
+``BoolPlug`` は ``boolPlug.py``、``DoubleLinearPlug`` は ``doubleLinearPlug.py``、
+``Double3Plug`` は ``double3Plug.py``、``MatrixPlug`` は ``matrixPlug.py`` に置きます。
+クラス名の単語区切りをファイル名にも反映し、``_plug`` という接尾辞は使いません。
 
 maths のファイル名
 -------------------
 
 ``cmds`` はMayaに合わせたcamelCase、``nodes`` はMaya nodeTypeと同名にします。
-それ以外のモジュールはsnake_case、クラスはPascalCase、独自メソッドはsnake_caseです。
-例えば ``EulerRotation`` は ``maths/euler_rotation.py``、``ChannelBox`` は
-``editors/channel_box.py`` に置きます。移動の値型は ``Translation``、
+それ以外の実装モジュールもlowerCamelCase、クラスはPascalCase、独自メソッドはsnake_caseです。
+例えば ``EulerRotation`` は ``maths/eulerRotation.py``、``ChannelBox`` は
+``editors/channelBox.py`` に置きます。移動の値型は ``Translation``、
 回転の値型は回転順序を持つ ``EulerRotation`` に統一しています。
+
+この規則は ``events`` / ``editors`` / ``_core`` や ``hlib_*`` 拡張にも適用します。
+例: ``events/scriptJob.py``、``_core/attributeType.py``。
+``__init__.py`` 等の特殊名と、テスト探索用 ``test_*.py`` / テスト用スクリプト、
+内部用の先頭 ``_`` とパッケージ名は維持します。
 
 Mayaの現在値を照会するAPIはメソッド、保持するデータはプロパティまたはフィールドにします。
 詳しい移行先は :doc:`api_naming` を参照してください。

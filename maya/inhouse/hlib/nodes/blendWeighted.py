@@ -1,7 +1,7 @@
 """重み付き加算ノード。ウェイトの正規化はしない。"""
 
 from ..decorators._fast import fast_edit
-from .._core.fast_write import set_attr
+from .._core.fastWrite import set_attr
 
 import math
 import maya.cmds as cmds

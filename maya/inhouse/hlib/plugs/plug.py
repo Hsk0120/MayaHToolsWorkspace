@@ -1,10 +1,10 @@
 """Maya API 2.0 の MPlug を属性ラッパーとして扱う。"""
 
 from ..decorators._fast import fast_edit, is_fast
-from .._core.attribute_type import attribute_type, is_internal_data_type
+from .._core.attributeType import attribute_type, is_internal_data_type
 from .._core.coerce import has_unresolved_index, to_plug
-from .._core.fast_write import set_attr
-from .._core.fast_write import set_plug
+from .._core.fastWrite import set_attr
+from .._core.fastWrite import set_plug
 
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
@@ -278,7 +278,7 @@ class Plug:
         """配列・登録属性型・複合属性の順にラッパー型を選ぶ。
 
         登録属性型の判定には ``cmds.getAttr(type=True)`` と同じ型名を使う。型名は
-        属性定義から求め(:func:`hlib._core.attribute_type.attribute_type`)、maya.cmds へ
+        属性定義から求め(:func:`hlib._core.attributeType.attribute_type`)、maya.cmds へ
         問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。
         値によって型が変わる属性(generic 属性など)は、存在する要素が行列を保持していれば
         ``cmds.getAttr(type=True)`` と同じく ``matrix`` として扱う(``MatrixPlug``)。
@@ -304,8 +304,8 @@ class Plug:
         """
         if cls is Plug:
             # ArrayPlug/CompoundPlug との循環importを避けるため呼び出し時に遅延importする。
-            from .array_plug import ArrayPlug
-            from .compound_plug import CompoundPlug
+            from .arrayPlug import ArrayPlug
+            from .compoundPlug import CompoundPlug
 
             handle = node._handle
             if handle is None or not handle.isValid():
@@ -1094,7 +1094,7 @@ class Plug:
                 (:meth:`is_valid` が ``False``。削除前の古い値は返さない)。
                 Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない
                 配列要素の場合(値を読むと Maya が異常終了する場合があるため。
-                :func:`hlib._core.attribute_type.is_internal_data_type`)。
+                :func:`hlib._core.attributeType.is_internal_data_type`)。
         """
         self._require_valid()
         reader = self._reader
@@ -1124,7 +1124,7 @@ class Plug:
         要求する引数の形(単純な ``*value`` 展開ではなく、型名や要素数の
         明示)が数値コンパウンド(double3 等)や matrix と異なるため、
         属性定義から ``cmds.getAttr(..., type=True)`` と同じ属性型名を求めてから
-        (:func:`hlib._core.attribute_type.attribute_type`)対応する形で呼び出す。
+        (:func:`hlib._core.attributeType.attribute_type`)対応する形で呼び出す。
         それ以外の型(数値コンパウンド、matrix 等)は従来通り ``*value`` で展開する。
 
         Args:

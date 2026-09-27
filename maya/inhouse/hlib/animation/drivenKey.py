@@ -4,7 +4,7 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.attribute_type import attribute_type
+from .._core.attributeType import attribute_type
 from .._core.coerce import to_plug
 from .._core.collection import BulkCollection, bulk_api
 from ..decorators.undo import undo_chunk
@@ -26,7 +26,7 @@ def _plug(value):
     ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。
     属性が見つからない、または名前が一意でない場合は RuntimeError、属性を指さない
     文字列や対応しない型は TypeError。属性型は属性定義から判定するため
-    (:func:`hlib._core.attribute_type.attribute_type`)、検証でシーンは変更しない。
+    (:func:`hlib._core.attributeType.attribute_type`)、検証でシーンは変更しない。
     """
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
         result = to_plug(value)

@@ -32,7 +32,7 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 - ``Node.inputs/outputs/connections`` と ``cmds.listConnections(plugs=True)``
   (短い名前が重複するノードを含む。``Plug.full_name()`` の一意な名前と一致すること)
 - ``Namespace`` と ``cmds.namespace``/``cmds.namespaceInfo``
-- Plug の属性型判定(属性定義から om2 で求める ``hlib._core.attribute_type.attribute_type``)と
+- Plug の属性型判定(属性定義から om2 で求める ``hlib._core.attributeType.attribute_type``)と
   ``cmds.getAttr(<プラグ名>, type=True)``。transform・mesh・nurbsCurve・blendShape・
   plusMinusAverage・multiplyDivide・time・joint の代表的な属性、addAttr の全属性型・データ型の
   動的属性、多数のノード型の既存プラグで突き合わせる。cmds へ問い合わせるのは存在する要素だけで、
@@ -65,7 +65,7 @@ hlib.reload()
 from hlib.nodes import Node
 from hlib.namespaces import Namespace
 from hlib.plugs import Plug
-from hlib._core.attribute_type import attribute_type
+from hlib._core.attributeType import attribute_type
 
 
 class NodeAliasesParityTest(unittest.TestCase):
@@ -355,7 +355,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
 
     Plug(node, mplug) は登録済みラッパー(DoubleLinearPlug/Double3Plug 等)を選ぶために
     ``cmds.getAttr(<プラグ名>, type=True)`` と同じ型名を使う。hlib はその型名を属性定義から
-    om2 で求める(``hlib._core.attribute_type.attribute_type``)ため、既存のプラグについて
+    om2 で求める(``hlib._core.attributeType.attribute_type``)ため、既存のプラグについて
     cmds の生の値と一致することを確かめる。``cmds.getAttr(type=True)`` は存在しない配列要素を
     問い合わせると要素を作る(Maya が異常終了する属性もある)ため、cmds へ問い合わせるのは
     存在する要素(ワールド空間属性はインスタンス番号の要素)だけにする。

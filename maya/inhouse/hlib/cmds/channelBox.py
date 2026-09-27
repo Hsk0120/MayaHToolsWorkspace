@@ -18,6 +18,6 @@ def channelBox(control=None):
         ChannelBox: 対象UIのラッパー。
     Raises:
         RuntimeError: GUIがない、または対象UIが存在しない場合。"""
-    from ..editors.channel_box import ChannelBox
+    from ..editors.channelBox import ChannelBox
 
     return ChannelBox(control)

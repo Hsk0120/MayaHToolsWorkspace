@@ -1,6 +1,6 @@
 """NURBS カーブの CV と CV コレクション。"""
 
-from .point_component import PointComponent, PointComponents
+from .pointComponent import PointComponent, PointComponents
 
 
 class CV(PointComponent):

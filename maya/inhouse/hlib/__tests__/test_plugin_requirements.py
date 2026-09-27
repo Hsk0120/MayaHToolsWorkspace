@@ -8,36 +8,9 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.plugins import (LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, Module, Plugin, PluginPackage,
-                          format_version, is_at_least, parse_version)
+from hlib.plugins import (LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, Module, Plugin, PluginPackage)
+from hlib.utils import Version
 import hlib.plugins.package as package_module
-
-
-class VersionHelpersTest(unittest.TestCase):
-    def test_parse_version(self):
-        self.assertEqual(parse_version("3.0.0.0"), (3, 0, 0, 0))
-        self.assertEqual(parse_version("3.0.0.0-202602040323-9df3db7"), (3, 0, 0, 0))
-        self.assertEqual(parse_version(" 2.14.0.0"), (2, 14, 0, 0))
-        self.assertEqual(parse_version(3), (3,))
-        self.assertEqual(parse_version((3, 1)), (3, 1))
-        self.assertEqual(parse_version([3, "1"]), (3, 1))
-        for empty in ("", None, "abc", "v3.0", (), True, ("a",)):
-            self.assertIsNone(parse_version(empty))
-
-    def test_is_at_least(self):
-        self.assertTrue(is_at_least("3.0.0.0", "3.0.0"))
-        self.assertTrue(is_at_least("3.1.0.8", (3, 0, 0)))
-        self.assertTrue(is_at_least((4,), "3.0.0"))
-        self.assertTrue(is_at_least((3,), (3, 0, 0)))
-        self.assertFalse(is_at_least((2, 99, 99, 99), (3, 0, 0)))
-        self.assertFalse(is_at_least(None, "3.0.0"))
-        self.assertFalse(is_at_least("abc", "3.0.0"))
-        with self.assertRaises(ValueError):
-            is_at_least("3.0.0", "abc")
-
-    def test_format_version(self):
-        self.assertEqual(format_version((3, 0, 0, 0)), "3.0.0.0")
-        self.assertEqual(format_version(None), "なし")
 
 
 class PluginVersionTest(unittest.TestCase):
@@ -54,7 +27,7 @@ class PluginVersionTest(unittest.TestCase):
 
     def test_version_tuple_matches_version_string(self):
         plugin = Plugin(self.plugin_name)
-        self.assertEqual(plugin.version_tuple(), parse_version(plugin.version()))
+        self.assertEqual(plugin.version_tuple(), plugin.version().parts)
 
     def test_is_version_at_least(self):
         plugin = Plugin(self.plugin_name)
@@ -90,7 +63,8 @@ class ModuleTest(unittest.TestCase):
         name = modules[0]
         module = Module(name)
         self.assertTrue(module.is_registered())
-        self.assertEqual(module.version(), cmds.moduleInfo(version=True, moduleName=name) or None)
+        self.assertEqual(module.version_text(), cmds.moduleInfo(version=True, moduleName=name) or None)
+        self.assertEqual(module.version(), Version.parse(module.version_text()))
         self.assertEqual(module.path(), cmds.moduleInfo(path=True, moduleName=name) or None)
 
     def test_equality_hash_and_repr(self):
@@ -140,8 +114,8 @@ class PluginPackageFlowTest(unittest.TestCase):
         return PluginPackage("ProductX", **options)
 
     def run_flow(self, package, installed, loaded_version=None, failed=()):
-        with mock.patch.object(PluginPackage, "installed_version", return_value=installed), \
-                mock.patch.object(PluginPackage, "loaded_version", return_value=loaded_version), \
+        with mock.patch.object(PluginPackage, "installed_version", return_value=Version.parse(installed)), \
+                mock.patch.object(PluginPackage, "loaded_version", return_value=Version.parse(loaded_version)), \
                 mock.patch.object(PluginPackage, "load_plugins", return_value=list(failed)) as loader:
             result = package.ensure_loaded(dialog=self.shown.append)
         return result, loader
@@ -162,7 +136,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.assertEqual(package.name(), "ProductX")
         self.assertEqual([p.name() for p in package.plugins()], ["pluginA", "pluginB"])
         self.assertEqual(str(package.module()), "ModuleX")
-        self.assertEqual(package.minimum_version(), (3, 0, 0))
+        self.assertEqual(package.minimum_version(), Version((3, 0, 0)))
         self.assertEqual(package.minimum_maya(), 2025)
         self.assertIn("ProductX", repr(package))
         default = PluginPackage("y", plugins=("first", "second"))
@@ -263,7 +237,7 @@ class PluginPackageRealTest(unittest.TestCase):
             self.assertEqual(package.ensure_loaded(dialog=False), LOADED)
             self.assertTrue(package.is_installed())
             self.assertTrue(cmds.pluginInfo(name, query=True, loaded=True))
-            self.assertEqual(package.loaded_version(), Plugin(name).version_tuple())
+            self.assertEqual(package.loaded_version(), Plugin(name).version())
         finally:
             if not was_loaded and cmds.pluginInfo(name, query=True, loaded=True):
                 cmds.unloadPlugin(name)
@@ -276,7 +250,7 @@ class PluginPackageRealTest(unittest.TestCase):
 
     def test_installed_version_falls_back_to_plugin_version(self):
         package = PluginPackage("Matrix nodes", plugins=("matrixNodes",), module="hlibDoesNotExistModule123")
-        self.assertEqual(package.installed_version(), Plugin("matrixNodes").version_tuple())
+        self.assertEqual(package.installed_version(), Plugin("matrixNodes").version())
 
 
 class RequirePluginsCommandTest(unittest.TestCase):
@@ -337,7 +311,7 @@ class BifrostTest(unittest.TestCase):
         self.assertEqual(shown, [])
         for plugin in self.package.plugins():
             self.assertTrue(plugin.is_loaded(), plugin.name())
-        self.assertTrue(is_at_least(self.package.loaded_version(), "3.0.0"))
+        self.assertTrue(self.package.loaded_version().is_at_least("3.0.0"))
 
     def test_too_new_version_is_reported_missing(self):
         package = PluginPackage("Bifrost", plugins=("bifrostGraph",), module="Bifrost", minimum_version="99.0")

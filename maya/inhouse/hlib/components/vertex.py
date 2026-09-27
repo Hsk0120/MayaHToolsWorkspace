@@ -1,6 +1,6 @@
 """Mesh の頂点と頂点コレクション。"""
 
-from .point_component import PointComponent, PointComponents
+from .pointComponent import PointComponent, PointComponents
 
 
 class Vertex(PointComponent):

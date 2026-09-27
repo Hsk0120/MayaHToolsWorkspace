@@ -83,12 +83,14 @@ class CommonRigApiTest(unittest.TestCase):
             live.add(identifier)
             return identifier
 
-        with patch.object(hlib.events.cmds, "about", return_value=False), patch.object(
-            hlib.events.cmds, "scriptJob", side_effect=script_job
+        with patch.object(cmds, "about", return_value=False), patch.object(
+            cmds, "scriptJob", side_effect=script_job
         ):
             jobs = hlib.events.ScriptJobs()
             first = jobs.add("selection", event="SelectionChanged", callback=lambda: None)
-            self.assertIs(first, jobs.add("selection", event="SelectionChanged", callback=lambda: None))
+            self.assertIs(
+                first, jobs.add("selection", event="SelectionChanged", callback=lambda: None)
+            )
             live.remove(first.id)
             self.assertFalse(jobs.exists())
             second = jobs.add("selection", event="SelectionChanged", callback=lambda: None)

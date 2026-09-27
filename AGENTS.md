@@ -8,6 +8,10 @@
 
 - hlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/hlib-api-design.md` を参照する。
 
+- hlibのクラス実装は1クラス1ファイルにする。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `hlib.utils` へ置く。クラスのパッケージ内に関数だけのPythonファイルを追加しない。既存のMaya互換コマンド入口は維持する。
+
+- hlibおよび `hlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotation.py`、`scriptJob.py`、`channelBox.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `hlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
+
 - hrigのPythonコードはhlibの命名・書式・日本語Google形式docstringに合わせる。ノード・属性・接続・Undo・イベント管理はhlibの公開APIを基本にし、リグに依存しない機能はhlibへ還元する。具体的な境界と記述例は `docs/hrig-development.md` を参照する。
 
 - 外部ツールの調査メモ・比較表・候補一覧・調査インベントリは `docs/research/` にローカル保存し、Gitへ登録・プッシュしたりSphinxへ掲載したりしない。公開ドキュメントには実装済み機能の仕様・使い方を記載する。

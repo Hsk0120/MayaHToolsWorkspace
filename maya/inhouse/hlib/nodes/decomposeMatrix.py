@@ -5,7 +5,7 @@ from ..decorators._fast import fast_edit
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from ..maths import Matrix
-from ..maths.euler_rotation import order_index
+from ..maths.eulerRotation import order_index
 from .node import Node
 
 

@@ -19,7 +19,7 @@ import maya.mel as mel
 
 import hlib
 hlib.reload()
-from hlib._core.attribute_type import attribute_type, is_internal_data_type
+from hlib._core.attributeType import attribute_type, is_internal_data_type
 from hlib._core.coerce import to_names, to_plug
 from hlib.components import Faces, Vertex, Vertices
 from hlib.maths import EulerRotation, Translation

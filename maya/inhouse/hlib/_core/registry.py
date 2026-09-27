@@ -1,7 +1,7 @@
 """Maya の型名とラッパークラスの対応を宣言・管理する。"""
 
 from .discovery import discover_node_package
-from .type_hierarchy import inherited_node_types
+from .typeHierarchy import inherited_node_types
 
 
 def node_wrapper(node_type, public=True):

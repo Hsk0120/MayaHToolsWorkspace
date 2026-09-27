@@ -1,8 +1,12 @@
 """Maya に登録されているモジュール(``.mod`` で定義したもの)を扱う。"""
 
+# Versionへ集約した旧関数参照をreload時に残さない。
+for _name in ("parse_version", "is_at_least", "format_version"):
+    globals().pop(_name, None)
+
 import maya.cmds as cmds
 
-from .versions import is_at_least, parse_version
+from ..utils.version import Version
 
 
 class Module:
@@ -41,29 +45,39 @@ class Module:
         """
         return self._name in (cmds.moduleInfo(listModules=True) or [])
 
-    def version(self):
-        """モジュールの版の文字列を取得する。
+    def version_text(self):
+        """Mayaが返すモジュールの版文字列をそのまま取得する。
 
         Returns:
-            str | None: 版の文字列(例: ``"3.0.0.0"``)。未登録・版が空の場合は None。
+            str | None: 生の版文字列。未登録・空の場合はNone。
         """
         if not self.is_registered():
             return None
         return cmds.moduleInfo(version=True, moduleName=self._name) or None
 
-    def version_tuple(self):
-        """モジュールの版を数値のタプルで取得する。
+    def version(self):
+        """モジュールの現在の版を値オブジェクトとして取得する。
 
         Returns:
-            tuple[int, ...] | None: 版。未登録・解釈できない場合は None。
+            Version | None: 問い合わせ時点の版。未登録・解釈不能ならNone。
+                取得した値をreplaceしてもMaya側の版は変更されない。
         """
-        return parse_version(self.version())
+        return Version.parse(self.version_text())
+
+    def version_tuple(self):
+        """数値列だけが必要な既存コード向けに版のタプルを取得する。
+
+        Returns:
+            tuple[int, ...] | None: 接尾辞を除いた版。未登録・解釈不能ならNone。
+        """
+        version = self.version()
+        return version.parts if version is not None else None
 
     def is_version_at_least(self, minimum):
         """モジュールの版が ``minimum`` 以上か判定する。
 
         Args:
-            minimum (str | int | tuple[int, ...]): 必要な最小の版(``"3.0.0"`` など)。
+            minimum (Version | str | int | tuple[int, ...]): 必要な最小の版(``"3.0.0"`` など)。
 
         Returns:
             bool: 未登録なら False。
@@ -71,7 +85,11 @@ class Module:
         Raises:
             ValueError: minimum が版として解釈できない場合。
         """
-        return is_at_least(self.version_tuple(), minimum)
+        required = Version.parse(minimum)
+        if required is None:
+            raise ValueError("Invalid minimum version: {!r}".format(minimum))
+        version = self.version()
+        return version is not None and version >= required
 
     def path(self):
         """モジュールのフォルダーを取得する。

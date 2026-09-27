@@ -5,7 +5,7 @@ from ..decorators._fast import fast_edit
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.attribute_type import is_internal_data_type
+from .._core.attributeType import is_internal_data_type
 from .._core.coerce import MAX_LOGICAL_INDEX
 from ..decorators.undo import undo_chunk
 from .plug import Plug, _instance_count
@@ -101,7 +101,7 @@ class ArrayPlug(Plug):
                 別の要素を返したり作成したりしない)。
             RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
                 create が ``True`` で、Maya 内部のデータ型(nurbsSurface の ``patchUVIds``
-                など。:func:`hlib._core.attribute_type.is_internal_data_type`)の配列の場合
+                など。:func:`hlib._core.attributeType.is_internal_data_type`)の配列の場合
                 (要素を問い合わせると Maya が異常終了する場合があるため作成しない)。
         """
         self._require_valid()

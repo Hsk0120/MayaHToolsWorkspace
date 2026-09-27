@@ -32,7 +32,7 @@ Quaternion = module.Quaternion
 Scale = module.Scale
 Shear = module.Shear
 Matrix = module.Matrix
-ORDER_NAMES = module.euler_rotation.ORDER_NAMES
+ORDER_NAMES = module.eulerRotation.ORDER_NAMES
 
 
 def test_translation_is_vector_like():
@@ -1357,12 +1357,12 @@ def test_matrix_values_rows_iteration_and_indexing_read_om2_elements():
 
 
 def test_class_statements_use_the_om2_bases():
-    # Sphinx と _mermaid_classes.py が基底を om2 の型として表示できるよう、クラス文の基底は
+    # Sphinx と _mermaidClasses.py が基底を om2 の型として表示できるよう、クラス文の基底は
     # 私的な別名ではなく om2.MVector などと書く。
     import ast
 
     expected = {"vector.py": ("Vector", "MVector"), "quaternion.py": ("Quaternion", "MQuaternion"),
-                "euler_rotation.py": ("EulerRotation", "MEulerRotation"), "matrix.py": ("Matrix", "MMatrix")}
+                "eulerRotation.py": ("EulerRotation", "MEulerRotation"), "matrix.py": ("Matrix", "MMatrix")}
     for file_name, (class_name, base_name) in expected.items():
         tree = ast.parse((ROOT / "maths" / file_name).read_text(encoding="utf-8"))
         classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name]
@@ -1389,7 +1389,7 @@ if __name__ == "__main__":
         "Scale", "Shear", "Matrix",
     ):
         globals()[_type_name] = getattr(module, _type_name)
-    ORDER_NAMES = module.euler_rotation.ORDER_NAMES
+    ORDER_NAMES = module.eulerRotation.ORDER_NAMES
 
     _tests = [
         unittest.FunctionTestCase(value, description=name)

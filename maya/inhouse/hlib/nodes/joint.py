@@ -1,7 +1,7 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
 from ..decorators._fast import fast_edit
-from .._core.fast_write import set_attr
+from .._core.fastWrite import set_attr
 
 from ..decorators.undo import undo_chunk
 
@@ -637,7 +637,7 @@ class Joints(BulkCollection):
         Raises:
             RuntimeError: ウェイト移送・子の再親付け・削除ができない場合。
         """
-        from .._core.joint_deletion import _JointDeletion
+        from .._core.jointDeletion import _JointDeletion
 
         _JointDeletion(self).execute()
 

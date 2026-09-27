@@ -1,12 +1,36 @@
 """Maya のロード済み/登録済みプラグインを扱う。"""
 
+# 旧構成からreloadした場合も、移動したコレクションクラスを残さない。
+globals().pop("Plugins", None)
+
+# Versionへ集約した旧関数参照をreload時に残さない。
+for _name in ("parse_version", "is_at_least", "format_version"):
+    globals().pop(_name, None)
+
 import maya.cmds as cmds
-from .._core.collection import BulkCollection, bulk_api
-from .versions import is_at_least, parse_version
+from ..utils.version import Version
 
 
 class Plugin:
     """名前で参照する Maya プラグイン(.mll/.py/.so)。生成時に存在確認しない。"""
+
+    _HIK_NODE_TYPES = frozenset((
+        "HIKCharacterNode", "HIKSolverNode", "HIKRetargeterNode",
+        "HIKControlSetNode", "HIKSkeletonGeneratorNode",
+    ))
+
+    @classmethod
+    def ensure_node_plugin(cls, node_type):
+        """指定ノード型が必要とする標準同梱プラグインをロードする。
+
+        Args:
+            node_type (str): 作成するMayaノード型。HumanIK以外は何もしない。
+
+        Raises:
+            RuntimeError: Mayaがプラグインのロードを拒否した場合。
+        """
+        if node_type in cls._HIK_NODE_TYPES:
+            cls("mayaHIK").ensure_loaded()
 
     def __init__(self, name):
         """プラグイン名を保持する。
@@ -59,32 +83,39 @@ class Plugin:
             return None
         return cmds.pluginInfo(self._name, query=True, path=True) or None
 
-    def version(self):
-        """プラグインのバージョン文字列を取得する。
+    def version_text(self):
+        """Mayaが返すプラグインの版文字列をそのまま取得する。
 
         Returns:
-            str | None: バージョン文字列。未登録の場合は None。
+            str | None: 生の版文字列。未登録・空の場合はNone。
         """
         if not self.is_registered():
             return None
         return cmds.pluginInfo(self._name, query=True, version=True) or None
 
-    def version_tuple(self):
-        """プラグインの版を数値のタプルで取得する。
-
-        ``"3.0.0.0-202602040323-9df3db7"`` のように後ろにビルド情報が付く版でも、
-        先頭の数字の並びだけを使う。
+    def version(self):
+        """プラグインの現在の版を値オブジェクトとして取得する。
 
         Returns:
-            tuple[int, ...] | None: 版。未登録・数字で始まらない場合は None。
+            Version | None: 問い合わせ時点の版。未登録・解釈不能ならNone。
+                取得した値をreplaceしてもMaya側の版は変更されない。
         """
-        return parse_version(self.version())
+        return Version.parse(self.version_text())
+
+    def version_tuple(self):
+        """数値列だけが必要な既存コード向けに版のタプルを取得する。
+
+        Returns:
+            tuple[int, ...] | None: 接尾辞を除いた版。未登録・解釈不能ならNone。
+        """
+        version = self.version()
+        return version.parts if version is not None else None
 
     def is_version_at_least(self, minimum):
         """プラグインの版が ``minimum`` 以上か判定する。
 
         Args:
-            minimum (str | int | tuple[int, ...]): 必要な最小の版(``"3.0.0"`` など)。
+            minimum (Version | str | int | tuple[int, ...]): 必要な最小の版(``"3.0.0"`` など)。
 
         Returns:
             bool: 未登録・版が取れない場合は False。
@@ -92,7 +123,11 @@ class Plugin:
         Raises:
             ValueError: minimum が版として解釈できない場合。
         """
-        return is_at_least(self.version_tuple(), minimum)
+        required = Version.parse(minimum)
+        if required is None:
+            raise ValueError("Invalid minimum version: {!r}".format(minimum))
+        version = self.version()
+        return version is not None and version >= required
 
     def load(self, **kwargs):
         """プラグインをロードする。
@@ -178,53 +213,3 @@ class Plugin:
             str: 型名とプラグイン名を含む文字列表現。
         """
         return f"Plugin({self._name!r})"
-
-
-@bulk_api(Plugin, undo=False)
-class Plugins(BulkCollection):
-    """プラグイン名または Plugin の列を、名前の重複を除いて保持するコレクション。"""
-
-    def __init__(self, names=()):
-        """プラグイン名または Plugin のシーケンスから重複なしコレクションを作成する。
-
-        Args:
-            names (Iterable[str | Plugin]): プラグイン名またはラッパー。
-                名前で重複を除外する。
-
-        Returns:
-            None: 値を返さない。
-        """
-        self._items = []
-        seen = set()
-        for item in names:
-            plugin = item if isinstance(item, Plugin) else Plugin(item)
-            if plugin.name() in seen:
-                continue
-            seen.add(plugin.name())
-            self._items.append(plugin)
-
-    @classmethod
-    def loaded(cls):
-        """現在ロードされている全プラグインを取得する。
-
-        Returns:
-            Plugins: ロード済みプラグインのコレクション。
-        """
-        names = cmds.pluginInfo(query=True, listPlugins=True) or []
-        return cls(names)
-
-    def __iter__(self):
-        """保持している Plugin を順に反復する。
-
-        Returns:
-            Iterator[Plugin]: 保存順に Plugin を返すイテレータ。
-        """
-        return iter(self._items)
-
-    def __len__(self):
-        """保持しているプラグイン数を取得する。
-
-        Returns:
-            int: コレクションの要素数。
-        """
-        return len(self._items)

@@ -11,7 +11,7 @@ for _obsolete in ("Translate", "Rotate"):
     globals().pop(_obsolete, None)
 
 from . import easing
-from .euler_rotation import EulerRotation
+from .eulerRotation import EulerRotation
 from .matrix import Matrix
 from .quaternion import Quaternion
 from .scale import Scale

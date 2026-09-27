@@ -1,10 +1,17 @@
 """モジュールとプラグインの組で導入される製品(Bifrost など)の導入確認とロード。"""
 
+# クラスメソッドへ移した旧モジュール関数をreload時に除去する。
+globals().pop("_maya_year", None)
+
+# Versionへ集約した旧関数参照をreload時に残さない。
+for _name in ("parse_version", "is_at_least", "format_version"):
+    globals().pop(_name, None)
+
 import maya.cmds as cmds
 
 from .module import Module
 from .plugin import Plugin
-from .versions import format_version, is_at_least, parse_version
+from ..utils.version import Version
 
 SKIPPED = "skipped"
 """str: 対象外の Maya バージョンのため何もしなかった。"""
@@ -16,10 +23,6 @@ OUTDATED = "outdated"
 """str: 導入済みだが、既にロードされているプラグインが古い版だった。"""
 LOAD_FAILED = "load-failed"
 """str: 必要な版は導入済みだが、一部のプラグインをロードできなかった。"""
-
-
-def _maya_year():
-    return int(str(cmds.about(version=True)).split(".")[0])
 
 
 class PluginPackage:
@@ -48,7 +51,7 @@ class PluginPackage:
             module (str | Module | None): 版の取得元にするモジュール。省略すると
                 ``version_plugin`` の版を使う。
             version_plugin (str | Plugin | None): 版を調べるプラグイン。省略すると ``plugins`` の先頭。
-            minimum_version (str | int | tuple[int, ...] | None): 必要な最小の版(``"3.0.0"`` など)。
+            minimum_version (Version | str | int | tuple[int, ...] | None): 必要な最小の版(``"3.0.0"`` など)。
                 省略すると版は問わず、導入されていればよい。
             minimum_maya (int | None): この製品を必要とする最小の Maya の年(``2025`` など)。
                 それ未満の Maya では何もしない。
@@ -72,7 +75,7 @@ class PluginPackage:
         if minimum_version is None:
             self._minimum_version = None
         else:
-            self._minimum_version = parse_version(minimum_version)
+            self._minimum_version = Version.parse(minimum_version)
             if self._minimum_version is None:
                 raise ValueError("minimum_version must be a version such as '3.0.0': {!r}".format(minimum_version))
         self._minimum_maya = None if minimum_maya is None else int(minimum_maya)
@@ -106,7 +109,7 @@ class PluginPackage:
         """必要な最小の版を取得する。
 
         Returns:
-            tuple[int, ...] | None: 最小の版。指定していない場合は None。
+            Version | None: 最小の版。指定していない場合は None。
         """
         return self._minimum_version
 
@@ -118,13 +121,22 @@ class PluginPackage:
         """
         return self._minimum_maya
 
+    @staticmethod
+    def _maya_year():
+        """現在のMayaの年版を照会する。
+
+        Returns:
+            int: 2025などの年版。
+        """
+        return int(str(cmds.about(version=True)).split(".")[0])
+
     def is_maya_supported(self):
         """現在の Maya が対象のバージョンか判定する。
 
         Returns:
             bool: ``minimum_maya`` が未指定、または現在の Maya の年がそれ以上なら True。
         """
-        return self._minimum_maya is None or _maya_year() >= self._minimum_maya
+        return self._minimum_maya is None or self._maya_year() >= self._minimum_maya
 
     def installed_version(self):
         """Maya に登録されている製品の版を取得する。
@@ -132,23 +144,23 @@ class PluginPackage:
         モジュールが登録されていればその版、無ければ版を調べるプラグインの版を使う。
 
         Returns:
-            tuple[int, ...] | None: 版。未導入・版が取れない場合は None。
+            Version | None: 版。未導入・版が取れない場合は None。
         """
-        version = self._module.version_tuple() if self._module is not None else None
+        version = self._module.version() if self._module is not None else None
         if version is None and self._version_plugin is not None:
-            version = self._version_plugin.version_tuple()
+            version = self._version_plugin.version()
         return version
 
     def loaded_version(self):
         """ロード済みの、版を調べるプラグインの版を取得する。
 
         Returns:
-            tuple[int, ...] | None: 版。ロードされていない場合は None。
+            Version | None: 版。ロードされていない場合は None。
         """
         plugin = self._version_plugin
         if plugin is None or not plugin.is_loaded():
             return None
-        return plugin.version_tuple()
+        return plugin.version()
 
     def is_installed(self):
         """必要な版が導入されているか判定する。
@@ -162,7 +174,7 @@ class PluginPackage:
         """
         version = self.installed_version()
         if self._minimum_version is not None:
-            return is_at_least(version, self._minimum_version)
+            return version is not None and version >= self._minimum_version
         if version is not None:
             return True
         if self._module is not None and self._module.is_registered():
@@ -173,23 +185,23 @@ class PluginPackage:
         """導入が必要なときの警告文を作る。
 
         Args:
-            found (tuple[int, ...] | None): 検出した版。省略すると現在の導入状況から求める。
+            found (Version | None): 検出した版。省略すると現在の導入状況から求める。
 
         Returns:
             str: 日本語と英語の警告文。
         """
         if found is None:
             found = self.installed_version()
-        wanted = "{} {}".format(self._name, format_version(self._minimum_version)) if self._minimum_version \
+        wanted = "{} {}".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし")) if self._minimum_version \
             else self._name
-        year = _maya_year()
+        year = self._maya_year()
         hint = self._install_hint or "Autodesk アカウントなどから Maya {} 用の {} 以降を入手してインストールしてください。".format(
             year, wanted)
         return (
             "{wanted} 以降が見つかりません(検出した版: {found})。\n\n{hint}\n"
             "インストール後に Maya を再起動すると、自動でロードされます。\n\n"
             "{wanted} or later was not found for Maya {year}. Please install it."
-        ).format(wanted=wanted, found=format_version(found), hint=hint, year=year)
+        ).format(wanted=wanted, found=(str(found) if found is not None else "なし"), hint=hint, year=year)
 
     @staticmethod
     def show_dialog(message, title="インストールが必要です"):
@@ -249,7 +261,7 @@ class PluginPackage:
             return MISSING
         running = self.loaded_version()
         if self._minimum_version is not None and running is not None \
-                and not is_at_least(running, self._minimum_version):
+                and running < self._minimum_version:
             self._report(show, warn, self.message(running))
             return OUTDATED
         return LOAD_FAILED if failed else LOADED
@@ -266,4 +278,4 @@ class PluginPackage:
         Returns:
             str: 型名・製品名・最小の版を含む文字列表現。
         """
-        return "PluginPackage({!r}, minimum_version={})".format(self._name, format_version(self._minimum_version))
+        return "PluginPackage({!r}, minimum_version={})".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし"))

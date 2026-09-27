@@ -46,9 +46,9 @@ UI単位と内部単位への一時切り替え
 
 ``is_loaded``/``is_registered`` は未知のプラグイン名でも例外にならず ``False``
 を返します。``path``/``version`` も未登録なら ``None`` です。
-版は ``version_tuple()``(``"3.0.0.0-202602040323-9df3db7"`` のようにビルド情報が付いても
-先頭の数字だけを使い、``(3, 0, 0, 0)`` を返す)と ``is_version_at_least("3.0.0")`` で
-比較できます。
+``version()`` は ``Version`` オブジェクトを返します。数値として解釈できない版も ``None``
+になります。Mayaが返す文字列が必要なら ``version_text()``、数値のタプルが必要なら
+``version_tuple()`` を使います。``is_version_at_least("3.0.0")`` でも比較できます。
 
 モジュールと、製品の導入確認
 ------------------------------
@@ -61,7 +61,7 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 
    from hlib.plugins import Module, PluginPackage
 
-   print(Module("Bifrost").version())            # "3.0.0.0"(未登録なら None)
+   print(Module("Bifrost").version())            # Versionの文字列表現(未登録なら None)
    print(Module("Bifrost").is_version_at_least("3.0.0"))
 
    bifrost = PluginPackage(
@@ -86,6 +86,55 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 
 ``minimum_version`` を指定しない製品は、版を問わずロードを試み、全プラグインをロードできなかった
 場合に未導入(``"missing"``)として扱います。
+
+実装の配置と版番号ユーティリティ
+------------------------------------------------------------
+
+``hlib.plugins`` は1クラス1ファイルで構成します。
+``plugin.py`` は ``Plugin``、``plugins.py`` は ``Plugins``、
+``module.py`` は ``Module``、``package.py`` は ``PluginPackage`` を定義します。
+利用側は引き続き ``from hlib.plugins import Plugin, Plugins, Module, PluginPackage``
+で取得できます。
+
+ノード型に対応する標準プラグインのロードは ``Plugin.ensure_node_plugin(node_type)``
+にまとめています。現在はHumanIKの対象ノードのみ対応し、それ以外の型では何もしません。
+``hlib.createNode`` はノード生成時にこのメソッドを使用します。
+
+版番号の値・解析・比較・変更コピーを ``hlib.utils.version.Version`` にまとめています。
+Mayaに依存しない不変の値クラスで、``hlib.utils`` からも取得できます。
+
+.. code-block:: python
+
+   from hlib.utils import Version
+   from hlib.plugins import Plugin
+
+   version = Plugin("bifrostGraph").version()
+   if version is not None:
+       print(version.major, version.minor, version.patch, version.build)
+       print(version.parts, version.suffix)
+       print(version.is_at_least("3.0.0"))
+       print(version >= Version("3.0.0"))
+       changed = version.replace(minor=1)  # 新しい値。プラグイン自体は更新しない
+       print(str(changed))
+
+``Version("3.0.0.0-build")`` は4桁と接尾辞を保持します。未指定の ``minor`` / ``patch`` /
+``build`` は0として参照します。``parts`` は指定された桁数を維持します。
+``replace()`` は未指定の桁と接尾辞を維持し、元の値を変更しません。
+
+比較とハッシュでは末尾のゼロと接尾辞を無視します。
+``Version("3.0") == Version("3.0.0-build")`` はTrueです。
+SemVerのプレリリース順序(例えばrc版が正式版より小さいという扱い)は実装しません。
+演算子ではVersion同士を比較し、文字列との比較には ``is_at_least()`` を使います。
+
+コンストラクターは不正な入力に例外を出します。取得値の検査には
+``Version.parse(value)`` を使うと、空値・不正値がNoneになります。
+``PluginPackage.minimum_version()`` / ``installed_version()`` / ``loaded_version()``
+も ``Version | None`` を返します。取得済みの値はスナップショットで、現在の版を得るには
+再びプラグインやモジュールへ問い合わせます。
+
+旧 ``parse_version`` / ``is_at_least`` / ``format_version`` 関数は廃止しました。
+``Version.parse(value)`` / ``version.is_at_least(minimum)`` / ``str(version)`` に移行してください。
+従来の ``version()`` の生文字列が必要なコードは ``version_text()`` に変更してください。
 
 ワークスペース(プロジェクト)
 --------------------------------

@@ -2,7 +2,7 @@
 
 from .._core.flags import flag_aliases
 from ..decorators._fast import fast_edit
-from .._core.fast_write import set_attr
+from .._core.fastWrite import set_attr
 
 import math
 

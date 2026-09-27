@@ -8,7 +8,10 @@ APIの命名と移行
 命名規則
 ------------------------------
 
-* パッケージと一般モジュール: 小文字のsnake_case。
+* パッケージ: 既存の小文字名を維持。``hlib_bifrost`` 等の拡張名も変更しない。
+* 一般Pythonモジュール: lowerCamelCase。例: ``eulerRotation.py``、``scriptJob.py``。
+  hlibとすべての ``hlib_*`` 拡張パッケージで共通。
+  内部用の先頭 ``_``、``__init__.py`` 等の特殊名、テスト探索用 ``test_*.py`` は維持する。
 * ``cmds`` の関数とファイル: Mayaに合わせたcamelCase。独自コマンドも同じ規則。
 * ``nodes`` のファイル: Maya nodeTypeと同じ表記。例: ``skinCluster.py``。
 * クラス: PascalCase。例: ``SkinCluster``、``ChannelBox``。
@@ -162,13 +165,13 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
    * - 旧モジュール
      - 新モジュール
    * - hlib.editors.channelBox
-     - hlib.editors.channel_box
+     - hlib.editors.channelBox
    * - hlib.editors.timeSlider
-     - hlib.editors.time_slider
+     - hlib.editors.timeSlider
    * - hlib.animation.drivenKey
-     - hlib.animation.driven_key
+     - hlib.animation.drivenKey
    * - hlib.maths.eulerRotation
-     - hlib.maths.euler_rotation
+     - hlib.maths.eulerRotation
    * - hlib.maths.translate
      - hlib.maths.translation
 

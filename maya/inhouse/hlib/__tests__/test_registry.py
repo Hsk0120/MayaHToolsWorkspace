@@ -10,7 +10,7 @@ import unittest
 import hlib
 hlib.reload()
 from hlib._core.registry import NodeRegistry, collection_export, node_wrapper, plug_wrapper
-from hlib._core.type_hierarchy import inherited_node_types
+from hlib._core.typeHierarchy import inherited_node_types
 
 
 class _FallbackClass:
@@ -93,7 +93,7 @@ class NodeRegistryInheritedTypesTest(unittest.TestCase):
 
 
 class NodeTypeHierarchyTest(unittest.TestCase):
-    """hlib._core.type_hierarchy.inherited_node_types の照会・キャッシュを検証する。"""
+    """hlib._core.typeHierarchy.inherited_node_types の照会・キャッシュを検証する。"""
 
     def test_chain_is_self_first_then_ancestors_toward_base(self):
         chain = inherited_node_types("joint")

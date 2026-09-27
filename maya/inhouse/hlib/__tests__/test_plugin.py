@@ -8,6 +8,7 @@ import maya.cmds as cmds
 import hlib
 hlib.reload()
 from hlib.plugins import Plugin, Plugins
+from hlib.utils import Version
 
 
 class PluginTest(unittest.TestCase):
@@ -57,7 +58,8 @@ class PluginTest(unittest.TestCase):
         path = plugin.path()
         self.assertIsInstance(path, str)
         self.assertTrue(path.lower().endswith((".mll", ".py", ".so", ".bundle")))
-        self.assertIsInstance(plugin.version(), str)
+        self.assertIsInstance(plugin.version(), Version)
+        self.assertIsInstance(plugin.version_text(), str)
 
     def test_unload_load_and_ensure_loaded_round_trip(self):
         plugin = Plugin(self.plugin_name)

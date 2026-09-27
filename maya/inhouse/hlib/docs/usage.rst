@@ -43,6 +43,7 @@
    guide_environment
    guide_editors
    selection_and_channelbox
+   events
 
 .. toctree::
    :maxdepth: 1

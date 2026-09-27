@@ -10,6 +10,7 @@
     HRIG_SKIP_BIFROST: ``1`` にするとこの起動処理をすべて行わない(自動テスト用)。
     HRIG_BIFROST_MIN_VERSION: 必要な最小の版を ``3.0.0`` のように上書きする(動作確認用)。
 """
+
 import os
 
 import maya.cmds as cmds
@@ -31,10 +32,10 @@ def minimum_version():
     Returns:
         str: 最小の版。環境変数が空・不正な場合は既定値。
     """
-    from hlib.plugins import parse_version
+    from hlib.utils import Version
 
     value = os.environ.get("HRIG_BIFROST_MIN_VERSION")
-    return value if parse_version(value) else DEFAULT_MIN_BIFROST_VERSION
+    return value if Version.parse(value) else DEFAULT_MIN_BIFROST_VERSION
 
 
 def package():
@@ -45,8 +46,14 @@ def package():
     """
     from hlib.plugins import PluginPackage
 
-    return PluginPackage("Bifrost", plugins=PLUGINS, module=MODULE, version_plugin=VERSION_PLUGIN,
-                         minimum_version=minimum_version(), minimum_maya=MIN_MAYA_VERSION)
+    return PluginPackage(
+        "Bifrost",
+        plugins=PLUGINS,
+        module=MODULE,
+        version_plugin=VERSION_PLUGIN,
+        minimum_version=minimum_version(),
+        minimum_maya=MIN_MAYA_VERSION,
+    )
 
 
 def run(dialog=True):
@@ -65,6 +72,7 @@ def run(dialog=True):
 
 
 def _run_deferred():
+    """遅延ロードを実行し、成功・失敗にかかわらず予約状態を解除する。"""
     global _scheduled
     try:
         run()

@@ -688,7 +688,7 @@ class Quaternion(om2.MQuaternion):
         Raises:
             ValueError: order が未対応の場合、またはゼロ四元数の場合。
         """
-        from .euler_rotation import EulerRotation, order_index
+        from .eulerRotation import EulerRotation, order_index
 
         index = order_index(order)
         return EulerRotation._wrap(om2.MEulerRotation.decompose(_unit_copy(self).asMatrix(), index))

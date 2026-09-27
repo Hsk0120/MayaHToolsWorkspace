@@ -1,8 +1,8 @@
 """skinCluster のウェイト操作と joint 削除を支援する。"""
 
 from ..decorators._fast import fast_edit, is_fast
-from .._core.fast_write import set_attr
-from .._core.fast_write import writable, check_range
+from .._core.fastWrite import set_attr
+from .._core.fastWrite import writable, check_range
 
 from ..decorators.undo import undo_chunk
 

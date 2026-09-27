@@ -7,7 +7,7 @@ import maya.api.OpenMaya as om2
 # 数学型は定義元のモジュールから直接 import する。hlib.reload() は module の globals にある
 # クラスの定義元から依存順を推定するため、定義元の再読み込み後にこの module も読み直され、
 # 下の対応表が新しいクラスで作り直される。
-from ..maths.euler_rotation import ORDER_NAMES, EulerRotation
+from ..maths.eulerRotation import ORDER_NAMES, EulerRotation
 from ..maths.matrix import Matrix
 from ..maths.quaternion import Quaternion
 from ..maths.scale import Scale

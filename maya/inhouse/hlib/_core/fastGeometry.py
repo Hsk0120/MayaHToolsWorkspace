@@ -1,6 +1,6 @@
 """形状座標のOpenMaya一括編集。履歴を持つ形状には直接上書きしない。"""
 import maya.api.OpenMaya as om
-from .fast_write import writable
+from .fastWrite import writable
 
 
 def geometry(shape, indices, edit=False):

@@ -1,7 +1,7 @@
 """XYZ 座標を持つコンポーネントと要素群の座標操作。"""
 
 from ..decorators._fast import fast_edit, is_fast
-from .._core import fast_geometry
+from .._core import fastGeometry as fast_geometry
 
 import math
 
