@@ -258,3 +258,18 @@ compile_commands.json
 /typings/
 .aider*
 .venv-aider/
+
+# Claude Code のローカル設定・作業用 worktree
+.claude/settings.local.json
+.claude/worktrees/
+
+# Windows・エディターが生成するもの
+Thumbs.db
+desktop.ini
+*.stackdump
+.idea/
+
+# Maya のシーン作業で生成されるもの(スウォッチのキャッシュ・インクリメンタル保存)
+.mayaSwatches/
+*.swatches
+incrementalSave/
