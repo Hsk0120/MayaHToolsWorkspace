@@ -3,6 +3,7 @@
 from typing import Any
 
 from ..decorators._fast import fast_edit
+from .._core.coerce import selection_owner
 from .._core.fast_write import set_attr
 
 import maya.api.OpenMaya as om2
@@ -13,38 +14,82 @@ from ..utils import raise_with_notify
 
 
 def _resolve_node(node):
-    """ノード名、MObject、または MDagPath を MObject と MDagPath へ解決する。
+    """ノードを表す入力を MObject と MDagPath へ解決する。
 
-    Node._resolve と _node_type_of が共有する下位の解決処理。
+    Node.__new__ (ラッパー型の選択)と Node._resolve が共有する下位の解決処理。
+    Node(...) の生成では __new__ で1回だけ呼び、結果を __init__ へ引き継ぐ。Plug・MPlug は
+    所有ノード、コンポーネント(単体・複数形)は所有シェイプへ解決する。
 
     Args:
-        node (str | om2.MObject | om2.MDagPath): 対象ノードの名前または Maya API 2.0 オブジェクト。
+        node (str | Node | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):
+            対象ノードの名前、hlib のラッパー、または Maya API 2.0 オブジェクト。
+            ``"node.attribute"`` や ``"pCube1.vtx[0]"`` のような文字列も所有ノードへ解決する
+            (インスタンス化されたノードは、名前が指すインスタンスのパスを保持する)。
 
     Returns:
         tuple[om2.MObject, om2.MDagPath | None]: 解決した MObject と、DAG ノードで
             あれば対応する MDagPath(非DAGノードでは None)。
 
     Raises:
-        TypeError: 対応しない入力型の場合。
-        RuntimeError: ノード名を解決できない場合。
+        TypeError: 対応しない入力型、または依存ノード以外(属性など)を指す MObject の場合。
+        RuntimeError: 名前を解決できない(存在しない、または複数の対象に一致する)場合、
+            または空・無効な(削除済みの)ラッパーや om2 オブジェクトを指定した場合。
     """
     if isinstance(node, str):
         selection = om2.MSelectionList()
         try:
             selection.add(node)
         except RuntimeError as original_error:
-            raise_with_notify(RuntimeError, f"ノードが見つかりません: {node}", from_exception=original_error)
-        mobject = selection.getDependNode(0)
-        dag_path = selection.getDagPath(0) if mobject.hasFn(om2.MFn.kDagNode) else None
-        return mobject, dag_path
+            # MSelectionList は複数のノードに一致する名前も「存在しない」として拒否するため、
+            # 利用者が原因を判別できるよう maya.cmds で一致数を確かめてからメッセージを選ぶ。
+            if node and len(cmds.ls(node) or []) > 1:
+                message = f"名前が一意ではありません(複数のノードに一致します): {node}"
+            else:
+                message = f"ノードが見つかりません: {node}"
+            raise_with_notify(RuntimeError, message, from_exception=original_error)
+        if selection.length() != 1:
+            # "dup.tx" のようなプラグ名・コンポーネント名は、同名ノードがあると複数の要素になる。
+            raise_with_notify(
+                RuntimeError,
+                f"名前が一意ではありません(複数の対象に一致します): {node}",
+                from_exception=None,
+            )
+        return selection_owner(selection, 0, node)
     if isinstance(node, om2.MDagPath):
+        if not node.isValid() or not om2.MObjectHandle(node.node()).isValid():
+            raise RuntimeError("無効な(削除済みの)MDagPath からノードは解決できません")
         dag_path = om2.MDagPath(node)
         return dag_path.node(), dag_path
     if isinstance(node, om2.MObject):
+        if node.isNull():
+            raise RuntimeError("空の MObject からノードは解決できません")
+        if not om2.MObjectHandle(node).isValid():
+            raise RuntimeError("削除済みノードの MObject からノードは解決できません")
+        if not node.hasFn(om2.MFn.kDependencyNode):
+            raise TypeError("MObject には依存ノードを指定してください(属性・コンポーネント・データは不可)")
         mobject = om2.MObject(node)
         dag_path = om2.MFnDagNode(mobject).getPath() if mobject.hasFn(om2.MFn.kDagNode) else None
         return mobject, dag_path
-    raise TypeError("node には名前、MObject、または MDagPath を指定してください")
+    if isinstance(node, om2.MPlug):
+        if node.isNull:
+            raise RuntimeError("空の MPlug からノードは解決できません")
+        return _resolve_node(node.node())
+    if isinstance(node, Node):
+        if not node.is_valid():
+            raise RuntimeError("無効な(削除済みの)ノードは指定できません")
+        dag_path = node._current_dag_path()
+        return om2.MObject(node._mobject), om2.MDagPath(dag_path) if dag_path is not None else None
+    # plugs/components は nodes を逆方向に import するため、循環回避のため遅延 import する。
+    from ..components.component import Component, Components
+    from ..plugs.plug import Plug
+
+    if isinstance(node, Plug):
+        return _resolve_node(node.node)
+    if isinstance(node, (Component, Components)):
+        return _resolve_node(node.shape)
+    raise TypeError(
+        "node には名前、Node、Plug、Component、MObject、MDagPath、または MPlug を指定してください"
+    )
 
 
 _MOVABLE_NUMERIC_TYPES = {
@@ -148,29 +193,26 @@ def _create_movable_attr(node, info):
     return plug
 
 
-def _node_type_of(node):
-    """ノード名、MObject、または MDagPath から Maya nodeType 名を得る。
-
-    Args:
-        node (str | om2.MObject | om2.MDagPath): 対象ノードの名前または Maya API 2.0 オブジェクト。
-
-    Returns:
-        str: Maya のノード型名。
-
-    Raises:
-        TypeError: 対応しない入力型の場合。
-        RuntimeError: ノード名を解決できない場合。
-    """
-    mobject, _ = _resolve_node(node)
-    return om2.MFnDependencyNode(mobject).typeName
-
-
 class Node:
     """Maya の依存ノード・DAG ノードを表す共通ラッパー。
 
-    生成時は登録済みのノード型に対応するラッパーを選択する。"""
+    生成時は登録済みのノード型に対応するラッパーを選択する。
+    ``Node(value)`` の value には名前、MObject、MDagPath に加え、既存の Node
+    (同じノードを指す新しいラッパー)、Plug・MPlug(所有ノード)、
+    Component・Components(所有シェイプ)も指定できる。名前が存在しない・
+    複数の対象に一致する場合や、空・削除済みの対象は RuntimeError になる。
+
+    インスタンス化されたノードは、指定されたインスタンスの DAG パスを保持する。
+    そのインスタンスだけが削除された場合は、残っている最初のインスタンスのパスへ
+    切り替わる(ノード自体が削除された場合は無効になる)。
+
+    ``str(node)`` は maya.cmds で一意に解決できる最短名(:meth:`name`)を返すため、
+    Node はそのまま ``cmds.select(node)`` のように maya.cmds へ渡せる。名前は
+    呼び出すたびに再計算するため、名前変更・親子付け替えに追従する。
+    削除済みのノードは空文字列になる。"""
 
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
+    _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
 
     @staticmethod
     def _display_rgb(value):
@@ -265,47 +307,81 @@ class Node:
 
         Args:
             type (str): Maya の nodeType 名。
-            **kwargs: ``maya.cmds.createNode`` に渡すキーワード引数。
+            **kwargs: ``maya.cmds.createNode`` に渡すキーワード引数。``parent``/``p`` は
+                Node・Plug・Component・MObject・MDagPath・MPlug も受け付ける。
 
         Returns:
             Node: 作成したノードに対応する wrapper。
 
         Raises:
-            ValueError: type が空文字列または文字列以外の場合。
+            ValueError: type が空文字列または文字列以外の場合、または parent が
+                削除済みの対象の場合。
+            TypeError: parent が対応しない型の場合。
+            RuntimeError: parent の名前を解決できない場合、または Maya が作成を拒否した場合。
+
+        ``parent`` はノードが必要な引数として ``hlib._core.coerce.to_node_name`` で
+        所有ノードの完全パスへ変換する。Plug・MPlug・``"node.attribute"`` は所有ノード、
+        Component は所有シェイプを親にする(シェイプを親にした場合の配置は
+        ``maya.cmds.createNode`` と同じ)。
         """
+        from .._core.coerce import to_node_name
+
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
+        for key in ("parent", "p"):
+            if kwargs.get(key) is not None:
+                kwargs[key] = to_node_name(kwargs[key])
         created_name = cmds.createNode(type, **kwargs)
         return cls(created_name)
 
     def __new__(cls, node, *args, **kwargs):
         """ノード型の登録情報に従ってラッパーを割り当てる。
 
+        入力の解決(名前の検索など)はここで1回だけ行い、結果を ``__init__`` へ引き継ぐ
+        (``Node(...)`` は1回の生成で入力を1回だけ解決する)。選んだクラスが呼び出した
+        クラスの派生でない場合(``Joint("<transform 名>")`` が ``Transform`` を返す場合など)は、
+        Python が ``__init__`` を呼ばないため、ここで初期化してから返す。
+
         Args:
-            node (str | om2.MObject | om2.MDagPath): 対象ノードの名前または Maya API 2.0 オブジェクト。
-            *args (object): 別の登録クラスに委譲する位置引数。
-            **kwargs (object): 別の登録クラスに委譲するキーワード引数。
+            node (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                対象ノードの名前、hlib のラッパー、または Maya API 2.0 オブジェクト。
+                Plug・MPlug は所有ノード、Component は所有シェイプを指す。
+            *args (object): 選んだクラスの ``__init__`` へ渡す位置引数。
+            **kwargs (object): 選んだクラスの ``__init__`` へ渡すキーワード引数。
 
         Returns:
-            Node: 登録クラスのインスタンス。登録情報がなければ呼び出したクラスの未初期化インスタンス。
+            Node: 登録クラスのインスタンス(``__init__`` は呼び出し元の Python が呼ぶ。
+                呼び出したクラスの派生でない場合は初期化済み)。登録情報がなければ
+                呼び出したクラスの未初期化インスタンス。
 
         Raises:
             TypeError: ノード入力が対応しない型の場合。
             RuntimeError: ノードを解決できない場合。
         """
         registry = cls._registry
-        if registry is not None:
-            node_type = _node_type_of(node)
-            resolved_class = registry.wrapper_class(node_type)
-            if resolved_class is not cls:
-                return resolved_class(node, *args, **kwargs)
-        return super().__new__(cls)
+        if registry is None:
+            return super().__new__(cls)
+        # 入力の解決(名前の検索など)は1回だけ行い、結果を __init__ へ引き継ぐ。
+        resolved = _resolve_node(node)
+        resolved_class = registry.wrapper_class(om2.MFnDependencyNode(resolved[0]).typeName)
+        instance = super().__new__(resolved_class)
+        instance._pending_resolution = resolved
+        if not isinstance(instance, cls):
+            # 呼び出したクラスの派生でないクラス(Joint("<transform 名>") が返す Transform など)は
+            # Python が __init__ を呼ばないため、ここで初期化する。
+            instance.__init__(node, *args, **kwargs)
+        return instance
 
     def __init__(self, node):
         """ノード入力を解決し、MObject と必要に応じた MDagPath を保持する。
 
+        既存の Node を渡した場合は、同じ MObject と DAG パス(インスタンス)を
+        指す新しいラッパーになる。
+
         Args:
-            node (str | om2.MObject | om2.MDagPath): 対象ノードの名前または Maya API 2.0 オブジェクト。
+            node (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                対象ノードの名前、hlib のラッパー、または Maya API 2.0 オブジェクト。
+                Plug・MPlug は所有ノード、Component は所有シェイプを指す。
 
         Returns:
             None: 値を返さない。
@@ -314,15 +390,24 @@ class Node:
             TypeError: 対応しないノード入力型の場合。
             RuntimeError: ノード名を解決できない場合。
         """
-        self._mobject = None
-        self._dag_path = None
-        self._resolve(node)
+        # __new__ が解決済みの結果を引き継いだ場合は、同じ入力を再び解決しない。
+        resolved = self.__dict__.pop("_pending_resolution", None)
+        if resolved is None:
+            self._mobject = None
+            self._dag_path = None
+            self._handle = None
+            self._resolve(node)
+            return
+        self._mobject, self._dag_path = resolved
+        # 有効性の判定は名前の取得のたびに行うため、ハンドルは一度だけ作って再利用する。
+        self._handle = om2.MObjectHandle(self._mobject)
 
     def _resolve(self, node):
-        """ノード名、MObject、または MDagPath を内部 API オブジェクトへ変換する。
+        """ノードを表す入力を内部 API オブジェクトへ変換する。
 
         Args:
-            node (str | om2.MObject | om2.MDagPath): 対象ノードの名前または Maya API 2.0 オブジェクト。
+            node (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                対象ノードを表す入力(_resolve_node と同じ)。
 
         Returns:
             None: 値を返さない。
@@ -332,6 +417,43 @@ class Node:
             RuntimeError: ノード名を解決できない場合。
         """
         self._mobject, self._dag_path = _resolve_node(node)
+        # 有効性の判定は名前の取得のたびに行うため、ハンドルは一度だけ作って再利用する。
+        self._handle = om2.MObjectHandle(self._mobject)
+        self._fn_cache = None
+
+    def _dependency_fn(self):
+        """保持するノードの MFnDependencyNode を返す(作成は初回の1回だけ)。
+
+        名前・属性の問い合わせのたびに関数セットを作り直さないためのキャッシュ。
+        ノードが有効(:meth:`is_valid`)であることを呼び出し側で確かめてから使う。
+
+        Returns:
+            om2.MFnDependencyNode: このノードの関数セット。
+        """
+        fn = self._fn_cache
+        if fn is None:
+            fn = self._fn_cache = om2.MFnDependencyNode(self._mobject)
+        return fn
+
+    def _current_dag_path(self):
+        """保持している DAG パスを返す。インスタンスのパスが無くなっていれば取り直す。
+
+        インスタンス化されたノードのラッパーは、作成時に指定されたインスタンスの
+        パスを保持する。そのインスタンスだけが削除された(ノード自体は他の
+        インスタンスとして残っている)場合は、残っている最初のインスタンスのパスへ
+        切り替える。名前変更・親子付け替えでは MDagPath は無効にならない。
+
+        Returns:
+            om2.MDagPath | None: 有効な DAG パス。DG ノード、または無効なノードでは
+                保持している値(DG ノードは None)。
+        """
+        dag_path = self._dag_path
+        if dag_path is not None and dag_path.isValid():
+            return dag_path
+        if not self.is_valid() or not self._mobject.hasFn(om2.MFn.kDagNode):
+            return dag_path
+        dag_path = self._dag_path = om2.MFnDagNode(self._mobject).getPath()
+        return dag_path
 
     def is_valid(self):
         """Maya シーン上でノードが有効か判定する。
@@ -339,11 +461,8 @@ class Node:
         Returns:
             bool: ノードハンドルが有効な場合は ``True``。
         """
-        return bool(
-            self._mobject is not None
-            and not self._mobject.isNull()
-            and om2.MObjectHandle(self._mobject).isValid()
-        )
+        handle = self._handle
+        return handle is not None and handle.isValid()
 
     def is_alive(self):
         """ノードの Maya オブジェクトがメモリ上に生存しているか判定する。
@@ -444,14 +563,15 @@ class Node:
         """other が自身の DAG 階層上の子孫か判定する。
 
         Args:
-            other (Node | str): 判定対象のノード。
+            other (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
 
         Returns:
             bool: other が自身より下の階層にある場合は True。自身自身や
                 非DAGノード、無効なノードでは False。
 
         Raises:
-            TypeError: other が Node/str 以外の場合。
+            TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
         """
         from .._core.coerce import to_node
 
@@ -466,13 +586,14 @@ class Node:
         """other が自身の直接の子か判定する（孫以下は対象外）。
 
         Args:
-            other (Node | str): 判定対象のノード。
+            other (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
 
         Returns:
             bool: other が自身の直接の子の場合は True。
 
         Raises:
-            TypeError: other が Node/str 以外の場合。
+            TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
         """
         from .._core.coerce import to_node
 
@@ -488,13 +609,14 @@ class Node:
         """other が自身の直接の親か判定する（祖父母以上は対象外）。
 
         Args:
-            other (Node | str): 判定対象のノード。
+            other (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
 
         Returns:
             bool: other が自身の直接の親の場合は True。
 
         Raises:
-            TypeError: other が Node/str 以外の場合。
+            TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
         """
         from .._core.coerce import to_node
 
@@ -522,11 +644,12 @@ class Node:
         Raises:
             RuntimeError: DAG パスを保持していない場合。
         """
-        if self._dag_path is None:
+        dag_path = self._current_dag_path()
+        if dag_path is None:
             raise RuntimeError("DAG ノードではありません")
         if full:
-            return self._dag_path.fullPathName()
-        return self._dag_path.partialPathName()
+            return dag_path.fullPathName()
+        return dag_path.partialPathName()
 
     def partial_path(self):
         """DAG ノードのパーシャルパス名を返す互換メソッド。
@@ -559,9 +682,10 @@ class Node:
         Raises:
             RuntimeError: DAG パスを保持していない場合。
         """
-        if self._dag_path is None:
+        dag_path = self._current_dag_path()
+        if dag_path is None:
             raise RuntimeError("DAG ノードではありません")
-        return self._dag_path.length() == 1
+        return dag_path.length() == 1
 
     def node_name(self, remove_namespace=False):
         """DAG パスを除いたノード名を返す。
@@ -657,13 +781,17 @@ class Node:
         """
         # plugs.plug が ..nodes.node を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
+        from .._core.coerce import plug_path, unique_node_name
         from ..plugs.plug import Plug
 
         plugs = []
         seen = set()
         for mplug in om2.MFnDependencyNode(self._mobject).getConnections():
             for connected in mplug.connectedTo(as_source, as_destination):
-                key = connected.name()
+                # MPlug.name() は短いノード名しか含まず、同名ノード(grp1|dup と grp2|dup)の
+                # プラグを同一視してしまうため、所有ノードの一意な名前と属性パスで重複を判定する
+                # (MObjectHandle.hashCode() は別ノードで衝突しうるため使わない)。
+                key = (unique_node_name(connected.node()), plug_path(connected))
                 if key in seen:
                     continue
                 node = Node(connected.node())
@@ -681,7 +809,7 @@ class Node:
                 (継承チェーンも判定。例: ``type="animCurve"``)。
 
         Returns:
-            list[Plug]: 入力元の外部プラグ。名前で重複を除外する。接続がなければ空リスト。
+            list[Plug]: 入力元の外部プラグ。同じノードの同じ属性は1件にまとめる。接続がなければ空リスト。
         """
         return self._connected_plugs(True, False, type=type)
 
@@ -693,7 +821,7 @@ class Node:
                 (継承チェーンも判定)。
 
         Returns:
-            list[Plug]: 出力先の外部プラグ。名前で重複を除外する。接続がなければ空リスト。
+            list[Plug]: 出力先の外部プラグ。同じノードの同じ属性は1件にまとめる。接続がなければ空リスト。
         """
         return self._connected_plugs(False, True, type=type)
 
@@ -705,7 +833,8 @@ class Node:
                 (継承チェーンも判定)。
 
         Returns:
-            list[Plug]: 入力元と出力先の外部プラグ。名前で重複を除外する。接続がなければ空リスト。
+            list[Plug]: 入力元と出力先の外部プラグ。一意なプラグ名(``full_name()``)で
+                重複を除外する。接続がなければ空リスト。
         """
         plugs = []
         seen = set()
@@ -967,16 +1096,24 @@ class Node:
         ノードのアトリビュート操作には、このメソッドを使用します。
         返された Plug で値の取得・設定や、ほかのプラグとの接続を行えます。
 
+        属性名(ロング名・ショート名・エイリアス)に加え、配列要素と子属性を含む属性パス
+        (``input1D[3]``、``worldMatrix[0]``、``pnts[2].pntx``、
+        ``inputTarget[0].inputTargetGroup[7].inputTargetItem[6000].inputComponentsTarget``)を
+        指定できる。形式は ``str(plug)`` の属性部分(``Plug.full_name()`` の ``.`` 以降)と同じ。
+        存在しない配列要素の Plug を取得しても要素は作られない(シーンを変更しない)。
+
         Args:
-            name (str): 属性名または Maya が解決可能な属性パス。
+            name (str): 属性名または属性パス(このノード自身の属性に限る)。
 
         Returns:
             Plug: 解決した属性プラグ。
 
         Raises:
             ValueError: 空文字列または文字列以外を指定した場合。
-            RuntimeError: ノードが無効な場合。
-            AttributeError: 属性を解決できない場合。
+            RuntimeError: ノードが無効な場合。属性名が配列複合属性の子を配列要素の番号なしで
+                指す場合(``input3Dx`` のような maya.cmds で解決できないプラグ。
+                ``input3D[0].input3Dx`` のように番号を含めて指定する)。
+            AttributeError: 属性・属性パスを解決できない場合。
         """
         if not isinstance(name, str) or not name:
             raise ValueError("name には空でない属性パスを指定してください")
@@ -985,10 +1122,20 @@ class Node:
         # plugs.plug ⇔ nodes の相互依存を避けるための遅延 import。inputs()/outputs() と同じ理由。
         from ..plugs.plug import Plug
 
-        try:
-            mplug = om2.MFnDependencyNode(self._mobject).findPlug(name, False)
-        except RuntimeError as error:
-            raise AttributeError(f"属性が見つかりません: {self.name()}.{name}") from error
+        if "[" not in name:
+            # 配列インデックスを含まない名前(``boundingBox.boundingBoxMin`` のような子属性の
+            # パスを含む)は、従来どおり findPlug で解決する。
+            try:
+                mplug = om2.MFnDependencyNode(self._mobject).findPlug(name, False)
+            except RuntimeError:
+                mplug = None  # エイリアス名は findPlug で解決できないため、下で解決する。
+            if mplug is not None:
+                return Plug(self, mplug)
+        from .._core.coerce import attribute_path_plug
+
+        mplug = attribute_path_plug(self._mobject, name)
+        if mplug is None:
+            raise AttributeError(f"属性が見つかりません: {self.name()}.{name}")
         return Plug(self, mplug)
 
     def attr(self, name):
@@ -1026,11 +1173,15 @@ class Node:
         Returns:
             str: 無効なノードでは空文字列。
         """
-        if not self.is_valid():
+        handle = self._handle
+        if handle is None or not handle.isValid():
             return ""
-        if self._dag_path is not None:
-            return self._dag_path.partialPathName()
-        return om2.MFnDependencyNode(self._mobject).name()
+        dag_path = self._dag_path
+        if dag_path is None:
+            return self._dependency_fn().name()
+        if not dag_path.isValid():
+            dag_path = self._current_dag_path()
+        return dag_path.partialPathName()
 
     def full_name(self):
         """Maya の完全 DAG パスまたは DG ノード名を返す。
@@ -1038,14 +1189,22 @@ class Node:
         Returns:
             str: 無効なノードでは空文字列。
         """
-        if not self.is_valid():
+        handle = self._handle
+        if handle is None or not handle.isValid():
             return ""
-        if self._dag_path is not None:
-            return self._dag_path.fullPathName()
-        return om2.MFnDependencyNode(self._mobject).name()
+        dag_path = self._dag_path
+        if dag_path is None:
+            return self._dependency_fn().name()
+        if not dag_path.isValid():
+            dag_path = self._current_dag_path()
+        return dag_path.fullPathName()
 
     def __str__(self):
         """Maya の最短一意ノード名を文字列として返す。
+
+        maya.cmds は文字列以外の引数に ``str()`` を適用するため、Node をそのまま
+        ``cmds.select(node)`` のように渡せる。呼び出すたびに再計算するため、
+        名前変更・親子付け替えに追従する。
 
         Returns:
             str: 最短一意名。無効なノードでは空文字列。
@@ -1076,13 +1235,18 @@ class Node:
 
         Raises:
             AttributeError: 非公開名または存在しない Maya 属性を指定した場合。
+                :meth:`plug` が RuntimeError にする名前(``input3Dx`` のような、配列要素の
+                番号を含まない配列複合属性の子)も、``hasattr``/``getattr(node, name, default)``
+                が使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
             RuntimeError: ノードが無効な場合。
         """
         if name.startswith("_"):
             raise AttributeError(name)
+        if not self.is_valid():
+            raise RuntimeError("無効なノードの属性にはアクセスできません")
         try:
             return self.plug(name)
-        except AttributeError as error:
+        except (AttributeError, RuntimeError) as error:
             raise AttributeError(f"属性が見つかりません: {self.name()}.{name}") from error
 
 

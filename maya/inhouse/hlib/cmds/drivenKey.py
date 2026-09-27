@@ -14,8 +14,8 @@ def drivenKey(driver, driven):
     """既存属性の組をDrivenKeyとして取得する。
 
     Args:
-        driver (Plug | str): ドライバー属性。
-        driven (Plug | str): 駆動される属性。
+        driver (Plug | om2.MPlug | str): ドライバー属性。文字列は ``"node.attribute"`` 形式。
+        driven (Plug | om2.MPlug | str): 駆動される属性。
     Returns:
         DrivenKey: 未作成の関係も保持できる。set_keyでキーを作成する。
     """

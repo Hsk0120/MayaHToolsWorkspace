@@ -1,6 +1,8 @@
 """Maya API 2.0 の MPlug を属性ラッパーとして扱う。"""
 
 from ..decorators._fast import fast_edit, is_fast
+from .._core.attribute_type import attribute_type, is_internal_data_type
+from .._core.coerce import has_unresolved_index, to_plug
 from .._core.fast_write import set_attr
 from .._core.fast_write import set_plug
 
@@ -20,17 +22,262 @@ _LENGTH_PREFIXED_ARRAY_TYPES = frozenset((
 ))
 
 
+def _instance_count(array):
+    """ワールド空間属性の配列なら、所有 DAG ノードのインスタンス数を返す。
+
+    ``worldMatrix`` などのワールド空間属性は、インスタンス番号(0～インスタンス数-1)の
+    要素を評価前でも存在するものとして扱う(:class:`ArrayPlug` と同じ規則)。
+
+    Args:
+        array (om2.MPlug): 配列プラグ。
+
+    Returns:
+        int: 間接インスタンスを含むインスタンス数。ワールド空間属性でなければ 0。
+    """
+    node = array.node()
+    if not node.hasFn(om2.MFn.kDagNode) or not om2.MFnAttribute(array.attribute()).worldSpace:
+        return 0
+    return om2.MFnDagNode(node).instanceCount(True)
+
+
+#: ``MFnDependencyNode.attributeClass()`` が、ノードに無い属性(削除済みの動的属性など)に返す値。
+_INVALID_ATTRIBUTE = om2.MFnDependencyNode.kInvalidAttr
+
+#: ``MFnDependencyNode.attributeClass()`` が、ノード型に組み込みの(静的な)属性に返す値。
+_NORMAL_ATTRIBUTE = om2.MFnDependencyNode.kNormalAttr
+
+
+def _attribute_class(node, attribute_handle, attribute):
+    """属性が所有ノードに存在するかと、静的な属性かを判定する。
+
+    ``addAttr`` による動的属性(``addExtension`` による拡張属性を含む)は削除でき、削除済みの
+    属性の MPlug で値を読み書きすると Maya が異常終了する。削除は Undo のために属性の
+    MObject が保持されたままの場合があり、``MObjectHandle.isValid()`` だけでは判定できない
+    ため、所有ノードの ``MFnDependencyNode.attributeClass()`` で確かめる(ノードに無い属性は
+    ``kInvalidAttr``)。同じ名前で追加し直した属性は別の属性として扱い、Undo で削除を
+    取り消した属性と名前を変更した属性は同じ属性のまま。
+
+    Args:
+        node (Node): 所有ノードのラッパー。有効(削除済みでない)であること。
+        attribute_handle (om2.MObjectHandle): 属性の MObject のハンドル。
+        attribute (om2.MObject): 属性の MObject。
+
+    Returns:
+        int: ``MFnDependencyNode`` の ``kNormalAttr``(静的属性)・``kLocalDynamicAttr``・
+            ``kExtensionAttr``、またはノードに無い属性の ``kInvalidAttr``。
+    """
+    if not attribute_handle.isValid():
+        return _INVALID_ATTRIBUTE
+    return node._dependency_fn().attributeClass(attribute)
+
+
+#: 値によって型が変わる属性の接続元を辿る最大の段数(循環する接続の保護)。
+_MAX_SOURCE_DEPTH = 16
+
+
+def _held_matrix_type(mplug, depth=0):
+    """値によって型が変わる属性が行列を保持していれば ``"matrix"`` を返す。
+
+    対象は generic 属性(``unitConversion.input`` など)と、任意のデータを受け付ける
+    型付き属性(``MFnData.kAny``。``choice`` の ``input``/``output`` など)。
+    ``cmds.getAttr(type=True)`` はこれらの型名を保持する値から求める(行列を保持する
+    ``choice.output`` は ``matrix``)。Plug の派生クラスの選択を maya.cmds と合わせるため、
+    次の順に保持する値の型を求め、行列なら ``MatrixPlug`` を選べるようにする。
+
+    1. 読み取りできない属性(``MFnAttribute.readable`` が False。transform 系ノード共通の
+       ``geometry`` など)と、存在しない要素(配列要素は既存の論理インデックスのもの)は
+       値を読まない(評価も要素の作成も起こさない)。
+    2. 入力接続があれば、値を読まずに接続元の属性の型を使う(接続元の評価を起こさない)。
+       接続元も値によって型が変わる属性なら、同じ規則で接続元を辿る。
+    3. 入力接続が無ければ値を読む。ノードが計算する出力(``choice.output`` など)は、
+       ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こる。
+
+    ``double3`` などの数値の組を保持する場合は子を持たず、``Double3Plug`` では扱えない
+    ため対象にしない(基底の Plug の ``get()`` が tuple を返す)。
+
+    Args:
+        mplug (om2.MPlug): 対象のプラグ。
+        depth (int): 接続元を辿った段数(内部用)。
+
+    Returns:
+        str | None: 行列を保持していれば ``"matrix"``、それ以外は None。
+    """
+    if mplug.isArray or mplug.isCompound:
+        return None
+    attribute = mplug.attribute()
+    if attribute.apiType() == om2.MFn.kTypedAttribute:
+        if om2.MFnTypedAttribute(attribute).attrType() != om2.MFnData.kAny:
+            return None
+    elif not attribute.hasFn(om2.MFn.kGenericAttribute):
+        return None
+    if not om2.MFnAttribute(attribute).readable or not _plug_exists(mplug):
+        return None
+    sources = mplug.connectedTo(True, False)
+    if sources:
+        source = sources[0]
+        if source.isArray:
+            return None
+        type_name = attribute_type(source)
+        if type_name is not None:
+            return "matrix" if type_name == "matrix" else None
+        if depth >= _MAX_SOURCE_DEPTH:
+            return None
+        return _held_matrix_type(source, depth + 1)
+    try:
+        data = mplug.asMObject()
+    except RuntimeError:
+        return None  # 数値・文字列などデータオブジェクトを持たない値
+    if not data.isNull() and data.hasFn(om2.MFn.kMatrixData):
+        return "matrix"
+    return None
+
+
+def _read_angle(mplug):
+    """角度属性の値を度で返す。
+
+    UI の角度単位によらず度を返す(``cmds.getAttr`` の既定と同じ。角度の UI 単位が
+    ラジアンの場合は ``cmds.getAttr`` の戻り値と異なる)。
+
+    Args:
+        mplug (om2.MPlug): 角度属性のプラグ。
+
+    Returns:
+        float: 度の値。
+    """
+    return mplug.asMAngle().asDegrees()
+
+
+def _read_distance(mplug):
+    """距離属性の値を現在の UI 単位で返す。
+
+    Args:
+        mplug (om2.MPlug): 距離属性のプラグ。
+
+    Returns:
+        float: UI 単位の値。
+    """
+    return mplug.asMDistance().asUnits(om2.MDistance.uiUnit())
+
+
+def _read_time(mplug):
+    """時間属性の値を現在の UI 単位で返す。
+
+    Args:
+        mplug (om2.MPlug): 時間属性のプラグ。
+
+    Returns:
+        float: UI 単位の値。
+    """
+    return mplug.asMTime().asUnits(om2.MTime.uiUnit())
+
+
+#: 数値属性の ``numericType()`` と、値を読む MPlug のメソッド。
+_NUMERIC_READERS = {
+    om2.MFnNumericData.kBoolean: om2.MPlug.asBool,
+    om2.MFnNumericData.kByte: om2.MPlug.asInt,
+    om2.MFnNumericData.kShort: om2.MPlug.asInt,
+    om2.MFnNumericData.kInt: om2.MPlug.asInt,
+    om2.MFnNumericData.kLong: om2.MPlug.asInt,
+    om2.MFnNumericData.kFloat: om2.MPlug.asDouble,
+    om2.MFnNumericData.kDouble: om2.MPlug.asDouble,
+}
+
+#: 単位属性の ``unitType()`` と、値を読む関数。
+_UNIT_READERS = {
+    om2.MFnUnitAttribute.kAngle: _read_angle,
+    om2.MFnUnitAttribute.kDistance: _read_distance,
+    om2.MFnUnitAttribute.kTime: _read_time,
+}
+
+#: :func:`_value_reader` が「MPlug から直接読めない(``cmds.getAttr`` で読む)」ことを表す値。
+_CMDS_READER = False
+
+
+def _value_reader(attribute):
+    """``Plug.get()`` が MPlug から直接値を読む関数を、属性定義から選ぶ。
+
+    属性の型は属性ごとに変わらないため、Plug ごとに一度だけ求めて保持する。
+
+    Args:
+        attribute (om2.MObject): 属性の MObject。
+
+    Returns:
+        callable | bool: MPlug を受け取って値を返す関数。bool/int/float 系の数値属性、
+            角度・距離・時間の単位属性、enum、文字列属性が対象。それ以外は
+            ``_CMDS_READER`` (``cmds.getAttr`` で読む)。
+    """
+    if attribute.hasFn(om2.MFn.kNumericAttribute):
+        return _NUMERIC_READERS.get(om2.MFnNumericAttribute(attribute).numericType(), _CMDS_READER)
+    if attribute.hasFn(om2.MFn.kUnitAttribute):
+        return _UNIT_READERS.get(om2.MFnUnitAttribute(attribute).unitType(), _CMDS_READER)
+    if attribute.hasFn(om2.MFn.kEnumAttribute):
+        return om2.MPlug.asInt
+    if (attribute.hasFn(om2.MFn.kTypedAttribute)
+            and om2.MFnTypedAttribute(attribute).attrType() == om2.MFnData.kString):
+        return om2.MPlug.asString
+    return _CMDS_READER
+
+
+def _plug_exists(mplug):
+    """プラグ(と経由する配列要素)がシーンに存在するか判定する。
+
+    配列要素は、配列の既存の論理インデックス(``getExistingArrayAttributeIndices()``。
+    値を持つ要素と接続された要素)に含まれる場合に存在する。値を読まないため、
+    存在しない要素を作らない。
+
+    Args:
+        mplug (om2.MPlug): 判定するプラグ。
+
+    Returns:
+        bool: プラグと、経由するすべての配列要素が存在する場合は True。
+    """
+    current = mplug
+    while True:
+        if current.isElement:
+            array = current.array()
+            if current.logicalIndex() not in array.getExistingArrayAttributeIndices():
+                return False
+            current = array
+        elif current.isChild:
+            current = current.parent()
+        else:
+            return True
+
+
 class Plug:
     """Maya API 2.0 の MPlug を保持する属性ラッパー。
 
     Plug(node, mplug) は配列・登録済み属性型・複合属性の順で
     専用クラスを選択する。基底クラスの書き込み・接続・ロック操作は
-    Undo チャンクで囲まれる。派生クラス独自の経路は各メソッドを参照する。"""
+    Undo チャンクで囲まれる。派生クラス独自の経路は各メソッドを参照する。
+
+    ``str(plug)`` と ``full_name()`` は maya.cmds で一意に解決できる
+    ``<ノードの最短一意名>.<属性パス>`` を返すため、Plug はそのまま
+    ``cmds.getAttr(plug)``/``cmds.connectAttr(a, b)`` などへ渡せる。
+    短い名前が重複するノード(``grp1|dup`` と ``grp2|dup``)でも一意で、
+    名前変更・親子付け替えにも追従する。ただし ``ArrayPlug`` は ``[]`` で要素を
+    取得できるため maya.cmds がシーケンスとして展開しようとして失敗する。
+    配列属性全体を渡す場合は ``str(plug)`` か ``plug.full_name()`` を渡す。
+
+    所有ノードが削除された、または動的属性が ``deleteAttr`` で削除された Plug は
+    無効になり(:meth:`is_valid`)、``str()``・:meth:`full_name`・:meth:`name` は空文字列、
+    値の取得・設定、属性の情報・接続の問い合わせ、要素・子・親の取得は RuntimeError に
+    なる(削除済みの MPlug を Maya へ渡すと異常終了する場合があるため)。
+    Undo でノード・属性が戻れば再び有効になる。"""
 
     _registry = None  #: initialize_plug_api() が構築後に注入する PlugRegistry。
+    _reader = None  #: get() が値を読む関数。初回の get() で属性定義から選ぶ(_value_reader)。
 
     def __new__(cls, node, mplug):
         """配列・登録属性型・複合属性の順にラッパー型を選ぶ。
+
+        登録属性型の判定には ``cmds.getAttr(type=True)`` と同じ型名を使う。型名は
+        属性定義から求め(:func:`hlib._core.attribute_type.attribute_type`)、maya.cmds へ
+        問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。
+        値によって型が変わる属性(generic 属性など)は、存在する要素が行列を保持していれば
+        ``cmds.getAttr(type=True)`` と同じく ``matrix`` として扱う(``MatrixPlug``)。
+        保持する値の型は入力接続があれば接続元の属性から求め、無ければ値を読む
+        (ノードが計算する出力では評価が起こる。規則は :func:`_held_matrix_type`)。
 
         Args:
             node (Node): プラグを所有するノードラッパー。
@@ -38,26 +285,57 @@ class Plug:
 
         Returns:
             Plug: 適切な派生クラスのインスタンス。派生クラスから直接呼んだ場合はそのクラスを割り当てる。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。削除済みの
+                Plug から要素・子・親の Plug を取得した場合も含む(``Node.plug()`` と同じ規則)。
+                プラグが未確定(-1)の配列インデックスを経由する場合(``cmp[-1].child`` や
+                ``inputTarget[-1].inputTargetGroup`` のような maya.cmds で解決できないプラグ)。
+                node が持たない属性の MPlug を渡した場合(所有ノードではない node を渡した場合)。
         """
         if cls is Plug:
             # ArrayPlug/CompoundPlug との循環importを避けるため呼び出し時に遅延importする。
             from .array_plug import ArrayPlug
             from .compound_plug import CompoundPlug
 
-            wrapped = om2.MPlug(mplug)
-            if wrapped.isArray:
-                return ArrayPlug(node, mplug)
-            if cls._registry is not None:
-                attr_type = cmds.getAttr(wrapped.name(), type=True)
-                resolved_class = cls._registry.lookup(attr_type)
+            handle = node._handle
+            if handle is None or not handle.isValid():
+                raise RuntimeError("所有ノードが無効な(削除済みの)属性の Plug は作成できません")
+            attribute = mplug.attribute()
+            attribute_class = _attribute_class(node, om2.MObjectHandle(attribute), attribute)
+            if attribute_class == _INVALID_ATTRIBUTE:
+                if not mplug.isNull and mplug.node() != node._mobject:
+                    # 内部の誤用(所有ノードではない node を渡した)を削除済みと区別して報告する。
+                    raise RuntimeError("MPlug は指定したノードの属性ではありません(所有ノードを指定してください)")
+                raise RuntimeError("削除済みの属性の Plug は作成できません")
+            if has_unresolved_index(mplug):
+                raise RuntimeError(
+                    "配列要素のインデックスが未確定(-1)の属性の Plug は作成できません: "
+                    + mplug.partialName(False, True, True, True, False, True)
+                )
+            target = cls
+            if mplug.isArray:
+                target = ArrayPlug
+            else:
+                resolved_class = None
+                if cls._registry is not None:
+                    type_name = attribute_type(mplug)
+                    if type_name is None:
+                        type_name = _held_matrix_type(mplug)
+                    resolved_class = cls._registry.lookup(type_name)
                 if resolved_class is not None:
-                    return resolved_class(node, mplug)
-            if wrapped.isCompound:
-                return CompoundPlug(node, mplug)
+                    target = resolved_class
+                elif mplug.isCompound:
+                    target = CompoundPlug
+            # 選んだクラスの __new__ だけを呼び、__init__ は呼び出し元(Plug(...))の1回に任せる。
+            instance = target.__new__(target, node, mplug) if target is not cls else super().__new__(cls)
+            # 静的属性かどうかの判定結果を __init__ へ引き継ぎ、判定を繰り返さない。
+            instance._pending_static_attribute = attribute_class == _NORMAL_ATTRIBUTE
+            return instance
         return super().__new__(cls)
 
     def __init__(self, node, mplug):
-        """所有ノードと API 2.0 MPlug のコピーを保持する。
+        """所有ノードと API 2.0 MPlug のコピー、属性の有効性を判定するハンドルを保持する。
 
         Args:
             node (Node): プラグを所有するノードラッパー。
@@ -68,6 +346,67 @@ class Plug:
         """
         self._node = node
         self._mplug = om2.MPlug(mplug)
+        attribute = self._attribute = self._mplug.attribute()
+        # 属性が破棄されたこと(Undo の対象から外れた削除)を検出するためのハンドル。
+        self._attribute_handle = om2.MObjectHandle(attribute)
+        # 静的属性は削除されない(ノードが有効な間は常に存在する)ため、判定は一度だけ行う。
+        static = self.__dict__.pop("_pending_static_attribute", None)
+        if static is None:
+            handle = node._handle
+            static = (handle is not None and handle.isValid()
+                      and _attribute_class(node, self._attribute_handle, attribute) == _NORMAL_ATTRIBUTE)
+        self._static_attribute = static
+
+    def _attribute_exists(self):
+        """属性が所有ノードに存在し続けているか判定する(所有ノードは有効であること)。
+
+        頻繁に呼ばれる :meth:`_require_valid`・:meth:`full_name` は、呼び出しの負荷を
+        避けるため同じ判定を直接書いている(変更する場合はそろえること)。
+
+        Returns:
+            bool: 静的属性、または削除されていない動的属性の場合は True。
+        """
+        if self._static_attribute:
+            return True
+        return (self._attribute_handle.isValid()
+                and self._node._dependency_fn().attributeClass(self._attribute) != _INVALID_ATTRIBUTE)
+
+    def is_valid(self):
+        """所有ノードと属性がシーンに存在し、値を読み書きできるか判定する。
+
+        Returns:
+            bool: 所有ノードが有効で、属性(動的属性は ``deleteAttr`` で削除されうる)が
+                存在する場合は ``True``。Undo でノード・属性が戻れば再び ``True`` になる。
+        """
+        handle = self._node._handle
+        return handle is not None and handle.isValid() and self._attribute_exists()
+
+    def _require_valid(self):
+        """所有ノードと属性が有効か確かめる。
+
+        削除済みの動的属性の MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの
+        MPlug は古い値を返す(Undo の対象から外れた削除では問い合わせで異常終了する場合も
+        ある)ため、MPlug・属性を扱う前に必ず確かめる。静的属性はノードが有効な間は常に
+        存在するため、ノードの確認だけで済む。動的属性は所有ノードの
+        ``MFnDependencyNode.attributeClass()`` で存在を確かめる(:meth:`_attribute_exists`)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+        """
+        node = self._node
+        handle = node._handle
+        if handle is None or not handle.isValid():
+            raise RuntimeError("所有ノードが無効な(削除済みの)属性は扱えません")
+        if not self._static_attribute:
+            # _attribute_exists() と同じ判定。get()/set() のたびに呼ばれるため直接書く。
+            fn = node._fn_cache
+            if fn is None:
+                fn = node._dependency_fn()
+            if not self._attribute_handle.isValid() or fn.attributeClass(self._attribute) == _INVALID_ATTRIBUTE:
+                raise RuntimeError("削除済みの属性は扱えません")
 
     def mplug(self):
         """内部で保持する Maya API 2.0 MPlug を返す。
@@ -90,8 +429,11 @@ class Plug:
         """ノード名を含まない短いプラグ名を取得する。
 
         Returns:
-            str: 必要な multi インデックスを含むプラグ名。
+            str: 必要な multi インデックスを含むプラグ名。所有ノードが無効(削除済み)、
+                または属性が削除済みの場合は空文字列(:meth:`full_name` と同じ)。
         """
+        if not self.is_valid():
+            return ""
         return self._mplug.partialName(
             includeNodeName=False,
             includeNonMandatoryIndices=True,
@@ -99,19 +441,62 @@ class Plug:
         )
 
     def full_name(self):
-        """ノード名を含む完全修飾プラグ名を取得する。
+        """maya.cmds で一意に解決できる、ノード名を含む完全修飾プラグ名を取得する。
+
+        ``<ノードの最短一意名>.<属性パス>`` の形式。ノード名は ``Node.name()``
+        (``str(node)``)と同じで、呼び出すたびに再計算するため名前変更や
+        親子付け替えに追従する。短い名前が重複するノードでも ``grp1|dup.translateX``
+        のように一意になる。属性パスはロング名で、必要な配列インデックス
+        (``worldMatrix[0]``、``pnts[2].pntx`` 等)を含み、エイリアスがあれば
+        エイリアス名を使う(``MPlug.name()`` の属性部分と同じ表記)。
+
+        短い名前が一意なノード(DG ノードと、インスタンス化されていないアンダーワールド以外の
+        DAG ノード)は、ノード名が短い名前と一致するため ``MPlug.name()`` をそのまま返す。
+        DAG ノードでは短い名前が一意かを毎回問い合わせる(``hasUniqueName()``)ため、
+        ``MPlug.name()`` だけを返していた従来より 1 回あたり約 1µs 遅い(同名ノードでも
+        一意な名前を返すために必要な処理。:doc:`/development` の性能の項を参照)。
 
         Returns:
-            str: ``node.attribute`` 形式のプラグ名。
+            str: 完全修飾プラグ名。所有ノードが無効(削除済み)、または属性が削除済みの
+                場合は空文字列(:meth:`is_valid` が ``False``)。
         """
-        return self._mplug.name()
+        node = self._node
+        handle = node._handle
+        if handle is None or not handle.isValid():
+            return ""
+        fn = node._fn_cache
+        if fn is None:
+            fn = node._dependency_fn()
+        if not self._static_attribute and (
+                not self._attribute_handle.isValid()
+                or fn.attributeClass(self._attribute) == _INVALID_ATTRIBUTE):
+            return ""  # _attribute_exists() と同じ判定(str() のたびに呼ばれるため直接書く)。
+        dag_path = node._dag_path
+        if dag_path is None:
+            # DG ノードの名前はシーン内で一意(Maya は DAG ノードとの重複も許さない)。
+            return self._mplug.name()
+        # インスタンス化されたノードとアンダーワールドのノード(``shape->node``)は、
+        # Node.name() がパスを含むため、同じ表記になるよう下の経路で求める。
+        if dag_path.isValid() and not dag_path.isInstanced() and dag_path.pathCount() == 1 and fn.hasUniqueName():
+            return self._mplug.name()
+        # plug_path() と同じ引数。頻繁に呼ばれるため関数呼び出しを省いて直接問い合わせる。
+        return node.name() + "." + self._mplug.partialName(False, True, True, True, False, True)
+
+    #: ``str(plug)`` は :meth:`full_name` と同じ(maya.cmds は文字列以外の引数に ``str()`` を
+    #: 適用するため、Plug をそのまま ``cmds.getAttr(plug)`` のように渡せる)。頻繁に呼ばれるため、
+    #: 呼び出しを1段省けるよう同じ関数を割り当てる。
+    __str__ = full_name
 
     def attribute(self):
         """基になる Maya 属性のロング名を取得する。
 
         Returns:
             str: MFnAttribute が返す属性名。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).name
 
     def nice_name(self):
@@ -120,7 +505,11 @@ class Plug:
         Returns:
             str: Attribute Editor 等で使われる表示名(例: ``translateX`` は
                 ``"Translate X"``)。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return cmds.attributeName(self.full_name(), nice=True)
 
     def type(self):
@@ -133,6 +522,9 @@ class Plug:
 
     def is_array(self):
         """multi 属性か判定する。
+
+        ``is_array``/``is_compound``/``is_element``/``is_child`` はプラグの構造だけを返すため、
+        無効な Plug(:meth:`is_valid` が ``False``)でも例外にしない。
 
         Returns:
             bool: array プラグの場合は ``True``。
@@ -168,7 +560,12 @@ class Plug:
 
         Returns:
             Plug | None: 親プラグ。子プラグでない場合は ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合
+                (子プラグかどうかにかかわらず。削除済みの MPlug は子かどうかを正しく返さないため)。
         """
+        self._require_valid()
         if not self._mplug.isChild:
             return None
         return Plug(self._node, self._mplug.parent())
@@ -181,7 +578,11 @@ class Plug:
 
         Returns:
             bool: キー可能な場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return self._mplug.isKeyable
 
     @fast_edit
@@ -197,9 +598,13 @@ class Plug:
         Returns:
             Plug: 自身。
 
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         set_attr(self.full_name(), keyable=bool(state))
         return self
 
@@ -215,9 +620,13 @@ class Plug:
         Returns:
             Plug: 自身。
 
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         set_attr(self.full_name(), channelBox=bool(state))
         return self
 
@@ -226,7 +635,11 @@ class Plug:
 
         Returns:
             bool: 何らかの接続を持つ場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return self._mplug.isConnected
 
     def is_source(self):
@@ -234,7 +647,11 @@ class Plug:
 
         Returns:
             bool: 他のプラグへの出力接続を持つ場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return self._mplug.isSource
 
     def is_destination(self):
@@ -242,7 +659,11 @@ class Plug:
 
         Returns:
             bool: 他のプラグからの入力接続を持つ場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return self._mplug.isDestination
 
     def is_hidden(self):
@@ -250,7 +671,11 @@ class Plug:
 
         Returns:
             bool: 隠し属性の場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).hidden
 
     def is_dynamic(self):
@@ -258,7 +683,11 @@ class Plug:
 
         Returns:
             bool: 動的属性の場合は ``True``。静的（ノード型に組み込み）の属性は ``False``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).dynamic
 
     def is_readable(self):
@@ -266,7 +695,11 @@ class Plug:
 
         Returns:
             bool: 読み取り可能な場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).readable
 
     def is_writable(self):
@@ -274,7 +707,11 @@ class Plug:
 
         Returns:
             bool: 書き込み可能な場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).writable
 
     def is_storable(self):
@@ -282,7 +719,11 @@ class Plug:
 
         Returns:
             bool: 保存対象の場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).storable
 
     def has_min(self):
@@ -292,7 +733,11 @@ class Plug:
 
         Returns:
             bool: 最小値制限を持つ場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             return om2.MFnNumericAttribute(attr).hasMin()
@@ -307,7 +752,11 @@ class Plug:
 
         Returns:
             bool: 最大値制限を持つ場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             return om2.MFnNumericAttribute(attr).hasMax()
@@ -325,7 +774,11 @@ class Plug:
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: 最小値。
                 制限が無い、または対応しない属性型では ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             fn = om2.MFnNumericAttribute(attr)
@@ -344,7 +797,11 @@ class Plug:
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: 最大値。
                 制限が無い、または対応しない属性型では ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             fn = om2.MFnNumericAttribute(attr)
@@ -361,7 +818,11 @@ class Plug:
 
         Returns:
             bool: ソフト最小値を持つ場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             return om2.MFnNumericAttribute(attr).hasSoftMin()
@@ -376,7 +837,11 @@ class Plug:
 
         Returns:
             bool: ソフト最大値を持つ場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             return om2.MFnNumericAttribute(attr).hasSoftMax()
@@ -393,7 +858,11 @@ class Plug:
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: ソフト最小値。
                 制限が無い、または対応しない属性型では ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             fn = om2.MFnNumericAttribute(attr)
@@ -412,7 +881,11 @@ class Plug:
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: ソフト最大値。
                 制限が無い、または対応しない属性型では ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             fn = om2.MFnNumericAttribute(attr)
@@ -430,7 +903,11 @@ class Plug:
 
         Returns:
             object | None: 既定値。対応しない属性型では ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
             return om2.MFnNumericAttribute(attr).default
@@ -448,7 +925,9 @@ class Plug:
 
         Raises:
             TypeError: enum 属性でない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if not attr.hasFn(om2.MFn.kEnumAttribute):
             raise TypeError("enum_name は enum 属性にのみ使用できます")
@@ -466,7 +945,9 @@ class Plug:
         Raises:
             TypeError: enum 属性でない場合。
             ValueError: name に一致するフィールドが無い場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         attr = self._mplug.attribute()
         if not attr.hasFn(om2.MFn.kEnumAttribute):
             raise TypeError("enum_value は enum 属性にのみ使用できます")
@@ -484,7 +965,11 @@ class Plug:
 
         Returns:
             bool: ロックされている場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return self._mplug.isLocked
 
     @fast_edit
@@ -499,9 +984,13 @@ class Plug:
         Returns:
             Plug: 自身。
 
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         set_attr(self.full_name(), lock=bool(state))
         return self
 
@@ -510,7 +999,11 @@ class Plug:
 
         Returns:
             bool: ミュートされている場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return bool(cmds.mute(self.full_name(), query=True))
 
     @undo_chunk("hlibPlugMute")
@@ -522,7 +1015,9 @@ class Plug:
 
         Raises:
             RuntimeError: Maya がミュートを拒否した場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         cmds.mute(self.full_name())
         return self
 
@@ -532,7 +1027,11 @@ class Plug:
 
         Returns:
             Plug: 自身。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         cmds.mute(self.full_name(), disable=True, force=True)
         return self
 
@@ -555,7 +1054,9 @@ class Plug:
         Raises:
             RuntimeError: force=False でロックされている場合や、静的属性の
                 削除を試みた場合など、Maya が削除を拒否した場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         if force and self.is_locked():
             set_attr(self.full_name(), lock=False)
         cmds.deleteAttr(self.full_name())
@@ -577,71 +1078,30 @@ class Plug:
             object: 属性値。1要素のリストにタプルが入っている場合のみ、
                 そのタプルを返す（cmds.getAttr フォールバック時のみ該当）。
                 文字列、数値、配列、None など実際の属性型に依存する。
-        """
-        attr = self._mplug.attribute()
-        if attr.hasFn(om2.MFn.kNumericAttribute):
-            value = self._get_numeric_value(attr)
-            if value is not None:
-                return value
-        elif attr.hasFn(om2.MFn.kUnitAttribute):
-            value = self._get_unit_value(attr)
-            if value is not None:
-                return value
-        elif attr.hasFn(om2.MFn.kEnumAttribute):
-            return self._mplug.asInt()
-        elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
-            return self._mplug.asString()
 
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合
+                (:meth:`is_valid` が ``False``。削除前の古い値は返さない)。
+                Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない
+                配列要素の場合(値を読むと Maya が異常終了する場合があるため。
+                :func:`hlib._core.attribute_type.is_internal_data_type`)。
+        """
+        self._require_valid()
+        reader = self._reader
+        if reader is None:
+            # 属性の型は変わらないため、読み方は Plug ごとに一度だけ選ぶ。
+            reader = self._reader = _value_reader(self._attribute)
+        if reader is not _CMDS_READER:
+            return reader(self._mplug)
+
+        if is_internal_data_type(self._mplug) and not _plug_exists(self._mplug):
+            raise RuntimeError(
+                f"Maya 内部のデータ型の存在しない要素の値は読めません: {self.full_name()}"
+            )
         value = cmds.getAttr(self.full_name())
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
             return tuple(value[0])
         return value
-
-    def _get_numeric_value(self, attr):
-        """MFnNumericAttribute の値を対応する Python 型で取得する。
-
-        Args:
-            attr (om2.MObject): 数値属性の MObject。
-
-        Returns:
-            bool | int | float | None: 値。bool/byte/short/int/long/float/double
-                以外の数値型(複合型など)は ``None`` (呼び出し側で cmds.getAttr
-                へフォールバックする)。
-        """
-        numeric_type = om2.MFnNumericAttribute(attr).numericType()
-        if numeric_type == om2.MFnNumericData.kBoolean:
-            return self._mplug.asBool()
-        if numeric_type in (
-            om2.MFnNumericData.kByte,
-            om2.MFnNumericData.kShort,
-            om2.MFnNumericData.kInt,
-            om2.MFnNumericData.kLong,
-        ):
-            return self._mplug.asInt()
-        if numeric_type in (om2.MFnNumericData.kFloat, om2.MFnNumericData.kDouble):
-            return self._mplug.asDouble()
-        return None
-
-    def _get_unit_value(self, attr):
-        """MFnUnitAttributeの値を角度は度、距離・時間はUI単位で取得する。
-
-        角度はUI設定によらず度、距離・時間は現在のUI単位に変換する。
-        角度UI単位がradの場合はcmds.getAttrの戻り値と異なる。
-
-        Args:
-            attr (om2.MObject): 角度・距離・時間属性の MObject。
-
-        Returns:
-            float | None: 角度は度、距離・時間はUI単位の値。対応外は ``None``。
-        """
-        unit_type = om2.MFnUnitAttribute(attr).unitType()
-        if unit_type == om2.MFnUnitAttribute.kAngle:
-            return self._mplug.asMAngle().asDegrees()
-        if unit_type == om2.MFnUnitAttribute.kDistance:
-            return self._mplug.asMDistance().asUnits(om2.MDistance.uiUnit())
-        if unit_type == om2.MFnUnitAttribute.kTime:
-            return self._mplug.asMTime().asUnits(om2.MTime.uiUnit())
-        return None
 
     @fast_edit
     @undo_chunk("hlibPlugSet")
@@ -653,9 +1113,9 @@ class Plug:
         componentList のような長さ指定が必要な配列型は、``cmds.setAttr`` が
         要求する引数の形(単純な ``*value`` 展開ではなく、型名や要素数の
         明示)が数値コンパウンド(double3 等)や matrix と異なるため、
-        ``cmds.getAttr(..., type=True)`` で実際の属性型を判定してから
-        対応する形で呼び出す。それ以外の型(数値コンパウンド、matrix 等)は
-        従来通り ``*value`` で展開する。
+        属性定義から ``cmds.getAttr(..., type=True)`` と同じ属性型名を求めてから
+        (:func:`hlib._core.attribute_type.attribute_type`)対応する形で呼び出す。
+        それ以外の型(数値コンパウンド、matrix 等)は従来通り ``*value`` で展開する。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
@@ -664,9 +1124,13 @@ class Plug:
         Returns:
             Plug: 自身。
 
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         if is_fast():
             set_plug(self._mplug, value)
             return self
@@ -674,7 +1138,7 @@ class Plug:
             set_attr(self.full_name(), value, type="string")
             return self
         if isinstance(value, (tuple, list)):
-            attr_type = cmds.getAttr(self.full_name(), type=True)
+            attr_type = attribute_type(self._mplug)
             if attr_type in _SCALAR_ARRAY_TYPES:
                 set_attr(self.full_name(), value, type=attr_type)
             elif attr_type in _LENGTH_PREFIXED_ARRAY_TYPES:
@@ -708,6 +1172,7 @@ class Plug:
         """
         if self.is_array():
             raise TypeError("Reset an array element instead of the array plug")
+        self._require_valid()
         if self._mplug.isCompound:
             for index in range(self._mplug.numChildren()):
                 Plug(self._node, self._mplug.child(index)).reset()
@@ -729,7 +1194,11 @@ class Plug:
 
         Returns:
             Plug | None: 接続元。入力接続がない場合は ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         sources = self._mplug.connectedTo(True, False)
         return Plug(self._node_from_mplug(sources[0]), sources[0]) if sources else None
 
@@ -741,7 +1210,11 @@ class Plug:
 
         Returns:
             Node | None: 接続されている animCurve ノード。無ければ ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         sources = self._mplug.connectedTo(True, False)
         if not sources:
             return None
@@ -755,7 +1228,11 @@ class Plug:
 
         Returns:
             list[Plug]: 接続先プラグ。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         return [Plug(self._node_from_mplug(plug), plug) for plug in self._mplug.connectedTo(False, True)]
 
     def is_connected_to(self, other):
@@ -764,14 +1241,17 @@ class Plug:
         入力・出力いずれの向きでも一致すれば True を返す。
 
         Args:
-            other (Plug): 判定対象のプラグ。
+            other (Plug | om2.MPlug | str): 判定対象のプラグ。文字列は
+                ``"node.attribute"`` 形式の属性名。
 
         Returns:
             bool: 接続されている場合は True。
 
         Raises:
-            TypeError: other が Plug でない場合。
+            TypeError: other が Plug・MPlug・属性名のいずれでもない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         other = self._coerce_plug(other)
         return any(
             connected == other.mplug()
@@ -789,16 +1269,19 @@ class Plug:
         一連の操作は一回の Undo にまとまる。
 
         Args:
-            target (Plug): 接続先プラグ。
+            target (Plug | om2.MPlug | str): 接続先プラグ。文字列は
+                ``"node.attribute"`` 形式の属性名。
             force (bool): 既存入力接続を強制的に置き換えるか。ロックされた
                 target への接続もこの場合のみ一時アンロックして許可する。
 
         Returns:
-            Plug: 接続先プラグ。
+            Plug: 接続先プラグ(MPlug・文字列を渡した場合は変換した Plug)。
 
         Raises:
-            TypeError: target が Plug でない場合。
+            TypeError: target が Plug・MPlug・属性名のいずれでもない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         target = self._coerce_plug(target)
         should_unlock = force and target.is_locked()
         if should_unlock:
@@ -815,16 +1298,19 @@ class Plug:
         """プラグ接続を解除する。
 
         Args:
-            target (Plug | None): 明示的に解除する接続先。省略時は入力元と全出力先を
-                解除する。
+            target (Plug | om2.MPlug | str | None): 明示的に解除する接続先。
+                文字列は ``"node.attribute"`` 形式の属性名。省略時は入力元と
+                全出力先を解除する。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            TypeError: target が None または Plug 以外の場合。
+            TypeError: target が None・Plug・MPlug・属性名のいずれでもない場合。
             RuntimeError: Maya が接続解除を拒否した場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         if target is not None:
             target = self._coerce_plug(target)
             cmds.disconnectAttr(self.full_name(), target.full_name())
@@ -836,38 +1322,35 @@ class Plug:
             cmds.disconnectAttr(self.full_name(), destination.full_name())
         return self
 
-    def __str__(self):
-        """完全修飾した Maya プラグ名を返す。
-
-        Returns:
-            str: ノード名を含むプラグ名。
-        """
-        return self.full_name()
-
     def __repr__(self):
         """デバッグ用に完全修飾プラグ名を含む表現を返す。
 
         Returns:
-            str: Plug と完全修飾プラグ名を含む文字列表現。
+            str: Plug と完全修飾プラグ名を含む文字列表現。所有ノードが無効、または属性が削除済みなら
+                ``<Plug invalid>``。
         """
-        return f"Plug({self.full_name()!r})"
+        name = self.full_name()
+        if not name:
+            return "<Plug invalid>"
+        return f"Plug({name!r})"
 
     @staticmethod
     def _coerce_plug(value):
-        """接続先入力が Plug であることを検証する。
+        """接続先入力を Plug へ変換する。
 
         Args:
-            value (object): 型を確認する入力。
+            value (Plug | om2.MPlug | str): Plug、MPlug、または ``"node.attribute"``
+                形式の属性名。
 
         Returns:
-            Plug: 入力と同じオブジェクト。
+            Plug: value が Plug なら同じオブジェクト、それ以外は変換した Plug。
 
         Raises:
-            TypeError: value が Plug またはその派生クラスでない場合。
+            TypeError: 対応しない型、または文字列が属性を指していない場合。
+            ValueError: 空の入力の場合。
+            RuntimeError: 文字列を解決できない(存在しない、または複数の属性に一致する)場合。
         """
-        if not isinstance(value, Plug):
-            raise TypeError("target must be an hlib Plug")
-        return value
+        return to_plug(value)
 
     @staticmethod
     def _node_from_mplug(mplug):

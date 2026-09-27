@@ -38,9 +38,9 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
      - 既定値
      - 説明
    * - ``*args``
-     - ``str``
+     - ``str | Node | Plug | Component | Components | MObject | MDagPath | MPlug | Iterable``
      - 省略可
-     - 名前やワイルドカードなど、maya.cmds.ls の位置引数。
+     - 名前やワイルドカードなど、maya.cmds.ls の位置引数。文字列以外は一意な名前に変換して渡します（:doc:`/cmds_interop`）。空の列と ``None`` は空の結果になります。
    * - ``type (typ)``
      - ``str``
      - 省略可
@@ -80,18 +80,34 @@ def ls(*args, **kwargs):
     """Mayaノードを検索し、対応するラッパーとして返す。
 
     Args:
-        *args (object): maya.cmds.lsへ渡す名前・名前列・パターン。
+        *args (object): maya.cmds.lsへ渡す名前・名前列・パターン。文字列はそのまま渡し、
+            Node・Plug・Component・MObject・MDagPath・MPlug とその列は一意な名前へ変換する。
+            空の列だけを渡した場合は maya.cmds.ls([]) と同じく空の結果を返す。None は
+            maya.cmds.ls(None) と同じく空の列として扱う(``cmds.listRelatives`` などが
+            結果なしのときに返す None をそのまま渡せる)。
         **kwargs (object): maya.cmds.lsへ渡す検索フラグ。
     Returns:
         list[Node] | Joints | SkinClusters: typeまたはtypがjoint/skinClusterの場合は専用コレクション。それ以外はリスト。
     Raises:
+        TypeError: 位置引数に対応しない型が含まれる場合。
+        ValueError: 位置引数に削除済みの対象が含まれる場合。
         RuntimeError: 検索結果をノードとして解決できない場合。
 
     ノード名を返す検索用。コンポーネント・属性・型名等を返すMayaフラグは
     ラッパー化できない場合がある。検索結果が空なら空コレクションまたは空リスト。"""
+    from .._core.coerce import to_names
     from ..nodes import Joints, Node, SkinClusters
 
-    names = cmds.ls(*args, **kwargs) or []
+    targets = []
+    for arg in args:
+        if arg is None:
+            continue
+        if isinstance(arg, str):
+            targets.append(arg)
+        else:
+            targets.extend(to_names(arg))
+    # 空の列だけを渡した場合に maya.cmds.ls() の全ノード検索へ変わらないようにする。
+    names = (cmds.ls(*targets, **kwargs) or []) if targets or not args else []
     node_type = kwargs.get("type")
     if node_type == "joint":
         return Joints(names)

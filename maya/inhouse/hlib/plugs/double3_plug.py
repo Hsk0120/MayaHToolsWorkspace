@@ -35,7 +35,11 @@ class Double3Plug(CompoundPlug):
 
         Returns:
             Vector | Translation | EulerRotation | Scale | Shear: 属性名に応じた3成分値。ローカルの rotate は度からラジアンに変換し、rotateOrder を保持する。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
+        self._require_valid()
         if ws and self.attribute() in self._value_types:
             getters = {
                 "translate": "get_translate",
@@ -75,10 +79,12 @@ class Double3Plug(CompoundPlug):
 
         Raises:
             ValueError: 対応する設定メソッドがない属性で ws=True を指定、値の要素数が不正、または委譲先の変換条件が不正の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        self._require_valid()
         setters = {
             "translate": "set_translate",
             "t": "set_translate",

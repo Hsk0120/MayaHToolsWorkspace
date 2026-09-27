@@ -2,14 +2,46 @@
 
 from ..decorators._fast import fast_edit
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from .._core.attribute_type import is_internal_data_type
 from ..decorators.undo import undo_chunk
-from .plug import Plug
+from .plug import Plug, _instance_count
 
 
 class ArrayPlug(Plug):
-    """multi（array）属性用の Plug。"""
+    """multi（array）属性用の Plug。
+
+    ``array_plug[index]`` で論理インデックスの要素 Plug を取得できる。この
+    ``__getitem__`` があるため、maya.cmds は ArrayPlug オブジェクト自体を
+    シーケンスとして展開しようとして失敗する(``cmds.getAttr(array_plug)`` は不可)。
+    配列属性全体を maya.cmds へ渡す場合は ``str(array_plug)`` または
+    ``array_plug.full_name()`` を渡す。要素 Plug(``array_plug[0]``)と、
+    hlib のコマンド(``hlib.select`` など)は ArrayPlug をそのまま受け付ける。"""
+
+    def _existing_indices(self):
+        """存在する要素の論理インデックスを昇順で返す。
+
+        データを持つ要素(``getExistingArrayAttributeIndices()``)に加え、
+        ``worldMatrix`` などのワールド空間属性では、所有 DAG ノードのインスタンス番号
+        (0～インスタンス数-1)も存在する要素として扱う。ワールド空間属性の要素は
+        評価されるまでデータを持たず、作成直後のノードでは一覧に現れないため。
+        インスタンス数には、インスタンス化された祖先による間接インスタンスも含める
+        (``MDagPath.instanceNumber()`` と同じ数え方)。
+
+        Returns:
+            list[int]: 論理インデックス。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+        """
+        self._require_valid()
+        indices = list(self._mplug.getExistingArrayAttributeIndices())
+        count = _instance_count(self._mplug)
+        if count:
+            indices = sorted(set(indices).union(range(count)))
+        return indices
 
     def get(self, ws=False):
         """既存インデックスをキーにした要素値の dict を返す。
@@ -18,9 +50,13 @@ class ArrayPlug(Plug):
             ws (bool): 配列自身では空間変換を行わないため無視される。
 
         Returns:
-            dict[int, object]: 論理インデックスをキーとする要素値。
+            dict[int, object]: 論理インデックスをキーとする要素値。ワールド空間属性は
+                インスタンス番号の要素も含む。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
-        return {index: self.element(index).get() for index in self._mplug.getExistingArrayAttributeIndices()}
+        return {plug.mplug().logicalIndex(): plug.get() for plug in self.elements()}
 
     @fast_edit
     def set(self, value, *, fast=False):
@@ -43,29 +79,54 @@ class ArrayPlug(Plug):
     def element(self, index, create=False):
         """論理インデックスの要素プラグを取得する。
 
+        ``worldMatrix`` などのワールド空間属性は、所有 DAG ノードのインスタンス番号の
+        要素を評価前でも取得できる(作成直後のノードの ``worldMatrix[0]`` など)。
+
         Args:
             index (int): 論理インデックス。
-            create (bool): 存在しない要素も作成対象として取得するか。
+            create (bool): True の場合、データを持つ要素が無ければ Maya 上に要素を
+                作成してから返す(``cmds.getAttr`` の問い合わせで作成するため Undo 対象外)。
+                ただし ``message`` 型のように値を持たない属性の配列では要素を作成できない。
+                この場合も要素プラグは返すため接続先・接続元に使え、要素は接続した時点で
+                存在するようになる(それまで ``elements()`` や ``next_available()`` には現れない)。
 
         Returns:
             Plug: 要素プラグ。
 
         Raises:
             IndexError: create が ``False`` で要素が存在しない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+                create が ``True`` で、Maya 内部のデータ型(nurbsSurface の ``patchUVIds``
+                など。:func:`hlib._core.attribute_type.is_internal_data_type`)の配列の場合
+                (要素を問い合わせると Maya が異常終了する場合があるため作成しない)。
         """
-        existing_indices = self._mplug.getExistingArrayAttributeIndices()
-        if not create and index not in existing_indices:
-            raise IndexError(f"No element at logical index {index} on {self.full_name()}")
+        self._require_valid()
         mplug = self._mplug.elementByLogicalIndex(index)
+        if index not in self._mplug.getExistingArrayAttributeIndices():
+            if create:
+                if is_internal_data_type(mplug):
+                    raise RuntimeError(
+                        f"Maya 内部のデータ型の配列には要素を作成できません: {self.full_name()}"
+                    )
+                # maya.cmds は存在しない要素を問い合わせると要素を作成する。Plug の生成
+                # (属性型の判定)は maya.cmds へ問い合わせず要素を作らないため、ここで作成する。
+                cmds.getAttr(f"{self.full_name()}[{index}]", type=True)
+            elif index not in self._existing_indices():
+                raise IndexError(f"No element at logical index {index} on {self.full_name()}")
         return Plug(self._node, mplug)
 
     def elements(self):
         """存在する要素プラグをすべて取得する。
 
         Returns:
-            list[Plug]: 既存要素。
+            list[Plug]: 既存要素。ワールド空間属性はインスタンス番号の要素も含む。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
-        return [self.element(index) for index in self._mplug.getExistingArrayAttributeIndices()]
+        # 要素ごとに存在を確かめ直さず、既存の番号から直接 Plug を作る。
+        return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
+                for index in self._existing_indices()]
 
     def next_available(self, start=0):
         """接続・データを持つ要素が存在しない論理インデックスを探す。
@@ -82,9 +143,11 @@ class ArrayPlug(Plug):
 
         Raises:
             ValueError: start が負の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
         if start < 0:
             raise ValueError("start must be >= 0")
+        self._require_valid()
         existing = set(self._mplug.getExistingArrayAttributeIndices())
         index = start
         while index in existing:
@@ -94,6 +157,10 @@ class ArrayPlug(Plug):
     @undo_chunk("hlibArrayPlugAddElement")
     def add_element(self):
         """次の空きインデックス(next_available())へ要素を作成して返す。
+
+        ``message`` 型のように値を持たない属性の配列では要素を作成できないため
+        (:meth:`element` 参照)、返した要素へ接続するまでは、呼び出すたびに同じ
+        インデックスの要素プラグを返す。
 
         Returns:
             Plug: 作成した要素プラグ。
@@ -112,8 +179,9 @@ class ArrayPlug(Plug):
 
         Raises:
             IndexError: 指定したインデックスに要素が存在しない場合。
-            RuntimeError: Maya が削除を拒否した場合。
+            RuntimeError: 所有ノードが無効(削除済み)、属性が削除済み、または Maya が削除を拒否した場合。
         """
+        self._require_valid()
         if index not in self._mplug.getExistingArrayAttributeIndices():
             raise IndexError(f"No element at logical index {index} on {self.full_name()}")
         cmds.removeMultiInstance(f"{self.full_name()}[{index}]", b=True)
@@ -121,6 +189,10 @@ class ArrayPlug(Plug):
 
     def __getitem__(self, index):
         """論理インデックスの要素プラグを取得する。
+
+        ``__len__``/``__iter__`` は持たない。``for`` 文は Python の旧来の
+        シーケンス規約で 0 から順に取得し、最初の欠番で止まるため、既存要素の
+        列挙には :meth:`elements` を使う。
 
         Args:
             index (int): 論理インデックス。

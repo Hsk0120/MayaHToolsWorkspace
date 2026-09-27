@@ -18,7 +18,9 @@ class DisplayLayer(Node):
         Returns:
             list[Node]: メンバーのラッパー。メンバーが無ければ空リスト。
         """
-        names = cmds.editDisplayLayerMembers(self.name(), query=True) or []
+        # 既定の問い合わせは葉の名前だけを返し、短い名前が重複するノードを解決できないため
+        # 完全パスで受け取る。
+        names = cmds.editDisplayLayerMembers(self.name(), query=True, fullNames=True) or []
         return [Node(name) for name in names]
 
     @undo_chunk("hlibDisplayLayerAddMembers")

@@ -2,6 +2,9 @@
 ============================================================
 
 アトリビュートの取得には ``node.plug()`` を使います。接続・メタ情報・配列要素の操作を説明します。
+``node.plug()`` は属性名(ロング名・ショート名・エイリアス)のほか、``input1D[3]``・
+``worldMatrix[0]``・``pnts[2].pntx`` のような配列要素と子属性を含む属性パス
+(``str(plug)`` の ``.`` 以降と同じ表記)も受け付けます。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
 最初に ``import hlib`` を実行してください。
@@ -36,10 +39,41 @@
 ``publishedNodeInfo`` のような組み込み属性でよく見られます）は実際には評価できず
 黙ってスキップされるため、件数は listAttr の結果と必ずしも一致しません。
 ``aliases`` は ``cmds.aliasAttr`` のクエリ結果を ``(エイリアス名, Plug)`` の
-タプル列として返します。エイリアスを設定すると Maya API の ``MPlug.name()``
-自体がロング名ではなくエイリアス名で表示されるようになるため、
-戻り値の ``Plug.full_name()`` もロング名(``translateY``)ではなく
-エイリアス名(``myAlias``)を含む表記になります。
+タプル列として返します。``Plug.full_name()`` は属性にエイリアスがあればエイリアス名を
+使う(``MPlug.name()`` と同じ表記)ため、戻り値の Plug の ``full_name()`` も
+ロング名(``translateY``)ではなくエイリアス名(``myAlias``)を含む表記になります。
+``cmds.listConnections(plugs=True)`` の表記は属性によって異なり、配列要素のエイリアス
+(blendShape の ``weight[0]`` の ``smile`` など)はエイリアス名、配列でない属性の
+エイリアス(``translateY`` の ``myAlias`` など)はロング名を返します。名前を文字列で
+比較せず、Plug・MPlug 同士で比較してください(``plug.mplug() == other.mplug()``)。
+
+プラグ名
+--------
+
+``str(plug)`` と ``plug.full_name()`` は、maya.cmds で一意に解決できる
+``<ノードの最短一意名>.<属性パス>`` を返します。同じ短い名前のノードが複数あっても
+``grp1|dup.translateX`` のようにパスを含むため、``cmds.getAttr(plug)`` のように
+Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに求め直すため、
+名前変更・親子付け替えにも追従します。所有ノードが削除済み、または動的属性が
+``deleteAttr`` で削除済みなら空文字列です(``plug.is_valid()`` が ``False``。
+このとき ``get()``/``set()`` と、属性の情報・接続の問い合わせは ``RuntimeError`` になります)。
+``plug.name()`` はノード名を含まない短い属性名(``tx`` など。無効な Plug では空文字列)を返します。
+
+.. code-block:: python
+
+   import maya.cmds as cmds
+
+   grp1 = hlib.createNode("transform", name="plugNameGrp1")
+   grp2 = hlib.createNode("transform", name="plugNameGrp2")
+   dup = hlib.createNode("transform", name="plugNameDup", parent=grp1)
+   hlib.createNode("transform", name="plugNameDup", parent=grp2)
+
+   plug = dup.plug("tx")
+   print(plug)               # plugNameGrp1|plugNameDup.translateX
+   print(plug.name())        # tx
+   cmds.setAttr(plug, 2.0)   # 同名ノードがあっても一意に解決できる
+
+受け付ける入力と ``maya.cmds`` へ渡せないオブジェクトは :doc:`cmds_interop` を参照してください。
 
 属性のメタ情報
 --------------
@@ -144,6 +178,21 @@ animCurve とミュート
 ロック状態や子要素の再帰チェックは行いません。``add_element`` は
 ``next_available()`` の位置へ要素を作成して返し、``remove_element`` は
 指定インデックスの要素を削除します（存在しなければ ``IndexError``）。
+``element(index, create=True)`` は要素が無ければ Maya 上に作成してから返します
+(``cmds.getAttr`` の問い合わせで作成するため Undo の対象外です)。ただし ``message`` 型の
+ように値を持たない属性の配列では要素を作成できません。返した要素 Plug へ接続した時点で
+要素ができるため、``add_element()`` は接続するまで同じ番号の要素 Plug を返します。
+Plug を作る・取得する操作そのもの(``hlib._core.coerce.to_plug("pma1.input1D[10]")`` や
+``Selection([...])`` など)は、存在しない要素の Plug でも要素を作りません。
+``worldMatrix`` などのインスタンスごとの属性は、評価前でもインスタンス番号の要素
+(作成直後のノードの ``worldMatrix[0]`` など)を ``element()``/``elements()`` で取得できます。
+インスタンス番号には、インスタンス化された祖先による間接インスタンスも含みます。
+削除済みノード・削除済みの動的属性の配列 Plug の要素は取得できません(``RuntimeError``)。
+
+``array_plug[0]`` は ``element(0)`` と同じです。この ``[]`` があるため、
+ArrayPlug オブジェクト自体を ``maya.cmds`` へ渡すとシーケンスとして展開されて失敗します。
+配列属性全体を渡す場合は ``str(array_plug)`` か ``array_plug.full_name()`` を渡してください。
+要素の Plug と hlib のコマンド(``hlib.select`` など)は、そのまま渡せます。
 
 アニメーションカーブそのものの操作は :doc:`animation_nodes` を参照してください。
 

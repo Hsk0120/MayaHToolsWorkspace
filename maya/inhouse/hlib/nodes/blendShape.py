@@ -3,7 +3,7 @@
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from .._core.coerce import to_name
+from .._core.coerce import to_node_name
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from .node import Node
@@ -51,9 +51,12 @@ class BlendShape(Node):
         """ターゲットを追加する。
 
         Args:
-            target (Node | str): 追加するターゲット shape またはその transform。
-            base (Node | str | None): 変形対象の base geometry。省略時は
-                geometry() の先頭を使う。
+            target (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                追加するターゲット shape またはその transform。Plug・MPlug・
+                ``"node.attribute"`` は所有ノード、Component は所有シェイプとして扱う。
+            base (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug | None):
+                変形対象の base geometry(target と同じ規則で所有ノードへ解決する)。
+                省略時は geometry() の先頭を使う。
             weight_index (int | None): 使用する weight 配列インデックス。省略時は
                 空いている最小のインデックス(``plug("weight").next_available()``)
                 を自動で使う。
@@ -65,15 +68,18 @@ class BlendShape(Node):
 
         Raises:
             RuntimeError: base を省略し、かつ base geometry を特定できない場合。
+                target・base の名前を解決できない場合。
+            TypeError: target・base が対応しない型の場合。
+            ValueError: target・base が空文字列、または削除済みの対象の場合。
         """
-        target_name = to_name(target)
+        target_name = to_node_name(target)
         if base is None:
             geometries = self.geometry()
             if not geometries:
                 raise RuntimeError("Cannot determine the base geometry for this blendShape")
             base_name = geometries[0].full_name()
         else:
-            base_name = to_name(base)
+            base_name = to_node_name(base)
         if weight_index is None:
             weight_index = self.plug("weight").next_available()
         cmds.blendShape(

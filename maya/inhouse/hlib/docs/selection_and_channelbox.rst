@@ -45,6 +45,12 @@ Selection
 
    selection = Selection(["pCube1", "pCubeShape2.vtx[0:3]"])
 
+名前の文字列のほか、Node・Plug・コンポーネント・Vertices などのコレクション・
+Selection と、Maya API 2.0 の MObject・MDagPath・MPlug・MSelectionList も指定できます。
+Selection は反復可能なので、``cmds.select(selection)`` や ``hlib.select(selection)`` のように
+そのまま渡すと各要素の名前に展開されます(:doc:`cmds_interop`)。
+削除済みの要素を含む場合は ``restore()`` を使ってください。
+
 ノードの名前変更とDAGインスタンスのパスを追跡します。
 順序はMayaのアクティブ選択リストの順で、クリック順を保証するものではありません。
 頂点・エッジ・フェース・UV・NURBSカーブCVに対応し、それ以外の

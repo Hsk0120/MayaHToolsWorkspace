@@ -490,6 +490,21 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsInstance(transform.attr("hlibLong").get(), int)
         self.assertIsInstance(transform.attr("hlibString").get(), str)
 
+        # 読み方は Plug ごとに一度だけ選んで保持するが、単位の変換は呼び出しごとに現在の
+        # UI 単位で行う(同じ Plug で単位を変えても cmds.getAttr と一致する)。
+        plugs = {attribute: transform.attr(attribute)
+                 for attribute in ("hlibDistance", "hlibTime", "hlibAngle", "translateX")}
+        for plug in plugs.values():
+            plug.get()
+        previous = (cmds.currentUnit(query=True, linear=True), cmds.currentUnit(query=True, time=True))
+        try:
+            cmds.currentUnit(linear="mm", time="ntsc")
+            for attribute, plug in plugs.items():
+                with self.subTest(attribute=attribute, unit="mm/ntsc"):
+                    self.assertAlmostEqual(plug.get(), cmds.getAttr(f"{name}.{attribute}"))
+        finally:
+            cmds.currentUnit(linear=previous[0], time=previous[1])
+
     def test_plug_get_falls_back_to_cmds_for_unsupported_typed_data(self):
         # stringArray は MFnTypedAttribute だが kString ではないため、
         # om2 の直接読み取りは対象外となり cmds.getAttr にフォールバックする。

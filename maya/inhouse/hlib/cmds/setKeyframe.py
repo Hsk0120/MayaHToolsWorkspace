@@ -37,9 +37,9 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
      - 既定値
      - 説明
    * - ``target``
-     - ``Node | Plug | str | None``
+     - ``Node | Plug | Component | Components | Selection | str | MObject | MDagPath | MPlug | Iterable | None``
      - None
-     - キーを設定するノードまたはプラグ。None は現在の選択が対象（kwargs だけで呼ぶ）。
+     - キーを設定するノード・プラグ、またはその列。None は現在の選択が対象（kwargs だけで呼ぶ）。受け付ける型は :doc:`/cmds_interop` を参照。
    * - ``time (t)``
      - ``float``
      - 現在の時間
@@ -80,24 +80,27 @@ def setKeyframe(target=None, **kwargs):
     """指定したノードまたはプラグにキーフレームを設定する。
 
     Args:
-        target (Node | Plug | str | None): キーを設定するノードまたはプラグ。
-            None は現在の選択を対象に kwargs だけで maya.cmds.setKeyframe を呼ぶ。
+        target (Node | Plug | Component | Components | Selection | str | om2.MObject | om2.MDagPath | om2.MPlug | Iterable | None):
+            キーを設定するノード・プラグ、またはその列。None は現在の選択を対象に
+            kwargs だけで maya.cmds.setKeyframe を呼ぶ。
         **kwargs (object): maya.cmds.setKeyframe に渡すキーワード引数。
 
     Returns:
         int: 設定したキー数。
 
     Raises:
-        TypeError: target が Node/Plug/str 以外の場合、または空文字列の場合。
+        TypeError: target が対応しない型、空文字列、または空の列の場合
+            (空の列で現在の選択へキーを打たないよう、呼び出し前に拒否する)。
+        ValueError: target に削除済みの対象が含まれる場合。
         RuntimeError: Maya がキー設定を拒否した場合。
     """
-    from ..nodes import Node
-    from ..plugs import Plug
+    from .._core.coerce import to_names
 
     if target is None:
         return cmds.setKeyframe(**kwargs)
-    if isinstance(target, (Node, Plug)):
-        target = target.full_name()
-    if not isinstance(target, str) or not target:
+    if isinstance(target, str) and not target:
         raise TypeError("target には空でない名前、Node、または Plug を指定してください")
-    return cmds.setKeyframe(target, **kwargs)
+    names = to_names(target)
+    if not names:
+        raise TypeError("target には1つ以上の対象を指定してください")
+    return cmds.setKeyframe(names, **kwargs)

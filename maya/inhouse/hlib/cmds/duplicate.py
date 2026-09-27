@@ -39,9 +39,9 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
      - 既定値
      - 説明
    * - ``node``
-     - ``Node | str``
+     - ``Node | Plug | Component | str | MObject | MDagPath | MPlug``
      - 必須
-     - 複製元のノード。
+     - 複製元。1つの対象を指定します(Components などの複数の対象は ``TypeError``)。Plug・Component も一意な名前に変換して渡し、その扱いは maya.cmds.duplicate に従います(:doc:`/cmds_interop` の「コマンドごとの注意」を参照)。
    * - ``name (n)``
      - ``str``
      - Maya の既定値
@@ -75,15 +75,16 @@ def duplicate(node, **kwargs):
     """指定したノードを複製し、対応する hlib wrapper として返す。
 
     Args:
-        node (Node | str): 複製元のノード。
+        node (Node | Plug | Component | str | om2.MObject | om2.MDagPath | om2.MPlug): 複製元。Plug・Component も
+            一意な名前に変換して渡し、その扱いは maya.cmds.duplicate に従う。
         **kwargs (object): maya.cmds.duplicate に渡すキーワード引数。
 
     Returns:
         Node: 複製された起点ノードに対応するラッパー。
 
     Raises:
-        TypeError: node が Node/str 以外の場合。
-        ValueError: node が空文字列の場合。
+        TypeError: node が対応しない型の場合。
+        ValueError: node が空文字列、または削除済みの対象の場合。
         RuntimeError: Maya が複製を拒否した場合。
     """
     from ..nodes import Node

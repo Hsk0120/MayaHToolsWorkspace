@@ -95,7 +95,8 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
    * - ``utils``
      - ログと進捗表示
    * - ``_core``
-     - 型登録、ラッパー検出、初期化、再読み込み、Node/文字列入力の正規化(coerce)の内部基盤
+     - 型登録、ラッパー検出、初期化、再読み込み、コマンド入力の正規化(coerce: 文字列・
+       Node・Plug・Component・om2 オブジェクトを名前・Node・Plug へ変換)の内部基盤
 
 .. include:: _generated/full_class_diagram.rst
 
@@ -185,6 +186,90 @@ Mayaコマンド独自の判定をそのまま提供する処理も例外です�
 ``Node.reset_attrs()`` は ``getAttr(settable=True)`` の書き込み可否を使用します。
 APIのグラフ走査や個別フラグから似た判定を再構築して意味を変えないためです。
 
+``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶための属性型名は、
+``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列(``PlugRegistry`` のキー)を、
+属性定義から om2 で求めます(``_core/attribute_type.py`` の ``attribute_type()``。
+``MFnNumericAttribute.numericType()``、``MFnUnitAttribute``・enum・message・matrix の
+apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデータ型は
+``MFnAttribute.getAddAttrCmd()`` の型指定)。``cmds.getAttr(type=True)`` は使いません。
+存在しない配列要素を問い合わせると要素を作る(blendShape の ``weight[i]`` では
+``parentDirectory[i]`` なども作られる)、nurbsSurface の ``patchUVIds`` の存在しない要素で
+Maya が異常終了する、mesh の内部属性(``edge[i]``・``face[i]`` など)で例外になる、
+といった副作用と失敗を避けるためです。``attribute_type()`` は値を読まないため評価も
+起こしません(例外は次の「値によって型が変わる属性」)。
+
+- mesh の ``controlPoints`` は属性定義が ``double3`` でも ``cmds.getAttr(type=True)`` が
+  ``float3`` を返すため、この属性だけ ``float3`` として扱います(nurbsCurve などは ``double3``)。
+- 値によって型が変わる属性(generic 属性、任意のデータを受け付ける typed 属性、
+  ``geometry`` 型)は、属性定義だけでは型名が決まらないため ``attribute_type()`` は
+  ``None`` を返します。``Plug(node, mplug)`` は、generic 属性と任意のデータを受け付ける
+  typed 属性(``MFnData.kAny``。``choice`` の ``input``/``output`` など)が行列を保持して
+  いれば、``cmds.getAttr(type=True)`` と同じく ``matrix`` として ``MatrixPlug`` を選びます
+  (``choice`` ノードで行列を切り替える構成など。``plugs/plug.py`` の ``_held_matrix_type()``)。
+  保持する値の型は次の順に求め、評価はできるだけ避けます。
+
+  1. 読み取りできない属性(``MFnAttribute.readable`` が偽。transform 系ノード共通の
+     generic 属性 ``geometry`` など)と、存在しない要素は値を読みません。field 系ノードでは
+     ``geometry`` の評価で ``falloffCurve[0]`` などの要素が作られるため、読むと
+     ``Node(field).plugs()`` がシーンを変更してしまいます。
+  2. 入力接続があれば、値を読まずに接続元の属性の型を使います(``choice.input[0]`` の
+     接続元が ``worldMatrix[0]`` なら ``matrix``。接続元も値によって型が変わる属性なら
+     同じ規則で辿ります)。上流の評価を起こしません。
+  3. 入力接続が無ければ値を読みます。ノードが計算する出力(``choice.output`` など)は
+     ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こります。
+
+  ``double3`` などの数値の組を保持する場合は子を持たず ``Double3Plug`` で扱えないため、
+  基底の ``Plug`` のままにします(``get()`` は tuple)。``geometry`` 型の typed 属性
+  (デフォーマの ``inputGeometry`` など)は対象外で、値を読みません。
+- Maya 内部のデータ型(``cmds.addAttr`` で作成できない ``nurbsPatchUVIds``・``polyFaces``
+  など。``is_internal_data_type()``)の存在しない配列要素は、値を読むと Maya が異常終了する
+  場合があるため、``Plug.get()`` と ``ArrayPlug.element(create=True)`` が ``RuntimeError`` に
+  します(maya.cmds・MPlug のどちらでも値を読みません)。
+- 既存のプラグについて ``cmds.getAttr(type=True)`` と一致することを
+  ``test_cmds_parity.py`` で検証しています(2022・2027 で全ノード型の既存プラグを
+  突き合わせた確認では、値によって型が変わる属性以外はすべて一致)。テストでは
+  存在しない配列要素へ ``cmds.getAttr(type=True)`` を使いません(要素が作られ、
+  Maya が異常終了する属性もあるため)。
+
+そのため Plug の生成はシーンを変更しません。要素の作成が必要な処理は
+``ArrayPlug.element(index, create=True)`` のように明示します。所有ノードが削除済み、
+または動的属性が ``deleteAttr`` で削除済みの場合は、Plug の生成を ``RuntimeError`` にし、
+既存の Plug も無効(``Plug.is_valid()`` が ``False``。``str()``・``name()`` は空文字列、
+値の取得・設定と、属性の情報・接続の問い合わせは ``RuntimeError``)として扱います。
+削除済みの属性の MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの MPlug は
+古い値を返し、Undo の対象から外れた削除済みノードの MPlug は名前の問い合わせでも
+Maya を異常終了させるためです。動的属性の削除は Undo のために属性の MObject が保持され
+``MObjectHandle.isValid()`` では判定できないため、所有ノードの
+``MFnDependencyNode.attributeClass()`` がその属性を ``kInvalidAttr`` (ノードに無い属性)と
+返すかも確かめます(静的属性はノードが有効な間は常に存在するため確かめません)。
+生の ``om2.MPlug`` を受け取る変換(``_core.coerce`` の ``_mplug_name()``)も
+``mplug_attribute_exists()`` で同じ判定を行い、削除済みの属性は ``ValueError`` にします。
+ただし Undo の対象から外れて削除されたノードの MPlug は ``MPlug.node()`` の時点で
+Maya が異常終了し、API では検出できません。hlib の内部でも MPlug を削除操作をまたいで
+保持せず、Plug(ノードの ``MObjectHandle`` を持つ)を保持してください。
+
+``Node(...)`` は入力の解決(名前の検索など)を ``__new__`` で1回だけ行い、結果を
+``__init__`` へ引き継ぎます。ラッパー型の選択のために解決をやり直さないでください
+(``Node`` の生成はシーン全体の列挙などで大量に呼ばれるため)。
+
+大量に呼ばれる処理の性能について、次を前提にしています(transform 2000 個での実測。
+比較の基準は ``maya.cmds`` へ ``cmds.getAttr(type=True)`` で型を問い合わせていた以前の実装)。
+
+- ``Node(...)``・``node.plug()``・``hlib.ls()`` は以前の実装の約 0.4〜0.55 倍の時間です。
+- ``Plug.get()`` は読み方(``MPlug.asDouble`` など)を属性定義から Plug ごとに一度だけ選んで
+  保持するため、以前の約 0.4〜0.6 倍です。値を読むたびに行う有効性の確認(動的属性は
+  ``attributeClass()``)はこの中に含まれます。
+- ``str(plug)``/``Plug.full_name()`` は、DAG ノードの Plug で以前の約 2.1〜2.6 倍
+  (1 回あたり約 +1µs)です。以前は ``MPlug.name()`` をそのまま返していたため、同じ短い
+  名前のノードがあると曖昧な名前になっていました。一意な名前を返すために
+  ``MFnDependencyNode.hasUniqueName()`` を毎回問い合わせる必要があり(名前の一意性は
+  ほかのノードの作成・名前変更で変わるため、結果を保持できません)、この分は削れません。
+  DG ノードは一意性の確認が不要なため約 1.16 倍です。名前を繰り返し使うループでは、
+  ``str(plug)`` を一度だけ求めて使い回すか、``plug.mplug()`` を直接使ってください。
+  判定の処理(``_require_valid()``・``full_name()`` の属性の存在確認)は呼び出しの負荷を
+  避けるため ``_attribute_exists()`` と同じ内容を直接書いています。変更する場合は3か所を
+  そろえてください。
+
 変換の際は必ず ``cmds`` ベースの旧実装と ``om2`` ベースの新実装を
 同一ノードで比較するスクリプトを Maya 上で実行し、値の一致(特に単位変換と、
 周期 NURBS カーブの CV アドレッシングのような cmds 固有の挙動)を確認してから
@@ -198,6 +283,41 @@ APIのグラフ走査や個別フラグから似た判定を再構築して意�
 (既に他ファイルでカバー済みの突き合わせの一覧は同ファイルの
 docstring を参照)。
 
+
+maya.cmds へ渡す名前と入力の正規化
+----------------------------------
+
+利用者向けの仕様は :doc:`cmds_interop` にまとめています。hlib の実装では次を守ります。
+
+- maya.cmds へ渡すプラグ名は ``Plug.full_name()``、または ``_core.coerce`` の
+  ``plug_path()``/``unique_node_name()``/``to_name()`` で作ります。``MPlug.name()`` と
+  ``MFnDependencyNode.name()`` は短いノード名しか含まず、同じ短い名前のノード
+  (``grp1|dup`` と ``grp2|dup``)があると曖昧になるため、maya.cmds へ渡したり
+  重複判定のキーにしたりしません。例外は ``Plug.full_name()`` の高速経路で、短い名前が
+  一意なノード(DG ノードと、``hasUniqueName()`` が真でインスタンス化されていない
+  アンダーワールド以外の DAG ノード)に限り ``MPlug.name()`` をそのまま返します(このとき ``MPlug.name()`` は
+  ``<最短一意名>.<属性パス>`` と一致します。``str(plug)`` は大量に呼ばれるため)。
+- ノード・属性を受け取るコマンドとメソッドは、``_core.coerce`` の ``to_name``/``to_names``
+  (名前)、``to_node`` (ノード。Plug は所有ノード、Component は所有シェイプ)、
+  ``to_node_name`` (``parent`` などノードが必要な単一の引数。所有ノードの完全パス)、
+  ``to_plug`` (属性)で入力を正規化します。``to_name``/``to_names`` は文字列を解決せずに
+  そのまま渡します。例外は、対応しない型が ``TypeError``、空・削除済みの対象が
+  ``ValueError``、解決できない(存在しない・一意でない)文字列が ``RuntimeError`` です。
+  ただし ``to_node`` は削除済みの Node・Plug・Component をそのまま(所有ノードとして)
+  返し、有効性の扱いは呼び出し側の API に任せます(``Node(...)``/``hlib.node`` と
+  ``hlib.constraint``/``Transform.add_constraint`` は従来どおり ``RuntimeError``、
+  ``Node.is_parent_of`` などの判定は ``False``)。
+- ``MSelectionList`` の属性の要素は ``getDagPath()`` を使えず、インスタンスの情報も
+  持たないため、所有ノードは ``_core.coerce.selection_owner()`` で求めます(元の文字列の
+  ノード部分から、名前が指すインスタンスを保持します)。
+- ``Components`` を maya.cmds へ渡すときは ``compact_names()`` で連続する番号を範囲指定に
+  まとめ、全番号の検証もコレクションごとに1回だけ行います。
+- Node・Plug など単一の対象を表すクラスに ``__len__``/``__iter__`` を追加しません。
+  maya.cmds がシーケンスとして展開してしまうためです。``__getitem__`` を持つ
+  ``ArrayPlug`` は同じ理由で maya.cmds へそのまま渡せないため、docstring と
+  :doc:`cmds_interop` に明記しています。
+- 仕様の検証は ``__tests__/test_cmds_interop.py`` (maya.cmds との受け渡し)と
+  ``__tests__/test_coerce.py`` (正規化の規則)に追加します。
 
 hlib内で独自プラグインを作らない方針
 ------------------------------------

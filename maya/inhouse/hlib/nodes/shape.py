@@ -14,10 +14,10 @@ class Shape(Node):
 
         Returns:
             om2.MDagPath | None: 有効な DAG パス。取得できない場合は ``None``。
+                保持していたインスタンスのパスが削除された場合は、残っている最初の
+                インスタンスのパスを返す。
         """
-        if self._dag_path is None and self.is_valid():
-            self._dag_path = om2.MFnDagNode(self.mobject()).getPath()
-        return self._dag_path
+        return self._current_dag_path()
 
     def dag_node(self):
         """Shape 用の MFnDagNode を取得する。

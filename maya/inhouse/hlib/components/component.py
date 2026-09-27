@@ -170,9 +170,88 @@ class Components:
         """
         return len(self._indices)
 
+    def _name_prefix(self):
+        """全番号をまとめて再検証し、``<シェイプの完全パス>.<種類>`` を返す。
+
+        Returns:
+            str: ``|cube|cubeShape.vtx`` のような接頭辞。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: いずれかの番号が現在の要素数の範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        component_class = self.component_class
+        if not self._shape.is_valid():
+            raise RuntimeError("Component shape is invalid")
+        if self._shape.type() != component_class.shape_type:
+            raise TypeError(f"Expected a {component_class.shape_type} shape")
+        if self._indices:
+            largest = max(self._indices)
+            if largest >= getattr(self._shape, component_class.count_attribute)():
+                raise IndexError(f"Component index out of range: {largest}")
+        return f"{self._shape.full_name()}.{component_class.component_type}"
+
     def full_names(self):
-        """list[str]: 保持順の完全コンポーネント名。全要素を再検証する。"""
-        return [item.full_name() for item in self]
+        """保持順の完全コンポーネント名を取得する。
+
+        全番号の再検証はまとめて1回だけ行う。
+
+        Returns:
+            list[str]: ``|cube|cubeShape.vtx[3]`` のような要素ごとの名前。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: いずれかの番号が範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        prefix = self._name_prefix()
+        return [f"{prefix}[{index}]" for index in self._indices]
+
+    def compact_names(self):
+        """保持順で連続する番号を範囲指定にまとめた名前を取得する。
+
+        ``maya.cmds`` へ多数の要素を渡す用途向け(``hlib.select`` などが使う)。
+        番号 ``[0, 1, 2, 5, 3]`` は ``vtx[0:2]``・``vtx[5]``・``vtx[3]`` になり、
+        展開した順序は保持順と一致する。全番号の再検証はまとめて1回だけ行う。
+
+        Returns:
+            list[str]: ``|cube|cubeShape.vtx[0:2]`` のような名前。空のコレクションは空リスト。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: いずれかの番号が範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        prefix = self._name_prefix()
+        names = []
+        start = previous = None
+        for index in self._indices:
+            if previous is not None and index == previous + 1:
+                previous = index
+                continue
+            if start is not None:
+                names.append(self._range_name(prefix, start, previous))
+            start = previous = index
+        if start is not None:
+            names.append(self._range_name(prefix, start, previous))
+        return names
+
+    @staticmethod
+    def _range_name(prefix, start, end):
+        """範囲指定のコンポーネント名を作る。
+
+        Args:
+            prefix (str): ``<シェイプの完全パス>.<種類>``。
+            start (int): 先頭の番号。
+            end (int): 末尾の番号(先頭と同じなら単体)。
+
+        Returns:
+            str: ``prefix[start]`` または ``prefix[start:end]``。
+        """
+        if start == end:
+            return f"{prefix}[{start}]"
+        return f"{prefix}[{start}:{end}]"
 
     def _coordinate_rows(self, values, size):
         """要素別座標を全件検証する。個数・座標不正はValueError。
