@@ -21,16 +21,23 @@
    ├ icons/                  アイコンの元データ(実行時は plugin.cpp に同梱した SVG を使う)
    └ docs/                   このドキュメント
 
-hedit本体のロジックは「scripts/」配下のファイルとしては存在しない
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+hedit 本体の Python は hedit.mll に同梱する
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 旧版にあった ``scripts/hedit/__init__.py`` / ``docking.py`` / ``bridge.py`` / ``completion.py`` /
 ``analysis.py`` / ``startup.py`` は、内容をそのまま ``src/embedded_python.h`` の生文字列リテラルへ移しました。
-``initializePlugin``(``plugin.cpp``)が ``hedit::embedded::installModules()`` で ``sys.meta_path`` の
+``initializePlugin``\ (``plugin.cpp``)が ``hedit::embedded::installModules()`` で ``sys.meta_path`` の
 先頭へ import フックを登録し、``import hedit`` や ``from . import docking`` は通常の ``.py`` と同じく
 import した時点で同梱ソースから読み込まれます(バッチ/mayapy でも登録するため、補完などの
 Python API は standalone でも使えます)。ディスク上にこれらの ``.py`` ファイルは存在しません。
 **Plug-in Manager での明示ロードだけでも、復元・Window メニュー登録まで含めて完結します。**
+
+* フックを ``sys.meta_path`` の先頭に置くのは、``PYTHONPATH`` 上に同名のフォルダー(旧版の ``__pycache__``
+  だけが残った ``scripts/hedit`` など)があっても、空の名前空間パッケージとして先に解決させないためです。
+  そうした同梱以外で読まれた ``hedit`` 系のモジュールは、ロード時に取り除きます。
+* プラグインをアンロードしてロードし直しても、同梱から読み込み済みのモジュールは残します
+  (旧版の ``.py`` と同じく、ドックのホストやタイマーなどの状態を失わないため)。
+  新しいソースを反映するには Maya を再起動してください。
 
 ロード時の処理の分担は次のとおりです。
 
@@ -47,11 +54,11 @@ Python API は standalone でも使えます)。ディスク上にこれらの `
      - ``plugin.cpp`` の ``kMenuIconSvg`` に SVG を同梱。``menuItem -image`` はファイルパスしか受け付けないため、
        ロード時に ``<userPrefDir>/hedit/hedit.svg`` へ書き出して使う(内容が同じなら書き直さない)。
    * - 前回画面の復元
-     - ``hedit.startup.plugin_loaded()``(PySide の ``MayaQWidgetDockableMixin`` が必要なため Python)。
+     - ``hedit.startup.plugin_loaded()``\ (PySide の ``MayaQWidgetDockableMixin`` が必要なため Python)。
        保存済みの空の workspaceControl が残っている場合は、表示するだけにして Maya 自身の ``uiScript``
        (``hedit.restore()``)に中身を作らせる。
    * - Maya 終了時の出力転送の停止
-     - ``plugin.cpp`` の ``onMayaExiting``(``kMayaExiting``)。終了処理中の reporter 追記を hedit 画面へ描画しない。
+     - ``plugin.cpp`` の ``onMayaExiting``\ (``kMayaExiting``)。終了処理中の reporter 追記を hedit 画面へ描画しない。
 
 .. note::
 
@@ -111,9 +118,17 @@ Windows で、Visual Studio と Maya の devkit が必要です。親リポジ�
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2024 2025 2026 2027
 
 * ビルドフォルダーは ``.maya-output/plugin-build/`` の下(Git の対象外)です。
-* 出力は ``release/plug-ins/windows/<Mayaの年>/<hedit の版>/hedit.mll`` です。バージョンを上げるときは
-  ``scripts/hedit/__init__.py`` の ``__version__`` と、\ ``hedit.mod`` の版・パスを合わせて更新します。
+* 出力は ``release/plug-ins/windows/<Mayaの年>/<hedit の版>/hedit.mll`` です。
 * ロード済みの ``.mll`` は上書きできません。ビルドの前に、該当する Maya を終了してください。
+* ``src/embedded_python.h`` の Python ソースも ``.mll`` に含まれるため、Python 部分だけを直した場合も再ビルドが必要です。
+
+版を上げるときは、次の箇所をそろえて更新します(このドキュメントの版は 1 の値を自動で読みます)。
+
+#. ``src/embedded_python.h`` の ``kInitSource`` 内の ``__version__``\ (ドックのタイトルにも表示)
+#. ``src/plugin.cpp`` の ``MFnPlugin plugin(object, "hedit", "<版>", "Any")``
+#. ``CMakeLists.txt`` の出力先 ``release/plug-ins/windows/${MAYA_VERSION}/<版>`` と PDB の出力先
+#. 親リポジトリの ``maya/modules/hedit.mod`` の各バージョンの版と ``MAYA_PLUG_IN_PATH``
+#. ``docs/changelog.rst``
 
 Visual Studio のプロジェクトだけを作る
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -129,12 +144,14 @@ Visual Studio のプロジェクトだけを作る
 テスト
 ------
 
+リポジトリ直下から実行します。
+
 .. code-block:: powershell
 
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_tests.py 2022 2024 2025 2026 2027
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_startup.py 2022 2024 2025 2026 2027
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_gui.py 2027
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_session.py 2024 2027
-   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_startup.py 2024 2027
 
 .. list-table::
    :header-rows: 1
@@ -143,18 +160,33 @@ Visual Studio のプロジェクトだけを作る
    * - スクリプト
      - 内容
    * - ``run_tests.py``
-     - 補完の単体テスト、Maya standalone での ``.mod`` / プラグイン / 補完候補、同じ C++ ウィジェットの offscreen 描画
-   * - ``run_gui.py``
-     - 専用の空シーン・専用設定の Maya GUI で、表示・ドッキング・実行・出力・補完・検索・ショートカットなどを確認
-   * - ``run_session.py``
-     - タブと Explorer の復元
+     - 版ごとに、補完・静的解析の単体テスト(``test_completion.py``)、Maya standalone での ``.mod`` の解決・
+       プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、同じ C++ ウィジェットの offscreen 描画
+       (``hedit_ui_smoke.exe``)を実行する
    * - ``run_startup.py``
-     - 同じ専用設定で 3 回起動し、ドック・Python / MEL 本文の復元と、閉じた場合の非表示を確認
+     - 同じ専用設定で 3 回起動する(``startup_smoke.py``)。プラグインのロードだけで Window メニューの項目と
+       アイコンが追加されること、メニューのコマンドで開けること、右ドック・Python / MEL 本文の復元、
+       閉じた場合に再表示しないこと、アンロードでメニュー項目が消えることを確認
+   * - ``run_gui.py``
+     - 専用の空シーン・専用設定の Maya GUI で、``userSetup.py`` による自動ロード、表示・ドッキング・実行・出力・補完・
+       検索・ショートカットなどを確認(``--suite`` で ``gui_smoke.py`` / ``completion_output_smoke.py`` /
+       ``formatting_spelling_smoke.py`` / ``output_format_smoke.py`` を選ぶ。既定は ``gui_smoke.py``)
+   * - ``run_session.py``
+     - 2 回起動し、未保存タブの自動保存と、次の起動での本文・パス・選択位置・未保存状態の復元を確認(``session_smoke.py``)
+   * - ``test_rename.py``
+     - 旧名 ``heditor`` の保存先からのコピーを確認。mayapy で単体実行する(``MAYA_MODULE_PATH`` に ``maya/modules`` が必要)
 
+* ``hedit`` の Python は ``hedit.mll`` に同梱されているため、テストは ``import hedit`` の前に
+  ``cmds.loadPlugin('hedit')`` を行います(``.mod`` の ``MAYA_PLUG_IN_PATH`` からプラグイン名で解決)。
+* GUI テストのランナーは全ての ``userSetup`` を抑止します。そのため、起動時の入口
+  (``scripts/userSetup.py`` と同じ ``loadPlugin``)は各テストが明示的に実行します。
 * GUI テストのモジュールディレクトリには hedit の ``.mod`` だけを用意します(ワークスペース全体の外部モジュールは読み込みません)。
   普段の起動バッチ・ユーザー設定・信頼設定は変更しません。
 * ログ・画像は ``.maya-output/`` の下に保存します。
-* 起動・テストの期限は各 120 秒、終了待ちは 30 秒です。\ ``--timeout`` / ``--shutdown-timeout`` で変更できます。
+* 期限: ``run_gui.py`` は起動・テストが 120 秒、終了待ちが 30 秒(``--timeout`` / ``--shutdown-timeout`` で変更可)。
+  ``run_startup.py`` / ``run_session.py`` は 120 秒 / 60 秒の固定です。
+* Maya 2024 は起動直後に Arnold(mtoa)の遅延登録が GUI スレッドを約 5 秒止めます。GUI テストで待機する場合は、
+  壁時計ではなくイベントループが回った回数で数えてください(``session_smoke.py`` 参照)。
 
 別リポジトリへ切り出すときに必要なこと
 --------------------------------------

@@ -43,9 +43,11 @@ def main(output_dir, finished):
     try:
         from maya.api import OpenMaya as om
         import runpy
-        import hedit
-        runpy.run_path(str(Path(hedit.__file__).resolve().parents[1] / "userSetup.py"))
+        # GUIランナーは全userSetupを抑止するので、.modの起動入口(loadPluginだけ)を明示実行する。
+        # hedit.*はhedit.mllに同梱されており、プラグインのロード後にimportできる。
+        runpy.run_path(str(Path(__file__).resolve().parents[2] / "scripts" / "userSetup.py"))
         wait(300)
+        import hedit
         host = hedit.show(floating=True)
         window = host.editor
         try:

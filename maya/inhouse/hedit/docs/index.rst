@@ -3,7 +3,8 @@ hedit ドキュメント
 
 hedit は、Maya 用の Python / MEL スクリプトエディターです。VS Code の Dark+ を参考にした配色、
 タブ、行番号、補完候補、出力欄、フォルダーツリー(Explorer)を備えています。
-エディター本体は C++ / Qt のプラグインで、Maya と同じプロセスの中で動きます。
+エディター本体は C++ / Qt のプラグイン(``hedit.mll``)で、Maya と同じプロセスの中で動きます。
+Python の部分もプラグインに同梱しているため、プラグインをロードするだけで Window メニューから使えます。
 
 .. figure:: _static/images/top.png
    :alt: hedit の画面。上段が出力欄、下段がコード欄

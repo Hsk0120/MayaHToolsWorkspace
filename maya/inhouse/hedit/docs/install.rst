@@ -12,14 +12,14 @@
 起動時に ``hedit.mll`` を自動ロードするための最小の Python(``scripts/userSetup.py``)を設定します。
 
 hedit のロジック(復元・Window メニュー登録・補完・静的解析・タブ保存など)自体は
-``.py`` ファイルを持たず、``hedit.mll`` 自身に C++ の文字列として同梱されています
-(:doc:`development` 参照)。ロード時に Maya 同梱の CPython 上へ直接展開されるため、
+``.py`` ファイルを持たず、``hedit.mll`` 自身に同梱されています(:doc:`development` 参照)。
+プラグインのロード時に、Maya 同梱の Python から ``import hedit`` できるようになります。
 Plug-in Manager からの明示ロードでも、この ``userSetup.py`` 経由の自動ロードでも、
 起こることは同じです。``userSetup.py`` が行うのは ``cmds.loadPlugin('hedit')`` の
 呼び出しだけで、復元やメニュー登録のロジックはここには置いていません。
 
-Maya の GUI が起動すると、``userSetup.py`` が次の idle で ``hedit`` プラグインを
-ロードします。これを契機に ``initializePlugin``(C++)が Window メニューへの項目追加と、
+Maya の GUI が起動すると、\ ``userSetup.py`` が次の idle で ``hedit`` プラグインを
+ロードします。これを契機に ``initializePlugin``\ (C++)が Window メニューへの項目追加と、
 前回開いていた場合の画面復元まで自動的に行います。
 
 .. note::
@@ -34,20 +34,26 @@ Maya の GUI が起動すると、``userSetup.py`` が次の idle で ``hedit`` 
 画面を開く
 ----------
 
-Plug-in Manager で ``hedit`` をロードすると、Window メニュー末尾に項目(緑の H アイコン)が
-追加されます。そこから開くのが最も確実な方法です。
+``hedit`` をロードすると(起動時の自動ロード・Plug-in Manager のどちらでも)、
+Window メニューの末尾に区切り線と **hedit - Python / MEL**\ (緑の H アイコン)が追加されます。
+これをクリックして開くのが基本の起動方法です。プラグインをアンロードすると、この項目も取り除かれます。
 
-すでにロード済みであれば、Python タブから次でも開けます。
+メニュー項目のコマンドは次と同じなので、Python タブからも開けます。
 
 .. code-block:: python
 
    import hedit
    hedit.show()
 
-``import hedit`` は ``hedit`` プラグインが一度でもロードされていれば動作します
-(``sys.modules['hedit']`` に展開済みのため)。プラグイン未ロードの状態から
-いきなり ``import hedit`` を実行すると ``ModuleNotFoundError`` になります。
-その場合は先に Plug-in Manager でロードしてください。
+``import hedit`` は、\ ``hedit`` プラグインをロードした後で使えます。プラグインが未ロードのまま
+``import hedit`` を実行すると ``ModuleNotFoundError`` になるため、先にロードしてください。
+mayapy(standalone)から補完などの Python API を使う場合も同様です。
+
+.. code-block:: python
+
+   from maya import cmds
+   cmds.loadPlugin('hedit')   # .mod の MAYA_PLUG_IN_PATH から名前で見つかる
+   import hedit
 
 ``show()`` の引数:
 
@@ -79,7 +85,10 @@ Preferences → Security → Plug-ins の「My trusted plugin locations」に追
 更新するとき
 ------------
 
-* C++ プラグイン(``.mll``)は Python の ``reload()`` では更新されません。Maya を再起動してください。
+* C++ プラグイン(``.mll``)は Python の ``reload()`` では更新されません。hedit の Python 部分も ``.mll`` に
+  同梱されているため同様です。更新後は Maya を再起動してください。
+* ``scripts/hedit/*.py`` を使っていた旧版から更新した場合も、Maya の再起動だけで切り替わります。
+  ``scripts/hedit`` に ``__pycache__`` だけが残っていても、同梱の ``hedit`` が優先されるため影響はありません(削除して構いません)。
 * フォルダー名・パッケージ名・プラグイン名は小文字の ``hedit`` です。旧名 ``heditor`` の保存先(未保存タブ・UI 状態・設定)は、
   新しい保存先に同名のファイルがまだない場合だけ ``hedit`` へコピーします。旧データは削除しません。
 

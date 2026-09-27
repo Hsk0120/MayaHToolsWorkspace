@@ -50,4 +50,6 @@ Maya 標準スクリプトエディターとの関係
 * Windows の Maya 2022(Python 3)/ 2024 / 2025 / 2026 / 2027 で、ビルド・単体テスト・standalone・GUI の確認をしています。
   Maya 2023 は確認していません。
 * Maya のバージョンごとに別のバイナリ(``hedit.mll``)を使います。Qt は Maya 同梱の Qt を動的に使います(2022・2024 は Qt5、2025 以降は Qt6)。
+* 補完・静的解析・ドッキングなどの Python の部分も ``hedit.mll`` に同梱しています。\ ``.py`` ファイルの配置は不要で、
+  プラグインのロードだけで Window メニューへの登録と前回画面の復元まで行います(:doc:`install`)。
 * スペルチェックは Windows 標準の辞書を使うため Windows 専用です(:ref:`pref-spellCheck`)。
