@@ -23,6 +23,23 @@ def state_path():
     return Path(session_path()).with_name('ui.json')
 
 
+def _debug_log(event, **fields):
+    """開閉状態の変化を追記する調査用ログ(挙動には影響しない)。
+
+    「再起動時に復元されない」不具合の原因(誰が何をきっかけに閉じた扱いにしたか)を
+    次回の発生時に確認するための一時的な仕組み。失敗しても他の処理は継続する。
+    """
+    import time
+    try:
+        path = state_path().with_name('startup-debug.log')
+        line = {'time': time.strftime('%Y-%m-%d %H:%M:%S'), 'event': event}
+        line.update(fields)
+        with path.open('a', encoding='utf-8') as handle:
+            handle.write(json.dumps(line, ensure_ascii=False) + '\n')
+    except OSError:
+        pass
+
+
 def previous_open():
     """bool: 保存済みの開閉状態。未保存の場合は明示的な復元を許可する。"""
     try:
@@ -84,6 +101,9 @@ def record():
 def closed(*unused):
     """ユーザーが閉じた時だけ、次回の自動表示を停止する。"""
     global _opened
+    from .docking import CONTROL
+    _debug_log('closed', quitting=_quitting,
+               control_exists=cmds.workspaceControl(CONTROL, exists=True))
     if not _quitting:
         _opened = False
         record()
@@ -92,6 +112,7 @@ def closed(*unused):
 def quitting(*unused):
     """MayaがUIを閉じる前に最終状態を保存し、以後の変更を凍結する。"""
     global _quitting
+    _debug_log('quitting', opened=_opened)
     # ドックの入れ子・タブグループはMaya自身のワークスペースに保存する。
     # workspaceControl.stateStringは版によって空リストを返し、配置復元には使えない。
     cmds.workspaceLayoutManager(save=True)
@@ -114,6 +135,7 @@ def opened():
     _timer.start()
     if _quit_job is None:
         _quit_job = cmds.scriptJob(event=['quitApplication', quitting], runOnce=True)
+    _debug_log('opened')
     record()
 
 
@@ -127,12 +149,25 @@ def restore_previous():
         return
     if state.get('version') != 1:
         return
+    from .docking import CONTROL
+    existing = cmds.workspaceControl(CONTROL, exists=True)
+    visible = existing and cmds.workspaceControl(CONTROL, query=True, visible=True)
+    _debug_log('restore_previous', state=state, existing=existing, visible=visible)
     if not state.get('open'):
         hide_if_closed()
         return
+    if visible:
+        # Mayaのワークスペース復元(保存済みworkspaceControlのuiScriptによる
+        # hedit.restore()呼び出し)が、この時点で既に表示・状態記録まで済ませている。
+        # ここで改めてhedit.show()を呼ぶと、既存の表示を一度close()してから
+        # 開き直すため、ユーザーが閉じた場合と同じcloseCommandが発火し、
+        # 「閉じた」記録が一瞬だけ残ってしまう。直後にMayaが終了する等
+        # タイミングが悪いと、その記録のまま保存され、次回起動時に復元
+        # されなくなる(再起動のたびに開かなくなる不具合の原因だった)。
+        # 二重に開き直さず、状態の記録だけ行う。
+        record()
+        return
     import hedit
-    from .docking import CONTROL
-    existing = cmds.workspaceControl(CONTROL, exists=True)
     hedit.show(floating=None if existing else state.get('floating', True))
     if not existing and not state.get('floating', True):
         cmds.warning('hedit: saved workspace control is unavailable; docked at the bottom. Restore the saved Maya workspace for the original placement.')
