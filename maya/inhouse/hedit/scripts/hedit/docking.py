@@ -8,6 +8,9 @@ except ImportError:
     from PySide2 import QtCore, QtWidgets
     from shiboken2 import wrapInstance, getCppPointer, isValid
 
+from hedit import __version__
+
+WINDOW_TITLE = f'hedit {__version__} - Python / MEL'
 CONTROL = 'heditDockWorkspaceControl'
 # 保存済みの旧ドックがある場合はその配置を再利用する。画面名はheditに更新する。
 if (cmds.workspaceControl('HEditorDockWorkspaceControl', exists=True)
@@ -22,7 +25,7 @@ class heditDock(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     def __init__(self):
         super(heditDock, self).__init__()
         self.setObjectName('heditDock')
-        self.setWindowTitle('hedit - Python / MEL')
+        self.setWindowTitle(WINDOW_TITLE)
         self.resize(1050, 740)
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -82,7 +85,7 @@ def _show(floating=None, restore=False):
     if restore:
         restore_parent = OpenMayaUI.MQtUtil.findControl(CONTROL) or OpenMayaUI.MQtUtil.getCurrentParent()
     if cmds.workspaceControl(CONTROL, exists=True):
-        cmds.workspaceControl(CONTROL, edit=True, label='hedit - Python / MEL')
+        cmds.workspaceControl(CONTROL, edit=True, label=WINDOW_TITLE)
     if _host is None or not isValid(_host):
         _host = heditDock()
         # 閉じたworkspaceControlのuiScriptは本体生成を遅延する。
@@ -90,6 +93,7 @@ def _show(floating=None, restore=False):
         if not restore and cmds.workspaceControl(CONTROL, exists=True):
             parent = OpenMayaUI.MQtUtil.findControl(CONTROL)
             OpenMayaUI.MQtUtil.addWidgetToMayaLayout(int(getCppPointer(_host)[0]), int(parent))
+    _host.setWindowTitle(WINDOW_TITLE)
     if restore:
         parent = restore_parent
         if not parent:

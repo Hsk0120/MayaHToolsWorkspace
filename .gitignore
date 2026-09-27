@@ -256,3 +256,5 @@ compile_commands.json
 
 # 型スタブ(tools/setup_maya_typings.py で生成)
 /typings/
+.aider*
+.venv-aider/
