@@ -6,7 +6,7 @@ hedit は、Maya 用の Python / MEL スクリプトエディターです。VS C
 エディター本体は C++ / Qt のプラグインで、Maya と同じプロセスの中で動きます。
 
 .. figure:: _static/images/top.png
-   :alt: hedit の画面。上段が出力欄、下段がコード欄、左が Explorer
+   :alt: hedit の画面。上段が出力欄、下段がコード欄
    :width: 100%
 
    hedit の画面。上段が出力欄(種別ごとに色分け)、下段がコード欄(タブ・行番号・補完)です(左の Explorer は表示を切り替えられます)。
