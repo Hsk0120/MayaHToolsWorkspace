@@ -47,12 +47,43 @@ APIの命名と移行
      - maths.EulerRotation。ラジアンと回転順序を保持。度はfrom_degrees()。
    * - EulerRotation.asDegrees()
      - as_degrees()。
+   * - EulerRotation.order(名前の文字列)
+     - order_name。order はom2と同じ番号(int、MayaのrotateOrder属性と同じ並び)になった。
+   * - Transform.get_rotate()(XYZ順序の値)
+     - get_rotate()はcmds.xformと同じくノードのrotateOrderの値になった。XYZ順序はget_euler()。
+       set_rotate()の3成分もノードのrotateOrderの値として扱う。
    * - json.CurveSnapshot
      - json.NurbsCurveSnapshot。
 
 複数形の ``get_position()`` は単体と同名で呼べる入口として残し、
 保持順の座標列を返します。``set_position(value)`` は同じ座標を全要素へ設定、
 ``set_positions(values)`` は要素ごとの座標を設定します。
+
+数学型の意味の変更
+------------------------------
+
+``hlib.maths`` の Vector 系・Quaternion・EulerRotation・Matrix は OpenMaya API 2.0 の型を
+継承し、意味を om2 に合わせました(詳細は :doc:`guide_maths` と :doc:`matrices`)。
+以前の hlib(dataclass 版)から挙動が変わる主な点は次のとおりです。
+
+* 値は可変で、ハッシュ不可(``dict`` のキーや ``set`` の要素にできない)。``+=`` などは
+  同じオブジェクトを書き換える。``==`` は同じ om2 の系統なら型が違っても成分で比較する
+  (``Translation(1, 2, 3) == Scale(1, 2, 3)`` は True、EulerRotation は順序も比較する)。
+* ``Vector * Vector`` は内積(float)、``^`` は外積。``v * m`` は平行移動を含まない方向の変換、
+  ``m * v`` は om2 と同じ列ベクトルとしての積で、以前の ``m * v`` (位置の変換)は
+  ``m.transform_point(v)``。``m @ v`` は TypeError。
+* ``q1 * q2`` は om2 の順序(q1 を先に適用。以前の Hamilton 積 ``q1 ⊗ q2`` とは逆)。
+  ``to_swing_twist`` の結果は ``twist * swing`` で元の回転になる。
+* EulerRotation は Vector の派生ではなく(``dot`` などは無い)、``order`` は om2 の番号(int)。
+  名前は ``order_name``。``Matrix(rotate=EulerRotation)`` はその回転順序を反映する。
+* 行列の分解は ``om2.MTransformationMatrix`` の規約(行列式が負なら Z スケールが負。以前は X)。
+  Euler 角は om2 の解(中間軸が 90 度を超える側になることがある)。
+* ``Transform.get_rotate`` / ``set_rotate`` の3成分はノードの rotateOrder の値(XYZ 順序は
+  ``get_euler``)。``set_*`` はスケールの符号と Euler の解を現在のチャンネル値に近いものへ揃える。
+* ``Vector()`` はゼロベクトル、``Vector(x, y)`` は z=0 (om2 と同じ)。文字列の成分
+  (``Vector("1", "2", "3")``)は ValueError。添字の範囲外は負の値も IndexError。
+* ``hlib.maths`` の import に Maya(mayapy または Maya 本体)が必要。以前の hlib で作った
+  pickle は読み込めない(JSON の ``math:*`` 記録は読み込める)。
 
 SkinClustersの責務
 ------------------------------
@@ -121,3 +152,5 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 ``hlib.channelBox()`` / ``hlib.timeSlider()`` / ``hlib.drivenKey()`` のコマンド名は変わりません。
 JSONに保存済みの ``math:Translate`` はTranslation、``math:Rotate`` はXYZ順の
 EulerRotationとして読み込めます。成分値は換算せず引き継ぎます。
+EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読み込み後は
+``order_name`` で名前、``order`` でom2の番号を取得できます。

@@ -4,6 +4,7 @@ import math
 import sys
 import unittest
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 import hlib
@@ -99,7 +100,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(names(source.outputs(type="transform")), names(source.outputs()))
         self.assertEqual(source.connections(type="mesh"), [])
 
-    def test_transform_matrix_round_trip_uses_dataclass_maths_values(self):
+    def test_transform_matrix_round_trip_uses_om2_maths_values(self):
         transform = self.create_transform("hlibNodeApiMatrix")
 
         transform.set_translate((1.0, 2.0, 3.0))
@@ -118,8 +119,10 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsInstance(matrix, Matrix)
         self.assertEqual(matrix.translate, translate)
 
-        # Translation/Scale は dataclass 化により同一クラス同士のみ等価になる。
-        self.assertNotEqual(translate, Scale(1.0, 2.0, 3.0))
+        # om2.MVector を継承するため、等価比較は om2 と同じ値の比較になり、
+        # 派生型(Translation/Scale)が違っても成分が同じなら等しい。型は保持される。
+        self.assertEqual(translate, Scale(1.0, 2.0, 3.0))
+        self.assertIsNot(type(translate), Scale)
 
     def test_transform_pivot_get_set_local_and_world(self):
         transform = self.create_transform("hlibNodeApiPivot")
@@ -647,6 +650,207 @@ class NodeApiTest(unittest.TestCase):
         cmds.delete(transform.name())
         with self.assertRaises(RuntimeError):
             transform.set_matrix(matrix)
+
+    def test_transform_set_matrix_round_trip_preserves_world_for_every_rotate_order(self):
+        # XYZ で分解した回転をノードの rotateOrder へ並べ替えて書き込むため、
+        # xyz 以外の順序でも set_matrix / set_translate / rotate プラグの往復で姿勢が変わらない。
+        parent = self.create_transform("hlibNodeApiOrderParent")
+        cmds.setAttr(parent.full_name() + ".rotate", 10.0, 20.0, 30.0)
+        for order in range(6):
+            node = self.create_transform("hlibNodeApiOrder%d" % order)
+            node.set_parent(parent)
+            name = node.full_name()
+            cmds.setAttr(name + ".rotateOrder", order)
+            cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
+            cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
+            cmds.setAttr(name + ".scale", 1.0, 2.0, 3.0)
+            world = node.get_matrix(ws=True)
+
+            node.set_matrix(node.get_matrix())
+            self.assertTrue(node.get_matrix(ws=True).is_equivalent(world, 1e-9), order)
+            node.set_matrix(world, ws=True)
+            self.assertTrue(node.get_matrix(ws=True).is_equivalent(world, 1e-9), order)
+            node.set_translate((4.0, 5.0, 6.0))
+            self.assertTrue(node.get_quaternion(ws=True).isEquivalent(world.quaternion, 1e-9), order)
+
+            before = node.get_matrix()
+            rotate = node.plug("rotate").get()
+            self.assertIsInstance(rotate, EulerRotation)
+            self.assertEqual(rotate.order, order)
+            node.plug("rotate").set(rotate)
+            self.assertTrue(node.get_matrix().is_equivalent(before, 1e-9), order)
+            node.set_rotate(EulerRotation.from_degrees(40.0, -50.0, 60.0, order))
+            self.assertTrue(node.get_matrix().is_equivalent(before, 1e-9), order)
+        with self.assertRaises(ValueError):
+            node.set_rotate(EulerRotation(0.1, 0.2, 0.3), unit="deg")
+
+    def assert_channels(self, name, rotate, scale, places=9):
+        for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], rotate):
+            self.assertAlmostEqual(actual, expected, places=places)
+        for actual, expected in zip(cmds.getAttr(name + ".scale")[0], scale):
+            self.assertAlmostEqual(actual, expected, places=places)
+
+    def test_transform_negative_scale_keeps_channel_sign_pattern(self):
+        # Matrix の分解は om2 の規約(Z が負)だが、ノードの取得・設定はスケールの符号を
+        # 現在の scale チャンネルへ揃えるため、X をミラーしたノードでも rotate が保たれる。
+        node = self.create_transform("hlibNodeApiNegativeScale")
+        name = node.full_name()
+        cmds.setAttr(name + ".rotate", 10.0, 20.0, 30.0)
+        cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
+        matrix = node.get_matrix()
+        transformation = om2.MTransformationMatrix(matrix)
+        self.assertTrue(matrix.scale.is_equivalent(Vector(*transformation.scale(om2.MSpace.kTransform)), 1e-12))
+        self.assertLess(matrix.scale.z, 0.0)
+
+        scale = node.get_scale()
+        self.assertIsInstance(scale, Scale)
+        self.assertTrue(scale.is_equivalent(Scale(-1.0, 2.0, 3.0), 1e-12))
+        rotate = node.get_rotate()
+        self.assertTrue(rotate.is_equivalent(EulerRotation.from_degrees(10.0, 20.0, 30.0), 1e-12))
+        self.assertTrue(Matrix(rotate=node.get_quaternion(), scale=scale).is_equivalent(matrix, 1e-12))
+
+        world = node.get_matrix(ws=True)
+        for operation in (
+            lambda: node.set_matrix(matrix),
+            lambda: node.set_matrix(world, ws=True),
+            lambda: node.set_translate((0.0, 0.0, 0.0)),
+            lambda: node.set_scale(node.get_scale()),
+            lambda: node.set_shear(node.get_shear()),
+            lambda: node.set_rotate((10.0, 20.0, 30.0), unit="deg"),
+            lambda: node.plug("rotate").set(tuple(node.plug("rotate").get())),
+        ):
+            operation()
+            self.assertTrue(node.get_matrix().is_equivalent(matrix, 1e-9))
+            self.assert_channels(name, (10.0, 20.0, 30.0), (-1.0, 2.0, 3.0))
+
+        # スケールだけを変えても rotate は変わらない(ミラーを解除しても姿勢が 180 度回らない)。
+        node.set_scale((1.0, 2.0, 3.0))
+        self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 2.0, 3.0))
+
+    def test_set_scale_writes_the_requested_signs(self):
+        # set_scale / plug("scale").set で明示した符号は、現在の scale チャンネルの符号に
+        # かかわらずそのまま入り、rotate も変わらない(cmds.setAttr で scale を書いた場合と同じ)。
+        cases = (
+            ((1.0, 1.0, 1.0), (-1.0, 1.0, 1.0)),
+            ((-1.0, -2.0, 3.0), (1.0, 1.0, 1.0)),
+            ((-1.0, -1.0, 1.0), (2.0, 2.0, 2.0)),
+            ((1.0, 1.0, 1.0), (1.0, -1.0, 1.0)),
+            ((-1.0, 1.0, 1.0), (-2.0, -3.0, -4.0)),
+            ((1.0, 2.0, 3.0), (-1.0, -2.0, -3.0)),
+        )
+        for kind in ("transform", "joint"):
+            for use_plug in (False, True):
+                for order in (0, 4):
+                    for start, requested in cases:
+                        name = cmds.createNode(kind, name=self.namespace + ":hlibNodeApiScaleSign")
+                        self.created.append(name)
+                        cmds.setAttr(name + ".rotateOrder", order)
+                        cmds.setAttr(name + ".rotate", 10.0, 20.0, 30.0)
+                        cmds.setAttr(name + ".scale", *start)
+                        node = Node(name)
+                        if use_plug:
+                            node.plug("scale").set(requested)
+                        else:
+                            node.set_scale(requested)
+                        label = (kind, use_plug, order, start, requested)
+                        for actual, expected in zip(cmds.getAttr(name + ".scale")[0], requested):
+                            self.assertAlmostEqual(actual, expected, places=9, msg=label)
+                        for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], (10.0, 20.0, 30.0)):
+                            self.assertAlmostEqual(actual, expected, places=9, msg=label)
+                        self.assertTrue(node.get_scale().is_equivalent(Scale(*requested), 1e-9), label)
+                        cmds.delete(name)
+
+        # ワールド空間でも、親の行列式が正なら要求した符号の組み合わせになる。
+        parent = self.create_transform("hlibNodeApiScaleSignParent")
+        cmds.setAttr(parent.full_name() + ".rotate", 30.0, 0.0, 0.0)
+        cmds.setAttr(parent.full_name() + ".scale", 2.0, 2.0, 2.0)
+        child = self.create_transform("hlibNodeApiScaleSignChild")
+        child.set_parent(parent)
+        cmds.setAttr(child.full_name() + ".rotate", 10.0, 20.0, 30.0)
+        child.set_scale((-1.0, 1.0, 1.0), ws=True)
+        self.assert_channels(child.full_name(), (10.0, 20.0, 30.0), (-0.5, 0.5, 0.5))
+        self.assertTrue(child.get_scale(ws=True).is_equivalent(Scale(-1.0, 1.0, 1.0), 1e-9))
+
+        # set_matrix は現在のチャンネルの符号に揃え、合わなければ om2 の規約(Z が負)で書く。
+        target = self.create_transform("hlibNodeApiScaleSignMatrix")
+        target.set_matrix(Matrix(scale=(-1.0, 1.0, 1.0)))
+        self.assert_channels(target.full_name(), (0.0, 180.0, 0.0), (1.0, 1.0, -1.0))
+        self.assertTrue(target.get_matrix().is_equivalent(Matrix(scale=(-1.0, 1.0, 1.0)), 1e-9))
+
+    def test_transform_matrix_writes_choose_the_closest_euler_solution(self):
+        node = self.create_transform("hlibNodeApiClosestEuler")
+        name = node.full_name()
+        cmds.setAttr(name + ".rotate", 370.0, -20.0, 190.0)
+        node.set_matrix(node.get_matrix())
+        node.set_translate((1.0, 2.0, 3.0))
+        self.assert_channels(name, (370.0, -20.0, 190.0), (1.0, 1.0, 1.0))
+        # 等価な別解 (180+10, 180-(-20), 180+190) を渡しても、現在値に近い解で書く。
+        node.set_rotate(EulerRotation.from_degrees(190.0, 200.0, 370.0))
+        self.assert_channels(name, (370.0, -20.0, 190.0), (1.0, 1.0, 1.0))
+
+    def test_transform_flat_rotate_values_use_the_node_rotate_order(self):
+        # 3成分の値は cmds.xform と同じくノードの rotateOrder の値として扱うため、
+        # plug("rotate") の get と set、get_rotate と set_rotate が対称になる。
+        parent = self.create_transform("hlibNodeApiFlatOrderParent")
+        cmds.setAttr(parent.full_name() + ".rotate", 15.0, -25.0, 40.0)
+        for order in range(6):
+            node = self.create_transform("hlibNodeApiFlatOrder%d" % order)
+            node.set_parent(parent)
+            name = node.full_name()
+            cmds.setAttr(name + ".rotateOrder", order)
+            cmds.setAttr(name + ".rotate", 10.0, 20.0, 30.0)
+            local = node.get_matrix()
+            world = node.get_matrix(ws=True)
+
+            rotate = node.get_rotate()
+            self.assertEqual(rotate.order, order)
+            self.assertTrue(rotate.is_equivalent(EulerRotation.from_degrees(10.0, 20.0, 30.0, order), 1e-12))
+
+            plug = node.plug("rotate")
+            plug.set(tuple(plug.get()))
+            self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
+            node.set_rotate(tuple(node.get_rotate()))
+            node.set_rotate(tuple(node.get_rotate(ws=True)), ws=True)
+            self.assertTrue(node.get_matrix(ws=True).is_equivalent(world, 1e-9), order)
+            plug.set(tuple(plug.get(ws=True)), ws=True)
+            self.assertTrue(node.get_matrix().is_equivalent(local, 1e-9), order)
+
+            cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
+            node.set_rotate((10.0, 20.0, 30.0), unit="deg")
+            self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
+            cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
+            plug.set(tuple(math.radians(value) for value in (10.0, 20.0, 30.0)))
+            self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
+
+    def test_om2_function_sets_accept_hlib_maths_values(self):
+        node = self.create_transform("hlibNodeApiOm2Values")
+        transform_fn = om2.MFnTransform(node.dag_path())
+        transform_fn.setTranslation(Translation(1.0, 2.0, 3.0), om2.MSpace.kTransform)
+        self.assertEqual(node.get_translate(), Translation(1.0, 2.0, 3.0))
+
+        euler = EulerRotation(0.3, -0.2, 0.1, "zyx")
+        transform_fn.setRotation(euler, om2.MSpace.kTransform)
+        self.assertTrue(node.get_quaternion().isEquivalent(euler.to_quaternion(), 1e-9))
+        quaternion = Quaternion.from_axis_angle((0.0, 1.0, 0.0), 0.5)
+        transform_fn.setRotation(quaternion, om2.MSpace.kTransform)
+        self.assertTrue(node.get_quaternion().isEquivalent(quaternion, 1e-9))
+        transform_fn.setScale(Scale(2.0, 3.0, 4.0))
+        self.assertTrue(node.get_scale().is_equivalent(Scale(2.0, 3.0, 4.0), 1e-9))
+
+        matrix = Matrix(translate=(5.0, 6.0, 7.0), rotate=EulerRotation(0.1, 0.2, 0.3, "yzx"))
+        transform_fn.setTransformation(om2.MTransformationMatrix(matrix))
+        self.assertTrue(node.get_matrix().is_equivalent(matrix, 1e-9))
+
+        selection = om2.MSelectionList()
+        selection.add(node.full_name())
+        world = selection.getDagPath(0).inclusiveMatrix()
+        self.assertTrue(node.get_matrix(ws=True).is_equivalent(world, 1e-12))
+        self.assertTrue((om2.MPoint(1.0, 0.0, 0.0) * node.get_matrix(ws=True)).isEquivalent(
+            om2.MPoint(node.get_matrix(ws=True).transform_point((1.0, 0.0, 0.0))), 1e-12))
+
+        plug = om2.MFnDependencyNode(node.mobject()).findPlug("offsetParentMatrix", False)
+        plug.setMObject(om2.MFnMatrixData().create(Matrix(translate=(10.0, 0.0, 0.0))))
+        self.assertEqual(node.plug("offsetParentMatrix").get(), Matrix(translate=(10.0, 0.0, 0.0)))
 
     def test_plug_structural_introspection_properties(self):
         transform = self.create_transform("hlibNodeApiPlugStructure")

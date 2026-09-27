@@ -11,7 +11,7 @@
 | Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.get_position()`、`vertex.get_x()`、`mesh.num_vertices()` |
 | Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`vertex.set_x(value)`、`node.rename(name)` |
 | オブジェクトが保持している参照・番号を返す | プロパティ | `plug.node`、`component.shape`、`component.index`、`components.indices` |
-| Maya非依存の数学値・保存済みデータを参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate`、`node_ref.uuid` |
+| 数学値(`hlib.maths`)・保存済みデータを参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate`、`node_ref.uuid` |
 
 ```python
 import hlib
@@ -37,8 +37,8 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 内部でキャッシュしていても、「現在のシーン状態を取得する」という契約ならメソッドにする。キャッシュ方式の変更で公開形式を変えない。
 - 保存時点のデータは現在のシーン状態と区別する。例えば `Node.uuid()` は現在のノードを照会し、`NodeRef.uuid` はJSON用に保持したUUIDを参照する。
 - 保持値を返すプロパティのgetterで、Mayaへの問い合わせ・ノード作成・シーン更新を暗黙に行わない。
-- 保持値だけから得られる軽い派生値はプロパティにできる。ただし行列の逆行列計算や形式変換など、明示的な計算・変換は従来どおり `inverse()` / `to_data()` 等のメソッドにする。Maya非依存の処理をすべてプロパティへ変える規則ではない。
-- シーン編集用のproperty setterは追加しない。数学型のローカル値を更新するsetterは、型が可変として設計されている場合に限り使用できる。不変な数学型のフィールドを代入可能に変えるものではない。
+- 保持値だけから得られる軽い派生値はプロパティにできる。ただし行列の逆行列計算や形式変換など、明示的な計算・変換は従来どおり `inverse()` / `to_data()` 等のメソッドにする。シーンへ問い合わせない処理をすべてプロパティへ変える規則ではない。
+- シーン編集用のproperty setterは追加しない。`hlib.maths` の数学型はom2の型を継承した可変の値型なので、ローカル値を更新するsetter(`vector.x = 1.0`、`matrix.translate = (...)` など)を使用できる。これは値の更新で、シーンは変更しない。
 - データクラスの保存フィールドは、そのまま公開してよい。保存フィールドを無意味なgetterで包む必要はない。
 
 `node.tx` は属性名を解決して `Plug` を取得する既存の省略アクセスであり、Pythonの値プロパティではない。

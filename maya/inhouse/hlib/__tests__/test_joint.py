@@ -87,6 +87,67 @@ class JointTest(unittest.TestCase):
         self.assertAlmostEqual(rotate.y, math.radians(45.0), places=6)
         self.assertAlmostEqual(rotate.z, 0.0, places=6)
 
+    def test_negative_scale_joint_set_matrix_round_trip_keeps_world_matrix(self):
+        # 回転・スケール・シアーを同じ MTransformationMatrix の分解から取るため、
+        # 行列式が負(負スケール)の joint でも set_matrix(get_matrix()) で姿勢が変わらない。
+        root = self.create_joint("hlibJointNegativeRoot")
+        joint = self.create_joint("hlibJointNegative", parent=root)
+        name = joint.full_name()
+        cmds.setAttr(root.full_name() + ".rotate", 15.0, -25.0, 35.0)
+        cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
+        cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
+        cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
+        cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
+        world = joint.get_matrix(ws=True)
+
+        joint.set_matrix(joint.get_matrix())
+        self.assertTrue(joint.get_matrix(ws=True).is_equivalent(world, 1e-9))
+        joint.set_matrix(world, ws=True)
+        self.assertTrue(joint.get_matrix(ws=True).is_equivalent(world, 1e-9))
+        self.assertAlmostEqual(cmds.getAttr(name + ".jointOrientZ"), 30.0, places=6)
+
+    def test_segment_scale_compensate_round_trip_under_scaled_parent(self):
+        # ssc が有効な joint の行列は S·RA·R·JO·IS·T(IS は inverseScale の逆数)。
+        # IS を正しく打ち消すため、非一様スケールの親の下でも姿勢とチャンネル値が変わらない。
+        root = self.create_joint("hlibJointSscRoot")
+        joint = self.create_joint("hlibJointSsc", parent=root)
+        name = joint.full_name()
+        cmds.setAttr(root.full_name() + ".scale", 2.0, 3.0, 0.5)
+        cmds.connectAttr(root.full_name() + ".scale", name + ".inverseScale", force=True)
+        cmds.setAttr(name + ".segmentScaleCompensate", True)
+        cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
+        cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
+        cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
+        cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
+        world = joint.get_matrix(ws=True)
+        for operation in (
+            lambda: joint.set_matrix(joint.get_matrix()),
+            lambda: joint.set_matrix(world, ws=True),
+            lambda: joint.set_translate(joint.get_translate()),
+            lambda: joint.set_scale(joint.get_scale()),
+        ):
+            operation()
+            self.assertTrue(joint.get_matrix(ws=True).is_equivalent(world, 1e-9))
+            for actual, expected in zip(cmds.getAttr(name + ".translate")[0], (1.0, 2.0, 3.0)):
+                self.assertAlmostEqual(actual, expected, places=9)
+            for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], (40.0, -50.0, 60.0)):
+                self.assertAlmostEqual(actual, expected, places=9)
+            for actual, expected in zip(cmds.getAttr(name + ".scale")[0], (-1.0, 2.0, 3.0)):
+                self.assertAlmostEqual(actual, expected, places=9)
+
+    def test_set_matrix_round_trip_for_every_rotate_order_with_orient_and_axis(self):
+        for order in range(6):
+            joint = self.create_joint("hlibJointOrder%d" % order)
+            name = joint.full_name()
+            cmds.setAttr(name + ".rotateOrder", order)
+            cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
+            cmds.setAttr(name + ".rotateAxis", 5.0, -15.0, 25.0)
+            cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
+            local = joint.get_matrix()
+            joint.set_matrix(local)
+            self.assertTrue(joint.get_matrix().is_equivalent(local, 1e-9), order)
+            self.assertAlmostEqual(cmds.getAttr(name + ".rotateAxisY"), -15.0, places=6)
+
     def test_parent_children_depth_and_is_joint(self):
         root = self.create_joint("hlibJointHierarchyRoot")
         mid = self.create_joint("hlibJointHierarchyMid", parent=root)

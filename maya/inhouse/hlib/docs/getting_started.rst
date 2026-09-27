@@ -63,7 +63,7 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 
    nodes = hlib.ls(sl=True)      # 選択中のノードをラッパーのリストで取得
    joint = Joint("joint1")       # 既存ノードを直接ラップ
-   matrix = Matrix()             # 単位行列
+   matrix = Matrix()             # 単位行列(om2.MMatrix の派生)
 
 ``Joint("joint1")`` のように具象クラスを直接呼び出しても、内部は ``Node`` と
 同じファクトリパターンで動作します。指定した名前の実際の Maya nodeType が

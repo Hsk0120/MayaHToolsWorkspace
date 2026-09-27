@@ -25,6 +25,17 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 - ``Workspace``: ``test_workspace.py``(``cmds.workspace`` と突き合わせ)
 - ``Plugin``: ``test_plugin.py``(``cmds.pluginInfo`` と突き合わせ)
 - ``Reference``: ``test_reference.py``(``cmds.referenceQuery`` と突き合わせ)
+
+## このファイルの突き合わせ
+
+- ``Node.aliases()`` と ``cmds.aliasAttr(query=True)``
+- ``Node.inputs/outputs/connections`` と ``cmds.listConnections(plugs=True)``
+- ``Namespace`` と ``cmds.namespace``/``cmds.namespaceInfo``
+- ``Transform.get_matrix`` (om2 の MPlug から直接読む。ワールド空間はインスタンスごとの
+  ``worldMatrix`` の要素)と ``cmds.getAttr``/``cmds.xform(query=True, matrix=True)``、
+  ``hlib.maths.Matrix`` の分解(行列式が負の場合を含む)と ``cmds.xform(matrix=...)`` で
+  書き込まれるチャンネル値・decomposeMatrix ノードの出力、``Transform.get_rotate``/
+  ``set_rotate`` の3成分と ``cmds.xform(rotation=...)`` (全回転順序)
 """
 
 import sys
@@ -173,6 +184,129 @@ class NamespaceParityTest(unittest.TestCase):
 
         actual = {node.name() for node in Namespace(self.root_name).nodes(recurse=True)}
         self.assertEqual(actual, expected)
+
+
+class TransformMatrixParityTest(unittest.TestCase):
+    """Transform の行列取得と hlib.maths の分解が cmds / decomposeMatrix と一致し続けることを検証する。
+
+    ``Transform.get_matrix`` は hlib の Plug ラッパーを介さず om2 の MPlug から直接読む。
+    ``hlib.maths.Matrix`` は om2.MMatrix を継承し、om2.MTransformationMatrix と同じ規約
+    (行列式が負なら Z スケールを負にして 180 度を補う)で分解する。その規約が
+    ``cmds.xform(matrix=...)`` によるチャンネル値と decomposeMatrix ノードの出力に
+    一致することを突き合わせる。``Transform.get_rotate`` / ``set_rotate`` の3成分が
+    ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値であることも突き合わせる。
+    """
+
+    def setUp(self):
+        import maya.api.OpenMaya as om2
+        from hlib.maths import Matrix
+
+        self.om2 = om2
+        self.Matrix = Matrix
+        self.created = []
+        parent = cmds.createNode("transform", name="hlibParityMatrixParent")
+        child = cmds.createNode("transform", name="hlibParityMatrixChild", parent=parent)
+        self.created.append(parent)
+        cmds.setAttr(parent + ".translate", 1.0, 2.0, 3.0)
+        cmds.setAttr(parent + ".rotate", 10.0, 20.0, 30.0)
+        cmds.setAttr(child + ".translate", 4.0, 5.0, 6.0)
+        cmds.setAttr(child + ".rotate", 40.0, -50.0, 60.0)
+        cmds.setAttr(child + ".scale", 1.0, 2.0, 3.0)
+        self.child = cmds.ls(child, long=True)[0]
+
+    def tearDown(self):
+        for name in reversed(self.created):
+            if cmds.objExists(name):
+                cmds.delete(name)
+
+    def assert_sequence_almost_equal(self, actual, expected, places=9):
+        self.assertEqual(len(actual), len(expected))
+        for index, (a, b) in enumerate(zip(actual, expected)):
+            self.assertAlmostEqual(a, b, places=places, msg="index {}: {} != {}".format(index, actual, expected))
+
+    def test_get_matrix_matches_cmds_getAttr_and_xform(self):
+        node = Node(self.child)
+        self.assertEqual(list(node.get_matrix()), cmds.getAttr(self.child + ".matrix"))
+        self.assertEqual(list(node.get_matrix(ws=True)), cmds.getAttr(self.child + ".worldMatrix[0]"))
+        self.assert_sequence_almost_equal(
+            list(node.get_matrix(ws=True)), cmds.xform(self.child, query=True, worldSpace=True, matrix=True))
+        self.assert_sequence_almost_equal(
+            tuple(node.get_translate(ws=True)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
+
+    def test_world_matrix_follows_the_dag_instance(self):
+        # get_matrix(ws=True) はラッパーの DAG パスのインスタンス番号の worldMatrix 要素を読む。
+        group = cmds.createNode("transform", name="hlibParityInstanceGroup")
+        other = cmds.createNode("transform", name="hlibParityInstanceOther")
+        self.created.extend([group, other])
+        leaf = cmds.createNode("transform", name="hlibParityInstanceLeaf", parent=group)
+        cmds.setAttr(leaf + ".translate", 1.0, 2.0, 3.0)
+        cmds.setAttr(other + ".translate", 5.0, 0.0, 0.0)
+        cmds.setAttr(other + ".rotate", 0.0, 30.0, 0.0)
+        cmds.parent(cmds.ls(leaf, long=True)[0], other, addObject=True, relative=True)
+        paths = cmds.ls("hlibParityInstanceLeaf", allPaths=True, long=True)
+        self.assertEqual(len(paths), 2)
+        for path in paths:
+            node = Node(path)
+            self.assert_sequence_almost_equal(
+                list(node.get_matrix(ws=True)), cmds.xform(path, query=True, worldSpace=True, matrix=True))
+
+    def test_negative_determinant_decomposition_matches_xform_and_decompose_matrix(self):
+        om2 = self.om2
+        source = self.Matrix(
+            translate=(1.0, -2.0, 3.0),
+            rotate=(0.4, -0.3, 1.2),
+            scale=(-2.0, 3.0, 4.0),
+            shear=(0.1, 0.2, -0.3),
+        )
+        self.assertLess(source.determinant(), 0.0)
+        parts = source.decompose()
+
+        target = cmds.createNode("transform", name="hlibParityNegativeTarget")
+        self.created.append(target)
+        cmds.xform(target, matrix=list(source))
+        self.assert_sequence_almost_equal(tuple(parts["scale"]), cmds.getAttr(target + ".scale")[0])
+        self.assert_sequence_almost_equal(tuple(parts["shear"]), cmds.getAttr(target + ".shear")[0])
+        self.assert_sequence_almost_equal(parts["euler"].as_degrees(), cmds.getAttr(target + ".rotate")[0])
+        self.assert_sequence_almost_equal(tuple(parts["translate"]), cmds.getAttr(target + ".translate")[0])
+        self.assertLess(cmds.getAttr(target + ".scaleZ"), 0.0)
+        self.assertTrue(Node(target).get_matrix().is_equivalent(source, 1e-9))
+
+        if not cmds.pluginInfo("matrixNodes", query=True, loaded=True):
+            cmds.loadPlugin("matrixNodes", quiet=True)
+        decompose = cmds.createNode("decomposeMatrix", name="hlibParityNegativeDecompose")
+        self.created.append(decompose)
+        cmds.setAttr(decompose + ".inputMatrix", *list(source), type="matrix")
+        self.assert_sequence_almost_equal(tuple(parts["scale"]), cmds.getAttr(decompose + ".outputScale")[0])
+        self.assert_sequence_almost_equal(tuple(parts["shear"]), cmds.getAttr(decompose + ".outputShear")[0])
+        self.assert_sequence_almost_equal(parts["euler"].as_degrees(), cmds.getAttr(decompose + ".outputRotate")[0])
+        quaternion = om2.MQuaternion(*cmds.getAttr(decompose + ".outputQuat")[0])
+        self.assertTrue(parts["quaternion"].isEquivalent(quaternion, 1e-9))
+
+    def test_rotate_values_match_xform_in_every_rotate_order(self):
+        # rotateAxis が 0 で、親が一様スケール(ワールド行列にシアーが無い)の transform が対象。
+        # ワールド空間の Euler の解は xform と異なり得るため、回転行列で比較する。
+        import math
+
+        om2 = self.om2
+        node = Node(self.child)
+        for order in range(6):
+            cmds.setAttr(self.child + ".rotateOrder", order)
+            cmds.setAttr(self.child + ".rotate", 40.0, -50.0, 60.0)
+            local = node.get_rotate()
+            self.assertEqual(local.order, order)
+            self.assert_sequence_almost_equal(local.as_degrees(), cmds.xform(self.child, query=True, rotation=True))
+
+            world = node.get_rotate(ws=True)
+            self.assertEqual(world.order, order)
+            queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
+            expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
+            self.assertTrue(world.asMatrix().isEquivalent(expected.asMatrix(), 1e-9), order)
+
+            node.set_rotate((10.0, -20.0, 30.0), unit="deg", ws=True)
+            queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
+            expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
+            wanted = om2.MEulerRotation(math.radians(10.0), math.radians(-20.0), math.radians(30.0), order)
+            self.assertTrue(wanted.asMatrix().isEquivalent(expected.asMatrix(), 1e-9), order)
 
 
 if __name__ == "__main__":

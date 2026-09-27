@@ -23,7 +23,6 @@ class Double3Plug(CompoundPlug):
         "shear": Shear,
         "sh": Shear,
     }
-    _rotation_orders = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
 
     def get(self, ws=False):
         """3つの子要素を属性の意味に対応するベクトルとして取得する。
@@ -34,7 +33,10 @@ class Double3Plug(CompoundPlug):
             ws (bool): True で既知の変換属性に対応するノードの取得メソッドを呼ぶ。それ以外は子属性の値を使う。
 
         Returns:
-            Vector | Translation | EulerRotation | Scale | Shear: 属性名に応じた3成分値。ローカルの rotate は度からラジアンに変換し、rotateOrder を保持する。
+            Vector | Translation | EulerRotation | Scale | Shear: 属性名に応じた3成分値。
+            ローカルの rotate は度からラジアンに変換し、ノードの rotateOrder を order に
+            持つ EulerRotation(om2.MEulerRotation の派生で、Vector の派生ではない)。
+            それ以外は om2.MVector の派生の Vector 系。
         """
         if ws and self.attribute() in self._value_types:
             getters = {
@@ -53,8 +55,8 @@ class Double3Plug(CompoundPlug):
         values = tuple(self.child(index).get() for index in range(3))
         value_type = self._value_types.get(self.attribute(), Vector)
         if value_type is EulerRotation:
-            order_index = self.node.plug("ro").get()
-            order = self._rotation_orders[int(order_index)]
+            # rotateOrder の番号は om2 の MEulerRotation.kXYZ〜kZYX と同じ並び。
+            order = int(self.node.plug("ro").get())
             return EulerRotation(*(math.radians(value) for value in values), order=order)
         return value_type(*values)
 
@@ -66,7 +68,13 @@ class Double3Plug(CompoundPlug):
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Iterable[float] | Quaternion): 設定値。通常は3成分。回転メソッドへの委譲時はその受け入れ型に従う。
+            value (Iterable[float] | EulerRotation | Quaternion): 設定値。通常は3成分。回転メソッドへの
+                委譲時はその受け入れ型に従う。rotate の3成分はノードの rotateOrder の値として
+                解釈するため、transform では ``get()`` の値や ``tuple(get())`` をそのまま渡せる。
+                EulerRotation はその回転順序を反映する。joint では委譲先がローカル行列の値
+                (rotate は jointOrient / rotateAxis を含む回転、scale は
+                segmentScaleCompensate の補正を含む値)を扱うため、それらが既定値でない joint
+                ではチャンネル値を返す ``get()`` と対称にならない(従来どおり)。
             ws (bool): True ならノードの変換設定メソッドへワールド指定で委譲する。
             unit (str): 回転の委譲時のみ使用する入力単位 rad または deg。その他の属性では無視する。
 

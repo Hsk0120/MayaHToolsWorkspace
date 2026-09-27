@@ -24,14 +24,14 @@ class MatrixPlug(Plug):
             ws (bool): True ならプラグ自身の値ではなく所有ノードの get_matrix(ws=True) を呼ぶ。
 
         Returns:
-            Matrix: 属性行列、または所有ノードのワールド行列。
+            Matrix: 属性行列の複製(om2.MMatrix の派生)、または所有ノードのワールド行列。
 
         Raises:
             AttributeError: ws=True で所有ノードに get_matrix がない場合。
         """
         if ws:
             return self.node.get_matrix(ws=True)
-        return Matrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
+        return Matrix.from_mmatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
     @fast_edit
     @undo_chunk("hlib.plugs.matrix_plug.set")

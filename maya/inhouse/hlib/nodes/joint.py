@@ -13,7 +13,7 @@ import maya.api.OpenMaya as om2
 from .._core.registry import collection_export, node_wrapper
 from .._core.collection import BulkCollection, bulk_api
 from ..maths import EulerRotation, Matrix, Scale
-from .transform import Transform
+from .transform import Transform, _closest_euler
 
 
 @node_wrapper("joint")
@@ -35,18 +35,12 @@ class Joint(Transform):
     def _rotation_order(self):
         """Maya の rotateOrder を API の回転順序へ変換する。
 
+        rotateOrder の番号(0=xyz〜5=zyx)は MEulerRotation.kXYZ〜kZYX と同じ並び。
+
         Returns:
             int: rotateOrder に対応する Maya API 2.0 の MEulerRotation 定数。
         """
-        order_index = int(self.plug("ro").get())
-        return (
-            om2.MEulerRotation.kXYZ,
-            om2.MEulerRotation.kYZX,
-            om2.MEulerRotation.kZXY,
-            om2.MEulerRotation.kXZY,
-            om2.MEulerRotation.kYXZ,
-            om2.MEulerRotation.kZYX,
-        )[order_index]
+        return self._rotate_order()
 
     def _joint_rotation_transfer_values(self, to_orient=False):
         """書込み可否を検証し、合成後の回転を現在の角度単位で返す。
@@ -133,28 +127,34 @@ class Joint(Transform):
         return self
 
     def _rotation_quaternion(self, attribute):
-        """Euler の Maya degrees 属性を API quaternion へ変換する。
+        """jointOrient / rotateAxis の Maya degrees 属性を API quaternion へ変換する。
 
-        属性値は度であると仮定してラジアンへ変換する。
+        属性値は度であると仮定してラジアンへ変換する。Maya の jointOrient と
+        rotateAxis は rotateOrder にかかわらず常に XYZ 順序で評価されるため、
+        XYZ として解釈する。
 
         Args:
-            attribute (str): 度の3成分として読み取る回転属性名。
+            attribute (str): 度の3成分として読み取る回転属性名(jointOrient / rotateAxis)。
 
         Returns:
-            om2.MQuaternion: ノードの rotateOrder で解釈した回転。
+            om2.MQuaternion: XYZ 順序で解釈した回転。
         """
         values = self._compound_values(attribute, angle=True)
-        rotation = om2.MEulerRotation(*(math.radians(value) for value in values), self._rotation_order())
+        rotation = om2.MEulerRotation(*(math.radians(value) for value in values))
         return rotation.asQuaternion()
 
     def _remove_segment_scale_compensation(self, matrix):
         """ssc と inverseScale が適用された後の行列から補正前の値を戻す。
 
+        Maya の joint の行列は S · RA · R · JO · IS · T(IS は inverseScale の逆数の
+        対角行列)なので、3x3 部分へ inverseScale の対角行列を右から掛けて IS を打ち消す。
+        平行移動は IS の後に適用されるため変えない。
+
         Args:
             matrix (Matrix): スケール補正を取り除く対象行列。
 
         Returns:
-            Matrix: ssc が無効なら入力そのもの。有効なら inverseScale の逆数からなる行列を右から乗じた新しい行列。
+            Matrix: ssc が無効なら入力そのもの。有効なら IS を打ち消した新しい行列。
 
         Raises:
             ValueError: ssc が有効で inverseScale の成分の絶対値が 1e-12 未満の場合。
@@ -164,16 +164,53 @@ class Joint(Transform):
         inverse_scale = self._compound_values("inverseScale")
         if any(abs(value) < 1e-12 for value in inverse_scale):
             raise ValueError("inverseScale components must be non-zero when segmentScaleCompensate is enabled")
-        compensation = Matrix(scale=tuple(1.0 / value for value in inverse_scale))
-        return matrix * compensation
+        result = matrix * Matrix(scale=inverse_scale)
+        result.translate = matrix.translate
+        return result
 
-    def _apply_local_matrix(self, matrix):
+    def _rotate_reference(self, reference):
+        """:meth:`get_rotate` が Euler の解を選ぶ基準を返す。
+
+        joint の get_rotate は jointOrient と rotateAxis を含む回転で rotate チャンネルとは
+        別の回転なので、チャンネル値ではなく 0 回転(ノードの rotateOrder)を基準にする。
+
+        Args:
+            reference (om2.MEulerRotation): 現在の rotate チャンネル値(順序だけを使う)。
+
+        Returns:
+            om2.MEulerRotation: 0 回転。順序はノードの rotateOrder。
+        """
+        return om2.MEulerRotation(0.0, 0.0, 0.0, reference.order)
+
+    def _channel_rotation(self, quaternion, reference):
+        """ローカル行列の回転から jointOrient と rotateAxis を除き、rotate の値へ変換する。
+
+        Maya の joint の回転は rotateAxis、rotate、jointOrient の順に適用されるため、
+        rotate = rotateAxis⁻¹ · 行列の回転 · jointOrient⁻¹(om2 の四元数の積の順序)。
+
+        Args:
+            quaternion (om2.MQuaternion): ローカル行列の回転。
+            reference (om2.MEulerRotation): 現在の rotate チャンネル値。
+
+        Returns:
+            om2.MEulerRotation: ノードの rotateOrder で表した、reference に最も近い解。
+        """
+        rotate_axis = self._rotation_quaternion("rotateAxis")
+        joint_orient = self._rotation_quaternion("jointOrient")
+        return _closest_euler(rotate_axis.conjugate() * quaternion * joint_orient.conjugate(), reference)
+
+    def _apply_local_matrix(self, matrix, scale_reference=None):
         """jointOrient と rotateAxis を保持して local 行列を適用する。
 
-        jointOrient と rotateAxis を回転から除き、rotateOrder に並べ替えて書き込む。角度の読み書きは Maya の角度単位が度であることを前提とする。
+        segmentScaleCompensate の補正を除いてから、Transform と同じ規約(スケールの
+        符号を scale_reference または現在のチャンネル値に、Euler の解を現在のチャンネル値に
+        揃える)で分解して書き込む。rotate は jointOrient と rotateAxis を回転から除いた値。
+        角度の読み書きは Maya の角度単位が度であることを前提とする。
 
         Args:
             matrix (Matrix): 適用するローカル行列。
+            scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
+                (``set_scale`` で要求した値)。None なら現在の scale チャンネル値に合わせる。
 
         Returns:
             None: 値を返さない。
@@ -182,21 +219,7 @@ class Joint(Transform):
             ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
             RuntimeError: Maya が属性の書き込みを拒否した場合。
         """
-        matrix = self._remove_segment_scale_compensation(matrix)
-        target = om2.MTransformationMatrix(matrix.to_mmatrix())
-        target_quaternion = target.rotation(asQuaternion=True)
-        rotate_axis = self._rotation_quaternion("rotateAxis")
-        joint_orient = self._rotation_quaternion("jointOrient")
-        rotate_quaternion = rotate_axis.conjugate() * target_quaternion * joint_orient.conjugate()
-        rotation = om2.MEulerRotation()
-        rotation.setValue(rotate_quaternion)
-        rotation.reorderIt(self._rotation_order())
-
-        name = self.full_name()
-        set_attr(f"{name}.translate", *matrix.translate)
-        set_attr(f"{name}.rotate", *(math.degrees(component) for component in rotation))
-        set_attr(f"{name}.scale", *matrix.scale)
-        set_attr(f"{name}.shear", *matrix.shear)
+        super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
 
     def orientation(self):
         """joint の orientation 成分を取得する。

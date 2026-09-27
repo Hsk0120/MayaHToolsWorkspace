@@ -1,98 +1,457 @@
-"""四元数の保持・演算とオイラー回転への変換。"""
+"""om2.MQuaternion を継承した四元数と、回転の補間・分解。"""
 
 import math
-from dataclasses import dataclass
 
-#: 回転順序の文字列と、X/Y/Z(0/1/2)成分インデックスの対応。
-_EULER_ORDER_AXES = {
-    "xyz": (0, 1, 2), "yzx": (1, 2, 0), "zxy": (2, 0, 1),
-    "xzy": (0, 2, 1), "yxz": (1, 0, 2), "zyx": (2, 1, 0),
-}
+import maya.api.OpenMaya as om2
 
-#: (x, y, z) の巡回置換になっている回転順序。行列成分からの角度抽出時の符号を決める。
-_EULER_CYCLIC_ORDERS = frozenset(("xyz", "yzx", "zxy"))
+from .vector import (
+    Vector,
+    _as_mvector,
+    _checked_index,
+    _copy_state,
+    _foreign_comparison,
+    _reduce_value,
+    _zero,
+)
 
-#: ジンバルロック時(中間軸が ±90度)に、最初に適用される軸の角度を
-#: 行列成分から復元する式。最後に適用される軸の角度は 0 とみなす。
-_EULER_GIMBAL_FORMULAS = {
-    "xyz": lambda m, branch: math.atan2(branch * m[1][0], m[1][1]),
-    "yzx": lambda m, branch: math.atan2(-m[0][2], branch * m[0][1]),
-    "zxy": lambda m, branch: math.atan2(branch * m[0][2], m[0][0]),
-    "xzy": lambda m, branch: math.atan2(m[1][2], -branch * m[1][0]),
-    "yxz": lambda m, branch: math.atan2(branch * m[0][1], m[0][0]),
-    "zyx": lambda m, branch: math.atan2(m[0][1], -branch * m[0][2]),
-}
+_MQuaternion = om2.MQuaternion
+_MVector = om2.MVector
+_NEW = _MQuaternion.__new__
+_INIT = _MQuaternion.__init__
+_GET = _MQuaternion.__getitem__
+_SET = _MQuaternion.__setitem__
+_NUMBER = (int, float)
 
 
-@dataclass(frozen=True, repr=False)
-class Quaternion:
-    """XYZW 成分で保持する不変な四元数。
+def _quaternion_keywords(x=0.0, y=0.0, z=0.0, w=1.0):
+    """キーワード引数付きの Quaternion の生成引数を (x, y, z, w) へまとめる。
 
-    四元数成分自体は角度ではない。生成時や積の計算時に正規化は行わない。
-    オイラー回転との変換に用いる角度はラジアン。
-    等価比較・ハッシュは dataclass が生成する。"""
+    Args:
+        x (float): X 成分。
+        y (float): Y 成分。
+        z (float): Z 成分。
+        w (float): W 成分。
 
-    x: float = 0.0
-    y: float = 0.0
-    z: float = 0.0
-    w: float = 1.0
+    Returns:
+        tuple: (x, y, z, w)。
+    """
+    return x, y, z, w
 
-    def __post_init__(self):
-        """各成分を float へ正規化する。
 
-        既定値 (0, 0, 0, 1) は単位四元数。入力時には正規化しない。frozen のため
-        通常の属性代入はできず、object.__setattr__ で書き換える。
+def _unit_copy(value):
+    """MQuaternion 系を正規化した新しい Quaternion を返す。
+
+    Args:
+        value (om2.MQuaternion): 正規化元。hlib の Quaternion 以外の MQuaternion も受け付ける。
+
+    Returns:
+        Quaternion: 長さ 1 の新しい四元数。
+
+    Raises:
+        ValueError: ゼロ四元数の場合。
+    """
+    x, y, z, w = value.x, value.y, value.z, value.w
+    if x * x + y * y + z * z + w * w == 0.0:
+        raise ValueError("Cannot normalize a zero quaternion")
+    result = _NEW(Quaternion)
+    _INIT(result)
+    result.setValue(value)
+    result.normalizeIt()
+    return result
+
+
+class Quaternion(_MQuaternion):
+    """om2.MQuaternion を継承した XYZW 成分の可変な四元数。
+
+    ``om2.MQuaternion`` の派生クラスなので、そのまま OpenMaya API 2.0 の関数へ
+    渡せる。コンストラクタは ``Quaternion()`` (単位四元数)、
+    ``Quaternion(x, y, z, w)``、``Quaternion([x, y, z, w])``、
+    ``Quaternion(MQuaternion)``、``Quaternion(angle, axis)`` (軸角。axis は
+    MVector 系)、``Quaternion(a, b[, factor])`` (MVector a を b へ回す回転)など
+    om2 と同じ形を受け付け、加えて ``Quaternion(x=0, y=0, z=0, w=1)`` の
+    キーワード引数(省略した成分は単位四元数の値)も使える。成分は数値だけで、
+    不正な引数は om2 と同じく ValueError。生成時や積の計算時に正規化は行わない。
+
+    積 ``q1 * q2`` は om2 と同じ順序で、q1 を先に適用してから q2 を適用する回転
+    になる(``(q1 * q2).to_matrix()`` は ``q1.to_matrix() * q2.to_matrix()`` と同じ回転。Hamilton 積の
+    ``q2 ⊗ q1`` に等しい)。``+``、``-``、単項の ``-`` は om2 の成分ごとの演算。
+    ``数値 * q`` は om2 と同じく4成分のスカラー倍(``q * 数値`` と ``/`` は om2 と
+    同じく未対応)。演算結果は hlib の :class:`Quaternion` で返す。``*=`` / ``+=`` /
+    ``-=`` は自身を書き換える(om2 の MQuaternion に無い ``+=`` / ``-=`` も hlib で
+    in-place にしている)。
+
+    値は可変で成分へ代入でき、ハッシュは不可。``len()`` は 4、添字(-4〜3。範囲外は
+    IndexError。スライスは成分の tuple)と反復は X、Y、Z、W の順。``==`` は成分の
+    完全一致で(``q`` と ``-q`` は同じ回転でも等しくない)、MQuaternion 系以外との
+    比較は :class:`~hlib.maths.vector.Vector` と同じく例外にしない。
+
+    snake_case のメソッドと ``conjugate()`` / ``inverse()`` / ``slerp()`` は hlib の
+    型を返す。om2 から継承した camelCase のメソッド(``asMatrix``、
+    ``asEulerRotation``、``normal``、``log`` など)は om2 の基底型を返す。
+    """
+
+    __slots__ = ()
+    __hash__ = None
+
+    def __new__(cls, *args, **kwargs):
+        """C++ の実体を確保した cls のインスタンス(単位四元数)を作る。
+
+        理由は :meth:`hlib.maths.vector.Vector.__new__` と同じ(``__new__`` だけで
+        作ったインスタンスがアクセス時に落ちないよう、ここで確保する)。
+
+        Args:
+            *args: コンストラクタの引数。ここでは使わない。
+            **kwargs: コンストラクタのキーワード引数。ここでは使わない。
+
+        Returns:
+            Quaternion: cls の単位四元数。
+        """
+        self = _NEW(cls)
+        _INIT(self)
+        return self
+
+    def __init__(self, *args, **kwargs):
+        """成分を設定する。
+
+        Args:
+            *args: ``()``、``(x, y, z, w)``、``(values)``、``(MQuaternion)``、
+                ``(angle, axis)``、``(a, b[, factor])`` など om2 の MQuaternion の
+                コンストラクタが受け付ける引数。
+            **kwargs: ``x``、``y``、``z``、``w``。位置引数と合わせて使える。
+                省略した成分は (0, 0, 0, 1) の値。
 
         Returns:
             None: 値を返さない。
+
+        Raises:
+            ValueError: om2 のコンストラクタが受け付けない引数の場合。
+            TypeError: 未知のキーワード引数、または同じ成分を二重に指定した場合。
         """
-        object.__setattr__(self, "x", float(self.x))
-        object.__setattr__(self, "y", float(self.y))
-        object.__setattr__(self, "z", float(self.z))
-        object.__setattr__(self, "w", float(self.w))
+        if kwargs:
+            try:
+                args = _quaternion_keywords(*args, **kwargs)
+            except TypeError as error:
+                raise TypeError("{}() {}".format(type(self).__name__, str(error).split("() ", 1)[-1])) from None
+        count = len(args)
+        values = args
+        if count == 1:
+            source = args[0]
+            if isinstance(source, _MQuaternion):
+                self.setValue(source)
+                return
+            if type(source) in (tuple, list) and len(source) == 4:
+                values = source
+        elif count == 0:
+            self.x = 0.0
+            self.y = 0.0
+            self.z = 0.0
+            self.w = 1.0
+            return
+        if len(values) == 4:
+            x, y, z, w = values
+            if (isinstance(x, _NUMBER) and isinstance(y, _NUMBER)
+                    and isinstance(z, _NUMBER) and isinstance(w, _NUMBER)):
+                self.x = x
+                self.y = y
+                self.z = z
+                self.w = w
+                return
+        # 軸角などの形は om2 の多重定義の解決に任せる(不正な引数も om2 と同じ ValueError)。
+        self.setValue(_MQuaternion(*args))
+
+    @classmethod
+    def _wrap(cls, value):
+        """om2 の値を複製した cls のインスタンスを返す。
+
+        Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの
+        ``__init__`` も呼ばない)。
+
+        Args:
+            value (om2.MQuaternion | om2.MEulerRotation | om2.MMatrix): 複製元。
+                ``setValue`` が受け付ける値。
+
+        Returns:
+            Quaternion: cls の新しいインスタンス。
+        """
+        result = _NEW(cls)
+        _INIT(result)
+        result.setValue(value)
+        return result
+
+    # ------------------------------------------------------------------ 添字・反復
+    def __getitem__(self, index):
+        """成分を取得する。
+
+        Args:
+            index (int | slice): -4〜3 の添字(X、Y、Z、W の順)、またはスライス。
+
+        Returns:
+            float | tuple[float, ...]: 指定成分。スライスでは成分の tuple。
+
+        Raises:
+            IndexError: 添字が範囲外の場合。
+            TypeError: 添字が整数・スライス以外の場合。
+        """
+        if index.__class__ is int and -4 <= index < 4:
+            return _GET(self, index)
+        if isinstance(index, slice):
+            return (self.x, self.y, self.z, self.w)[index]
+        return _GET(self, _checked_index(index, 4, "Quaternion"))
+
+    def __setitem__(self, index, value):
+        """成分を設定する。
+
+        Args:
+            index (int): -4〜3 の添字。
+            value (float): 設定する値。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            IndexError: 添字が範囲外の場合。
+            TypeError: 添字が整数以外の場合。
+        """
+        if index.__class__ is not int or not -4 <= index < 4:
+            index = _checked_index(index, 4, "Quaternion")
+        _SET(self, index, value)
 
     def __iter__(self):
-        """X、Y、Z、W の順で成分を反復する。
+        """X、Y、Z、W の順に成分を反復する。
 
-        Yields:
-            float: X、Y、Z、W 順の成分。
+        Returns:
+            Iterator[float]: 4成分のイテレータ。
         """
-        yield self.x
-        yield self.y
-        yield self.z
-        yield self.w
+        return iter((self.x, self.y, self.z, self.w))
+
+    # ------------------------------------------------------------------ 複製・表示
+    def __reduce__(self):
+        """copy / pickle 用に、コンストラクタを通さずに再構築する情報を返す。
+
+        Returns:
+            tuple: ``(_rebuild, (type(self), (x, y, z, w))[, state])``。
+            利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
+            属性は再構築時に復元する。
+        """
+        return _reduce_value(self, (self.x, self.y, self.z, self.w))
+
+    def __reduce_ex__(self, protocol):
+        """pickle のプロトコルにかかわらず __reduce__ と同じ情報を返す。
+
+        Args:
+            protocol (int): pickle のプロトコル番号。使用しない。
+
+        Returns:
+            tuple: ``__reduce__()`` の結果。
+        """
+        return self.__reduce__()
+
+    def __copy__(self):
+        """同じ型・同じ成分の複製を返す。
+
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性も浅く写す。
+
+        Returns:
+            Quaternion: 自身と同じクラスの新しいインスタンス。
+        """
+        return _copy_state(self, type(self)._wrap(self))
+
+    def __deepcopy__(self, memo):
+        """同じ型・同じ成分の複製を返す。
+
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性は深く複製する。
+
+        Args:
+            memo (dict): copy.deepcopy の memo。
+
+        Returns:
+            Quaternion: 自身と同じクラスの新しいインスタンス。
+        """
+        return _copy_state(self, type(self)._wrap(self), memo)
 
     def __repr__(self):
-        """クラス名と 4 成分を含むデバッグ表現を返す。
+        """クラス名と4成分を含むデバッグ表現を返す。
 
         Returns:
-            str: 型名と現在の成分を含む文字列表現。
+            str: ``Quaternion(x, y, z, w)`` の形式の文字列。
         """
-        return f"Quaternion({self.x}, {self.y}, {self.z}, {self.w})"
+        return "{}({!r}, {!r}, {!r}, {!r})".format(type(self).__name__, self.x, self.y, self.z, self.w)
 
+    __str__ = __repr__
+
+    # ------------------------------------------------------------------ 比較
+    def __eq__(self, other):
+        """MQuaternion 系との成分の完全一致を判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: MQuaternion 系なら om2 と同じ比較の結果。
+            その他の om2 の型は False。それ以外の型は NotImplemented(相手の比較に委ね、
+            どちらも判断しなければ False になる)。
+        """
+        if isinstance(other, _MQuaternion):
+            return _MQuaternion.__eq__(self, other)
+        return _foreign_comparison(other, False)
+
+    def __ne__(self, other):
+        """``__eq__`` の否定を返す。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: MQuaternion 系なら om2 と同じ比較の結果。
+            その他の om2 の型は True。それ以外の型は NotImplemented。
+        """
+        if isinstance(other, _MQuaternion):
+            return _MQuaternion.__ne__(self, other)
+        return _foreign_comparison(other, True)
+
+    # ------------------------------------------------------------------ 演算
     def __mul__(self, other):
-        """別の Quaternion との Hamilton 積を返す。
+        """om2 の順序で四元数の積を返す(自身を先に適用する回転)。
 
         Args:
-            other (object): 右側から乗算する Quaternion。
+            other (object): 右側の MQuaternion 系。
 
         Returns:
-            Quaternion | types.NotImplementedType: Hamilton 積。結果は正規化しない。相手が Quaternion でなければ NotImplemented。
+            Quaternion | types.NotImplementedType: 積。正規化しない。対応しない型は NotImplemented。
         """
-        if not isinstance(other, Quaternion):
+        if not isinstance(other, _MQuaternion):
             return NotImplemented
-        return Quaternion(
-            self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
-            self.w * other.y - self.x * other.z + self.y * other.w + self.z * other.x,
-            self.w * other.z + self.x * other.y - self.y * other.x + self.z * other.w,
-            self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
-        )
+        result = Quaternion._wrap(self)
+        _MQuaternion.__imul__(result, other)
+        return result
 
-    def dot(self, other):
-        """別の Quaternion との内積を返す。
+    def __rmul__(self, other):
+        """左辺の MQuaternion 系との積を om2 の順序で返す。数値なら成分をスケールする。
+
+        ``数値 * q`` は om2 と同じく4成分それぞれのスカラー倍(正規化しない)。
+        ``q * 数値`` は om2 と同じく対応しない。
 
         Args:
-            other (Quaternion): 内積の相手。
+            other (object): 左側の MQuaternion 系、または int / float。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 積。対応しない型は NotImplemented。
+        """
+        if isinstance(other, _NUMBER):
+            return Quaternion._wrap(_MQuaternion.__rmul__(self, other))
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        result = Quaternion._wrap(other)
+        _MQuaternion.__imul__(result, self)
+        return result
+
+    def __imul__(self, other):
+        """自身へ右から MQuaternion 系を掛ける(``self = self * other``)。
+
+        Args:
+            other (object): 右側の MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        return _MQuaternion.__imul__(self, other)
+
+    def __add__(self, other):
+        """成分ごとの和を返す(om2 の ``+``)。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 和。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        return Quaternion._wrap(_MQuaternion.__add__(self, other))
+
+    def __iadd__(self, other):
+        """MQuaternion 系を成分ごとに自身へ加算する(om2 の MQuaternion には無い in-place 版)。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        self.setValue(_MQuaternion.__add__(self, other))
+        return self
+
+    def __isub__(self, other):
+        """MQuaternion 系を成分ごとに自身から減算する(om2 の MQuaternion には無い in-place 版)。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        self.setValue(_MQuaternion.__sub__(self, other))
+        return self
+
+    def __radd__(self, other):
+        """左辺の MQuaternion 系との成分ごとの和を返す。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 和。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        return Quaternion._wrap(_MQuaternion.__add__(other, self))
+
+    def __sub__(self, other):
+        """成分ごとの差を返す(om2 の ``-``)。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 差。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        return Quaternion._wrap(_MQuaternion.__sub__(self, other))
+
+    def __rsub__(self, other):
+        """左辺の MQuaternion 系から自身を引いた成分ごとの差を返す。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 差。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        return Quaternion._wrap(_MQuaternion.__sub__(other, self))
+
+    def __neg__(self):
+        """全成分の符号を反転した四元数を返す(同じ回転を表す)。
+
+        Returns:
+            Quaternion: 新しい四元数。
+        """
+        return Quaternion._wrap(_MQuaternion.__neg__(self))
+
+    # ------------------------------------------------------------------ hlib 名のメソッド
+    def dot(self, other):
+        """4成分の内積を返す。
+
+        Args:
+            other (om2.MQuaternion): 内積の相手。x、y、z、w を持つ値。
 
         Returns:
             float: 内積。
@@ -105,10 +464,12 @@ class Quaternion:
         Returns:
             float: 長さ。
         """
-        return math.sqrt(self.dot(self))
+        return math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w)
 
     def normalized(self):
-        """正規化済み四元数を返す。
+        """正規化した新しい四元数を返す。
+
+        om2 の ``normal()`` はゼロ四元数に単位四元数を返すが、このメソッドは拒否する。
 
         Returns:
             Quaternion: 長さ 1 の四元数。
@@ -116,23 +477,23 @@ class Quaternion:
         Raises:
             ValueError: ゼロ四元数の場合。
         """
-        length = self.length()
-        if length == 0.0:
-            raise ValueError("Cannot normalize a zero quaternion")
-        return Quaternion(*(component / length for component in self))
+        return _unit_copy(self)
 
     def conjugate(self):
-        """共役四元数を返す。
+        """共役四元数を返す(om2 の同名メソッドを hlib の型で返すよう上書き)。
 
         Returns:
-            Quaternion: XYZ 成分の符号を反転した四元数。
+            Quaternion: XYZ 成分の符号を反転した新しい四元数。
         """
-        return Quaternion(-self.x, -self.y, -self.z, self.w)
+        result = Quaternion._wrap(self)
+        result.conjugateIt()
+        return result
 
     def inverse(self):
-        """逆四元数を返す。
+        """逆四元数(共役を長さの2乗で割った値)を返す。
 
-        単位四元数(回転として正規化済み)であれば conjugate() と同じ結果になる。
+        om2 の同名メソッドを上書きし、hlib の型で返す。om2 はゼロ四元数に NaN を
+        返すが、このメソッドは拒否する。単位四元数なら conjugate() と同じ。
 
         Returns:
             Quaternion: 逆四元数。
@@ -140,19 +501,20 @@ class Quaternion:
         Raises:
             ValueError: ゼロ四元数の場合。
         """
-        length_squared = self.dot(self)
-        if length_squared == 0.0:
+        if self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w == 0.0:
             raise ValueError("Cannot invert a zero quaternion")
-        return Quaternion(*(component / length_squared for component in self.conjugate()))
+        result = Quaternion._wrap(self)
+        result.invertIt()
+        return result
 
     def rotate_vector(self, vector):
-        """Vector をこの回転で変換する。
+        """ベクトルをこの回転で変換する。
 
-        自身を正規化してから適用するため、正規化していない四元数を渡しても
-        結果のスケールには影響しない。
+        自身を正規化してから適用するため、正規化していない四元数でも結果の大きさは
+        変わらない(om2 の ``MVector.rotateBy`` は正規化しない四元数だと大きさも変える)。
 
         Args:
-            vector (Vector): 回転させる方向・位置ベクトル。
+            vector (om2.MVector | Iterable[float]): 回転させる方向・位置。
 
         Returns:
             Vector: 回転後のベクトル。派生クラスの型は保持しない。
@@ -160,22 +522,19 @@ class Quaternion:
         Raises:
             ValueError: 自身がゼロ四元数の場合。
         """
-        from .vector import Vector
-
-        rotation = self.normalized()
-        axis = Vector(rotation.x, rotation.y, rotation.z)
-        uv = axis.cross(vector)
-        uuv = axis.cross(uv)
-        return vector + uv * (2.0 * rotation.w) + uuv * 2.0
+        result = _zero(Vector)
+        _MVector.__iadd__(result, _as_mvector(vector).rotateBy(_unit_copy(self)))
+        return result
 
     def angle_to(self, other):
-        """別の Quaternion が表す回転との角度差をラジアンで返す。
+        """別の四元数が表す回転との角度差をラジアンで返す。
 
-        自身・other をそれぞれ正規化してから比較する。四元数の二重被覆
-        (q と -q が同じ回転を表す)を考慮し、常に 0 から pi の範囲を返す。
+        両方を正規化し、二重被覆(q と -q が同じ回転)を考慮する。acos を使わず
+        ``4 * atan2(|p - q|, |p + q|)`` で計算するため、角度差が 0 や pi に近くても
+        精度を保つ。
 
         Args:
-            other (Quaternion): 角度差を測る相手の回転。
+            other (om2.MQuaternion): 角度差を測る相手の回転。
 
         Returns:
             float: 0 から pi の範囲のラジアン角度。
@@ -183,99 +542,100 @@ class Quaternion:
         Raises:
             ValueError: 自身または other がゼロ四元数の場合。
         """
-        cosine = abs(self.normalized().dot(other.normalized()))
-        cosine = max(-1.0, min(1.0, cosine))
-        return 2.0 * math.acos(cosine)
+        p = _unit_copy(self)
+        q = _unit_copy(other)
+        if p.x * q.x + p.y * q.y + p.z * q.z + p.w * q.w < 0.0:
+            q.negateIt()
+        dx, dy, dz, dw = p.x - q.x, p.y - q.y, p.z - q.z, p.w - q.w
+        sx, sy, sz, sw = p.x + q.x, p.y + q.y, p.z + q.z, p.w + q.w
+        return 4.0 * math.atan2(math.sqrt(dx * dx + dy * dy + dz * dz + dw * dw),
+                                math.sqrt(sx * sx + sy * sy + sz * sz + sw * sw))
 
-    def slerp(self, other, t):
-        """別の Quaternion との球面線形補間を返す。
+    def slerp(self, other, t, spin=0):
+        """別の四元数との球面線形補間を返す。
 
-        最短経路になるよう二重被覆を補正し、ほぼ同じ回転同士では
-        sin(theta) がゼロに近づく数値不安定を避けるため線形補間へ
-        フォールバックする。
+        om2 の静的メソッド ``MQuaternion.slerp(p, q, t, spin=0)`` を上書きする。
+        インスタンスメソッドとして ``p.slerp(q, t)`` と呼べるほか、
+        ``Quaternion.slerp(p, q, t)`` の静的呼び出しの形でも使える。入力を正規化
+        してから om2 の slerp で最短経路を補間する。
 
         Args:
-            other (Quaternion): 補間先の回転。
-            t (float): 補間係数。0 で自身、1 で other。範囲外の値は外挿になる。
+            other (om2.MQuaternion): 補間先の回転。
+            t (float): 補間係数。0 で自身、1 で other。
+            spin (int): om2 の slerp に渡す追加回転数。既定は 0。
 
         Returns:
-            Quaternion: 補間結果。正規化済み。
+            Quaternion: 補間結果。
 
         Raises:
             ValueError: 自身または other がゼロ四元数の場合。
         """
-        self_q = self.normalized()
-        other_q = other.normalized()
-        cosine = self_q.dot(other_q)
-        if cosine < 0.0:
-            other_q = Quaternion(-other_q.x, -other_q.y, -other_q.z, -other_q.w)
-            cosine = -cosine
-        cosine = max(-1.0, min(1.0, cosine))
-        if cosine > 0.9995:
-            blended = Quaternion(*(a + (b - a) * t for a, b in zip(self_q, other_q)))
-            return blended.normalized()
-        theta = math.acos(cosine)
-        sine = math.sin(theta)
-        self_weight = math.sin((1.0 - t) * theta) / sine
-        other_weight = math.sin(t * theta) / sine
-        return Quaternion(*(a * self_weight + b * other_weight for a, b in zip(self_q, other_q)))
+        return Quaternion._wrap(_MQuaternion.slerp(_unit_copy(self), _unit_copy(other), t, spin))
 
     @classmethod
     def from_axis_angle(cls, axis, angle):
         """軸と角度から回転四元数を生成する。
 
         Args:
-            axis (Vector | Iterable[float]): 回転軸。内部で正規化する。
+            axis (om2.MVector | Iterable[float]): 回転軸。内部で正規化する。
             angle (float): 回転角度(ラジアン)。
 
         Returns:
             Quaternion: axis を中心に angle だけ回転する単位四元数。
 
         Raises:
-            ValueError: axis がゼロベクトルの場合。
+            ValueError: axis がゼロベクトルの場合(om2 は単位四元数を返す)。
         """
-        from .vector import Vector
-
-        if not isinstance(axis, Vector):
-            axis = Vector(*axis)
-        axis = axis.normalized()
-        half_angle = angle / 2.0
-        sine = math.sin(half_angle)
-        return cls(axis.x * sine, axis.y * sine, axis.z * sine, math.cos(half_angle))
+        axis = _as_mvector(axis)
+        length = axis.length()
+        if length == 0.0:
+            raise ValueError("Cannot normalize a zero vector")
+        half = angle / 2.0
+        sine = math.sin(half)
+        result = _NEW(cls)
+        _INIT(result)
+        result.x = axis.x / length * sine
+        result.y = axis.y / length * sine
+        result.z = axis.z / length * sine
+        result.w = math.cos(half)
+        return result
 
     def to_axis_angle(self):
         """軸と角度の組へ分解する。
 
+        om2 の ``asAxisAngle`` と異なり、w が負なら符号を反転して角度を 0 から pi の
+        範囲に収め、回転が無い場合の軸は (1, 0, 0) とする。角度は
+        ``2 * atan2(|xyz|, w)`` で求めるため、微小な回転でも精度を保つ。
+
         Returns:
-            tuple[Vector, float]: 正規化した回転軸と、ラジアンの回転角度
-                (0 から 2*pi の範囲)。回転がほぼ無い場合、軸は便宜上
-                (1, 0, 0) を返す。
+            tuple[Vector, float]: 正規化した回転軸と、ラジアンの回転角度(0 から pi)。
 
         Raises:
             ValueError: 自身がゼロ四元数の場合。
         """
-        from .vector import Vector
-
-        rotation = self.normalized()
+        rotation = _unit_copy(self)
         if rotation.w < 0.0:
-            rotation = Quaternion(-rotation.x, -rotation.y, -rotation.z, -rotation.w)
-        angle = 2.0 * math.acos(max(-1.0, min(1.0, rotation.w)))
-        sine = math.sqrt(max(0.0, 1.0 - rotation.w * rotation.w))
-        if sine < 1e-10:
-            return Vector(1.0, 0.0, 0.0), angle
-        return Vector(rotation.x / sine, rotation.y / sine, rotation.z / sine), angle
+            rotation.negateIt()
+        sine = math.sqrt(rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z)
+        angle = 2.0 * math.atan2(sine, rotation.w)
+        result = _zero(Vector)
+        if sine == 0.0:
+            result.x = 1.0
+            return result, angle
+        result.x = rotation.x / sine
+        result.y = rotation.y / sine
+        result.z = rotation.z / sine
+        return result, angle
 
     def to_swing_twist(self, axis=(1.0, 0.0, 0.0)):
         """指定軸まわりの捻り(twist)と、それ以外の曲げ(swing)へ分解する。
 
-        ボーン(joint)の回転を、軸方向の捻り成分とそれに直交する曲げ成分に
-        分離する swing-twist 分解。``twist`` は axis 周りのみの回転、
-        ``swing`` は axis をそのまま axis 周りに回転させない(twist を
-        先に適用した結果を axis 方向に保ったまま残りを回転させる)成分で、
-        ``swing * twist`` は自身と同じ回転を表す。
+        ``twist`` は axis 周りだけの回転、``swing`` は axis の向きを変える残りの
+        回転。om2 の積の順序で ``twist * swing`` が自身と同じ回転になる
+        (twist を先に適用し、続けて swing を適用する)。
 
         Args:
-            axis (Vector | Iterable[float]): 捻り軸。内部で正規化する。
+            axis (om2.MVector | Iterable[float]): 捻り軸。内部で正規化する。
 
         Returns:
             tuple[Quaternion, Quaternion]: (swing, twist)。どちらも正規化済み。
@@ -283,66 +643,63 @@ class Quaternion:
         Raises:
             ValueError: axis がゼロベクトルの場合、または自身がゼロ四元数の場合。
         """
-        from .vector import Vector
-
-        if not isinstance(axis, Vector):
-            axis = Vector(*axis)
-        axis = axis.normalized()
-        rotation = self.normalized()
-        dot = rotation.x * axis.x + rotation.y * axis.y + rotation.z * axis.z
-        twist = Quaternion(dot * axis.x, dot * axis.y, dot * axis.z, rotation.w)
-        length = twist.length()
-        if length < 1e-10:
+        axis = _as_mvector(axis)
+        length = axis.length()
+        if length == 0.0:
+            raise ValueError("Cannot normalize a zero vector")
+        ax, ay, az = axis.x / length, axis.y / length, axis.z / length
+        rotation = _unit_copy(self)
+        dot = rotation.x * ax + rotation.y * ay + rotation.z * az
+        twist = _NEW(Quaternion)
+        _INIT(twist)
+        twist.x = dot * ax
+        twist.y = dot * ay
+        twist.z = dot * az
+        twist.w = rotation.w
+        twist_length = twist.length()
+        if twist_length < 1e-10:
             # 捻り軸に直交する180度回転など、axis 成分が無い姿勢は捻りなしとみなす。
-            twist = Quaternion()
+            twist = _NEW(Quaternion)
+            _INIT(twist)
         else:
-            twist = Quaternion(*(component / length for component in twist))
-        swing = rotation * twist.conjugate()
+            twist.x /= twist_length
+            twist.y /= twist_length
+            twist.z /= twist_length
+            twist.w /= twist_length
+        swing = twist.conjugate() * rotation
         return swing, twist
 
     def to_euler(self, order="xyz"):
         """EulerRotation へ変換する。
 
-        回転行列(行ベクトル規約)を経由し、``EulerRotation.to_quaternion()`` の
-        6回転順序すべてに対応する合成規約(最初に適用する軸が右端、最後に
-        適用する軸が左端の Hamilton 積)を逆算する。中間軸が ±90度付近の
-        ジンバルロックでは、最後に適用される軸の角度を 0 とみなし、最初に
-        適用される軸の角度のみを残りの自由度から復元する(一般的な規約)。
+        正規化した回転行列を ``om2.MEulerRotation.decompose`` で分解するため、
+        ``Matrix.euler`` と同じ規約の角度になる。中間軸が 90 度を超える等価な角度を
+        返すことがある。
 
         Args:
-            order (str): 回転順序。``"xyz"``/``"yzx"``/``"zxy"``/``"xzy"``/
-                ``"yxz"``/``"zyx"`` に対応。
+            order (str | int): 回転順序。``"xyz"``/``"yzx"``/``"zxy"``/``"xzy"``/
+                ``"yxz"``/``"zyx"``、または om2 の番号 0〜5。
 
         Returns:
-            EulerRotation: radian の Euler 回転値。
+            EulerRotation: ラジアンの Euler 回転値。
 
         Raises:
             ValueError: order が未対応の場合、またはゼロ四元数の場合。
         """
-        order = order.lower()
-        if order not in _EULER_ORDER_AXES:
-            raise ValueError(f"Unsupported rotation order: {order!r}")
-        from .euler_rotation import EulerRotation
+        from .euler_rotation import EulerRotation, order_index
 
-        quaternion = self.normalized()
-        x, y, z, w = quaternion.x, quaternion.y, quaternion.z, quaternion.w
-        m = (
-            (1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y + z * w), 2.0 * (x * z - y * w)),
-            (2.0 * (x * y - z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z + x * w)),
-            (2.0 * (x * z + y * w), 2.0 * (y * z - x * w), 1.0 - 2.0 * (x * x + y * y)),
-        )
-        a, b, c = _EULER_ORDER_AXES[order]
-        sign = 1.0 if order in _EULER_CYCLIC_ORDERS else -1.0
-        gimbal = max(-1.0, min(1.0, -sign * m[a][c]))
+        index = order_index(order)
+        return EulerRotation._wrap(om2.MEulerRotation.decompose(_unit_copy(self).asMatrix(), index))
 
-        angles = [0.0, 0.0, 0.0]
-        if abs(gimbal) >= 1.0 - 1e-9:
-            branch = math.copysign(1.0, gimbal)
-            angles[b] = branch * math.pi / 2.0
-            angles[a] = _EULER_GIMBAL_FORMULAS[order](m, branch)
-            angles[c] = 0.0
-        else:
-            angles[b] = math.asin(gimbal)
-            angles[a] = math.atan2(sign * m[b][c], m[c][c])
-            angles[c] = math.atan2(sign * m[a][b], m[a][a])
-        return EulerRotation(angles[0], angles[1], angles[2], order)
+    def to_matrix(self):
+        """正規化した回転を表す Matrix を返す。
+
+        Returns:
+            Matrix: 回転だけを持つ4行4列行列。
+
+        Raises:
+            ValueError: ゼロ四元数の場合。
+        """
+        from .matrix import Matrix
+
+        return Matrix._wrap(_unit_copy(self).asMatrix())

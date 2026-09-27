@@ -3,6 +3,81 @@ import math
 from dataclasses import fields
 from .references import NodeRef, PlugRef, ComponentRef
 
+#: 数学型の記録の要素数。EulerRotation はラジアンの3成分(順序は別の "order" キー)。
+_MATH_SIZES = {
+    "Vector": 3,
+    "Translation": 3,
+    "Scale": 3,
+    "Shear": 3,
+    "EulerRotation": 3,
+    "Quaternion": 4,
+    "Matrix": 16,
+}
+
+
+def _math_type_name(value):
+    """数学型として保存できる値の型名を返す。
+
+    hlib.maths の公開型(派生クラスは除く)と、om2 名のメソッド(``normal()``、
+    ``asMatrix()`` など)が返す om2 の基底型(MVector / MQuaternion / MEulerRotation /
+    MMatrix)を対象にする。om2 の基底型は対応する hlib の型の記録として保存する。
+
+    Args:
+        value (object): 判定する値。
+
+    Returns:
+        str | None: ``"Vector"`` などの型名。対象外なら None。
+    """
+    from .. import maths
+    import maya.api.OpenMaya as om2
+    kind = type(value)
+    name = kind.__name__
+    if name in maths.__all__ and kind is getattr(maths, name, None) and name in _MATH_SIZES:
+        return name
+    return {
+        om2.MVector: "Vector",
+        om2.MQuaternion: "Quaternion",
+        om2.MEulerRotation: "EulerRotation",
+        om2.MMatrix: "Matrix",
+    }.get(kind)
+
+
+def _decode_math(name, args):
+    """数学型の記録を検証し、hlib.maths の値へ復元する。
+
+    Args:
+        name (str): ``"Vector"`` などの型名(旧名は変換済み)。
+        args (object): 記録の中身を decode した値。``{"values": [...]}``、EulerRotation は
+            ``"order"`` (名前または om2 の番号)も持てる。
+
+    Returns:
+        object: 復元した hlib.maths の値。
+
+    Raises:
+        ValueError: 未知の型、キーの過不足、要素数の不一致、数値(bool を除く int / float)
+            以外の要素、または未対応の回転順序の場合。
+    """
+    from .. import maths
+    size = _MATH_SIZES.get(name)
+    if size is None:
+        raise ValueError("Unknown math type")
+    allowed = {"values", "order"} if name == "EulerRotation" else {"values"}
+    if type(args) is not dict or "values" not in args or not set(args) <= allowed:
+        raise ValueError("Invalid {} record".format(name))
+    values = args["values"]
+    if type(values) not in (list, tuple) or len(values) != size:
+        raise ValueError("{} expects {} values".format(name, size))
+    if any(type(item) not in (int, float) for item in values):
+        raise ValueError("{} values must be numbers".format(name))
+    if "order" in args and type(args["order"]) not in (str, int):
+        raise ValueError("EulerRotation order must be a name or an om2 order number")
+    cls = getattr(maths, name)
+    if name == "Matrix":
+        return cls(values)
+    if name == "EulerRotation":
+        return cls(*values, order=args.get("order", "xyz"))
+    return cls(*values)
+
 
 def encode(value):
     """対応型をタグ付きのJSON基本値へ変換する。非有限値・未対応型は例外。"""
@@ -30,11 +105,13 @@ def encode(value):
         return {"type": type(value).__name__, "value": {f.name: encode(getattr(value, f.name)) for f in fields(value)}}
     if isinstance(value, Snapshot):
         return {"type": "snapshot", "value": encode(value.to_data())}
-    if type(value).__name__ in maths.__all__ and type(value) is getattr(maths, type(value).__name__, None):
+    math_name = _math_type_name(value)
+    if math_name is not None:
         data = {"values": list(value)}
-        if isinstance(value, maths.EulerRotation):
-            data["order"] = value.order
-        return {"type": "math:" + type(value).__name__, "value": encode(data)}
+        if math_name == "EulerRotation":
+            # order は om2 の番号(int)。JSON には従来どおり名前で保存する。
+            data["order"] = maths.euler_rotation.ORDER_NAMES[value.order]
+        return {"type": "math:" + math_name, "value": encode(data)}
     if type(value) is dict:
         if any(type(k) is not str for k in value):
             raise TypeError("JSON dictionary keys must be strings")
@@ -68,16 +145,8 @@ def decode(value):
         from .snapshots import Snapshot
         return Snapshot.from_data(decode(data))
     if kind.startswith("math:"):
-        from .. import maths
         name = {"Translate": "Translation", "Rotate": "EulerRotation"}.get(kind[5:], kind[5:])
-        allowed = {"Vector", "Translation", "Scale", "Shear", "EulerRotation", "Quaternion", "Matrix"}
-        if name not in allowed:
+        if name not in _MATH_SIZES:
             raise ValueError("Unknown math type")
-        args = decode(data)
-        cls = getattr(maths, name)
-        if name == "Matrix":
-            return cls(args["values"])
-        if name == "EulerRotation":
-            return cls(*args["values"], order=args.get("order", "xyz"))
-        return cls(*args["values"])
+        return _decode_math(name, decode(data))
     raise ValueError("Unknown JSON type: {}".format(kind))

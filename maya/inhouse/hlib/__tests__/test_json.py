@@ -40,12 +40,82 @@ class JsonTest(unittest.TestCase):
             restored = self.roundtrip(value)
             self.assertIs(type(restored), type(value))
             self.assertEqual(list(restored), list(value))
-        self.assertEqual(self.roundtrip(values[5]).order, "zyx")
+        # order は om2 の番号(int)。JSON には名前で保存し、名前で読み戻せる。
+        self.assertEqual(self.roundtrip(values[5]).order_name, "zyx")
+        self.assertEqual(hlib.json.dumps(values[5]).count('"zyx"'), 1)
         raw = {"type": "NodeRef", "value": {"日本語": (True, None, 4)}}
         self.assertEqual(self.roundtrip(raw), raw)
         for invalid in [math.nan, math.inf, object(), {2: "value"}]:
             with self.assertRaises((ValueError, TypeError)):
                 hlib.json.dumps(invalid)
+
+    def test_om2_math_results_are_saved_as_hlib_types(self):
+        import maya.api.OpenMaya as om2
+        from hlib import maths
+        # om2 名のメソッドが返す om2 の基底型も、対応する hlib の型として保存・復元する。
+        pairs = [
+            (maths.Vector(1, 0, 0).normal(), maths.Vector),
+            (maths.Quaternion(0.1, 0.2, 0.3, 0.9).normal(), maths.Quaternion),
+            (maths.Quaternion(0.1, 0.2, 0.3, 0.9).asEulerRotation().reorder(5), maths.EulerRotation),
+            (maths.Matrix(translate=(1, 2, 3)).adjoint(), maths.Matrix),
+        ]
+        for value, expected_type in pairs:
+            restored = self.roundtrip(value)
+            self.assertIs(type(restored), expected_type)
+            self.assertEqual(list(restored), list(value))
+        self.assertEqual(self.roundtrip(pairs[2][0]).order_name, "zyx")
+        # 利用者の派生クラスや MPoint は対象外。
+        subclass = type("UserVector", (maths.Vector,), {})
+        for invalid in (subclass(1, 2, 3), om2.MPoint(1, 2, 3)):
+            with self.assertRaises(TypeError):
+                hlib.json.dumps(invalid)
+
+    def test_math_records_are_validated(self):
+        # 要素数・要素の型・キーを検査し、om2 のコンストラクタが黙って補う形も拒否する。
+        import json as std_json
+
+        def edited(value, edit):
+            document = std_json.loads(hlib.json.dumps(value))
+            edit(document["data"]["value"]["value"])
+            return std_json.dumps(document)
+
+        def set_values(values):
+            def edit(fields):
+                fields["values"]["value"] = values
+            return edit
+
+        vector = hlib.maths.Vector(1, 2, 3)
+        self.assertEqual(tuple(hlib.json.loads(edited(vector, set_values([1.0, 2.0, 3.0])))), (1.0, 2.0, 3.0))
+        self.assertEqual(tuple(hlib.json.loads(edited(vector, set_values([1, 2, 3])))), (1.0, 2.0, 3.0))
+        invalid_values = [
+            [1.0, 2.0],
+            [],
+            [1.0, 2.0, 3.0, 4.0],
+            [True, 2.0, 3.0],
+            ["1", "2", "3"],
+            [None, 2.0, 3.0],
+            [{"type": "list", "value": [1.0, 2.0, 3.0]}],
+        ]
+        for values in invalid_values:
+            with self.assertRaises(ValueError, msg=repr(values)):
+                hlib.json.loads(edited(vector, set_values(values)))
+        with self.assertRaises(ValueError):
+            hlib.json.loads(edited(vector, lambda fields: fields.update(extra=1)))
+        with self.assertRaises(ValueError):
+            hlib.json.loads(edited(vector, lambda fields: fields.pop("values")))
+        with self.assertRaises(ValueError):
+            hlib.json.loads(edited(hlib.maths.Quaternion(0, 0, 0, 1), set_values([])))
+        with self.assertRaises(ValueError):
+            hlib.json.loads(edited(hlib.maths.Matrix(), set_values([1.0] * 15)))
+
+        euler = hlib.maths.EulerRotation(0.1, 0.2, 0.3, "zyx")
+        self.assertEqual(hlib.json.loads(edited(euler, lambda fields: fields.update(order=5))).order_name, "zyx")
+        for order in ("abc", 6, True, None):
+            with self.assertRaises(ValueError, msg=repr(order)):
+                hlib.json.loads(edited(euler, lambda fields, order=order: fields.update(order=order)))
+        # order を省略した記録は XYZ 順序。
+        restored = hlib.json.loads(edited(euler, lambda fields: fields.pop("order")))
+        self.assertEqual(restored.order_name, "xyz")
 
     def test_storage_atomic_and_version(self):
         path = hlib.json.dump({"日本語": 1}, metadata={"label": "test"})

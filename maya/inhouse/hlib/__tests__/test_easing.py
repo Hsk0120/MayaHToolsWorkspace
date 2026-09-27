@@ -1,8 +1,9 @@
 """hlib.maths.easing の対称イージング曲線を検証するテスト。
 
-``hlib.maths`` は Maya に依存しないため、``hlib`` パッケージ全体
+``easing`` 自体は標準ライブラリの math だけを使う。``hlib`` パッケージ全体
 (maya.cmds を読み込む)を経由せず、maths だけを独立した仮パッケージとして
-読み込んで検証する。mayapy で ``maya.standalone`` を初期化せずに実行しても通る。
+読み込んで検証する。maths パッケージの初期化は ``maya.api.OpenMaya`` を読み込むため
+mayapy で実行するが、``maya.standalone`` を初期化しなくても通る。
 """
 
 import decimal

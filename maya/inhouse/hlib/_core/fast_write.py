@@ -77,7 +77,8 @@ def set_plug(plug, value):
         else:
             raise NotImplementedError("fast numeric type is not supported: " + plug.name())
     elif attribute.hasFn(om.MFn.kMatrixAttribute):
-        matrix = value.to_mmatrix() if hasattr(value, "to_mmatrix") else om.MMatrix(value)
+        # hlib の Matrix は om.MMatrix の派生なので、変換せずにそのまま渡せる。
+        matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
         plug.setMObject(om.MFnMatrixData().create(matrix))
     elif attribute.hasFn(om.MFn.kTypedAttribute):
         kind = om.MFnTypedAttribute(attribute).attrType()
@@ -91,7 +92,7 @@ def set_plug(plug, value):
         if kind == om.MFnData.kString:
             plug.setString(str(value))
         elif kind == om.MFnData.kMatrix:
-            matrix = value.to_mmatrix() if hasattr(value, "to_mmatrix") else om.MMatrix(value)
+            matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
             plug.setMObject(om.MFnMatrixData().create(matrix))
         elif kind in factories:
             plug.setMObject(factories[kind]().create(value))

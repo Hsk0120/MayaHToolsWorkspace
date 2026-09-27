@@ -69,7 +69,8 @@ skinClusterから接続先を取得する場合は、次のように指定しま
    pose.reset()                   # 全メンバーの保存姿勢を更新
    pose.remove("extra_joint")     # ポーズから除外。Joint自体は削除しない
 
-``get_matrix()`` が返すのは保存時の :class:`~hlib.maths.matrix.Matrix` です。
+``get_matrix()`` が返すのは保存時の :class:`~hlib.maths.matrix.Matrix` の複製です
+(om2.MMatrix の派生で、変更してもポーズには反映されません)。
 配列の論理番号は欠番を含むため、``members()`` のリスト位置とは区別してください。
 ``remove()`` で指定したノードが残るメンバーの親として必要な場合は、Mayaが保持することがあります。
 
