@@ -2,6 +2,7 @@
 
 import maya.cmds as cmds
 from .._core.collection import BulkCollection, bulk_api
+from .versions import is_at_least, parse_version
 
 
 class Plugin:
@@ -67,6 +68,31 @@ class Plugin:
         if not self.is_registered():
             return None
         return cmds.pluginInfo(self._name, query=True, version=True) or None
+
+    def version_tuple(self):
+        """プラグインの版を数値のタプルで取得する。
+
+        ``"3.0.0.0-202602040323-9df3db7"`` のように後ろにビルド情報が付く版でも、
+        先頭の数字の並びだけを使う。
+
+        Returns:
+            tuple[int, ...] | None: 版。未登録・数字で始まらない場合は None。
+        """
+        return parse_version(self.version())
+
+    def is_version_at_least(self, minimum):
+        """プラグインの版が ``minimum`` 以上か判定する。
+
+        Args:
+            minimum (str | int | tuple[int, ...]): 必要な最小の版(``"3.0.0"`` など)。
+
+        Returns:
+            bool: 未登録・版が取れない場合は False。
+
+        Raises:
+            ValueError: minimum が版として解釈できない場合。
+        """
+        return is_at_least(self.version_tuple(), minimum)
 
     def load(self, **kwargs):
         """プラグインをロードする。

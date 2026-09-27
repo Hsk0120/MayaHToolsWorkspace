@@ -19,6 +19,11 @@ globals().update(_discovered_exports)
 # 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
 # 公開名の一覧との一致は test_typing_exports.py が検証する。
 if TYPE_CHECKING:
+    from .HIKCharacterNode import HIKCharacterNode
+    from .HIKSolverNode import HIKSolverNode
+    from .HIKRetargeterNode import HIKRetargeterNode
+    from .HIKControlSetNode import HIKControlSetNode
+    from .HIKSkeletonGeneratorNode import HIKSkeletonGeneratorNode
     from .aimConstraint import AimConstraint
     from .animCurve import AnimCurve
     from .animCurveTA import AnimCurveTA

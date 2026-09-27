@@ -400,6 +400,8 @@ class Node:
 
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
+        from ..plugins.standard import ensure_node_plugin
+        ensure_node_plugin(type)
         for key in ("parent", "p"):
             if kwargs.get(key) is not None:
                 kwargs[key] = to_node_name(kwargs[key])

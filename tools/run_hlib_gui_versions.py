@@ -32,8 +32,11 @@ def worker(version, directory, suite_path=None):
         # このプロセスはランナーが作成した使い捨てシーン。保存確認を発生させない。
         cmds.file(modified=False)
         # Pythonコールバックを抜けてからネイティブMELで終了する。
-        # 終了処理中にPythonフレームを保持せず、専用のUI設定も保存しない。
-        mel.eval('evalDeferred "quit -abort -exitCode {}";'.format(0 if result["status"] == "passed" else 1))
+        # 終了処理中にPythonフレームを保持しない。UI設定は隔離したMAYA_APP_DIR内。
+        # file(modified=False)後もscriptJob等の遅延処理がシーンを変更し得る。
+        # ランナー所有の使い捨てGUIだけをforce終了し、保存確認で停止させない。
+        mel.eval('evalDeferred "file -modified false; quit -force -exitCode {};";'.format(
+            0 if result["status"] == "passed" else 1))
 
     def execute():
         try:

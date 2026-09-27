@@ -43,6 +43,7 @@ if TYPE_CHECKING:
         node,
         objExists,
         outliner,
+        requirePlugins,
         scene,
         select,
         setKeyframe,

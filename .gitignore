@@ -70,6 +70,8 @@ instance/
 
 # Sphinx documentation
 maya/inhouse/hlib/docs/_build/
+maya/inhouse/hedit/docs/_build/
+maya/inhouse/hedit/docs/.venv/
 maya/inhouse/hlib/docs/autoapi/
 maya/inhouse/hlib/docs/_generated/
 

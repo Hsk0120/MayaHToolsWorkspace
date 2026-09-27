@@ -2,5 +2,6 @@
 
 from .scene import Scene
 from .references import create_reference, list_references
+from .fbx import import_fbx, export_fbx
 
-__all__ = ['Scene', 'create_reference', 'list_references']
+__all__ = ['Scene', 'create_reference', 'list_references', 'import_fbx', 'export_fbx']

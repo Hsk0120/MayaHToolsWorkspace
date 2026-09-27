@@ -32,6 +32,7 @@
    guide_sets
    animation_nodes
    driven_keys
+   fbx_hik
 
 .. toctree::
    :maxdepth: 1
