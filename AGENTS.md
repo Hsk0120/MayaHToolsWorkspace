@@ -72,7 +72,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 - 静的解析(Pylance/pyright)は、リポジトリ直下の `pyrightconfig.json` に設定を集約している。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
 - `hlib.createNode` など実行時に動的公開される名前は、`hlib/__init__.py`・`hlib/cmds/__init__.py`・`hlib/nodes/__init__.py` の `if TYPE_CHECKING:` ブロックで静的解析へ宣言している。コマンドやノードラッパーを追加したら同ブロックにも追記する(`test_typing_exports.py` が不一致を検出する)。
 - `hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
-- `hlib/maths/` のMaya非依存性を維持する。角度の度・ラジアン、行列の規約は対象型の実装とテストに合わせる。
+- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
 - Mayaの信頼済みプラグインの場所(`optionVar SafeModeAllowedlistPaths`)をスクリプトから変更しない。MayaのSafeModeが拒否する設定で、迂回せずユーザーがPreferences > Securityで登録する。
 - hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.plugins`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
 

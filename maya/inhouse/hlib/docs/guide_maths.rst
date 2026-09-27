@@ -38,9 +38,9 @@ C++ 実装で行われます。
    point = om2.MPoint(Translation(1, 2, 3))
 
 演算子と om2 名(``normal``、``asMatrix``、``rotateBy`` などの camelCase)のメソッドは
-om2 と同じ意味です。演算子の結果は hlib の型で返りますが、om2 名のメソッドは om2 の
-基底型(``om2.MVector`` など)を返します。hlib の型が必要なときは、同じ働きを持つ
-snake_case のメソッド(``normalized``、``to_matrix`` など)を使ってください。
+om2 と同じ意味です。演算子の結果は hlib の型で返ります(例外は :ref:`maths-result-types`)が、
+om2 名のメソッドは om2 の基底型(``om2.MVector`` など)を返します。hlib の型が必要なときは、
+同じ働きを持つ snake_case のメソッド(``normalized``、``to_matrix`` など)を使ってください。
 ``hlib.maths`` の import には Maya(mayapy または Maya 本体)が必要です。
 ``hlib.maths.easing`` だけは標準ライブラリの ``math`` のみを使う関数群です。
 
@@ -94,6 +94,8 @@ om2 と同じく ``ValueError`` です。
 返しますが、hlib は検査します)。スライス ``v[0:2]`` は成分の ``tuple`` を返します
 (スライスへの代入はできません)。
 
+.. _maths-comparison:
+
 値の比較・変更・複製
 --------------------
 
@@ -117,9 +119,36 @@ om2 と同じく ``ValueError`` です。
 系統の違う値との比較は例外になりません。``om2.MPoint`` など系統の違う om2 の型とは
 ``False`` です。それ以外(``None``、文字列、tuple など)は相手側の比較に判断を委ね
 (Python の ``NotImplemented``)、相手も判断しなければ ``False`` になります。
-ただし **om2 の型が左辺** の比較(``om2.MPoint() == Vector()``、
+ただし **系統の違う om2 の型が左辺** の比較(``om2.MPoint() == Vector()``、
 ``om2.MVector() == Quaternion()`` など)は om2 側が ``TypeError`` を送出し、hlib では
-防げません。浮動小数点誤差を許容する場合は ``is_equivalent`` を使ってください。
+防げません(om2 の型は ``None`` や文字列との比較でも ``TypeError`` を送出します)。
+浮動小数点誤差を許容する場合は ``is_equivalent`` を使ってください。
+
+``in`` / ``list.index`` / ``list.count`` / ``list.remove`` / リスト同士の ``==`` も内部で
+``==`` を使うため、素の om2 の値(``om2.MPoint`` など。hlib の値ではないもの)と系統の違う
+値が同じ比較に並ぶと ``TypeError`` になることがあります。``in`` がどちらを左辺にして比べるかは
+Python のバージョンで異なります。
+
+.. list-table::
+   :header-rows: 1
+
+   * - 操作
+     - Maya 2022(Python 3.7)
+     - Maya 2023 以降(Python 3.9 以降)
+   * - ``x in [item]`` / ``x in (item,)``
+     - ``x == item``
+     - ``item == x``
+   * - ``list.index(x)`` / ``list.count(x)`` / ``list.remove(x)``
+     - ``item == x``
+     - ``item == x``
+   * - ``[a] == [b]``
+     - ``a == b``
+     - ``a == b``
+
+例えば ``om2.MPoint() in [Vector()]`` は Maya 2022 では ``TypeError``、Maya 2023 以降では
+``False`` で、``Vector() in [om2.MPoint()]`` はその逆です。``[om2.MPoint()].count(Vector())`` は
+どのバージョンでも ``TypeError`` です。om2 の値を含むリストを検索するときは、hlib の型へ
+変換してから比べる(``Vector(point)`` など)か、``is`` や ``is_equivalent`` で明示的に比べてください。
 
 ``copy.copy`` / ``copy.deepcopy`` / ``pickle`` は型と値を保ったまま複製できます。
 利用者が定義した派生クラスでは、``__dict__`` や ``__slots__`` に追加した属性も複製され、
@@ -127,6 +156,63 @@ om2 と同じく ``ValueError`` です。
 om2 の型は C++ の実体をコンストラクタ(``__init__``)で確保するため、om2 の型を
 ``__new__`` だけで作るとアクセス時に Maya ごと落ちますが、hlib の型は ``__new__`` の
 時点で確保するため落ちません。以前の hlib(dataclass 版)で作った pickle は読み込めません。
+om2 の型と同じく弱参照(``weakref.ref``)には対応しないため、値を弱参照で持つ
+キャッシュなどには使えません。
+
+.. _maths-result-types:
+
+演算結果の型
+------------
+
+演算子の結果の型は、Python がどちらの値の演算子メソッドを呼ぶかで決まります。Python は
+左辺の ``__add__`` などを先に呼び、右辺の型が左辺の型の派生クラスで反射演算子
+(``__radd__`` など)を上書きしている場合は、右辺の反射演算子を先に呼びます。hlib の型は
+om2 の型の派生クラスで反射演算子を定義しているので、hlib の値を含む演算は次の場合に
+hlib のメソッドが処理し、**hlib の型** を返します。
+
+* 左辺が hlib の値(右辺が om2 の型でも同じ。例: ``Vector ^ om2.MVector``、
+  ``Matrix * om2.MVector``、``Matrix * om2.MPoint``)。
+* 左辺が同じ系統の om2 の値(``om2.MVector`` と Vector 系、``om2.MQuaternion`` と Quaternion、
+  ``om2.MEulerRotation`` と EulerRotation、``om2.MMatrix`` と Matrix)。例: ``om2.MVector + Vector``、
+  ``om2.MVector ^ Vector``、``om2.MMatrix * Matrix``、``om2.MQuaternion * Quaternion``。
+* 左辺の om2 の値がその組み合わせに対応していない(例: ``om2.MMatrix * Vector``)。
+
+返る hlib の型は、Vector 系の演算なら常に基底の ``Vector`` (``Translation`` などは保たない)、
+Quaternion・EulerRotation の演算なら ``Quaternion`` / ``EulerRotation``、行列同士・行列と数値の
+演算なら処理した側の ``Matrix`` の型(利用者の派生クラスも保つ。両方が hlib の Matrix なら左辺)です。
+``Vector * Vector`` だけは om2 と同じ内積の ``float`` です。
+``Matrix * om2.MPoint`` は om2 の列ベクトルとしての積(同次座標の4成分)の x、y、z を持つ
+``Vector`` で、結果の w は捨てます(``Vector(om2.MPoint)`` と同じく w で割りません)。
+hlib が対応しない組み合わせは om2 も対応しておらず、``TypeError`` です
+(``Vector + om2.MPoint``、``Quaternion * om2.MEulerRotation``、``Matrix * om2.MFloatVector`` など)。
+
+**例外**: 系統の違う om2 の値が左辺で、om2 がその組み合わせに対応している場合は、om2 側が
+先に処理して om2 の型を返し、hlib では変えられません。該当するのは次の組み合わせだけです。
+
+.. list-table::
+   :header-rows: 1
+
+   * - 演算
+     - 結果の型
+     - hlib の型が必要な場合
+   * - ``om2.MVector * Matrix``
+     - ``om2.MVector`` (行ベクトル規約の方向変換)
+     - ``Vector(v) * m`` または ``m.transform_vector(v)``
+   * - ``om2.MPoint * Matrix``
+     - ``om2.MPoint`` (位置の変換)
+     - ``m.transform_point(p)`` (``Translation``)
+   * - ``om2.MPoint + Vector`` / ``om2.MPoint - Vector``
+     - ``om2.MPoint``
+     - ``Vector(p) + v`` / ``Vector(p) - v``
+   * - ``om2.MEulerRotation * Quaternion``
+     - ``om2.MEulerRotation``
+     - ``EulerRotation(e) * q``
+
+``+=`` などの in-place 演算子は左辺のオブジェクトを書き換えるため、左辺が om2 の値なら
+om2 の型のままです(``raw = om2.MVector(); raw += Vector(1, 2, 3)`` の ``raw`` は
+``om2.MVector``)。om2 に in-place 版が無い演算(``raw ^= v``)は ``raw ^ v`` と同じく
+hlib の型へ名前を束ね直します。比較(``==`` / ``!=``)の規則は :ref:`maths-comparison` を、
+om2 名のメソッドの戻り値は冒頭の説明を参照してください。
 
 四元数
 ------
@@ -185,6 +271,10 @@ om2 と同じ整数(``kXYZ``\ =0、``kYZX``\ =1、``kZXY``\ =2、``kXZY``\ =3、
    euler.to_quaternion()      # 回転順序を反映した Quaternion
    euler.to_matrix()          # 回転順序を反映した Matrix
 
+``order`` は整数なので ``euler.order == "xyz"`` は常に ``False`` です(例外にもなりません)。
+名前で比べる場合は ``euler.order_name == "xyz"``、番号で比べる場合は
+``euler.order == om2.MEulerRotation.kXYZ`` と書いてください。
+
 ``==`` は回転順序を含めた成分の比較です。``+`` / ``-`` / ``*`` は om2 の Euler の演算
 (順序の違う値は左辺の順序へ変換して計算、``*`` は数値ならスケール、回転なら合成)です。
 om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は保つ)も使えます。
@@ -210,6 +300,7 @@ om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は
    m.transform_point(v)       # 位置の変換(平行移動を含む)。om2.MPoint(v) * m と同じ位置
 
 ``m * v`` は ``m.transform_point(v)`` ではありません。位置は ``transform_point()``、
-方向は ``transform_vector()`` か ``v * m`` を使ってください。
+方向は ``transform_vector()`` か ``v * m`` を使ってください。``m * om2.MVector(...)`` と
+``m * om2.MPoint(...)`` も ``Vector`` を返します(:ref:`maths-result-types`)。
 
 行列の取得・座標変換・ノードへの適用は :doc:`matrices` を参照してください。

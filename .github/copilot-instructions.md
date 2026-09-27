@@ -33,7 +33,7 @@
 
 - Maya依存コードでは既存の `maya.api.OpenMaya`、ラッパー、共通ヘルパーを優先して再利用する。
 - `hlib` のノード・plug型は、既存の `@node_wrapper` / `@plug_wrapper` と自動発見・登録の仕組みに合わせる。不要な手動登録を追加しない。
-- `hlib/maths/` はMaya非依存性を維持する。角度は内部ラジアン、入出力は度数法という既存の規約を確認する。
+- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
 - シーンを変更する処理は既存のUndo対応に従い、必要なら `hlib.decorators.undo` を使う。
 - HToolsの新規ツールはカテゴリ内の既存パターンと動的メニュー登録の条件に合わせる。
 - UIはPySide6優先、PySide2フォールバックを維持し、対象MayaのQtで利用できるAPIだけを使う。

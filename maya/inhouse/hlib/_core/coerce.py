@@ -38,8 +38,11 @@ list/tuple/set/ジェネレーターなどの反復可能オブジェクトを�
 例外の規則(``to_name``/``to_names``/``to_node_name``): 対応しない型は ``TypeError``、
 空文字列・空の om2 オブジェクト・削除済みの対象は ``ValueError``、文字列を解決できない
 (存在しない、または複数の対象に一致する)場合は ``RuntimeError``。``to_node`` は削除済みの
-Node・Plug・Component をそのまま(所有ノードとして)返し、有効性の扱いは呼び出し側の API に
-任せる(``Node(...)`` と ``hlib.constraint`` は ``RuntimeError``)。
+Node と、所有ノードが削除済みの Plug・Component をそのまま(無効な所有ノードとして)返し、
+有効性の扱いは呼び出し側の API に任せる(``Node(...)`` と ``hlib.constraint`` は ``RuntimeError``)。
+ただし ``deleteAttr`` で削除された属性の Plug・MPlug(所有ノードは有効)は、返す Node で
+削除を表せないため、``to_node``・``Node(...)`` などノードを解決する処理でも
+:class:`DeletedAttributeError` (``ValueError``)にする。
 """
 
 import re
@@ -51,6 +54,25 @@ _PLUG_PATH_TOKEN = re.compile(r"(\w+)((?:\[\d+\])*)\Z")
 
 #: 区切り内の論理インデックス(``[2]`` の ``2``)。
 _PLUG_PATH_INDEX = re.compile(r"\[(\d+)\]")
+
+#: 配列要素の論理インデックスの上限(``MPlug.logicalIndex()`` が返す符号付き 32 ビット整数の最大値)。
+#: ``MPlug.elementByLogicalIndex()`` はこれを超える番号を黙って別の番号へ変換する
+#: (``2147483648``〜``4294967295`` は負の番号、``4294967296`` は ``0``)ため、属性パスでは
+#: 範囲外として扱う。
+MAX_LOGICAL_INDEX = 2147483647
+
+
+class DeletedAttributeError(ValueError, RuntimeError):
+    """``deleteAttr`` で削除された属性の Plug・MPlug を、ノードが必要な引数に渡した場合の例外。
+
+    所有ノードは有効なまま属性だけが削除された Plug・MPlug は、所有ノードへ解決すると
+    削除済みの対象を黙って受け付けてしまうため、``to_node``・``Node(...)``/``hlib.node``・
+    ``hlib.constraint`` の拘束元・拘束先などでも例外にする。hlib のコマンド(``to_name``)と
+    同じく ``ValueError`` として扱う。``Node(...)`` は解決できない対象をすべて
+    ``RuntimeError`` にする規則のため、``RuntimeError`` としても捕捉できるようにしている
+    (標準ライブラリの ``io.UnsupportedOperation`` が ``OSError`` と ``ValueError`` の両方を
+    継承するのと同じ考え方)。
+    """
 
 
 def plug_path(mplug):
@@ -370,6 +392,21 @@ def to_names(values, allow_plugs=True):
     return names
 
 
+def deleted_attribute_error(plug):
+    """所有ノードが有効なまま属性が削除された Plug の例外を返す(該当しなければ None)。
+
+    Args:
+        plug (Plug): 判定する hlib の Plug。
+
+    Returns:
+        DeletedAttributeError | None: 属性が ``deleteAttr`` で削除済みなら送出する例外。
+            所有ノードが削除済みの場合(無効な所有ノードとして扱う)と、有効な Plug は None。
+    """
+    if plug.node.is_valid() and not plug.is_valid():
+        return DeletedAttributeError("削除済みの属性の Plug からノードは解決できません")
+    return None
+
+
 def to_node(value):
     """対象を Node インスタンスへ変換する。
 
@@ -382,18 +419,23 @@ def to_node(value):
     Returns:
         Node: value が Node ならそのまま、Plug なら ``plug.node``、コンポーネントなら
             ``shape``。それ以外は ``Node(value)`` (Maya へ解決し、型に応じたラッパーを返す)。
-            削除済みの Node・Plug・Component は例外にせずそのまま返す(``Node.is_valid()`` が
-            ``False``。扱いは呼び出し側で決める)。
+            削除済みの Node と、所有ノードが削除済みの Plug・Component は例外にせずそのまま
+            返す(``Node.is_valid()`` が ``False``。扱いは呼び出し側で決める)。
 
     Raises:
         TypeError: 対応しない型の場合。
+        ValueError: 所有ノードは有効で、属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+            (:class:`DeletedAttributeError`。``RuntimeError`` の派生でもある)。
         RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
-            または無効な om2 オブジェクトを指す場合。
+            または空・削除済みのノードを指す om2 オブジェクトの場合(``Node(value)`` と同じ)。
     """
     node_class, plug_class, component_class, components_class = _classes()
     if isinstance(value, node_class):
         return value
     if isinstance(value, plug_class):
+        error = deleted_attribute_error(value)
+        if error is not None:
+            raise error
         return value.node
     if isinstance(value, (component_class, components_class)):
         return value.shape
@@ -417,7 +459,8 @@ def to_node_name(value):
 
     Raises:
         TypeError: 対応しない型、または Components などの複数の対象を渡した場合。
-        ValueError: 空文字列、または無効な(削除済みの)対象の場合。
+        ValueError: 空文字列、または無効な(削除済みの。属性だけが削除された Plug・MPlug を
+            含む)対象の場合。
         RuntimeError: 文字列を解決できない(存在しない、または複数のノードに一致する)場合。
     """
     # 型と有効性の検査は to_name と同じ規則(TypeError / ValueError)にそろえる。
@@ -447,6 +490,18 @@ def _find_plug(mobject, name):
         if alias == name:
             return attribute_path_plug(mobject, attribute_path)
     return None
+
+
+def has_out_of_range_index(attribute_path):
+    """属性パスが :data:`MAX_LOGICAL_INDEX` を超える配列インデックスを含むか判定する。
+
+    Args:
+        attribute_path (str): ノード名を含まない属性パス(``input1D[4294967296]`` など)。
+
+    Returns:
+        bool: 範囲外のインデックスを含む場合は True。
+    """
+    return any(int(index) > MAX_LOGICAL_INDEX for index in _PLUG_PATH_INDEX.findall(attribute_path))
 
 
 def has_unresolved_index(mplug):
@@ -488,7 +543,8 @@ def attribute_path_plug(mobject, attribute_path, first=None):
 
     Returns:
         om2.MPlug | None: プラグ。属性として解決できない場合(存在しない属性、範囲指定、
-            配列でない属性へのインデックス、配列要素の番号を指定しない子属性など)は None。
+            配列でない属性へのインデックス、:data:`MAX_LOGICAL_INDEX` を超えるインデックス、
+            配列要素の番号を指定しない子属性など)は None。
     """
     mplug = None
     for token in attribute_path.split("."):
@@ -512,9 +568,12 @@ def attribute_path_plug(mobject, attribute_path, first=None):
             else:
                 return None
         for index in _PLUG_PATH_INDEX.findall(indices):
-            if not mplug.isArray:
+            index = int(index)
+            if not mplug.isArray or index > MAX_LOGICAL_INDEX:
+                # 範囲外の番号は elementByLogicalIndex() が別の番号へ変換してしまう
+                # (input1D[4294967296] が input1D[0] を指す)ため、解決できない名前として扱う。
                 return None
-            mplug = mplug.elementByLogicalIndex(int(index))
+            mplug = mplug.elementByLogicalIndex(index)
     if mplug is None or has_unresolved_index(mplug):
         # 子属性名だけを指定した場合などの未確定(-1)のインデックスは maya.cmds で解決できない。
         return None
@@ -588,12 +647,16 @@ def to_plug(value):
         value (Plug | om2.MPlug | str): Plug、MPlug、または ``"node.attribute"`` 形式の属性名。
 
     Returns:
-        Plug: value が Plug ならそのまま、それ以外は属性型に応じた Plug ラッパー。
+        Plug: value が Plug ならそのまま(削除済みでも例外にしない。``Plug.is_valid()`` で
+            確かめる)、それ以外は属性型に応じた Plug ラッパー。
 
     Raises:
         TypeError: 対応しない型、または文字列が属性を指していない場合。
         ValueError: 空文字列、または空の MPlug の場合。
         RuntimeError: 文字列を解決できない(存在しない、または複数の対象に一致する)場合。
+            MPlug の所有ノードが削除済み、または属性が ``deleteAttr`` で削除済みの場合
+            (``Node(...)``・``Plug(...)`` の生成と同じ。Undo の対象から外れて削除された
+            ノードの MPlug は検出できず、Maya が異常終了する)。
     """
     node_class, plug_class, _, _ = _classes()
     if isinstance(value, plug_class):

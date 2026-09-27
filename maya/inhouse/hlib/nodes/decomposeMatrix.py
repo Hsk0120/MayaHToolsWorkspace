@@ -5,6 +5,7 @@ from ..decorators._fast import fast_edit
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from ..maths import Matrix
+from ..maths.euler_rotation import order_index
 from .node import Node
 
 
@@ -57,21 +58,20 @@ class DecomposeMatrix(Node):
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            order (str): xyz、yzx、zxy、xzy、yxz、zyxのいずれか。
+            order (str | int): xyz、yzx、zxy、xzy、yxz、zyxのいずれかの名前(大文字小文字を
+                問わない)、または番号0〜5(``EulerRotation.order`` やrotateOrder属性と同じ
+                並び。``om2.MEulerRotation.kXYZ``〜``kZYX``)。
 
         Returns:
             DecomposeMatrix: 自身。
 
         Raises:
-            ValueError: 未対応の回転順序の場合。
+            ValueError: 未対応の回転順序(範囲外の番号、boolを含む)の場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        orders = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
-        if order not in orders:
-            raise ValueError("Unsupported rotation order")
-        self.plug("inputRotateOrder").set(orders.index(order))
+        self.plug("inputRotateOrder").set(order_index(order))
         return self
 
     def output_plugs(self):

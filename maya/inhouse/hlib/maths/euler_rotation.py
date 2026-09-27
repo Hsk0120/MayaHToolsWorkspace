@@ -66,7 +66,7 @@ def _euler_keywords(x=0.0, y=0.0, z=0.0, order=None):
     return x, y, z, order
 
 
-class EulerRotation(_MEuler):
+class EulerRotation(om2.MEulerRotation):
     """om2.MEulerRotation を継承した、ラジアンの3成分と回転順序を持つ可変な回転値。
 
     ``om2.MEulerRotation`` の派生クラスなので、そのまま OpenMaya API 2.0 の関数へ
@@ -216,6 +216,7 @@ class EulerRotation(_MEuler):
         _INIT(result)
         result.setValue(value)
         return result
+
     @classmethod
     def from_iterable(cls, values, order="xyz"):
         """3要素の反復可能オブジェクトから生成する。

@@ -1156,6 +1156,225 @@ def test_matrix_copies_keep_signed_zero_and_non_finite_values():
                 assert actual == expected and math.copysign(1.0, actual) == math.copysign(1.0, expected)
 
 
+def _same_float(actual, expected):
+    """NaN と符号付きゼロを区別して2つの float が同じ値か判定する。"""
+    if math.isnan(expected):
+        return math.isnan(actual)
+    return actual == expected and math.copysign(1.0, actual) == math.copysign(1.0, expected)
+
+
+#: guide_maths.rst の「演算結果の型」に記載した例外(系統の違う om2 の値が左辺で、om2 が
+#: 処理して om2 の型を返す組み合わせ)。(左辺の om2 の型名, 演算子, 右辺の hlib の型名)。
+_DOCUMENTED_OM2_RESULTS = {
+    ("MVector", "*", "Matrix"),
+    ("MPoint", "*", "Matrix"),
+    ("MPoint", "+", "Vector"),
+    ("MPoint", "-", "Vector"),
+    ("MPoint", "+", "Translation"),
+    ("MPoint", "-", "Translation"),
+    ("MEulerRotation", "*", "Quaternion"),
+}
+
+
+def test_operator_result_types_follow_the_documented_rule():
+    import operator
+
+    hlib_values = [Vector(1.0, 2.0, 3.0), Translation(1.0, 2.0, 3.0), Quaternion(0.1, 0.2, 0.3, 0.9),
+                   EulerRotation(0.1, 0.2, 0.3, "zyx"), Matrix(translate=(1.0, 2.0, 3.0), rotate=(0.1, 0.2, 0.3))]
+    om2_values = [om2.MVector(4.0, 5.0, 6.0), om2.MPoint(4.0, 5.0, 6.0), om2.MFloatVector(4.0, 5.0, 6.0),
+                  om2.MFloatPoint(4.0, 5.0, 6.0), om2.MQuaternion(0.1, 0.1, 0.1, 0.9),
+                  om2.MEulerRotation(0.1, 0.1, 0.1), om2.MMatrix(hlib_values[-1]),
+                  om2.MFloatMatrix(om2.MMatrix(hlib_values[-1])), 2, 2.0]
+    operators = [("+", operator.add), ("-", operator.sub), ("*", operator.mul), ("/", operator.truediv),
+                 ("^", operator.xor), ("@", operator.matmul)]
+    hlib_types = (Vector, Quaternion, EulerRotation, Matrix)
+    om2_results = set()
+    for value in hlib_values:
+        for other in om2_values:
+            for symbol, function in operators:
+                for left, right in ((value, other), (other, value)):
+                    try:
+                        result = function(left, right)
+                    except TypeError:
+                        continue
+                    if isinstance(result, hlib_types) or type(result) is float:
+                        continue
+                    # hlib が左辺なら常に hlib の型(または内積の float)。
+                    assert left is other, (type(left).__name__, symbol, type(right).__name__, type(result))
+                    om2_results.add((type(left).__name__, symbol, type(right).__name__))
+    assert om2_results == _DOCUMENTED_OM2_RESULTS, om2_results
+
+
+def test_reflected_and_mixed_vector_matrix_products_return_hlib_types():
+    a = Vector(1.0, 2.0, 3.0)
+    raw = om2.MVector(-4.0, 5.5, 0.25)
+    # om2.MVector ^ Vector も右辺の __rxor__ が先に呼ばれて Vector になる。
+    crossed = raw ^ a
+    assert type(crossed) is Vector
+    assert crossed == om2.MVector.__xor__(raw, a) == -(a ^ raw)
+    assert type(raw ^ Translation(1.0, 2.0, 3.0)) is Vector
+
+    # Matrix が左辺なら om2.MVector / om2.MPoint との積も Vector(om2 の列ベクトルとしての積)。
+    m = Matrix(translate=(1.0, 2.0, 3.0), rotate=(0.1, 0.2, 0.3), scale=(1.0, 2.0, 3.0))
+    raw_matrix = om2.MMatrix(m)
+    column = m * raw
+    assert type(column) is Vector
+    assert column == raw_matrix * raw == m * Vector(raw)
+    point = om2.MPoint(4.0, 5.0, 6.0, 2.0)
+    expected = raw_matrix * point
+    assert expected.w != 1.0
+    product = m * point
+    assert type(product) is Vector
+    # w は捨て、w で割らない(Vector(om2.MPoint) と同じ)。
+    assert tuple(product) == (expected.x, expected.y, expected.z)
+    assert product == Vector(expected)
+    _assert_raises(TypeError, lambda: m * om2.MFloatVector(1.0, 0.0, 0.0))
+    _assert_raises(TypeError, lambda: m * om2.MFloatPoint(1.0, 0.0, 0.0))
+    _assert_raises(TypeError, lambda: m @ raw)
+
+    # in-place: 左辺が om2 の値なら om2 の型のまま書き換わる。om2 に無い ^= は束ね直しで Vector。
+    target = om2.MVector(1.0, 0.0, 0.0)
+    alias = target
+    target += a
+    assert target is alias and type(target) is om2.MVector
+    target ^= a
+    assert type(target) is Vector
+    rebound = Matrix(m)
+    rebound *= raw
+    assert type(rebound) is Vector and rebound == column
+
+
+def test_containment_with_raw_om2_values_depends_on_python_version():
+    value = Vector(1.0, 2.0, 3.0)
+    point = om2.MPoint(1.0, 2.0, 3.0)
+    # in: Python 3.9 以降は「要素 == 探す値」、3.7 は「探す値 == 要素」の向きで比べる。
+    if sys.version_info >= (3, 9):
+        assert (point in [value]) is False
+        assert (point in (value,)) is False
+        _assert_raises(TypeError, lambda: value in [point])
+    else:
+        _assert_raises(TypeError, lambda: point in [value])
+        _assert_raises(TypeError, lambda: point in (value,))
+        assert (value in [point]) is False
+    # index / count / remove はどのバージョンでも「要素 == 探す値」。
+    assert [value].count(point) == 0
+    _assert_raises(TypeError, lambda: [point].count(value))
+    _assert_raises(TypeError, lambda: [point, value].index(value))
+    assert [value, point].index(point) == 1
+    # リスト同士の == は左のリストの要素が左辺。
+    assert ([value] == [point]) is False
+    _assert_raises(TypeError, lambda: [point] == [value])
+    # hlib の型へ変換すれば、どの向きでも例外にならない。
+    assert Vector(point) in [value] and value in [Vector(point)]
+
+
+def test_values_do_not_support_weak_references():
+    import weakref
+
+    for value in _samples():
+        _assert_raises(TypeError, lambda value=value: weakref.ref(value))
+
+
+def test_matrix_construction_paths_agree_and_validate_before_writing():
+    matrix_module = sys.modules[PACKAGE_NAME + ".maths.matrix"]
+    # 列からの設定の経路は Maya の版で選ぶ(2022 は om2 の __init__ の再適用がリークする)。
+    assert matrix_module._REINIT == (om2.MGlobal.apiVersion() >= 20240000)
+    floats = [float(i) * 0.5 - 3.0 for i in range(16)]
+    expected = om2.MMatrix(floats)
+    rows = [floats[0:4], floats[4:8], floats[8:12], floats[12:16]]
+    for source in (floats, tuple(floats), rows, tuple(tuple(row) for row in rows), iter(floats),
+                   (value for value in floats), expected, om2.MFloatMatrix(om2.MMatrix(list(range(16))))):
+        result = Matrix(source)
+        assert type(result) is Matrix
+        reference = expected if not isinstance(source, om2.MFloatMatrix) else om2.MMatrix(source)
+        assert list(result) == list(reference), source
+    assert list(Matrix(list(range(16)))) == [float(i) for i in range(16)]
+    assert list(Matrix([True] * 16)) == [1.0] * 16
+
+    class Row(object):
+        def __init__(self, values):
+            self.values = values
+
+        def __len__(self):
+            return 4
+
+        def __iter__(self):
+            return iter(self.values)
+
+    # om2 が受け付けない形でも、数値へ変換できれば hlib の検証経路で受け付ける。
+    assert list(Matrix([Row(row) for row in rows])) == list(expected)
+    # 数値以外・要素数の違いは ValueError で、再初期化でも値は変わらない。
+    target = Matrix(floats)
+    for invalid in (["1"] * 16, [None] * 16, [1.0] * 15, [1.0] * 17, rows[:3], rows[:3] + [[1.0, 2.0, 3.0, "x"]],
+                    "abcdefghijklmnop", 42):
+        _assert_raises(ValueError, lambda invalid=invalid: Matrix(invalid))
+        _assert_raises(ValueError, lambda invalid=invalid: target.__init__(invalid))
+        assert list(target) == floats, invalid
+
+
+def test_matrix_values_rows_iteration_and_indexing_read_om2_elements():
+    inf, nan = float("inf"), float("nan")
+    source = [-0.0, 0.0, inf, nan, -1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, -inf, -0.0]
+    matrix = Matrix(source)
+    raw = om2.MMatrix(source)
+    for sequence in (matrix.values, tuple(matrix), list(matrix), [item for item in matrix],
+                     matrix[:], matrix[0:16], tuple(item for row in matrix.rows for item in row)):
+        assert len(sequence) == 16
+        for actual, expected in zip(sequence, raw):
+            assert _same_float(actual, expected), (sequence, list(raw))
+    stepped = matrix[3:16:4]
+    assert len(stepped) == 4 and all(_same_float(a, b) for a, b in zip(stepped, (nan, 4.0, 8.0, -0.0)))
+    assert all(len(row) == 4 for row in matrix.rows)
+    # 反復は開始時点の値を返す(Vector などと同じ)。
+    iterator = iter(matrix)
+    matrix[1] = 100.0
+    assert next(iterator) == -0.0 and next(iterator) == 0.0
+    matrix[1] = 0.0
+    # (行, 列)の添字は負の値や int 派生も含めて om2 の要素と一致し、範囲外は IndexError。
+    counting = Matrix(list(range(16)))
+    for row in range(-4, 4):
+        for column in range(-4, 4):
+            assert counting[row, column] == counting.getElement(row % 4, column % 4)
+    assert counting[True, 1] == 5.0
+    for index in ((4, 0), (0, 4), (-5, 0), (0, -5), (0, 1, 2), (0,)):
+        _assert_raises(IndexError, lambda index=index: counting[index])
+
+        def assign(index=index):
+            counting[index] = 1.0
+
+        _assert_raises(IndexError, assign)
+    _assert_raises(TypeError, lambda: counting[0.0, 1])
+    counting[2, 3] = 42.0
+    counting[-1, -1] = 43.0
+    counting[True, 0] = 44.0
+    assert counting.getElement(2, 3) == 42.0 and counting.getElement(3, 3) == 43.0
+    assert counting.getElement(1, 0) == 44.0
+    # 派生クラスでも同じ値を読む。
+    user_matrix = _register_user_class("UserMatrixValues", (Matrix,), {})
+    derived = user_matrix(source)
+    for actual, expected in zip(derived.values, raw):
+        assert _same_float(actual, expected)
+
+
+def test_class_statements_use_the_om2_bases():
+    # Sphinx と _mermaid_classes.py が基底を om2 の型として表示できるよう、クラス文の基底は
+    # 私的な別名ではなく om2.MVector などと書く。
+    import ast
+
+    expected = {"vector.py": ("Vector", "MVector"), "quaternion.py": ("Quaternion", "MQuaternion"),
+                "euler_rotation.py": ("EulerRotation", "MEulerRotation"), "matrix.py": ("Matrix", "MMatrix")}
+    for file_name, (class_name, base_name) in expected.items():
+        tree = ast.parse((ROOT / "maths" / file_name).read_text(encoding="utf-8"))
+        classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name]
+        assert len(classes) == 1, file_name
+        bases = classes[0].bases
+        assert len(bases) == 1 and isinstance(bases[0], ast.Attribute), file_name
+        assert isinstance(bases[0].value, ast.Name) and bases[0].value.id == "om2", file_name
+        assert bases[0].attr == base_name, file_name
+    assert Vector.__bases__ == (om2.MVector,) and Quaternion.__bases__ == (om2.MQuaternion,)
+    assert EulerRotation.__bases__ == (om2.MEulerRotation,) and Matrix.__bases__ == (om2.MMatrix,)
+
+
 if __name__ == "__main__":
     import unittest
 

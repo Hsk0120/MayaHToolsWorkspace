@@ -164,8 +164,12 @@ hlib は Maya と同じ行ベクトル規約です。
 
 演算子を使う場合は om2 と同じ規約です。``Vector(1, 0, 0) * matrix`` は
 ``transform_vector()`` と同じ方向の変換で、位置は ``om2.MPoint(1, 0, 0) * matrix`` で
-変換できます。``matrix * vector`` は om2 と同じ列ベクトルとしての積(転置行列での変換)で、
-``transform_point()`` とは結果が異なります。``matrix @ vector`` は ``TypeError`` です。
+変換できます(om2 の値が左辺なので結果は ``om2.MPoint`` です)。``matrix * vector`` は
+om2 と同じ列ベクトルとしての積(転置行列での変換)で、``transform_point()`` とは結果が
+異なります。右辺が ``om2.MVector`` / ``om2.MPoint`` でも結果は ``Vector`` です
+(``om2.MPoint`` の場合は同次座標の積の x、y、z で、w は捨てます)。``matrix @ vector`` は
+``TypeError`` です。演算結果が hlib の型になる規則と例外は :ref:`maths-result-types` を
+参照してください。
 
 .. code-block:: python
 

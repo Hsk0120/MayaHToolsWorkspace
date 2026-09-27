@@ -139,6 +139,8 @@ class Transform(Node):
                 ターゲットの無い拘束を黙って作るため)。
             RuntimeError: ノードが無効、拘束元の名前を解決できない(存在しない、または
                 複数のノードに一致する)場合、または Maya が作成を拒否した場合。
+            DeletedAttributeError: 拘束元に、属性が削除済みの Plug / MPlug を渡した場合
+                (ValueError と RuntimeError の両方の派生)。
 
         PoleVector は RP IK ハンドル、Geometry/Normal/PointOnPoly は適切な形状、
         Tangent は NURBS カーブが必要。選択状態による対象補完は行わない。
@@ -631,6 +633,8 @@ class Transform(Node):
         Raises:
             TypeError: targetがTransformではない場合。
             RuntimeError: ノードが無効、またはMayaが変更を拒否した場合。
+            DeletedAttributeError: targetに、属性が削除済みの Plug / MPlug を渡した場合
+                (ValueError と RuntimeError の両方の派生)。
 
         maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
         shearの一致や行列全体のコピーは保証しない。

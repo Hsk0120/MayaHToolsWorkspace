@@ -21,16 +21,75 @@ from .vector import (
 
 _MMatrix = om2.MMatrix
 _MVector = om2.MVector
+_MPoint = om2.MPoint
 _MQuaternion = om2.MQuaternion
 _MEuler = om2.MEulerRotation
 _MTransformationMatrix = om2.MTransformationMatrix
 _K_TRANSFORM = om2.MSpace.kTransform
 _GET = _MMatrix.__getitem__
 _SET = _MMatrix.__setitem__
+#: om2 のスカラー倍。結果は素の om2.MMatrix で、1.0 倍は符号付きゼロ・inf・NaN を含めて
+#: 値を変えない。hlib の ``__getitem__`` (Python)を経由せず、om2 の C 実装の添字で
+#: 16要素を読むために使う(:attr:`Matrix.values` など)。
+_SCALED = _MMatrix.__mul__
+#: ``m * v`` で Vector を作る om2 の関数(Python の ``__new__`` / ``__init__`` を通さない)。
+_VECTOR_NEW = _MVector.__new__
+_VECTOR_INIT = _MVector.__init__
+_VECTOR_IADD = _MVector.__iadd__
+#: om2 の列ベクトルとしての積 ``m * v`` (``_VECTOR_RMUL(v, m)``)。
+_VECTOR_RMUL = _MVector.__rmul__
 _NUMBER = (int, float)
+#: 添字の型の判定用(組み込み名より速く引けるモジュールの名前)。
+_INT = int
+#: ``m[行, 列]`` の (行, 列)(それぞれ -4〜3)から平坦な添字(0〜15)への表。
+_CELL_INDEX = {(row, column): (row % 4) * 4 + column % 4 for row in range(-4, 4) for column in range(-4, 4)}
 _POINT_TYPES = (_MVector, om2.MPoint, om2.MFloatVector, om2.MFloatPoint)
 _MATRIX_SOURCES = (_MMatrix, om2.MFloatMatrix)
 _MATRIX_ERROR = "Matrix expects an MMatrix, 4x4 rows, or 16 values"
+
+
+def _reinit_is_safe():
+    """om2 の ``MMatrix.__init__`` を確保済みのインスタンスへ再適用してよい版か判定する。
+
+    Maya 2022 の om2 は ``__init__`` を再び呼ぶたびに確保済みの C++ の実体をリークする
+    (計測で約150バイト/回)。Maya 2024〜2027 ではリークせず、受け付けない引数で失敗した
+    場合も値は変わらないことを確認している(2023 は未検証のためリークする版として扱う)。
+
+    Returns:
+        bool: API バージョンが 2024 以降なら True。
+    """
+    try:
+        return om2.MGlobal.apiVersion() >= 20240000
+    except Exception:  # noqa: BLE001 - 判定できない環境はリークする版として安全側に倒す。
+        return False
+
+
+#: 列(16要素・4行4列)からの設定で、om2 のコンストラクタを自身へ再適用するか。
+#: Matrix(16要素の list) の計測では、再適用できない 2022 は一時的な MMatrix を作って写す経路
+#: (要素ごとの書き込み 2.29µs → 1.44µs)、2024 以降は再適用の方が写す経路より約1割速い
+#: (2027 で 2.39µs → 1.51µs)。どちらも om2 が要素を検査し、受け付けない値では失敗する。
+_REINIT = _reinit_is_safe()
+
+
+def _set_sequence(target, values):
+    """om2 のコンストラクタが受け付ける列を target へ書き込む。
+
+    Args:
+        target (om2.MMatrix): 書き込み先。
+        values (list | tuple): 16要素、または4要素の行を4つ並べた列。
+
+    Returns:
+        bool: 書き込めたら True。om2 が受け付けない形(文字列の要素など)なら False で、
+        target は変わらない。
+    """
+    try:
+        if _REINIT:
+            _MMatrix.__init__(target, values)
+        else:
+            _assign(target, _MMatrix(values))
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _xyz(value):
@@ -216,7 +275,7 @@ def _components(translate, rotate, scale, shear):
     )
 
 
-class Matrix(_MMatrix):
+class Matrix(om2.MMatrix):
     """om2.MMatrix を継承した、Maya の行ベクトル規約の可変な4行4列変換行列。
 
     行優先順で16要素を持ち、平行移動は添字12、13、14に置く。``om2.MMatrix`` の
@@ -232,8 +291,13 @@ class Matrix(_MMatrix):
       ``om2.MMatrix * Matrix`` も Matrix を返す。
     * ``m * 数値``、``a + b``、``a - b``: om2 の成分ごとの演算を包んで返す。
     * ``v * m`` (v は Vector): 行ベクトル規約の方向変換(平行移動を含まない)。
-    * ``m * v``: om2 と同じ列ベクトルとしての積(``v * mᵀ``)。``m @ v`` は TypeError。
-      位置の変換には :meth:`transform_point` (または ``om2.MPoint(p) * m``)を使う。
+      ``om2.MVector * m`` / ``om2.MPoint * m`` は om2 側が先に処理するため om2 の型を返す。
+    * ``m * v`` (v は om2.MVector を含む MVector 系): om2 と同じ列ベクトルとしての積
+      (``v * mᵀ``)の :class:`~hlib.maths.vector.Vector`。
+    * ``m * p`` (p は om2.MPoint): om2 の列ベクトルとしての積(同次座標の4成分)の
+      x、y、z を持つ Vector。結果の w は捨てる(``Vector(om2.MPoint)`` と同じく w で割らない)。
+    * ``m @ v`` は TypeError。位置の変換には :meth:`transform_point` (または
+      ``om2.MPoint(p) * m``)を使う。
 
     ``*=`` / ``@=`` / ``+=`` / ``-=`` は自身を書き換える。値は可変で、添字
     ``m[i]`` (-16〜15)/ ``m[行, 列]`` (それぞれ -4〜3)へ代入できる。範囲外は
@@ -294,29 +358,22 @@ class Matrix(_MMatrix):
                 または回転四元数がゼロの場合。
         """
         if values is not None:
-            if type(values) in (list, tuple) and len(values) == 16:
-                # 数値16要素は om2 の多重定義の解決(遅い)を通さず、検査してから直接書き込む。
-                for item in values:
-                    if not isinstance(item, _NUMBER):
-                        break
-                else:
-                    for position, item in enumerate(values):
-                        _SET(self, position, item)
+            kind = values.__class__
+            if kind is not list and kind is not tuple:
+                if isinstance(values, _MMatrix):
+                    _assign(self, values)
                     return
-            if not isinstance(values, _MMatrix):
                 if isinstance(values, om2.MFloatMatrix):
-                    values = _MMatrix(values)
-                else:
-                    if not isinstance(values, (list, tuple)):
-                        try:
-                            values = list(values)
-                        except TypeError:
-                            raise ValueError(_MATRIX_ERROR) from None
-                    try:
-                        values = _MMatrix(values)
-                    except (TypeError, ValueError):
-                        values = _MMatrix(_flat_values(values))
-            _assign(self, values)
+                    _assign(self, _MMatrix(values))
+                    return
+                try:
+                    values = list(values)
+                except TypeError:
+                    raise ValueError(_MATRIX_ERROR) from None
+            # om2 が受け付けない形(数値以外の要素や行の列以外)は検証してから書き込む。
+            # om2 は失敗時に値を変えないため、例外時も自身は変わらない。
+            if not _set_sequence(self, values):
+                _set_sequence(self, _flat_values(values))
             return
         if rotation is not None:
             rotate = rotation
@@ -439,7 +496,7 @@ class Matrix(_MMatrix):
         Returns:
             tuple[float, ...]: 4x4 行列の平坦な要素列。
         """
-        return tuple(self)
+        return tuple(_SCALED(self, 1.0))
 
     @property
     def rows(self):
@@ -448,7 +505,7 @@ class Matrix(_MMatrix):
         Returns:
             tuple[tuple[float, float, float, float], ...]: 4行の行列値。
         """
-        values = tuple(self)
+        values = tuple(_SCALED(self, 1.0))
         return (values[0:4], values[4:8], values[8:12], values[12:16])
 
     def _checked_transformation(self):
@@ -807,12 +864,23 @@ class Matrix(_MMatrix):
             IndexError: 添字が範囲外の場合(平坦な添字は -16〜15)。
             TypeError: 添字が整数・スライス・tuple 以外の場合。
         """
-        if index.__class__ is int and -16 <= index < 16:
-            return _GET(self, index + 16 if index < 0 else index)
+        if index.__class__ is _INT:
+            if -16 <= index < 16:
+                # -16〜15 の範囲では ``index & 15`` が負の添字を 0〜15 へ正規化する。
+                return _GET(self, index & 15)
+        elif index.__class__ is tuple:
+            # よく使う m[行, 列](-4〜3 の int)は表を引いて _flat_index を通さない。表は
+            # 1.0 や True とも一致するため、行・列が int そのものか確かめてから使う。
+            try:
+                flat = _CELL_INDEX.get(index)
+            except TypeError:  # ハッシュできない要素は _flat_index で TypeError にする。
+                flat = None
+            if flat is not None and index[0].__class__ is _INT is index[1].__class__:
+                return _GET(self, flat)
         if isinstance(index, tuple):
             return _GET(self, _flat_index(index))
         if isinstance(index, slice):
-            return tuple(self)[index]
+            return tuple(_SCALED(self, 1.0))[index]
         return _GET(self, _checked_index(index, 16, "Matrix"))
 
     def __setitem__(self, index, value):
@@ -829,6 +897,19 @@ class Matrix(_MMatrix):
             IndexError: 添字が範囲外の場合。
             TypeError: 添字が整数・tuple 以外の場合。
         """
+        if index.__class__ is _INT:
+            if -16 <= index < 16:
+                _SET(self, index & 15, value)
+                return
+        elif index.__class__ is tuple:
+            # __getitem__ と同じく、m[行, 列](-4〜3 の int)は表を引く。
+            try:
+                flat = _CELL_INDEX.get(index)
+            except TypeError:
+                flat = None
+            if flat is not None and index[0].__class__ is _INT is index[1].__class__:
+                _SET(self, flat, value)
+                return
         if isinstance(index, tuple):
             index = _flat_index(index)
         else:
@@ -838,10 +919,12 @@ class Matrix(_MMatrix):
     def __iter__(self):
         """行優先順の16要素を反復する。
 
+        要素は反復を始めた時点の値(素の om2.MMatrix へ写した値)を返す。
+
         Returns:
             Iterator[float]: 16要素のイテレータ。
         """
-        return map(_GET.__get__(self), range(16))
+        return iter(_SCALED(self, 1.0))
 
     # ------------------------------------------------------------------ 複製・表示・比較
     def __reduce__(self):
@@ -852,7 +935,7 @@ class Matrix(_MMatrix):
             利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
             属性は再構築時に復元する。
         """
-        return _reduce_value(self, tuple(self))
+        return _reduce_value(self, tuple(_SCALED(self, 1.0)))
 
     def __reduce_ex__(self, protocol):
         """pickle のプロトコルにかかわらず __reduce__ と同じ情報を返す。
@@ -929,16 +1012,19 @@ class Matrix(_MMatrix):
 
     # ------------------------------------------------------------------ 演算
     def __mul__(self, other):
-        """行列積、またはスカラー倍を返す。
+        """行列積、スカラー倍、またはベクトル・点との列ベクトルとしての積を返す。
 
-        ベクトルや点は om2 の ``__rmul__`` (列ベクトルとしての積)へ委ねる。
+        ベクトルと点は om2 と同じ列ベクトルとしての積(``v * mᵀ``)を計算し、
+        om2 の型(``om2.MVector`` / ``om2.MPoint``)が右辺でも hlib の Vector で返す。
 
         Args:
-            other (object): 右側の MMatrix 系、または数値。
+            other (object): 右側の MMatrix 系、数値、MVector 系、または om2.MPoint。
 
         Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
-            対応しない型は NotImplemented。
+            Matrix | Vector | types.NotImplementedType: 行列・数値なら ``type(self)`` の
+            新しい行列。MVector 系なら om2 の列ベクトルとしての積の Vector。om2.MPoint なら
+            om2 の列ベクトルとしての積(同次座標の4成分)の x、y、z を持つ Vector(w は捨て、
+            w で割らない)。対応しない型は NotImplemented。
         """
         if isinstance(other, _MMatrix):
             result = _new(type(self))
@@ -946,6 +1032,19 @@ class Matrix(_MMatrix):
             return result
         if isinstance(other, _NUMBER):
             return type(self)._wrap(_MMatrix.__mul__(self, other))
+        if isinstance(other, _MVector):
+            result = _VECTOR_NEW(Vector)
+            _VECTOR_INIT(result)
+            _VECTOR_IADD(result, _VECTOR_RMUL(other, self))
+            return result
+        if isinstance(other, _MPoint):
+            value = _MPoint.__rmul__(other, self)
+            result = _VECTOR_NEW(Vector)
+            _VECTOR_INIT(result)
+            result.x = value.x
+            result.y = value.y
+            result.z = value.z
+            return result
         return NotImplemented
 
     def __rmul__(self, other):

@@ -37,7 +37,7 @@ Flags
    * - ``sources``
      - ``Node | Plug | Component | Components | str | MObject | MDagPath | MPlug | Iterable``
      - 必須
-     - 拘束元のノードまたはノード列。文字列も含めて所有ノードへ解決し、Plug・MPlug・``"node.attribute"`` は所有ノード、Component・Components・``"pCube1.vtx[0]"`` は所有シェイプとして扱います（:doc:`/cmds_interop`）。parent、point、orient、scale、aim、poleVector では拘束元が Transform（joint・IkHandle を含む）に解決される必要があり、シェイプ（シェイプの Plug、Component などの所有シェイプ）や DG ノードは ``TypeError`` です（maya.cmds はターゲットの無い、追従しない拘束を黙って作るため）。シェイプ・Component を使えるのは geometry、normal、tangent、pointOnPoly です。
+     - 拘束元のノードまたはノード列。文字列も含めて所有ノードへ解決し、Plug・MPlug・``"node.attribute"`` は所有ノード、Component・Components・``"pCube1.vtx[0]"`` は所有シェイプとして扱います（:doc:`/cmds_interop`）。parent、point、orient、scale、aim、poleVector では拘束元が Transform（joint・IkHandle を含む）に解決される必要があり、シェイプ（シェイプの Plug、Component などの所有シェイプ）や DG ノードは ``TypeError`` です（maya.cmds はターゲットの無い、追従しない拘束を黙って作るため）。シェイプ・Component を使えるのは geometry、normal、tangent、pointOnPoly です。削除済みの対象は ``RuntimeError``、``deleteAttr`` で属性が削除された Plug・MPlug は ``ValueError`` (``RuntimeError`` としても捕捉できます)です。
    * - ``target``
      - ``Node | Plug | Component | str | MObject | MDagPath | MPlug``
      - 必須
@@ -85,11 +85,14 @@ def constraint(sources, target, type="parent", maintainOffset=False):
     Returns:
         Constraint: 作成またはターゲット追加された拘束ノード。
     Raises:
-        ValueError: 未対応型・空の拘束元の場合。
+        ValueError: 未対応型・空の拘束元の場合。拘束元・拘束先に、所有ノードは有効で属性が
+            ``deleteAttr`` で削除済みの Plug・MPlug を渡した場合
+            (``hlib._core.coerce.DeletedAttributeError``。RuntimeError の派生でもある)。
         TypeError: 入力の型が不正な場合、target が Transform(IkHandle・joint を含む)に
             解決されない場合(シェイプや Component の所有シェイプなど)、または
             parent/point/orient/scale/aim/poleVector の拘束元が Transform に解決されない場合。
-        RuntimeError: Mayaが作成またはフラグを拒否した場合。
+        RuntimeError: 拘束元・拘束先を解決できない(存在しない、複数の対象に一致する、
+            削除済みの)場合、またはMayaが作成またはフラグを拒否した場合。
 
     長名と短名の同時指定はTypeError。"""
     from .._core.coerce import to_node

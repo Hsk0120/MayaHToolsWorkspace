@@ -33,7 +33,7 @@ Flags
      - 説明
    * - ``value``
      - ``str | Node | Plug | Component | Components | MObject | MDagPath | MPlug``
-     - 既存ノードの名前、hlib のラッパー、または Maya API 2.0 の参照。Plug・MPlug と ``"node.attribute"`` は所有ノード、Component・Components と ``"pCube1.vtx[0]"`` は所有シェイプを返します。名前が存在しない、または複数の対象に一致する場合は ``RuntimeError``。必須。
+     - 既存ノードの名前、hlib のラッパー、または Maya API 2.0 の参照。Plug・MPlug と ``"node.attribute"`` は所有ノード、Component・Components と ``"pCube1.vtx[0]"`` は所有シェイプを返します。名前が存在しない、または複数の対象に一致する場合(``"bulk*"`` のように複数のノードに一致するパターンを含む。パターンは ``hlib.ls`` を使います)と、空・削除済みの対象は ``RuntimeError``。``deleteAttr`` で属性が削除された Plug・MPlug は ``ValueError`` (``RuntimeError`` としても捕捉できます)。必須。
 
 Examples
 --------
@@ -60,8 +60,11 @@ def node(value):
 
     Raises:
         TypeError: 未対応の入力型、または依存ノード以外(属性など)を指す MObject の場合。
-        RuntimeError: ノードを解決できない(存在しない、または複数の対象に一致する)場合、
-            または空・削除済みのラッパーや om2 オブジェクトを指定した場合。
+        ValueError: 所有ノードは有効で、属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+            (``hlib._core.coerce.DeletedAttributeError``。RuntimeError の派生でもある)。
+        RuntimeError: ノードを解決できない(存在しない、または ``"bulk*"`` のようなパターンを
+            含めて複数の対象に一致する)場合、または空・削除済みのラッパーや om2 オブジェクトを
+            指定した場合。
     """
     from ..nodes import Node
 

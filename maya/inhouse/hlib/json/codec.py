@@ -1,6 +1,19 @@
 """型タグ付きJSON変換。任意クラスのimport・コード実行は行わない。"""
 import math
 from dataclasses import fields
+
+import maya.api.OpenMaya as om2
+
+# 数学型は定義元のモジュールから直接 import する。hlib.reload() は module の globals にある
+# クラスの定義元から依存順を推定するため、定義元の再読み込み後にこの module も読み直され、
+# 下の対応表が新しいクラスで作り直される。
+from ..maths.euler_rotation import ORDER_NAMES, EulerRotation
+from ..maths.matrix import Matrix
+from ..maths.quaternion import Quaternion
+from ..maths.scale import Scale
+from ..maths.shear import Shear
+from ..maths.translation import Translation
+from ..maths.vector import Vector
 from .references import NodeRef, PlugRef, ComponentRef
 
 #: 数学型の記録の要素数。EulerRotation はラジアンの3成分(順序は別の "order" キー)。
@@ -14,6 +27,28 @@ _MATH_SIZES = {
     "Matrix": 16,
 }
 
+#: 記録の型名から復元に使う hlib.maths のクラス。
+_MATH_CLASSES = {
+    "Vector": Vector,
+    "Translation": Translation,
+    "Scale": Scale,
+    "Shear": Shear,
+    "EulerRotation": EulerRotation,
+    "Quaternion": Quaternion,
+    "Matrix": Matrix,
+}
+
+#: 保存できる数学型(型そのもので照合し、派生クラスは含めない)から記録の型名への対応。
+#: om2 名のメソッド(``normal()``、``asMatrix()`` など)が返す om2 の基底型も、対応する
+#: hlib の型の記録として保存する。
+_MATH_TYPES = {cls: name for name, cls in _MATH_CLASSES.items()}
+_MATH_TYPES.update({
+    om2.MVector: "Vector",
+    om2.MQuaternion: "Quaternion",
+    om2.MEulerRotation: "EulerRotation",
+    om2.MMatrix: "Matrix",
+})
+
 
 def _math_type_name(value):
     """数学型として保存できる値の型名を返す。
@@ -21,6 +56,7 @@ def _math_type_name(value):
     hlib.maths の公開型(派生クラスは除く)と、om2 名のメソッド(``normal()``、
     ``asMatrix()`` など)が返す om2 の基底型(MVector / MQuaternion / MEulerRotation /
     MMatrix)を対象にする。om2 の基底型は対応する hlib の型の記録として保存する。
+    対応表はモジュールの読み込み時に1回だけ作る。
 
     Args:
         value (object): 判定する値。
@@ -28,18 +64,7 @@ def _math_type_name(value):
     Returns:
         str | None: ``"Vector"`` などの型名。対象外なら None。
     """
-    from .. import maths
-    import maya.api.OpenMaya as om2
-    kind = type(value)
-    name = kind.__name__
-    if name in maths.__all__ and kind is getattr(maths, name, None) and name in _MATH_SIZES:
-        return name
-    return {
-        om2.MVector: "Vector",
-        om2.MQuaternion: "Quaternion",
-        om2.MEulerRotation: "EulerRotation",
-        om2.MMatrix: "Matrix",
-    }.get(kind)
+    return _MATH_TYPES.get(type(value))
 
 
 def _decode_math(name, args):
@@ -57,7 +82,6 @@ def _decode_math(name, args):
         ValueError: 未知の型、キーの過不足、要素数の不一致、数値(bool を除く int / float)
             以外の要素、または未対応の回転順序の場合。
     """
-    from .. import maths
     size = _MATH_SIZES.get(name)
     if size is None:
         raise ValueError("Unknown math type")
@@ -71,7 +95,7 @@ def _decode_math(name, args):
         raise ValueError("{} values must be numbers".format(name))
     if "order" in args and type(args["order"]) not in (str, int):
         raise ValueError("EulerRotation order must be a name or an om2 order number")
-    cls = getattr(maths, name)
+    cls = _MATH_CLASSES[name]
     if name == "Matrix":
         return cls(values)
     if name == "EulerRotation":
@@ -80,19 +104,37 @@ def _decode_math(name, args):
 
 
 def encode(value):
-    """対応型をタグ付きのJSON基本値へ変換する。非有限値・未対応型は例外。"""
-    from .. import maths
+    """対応型をタグ付きのJSON基本値へ変換する。非有限値・未対応型は例外。
+
+    頻度の高い基本値・dict・list・tuple・数学型を先に型そのもので判定し、
+    Node などの判定に必要な遅延 import(循環 import を避けるため関数内で行う)は
+    それ以外の値のときだけ行う。
+    """
+    kind = type(value)
+    if value is None or kind is bool or kind is str or kind is int:
+        return value
+    if kind is float:
+        if not math.isfinite(value):
+            raise ValueError("Non-finite numbers are not supported")
+        return value
+    if kind is dict:
+        if any(type(k) is not str for k in value):
+            raise TypeError("JSON dictionary keys must be strings")
+        return {"type": "dict", "value": {k: encode(v) for k, v in value.items()}}
+    if kind is list or kind is tuple:
+        return {"type": "tuple" if kind is tuple else "list", "value": [encode(v) for v in value]}
+    math_name = _MATH_TYPES.get(kind)
+    if math_name is not None:
+        data = {"values": list(value)}
+        if math_name == "EulerRotation":
+            # order は om2 の番号(int)。JSON には従来どおり名前で保存する。
+            data["order"] = ORDER_NAMES[value.order]
+        return {"type": "math:" + math_name, "value": encode(data)}
     from ..nodes.node import Node
     from ..plugs.plug import Plug
     from ..components import Component, Components
     from ..selection import Selection
     from .snapshots import Snapshot
-    if value is None or type(value) in (bool, str, int):
-        return value
-    if type(value) is float:
-        if not math.isfinite(value):
-            raise ValueError("Non-finite numbers are not supported")
-        return value
     if isinstance(value, Node):
         value = NodeRef.capture(value)
     elif isinstance(value, Plug):
@@ -105,19 +147,6 @@ def encode(value):
         return {"type": type(value).__name__, "value": {f.name: encode(getattr(value, f.name)) for f in fields(value)}}
     if isinstance(value, Snapshot):
         return {"type": "snapshot", "value": encode(value.to_data())}
-    math_name = _math_type_name(value)
-    if math_name is not None:
-        data = {"values": list(value)}
-        if math_name == "EulerRotation":
-            # order は om2 の番号(int)。JSON には従来どおり名前で保存する。
-            data["order"] = maths.euler_rotation.ORDER_NAMES[value.order]
-        return {"type": "math:" + math_name, "value": encode(data)}
-    if type(value) is dict:
-        if any(type(k) is not str for k in value):
-            raise TypeError("JSON dictionary keys must be strings")
-        return {"type": "dict", "value": {k: encode(v) for k, v in value.items()}}
-    if type(value) in (list, tuple):
-        return {"type": "tuple" if type(value) is tuple else "list", "value": [encode(v) for v in value]}
     raise TypeError("Unsupported JSON value: {}".format(type(value).__name__))
 
 

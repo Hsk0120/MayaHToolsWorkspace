@@ -60,7 +60,7 @@ def _unit_copy(value):
     return result
 
 
-class Quaternion(_MQuaternion):
+class Quaternion(om2.MQuaternion):
     """om2.MQuaternion を継承した XYZW 成分の可変な四元数。
 
     ``om2.MQuaternion`` の派生クラスなので、そのまま OpenMaya API 2.0 の関数へ
@@ -76,7 +76,9 @@ class Quaternion(_MQuaternion):
     になる(``(q1 * q2).to_matrix()`` は ``q1.to_matrix() * q2.to_matrix()`` と同じ回転。Hamilton 積の
     ``q2 ⊗ q1`` に等しい)。``+``、``-``、単項の ``-`` は om2 の成分ごとの演算。
     ``数値 * q`` は om2 と同じく4成分のスカラー倍(``q * 数値`` と ``/`` は om2 と
-    同じく未対応)。演算結果は hlib の :class:`Quaternion` で返す。``*=`` / ``+=`` /
+    同じく未対応)。演算結果は hlib の :class:`Quaternion` で返す(``om2.MQuaternion`` が
+    左辺でも同じ)。ただし ``om2.MEulerRotation * q`` は om2 側が先に処理するため
+    ``om2.MEulerRotation`` になる(``EulerRotation * q`` は EulerRotation)。``*=`` / ``+=`` /
     ``-=`` は自身を書き換える(om2 の MQuaternion に無い ``+=`` / ``-=`` も hlib で
     in-place にしている)。
 

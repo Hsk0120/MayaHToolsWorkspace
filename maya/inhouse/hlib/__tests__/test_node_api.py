@@ -1029,6 +1029,50 @@ class NodeApiTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             Node(12345)
 
+    def test_plug_paths_reject_indices_beyond_logical_index_range(self):
+        # MPlug.elementByLogicalIndex() は範囲外の番号を別の番号へ変換する(4294967296 は 0)。
+        # 属性パス・要素番号では別の要素へ読み替えず、例外にする。
+        average = Node.create(type="plusMinusAverage", name="hlibNodeApiIndexRange")
+        self.created.append(average.name())
+        maximum = 2147483647
+        self.assertEqual(average.plug("input1D[%d]" % maximum).mplug().logicalIndex(), maximum)
+        for path in ("input1D[2147483648]", "input1D[4294967295]", "input1D[4294967296]",
+                     "input1D[4294967297]", "input3D[4294967296].input3Dx"):
+            with self.subTest(path=path):
+                with self.assertRaises(AttributeError) as context:
+                    average.plug(path)
+                self.assertIn(str(maximum), str(context.exception))
+                self.assertFalse(average.has_attr(path))
+        array_plug = average.plug("input1D")
+        for index in (-1, maximum + 1, 4294967296):
+            with self.subTest(index=index):
+                with self.assertRaises(IndexError):
+                    array_plug.element(index)
+                with self.assertRaises(IndexError):
+                    array_plug.element(index, create=True)
+                with self.assertRaises(IndexError):
+                    array_plug[index]
+        # 要素は作られない(maya.cmds は 4294967296 を 2147483647 に切り詰めて作成する)。
+        self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [])
+        created = array_plug.element(maximum, create=True)
+        self.assertEqual(created.mplug().logicalIndex(), maximum)
+        self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [maximum])
+
+    def test_plug_rejects_mplug_of_another_node(self):
+        from hlib.plugs import Plug
+
+        first = self.create_transform("hlibNodeApiPlugOwnerA")
+        second = self.create_transform("hlibNodeApiPlugOwnerB")
+        first.add_attr("hlibDynamic", attribute_type="double")
+        for name in ("translateX", "hlibDynamic", "worldMatrix"):
+            with self.subTest(attribute=name):
+                mplug = first.plug(name).mplug()
+                self.assertEqual(Plug(first, mplug).mplug(), mplug)
+                # 静的属性は同じ型の別ノードにも存在するが、所有ノードでない node は拒否する。
+                with self.assertRaises(RuntimeError) as context:
+                    Plug(second, mplug)
+                self.assertIn("所有ノード", str(context.exception))
+
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])

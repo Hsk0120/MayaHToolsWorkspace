@@ -87,10 +87,16 @@ def _held_matrix_type(mplug, depth=0):
     1. 読み取りできない属性(``MFnAttribute.readable`` が False。transform 系ノード共通の
        ``geometry`` など)と、存在しない要素(配列要素は既存の論理インデックスのもの)は
        値を読まない(評価も要素の作成も起こさない)。
-    2. 入力接続があれば、値を読まずに接続元の属性の型を使う(接続元の評価を起こさない)。
-       接続元も値によって型が変わる属性なら、同じ規則で接続元を辿る。
+    2. 入力接続があれば、接続元の属性の型を使う。接続元の型が属性定義で決まる場合
+       (``worldMatrix[0]`` など)は値を読まず、接続元の評価も起こさない。接続元も値に
+       よって型が変わる属性なら、接続元に同じ規則を適用して辿る。辿った先で入力接続の無い
+       接続元は値を読むため、上流の評価が起こる(``choice2.input[0]`` ← ``choice1.output``、
+       ``choice.input[0]`` ← ``unitConversion.output`` では接続元の出力を評価する)。
     3. 入力接続が無ければ値を読む。ノードが計算する出力(``choice.output`` など)は、
-       ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こる。
+       ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こる。評価によってワールド空間の
+       出力の要素が作られる場合もある(インスタンス化されたシェイプの2つ目のインスタンスを
+       拘束元にした geometryConstraint の ``constraintGeometry`` では、シェイプの
+       ``worldMesh[0]`` が作られる)。
 
     ``double3`` などの数値の組を保持する場合は子を持たず、``Double3Plug`` では扱えない
     ため対象にしない(基底の Plug の ``get()`` が tuple を返す)。
@@ -276,8 +282,10 @@ class Plug:
         問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。
         値によって型が変わる属性(generic 属性など)は、存在する要素が行列を保持していれば
         ``cmds.getAttr(type=True)`` と同じく ``matrix`` として扱う(``MatrixPlug``)。
-        保持する値の型は入力接続があれば接続元の属性から求め、無ければ値を読む
-        (ノードが計算する出力では評価が起こる。規則は :func:`_held_matrix_type`)。
+        保持する値の型は、入力接続があれば接続元の属性の型から求め、無ければ値を読む。
+        値を読む場合(接続元も値によって型が変わる属性で、その接続元を辿って値を読む場合を
+        含む)は、ノードが計算する出力の評価が起こり、評価でワールド空間の出力の要素などが
+        作られる場合がある(規則は :func:`_held_matrix_type`)。
 
         Args:
             node (Node): プラグを所有するノードラッパー。
@@ -291,7 +299,8 @@ class Plug:
                 Plug から要素・子・親の Plug を取得した場合も含む(``Node.plug()`` と同じ規則)。
                 プラグが未確定(-1)の配列インデックスを経由する場合(``cmp[-1].child`` や
                 ``inputTarget[-1].inputTargetGroup`` のような maya.cmds で解決できないプラグ)。
-                node が持たない属性の MPlug を渡した場合(所有ノードではない node を渡した場合)。
+                MPlug の所有ノードが node と異なる場合(静的属性・動的属性とも。所有ノードでは
+                ない node を渡した誤用)。
         """
         if cls is Plug:
             # ArrayPlug/CompoundPlug との循環importを避けるため呼び出し時に遅延importする。
@@ -301,12 +310,13 @@ class Plug:
             handle = node._handle
             if handle is None or not handle.isValid():
                 raise RuntimeError("所有ノードが無効な(削除済みの)属性の Plug は作成できません")
+            if not mplug.isNull and mplug.node() != node._mobject:
+                # 所有ノードではない node を渡した誤用。静的属性は同じ型の別ノードにも存在し
+                # attributeClass() では検出できないため、MPlug の所有ノードと比べる。
+                raise RuntimeError("MPlug は指定したノードの属性ではありません(所有ノードを指定してください)")
             attribute = mplug.attribute()
             attribute_class = _attribute_class(node, om2.MObjectHandle(attribute), attribute)
             if attribute_class == _INVALID_ATTRIBUTE:
-                if not mplug.isNull and mplug.node() != node._mobject:
-                    # 内部の誤用(所有ノードではない node を渡した)を削除済みと区別して報告する。
-                    raise RuntimeError("MPlug は指定したノードの属性ではありません(所有ノードを指定してください)")
                 raise RuntimeError("削除済みの属性の Plug は作成できません")
             if has_unresolved_index(mplug):
                 raise RuntimeError(
@@ -1248,8 +1258,12 @@ class Plug:
             bool: 接続されている場合は True。
 
         Raises:
-            TypeError: other が Plug・MPlug・属性名のいずれでもない場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            TypeError: other が Plug・MPlug・属性名のいずれでもない場合、または文字列が
+                属性を指していない場合。
+            ValueError: other が空文字列、または空の MPlug の場合(``to_plug`` と同じ)。
+            RuntimeError: 自身の所有ノードが無効(削除済み)、または属性が削除済みの場合。
+                other の文字列を解決できない(存在しない、または複数の属性に一致する)場合、
+                other の MPlug の所有ノードまたは属性が削除済みの場合。
         """
         self._require_valid()
         other = self._coerce_plug(other)
@@ -1278,8 +1292,12 @@ class Plug:
             Plug: 接続先プラグ(MPlug・文字列を渡した場合は変換した Plug)。
 
         Raises:
-            TypeError: target が Plug・MPlug・属性名のいずれでもない場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            TypeError: target が Plug・MPlug・属性名のいずれでもない場合、または文字列が
+                属性を指していない場合。
+            ValueError: target が空文字列、または空の MPlug の場合(``to_plug`` と同じ)。
+            RuntimeError: 自身または target の所有ノードが無効(削除済み)、または属性が
+                削除済みの場合。target の文字列を解決できない(存在しない、または複数の属性に
+                一致する)場合。Maya が接続を拒否した場合。
         """
         self._require_valid()
         target = self._coerce_plug(target)
@@ -1306,9 +1324,13 @@ class Plug:
             Plug: 自身。
 
         Raises:
-            TypeError: target が None・Plug・MPlug・属性名のいずれでもない場合。
-            RuntimeError: Maya が接続解除を拒否した場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            TypeError: target が None・Plug・MPlug・属性名のいずれでもない場合、または
+                文字列が属性を指していない場合。
+            ValueError: target が空文字列、または空の MPlug の場合(``to_plug`` と同じ)。
+            RuntimeError: 自身の所有ノードが無効(削除済み)、または属性が削除済みの場合。
+                target の文字列を解決できない(存在しない、または複数の属性に一致する)場合、
+                target の MPlug の所有ノードまたは属性が削除済みの場合。Maya が接続解除を
+                拒否した場合(削除済みの target の Plug を渡した場合を含む)。
         """
         self._require_valid()
         if target is not None:
@@ -1347,8 +1369,9 @@ class Plug:
 
         Raises:
             TypeError: 対応しない型、または文字列が属性を指していない場合。
-            ValueError: 空の入力の場合。
-            RuntimeError: 文字列を解決できない(存在しない、または複数の属性に一致する)場合。
+            ValueError: 空文字列、または空の MPlug の場合。
+            RuntimeError: 文字列を解決できない(存在しない、または複数の属性に一致する)場合、
+                または MPlug の所有ノード・属性が削除済みの場合。
         """
         return to_plug(value)
 

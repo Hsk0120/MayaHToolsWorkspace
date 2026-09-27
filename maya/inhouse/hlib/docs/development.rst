@@ -84,7 +84,10 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
    * - ``editors``
      - TimeSlider、Viewport、Outliner、ChannelBoxによるエディター操作
    * - ``maths``
-     - Vector、Matrix、Quaternion などの数学型（Matrix 以外は frozen dataclass）
+     - OpenMaya API 2.0 の型を継承した可変の値型。Vector・Translation・Scale・Shear は
+       ``MVector``、Quaternion は ``MQuaternion``、EulerRotation は ``MEulerRotation``、
+       Matrix は ``MMatrix`` の派生で、om2 の関数へそのまま渡せ、演算の意味も om2 に従う
+       (ハッシュ不可)。``easing`` だけは標準の ``math`` のみを使う
    * - ``cmds``
      - ``maya.cmds`` 相当の手続き的 API（createNode、ls、constraint）
    * - ``decorators``
@@ -212,11 +215,17 @@ Maya が異常終了する、mesh の内部属性(``edge[i]``・``face[i]`` な�
      generic 属性 ``geometry`` など)と、存在しない要素は値を読みません。field 系ノードでは
      ``geometry`` の評価で ``falloffCurve[0]`` などの要素が作られるため、読むと
      ``Node(field).plugs()`` がシーンを変更してしまいます。
-  2. 入力接続があれば、値を読まずに接続元の属性の型を使います(``choice.input[0]`` の
-     接続元が ``worldMatrix[0]`` なら ``matrix``。接続元も値によって型が変わる属性なら
-     同じ規則で辿ります)。上流の評価を起こしません。
+  2. 入力接続があれば、接続元の属性の型を使います(``choice.input[0]`` の接続元が
+     ``worldMatrix[0]`` なら ``matrix``)。接続元の型が属性定義で決まる場合は値を読まず、
+     上流の評価を起こしません。接続元も値によって型が変わる属性なら、接続元に同じ規則を
+     適用して辿ります。辿った先で入力接続の無い接続元は値を読むため、上流の評価が起こります
+     (``choice2.input[0]`` ← ``choice1.output`` では ``choice1`` を、``choice.input[0]`` ←
+     ``unitConversion.output`` では ``unitConversion`` を評価します)。
   3. 入力接続が無ければ値を読みます。ノードが計算する出力(``choice.output`` など)は
-     ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こります。
+     ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こります。評価によって
+     ワールド空間の出力の要素が作られる場合もあります(インスタンス化されたシェイプの
+     2つ目のインスタンスを拘束元にした geometryConstraint の ``constraintGeometry`` では、
+     シェイプの ``worldMesh[0]`` が作られます。``cmds.getAttr(type=True)`` でも同じです)。
 
   ``double3`` などの数値の組を保持する場合は子を持たず ``Double3Plug`` で扱えないため、
   基底の ``Plug`` のままにします(``get()`` は tuple)。``geometry`` 型の typed 属性
@@ -231,7 +240,8 @@ Maya が異常終了する、mesh の内部属性(``edge[i]``・``face[i]`` な�
   存在しない配列要素へ ``cmds.getAttr(type=True)`` を使いません(要素が作られ、
   Maya が異常終了する属性もあるため)。
 
-そのため Plug の生成はシーンを変更しません。要素の作成が必要な処理は
+そのため Plug の生成は、値によって型が変わる属性で値を読む場合(上記の評価と、評価による
+ワールド空間の出力の要素の作成)を除き、シーンを変更しません。要素の作成が必要な処理は
 ``ArrayPlug.element(index, create=True)`` のように明示します。所有ノードが削除済み、
 または動的属性が ``deleteAttr`` で削除済みの場合は、Plug の生成を ``RuntimeError`` にし、
 既存の Plug も無効(``Plug.is_valid()`` が ``False``。``str()``・``name()`` は空文字列、
@@ -244,6 +254,15 @@ Maya を異常終了させるためです。動的属性の削除は Undo のた
 返すかも確かめます(静的属性はノードが有効な間は常に存在するため確かめません)。
 生の ``om2.MPlug`` を受け取る変換(``_core.coerce`` の ``_mplug_name()``)も
 ``mplug_attribute_exists()`` で同じ判定を行い、削除済みの属性は ``ValueError`` にします。
+MPlug・Plug を所有ノードへ解決する処理(``nodes/node.py`` の ``_resolve_node()`` と
+``_core.coerce.to_node()``)も、所有ノードが有効で属性だけが削除されている場合は
+``DeletedAttributeError`` (``ValueError`` と ``RuntimeError`` の両方の派生)にします。
+所有ノードへ解決すると削除済みの対象を黙って受け付けてしまうためで、``RuntimeError`` の
+派生にするのは、解決できない対象をすべて ``RuntimeError`` にする ``Node(...)`` の規則を
+保つためです。
+``Plug(node, mplug)`` は ``MPlug.node()`` と ``node`` の MObject を比べ、所有ノードではない
+``node`` を渡す誤用を静的属性・動的属性とも ``RuntimeError`` にします(静的属性は同じ型の
+別ノードにも存在し、``attributeClass()`` では検出できないため)。
 ただし Undo の対象から外れて削除されたノードの MPlug は ``MPlug.node()`` の時点で
 Maya が異常終了し、API では検出できません。hlib の内部でも MPlug を削除操作をまたいで
 保持せず、Plug(ノードの ``MObjectHandle`` を持つ)を保持してください。
@@ -252,19 +271,28 @@ Maya が異常終了し、API では検出できません。hlib の内部でも
 ``__init__`` へ引き継ぎます。ラッパー型の選択のために解決をやり直さないでください
 (``Node`` の生成はシーン全体の列挙などで大量に呼ばれるため)。
 
-大量に呼ばれる処理の性能について、次を前提にしています(transform 2000 個での実測。
-比較の基準は ``maya.cmds`` へ ``cmds.getAttr(type=True)`` で型を問い合わせていた以前の実装)。
+大量に呼ばれる処理の性能について、次を前提にしています(Maya 2022・2027 で transform と
+network を各 2000 個作成した実測。比較の基準は ``maya.cmds`` へ ``cmds.getAttr(type=True)`` で
+型を問い合わせていた以前の実装。倍率は実行ごと・Maya のバージョンごとに変動するため範囲で示します)。
 
-- ``Node(...)``・``node.plug()``・``hlib.ls()`` は以前の実装の約 0.4〜0.55 倍の時間です。
+- ``Node(...)``・``node.plug()``・``hlib.ls()`` は以前の実装の約 0.3〜0.6 倍の時間です
+  (``Node(...)`` は約 0.3〜0.4 倍、``node.plug()`` は transform の ``tx`` で約 0.3〜0.5 倍、
+  DG ノードの動的属性で約 0.4〜0.6 倍)。``Plug(node, mplug)`` の所有ノードの確認
+  (``MPlug.node()`` との比較)を含みます。例外として、``Node(MPlug)``・``hlib.node(MPlug)``・
+  ``to_node(MPlug)`` のように生の ``MPlug`` から所有ノードを解決する経路は、削除済み属性の
+  確認が加わるため以前の約 1.4 倍です(1 回あたり約 +1.4µs)。hlib 内部の頻繁な処理は
+  ``Node(mplug.node())`` (MObject)を使うため影響しません。
 - ``Plug.get()`` は読み方(``MPlug.asDouble`` など)を属性定義から Plug ごとに一度だけ選んで
-  保持するため、以前の約 0.4〜0.6 倍です。値を読むたびに行う有効性の確認(動的属性は
+  保持するため、以前の約 0.4〜0.65 倍です(transform の ``tx`` は約 0.5〜0.65 倍、DG ノードの
+  動的属性は約 0.4〜0.5 倍)。値を読むたびに行う有効性の確認(動的属性は
   ``attributeClass()``)はこの中に含まれます。
-- ``str(plug)``/``Plug.full_name()`` は、DAG ノードの Plug で以前の約 2.1〜2.6 倍
+- ``str(plug)``/``Plug.full_name()`` は、DAG ノードの Plug で以前の約 2〜2.6 倍
   (1 回あたり約 +1µs)です。以前は ``MPlug.name()`` をそのまま返していたため、同じ短い
   名前のノードがあると曖昧な名前になっていました。一意な名前を返すために
   ``MFnDependencyNode.hasUniqueName()`` を毎回問い合わせる必要があり(名前の一意性は
   ほかのノードの作成・名前変更で変わるため、結果を保持できません)、この分は削れません。
-  DG ノードは一意性の確認が不要なため約 1.16 倍です。名前を繰り返し使うループでは、
+  DG ノードは一意性の確認が不要なため、静的属性で約 1.2 倍、属性の存在確認
+  (``attributeClass()``)が加わる動的属性で約 1.2〜1.6 倍です。名前を繰り返し使うループでは、
   ``str(plug)`` を一度だけ求めて使い回すか、``plug.mplug()`` を直接使ってください。
   判定の処理(``_require_valid()``・``full_name()`` の属性の存在確認)は呼び出しの負荷を
   避けるため ``_attribute_exists()`` と同じ内容を直接書いています。変更する場合は3か所を
@@ -303,10 +331,12 @@ maya.cmds へ渡す名前と入力の正規化
   ``to_plug`` (属性)で入力を正規化します。``to_name``/``to_names`` は文字列を解決せずに
   そのまま渡します。例外は、対応しない型が ``TypeError``、空・削除済みの対象が
   ``ValueError``、解決できない(存在しない・一意でない)文字列が ``RuntimeError`` です。
-  ただし ``to_node`` は削除済みの Node・Plug・Component をそのまま(所有ノードとして)
-  返し、有効性の扱いは呼び出し側の API に任せます(``Node(...)``/``hlib.node`` と
-  ``hlib.constraint``/``Transform.add_constraint`` は従来どおり ``RuntimeError``、
-  ``Node.is_parent_of`` などの判定は ``False``)。
+  ただし ``to_node`` は削除済みの Node と、所有ノードが削除済みの Plug・Component を
+  そのまま(無効な所有ノードとして)返し、有効性の扱いは呼び出し側の API に任せます
+  (``Node(...)``/``hlib.node`` と ``hlib.constraint``/``Transform.add_constraint`` は
+  従来どおり ``RuntimeError``、``Node.is_parent_of`` などの判定は ``False``)。所有ノードが
+  有効で属性だけが削除された Plug・MPlug は、返す Node で削除を表せないため ``to_node`` でも
+  ``DeletedAttributeError`` (``ValueError``。``RuntimeError`` の派生でもある)です。
 - ``MSelectionList`` の属性の要素は ``getDagPath()`` を使えず、インスタンスの情報も
   持たないため、所有ノードは ``_core.coerce.selection_owner()`` で求めます(元の文字列の
   ノード部分から、名前が指すインスタンスを保持します)。

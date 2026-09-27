@@ -6,6 +6,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.attribute_type import is_internal_data_type
+from .._core.coerce import MAX_LOGICAL_INDEX
 from ..decorators.undo import undo_chunk
 from .plug import Plug, _instance_count
 
@@ -94,13 +95,20 @@ class ArrayPlug(Plug):
             Plug: 要素プラグ。
 
         Raises:
-            IndexError: create が ``False`` で要素が存在しない場合。
+            IndexError: create が ``False`` で要素が存在しない場合。index が 0〜2147483647
+                (``MPlug.logicalIndex()`` の範囲)の外の場合(``elementByLogicalIndex()`` は
+                範囲外の番号を別の番号へ変換し、maya.cmds は 2147483647 に切り詰めるため、
+                別の要素を返したり作成したりしない)。
             RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
                 create が ``True`` で、Maya 内部のデータ型(nurbsSurface の ``patchUVIds``
                 など。:func:`hlib._core.attribute_type.is_internal_data_type`)の配列の場合
                 (要素を問い合わせると Maya が異常終了する場合があるため作成しない)。
         """
         self._require_valid()
+        if not 0 <= index <= MAX_LOGICAL_INDEX:
+            raise IndexError(
+                f"論理インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {index} ({self.full_name()})"
+            )
         mplug = self._mplug.elementByLogicalIndex(index)
         if index not in self._mplug.getExistingArrayAttributeIndices():
             if create:
@@ -201,6 +209,6 @@ class ArrayPlug(Plug):
             Plug: 対応する要素プラグ。
 
         Raises:
-            IndexError: 指定した論理インデックスが存在しない場合。
+            IndexError: 指定した論理インデックスが存在しない場合(0〜2147483647 の範囲外を含む)。
         """
         return self.element(index)

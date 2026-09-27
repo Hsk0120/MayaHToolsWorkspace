@@ -3,7 +3,12 @@
 from typing import Any
 
 from ..decorators._fast import fast_edit
-from .._core.coerce import selection_owner
+from .._core.coerce import (
+    DeletedAttributeError,
+    deleted_attribute_error,
+    mplug_attribute_exists,
+    selection_owner,
+)
 from .._core.fast_write import set_attr
 
 import maya.api.OpenMaya as om2
@@ -32,6 +37,8 @@ def _resolve_node(node):
 
     Raises:
         TypeError: 対応しない入力型、または依存ノード以外(属性など)を指す MObject の場合。
+        ValueError: 所有ノードは有効で、属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+            (:class:`hlib._core.coerce.DeletedAttributeError`。``RuntimeError`` の派生でもある)。
         RuntimeError: 名前を解決できない(存在しない、または複数の対象に一致する)場合、
             または空・無効な(削除済みの)ラッパーや om2 オブジェクトを指定した場合。
     """
@@ -73,7 +80,12 @@ def _resolve_node(node):
     if isinstance(node, om2.MPlug):
         if node.isNull:
             raise RuntimeError("空の MPlug からノードは解決できません")
-        return _resolve_node(node.node())
+        owner = node.node()
+        # 所有ノードが有効でも、deleteAttr で削除された属性の MPlug は削除済みの対象として扱う
+        # (hlib のコマンドと同じ。所有ノードが削除済みなら下の MObject の解決で RuntimeError)。
+        if om2.MObjectHandle(owner).isValid() and not mplug_attribute_exists(node, owner):
+            raise DeletedAttributeError("削除済みの属性の MPlug からノードは解決できません")
+        return _resolve_node(owner)
     if isinstance(node, Node):
         if not node.is_valid():
             raise RuntimeError("無効な(削除済みの)ノードは指定できません")
@@ -84,12 +96,68 @@ def _resolve_node(node):
     from ..plugs.plug import Plug
 
     if isinstance(node, Plug):
+        error = deleted_attribute_error(node)
+        if error is not None:
+            raise error
         return _resolve_node(node.node)
     if isinstance(node, (Component, Components)):
         return _resolve_node(node.shape)
     raise TypeError(
         "node には名前、Node、Plug、Component、MObject、MDagPath、または MPlug を指定してください"
     )
+
+
+def _is_deleted_api_object(value):
+    """om2 オブジェクトが削除済みのノードを指すか判定する(空のオブジェクトは False)。
+
+    Args:
+        value (object): 判定する値。om2 の MObject・MDagPath・MPlug 以外は False。
+
+    Returns:
+        bool: 削除済みのノードを指す MObject・MDagPath・MPlug の場合は True。
+            無効な MDagPath は、空のパスも含めて True(``Node(...)`` も区別しない)。
+    """
+    if isinstance(value, om2.MPlug):
+        if value.isNull:
+            return False
+        value = value.node()
+    if isinstance(value, om2.MDagPath):
+        return not value.isValid() or not om2.MObjectHandle(value.node()).isValid()
+    if isinstance(value, om2.MObject):
+        return not value.isNull() and not om2.MObjectHandle(value).isValid()
+    return False
+
+
+def _query_target(other):
+    """判定メソッド(``is_parent_of`` など)の対象をノードへ解決する。
+
+    ``hlib._core.coerce.to_node`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
+    所有ノードが削除済みの Plug・Component、属性が ``deleteAttr`` で削除済みの Plug・MPlug、
+    削除済みのノードを指す om2 オブジェクト)は例外にせず None を返す(判定は False)。
+
+    Args:
+        other (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):
+            判定対象。
+
+    Returns:
+        Node | None: 解決した有効なノード。削除済みの対象は None。
+
+    Raises:
+        TypeError: 対応しない型の場合。
+        RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
+            または空の MObject・MPlug の場合。
+    """
+    from .._core.coerce import to_node
+
+    try:
+        node = to_node(other)
+    except DeletedAttributeError:
+        return None
+    except RuntimeError:
+        if _is_deleted_api_object(other):
+            return None
+        raise
+    return node if node.is_valid() else None
 
 
 _MOVABLE_NUMERIC_TYPES = {
@@ -200,7 +268,11 @@ class Node:
     ``Node(value)`` の value には名前、MObject、MDagPath に加え、既存の Node
     (同じノードを指す新しいラッパー)、Plug・MPlug(所有ノード)、
     Component・Components(所有シェイプ)も指定できる。名前が存在しない・
-    複数の対象に一致する場合や、空・削除済みの対象は RuntimeError になる。
+    複数の対象に一致する場合や、空・削除済みの対象は RuntimeError になる
+    (``"bulk*"`` のように複数のノードに一致するパターンも最初の一致を返さない。
+    パターンは ``hlib.ls`` を使う)。所有ノードは有効で属性だけが ``deleteAttr`` で
+    削除された Plug・MPlug は ValueError(``hlib._core.coerce.DeletedAttributeError``。
+    RuntimeError の派生でもあるため、従来どおり RuntimeError としても捕捉できる)。
 
     インスタンス化されたノードは、指定されたインスタンスの DAG パスを保持する。
     そのインスタンスだけが削除された場合は、残っている最初のインスタンスのパスへ
@@ -356,6 +428,8 @@ class Node:
 
         Raises:
             TypeError: ノード入力が対応しない型の場合。
+            ValueError: 属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+                (``DeletedAttributeError``。RuntimeError の派生でもある)。
             RuntimeError: ノードを解決できない場合。
         """
         registry = cls._registry
@@ -388,6 +462,8 @@ class Node:
 
         Raises:
             TypeError: 対応しないノード入力型の場合。
+            ValueError: 属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+                (``DeletedAttributeError``。RuntimeError の派生でもある)。
             RuntimeError: ノード名を解決できない場合。
         """
         # __new__ が解決済みの結果を引き継いだ場合は、同じ入力を再び解決しない。
@@ -414,6 +490,8 @@ class Node:
 
         Raises:
             TypeError: 対応しないノード入力型の場合。
+            ValueError: 属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+                (``DeletedAttributeError``。RuntimeError の派生でもある)。
             RuntimeError: ノード名を解決できない場合。
         """
         self._mobject, self._dag_path = _resolve_node(node)
@@ -568,18 +646,18 @@ class Node:
 
         Returns:
             bool: other が自身より下の階層にある場合は True。自身自身や
-                非DAGノード、無効なノードでは False。
+                非DAGノード、無効なノード、削除済みの対象(属性が削除済みの Plug・MPlug、
+                削除済みのノードを指す om2 オブジェクトを含む)では False。
 
         Raises:
             TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
+            RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
-        from .._core.coerce import to_node
-
-        other_node = to_node(other)
+        other_node = _query_target(other)
         self_full = self.full_name()
-        other_full = other_node.full_name()
-        if not self_full or not other_full:
+        if other_node is None or not self_full:
             return False
+        other_full = other_node.full_name()
         return other_full != self_full and other_full.startswith(self_full + "|")
 
     def is_parent_of(self, other):
@@ -590,18 +668,19 @@ class Node:
                 判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
 
         Returns:
-            bool: other が自身の直接の子の場合は True。
+            bool: other が自身の直接の子の場合は True。無効なノードと削除済みの対象
+                (属性が削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
+                含む)では False。
 
         Raises:
             TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
+            RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
-        from .._core.coerce import to_node
-
-        other_node = to_node(other)
+        other_node = _query_target(other)
         self_full = self.full_name()
-        other_full = other_node.full_name()
-        if not self_full or not other_full:
+        if other_node is None or not self_full:
             return False
+        other_full = other_node.full_name()
         parent_prefix, separator, _ = other_full.rpartition("|")
         return bool(separator) and parent_prefix == self_full
 
@@ -613,14 +692,17 @@ class Node:
                 判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
 
         Returns:
-            bool: other が自身の直接の親の場合は True。
+            bool: other が自身の直接の親の場合は True。無効なノードと削除済みの対象
+                (属性が削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
+                含む)では False。
 
         Raises:
             TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
+            RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
-        from .._core.coerce import to_node
-
-        other_node = to_node(other)
+        other_node = _query_target(other)
+        if other_node is None:
+            return False
         return other_node.is_parent_of(self)
 
     def attribute_count(self):
@@ -1100,7 +1182,9 @@ class Node:
         (``input1D[3]``、``worldMatrix[0]``、``pnts[2].pntx``、
         ``inputTarget[0].inputTargetGroup[7].inputTargetItem[6000].inputComponentsTarget``)を
         指定できる。形式は ``str(plug)`` の属性部分(``Plug.full_name()`` の ``.`` 以降)と同じ。
-        存在しない配列要素の Plug を取得しても要素は作られない(シーンを変更しない)。
+        配列インデックスは 0〜2147483647(``MPlug.logicalIndex()`` の範囲)で指定する。
+        存在しない配列要素の Plug を取得しても要素は作られない(値によって型が変わる属性の
+        評価を除き、シーンを変更しない。:doc:`/cmds_interop` を参照)。
 
         Args:
             name (str): 属性名または属性パス(このノード自身の属性に限る)。
@@ -1113,7 +1197,9 @@ class Node:
             RuntimeError: ノードが無効な場合。属性名が配列複合属性の子を配列要素の番号なしで
                 指す場合(``input3Dx`` のような maya.cmds で解決できないプラグ。
                 ``input3D[0].input3Dx`` のように番号を含めて指定する)。
-            AttributeError: 属性・属性パスを解決できない場合。
+            AttributeError: 属性・属性パスを解決できない場合。配列インデックスが
+                2147483647 を超える場合(``input1D[4294967296]`` のような番号を別の要素へ
+                読み替えない)も含む。
         """
         if not isinstance(name, str) or not name:
             raise ValueError("name には空でない属性パスを指定してください")
@@ -1131,10 +1217,14 @@ class Node:
                 mplug = None  # エイリアス名は findPlug で解決できないため、下で解決する。
             if mplug is not None:
                 return Plug(self, mplug)
-        from .._core.coerce import attribute_path_plug
+        from .._core.coerce import MAX_LOGICAL_INDEX, attribute_path_plug, has_out_of_range_index
 
         mplug = attribute_path_plug(self._mobject, name)
         if mplug is None:
+            if has_out_of_range_index(name):
+                raise AttributeError(
+                    f"配列インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {self.name()}.{name}"
+                )
             raise AttributeError(f"属性が見つかりません: {self.name()}.{name}")
         return Plug(self, mplug)
 

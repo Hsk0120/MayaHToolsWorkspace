@@ -69,17 +69,40 @@ APIの命名と移行
 * 値は可変で、ハッシュ不可(``dict`` のキーや ``set`` の要素にできない)。``+=`` などは
   同じオブジェクトを書き換える。``==`` は同じ om2 の系統なら型が違っても成分で比較する
   (``Translation(1, 2, 3) == Scale(1, 2, 3)`` は True、EulerRotation は順序も比較する)。
+* 弱参照(``weakref.ref(value)``)は TypeError になった(om2 の型と同じく弱参照に対応しない)。
+* ``Matrix`` の反復(``for x in m``・``list(m)``)は、反復を始めた時点の値の複製から読む。以前は反復中の変更も読み取っていた。
+  値を弱参照で持つキャッシュなどは、値を複製して保持するか通常の参照に変える。
+* 演算結果の型は、系統の違う om2 の値が左辺の一部の組み合わせ(``om2.MVector * Matrix`` など)を
+  除いて hlib の型(規則と例外は :ref:`maths-result-types`)。素の om2 の値を含むリストの
+  ``in`` / ``index`` / ``count`` は、Python のバージョンによって TypeError になることがある
+  (:ref:`maths-comparison`)。
 * ``Vector * Vector`` は内積(float)、``^`` は外積。``v * m`` は平行移動を含まない方向の変換、
   ``m * v`` は om2 と同じ列ベクトルとしての積で、以前の ``m * v`` (位置の変換)は
   ``m.transform_point(v)``。``m @ v`` は TypeError。
 * ``q1 * q2`` は om2 の順序(q1 を先に適用。以前の Hamilton 積 ``q1 ⊗ q2`` とは逆)。
   ``to_swing_twist`` の結果は ``twist * swing`` で元の回転になる。
 * EulerRotation は Vector の派生ではなく(``dot`` などは無い)、``order`` は om2 の番号(int)。
-  名前は ``order_name``。``Matrix(rotate=EulerRotation)`` はその回転順序を反映する。
+  名前は ``order_name``。``euler.order == "xyz"`` のような名前との比較は例外にならず常に False に
+  なるため、``euler.order_name == "xyz"`` (または ``euler.order == om2.MEulerRotation.kXYZ``)に
+  書き換える。``Matrix(rotate=EulerRotation)`` はその回転順序を反映する。
 * 行列の分解は ``om2.MTransformationMatrix`` の規約(行列式が負なら Z スケールが負。以前は X)。
   Euler 角は om2 の解(中間軸が 90 度を超える側になることがある)。
 * ``Transform.get_rotate`` / ``set_rotate`` の3成分はノードの rotateOrder の値(XYZ 順序は
   ``get_euler``)。``set_*`` はスケールの符号と Euler の解を現在のチャンネル値に近いものへ揃える。
+* ``Transform.set_rotate(value, unit="deg")`` は value が EulerRotation / Quaternion だと ValueError
+  (度として扱えるのは3成分の値だけ)。以前は EulerRotation の成分を度として読み、回転順序を無視して
+  XYZ として扱っていた。EulerRotation / Quaternion はラジアンのまま ``unit="rad"`` (既定)で渡すと
+  回転順序も反映される。度からは ``EulerRotation.from_degrees(x, y, z, order)`` で作る。
+* joint の ``set_matrix`` と、それを使う ``set_translate`` / ``set_rotate`` / ``set_scale`` /
+  ``set_shear`` などは、jointOrient と rotateAxis を rotateOrder にかかわらず XYZ 順序の回転として
+  扱う(Maya の joint の評価と同じ。不具合の修正)。以前は rotateOrder の順序で解釈していたため、
+  rotateOrder が xyz 以外で、jointOrient または rotateAxis の2軸以上が 0 でない joint では、
+  書き込んだ rotate による行列が要求した行列と一致しなかった。
+* segmentScaleCompensate が有効な joint の ``set_matrix`` などは、joint の行列
+  S·RA·R·JO·IS·T の IS(inverseScale の逆数の対角行列)を、3x3 部分へ inverseScale の対角行列を
+  右から掛けて打ち消し、平行移動はそのまま使う(不具合の修正)。以前は ``1 / inverseScale`` の
+  スケール行列を平行移動を含む行列全体へ右から掛けていたため、inverseScale が 1 でない(親の
+  スケールが 1 でない)場合に scale と translate が誤った値になっていた。
 * ``Vector()`` はゼロベクトル、``Vector(x, y)`` は z=0 (om2 と同じ)。文字列の成分
   (``Vector("1", "2", "3")``)は ValueError。添字の範囲外は負の値も IndexError。
 * ``hlib.maths`` の import に Maya(mayapy または Maya 本体)が必要。以前の hlib で作った

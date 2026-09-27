@@ -86,9 +86,14 @@ maya.cmds へそのまま渡せるもの
   ラッパーが保持するインスタンスの要素(``worldMatrix[<インスタンス番号>]``)を使います。
 - ``om2.MDagPath`` の ``str()`` も最短一意パスなので渡せます。
 - Plug を作る・取得する操作(``node.plug()``、``node.plugs()``、``to_plug()``、
-  ``Selection([...])`` など)はシーンを変更しません。属性型は属性定義から求め、
-  maya.cmds へ問い合わせないためです(評価も起こしません。例外は次の項目の
-  「値によって型が変わる属性」です)。存在しない配列要素(``input1D[10]``)の Plug を作っても要素は
+  ``Selection([...])`` など)は、原則としてシーンを変更しません。属性型は属性定義から求め、
+  maya.cmds へ問い合わせないためです(評価も起こしません)。例外は次の項目の
+  「値によって型が変わる属性」で、値を読むためノードが計算する出力の評価(compute)が起こり、
+  評価によってシーンの状態が変わる場合があります。たとえばインスタンス化されたシェイプの
+  2つ目のインスタンスを拘束元にした geometryConstraint では、``constraintGeometry`` の
+  Plug を作る(``node.plugs()`` の結果に含まれる場合を含む)と、評価によってシェイプの
+  ``worldMesh[0]`` が作られます(``cmds.getAttr(type=True)`` でも同じです)。
+  存在しない配列要素(``input1D[10]``)の Plug を作っても要素は
   作られません(mesh の ``controlPoints[i]`` の Plug を作っても ``pnts[i]`` は作られず、
   blendShape の ``weight[5]`` の Plug を作っても ``parentDirectory[5]`` などは作られません)。
   maya.cmds では例外や異常終了になる mesh の内部属性(``edge[1]`` など)や nurbsSurface の
@@ -104,8 +109,13 @@ maya.cmds へそのまま渡せるもの
 
   - 読み取りできない属性(transform 系ノード共通の ``geometry`` など)と、存在しない
     要素は値を読みません(基底の ``Plug`` になります)。
-  - 入力接続があれば、値を読まずに接続元の属性の型を使います(``choice.input[0]`` の
-    接続元が ``worldMatrix[0]`` なら ``MatrixPlug``)。上流の評価は起こりません。
+  - 入力接続があれば、接続元の属性の型を使います(``choice.input[0]`` の接続元が
+    ``worldMatrix[0]`` なら ``MatrixPlug``)。接続元の型が属性定義で決まる場合は値を読まず、
+    上流の評価も起こりません。接続元も値によって型が変わる属性(``choice`` の ``output``、
+    ``unitConversion`` の ``output`` など)の場合は、接続元に同じ規則を適用して辿ります。
+    辿った先の接続元に入力接続が無ければその値を読むため、上流の評価が起こります
+    (``choice2.input[0]`` の接続元が ``choice1.output`` なら ``choice1`` を、
+    ``choice.input[0]`` の接続元が ``unitConversion.output`` なら ``unitConversion`` を評価します)。
   - 入力接続が無ければ、Plug の作成時に値を読みます。ノードが計算する出力
     (``choice.output`` など)では ``cmds.getAttr(type=True)`` と同じく評価(compute)が
     起こります(``node.plugs()`` や ``plug.destinations()`` の結果に含まれる場合も同じです)。
@@ -123,6 +133,12 @@ maya.cmds へそのまま渡せるもの
   ように指定します)。``node.plugs()`` の結果にもこれらは含まれません。
   ``node.input3Dx`` のような Python の属性アクセスでは、``hasattr``/``getattr(node, name, default)``
   が使えるよう ``AttributeError`` になります。
+  配列インデックスは 0〜2147483647(``MPlug.logicalIndex()`` の範囲)です。範囲外の番号
+  (``input1D[4294967296]`` など)は ``node.plug()`` では ``AttributeError``、
+  ``array_plug.element()``/``array_plug[i]`` では ``IndexError`` で、別の要素へ読み替えません
+  (``MPlug.elementByLogicalIndex()`` は ``input1D[0]`` へ変換します)。なお名前の文字列
+  (``to_plug("pma.input1D[4294967296]")``、``cmds.getAttr`` など)は、maya.cmds と同じく
+  2147483647 番の要素として解決されます。
   ``message`` 型のように値を持たない属性の配列では要素を作成できず、接続した時点で
   要素ができます(``add_element()`` は接続するまで同じ番号を返します)。
 - ``createNode("mesh")`` で作っただけの ``inMesh`` が未接続の空の mesh の ``uvpt[i]`` や、
@@ -153,9 +169,10 @@ maya.cmds へそのまま渡せるもの
      - ``str()`` が ``MPlug.name()`` で、短いノード名しか含まない。同じ短い名前のノードがあると曖昧になる
      - hlib の Plug(``hlib._core.coerce.to_plug`` 相当の変換は hlib のコマンドと ``Plug.connect()`` が行う)
 
-生の ``om2.MPlug`` は、削除操作をまたいで保持しないでください。hlib のコマンドは
+生の ``om2.MPlug`` は、削除操作をまたいで保持しないでください。hlib のコマンドと
+ノードが必要な引数(``hlib.node``、``hlib.constraint`` の拘束元・拘束先など)は
 ``deleteAttr`` で削除された属性の MPlug を ``ValueError`` にします(``hlib.objExists`` は
-``False``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
+``False``、``Plug.connect()`` などの属性が必要な引数は ``RuntimeError``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
 状態での削除、``file(new=True)`` など)の MPlug は、``MPlug.node()`` の時点で Maya が
 異常終了し、API では検出できません。保持する場合は hlib の Plug(ノードの削除を検出できる)を
 使ってください。また MPlug はインスタンスの情報を持たないため、インスタンス化されたノードの
@@ -304,8 +321,15 @@ Plug は1つの属性を表すためです。シェイプの名前で指定し�
   ``Node(...)``/``hlib.node`` は従来どおり、解決できない対象(空・削除済みを含む)を
   すべて ``RuntimeError`` にします(依存ノード以外を指す MObject は ``TypeError``)。
   ``hlib.constraint``/``Transform.add_constraint`` の拘束元・拘束先に削除済みの Node などを
-  渡した場合も従来どおり ``RuntimeError`` です。``Node.is_parent_of`` などの判定は、
-  削除済みの対象には ``False`` を返します。
+  渡した場合も従来どおり ``RuntimeError`` です。
+  ただし所有ノードは有効なまま ``deleteAttr`` で属性が削除された Plug・MPlug は、所有ノードへ
+  解決せず、ノードが必要な引数(``Node(...)``/``hlib.node``、``hlib.constraint`` の拘束元・
+  拘束先、``hlib._core.coerce.to_node`` など)でも、名前へ変換する引数と同じく ``ValueError``
+  です(``hlib._core.coerce.DeletedAttributeError``。``RuntimeError`` の派生でもあるため、
+  ``Node(...)`` の失敗を ``except RuntimeError`` で捕捉するコードもそのまま使えます)。
+  ``Node.is_parent_of``/``is_child_of``/``is_ancestor_of`` の判定は、削除済みの対象
+  (削除済みの Node、所有ノードが削除済みの Plug・Component、属性が削除済みの Plug・MPlug、
+  削除済みのノードを指す om2 オブジェクト)には ``False`` を返します。
 - ``hlib.objExists`` は、文字列を ``maya.cmds.objExists`` と同じ規則で判定します
   (一意でない名前も一致があれば ``True``)。削除済みの Node・Plug・Component・
   om2 オブジェクトには ``False`` を返します。
@@ -368,4 +392,20 @@ Maya が属性のインスタンスを保持しないため、インスタンス
 除いて最初のインスタンスになります(属性の値はどのインスタンスでも同じです)。
 
 名前が存在しない・複数の対象に一致する場合、削除済みのラッパーや空・削除済みの
-om2 オブジェクトを渡した場合は ``RuntimeError`` になります。
+om2 オブジェクトを渡した場合は ``RuntimeError`` になります。属性だけが ``deleteAttr`` で
+削除された Plug・MPlug は ``ValueError`` です(``RuntimeError`` としても捕捉できます)。
+
+以前の hlib からの変更点
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+以前の ``Node(value)``/``hlib.node(value)`` は、複数のノードに一致する名前やパターン
+(``"bulk*"`` など)を渡すと最初に一致したノードを黙って返していました。現在は
+``RuntimeError`` です(一致が1つだけのパターンは、そのノードを返します)。
+パターンに一致するノードを扱う場合は ``hlib.ls`` を使ってください。
+
+.. code-block:: python
+
+   # 以前: 最初の一致を返していた。現在は RuntimeError。
+   # node = hlib.node("bulk*")
+   nodes = hlib.ls("bulk*")       # 一致するすべてのノード
+   first = nodes[0] if nodes else None

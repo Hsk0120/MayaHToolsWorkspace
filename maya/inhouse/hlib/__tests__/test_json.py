@@ -70,6 +70,39 @@ class JsonTest(unittest.TestCase):
             with self.assertRaises(TypeError):
                 hlib.json.dumps(invalid)
 
+    def test_codec_type_map_uses_exact_types_and_follows_reload(self):
+        import collections
+        from hlib import maths
+        codec = sys.modules["hlib.json.codec"]
+        # 数学型の対応表はモジュールの読み込み時に1回だけ作り、公開クラスそのものを指す。
+        names = ("Vector", "Translation", "Scale", "Shear", "EulerRotation", "Quaternion", "Matrix")
+        for name in names:
+            cls = getattr(maths, name)
+            self.assertIs(codec._MATH_CLASSES[name], cls)
+            self.assertEqual(codec._math_type_name(cls()), name)
+        self.assertIsNone(codec._math_type_name({"values": [1.0, 2.0, 3.0]}))
+        self.assertIsNone(codec._math_type_name([1.0, 2.0, 3.0]))
+        # hlib.reload() 後は再読み込みした新しいクラスで作り直される。
+        hlib.reload()
+        from hlib import maths as reloaded
+        codec = sys.modules["hlib.json.codec"]
+        for name in names:
+            self.assertIs(codec._MATH_CLASSES[name], getattr(reloaded, name))
+        value = reloaded.Matrix(translate=(1, 2, 3))
+        self.assertEqual(codec._math_type_name(value), "Matrix")
+        restored = self.roundtrip(value)
+        self.assertIs(type(restored), reloaded.Matrix)
+        self.assertEqual(list(restored), list(value))
+        # dict / list / tuple も型そのもので判定し、派生クラスは従来どおり未対応型。
+        pair = collections.namedtuple("Pair", "a b")
+        for invalid in (pair(1, 2), type("UserList", (list,), {})([1]), type("UserDict", (dict,), {})(a=1)):
+            with self.assertRaises(TypeError, msg=type(invalid).__name__):
+                hlib.json.dumps(invalid)
+        nested = (1, [2.0, {"a": None, "b": (True, "x")}], reloaded.Vector(1, 2, 3))
+        restored = self.roundtrip(nested)
+        self.assertEqual(restored[:2], nested[:2])
+        self.assertIs(type(restored[2]), reloaded.Vector)
+
     def test_math_records_are_validated(self):
         # 要素数・要素の型・キーを検査し、om2 のコンストラクタが黙って補う形も拒否する。
         import json as std_json

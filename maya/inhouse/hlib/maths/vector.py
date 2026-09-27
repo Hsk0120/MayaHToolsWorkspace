@@ -335,7 +335,7 @@ def _reduce_value(value, values):
     return (_rebuild, (type(value), values))
 
 
-class Vector(_MVector):
+class Vector(om2.MVector):
     """om2.MVector を継承した3成分の可変なベクトル値。
 
     ``om2.MVector`` の派生クラスなので、hlib の Vector をそのまま OpenMaya API 2.0 の
@@ -346,7 +346,8 @@ class Vector(_MVector):
     成分は数値だけで、文字列などの不正な引数は om2 と同じく ValueError になる。
 
     演算子は om2 の意味論に従い、結果を常に基底の :class:`Vector` として返す
-    (Translation などの派生型は保持しない)。
+    (Translation などの派生型は保持しない)。``om2.MVector`` が左辺の ``+`` / ``-`` /
+    ``^`` も、右辺の Vector の反射演算子が先に呼ばれるため Vector を返す。
 
     * ``+`` / ``-``: MVector 系同士の成分ごとの加減算。
     * ``v * 数値`` / ``数値 * v`` / ``v / 数値``: スカラー倍。0 での除算は
@@ -772,6 +773,25 @@ class Vector(_MVector):
         result = _NEW(Vector)
         _INIT(result)
         _MVector.__iadd__(result, _MVector.__xor__(self, other))
+        return result
+
+    def __rxor__(self, other):
+        """左辺の MVector 系と自身の外積 ``other ^ self`` を返す。
+
+        Vector は om2.MVector の派生なので、``om2.MVector ^ Vector`` では Python が
+        このメソッドを先に呼ぶ(定義しないと om2 の結果の ``om2.MVector`` になる)。
+
+        Args:
+            other (object): 左辺の MVector 系。
+
+        Returns:
+            Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MVector):
+            return NotImplemented
+        result = _NEW(Vector)
+        _INIT(result)
+        _MVector.__iadd__(result, _MVector.__xor__(other, self))
         return result
 
     def __neg__(self):

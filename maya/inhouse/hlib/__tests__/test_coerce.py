@@ -206,6 +206,30 @@ class CoerceObjectInputTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             to_node(Selection([self.node]))
 
+    def test_to_node_rejects_plugs_of_deleted_attributes(self):
+        from hlib._core.coerce import DeletedAttributeError
+
+        plug = self.network.add_attr("doomed", attribute_type="double")
+        mplug = om2.MPlug(plug.mplug())
+        self.assertIs(to_node(plug), self.network)
+        self.assertEqual(to_node(mplug).full_name(), self.network.full_name())
+        cmds.deleteAttr(self.network.name() + ".doomed")
+        # 所有ノードは有効なため、所有ノードを返すと削除済みの対象を黙って受け付けてしまう。
+        # to_name と同じく ValueError(Node(...) の規則に合わせ RuntimeError の派生でもある)。
+        for value in (plug, mplug):
+            for convert in (to_node, to_name, to_node_name):
+                with self.subTest(value=type(value).__name__, convert=convert.__name__):
+                    with self.assertRaises(ValueError):
+                        convert(value)
+            with self.assertRaises(DeletedAttributeError) as context:
+                to_node(value)
+            self.assertIsInstance(context.exception, RuntimeError)
+        # 所有ノードが削除済みの Plug は従来どおり無効な所有ノードを返す(扱いは呼び出し側)。
+        doomed = self.twin.plug("tx")
+        cmds.delete(self.twin.full_name())
+        self.assertIs(to_node(doomed), self.twin)
+        self.assertFalse(to_node(doomed).is_valid())
+
     def test_to_node_name_resolves_owner_full_paths(self):
         plug = self.node.plug("tx")
         self.assertEqual(to_node_name(plug), self.node.full_name())
@@ -267,9 +291,12 @@ class CoerceObjectInputTest(unittest.TestCase):
                 mplug = attribute_path_plug(mobject, path)
                 self.assertEqual(plug_path(mplug), expected)
                 self.assertFalse(has_unresolved_index(mplug))
-        for path in ("input3Dx", "input1D[0:2]", "missing", "operation[0]", "input1D.foo", "input3D.input3Dx"):
+        for path in ("input3Dx", "input1D[0:2]", "missing", "operation[0]", "input1D.foo", "input3D.input3Dx",
+                     "input1D[2147483648]", "input1D[4294967296]", "input3D[4294967297].input3Dx"):
             with self.subTest(path=path):
                 self.assertIsNone(attribute_path_plug(mobject, path))
+        # 論理インデックスの上限(符号付き 32 ビット整数の最大値)までは解決する。
+        self.assertEqual(attribute_path_plug(mobject, "input1D[2147483647]").logicalIndex(), 2147483647)
         self.assertEqual(list(average.plug("input1D").mplug().getExistingArrayAttributeIndices()), [])
         cmds.aliasAttr("hlibCoerceAlias", average.name() + ".input1D[4]")
         self.assertEqual(plug_path(attribute_path_plug(mobject, "hlibCoerceAlias")), "hlibCoerceAlias")

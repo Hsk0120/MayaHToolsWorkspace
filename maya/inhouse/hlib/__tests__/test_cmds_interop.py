@@ -662,6 +662,22 @@ class NodeArgumentRulesTest(_InteropCase):
                 with self.assertRaises(RuntimeError):
                     hlib.node(value)
 
+    def test_patterns_matching_multiple_nodes_are_not_resolved_to_the_first(self):
+        # 以前の Node(...)/hlib.node はパターンの最初の一致を返していた。現在は RuntimeError で、
+        # パターンは hlib.ls で扱う(一致が1つだけのパターンはそのノードを返す)。
+        bulk = [self.create("transform", "bulk%d" % index) for index in range(3)]
+        lonely = self.create("transform", "lonely1")
+        pattern = self.ns("bulk*")
+        self.assertEqual(len(cmds.ls(pattern)), 3)
+        for factory in (Node, hlib.node):
+            with self.subTest(factory=factory.__name__):
+                with self.assertRaises(RuntimeError) as context:
+                    factory(pattern)
+                self.assertIn("一意", str(context.exception))
+        self.assertEqual(hlib.node(self.ns("lonely*")).full_name(), lonely.full_name())
+        self.assertEqual(sorted(node.full_name() for node in hlib.ls(pattern)),
+                         sorted(node.full_name() for node in bulk))
+
 
 class InstanceSpecificWrapperTest(_InteropCase):
     """インスタンスのパスを保持するラッパーと、名前からのインスタンスの解決を検証する。"""
@@ -938,6 +954,61 @@ class PlugCreationSideEffectTest(_InteropCase):
         self.assertGreater(len(field.plugs()), 100)
         self.assertEqual({name: self.existing(field.plug(name)) for name in arrays}, before)
 
+    def test_chained_value_dependent_sources_are_evaluated(self):
+        # 接続元も値によって型が変わる属性(unitConversion.output、choice.output)なら接続元を辿り、
+        # 入力接続の無い接続元の値を読むため、上流の評価が起こる(cmds.getAttr(type=True) と同じ)。
+        counter = "hlibInteropChain_" + uuid.uuid4().hex[:8]
+        source = self.create("transform", "src")
+        middle = self.create("transform", "mid")
+        cmds.expression(string="global int $%s; $%s++; %s.rx = %s.tx * 2; %s.tx = %s.tx;" % (
+            counter, counter, middle.name(), source.name(), middle.name(), source.name()), name="counter")
+        driven = self.create("transform", "driven")
+        cmds.connectAttr(middle.plug("rx"), driven.plug("tx"))  # unitConversion(generic 属性)を経由する
+        conversion = cmds.listConnections(str(driven.plug("tx")), source=True, destination=False,
+                                          type="unitConversion")[0]
+        upstream = self.create("choice", "upstream")
+        cmds.connectAttr(middle.plug("worldMatrix[0]"), upstream.name() + ".input[0]")
+        chains = {}
+        for label, output in (("unitConversion", conversion + ".output"), ("choice", upstream.name() + ".output")):
+            downstream = self.create("choice", "down_" + label)
+            cmds.connectAttr(output, downstream.name() + ".input[0]")
+            chains[label] = downstream
+
+        def count():
+            return mel.eval("global int $%s; $tmp = $%s;" % (counter, counter))
+
+        for label, expected in (("unitConversion", Plug), ("choice", None)):
+            with self.subTest(source=label):
+                cmds.getAttr(chains[label].name() + ".input[0]")
+                cmds.setAttr(source.plug("tx"), float(count() + 1))
+                before = count()
+                element = chains[label].plug("input[0]")
+                self.assertGreater(count(), before)
+                if expected is not None:
+                    self.assertIs(type(element), expected)
+                else:
+                    self.assertEqual(type(element).__name__, "MatrixPlug")
+
+    def test_evaluation_side_effects_match_maya_cmds(self):
+        # 計算される generic 属性の Plug を作ると値を読むため、評価でワールド空間の出力の要素が
+        # 作られる場合がある(インスタンス化されたシェイプを拘束元にした geometryConstraint)。
+        # cmds.getAttr(type=True) と同じ結果になることを確かめる。
+        def existing_after(read):
+            transform, mesh = self.cube("gcube")
+            instance = cmds.instance(transform.full_name(), name="gcubeInst")[0]
+            locator = self.create("transform", "loc")
+            constraint = cmds.geometryConstraint(instance, locator.full_name())[0]
+            before = list(mesh.plug("worldMesh").mplug().getExistingArrayAttributeIndices())
+            read(constraint + ".constraintGeometry")
+            after = list(mesh.plug("worldMesh").mplug().getExistingArrayAttributeIndices())
+            cmds.delete(constraint, locator.full_name(), instance, transform.full_name())
+            return before, after
+
+        hlib_result = existing_after(to_plug)
+        cmds_result = existing_after(lambda name: cmds.getAttr(name, type=True))
+        self.assertEqual(hlib_result, cmds_result)
+        self.assertEqual(hlib_result, ([1], [0, 1]))
+
     def test_plugs_of_deleted_nodes_do_not_touch_nodes_with_the_same_name(self):
         network = self.create("network", "net")
         network.add_attr("values", attribute_type="double", multi=True)
@@ -1053,6 +1124,83 @@ class PlugValidityTest(_InteropCase):
                     cmds.delete(node.full_name())
         finally:
             cmds.undoInfo(state=state)
+
+    def test_node_arguments_reject_deleted_attributes(self):
+        # 所有ノードは有効なまま属性だけが削除された Plug・MPlug は、ノードが必要な引数でも
+        # 所有ノードへ解決せず、hlib のコマンド(hlib.select など)と同じく ValueError にする。
+        # Node(...) の「解決できない対象は RuntimeError」の規則に合わせ、RuntimeError の派生でもある。
+        from hlib._core.coerce import DeletedAttributeError, to_node
+
+        parent = self.create("transform", "parent")
+        child = self.create("transform", "child", parent)
+        target = self.create("transform", "target")
+        plugs = {"parent": parent.add_attr("foo", attribute_type="double"),
+                 "child": child.add_attr("foo", attribute_type="double")}
+        mplugs = {key: om2.MPlug(plug.mplug()) for key, plug in plugs.items()}
+        self.assertEqual(hlib.node(mplugs["child"]).full_name(), child.full_name())
+        self.assertTrue(parent.is_parent_of(plugs["child"]))
+        state = cmds.undoInfo(query=True, state=True)
+        cmds.undoInfo(state=True)
+        try:
+            cmds.deleteAttr(parent.name() + ".foo")
+            cmds.deleteAttr(child.name() + ".foo")
+            with self.assertRaises(ValueError):
+                hlib.node(mplugs["child"])
+            # Undo で属性が戻れば、同じ Plug・MPlug を再び所有ノードへ解決できる。
+            cmds.undo()
+            for value in (plugs["child"], mplugs["child"]):
+                self.assertEqual(hlib.node(value).full_name(), child.full_name())
+                self.assertTrue(parent.is_parent_of(value))
+            cmds.deleteAttr(child.name() + ".foo")
+        finally:
+            cmds.undoInfo(state=state)
+        calls = {
+            "Node": Node,
+            "hlib.node": hlib.node,
+            "to_node": to_node,
+            "constraint source": lambda value: hlib.constraint(value, target, type="point"),
+            "constraint target": lambda value: hlib.constraint(target, value, type="point"),
+            "add_constraint": lambda value: target.add_constraint(value, "point"),
+            "match_transform": target.match_transform,
+        }
+        for value in (plugs["child"], mplugs["child"]):
+            for label, call in calls.items():
+                with self.subTest(value=type(value).__name__, call=label):
+                    with self.assertRaises(ValueError) as context:
+                        call(value)
+                    self.assertIsInstance(context.exception, DeletedAttributeError)
+                    self.assertIsInstance(context.exception, RuntimeError)
+            with self.assertRaises(ValueError):
+                hlib.select(value)
+        self.assertEqual(cmds.ls(self.ns("*"), type="pointConstraint"), [])
+        # 判定メソッドは削除済みの対象に False を返す(削除前は True)。
+        for value in (plugs["child"], mplugs["child"]):
+            with self.subTest(owner="child", value=type(value).__name__):
+                self.assertFalse(parent.is_parent_of(value))
+                self.assertFalse(parent.is_ancestor_of(value))
+        for value in (plugs["parent"], mplugs["parent"]):
+            with self.subTest(owner="parent", value=type(value).__name__):
+                self.assertFalse(child.is_child_of(value))
+
+    def test_parent_queries_return_false_for_deleted_api_objects(self):
+        parent = self.create("transform", "parent")
+        child = self.create("transform", "child", parent)
+        values = (child, child.plug("tx"), child.mobject(), child.dag_path(), om2.MPlug(child.plug("tx").mplug()))
+        for value in values:
+            self.assertTrue(parent.is_parent_of(value))
+        cmds.delete(child.full_name())
+        # 削除済みのノードを指す om2 オブジェクトも、削除済みの Node と同じく False(Node(...) は
+        # RuntimeError)。空の MObject・存在しない名前は従来どおり RuntimeError。
+        for value in values:
+            with self.subTest(value=type(value).__name__):
+                self.assertFalse(parent.is_parent_of(value))
+                self.assertFalse(parent.is_ancestor_of(value))
+        with self.assertRaises(RuntimeError):
+            hlib.node(values[2])
+        for value in (om2.MObject(), self.ns("missing")):
+            with self.subTest(value=repr(value)):
+                with self.assertRaises(RuntimeError):
+                    parent.is_parent_of(value)
 
     def test_renamed_attribute_and_undo(self):
         node = self.create("transform", "t")
