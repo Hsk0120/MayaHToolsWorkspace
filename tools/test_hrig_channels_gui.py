@@ -94,6 +94,48 @@ def main(output_dir=None, finished=None):
         yield
         check('mode' in (cmds.listAttr(module,channelBox=True) or []), 'Mode exposed to channel box')
         result['channel_box_objects'] = cmds.channelBox('mainChannelBox',q=True,mainObjectList=True)
+        target, pole = rig.controls()['target'], rig.controls()['pole']
+        target_pose = cmds.xform(target, q=True, ws=True, matrix=True)
+        cmds.flushUndo()
+        cmds.setAttr(target+'.space', 1)
+        yield
+        check(rig.space_switch('ik').current() == 'world', 'IK channel switches to World')
+        check(same([target_pose], [cmds.xform(target,q=True,ws=True,matrix=True)]), 'World switch preserves pose')
+        cmds.undo()
+        yield
+        check(rig.space_switch('ik').current() == 'local' and cmds.getAttr(target+'.space') == 0, 'Space switch single Undo')
+        cmds.redo()
+        yield
+        check(rig.space_switch('ik').current() == 'world' and cmds.getAttr(target+'.space') == 1, 'Space switch single Redo')
+        cmds.setAttr(pole+'.space', 2)
+        yield
+        check(rig.space_switch('pole').current() == 'foot', 'Pole channel switches to Foot')
+        pole_before = cmds.xform(pole,q=True,ws=True,t=True)
+        cmds.setAttr(target+'.ty', 1)
+        yield
+        pole_after = cmds.xform(pole,q=True,ws=True,t=True)
+        check(abs(pole_after[1]-pole_before[1]-1) < 0.001, 'Pole follows foot')
+        cmds.setAttr(target+'.ty', 0)
+        yield
+        check(cmds.getAttr(rig._member('channel_space')+'.active'), 'Space layer shown active')
+        twist = rig._member('channel_twist')
+        check(len(rig.twist_joints()) == 6, 'Demo has three twist joints per segment')
+        check(cmds.getAttr(twist+'.active'), 'Twist layer active')
+        cmds.setAttr(twist+'.enabled', False)
+        yield
+        check(all(not cmds.connectionInfo(j+'.offsetParentMatrix',isDestination=True) for j in rig.twist_joints()), 'Twist channel disconnects evaluation')
+        cmds.undo()
+        yield
+        check(cmds.getAttr(twist+'.enabled') and all(cmds.connectionInfo(j+'.offsetParentMatrix',isDestination=True) for j in rig.twist_joints()), 'Twist layer single Undo')
+        bend = rig._member('channel_bend')
+        half, inner, outer = rig.bend_joints()
+        check(cmds.getAttr(bend+'.active'), 'Bend layer active')
+        cmds.setAttr(bend+'.enabled', False)
+        yield
+        check(not cmds.connectionInfo(half+'.offsetParentMatrix',isDestination=True) and not cmds.connectionInfo(inner+'.ty',isDestination=True), 'Bend channel disconnects outputs')
+        cmds.undo()
+        yield
+        check(cmds.getAttr(bend+'.enabled') and cmds.connectionInfo(half+'.offsetParentMatrix',isDestination=True), 'Bend single Undo reconnects')
         before = pose(rig)
         cmds.flushUndo()
         cmds.setAttr(module+'.mode', 0)
@@ -120,6 +162,7 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(module+'.lod', 0)
         yield
         check(rig.lod() == 0 and not cmds.getAttr(soft+'.active') and cmds.getAttr(soft+'.enabled'), 'LOD distinguishes Enabled and Active')
+        check(not cmds.getAttr(twist+'.active'), 'Low LOD disables twist')
         cmds.setAttr(module+'.lod', 1)
         yield
         check(cmds.getAttr(soft+'.active'), 'Full LOD restores active layer')
@@ -137,6 +180,12 @@ def main(output_dir=None, finished=None):
         rig = LimbRig('rig')
         module = rig._member('channelModule')
         check(not rig.layer_enabled('helper'), 'Saved layer preference restored')
+        check(len(rig.bend_joints()) == 3 and cmds.getAttr(rig._member('channel_bend')+'.active'), 'Bend survives scene reload')
+        check(len(rig.twist_joints()) == 6 and cmds.getAttr(rig._member('channel_twist')+'.active'), 'Twist survives scene reload')
+        check(rig.space_switch('ik').current() == 'world' and rig.space_switch('pole').current() == 'foot', 'Saved spaces restored')
+        cmds.setAttr(rig.controls()['target']+'.space',0)
+        yield
+        check(rig.space_switch('ik').current() == 'local','Saved scene reattaches space jobs')
         cmds.setAttr(module+'.mode',0)
         yield
         check(rig.mode() == 'fk', 'Saved scene automatically reattaches jobs')

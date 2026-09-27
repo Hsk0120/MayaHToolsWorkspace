@@ -1,10 +1,10 @@
-"""Maya 2025以降の起動時に、Bifrost 3.0.0以降のプラグインをロードする。
+"""明示呼び出し時にBifrost 3.0.0以降のプラグインをロードする任意ヘルパー。
 
 確認とロードの本体は ``hlib.plugins.PluginPackage``(``hlib.requirePlugins``)で、
 このモジュールは Bifrost 用の設定と起動のタイミングだけを持つ。hrig パッケージ
 (``hrig/__init__.py``)は import しない。``maya/modules/hrig_startup.mod`` が
-``hrig/startup`` を ``PYTHONPATH`` へ追加し、同じフォルダーの ``userSetup.py`` から
-:func:`initialize` を呼ぶ。
+``hrig/startup`` を ``PYTHONPATH`` へ追加し、標準の ``userSetup.py`` はこのヘルパーを呼ばない。
+Bifrostを起動時に読み込みたい利用側だけが :func:`initialize` を明示的に呼ぶ。
 
 環境変数:
     HRIG_SKIP_BIFROST: ``1`` にするとこの起動処理をすべて行わない(自動テスト用)。

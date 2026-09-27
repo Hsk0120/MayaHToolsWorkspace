@@ -18,7 +18,7 @@ def main():
         各テストは新規シーンへ切り替える。Maya GUI内へ送信しない。
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--suite',choices=('all','hlib','bifrost','native'),default='all')
+    parser.add_argument('--suite',choices=('all','hlib','bifrost','native','standard'),default='all')
     args = parser.parse_args()
     sys.path.insert(0,str(ROOT/'maya/inhouse'))
     import maya.standalone
@@ -33,13 +33,15 @@ def main():
             if plugin.is_file() and not cmds.pluginInfo('fbxmaya',q=True,loaded=True):
                 cmds.loadPlugin(str(plugin),quiet=True)
             files += ['hlib/__tests__/'+name+'.py' for name in (
-                'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events')]
-        if args.suite in ('all','bifrost','native'):
+                'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events','test_space_switch','test_twist_distribution','test_bend_correction','test_swing_twist','test_radial_weights','test_rotation_follow','test_secondary','test_spline_ik','test_length_compensation','test_pose_edit')]
+        if args.suite in ('all','bifrost','native','standard'):
             files.append('hrig/__tests__/test_definition.py')
         if args.suite in ('all','bifrost'):
             files += ['hlib_bifrost/__tests__/test_graph.py','hrig/__tests__/test_limb.py']
         if args.suite in ('all','native'):
             files.append('hrig/__tests__/test_native.py')
+        if args.suite in ('all','standard'):
+            files += ['hrig/__tests__/test_standard.py', 'hrig/__tests__/test_spaces.py', 'hrig/__tests__/test_twist.py', 'hrig/__tests__/test_bend.py', 'hrig/__tests__/test_driven.py', 'hrig/__tests__/test_skirt.py', 'hrig/__tests__/test_follow.py', 'hrig/__tests__/test_secondary.py', 'hrig/__tests__/test_spline.py', 'hrig/__tests__/test_stretch.py', 'hrig/__tests__/test_controls.py']
         suite=unittest.TestSuite()
         for index,file in enumerate(files):
             spec=importlib.util.spec_from_file_location('rig_test_'+str(index),ROOT/'maya/inhouse'/file)

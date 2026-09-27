@@ -48,6 +48,12 @@ def limb_names(definition):
             "helperSet": "limb_helper_layer_set",
             "footSet": "limb_reverse_foot_layer_set",
             "footGroup": "reverse_foot_grp",
+            "spaceSet": "limb_space_layer_set",
+            "twistSet": "limb_twist_layer_set",
+            "bendSet": "limb_bend_layer_set",
+            "drivenSet": "limb_driven_layer_set",
+            "targetSpace": "ik_space_grp",
+            "poleSpace": "pole_space_grp",
         }.items()
     }
     for index, joint in enumerate(definition.joint_order()):

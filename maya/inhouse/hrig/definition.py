@@ -97,7 +97,20 @@ class LayerSpec:
         """レイヤーの種類と依存識別子を検証する。"""
         _name(self.id)
         _level(self.min_lod)
-        if self.kind not in {"fk", "ik", "soft_ik", "helper", "reverse_foot", "spline_ik", "rbf"}:
+        if self.kind not in {
+            "fk",
+            "ik",
+            "soft_ik",
+            "helper",
+            "reverse_foot",
+            "spline_ik",
+            "rbf",
+            "space",
+            "twist",
+            "bend",
+            "driven",
+            "follow",
+        }:
             raise ValueError("Unknown layer kind: " + self.kind)
         if isinstance(self.dependencies, str):
             raise TypeError("dependencies must be a sequence of identifiers")
@@ -204,5 +217,6 @@ def limb_definition(name="limb"):
             LayerSpec("ik", "ik", ("fk",)),
             LayerSpec("soft", "soft_ik", ("ik",), 1),
             LayerSpec("helper", "helper", ("fk",), 1),
+            LayerSpec("space", "space"),
         ),
     )

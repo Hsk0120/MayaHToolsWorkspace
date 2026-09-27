@@ -18,8 +18,32 @@ if globals().get("_events") is not None:
 _jobs = {}
 _events = hlib.events.ScriptJobs()
 _busy = False
-LAYERS = ("fk", "ik", "soft", "helper", "foot")
-LABELS = {"fk": "fk", "ik": "ik", "soft": "soft_ik", "helper": "helper", "foot": "reverse_foot"}
+LAYERS = (
+    "fk",
+    "ik",
+    "soft",
+    "helper",
+    "foot",
+    "space",
+    "twist",
+    "bend",
+    "driven",
+    "follow",
+    "stretch",
+)
+LABELS = {
+    "fk": "fk",
+    "ik": "ik",
+    "soft": "soft_ik",
+    "helper": "helper",
+    "foot": "reverse_foot",
+    "space": "space",
+    "twist": "twist",
+    "bend": "bend",
+    "driven": "driven",
+    "follow": "follow",
+    "stretch": "stretch",
+}
 
 
 def _write(plug, value):
@@ -78,7 +102,7 @@ def _states(rig):
     """
     ik = rig.mode() == "ik"
     detail = rig.lod() == 1
-    return {
+    states = {
         "fk": not ik,
         "ik": ik,
         "soft": ik and detail and rig.layer_enabled("soft"),
@@ -88,6 +112,25 @@ def _states(rig):
         and rig.layer_enabled("foot")
         and hlib.node(rig.root.full_name()).has_attr("footMatrix"),
     }
+    if rig.root.has_attr("targetSpace"):
+        states["space"] = True
+    if rig.root.has_attr("channel_twist"):
+        states["twist"] = detail and rig.layer_enabled("twist") and bool(rig.twist_joints())
+    if rig.root.has_attr("channel_bend"):
+        states["bend"] = detail and rig.layer_enabled("bend") and bool(rig.bend_joints())
+    if rig.root.has_attr("channel_driven"):
+        from .drivenLayer import DrivenLayer
+
+        states["driven"] = (
+            detail and rig.layer_enabled("driven") and bool(DrivenLayer(rig).graphs())
+        )
+    if rig.root.has_attr("channel_follow"):
+        states["follow"] = detail and rig.layer_enabled("follow") and bool(rig.follow_joints())
+    if rig.root.has_attr("channel_stretch"):
+        from .limbStretchLayer import LimbStretchLayer
+
+        states["stretch"] = LimbStretchLayer(rig).active()
+    return states
 
 
 def sync_display(rig):
@@ -98,12 +141,16 @@ def sync_display(rig):
     """
     if not _exists(rig):
         return
+    if rig.root.has_attr("targetSpace"):
+        from .spaceLayer import SpaceLayer
+
+        SpaceLayer(rig).sync()
     module = rig._member("channelModule")
     _write(module + ".mode", int(rig.mode() == "ik"))
     _write(module + ".lod", rig.lod())
     for layer, active in _states(rig).items():
         node = rig._member("channel_" + layer)
-        if layer in ("soft", "helper", "foot"):
+        if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             _write(node + ".enabled", rig.layer_enabled(layer))
         _write(node + ".active", active)
         color = (0.35, 0.8, 0.45) if active else (0.4, 0.4, 0.4)
@@ -151,7 +198,7 @@ def attach(rig):
         node = hlib.createNode("transform", name=name, parent=module, skipSelect=True).full_name()
         nodes.append(node)
         rig._bind("channel_" + layer, node)
-        if layer in ("soft", "helper", "foot"):
+        if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             attr = "hrigEnabled_" + layer
             if not hlib.node(root).has_attr(attr):
                 hlib.node(root).add_attr(long_name=attr, attribute_type="bool", default_value=True)
@@ -182,16 +229,27 @@ def apply(rig):
     lod = hlib.plug(module + ".lod").get()
     enabled = {
         layer: bool(hlib.plug(rig._member("channel_" + layer) + ".enabled").get())
-        for layer in ("soft", "helper", "foot")
+        for layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch")
+        if rig.root.has_attr("channel_" + layer)
     }
+    spaces = {}
+    if rig.root.has_attr("targetSpace"):
+        for role in ("target", "pole"):
+            switch = rig.space_switch(role)
+            requested = hlib.plug(rig._member(role) + ".space").get()
+            spaces[role] = switch.labels()[requested]
     if (
-        mode == rig.mode()
+        all(rig.space_switch(role).current() == label for role, label in spaces.items())
+        and mode == rig.mode()
         and lod == rig.lod()
         and all(value == rig.layer_enabled(layer) for layer, value in enabled.items())
     ):
         return
     try:
         with undo_transaction("hrig.channel_controls.apply"):
+            for role, label in spaces.items():
+                if rig.space_switch(role).current() != label:
+                    rig.set_space(role, label)
             if mode != rig.mode() and hlib.plug(module + ".matchOnSwitch").get():
                 # 通常のチャンネルボックス操作は一度に一属性だけ変更する。
                 # モードと詳細設定を同時変更するスクリプトは公開メソッドを順に使う。
@@ -256,8 +314,12 @@ def refresh_jobs():
         rig = LimbRig(root)
         attrs = [module + ".mode", module + ".lod"]
         attrs += [
-            rig._member("channel_" + layer) + ".enabled" for layer in ("soft", "helper", "foot")
+            rig._member("channel_" + layer) + ".enabled"
+            for layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch")
+            if rig.root.has_attr("channel_" + layer)
         ]
+        if rig.root.has_attr("targetSpace"):
+            attrs += [rig._member(role) + ".space" for role in ("target", "pole")]
         jobs = hlib.events.ScriptJobs()
         try:
             for attr in attrs:
@@ -272,6 +334,18 @@ def refresh_jobs():
             jobs.stop()
             raise
         _jobs[key] = jobs
+
+    from .skirtRig import SkirtRig
+
+    SkirtRig.refresh_jobs()
+    from .splineRig import SplineRig
+
+    SplineRig.refresh_jobs()
+    from .controlRig import ControlRig
+    from .tweakLayer import TweakLayer
+
+    ControlRig.refresh_jobs()
+    TweakLayer.refresh_jobs()
 
 
 def install():

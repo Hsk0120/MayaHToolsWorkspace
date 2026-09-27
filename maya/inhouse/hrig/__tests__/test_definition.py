@@ -12,7 +12,7 @@ class DefinitionTest(unittest.TestCase):
         """JSON往復で型と値を保持する。"""
         definition = limb_definition()
         self.assertEqual(definition, RigDefinition.from_data(json.loads(json.dumps(definition.to_data()))))
-        self.assertEqual([l.id for l in definition.active_layers(0)], ['fk', 'ik'])
+        self.assertEqual([l.id for l in definition.active_layers(0)], ['fk', 'ik', 'space'])
 
     def test_cycles_and_missing_dependencies(self):
         """骨とレイヤーの循環や欠落を拒否する。"""

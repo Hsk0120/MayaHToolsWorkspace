@@ -11,7 +11,9 @@ def initialize():
 
 
 def _install():
-    """シーン読込後の操作に備えて監視を登録する。"""
+    """シーン読込後の監視と上部の実行メニューを登録する。"""
     from hrig.channel_controls import install
+    from hrig.menu import Menu
 
     install()
+    Menu.install()

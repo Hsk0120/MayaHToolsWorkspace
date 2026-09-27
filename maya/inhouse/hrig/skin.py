@@ -13,7 +13,7 @@ def bind_mesh(rig, mesh, helpers=True):
     Args:
         rig (LimbRig): 構築済み部位。
         mesh (str): メッシュまたは親transform。
-        helpers (bool): 補助骨をinfluenceへ含める。
+        helpers (bool): 通常・ツイスト・曲げ補助骨をinfluenceへ含める。
 
     Returns:
         str: 作成したskinCluster。

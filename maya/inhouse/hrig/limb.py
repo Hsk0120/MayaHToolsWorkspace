@@ -100,6 +100,42 @@ class LimbRig:
         """
         return {key: self._member(key) for key in ("fk0", "fk1", "fk2", "target", "pole")}
 
+    def space_switch(self, control):
+        """コントローラーの空間切替を取得する。
+
+        Args:
+            control (str): ikまたはpole。
+
+        Returns:
+            SpaceSwitch: 空間の列挙・現在値の照会に使う共通オブジェクト。
+        """
+        from .spaceLayer import SpaceLayer
+
+        return SpaceLayer(self).switcher(control)
+
+    def add_space(self, control, label, target=None):
+        """指定ノードを切替先として登録する。
+
+        Args:
+            control (str): ikまたはpole。
+            label (str): 空間名。
+            target (str | Node | None): 参照先。Noneはワールド。
+        """
+        from .spaceLayer import SpaceLayer
+
+        SpaceLayer(self).add(control, label, target)
+
+    def set_space(self, control, label):
+        """ワールド姿勢を保持して空間を切り替える。
+
+        Args:
+            control (str): ikまたはpole。
+            label (str): local/world/footまたは追加した空間名。
+        """
+        from .spaceLayer import SpaceLayer
+
+        SpaceLayer(self).switch(control, label)
+
     def node_name(self, role):
         """保存した定義に基づく生成名を取得する。
 
@@ -142,13 +178,180 @@ class LimbRig:
         return self._member(role) + ".matrix"
 
     def joints(self):
-        """変形用3関節と補助骨の現在名を取得する。
+        """変形用3関節・補助骨・追加ツイスト骨の現在名を取得する。
 
 
         Returns:
-            tuple[str, ...]: 根元・中間・終端・補助骨の完全名。
+            tuple[str, ...]: 基本3骨・通常補助骨・ツイスト骨・曲げ補助骨の完全名。
         """
-        return tuple(self._member(key) for key in ("joint0", "joint1", "joint2", "helper"))
+        from .tweakLayer import TweakLayer
+
+        return (
+            tuple(self._member(key) for key in ("joint0", "joint1", "joint2", "helper"))
+            + self.twist_joints()
+            + self.bend_joints()
+            + self.follow_joints()
+            + TweakLayer(self).joints()
+        )
+
+    def add_follow(self, identifier, joint=None, mode="full", axis="x", ratio=0.5):
+        """回転の全成分・Twist・Swingを割合追従する補助骨を追加する。
+
+        Args:
+            identifier (str): 一意なID。
+            joint (str | Node | None): 入力骨。省略時は中間骨。
+            mode (str): full/twist/swing。
+            axis (str): Twist軸x/y/z。
+            ratio (float): 0〜1の割合。
+
+        Returns:
+            str: 補助骨の完全名。
+        """
+        from .followLayer import FollowLayer
+
+        return FollowLayer(self).add(identifier, joint or self._member("joint1"), mode, axis, ratio)
+
+    def add_stretch(self):
+        """腕脚へ独立した伸縮・体積補正レイヤーを追加する。
+
+        Returns:
+            Node: Channel Boxで編集する設定グループ。
+        """
+        from .limbStretchLayer import LimbStretchLayer
+
+        return LimbStretchLayer(self).add()
+
+    def follow_joints(self, identifier=None):
+        """追従補助骨を取得する。
+
+        Args:
+            identifier (str | None): 省略時は全て。
+
+        Returns:
+            tuple[str]: 骨の完全名。
+        """
+        from .followLayer import FollowLayer
+
+        return FollowLayer(self).joints(identifier)
+
+    def follow_settings(self, identifier):
+        """追従割合と成分の設定グループを取得する。
+
+        Args:
+            identifier (str): 登録済みID。
+
+        Returns:
+            Node: 設定グループ。
+        """
+        from .followLayer import FollowLayer
+
+        return FollowLayer(self).groups()[identifier]
+
+    def bend_joints(self, identifier=None):
+        """肘膝の補助骨を補間・内側・外側の順に取得する。
+
+        Args:
+            identifier (str | None): 部位ID。Noneなら全て。
+
+        Returns:
+            tuple[str]: 補助骨の完全名。
+        """
+        from .bendLayer import BendLayer
+
+        return BendLayer(self).joints(identifier)
+
+    def add_driven(self, identifier, joint, driven, component="twist", axis="x", keys=None):
+        """Swing/Twist成分から単一属性をSDKで駆動する。
+
+        Args:
+            identifier (str): 一意なSDK識別子。
+            joint (str | Node): 回転を分解するjoint。
+            driven (str | Plug): 未接続の数値属性。
+            component (str): twistまたはswingX/Y/Z。度単位。
+            axis (str): Twist軸x/y/z。
+            keys (Sequence[tuple] | None): 入力度と出力値の組。
+
+        Returns:
+            Node: 分解とSDKを所有するcontainer。
+        """
+        from .drivenLayer import DrivenLayer
+
+        return DrivenLayer(self).add(identifier, joint, driven, component, axis, keys)
+
+    def add_bend(self, identifier="elbow", joint=None, bend_axis="z", push_axis="y"):
+        """肘・膝の回転補間と内外の押引き骨を追加する。
+
+        Args:
+            identifier (str): 部位ID。
+            joint (str | Node | None): 基準姿勢の関節。省略時は部位の中間骨。
+            bend_axis (str): ヒンジ回転軸x/y/z。
+            push_axis (str): 内外の移動軸x/y/z。
+
+        Returns:
+            tuple[str]: 補間・内側・外側の補助骨。
+        """
+        from .bendLayer import BendLayer
+
+        return BendLayer(self).add(
+            identifier, joint or self._member("joint1"), bend_axis, push_axis
+        )
+
+    def bend_settings(self, identifier="elbow"):
+        """距離と回転割合を編集する設定グループを取得する。
+
+        Args:
+            identifier (str): 登録済み部位ID。
+
+        Returns:
+            Node: Channel Boxでも編集可能な設定グループ。
+        """
+        from .bendLayer import BendLayer
+
+        return BendLayer(self).groups()[identifier]
+
+    def twist_joints(self, segment=None):
+        """登録済みのツイスト補助骨を取得する。
+
+        Args:
+            segment (str | None): 区間ID。Noneは全区間。
+
+        Returns:
+            tuple[str]: 始点から順に並ぶ補助骨。
+        """
+        from .twistLayer import TwistLayer
+
+        return TwistLayer(self).joints(segment)
+
+    def add_twist(self, segment, start, end, count=3, axis="x"):
+        """二つの骨の間にツイスト分配区間を追加する。
+
+        Args:
+            segment (str): 一意な区間ID。
+            start (str | Node): 始点joint。
+            end (str | Node): 終点joint。
+            count (int): 両端を含まない補助骨数。
+            axis (str): 始点ローカルの長手軸。
+
+        Returns:
+            tuple[str]: 生成した補助骨。
+        """
+        from .twistLayer import TwistLayer
+
+        return TwistLayer(self).add(segment, start, end, count, axis)
+
+    def set_twist_count(self, segment, count):
+        """未バインドの区間の本数を変更する。0なら区間を削除する。
+
+        Args:
+            segment (str): 既存の区間ID。
+            count (int): 新しい補助骨数。
+
+        Returns:
+            tuple[str]: 再生成した補助骨。
+        """
+        from .twistLayer import TwistLayer
+
+        return TwistLayer(self).set_count(segment, count)
 
     def mode(self):
         """現在の明示切替モードを照会する。
@@ -173,9 +376,9 @@ class LimbRig:
         """Soft IK実装だけを交換し、骨・コントローラー・スキンを保持する。
 
         Args:
-            backend (str): bifrostまたはcpp。
+            backend (str): standard（標準ノード）、bifrostまたはcpp。
         """
-        if backend not in ("bifrost", "cpp"):
+        if backend not in ("standard", "bifrost", "cpp"):
             raise ValueError("Unknown backend: " + backend)
         root = self.root.full_name()
         if hlib.plug(root + ".hrigBackend").get() == backend:
@@ -248,7 +451,7 @@ class LimbRig:
         """任意レイヤーの使用設定を照会する。旧シーンは有効扱い。
 
         Args:
-            layer (str): soft/helper/footの識別子。
+            layer (str): soft/helper/foot/twist/bend/drivenの識別子。
 
 
         Returns:
@@ -263,10 +466,10 @@ class LimbRig:
         """任意レイヤーの使用設定を変更し、計算経路を更新する。
 
         Args:
-            layer (str): soft/helper/footの識別子。
+            layer (str): soft/helper/foot/twist/bend/drivenの識別子。
             enabled (bool): Trueの場合に使用する。
         """
-        if layer not in ("soft", "helper", "foot"):
+        if layer not in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             raise ValueError("Unknown optional layer: " + layer)
         root = self.root.full_name()
         attr = "hrigEnabled_" + layer
@@ -331,6 +534,24 @@ class LimbRig:
                     0,
                 )
             )
+        from .twistLayer import TwistLayer
+
+        TwistLayer(self).update()
+        from .bendLayer import BendLayer
+
+        BendLayer(self).update()
+        from .drivenLayer import DrivenLayer
+
+        DrivenLayer(self).update()
+        from .followLayer import FollowLayer
+
+        FollowLayer(self).update()
+        from .limbStretchLayer import LimbStretchLayer
+
+        LimbStretchLayer(self).update()
+        from .tweakLayer import TweakLayer
+
+        TweakLayer(self).update()
         from .channel_controls import sync_display
 
         sync_display(self)
@@ -380,35 +601,39 @@ class LimbRig:
             else 0
         )
         desired = distance
-        if soft > 0 and distance > length - soft:
+        from .limbStretchLayer import LimbStretchLayer
+
+        stretch = LimbStretchLayer(self)
+        if stretch.settings() is not None and self.lod() == 1 and self.layer_enabled("stretch"):
+            desired = stretch.match_distance(distance, soft, length)
+        elif soft > 0 and distance > length - soft:
             if distance >= length - 1e-6:
                 raise ValueError("Fully extended pose has no finite Soft IK inverse; use LOD 0")
             desired = length - soft - soft * math.log((length - distance) / soft)
         pole = self._member("pole")
-        pole_local = om.MPoint(pole_position) * om.MMatrix(
-            hlib.plug(pole + ".parentInverseMatrix[0]").get()
-        )
-        hlib.plug(pole + ".translate").set((*tuple(pole_local)[:3],))
         local_position = om.MPoint(om.MVector(local_end).normal() * desired)
         world_position = local_position * inverse.inverse()
         matrix = list(hlib.node(joints[-1]).get_matrix(ws=True))
         matrix[12:15] = tuple(world_position)[:3]
         _set_world_matrix(target, matrix)
+        # PoleがFoot空間の場合はIK目標の移動後の親空間へ変換する。
+        pole_local = om.MPoint(pole_position) * om.MMatrix(
+            hlib.plug(pole + ".parentInverseMatrix[0]").get()
+        )
+        hlib.plug(pole + ".translate").set((*tuple(pole_local)[:3],))
 
 
 @undo_chunk("hrig.build_limb")
-def build_limb(definition=None, backend="bifrost"):
+def build_limb(definition=None, backend="standard"):
     """最小3関節リグを構築する。任意チェーンやレイヤーはまだ扱わない。
 
     Args:
         definition (RigDefinition | None): 単一ルート、正X軸の3関節定義。
-        backend (str): Soft IK実装。bifrostまたはcpp。
+        backend (str): Soft IK実装。standard（標準ノード）、bifrostまたはcpp。
 
     Returns:
         LimbRig: 保存・再取得可能な部位。
     """
-    from hlib_bifrost import ensure_available
-
     definition = definition or limb_definition()
     if not isinstance(definition, RigDefinition):
         raise TypeError("Expected RigDefinition")
@@ -422,8 +647,10 @@ def build_limb(definition=None, backend="bifrost"):
             or ordered[i].translation[1:] != (0, 0)
         ):
             raise ValueError("Prototype joints must extend along positive local X")
-    if definition.layers != limb_definition().layers:
-        raise ValueError("This builder supports the default FK/IK/Soft IK/helper layers only")
+    supported_layers = limb_definition().layers
+    legacy_layers = tuple(layer for layer in supported_layers if layer.kind != "space")
+    if definition.layers not in (supported_layers, legacy_layers):
+        raise ValueError("This builder supports the default FK/IK/Soft IK/helper/space layers only")
     if hlib.objExists(definition.name):
         raise ValueError("Rig root already exists: " + definition.name)
     names = limb_names(definition)
@@ -434,9 +661,11 @@ def build_limb(definition=None, backend="bifrost"):
             raise ValueError("Rig node already exists: " + name)
     if int(cmds.about(apiVersion=True)) < 20250000:
         raise RuntimeError("hrig requires Maya 2025 or newer")
-    if backend not in ("bifrost", "cpp"):
+    if backend not in ("standard", "bifrost", "cpp"):
         raise ValueError("Unknown backend: " + backend)
     if backend == "bifrost":
+        from hlib_bifrost import ensure_available
+
         ensure_available()
     saved_selection = cmds.ls(selection=True, long=True) or []
     created = []
@@ -645,6 +874,9 @@ def build_limb(definition=None, backend="bifrost"):
         for index, node in enumerate(created):
             if node != root and hlib.objExists(node):
                 hlib.plug(node + ".message").connect(root + ".hrigOwned[{}]".format(index))
+        from .spaceLayer import SpaceLayer
+
+        SpaceLayer(rig).attach()
         rig.set_mode("fk")
         from .channel_controls import attach
 

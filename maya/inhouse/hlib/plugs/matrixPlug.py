@@ -17,6 +17,26 @@ from .plug import Plug
 class MatrixPlug(Plug):
     """matrix 属性用の Plug。値は hlib.maths.Matrix として扱う。"""
 
+    @fast_edit
+    @undo_chunk("hlib.MatrixPlug.set_value")
+    def set_value(self, value, *, fast=False):
+        """所有ノードのTRSを変更せず、この行列属性へ直接書き込む。
+
+        Args:
+            value (Matrix | Iterable[float]): 設定する4x4行列。
+            fast (bool): TrueならUndoなしの高速更新。既定False。
+
+        Returns:
+            MatrixPlug: 自身。
+
+        Note:
+            offsetParentMatrixや動的なmatrix属性用。既存setは従来通り
+            transform/jointの変換操作へ委譲する。
+        """
+        self._require_valid()
+        set_attr(self.full_name(), *tuple(Matrix(value)), type="matrix")
+        return self
+
     def get(self, ws=False):
         """行列値を Matrix として取得する。
 

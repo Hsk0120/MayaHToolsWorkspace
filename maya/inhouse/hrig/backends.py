@@ -6,17 +6,22 @@ from maya import cmds
 import hlib
 
 
-def create_soft_ik(name, length, backend="bifrost"):
+def create_soft_ik(name, length, backend="standard"):
     """計算ノードと所有するルートを返す。
 
     Args:
         name (str): ノード名。
         length (float): 部位の骨長。
-        backend (str): bifrostまたはcpp。
+        backend (str): standard（標準ノード）、bifrostまたはcpp。
 
     Returns:
         tuple[str, str]: 計算ノード名と削除対象ルート。
     """
+    if backend == "standard":
+        from .standardSoftIK import StandardSoftIK
+
+        node = StandardSoftIK.create(name, length)
+        return node, node
     if backend == "bifrost":
         from .soft_ik import build_graph
 

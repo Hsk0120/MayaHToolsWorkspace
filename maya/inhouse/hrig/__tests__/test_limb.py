@@ -14,16 +14,19 @@ from hrig.skin import bind_mesh, create_skin_lod, set_mesh_lod
 class LimbTest(unittest.TestCase):
     """実際のDG出力を検証する。新規シーンを使う専用テスト。"""
 
+    backend = "bifrost"
+
     @classmethod
     def setUpClass(cls):
         """プラグイン初期化はテスト対象のUndoから分離する。"""
-        from hlib_bifrost import ensure_available
-        ensure_available()
+        if cls.backend == "bifrost":
+            from hlib_bifrost import ensure_available
+            ensure_available()
 
     def setUp(self):
         """部位を空シーンに生成する。"""
         cmds.file(new=True,force=True)
-        self.rig=build_limb()
+        self.rig=build_limb(backend=self.backend)
 
     def position(self):
         """終端のワールド座標を評価する。"""
@@ -100,7 +103,7 @@ class LimbTest(unittest.TestCase):
         cmds.setAttr(self.rig.controls()['target']+'.translateX',1.5)
         expected=self.position()
         joints=self.rig.joints()
-        for backend in ('cpp','bifrost'):
+        for backend in ('standard','cpp','standard','bifrost','standard'):
             self.rig.set_backend(backend)
             self.assertEqual(self.rig.joints(),joints)
             for actual,value in zip(self.position(),expected):
