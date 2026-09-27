@@ -101,6 +101,11 @@ git submodule update --init --recursive
 送信はMaya 2027のmayapyを使用し、追加拡張機能は不要です。
 設定・バージョン変更は[VS Codeの使い方](docs/vscode.md)を参照してください。
 
+## hedit ドキュメント
+
+エディター hedit の使い方と Preferences 各項目の説明を Sphinx で `maya/inhouse/hedit/docs` に用意しています(スクリーンショット付き)。
+ビルド手順は[hedit ドキュメントのビルド](maya/inhouse/hedit/docs/README.md)を参照してください。
+
 ## hlib ドキュメント
 
 Maya 2022～2027の個別・一括テストは [hlibのバージョン別テスト](docs/hlib-testing.md) を参照してください。
