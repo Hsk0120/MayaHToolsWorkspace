@@ -10,6 +10,10 @@
 
 hlibの導入方法・使用例・APIリファレンスを閲覧できます。スマートフォンからもアクセスできます。
 
+[hedit Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/hedit/)
+
+heditの使い方と Preferences 各項目の説明を閲覧できます。
+
 ## ▼カスタム内容
 
 - `maya_core.bat`で各種ツールパスを設定し、起動バッチで環境を切り替えています。

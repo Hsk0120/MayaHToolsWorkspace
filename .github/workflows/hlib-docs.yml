@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'maya/inhouse/hlib/**'
+      - 'maya/inhouse/hedit/docs/**'
       - '.github/workflows/hlib-docs.yml'
       - 'tools/check_hlib_docs.py'
       - 'tools/docs-browser-requirements.txt'
@@ -48,6 +49,10 @@ jobs:
           name: docs-browser-before-deploy
           path: .maya-output/docs-browser/
           if-no-files-found: ignore
+      - name: Build hedit documentation into the published site
+        run: |
+          python -m pip install -r maya/inhouse/hedit/docs/requirements.txt
+          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/hedit/docs maya/inhouse/hlib/docs/_build/html/hedit
       - uses: actions/upload-pages-artifact@v3
         with:
           path: maya/inhouse/hlib/docs/_build/html
