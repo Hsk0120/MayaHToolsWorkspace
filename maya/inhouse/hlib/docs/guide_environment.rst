@@ -90,7 +90,7 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 実装の配置と版番号ユーティリティ
 ------------------------------------------------------------
 
-``hlib.general`` は1クラス1ファイルで構成します。
+``hlib.general`` は原則1クラス1ファイルで構成します。単数クラスと対応する複数クラスは同じファイルにまとめられます。
 ``plugin.py`` は ``Plugin``、``plugins.py`` は ``Plugins``、
 ``module.py`` は ``Module``、``package.py`` は ``PluginPackage`` を定義します。
 利用側は引き続き ``from hlib.general import Plugin, Plugins, Module, PluginPackage``

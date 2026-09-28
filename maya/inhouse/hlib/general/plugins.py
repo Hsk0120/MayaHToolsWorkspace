@@ -24,9 +24,9 @@ class Plugins(BulkCollection):
         seen = set()
         for item in names:
             plugin = item if isinstance(item, Plugin) else Plugin(item)
-            if plugin.name() in seen:
+            if plugin.name in seen:
                 continue
-            seen.add(plugin.name())
+            seen.add(plugin.name)
             self._items.append(plugin)
 
     @classmethod

@@ -38,7 +38,7 @@ class AnimCurve(Node):
         flag = "timeChange" if self.is_time_input() else "floatChange"
         return cmds.keyframe(self.full_name(), query=True, **{flag: True}) or []
 
-    def values(self):
+    def key_values(self):
         """list[float]: キー順の出力値。角度・距離・時間は現在のUI単位。"""
         return cmds.keyframe(self.full_name(), query=True, valueChange=True) or []
 
@@ -87,7 +87,7 @@ class AnimCurve(Node):
         cmds.cutKey(self.full_name(), index=self._index(index), clear=True, animation="objects")
         return self
 
-    def tangent(self, index):
+    def get_tangent(self, index):
         """指定キーの接線情報を取得する。
 
         Args:
@@ -106,7 +106,7 @@ class AnimCurve(Node):
 
         Args:
             index (int): 0始まりのキー番号。
-            **kwargs: tangent()で返すキーと同名のMayaフラグ。
+            **kwargs: get_tangent()で返すキーと同名のMayaフラグ。
                 weightedTangentsはカーブ全体に適用される。
         Returns:
             AnimCurve: 自身。未知のフラグはValueError。
@@ -118,27 +118,31 @@ class AnimCurve(Node):
         cmds.keyTangent(self.full_name(), edit=True, index=self._index(index), animation="objects", **kwargs)
         return self
 
-    def infinity(self):
+    def get_infinity(self):
         """dict: pre/postをキーとした外挿方法名。"""
         names = {0: "constant", 1: "linear", 3: "cycle", 4: "cycleRelative", 5: "oscillate"}
         return {key: names[cmds.getAttr(self.full_name() + "." + key + "Infinity")]
                 for key in ("pre", "post")}
 
     @undo_chunk("hlibAnimCurveInfinity")
-    def set_infinity(self, pre="constant", post="constant"):
-        """前後の外挿方法を設定する。
+    def set_infinity(self, *, pre=None, post=None):
+        """指定した側だけ外挿方法を変更する。省略した側は維持する。
 
         Args:
-            pre (str): constant/linear/cycle/cycleRelative/oscillate。
-            post (str): preと同じ選択肢。
+            pre (str | None): constant/linear/cycle/cycleRelative/oscillate。
+                Noneは変更しない。
+            post (str | None): preと同じ選択肢。Noneは変更しない。
         Returns:
             AnimCurve: 自身。
+        Raises:
+            ValueError: 指定した外挿方法が不正な場合。両側を変更前に検証する。
         """
         allowed = {"constant": 0, "linear": 1, "cycle": 3, "cycleRelative": 4, "oscillate": 5}
-        if pre not in allowed or post not in allowed:
+        values = {key: value for key, value in (("pre", pre), ("post", post)) if value is not None}
+        if any(not isinstance(value, str) or value not in allowed for value in values.values()):
             raise ValueError("Unsupported infinity type")
-        cmds.setAttr(self.full_name() + ".preInfinity", allowed[pre])
-        cmds.setAttr(self.full_name() + ".postInfinity", allowed[post])
+        for key, value in values.items():
+            cmds.setAttr(self.full_name() + "." + key + "Infinity", allowed[value])
         return self
 
     @undo_chunk("hlibAnimCurveShift")

@@ -127,30 +127,30 @@ class NodeApiTest(unittest.TestCase):
     def test_transform_pivot_get_set_local_and_world(self):
         transform = self.create_transform("hlibNodeApiPivot")
 
-        default_pivot = transform.pivot()
+        default_pivot = transform.get_pivot()
         self.assertIsInstance(default_pivot, Translation)
         self.assertEqual(default_pivot, Translation(0.0, 0.0, 0.0))
 
-        result = transform.set_pivot((1.0, 2.0, 3.0))
+        result = transform.set_pivot((1.0, 2.0, 3.0), kind="both", preserve=False)
         self.assertIs(result, transform)
-        self.assertEqual(transform.pivot(), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(transform.get_pivot(), Translation(1.0, 2.0, 3.0))
         cmds.undo()
-        self.assertEqual(transform.pivot(), default_pivot)
+        self.assertEqual(transform.get_pivot(), default_pivot)
         cmds.redo()
-        self.assertEqual(transform.pivot(), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(transform.get_pivot(), Translation(1.0, 2.0, 3.0))
 
         transform.set_translate((10.0, 0.0, 0.0))
-        self.assertEqual(transform.pivot(ws=True), Translation(11.0, 2.0, 3.0))
+        self.assertEqual(transform.get_pivot(ws=True), Translation(11.0, 2.0, 3.0))
 
         previous_unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
-            transform.set_pivot((25.0, 50.0, 75.0), ws=True)
-            self.assertEqual(transform.pivot(ws=True), Translation(25.0, 50.0, 75.0))
+            transform.set_pivot((25.0, 50.0, 75.0), ws=True, kind="both", preserve=False)
+            self.assertEqual(transform.get_pivot(ws=True), Translation(25.0, 50.0, 75.0))
             cmds.undo()
-            self.assertEqual(transform.pivot(ws=True), Translation(11.0, 2.0, 3.0))
+            self.assertEqual(transform.get_pivot(ws=True), Translation(11.0, 2.0, 3.0))
             cmds.redo()
-            self.assertEqual(transform.pivot(ws=True), Translation(25.0, 50.0, 75.0))
+            self.assertEqual(transform.get_pivot(ws=True), Translation(25.0, 50.0, 75.0))
         finally:
             cmds.currentUnit(linear=previous_unit)
 

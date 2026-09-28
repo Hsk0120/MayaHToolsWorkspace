@@ -45,7 +45,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
    from hlib.general import Scene
 
    scene = Scene()
-   print(scene.path())  # 未保存なら None
+   print(scene.path)  # 未保存なら None
    print(scene.is_modified())
 
 参照(reference)の列挙と操作

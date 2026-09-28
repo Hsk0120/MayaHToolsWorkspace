@@ -16,7 +16,7 @@ class SceneUiTest(unittest.TestCase):
     def setUp(self):
         self.view = hlib.getViewport()
         self.outliner = hlib.getOutliner()
-        self.panel = self.view.panel()
+        self.panel = self.view.panel
 
     def test_public_api_and_reload(self):
         for name, cls in (("timeSlider", hlib.general.TimeSlider),
@@ -26,7 +26,7 @@ class SceneUiTest(unittest.TestCase):
         self.assertIsInstance(hlib.getTimeSlider(), hlib.general.TimeSlider)
         self.assertIsInstance(self.view, hlib.general.Viewport)
         self.assertIsInstance(self.outliner, hlib.general.Outliner)
-        self.assertEqual(self.view.panel(), self.panel)
+        self.assertEqual(self.view.panel, self.panel)
 
     def test_viewport_restore_after_exception_and_nesting(self):
         before = self.view.settings()
@@ -113,7 +113,7 @@ class SceneUiTest(unittest.TestCase):
                 self.assertNotEqual(self.outliner.settings("showShapes")["showShapes"], before["showShapes"])
                 raise RuntimeError("test failure")
         self.assertEqual(self.outliner.settings(), before)
-        self.assertEqual(hlib.getOutliner(self.outliner.name()).name(), self.outliner.name())
+        self.assertEqual(hlib.getOutliner(self.outliner.name).name, self.outliner.name)
 
     def test_timeline_validation_and_restore(self):
         slider = hlib.getTimeSlider()

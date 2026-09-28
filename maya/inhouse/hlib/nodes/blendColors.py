@@ -21,7 +21,7 @@ class BlendColors(Node):
             raise ValueError("Color index must be 1 or 2")
         return index
 
-    def color(self, index):
+    def color_plug(self, index):
         """入力色のPlugを取得する。
 
         Args:
@@ -30,6 +30,10 @@ class BlendColors(Node):
             CompoundPlug: RGB入力。get()で値を取得できる。
         """
         return self.plug(f"color{self._index(index)}")
+
+    def get_color(self, index):
+        """tuple[float, float, float]: 計算用RGB。表示色Colorへは変換しない。"""
+        return tuple(self.color_plug(index).get())
 
     @fast_edit
     @undo_chunk("hlibBlendColorsSetColor")
@@ -49,7 +53,7 @@ class BlendColors(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        target = self.color(index)
+        target = self.color_plug(index)
         values = tuple(float(v) for v in value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Color must contain three finite values")
@@ -67,7 +71,7 @@ class BlendColors(Node):
         Returns:
             BlendColors: 自身。
         """
-        source.connect(self.color(index), force=force)
+        source.connect(self.color_plug(index), force=force)
         return self
 
     def blender(self):

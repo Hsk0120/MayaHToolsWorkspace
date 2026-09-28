@@ -91,7 +91,7 @@ def capture_editors(targets):
         if isinstance(item, TimeSlider):
             records.append(_state("timeline", "timeline"))
         elif isinstance(item, (Viewport, Outliner)):
-            records.append(_state("viewport" if isinstance(item, Viewport) else "outliner", item.name()))
+            records.append(_state("viewport" if isinstance(item, Viewport) else "outliner", item.name))
         else:
             raise TypeError("Expected Viewport, Outliner or TimeSlider")
     return EditorSnapshot("editor", records, _units())

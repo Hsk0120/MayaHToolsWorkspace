@@ -545,20 +545,39 @@ class SkinCluster(Node):
         """複数のsource/target組についてウェイトを移す。
 
         処理が途中で失敗しても選択状態は preserved_selection により復元される。完了済みの
-        ウェイト変更はロールバックしない。
+        ウェイト変更はロールバックしない。正規化はMayaのskinPercentと
+        skinClusterのnormalizeWeights設定に従う。
 
         Args:
-            source_target_pairs (Iterable[tuple[str, str]]): (移送元, 移送先) の influence 名の組。
+            source_target_pairs (Iterable[tuple[Node | str, Node | str]]): influenceの組。
+                Maya APIのノード参照も受け付ける。全組を検証後、指定順に移送する。
+                同じinfluence同士の組は何もしない。
 
         Returns:
             None: 値を返さない。
 
         Raises:
+            ValueError: ペアの要素数が2でない、または未登録のinfluenceの場合。
+            TypeError: ペアが反復可能でない、または未対応の参照型の場合。
             RuntimeError: 接続ノード名・型名からスキニングレイヤーを検出した場合、または Maya 操作に失敗した場合。
         """
         self._raise_if_layers()
+        from .._core.coerce import to_node
+
+        pairs = []
+        for pair in source_target_pairs:
+            if isinstance(pair, (str, bytes)):
+                raise ValueError("Expected a source/target pair, not a string")
+            pair = tuple(pair)
+            if len(pair) != 2:
+                raise ValueError("Expected exactly two influences per pair")
+            source, target = (to_node(value) for value in pair)
+            if any(not node.is_valid() or not self.has_influence(node.full_name()) for node in (source, target)):
+                raise ValueError("Both nodes must be influences of this skinCluster")
+            if source.uuid() != target.uuid():
+                pairs.append((source.full_name(), target.full_name()))
         with preserved_selection():
-            for source_joint, target_joint in source_target_pairs:
+            for source_joint, target_joint in pairs:
                 self._xfer_pair(source_joint, target_joint)
 
     @undo_chunk("hlib.nodes.skinCluster.remove_influence")
@@ -577,6 +596,7 @@ class SkinCluster(Node):
             None: 値を返さない。
 
         Raises:
+            TypeError: transfer_to_parentがboolでない場合。
             ValueError: 未登録、または最後の一つのinfluenceの場合。
             RuntimeError: スキニングレイヤーを検出、または Maya が削除を拒否した場合。
         """
@@ -592,6 +612,8 @@ class SkinCluster(Node):
 
     def _influence_removal_target(self, joint, transfer_to_parent=True):
         """削除可否と祖先移送先を変更前に確認する。"""
+        if not isinstance(transfer_to_parent, bool):
+            raise TypeError("transfer_to_parent must be a bool")
         self._raise_if_layers()
         source = joint if isinstance(joint, Node) else Node(joint)
         if not source.is_valid() or not self.has_influence(source.full_name()):

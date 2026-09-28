@@ -343,7 +343,7 @@ def _capture_record(kind, node, attributes=None):
         record["attributes"] = [_attribute(name, attr) for attr in ("skinningMethod", "normalizeWeights", "maintainMaxInfluences", "maxInfluences")]
     elif kind in ("animation", "driven_keys"):
         if node.type().startswith("animCurve"):
-            record.update(inputs=node.key_inputs(), values=node.values(), tangents=[node.tangent(i) for i in range(node.key_count())], infinity=node.infinity())
+            record.update(inputs=node.key_inputs(), values=node.key_values(), tangents=[node.get_tangent(i) for i in range(node.key_count())], infinity=node.get_infinity())
         elif kind == "driven_keys" and node.type() in ("blendWeighted", "unitConversion"):
             attrs = ["conversionFactor"] if node.type() == "unitConversion" else ["weight[{}]".format(i) for i in cmds.getAttr(name + ".weight", multiIndices=True) or []]
             record["attributes"] = [_attribute(name, attr) for attr in attrs]
@@ -425,7 +425,7 @@ def _validate_record(kind, node, record, options):
         for attr in ("ktv", "preInfinity", "postInfinity"):
             if cmds.getAttr(name + "." + attr, lock=True):
                 raise ValueError("Animation attribute locked: " + attr)
-        before.update(inputs=node.key_inputs(), values=node.values())
+        before.update(inputs=node.key_inputs(), values=node.key_values())
     if "connections" in record:
         expected = {tuple(p.resolve(**options).full_name() for p in pair) for pair in record["connections"]}
         actual = {tuple(p.resolve().full_name() for p in pair) for pair in _connections(name)}

@@ -232,3 +232,46 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   Mayaで更新中に起きたエラーの自動ロールバックは行いません。
 
 コンポーネントの ``get_x`` / ``set_x`` 等は公開名を維持し、内部の軸操作を共通化しました。
+
+
+部分更新と保持値の整理
+----------------------
+
+* ``AnimCurve.values()`` は ``key_values()``、``tangent()`` は ``get_tangent()``、
+  ``infinity()`` は ``get_infinity()`` へ改名しました。旧名は公開しません。
+* ``set_infinity(*, pre=None, post=None)`` は指定した側だけ変更します。
+  両方をリセットする場合は ``pre="constant", post="constant"`` を明示します。
+  位置引数は使わず、両側の値を検証してから更新します。
+* ``Transform.pivot()`` は ``get_pivot()`` へ改名しました。
+  ``get_pivot(ws=False, kind="rotate")`` と
+  ``set_pivot(value, ws=False, kind="rotate", preserve=True)`` は
+  回転ピボットが既定です。取得・設定とも ``kind="scale"`` が使え、
+  設定時は ``kind="both"`` も使えます。
+  以前の設定動作を指定するには ``kind="both", preserve=False`` を渡します。
+  オブジェクト空間の取得を設定と同じxformの座標解釈に揃えたため、
+  スケールを持つノードで旧取得値と異なる場合があります。
+  Jointへの設定は黙って無視せず ``TypeError`` にします。
+* 保持値は括弧なしで参照します。対象は ``Scene.path`` / ``Scene.name``、
+  ``Plugin.name`` / ``Module.name``（複数形の ``Plugins.name`` は名前のリスト）、``Selection.items``、
+  ``Viewport.name`` / ``Viewport.panel``、``Outliner.name`` です。
+  ``Selection.items`` は従来どおりコピーなので、返却リストを変更しても元は変わりません。
+  Mayaに照会する ``Plugin.path()`` / ``Module.path()``、
+  ``ChannelBox.name()`` / ``TimeSlider.name()`` はメソッドのままです。
+* ``SkinCluster.transfer_weights`` は全組の形とinfluence所属を検証してから、
+  指定順で移送します。同じinfluence同士の組は何もしません。
+  正規化はMayaの標準処理とskinCluster設定に従い、
+  実行途中のMayaエラーは自動ロールバックしません。
+* ``transfer_to_parent`` はJoint・SkinCluster・SkinClustersのいずれでもboolのみを受け付けます。
+
+単数クラスと対応する複数クラスは同じファイルにまとめる方針です。
+``Joint`` / ``Joints``、``Vertex`` / ``Vertices`` などの既存配置は維持します。
+
+表示色APIの変更
+------------------------------
+
+``Node.outliner_color()`` は ``get_outliner_color()``、
+``Node.override_color()`` は ``get_override_color()`` に変更しました。
+戻り値は ``hlib.general.Color`` です。RGBは ``.rgb``、色番号は ``.index``、
+有効形式は ``.mode`` で取得します。詳細は :doc:`node_colors` を参照してください。
+``BlendColors.color()`` は ``color_plug()`` に変更し、
+数値の取得には ``get_color(index)`` を追加しました。

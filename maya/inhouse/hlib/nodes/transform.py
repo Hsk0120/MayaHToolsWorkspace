@@ -301,38 +301,62 @@ class Transform(Node):
         """
         return om2.MFnTransform(self.dag_path())
 
-    def pivot(self, ws=False):
-        """回転ピボットを取得する。
-
-        スケールピボットは set_pivot() で常に同じ位置に揃えて設定するため、
-        別途取得するメソッドは提供しない。
+    def get_pivot(self, ws=False, *, kind="rotate"):
+        """指定した種類のピボットを取得する。
 
         Args:
             ws (bool): True はワールド空間、False はオブジェクト空間(ローカル)。
+            kind (str): rotateは回転、scaleはスケールピボット。
 
         Returns:
             Translation: ピボット位置。Maya API の内部距離単位。
+
+        Raises:
+            ValueError: kindがrotate/scaleでない場合。
         """
-        space = om2.MSpace.kWorld if ws else om2.MSpace.kTransform
-        return _vector_of(Translation, self.transform_fn().rotatePivot(space))
+        if kind not in ("rotate", "scale"):
+            raise ValueError("kind must be 'rotate' or 'scale'")
+        # 設定と同じxform空間を使う。MFnTransformのkTransformとxformの
+        # objectSpaceでは、スケールを持つノードのピボットの解釈が一致しない。
+        flag = "rotatePivot" if kind == "rotate" else "scalePivot"
+        values = cmds.xform(self.full_name(), query=True, worldSpace=ws,
+                            objectSpace=not ws, **{flag: True})
+        return Translation(*(om2.MDistance(v, om2.MDistance.uiUnit()).asCentimeters() for v in values))
 
     @undo_chunk("hlibTransformSetPivot")
-    def set_pivot(self, value, ws=False):
-        """回転ピボットとスケールピボットを同じ位置にまとめて設定する。
+    def set_pivot(self, value, ws=False, *, kind="rotate", preserve=True):
+        """指定した種類のピボットを変更する。既定ではノードの姿勢を保つ。
 
         Args:
             value (Iterable[float]): 新しいピボット位置。Maya API の内部距離単位。
             ws (bool): True はワールド空間、False はオブジェクト空間(ローカル)。
+            kind (str): rotate/scale/both。bothは両方を同じ位置へ設定する。
+            preserve (bool): Trueはピボット補償値を調整して変換行列を保つ。
+                Falseは補償せず、姿勢が変わる場合がある。
 
         Returns:
             Transform: 自身。
 
         Raises:
+            ValueError: kind、座標の要素数・有限値が不正な場合。
+            TypeError: preserveがboolでない、または対象がJointの場合。
             RuntimeError: ノードが無効、または Maya が設定を拒否した場合。
+
+        Jointは独立したピボットの変更をサポートしないため、更新前に拒否する。
         """
-        point = om2.MPoint(*value)
-        coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in (point.x, point.y, point.z)]
-        cmds.xform(self.full_name(), pivots=coordinates, worldSpace=ws, objectSpace=not ws, preserve=False)
+        if kind not in ("rotate", "scale", "both"):
+            raise ValueError("kind must be 'rotate', 'scale' or 'both'")
+        if not isinstance(preserve, bool):
+            raise TypeError("preserve must be a bool")
+        if self.is_type("joint"):
+            raise TypeError("Joint does not support independent rotate/scale pivots")
+        values = tuple(value)
+        if len(values) != 3 or not all(math.isfinite(v) for v in values):
+            raise ValueError("Expected three finite pivot coordinates")
+        coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in values]
+        flag = {"rotate": "rotatePivot", "scale": "scalePivot", "both": "pivots"}[kind]
+        cmds.xform(self.full_name(), worldSpace=ws, objectSpace=not ws,
+                   preserve=preserve, **{flag: coordinates})
         return self
 
     @undo_chunk("hlibTransformCenterPivot")

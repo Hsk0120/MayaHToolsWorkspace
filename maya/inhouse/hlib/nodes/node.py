@@ -286,91 +286,97 @@ class Node:
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
 
-    @staticmethod
-    def _display_rgb(value):
-        """0～1の有限なRGB三要素を返す。不正値はValueError。"""
-        import math
-
-        values = tuple(float(v) for v in value)
-        if len(values) != 3 or not all(math.isfinite(v) and 0 <= v <= 1 for v in values):
-            raise ValueError("Expected three finite RGB values between 0 and 1")
-        return values
-
-    def outliner_color(self):
-        """tuple[float, float, float] | None: Outliner色。無効ならNone。"""
+    def get_outliner_color(self):
+        """Color: このノードのOutliner色。無効時はdisabledモード。"""
+        from ..general.color import Color
         if not cmds.getAttr(self.full_name() + ".useOutlinerColor"):
-            return None
-        return tuple(cmds.getAttr(self.full_name() + ".outlinerColor")[0])
+            return Color.disabled()
+        return Color(rgb=cmds.getAttr(self.full_name() + ".outlinerColor")[0])
 
     @fast_edit
     @undo_chunk("hlibNodeOutlinerColor")
     def set_outliner_color(self, color, *, fast=False):
-        """このノードのOutliner色を設定する。
+        """このノードのOutliner色を設定する。色番号は保持RGBへ変換する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            color (Iterable[float] | None): 0～1のRGB。Noneでカスタム色を無効化。
+            color (Color | int | Iterable[float] | None): 表示色。None/disabledは無効化。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
         Returns:
-            Node: 自身。
+            Node: 自身。入力Colorの変更は自動反映しない。
         Raises:
-            ValueError: RGBの値・要素数が不正な場合。
-            RuntimeError: 属性がない、ロックされているなど変更できない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            ValueError: 色の値が不正な場合。
+            RuntimeError: 属性がない、ロック・接続済みなど変更できない場合。
         """
-        values = None if color is None else self._display_rgb(color)
-        if values is not None:
-            set_attr(self.full_name() + ".outlinerColor", *values, type="float3")
-        set_attr(self.full_name() + ".useOutlinerColor", values is not None)
+        from ..general.color import Color
+        value = Color.coerce(color)
+        updates = [] if value.mode == "disabled" else [("outlinerColor", value.rgb)]
+        updates.append(("useOutlinerColor", value.mode != "disabled"))
+        self._set_display_color(updates)
         return self
 
-    def override_color(self):
-        """int | tuple[float, float, float] | None: このノードの表示色設定。
+    def get_override_color(self):
+        """Color: 自身のDrawing Overrides色。最終表示色ではない。
 
-        無効ならNone。親や表示レイヤー、選択ハイライトを合成した最終表示色ではない。
-        属性を持たないノードはRuntimeError。
+        親・表示レイヤー・選択ハイライトは合成しない。
+        属性がない場合はRuntimeError。無効時はdisabledモードを返す。
         """
-        if not cmds.getAttr(self.full_name() + ".overrideEnabled"):
-            return None
-        if cmds.getAttr(self.full_name() + ".overrideRGBColors"):
-            return tuple(cmds.getAttr(self.full_name() + ".overrideColorRGB")[0])
-        return cmds.getAttr(self.full_name() + ".overrideColor")
+        from ..general.color import Color
+        name = self.full_name()
+        if not cmds.getAttr(name + ".overrideEnabled"):
+            return Color.disabled()
+        if cmds.getAttr(name + ".overrideRGBColors"):
+            return Color(rgb=cmds.getAttr(name + ".overrideColorRGB")[0])
+        return Color(index=cmds.getAttr(name + ".overrideColor"))
 
     @fast_edit
     @undo_chunk("hlibNodeOverrideColor")
     def set_override_color(self, color, *, fast=False):
-        """このノードのDrawing Overrides色を設定する。子Shapeへは転送しない。
+        """指定形式のままDrawing Overrides色を設定する。子Shapeへは転送しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            color (int | Iterable[float] | None): 0～31のインデックス、0～1のRGB、
-                またはNone。NoneはoverrideEnabledを無効化するため表示タイプ等にも影響する。
+            color (Color | int | Iterable[float] | None): 0～31の番号、0～1のRGB、
+                または表示色オブジェクト。None/disabledはoverrideEnabled全体を
+                無効化するため、表示タイプ等にも影響する。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
         Returns:
-            Node: 自身。
+            Node: 自身。RGBモードは近似番号ではなく元のRGBを適用する。
         Raises:
-            ValueError: インデックスやRGBが不正な場合。
-            RuntimeError: 属性がない、ロックされているなど変更できない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            ValueError: 色の値が不正な場合。
+            RuntimeError: 属性がない、ロック・接続済みなど変更できない場合。
         """
-        if color is None:
-            set_attr(self.full_name() + ".overrideEnabled", False)
-            return self
-        if isinstance(color, bool):
-            raise ValueError("Color index must be an integer from 0 to 31")
-        if isinstance(color, int):
-            if not 0 <= color <= 31:
-                raise ValueError("Color index must be between 0 and 31")
-            set_attr(self.full_name() + ".overrideColor", color)
-            set_attr(self.full_name() + ".overrideRGBColors", False)
-        else:
-            values = self._display_rgb(color)
-            set_attr(self.full_name() + ".overrideColorRGB", *values, type="float3")
-            set_attr(self.full_name() + ".overrideRGBColors", True)
-        set_attr(self.full_name() + ".overrideEnabled", True)
+        from ..general.color import Color
+        value = Color.coerce(color)
+        updates = []
+        if value.mode == "index":
+            updates = [("overrideColor", value.index), ("overrideRGBColors", False)]
+        elif value.mode == "rgb":
+            updates = [("overrideColorRGB", value.rgb), ("overrideRGBColors", True)]
+        updates.append(("overrideEnabled", value.mode != "disabled"))
+        self._set_display_color(updates)
         return self
+
+    def _set_display_color(self, updates):
+        """色関連属性の書込み可否を全件確認してから順に反映する。
+
+        Args:
+            updates (list[tuple[str, object]]): 属性名と値の更新列。
+        Returns:
+            None: 値を返さない。実行時エラーの自動ロールバックは行わない。
+        """
+        from .._core.fastWrite import writable
+        if any(not cmds.objExists(self.full_name() + "." + name) for name, _ in updates):
+            raise RuntimeError("Node does not have the requested display color attributes")
+        plugs = [(self.plug(name), value) for name, value in updates]
+        for plug, value in plugs:
+            writable(plug.mplug())
+            if isinstance(value, tuple):
+                for child in plug.children():
+                    writable(child.mplug())
+        for plug, value in plugs:
+            if isinstance(value, tuple):
+                set_attr(plug.full_name(), *value, type="float3")
+            else:
+                set_attr(plug.full_name(), value)
 
     @classmethod
     @undo_chunk("hlib.nodes.node.create")

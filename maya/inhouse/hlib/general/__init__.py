@@ -5,6 +5,7 @@ importだけでプラグインのロード、UI生成、イベント登録は行
 """
 
 from .module import Module
+from .color import Color, Colors
 from .plugin import Plugin
 from .plugins import Plugins
 from .pluginPackage import LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, PluginPackage
@@ -26,7 +27,7 @@ from .scriptJob import ScriptJob
 from .scriptJobs import ScriptJobs
 
 __all__ = [
-    "Module", "Plugin", "Plugins", "PluginPackage",
+    "Color", "Colors", "Module", "Plugin", "Plugins", "PluginPackage",
     "LOAD_FAILED", "LOADED", "MISSING", "OUTDATED", "SKIPPED",
     "Workspace", "Units", "Selection", "Scene", "Namespace",
     "UiElement", "NodeEditor", "GraphEditor", "MainWindow", "TimeSlider",

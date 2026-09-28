@@ -20,7 +20,7 @@ AnimCurve
    curve = hlib.createNode("animCurveUU")
    curve.set_key(0, 0).set_key(1, 10)
    print(curve.evaluate(0.5))  # 5.0
-   print(curve.key_inputs(), curve.values())
+   print(curve.key_inputs(), curve.key_values())
    curve.set_tangent(0, outTangentType="flat")
    curve.set_infinity(pre="constant", post="linear")
    curve.mirror(input=True, value=False)
@@ -62,3 +62,6 @@ SDKの作成と対応経路の探索は :doc:`driven_keys`、
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
+
+``set_infinity(pre="cycle")`` はpre側だけ変更し、post側を維持します。
+両側を戻す場合は ``set_infinity(pre="constant", post="constant")`` を使います。

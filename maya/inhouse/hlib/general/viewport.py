@@ -43,6 +43,7 @@ class Viewport(_Editor):
         self._panel = panel
         self._name = cmds.modelPanel(panel, query=True, modelEditor=True)
 
+    @property
     def panel(self):
         """str: 保持しているmodelPanel名を返す。"""
         return self._panel

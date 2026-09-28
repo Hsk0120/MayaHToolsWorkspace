@@ -33,9 +33,9 @@ class BlendColorsTest(unittest.TestCase):
         self.assertEqual(b.result(), (0.25, 0, 0.75))
         b.set_color(1, (2, -1, 3))
         cmds.undo()
-        self.assertEqual(tuple(b.color(1).get()), (1, 0, 0))
+        self.assertEqual(tuple(b.color_plug(1).get()), (1, 0, 0))
         cmds.redo()
-        self.assertEqual(tuple(b.color(1).get()), (2, -1, 3))
+        self.assertEqual(tuple(b.color_plug(1).get()), (2, -1, 3))
 
     def test_connections(self):
         b = self.blend
@@ -53,24 +53,24 @@ class BlendColorsTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             b.connect_color(1, replacement.output())
         b.connect_color(1, replacement.output(), force=True)
-        self.assertTrue(cmds.isConnected(replacement.output().full_name(), b.color(1).full_name()))
+        self.assertTrue(cmds.isConnected(replacement.output().full_name(), b.color_plug(1).full_name()))
         cmds.undo()
-        self.assertTrue(cmds.isConnected(source.output().full_name(), b.color(1).full_name()))
+        self.assertTrue(cmds.isConnected(source.output().full_name(), b.color_plug(1).full_name()))
         with self.assertRaises(RuntimeError):
             b.set_color(1, (1, 1, 1))
 
     def test_invalid_values_do_not_change_inputs(self):
-        before = self.blend.color(1).get()
+        before = self.blend.color_plug(1).get()
         for value in ((1, 2), (1, float("nan"), 3)):
             with self.assertRaises(ValueError):
                 self.blend.set_color(1, value)
         for index in (0, 3, True, 1.0):
             with self.assertRaises(ValueError):
-                self.blend.color(index)
+                self.blend.color_plug(index)
         for value in (-1, 2, float("inf")):
             with self.assertRaises(ValueError):
                 self.blend.set_blender(value)
-        self.assertEqual(self.blend.color(1).get(), before)
+        self.assertEqual(self.blend.color_plug(1).get(), before)
 
 
 if __name__ == "__main__":

@@ -12,14 +12,19 @@ Transform のピボット
 .. code-block:: python
 
    transform = hlib.getNode("pCube1")
-   print(transform.pivot())              # 既定は (0, 0, 0)
-   transform.set_pivot((1.0, 2.0, 3.0))  # 回転・スケールピボットをまとめて設定
-   print(transform.pivot(ws=True))       # ワールド空間での現在位置
+   print(transform.get_pivot())              # 既定は (0, 0, 0)
+   transform.set_pivot((1.0, 2.0, 3.0), kind="both")  # 回転・スケールピボットをまとめて設定
+   print(transform.get_pivot(ws=True))       # ワールド空間での現在位置
 
-``pivot`` は ``MFnTransform`` で回転ピボットを読み取り、
-``set_pivot`` は ``cmds.xform`` で回転・スケールピボットを更新します。
-``set_pivot`` は常に回転・スケールピボットを同じ位置に揃えて設定するため、
-片方だけを個別に動かすことはできません。値・戻り値は Maya API の内部距離単位です。
+``get_pivot`` / ``set_pivot`` は ``kind="rotate"`` が既定です。
+``kind="scale"`` でスケールピボットだけを扱えます。設定時の ``kind="both"`` は
+両方を同じ位置へ変更します。値・戻り値は Maya API の内部距離単位（cm）です。
+``ws=True`` はワールド空間、既定Falseは ``cmds.xform`` のオブジェクト空間です。
+
+設定時は ``preserve=True`` が既定で、変換行列を維持します。
+補償を行わずピボットを動かす場合は ``preserve=False`` を指定します。
+Jointは独立したピボットの変更をサポートしないため、``set_pivot`` は更新前に
+``TypeError`` を送出します。
 
 バウンディングボックス
 -----------------------

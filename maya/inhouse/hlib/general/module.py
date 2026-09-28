@@ -29,6 +29,7 @@ class Module:
             raise ValueError("name must be a non-empty string")
         self._name = name
 
+    @property
     def name(self):
         """保持しているモジュール名を取得する。
 

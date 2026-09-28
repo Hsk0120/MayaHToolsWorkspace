@@ -22,7 +22,7 @@
     print(slider.selected_range())  # 未選択はNone。選択範囲の終端は含まない
 
     view = hlib.getViewport()  # hlib.general.Viewport
-    print(view.panel(), view.camera())
+    print(view.panel, view.camera())
     with view.temporary_settings(grid=False, joints=False):
         pass  # 終了時に指定した表示設定を復元
     with view.suspend():

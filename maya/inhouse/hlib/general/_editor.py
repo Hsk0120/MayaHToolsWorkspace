@@ -11,6 +11,7 @@ class _Editor:
     _command = ""
     _flags = ()
 
+    @property
     def name(self):
         """str: 保持しているエディター名を返す。"""
         return self._name

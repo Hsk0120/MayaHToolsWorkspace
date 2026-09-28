@@ -35,8 +35,8 @@ class SceneApiTest(unittest.TestCase):
 
     def test_public_api_and_new_scene_state(self):
         self.assertIs(Scene, SceneFromPackage)
-        self.assertIsNone(self.scene.path())
-        self.assertIsNone(self.scene.name())
+        self.assertIsNone(self.scene.path)
+        self.assertIsNone(self.scene.name)
         self.assertTrue(self.scene.is_new())
         self.assertFalse(self.scene.is_modified())
 
@@ -46,13 +46,13 @@ class SceneApiTest(unittest.TestCase):
 
         result = self.scene.save_as(self.path)
         self.assertIs(result, self.scene)
-        self.assertEqual(self.scene.path(), self.path)
-        self.assertEqual(self.scene.name(), self.path.name)
+        self.assertEqual(self.scene.path, self.path)
+        self.assertEqual(self.scene.name, self.path.name)
         self.assertEqual(self.scene.file_type(), "mayaAscii")
         self.assertFalse(self.scene.is_modified())
 
         self.scene.open(self.path, force=True, prompt=False)
-        self.assertEqual(self.scene.path(), self.path)
+        self.assertEqual(self.scene.path, self.path)
         self.scene.new(force=True, prompt=False)
         self.assertTrue(self.scene.is_new())
 
@@ -85,7 +85,7 @@ class SceneApiTest(unittest.TestCase):
         self.assertIs(hlib.getScene, hlib.cmds.getScene)
         self.assertEqual(str(hlib.getScene()), "untitled")
         other = hlib.getScene(self.path)
-        self.assertEqual(other.path(), self.path.resolve())
+        self.assertEqual(other.path, self.path.resolve())
         self.assertEqual(str(other), str(self.path.resolve()))
         self.assertTrue(self.scene.is_new())
         self.assertFalse(other.is_current())
@@ -96,10 +96,10 @@ class SceneApiTest(unittest.TestCase):
         self.scene.save_as(self.path)
         captured = hlib.getScene()
         self.scene.new(force=True, prompt=False)
-        self.assertEqual(captured.path(), self.path.resolve())
+        self.assertEqual(captured.path, self.path.resolve())
         captured.open(force=True, prompt=False)
         self.assertTrue(captured.is_current())
-        self.assertEqual(hlib.getScene().path(), self.path.resolve())
+        self.assertEqual(hlib.getScene().path, self.path.resolve())
         with self.assertRaises(ValueError):
             hlib.getScene("")
 

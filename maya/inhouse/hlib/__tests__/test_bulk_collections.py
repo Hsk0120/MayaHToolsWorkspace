@@ -73,11 +73,11 @@ class BulkCollectionsTest(unittest.TestCase):
     def test_plugins_and_registration_coverage(self):
         from hlib.general import Plugin, Plugins
         plugins = Plugins(["hlibMissingA", "hlibMissingB"])
-        self.assertEqual(plugins.name(), ["hlibMissingA", "hlibMissingB"])
+        self.assertEqual(plugins.name, ["hlibMissingA", "hlibMissingB"])
         self.assertEqual(plugins.is_loaded(), [False, False])
         calls = []
         def fake_load(item, **kwargs):
-            calls.append((item.name(), kwargs))
+            calls.append((item.name, kwargs))
             return item
         with patch.object(Plugin, "load", fake_load):
             self.assertEqual(len(plugins.load(quiet=True)), 2)

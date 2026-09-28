@@ -232,9 +232,9 @@ class PluginPackage:
             try:
                 plugin.load(quiet=True)
             except Exception as error:
-                failed.append(plugin.name())
+                failed.append(plugin.name)
                 logger.warning("[hlib] {} のプラグイン {} をロードできません: {}".format(
-                    self._name, plugin.name(), error))
+                    self._name, plugin.name, error))
         return failed
 
     def ensure_loaded(self, dialog=True, warn=True):

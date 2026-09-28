@@ -16,7 +16,7 @@
 
 - hlib.cmdsの公開関数とファイルは同名のlowerCamelCaseとし、create/add/set/get等の動詞+対象で命名する。create/add/setは照会を兼ねず、照会・既存対象の編集はオブジェクトのメソッドへ寄せる。lsは慣用名として維持し、delete/duplicate/select等の動詞も維持する。旧名の互換入口は残さず使用側を更新する。
 
-- hlibのクラス実装は1クラス1ファイルにする。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `hlib.utils` へ置く。クラスのパッケージ内に関数だけのPythonファイルを追加しない。公開コマンドは上記の命名・責務ルールに従う。
+- hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `hlib.utils` へ置く。クラスのパッケージ内に関数だけのPythonファイルを追加しない。公開コマンドは上記の命名・責務ルールに従う。
 
 - hlibおよび `hlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotation.py`、`scriptJob.py`、`channelBox.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `hlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
 

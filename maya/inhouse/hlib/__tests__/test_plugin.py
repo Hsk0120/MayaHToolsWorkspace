@@ -37,7 +37,7 @@ class PluginTest(unittest.TestCase):
 
     def test_name_and_string_representations(self):
         plugin = Plugin(self.plugin_name)
-        self.assertEqual(plugin.name(), self.plugin_name)
+        self.assertEqual(plugin.name, self.plugin_name)
         self.assertEqual(str(plugin), self.plugin_name)
         self.assertIn(self.plugin_name, repr(plugin))
 
@@ -90,7 +90,7 @@ class PluginsTest(unittest.TestCase):
     def test_constructor_dedupes_by_name(self):
         collection = Plugins(["matrixNodes", "matrixNodes", Plugin("matrixNodes")])
         self.assertEqual(len(collection), 1)
-        self.assertEqual([item.name() for item in collection], ["matrixNodes"])
+        self.assertEqual([item.name for item in collection], ["matrixNodes"])
 
     def test_loaded_includes_known_loaded_plugin(self):
         was_loaded = cmds.pluginInfo("matrixNodes", query=True, loaded=True)

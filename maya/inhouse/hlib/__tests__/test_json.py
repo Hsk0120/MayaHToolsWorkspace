@@ -242,12 +242,12 @@ class JsonTest(unittest.TestCase):
                           inTangentType="fixed", outTangentType="fixed")
         curve.set_tangent(0, inAngle=12, outAngle=25, inWeight=.5, outWeight=.8)
         snapshot = self.roundtrip(hlib.json.capture(curve, kind="animation"))
-        expected = curve.tangent(0)
+        expected = curve.get_tangent(0)
         curve.set_key(7, 8)
         snapshot.apply()
         self.assertEqual(curve.key_inputs(), [0, 3])
         for key in ("inAngle", "outAngle", "inWeight", "outWeight"):
-            self.assertAlmostEqual(curve.tangent(0)[key], expected[key], places=5)
+            self.assertAlmostEqual(curve.get_tangent(0)[key], expected[key], places=5)
         cmds.undo()
         self.assertEqual(curve.key_inputs(), [0, 3, 7])
 
@@ -322,7 +322,7 @@ class JsonTest(unittest.TestCase):
                 saved = self.roundtrip(hlib.json.capture(curve, kind="animation"))
                 curve.set_key(2, 5)
                 saved.apply()
-                self.assertAlmostEqual(curve.values()[1], 3, places=5)
+                self.assertAlmostEqual(curve.key_values()[1], 3, places=5)
 
     def test_plan_revalidates_and_rejects_connected_attribute(self):
         first, second = self.node(suffix="a"), self.node(suffix="b")

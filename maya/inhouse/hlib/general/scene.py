@@ -30,6 +30,7 @@ class Scene:
         value = cmds.file(query=True, sceneName=True)
         return Path(value).resolve() if value else None
 
+    @property
     def path(self):
         """保持している絶対パスを返す。
 
@@ -40,7 +41,7 @@ class Scene:
 
     def is_current(self):
         """保持パスが現在のシーンと一致するか返す。未保存同士は一致とする。"""
-        return self.path() == self._current_path()
+        return self.path == self._current_path()
 
     def _require_current(self):
         """現在のシーンと一致しない場合は RuntimeError を送出する。"""
@@ -51,13 +52,14 @@ class Scene:
         """保持パスを表示する。未保存の場合は untitled。"""
         return str(self._path) if self._path is not None else "untitled"
 
+    @property
     def name(self):
         """保持パスのファイル名を返す。
 
         Returns:
             str | None: ファイル名。未保存の場合は ``None``。
         """
-        scene_path = self.path()
+        scene_path = self.path
         return scene_path.name if scene_path is not None else None
 
     def is_new(self):
@@ -66,7 +68,7 @@ class Scene:
         Returns:
             bool: 現在のシーンにパスがない場合は True。
         """
-        return self.path() is None
+        return self.path is None
 
     def is_modified(self):
         """現在のシーンに未保存の変更があるか判定する。
@@ -87,7 +89,7 @@ class Scene:
             str | None: Mayaのファイル形式名。未保存または未取得の場合は ``None``。
         """
         if not self.is_current():
-            return self._FILE_TYPES.get(self.path().suffix.lower()) if self.path() else None
+            return self._FILE_TYPES.get(self.path.suffix.lower()) if self.path else None
         file_types = cmds.file(query=True, type=True) or []
         return file_types[0] if file_types else None
 
@@ -121,7 +123,7 @@ class Scene:
             ValueError: path が空文字列または str/Path 以外の場合。
             RuntimeError: Maya がファイルを開けない場合。
         """
-        scene_path = self._path_arg(self.path() if path is None else path)
+        scene_path = self._path_arg(self.path if path is None else path)
         cmds.file(
             str(scene_path),
             open=True,
@@ -251,4 +253,4 @@ class Scene:
         Returns:
             str: 現在のパスを含む文字列表現。
         """
-        return f"Scene(path={self.path()!r})"
+        return f"Scene(path={self.path!r})"

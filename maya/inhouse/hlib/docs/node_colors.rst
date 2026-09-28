@@ -13,7 +13,7 @@ Outliner色
 
    ctrl = hlib.getNode("ctrl")
    ctrl.set_outliner_color((1, 0.5, 0))
-   print(ctrl.outliner_color())
+   print(ctrl.get_outliner_color())
    ctrl.set_outliner_color(None)  # カスタム色を無効化
 
 RGBは0～1の3要素です。``useOutlinerColor`` と ``outlinerColor`` を編集します。
@@ -27,7 +27,7 @@ Shapeの表示色
    shape = hlib.getNode("ctrlShape")
    shape.set_override_color(13)             # Mayaのインデックス色
    shape.set_override_color((0, 0.5, 1))    # RGB色
-   print(shape.override_color())
+   print(shape.get_override_color())
    shape.set_override_color(None)          # Drawing Overridesを無効化
 
 色番号は0～31、RGBは0～1の3要素です。設定時は ``overrideEnabled`` を有効化し、
@@ -48,3 +48,73 @@ Mayaのエラーを通知します。Jointsなどのコレクションからも�
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
+
+Colorで番号とRGBを扱う
+------------------------------
+
+引数なしの ``Color()`` は ``Color(index=0)`` と同じ色番号0で初期化します。
+無効状態は ``Color.disabled()`` で明示します。``Colors()`` は空のコレクションです。
+
+``Color`` は表示色を保持する可変オブジェクトです。プロパティを変更すると、
+もう一方の表現も同期します。変更だけではシーンには反映されません。
+
+.. code-block:: python
+
+   from hlib.general import Color
+
+   color = Color(index=17)
+   print(color.rgb)               # パレットのRGB
+   color.rgb = (1, 0.45, 0)
+   print(color.index)             # 最も近い色番号
+   print(color.mode)              # "rgb"
+   shape.set_override_color(color)
+   ctrl.set_outliner_color(color)
+
+``index`` を設定すると、その番号のRGBへ変更し ``mode="index"`` になります。
+``rgb`` を設定するとRGBをそのまま保持し、最も近い番号を計算して
+``mode="rgb"`` になります。近似はRGBの二乗距離で、同距離なら小さい番号を選びます。
+色空間の変換は行いません。番号0はDrawing Overridesの既定色指定なので、
+RGBからの近似対象は1～31です。番号0のRGBは最終的な画面表示色を表しません。
+
+GUIでは生成時のMayaパレットを保持します。``palette_source`` は ``"maya"`` です。
+バッチ・スタンドアロンではパレット照会が利用できないため、標準パレットを使い
+``"default"`` になります。バッチではGUIのカスタムパレットを反映しません。
+``refresh_palette()`` で明示的に再取得できます。通常のプロパティ操作と
+``copy()`` はMayaに問い合わせません。
+
+``get_outliner_color()`` と ``get_override_color()`` はどちらも ``Color`` を返します。
+OutlinerはRGB形式、Drawing Overridesは設定中の形式です。無効な場合は
+``mode="disabled"``、``index`` と ``rgb`` は ``None`` になります。
+``Color.disabled()`` または ``None`` をsetterへ渡すと無効化できます。
+従来どおりsetterへRGBタプルや色番号を直接渡すこともできます。
+Outlinerへ色番号を渡した場合は対応RGBで設定されます。
+
+取得したColorを変更しても、再度setterを呼ぶまではノードを変更しません。
+``BlendColors`` は数値の補間ノードなので、この表示色クラスは使用しません。
+
+複数の色を扱うColors
+------------------------------
+
+``Colors`` は ``Color`` と同じモジュールで定義し、順序と重複を保持します。
+入力Colorはコピーされ、整数アクセスでは保持中のColorを取得できます。
+
+.. code-block:: python
+
+   from hlib.general import Colors
+
+   colors = Colors([6, 17, (1, 0.45, 0)])
+   print(colors.index)          # 各色の番号リスト
+   print(colors.rgb)            # 各色のRGBリスト
+   colors[0].rgb = (1, 0, 0)   # 一色を変更
+   colors.index = [13, 17, 6]  # 全色の番号とRGBを同期
+   colors.rgb = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
+   copied = colors.copy()
+   subset = colors[:2]
+
+``index`` / ``rgb`` への代入は要素数と同じ長さの列を受け取り、
+全入力を検証してから更新します。取得したリスト自体を書き換えても反映されません。
+``mode`` / ``palette_source`` は各要素の値のリストを返します。
+``copy()`` とスライスは、各Colorも独立したコピーになります。
+``refresh_palette()`` は各Colorを順に更新し、戻り値はColorのリストです。
+途中の照会失敗時は停止し、更新済みの色は自動では戻しません。
+これらは保持値の操作で、ノードへの適用は各ノードのsetterで明示します。

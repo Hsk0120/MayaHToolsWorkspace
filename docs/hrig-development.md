@@ -74,7 +74,7 @@ def set_layer_enabled(self, layer, enabled):
 - `maya.utils` の直接importも行わない。Pythonの遅延呼出しは
   `hlib.executeDeferred(callback, *args, **kwargs)` を使う。文字列コードは受け付けない。
 - 作業環境・単位・選択は `hlib.general.Workspace` / `Units` / `Selection` に配置する。
-  実装はgeneral配下の1クラス1ファイル。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
+  実装はgeneral配下の原則1クラス1ファイル（単数・対応する複数クラスは同居）。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
 
 ## リグセットアップの境界
 

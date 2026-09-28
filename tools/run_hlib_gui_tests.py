@@ -165,7 +165,7 @@ def main(output_dir=None, finished=None):
                         cmds.undo()
                     elif label == "redo":
                         cmds.redo()
-                    self.assertEqual(curves[0].shape().override_color(), 13 if label in ("colors", "undo") else None)
+                    self.assertEqual(curves[0].shape().get_override_color().index, 13 if label in ("colors", "undo") else None)
                     capture(label + "_viewport")
                     capture(label + "_outliner", outliner_control)
 

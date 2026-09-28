@@ -28,6 +28,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-09-28 | maya/inhouse/hedit(src/editor.*・explorer.cpp・plugin.cpp・dock.cpp、tests/、docs/、release/*.mll) | 4K画面でUIが小さい件: setUiScale(MQtUtil::dpiScale)/scaled()で文字・余白・幅・アイコン寸法を全体的に拡大率へ追従、アイコンはMQtUtil::createIconで高解像度画像。Zoomのpxは100%基準で保存。併せて保存済み空ドックへの`hedit -show`でのクラッシュ(表示を先に行う順序へ)と、未ロード時の浮動ドック自動クローズで出る`Cannot find procedure "hedit"`(closeCommand/uiScriptをロード状態で分岐)を修正。200%で実機確認(コード28px・アイコン40px)。5版ビルド、run_tests/run_startup(浮動ドック段追加)全版、gui_smoke等2024/2027成功。システムのクリップボードが他アプリに占有されていたためコピー確認のみ使用不可時スキップに変更。Sphinx -W 警告ゼロ。未コミット |
+| Codex | 2026-09-28 | hlib複数形クラス読取・ローカル調査 | BulkCollection/Joints/SkinClusters・色・ls・型解決/公開・コンポーネント継承・関連テストを調査。Nodes→Transforms→Joints、Colors連携、型/重複/インスタンス/Undo/戻り値の契約と段階的移行案をdocs/researchへ保存（Git対象外）。実装変更・Maya実行なし。 |
+| Codex | 2026-09-28 | Color初期値・tests/docs | Color()を番号0/RGB同期で初期化。disabled/coerce(None)の無効状態を維持、Colors()は空。Maya2027 standalone関連28件成功、Sphinx -W警告0、diff成功。今回GUI/他版未実行。既存変更保持、未コミット。 |
+| Codex | 2026-09-28 | general.Color/Colors・tests/docs | color.pyへColors追加・generalで公開。順序/重複保持、独立copy/slice、index/rgb列の全件事前検証と同期、既存bulk API対応。Maya2027 standalone関連27件成功、Sphinx -W警告0、diff成功。今回GUI/他版未実行。既存変更保持、未コミット。 |
+| Codex | 2026-09-28 | hlib Color・色API・tests/docs | general.Color追加。index/RGB同期・指定形式保持・palette_source/再取得・copy。Node色getterをget系/Color返却へ統一、setterはColor対応と全属性事前検証。BlendColorsは数値を維持しcolor_plug/get_colorへ整理。使用側・Sphinx更新。Maya2027 GUI/standalone各24件成功（Undo/Redo・fast・ロック・複数形含む）、Sphinx -W警告0、diff成功。GUIの描画色目視・他版は未検証。バッチは標準パレットを使用。既存変更保持、未コミット。 |
+| Codex | 2026-09-28 | hlib色API読取 | Node/BlendColorsの色取得・設定と既存テストを確認。名称と値/Plug返却の不一致、Noneの影響範囲を説明。実装変更・Maya実行なし。 |
+| Codex | 2026-09-28 | hlib追加API整理・使用側・規約/tests/docs | 単数/複数クラス同居をAGENTS/CLAUDE/Copilotと設計規約へ明記。AnimCurveのkey_values/get_tangent/get_infinityと外挿部分更新、ピボット種別/preserveと読み書き空間統一（Joint設定は明示拒否）、SkinCluster移送の全組事前検証・解除bool検証、保持値property化を実装。移行ガイドと使用側更新。Maya2027 standalone全67ファイル実行65成功、旧呼出修正後にbulk4件/起動設定3件再検証成功（合計66ファイル相当成功、既存Bifrost起動の古いmaya_utils参照・flowWedging失敗残存）。追加回帰7件・hrig16件成功。Sphinx -W警告0、diff検査成功。GUI・他Maya版未実行、未コミット。 |
+| Codex | 2026-09-28 | hlib追加読取調査 | 前回変更後のAPIを確認し、追加候補と統合しない操作をローカル調査メモへ整理。実装変更・Maya実行なし。 |
 | Codex | 2026-09-28 | hlib API整理・main | 依頼された変更のコミット・push準備完了。差分検査成功、リモートと分岐なし。生成物・調査メモは対象外。実行検証・既知の失敗は直下の記録を参照。 |
 | Codex | 2026-09-28 | hlib・使用側・tests/docs | 追加検討を実装。Double3Plugを属性読み書きに限定しPlugのws除去、set_flagsへ状態設定統合、Constraint対象事前検証、Joint.remove_influenceのtransfer_to_parent、orientation/version_tuple除去、座標軸内部共通化。使用側・移行ガイド更新。Maya2027 standalone: hlib66ファイル中65成功（追加契約テスト9件成功）、hrig16件成功、最終Joint/Version20件成功。既存Bifrost起動テストのmaya_utils参照・flowWedgingロード失敗は残存。Sphinx -W警告0、diff検査成功。GUI・他Maya版は今回未検証。 |
 | Codex | 2026-09-28 | hlib追加調査 | Double3Plug責務差、Constraint事前検証、Jointフラグ・別名、状態設定統合など8候補をローカル調査メモへ整理。API変更・Maya実行なし |

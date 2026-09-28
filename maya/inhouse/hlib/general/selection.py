@@ -124,6 +124,7 @@ class Selection:
         """Selection: Mayaの現在選択を保持する。Channel Boxの属性選択は含めない。"""
         return cls(cls._resolve(om2.MGlobal.getActiveSelectionList()))
 
+    @property
     def items(self):
         """list[Node | Plug | Component]: 保持順の対象。削除済み参照も保持する。
         full_name が重複する対象は構築時に除かれている(__init__ 参照)。"""

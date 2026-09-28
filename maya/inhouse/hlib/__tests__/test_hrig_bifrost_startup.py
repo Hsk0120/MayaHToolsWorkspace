@@ -39,7 +39,7 @@ class ConfigurationTest(unittest.TestCase):
     def test_package_definition(self):
         package = self.mod.package()
         self.assertEqual(package.name, "Bifrost")
-        self.assertEqual([p.name() for p in package.plugins], ["mayaVnnPlugin", "bifrostGraph", "flowWedging"])
+        self.assertEqual([p.name for p in package.plugins], ["mayaVnnPlugin", "bifrostGraph", "flowWedging"])
         self.assertEqual(str(package.module), "Bifrost")
         self.assertEqual(package.minimum_version.parts, (3, 0, 0))
         self.assertEqual(package.minimum_maya, 2025)

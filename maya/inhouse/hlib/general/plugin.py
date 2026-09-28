@@ -48,6 +48,7 @@ class Plugin:
             raise ValueError("name must be a non-empty string")
         self._name = name
 
+    @property
     def name(self):
         """保持しているプラグイン名を取得する。
 

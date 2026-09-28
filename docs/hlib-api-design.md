@@ -62,13 +62,13 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 
 ## 命名と継承
 
-- クラスの実装は1クラス1ファイルにする。コレクションクラスも単体クラスとは別ファイルに置き、`__init__.py` は公開用importを基本とする。
+- クラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは同じファイルへまとめる（`joint.py` に `Joint` / `Joints`）。既存の分離済みクラスの移動は必須としない。`__init__.py` は公開用importを基本とする。
 - クラスに関係する処理は、そのクラスのインスタンス／クラス／静的メソッドへ配置する。補助関数だけを置くファイルをクラスのパッケージ内に増やさない。
 - 特定クラスに依存しない汎用関数は `hlib.utils` 配下に用途単位でまとめる。版番号のように保持値と関連操作があるものは `hlib.utils.version.Version` のような値クラスにまとめる。既存のMaya互換コマンド入口 (`cmds`) は、その公開方式を維持する。
 
 | 対象 | 推奨ルール | 例 |
 | --- | --- | --- |
-| パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`editors` |
+| パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`general` |
 | Mayaコマンドとそのファイル | Mayaと同じcamelCase | `createNode.py` / `createNode()` |
 | Mayaノードのファイル | nodeTypeと同じ表記 | `skinCluster.py`、`animCurveTL.py` |
 | その他の実装ファイル | lowerCamelCase | `channelBox.py`、`timeSlider.py`、`eulerRotation.py` |
@@ -76,7 +76,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 | 独自メソッド | snake_case | `get_matrix()`、`set_weights()` |
 
 Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優先する。
-例えば `cmds/channelBox.py` はコマンド、`editors/channelBox.py` はエディターの実装で、どちらも同じファイル名の表記を使う。
+例えば `cmds/getChannelBox.py` はコマンド、`general/channelBox.py` はエディターの実装で、いずれもlowerCamelCaseのファイル名を使う。
 
 このファイル名規則はhlibとすべての `hlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。関数・独自メソッド・変数のsnake_caseは維持する。
 
@@ -102,7 +102,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 `addConstraint`は追加のみで、照会は`Constraint.targets()`/`weight_plugs()`、
 編集は`set_weight()`などへ分ける。`createSet`も生成のみで、取得・追加・除外は
-`ObjectSet.members()`/`add()`/`remove()`を使う。
+`ObjectSet.members()`/`add_members()`/`remove_members()`を使う。
 `getDrivenKey`は関係を取得するだけで、キー生成は`DrivenKey.set_key()`で行う。
 属性の列挙名変更は`Plug.set_enum_names()`を使い、`addAttr`は属性追加に限定する。
 旧名の互換入口は設けず、使用側を更新する。

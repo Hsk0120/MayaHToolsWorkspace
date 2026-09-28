@@ -136,7 +136,7 @@ class PluginPackageFlowTest(unittest.TestCase):
     def test_accessors_and_defaults(self):
         package = self.make()
         self.assertEqual(package.name, "ProductX")
-        self.assertEqual([p.name() for p in package.plugins], ["pluginA", "pluginB"])
+        self.assertEqual([p.name for p in package.plugins], ["pluginA", "pluginB"])
         self.assertEqual(str(package.module), "ModuleX")
         self.assertEqual(package.minimum_version, Version((3, 0, 0)))
         self.assertEqual(package.minimum_maya, 2025)
@@ -312,7 +312,7 @@ class BifrostTest(unittest.TestCase):
         self.assertEqual(self.package.ensure_loaded(dialog=shown.append), LOADED)
         self.assertEqual(shown, [])
         for plugin in self.package.plugins:
-            self.assertTrue(plugin.is_loaded(), plugin.name())
+            self.assertTrue(plugin.is_loaded(), plugin.name)
         self.assertTrue(self.package.loaded_version().is_at_least("3.0.0"))
 
     def test_too_new_version_is_reported_missing(self):
