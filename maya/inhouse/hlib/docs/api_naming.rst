@@ -15,7 +15,7 @@ APIの命名と移行
 * ``cmds`` の関数とファイル: Mayaに合わせたcamelCase。独自コマンドも同じ規則。
 * ``nodes`` のファイル: Maya nodeTypeと同じ表記。例: ``skinCluster.py``。
 * クラス: PascalCase。例: ``SkinCluster``、``ChannelBox``。
-* 独自メソッド: snake_case。例: ``get_positions``、``set_weights``。
+* 独自メソッド: snake_case。例: ``get_position``、``set_weights``。
 * Mayaの現在の状態・名前・メタ情報を取得する操作: メソッド。
 * 保持している参照・番号・数学値・JSONデータ: プロパティまたはフィールド。
 
@@ -41,7 +41,7 @@ APIの命名と移行
    * - Transform.release_srt()
      - unlock_and_disconnect_transform_channels()。shearも含む。
    * - Componentのposition() / Componentsのpositions()
-     - get_position() / get_positions()。
+     - 単数形・複数形ともに get_position()。
    * - component.x = value（y/z/u/vも同様）
      - component.set_x(value)。取得はget_x()。
    * - maths.Translate
@@ -119,7 +119,7 @@ SkinClustersの責務
 jointのウェイト移送・子の再親付け・ノード削除は ``Joint.delete()`` /
 ``Joints.delete()`` から内部処理を呼びます。
 
-``SkinClusters.remove_joints(joints)`` / ``remove_influences(joints)`` は
+``SkinClusters.remove_influences(joints)`` / ``remove_influences(joints)`` は
 保持するスキンクラスターからinfluence登録だけを解除し、jointノードを残します。
 remove_jointsは以前の同名APIと異なり、ノード削除を行いません。
 祖先influenceがあれば加算し、なければMaya標準の再配分に任せます。
@@ -138,8 +138,8 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 * Shape: ``is_intermediate_object``。
 * Camera: ``focal_length``。
 * Joint: ``joint_orient``、``orientation``、``inverse_scale``。Joints: ``names``。
-* Mesh: ``num_vertices``、``num_polygons``、``num_edges``、``num_uvs``。
-* NurbsCurve: ``num_cvs``、``num_spans``、``degree``、``form``。
+* Mesh: ``vertex_count``、``polygon_count``、``edge_count``、``uv_count``。
+* NurbsCurve: ``cv_count``、``span_count``、``degree``、``form``。
 * Component / Components: ``full_name`` / ``full_names``。
 
 .. code-block:: python
@@ -180,3 +180,55 @@ JSONに保存済みの ``math:Translate`` はTranslation、``math:Rotate`` はXY
 EulerRotationとして読み込めます。成分値は換算せず引き継ぎます。
 EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読み込み後は
 ``order_name`` で名前、``order`` でom2の番号を取得できます。
+
+メソッド整理後の入口
+------------------------------
+
+* ノードの行列取得は ``get_matrix(ws=False)``。旧 ``decompose()`` の引数省略は
+  ワールド空間だったため、移行時は ``get_matrix(ws=True)`` とします。
+* DAGパスは ``path(full=False)`` / ``path(full=True)``。DGにも対応する
+  ``name()`` / ``full_name()`` は別の用途として維持します。
+* 属性取得は ``plug()`` に統一しました。
+* ``MatrixPlug.get()`` / ``set(value, fast=False)`` は対象属性だけを読み書きします。
+  所有ノードの変換には ``Transform.get_matrix()`` / ``set_matrix()`` を使います。
+  ``MatrixPlug`` の ``ws`` 引数と ``set_value`` は廃止しました。
+* 表示は ``Transform.set_visible(state, fast=False)``、ミュートは
+  ``Plug.set_muted(state)`` で切り替えます。
+* 選択の反映は ``Selection.select(mode="replace", missing="skip")``。
+  ``mode`` は ``replace`` / ``add`` / ``remove`` です。
+* ``ObjectSet`` / ``Container`` / ``DagPose`` のメンバー追加は ``add_members``、
+  除外を持つクラスは ``remove_members`` です。
+* 頂点等の個数は ``vertex_count`` / ``edge_count`` / ``polygon_count`` /
+  ``uv_count`` / ``cv_count`` / ``span_count`` に統一しました。
+* IKハンドルのジョイント取得は ``joints()`` / ``end_joint()``。
+  Shapeの親取得は ``parent_node()``、Namespaceの切替は ``set_current()`` です。
+* 複数コンポーネントの座標取得も ``get_position()``。
+  同一座標への設定 ``set_position()`` と要素別設定 ``set_positions()`` は区別します。
+* ウェイト移送は ``SkinCluster.transfer_weights([(source, target), ...])``。
+  インフルエンスの解除は ``SkinClusters.remove_influences()`` です。
+  ``SkinCluster.bind`` の最大数指定は ``max_influences`` に統一しました。
+* ``PluginPackage`` の保持値 ``name`` / ``plugins`` / ``module`` /
+  ``minimum_version`` / ``minimum_maya`` はプロパティです。
+
+これらの旧入口は残していません。ノードの入力・出力取得、回転表現の取得、
+ジョイント回転のフリーズは、それぞれの意味が明確な既存メソッドを維持しています。
+
+
+属性と状態設定の追加整理
+------------------------
+
+* ``Double3Plug.set`` はTransformへ委譲せず、対象チャンネルだけを書き込みます。
+  旧コードで姿勢の変更を意図していた場合はTransformの ``set_rotate`` 等へ移行します。
+* 全Plugの ``get`` から ``ws`` を削除しました。属性の値に空間指定はありません。
+* ``set_locked`` / ``set_keyable`` / ``set_channel_box`` は、それぞれ
+  ``set_flags(locked=...)`` / ``set_flags(keyable=...)`` / ``set_flags(channel_box=...)``
+  へ統一しました。同時指定もでき、全フラグを検証してから更新します。
+* ``Joint.orientation()`` は廃止し ``joint_orient()`` を使います。
+* ``Joint.remove_influence(..., transfer_to_parent=False)`` で祖先への移送を無効化できます。
+  Jointを残してMaya標準の再配分で登録を外します。既定Trueの動作は変わりません。
+* Plugin/Moduleの ``version_tuple()`` は廃止しました。
+  ``version = plugin.version()`` の結果がNoneでなければ ``version.parts`` を使います。
+* ``Constraint.set_weight`` は指定ターゲットを全件検証してから更新します。
+  Mayaで更新中に起きたエラーの自動ロールバックは行いません。
+
+コンポーネントの ``get_x`` / ``set_x`` 等は公開名を維持し、内部の軸操作を共通化しました。

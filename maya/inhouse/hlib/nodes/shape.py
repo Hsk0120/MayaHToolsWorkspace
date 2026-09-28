@@ -39,7 +39,7 @@ class Shape(Node):
         parent_path.pop()
         return parent_path
 
-    def parent_transform(self):
+    def parent_node(self):
         """親 Transform を取得する。
 
         Returns:
@@ -56,7 +56,7 @@ class Shape(Node):
         Returns:
             Transform | None: 親Transform。存在しない場合は ``None``。
         """
-        return self.parent_transform()
+        return self.parent_node()
 
     def is_intermediate_object(self):
         """中間オブジェクト（履歴用の非表示Shape）か判定する。

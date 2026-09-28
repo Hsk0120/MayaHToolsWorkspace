@@ -221,9 +221,9 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
         node = self.create_transform("hlibSetKeyframe")
 
         cmds.currentTime(1)
-        cmds.setKeyframe(node.attr("translateX"), value=0.0)
+        cmds.setKeyframe(node.plug("translateX"), value=0.0)
         cmds.currentTime(24)
-        cmds.setKeyframe(node.attr("translateX"), value=10.0)
+        cmds.setKeyframe(node.plug("translateX"), value=10.0)
 
         times = cmds.keyframe(node.full_name(), attribute="translateX", query=True, timeChange=True)
         self.assertEqual(sorted(times), [1.0, 24.0])
@@ -231,9 +231,9 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
     def test_bake_results_creates_keys_across_range(self):
         node = self.create_transform("hlibBakeResults")
         cmds.currentTime(1)
-        cmds.setKeyframe(node.attr("translateX"), value=0.0)
+        cmds.setKeyframe(node.plug("translateX"), value=0.0)
         cmds.currentTime(10)
-        cmds.setKeyframe(node.attr("translateX"), value=9.0)
+        cmds.setKeyframe(node.plug("translateX"), value=9.0)
 
         hlib_cmds.bakeResults(node, time=(1, 10), attribute=["translateX"], simulation=True)
 

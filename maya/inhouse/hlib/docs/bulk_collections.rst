@@ -96,7 +96,7 @@ Selectionは異種対象の取得時点の集合で、単一の単体型に対�
 
    joints = hlib.ls(selection=True, type="joint")
    skins = joints.skin_clusters()
-   skins.remove_joints(joints)  # jointノード・親子関係は残す
+   skins.remove_influences(joints)  # jointノード・親子関係は残す
 
 ``remove_influences(joints)`` と同じ処理です。保持するskinClusterだけを対象にし、
 未登録の組は無視します。既定では最も近い祖先influenceへウェイトを加算し、

@@ -84,7 +84,7 @@ class NamespaceApiTest(unittest.TestCase):
     def test_current_set_as_current_and_as_current_context(self):
         root_current = Namespace.current()
         try:
-            self.root.set_as_current()
+            self.root.set_current()
             self.assertEqual(Namespace.current(), self.root)
 
             child = Namespace.create(f"{self.root_name}:child")
@@ -100,15 +100,15 @@ class NamespaceApiTest(unittest.TestCase):
             self.assertEqual(Namespace.current(), self.root)
         finally:
             if root_current.exists():
-                root_current.set_as_current()
+                root_current.set_current()
 
     def test_set_as_current_raises_for_missing_namespace(self):
         try:
-            Namespace(":hlibNamespaceDoesNotExist").set_as_current()
+            Namespace(":hlibNamespaceDoesNotExist").set_current()
         except RuntimeError:
             pass
         else:
-            raise AssertionError("set_as_current on a missing namespace should raise RuntimeError")
+            raise AssertionError("set_current on a missing namespace should raise RuntimeError")
 
     def test_rename_move_and_remove(self):
         child = Namespace.create(f"{self.root_name}:child")

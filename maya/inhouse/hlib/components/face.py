@@ -7,7 +7,7 @@ class Face(Component):
     """Mesh の単一コンポーネント。"""
     shape_type = "mesh"
     component_type = "f"
-    count_attribute = "num_polygons"
+    count_attribute = "polygon_count"
 
     def vertices(self):
         """接続する頂点群を取得する。

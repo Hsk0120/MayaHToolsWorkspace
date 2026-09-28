@@ -25,10 +25,10 @@ class TwistDistributionTest(unittest.TestCase):
         plug = node.add_attr(long_name="rest", data_type="matrix")
         value = Matrix()
         value[12] = 3
-        plug.set_value(value)
+        plug.set(value)
         self.assertAlmostEqual(plug.get()[12], 3)
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
-        node.plug("offsetParentMatrix").set_value(value)
+        node.plug("offsetParentMatrix").set(value)
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
         self.assertAlmostEqual(node.get_translate(ws=True)[0], 5)
         cmds.undo()

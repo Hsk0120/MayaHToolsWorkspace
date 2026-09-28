@@ -64,10 +64,10 @@ skinClusterから接続先を取得する場合は、次のように指定しま
    indices = pose.member_indices()
    index = pose.member_index("root_joint")
 
-   pose.add("extra_joint")        # 現在の姿勢で追加
+   pose.add_members("extra_joint")        # 現在の姿勢で追加
    pose.reset("extra_joint")      # このメンバーの保存姿勢を現在の姿勢に更新
    pose.reset()                   # 全メンバーの保存姿勢を更新
-   pose.remove("extra_joint")     # ポーズから除外。Joint自体は削除しない
+   pose.remove_members("extra_joint")     # ポーズから除外。Joint自体は削除しない
 
 ``get_matrix()`` が返すのは保存時の :class:`~hlib.maths.matrix.Matrix` の複製です
 (om2.MMatrix の派生で、変更してもポーズには反映されません)。

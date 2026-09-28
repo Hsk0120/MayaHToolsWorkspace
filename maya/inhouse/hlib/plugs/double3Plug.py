@@ -1,9 +1,10 @@
-"""double3 属性を意味付きの3成分値として扱う。"""
-
-from ..decorators._fast import fast_edit
+"""double3属性を意味付きの3成分値として読み書きする。"""
 
 import math
+import maya.api.OpenMaya as om2
 
+from ..decorators._fast import fast_edit
+from .._core.fastWrite import writable
 from .._core.registry import plug_wrapper
 from ..maths import EulerRotation, Scale, Shear, Translation, Vector
 from .compoundPlug import CompoundPlug
@@ -11,106 +12,77 @@ from .compoundPlug import CompoundPlug
 
 @plug_wrapper("double3")
 class Double3Plug(CompoundPlug):
-    """double3（3つの double からなる compound）属性用の Plug。"""
+    """属性の子成分だけを扱う。ノードの行列変換には委譲しない。"""
 
     _value_types = {
-        "translate": Translation,
-        "t": Translation,
-        "rotate": EulerRotation,
-        "r": EulerRotation,
-        "scale": Scale,
-        "s": Scale,
-        "shear": Shear,
-        "sh": Shear,
+        "translate": Translation, "t": Translation,
+        "rotate": EulerRotation, "r": EulerRotation,
+        "scale": Scale, "s": Scale,
+        "shear": Shear, "sh": Shear,
     }
 
-    def get(self, ws=False):
-        """3つの子要素を属性の意味に対応するベクトルとして取得する。
-
-        ローカル回転は子Plug.get()が返す度をラジアンへ変換する。
-
-        Args:
-            ws (bool): True で既知の変換属性に対応するノードの取得メソッドを呼ぶ。それ以外は子属性の値を使う。
+    def get(self):
+        """属性の3成分を取得する。jointOrientなどを合成しない。
 
         Returns:
-            Vector | Translation | EulerRotation | Scale | Shear: 属性名に応じた3成分値。
-            ローカルの rotate は度からラジアンに変換し、ノードの rotateOrder を order に
-            持つ EulerRotation(om2.MEulerRotation の派生で、Vector の派生ではない)。
-            それ以外は om2.MVector の派生の Vector 系。
+            Vector | Translation | EulerRotation | Scale | Shear: 属性の値。
+                rotateはラジアン・ノードのrotateOrder、距離は現在のUI単位。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードまたは属性が無効の場合。
         """
         self._require_valid()
-        if ws and self.attribute() in self._value_types:
-            getters = {
-                "translate": "get_translate",
-                "t": "get_translate",
-                "rotate": "get_rotate",
-                "r": "get_rotate",
-                "scale": "get_scale",
-                "s": "get_scale",
-                "shear": "get_shear",
-                "sh": "get_shear",
-            }
-            getter = getattr(self.node, getters[self.attribute()], None)
-            if getter is not None:
-                return getter(ws=True)
-        values = tuple(self.child(index).get() for index in range(3))
         value_type = self._value_types.get(self.attribute(), Vector)
         if value_type is EulerRotation:
-            # rotateOrder の番号は om2 の MEulerRotation.kXYZ〜kZYX と同じ並び。
             order = int(self.node.plug("ro").get())
-            return EulerRotation(*(math.radians(value) for value in values), order=order)
-        return value_type(*values)
+            # UIの角度単位に依存せず、値型はラジアンで構築する。
+            values = [self.child(index).mplug().asMAngle().asRadians() for index in range(3)]
+            return EulerRotation(*values, order=order)
+        return value_type(*(self.child(index).get() for index in range(3)))
 
     @fast_edit
-    def set(self, value, ws=False, unit="rad", *, fast=False):
-        """変換属性をローカルまたはワールド空間へ設定する。
-
-        対応するノードメソッドがあればローカル指定でも委譲する。なければ各子プラグへ順に設定する。
+    def set(self, value, unit="rad", *, fast=False):
+        """対象属性の3成分を書き込む。ほかの変換チャンネルは変更しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Iterable[float] | EulerRotation | Quaternion): 設定値。通常は3成分。回転メソッドへの
-                委譲時はその受け入れ型に従う。rotate の3成分はノードの rotateOrder の値として
-                解釈するため、transform では ``get()`` の値や ``tuple(get())`` をそのまま渡せる。
-                EulerRotation はその回転順序を反映する。joint では委譲先がローカル行列の値
-                (rotate は jointOrient / rotateAxis を含む回転、scale は
-                segmentScaleCompensate の補正を含む値)を扱うため、それらが既定値でない joint
-                ではチャンネル値を返す ``get()`` と対称にならない(従来どおり)。
-            ws (bool): True ならノードの変換設定メソッドへワールド指定で委譲する。
-            unit (str): 回転の委譲時のみ使用する入力単位 rad または deg。その他の属性では無視する。
+            value (Iterable[float] | EulerRotation | Quaternion): 3成分の値。
+                rotateではEuler/Quaternionも受け入れ、ノードのrotateOrderへ変換する。
+                数値3成分は現在のrotateOrderのチャンネル値として解釈する。
+            unit (str): rotateの数値3成分の角度単位rad/deg。それ以外の属性では未使用。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
             Double3Plug: 自身。
 
         Raises:
-            ValueError: 対応する設定メソッドがない属性で ws=True を指定、値の要素数が不正、または委譲先の変換条件が不正の場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            ValueError: 要素数・有限値・角度単位が不正、または型付き回転にdegを指定した場合。
+            RuntimeError: 属性が無効、ロック・接続済み、またはMayaが更新を拒否した場合。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        ワールド空間やjointOrientを含む姿勢の変更はTransform.set_rotate等を使う。
+        通常モードは1回のUndoで戻せる。Mayaの実行時エラーを自動ロールバックはしない。
         """
         self._require_valid()
-        setters = {
-            "translate": "set_translate",
-            "t": "set_translate",
-            "rotate": "set_rotate",
-            "r": "set_rotate",
-            "scale": "set_scale",
-            "s": "set_scale",
-            "shear": "set_shear",
-            "sh": "set_shear",
-        }
-        setter_name = setters.get(self.attribute())
-        setter = getattr(self.node, setter_name, None) if setter_name else None
-        if setter is not None:
-            kwargs = {"ws": ws}
-            if self.attribute() in ("rotate", "r"):
-                kwargs["unit"] = unit
-            setter(value, **kwargs)
-            return self
-        if ws:
-            raise ValueError("World-space writes are only supported for Transform attributes")
-        return super().set(value)
+        if self._value_types.get(self.attribute()) is EulerRotation:
+            if unit not in ("rad", "deg"):
+                raise ValueError("unit must be 'rad' or 'deg'")
+            order = int(self.node.plug("ro").get())
+            if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
+                if unit != "rad":
+                    raise ValueError("unit='deg' requires three plain components")
+                rotation = value.asEulerRotation() if isinstance(value, om2.MQuaternion) else om2.MEulerRotation(value)
+                values = tuple(rotation.reorder(order))
+            else:
+                values = tuple(value)
+                if unit == "deg":
+                    values = tuple(math.radians(v) for v in values)
+            if len(values) != 3 or not all(math.isfinite(v) for v in values):
+                raise ValueError("Expected three finite rotation components")
+            # 子Plug.setとcmds.setAttrはUI単位で書く。fastでも同じ数値を渡す。
+            values = tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in values)
+        else:
+            values = tuple(value)
+            if len(values) != 3 or not all(math.isfinite(v) for v in values):
+                raise ValueError("Expected three finite components")
+        for index in range(3):
+            writable(self.child(index).mplug())
+        return super().set(values)

@@ -96,7 +96,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         cube = hlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
         mesh = cube.shape()
         self.assertIsInstance(mesh, hlib.nodes.Mesh)
-        self.assertEqual((mesh.num_vertices(), mesh.num_edges(), mesh.num_polygons()), (8, 12, 6))
+        self.assertEqual((mesh.vertex_count(), mesh.edge_count(), mesh.polygon_count()), (8, 12, 6))
         local_x = mesh.points()[0].x
         cmds.setAttr(cube.full_name() + '.translateX', 5)
         self.assertAlmostEqual(mesh.points(ws=True)[0].x, local_x + 5)
@@ -104,7 +104,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0), (3, 4, 0)]))
         shape = curve.shape()
         self.assertIsInstance(shape, hlib.nodes.NurbsCurve)
-        self.assertEqual((shape.num_cvs(), shape.num_spans(), shape.degree()), (3, 2, 1))
+        self.assertEqual((shape.cv_count(), shape.span_count(), shape.degree()), (3, 2, 1))
         self.assertAlmostEqual(shape.length(), 7)
         cmds.setAttr(curve.full_name() + '.scaleX', 2)
         self.assertAlmostEqual(shape.length(), 7)
@@ -119,13 +119,13 @@ class ShapesConstraintsTest(unittest.TestCase):
         mesh = cube.shape()
 
         local_normals = mesh.normals()
-        self.assertEqual(len(local_normals), mesh.num_vertices())
+        self.assertEqual(len(local_normals), mesh.vertex_count())
         for normal in local_normals:
             self.assertAlmostEqual(sum(c * c for c in (normal.x, normal.y, normal.z)) ** 0.5, 1.0, places=5)
 
         cmds.setAttr(cube.full_name() + '.rotateY', 90)
         world_normals = mesh.normals(ws=True)
-        self.assertEqual(len(world_normals), mesh.num_vertices())
+        self.assertEqual(len(world_normals), mesh.vertex_count())
         self.assertFalse(
             all(
                 abs(a.x - b.x) < 1e-5 and abs(a.y - b.y) < 1e-5 and abs(a.z - b.z) < 1e-5
@@ -134,7 +134,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         )
 
         weighted = mesh.normals(angle_weighted=True)
-        self.assertEqual(len(weighted), mesh.num_vertices())
+        self.assertEqual(len(weighted), mesh.vertex_count())
 
     def test_basic_constraints_targets_weights_and_registration(self):
         for kind in ('parent', 'point', 'orient', 'scale', 'aim'):
@@ -244,10 +244,10 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertEqual(found_handles[0].full_name(), handle.full_name())
         self.assertEqual(j2.ik_handles(), [])
 
-        self.assertEqual(handle.get_end_joint().full_name(), j3.full_name())
-        joint_list = handle.get_joint_list()
+        self.assertEqual(handle.end_joint().full_name(), j3.full_name())
+        joint_list = handle.joints()
         self.assertEqual([joint.full_name() for joint in joint_list], [j1.full_name(), j2.full_name()])
-        joint_list_with_tip = handle.get_joint_list(include_tip=True)
+        joint_list_with_tip = handle.joints(include_tip=True)
         self.assertEqual(
             [joint.full_name() for joint in joint_list_with_tip],
             [j1.full_name(), j2.full_name(), j3.full_name()],
@@ -322,7 +322,7 @@ class ShapesConstraintsTest(unittest.TestCase):
                 for shape in self.mirror_shapes():
                     with self.subTest(shape=shape.type(), ws=ws, axes=axes):
                         before = self.positions(shape, ws)
-                        parent = shape.parent_transform()
+                        parent = shape.parent_node()
                         matrix = cmds.xform(parent.full_name(), query=True, matrix=True, worldSpace=True)
                         selected = {'xyz'.index(a) for a in axes.lower()}
                         expected = [tuple(-v if i in selected else v for i, v in enumerate(p)) for p in before]
@@ -391,7 +391,7 @@ class ShapesConstraintsTest(unittest.TestCase):
                 self.assert_positions(self.positions(shape), before)
             self.assertIs(shape.mirror(indices=[]), shape)
             self.assert_positions(self.positions(shape), before)
-            cmds.setAttr(shape.parent_transform().full_name() + '.scaleX', 0)
+            cmds.setAttr(shape.parent_node().full_name() + '.scaleX', 0)
             with self.assertRaises(ValueError):
                 shape.mirror(ws=True)
 
@@ -399,10 +399,10 @@ class ShapesConstraintsTest(unittest.TestCase):
         curve = hlib.nodes.Node(cmds.circle(constructionHistory=False)[0])
         shape = curve.shape()
         before = self.positions(shape)
-        form, degree, count = shape.form(), shape.degree(), shape.num_cvs()
+        form, degree, count = shape.form(), shape.degree(), shape.cv_count()
         shape.mirror('x')
         self.assert_positions(self.positions(shape), [(-x, y, z) for x, y, z in before])
-        self.assertEqual((shape.form(), shape.degree(), shape.num_cvs()), (form, degree, count))
+        self.assertEqual((shape.form(), shape.degree(), shape.cv_count()), (form, degree, count))
 
     def test_nurbs_curve_get_collocated_cv_groups(self):
         curve = hlib.nodes.Node(
@@ -434,7 +434,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.assertEqual(collection[-1].index, 0)
             self.assertIsInstance(collection[:1], collection_type)
             self.assertEqual(collection[:1].indices, (2,))
-            self.assertEqual(collection[0].get_position(), collection.get_positions()[0])
+            self.assertEqual(collection[0].get_position(), collection.get_position()[0])
             single = shape.vertex(2) if is_mesh else shape.cv(2)
             before = single.get_position()
             self.assertIs(collection.mirror('z'), collection)
@@ -465,13 +465,13 @@ class ShapesConstraintsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 item.set_position((1, float('nan'), 3))
             self.assert_positions([item.get_position()], [before])
-        self.assertEqual(len(mesh.edges()), mesh.num_edges())
-        self.assertEqual(len(mesh.faces()), mesh.num_polygons())
+        self.assertEqual(len(mesh.edges()), mesh.edge_count())
+        self.assertEqual(len(mesh.faces()), mesh.polygon_count())
         self.assertEqual(len(mesh.edge(0).vertices()), 2)
         self.assertEqual(len(mesh.face(0).vertices()), 4)
-        self.assertEqual(len(mesh.edges().vertices()), mesh.num_vertices())
-        self.assertEqual(len(mesh.faces().vertices()), mesh.num_vertices())
-        self.assertEqual(len(mesh.uvs()), mesh.num_uvs())
+        self.assertEqual(len(mesh.edges().vertices()), mesh.vertex_count())
+        self.assertEqual(len(mesh.faces().vertices()), mesh.vertex_count())
+        self.assertEqual(len(mesh.uvs()), mesh.uv_count())
         uv = mesh.uv(0)
         before = uv.get_position()
         uv.set_u(0.125)
@@ -482,7 +482,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         uv.set_v(0.375)
         self.assertAlmostEqual(uv.get_v(), 0.375)
         cmds.undo()
-        self.assertEqual(mesh.uvs([0]).get_positions(), [before])
+        self.assertEqual(mesh.uvs([0]).get_position(), [before])
         for collection in (hlib.components.Edges, hlib.components.Faces, hlib.components.UVs):
             with self.assertRaises(TypeError):
                 collection(curve)

@@ -221,13 +221,6 @@ class Joint(Transform):
         """
         super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
 
-    def orientation(self):
-        """joint の orientation 成分を取得する。
-
-        Returns:
-            EulerRotation: 現在は ``joint_orient`` と同じ値。
-        """
-        return self.joint_orient()
 
     def inverse_scale(self):
         """inverseScale 属性を意味付き Scale として取得する。
@@ -346,14 +339,16 @@ class Joint(Transform):
         return result
 
     @undo_chunk("hlibJointRemoveInfluence")
-    def remove_influence(self, skin_cluster=None):
-        """祖先へウェイトを移しinfluence登録を外す。joint自体は残す。
+    def remove_influence(self, skin_cluster=None, *, transfer_to_parent=True):
+        """ウェイトの再配分方法を選んでinfluence登録を外す。joint自体は残す。
 
         Args:
             skin_cluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
+            transfer_to_parent (bool): Trueは祖先へ移送、FalseはMaya標準の再配分。
         Returns:
             Joint: 自身。未スキニングで対象省略の場合は何もしない。
         Raises:
+            TypeError: transfer_to_parentがboolでない場合。
             ValueError: 未登録の対象、または最後の一つのinfluenceの場合。
             RuntimeError: 無効joint、レイヤー、移送・削除失敗。
 
@@ -363,11 +358,13 @@ class Joint(Transform):
         from .skinCluster import SkinCluster
         if not self.is_joint():
             raise RuntimeError("Cannot remove an invalid joint influence")
+        if not isinstance(transfer_to_parent, bool):
+            raise TypeError("transfer_to_parent must be a bool")
         skins = self.skin_clusters() if skin_cluster is None else [skin_cluster if isinstance(skin_cluster, SkinCluster) else SkinCluster(skin_cluster)]
         for skin in skins:
-            skin._influence_removal_target(self)
+            skin._influence_removal_target(self, transfer_to_parent=transfer_to_parent)
         for skin in skins:
-            skin.remove_influence(self)
+            skin.remove_influence(self, transfer_to_parent=transfer_to_parent)
         return self
 
     def transfer_target(self, skin):

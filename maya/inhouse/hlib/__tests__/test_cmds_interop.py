@@ -137,7 +137,7 @@ class DuplicateShortNameTest(_InteropCase):
         )
         self.assertEqual(len(selection.plugs()), 4)
         self.assertEqual(len({plug.full_name() for plug in selection.plugs()}), 4)
-        selection.restore()
+        selection.select()
         self.assertEqual(len(cmds.ls(selection=True)), 4)
         captured = Selection([om2.MGlobal.getActiveSelectionList()])
         self.assertEqual(
@@ -408,7 +408,7 @@ class HlibCommandInputTest(_InteropCase):
     def test_delete(self):
         _, mesh = self.cube()
         hlib.delete(Faces(mesh, [0, 1]))
-        self.assertEqual(mesh.num_polygons(), 4)
+        self.assertEqual(mesh.polygon_count(), 4)
         a = self.create("transform", "a")
         b = self.create("transform", "b")
         c = self.create("transform", "c")

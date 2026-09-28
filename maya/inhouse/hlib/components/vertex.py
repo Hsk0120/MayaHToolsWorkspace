@@ -8,7 +8,7 @@ class Vertex(PointComponent):
 
     shape_type = "mesh"
     component_type = "vtx"
-    count_attribute = "num_vertices"
+    count_attribute = "vertex_count"
 
 
 class Vertices(PointComponents):

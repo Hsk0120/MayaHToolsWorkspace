@@ -84,7 +84,7 @@ class Mesh(Shape):
         """
         return om2.MFnMesh(self.dag_path())
 
-    def num_vertices(self):
+    def vertex_count(self):
         """頂点数を取得する。
 
         Returns:
@@ -92,7 +92,7 @@ class Mesh(Shape):
         """
         return self.mesh_fn().numVertices
 
-    def num_polygons(self):
+    def polygon_count(self):
         """ポリゴン数を取得する。
 
         Returns:
@@ -100,7 +100,7 @@ class Mesh(Shape):
         """
         return self.mesh_fn().numPolygons
 
-    def num_edges(self):
+    def edge_count(self):
         """エッジ数を取得する。
 
         Returns:
@@ -200,7 +200,7 @@ class Mesh(Shape):
         """
         return UVs(self, indices)
 
-    def num_uvs(self):
+    def uv_count(self):
         """現在の UV セットの要素数。
 
         Returns:

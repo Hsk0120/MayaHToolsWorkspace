@@ -42,12 +42,12 @@ objectSet の基本操作
    b = hlib.createNode("transform", name="setMemberB")
    object_set = Node(cmds.sets(name="controlSet", empty=True))
 
-   object_set.add(a, b)
+   object_set.add_members(a, b)
    print(object_set.members())          # [Transform('setMemberA'), Transform('setMemberB')]
    print(object_set.is_member(a))       # True
 
-   object_set.add(a.full_name() + ".tx")  # コンポーネント/プラグ文字列も追加可能
-   object_set.remove(b)
+   object_set.add_members(a.full_name() + ".tx")  # コンポーネント/プラグ文字列も追加可能
+   object_set.remove_members(b)
    print(object_set.members())          # [Transform('setMemberA'), 'setMemberA.translateX']
 
 ``objectSet`` ノードは自動的に ``ObjectSet`` ラッパーへ解決されます。``members()``

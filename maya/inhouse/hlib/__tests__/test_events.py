@@ -28,7 +28,7 @@ class CommonRigApiTest(unittest.TestCase):
     def test_changed_value_and_lock(self):
         """無変更は更新せず、ロック付き更新を一度のUndoで戻せる。"""
         plug = self.node.add_attr("setting", attribute_type="long", default_value=0)
-        plug.set_locked(True)
+        plug.set_flags(locked=True)
         self.assertFalse(plug.set_if_changed(0, unlock=True))
         self.assertTrue(plug.set_if_changed(2, unlock=True))
         self.assertTrue(plug.is_locked())
@@ -43,7 +43,7 @@ class CommonRigApiTest(unittest.TestCase):
         """接続先への書込みを拒否した場合もロックを復元する。"""
         plug = self.node.plug("tx")
         self.driver.plug("tx").connect(plug)
-        plug.set_locked(True)
+        plug.set_flags(locked=True)
         with self.assertRaises(RuntimeError):
             plug.set_if_changed(5.0, unlock=True)
         self.assertTrue(plug.is_locked())

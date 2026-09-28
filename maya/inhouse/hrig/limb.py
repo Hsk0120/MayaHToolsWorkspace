@@ -159,7 +159,7 @@ class LimbRig:
             nodes (Sequence[str]): 追加するノード名。
         """
         if hlib.getNode(self.root.full_name()).has_attr(role):
-            hlib.getNode(self._member(role)).add(*nodes)
+            hlib.getNode(self._member(role)).add_members(*nodes)
 
     def _local_matrix(self, role):
         """オフセットを含む親コントローラー空間の行列プラグ名を取得する。
@@ -729,7 +729,7 @@ def build_limb(definition=None, backend="standard"):
             created.append(node)
             rig._bind(role, node)
             if role != "moduleSet":
-                hlib.getNode(rig._member("moduleSet")).add(node)
+                hlib.getNode(rig._member("moduleSet")).add_members(node)
         for chain in ("fk", "ik", "joint"):
             parent = rig._member(
                 {"fk": "fkControls", "ik": "ikSetup", "joint": "moduleJoints"}[chain]

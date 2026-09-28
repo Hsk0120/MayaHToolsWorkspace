@@ -23,7 +23,7 @@ class CommonMethodsTest(unittest.TestCase):
 
     def test_reset_compound_and_undo(self):
         node = self.create("control")
-        plug = node.attr("translate")
+        plug = node.plug("translate")
         plug.set((2, 3, 4))
         self.assertIs(plug.reset(), plug)
         self.assertEqual(tuple(plug.get()), (0, 0, 0))
@@ -35,17 +35,17 @@ class CommonMethodsTest(unittest.TestCase):
     def test_attr_flags_batch_undo(self):
         node = self.create("flags")
         attrs = ["translateX", "translateY"]
-        before = [(node.attr(a).is_locked(), node.attr(a).is_keyable()) for a in attrs]
+        before = [(node.plug(a).is_locked(), node.plug(a).is_keyable()) for a in attrs]
         self.assertIs(node.set_attr_flags(attrs, locked=True, keyable=False), node)
         for a in attrs:
-            self.assertTrue(node.attr(a).is_locked())
-            self.assertFalse(node.attr(a).is_keyable())
+            self.assertTrue(node.plug(a).is_locked())
+            self.assertFalse(node.plug(a).is_keyable())
         cmds.undo()
-        self.assertEqual([(node.attr(a).is_locked(), node.attr(a).is_keyable()) for a in attrs], before)
+        self.assertEqual([(node.plug(a).is_locked(), node.plug(a).is_keyable()) for a in attrs], before)
         cmds.redo()
-        self.assertTrue(all(node.attr(a).is_locked() for a in attrs))
+        self.assertTrue(all(node.plug(a).is_locked() for a in attrs))
         node.set_attr_flags(attrs, locked=False, channel_box=True)
-        self.assertTrue(cmds.getAttr(node.attr(attrs[0]).full_name(), channelBox=True))
+        self.assertTrue(cmds.getAttr(node.plug(attrs[0]).full_name(), channelBox=True))
         with self.assertRaises(TypeError):
             node.set_attr_flags(attrs, locked="false")
 
@@ -79,45 +79,45 @@ class CommonMethodsTest(unittest.TestCase):
                                         ("amount", "double", 1.25)):
                 cmds.addAttr(node.full_name(), longName=name, attributeType=kind, defaultValue=default)
                 value_before = cmds.getAttr(node.full_name() + "." + name)
-                plug = node.attr(name)
+                plug = node.plug(name)
                 plug.set(99)
                 plug.reset()
                 self.assertAlmostEqual(cmds.getAttr(plug.full_name()), value_before)
             cmds.addAttr(node.full_name(), longName="choice", attributeType="enum",
                          enumName="A:B:C", defaultValue=2)
-            node.attr("choice").set(0)
-            node.attr("choice").reset()
-            self.assertEqual(node.attr("choice").get(), 2)
+            node.plug("choice").set(0)
+            node.plug("choice").reset()
+            self.assertEqual(node.plug("choice").get(), 2)
         finally:
             cmds.currentUnit(linear=linear, angle=angle)
 
     def test_reset_attrs_skips_locked_and_connected_channels(self):
         node, source = self.create("control"), self.create("driver")
-        node.attr("translate").set((2, 3, 4))
-        node.attr("translateX").set_locked(True)
-        source.attr("translateY").connect(node.attr("translateY"))
+        node.plug("translate").set((2, 3, 4))
+        node.plug("translateX").set_flags(locked=True)
+        source.plug("translateY").connect(node.plug("translateY"))
         changed = node.reset_attrs()
         names = [plug.full_name() for plug in changed]
-        self.assertNotIn(node.attr("translateX").full_name(), names)
-        self.assertNotIn(node.attr("translateY").full_name(), names)
-        self.assertEqual(node.attr("translateZ").get(), 0)
+        self.assertNotIn(node.plug("translateX").full_name(), names)
+        self.assertNotIn(node.plug("translateY").full_name(), names)
+        self.assertEqual(node.plug("translateZ").get(), 0)
         cmds.undo()
-        self.assertEqual(node.attr("translateZ").get(), 4)
+        self.assertEqual(node.plug("translateZ").get(), 4)
         with self.assertRaises(RuntimeError):
             node.reset_attrs("translateX")
         cmds.addAttr(node.full_name(), longName="text", dataType="string")
         with self.assertRaises(TypeError):
-            node.attr("text").reset()
+            node.plug("text").reset()
 
     def test_match_transform_matches_maya_and_undo(self):
         parent = self.create("parent")
-        parent.attr("translate").set((4, 2, -1))
+        parent.plug("translate").set((4, 2, -1))
         target = self.create("target")
         actual = self.create("actual", parent=parent.full_name())
         expected = self.create("expected", parent=parent.full_name())
-        target.attr("translate").set((10, 3, -5))
-        target.attr("rotate").set((20, 30, 10))
-        target.attr("scale").set((2, 3, 4))
+        target.plug("translate").set((10, 3, -5))
+        target.plug("rotate").set((20, 30, 10))
+        target.plug("scale").set((2, 3, 4))
         before = cmds.xform(actual.full_name(), query=True, matrix=True, worldSpace=True)
         cmds.matchTransform(expected.full_name(), target.full_name(), position=True, rotation=True, scale=True, pivots=False)
         self.assertIs(actual.match_transform(target), actual)
@@ -134,10 +134,10 @@ class CommonMethodsTest(unittest.TestCase):
     def test_match_position_only_and_noop(self):
         actual, target = self.create("actual"), self.create("target")
         cmds.setAttr(actual.full_name() + ".rotate", 15, 0, 0)
-        target.attr("translate").set((7, 8, 9))
+        target.plug("translate").set((7, 8, 9))
         actual.match_transform(target.full_name(), rotation=False, scale=False)
-        self.assertEqual(tuple(actual.attr("translate").get()), (7, 8, 9))
-        self.assertAlmostEqual(actual.attr("rotateX").get(), 15)
+        self.assertEqual(tuple(actual.plug("translate").get()), (7, 8, 9))
+        self.assertAlmostEqual(actual.plug("rotateX").get(), 15)
         undo_name = cmds.undoInfo(query=True, undoName=True)
         actual.match_transform(target, position=False, rotation=False, scale=False)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)

@@ -48,7 +48,7 @@ class SwingTwist(TwistDistribution):
         source = decomposition.plug("inputMatrix").source()
         if rest:
             delta = graph._node("multMatrix", "restDelta")
-            delta.plug("matrixIn[1]").set_value(Matrix(source.get()).inverse())
+            delta.plug("matrixIn[1]").set(Matrix(source.get()).inverse())
             source.disconnect(decomposition.plug("inputMatrix"))
             source.connect(delta.plug("matrixIn[0]"))
             delta.plug("matrixSum").connect(decomposition.plug("inputMatrix"))
@@ -106,5 +106,5 @@ class SwingTwist(TwistDistribution):
             owner.set_attr_flags([attr], keyable=False, channel_box=True)
         extra = [node for node in hlib.ls(type="unitConversion") if node.uuid() not in conversions]
         if extra:
-            hlib.nodes.Container(owner).add(*extra)
+            hlib.nodes.Container(owner).add_members(*extra)
         return graph

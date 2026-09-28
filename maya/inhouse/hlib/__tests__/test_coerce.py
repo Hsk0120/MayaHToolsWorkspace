@@ -149,7 +149,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         expanded = cmds.ls(vertices.compact_names(), flatten=True, long=True)
         self.assertEqual(sorted(expanded), sorted(cmds.ls(vertices.full_names(), flatten=True, long=True)))
         everything = Vertices(self.mesh)
-        self.assertEqual(to_names(everything), [prefix + "[0:%d]" % (self.mesh.num_vertices() - 1)])
+        self.assertEqual(to_names(everything), [prefix + "[0:%d]" % (self.mesh.vertex_count() - 1)])
         # 検証はまとめて行い、範囲外の番号を含むコレクションは ValueError になる。
         cmds.polyDelFacet(self.mesh.full_name() + ".f[0:4]")
         with self.assertRaises(ValueError):

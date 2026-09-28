@@ -82,7 +82,7 @@ class RotationFollow(SwingTwist):
         limits.plug("outputR").connect(blend.plug("target[0].weight"))
         orient = graph._node("multMatrix", "restoreOrientation")
         blend.plug("outputMatrix").connect(orient.plug("matrixIn[0]"))
-        orient.plug("matrixIn[1]").set_value(rest_rotation)
+        orient.plug("matrixIn[1]").set(rest_rotation)
         rotation = graph._node("decomposeMatrix", "resultRotation")
         orient.plug("matrixSum").connect(rotation.plug("inputMatrix"))
         result = graph._node("composeMatrix", "result")
@@ -91,5 +91,5 @@ class RotationFollow(SwingTwist):
         position.plug("outputTranslate").connect(result.plug("inputTranslate"))
         result.plug("outputMatrix").connect(owner.plug("matrix"))
         rest_output = Matrix.compose(translate=rest.translate, rotate=rest.quaternion)
-        owner.plug("restMatrix").set_value(rest_output)
+        owner.plug("restMatrix").set(rest_output)
         return graph

@@ -16,7 +16,7 @@ from hlib.maths import easing
 
 
 class SkinClusterTransferWeightsBatchTest(unittest.TestCase):
-    """transfer_weights_batch が preserved_selection 経由で選択状態を保存・復元することを検証する。"""
+    """transfer_weights が preserved_selection 経由で選択状態を保存・復元することを検証する。"""
 
     def setUp(self):
         self.root = cmds.createNode("joint", name="hlibSkinClusterRoot")
@@ -36,27 +36,27 @@ class SkinClusterTransferWeightsBatchTest(unittest.TestCase):
     def test_restores_prior_selection_after_transfer(self):
         cmds.select(self.mesh_transform, replace=True)
 
-        self.skin.transfer_weights_batch([(self.child, self.root)])
+        self.skin.transfer_weights([(self.child, self.root)])
 
         self.assertEqual(cmds.ls(sl=True, long=True), cmds.ls(self.mesh_transform, long=True))
 
     def test_restores_empty_selection_when_nothing_was_selected(self):
         cmds.select(clear=True)
 
-        self.skin.transfer_weights_batch([(self.child, self.root)])
+        self.skin.transfer_weights([(self.child, self.root)])
 
         self.assertEqual(cmds.ls(sl=True), [])
 
     def test_influences_still_include_both_joints_after_transfer(self):
-        # transfer_weights_batch はウェイト移送のみを行い influence の削除はしない。
-        self.skin.transfer_weights_batch([(self.child, self.root)])
+        # transfer_weights はウェイト移送のみを行い influence の削除はしない。
+        self.skin.transfer_weights([(self.child, self.root)])
 
         self.assertIn(self.child, self.skin.influences())
         self.assertIn(self.root, self.skin.influences())
 
 
 class SkinClusterInfluenceTest(unittest.TestCase):
-    """has_influence/remove_influence/transfer_weight(単体)を検証する。"""
+    """has_influence/remove_influence/transfer_weights(単一ペア)を検証する。"""
 
     def setUp(self):
         self.root = cmds.createNode("joint", name="hlibSkinInfluenceRoot")
@@ -83,11 +83,11 @@ class SkinClusterInfluenceTest(unittest.TestCase):
         self.assertEqual(list(self.skin.get_weights([self.root])), [0.0] * 8)
         self.assertEqual(list(self.skin.get_weights([self.mid])), [1.0] * 8)
 
-        self.skin.transfer_weight(self.mid, self.root)
+        self.skin.transfer_weights([(self.mid, self.root)])
 
         self.assertEqual(list(self.skin.get_weights([self.root])), [1.0] * 8)
         self.assertEqual(list(self.skin.get_weights([self.mid])), [0.0] * 8)
-        # transfer_weight はウェイト移送のみで influence の削除はしない。
+        # transfer_weights はウェイト移送のみで influence の削除はしない。
         self.assertIn(self.mid, self.skin.influences())
 
     def test_remove_influence_drops_influence_from_skin_cluster(self):
@@ -210,7 +210,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
         before = list(self.skin.get_weights(joints))
         with undo_chunk("weightTool"):
             self.skin.set_weights([self.child], [0.125])
-            hlib.getNode(self.mesh_transform).attr("visibility").set(False)
+            hlib.getNode(self.mesh_transform).plug("visibility").set(False)
         after = list(self.skin.get_weights(joints))
         self.assertEqual(after[0::2], before[0::2])
         self.assertEqual(after[1::2], [0.125] * 8)

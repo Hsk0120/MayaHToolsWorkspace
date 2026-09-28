@@ -66,14 +66,14 @@ class FastEditTest(unittest.TestCase):
         mesh = hlib.getNode(cmds.listRelatives(cmds.polyCube(ch=False)[0], shapes=True)[0])
         curve = hlib.getNode(cmds.listRelatives(cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3), (4, 2, 1)]), shapes=True)[0])
         for points in (mesh.vertices(), curve.cvs()):
-            before = points.get_positions()
+            before = points.get_position()
             rows = [(x + .2, y * 2, z - .3) for x, y, z in before]
             points.set_positions(rows)
-            expected = points.get_positions()
+            expected = points.get_position()
             points.set_positions(before)
             with self.api_only():
                 points.set_positions(rows, fast=True)
-            for actual, wanted in zip(points.get_positions(), expected):
+            for actual, wanted in zip(points.get_position(), expected):
                 for a, b in zip(actual, wanted):
                     self.assertAlmostEqual(a, b, places=6)
         uvs = mesh.uvs()
@@ -186,7 +186,7 @@ class FastEditTest(unittest.TestCase):
                 rows = [(1, 2, 3), (2, 4, 6), (3, 6, 9)]
                 with self.api_only():
                     points.set_positions(rows, ws=True, fast=True)
-                for actual, expected in zip(points.get_positions(ws=True), rows):
+                for actual, expected in zip(points.get_position(ws=True), rows):
                     for a, b in zip(actual, expected):
                         # Mesh内部のfloat座標を非一様スケールで変換した丸め誤差。
                         self.assertAlmostEqual(a, b, delta=1e-5)

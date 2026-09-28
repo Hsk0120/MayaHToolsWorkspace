@@ -161,6 +161,6 @@ class FollowLayer:
             elif not active:
                 if source is not None:
                     source.disconnect(target)
-                target.set_value(graph.plug("restMatrix").get())
+                target.set(graph.plug("restMatrix").get())
             graph.plug("nodeState").set(0 if active else 2)
             group.plug("visibility").set(active)

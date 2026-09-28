@@ -41,9 +41,9 @@ class DagPoseTest(unittest.TestCase):
     def test_sparse_member_indices(self):
         pose = self.pose()
         extra = cmds.createNode("transform", name=self.ns + ":extra")
-        pose.add(extra)
+        pose.add_members(extra)
         extra_index = pose.member_index(extra)
-        pose.remove(self.child)
+        pose.remove_members(self.child)
         self.assertEqual(pose.member_indices(), [0, extra_index])
         self.assertEqual(pose.member_index(extra), extra_index)
         self.assertEqual(list(pose.get_matrix(extra)), cmds.getAttr(extra + ".matrix"))
@@ -78,23 +78,23 @@ class DagPoseTest(unittest.TestCase):
     def test_members_and_validation(self):
         pose = self.pose(hierarchy=False)
         self.assertEqual(len(pose.members()), 1)
-        pose.add(self.child)
+        pose.add_members(self.child)
         self.assertEqual(len(pose.members()), 2)
         cmds.undo()
         self.assertEqual(len(pose.members()), 1)
         cmds.redo()
-        pose.remove(self.child)
+        pose.remove_members(self.child)
         self.assertTrue(cmds.objExists(self.child))
         self.assertEqual(len(pose.members()), 1)
         cmds.undo()
         self.assertEqual(len(pose.members()), 2)
         with self.assertRaises(ValueError):
-            pose.add([])
+            pose.add_members([])
         other = cmds.createNode("transform", name=self.ns + ":other")
         with self.assertRaises(ValueError):
             pose.reset([self.root, other])
         with self.assertRaises(ValueError):
-            pose.remove([self.root, other])
+            pose.remove_members([self.root, other])
         self.assertEqual(len(pose.members()), 2)
 
     def test_bind_pose_and_skin_matrices(self):
@@ -146,7 +146,7 @@ class DagPoseTest(unittest.TestCase):
         skin = self.make_skin()
         pose = skin.bind_pose()
         other = cmds.createNode("transform", name=self.ns + ":other")
-        pose.add(other)
+        pose.add_members(other)
         old_other = list(pose.get_matrix(other))
         old_child = list(pose.get_matrix(self.child))
         old_bind = cmds.getAttr(skin.full_name() + ".bindPreMatrix[1]")
@@ -160,7 +160,7 @@ class DagPoseTest(unittest.TestCase):
         self.assertEqual(list(pose.get_matrix(self.child)), old_child)
         cmds.redo()
         self.assertNotEqual(list(pose.get_matrix(self.child)), old_child)
-        pose.remove(self.child)
+        pose.remove_members(self.child)
         root_before = list(pose.get_matrix(self.root))
         cmds.setAttr(self.root + ".ty", 2)
         with self.assertRaises(ValueError):

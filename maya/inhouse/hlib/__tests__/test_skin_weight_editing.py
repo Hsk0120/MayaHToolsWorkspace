@@ -32,6 +32,24 @@ class SkinWeightEditingTest(unittest.TestCase):
     def weights(self):
         return list(self.skin.get_weights(self.names))
 
+    def test_joint_remove_without_parent_transfer_matches_skin(self):
+        """Joint入口も親移送を無効にでき、SkinCluster入口と同じ値になる。"""
+        self.skin.remove_influence(self.child, transfer_to_parent=False)
+        expected = list(self.skin.get_weights([self.parent, self.other]))
+        cmds.undo()
+        joint = hlib.getNode(self.child)
+        joint.remove_influence(self.skin, transfer_to_parent=False)
+        actual = list(self.skin.get_weights([self.parent, self.other]))
+        for a, b in zip(actual, expected):
+            self.assertAlmostEqual(a, b)
+        self.assertTrue(joint.is_valid())
+        cmds.undo()
+        with self.assertRaises(TypeError):
+            joint.remove_influence(self.skin, transfer_to_parent="false")
+        self.assertTrue(self.skin.has_influence(self.child))
+        hlib.nodes.Joints([self.child]).remove_influence(self.skin, transfer_to_parent=False)
+        self.assertFalse(self.skin.has_influence(self.child))
+
     def test_remove_influence_transfers_and_keeps_joint(self):
         self.skin.remove_influence(hlib.getNode(self.child))
         self.assertTrue(cmds.objExists(self.child))

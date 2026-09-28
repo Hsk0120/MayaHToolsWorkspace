@@ -59,7 +59,7 @@ class BulkCollectionsTest(unittest.TestCase):
         self.assertEqual(skins.has_influence(self.names[0]), [True, True])
         for skin, mesh in zip(skins, meshes):
             cmds.skinPercent(skin.full_name(), mesh, transformValue=[(self.names[0], 0.75), (self.names[1], 0.25)])
-        skins.transfer_weight(self.names[0], self.names[1])
+        skins.transfer_weights([(self.names[0], self.names[1])])
         for skin, mesh in zip(skins, meshes):
             self.assertAlmostEqual(cmds.skinPercent(skin.full_name(), mesh + ".vtx[0]", query=True, transform=self.names[1]), 1)
         cmds.undo()
@@ -68,7 +68,7 @@ class BulkCollectionsTest(unittest.TestCase):
         self.assertFalse(hasattr(skins, "dump_weights"))
         self.assertIn("dump_weights", skins._bulk_methods)
         self.assertEqual(len(skins[:1]), 1)
-        self.assertTrue(callable(skins.remove_joints))
+        self.assertTrue(callable(skins.remove_influences))
 
     def test_plugins_and_registration_coverage(self):
         from hlib.general import Plugin, Plugins

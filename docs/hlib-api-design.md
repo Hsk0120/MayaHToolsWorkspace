@@ -8,7 +8,7 @@
 | 対象 | 公開形式 | 例 |
 | --- | --- | --- |
 | Mayaの現在の状態・名前・属性情報を問い合わせる | メソッド | `node.full_name()`、`node.is_locked()`、`plug.name()` |
-| Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.get_position()`、`vertex.get_x()`、`mesh.num_vertices()` |
+| Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.get_position()`、`vertex.get_x()`、`mesh.vertex_count()` |
 | Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`vertex.set_x(value)`、`node.rename(name)` |
 | オブジェクトが保持している参照・番号を返す | プロパティ | `plug.node`、`component.shape`、`component.index`、`components.indices` |
 | 数学値(`hlib.maths`)・保存済みデータを参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate`、`node_ref.uuid` |
@@ -106,3 +106,18 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 `getDrivenKey`は関係を取得するだけで、キー生成は`DrivenKey.set_key()`で行う。
 属性の列挙名変更は`Plug.set_enum_names()`を使い、`addAttr`は属性追加に限定する。
 旧名の互換入口は設けず、使用側を更新する。
+
+
+### メソッドの統一基準
+
+- 同じ結果を返す互換別名は追加せず、正式な入口へ集約する。
+- 状態の切替は `set_visible(state)`・`set_muted(state)` のように表す。
+- 排他的な選択操作は `Selection.select(mode="replace")` のようなモードで指定する。
+- メンバーの操作は `add_members` / `remove_members`、個数の照会は `vertex_count` などの `対象_count` に揃える。
+- `Plug.get/set` は対象属性を扱い、行列属性から所有ノードのTRS更新へ暗黙に切り替えない。ノード変換は `Transform.get_matrix/set_matrix` を使用する。
+- 単数形と複数形の座標取得はともに `get_position`。全要素を同じ座標にする `set_position` と要素別の `set_positions` は区別する。
+- 戻り値の型・単位・更新対象・破壊性が違う操作は、名前が似ていても安易にフラグ統合しない。
+
+- Plug系の空間指定は廃止し、属性値とTransformの姿勢を区別する。Double3Plugのrotateは回転順序・単位変換だけを行い、jointOrientや他のチャンネルを合成しない。
+- 属性フラグはキーワード専用の `set_flags(locked=None, keyable=None, channel_box=None, fast=False)` へ集約する。Noneは変更なし、bool以外は更新前に拒否する。
+- 一括更新では、対象名・所属・入力値など検証できる項目を更新前に全件検証する。Undoチャンクは失敗時の自動ロールバックを意味しない。

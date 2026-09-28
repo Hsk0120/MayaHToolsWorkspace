@@ -11,7 +11,7 @@ class UV(Component):
     """現在の UV セットの単一 UV。UV セット切替後は切替先を参照する。"""
     shape_type = "mesh"
     component_type = "map"
-    count_attribute = "num_uvs"
+    count_attribute = "uv_count"
 
     def get_position(self):
         """UV 座標を取得する。
@@ -57,7 +57,7 @@ class UV(Component):
         Returns:
             float: 現在の UV 座標。
         """
-        return self.get_position()[0]
+        return self._get_coordinate(0)
 
     def set_u(self, value):
         """U 座標だけを設定する。
@@ -68,9 +68,7 @@ class UV(Component):
         Returns:
             None: 値を返さない。
         """
-        position = list(self.get_position())
-        position[0] = value
-        self.set_position(position)
+        self._set_coordinate(0, value)
 
     def get_v(self):
         """V 座標を取得する。
@@ -78,7 +76,7 @@ class UV(Component):
         Returns:
             float: 現在の UV 座標。
         """
-        return self.get_position()[1]
+        return self._get_coordinate(1)
 
     def set_v(self, value):
         """V 座標だけを設定する。
@@ -89,18 +87,12 @@ class UV(Component):
         Returns:
             None: 値を返さない。
         """
-        position = list(self.get_position())
-        position[1] = value
-        self.set_position(position)
+        self._set_coordinate(1, value)
 
 
 class UVs(Components):
     """同一 Mesh の現在の UV セットの UV 群。"""
     component_class = UV
-
-    def get_position(self):
-        """list[tuple[float, float]]: 保持順のUV座標列。"""
-        return self.get_positions()
 
     @fast_edit
     def set_position(self, value, *, fast=False):
@@ -148,21 +140,21 @@ class UVs(Components):
 
     def get_u(self):
         """list[float]: 保持順のU座標。"""
-        return [p[0] for p in self.get_positions()]
+        return self._get_coordinate(0)
 
     def set_u(self, value):
         """Uだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self.set_positions(self._axis_rows(self.get_positions(), 0, value))
+        self._set_coordinate(0, value)
 
     def get_v(self):
         """list[float]: 保持順のV座標。"""
-        return [p[1] for p in self.get_positions()]
+        return self._get_coordinate(1)
 
     def set_v(self, value):
         """Vだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self.set_positions(self._axis_rows(self.get_positions(), 1, value))
+        self._set_coordinate(1, value)
 
-    def get_positions(self):
+    def get_position(self):
         """保持順の UV 座標を取得する。
 
         Returns:

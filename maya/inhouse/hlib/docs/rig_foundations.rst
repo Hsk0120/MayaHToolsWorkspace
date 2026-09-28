@@ -59,7 +59,7 @@ Mayaが削除した末尾の要素の過去の番号までは記憶しません�
 スキンの基本操作
 ----------------
 
-``SkinCluster.bind(mesh, influences, maximum_influences=4)`` は未スキニングの
+``SkinCluster.bind(mesh, influences, max_influences=4)`` は未スキニングの
 形状をバインドしてラッパーを返します。``deforms(geometry)`` で履歴内の所属を照会できます。
 ``source_skin.copy_weights_to(target_skin)`` はclosestPoint、name/closestJointで
 近似転送し、ウェイトを正規化します。別のバインド済みskinClusterを指定してください。

@@ -35,21 +35,21 @@ class ObjectSetTest(unittest.TestCase):
         self.assertEqual(self.set.members(), [])
 
     def test_add_and_members_returns_node_wrappers(self):
-        result = self.set.add(self.a, self.b)
+        result = self.set.add_members(self.a, self.b)
         self.assertIs(result, self.set)
         members = self.set.members()
         self.assertEqual({member.name() for member in members}, {self.a.name(), self.b.name()})
         self.assertTrue(all(isinstance(member, Node) for member in members))
 
     def test_remove_drops_a_member(self):
-        self.set.add(self.a, self.b)
-        result = self.set.remove(self.a)
+        self.set.add_members(self.a, self.b)
+        result = self.set.remove_members(self.a)
         self.assertIs(result, self.set)
         self.assertEqual([member.name() for member in self.set.members()], [self.b.name()])
 
     def test_is_member(self):
         self.assertFalse(self.set.is_member(self.a))
-        self.set.add(self.a)
+        self.set.add_members(self.a)
         self.assertTrue(self.set.is_member(self.a))
         self.assertTrue(self.set.is_member(self.a.full_name()))
         self.assertFalse(self.set.is_member(self.b))
@@ -59,7 +59,7 @@ class ObjectSetTest(unittest.TestCase):
         self.created.append(cube_transform)
         component = cube_transform + ".vtx[0:2]"
 
-        self.set.add(component)
+        self.set.add_members(component)
         members = self.set.members()
         self.assertIn(component, members)
         self.assertTrue(self.set.is_member(component))

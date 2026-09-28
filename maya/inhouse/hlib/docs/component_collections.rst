@@ -17,7 +17,7 @@ Vertices・CVs・UVsでも単体と同じ名前で座標を取得・設定でき
    vertices.set_y([1, 2, 3])         # 保持順の頂点ごとに設定
    vertices.set_position((0, 0, 0))  # 全頂点が原点に集まる
 
-``get_positions()`` は保持順の座標列を返します。単体と同じ名前で呼べる
+``get_position()`` は保持順の座標列を返します。単体と同じ名前で呼べる
 ``get_position()`` も複数形では座標列を返します。
 ``set_position(value)`` は全要素への同じ値の適用、
 ``set_positions(values)`` は要素ごとの設定です。引数の形による暗黙の切り替えはしません。

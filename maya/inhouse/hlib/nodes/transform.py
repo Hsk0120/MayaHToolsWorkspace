@@ -791,17 +791,6 @@ class Transform(Node):
         _, quaternion, _, _, _ = self._decompose_like_channels(self.get_matrix(ws=ws))
         return EulerRotation._wrap(quaternion.asEulerRotation())
 
-    def decompose(self, ws=True):
-        """指定空間の変換行列を取得する互換メソッド。
-
-        Args:
-            ws (bool): ``True`` （既定）でワールド空間、``False`` でローカル空間の値を取得する。
-
-        Returns:
-            Matrix: get_matrix(ws=ws) の結果。成分辞書は返さない。
-        """
-        return self.get_matrix(ws=ws)
-
     def _parent_world_matrix(self):
         """親Transformのワールド行列を取得する。
 
@@ -1154,13 +1143,13 @@ class Transform(Node):
         matrix = self._replace_components(self.get_matrix(ws=ws), shear=value)
         return self.set_matrix(matrix, ws=ws)
 
-
     @fast_edit
-    @undo_chunk("hlibTransformShow")
-    def show(self, *, fast=False):
-        """visibility を True に設定する。
+    @undo_chunk("hlibTransformSetVisible")
+    def set_visible(self, state, *, fast=False):
+        """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
 
         Args:
+            state (bool): visibilityへ設定する値。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
@@ -1169,24 +1158,9 @@ class Transform(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        self.plug("visibility").set(True)
-        return self
-
-    @fast_edit
-    @undo_chunk("hlibTransformHide")
-    def hide(self, *, fast=False):
-        """visibility を False に設定する。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-
-        Returns:
-            Transform: 自身。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        self.plug("visibility").set(False)
+        if not isinstance(state, bool):
+            raise TypeError("state must be a bool")
+        self.plug("visibility").set(state)
         return self
 
     @undo_chunk("hlibTransformMakeIdentity")
@@ -1225,10 +1199,10 @@ class Transform(Node):
             raise RuntimeError("Cannot release SRT channels of an invalid transform")
         for channel in ("translate", "rotate", "scale", "shear"):
             plug = self.plug(channel)
-            plug.set_locked(False)
+            plug.set_flags(locked=False)
             plug.disconnect()
             for child in plug.children():
-                child.set_locked(False)
+                child.set_flags(locked=False)
                 child.disconnect()
         return self
 

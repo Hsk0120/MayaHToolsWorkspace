@@ -79,8 +79,8 @@ class NodeAliasesParityTest(unittest.TestCase):
             cmds.delete(self.node.name())
 
     def test_aliases_matches_cmds_aliasAttr(self):
-        cmds.aliasAttr("hlibParityAliasTx", self.node.attr("translateX").full_name())
-        cmds.aliasAttr("hlibParityAliasTy", self.node.attr("translateY").full_name())
+        cmds.aliasAttr("hlibParityAliasTx", self.node.plug("translateX").full_name())
+        cmds.aliasAttr("hlibParityAliasTy", self.node.plug("translateY").full_name())
 
         # cmds.aliasAttr(query=True) はフラットな [alias1, longName1, alias2, longName2, ...]
         # を返す。longName は Plug.attribute(ロング名)と直接比較できる。
@@ -114,7 +114,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
     def test_inputs_matches_cmds_listConnections_source_side(self):
         source = self.create_transform("hlibParityConnSource")
         target = self.create_transform("hlibParityConnTarget")
-        source.attr("translateX").connect(target.attr("translateX"))
+        source.plug("translateX").connect(target.plug("translateX"))
 
         expected = set(cmds.listConnections(target.name(), source=True, destination=False, plugs=True) or [])
         actual = {plug.full_name() for plug in target.inputs()}
@@ -123,7 +123,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
     def test_outputs_matches_cmds_listConnections_destination_side(self):
         source = self.create_transform("hlibParityConnSource2")
         target = self.create_transform("hlibParityConnTarget2")
-        source.attr("translateX").connect(target.attr("translateX"))
+        source.plug("translateX").connect(target.plug("translateX"))
 
         expected = set(cmds.listConnections(source.name(), source=False, destination=True, plugs=True) or [])
         actual = {plug.full_name() for plug in source.outputs()}
@@ -134,7 +134,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
         target = self.create_transform("hlibParityConnTarget3")
         mesh_target = cmds.polyCube(name="hlibParityConnMeshTarget", constructionHistory=False)[0]
         self.created.append(mesh_target)
-        source.attr("translateX").connect(target.attr("translateX"))
+        source.plug("translateX").connect(target.plug("translateX"))
 
         expected_transform = set(
             cmds.listConnections(source.name(), source=False, destination=True, plugs=True, type="transform") or []

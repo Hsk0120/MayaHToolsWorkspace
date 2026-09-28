@@ -74,11 +74,13 @@ class Constraint(Node):
             for plug in weight_plugs:
                 plug.set(weight)
             return self
-        remaining = {to_node(target).full_name() for target in targets}
-        for target_node, plug in zip(self.targets(), weight_plugs):
-            if target_node.full_name() in remaining:
+        requested = {to_node(target).full_name() for target in targets}
+        available = {node.full_name(): plug for node, plug in zip(self.targets(), weight_plugs)}
+        missing = requested - available.keys()
+        if missing:
+            raise ValueError(f"Targets not found on this constraint: {sorted(missing)}")
+        # 全ターゲットを解決してから更新する。無効な指定で部分更新しない。
+        for name, plug in available.items():
+            if name in requested:
                 plug.set(weight)
-                remaining.discard(target_node.full_name())
-        if remaining:
-            raise ValueError(f"Targets not found on this constraint: {sorted(remaining)}")
         return self

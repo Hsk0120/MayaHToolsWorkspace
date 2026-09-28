@@ -49,7 +49,7 @@ class UndoDecoratorsTest(unittest.TestCase):
 
     def test_public_operations_have_separate_undo_steps(self):
         node = hlib.createNode("transform", name="hlibUndoChunkNode")
-        node.attr("visibility").set(False)
+        node.plug("visibility").set(False)
         cmds.undo()
         self.assertTrue(cmds.objExists("hlibUndoChunkNode"))
         self.assertTrue(cmds.getAttr("hlibUndoChunkNode.visibility"))
@@ -63,7 +63,7 @@ class UndoDecoratorsTest(unittest.TestCase):
         @undo_chunk("createControlTool")
         def create_control():
             node = hlib.createNode("transform", name="hlibUndoChunkNode")
-            node.attr("visibility").set(False)
+            node.plug("visibility").set(False)
             return node
 
         node = create_control()

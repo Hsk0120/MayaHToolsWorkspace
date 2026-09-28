@@ -26,7 +26,7 @@ class ObjectSet(Node):
         return [name if "." in name else Node(name) for name in names]
 
     @undo_chunk("hlibObjectSetAdd")
-    def add(self, *members):
+    def add_members(self, *members):
         """メンバーを追加する。
 
         Args:
@@ -41,7 +41,7 @@ class ObjectSet(Node):
         return self
 
     @undo_chunk("hlibObjectSetRemove")
-    def remove(self, *members):
+    def remove_members(self, *members):
         """メンバーを除外する。
 
         Args:

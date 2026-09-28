@@ -81,7 +81,7 @@ class NurbsCurve(Shape):
         """
         return om2.MFnNurbsCurve(self.dag_path())
 
-    def num_cvs(self):
+    def cv_count(self):
         """CV 数を取得する。
 
         Returns:
@@ -89,7 +89,7 @@ class NurbsCurve(Shape):
         """
         return self.curve_fn().numCVs
 
-    def num_spans(self):
+    def span_count(self):
         """スパン数を取得する。
 
         Returns:

@@ -29,7 +29,7 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual(selection.components()[0].indices, (1, 2, 3))
         self.assertEqual(len(selection.owners()), 2)
         self.assertEqual(len(selection.filter(type="vtx")), 3)
-        selection.restore()
+        selection.select()
         self.assertEqual(len(cmds.ls(selection=True, flatten=True)), 4)
         cmds.undo()
         self.assertEqual(cmds.ls(selection=True), [])
@@ -39,17 +39,17 @@ class SelectionTest(unittest.TestCase):
     def test_rename_and_missing_validation(self):
         selection = Selection([self.joint, self.mesh + ".f[0]"])
         renamed = cmds.rename(self.joint, self.ns + ":renamed")
-        selection.restore()
+        selection.select()
         self.assertIn(renamed, cmds.ls(selection=True))
         cmds.delete(self.mesh)
         cmds.select(clear=True)
         with self.assertRaises(RuntimeError):
-            selection.restore(missing="error")
+            selection.select(missing="error")
         self.assertEqual(cmds.ls(selection=True), [])
-        selection.restore()
+        selection.select()
         self.assertEqual(cmds.ls(selection=True), [renamed])
         with self.assertRaises(ValueError):
-            selection.restore(missing="invalid")
+            selection.select(missing="invalid")
 
     def test_plug_reference_and_delete(self):
         cmds.addAttr(self.joint, longName="amount", attributeType="double")
@@ -61,21 +61,21 @@ class SelectionTest(unittest.TestCase):
         cmds.deleteAttr(self.joint + ".renamed")
         self.assertEqual(selection.plugs(), [])
         with self.assertRaises(RuntimeError):
-            selection.restore(missing="error")
+            selection.select(missing="error")
 
     def test_add_remove_and_empty(self):
         selection = Selection(self.joint)
         cmds.select(self.mesh)
-        selection.add_to_selection()
+        selection.select(mode="add")
         self.assertIn(self.joint, cmds.ls(selection=True))
         cmds.undo()
         self.assertEqual(cmds.ls(selection=True), [self.mesh])
         cmds.redo()
-        selection.remove_from_selection()
+        selection.select(mode="remove")
         self.assertEqual(cmds.ls(selection=True), [self.mesh])
         cmds.undo()
         self.assertIn(self.joint, cmds.ls(selection=True))
-        Selection().restore()
+        Selection().select()
         self.assertEqual(cmds.ls(selection=True), [])
 
     def test_component_kinds_and_objectset(self):
@@ -86,13 +86,13 @@ class SelectionTest(unittest.TestCase):
             self.assertEqual(len(selection.components()), 1)
         self.assertEqual(len(Selection(curve + ".cv[*]")), 2)
         name = cmds.sets(self.mesh, name=self.ns + ":set")
-        Selection(name).restore()
+        Selection(name).select()
         self.assertEqual(cmds.ls(selection=True), [name])
 
     def test_instanced_path_preserved(self):
         instance = cmds.instance(self.mesh, name=self.ns + ":instance")[0]
         selection = Selection(instance + ".vtx[0]")
-        selection.restore()
+        selection.select()
         self.assertIn(instance, cmds.ls(selection=True, long=True)[0])
 
 

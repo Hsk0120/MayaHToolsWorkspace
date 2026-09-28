@@ -106,7 +106,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        hlib.nodes.Container(self.root.plug("graph").source().node).add(node)
+        hlib.nodes.Container(self.root.plug("graph").source().node).add_members(node)
 
     def joints(self):
         """変形骨とTweak骨を取得する。

@@ -49,7 +49,7 @@ class _JointDeletion:
             stage = "transfer weights"
             try:
                 for skin, target in transfers:
-                    skin.transfer_weight(joint.full_name(), target)
+                    skin.transfer_weights([(joint.full_name(), target)])
                     stage = "remove influence"
                     skin.remove_influence(joint.full_name(), transfer_to_parent=False)
                     stage = "transfer weights"

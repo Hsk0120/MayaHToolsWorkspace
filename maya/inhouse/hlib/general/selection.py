@@ -216,34 +216,29 @@ class Selection:
                 raise RuntimeError("Selection contains a missing item")
         return names
 
-    @undo_chunk("hlibSelectionRestore")
-    def restore(self, missing="skip"):
-        """保持した対象で現在選択を置き換える。空なら選択解除。
+    @undo_chunk("hlibSelectionSelect")
+    def select(self, mode="replace", missing="skip"):
+        """保持した対象を現在の選択に反映する。
 
         Args:
-            missing (str): skipは無効対象を除外、errorは変更前にRuntimeError。
+            mode (str): replaceは置換、addは追加、removeは除外。
+            missing (str): skipは無効対象を除外、errorは変更前に例外。
 
         Returns:
-            Selection: 自身。選択変更は一回のUndoに対応。
+            Selection: 自身。空集合はreplaceだけ選択を解除する。
+
+        Raises:
+            ValueError: modeまたはmissingが未対応の場合。
+            RuntimeError: missingがerrorで対象が削除済みの場合。
         """
-        names = self._names(missing)
-        cmds.select(names, replace=True, noExpand=True) if names else cmds.select(clear=True)
-        return self
-
-    @undo_chunk("hlibSelectionAdd")
-    def add_to_selection(self, missing="skip"):
-        """保持対象を現在選択へ追加する。missingはrestoreと同じ。自身を返す。"""
+        if mode not in ("replace", "add", "remove"):
+            raise ValueError("mode must be replace, add or remove")
         names = self._names(missing)
         if names:
-            cmds.select(names, add=True, noExpand=True)
-        return self
-
-    @undo_chunk("hlibSelectionRemove")
-    def remove_from_selection(self, missing="skip"):
-        """保持対象を現在選択から除外する。missingはrestoreと同じ。自身を返す。"""
-        names = self._names(missing)
-        if names:
-            cmds.select(names, deselect=True, noExpand=True)
+            flag = {"replace": "replace", "add": "add", "remove": "deselect"}[mode]
+            cmds.select(names, noExpand=True, **{flag: True})
+        elif mode == "replace":
+            cmds.select(clear=True)
         return self
 
     def __len__(self):

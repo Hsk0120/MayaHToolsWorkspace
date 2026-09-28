@@ -11,11 +11,8 @@ from .plug import Plug
 class CompoundPlug(Plug):
     """compound 属性用の Plug。"""
 
-    def get(self, ws=False):
+    def get(self):
         """子プラグの値を集めた tuple を返す。
-
-        Args:
-            ws (bool): 汎用 compound 属性では無視される。
 
         Returns:
             tuple: 子の数と同じ長さの値。

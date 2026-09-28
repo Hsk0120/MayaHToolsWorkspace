@@ -5,7 +5,7 @@ Examples
 .. code-block:: python
 
     selection = hlib.captureSelection()
-    selection.filter(type="joint").restore()
+    selection.filter(type="joint").select()
 """
 
 

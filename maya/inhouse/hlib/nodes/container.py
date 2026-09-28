@@ -34,7 +34,7 @@ class Container(Node):
         ]
 
     @undo_chunk("hlib.Container.add")
-    def add(self, *nodes):
+    def add_members(self, *nodes):
         """指定ノードを所有下へ追加する。別containerからは強制移動しない。
 
         Args:
@@ -61,5 +61,5 @@ class Container(Node):
             Node: 作成したノード。
         """
         node = Node.create(kind, name=name or self.name() + "_" + kind, skipSelect=True)
-        self.add(node)
+        self.add_members(node)
         return node

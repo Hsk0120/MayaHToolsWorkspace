@@ -25,9 +25,9 @@ class PluginVersionTest(unittest.TestCase):
         if not self.was_loaded and cmds.pluginInfo(self.plugin_name, query=True, loaded=True):
             cmds.unloadPlugin(self.plugin_name)
 
-    def test_version_tuple_matches_version_string(self):
+    def test_version_parts_match_version_string(self):
         plugin = Plugin(self.plugin_name)
-        self.assertEqual(plugin.version_tuple(), plugin.version().parts)
+        self.assertEqual(plugin.version().parts, Version.parse(plugin.version_text()).parts)
 
     def test_is_version_at_least(self):
         plugin = Plugin(self.plugin_name)
@@ -38,7 +38,7 @@ class PluginVersionTest(unittest.TestCase):
 
     def test_unknown_plugin_has_no_version(self):
         plugin = Plugin("hlibDoesNotExistPlugin123")
-        self.assertIsNone(plugin.version_tuple())
+        self.assertIsNone(plugin.version())
         self.assertFalse(plugin.is_version_at_least("0"))
 
 
@@ -52,7 +52,6 @@ class ModuleTest(unittest.TestCase):
         module = Module("hlibDoesNotExistModule123")
         self.assertFalse(module.is_registered())
         self.assertIsNone(module.version())
-        self.assertIsNone(module.version_tuple())
         self.assertIsNone(module.path())
         self.assertFalse(module.is_version_at_least("0"))
 
@@ -136,16 +135,16 @@ class PluginPackageFlowTest(unittest.TestCase):
 
     def test_accessors_and_defaults(self):
         package = self.make()
-        self.assertEqual(package.name(), "ProductX")
-        self.assertEqual([p.name() for p in package.plugins()], ["pluginA", "pluginB"])
-        self.assertEqual(str(package.module()), "ModuleX")
-        self.assertEqual(package.minimum_version(), Version((3, 0, 0)))
-        self.assertEqual(package.minimum_maya(), 2025)
+        self.assertEqual(package.name, "ProductX")
+        self.assertEqual([p.name() for p in package.plugins], ["pluginA", "pluginB"])
+        self.assertEqual(str(package.module), "ModuleX")
+        self.assertEqual(package.minimum_version, Version((3, 0, 0)))
+        self.assertEqual(package.minimum_maya, 2025)
         self.assertIn("ProductX", repr(package))
         default = PluginPackage("y", plugins=("first", "second"))
-        self.assertIsNone(default.module())
-        self.assertIsNone(default.minimum_version())
-        self.assertIsNone(default.minimum_maya())
+        self.assertIsNone(default.module)
+        self.assertIsNone(default.minimum_version)
+        self.assertIsNone(default.minimum_maya)
 
     def test_old_maya_is_skipped(self):
         self.fake.year = "2024"
@@ -312,7 +311,7 @@ class BifrostTest(unittest.TestCase):
         shown = []
         self.assertEqual(self.package.ensure_loaded(dialog=shown.append), LOADED)
         self.assertEqual(shown, [])
-        for plugin in self.package.plugins():
+        for plugin in self.package.plugins:
             self.assertTrue(plugin.is_loaded(), plugin.name())
         self.assertTrue(self.package.loaded_version().is_at_least("3.0.0"))
 

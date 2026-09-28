@@ -120,7 +120,7 @@ class Namespace:
         return cls(om2.MNamespace.currentNamespace())
 
     @undo_chunk("hlibNamespaceSetCurrent")
-    def set_as_current(self):
+    def set_current(self):
         """カレントNamespaceを自身へ切り替える。
 
         Returns:
@@ -148,12 +148,12 @@ class Namespace:
             RuntimeError: 自身が存在しない場合。
         """
         previous = Namespace.current()
-        self.set_as_current()
+        self.set_current()
         try:
             yield self
         finally:
             if previous.exists():
-                previous.set_as_current()
+                previous.set_current()
 
     @classmethod
     @undo_chunk("hlibNamespaceCreate")

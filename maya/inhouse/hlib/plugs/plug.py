@@ -607,49 +607,53 @@ class Plug:
         self._require_valid()
         return self._mplug.isKeyable
 
-    @fast_edit
-    @undo_chunk("hlibPlugSetKeyable")
-    def set_keyable(self, state, *, fast=False):
-        """キー可能状態を変更する。
+
+
+    @staticmethod
+    def _validated_flags(locked=None, keyable=None, channel_box=None):
+        """状態値を全件検証し、Mayaのフラグ名へ変換する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            state (bool): ``True`` でキー可能にする。``False`` にするとチャンネル
-                ボックスからも隠れる（``set_channel_box(True)`` で明示的に表示可能）。
+            locked (bool | None): ロック状態。Noneは変更しない。
+            keyable (bool | None): キー可能状態。
+            channel_box (bool | None): Channel Box表示状態。
+
+        Returns:
+            dict: 指定されたMayaフラグだけを含む辞書。
+
+        Raises:
+            TypeError: boolまたはNone以外の状態がある場合。
+        """
+        flags = {}
+        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channel_box)):
+            if value is not None:
+                if not isinstance(value, bool):
+                    raise TypeError(f"{name} must be bool or None")
+                flags[name] = value
+        return flags
+
+    @fast_edit
+    @undo_chunk("hlibPlugSetFlags")
+    def set_flags(self, *, locked=None, keyable=None, channel_box=None, fast=False):
+        """属性の状態をまとめて変更する。省略した状態は変更しない。
+
+        Args:
+            locked (bool | None): ロック状態。
+            keyable (bool | None): キー設定可否。
+            channel_box (bool | None): Channel Box表示。キー可能な属性はFalseでも表示される。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            TypeError: 状態がbool/None以外の場合。
+            RuntimeError: 属性が無効、またはMayaが更新を拒否した場合。
         """
+        flags = self._validated_flags(locked, keyable, channel_box)
         self._require_valid()
-        set_attr(self.full_name(), keyable=bool(state))
-        return self
-
-    @fast_edit
-    @undo_chunk("hlibPlugSetChannelBox")
-    def set_channel_box(self, state, *, fast=False):
-        """キー不可のままチャンネルボックスへの表示状態を変更する。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            state (bool): ``True`` でチャンネルボックスに表示する。``False`` で隠す。
-
-        Returns:
-            Plug: 自身。
-
-        Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        self._require_valid()
-        set_attr(self.full_name(), channelBox=bool(state))
+        if flags:
+            set_attr(self.full_name(), **flags)
         return self
 
     def is_connected(self):
@@ -1022,27 +1026,6 @@ class Plug:
         self._require_valid()
         return self._mplug.isLocked
 
-    @fast_edit
-    @undo_chunk("hlibPlugLock")
-    def set_locked(self, state, *, fast=False):
-        """プラグのロック状態を変更する。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            state (bool): ``True`` でロック、``False`` で解除する。
-
-        Returns:
-            Plug: 自身。
-
-        Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        self._require_valid()
-        set_attr(self.full_name(), lock=bool(state))
-        return self
 
     def is_muted(self):
         """アトリビュートがミュートされているか判定する。
@@ -1056,9 +1039,12 @@ class Plug:
         self._require_valid()
         return bool(cmds.mute(self.full_name(), query=True))
 
-    @undo_chunk("hlibPlugMute")
-    def mute(self):
-        """アトリビュートをミュートする（現在の出力値で固定する）。
+    @undo_chunk("hlibPlugSetMuted")
+    def set_muted(self, state):
+        """ミュート状態を設定する。Trueは現在値で固定し、Falseは解除する。
+
+        Args:
+            state (bool): ミュートする場合はTrue。
 
         Returns:
             Plug: 自身。
@@ -1068,21 +1054,12 @@ class Plug:
             RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
         """
         self._require_valid()
-        cmds.mute(self.full_name())
-        return self
-
-    @undo_chunk("hlibPlugUnmute")
-    def unmute(self):
-        """アトリビュートのミュートを解除する。
-
-        Returns:
-            Plug: 自身。
-
-        Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
-        """
-        self._require_valid()
-        cmds.mute(self.full_name(), disable=True, force=True)
+        if not isinstance(state, bool):
+            raise TypeError("state must be a bool")
+        if state:
+            cmds.mute(self.full_name())
+        else:
+            cmds.mute(self.full_name(), disable=True, force=True)
         return self
 
     @undo_chunk("hlibPlugDeleteAttr")
@@ -1111,7 +1088,7 @@ class Plug:
             set_attr(self.full_name(), lock=False)
         cmds.deleteAttr(self.full_name())
 
-    def get(self, ws=False):
+    def get(self):
         """評価済みの Maya 属性値を取得する。
 
         bool/int/float 系の数値属性、角度・距離・時間の単位属性、enum、
@@ -1120,9 +1097,6 @@ class Plug:
         ``cmds.getAttr`` の既定挙動と一致させる。message 属性や mesh/カーブ等の
         複雑な typed data 属性のように対応する読み取り方法が無いものは
         ``cmds.getAttr`` にフォールバックする。
-
-        Args:
-            ws (bool): ワールド空間値を要求する。汎用 scalar Plug では無視される。
 
         Returns:
             object: 属性値。1要素のリストにタプルが入っている場合のみ、
@@ -1220,12 +1194,12 @@ class Plug:
             return False
         locked = self.is_locked()
         if unlock and locked:
-            self.set_locked(False)
+            self.set_flags(locked=False)
         try:
             self.set(value)
         finally:
             if unlock and locked:
-                self.set_locked(True)
+                self.set_flags(locked=True)
         return True
 
     @fast_edit
@@ -1372,12 +1346,12 @@ class Plug:
         target = self._coerce_plug(target)
         should_unlock = force and target.is_locked()
         if should_unlock:
-            target.set_locked(False)
+            target.set_flags(locked=False)
         try:
             cmds.connectAttr(self.full_name(), target.full_name(), force=force)
         finally:
             if should_unlock:
-                target.set_locked(True)
+                target.set_flags(locked=True)
         return target
 
     @undo_chunk("hlibPlugDisconnect")

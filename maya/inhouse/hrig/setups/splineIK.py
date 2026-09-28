@@ -105,7 +105,7 @@ class SplineIK:
             curve.plug("worldInverseMatrix[0]").connect(matrix.plug("matrixIn[1]"))
             matrix.plug("matrixSum").connect(position.plug("inputMatrix"))
             position.plug("outputTranslate").connect(shape.plug("controlPoints[{}]".format(index)))
-            graph.container.add(matrix, position)
+            graph.container.add_members(matrix, position)
         handle_name, effector_name = hlib.createIkHandle(
             startJoint=joints[0].full_name(),
             endEffector=joints[-1].full_name(),
@@ -131,7 +131,7 @@ class SplineIK:
         for role, node in (("handle", handle), ("curve", curve), ("effector", effector)):
             graph.container.add_attr(long_name=role, attribute_type="message")
             node.plug("message").connect(graph.container.plug(role))
-            graph.container.add(node)
+            graph.container.add_members(node)
         curve.plug("visibility").set(False)
         handle.plug("visibility").set(False)
         return graph

@@ -50,6 +50,16 @@ class Component:
         """
         return self._index
 
+    def _get_coordinate(self, axis):
+        """指定軸の現在座標を返す。axisは派生クラスが検証済みの整数。"""
+        return self.get_position()[axis]
+
+    def _set_coordinate(self, axis, value):
+        """指定軸だけを置換し、派生クラスの座標更新へ委譲する。"""
+        position = list(self.get_position())
+        position[axis] = value
+        self.set_position(position)
+
     def _validate(self):
         """現在のシェイプ型と番号を再検査する。
 
@@ -268,6 +278,14 @@ class Components:
         if len(rows) != len(self):
             raise ValueError("Coordinate count must match component count")
         return rows
+
+    def _get_coordinate(self, axis):
+        """保持順の指定軸の値を返す。axisは派生クラスが選択する。"""
+        return [point[axis] for point in self.get_position()]
+
+    def _set_coordinate(self, axis, value):
+        """全要素の指定軸を置換し、座標列の検証・更新へ委譲する。"""
+        self.set_positions(self._axis_rows(self.get_position(), axis, value))
 
     def _axis_rows(self, positions, axis, value):
         """軸の一括設定用座標を作る。スカラーは全要素、列は保持順に対応する。

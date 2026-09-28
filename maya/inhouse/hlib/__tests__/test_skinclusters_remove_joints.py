@@ -36,7 +36,7 @@ class RemoveJointsTest(unittest.TestCase):
         skin.set_weights([self.parent, self.child], [0.25, 0.75])
         before = list(skin.get_weights([self.parent, self.child]))
         collection = hlib.nodes.SkinClusters([skin])
-        collection.remove_joints([self.child, self.child])
+        collection.remove_influences([self.child, self.child])
         self.assertTrue(cmds.objExists(self.child))
         self.assertEqual(cmds.listRelatives(self.child, parent=True), [self.parent])
         self.assertFalse(skin.has_influence(self.child))
@@ -55,7 +55,7 @@ class RemoveJointsTest(unittest.TestCase):
             for skin in (actual, expected):
                 skin.set_weights([self.child, self.other], [0.75, 0.25])
             cmds.skinCluster(expected.full_name(), edit=True, removeInfluence=self.child)
-            hlib.nodes.SkinClusters([actual]).remove_joints(self.child, transfer_to_parent=transfer)
+            hlib.nodes.SkinClusters([actual]).remove_influences(self.child, transfer_to_parent=transfer)
             self.assertEqual(list(actual.get_weights([self.other])), list(expected.get_weights([self.other])))
             self.assertTrue(cmds.objExists(self.child))
 
@@ -63,7 +63,7 @@ class RemoveJointsTest(unittest.TestCase):
         first = self.skin([self.parent, self.child])
         last = self.skin([self.child])
         with self.assertRaises(ValueError):
-            hlib.nodes.SkinClusters([first, last]).remove_joints(self.child)
+            hlib.nodes.SkinClusters([first, last]).remove_influences(self.child)
         self.assertTrue(first.has_influence(self.child))
         self.assertTrue(last.has_influence(self.child))
         self.assertTrue(cmds.objExists(self.child))

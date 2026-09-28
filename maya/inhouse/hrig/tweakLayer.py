@@ -97,7 +97,7 @@ class TweakLayer:
                 control.plug("matrix").connect(destination)
             elif not active and previous is not None:
                 previous.disconnect(destination)
-                destination.set_value(hlib.maths.Matrix())
+                destination.set(hlib.maths.Matrix())
             control.plug("visibility").set_if_changed(active)
 
     @classmethod

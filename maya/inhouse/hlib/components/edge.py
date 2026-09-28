@@ -7,7 +7,7 @@ class Edge(Component):
     """Mesh の単一コンポーネント。"""
     shape_type = "mesh"
     component_type = "e"
-    count_attribute = "num_edges"
+    count_attribute = "edge_count"
 
     def vertices(self):
         """接続する頂点群を取得する。

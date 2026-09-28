@@ -119,16 +119,16 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
    node = hlib.createNode("transform", name="channelBoxExample")
    plug = node.plug("translateX")
 
-   plug.set_keyable(False)          # キー不可（チャンネルボックスからも隠れる）
-   plug.set_channel_box(True)       # キー不可のままチャンネルボックスにのみ表示
+   plug.set_flags(keyable=False)          # キー不可（チャンネルボックスからも隠れる）
+   plug.set_flags(channel_box=True)       # キー不可のままチャンネルボックスにのみ表示
 
    other = hlib.createNode("transform", name="channelBoxOther")
    plug.connect(other.plug("translateX"))
    print(plug.is_connected_to(other.plug("translateX")))   # True
    print(other.plug("translateX").is_connected_to(plug))   # True（向き不問）
 
-``set_keyable``/``set_channel_box`` は ``cmds.setAttr(keyable=...)``/
-``cmds.setAttr(channelBox=...)`` のラッパーです。``is_connected_to`` は入力・出力
+``set_flags(locked=..., keyable=..., channel_box=...)`` は属性の状態をまとめて設定します。
+省略したフラグは変更せず、bool以外の状態は更新前に拒否します。``is_connected_to`` は入力・出力
 どちらの向きの接続でも一致すれば ``True`` を返します。
 
 animCurve とミュート
@@ -146,14 +146,14 @@ animCurve とミュート
    print(plug.anim_curve())   # animExample_translateX（接続された animCurve ノード）
 
    print(plug.is_muted())   # False
-   plug.mute()
+   plug.set_muted(True)
    print(plug.is_muted())   # True
-   plug.unmute()
+   plug.set_muted(False)
 
 ``anim_curve`` は直接接続された animCurve ノードのみを解決します。
 ``pairBlend`` やアニメーションレイヤーを介した間接的な接続は対象外で、
 その場合は接続の有無にかかわらず ``None`` を返します。
-``mute``/``unmute`` は ``cmds.mute`` のラッパーで、現在の出力値のまま
+``set_muted(state)`` は ``cmds.mute`` のラッパーで、現在の出力値のまま
 アトリビュートの評価を一時的に固定・解除します。
 
 配列プラグの要素追加・削除
@@ -202,3 +202,24 @@ ArrayPlug オブジェクト自体を ``maya.cmds`` へ渡すとシーケンス�
 単一の角度Plugの ``get()`` は現在の実装では常に度を返します。
 一方、``set()`` は現在のMaya角度UI単位で受け取ります。UI単位がradのとき、
 ``set(get())`` は同じ角度を維持しません。角度の単位を明示して変換してください。
+
+
+属性の値とノードの姿勢
+----------------------
+
+``Plug.get()`` / ``set()`` は対象属性の値だけを扱い、空間指定 ``ws`` は受け付けません。
+ワールド空間の値にはTransformの ``get_translate(ws=True)`` / ``set_rotate(..., ws=True)``
+などを使います。
+
+.. code-block:: python
+
+   joint = hlib.getNode("joint1")
+   rotation = joint.plug("rotate").get()
+   joint.plug("rotate").set(rotation)  # チャンネル値をそのまま戻す
+   joint.plug("rotate").set((10, 20, 30), unit="deg")
+   joint.set_rotate((0, 0, 0), ws=True) # jointOrient等を含む姿勢の操作
+
+``rotate`` の値はラジアン・ノードのrotateOrderを持つ ``EulerRotation`` です。
+設定時は数値3成分のrad/deg、またはEulerRotation/Quaternionを使えます。
+型付き回転はノードのrotateOrderへ変換します。設定はjointOrientやrotateAxis、
+他のチャンネルを変更しません。通常モードはUndo対応、``fast=True`` はUndoなしです。

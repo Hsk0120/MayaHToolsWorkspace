@@ -150,7 +150,7 @@ class TwistLayer:
             rest = Matrix()
             for i in range(3):
                 rest[12 + i] = position[i] * fraction
-            joint.add_attr(long_name="twistRest", data_type="matrix").set_value(rest)
+            joint.add_attr(long_name="twistRest", data_type="matrix").set(rest)
             output.connect(joint.plug("offsetParentMatrix"))
             joints.append(joint.full_name())
         self._own([group, graph.container])
@@ -225,7 +225,7 @@ class TwistLayer:
         axis = group.plug("twistAxis").get()
         graph = group.plug("graph").source().node
         # container削除が空になった関連セットまで削除しないよう、先に所属を外す。
-        hlib.getNode(self.rig._member("twistSet")).remove(
+        hlib.getNode(self.rig._member("twistSet")).remove_members(
             [group.full_name(), graph.full_name()] + list(self.joints(segment))
         )
         hlib.delete([group, graph])
@@ -253,4 +253,4 @@ class TwistLayer:
                     output.connect(destination)
             elif source is not None:
                 source.disconnect(destination)
-                destination.set_value(joint.plug("twistRest").get())
+                destination.set(joint.plug("twistRest").get())

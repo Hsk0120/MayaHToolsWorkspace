@@ -82,6 +82,7 @@ class PluginPackage:
         self._minimum_maya = None if minimum_maya is None else int(minimum_maya)
         self._install_hint = install_hint
 
+    @property
     def name(self):
         """製品名を取得する。
 
@@ -90,6 +91,7 @@ class PluginPackage:
         """
         return self._name
 
+    @property
     def plugins(self):
         """ロード対象のプラグインを取得する。
 
@@ -98,6 +100,7 @@ class PluginPackage:
         """
         return list(self._plugins)
 
+    @property
     def module(self):
         """版の取得元のモジュールを取得する。
 
@@ -106,6 +109,7 @@ class PluginPackage:
         """
         return self._module
 
+    @property
     def minimum_version(self):
         """必要な最小の版を取得する。
 
@@ -114,6 +118,7 @@ class PluginPackage:
         """
         return self._minimum_version
 
+    @property
     def minimum_maya(self):
         """対象とする最小の Maya の年を取得する。
 

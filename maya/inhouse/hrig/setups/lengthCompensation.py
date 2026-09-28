@@ -32,7 +32,7 @@ class LengthCompensation:
         node = hlib.nodes.Node.create(
             kind, name=self.container.name() + "_" + role, skipSelect=True
         )
-        self.container.add(node)
+        self.container.add_members(node)
         return node
 
     @classmethod

@@ -48,7 +48,7 @@ UI単位と内部単位への一時切り替え
 を返します。``path``/``version`` も未登録なら ``None`` です。
 ``version()`` は ``Version`` オブジェクトを返します。数値として解釈できない版も ``None``
 になります。Mayaが返す文字列が必要なら ``version_text()``、数値のタプルが必要なら
-``version_tuple()`` を使います。``is_version_at_least("3.0.0")`` でも比較できます。
+``version()`` がNoneでないことを確認して ``version.parts`` を使います。``is_version_at_least("3.0.0")`` でも比較できます。
 
 モジュールと、製品の導入確認
 ------------------------------

@@ -34,7 +34,7 @@ class BendCorrection:
         node = hlib.nodes.Node.create(
             kind, name=self.container.name() + "_" + suffix, skipSelect=True
         )
-        self.container.add(node)
+        self.container.add_members(node)
         return node
 
     @classmethod
@@ -98,9 +98,9 @@ class BendCorrection:
         joint.plug("matrix").connect(relative.plug("matrixIn[0]"))
         joint.plug("offsetParentMatrix").connect(relative.plug("matrixIn[1]"))
         rest = Matrix(relative.plug("matrixSum").get())
-        owner.plug("restMatrix").set_value(rest)
+        owner.plug("restMatrix").set(rest)
         blend = graph._node("blendMatrix", "halfRotation")
-        blend.plug("inputMatrix").set_value(rest)
+        blend.plug("inputMatrix").set(rest)
         relative.plug("matrixSum").connect(blend.plug("target[0].targetMatrix"))
         blend.plug("target[0].weight").set(1)
         if blend.has_attr("target[0].rotateWeight"):
@@ -127,7 +127,7 @@ class BendCorrection:
             blend.plug("outputMatrix").connect(owner.plug("matrix"))
         delta = graph._node("multMatrix", "delta")
         relative.plug("matrixSum").connect(delta.plug("matrixIn[0]"))
-        delta.plug("matrixIn[1]").set_value(rest.inverse())
+        delta.plug("matrixIn[1]").set(rest.inverse())
         angles = graph._node("decomposeMatrix", "angles")
         delta.plug("matrixSum").connect(angles.plug("inputMatrix"))
         orientation = graph._node("composeMatrix", "orientation")
@@ -175,5 +175,5 @@ class BendCorrection:
             offset.plug("output1D").connect(owner.plug(side))
         extra = [node for node in hlib.ls(type="unitConversion") if node.uuid() not in conversions]
         if extra:
-            hlib.nodes.Container(owner).add(*extra)
+            hlib.nodes.Container(owner).add_members(*extra)
         return graph

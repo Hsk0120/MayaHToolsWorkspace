@@ -18,7 +18,7 @@ Selection
    owners = saved.owners()
 
    # 別の処理で選択を変更したあと、元の対象を再選択
-   saved.restore()
+   saved.select()
 
 ``items()`` は保持した全対象、``plugs()`` は属性参照を返します。
 ``components()`` はshapeと種類ごとにVertices・Edges・Faces・UVs・CVsにまとめます。
@@ -28,14 +28,14 @@ Selection
 
    joints = saved.filter(type="joint")
    vertices = saved.filter(type="vtx")
-   joints.add_to_selection()
-   joints.remove_from_selection()
-   saved.restore(missing="error")
+   joints.select(mode="add")
+   joints.select(mode="remove")
+   saved.select(missing="error")
 
 選択変更は各メソッド内でUndoチャンクにまとめます。
 ``missing="skip"`` が既定値で、削除済みの対象を除外します。
 ``missing="error"`` は無効な対象があれば、選択を変更する前に例外にします。
-空の集合の ``restore()`` は選択解除、追加・除外は何もしません。
+空の集合の ``select(mode="replace")`` は選択解除、追加・除外は何もしません。
 
 明示した対象からも生成できます。
 
@@ -49,7 +49,7 @@ Selection
 Selection と、Maya API 2.0 の MObject・MDagPath・MPlug・MSelectionList も指定できます。
 Selection は反復可能なので、``cmds.select(selection)`` や ``hlib.select(selection)`` のように
 そのまま渡すと各要素の名前に展開されます(:doc:`cmds_interop`)。
-削除済みの要素を含む場合は ``restore()`` を使ってください。
+削除済みの要素を含む場合は ``select()`` を使ってください。
 
 ノードの名前変更とDAGインスタンスのパスを追跡します。
 順序はMayaのアクティブ選択リストの順で、クリック順を保証するものではありません。

@@ -141,7 +141,7 @@ Maya 組み込みのノード型では空文字列になります。
 
    cmds.addAttr(child.name(), longName="lockedTemp", attributeType="double")
    locked_plug = child.plug("lockedTemp")
-   locked_plug.set_locked(True)
+   locked_plug.set_flags(locked=True)
    # locked_plug.delete_attr()             # ロック中は RuntimeError
    locked_plug.delete_attr(force=True)     # 一時的に解除してから削除
 
@@ -163,9 +163,9 @@ Maya 組み込みのノード型では空文字列になります。
 
    transform = hlib.createNode("transform", name="rigControl")
 
-   transform.hide()
+   transform.set_visible(False)
    print(transform.plug("visibility").get())   # False
-   transform.show()
+   transform.set_visible(True)
 
    transform.set_translate((1.0, 2.0, 3.0))
    transform.make_identity(apply=True, translate=True)
@@ -173,7 +173,7 @@ Maya 組み込みのノード型では空文字列になります。
 
    driver = hlib.createNode("transform", name="rigDriver")
    driver.plug("translateX").connect(transform.plug("translateX"))
-   transform.plug("translate").set_locked(True)
+   transform.plug("translate").set_flags(locked=True)
    transform.unlock_and_disconnect_transform_channels()
    print(transform.plug("translate").is_locked())      # False
    print(transform.plug("translateX").source())       # None（接続も解除される）

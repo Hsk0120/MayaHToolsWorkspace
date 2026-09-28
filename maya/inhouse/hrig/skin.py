@@ -18,7 +18,7 @@ def bind_mesh(rig, mesh, helpers=True):
         str: 作成したskinCluster。
     """
     joints = rig.joints() if helpers else rig.joints()[:3]
-    return hlib.nodes.SkinCluster.bind(mesh, joints, maximum_influences=4).full_name()
+    return hlib.nodes.SkinCluster.bind(mesh, joints, max_influences=4).full_name()
 
 
 @undo_chunk("hrig.create_skin_lod")

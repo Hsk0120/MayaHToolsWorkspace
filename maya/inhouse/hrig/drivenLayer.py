@@ -140,7 +140,7 @@ class DrivenLayer:
         members = {n.name() for n in hlib.nodes.Container(owner).members()}
         extra = set([item.name() for item in hlib.ls()]) - before - members - {owner.name()}
         if extra:
-            hlib.nodes.Container(owner).add(*extra)
+            hlib.nodes.Container(owner).add_members(*extra)
         root = self.rig.root
         owned = [owner]
         if not root.has_attr("drivenSet"):

@@ -249,15 +249,15 @@ def _create_movable_attr(node, info):
         **kwargs,
     )
     plug.set(info["value"])
-    plug.set_keyable(info["keyable"])
+    plug.set_flags(keyable=info["keyable"])
     if not info["keyable"]:
-        plug.set_channel_box(info["channel_box"])
+        plug.set_flags(channel_box=info["channel_box"])
     if info["source"] is not None:
         info["source"].connect(plug)
     for destination in info["destinations"]:
         plug.connect(destination)
     if info["locked"]:
-        plug.set_locked(True)
+        plug.set_flags(locked=True)
     return plug
 
 
@@ -735,28 +735,6 @@ class Node:
             return dag_path.fullPathName()
         return dag_path.partialPathName()
 
-    def partial_path(self):
-        """DAG ノードのパーシャルパス名を返す互換メソッド。
-
-        Returns:
-            str: 指定形式の DAG パス名。
-
-        Raises:
-            RuntimeError: DAG パスを保持していない場合。
-        """
-        return self.path()
-
-    def full_path(self):
-        """DAG ノードのフルパス名を返す互換メソッド。
-
-        Returns:
-            str: 完全 DAG パス名。
-
-        Raises:
-            RuntimeError: DAG パスを保持していない場合。
-        """
-        return self.path(full=True)
-
     def is_root(self):
         """DAG ノードがワールド直下か判定する。
 
@@ -1024,18 +1002,14 @@ class Node:
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        flags = {}
-        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channel_box)):
-            if value is not None:
-                if not isinstance(value, bool):
-                    raise TypeError(f"{name} must be bool or None")
-                flags[name] = value
+        from ..plugs.plug import Plug
+        flags = Plug._validated_flags(locked, keyable, channel_box)
         if isinstance(attributes, str):
             attributes = [attributes]
         plugs = [self.plug(name) for name in attributes]
         if flags:
             for plug in plugs:
-                set_attr(plug.full_name(), **flags)
+                plug.set_flags(locked=locked, keyable=keyable, channel_box=channel_box)
         return self
 
     def plugs(self, **kwargs):
@@ -1246,10 +1220,6 @@ class Node:
                 )
             raise AttributeError(f"属性が見つかりません: {self.name()}.{name}")
         return Plug(self, mplug)
-
-    def attr(self, name):
-        """互換用の別名。使い方・引数・戻り値は :meth:`plug` を参照してください。"""
-        return self.plug(name)
 
     def has_attr(self, name):
         """属性パスを解決できるか判定する。

@@ -111,19 +111,19 @@ rotateが既に0の対象は何もしません。それ以外でrotate／jointOr
    print(root.ik_handles())             # [IkHandle(...)]（自身が start joint の場合のみ）
    print(mid.ik_handles())              # []（途中の joint は対象外）
 
-   print(handle.get_end_joint())            # tip
-   print(handle.get_joint_list())            # [root, mid]（末端 joint は含まない）
-   print(handle.get_joint_list(include_tip=True))  # [root, mid, tip]
+   print(handle.end_joint())            # tip
+   print(handle.joints())            # [root, mid]（末端 joint は含まない）
+   print(handle.joints(include_tip=True))  # [root, mid, tip]
 
 ``chain_from_here`` は ``to`` を省略すると、子 joint がちょうど1つの間だけ辿り、
 分岐（子が0または2つ以上）に達したところで止まります。``to`` を指定した場合は
 そこまでの経路を辿り、``to`` が自身の子孫でなければ ``ValueError`` になります。
 ``ik_handles`` は自身が **start joint** である IK ハンドルのみを対象にします。
 Maya は IK ハンドルの ``startJoint`` への接続からしか joint 側を解決できないため、
-チェーン途中の joint では常に空リストになります。``IkHandle.get_joint_list`` は
+チェーン途中の joint では常に空リストになります。``IkHandle.joints`` は
 ``cmds.ikHandle(query=True, jointList=True)`` をラップしており、これは仕様上
 末端 joint を含まないため、必要なら ``include_tip=True`` を指定してください。
-``get_end_joint`` は ikEffector ノードの translate 接続元を辿って解決します。
+``end_joint`` は ikEffector ノードの translate 接続元を辿って解決します。
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

@@ -102,14 +102,6 @@ class Plugin:
         """
         return Version.parse(self.version_text())
 
-    def version_tuple(self):
-        """数値列だけが必要な既存コード向けに版のタプルを取得する。
-
-        Returns:
-            tuple[int, ...] | None: 接尾辞を除いた版。未登録・解釈不能ならNone。
-        """
-        version = self.version()
-        return version.parts if version is not None else None
 
     def is_version_at_least(self, minimum):
         """プラグインの版が ``minimum`` 以上か判定する。

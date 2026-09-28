@@ -187,6 +187,6 @@ class BendLayer:
                     if source is not None:
                         source.disconnect(destination)
                     if role == "half":
-                        destination.set_value(owner.plug("restMatrix").get())
+                        destination.set(owner.plug("restMatrix").get())
                     else:
                         destination.set(group.plug(role + "Rest").get())

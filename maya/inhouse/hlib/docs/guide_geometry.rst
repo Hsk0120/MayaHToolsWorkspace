@@ -56,12 +56,12 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
 .. code-block:: python
 
    mesh = hlib.getNode("pCube1").shape()
-   print(mesh.num_vertices(), mesh.num_edges(), mesh.num_polygons())
+   print(mesh.vertex_count(), mesh.edge_count(), mesh.polygon_count())
    points = mesh.points(ws=True)
    normals = mesh.normals(ws=True, angle_weighted=True)
 
    curve = hlib.getNode("curve1").shape()
-   print(curve.degree(), curve.num_cvs(), curve.num_spans())
+   print(curve.degree(), curve.cv_count(), curve.span_count())
    print(curve.length())  # オブジェクト空間の弧長
    cvs = curve.cv_positions(ws=True)
 
@@ -131,7 +131,7 @@ Vertex / CV はシーンを参照する単体ラッパーです。``get_x()`` / 
     uv = mesh.uv(0)           # UV
     uv.set_u(0.25)
     uv.set_v(0.75)
-    print(mesh.uvs().get_positions())
+    print(mesh.uvs().get_position())
 
 単体型は Vertex、CV、Edge、Face、UV、複数形は Vertices、CVs、Edges、Faces、UVs です。
 複数形は反復、添字、スライスに対応します。番号は作成時に固定し、座標は現在の値を

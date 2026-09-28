@@ -38,17 +38,17 @@ class ConfigurationTest(unittest.TestCase):
 
     def test_package_definition(self):
         package = self.mod.package()
-        self.assertEqual(package.name(), "Bifrost")
-        self.assertEqual([p.name() for p in package.plugins()], ["mayaVnnPlugin", "bifrostGraph", "flowWedging"])
-        self.assertEqual(str(package.module()), "Bifrost")
-        self.assertEqual(package.minimum_version().parts, (3, 0, 0))
-        self.assertEqual(package.minimum_maya(), 2025)
+        self.assertEqual(package.name, "Bifrost")
+        self.assertEqual([p.name() for p in package.plugins], ["mayaVnnPlugin", "bifrostGraph", "flowWedging"])
+        self.assertEqual(str(package.module), "Bifrost")
+        self.assertEqual(package.minimum_version.parts, (3, 0, 0))
+        self.assertEqual(package.minimum_maya, 2025)
 
     def test_minimum_version_env_override(self):
         with mock.patch.dict(os.environ, {"HRIG_BIFROST_MIN_VERSION": "99.1"}):
-            self.assertEqual(self.mod.package().minimum_version().parts, (99, 1))
+            self.assertEqual(self.mod.package().minimum_version.parts, (99, 1))
         with mock.patch.dict(os.environ, {"HRIG_BIFROST_MIN_VERSION": "bad"}):
-            self.assertEqual(self.mod.package().minimum_version().parts, (3, 0, 0))
+            self.assertEqual(self.mod.package().minimum_version.parts, (3, 0, 0))
 
     def test_run_delegates_to_the_package(self):
         with mock.patch("hlib.general.PluginPackage.ensure_loaded", return_value="missing") as ensure:

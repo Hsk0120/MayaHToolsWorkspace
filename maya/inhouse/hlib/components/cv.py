@@ -8,7 +8,7 @@ class CV(PointComponent):
 
     shape_type = "nurbsCurve"
     component_type = "cv"
-    count_attribute = "num_cvs"
+    count_attribute = "cv_count"
 
 
 class CVs(PointComponents):

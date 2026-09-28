@@ -1,13 +1,10 @@
-"""行列属性と所有ノードの変換行列を扱う。"""
-
-from ..decorators._fast import fast_edit
-from .._core.fastWrite import set_attr
-
-from ..decorators.undo import undo_chunk
+"""行列属性の値を読み書きする。ノードの変換はTransformで扱う。"""
 
 import maya.api.OpenMaya as om2
-import maya.cmds as cmds
 
+from ..decorators._fast import fast_edit
+from ..decorators.undo import undo_chunk
+from .._core.fastWrite import set_attr
 from .._core.registry import plug_wrapper
 from ..maths import Matrix
 from .plug import Plug
@@ -15,73 +12,40 @@ from .plug import Plug
 
 @plug_wrapper("matrix")
 class MatrixPlug(Plug):
-    """matrix 属性用の Plug。値は hlib.maths.Matrix として扱う。"""
+    """matrix属性用のPlug。対象属性の値だけを扱う。"""
 
-    @fast_edit
-    @undo_chunk("hlib.MatrixPlug.set_value")
-    def set_value(self, value, *, fast=False):
-        """所有ノードのTRSを変更せず、この行列属性へ直接書き込む。
-
-        Args:
-            value (Matrix | Iterable[float]): 設定する4x4行列。
-            fast (bool): TrueならUndoなしの高速更新。既定False。
+    def get(self):
+        """対象属性の行列値を取得する。
 
         Returns:
-            MatrixPlug: 自身。
-
-        Note:
-            offsetParentMatrixや動的なmatrix属性用。既存setは従来通り
-            transform/jointの変換操作へ委譲する。
-        """
-        self._require_valid()
-        set_attr(self.full_name(), *tuple(Matrix(value)), type="matrix")
-        return self
-
-    def get(self, ws=False):
-        """行列値を Matrix として取得する。
-
-        Args:
-            ws (bool): True ならプラグ自身の値ではなく所有ノードの get_matrix(ws=True) を呼ぶ。
-
-        Returns:
-            Matrix: 属性行列の複製(om2.MMatrix の派生)、または所有ノードのワールド行列。
+            Matrix: 対象属性の行列の複製。
 
         Raises:
-            AttributeError: ws=True で所有ノードに get_matrix がない場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードまたは属性が無効の場合。
         """
         self._require_valid()
-        if ws:
-            return self.node.get_matrix(ws=True)
         return Matrix.from_mmatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
     @fast_edit
-    @undo_chunk("hlib.plugs.matrixPlug.set")
-    def set(self, value, ws=False, *, fast=False):
-        """行列値を設定する。
-
-        所有ノードに set_matrix があれば、対象属性名にかかわらずノードの変換を更新する。なければ対象プラグへ type="matrix" で直接書き込む。通常モードでは直接書き込みもこのメソッドのUndoチャンクに含める。
+    @undo_chunk("hlibMatrixPlugSet")
+    def set(self, value, *, fast=False):
+        """対象の行列属性へ直接書き込む。所有ノードのTRSへ委譲しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Matrix | Iterable[float] | Iterable[Iterable[float]]): 設定する行列。ノードへ委譲できない場合は16要素の平坦な入力を指定する。
-            ws (bool): 所有ノードの set_matrix へ渡す空間指定。直接 setAttr する場合は無視する。
+            value (Matrix | Iterable[float]): 設定する4x4行列。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
             MatrixPlug: 自身。
 
         Raises:
-            TypeError: worldMatrix 属性への書き込みの場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            TypeError: worldMatrixなどの書込み不可属性を指定した場合。
+            RuntimeError: 所有ノード・属性が無効、またはMayaが更新を拒否した場合。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        ノード自体の変換にはTransform.set_matrixを使う。
         """
         self._require_valid()
         if self.attribute() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
-        if hasattr(self.node, "set_matrix"):
-            self.node.set_matrix(Matrix(value), ws=ws)
-            return self
-        set_attr(self.full_name(), *tuple(value), type="matrix")
+        set_attr(self.full_name(), *tuple(Matrix(value)), type="matrix")
         return self

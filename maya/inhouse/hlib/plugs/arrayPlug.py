@@ -44,11 +44,8 @@ class ArrayPlug(Plug):
             indices = sorted(set(indices).union(range(count)))
         return indices
 
-    def get(self, ws=False):
+    def get(self):
         """既存インデックスをキーにした要素値の dict を返す。
-
-        Args:
-            ws (bool): 配列自身では空間変換を行わないため無視される。
 
         Returns:
             dict[int, object]: 論理インデックスをキーとする要素値。ワールド空間属性は

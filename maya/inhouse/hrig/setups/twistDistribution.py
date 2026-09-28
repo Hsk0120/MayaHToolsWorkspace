@@ -31,7 +31,7 @@ class TwistDistribution:
         node = hlib.nodes.Node.create(
             kind, name=self.container.name() + "_" + suffix, skipSelect=True
         )
-        self.container.add(node)
+        self.container.add_members(node)
         return node
 
     @classmethod
