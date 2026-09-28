@@ -2,6 +2,7 @@
  * @brief Explorerの遅延列挙と、ディスクを変更しない表示操作。
  */
 #include "explorer.h"
+#include "editor.h"
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,12 +14,14 @@
 
 namespace hedit {
 Explorer::Explorer(QWidget* parent) : QWidget(parent) {
-    auto layout=new QVBoxLayout(this); layout->setContentsMargins(3,3,3,3);
+    auto layout=new QVBoxLayout(this); layout->setContentsMargins(scaled(3),scaled(3),scaled(3),scaled(3));
     auto buttons=new QHBoxLayout;
     auto open=new QPushButton("Open folder"); auto add=new QPushButton("Add folder");
     auto remove=new QPushButton("Remove");
     buttons->addWidget(open); buttons->addWidget(add); buttons->addWidget(remove); layout->addLayout(buttons);
     tree=new QTreeWidget(this); tree->setObjectName("explorerTree"); tree->setHeaderHidden(true);
+    // フォルダー/ファイルのアイコンもMayaの拡大率に合わせる(文字はMaya全体の文字で拡大済み)。
+    tree->setIconSize(QSize(scaled(16),scaled(16)));
     layout->addWidget(tree); opened=new QTreeWidgetItem(tree,{"OPEN EDITORS"}); opened->setExpanded(true);
     connect(open,&QPushButton::clicked,this,[this]{ addFolder(QFileDialog::getExistingDirectory(this,"Open folder"),true); });
     connect(add,&QPushButton::clicked,this,[this]{ addFolder(QFileDialog::getExistingDirectory(this,"Add folder")); });

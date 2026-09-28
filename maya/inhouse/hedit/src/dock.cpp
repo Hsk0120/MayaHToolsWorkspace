@@ -40,6 +40,18 @@ int quitJob=-1;
 QJsonObject lastState;
 QString cachedControl;
 
+/** @brief ドックの中身を作るuiScript(MEL)。
+ * @details Maya起動時のワークスペース復元は、userSetupやautoloadでプラグインがロードされる前に
+ * uiScriptを実行する。そのままではheditコマンドが無くエラーになるため、未ロードならロードしてから
+ * 復元する。引数に引用符を使わず、MELの文字列リテラルへそのまま埋め込めるようにしている。
+ */
+const char* kUiScript="if (!`pluginInfo -q -loaded hedit`) loadPlugin hedit; hedit -restore;";
+/** @brief ドックを閉じたときのcloseCommand(MEL)。
+ * @details 起動時に必要なプラグインが未ロードだと、Mayaは保存済みのフローティングのドックを自動で閉じ、
+ * このコマンドを実行する。その時点ではheditコマンドが無いため、ロード済みのときだけ呼ぶ
+ * (未ロードの間に閉じられても、記録すべき開閉状態の変化は無い)。
+ */
+const char* kCloseCommand="if (`pluginInfo -q -loaded hedit`) hedit -closed;";
 /** @brief ドックと画面のタイトル。 @return 版を含むタイトル。 */
 QString title() { return QStringLiteral("hedit " HEDIT_VERSION " - Python / MEL"); }
 /** @brief ドックが存在するか。 @return workspaceControlがあればtrue。 */
@@ -105,7 +117,10 @@ void hideIfClosed() {
 /** @brief 表示後に、閉じる操作の通知・配置の監視・終了通知を登録する。重複はさせない。 */
 void opened() {
     openedState=true;
-    mel("workspaceControl -e -closeCommand \"hedit -closed\" "+melQuote(controlName()));
+    mel("workspaceControl -e -closeCommand "+melQuote(kCloseCommand)+" "+melQuote(controlName()));
+    // 旧版で保存されたドック(uiScriptがhedit -restoreだけ、またはPythonのimport hedit)も、
+    // 次回の起動でプラグインをロードしてから復元できるよう、今のuiScriptへ書き換える。
+    mel("workspaceControl -e -uiScript "+melQuote(kUiScript)+" "+melQuote(controlName()));
     if (!timer) {
         timer=new QTimer(existingEditor());
         timer->setInterval(1000);
@@ -145,27 +160,31 @@ bool show(std::optional<bool> floating) {
     // 本体のcloseEventでタブを保存する。取り消されたら現在の画面をそのまま残す。
     // workspaceControlは破棄せず、Mayaのドッキング配置を保つ。
     if (QMainWindow* existing=existingEditor()) { if (!existing->close()) return false; }
-    QMainWindow* editor=editorFactory ? editorFactory(true) : nullptr;
-    if (!editor) return false;
-    editor->setWindowTitle(title());
     const QString control=melQuote(controlName());
-    if (exists()) {
+    const bool existed=exists();
+    if (existed) {
         mel("workspaceControl -e -label "+melQuote(title())+" "+control);
         if (floating) mel("workspaceControl -e -floating "+QString(*floating ? "true" : "false")+" "+control);
-        // 旧版で別レイアウトへ入った画面も、明示的な再表示のときに修復する。
-        attach(editor,controlWidget());
+        // 先に表示してから画面を入れる。保存済みの空のドック(ロード前にuiScriptが動けなかったもの)を
+        // 表示すると、MayaがuiScriptで中身を作り直し、それより前に入れた画面を破棄するため。
         // Qt5ではuiScript直後の浮動ドックにrestoreを掛けるとネイティブウィンドウの
-        // 再生成で落ちる場合がある。保持中のドックを表示する。
+        // 再生成で落ちる場合がある。restoreではなく表示の切り替えを使う。
         mel("workspaceControl -e -visible true "+control);
-    } else {
+    }
+    // 画面はMayaのドックの作り直しで破棄され得るため、QPointerで生存を確かめながら使う。
+    QPointer<QMainWindow> editor=editorFactory ? editorFactory(true) : nullptr;
+    if (!editor) return false;
+    editor->setWindowTitle(title());
+    if (!existed) {
         const bool floatingValue=floating.value_or(true);
         mel("workspaceControl -label "+melQuote(title())+" -retain true -loadImmediately true"
             " -floating "+QString(floatingValue ? "true" : "false")+
             " -initialWidth 1050 -initialHeight 740 -requiredPlugin \"hedit\""
-            " -uiScript \"hedit -restore\" "+control);
+            " -uiScript "+melQuote(kUiScript)+" "+control);
         if (!floatingValue) mel("workspaceControl -e -dockToMainWindow \"bottom\" false "+control);
-        attach(editor,controlWidget());
     }
+    // 旧版で別レイアウトへ入った画面も、明示的な再表示のときに修復する。
+    if (!editor || !attach(editor,controlWidget())) return false;
     editor->show();
     opened();
     return true;
@@ -188,11 +207,11 @@ bool restore() {
     opening=true;
     struct Reset { ~Reset() { opening=false; } } reset;
     if (exists()) mel("workspaceControl -e -label "+melQuote(title())+" "+melQuote(controlName()));
-    QMainWindow* editor=editorFactory(true);
+    QPointer<QMainWindow> editor=editorFactory(true);
     if (!editor) return false;
     if (!parent) { MGlobal::displayError("hedit workspaceControl was not found"); return false; }
     editor->setWindowTitle(title());
-    attach(editor,parent);
+    if (!attach(editor,parent) || !editor) return false;
     editor->show();
     opened();
     return true;

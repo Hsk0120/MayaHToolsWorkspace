@@ -189,8 +189,12 @@ def main(output_dir, finished):
         selection_spec = importlib.util.spec_from_file_location('hedit_output_selection', str(Path(__file__).with_name('output_selection_smoke.py')))
         selection_tests = importlib.util.module_from_spec(selection_spec)
         selection_spec.loader.exec_module(selection_tests)
-        selection_tests.check(visual_output, QtCore, QtGui, QtWidgets, QtTest)
-        result['checks'].append('output_selection_copy_append_scroll_readonly')
+        if selection_tests.check(visual_output, QtCore, QtGui, QtWidgets, QtTest):
+            result['checks'].append('output_selection_copy_append_scroll_readonly')
+        else:
+            # Windowsのクリップボードがほかのアプリに占有されていた。コピー以外は確認済み。
+            result['checks'].append('output_selection_append_scroll_readonly')
+            result.setdefault('skipped', []).append('clipboard_copy (system clipboard unavailable)')
         visual_output.clear()
         # Ctrl+Gはフォーカス中の欄だけを移動し、取消時は位置を保つ。
         for target in (code, visual_output):

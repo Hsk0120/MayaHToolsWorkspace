@@ -59,11 +59,16 @@ def check(window, QtCore, QtGui, QtWidgets, QtTest):
     old_clipboard = QtCore.QMimeData()
     for fmt in clipboard.mimeData().formats():
         old_clipboard.setData(fmt, clipboard.mimeData().data(fmt))
+    # Windowsのクリップボードがほかのアプリに占有されて読み書きできないときは、コピー内容の確認だけ飛ばす。
+    clipboard.setText('hedit_clipboard_probe')
+    clipboard_usable = clipboard.text() == 'hedit_clipboard_probe'
     try:
         reset('first\nlast', 6)
         key(QtCore.Qt.Key_C, ctrl)
-        assert clipboard.text() == 'last\n'
+        if clipboard_usable:
+            assert clipboard.text() == 'last\n'
         key(QtCore.Qt.Key_X, ctrl)
+        # 切り取りは本文から行を消す(クリップボードの可否に関係なく確かめられる)。
         assert code.toPlainText() == 'first'
         key(QtCore.Qt.Key_Z, ctrl)
         assert code.toPlainText() == 'first\nlast'

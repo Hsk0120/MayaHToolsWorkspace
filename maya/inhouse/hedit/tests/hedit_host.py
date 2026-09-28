@@ -68,6 +68,14 @@ def visible_editors():
     return [widget for widget in editors() if widget.isVisible()]
 
 
+def output_text():
+    """str: 編集画面の出力欄の本文。未作成なら作る(Mayaの起動時からの履歴を含む)。"""
+    editor()
+    output = next(widget for widget in QtWidgets.QApplication.allWidgets()
+                  if widget.objectName() == 'output' and isinstance(widget, QtWidgets.QPlainTextEdit))
+    return output.toPlainText()
+
+
 def state_path():
     """Path: 開閉状態の保存先ui.json(tabs.jsonと同じフォルダー)。"""
     return Path(cmds.hedit(sessionPath=True)).with_name('ui.json')

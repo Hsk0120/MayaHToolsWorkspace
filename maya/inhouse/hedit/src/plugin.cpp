@@ -286,6 +286,17 @@ QMainWindow* ensureEditor(bool create) {
                     return nullptr;
                 }
             }
+            // Maya標準のScript Editorと同じ基準で、4K等の拡大率(Interface Scaling)を寸法へ掛ける。
+            // MayaはQt自体の高DPI拡大を無効にしているため、固定のピクセル数はそのままでは拡大されない。
+            hedit::setUiScale(MQtUtil::dpiScale(1.0f));
+            // Qtの":/名前"は拡大率に関係なく20pxの画像しか返さない。Mayaの読み込み関数は拡大率に合った
+            // 高解像度の画像を返す(200%なら40px)。返されたQIconは呼出側が所有するため写してから解放する。
+            hedit::setIconProvider([](const QString& name) {
+                QIcon* raw=MQtUtil::createIcon(hedit::toMString(name));
+                if (!raw) return QIcon(":/"+name);
+                QIcon icon(*raw); delete raw;
+                return icon;
+            });
             window = hedit::createEditor(MQtUtil::mainWindow(), [](const QString& source) {
                 // MayaのPython実行・履歴・共通出力を使用する。stdoutを横取りしない。
                 auto utf8 = source.toUtf8();

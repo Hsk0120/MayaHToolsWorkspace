@@ -104,9 +104,32 @@ def _check(stage, output_dir, result):
         cmds.workspaceControl(host.CONTROL, edit=True, close=True)
         assert not json.loads(host.state_path().read_text(encoding='utf-8'))['open']
         cmds.workspaceLayoutManager(save=True)
+    elif stage == 'float_write':
+        # フローティングのまま開いて終了する(ドックの配置はMayaのワークスペースへ保存される)。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        assert cmds.workspaceControl(host.CONTROL, query=True, floating=True)
+        host.save_state()
+        cmds.workspaceLayoutManager(save=True)
+        result['checks'].append('saved_floating_dock')
+    elif stage == 'float_read':
+        # 必要なプラグインが未ロードのまま起動すると、Mayaは保存済みのフローティングのドックを閉じ、
+        # closeCommandを実行する。以前はそこでheditコマンドが無く「Cannot find procedure "hedit"」になった。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        window = host.docked_editor()
+        assert window is not None and window.isVisible(), 'Window menu did not reopen the floating dock'
+        text = host.output_text()
+        assert 'Cannot find procedure "hedit"' not in text, [line for line in text.splitlines() if 'Error' in line]
+        result['checks'].append('floating_dock_restart_without_missing_command_error')
     else:
         assert not cmds.workspaceControl(host.CONTROL, exists=True) or not cmds.workspaceControl(host.CONTROL, query=True, visible=True)
         result['checks'].append('closed_editor_not_reopened')
+        # 保存済みの空のドックが残った状態でWindowメニューから開く。表示の瞬間にMayaがuiScriptで
+        # 中身を作り直すため、先に画面を入れると破棄されて落ちていた(表示してから入れる)。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        window = host.docked_editor()
+        assert window is not None and window.isVisible(), 'Window menu did not reopen hedit into the saved dock'
+        assert len(host.visible_editors()) == 1
+        result['checks'].append('window_menu_reopens_into_saved_dock')
         cmds.unloadPlugin('hedit')
         assert not cmds.menuItem(host.MENU, exists=True), 'Window menu item remained after unload'
         result['checks'].append('window_menu_removed_by_unload')

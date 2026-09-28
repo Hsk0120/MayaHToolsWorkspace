@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <QTemporaryDir>
+#include <QToolBar>
 #include <QCompleter>
 #include <QDir>
 #include <QFile>
@@ -102,6 +103,19 @@ int main(int argc, char** argv) {
     if (hedit::compactHistory("one\r\n\noptimization\n \non\n\n\nnext\n")!="one\noptimization on\nnext\n"
         || !hedit::compactHistory("").isEmpty()) return 11;
     if (!moduleScanPasses()) return 12;
+    // 4K等のMayaの拡大率(Interface Scaling)を、文字・アイコンの固定寸法に掛ける。
+    {
+        hedit::setUiScale(2.0);
+        auto large=hedit::createEditor(nullptr,[](const QString&) { return QString(); },[] { return QByteArray("{}"); });
+        large->show(); QApplication::processEvents();
+        auto bar=large->findChild<QToolBar*>("scriptToolbar");
+        auto code=large->findChild<QPlainTextEdit*>("codeEditor");
+        const bool ok=hedit::scaled(20)==40 && bar && bar->iconSize()==QSize(40,40) && code && code->font().pixelSize()==28;
+        if (!ok) qWarning() << "ui scale" << (bar ? bar->iconSize() : QSize()) << (code ? code->font().pixelSize() : -1);
+        delete large;
+        hedit::setUiScale(1.0);
+        if (!ok) return 13;
+    }
     QFile file(QString::fromLocal8Bit(argv[1])); if (!file.open(QIODevice::ReadOnly)) return 3;
     QByteArray config = file.readAll();
     bool outputSent=false;

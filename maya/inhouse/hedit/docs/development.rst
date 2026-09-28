@@ -47,13 +47,23 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
        ロード時に ``<userPrefDir>/hedit/hedit.svg`` へ書き出して使う(内容が同じなら書き直さない)。
    * - ドッキング・再表示
      - ``dock.cpp`` の ``show``\ 。MEL の ``workspaceControl`` を作り、\ ``MQtUtil::addWidgetToMayaLayout`` で
-       編集画面(QMainWindow)を直接入れる。uiScript は MEL の ``hedit -restore``\ 。
+       編集画面(QMainWindow)を直接入れる。uiScript は ``kUiScript``\ (未ロードなら ``loadPlugin hedit`` してから
+       ``hedit -restore``)。保存済みの workspaceControl がある場合は **先に表示してから** 中身を作る
+       (表示で Maya が uiScript を実行し、先に入れた画面を作り直して壊すのを避ける)。
    * - 開閉状態の保存(ui.json)
-     - ``dock.cpp`` の ``record``\ (表示中は 1 秒ごと)。閉じる操作は ``closeCommand`` の ``hedit -closed``\ 、
+     - ``dock.cpp`` の ``record``\ (表示中は 1 秒ごと)。閉じる操作は ``closeCommand``\ (``kCloseCommand``)の
+       ``hedit -closed``\ 。プラグインがロードされているときだけ呼ぶ(未ロードのまま Maya が保存済みの
+       浮動ドックを閉じても ``Cannot find procedure "hedit"`` を出さないため)。
        Maya の終了は ``quitApplication`` の scriptJob(``hedit -quitting``)で受け取る。
    * - 前回画面の復元
      - ``dock.cpp`` の ``restorePrevious``\ (ロード後の次のイベントループ)。保存済みの空の workspaceControl が
        残っている場合は、表示するだけにして Maya 自身の uiScript に中身を作らせる。
+   * - 画面の大きさ(4K など)
+     - ``editor.cpp`` の ``setUiScale`` / ``scaled`` / ``setIconProvider``\ 。\ ``plugin.cpp`` が画面の作成前に
+       ``MQtUtil::dpiScale(1.0f)`` を ``setUiScale`` へ渡し、文字の px・余白・幅・アイコンの大きさはすべて
+       ``scaled(100% のときの px)`` で決める(Maya は Qt の高 DPI 拡大を止めて自前で拡大するため)。
+       アイコンは ``MQtUtil::createIcon`` で拡大率に合った画像を受け取る(``QIcon(":/name.png")`` は常に 20 px)。
+       Zoom の ``fontPixels`` は 100% 基準で保存する。Maya 無しの ``tests/ui_smoke.cpp`` では 2 倍を与えて検証する。
    * - 起動時の出力履歴・出力の購読
      - ``plugin.cpp`` の ``outputHistory`` / ``createOutputReporter``\ 。非表示の ``cmdScrollFieldReporter`` を MEL で作り、
        ``MQtUtil::findControl`` で表示文書を購読する。履歴の整形は ``editor.cpp`` の ``compactHistory``\ 。
@@ -208,7 +218,9 @@ Visual Studio のプロジェクトだけを作る
    * - ``run_startup.py``
      - 同じ専用設定で 3 回起動する(``startup_smoke.py``)。プラグインのロードだけで Window メニューの項目と
        アイコンが追加されること、メニューのコマンドで開けること、右ドック・Python / MEL 本文の復元、
-       閉じた場合に再表示しないこと、アンロードでメニュー項目が消えることを確認
+       閉じた場合に再表示しないこと、閉じた後もメニューのコマンドで保存済みのドックへ開き直せること、
+       アンロードでメニュー項目が消えることを確認。続けて別の設定で 2 回起動し、浮動のドックを保存した次の起動で
+       ``Cannot find procedure "hedit"`` が出ずに開けることも確認
    * - ``run_gui.py``
      - 専用の空シーン・専用設定の Maya GUI で、``userSetup.py`` による自動ロード、表示・ドッキング・実行・出力・補完・
        検索・ショートカットなどを確認(``--suite`` で ``gui_smoke.py`` / ``completion_output_smoke.py`` /
@@ -224,6 +236,9 @@ Visual Studio のプロジェクトだけを作る
   ドック(``control()`` / ``docked_editor()``)・ui.json(``state_path()`` / ``save_state()``)を参照します。
   PySide で編集画面を ``QMainWindow`` 型として取り出すと、Maya が破棄した別のウィンドウとアドレスが重なったときに
   「削除済み」のラッパーが返ることがあります。補助は ``QApplication.allWidgets()`` から取り直して避けています。
+* 出力欄の内容は ``hedit_host.output_text()`` で取得します(起動時のエラーが出ていないことの確認に使う)。
+* コピーの確認は Windows のクリップボードを使います。ほかのアプリがクリップボードを開いたままだと読み書きできないため、
+  テストは最初に書き込みを試し、使えない場合はコピー内容の確認だけ飛ばします(``gui_smoke.py`` は結果の ``skipped`` に記録)。
 * GUI テストのランナーは全ての ``userSetup`` を抑止します。そのため、起動時の入口
   (``scripts/userSetup.py`` と同じ ``loadPlugin``)は各テストが明示的に実行します。
 * GUI テストのモジュールディレクトリには hedit の ``.mod`` だけを用意します(ワークスペース全体の外部モジュールは読み込みません)。

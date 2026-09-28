@@ -60,6 +60,15 @@
 #include <QAbstractItemView>
 
 namespace hedit {
+namespace {
+/// UIの拡大率。MayaではMQtUtil::dpiScale(1.0)。Mayaなしのテストでは1.0。
+double uiScaleFactor=1.0;
+/// ツールバーのアイコンの取り出し方。MayaではMQtUtil::createIcon。空ならQIcon(":/名前")。
+std::function<QIcon(const QString&)> iconProvider;
+}
+void setUiScale(double scale) { uiScaleFactor=scale>0 ? scale : 1.0; }
+void setIconProvider(std::function<QIcon(const QString&)> provider) { iconProvider=std::move(provider); }
+int scaled(double pixels) { return qRound(pixels*uiScaleFactor); }
 /** @brief マウスホイールと矢印ボタンで多数のタブを移動する。 */
 class ScrollTabs : public QTabBar {
 public:
@@ -139,7 +148,7 @@ class NumberedText : public QPlainTextEdit {
      */
     void updateGutter() {
         int digits=QString::number(qMax(1,blockCount())).size();
-        gutterWidth=showNumbers ? qMax(44,fontMetrics().horizontalAdvance('9')*digits+20) : 0;
+        gutterWidth=showNumbers ? qMax(scaled(44),fontMetrics().horizontalAdvance('9')*digits+scaled(20)) : 0;
         setViewportMargins(gutterWidth,0,0,0);
         setTabStopDistance(fontMetrics().horizontalAdvance(' ')*4);
         update();
@@ -172,7 +181,7 @@ public:
             while (block.isValid()) {
                 auto rect=blockBoundingGeometry(block).translated(contentOffset());
                 if (rect.top()>height()) break;
-                if (block.isVisible()) painter.drawText(QRectF(0,rect.top(),gutterWidth-10,fontMetrics().height()),Qt::AlignRight,QString::number(block.blockNumber()+1));
+                if (block.isVisible()) painter.drawText(QRectF(0,rect.top(),gutterWidth-scaled(10),fontMetrics().height()),Qt::AlignRight,QString::number(block.blockNumber()+1));
                 block=block.next();
             }
         }
@@ -277,15 +286,18 @@ public:
      */
     explicit Code(QWidget* parent = nullptr) : NumberedText(parent) {
         setObjectName("codeEditor");
-        setFont(QFont("Consolas", 11)); setLineWrapMode(NoWrap);
+        // ポイント指定はMayaの拡大率が効かない(Qtの高DPI拡大が無効のため)。ピクセルで指定して拡大率を掛ける。
+        QFont codeFont("Consolas"); codeFont.setPixelSize(scaled(14));
+        setFont(codeFont); setLineWrapMode(NoWrap);
         setTabStopDistance(fontMetrics().horizontalAdvance(' ') * 4);
         highlight=new Highlight(document());
         completer = new QCompleter(this);
         completer->setModel(new QStandardItemModel(completer));
         completer->setWidget(this); completer->setCaseSensitivity(Qt::CaseSensitive);
         completer->setCompletionMode(QCompleter::PopupCompletion);
-        completer->popup()->setFont(QFont("Consolas", 11));
-        completer->popup()->setStyleSheet("QAbstractItemView{background:#252526;color:#d4d4d4;border:1px solid #454545;selection-background-color:#094771;selection-color:#ffffff;padding:3px;}");
+        completer->popup()->setFont(codeFont);
+        completer->popup()->setStyleSheet(QString("QAbstractItemView{background:#252526;color:#d4d4d4;border:%1px solid #454545;selection-background-color:#094771;selection-color:#ffffff;padding:%2px;}")
+            .arg(scaled(1)).arg(scaled(3)));
         connect(completer, QOverload<const QString&>::of(&QCompleter::activated), this, [this](const QString& value) {
             acceptingCompletion=true;
             auto cursor = textCursor();
@@ -530,13 +542,15 @@ public:
     int fontPixels=14;
     /**
      * @brief コードと出力の文字サイズを10〜28pxに制限して保存する。
-     * @param size 要求されたピクセル単位の文字サイズ。
+     * @param size 要求されたピクセル単位の文字サイズ(100%時の値)。
+     * @details 保存する値は100%時のピクセル数で、表示するときにUIの拡大率を掛ける。
+     * 4K等で拡大率を変えても、同じ設定で同じ見た目の大きさになる。
      */
     void setZoom(int size) {
         fontPixels=qBound(10,size,28);
         setStyleSheet(QString("QPlainTextEdit#codeEditor,QPlainTextEdit#output{background:#1e1e1e;color:#d4d4d4;"
             "font-family:'Consolas';selection-background-color:#264f78;selection-color:#d4d4d4;}"
-            "QPlainTextEdit#codeEditor{font-size:%1px;} QPlainTextEdit#output{font-size:%2px;}").arg(fontPixels).arg(fontPixels-2));
+            "QPlainTextEdit#codeEditor{font-size:%1px;} QPlainTextEdit#output{font-size:%2px;}").arg(scaled(fontPixels)).arg(scaled(fontPixels-2)));
         if (preferences) { preferences->setValue("fontPixels",fontPixels); preferences->sync(); }
         statusBar()->showMessage(QString("Font size: %1 px").arg(fontPixels),2000);
     }
@@ -596,16 +610,17 @@ public:
      * @param melRun MEL実行用コールバック。
      */
     Window(QWidget* parent, Execute run, Configuration snapshot, OutputReader reader, Completion completion, QString recoveryPath, Completion analyzer, Execute melRun) : QMainWindow(parent), execute(run), configuration(snapshot), outputReader(reader), complete(completion), sessionPath(recoveryPath), analyze(analyzer), executeMel(melRun) {
-        setObjectName("hedit"); setWindowTitle("hedit - Python / MEL"); resize(1050, 740);
+        setObjectName("hedit"); setWindowTitle("hedit - Python / MEL"); resize(scaled(1050), scaled(740));
         setWindowFlags(parent ? Qt::Widget : Qt::Window);
-        setStyleSheet(
+        setStyleSheet(QString(
             "QPlainTextEdit#codeEditor,QPlainTextEdit#output{background:#1e1e1e;color:#d4d4d4;"
-            "font-family:'Consolas';font-size:14px;selection-background-color:#264f78;selection-color:#d4d4d4;}"
-        );
+            "font-family:'Consolas';font-size:%1px;selection-background-color:#264f78;selection-color:#d4d4d4;}"
+        ).arg(scaled(14)));
         auto split = new QSplitter(Qt::Vertical, this);
         tabs = new EditorTabs; tabs->setTabsClosable(true); tabs->setMovable(true);
         output = new Output; output->setObjectName("output");
-        output->setFont(QFont("Consolas", 10)); output->setMaximumBlockCount(5000);
+        QFont outputFont("Consolas"); outputFont.setPixelSize(scaled(12));
+        output->setFont(outputFont); output->setMaximumBlockCount(5000);
         connect(&outputTimer, &QTimer::timeout, this, [this] { flushOutput(); });
         if (outputReader) outputTimer.start(25);
         output->setPlaceholderText(QString());
@@ -627,30 +642,31 @@ public:
         connect(languageMode,QOverload<int>::of(&QComboBox::activated),this,[this](int index){ if (current()) setLanguage(current(),index==1?"mel":"python"); });
         explorerDock=new QDockWidget("EXPLORER",this); explorerDock->setObjectName("explorerDock");
         explorer=new Explorer(explorerDock); explorerDock->setWidget(explorer); addDockWidget(Qt::LeftDockWidgetArea,explorerDock);
-        explorerDock->setMinimumWidth(240); explorerDock->hide();
+        explorerDock->setMinimumWidth(scaled(240)); explorerDock->hide();
         explorer->openFile=[this](const QString& path){ openPath(path); };
         outputPanel=new QWidget; outputPanel->setObjectName("outputPanel");
         auto outputLayout=new QVBoxLayout(outputPanel); outputLayout->setContentsMargins(0,0,0,0); outputLayout->setSpacing(0);
         outputMode=new QComboBox; outputMode->setObjectName("outputMode");
         outputMode->addItems({"Normal","Output only","Warnings + Errors","Errors only"});
-        outputMode->setToolTip("Output display mode"); outputMode->setFixedWidth(150);
+        outputMode->setToolTip("Output display mode"); outputMode->setFixedWidth(scaled(150));
         outputLayout->addWidget(output);
         connect(outputMode,QOverload<int>::of(&QComboBox::currentIndexChanged),this,[this]{ output->clear(); appendOutput(outputHistory); });
-        split->setObjectName("editorSplitter"); split->addWidget(outputPanel); split->addWidget(tabs); split->setSizes({350, 350});
+        split->setObjectName("editorSplitter"); split->addWidget(outputPanel); split->addWidget(tabs); split->setSizes({scaled(350), scaled(350)});
         auto body = new QWidget(this); auto bodyLayout = new QVBoxLayout(body); bodyLayout->setContentsMargins(0,0,0,0);
-        findBar = new QWidget(tabs); findBar->setObjectName("findBar"); auto searchRows = new QVBoxLayout(findBar); searchRows->setContentsMargins(3,2,3,2);
+        findBar = new QWidget(tabs); findBar->setObjectName("findBar"); auto searchRows = new QVBoxLayout(findBar); searchRows->setContentsMargins(scaled(3),scaled(2),scaled(3),scaled(2));
         auto searchLayout = new QHBoxLayout; searchRows->addLayout(searchLayout);
-        searchLayout->setSpacing(2);
-        auto expandReplace=new QPushButton(">"); expandReplace->setFixedWidth(22); expandReplace->setToolTip("Toggle replace"); searchLayout->addWidget(expandReplace);
-        findBar->setStyleSheet("QWidget#findBar{background:#252526;} QLineEdit{background:#3c3c3c;color:#d4d4d4;border:1px solid #555;padding:2px;} QCheckBox,QLabel{color:#bdbdbd;font-size:12px;} QCheckBox{spacing:0;padding:2px;font-weight:bold;font-size:13px;} QCheckBox::indicator{width:0;height:0;} QCheckBox:checked{background:#515151;color:#ffffff;} QPushButton{background:transparent;border:0;color:#bdbdbd;padding:1px;font-weight:bold;font-size:16px;} QPushButton:hover{background:#505050;} QLineEdit:focus{border:1px solid #6b93b0;}");
+        searchLayout->setSpacing(scaled(2));
+        auto expandReplace=new QPushButton(">"); expandReplace->setFixedWidth(scaled(22)); expandReplace->setToolTip("Toggle replace"); searchLayout->addWidget(expandReplace);
+        findBar->setStyleSheet(QString("QWidget#findBar{background:#252526;} QLineEdit{background:#3c3c3c;color:#d4d4d4;border:%1px solid #555;padding:%2px;} QCheckBox,QLabel{color:#bdbdbd;font-size:%3px;} QCheckBox{spacing:0;padding:%2px;font-weight:bold;font-size:%4px;} QCheckBox::indicator{width:0;height:0;} QCheckBox:checked{background:#515151;color:#ffffff;} QPushButton{background:transparent;border:0;color:#bdbdbd;padding:%1px;font-weight:bold;font-size:%5px;} QPushButton:hover{background:#505050;} QLineEdit:focus{border:%1px solid #6b93b0;}")
+            .arg(scaled(1)).arg(scaled(2)).arg(scaled(12)).arg(scaled(13)).arg(scaled(16)));
         findText = new QLineEdit; findText->setObjectName("findText"); findText->setPlaceholderText("Find"); searchLayout->addWidget(findText);
-        findText->setMinimumWidth(60);
+        findText->setMinimumWidth(scaled(60));
         matchCase=new QCheckBox("Tt"); matchCase->setObjectName("searchCase"); matchCase->setToolTip("Match case"); searchLayout->addWidget(matchCase);
         wholeWord=new QCheckBox("Abc"); wholeWord->setObjectName("searchWord"); wholeWord->setToolTip("Whole words"); searchLayout->addWidget(wholeWord);
         regexSearch=new QCheckBox(".*"); regexSearch->setObjectName("searchRegex"); regexSearch->setToolTip("Regular expression; replacements support $1, $2, $& and $$"); searchLayout->addWidget(regexSearch);
-        searchCount=new QLabel; searchCount->setMinimumWidth(54); searchCount->setObjectName("searchCount"); searchLayout->addWidget(searchCount);
+        searchCount=new QLabel; searchCount->setMinimumWidth(scaled(54)); searchCount->setObjectName("searchCount"); searchLayout->addWidget(searchCount);
         auto previous = new QPushButton("←"); previous->setToolTip("Previous match (Shift+F3)"); auto next = new QPushButton("→"); next->setToolTip("Next match (F3)"); searchLayout->addWidget(previous); searchLayout->addWidget(next);
-        previous->setFixedWidth(24); next->setFixedWidth(24);
+        previous->setFixedWidth(scaled(24)); next->setFixedWidth(scaled(24));
         connect(previous,&QPushButton::clicked,this,[this]{ findNext(true); }); connect(next,&QPushButton::clicked,this,[this]{ findNext(); });
         connect(findText,&QLineEdit::returnPressed,this,[this]{ findNext(); });
         connect(findText,&QLineEdit::textEdited,this,[this]{ searchWhileTyping(); });
@@ -660,13 +676,13 @@ public:
         replaceLayout->addWidget(replaceOne); replaceLayout->addWidget(replaceAll); searchRows->addWidget(replacePanel);
         connect(replaceOne,&QPushButton::clicked,this,[this]{ replace(false); }); connect(replaceAll,&QPushButton::clicked,this,[this]{ replace(true); });
         auto closeSearch=new QPushButton("×"); searchLayout->addWidget(closeSearch);
-        closeSearch->setFixedWidth(24);
+        closeSearch->setFixedWidth(scaled(24));
         connect(expandReplace,&QPushButton::clicked,this,[this]{ replacePanel->setVisible(!replacePanel->isVisible()); positionSearch(); });
         connect(closeSearch,&QPushButton::clicked,this,[this]{ findBar->hide(); current()->setFocus(); });
         auto escape=new QShortcut(QKeySequence(Qt::Key_Escape),findBar); escape->setContext(Qt::WidgetWithChildrenShortcut);
         connect(escape,&QShortcut::activated,closeSearch,&QPushButton::click);
         bodyLayout->addWidget(split); findBar->hide(); tabs->installEventFilter(this); setCentralWidget(body);
-        problems=new QListWidget(body); problems->setObjectName("analysisProblems"); problems->setMaximumHeight(140); problems->hide(); bodyLayout->addWidget(problems);
+        problems=new QListWidget(body); problems->setObjectName("analysisProblems"); problems->setMaximumHeight(scaled(140)); problems->hide(); bodyLayout->addWidget(problems);
         connect(problems,&QListWidget::itemClicked,this,[this](QListWidgetItem* item) {
             int line=item->data(Qt::UserRole).toInt(); if (line<1) return;
             auto block=current()->document()->findBlockByNumber(line-1); if (!block.isValid()) return;
@@ -786,11 +802,11 @@ public:
         command->addSeparator();
         command->addAction("Refresh completion", this, [this] { refreshCompletion(); });
         auto toolbar = addToolBar("Script editor"); toolbar->setObjectName("scriptToolbar"); toolbar->setMovable(false);
-        toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly); toolbar->setIconSize(QSize(20,20));
+        toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly); toolbar->setIconSize(QSize(scaled(20),scaled(20)));
         // Maya同梱リソースを直接参照し、画像を複製・同梱しない。
         // MayaなしのテストではQt標準アイコンを代用する。メニューと同じActionで機能を共有する。
         auto iconAction=[this,toolbar](QAction* item,const QString& image,QStyle::StandardPixmap fallback) {
-            QIcon icon(":"+QString("/")+image);
+            QIcon icon=iconProvider ? iconProvider(image) : QIcon(":"+QString("/")+image);
             if (icon.isNull()) icon=style()->standardIcon(fallback);
             item->setIcon(icon); item->setToolTip(item->text()+(item->shortcut().isEmpty()?QString():" ("+item->shortcut().toString(QKeySequence::NativeText)+")"));
             toolbar->addAction(item);
@@ -1136,8 +1152,8 @@ public:
     void positionSearch() {
         if (findBar->isHidden()) return;
         findBar->layout()->activate();
-        findBar->resize(qMin(470,qMax(0,tabs->width()-12)),findBar->sizeHint().height());
-        findBar->move(qMax(0,tabs->width()-findBar->width()-6),tabs->tabBar()->height()+4);
+        findBar->resize(qMin(scaled(470),qMax(0,tabs->width()-scaled(12))),findBar->sizeHint().height());
+        findBar->move(qMax(0,tabs->width()-findBar->width()-scaled(6)),tabs->tabBar()->height()+scaled(4));
         findBar->raise();
     }
     /** @brief タブ領域のリサイズ時に検索パネルの位置だけ更新する。 */
@@ -1262,7 +1278,7 @@ public:
         }
         completer->setCompletionPrefix(current()->prefix());
         completer->popup()->setCurrentIndex(completer->completionModel()->index(0, 0));
-        auto rect = current()->cursorRect(); rect.setWidth(380); completer->complete(rect);
+        auto rect = current()->cursorRect(); rect.setWidth(scaled(380)); completer->complete(rect);
     }
 };
 

@@ -411,6 +411,8 @@ Ensure final newline on file save(``finalNewline``)
 **使いどころ**
    Git の差分に「末尾に改行がありません」と出るのを避けたいとき。多くのコード整形ツールの慣習に合わせられます。
 
+.. _pref-zoom:
+
 文字サイズ(Zoom)
 -----------------
 
@@ -438,6 +440,9 @@ View メニューの操作で、Preferences のチェック項目ではありま
 * コード欄と出力欄に同時に効き、ステータスバーに「Font size: 14 px」のように 2 秒間表示します。
 * 保存キーは ``fontPixels`` で、次回の起動に引き継ぎます。
 * Maya 標準のメニュー・ツールバーなどの文字サイズは変わりません。
+* ここでの px は **Maya のインターフェースの拡大率が 100% のときの大きさ** です。4K など高解像度の画面で
+  Maya の拡大率(Preferences → Interface → UI Elements の Interface Scaling、または Windows の表示スケール)が
+  200% なら、実際の表示は 2 倍(標準 14 px → 28 px)になります。設定値を変える必要はありません(:ref:`ui-scale`)。
 
 設定の保存
 ----------
