@@ -1,13 +1,16 @@
 /** @file syntax_highlighter.h
- * @brief Python/MELの本文の簡易な色分け。
+ * @brief Python/MELの本文の色分け。
  */
 #pragma once
+#include "core/script_lexer.h"
 #include <QSyntaxHighlighter>
 
 namespace hedit {
 
-/** @brief 行ごとに正規表現で色を付ける、表示専用の構文強調。
- * @details 構文解析器ではないため、複数行の文字列などは正確には色分けしない。本文を実行・importしない。
+/** @brief 字句解析(core/script_lexer.cpp)の結果で色を付ける、表示専用の構文強調。
+ * @details Qtは、変更された行から順にhighlightBlock()を呼ぶ。行をまたぐ文字列・コメントの状態は
+ * setCurrentBlockState()で行ごとに保存し、次の行はpreviousBlockState()で受け取る。状態が変わると、
+ * Qtが次の行も自動で塗り直す。本文を実行・importしない。
  * QSyntaxHighlighterは文書(QTextDocument)の子として作り、文書と一緒に破棄される。
  */
 class SyntaxHighlighter : public QSyntaxHighlighter {
@@ -18,7 +21,7 @@ public:
     explicit SyntaxHighlighter(QTextDocument* document);
 
     /** @brief MELとして色分けするかを切り替える。呼んだ後にrehighlight()で全体を塗り直す。
-     * @param mel trueならコメントを``//``、falseなら``#``として扱う。
+     * @param mel trueならMEL、falseならPython。
      */
     void setMel(bool mel);
 
@@ -29,13 +32,7 @@ protected:
     void highlightBlock(const QString& text) override;
 
 private:
-    /** @brief 引用符の外にある最初のコメント記号の位置を探す。
-     * @param text 行の文字列。
-     * @return コメントの開始位置。コメントが無ければ-1。
-     */
-    int commentStart(const QString& text) const;
-
-    bool mel_ = false;  ///< MELとして色分けするか。
+    ScriptLanguage language_ = ScriptLanguage::Python;  ///< 色分けする言語。
 };
 
 }  // namespace hedit

@@ -1,5 +1,9 @@
 // 本番と同じQtウィジェットをoffscreenで検証する。Maya GUIの検証とは区別する。
+#include "core/completion_engine.h"
 #include "core/history_text.h"
+#include "core/python_declarations.h"
+#include "core/script_file.h"
+#include "core/script_lexer.h"
 #include "core/module_scanner.h"
 #include "core/session_data.h"
 #include "core/text_search.h"
@@ -52,16 +56,16 @@ bool moduleScanPasses() {
     // ドット付き・from x import y・importでない行はPython側の補完へ渡す。
     for (const char* source: {"import maya.cm","from sample import cr","print(x)","import os\nos.pa"})
         if (hedit::topLevelImportPrefix(source,nullptr)) { qWarning() << "handled" << source; return false; }
-    auto items=[](const QByteArray& json) {
-        QStringList result;
-        for (const auto& value: QJsonDocument::fromJson(json).object().value("items").toArray()) result.append(value.toObject().value("name").toString());
-        return result;
+    auto items=[](const hedit::CompletionResult& result) {
+        QStringList names;
+        for (const auto& item: result.items) names.append(item.name);
+        return names;
     };
     const QSet<QString> candidates{"sample","_private","pkg","Sample2"};
     if (items(hedit::completionItems(candidates,"",false))!=QStringList{"Sample2","pkg","sample"}
         || items(hedit::completionItems(candidates,"sa",false))!=QStringList{"sample"}
         || items(hedit::completionItems(candidates,"_",false))!=QStringList{"_private"}
-        || !QJsonDocument::fromJson(hedit::completionItems(QSet<QString>(),"",true)).object().value("pending").toBool()) {
+        || !hedit::completionItems(QSet<QString>(),"",true).pending) {
         qWarning() << "completionItems" << items(hedit::completionItems(candidates,"",false)); return false;
     }
     // 走査は別スレッドで行い、呼出し元を待たせない。再走査でファイルの追加・削除に追従する。
@@ -211,6 +215,201 @@ bool editCommandsPasses() {
     return true;
 }
 
+/** @brief 字句解析(core/script_lexer.cpp)を検証する。行をまたぐ文字列・コメントの状態も確かめる。
+ * @return すべて期待どおりならtrue。
+ */
+bool lexerPasses() {
+    auto types = [](const QList<hedit::Token>& tokens) {
+        QList<int> result;
+        for (const auto& token : tokens) result.append(int(token.type));
+        return result;
+    };
+    int state = 0;
+    // 文字列の中の # はコメントではない。
+    auto tokens = hedit::tokenizeLine("x = '#' # note", hedit::ScriptLanguage::Python, 0, &state);
+    if (types(tokens) != QList<int>{int(hedit::TokenType::Name), int(hedit::TokenType::Operator),
+                                    int(hedit::TokenType::String), int(hedit::TokenType::Comment)} || state != 0) {
+        qWarning() << "python line" << types(tokens); return false;
+    }
+    // 三重引用符の文字列は次の行へ続き、閉じた後の名前は名前として読む。
+    hedit::tokenizeLine("doc = r\"\"\"first", hedit::ScriptLanguage::Python, 0, &state);
+    if (state != hedit::kPythonRawTripleDouble) { qWarning() << "triple open" << state; return false; }
+    tokens = hedit::tokenizeLine("end\"\"\" + value", hedit::ScriptLanguage::Python, state, &state);
+    if (state != 0 || tokens.size() != 3 || tokens[0].type != hedit::TokenType::String || tokens[2].type != hedit::TokenType::Name) {
+        qWarning() << "triple close" << state << types(tokens); return false;
+    }
+    // == と = は別の記号。
+    tokens = hedit::tokenizeLine("a==b", hedit::ScriptLanguage::Python, 0, &state);
+    if (tokens.size() != 3 || tokens[1].length != 2) { qWarning() << "operator"; return false; }
+    // MEL: $変数、ブロックコメントの継続、予約語。
+    tokens = hedit::tokenizeLine("string $name = \"a\"; /* start", hedit::ScriptLanguage::Mel, 0, &state);
+    if (tokens[1].type != hedit::TokenType::Variable || state != hedit::kMelBlockComment
+        || !hedit::isKeyword("string", hedit::ScriptLanguage::Mel) || hedit::isKeyword("string", hedit::ScriptLanguage::Python)) {
+        qWarning() << "mel" << types(tokens) << state; return false;
+    }
+    tokens = hedit::tokenizeLine("end */ ls;", hedit::ScriptLanguage::Mel, state, &state);
+    if (state != 0 || tokens[0].type != hedit::TokenType::Comment || tokens[1].type != hedit::TokenType::Name) {
+        qWarning() << "mel close" << types(tokens); return false;
+    }
+    return true;
+}
+
+/** @brief 宣言の抽出(core/python_declarations.cpp)を検証する。Pythonのastで読んでいたときと同じ結果になるか。
+ * @return すべて期待どおりならtrue。
+ */
+bool declarationsPasses() {
+    const QString source =
+        "import os, maya.cmds as cmds\n"
+        "from . import nodes\n"
+        "from .api import (Joint as J,\n"
+        "    Mesh)\n"
+        "from typing import TYPE_CHECKING\n"
+        "if TYPE_CHECKING:\n"
+        "    from hlib.nodes import Node\n"
+        "value = other = 1; flag: bool = True\n"
+        "annotated: int\n"
+        "a.b = 2\n"
+        "x, y = 1, 2\n"
+        "total += 1\n"
+        "@decorator\n"
+        "def create(name, /, *args, key=lambda a, b: a, **kwargs) -> dict:\n"
+        "    inner = 1\n"
+        "    def nested(): pass\n"
+        "async def fetch(url,\n"
+        "                *, timeout=3): pass\n"
+        "class Example(Base, metaclass=Meta):\n"
+        "    r\"\"\"docstring with def fake(): and # not comment\"\"\"\n"
+        "    attribute = 1\n"
+        "    def method(self): pass\n"
+        "    class Inner: pass\n"
+        "for item in items:\n"
+        "    hidden = 1\n"
+        "text = \"\"\"\n"
+        "def not_a_function(): pass\n"
+        "\"\"\"\n";
+    const auto result = hedit::extractPythonDeclarations(source, "package.module");
+    const auto& symbols = result.symbols;
+    const QStringList expected{"Example", "J", "Mesh", "Node", "TYPE_CHECKING", "annotated", "cmds", "create", "fetch",
+                               "flag", "nodes", "os", "other", "text", "value"};
+    if (symbols.keys() != expected || !result.complete) { qWarning() << "declaration names" << symbols.keys(); return false; }
+    if (symbols["create"].detail != "create(name, *args, key, **kwargs)" || symbols["fetch"].detail != "fetch(url, timeout)") {
+        qWarning() << "detail" << symbols["create"].detail << symbols["fetch"].detail; return false;
+    }
+    if (symbols["cmds"].target != "maya.cmds" || symbols["os"].target != "os" || symbols["nodes"].target != "package.nodes"
+        || symbols["J"].fromModule != "package.api" || symbols["J"].fromName != "Joint" || symbols["Node"].fromModule != "hlib.nodes") {
+        qWarning() << "imports" << symbols["cmds"].target << symbols["nodes"].target << symbols["J"].fromModule; return false;
+    }
+    const auto members = symbols["Example"].members;
+    if (!members || members->keys() != QStringList{"Inner", "attribute", "method"} || symbols["Example"].detail != "class Example") {
+        qWarning() << "class members" << (members ? members->keys() : QStringList()); return false;
+    }
+    // 構文エラーがあっても、読める部分の宣言は取り出す。閉じていない括弧は「書きかけ」として知らせる。
+    const auto broken = hedit::extractPythonDeclarations("import sample\ninvalid (\nvalue = 1\n");
+    if (!broken.symbols.contains("sample") || broken.complete) { qWarning() << "broken source"; return false; }
+    return true;
+}
+
+/** @brief 補完エンジン(core/completion_engine.cpp)を、Pythonの代わりの偽の情報で検証する。
+ * @param config mayapyが書き出した、組み込みの名前と予約語のJSON(tests/maya_smoke.py)。
+ * @return すべて期待どおりならtrue。
+ */
+bool completionEnginePasses(const QByteArray& config) {
+    QTemporaryDir directory;
+    const QDir root(directory.path());
+    auto write = [&](const QString& name, const QByteArray& text) {
+        QDir().mkpath(QFileInfo(root.filePath(name)).absolutePath());
+        QFile file(root.filePath(name));
+        return file.open(QIODevice::WriteOnly) && file.write(text) == text.size();
+    };
+    write("sample.py", "raise RuntimeError('must not execute')\n\ndef create_node(name, **kwargs):\n    pass\n\n"
+                       "class Example:\n    def get_value(self):\n        pass\n");
+    write("package/__init__.py", "from . import nodes\n");
+    write("package/nodes/__init__.py", "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .joint import Joint\n");
+    write("package/nodes/joint.py", "class Joint:\n    def get_matrix(self): pass\n");
+
+    hedit::ModuleSource source;
+    source.searchPaths = [&] { return QStringList{root.path()}; };
+    source.loadedModule = [](const QString& name, hedit::LoadedModule* module) {
+        if (name != "maya.cmds") return false;
+        module->members.insert("ls", hedit::Symbol());
+        module->members.insert("createNode", hedit::Symbol());
+        return true;
+    };
+    hedit::CompletionEngine engine(source);
+    hedit::CompletionEnvironment environment;
+    const auto data = QJsonDocument::fromJson(config).object();
+    for (const auto& value : data.value("builtins").toArray()) environment.builtins.append(value.toString());
+    for (const auto& value : data.value("keywords").toArray()) environment.keywords.append(value.toString());
+    engine.setEnvironment(environment);
+
+    auto names = [&](const QString& text) {
+        QStringList result;
+        for (const auto& item : engine.complete(text).items) result.append(item.name);
+        return result;
+    };
+    const auto signature = engine.complete("import sample as s\ns.cre").items;
+    if (signature.size() != 1 || signature[0].name != "create_node" || signature[0].detail != "create_node(name, **kwargs)") {
+        qWarning() << "signature" << names("import sample as s\ns.cre"); return false;
+    }
+    if (names("import maya.cmds as cmds\ncmds.") != QStringList{"createNode", "ls"}
+        || names("from sample import cre") != QStringList{"create_node"}
+        || names("import sample\nsample.Example.get_") != QStringList{"get_value"}
+        || names("from sample import Example as E\nE.get") != QStringList{"get_value"}
+        || !names("import package\npackage.nodes.").contains("Joint")
+        || names("import package as p\np.nodes.Joint.get_") != QStringList{"get_matrix"}
+        || !names("def function(arg):\n    pass\nfun").contains("function")
+        || names("import maya.m") != QStringList()) {
+        qWarning() << "engine names" << names("import package\npackage.nodes.") << names("import package as p\np.nodes.Joint.get_");
+        return false;
+    }
+    // 組み込みの名前と予約語の種類(Preferencesでの絞り込みに使う)。
+    const auto keyword = engine.complete("ret").items;
+    const auto builtin = engine.complete("pri").items;
+    if (keyword.isEmpty() || keyword[0].kind != "keyword" || builtin.isEmpty() || builtin[0].name != "print" || builtin[0].kind != "builtin") {
+        qWarning() << "kinds"; return false;
+    }
+    // ファイルが変わったら読み直す。書きかけのファイルは、前回の正しい結果を使い続ける。
+    write("sample.py", "def changed_function():\n    pass\n");
+    if (names("import sample\nsample.ch") != QStringList{"changed_function"}) { qWarning() << "cache refresh"; return false; }
+    write("sample.py", "def broken_function(:\n    pass\n    # longer so that the size differs\n");
+    if (names("import sample\nsample.ch") != QStringList{"changed_function"}) { qWarning() << "incomplete keeps cache" << names("import sample\nsample."); return false; }
+    // 5,000行の書きかけの本文でも、C++で読むので短時間で終わる。
+    QString large = "import sample\ninvalid (\n";
+    for (int i = 0; i < 5000; ++i) large += "value_" + QString::number(i) + " = " + QString::number(i) + "\n";
+    QElapsedTimer timer;
+    timer.start();
+    const auto largeNames = names(large + "sample.cre");
+    const qint64 elapsed = timer.elapsed();
+    if (largeNames != QStringList{"create_node"} && largeNames != QStringList()) { qWarning() << "large" << largeNames; return false; }
+    qInfo() << "completion of a 5,000-line source took" << elapsed << "ms";
+    if (elapsed > 200) { qWarning() << "large source too slow" << elapsed; return false; }
+    // 末尾の名前の判定(Pythonの正規表現 [A-Za-z_][\w.]*$ と同じ)。
+    if (hedit::trailingDottedName("x = 1abc.de") != "abc.de" || hedit::trailingDottedName("cmds.") != "cmds."
+        || hedit::trailingDottedName("f(") != "") {
+        qWarning() << "trailing" << hedit::trailingDottedName("x = 1abc.de"); return false;
+    }
+    return true;
+}
+
+/** @brief ファイルの読み書き(core/script_file.cpp)を検証する。 @return すべて期待どおりならtrue。 */
+bool scriptFilePasses() {
+    if (hedit::formatForSave("a = 1  \n# c\t", true, true) != "a = 1\n# c\n" || hedit::formatForSave("x", false, false) != "x") {
+        qWarning() << "formatForSave"; return false;
+    }
+    QTemporaryDir directory;
+    const QString path = QDir(directory.path()).filePath("script.py");
+    QString error;
+    if (!hedit::writeScriptFile(path, QString::fromUtf8("print('日本語')\n"), &error)) { qWarning() << "write" << error; return false; }
+    QString text;
+    if (!hedit::readScriptFile(path, &text, &error) || text != QString::fromUtf8("print('日本語')\n")) { qWarning() << "read" << error; return false; }
+    QFile latin(QDir(directory.path()).filePath("latin.py"));
+    latin.open(QIODevice::WriteOnly);
+    latin.write("caf\xe9\n");
+    latin.close();
+    if (hedit::readScriptFile(latin.fileName(), &text, &error) || error != "Only UTF-8 files are supported") { qWarning() << "latin" << error; return false; }
+    return true;
+}
+
 /** @brief MayaなしでQt画面の補完・表示・実行通知を検証する。
  * @param argc 引数数。3を要求する。
  * @param argv 実行ファイル名、設定JSON、画像保存先。
@@ -233,12 +432,15 @@ int main(int argc, char** argv) {
     if (!textSearchPasses()) return 14;
     if (!sessionDataPasses()) return 15;
     if (!editCommandsPasses()) return 16;
+    if (!lexerPasses()) return 17;
+    if (!declarationsPasses()) return 18;
+    if (!scriptFilePasses()) return 20;
     // 4K等のMayaの拡大率(Interface Scaling)を、文字・アイコンの固定寸法に掛ける。
     {
         hedit::setUiScale(2.0);
         hedit::EditorServices services;
         services.runPython=[](const QString&) { return QString(); };
-        services.refreshCompletion=[] { return QByteArray("{}"); };
+
         auto large=hedit::createEditor(nullptr,services);
         large->show(); QApplication::processEvents();
         auto bar=large->findChild<QToolBar*>("scriptToolbar");
@@ -251,18 +453,21 @@ int main(int argc, char** argv) {
     }
     QFile file(QString::fromLocal8Bit(argv[1])); if (!file.open(QIODevice::ReadOnly)) return 3;
     QByteArray config = file.readAll();
+    if (!completionEnginePasses(config)) return 19;
     bool outputSent=false;
     // Mayaの代わりに、決まった値を返す偽の関数を渡す。
     hedit::EditorServices services;
     services.runPython = [](const QString& code) { return "executed: " + code; };
-    services.refreshCompletion = [config] { return config; };
+
     services.takeOutput = [&outputSent] {
         if (outputSent) return QList<hedit::OutputMessage>();
         outputSent=true;
         return QList<hedit::OutputMessage>{{"result_marker\n",hedit::OutputKind::Result},{"history_marker\n",hedit::OutputKind::History},{"normal_marker\n",hedit::OutputKind::Normal}};
     };
     services.complete = [](const QString&) {
-        return QByteArray("{\"items\":[{\"name\":\"createNode\",\"detail\":\"UI fixture\"}]}");
+        hedit::CompletionResult result;
+        result.items.append({"createNode", "UI fixture", QString()});
+        return result;
     };
     auto window = hedit::createEditor(nullptr, services);
     window->show();

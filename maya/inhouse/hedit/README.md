@@ -172,12 +172,12 @@ MayaのMCommandMessageが通知する種別を保持して描画します。行�
 
 ## 補完の仕組み
 
-- C++/Qtで編集・表示を行い、入力後100msでMaya内のPython補完関数を直接呼びます。別プロセス・IPC・ワーカーの起動待ちはありません。
-- 現在の`sys.path`とロード済みモジュールの公開名を使用します。
-- Python標準ライブラリ`ast`で未ロードのソースを解析します。補完対象をimport・実行しません。
+- 補完は`hedit.mll`の中のC++で行います(`src/core/completion_engine.cpp`)。別プロセス・IPC・ワーカーの起動待ちはありません。
+- 現在の`sys.path`とロード済みモジュールの公開名を使用します(この2つだけを同梱の`hedit.bridge`でPythonから受け取ります)。
+- 編集中の本文と未ロードのソースの宣言は、C++の字句解析で読みます(`src/core/python_declarations.cpp`)。補完対象をimport・実行しません。5,000行の本文でも1回の補完は数ミリ秒です。
 - ソース解析はキャッシュし、更新時刻・サイズが変わったら再解析します。ロード済みの`maya.cmds`などでは実在名を優先し、検索パスを走査しません。
 
-Jedi・Pyright等、追加のPythonライブラリは不要です。同一プロセスのメインスレッドで補完するため、大きなファイルや遅いネットワークパスの解析中はMayaの操作も待機します。旧版の別ワーカー停止によるタイムアウト機能はありません。
+Jedi・Pyright等、追加のPythonライブラリは不要です。同一プロセスのメインスレッドで補完するため、遅いネットワークパス上の未ロードのモジュールを初めて読む間はMayaの操作も待機します。旧版の別ワーカー停止によるタイムアウト機能はありません。
 
 `import maya.cmds as cmds`の別名、`from package import Class`、モジュールの公開名、ソース上のクラスの直接定義メソッド、トップレベルのローカル関数を補完します。ロード済みの`hlib.ls`など動的な公開名も対象です。関数の引数名は候補のツールチップで確認できます。
 
@@ -293,10 +293,8 @@ C++の説明は[内製C++コメント規約](../../../docs/cpp-documentation.md)
 フォルダ、プラグイン、メニューと画面の名称は小文字の`hedit`です。
 起動は`import hedit; hedit.show()`を使用します(`hedit`プラグインが一度でもロードされていれば、
 `.py`ファイルなしで`sys.modules['hedit']`から解決されます)。
-旧版から切り替えるときはMayaを再起動してください。旧保存先`heditor`の未保存タブ・UI状態・設定は、
-新保存先`hedit`に対応するファイルがまだない場合だけコピーします。旧データは削除しません。
-保存済みワークスペースの旧uiScriptに限り、互換用の`heditor.restore()`を残しています
-(`src/python/heditor/__init__.py`)。
+旧版から切り替えるときはMayaを再起動してください。旧名`heditor`の保存先のコピー・旧名のドック・
+`heditor.restore()`の互換処理は0.2.10で削除しました。
 
 ## プラグインロードだけで復元・メニュー登録が完結する仕組み
 
@@ -313,7 +311,7 @@ C++の説明は[内製C++コメント規約](../../../docs/cpp-documentation.md)
 `MQtUtil::addWidgetToMayaLayout`で、`MayaQWidgetDockableMixin`は使いません。そのため**`userSetup.py`経由の
 自動ロード・Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのどれでも、プラグインの
 ロードだけでメニュー登録と前回画面の復元が完了します。**
-補完と構文チェックのPython(`hedit.completion`/`hedit.bridge`/`hedit.analysis`)と互換用の窓口(`hedit.show()`/
+Pythonでしか分からない情報の窓口(`hedit.bridge`)・構文チェック(`hedit.analysis`)と互換用の窓口(`hedit.show()`/
 `hedit.restore()`)は`src/python/`の`.py`をビルド時に`hedit.mll`へ同梱し、`sys.meta_path`の先頭へ登録したimportフックから
 配ります(通常の`.py`と同じくimport時に読み込まれ、mayapyでも使えます)。
 初回はエディタ画面を開かず、前回開いていた場合だけ画面・タブを復元します。

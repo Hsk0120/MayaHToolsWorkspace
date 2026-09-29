@@ -2,6 +2,7 @@
  * @brief 1つのタブのコード欄。入力のショートカット・自動インデント・補完候補・スペルの波線を担当する。
  */
 #pragma once
+#include "core/completion_types.h"
 #include "editor/numbered_text_edit.h"
 #include <QList>
 #include <QString>
@@ -14,12 +15,6 @@ namespace hedit {
 
 class Spelling;
 class SyntaxHighlighter;
-
-/** @brief 補完候補の1件。 */
-struct CompletionItem {
-    QString name;    ///< 挿入する名前。
-    QString detail;  ///< マウスを重ねたときに出す説明(関数の引数など)。
-};
 
 /** @brief 1つのタブのコード欄(objectNameは``codeEditor``)。
  * @details タブを閉じる・実行する・補完を求めるといった「画面全体に関わる操作」は、この欄では行わず、

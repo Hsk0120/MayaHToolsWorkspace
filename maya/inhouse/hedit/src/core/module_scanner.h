@@ -10,6 +10,7 @@
  *   ModuleScanner::names() の結果を completionItems() でJSONにする。
  */
 #pragma once
+#include "core/completion_types.h"
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QSet>
@@ -42,13 +43,13 @@ QSet<QString> scanTopLevel(const QStringList& paths, const std::atomic_bool* can
  */
 bool topLevelImportPrefix(const QString& source, QString* prefix);
 
-/** @brief 候補の名前から、エディタへ返す補完のJSONを作る。
+/** @brief 候補の名前から、補完の結果を作る。
  * @param names 候補の名前。
  * @param prefix 補完中の名前の途中。``_``で始まらなければ``_``で始まる名前を除く。
  * @param pending 走査が進行中ならtrue(エディタが少し後に問い合わせ直す)。
- * @return ``{"items":[{"name","detail"}...],"pending":bool}``。名前順で最大250件。
+ * @return 名前順で最大250件の候補。
  */
-QByteArray completionItems(const QSet<QString>& names, const QString& prefix, bool pending);
+CompletionResult completionItems(const QSet<QString>& names, const QString& prefix, bool pending);
 
 /** @brief sys.pathのトップレベル名を別スレッドで走査し、結果を保持する。
  * @details 結果の読み書きはmutex(同時に1つのスレッドだけが入れる鍵)で守る。

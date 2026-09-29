@@ -1,5 +1,5 @@
 /** @file main_window.cpp
- * @brief MainWindowの実装。
+ * @brief MainWindowの実装(メニューとツールバーはmain_window_menus.cpp)。
  * @details Qtの基本:
  * - ``new 部品(親)``で作った部品は、親が破棄されるときに一緒に破棄される。レイアウトやタブへ
  *   追加した部品も、追加先の親が所有者になる。そのため、ここではほとんどdeleteを書かない。
@@ -8,6 +8,7 @@
  * - QTimer::singleShot(0, ...)は「今の処理(キー入力の処理など)が終わった後で実行する」予約。
  */
 #include "editor/main_window.h"
+#include "core/script_file.h"
 #include "editor/code_editor.h"
 #include "editor/editor_tabs.h"
 #include "editor/explorer.h"
@@ -17,7 +18,6 @@
 #include "editor/theme.h"
 #include "editor/ui_scale.h"
 #include <QAbstractItemView>
-#include <QAction>
 #include <QApplication>
 #include <QCloseEvent>
 #include <QComboBox>
@@ -27,23 +27,15 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QIntValidator>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMenuBar>
 #include <QMessageBox>
-#include <QRegularExpression>
-#include <QSaveFile>
 #include <QScrollBar>
 #include <QShortcut>
-#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStatusBar>
-#include <QStyle>
+#include <QTabBar>
 #include <QTextBlock>
-#include <QToolBar>
 #include <QVBoxLayout>
 
 namespace hedit {
@@ -53,7 +45,7 @@ namespace {
 constexpr const char* kWelcomeText =
     "import maya.cmds as cmds\n\n# Ctrl+Space: completion    Ctrl+Enter: run\nprint(cmds.ls(selection=True))\n";
 
-/// 補完・構文チェックへ渡す本文の上限(文字数)。これを超える位置では補完しない。
+/// 補完へ渡す本文の上限(文字数)。これを超える位置では補完しない。
 constexpr int kCompletionDocumentLimit = 200000;
 
 /** @brief tabs.jsonと同じフォルダーのpreferences.iniのパス。
@@ -103,7 +95,7 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
     CodeEditor* first = newTab();
     first->setPlainText(kWelcomeText);
     first->document()->setModified(false);
-    updateTabTitle(first);
+    tabs_->updateTitle(first);
     restoreSession();
 
     sessionTimer_.start();
@@ -115,10 +107,13 @@ MainWindow::~MainWindow() {
     saveSession();
     // この後、子の部品が破棄される途中でシグナルを出しても、破棄済みのメンバーを使わないよう接続を外す。
     QObject::disconnect(tabs_, nullptr, this, nullptr);
-    for (int i = 0; i < tabs_->count(); ++i) {
-        QObject::disconnect(editorAt(i), nullptr, this, nullptr);
-        QObject::disconnect(editorAt(i)->verticalScrollBar(), nullptr, this, nullptr);
+    QObject::disconnect(tabs_->tabBar(), nullptr, this, nullptr);
+    for (CodeEditor* editor : tabs_->editors()) {
+        QObject::disconnect(editor, nullptr, this, nullptr);
+        QObject::disconnect(editor->document(), nullptr, this, nullptr);
+        QObject::disconnect(editor->verticalScrollBar(), nullptr, this, nullptr);
     }
+    explorer_->onRootsChanged = nullptr;
 }
 
 void MainWindow::buildLayout() {
@@ -129,6 +124,7 @@ void MainWindow::buildLayout() {
     findBar_->showStatus = [this](const QString& text, int timeout) { showStatus(text, timeout); };
     connect(tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { closeTab(index); });
     connect(tabs_, &QTabWidget::currentChanged, this, [this] {
+        markSessionDirty();
         completionTimer_.stop();
         if (CodeEditor* editor = currentEditor()) {
             languageSelector_->setCurrentIndex(editor->isMel() ? 1 : 0);
@@ -136,11 +132,13 @@ void MainWindow::buildLayout() {
         scheduleAnalysis();
         scheduleSpelling();
     });
+    // ドラッグでタブを並べ替えたら、その順番も自動保存する。
+    connect(tabs_->tabBar(), &QTabBar::tabMoved, this, [this] { markSessionDirty(); });
 
     // ---- 出力欄 ----
     output_ = new OutputPanel(services_.takeOutput);
-    output_->view()->setLineNumbersVisible(preferences_.option("outputLineNumbers"));
-    output_->setWrap(preferences_.option("outputWrap"));
+    output_->view()->setLineNumbersVisible(preferences_.option(option::kOutputLineNumbers));
+    output_->setWrap(preferences_.option(option::kOutputWrap));
 
     // ---- 上: 出力欄 / 下: タブ欄 ----
     splitter_ = new QSplitter(Qt::Vertical);
@@ -175,10 +173,12 @@ void MainWindow::buildLayout() {
     explorerDock_->setObjectName("explorerDock");
     explorer_ = new Explorer(explorerDock_);
     explorer_->onFileActivated = [this](const QString& path) { openFile(path); };
+    explorer_->onRootsChanged = [this] { markSessionDirty(); };
     explorerDock_->setWidget(explorer_);
     explorerDock_->setMinimumWidth(scaled(240));
     addDockWidget(Qt::LeftDockWidgetArea, explorerDock_);
     explorerDock_->hide();
+    connect(explorerDock_, &QDockWidget::visibilityChanged, this, [this] { markSessionDirty(); });
 }
 
 void MainWindow::buildStatusBar() {
@@ -200,162 +200,6 @@ void MainWindow::buildStatusBar() {
     });
 }
 
-void MainWindow::buildMenusAndToolbar() {
-    // addActionの第3引数(this)はラムダの持ち主。第4引数のラムダがメニューを選んだときに呼ばれる。
-
-    // ---- File ----
-    QMenu* file = menuBar()->addMenu("File");
-    file->addAction("New Python tab", this, [this] { newTab(); }, QKeySequence::New);
-    file->addAction("New MEL tab", this, [this] { newTab("mel"); });
-    QAction* openAction = file->addAction("Open…", this, [this] {
-        openFile(QFileDialog::getOpenFileName(this, "Open script", {}, "Scripts (*.py *.mel);;All files (*)"));
-    }, QKeySequence::Open);
-    file->addAction("Open folder…", this, [this] {
-        const QString path = QFileDialog::getExistingDirectory(this, "Open folder");
-        if (!path.isEmpty()) {
-            explorer_->addFolder(path, true);
-            explorerDock_->show();
-        }
-    });
-    file->addAction("Add folder…", this, [this] {
-        const QString path = QFileDialog::getExistingDirectory(this, "Add folder");
-        if (!path.isEmpty()) {
-            explorer_->addFolder(path);
-            explorerDock_->show();
-        }
-    });
-    QAction* saveAction = file->addAction("Save", this, [this] { saveFile(currentEditor()); }, QKeySequence::Save);
-    file->addAction("Save as…", this, [this] { saveFile(currentEditor(), true); }, QKeySequence("Ctrl+Shift+S"));
-    QAction* closeAction = file->addAction("Close tab", this, [this] { closeTab(tabs_->currentIndex()); });
-    closeAction->setShortcuts({QKeySequence("Ctrl+W"), QKeySequence("Ctrl+F4")});
-
-    // ---- Edit ----
-    QMenu* edit = menuBar()->addMenu("Edit");
-    buildPreferencesMenu(edit->addMenu("Preferences"));
-    edit->addAction("Find…", this, [this] { findBar_->open(false); }, QKeySequence("Ctrl+F"));
-    edit->addAction("Replace…", this, [this] { findBar_->open(true); }, QKeySequence("Ctrl+H"));
-    edit->addAction("Find next", this, [this] { findBar_->findNext(); }, QKeySequence("F3"));
-    edit->addAction("Find previous", this, [this] { findBar_->findNext(true); }, QKeySequence("Shift+F3"));
-    edit->addAction("Go to line…", this, [this] { showGoToLine(); }, QKeySequence("Ctrl+G"));
-    QAction* clearInputAction = edit->addAction("Clear input", this, [this] { clearInput(); });
-    QAction* clearBothAction = edit->addAction("Clear input and output", this, [this] {
-        clearInput();
-        output_->clear();
-    });
-
-    // ---- View ----
-    QMenu* view = menuBar()->addMenu("View");
-    // toggleViewActionは、ドックの表示・非表示を切り替える、Qtが用意したアクション。
-    QAction* explorerAction = explorerDock_->toggleViewAction();
-    explorerAction->setText("Explorer");
-    explorerAction->setObjectName("toggleExplorer");
-    explorerAction->setShortcut(QKeySequence("Ctrl+B"));
-    view->addAction(explorerAction);
-    QAction* zoomIn = view->addAction("Zoom in", this, [this] { setZoom(preferences_.fontPixels() + 1); });
-    zoomIn->setObjectName("zoomIn");
-    zoomIn->setShortcuts({QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")});
-    QAction* zoomOut = view->addAction("Zoom out", this, [this] { setZoom(preferences_.fontPixels() - 1); },
-                                       QKeySequence("Ctrl+-"));
-    zoomOut->setObjectName("zoomOut");
-    QAction* zoomReset = view->addAction("Reset zoom", this, [this] { setZoom(EditorPreferences::kDefaultFontPixels); },
-                                         QKeySequence("Ctrl+0"));
-    zoomReset->setObjectName("zoomReset");
-    QAction* showOutputAction = view->addAction("Show output only", this, [this] { showPanels(true, false); });
-    QAction* showInputAction = view->addAction("Show input only", this, [this] { showPanels(false, true); });
-    QAction* showBothAction = view->addAction("Show input and output", this, [this] { showPanels(true, true); });
-
-    // ---- Tabs ----
-    QMenu* tabMenu = menuBar()->addMenu("Tabs");
-    QAction* nextTab = tabMenu->addAction("Next tab", this, [this] { switchTab(1); });
-    nextTab->setShortcuts({QKeySequence("Ctrl+Tab"), QKeySequence("Ctrl+PgDown")});
-    QAction* previousTab = tabMenu->addAction("Previous tab", this, [this] { switchTab(-1); });
-    previousTab->setShortcuts({QKeySequence("Ctrl+Shift+Tab"), QKeySequence("Ctrl+PgUp")});
-
-    // ---- History ----
-    QMenu* history = menuBar()->addMenu("History");
-    QAction* clearOutputAction = history->addAction("Clear output", this, [this] { output_->clear(); });
-
-    // ---- Command ----
-    QMenu* command = menuBar()->addMenu("Command");
-    QAction* runSelectionAction = command->addAction("Run selection / script", this, [this] { runCode(false); });
-    runSelectionAction->setShortcut(QKeySequence("Ctrl+Return"));
-    QAction* runAllAction = command->addAction("Run all", this, [this] { runCode(true); });
-    runAllAction->setShortcut(QKeySequence("F5"));
-    command->addSeparator();
-    command->addAction("Refresh completion", this, [this] { refreshCompletion(); });
-
-    // ---- ツールバー(Maya標準のScript Editorと同じアイコン) ----
-    QToolBar* toolbar = addToolBar("Script editor");
-    toolbar->setObjectName("scriptToolbar");
-    toolbar->setMovable(false);
-    toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    toolbar->setIconSize(QSize(scaled(20), scaled(20)));
-    // メニューと同じアクションをツールバーにも置く(機能は1つ)。アイコンはMaya同梱の画像を使い、
-    // Maya無しのテストでは代わりにQt標準のアイコンを使う。
-    auto addToolButton = [this, toolbar](QAction* action, const QString& image, QStyle::StandardPixmap fallback) {
-        QIcon icon = loadIcon(image);
-        if (icon.isNull()) {
-            icon = style()->standardIcon(fallback);
-        }
-        action->setIcon(icon);
-        QString tooltip = action->text();
-        if (!action->shortcut().isEmpty()) {
-            tooltip += " (" + action->shortcut().toString(QKeySequence::NativeText) + ")";
-        }
-        action->setToolTip(tooltip);
-        toolbar->addAction(action);
-    };
-    addToolButton(openAction, "openScript.png", QStyle::SP_DialogOpenButton);
-    addToolButton(saveAction, "save.png", QStyle::SP_DialogSaveButton);
-    toolbar->addSeparator();
-    addToolButton(clearOutputAction, "clearHistory.png", QStyle::SP_TrashIcon);
-    addToolButton(clearInputAction, "clearInput.png", QStyle::SP_DialogResetButton);
-    addToolButton(clearBothAction, "clearAll.png", QStyle::SP_DialogDiscardButton);
-    toolbar->addSeparator();
-    addToolButton(showOutputAction, "showHistory.png", QStyle::SP_TitleBarMaxButton);
-    addToolButton(showInputAction, "showInput.png", QStyle::SP_FileIcon);
-    addToolButton(showBothAction, "showBoth.png", QStyle::SP_TitleBarNormalButton);
-    toolbar->addSeparator();
-    addToolButton(runAllAction, "executeAll.png", QStyle::SP_MediaSkipForward);
-    addToolButton(runSelectionAction, "execute.png", QStyle::SP_MediaPlay);
-    toolbar->addSeparator();
-    addToolButton(explorerAction, "outliner.png", QStyle::SP_DirIcon);
-    toolbar->addSeparator();
-    toolbar->addWidget(output_->filterSelector());  // 表示モードの選択欄。ツールバーが所有者になる。
-}
-
-void MainWindow::buildPreferencesMenu(QMenu* menu) {
-    for (const OptionDefinition& definition : optionDefinitions()) {
-        if (definition.separatorBefore) {
-            menu->addSeparator();
-        }
-        const QString key = definition.key;
-        QAction* action = menu->addAction(definition.label);
-        action->setObjectName("option_" + key);  // テストが探すときの名前。
-        action->setCheckable(true);
-        action->setChecked(preferences_.option(key));
-        connect(action, &QAction::toggled, this, [this, key](bool enabled) { onOptionToggled(key, enabled); });
-        optionActions_.insert(key, action);
-    }
-    // 最後に、全ての設定を初期値に戻す項目を置く。
-    menu->addSeparator();
-    QAction* reset = menu->addAction("Reset to defaults…", this, [this] { resetPreferences(); });
-    reset->setObjectName("resetPreferences");
-    reset->setToolTip("Reset all preferences and the font size to their defaults");
-}
-
-void MainWindow::limitShortcutsToThisWindow() {
-    // 標準では、メニューのショートカットはMaya全体で効いてしまう。
-    // WidgetWithChildrenShortcutにすると、hedit(とその子)にフォーカスがあるときだけ効く。
-    for (QAction* action : findChildren<QAction*>()) {
-        if (action->shortcuts().isEmpty()) {
-            continue;
-        }
-        addAction(action);
-        action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    }
-}
-
 void MainWindow::setUpTimers() {
     // setSingleShot(true)のタイマーは、start()の後に1回だけtimeoutを出す。
     // 入力のたびにstart()し直すので、「最後の入力から○ms後」に1回だけ動く。
@@ -370,7 +214,7 @@ void MainWindow::setUpTimers() {
     spellingTimer_.setSingleShot(true);
     connect(&spellingTimer_, &QTimer::timeout, this, [this] {
         CodeEditor* editor = currentEditor();
-        if (!preferences_.option("spellCheck") || !editor) {
+        if (!preferences_.option(option::kSpellCheck) || !editor) {
             return;
         }
         editor->checkSpelling(spelling_);
@@ -380,6 +224,7 @@ void MainWindow::setUpTimers() {
     });
 
     // 入力中に全タブをJSONにしてディスクへ書かないよう、最後の入力から1.5秒以上経ってから保存する。
+    // 変化が無ければsaveSession()は何もしない(全タブをJSONにする処理も省く)。
     sessionTimer_.setInterval(1000);
     connect(&sessionTimer_, &QTimer::timeout, this, [this] {
         if (!lastEdit_.isValid() || lastEdit_.elapsed() >= 1500) {
@@ -395,11 +240,7 @@ void MainWindow::setUpTimers() {
 // ===========================================================================
 
 CodeEditor* MainWindow::currentEditor() const {
-    return static_cast<CodeEditor*>(tabs_->currentWidget());
-}
-
-CodeEditor* MainWindow::editorAt(int index) const {
-    return static_cast<CodeEditor*>(tabs_->widget(index));
+    return tabs_->currentEditor();
 }
 
 CodeEditor* MainWindow::newTab(const QString& language) {
@@ -409,6 +250,7 @@ CodeEditor* MainWindow::newTab(const QString& language) {
     setLanguage(editor, language);
     tabs_->setCurrentWidget(editor);
     editor->setFocus();
+    markSessionDirty();
 
     editor->onCompletionRequested = [this] { requestCompletion(true); };
     editor->onRunRequested = [this] { runCode(false); };
@@ -419,12 +261,14 @@ CodeEditor* MainWindow::newTab(const QString& language) {
     };
 
     connect(editor, &QPlainTextEdit::textChanged, this, [this, editor] { onTextChanged(editor); });
+    connect(editor->document(), &QTextDocument::modificationChanged, this, [this] { markSessionDirty(); });
     connect(editor->verticalScrollBar(), &QScrollBar::valueChanged, this, [this, editor] {
         if (editor == currentEditor()) {
             scheduleSpelling();  // スクロールで表示範囲が変わったので調べ直す。
         }
     });
     connect(editor, &QPlainTextEdit::cursorPositionChanged, this, [this, editor] {
+        markSessionDirty();  // カーソルと選択の位置も復元するので保存する。
         editor->hideCompletions();
         const QTextCursor cursor = editor->textCursor();
         showStatus(QString("Ln %1, Col %2  |  UTF-8").arg(cursor.blockNumber() + 1).arg(cursor.positionInBlock() + 1));
@@ -434,6 +278,7 @@ CodeEditor* MainWindow::newTab(const QString& language) {
 
 void MainWindow::onTextChanged(CodeEditor* editor) {
     lastEdit_.restart();
+    markSessionDirty();
     editor->clearSpelling();
     editor->hideCompletions();
     completionTimer_.stop();
@@ -441,7 +286,7 @@ void MainWindow::onTextChanged(CodeEditor* editor) {
     if (editor == currentEditor() && !editor->isInsertingCompletion()) {
         completionTimer_.start();
     }
-    updateTabTitle(editor);
+    tabs_->updateTitle(editor);
     if (editor == currentEditor()) {
         scheduleAnalysis();
         scheduleSpelling();
@@ -449,12 +294,13 @@ void MainWindow::onTextChanged(CodeEditor* editor) {
 }
 
 void MainWindow::closeTab(int index) {
-    CodeEditor* editor = editorAt(index);
+    CodeEditor* editor = tabs_->editorAt(index);
     if (!editor || !confirmClose(editor)) {
         return;
     }
     tabs_->removeTab(index);  // タブ欄から外すと所有者がいなくなるので、自分でdeleteする。
     delete editor;
+    markSessionDirty();
     if (tabs_->count() == 0) {
         newTab();
     }
@@ -474,20 +320,10 @@ bool MainWindow::confirmClose(CodeEditor* editor) {
     return choice == QMessageBox::Save && saveFile(editor);
 }
 
-void MainWindow::switchTab(int direction) {
-    const int count = tabs_->count();
-    tabs_->setCurrentIndex((tabs_->currentIndex() + direction + count) % count);
-    currentEditor()->setFocus();
-}
-
-void MainWindow::updateTabTitle(CodeEditor* editor) {
-    const QString marker = editor->document()->isModified() ? " ●" : "";
-    tabs_->setTabText(tabs_->indexOf(editor), editor->displayName() + marker);
-}
-
 void MainWindow::setLanguage(CodeEditor* editor, const QString& language) {
     editor->setLanguage(language);
-    updateTabTitle(editor);
+    tabs_->updateTitle(editor);
+    markSessionDirty();
     if (editor == currentEditor()) {
         languageSelector_->setCurrentIndex(editor->isMel() ? 1 : 0);
         scheduleAnalysis();
@@ -504,33 +340,23 @@ void MainWindow::openFile(const QString& path) {
     }
     const QString absolute = QFileInfo(path).absoluteFilePath();
     // 開いているファイルなら、そのタブを選ぶだけ。
-    for (int i = 0; i < tabs_->count(); ++i) {
-        if (QFileInfo(editorAt(i)->filePath()).absoluteFilePath() == absolute) {
-            tabs_->setCurrentIndex(i);
-            currentEditor()->setFocus();
-            return;
-        }
-    }
-    QFile file(absolute);
-    if (!file.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, "Open", file.errorString());
+    const int opened = tabs_->indexOfFile(absolute);
+    if (opened >= 0) {
+        tabs_->setCurrentIndex(opened);
+        currentEditor()->setFocus();
         return;
     }
-    QByteArray bytes = file.readAll();
-    if (bytes.startsWith("\xef\xbb\xbf")) {
-        bytes.remove(0, 3);  // UTF-8のBOM(先頭の印)を取り除く。
-    }
-    const QString text = QString::fromUtf8(bytes);
-    // UTF-8として読み直して元と一致しなければ、UTF-8以外の文字コード。
-    if (text.toUtf8() != bytes) {
-        QMessageBox::warning(this, "Open", "Only UTF-8 files are supported");
+    QString text;
+    QString error;
+    if (!readScriptFile(absolute, &text, &error)) {
+        QMessageBox::warning(this, "Open", error);
         return;
     }
     CodeEditor* editor = newTab(QFileInfo(path).suffix().toLower() == "mel" ? "mel" : "python");
     editor->setPlainText(text);
     editor->setFilePath(absolute);
     editor->document()->setModified(false);
-    updateTabTitle(editor);
+    tabs_->updateTitle(editor);
     explorer_->addFolder(QFileInfo(absolute).absolutePath());
     updateExplorer();
     explorerDock_->show();
@@ -544,19 +370,11 @@ bool MainWindow::saveFile(CodeEditor* editor, bool saveAs) {
     if (path.isEmpty()) {
         return false;  // キャンセルされた。
     }
-    QString text = editor->toPlainText();
-    if (preferences_.option("trimWhitespace")) {
-        static const QRegularExpression trailingSpaces("[ \\t]+(?=\\n|$)");
-        text.replace(trailingSpaces, QString());
-    }
-    if (preferences_.option("finalNewline") && !text.endsWith('\n')) {
-        text += '\n';
-    }
-    // QSaveFileは一時ファイルへ書いてから置き換えるので、途中で失敗しても元のファイルは壊れない。
-    QSaveFile file(path);
-    const QByteArray bytes = text.toUtf8();
-    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
-        QMessageBox::warning(this, "Save", file.errorString());
+    const QString text = formatForSave(editor->toPlainText(), preferences_.option(option::kTrimWhitespace),
+                                       preferences_.option(option::kFinalNewline));
+    QString error;
+    if (!writeScriptFile(path, text, &error)) {
+        QMessageBox::warning(this, "Save", error);
         return false;
     }
     // 保存時の整形(末尾の空白など)を本文にも反映する。1回のUndoで戻せる。
@@ -572,21 +390,15 @@ bool MainWindow::saveFile(CodeEditor* editor, bool saveAs) {
     }
     editor->setFilePath(path);
     editor->document()->setModified(false);
-    updateTabTitle(editor);
+    tabs_->updateTitle(editor);
+    markSessionDirty();
     explorer_->addFolder(QFileInfo(path).absolutePath());
     updateExplorer();
     return true;
 }
 
 void MainWindow::updateExplorer() {
-    QStringList paths;
-    for (int i = 0; i < tabs_->count(); ++i) {
-        const QString path = editorAt(i)->filePath();
-        if (!path.isEmpty()) {
-            paths.append(path);
-        }
-    }
-    explorer_->setOpenFiles(paths);
+    explorer_->setOpenFiles(tabs_->filePaths());
 }
 
 // ===========================================================================
@@ -630,7 +442,7 @@ void MainWindow::restoreSession() {
                               || QString::fromUtf8(original.readAll()) != editor->toPlainText();
         }
         editor->document()->setModified(tab.modified || differsFromFile);
-        updateTabTitle(editor);
+        tabs_->updateTitle(editor);
         // 保存していた位置が本文より後ろ(ファイルが短くなった等)でも、範囲内に収める。
         const int limit = editor->document()->characterCount() - 1;
         QTextCursor cursor = editor->textCursor();
@@ -649,12 +461,14 @@ bool MainWindow::saveSession() {
     if (!session_.canSave()) {
         return false;
     }
+    if (!sessionDirty_) {
+        return true;  // 前回の保存から何も変わっていない。
+    }
     SessionData data;
     data.activeTab = tabs_->currentIndex();
     data.folders = explorer_->roots();
     data.explorerVisible = !explorerDock_->isHidden();
-    for (int i = 0; i < tabs_->count(); ++i) {
-        CodeEditor* editor = editorAt(i);
+    for (CodeEditor* editor : tabs_->editors()) {
         const QTextCursor cursor = editor->textCursor();
         TabState tab;
         tab.text = editor->toPlainText();
@@ -670,6 +484,7 @@ bool MainWindow::saveSession() {
         showStatus("Tab recovery save failed: " + error);
         return false;
     }
+    sessionDirty_ = false;
     return true;
 }
 
@@ -679,8 +494,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         event->accept();
         return;
     }
-    for (int i = 0; i < tabs_->count(); ++i) {
-        if (!confirmClose(editorAt(i))) {
+    for (CodeEditor* editor : tabs_->editors()) {
+        if (!confirmClose(editor)) {
             event->ignore();
             return;
         }
@@ -825,7 +640,8 @@ void MainWindow::requestCompletion(bool force) {
     const bool afterDot = preceding.selectedText() == ".";
     if (!force) {
         // 自動補完は、設定でオンの場合だけ。名前の入力途中でもドットの直後でもなければ出さない。
-        const bool enabled = afterDot ? preferences_.option("completeDot") : preferences_.option("completeLetters");
+        const bool enabled = afterDot ? preferences_.option(option::kCompleteDot)
+                                      : preferences_.option(option::kCompleteLetters);
         if (!enabled) {
             return;
         }
@@ -839,29 +655,26 @@ void MainWindow::requestCompletion(bool force) {
     }
     // 文書の先頭からカーソルまでを渡す。
     cursor.setPosition(0, QTextCursor::KeepAnchor);
-    const QByteArray json = services_.complete(normalizeSelectedText(cursor.selectedText()));
-    const QJsonObject response = QJsonDocument::fromJson(json).object();
-    if (response.contains("error")) {
-        completionStatus_->setText("Completion: " + response["error"].toString());
+    const CompletionResult result = services_.complete(normalizeSelectedText(cursor.selectedText()));
+    if (!result.error.isEmpty()) {
+        completionStatus_->setText("Completion: " + result.error);
         return;
     }
 
     QList<CompletionItem> items;
-    for (const QJsonValue& value : response["items"].toArray()) {
-        const QJsonObject item = value.toObject();
-        const QString kind = item["kind"].toString();
-        if (kind == "keyword" && !preferences_.option("includeKeywords")) {
+    for (const CompletionItem& item : result.items) {
+        if (item.kind == "keyword" && !preferences_.option(option::kIncludeKeywords)) {
             continue;
         }
-        if (kind == "builtin" && !preferences_.option("includeBuiltins")) {
+        if (item.kind == "builtin" && !preferences_.option(option::kIncludeBuiltins)) {
             continue;
         }
-        items.append({item["name"].toString(), item["detail"].toString()});
+        items.append(item);
     }
     completionStatus_->setText("Completion: ready (in Maya)");
     editor->showCompletions(items);
     // import文の候補を別スレッドで集めている途中なら、少し後に問い合わせ直す(追加の入力は不要)。
-    if (items.isEmpty() && response["pending"].toBool()) {
+    if (items.isEmpty() && result.pending) {
         completionTimer_.start(250);
     }
 }
@@ -870,7 +683,7 @@ void MainWindow::scheduleAnalysis() {
     analysisTimer_.stop();
     problems_->clear();
     CodeEditor* editor = currentEditor();
-    const bool enabled = preferences_.option("staticAnalysis") && editor && !editor->isMel();
+    const bool enabled = preferences_.option(option::kStaticAnalysis) && editor && !editor->isMel();
     problems_->setVisible(enabled);
     if (enabled) {
         problems_->showWaiting();
@@ -880,7 +693,7 @@ void MainWindow::scheduleAnalysis() {
 
 void MainWindow::runAnalysis() {
     CodeEditor* editor = currentEditor();
-    if (!preferences_.option("staticAnalysis") || !services_.analyze || !editor || editor->isMel()) {
+    if (!preferences_.option(option::kStaticAnalysis) || !services_.analyze || !editor || editor->isMel()) {
         return;
     }
     problems_->showResult(services_.analyze(editor->toPlainText()));
@@ -888,9 +701,9 @@ void MainWindow::runAnalysis() {
 
 void MainWindow::scheduleSpelling() {
     spellingTimer_.stop();
-    if (!preferences_.option("spellCheck")) {
-        for (int i = 0; i < tabs_->count(); ++i) {
-            editorAt(i)->clearSpelling();
+    if (!preferences_.option(option::kSpellCheck)) {
+        for (CodeEditor* editor : tabs_->editors()) {
+            editor->clearSpelling();
         }
         return;
     }
@@ -904,63 +717,28 @@ void MainWindow::scheduleSpelling() {
 // ===========================================================================
 
 void MainWindow::applyPreferences(CodeEditor* editor) {
-    editor->setSmartIndent(preferences_.option("smartIndent"));
-    editor->setBackspaceToIndentStop(preferences_.option("backspaceIndent"));
-    editor->setWhitespaceVisible(preferences_.option("whitespace"));
+    editor->setSmartIndent(preferences_.option(option::kSmartIndent));
+    editor->setBackspaceToIndentStop(preferences_.option(option::kBackspaceIndent));
+    editor->setWhitespaceVisible(preferences_.option(option::kWhitespace));
 }
 
 void MainWindow::onOptionToggled(const QString& key, bool enabled) {
     if (!preferences_.setOption(key, enabled)) {
         showStatus("Could not save editor preferences");
     }
-    for (int i = 0; i < tabs_->count(); ++i) {
-        applyPreferences(editorAt(i));
-        editorAt(i)->hideCompletions();
+    for (CodeEditor* editor : tabs_->editors()) {
+        applyPreferences(editor);
+        editor->hideCompletions();
     }
     // 設定ごとに、すぐ反映が必要なもの。
-    if (key == "staticAnalysis") {
+    if (key == option::kStaticAnalysis) {
         scheduleAnalysis();
-    } else if (key == "outputLineNumbers") {
+    } else if (key == option::kOutputLineNumbers) {
         output_->view()->setLineNumbersVisible(enabled);
-    } else if (key == "outputWrap") {
+    } else if (key == option::kOutputWrap) {
         output_->setWrap(enabled);
-    } else if (key == "spellCheck") {
+    } else if (key == option::kSpellCheck) {
         scheduleSpelling();
-    }
-}
-
-void MainWindow::resetPreferences() {
-    const auto answer = QMessageBox::question(
-        this, "Reset preferences",
-        "Reset all editor preferences and the font size to their defaults?\n\n"
-        "Open tabs, files and the Explorer are not changed.",
-        QMessageBox::Reset | QMessageBox::Cancel, QMessageBox::Cancel);
-    if (answer != QMessageBox::Reset) {
-        return;
-    }
-    const bool saved = preferences_.resetToDefaults();
-
-    // メニューのチェックを初期値に合わせる。QSignalBlockerがある間はtoggledが出ないので、
-    // onOptionToggledが1項目ずつ保存し直すことはない(反映は下でまとめて行う)。
-    for (auto it = optionActions_.begin(); it != optionActions_.end(); ++it) {
-        const QSignalBlocker blocker(it.value());
-        it.value()->setChecked(preferences_.option(it.key()));
-    }
-    // onOptionToggledで項目ごとに行う反映を、全ての項目についてまとめて行う。
-    for (int i = 0; i < tabs_->count(); ++i) {
-        applyPreferences(editorAt(i));
-        editorAt(i)->hideCompletions();
-    }
-    output_->view()->setLineNumbersVisible(preferences_.option("outputLineNumbers"));
-    output_->setWrap(preferences_.option("outputWrap"));
-    scheduleAnalysis();
-    scheduleSpelling();
-    applyZoom();
-
-    if (saved) {
-        showStatus("Preferences reset to defaults", 3000);
-    } else {
-        showStatus("Could not save editor preferences");
     }
 }
 

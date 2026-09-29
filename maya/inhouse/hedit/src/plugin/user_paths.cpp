@@ -4,51 +4,25 @@
 #include "plugin/user_paths.h"
 #include "plugin/mel.h"
 #include <QDir>
-#include <QFile>
-#include <QFileInfo>
 
 namespace hedit {
-namespace {
-
-/** @brief Mayaのユーザー設定フォルダー。 @return ``internalVar -userPrefDir``の結果。 */
-QString userPrefDir() {
-    return mel("internalVar -userPrefDir");
-}
-
-/** @brief 旧名heditorのフォルダーから、まだ無いファイルだけをコピーする。
- * @param base Mayaのユーザー設定フォルダー。
- */
-void copyLegacyFiles(const QDir& base) {
-    const QDir destination(base.filePath("hedit"));
-    const QDir legacy(base.filePath("heditor"));
-    for (const char* name : {"tabs.json", "ui.json", "preferences.ini"}) {
-        const QString source = legacy.filePath(name);
-        const QString target = destination.filePath(name);
-        if (QFileInfo(source).isFile() && !QFileInfo::exists(target)) {
-            QDir().mkpath(destination.path());
-            QFile::copy(source, target);
-        }
-    }
-}
-
-}  // namespace
 
 QString userFolder() {
-    const QString prefs = userPrefDir();
-    if (prefs.isEmpty()) {
-        return QString();
-    }
-    return QDir::cleanPath(prefs + "/hedit");
+    // 関数の中のstatic変数は、最初に呼ばれたときに1回だけ初期化される。Mayaの起動中は変わらない値なので覚えておく。
+    static const QString folder = [] {
+        const QString prefs = mel("internalVar -userPrefDir");
+        return prefs.isEmpty() ? QString() : QDir::cleanPath(prefs + "/hedit");
+    }();
+    return folder;
 }
 
 QString sessionFilePath() {
+    // 環境変数は毎回読む(テストが途中で変えることがあるため)。読むのは軽い処理。
     const QString override = qEnvironmentVariable("HEDIT_SESSION_FILE");
     if (!override.isEmpty()) {
         return override;
     }
-    const QDir base(userPrefDir());
-    copyLegacyFiles(base);
-    return QDir::toNativeSeparators(QDir(base.filePath("hedit")).filePath("tabs.json"));
+    return QDir::toNativeSeparators(QDir(userFolder()).filePath("tabs.json"));
 }
 
 }  // namespace hedit

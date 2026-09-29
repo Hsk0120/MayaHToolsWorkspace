@@ -1,5 +1,5 @@
 /** @file numbered_text_edit.cpp
- * @brief NumberedTextEditの実装。
+ * @brief NumberedTextEditと、行番号専用の部品LineNumberAreaの実装。
  */
 #include "editor/numbered_text_edit.h"
 #include "editor/theme.h"
@@ -9,17 +9,38 @@
 
 namespace hedit {
 
+/** @brief 行番号だけを描く部品。描く中身はNumberedTextEditに任せる。
+ * @details このファイルの中だけで使う。NumberedTextEditの子として作り、一緒に破棄される。
+ */
+class LineNumberArea : public QWidget {
+public:
+    /** @brief 行番号の部品を作る。 @param editor 行番号を描く対象の欄(親)。 */
+    explicit LineNumberArea(NumberedTextEdit* editor) : QWidget(editor), editor_(editor) {}
+
+    /** @brief 望ましい大きさ。 @return 行番号の欄の幅。 */
+    QSize sizeHint() const override { return QSize(editor_->gutterWidth(), 0); }
+
+protected:
+    /** @brief 行番号を描く。 @param event 描き直す範囲。 */
+    void paintEvent(QPaintEvent* event) override { editor_->paintLineNumbers(event); }
+
+private:
+    NumberedTextEdit* editor_;  ///< 親の欄。
+};
+
 NumberedTextEdit::NumberedTextEdit(QWidget* parent) : QPlainTextEdit(parent) {
+    lineNumberArea_ = new LineNumberArea(this);
     // connectの3番目の引数(this)は「接続の持ち主」。thisが破棄されると接続も自動で外れる。
     // 行数が変われば桁数が変わるので幅を計算し直す。
     connect(this, &QPlainTextEdit::blockCountChanged, this, [this] { updateGutter(); });
-    // スクロールや入力で本文が描き直されるとき、行番号も描き直す。
-    connect(this, &QPlainTextEdit::updateRequest, this, [this] { update(); });
+    // 本文の描き直し(スクロール・入力・カーソルの点滅)に合わせて、行番号の必要な範囲だけ描き直す。
+    connect(this, &QPlainTextEdit::updateRequest, this, [this](const QRect& rect, int dy) { onUpdateRequest(rect, dy); });
     updateGutter();
 }
 
 void NumberedTextEdit::setLineNumbersVisible(bool visible) {
     showLineNumbers_ = visible;
+    lineNumberArea_->setVisible(visible);
     updateGutter();
 }
 
@@ -30,10 +51,13 @@ bool NumberedTextEdit::event(QEvent* event) {
         updateGutter();
         return handled;
     }
-    if (event->type() == QEvent::Paint && showLineNumbers_) {
-        paintLineNumbers();
-    }
     return QPlainTextEdit::event(event);
+}
+
+void NumberedTextEdit::resizeEvent(QResizeEvent* event) {
+    QPlainTextEdit::resizeEvent(event);
+    const QRect area = contentsRect();
+    lineNumberArea_->setGeometry(QRect(area.left(), area.top(), gutterWidth_, area.height()));
 }
 
 void NumberedTextEdit::updateGutter() {
@@ -47,22 +71,34 @@ void NumberedTextEdit::updateGutter() {
     setViewportMargins(gutterWidth_, 0, 0, 0);
     // タブ文字の幅は空白4文字分。
     setTabStopDistance(fontMetrics().horizontalAdvance(' ') * 4);
-    update();
+    const QRect area = contentsRect();
+    lineNumberArea_->setGeometry(QRect(area.left(), area.top(), gutterWidth_, area.height()));
+    lineNumberArea_->update();
 }
 
-void NumberedTextEdit::paintLineNumbers() {
-    // 本文の描画(viewport)とは別に、このウィジェット自身の左端の余白へ描く。
-    QPainter painter(this);
-    painter.fillRect(0, 0, gutterWidth_, height(), QColor(theme::kBackground));
+void NumberedTextEdit::onUpdateRequest(const QRect& rect, int dy) {
+    if (!showLineNumbers_) {
+        return;
+    }
+    if (dy != 0) {
+        lineNumberArea_->scroll(0, dy);  // スクロールした分だけ、描いた番号をずらす(描き直しを減らす)。
+    } else {
+        lineNumberArea_->update(0, rect.y(), lineNumberArea_->width(), rect.height());
+    }
+}
+
+void NumberedTextEdit::paintLineNumbers(QPaintEvent* event) {
+    QPainter painter(lineNumberArea_);
+    painter.fillRect(event->rect(), QColor(theme::kBackground));
     painter.setPen(QColor(theme::kLineNumber));
     painter.setFont(font());
     QTextBlock block = firstVisibleBlock();
     while (block.isValid()) {
         const QRectF rect = blockBoundingGeometry(block).translated(contentOffset());
-        if (rect.top() > height()) {
-            break;
+        if (rect.top() > event->rect().bottom()) {
+            break;  // 描き直す範囲より下は描かない。
         }
-        if (block.isVisible()) {
+        if (block.isVisible() && rect.bottom() >= event->rect().top()) {
             const QRectF numberArea(0, rect.top(), gutterWidth_ - scaled(10), fontMetrics().height());
             painter.drawText(numberArea, Qt::AlignRight, QString::number(block.blockNumber() + 1));
         }

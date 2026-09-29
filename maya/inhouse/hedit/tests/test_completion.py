@@ -1,5 +1,8 @@
-"""補完エンジン自体はMaya API非依存だが、実体(src/python/hedit/)はhedit.mllに
-同梱されているため、importにはプラグインロード(=Maya standalone起動)が必要。
+"""補完(C++の補完エンジン)と構文チェック(同梱Python)をmayapyで検証する。
+
+補完の判断はhedit.mllの中のC++が行うので、テスト用の ``hedit -complete`` コマンドで呼ぶ。
+モジュールの情報(sys.path・sys.modules)は実行中のPythonから取るので、テストはそれらを一時的に差し替える。
+対象のソースは実行しない(実行されると ``RuntimeError`` になる内容で確かめる)。
 """
 import json
 import os
@@ -7,23 +10,45 @@ from pathlib import Path
 import sys
 import tempfile
 import time
-import unittest
 import types
+import unittest
 from unittest import mock
-
-ROOT = Path(__file__).resolve().parents[1]
 
 import maya.standalone
 maya.standalone.initialize(name='python')
 from maya import cmds
 cmds.loadPlugin('hedit')
-from hedit.completion import Index
 from hedit import bridge
 from hedit.analysis import analyze
 
 
+def complete(source):
+    """dict: C++の補完の結果(JSON)。"""
+    return json.loads(cmds.hedit(complete=source))
+
+
+def names(source):
+    """list[str]: 補完候補の名前。"""
+    return [item['name'] for item in complete(source)['items']]
+
+
 class CompletionTests(unittest.TestCase):
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
+
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.root.joinpath('sample.py').write_text(
+            'raise RuntimeError("must not execute")\n\ndef create_node(name, **kwargs):\n    pass\n\n'
+            'class Example:\n    def get_value(self):\n        pass\n', encoding='utf-8')
+        # C++は補完のたびにPythonのsys.pathを読む。一時フォルダーを先頭に置く。
+        self.path = mock.patch.object(sys, 'path', [str(self.root)] + sys.path)
+        self.path.start()
+        cmds.hedit(complete='')  # 前のテストのファイルのキャッシュに影響されないよう、まず1回呼ぶ。
+
+    def tearDown(self):
+        self.path.stop()
+        self.directory.cleanup()
 
     def test_top_level_names_come_from_cpp(self):
         """C++へ渡す検索パスと、組み込み・読み込み済みのトップレベル名。フォルダーは走査しない。"""
@@ -33,54 +58,39 @@ class CompletionTests(unittest.TestCase):
         self.assertIn('maya', data['names'])
         self.assertTrue(all(os.path.isabs(path) for path in data['paths']))
 
-    def test_incomplete_large_source_has_bounded_parse_attempts(self):
-        import ast
-        source = 'import sample\ninvalid (\n' + 'value = 1\n'*5000 + 'sample.cre'
-        with mock.patch('ast.parse', wraps=ast.parse) as parse:
-            self.index.complete(source)
-            self.assertLessEqual(parse.call_count, 5)
-            before = parse.call_count
-            self.index.complete(source+'a')
-            self.assertEqual(parse.call_count, before)
-
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.root = Path(self.directory.name)
-        self.root.joinpath('sample.py').write_text('raise RuntimeError("must not execute")\n\ndef create_node(name, **kwargs):\n    pass\n\nclass Example:\n    def get_value(self):\n        pass\n', encoding='utf-8')
-        self.index = Index([str(self.root)], {'dynamic': {'createNode': {}, 'ls': {}}})
-
-    def tearDown(self):
-        self.directory.cleanup()
-
-    def names(self, code):
-        return [item['name'] for item in self.index.complete(code)]
-
     def test_import_alias_and_signature_without_execution(self):
-        items = self.index.complete('import sample as s\ns.cre')
+        items = complete('import sample as s\ns.cre')['items']
         self.assertEqual(items, [{'name': 'create_node', 'detail': 'create_node(name, **kwargs)'}])
         self.assertNotIn('sample', sys.modules)
 
     def test_dynamic_exports(self):
-        self.assertEqual(self.names('import dynamic as d\nd.l'), ['ls'])
+        module = types.ModuleType('dynamic')
+        module.createNode = 1
+        module.ls = 2
+        with mock.patch.dict(sys.modules, {'dynamic': module}):
+            self.assertEqual(names('import dynamic as d\nd.l'), ['ls'])
 
-    def test_dot_completion_never_scans_runtime_paths(self):
-        with mock.patch('os.scandir', side_effect=AssertionError('must not scan')), mock.patch('os.path.isfile', side_effect=AssertionError('must not probe')):
-            index = Index(['//unavailable/share'], {'maya.cmds': {'ls': {}, 'createNode': {}}})
-            self.assertEqual([row['name'] for row in index.complete('import maya.cmds as cmds\ncmds.')], ['createNode', 'ls'])
+    def test_loaded_module_never_scans_search_paths(self):
+        """読み込み済みのモジュールは、sys.path(遅いネットワーク上かもしれない)を見ずに補完する。"""
+        with mock.patch.object(sys, 'path', ['//unavailable/share'] + sys.path):
+            start = time.perf_counter()
+            result = names('import maya.cmds as cmds\ncmds.createNod')
+            self.assertLess(time.perf_counter() - start, 1.0)
+        self.assertEqual(result, ['createNode'])
 
     def test_local_function_and_class(self):
-        self.assertIn('function', self.names('def function(arg):\n    pass\nfun'))
-        self.assertEqual(self.names('import sample\nsample.Example.get_'), ['get_value'])
+        self.assertIn('function', names('def function(arg):\n    pass\nfun'))
+        self.assertEqual(names('import sample\nsample.Example.get_'), ['get_value'])
 
     def test_from_import(self):
-        self.assertEqual(self.names('from sample import cre'), ['create_node'])
-        self.assertEqual(self.names('from sample import Example as E\nE.get'), ['get_value'])
+        self.assertEqual(names('from sample import cre'), ['create_node'])
+        self.assertEqual(names('from sample import Example as E\nE.get'), ['get_value'])
 
     def test_relative_export(self):
         package = self.root / 'package'; package.mkdir()
         (package / '__init__.py').write_text('from .api import Example\n', encoding='utf-8')
         (package / 'api.py').write_text('class Example:\n    def member(self):\n        pass\n', encoding='utf-8')
-        self.assertEqual(self.names('import package\npackage.Example.mem'), ['member'])
+        self.assertEqual(names('import package\npackage.Example.mem'), ['member'])
 
     def test_nested_relative_package_and_type_checking_exports(self):
         package = self.root / 'package'; package.mkdir()
@@ -88,60 +98,68 @@ class CompletionTests(unittest.TestCase):
         (package / '__init__.py').write_text('from . import nodes\n', encoding='utf-8')
         (nodes / '__init__.py').write_text('from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .joint import Joint\n', encoding='utf-8')
         (nodes / 'joint.py').write_text('class Joint:\n    def get_matrix(self): pass\n', encoding='utf-8')
-        self.assertIn('Joint', self.names('import package\npackage.nodes.'))
-        self.assertEqual(self.names('import package as p\np.nodes.Joint.get_'), ['get_matrix'])
-        self.assertIn('Joint', self.names('from package import nodes\nnodes.'))
+        self.assertIn('Joint', names('import package\npackage.nodes.'))
+        self.assertEqual(names('import package as p\np.nodes.Joint.get_'), ['get_matrix'])
+        self.assertIn('Joint', names('from package import nodes\nnodes.'))
         self.assertNotIn('package', sys.modules)
 
     def test_absolute_subpackage_reexport_does_not_recurse(self):
         package = self.root / 'package'; package.mkdir()
         (package / '__init__.py').write_text('from package import nodes\n', encoding='utf-8')
         (package / 'nodes.py').write_text('class Node: pass\n', encoding='utf-8')
-        self.assertIn('Node', self.names('import package\npackage.nodes.'))
+        self.assertIn('Node', names('import package\npackage.nodes.'))
 
     def test_cache_invalidation(self):
-        self.assertTrue(self.names('import sample\nsample.cre'))
+        self.assertTrue(names('import sample\nsample.cre'))
         self.root.joinpath('sample.py').write_text('def changed():\n    pass\n', encoding='utf-8')
-        self.assertEqual(self.names('import sample\nsample.ch'), ['changed'])
-        self.assertEqual(self.names('import sample\nsample.cre'), [])
+        self.assertEqual(names('import sample\nsample.ch'), ['changed'])
+        self.assertEqual(names('import sample\nsample.cre'), [])
 
     def test_live_exports_follow_changes_without_refresh(self):
         module = types.ModuleType('hedit_fixture')
         module.before = 1
-        index = Index([], runtime=bridge.runtime_module)
         with mock.patch.dict(sys.modules, {'hedit_fixture': module}):
-            self.assertEqual([r['name'] for r in index.complete('import hedit_fixture as f\nf.')], ['before'])
+            self.assertEqual(names('import hedit_fixture as f\nf.'), ['before'])
             del module.before
             module.after = 2
-            self.assertEqual([r['name'] for r in index.complete('import hedit_fixture as f\nf.')], ['after'])
+            self.assertEqual(names('import hedit_fixture as f\nf.'), ['after'])
 
     def test_loaded_source_and_class_follow_edits_without_execution(self):
         module = types.ModuleType('sample')
         module.__file__ = str(self.root / 'sample.py')
-        index = Index([], runtime=bridge.runtime_module)
-        with mock.patch.dict(sys.modules, {'sample': module}), mock.patch('os.scandir', side_effect=AssertionError('no scan')):
-            self.assertIn('get_value', [r['name'] for r in index.complete('import sample\nsample.Example.')])
+        with mock.patch.dict(sys.modules, {'sample': module}):
+            self.assertIn('get_value', names('import sample\nsample.Example.'))
             (self.root / 'sample.py').write_text('raise RuntimeError("never run")\nclass Example:\n    def new_method(self): pass\n', encoding='utf-8')
-            self.assertEqual([r['name'] for r in index.complete('import sample\nsample.Example.')], ['new_method'])
+            self.assertEqual(names('import sample\nsample.Example.'), ['new_method'])
+            # 書きかけ(括弧が閉じていない)のファイルは、前回の正しい結果を使い続ける。
             (self.root / 'sample.py').write_text('class Example: (', encoding='utf-8')
-            self.assertEqual([r['name'] for r in index.complete('import sample\nsample.Example.')], ['new_method'])
+            self.assertEqual(names('import sample\nsample.Example.'), ['new_method'])
 
     def test_keyword_and_builtin_categories(self):
-        self.assertEqual(self.index.complete('ret')[0]['kind'], 'keyword')
-        self.assertEqual(self.index.complete('pri')[0]['kind'], 'builtin')
+        self.assertEqual(complete('ret')['items'][0]['kind'], 'keyword')
+        self.assertEqual(complete('pri')['items'][0]['kind'], 'builtin')
 
-    def test_in_process_unicode_and_recovery(self):
-        with mock.patch.object(bridge, '_index', self.index), mock.patch('subprocess.Popen', side_effect=AssertionError('must not spawn')):
-            response = json.loads(bridge.complete('# 日本語\nimport sample\nsample.cre'))
-            self.assertEqual(response['items'][0]['name'], 'create_node')
-            self.assertIn('error', json.loads(bridge.complete(None)))
-            self.assertEqual(json.loads(bridge.complete('pri'))['items'][0]['name'], 'print')
+    def test_unicode_and_in_process(self):
+        with mock.patch('subprocess.Popen', side_effect=AssertionError('must not spawn')):
+            self.assertEqual(complete('# 日本語\nimport sample\nsample.cre')['items'][0]['name'], 'create_node')
+            self.assertEqual(complete('pri')['items'][0]['name'], 'print')
+
+    def test_large_incomplete_source_is_fast(self):
+        """5,000行の書きかけの本文でも、宣言はC++で読むので短時間で終わる(以前のastでは約100ms)。"""
+        source = 'import sample\ninvalid (\n' + 'value = 1\n' * 5000 + 'sample.cre'
+        complete(source)
+        start = time.perf_counter()
+        for index in range(10):
+            complete(source.replace('value = 1', 'value = %d' % index, 1))
+        average = (time.perf_counter() - start) * 100
+        print('5,000-line completion with edits: %.2f ms' % average)
+        self.assertLess(average, 50)
 
     def test_warm_timing(self):
-        self.index.complete('import sample\nsample.cre')
+        complete('import sample\nsample.cre')
         start = time.perf_counter()
         for _ in range(200):
-            self.index.complete('import sample\nsample.cre')
+            complete('import sample\nsample.cre')
         print('warm static lookup average: %.3f ms' % ((time.perf_counter()-start)*1000/200))
 
     def test_analysis_never_executes_or_imports_source(self):

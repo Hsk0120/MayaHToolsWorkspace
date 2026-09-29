@@ -5,9 +5,6 @@
 #include "core/module_scanner.h"
 #include <QDirIterator>
 #include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QRegularExpression>
 #include <algorithm>
 #include <chrono>
@@ -73,7 +70,7 @@ bool topLevelImportPrefix(const QString& source, QString* prefix) {
     return true;
 }
 
-QByteArray completionItems(const QSet<QString>& names, const QString& prefix, bool pending) {
+CompletionResult completionItems(const QSet<QString>& names, const QString& prefix, bool pending) {
     const bool wantsPrivateNames = prefix.startsWith(QLatin1Char('_'));
     QStringList matched;
     for (const QString& name : names) {
@@ -87,12 +84,12 @@ QByteArray completionItems(const QSet<QString>& names, const QString& prefix, bo
     }
     std::sort(matched.begin(), matched.end());
 
-    QJsonArray items;
+    CompletionResult result;
     for (const QString& name : matched.mid(0, 250)) {
-        items.append(QJsonObject{{"name", name}, {"detail", ""}});
+        result.items.append({name, QString(), QString()});
     }
-    const QJsonObject response{{"items", items}, {"pending", pending}};
-    return QJsonDocument(response).toJson(QJsonDocument::Compact);
+    result.pending = pending;
+    return result;
 }
 
 ModuleScanner::ModuleScanner(int minimumInterval) : interval_(minimumInterval) {}

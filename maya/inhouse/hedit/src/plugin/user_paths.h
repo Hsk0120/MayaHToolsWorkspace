@@ -8,14 +8,16 @@
 
 namespace hedit {
 
-/** @brief heditのフォルダー。 @return ``<userPrefDir>/hedit``。Mayaから取れなければ空。 */
+/** @brief heditのフォルダー。 @return ``<userPrefDir>/hedit``。Mayaから取れなければ空。
+ * @note Mayaへの問い合わせは最初の1回だけ行う。
+ */
 QString userFolder();
 
 /** @brief 未保存タブの復元先(tabs.json)を決める。
  * @return tabs.jsonの絶対パス(Windowsの区切り文字)。
  * @details 環境変数HEDIT_SESSION_FILEがあればそれを使う(テストで専用の場所にするため)。
- * 旧名heditorのフォルダーにある未保存タブ・UI状態・設定は、新しいフォルダーに同名のファイルが
- * まだ無い場合だけコピーする。旧データは削除しない。
+ * 無ければ``<userPrefDir>/hedit/tabs.json``。Mayaへの問い合わせは最初の1回だけ行い、以後は覚えた値を使う
+ * (ドックの状態を1秒ごとに保存するときにも呼ばれるため)。
  */
 QString sessionFilePath();
 

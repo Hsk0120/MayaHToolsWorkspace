@@ -2,6 +2,7 @@
  * @brief 構文チェック(Preferencesの「Static analysis」)の結果の一覧。
  */
 #pragma once
+#include "core/completion_types.h"
 #include <QByteArray>
 #include <QListWidget>
 #include <functional>
@@ -24,10 +25,10 @@ public:
     /** @brief 入力が止まるまで待っていることを表示する。 */
     void showWaiting();
 
-    /** @brief 構文チェックの結果(JSON)を一覧にする。
-     * @param response ``{"diagnostics":[{"severity","line","message"}...]}``、または``{"skipped":"理由"}``。
+    /** @brief 構文チェックの結果を一覧にする。
+     * @param result 結果。
      */
-    void showResult(const QByteArray& response);
+    void showResult(const AnalysisResult& result);
 };
 
 }  // namespace hedit

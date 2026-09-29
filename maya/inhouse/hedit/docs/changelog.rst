@@ -30,7 +30,13 @@
        C++ を読みやすい構成に整理(``src/core``\ ・\ ``src/editor``\ ・\ ``src/plugin`` に分け、部品ごとのファイルに分割)。
        同梱の Python を ``src/python`` の ``.py`` として編集し、ビルド時に ``hedit.mll`` へ入れるようにした。
        版の定義を ``src/version.h`` の 1 か所にまとめた。操作や保存形式は変えていない。
-       Edit → Preferences → Reset to defaults… を追加し、設定と文字サイズを確認のうえ初期値へ戻せるようにした
+       Edit → Preferences → Reset to defaults… を追加し、設定と文字サイズを確認のうえ初期値へ戻せるようにした。
+       補完を C++ に移した(字句解析・宣言の抽出・補完エンジン)。5,000 行の本文を編集しながらの補完が約 100 ms から数 ms に。
+       Python の ``hedit.completion`` は廃止し、同梱の Python は ``hedit.bridge``\ (Python でしか分からない情報の窓口)と
+       ``hedit.analysis``\ (構文チェック)だけにした。色分けも同じ字句解析で行い、三重引用符の複数行の文字列・
+       MEL の予約語・\ ``$`` 変数・ブロックコメントを正しく塗るようにした。自動保存は変化があるときだけ行い、
+       行番号は変わった範囲だけ描き直し、Explorer のフォルダーは別スレッドで読むようにした。
+       旧名 ``heditor`` の互換処理(保存先のコピー・旧ドック名・\ ``heditor.restore()``\ )と調査用の ``startup-debug.log`` を削除
    * - 0.2.9
      - Maya メインスレッドのログ通知を、タイマーを待たず最大約 40 fps で反映
    * - 0.2.7

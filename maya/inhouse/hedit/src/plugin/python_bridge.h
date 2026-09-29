@@ -1,10 +1,13 @@
 /** @file python_bridge.h
  * @brief Maya内のPython・MELを呼ぶ処理(コードの実行・補完・構文チェック)。
- * @details 補完と構文チェックのPython側は、hedit.mllに同梱したsrc/python/hedit/*.py
- * (hedit.bridge・hedit.analysis)にある。ここではその関数を呼び、結果のJSONを受け取るだけ。
+ * @details 補完の判断はC++の補完エンジン(core/completion_engine.cpp)が行い、ここはその補完エンジンに
+ * 「Pythonでしか分からない情報」(読み込み済みのモジュールの公開名・sys.path・組み込みの名前)を渡す。
+ * それらは、hedit.mllに同梱したsrc/python/hedit/bridge.pyの関数を呼んでJSONで受け取る。
+ * 構文チェックだけはPythonのcompile()が必要なので、src/python/hedit/analysis.pyを呼ぶ。
  * いずれもMayaのメインスレッドから呼ぶ。
  */
 #pragma once
+#include "core/completion_types.h"
 #include <QByteArray>
 #include <QString>
 
@@ -24,22 +27,27 @@ QString runPython(const QString& source);
  */
 QString runMel(const QString& source);
 
-/** @brief 補完の環境(sys.pathと読み込み済みモジュール)を取り直す。
- * @return ``{"ready":true}``。
- */
-QByteArray refreshCompletion();
+/** @brief 組み込みの名前と予約語を取り直し、ファイルから読んだ宣言のキャッシュを捨てる(Refresh completion)。 */
+void refreshCompletion();
 
-/** @brief 補完候補を返す。``import xxx``の行はC++(module_scanner)で、それ以外はPythonで求める。
+/** @brief 補完候補を返す。``import xxx``の行のトップレベル名は別スレッドの走査(module_scanner)から、
+ * それ以外は補完エンジンから求める。
  * @param source カーソルまでの本文。
- * @return ``{"items":[{"name","detail","kind"}...],"pending":bool}``、失敗時は``{"error":"..."}``。
+ * @return 補完の結果。
  */
-QByteArray complete(const QString& source);
+CompletionResult complete(const QString& source);
+
+/** @brief 本文の宣言をJSONで返す(テスト用の``hedit -declarations``。Pythonのastとの突き合わせに使う)。
+ * @param source 本文。
+ * @return ``{"名前": {...}}``の形のJSON。
+ */
+QByteArray declarationsJson(const QString& source);
 
 /** @brief Pythonの本文を構文チェックする(compileだけで、実行はしない)。
  * @param source 本文。
- * @return ``{"diagnostics":[...]}``または``{"diagnostics":[],"skipped":"理由"}``。
+ * @return 結果。
  */
-QByteArray analyze(const QString& source);
+AnalysisResult analyze(const QString& source);
 
 /** @brief importの行の補完に使う、sys.pathの走査を始める(別スレッド)。
  * @details 編集画面の作成時に呼び、最初のCtrl+Spaceまでに走査を終えておく。

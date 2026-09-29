@@ -13,6 +13,25 @@ class QSettings;
 
 namespace hedit {
 
+/** @brief 設定の保存名(preferences.iniのキー)。打ち間違いを防ぐため、文字列は必ずこの定数を使う。
+ * @note 一度公開した保存名は変えない(変えると利用者の保存済みの設定が読まれなくなる)。
+ */
+namespace option {
+constexpr const char* kCompleteLetters = "completeLetters";       ///< 入力中の自動補完。
+constexpr const char* kCompleteDot = "completeDot";               ///< 点の直後の自動補完。
+constexpr const char* kIncludeKeywords = "includeKeywords";       ///< 候補に予約語を含める。
+constexpr const char* kIncludeBuiltins = "includeBuiltins";       ///< 候補に組み込みの名前を含める。
+constexpr const char* kStaticAnalysis = "staticAnalysis";         ///< 構文チェック。
+constexpr const char* kOutputLineNumbers = "outputLineNumbers";   ///< 出力欄の行番号。
+constexpr const char* kOutputWrap = "outputWrap";                 ///< 出力欄の折り返し。
+constexpr const char* kSpellCheck = "spellCheck";                 ///< 英語のスペルチェック。
+constexpr const char* kSmartIndent = "smartIndent";               ///< Enterでインデントを引き継ぐ。
+constexpr const char* kBackspaceIndent = "backspaceIndent";       ///< Backspaceを4文字単位で消す。
+constexpr const char* kWhitespace = "whitespace";                 ///< 空白とタブを記号で表示する。
+constexpr const char* kTrimWhitespace = "trimWhitespace";         ///< 保存時に行末の空白を消す。
+constexpr const char* kFinalNewline = "finalNewline";             ///< 保存時に末尾の改行を補う。
+}  // namespace option
+
 /** @brief 1つのオン・オフ設定の定義。 */
 struct OptionDefinition {
     const char* key;              ///< 保存名(preferences.iniのキー)。一度公開したら変えない。

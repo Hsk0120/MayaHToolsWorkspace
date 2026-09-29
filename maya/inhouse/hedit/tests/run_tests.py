@@ -39,7 +39,9 @@ def main():
         env['PYTHONPATH'] += os.pathsep + str(PROJECT / 'scripts')
         unit = run([executable, PROJECT / 'tests/test_completion.py'], env, directory, 'unit')
         # 保存先の決定(C++のhedit -sessionPath)は、隔離したMaya設定フォルダーで確かめる。
-        unit = unit or run([executable, PROJECT / 'tests/test_rename.py'], env, directory, 'rename')
+        unit = unit or run([executable, PROJECT / 'tests/test_session_path.py'], env, directory, 'session_path')
+        # C++の宣言の抽出が、以前のPython(ast)と同じ結果になるかを実在のファイルで突き合わせる。
+        unit = unit or run([executable, PROJECT / 'tests/test_declarations_parity.py'], env, directory, 'declarations', timeout=300)
         config = directory / 'configuration.json'
         maya = run([executable, PROJECT / 'tests/maya_smoke.py', config], env, directory, 'maya')
         ui = None

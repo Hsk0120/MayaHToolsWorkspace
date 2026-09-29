@@ -29,9 +29,7 @@ void initialize();
  */
 QObject* lifetime();
 
-/** @brief ドックの名前を返す。旧名のドックが保存済みならそれを使い、配置を引き継ぐ。
- * @return workspaceControlのUI名。
- */
+/** @brief ドックの名前を返す。 @return workspaceControlのUI名(``heditDockWorkspaceControl``)。 */
 QString controlName();
 
 /** @brief 画面を開く。開いていれば一度閉じて(タブを保存して)同じ画面を開き直す。

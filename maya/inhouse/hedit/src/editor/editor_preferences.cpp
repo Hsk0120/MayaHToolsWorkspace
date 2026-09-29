@@ -10,19 +10,19 @@ namespace hedit {
 const QList<OptionDefinition>& optionDefinitions() {
     // メニューに並ぶ順番。separatorBeforeがtrueの項目の前に区切り線が入る。
     static const QList<OptionDefinition> options = {
-        {"completeLetters", "Completion while typing", true},
-        {"completeDot", "Completion after dot", true},
-        {"includeKeywords", "Include Python keywords", true},
-        {"includeBuiltins", "Include Python built-ins", true},
-        {"staticAnalysis", "Static analysis (syntax / warnings)", false},
-        {"outputLineNumbers", "Show output line numbers", false},
-        {"outputWrap", "Wrap output lines", false},
-        {"spellCheck", "Spell check (English)", true},
-        {"smartIndent", "Smart indentation", true, true},
-        {"backspaceIndent", "Backspace to indentation stop", true},
-        {"whitespace", "Show spaces and tabs", false},
-        {"trimWhitespace", "Trim trailing spaces on file save", false, true},
-        {"finalNewline", "Ensure final newline on file save", false},
+        {option::kCompleteLetters, "Completion while typing", true},
+        {option::kCompleteDot, "Completion after dot", true},
+        {option::kIncludeKeywords, "Include Python keywords", true},
+        {option::kIncludeBuiltins, "Include Python built-ins", true},
+        {option::kStaticAnalysis, "Static analysis (syntax / warnings)", false},
+        {option::kOutputLineNumbers, "Show output line numbers", false},
+        {option::kOutputWrap, "Wrap output lines", false},
+        {option::kSpellCheck, "Spell check (English)", true},
+        {option::kSmartIndent, "Smart indentation", true, true},
+        {option::kBackspaceIndent, "Backspace to indentation stop", true},
+        {option::kWhitespace, "Show spaces and tabs", false},
+        {option::kTrimWhitespace, "Trim trailing spaces on file save", false, true},
+        {option::kFinalNewline, "Ensure final newline on file save", false},
     };
     return options;
 }

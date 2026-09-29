@@ -5,6 +5,7 @@
  * こうしておくと、Mayaの代わりに偽の関数を渡して、Maya無しで画面をテストできる(tests/ui_smoke.cpp)。
  */
 #pragma once
+#include "core/completion_types.h"
 #include "core/output_message.h"
 #include <QByteArray>
 #include <QList>
@@ -20,12 +21,12 @@ struct EditorServices {
     std::function<QString(const QString& source)> runPython;
     /// MELのコードを実行する。戻り値はrunPythonと同じ。
     std::function<QString(const QString& source)> runMel;
-    /// Pythonの補完環境(sys.pathと読み込み済みモジュール)を取り直す。戻り値はUTF-8のJSON。
-    std::function<QByteArray()> refreshCompletion;
-    /// カーソルまでの本文から、補完候補のJSON(``{"items":[...],"pending":bool}``)を返す。
-    std::function<QByteArray(const QString& source)> complete;
-    /// Pythonの本文を構文チェックし、診断のJSON(``{"diagnostics":[...]}``)を返す。実行はしない。
-    std::function<QByteArray(const QString& source)> analyze;
+    /// 補完の情報(組み込みの名前・ファイルから読んだ宣言のキャッシュ)を取り直す(Refresh completion)。
+    std::function<void()> refreshCompletion;
+    /// カーソルまでの本文から、補完候補を返す。
+    std::function<CompletionResult(const QString& source)> complete;
+    /// Pythonの本文を構文チェックする。実行はしない。
+    std::function<AnalysisResult(const QString& source)> analyze;
     /// Mayaの出力のうち、まだ画面へ渡していないものを取り出す(1回取り出したものは消える)。
     std::function<QList<OutputMessage>()> takeOutput;
     /// 未保存タブの復元ファイル(tabs.json)の絶対パス。空なら復元・設定の保存をしない。

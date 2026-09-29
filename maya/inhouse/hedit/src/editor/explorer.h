@@ -5,15 +5,19 @@
 #include <QStringList>
 #include <QWidget>
 #include <functional>
+#include <memory>
 
 class QTreeWidget;
 class QTreeWidgetItem;
 
 namespace hedit {
 
+class DirectoryLister;
+
 /** @brief 開いているファイル(OPEN EDITORS)と、複数のルートフォルダーを表示する。
- * @details ファイルの削除・移動は行わない。フォルダーの中身は展開したときに初めて読むので、
- * 起動時に全体を走査しない。ツリーの項目はQtの親子関係で破棄される。
+ * @details ファイルの削除・移動は行わない。フォルダーの中身は展開したときに初めて、別スレッドで読む
+ * (ネットワークドライブなどの遅いフォルダーでも画面を止めない)。読み終わるまでは「Loading…」を出す。
+ * ツリーの項目はQtの親子関係で破棄される。
  */
 class Explorer : public QWidget {
 public:
@@ -22,8 +26,13 @@ public:
      */
     explicit Explorer(QWidget* parent = nullptr);
 
+    /** @brief 読み込み用のスレッドを止めて合流する。 */
+    ~Explorer() override;
+
     /// ファイルをダブルクリックしたときに呼ぶ関数(引数は絶対パス)。MainWindowがファイルを開く。
     std::function<void(const QString& path)> onFileActivated;
+    /// ルートフォルダーが追加・削除されたときに呼ぶ関数(タブの自動保存の印に使う)。
+    std::function<void()> onRootsChanged;
 
     /** @brief ルートフォルダーを追加する。
      * @param path 既存のフォルダー。空や存在しないパスは無視する。
@@ -41,17 +50,28 @@ public:
     void setOpenFiles(const QStringList& paths);
 
 private:
-    /** @brief フォルダーの直下を列挙して子の項目を作る。シンボリックリンク先へは降りない。
+    /** @brief 展開されたフォルダーの中身の読み込みを、別スレッドへ頼む。
      * @param item 展開されたフォルダーの項目。パスをQt::UserRoleに持つ。
      */
     void populate(QTreeWidgetItem* item);
 
+    /** @brief 別スレッドで読んだフォルダーの中身を、ツリーへ反映する(画面のスレッドで呼ぶ)。
+     * @param path 読んだフォルダー。
+     * @param names 項目の名前。
+     * @param directories 各項目がフォルダーならtrue(namesと同じ順)。
+     */
+    void applyListing(const QString& path, const QStringList& names, const QList<bool>& directories);
+
     /** @brief ルートフォルダーの項目を、OPEN EDITORS以外すべて取り除く。 */
     void removeRootItems();
 
-    QTreeWidget* tree_;               ///< ツリー本体。
-    QTreeWidgetItem* openEditors_;    ///< 先頭の「OPEN EDITORS」の項目。
-    QStringList folders_;             ///< ルートフォルダー。
+    /** @brief ルートフォルダーの変化を知らせる。 */
+    void notifyRootsChanged();
+
+    QTreeWidget* tree_;                          ///< ツリー本体。
+    QTreeWidgetItem* openEditors_;               ///< 先頭の「OPEN EDITORS」の項目。
+    QStringList folders_;                        ///< ルートフォルダー。
+    std::unique_ptr<DirectoryLister> lister_;    ///< フォルダーを読む別スレッド。
 };
 
 }  // namespace hedit

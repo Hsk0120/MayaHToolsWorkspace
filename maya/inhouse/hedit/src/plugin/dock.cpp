@@ -10,7 +10,6 @@
 #include "plugin/user_paths.h"
 #include "version.h"
 #include <maya/MQtUtil.h>
-#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -34,7 +33,6 @@ struct DockState {
     bool showing = false;         ///< show()/restore()の実行中か。この間のuiScriptは何もしない。
     int quitJob = -1;             ///< quitApplicationのscriptJob番号。未登録は-1。
     QJsonObject lastSaved;        ///< 前回保存した状態。変化が無ければ書かない。
-    QString controlName;          ///< ドックの名前(一度決めたら使い回す)。
 };
 DockState state;
 
@@ -113,21 +111,6 @@ bool attach(QMainWindow* editor, QWidget* parent) {
     return parent->isAncestorOf(editor);
 }
 
-/** @brief 開閉状態の変化を追記する調査用のログ(startup-debug.log)。動作には影響しない。
- * @param event 出来事の名前。
- * @param fields 追加で記録する値。
- * @details 「再起動時に復元されない」不具合の原因を、次に起きたときに確かめるためのもの。
- * 書き込めなくても他の処理は続ける。
- */
-void debugLog(const QString& event, QJsonObject fields = {}) {
-    fields.insert("time", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss"));
-    fields.insert("event", event);
-    QFile file(QFileInfo(statePath()).dir().filePath("startup-debug.log"));
-    if (file.open(QIODevice::Append | QIODevice::Text)) {
-        file.write(QJsonDocument(fields).toJson(QJsonDocument::Compact) + "\n");
-    }
-}
-
 /** @brief ui.jsonを読む。 @param saved 読み取った内容を入れる。 @return 読めた場合true。 */
 bool readState(QJsonObject& saved) {
     QFile file(statePath());
@@ -161,8 +144,8 @@ void hideIfClosed() {
 void afterOpened() {
     state.userOpened = true;
     mel("workspaceControl -e -closeCommand " + melQuote(kCloseCommand) + " " + quotedControl());
-    // 旧版で保存されたドック(uiScriptが hedit -restore だけ、または Python の import hedit)も、
-    // 次回の起動でプラグインをロードしてから復元できるよう、今のuiScriptへ書き換える。
+    // 保存済みのドックのuiScriptが古い形でも、次回の起動でプラグインをロードしてから復元できるよう、
+    // 今のuiScriptへ書き換える(何度書いても同じ)。
     mel("workspaceControl -e -uiScript " + melQuote(kUiScript) + " " + quotedControl());
     if (!state.saveTimer) {
         // タイマーの親を編集画面にするので、画面と一緒に破棄される。
@@ -175,7 +158,6 @@ void afterOpened() {
     if (state.quitJob < 0) {
         state.quitJob = melInt("scriptJob -runOnce true -event \"quitApplication\" \"hedit -quitting\"");
     }
-    debugLog("opened");
     saveState();
 }
 
@@ -192,16 +174,7 @@ QObject* lifetime() {
 }
 
 QString controlName() {
-    if (state.controlName.isEmpty()) {
-        state.controlName = "heditDockWorkspaceControl";
-        // 旧名のドックが保存済みなら、その配置を使い続ける(画面の名前はheditに更新する)。
-        const bool legacyExists = melBool("workspaceControl -exists \"HEditorDockWorkspaceControl\"");
-        const bool currentExists = melBool("workspaceControl -exists \"heditDockWorkspaceControl\"");
-        if (legacyExists && !currentExists) {
-            state.controlName = "HEditorDockWorkspaceControl";
-        }
-    }
-    return state.controlName;
+    return QStringLiteral("heditDockWorkspaceControl");
 }
 
 bool show(std::optional<bool> floating) {
@@ -306,7 +279,6 @@ void restorePrevious() {
     }
     const bool existing = controlExists();
     const bool visible = existing && melBool("workspaceControl -q -visible " + quotedControl());
-    debugLog("restore_previous", {{"state", saved}, {"existing", existing}, {"visible", visible}});
     if (!saved.value("open").toBool()) {
         hideIfClosed();
         return;
@@ -337,7 +309,6 @@ void restorePrevious() {
 }
 
 void onClosed() {
-    debugLog("closed", {{"quitting", state.quitting}, {"control_exists", controlExists()}});
     if (!state.quitting) {
         state.userOpened = false;
         saveState();
@@ -345,7 +316,6 @@ void onClosed() {
 }
 
 void onQuitting() {
-    debugLog("quitting", {{"opened", state.userOpened}});
     // ドックの入れ子・タブの組み合わせは、Maya自身のワークスペースに保存する。
     // workspaceControl -stateString は版によって空を返し、配置の復元には使えない。
     mel("workspaceLayoutManager -save");

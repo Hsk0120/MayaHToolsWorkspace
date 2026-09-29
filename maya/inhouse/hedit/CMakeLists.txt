@@ -94,14 +94,20 @@ add_custom_command(
 # plugin/ : Maya APIを使う部分(コマンド・出力の購読・ドック・メニュー)
 set(HEDIT_CORE_SOURCES
     src/core/output_message.h
+    src/core/completion_types.cpp src/core/completion_types.h
+    src/core/completion_engine.cpp src/core/completion_engine.h
     src/core/history_text.cpp src/core/history_text.h
     src/core/module_scanner.cpp src/core/module_scanner.h
+    src/core/python_declarations.cpp src/core/python_declarations.h
+    src/core/script_file.cpp src/core/script_file.h
+    src/core/script_lexer.cpp src/core/script_lexer.h
     src/core/session_data.cpp src/core/session_data.h
+    src/core/symbols.cpp src/core/symbols.h
     src/core/text_search.cpp src/core/text_search.h
 )
 set(HEDIT_EDITOR_SOURCES
     src/editor/editor.cpp src/editor/editor.h
-    src/editor/main_window.cpp src/editor/main_window.h
+    src/editor/main_window.cpp src/editor/main_window_menus.cpp src/editor/main_window.h
     src/editor/code_editor.cpp src/editor/code_editor.h
     src/editor/edit_commands.cpp src/editor/edit_commands.h
     src/editor/editor_preferences.cpp src/editor/editor_preferences.h

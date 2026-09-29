@@ -4,44 +4,20 @@
 #include "editor/syntax_highlighter.h"
 #include "editor/theme.h"
 #include <QColor>
-#include <QList>
-#include <QRegularExpression>
 
 namespace hedit {
 namespace {
 
-/** @brief 色分けの規則。一致した範囲をcolorで塗る。 */
-struct HighlightRule {
-    QRegularExpression pattern;  ///< 一致させる正規表現。
-    QColor color;                ///< 塗る色。
-};
-
-/** @brief 色分けの規則を返す。後の規則ほど優先される(同じ範囲を上から塗り直す)。
- * @return 規則の一覧。初回だけ作り、以後は同じものを使う(正規表現の作成は重いため)。
+/** @brief 名前の直後(空白を除く)が``(``か(関数呼出し・関数定義の名前か)。
+ * @param text 行。
+ * @param end 名前の直後の位置。
+ * @return ``(``が続けばtrue。
  */
-const QList<HighlightRule>& highlightRules() {
-    static const QList<HighlightRule> rules = {
-        {QRegularExpression("\\b[A-Za-z_][A-Za-z_0-9]*\\b"), QColor(theme::kSyntaxIdentifier)},
-        {QRegularExpression("\\b[0-9]+(?:\\.[0-9]+)?\\b"), QColor(theme::kSyntaxNumber)},
-        {QRegularExpression("\\b[A-Za-z_][A-Za-z_0-9]*(?=\\s*\\()"), QColor(theme::kSyntaxFunction)},
-        {QRegularExpression("\\b(?:def|class|import|from|as|return|if|else|elif|for|while|in|try|except|finally|"
-                            "with|yield|raise|pass|and|or|not|lambda|async|await)\\b"),
-         QColor(theme::kSyntaxKeyword)},
-        {QRegularExpression("\\b(?:True|False|None|self)\\b"), QColor(theme::kSyntaxConstant)},
-    };
-    return rules;
-}
-
-/// classの後のクラス名(1番目のキャプチャー)。
-const QRegularExpression& classNamePattern() {
-    static const QRegularExpression pattern("\\bclass\\s+([A-Za-z_][A-Za-z_0-9]*)");
-    return pattern;
-}
-
-/// 1行の中の文字列("..."または'...')。
-const QRegularExpression& stringPattern() {
-    static const QRegularExpression pattern("(?:\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*')");
-    return pattern;
+bool followedByParenthesis(const QString& text, int end) {
+    while (end < text.size() && text[end].isSpace()) {
+        ++end;
+    }
+    return end < text.size() && text[end] == '(';
 }
 
 }  // namespace
@@ -49,67 +25,56 @@ const QRegularExpression& stringPattern() {
 SyntaxHighlighter::SyntaxHighlighter(QTextDocument* document) : QSyntaxHighlighter(document) {}
 
 void SyntaxHighlighter::setMel(bool mel) {
-    mel_ = mel;
+    language_ = mel ? ScriptLanguage::Mel : ScriptLanguage::Python;
 }
 
 void SyntaxHighlighter::highlightBlock(const QString& text) {
-    // 1. 名前・数値・関数・予約語などを順に塗る。
-    for (const HighlightRule& rule : highlightRules()) {
-        auto matches = rule.pattern.globalMatch(text);
-        while (matches.hasNext()) {
-            const auto match = matches.next();
-            setFormat(match.capturedStart(), match.capturedLength(), rule.color);
-        }
-    }
-    // 2. classの後のクラス名を塗る。
-    auto classes = classNamePattern().globalMatch(text);
-    while (classes.hasNext()) {
-        const auto match = classes.next();
-        setFormat(match.capturedStart(1), match.capturedLength(1), QColor(theme::kSyntaxClassName));
-    }
-    // 3. 文字列は中の単語より優先するため、最後の方で塗り直す。
-    auto strings = stringPattern().globalMatch(text);
-    while (strings.hasNext()) {
-        const auto match = strings.next();
-        setFormat(match.capturedStart(), match.capturedLength(), QColor(theme::kSyntaxString));
-    }
-    // 4. コメントは行末まで全てを上書きする。
-    const int comment = commentStart(text);
-    if (comment >= 0) {
-        setFormat(comment, text.size() - comment, QColor(theme::kSyntaxComment));
-    }
-}
+    int endState = kLexerNormal;
+    const QList<Token> tokens = tokenizeLine(text, language_, previousBlockState(), &endState);
+    setCurrentBlockState(endState);
 
-int SyntaxHighlighter::commentStart(const QString& text) const {
-    QChar openQuote;  // 文字列の中なら、その開始の引用符。外ならnull。
-    bool escaped = false;
-    for (int i = 0; i < text.size(); ++i) {
-        const QChar character = text[i];
-        if (escaped) {
-            escaped = false;
-            continue;
-        }
-        if (character == '\\') {
-            escaped = true;
-            continue;
-        }
-        if (!openQuote.isNull()) {
-            if (character == openQuote) {
-                openQuote = QChar();
+    QString previousWord;  // 直前の名前(classの後のクラス名を見分けるため)。
+    for (const Token& token : tokens) {
+        QColor color;
+        switch (token.type) {
+        case TokenType::String:
+            color = QColor(theme::kSyntaxString);
+            break;
+        case TokenType::Comment:
+            color = QColor(theme::kSyntaxComment);
+            break;
+        case TokenType::Number:
+            color = QColor(theme::kSyntaxNumber);
+            break;
+        case TokenType::Variable:
+            color = QColor(theme::kSyntaxIdentifier);
+            break;
+        case TokenType::Name: {
+            const QString word = text.mid(token.start, token.length);
+            if (isKeyword(word, language_)) {
+                color = QColor(theme::kSyntaxKeyword);
+            } else if (isConstant(word, language_)) {
+                color = QColor(theme::kSyntaxConstant);
+            } else if (previousWord == "class" && language_ == ScriptLanguage::Python) {
+                color = QColor(theme::kSyntaxClassName);
+            } else if (followedByParenthesis(text, token.start + token.length)) {
+                color = QColor(theme::kSyntaxFunction);
+            } else {
+                color = QColor(theme::kSyntaxIdentifier);
             }
-            continue;
+            previousWord = word;
+            break;
         }
-        if (character == '\'' || character == '"') {
-            openQuote = character;
-            continue;
+        case TokenType::Operator:
+            break;  // 記号は色を付けない(既定の文字色)。
         }
-        const bool pythonComment = !mel_ && character == '#';
-        const bool melComment = mel_ && character == '/' && i + 1 < text.size() && text[i + 1] == '/';
-        if (pythonComment || melComment) {
-            return i;
+        if (color.isValid()) {
+            setFormat(token.start, token.length, color);
+        }
+        if (token.type != TokenType::Name) {
+            previousWord.clear();
         }
     }
-    return -1;
 }
 
 }  // namespace hedit

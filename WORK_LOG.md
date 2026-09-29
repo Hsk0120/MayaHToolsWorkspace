@@ -29,6 +29,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-09-29 | maya/inhouse/hedit(src/・tests/・docs/・README・CMakeLists.txt・release/*.mll) | 補完をC++化: core/script_lexer(Python/MEL字句解析)・python_declarations(宣言抽出)・completion_engine・symbols・completion_types・script_file追加。Pythonはhedit.bridge(公開名/sys.path/組み込み名の窓口、印で変化なしなら送らない)とanalysisのみ、completion.pyとheditorを削除。構文強調を字句解析化(三重引用符の複数行・MEL予約語/$変数/ブロックコメント)。自動保存は変化時のみ、行番号は変化範囲だけ再描画、Explorerは別スレッドで列挙、user_pathsはキャッシュ、dockの調査ログと旧ドック名を削除、MainWindowをmain_window_menus.cppへ分割、設定キーを定数化、補完/解析はJSONでなく構造体で受け渡し。hedit -complete/-declarations(テスト用)追加。5,000行編集中の補完 約100ms→約5ms、cmds.補完p95 2.4〜16ms→1.4〜1.7ms。ast突き合わせ400ファイル一致。5版ビルド警告0、run_tests全5版、run_startup 25回、run_gui 4種×2024/2027、run_session 2024/2027、Sphinx -W成功。未コミット |
 | Codex | 2026-09-29 | 全未コミット変更 | 全変更をmainへのコミット・プッシュ対象として整理。hlib/hedit/hrigとドキュメントを含む。差分チェック・サブモジュール参照不変を確認。Git除外の研究メモ/計測ログは対象外。今回Maya全テストは再実行していない。 |
 | Codex | 2026-09-29 | README.md・.github/workflows/hlib-docs.yml | READMEへhrig Sphinx公開予定URLとソース/ビルド手順を追加。Pagesに/hrig/を生成するビルドと変更検知を追加。ローカルSphinx -E -a -W成功、diff確認。コミット/プッシュ/公開は未実施。 |
 | Codex | 2026-09-29 | hrig/docs・README | 独立Sphinxサイトを追加。hlibとsphinxdoc/CSS共有、既存機能ページを目次へ登録。テスト方法・生成シーン仕様・20条件性能表・両版71件の既存検証記録と制限を掲載。Sphinx 8.2.3 -E -Wビルド、HTML参照先・CSS一致確認成功。Maya再実行・ブラウザ目視は未実施。 |

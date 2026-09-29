@@ -13,6 +13,12 @@
    ├ src/
    │  ├ version.h            版(HEDIT_VERSION)。版の定義はここだけ
    │  ├ core/                Maya にも画面にも依存しない処理(Maya 無しでテストできる)
+   │  │  ├ script_lexer.*     Python / MEL の字句解析(色分けと宣言の抽出が共通で使う)
+   │  │  ├ python_declarations.*  Python の本文から宣言(def・class・import・代入)を取り出す
+   │  │  ├ symbols.*          補完に使う「名前とその情報」の表(Symbol / SymbolTable)
+   │  │  ├ completion_engine.*  補完エンジン(補完する位置の判定・モジュールの解決・ファイルのキャッシュ)
+   │  │  ├ completion_types.*  補完と構文チェックの結果の型(CompletionResult / AnalysisResult)
+   │  │  ├ script_file.*      スクリプトファイルの読み書き(UTF-8 の確認・保存時の整形)
    │  │  ├ output_message.h   出力 1 件の型(OutputKind / OutputMessage)
    │  │  ├ history_text.*     起動前の出力履歴の整形と、行の種類の判定
    │  │  ├ module_scanner.*   import の行のトップレベル名の補完と、sys.path の別スレッド走査
@@ -20,7 +26,8 @@
    │  │  └ session_data.*     未保存タブの復元ファイル(tabs.json)の形と JSON との変換
    │  ├ editor/              Qt の編集画面(Maya に依存しない)
    │  │  ├ editor.h/.cpp      画面の入口。EditorServices(Maya 側の処理の一式)と createEditor
-   │  │  ├ main_window.*      画面全体。部品の組み立て・メニュー・タブ・保存と復元
+   │  │  ├ main_window.*      画面全体。部品の組み立て・タブ・保存と復元・補完の要求
+   │  │  ├ main_window_menus.cpp  MainWindow のうち、メニュー・ツールバーと Preferences のリセット
    │  │  ├ code_editor.*      1 タブのコード欄(キー操作・自動インデント・補完の一覧・スペルの波線)
    │  │  ├ edit_commands.*    VS Code 風の行編集(コメント・インデント・行の移動や複製)
    │  │  ├ numbered_text_edit.*  行番号付きのテキスト欄(コード欄と出力欄の土台)
@@ -28,10 +35,10 @@
    │  │  ├ find_bar.*         検索・置換バー
    │  │  ├ problems_panel.*   構文チェックの結果の一覧
    │  │  ├ syntax_highlighter.*  Python / MEL の色分け
-   │  │  ├ editor_tabs.*      ホイールで移動できるタブ欄
+   │  │  ├ editor_tabs.*      タブ欄(ホイールで移動、タブのコード欄の取り出し・見出しの更新)
    │  │  ├ editor_preferences.*  Preferences の設定の表と preferences.ini への保存
    │  │  ├ session_store.*    tabs.json の読み書きとロック
-   │  │  ├ explorer.*         Explorer(フォルダーツリー)
+   │  │  ├ explorer.*         Explorer(フォルダーツリー。フォルダーの中身は別スレッドで読む)
    │  │  ├ spelling.*         Windows の辞書を使った英語スペルチェック
    │  │  ├ ui_scale.*         画面の拡大率(4K など)とアイコンの取り出し方
    │  │  └ theme.h            配色(Dark+)。色はここだけで定義する
@@ -40,18 +47,16 @@
    │  │  ├ hedit_command.*    Maya コマンド hedit とフラグ
    │  │  ├ editor_host.*      編集画面を 1 つだけ作り、Maya の処理(実行・補完・出力)とつなぐ
    │  │  ├ output_capture.*   Maya の出力の購読と、画面へ渡すまでのキュー
-   │  │  ├ python_bridge.*    Maya 内の Python / MEL の呼出し(実行・補完・構文チェック)
+   │  │  ├ python_bridge.*    Maya 内の Python / MEL の呼出しと、補完エンジンへの情報の受け渡し
    │  │  ├ dock.*             workspaceControl へのドッキング、開閉状態(ui.json)の保存と起動時の復元
    │  │  ├ window_menu.*      Window メニューの項目とアイコン
-   │  │  ├ user_paths.*       hedit のファイルを置く場所(tabs.json など)と旧名 heditor からのコピー
+   │  │  ├ user_paths.*       hedit のファイルを置く場所(tabs.json など)
    │  │  ├ embedded_python.*  同梱の Python を配る import フックの登録
    │  │  └ mel.h              C++ から MEL を実行する補助(mel / melInt / melBool / melQuote)
    │  └ python/              hedit.mll に同梱する Python(普通の .py として編集する)
    │     ├ hedit/__init__.py   show() / restore()(C++ の hedit コマンドを呼ぶ互換用の窓口)
-   │     ├ hedit/completion.py 補完の索引(ast で読むだけで、対象のコードは実行しない)
-   │     ├ hedit/bridge.py     C++ から呼ばれる補完の窓口
-   │     ├ hedit/analysis.py   構文チェック(compile だけ)
-   │     └ heditor/__init__.py 旧名 heditor の uiScript 互換
+   │     ├ hedit/bridge.py     Python でしか分からない情報(公開名・sys.path・組み込みの名前)を返す窓口
+   │     └ hedit/analysis.py   構文チェック(compile だけ)
    ├ scripts/userSetup.py    起動時に cmds.loadPlugin('hedit') を1回呼ぶだけの最小ブートストラップ
    ├ release/plug-ins/       ビルド済みの hedit.mll(windows/<Mayaの年>/<版>/)
    ├ tests/                  補完・standalone・GUI・復元の自動テスト(hedit_host.py は GUI テスト用の補助)
@@ -127,7 +132,7 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
      - ``plugin/output_capture.cpp`` の ``OutputCapture``\ 。非表示の ``cmdScrollFieldReporter`` を MEL で作り、
        ``MQtUtil::findControl`` で表示文書を購読する。履歴の整形は ``core/history_text.cpp`` の ``compactHistory``\ 。
    * - タブ復元先の決定
-     - ``plugin/user_paths.cpp`` の ``sessionFilePath``\ (``hedit -sessionPath`` でも取得できる)。旧名 ``heditor`` からのコピーもここで行う。
+     - ``plugin/user_paths.cpp`` の ``sessionFilePath``\ (``hedit -sessionPath`` でも取得できる)。Maya への問い合わせは最初の 1 回だけ。
    * - Maya 終了時の出力転送の停止
      - ``plugin/plugin.cpp`` の ``onMayaExiting``\ (``kMayaExiting``)→ ``OutputCapture::stopForExit``\ 。
        終了処理中の reporter 追記を hedit 画面へ描画しない。
@@ -136,9 +141,15 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
        編集画面の作成時に走査を始め、初回は最大 0.5 秒待つ。以後の再走査は 5 秒間隔で裏で行う。
        Python からは ``sys.path`` と組み込み・読み込み済みの名前(``hedit.bridge.module_names``)だけを受け取る
        (``plugin/python_bridge.cpp``)。Maya に依存しないため ``tests/ui_smoke.cpp`` で検証する。
-   * - それ以外の補完(Python)
-     - ``src/python/hedit/completion.py`` / ``bridge.py``\ 。読み込み済みモジュールの
-       公開名と、未読込のソースの ``ast`` 解析から候補を作る。
+   * - それ以外の補完
+     - ``core/completion_engine.cpp`` の ``CompletionEngine``\ (C++)。補完する位置の判定、編集中の本文と未読込のソースの
+       宣言の抽出(``core/python_declarations.cpp``\ 。以前の Python の ``ast`` と同じ結果になることを
+       ``tests/test_declarations_parity.py`` で確かめる)、\ ``from X import Y`` や相対 import の解決、ファイルのキャッシュを行う。
+       Python に問い合わせるのは ``ModuleSource`` の関数(``plugin/python_bridge.cpp`` → ``hedit.bridge``\ )だけ:
+       読み込み済みのモジュールの公開名・\ ``sys.path``\ ・組み込みの名前と予約語。
+   * - 色分け
+     - ``editor/syntax_highlighter.cpp``\ 。\ ``core/script_lexer.cpp`` の字句解析の結果で塗る。行をまたぐ文字列・コメントは
+       QSyntaxHighlighter の block state で次の行へ引き継ぐ。
    * - 構文チェック(Python)
      - ``src/python/hedit/analysis.py``\ 。\ ``compile()`` だけを使い、コードは実行しない。
    * - ``import hedit``\ (Python)
@@ -166,6 +177,8 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
      - タブ復元先(tabs.json)のパスを返す。画面を作らないため mayapy でも使える。
    * - ``-closed``\ (``-cl``)・\ ``-quitting``\ (``-qt``)
      - 内部用。ドックの ``closeCommand`` と終了通知の scriptJob から呼ばれる。
+   * - ``-complete``\ (``-cp``)・\ ``-declarations``\ (``-dc``)と本文
+     - テスト用。C++ の補完の結果・宣言の抽出の結果を JSON で返す。画面を作らないため mayapy でも使える。
 
 同梱の Python について
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -285,9 +298,11 @@ Visual Studio のプロジェクトだけを作る
      - 内容
    * - ``run_tests.py``
      - 版ごとに、補完・静的解析の単体テスト(``test_completion.py``)、Maya standalone での ``.mod`` の解決・
-       プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、保存先の決定(``test_rename.py``)、
+       プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、保存先の決定(``test_session_path.py``)、
+       C++ の宣言の抽出と Python の ``ast`` の突き合わせ(``test_declarations_parity.py``\ 。hlib・hrig・HTools・標準ライブラリの約 400 ファイル)、
        同じ C++ ウィジェットの offscreen 描画と、Maya 非依存の C++ 部分(履歴の整形・import の行の補完・
-       ``sys.path`` の走査)のテスト(``hedit_ui_smoke.exe``)を実行する
+       ``sys.path`` の走査・字句解析・宣言の抽出・補完エンジン・検索置換・tabs.json・行編集・ファイルの読み書き)の
+       テスト(``hedit_ui_smoke.exe``)を実行する
    * - ``run_startup.py``
      - 同じ専用設定で 3 回起動する(``startup_smoke.py``)。プラグインのロードだけで Window メニューの項目と
        アイコンが追加されること、メニューのコマンドで開けること、右ドック・Python / MEL 本文の復元、
@@ -300,8 +315,10 @@ Visual Studio のプロジェクトだけを作る
        ``formatting_spelling_smoke.py`` / ``output_format_smoke.py`` を選ぶ。既定は ``gui_smoke.py``)
    * - ``run_session.py``
      - 2 回起動し、未保存タブの自動保存と、次の起動での本文・パス・選択位置・未保存状態の復元を確認(``session_smoke.py``)
-   * - ``test_rename.py``
-     - 旧名 ``heditor`` の保存先からのコピーを確認。mayapy で単体実行する(``MAYA_MODULE_PATH`` に ``maya/modules`` が必要)
+   * - ``test_session_path.py``
+     - tabs.json の場所(既定の場所と環境変数 ``HEDIT_SESSION_FILE``\ )を確認。mayapy で単体実行する(``MAYA_MODULE_PATH`` に ``maya/modules`` が必要)
+   * - ``test_declarations_parity.py``
+     - C++ の宣言の抽出(``hedit -declarations``\ )が、以前の Python の ``ast`` と同じ結果になるかを実在のファイルで突き合わせる
 
 * ``hedit`` の Python は ``hedit.mll`` に同梱されているため、テストは ``import hedit`` の前に
   ``cmds.loadPlugin('hedit')`` を行います(``.mod`` の ``MAYA_PLUG_IN_PATH`` からプラグイン名で解決)。

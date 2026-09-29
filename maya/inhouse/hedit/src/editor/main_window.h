@@ -1,5 +1,8 @@
 /** @file main_window.h
- * @brief 編集画面の全体。各部品を組み立て、メニュー・ツールバー・タブ・保存と復元をつなぐ。
+ * @brief 編集画面の全体。各部品を組み立て、メニュー・タブ・保存と復元をつなぐ。
+ * @details 実装は2つのファイルに分けている:
+ * - main_window.cpp       : 組み立て・タブ・ファイル・自動保存・実行・補完・設定の反映
+ * - main_window_menus.cpp : メニューとツールバーの組み立て、Preferencesのリセット
  */
 #pragma once
 #include "editor/editor.h"
@@ -17,11 +20,11 @@ class QDockWidget;
 class QLabel;
 class QMenu;
 class QSplitter;
-class QTabWidget;
 
 namespace hedit {
 
 class CodeEditor;
+class EditorTabs;
 class Explorer;
 class FindBar;
 class OutputPanel;
@@ -33,7 +36,7 @@ class ProblemsPanel;
  * ┌ メニュー / ツールバー ─────────────────────────┐
  * │ Explorer │ OutputPanel(出力欄)                  │
  * │ (左ドック)│──────── QSplitter ────────────────── │
- * │          │ タブ欄(CodeEditorが1タブに1つ)+FindBar│
+ * │          │ EditorTabs(CodeEditorが1タブに1つ)+FindBar│
  * │          │ ProblemsPanel(構文チェック。通常は非表示)│
  * └ ステータスバー(行・列 / 補完の状態 / 言語)─────┘
  * @endcode
@@ -67,21 +70,26 @@ private:
     void buildLayout();
     /** @brief ステータスバーの補完の状態と言語の選択欄を作る。 */
     void buildStatusBar();
+    /** @brief タイマー(補完・構文チェック・スペル・自動保存)を用意する。 */
+    void setUpTimers();
+
+    // ---- メニュー(main_window_menus.cpp) ----
+
     /** @brief メニューとツールバーを作る。 */
     void buildMenusAndToolbar();
     /** @brief Edit > Preferences のチェック項目を作る。 @param menu 追加先のメニュー。 */
     void buildPreferencesMenu(QMenu* menu);
     /** @brief ショートカットを、このウィンドウにフォーカスがあるときだけ効くようにする。 */
     void limitShortcutsToThisWindow();
-    /** @brief タイマー(補完・構文チェック・スペル・自動保存)を用意する。 */
-    void setUpTimers();
+    /** @brief 確認のうえ、全ての設定と文字サイズを初期値に戻す(Edit > Preferences > Reset to defaults)。
+     * @details タブの本文・ファイル・Explorerは変更しない。
+     */
+    void resetPreferences();
 
     // ---- タブ ----
 
     /** @brief 選択中のタブのコード欄。 @return タブが無ければnullptr。 */
     CodeEditor* currentEditor() const;
-    /** @brief 指定番号のタブのコード欄。 @param index 0始まりの番号。 @return 範囲外ならnullptr。 */
-    CodeEditor* editorAt(int index) const;
     /** @brief 新しいタブを作って選択する。
      * @param language ``python``または``mel``。
      * @return 新しいコード欄。所有者はタブ欄(呼出側でdeleteしない)。
@@ -96,10 +104,6 @@ private:
      * @return 保存したか破棄を選んだらtrue。キャンセルならfalse。
      */
     bool confirmClose(CodeEditor* editor);
-    /** @brief 次(前)のタブへ移る。端では反対側へ折り返す。 @param direction 次は1、前は-1。 */
-    void switchTab(int direction);
-    /** @brief タブの見出しを、ファイル名と未保存の印(●)で更新する。 @param editor 対象のタブ。 */
-    void updateTabTitle(CodeEditor* editor);
     /** @brief タブの言語を変え、補完と構文チェックの対象を切り替える。
      * @param editor 対象のタブ。
      * @param language ``python``または``mel``。
@@ -129,10 +133,12 @@ private:
 
     /** @brief tabs.jsonを読み、タブを復元する。読めなければ出力欄で知らせる。 */
     void restoreSession();
-    /** @brief 全タブの内容をtabs.jsonへ保存する。元のファイルは変更しない。
+    /** @brief 全タブの内容をtabs.jsonへ保存する。前回の保存から何も変わっていなければ書かない。
      * @return 保存できた(または変更が無かった)らtrue。
      */
     bool saveSession();
+    /** @brief 自動保存が必要な変化(本文・カーソル・タブの並びなど)があったことを記録する。 */
+    void markSessionDirty() { sessionDirty_ = true; }
 
     // ---- 実行と表示 ----
 
@@ -157,7 +163,7 @@ private:
 
     /** @brief Mayaの補完環境を取り直す。 */
     void refreshCompletion();
-    /** @brief 現在の位置の補完候補をMayaに問い合わせて表示する。
+    /** @brief 現在の位置の補完候補を求めて表示する。
      * @param force Ctrl+Spaceからならtrue(自動補完の設定を無視する)。
      */
     void requestCompletion(bool force);
@@ -177,10 +183,6 @@ private:
      * @param enabled 新しい値。
      */
     void onOptionToggled(const QString& key, bool enabled);
-    /** @brief 確認のうえ、全ての設定と文字サイズを初期値に戻す(Edit > Preferences > Reset to defaults)。
-     * @details タブの本文・ファイル・Explorerは変更しない。
-     */
-    void resetPreferences();
 
     // ---- データ ----
 
@@ -188,10 +190,11 @@ private:
     EditorPreferences preferences_;  ///< 設定(preferences.ini)。
     SessionStore session_;           ///< 未保存タブの復元ファイル(tabs.json)。
     Spelling spelling_;              ///< Windowsの英語辞書。
+    bool sessionDirty_ = true;       ///< 前回の自動保存の後に変化があったか。最初は保存が必要として始める。
 
     // 部品。全てこのウィンドウの子孫なので、deleteしなくてよい。
     QSplitter* splitter_ = nullptr;          ///< 出力欄と入力欄の境界。
-    QTabWidget* tabs_ = nullptr;             ///< タブ欄。
+    EditorTabs* tabs_ = nullptr;             ///< タブ欄。
     OutputPanel* output_ = nullptr;          ///< 出力欄。
     FindBar* findBar_ = nullptr;             ///< 検索・置換バー。
     ProblemsPanel* problems_ = nullptr;      ///< 構文チェックの一覧。
@@ -205,7 +208,7 @@ private:
     QTimer completionTimer_;  ///< 入力が止まって250ms後に自動補完する。
     QTimer analysisTimer_;    ///< 入力が止まって800ms後に構文チェックする。
     QTimer spellingTimer_;    ///< 入力が止まって450ms後にスペルチェックする。
-    QTimer sessionTimer_;     ///< 1秒ごとに、入力が止まっていればタブを自動保存する。
+    QTimer sessionTimer_;     ///< 1秒ごとに、入力が止まっていて変化があればタブを自動保存する。
     QElapsedTimer lastEdit_;  ///< 最後に本文が変わってからの時間。
 };
 

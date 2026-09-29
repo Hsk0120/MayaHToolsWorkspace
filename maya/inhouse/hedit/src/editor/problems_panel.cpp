@@ -4,9 +4,6 @@
 #include "editor/problems_panel.h"
 #include "editor/theme.h"
 #include "editor/ui_scale.h"
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 
 namespace hedit {
 
@@ -28,26 +25,22 @@ void ProblemsPanel::showWaiting() {
     addItem("Checking after typing stops…");
 }
 
-void ProblemsPanel::showResult(const QByteArray& response) {
+void ProblemsPanel::showResult(const AnalysisResult& result) {
     clear();
-    const QJsonObject result = QJsonDocument::fromJson(response).object();
-    if (result.contains("skipped")) {
-        addItem(result["skipped"].toString());
+    if (!result.skipped.isEmpty()) {
+        addItem(result.skipped);
         return;
     }
-    if (!result.contains("diagnostics")) {
+    if (!result.available) {
         addItem("Analysis unavailable");
         return;
     }
-    for (const QJsonValue& entry : result["diagnostics"].toArray()) {
-        const QJsonObject diagnostic = entry.toObject();
-        const int line = diagnostic["line"].toInt(1);
-        const QString severity = diagnostic["severity"].toString();
-        const QString text = QString("%1 — Line %2: %3").arg(severity).arg(line).arg(diagnostic["message"].toString());
+    for (const Diagnostic& diagnostic : result.diagnostics) {
+        const QString text = QString("%1 — Line %2: %3").arg(diagnostic.severity).arg(diagnostic.line).arg(diagnostic.message);
         // 親(this)を渡して作った項目は、一覧が所有する。
         auto item = new QListWidgetItem(text, this);
-        item->setData(Qt::UserRole, line);
-        item->setForeground(QColor(severity == "error" ? theme::kDiagnosticError : theme::kDiagnosticWarning));
+        item->setData(Qt::UserRole, diagnostic.line);
+        item->setForeground(QColor(diagnostic.severity == "error" ? theme::kDiagnosticError : theme::kDiagnosticWarning));
     }
     if (count() == 0) {
         addItem("No syntax problems found (type checking is not performed)");
