@@ -117,7 +117,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         self.assertEqual(unique_node_name(self.node.mobject()), self.node.name())
 
     def test_array_plug_is_not_expanded(self):
-        self.network.add_attr("values", attribute_type="double", multi=True)
+        self.network.add_attribute("values", attribute_type="double", multi=True)
         array_plug = self.network.plug("values")
         array_plug.element(0, create=True).set(1.0)
         self.assertIsInstance(array_plug, ArrayPlug)
@@ -209,7 +209,7 @@ class CoerceObjectInputTest(unittest.TestCase):
     def test_to_node_rejects_plugs_of_deleted_attributes(self):
         from hlib._core.coerce import DeletedAttributeError
 
-        plug = self.network.add_attr("doomed", attribute_type="double")
+        plug = self.network.add_attribute("doomed", attribute_type="double")
         mplug = om2.MPlug(plug.mplug())
         self.assertIs(to_node(plug), self.network)
         self.assertEqual(to_node(mplug).full_name(), self.network.full_name())

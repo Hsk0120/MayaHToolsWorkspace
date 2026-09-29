@@ -11,7 +11,7 @@ from ._editor import _Editor
 class Viewport(_Editor):
     """既存modelPanelの表示設定を操作する。生成時にUIを変更しない。
 
-    settings/set_settings は modelEditor の長いフラグ名を使う。
+    get_settings/set_settings は modelEditor の長いフラグ名を使う。
     suspend は個別パネルではなく、Mayaのメインペイン全体に作用する。
     """
 

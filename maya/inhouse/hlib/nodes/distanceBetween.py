@@ -69,10 +69,10 @@ class DistanceBetween(Node):
                 self.plug(f"inMatrix{number}"), force=force)
         return self
 
-    def output(self):
+    def output_plug(self):
         """Plug: distance出力。別属性への接続に使用する。"""
         return self.plug("distance")
 
     def distance(self):
         """float: 評価済み距離。Mayaの現在の距離表示単位。"""
-        return self.output().get()
+        return self.output_plug().get()

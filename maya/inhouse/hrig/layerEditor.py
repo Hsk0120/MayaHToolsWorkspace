@@ -385,7 +385,7 @@ class LayerEditor(QtWidgets.QDialog):
                     continue
                 states = _states(rig)
                 for role, label in self.LABELS.items():
-                    if not rig.root.has_attr("channel_" + role):
+                    if not rig.root.has_attribute("channel_" + role):
                         continue
                     node = hlib.getNode(rig._member("channel_" + role))
                     item = self._row(
@@ -422,7 +422,7 @@ class LayerEditor(QtWidgets.QDialog):
                 for name in ("hrigMode", "hrigLod") + tuple(
                     "hrigEnabled_" + role for role in self.OPTIONAL
                 ):
-                    if rig.root.has_attr(name):
+                    if rig.root.has_attribute(name):
                         self._attributes.add(
                             (uuid, name),
                             attribute=rig.root.plug(name),
@@ -506,7 +506,7 @@ class LayerEditor(QtWidgets.QDialog):
                 0, QtCore.Qt.Checked if rig.layer_enabled("stretch") else QtCore.Qt.Unchecked
             )
         attrs = ["mode", "lod", "enabled"]
-        if rig.root.has_attr("hrigEnabled_stretch"):
+        if rig.root.has_attribute("hrigEnabled_stretch"):
             attrs.append("hrigEnabled_stretch")
         for name in attrs:
             self._attributes.add(
@@ -589,7 +589,7 @@ class LayerEditor(QtWidgets.QDialog):
                     {"root": uuid, "role": kind + ":" + str(index), "target": group.uuid()},
                 )
         for kind in ("follow", "spring", "pose"):
-            if rig.root.has_attr("hrigEnabled_" + kind):
+            if rig.root.has_attribute("hrigEnabled_" + kind):
                 attrs.append("hrigEnabled_" + kind)
         for name in attrs:
             self._attributes.add(
@@ -905,7 +905,7 @@ class LayerEditor(QtWidgets.QDialog):
         node = hlib.getNode(
             ([item.full_name() for item in hlib.ls(data["target"], long=True)] or [""])[0]
         )
-        if not node.has_attr("curve"):
+        if not node.has_attribute("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
         hlib.select(node.plug("curve").source().node, replace=True)
         GraphEditor.show()

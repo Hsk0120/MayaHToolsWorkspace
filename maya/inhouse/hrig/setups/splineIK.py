@@ -129,7 +129,7 @@ class SplineIK:
         controls[0].plug("worldMatrix[0]").connect(handle.plug("dWorldUpMatrix"))
         controls[-1].plug("worldMatrix[0]").connect(handle.plug("dWorldUpMatrixEnd"))
         for role, node in (("handle", handle), ("curve", curve), ("effector", effector)):
-            graph.container.add_attr(long_name=role, attribute_type="message")
+            graph.container.add_attribute(long_name=role, attribute_type="message")
             node.plug("message").connect(graph.container.plug(role))
             graph.container.add_members(node)
         curve.plug("visibility").set(False)

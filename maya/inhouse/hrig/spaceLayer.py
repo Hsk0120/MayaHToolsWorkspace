@@ -60,7 +60,7 @@ class SpaceLayer:
     @undo_transaction("hrig.SpaceLayer.attach")
     def attach(self):
         """IK Local/World、Pole Local/World/Footの空間切替を追加する。"""
-        if self.rig.root.has_attr("targetSpace"):
+        if self.rig.root.has_attribute("targetSpace"):
             return
         layer_set = hlib.createSet(empty=True, name=self.rig.node_name("spaceSet")).full_name()
         self.rig._bind("spaceSet", layer_set)
@@ -81,10 +81,10 @@ class SpaceLayer:
             self.rig._bind(role + "Space", buffer.full_name())
             self._own(switch.nodes())
             control = hlib.getNode(self.rig._member(role))
-            control.add_attr(
+            control.add_attribute(
                 long_name="space", attribute_type="enum", enumName=":".join(switch.labels())
             )
-            control.set_attr_flags(["space"], keyable=False, channel_box=True)
+            control.set_attribute_flags(["space"], keyable=False, channel_box=True)
             from .limb import _lock_group
 
             _lock_group(buffer)

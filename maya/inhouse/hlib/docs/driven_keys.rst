@@ -12,8 +12,8 @@
    relation.set_key(driver_value=0, value=0)
    relation.set_key(driver_value=90, value=45)
 
-   print(relation.driver())
-   print(relation.driven())
+   print(relation.driver_plug())
+   print(relation.driven_plug())
    print(relation.exists())
    print(relation.curves())
 
@@ -43,7 +43,7 @@
    from hlib.general import DrivenKeys
 
    relations = DrivenKeys.find("joint.rotateZ")
-   print(relations.driver())      # ドライバーPlugのリスト
+   print(relations.driver_plug())      # ドライバーPlugのリスト
    print(relations.curves())      # 関係ごとのカーブリスト
    relations.set_key(0, 0)        # 同じ値を一括設定、1回のUndoで戻せる
 

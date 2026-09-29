@@ -13,8 +13,8 @@ Joints・SkinClusters・Pluginsに、単体の公開インスタンスメソッ�
    positions = joints.get_translate(ws=True)
    joints.set_translate((1, 2, 3), ws=True)
    matrices = joints.get_matrix(ws=True)
-   joint_orients = joints.joint_orient()
-   joints.set_attr_flags(["visibility"], keyable=False)
+   joint_orients = joints.get_joint_orient()
+   joints.set_attribute_flags(["visibility"], keyable=False)
 
 引数は単体メソッドと同じで、全要素へ同じ引数を渡します。
 自動追加されたメソッドの戻り値は保持順のリストです。設定メソッドも各単体の戻り値のリストを返します。

@@ -71,62 +71,89 @@ class PointComponent(Component):
         cmds.xform(self.full_name(), absolute=True, translation=value, **space)
         return self
 
-    def get_x(self):
-        """オブジェクト空間の X 座標。
-
-        Returns:
-            float: Maya の現在の距離単位による座標。
-        """
-        return self._get_coordinate(0)
-
-    def set_x(self, value):
-        """X 座標だけを更新する。
+    def get_x(self, ws=False):
+        """X成分の現在値を取得する。
 
         Args:
-            value (float): 現在の距離単位での座標。
-
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
         Returns:
-            None: 値を返さない。
+            float: 座標値。
         """
-        self._set_coordinate(0, value)
+        return self._get_coordinate(0, ws=ws)
 
-    def get_y(self):
-        """オブジェクト空間の Y 座標。
-
-        Returns:
-            float: Maya の現在の距離単位による座標。
-        """
-        return self._get_coordinate(1)
-
-    def set_y(self, value):
-        """Y 座標だけを更新する。
+    @fast_edit
+    def set_x(self, value, ws=False, *, fast=False):
+        """X成分だけを設定し、他の成分を維持する。
 
         Args:
-            value (float): 現在の距離単位での座標。
-
+            value (float): 有限な座標。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
-            None: 値を返さない。
+            PointComponent: 更新した自身。
+        Raises:
+            ValueError: 座標・空間指定または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
         """
-        self._set_coordinate(1, value)
+        return self._set_coordinate(0, value, ws=ws)
 
-    def get_z(self):
-        """オブジェクト空間の Z 座標。
-
-        Returns:
-            float: Maya の現在の距離単位による座標。
-        """
-        return self._get_coordinate(2)
-
-    def set_z(self, value):
-        """Z 座標だけを更新する。
+    def get_y(self, ws=False):
+        """Y成分の現在値を取得する。
 
         Args:
-            value (float): 現在の距離単位での座標。
-
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
         Returns:
-            None: 値を返さない。
+            float: 座標値。
         """
-        self._set_coordinate(2, value)
+        return self._get_coordinate(1, ws=ws)
+
+    @fast_edit
+    def set_y(self, value, ws=False, *, fast=False):
+        """Y成分だけを設定し、他の成分を維持する。
+
+        Args:
+            value (float): 有限な座標。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+        Returns:
+            PointComponent: 更新した自身。
+        Raises:
+            ValueError: 座標・空間指定または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
+        """
+        return self._set_coordinate(1, value, ws=ws)
+
+    def get_z(self, ws=False):
+        """Z成分の現在値を取得する。
+
+        Args:
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+        Returns:
+            float: 座標値。
+        """
+        return self._get_coordinate(2, ws=ws)
+
+    @fast_edit
+    def set_z(self, value, ws=False, *, fast=False):
+        """Z成分だけを設定し、他の成分を維持する。
+
+        Args:
+            value (float): 有限な座標。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+        Returns:
+            PointComponent: 更新した自身。
+        Raises:
+            ValueError: 座標・空間指定または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
+        """
+        return self._set_coordinate(2, value, ws=ws)
 
 
 class PointComponents(Components):
@@ -180,29 +207,89 @@ class PointComponents(Components):
             component.set_position(point, ws=ws)
         return self
 
-    def get_x(self):
-        """list[float]: 保持順のオブジェクト空間X座標。"""
-        return self._get_coordinate(0)
+    def get_x(self, ws=False):
+        """X成分の現在値を取得する。
 
-    def set_x(self, value):
-        """Xだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self._set_coordinate(0, value)
+        Args:
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+        Returns:
+            list[float]: 保持順の座標値。
+        """
+        return self._get_coordinate(0, ws=ws)
 
-    def get_y(self):
-        """list[float]: 保持順のオブジェクト空間Y座標。"""
-        return self._get_coordinate(1)
+    @fast_edit
+    def set_x(self, value, ws=False, *, fast=False):
+        """X成分だけを設定し、他の成分を維持する。
 
-    def set_y(self, value):
-        """Yだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self._set_coordinate(1, value)
+        Args:
+            value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+        Returns:
+            PointComponents: 更新した自身。
+        Raises:
+            ValueError: 座標・空間指定または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
+        """
+        return self._set_coordinate(0, value, ws=ws)
 
-    def get_z(self):
-        """list[float]: 保持順のオブジェクト空間Z座標。"""
-        return self._get_coordinate(2)
+    def get_y(self, ws=False):
+        """Y成分の現在値を取得する。
 
-    def set_z(self, value):
-        """Zだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self._set_coordinate(2, value)
+        Args:
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+        Returns:
+            list[float]: 保持順の座標値。
+        """
+        return self._get_coordinate(1, ws=ws)
+
+    @fast_edit
+    def set_y(self, value, ws=False, *, fast=False):
+        """Y成分だけを設定し、他の成分を維持する。
+
+        Args:
+            value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+        Returns:
+            PointComponents: 更新した自身。
+        Raises:
+            ValueError: 座標・空間指定または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
+        """
+        return self._set_coordinate(1, value, ws=ws)
+
+    def get_z(self, ws=False):
+        """Z成分の現在値を取得する。
+
+        Args:
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+        Returns:
+            list[float]: 保持順の座標値。
+        """
+        return self._get_coordinate(2, ws=ws)
+
+    @fast_edit
+    def set_z(self, value, ws=False, *, fast=False):
+        """Z成分だけを設定し、他の成分を維持する。
+
+        Args:
+            value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
+            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+        Returns:
+            PointComponents: 更新した自身。
+        Raises:
+            ValueError: 座標・空間指定または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
+        """
+        return self._set_coordinate(2, value, ws=ws)
 
     def get_position(self, ws=False):
         """保持順に現在の座標を取得する。

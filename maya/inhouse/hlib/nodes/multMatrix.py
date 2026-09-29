@@ -19,6 +19,31 @@ class MultMatrix(Node):
             raise ValueError("Matrix index must be a non-negative integer")
         return index
 
+    def input_plug(self, index):
+        """既存入力のPlugを取得する。未存在要素は作成しない。
+
+        Args:
+            index (int): 非負の論理インデックス。
+        Returns:
+            Plug: 入力属性の参照。
+        Raises:
+            ValueError: indexが非負整数でない場合。
+            IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。
+        """
+        return self.plug("matrixIn").element(self._index(index))
+
+    def get_input(self, index):
+        """既存入力の評価値を取得する。接続済みなら接続元を評価する。
+
+        Args:
+            index (int): 入力の論理インデックス。
+        Returns:
+            Matrix: 現在の入力値。
+        Raises:
+            IndexError: 入力要素が存在しない場合。
+        """
+        return self.input_plug(index).get()
+
     @fast_edit
     @undo_chunk("hlibMultMatrixSetInput")
     def set_input(self, index, value, *, fast=False):
@@ -64,10 +89,10 @@ class MultMatrix(Node):
         source.connect(self.plug("matrixIn").element(index, create=True), force=force)
         return self
 
-    def output(self):
+    def output_plug(self):
         """MatrixPlug: matrixSum出力。別ノードへの接続に使用する。"""
         return self.plug("matrixSum")
 
     def result(self):
         """Matrix: 現在の入力を乗算した評価済み行列。"""
-        return self.output().get()
+        return self.output_plug().get()

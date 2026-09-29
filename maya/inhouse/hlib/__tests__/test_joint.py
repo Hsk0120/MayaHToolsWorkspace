@@ -49,7 +49,7 @@ class JointTest(unittest.TestCase):
         cmds.setAttr(joint.full_name() + ".jointOrientX", 90.0)
         cmds.setAttr(joint.full_name() + ".jointOrientY", -45.0)
 
-        orient = joint.joint_orient()
+        orient = joint.get_joint_orient()
         self.assertIsInstance(orient, EulerRotation)
         self.assertAlmostEqual(orient.x, math.radians(90.0), places=9)
         self.assertAlmostEqual(orient.y, math.radians(-45.0), places=9)
@@ -58,13 +58,13 @@ class JointTest(unittest.TestCase):
     def test_joint_orient_z_returns_radians(self):
         joint = self.create_joint("hlibJointOrientation")
         cmds.setAttr(joint.full_name() + ".jointOrientZ", 30.0)
-        self.assertAlmostEqual(joint.joint_orient().z, math.radians(30.0))
+        self.assertAlmostEqual(joint.get_joint_orient().z, math.radians(30.0))
 
     def test_inverse_scale_is_not_angle_converted(self):
         joint = self.create_joint("hlibJointInverseScale")
         cmds.setAttr(joint.full_name() + ".inverseScale", 2.0, 3.0, 4.0)
 
-        inverse_scale = joint.inverse_scale()
+        inverse_scale = joint.get_inverse_scale()
         self.assertIsInstance(inverse_scale, Scale)
         self.assertEqual(tuple(inverse_scale), (2.0, 3.0, 4.0))
 

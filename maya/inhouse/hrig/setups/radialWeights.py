@@ -96,10 +96,10 @@ class RadialWeights:
         graph = cls(hlib.nodes.Container.create(name=name))
         owner = graph.container
         for attr, value in zip(("directionA", "directionB"), indices):
-            owner.add_attr(long_name=attr, attribute_type="long", default_value=value)
-            owner.set_attr_flags([attr], locked=True)
+            owner.add_attribute(long_name=attr, attribute_type="long", default_value=value)
+            owner.set_attribute_flags([attr], locked=True)
         for attr, value, minimum, maximum in (("falloff", 1, 0.1, 8), ("blend", 1, 0, 1)):
-            owner.add_attr(
+            owner.add_attribute(
                 long_name=attr,
                 attribute_type="double",
                 default_value=value,
@@ -108,7 +108,7 @@ class RadialWeights:
                 keyable=True,
             )
         for attr in ("weightA", "weightB", "restWeight"):
-            owner.add_attr(long_name=attr, attribute_type="double")
+            owner.add_attribute(long_name=attr, attribute_type="double")
         # 接続入力でも範囲を保証し、ゼロ除算と負のウェイトを避ける。
         limits = graph._node("clamp", "limits")
         limits.plug("minR").set(0.1)

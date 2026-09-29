@@ -25,7 +25,7 @@ class _Editor:
         if not self.exists():
             raise RuntimeError(f"Editor no longer exists: {self._name}")
 
-    def settings(self, *flags):
+    def get_settings(self, *flags):
         """指定した表示設定を取得する。
 
         Args:
@@ -82,7 +82,7 @@ class _Editor:
             ValueError: 未対応のフラグの場合。
             RuntimeError: エディターが存在しない場合。
         """
-        previous = self.settings(*flags) if flags else {}
+        previous = self.get_settings(*flags) if flags else {}
         try:
             self.set_settings(**flags)
             yield self

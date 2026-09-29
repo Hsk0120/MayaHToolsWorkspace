@@ -74,9 +74,17 @@ class BlendColors(Node):
         source.connect(self.color_plug(index), force=force)
         return self
 
-    def blender(self):
+    def blender_plug(self):
         """Plug: 補間係数。0ならcolor2、1ならcolor1。"""
         return self.plug("blender")
+
+    def get_blender(self):
+        """補間係数の評価値を取得する。
+
+        Returns:
+            float: color2からcolor1への補間係数。
+        """
+        return self.blender_plug().get()
 
     @fast_edit
     @undo_chunk("hlibBlendColorsSetBlender")
@@ -98,7 +106,7 @@ class BlendColors(Node):
         value = float(value)
         if not math.isfinite(value) or not 0 <= value <= 1:
             raise ValueError("Blender must be a finite value between 0 and 1")
-        self.blender().set(value)
+        self.blender_plug().set(value)
         return self
 
     @undo_chunk("hlibBlendColorsConnectBlender")
@@ -111,13 +119,13 @@ class BlendColors(Node):
         Returns:
             BlendColors: 自身。
         """
-        source.connect(self.blender(), force=force)
+        source.connect(self.blender_plug(), force=force)
         return self
 
-    def output(self):
+    def output_plug(self):
         """CompoundPlug: RGB出力。別属性への接続に使用する。"""
         return self.plug("output")
 
     def result(self):
         """tuple[float, float, float]: 評価済みRGB値。"""
-        return tuple(self.output().get())
+        return tuple(self.output_plug().get())

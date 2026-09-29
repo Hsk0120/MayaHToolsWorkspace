@@ -26,7 +26,7 @@
    print(len(source.connections(type="transform")))  # 1
 
    plugs = target.plugs(keyable=True)              # cmds.listAttr(keyable=True) 相当
-   print(any(plug.attribute() == "translateX" for plug in plugs))   # True
+   print(any(plug.attribute_name() == "translateX" for plug in plugs))   # True
 
    cmds.aliasAttr("myAlias", target.plug("translateY").full_name())
    for alias_name, plug in target.aliases():
@@ -162,10 +162,10 @@ animCurve とミュート
 .. code-block:: python
 
    node = hlib.createNode("network", name="arrayPlugExample")
-   node.add_attr("values", attribute_type="double", multi=True)
+   node.add_attribute("values", attribute_type="double", multi=True)
    array_plug = node.plug("values")
 
-   print(array_plug.next_available())   # 0（既存要素が無ければ）
+   print(array_plug.next_available_index())   # 0（既存要素が無ければ）
 
    element = array_plug.add_element()   # 空きインデックスへ要素を作成
    print(element.full_name())             # arrayPlugExample.values[0]
@@ -173,10 +173,10 @@ animCurve とミュート
    element.set(1.0)                    # 要素に値を設定
    array_plug.remove_element(0)         # 要素を削除
 
-``next_available`` は ``getExistingArrayAttributeIndices()`` に含まれない
+``next_available_index`` は ``getExistingArrayAttributeIndices()`` に含まれない
 最初のインデックスを返す単純な実装です。cymel の同名メソッドと異なり、
 ロック状態や子要素の再帰チェックは行いません。``add_element`` は
-``next_available()`` の位置へ要素を作成して返し、``remove_element`` は
+``next_available_index()`` の位置へ要素を作成して返し、``remove_element`` は
 指定インデックスの要素を削除します（存在しなければ ``IndexError``）。
 ``element(index, create=True)`` は要素が無ければ Maya 上に作成してから返します
 (``cmds.getAttr`` の問い合わせで作成するため Undo の対象外です)。ただし ``message`` 型の

@@ -118,3 +118,32 @@ Outlinerへ色番号を渡した場合は対応RGBで設定されます。
 ``refresh_palette()`` は各Colorを順に更新し、戻り値はColorのリストです。
 途中の照会失敗時は停止し、更新済みの色は自動では戻しません。
 これらは保持値の操作で、ノードへの適用は各ノードのsetterで明示します。
+
+ノードコレクションとColors
+------------------------------
+
+``Nodes`` と派生コレクション（``Transforms``・``Joints`` 等）の
+``get_override_color()`` / ``get_outliner_color()`` は ``Colors`` を返します。
+保持順に一色ずつ格納し、無効な色も省略しません。
+
+.. code-block:: python
+
+   joints = hlib.ls(type="joint")
+   joints.set_override_color(17)        # 全対象を同じ色にする
+   colors = joints.get_override_color()
+   if colors:
+       colors[0].rgb = (1, 0.45, 0)
+   joints.set_override_colors(colors)   # 対応する対象へ一色ずつ反映
+   joints.set_outliner_colors(colors)
+
+``set_override_color`` / ``set_outliner_color`` は単一色を全対象へ設定し、
+``set_override_colors`` / ``set_outliner_colors`` は色の列を一対一で設定します。
+戻り値はコレクション自身です。RGB三要素と色番号三つを混同しないよう、
+単色用と要素別用の入口を分けています。
+
+値・件数・全対象の属性の存在、ロック・入力接続等を変更前に検証します。
+異なるDAGインスタンスが同じ色属性を共有する場合、異なる更新値の指定は
+``ValueError`` で拒否します。同じ更新内容なら一度だけ反映します。
+空のコレクションへの適用は何もしませんが、不正な単色や件数は空でも拒否します。
+通常モードは一回のUndo、``fast=True`` はUndo対象外です。
+事前検証後の実行時エラーは停止し、完了済みの変更を自動では戻しません。

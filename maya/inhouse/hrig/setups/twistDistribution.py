@@ -63,8 +63,8 @@ class TwistDistribution:
             raise ValueError("Twist container already exists: " + name)
         graph = cls(hlib.nodes.Container.create(name=name))
         owner = graph.container
-        owner.add_attr(long_name="twistMatrix", data_type="matrix")
-        owner.add_attr(long_name="relativeDecompose", attribute_type="message")
+        owner.add_attribute(long_name="twistMatrix", data_type="matrix")
+        owner.add_attribute(long_name="relativeDecompose", attribute_type="message")
         relative = graph._node("multMatrix", "relative")
         parents = [
             hlib.getNode(value)
@@ -132,7 +132,7 @@ class TwistDistribution:
         # Maya 2022はbool、2025以降は連続ウェイトで成分を選択する。
         attrs = (
             ("translateWeight", "scaleWeight", "shearWeight")
-            if blend.has_attr("target[0].translateWeight")
+            if blend.has_attribute("target[0].translateWeight")
             else ("useTranslate", "useScale", "useShear")
         )
         for attr in attrs:

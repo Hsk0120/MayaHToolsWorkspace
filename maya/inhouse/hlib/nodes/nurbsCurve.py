@@ -129,7 +129,7 @@ class NurbsCurve(Shape):
             raise ValueError("tolerance must be positive")
         return self.curve_fn().length(tolerance)
 
-    def cv_positions(self, ws=False):
+    def get_cv_positions(self, ws=False):
         """CV の位置を取得する。
 
         Args:
@@ -161,7 +161,7 @@ class NurbsCurve(Shape):
         """
         if not tolerance > 0:
             raise ValueError("tolerance must be positive")
-        positions = self.cv_positions(ws=ws)
+        positions = self.get_cv_positions(ws=ws)
         assigned = [False] * len(positions)
         groups = []
         for i in range(len(positions)):

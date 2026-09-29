@@ -67,12 +67,12 @@ class SwingTwist(TwistDistribution):
         swing = graph._node("multMatrix", "swing")
         inverse.plug("outputMatrix").connect(swing.plug("matrixIn[0]"))
         rotation.plug("outputMatrix").connect(swing.plug("matrixIn[1]"))
-        owner.add_attr(long_name="swingMatrix", data_type="matrix")
+        owner.add_attribute(long_name="swingMatrix", data_type="matrix")
         swing.plug("matrixSum").connect(owner.plug("swingMatrix"))
         angles = graph._node("decomposeMatrix", "swingAngles")
         swing.plug("matrixSum").connect(angles.plug("inputMatrix"))
         for component in "XYZ":
-            owner.add_attr(long_name="swing" + component, attribute_type="double")
+            owner.add_attribute(long_name="swing" + component, attribute_type="double")
             degrees = graph._node("unitConversion", "swing" + component + "Degrees")
             angles.plug("outputRotate" + component).connect(degrees.plug("input"))
             degrees.plug("conversionFactor").set(180 / math.pi)
@@ -100,10 +100,10 @@ class SwingTwist(TwistDistribution):
         signed = graph._node("multiplyDivide", "signedTwist")
         degrees.plug("output").connect(signed.plug("input1X"))
         sign.plug("outColorR").connect(signed.plug("input2X"))
-        owner.add_attr(long_name="twist", attribute_type="double")
+        owner.add_attribute(long_name="twist", attribute_type="double")
         signed.plug("outputX").connect(owner.plug("twist"))
         for attr in ("twist", "swingX", "swingY", "swingZ"):
-            owner.set_attr_flags([attr], keyable=False, channel_box=True)
+            owner.set_attribute_flags([attr], keyable=False, channel_box=True)
         extra = [node for node in hlib.ls(type="unitConversion") if node.uuid() not in conversions]
         if extra:
             hlib.nodes.Container(owner).add_members(*extra)

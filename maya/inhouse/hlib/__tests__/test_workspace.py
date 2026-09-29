@@ -41,15 +41,15 @@ class WorkspaceTest(unittest.TestCase):
             Workspace.open(123)
 
     def test_rule_get_set_round_trip(self):
-        self.assertEqual(Workspace.rule("scene"), self.previous_scene_rule)
+        self.assertEqual(Workspace.get_rule("scene"), self.previous_scene_rule)
         Workspace.set_rule("scene", "hlibScenesDir")
-        self.assertEqual(Workspace.rule("scene"), "hlibScenesDir")
+        self.assertEqual(Workspace.get_rule("scene"), "hlibScenesDir")
 
     def test_rule_returns_empty_string_for_unknown_rule(self):
-        self.assertEqual(Workspace.rule("hlibDoesNotExistRule123"), "")
+        self.assertEqual(Workspace.get_rule("hlibDoesNotExistRule123"), "")
 
     def test_rules_includes_known_rule_names(self):
-        rules = Workspace.rules()
+        rules = Workspace.rule_names()
         self.assertIn("scene", rules)
 
     def test_expand_resolves_relative_to_root_literally(self):

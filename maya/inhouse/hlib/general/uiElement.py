@@ -15,6 +15,7 @@ class UiElement:
             raise ValueError("Expected a menu or menuItem name")
         self._name, self._kind = str(name), kind
 
+    @property
     def name(self):
         """str: 保持しているMaya UI名を返す。"""
         return self._name

@@ -123,7 +123,7 @@ class NamespaceApiTest(unittest.TestCase):
             self.assertFalse(moved.exists())
         finally:
             if destination.exists():
-                cmds.namespace(removeNamespace=destination.name(), deleteNamespaceContent=True)
+                cmds.namespace(removeNamespace=destination.name, deleteNamespaceContent=True)
 
 
 if __name__ == "__main__":

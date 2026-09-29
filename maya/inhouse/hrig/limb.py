@@ -30,7 +30,7 @@ def _lock_group(node):
     Args:
         node (str | Node): TRSとシアーをロックするノード。
     """
-    hlib.getNode(node).set_attr_flags(
+    hlib.getNode(node).set_attribute_flags(
         ("tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz", "shearXY", "shearXZ", "shearYZ"),
         locked=True,
         keyable=False,
@@ -62,7 +62,7 @@ class LimbRig:
             root (str | Node): hrigDefinition属性を持つルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.has_attr("hrigDefinition"):
+        if not self.root.has_attribute("hrigDefinition"):
             raise ValueError("Not an hrig root")
 
     def _member(self, role):
@@ -75,7 +75,7 @@ class LimbRig:
         Returns:
             str: メンバーの完全名。
         """
-        source = self.root.plug(role).source() if self.root.has_attr(role) else None
+        source = self.root.plug(role).source() if self.root.has_attribute(role) else None
         if source is None:
             raise RuntimeError("Missing rig member: " + role)
         return source.node.full_name()
@@ -88,7 +88,7 @@ class LimbRig:
             node (str | Node): 参照するノード。
         """
         root = self.root.full_name()
-        hlib.getNode(root).add_attr(long_name=role, attribute_type="message")
+        hlib.getNode(root).add_attribute(long_name=role, attribute_type="message")
         hlib.getNode(node).plug("message").connect(root + "." + role)
 
     def controls(self):
@@ -158,7 +158,7 @@ class LimbRig:
             role (str): セットの参照識別子。
             nodes (Sequence[str]): 追加するノード名。
         """
-        if hlib.getNode(self.root.full_name()).has_attr(role):
+        if hlib.getNode(self.root.full_name()).has_attribute(role):
             hlib.getNode(self._member(role)).add_members(*nodes)
 
     def _local_matrix(self, role):
@@ -173,7 +173,7 @@ class LimbRig:
         """
         member = "targetMatrix" if role == "target" else "fkMatrix" + role[2:]
         if role.startswith("fk") or role == "target":
-            if hlib.getNode(self.root.full_name()).has_attr(member):
+            if hlib.getNode(self.root.full_name()).has_attribute(member):
                 return self._member(member) + ".matrixSum"
         return self._member(role) + ".matrix"
 
@@ -394,7 +394,7 @@ class LimbRig:
             from hlib.nodes import Node
 
             reference = Node(graph)
-            parent = self._member("softSetup") if hlib.getNode(root).has_attr("softSetup") else root
+            parent = self._member("softSetup") if hlib.getNode(root).has_attribute("softSetup") else root
             owner = hlib.getNode(owner).set_parent(parent).full_name()
             graph = reference.full_name()
             hlib.getPlug(graph + ".visibility").set(False)
@@ -464,7 +464,7 @@ class LimbRig:
         """
         attr = "hrigEnabled_" + layer
         root = self.root.full_name()
-        return bool(hlib.getPlug(root + "." + attr).get()) if hlib.getNode(root).has_attr(attr) else True
+        return bool(hlib.getPlug(root + "." + attr).get()) if hlib.getNode(root).has_attribute(attr) else True
 
     @undo_chunk("hrig.LimbRig.set_layer_enabled")
     def set_layer_enabled(self, layer, enabled):
@@ -478,8 +478,8 @@ class LimbRig:
             raise ValueError("Unknown optional layer: " + layer)
         root = self.root.full_name()
         attr = "hrigEnabled_" + layer
-        if not hlib.getNode(root).has_attr(attr):
-            hlib.getNode(root).add_attr(long_name=attr, attribute_type="bool", default_value=True)
+        if not hlib.getNode(root).has_attribute(attr):
+            hlib.getNode(root).add_attribute(long_name=attr, attribute_type="bool", default_value=True)
         hlib.getPlug(root + "." + attr).set(bool(enabled))
         self._update_evaluation()
 
@@ -504,9 +504,9 @@ class LimbRig:
         root = self.root.full_name()
         target = self._member("target")
         soft = detailed and self.layer_enabled("soft")
-        foot = detailed and self.layer_enabled("foot") and hlib.getNode(root).has_attr("footMatrix")
+        foot = detailed and self.layer_enabled("foot") and hlib.getNode(root).has_attribute("footMatrix")
         position = target + ".translate"
-        if hlib.getNode(root).has_attr("targetDecompose"):
+        if hlib.getNode(root).has_attribute("targetDecompose"):
             position = self._member("targetDecompose") + ".outputTranslate"
         position = self._member("footDecompose") + ".outputTranslate" if foot else position
         matrix = self._member("footMatrix") + ".matrixSum" if foot else self._local_matrix("target")
@@ -578,7 +578,7 @@ class LimbRig:
             ("heelRoll", "toeRoll", "ballRoll") if self.lod() and self.layer_enabled("foot") else ()
         ):
             if (
-                hlib.getNode(target).has_attr(attr)
+                hlib.getNode(target).has_attribute(attr)
                 and abs(hlib.getPlug(target + "." + attr).get()) > 1e-8
             ):
                 raise ValueError("Reset reverse-foot rolls before matching IK")
@@ -696,13 +696,13 @@ def build_limb(definition=None, backend="standard"):
         root = hlib.createNode("transform", name=definition.name, skipSelect=True).full_name()
         created.append(root)
         for attr in ("hrigDefinition", "hrigMode", "hrigBackend"):
-            hlib.getNode(root).add_attr(long_name=attr, data_type="string")
+            hlib.getNode(root).add_attribute(long_name=attr, data_type="string")
         hlib.getPlug(root + ".hrigDefinition").set(hlib.json.JsonText.dumps(definition.to_data()))
         hlib.getPlug(root + ".hrigBackend").set(backend)
         rig = LimbRig(root)
-        hlib.getNode(root).add_attr(long_name="hrigLod", attribute_type="long", default_value=1)
+        hlib.getNode(root).add_attribute(long_name="hrigLod", attribute_type="long", default_value=1)
         length = ordered[1].translation[0] + ordered[2].translation[0]
-        hlib.getNode(root).add_attr(
+        hlib.getNode(root).add_attribute(
             long_name="hrigLength", attribute_type="double", default_value=length
         )
         for role in ("geometryGroup", "jointGroup", "controlGroup", "setupGroup"):
@@ -772,7 +772,7 @@ def build_limb(definition=None, backend="standard"):
         hlib.getPlug(matrix + ".matrixSum").connect(target_decompose + ".inputMatrix")
         target_rotation = create("transform", "targetRotation", rig._member("ikSetup"))
         rig._bind("targetRotation", target_rotation)
-        hlib.getNode(target).add_attr(
+        hlib.getNode(target).add_attribute(
             long_name="softness",
             attribute_type="double",
             minValue=0,
@@ -880,7 +880,7 @@ def build_limb(definition=None, backend="standard"):
             ],
         }.items():
             rig._layer_members(role, list(set(rig._member(member) for member in members)))
-        hlib.getNode(root).add_attr(long_name="hrigOwned", attribute_type="message", multi=True)
+        hlib.getNode(root).add_attribute(long_name="hrigOwned", attribute_type="message", multi=True)
         for index, node in enumerate(created):
             if node != root and cmds.objExists(node):
                 hlib.getNode(node).plug("message").connect(root + ".hrigOwned[{}]".format(index))

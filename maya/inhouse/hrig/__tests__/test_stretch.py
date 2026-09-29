@@ -157,9 +157,9 @@ class StretchTest(unittest.TestCase):
         rig = build_spline()
         rig.add_stretch()
         cmds.undo()
-        self.assertFalse(rig.root.has_attr("stretchGroup"))
+        self.assertFalse(rig.root.has_attribute("stretchGroup"))
         cmds.redo()
-        self.assertTrue(rig.root.has_attr("stretchGroup"))
+        self.assertTrue(rig.root.has_attribute("stretchGroup"))
         other = build_spline("bound")
         mesh = cmds.polyCube()[0]
         cmds.skinCluster(other.joints(), mesh, toSelectedBones=True)

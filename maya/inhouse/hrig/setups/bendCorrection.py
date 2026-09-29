@@ -80,7 +80,7 @@ class BendCorrection:
             ("innerPush", -0.2, {}),
             ("outerPush", -0.2, {}),
         ):
-            owner.add_attr(
+            owner.add_attribute(
                 long_name=attr,
                 attribute_type="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
                 default_value=value,
@@ -88,10 +88,10 @@ class BendCorrection:
             )
             # addAttrの距離defaultは内部cmなので、初期値をUI距離単位で明示設定する。
             owner.plug(attr).set(value)
-        owner.add_attr(long_name="matrix", data_type="matrix")
-        owner.add_attr(long_name="restMatrix", data_type="matrix")
+        owner.add_attribute(long_name="matrix", data_type="matrix")
+        owner.add_attribute(long_name="restMatrix", data_type="matrix")
         for attr in ("inner", "outer", "response"):
-            owner.add_attr(
+            owner.add_attribute(
                 long_name=attr, attribute_type="double" if attr == "response" else "doubleLinear"
             )
         relative = graph._node("multMatrix", "relative")
@@ -103,7 +103,7 @@ class BendCorrection:
         blend.plug("inputMatrix").set(rest)
         relative.plug("matrixSum").connect(blend.plug("target[0].targetMatrix"))
         blend.plug("target[0].weight").set(1)
-        if blend.has_attr("target[0].rotateWeight"):
+        if blend.has_attribute("target[0].rotateWeight"):
             owner.plug("rotationRatio").connect(blend.plug("target[0].rotateWeight"))
             for part in ("scale", "shear"):
                 blend.plug("target[0]." + part + "Weight").set(0)

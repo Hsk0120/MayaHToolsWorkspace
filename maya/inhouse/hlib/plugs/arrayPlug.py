@@ -86,7 +86,7 @@ class ArrayPlug(Plug):
                 作成してから返す(``cmds.getAttr`` の問い合わせで作成するため Undo 対象外)。
                 ただし ``message`` 型のように値を持たない属性の配列では要素を作成できない。
                 この場合も要素プラグは返すため接続先・接続元に使え、要素は接続した時点で
-                存在するようになる(それまで ``elements()`` や ``next_available()`` には現れない)。
+                存在するようになる(それまで ``elements()`` や ``next_available_index()`` には現れない)。
 
         Returns:
             Plug: 要素プラグ。
@@ -133,7 +133,7 @@ class ArrayPlug(Plug):
         return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
                 for index in self._existing_indices()]
 
-    def next_available(self, start=0):
+    def next_available_index(self, start=0):
         """接続・データを持つ要素が存在しない論理インデックスを探す。
 
         cymel の同名メソッドとは異なり、ロック状態や子要素の再帰チェックは行わない
@@ -161,7 +161,7 @@ class ArrayPlug(Plug):
 
     @undo_chunk("hlibArrayPlugAddElement")
     def add_element(self):
-        """次の空きインデックス(next_available())へ要素を作成して返す。
+        """次の空きインデックス(next_available_index())へ要素を作成して返す。
 
         ``message`` 型のように値を持たない属性の配列では要素を作成できないため
         (:meth:`element` 参照)、返した要素へ接続するまでは、呼び出すたびに同じ
@@ -170,7 +170,7 @@ class ArrayPlug(Plug):
         Returns:
             Plug: 作成した要素プラグ。
         """
-        return self.element(self.next_available(), create=True)
+        return self.element(self.next_available_index(), create=True)
 
     @undo_chunk("hlibArrayPlugRemoveElement")
     def remove_element(self, index):

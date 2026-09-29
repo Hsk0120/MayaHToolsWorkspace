@@ -19,7 +19,7 @@ class Shape(Node):
         """
         return self._current_dag_path()
 
-    def dag_node(self):
+    def dag_fn(self):
         """Shape 用の MFnDagNode を取得する。
 
         Returns:
@@ -64,4 +64,4 @@ class Shape(Node):
         Returns:
             bool: 中間オブジェクトの場合は True。
         """
-        return self.dag_node().isIntermediateObject
+        return self.dag_fn().isIntermediateObject

@@ -1,6 +1,6 @@
 """GUIテスト用に、C++のhedit画面とworkspaceControlをPySideから参照する補助。
 
-ドッキング・開閉状態の保存と復元はhedit.mll(dock.cpp)が行い、Python側に状態は持たない。
+ドッキング・開閉状態の保存と復元はhedit.mll(src/plugin/dock.cpp)が行い、Python側に状態は持たない。
 テストはこの補助を通して、Mayaのコマンドと実際のQtの親子関係から状態を確かめる。
 """
 from pathlib import Path

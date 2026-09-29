@@ -87,7 +87,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertIsInstance(camera, hlib.nodes.Camera)
 
         cmds.setAttr(camera_shape_name + '.focalLength', 50.0)
-        self.assertAlmostEqual(camera.focal_length(), 50.0)
+        self.assertAlmostEqual(camera.get_focal_length(), 50.0)
 
         import maya.api.OpenMaya as om2
         self.assertIsInstance(camera.camera_fn(), om2.MFnCamera)
@@ -97,9 +97,9 @@ class ShapesConstraintsTest(unittest.TestCase):
         mesh = cube.shape()
         self.assertIsInstance(mesh, hlib.nodes.Mesh)
         self.assertEqual((mesh.vertex_count(), mesh.edge_count(), mesh.polygon_count()), (8, 12, 6))
-        local_x = mesh.points()[0].x
+        local_x = mesh.get_points()[0].x
         cmds.setAttr(cube.full_name() + '.translateX', 5)
-        self.assertAlmostEqual(mesh.points(ws=True)[0].x, local_x + 5)
+        self.assertAlmostEqual(mesh.get_points(ws=True)[0].x, local_x + 5)
 
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0), (3, 4, 0)]))
         shape = curve.shape()
@@ -109,8 +109,8 @@ class ShapesConstraintsTest(unittest.TestCase):
         cmds.setAttr(curve.full_name() + '.scaleX', 2)
         self.assertAlmostEqual(shape.length(), 7)
         cmds.setAttr(curve.full_name() + '.translateY', 2)
-        self.assertAlmostEqual(shape.cv_positions(ws=True)[0].y, 2)
-        self.assertAlmostEqual(shape.cv_positions()[0].y, 0)
+        self.assertAlmostEqual(shape.get_cv_positions(ws=True)[0].y, 2)
+        self.assertAlmostEqual(shape.get_cv_positions()[0].y, 0)
         with self.assertRaises(ValueError):
             shape.length(0)
 
@@ -118,13 +118,13 @@ class ShapesConstraintsTest(unittest.TestCase):
         cube = hlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
         mesh = cube.shape()
 
-        local_normals = mesh.normals()
+        local_normals = mesh.get_normals()
         self.assertEqual(len(local_normals), mesh.vertex_count())
         for normal in local_normals:
             self.assertAlmostEqual(sum(c * c for c in (normal.x, normal.y, normal.z)) ** 0.5, 1.0, places=5)
 
         cmds.setAttr(cube.full_name() + '.rotateY', 90)
-        world_normals = mesh.normals(ws=True)
+        world_normals = mesh.get_normals(ws=True)
         self.assertEqual(len(world_normals), mesh.vertex_count())
         self.assertFalse(
             all(
@@ -133,7 +133,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             )
         )
 
-        weighted = mesh.normals(angle_weighted=True)
+        weighted = mesh.get_normals(angle_weighted=True)
         self.assertEqual(len(weighted), mesh.vertex_count())
 
     def test_basic_constraints_targets_weights_and_registration(self):
@@ -146,25 +146,25 @@ class ShapesConstraintsTest(unittest.TestCase):
                 self.assertIsInstance(result, expected)
                 self.assertIsInstance(hlib.nodes.Node(result.full_name()), expected)
                 self.assertEqual([node.uuid() for node in result.targets()], [source.uuid(), second.uuid()])
-                self.assertEqual(result.weights(), [1.0, 1.0])
+                self.assertEqual(result.get_weights(), [1.0, 1.0])
                 self.assertEqual(len(result.weight_aliases()), 2)
                 result.weight_plugs()[0].set(0.25)
-                self.assertEqual(result.weights(), [0.25, 1.0])
+                self.assertEqual(result.get_weights(), [0.25, 1.0])
 
     def test_constraint_set_weight(self):
         source, second, driven = self.transform(), self.transform(), self.transform()
         result = driven.add_constraint([source, second], 'point', maintainOffset=True)
-        self.assertEqual(result.weights(), [1.0, 1.0])
+        self.assertEqual(result.get_weights(), [1.0, 1.0])
 
         returned = result.set_weight(0.5)
         self.assertIs(returned, result)
-        self.assertEqual(result.weights(), [0.5, 0.5])
+        self.assertEqual(result.get_weights(), [0.5, 0.5])
 
         result.set_weight(0.25, source)
-        self.assertEqual(result.weights(), [0.25, 0.5])
+        self.assertEqual(result.get_weights(), [0.25, 0.5])
 
         result.set_weight(0.75, source.full_name(), second)
-        self.assertEqual(result.weights(), [0.75, 0.75])
+        self.assertEqual(result.get_weights(), [0.75, 0.75])
 
         unrelated = self.transform()
         with self.assertRaises(ValueError):
@@ -192,12 +192,12 @@ class ShapesConstraintsTest(unittest.TestCase):
                 result = self.transform().add_constraint(mesh, kind)
                 self.assertIsInstance(result, expected)
                 self.assertEqual(len(result.targets()), 1)
-                self.assertEqual(result.weights(), [1.0])
+                self.assertEqual(result.get_weights(), [1.0])
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0)]))
         result = self.transform().add_constraint(curve, 'tangent')
         self.assertIsInstance(result, hlib.nodes.TangentConstraint)
         self.assertEqual(len(result.targets()), 1)
-        self.assertEqual(result.weights(), [1.0])
+        self.assertEqual(result.get_weights(), [1.0])
 
         cmds.select(clear=True)
         start = cmds.joint(position=(0, 0, 0))
@@ -208,7 +208,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         result = handle.add_constraint(self.transform(), 'poleVector')
         self.assertIsInstance(result, hlib.nodes.PoleVectorConstraint)
         self.assertEqual(len(result.targets()), 1)
-        self.assertEqual(result.weights(), [1.0])
+        self.assertEqual(result.get_weights(), [1.0])
 
     def test_joint_chain_from_here_and_ik_handle_queries(self):
         cmds.select(clear=True)
@@ -305,7 +305,7 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def positions(self, shape, ws=False):
         """API の内部距離単位で形状の全位置を返す。"""
-        points = shape.points(ws) if isinstance(shape, hlib.nodes.Mesh) else shape.cv_positions(ws)
+        points = shape.get_points(ws) if isinstance(shape, hlib.nodes.Mesh) else shape.get_cv_positions(ws)
         return [tuple(point)[:3] for point in points]
 
     def assert_positions(self, actual, expected):

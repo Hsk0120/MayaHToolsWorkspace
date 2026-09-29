@@ -45,7 +45,7 @@ class MatrixPlug(Plug):
         ノード自体の変換にはTransform.set_matrixを使う。
         """
         self._require_valid()
-        if self.attribute() in ("worldMatrix", "wm"):
+        if self.attribute_name() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
         set_attr(self.full_name(), *tuple(Matrix(value)), type="matrix")
         return self

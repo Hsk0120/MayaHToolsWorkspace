@@ -28,7 +28,7 @@ class TweakLayer:
             dict[str, Node]: IDとグループ。
         """
         root = self.rig.root
-        if not root.has_attr("tweakGroups"):
+        if not root.has_attribute("tweakGroups"):
             return {}
         return {
             node.plug("tweakId").get(): node
@@ -62,9 +62,9 @@ class TweakLayer:
             raise ValueError("Select a joint inside the module")
         stem = root.name() + "_tweak_" + identifier
         group = hlib.createNode("transform", name=stem + "_grp", parent=joint, skipSelect=True)
-        group.add_attr(long_name="tweakId", data_type="string").set(identifier)
-        group.add_attr(long_name="enabled", attribute_type="bool", default_value=True)
-        group.set_attr_flags(["enabled"], channel_box=True)
+        group.add_attribute(long_name="tweakId", data_type="string").set(identifier)
+        group.add_attribute(long_name="enabled", attribute_type="bool", default_value=True)
+        group.set_attribute_flags(["enabled"], channel_box=True)
         control = hlib.createNode("transform", name=stem + "_ctrl", parent=group, skipSelect=True)
         bone = hlib.createNode("joint", name=stem + "_jnt", parent=group, skipSelect=True)
         bone.plug("segmentScaleCompensate").set(False)
@@ -73,12 +73,12 @@ class TweakLayer:
 
         ControlShape.circle(control, 0.35, (1, 0, 0), 13)
         for attr, node in (("control", control), ("joint", bone)):
-            group.add_attr(long_name=attr, attribute_type="message")
+            group.add_attribute(long_name=attr, attribute_type="message")
             node.plug("message").connect(group.plug(attr))
-        if not root.has_attr("tweakGroups"):
-            root.add_attr(long_name="tweakGroups", attribute_type="message", multi=True)
+        if not root.has_attribute("tweakGroups"):
+            root.add_attribute(long_name="tweakGroups", attribute_type="message", multi=True)
         root.plug("tweakGroups").append_message(group)
-        group.set_attr_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
+        group.set_attribute_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
         self.update()
         from .channel_controls import install
 
@@ -120,7 +120,7 @@ class TweakLayer:
                 jobs = hlib.general.ScriptJobs()
                 for plug in (
                     group.plug("enabled"),
-                    rig.root.plug("hrigLod" if rig.root.has_attr("hrigLod") else "lod"),
+                    rig.root.plug("hrigLod" if rig.root.has_attribute("hrigLod") else "lod"),
                 ):
                     jobs.add(
                         plug.full_name(),

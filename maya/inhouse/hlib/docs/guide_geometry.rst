@@ -57,13 +57,13 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
 
    mesh = hlib.getNode("pCube1").shape()
    print(mesh.vertex_count(), mesh.edge_count(), mesh.polygon_count())
-   points = mesh.points(ws=True)
-   normals = mesh.normals(ws=True, angle_weighted=True)
+   points = mesh.get_points(ws=True)
+   normals = mesh.get_normals(ws=True, angle_weighted=True)
 
    curve = hlib.getNode("curve1").shape()
    print(curve.degree(), curve.cv_count(), curve.span_count())
    print(curve.length())  # オブジェクト空間の弧長
-   cvs = curve.cv_positions(ws=True)
+   cvs = curve.get_cv_positions(ws=True)
 
    print(curve.get_collocated_cv_groups())  # 重なった CV のグループ（無ければ []）
 

@@ -29,7 +29,7 @@ class TwistLayer:
             dict[str, Node]: 改名に追従する区間参照。
         """
         root = self.rig.root
-        if not root.has_attr("twistSegments"):
+        if not root.has_attribute("twistSegments"):
             return {}
         return {
             node.plug("segmentId").get(): node
@@ -117,20 +117,20 @@ class TwistLayer:
         ]:
             if cmds.objExists(name):
                 raise ValueError("Twist node already exists: " + name)
-        if not root.has_attr("twistSet"):
+        if not root.has_attribute("twistSet"):
             selection = hlib.createSet(empty=True, name=self.rig.node_name("twistSet")).full_name()
             self.rig._bind("twistSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             self._own([hlib.getNode(selection)])
-            root.add_attr(long_name="twistSegments", attribute_type="message", multi=True)
+            root.add_attribute(long_name="twistSegments", attribute_type="message", multi=True)
         group = hlib.createNode("transform", name=stem + "_grp", parent=start, skipSelect=True)
         for attr, value in (("segmentId", segment), ("twistAxis", axis)):
-            group.add_attr(long_name=attr, data_type="string").set(value)
-        group.add_attr(long_name="count", attribute_type="long", default_value=count)
-        group.set_attr_flags(["count"], locked=True, keyable=False, channel_box=True)
+            group.add_attribute(long_name=attr, data_type="string").set(value)
+        group.add_attribute(long_name="count", attribute_type="long", default_value=count)
+        group.set_attribute_flags(["count"], locked=True, keyable=False, channel_box=True)
         graph = TwistDistribution.create(start, end, stem + "_graph", axis)
         for attr, node in (("start", start), ("end", end), ("graph", graph.container)):
-            group.add_attr(long_name=attr, attribute_type="message")
+            group.add_attribute(long_name=attr, attribute_type="message")
             node.plug("message").connect(group.plug(attr))
         root.plug("twistSegments").append_message(group)
         joints = []
@@ -141,16 +141,16 @@ class TwistLayer:
             )
             joint.plug("segmentScaleCompensate").set(False)
             joint.plug("radius").set(0.3)
-            joint.add_attr(
+            joint.add_attribute(
                 long_name="twistFraction", attribute_type="double", default_value=fraction
             )
-            joint.add_attr(long_name="twistOutput", attribute_type="message")
+            joint.add_attribute(long_name="twistOutput", attribute_type="message")
             output = graph.sample(fraction, "sample{:02d}".format(index + 1))
             output.node.plug("message").connect(joint.plug("twistOutput"))
             rest = Matrix()
             for i in range(3):
                 rest[12 + i] = position[i] * fraction
-            joint.add_attr(long_name="twistRest", data_type="matrix").set(rest)
+            joint.add_attribute(long_name="twistRest", data_type="matrix").set(rest)
             output.connect(joint.plug("offsetParentMatrix"))
             joints.append(joint.full_name())
         self._own([group, graph.container])

@@ -196,7 +196,7 @@ class DagPose(Node):
         return self
 
     @undo_chunk("hlibDagPoseAdd")
-    def add_members(self, members):
+    def add_members(self, *members):
         """TransformまたはJointを現在の姿勢で追加する。
 
         Args:
@@ -208,7 +208,7 @@ class DagPose(Node):
         return self
 
     @undo_chunk("hlibDagPoseRemove")
-    def remove_members(self, members):
+    def remove_members(self, *members):
         """メンバーをポーズから外す。シーンのノード自体は削除しない。
 
         残るメンバーの親として必要なノードはMayaによって保持される場合がある。

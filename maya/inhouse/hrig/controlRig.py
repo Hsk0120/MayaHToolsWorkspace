@@ -21,7 +21,7 @@ class ControlRig:
             root (str | Node): モジュールルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.has_attr("hrigControlDefinition"):
+        if not self.root.has_attribute("hrigControlDefinition"):
             raise ValueError("Not a control module")
 
     @classmethod
@@ -40,22 +40,22 @@ class ControlRig:
         ]:
             raise ValueError("Use a unique module name")
         root = hlib.createNode("transform", name=name, skipSelect=True)
-        root.add_attr(long_name="hrigControlDefinition", data_type="string").set(
+        root.add_attribute(long_name="hrigControlDefinition", data_type="string").set(
             hlib.json.JsonText.dumps(dict(kind=kind))
         )
-        root.add_attr(long_name="lod", attribute_type="enum", enumName="Low:Full", default_value=1)
-        root.add_attr(long_name="enabled", attribute_type="bool", default_value=True)
-        root.set_attr_flags(["lod", "enabled"], channel_box=True)
-        root.add_attr(long_name="angles", attribute_type="doubleAngle", multi=True)
+        root.add_attribute(long_name="lod", attribute_type="enum", enumName="Low:Full", default_value=1)
+        root.add_attribute(long_name="enabled", attribute_type="bool", default_value=True)
+        root.set_attribute_flags(["lod", "enabled"], channel_box=True)
+        root.add_attribute(long_name="angles", attribute_type="doubleAngle", multi=True)
         for attr in ("controls", "deform", "sources", "targets"):
-            root.add_attr(long_name=attr, attribute_type="message", multi=True)
+            root.add_attribute(long_name=attr, attribute_type="message", multi=True)
         for role in ("control", "deform", "layer"):
             node = hlib.createNode(
                 "transform", name=name + "_" + role + "_grp", parent=root, skipSelect=True
             )
-            root.add_attr(long_name=role + "Group", attribute_type="message")
+            root.add_attribute(long_name=role + "Group", attribute_type="message")
             node.plug("message").connect(root.plug(role + "Group"))
-        root.add_attr(long_name="graph", attribute_type="message")
+        root.add_attribute(long_name="graph", attribute_type="message")
         hlib.nodes.Container.create(name=name + "_graph").plug("message").connect(
             root.plug("graph")
         )

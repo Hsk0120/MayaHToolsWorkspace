@@ -31,7 +31,16 @@ class _JointDeletion:
             RuntimeError: 無効なjoint、移送対象のスキニングレイヤー、
                 またはウェイト移送・再親付け・削除に失敗した場合。
         """
-        target_joints = self._joints.sorted_by_depth()
+        # コレクションはインスタンスパスを保持するが、削除・ウェイト移送は
+        # ノード全体の操作。同一UUIDの別パスを二度処理しない。
+        target_joints, seen = [], set()
+        for joint in self._joints.sorted_by_depth():
+            if not joint.is_valid():
+                raise RuntimeError("Cannot delete an invalid joint")
+            key = joint.uuid()
+            if key not in seen:
+                seen.add(key)
+                target_joints.append(joint)
         # 祖先influenceへ加算できる組だけを計画する。それ以外は標準削除に任せる。
         plans = []
         for joint in target_joints:

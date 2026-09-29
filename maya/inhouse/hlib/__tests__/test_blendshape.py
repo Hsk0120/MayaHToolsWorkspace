@@ -35,12 +35,12 @@ class BlendShapeTest(unittest.TestCase):
         self.assertIsInstance(self.bs, BlendShape)
 
     def test_targets_and_weights(self):
-        self.assertEqual(self.bs.targets(), [self.target1, self.target2])
-        self.assertEqual(self.bs.weights(), [0.0, 0.0])
+        self.assertEqual(self.bs.target_aliases(), [self.target1, self.target2])
+        self.assertEqual(self.bs.get_weights(), [0.0, 0.0])
         self.assertEqual(len(self.bs.weight_plugs()), 2)
 
         self.bs.weight_plugs()[0].set(0.5)
-        self.assertEqual(self.bs.weights(), [0.5, 0.0])
+        self.assertEqual(self.bs.get_weights(), [0.5, 0.0])
 
     def test_add_target_creates_new_weight_element(self):
         target3 = cmds.polyCube(name="hlibBlendShapeTarget3", constructionHistory=False)[0]
@@ -51,10 +51,10 @@ class BlendShapeTest(unittest.TestCase):
         # weight[2] は自動的に target3 の名前でエイリアスされるため、
         # full_name はロング名ではなくエイリアス名で表示される。
         self.assertEqual(weight_plug.full_name(), self.bs.full_name() + "." + target3)
-        self.assertEqual(self.bs.targets(), [self.target1, self.target2, target3])
+        self.assertEqual(self.bs.target_aliases(), [self.target1, self.target2, target3])
 
         weight_plug.set(1.0)
-        self.assertEqual(self.bs.weights(), [0.0, 0.0, 1.0])
+        self.assertEqual(self.bs.get_weights(), [0.0, 0.0, 1.0])
 
     def test_add_target_accepts_explicit_weight_index(self):
         target3 = cmds.polyCube(name="hlibBlendShapeTarget3", constructionHistory=False)[0]
@@ -63,7 +63,7 @@ class BlendShapeTest(unittest.TestCase):
 
         weight_plug = self.bs.add_target(target3, weight_index=5)
         self.assertEqual(weight_plug.full_name(), self.bs.full_name() + "." + target3)
-        self.assertEqual(weight_plug.attribute(), "weight")
+        self.assertEqual(weight_plug.attribute_name(), "weight")
 
 
 if __name__ == "__main__":

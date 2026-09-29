@@ -39,7 +39,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。
 ``delete`` は複数ノードもまとめて受け付けます。Plug(属性)を渡すと ``TypeError`` です
 (``maya.cmds.delete`` は属性を削除せず何もしないため)。動的属性の削除は
-``plug.delete_attr()``、所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
+``plug.delete_attribute()``、所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
 
 選択とアニメーション
 --------------------
@@ -73,7 +73,7 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
 
 アトリビュートの取得・設定・接続（``getAttr``/``setAttr``/``connectAttr``/``addAttr``）は
 コマンドとしては用意していません。``node.plug("attrName")`` が返す ``Plug`` の
-``get()``/``set()``/``connect()``、および ``node.add_attr()`` を使ってください。
+``get()``/``set()``/``connect()``、および ``node.add_attribute()`` を使ってください。
 ``Plug`` は ``maya.cmds.getAttr(plug)`` のように maya.cmds へそのまま渡すこともできます
 （:doc:`cmds_interop`）。
 

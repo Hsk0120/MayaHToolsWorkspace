@@ -49,7 +49,7 @@ removeInfluenceによる再配分に任せます。最後の一つのinfluence�
    skin.normalize_weights(decimals=3)  # 小数3桁へ丸め、端数を配分して合計1にする
    skin.set_max_influences(4)          # 設定のみ。既存ウェイトは変更しない
    skin.set_max_influences(4, prune=True)  # 大きい4個を残し、残りを0にして正規化
-   print(skin.max_influences())
+   print(skin.get_max_influences())
 
 正規化とpruneは先頭meshの全頂点が対象です。小数桁数は0〜15を指定できます。
 例えば同じ重みが3つなら、小数2桁では0.34、0.33、0.33とし、同率時は登録順を
@@ -99,19 +99,19 @@ blendShape のターゲット操作
    target = hlib.getNode("pCube2")   # base と同じトポロジーの別メッシュ
 
    bs = Node(cmds.blendShape(target.full_name(), base.full_name(), name="myBlendShape")[0])
-   print(bs.targets())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
-   print(bs.weights())            # [0.0]
+   print(bs.target_aliases())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
+   print(bs.get_weights())            # [0.0]
    bs.weight_plugs()[0].set(1.0)
 
    new_target = hlib.getNode("pCube3")
    weight_plug = bs.add_target(new_target)   # 空いている weight インデックスへ追加
    weight_plug.set(0.5)
-   print(bs.targets())            # ['pCube2', 'pCube3']
+   print(bs.target_aliases())            # ['pCube2', 'pCube3']
 
 ``targets``/``weight_plugs``/``weights`` は ``aliases()`` をそのまま利用しており、
 weight 配列のインデックス順ではなく ``cmds.aliasAttr`` が返す順序に従います。
 ``add_target`` は ``base`` を省略すると既存の base geometry の先頭を使い、
-``weight_index`` を省略すると ``plug("weight").next_available()`` で空きインデックス
+``weight_index`` を省略すると ``plug("weight").next_available_index()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
 設定されるため、戻り値のプラグの ``full_name`` は ``weight[N]`` ではなく
 ターゲット名を含む表記になります（``attribute()`` メソッドは常に ``"weight"``）。

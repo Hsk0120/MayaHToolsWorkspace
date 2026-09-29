@@ -8,8 +8,8 @@ from pathlib import Path
 
 HEDIT_ROOT = Path(__file__).resolve().parent.parent
 
-# バージョンは埋め込みPython(src/embedded_python.h内のkInitSource)の定義を正本とする。
-_match = re.search(r"__version__\s*=\s*'([^']+)'", (HEDIT_ROOT / "src" / "embedded_python.h").read_text(encoding="utf-8"))
+# バージョンは src/version.h の HEDIT_VERSION を正本とする(C++・Python・出力先も同じ値を使う)。
+_match = re.search(r'#define\s+HEDIT_VERSION\s+"([^"]+)"', (HEDIT_ROOT / "src" / "version.h").read_text(encoding="utf-8"))
 release = _match.group(1) if _match else "unknown"
 version = release
 

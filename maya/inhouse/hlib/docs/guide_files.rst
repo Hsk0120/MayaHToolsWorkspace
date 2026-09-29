@@ -56,7 +56,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
    from hlib.general import list_references
 
    for reference in list_references():
-       print(reference.filename(), reference.namespace(), reference.is_loaded())
+       print(reference.filename(), reference.associated_namespace(), reference.is_loaded())
 
    top_level = list_references(top_level_only=True)  # ネストした参照を除外
 

@@ -108,7 +108,7 @@ class Mesh(Shape):
         """
         return self.mesh_fn().numEdges
 
-    def points(self, ws=False):
+    def get_points(self, ws=False):
         """全頂点の位置を取得する。
 
         Args:
@@ -120,7 +120,7 @@ class Mesh(Shape):
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.mesh_fn().getPoints(space)
 
-    def normals(self, ws=False, angle_weighted=False):
+    def get_normals(self, ws=False, angle_weighted=False):
         """全頂点の法線を取得する。
 
         Args:

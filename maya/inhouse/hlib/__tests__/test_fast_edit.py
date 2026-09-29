@@ -123,7 +123,7 @@ class FastEditTest(unittest.TestCase):
             collection.set_translate((1, 2, 3), fast=True)
             node.set_outliner_color((.1, .2, .3), fast=True)
             node.set_override_color(6, fast=True)
-            node.set_attr_flags(['tx'], locked=True, keyable=False, channel_box=True, fast=True)
+            node.set_attribute_flags(['tx'], locked=True, keyable=False, channel_box=True, fast=True)
         self.assertTrue(cmds.getAttr(node.full_name() + '.tx', lock=True))
         for joint in joints:
             self.assertEqual(cmds.getAttr(joint + '.translate')[0], (1, 2, 3))

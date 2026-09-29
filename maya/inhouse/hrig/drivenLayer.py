@@ -30,7 +30,7 @@ class DrivenLayer:
             dict[str, Node]: 識別子とcontainer。
         """
         root = self.rig.root
-        if not root.has_attr("drivenGraphs"):
+        if not root.has_attribute("drivenGraphs"):
             return {}
         return {
             node.plug("drivenId").get(): node
@@ -125,17 +125,17 @@ class DrivenLayer:
         curve = relation.curves()[0]
         output = driven.source()
         output.disconnect(driven)
-        owner.add_attr(long_name="drivenOutput", attribute_type=kind)
+        owner.add_attribute(long_name="drivenOutput", attribute_type=kind)
         output.connect(owner.plug("drivenOutput"))
-        owner.add_attr(long_name="restValue", attribute_type=kind).set(rest_value)
+        owner.add_attribute(long_name="restValue", attribute_type=kind).set(rest_value)
         for attr, value in (
             ("drivenId", identifier),
             ("drivenAttribute", driven.full_name().split(".", 1)[1]),
             ("component", component),
         ):
-            owner.add_attr(long_name=attr, data_type="string").set(value)
+            owner.add_attribute(long_name=attr, data_type="string").set(value)
         for attr, node in (("drivenNode", driven.node), ("curve", curve)):
-            owner.add_attr(long_name=attr, attribute_type="message")
+            owner.add_attribute(long_name=attr, attribute_type="message")
             node.plug("message").connect(owner.plug(attr))
         members = {n.name() for n in hlib.nodes.Container(owner).members()}
         extra = set([item.name() for item in hlib.ls()]) - before - members - {owner.name()}
@@ -143,12 +143,12 @@ class DrivenLayer:
             hlib.nodes.Container(owner).add_members(*extra)
         root = self.rig.root
         owned = [owner]
-        if not root.has_attr("drivenSet"):
+        if not root.has_attribute("drivenSet"):
             selection = hlib.createSet(empty=True, name=self.rig.node_name("drivenSet")).full_name()
             self.rig._bind("drivenSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             owned.append(hlib.getNode(selection))
-            root.add_attr(long_name="drivenGraphs", attribute_type="message", multi=True)
+            root.add_attribute(long_name="drivenGraphs", attribute_type="message", multi=True)
         root.plug("drivenGraphs").append_message(owner)
         for node in owned:
             root.plug("hrigOwned").append_message(node)

@@ -1,4 +1,4 @@
-"""補完エンジン自体はMaya API非依存だが、実体はsrc/embedded_python.hにC++文字列として
+"""補完エンジン自体はMaya API非依存だが、実体(src/python/hedit/)はhedit.mllに
 同梱されているため、importにはプラグインロード(=Maya standalone起動)が必要。
 """
 import json
@@ -23,7 +23,7 @@ from hedit.analysis import analyze
 
 
 class CompletionTests(unittest.TestCase):
-    # import行のトップレベル名(sys.pathの走査)はC++(modulescan.cpp)が扱い、tests/ui_smoke.cppで検証する。
+    # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
     def test_top_level_names_come_from_cpp(self):
         """C++へ渡す検索パスと、組み込み・読み込み済みのトップレベル名。フォルダーは走査しない。"""

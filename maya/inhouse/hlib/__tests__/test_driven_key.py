@@ -39,7 +39,7 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.undo()
         self.assertAlmostEqual(cmds.getAttr(self.b + ".rz"), 22.5, places=4)
         self.a = cmds.rename(self.a, self.ns + ":renamed")
-        self.assertIn("renamed", relation.driver().full_name())
+        self.assertIn("renamed", relation.driver_plug().full_name())
         self.assertEqual(len(relation.curves()), 1)
 
     def test_multiple_drivers_and_find(self):
@@ -62,7 +62,7 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.redo()
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 30)
         self.assertEqual(len(found[:1]), 1)
-        self.assertEqual(len(found.driver()), 2)
+        self.assertEqual(len(found.driver_plug()), 2)
 
     def test_existing_maya_keys_and_weight_branch(self):
         cmds.setDrivenKeyframe(self.b + ".ty", currentDriver=self.a + ".tx", driverValue=0, value=0)
@@ -72,7 +72,7 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.setDrivenKeyframe(blend + ".weight[0]", currentDriver=self.a + ".tz", driverValue=0, value=1)
         found = hlib.general.DrivenKeys.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
-        self.assertEqual({p.full_name() for p in found.driver()},
+        self.assertEqual({p.full_name() for p in found.driver_plug()},
                          {hlib.getNode(self.a).plug("tx").full_name(), hlib.getNode(self.c).plug("tx").full_name()})
         relation = hlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
         self.assertEqual(len(relation.curves()), 1)

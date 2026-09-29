@@ -11,7 +11,7 @@ try:
     root = Path(__file__).resolve().parents[1]
     version = str(cmds.about(version=True)).split('.')[0]
     # hedit.mod(MAYA_PLUG_IN_PATH)経由でプラグイン名から解決する。
-    # hedit.pyは存在しない(src/embedded_python.hがinitializePlugin時にsys.modules['hedit']を展開する)。
+    # hedit.pyは存在しない(src/python/の同梱ソースをinitializePlugin時にsys.modules['hedit']を展開する)。
     plugin_name = cmds.loadPlugin('hedit')[0]
     assert cmds.pluginInfo(plugin_name, query=True, loaded=True)
     assert 'hedit' in cmds.pluginInfo(plugin_name, query=True, command=True)

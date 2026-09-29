@@ -52,42 +52,54 @@ class UV(Component):
         return self
 
     def get_u(self):
-        """U 座標を取得する。
+        """U成分の現在値を取得する。
 
         Returns:
-            float: 現在の UV 座標。
+            float: 座標値。
         """
         return self._get_coordinate(0)
 
-    def set_u(self, value):
-        """U 座標だけを設定する。
+    @fast_edit
+    def set_u(self, value, *, fast=False):
+        """U成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float): 有限な座標。
-
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
-            None: 値を返さない。
+            UV: 更新した自身。
+        Raises:
+            ValueError: 座標または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
         """
-        self._set_coordinate(0, value)
+        return self._set_coordinate(0, value)
 
     def get_v(self):
-        """V 座標を取得する。
+        """V成分の現在値を取得する。
 
         Returns:
-            float: 現在の UV 座標。
+            float: 座標値。
         """
         return self._get_coordinate(1)
 
-    def set_v(self, value):
-        """V 座標だけを設定する。
+    @fast_edit
+    def set_v(self, value, *, fast=False):
+        """V成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float): 有限な座標。
-
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
-            None: 値を返さない。
+            UV: 更新した自身。
+        Raises:
+            ValueError: 座標または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
         """
-        self._set_coordinate(1, value)
+        return self._set_coordinate(1, value)
 
 
 class UVs(Components):
@@ -139,20 +151,54 @@ class UVs(Components):
         return self
 
     def get_u(self):
-        """list[float]: 保持順のU座標。"""
+        """U成分の現在値を取得する。
+
+        Returns:
+            list[float]: 保持順の座標値。
+        """
         return self._get_coordinate(0)
 
-    def set_u(self, value):
-        """Uだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self._set_coordinate(0, value)
+    @fast_edit
+    def set_u(self, value, *, fast=False):
+        """U成分だけを設定し、他の成分を維持する。
+
+        Args:
+            value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+        Returns:
+            UVs: 更新した自身。
+        Raises:
+            ValueError: 座標または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
+        """
+        return self._set_coordinate(0, value)
 
     def get_v(self):
-        """list[float]: 保持順のV座標。"""
+        """V成分の現在値を取得する。
+
+        Returns:
+            list[float]: 保持順の座標値。
+        """
         return self._get_coordinate(1)
 
-    def set_v(self, value):
-        """Vだけを更新する。スカラーは全要素、数値列は保持順へ適用する。"""
-        self._set_coordinate(1, value)
+    @fast_edit
+    def set_v(self, value, *, fast=False):
+        """V成分だけを設定し、他の成分を維持する。
+
+        Args:
+            value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+        Returns:
+            UVs: 更新した自身。
+        Raises:
+            ValueError: 座標または要素数が不正な場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast更新で未対応の形状の場合。
+        """
+        return self._set_coordinate(1, value)
 
     def get_position(self):
         """保持順の UV 座標を取得する。

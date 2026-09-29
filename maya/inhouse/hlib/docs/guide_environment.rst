@@ -13,7 +13,7 @@ UI単位と内部単位への一時切り替え
 
    from hlib.general.units import Units
 
-   print(Units.linear(), Units.angle(), Units.time())  # 例: "cm" "deg" "film"
+   print(Units.get_linear(), Units.get_angle(), Units.get_time())  # 例: "cm" "deg" "film"
    Units.set_linear("m")
 
    with Units.native_units():
@@ -68,9 +68,9 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
        "Bifrost", plugins=("mayaVnnPlugin", "bifrostGraph", "flowWedging"),
        module="Bifrost", version_plugin="bifrostGraph",
        minimum_version="3.0.0", minimum_maya=2025)
-   status = bifrost.ensure_loaded()   # "loaded" / "missing" / "outdated" / "load-failed" / "skipped"
+   status = bifrost.try_load()   # "loaded" / "missing" / "outdated" / "load-failed" / "skipped"
 
-``ensure_loaded()`` は、必要な版が導入されていれば全プラグインをロードします。導入されていない・
+``try_load()`` は、必要な版が導入されていれば全プラグインをロードします。導入されていない・
 版が古い場合はプラグインをロードせず、``cmds.warning`` と警告ダイアログ(バッチ・スタンドアロン
 では表示しない)で導入が必要なことを知らせます。``minimum_maya`` 未満の Maya では何もしません
 (``"skipped"``)。``dialog=False`` で表示を止め、関数を渡すと警告文を受け取れます。
@@ -144,7 +144,7 @@ SemVerのプレリリース順序(例えばrc版が正式版より小さいと�
    from hlib.general.workspace import Workspace
 
    print(Workspace.root())               # 現在のワークスペースのルート
-   print(Workspace.rule("scene"))        # 例: "scenes"
+   print(Workspace.get_rule("scene"))        # 例: "scenes"
    print(Workspace.path_for("scene", "myScene.ma"))  # root/scenes/myScene.ma
 
 ``Workspace`` はインスタンスを持たず、常に現在のワークスペース(Mayaのセッションに

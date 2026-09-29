@@ -497,7 +497,7 @@ class Plug:
     #: 呼び出しを1段省けるよう同じ関数を割り当てる。
     __str__ = full_name
 
-    def attribute(self):
+    def attribute_name(self):
         """基になる Maya 属性のロング名を取得する。
 
         Returns:
@@ -1063,7 +1063,7 @@ class Plug:
         return self
 
     @undo_chunk("hlibPlugDeleteAttr")
-    def delete_attr(self, force=False):
+    def delete_attribute(self, force=False):
         """この属性をノードから削除する。
 
         動的に追加された属性（addAttr によるカスタム属性）にのみ使用できる。

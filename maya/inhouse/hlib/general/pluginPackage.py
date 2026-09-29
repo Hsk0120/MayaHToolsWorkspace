@@ -38,7 +38,7 @@ class PluginPackage:
         ...     "Bifrost", plugins=("mayaVnnPlugin", "bifrostGraph", "flowWedging"),
         ...     module="Bifrost", version_plugin="bifrostGraph",
         ...     minimum_version="3.0.0", minimum_maya=2025)
-        >>> bifrost.ensure_loaded()   # 入っていなければ警告ダイアログを出す
+        >>> bifrost.try_load()   # 入っていなければ警告ダイアログを出す
         'loaded'
     """
 
@@ -172,7 +172,7 @@ class PluginPackage:
         """必要な版が導入されているか判定する。
 
         ロード前のプラグインは Maya に登録されていない場合がある。``minimum_version`` を
-        指定しない製品は、この判定が False でも :meth:`ensure_loaded` がロードを試みる。
+        指定しない製品は、この判定が False でも :meth:`try_load` がロードを試みる。
 
         Returns:
             bool: ``minimum_version`` 以上が導入されていれば True。``minimum_version`` を指定していない
@@ -237,7 +237,7 @@ class PluginPackage:
                     self._name, plugin.name, error))
         return failed
 
-    def ensure_loaded(self, dialog=True, warn=True):
+    def try_load(self, dialog=True, warn=True):
         """必要な版が導入されていれば全プラグインをロードし、無ければ警告する。
 
         ``minimum_maya`` 未満の Maya では何もしない。導入されていない、または版が古い場合は

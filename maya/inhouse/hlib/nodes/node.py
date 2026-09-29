@@ -2,6 +2,9 @@
 
 from typing import Any
 
+from .._core.collection import BulkCollection, bulk_api
+from .._core.registry import collection_export
+
 from ..decorators._fast import fast_edit
 from .._core.coerce import (
     DeletedAttributeError,
@@ -168,7 +171,7 @@ _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kLong: "long",
     om2.MFnNumericData.kFloat: "float",
     om2.MFnNumericData.kDouble: "double",
-}  #: move_attribute() が再作成できる数値属性型と cmds.addAttr(attributeType=) の対応。
+}  #: move_attribute_order() が再作成できる数値属性型と cmds.addAttr(attributeType=) の対応。
 
 
 def _dump_movable_attr(plug):
@@ -181,7 +184,7 @@ def _dump_movable_attr(plug):
         plug (Plug): ダンプ対象の動的属性プラグ。
 
     Returns:
-        dict: add_attr() での再作成と値・状態の復元に必要な情報。
+        dict: add_attribute() での再作成と値・状態の復元に必要な情報。
 
     Raises:
         TypeError: 複合・配列属性、または対応しない属性型の場合。
@@ -190,7 +193,7 @@ def _dump_movable_attr(plug):
         raise TypeError(f"Cannot reorder compound or array attributes: {plug.full_name()}")
     attr = plug.mplug().attribute()
     info = {
-        "long_name": plug.attribute(),
+        "long_name": plug.attribute_name(),
         "nice_name": plug.nice_name(),
         "hidden": plug.is_hidden(),
         "keyable": plug.is_keyable(),
@@ -213,7 +216,7 @@ def _dump_movable_attr(plug):
         info["default_value"] = plug.default()
     elif attr.hasFn(om2.MFn.kEnumAttribute):
         info["attribute_type"] = "enum"
-        info["enum_name"] = cmds.attributeQuery(plug.attribute(), node=plug.node.full_name(), listEnum=True)[0]
+        info["enum_name"] = cmds.attributeQuery(plug.attribute_name(), node=plug.node.full_name(), listEnum=True)[0]
         info["default_value"] = plug.default()
     elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
         info["data_type"] = "string"
@@ -241,7 +244,7 @@ def _create_movable_attr(node, info):
         kwargs["maxValue"] = info["max"]
     if "enum_name" in info:
         kwargs["enumName"] = info["enum_name"]
-    plug = node.add_attr(
+    plug = node.add_attribute(
         info["long_name"],
         attribute_type=info.get("attribute_type"),
         data_type=info.get("data_type"),
@@ -309,9 +312,7 @@ class Node:
         """
         from ..general.color import Color
         value = Color.coerce(color)
-        updates = [] if value.mode == "disabled" else [("outlinerColor", value.rgb)]
-        updates.append(("useOutlinerColor", value.mode != "disabled"))
-        self._set_display_color(updates)
+        self._set_display_color(self._display_color_updates(value, outliner=True))
         return self
 
     def get_override_color(self):
@@ -346,24 +347,29 @@ class Node:
         """
         from ..general.color import Color
         value = Color.coerce(color)
+        self._set_display_color(self._display_color_updates(value))
+        return self
+
+    @staticmethod
+    def _display_color_updates(value, outliner=False):
+        """正規化済みColorから対象属性と値の更新計画を作る。"""
+        if outliner:
+            updates = [] if value.mode == "disabled" else [("outlinerColor", value.rgb)]
+            return updates + [("useOutlinerColor", value.mode != "disabled")]
         updates = []
         if value.mode == "index":
             updates = [("overrideColor", value.index), ("overrideRGBColors", False)]
         elif value.mode == "rgb":
             updates = [("overrideColorRGB", value.rgb), ("overrideRGBColors", True)]
-        updates.append(("overrideEnabled", value.mode != "disabled"))
-        self._set_display_color(updates)
-        return self
+        return updates + [("overrideEnabled", value.mode != "disabled")]
 
-    def _set_display_color(self, updates):
-        """色関連属性の書込み可否を全件確認してから順に反映する。
-
-        Args:
-            updates (list[tuple[str, object]]): 属性名と値の更新列。
-        Returns:
-            None: 値を返さない。実行時エラーの自動ロールバックは行わない。
-        """
+    def _prepare_display_color(self, updates):
+        """全属性の存在・書込み可否を検証してPlugと値の計画を返す。"""
         from .._core.fastWrite import writable
+        if not self.is_valid():
+            raise RuntimeError("Cannot color an invalid node")
+        if cmds.lockNode(self.full_name(), query=True, lock=True)[0]:
+            raise RuntimeError("Cannot color a locked node: " + self.full_name())
         if any(not cmds.objExists(self.full_name() + "." + name) for name, _ in updates):
             raise RuntimeError("Node does not have the requested display color attributes")
         plugs = [(self.plug(name), value) for name, value in updates]
@@ -372,11 +378,20 @@ class Node:
             if isinstance(value, tuple):
                 for child in plug.children():
                     writable(child.mplug())
+        return plugs
+
+    @staticmethod
+    def _apply_display_color(plugs):
+        """検証済みの計画を現在のfastモードで適用する。実行時失敗は伝播する。"""
         for plug, value in plugs:
             if isinstance(value, tuple):
                 set_attr(plug.full_name(), *value, type="float3")
             else:
                 set_attr(plug.full_name(), value)
+
+    def _set_display_color(self, updates):
+        """単体の表示色を全属性検証後に反映する。"""
+        self._apply_display_color(self._prepare_display_color(updates))
 
     @classmethod
     @undo_chunk("hlib.nodes.node.create")
@@ -841,9 +856,9 @@ class Node:
             target_namespace = Namespace(namespace)
         else:
             raise ValueError("namespace must be a non-empty string")
-        if not target_namespace.exists() and target_namespace.name() != ":":
+        if not target_namespace.exists() and target_namespace.name != ":":
             target_namespace = Namespace.create(target_namespace)
-        namespace_name = target_namespace.name()
+        namespace_name = target_namespace.name
         node_name = self.node_name(True)
         new_name = (
             f"{namespace_name}:{node_name}"
@@ -955,7 +970,7 @@ class Node:
         return result
 
     @undo_chunk("hlibNodeResetAttrs")
-    def reset_attrs(self, attributes=None):
+    def reset_attributes(self, attributes=None):
         """指定属性、または書き込み可能なキー設定対象属性を既定値へ戻す。
 
         Args:
@@ -985,7 +1000,7 @@ class Node:
 
     @fast_edit
     @undo_chunk("hlibNodeSetAttrFlags")
-    def set_attr_flags(self, attributes, locked=None, keyable=None, channel_box=None, *, fast=False):
+    def set_attribute_flags(self, attributes, locked=None, keyable=None, channel_box=None, *, fast=False):
         """指定した属性のロック・キー設定可否・Channel Box表示をまとめて変更する。
 
         Args:
@@ -1072,7 +1087,7 @@ class Node:
         return pairs
 
     @undo_chunk("hlibNodeAddAttr")
-    def add_attr(
+    def add_attribute(
         self,
         long_name,
         attribute_type=None,
@@ -1128,7 +1143,7 @@ class Node:
         return [name for name in names if not self.plug(name).is_child()]
 
     @undo_chunk("hlibNodeMoveAttribute")
-    def move_attribute(self, name, offset):
+    def move_attribute_order(self, name, offset):
         """ユーザー定義属性を Channel Box 上で前後に移動する。
 
         Maya には属性の並び替え API が無いため、移動元と移動先のうち手前側の
@@ -1166,7 +1181,7 @@ class Node:
 
         infos = [_dump_movable_attr(self.plug(attr_name)) for attr_name in to_recreate]
         for attr_name in to_recreate:
-            self.plug(attr_name).delete_attr(force=True)
+            self.plug(attr_name).delete_attribute(force=True)
         for info in infos:
             _create_movable_attr(self, info)
         return self
@@ -1227,7 +1242,7 @@ class Node:
             raise AttributeError(f"属性が見つかりません: {self.name()}.{name}")
         return Plug(self, mplug)
 
-    def has_attr(self, name):
+    def has_attribute(self, name):
         """属性パスを解決できるか判定する。
 
         Args:
@@ -1335,3 +1350,199 @@ class Node:
             raise AttributeError(f"属性が見つかりません: {self.name()}.{name}") from error
 
 
+
+
+@collection_export()
+@bulk_api(Node)
+class Nodes(BulkCollection):
+    """型を検証し、入力順のノード参照を保持するコレクション。
+
+    同一ノード・同一DAGパスの重複だけを除外する。異なるインスタンスパスは保持する。
+    コピーやスライスは参照を共有し、シーンのノードは複製しない。
+    """
+
+    item_class = Node
+
+    def __init__(self, names=()):
+        """ノード入力を解決して構築する。検索やシーン変更は行わない。
+
+        Args:
+            names (object | Iterable[object]): 名前・Node・API参照等、またはその列。
+                単一の名前も受け付ける。解決は共通coerce規則に従う。
+        Raises:
+            TypeError: 解決結果がitem_classの派生でない場合。
+            RuntimeError: 名前を解決できない、または削除済みの対象の場合。
+            ValueError: 共通入力解決が不正な参照を検出した場合。
+        """
+        from .._core.coerce import to_node
+        if isinstance(names, (str, Node)):
+            names = [names]
+        else:
+            try:
+                names = iter(names)
+            except TypeError:
+                names = [names]
+        items, seen = [], set()
+        for value in names:
+            node = to_node(value)
+            if not node.is_valid():
+                raise RuntimeError("Cannot collect an invalid node")
+            if not isinstance(node, self.item_class):
+                raise TypeError(f"{type(self).__name__} requires {self.item_class.__name__}, got {type(node).__name__}")
+            # 構築時だけキーを使用。以後の改名・親変更はNode参照が追跡する。
+            key = (node.uuid(), node.full_name())
+            if key not in seen:
+                seen.add(key)
+                items.append(node)
+        self._items = items
+
+    def __iter__(self):
+        """Iterator[Node]: 保持順の参照を返す。"""
+        return iter(self._items)
+
+    def __getitem__(self, index):
+        """Node | Nodes: 単体参照または同じ具象型のスライスを返す。
+
+        構築後に削除された参照も保持し、要素数を暗黙に変更しない。
+        """
+        if not isinstance(index, slice):
+            return self._items[index]
+        result = self.copy()
+        result._items = self._items[index]
+        return result
+
+    def copy(self):
+        """Nodes: 同じ参照を共有する、同じ具象型の独立した容器を返す。"""
+        result = object.__new__(type(self))
+        result.__dict__.update(self.__dict__)
+        result._items = list(self._items)
+        return result
+
+    def names(self):
+        """list[str]: 保持順の現在のノード名。"""
+        return [node.name() for node in self]
+
+    def __repr__(self):
+        """str: 具象コレクション名と保持参照を表示する。"""
+        return f"{type(self).__name__}({self._items!r})"
+
+    @undo_chunk("hlibNodesDelete")
+    def delete(self):
+        """各ノードの専用deleteを呼び、親削除で消えた後続対象はスキップする。
+
+        Returns:
+            None: 空なら何もしない。Jointsは専用の階層・ウェイト処理を優先する。
+        Raises:
+            RuntimeError: 実行前に削除済みの参照がある、または削除失敗。
+                途中までの変更は自動で戻さない。全体は一回のUndoで戻せる。
+        """
+        for index, node in enumerate(self):
+            if not node.is_valid():
+                raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
+        for index, node in enumerate(self):
+            if node.is_valid():
+                try:
+                    node.delete()
+                except Exception as exc:
+                    raise RuntimeError(f"{type(self).__name__}.delete failed at item {index}: {exc}") from exc
+
+    def get_override_color(self):
+        """Colors: 各対象のDrawing Overrides色。無効状態も保持順で返す。"""
+        from ..general.color import Colors
+        return Colors(node.get_override_color() for node in self)
+
+    def get_outliner_color(self):
+        """Colors: 各対象のOutliner色。無効状態も保持順で返す。"""
+        from ..general.color import Colors
+        return Colors(node.get_outliner_color() for node in self)
+
+    @fast_edit
+    @undo_chunk("hlibNodesOverrideColor")
+    def set_override_color(self, color, *, fast=False):
+        """全対象へ同じ表示色を設定する。全対象の事前検証後に反映する。
+
+        Args:
+            color (Color | int | Iterable[float] | None): 単一色。Noneは無効化。
+            fast (bool): TrueはUndoなしのAPI直接更新。既定False。
+        Returns:
+            Nodes: 自身。
+        Raises:
+            ValueError: 色の値が不正。
+            RuntimeError: 対象が無効、属性がない、編集不可または更新失敗。
+        """
+        from ..general.color import Color
+        value = Color.coerce(color)
+        return self._set_colors([value] * len(self), outliner=False)
+
+    @fast_edit
+    @undo_chunk("hlibNodesOutlinerColor")
+    def set_outliner_color(self, color, *, fast=False):
+        """全対象へ同じOutliner色を設定する。
+
+        Args:
+            color (Color | int | Iterable[float] | None): 単一色。番号はRGBへ変換。
+            fast (bool): TrueはUndoなし。既定False。
+        Returns:
+            Nodes: 自身。全対象の事前検証・例外規則はset_override_colorと同じ。
+        """
+        from ..general.color import Color
+        value = Color.coerce(color)
+        return self._set_colors([value] * len(self), outliner=True)
+
+    @fast_edit
+    @undo_chunk("hlibNodesOverrideColors")
+    def set_override_colors(self, colors, *, fast=False):
+        """保持順に一色ずつDrawing Overridesを設定する。
+
+        Args:
+            colors (Colors | Iterable): 対象数と同数のColor・番号・RGB・Noneの列。
+            fast (bool): TrueはUndoなし。既定False。
+        Returns:
+            Nodes: 自身。
+        Raises:
+            ValueError: 件数不一致、不正な色、共有属性に異なる値を要求した場合。
+            RuntimeError: 事前検証または反映失敗。実行時失敗の自動ロールバックはしない。
+        """
+        from ..general.color import Colors
+        return self._set_colors(Colors(colors), outliner=False)
+
+    @fast_edit
+    @undo_chunk("hlibNodesOutlinerColors")
+    def set_outliner_colors(self, colors, *, fast=False):
+        """保持順に一色ずつOutliner色を設定する。
+
+        Args:
+            colors (Colors | Iterable): 対象数と同数の色指定の列。
+            fast (bool): TrueはUndoなし。既定False。
+        Returns:
+            Nodes: 自身。事前検証・例外規則はset_override_colorsと同じ。
+        """
+        from ..general.color import Colors
+        return self._set_colors(Colors(colors), outliner=True)
+
+    def _set_colors(self, colors, *, outliner):
+        """全色・対象を検証し、共有属性の競合を除いて更新計画を実行する。"""
+        if len(colors) != len(self):
+            raise ValueError("Color count must match node count")
+        plans, seen = [], {}
+        for index, (node, color) in enumerate(zip(self, colors)):
+            try:
+                updates = node._display_color_updates(color, outliner=outliner)
+                plugs = node._prepare_display_color(updates)
+                key = node.uuid()
+                if key in seen:
+                    if seen[key] != updates:
+                        raise ValueError("Conflicting colors for shared instance attributes")
+                    continue
+                seen[key] = updates
+                plans.append((index, node, plugs))
+            except ValueError:
+                raise
+            except Exception as exc:
+                raise RuntimeError(f"{type(self).__name__} color validation failed at item {index}: {exc}") from exc
+        for index, node, plugs in plans:
+            try:
+                node._apply_display_color(plugs)
+            except Exception as exc:
+                raise RuntimeError(f"{type(self).__name__} color update failed at item {index}: {exc}") from exc
+        return self

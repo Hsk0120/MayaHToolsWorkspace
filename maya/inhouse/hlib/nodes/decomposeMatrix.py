@@ -13,6 +13,18 @@ from .node import Node
 class DecomposeMatrix(Node):
     """Mayaの行列分解ノード。接続先の親空間やjointOrientの補正は行わない。"""
 
+    def input_plug(self):
+        """MatrixPlug: inputMatrixの参照。"""
+        return self.plug("inputMatrix")
+
+    def get_input(self):
+        """Matrix: 現在の入力行列。接続済みなら接続元を評価する。"""
+        return self.input_plug().get()
+
+    def get_rotate_order(self):
+        """int: 入力回転順序。MayaのrotateOrderと同じ番号0〜5。"""
+        return self.plug("inputRotateOrder").get()
+
     @fast_edit
     @undo_chunk("hlibDecomposeMatrixSetInput")
     def set_input(self, value, *, fast=False):

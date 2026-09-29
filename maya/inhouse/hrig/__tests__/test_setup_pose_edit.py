@@ -21,7 +21,7 @@ class PoseEditTest(unittest.TestCase):
         driver = hlib.createNode("transform", name="input")
         graph = PoseRbf.create([driver.plug("rx")], [[0], [60]], [[0], [30]], [60])
         target = hlib.createNode("network", name="target")
-        target.add_attr(long_name="value", attribute_type="double")
+        target.add_attribute(long_name="value", attribute_type="double")
         graph.container.plug("outputs[0]").connect(target.plug("value"))
         uuid = graph.container.uuid()
         graph.set_data([[0], [30], [60]], [[0], [10], [40]], [40])

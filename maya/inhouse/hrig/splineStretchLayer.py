@@ -26,7 +26,7 @@ class SplineStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.plug("stretchGroup").source() if root.has_attr("stretchGroup") else None
+        source = root.plug("stretchGroup").source() if root.has_attribute("stretchGroup") else None
         return source.node if source is not None else None
 
     @staticmethod
@@ -67,20 +67,20 @@ class SplineStretchLayer:
         group = hlib.createNode(
             "transform", name=root.name() + "_stretch_grp", parent=root, skipSelect=True
         )
-        group.set_attr_flags(
+        group.set_attribute_flags(
             ["translate", "rotate", "scale", "visibility"], locked=True, keyable=False
         )
-        group.add_attr(long_name="graph", attribute_type="message")
+        group.add_attribute(long_name="graph", attribute_type="message")
         owner.plug("message").connect(group.plug("graph"))
-        group.add_attr(long_name="restLengths", data_type="string").set(
+        group.add_attribute(long_name="restLengths", data_type="string").set(
             hlib.json.JsonText.dumps(lengths)
         )
-        group.add_attr(long_name="outputs", attribute_type="message", multi=True)
-        group.add_attr(long_name="measurement", attribute_type="message")
-        root.add_attr(long_name="stretchGroup", attribute_type="message")
+        group.add_attribute(long_name="outputs", attribute_type="message", multi=True)
+        group.add_attribute(long_name="measurement", attribute_type="message")
+        root.add_attribute(long_name="stretchGroup", attribute_type="message")
         group.plug("message").connect(root.plug("stretchGroup"))
-        root.add_attr(long_name="hrigEnabled_stretch", attribute_type="bool", default_value=True)
-        root.set_attr_flags(["hrigEnabled_stretch"], channel_box=True)
+        root.add_attribute(long_name="hrigEnabled_stretch", attribute_type="bool", default_value=True)
+        root.set_attribute_flags(["hrigEnabled_stretch"], channel_box=True)
         for attr, value, low, high in (
             ("stretch", 1, 0, 1),
             ("squash", 1, 0, 1),
@@ -88,7 +88,7 @@ class SplineStretchLayer:
             ("minSquash", 0.1, 0.01, 1),
             ("maxStretch", 2, 1, 100),
         ):
-            group.add_attr(
+            group.add_attribute(
                 long_name=attr,
                 attribute_type="double",
                 default_value=value,

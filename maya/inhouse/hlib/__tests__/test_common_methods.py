@@ -36,7 +36,7 @@ class CommonMethodsTest(unittest.TestCase):
         node = self.create("flags")
         attrs = ["translateX", "translateY"]
         before = [(node.plug(a).is_locked(), node.plug(a).is_keyable()) for a in attrs]
-        self.assertIs(node.set_attr_flags(attrs, locked=True, keyable=False), node)
+        self.assertIs(node.set_attribute_flags(attrs, locked=True, keyable=False), node)
         for a in attrs:
             self.assertTrue(node.plug(a).is_locked())
             self.assertFalse(node.plug(a).is_keyable())
@@ -44,10 +44,10 @@ class CommonMethodsTest(unittest.TestCase):
         self.assertEqual([(node.plug(a).is_locked(), node.plug(a).is_keyable()) for a in attrs], before)
         cmds.redo()
         self.assertTrue(all(node.plug(a).is_locked() for a in attrs))
-        node.set_attr_flags(attrs, locked=False, channel_box=True)
+        node.set_attribute_flags(attrs, locked=False, channel_box=True)
         self.assertTrue(cmds.getAttr(node.plug(attrs[0]).full_name(), channelBox=True))
         with self.assertRaises(TypeError):
-            node.set_attr_flags(attrs, locked="false")
+            node.set_attribute_flags(attrs, locked="false")
 
     def test_center_pivot_preserves_geometry_and_undo(self):
         name = cmds.polyCube(name=self.namespace + ":pivotMesh")[0]
@@ -96,7 +96,7 @@ class CommonMethodsTest(unittest.TestCase):
         node.plug("translate").set((2, 3, 4))
         node.plug("translateX").set_flags(locked=True)
         source.plug("translateY").connect(node.plug("translateY"))
-        changed = node.reset_attrs()
+        changed = node.reset_attributes()
         names = [plug.full_name() for plug in changed]
         self.assertNotIn(node.plug("translateX").full_name(), names)
         self.assertNotIn(node.plug("translateY").full_name(), names)
@@ -104,7 +104,7 @@ class CommonMethodsTest(unittest.TestCase):
         cmds.undo()
         self.assertEqual(node.plug("translateZ").get(), 4)
         with self.assertRaises(RuntimeError):
-            node.reset_attrs("translateX")
+            node.reset_attributes("translateX")
         cmds.addAttr(node.full_name(), longName="text", dataType="string")
         with self.assertRaises(TypeError):
             node.plug("text").reset()

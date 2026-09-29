@@ -18,7 +18,7 @@ class Units:
     """
 
     @staticmethod
-    def linear():
+    def get_linear():
         """現在の距離 UI 単位を取得する。
 
         Returns:
@@ -44,7 +44,7 @@ class Units:
         cmds.currentUnit(linear=unit)
 
     @staticmethod
-    def angle():
+    def get_angle():
         """現在の角度 UI 単位を取得する。
 
         Returns:
@@ -69,7 +69,7 @@ class Units:
         cmds.currentUnit(angle=unit)
 
     @staticmethod
-    def time():
+    def get_time():
         """現在の時間 UI 単位を取得する。
 
         Returns:

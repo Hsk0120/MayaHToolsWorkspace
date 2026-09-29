@@ -142,17 +142,17 @@ Maya 組み込みのノード型では空文字列になります。
 
    import maya.cmds as cmds
    cmds.addAttr(child.name(), longName="temp", attributeType="double")
-   child.plug("temp").delete_attr()          # 動的属性を削除
+   child.plug("temp").delete_attribute()          # 動的属性を削除
 
    cmds.addAttr(child.name(), longName="lockedTemp", attributeType="double")
    locked_plug = child.plug("lockedTemp")
    locked_plug.set_flags(locked=True)
-   # locked_plug.delete_attr()             # ロック中は RuntimeError
-   locked_plug.delete_attr(force=True)     # 一時的に解除してから削除
+   # locked_plug.delete_attribute()             # ロック中は RuntimeError
+   locked_plug.delete_attribute(force=True)     # 一時的に解除してから削除
 
 ``is_parent_of``/``is_child_of`` は直接の親子関係のみを判定します。
 祖先・子孫すべてを対象にする場合は ``is_ancestor_of`` を使ってください。
-``delete_attr`` は addAttr で追加した動的属性にのみ使用でき、
+``delete_attribute`` は addAttr で追加した動的属性にのみ使用でき、
 ``translateX`` のような静的属性を削除しようとすると Maya が拒否します。
 ロックされている属性は既定では削除できず ``RuntimeError`` になりますが、
 ``force=True`` を指定すると一時的にロックを解除してから削除します。
@@ -168,9 +168,9 @@ Maya 組み込みのノード型では空文字列になります。
 
    transform = hlib.createNode("transform", name="rigControl")
 
-   transform.set_visible(False)
+   transform.set_visibility(False)
    print(transform.plug("visibility").get())   # False
-   transform.set_visible(True)
+   transform.set_visibility(True)
 
    transform.set_translate((1.0, 2.0, 3.0))
    transform.make_identity(apply=True, translate=True)
@@ -241,3 +241,47 @@ unitConversion自体は削除対象に含めません。
 ``Joint.delete()`` はウェイト移送・子階層保持を伴う専用操作です。
 ``hlib.delete(joint_name)`` でもこの専用操作が呼ばれます。
 独自ノードクラスも ``delete()`` の上書きで削除挙動を変更できます。
+
+複数のノードを扱う
+------------------------------
+
+``Nodes`` を基底に ``Transforms``、さらに ``Joints`` が継承します。
+``SkinClusters`` は ``Nodes`` を継承します。各クラスは単数形と同じファイルにあります。
+
+.. code-block:: python
+
+   from hlib.nodes import Nodes, Transforms, Joints
+
+   targets = Transforms(hlib.ls(type="transform"))
+   targets.set_translate((1, 2, 3))     # 全対象に同じ値
+   values = targets.get_translate()   # 保持順の値リスト
+   targets.call_each("set_translate", [((i, 0, 0),) for i in range(len(targets))])
+
+   joints = Joints(hlib.ls(type="joint"))
+   print(isinstance(joints, Transforms))  # True
+   print(isinstance(joints, Nodes))       # True
+   subset = joints[:2]                   # Joints
+   references = joints.copy()            # 同じシーン対象を参照する別の容器
+
+コンストラクタは単一の名前や参照、またはそれらの列を受け付けます。
+名前・API参照の解決は :doc:`cmds_interop` の共通規則に従います。
+``Transforms`` はJointなど派生ラッパーも保持します。
+``Joints`` に通常のTransformを渡す等、型が合わない場合は ``TypeError`` です。
+対象を黙って除外しません。構築後に削除された参照も保持するため、
+``is_valid()`` で要素ごとの有効性を確認できます。
+
+同じノード・同じDAGパスの重複を除き、最初の入力順を維持します。
+同じノードでも異なるインスタンスパスは保持するため、パス別のワールド行列を取得できます。
+改名・親変更への追従は単体Nodeの規則に従います。
+``copy()`` やスライスはノードを複製せず、同じ参照を共有します。
+
+通常の一括メソッドは単体の戻り値のリストを返し、引数の事前確認後に順に実行します。
+通常モードの編集は一回のUndoにまとめます。実行途中で失敗した場合は停止し、
+完了済みの変更は自動では戻しません。引数の確認は全対象の書込み可能性の保証とは異なります。
+色設定は全対象の属性を事前検証します。詳細は :doc:`node_colors` を参照してください。
+``Joints.delete()``・フリーズ・``SkinClusters.remove_influences()`` 等の専用処理は維持しています。
+
+``hlib.ls()`` の戻り値は従来どおりです。joint/skinClusterの型指定は専用コレクション、
+それ以外はリストです。必要に応じて ``Nodes(...)`` / ``Transforms(...)`` で包んでください。
+属性を含む検索結果はそのままNodesへ渡すと所有ノードへ解決されます。
+Plug自体の一覧として保持したい場合は検索結果のリストを使用してください。

@@ -19,9 +19,9 @@ class SceneUiTest(unittest.TestCase):
         self.panel = self.view.panel
 
     def test_public_api_and_reload(self):
-        for name, cls in (("timeSlider", hlib.general.TimeSlider),
-                          ("viewport", hlib.general.Viewport),
-                          ("outliner", hlib.general.Outliner)):
+        for name, cls in (("getTimeSlider", hlib.general.TimeSlider),
+                          ("getViewport", hlib.general.Viewport),
+                          ("getOutliner", hlib.general.Outliner)):
             self.assertIs(getattr(hlib, name), getattr(hlib.cmds, name))
         self.assertIsInstance(hlib.getTimeSlider(), hlib.general.TimeSlider)
         self.assertIsInstance(self.view, hlib.general.Viewport)
@@ -29,18 +29,18 @@ class SceneUiTest(unittest.TestCase):
         self.assertEqual(self.view.panel, self.panel)
 
     def test_viewport_restore_after_exception_and_nesting(self):
-        before = self.view.settings()
+        before = self.view.get_settings()
         with self.assertRaisesRegex(RuntimeError, "test failure"):
             with self.view.temporary_settings(grid=not before["grid"]):
-                outer = self.view.settings("grid")
+                outer = self.view.get_settings("grid")
                 with self.view.temporary_settings(grid=before["grid"]):
-                    self.assertEqual(self.view.settings("grid")["grid"], before["grid"])
-                self.assertEqual(self.view.settings("grid"), outer)
+                    self.assertEqual(self.view.get_settings("grid")["grid"], before["grid"])
+                self.assertEqual(self.view.get_settings("grid"), outer)
                 raise RuntimeError("test failure")
-        self.assertEqual(self.view.settings(), before)
+        self.assertEqual(self.view.get_settings(), before)
         with self.assertRaises(ValueError):
             self.view.set_settings(grid=False, notAFlag=True)
-        self.assertEqual(self.view.settings(), before)
+        self.assertEqual(self.view.get_settings(), before)
         camera = self.view.camera()
         self.view.set_camera(camera)
         self.assertEqual(self.view.camera(), camera)
@@ -107,36 +107,36 @@ class SceneUiTest(unittest.TestCase):
             view.set_enabled(before)
 
     def test_outliner_settings(self):
-        before = self.outliner.settings()
+        before = self.outliner.get_settings()
         with self.assertRaisesRegex(RuntimeError, "test failure"):
             with self.outliner.temporary_settings(showShapes=not before["showShapes"]):
-                self.assertNotEqual(self.outliner.settings("showShapes")["showShapes"], before["showShapes"])
+                self.assertNotEqual(self.outliner.get_settings("showShapes")["showShapes"], before["showShapes"])
                 raise RuntimeError("test failure")
-        self.assertEqual(self.outliner.settings(), before)
+        self.assertEqual(self.outliner.get_settings(), before)
         self.assertEqual(hlib.getOutliner(self.outliner.name).name, self.outliner.name)
 
     def test_timeline_validation_and_restore(self):
         slider = hlib.getTimeSlider()
-        playback = slider.playback_range()
-        animation = slider.animation_range()
-        time = slider.current_time()
+        playback = slider.get_playback_range()
+        animation = slider.get_animation_range()
+        time = slider.get_current_time()
         try:
             with self.assertRaisesRegex(RuntimeError, "test failure"):
                 with slider.preserve_time():
                     slider.set_current_time(time + 0.5)
-                    self.assertEqual(slider.current_time(), time + 0.5)
+                    self.assertEqual(slider.get_current_time(), time + 0.5)
                     raise RuntimeError("test failure")
-            self.assertEqual(slider.current_time(), time)
+            self.assertEqual(slider.get_current_time(), time)
             slider.set_animation_range(-10, 50)
             slider.set_playback_range(1, 20)
-            self.assertEqual(slider.playback_range(), (1, 20))
-            self.assertEqual(slider.animation_range(), (-10, 50))
+            self.assertEqual(slider.get_playback_range(), (1, 20))
+            self.assertEqual(slider.get_animation_range(), (-10, 50))
             for start, end in ((20, 1), (float("nan"), 20), (1, float("inf"))):
                 with self.assertRaises(ValueError):
                     slider.set_playback_range(start, end)
-            self.assertEqual(slider.playback_range(), (1, 20))
+            self.assertEqual(slider.get_playback_range(), (1, 20))
             self.assertTrue(cmds.timeControl(slider.name(), exists=True))
-            selected = slider.selected_range()
+            selected = slider.get_selected_range()
             if cmds.timeControl(slider.name(), query=True, rangeVisible=True):
                 self.assertEqual(selected, tuple(cmds.timeControl(slider.name(), query=True, rangeArray=True)))
             else:
@@ -167,7 +167,7 @@ class SceneUiTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             hlib.getOutliner("__hlibMissingEditor__")
         with self.assertRaises(RuntimeError):
-            hlib.getTimeSlider("__hlibMissingControl__").selected_range()
+            hlib.getTimeSlider("__hlibMissingControl__").get_selected_range()
 
 
 if __name__ == "__main__":

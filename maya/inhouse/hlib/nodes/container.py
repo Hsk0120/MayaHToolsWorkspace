@@ -2,6 +2,7 @@
 
 from maya import cmds
 from .._core.registry import node_wrapper
+from .._core.coerce import to_names
 from ..decorators.undo import undo_transaction, undo_chunk
 from .node import Node
 
@@ -34,15 +35,16 @@ class Container(Node):
         ]
 
     @undo_chunk("hlib.Container.add")
-    def add_members(self, *nodes):
+    def add_members(self, *members):
         """指定ノードを所有下へ追加する。別containerからは強制移動しない。
 
         Args:
-            *nodes (str | Node): 所有するノード。
+            *members (str | Node | Iterable[Node | str]): 所有するノード。
 
         Returns:
             Container: 自身。
         """
+        nodes = [Node(name) for name in to_names(members, allow_plugs=False)]
         if nodes:
             cmds.container(
                 self.full_name(), edit=True, addNode=[Node(n).full_name() for n in nodes]
@@ -50,16 +52,16 @@ class Container(Node):
         return self
 
     @undo_transaction("hlib.Container.create_node")
-    def create_node(self, kind, name=None):
+    def create_node(self, type, name=None):
         """標準ノードを生成し所有下へまとめる。
 
         Args:
-            kind (str): Maya nodeType。
+            type (str): Maya nodeType。
             name (str | None): 希望名。省略時はcontainer名に型名を付加。
 
         Returns:
             Node: 作成したノード。
         """
-        node = Node.create(kind, name=name or self.name() + "_" + kind, skipSelect=True)
+        node = Node.create(type, name=name or self.name() + "_" + type, skipSelect=True)
         self.add_members(node)
         return node

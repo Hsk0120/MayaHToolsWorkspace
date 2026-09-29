@@ -1,8 +1,8 @@
 """.mod経由のMaya GUI起動時にhedit.mllをロードするだけの最小ブートストラップ。
 
 hedit本体のロジック(復元・Windowメニュー登録・補完・静的解析等)は一切ここに置かない。
-それらはsrc/embedded_python.hにC++の文字列として同梱されており、initializePlugin(C++)が
-ロード時にMaya同梱のCPython上へsys.modulesとして直接展開する。このファイルの役割は
+それらはC++(src/)とPython(src/python/)で書かれてhedit.mllに同梱されており、
+initializePlugin(C++)がロード時にMaya同梱のCPythonへimportフックとして登録する。このファイルの役割は
 「Maya起動時にloadPluginを1回呼ぶ」ことだけで、Plug-in Managerでの明示ロードや
 Mayaのプラグインautoloadと同じ入口(initializePlugin)へ合流する。
 """

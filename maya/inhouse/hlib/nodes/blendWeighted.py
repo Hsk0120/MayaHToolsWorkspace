@@ -29,9 +29,9 @@ class BlendWeighted(Node):
         """dict[int, Plug]: 既存入力の番号とPlug。"""
         return {i: self.plug("input").element(i) for i in self.input_indices()}
 
-    def weights(self):
+    def get_weights(self):
         """dict[int, float]: 既存inputに対応するウェイト。未設定要素は1。"""
-        return {i: cmds.getAttr(f"{self.full_name()}.weight[{i}]") for i in self.input_indices()}
+        return {i: self.get_weight(i) for i in self.input_indices()}
 
     def _set(self, attr, index, value):
         """有限値をcmdsで設定する。呼び出し元がUndoをまとめる。"""
@@ -40,6 +40,47 @@ class BlendWeighted(Node):
             raise ValueError("Expected a finite value")
         set_attr(f"{self.full_name()}.{attr}[{index}]", value)
         return self
+
+    def input_plug(self, index):
+        """既存入力のPlugを取得する。未存在要素は作成しない。
+
+        Args:
+            index (int): 非負の論理インデックス。
+        Returns:
+            Plug: 入力属性の参照。
+        Raises:
+            ValueError: indexが非負整数でない場合。
+            IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。
+        """
+        return self.plug("input").element(self._index(index))
+
+    def get_input(self, index):
+        """既存入力の評価値を取得する。接続済みなら接続元を評価する。
+
+        Args:
+            index (int): 入力の論理インデックス。
+        Returns:
+            float: 現在の入力値。
+        Raises:
+            IndexError: 入力要素が存在しない場合。
+        """
+        return self.input_plug(index).get()
+
+    def get_weight(self, index):
+        """既存inputに対応する倍率を取得する。未設定weightは1を返す。
+
+        Args:
+            index (int): inputの論理インデックス。
+        Returns:
+            float: 評価済み倍率。未設定のweight要素は作成しない。
+        Raises:
+            IndexError: inputが存在しない場合。
+        """
+        self.input_plug(index)
+        weights = self.plug("weight")
+        if index not in weights.mplug().getExistingArrayAttributeIndices():
+            return 1.0
+        return weights.element(index).get()
 
     @fast_edit
     @undo_chunk("hlibBlendWeightedInput")
@@ -94,10 +135,10 @@ class BlendWeighted(Node):
         cmds.connectAttr(source.full_name(), target, force=force)
         return self
 
-    def output(self):
+    def output_plug(self):
         """Plug: 出力プラグ。"""
         return self.plug("output")
 
     def result(self):
         """float: 現在の重み付き合計。"""
-        return self.output().get()
+        return self.output_plug().get()

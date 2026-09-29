@@ -35,7 +35,7 @@ def main():
         env = isolated_environment(executable, directory)
         env['MAYA_MODULE_PATH'] = str(ROOT / 'maya/modules')
         # scripts/はuserSetup.py(起動時のloadPlugin('hedit')だけ)を含む。
-        # hedit.*本体はsrc/embedded_python.hがloadPlugin時にsys.modulesへ展開する。
+        # hedit.*本体(src/python/)はhedit.mllに同梱され、loadPlugin時にsys.modulesへ展開する。
         env['PYTHONPATH'] += os.pathsep + str(PROJECT / 'scripts')
         unit = run([executable, PROJECT / 'tests/test_completion.py'], env, directory, 'unit')
         # 保存先の決定(C++のhedit -sessionPath)は、隔離したMaya設定フォルダーで確かめる。

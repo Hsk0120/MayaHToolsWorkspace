@@ -126,13 +126,13 @@ class DrivenKey:
 
     def __repr__(self):
         """str: ドライバーと駆動先の属性名を含む表示。"""
-        return f"DrivenKey({self.driver().full_name()!r}, {self.driven().full_name()!r})"
+        return f"DrivenKey({self.driver_plug().full_name()!r}, {self.driven_plug().full_name()!r})"
 
-    def driver(self):
+    def driver_plug(self):
         """Plug: ドライバー。削除済みの場合は例外。"""
         return _plug(self._driver)
 
-    def driven(self):
+    def driven_plug(self):
         """Plug: 駆動先。削除済みの場合は例外。"""
         return _plug(self._driven)
 
@@ -143,10 +143,10 @@ class DrivenKey:
         ドライバーは名前ではなくプラグ自体で照合するため、インスタンス化されたシェイプの
         属性をどのインスタンスのパスから指定しても同じ関係として扱う。
         """
-        driver = self.driver().mplug()
+        driver = self.driver_plug().mplug()
         return [
             curve
-            for curve in _curves(self.driven())
+            for curve in _curves(self.driven_plug())
             if _contains_plug(
                 (to_plug(source).mplug() for source in _sources(curve.full_name() + ".input")),
                 driver,
@@ -178,7 +178,7 @@ class DrivenKey:
         x, y = float(driver_value), float(value)
         if not math.isfinite(x) or not math.isfinite(y):
             raise ValueError("Expected finite key values")
-        driver, driven = self.driver(), self.driven()
+        driver, driven = self.driver_plug(), self.driven_plug()
         _curves(driven, strict=True)
         if len(self.curves()) > 1:
             raise RuntimeError("Multiple curves match this driver/driven pair")

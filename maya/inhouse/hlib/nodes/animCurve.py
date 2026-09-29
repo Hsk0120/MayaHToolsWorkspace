@@ -196,14 +196,14 @@ class AnimCurve(Node):
         """
         return self.scale_keys(-1 if input else 1, -1 if value else 1, input_pivot, value_pivot)
 
-    def driver(self):
+    def driver_plug(self):
         """Plug | None: inputの直接接続元。時間型では通常timeノード。"""
         return self.plug("input").source()
 
-    def output(self):
+    def output_plug(self):
         """Plug: 出力プラグ。"""
         return self.plug("output")
 
     def driven_plugs(self):
         """list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。"""
-        return self.output().destinations()
+        return self.output_plug().destinations()

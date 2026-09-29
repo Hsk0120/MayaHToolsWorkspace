@@ -68,16 +68,23 @@ def bulk_api(item_class, undo=True, per_item_only=()):
     """
     def decorate(collection):
         methods = {}
+        restricted = set(per_item_only)
+        for base in collection.__bases__:
+            restricted.update(getattr(base, "_bulk_per_item_only", ()))
         for name in dir(item_class):
             if name.startswith("_"):
                 continue
             descriptor = inspect.getattr_static(item_class, name)
             if inspect.isfunction(descriptor):
                 methods[name] = descriptor
-                if not hasattr(collection, name) and name not in per_item_only:
+                existing = inspect.getattr_static(collection, name, None)
+                if name in restricted:
+                    setattr(collection, name, _PerItemOnly(name))
+                elif existing is None or getattr(existing, "_bulk_generated", False):
                     setattr(collection, name, _method(name, descriptor, collection))
             elif isinstance(descriptor, property) and not hasattr(collection, name):
                 setattr(collection, name, _property(name))
+        collection._bulk_per_item_only = frozenset(restricted)
         collection._bulk_methods = methods
         collection._bulk_undo = undo
         return collection
@@ -88,6 +95,7 @@ def _method(name, original, collection):
     """同一引数で単体メソッドを呼ぶ公開メソッドを生成する。"""
     def method(self, *args, **kwargs):
         return self.call_each(name, [args] * len(self), [kwargs] * len(self))
+    method._bulk_generated = True
     method.__name__ = name
     method.__qualname__ = collection.__name__ + "." + name
     method.__module__ = collection.__module__
@@ -102,3 +110,15 @@ def _property(name):
     """単体の読取プロパティを保持順のリストとして公開する。"""
     return property(lambda self: [getattr(item, name) for item in self._items],
                     doc=f"list: 保持順の{name}。個別の値を返し、集約しない。")
+
+
+class _PerItemOnly:
+    """基底クラスの一括入口も隠し、要素別指定だけを許可する記述子。"""
+
+    def __init__(self, name):
+        """禁止するメソッド名を保持する。"""
+        self._name = name
+
+    def __get__(self, instance, owner=None):
+        """直接取得を拒否する。call_eachは単体から関数を取得するため利用可能。"""
+        raise AttributeError(f"{self._name} requires call_each with per-item arguments")

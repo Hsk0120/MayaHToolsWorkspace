@@ -42,13 +42,29 @@ class Constraint(Node):
         """
         return [self.plug(alias) for alias in self.weight_aliases()]
 
-    def weights(self):
+    def get_weights(self):
         """ターゲットの現在のウェイトを取得する。
 
         Returns:
             list[float]: targets() と同じ順序の値。正規化は行わない。
         """
         return [plug.get() for plug in self.weight_plugs()]
+
+    def get_weight(self, target):
+        """指定ターゲットの現在のウェイトを取得する。
+
+        Args:
+            target (Node | str): この拘束に登録されたターゲット。
+        Returns:
+            float: 正規化していないウェイト値。
+        Raises:
+            ValueError: ターゲットが登録されていない場合。
+        """
+        requested = to_node(target).full_name()
+        for node, plug in zip(self.targets(), self.weight_plugs()):
+            if node.full_name() == requested:
+                return plug.get()
+        raise ValueError(f"Target not found on this constraint: {requested}")
 
     @fast_edit
     @undo_chunk("hlibConstraintSetWeight")

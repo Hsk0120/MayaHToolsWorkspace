@@ -119,7 +119,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         with mock.patch.object(PluginPackage, "installed_version", return_value=Version.parse(installed)), \
                 mock.patch.object(PluginPackage, "loaded_version", return_value=Version.parse(loaded_version)), \
                 mock.patch.object(PluginPackage, "load_plugins", return_value=list(failed)) as loader:
-            result = package.ensure_loaded(dialog=self.shown.append)
+            result = package.try_load(dialog=self.shown.append)
         return result, loader
 
     def test_constructor_validation(self):
@@ -198,10 +198,10 @@ class PluginPackageFlowTest(unittest.TestCase):
     def test_dialog_options(self):
         package = self.make()
         with mock.patch.object(PluginPackage, "installed_version", return_value=None):
-            self.assertEqual(package.ensure_loaded(dialog=False, warn=False), MISSING)
+            self.assertEqual(package.try_load(dialog=False, warn=False), MISSING)
             self.assertEqual(self.fake.dialogs, [])
             self.assertEqual(self.fake.warnings, [])
-            self.assertEqual(package.ensure_loaded(), MISSING)
+            self.assertEqual(package.try_load(), MISSING)
         self.assertEqual(len(self.fake.dialogs), 1)
         self.assertIn("ProductX", self.fake.dialogs[0]["title"])
         self.assertEqual(self.fake.dialogs[0]["icon"], "warning")
@@ -210,7 +210,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.fake.batch = True
         package = self.make()
         with mock.patch.object(PluginPackage, "installed_version", return_value=None):
-            self.assertEqual(package.ensure_loaded(), MISSING)
+            self.assertEqual(package.try_load(), MISSING)
         self.assertEqual(self.fake.dialogs, [])
 
     def test_custom_install_hint(self):
@@ -228,7 +228,7 @@ class PluginPackageRealTest(unittest.TestCase):
         self.assertIsNone(package.loaded_version())
         self.assertFalse(package.is_installed())
         shown = []
-        self.assertEqual(package.ensure_loaded(dialog=shown.append), MISSING)
+        self.assertEqual(package.try_load(dialog=shown.append), MISSING)
         self.assertEqual(len(shown), 1)
 
     def test_standard_plugin_package_loads(self):
@@ -236,7 +236,7 @@ class PluginPackageRealTest(unittest.TestCase):
         was_loaded = cmds.pluginInfo(name, query=True, loaded=True)
         try:
             package = PluginPackage("Matrix nodes", plugins=(name,))
-            self.assertEqual(package.ensure_loaded(dialog=False), LOADED)
+            self.assertEqual(package.try_load(dialog=False), LOADED)
             self.assertTrue(package.is_installed())
             self.assertTrue(cmds.pluginInfo(name, query=True, loaded=True))
             self.assertEqual(package.loaded_version(), Plugin(name).version())
@@ -247,7 +247,7 @@ class PluginPackageRealTest(unittest.TestCase):
     def test_unknown_package_without_minimum_version_is_missing_after_load_fails(self):
         package = PluginPackage("Unknown", plugins=("hlibDoesNotExistPlugin123",))
         shown = []
-        self.assertEqual(package.ensure_loaded(dialog=shown.append), MISSING)
+        self.assertEqual(package.try_load(dialog=shown.append), MISSING)
         self.assertEqual(len(shown), 1)
 
     def test_installed_version_falls_back_to_plugin_version(self):
@@ -307,9 +307,9 @@ class BifrostTest(unittest.TestCase):
         if year < 2025 or not self.package.is_installed():
             self.skipTest("Maya 2025以降でBifrost 3.0.0以降が導入された環境でのみ実行する")
 
-    def test_ensure_loaded(self):
+    def test_try_load(self):
         shown = []
-        self.assertEqual(self.package.ensure_loaded(dialog=shown.append), LOADED)
+        self.assertEqual(self.package.try_load(dialog=shown.append), LOADED)
         self.assertEqual(shown, [])
         for plugin in self.package.plugins:
             self.assertTrue(plugin.is_loaded(), plugin.name)
@@ -318,7 +318,7 @@ class BifrostTest(unittest.TestCase):
     def test_too_new_version_is_reported_missing(self):
         package = PluginPackage("Bifrost", plugins=("bifrostGraph",), module="Bifrost", minimum_version="99.0")
         shown = []
-        self.assertEqual(package.ensure_loaded(dialog=shown.append), MISSING)
+        self.assertEqual(package.try_load(dialog=shown.append), MISSING)
         self.assertIn("99.0", shown[0])
 
 

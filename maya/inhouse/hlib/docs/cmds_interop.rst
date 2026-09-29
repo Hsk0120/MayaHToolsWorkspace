@@ -187,7 +187,7 @@ maya.cmds・``to_plug()``・``hlib.getNode()`` では配列ではなく、名前
 .. code-block:: python
 
    network = hlib.createNode("network", name="valuesNode")
-   values = network.add_attr("values", attribute_type="double", multi=True)
+   values = network.add_attribute("values", attribute_type="double", multi=True)
    values.element(0, create=True).set(1.0)
 
    # cmds.getAttr(values, size=True)       # TypeError: ArrayPlug はそのまま渡せない
@@ -351,7 +351,7 @@ Plug・Component を受け付けるコマンドは一意な名前へ変換して
    * - ``hlib.delete``
      - Plug(``ArrayPlug`` を含む)・``om2.MPlug`` は ``TypeError`` です(列や ``Selection`` の
        要素に含まれる場合も、何も削除しません)。``maya.cmds.delete`` は属性名を渡しても
-       エラーを表示するだけで何もしないためです。動的属性の削除は ``plug.delete_attr()``、
+       エラーを表示するだけで何もしないためです。動的属性の削除は ``plug.delete_attribute()``、
        配列要素の削除は ``array_plug.remove_element(i)``、接続の解除は ``plug.disconnect()``、
        所有ノードの削除は ``hlib.delete(plug.node)`` を使います。Component は面の削除などに使えます。
    * - ``hlib.ls``

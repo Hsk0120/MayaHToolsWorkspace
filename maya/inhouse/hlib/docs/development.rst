@@ -193,7 +193,7 @@ Undo 対応が必要な操作** に使用します(ノード・アトリビュ�
 Mayaコマンド独自の判定をそのまま提供する処理も例外です。
 ``Node.history()`` は ``listHistory`` の構築履歴順、
 ``SkinCluster.unused_influences()`` は ``weightedInfluence`` の使用判定、
-``Node.reset_attrs()`` は ``getAttr(settable=True)`` の書き込み可否を使用します。
+``Node.reset_attributes()`` は ``getAttr(settable=True)`` の書き込み可否を使用します。
 APIのグラフ走査や個別フラグから似た判定を再構築して意味を変えないためです。
 
 ``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶための属性型名は、

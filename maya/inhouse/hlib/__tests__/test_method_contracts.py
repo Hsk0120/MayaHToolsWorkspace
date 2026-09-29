@@ -25,7 +25,7 @@ class MethodContractTest(unittest.TestCase):
     def test_matrix_attribute_never_redirects_to_transform(self):
         """Transform上の行列属性でもTRSを変えず、Undoで属性値を戻す。"""
         self.node.set_translate((2, 3, 4))
-        plug = self.node.add_attr(long_name='storedMatrix', data_type='matrix')
+        plug = self.node.add_attribute(long_name='storedMatrix', data_type='matrix')
         identity = hlib.maths.Matrix()
         plug.set(identity)
         value = hlib.maths.Matrix(translate=(8, 9, 10))
@@ -47,14 +47,14 @@ class MethodContractTest(unittest.TestCase):
 
     def test_visibility_state_and_undo(self):
         """表示状態変更と入力検証を確認する。"""
-        self.node.set_visible(False)
+        self.node.set_visibility(False)
         self.assertFalse(self.node.plug('visibility').get())
         cmds.undo()
         self.assertTrue(self.node.plug('visibility').get())
-        self.node.set_visible(False, fast=True)
+        self.node.set_visibility(False, fast=True)
         self.assertFalse(self.node.plug('visibility').get())
         with self.assertRaises(TypeError):
-            self.node.set_visible('false')
+            self.node.set_visibility('false')
 
     def test_selection_empty_modes_and_invalid_mode(self):
         """追加・除外の空入力で現在選択を消さない。"""
@@ -85,7 +85,7 @@ class MethodContractTest(unittest.TestCase):
                            (MatrixPlug, ('set_value',))):
             for name in names:
                 self.assertFalse(hasattr(cls, name), (cls, name))
-        self.assertIn('set_visible', Joints._bulk_methods)
+        self.assertIn('set_visibility', Joints._bulk_methods)
         self.assertNotIn('hide', Joints._bulk_methods)
 
 
@@ -154,7 +154,7 @@ class MethodContractTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             plug.set_flags(locked=True, keyable='false')
         self.assertFalse(plug.is_locked())
-        self.node.set_attr_flags(['tx'], locked=True, fast=True)
+        self.node.set_attribute_flags(['tx'], locked=True, fast=True)
         self.assertTrue(plug.is_locked())
         plug.set_flags(locked=False, keyable=True, fast=True)
         self.assertTrue(plug.is_keyable())
@@ -167,15 +167,15 @@ class MethodContractTest(unittest.TestCase):
         b = hlib.createNode('transform', name=self.ns + ':b')
         outsider = hlib.createNode('transform', name=self.ns + ':outsider')
         constraint = hlib.addConstraint([a, b], self.node, type='point')
-        before = constraint.weights()
+        before = constraint.get_weights()
         for fast in (False, True):
             with self.assertRaises(ValueError):
                 constraint.set_weight(.25, a, outsider, fast=fast)
-            self.assertEqual(constraint.weights(), before)
+            self.assertEqual(constraint.get_weights(), before)
         constraint.set_weight(.25, a)
-        self.assertAlmostEqual(constraint.weights()[0], .25)
+        self.assertAlmostEqual(constraint.get_weights()[0], .25)
         cmds.undo()
-        self.assertEqual(constraint.weights(), before)
+        self.assertEqual(constraint.get_weights(), before)
 
     def test_plug_space_argument_and_redundant_methods_are_removed(self):
         """属性の型にかかわらず空間指定と古い別名を公開しない。"""

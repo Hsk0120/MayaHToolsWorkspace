@@ -29,7 +29,7 @@ class SecondaryLayer:
             dict[int, Node]: 列番号と設定グループ。
         """
         root = self.rig.root
-        if not root.has_attr("secondaryGroups"):
+        if not root.has_attribute("secondaryGroups"):
             return {}
         return root.plug("secondaryGroups").source_nodes()
 
@@ -91,11 +91,11 @@ class SecondaryLayer:
         ][0]
         group = hlib.createNode("transform", name=stem + "_grp", parent=parent, skipSelect=True)
         owner = hlib.nodes.Container.create(name=stem + "_graph")
-        group.add_attr(long_name="graph", attribute_type="message")
+        group.add_attribute(long_name="graph", attribute_type="message")
         owner.plug("message").connect(group.plug("graph"))
-        group.add_attr(long_name="baked", attribute_type="bool", default_value=False)
-        group.add_attr(long_name="bakeInfo", data_type="string").set("{}")
-        group.add_attr(long_name="poseGraph", attribute_type="message")
+        group.add_attribute(long_name="baked", attribute_type="bool", default_value=False)
+        group.add_attribute(long_name="bakeInfo", data_type="string").set("{}")
+        group.add_attribute(long_name="poseGraph", attribute_type="message")
         for name, value, low, high in (
             ("intensity", 1, 0, 1),
             ("frequency", 3, 0.01, 30),
@@ -103,7 +103,7 @@ class SecondaryLayer:
             ("angleLimit", 45, 0.01, 170),
             ("poseIntensity", 1, 0, 1),
         ):
-            group.add_attr(
+            group.add_attribute(
                 long_name=name,
                 attribute_type="double",
                 default_value=value,
@@ -111,9 +111,9 @@ class SecondaryLayer:
                 maxValue=high,
                 keyable=name.endswith("ntensity"),
             )
-            group.set_attr_flags([name], channel_box=True)
+            group.set_attribute_flags([name], channel_box=True)
         for attr in ("sources", "targets", "blends", "poses", "curves", "poseWeights"):
-            group.add_attr(long_name=attr, attribute_type="message", multi=True)
+            group.add_attribute(long_name=attr, attribute_type="message", multi=True)
         target_parent = group
         for index, source in enumerate(sources):
             target = hlib.createNode(
@@ -155,16 +155,16 @@ class SecondaryLayer:
                 )
             target_parent = target
         for attr in ("secondaryGroups", "hrigOwned"):
-            if not root.has_attr(attr):
-                root.add_attr(long_name=attr, attribute_type="message", multi=True)
+            if not root.has_attribute(attr):
+                root.add_attribute(long_name=attr, attribute_type="message", multi=True)
         group.plug("message").connect(root.plug("secondaryGroups[{}]".format(driver_index)))
         for node in (group, owner):
             root.plug("hrigOwned").append_message(node)
         for kind in ("spring", "pose"):
             attr = "hrigEnabled_" + kind
-            if not root.has_attr(attr):
-                root.add_attr(long_name=attr, attribute_type="bool", default_value=True)
-            root.set_attr_flags([attr], channel_box=True)
+            if not root.has_attribute(attr):
+                root.add_attribute(long_name=attr, attribute_type="bool", default_value=True)
+            root.set_attribute_flags([attr], channel_box=True)
         self.update()
         from .skirtRig import SkirtRig
 

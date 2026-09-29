@@ -28,7 +28,7 @@ class BendLayer:
             dict[str, Node]: IDと設定グループ。
         """
         root = self.rig.root
-        if not root.has_attr("bendGroups"):
+        if not root.has_attribute("bendGroups"):
             return {}
         return {
             node.plug("bendId").get(): node
@@ -103,18 +103,18 @@ class BendLayer:
             raise ValueError("Bend node names already exist")
         root = self.rig.root
         owned = []
-        if not root.has_attr("bendSet"):
+        if not root.has_attribute("bendSet"):
             selection = hlib.createSet(empty=True, name=self.rig.node_name("bendSet")).full_name()
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            root.add_attr(long_name="bendGroups", attribute_type="message", multi=True)
+            root.add_attribute(long_name="bendGroups", attribute_type="message", multi=True)
             owned.append(hlib.getNode(selection))
         group = hlib.createNode("transform", name=names[0], parent=parent, skipSelect=True)
-        group.add_attr(long_name="bendId", data_type="string").set(identifier)
-        group.add_attr(long_name="pushAxis", data_type="string").set(push_axis)
+        group.add_attribute(long_name="bendId", data_type="string").set(identifier)
+        group.add_attribute(long_name="pushAxis", data_type="string").set(push_axis)
         graph = BendCorrection.create(parent, joint, names[1], bend_axis)
         owner = graph.container
-        group.add_attr(long_name="graph", attribute_type="message")
+        group.add_attribute(long_name="graph", attribute_type="message")
         owner.plug("message").connect(group.plug("graph"))
         for attr in (
             "rotationRatio",
@@ -130,14 +130,14 @@ class BendLayer:
                 bounds = {"minValue": 0.001}
             if attr == "bendSign":
                 bounds = {"minValue": -1, "maxValue": 1}
-            group.add_attr(
+            group.add_attribute(
                 long_name=attr,
                 attribute_type="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
                 default_value=owner.plug(attr).get(),
                 **bounds
             )
             group.plug(attr).set(owner.plug(attr).get())
-            group.set_attr_flags([attr], keyable=False, channel_box=True)
+            group.set_attribute_flags([attr], keyable=False, channel_box=True)
             group.plug(attr).connect(owner.plug(attr))
         joints = []
         for role, name in zip(("half", "inner", "outer"), names[2:]):
@@ -146,7 +146,7 @@ class BendLayer:
             )
             bone.plug("segmentScaleCompensate").set(False)
             bone.plug("radius").set(0.35 if role == "half" else 0.25)
-            group.add_attr(long_name=role, attribute_type="message")
+            group.add_attribute(long_name=role, attribute_type="message")
             bone.plug("message").connect(group.plug(role))
             joints.append(bone)
         root.plug("bendGroups").append_message(group)

@@ -111,7 +111,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 ### メソッドの統一基準
 
 - 同じ結果を返す互換別名は追加せず、正式な入口へ集約する。
-- 状態の切替は `set_visible(state)`・`set_muted(state)` のように表す。
+- 状態の切替は `set_visibility(state)`・`set_muted(state)` のように表す。
 - 排他的な選択操作は `Selection.select(mode="replace")` のようなモードで指定する。
 - メンバーの操作は `add_members` / `remove_members`、個数の照会は `vertex_count` などの `対象_count` に揃える。
 - `Plug.get/set` は対象属性を扱い、行列属性から所有ノードのTRS更新へ暗黙に切り替えない。ノード変換は `Transform.get_matrix/set_matrix` を使用する。
@@ -121,3 +121,24 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - Plug系の空間指定は廃止し、属性値とTransformの姿勢を区別する。Double3Plugのrotateは回転順序・単位変換だけを行い、jointOrientや他のチャンネルを合成しない。
 - 属性フラグはキーワード専用の `set_flags(locked=None, keyable=None, channel_box=None, fast=False)` へ集約する。Noneは変更なし、bool以外は更新前に拒否する。
 - 一括更新では、対象名・所属・入力値など検証できる項目を更新前に全件検証する。Undoチャンクは失敗時の自動ロールバックを意味しない。
+
+### 複数形ノードの基底クラス
+
+- ノードコレクションは `Nodes` を基底にし、単体に対応して `Transforms` → `Joints` のように継承する。`SkinClusters` は `Nodes` の派生。`Nodes` 自体は `Node` を継承しない。
+- `item_class` で受け入れるラッパー型を宣言する。入力は既存coerceで解決し、型の不一致を黙って除外せず例外にする。登録済みの外部拡張の派生ラッパーを基底型へ置き換えない。
+- 重複は同一ノードかつ同一DAGパスで判定する。異なるインスタンスパスをUUIDだけでまとめない。構築後の参照の削除によってコレクション長を暗黙に変えない。
+- 整数アクセスは保持中の参照、スライス/copyは同じ具象コレクションで同じシーン対象を参照する。ノード複製とは別。`Colors` は独立した値コピーである。
+- 通常の一括転送は結果リストを保つ。色getterは明示的に `Colors` を返す。関係検索を一律に平坦化したり、結果の内容からコレクション型を推測したりしない。
+- 単色用 `set_override_color` と対象別 `set_override_colors` のように、同値の一括指定と一対一の列を分ける。色setterは自身を返し、入力・全対象の書込み可否・共有属性の矛盾を検証してから反映する。
+- `bulk_api` は明示実装を優先し、自動生成された継承メソッドのみ派生型のsignatureへ更新する。`per_item_only` は派生にも継承し、直接の一括入口を公開しない。
+- `Joints.delete` 等の階層・ウェイトを扱う専用処理は単純な転送へ置き換えない。Undoは自動ロールバックを意味しない。`ls` の返却規則の変更は別途使用側を含む移行として扱う。
+
+
+### 参照対象と取得契約
+
+- 独自の属性操作名は `attribute` に統一する（`add_attribute` / `set_attribute_flags`）。Mayaコマンド `addAttr` 等は標準名を維持する。
+- メソッドのオーバーライドで対象を切り替えない。`Reference.associated_namespace` は参照内容、継承した `namespace/set_namespace` はreferenceノード自身を扱う。
+- 接続用参照は `*_plug`、文字列のみの一覧は `*_names` / `*_aliases` などで返却対象を明示する。
+- 未存在の配列入力を取得するgetterは要素を作らずIndexErrorとする。作成はsetter等へ限定する。
+- `PluginPackage.try_load` は状態文字列を返し、`Plugin.ensure_loaded` は失敗時に例外を送出する。成功保証の違いを隠さない。
+- `get_visibility/set_visibility` は自身のvisibility属性だけを扱い、階層や表示レイヤーを含む最終可視性と区別する。

@@ -66,7 +66,7 @@ def run(dialog=True):
     Returns:
         str: ``hlib.general`` の ``LOADED``・``SKIPPED``・``MISSING``・``OUTDATED``・``LOAD_FAILED``。
     """
-    result = package().ensure_loaded(dialog=dialog)
+    result = package().try_load(dialog=dialog)
     if result == "loaded":
         from hlib.utils import logger
 

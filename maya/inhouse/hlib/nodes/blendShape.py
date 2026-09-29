@@ -13,7 +13,7 @@ from .node import Node
 class BlendShape(Node):
     """Maya の blendShape ラッパー。ターゲットの追加とウェイト操作を提供する。"""
 
-    def targets(self):
+    def target_aliases(self):
         """ターゲット名を weight 配列の並び順で取得する。
 
         Returns:
@@ -26,15 +26,15 @@ class BlendShape(Node):
         """ターゲットのウェイトプラグを取得する。
 
         Returns:
-            list[Plug]: targets() と同じ順序のプラグ。set() で値を変更できる。
+            list[Plug]: target_aliases() と同じ順序のプラグ。set() で値を変更できる。
         """
         return [plug for _, plug in self.aliases()]
 
-    def weights(self):
+    def get_weights(self):
         """ターゲットの現在のウェイトを取得する。
 
         Returns:
-            list[float]: targets() と同じ順序の値。
+            list[float]: target_aliases() と同じ順序の値。
         """
         return [plug.get() for plug in self.weight_plugs()]
 
@@ -58,7 +58,7 @@ class BlendShape(Node):
                 変形対象の base geometry(target と同じ規則で所有ノードへ解決する)。
                 省略時は geometry() の先頭を使う。
             weight_index (int | None): 使用する weight 配列インデックス。省略時は
-                空いている最小のインデックス(``plug("weight").next_available()``)
+                空いている最小のインデックス(``plug("weight").next_available_index()``)
                 を自動で使う。
             full_weight (float): このターゲットが完全に効いた状態(既定 1.0)の
                 weight 値。
@@ -81,7 +81,7 @@ class BlendShape(Node):
         else:
             base_name = to_node_name(base)
         if weight_index is None:
-            weight_index = self.plug("weight").next_available()
+            weight_index = self.plug("weight").next_available_index()
         cmds.blendShape(
             self.name(), edit=True,
             target=(base_name, weight_index, target_name, full_weight),

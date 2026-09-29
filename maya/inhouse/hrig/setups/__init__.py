@@ -3,6 +3,7 @@
 from .bendCorrection import BendCorrection
 from .controlShape import ControlShape
 from .lengthCompensation import LengthCompensation
+from .matrixFollow import MatrixFollow
 from .poseRbf import PoseRbf
 from .radialWeights import RadialWeights
 from .rotationFollow import RotationFollow
@@ -16,6 +17,7 @@ __all__ = [
     "BendCorrection",
     "ControlShape",
     "LengthCompensation",
+    "MatrixFollow",
     "PoseRbf",
     "RadialWeights",
     "RotationFollow",

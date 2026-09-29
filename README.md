@@ -4,7 +4,7 @@
 - 標準環境へ影響を与えない構成にすることで、環境起因の問題切り分けを行いやすくしています。
 - https://github.com/Hsk0120/MayaHToolsWorkspace
 
-## ▼hlib ドキュメント
+## ▼ドキュメント
 
 [hlib Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/)
 
@@ -13,6 +13,11 @@ hlibの導入方法・使用例・APIリファレンスを閲覧できます。�
 [hedit Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/hedit/)
 
 heditの使い方と Preferences 各項目の説明を閲覧できます。
+
+[hrig Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/hrig/)
+
+hrigの機能仕様・テスト方法・テストシーン・計測結果を掲載します（本変更の公開後に利用可能）。
+[ソースと目次](maya/inhouse/hrig/docs/index.rst)／[ビルド手順](maya/inhouse/hrig/docs/testing.rst)
 
 ## ▼カスタム内容
 

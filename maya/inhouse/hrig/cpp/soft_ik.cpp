@@ -10,6 +10,7 @@
 #include <maya/MPlug.h>
 #include <algorithm>
 #include <cmath>
+#include "matrix_follow.h"
 
 /** @brief Bifrost版と同じ距離・softnessを入力し目標位置の倍率を出力する。 */
 class HrigSoftIK final : public MPxNode {
@@ -79,14 +80,18 @@ MObject HrigSoftIK::length;
 MObject HrigSoftIK::softness;
 MObject HrigSoftIK::ratio;
 
-/** @brief Mayaへ開発用Soft IKノードを登録する。
+/** @brief Mayaへ開発用Soft IKと行列追従ノードを登録する。
  * @param object Mayaが所有するプラグインオブジェクト。
  * @return ノード登録結果。ID衝突などのエラーはMayaへ返す。
  */
 MStatus initializePlugin(MObject object) {
     MFnPlugin plugin(object, "inhouse", "0.1.0", "Any");
-    return plugin.registerNode("hrigSoftIK", HrigSoftIK::id,
+    MStatus status = plugin.registerNode("hrigSoftIK", HrigSoftIK::id,
                                HrigSoftIK::creator, HrigSoftIK::initialize);
+    if (!status) return status;
+    status = registerMatrixFollow(plugin);
+    if (!status) plugin.deregisterNode(HrigSoftIK::id);
+    return status;
 }
 
 /** @brief プラグイン解除時に登録を外す。
@@ -95,5 +100,7 @@ MStatus initializePlugin(MObject object) {
  */
 MStatus uninitializePlugin(MObject object) {
     MFnPlugin plugin(object);
+    MStatus status = deregisterMatrixFollow(plugin);
+    if (!status) return status;
     return plugin.deregisterNode(HrigSoftIK::id);
 }

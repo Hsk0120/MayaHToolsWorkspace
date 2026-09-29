@@ -45,7 +45,7 @@ class UtilityNodesTest(unittest.TestCase):
         decompose = self.create("decomposeMatrix", "decompose")
         self.assertIsInstance(decompose, hlib.nodes.DecomposeMatrix)
         mult.connect_input(0, source.plug("matrix"))
-        decompose.connect_input(mult.output())
+        decompose.connect_input(mult.output_plug())
         cmds.setAttr(source.full_name() + ".translate", 5, 6, 7)
         self.assertEqual(tuple(decompose.output_plugs()["translate"].get()), (5, 6, 7))
         decompose.set_rotate_order("zyx")
@@ -57,12 +57,12 @@ class UtilityNodesTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             decompose.set_rotate_order("bad")
         other = self.create("multMatrix", "other")
-        decompose.connect_input(other.output(), force=True)
-        self.assertTrue(other.output().is_connected_to(decompose.plug("inputMatrix")))
+        decompose.connect_input(other.output_plug(), force=True)
+        self.assertTrue(other.output_plug().is_connected_to(decompose.plug("inputMatrix")))
         cmds.undo()
-        self.assertTrue(mult.output().is_connected_to(decompose.plug("inputMatrix")))
+        self.assertTrue(mult.output_plug().is_connected_to(decompose.plug("inputMatrix")))
         cmds.redo()
-        self.assertTrue(other.output().is_connected_to(decompose.plug("inputMatrix")))
+        self.assertTrue(other.output_plug().is_connected_to(decompose.plug("inputMatrix")))
 
     def test_decompose_constant_and_undo(self):
         source = self.create("transform", "source")

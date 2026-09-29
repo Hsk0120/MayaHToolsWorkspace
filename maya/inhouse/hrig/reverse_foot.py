@@ -27,11 +27,11 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     if any(len(point) != 3 or not all(math.isfinite(v) for v in point) for point in pivots):
         raise ValueError("Expected finite three-component pivots")
     root = rig.root.full_name()
-    if hlib.getNode(root).has_attr("footMatrix"):
+    if hlib.getNode(root).has_attribute("footMatrix"):
         raise ValueError("A reverse-foot layer already exists")
     target = rig.controls()["target"]
     for attr in ("heelRoll", "toeRoll", "ballRoll"):
-        if hlib.getNode(target).has_attr(attr):
+        if hlib.getNode(target).has_attribute(attr):
             raise ValueError("Target attribute already exists: " + attr)
     group = hlib.createNode(
         "transform", name=rig.node_name("footGroup"), parent=target, skipSelect=True
@@ -50,7 +50,7 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
         created.append(node)
         result[role] = node
         hlib.getPlug(node + ".rotatePivot").set((*pivot,))
-        hlib.getNode(target).add_attr(
+        hlib.getNode(target).add_attribute(
             long_name=role + "Roll", attribute_type="doubleAngle", keyable=True
         )
         hlib.getPlug(target + "." + role + "Roll").connect(node + ".rotateZ")
@@ -72,7 +72,7 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     created.append(layer)
     rig._bind("footSet", layer)
     rig._layer_members("moduleSet", [layer])
-    hlib.getNode(root).add_attr(long_name="hrigFootSettings", data_type="string")
+    hlib.getNode(root).add_attribute(long_name="hrigFootSettings", data_type="string")
     hlib.getPlug(root + ".hrigFootSettings").set(
         hlib.json.JsonText.dumps(dict(zip(("heel", "toe", "ball"), pivots)))
     )

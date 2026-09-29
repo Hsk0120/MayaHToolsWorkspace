@@ -103,12 +103,12 @@ class SkinWeightEditingTest(unittest.TestCase):
         self.assertEqual(self.weights(), before)
 
     def test_max_setting_preserves_weights_and_prune(self):
-        before, old_max = self.weights(), self.skin.max_influences()
+        before, old_max = self.weights(), self.skin.get_max_influences()
         self.skin.set_max_influences(2)
-        self.assertEqual(self.skin.max_influences(), 2)
+        self.assertEqual(self.skin.get_max_influences(), 2)
         self.assertEqual(self.weights(), before)
         cmds.undo()
-        self.assertEqual(self.skin.max_influences(), old_max)
+        self.assertEqual(self.skin.get_max_influences(), old_max)
         self.skin.set_max_influences(2, prune=True)
         row = self.weights()[:3]
         self.assertEqual(row[0], 0)

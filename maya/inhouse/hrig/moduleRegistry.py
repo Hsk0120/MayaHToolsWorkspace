@@ -21,15 +21,15 @@ class ModuleRegistry:
         from .splineRig import SplineRig
 
         node = hlib.getNode(root)
-        if node.has_attr("hrigControlDefinition"):
+        if node.has_attribute("hrigControlDefinition"):
             from .controlRig import ControlRig
             from .fingerRig import FingerRig
             from .aimRig import AimRig
 
             return FingerRig(node) if ControlRig(node).kind() == "finger" else AimRig(node)
-        if node.has_attr("hrigSplineDefinition"):
+        if node.has_attribute("hrigSplineDefinition"):
             return SplineRig(node)
-        return SkirtRig(node) if node.has_attr("hrigSkirtDefinition") else LimbRig(node)
+        return SkirtRig(node) if node.has_attribute("hrigSkirtDefinition") else LimbRig(node)
 
     @staticmethod
     def roots():

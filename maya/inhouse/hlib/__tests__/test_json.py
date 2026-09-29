@@ -356,13 +356,13 @@ class JsonTest(unittest.TestCase):
             cmds.showWindow(window)
             viewport, outliner = hlib.getViewport(panel), hlib.getOutliner(editor)
             saved = self.roundtrip(hlib.json.capture([viewport, outliner], kind="editor"))
-            original = viewport.settings("grid")["grid"]
+            original = viewport.get_settings("grid")["grid"]
             viewport.set_settings(grid=not original)
             self.assertTrue(saved.plan().errors)
             with self.assertRaises(NotImplementedError):
                 saved.apply()
-            self.assertEqual(viewport.settings("grid")["grid"], not original)
-            self.assertEqual(outliner.settings(), saved.records[1]["values"])
+            self.assertEqual(viewport.get_settings("grid")["grid"], not original)
+            self.assertEqual(outliner.get_settings(), saved.records[1]["values"])
         finally:
             cmds.deleteUI(window)
 

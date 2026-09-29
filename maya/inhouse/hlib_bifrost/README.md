@@ -74,3 +74,8 @@ hlibと同じ責務の区分を使います。VNN参照をMaya DGのNode/Plugと
 プラグイン判定・ロードは `general.Bifrost`。ルートの `is_available` はhlib拡張検出専用です。
 
 Soft IKの構築は `hrig.setups.bifrostSoftIK.SoftIK` へ移動しました。hlib_bifrostは基本グラフ操作・演算構築を提供し、hrigへ依存しません。
+
+`MathBuilder.matrix_multiply(ports)` は倍精度 `Math::double4x4` の行列積を追加します。
+入力順はBifrostの列ベクトル規約で、Mayaの行ベクトル規約とは逆順です。
+利用例は `hrig.setups.bifrostMatrixFollow`。この行列出力グラフは現環境で
+構築のUndo/Redoが不安定なため、hrig側ではUndo無効の専用プロセスに限定しています。

@@ -15,11 +15,11 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 
 from .._core.registry import collection_export, node_wrapper
-from .._core.collection import BulkCollection, bulk_api
+from .._core.collection import bulk_api
 from ..decorators.selection import preserved_selection
 from ..maths import easing
 from .joint import Joint
-from .node import Node
+from .node import Node, Nodes
 
 
 @node_wrapper("skinCluster")
@@ -188,12 +188,12 @@ class SkinCluster(Node):
         return om2.MIntArray([self._jnt_index(joint) for joint in joints])
 
     def influences(self):
-        """influence joint名のリストを取得する。
+        """influenceのDAGパスを保持するノードラッパーを取得する。
 
         Returns:
-            list[str]: influence joint名のリスト。
+            list[Node]: Mayaのinfluence順のラッパー。Joint以外も型を維持する。
         """
-        return [path.partialPathName() for path in self.fn.influenceObjects()]
+        return [Node(path) for path in self.fn.influenceObjects()]
 
     @undo_chunk("hlibSkinClusterAddInfluences")
     def add_influences(self, joints):
@@ -418,7 +418,7 @@ class SkinCluster(Node):
         Returns:
             None: 値を返さない。
         """
-        influences = self.influences()
+        influences = [node.name() for node in self.influences()]
         _, vertex_count = self._all_verts()
         payload = {
             "influences": influences,
@@ -460,7 +460,7 @@ class SkinCluster(Node):
                 f"the current mesh vertex count ({vertex_count})"
             )
         influences = payload["influences"]
-        current_influences = set(self.influences())
+        current_influences = {node.name() for node in self.influences()}
         missing = [name for name in influences if name not in current_influences]
         if missing:
             raise ValueError(f"Influences missing from this skinCluster: {missing}")
@@ -628,7 +628,7 @@ class SkinCluster(Node):
     def _editable_weights(self):
         """先頭meshの全influence値を取得し、ロック・接続・レイヤーを拒否する。"""
         self._raise_if_layers()
-        names = self.influences()
+        names = [node.name() for node in self.influences()]
         if not names:
             raise ValueError("No influences")
         for name in names:
@@ -700,7 +700,7 @@ class SkinCluster(Node):
         self.set_weights(names, values)
         return self
 
-    def max_influences(self):
+    def get_max_influences(self):
         """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
         return cmds.getAttr(self.full_name() + ".maxInfluences")
 
@@ -770,22 +770,10 @@ class SkinCluster(Node):
 
 @collection_export()
 @bulk_api(SkinCluster, per_item_only=("dump_weights", "load_weights"))
-class SkinClusters(BulkCollection):
+class SkinClusters(Nodes):
     """重複を除き、保持順にSkinClusterを操作するコレクション。"""
 
-    def __init__(self, names=()):
-        """Iterable[str | SkinCluster]からコレクションを構築する。"""
-        self._items = []
-        seen = set()
-        for item in names:
-            skin = item if isinstance(item, SkinCluster) else SkinCluster(item)
-            if skin.name() not in seen:
-                seen.add(skin.name())
-                self._items.append(skin)
-
-    def __iter__(self):
-        """Iterator[SkinCluster]: 保持順のスキンクラスター。"""
-        return iter(self._items)
+    item_class = SkinCluster
 
     @undo_chunk("hlibSkinClustersRemoveInfluences")
     def remove_influences(self, joints, transfer_to_parent=True):

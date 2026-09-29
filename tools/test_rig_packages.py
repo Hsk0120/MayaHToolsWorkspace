@@ -18,7 +18,7 @@ def main():
         各テストは新規シーンへ切り替える。Maya GUI内へ送信しない。
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--suite',choices=('all','hlib','setups','bifrost','native','standard'),default='all')
+    parser.add_argument('--suite',choices=('all','hlib','setups','bifrost','native','standard','matrix-plugins'),default='all')
     args = parser.parse_args()
     sys.path.insert(0,str(ROOT/'maya/inhouse'))
     import maya.standalone
@@ -26,6 +26,8 @@ def main():
     maya.standalone.initialize(name='python')
     try:
         files=[]
+        if args.suite in ('all','matrix-plugins'):
+            files.append('hrig/__tests__/test_setup_matrix_backends.py')
         if args.suite in ('all','hlib'):
             from maya import cmds
             # 2022のこの環境ではFBX .modがない。テストプロセスだけ絶対パスでロードする。
@@ -35,6 +37,7 @@ def main():
             files += ['hlib/__tests__/'+name+'.py' for name in (
                 'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events')]
         if args.suite in ('all','setups'):
+            files.append('hrig/__tests__/test_setup_matrix_follow.py')
             files += ['hrig/__tests__/test_setup_'+name+'.py' for name in ('space_switch', 'twist_distribution', 'bend_correction', 'swing_twist', 'radial_weights', 'rotation_follow', 'secondary', 'spline_ik', 'length_compensation', 'pose_edit', 'rig_foundations')]
         if args.suite in ('all','bifrost','native','standard'):
             files.append('hrig/__tests__/test_definition.py')

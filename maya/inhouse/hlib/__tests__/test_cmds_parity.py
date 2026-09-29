@@ -83,11 +83,11 @@ class NodeAliasesParityTest(unittest.TestCase):
         cmds.aliasAttr("hlibParityAliasTy", self.node.plug("translateY").full_name())
 
         # cmds.aliasAttr(query=True) はフラットな [alias1, longName1, alias2, longName2, ...]
-        # を返す。longName は Plug.attribute(ロング名)と直接比較できる。
+        # を返す。longName は Plug.attribute_name(ロング名)と直接比較できる。
         raw = cmds.aliasAttr(self.node.name(), query=True) or []
         expected = {(raw[index], raw[index + 1]) for index in range(0, len(raw), 2)}
 
-        actual = {(alias, plug.attribute()) for alias, plug in self.node.aliases()}
+        actual = {(alias, plug.attribute_name()) for alias, plug in self.node.aliases()}
         self.assertEqual(actual, expected)
 
     def test_aliases_empty_matches_cmds_when_no_alias_set(self):
@@ -202,7 +202,7 @@ class NamespaceParityTest(unittest.TestCase):
         ) or []
         expected = {name if name.startswith(":") else f"{self.root_name}:{name}" for name in expected_raw}
 
-        actual = {child.name() for child in Namespace(self.root_name).children()}
+        actual = {child.name for child in Namespace(self.root_name).children()}
         self.assertEqual(actual, expected)
 
     def test_nodes_matches_cmds_namespaceInfo_listOnlyDependencyNodes(self):

@@ -149,7 +149,7 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
    node = hlib.createNode("transform")
    print(node.name(), node.full_name(), node.is_locked())
    plug = node.plug("translateX")
-   print(plug.name(), plug.attribute(), plug.is_locked())
+   print(plug.name(), plug.attribute_name(), plug.is_locked())
    print(plug.node)  # 保持している所有Node。プロパティのまま。
 
 ``Component.shape`` / ``index``、``Components.shape`` / ``indices``、
@@ -192,7 +192,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 * ``MatrixPlug.get()`` / ``set(value, fast=False)`` は対象属性だけを読み書きします。
   所有ノードの変換には ``Transform.get_matrix()`` / ``set_matrix()`` を使います。
   ``MatrixPlug`` の ``ws`` 引数と ``set_value`` は廃止しました。
-* 表示は ``Transform.set_visible(state, fast=False)``、ミュートは
+* 表示は ``Transform.set_visibility(state, fast=False)``、ミュートは
   ``Plug.set_muted(state)`` で切り替えます。
 * 選択の反映は ``Selection.select(mode="replace", missing="skip")``。
   ``mode`` は ``replace`` / ``add`` / ``remove`` です。
@@ -223,7 +223,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 * ``set_locked`` / ``set_keyable`` / ``set_channel_box`` は、それぞれ
   ``set_flags(locked=...)`` / ``set_flags(keyable=...)`` / ``set_flags(channel_box=...)``
   へ統一しました。同時指定もでき、全フラグを検証してから更新します。
-* ``Joint.orientation()`` は廃止し ``joint_orient()`` を使います。
+* ``Joint.orientation()`` は廃止し ``get_joint_orient()`` を使います。
 * ``Joint.remove_influence(..., transfer_to_parent=False)`` で祖先への移送を無効化できます。
   Jointを残してMaya標準の再配分で登録を外します。既定Trueの動作は変わりません。
 * Plugin/Moduleの ``version_tuple()`` は廃止しました。
@@ -275,3 +275,121 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 有効形式は ``.mode`` で取得します。詳細は :doc:`node_colors` を参照してください。
 ``BlendColors.color()`` は ``color_plug()`` に変更し、
 数値の取得には ``get_color(index)`` を追加しました。
+
+ノードコレクションの継承と色の戻り値
+----------------------------------------
+
+``Nodes`` / ``Transforms`` を追加し、``Joints`` は ``Transforms``、
+``SkinClusters`` は ``Nodes`` の派生に変更しました。
+``Joints`` の構築時に非jointを黙って除外せず ``TypeError`` にします。
+重複判定は同一ノード・同一DAGパスに統一し、異なるインスタンスパスを保持します。
+
+複数形の ``get_override_color()`` / ``get_outliner_color()`` は
+``list[Color]`` から ``Colors`` に変わりました。
+複数形の色setterの戻り値は各結果のリストからコレクション自身へ変わりました。
+他の通常一括メソッドの戻り値や ``hlib.ls()`` の返却規則は維持しています。
+使用例は :doc:`guide_nodes` と :doc:`node_colors` を参照してください。
+
+
+取得値と参照の命名統一
+----------------------
+
+値の取得と設定は ``get_*`` / ``set_*``、接続用Plugの取得は ``*_plug()``
+に統一しました。旧メソッド名の互換別名はありません。
+
+* TimeSlider: ``get_current_time()``、``get_playback_range()``、
+  ``get_animation_range()``、``get_selected_range()``。
+* Units: ``get_linear()``、``get_angle()``、``get_time()``。
+* Viewport / Outliner: ``get_settings()``。
+* Workspace: ``get_rule()``、ルール名一覧は ``rule_names()``。
+* SkinCluster: ``get_max_influences()``。
+* Joint: ``get_joint_orient()``、``get_inverse_scale()``。
+* Camera: ``get_focal_length()``。Mesh: ``get_points()``、``get_normals()``。
+  NurbsCurve: ``get_cv_positions()``。
+* Constraint / BlendShape / BlendWeighted: ``get_weights()``。
+  既存のリスト・辞書などの戻り値形式は維持します。
+* BlendColors: ``blender_plug()`` はPlug、``get_blender()`` は係数の値。
+* AnimCurve / BlendColors / BlendWeighted / MultMatrix / DistanceBetween:
+  出力Plugは ``output_plug()``。
+* Shape / Transform: Maya APIの関数セット取得は ``dag_fn()``。
+* Plug: 属性名の文字列は ``attribute_name()``。
+* Namespace / UiElement: 保持する名前は ``name`` プロパティ。
+  Mayaへ照会する ``Node.name()`` やUIを解決する ``TimeSlider.name()`` はメソッドです。
+
+
+参照対象と入力契約の整理
+------------------------
+
+以下は旧名を残さない変更です。保存済みウェイトJSONの形式は維持します。
+
+.. list-table:: メソッドの移行
+   :header-rows: 1
+   :widths: 45 55
+
+   * - 旧API
+     - 新API
+   * - ``BlendShape.targets()``
+     - ``target_aliases()`` （文字列の一覧）
+   * - ``ArrayPlug.next_available()``
+     - ``next_available_index()`` （未存在の論理番号）
+   * - ``AnimCurve.driver()`` / ``DrivenKey.driver()``
+     - ``driver_plug()``
+   * - ``DrivenKey.driven()``
+     - ``driven_plug()``
+   * - ``Reference.edit_nodes()`` / ``edit_attrs()``
+     - ``edit_node_names()`` / ``edit_attribute_names()``
+   * - ``Reference.namespace()`` （参照内容の照会）
+     - ``associated_namespace()``
+   * - ``Reference.is_root()`` （参照階層の判定）
+     - ``is_top_level()``
+   * - ``PluginPackage.ensure_loaded()``
+     - ``try_load()`` （状態文字列を返す）
+   * - ``Node.add_attr()`` / ``has_attr()``
+     - ``add_attribute()`` / ``has_attribute()``
+   * - ``Node.reset_attrs()`` / ``set_attr_flags()``
+     - ``reset_attributes()`` / ``set_attribute_flags()``
+   * - ``Plug.delete_attr()``
+     - ``delete_attribute()``
+   * - ``Node.move_attribute()``
+     - ``move_attribute_order()`` （Channel Boxの並び順変更）
+   * - ``Transform.set_visible()``
+     - ``set_visibility()`` （自身のvisibility属性だけを変更）
+   * - ``Container.create_node(kind=...)``
+     - ``create_node(type=...)``
+
+``Reference.namespace()`` と ``set_namespace()`` は、継承元Nodeと同じく
+referenceノード自身の名前空間を扱います。参照内容の名前空間を取得する場合は
+``associated_namespace()`` を使います。Referenceは非DAGノードなので、
+継承した ``is_root()`` はRuntimeErrorとなります。
+
+``SkinCluster.influences()`` は文字列ではなく ``list[Node]`` を返します。
+名前が必要な場合は ``[node.name() for node in skin.influences()]`` を使います。
+``unused_influences()`` と同じ要素型になり、Joint以外のinfluenceも保持します。
+``dump_weights()`` / ``load_weights()`` のJSON内の名前は引き続き文字列です。
+
+入力・ウェイトの個別取得
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``MultMatrix.get_input(index)`` / ``BlendWeighted.get_input(index)`` は
+既存入力の評価値を返します。``input_plug(index)`` は同じ入力のPlugです。
+未存在要素の照会はIndexErrorで、要素を作成しません。
+``BlendWeighted.get_weight(index)`` は既存inputに対応する倍率を返し、
+weight未設定時は要素を作らず1を返します。
+``Constraint.get_weight(target)`` は指定ターゲットの値を返します。
+
+``DecomposeMatrix.get_input()`` / ``input_plug()`` は単一行列入力を扱い、
+``get_rotate_order()`` はMayaの回転順序番号0〜5を返します。
+``Transform.get_visibility()`` は自身の属性値を返します。
+親・表示レイヤーを含む最終的な可視性判定ではありません。
+
+成分別編集とメンバー入力
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+頂点・CVの ``get_x/get_y/get_z`` と ``set_x/set_y/set_z`` は ``ws`` を受け取り、
+軸setterは ``fast`` にも対応して自身を返します。複数形ではスカラーを全要素へ、
+数値列を保持順の各要素へ設定します。UVの ``set_u/set_v`` も ``fast`` と自身返却に対応しますが、
+UVへ空間指定 ``ws`` は追加しません。通常更新はUndo可能、``fast=True`` はUndo不要の明示指定です。
+
+``Container`` / ``DagPose`` のメンバー追加と、DagPoseの除外は可変長入力とリスト入力に対応します。
+例えば ``pose.add_members(a, b)`` と ``pose.add_members([a, b])`` は同じです。
+DagPoseは従来どおり空入力を拒否します。Containerのメンバー除外APIは追加していません。

@@ -26,7 +26,11 @@
        文字・アイコン・余白・幅を Maya のインターフェースの拡大率(\ ``MQtUtil::dpiScale``\ )に合わせ、
        4K 画面などで標準スクリプトエディターと同じ大きさで表示するようにした(アイコンは ``MQtUtil::createIcon``\ )。
        前回ドックが保存された直後の ``hedit -show`` でのクラッシュと、プラグイン未ロードのまま Maya がフロートの
-       ドックを閉じたときの ``Cannot find procedure "hedit"`` を修正
+       ドックを閉じたときの ``Cannot find procedure "hedit"`` を修正。
+       C++ を読みやすい構成に整理(``src/core``\ ・\ ``src/editor``\ ・\ ``src/plugin`` に分け、部品ごとのファイルに分割)。
+       同梱の Python を ``src/python`` の ``.py`` として編集し、ビルド時に ``hedit.mll`` へ入れるようにした。
+       版の定義を ``src/version.h`` の 1 か所にまとめた。操作や保存形式は変えていない。
+       Edit → Preferences → Reset to defaults… を追加し、設定と文字サイズを確認のうえ初期値へ戻せるようにした
    * - 0.2.9
      - Maya メインスレッドのログ通知を、タイマーを待たず最大約 40 fps で反映
    * - 0.2.7

@@ -63,3 +63,21 @@ class MathBuilder:
         for key, val in (("value", value), ("min", low), ("max", high)):
             self.feed(val, node.port(key))
         return node.port("clamped")
+
+    @undo_transaction("hlib_bifrost.MathBuilder.matrix_multiply")
+    def matrix_multiply(self, values):
+        """列ベクトル規約の順序で倍精度行列を乗算する。
+
+        Args:
+            values (Sequence[Port]): 左から右の乗算順。Mayaの行列積とは逆順。
+
+        Returns:
+            Port: double4x4の積。
+        """
+        values = tuple(values)
+        if not values or any(not isinstance(value, Port) for value in values):
+            raise ValueError("matrix_multiply requires one or more Port inputs")
+        node = self.compound.add_node("BifrostGraph,Core::Math,matrix_multiply")
+        for index, value in enumerate(values):
+            value.connect(node.add_port("v" + str(index), "Math::double4x4"))
+        return node.port("matrix")

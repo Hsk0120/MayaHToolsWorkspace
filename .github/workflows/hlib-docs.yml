@@ -6,6 +6,7 @@ on:
     paths:
       - 'maya/inhouse/hlib/**'
       - 'maya/inhouse/hedit/docs/**'
+      - 'maya/inhouse/hrig/docs/**'
       - '.github/workflows/hlib-docs.yml'
       - 'tools/check_hlib_docs.py'
       - 'tools/docs-browser-requirements.txt'
@@ -53,6 +54,10 @@ jobs:
         run: |
           python -m pip install -r maya/inhouse/hedit/docs/requirements.txt
           python -m sphinx -E -a -b html -W --keep-going maya/inhouse/hedit/docs maya/inhouse/hlib/docs/_build/html/hedit
+      - name: Build hrig documentation into the published site
+        run: |
+          python -m pip install -r maya/inhouse/hrig/docs/requirements.txt
+          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/hrig/docs maya/inhouse/hlib/docs/_build/html/hrig
       - uses: actions/upload-pages-artifact@v3
         with:
           path: maya/inhouse/hlib/docs/_build/html

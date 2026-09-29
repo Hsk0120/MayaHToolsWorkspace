@@ -40,7 +40,7 @@ class TimeSlider:
             raise ValueError("Time must be finite")
         return value
 
-    def current_time(self):
+    def get_current_time(self):
         """float: 現在の時刻を返す。"""
         return float(cmds.currentTime(query=True))
 
@@ -56,12 +56,12 @@ class TimeSlider:
         """
         cmds.currentTime(self._time(value), edit=True, update=update)
 
-    def playback_range(self):
+    def get_playback_range(self):
         """tuple[float, float]: 再生の開始・終了時刻。両端を含む。"""
         return (float(cmds.playbackOptions(query=True, minTime=True)),
                 float(cmds.playbackOptions(query=True, maxTime=True)))
 
-    def animation_range(self):
+    def get_animation_range(self):
         """tuple[float, float]: アニメーション全体の開始・終了時刻。両端を含む。"""
         return (float(cmds.playbackOptions(query=True, animationStartTime=True)),
                 float(cmds.playbackOptions(query=True, animationEndTime=True)))
@@ -79,7 +79,7 @@ class TimeSlider:
             raise ValueError("Range start must not exceed end")
         if start_flag == "minTime":
             # 自動拡張されたanimation範囲は標準Undoで戻らないため明示的に記録する。
-            animation_start, animation_end = self.animation_range()
+            animation_start, animation_end = self.get_animation_range()
             expanded = (min(animation_start, start), max(animation_end, end))
             if expanded != (animation_start, animation_end):
                 cmds.playbackOptions(animationStartTime=expanded[0], animationEndTime=expanded[1])
@@ -117,7 +117,7 @@ class TimeSlider:
         """
         self._set_range(start, end, "animationStartTime", "animationEndTime")
 
-    def selected_range(self):
+    def get_selected_range(self):
         """タイムスライダー上の選択範囲を取得する。
 
         Returns:
@@ -156,7 +156,7 @@ class TimeSlider:
         Yields:
             TimeSlider: このインスタンス。
         """
-        previous = self.current_time()
+        previous = self.get_current_time()
         try:
             yield self
         finally:

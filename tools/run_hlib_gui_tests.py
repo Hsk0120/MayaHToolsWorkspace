@@ -142,11 +142,11 @@ def main(output_dir=None, finished=None):
             def test_editor_snapshot_read_only(self):
                 saved = hlib.json.loads(hlib.json.dumps(hlib.json.capture(
                     [hlib.getViewport(panel), hlib.getOutliner(editor)], kind="editor")))
-                before = hlib.getViewport(panel).settings()
+                before = hlib.getViewport(panel).get_settings()
                 self.assertTrue(saved.plan().errors)
                 with self.assertRaises(NotImplementedError):
                     saved.apply()
-                self.assertEqual(hlib.getViewport(panel).settings(), before)
+                self.assertEqual(hlib.getViewport(panel).get_settings(), before)
 
             def test_colors_disable_undo_redo(self):
                 for node, override, rgb in zip(curves, (13, (0, .75, 1), (1, .4, 0)),
@@ -172,7 +172,7 @@ def main(output_dir=None, finished=None):
             def test_visibility_and_component_selection(self):
                 view = hlib.getViewport(panel)
                 with view.temporary_settings(nurbsCurves=False):
-                    self.assertFalse(view.settings("nurbsCurves")["nurbsCurves"])
+                    self.assertFalse(view.get_settings("nurbsCurves")["nurbsCurves"])
                     capture("curves_hidden")
                 capture("curves_restored")
                 cmds.select(curves[0].full_name() + ".cv[0:2]", replace=True)

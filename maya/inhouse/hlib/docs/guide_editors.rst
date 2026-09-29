@@ -15,11 +15,11 @@
     hlib.reload()
 
     slider = hlib.getTimeSlider()  # hlib.general.TimeSlider
-    print(slider.current_time(), slider.playback_range())
+    print(slider.get_current_time(), slider.get_playback_range())
     slider.set_playback_range(1, 120)
     with slider.preserve_time():
         slider.set_current_time(24)
-    print(slider.selected_range())  # 未選択はNone。選択範囲の終端は含まない
+    print(slider.get_selected_range())  # 未選択はNone。選択範囲の終端は含まない
 
     view = hlib.getViewport()  # hlib.general.Viewport
     print(view.panel, view.camera())
@@ -39,7 +39,7 @@
 元から非表示の場合は非表示へ戻り、ネストと例外にも対応します。
 手動切替には ``Viewport.set_enabled(False/True)``、照会には ``is_enabled()`` を使います。
 
-表示設定はMayaの長いフラグ名で指定します。``settings()`` は対応する表示設定のみを
+表示設定はMayaの長いフラグ名で指定します。``get_settings()`` は対応する表示設定のみを
 返し、UI全体やカメラ・階層展開状態は保存しません。
 対象を明示する場合は ``hlib.getViewport("modelPanel4")``、
 ``hlib.getOutliner("outlinerPanel1")`` のように指定します。UIの自動作成は行いません。

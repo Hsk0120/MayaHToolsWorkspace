@@ -11,9 +11,9 @@ import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
 from .._core.registry import collection_export, node_wrapper
-from .._core.collection import BulkCollection, bulk_api
+from .._core.collection import bulk_api
 from ..maths import EulerRotation, Matrix, Scale
-from .transform import Transform, _closest_euler
+from .transform import Transform, Transforms, _closest_euler
 
 
 @node_wrapper("joint")
@@ -23,7 +23,7 @@ class Joint(Transform):
     Joint 固有の orientation、親子探索、skinCluster 連携を提供する。
     """
 
-    def joint_orient(self):
+    def get_joint_orient(self):
         """jointOrient 属性を EulerRotation として取得する。
 
         Returns:
@@ -222,7 +222,7 @@ class Joint(Transform):
         super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
 
 
-    def inverse_scale(self):
+    def get_inverse_scale(self):
         """inverseScale 属性を意味付き Scale として取得する。
 
         Returns:
@@ -304,6 +304,7 @@ class Joint(Transform):
 
         Joints.delete()と同じ処理を使う。同じskinClusterの最も近い祖先
         influenceがある場合だけ加算し、なければMaya標準の削除に任せる。
+        同じjointの複数インスタンスパスはノード単位で一度だけ処理する。
         未スキニングjointも削除する。子Transformは直接の親へ、親がなければ
         ワールドへ移す。全体は一回のUndoにまとまり、途中失敗は例外で通知する。
         完了済みの変更は自動ロールバックしない。
@@ -510,34 +511,10 @@ class Joint(Transform):
 
 @collection_export()
 @bulk_api(Joint)
-class Joints(BulkCollection):
-    """UUID で重複を除いた Joint ラッパーのコレクション。"""
+class Joints(Transforms):
+    """Joint参照を保持するTransforms派生。型・重複規則はNodesに従う。"""
 
-    def __init__(self, names=()):
-        """joint 名または Joint のシーケンスから重複なしコレクションを作成する。
-
-        Args:
-            names (Iterable[str | Joint]): ノード名または Joint。UUID の重複と有効な joint でないラッパーを除外する。
-
-        Returns:
-            None: 値を返さない。
-        """
-        self._items = []
-        seen = set()
-        for item in names:
-            joint = item if isinstance(item, Joint) else Joint(item)
-            if not joint.is_joint() or joint.uuid() in seen:
-                continue
-            seen.add(joint.uuid())
-            self._items.append(joint)
-
-    def names(self):
-        """コレクション内の joint 名を取得する。
-
-        Returns:
-            list[str]: joint 名のリスト。
-        """
-        return [joint.name() for joint in self._items]
+    item_class = Joint
 
     def sorted_by_depth(self):
         """深い joint から順に並べた新しいコレクションを返す。
@@ -623,6 +600,7 @@ class Joints(BulkCollection):
     def delete(self):
         """ウェイト移送後にコレクション内の joint を削除する。
 
+        同じjointの複数インスタンスパスはノード単位で一度だけ処理する。
         未スキニングjointも削除する。子Transform（jointを含む）は親へ移し、
         親がない場合はワールドへ移す。同じskinClusterの祖先influenceがあれば加算し、
         移送先がない場合のウェイト処理はMaya標準のcmds.deleteに任せる。

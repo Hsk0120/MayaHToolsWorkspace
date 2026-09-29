@@ -68,7 +68,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(Namespace(missing_namespace).exists())
         self.assertEqual(transform.namespace(), Namespace(missing_namespace))
 
-        plug = transform.add_attr(
+        plug = transform.add_attribute(
             "hlibNodeApiValue",
             attribute_type="double",
             default_value=1.5,
@@ -370,11 +370,11 @@ class NodeApiTest(unittest.TestCase):
         plug = transform.plug("hlibDeleteMe")
 
         self.assertTrue(cmds.attributeQuery("hlibDeleteMe", node=transform.name(), exists=True))
-        plug.delete_attr()
+        plug.delete_attribute()
         self.assertFalse(cmds.attributeQuery("hlibDeleteMe", node=transform.name(), exists=True))
 
         with self.assertRaises(RuntimeError):
-            transform.plug("translateX").delete_attr()
+            transform.plug("translateX").delete_attribute()
 
     def test_plug_delete_attr_force_unlocks_before_deleting(self):
         transform = self.create_transform("hlibNodeApiDeleteAttrForce")
@@ -383,17 +383,17 @@ class NodeApiTest(unittest.TestCase):
         plug.set_flags(locked=True)
 
         with self.assertRaises(RuntimeError):
-            plug.delete_attr()
+            plug.delete_attribute()
         self.assertTrue(cmds.attributeQuery("hlibLockedDelete", node=transform.name(), exists=True))
 
-        plug.delete_attr(force=True)
+        plug.delete_attribute(force=True)
         self.assertFalse(cmds.attributeQuery("hlibLockedDelete", node=transform.name(), exists=True))
 
     def test_node_plugs_enumerates_attributes_as_plug_objects(self):
         transform = self.create_transform("hlibNodeApiPlugs")
 
         plugs = transform.plugs()
-        self.assertIn("translateX", {plug.attribute() for plug in plugs})
+        self.assertIn("translateX", {plug.attribute_name() for plug in plugs})
         self.assertTrue(all(hasattr(plug, "get") for plug in plugs))
         # listAttr が報告する名前の一部（未確保の要素を持つ配列複合属性の子など）は
         # 実際には評価できず黙ってスキップされるため、件数は必ずしも一致しない。
@@ -401,7 +401,7 @@ class NodeApiTest(unittest.TestCase):
 
         keyable_names = set(cmds.listAttr(transform.name(), keyable=True) or [])
         keyable_plugs = transform.plugs(keyable=True)
-        self.assertEqual({plug.attribute() for plug in keyable_plugs}, keyable_names)
+        self.assertEqual({plug.attribute_name() for plug in keyable_plugs}, keyable_names)
 
     def test_node_aliases_returns_alias_plug_pairs(self):
         transform = self.create_transform("hlibNodeApiAliases")
@@ -523,14 +523,14 @@ class NodeApiTest(unittest.TestCase):
         target = self.create_transform("hlibNodeApiArrayNextAvailTarget")
         array_plug = target.plug("worldMatrix")
 
-        self.assertEqual(array_plug.next_available(), 0)
+        self.assertEqual(array_plug.next_available_index(), 0)
 
         array_plug.element(0, create=True)
-        self.assertEqual(array_plug.next_available(), 1)
-        self.assertEqual(array_plug.next_available(start=5), 5)
+        self.assertEqual(array_plug.next_available_index(), 1)
+        self.assertEqual(array_plug.next_available_index(start=5), 5)
 
         element = array_plug.add_element()
-        self.assertEqual(element.attribute(), "worldMatrix")
+        self.assertEqual(element.attribute_name(), "worldMatrix")
         self.assertTrue(element.full_name().endswith("[1]"))
 
         array_plug.remove_element(1)
@@ -542,11 +542,11 @@ class NodeApiTest(unittest.TestCase):
     def test_transform_show_hide(self):
         transform = self.create_transform("hlibNodeApiShowHide")
 
-        result = transform.set_visible(False)
+        result = transform.set_visibility(False)
         self.assertIs(result, transform)
         self.assertFalse(transform.plug("visibility").get())
 
-        transform.set_visible(True)
+        transform.set_visibility(True)
         self.assertTrue(transform.plug("visibility").get())
 
     def test_transform_make_identity_freezes_transform(self):
@@ -604,8 +604,8 @@ class NodeApiTest(unittest.TestCase):
         transform = self.create_transform("hlibNodeApiValidity")
         self.assertTrue(transform.is_valid())
         self.assertTrue(transform.is_alive())
-        self.assertTrue(transform.has_attr("translateX"))
-        self.assertFalse(transform.has_attr("hlibNoSuchAttr"))
+        self.assertTrue(transform.has_attribute("translateX"))
+        self.assertFalse(transform.has_attribute("hlibNoSuchAttr"))
 
         cmds.delete(transform.name())
         self.assertFalse(transform.is_valid())
@@ -939,28 +939,28 @@ class NodeApiTest(unittest.TestCase):
 
     def test_user_attribute_names_excludes_compound_children(self):
         node = self.create_transform("hlibNodeApiUserAttrNames")
-        node.add_attr("attrA", attribute_type="double", default_value=0.0)
+        node.add_attribute("attrA", attribute_type="double", default_value=0.0)
         cmds.addAttr(node.full_name(), longName="attrCompound", attributeType="double3")
         cmds.addAttr(node.full_name(), longName="attrCompoundX", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.full_name(), longName="attrCompoundY", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.full_name(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
-        node.add_attr("attrB", attribute_type="double", default_value=0.0)
+        node.add_attribute("attrB", attribute_type="double", default_value=0.0)
 
         self.assertEqual(node.user_attribute_names(), ["attrA", "attrCompound", "attrB"])
 
     def test_move_attribute_reorders_and_preserves_state_and_connections(self):
         node = self.create_transform("hlibNodeApiMoveAttrNode")
         source = self.create_transform("hlibNodeApiMoveAttrSource")
-        node.add_attr("attrA", attribute_type="double", default_value=1.0, keyable=True)
-        node.add_attr("attrB", attribute_type="double", default_value=2.0, keyable=True)
-        node.add_attr("attrC", attribute_type="double", default_value=3.0, keyable=True)
+        node.add_attribute("attrA", attribute_type="double", default_value=1.0, keyable=True)
+        node.add_attribute("attrB", attribute_type="double", default_value=2.0, keyable=True)
+        node.add_attribute("attrC", attribute_type="double", default_value=3.0, keyable=True)
         node.plug("attrB").set(5.0)
         node.plug("attrB").set_flags(locked=True)
         source.plug("translateX").set(7.0)
         source.plug("translateX").connect(node.plug("attrC"))
         self.assertEqual(node.user_attribute_names(), ["attrA", "attrB", "attrC"])
 
-        result = node.move_attribute("attrC", -2)
+        result = node.move_attribute_order("attrC", -2)
 
         self.assertIs(result, node)
         self.assertEqual(node.user_attribute_names(), ["attrC", "attrA", "attrB"])
@@ -975,13 +975,13 @@ class NodeApiTest(unittest.TestCase):
 
     def test_move_attribute_supports_enum_and_string_attributes(self):
         node = self.create_transform("hlibNodeApiMoveAttrEnumString")
-        node.add_attr("attrA", attribute_type="double", default_value=0.0)
-        node.add_attr("attrMode", attribute_type="enum", enumName="Off:On:Auto", default_value=1)
-        node.add_attr("attrLabel", data_type="string")
+        node.add_attribute("attrA", attribute_type="double", default_value=0.0)
+        node.add_attribute("attrMode", attribute_type="enum", enumName="Off:On:Auto", default_value=1)
+        node.add_attribute("attrLabel", data_type="string")
         node.plug("attrMode").set(2)
         node.plug("attrLabel").set("hello world")
 
-        node.move_attribute("attrMode", 1)
+        node.move_attribute_order("attrMode", 1)
 
         self.assertEqual(node.user_attribute_names(), ["attrA", "attrLabel", "attrMode"])
         self.assertEqual(node.plug("attrMode").get(), 2)
@@ -990,33 +990,33 @@ class NodeApiTest(unittest.TestCase):
 
     def test_move_attribute_offset_clamps_and_is_a_noop_within_bounds(self):
         node = self.create_transform("hlibNodeApiMoveAttrClamp")
-        node.add_attr("attrA", attribute_type="double", default_value=0.0)
-        node.add_attr("attrB", attribute_type="double", default_value=0.0)
+        node.add_attribute("attrA", attribute_type="double", default_value=0.0)
+        node.add_attribute("attrB", attribute_type="double", default_value=0.0)
 
-        result = node.move_attribute("attrA", 0)
+        result = node.move_attribute_order("attrA", 0)
         self.assertIs(result, node)
         self.assertEqual(node.user_attribute_names(), ["attrA", "attrB"])
 
-        node.move_attribute("attrA", 100)
+        node.move_attribute_order("attrA", 100)
         self.assertEqual(node.user_attribute_names(), ["attrB", "attrA"])
 
-        node.move_attribute("attrA", -100)
+        node.move_attribute_order("attrA", -100)
         self.assertEqual(node.user_attribute_names(), ["attrA", "attrB"])
 
     def test_move_attribute_raises_for_unknown_name_and_unsupported_type(self):
         node = self.create_transform("hlibNodeApiMoveAttrErrors")
-        node.add_attr("attrA", attribute_type="double", default_value=0.0)
+        node.add_attribute("attrA", attribute_type="double", default_value=0.0)
         cmds.addAttr(node.full_name(), longName="attrCompound", attributeType="double3")
         cmds.addAttr(node.full_name(), longName="attrCompoundX", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.full_name(), longName="attrCompoundY", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.full_name(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
-        node.add_attr("attrB", attribute_type="double", default_value=0.0)
+        node.add_attribute("attrB", attribute_type="double", default_value=0.0)
 
         with self.assertRaises(ValueError):
-            node.move_attribute("doesNotExist", 1)
+            node.move_attribute_order("doesNotExist", 1)
 
         with self.assertRaises(TypeError):
-            node.move_attribute("attrB", -1)
+            node.move_attribute_order("attrB", -1)
         # 型エラー時は何も削除・変更されていない(ダンプ段階での検証が先に走るため)。
         self.assertEqual(node.user_attribute_names(), ["attrA", "attrCompound", "attrB"])
 
@@ -1042,7 +1042,7 @@ class NodeApiTest(unittest.TestCase):
                 with self.assertRaises(AttributeError) as context:
                     average.plug(path)
                 self.assertIn(str(maximum), str(context.exception))
-                self.assertFalse(average.has_attr(path))
+                self.assertFalse(average.has_attribute(path))
         array_plug = average.plug("input1D")
         for index in (-1, maximum + 1, 4294967296):
             with self.subTest(index=index):
@@ -1063,7 +1063,7 @@ class NodeApiTest(unittest.TestCase):
 
         first = self.create_transform("hlibNodeApiPlugOwnerA")
         second = self.create_transform("hlibNodeApiPlugOwnerB")
-        first.add_attr("hlibDynamic", attribute_type="double")
+        first.add_attribute("hlibDynamic", attribute_type="double")
         for name in ("translateX", "hlibDynamic", "worldMatrix"):
             with self.subTest(attribute=name):
                 mplug = first.plug(name).mplug()

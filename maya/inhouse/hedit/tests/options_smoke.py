@@ -95,6 +95,53 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
         from pathlib import Path
         settings = QtCore.QSettings(str(Path(cmds.hedit(sessionPath=True)).with_name('preferences.ini')), QtCore.QSettings.IniFormat)
         assert str(settings.value('finalNewline')).lower() == 'true'
+
+        # Edit > Preferences > Reset to defaults…: 確認でキャンセルすれば何も変えず、
+        # Resetなら13項目と文字サイズを初期値へ戻し、preferences.iniから値を消す。
+        defaults = {'completeLetters': True, 'completeDot': True, 'includeKeywords': True, 'includeBuiltins': True,
+                    'staticAnalysis': False, 'outputLineNumbers': False, 'outputWrap': False, 'spellCheck': True,
+                    'smartIndent': True, 'backspaceIndent': True, 'whitespace': False,
+                    'trimWhitespace': False, 'finalNewline': False}
+        assert set(defaults) == set(actions)
+        reset = next(a for a in window.findChildren(action_type) if a.objectName() == 'resetPreferences')
+
+        def answer_dialog(button):
+            """確認ダイアログが開いたら指定のボタンを押す(ダイアログはexecで待つため、タイマーで操作する)。"""
+            def press():
+                dialog = QtWidgets.QApplication.activeModalWidget()
+                if isinstance(dialog, QtWidgets.QMessageBox):
+                    dialog.button(button).click()
+                else:
+                    QtCore.QTimer.singleShot(50, press)
+            QtCore.QTimer.singleShot(0, press)
+
+        for key, value in defaults.items():
+            actions[key].setChecked(not value)
+        zoom_in = next(a for a in window.findChildren(action_type) if a.objectName() == 'zoomIn')
+        zoom_in.trigger()
+        zoom_in.trigger()
+        zoomed_style = window.styleSheet()
+        answer_dialog(QtWidgets.QMessageBox.Cancel)
+        reset.trigger()
+        assert all(actions[key].isChecked() == (not value) for key, value in defaults.items())
+        assert window.styleSheet() == zoomed_style
+        answer_dialog(QtWidgets.QMessageBox.Reset)
+        reset.trigger()
+        assert {key: a.isChecked() for key, a in actions.items()} == defaults
+        assert not (code.document().defaultTextOption().flags() & QtGui.QTextOption.ShowTabsAndSpaces)
+        assert window.findChild(QtWidgets.QPlainTextEdit, 'output').lineWrapMode() == QtWidgets.QPlainTextEdit.NoWrap
+        settings.sync()
+        assert not any(settings.contains(key) for key in list(defaults) + ['fontPixels']), settings.allKeys()
+        # 文字サイズは、View > Reset zoomと同じ大きさ(標準14px)に戻っている。
+        reset_style = window.styleSheet()
+        assert reset_style != zoomed_style
+        next(a for a in window.findChildren(action_type) if a.objectName() == 'zoomReset').trigger()
+        assert window.styleSheet() == reset_style
+        # 確認ダイアログ(モーダル)を閉じた後、テスト用のMayaが前面でないとWindowsが別のウィンドウを
+        # 前面に戻すことがある。後続のテストがキー入力できるよう、hedit を前面に戻しておく。
+        window.window().activateWindow()
+        code.setFocus()
+        wait()
     finally:
         for key, state in original.items():
             actions[key].setChecked(state)

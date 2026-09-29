@@ -60,7 +60,7 @@ class UnifiedConstraintTest(unittest.TestCase):
             with self.subTest(kind=kind):
                 result = self.target.add_constraint(self.source, type=kind, weight=0.3)
                 self.assertEqual(result.type(), kind + "Constraint")
-                self.assertAlmostEqual(result.weights()[0], 0.3)
+                self.assertAlmostEqual(result.get_weights()[0], 0.3)
                 cmds.delete(result.full_name())
 
     def test_conflicting_flags_and_modes_do_not_create_nodes(self):

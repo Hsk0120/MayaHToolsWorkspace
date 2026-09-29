@@ -69,9 +69,9 @@ class LengthCompensation:
             )
             if high is not None:
                 kwargs["maxValue"] = high
-            owner.add_attr(**kwargs)
+            owner.add_attribute(**kwargs)
         for attr in ("lengthScale", "volumeScale"):
-            owner.add_attr(long_name=attr, attribute_type="double")
+            owner.add_attribute(long_name=attr, attribute_type="double")
         ratio = graph._node("multiplyDivide", "ratio")
         ratio.plug("operation").set(2)
         owner.plug("inputLength").connect(ratio.plug("input1X"))

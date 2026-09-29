@@ -4,6 +4,13 @@ Maya 2025以降向けのレイヤードリグ検証パッケージです。
 現在のビルダーは、正X軸の3関節FK/IK、Soft IK、補助骨1本を対象とします。
 本番向けの汎用オートリガーではありません。
 
+単一入力の行列追従には `hrig.setups.MatrixFollow` を使用できます。
+parentConstraintとの評価時間比較用に専用mayapyベンチマークを用意しています。
+`backend="cpp"` は専用ノード、`backend="bifrost"` は比較検証用のグラフを生成します。
+Bifrost版は構築のUndo/Redoでクラッシュが見つかったため、Undo無効の専用プロセスに限定します。
+計測ツールへ `--plugins` を付けると5構成を比較できます。
+適用条件と再計測手順は [拘束評価の計測](docs/constraint_performance.rst) を参照してください。
+
 ## 読み込み
 
 このワークスペースの起動バッチでは `maya/inhouse` が `PYTHONPATH` に
@@ -183,7 +190,7 @@ C++版のビルドはリポジトリルートで実行します。
 
 専用ノードは `hrigSoftIK`、バイナリは `release/plug-ins/windows/<年>/hrigNodes.mll`
 です。Git対象外で、使用するMaya版ごとにビルドします。
-ノードID `0x0007F101` は開発用です。組織外配布・本番アセット化の前に登録済みIDへ
+Soft IKのノードID `0x0007F101` と行列追従 `hrigMatrixFollow` の `0x0007F102` は開発用です。組織外配布・本番アセット化の前に登録済みIDへ
 置換する必要があります。MayaのSecurityが拒否した場合、設定を自動変更しません。
 このプラグインはhrigが所有し、hlibには実装・同梱しません。
 
@@ -811,3 +818,7 @@ from hlib.utils.scalarGraph import ScalarGraph
 - [secondary_motion](docs/secondary_motion.rst)
 - [spline_ik](docs/spline_ik.rst)
 - [length_compensation](docs/length_compensation.rst)
+
+## Sphinxドキュメント
+
+[ドキュメント目次](docs/index.rst)に機能仕様、[テスト方法](docs/testing.rst)、[テストシーン](docs/test_scenes.rst)、[テスト結果](docs/test_results.rst)をまとめています。hlibと同じテーマ・CSSを使用します。ビルド手順はテスト方法ページを参照してください。

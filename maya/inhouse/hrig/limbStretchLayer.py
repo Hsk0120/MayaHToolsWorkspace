@@ -25,7 +25,7 @@ class LimbStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.plug("stretchGroup").source() if root.has_attr("stretchGroup") else None
+        source = root.plug("stretchGroup").source() if root.has_attribute("stretchGroup") else None
         return source.node if source is not None else None
 
     @staticmethod
@@ -59,37 +59,37 @@ class LimbStretchLayer:
             for i in (1, 2)
         ]
         owner = LengthCompensation.create(sum(lengths), root.name() + "_stretchGraph").container
-        if root.has_attr("channel_stretch"):
+        if root.has_attribute("channel_stretch"):
             group = hlib.getNode(rig._member("channel_stretch"))
         else:
             parent = (
-                rig._member("channelModule") if root.has_attr("channelModule") else root.full_name()
+                rig._member("channelModule") if root.has_attribute("channelModule") else root.full_name()
             )
             group = hlib.createNode(
                 "transform", name=root.name() + "_stretch_layer", parent=parent, skipSelect=True
             )
             rig._bind("channel_stretch", group.full_name())
-            group.add_attr(long_name="enabled", attribute_type="bool", default_value=True)
-            group.add_attr(long_name="active", attribute_type="bool", default_value=False)
-            group.set_attr_flags(["enabled", "active"], channel_box=True)
-            group.set_attr_flags(["active"], locked=True)
+            group.add_attribute(long_name="enabled", attribute_type="bool", default_value=True)
+            group.add_attribute(long_name="active", attribute_type="bool", default_value=False)
+            group.set_attribute_flags(["enabled", "active"], channel_box=True)
+            group.set_attribute_flags(["active"], locked=True)
             group.plug("useOutlinerColor").set(True)
-        group.set_attr_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
-        group.add_attr(long_name="graph", attribute_type="message")
+        group.set_attribute_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
+        group.add_attribute(long_name="graph", attribute_type="message")
         owner.plug("message").connect(group.plug("graph"))
         rig._bind("stretchGroup", group.full_name())
-        if not root.has_attr("hrigEnabled_stretch"):
-            root.add_attr(
+        if not root.has_attribute("hrigEnabled_stretch"):
+            root.add_attribute(
                 long_name="hrigEnabled_stretch", attribute_type="bool", default_value=True
             )
-        group.add_attr(long_name="restLengths", data_type="string").set(
+        group.add_attribute(long_name="restLengths", data_type="string").set(
             hlib.json.JsonText.dumps(lengths)
         )
         for attr in ("inputLength", "softDistance"):
-            group.add_attr(long_name=attr, attribute_type="double")
+            group.add_attribute(long_name=attr, attribute_type="double")
         for attr in ("outputs", "matrices"):
-            group.add_attr(long_name=attr, attribute_type="message", multi=True)
-        group.add_attr(long_name="softNormalize", attribute_type="message")
+            group.add_attribute(long_name=attr, attribute_type="message", multi=True)
+        group.add_attribute(long_name="softNormalize", attribute_type="message")
         for attr, value, low, high in (
             ("stretch", 1, 0, 1),
             ("squash", 0, 0, 1),
@@ -97,7 +97,7 @@ class LimbStretchLayer:
             ("minSquash", 0.1, 0.01, 1),
             ("maxStretch", 2, 1, 100),
         ):
-            group.add_attr(
+            group.add_attribute(
                 long_name=attr,
                 attribute_type="double",
                 default_value=value,

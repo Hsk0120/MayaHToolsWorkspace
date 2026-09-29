@@ -30,7 +30,7 @@ class SoftIK:
         builder = ScalarGraph(owner)
         try:
             for attr, value in (("distance", 0.0), ("softness", 0.0), ("ratio", 1.0)):
-                hlib.nodes.Node(owner).add_attr(
+                hlib.nodes.Node(owner).add_attribute(
                     long_name=attr, attribute_type="double", default_value=value
                 )
             distance = builder.condition("distance", owner + ".distance", 0, owner + ".distance", 0)

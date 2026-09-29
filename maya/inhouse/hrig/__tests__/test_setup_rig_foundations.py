@@ -24,7 +24,7 @@ class RigFoundationsTest(unittest.TestCase):
         owner = hlib.nodes.Container.create("owned")
         self.assertIsInstance(hlib.getNode(owner.full_name()), hlib.nodes.Container)
         source = hlib.createNode("transform", name="external")
-        source.add_attr(long_name="value", attribute_type="double", default_value=3)
+        source.add_attribute(long_name="value", attribute_type="double", default_value=3)
         graph = ScalarGraph(owner)
         total = graph.sum("sum", source.plug("value"), 2)
         product = graph.multiply("product", total, 4)
@@ -43,7 +43,7 @@ class RigFoundationsTest(unittest.TestCase):
     def test_sparse_messages(self):
         """穴のあるmessage配列を読み、末尾へ追加してUndoする。"""
         owner = hlib.createNode("network", name="refs")
-        array = owner.add_attr(long_name="items", attribute_type="message", multi=True)
+        array = owner.add_attribute(long_name="items", attribute_type="message", multi=True)
         first = hlib.createNode("transform", name="first")
         second = hlib.createNode("transform", name="second")
         first.plug("message").connect(owner.plug("items[3]"))
@@ -56,7 +56,7 @@ class RigFoundationsTest(unittest.TestCase):
         cmds.undo()
         cmds.undo()
         self.assertEqual(list(array.source_nodes()), [3, 7])
-        invalid = owner.add_attr(long_name="values", attribute_type="double", multi=True)
+        invalid = owner.add_attribute(long_name="values", attribute_type="double", multi=True)
         with self.assertRaises(TypeError):
             invalid.append_message(first)
 
@@ -104,8 +104,8 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertAlmostEqual(Units.angle_to_ui(math.pi), math.pi)
         self.assertAlmostEqual(Units.angle_from_ui(math.pi), math.pi)
         self.assertAlmostEqual(Units.seconds_per_frame(), 1 / 30)
-        self.assertEqual(Units.linear(), "m")
-        self.assertEqual(Units.angle(), "rad")
+        self.assertEqual(Units.get_linear(), "m")
+        self.assertEqual(Units.get_angle(), "rad")
 
     def test_skin_bind_and_copy(self):
         """スキンのバインド・近似転送・履歴照会を共通APIで行う。"""
@@ -132,7 +132,7 @@ class RigFoundationsTest(unittest.TestCase):
         """属性検索と表示単位は型付きPlugの取得規則と区別して維持する。"""
 
         node = hlib.createNode("transform", name="rawUnits")
-        node.add_attr(long_name="marker", attribute_type="message")
+        node.add_attribute(long_name="marker", attribute_type="message")
         cmds.setAttr(node.full_name() + ".tx", 200)
         cmds.setAttr(node.full_name() + ".rz", 90)
         cmds.currentUnit(linear="m", angle="rad")

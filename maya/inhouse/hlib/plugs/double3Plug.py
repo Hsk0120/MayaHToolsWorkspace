@@ -32,7 +32,7 @@ class Double3Plug(CompoundPlug):
             RuntimeError: 所有ノードまたは属性が無効の場合。
         """
         self._require_valid()
-        value_type = self._value_types.get(self.attribute(), Vector)
+        value_type = self._value_types.get(self.attribute_name(), Vector)
         if value_type is EulerRotation:
             order = int(self.node.plug("ro").get())
             # UIの角度単位に依存せず、値型はラジアンで構築する。
@@ -62,7 +62,7 @@ class Double3Plug(CompoundPlug):
         通常モードは1回のUndoで戻せる。Mayaの実行時エラーを自動ロールバックはしない。
         """
         self._require_valid()
-        if self._value_types.get(self.attribute()) is EulerRotation:
+        if self._value_types.get(self.attribute_name()) is EulerRotation:
             if unit not in ("rad", "deg"):
                 raise ValueError("unit must be 'rad' or 'deg'")
             order = int(self.node.plug("ro").get())

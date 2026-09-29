@@ -51,8 +51,8 @@ class SkinClusterTransferWeightsBatchTest(unittest.TestCase):
         # transfer_weights はウェイト移送のみを行い influence の削除はしない。
         self.skin.transfer_weights([(self.child, self.root)])
 
-        self.assertIn(self.child, self.skin.influences())
-        self.assertIn(self.root, self.skin.influences())
+        self.assertIn(self.child, [node.name() for node in self.skin.influences()])
+        self.assertIn(self.root, [node.name() for node in self.skin.influences()])
 
 
 class SkinClusterInfluenceTest(unittest.TestCase):
@@ -88,12 +88,12 @@ class SkinClusterInfluenceTest(unittest.TestCase):
         self.assertEqual(list(self.skin.get_weights([self.root])), [1.0] * 8)
         self.assertEqual(list(self.skin.get_weights([self.mid])), [0.0] * 8)
         # transfer_weights はウェイト移送のみで influence の削除はしない。
-        self.assertIn(self.mid, self.skin.influences())
+        self.assertIn(self.mid, [node.name() for node in self.skin.influences()])
 
     def test_remove_influence_drops_influence_from_skin_cluster(self):
-        self.assertIn(self.mid, self.skin.influences())
+        self.assertIn(self.mid, [node.name() for node in self.skin.influences()])
         self.skin.remove_influence(self.mid)
-        self.assertNotIn(self.mid, self.skin.influences())
+        self.assertNotIn(self.mid, [node.name() for node in self.skin.influences()])
         self.assertFalse(self.skin.has_influence(self.mid))
 
 

@@ -22,7 +22,7 @@ class TwistDistributionTest(unittest.TestCase):
 
         node = hlib.createNode("joint", name="joint", skipSelect=True)
         node.plug("translateX").set(2)
-        plug = node.add_attr(long_name="rest", data_type="matrix")
+        plug = node.add_attribute(long_name="rest", data_type="matrix")
         value = Matrix()
         value[12] = 3
         plug.set(value)

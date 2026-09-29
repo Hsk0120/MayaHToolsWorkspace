@@ -26,7 +26,7 @@ class Namespace:
             ValueError: 空文字列または文字列・Namespace 以外の場合。
         """
         if isinstance(name, Namespace):
-            name = name.name()
+            name = name.name
         if not isinstance(name, str) or not name:
             raise ValueError("name must be a non-empty string")
         self._name = self._normalize(name)
@@ -47,6 +47,7 @@ class Namespace:
         name = name.strip(":")
         return ":" + name
 
+    @property
     def name(self):
         """正規化済みの絶対Namespace名を返す。
 
@@ -175,7 +176,7 @@ class Namespace:
         """
         namespace = cls(name)
         parent_namespace = cls(parent)
-        if ":" in namespace.name().strip(":"):
+        if ":" in namespace.name.strip(":"):
             parent_namespace = namespace.parent()
         if namespace.exists():
             return namespace
@@ -183,8 +184,8 @@ class Namespace:
             raise ValueError("root namespace cannot be created")
         if not parent_namespace.exists():
             cls.create(parent_namespace)
-        leaf_name = namespace.name().rsplit(":", 1)[-1]
-        cmds.namespace(add=leaf_name, parent=parent_namespace.name())
+        leaf_name = namespace.name.rsplit(":", 1)[-1]
+        cmds.namespace(add=leaf_name, parent=parent_namespace.name)
         return namespace
 
     @undo_chunk("hlibNamespaceRename")
@@ -205,9 +206,9 @@ class Namespace:
             raise ValueError("root namespace cannot be renamed")
         target = Namespace(name)
         parent = self.parent()
-        target = Namespace(f"{parent.name()}:{target.name().rsplit(':', 1)[-1]}")
+        target = Namespace(f"{parent.name}:{target.name.rsplit(':', 1)[-1]}")
         self._move_contents(target)
-        self._name = target.name()
+        self._name = target.name
         return self
 
     @undo_chunk("hlibNamespaceMove")
@@ -228,11 +229,11 @@ class Namespace:
             raise ValueError("root namespace cannot be moved")
         parent_namespace = Namespace(parent)
         if not parent_namespace.exists():
-            raise RuntimeError(f"Namespace does not exist: {parent_namespace.name()}")
+            raise RuntimeError(f"Namespace does not exist: {parent_namespace.name}")
         leaf_name = self._name.rsplit(":", 1)[-1]
-        target = Namespace(f"{parent_namespace.name()}:{leaf_name}")
+        target = Namespace(f"{parent_namespace.name}:{leaf_name}")
         self._move_contents(target)
-        self._name = target.name()
+        self._name = target.name
         return self
 
     def _move_contents(self, target):
@@ -250,12 +251,12 @@ class Namespace:
             RuntimeError: 移動先が既存、親が存在しない、または Maya 操作が失敗した場合。
         """
         if target.exists():
-            raise RuntimeError(f"Namespace already exists: {target.name()}")
+            raise RuntimeError(f"Namespace already exists: {target.name}")
         target_parent = target.parent()
         if target_parent is None or not target_parent.exists():
             raise RuntimeError(f"Namespace does not exist: {target_parent}")
-        cmds.namespace(add=target.name().rsplit(":", 1)[-1], parent=target_parent.name())
-        cmds.namespace(moveNamespace=(self._name, target.name()), force=True)
+        cmds.namespace(add=target.name.rsplit(":", 1)[-1], parent=target_parent.name)
+        cmds.namespace(moveNamespace=(self._name, target.name), force=True)
         cmds.namespace(removeNamespace=self._name)
 
     @undo_chunk("hlibNamespaceRemove")
@@ -276,8 +277,8 @@ class Namespace:
             raise ValueError("root namespace cannot be removed")
         destination_namespace = Namespace(destination)
         if not destination_namespace.exists():
-            raise RuntimeError(f"Namespace does not exist: {destination_namespace.name()}")
-        cmds.namespace(moveNamespace=(self._name, destination_namespace.name()), force=True)
+            raise RuntimeError(f"Namespace does not exist: {destination_namespace.name}")
+        cmds.namespace(moveNamespace=(self._name, destination_namespace.name), force=True)
         cmds.namespace(removeNamespace=self._name)
         return destination_namespace
 

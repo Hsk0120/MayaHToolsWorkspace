@@ -13,7 +13,9 @@ from ..decorators.undo import undo_chunk
 from .._core.registry import node_wrapper
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
 from ..maths.vector import _vector_of
-from .node import Node
+from .node import Node, Nodes
+from .._core.collection import bulk_api
+from .._core.registry import collection_export
 
 #: 拘束元の transform の値(位置・回転など)を使うコンストレイント。拘束元は Transform に限る。
 _TRANSFORM_SOURCE_CONSTRAINTS = frozenset((
@@ -285,7 +287,7 @@ class Transform(Node):
         """
         return self._current_dag_path()
 
-    def dag_node(self):
+    def dag_fn(self):
         """Transform 用の MFnDagNode を取得する。
 
         Returns:
@@ -397,7 +399,7 @@ class Transform(Node):
         """
         if not self.is_valid():
             raise RuntimeError("Cannot compute the bounding box of an invalid transform")
-        box = self.dag_node().boundingBox
+        box = self.dag_fn().boundingBox
         if not ws:
             return box
         parent_matrix = self._parent_world_matrix()
@@ -454,7 +456,7 @@ class Transform(Node):
         if not self.is_valid():
             return []
         dag_path = self.dag_path()
-        dag_fn = self.dag_node()
+        dag_fn = self.dag_fn()
         children = []
         for index in range(dag_fn.childCount()):
             child_path = om2.MDagPath(dag_path)
@@ -538,7 +540,7 @@ class Transform(Node):
             return []
         shapes = []
         dag_path = self.dag_path()
-        dag_fn = self.dag_node()
+        dag_fn = self.dag_fn()
         for index in range(dag_fn.childCount()):
             child = dag_fn.child(index)
             if not child.hasFn(om2.MFn.kShape):
@@ -1167,9 +1169,13 @@ class Transform(Node):
         matrix = self._replace_components(self.get_matrix(ws=ws), shear=value)
         return self.set_matrix(matrix, ws=ws)
 
+    def get_visibility(self):
+        """bool: 自身のvisibility属性値。親や表示レイヤーを含む最終可視性ではない。"""
+        return bool(self.plug("visibility").get())
+
     @fast_edit
     @undo_chunk("hlibTransformSetVisible")
-    def set_visible(self, state, *, fast=False):
+    def set_visibility(self, state, *, fast=False):
         """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
 
         Args:
@@ -1303,3 +1309,14 @@ class Transform(Node):
             parent = group
         self.set_parent(groups[-1])
         return groups
+
+
+@collection_export()
+@bulk_api(Transform)
+class Transforms(Nodes):
+    """Joint等の派生型を含むTransform参照のコレクション。
+
+    型検証・色設定・参照のコピーはNodesに従う。座標・行列操作は各対象へ転送する。
+    """
+
+    item_class = Transform

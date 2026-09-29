@@ -34,7 +34,7 @@ class Reference(Node):
         """
         return self.reference_fn().fileName(resolved, with_copy_number, False)
 
-    def namespace(self):
+    def associated_namespace(self):
         """参照内容が読み込まれている Namespace を取得する。
 
         Returns:
@@ -107,7 +107,7 @@ class Reference(Node):
             parent = reference.parent_reference()
         return reference
 
-    def is_root(self):
+    def is_top_level(self):
         """トップレベル(親を持たない)の参照か判定する。
 
         Returns:
@@ -130,7 +130,7 @@ class Reference(Node):
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
-    def edit_nodes(self, successful=True, failed=False):
+    def edit_node_names(self, successful=True, failed=False):
         """Editの影響を受けたノードのフルパス名一覧を取得する。
 
         Args:
@@ -145,12 +145,12 @@ class Reference(Node):
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
-    def edit_attrs(self, successful=True, failed=False):
+    def edit_attribute_names(self, successful=True, failed=False):
         """Editの影響を受けた属性の短縮名一覧を取得する。
 
         Maya の ``referenceQuery -editAttrs`` 自体がノード名を含まない属性名の
         みを返す(コンパウンド属性の子を編集した場合は親の短縮名になる)。
-        どのノードの属性かは ``edit_nodes()`` や ``edit_strings()`` と合わせて判断する。
+        どのノードの属性かは ``edit_node_names()`` や ``edit_strings()`` と合わせて判断する。
 
         Args:
             successful (bool): 実際に適用された(成功した)Editを含めるか。

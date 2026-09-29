@@ -25,6 +25,6 @@ rebuild.bat
 ## 書き方
 
 - 文章は日本語です。設定項目・ショートカットは `preferences.rst`・`shortcuts.rst` に集約しています。
-- バージョンは `src/embedded_python.h` 内の埋め込みソース(`__version__`)を自動で読みます。
+- バージョンは `src/version.h` の `HEDIT_VERSION` を自動で読みます。
 - 機能を追加・変更したときは、該当ページと `changelog.rst` を同時に更新してください。
   設定項目を足す場合は `development.rst` の「設定項目を追加する」の手順に従います。

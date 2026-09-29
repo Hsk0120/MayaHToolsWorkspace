@@ -61,7 +61,7 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
         yield
         spline, _ = editor.current()
-        check(spline.root.has_attr("stretchGroup"), "UI adds spline layer")
+        check(spline.root.has_attribute("stretchGroup"), "UI adds spline layer")
         editor.tree.setCurrentItem(row("stretch"))
         editor.select_node()
         settings = spline.root.plug("stretchGroup").source().node
@@ -96,7 +96,7 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
         yield
         limb, _ = editor.current()
-        check(isinstance(limb, LimbRig) and limb.root.has_attr("stretchGroup"), "UI adds arm layer")
+        check(isinstance(limb, LimbRig) and limb.root.has_attribute("stretchGroup"), "UI adds arm layer")
         limb.set_mode("ik")
         limb.set_layer_enabled("soft", False)
         cmds.setAttr(limb.controls()["target"] + ".tx", 7)

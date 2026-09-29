@@ -18,7 +18,7 @@
    driven = hlib.createNode("transform", name="hlibDriven")
    constraint = driven.add_constraint(driver, "parent", maintainOffset=True)
    print(constraint.targets())
-   print(constraint.weight_aliases(), constraint.weights())
+   print(constraint.weight_aliases(), constraint.get_weights())
    constraint.weight_plugs()[0].set(0.5)
 
    constraint.set_weight(1.0)             # 全ターゲットに一括設定

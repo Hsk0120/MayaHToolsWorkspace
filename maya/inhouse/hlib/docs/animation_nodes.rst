@@ -33,7 +33,7 @@ set_keyの既定接線はlinear。既存キーを指定した場合は値を更�
 mirrorはキーの入力・出力値の反転であり、ワールド座標のミラーではありません。
 接線の反転はMayaのscaleKeyの規則に従います。
 
-``driver()`` はinputの直接接続元、``output()`` は出力Plug、
+``driver_plug()`` はinputの直接接続元、``output_plug()`` は出力Plug、
 ``driven_plugs()`` は直接の接続先を返します。
 変換・合成ノードやアニメーションレイヤー越しの探索はまだ行いません。
 
@@ -50,10 +50,10 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
    blend.set_weight(5, 0.5)
    print(blend.result())  # 8.0
    print(blend.input_indices())  # [0, 5]
-   blend.connect_input(0, curve.output())
+   blend.connect_input(0, curve.output_plug())
 
-``inputs()`` は番号からPlug、``weights()`` は入力番号から倍率のdictです。
-``output()`` を別の属性へ接続できます。
+``inputs()`` は番号からPlug、``get_weights()`` は入力番号から倍率のdictです。
+``output_plug()`` を別の属性へ接続できます。
 接続の上書きには ``connect_input(..., force=True)`` を明示します。
 編集メソッドは内部でUndoチャンクにまとめるため、通常は外側にundo_chunkは不要です。
 

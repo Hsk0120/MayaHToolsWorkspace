@@ -25,7 +25,7 @@ class SkirtRig:
             root (str | Node): スカートルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.has_attr("hrigSkirtDefinition"):
+        if not self.root.has_attribute("hrigSkirtDefinition"):
             raise ValueError("Not an hrig skirt module")
 
     @classmethod
@@ -80,7 +80,7 @@ class SkirtRig:
         if not all(math.isfinite(v) and v > 0 for v in (radius, length)):
             raise ValueError("radius and length must be positive finite values")
         root = hlib.createNode("transform", name=name, skipSelect=True)
-        root.add_attr(long_name="hrigSkirtDefinition", data_type="string")
+        root.add_attribute(long_name="hrigSkirtDefinition", data_type="string")
         root.plug("hrigSkirtDefinition").set(
             hlib.json.JsonText.dumps(
                 dict(
@@ -93,13 +93,13 @@ class SkirtRig:
                 )
             )
         )
-        root.set_attr_flags(["hrigSkirtDefinition"], locked=True)
+        root.set_attribute_flags(["hrigSkirtDefinition"], locked=True)
         for attr in ("drivers", "followers", "constraints", "graphs"):
-            root.add_attr(long_name=attr, attribute_type="message", multi=True)
+            root.add_attribute(long_name=attr, attribute_type="message", multi=True)
         for attr in ("driverGroup", "followerGroup", "restGroup"):
-            root.add_attr(long_name=attr, attribute_type="message")
+            root.add_attribute(long_name=attr, attribute_type="message")
         for attr, value, low, high in (("blend", 1, 0, 1), ("falloff", 1, 0.1, 8)):
-            root.add_attr(
+            root.add_attribute(
                 long_name=attr,
                 attribute_type="double",
                 default_value=value,
@@ -107,15 +107,15 @@ class SkirtRig:
                 maxValue=high,
                 keyable=True,
             )
-        root.add_attr(long_name="enabled", attribute_type="bool", default_value=True, keyable=False)
-        root.add_attr(
+        root.add_attribute(long_name="enabled", attribute_type="bool", default_value=True, keyable=False)
+        root.add_attribute(
             long_name="lod",
             attribute_type="enum",
             enumName="Low:Full",
             default_value=1,
             keyable=False,
         )
-        root.set_attr_flags(["enabled", "lod"], channel_box=True)
+        root.set_attribute_flags(["enabled", "lod"], channel_box=True)
         rig = cls(root)
         groups = {}
         for role in ("driver", "follower", "rest"):
@@ -158,7 +158,7 @@ class SkirtRig:
                         from hrig.setups import ControlShape
 
                         ControlShape.circle(joint, radius=0.45, normal=(0, 1, 0), color=17)
-                        joint.set_attr_flags(
+                        joint.set_attribute_flags(
                             ["translate", "scale", "visibility"], locked=True, keyable=False
                         )
                     parent = joint
@@ -191,7 +191,7 @@ class SkirtRig:
                 aliases = constraint.weight_plugs()
                 for output, alias in zip(("restWeight", "weightA", "weightB"), aliases):
                     graph.container.plug(output).connect(alias)
-                constraint.add_attr(long_name="hrigDriven", attribute_type="message")
+                constraint.add_attribute(long_name="hrigDriven", attribute_type="message")
                 joint.plug("message").connect(constraint.plug("hrigDriven"))
                 constraint.plug("message").connect(
                     root.plug("constraints[{}]".format(column * joints_per_chain + depth))
@@ -367,7 +367,7 @@ class SkirtRig:
         if layer in ("follow", "spring", "pose"):
             return (
                 bool(self.root.plug("hrigEnabled_" + layer).get())
-                if self.root.has_attr("hrigEnabled_" + layer)
+                if self.root.has_attribute("hrigEnabled_" + layer)
                 else True
             )
         if layer != "radial":
@@ -384,9 +384,9 @@ class SkirtRig:
         """
         self.layer_enabled(layer)
         attr = "enabled" if layer == "radial" else "hrigEnabled_" + layer
-        if not self.root.has_attr(attr):
-            self.root.add_attr(long_name=attr, attribute_type="bool", default_value=True)
-            self.root.set_attr_flags([attr], channel_box=True)
+        if not self.root.has_attribute(attr):
+            self.root.add_attribute(long_name=attr, attribute_type="bool", default_value=True)
+            self.root.set_attribute_flags([attr], channel_box=True)
         self.root.plug(attr).set(bool(enabled))
         self.update()
 
@@ -451,7 +451,7 @@ class SkirtRig:
             jobs = hlib.general.ScriptJobs()
             attrs = ["enabled", "lod"]
             for kind in ("follow", "spring", "pose"):
-                if rig.root.has_attr("hrigEnabled_" + kind):
+                if rig.root.has_attribute("hrigEnabled_" + kind):
                     attrs.append("hrigEnabled_" + kind)
             for name in attrs:
                 jobs.add(
@@ -510,7 +510,7 @@ class SkirtRig:
                 raise ValueError("Unbind the skirt before deleting its module")
         for graph in self._members("graphs"):
             hlib.delete(graph)
-        if self.root.has_attr("hrigOwned"):
+        if self.root.has_attribute("hrigOwned"):
             for node in self._members("hrigOwned"):
                 if cmds.objExists(node.full_name()):
                     hlib.delete(node)

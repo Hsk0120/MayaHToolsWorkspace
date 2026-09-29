@@ -115,8 +115,8 @@ class PoseRbf:
         graph = cls(hlib.nodes.Container.create(name=name))
         owner = graph.container
         for attr in ("inputs", "outputs", "coefficients"):
-            owner.add_attr(long_name=attr, attribute_type="double", multi=True)
-        owner.add_attr(long_name="data", data_type="string")
+            owner.add_attribute(long_name=attr, attribute_type="double", multi=True)
+        owner.add_attribute(long_name="data", data_type="string")
         owner.plug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
         for index, source in enumerate(drivers):
             destination = owner.plug("inputs[{}]".format(index))

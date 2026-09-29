@@ -25,7 +25,7 @@ class SpaceSwitch:
             buffer (str | Node): createで初期化したtransform。
         """
         self.buffer = hlib.nodes.Node(buffer)
-        if not self.buffer.has_attr("spaceChoice"):
+        if not self.buffer.has_attribute("spaceChoice"):
             raise ValueError("Not a space-switch buffer")
 
     @classmethod
@@ -40,15 +40,15 @@ class SpaceSwitch:
             SpaceSwitch: 空間登録前の切替オブジェクト。
         """
         buffer = hlib.nodes.Node(buffer)
-        if buffer.type() != "transform" or buffer.has_attr("spaceChoice"):
+        if buffer.type() != "transform" or buffer.has_attribute("spaceChoice"):
             raise ValueError("Expected an unused transform")
         if buffer.plug("offsetParentMatrix").source() is not None:
             raise ValueError("offsetParentMatrix is already connected")
         identity = Matrix()
         if any(abs(a - b) > 1e-8 for a, b in zip(buffer.plug("matrix").get(), identity)):
             raise ValueError("Space buffer must have identity local channels")
-        buffer.add_attr(long_name="spaceChoice", attribute_type="message")
-        buffer.add_attr(long_name="spaceLabels", data_type="string")
+        buffer.add_attribute(long_name="spaceChoice", attribute_type="message")
+        buffer.add_attribute(long_name="spaceLabels", data_type="string")
         buffer.plug("spaceLabels").set("[]")
         choice = hlib.nodes.Node.create("choice", name=buffer.name() + "_choice", skipSelect=True)
         choice.plug("message").connect(buffer.plug("spaceChoice"))

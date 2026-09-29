@@ -26,7 +26,7 @@ class SplineRig:
             root (str | Node): モジュールルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.has_attr("hrigSplineDefinition"):
+        if not self.root.has_attribute("hrigSplineDefinition"):
             raise ValueError("Not an hrig spline module")
 
     @classmethod
@@ -57,7 +57,7 @@ class SplineRig:
         if axis not in ("x", "y", "z") or not math.isfinite(length) or length <= 0:
             raise ValueError("Use axis x/y/z and a positive finite length")
         root = hlib.createNode("transform", name=name, skipSelect=True)
-        root.add_attr(long_name="hrigSplineDefinition", data_type="string").set(
+        root.add_attribute(long_name="hrigSplineDefinition", data_type="string").set(
             hlib.json.JsonText.dumps(
                 dict(
                     version=1,
@@ -68,24 +68,24 @@ class SplineRig:
                 )
             )
         )
-        root.set_attr_flags(["hrigSplineDefinition"], locked=True)
+        root.set_attribute_flags(["hrigSplineDefinition"], locked=True)
         for attr in ("fk", "ik", "deform", "controls"):
-            root.add_attr(long_name=attr, attribute_type="message", multi=True)
+            root.add_attribute(long_name=attr, attribute_type="message", multi=True)
         for attr in ("graph", "fkGroup", "ikGroup", "deformGroup", "controlGroup", "setupGroup"):
-            root.add_attr(long_name=attr, attribute_type="message")
+            root.add_attribute(long_name=attr, attribute_type="message")
         for attr, labels, value in (("mode", "FK:SplineIK", 1), ("lod", "Low:Full", 1)):
-            root.add_attr(
+            root.add_attribute(
                 long_name=attr, attribute_type="enum", enumName=labels, default_value=value
             )
-        root.add_attr(long_name="enabled", attribute_type="bool", default_value=True)
-        root.set_attr_flags(["mode", "lod", "enabled"], channel_box=True)
+        root.add_attribute(long_name="enabled", attribute_type="bool", default_value=True)
+        root.set_attribute_flags(["mode", "lod", "enabled"], channel_box=True)
         groups = {}
         for role in ("fk", "ik", "deform", "control", "setup"):
             group = hlib.createNode(
                 "transform", name=name + "_" + role + "_grp", parent=root, skipSelect=True
             )
             group.plug("message").connect(root.plug(role + "Group"))
-            group.set_attr_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
+            group.set_attribute_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
             groups[role] = group
         groups["ik"].plug("visibility").set(False)
         groups["setup"].plug("visibility").set(False)
@@ -108,9 +108,9 @@ class SplineRig:
                 joint.plug("message").connect(root.plug("{}[{}]".format(role, i)))
                 if role == "fk":
                     cls._shape(joint, length * 0.035, (1, 0, 0), 17)
-                    joint.set_attr_flags(["scale", "visibility"], locked=True, keyable=False)
+                    joint.set_attribute_flags(["scale", "visibility"], locked=True, keyable=False)
                     if i:
-                        joint.set_attr_flags(["translate"], locked=True, keyable=False)
+                        joint.set_attribute_flags(["translate"], locked=True, keyable=False)
                 parent = joint
         normal = tuple(1 if a == axis else 0 for a in "xyz")
         for i in range(control_count):
@@ -130,10 +130,10 @@ class SplineRig:
                 skipSelect=True,
             )
             cls._shape(control, length * 0.06, normal, 18)
-            control.set_attr_flags(["scale", "visibility"], locked=True, keyable=False)
+            control.set_attribute_flags(["scale", "visibility"], locked=True, keyable=False)
             if i not in (0, control_count - 1):
-                control.set_attr_flags(["rotate"], locked=True, keyable=False)
-            offset.set_attr_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
+                control.set_attribute_flags(["rotate"], locked=True, keyable=False)
+            offset.set_attribute_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
             control.plug("message").connect(root.plug("controls[{}]".format(i)))
         graph = SplineIK.create(
             rig.members("ik"),
@@ -226,7 +226,7 @@ class SplineRig:
             bool: 使用設定。
         """
         if layer == "stretch":
-            return self.root.has_attr("hrigEnabled_stretch") and bool(
+            return self.root.has_attribute("hrigEnabled_stretch") and bool(
                 self.root.plug("hrigEnabled_stretch").get()
             )
         if layer != "spline":
@@ -274,21 +274,21 @@ class SplineRig:
             for attr, row in data.items():
                 parent_locked = joint.plug(attr).is_locked()
                 if parent_locked:
-                    joint.set_attr_flags([attr], locked=False)
+                    joint.set_attribute_flags([attr], locked=False)
                 try:
                     for axis, value in zip("XYZ", row):
                         plug = joint.plug(attr + axis)
                         locked = plug.is_locked()
                         if locked:
-                            joint.set_attr_flags([attr + axis], locked=False)
+                            joint.set_attribute_flags([attr + axis], locked=False)
                         try:
                             plug.set(value)
                         finally:
                             if locked:
-                                joint.set_attr_flags([attr + axis], locked=True)
+                                joint.set_attribute_flags([attr + axis], locked=True)
                 finally:
                     if parent_locked:
-                        joint.set_attr_flags([attr], locked=True)
+                        joint.set_attribute_flags([attr], locked=True)
 
     @undo_transaction("hrig.SplineRig.match_ik")
     def match_ik(self, tolerance=None):
@@ -381,7 +381,7 @@ class SplineRig:
             enabled (bool): 使用設定。
         """
         self.layer_enabled(layer)
-        if layer == "stretch" and not self.root.has_attr("hrigEnabled_stretch"):
+        if layer == "stretch" and not self.root.has_attribute("hrigEnabled_stretch"):
             raise ValueError("Add the stretch layer first")
         self.root.plug("hrigEnabled_stretch" if layer == "stretch" else "enabled").set(
             bool(enabled)
@@ -427,7 +427,7 @@ class SplineRig:
                 continue
             jobs = hlib.general.ScriptJobs()
             attrs = ["mode", "lod", "enabled"]
-            if rig.root.has_attr("hrigEnabled_stretch"):
+            if rig.root.has_attribute("hrigEnabled_stretch"):
                 attrs.append("hrigEnabled_stretch")
             for name in attrs:
                 jobs.add(
