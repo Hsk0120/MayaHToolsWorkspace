@@ -44,6 +44,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+| Codex | 2026-09-30 | 本体未コミット全変更 | ユーザー依頼の全本体変更をコミット・プッシュ対象に整理。diff検査とrunner5テスト成功。Maya全テストは再実行なし。第三者リポジトリSIWeightEditorの2ファイル変更と外部Pythonキャッシュは保持・対象外。 |
+
 | Claude Code | 2026-09-30 | maya/inhouse/hedit docs・docstring | Sphinxの各ページを実装と突き合わせて修正(メニュー順・Explorerの表示対象・Zoomの反映先・補完の上限・検索バーのobjectName・構成図など)。同梱Python・userSetup・テストの入口のdocstringをGoogle形式で実装に合わせた。5版ビルド警告0、run_tests 5版・run_gui 2027・Sphinx -W 成功。検索バーのVS Code対応と合わせてコミット・プッシュ。 |
 
 | Codex | 2026-09-30 | hlib残件・runner・tests/docs | Undo/ScriptJobs/JSON二次障害対応、公開名衝突・拡張登録復旧、FBX子環境・件数/skip理由、signature呼出内共有を実装。入力/fast表とPlug低水準入口の維持を記載。5版各75ファイル785件成功、最終Undo保護は5版関連再実行成功、runner5件/discovery/Sphinx -W成功。GUI未実施、未コミット。 |

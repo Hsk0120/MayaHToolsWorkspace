@@ -44,7 +44,7 @@ class InfluencesColorsTest(unittest.TestCase):
                     before = [[cmds.skinPercent(name, v, query=True, transform=j.full_name()) for j in joints[:2]] for v in vertices]
                     indices = [skin.fn.indexForInfluenceObject(j.dag_path()) for j in joints[:2]]
                     raw = [[cmds.getAttr(f"{name}.weightList[{v}].weights[{i}]") for i in indices] for v in range(len(vertices))]
-                    skin.add_influences([joints[2], joints[3].full_name(), joints[2], joints[0]])
+                    skin.add_influences([joints[2], joints[3], joints[2], joints[0]])
                     for i, v in enumerate(vertices):
                         after = [cmds.skinPercent(name, v, query=True, transform=j.full_name()) for j in joints]
                         self.assertEqual(after[:2], before[i])

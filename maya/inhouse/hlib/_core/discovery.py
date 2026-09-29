@@ -49,7 +49,7 @@ def _discover_typed_package(package_name, type_attr):
             対応表と、公開する class 名から class への対応表。
 
     Raises:
-        ValueError: 同じ型キーに複数の wrapper class がある場合。
+        ValueError: 同じ型キーまたは公開名に複数の wrapper class がある場合。
     """
     package = importlib.import_module(package_name)
     wrappers = {}
@@ -71,7 +71,13 @@ def _discover_typed_package(package_name, type_attr):
                     raise ValueError(f"Duplicate hlib wrapper for {type_attr}: {type_key}")
                 wrappers[type_key] = wrapper_class
             if metadata.get("__hlib_public__", False):
-                exports[wrapper_class.__name__] = wrapper_class
+                name = wrapper_class.__name__
+                previous = exports.get(name)
+                if previous is not None and previous is not wrapper_class:
+                    raise ValueError("Duplicate public class {}: {}.{} and {}.{}".format(
+                        name, previous.__module__, previous.__qualname__,
+                        wrapper_class.__module__, wrapper_class.__qualname__))
+                exports[name] = wrapper_class
     return wrappers, exports
 
 

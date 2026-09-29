@@ -36,9 +36,9 @@ class Double3Plug(CompoundPlug):
         if value_type is EulerRotation:
             order = int(self.node.plug("ro").get())
             # UIの角度単位に依存せず、値型はラジアンで構築する。
-            values = [self.child(index).mplug().asMAngle().asRadians() for index in range(3)]
+            values = [self._child_at(index).mplug().asMAngle().asRadians() for index in range(3)]
             return EulerRotation(*values, order=order)
-        return value_type(*(self.child(index).get() for index in range(3)))
+        return value_type(*(self._child_at(index).get() for index in range(3)))
 
     @fast_edit
     def set(self, value, unit="rad", *, fast=False):
@@ -84,5 +84,5 @@ class Double3Plug(CompoundPlug):
             if len(values) != 3 or not all(math.isfinite(v) for v in values):
                 raise ValueError("Expected three finite components")
         for index in range(3):
-            writable(self.child(index).mplug())
+            writable(self._child_at(index).mplug())
         return super().set(values)

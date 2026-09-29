@@ -41,6 +41,7 @@ def worker(version, result_path):
         suite = namespace["run_all"]()
         result.update(status="passed" if suite["ok"] else "failed",
                       total_files=suite["total"], failed_files=suite["failed"],
+                      tests_run=suite["tests_run"], skipped=suite["skipped"],
                       suite_log=str(suite["log_path"]), summary=suite["summary"],
                       excluded_files=sorted(namespace["EXCLUDED_FILES"] - {"run_all_tests.py"}))
     except BaseException:
@@ -79,6 +80,9 @@ def isolated_environment(executable, directory):
                MAYA_SKIP_USERSETUP_PY="1", MAYA_DISABLE_CIP="1", MAYA_DISABLE_CER="1",
                PYTHONPATH=str(ROOT / "maya/inhouse"), PYTHONIOENCODING="utf-8",
                PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1", TEMP=str(temp), TMP=str(temp))
+    fbx = executable.parent.parent / "plug-ins/fbx/plug-ins"
+    if fbx.is_dir():
+        env["MAYA_PLUG_IN_PATH"] = str(fbx)
     env["PATH"] = str(executable.parent) + os.pathsep + env.get("PATH", "")
     return env
 

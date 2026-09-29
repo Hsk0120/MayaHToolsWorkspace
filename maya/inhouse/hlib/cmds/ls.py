@@ -95,11 +95,11 @@ def ls(*args, **kwargs):
 
     ノード・属性名を返す検索用（属性はPlug）。コンポーネント・型名等を返すMayaフラグは
     ラッパー化できない場合がある。検索結果が空なら空コレクションまたは空リスト。"""
-    from .._core.coerce import to_names
+    from .._core.coerce import to_names, node_inputs
     from ..nodes import Joints, Node, SkinClusters
 
     targets = []
-    for arg in args:
+    for arg in node_inputs([arg for arg in args if arg is not None]):
         if arg is None:
             continue
         if isinstance(arg, str):

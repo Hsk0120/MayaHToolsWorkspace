@@ -46,7 +46,7 @@ assert hlib.createNode is hlib.cmds.createNode
 assert not hasattr(hlib, "NODE_REGISTRY")
 assert hlib.nodes.Node._registry is not None
 assert hlib.plugs.Plug._registry is not None
-for name in ("ls", "createNode", "constraint"):
+for name in ("ls", "createNode", "addConstraint"):
     assert callable(getattr(hlib.cmds, name))
 
 path = commands / "example_command.py"

@@ -807,7 +807,7 @@ def build_limb(definition=None, backend="standard"):
             )
         )
         created.extend(constraints)
-        rig._layer_members("ikSet", constraints + [effector])
+        rig._layer_members("ikSet", constraints + [hlib.getNode(effector)])
         hlib.getPlug(handle + ".visibility").set(False)
         graph, graph_parent = create_soft_ik(names["soft"], length, backend)
         created.append(graph_parent)

@@ -744,23 +744,16 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertNotEqual(first.full_name(), second.full_name())
         return first, second, group
 
-    def test_deleting_the_held_instance_falls_back_to_remaining_instance(self):
+    def test_deleting_the_held_instance_does_not_retarget(self):
+        """ノードが残っていても消失したインスタンスへ操作しない。"""
         first, second, group = self.instanced_box()
-        plug = second.plug("castsShadows")
         vertex = Vertex(second, 1)
         cmds.delete(group.full_name() + "|" + self.ns("box1"))
-        # ノード自体は |box の下に残っているため、有効なまま残ったインスタンスを指す。
         self.assertTrue(second.is_valid())
-        self.assertEqual(second.full_name(), first.full_name())
-        self.assertEqual(str(second), first.name())
-        self.assertEqual(str(plug), first.name() + ".castsShadows")
-        self.assertEqual(str(vertex), first.full_name() + ".vtx[1]")
-        self.assertTrue(cmds.objExists(second))
-        self.assertTrue(cmds.objExists(str(plug)))
-        hlib.select(second)
-        self.assertEqual(cmds.ls(selection=True, long=True), [first.full_name()])
-        self.assertEqual(Node(second).full_name(), first.full_name())
-        self.assertEqual(cmds.getAttr(plug), first.plug("castsShadows").get())
+        for operation in (second.full_name, second.name, vertex.full_name):
+            with self.assertRaises(RuntimeError):
+                operation()
+        self.assertTrue(first.is_valid())
 
     def test_names_keep_the_instance(self):
         first, second, _ = self.instanced_box()
@@ -1520,7 +1513,6 @@ class NodeConstructionTest(_InteropCase):
                 (Node, transform, Transform),
                 (Node, network, Node),
                 (Transform, joint, Joint),
-                (Joint, transform, Transform),
                 (Node, Node(joint).mobject(), Joint),
                 (hlib.getNode, joint, Joint),
             ]
@@ -1534,7 +1526,8 @@ class NodeConstructionTest(_InteropCase):
         finally:
             node_module._resolve_node = original
         # 呼び出したクラスの派生でないラッパーも初期化されている。
-        self.assertEqual(Joint(transform).full_name(), cmds.ls(transform, long=True)[0])
+        with self.assertRaises(TypeError):
+            Joint(transform)
 
 
 class CommandEdgeCaseTest(_InteropCase):

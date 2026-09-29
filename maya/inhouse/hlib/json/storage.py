@@ -79,8 +79,12 @@ def dump(data, path=None, metadata=None, indent=2):
             os.replace(str(temporary), str(target))
         return target or temporary
     except BaseException:
-        if temporary.exists():
-            temporary.unlink()
+        try:
+            if temporary.exists():
+                temporary.unlink()
+        except OSError as exc:
+            from ..utils import logger
+            logger.warning("Temporary JSON cleanup failed for %s: %s", temporary, exc)
         raise
 
 

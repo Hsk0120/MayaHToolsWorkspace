@@ -32,6 +32,17 @@ class Component:
         self._index = operator.index(index)
         self._validate()
 
+    def __hash__(self):
+        """保持シェイプ・種類・番号のハッシュを返す。位置の更新では変化しない。"""
+        return hash((self._shape, self.component_type, self._index))
+
+    def __eq__(self, other):
+        """同じシェイプのインスタンス・種類・番号を指すか比較する。"""
+        if not isinstance(other, Component):
+            return NotImplemented
+        return (self._shape == other._shape and self.component_type == other.component_type
+                and self._index == other._index)
+
     @property
     def shape(self):
         """所有シェイプを取得する。

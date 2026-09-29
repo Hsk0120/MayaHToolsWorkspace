@@ -76,6 +76,7 @@ class Joint(Transform):
         return tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in result)
 
     @fast_edit
+    @undo_chunk("hlibJointsJointOrientToRotate")
     def joint_orient_to_rotate(self, *, fast=False):
         """現在の姿勢を保ち、jointOrientをrotateに合成して0にする。
 
@@ -97,10 +98,11 @@ class Joint(Transform):
         """
         if not self.is_joint():
             raise RuntimeError("Cannot change orientation of an invalid joint")
-        Joints([self]).joint_orient_to_rotate()
+        self._apply_rotation_transfer(self._joint_rotation_transfer_values())
         return self
 
     @fast_edit
+    @undo_chunk("hlibJointsFreezeRotation")
     def freeze_rotation(self, *, fast=False):
         """姿勢を保ち、rotateをjointOrientへ合成してrotateを0にする。
 
@@ -123,8 +125,20 @@ class Joint(Transform):
         """
         if not self.is_joint():
             raise RuntimeError("Cannot freeze rotation of an invalid joint")
-        Joints([self]).freeze_rotation()
+        self._apply_rotation_transfer(self._joint_rotation_transfer_values(to_orient=True), to_orient=True)
         return self
+
+    def _apply_rotation_transfer(self, values, to_orient=False):
+        """検証済みの回転移送値を適用する。Undo/fastは呼出元の範囲に従う。
+
+        Args:
+            values (tuple | None): 現在のUI角度単位の3成分。Noneなら更新しない。
+            to_orient (bool): TrueならjointOrientへ移しrotateを0にする。
+        """
+        if values is None:
+            return
+        set_attr(self.full_name() + ".jointOrient", *(values if to_orient else (0, 0, 0)))
+        set_attr(self.full_name() + ".rotate", *((0, 0, 0) if to_orient else values))
 
     def _rotation_quaternion(self, attribute):
         """jointOrient / rotateAxis の Maya degrees 属性を API quaternion へ変換する。
@@ -487,28 +501,6 @@ class Joint(Transform):
             result.append(IkHandle(node.mobject()))
         return result
 
-    def __eq__(self, other):
-        """UUID を基準に別の Joint と同一か判定する。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: Joint 同士は UUID の一致。相手が Joint でなければ NotImplemented。両方が無効で UUID が None なら一致する。
-        """
-        if not isinstance(other, Joint):
-            return NotImplemented
-        return self.uuid() == other.uuid()
-
-    def __hash__(self):
-        """UUID を使ったハッシュ値を返す。
-
-        Returns:
-            int: 現在の UUID のハッシュ。無効な場合は None のハッシュ。
-        """
-        return hash(self.uuid())
-
-
 @collection_export()
 @bulk_api(Joint)
 class Joints(Transforms):
@@ -544,12 +536,7 @@ class Joints(Transforms):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        plans = [(joint, joint._joint_rotation_transfer_values()) for joint in self]
-        for joint, values in plans:
-            if values is not None:
-                set_attr(joint.full_name() + ".jointOrient", 0, 0, 0)
-                set_attr(joint.full_name() + ".rotate", *values)
-        return self
+        return self._transfer_rotation()
 
     @fast_edit
     @undo_chunk("hlibJointsFreezeRotation")
@@ -572,11 +559,20 @@ class Joints(Transforms):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        plans = [(joint, joint._joint_rotation_transfer_values(to_orient=True)) for joint in self]
+        return self._transfer_rotation(to_orient=True)
+
+    def _transfer_rotation(self, to_orient=False):
+        """全対象の準備成功後に回転移送を適用する。
+
+        Args:
+            to_orient (bool): TrueならrotateをjointOrientへ移す。
+
+        Returns:
+            Joints: 自身。途中の失敗で完了済み更新は自動で戻さない。
+        """
+        plans = [(joint, joint._joint_rotation_transfer_values(to_orient=to_orient)) for joint in self]
         for joint, values in plans:
-            if values is not None:
-                set_attr(joint.full_name() + ".jointOrient", *values)
-                set_attr(joint.full_name() + ".rotate", 0, 0, 0)
+            joint._apply_rotation_transfer(values, to_orient=to_orient)
         return self
 
     def skin_clusters(self):
@@ -615,11 +611,3 @@ class Joints(Transforms):
         from .._core.jointDeletion import _JointDeletion
 
         _JointDeletion(self).execute()
-
-    def __iter__(self):
-        """保持している Joint を順に反復する。
-
-        Returns:
-            Iterator[Joint]: 保存順に Joint を返すイテレータ。
-        """
-        return iter(self._items)

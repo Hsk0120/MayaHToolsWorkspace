@@ -71,12 +71,24 @@ def _initialize():
                             raise ValueError("Duplicate wrapper type: " + key)
                     entries.append((base._registry, wrappers, suffix, exports))
                 # 全種類の検証成功後に登録。片方だけ登録された状態を作らない。
-                for registry, wrappers, suffix, exports in entries:
-                    for key, cls in wrappers.items():
-                        registry.register(key, cls)
-                    namespace = sys.modules[name + "." + suffix]
-                    vars(namespace).update(exports)
-                    namespace.__all__ = sorted(exports)
+                snapshots = [(registry, dict(registry._classes), sys.modules[name + "." + suffix],
+                              dict(vars(sys.modules[name + "." + suffix])))
+                             for registry, _, suffix, _ in entries]
+                try:
+                    for registry, wrappers, suffix, exports in entries:
+                        for key, cls in wrappers.items():
+                            registry.register(key, cls)
+                        namespace = sys.modules[name + "." + suffix]
+                        vars(namespace).update(exports)
+                        namespace.__all__ = sorted(exports)
+                except Exception:
+                    # 登録中の障害でも、この拡張より前の型と公開名へ戻す。
+                    for registry, classes, namespace, attributes in snapshots:
+                        registry._classes.clear()
+                        registry._classes.update(classes)
+                        vars(namespace).clear()
+                        vars(namespace).update(attributes)
+                    raise
                 _states[name] = {"state": "loaded", "reason": ""}
             except Exception as exc:
                 _states[name] = {"state": "error", "reason": str(exc)}

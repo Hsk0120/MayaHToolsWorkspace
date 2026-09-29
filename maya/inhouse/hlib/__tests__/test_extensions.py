@@ -72,6 +72,29 @@ class ExtensionsTest(unittest.TestCase):
         self.assertEqual(states['hlib_fixture_broken']['reason'], 'SDK broken')
         self.assertIsNotNone(hlib.nodes.Node._registry.lookup('transform'))
 
+    def test_registration_failure_restores_both_registries(self):
+        """登録途中の障害で先に登録したnodesと公開名も戻す。"""
+        from unittest import mock
+        path = self.package('hlib_fixture_atomic', 'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
+        self.wrappers(path, 'nodes', 'from hlib.nodes import Node\nfrom hlib.extensions import node_wrapper\n@node_wrapper("fixtureAtomicNode")\nclass AtomicNode(Node): pass\n')
+        self.wrappers(path, 'plugs', 'from hlib.plugs import Plug\nfrom hlib.extensions import plug_wrapper\n@plug_wrapper("fixtureAtomicPlug")\nclass AtomicPlug(Plug): pass\n')
+        registry = hlib.plugs.Plug._registry
+        original = registry.register
+
+        def reject(key, cls):
+            """指定型の登録直後に障害を発生させる。"""
+            original(key, cls)
+            if key == 'fixtureAtomicPlug':
+                raise RuntimeError('registration interrupted')
+
+        with mock.patch.object(registry, 'register', side_effect=reject):
+            hlib.extensions._initialize()
+        self.assertIsNone(hlib.nodes.Node._registry.lookup('fixtureAtomicNode'))
+        self.assertIsNone(registry.lookup('fixtureAtomicPlug'))
+        self.assertFalse(hasattr(sys.modules['hlib_fixture_atomic.nodes'], 'AtomicNode'))
+        self.assertEqual(hlib.extensions.status()['hlib_fixture_atomic']['state'], 'error')
+        self.assertIsNotNone(hlib.nodes.Node._registry.lookup('transform'))
+
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]])

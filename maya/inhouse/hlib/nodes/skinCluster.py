@@ -62,7 +62,8 @@ class SkinCluster(Node):
             SkinCluster: 作成したskinCluster。
         """
         mesh = Node(mesh)
-        influences = [Node(n) for n in influences]
+        from .._core.coerce import node_inputs
+        influences = [Node(n) for n in node_inputs(influences)]
         if not influences or type(max_influences) is not int or max_influences < 1:
             raise ValueError("Expected influences and a positive maximum influence count")
         if cmds.ls(cmds.listHistory(mesh.full_name()) or [], type="skinCluster"):
@@ -185,7 +186,8 @@ class SkinCluster(Node):
         Returns:
             om2.MIntArray: 指定順の物理インデックス配列。
         """
-        return om2.MIntArray([self._jnt_index(joint) for joint in joints])
+        from .._core.coerce import to_names
+        return om2.MIntArray([self._jnt_index(joint) for joint in to_names(joints)])
 
     def influences(self):
         """influenceのDAGパスを保持するノードラッパーを取得する。
@@ -367,7 +369,8 @@ class SkinCluster(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        joints = list(joints)
+        from .._core.coerce import to_names
+        joints = to_names(joints)
         physical_indices = [self._jnt_index(joint) for joint in joints]
         if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
             raise ValueError("Influences must be non-empty, registered and unique")

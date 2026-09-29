@@ -32,6 +32,19 @@ class MatrixRunnerTest(unittest.TestCase):
             self.assertNotIn("QT_PLUGIN_PATH", result)
             self.assertEqual(result["MAYA_UI_LANGUAGE"], "en_US")
 
+    def test_fbx_directory_is_test_local(self):
+        """存在する同一MayaのFBXディレクトリだけ子環境へ追加する。"""
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            exe = root / "Maya2022/bin/mayapy.exe"
+            fbx = exe.parent.parent / "plug-ins/fbx/plug-ins"
+            fbx.mkdir(parents=True)
+            (root / 'run').mkdir()
+            with mock.patch.dict(os.environ, {"MAYA_PLUG_IN_PATH": "user-path"}):
+                env = runner.isolated_environment(exe, root / "run")
+                self.assertEqual(env["MAYA_PLUG_IN_PATH"], str(fbx))
+                self.assertEqual(os.environ["MAYA_PLUG_IN_PATH"], "user-path")
+
     def test_nonzero_exit_cannot_report_pass(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

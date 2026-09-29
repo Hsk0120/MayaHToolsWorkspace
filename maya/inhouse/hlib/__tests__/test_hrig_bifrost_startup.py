@@ -51,7 +51,7 @@ class ConfigurationTest(unittest.TestCase):
             self.assertEqual(self.mod.package().minimum_version.parts, (3, 0, 0))
 
     def test_run_delegates_to_the_package(self):
-        with mock.patch("hlib.general.PluginPackage.ensure_loaded", return_value="missing") as ensure:
+        with mock.patch("hlib.general.PluginPackage.try_load", return_value="missing") as ensure:
             self.assertEqual(self.mod.run(dialog=False), "missing")
         ensure.assert_called_once_with(dialog=False)
 
@@ -64,7 +64,7 @@ class InitializeTest(unittest.TestCase):
         self.addCleanup(env.stop)
 
     def test_batch_session_does_nothing(self):
-        with mock.patch.object(self.mod.maya_utils, "executeDeferred") as deferred:
+        with mock.patch.object(self.mod.hlib, "executeDeferred") as deferred:
             self.mod.initialize()
         deferred.assert_not_called()
         self.assertFalse(self.mod._scheduled)
@@ -74,7 +74,7 @@ class InitializeTest(unittest.TestCase):
         gui.about.return_value = False
         with mock.patch.object(self.mod, "cmds", gui), \
                 mock.patch.dict(os.environ, {"HRIG_SKIP_BIFROST": "1"}), \
-                mock.patch.object(self.mod.maya_utils, "executeDeferred") as deferred:
+                mock.patch.object(self.mod.hlib, "executeDeferred") as deferred:
             self.mod.initialize()
         deferred.assert_not_called()
 
@@ -82,7 +82,7 @@ class InitializeTest(unittest.TestCase):
         gui = mock.Mock()
         gui.about.return_value = False
         with mock.patch.object(self.mod, "cmds", gui), \
-                mock.patch.object(self.mod.maya_utils, "executeDeferred") as deferred:
+                mock.patch.object(self.mod.hlib, "executeDeferred") as deferred:
             self.mod.initialize()
             self.mod.initialize()
         self.assertEqual(deferred.call_count, 1)

@@ -14,6 +14,7 @@ from .._core.registry import node_wrapper
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
 from ..maths.vector import _vector_of
 from .node import Node, Nodes
+from .dagNode import DagNode
 from .._core.collection import bulk_api
 from .._core.registry import collection_export
 
@@ -105,7 +106,7 @@ def _closest_euler(quaternion, reference):
 
 
 @node_wrapper("transform")
-class Transform(Node):
+class Transform(DagNode):
     """Maya transform ノードを matrix-first API で扱うラッパー。
 
     評価済み値を取得する ``get_*`` 系メソッドは cymel の ``getMatrix(ws=...)`` に
@@ -177,7 +178,8 @@ class Transform(Node):
         # 無い(追従しない)拘束を黙って作るため、Transform 以外は TypeError にする。
         requires_transform = command_name in _TRANSFORM_SOURCE_CONSTRAINTS
         names = []
-        for source in sources:
+        from .._core.coerce import node_inputs
+        for source in node_inputs(sources):
             if source is None or (isinstance(source, str) and not source):
                 raise TypeError("Constraint sources must be non-empty names or Node objects")
             # 文字列も含めて所有ノードへ解決する。Plug・MPlug・"node.attribute" は所有ノード、
@@ -276,24 +278,6 @@ class Transform(Node):
         if names:
             cmds.delete(names)
         return names
-
-    def dag_path(self):
-        """Transform の MDagPath を取得する。
-
-        Returns:
-            om2.MDagPath | None: 有効な DAG パス。取得できない場合は ``None``。
-                保持していたインスタンスのパスが削除された場合は、残っている最初の
-                インスタンスのパスを返す。
-        """
-        return self._current_dag_path()
-
-    def dag_fn(self):
-        """Transform 用の MFnDagNode を取得する。
-
-        Returns:
-            om2.MFnDagNode: この Transform の function set。
-        """
-        return om2.MFnDagNode(self.dag_path())
 
     def transform_fn(self):
         """Transform 用の MFnTransform を取得する。
@@ -410,27 +394,6 @@ class Transform(Node):
                     # Matrix は om2.MMatrix の派生なので、MPoint との積をそのまま使える。
                     world_box.expand(om2.MPoint(x, y, z) * parent_matrix)
         return world_box
-
-    def parent_path(self):
-        """親ノードの DAG パスを取得する。
-
-        Returns:
-            om2.MDagPath | None: 親のパス。親がない場合は ``None``。
-        """
-        if not self.is_valid() or self.dag_path().length() <= 1:
-            return None
-        parent_path = om2.MDagPath(self.dag_path())
-        parent_path.pop()
-        return parent_path
-
-    def parent_node(self):
-        """親ノードを汎用 Node として取得する。
-
-        Returns:
-            Node | None: 親ノード。親がない場合は ``None``。
-        """
-        parent_path = self.parent_path()
-        return Node(parent_path) if parent_path is not None else None
 
     def root(self):
         """DAG 階層の最上位祖先を取得する。

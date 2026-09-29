@@ -142,3 +142,14 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 未存在の配列入力を取得するgetterは要素を作らずIndexErrorとする。作成はsetter等へ限定する。
 - `PluginPackage.try_load` は状態文字列を返し、`Plugin.ensure_loaded` は失敗時に例外を送出する。成功保証の違いを隠さない。
 - `get_visibility/set_visibility` は自身のvisibility属性だけを扱い、階層や表示レイヤーを含む最終可視性と区別する。
+
+## 参照と入力の固定規則
+
+- Nodeの等価比較は生存中のMaya対象、DAGではインスタンスパスも含む。JointだけのUUID比較は廃止。same_nodeは同じMayaノード、same_instanceは同じDAGインスタンスを明示的に比較する。
+- Nodeのhashは生成時のMObjectHandle.hashCodeを保持。Plugは所有ノードのhashと生成時の属性パスを保持する。改名・削除でhashを変えず、永続IDとして保存しない。完全破棄後は他参照と等価にしない。可変数学型/Colorはhash不可を維持。
+- getNode/Nodeは動的に型解決するが、具体クラスの構築はその型または派生に適合しなければTypeError。Nodeと同一のノードを別の具体型へ無理にラップしない。
+- 保持DAGパスの消失を別インスタンスへの自動切替で補わない。ノードの有効性とパスの有効性を区別する。
+- ノード対象列では文字列とNodeの混在を変更前にTypeErrorにする。名前列/Node列は両方許可し、派生型はNode形式として扱う。空入力や操作対象型の制限は各操作の仕様を維持する。
+- reload後の旧インスタンスは取得し直す。新旧クラスの相互比較/自動移行を保証しない。
+- lsの専用コレクション返却、copy/sliceの参照共有、bulk失敗時の停止・自動ロールバックなしを維持する。
+- Maya依存の有無は責務分離の基準にしない。対象に固有の取得・計算・更新は同じクラスに置く。

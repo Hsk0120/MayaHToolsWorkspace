@@ -141,7 +141,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             with self.subTest(kind=kind):
                 source, second, driven = self.transform(), self.transform(), self.transform()
                 cmds.setAttr(source.full_name() + '.translateX', 3)
-                result = driven.add_constraint([source, second.full_name()], kind, maintainOffset=True)
+                result = driven.add_constraint([source, second], kind, maintainOffset=True)
                 expected = getattr(hlib.nodes, kind.title() + 'Constraint')
                 self.assertIsInstance(result, expected)
                 self.assertIsInstance(hlib.nodes.Node(result.full_name()), expected)
@@ -163,7 +163,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         result.set_weight(0.25, source)
         self.assertEqual(result.get_weights(), [0.25, 0.5])
 
-        result.set_weight(0.75, source.full_name(), second)
+        result.set_weight(0.75, source, second)
         self.assertEqual(result.get_weights(), [0.75, 0.75])
 
         unrelated = self.transform()

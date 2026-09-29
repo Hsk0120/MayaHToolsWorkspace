@@ -278,8 +278,8 @@ class Node:
     RuntimeError の派生でもあるため、従来どおり RuntimeError としても捕捉できる)。
 
     インスタンス化されたノードは、指定されたインスタンスの DAG パスを保持する。
-    そのインスタンスだけが削除された場合は、残っている最初のインスタンスのパスへ
-    切り替わる(ノード自体が削除された場合は無効になる)。
+    そのインスタンスだけが削除された場合は、パスを使う操作がRuntimeErrorになる。
+    別インスタンスへ暗黙に切り替えない。ノード自体の有効性はis_validで照会する。
 
     ``str(node)`` は maya.cmds で一意に解決できる最短名(:meth:`name`)を返すため、
     Node はそのまま ``cmds.select(node)`` のように maya.cmds へ渡せる。名前は
@@ -432,10 +432,8 @@ class Node:
     def __new__(cls, node, *args, **kwargs):
         """ノード型の登録情報に従ってラッパーを割り当てる。
 
-        入力の解決(名前の検索など)はここで1回だけ行い、結果を ``__init__`` へ引き継ぐ
-        (``Node(...)`` は1回の生成で入力を1回だけ解決する)。選んだクラスが呼び出した
-        クラスの派生でない場合(``Joint("<transform 名>")`` が ``Transform`` を返す場合など)は、
-        Python が ``__init__`` を呼ばないため、ここで初期化してから返す。
+        入力を一度だけ解決する。Nodeは登録済みの型を自動選択する。
+        具体的なクラスを指定した場合は、そのクラスの派生型以外を拒否する。
 
         Args:
             node (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
@@ -445,9 +443,7 @@ class Node:
             **kwargs (object): 選んだクラスの ``__init__`` へ渡すキーワード引数。
 
         Returns:
-            Node: 登録クラスのインスタンス(``__init__`` は呼び出し元の Python が呼ぶ。
-                呼び出したクラスの派生でない場合は初期化済み)。登録情報がなければ
-                呼び出したクラスの未初期化インスタンス。
+            Node: 登録済みの適合クラスのインスタンス。
 
         Raises:
             TypeError: ノード入力が対応しない型の場合。
@@ -461,12 +457,10 @@ class Node:
         # 入力の解決(名前の検索など)は1回だけ行い、結果を __init__ へ引き継ぐ。
         resolved = _resolve_node(node)
         resolved_class = registry.wrapper_class(om2.MFnDependencyNode(resolved[0]).typeName)
+        if cls is not Node and not issubclass(resolved_class, cls):
+            raise TypeError("{} requires a compatible node, got {}".format(cls.__name__, resolved_class.__name__))
         instance = super().__new__(resolved_class)
         instance._pending_resolution = resolved
-        if not isinstance(instance, cls):
-            # 呼び出したクラスの派生でないクラス(Joint("<transform 名>") が返す Transform など)は
-            # Python が __init__ を呼ばないため、ここで初期化する。
-            instance.__init__(node, *args, **kwargs)
         return instance
 
     def __init__(self, node):
@@ -500,6 +494,7 @@ class Node:
         self._mobject, self._dag_path = resolved
         # 有効性の判定は名前の取得のたびに行うため、ハンドルは一度だけ作って再利用する。
         self._handle = om2.MObjectHandle(self._mobject)
+        self._identity_hash = self._handle.hashCode()
 
     def _resolve(self, node):
         """ノードを表す入力を内部 API オブジェクトへ変換する。
@@ -520,6 +515,7 @@ class Node:
         self._mobject, self._dag_path = _resolve_node(node)
         # 有効性の判定は名前の取得のたびに行うため、ハンドルは一度だけ作って再利用する。
         self._handle = om2.MObjectHandle(self._mobject)
+        self._identity_hash = self._handle.hashCode()
         self._fn_cache = None
 
     def _dependency_fn(self):
@@ -537,24 +533,41 @@ class Node:
         return fn
 
     def _current_dag_path(self):
-        """保持している DAG パスを返す。インスタンスのパスが無くなっていれば取り直す。
-
-        インスタンス化されたノードのラッパーは、作成時に指定されたインスタンスの
-        パスを保持する。そのインスタンスだけが削除された(ノード自体は他の
-        インスタンスとして残っている)場合は、残っている最初のインスタンスのパスへ
-        切り替える。名前変更・親子付け替えでは MDagPath は無効にならない。
+        """保持パスを返す。消失したインスタンスを別パスへ切り替えない。
 
         Returns:
-            om2.MDagPath | None: 有効な DAG パス。DG ノード、または無効なノードでは
-                保持している値(DG ノードは None)。
+            om2.MDagPath | None: 保持しているパス。非DAGはNone。
+        Raises:
+            RuntimeError: 保持しているDAGインスタンスが削除された場合。
         """
         dag_path = self._dag_path
-        if dag_path is not None and dag_path.isValid():
-            return dag_path
-        if not self.is_valid() or not self._mobject.hasFn(om2.MFn.kDagNode):
-            return dag_path
-        dag_path = self._dag_path = om2.MFnDagNode(self._mobject).getPath()
+        if dag_path is not None and not dag_path.isValid():
+            raise RuntimeError("The referenced DAG instance no longer exists")
         return dag_path
+
+    def __hash__(self):
+        """生成時のMayaハンドルのハッシュを返す。改名・削除後も変化しない。"""
+        return self._identity_hash
+
+    def __eq__(self, other):
+        """生存中の同じ対象を比較する。DAGはインスタンスのパスも区別する。"""
+        if not isinstance(other, Node):
+            return NotImplemented
+        if not self.is_alive() or not other.is_alive():
+            return False
+        if self._dag_path is not None and other._dag_path is not None:
+            return self._dag_path == other._dag_path
+        return self._mobject == other._mobject
+
+    def same_node(self, other):
+        """別インスタンスも含め、同じ生存中のMayaノードを指すか返す。"""
+        return (isinstance(other, Node) and self.is_alive() and other.is_alive()
+                and self._mobject == other._mobject)
+
+    def same_instance(self, other):
+        """同じ生存中のDAGインスタンスか返す。非DAGノードはFalse。"""
+        return (isinstance(other, Node) and self._dag_path is not None
+                and other._dag_path is not None and self == other)
 
     def is_valid(self):
         """Maya シーン上でノードが有効か判定する。
@@ -571,11 +584,8 @@ class Node:
         Returns:
             bool: MObjectHandle.isAlive() の結果。Undo キューに保持された削除済みノードも生存と判定される場合がある。
         """
-        return bool(
-            self._mobject is not None
-            and not self._mobject.isNull()
-            and om2.MObjectHandle(self._mobject).isAlive()
-        )
+        handle = self._handle
+        return handle is not None and handle.isAlive()
 
     def mobject(self):
         """保持している Maya API 2.0 MObject を返す。
@@ -1382,6 +1392,8 @@ class Nodes(BulkCollection):
                 names = iter(names)
             except TypeError:
                 names = [names]
+        from .._core.coerce import node_inputs
+        names = node_inputs(names)
         items, seen = [], set()
         for value in names:
             node = to_node(value)
@@ -1395,10 +1407,6 @@ class Nodes(BulkCollection):
                 seen.add(key)
                 items.append(node)
         self._items = items
-
-    def __iter__(self):
-        """Iterator[Node]: 保持順の参照を返す。"""
-        return iter(self._items)
 
     def __getitem__(self, index):
         """Node | Nodes: 単体参照または同じ具象型のスライスを返す。

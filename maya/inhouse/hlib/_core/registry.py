@@ -9,7 +9,7 @@ def node_wrapper(node_type, public=True):
 
     Args:
         node_type (str): Maya の ``nodeType`` 名。
-        public (bool): hlib のトップレベル API として公開するか。
+        public (bool): 所属するnodes/plugsパッケージのAPIとして公開するか。
 
     Returns:
         callable: wrapper class を受け取り metadata を付与する decorator。
@@ -45,7 +45,7 @@ def collection_export(public=True):
     """Node collection class を hlib の公開 export として宣言する。
 
     Args:
-        public (bool): hlib のトップレベル API として公開するか。
+        public (bool): 所属するnodes/plugsパッケージのAPIとして公開するか。
 
     Returns:
         callable: collection class を受け取り metadata を付与する decorator。
@@ -77,7 +77,7 @@ def plug_wrapper(attr_type, public=True):
 
     Args:
         attr_type (str): ``cmds.getAttr(..., type=True)`` が返す型名。
-        public (bool): hlib のトップレベル API として公開するか。
+        public (bool): 所属するnodes/plugsパッケージのAPIとして公開するか。
 
     Returns:
         callable: wrapper class を受け取り metadata を付与する decorator。

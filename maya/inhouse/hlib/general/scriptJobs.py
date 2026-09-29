@@ -39,7 +39,21 @@ class ScriptJobs:
         return bool(self._jobs) and all(job.exists() for job in self._jobs.values())
 
     def stop(self):
-        """所有する監視だけを解除する。外部のscriptJobには触れない。"""
+        """全監視の解除を試み、失敗した監視は再試行のため保持する。
+
+        Raises:
+            RuntimeError: 一つ以上の解除に失敗した場合。外部の監視は変更しない。
+        """
+        from ..utils import logger
+
+        failures = []
         for key, job in list(self._jobs.items()):
-            job.stop()
-            del self._jobs[key]
+            try:
+                job.stop()
+            except Exception as exc:
+                failures.append((key, exc))
+                logger.warning("scriptJob cleanup failed for %r: %s", key, exc)
+            else:
+                del self._jobs[key]
+        if failures:
+            raise RuntimeError("Failed to stop scriptJobs: " + ", ".join(repr(key) for key, _ in failures)) from failures[0][1]

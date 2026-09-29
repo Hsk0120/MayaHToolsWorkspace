@@ -29,6 +29,8 @@ import io
 import runpy
 import sys
 import traceback
+import unittest
+from unittest import mock
 from datetime import datetime
 from pathlib import Path
 
@@ -55,7 +57,7 @@ def discover_test_files():
     )
 
 
-def _run_one(path):
+def _run_one(path, metrics=None):
     """1つのテストファイルを他のファイルへ影響しない形で実行する。
 
     ``tools/send_to_maya.py`` が個別実行時に使うのと同じ
@@ -65,15 +67,37 @@ def _run_one(path):
 
     Args:
         path (Path): 実行する test_*.py のパス。
+        metrics (dict | None): 実行件数とスキップ理由の集計先。省略時は呼出内だけで保持。
 
     Returns:
         tuple[bool, str]: 成功したかどうかと、捕捉した出力全文。
     """
     buffer = io.StringIO()
     ok = True
-    with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+    metrics = metrics if metrics is not None else {"tests_run": 0, "skipped": []}
+    original_start = unittest.TestResult.startTest
+    original_skip = unittest.TestResult.addSkip
+
+    def start(result, test):
+        """実行したテスト数を数える。"""
+        metrics["tests_run"] += 1
+        return original_start(result, test)
+
+    def skip(result, test, reason):
+        """スキップ理由を結果に保持する。"""
+        metrics["skipped"].append({"test": test.id(), "reason": str(reason)})
+        return original_skip(result, test, reason)
+
+    with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer), \
+            mock.patch.object(unittest.TestResult, "startTest", start), \
+            mock.patch.object(unittest.TestResult, "addSkip", skip):
         try:
-            runpy.run_path(str(path), run_name="__main__")
+            previous_argv = sys.argv
+            try:
+                sys.argv = [str(path)]
+                runpy.run_path(str(path), run_name="__main__")
+            finally:
+                sys.argv = previous_argv
         except SystemExit as exit_signal:
             code = exit_signal.code
             ok = code is None or code == 0 or code is False
@@ -98,8 +122,9 @@ def run_all(notify=None):
     started_at = datetime.now()
     files = discover_test_files()
     results = []
+    metrics = {"tests_run": 0, "skipped": []}
     for path in files:
-        ok, output = _run_one(path)
+        ok, output = _run_one(path, metrics)
         results.append((path.name, ok, output))
 
     failed = [name for name, ok, _ in results if not ok]
@@ -139,6 +164,8 @@ def run_all(notify=None):
         "failed": failed,
         "log_path": log_path,
         "summary": summary,
+        "tests_run": metrics["tests_run"],
+        "skipped": metrics["skipped"],
     }
 
 

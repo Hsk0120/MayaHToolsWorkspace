@@ -356,6 +356,8 @@ class Plug:
         """
         self._node = node
         self._mplug = om2.MPlug(mplug)
+        self._identity_path = "." + mplug.partialName(includeNonMandatoryIndices=True, includeInstancedIndices=True)
+        self._identity_hash = hash((hash(node), self._identity_path))
         attribute = self._attribute = self._mplug.attribute()
         # 属性が破棄されたこと(Undo の対象から外れた削除)を検出するためのハンドル。
         self._attribute_handle = om2.MObjectHandle(attribute)
@@ -380,6 +382,19 @@ class Plug:
             return True
         return (self._attribute_handle.isValid()
                 and self._node._dependency_fn().attributeClass(self._attribute) != _INVALID_ATTRIBUTE)
+
+    def __hash__(self):
+        """生成時の所有ノードと属性パスに基づく固定ハッシュを返す。"""
+        return self._identity_hash
+
+    def __eq__(self, other):
+        """生存中の同じ属性参照を比較する。削除済みのAPIへ照会しない。"""
+        if not isinstance(other, Plug):
+            return NotImplemented
+        if not (self._node.is_alive() and other._node.is_alive()
+                and self._attribute_handle.isAlive() and other._attribute_handle.isAlive()):
+            return False
+        return self._identity_path == other._identity_path and self._mplug == other._mplug
 
     def is_valid(self):
         """所有ノードと属性がシーンに存在し、値を読み書きできるか判定する。

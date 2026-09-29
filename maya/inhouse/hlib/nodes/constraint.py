@@ -90,7 +90,8 @@ class Constraint(Node):
             for plug in weight_plugs:
                 plug.set(weight)
             return self
-        requested = {to_node(target).full_name() for target in targets}
+        from .._core.coerce import node_inputs
+        requested = {to_node(target).full_name() for target in node_inputs(targets)}
         available = {node.full_name(): plug for node, plug in zip(self.targets(), weight_plugs)}
         missing = requested - available.keys()
         if missing:

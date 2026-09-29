@@ -6,6 +6,29 @@
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
 最初に ``import hlib`` を実行してください。
 
+ノードの継承
+------------
+
+``Node`` はDGノード全般、``DagNode`` はDAG階層を持つノードの共通基底です。
+``Transform`` と ``Shape`` はどちらも ``DagNode`` を継承します。
+ShapeがTransformの子に置かれることと、クラスの継承関係は別です。
+
+.. code-block:: text
+
+   Node
+   └─ DagNode
+      ├─ Transform
+      │  └─ Joint
+      └─ Shape
+         ├─ Mesh
+         └─ NurbsCurve
+
+``dag_path()``・``dag_fn()``・``parent_path()``・``parent_node()`` は
+``DagNode`` に共通実装があります。Shapeの ``parent_node()`` は
+親がTransformの場合だけ返します。
+``hlib.getNode()`` は引き続きノード型に対応する具象クラスを返します。
+保持していたインスタンスのパスが無効になった場合、別インスタンスへ切り替えません。
+
 Transform のピボット
 ---------------------
 
@@ -86,7 +109,7 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 削除された Plug・MPlug は、所有ノードが残っていても ``ValueError`` です
 (``RuntimeError`` としても捕捉できます)。インスタンス化されたノードは
 指定したインスタンスのパスを保持し、そのインスタンスだけが削除された場合は
-残っている最初のインスタンスのパスへ切り替わります。
+パスを使う操作はRuntimeErrorになります。別インスタンスへは切り替えません。
 
 .. code-block:: python
 

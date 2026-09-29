@@ -41,8 +41,9 @@ def undo_chunk(name=None):
         if opened:
             try:
                 cmds.undoInfo(closeChunk=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                from ..utils import logger
+                logger.warning("Undo chunk close failed: %s", exc)
 
 
 @contextlib.contextmanager
@@ -58,14 +59,15 @@ def undo_transaction(name=None):
     Undo にまとまったチャンクとして履歴に残る。
 
     Undoが有効であることが前提。fast=True・ファイル操作等は巻き戻せない。
-    ガード作成・チャンク終了・undoの失敗は抑制し、元の例外を優先するため、
+    ガード作成・チャンク終了・undoの失敗は警告し、元の例外を優先するため、
     ロールバック完了を保証するものではない。
 
     チャンク内で実際の変更が一件も無いまま例外になった場合、``cmds.undo()``
     は空のチャンクを素通りして本トランザクションと無関係な直前の操作を
     巻き戻してしまう(Maya の undo キューの既定挙動)。これを避けるため、
     ロールバック直前に軽量なダミーノードを作成・削除してチャンクへ必ず
-    1件の Undo エントリを積んでから閉じる。
+    1件の Undo エントリを積んでから閉じる。ガード作成またはチャンク終了が
+    失敗した場合、無関係な履歴の巻き戻しを避けるためundoは実行しない。
 
     Args:
         name (str | None): Maya Undo キューに表示するチャンク名。省略時は
@@ -84,19 +86,30 @@ def undo_transaction(name=None):
     try:
         yield
     except BaseException:
+        guard_created = False
+        closed = False
         try:
             guard = cmds.createNode("network", skipSelect=True)
+            guard_created = True
             cmds.delete(guard)
-        except Exception:
-            pass
+        except Exception as exc:
+            from ..utils import logger
+            logger.warning("Undo guard creation failed: %s", exc)
         try:
             cmds.undoInfo(closeChunk=True)
-        except Exception:
-            pass
-        try:
-            cmds.undo()
-        except Exception:
-            pass
+            closed = True
+        except Exception as exc:
+            from ..utils import logger
+            logger.warning("Undo chunk close failed: %s", exc)
+        if guard_created and closed:
+            try:
+                cmds.undo()
+            except Exception as exc:
+                from ..utils import logger
+                logger.warning("Undo rollback failed: %s", exc)
+        else:
+            from ..utils import logger
+            logger.warning("Undo rollback skipped: guard creation or chunk close did not succeed")
         raise
     else:
         cmds.undoInfo(closeChunk=True)

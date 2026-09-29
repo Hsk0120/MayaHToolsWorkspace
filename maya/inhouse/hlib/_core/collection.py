@@ -9,6 +9,14 @@ from .flags import normalize_flags
 class BulkCollection:
     """保持順の一括呼び出し。クラス固有の既存メソッドを優先する。"""
 
+    def __iter__(self):
+        """保持順に要素を反復する。
+
+        Returns:
+            Iterator: 保持している要素のイテレータ。
+        """
+        return iter(self._items)
+
     def __len__(self):
         """int: 保持要素数。"""
         return len(self._items)
@@ -34,16 +42,7 @@ class BulkCollection:
         シーン編集は1回のUndoにまとめる。自動ロールバックはしない。
         Pluginのload/unloadやファイルI/OはUndo対象外。
         """
-        if method not in self._bulk_methods:
-            raise ValueError(f"Unsupported instance method: {method}")
-        args = [tuple(row) for row in arguments]
-        kwargs = [{} for _ in self._items] if keyword_arguments is None else [dict(row) for row in keyword_arguments]
-        if len(args) != len(self) or len(kwargs) != len(self):
-            raise ValueError("Argument count must match collection length")
-        functions = [getattr(item, method) for item in self._items]
-        kwargs = [normalize_flags(function, flags) for function, flags in zip(functions, kwargs)]
-        for function, row, flags in zip(functions, args, kwargs):
-            inspect.signature(function).bind(*row, **flags)
+        functions, args, kwargs = self._prepare_calls(method, arguments, keyword_arguments)
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
         context = undo_chunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
         result = []
@@ -54,6 +53,43 @@ class BulkCollection:
                 except Exception as exc:
                     raise RuntimeError(f"{type(self).__name__}.{method} failed at item {index}: {exc}") from exc
         return result
+
+    def _prepare_calls(self, method, arguments, keyword_arguments):
+        """全要素の引数を実行前に解決・検証する。
+
+        Args:
+            method (str): 登録済みの単体メソッド名。
+            arguments (Iterable[tuple]): 要素別の位置引数。
+            keyword_arguments (Iterable[dict] | None): 要素別のキーワード引数。
+
+        Returns:
+            tuple: 呼出先・位置引数・正規化済みキーワード引数の各リスト。
+
+        Raises:
+            ValueError: メソッド名または件数が不正な場合。
+            TypeError: 引数が各呼出先のシグネチャと一致しない場合。
+        """
+        if method not in self._bulk_methods:
+            raise ValueError(f"Unsupported instance method: {method}")
+        args = [tuple(row) for row in arguments]
+        kwargs = [{} for _ in self._items] if keyword_arguments is None else [dict(row) for row in keyword_arguments]
+        if len(args) != len(self) or len(kwargs) != len(self):
+            raise ValueError("Argument count must match collection length")
+        functions = [getattr(item, method) for item in self._items]
+        kwargs = [normalize_flags(function, flags) for function, flags in zip(functions, kwargs)]
+        # この呼出内だけ共有し、reloadやクラスの差替え後に古いsignatureを保持しない。
+        signatures = {}
+        for function, row, flags in zip(functions, args, kwargs):
+            if inspect.ismethod(function):
+                key = function.__func__
+                if key not in signatures:
+                    signatures[key] = inspect.signature(function)
+                signature = signatures[key]
+            else:
+                # 個体ごとのcallableや__signature__を持つ値は独立に検証する。
+                signature = inspect.signature(function)
+            signature.bind(*row, **flags)
+        return functions, args, kwargs
 
 
 def bulk_api(item_class, undo=True, per_item_only=()):

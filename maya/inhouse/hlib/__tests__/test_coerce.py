@@ -51,10 +51,10 @@ class CoerceTest(unittest.TestCase):
         self.assertEqual(to_names(node), [node.full_name()])
         self.assertEqual(to_names("literalName"), ["literalName"])
 
-    def test_to_names_converts_mixed_iterable(self):
+    def test_to_names_rejects_mixed_iterable(self):
         node = self.create_transform("hlibCoerceToNamesMixed")
-        result = to_names([node, "literalName"])
-        self.assertEqual(result, [node.full_name(), "literalName"])
+        with self.assertRaises(TypeError):
+            to_names([node, "literalName"])
 
     def test_to_names_empty_iterable_returns_empty_list(self):
         self.assertEqual(to_names([]), [])

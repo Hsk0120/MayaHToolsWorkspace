@@ -336,6 +336,37 @@ def to_name(value):
     return _name(value, node_class, plug_class, component_class)
 
 
+def node_inputs(values):
+    """対象列を一度だけ展開し、名前とNodeの混在を変換前に拒否する。
+
+    Args:
+        values (object): 単体、または対象の反復可能列。既存のAPI型も保持する。
+    Returns:
+        list: 入力順の対象。空列は空のまま返す。
+    Raises:
+        TypeError: 同じ対象列に文字列とNodeが混在している場合。
+    """
+    node_class, plug_class, component_class, components_class = _classes()
+    singles = (str, node_class, plug_class, component_class, components_class,
+               om2.MObject, om2.MDagPath, om2.MPlug)
+    result = []
+    def collect(value):
+        """単体を保持し、コレクションを一度だけ展開する。"""
+        if isinstance(value, singles):
+            result.append(value)
+        else:
+            try:
+                iterator = iter(value)
+            except TypeError:
+                raise _unsupported(value) from None
+            for item in iterator:
+                collect(item)
+    collect(values)
+    if any(isinstance(value, str) for value in result) and any(isinstance(value, node_class) for value in result):
+        raise TypeError("Names and Node objects cannot be mixed in the same target collection")
+    return result
+
+
 def to_names(values, allow_plugs=True):
     """単一の対象・コレクション・反復可能オブジェクトを名前のリストへ正規化する。
 
@@ -358,7 +389,7 @@ def to_names(values, allow_plugs=True):
 
     Raises:
         TypeError: いずれかの要素が対応しない型の場合。allow_plugs が False で、
-            Plug・MPlug が含まれる場合。
+            Plug・MPlug が含まれる場合。同じ対象列に文字列とNodeが混在する場合。
         ValueError: いずれかの要素が空文字列、または無効な対象の場合。
     """
     node_class, plug_class, component_class, components_class = _classes()
@@ -388,7 +419,7 @@ def to_names(values, allow_plugs=True):
         for item in iterator:
             collect(item)
 
-    collect(values)
+    collect(node_inputs(values))
     return names
 
 
