@@ -14,9 +14,12 @@ namespace hedit {
 /** @brief 検索条件。検索バーのチェックボックスに対応する。 */
 struct SearchOptions {
     QString text;            ///< 検索する文字列(正規表現モードではパターン)。
-    bool matchCase = false;  ///< 大文字と小文字を区別する(``Tt``)。
-    bool wholeWord = false;  ///< 単語全体だけに一致させる(``Abc``)。
-    bool regex = false;      ///< 正規表現として扱う(``.*``)。
+    bool matchCase = false;     ///< 大文字と小文字を区別する(``Aa``)。
+    bool wholeWord = false;     ///< 単語全体だけに一致させる(``ab``)。
+    bool regex = false;         ///< 正規表現として扱う(``.*``)。
+    bool preserveCase = false;  ///< 置換後の文字列の大文字小文字を、一致した文字列に合わせる(置換欄の``AB``)。
+    int rangeStart = -1;        ///< 選択範囲内で検索するときの範囲の先頭。-1なら全体(``≡``)。
+    int rangeEnd = -1;          ///< 選択範囲内で検索するときの範囲の末尾(この位置の文字は含まない)。
 };
 
 /** @brief 1つの一致箇所。位置はUTF-16の文字単位(QStringの添字と同じ)。 */
@@ -57,5 +60,13 @@ SearchResult findMatches(const QString& document, const SearchOptions& options,
  * @return 展開した文字列。
  */
 QString expandReplacement(const QString& replacementTemplate, const QRegularExpressionMatch& match, int captureCount);
+
+/** @brief 置換後の文字列の大文字小文字を、一致した文字列に合わせる(VS Codeの「Preserve Case」と同じ規則)。
+ * @param replacement 置換後の文字列。
+ * @param matched 一致した文字列。
+ * @return 一致がすべて大文字なら大文字、すべて小文字なら小文字、先頭だけ大文字なら先頭を大文字にした文字列。
+ * それ以外(英字を含まない等)はそのまま。
+ */
+QString preserveCase(const QString& replacement, const QString& matched);
 
 }  // namespace hedit

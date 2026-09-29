@@ -19,6 +19,7 @@ cmds.loadPlugin('hedit')
 
 
 class SessionPathTests(unittest.TestCase):
+    """``hedit -sessionPath`` が返す tabs.json の場所の検証。"""
     def test_default_location(self):
         """Mayaのユーザー設定フォルダー(バージョン別)の下のhedit/tabs.json。"""
         base = Path(cmds.internalVar(userPrefDir=True))

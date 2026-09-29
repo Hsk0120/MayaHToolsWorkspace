@@ -125,6 +125,21 @@ bool textSearchPasses() {
     if (hedit::findMatches("x", regex).ok()) { qWarning() << "invalid regex accepted"; return false; }
     regex.text = "x*";
     if (hedit::findMatches("abc", regex).ok()) { qWarning() << "zero-length accepted"; return false; }
+    // 選択範囲内で検索: 範囲に収まる一致だけを数える。
+    options = hedit::SearchOptions();
+    options.text = "ab";
+    options.rangeStart = 3;
+    options.rangeEnd = 9;
+    result = hedit::findMatches("ab AB xab", options);
+    if (result.matches.size() != 2 || !(result.matches[0] == hedit::TextMatch{3, 2})) { qWarning() << "range" << result.matches.size(); return false; }
+    // 大文字小文字を保つ置換(AB): 一致した文字列の形に合わせる。
+    options = hedit::SearchOptions();
+    options.text = "cmds";
+    options.preserveCase = true;
+    const QString lower = "hlib";
+    result = hedit::findMatches("cmds CMDS Cmds", options, &lower);
+    if (result.replacements != QStringList{"hlib", "HLIB", "Hlib"}) { qWarning() << "preserve case" << result.replacements; return false; }
+    if (hedit::preserveCase("x", "123") != "x") { qWarning() << "preserve case without letters"; return false; }
     return true;
 }
 

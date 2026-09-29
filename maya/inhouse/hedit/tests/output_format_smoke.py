@@ -5,6 +5,12 @@ import traceback
 
 
 def main(output_dir, finished):
+    """GUIランナー(``tools/run_hlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
+
+    Args:
+        output_dir (str): 結果の ``result.json`` と画像の出力先。
+        finished (callable): 終了時に結果の辞書を渡して呼ぶ関数(Maya の終了はランナーが行う)。
+    """
     from maya import cmds, mel, OpenMaya, OpenMayaUI
     try:
         from PySide6 import QtCore, QtGui, QtWidgets

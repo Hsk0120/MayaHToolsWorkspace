@@ -1,5 +1,12 @@
 """設定を切り替え、実入力・補完候補・保存結果を検証する。"""
 def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
+    """``gui_smoke.py`` から呼ばれ、開いている編集画面で検証する。失敗は ``AssertionError``。
+
+    Args:
+        window (QMainWindow): hedit の編集画面。
+        directory (Path): 一時ファイルを置くフォルダー。
+        QtCore, QtGui, QtWidgets, QtTest: Maya の PySide(2 / 6)のモジュール。
+    """
     action_type = getattr(QtWidgets, 'QAction', None) or QtGui.QAction
     actions = {a.objectName()[7:]: a for a in window.findChildren(action_type) if a.objectName().startswith('option_')}
     assert len(actions) == 13

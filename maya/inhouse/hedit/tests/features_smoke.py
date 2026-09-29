@@ -33,12 +33,12 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     action('Replace…').trigger()
     window.findChild(QtWidgets.QLineEdit, 'findText').setText(r'h(\d+)')
     window.findChild(QtWidgets.QLineEdit, 'replaceText').setText('$1_$$')
-    window.findChild(QtWidgets.QCheckBox, 'searchRegex').setChecked(True)
-    window.findChild(QtWidgets.QPushButton, 'replaceAll').click()
+    window.findChild(QtWidgets.QAbstractButton, 'searchRegex').setChecked(True)
+    window.findChild(QtWidgets.QAbstractButton, 'replaceAll').click()
     assert code.toPlainText() == '1_$ 22_$'
     code.undo(); assert code.toPlainText() == 'h1 h22'
     window.findChild(QtWidgets.QWidget, 'findBar').hide()
-    window.findChild(QtWidgets.QCheckBox, 'searchRegex').setChecked(False)
+    window.findChild(QtWidgets.QAbstractButton, 'searchRegex').setChecked(False)
 
     # Pythonの非アクティブタブと、アクティブなMELタブは診断しない。
     from hedit import analysis

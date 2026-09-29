@@ -33,7 +33,7 @@ SearchResult findMatches(const QString& document, const SearchOptions& options, 
     }
     const QRegularExpression regex(buildPattern(options), flags);
     if (!regex.isValid()) {
-        result.error = "Invalid expression: " + regex.errorString();
+        result.error = "Invalid regular expression: " + regex.errorString();
         return result;
     }
 
@@ -48,14 +48,20 @@ SearchResult findMatches(const QString& document, const SearchOptions& options, 
             result.error = "Too many matches (limit 100,000)";
             return result;
         }
+        // 選択範囲内で検索するときは、範囲に収まる一致だけを数える。
+        const bool limited = options.rangeStart >= 0 && options.rangeEnd >= options.rangeStart;
+        if (limited && (match.capturedStart() < options.rangeStart || match.capturedEnd() > options.rangeEnd)) {
+            continue;
+        }
         result.matches.append({int(match.capturedStart()), int(match.capturedLength())});
         if (replacementTemplate) {
             // 通常の検索では置換の文字列をそのまま使う。$記法は正規表現モードだけ。
-            if (options.regex) {
-                result.replacements.append(expandReplacement(*replacementTemplate, match, regex.captureCount()));
-            } else {
-                result.replacements.append(*replacementTemplate);
+            QString value = options.regex ? expandReplacement(*replacementTemplate, match, regex.captureCount())
+                                          : *replacementTemplate;
+            if (options.preserveCase) {
+                value = preserveCase(value, match.captured());
             }
+            result.replacements.append(value);
         }
     }
     return result;
@@ -98,6 +104,33 @@ QString expandReplacement(const QString& replacementTemplate, const QRegularExpr
         }
     }
     return expanded;
+}
+
+QString preserveCase(const QString& replacement, const QString& matched) {
+    bool hasLetter = false;
+    bool allUpper = true;
+    bool allLower = true;
+    for (const QChar c : matched) {
+        if (!c.isLetter()) {
+            continue;
+        }
+        hasLetter = true;
+        allUpper = allUpper && c.isUpper();
+        allLower = allLower && c.isLower();
+    }
+    if (!hasLetter || replacement.isEmpty()) {
+        return replacement;
+    }
+    if (allUpper) {
+        return replacement.toUpper();  // CMDS → HLIB
+    }
+    if (allLower) {
+        return replacement.toLower();  // cmds → hlib
+    }
+    if (matched.at(0).isUpper()) {
+        return replacement.at(0).toUpper() + replacement.mid(1);  // Cmds → Hlib
+    }
+    return replacement.at(0).toLower() + replacement.mid(1);  // 先頭が小文字なら、先頭だけ小文字にする
 }
 
 }  // namespace hedit

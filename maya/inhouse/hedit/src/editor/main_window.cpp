@@ -131,6 +131,7 @@ void MainWindow::buildLayout() {
         }
         scheduleAnalysis();
         scheduleSpelling();
+        findBar_->scheduleRefresh();  // 検索バーを開いていれば、新しいタブで件数と強調を出し直す。
     });
     // ドラッグでタブを並べ替えたら、その順番も自動保存する。
     connect(tabs_->tabBar(), &QTabBar::tabMoved, this, [this] { markSessionDirty(); });
@@ -290,6 +291,7 @@ void MainWindow::onTextChanged(CodeEditor* editor) {
     if (editor == currentEditor()) {
         scheduleAnalysis();
         scheduleSpelling();
+        findBar_->scheduleRefresh();  // 本文が変わったので、検索の件数と強調を出し直す。
     }
 }
 
@@ -606,6 +608,10 @@ void MainWindow::applyZoom() {
                       .arg(QString(theme::kSelection))
                       .arg(scaled(size))
                       .arg(scaled(size - 2)));
+    // 検索バーの入力欄も、エディターと同じフォントと大きさにする(VS Codeと違い、文字サイズの変更に追従する)。
+    QFont font("Consolas");
+    font.setPixelSize(scaled(size));
+    findBar_->setEditorFont(font);
     showStatus(QString("Font size: %1 px").arg(size), 2000);
 }
 

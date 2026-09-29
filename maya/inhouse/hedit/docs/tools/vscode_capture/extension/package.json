@@ -1,0 +1,10 @@
+{
+  "name": "hedit-vscode-probe",
+  "displayName": "hedit VS Code probe",
+  "description": "Runs a scripted sequence of VS Code commands for screenshot comparison.",
+  "version": "0.0.1",
+  "publisher": "hedit-local",
+  "engines": { "vscode": "^1.80.0" },
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js"
+}

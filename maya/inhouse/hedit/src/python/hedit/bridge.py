@@ -41,10 +41,17 @@ def _members(mapping, depth=0):
 
 
 def _signature(module, namespace):
-    """str: 公開名が変わったかを見分けるための印。
+    """公開名が変わったかを見分けるための印を作る。
 
     名前・値の同一性(id)・クラスの中身の数から作る。公開名の辞書を作ってJSONにするより軽いので、
     C++は前回と同じ印なら前回の結果を使う(maya.cmdsは約4,700個の名前がある)。
+
+    Args:
+        module (module): モジュール。
+        namespace (dict): ``vars(module)``。
+
+    Returns:
+        str: 印。
     """
     parts = []
     for key, value in list(namespace.items()):
@@ -55,7 +62,9 @@ def _signature(module, namespace):
 
 
 def module_info(name, known_signature=''):
-    """str: 読み込み済みのモジュールの今の公開名とファイル(JSON)。
+    """読み込み済みのモジュールの今の公開名とファイルを返す。
+
+    getattr を使わず ``vars()`` だけを読むので、属性の取得で動く処理は実行しない。
 
     Args:
         name (str): モジュール名。
@@ -64,7 +73,6 @@ def module_info(name, known_signature=''):
     Returns:
         str: 読み込み済みなら ``{"loaded": true, "signature": "...", "members": {...}, "file": "..."}``。
         印が同じなら ``{"loaded": true, "unchanged": true}``。まだなら ``{"loaded": false}``。
-        getattrを使わず``vars()``だけを読むので、属性の取得で動く処理は実行しない。
     """
     module = sys.modules.get(name)
     if not isinstance(module, types.ModuleType):

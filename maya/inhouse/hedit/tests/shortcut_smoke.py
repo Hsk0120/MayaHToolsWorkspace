@@ -1,5 +1,11 @@
 """Maya GUI内で実キーイベント・編集Undo・検索置換を検証する。"""
 def check(window, QtCore, QtGui, QtWidgets, QtTest):
+    """``gui_smoke.py`` から呼ばれ、開いている編集画面で検証する。失敗は ``AssertionError``。
+
+    Args:
+        window (QMainWindow): hedit の編集画面。
+        QtCore, QtGui, QtWidgets, QtTest: Maya の PySide(2 / 6)のモジュール。
+    """
     tabs = window.findChild(QtWidgets.QTabWidget)
     code = tabs.currentWidget()
     ctrl, shift, alt = QtCore.Qt.ControlModifier, QtCore.Qt.ShiftModifier, QtCore.Qt.AltModifier
@@ -65,8 +71,10 @@ def check(window, QtCore, QtGui, QtWidgets, QtTest):
     try:
         reset('first\nlast', 6)
         key(QtCore.Qt.Key_C, ctrl)
-        if clipboard_usable:
-            assert clipboard.text() == 'last\n'
+        # 上の確認はQtが手元に覚えている値でも成功するので、OSへの書き込みの失敗を見分けられない。
+        # 空でない行をコピーしたのに空が返ったら、OSのクリップボードが使えないとみなして確認を飛ばす。
+        if clipboard_usable and clipboard.text() != '':
+            assert clipboard.text() == 'last\n', repr(clipboard.text())
         key(QtCore.Qt.Key_X, ctrl)
         # 切り取りは本文から行を消す(クリップボードの可否に関係なく確かめられる)。
         assert code.toPlainText() == 'first'
@@ -95,7 +103,7 @@ def check(window, QtCore, QtGui, QtWidgets, QtTest):
     replacement = window.findChild(QtWidgets.QLineEdit, 'replaceText')
     assert replacement.isVisible()
     replacement.setText('pear')
-    window.findChild(QtWidgets.QPushButton, 'replaceAll').click()
+    window.findChild(QtWidgets.QAbstractButton, 'replaceAll').click()
     assert code.toPlainText() == 'pear pear'
     code.setFocus()
     key(QtCore.Qt.Key_Z, ctrl)

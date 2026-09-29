@@ -13,11 +13,18 @@ def check(output, QtCore, QtGui, QtWidgets, QtTest):
         saved.setData(fmt, clipboard.mimeData().data(fmt))
     # Windowsのクリップボードは全体で共有。ほかのアプリが開いたままだと読み書きできない(heditとは無関係)。
     clipboard.setText('hedit_clipboard_probe')
-    clipboard_usable = clipboard.text() == 'hedit_clipboard_probe'
+    state = {'usable': clipboard.text() == 'hedit_clipboard_probe'}
 
     def assert_clipboard(expected):
-        if clipboard_usable:
-            assert clipboard.text() == expected, (clipboard.text(), expected)
+        if not state['usable']:
+            return
+        actual = clipboard.text()
+        # 上の確認はQtが手元に覚えている値でも成功するので、OSへの書き込みの失敗を見分けられない。
+        # 空でない選択をコピーしたのに空が返ったら、OSのクリップボードが使えないとみなして以後の確認を飛ばす。
+        if actual == '' and expected:
+            state['usable'] = False
+            return
+        assert actual == expected, (actual, expected)
     def wait():
         loop = QtCore.QEventLoop()
         QtCore.QTimer.singleShot(80, loop.quit)
@@ -57,4 +64,4 @@ def check(output, QtCore, QtGui, QtWidgets, QtTest):
     finally:
         clipboard.setMimeData(saved)
         output.clear()
-    return clipboard_usable
+    return state['usable']

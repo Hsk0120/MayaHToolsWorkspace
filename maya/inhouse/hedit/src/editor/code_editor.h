@@ -3,6 +3,7 @@
  */
 #pragma once
 #include "core/completion_types.h"
+#include "core/text_search.h"
 #include "editor/numbered_text_edit.h"
 #include <QList>
 #include <QString>
@@ -79,6 +80,15 @@ public:
     /** @brief スペルの波線を全て消す。 */
     void clearSpelling();
 
+    // ---- 検索の一致箇所 ----
+
+    /** @brief 検索の一致箇所に薄い背景を付ける(選択中の一致は、選択の色で表示される)。
+     * @param matches 一致箇所。多すぎると描画が重くなるので、呼出側で件数を絞る。
+     */
+    void setSearchHighlights(const QList<TextMatch>& matches);
+    /** @brief 検索の一致箇所の背景を消す。 */
+    void clearSearchHighlights();
+
     // ---- MainWindowへ任せる操作(空なら何もしない) ----
 
     std::function<void()> onCompletionRequested;  ///< Ctrl+Spaceが押された。
@@ -123,6 +133,7 @@ private:
     SyntaxHighlighter* highlighter_;                     ///< 色分け。所有者は文書。
     QCompleter* completer_;                              ///< 補完の一覧。所有者はこの欄。
     QList<QTextEdit::ExtraSelection> spellingMarks_;     ///< スペルの波線。
+    QList<QTextEdit::ExtraSelection> searchMarks_;       ///< 検索の一致箇所の背景。
 };
 
 }  // namespace hedit

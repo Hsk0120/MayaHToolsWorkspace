@@ -44,15 +44,21 @@ constexpr const char* kPopupBorder = "#454545";
 constexpr const char* kPopupSelection = "#094771";
 constexpr const char* kPopupSelectedText = "#ffffff";
 
-// ---- 検索バー ----
-constexpr const char* kFindBarBackground = "#252526";
-constexpr const char* kFindFieldBackground = "#3c3c3c";
-constexpr const char* kFindFieldBorder = "#555";
-constexpr const char* kFindFieldFocusBorder = "#6b93b0";
-constexpr const char* kFindLabel = "#bdbdbd";
-constexpr const char* kFindToggleChecked = "#515151";
-constexpr const char* kFindToggleCheckedText = "#ffffff";
-constexpr const char* kFindButtonHover = "#505050";
+// ---- 検索バー(VS Codeの検索ウィジェットに合わせた色) ----
+constexpr const char* kFindBarBackground = "#252526";     ///< バーの背景。
+constexpr const char* kFindBarBorder = "#454545";         ///< バーの枠線。
+constexpr const char* kFindFieldBackground = "#3c3c3c";   ///< 入力欄の背景。
+constexpr const char* kFindFieldBorder = "#4b4b4b";       ///< 入力欄の枠線(普段は背景より少し明るい細い線)。
+constexpr const char* kFindFieldFocusBorder = "#007fd4";  ///< 入力中の入力欄の枠線。
+constexpr const char* kFindFieldErrorBorder = "#be1100";  ///< 不正な正規表現のときの枠線と吹き出しの枠線。
+constexpr const char* kFindErrorBackground = "#5a1d1d";   ///< 不正な正規表現の理由の吹き出しの背景。
+constexpr const char* kFindLabel = "#cccccc";             ///< ボタンと件数の文字。
+constexpr const char* kFindErrorLabel = "#f48771";        ///< 「No results」「Invalid」の文字。
+constexpr const char* kFindButtonHover = "#45494e";       ///< マウスを重ねたボタンの背景。
+constexpr const char* kFindToggleChecked = "#264f78";     ///< オンの切り替えボタン(Aa など)の背景。
+constexpr const char* kFindToggleCheckedBorder = "#007acc";  ///< オンの切り替えボタンの枠線。
+constexpr const char* kFindToggleCheckedText = "#ffffff";    ///< オンの切り替えボタンの文字。
+constexpr const char* kSearchMatch = "#623315";           ///< 本文の中の、選択中以外の一致箇所の背景。
 
 }  // namespace theme
 }  // namespace hedit

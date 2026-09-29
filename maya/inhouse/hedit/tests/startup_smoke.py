@@ -45,6 +45,13 @@ def main(output_dir, finished):
 
 
 def _check(stage, output_dir, result):
+    """``HEDIT_SESSION_STAGE`` の段階ごとの検証を行い、確かめた項目を ``result["checks"]`` に足す。
+
+    Args:
+        stage (str): 段階(``write``・``read``・``closed``・``float_write``・``float_read``)。
+        output_dir (str): 出力先。
+        result (dict): 結果の辞書。
+    """
     from maya import cmds, mel, OpenMayaUI
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import hedit_host as host

@@ -19,16 +19,55 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 
 
 
+
+
+
+
 ## 完了履歴
+
+| Claude Code | 2026-09-30 | maya/inhouse/hedit docs・docstring | Sphinxの各ページを実装と突き合わせて修正(メニュー順・Explorerの表示対象・Zoomの反映先・補完の上限・検索バーのobjectName・構成図など)。同梱Python・userSetup・テストの入口のdocstringをGoogle形式で実装に合わせた。5版ビルド警告0、run_tests 5版・run_gui 2027・Sphinx -W 成功。検索バーのVS Code対応と合わせてコミット・プッシュ。 |
+
+| Codex | 2026-09-30 | hlib残件・runner・tests/docs | Undo/ScriptJobs/JSON二次障害対応、公開名衝突・拡張登録復旧、FBX子環境・件数/skip理由、signature呼出内共有を実装。入力/fast表とPlug低水準入口の維持を記載。5版各75ファイル785件成功、最終Undo保護は5版関連再実行成功、runner5件/discovery/Sphinx -W成功。GUI未実施、未コミット。 |
+
+| Codex | 2026-09-30 | hlib残件整理 | 計画と実装を照合し未反映6項目・一部反映・撤回/維持をresearchへ整理。実装変更/テスト再実行なし。 |
+
+| Claude Code | 2026-09-30 | maya/inhouse/hedit 検索バー・docs/tools | 検索バーをVS Codeの寸法(幅419/入力25/ボタン22/アイコン16)に合わせ、アイコンをC++描画でmllへ内蔵、色はhedit配色・文字はエディターのフォント。選択範囲内で検索・AB(大文字小文字を保つ置換)・不正な正規表現の吹き出しを追加。VS Code撮影ツール(docs/tools/vscode_capture)と比較スクリプト(findbar_compare.py)を追加。5版ビルド警告0、run_tests/run_startup 5版・run_gui(gui_smoke)2024/2027・他GUIスイート2027・Sphinx -W 成功。未コミット。 |
+
+| Codex | 2026-09-30 | hlib collection/Joint/Plug/DagNode・tests/docs | Bulk反復/引数準備集約、Joint適用/Joints全件準備へ整理、Double3子参照再利用、親取得をDagNodeへ集約。2025/26/27全74ファイル成功、2022/24既存73成功+追加3件は丸め差のテスト修正後再実行成功。discovery/reload・Sphinx -W・diff成功。2023未導入/GUI未実施、未コミット。 |
+
+| Codex | 2026-09-30 | hlib追加集約計画 | 複数形・Joint回転移送・Plug子参照の段階計画をresearch保存。mirror/Point/Constraintは既存委譲を維持。実装・Maya実行なし。 |
+
+| Codex | 2026-09-30 | hlib DagNode・tests/docs | DagNode追加、Transform/Shapeのdag_path/dag_fn/parent_path集約。型登録維持・静的公開追加・説明更新。2027関連56テスト/reload成功、Sphinx -W成功、diff確認。他版/GUI未実施。 |
+
+| Codex | 2026-09-30 | hlibベースクラス集約計画 | DAG重複・既存単複継承・Point系・Plug系を確認。API維持の5段階計画をresearch保存。実装変更/Maya実行なし。 |
 
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-30 | hlib追加内部整理計画 | 後始末例外・登録衝突・bulk検証負荷・テスト環境再現性を実装から確認しresearchへ計画保存。公開API維持、実装変更・Maya実行なし。 |
+| Codex | 2026-09-30 | hlib参照/入力契約・tests/docs・hrig使用側 | Node/Plug固定hashと比較、Joint特例廃止、Component比較、具象Node型保証、DAG消失時の切替禁止、名前/Node混在拒否を反映。破棄済みMObjectのis_aliveクラッシュを保持handleで修正。各版2022/24/25/26/27の72ファイル/773件実行成功(skip5/5/2/2/2)、GUI2027 102成功exit0、discovery/reload・Sphinx -W成功。hrig混在1箇所修正後50/51成功、残り外部FKベイクの既知接続属性エラー。規約/移行ガイド更新。他版GUI未実施、未コミット。 |
+| Codex | 2026-09-30 | hlib設計固定前レビュー | Joint等価/hash特例、具象型生成、DAGパス切替、ls返却型、失敗契約を調査し候補をresearch保存。実装変更・Mayaテストなし。 |
+| Codex | 2026-09-30 | hlib計画再検討 | Maya依存を分離基準にせず対象クラスへ処理を維持。混在入力禁止の適用範囲、単複/Undo/fast/初期化の整理計画をresearchで改訂。数値分離案撤回。実装変更・Maya実行なし。 |
+| Codex | 2026-09-29 | hlibリファクタリング計画 | coerce・bulk・Undo/fast・SkinCluster/JSON・初期化/reloadの順で段階計画。公開APIと単複同居を維持。docs/researchへローカル保存。実装変更・Maya再実行なし。 |
 | Claude Code | 2026-09-29 | maya/inhouse/hedit(src/・tests/・docs/・README・CMakeLists.txt・release/*.mll) | 補完をC++化: core/script_lexer(Python/MEL字句解析)・python_declarations(宣言抽出)・completion_engine・symbols・completion_types・script_file追加。Pythonはhedit.bridge(公開名/sys.path/組み込み名の窓口、印で変化なしなら送らない)とanalysisのみ、completion.pyとheditorを削除。構文強調を字句解析化(三重引用符の複数行・MEL予約語/$変数/ブロックコメント)。自動保存は変化時のみ、行番号は変化範囲だけ再描画、Explorerは別スレッドで列挙、user_pathsはキャッシュ、dockの調査ログと旧ドック名を削除、MainWindowをmain_window_menus.cppへ分割、設定キーを定数化、補完/解析はJSONでなく構造体で受け渡し。hedit -complete/-declarations(テスト用)追加。5,000行編集中の補完 約100ms→約5ms、cmds.補完p95 2.4〜16ms→1.4〜1.7ms。ast突き合わせ400ファイル一致。5版ビルド警告0、run_tests全5版、run_startup 25回、run_gui 4種×2024/2027、run_session 2024/2027、Sphinx -W成功。未コミット |
 | Codex | 2026-09-29 | 全未コミット変更 | 全変更をmainへのコミット・プッシュ対象として整理。hlib/hedit/hrigとドキュメントを含む。差分チェック・サブモジュール参照不変を確認。Git除外の研究メモ/計測ログは対象外。今回Maya全テストは再実行していない。 |
 | Codex | 2026-09-29 | README.md・.github/workflows/hlib-docs.yml | READMEへhrig Sphinx公開予定URLとソース/ビルド手順を追加。Pagesに/hrig/を生成するビルドと変更検知を追加。ローカルSphinx -E -a -W成功、diff確認。コミット/プッシュ/公開は未実施。 |
@@ -218,3 +257,17 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 | Codex | 2026-09-24 | maya/inhouse/hlib/editors/channelBox.py, editors/__init__.py, selection.py, cmds/channelBox.py, cmds/captureSelection.py, __tests__/test_channel_box.py, __tests__/test_selection.py, docs/selection_and_channelbox.rst | 連携ルール確認時に完了作業を追記。ChannelBoxとSelectionを追加。選択復元・Undo・属性解決をstandaloneで検証。ChannelBoxの実UI選択・解除は未検証。未コミット |
 | Claude Code | 2026-09-24 | maya/inhouse/hlib/nodes/node.py, skinCluster.py, maths/matrix.py, maths/easing.py(新規), utils/naming.py(新規), plugs/plug.py | 属性並び替え(move_attribute)・非線形ウェイト再分配(redistribute_weights)・行列ミラー(Matrix.mirrored)・名前サニタイズ(legalize_name)を追加。plug.py の attrType() 呼び出し漏れバグを修正 |
 | Claude Code | 2026-09-24 | WORK_LOG.md(新規), CLAUDE.md, AGENTS.md, .github/copilot-instructions.md | Claude Code/Codex/Copilot並行運用のためのハンドオフファイル(WORK_LOG.md)を新設し、3つの指示ファイルに参照ルールを追記 |
+
+
+
+
+
+
+
+
+
+
+
+
+
+

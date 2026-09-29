@@ -114,6 +114,7 @@ set(HEDIT_EDITOR_SOURCES
     src/editor/editor_tabs.cpp src/editor/editor_tabs.h
     src/editor/explorer.cpp src/editor/explorer.h
     src/editor/find_bar.cpp src/editor/find_bar.h
+    src/editor/find_icons.cpp src/editor/find_icons.h
     src/editor/numbered_text_edit.cpp src/editor/numbered_text_edit.h
     src/editor/output_panel.cpp src/editor/output_panel.h
     src/editor/problems_panel.cpp src/editor/problems_panel.h

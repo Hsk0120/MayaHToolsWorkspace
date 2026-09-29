@@ -73,6 +73,7 @@ def corpus():
 
 
 class DeclarationParityTests(unittest.TestCase):
+    """C++ の宣言の抽出と、以前の Python(ast)の結果の突き合わせ。"""
     def test_matches_ast_on_real_files(self):
         compared = 0
         mismatches = []

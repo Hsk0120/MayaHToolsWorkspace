@@ -32,7 +32,8 @@
    │  │  ├ edit_commands.*    VS Code 風の行編集(コメント・インデント・行の移動や複製)
    │  │  ├ numbered_text_edit.*  行番号付きのテキスト欄(コード欄と出力欄の土台)
    │  │  ├ output_panel.*     出力欄(保持・表示モードでの絞り込み・色付け)
-   │  │  ├ find_bar.*         検索・置換バー
+   │  │  ├ find_bar.*         検索・置換バー(配置・大きさは VS Code の検索ウィジェットに合わせる)
+   │  │  ├ find_icons.*       検索バーのアイコン(QPainter で描く。画像ファイルは使わない)
    │  │  ├ problems_panel.*   構文チェックの結果の一覧
    │  │  ├ syntax_highlighter.*  Python / MEL の色分け
    │  │  ├ editor_tabs.*      タブ欄(ホイールで移動、タブのコード欄の取り出し・見出しの更新)
@@ -62,6 +63,7 @@
    ├ tests/                  補完・standalone・GUI・復元の自動テスト(hedit_host.py は GUI テスト用の補助)
    ├ icons/                  アイコンの元データ(実行時は window_menu.cpp に同梱した SVG を使う)
    └ docs/                   このドキュメント
+      └ tools/               画面の撮影と VS Code との見比べ(:ref:`dev-capture`)
 
 依存の向きは ``plugin/`` → ``editor/`` → ``core/`` の一方向です。\ ``editor/`` と ``core/`` は Maya のヘッダーを
 読みません。そのため ``tests/ui_smoke.cpp``\ (``hedit_ui_smoke.exe``)が、本番と同じ ``editor/`` と ``core/`` の
@@ -220,9 +222,12 @@ C++ から MEL を呼ぶときの注意
 
 テストや PySide から参照される名前(``objectName`` とアクションの表示名)は、GUI テストが画面を探すのに使っています。
 変える場合は ``tests/`` も合わせて直してください。主なもの: ``hedit``\ ・\ ``codeEditor``\ ・\ ``output``\ ・\ ``outputPanel``\ ・
-``outputMode``\ ・\ ``editorSplitter``\ ・\ ``scriptToolbar``\ ・\ ``findBar``\ ・\ ``findText``\ ・\ ``replaceText``\ ・\ ``searchCase``\ ・
-``searchWord``\ ・\ ``searchRegex``\ ・\ ``searchCount``\ ・\ ``replaceAll``\ ・\ ``analysisProblems``\ ・\ ``languageMode``\ ・
+``outputMode``\ ・\ ``editorSplitter``\ ・\ ``scriptToolbar``\ ・\ ``analysisProblems``\ ・\ ``languageMode``\ ・\ ``completionStatus``\ ・
 ``explorerDock``\ ・\ ``explorerTree``\ ・\ ``toggleExplorer``\ ・\ ``option_<設定名>``\ ・\ ``lineJump``\ 。
+検索バーは ``findBar``\ ・\ ``findField``\ ・\ ``findText``\ ・\ ``replaceField``\ ・\ ``replaceText``\ ・\ ``toggleReplace``\ ・
+``searchCase``\ ・\ ``searchWord``\ ・\ ``searchRegex``\ ・\ ``preserveCase``\ ・\ ``searchCount``\ ・\ ``findPrevious``\ ・\ ``findNextMatch``\ ・
+``findInSelection``\ ・\ ``closeFind``\ ・\ ``replaceOne``\ ・\ ``replaceAll``\ ・\ ``findError``\ (不正な正規表現の吹き出し。タブ欄の子)です。
+ボタンは ``QToolButton`` なので、テストでは ``QAbstractButton`` として探します。
 コード欄の動的プロパティ ``language``\ ・\ ``path``\ ・\ ``spellCheckAvailable``\ ・\ ``spellCheckMilliseconds`` も同様です。
 
 設定項目を追加する
@@ -342,6 +347,44 @@ Visual Studio のプロジェクトだけを作る
   確かめる場合は、ポップアップの表示有無に左右されない ``completionModel()`` を見ます。
 * Maya 2024 は起動直後に Arnold(mtoa)の遅延登録が GUI スレッドを約 5 秒止めます。GUI テストで待機する場合は、
   壁時計ではなくイベントループが回った回数で数えてください(``session_smoke.py`` 参照)。
+
+.. _dev-capture:
+
+画面の撮影と VS Code との見比べ
+--------------------------------------
+
+``docs/tools/`` に、画面を撮る開発用のスクリプトがあります(リポジトリ直下から実行。出力は ``.maya-output/`` の下)。
+
+.. code-block:: powershell
+
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/docs/tools/run_capture.py 2027
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/docs/tools/findbar_compare.py 2027
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/docs/tools/vscode_capture/capture.py
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - スクリプト
+     - 内容
+   * - ``run_capture.py``\ (``capture_suite.py``)
+     - このドキュメントの画像を、専用設定の Maya GUI で撮り直して ``docs/_static/images/`` へコピーする
+   * - ``findbar_compare.py``\ (``findbar_suite.py``)
+     - VS Code と hedit の検索バーを同じ5つの状態(検索欄に入力中・置換欄に入力中・切り替えボタンがオン・一致なし・
+       不正な正規表現)で撮り、上下に並べた比較画像 ``compare_<状態>.png`` を作る。\ ``--no-vscode`` で hedit だけ
+   * - ``vscode_capture/capture.py``
+     - 隔離した VS Code を起動し、手順の JSON(例: ``find_replace.json``\ )どおりにコマンドを実行して窓を撮る。
+       手順の書き方は ``vscode_capture/extension/extension.js`` の先頭を参照
+
+* VS Code の撮影は、専用の ``--user-data-dir`` と ``--extensions-dir`` を一時フォルダーに作り、撮影用の拡張機能
+  (``vscode_capture/extension/``\ 。配布はしない)だけを読み込みます。普段の VS Code・設定・拡張機能には触れず、
+  終了時は自分が起動した VS Code だけを閉じます。\ ``Code.exe`` は既定のインストール先から探します
+  (別の場所なら環境変数 ``HEDIT_VSCODE_EXE``\ )。
+* 撮影は Windows の ``PrintWindow`` を使うので、VS Code の窓がほかの窓の後ろにあっても撮れます。
+* 比較画像で VS Code 側から切り出す範囲は、\ ``find_replace.json`` の ``compareCrop``\ (窓の中の x, y, 幅, 高さ)です。
+  窓の大きさ(``windowSize``\ )や VS Code の版で検索ウィジェットの位置が変わったら合わせてください。
+* 検索バーの寸法は VS Code を 100% 表示で測った値です(``src/editor/find_bar.h`` の先頭)。
+  アイコンは ``src/editor/find_icons.cpp`` が 16×16 の方眼に描いており、画像ファイルは使いません。
 
 別リポジトリへ切り出すときに必要なこと
 --------------------------------------

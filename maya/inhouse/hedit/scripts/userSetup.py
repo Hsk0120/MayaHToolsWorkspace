@@ -10,6 +10,7 @@ from maya import cmds, utils
 
 
 def _load_hedit():
+    """GUI の Maya で、hedit プラグインが未ロードならロードする。失敗は警告に留める。"""
     if cmds.about(batch=True):
         return
     if 'hedit' in (cmds.pluginInfo(query=True, listPlugins=True) or []):

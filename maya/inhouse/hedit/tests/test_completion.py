@@ -33,6 +33,7 @@ def names(source):
 
 
 class CompletionTests(unittest.TestCase):
+    """``hedit -complete`` による補完と、``hedit.analysis`` による構文チェックの検証。"""
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
     def setUp(self):

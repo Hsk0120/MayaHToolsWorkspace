@@ -168,6 +168,27 @@ void CodeEditor::clearSpelling() {
     updateDecorations();
 }
 
+void CodeEditor::setSearchHighlights(const QList<TextMatch>& matches) {
+    searchMarks_.clear();
+    for (const TextMatch& match : matches) {
+        QTextEdit::ExtraSelection mark;
+        mark.cursor = QTextCursor(document());
+        mark.cursor.setPosition(match.start);
+        mark.cursor.setPosition(match.start + match.length, QTextCursor::KeepAnchor);
+        mark.format.setBackground(QColor(theme::kSearchMatch));
+        searchMarks_.append(mark);
+    }
+    updateDecorations();
+}
+
+void CodeEditor::clearSearchHighlights() {
+    if (searchMarks_.isEmpty()) {
+        return;
+    }
+    searchMarks_.clear();
+    updateDecorations();
+}
+
 void CodeEditor::updateDecorations() {
     // ExtraSelectionは、本文を変えずに色や波線を重ねて表示する仕組み。
     QTextEdit::ExtraSelection currentLine;
@@ -175,8 +196,11 @@ void CodeEditor::updateDecorations() {
     currentLine.format.setProperty(QTextFormat::FullWidthSelection, true);
     currentLine.cursor = textCursor();
     currentLine.cursor.clearSelection();
-    QList<QTextEdit::ExtraSelection> selections = spellingMarks_;
-    selections.prepend(currentLine);
+    // 後ろのものほど上に重なる: カーソル行 → 検索の一致 → スペルの波線。
+    QList<QTextEdit::ExtraSelection> selections;
+    selections.append(currentLine);
+    selections.append(searchMarks_);
+    selections.append(spellingMarks_);
     setExtraSelections(selections);
 }
 

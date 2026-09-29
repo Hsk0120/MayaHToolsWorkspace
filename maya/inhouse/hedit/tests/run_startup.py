@@ -1,4 +1,9 @@
-"""同じhedit復元ファイルを使い、専用Mayaを3回起動して検証する。"""
+"""専用設定のMayaを起動し直して、プラグインのロードだけで画面が復元されることを検証する。
+
+版ごとに、右ドックで保存する3段階(write・read・closed)と、フローティングのまま保存する2段階
+(float_write・float_read)を、それぞれ別の専用設定フォルダーで行う(計5回起動)。
+中身の検証は ``startup_smoke.py``。引数で版を指定する(省略時は2024と2027)。
+"""
 import datetime
 import json
 from pathlib import Path

@@ -1,0 +1,30 @@
+{
+  "fileName": "sample.py",
+  "text": "import maya.cmds as cmds\n\nnodes = cmds.ls(selection=True)\nfor node in nodes:\n    cmds.select(node, add=True)\n",
+  "windowSize": [1000, 420],
+  "compareCrop": [425, 88, 440, 76],
+  "settings": {"editor.find.seedSearchStringFromSelection": "never"},
+  "steps": [
+    {"command": "workbench.action.closeSidebar"},
+    {"command": "workbench.action.closeAuxiliaryBar"},
+    {"select": [2, 8, 2, 12]},
+    {"command": "editor.actions.findWithArgs", "args": {"searchString": "cmds", "replaceString": "hlib"}},
+    {"command": "editor.action.startFindReplaceAction"},
+    {"command": "actions.find"},
+    {"capture": "1_find_focused"},
+    {"command": "editor.action.startFindReplaceAction"},
+    {"capture": "2_replace_focused"},
+    {"command": "actions.find"},
+    {"command": "toggleFindCaseSensitive"},
+    {"command": "toggleFindWholeWord"},
+    {"capture": "3_toggles_on"},
+    {"command": "toggleFindCaseSensitive"},
+    {"command": "toggleFindWholeWord"},
+    {"command": "editor.actions.findWithArgs", "args": {"searchString": "zzz", "replaceString": "hlib"}},
+    {"command": "actions.find"},
+    {"capture": "4_no_results"},
+    {"command": "editor.actions.findWithArgs", "args": {"searchString": "(", "replaceString": "hlib", "isRegex": true}},
+    {"command": "actions.find"},
+    {"capture": "5_invalid_regex"}
+  ]
+}

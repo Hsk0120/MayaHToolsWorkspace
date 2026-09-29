@@ -1,152 +1,302 @@
 /** @file find_bar.cpp
  * @brief FindBarの実装。
+ * @details 見た目はスタイルシート(findBarStyleSheet)にまとめてある。入力欄の枠の「入力中」「エラー」は、
+ * 枠の動的プロパティ(focused・error)を切り替え、スタイルシートの``[focused="true"]``などで色を変える。
+ * プロパティを変えた後は、unpolish/polishでスタイルシートを当て直す必要がある(Qtの決まり)。
+ * アイコンはfind_icons.cppがその場で描く(画像ファイルは使わない。hedit.mllに組み込まれる)。
  */
 #include "editor/find_bar.h"
 #include "editor/code_editor.h"
+#include "editor/find_icons.h"
 #include "editor/theme.h"
 #include "editor/ui_scale.h"
-#include <QCheckBox>
 #include <QEvent>
+#include <QFontMetrics>
+#include <QFrame>
+#include <QGraphicsDropShadowEffect>
+#include <QGridLayout>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPushButton>
 #include <QShortcut>
+#include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
-#include <QVBoxLayout>
+#include <QToolButton>
 
 namespace hedit {
 namespace {
 
-/** @brief 検索バーのスタイルシート(VS Code風の暗い見た目)。
- * @return 拡大率を反映したスタイルシート。
+/// 本文の中で背景を付ける一致箇所の上限。これより多い分は件数だけ数える(描画が重くならないように)。
+constexpr int kMaximumHighlights = 2000;
+
+/// 本文の変化から、件数と強調を更新するまでの待ち時間(ミリ秒)。
+constexpr int kRefreshDelay = 150;
+
+// ---- VS Codeの検索ウィジェットの寸法(拡大率100%のときのピクセル数) ----
+constexpr int kBarWidth = 419;          ///< バーの幅。
+constexpr int kInputHeight = 25;        ///< 入力欄の高さ(文字が大きいときは文字に合わせて高くする)。
+constexpr int kButtonSize = 22;         ///< ↑↓≡×・置換ボタンの大きさ。
+constexpr int kOptionSize = 20;         ///< 入力欄の中の切り替えボタン(Aa など)の大きさ。
+constexpr int kIconSize = 16;           ///< アイコンの大きさ。
+constexpr int kToggleWidth = 18;        ///< 左端の開閉ボタンの幅。
+constexpr int kCountWidth = 69;         ///< 件数の欄の幅。
+constexpr int kBarRadius = 8;           ///< バーの角の丸み。
+constexpr int kInputRadius = 4;         ///< 入力欄の角の丸み。
+
+/** @brief 検索バーのスタイルシート。
+ * @return 拡大率を反映したスタイルシート。%1〜は下の.arg()で順に置き換わる。
+ * @note 文字の大きさはスタイルシートでは指定しない(setEditorFontでエディターと同じフォントを設定する)。
  */
 QString findBarStyleSheet() {
-    return QString("QWidget#findBar{background:%1;}"
-                   " QLineEdit{background:%2;color:%3;border:%4px solid %5;padding:%6px;}"
-                   " QCheckBox,QLabel{color:%7;font-size:%8px;}"
-                   " QCheckBox{spacing:0;padding:%6px;font-weight:bold;font-size:%9px;}"
-                   " QCheckBox::indicator{width:0;height:0;}"
-                   " QCheckBox:checked{background:%10;color:%11;}"
-                   " QPushButton{background:transparent;border:0;color:%7;padding:%4px;font-weight:bold;font-size:%12px;}"
-                   " QPushButton:hover{background:%13;}"
-                   " QLineEdit:focus{border:%4px solid %14;}")
-        .arg(QString(theme::kFindBarBackground))      // %1
-        .arg(QString(theme::kFindFieldBackground))    // %2
-        .arg(QString(theme::kText))                   // %3
-        .arg(scaled(1))                               // %4
-        .arg(QString(theme::kFindFieldBorder))        // %5
-        .arg(scaled(2))                               // %6
-        .arg(QString(theme::kFindLabel))              // %7
-        .arg(scaled(12))                              // %8
-        .arg(scaled(13))                              // %9
-        .arg(QString(theme::kFindToggleChecked))      // %10
-        .arg(QString(theme::kFindToggleCheckedText))  // %11
-        .arg(scaled(16))                              // %12
-        .arg(QString(theme::kFindButtonHover))        // %13
-        .arg(QString(theme::kFindFieldFocusBorder));  // %14
+    return QString(
+               // バー全体: 背景・枠線・角の丸み。
+               "QWidget#findBar{background:%1;border:%2px solid %3;border-radius:%4px;}"
+               // 入力欄の枠。普段は細い枠、入力中は青、不正な正規表現は赤。
+               "QFrame#findField,QFrame#replaceField{background:%5;border:%2px solid %6;border-radius:%7px;}"
+               "QFrame#findField[focused=\"true\"],QFrame#replaceField[focused=\"true\"]{border-color:%8;}"
+               "QFrame#findField[error=\"true\"]{border-color:%9;}"
+               // 入力欄そのものは枠を持たない(外側の枠で表す)。
+               "QLineEdit{background:transparent;border:0;color:%10;padding:0 %11px;"
+               "selection-background-color:%12;selection-color:%10;}"
+               // ボタン: 普段はアイコンだけ。マウスを重ねると背景、オンの切り替えボタンは青い背景と枠。
+               "QToolButton{background:transparent;border:%2px solid transparent;border-radius:%13px;padding:0;}"
+               "QToolButton:hover{background:%14;}"
+               "QToolButton#searchCase,QToolButton#searchWord,QToolButton#searchRegex,QToolButton#preserveCase"
+               "{border-radius:%15px;}"
+               "QToolButton:checked{background:%16;border-color:%17;}"
+               // 件数。一致なしのときは赤。
+               "QLabel#searchCount{color:%18;padding-left:%15px;}"
+               "QLabel#searchCount[error=\"true\"]{color:%19;}")
+        .arg(QString(theme::kFindBarBackground))        // %1
+        .arg(scaled(1))                                  // %2
+        .arg(QString(theme::kFindBarBorder))            // %3
+        .arg(scaled(kBarRadius))                         // %4
+        .arg(QString(theme::kFindFieldBackground))      // %5
+        .arg(QString(theme::kFindFieldBorder))          // %6
+        .arg(scaled(kInputRadius))                       // %7
+        .arg(QString(theme::kFindFieldFocusBorder))     // %8
+        .arg(QString(theme::kFindFieldErrorBorder))     // %9
+        .arg(QString(theme::kText))                     // %10
+        .arg(scaled(4))                                  // %11
+        .arg(QString(theme::kSelection))                // %12
+        .arg(scaled(5))                                  // %13
+        .arg(QString(theme::kFindButtonHover))          // %14
+        .arg(scaled(3))                                  // %15
+        .arg(QString(theme::kFindToggleChecked))        // %16
+        .arg(QString(theme::kFindToggleCheckedBorder))  // %17
+        .arg(QString(theme::kFindLabel))                // %18
+        .arg(QString(theme::kFindErrorLabel));          // %19
 }
 
-/** @brief 文字だけの小さな切り替えボタン(``Tt``など)を作る。
- * @param text ボタンの文字。
- * @param name objectName(テストが探すときの名前)。
- * @param tooltip マウスを重ねたときの説明。
- * @return 新しいチェックボックス。レイアウトへ追加した時点で親が所有する。
- */
-QCheckBox* makeToggle(const QString& text, const QString& name, const QString& tooltip) {
-    auto toggle = new QCheckBox(text);
-    toggle->setObjectName(name);
-    toggle->setToolTip(tooltip);
-    return toggle;
+/** @brief 不正な正規表現の吹き出しのスタイルシート。 @return スタイルシート。 */
+QString errorBubbleStyleSheet() {
+    return QString("QLabel#findError{background:%1;border:%2px solid %3;color:%4;padding:%5px %6px;}")
+        .arg(QString(theme::kFindErrorBackground))
+        .arg(scaled(1))
+        .arg(QString(theme::kFindFieldErrorBorder))
+        .arg(QString(theme::kText))
+        .arg(scaled(4))
+        .arg(scaled(6));
 }
 
 }  // namespace
 
 FindBar::FindBar(QTabWidget* tabs) : QWidget(tabs), tabs_(tabs) {
     setObjectName("findBar");
+    // QWidgetの背景をスタイルシートで塗るために必要な設定。
+    setAttribute(Qt::WA_StyledBackground, true);
     setStyleSheet(findBarStyleSheet());
+    // コードの上に重なるので、VS Codeと同じく周りに影を付けて範囲を分かりやすくする。効果はこのバーが所有する。
+    auto shadow = new QGraphicsDropShadowEffect(this);
+    shadow->setBlurRadius(scaled(12));
+    shadow->setOffset(0, scaled(1));
+    shadow->setColor(QColor(0, 0, 0, 150));
+    setGraphicsEffect(shadow);
 
-    // 1行目: [>] [検索語] [Tt] [Abc] [.*] [件数] [←] [→] [×]
-    auto rows = new QVBoxLayout(this);
-    rows->setContentsMargins(scaled(3), scaled(2), scaled(3), scaled(2));
-    auto searchRow = new QHBoxLayout;
-    searchRow->setSpacing(scaled(2));
-    rows->addLayout(searchRow);
-
-    auto toggleReplace = new QPushButton(">");
-    toggleReplace->setFixedWidth(scaled(22));
-    toggleReplace->setToolTip("Toggle replace");
-    searchRow->addWidget(toggleReplace);
+    // ---- 部品 ----
+    toggleReplace_ = makeButton(FindIcon::ChevronRight, "toggleReplace", "Toggle Replace", false, false);
+    // 開閉ボタンは幅18pxで、置換欄を開いたときは2行分の高さに伸ばす。
+    toggleReplace_->setFixedWidth(scaled(kToggleWidth));
+    toggleReplace_->setMinimumHeight(scaled(kButtonSize));
+    toggleReplace_->setMaximumHeight(QWIDGETSIZE_MAX);
+    toggleReplace_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
 
     findText_ = new QLineEdit;
     findText_->setObjectName("findText");
     findText_->setPlaceholderText("Find");
-    findText_->setMinimumWidth(scaled(60));
-    searchRow->addWidget(findText_);
-
-    matchCase_ = makeToggle("Tt", "searchCase", "Match case");
-    wholeWord_ = makeToggle("Abc", "searchWord", "Whole words");
-    regex_ = makeToggle(".*", "searchRegex", "Regular expression; replacements support $1, $2, $& and $$");
-    searchRow->addWidget(matchCase_);
-    searchRow->addWidget(wholeWord_);
-    searchRow->addWidget(regex_);
+    findField_ = makeField(findText_, "findField");
+    matchCase_ = makeButton(FindIcon::MatchCase, "searchCase", "Match Case", true, true);
+    wholeWord_ = makeButton(FindIcon::WholeWord, "searchWord", "Match Whole Word", true, true);
+    regex_ = makeButton(FindIcon::Regex, "searchRegex",
+                        "Use Regular Expression (replacements support $1, $2, $& and $$)", true, true);
+    findField_->layout()->addWidget(matchCase_);
+    findField_->layout()->addWidget(wholeWord_);
+    findField_->layout()->addWidget(regex_);
 
     matchCount_ = new QLabel;
     matchCount_->setObjectName("searchCount");
-    matchCount_->setMinimumWidth(scaled(54));
-    searchRow->addWidget(matchCount_);
+    matchCount_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    matchCount_->setFixedWidth(scaled(kCountWidth));  // 件数の文字が変わっても、右のボタンの位置を動かさない。
 
-    auto previous = new QPushButton("←");
-    previous->setToolTip("Previous match (Shift+F3)");
-    previous->setFixedWidth(scaled(24));
-    auto next = new QPushButton("→");
-    next->setToolTip("Next match (F3)");
-    next->setFixedWidth(scaled(24));
-    searchRow->addWidget(previous);
-    searchRow->addWidget(next);
+    auto previous = makeButton(FindIcon::ArrowUp, "findPrevious", "Previous Match (Shift+Enter, Shift+F3)", false, false);
+    auto next = makeButton(FindIcon::ArrowDown, "findNextMatch", "Next Match (Enter, F3)", false, false);
+    inSelection_ = makeButton(FindIcon::Selection, "findInSelection", "Find in Selection", true, false);
+    auto close = makeButton(FindIcon::Close, "closeFind", "Close (Escape)", false, false);
 
-    // 2行目: [置換の文字列] [Replace] [Replace all]
-    replaceRow_ = new QWidget;
-    auto replaceLayout = new QHBoxLayout(replaceRow_);
-    replaceLayout->setContentsMargins(0, 0, 0, 0);
     replaceText_ = new QLineEdit;
     replaceText_->setObjectName("replaceText");
     replaceText_->setPlaceholderText("Replace");
-    auto replaceOne = new QPushButton("Replace");
-    replaceOne->setObjectName("replaceOne");
-    auto replaceAll = new QPushButton("Replace all");
-    replaceAll->setObjectName("replaceAll");
-    replaceLayout->addWidget(replaceText_);
-    replaceLayout->addWidget(replaceOne);
-    replaceLayout->addWidget(replaceAll);
-    rows->addWidget(replaceRow_);
+    replaceField_ = makeField(replaceText_, "replaceField");
+    preserveCase_ = makeButton(FindIcon::PreserveCase, "preserveCase", "Preserve Case", true, true);
+    replaceField_->layout()->addWidget(preserveCase_);
+    replaceOne_ = makeButton(FindIcon::Replace, "replaceOne", "Replace (Enter in the replace field)", false, false);
+    replaceAll_ = makeButton(FindIcon::ReplaceAll, "replaceAll", "Replace All (one undo step)", false, false);
 
-    auto closeButton = new QPushButton("×");
-    closeButton->setFixedWidth(scaled(24));
-    searchRow->addWidget(closeButton);
+    // 不正な正規表現の理由の吹き出し。バーの外(下)へはみ出して表示するため、タブ欄の子にする。
+    errorBubble_ = new QLabel(tabs_);
+    errorBubble_->setObjectName("findError");
+    errorBubble_->setWordWrap(true);
+    errorBubble_->setStyleSheet(errorBubbleStyleSheet());
+    errorBubble_->hide();
+
+    // ---- 格子状の配置 ----
+    // 列: 0=開閉 / 1=入力欄(伸びる) / 2=件数 / 3〜6=↑↓≡×。2行目の置換ボタンは列2〜6をまとめて使う。
+    // 余白・間隔はVS Codeの寸法(左3px+開閉18px+間7pxで入力欄が28pxから始まる、上下4px、行の間4px)。
+    auto grid = new QGridLayout(this);
+    grid->setContentsMargins(scaled(3), scaled(4), scaled(4), scaled(4));
+    grid->setHorizontalSpacing(scaled(3));
+    grid->setVerticalSpacing(scaled(4));
+    grid->addWidget(toggleReplace_, 0, 0, 2, 1);  // 2行分の高さ。
+    grid->setColumnMinimumWidth(0, scaled(kToggleWidth + 4));  // 開閉ボタンと入力欄の間を7pxにする。
+    grid->addWidget(findField_, 0, 1);
+    grid->addWidget(matchCount_, 0, 2);
+    grid->addWidget(previous, 0, 3);
+    grid->addWidget(next, 0, 4);
+    grid->addWidget(inSelection_, 0, 5);
+    grid->addWidget(close, 0, 6);
+    auto replaceButtons = new QHBoxLayout;
+    replaceButtons->setSpacing(scaled(3));
+    replaceButtons->addWidget(replaceOne_);
+    replaceButtons->addWidget(replaceAll_);
+    replaceButtons->addStretch();
+    grid->addWidget(replaceField_, 1, 1);
+    grid->addLayout(replaceButtons, 1, 2, 1, 5);
+    grid->setColumnStretch(1, 1);
 
     // ---- ボタンと入力の接続 ----
-    connect(previous, &QPushButton::clicked, this, [this] { findNext(true); });
-    connect(next, &QPushButton::clicked, this, [this] { findNext(); });
+    connect(previous, &QToolButton::clicked, this, [this] { findNext(true); });
+    connect(next, &QToolButton::clicked, this, [this] { findNext(); });
+    connect(close, &QToolButton::clicked, this, [this] { closeBar(); });
+    connect(toggleReplace_, &QToolButton::clicked, this, [this] { setReplaceVisible(replaceField_->isHidden()); });
+    connect(inSelection_, &QToolButton::toggled, this, [this](bool enabled) { setFindInSelection(enabled); });
     connect(findText_, &QLineEdit::returnPressed, this, [this] { findNext(); });
     connect(findText_, &QLineEdit::textEdited, this, [this] { searchWhileTyping(); });
-    connect(replaceOne, &QPushButton::clicked, this, [this] { replace(false); });
-    connect(replaceAll, &QPushButton::clicked, this, [this] { replace(true); });
-    connect(toggleReplace, &QPushButton::clicked, this, [this] {
-        replaceRow_->setVisible(!replaceRow_->isVisible());
-        updatePosition();
-    });
-    connect(closeButton, &QPushButton::clicked, this, [this] { closeBar(); });
+    connect(replaceText_, &QLineEdit::returnPressed, this, [this] { replace(false); });
+    connect(replaceOne_, &QToolButton::clicked, this, [this] { replace(false); });
+    connect(replaceAll_, &QToolButton::clicked, this, [this] { replace(true); });
+    // 条件を切り替えたら、今の検索語で数え直す(カーソルは動かさない)。
+    for (QToolButton* toggle : {matchCase_, wholeWord_, regex_}) {
+        connect(toggle, &QToolButton::toggled, this, [this] { refreshMatches(); });
+    }
 
     // バーの中にフォーカスがあるときだけ、Escでバーを閉じる。
     auto escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
     escape->setContext(Qt::WidgetWithChildrenShortcut);
-    connect(escape, &QShortcut::activated, closeButton, &QPushButton::click);
+    connect(escape, &QShortcut::activated, this, [this] { closeBar(); });
 
-    // タブ欄の大きさの変化を、eventFilterで受け取る。
+    // 本文の変化の後の更新は、タイマーで1回にまとめる。
+    refreshTimer_.setSingleShot(true);
+    refreshTimer_.setInterval(kRefreshDelay);
+    connect(&refreshTimer_, &QTimer::timeout, this, [this] { refreshMatches(); });
+
+    // タブ欄の大きさの変化と、入力欄のフォーカス・キーをeventFilterで受け取る。
     tabs_->installEventFilter(this);
+    findText_->installEventFilter(this);
+    replaceText_->installEventFilter(this);
+    setReplaceVisible(false);
     hide();
+}
+
+QToolButton* FindBar::makeButton(FindIcon icon, const QString& name, const QString& tooltip, bool checkable,
+                                 bool inputOption) {
+    auto button = new QToolButton;
+    button->setObjectName(name);
+    button->setToolTip(tooltip);
+    button->setCheckable(checkable);
+    button->setFocusPolicy(Qt::NoFocus);  // クリックしても入力欄のフォーカスを奪わない。
+    // オンの切り替えボタンは、アイコンを白くする(VS Codeと同じ)。QIcon::Onが、チェックされたときの絵。
+    QIcon image = findIcon(icon, QColor(theme::kFindLabel), scaled(kIconSize));
+    if (checkable) {
+        const QIcon checked = findIcon(icon, QColor(theme::kFindToggleCheckedText), scaled(kIconSize));
+        image.addPixmap(checked.pixmap(scaled(kIconSize)), QIcon::Normal, QIcon::On);
+    }
+    button->setIcon(image);
+    button->setIconSize(QSize(scaled(kIconSize), scaled(kIconSize)));
+    const int size = scaled(inputOption ? kOptionSize : kButtonSize);
+    button->setFixedSize(size, size);
+    return button;
+}
+
+QFrame* FindBar::makeField(QLineEdit* edit, const QString& name) {
+    auto field = new QFrame;
+    field->setObjectName(name);
+    field->setFixedHeight(scaled(kInputHeight));
+    field->setMinimumWidth(scaled(120));
+    auto layout = new QHBoxLayout(field);
+    layout->setContentsMargins(scaled(1), 0, scaled(2), 0);
+    layout->setSpacing(scaled(2));
+    layout->addWidget(edit, 1);
+    return field;
+}
+
+void FindBar::setEditorFont(const QFont& font) {
+    for (QWidget* widget : {static_cast<QWidget*>(findText_), static_cast<QWidget*>(replaceText_),
+                            static_cast<QWidget*>(matchCount_), static_cast<QWidget*>(errorBubble_)}) {
+        widget->setFont(font);
+    }
+    // 文字が大きいときは、入力欄を文字に合わせて高くする(VS Codeの25pxより小さくはしない)。
+    const QFontMetrics metrics(font);
+    const int height = qMax(scaled(kInputHeight), metrics.height() + scaled(6));
+    // 件数の欄も、最も長い「No results」が切れない幅にする(VS Codeの69pxより狭くはしない)。
+    matchCount_->setFixedWidth(qMax(scaled(kCountWidth), metrics.horizontalAdvance("No results") + scaled(6)));
+    findField_->setFixedHeight(height);
+    replaceField_->setFixedHeight(height);
+    updatePosition();
+}
+
+void FindBar::setReplaceVisible(bool visible) {
+    replaceField_->setVisible(visible);
+    replaceOne_->setVisible(visible);
+    replaceAll_->setVisible(visible);
+    const bool open = visible;
+    toggleReplace_->setIcon(findIcon(open ? FindIcon::ChevronDown : FindIcon::ChevronRight,
+                                     QColor(theme::kFindLabel), scaled(kIconSize)));
+    updatePosition();
+}
+
+void FindBar::setState(QWidget* widget, const char* property, bool value) {
+    if (widget->property(property).toBool() == value) {
+        return;
+    }
+    widget->setProperty(property, value);
+    // 動的プロパティを変えただけでは、スタイルシートは当て直されない。
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+    widget->update();
+}
+
+void FindBar::showCount(const QString& text, bool error) {
+    matchCount_->setText(text);
+    setState(matchCount_, "error", error);
+}
+
+void FindBar::showError(const QString& message) {
+    setState(findField_, "error", !message.isEmpty());
+    errorBubble_->setText(message);
+    errorBubble_->setVisible(!message.isEmpty() && !isHidden());
+    updatePosition();
 }
 
 void FindBar::open(bool withReplace) {
@@ -159,10 +309,10 @@ void FindBar::open(bool withReplace) {
         }
     }
     show();
-    replaceRow_->setVisible(withReplace);
-    updatePosition();
+    setReplaceVisible(withReplace);
     findText_->setFocus();
     findText_->selectAll();
+    refreshMatches();
 }
 
 SearchOptions FindBar::options() const {
@@ -171,6 +321,12 @@ SearchOptions FindBar::options() const {
     options.matchCase = matchCase_->isChecked();
     options.wholeWord = wholeWord_->isChecked();
     options.regex = regex_->isChecked();
+    options.preserveCase = preserveCase_->isChecked();
+    // 「選択範囲内で検索」は、範囲を覚えたコード欄を検索するときだけ効かせる。
+    if (inSelection_->isChecked() && scopeEditor_ && scopeEditor_ == (currentEditor ? currentEditor() : nullptr)) {
+        options.rangeStart = scope_.selectionStart();
+        options.rangeEnd = scope_.selectionEnd();
+    }
     return options;
 }
 
@@ -182,6 +338,56 @@ SearchResult FindBar::search(bool withReplacements) {
         showStatus(result.error, 0);
     }
     return result;
+}
+
+void FindBar::showResult(const SearchResult& result, int current) {
+    highlight(result);
+    showError(result.ok() ? QString() : result.error);
+    if (!result.ok() || result.matches.isEmpty()) {
+        // VS Codeと同じく、不正な正規表現も「No results」と表示する(理由は吹き出しに出す)。
+        showCount("No results", true);
+        return;
+    }
+    const QString position = current >= 0 ? QString::number(current + 1) : QString("?");
+    showCount(QString("%1 of %2").arg(position).arg(result.matches.size()), false);
+}
+
+void FindBar::highlight(const SearchResult& result) {
+    CodeEditor* editor = currentEditor ? currentEditor() : nullptr;
+    if (highlighted_ && highlighted_ != editor) {
+        highlighted_->clearSearchHighlights();  // 前に付けた別のタブの強調を消す。
+    }
+    highlighted_ = editor;
+    if (editor) {
+        editor->setSearchHighlights(result.ok() ? result.matches.mid(0, kMaximumHighlights) : QList<TextMatch>());
+    }
+}
+
+void FindBar::clearHighlights() {
+    if (highlighted_) {
+        highlighted_->clearSearchHighlights();
+    }
+    highlighted_ = nullptr;
+}
+
+void FindBar::setFindInSelection(bool enabled) {
+    CodeEditor* editor = currentEditor ? currentEditor() : nullptr;
+    if (enabled) {
+        // オンにした時点の選択範囲を覚える。QTextCursorは本文の編集に合わせて位置が動く。
+        if (!editor || !editor->textCursor().hasSelection()) {
+            inSelection_->setChecked(false);  // 選択が無ければ、範囲を決められないのでオフに戻す。
+            if (showStatus) {
+                showStatus("Select the text to search in first", 3000);
+            }
+            return;
+        }
+        scope_ = editor->textCursor();
+        scopeEditor_ = editor;
+    } else {
+        scope_ = QTextCursor();
+        scopeEditor_ = nullptr;
+    }
+    refreshMatches();
 }
 
 void FindBar::selectMatch(const TextMatch& match) {
@@ -199,13 +405,12 @@ bool FindBar::findNext(bool backward) {
         return false;
     }
     const SearchResult result = search(false);
-    if (!result.ok()) {
-        return false;
-    }
     const QList<TextMatch>& matches = result.matches;
-    if (matches.isEmpty()) {
-        matchCount_->setText("No results");
-        showStatus("No matches", 2000);
+    if (!result.ok() || matches.isEmpty()) {
+        showResult(result, -1);
+        if (result.ok() && showStatus) {
+            showStatus("No matches", 2000);
+        }
         return false;
     }
 
@@ -228,8 +433,10 @@ bool FindBar::findNext(bool backward) {
         }
     }
     selectMatch(matches[index]);
-    matchCount_->setText(QString("%1 of %2").arg(index + 1).arg(matches.size()));
-    showStatus(QString("Match %1 of %2").arg(index + 1).arg(matches.size()), 2000);
+    showResult(result, index);
+    if (showStatus) {
+        showStatus(QString("Match %1 of %2").arg(index + 1).arg(matches.size()), 2000);
+    }
     return true;
 }
 
@@ -244,18 +451,15 @@ void FindBar::searchWhileTyping() {
     cursor.setPosition(start);
     if (findText_->text().isEmpty()) {
         editor->setTextCursor(cursor);
-        matchCount_->clear();
+        showCount(QString(), false);
+        showError(QString());
+        clearHighlights();
         return;
     }
     const SearchResult result = search(false);
-    if (!result.ok()) {
+    if (!result.ok() || result.matches.isEmpty()) {
         editor->setTextCursor(cursor);
-        matchCount_->setText("Invalid");
-        return;
-    }
-    if (result.matches.isEmpty()) {
-        editor->setTextCursor(cursor);
-        matchCount_->setText("No results");
+        showResult(result, -1);
         return;
     }
     int index = 0;
@@ -266,7 +470,31 @@ void FindBar::searchWhileTyping() {
         }
     }
     selectMatch(result.matches[index]);
-    matchCount_->setText(QString("%1 of %2").arg(index + 1).arg(result.matches.size()));
+    showResult(result, index);
+}
+
+void FindBar::refreshMatches() {
+    CodeEditor* editor = currentEditor ? currentEditor() : nullptr;
+    if (isHidden() || !editor) {
+        return;
+    }
+    if (findText_->text().isEmpty()) {
+        showCount(QString(), false);
+        showError(QString());
+        clearHighlights();
+        return;
+    }
+    const SearchResult result = search(false);
+    // 選択が一致箇所そのものなら何件目か、そうでなければ「?」(VS Codeと同じ表示)。
+    const QTextCursor cursor = editor->textCursor();
+    const TextMatch selected{cursor.selectionStart(), cursor.selectionEnd() - cursor.selectionStart()};
+    showResult(result, result.matches.indexOf(selected));
+}
+
+void FindBar::scheduleRefresh() {
+    if (!isHidden()) {
+        refreshTimer_.start();
+    }
 }
 
 void FindBar::replace(bool all) {
@@ -276,6 +504,7 @@ void FindBar::replace(bool all) {
     // 置換の前に、元の本文で一致箇所と置換後の文字列を全て決めておく。
     const SearchResult result = search(true);
     if (!result.ok()) {
+        showResult(result, -1);
         return;
     }
     CodeEditor* editor = currentEditor();
@@ -304,14 +533,42 @@ void FindBar::replace(bool all) {
         cursor.insertText(result.replacements[i]);
     }
     group.endEditBlock();
-    showStatus(QString("Replaced %1 matches").arg(result.matches.size()), 2000);
+    if (showStatus) {
+        showStatus(QString("Replaced %1 matches").arg(result.matches.size()), 2000);
+    }
+    refreshMatches();
 }
 
 bool FindBar::eventFilter(QObject* watched, QEvent* event) {
     if (watched == tabs_ && event->type() == QEvent::Resize) {
         updatePosition();
     }
+    // 入力中の欄の枠を青くする(スタイルシートだけでは、中の入力欄のフォーカスを枠に反映できないため)。
+    if (watched == findText_ || watched == replaceText_) {
+        QFrame* field = watched == findText_ ? findField_ : replaceField_;
+        if (event->type() == QEvent::FocusIn) {
+            setState(field, "focused", true);
+        } else if (event->type() == QEvent::FocusOut) {
+            setState(field, "focused", false);
+        }
+    }
+    // 検索欄のShift+Enterは前の一致へ(VS Codeと同じ)。
+    if (watched == findText_ && event->type() == QEvent::KeyPress) {
+        auto key = static_cast<QKeyEvent*>(event);
+        const bool enter = key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter;
+        if (enter && key->modifiers() == Qt::ShiftModifier) {
+            findNext(true);
+            return true;
+        }
+    }
     return QWidget::eventFilter(watched, event);
+}
+
+void FindBar::hideEvent(QHideEvent* event) {
+    refreshTimer_.stop();
+    clearHighlights();
+    errorBubble_->hide();
+    QWidget::hideEvent(event);
 }
 
 void FindBar::updatePosition() {
@@ -320,12 +577,21 @@ void FindBar::updatePosition() {
     }
     // レイアウトを先に確定させてから、必要な高さ(sizeHint)を読む。
     layout()->activate();
-    const int width = qMin(scaled(470), qMax(0, tabs_->width() - scaled(12)));
+    const int width = qMin(scaled(kBarWidth), qMax(0, tabs_->width() - scaled(12)));
     resize(width, sizeHint().height());
     const int x = qMax(0, tabs_->width() - this->width() - scaled(6));
     const int y = tabs_->tabBar()->height() + scaled(4);
     move(x, y);
     raise();  // タブの中身より手前に表示する。
+    // 吹き出しは検索欄の真下に、同じ幅で重ねる。
+    if (errorBubble_->isVisible()) {
+        const QPoint origin = findField_->mapTo(tabs_, QPoint(0, findField_->height()));
+        // 折り返した文字が全て入る高さを、幅から求める(adjustSizeは折り返しの高さを正しく求めないため)。
+        errorBubble_->setFixedWidth(findField_->width());
+        errorBubble_->setFixedHeight(errorBubble_->heightForWidth(findField_->width()));
+        errorBubble_->move(origin);
+        errorBubble_->raise();
+    }
 }
 
 void FindBar::closeBar() {

@@ -14,6 +14,18 @@ from _maya_test_process import stop_owned_process
 
 
 def run(command, env, directory, name, timeout=120):
+    """コマンドを実行し、出力を ``<name>.log`` に保存して表示する。
+
+    Args:
+        command (list): 実行するコマンドと引数。
+        env (dict): 環境変数。
+        directory (Path): ログの出力先。
+        name (str): ログの名前。
+        timeout (int): 待つ秒数。超えたらプロセスを止めて -1 を返す。
+
+    Returns:
+        int: 終了コード(0 なら成功)。
+    """
     with (directory / (name + '.log')).open('wb') as output:
         process = subprocess.Popen([str(value) for value in command], env=env, cwd=str(ROOT), stdout=output, stderr=subprocess.STDOUT)
         try:
@@ -26,6 +38,11 @@ def run(command, env, directory, name, timeout=120):
 
 
 def main():
+    """引数の各版(省略時は全5版)で、単体テスト・standalone・offscreen の UI テストを順に実行する。
+
+    Returns:
+        int: すべて成功なら 0、それ以外は 1。
+    """
     results = []
     output = ROOT / '.maya-output/hedit-tests' / datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     output.mkdir(parents=True)
