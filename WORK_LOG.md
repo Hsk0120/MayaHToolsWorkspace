@@ -48,6 +48,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+| Codex | 2026-09-30 | hlib docsレイアウト公開準備 | CSSと作業ログの2ファイルを確認。diff検査成功、前回Sphinx -W成功を継続採用してmainへのコミット対象を確定。 |
+
+| Codex | 2026-09-30 | hlib docsレイアウト | 全体1200px・右目次240px・列間28pxのGridへ変更し本文800px制限を解消。960px以下は1列、表/コード横スクロール・印刷対応。Sphinx -W・diff検査成功。ローカル表示のブラウザー制限があるため修正版目視未実施、未プッシュ。 |
+
+| Codex | 2026-09-30 | hlib公開ページのレイアウト確認 | フルページ撮影を.maya-outputへ保存。本文max-width 800pxと外枠1600px/右固定メニューの組合せで余白が生じると確認。CSS修正・プッシュなし。 |
+
 | Codex | 2026-09-30 | 数学型図の公開準備 | object→OpenMaya→hlibの図と公式リンクの2ファイル差分を確認。前回Maya2027継承確認・Sphinx成功を継続採用し、mainへのコミット対象を確定。 |
 
 | Codex | 2026-09-30 | hlib docs数学型図 | Python組み込みobjectを共通の頂点としてOpenMaya4型→hlib4型の継承を接続。Maya2027 mayapyで4型の直接基底objectを確認、Sphinx -W・diff検査成功。プッシュ未実施。 |

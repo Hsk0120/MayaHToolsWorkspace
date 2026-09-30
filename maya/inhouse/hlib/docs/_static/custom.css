@@ -54,9 +54,9 @@
 
 /* ==== ページの外枠 ==================================================== */
 
-/* 横に長い行は読みにくいため、本文の列は 1600px で止めて中央に置く。 */
+/* 本文と目次を一つの幅制限で管理し、画面幅による列間の空白を防ぐ。 */
 body {
-    max-width: 1600px;
+    max-width: 1200px;
     margin: 0 auto;
     background: var(--hd-canvas);
     color: var(--hd-text);
@@ -65,12 +65,60 @@ body {
 
 /* テーマの背景画像(明るいグラデーション)も background で打ち消す。 */
 div.document {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: 28px;
+    padding: 0 20px;
     background: var(--hd-surface);
     color: var(--hd-text);
 }
 
 div.bodywrapper {
-    border-right-color: var(--hd-rule);
+    margin: 0;
+    border-right: none;
+}
+
+div.documentwrapper {
+    float: none;
+    width: auto;
+    min-width: 0;
+}
+
+/* float解除用の空要素をGridの追加行として数えない。 */
+div.document > div.clearer {
+    display: none;
+}
+
+div.body {
+    min-width: 0;
+    max-width: none;
+    padding: 7px 0 20px;
+    overflow-wrap: anywhere;
+}
+
+div.sphinxsidebar {
+    float: none;
+    width: auto;
+    margin: 0;
+    padding: 7px 0 20px;
+    min-width: 0;
+}
+
+/* 表・コード・図の幅超過を本文の中に留める。 */
+div.body :is(pre, table.docutils) {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+div.body table.docutils {
+    display: block;
+}
+
+@media print {
+    div.document {
+        display: block;
+        padding: 0;
+    }
 }
 
 div.footer {
@@ -322,7 +370,12 @@ span.highlighted {
  * (ページ全体は横スクロールさせない)。
  */
 
-@media screen and (max-width: 740px) {
+@media screen and (max-width: 960px) {
+    div.document {
+        display: block;
+        padding: 0 16px;
+    }
+
     body {
         min-width: 0;
         margin: 0;
@@ -352,7 +405,7 @@ span.highlighted {
         clear: both;
         width: auto;
         margin: 0;
-        padding: 0 20px 20px;
+        padding: 0 0 20px;
     }
 
     div.related ul {
