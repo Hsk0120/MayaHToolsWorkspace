@@ -24,6 +24,10 @@ QByteArray completionResultToJson(const CompletionResult& result) {
     return QJsonDocument(root).toJson(QJsonDocument::Compact);
 }
 
+QByteArray hoverInfoToJson(const HoverInfo& info) {
+    return QJsonDocument(QJsonObject{{"signature", info.signature}, {"doc", info.doc}}).toJson(QJsonDocument::Compact);
+}
+
 AnalysisResult analysisResultFromJson(const QByteArray& json) {
     AnalysisResult result;
     const QJsonObject root = QJsonDocument::fromJson(json).object();

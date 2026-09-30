@@ -1,5 +1,6 @@
 // 本番と同じQtウィジェットをoffscreenで検証する。Maya GUIの検証とは区別する。
 #include "core/completion_engine.h"
+#include "core/docstrings.h"
 #include "core/history_text.h"
 #include "core/python_declarations.h"
 #include "core/script_file.h"
@@ -9,6 +10,7 @@
 #include "core/text_search.h"
 #include "editor/edit_commands.h"
 #include "editor/editor.h"
+#include "editor/hover_popup.h"
 #include "editor/ui_scale.h"
 #include <QApplication>
 #include <QElapsedTimer>
@@ -27,6 +29,8 @@
 #include <QTimer>
 #include <QDebug>
 #include <QKeyEvent>
+#include <QHelpEvent>
+#include <QFrame>
 #include <QFontDatabase>
 #include <QThread>
 #include <QTextBlock>
@@ -341,6 +345,8 @@ bool completionEnginePasses(const QByteArray& config) {
     write("package/__init__.py", "from . import nodes\n");
     write("package/nodes/__init__.py", "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from .joint import Joint\n");
     write("package/nodes/joint.py", "class Joint:\n    def get_matrix(self): pass\n");
+    write("docsample.py", "\"\"\"Sample module.\"\"\"\ndef make(name):\n    \"\"\"Make a thing.\"\"\"\n\n"
+                          "class Thing:\n    \"\"\"A thing.\"\"\"\n    def run(self):\n        \"\"\"Run it.\"\"\"\n");
 
     hedit::ModuleSource source;
     source.searchPaths = [&] { return QStringList{root.path()}; };
@@ -349,6 +355,25 @@ bool completionEnginePasses(const QByteArray& config) {
         module->members.insert("ls", hedit::Symbol());
         module->members.insert("createNode", hedit::Symbol());
         return true;
+    };
+    // ソースの無い名前(maya.cmds・builtins)の説明は、Pythonに問い合わせる代わりにここで返す。
+    source.describe = [](const QString& module, const QStringList& path, QString* signature, QString* doc) {
+        if (module == "maya.cmds" && path == QStringList{"ls"}) {
+            *signature = "def ls(...)";
+            *doc = "List objects.";
+            return true;
+        }
+        if (module == "maya.cmds" && path.isEmpty()) {
+            *signature = "module maya.cmds";
+            *doc = "Maya commands.";
+            return true;
+        }
+        if (module == "builtins" && path == QStringList{"len"}) {
+            *signature = "def len(obj, /)";
+            *doc = "Return the number of items.";
+            return true;
+        }
+        return false;
     };
     hedit::CompletionEngine engine(source);
     hedit::CompletionEnvironment environment;
@@ -398,10 +423,81 @@ bool completionEnginePasses(const QByteArray& config) {
     if (largeNames != QStringList{"create_node"} && largeNames != QStringList()) { qWarning() << "large" << largeNames; return false; }
     qInfo() << "completion of a 5,000-line source took" << elapsed << "ms";
     if (elapsed > 200) { qWarning() << "large source too slow" << elapsed; return false; }
+    // ホバーの説明: 未読込のファイル・from import・クラスのメソッド・本文の関数・読み込み済み・組み込み・モジュール。
+    auto describe = [&](const QString& text) { return engine.describe(text, text.size()); };
+    const QList<QPair<QString, hedit::HoverInfo>> hovers{
+        {"import docsample\ndocsample.make", {"def make(name)", "Make a thing."}},
+        {"from docsample import Thing\nThing", {"class Thing", "A thing."}},
+        {"from docsample import Thing\nThing.run", {"def run(self)", "Run it."}},
+        {"def local(a):\n    '''Local doc.'''\nlocal", {"def local(a)", "Local doc."}},
+        {"import maya.cmds as cmds\ncmds.ls", {"def ls(...)", "List objects."}},
+        {"import maya.cmds as cmds\ncmds", {"module maya.cmds", "Maya commands."}},
+        {"import docsample\ndocsample", {"module docsample", "Sample module."}},
+        {"len", {"def len(obj, /)", "Return the number of items."}},
+    };
+    for (const auto& hover : hovers) {
+        const hedit::HoverInfo info = describe(hover.first);
+        if (info.signature != hover.second.signature || info.doc != hover.second.doc) {
+            qWarning() << "describe" << hover.first << info.signature << info.doc; return false;
+        }
+    }
+    if (!describe("return").isEmpty() || !describe("value = 1\nvalue.unknown").isEmpty() || !describe("unknown_name").isEmpty()) {
+        qWarning() << "describe empty" << describe("unknown_name").signature; return false;
+    }
     // 末尾の名前の判定(Pythonの正規表現 [A-Za-z_][\w.]*$ と同じ)。
     if (hedit::trailingDottedName("x = 1abc.de") != "abc.de" || hedit::trailingDottedName("cmds.") != "cmds."
         || hedit::trailingDottedName("f(") != "") {
         qWarning() << "trailing" << hedit::trailingDottedName("x = 1abc.de"); return false;
+    }
+    return true;
+}
+
+/** @brief 文字列リテラルの値・docstringの整形・宣言のdocstringと見出し(ホバー用)を検証する。
+ * @return すべて期待どおりならtrue。
+ */
+bool docstringsPasses() {
+    if (hedit::stringLiteralValue("'''a\\nb'''") != "a\nb" || hedit::stringLiteralValue("r\"a\\nb\"") != "a\\nb"
+        || hedit::stringLiteralValue("\"\"\"unterminated") != "unterminated"
+        || hedit::stringLiteralsValue({"'a'", "\"b\""}) != "ab") {
+        qWarning() << "literal" << hedit::stringLiteralValue("'''a\\nb'''"); return false;
+    }
+    if (hedit::cleanDocstring("  First.\n\n    Args:\n        x: value.\n    ") != "First.\n\nArgs:\n    x: value.") {
+        qWarning() << "cleandoc" << hedit::cleanDocstring("  First.\n\n    Args:\n        x: value.\n    "); return false;
+    }
+    const QString source =
+        "\"\"\"Module doc.\"\"\"\n"
+        "def make(name, size: int = 1, *args, **kwargs) -> str:\n"
+        "    \"\"\"Make a thing.\n"
+        "\n"
+        "    Args:\n"
+        "        name (str): The name.\n"
+        "    \"\"\"\n"
+        "    return name\n"
+        "\n"
+        "class Thing(Base):\n"
+        "    '''A thing.'''\n"
+        "    def run(self): 'Run it.'\n"
+        "def plain(a, b=2): pass\n";
+    const hedit::DeclarationResult result = hedit::extractPythonDeclarations(source);
+    const hedit::Symbol make = result.symbols.value("make");
+    const hedit::Symbol thing = result.symbols.value("Thing");
+    const hedit::Symbol plain = result.symbols.value("plain");
+    if (result.docstring != "Module doc."
+        || make.signature != "def make(name, size: int = 1, *args, **kwargs) -> str"
+        || make.doc != "Make a thing.\n\nArgs:\n    name (str): The name."
+        || make.detail != "make(name, size, *args, **kwargs)"
+        || thing.signature != "class Thing(Base)" || thing.doc != "A thing."
+        || !thing.members || thing.members->value("run").doc != "Run it."
+        || plain.signature != "def plain(a, b=2)" || !plain.doc.isEmpty()) {
+        qWarning() << "declarations" << result.docstring << make.signature << make.doc << thing.signature << thing.doc
+                   << plain.signature;
+        return false;
+    }
+    // ホバーのHTML: 見出しの色分けとGoogle形式の見出し。
+    const QString html = hedit::HoverPopup::toHtml({make.signature, make.doc}, "Consolas");
+    if (!html.contains("#569cd6\">def</span>") || !html.contains("#dcdcaa\">make</span>") || !html.contains("<b>Args:</b>")
+        || !html.contains(">name</span>")) {
+        qWarning() << "hover html" << html; return false;
     }
     return true;
 }
@@ -450,6 +546,7 @@ int main(int argc, char** argv) {
     if (!lexerPasses()) return 17;
     if (!declarationsPasses()) return 18;
     if (!scriptFilePasses()) return 20;
+    if (!docstringsPasses()) return 21;
     // 4K等のMayaの拡大率(Interface Scaling)を、文字・アイコンの固定寸法に掛ける。
     {
         hedit::setUiScale(2.0);
@@ -484,10 +581,43 @@ int main(int argc, char** argv) {
         result.items.append({"createNode", "UI fixture", QString()});
         return result;
     };
+    services.describe = [](const QString& text, int end) {
+        hedit::HoverInfo info;
+        if (text.left(end).endsWith("cmds.ls")) {
+            info.signature = "def ls(*args, **kwargs)";
+            info.doc = "List objects.\n\nArgs:\n    selection (bool): Only the selected objects.\n\nReturns:\n    list: ``[names]``.";
+        }
+        return info;
+    };
     auto window = hedit::createEditor(nullptr, services);
     window->show();
     auto code = window->findChild<QPlainTextEdit*>("codeEditor");
     if (!code) return 4;
+    {
+        // ホバー: 名前の上でマウスが止まったとき(QEvent::ToolTip)に説明の小窓を出し、Escで閉じる。
+        code->setPlainText("import maya.cmds as cmds\ncmds.ls(selection=True)");
+        QApplication::processEvents();
+        QTextCursor at(code->document());
+        at.setPosition(QString("import maya.cmds as cmds\ncmds.l").size());
+        const QPoint point = code->cursorRect(at).center();
+        QHelpEvent help(QEvent::ToolTip, point, code->viewport()->mapToGlobal(point));
+        QApplication::sendEvent(code->viewport(), &help);
+        auto popup = code->findChild<QFrame*>("hoverPopup");
+        if (!popup || !popup->isVisible()) { qWarning() << "hover popup not shown"; return 22; }
+        popup->grab().save(QString::fromLocal8Bit(argv[2]) + ".hover.png");
+        // 説明の無い名前(引数名)の上では出さない。
+        at.setPosition(QString("import maya.cmds as cmds\ncmds.ls(sel").size());
+        const QPoint keyword = code->cursorRect(at).center();
+        QHelpEvent onArgument(QEvent::ToolTip, keyword, code->viewport()->mapToGlobal(keyword));
+        QApplication::sendEvent(code->viewport(), &onArgument);
+        if (popup->isVisible()) { qWarning() << "hover shown for an argument without a description"; return 23; }
+        QApplication::sendEvent(code->viewport(), &help);
+        QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+        QApplication::sendEvent(code, &escape);
+        if (popup->isVisible() || code->toPlainText() != "import maya.cmds as cmds\ncmds.ls(selection=True)") {
+            qWarning() << "hover escape"; return 24;
+        }
+    }
     code->setPlainText("import maya.cmds as cmds\n\ncmds.cre");
     auto cursor = code->textCursor(); cursor.movePosition(QTextCursor::End); code->setTextCursor(cursor); code->setFocus();
     QString imagePath = QString::fromLocal8Bit(argv[2]);

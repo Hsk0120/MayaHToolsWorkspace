@@ -32,6 +32,11 @@ def names(source):
     return [item['name'] for item in complete(source)['items']]
 
 
+def describe(source):
+    """dict: 本文の末尾の名前のホバーの説明(``{"signature": ..., "doc": ...}``)。"""
+    return json.loads(cmds.hedit(describe=source))
+
+
 class CompletionTests(unittest.TestCase):
     """``hedit -complete`` による補完と、``hedit.analysis`` による構文チェックの検証。"""
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
@@ -70,6 +75,49 @@ class CompletionTests(unittest.TestCase):
         module.ls = 2
         with mock.patch.dict(sys.modules, {'dynamic': module}):
             self.assertEqual(names('import dynamic as d\nd.l'), ['ls'])
+
+    def test_describe_source_file_without_execution(self):
+        """まだ読み込んでいない .py のdocstringは、実行せずに字句解析で読む(ホバー)。"""
+        self.root.joinpath('documented.py').write_text(
+            '"""Documented module."""\nraise RuntimeError("must not execute")\n\n'
+            'def make(name, size=1):\n    """Make a thing.\n\n    Args:\n        name (str): The name.\n    """\n',
+            encoding='utf-8')
+        info = describe('import documented\ndocumented.make')
+        self.assertEqual(info, {'signature': 'def make(name, size=1)',
+                                'doc': 'Make a thing.\n\nArgs:\n    name (str): The name.'})
+        self.assertEqual(describe('import documented\ndocumented')['doc'], 'Documented module.')
+        self.assertNotIn('documented', sys.modules)
+
+    def test_describe_loaded_module_without_source(self):
+        """ソースの無い読み込み済みの名前は、vars()でたどった__doc__を使う。propertyは実行しない。"""
+        module = types.ModuleType('dynamic_doc', 'Dynamic module.')
+
+        def create(name, flag=True):
+            """Create something."""
+
+        class Widget:
+            """A widget."""
+
+            def __init__(self, parent=None):
+                pass
+
+            @property
+            def value(self):
+                raise RuntimeError('must not execute')
+
+        module.create = create
+        module.Widget = Widget
+        with mock.patch.dict(sys.modules, {'dynamic_doc': module}):
+            self.assertEqual(describe('import dynamic_doc\ndynamic_doc.create'),
+                             {'signature': 'def create(name, flag=True)', 'doc': 'Create something.'})
+            self.assertEqual(describe('from dynamic_doc import Widget\nWidget'),
+                             {'signature': 'class Widget(parent=None)', 'doc': 'A widget.'})
+            self.assertEqual(describe('import dynamic_doc\ndynamic_doc'),
+                             {'signature': 'module dynamic_doc', 'doc': 'Dynamic module.'})
+            self.assertEqual(json.loads(bridge.describe('dynamic_doc', ['Widget', 'value']))['signature'],
+                             'property value')
+        self.assertEqual(describe('len')['signature'], 'def len(obj, /)')
+        self.assertEqual(describe('return'), {'signature': '', 'doc': ''})
 
     def test_loaded_module_never_scans_search_paths(self):
         """読み込み済みのモジュールは、sys.path(遅いネットワーク上かもしれない)を見ずに補完する。"""

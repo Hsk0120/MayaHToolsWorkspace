@@ -23,6 +23,21 @@ struct CompletionResult {
     QString error;                ///< 失敗の理由。成功なら空。
 };
 
+/** @brief マウスを重ねた名前の説明(ホバー)。VS Codeのホバーと同じく、定義の見出しとdocstringを出す。 */
+struct HoverInfo {
+    QString signature;  ///< 定義の見出し(``def show(floating=None)``・``class Joint(Transform)``・``module maya.cmds``)。
+    QString doc;        ///< docstring(字下げを整えたもの)。無ければ空。
+
+    /** @brief 表示するものがあるか。 @return 見出しかdocstringがあればtrue。 */
+    bool isEmpty() const { return signature.isEmpty() && doc.isEmpty(); }
+};
+
+/** @brief ホバーの説明をJSONにする(テスト用の``hedit -describe``の戻り値)。
+ * @param info 説明。
+ * @return ``{"signature": ..., "doc": ...}``。
+ */
+QByteArray hoverInfoToJson(const HoverInfo& info);
+
 /** @brief 補完の結果をJSONにする(テスト用の``hedit -complete``の戻り値)。
  * @param result 結果。
  * @return ``{"items":[{"name","detail","kind"?}...],"pending":bool,"error"?:...}``。

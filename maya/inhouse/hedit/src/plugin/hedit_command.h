@@ -12,6 +12,7 @@
  * | ``-quitting``(``-qt``) | 内部用。Maya終了時のscriptJobから呼ばれる |
  * | ``-complete``(``-cp``) 本文 | テスト用。補完の結果をJSONで返す(画面は作らない) |
  * | ``-declarations``(``-dc``) 本文 | テスト用。本文から取り出した宣言をJSONで返す |
+ * | ``-describe``(``-ds``) 本文 | テスト用。本文の末尾の名前のホバーの説明をJSONで返す |
  */
 #pragma once
 #include <maya/MPxCommand.h>

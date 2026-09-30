@@ -101,6 +101,21 @@ ModuleSource pythonModuleSource() {
     source.searchPaths = [] {
         return toStringList(QJsonDocument::fromJson(callFunction("hedit.bridge", "search_paths")).array());
     };
+    source.describe = [](const QString& module, const QStringList& path, QString* signature, QString* doc) {
+        QJsonArray parts;
+        for (const QString& part : path) {
+            parts.append(part);
+        }
+        const QString arguments = pythonStringLiteral(module) + ", "
+                                  + QString::fromUtf8(QJsonDocument(parts).toJson(QJsonDocument::Compact));
+        const QJsonObject data = QJsonDocument::fromJson(callFunction("hedit.bridge", "describe", arguments)).object();
+        if (!data.value("found").toBool()) {
+            return false;
+        }
+        *signature = data.value("signature").toString();
+        *doc = data.value("doc").toString();
+        return true;
+    };
     source.topLevelNames = [] {
         return toStringList(QJsonDocument::fromJson(callFunction("hedit.bridge", "module_names")).object()
                                 .value("names").toArray());
@@ -178,6 +193,13 @@ CompletionResult complete(const QString& source) {
         refreshCompletion();
     }
     return engine().complete(source);
+}
+
+HoverInfo describe(const QString& text, int end) {
+    if (!environmentLoaded) {
+        refreshCompletion();
+    }
+    return engine().describe(text, end);
 }
 
 QByteArray declarationsJson(const QString& source) {

@@ -29,6 +29,7 @@ MSyntax HeditCommand::newSyntax() {
     syntax.addFlag("-qt", "-quitting");
     syntax.addFlag("-cp", "-complete", MSyntax::kString);
     syntax.addFlag("-dc", "-declarations", MSyntax::kString);
+    syntax.addFlag("-ds", "-describe", MSyntax::kString);
     return syntax;
 }
 
@@ -52,6 +53,14 @@ MStatus HeditCommand::doIt(const MArgList& args) {
         const QByteArray json = complete ? completionResultToJson(python::complete(fromMString(source)))
                                          : python::declarationsJson(fromMString(source));
         setResult(toMString(QString::fromUtf8(json)));
+        return MS::kSuccess;
+    }
+    if (flags.isFlagSet("-ds")) {
+        // テスト用: 本文の末尾の名前のホバーの説明をJSONで返す(画面を作らないので、mayapyでも使える)。
+        MString source;
+        flags.getFlagArgument("-ds", 0, source);
+        const QString text = fromMString(source);
+        setResult(toMString(QString::fromUtf8(hoverInfoToJson(python::describe(text, text.size())))));
         return MS::kSuccess;
     }
     if (flags.isFlagSet("-cl")) {

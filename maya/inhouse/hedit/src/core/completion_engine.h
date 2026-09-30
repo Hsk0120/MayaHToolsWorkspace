@@ -33,6 +33,9 @@ struct ModuleSource {
     std::function<QStringList()> searchPaths;
     /// 組み込みモジュールと読み込み済みモジュールのトップレベル名(``import``の行で使う)。
     std::function<QStringList()> topLevelNames;
+    /// 読み込み済みのモジュールの中の名前(pathが空ならモジュール自身)の見出しとdocstringを入れる。
+    /// 見つかればtrue。ホバーで、ソースの無い名前(Cの拡張やmaya.cmdsなど)の説明に使う。
+    std::function<bool(const QString& module, const QStringList& path, QString* signature, QString* doc)> describe;
 };
 
 /** @brief 名前の補完に使う、Pythonの組み込みの名前と予約語。 */
@@ -58,6 +61,15 @@ public:
      * @return 名前順で最大250件の候補。20万文字を超える本文は空。
      */
     CompletionResult complete(const QString& source);
+
+    /** @brief マウスを重ねた名前の説明(ホバー)を求める。
+     * @param text 本文全体。
+     * @param end 名前の終わりの位置(``cmds.ls``の``ls``に重ねたなら``ls``の直後)。
+     * @return 見出しとdocstring。分からなければ空。
+     * @details 補完と同じ手順で名前をたどる(``import``も実行もしない)。編集中の本文・まだ読み込んでいない``.py``は
+     * 字句解析で取り出したdocstringを使い、ソースの無い名前だけPythonに問い合わせる(ModuleSource::describe)。
+     */
+    HoverInfo describe(const QString& text, int end);
 
     /** @brief 編集中の本文の宣言を返す。同じ本文なら前回の結果を使う。
      * @param text 本文(カーソルの行を除いた部分)。
@@ -87,6 +99,24 @@ private:
      */
     SymbolTable fileDeclarations(const QString& path, const QString& moduleName);
 
+    /** @brief ``from X import Y``をたどり、Yの定義そのものにする(ホバー用)。
+     * @param item たどる名前。定義に置き換える。
+     * @param module itemがあるモジュール名。たどった先のモジュールに置き換える(本文の中なら空)。
+     * @param path モジュールの中でのitemの位置(``Class.method``なら``[Class, method]``)。
+     */
+    void followImports(Symbol* item, QString* module, QStringList* path);
+
+    /** @brief モジュールのdocstringを返す(ホバー用)。 @param name モジュール名。 @param found 見つかったかを入れる。
+     * @return docstring。
+     */
+    QString moduleDocstring(const QString& name, bool* found);
+
+    /** @brief sys.pathからモジュールのファイルを探す。 @param name モジュール名。
+     * @param moduleName 相対importの基準の名前を入れる(``__init__.py``なら``name.__init__``)。
+     * @return ``.py``のパス。無ければ空。
+     */
+    QString moduleFile(const QString& name, QString* moduleName);
+
     /** @brief sys.pathを返す。1回の補完の中では、最初に取り出したものを使い回す。 @return フォルダーの一覧。 */
     QStringList searchPaths();
 
@@ -95,6 +125,7 @@ private:
         QDateTime modified;   ///< 読んだときの更新日時。
         qint64 size = 0;      ///< 読んだときの大きさ。
         SymbolTable symbols;  ///< 宣言。
+        QString docstring;    ///< モジュールのdocstring。
     };
 
     ModuleSource source_;                          ///< Pythonへの問い合わせ。

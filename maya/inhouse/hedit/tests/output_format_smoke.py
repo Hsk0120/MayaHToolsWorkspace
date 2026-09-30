@@ -68,13 +68,24 @@ def main(output_dir, finished):
         # 専用reporterとhedit双方の保持上限を超えても末尾が重複・欠落しない。
         next(a for a in window.findChildren(getattr(QtWidgets, 'QAction', None) or QtGui.QAction) if a.text() == 'Clear output').trigger()
         print('\n'.join('retention_%d' % i for i in range(5100)))
-        wait()
-        assert output.toPlainText().endswith('retention_5099\n')
+        # 5,100行は25msの描画キューで少しずつ反映されるので、追い付くまで有界に待つ。
+        # Maya自身の遅れた出力(updateRendererUI; など)が後ろに付くことがあるので、末尾一致ではなく
+        # 最後の2行が1回だけ・順番どおりにあることで確かめる。
+        tail = 'retention_5098\nretention_5099\n'
+        for attempt in range(40):
+            wait()
+            if tail in output.toPlainText():
+                break
+        assert output.toPlainText().count(tail) == 1, repr(output.toPlainText()[-300:])
         assert output.toPlainText().count('retention_5099') == 1
         assert 'retention_0\n' not in output.toPlainText()
         print('after_retention')
-        wait()
-        assert output.toPlainText().endswith('after_retention\n')
+        for attempt in range(40):
+            wait()
+            if 'after_retention\n' in output.toPlainText():
+                break
+        text = output.toPlainText()
+        assert text.count('after_retention\n') == 1 and text.index('after_retention') > text.index(tail), repr(text[-300:])
         result['retention'] = 'passed'
         result['status']='passed'
     except Exception:

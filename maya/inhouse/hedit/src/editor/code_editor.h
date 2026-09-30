@@ -14,6 +14,7 @@ class QCompleter;
 
 namespace hedit {
 
+class HoverPopup;
 class Spelling;
 class SyntaxHighlighter;
 
@@ -89,7 +90,17 @@ public:
     /** @brief 検索の一致箇所の背景を消す。 */
     void clearSearchHighlights();
 
+    // ---- ホバー(名前の説明) ----
+
+    /** @brief テキストカーソルの位置の名前の説明を出す(Edit → Show hover、Ctrl+K Ctrl+I)。 */
+    void showHoverAtCursor();
+    /** @brief 名前の説明を閉じる。 */
+    void hideHover();
+
     // ---- MainWindowへ任せる操作(空なら何もしない) ----
+
+    /// 名前の説明を求める(名前の終わりの位置)。MELのタブや、説明が無ければ空のHoverInfoを返す。
+    std::function<HoverInfo(int end)> onHoverRequested;
 
     std::function<void()> onCompletionRequested;  ///< Ctrl+Spaceが押された。
     std::function<void()> onRunRequested;         ///< Ctrl+EnterかテンキーのEnterが押された。
@@ -107,7 +118,30 @@ protected:
      */
     void keyPressEvent(QKeyEvent* event) override;
 
+    /** @brief 本文の表示部分へのマウスの操作を受け取る。止まったら名前の説明を出し、離れたら閉じる。
+     * @param event Qtのイベント。QEvent::ToolTipは、マウスが少し止まったときにQtが送る。
+     * @return 処理した場合true。
+     */
+    bool viewportEvent(QEvent* event) override;
+
+    /** @brief フォーカスを失ったら、名前の説明を閉じる。 @param event イベント。 */
+    void focusOutEvent(QFocusEvent* event) override;
+
 private:
+    /** @brief 位置にある名前の範囲を求める。文字列・コメント・予約語の上なら名前として扱わない。
+     * @param position 文書の中の位置。
+     * @param start 名前の先頭の位置を入れる。
+     * @param end 名前の終わりの位置を入れる。
+     * @return 名前の上ならtrue。
+     */
+    bool nameAt(int position, int* start, int* end) const;
+
+    /** @brief 名前の説明を求めて表示する。説明が無ければ閉じる。
+     * @param start 名前の先頭の位置。
+     * @param end 名前の終わりの位置。
+     */
+    void showHover(int start, int end);
+
     /** @brief Ctrl+EnterかテンキーのEnterか(スクリプトの実行キー)。
      * @param event キー入力。
      * @return 実行キーならtrue。
@@ -132,6 +166,7 @@ private:
     bool insertingCompletion_ = false;                   ///< 候補の確定中か。
     SyntaxHighlighter* highlighter_;                     ///< 色分け。所有者は文書。
     QCompleter* completer_;                              ///< 補完の一覧。所有者はこの欄。
+    HoverPopup* hover_ = nullptr;                        ///< 名前の説明の小窓。初めて使うときに作る。所有者はこの欄。
     QList<QTextEdit::ExtraSelection> spellingMarks_;     ///< スペルの波線。
     QList<QTextEdit::ExtraSelection> searchMarks_;       ///< 検索の一致箇所の背景。
 };

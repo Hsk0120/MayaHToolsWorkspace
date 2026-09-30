@@ -43,6 +43,7 @@ constexpr const char* kPopupBackground = "#252526";
 constexpr const char* kPopupBorder = "#454545";
 constexpr const char* kPopupSelection = "#094771";
 constexpr const char* kPopupSelectedText = "#ffffff";
+constexpr const char* kHoverInlineCode = "#d7ba7d";  ///< ホバーの説明の中の``code``の文字(VS Codeと同じ)。
 
 // ---- 検索バー(VS Codeの検索ウィジェットに合わせた色) ----
 constexpr const char* kFindBarBackground = "#252526";     ///< バーの背景。

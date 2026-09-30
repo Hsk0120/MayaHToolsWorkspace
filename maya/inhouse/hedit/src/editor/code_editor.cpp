@@ -2,7 +2,9 @@
  * @brief CodeEditorの実装。
  */
 #include "editor/code_editor.h"
+#include "core/script_lexer.h"
 #include "editor/edit_commands.h"
+#include "editor/hover_popup.h"
 #include "editor/spelling.h"
 #include "editor/syntax_highlighter.h"
 #include "editor/theme.h"
@@ -10,6 +12,9 @@
 #include <QAbstractItemView>
 #include <QCompleter>
 #include <QElapsedTimer>
+#include <QHelpEvent>
+#include <QMouseEvent>
+#include <QScrollBar>
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QRegularExpression>
@@ -55,6 +60,117 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
             [this](const QString& value) { insertCompletion(value); });
 
     connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this] { updateDecorations(); });
+
+    // 名前の説明(ホバー): マウスの移動を受け取り、名前から離れたら閉じる。スクロールでも閉じる。
+    viewport()->setMouseTracking(true);
+    connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
+    connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
+}
+
+bool CodeEditor::nameAt(int position, int* start, int* end) const {
+    const QTextBlock block = document()->findBlock(position);
+    if (!block.isValid()) {
+        return false;
+    }
+    const QString line = block.text();
+    const int column = position - block.position();
+    // 行をまたぐ文字列の途中かは、色分けが行ごとに保存している状態(前の行の終わり)で分かる。
+    const int state = qMax(0, block.previous().isValid() ? block.previous().userState() : 0);
+    for (const Token& token : tokenizeLine(line, ScriptLanguage::Python, state, nullptr)) {
+        if (column < token.start || column > token.start + token.length) {
+            continue;
+        }
+        const QString text = line.mid(token.start, token.length);
+        if (token.type != TokenType::Name || isKeyword(text, ScriptLanguage::Python)) {
+            return false;
+        }
+        *start = block.position() + token.start;
+        *end = *start + token.length;
+        return true;
+    }
+    return false;
+}
+
+void CodeEditor::showHover(int start, int end) {
+    const HoverInfo info = onHoverRequested ? onHoverRequested(end) : HoverInfo();
+    if (info.isEmpty()) {
+        hideHover();
+        return;
+    }
+    if (!hover_) {
+        hover_ = new HoverPopup(this);
+    }
+    // 名前の範囲を画面全体の座標にする(小窓はその上に出す)。
+    QTextCursor cursor(document());
+    cursor.setPosition(start);
+    const QRect first = cursorRect(cursor);
+    cursor.setPosition(end);
+    const QRect last = cursorRect(cursor);
+    const QRect local(first.topLeft(), QPoint(last.right(), qMax(first.bottom(), last.bottom())));
+    const QRect anchor(viewport()->mapToGlobal(local.topLeft()), local.size());
+    hover_->showInfo(info, anchor, font());
+}
+
+void CodeEditor::showHoverAtCursor() {
+    int start = 0;
+    int end = 0;
+    if (!isMel() && nameAt(textCursor().position(), &start, &end)) {
+        showHover(start, end);
+    }
+}
+
+void CodeEditor::hideHover() {
+    if (hover_) {
+        hover_->cancelHide();
+        hover_->hide();
+    }
+}
+
+bool CodeEditor::viewportEvent(QEvent* event) {
+    if (event->type() == QEvent::ToolTip && !isMel() && onHoverRequested) {
+        // マウスが少し止まった: その位置が名前の上なら説明を出す。
+        auto help = static_cast<QHelpEvent*>(event);
+        const QTextCursor cursor = cursorForPosition(help->pos());
+        int start = 0;
+        int end = 0;
+        // cursorForPositionは行末より右や最後の行より下でも近い文字の位置を返すので、文字の上にあるかを確かめる。
+        const QRect rect = cursorRect(cursor);
+        const bool onText = qAbs(help->pos().x() - rect.center().x()) <= fontMetrics().averageCharWidth() * 2
+                            && help->pos().y() >= rect.top() && help->pos().y() <= rect.bottom();
+        if (onText && nameAt(cursor.position(), &start, &end)) {
+            // 同じ名前の説明を出している間は、問い合わせ直さない。
+            const QPoint global = viewport()->mapToGlobal(help->pos());
+            if (!hover_ || !hover_->anchor().contains(global)) {
+                showHover(start, end);
+            }
+        } else {
+            hideHover();
+        }
+        return true;
+    }
+    if (hover_ && hover_->isVisible()) {
+        if (event->type() == QEvent::MouseMove) {
+            // 名前の上にいる間は開いたまま、離れたら少し待って閉じる(小窓へ移れるように)。
+            auto mouse = static_cast<QMouseEvent*>(event);
+            const QPoint global = viewport()->mapToGlobal(mouse->pos());
+            if (hover_->anchor().contains(global)) {
+                hover_->cancelHide();
+            } else {
+                hover_->scheduleHide();
+            }
+        } else if (event->type() == QEvent::Leave) {
+            hover_->scheduleHide();
+        } else if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::Wheel) {
+            hideHover();
+        }
+    }
+    return NumberedTextEdit::viewportEvent(event);
+}
+
+void CodeEditor::focusOutEvent(QFocusEvent* event) {
+    // 小窓自体はフォーカスを取らないので、別の部品へ移ったときだけ閉じる。
+    hideHover();
+    NumberedTextEdit::focusOutEvent(event);
 }
 
 void CodeEditor::setLanguage(const QString& language) {
@@ -229,6 +345,15 @@ bool CodeEditor::event(QEvent* event) {
 }
 
 void CodeEditor::keyPressEvent(QKeyEvent* event) {
+    // 0. 名前の説明を出している間のキー入力: Escは閉じるだけ、それ以外は閉じてから通常どおり処理する。
+    if (hover_ && hover_->isVisible()) {
+        hideHover();
+        if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier) {
+            event->accept();
+            return;
+        }
+    }
+
     // 1. 実行キー(Ctrl+Enter)。
     if (isRunKey(event)) {
         hideCompletions();

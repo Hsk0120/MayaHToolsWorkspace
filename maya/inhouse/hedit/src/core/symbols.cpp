@@ -7,7 +7,7 @@ namespace hedit {
 
 bool Symbol::operator==(const Symbol& other) const {
     if (detail != other.detail || kind != other.kind || target != other.target || fromModule != other.fromModule
-        || fromName != other.fromName) {
+        || fromName != other.fromName || signature != other.signature || doc != other.doc) {
         return false;
     }
     if (!members || !other.members) {

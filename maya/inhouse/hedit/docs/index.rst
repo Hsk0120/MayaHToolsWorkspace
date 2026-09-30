@@ -56,5 +56,5 @@ hedit は、Maya 用の Python / MEL スクリプトエディターです。VS C
 * はじめて使う: :doc:`overview` → :doc:`install` → :doc:`usage`
 * 設定を変えたい: :doc:`preferences`\ (各項目の意味・初期値・使いどころ・注意点を項目ごとに説明しています)
 * キー操作を調べたい: :doc:`shortcuts`
-* 補完・静的解析・スペルチェックの仕組みを知りたい: :doc:`completion`
+* 補完・ホバー・静的解析・スペルチェックの仕組みを知りたい: :doc:`completion`
 * ソースを触る・ビルドする・別リポジトリへ切り出す: :doc:`development`

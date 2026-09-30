@@ -7,6 +7,7 @@
  *    中身を読むのは``class``と``if TYPE_CHECKING:``だけで、それ以外(関数の中など)は読み飛ばす。
  */
 #include "core/python_declarations.h"
+#include "core/docstrings.h"
 #include "core/script_lexer.h"
 #include <QStringList>
 #include <QVector>
@@ -91,12 +92,26 @@ QVector<LogicalLine> logicalLines(const QString& source, bool* complete) {
         }
         int endState = kLexerNormal;
         const QList<Token> tokens = tokenizeLine(line, ScriptLanguage::Python, state, &endState);
+        // 三重引用符の文字列の続きの行は、前の行の文字列の字句へつなげる(1つの文字列を1つの字句にする)。
+        // docstringを取り出すとき、行の区切りと空行を保つため。
+        const bool insideString = state != kLexerNormal && !current.words.isEmpty()
+                                  && current.words.last().type == TokenType::String;
+        if (insideString && (tokens.isEmpty() || tokens.first().start > 0 || tokens.first().type != TokenType::String)) {
+            // 文字列の中の空行など、字句にならなかった部分もそのまま残す。
+            const int end = tokens.isEmpty() ? line.size() : tokens.first().start;
+            current.words.last().text += '\n' + line.left(end);
+        }
         bool backslash = false;
-        for (const Token& token : tokens) {
+        for (int t = 0; t < tokens.size(); ++t) {
+            const Token& token = tokens[t];
             if (token.type == TokenType::Comment) {
                 continue;
             }
             Word word{token.type, line.mid(token.start, token.length)};
+            if (insideString && t == 0 && token.start == 0 && token.type == TokenType::String) {
+                current.words.last().text += '\n' + word.text;
+                continue;
+            }
             if (isOperator(word, "\\")) {
                 backslash = true;  // 行末の \ は、次の行へ続く印。
                 continue;
@@ -153,6 +168,91 @@ int headerColon(const Words& words) {
         depth = qMax(0, depth + bracketDelta(words[i]));
     }
     return -1;
+}
+
+/** @brief 字句を、ホバーに出す見出しの文字列へ戻す(``def name(a, b=1) -> int``)。
+ * @param words 字句(``:``より前)。
+ * @return 空白をPEP 8に近い形で入れた文字列。
+ */
+QString joinWords(const Words& words) {
+    QString text;
+    int depth = 0;
+    bool annotated = false;  // 今の引数に型の注釈(a: int)があるか。あれば = の前後に空白を入れる。
+    for (int i = 0; i < words.size(); ++i) {
+        const Word& word = words[i];
+        const Word* previous = i > 0 ? &words[i - 1] : nullptr;
+        bool space = !text.isEmpty();
+        if (previous && (isOperator(*previous, "(") || isOperator(*previous, "[") || isOperator(*previous, "{")
+                         || isOperator(*previous, ".") || isOperator(*previous, "@"))) {
+            space = false;
+        }
+        if (isOperator(word, ")") || isOperator(word, "]") || isOperator(word, "}") || isOperator(word, ",")
+            || isOperator(word, ":") || isOperator(word, ".")) {
+            space = false;
+        }
+        if ((isOperator(word, "(") || isOperator(word, "[")) && previous
+            && (previous->type == TokenType::Name || isOperator(*previous, ")") || isOperator(*previous, "]"))) {
+            space = false;  // 呼出し・添え字。
+        }
+        if (depth > 0 && previous && (isOperator(*previous, "*") || isOperator(*previous, "**"))
+            && (i < 2 || isOperator(words[i - 2], "(") || isOperator(words[i - 2], ","))) {
+            space = false;  // *args・**kwargs。
+        }
+        const bool keywordEquals = depth > 0 && !annotated;
+        if (keywordEquals && (isOperator(word, "=") || (previous && isOperator(*previous, "=")))) {
+            space = false;  // 既定値 b=1。
+        }
+        if (depth == 1 && isOperator(word, ":")) {
+            annotated = true;
+        } else if (depth == 1 && isOperator(word, ",")) {
+            annotated = false;
+        }
+        depth = qMax(0, depth + bracketDelta(word));
+        if (space) {
+            text += ' ';
+        }
+        text += word.text;
+    }
+    return text;
+}
+
+/** @brief 字句が全て文字列か(docstringの文)。 @param words 字句。 @return 1つ以上あり、全て文字列ならtrue。 */
+bool isStringStatement(const Words& words) {
+    if (words.isEmpty()) {
+        return false;
+    }
+    for (const Word& word : words) {
+        if (word.type != TokenType::String) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** @brief 文字列だけの文の値を、docstringとして整えて返す。 @param words 字句。 @return docstring。 */
+QString docstringOf(const Words& words) {
+    QStringList literals;
+    for (const Word& word : words) {
+        literals.append(word.text);
+    }
+    return cleanDocstring(stringLiteralsValue(literals));
+}
+
+/** @brief ``def``・``class``の中身の最初の文がdocstringなら、その値を返す。
+ * @param inlineBody 見出しと同じ行の``:``の後ろの字句。
+ * @param lines 論理行。
+ * @param index 中身の最初の論理行の位置。
+ * @param indent 見出しのインデント。
+ * @return docstring。無ければ空。
+ */
+QString bodyDocstring(const Words& inlineBody, const QVector<LogicalLine>& lines, int index, int indent) {
+    if (!inlineBody.isEmpty()) {
+        return isStringStatement(inlineBody) ? docstringOf(inlineBody) : QString();
+    }
+    if (index < lines.size() && lines[index].indent > indent && isStringStatement(lines[index].words)) {
+        return docstringOf(lines[index].words);
+    }
+    return QString();
 }
 
 /** @brief ``a.b.c``の形の名前を読む。
@@ -430,8 +530,11 @@ SymbolTable readBlock(const QVector<LogicalLine>& lines, int* index, int indent,
             QString name;
             const QString detail = functionDetail(words.mid(asyncDef ? 2 : 1), &name);
             if (!name.isEmpty()) {
+                const int colon = headerColon(words);
                 Symbol symbol;
                 symbol.detail = detail;
+                symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
+                symbol.doc = bodyDocstring(colon >= 0 ? words.mid(colon + 1) : Words(), lines, *index, indent);
                 table.insert(name, symbol);
             }
             continue;  // 関数の中身は、次からの深い行として読み飛ばされる。
@@ -444,6 +547,8 @@ SymbolTable readBlock(const QVector<LogicalLine>& lines, int* index, int indent,
             const Words inlineBody = colon >= 0 ? words.mid(colon + 1) : Words();
             Symbol symbol;
             symbol.detail = "class " + words[1].text;
+            symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
+            symbol.doc = bodyDocstring(inlineBody, lines, *index, indent);
             symbol.members = std::make_shared<SymbolTable>(readBody(inlineBody, lines, index, indent, moduleName));
             table.insert(words[1].text, symbol);
             continue;
@@ -477,6 +582,9 @@ DeclarationResult extractPythonDeclarations(const QString& source, const QString
     DeclarationResult result;
     const QVector<LogicalLine> lines = logicalLines(source, &result.complete);
     int index = 0;
+    if (!lines.isEmpty() && isStringStatement(lines.first().words)) {
+        result.docstring = docstringOf(lines.first().words);
+    }
     // 最初の行が字下げされていても(選択範囲の一部など)、その深さをモジュール直下として読む。
     const int indent = lines.isEmpty() ? 0 : lines.first().indent;
     while (index < lines.size()) {

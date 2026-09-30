@@ -96,6 +96,7 @@ set(HEDIT_CORE_SOURCES
     src/core/output_message.h
     src/core/completion_types.cpp src/core/completion_types.h
     src/core/completion_engine.cpp src/core/completion_engine.h
+    src/core/docstrings.cpp src/core/docstrings.h
     src/core/history_text.cpp src/core/history_text.h
     src/core/module_scanner.cpp src/core/module_scanner.h
     src/core/python_declarations.cpp src/core/python_declarations.h
@@ -115,6 +116,7 @@ set(HEDIT_EDITOR_SOURCES
     src/editor/explorer.cpp src/editor/explorer.h
     src/editor/find_bar.cpp src/editor/find_bar.h
     src/editor/find_icons.cpp src/editor/find_icons.h
+    src/editor/hover_popup.cpp src/editor/hover_popup.h
     src/editor/numbered_text_edit.cpp src/editor/numbered_text_edit.h
     src/editor/output_panel.cpp src/editor/output_panel.h
     src/editor/problems_panel.cpp src/editor/problems_panel.h

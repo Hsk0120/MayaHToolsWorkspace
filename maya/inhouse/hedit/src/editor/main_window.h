@@ -163,6 +163,13 @@ private:
 
     /** @brief Mayaの補完環境を取り直す。 */
     void refreshCompletion();
+    /** @brief 名前の説明(ホバー)を求める。コード欄のonHoverRequestedから呼ばれる。
+     * @param editor 説明を出すコード欄。
+     * @param end 名前の終わりの位置。
+     * @return 見出しとdocstring。MELのタブ・大きすぎる本文・説明が無い名前は空。
+     */
+    HoverInfo describeName(CodeEditor* editor, int end);
+
     /** @brief 現在の位置の補完候補を求めて表示する。
      * @param force Ctrl+Spaceからならtrue(自動補完の設定を無視する)。
      */

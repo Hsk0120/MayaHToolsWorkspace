@@ -6,6 +6,8 @@
  * - モジュール(``import a.b``など): targetにモジュール名。
  * - ``from X import Y``: fromModuleにX、fromNameにY(どのモジュールのどの名前か)。
  * - それ以外(変数など): どれも空。
+ * マウスを重ねたときの説明(ホバー)用に、関数・クラスはsignatureとdocも持つ。
+ * この2つはJSON(symbolTableToJson)には出さない(以前のPythonの結果との突き合わせを変えないため)。
  */
 #pragma once
 #include <QByteArray>
@@ -28,6 +30,8 @@ struct Symbol {
     QString fromModule;  ///< ``from X import Y``のX。
     QString fromName;    ///< ``from X import Y``のY。
     std::shared_ptr<SymbolTable> members;  ///< クラスの中の名前。クラスでなければnullptr。
+    QString signature;   ///< ホバーに出す定義(``def name(a, b=1) -> int``・``class Name(Base)``)。無ければ空。
+    QString doc;         ///< docstring(字下げを整えたもの)。無ければ空。
 
     /** @brief 内容が同じか(membersは中身で比べる)。 @param other 比べる相手。 @return 同じならtrue。 */
     bool operator==(const Symbol& other) const;

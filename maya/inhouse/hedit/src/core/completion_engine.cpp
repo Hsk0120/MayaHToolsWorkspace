@@ -117,7 +117,7 @@ SymbolTable CompletionEngine::fileDeclarations(const QString& path, const QStrin
         // 保存途中などで書きかけのファイルは、前回の正しい結果を使い続ける。
         return cached->symbols;
     }
-    files_.insert(path, {modified, info.size(), result.symbols});
+    files_.insert(path, {modified, info.size(), result.symbols, result.docstring});
     return result.symbols;
 }
 
@@ -204,6 +204,152 @@ SymbolTable CompletionEngine::resolve(const Symbol& item, int depth) {
         return moduleMembers(item.target);
     }
     return item.members ? *item.members : SymbolTable();
+}
+
+QString CompletionEngine::moduleFile(const QString& name, QString* moduleName) {
+    const QStringList parts = name.split('.');
+    for (const QString& part : parts) {
+        if (!isIdentifier(part)) {
+            return QString();
+        }
+    }
+    for (const QString& root : searchPaths()) {
+        const QString base = QDir(root).filePath(parts.join('/'));
+        if (QFileInfo(base).isDir()) {
+            const QString init = QDir(base).filePath("__init__.py");
+            if (QFileInfo(init).isFile()) {
+                *moduleName = name + ".__init__";
+                return init;
+            }
+            continue;  // 名前空間パッケージは、次の場所も探す。
+        }
+        if (QFileInfo(base + ".py").isFile()) {
+            *moduleName = name;
+            return base + ".py";
+        }
+    }
+    return QString();
+}
+
+QString CompletionEngine::moduleDocstring(const QString& name, bool* found) {
+    *found = false;
+    // 読み込み済みなら、今のモジュールの__doc__を使う。
+    QString signature;
+    QString doc;
+    if (source_.describe && source_.describe(name, QStringList(), &signature, &doc)) {
+        *found = true;
+        return doc;
+    }
+    // まだ読み込まれていなければ、ファイルの先頭の文字列を読む(実行はしない)。
+    QString moduleName;
+    const QString path = moduleFile(name, &moduleName);
+    if (path.isEmpty()) {
+        return QString();
+    }
+    fileDeclarations(path, moduleName);
+    *found = true;
+    const auto cached = files_.constFind(path);
+    return cached != files_.constEnd() ? cached->docstring : QString();
+}
+
+void CompletionEngine::followImports(Symbol* item, QString* module, QStringList* path) {
+    for (int depth = 0; depth < kMaximumResolveDepth && !item->fromName.isEmpty(); ++depth) {
+        const QString fromModule = item->fromModule;
+        const QString fromName = item->fromName;
+        const SymbolTable parent = moduleMembers(fromModule);
+        const auto found = parent.find(fromName);
+        if (found != parent.end() && found.value() != *item) {
+            *item = found.value();
+            *module = fromModule;
+            *path = QStringList{fromName};
+        } else {
+            // Xの中に見つからなければ、X.Yというモジュールとして扱う。
+            *item = Symbol();
+            item->target = fromModule + "." + fromName;
+            module->clear();
+            path->clear();
+        }
+    }
+}
+
+HoverInfo CompletionEngine::describe(const QString& text, int end) {
+    HoverInfo info;
+    if (text.size() > kMaximumSourceLength || end < 0 || end > text.size()) {
+        return info;
+    }
+    requestPaths_.reset();
+    requestModules_.clear();
+    const QString token = trailingDottedName(text.left(end));
+    if (token.isEmpty() || token.endsWith('.')) {
+        return info;
+    }
+    const QStringList parts = token.split('.');
+    const SymbolTable locals = localDeclarations(text);
+
+    // 1. 最初の名前: この本文の宣言 → 組み込みの名前 → モジュール名。
+    Symbol item;
+    QString module;   // itemがあるモジュール(本文の中なら空)。
+    QStringList path;  // モジュールの中でのitemの位置。
+    const auto local = locals.find(parts.first());
+    if (local != locals.end()) {
+        item = local.value();
+    } else if (environment_.keywords.contains(parts.first())) {
+        return info;
+    } else if (environment_.builtins.contains(parts.first())) {
+        module = "builtins";
+        path = QStringList{parts.first()};
+    } else {
+        item.target = parts.first();
+    }
+    followImports(&item, &module, &path);
+
+    // 2. 点の後ろの名前を順にたどる。
+    for (int i = 1; i < parts.size(); ++i) {
+        if (!item.target.isEmpty()) {
+            module = item.target;
+            const SymbolTable members = moduleMembers(module);
+            const auto found = members.find(parts[i]);
+            if (found == members.end()) {
+                return info;
+            }
+            item = found.value();
+            path = QStringList{parts[i]};
+        } else if (item.members) {
+            const auto found = item.members->find(parts[i]);
+            if (found == item.members->end()) {
+                return info;
+            }
+            item = found.value();
+            path.append(parts[i]);
+        } else {
+            return info;  // 変数の型は推論しないので、その先はたどれない。
+        }
+        followImports(&item, &module, &path);
+    }
+
+    // 3. モジュールなら、モジュールのdocstring。
+    if (!item.target.isEmpty()) {
+        bool found = false;
+        info.doc = moduleDocstring(item.target, &found);
+        if (found) {
+            info.signature = "module " + item.target;
+        }
+        return info;
+    }
+    // 4. 関数・クラス。ソースから読めなかった説明は、読み込み済みのモジュールならPythonに問い合わせる。
+    info.signature = item.signature;
+    info.doc = item.doc;
+    if (info.doc.isEmpty() && !module.isEmpty() && source_.describe) {
+        QString signature;
+        QString doc;
+        if (source_.describe(module, path, &signature, &doc)) {
+            info.doc = doc;
+            if (info.signature.isEmpty()) {
+                info.signature = signature;
+            }
+        }
+    }
+    return info;
 }
 
 CompletionResult CompletionEngine::complete(const QString& source) {

@@ -1,10 +1,12 @@
 """C++(hedit.mll)の補完が使う、Pythonでしか分からない情報の窓口。
 
 補完の判断・ファイルの読み取り・候補の絞り込みはC++(src/core/completion_engine.cpp)が行う。
-ここは、実行中のPythonの状態(sys.path・sys.modules・組み込みの名前)をJSONで返すだけ。
+ここは、実行中のPythonの状態(sys.path・sys.modules・組み込みの名前)と、ホバーに出す
+ソースの無い名前のdocstring(:func:`describe`)をJSONで返すだけ。
 Mayaのメインスレッドから呼ばれる。対象のモジュールをimport・reload・実行することはない。
 """
 import builtins
+import inspect
 import json
 import keyword
 import os
@@ -84,6 +86,73 @@ def module_info(name, known_signature=''):
     filename = namespace.get('__file__') or ''
     return json.dumps({'loaded': True, 'signature': signature, 'members': _members(namespace), 'file': filename},
                       ensure_ascii=True)
+
+
+def _function_signature(name, function, drop_first=False):
+    """関数の見出し(``def name(a, b=1)``)を作る。
+
+    Args:
+        name (str): 表示する名前。
+        function (object): 関数。
+        drop_first (bool): True なら最初の引数(``self``)を除く(クラスの ``__init__`` 用)。
+
+    Returns:
+        str: 見出し。引数が分からなければ ``def name(...)``。
+    """
+    try:
+        signature = inspect.signature(function)
+    except (TypeError, ValueError):
+        return 'def %s(...)' % name
+    if drop_first:
+        parameters = list(signature.parameters.values())[1:]
+        signature = signature.replace(parameters=parameters)
+    return 'def %s%s' % (name, signature)
+
+
+def describe(module_name, path):
+    """読み込み済みのモジュールの中の名前の、見出しとdocstringを返す(ホバー用)。
+
+    ``vars()`` で名前をたどるだけで、属性の取得で動く処理(property など)は実行しない。
+    ソースの無い名前(C の拡張・``maya.cmds`` など)の説明に使う。
+
+    Args:
+        module_name (str): モジュール名。
+        path (list[str]): モジュールの中の位置(``["Class", "method"]``)。空ならモジュール自身。
+
+    Returns:
+        str: 見つかれば ``{"found": true, "signature": "...", "doc": "..."}``、無ければ ``{"found": false}`` の JSON。
+    """
+    value = sys.modules.get(module_name)
+    if not isinstance(value, types.ModuleType):
+        return json.dumps({'found': False})
+    for part in path:
+        if not isinstance(value, (types.ModuleType, type)) or part not in vars(value):
+            return json.dumps({'found': False})
+        value = vars(value)[part]
+    name = path[-1] if path else module_name
+    if isinstance(value, (staticmethod, classmethod)):
+        value = value.__func__
+    signature = ''
+    doc = None
+    if isinstance(value, types.ModuleType):
+        signature = 'module ' + module_name
+        doc = vars(value).get('__doc__')
+    elif isinstance(value, type):
+        signature = 'class ' + name
+        doc = vars(value).get('__doc__')
+        init = vars(value).get('__init__')
+        if isinstance(init, types.FunctionType):
+            signature = 'class ' + _function_signature(name, init, drop_first=True)[4:]
+    elif isinstance(value, property):
+        signature = 'property ' + name
+        doc = value.__doc__
+    elif isinstance(value, (types.FunctionType, types.BuiltinFunctionType, types.MethodDescriptorType)):
+        signature = _function_signature(name, value)
+        doc = value.__doc__
+    else:
+        return json.dumps({'found': False})
+    doc = inspect.cleandoc(doc) if isinstance(doc, str) else ''
+    return json.dumps({'found': True, 'signature': signature, 'doc': doc}, ensure_ascii=True)
 
 
 def search_paths():

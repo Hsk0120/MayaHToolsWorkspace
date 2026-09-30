@@ -40,6 +40,22 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     window.findChild(QtWidgets.QWidget, 'findBar').hide()
     window.findChild(QtWidgets.QAbstractButton, 'searchRegex').setChecked(False)
 
+    # ホバー: 名前の上でマウスが止まると(QEvent.ToolTip)、Mayaの実物のhedit.bridgeで説明を出す。Escで閉じる。
+    code.setPlainText('import json\njson.dumps({})')
+    cursor = code.textCursor()
+    cursor.setPosition(len('import json\njson.dum'))
+    point = code.cursorRect(cursor).center()
+    help_event = QtGui.QHelpEvent(QtCore.QEvent.ToolTip, point, code.viewport().mapToGlobal(point))
+    QtWidgets.QApplication.sendEvent(code.viewport(), help_event)
+    popup = code.findChild(QtWidgets.QFrame, 'hoverPopup')
+    assert popup is not None and popup.isVisible()
+    text = popup.findChild(QtWidgets.QTextBrowser, 'hoverText').toPlainText()
+    assert text.startswith('def dumps(obj') and 'JSON' in text, text
+    popup.grab().save(str(Path(directory) / 'hover.png'))
+    QtTest.QTest.keyClick(code, QtCore.Qt.Key_Escape)
+    assert not popup.isVisible()
+    assert code.toPlainText() == 'import json\njson.dumps({})'
+
     # Pythonの非アクティブタブと、アクティブなMELタブは診断しない。
     from hedit import analysis
     analyze = analysis.analyze

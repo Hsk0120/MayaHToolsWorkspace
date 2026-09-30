@@ -56,6 +56,7 @@ hedit.show(floating=False)
 | 選択範囲を実行（選択なしなら全体） | Ctrl+Enter |
 | タブ全体を実行 | F5 |
 | 新規／開く／保存 | Ctrl+N／Ctrl+O／Ctrl+S |
+| 名前の説明（ホバー） | 名前にマウスを重ねる／Ctrl+K → Ctrl+I |
 | 検索 | Ctrl+F |
 | 補完情報の再取得 | Refresh completion |
 | 出力の消去 | 出力欄を右クリック → Clear output、またはツールバー |

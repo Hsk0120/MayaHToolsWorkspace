@@ -254,6 +254,7 @@ CodeEditor* MainWindow::newTab(const QString& language) {
     markSessionDirty();
 
     editor->onCompletionRequested = [this] { requestCompletion(true); };
+    editor->onHoverRequested = [this, editor](int end) { return describeName(editor, end); };
     editor->onRunRequested = [this] { runCode(false); };
     // キー入力の処理の途中でタブ(=キーを受け取った部品自身)を削除しないよう、処理の後へ予約する。
     // 予約の持ち主をeditorにしておけば、先にeditorが破棄された場合は予約も取り消される。
@@ -683,6 +684,14 @@ void MainWindow::requestCompletion(bool force) {
     if (items.isEmpty() && result.pending) {
         completionTimer_.start(250);
     }
+}
+
+HoverInfo MainWindow::describeName(CodeEditor* editor, int end) {
+    // 補完と同じ上限を超える大きな本文や、MELのタブでは説明を出さない。
+    if (!services_.describe || editor->isMel() || editor->document()->characterCount() > kCompletionDocumentLimit) {
+        return HoverInfo();
+    }
+    return services_.describe(editor->toPlainText(), end);
 }
 
 void MainWindow::scheduleAnalysis() {

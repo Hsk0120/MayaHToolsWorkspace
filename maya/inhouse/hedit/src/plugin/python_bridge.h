@@ -3,6 +3,7 @@
  * @details 補完の判断はC++の補完エンジン(core/completion_engine.cpp)が行い、ここはその補完エンジンに
  * 「Pythonでしか分からない情報」(読み込み済みのモジュールの公開名・sys.path・組み込みの名前)を渡す。
  * それらは、hedit.mllに同梱したsrc/python/hedit/bridge.pyの関数を呼んでJSONで受け取る。
+ * ホバー(名前の説明)も補完エンジンで名前をたどり、ソースの無い名前の__doc__だけをbridge.describeで受け取る。
  * 構文チェックだけはPythonのcompile()が必要なので、src/python/hedit/analysis.pyを呼ぶ。
  * いずれもMayaのメインスレッドから呼ぶ。
  */
@@ -36,6 +37,13 @@ void refreshCompletion();
  * @return 補完の結果。
  */
 CompletionResult complete(const QString& source);
+
+/** @brief マウスを重ねた名前の説明(ホバー)を返す。補完と同じく、import も実行もしない。
+ * @param text 本文全体。
+ * @param end 名前の終わりの位置。
+ * @return 見出しとdocstring。分からなければ空。
+ */
+HoverInfo describe(const QString& text, int end);
 
 /** @brief 本文の宣言をJSONで返す(テスト用の``hedit -declarations``。Pythonのastとの突き合わせに使う)。
  * @param source 本文。

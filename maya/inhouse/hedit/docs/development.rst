@@ -17,7 +17,8 @@
    │  │  ├ python_declarations.*  Python の本文から宣言(def・class・import・代入)を取り出す
    │  │  ├ symbols.*          補完に使う「名前とその情報」の表(Symbol / SymbolTable)
    │  │  ├ completion_engine.*  補完エンジン(補完する位置の判定・モジュールの解決・ファイルのキャッシュ)
-   │  │  ├ completion_types.*  補完と構文チェックの結果の型(CompletionResult / AnalysisResult)
+   │  │  ├ completion_types.*  補完・ホバー・構文チェックの結果の型(CompletionResult / HoverInfo / AnalysisResult)
+   │  │  ├ docstrings.*       文字列リテラルの値と docstring の整形(ホバー用)
    │  │  ├ script_file.*      スクリプトファイルの読み書き(UTF-8 の確認・保存時の整形)
    │  │  ├ output_message.h   出力 1 件の型(OutputKind / OutputMessage)
    │  │  ├ history_text.*     起動前の出力履歴の整形と、行の種類の判定
@@ -34,6 +35,7 @@
    │  │  ├ output_panel.*     出力欄(保持・表示モードでの絞り込み・色付け)
    │  │  ├ find_bar.*         検索・置換バー(配置・大きさは VS Code の検索ウィジェットに合わせる)
    │  │  ├ find_icons.*       検索バーのアイコン(QPainter で描く。画像ファイルは使わない)
+   │  │  ├ hover_popup.*      名前の説明(ホバー)の小窓
    │  │  ├ problems_panel.*   構文チェックの結果の一覧
    │  │  ├ syntax_highlighter.*  Python / MEL の色分け
    │  │  ├ editor_tabs.*      タブ欄(ホイールで移動、タブのコード欄の取り出し・見出しの更新)
@@ -181,6 +183,8 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
      - 内部用。ドックの ``closeCommand`` と終了通知の scriptJob から呼ばれる。
    * - ``-complete``\ (``-cp``)・\ ``-declarations``\ (``-dc``)と本文
      - テスト用。C++ の補完の結果・宣言の抽出の結果を JSON で返す。画面を作らないため mayapy でも使える。
+   * - ``-describe``\ (``-ds``)と本文
+     - テスト用。本文の末尾の名前のホバーの説明(見出しと docstring)を JSON で返す。
 
 同梱の Python について
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -227,7 +231,8 @@ C++ から MEL を呼ぶときの注意
 テストや PySide から参照される名前(``objectName`` とアクションの表示名)は、GUI テストが画面を探すのに使っています。
 変える場合は ``tests/`` も合わせて直してください。主なもの: ``hedit``\ ・\ ``codeEditor``\ ・\ ``output``\ ・\ ``outputPanel``\ ・
 ``outputMode``\ ・\ ``editorSplitter``\ ・\ ``scriptToolbar``\ ・\ ``analysisProblems``\ ・\ ``languageMode``\ ・\ ``completionStatus``\ ・
-``explorerDock``\ ・\ ``explorerTree``\ ・\ ``toggleExplorer``\ ・\ ``option_<設定名>``\ ・\ ``lineJump``\ 。
+``explorerDock``\ ・\ ``explorerTree``\ ・\ ``toggleExplorer``\ ・\ ``option_<設定名>``\ ・\ ``lineJump``\ ・
+``hoverPopup``\ ・\ ``hoverText``\ (ホバーの小窓と本文。コード欄の子)。
 検索バーは ``findBar``\ ・\ ``findField``\ ・\ ``findText``\ ・\ ``replaceField``\ ・\ ``replaceText``\ ・\ ``toggleReplace``\ ・
 ``searchCase``\ ・\ ``searchWord``\ ・\ ``searchRegex``\ ・\ ``preserveCase``\ ・\ ``searchCount``\ ・\ ``findPrevious``\ ・\ ``findNextMatch``\ ・
 ``findInSelection``\ ・\ ``closeFind``\ ・\ ``replaceOne``\ ・\ ``replaceAll``\ ・\ ``findError``\ (不正な正規表現の吹き出し。タブ欄の子)です。

@@ -10,6 +10,8 @@
  * - ``名前 = ...``・``名前: 型 = ...``
  * - ``if TYPE_CHECKING:``(``typing.TYPE_CHECKING``を含む)の中
  * 関数の中・for/with/tryなどの中の宣言は取り出さない。
+ * マウスを重ねたときの説明用に、``def``・``class``の見出し(Symbol::signature)とdocstring(Symbol::doc)、
+ * モジュールのdocstring(DeclarationResult::docstring)も取り出す。
  */
 #pragma once
 #include "core/symbols.h"
@@ -21,6 +23,7 @@ namespace hedit {
 struct DeclarationResult {
     SymbolTable symbols;   ///< 取り出した宣言。
     bool complete = true;  ///< 本文の最後で括弧や三重引用符が閉じていればtrue(書きかけでない)。
+    QString docstring;     ///< モジュールのdocstring(本文の最初の文が文字列なら、その値)。無ければ空。
 };
 
 /** @brief Pythonの本文から宣言を取り出す。

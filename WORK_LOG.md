@@ -19,6 +19,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+| Codex | 2026-10-01 | hlib設計レビュー | 責務・継承・コレクション・参照寿命・保存契約を調査。実装変更なし。 |
+
 
 
 
@@ -51,7 +53,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Claude Code | 2026-10-01 | maya/inhouse/hedit(src/core/completion_*・python_declarations.*・symbols.*・src/editor/code_editor.*・main_window*.cpp・editor.h・theme.h・src/plugin/python_bridge.*・editor_host.cpp・src/python/hedit/bridge.py・tests/・docs/・release/*.mll) | マウスを重ねたときのdocstring表示(VS Code風のホバー) |
 
 
 
@@ -61,6 +62,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+| Claude Code | 2026-10-01 | maya/inhouse/hedit ホバー | 名前にマウスを重ねる/Ctrl+K→Ctrl+Iで定義の見出しとdocstringを出すホバーを追加(core/docstrings・宣言の抽出・CompletionEngine::describe・bridge.describe・HoverPopup・hedit -describe)。tests/output_format_smoke.pyの末尾一致をMayaの遅延出力に強い判定へ修正。5版ビルド警告0、run_tests 5版・run_gui 2024/2027(+補完/整形/出力スイート)・run_session・run_startup・Sphinx -W 成功。未コミット。 |
 
 - Codex (2026-10-01): hlibのノード/プラグ拡張・Preferences・Shelf・ウィンドウAPIと関連ドキュメント、hrigの単位API移行を公開コミット対象として確認。heditの進行中変更を除外。直近Sphinx -Wと対象テスト結果を確認し差分チェック成功。既知のBifrostテスト失敗・実GUI未検証は各作業記録のとおり。
 

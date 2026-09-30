@@ -60,6 +60,12 @@ void MainWindow::buildMenusAndToolbar() {
     edit->addAction("Find next", this, [this] { findBar_->findNext(); }, QKeySequence("F3"));
     edit->addAction("Find previous", this, [this] { findBar_->findNext(true); }, QKeySequence("Shift+F3"));
     edit->addAction("Go to line…", this, [this] { showGoToLine(); }, QKeySequence("Ctrl+G"));
+    // VS Codeの「ホバーを表示」と同じキー(Ctrl+Kを押してからCtrl+I)。
+    edit->addAction("Show hover", this, [this] {
+        if (CodeEditor* editor = currentEditor()) {
+            editor->showHoverAtCursor();
+        }
+    }, QKeySequence("Ctrl+K, Ctrl+I"));
     QAction* clearInputAction = edit->addAction("Clear input", this, [this] { clearInput(); });
     QAction* clearBothAction = edit->addAction("Clear input and output", this, [this] {
         clearInput();
