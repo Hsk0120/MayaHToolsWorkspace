@@ -115,7 +115,7 @@ class NodeCollectionsTest(unittest.TestCase):
             Joints().set_override_color(6, fast=1)
 
     def test_instance_paths_and_shared_color_conflicts(self):
-        """パス別行列を保持し、共有属性へ矛盾した更新を拒否する。"""
+        """パス別行列を保持し、共有アトリビュートへ矛盾した更新を拒否する。"""
         from hlib.nodes import Transforms
         group = cmds.createNode('transform', name=self.ns + ':group')
         leaf = cmds.createNode('transform', name=self.ns + ':leaf', parent=group)

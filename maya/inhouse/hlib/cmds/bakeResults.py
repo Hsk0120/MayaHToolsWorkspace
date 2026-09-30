@@ -46,7 +46,7 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
    * - ``nodes``
      - ``Node | Plug | Component | Components | Selection | str | MObject | MDagPath | MPlug | Iterable``
      - 必須
-     - ベイク対象のノード・属性、またはその列。受け付ける型は :doc:`/cmds_interop` を参照。
+     - ベイク対象のノード・アトリビュート、またはその列。受け付ける型は :doc:`/cmds_interop` を参照。
    * - ``time (t)``
      - ``tuple[float, float]``
      - Mayaの既定動作
@@ -87,7 +87,7 @@ def bakeResults(nodes, **kwargs):
 
     Args:
         nodes (Node | Plug | Component | Components | Selection | str | om2.MObject | om2.MDagPath | om2.MPlug | Iterable):
-            ベイク対象のノード・属性(Plug は ``node.attr`` として渡す)、またはその列。
+            ベイク対象のノード・アトリビュート(Plug は ``node.attr`` として渡す)、またはその列。
         **kwargs (object): maya.cmds.bakeResults に渡すキーワード引数
             （``time=(start, end)`` など）。
 

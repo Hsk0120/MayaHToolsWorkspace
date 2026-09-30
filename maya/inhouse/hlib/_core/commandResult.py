@@ -6,10 +6,10 @@ class CommandResult:
 
     @staticmethod
     def reference(name):
-        """ノード名または属性名をNode/Plugへ解決する。
+        """ノード名またはアトリビュート名をNode/Plugへ解決する。
 
         Args:
-            name (str): 一意なノード・属性名。コンポーネントは対象外。
+            name (str): 一意なノード・アトリビュート名。コンポーネントは対象外。
         Returns:
             Node | Plug: 改名に追従する参照。
         """

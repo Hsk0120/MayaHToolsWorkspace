@@ -35,7 +35,7 @@ HumanIKノード
     character.set_joint('Hips', 'hipsJoint')
     hips = character.joint('Hips')
 
-骨割当は標準MELを使うため、HumanIK用属性・ラベルなども更新されます。
+骨割当は標準MELを使うため、HumanIK用アトリビュート・ラベルなども更新されます。
 定義の妥当性確認とロックはHumanIK UIで行ってください。
 ロック済みの既存キャラクター間では ``target.set_source(source)`` が標準MELへ
 リターゲット接続を依頼します。未ロックや自己接続は拒否します。

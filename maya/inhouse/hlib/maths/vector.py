@@ -190,9 +190,9 @@ def _foreign_comparison(other, result):
 
 
 def _instance_state(value):
-    """利用者の派生クラスのインスタンスが持つ追加の属性を取り出す。
+    """利用者の派生クラスのインスタンスが持つ追加のアトリビュートを取り出す。
 
-    hlib 自身の型のように ``__dict__`` も ``__slots__`` の属性も持たない型は、
+    hlib 自身の型のように ``__dict__`` も ``__slots__`` のアトリビュートも持たない型は、
     型ごとの判定をキャッシュしてすぐに返す。
 
     Args:
@@ -225,12 +225,12 @@ def _instance_state(value):
 
 
 def _restore_state(target, state, slots):
-    """_instance_state で取り出した属性を target へ設定する。
+    """_instance_state で取り出したアトリビュートを target へ設定する。
 
     Args:
         target (object): 設定先。
-        state (dict | None): ``__dict__`` へ追加する属性。
-        slots (dict | None): ``__slots__`` へ設定する属性。
+        state (dict | None): ``__dict__`` へ追加するアトリビュート。
+        slots (dict | None): ``__slots__`` へ設定するアトリビュート。
 
     Returns:
         object: target。
@@ -244,7 +244,7 @@ def _restore_state(target, state, slots):
 
 
 def _copy_state(source, target, memo=None):
-    """利用者の派生クラスが持つ追加の属性(``__dict__`` と ``__slots__``)を複製先へ写す。
+    """利用者の派生クラスが持つ追加のアトリビュート(``__dict__`` と ``__slots__``)を複製先へ写す。
 
     Args:
         source (object): 複製元。
@@ -272,7 +272,7 @@ def _rebuild(cls, values):
 
     om2 の型は C++ の実体を基底の ``__init__`` で確保するため、基底の ``__new__`` と
     ``__init__`` で確保してから成分を設定する。利用者の派生クラスが独自の引数の
-    ``__init__`` を持っていても呼ばない。追加の属性(``__dict__`` / ``__slots__``)は
+    ``__init__`` を持っていても呼ばない。追加のアトリビュート(``__dict__`` / ``__slots__``)は
     pickle の標準の手順(``__reduce__`` の3番目の要素)で後から復元される。
 
     Args:
@@ -316,9 +316,9 @@ def _rebuild(cls, values):
 def _reduce_value(value, values):
     """copy / pickle 用に、:func:`_rebuild` で再構築する情報を返す。
 
-    利用者の派生クラスが持つ追加の属性は、pickle の標準形式の state(``__dict__`` の
+    利用者の派生クラスが持つ追加のアトリビュートは、pickle の標準形式の state(``__dict__`` の
     辞書、``__slots__`` もあれば ``(辞書, slots の辞書)``)として3番目の要素に置く。
-    インスタンスの生成後に設定されるため、自身を参照する属性も復元できる。
+    インスタンスの生成後に設定されるため、自身を参照するアトリビュートも復元できる。
 
     Args:
         value (object): 複製・保存する hlib の値。
@@ -516,7 +516,7 @@ class Vector(om2.MVector):
 
         om2 の型は C++ の実体を基底の ``__init__`` で確保するため、再構築関数で
         確保してから成分を設定する。利用者の派生クラスの ``__init__`` は呼ばず、
-        ``__dict__`` と ``__slots__`` の属性は再構築時に復元する。
+        ``__dict__`` と ``__slots__`` のアトリビュートは再構築時に復元する。
 
         Returns:
             tuple: ``(_rebuild, (type(self), (x, y, z))[, state])``。
@@ -535,7 +535,7 @@ class Vector(om2.MVector):
         return self.__reduce__()
 
     def _duplicate(self):
-        """同じ型・同じ成分の新しいインスタンスを返す(追加の属性は写さない)。
+        """同じ型・同じ成分の新しいインスタンスを返す(追加のアトリビュートは写さない)。
 
         利用者の派生クラスの ``__init__`` は呼ばない。
 
@@ -552,7 +552,7 @@ class Vector(om2.MVector):
     def __copy__(self):
         """同じ型・同じ成分の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性も浅く写す。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
 
         Returns:
             Vector: 自身と同じクラスの新しいインスタンス。
@@ -562,7 +562,7 @@ class Vector(om2.MVector):
     def __deepcopy__(self, memo):
         """同じ型・同じ成分の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性は深く複製する。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
 
         Args:
             memo (dict): copy.deepcopy の memo。

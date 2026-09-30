@@ -227,7 +227,7 @@ class SkinCluster(Node):
         return self
 
     def bind_pose(self):
-        """bindPose属性に接続された保存ポーズを取得する。
+        """bindPoseアトリビュートに接続された保存ポーズを取得する。
 
         Returns:
             DagPose | None: 接続されたポーズ。未接続ならNone。
@@ -364,7 +364,7 @@ class SkinCluster(Node):
         Raises:
             ValueError: influence が空・未登録・重複、値の数が不一致、または非有限値の場合。
             TypeError: ウェイトを数値に変換できない場合。
-            RuntimeError: 属性がロックされているなど、Maya が設定を拒否した場合。
+            RuntimeError: アトリビュートがロックされているなど、Maya が設定を拒否した場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -382,7 +382,7 @@ class SkinCluster(Node):
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Weights must be finite")
         influences = self.fn.influenceObjects()
-        # 削除済み influence による配列の穴を考慮し、物理番号を属性の論理番号へ変換する。
+        # 削除済み influence による配列の穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
         logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
         if is_fast():
             weights_plug = om2.MFnDependencyNode(self.mobject()).findPlug("weightList", False)
@@ -725,7 +725,7 @@ class SkinCluster(Node):
             TypeError: maintain/pruneがboolでない場合。
             RuntimeError: ロック・レイヤー・Mayaの編集失敗。
 
-        skinCluster編集コマンドの再バインドを避け、属性を直接設定する。Undo対応。
+        skinCluster編集コマンドの再バインドを避け、アトリビュートを直接設定する。Undo対応。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -750,7 +750,7 @@ class SkinCluster(Node):
         Returns:
             bool: 接続ノードの名前または型名にレイヤー判定用トークンが含まれる場合は True。実際のレイヤーデータの有無は調べない。
         """
-        # ノード名・型だけが必要。generic属性を含む接続のPlug生成は避ける。
+        # ノード名・型だけが必要。genericアトリビュートを含む接続のPlug生成は避ける。
         for name in cmds.listConnections(self.full_name(), source=True, destination=True) or []:
             node_name = name.lower()
             node_type = cmds.nodeType(name).lower()

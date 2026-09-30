@@ -6,7 +6,7 @@ Synopsis
 
     hlib.select(nodes=None, **kwargs)
 
-指定したノード・属性・コンポーネントを選択します。``nodes`` を省略すると
+指定したノード・アトリビュート・コンポーネントを選択します。``nodes`` を省略すると
 ``**kwargs`` だけで ``maya.cmds.select`` を呼びます（``clear=True`` など）。
 ``nodes`` には Node・Plug・Component に加えて Vertices などのコレクション、
 Selection、Maya API 2.0 の MObject・MDagPath・MPlug、およびそれらのリストを
@@ -87,7 +87,7 @@ import maya.cmds as cmds
 @flag_aliases("select")
 @undo_chunk("hlib.cmds.select.select")
 def select(nodes=None, **kwargs):
-    """指定したノード・属性・コンポーネントを選択する。
+    """指定したノード・アトリビュート・コンポーネントを選択する。
 
     Args:
         nodes (Node | Plug | Component | Components | Selection | str | om2.MObject | om2.MDagPath | om2.MPlug | Iterable | None):

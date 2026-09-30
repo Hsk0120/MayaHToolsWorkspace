@@ -27,10 +27,10 @@ class Constraint(Node):
         return [Node(name) for name in names]
 
     def weight_aliases(self):
-        """各ターゲットのウェイト属性の別名を取得する。
+        """各ターゲットのウェイトアトリビュートの別名を取得する。
 
         Returns:
-            list[str]: targets() と同じ順序の属性別名。
+            list[str]: targets() と同じ順序のアトリビュート別名。
         """
         return getattr(cmds, self.type())(self.full_name(), query=True, weightAliasList=True) or []
 

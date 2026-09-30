@@ -1,4 +1,4 @@
-"""属性を追加する。照会・編集はPlugのメソッドを使用する。"""
+"""アトリビュートを追加する。照会・編集はPlugのメソッドを使用する。"""
 
 from maya import cmds
 from .._core.flags import flag_aliases
@@ -9,14 +9,14 @@ from ..decorators.undo import undo_chunk
 @flag_aliases("addAttr")
 @undo_chunk("hlib.cmds.addAttr")
 def addAttr(target, **kwargs):
-    """属性を追加する。照会・編集はPlugのメソッドを使用する。
+    """アトリビュートを追加する。照会・編集はPlugのメソッドを使用する。
 
     Args:
         target (str | Node | Plug): 操作対象。
         **kwargs: Mayaの長名・短名フラグ。重複指定は拒否する。
 
     Returns:
-        Plug: 追加した属性参照。
+        Plug: 追加したアトリビュート参照。
 
     Raises:
         TypeError: 入力型やフラグの重複が不正な場合。

@@ -29,16 +29,16 @@ _TRANSFORM_ATTRIBUTES = {}
 
 
 def _transform_attribute(name):
-    """transform ノード型の属性の MObject を取得する(初回だけ問い合わせて保持する)。
+    """transform ノード型のアトリビュートの MObject を取得する(初回だけ問い合わせて保持する)。
 
-    joint など transform の派生型も同じ属性の MObject を共有するため、
+    joint など transform の派生型も同じアトリビュートの MObject を共有するため、
     ``om2.MPlug(node, attribute)`` で名前の検索なしに MPlug を作れる。
 
     Args:
-        name (str): 属性のロング名(``matrix`` / ``worldMatrix`` など)。
+        name (str): アトリビュートのロング名(``matrix`` / ``worldMatrix`` など)。
 
     Returns:
-        om2.MObject: transform ノード型の属性。
+        om2.MObject: transform ノード型のアトリビュート。
     """
     attribute = _TRANSFORM_ATTRIBUTES.get(name)
     if attribute is None:
@@ -143,7 +143,7 @@ class Transform(DagNode):
                 ターゲットの無い拘束を黙って作るため)。
             RuntimeError: ノードが無効、拘束元の名前を解決できない(存在しない、または
                 複数のノードに一致する)場合、または Maya が作成を拒否した場合。
-            DeletedAttributeError: 拘束元に、属性が削除済みの Plug / MPlug を渡した場合
+            DeletedAttributeError: 拘束元に、アトリビュートが削除済みの Plug / MPlug を渡した場合
                 (ValueError と RuntimeError の両方の派生)。
 
         PoleVector は RP IK ハンドル、Geometry/Normal/PointOnPoly は適切な形状、
@@ -629,7 +629,7 @@ class Transform(DagNode):
         Raises:
             TypeError: targetがTransformではない場合。
             RuntimeError: ノードが無効、またはMayaが変更を拒否した場合。
-            DeletedAttributeError: targetに、属性が削除済みの Plug / MPlug を渡した場合
+            DeletedAttributeError: targetに、アトリビュートが削除済みの Plug / MPlug を渡した場合
                 (ValueError と RuntimeError の両方の派生)。
 
         maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
@@ -648,7 +648,7 @@ class Transform(DagNode):
     def get_matrix(self, ws=False):
         """変換行列を取得する。
 
-        Maya が評価・キャッシュ済みの ``matrix`` / ``worldMatrix`` 属性値をそのまま
+        Maya が評価・キャッシュ済みの ``matrix`` / ``worldMatrix`` アトリビュート値をそのまま
         使うため、``jnt.plug("matrix")`` / ``jnt.plug("worldMatrix")`` の対応する要素と
         常に一致する。hlib の Plug ラッパーを介さず OpenMaya の MPlug から直接読み取る。
 
@@ -666,7 +666,7 @@ class Transform(DagNode):
         """
         if not self.is_valid():
             raise RuntimeError("無効なノードの行列は取得できません")
-        # 名前による findPlug より速い、属性の MObject からの MPlug 生成を使う。
+        # 名前による findPlug より速い、アトリビュートの MObject からの MPlug 生成を使う。
         plug = om2.MPlug(self.mobject(), _transform_attribute("worldMatrix" if ws else "matrix"))
         if ws:
             plug = plug.elementByLogicalIndex(self.dag_path().instanceNumber())
@@ -811,7 +811,7 @@ class Transform(DagNode):
         """
         if not self.is_valid():
             return (1.0, 1.0, 1.0), om2.MEulerRotation()
-        # MFnTransform の scale() / rotation() は scale・rotate 属性そのもの(joint でも
+        # MFnTransform の scale() / rotation() は scale・rotate アトリビュートそのもの(joint でも
         # jointOrient を含まない)を返す。名前による findPlug より大幅に速い。
         fn = om2.MFnTransform(self.mobject())
         return tuple(fn.scale()), fn.rotation(om2.MSpace.kTransform)
@@ -909,7 +909,7 @@ class Transform(DagNode):
         return _closest_euler(quaternion, reference)
 
     def _apply_local_matrix(self, matrix, scale_reference=None):
-        """ローカル行列の各成分をMaya属性へ適用する。
+        """ローカル行列の各成分をMayaアトリビュートへ適用する。
 
         行列を1回だけ分解し、平行移動・回転・スケール・シアーを順に書き込む。
         分解は om2.MTransformationMatrix の規約に、次の2点の選択を加えたもの。
@@ -935,7 +935,7 @@ class Transform(DagNode):
 
         Raises:
             ValueError: 行列を分解できない場合。
-            RuntimeError: Maya が属性の書き込みを拒否した場合。
+            RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
         translate, quaternion, scale, shear, reference = self._decompose_like_channels(matrix, scale_reference)
         rotation = self._channel_rotation(quaternion, reference)
@@ -965,7 +965,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            RuntimeError: 無効なノード、または Maya が属性設定を拒否した場合。
+            RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
             ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
@@ -987,7 +987,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            RuntimeError: 無効なノード、または Maya が属性設定を拒否した場合。
+            RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
             ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
         """
         if not isinstance(matrix, Matrix):
@@ -1016,7 +1016,7 @@ class Transform(DagNode):
 
         Raises:
             ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、または属性を書き込めない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -1053,7 +1053,7 @@ class Transform(DagNode):
         Raises:
             ValueError: unit が rad/deg 以外、deg を EulerRotation / Quaternion と指定、
                 値が3成分でない、行列が分解不能、または必要な親行列が反転不能の場合。
-            RuntimeError: ノードが無効、または属性を書き込めない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -1098,7 +1098,7 @@ class Transform(DagNode):
 
         Raises:
             ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、または属性を書き込めない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -1124,7 +1124,7 @@ class Transform(DagNode):
 
         Raises:
             ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、または属性を書き込めない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -1133,7 +1133,7 @@ class Transform(DagNode):
         return self.set_matrix(matrix, ws=ws)
 
     def get_visibility(self):
-        """bool: 自身のvisibility属性値。親や表示レイヤーを含む最終可視性ではない。"""
+        """bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。"""
         return bool(self.plug("visibility").get())
 
     @fast_edit

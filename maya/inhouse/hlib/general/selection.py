@@ -1,4 +1,4 @@
-"""ノード・属性・コンポーネントの取得時点の選択を保持する。"""
+"""ノード・アトリビュート・コンポーネントの取得時点の選択を保持する。"""
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -28,7 +28,7 @@ class Selection:
             items (Iterable[Node | Plug | Component | Components | Selection | str |
                 om2.MObject | om2.MDagPath | om2.MPlug | om2.MSelectionList]): 対象。
                 文字列には範囲指定も使える。単一対象も指定可能。MObject・MDagPath は
-                ノード、MPlug は属性、MSelectionList と Selection はその要素として扱う。
+                ノード、MPlug はアトリビュート、MSelectionList と Selection はその要素として扱う。
                 full_name が重複する対象は最初の1件のみを保持する。
 
         Raises:
@@ -79,7 +79,7 @@ class Selection:
         """MSelectionListをhlibの単体参照へ変換する。非対応要素はTypeError。
 
         name は要素を追加したときの文字列で、1要素の場合にインスタンス化された
-        ノードの属性の所有インスタンスを求めるために使う(selection_owner 参照)。
+        ノードのアトリビュートの所有インスタンスを求めるために使う(selection_owner 参照)。
         """
         types = {
             om2.MFn.kMeshVertComponent: Vertex,
@@ -95,7 +95,7 @@ class Selection:
             except (RuntimeError, TypeError):
                 plug = None
             if plug is not None and not plug.isNull:
-                # インスタンス化されたノードの属性は、選択されたインスタンスのノードを所有ノードにする。
+                # インスタンス化されたノードのアトリビュートは、選択されたインスタンスのノードを所有ノードにする。
                 hint = name if selection.length() == 1 else None
                 mobject, path = selection_owner(selection, index, hint)
                 result.append(Plug(Node(path if path is not None else mobject), plug))
@@ -121,7 +121,7 @@ class Selection:
 
     @classmethod
     def capture(cls):
-        """Selection: Mayaの現在選択を保持する。Channel Boxの属性選択は含めない。"""
+        """Selection: Mayaの現在選択を保持する。Channel Boxのアトリビュート選択は含めない。"""
         return cls(cls._resolve(om2.MGlobal.getActiveSelectionList()))
 
     @property
@@ -146,7 +146,7 @@ class Selection:
         ]
 
     def plugs(self):
-        """list[Plug]: 有効な属性参照。Channel Box選択は自動取得しない。"""
+        """list[Plug]: 有効なアトリビュート参照。Channel Box選択は自動取得しない。"""
         return [item for item in self._items if isinstance(item, Plug) and self._valid(item)]
 
     def components(self):
@@ -194,12 +194,12 @@ class Selection:
         return Selection(result)
 
     def _valid(self, item):
-        """削除されたノード・属性・範囲外要素を検出する。"""
+        """削除されたノード・アトリビュート・範囲外要素を検出する。"""
         try:
             if isinstance(item, Node):
                 return item.is_valid()
             if isinstance(item, Plug) and not item.is_valid():
-                # 所有ノードの削除に加え、deleteAttr で削除された動的属性も無効として扱う。
+                # 所有ノードの削除に加え、deleteAttr で削除された動的アトリビュートも無効として扱う。
                 return False
             return bool(cmds.objExists(item.full_name()))
         except (RuntimeError, ValueError, IndexError):

@@ -37,8 +37,8 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 ``group`` は ``nodes`` を省略すると ``maya.cmds.group`` と同じく現在の選択を
 グループ化します。空のグループを作る場合は ``empty=True`` を指定してください
 （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。
-``delete`` は複数ノードもまとめて受け付けます。Plug(属性)を渡すと ``TypeError`` です
-(``maya.cmds.delete`` は属性を削除せず何もしないため)。動的属性の削除は
+``delete`` は複数ノードもまとめて受け付けます。Plug(アトリビュート)を渡すと ``TypeError`` です
+(``maya.cmds.delete`` はアトリビュートを削除せず何もしないため)。動的アトリビュートの削除は
 ``plug.delete_attribute()``、所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
 
 選択とアニメーション
@@ -80,7 +80,7 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
 ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.plug` で取得した
 :class:`~hlib.plugs.plug.Plug` オブジェクトを通して操作します。
 本ドキュメントの使用例は ``plug()`` に統一しています。
-属性取得は ``plug()`` に統一しています。
+アトリビュート取得は ``plug()`` に統一しています。
 
 コマンドの命名と役割
 --------------------

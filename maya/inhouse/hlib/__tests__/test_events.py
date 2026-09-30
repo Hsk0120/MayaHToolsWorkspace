@@ -1,4 +1,4 @@
-"""scriptJob所有管理とhrigが再利用する属性操作を検証する。"""
+"""scriptJob所有管理とhrigが再利用するアトリビュート操作を検証する。"""
 
 import unittest
 from unittest.mock import patch
@@ -20,7 +20,7 @@ class CommonRigApiTest(unittest.TestCase):
         hlib.delete([self.node, self.driver])
 
     def test_plug_lookup(self):
-        """名前・ラッパー・MPlugが同じ属性を解決する。"""
+        """名前・ラッパー・MPlugが同じアトリビュートを解決する。"""
         plug = self.node.plug("tx")
         for value in (plug.full_name(), plug, plug.mplug()):
             self.assertEqual(hlib.getPlug(value).full_name(), plug.full_name())

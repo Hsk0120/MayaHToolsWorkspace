@@ -174,7 +174,7 @@ class JsonTest(unittest.TestCase):
             ref.resolve(mapping={ref.path: "missing_json_target"})
         plug = self.roundtrip(second.plug("translateX"))
         self.assertEqual(plug.resolve().full_name(), second.plug("translateX").full_name())
-        # 配列要素・子属性・エイリアスの属性パスも Node.plug() で解決できる(要素は作らない)。
+        # 配列要素・子アトリビュート・エイリアスのアトリビュートパスも Node.plug() で解決できる(要素は作らない)。
         average = self.node("plusMinusAverage", "average")
         base = cmds.polyCube(name=self.ns + ":base")[0]
         target = cmds.polyCube(name=self.ns + ":target")[0]

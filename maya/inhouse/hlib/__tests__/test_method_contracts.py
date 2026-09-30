@@ -10,7 +10,7 @@ hlib.reload()
 
 
 class MethodContractTest(unittest.TestCase):
-    """属性書込みとノード変換を取り違えないことを検証する。"""
+    """アトリビュート書込みとノード変換を取り違えないことを検証する。"""
 
     def setUp(self):
         """独立した名前空間に検証対象を作成する。"""
@@ -23,7 +23,7 @@ class MethodContractTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_matrix_attribute_never_redirects_to_transform(self):
-        """Transform上の行列属性でもTRSを変えず、Undoで属性値を戻す。"""
+        """Transform上の行列アトリビュートでもTRSを変えず、Undoでアトリビュート値を戻す。"""
         self.node.set_translate((2, 3, 4))
         plug = self.node.add_attribute(long_name='storedMatrix', data_type='matrix')
         identity = hlib.maths.Matrix()
@@ -90,7 +90,7 @@ class MethodContractTest(unittest.TestCase):
 
 
     def test_joint_channels_round_trip_in_both_backends_and_units(self):
-        """jointOrient・親スケールを持つJointも属性値の往復で姿勢を変えない。"""
+        """jointOrient・親スケールを持つJointもアトリビュート値の往復で姿勢を変えない。"""
         parent = cmds.createNode('joint', name=self.ns + ':parent')
         joint = hlib.getNode(cmds.createNode('joint', name=self.ns + ':child', parent=parent))
         cmds.setAttr(parent + '.scale', 2, 3, 4)
@@ -178,7 +178,7 @@ class MethodContractTest(unittest.TestCase):
         self.assertEqual(constraint.get_weights(), before)
 
     def test_plug_space_argument_and_redundant_methods_are_removed(self):
-        """属性の型にかかわらず空間指定と古い別名を公開しない。"""
+        """アトリビュートの型にかかわらず空間指定と古い別名を公開しない。"""
         from hlib.general import Plugin, Module
         from hlib.nodes import Joint
         for name in ('tx', 'translate', 'worldMatrix'):

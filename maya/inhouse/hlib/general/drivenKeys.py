@@ -23,15 +23,15 @@ class DrivenKeys(BulkCollection):
         """駆動先に接続された関係を取得する。シーンは変更しない。
 
         Args:
-            driven (Plug | om2.MPlug | str): 検索する駆動先属性。文字列は ``"node.attribute"`` 形式。
+            driven (Plug | om2.MPlug | str): 検索する駆動先アトリビュート。文字列は ``"node.attribute"`` 形式。
         Returns:
             DrivenKeys: 対応するドライバーごとの関係。対象外の構成は含めない
                 (数値スカラーでないドライバー。``choice.output`` のような値によって型が
-                変わる generic 属性など)。同じドライバー(プラグ自体で照合する)は1件にまとめる。
+                変わる generic アトリビュートなど)。同じドライバー(プラグ自体で照合する)は1件にまとめる。
         Raises:
             ValueError: driven が非スカラー・非数値の場合。
-            TypeError: driven が Plug・MPlug・属性名のいずれでもない場合。
-            RuntimeError: driven の属性が存在しない場合。
+            TypeError: driven が Plug・MPlug・アトリビュート名のいずれでもない場合。
+            RuntimeError: driven のアトリビュートが存在しない場合。
         """
         target = _plug(driven)
         items, seen = [], []

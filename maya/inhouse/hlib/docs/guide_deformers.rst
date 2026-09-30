@@ -85,7 +85,7 @@ cluster と locator
 ``cluster`` ノードは自動的に ``Cluster`` ラッパーへ解決されます。``weighted_node``
 はクラスタのハンドル transform（デフォーマ本体とは別ノード）、``geometry`` は
 変形対象の shape を返します。``locator`` シェイプは ``Locator`` ラッパーへ解決され、
-``get_position``/``set_position`` は ``localPosition`` 属性を ``Translation`` として
+``get_position``/``set_position`` は ``localPosition`` アトリビュートを ``Translation`` として
 扱います。
 
 blendShape のターゲット操作

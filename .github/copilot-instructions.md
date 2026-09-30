@@ -2,6 +2,8 @@
 
 ## 基本方針
 
+- hlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
+
 - hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。
 
 - Aiderへの実装委譲は行わない。Maya開発時のGPU・メモリ競合を避けるため、ローカルOllamaも作業のために自動起動・モデルロードしない。実装・レビュー・検証は担当エージェントが直接行う。ユーザーが明示的に再開を指示するまで、この方針を維持する。
@@ -24,7 +26,7 @@
 ## プロジェクト構成
 
 - `maya/inhouse/HTools/`: Mayaメニューから起動する内製ツール。
-- `maya/inhouse/hlib/`: Maya API 2.0 のノード・属性ラッパー、数学型、共通ユーティリティ。
+- `maya/inhouse/hlib/`: Maya API 2.0 のノード・アトリビュートラッパー、数学型、共通ユーティリティ。
 - `maya/inhouse/MayaCommandPorts/`: GUI起動時のcommandPort初期化。HTools/hlibとは独立。
 - `maya/inhouse/MayaCinematicCameraHUD/`: C++プラグイン(別リポジトリのsubmodule)。ビルドは `tools/build_maya_plugin.py`、ロードは `maya/modules/*.mod`。
 - `maya/inhouse/integrations/`: Slack、mGearなどとの連携。

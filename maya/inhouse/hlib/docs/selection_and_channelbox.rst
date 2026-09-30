@@ -20,7 +20,7 @@ Selection
    # 別の処理で選択を変更したあと、元の対象を再選択
    saved.select()
 
-``items()`` は保持した全対象、``plugs()`` は属性参照を返します。
+``items()`` は保持した全対象、``plugs()`` はアトリビュート参照を返します。
 ``components()`` はshapeと種類ごとにVertices・Edges・Faces・UVs・CVsにまとめます。
 ``nodes()`` にコンポーネントの所有ノードは含みません。所有者は ``owners()`` で取得します。
 
@@ -72,9 +72,9 @@ RuntimeErrorになります。新しいUIは生成しません。
    nodes = channel.displayed_nodes()
    attributes = channel.selected_attributes()
 
-``selected_plugs()`` は選択属性をPlugとして返します。短縮名やaliasを解決し、
-各ノードに存在しない属性と重複を除外します。未選択なら空リストです。
-属性値の取得・変更には返されたPlugのメソッドを使います。
+``selected_plugs()`` は選択アトリビュートをPlugとして返します。短縮名やaliasを解決し、
+各ノードに存在しないアトリビュートと重複を除外します。未選択なら空リストです。
+アトリビュート値の取得・変更には返されたPlugのメソッドを使います。
 
 ``section`` には ``main``、``shape``、``history``、``output``、``all`` を指定できます。
 ``selected_plugs()`` の既定値は ``all``、
@@ -86,7 +86,7 @@ RuntimeErrorになります。新しいUIは生成しません。
    shape_plugs = channel.selected_plugs(section="shape")
    channel.clear_selection()
 
-``clear_selection()`` は属性のUI選択を解除します。
+``clear_selection()`` はアトリビュートのUI選択を解除します。
 ``hlib.getChannelBox("既存コントロール名")`` で独自UIも参照できます。
-Channel Boxの属性選択とシーンのアクティブ選択は別です。
-``captureSelection()`` はChannel Boxの選択属性を取得しません。
+Channel Boxのアトリビュート選択とシーンのアクティブ選択は別です。
+``captureSelection()`` はChannel Boxの選択アトリビュートを取得しません。

@@ -24,7 +24,7 @@ class Joint(Transform):
     """
 
     def get_joint_orient(self):
-        """jointOrient 属性を EulerRotation として取得する。
+        """jointOrient アトリビュートを EulerRotation として取得する。
 
         Returns:
             EulerRotation: radian に変換した jointOrient 値。
@@ -141,14 +141,14 @@ class Joint(Transform):
         set_attr(self.full_name() + ".rotate", *((0, 0, 0) if to_orient else values))
 
     def _rotation_quaternion(self, attribute):
-        """jointOrient / rotateAxis の Maya degrees 属性を API quaternion へ変換する。
+        """jointOrient / rotateAxis の Maya degrees アトリビュートを API quaternion へ変換する。
 
-        属性値は度であると仮定してラジアンへ変換する。Maya の jointOrient と
+        アトリビュート値は度であると仮定してラジアンへ変換する。Maya の jointOrient と
         rotateAxis は rotateOrder にかかわらず常に XYZ 順序で評価されるため、
         XYZ として解釈する。
 
         Args:
-            attribute (str): 度の3成分として読み取る回転属性名(jointOrient / rotateAxis)。
+            attribute (str): 度の3成分として読み取る回転アトリビュート名(jointOrient / rotateAxis)。
 
         Returns:
             om2.MQuaternion: XYZ 順序で解釈した回転。
@@ -231,13 +231,13 @@ class Joint(Transform):
 
         Raises:
             ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
-            RuntimeError: Maya が属性の書き込みを拒否した場合。
+            RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
         super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
 
 
     def get_inverse_scale(self):
-        """inverseScale 属性を意味付き Scale として取得する。
+        """inverseScale アトリビュートを意味付き Scale として取得する。
 
         Returns:
             Scale: joint の inverseScale 値。
@@ -245,16 +245,16 @@ class Joint(Transform):
         return Scale(*self._compound_values("inverseScale"))
 
     def _compound_values(self, attribute, angle=False):
-        """compound 属性を 3 要素の tuple として取得する。
+        """compound アトリビュートを 3 要素の tuple として取得する。
 
         Args:
-            attribute (str): 読み取る複合属性名。
-            angle (bool): True の場合、各子を角度属性として度数法の値で取得する
-                (``cmds.getAttr`` が角度属性を現在の角度単位で返すのに合わせる)。
+            attribute (str): 読み取る複合アトリビュート名。
+            angle (bool): True の場合、各子を角度アトリビュートとして度数法の値で取得する
+                (``cmds.getAttr`` が角度アトリビュートを現在の角度単位で返すのに合わせる)。
                 False の場合は単位変換のない生の double として取得する。
 
         Returns:
-            tuple: 属性値のタプル。無効なノードでは (0.0, 0.0, 0.0)。有効時は要素数を検査しない。
+            tuple: アトリビュート値のタプル。無効なノードでは (0.0, 0.0, 0.0)。有効時は要素数を検査しない。
         """
         if not self.is_valid():
             return (0.0, 0.0, 0.0)

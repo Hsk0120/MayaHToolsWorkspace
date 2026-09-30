@@ -106,7 +106,7 @@ class DrivenKeyTest(unittest.TestCase):
             relation.set_key(0, 0)
 
     def test_instanced_shape_driver_is_matched_by_plug_identity(self):
-        # インスタンス化されたシェイプの属性は、どのインスタンスのパスから指定しても同じプラグ。
+        # インスタンス化されたシェイプのアトリビュートは、どのインスタンスのパスから指定しても同じプラグ。
         # 2つ目のインスタンスのパスで指定したドライバーも、作成したカーブと照合できること。
         box = cmds.polyCube(name=self.ns + ":box", constructionHistory=False)[0]
         first_group = cmds.group(box, name=self.ns + ":ga")
@@ -137,7 +137,7 @@ class DrivenKeyTest(unittest.TestCase):
             hlib.getDrivenKey(hlib.getNode(first_shape).plug("drv"), hlib.getNode(second_shape).plug("drv"))
 
     def test_find_skips_non_numeric_drivers(self):
-        # 値によって型が変わる generic 属性(choice.output)のドライバーは対象外として除外し、
+        # 値によって型が変わる generic アトリビュート(choice.output)のドライバーは対象外として除外し、
         # 例外にしない。同じ駆動先の数値ドライバーは見つかる。
         relation = hlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
         relation.set_key(0, 0).set_key(10, 10)

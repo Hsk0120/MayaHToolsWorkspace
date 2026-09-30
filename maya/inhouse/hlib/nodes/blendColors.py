@@ -25,7 +25,7 @@ class BlendColors(Node):
         """入力色のPlugを取得する。
 
         Args:
-            index (int): Maya属性名に対応する1または2。
+            index (int): Mayaアトリビュート名に対応する1または2。
         Returns:
             CompoundPlug: RGB入力。get()で値を取得できる。
         """
@@ -123,7 +123,7 @@ class BlendColors(Node):
         return self
 
     def output_plug(self):
-        """CompoundPlug: RGB出力。別属性への接続に使用する。"""
+        """CompoundPlug: RGB出力。別アトリビュートへの接続に使用する。"""
         return self.plug("output")
 
     def result(self):

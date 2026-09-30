@@ -78,7 +78,7 @@ class DagPose(Node):
             skin_cluster (Node | str): 照会するskinCluster。
 
         Returns:
-            DagPose | None: bindPose属性に接続されたポーズ。未接続ならNone。
+            DagPose | None: bindPoseアトリビュートに接続されたポーズ。未接続ならNone。
 
         Raises:
             ValueError: skinCluster以外を指定した場合。

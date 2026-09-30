@@ -264,7 +264,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(enum_plug.default(), 1)
         self.assertEqual(enum_plug.enum_name(), "B")
 
-        # 静的（ノード組み込み）属性は動的属性ではない。
+        # 静的（ノード組み込み）アトリビュートは動的アトリビュートではない。
         self.assertFalse(transform.plug("translateX").is_dynamic())
         with self.assertRaises(TypeError):
             transform.plug("translateX").enum_name()
@@ -395,7 +395,7 @@ class NodeApiTest(unittest.TestCase):
         plugs = transform.plugs()
         self.assertIn("translateX", {plug.attribute_name() for plug in plugs})
         self.assertTrue(all(hasattr(plug, "get") for plug in plugs))
-        # listAttr が報告する名前の一部（未確保の要素を持つ配列複合属性の子など）は
+        # listAttr が報告する名前の一部（未確保の要素を持つ配列複合アトリビュートの子など）は
         # 実際には評価できず黙ってスキップされるため、件数は必ずしも一致しない。
         self.assertLessEqual(len(plugs), len(cmds.listAttr(transform.name()) or []))
 
@@ -460,7 +460,7 @@ class NodeApiTest(unittest.TestCase):
     def test_plug_get_dispatches_by_attribute_type_via_om2(self):
         # Plug.get() は bool/int/float/角度・距離・時間/enum/文字列を
         # MPlug 経由で直接読み取る。cmds.getAttr の結果と一致することを
-        # 各属性型ごとに確認する（角度は度、距離・時間は現在のUI単位）。
+        # 各アトリビュート型ごとに確認する（角度は度、距離・時間は現在のUI単位）。
         transform = self.create_transform("hlibNodeApiPlugGetTypes")
         name = transform.name()
         cmds.addAttr(name, longName="hlibBool", attributeType="bool", defaultValue=True)
@@ -1031,7 +1031,7 @@ class NodeApiTest(unittest.TestCase):
 
     def test_plug_paths_reject_indices_beyond_logical_index_range(self):
         # MPlug.elementByLogicalIndex() は範囲外の番号を別の番号へ変換する(4294967296 は 0)。
-        # 属性パス・要素番号では別の要素へ読み替えず、例外にする。
+        # アトリビュートパス・要素番号では別の要素へ読み替えず、例外にする。
         average = Node.create(type="plusMinusAverage", name="hlibNodeApiIndexRange")
         self.created.append(average.name())
         maximum = 2147483647
@@ -1068,7 +1068,7 @@ class NodeApiTest(unittest.TestCase):
             with self.subTest(attribute=name):
                 mplug = first.plug(name).mplug()
                 self.assertEqual(Plug(first, mplug).mplug(), mplug)
-                # 静的属性は同じ型の別ノードにも存在するが、所有ノードでない node は拒否する。
+                # 静的アトリビュートは同じ型の別ノードにも存在するが、所有ノードでない node は拒否する。
                 with self.assertRaises(RuntimeError) as context:
                     Plug(second, mplug)
                 self.assertIn("所有ノード", str(context.exception))

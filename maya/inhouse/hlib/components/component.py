@@ -1,11 +1,15 @@
-"""シーン上の単体コンポーネントと同一シェイプの要素群。"""
+"""Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）と同一シェイプの要素群。"""
 
 import math
 import operator
 
 
 class Component:
-    """シェイプと番号を保持する単体コンポーネントへの参照。"""
+    """シェイプと番号を保持する単体コンポーネントへの参照。
+
+    Mayaの形状要素（頂点・エッジ・フェース・CV・UV）に共通する基底クラス。
+    具体的な要素はVertexやEdgeなどの派生クラスで扱う。
+    """
 
     shape_type = None
     component_type = None

@@ -59,13 +59,13 @@ class NodeRef:
 
 @dataclass(frozen=True)
 class PlugRef:
-    """ノード参照と属性パス。配列の論理番号を保持する。"""
+    """ノード参照とアトリビュートパス。配列の論理番号を保持する。"""
     node: NodeRef
     attribute: str
 
     @classmethod
     def capture(cls, plug):
-        """Plugまたは属性名を参照へ変換する。"""
+        """Plugまたはアトリビュート名を参照へ変換する。"""
         name = (plug.full_name() if hasattr(plug, "full_name") else plug)
         node, attr = name.split(".", 1)
         return cls(NodeRef.capture(node), attr)

@@ -39,8 +39,8 @@ def _resolve_node(node):
             あれば対応する MDagPath(非DAGノードでは None)。
 
     Raises:
-        TypeError: 対応しない入力型、または依存ノード以外(属性など)を指す MObject の場合。
-        ValueError: 所有ノードは有効で、属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+        TypeError: 対応しない入力型、または依存ノード以外(アトリビュートなど)を指す MObject の場合。
+        ValueError: 所有ノードは有効で、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
             (:class:`hlib._core.coerce.DeletedAttributeError`。``RuntimeError`` の派生でもある)。
         RuntimeError: 名前を解決できない(存在しない、または複数の対象に一致する)場合、
             または空・無効な(削除済みの)ラッパーや om2 オブジェクトを指定した場合。
@@ -76,7 +76,7 @@ def _resolve_node(node):
         if not om2.MObjectHandle(node).isValid():
             raise RuntimeError("削除済みノードの MObject からノードは解決できません")
         if not node.hasFn(om2.MFn.kDependencyNode):
-            raise TypeError("MObject には依存ノードを指定してください(属性・コンポーネント・データは不可)")
+            raise TypeError("MObject には依存ノードを指定してください(アトリビュート・コンポーネント・データは不可)")
         mobject = om2.MObject(node)
         dag_path = om2.MFnDagNode(mobject).getPath() if mobject.hasFn(om2.MFn.kDagNode) else None
         return mobject, dag_path
@@ -84,10 +84,10 @@ def _resolve_node(node):
         if node.isNull:
             raise RuntimeError("空の MPlug からノードは解決できません")
         owner = node.node()
-        # 所有ノードが有効でも、deleteAttr で削除された属性の MPlug は削除済みの対象として扱う
+        # 所有ノードが有効でも、deleteAttr で削除されたアトリビュートの MPlug は削除済みの対象として扱う
         # (hlib のコマンドと同じ。所有ノードが削除済みなら下の MObject の解決で RuntimeError)。
         if om2.MObjectHandle(owner).isValid() and not mplug_attribute_exists(node, owner):
-            raise DeletedAttributeError("削除済みの属性の MPlug からノードは解決できません")
+            raise DeletedAttributeError("削除済みのアトリビュートの MPlug からノードは解決できません")
         return _resolve_node(owner)
     if isinstance(node, Node):
         if not node.is_valid():
@@ -135,7 +135,7 @@ def _query_target(other):
     """判定メソッド(``is_parent_of`` など)の対象をノードへ解決する。
 
     ``hlib._core.coerce.to_node`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
-    所有ノードが削除済みの Plug・Component、属性が ``deleteAttr`` で削除済みの Plug・MPlug、
+    所有ノードが削除済みの Plug・Component、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug、
     削除済みのノードを指す om2 オブジェクト)は例外にせず None を返す(判定は False)。
 
     Args:
@@ -171,23 +171,23 @@ _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kLong: "long",
     om2.MFnNumericData.kFloat: "float",
     om2.MFnNumericData.kDouble: "double",
-}  #: move_attribute_order() が再作成できる数値属性型と cmds.addAttr(attributeType=) の対応。
+}  #: move_attribute_order() が再作成できる数値アトリビュート型と cmds.addAttr(attributeType=) の対応。
 
 
 def _dump_movable_attr(plug):
-    """並び替え対応の単純な動的属性から再作成に必要な情報を集める。
+    """並び替え対応の単純な動的アトリビュートから再作成に必要な情報を集める。
 
     数値(bool/byte/short/long/float/double)、enum、文字列型の非複合・非配列
-    トップレベル動的属性のみ対応する。
+    トップレベル動的アトリビュートのみ対応する。
 
     Args:
-        plug (Plug): ダンプ対象の動的属性プラグ。
+        plug (Plug): ダンプ対象の動的アトリビュートプラグ。
 
     Returns:
         dict: add_attribute() での再作成と値・状態の復元に必要な情報。
 
     Raises:
-        TypeError: 複合・配列属性、または対応しない属性型の場合。
+        TypeError: 複合・配列アトリビュート、または対応しないアトリビュート型の場合。
     """
     if plug.is_array() or plug.is_compound():
         raise TypeError(f"Cannot reorder compound or array attributes: {plug.full_name()}")
@@ -226,14 +226,14 @@ def _dump_movable_attr(plug):
 
 
 def _create_movable_attr(node, info):
-    """_dump_movable_attr() が集めた情報から属性を再作成し、値・状態を復元する。
+    """_dump_movable_attr() が集めた情報からアトリビュートを再作成し、値・状態を復元する。
 
     Args:
-        node (Node): 属性を追加する対象ノード。
+        node (Node): アトリビュートを追加する対象ノード。
         info (dict): _dump_movable_attr() が返した情報。
 
     Returns:
-        Plug: 再作成した属性プラグ。
+        Plug: 再作成したアトリビュートプラグ。
     """
     kwargs = {"hidden": info["hidden"]}
     if info["nice_name"]:
@@ -273,7 +273,7 @@ class Node:
     Component・Components(所有シェイプ)も指定できる。名前が存在しない・
     複数の対象に一致する場合や、空・削除済みの対象は RuntimeError になる
     (``"bulk*"`` のように複数のノードに一致するパターンも最初の一致を返さない。
-    パターンは ``hlib.ls`` を使う)。所有ノードは有効で属性だけが ``deleteAttr`` で
+    パターンは ``hlib.ls`` を使う)。所有ノードは有効でアトリビュートだけが ``deleteAttr`` で
     削除された Plug・MPlug は ValueError(``hlib._core.coerce.DeletedAttributeError``。
     RuntimeError の派生でもあるため、従来どおり RuntimeError としても捕捉できる)。
 
@@ -308,7 +308,7 @@ class Node:
             Node: 自身。入力Colorの変更は自動反映しない。
         Raises:
             ValueError: 色の値が不正な場合。
-            RuntimeError: 属性がない、ロック・接続済みなど変更できない場合。
+            RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
         from ..general.color import Color
         value = Color.coerce(color)
@@ -319,7 +319,7 @@ class Node:
         """Color: 自身のDrawing Overrides色。最終表示色ではない。
 
         親・表示レイヤー・選択ハイライトは合成しない。
-        属性がない場合はRuntimeError。無効時はdisabledモードを返す。
+        アトリビュートがない場合はRuntimeError。無効時はdisabledモードを返す。
         """
         from ..general.color import Color
         name = self.full_name()
@@ -343,7 +343,7 @@ class Node:
             Node: 自身。RGBモードは近似番号ではなく元のRGBを適用する。
         Raises:
             ValueError: 色の値が不正な場合。
-            RuntimeError: 属性がない、ロック・接続済みなど変更できない場合。
+            RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
         from ..general.color import Color
         value = Color.coerce(color)
@@ -352,7 +352,7 @@ class Node:
 
     @staticmethod
     def _display_color_updates(value, outliner=False):
-        """正規化済みColorから対象属性と値の更新計画を作る。"""
+        """正規化済みColorから対象アトリビュートと値の更新計画を作る。"""
         if outliner:
             updates = [] if value.mode == "disabled" else [("outlinerColor", value.rgb)]
             return updates + [("useOutlinerColor", value.mode != "disabled")]
@@ -364,7 +364,7 @@ class Node:
         return updates + [("overrideEnabled", value.mode != "disabled")]
 
     def _prepare_display_color(self, updates):
-        """全属性の存在・書込み可否を検証してPlugと値の計画を返す。"""
+        """全アトリビュートの存在・書込み可否を検証してPlugと値の計画を返す。"""
         from .._core.fastWrite import writable
         if not self.is_valid():
             raise RuntimeError("Cannot color an invalid node")
@@ -390,7 +390,7 @@ class Node:
                 set_attr(plug.full_name(), value)
 
     def _set_display_color(self, updates):
-        """単体の表示色を全属性検証後に反映する。"""
+        """単体の表示色を全アトリビュート検証後に反映する。"""
         self._apply_display_color(self._prepare_display_color(updates))
 
     @classmethod
@@ -447,7 +447,7 @@ class Node:
 
         Raises:
             TypeError: ノード入力が対応しない型の場合。
-            ValueError: 属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+            ValueError: アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
                 (``DeletedAttributeError``。RuntimeError の派生でもある)。
             RuntimeError: ノードを解決できない場合。
         """
@@ -479,7 +479,7 @@ class Node:
 
         Raises:
             TypeError: 対応しないノード入力型の場合。
-            ValueError: 属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+            ValueError: アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
                 (``DeletedAttributeError``。RuntimeError の派生でもある)。
             RuntimeError: ノード名を解決できない場合。
         """
@@ -508,7 +508,7 @@ class Node:
 
         Raises:
             TypeError: 対応しないノード入力型の場合。
-            ValueError: 属性が ``deleteAttr`` で削除済みの Plug・MPlug の場合
+            ValueError: アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
                 (``DeletedAttributeError``。RuntimeError の派生でもある)。
             RuntimeError: ノード名を解決できない場合。
         """
@@ -521,7 +521,7 @@ class Node:
     def _dependency_fn(self):
         """保持するノードの MFnDependencyNode を返す(作成は初回の1回だけ)。
 
-        名前・属性の問い合わせのたびに関数セットを作り直さないためのキャッシュ。
+        名前・アトリビュートの問い合わせのたびに関数セットを作り直さないためのキャッシュ。
         ノードが有効(:meth:`is_valid`)であることを呼び出し側で確かめてから使う。
 
         Returns:
@@ -655,7 +655,7 @@ class Node:
     def is_locked(self):
         """ノード自体がロックされているか判定する。
 
-        属性単位のロックは Plug.is_locked() を参照する。
+        アトリビュート単位のロックは Plug.is_locked() を参照する。
 
         Returns:
             bool: ロックされている場合は True。
@@ -679,7 +679,7 @@ class Node:
 
         Returns:
             bool: other が自身より下の階層にある場合は True。自身自身や
-                非DAGノード、無効なノード、削除済みの対象(属性が削除済みの Plug・MPlug、
+                非DAGノード、無効なノード、削除済みの対象(アトリビュートが削除済みの Plug・MPlug、
                 削除済みのノードを指す om2 オブジェクトを含む)では False。
 
         Raises:
@@ -702,7 +702,7 @@ class Node:
 
         Returns:
             bool: other が自身の直接の子の場合は True。無効なノードと削除済みの対象
-                (属性が削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
+                (アトリビュートが削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
                 含む)では False。
 
         Raises:
@@ -726,7 +726,7 @@ class Node:
 
         Returns:
             bool: other が自身の直接の親の場合は True。無効なノードと削除済みの対象
-                (属性が削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
+                (アトリビュートが削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
                 含む)では False。
 
         Raises:
@@ -739,10 +739,10 @@ class Node:
         return other_node.is_parent_of(self)
 
     def attribute_count(self):
-        """ノードが持つ属性の総数を取得する。
+        """ノードが持つアトリビュートの総数を取得する。
 
         Returns:
-            int: 属性数。
+            int: アトリビュート数。
         """
         return om2.MFnDependencyNode(self._mobject).attributeCount()
 
@@ -899,7 +899,7 @@ class Node:
         for mplug in om2.MFnDependencyNode(self._mobject).getConnections():
             for connected in mplug.connectedTo(as_source, as_destination):
                 # MPlug.name() は短いノード名しか含まず、同名ノード(grp1|dup と grp2|dup)の
-                # プラグを同一視してしまうため、所有ノードの一意な名前と属性パスで重複を判定する
+                # プラグを同一視してしまうため、所有ノードの一意な名前とアトリビュートパスで重複を判定する
                 # (MObjectHandle.hashCode() は別ノードで衝突しうるため使わない)。
                 key = (unique_node_name(connected.node()), plug_path(connected))
                 if key in seen:
@@ -919,7 +919,7 @@ class Node:
                 (継承チェーンも判定。例: ``type="animCurve"``)。
 
         Returns:
-            list[Plug]: 入力元の外部プラグ。同じノードの同じ属性は1件にまとめる。接続がなければ空リスト。
+            list[Plug]: 入力元の外部プラグ。同じノードの同じアトリビュートは1件にまとめる。接続がなければ空リスト。
         """
         return self._connected_plugs(True, False, type=type)
 
@@ -931,7 +931,7 @@ class Node:
                 (継承チェーンも判定)。
 
         Returns:
-            list[Plug]: 出力先の外部プラグ。同じノードの同じ属性は1件にまとめる。接続がなければ空リスト。
+            list[Plug]: 出力先の外部プラグ。同じノードの同じアトリビュートは1件にまとめる。接続がなければ空リスト。
         """
         return self._connected_plugs(False, True, type=type)
 
@@ -981,20 +981,20 @@ class Node:
 
     @undo_chunk("hlibNodeResetAttrs")
     def reset_attributes(self, attributes=None):
-        """指定属性、または書き込み可能なキー設定対象属性を既定値へ戻す。
+        """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。
 
         Args:
-            attributes (str | Iterable[str] | None): 属性名。Noneはキー設定可能な
-                数値・単位・enum属性を対象とし、ロック・入力接続・非対応型は除外する。
-                明示指定した属性のエラーは除外せず送出する。
+            attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー設定可能な
+                数値・単位・enumアトリビュートを対象とし、ロック・入力接続・非対応型は除外する。
+                明示指定したアトリビュートのエラーは除外せず送出する。
 
         Returns:
-            list[Plug]: リセットした属性。全変更を一回のUndoにまとめる。
+            list[Plug]: リセットしたアトリビュート。全変更を一回のUndoにまとめる。
 
         Raises:
-            AttributeError: 指定属性が存在しない場合。
-            TypeError: 明示指定した属性がリセット非対応の場合。
-            RuntimeError: 明示指定した属性がロック・接続済みなどで書き込みできない場合。
+            AttributeError: 指定アトリビュートが存在しない場合。
+            TypeError: 明示指定したアトリビュートがリセット非対応の場合。
+            RuntimeError: 明示指定したアトリビュートがロック・接続済みなどで書き込みできない場合。
         """
         if attributes is None:
             plugs = [plug for plug in self.plugs(keyable=True, scalar=True)
@@ -1011,22 +1011,22 @@ class Node:
     @fast_edit
     @undo_chunk("hlibNodeSetAttrFlags")
     def set_attribute_flags(self, attributes, locked=None, keyable=None, channel_box=None, *, fast=False):
-        """指定した属性のロック・キー設定可否・Channel Box表示をまとめて変更する。
+        """指定したアトリビュートのロック・キー設定可否・Channel Box表示をまとめて変更する。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            attributes (str | Iterable[str]): 属性名。選択状態やChannel Box選択は使用しない。
-                複合属性の子まで変更する場合は子属性名を明示する。
+            attributes (str | Iterable[str]): アトリビュート名。選択状態やChannel Box選択は使用しない。
+                複合アトリビュートの子まで変更する場合は子アトリビュート名を明示する。
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー設定可否。Noneは変更しない。
             channel_box (bool | None): Channel Box表示。Noneは変更しない。
-                keyable=Trueの属性はMayaの仕様により表示される。
+                keyable=TrueのアトリビュートはMayaの仕様により表示される。
 
         Returns:
             Node: 自身。全変更を一回のUndoにまとめる。
 
         Raises:
-            AttributeError: 指定属性が存在しない場合。全属性を変更前に解決する。
+            AttributeError: 指定アトリビュートが存在しない場合。全アトリビュートを変更前に解決する。
             TypeError: 状態にboolまたはNone以外を指定した場合。
             RuntimeError: Mayaが変更を拒否した場合。途中の変更は自動では戻さない。
 
@@ -1044,22 +1044,22 @@ class Node:
         return self
 
     def plugs(self, **kwargs):
-        """ノードの属性を Plug のリストとして列挙する。
+        """ノードのアトリビュートを Plug のリストとして列挙する。
 
         Args:
             kwargs: ``cmds.listAttr`` にそのまま渡す追加フラグ
                 (``keyable=True``、``visible=True``、``write=True`` など)。
 
         Returns:
-            list[Plug]: 該当する属性の Plug。``cmds.listAttr`` が返す名前のうち
-                実際には評価できないもの（未確保の要素を持つ配列複合属性の子など）は
+            list[Plug]: 該当するアトリビュートの Plug。``cmds.listAttr`` が返す名前のうち
+                実際には評価できないもの（未確保の要素を持つ配列複合アトリビュートの子など）は
                 黙ってスキップする。該当なしの場合は空リスト。
 
         Raises:
             RuntimeError: ノードが無効な場合。
         """
         if not self.is_valid():
-            raise RuntimeError("無効なノードの属性は列挙できません")
+            raise RuntimeError("無効なノードのアトリビュートは列挙できません")
         names = cmds.listAttr(self.full_name(), **kwargs) or []
         plugs = []
         for name in names:
@@ -1070,7 +1070,7 @@ class Node:
         return plugs
 
     def aliases(self):
-        """このノードの属性エイリアスを取得する。
+        """このノードのアトリビュートエイリアスを取得する。
 
         Returns:
             list[tuple[str, Plug]]: ``(エイリアス名, 対応するPlug)`` のリスト。
@@ -1090,7 +1090,7 @@ class Node:
         for index in range(0, len(flat), 2):
             alias_name, attribute_name = flat[index], flat[index + 1]
             # 配列要素(例: "weight[0]")は findPlug が解決できないため、
-            # ブラケット付き属性パスも扱える MSelectionList 経由で解決する。
+            # ブラケット付きアトリビュートパスも扱える MSelectionList 経由で解決する。
             selection = om2.MSelectionList()
             selection.add(f"{self.full_name()}.{attribute_name}")
             pairs.append((alias_name, Plug(self, selection.getPlug(0))))
@@ -1105,21 +1105,21 @@ class Node:
         default_value=None,
         **kwargs,
     ):
-        """属性を追加し、追加したPlugを返す。
+        """アトリビュートを追加し、追加したPlugを返す。
 
         Args:
-            long_name (str): 追加する属性のロング名。
+            long_name (str): 追加するアトリビュートのロング名。
             attribute_type (str | None): addAttr の attributeType。data_type と少なくとも一方が必要。
             data_type (str | None): addAttr の dataType。
             default_value (object | None): addAttr の defaultValue。None なら指定しない。
             **kwargs (object): addAttr に渡す追加フラグ。明示引数に対応する短縮フラグは上書きする。
 
         Returns:
-            Plug: 追加した属性の型に対応するプラグ。
+            Plug: 追加したアトリビュートの型に対応するプラグ。
 
         Raises:
-            ValueError: long_name が空または文字列以外、あるいは属性型の指定がない場合。
-            RuntimeError: Maya が属性追加を拒否した場合。
+            ValueError: long_name が空または文字列以外、あるいはアトリビュート型の指定がない場合。
+            RuntimeError: Maya がアトリビュート追加を拒否した場合。
         """
         if not isinstance(long_name, str) or not long_name:
             raise ValueError("long_name must be a non-empty string")
@@ -1137,9 +1137,9 @@ class Node:
         return self.plug(long_name)
 
     def user_attribute_names(self):
-        """トップレベルのユーザー定義属性名を現在の並び順で取得する。
+        """トップレベルのユーザー定義アトリビュート名を現在の並び順で取得する。
 
-        複合属性の子は含まない。
+        複合アトリビュートの子は含まない。
 
         Returns:
             list[str]: ロング名のリスト。並び順は Channel Box の表示順。
@@ -1148,23 +1148,23 @@ class Node:
             RuntimeError: ノードが無効な場合。
         """
         if not self.is_valid():
-            raise RuntimeError("無効なノードの属性は列挙できません")
+            raise RuntimeError("無効なノードのアトリビュートは列挙できません")
         names = cmds.listAttr(self.full_name(), userDefined=True) or []
         return [name for name in names if not self.plug(name).is_child()]
 
     @undo_chunk("hlibNodeMoveAttribute")
     def move_attribute_order(self, name, offset):
-        """ユーザー定義属性を Channel Box 上で前後に移動する。
+        """ユーザー定義アトリビュートを Channel Box 上で前後に移動する。
 
-        Maya には属性の並び替え API が無いため、移動元と移動先のうち手前側の
-        位置から末尾までの属性をまとめて削除し、新しい順序で再作成すること
-        で実現する(移動先より後ろにある、移動と無関係な属性も再作成対象に
-        含まれる。数値・enum・文字列型の非複合・非配列トップレベル動的属性
-        のみ対応。対応しない属性が再作成対象に含まれる場合は何も変更せず
+        Maya にはアトリビュートの並び替え API が無いため、移動元と移動先のうち手前側の
+        位置から末尾までのアトリビュートをまとめて削除し、新しい順序で再作成すること
+        で実現する(移動先より後ろにある、移動と無関係なアトリビュートも再作成対象に
+        含まれる。数値・enum・文字列型の非複合・非配列トップレベル動的アトリビュート
+        のみ対応。対応しないアトリビュートが再作成対象に含まれる場合は何も変更せず
         例外を送出する)。
 
         Args:
-            name (str): 移動するユーザー定義属性のロング名。
+            name (str): 移動するユーザー定義アトリビュートのロング名。
             offset (int): 正の値で末尾方向、負の値で先頭方向へ移動する位置数。
                 範囲を超える指定は先頭・末尾で止まる。
 
@@ -1172,8 +1172,8 @@ class Node:
             Node: 自身。全変更を一回の Undo にまとめる。
 
         Raises:
-            ValueError: name がトップレベルのユーザー定義属性一覧に無い場合。
-            TypeError: 移動範囲に複合・配列属性、または対応しない属性型が
+            ValueError: name がトップレベルのユーザー定義アトリビュート一覧に無い場合。
+            TypeError: 移動範囲に複合・配列アトリビュート、または対応しないアトリビュート型が
                 含まれる場合。
             RuntimeError: ノードが無効な場合。
         """
@@ -1202,38 +1202,38 @@ class Node:
         ノードのアトリビュート操作には、このメソッドを使用します。
         返された Plug で値の取得・設定や、ほかのプラグとの接続を行えます。
 
-        属性名(ロング名・ショート名・エイリアス)に加え、配列要素と子属性を含む属性パス
+        アトリビュート名(ロング名・ショート名・エイリアス)に加え、配列要素と子アトリビュートを含むアトリビュートパス
         (``input1D[3]``、``worldMatrix[0]``、``pnts[2].pntx``、
         ``inputTarget[0].inputTargetGroup[7].inputTargetItem[6000].inputComponentsTarget``)を
-        指定できる。形式は ``str(plug)`` の属性部分(``Plug.full_name()`` の ``.`` 以降)と同じ。
+        指定できる。形式は ``str(plug)`` のアトリビュート部分(``Plug.full_name()`` の ``.`` 以降)と同じ。
         配列インデックスは 0〜2147483647(``MPlug.logicalIndex()`` の範囲)で指定する。
-        存在しない配列要素の Plug を取得しても要素は作られない(値によって型が変わる属性の
+        存在しない配列要素の Plug を取得しても要素は作られない(値によって型が変わるアトリビュートの
         評価を除き、シーンを変更しない。:doc:`/cmds_interop` を参照)。
 
         Args:
-            name (str): 属性名または属性パス(このノード自身の属性に限る)。
+            name (str): アトリビュート名またはアトリビュートパス(このノード自身のアトリビュートに限る)。
 
         Returns:
-            Plug: 解決した属性プラグ。
+            Plug: 解決したアトリビュートプラグ。
 
         Raises:
             ValueError: 空文字列または文字列以外を指定した場合。
-            RuntimeError: ノードが無効な場合。属性名が配列複合属性の子を配列要素の番号なしで
+            RuntimeError: ノードが無効な場合。アトリビュート名が配列複合アトリビュートの子を配列要素の番号なしで
                 指す場合(``input3Dx`` のような maya.cmds で解決できないプラグ。
                 ``input3D[0].input3Dx`` のように番号を含めて指定する)。
-            AttributeError: 属性・属性パスを解決できない場合。配列インデックスが
+            AttributeError: アトリビュート・アトリビュートパスを解決できない場合。配列インデックスが
                 2147483647 を超える場合(``input1D[4294967296]`` のような番号を別の要素へ
                 読み替えない)も含む。
         """
         if not isinstance(name, str) or not name:
-            raise ValueError("name には空でない属性パスを指定してください")
+            raise ValueError("name には空でないアトリビュートパスを指定してください")
         if not self.is_valid():
-            raise RuntimeError("無効なノードの属性にはアクセスできません")
+            raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
         # plugs.plug ⇔ nodes の相互依存を避けるための遅延 import。inputs()/outputs() と同じ理由。
         from ..plugs.plug import Plug
 
         if "[" not in name:
-            # 配列インデックスを含まない名前(``boundingBox.boundingBoxMin`` のような子属性の
+            # 配列インデックスを含まない名前(``boundingBox.boundingBoxMin`` のような子アトリビュートの
             # パスを含む)は、従来どおり findPlug で解決する。
             try:
                 mplug = om2.MFnDependencyNode(self._mobject).findPlug(name, False)
@@ -1249,17 +1249,17 @@ class Node:
                 raise AttributeError(
                     f"配列インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {self.name()}.{name}"
                 )
-            raise AttributeError(f"属性が見つかりません: {self.name()}.{name}")
+            raise AttributeError(f"アトリビュートが見つかりません: {self.name()}.{name}")
         return Plug(self, mplug)
 
     def has_attribute(self, name):
-        """属性パスを解決できるか判定する。
+        """アトリビュートパスを解決できるか判定する。
 
         Args:
-            name (str): 属性名または属性パス。
+            name (str): アトリビュート名またはアトリビュートパス。
 
         Returns:
-            bool: 属性を解決できる場合は ``True``。
+            bool: アトリビュートを解決できる場合は ``True``。
         """
         try:
             self.plug(name)
@@ -1332,32 +1332,32 @@ class Node:
         return f"<{type(self).__name__} invalid>"
 
     def __getattr__(self, name) -> Any:
-        """通常属性にない名前を Maya Plug として動的に解決する。
+        """通常アトリビュートにない名前を Maya Plug として動的に解決する。
 
         静的解析では、具象クラス(BlendShape 等)のメソッドを基底の Node 型で呼んだ場合に
         Plug 型と誤判定しないよう、戻り値の注釈は Any としている。
 
         Args:
-            name (str): 取得しようとした Python 属性名。
+            name (str): 取得しようとした Python アトリビュート名。
 
         Returns:
-            Plug: 解決した Maya 属性プラグ。
+            Plug: 解決した Maya アトリビュートプラグ。
 
         Raises:
-            AttributeError: 非公開名または存在しない Maya 属性を指定した場合。
+            AttributeError: 非公開名または存在しない Maya アトリビュートを指定した場合。
                 :meth:`plug` が RuntimeError にする名前(``input3Dx`` のような、配列要素の
-                番号を含まない配列複合属性の子)も、``hasattr``/``getattr(node, name, default)``
+                番号を含まない配列複合アトリビュートの子)も、``hasattr``/``getattr(node, name, default)``
                 が使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
             RuntimeError: ノードが無効な場合。
         """
         if name.startswith("_"):
             raise AttributeError(name)
         if not self.is_valid():
-            raise RuntimeError("無効なノードの属性にはアクセスできません")
+            raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
         try:
             return self.plug(name)
         except (AttributeError, RuntimeError) as error:
-            raise AttributeError(f"属性が見つかりません: {self.name()}.{name}") from error
+            raise AttributeError(f"アトリビュートが見つかりません: {self.name()}.{name}") from error
 
 
 
@@ -1476,7 +1476,7 @@ class Nodes(BulkCollection):
             Nodes: 自身。
         Raises:
             ValueError: 色の値が不正。
-            RuntimeError: 対象が無効、属性がない、編集不可または更新失敗。
+            RuntimeError: 対象が無効、アトリビュートがない、編集不可または更新失敗。
         """
         from ..general.color import Color
         value = Color.coerce(color)
@@ -1508,7 +1508,7 @@ class Nodes(BulkCollection):
         Returns:
             Nodes: 自身。
         Raises:
-            ValueError: 件数不一致、不正な色、共有属性に異なる値を要求した場合。
+            ValueError: 件数不一致、不正な色、共有アトリビュートに異なる値を要求した場合。
             RuntimeError: 事前検証または反映失敗。実行時失敗の自動ロールバックはしない。
         """
         from ..general.color import Colors
@@ -1529,7 +1529,7 @@ class Nodes(BulkCollection):
         return self._set_colors(Colors(colors), outliner=True)
 
     def _set_colors(self, colors, *, outliner):
-        """全色・対象を検証し、共有属性の競合を除いて更新計画を実行する。"""
+        """全色・対象を検証し、共有アトリビュートの競合を除いて更新計画を実行する。"""
         if len(colors) != len(self):
             raise ValueError("Color count must match node count")
         plans, seen = [], {}

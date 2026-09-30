@@ -6,4 +6,4 @@ from .node import Node
 
 @node_wrapper('HIKSkeletonGeneratorNode')
 class HIKSkeletonGeneratorNode(Node):
-    """共通Node APIで属性・接続を扱う専用型。"""
+    """共通Node APIでアトリビュート・接続を扱う専用型。"""

@@ -53,7 +53,7 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
    blend.connect_input(0, curve.output_plug())
 
 ``inputs()`` は番号からPlug、``get_weights()`` は入力番号から倍率のdictです。
-``output_plug()`` を別の属性へ接続できます。
+``output_plug()`` を別のアトリビュートへ接続できます。
 接続の上書きには ``connect_input(..., force=True)`` を明示します。
 編集メソッドは内部でUndoチャンクにまとめるため、通常は外側にundo_chunkは不要です。
 

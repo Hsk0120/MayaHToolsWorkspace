@@ -105,7 +105,7 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 (所有シェイプ)も受け付け、実際のノード型に対応するラッパーを返します。
 ``"dup.tx"`` のように同じ短い名前のノードがあって複数の対象に一致する名前は、
 最初の一致を返さず ``RuntimeError`` になります(``"bulk*"`` のように複数のノードに一致する
-パターンも同じです。パターンは ``hlib.ls`` を使ってください)。``deleteAttr`` で属性が
+パターンも同じです。パターンは ``hlib.ls`` を使ってください)。``deleteAttr`` でアトリビュートが
 削除された Plug・MPlug は、所有ノードが残っていても ``ValueError`` です
 (``RuntimeError`` としても捕捉できます)。インスタンス化されたノードは
 指定したインスタンスのパスを保持し、そのインスタンスだけが削除された場合は
@@ -115,7 +115,7 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 
    joint = hlib.createNode("joint", name="nameExampleJoint")
    print(hlib.getNode(joint.plug("tx")))        # nameExampleJoint（Joint）
-   print(hlib.getNode(joint.name() + ".tx"))    # 属性名の文字列も所有ノードになる
+   print(hlib.getNode(joint.name() + ".tx"))    # アトリビュート名の文字列も所有ノードになる
    copy = hlib.getNode(joint)                   # 同じノードを指す新しいラッパー
 
 詳しくは :doc:`cmds_interop` を参照してください。
@@ -146,8 +146,8 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 ``node.plugin_name()`` はプラグイン由来のノード型でプラグイン名を返し、
 Maya 組み込みのノード型では空文字列になります。
 
-直接の親子関係と属性削除
-------------------------
+直接の親子関係とアトリビュート削除
+--------------------------------------
 
 .. code-block:: python
 
@@ -161,11 +161,11 @@ Maya 組み込みのノード型では空文字列になります。
    print(grandparent.is_parent_of(child))    # False（孫は対象外）
    print(grandparent.is_ancestor_of(child))  # True（子孫はすべて対象）
    print(parent.is_child_of(grandparent))    # True
-   print(child.attribute_count())            # int（全属性数）
+   print(child.attribute_count())            # int（全アトリビュート数）
 
    import maya.cmds as cmds
    cmds.addAttr(child.name(), longName="temp", attributeType="double")
-   child.plug("temp").delete_attribute()          # 動的属性を削除
+   child.plug("temp").delete_attribute()          # 動的アトリビュートを削除
 
    cmds.addAttr(child.name(), longName="lockedTemp", attributeType="double")
    locked_plug = child.plug("lockedTemp")
@@ -175,13 +175,13 @@ Maya 組み込みのノード型では空文字列になります。
 
 ``is_parent_of``/``is_child_of`` は直接の親子関係のみを判定します。
 祖先・子孫すべてを対象にする場合は ``is_ancestor_of`` を使ってください。
-``delete_attribute`` は addAttr で追加した動的属性にのみ使用でき、
-``translateX`` のような静的属性を削除しようとすると Maya が拒否します。
-ロックされている属性は既定では削除できず ``RuntimeError`` になりますが、
+``delete_attribute`` は addAttr で追加した動的アトリビュートにのみ使用でき、
+``translateX`` のような静的アトリビュートを削除しようとすると Maya が拒否します。
+ロックされているアトリビュートは既定では削除できず ``RuntimeError`` になりますが、
 ``force=True`` を指定すると一時的にロックを解除してから削除します。
-接続がある属性は force に関わらず Maya が自動的に切断してから削除します。
-削除した属性の Plug は無効になり(``plug.is_valid()`` が ``False``、``str(plug)`` は空文字列)、
-``get()``/``set()`` は ``RuntimeError`` です。同じ名前で追加し直した属性は ``node.plug()`` で
+接続があるアトリビュートは force に関わらず Maya が自動的に切断してから削除します。
+削除したアトリビュートの Plug は無効になり(``plug.is_valid()`` が ``False``、``str(plug)`` は空文字列)、
+``get()``/``set()`` は ``RuntimeError`` です。同じ名前で追加し直したアトリビュートは ``node.plug()`` で
 取得し直してください。
 
 表示・SRT解放・軸判定・オフセットグループ
@@ -301,10 +301,10 @@ unitConversion自体は削除対象に含めません。
 通常の一括メソッドは単体の戻り値のリストを返し、引数の事前確認後に順に実行します。
 通常モードの編集は一回のUndoにまとめます。実行途中で失敗した場合は停止し、
 完了済みの変更は自動では戻しません。引数の確認は全対象の書込み可能性の保証とは異なります。
-色設定は全対象の属性を事前検証します。詳細は :doc:`node_colors` を参照してください。
+色設定は全対象のアトリビュートを事前検証します。詳細は :doc:`node_colors` を参照してください。
 ``Joints.delete()``・フリーズ・``SkinClusters.remove_influences()`` 等の専用処理は維持しています。
 
 ``hlib.ls()`` の戻り値は従来どおりです。joint/skinClusterの型指定は専用コレクション、
 それ以外はリストです。必要に応じて ``Nodes(...)`` / ``Transforms(...)`` で包んでください。
-属性を含む検索結果はそのままNodesへ渡すと所有ノードへ解決されます。
+アトリビュートを含む検索結果はそのままNodesへ渡すと所有ノードへ解決されます。
 Plug自体の一覧として保持したい場合は検索結果のリストを使用してください。

@@ -1,4 +1,4 @@
-"""配列属性の論理インデックスと要素プラグを扱う。"""
+"""配列アトリビュートの論理インデックスと要素プラグを扱う。"""
 
 from ..decorators._fast import fast_edit
 
@@ -12,12 +12,12 @@ from .plug import Plug, _instance_count
 
 
 class ArrayPlug(Plug):
-    """multi（array）属性用の Plug。
+    """multi（array）アトリビュート用の Plug。
 
     ``array_plug[index]`` で論理インデックスの要素 Plug を取得できる。この
     ``__getitem__`` があるため、maya.cmds は ArrayPlug オブジェクト自体を
     シーケンスとして展開しようとして失敗する(``cmds.getAttr(array_plug)`` は不可)。
-    配列属性全体を maya.cmds へ渡す場合は ``str(array_plug)`` または
+    配列アトリビュート全体を maya.cmds へ渡す場合は ``str(array_plug)`` または
     ``array_plug.full_name()`` を渡す。要素 Plug(``array_plug[0]``)と、
     hlib のコマンド(``hlib.select`` など)は ArrayPlug をそのまま受け付ける。"""
 
@@ -25,8 +25,8 @@ class ArrayPlug(Plug):
         """存在する要素の論理インデックスを昇順で返す。
 
         データを持つ要素(``getExistingArrayAttributeIndices()``)に加え、
-        ``worldMatrix`` などのワールド空間属性では、所有 DAG ノードのインスタンス番号
-        (0～インスタンス数-1)も存在する要素として扱う。ワールド空間属性の要素は
+        ``worldMatrix`` などのワールド空間アトリビュートでは、所有 DAG ノードのインスタンス番号
+        (0～インスタンス数-1)も存在する要素として扱う。ワールド空間アトリビュートの要素は
         評価されるまでデータを持たず、作成直後のノードでは一覧に現れないため。
         インスタンス数には、インスタンス化された祖先による間接インスタンスも含める
         (``MDagPath.instanceNumber()`` と同じ数え方)。
@@ -35,7 +35,7 @@ class ArrayPlug(Plug):
             list[int]: 論理インデックス。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
         indices = list(self._mplug.getExistingArrayAttributeIndices())
@@ -48,11 +48,11 @@ class ArrayPlug(Plug):
         """既存インデックスをキーにした要素値の dict を返す。
 
         Returns:
-            dict[int, object]: 論理インデックスをキーとする要素値。ワールド空間属性は
+            dict[int, object]: 論理インデックスをキーとする要素値。ワールド空間アトリビュートは
                 インスタンス番号の要素も含む。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         return {plug.mplug().logicalIndex(): plug.get() for plug in self.elements()}
 
@@ -77,14 +77,14 @@ class ArrayPlug(Plug):
     def element(self, index, create=False):
         """論理インデックスの要素プラグを取得する。
 
-        ``worldMatrix`` などのワールド空間属性は、所有 DAG ノードのインスタンス番号の
+        ``worldMatrix`` などのワールド空間アトリビュートは、所有 DAG ノードのインスタンス番号の
         要素を評価前でも取得できる(作成直後のノードの ``worldMatrix[0]`` など)。
 
         Args:
             index (int): 論理インデックス。
             create (bool): True の場合、データを持つ要素が無ければ Maya 上に要素を
                 作成してから返す(``cmds.getAttr`` の問い合わせで作成するため Undo 対象外)。
-                ただし ``message`` 型のように値を持たない属性の配列では要素を作成できない。
+                ただし ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できない。
                 この場合も要素プラグは返すため接続先・接続元に使え、要素は接続した時点で
                 存在するようになる(それまで ``elements()`` や ``next_available_index()`` には現れない)。
 
@@ -96,7 +96,7 @@ class ArrayPlug(Plug):
                 (``MPlug.logicalIndex()`` の範囲)の外の場合(``elementByLogicalIndex()`` は
                 範囲外の番号を別の番号へ変換し、maya.cmds は 2147483647 に切り詰めるため、
                 別の要素を返したり作成したりしない)。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
                 create が ``True`` で、Maya 内部のデータ型(nurbsSurface の ``patchUVIds``
                 など。:func:`hlib._core.attributeType.is_internal_data_type`)の配列の場合
                 (要素を問い合わせると Maya が異常終了する場合があるため作成しない)。
@@ -114,7 +114,7 @@ class ArrayPlug(Plug):
                         f"Maya 内部のデータ型の配列には要素を作成できません: {self.full_name()}"
                     )
                 # maya.cmds は存在しない要素を問い合わせると要素を作成する。Plug の生成
-                # (属性型の判定)は maya.cmds へ問い合わせず要素を作らないため、ここで作成する。
+                # (アトリビュート型の判定)は maya.cmds へ問い合わせず要素を作らないため、ここで作成する。
                 cmds.getAttr(f"{self.full_name()}[{index}]", type=True)
             elif index not in self._existing_indices():
                 raise IndexError(f"No element at logical index {index} on {self.full_name()}")
@@ -124,10 +124,10 @@ class ArrayPlug(Plug):
         """存在する要素プラグをすべて取得する。
 
         Returns:
-            list[Plug]: 既存要素。ワールド空間属性はインスタンス番号の要素も含む。
+            list[Plug]: 既存要素。ワールド空間アトリビュートはインスタンス番号の要素も含む。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         # 要素ごとに存在を確かめ直さず、既存の番号から直接 Plug を作る。
         return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
@@ -148,7 +148,7 @@ class ArrayPlug(Plug):
 
         Raises:
             ValueError: start が負の場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         if start < 0:
             raise ValueError("start must be >= 0")
@@ -163,7 +163,7 @@ class ArrayPlug(Plug):
     def add_element(self):
         """次の空きインデックス(next_available_index())へ要素を作成して返す。
 
-        ``message`` 型のように値を持たない属性の配列では要素を作成できないため
+        ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できないため
         (:meth:`element` 参照)、返した要素へ接続するまでは、呼び出すたびに同じ
         インデックスの要素プラグを返す。
 
@@ -184,7 +184,7 @@ class ArrayPlug(Plug):
 
         Raises:
             IndexError: 指定したインデックスに要素が存在しない場合。
-            RuntimeError: 所有ノードが無効(削除済み)、属性が削除済み、または Maya が削除を拒否した場合。
+            RuntimeError: 所有ノードが無効(削除済み)、アトリビュートが削除済み、または Maya が削除を拒否した場合。
         """
         self._require_valid()
         if index not in self._mplug.getExistingArrayAttributeIndices():

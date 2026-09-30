@@ -85,7 +85,7 @@ macOS用の起動ファイルは`maya_<version>_<language>.command`と
 ## ▼ディレクトリ補足
 
 - `maya/external`: 外部サブモジュール群(mGear, cymel, AnimationAid ほか)
-- `maya/inhouse/hlib`: Mayaノード・属性ラッパー、形状操作、数学型などの共通ライブラリ
+- `maya/inhouse/hlib`: Mayaノード・アトリビュートラッパー、形状操作、数学型などの共通ライブラリ
 - `maya/inhouse/HTools`: Mayaメニューから起動する社内ツール
 - `maya/modules`: 各ツールをMayaへ認識させる`.mod`定義
   - `metahuman_for_maya.mod`・`pose_driver_connect.mod`はこのワークスペースで記述した定義で、

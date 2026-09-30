@@ -78,7 +78,7 @@ PowerShell やタスクから一時停止なしで実行する場合:
 
 - `conf.py`: Sphinx と静的 API 解析の設定
 - `_templates/autoapi/python/class.rst`: クラスページの構成(継承図と、メンバーを
-  「メソッド」「プロパティ・属性」に分けた早見表・説明)
+  「メソッド」「プロパティ・アトリビュート」に分けた早見表・説明)
 - `_templates/autoapi/python/module.rst`: `hlib.cmds` のコマンドページだけを独自書式にし、
   それ以外は sphinx-autoapi 同梱の既定テンプレートへ委ねる(同梱テンプレートは複製しない)
 - `index.rst`: ドキュメントの入口

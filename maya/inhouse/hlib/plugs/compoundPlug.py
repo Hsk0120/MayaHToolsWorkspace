@@ -1,4 +1,4 @@
-"""複合属性とその子プラグを扱う。"""
+"""複合アトリビュートとその子プラグを扱う。"""
 
 from ..decorators._fast import fast_edit
 
@@ -9,7 +9,7 @@ from .plug import Plug
 
 
 class CompoundPlug(Plug):
-    """compound 属性用の Plug。"""
+    """compound アトリビュート用の Plug。"""
 
     def get(self):
         """子プラグの値を集めた tuple を返す。
@@ -18,7 +18,7 @@ class CompoundPlug(Plug):
             tuple: 子の数と同じ長さの値。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
         return tuple(self._child_at(index).get() for index in range(self._mplug.numChildren()))
@@ -40,7 +40,7 @@ class CompoundPlug(Plug):
 
         Raises:
             ValueError: 要素数が子数と一致しない場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -76,8 +76,8 @@ class CompoundPlug(Plug):
             Plug: 子プラグ。
 
         Raises:
-            AttributeError: 名前に一致する子属性がない場合。
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            AttributeError: 名前に一致する子アトリビュートがない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
         if isinstance(name_or_index, int):
@@ -96,22 +96,22 @@ class CompoundPlug(Plug):
             list[Plug]: 子プラグ。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、または属性が削除済みの場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
         return [self._child_at(index) for index in range(self._mplug.numChildren())]
 
     def __getattr__(self, name):
-        """子を Python 属性形式で取得する。
+        """子を Python アトリビュート形式で取得する。
 
         Args:
-            name (str): 子属性名。
+            name (str): 子アトリビュート名。
 
         Returns:
             Plug: 解決した子プラグ。
 
         Raises:
-            AttributeError: private 名または存在しない子を指定した場合。所有ノード・属性が
+            AttributeError: private 名または存在しない子を指定した場合。所有ノード・アトリビュートが
                 削除済みの(無効な)Plug の場合も、``hasattr``/``getattr(..., default)`` が
                 使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
         """

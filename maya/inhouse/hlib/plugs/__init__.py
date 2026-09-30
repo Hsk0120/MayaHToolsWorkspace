@@ -1,4 +1,4 @@
-"""属性ラッパーを検出して公開する。"""
+"""アトリビュートラッパーを検出して公開する。"""
 
 from .._core.discovery import discover_plug_package
 from .plug import Plug

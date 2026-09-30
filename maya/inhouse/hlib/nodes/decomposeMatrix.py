@@ -71,7 +71,7 @@ class DecomposeMatrix(Node):
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             order (str | int): xyz、yzx、zxy、xzy、yxz、zyxのいずれかの名前(大文字小文字を
-                問わない)、または番号0〜5(``EulerRotation.order`` やrotateOrder属性と同じ
+                問わない)、または番号0〜5(``EulerRotation.order`` やrotateOrderアトリビュートと同じ
                 並び。``om2.MEulerRotation.kXYZ``〜``kZYX``)。
 
         Returns:
@@ -90,7 +90,7 @@ class DecomposeMatrix(Node):
         """dict[str, Plug]: translate・rotate・scale・shearをキーとする出力Plug。
 
         rotateの子Plug.get()は度、translateは現在の距離表示単位で返す。
-        出力を接続する場合はMayaが接続先の属性単位を扱う。
+        出力を接続する場合はMayaが接続先のアトリビュート単位を扱う。
         """
         return {key: self.plug(name) for key, name in (
             ("translate", "outputTranslate"), ("rotate", "outputRotate"),

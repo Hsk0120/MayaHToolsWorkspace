@@ -202,7 +202,7 @@ class SelectionSnapshot(Snapshot):
 
 
 class AttributesSnapshot(Snapshot):
-    """明示指定した属性の型と値。入力接続・ロックは変更しない。"""
+    """明示指定したアトリビュートの型と値。入力接続・ロックは変更しない。"""
 
 
 class PoseSnapshot(Snapshot):

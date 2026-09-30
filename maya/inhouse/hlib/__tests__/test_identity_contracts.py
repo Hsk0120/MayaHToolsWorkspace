@@ -32,7 +32,7 @@ class IdentityContractTest(unittest.TestCase):
             Joint(name)
 
     def test_plug_hash(self):
-        """同じ属性は短名/長名によらず同じhashを持つ。"""
+        """同じアトリビュートは短名/長名によらず同じhashを持つ。"""
         n=Node(cmds.createNode('transform'))
         a,b=n.plug('tx'),n.plug('translateX')
         self.assertEqual(a,b)

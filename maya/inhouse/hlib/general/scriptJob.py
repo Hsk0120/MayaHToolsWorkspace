@@ -9,11 +9,11 @@ class ScriptJob:
     def __init__(
         self, *, event=None, attribute=None, callback, kill_with_scene=False, compress_undo=False
     ):
-        """イベントまたは属性変更の監視を開始する。
+        """イベントまたはアトリビュート変更の監視を開始する。
 
         Args:
             event (str | None): Mayaのイベント名。attributeと排他的。
-            attribute (str | Plug | MPlug | None): 監視する属性。eventと排他的。
+            attribute (str | Plug | MPlug | None): 監視するアトリビュート。eventと排他的。
             callback (Callable): 引数なしで呼ぶ処理。
             kill_with_scene (bool): シーンをクリアするときに解除する。
             compress_undo (bool): コールバックの更新を直前の操作のUndoにまとめる。

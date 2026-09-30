@@ -1,4 +1,7 @@
-"""シーン上のコンポーネントとその要素群を公開する。"""
+"""Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）とその要素群を公開する。
+
+コンポーネントはシェイプを構成する要素への参照。
+"""
 
 from .component import Component, Components
 from .pointComponent import PointComponent, PointComponents

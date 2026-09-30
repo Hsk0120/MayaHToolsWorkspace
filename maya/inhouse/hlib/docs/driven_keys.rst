@@ -17,7 +17,7 @@
    print(relation.exists())
    print(relation.curves())
 
-``hlib.getDrivenKey()`` は既存の属性を保持し、取得だけではシーンを変更しません。
+``hlib.getDrivenKey()`` は既存のアトリビュートを保持し、取得だけではシーンを変更しません。
 ``set_key()`` でMayaのsetDrivenKeyframeを実行し、キーを作成・更新します。
 引数は現在のMaya UI単位で、ドライバーの現在値は変更しません。
 接線は既定でlinearです。通常、外側にundo_chunkを指定する必要はありません。

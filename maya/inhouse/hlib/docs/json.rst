@@ -61,10 +61,10 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
      - 保存・適用範囲
    * - selection
      - 対象列。省略で現在選択
-     - 順序付きのノード・属性・コンポーネント選択
+     - 順序付きのノード・アトリビュート・コンポーネント選択
    * - attributes
      - Nodeまたはその列
-     - attributesで明示した属性の型と値
+     - attributesで明示したアトリビュートの型と値
    * - pose
      - Transformまたはその列
      - ローカルTRS、shear、回転順序、pivot、rotateAxis、offsetParentMatrix。JointはjointOrient等も含む
@@ -94,9 +94,9 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
     curves = hlib.json.capture(hlib.getNode("control"), kind="curve")
     timeline = hlib.json.capture(hlib.getTimeSlider(), kind="editor")
 
-属性は数値・enum・文字列・行列・数値2/3要素compoundに対応します。
+アトリビュートは数値・enum・文字列・行列・数値2/3要素compoundに対応します。
 配列は要素を明示してください。任意のtyped arrayやカスタムデータ型は対象外です。
-属性のロック・入力接続・表示設定を勝手に解除しません。
+アトリビュートのロック・入力接続・表示設定を勝手に解除しません。
 
 別の対象へ適用する
 --------------------
@@ -139,7 +139,7 @@ Undoを補うための独自Mayaプラグインは同梱・ロードしません
 ------------------
 
 * 既存対象の更新用です。ノード・Shape・skinCluster・SDK接続の新規作成は行いません。
-* ポーズはローカル属性値の復元です。親の異なるリグへのワールド空間リターゲット、ブレンド、ミラーは行いません。
+* ポーズはローカルアトリビュート値の復元です。親の異なるリグへのワールド空間リターゲット、ブレンド、ミラーは行いません。
 * ロック済み・参照ファイル由来の更新対象は適用前に拒否します。
 * カーブのconstruction history付きShapeは拒否します。形状の再構築・CV数変更は行いません。
 * スキンはトポロジーの接続情報とinfluence集合が一致する場合に限ります。疎ウェイトの省略部分はゼロです。

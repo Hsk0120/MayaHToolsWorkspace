@@ -10,7 +10,7 @@ from hlib.decorators.undo import undo_chunk
 from hlib.nodes.node import Node
 from hlib.plugs.plug import Plug
 
-#: ドライバー・駆動先に使える数値スカラーの属性型名。
+#: ドライバー・駆動先に使える数値スカラーのアトリビュート型名。
 _NUMERIC_SCALAR_TYPES = frozenset(
     (
         "double",
@@ -29,12 +29,12 @@ _NUMERIC_SCALAR_TYPES = frozenset(
 
 
 def _plug(value):
-    """Plug・MPlug・属性名を、数値スカラーのPlugとして検証する。
+    """Plug・MPlug・アトリビュート名を、数値スカラーのPlugとして検証する。
 
     文字列は ``to_plug`` で解決するため、``str(plug)`` が返す形式(``grp1|dup.tx``、
     ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。
-    属性が見つからない、または名前が一意でない場合は RuntimeError、属性を指さない
-    文字列や対応しない型は TypeError。属性型は属性定義から判定するため
+    アトリビュートが見つからない、または名前が一意でない場合は RuntimeError、アトリビュートを指さない
+    文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため
     (:func:`hlib._core.attributeType.attribute_type`)、検証でシーンは変更しない。
     """
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
@@ -51,9 +51,9 @@ def _plug(value):
 
 
 def _contains_plug(plugs, mplug):
-    """同じプラグ(所有ノード・属性・配列インデックスが一致)が含まれるか判定する。
+    """同じプラグ(所有ノード・アトリビュート・配列インデックスが一致)が含まれるか判定する。
 
-    インスタンス化されたシェイプの属性は、どのインスタンスのパスから取得しても同じ
+    インスタンス化されたシェイプのアトリビュートは、どのインスタンスのパスから取得しても同じ
     プラグになる。名前(インスタンスのパスを含む ``full_name()``)では比較しない。
 
     Args:
@@ -113,19 +113,19 @@ class DrivenKey:
         """既存の数値Plugを保持する。関係が未作成でも取得できる。
 
         Args:
-            driver (Plug | om2.MPlug | str): ドライバー属性。文字列は ``"node.attribute"`` 形式。
-            driven (Plug | om2.MPlug | str): 駆動される属性。
+            driver (Plug | om2.MPlug | str): ドライバーアトリビュート。文字列は ``"node.attribute"`` 形式。
+            driven (Plug | om2.MPlug | str): 駆動されるアトリビュート。
         Raises:
-            ValueError: 非スカラー、非数値、または同一属性の場合。
-            TypeError: Plug・MPlug・属性名のいずれでもない場合。
-            RuntimeError: 属性が存在しない場合。
+            ValueError: 非スカラー、非数値、または同一アトリビュートの場合。
+            TypeError: Plug・MPlug・アトリビュート名のいずれでもない場合。
+            RuntimeError: アトリビュートが存在しない場合。
         """
         self._driver, self._driven = _plug(driver), _plug(driven)
         if self._driver.mplug() == self._driven.mplug():
             raise ValueError("Driver and driven must be different plugs")
 
     def __repr__(self):
-        """str: ドライバーと駆動先の属性名を含む表示。"""
+        """str: ドライバーと駆動先のアトリビュート名を含む表示。"""
         return f"DrivenKey({self.driver_plug().full_name()!r}, {self.driven_plug().full_name()!r})"
 
     def driver_plug(self):
@@ -141,7 +141,7 @@ class DrivenKey:
 
         接続を毎回照会し、他ドライバーのカーブやblendWeightedのweight入力は含めない。
         ドライバーは名前ではなくプラグ自体で照合するため、インスタンス化されたシェイプの
-        属性をどのインスタンスのパスから指定しても同じ関係として扱う。
+        アトリビュートをどのインスタンスのパスから指定しても同じ関係として扱う。
         """
         driver = self.driver_plug().mplug()
         return [

@@ -146,18 +146,18 @@ class Reference(Node):
         ) or []
 
     def edit_attribute_names(self, successful=True, failed=False):
-        """Editの影響を受けた属性の短縮名一覧を取得する。
+        """Editの影響を受けたアトリビュートの短縮名一覧を取得する。
 
-        Maya の ``referenceQuery -editAttrs`` 自体がノード名を含まない属性名の
-        みを返す(コンパウンド属性の子を編集した場合は親の短縮名になる)。
-        どのノードの属性かは ``edit_node_names()`` や ``edit_strings()`` と合わせて判断する。
+        Maya の ``referenceQuery -editAttrs`` 自体がノード名を含まないアトリビュート名の
+        みを返す(コンパウンドアトリビュートの子を編集した場合は親の短縮名になる)。
+        どのノードのアトリビュートかは ``edit_node_names()`` や ``edit_strings()`` と合わせて判断する。
 
         Args:
             successful (bool): 実際に適用された(成功した)Editを含めるか。
             failed (bool): 適用に失敗したEditを含めるか。
 
         Returns:
-            list[str]: Edit対象の属性の短縮名(重複あり得る)。無ければ空リスト。
+            list[str]: Edit対象のアトリビュートの短縮名(重複あり得る)。無ければ空リスト。
         """
         return cmds.referenceQuery(
             self.name(), editAttrs=True,

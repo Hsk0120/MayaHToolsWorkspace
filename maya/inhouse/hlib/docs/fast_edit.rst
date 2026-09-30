@@ -26,7 +26,7 @@ Undo不要の値更新
   配列は要素Plugを取得して設定します。
 * Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー。
 * Joint / Jointsの ``freeze_rotation`` と ``joint_orient_to_rotate``。
-* NodeのOutliner色・override色・属性表示フラグ。
+* NodeのOutliner色・override色・アトリビュート表示フラグ。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
 * SkinClusterの ``set_weights`` / ``load_weights`` / ``normalize_weights`` /
   ``set_max_influences``。
@@ -55,4 +55,4 @@ Plugは数値・単位・enum・文字列・行列・対応するデータ配列
 OpenMayaの直接設定はcmdsの全フラグを置き換えるものではありません。
 
 頂点・CV・UVではAPIの一括更新、ウェイトではMPlugの直接設定を使用します。
-小さな属性更新まで常に高速になる保証はありません。
+小さなアトリビュート更新まで常に高速になる保証はありません。

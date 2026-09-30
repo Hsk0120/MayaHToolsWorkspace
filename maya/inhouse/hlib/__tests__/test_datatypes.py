@@ -928,7 +928,7 @@ def test_euler_rotation_division_by_number_keeps_order():
 
 
 def test_user_subclass_attributes_survive_copy_and_pickle():
-    # __slots__ を持たない利用者の派生クラスの属性(__dict__)も複製・pickle で保たれる。
+    # __slots__ を持たない利用者の派生クラスのアトリビュート(__dict__)も複製・pickle で保たれる。
     classes = []
     for base, args in ((Translation, (1.0, 2.0, 3.0)), (Quaternion, (0.0, 0.0, 0.0, 1.0)),
                        (EulerRotation, (0.1, 0.2, 0.3, "yxz")), (Matrix, (list(range(16)),))):
@@ -1135,7 +1135,7 @@ def test_copy_and_pickle_do_not_call_user_init_and_keep_slots():
                 assert result.order == value.order
             assert result.tag == value.tag
             assert not hasattr(result, "unset")
-    # 自身を参照する属性も pickle / deepcopy で復元できる。
+    # 自身を参照するアトリビュートも pickle / deepcopy で復元できる。
     user_vector = _register_user_class("SelfReferenceVector", (Vector,), {})
     looped = user_vector(1.0, 2.0, 3.0)
     looped.me = looped

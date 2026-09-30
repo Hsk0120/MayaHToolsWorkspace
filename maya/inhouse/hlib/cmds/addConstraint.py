@@ -2,7 +2,7 @@
 
 ``hlib.addConstraint(sources, target, type="parent", maintainOffset=False)``
 で単一のConstraintを返す。照会はConstraint.targets()/weight_plugs()、
-ウェイト編集はset_weight()、他の属性はPlugで操作する。query/editは受け付けない。
+ウェイト編集はset_weight()、他のアトリビュートはPlugで操作する。query/editは受け付けない。
 種類はparent、point、orient、scale、aim、poleVector、geometry、normal、tangent、
 pointOnPoly。Constraint接尾辞付きの型名も指定できる。
 """
@@ -18,7 +18,7 @@ def addConstraint(sources, target, type="parent", maintainOffset=False, **kwargs
 
     Args:
         sources (Node | Plug | Component | str | MObject | MDagPath | MPlug | Iterable):
-            拘束元。属性は所有ノード、コンポーネントは所有シェイプへ解決する。
+            拘束元。アトリビュートは所有ノード、コンポーネントは所有シェイプへ解決する。
             parent/point/orient/scale/aim/poleVectorはTransformの拘束元が必要。
         target (Node | Plug | str | MObject | MDagPath | MPlug): 拘束されるTransform。
         type (str): 拘束の種類。短名typ。既定parent。

@@ -93,7 +93,7 @@ class BulkCollection:
 
 
 def bulk_api(item_class, undo=True, per_item_only=()):
-    """単体の公開APIをコレクションに登録する。属性の暗黙転送は行わない。
+    """単体の公開APIをコレクションに登録する。アトリビュートの暗黙転送は行わない。
 
     Args:
         item_class (type): 単体クラス。

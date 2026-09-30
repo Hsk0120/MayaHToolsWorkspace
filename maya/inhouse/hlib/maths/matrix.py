@@ -933,7 +933,7 @@ class Matrix(om2.MMatrix):
         Returns:
             tuple: ``(_rebuild, (type(self), 16要素の tuple)[, state])``。
             利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
-            属性は再構築時に復元する。
+            アトリビュートは再構築時に復元する。
         """
         return _reduce_value(self, tuple(_SCALED(self, 1.0)))
 
@@ -951,7 +951,7 @@ class Matrix(om2.MMatrix):
     def __copy__(self):
         """同じ型・同じ値の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性も浅く写す。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
 
         Returns:
             Matrix: 自身と同じクラスの新しいインスタンス。
@@ -961,7 +961,7 @@ class Matrix(om2.MMatrix):
     def __deepcopy__(self, memo):
         """同じ型・同じ値の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性は深く複製する。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
 
         Args:
             memo (dict): copy.deepcopy の memo。

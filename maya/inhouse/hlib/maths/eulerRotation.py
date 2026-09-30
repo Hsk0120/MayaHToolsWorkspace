@@ -17,7 +17,7 @@ _SET = _MEuler.__setitem__
 _NUMBER = (int, float)
 
 #: 回転順序の名前。添字が om2 の ``MEulerRotation.kXYZ`` (0)〜``kZYX`` (5)と、
-#: Maya の rotateOrder 属性の番号に対応する。
+#: Maya の rotateOrder アトリビュートの番号に対応する。
 ORDER_NAMES = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
 _ORDER_INDEX = {name: index for index, name in enumerate(ORDER_NAMES)}
 
@@ -83,7 +83,7 @@ class EulerRotation(om2.MEulerRotation):
 
     成分は数値だけで、文字列などは om2 と同じく ValueError になる。
     ``order`` は om2 と同じ int(``kXYZ`` = 0、``kYZX`` = 1、``kZXY`` = 2、``kXZY`` = 3、
-    ``kYXZ`` = 4、``kZYX`` = 5。Maya の rotateOrder 属性の番号と同じ並び)で、
+    ``kYXZ`` = 4、``kZYX`` = 5。Maya の rotateOrder アトリビュートの番号と同じ並び)で、
     名前は :attr:`order_name` で取得・設定する。コンストラクタの order には
     名前(``"zyx"`` など。大文字小文字を問わない)と番号のどちらも使える。
 
@@ -379,7 +379,7 @@ class EulerRotation(om2.MEulerRotation):
         Returns:
             tuple: ``(_rebuild, (type(self), (x, y, z, order))[, state])``。
             利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
-            属性は再構築時に復元する。
+            アトリビュートは再構築時に復元する。
         """
         return _reduce_value(self, (self.x, self.y, self.z, self.order))
 
@@ -397,7 +397,7 @@ class EulerRotation(om2.MEulerRotation):
     def __copy__(self):
         """同じ型・同じ成分と順序の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性も浅く写す。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
 
         Returns:
             EulerRotation: 自身と同じクラスの新しいインスタンス。
@@ -407,7 +407,7 @@ class EulerRotation(om2.MEulerRotation):
     def __deepcopy__(self, memo):
         """同じ型・同じ成分と順序の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性は深く複製する。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
 
         Args:
             memo (dict): copy.deepcopy の memo。

@@ -69,7 +69,7 @@ class JointTest(unittest.TestCase):
         self.assertEqual(tuple(inverse_scale), (2.0, 3.0, 4.0))
 
     def test_set_rotate_preserves_joint_orient_and_rotate_axis(self):
-        # jointOrient/rotateAxis は度数法の属性なので、内部で角度単位を取り違えると
+        # jointOrient/rotateAxis は度数法のアトリビュートなので、内部で角度単位を取り違えると
         # ここで大きくズレる（asDouble() はラジアンを返すため）。set_rotate は
         # rotateAxis/jointOrient を補正した上で .rotate チャンネルへ書き込むため、
         # .rotate の生値ではなく get_rotate() による round-trip で検証する。

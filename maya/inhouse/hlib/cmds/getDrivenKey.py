@@ -11,11 +11,11 @@ Examples
 
 
 def getDrivenKey(driver, driven):
-    """既存属性の組をDrivenKeyとして取得する。
+    """既存アトリビュートの組をDrivenKeyとして取得する。
 
     Args:
-        driver (Plug | om2.MPlug | str): ドライバー属性。文字列は ``"node.attribute"`` 形式。
-        driven (Plug | om2.MPlug | str): 駆動される属性。
+        driver (Plug | om2.MPlug | str): ドライバーアトリビュート。文字列は ``"node.attribute"`` 形式。
+        driven (Plug | om2.MPlug | str): 駆動されるアトリビュート。
     Returns:
         DrivenKey: 未作成の関係も保持できる。set_keyでキーを作成する。
     """

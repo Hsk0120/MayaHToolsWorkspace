@@ -16,7 +16,7 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 
 ## 既に他ファイルで cmds との突き合わせを行っている箇所(重複させない)
 
-- ``Plug.get()`` の属性型ごとの分岐: ``test_node_api.py`` の
+- ``Plug.get()`` のアトリビュート型ごとの分岐: ``test_node_api.py`` の
   ``test_plug_get_dispatches_by_attribute_type_via_om2``
   (bool/int/float/enum/文字列/角度/距離/時間を ``cmds.getAttr`` と突き合わせ)
 - joint の jointOrient/rotateAxis 角度単位: ``test_joint.py`` の
@@ -32,18 +32,18 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 - ``Node.inputs/outputs/connections`` と ``cmds.listConnections(plugs=True)``
   (短い名前が重複するノードを含む。``Plug.full_name()`` の一意な名前と一致すること)
 - ``Namespace`` と ``cmds.namespace``/``cmds.namespaceInfo``
-- Plug の属性型判定(属性定義から om2 で求める ``hlib._core.attributeType.attribute_type``)と
+- Plug のアトリビュート型判定(アトリビュート定義から om2 で求める ``hlib._core.attributeType.attribute_type``)と
   ``cmds.getAttr(<プラグ名>, type=True)``。transform・mesh・nurbsCurve・blendShape・
-  plusMinusAverage・multiplyDivide・time・joint の代表的な属性、addAttr の全属性型・データ型の
-  動的属性、多数のノード型の既存プラグで突き合わせる。cmds へ問い合わせるのは存在する要素だけで、
-  存在しない要素は同じ属性の既存要素と同じ型名になり要素が作られないことを確かめる。
-  値によって型が変わる generic 属性(``choice`` の ``input``/``output``、``unitConversion``)は、
+  plusMinusAverage・multiplyDivide・time・joint の代表的なアトリビュート、addAttr の全アトリビュート型・データ型の
+  動的アトリビュート、多数のノード型の既存プラグで突き合わせる。cmds へ問い合わせるのは存在する要素だけで、
+  存在しない要素は同じアトリビュートの既存要素と同じ型名になり要素が作られないことを確かめる。
+  値によって型が変わる generic アトリビュート(``choice`` の ``input``/``output``、``unitConversion``)は、
   行列を保持する場合だけ cmds と同じ ``matrix`` (``MatrixPlug``)になることを確かめる
   (入力接続のある要素は接続元の型、接続の無い要素は値、接続元も値によって型が変わる場合は
   接続元を辿った結果)
-- コンポーネント名としても解釈される属性名(``pnts[i]``・``controlPoints[i]``)を
-  om2 で属性パスを辿って解決した ``to_plug`` と、``cmds.connectAttr`` が接続するプラグ
-- ワールド空間属性のインスタンス番号の要素(``instanceCount(True)``)と
+- コンポーネント名としても解釈されるアトリビュート名(``pnts[i]``・``controlPoints[i]``)を
+  om2 でアトリビュートパスを辿って解決した ``to_plug`` と、``cmds.connectAttr`` が接続するプラグ
+- ワールド空間アトリビュートのインスタンス番号の要素(``instanceCount(True)``)と
   ``cmds.ls(allPaths=True)``、インスタンスごとの ``Transform.get_matrix(ws=True)`` と
   ``cmds.xform(query=True, matrix=True, worldSpace=True)``
 - ``Transform.get_matrix`` (om2 の MPlug から直接読む。ワールド空間はインスタンスごとの
@@ -351,27 +351,27 @@ class TransformMatrixParityTest(unittest.TestCase):
             self.assertTrue(wanted.asMatrix().isEquivalent(expected.asMatrix(), 1e-9), order)
 
 class PlugAttributeTypeParityTest(unittest.TestCase):
-    """Plug の属性型判定が cmds.getAttr(type=True) と一致し続けることを検証する。
+    """Plug のアトリビュート型判定が cmds.getAttr(type=True) と一致し続けることを検証する。
 
     Plug(node, mplug) は登録済みラッパー(DoubleLinearPlug/Double3Plug 等)を選ぶために
-    ``cmds.getAttr(<プラグ名>, type=True)`` と同じ型名を使う。hlib はその型名を属性定義から
+    ``cmds.getAttr(<プラグ名>, type=True)`` と同じ型名を使う。hlib はその型名をアトリビュート定義から
     om2 で求める(``hlib._core.attributeType.attribute_type``)ため、既存のプラグについて
     cmds の生の値と一致することを確かめる。``cmds.getAttr(type=True)`` は存在しない配列要素を
-    問い合わせると要素を作る(Maya が異常終了する属性もある)ため、cmds へ問い合わせるのは
-    存在する要素(ワールド空間属性はインスタンス番号の要素)だけにする。
+    問い合わせると要素を作る(Maya が異常終了するアトリビュートもある)ため、cmds へ問い合わせるのは
+    存在する要素(ワールド空間アトリビュートはインスタンス番号の要素)だけにする。
     """
 
-    #: 動的属性として追加する attributeType(単体と multi)。
+    #: 動的アトリビュートとして追加する attributeType(単体と multi)。
     ATTRIBUTE_TYPES = ("bool", "long", "short", "byte", "char", "enum", "float", "double",
                        "doubleAngle", "doubleLinear", "floatAngle", "floatLinear", "time",
                        "message", "matrix", "fltMatrix")
-    #: 動的属性として追加する dataType。
+    #: 動的アトリビュートとして追加する dataType。
     DATA_TYPES = ("string", "stringArray", "matrix", "doubleArray", "floatArray", "Int32Array",
                   "Int64Array", "vectorArray", "floatVectorArray", "pointArray", "matrixArray",
                   "componentList", "mesh", "nurbsCurve", "nurbsSurface", "lattice", "sphere",
                   "double2", "double3", "float2", "float3", "long2", "long3", "short2", "short3",
                   "reflectanceRGB", "spectrumRGB")
-    #: 子属性とともに追加する複合属性の attributeType、子の attributeType、子の数。
+    #: 子アトリビュートとともに追加する複合アトリビュートの attributeType、子の attributeType、子の数。
     COMPOUND_TYPES = (
         ("double2", "double", 2), ("double3", "double", 3), ("double4", "double", 4),
         ("float2", "float", 2), ("float3", "float", 3), ("long2", "long", 2), ("long3", "long", 3),
@@ -421,7 +421,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         return expected
 
     def plugs_of(self, node):
-        """ノードの全属性から、存在する配列要素と複合属性の子まで含めたプラグを列挙する。"""
+        """ノードの全アトリビュートから、存在する配列要素と複合アトリビュートの子まで含めたプラグを列挙する。"""
         fn = om2.MFnDependencyNode(node.mobject())
         result = []
 
@@ -431,7 +431,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
             if mplug.isArray:
                 indices = list(mplug.getExistingArrayAttributeIndices())[:2]
                 if not indices and self.exists(mplug.elementByLogicalIndex(0)):
-                    indices = [0]  # 評価前のワールド空間属性のインスタンス番号の要素
+                    indices = [0]  # 評価前のワールド空間アトリビュートのインスタンス番号の要素
                 for index in indices:
                     visit(mplug.elementByLogicalIndex(index), depth + 1)
                 return
@@ -481,7 +481,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                 self.assertEqual(self.assert_matches_cmds(plug), expected)
 
     def test_mesh_control_points_are_float3_like_cmds(self):
-        # controlPoints は mesh と nurbsCurve が共有する double3 の属性定義だが、getAttr(type=True) は
+        # controlPoints は mesh と nurbsCurve が共有する double3 のアトリビュート定義だが、getAttr(type=True) は
         # mesh で float3 を返す(Maya が float の頂点座標として扱うため)。hlib も同じ型名になること。
         mesh = Node(cmds.polyCube(name="cpCube", constructionHistory=False)[0]).shape()
         # controlPoints[i] の問い合わせで Maya が作る pnts[i] を先に作っておく。
@@ -512,7 +512,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         cmds.addAttr(name, longName="cp_linear", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(name, longName="cp_linear" + axis, attributeType="doubleLinear", parent="cp_linear")
-        # 動的属性の配列要素は、値の設定・接続で作ってから問い合わせる。
+        # 動的アトリビュートの配列要素は、値の設定・接続で作ってから問い合わせる。
         source = Node(cmds.createNode("transform", name="source"))
         for attribute_type_name in self.ATTRIBUTE_TYPES:
             element = "%s.multi_%s[0]" % (name, attribute_type_name)
@@ -570,11 +570,11 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                 try:
                     expected = cmds.getAttr(name, type=True)
                 except (RuntimeError, ValueError):
-                    continue  # mesh の内部属性など、maya.cmds が型を返さないプラグ
+                    continue  # mesh の内部アトリビュートなど、maya.cmds が型を返さないプラグ
                 actual = attribute_type(mplug)
                 with self.subTest(plug=name):
                     if actual is None:
-                        # 値によって型が変わる属性(generic 属性・任意データの typed 属性)だけが None。
+                        # 値によって型が変わるアトリビュート(generic アトリビュート・任意データの typed アトリビュート)だけが None。
                         attribute = mplug.attribute()
                         self.assertTrue(
                             attribute.hasFn(om2.MFn.kGenericAttribute)
@@ -587,7 +587,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         self.assertGreater(value_dependent, 0)
 
     def test_generic_attributes_holding_matrices_match_cmds(self):
-        # 値によって型が変わる generic 属性は、属性定義からは型名が決まらない(None)。Plug の生成は
+        # 値によって型が変わる generic アトリビュートは、アトリビュート定義からは型名が決まらない(None)。Plug の生成は
         # 存在する要素の値が行列なら cmds.getAttr(type=True) と同じ "matrix" として MatrixPlug を選ぶ。
         from hlib.plugs.plug import _held_matrix_type
 
@@ -621,7 +621,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                         self.assertIsNone(_held_matrix_type(plug.mplug()))
                         self.assertIs(type(plug), Plug)
         self.assertTrue({"matrix", "double3", "float3"} <= checked, checked)
-        # 入力接続の無い要素は値を読み、接続元も値によって型が変わる属性なら接続元を辿る。
+        # 入力接続の無い要素は値を読み、接続元も値によって型が変わるアトリビュートなら接続元を辿る。
         stored = Node(cmds.createNode("choice", name="genericStored"))
         cmds.setAttr(stored.name() + ".input[2]", 3.0)
         standalone = Node(cmds.createNode("unitConversion", name="genericStandalone"))
@@ -642,7 +642,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         self.assertEqual(standalone.plug("input").get(), 3.0)
 
     def test_missing_elements_resolve_like_existing_elements_without_changes(self):
-        # 存在しない配列要素も属性定義から同じ型名になり、要素は作られない。cmds へは存在する
+        # 存在しない配列要素もアトリビュート定義から同じ型名になり、要素は作られない。cmds へは存在する
         # 要素だけを問い合わせる(存在しない要素の問い合わせは要素を作るため)。
         average = Node(cmds.createNode("plusMinusAverage", name="pma"))
         cmds.setAttr(average.name() + ".input1D[0]", 1.0)
@@ -656,7 +656,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         target = cmds.polyCube(name="missingTarget")[0]
         blend = Node(cmds.blendShape(target, base, name="missingBlend")[0])
         item = "inputTarget[0].inputTargetGroup[0].inputTargetItem[6000]"
-        # (存在しない要素のプラグ, 同じ属性の既存要素のプラグ, 要素が作られうる配列)
+        # (存在しない要素のプラグ, 同じアトリビュートの既存要素のプラグ, 要素が作られうる配列)
         cases = [
             (average, "input1D[10]", "input1D[0]", "input1D"),
             (average, "input3D[4].input3Dx", "input3D[0].input3Dx", "input3D"),
@@ -704,8 +704,8 @@ class NameResolutionParityTest(unittest.TestCase):
         lattice = Node(cmds.ls(self.namespace + ":*", type="lattice", long=True)[0])
         source = Node(cmds.createNode("transform", name="source"))
         other = Node(cmds.createNode("transform", name="other"))
-        # MSelectionList はこれらを頂点・CV として登録するが、cmds.connectAttr は属性として接続する。
-        # 単位変換ノードが挟まらないよう、距離・倍率の属性どうしを接続する。
+        # MSelectionList はこれらを頂点・CV として登録するが、cmds.connectAttr はアトリビュートとして接続する。
+        # 単位変換ノードが挟まらないよう、距離・倍率のアトリビュートどうしを接続する。
         cases = [
             (source.plug("translate"), mesh.name() + ".pnts[3]"),
             (source.plug("tx"), mesh.name() + ".pnts[4].pntx"),

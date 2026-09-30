@@ -1,4 +1,4 @@
-"""既存Channel Boxの表示対象と選択属性を取得する。"""
+"""既存Channel Boxの表示対象と選択アトリビュートを取得する。"""
 
 import maya.cmds as cmds
 import maya.mel as mel
@@ -10,7 +10,7 @@ from ..decorators.undo import undo_chunk
 
 
 class ChannelBox:
-    """UIの選択属性を既存Plugへ解決する。UIの新規作成はしない。"""
+    """UIの選択アトリビュートを既存Plugへ解決する。UIの新規作成はしない。"""
 
     _sections = {"main": ("mainObjectList", "selectedMainAttributes"),
                  "shape": ("shapeObjectList", "selectedShapeAttributes"),
@@ -60,13 +60,13 @@ class ChannelBox:
         return list(result.values())
 
     def selected_attributes(self, section="main"):
-        """指定欄の選択属性名を取得する。
+        """指定欄の選択アトリビュート名を取得する。
 
         Args:
             section (str): main/shape/history/output/all。
 
         Returns:
-            list[str]: Mayaが返す属性名。短縮名やaliasの場合もある。未選択は空。
+            list[str]: Mayaが返すアトリビュート名。短縮名やaliasの場合もある。未選択は空。
         """
         names = []
         for part in self._section_names(section):
@@ -75,14 +75,14 @@ class ChannelBox:
         return list(dict.fromkeys(names))
 
     def selected_plugs(self, section="all"):
-        """表示ノードと選択属性を欄ごとに対応付ける。
+        """表示ノードと選択アトリビュートを欄ごとに対応付ける。
 
         Args:
             section (str): main/shape/history/output/all。
 
         Returns:
-            list[Plug]: 重複なしのPlug。ノードに存在しない属性は除外する。
-                未選択なら空リスト。全属性への暗黙の切り替えはしない。
+            list[Plug]: 重複なしのPlug。ノードに存在しないアトリビュートは除外する。
+                未選択なら空リスト。全アトリビュートへの暗黙の切り替えはしない。
         """
         result = {}
         for part in self._section_names(section):
@@ -102,5 +102,5 @@ class ChannelBox:
 
     @undo_chunk("hlibChannelBoxClearSelection")
     def clear_selection(self):
-        """属性のUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。"""
+        """アトリビュートのUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。"""
         cmds.channelBox(self.name(), edit=True, select="")

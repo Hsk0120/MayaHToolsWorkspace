@@ -28,11 +28,11 @@ def discover_plug_package(package_name):
         package_name (str): wrapper module を含む package の完全修飾名。
 
     Returns:
-        tuple[dict[str, type], dict[str, type]]: 属性データ型から wrapper
+        tuple[dict[str, type], dict[str, type]]: アトリビュートデータ型から wrapper
             class への対応表と、公開する class 名から class への対応表。
 
     Raises:
-        ValueError: 同じ属性データ型に複数の wrapper class がある場合。
+        ValueError: 同じアトリビュートデータ型に複数の wrapper class がある場合。
     """
     return _discover_typed_package(package_name, "__hlib_plug_type__")
 
@@ -42,7 +42,7 @@ def _discover_typed_package(package_name, type_attr):
 
     Args:
         package_name (str): wrapper module を含む package の完全修飾名。
-        type_attr (str): 型キーを保持するクラス属性名（例: ``__hlib_node_type__``）。
+        type_attr (str): 型キーを保持するクラスアトリビュート名（例: ``__hlib_node_type__``）。
 
     Returns:
         tuple[dict[str, type], dict[str, type]]: 型キーから wrapper class への

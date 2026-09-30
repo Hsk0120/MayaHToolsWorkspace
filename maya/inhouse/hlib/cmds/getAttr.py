@@ -1,4 +1,4 @@
-"""属性値または状態を照会する。"""
+"""アトリビュート値または状態を照会する。"""
 
 from maya import cmds
 from .._core.flags import flag_aliases
@@ -6,7 +6,7 @@ from .._core.flags import flag_aliases
 
 @flag_aliases("getAttr")
 def getAttr(target, **kwargs):
-    """属性値または状態を照会する。
+    """アトリビュート値または状態を照会する。
 
     Args:
         target (str | Node | Plug): 操作対象。

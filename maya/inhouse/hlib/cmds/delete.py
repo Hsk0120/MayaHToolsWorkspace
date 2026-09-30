@@ -11,9 +11,9 @@ Synopsis
 :doc:`/cmds_interop` を参照してください。
 
 Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya.cmds.delete`` へ
-属性名を渡してもエラーを表示するだけで何も削除しないためです。動的属性の削除は
+アトリビュート名を渡してもエラーを表示するだけで何も削除しないためです。動的アトリビュートの削除は
 ``plug.delete_attribute()``、配列要素の削除は ``array_plug.remove_element(i)``、接続の解除は
-``plug.disconnect()``、属性の所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
+``plug.disconnect()``、アトリビュートの所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
 文字列は解決せずにそのまま渡すため、``"node.attribute"`` 形式の文字列は ``maya.cmds.delete`` と
 同じ扱いです。
 
@@ -82,7 +82,7 @@ def delete(nodes):
     Raises:
         ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合。
         TypeError: 要素が対応しない型の場合。要素に Plug(ArrayPlug を含む)・om2.MPlug が
-            含まれる場合(maya.cmds.delete は属性を削除せずエラーを表示するだけのため。
+            含まれる場合(maya.cmds.delete はアトリビュートを削除せずエラーを表示するだけのため。
             何も削除しない)。
         RuntimeError: Maya が削除を拒否した場合。
     """
@@ -92,7 +92,7 @@ def delete(nodes):
     names = to_names(nodes, allow_plugs=False)
     if not names:
         raise ValueError("nodes には1つ以上のノードを指定してください")
-    # 属性・コンポーネント文字列は所有ノードへ変換せず、標準の扱いを維持する。
+    # アトリビュート・コンポーネント文字列は所有ノードへ変換せず、標準の扱いを維持する。
     node_names = [name for name in names if "." not in name]
     components = [name for name in names if "." in name]
     nodes = []

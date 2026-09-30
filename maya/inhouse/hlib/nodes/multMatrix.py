@@ -25,7 +25,7 @@ class MultMatrix(Node):
         Args:
             index (int): 非負の論理インデックス。
         Returns:
-            Plug: 入力属性の参照。
+            Plug: 入力アトリビュートの参照。
         Raises:
             ValueError: indexが非負整数でない場合。
             IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。

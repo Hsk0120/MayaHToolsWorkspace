@@ -1,4 +1,4 @@
-"""行列属性の値を読み書きする。ノードの変換はTransformで扱う。"""
+"""行列アトリビュートの値を読み書きする。ノードの変換はTransformで扱う。"""
 
 import maya.api.OpenMaya as om2
 
@@ -12,16 +12,16 @@ from .plug import Plug
 
 @plug_wrapper("matrix")
 class MatrixPlug(Plug):
-    """matrix属性用のPlug。対象属性の値だけを扱う。"""
+    """matrixアトリビュート用のPlug。対象アトリビュートの値だけを扱う。"""
 
     def get(self):
-        """対象属性の行列値を取得する。
+        """対象アトリビュートの行列値を取得する。
 
         Returns:
-            Matrix: 対象属性の行列の複製。
+            Matrix: 対象アトリビュートの行列の複製。
 
         Raises:
-            RuntimeError: 所有ノードまたは属性が無効の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
         return Matrix.from_mmatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
@@ -29,7 +29,7 @@ class MatrixPlug(Plug):
     @fast_edit
     @undo_chunk("hlibMatrixPlugSet")
     def set(self, value, *, fast=False):
-        """対象の行列属性へ直接書き込む。所有ノードのTRSへ委譲しない。
+        """対象の行列アトリビュートへ直接書き込む。所有ノードのTRSへ委譲しない。
 
         Args:
             value (Matrix | Iterable[float]): 設定する4x4行列。
@@ -39,8 +39,8 @@ class MatrixPlug(Plug):
             MatrixPlug: 自身。
 
         Raises:
-            TypeError: worldMatrixなどの書込み不可属性を指定した場合。
-            RuntimeError: 所有ノード・属性が無効、またはMayaが更新を拒否した場合。
+            TypeError: worldMatrixなどの書込み不可アトリビュートを指定した場合。
+            RuntimeError: 所有ノード・アトリビュートが無効、またはMayaが更新を拒否した場合。
 
         ノード自体の変換にはTransform.set_matrixを使う。
         """

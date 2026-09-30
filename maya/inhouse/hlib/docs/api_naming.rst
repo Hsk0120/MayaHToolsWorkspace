@@ -19,7 +19,7 @@ APIの命名と移行
 * Mayaの現在の状態・名前・メタ情報を取得する操作: メソッド。
 * 保持している参照・番号・数学値・JSONデータ: プロパティまたはフィールド。
 
-長短フラグ・属性名の扱いは :doc:`flag_aliases` を参照してください。
+長短フラグ・アトリビュート名の扱いは :doc:`flag_aliases` を参照してください。
 
 主な改名
 ----------------------------------------------------------------------
@@ -51,7 +51,7 @@ APIの命名と移行
    * - EulerRotation.asDegrees()
      - as_degrees()。
    * - EulerRotation.order(名前の文字列)
-     - order_name。order はom2と同じ番号(int、MayaのrotateOrder属性と同じ並び)になった。
+     - order_name。order はom2と同じ番号(int、MayaのrotateOrderアトリビュートと同じ並び)になった。
    * - Transform.get_rotate()(XYZ順序の値)
      - get_rotate()はcmds.xformと同じくノードのrotateOrderの値になった。XYZ順序はget_euler()。
        set_rotate()の3成分もノードのrotateOrderの値として扱う。
@@ -188,8 +188,8 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   ワールド空間だったため、移行時は ``get_matrix(ws=True)`` とします。
 * DAGパスは ``path(full=False)`` / ``path(full=True)``。DGにも対応する
   ``name()`` / ``full_name()`` は別の用途として維持します。
-* 属性取得は ``plug()`` に統一しました。
-* ``MatrixPlug.get()`` / ``set(value, fast=False)`` は対象属性だけを読み書きします。
+* アトリビュート取得は ``plug()`` に統一しました。
+* ``MatrixPlug.get()`` / ``set(value, fast=False)`` は対象アトリビュートだけを読み書きします。
   所有ノードの変換には ``Transform.get_matrix()`` / ``set_matrix()`` を使います。
   ``MatrixPlug`` の ``ws`` 引数と ``set_value`` は廃止しました。
 * 表示は ``Transform.set_visibility(state, fast=False)``、ミュートは
@@ -214,12 +214,12 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 ジョイント回転のフリーズは、それぞれの意味が明確な既存メソッドを維持しています。
 
 
-属性と状態設定の追加整理
+アトリビュートと状態設定の追加整理
 ----------------------------------------------------------------------
 
 * ``Double3Plug.set`` はTransformへ委譲せず、対象チャンネルだけを書き込みます。
   旧コードで姿勢の変更を意図していた場合はTransformの ``set_rotate`` 等へ移行します。
-* 全Plugの ``get`` から ``ws`` を削除しました。属性の値に空間指定はありません。
+* 全Plugの ``get`` から ``ws`` を削除しました。アトリビュートの値に空間指定はありません。
 * ``set_locked`` / ``set_keyable`` / ``set_channel_box`` は、それぞれ
   ``set_flags(locked=...)`` / ``set_flags(keyable=...)`` / ``set_flags(channel_box=...)``
   へ統一しました。同時指定もでき、全フラグを検証してから更新します。
@@ -312,7 +312,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 * AnimCurve / BlendColors / BlendWeighted / MultMatrix / DistanceBetween:
   出力Plugは ``output_plug()``。
 * Shape / Transform: Maya APIの関数セット取得は ``dag_fn()``。
-* Plug: 属性名の文字列は ``attribute_name()``。
+* Plug: アトリビュート名の文字列は ``attribute_name()``。
 * Namespace / UiElement: 保持する名前は ``name`` プロパティ。
   Mayaへ照会する ``Node.name()`` やUIを解決する ``TimeSlider.name()`` はメソッドです。
 
@@ -353,7 +353,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
    * - ``Node.move_attribute()``
      - ``move_attribute_order()`` （Channel Boxの並び順変更）
    * - ``Transform.set_visible()``
-     - ``set_visibility()`` （自身のvisibility属性だけを変更）
+     - ``set_visibility()`` （自身のvisibilityアトリビュートだけを変更）
    * - ``Container.create_node(kind=...)``
      - ``create_node(type=...)``
 
@@ -379,7 +379,7 @@ weight未設定時は要素を作らず1を返します。
 
 ``DecomposeMatrix.get_input()`` / ``input_plug()`` は単一行列入力を扱い、
 ``get_rotate_order()`` はMayaの回転順序番号0〜5を返します。
-``Transform.get_visibility()`` は自身の属性値を返します。
+``Transform.get_visibility()`` は自身のアトリビュート値を返します。
 親・表示レイヤーを含む最終的な可視性判定ではありません。
 
 成分別編集とメンバー入力
@@ -404,15 +404,15 @@ DAGノードでは保持するインスタンスのパスも区別します。
 
 ノードのハッシュは生成時のMayaハンドルから保持する固定値です。
 別インスタンスが異なる比較結果でも、同じハッシュになることがあります。
-Plugは所有ノードのハッシュと生成時の属性パス（配列番号を含む）を使用し、
-等価比較では生存中のMPlugと生成時の属性パスを確認します。
+Plugは所有ノードのハッシュと生成時のアトリビュートパス（配列番号を含む）を使用し、
+等価比較では生存中のMPlugと生成時のアトリビュートパスを確認します。
 改名・削除によって保持中のハッシュを変更しません。ハッシュ値は永続IDではなく、
 JSON等へ保存して次のMayaセッションの検索に使用しないでください。
 
 Undoキューに残る削除済み対象は生存している場合があり、同じ対象として比較できます。
 完全に破棄された参照同士は等価ではありません。
-動的属性の改名後に新しく取得したPlugは、保持中のPlugと生成時の属性パスが異なるため
-等価にはなりません。必要な場合は属性の改名後に参照を取得し直してください。
+動的アトリビュートの改名後に新しく取得したPlugは、保持中のPlugと生成時のアトリビュートパスが異なるため
+等価にはなりません。必要な場合はアトリビュートの改名後に参照を取得し直してください。
 Componentはシェイプのインスタンス・成分種類・番号で比較します。
 トポロジー変更による番号の意味の変化は追跡しません。UVは現在のUVセットを扱います。
 可変の数学型とColorは引き続きハッシュ不可です。
@@ -453,11 +453,11 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
      - 名前、Node、Plug、単体Component、MObject、MDagPath、MPlug
      - ノード型に対応するNode派生。Plug/Componentは所有ノード
    * - ``hlib.getPlug(value)``
-     - 属性名、Plug、MPlug
-     - 属性型に対応するPlug。既存Plugはそのまま
+     - アトリビュート名、Plug、MPlug
+     - アトリビュート型に対応するPlug。既存Plugはそのまま
    * - ``node.plug(name)``
-     - そのノードの属性名・属性パス
-     - 属性型に対応するPlug
+     - そのノードのアトリビュート名・アトリビュートパス
+     - アトリビュート型に対応するPlug
    * - ``Nodes(values)`` と派生コレクション
      - 共通入力解決で扱える対象列
      - 要素型を検証したコレクション
@@ -488,8 +488,8 @@ Plug派生の直接コンストラクターは、拡張実装で指定クラス�
 
    * - 対象
      - fastの制限
-   * - Plug・Transform・Jointなどの属性更新
-     - 対応する属性型とフラグのみ。未対応型・フラグはNotImplementedError
+   * - Plug・Transform・Jointなどのアトリビュート更新
+     - 対応するアトリビュート型とフラグのみ。未対応型・フラグはNotImplementedError
    * - Vertex/CV・UV・形状ミラー
      - 入力履歴付き形状は未対応。CV更新では周期カーブも未対応
    * - 一括操作

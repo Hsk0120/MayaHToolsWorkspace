@@ -124,7 +124,7 @@ class DuplicateShortNameTest(_InteropCase):
         dup2.plug("tx").disconnect()
         self.assertFalse(cmds.isConnected(str(source.plug("tx")), str(dup2.plug("tx"))))
         self.assertEqual(dup1.plug("tx").source().full_name(), source.name() + ".translateX")
-        # 接続先に MPlug や一意な属性名も指定できる。
+        # 接続先に MPlug や一意なアトリビュート名も指定できる。
         source.plug("ty").connect(dup2.plug("ty").mplug())
         source.plug("tz").connect(dup2.plug("tz").full_name())
         self.assertTrue(cmds.isConnected(source.plug("ty"), dup2.plug("ty")))
@@ -147,7 +147,7 @@ class DuplicateShortNameTest(_InteropCase):
 
     def test_unresolved_index_plug_is_still_rejected(self):
         _, mesh = self.cube()
-        # 要素を指定した名前は解決でき、属性型は属性定義から求める(要素は作らない)。
+        # 要素を指定した名前は解決でき、アトリビュート型はアトリビュート定義から求める(要素は作らない)。
         name = mesh.name() + ".instObjGroups[0].objectGroups[0].objectGrpCompList"
         resolved = to_plug(name)
         self.assertEqual(attribute_type(resolved.mplug()), "componentList")
@@ -156,7 +156,7 @@ class DuplicateShortNameTest(_InteropCase):
             mesh.plug("instObjGroups[0].objectGroups[0].objectGrpCompList").full_name(), name
         )
         # 要素を指定しない子は cmp[-1].child のような maya.cmds で解決できないプラグになるため拒否する。
-        # 配列複合属性の子の配列(cmp[-1].childArray)も同じ(ArrayPlug でも str() を解決できない)。
+        # 配列複合アトリビュートの子の配列(cmp[-1].childArray)も同じ(ArrayPlug でも str() を解決できない)。
         for name in ("objectGrpCompList", "objectGroups"):
             with self.subTest(name=name):
                 with self.assertRaises(RuntimeError):
@@ -254,7 +254,7 @@ class NamingSpecTest(_InteropCase):
 
     def test_plug_names_equal_node_name_and_attribute_path(self):
         # full_name() は短い名前が一意なノードで MPlug.name() をそのまま返す(高速経路)。
-        # どのノード・属性でも「Node.name() + '.' + 属性パス」と同じ名前になること。
+        # どのノード・アトリビュートでも「Node.name() + '.' + アトリビュートパス」と同じ名前になること。
         from hlib._core.coerce import plug_path
 
         transform, mesh = self.cube()
@@ -418,7 +418,7 @@ class HlibCommandInputTest(_InteropCase):
             self.assertFalse(node.is_valid())
         with self.assertRaises(ValueError):
             hlib.delete([])
-        # maya.cmds.delete は属性名を渡してもエラーを表示するだけで何もしないため、Plug は拒否する。
+        # maya.cmds.delete はアトリビュート名を渡してもエラーを表示するだけで何もしないため、Plug は拒否する。
         d = self.create("transform", "d")
         d.add_attribute("values", attribute_type="double", multi=True)
         for value in (
@@ -695,7 +695,7 @@ class NodeArgumentRulesTest(_InteropCase):
         with self.assertRaises(RuntimeError) as context:
             Node(self.ns("doesNotExist"))
         self.assertIn("見つかりません", str(context.exception))
-        # Components は所有シェイプ、属性の MObject は TypeError、空・削除済みは RuntimeError。
+        # Components は所有シェイプ、アトリビュートの MObject は TypeError、空・削除済みは RuntimeError。
         self.assertIsInstance(hlib.getNode(Vertices(mesh, [0, 1])), Mesh)
         with self.assertRaises(TypeError):
             hlib.getNode(mesh.plug("visibility").mplug().attribute())
@@ -766,8 +766,8 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertEqual(
             [item.node.full_name() for item in Selection([str(plug)]).plugs()], [second.full_name()]
         )
-        # 現在の選択(MSelectionList)は属性のインスタンスを保持しないが、インスタンスごとの
-        # 属性(worldMatrix[1])は要素番号のインスタンスとして取得できる。
+        # 現在の選択(MSelectionList)はアトリビュートのインスタンスを保持しないが、インスタンスごとの
+        # アトリビュート(worldMatrix[1])は要素番号のインスタンスとして取得できる。
         world = second.plug("worldMatrix").element(1)
         cmds.select(str(world))
         captured = Selection.capture()
@@ -778,7 +778,7 @@ class InstanceSpecificWrapperTest(_InteropCase):
         box, _ = self.cube("box")
         instance = cmds.ls(cmds.instance(box.full_name(), name="box1")[0], long=True)[0]
         shape = instance + "|" + self.ns("boxShape")
-        # transform の名前でシェイプの属性を指す場合も、名前が指すインスタンスのシェイプになる。
+        # transform の名前でシェイプのアトリビュートを指す場合も、名前が指すインスタンスのシェイプになる。
         for text in (instance + ".castsShadows", self.ns("box1.castsShadows")):
             with self.subTest(text=text):
                 self.assertEqual(to_plug(text).node.full_name(), shape)
@@ -817,12 +817,12 @@ class InstanceSpecificWrapperTest(_InteropCase):
 
 
 class ComponentNamedAttributeTest(_InteropCase):
-    """コンポーネント名としても解釈される属性(pnts・controlPoints)の名前を検証する。"""
+    """コンポーネント名としても解釈されるアトリビュート(pnts・controlPoints)の名前を検証する。"""
 
     def test_str_plug_round_trips(self):
         transform, mesh = self.cube("pc")
         point = mesh.plug("pnts").element(3, create=True)
-        # MSelectionList は "pcShape.pnts[3]" を頂点として登録するが、属性として解決できる。
+        # MSelectionList は "pcShape.pnts[3]" を頂点として登録するが、アトリビュートとして解決できる。
         self.assertEqual(to_plug(str(point)).full_name(), point.full_name())
         self.assertEqual(to_plug(str(point) + ".pntx").full_name(), point.full_name() + ".pntx")
         self.assertEqual(
@@ -838,7 +838,7 @@ class ComponentNamedAttributeTest(_InteropCase):
         self.assertEqual(to_plug(str(control_point)).full_name(), control_point.full_name())
         # ノードを求める場合は、コンポーネントと同じく所有シェイプになる。
         self.assertEqual(hlib.getNode(str(point)).full_name(), mesh.full_name())
-        # コンポーネントの名前・範囲指定は属性ではない。
+        # コンポーネントの名前・範囲指定はアトリビュートではない。
         for text in (mesh.name() + ".vtx[3]", mesh.name() + ".pnts[0:3]"):
             with self.subTest(text=text):
                 with self.assertRaises(TypeError):
@@ -854,7 +854,7 @@ class ComponentNamedAttributeTest(_InteropCase):
                 self.assertEqual(
                     list(mesh.plug("pnts").mplug().getExistingArrayAttributeIndices()), []
                 )
-        # ワールド空間属性も要素を作らない(属性型の判定で評価も起こさない)。
+        # ワールド空間アトリビュートも要素を作らない(アトリビュート型の判定で評価も起こさない)。
         world = transform.plug("worldMatrix").mplug()
         before = list(world.getExistingArrayAttributeIndices())
         to_plug(transform.name() + ".worldMatrix[7]")
@@ -871,7 +871,7 @@ class PlugCreationSideEffectTest(_InteropCase):
 
     def test_plug_creation_never_creates_elements(self):
         averages = [self.create("plusMinusAverage", "pma%d" % index) for index in range(3)]
-        # 同じ属性を何度 Plug にしても(以前はキャッシュの状態で結果が変わっていた)要素は作られない。
+        # 同じアトリビュートを何度 Plug にしても(以前はキャッシュの状態で結果が変わっていた)要素は作られない。
         to_plug(averages[0].name() + ".input1D[10]")
         to_plug(averages[1].name() + ".input1D[10]")
         averages[1].plug("input1D[12]")
@@ -883,7 +883,7 @@ class PlugCreationSideEffectTest(_InteropCase):
             child = to_plug(mesh.name() + ".pnts[50].pntx")
             self.assertEqual(child.full_name(), mesh.name() + ".pnts[50].pntx")
             self.assertEqual(self.existing(mesh.plug("pnts")), [])
-        # 動的属性も要素を作らない。
+        # 動的アトリビュートも要素を作らない。
         network = self.create("network", "net")
         network.add_attribute("values", attribute_type="double", multi=True)
         to_plug(network.name() + ".values[4]")
@@ -926,7 +926,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         _, mesh = self.cube()
         arrays = ("edge", "face", "vrts", "uvpt", "pnts")
         before = {name: self.existing(mesh.plug(name)) for name in arrays}
-        # mesh の内部属性は maya.cmds.getAttr(type=True) では例外になるが、属性定義から型を求める。
+        # mesh の内部アトリビュートは maya.cmds.getAttr(type=True) では例外になるが、アトリビュート定義から型を求める。
         for path, expected in (
             ("edge[1]", "long3"),
             ("face[1]", "polyFaces"),
@@ -974,14 +974,14 @@ class PlugCreationSideEffectTest(_InteropCase):
             choice = self.create("choice", "choice_" + label)
             cmds.connectAttr(str(plug), choice.name() + ".input[0]")
             choices[label] = choice
-        # cmds.getAttr(type=True) と同じく、行列を保持する generic 属性は MatrixPlug になる。
+        # cmds.getAttr(type=True) と同じく、行列を保持する generic アトリビュートは MatrixPlug になる。
         for path in ("output", "input[0]"):
             with self.subTest(path=path):
                 plug = choices["matrix"].plug(path)
                 self.assertEqual(type(plug).__name__, "MatrixPlug")
                 self.assertEqual(type(plug.get()).__name__, "Matrix")
                 self.assertAlmostEqual(list(plug.get())[12], 2.0)
-        # 数値の組を保持する generic 属性は子を持たないため基底の Plug のまま(get() は tuple)。
+        # 数値の組を保持する generic アトリビュートは子を持たないため基底の Plug のまま(get() は tuple)。
         output = choices["double3"].plug("output")
         self.assertIs(type(output), Plug)
         self.assertEqual(output.get(), (2.0, 0.0, 0.0))
@@ -993,7 +993,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         self.assertEqual(self.existing(choices["matrix"].plug("input")), [0])
 
     def test_value_dependent_attributes_avoid_evaluation(self):
-        # 入力接続のある要素は接続元の属性の型を使い、上流を評価しない。
+        # 入力接続のある要素は接続元のアトリビュートの型を使い、上流を評価しない。
         counter = "hlibInteropEval_" + uuid.uuid4().hex[:8]
         source = self.create("transform", "src")
         middle = self.create("transform", "mid")
@@ -1007,7 +1007,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         driven = self.create("transform", "driven")
         cmds.connectAttr(
             middle.plug("rx"), driven.plug("tx")
-        )  # unitConversion(generic 属性)を経由する
+        )  # unitConversion(generic アトリビュート)を経由する
         cmds.getAttr(driven.plug("tx"))
         cmds.getAttr(choice.name() + ".output")
 
@@ -1023,7 +1023,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         self.assertEqual([type(plug).__name__ for plug in destinations], ["Plug"])
         # 入力接続の無い出力は cmds.getAttr(type=True) と同じく値を読む(評価が起こる)。
         self.assertEqual(type(choice.plug("output")).__name__, "MatrixPlug")
-        # 読み取りできない generic 属性(transform 系ノード共通の geometry)は値を読まない。
+        # 読み取りできない generic アトリビュート(transform 系ノード共通の geometry)は値を読まない。
         # field は geometry の評価で falloffCurve[0] などの要素を作るため、読むとシーンが変わる。
         field = Node(cmds.createNode("dragField", name="drag", skipSelect=True))
         arrays = ("falloffCurve", "curveRadius", "axialMagnitude")
@@ -1034,7 +1034,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         self.assertEqual({name: self.existing(field.plug(name)) for name in arrays}, before)
 
     def test_chained_value_dependent_sources_are_evaluated(self):
-        # 接続元も値によって型が変わる属性(unitConversion.output、choice.output)なら接続元を辿り、
+        # 接続元も値によって型が変わるアトリビュート(unitConversion.output、choice.output)なら接続元を辿り、
         # 入力接続の無い接続元の値を読むため、上流の評価が起こる(cmds.getAttr(type=True) と同じ)。
         counter = "hlibInteropChain_" + uuid.uuid4().hex[:8]
         source = self.create("transform", "src")
@@ -1047,7 +1047,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         driven = self.create("transform", "driven")
         cmds.connectAttr(
             middle.plug("rx"), driven.plug("tx")
-        )  # unitConversion(generic 属性)を経由する
+        )  # unitConversion(generic アトリビュート)を経由する
         conversion = cmds.listConnections(
             str(driven.plug("tx")), source=True, destination=False, type="unitConversion"
         )[0]
@@ -1078,7 +1078,7 @@ class PlugCreationSideEffectTest(_InteropCase):
                     self.assertEqual(type(element).__name__, "MatrixPlug")
 
     def test_evaluation_side_effects_match_maya_cmds(self):
-        # 計算される generic 属性の Plug を作ると値を読むため、評価でワールド空間の出力の要素が
+        # 計算される generic アトリビュートの Plug を作ると値を読むため、評価でワールド空間の出力の要素が
         # 作られる場合がある(インスタンス化されたシェイプを拘束元にした geometryConstraint)。
         # cmds.getAttr(type=True) と同じ結果になることを確かめる。
         def existing_after(read):
@@ -1139,7 +1139,7 @@ class PlugCreationSideEffectTest(_InteropCase):
 
 
 class PlugValidityTest(_InteropCase):
-    """所有ノード・動的属性が削除された Plug を安全に扱えることを検証する。"""
+    """所有ノード・動的アトリビュートが削除された Plug を安全に扱えることを検証する。"""
 
     def test_deleted_dynamic_attribute(self):
         node = self.create("transform", "t")
@@ -1154,7 +1154,7 @@ class PlugValidityTest(_InteropCase):
         self.assertTrue(plug.is_valid())
         for name in ("foo", "arr", "cmp"):
             cmds.deleteAttr(node.name() + "." + name)
-        # 削除済みの属性の MPlug で値を読み書きすると Maya が異常終了するため、RuntimeError にする。
+        # 削除済みのアトリビュートの MPlug で値を読み書きすると Maya が異常終了するため、RuntimeError にする。
         for item in (plug, array_plug, compound, child):
             with self.subTest(plug=type(item).__name__):
                 self.assertFalse(item.is_valid())
@@ -1178,7 +1178,7 @@ class PlugValidityTest(_InteropCase):
                 call()
         with self.assertRaises(ValueError):
             hlib.select(plug)
-        # 同じ名前で追加し直しても、古い Plug は別の属性として無効のまま。
+        # 同じ名前で追加し直しても、古い Plug は別のアトリビュートとして無効のまま。
         node.add_attribute("foo", attribute_type="double")
         self.assertFalse(plug.is_valid())
         with self.assertRaises(RuntimeError):
@@ -1187,7 +1187,7 @@ class PlugValidityTest(_InteropCase):
         self.assertEqual(node.plug("foo").get(), 0.0)
 
     def test_raw_mplug_of_deleted_dynamic_attribute(self):
-        # 生の MPlug も、削除済みの属性なら名前へ変換せず ValueError にする(以前は "t." や
+        # 生の MPlug も、削除済みのアトリビュートなら名前へ変換せず ValueError にする(以前は "t." や
         # "t.foo" を返し、hlib.select がノードを黙って選択していた)。
         from hlib._core.coerce import mplug_attribute_exists, to_name
 
@@ -1225,7 +1225,7 @@ class PlugValidityTest(_InteropCase):
             cmds.undoInfo(state=state)
 
     def test_node_arguments_reject_deleted_attributes(self):
-        # 所有ノードは有効なまま属性だけが削除された Plug・MPlug は、ノードが必要な引数でも
+        # 所有ノードは有効なままアトリビュートだけが削除された Plug・MPlug は、ノードが必要な引数でも
         # 所有ノードへ解決せず、hlib のコマンド(hlib.select など)と同じく ValueError にする。
         # Node(...) の「解決できない対象は RuntimeError」の規則に合わせ、RuntimeError の派生でもある。
         from hlib._core.coerce import DeletedAttributeError, to_node
@@ -1247,7 +1247,7 @@ class PlugValidityTest(_InteropCase):
             cmds.deleteAttr(child.name() + ".foo")
             with self.assertRaises(ValueError):
                 hlib.getNode(mplugs["child"])
-            # Undo で属性が戻れば、同じ Plug・MPlug を再び所有ノードへ解決できる。
+            # Undo でアトリビュートが戻れば、同じ Plug・MPlug を再び所有ノードへ解決できる。
             cmds.undo()
             for value in (plugs["child"], mplugs["child"]):
                 self.assertEqual(hlib.getNode(value).full_name(), child.full_name())
@@ -1314,7 +1314,7 @@ class PlugValidityTest(_InteropCase):
         plug = node.add_attribute("foo", attribute_type="double")
         plug.set(2.0)
         cmds.renameAttr(node.name() + ".foo", "bar")
-        # 名前を変更した属性は同じ属性のまま有効。
+        # 名前を変更したアトリビュートは同じアトリビュートのまま有効。
         self.assertTrue(plug.is_valid())
         self.assertEqual(str(plug), node.name() + ".bar")
         self.assertEqual(plug.get(), 2.0)
@@ -1324,7 +1324,7 @@ class PlugValidityTest(_InteropCase):
             cmds.deleteAttr(node.name() + ".bar")
             self.assertFalse(plug.is_valid())
             cmds.undo()
-            # Undo で削除を取り消した属性は、同じ Plug で再び扱える。
+            # Undo で削除を取り消したアトリビュートは、同じ Plug で再び扱える。
             self.assertTrue(plug.is_valid())
             self.assertEqual(plug.get(), 2.0)
         finally:
@@ -1346,7 +1346,7 @@ class PlugValidityTest(_InteropCase):
 
     def test_plugs_of_nodes_deleted_without_undo(self):
         # Undo の対象から外れた削除(Undo 無効時の削除や flushUndo)では、削除済みノードの MPlug の
-        # 名前・属性の問い合わせで Maya が異常終了するため、名前は空文字列、問い合わせは RuntimeError。
+        # 名前・アトリビュートの問い合わせで Maya が異常終了するため、名前は空文字列、問い合わせは RuntimeError。
         node = self.create("transform", "t")
         node.add_attribute("arr", attribute_type="double", multi=True).element(0, create=True).set(1.0)
         cmds.addAttr(node.name(), longName="cmp", attributeType="double3")
@@ -1417,7 +1417,7 @@ class PlugValidityTest(_InteropCase):
 
 
 class NodePlugPathTest(_InteropCase):
-    """Node.plug() が属性パス・エイリアスを解決することを検証する。"""
+    """Node.plug() がアトリビュートパス・エイリアスを解決することを検証する。"""
 
     def test_attribute_paths(self):
         average = self.create("plusMinusAverage", "pma")
@@ -1460,7 +1460,7 @@ class NodePlugPathTest(_InteropCase):
                 with self.assertRaises(AttributeError):
                     average.plug(path)
                 self.assertFalse(average.has_attribute(path))
-        # 配列要素の番号を含まない配列複合属性の子は maya.cmds で解決できないため拒否する
+        # 配列要素の番号を含まない配列複合アトリビュートの子は maya.cmds で解決できないため拒否する
         # (子が配列の場合も同じ。inputTarget[-1].inputTargetGroup の ArrayPlug は作らない)。
         with self.assertRaises(RuntimeError):
             average.plug("input3Dx")
@@ -1471,7 +1471,7 @@ class NodePlugPathTest(_InteropCase):
                     blend.plug(path)
                 self.assertFalse(blend.has_attribute(path))
         self.assertEqual(type(blend.plug(group)).__name__, "ArrayPlug")
-        # Python の属性アクセスでは hasattr/getattr の既定値が使えるよう AttributeError にする。
+        # Python のアトリビュートアクセスでは hasattr/getattr の既定値が使えるよう AttributeError にする。
         for node, name in (
             (average, "input3Dx"),
             (blend, "inputTargetGroup"),
@@ -1531,7 +1531,7 @@ class NodeConstructionTest(_InteropCase):
 
 
 class CommandEdgeCaseTest(_InteropCase):
-    """hlib のコマンドの細かな規則(None・曖昧な名前・文字列の属性名)を検証する。"""
+    """hlib のコマンドの細かな規則(None・曖昧な名前・文字列のアトリビュート名)を検証する。"""
 
     def test_ls_accepts_none_like_maya_cmds(self):
         joint = self.create("joint", "j")

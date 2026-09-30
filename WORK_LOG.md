@@ -33,6 +33,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 
@@ -43,6 +47,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+| Codex | 2026-09-30 | hlib説明・用語統一の公開準備 | なぜhlibの説明、アトリビュート表記統一、コンポーネント具体例をコミット対象として確認。最新Sphinx -W・diff検査成功。Mayaテストは前回2027全75ファイル成功を継続採用。 |
+
+| Codex | 2026-09-30 | hlib docs/components説明 | ユーザー指示によりUnityへの言及3箇所を削除。Mayaの形状要素と具体例の説明を維持。残存検索・差分検査済み。文言削除のみのためビルド再実行なし。 |
+
+| Codex | 2026-09-30 | hlib docs/components説明 | 概要・形状ガイド・API説明にコンポーネント（頂点・エッジ・フェース・CV・UV）とUnityとの概念の違いを明記。Sphinx -W・diff検査成功。説明のみの変更、Maya実行/公開なし。 |
+
+| Codex | 2026-09-30 | hlib全体・関連規約 | 日本語表記をアトリビュートへ統一。docstring/コメント/メッセージ/テスト/Sphinxと3種ガイドを更新。対象ソース残存0・AST確認、2027全75ファイル成功、Sphinx -W成功。他版再実行/公開なし。 |
+
+| Codex | 2026-09-30 | hlib/docs/whyhlib.rst | なぜhlibを説明資料へ拡充。主要/全体クラス図、設計・Node/Plug操作・行列/Quaternion例を掲載。2027で6例と行列復元/中間回転成功、Sphinx -W成功。GUI目視/Pages公開は未実施。 |
 
 | Codex | 2026-09-30 | 本体未コミット全変更 | ユーザー依頼の全本体変更をコミット・プッシュ対象に整理。diff検査とrunner5テスト成功。Maya全テストは再実行なし。第三者リポジトリSIWeightEditorの2ファイル変更と外部Pythonキャッシュは保持・対象外。 |
 
@@ -259,17 +273,3 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 | Codex | 2026-09-24 | maya/inhouse/hlib/editors/channelBox.py, editors/__init__.py, selection.py, cmds/channelBox.py, cmds/captureSelection.py, __tests__/test_channel_box.py, __tests__/test_selection.py, docs/selection_and_channelbox.rst | 連携ルール確認時に完了作業を追記。ChannelBoxとSelectionを追加。選択復元・Undo・属性解決をstandaloneで検証。ChannelBoxの実UI選択・解除は未検証。未コミット |
 | Claude Code | 2026-09-24 | maya/inhouse/hlib/nodes/node.py, skinCluster.py, maths/matrix.py, maths/easing.py(新規), utils/naming.py(新規), plugs/plug.py | 属性並び替え(move_attribute)・非線形ウェイト再分配(redistribute_weights)・行列ミラー(Matrix.mirrored)・名前サニタイズ(legalize_name)を追加。plug.py の attrType() 呼び出し漏れバグを修正 |
 | Claude Code | 2026-09-24 | WORK_LOG.md(新規), CLAUDE.md, AGENTS.md, .github/copilot-instructions.md | Claude Code/Codex/Copilot並行運用のためのハンドオフファイル(WORK_LOG.md)を新設し、3つの指示ファイルに参照ルールを追記 |
-
-
-
-
-
-
-
-
-
-
-
-
-
-

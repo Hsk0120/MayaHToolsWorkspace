@@ -26,7 +26,7 @@ for _info in sorted(_pkgutil.iter_modules(__path__), key=lambda item: item.name)
         globals()[_info.name] = _function
         __all__.append(_info.name)
     else:
-        # import が親パッケージに設定したモジュール属性も公開しない。
+        # import が親パッケージに設定したモジュールアトリビュートも公開しない。
         globals().pop(_info.name, None)
 
 # 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。

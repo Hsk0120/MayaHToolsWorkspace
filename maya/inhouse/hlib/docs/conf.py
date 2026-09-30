@@ -24,7 +24,7 @@ class _DynamicExportFilter(logging.Filter):
 
 
 class _ReexportedSubpackageFilter(logging.Filter):
-    """hlib/__init__.py がサブパッケージをトップレベル属性として再代入する箇所
+    """hlib/__init__.py がサブパッケージをトップレベルアトリビュートとして再代入する箇所
     （例: ``cmds = importlib.import_module(...)``）で、AutoAPI が同じオブジェクトを
     親ページとサブパッケージページの両方に載せてしまう重複警告だけを無視する。"""
 

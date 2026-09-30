@@ -272,7 +272,7 @@ class CoerceObjectInputTest(unittest.TestCase):
             with self.subTest(value=type(value).__name__):
                 with self.assertRaises(TypeError):
                     to_names(value, allow_plugs=False)
-        # 文字列は解決しないため、属性名の文字列はそのまま渡す。
+        # 文字列は解決しないため、アトリビュート名の文字列はそのまま渡す。
         self.assertEqual(to_names(names, allow_plugs=False), names)
 
     def test_attribute_path_plug(self):

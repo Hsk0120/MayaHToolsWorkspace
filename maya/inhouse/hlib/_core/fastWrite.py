@@ -5,7 +5,7 @@ from ..decorators._fast import is_fast
 
 
 def writable(plug):
-    """ロック・入力接続・書込み不能属性をAPIで検査する。"""
+    """ロック・入力接続・書込み不能アトリビュートをAPIで検査する。"""
     current = plug
     while True:
         if current.isLocked or current.isDestination:
@@ -21,7 +21,7 @@ def writable(plug):
 
 
 def check_range(plug, value):
-    """cmds.setAttrと同様、属性に設定されたハード範囲を検査する。"""
+    """cmds.setAttrと同様、アトリビュートに設定されたハード範囲を検査する。"""
     attribute = plug.attribute()
     if attribute.hasFn(om.MFn.kUnitAttribute):
         fn = om.MFnUnitAttribute(attribute)

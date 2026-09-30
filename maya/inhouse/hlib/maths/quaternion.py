@@ -233,7 +233,7 @@ class Quaternion(om2.MQuaternion):
         Returns:
             tuple: ``(_rebuild, (type(self), (x, y, z, w))[, state])``。
             利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
-            属性は再構築時に復元する。
+            アトリビュートは再構築時に復元する。
         """
         return _reduce_value(self, (self.x, self.y, self.z, self.w))
 
@@ -251,7 +251,7 @@ class Quaternion(om2.MQuaternion):
     def __copy__(self):
         """同じ型・同じ成分の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性も浅く写す。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
 
         Returns:
             Quaternion: 自身と同じクラスの新しいインスタンス。
@@ -261,7 +261,7 @@ class Quaternion(om2.MQuaternion):
     def __deepcopy__(self, memo):
         """同じ型・同じ成分の複製を返す。
 
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つ属性は深く複製する。
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
 
         Args:
             memo (dict): copy.deepcopy の memo。

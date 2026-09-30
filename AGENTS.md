@@ -2,6 +2,8 @@
 
 ## 基本方針
 
+- hlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
+
 - Aiderへの実装委譲は行わない。Maya開発時のGPU・メモリ競合を避けるため、ローカルOllamaも作業のために自動起動・モデルロードしない。実装・レビュー・検証は担当エージェントが直接行う。ユーザーが明示的に再開を指示するまで、この方針を維持する。
 
 - C++の内製コードは日本語のDoxygen形式（`@brief`・`@param`・`@return`、必要時`@note`）でファイル・クラス・全ての名前付き関数を説明する。初心者が追えるよう、所有権・Qtシグナル/スロット・非同期処理・Maya呼出の理由もコメントする。引数や戻り値がないタグは省略し、自明な各行の逐語説明は避ける。PythonはGoogle形式docstringを使用する。詳細は `docs/cpp-documentation.md` を参照する。外部submoduleへ一括適用しない。
@@ -10,9 +12,9 @@
 
 - hlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/hlib-api-design.md` を参照する。
 
-- hlib/hlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。hlib.cmdsの追加は既存の入力解決・短縮フラグ・Undo規則に合わせ、ノード/属性/UI参照はhlibオブジェクトで返す。数値・真偽値等の照会値は値として返す。生のcmds転送クラスは追加しない。
+- hlib/hlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。hlib.cmdsの追加は既存の入力解決・短縮フラグ・Undo規則に合わせ、ノード/アトリビュート/UI参照はhlibオブジェクトで返す。数値・真偽値等の照会値は値として返す。生のcmds転送クラスは追加しない。
 
-- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`maths`・`json`・`utils`・`general`・`components`・`decorators` を基本とし、新しいサービスごとにフォルダを増やさない。ノード/属性以外のMaya共通クラス（作業環境・シーン・UI・イベント・プラグイン）は `general`、汎用関数は `utils`、デコレータは `decorators` へ置く。`hlib_*` も該当する分類に合わせる。
+- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`maths`・`json`・`utils`・`general`・`components`・`decorators` を基本とし、新しいサービスごとにフォルダを増やさない。ノード/アトリビュート以外のMaya共通クラス（作業環境・シーン・UI・イベント・プラグイン）は `general`、汎用関数は `utils`、デコレータは `decorators` へ置く。`hlib_*` も該当する分類に合わせる。
 
 - hlib.cmdsの公開関数とファイルは同名のlowerCamelCaseとし、create/add/set/get等の動詞+対象で命名する。create/add/setは照会を兼ねず、照会・既存対象の編集はオブジェクトのメソッドへ寄せる。lsは慣用名として維持し、delete/duplicate/select等の動詞も維持する。旧名の互換入口は残さず使用側を更新する。
 
@@ -24,7 +26,7 @@
 
 - about/currentTime/cutKey/deleteUI/keyframe/listConnections/listHistory/listRelatives/menu/menuItem/objExists/parent/playbackOptions/setKeyframe はmaya.cmdsを直接使用する。hrigにも適用し、同名hlibラッパーを再追加しない。必要なNode/Plug変換は使用側で明示する。
 
-- hrigのPythonコードはhlibの命名・書式・日本語Google形式docstringに合わせる。ノード・属性・接続・Undo・イベント管理はhlibの公開APIを基本にし、リグに依存しない機能はhlibへ還元する。具体的な境界と記述例は `docs/hrig-development.md` を参照する。
+- hrigのPythonコードはhlibの命名・書式・日本語Google形式docstringに合わせる。ノード・アトリビュート・接続・Undo・イベント管理はhlibの公開APIを基本にし、リグに依存しない機能はhlibへ還元する。具体的な境界と記述例は `docs/hrig-development.md` を参照する。
 
 - 外部ツールの調査メモ・比較表・候補一覧・調査インベントリは `docs/research/` にローカル保存し、Gitへ登録・プッシュしたりSphinxへ掲載したりしない。公開ドキュメントには実装済み機能の仕様・使い方を記載する。
 
@@ -45,7 +47,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 | パス | 役割 |
 | --- | --- |
 | `maya/inhouse/HTools/` | Mayaメニューから実行する内製ツール |
-| `maya/inhouse/hlib/` | ノード・属性ラッパー、数学型、共通ユーティリティ |
+| `maya/inhouse/hlib/` | ノード・アトリビュートラッパー、数学型、共通ユーティリティ |
 | `maya/inhouse/MayaCommandPorts/` | GUI起動時のcommandPort初期化 |
 | `maya/inhouse/MayaCinematicCameraHUD/` | C++プラグイン(別リポジトリのsubmodule)。ビルドは `tools/build_maya_plugin.py`、ロードは `maya/modules/*.mod` |
 | `maya/inhouse/integrations/` | SlackやmGearとの連携 |
@@ -87,7 +89,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 
 ### hlib
 
-- ノード・属性ラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
+- ノード・アトリビュートラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
 - 型の追加は `_core/discovery.py` / `_core/registry.py` と既存の `@node_wrapper` / `@plug_wrapper` に合わせる。自動登録を重複する手動登録を加えない。
 - 静的解析(Pylance/pyright)は、リポジトリ直下の `pyrightconfig.json` に設定を集約している。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
 - `hlib.createNode` など実行時に動的公開される名前は、`hlib/__init__.py`・`hlib/cmds/__init__.py`・`hlib/nodes/__init__.py` の `if TYPE_CHECKING:` ブロックで静的解析へ宣言している。コマンドやノードラッパーを追加したら同ブロックにも追記する(`test_typing_exports.py` が不一致を検出する)。

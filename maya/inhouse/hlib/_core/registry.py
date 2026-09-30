@@ -73,7 +73,7 @@ def collection_export(public=True):
 
 
 def plug_wrapper(attr_type, public=True):
-    """Maya の属性データ型と Python wrapper class の対応を宣言する。
+    """Maya のアトリビュートデータ型と Python wrapper class の対応を宣言する。
 
     Args:
         attr_type (str): ``cmds.getAttr(..., type=True)`` が返す型名。
@@ -89,7 +89,7 @@ def plug_wrapper(attr_type, public=True):
         raise ValueError("attr_type must be a non-empty string")
 
     def decorate(wrapper_class):
-        """wrapper class に属性型と公開設定を付与する。
+        """wrapper class にアトリビュート型と公開設定を付与する。
 
         Args:
             wrapper_class (type): メタデータを付与するクラス。
@@ -110,7 +110,7 @@ def plug_wrapper(attr_type, public=True):
 
 
 class NodeRegistry:
-    """ノード型・属性型などの文字列キーとラッパークラスを対応付ける登録表。"""
+    """ノード型・アトリビュート型などの文字列キーとラッパークラスを対応付ける登録表。"""
 
     def __init__(self, fallback_class, resolve_inherited_types=False):
         """フォールバッククラスと空のノード型対応表を初期化する。
@@ -119,7 +119,7 @@ class NodeRegistry:
             fallback_class (type): 未登録キーに対して使用するクラス。
             resolve_inherited_types (bool): ``True`` の場合、完全一致が
                 無いキーに対して Maya のノードタイプ継承チェーンを辿り、
-                最も近い登録済み祖先型のクラスを返す(Plug の属性型など、
+                最も近い登録済み祖先型のクラスを返す(Plug のアトリビュート型など、
                 Mayaのノードタイプ継承と無関係なキー体系では使わない)。
 
         Returns:
@@ -207,10 +207,10 @@ class NodeRegistry:
         """登録済みクラスを返す。未登録なら ``None``。
 
         フォールバックを伴わずに「完全一致する登録があるか」だけを知りたい場合に使う
-        （例: Plug の属性型 dispatch）。
+        （例: Plug のアトリビュート型 dispatch）。
 
         Args:
-            key (str): 登録キー（nodeType または属性型など）。
+            key (str): 登録キー（nodeType またはアトリビュート型など）。
 
         Returns:
             type | None: 登録済みクラス。

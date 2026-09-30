@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 基本方針
 
+- hlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
+
 - hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。
 
 - Aiderへの実装委譲は行わない。Maya開発時のGPU・メモリ競合を避けるため、ローカルOllamaも作業のために自動起動・モデルロードしない。実装・レビュー・検証は担当エージェントが直接行う。ユーザーが明示的に再開を指示するまで、この方針を維持する。
@@ -123,7 +125,7 @@ tools/
 
 **その他**
 - `gt-tools`: 汎用のアニメーション/リギング補助ツール集(GT Tools)。
-- `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義属性を並び替えるツール。
+- `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義アトリビュートを並び替えるツール。
 - `CharcoalEditor2`(既存記載): エディタ系ツール。
 
 **汎用Pythonライブラリ(Maya専用ツールではない)**
@@ -144,11 +146,11 @@ tools/
 
 ### hlib ― Maya API 2.0 ベースの共通ライブラリ
 
-Maya公式 `maya.cmds` ではなく `maya.api.OpenMaya`(API 2.0)を主に用いた、ノード/属性(plug)のラッパーとメンテナンス性重視の動的登録機構を提供する。
+Maya公式 `maya.cmds` ではなく `maya.api.OpenMaya`(API 2.0)を主に用いた、ノード/アトリビュート(plug)のラッパーとメンテナンス性重視の動的登録機構を提供する。
 
-- **動的wrapper登録** (`hlib/_core/discovery.py`, `hlib/_core/registry.py`): `hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、サブパッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/属性型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけで実行時には登録される**。ただしエディターの静的解析向けに、`hlib/nodes/__init__.py`(ノードクラス)と、コマンドなら `hlib/__init__.py`・`hlib/cmds/__init__.py` の `if TYPE_CHECKING:` ブロックへの追記も必要(漏れは `test_typing_exports.py` が検出する)。同一型に複数クラスを登録しようとすると `ValueError` になる。ノード側は `Node`/`Transform`/`Shape`/`Joint`/`Mesh`/`Camera`/`NurbsCurve`/`SkinCluster`/`IkHandle`/`ObjectSet`/`BlendShape`/`DisplayLayer`/`Cluster`/`Locator`/`Reference`に加え、`Constraint` 系(Parent/Point/Orient/Scale/Aim/PoleVector/Geometry/Normal/Tangent/PointOnPoly の10種)を提供する。これらのクラスは `hlib` 直下には公開されず、`hlib.nodes.Joint` のように所属パッケージ(`hlib.nodes`/`hlib.plugs`/`hlib.maths`/`hlib.components`/`hlib.general`/`hlib.general`/`hlib.general`/`hlib.general`/`hlib.general`)から import する。
-- **ファクトリパターン**: `Node.__new__`(`hlib/nodes/node.py`)が対象の実際の Maya nodeType を調べ、登録済みのサブクラス(例: `Joint`, `SkinCluster`)があれば自動的にそちらへ差し替えてインスタンス化する。呼び出したクラス自身と実際の型が異なれば差し替わる点に注意(例: 非jointノード名を渡して `Joint("name")` を呼んでも、実際の型が `Transform` ならその型が返る)。属性未定義の場合は `__getattr__` がMayaのplugとして解決を試みる(`Plug` を返す)。
-- **maya.cmds・OpenMaya との受け渡し**: `Node`/`Plug`/`Component` はそのまま `maya.cmds` に渡せる(`__str__` が毎回取り直す一意な名前を返す。Plug は「ノードの一意名 + ロング名の属性パス」)。コンポーネントの集まりは cmds がシーケンスとして展開する。`ArrayPlug` 自体と `om2.MObject` は cmds に渡せない。hlib のコマンドは Node/Plug/Component/集まり/`MObject`/`MDagPath`/`MPlug` を受け付ける(`_core/coerce.py`)。Node/Plug を str や `__len__` を持つ型にしない(cmds の解釈が変わる)。仕様は `hlib/docs/cmds_interop.rst`。
+- **動的wrapper登録** (`hlib/_core/discovery.py`, `hlib/_core/registry.py`): `hlib/nodes/*.py` のクラスに `@node_wrapper("<Mayaのnodetype>")`、`hlib/plugs/*.py` のクラスに `@plug_wrapper("<attrType>")` を付けるだけで、サブパッケージ初期化時に `pkgutil` でモジュールを走査して自動的に `NodeRegistry` に登録される。**新しいノード型/アトリビュート型のラッパーを追加する際は新規ファイルを追加してデコレータを付けるだけで実行時には登録される**。ただしエディターの静的解析向けに、`hlib/nodes/__init__.py`(ノードクラス)と、コマンドなら `hlib/__init__.py`・`hlib/cmds/__init__.py` の `if TYPE_CHECKING:` ブロックへの追記も必要(漏れは `test_typing_exports.py` が検出する)。同一型に複数クラスを登録しようとすると `ValueError` になる。ノード側は `Node`/`Transform`/`Shape`/`Joint`/`Mesh`/`Camera`/`NurbsCurve`/`SkinCluster`/`IkHandle`/`ObjectSet`/`BlendShape`/`DisplayLayer`/`Cluster`/`Locator`/`Reference`に加え、`Constraint` 系(Parent/Point/Orient/Scale/Aim/PoleVector/Geometry/Normal/Tangent/PointOnPoly の10種)を提供する。これらのクラスは `hlib` 直下には公開されず、`hlib.nodes.Joint` のように所属パッケージ(`hlib.nodes`/`hlib.plugs`/`hlib.maths`/`hlib.components`/`hlib.general`/`hlib.general`/`hlib.general`/`hlib.general`/`hlib.general`)から import する。
+- **ファクトリパターン**: `Node.__new__`(`hlib/nodes/node.py`)が対象の実際の Maya nodeType を調べ、登録済みのサブクラス(例: `Joint`, `SkinCluster`)があれば自動的にそちらへ差し替えてインスタンス化する。呼び出したクラス自身と実際の型が異なれば差し替わる点に注意(例: 非jointノード名を渡して `Joint("name")` を呼んでも、実際の型が `Transform` ならその型が返る)。アトリビュート未定義の場合は `__getattr__` がMayaのplugとして解決を試みる(`Plug` を返す)。
+- **maya.cmds・OpenMaya との受け渡し**: `Node`/`Plug`/`Component` はそのまま `maya.cmds` に渡せる(`__str__` が毎回取り直す一意な名前を返す。Plug は「ノードの一意名 + ロング名のアトリビュートパス」)。コンポーネントの集まりは cmds がシーケンスとして展開する。`ArrayPlug` 自体と `om2.MObject` は cmds に渡せない。hlib のコマンドは Node/Plug/Component/集まり/`MObject`/`MDagPath`/`MPlug` を受け付ける(`_core/coerce.py`)。Node/Plug を str や `__len__` を持つ型にしない(cmds の解釈が変わる)。仕様は `hlib/docs/cmds_interop.rst`。
 - **`hlib/cmds/` ― ファイル名駆動のコマンド自動公開**: `cmds/<コマンド名>.py` に同名の関数(例: `createNode.py` の `createNode()`)を定義するだけで、`hlib.cmds.<コマンド名>` と `hlib.<コマンド名>` の両方から呼べるようになる(`cmds/__init__.py` の編集は不要。非公開名・サブパッケージ・同名関数を持たないファイルは対象外)。既存コマンドは `createNode`/`ls`/`node`/`constraint`/`scene`。命名は Maya コマンドに合わせてキャメルケース。各モジュールの docstring は Synopsis/Return value/Flags/Examples 形式で書き、Sphinx側の専用テンプレートで個別ページとして生成される。`hlib.reload()` は追加・変更・削除を検出して両方の公開名に反映する。
 - **依存順リロード** (`hlib/_core/reload.py`): `hlib.reload()` がパッケージ配下の現存モジュールをmodule globals内の相互参照から依存グラフを推定し、依存先を先に安全な順序でreloadする。Script Editor上での開発・修正の反映に使う。
 - `hlib/maths/`: `Vector`/`Translation`/`Scale`/`Shear`(`om2.MVector` を継承)、`Quaternion`(`MQuaternion`)、`EulerRotation`(`MEulerRotation`。`Vector` の派生ではない)、`Matrix`(`MMatrix`)。om2 の関数へそのまま渡せ、演算は om2 の実装で高速に行う。意味は om2 に合わせる: `q1*q2` は q1 を先に適用、`v*m` は行ベクトルの方向変換、`m*v` は列ベクトルの積、位置の変換は `Matrix.transform_point()`、分解は `MTransformationMatrix` の規約。値は可変でハッシュ不可(dict のキー・set の要素にできない)。`EulerRotation` は内部値が radian で order は om2 の番号(int。名前は `order_name`)。snake_case のメソッドは hlib の型、om2 由来の camelCase のメソッドは om2 の基底型を返す。`easing` だけは標準 `math` のみ。
@@ -165,7 +167,7 @@ HTools/hlibから独立した最小モジュール(依存は `maya.cmds` / `maya
 ### integrations
 
 - `integrations/slack/`: `post_message(text, channel="random", thread_ts=None)`。環境変数 `SLACK_API_BOT_TOKEN` が未設定または `slack_sdk` が無い場合は `RuntimeError`。
-- `integrations/mgear/guide/`: mGearガイド(`isGearGuide` 属性を持つtransform)の取得・更新ヘルパー。`update_guide()` は呼び出し時に初めて `mgear` を import するため、mGear未導入でも本モジュール自体のimportは可能。
+- `integrations/mgear/guide/`: mGearガイド(`isGearGuide` アトリビュートを持つtransform)の取得・更新ヘルパー。`update_guide()` は呼び出し時に初めて `mgear` を import するため、mGear未導入でも本モジュール自体のimportは可能。
 
 ### C++プラグイン(別リポジトリ)
 
