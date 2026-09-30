@@ -143,38 +143,39 @@ def ancestor_class_diagram(class_name, hierarchy, indent=6):
     return "\n".join(prefix + line for line in body)
 
 
-def overall_class_diagram(hierarchy, indent=6):
-    """hlib全クラスの継承関係を、サブパッケージ単位のnamespaceでまとめたMermaid図を返す。
+def package_class_diagrams(hierarchy):
+    """全クラスをパッケージ別の図に分け、必要な祖先も含めて返す。
 
     Args:
-        hierarchy (dict): collect_class_hierarchy() が返す辞書。
-        indent (int): 各行に付与する半角スペース数。
+        hierarchy (dict): 静的解析で取得したクラス継承情報。
 
     Returns:
-        str: Mermaid classDiagramのソース(字下げ済み)。
+        list[tuple[str, str]]: パッケージ名と字下げ済みMermaidソース。
     """
     groups = {}
     for name, info in hierarchy.items():
-        parts = info["qualname"].split(".")
-        group = parts[1] if len(parts) > 2 else "(root)"
-        groups.setdefault(group, []).append(name)
+        group = info["qualname"].split(".")[1]
+        groups.setdefault(group, set()).add(name)
+    diagrams = []
+    for group, members in sorted(groups.items()):
+        names = set()
+        edges = set()
 
-    body = ["classDiagram"]
-    for group in sorted(groups):
-        body.append(f"    namespace {group} {{")
-        for name in sorted(groups[group]):
-            body.append(f"        class {name}")
-        body.append("    }")
+        def visit(name):
+            if name in names:
+                return
+            names.add(name)
+            for base in hierarchy.get(name, {}).get("bases", []):
+                parent = base.rsplit(".", 1)[-1]
+                edges.add((parent, name))
+                visit(parent)
 
-    edges = set()
-    for name, info in hierarchy.items():
-        for base in info["bases"]:
-            base_short = base.rsplit(".", 1)[-1]
-            edges.add((base_short, name))
-    for base_short, name in sorted(edges):
-        body.append(f"    {base_short} <|-- {name}")
-
-    body.extend(_class_links(hierarchy, hierarchy, "development.html"))
-
-    prefix = " " * indent
-    return "\n".join(prefix + line for line in body)
+        for name in sorted(members):
+            visit(name)
+        # 左から右へ継承を配置し、派生クラスの数で横幅が膨らむのを防ぐ。
+        body = ["classDiagram", "    direction LR"]
+        body.extend(f"    class {name}" for name in sorted(names))
+        body.extend(f"    {base} <|-- {name}" for base, name in sorted(edges))
+        body.extend(_class_links(names, hierarchy, "whyhlib.html"))
+        diagrams.append((group, "\n".join("      " + line for line in body)))
+    return diagrams

@@ -10,7 +10,7 @@ from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
 # リポジトリルートからのCIビルドでも、docs内の補助モジュールを解決する。
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _mermaidClasses import ancestor_class_diagram, collect_class_hierarchy, overall_class_diagram
+from _mermaidClasses import ancestor_class_diagram, collect_class_hierarchy, package_class_diagrams
 
 
 class _DynamicExportFilter(logging.Filter):
@@ -160,20 +160,24 @@ def _write_generated_docs(app):
     """development.rst が .. include:: する全体クラス図の.rstフラグメントを書き出す。"""
     generated_dir = Path(__file__).resolve().parent / "_generated"
     generated_dir.mkdir(exist_ok=True)
-    diagram = overall_class_diagram(_CLASS_HIERARCHY)
     content = (
         "hlib 全体クラス図\n"
         "------------------\n"
         "\n"
-        f"hlib全 {len(_CLASS_HIERARCHY)} クラスの継承関係です"
-        "(サブパッケージ単位でグループ化しています)。\n"
+        f"hlib全 {len(_CLASS_HIERARCHY)} クラスの継承関係"
+        "を分類ごとの図で表示します。矢印の三角側が基底クラスです。\n"
+        "他の分類の基底クラスは、継承を追えるよう各図にも掲載します。\n"
+        "クラス名をクリックするとAPIリファレンスへ移動できます。\n"
         "\n"
-        ".. raw:: html\n"
-        "\n"
-        "   <pre class=\"mermaid\">\n"
-        f"{diagram}\n"
-        "   </pre>\n"
     )
+    for group, diagram in package_class_diagrams(_CLASS_HIERARCHY):
+        content += (
+            f"{group}\n{'~' * max(20, len(group))}\n\n"
+            ".. raw:: html\n\n"
+            "   <pre class=\"mermaid\">\n"
+            f"{diagram}\n"
+            "   </pre>\n\n"
+        )
     (generated_dir / "full_class_diagram.rst").write_text(content, encoding="utf-8")
 
 
