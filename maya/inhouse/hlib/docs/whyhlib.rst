@@ -150,6 +150,11 @@ hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
 数学型：行列・回転・ベクトル
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Python共通の基底クラス ``object`` から、``maya.api.OpenMaya`` （Python API 2.0）、
+hlibの数学型へと継承が続きます。``object`` はPython組み込みのクラスです。
+OpenMayaのクラス名はAutodesk公式リファレンス（Maya 2026）、
+hlibのクラス名はこのドキュメントのAPIリファレンスへリンクしています。
+
 .. raw:: html
 
    <pre class="mermaid">
@@ -159,14 +164,31 @@ hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
           class Quaternion
           class EulerRotation
           class Vector
+          class MMatrix["OpenMaya.MMatrix"]
+          class MQuaternion["OpenMaya.MQuaternion"]
+          class MEulerRotation["OpenMaya.MEulerRotation"]
+          class MVector["OpenMaya.MVector"]
+          class object
+          object <|-- MMatrix
+          object <|-- MQuaternion
+          object <|-- MEulerRotation
+          object <|-- MVector
+          MMatrix <|-- Matrix
+          MQuaternion <|-- Quaternion
+          MEulerRotation <|-- EulerRotation
+          MVector <|-- Vector
+          click MMatrix href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_matrix.html" "Autodesk Python API 2.0: MMatrix" _self
+          click MQuaternion href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_quaternion.html" "Autodesk Python API 2.0: MQuaternion" _self
+          click MEulerRotation href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_euler_rotation.html" "Autodesk Python API 2.0: MEulerRotation" _self
+          click MVector href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_vector.html" "Autodesk Python API 2.0: MVector" _self
           click EulerRotation href "autoapi/hlib/maths/eulerRotation/EulerRotation.html#hlib.maths.eulerRotation.EulerRotation" "hlib.maths.eulerRotation.EulerRotation" _self
           click Matrix href "autoapi/hlib/maths/matrix/Matrix.html#hlib.maths.matrix.Matrix" "hlib.maths.matrix.Matrix" _self
           click Quaternion href "autoapi/hlib/maths/quaternion/Quaternion.html#hlib.maths.quaternion.Quaternion" "hlib.maths.quaternion.Quaternion" _self
           click Vector href "autoapi/hlib/maths/vector/Vector.html#hlib.maths.vector.Vector" "hlib.maths.vector.Vector" _self
    </pre>
 
-数学型はそれぞれ対応するOpenMayaの型を継承しています。
-この概要図では外部の基底クラスを省略しています。
+数学型はそれぞれ対応するOpenMayaの型を直接継承しています。
+例えば ``Matrix`` は ``MMatrix`` の派生クラスで、hlibの操作メソッドを追加しています。
 
 ``Shape`` と ``Transform`` はどちらもDAGノードです。
 シーン上でShapeがTransformの子になることと、クラスの継承は別の関係です。

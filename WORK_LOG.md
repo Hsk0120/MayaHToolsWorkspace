@@ -48,6 +48,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+| Codex | 2026-09-30 | 数学型図の公開準備 | object→OpenMaya→hlibの図と公式リンクの2ファイル差分を確認。前回Maya2027継承確認・Sphinx成功を継続採用し、mainへのコミット対象を確定。 |
+
+| Codex | 2026-09-30 | hlib docs数学型図 | Python組み込みobjectを共通の頂点としてOpenMaya4型→hlib4型の継承を接続。Maya2027 mayapyで4型の直接基底objectを確認、Sphinx -W・diff検査成功。プッシュ未実施。 |
+
+| Codex | 2026-09-30 | hlib docs数学型の図 | OpenMaya MMatrix/MQuaternion/MEulerRotation/MVectorからの直接継承を図示しAutodesk Python API 2.0の公式リンク追加。4型の実装照合・公式ページ確認・Sphinx -W・diff検査成功。ブラウザー描画とプッシュは未実施。 |
+
 | Codex | 2026-09-30 | hlib概要クラス図の公開準備 | 要約版クラス図と作業ログの2ファイルを確認。diff検査成功、前回の継承・リンク・Sphinx検証を継続採用しコミット対象を確定。 |
 
 | Codex | 2026-09-30 | hlib docs/whyhlib | 概要ページの全135クラス図と文字ツリーを、ノード/Plug/コンポーネント/数学型の23代表クラス・4図へ要約。継承とリンク全件・Sphinx -W確認成功。修正版ブラウザー目視・プッシュ未実施。 |
