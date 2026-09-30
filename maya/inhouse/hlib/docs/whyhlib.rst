@@ -60,25 +60,113 @@ hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
 例えばメッシュの頂点・エッジ・フェースや、カーブのCVを指します。
 具体的な操作は :doc:`guide_geometry` を参照してください。
 
-継承によって共通の操作をまとめています。主要な関係は次の通りです。
-全クラスの図はページ末尾に掲載しています。
+代表クラスだけを抜き出した図です。三角の矢印は基底クラスを指します。
+クラス名をクリックするとAPIリファレンスへ移動できます。
 
-.. code-block:: text
+ノード：Joint・Mesh・NurbsCurve
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   Node                          Plug
-   ├─ DagNode                    ├─ CompoundPlug
-   │  ├─ Transform               │  └─ Double3Plug
-   │  │  └─ Joint                ├─ ArrayPlug
-   │  └─ Shape                   └─ MatrixPlug など
-   │     ├─ Mesh
-   │     └─ NurbsCurve など       Component
-   ├─ SkinCluster                ├─ PointComponent
-   ├─ Constraint                 │  ├─ Vertex
-   └─ AnimCurve など             │  └─ CV
-                                 └─ Edge・Face・UV
-   Nodes
-   └─ Transforms
-      └─ Joints
+.. raw:: html
+
+   <pre class="mermaid">
+      classDiagram
+          direction TB
+          class Node
+          class DagNode
+          class Transform
+          class Joint
+          class Shape
+          class Mesh
+          class NurbsCurve
+          Node <|-- DagNode
+          DagNode <|-- Transform
+          Transform <|-- Joint
+          DagNode <|-- Shape
+          Shape <|-- Mesh
+          Shape <|-- NurbsCurve
+          click DagNode href "autoapi/hlib/nodes/dagNode/DagNode.html#hlib.nodes.dagNode.DagNode" "hlib.nodes.dagNode.DagNode" _self
+          click Joint href "autoapi/hlib/nodes/joint/Joint.html#hlib.nodes.joint.Joint" "hlib.nodes.joint.Joint" _self
+          click Mesh href "autoapi/hlib/nodes/mesh/Mesh.html#hlib.nodes.mesh.Mesh" "hlib.nodes.mesh.Mesh" _self
+          click Node href "autoapi/hlib/nodes/node/Node.html#hlib.nodes.node.Node" "hlib.nodes.node.Node" _self
+          click NurbsCurve href "autoapi/hlib/nodes/nurbsCurve/NurbsCurve.html#hlib.nodes.nurbsCurve.NurbsCurve" "hlib.nodes.nurbsCurve.NurbsCurve" _self
+          click Shape href "autoapi/hlib/nodes/shape/Shape.html#hlib.nodes.shape.Shape" "hlib.nodes.shape.Shape" _self
+          click Transform href "autoapi/hlib/nodes/transform/Transform.html#hlib.nodes.transform.Transform" "hlib.nodes.transform.Transform" _self
+   </pre>
+
+アトリビュート：Plug
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. raw:: html
+
+   <pre class="mermaid">
+      classDiagram
+          direction TB
+          class Plug
+          class CompoundPlug
+          class Double3Plug
+          class ArrayPlug
+          class MatrixPlug
+          Plug <|-- CompoundPlug
+          CompoundPlug <|-- Double3Plug
+          Plug <|-- ArrayPlug
+          Plug <|-- MatrixPlug
+          click ArrayPlug href "autoapi/hlib/plugs/arrayPlug/ArrayPlug.html#hlib.plugs.arrayPlug.ArrayPlug" "hlib.plugs.arrayPlug.ArrayPlug" _self
+          click CompoundPlug href "autoapi/hlib/plugs/compoundPlug/CompoundPlug.html#hlib.plugs.compoundPlug.CompoundPlug" "hlib.plugs.compoundPlug.CompoundPlug" _self
+          click Double3Plug href "autoapi/hlib/plugs/double3Plug/Double3Plug.html#hlib.plugs.double3Plug.Double3Plug" "hlib.plugs.double3Plug.Double3Plug" _self
+          click MatrixPlug href "autoapi/hlib/plugs/matrixPlug/MatrixPlug.html#hlib.plugs.matrixPlug.MatrixPlug" "hlib.plugs.matrixPlug.MatrixPlug" _self
+          click Plug href "autoapi/hlib/plugs/plug/Plug.html#hlib.plugs.plug.Plug" "hlib.plugs.plug.Plug" _self
+   </pre>
+
+コンポーネント：頂点・エッジ・フェース・CV・UV
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. raw:: html
+
+   <pre class="mermaid">
+      classDiagram
+          direction TB
+          class Component
+          class PointComponent
+          class Vertex
+          class CV
+          class Edge
+          class Face
+          class UV
+          Component <|-- PointComponent
+          PointComponent <|-- Vertex
+          PointComponent <|-- CV
+          Component <|-- Edge
+          Component <|-- Face
+          Component <|-- UV
+          click CV href "autoapi/hlib/components/cv/CV.html#hlib.components.cv.CV" "hlib.components.cv.CV" _self
+          click Component href "autoapi/hlib/components/component/Component.html#hlib.components.component.Component" "hlib.components.component.Component" _self
+          click Edge href "autoapi/hlib/components/edge/Edge.html#hlib.components.edge.Edge" "hlib.components.edge.Edge" _self
+          click Face href "autoapi/hlib/components/face/Face.html#hlib.components.face.Face" "hlib.components.face.Face" _self
+          click PointComponent href "autoapi/hlib/components/pointComponent/PointComponent.html#hlib.components.pointComponent.PointComponent" "hlib.components.pointComponent.PointComponent" _self
+          click UV href "autoapi/hlib/components/uv/UV.html#hlib.components.uv.UV" "hlib.components.uv.UV" _self
+          click Vertex href "autoapi/hlib/components/vertex/Vertex.html#hlib.components.vertex.Vertex" "hlib.components.vertex.Vertex" _self
+   </pre>
+
+数学型：行列・回転・ベクトル
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. raw:: html
+
+   <pre class="mermaid">
+      classDiagram
+          direction TB
+          class Matrix
+          class Quaternion
+          class EulerRotation
+          class Vector
+          click EulerRotation href "autoapi/hlib/maths/eulerRotation/EulerRotation.html#hlib.maths.eulerRotation.EulerRotation" "hlib.maths.eulerRotation.EulerRotation" _self
+          click Matrix href "autoapi/hlib/maths/matrix/Matrix.html#hlib.maths.matrix.Matrix" "hlib.maths.matrix.Matrix" _self
+          click Quaternion href "autoapi/hlib/maths/quaternion/Quaternion.html#hlib.maths.quaternion.Quaternion" "hlib.maths.quaternion.Quaternion" _self
+          click Vector href "autoapi/hlib/maths/vector/Vector.html#hlib.maths.vector.Vector" "hlib.maths.vector.Vector" _self
+   </pre>
+
+数学型はそれぞれ対応するOpenMayaの型を継承しています。
+この概要図では外部の基底クラスを省略しています。
 
 ``Shape`` と ``Transform`` はどちらもDAGノードです。
 シーン上でShapeがTransformの子になることと、クラスの継承は別の関係です。
@@ -238,8 +326,4 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 Maya標準のコマンドをそのまま使う場面もあります。hlibですべてを置き換える必要はありません。
 シーン編集・ファイル操作・UI操作ではUndoの対応範囲が異なるため、各APIの説明を参照してください。
 
-.. include:: _generated/full_class_diagram.rst
-
-図のクラス名から対応するAPIリファレンスへ移動できます。
-図はソースから生成され、内部の基底クラスも含みます。通常の利用では、上記の代表クラスから
-必要な操作を選び、詳細は :doc:`modules` で確認してください。
+その他のクラスは :doc:`modules` を参照してください。
