@@ -339,7 +339,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         before = {shape.full_name(): self.positions(shape, True) for shape in shapes}
         matrix = cmds.xform(parent.full_name(), query=True, matrix=True, worldSpace=True)
 
-        self.assertIs(parent.mirror(axis='x', ws=True), parent)
+        self.assertIs(parent.mirror_geometry(axis='x', ws=True), parent)
 
         mirrored_shapes = parent.shapes()
         self.assertEqual({shape.full_name() for shape in mirrored_shapes}, set(before))

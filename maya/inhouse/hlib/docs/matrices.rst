@@ -43,6 +43,49 @@ API の引数や戻り値の詳細は、各メソッドのリンク先を参照�
 ``offsetParentMatrix`` や独自の行列アトリビュートへ、TRSを変更せずに値だけを書き込む場合は
 ``plug.set(matrix)`` を使用してください。通常モードではUndo可能です。
 
+別TransformからoffsetParentMatrixへ設定する
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   source = hlib.getNode("source_transform")
+   target = hlib.getNode("target_transform")
+   target.plug("offsetParentMatrix").set(source.get_matrix())
+
+Transformの専用メソッドでも同じ操作ができます。Transforms・Jointsからの一括操作にも対応します。
+
+.. code-block:: python
+
+   target.set_offset_parent_matrix(source.get_matrix())
+   offset = target.get_offset_parent_matrix()
+   transforms.set_offset_parent_matrix(Matrix())  # 各対象を単位行列へ
+
+取得はMatrix、単体の設定は自身、一括操作は各戻り値のリストを返します。
+通常の設定はUndo可能で、``fast=True`` はUndoなしです。
+
+``get_matrix()`` はhlib.maths.Matrixを返し、offsetParentMatrixのMatrixPlug.setへ
+変換なしで渡せます。``get()`` の戻り値もMatrixです。
+これは行列値のコピーであり、接続や自動追従ではありません。
+targetの移動・回転・スケールのチャンネル値は変更しません。
+
+ただし、行列をそのままコピーすることと、ワールド姿勢を一致させることは異なります。
+Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * parentWorld``
+となります。既存のローカル変換や親変換がある場合は、それらも合成されます。
+通常のTransformで ``inheritsTransform=True``、localとparentWorldが逆行列を持つ場合、
+チャンネルを保って別ノードのワールド姿勢へ合わせる例は次のとおりです。
+
+.. code-block:: python
+
+   parent = target.parent_node()
+   parent_world = parent.get_matrix(ws=True) if parent is not None else Matrix()
+   desired_world = source.get_matrix(ws=True)
+   offset = target.get_matrix().inverse() * desired_world * parent_world.inverse()
+   target.plug("offsetParentMatrix").set(offset)
+
+``inheritsTransform=False`` の場合はparent_worldを単位行列として扱います。
+ロックや入力接続がある場合は自動解除せずエラーになります。
+``set(offset, fast=True)`` は直接更新でUndo対象外です。
+
 同じ値を、ノードのアトリビュートを扱う ``Plug`` から取得できます。
 ``worldMatrix`` は配列なので、要素を指定します。
 

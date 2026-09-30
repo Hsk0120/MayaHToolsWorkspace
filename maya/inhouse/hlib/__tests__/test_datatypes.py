@@ -1375,6 +1375,40 @@ def test_class_statements_use_the_om2_bases():
     assert EulerRotation.__bases__ == (om2.MEulerRotation,) and Matrix.__bases__ == (om2.MMatrix,)
 
 
+def test_mirror_value_types():
+    for cls in (Vector, Translation, Scale, Shear):
+        value = cls(1, 2, 3)
+        result = value.mirrored("xz", pivot=(4, 5, 6))
+        assert type(result) is cls
+        assert tuple(result) == (7, 2, 9)
+        assert tuple(value) == (1, 2, 3)
+        assert result.mirror("xz", pivot=(4, 5, 6)) is result
+        assert tuple(result) == tuple(value)
+    for axis in ("x", "y", "z", "xy", "xz", "yz", "xyz"):
+        rotation = EulerRotation(.3, -.4, .7)
+        rotation.order = 4
+        matrix = rotation.to_matrix()
+        expected = matrix.mirrored(axis)
+        for value in (rotation, matrix.quaternion):
+            result = value.mirrored(axis)
+            assert result.to_matrix().isEquivalent(expected, 1e-9)
+            assert result.mirror(axis) is result
+            assert result.to_matrix().isEquivalent(matrix, 1e-9)
+        assert rotation.mirrored(axis).order == rotation.order
+        matrix = Matrix(translate=(1, 2, 3), rotate=rotation, scale=(2, 3, 4))
+        original = Matrix(matrix)
+        assert matrix.mirror(axis, (3, 4, 5)) is matrix
+        matrix.mirror(axis, (3, 4, 5))
+        assert matrix.isEquivalent(original, 1e-9)
+    for axis in ("", "xx", "a", True, 3):
+        try:
+            Matrix().mirrored(axis)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(axis)
+
+
 if __name__ == "__main__":
     import unittest
 

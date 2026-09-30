@@ -39,6 +39,63 @@ class JointTest(unittest.TestCase):
         self.created.append(joint_name)
         return Joint(joint_name)
 
+    def test_segment_scale_compensate_bulk_and_undo(self):
+        from hlib.nodes.joint import Joints
+        parent = self.create_joint("sscParent")
+        child = self.create_joint("sscChild", parent)
+        joints = Joints([parent, child])
+        self.assertEqual(joints.get_segment_scale_compensate(), [True, True])
+        joints.set_segment_scale_compensate(False)
+        self.assertEqual(joints.get_segment_scale_compensate(), [False, False])
+        cmds.undo()
+        self.assertEqual(joints.get_segment_scale_compensate(), [True, True])
+        cmds.redo()
+        self.assertEqual(joints.get_segment_scale_compensate(), [False, False])
+        self.assertIs(child.set_segment_scale_compensate(True, fast=True), child)
+        self.assertTrue(child.get_segment_scale_compensate())
+        with self.assertRaises(TypeError):
+            child.set_segment_scale_compensate(1)
+
+    def test_inverse_scale_connect_disconnect_bulk(self):
+        from hlib.nodes.joint import Joints
+        parent = self.create_joint("connectParent")
+        child = self.create_joint("connectChild", parent)
+        joints = Joints([parent, child])
+        joints.disconnect_inverse_scale()
+        self.assertIsNone(child.plug("inverseScale").source())
+        joints.connect_inverse_scale()
+        self.assertEqual(child.plug("inverseScale").source(), parent.plug("scale"))
+        cmds.undo()
+        self.assertIsNone(child.plug("inverseScale").source())
+        child.connect_inverse_scale(parent.full_name())
+        child.connect_inverse_scale()  # 同じ接続はそのまま
+        child.disconnect_inverse_scale()
+        parent.plug("sx").connect(child.plug("inverseScaleX"))
+        parent.plug("sy").connect(child.plug("inverseScaleY"))
+        child.plug("inverseScaleZ").connect(parent.plug("radius"))
+        child.disconnect_inverse_scale()
+        self.assertIsNone(child.plug("inverseScaleX").source())
+        self.assertIsNone(child.plug("inverseScaleY").source())
+        self.assertEqual(parent.plug("radius").source(), child.plug("inverseScaleZ"))
+        with self.assertRaises(ValueError):
+            child.connect_inverse_scale(child)
+
+    def test_joint_radius_and_bulk_undo(self):
+        from hlib.nodes.joint import Joints
+        joints = Joints([self.create_joint("radiusA"), self.create_joint("radiusB")])
+        before = joints.get_radius()
+        joints.set_radius(2.5)
+        self.assertEqual(joints.get_radius(), [2.5, 2.5])
+        cmds.undo()
+        self.assertEqual(joints.get_radius(), before)
+        cmds.redo()
+        self.assertEqual(joints.get_radius(), [2.5, 2.5])
+        joints[0].set_radius(0, fast=True)
+        self.assertEqual(joints[0].get_radius(), 0)
+        for value in (-1, float("nan"), float("inf")):
+            with self.assertRaises(ValueError):
+                joints[0].set_radius(value)
+
     def test_node_create_resolves_to_joint_wrapper(self):
         joint = self.create_joint("hlibJointBasic")
         self.assertIsInstance(joint, Joint)

@@ -815,10 +815,10 @@ class Matrix(om2.MMatrix):
         _MVector.__imul__(result, self)
         return result
 
-    def mirrored(self, axis=0):
-        """指定したワールド軸に対する「ビヘイビア」ミラー行列を返す。
+    def mirrored(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+        """行列が表す座標空間の軸に対する「ビヘイビア」ミラー行列を返す。
 
-        平行移動は axis 成分を反転し、3x3 部分の各行(ローカル軸)は axis 以外の
+        平行移動はpivotを中心にaxis成分を反転し、3x3部分の各行はaxis以外の
         2成分を反転する。Maya の ``mirrorJoint -mirrorBehavior`` と同じ規約で、
         軸そのものは反転せず 180 度回転した姿勢になるため、行列式の符号は保存される
         (幾何学的な鏡像とは異なり、対になったノードを同じローカル操作で対称に
@@ -826,28 +826,41 @@ class Matrix(om2.MMatrix):
         分解できない行列にも使える。
 
         Args:
-            axis (int): 鏡映面の法線となる軸。0 で X、1 で Y、2 で Z。
+            axis (str | int): x/y/z/xy/xz/yz/xyz、または従来の0/1/2。
+            pivot (Iterable[float]): 平行移動と同じ単位・空間の中心座標。
 
         Returns:
             Matrix: 呼び出したクラスのミラー後の行列。
 
         Raises:
-            ValueError: axis が 0/1/2 以外の場合。
+            ValueError: axisが不正、またはpivotが有限の3成分でない場合。
         """
-        if axis not in (0, 1, 2):
-            raise ValueError("axis must be 0, 1, or 2")
+        from ..utils.mirror import mirror_arguments
+        axes, center = mirror_arguments(axis, pivot)
         result = type(self)._wrap(self)
-        for row in range(3):
-            for column in range(3):
-                if column != axis:
-                    index = row * 4 + column
-                    value = _GET(result, index)
-                    if value:
-                        _SET(result, index, -value)
-        value = _GET(result, 12 + axis)
-        if value:
-            _SET(result, 12 + axis, -value)
+        for axis in axes:
+            for row in range(3):
+                for column in range(3):
+                    if column != axis:
+                        index = row * 4 + column
+                        _SET(result, index, -_GET(result, index))
+            _SET(result, 12 + axis, 2 * center[axis] - _GET(result, 12 + axis))
         return result
+
+    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+        """自身をビヘイビアミラーする。
+
+        Args:
+            axis (str | int): mirroredと同じ反転軸。
+            pivot (Iterable[float]): 平行移動と同じ単位・空間の中心。
+
+        Returns:
+            Matrix: 更新した自身。
+        """
+        result = self.mirrored(axis, pivot)
+        for index in range(16):
+            _SET(self, index, _GET(result, index))
+        return self
 
     # ------------------------------------------------------------------ 添字・反復
     def __getitem__(self, index):

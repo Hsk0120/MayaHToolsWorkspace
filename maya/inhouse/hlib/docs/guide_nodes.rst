@@ -269,6 +269,12 @@ unitConversion自体は削除対象に含めません。
 ------------------------------
 
 ``Nodes`` を基底に ``Transforms``、さらに ``Joints`` が継承します。
+
+Jointの親スケール補正は ``get_segment_scale_compensate()`` で照会し、
+``set_segment_scale_compensate(True)`` / ``set_segment_scale_compensate(False)``
+で切り替えます。Jointsでも同じメソッドで一括操作でき、照会は保持順のboolリストを返します。
+通常の一括変更は1回のUndoで戻せます。``fast=True`` はUndo対象外です。
+inverseScaleの接続やバインド情報は変更しないため、切り替えによって見た目が変わる場合があります。
 ``SkinClusters`` は ``Nodes`` を継承します。各クラスは単数形と同じファイルにあります。
 
 .. code-block:: python
@@ -308,3 +314,113 @@ unitConversion自体は削除対象に含めません。
 それ以外はリストです。必要に応じて ``Nodes(...)`` / ``Transforms(...)`` で包んでください。
 アトリビュートを含む検索結果はそのままNodesへ渡すと所有ノードへ解決されます。
 Plug自体の一覧として保持したい場合は検索結果のリストを使用してください。
+
+
+Transformのリセットとピボット
+--------------------------------------
+
+.. code-block:: python
+
+   node.reset()                       # 移動0・回転0・スケール1・シアー0
+   node.reset(["tx", "rotate", "sz"])  # 指定したアトリビュートだけ
+   node.reset("customValue")           # 独自の数値アトリビュートの既定値
+   node.reset_pivot()                  # 姿勢を維持して両ピボットをワールド原点へ
+   node.reset_pivot(ws=False)          # オブジェクト空間の原点へ
+   node.reset_pivot(kind="rotate")     # 回転ピボットのみ
+
+``reset()`` はアトリビュートの定義上の既定値へ戻します。フリーズではないため姿勢は変わります。
+ロック解除・接続切断は行いません。Jointでも使えますが、jointOrientは既定の対象に含みません。
+``reset_pivot()`` はピボット補償値を調整して行列を保ちます。Jointは独立したピボットを
+サポートしないためエラーになります。Transformsからの一括呼出にも対応します。
+通常はUndoで戻せます。``reset(fast=True)`` はUndoなしです。
+
+
+Jointのスケール接続と表示半径
+----------------------------------------
+
+.. code-block:: python
+
+   joint.connect_inverse_scale()                 # 親のscale → 自身のinverseScale
+   joint.connect_inverse_scale(parent, force=True) # 指定Transformから接続を置換
+   joint.disconnect_inverse_scale()              # inverseScaleへの入力だけ切断
+   joints.connect_inverse_scale()                # 各Joint自身の親へ一括接続
+   joints.disconnect_inverse_scale()
+   joint.set_radius(2.0)                         # 個別の表示半径
+   print(joint.get_radius())
+   joints.set_radius(0.5)                        # 一括変更
+
+親がないJointでは引数なしの接続は何もしません。同じ接続が既にある場合も変更しません。
+既存入力の置換には ``force=True`` が必要です。これはPlug.connectと同じく、接続先が
+ロックされている場合の一時解除・再ロックも含みます。
+切断は複合アトリビュートと各軸の入力に対応し、出力接続は維持します。
+segmentScaleCompensateの切り替えや切断後の値のリセット、姿勢補償は行いません。
+接続の変更によって姿勢が変わる場合があります。
+
+radiusはジョイント個別の表示半径です。骨の長さやscale、Maya全体のjointDisplayScaleは
+変更しません。通常はUndo対応で、``set_radius(..., fast=True)`` だけはUndoなしです。
+
+
+Maya標準のフリーズ
+------------------------------
+
+.. code-block:: python
+
+   node.freeze()                         # makeIdentity(apply=True)と同じ
+   node.freeze(t=False, r=True, s=True)   # 回転とスケールだけ
+   transforms.freeze()                   # 一括操作・一回のUndo
+
+``freeze()`` はMaya標準の ``makeIdentity`` をapply=Trueで呼びます。
+成分や法線オプションはMayaの長名・短名で指定できます。apply=Falseは拒否します。
+子階層への作用、Jointの移動保持、ロック・接続・スキニング済み形状の制約もMayaに従います。
+姿勢移送を行うJoint.freeze_rotationとは異なります。
+
+スキンバインドとジョイントのミラー複製
+------------------------------------------------------
+
+.. code-block:: python
+
+   import hlib
+
+   skin = hlib.bindSkin(mesh, joints, toSelectedBones=True,
+                                 maximumInfluences=4, normalizeWeights=1)
+   skins = hlib.bindSkin([mesh_a, mesh_b], joints, tsb=True, mi=4)
+   mirrored = hlib.mirrorJoint(root_joint, mirrorYZ=True, mirrorBehavior=True,
+                              searchReplace=("left_", "right_"))
+
+``bindSkin`` は形状ごとに標準skinClusterコマンドを実行します。
+1形状ならSkinCluster、複数なら入力順のSkinClustersを返します。
+作成オプションは実行中MayaのskinClusterの長名・短名を使用でき、省略値もMayaに従います。
+バインド対象とインフルエンスは明示指定し、各入力列で名前とNodeは混在させません。
+bindMethod=3のジオデシックボクセルバインドは、標準コマンドと同様に別途geomBindが必要です。
+
+``mirrorJoint`` は指定Joint以下をミラー複製し、新規Jointだけを返します。
+1個ならJoint、階層など複数ならJointsです。フラグと既定値はMayaに従います。
+両コマンドともUndo対応です。複数形状のバインドが途中で失敗した場合は例外になり、
+完了済みの変更は自動では戻しません。
+
+
+アウトライナーの表示設定
+------------------------------------
+
+.. code-block:: python
+
+   node.set_outliner_visibility(False)  # 非表示
+   node.set_outliner_visibility(True)   # 表示
+   visible = node.get_outliner_visibility()
+   joints.set_outliner_visibility(False)  # Nodes/Transforms/Jointsでも一括操作可能
+
+通常のビューポート表示は別のメソッドで操作します。
+
+.. code-block:: python
+
+   node.set_visibility(False)
+   node.set_visibility(True)
+   visible = node.get_visibility()
+
+Node・Nodesを通してvisibilityアトリビュートを扱います。Transform・Joint・Shapeでも
+使用でき、visibilityを持たないノードはエラーになります。取得値は自身の設定であり、
+親の非表示や表示レイヤーを含む最終表示状態ではありません。
+
+hiddenInOutlinerを操作します。ビューポートのvisibilityは変更しません。
+取得値はノードの表示設定であり、フィルターや親の折り畳み、Outlinerの非表示ノード表示設定を
+含む画面上の可視性ではありません。通常はUndo可能で、fast=TrueはUndo対象外です。

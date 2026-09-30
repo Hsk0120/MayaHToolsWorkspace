@@ -304,3 +304,29 @@ om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は
 ``m * om2.MPoint(...)`` も ``Vector`` を返します(:ref:`maths-result-types`)。
 
 行列の取得・座標変換・ノードへの適用は :doc:`matrices` を参照してください。
+
+
+数学型のミラー
+--------------
+
+``mirrored()`` は同型の複製、``mirror()`` は自身を変更して自身を返します。
+
+.. code-block:: python
+
+   point = Translation(1, 2, 3)
+   mirrored_point = point.mirrored(axis="x", pivot=(10, 0, 0))
+   matrix = Matrix(translate=(1, 2, 3), rotate=EulerRotation(.1, .2, .3))
+   mirrored_matrix = matrix.mirrored(axis="z")
+   rotation = matrix.quaternion.mirrored(axis="z")
+   matrix.mirror(axis="xy")
+
+Vector・Translationは指定軸の数値を中心から反転します。
+Scale・Shearにも継承されますが、同じ3成分の数値反転です。
+行列としてのスケール・シアーを保ったミラーにはMatrixを使ってください。
+中心は値と同じ単位・空間で指定します。Mayaから取得したMatrixの平行移動はcmです。
+
+Matrix・Quaternion・EulerRotationはビヘイビアミラーです。
+単一軸では指定軸以外の方向2成分を反転し、Matrixの平行移動は指定軸を反転します。
+複数軸は各平面での操作を合成します。負スケールによる幾何学的な鏡像ではありません。
+Quaternion・EulerRotationには位置がないためpivot引数はありません。
+EulerRotationは回転順序を維持します。

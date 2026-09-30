@@ -693,6 +693,31 @@ class Quaternion(om2.MQuaternion):
         index = order_index(order)
         return EulerRotation._wrap(om2.MEulerRotation.decompose(_unit_copy(self).asMatrix(), index))
 
+    def mirrored(self, axis="x"):
+        """Matrixと同じ規約で向きをビヘイビアミラーした複製を返す。
+
+        Args:
+            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
+
+        Returns:
+            Quaternion: 同型の新しい回転。Eulerの回転順序は維持する。
+        """
+        matrix = self.to_matrix().mirrored(axis)
+        result = type(self)._wrap(matrix.quaternion)
+        return result
+
+    def mirror(self, axis="x"):
+        """自身の向きをビヘイビアミラーする。
+
+        Args:
+            axis (str | int): mirroredと同じ反転軸。
+
+        Returns:
+            Quaternion: 更新した自身。
+        """
+        self.setValue(self.mirrored(axis))
+        return self
+
     def to_matrix(self):
         """正規化した回転を表す Matrix を返す。
 

@@ -39,6 +39,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-09-30 | 通常visibility・未コミット公開 | Nodeへvisibility APIを集約し検証後に依頼済み未コミット変更をpushする。 |
 
 
 
@@ -47,6 +48,28 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+| Codex | 2026-09-30 | 通常visibility・未コミット公開準備 | get/set_visibilityをNodeへ集約。通常/アウトライナーの独立性とUndo検証成功。Maya2027全804ケース・80ファイル中79成功、既存Bifrost起動テストflowWedgingロード確認1件失敗。Sphinx -W成功。依頼済み全hlib変更をコミット/push対象に整理。GUI未検証。 |
+
+| Codex | 2026-09-30 | Nodeアウトライナー可視性 | get/set_outliner_visibility追加。hiddenInOutlinerのみを変更し、複数形・Undo/Redo・fast対応。2022/2027 standalone各1テスト、Sphinx -W成功。GUI描画は未検証、未push。 |
+
+| Codex | 2026-09-30 | Transform offsetParentMatrix API | get/set_offset_parent_matrixをMatrixPlug委譲で追加。Transforms/Jointsにも継承。2022/2027 standalone各3テストで値型・一括Undo・fast・ロック拒否を確認、Sphinx -W成功。GUI未検証、未push。 |
+
+| Codex | 2026-09-30 | bindSkin改名・offsetParentMatrix検証 | createSkinClusterをbindSkinへ改名し使用側/型宣言/説明を更新。MatrixPlugは既存実装でget_matrixのMatrixを設定可能。値/型/Undo/fast・親とローカルを含む姿勢一致式を2022/2027各8テストで確認。Sphinx -W成功。GUI未検証、未push。 |
+
+| Codex | 2026-09-30 | freeze/createSkinCluster/mirrorJoint | Transform/Transforms.freeze、形状ごとにSkinCluster(s)を返すcreateSkinCluster、生成Joint(s)を返すmirrorJointを追加。標準長短フラグ・Undo・型宣言対応。Maya2022/2027 standalone各32テスト、Sphinx -W、diff検査成功。GUI未検証、未push。 |
+
+| Codex | 2026-09-30 | Joint inverseScale・radius | connect/disconnect_inverse_scale、get/set_radiusを追加。Jointsは既存bulkで対応。入力のみの切断・同一接続・親なし・一括Undo/Redo・radius fastを2022/2027 standalone各16テストで確認。Sphinx -W成功。GUI未検証、未push。 |
+
+| Claude Code | 2026-09-30 | maya/inhouse/hedit 調査(コード変更なし) | 会社でのウイルス判定・勝手なロード/オートロード解除の原因調査。Maya TrustCenterの信頼が版ごとのフォルダー単位、失敗時にautoload解除、uiScript/requiredPluginでの自動ロード、未署名・版情報なし・hex+execの同梱Python起動を確認。ローカルDefenderでは検出なし。対策案を報告。 |
+
+| Codex | 2026-09-30 | Transformリセット・ピボット・形状スケール | reset(attributes)/reset_pivotを追加。Shape/Transform.scale_geometryはメッシュ・NURBSカーブ/サーフェスのXYZ拡縮、空間・中心・要素指定に対応。Maya2022/2027 standalone各42テストとSphinx -W成功。GUI未検証、未push。 |
+
+| Codex | 2026-09-30 | Transform/mathsミラー | 形状用をmirror_geometryへ改名、位置と向きのmirror_transformを追加。親/世界空間・offsetParentMatrix・UI距離単位・fast対応。数学型にmirror/mirroredを整備。2022/2027 standalone各108テスト成功、Sphinx -W成功。非ゼロピボット/Transform.rotateAxisは更新前に拒否。GUI未検証、未push。 |
+
+| Codex | 2026-09-30 | Joint/Jointsのスケール補正 | get/set_segment_scale_compensateを追加。既存bulk経由の一括操作とUndo/Redo、fast更新をMaya2027 standaloneのJoint全14テストで検証。GUI・他バージョン未検証。ミラー作業は継続。 |
+
+| Codex | 2026-09-30 | Joint/Jointsのスケール補正 | get/set_segment_scale_compensateを追加。既存bulk経由の一括操作とUndo/Redo、fast更新をMaya2027 standaloneのJoint全14テストで検証。GUI・他バージョン未検証。ミラー作業は継続。 |
 
 | Codex | 2026-09-30 | Sphinx表示調整の公開準備 | hlib数学型図の横並び維持・幅追従、hrig/hedit寸法統一の5ファイルを確認。diff成功、既存ビルド検証を継続採用してmainへのコミット対象を確定。 |
 

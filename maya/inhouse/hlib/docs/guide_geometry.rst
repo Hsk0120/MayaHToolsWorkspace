@@ -107,11 +107,41 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
 Transform のピボット位置は自動では使用しません。
 ``indices=None`` は全頂点／全 CV、空のリストは変更なしです。
 
+Transform直下の全Shapeをまとめて反転する場合は
+``transform.mirror_geometry(axis="x", ws=False)`` を使います。
+従来の ``Transform.mirror()`` はこの名前へ変更しました。
+Shapeやコンポーネントの ``mirror()`` は変更していません。
+
 親の移動・回転・スケールを変更せずに形状の座標を編集し、1回の Undo で戻せます。
 ほぼゼロのスケールなど、数値的に不安定なワールド変換はエラーにします。
 複製・結合や片側から反対側への対称化を行う機能ではありません。
 メッシュの面の頂点順は維持するため、奇数軸での反転後は必要に応じて
 法線を処理してください。インスタンスでは共有形状全体に影響します。
+
+ノードの位置と向きのミラー
+------------------------------------
+
+.. code-block:: python
+
+   node.mirror_transform(axis="x", ws=True)   # ワールドのYZ平面
+   node.mirror_transform(axis="z", ws=False)  # ペアレント空間のXY平面
+   node.mirror_transform(axis="xy", ws=True, pivot=(10, 0, 0))
+
+Transform・Jointで使用でき、Transforms・Jointsからも一括実行できます。
+通常処理はUndo対応、``fast=True`` はUndoなしです。
+``pivot`` は現在のMaya距離単位です。``ws=False`` は形状ミラーの
+オブジェクト空間と異なり、親Transformの座標空間です。
+
+向きは ``Matrix.mirrored()`` と同じビヘイビアミラーです。
+例えば単位行列をX軸でミラーするとX軸回り180度の向きになります。
+負スケールで形状を裏返す処理ではなく、頂点・CVは変更しません。
+子孫は親変換に追従し、スキニング済みのJointは通常の姿勢変更として変形に影響します。
+バインド情報の補正は行いません。
+
+非ゼロのピボット（補正移動を含む）とTransformのrotateAxisは未対応で、
+変更前にエラーになります。JointのjointOrientには対応します。
+親に非一様スケールがある場合、ミラー後のローカルスケール・シアーが変わる場合があります。
+
 
 コンポーネントと座標
 --------------------
@@ -155,3 +185,25 @@ UV は現在の UV セットを参照し、セットを切り替えると切替�
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
+
+
+Shapeのスケール
+----------------------------
+
+.. code-block:: python
+
+   shape.scale_geometry(2)                         # オブジェクト空間で一様2倍
+   shape.scale_geometry((2, 1, 0.5))               # XYZ別の倍率
+   shape.scale_geometry((1, 2, 1), ws=True)        # ワールドY方向だけ2倍
+   shape.scale_geometry(2, pivot=(1, 0, 0))        # 指定中心から拡縮
+   transform.scale_geometry((2, 1, 1))            # 直下の全Shape
+   mesh.scale_geometry(2, indices=[0, 1])         # 頂点を限定
+   surface.scale_geometry(2, indices=[(0, 0)])    # サーフェスの(U, V) CV
+
+メッシュ、NURBSカーブ、NURBSサーフェスに対応します。頂点・CVの座標だけを編集し、
+Transformの行列は変更しません。既定はオブジェクト空間の原点が中心です。
+``ws=True`` ではワールド空間の原点になり、``pivot`` もその空間の現在のMaya距離単位で指定します。
+Transformのピボット位置は自動では使いません。
+
+通常のUndoに対応します。負数・0の倍率も指定できますが、面の頂点順は変更しません。
+周期CVはMayaの連動規則に従い、インスタンスでは共有形状全体に影響します。

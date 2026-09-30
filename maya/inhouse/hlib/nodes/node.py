@@ -289,6 +289,69 @@ class Node:
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
 
+    def get_visibility(self):
+        """bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。"""
+        return bool(self.plug("visibility").get())
+
+    @fast_edit
+    @undo_chunk("hlibNodeSetVisible")
+    def set_visibility(self, state, *, fast=False):
+        """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
+
+        Args:
+            state (bool): visibilityへ設定する値。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Node: 自身。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        if not isinstance(state, bool):
+            raise TypeError("state must be a bool")
+        self.plug("visibility").set(state)
+        return self
+
+    def get_outliner_visibility(self):
+        """アウトライナーでの表示を許可する設定値を取得する。
+
+        Returns:
+            bool: hiddenInOutlinerがFalseならTrue。実際の画面上の可視性ではない。
+
+        Raises:
+            AttributeError: hiddenInOutlinerがないノードの場合。
+            RuntimeError: ノードが無効な場合。
+
+        エディターのフィルター・親の折り畳み・非表示ノード表示設定は判定しない。
+        """
+        return not bool(self.plug("hiddenInOutliner").get())
+
+    @fast_edit
+    @undo_chunk("hlibNodeSetOutlinerVisibility")
+    def set_outliner_visibility(self, state, *, fast=False):
+        """ノードのアウトライナー表示を切り替える。
+
+        Args:
+            state (bool): Trueで表示、Falseで非表示（hiddenInOutlinerを反転設定）。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Node: 自身。Nodes・Transforms・Jointsからの一括操作にも対応する。
+
+        Raises:
+            TypeError: stateまたはfastがboolでない場合。
+            AttributeError: 対応アトリビュートがない場合。
+            RuntimeError: ロック・入力接続などで更新できない場合。
+
+        ビューポートのvisibilityは変更しない。表示の最終結果は各Outlinerの
+        フィルターや非表示ノード表示設定にも依存する。
+        """
+        if not isinstance(state, bool):
+            raise TypeError("state must be a bool")
+        self.plug("hiddenInOutliner").set(not state)
+        return self
+
     def get_outliner_color(self):
         """Color: このノードのOutliner色。無効時はdisabledモード。"""
         from ..general.color import Color

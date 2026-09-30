@@ -287,6 +287,89 @@ class Transform(DagNode):
         """
         return om2.MFnTransform(self.dag_path())
 
+    @fast_edit
+    @undo_chunk("hlibTransformReset")
+    def reset(self, attributes=None, *, fast=False):
+        """指定アトリビュートを定義上の既定値へ戻す。
+
+        Args:
+            attributes (str | Iterable[str] | None): tx/translateX/translateなど。
+                省略時はtranslate・rotate・scale・shear。独自数値アトリビュートも可。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: 名前が文字列でない、または既定値を扱えない型の場合。
+            AttributeError: 指定アトリビュートが存在しない場合。
+            RuntimeError: ロックや入力接続などで変更できない場合。
+
+        フリーズではなく値を戻す操作なので姿勢は変わる。jointOrient・ピボット・
+        offsetParentMatrixは明示指定しない限り変更しない。ロック解除・接続切断は
+        行わない。途中の失敗は例外とし、完了済みの変更は通常Undoで戻せる。
+        """
+        if attributes is None:
+            attributes = ("translate", "rotate", "scale", "shear")
+        elif isinstance(attributes, str):
+            attributes = (attributes,)
+        attributes = tuple(attributes)
+        if not all(isinstance(name, str) and name for name in attributes):
+            raise TypeError("attributes must contain non-empty attribute names")
+        plugs = [self.plug(name) for name in attributes]
+        for plug in plugs:
+            plug.reset()
+        return self
+
+    @undo_chunk("hlibTransformResetPivot")
+    def reset_pivot(self, ws=True, *, kind="both"):
+        """現在の姿勢を保ち、ピボットだけを指定空間の原点へ移動する。
+
+        Args:
+            ws (bool): Trueはワールド原点、Falseはオブジェクト空間の原点。
+            kind (str): bothは両方、rotateは回転、scaleはスケールピボット。
+
+        Returns:
+            Transform: 自身。一回のUndoで元へ戻せる。
+
+        Raises:
+            TypeError: wsがboolでない、または対象がJointの場合。
+            ValueError: kindが不正な場合。
+            RuntimeError: Mayaが更新を拒否した場合。
+
+        ピボット補償値を調整して行列を維持する。translateのリセットではない。
+        """
+        if not isinstance(ws, bool):
+            raise TypeError("ws must be a bool")
+        return self.set_pivot((0, 0, 0), ws=ws, kind=kind, preserve=True)
+
+    @undo_chunk("hlibTransformScaleGeometry")
+    def scale_geometry(self, scale, ws=False, pivot=(0.0, 0.0, 0.0), indices=None):
+        """直下の全Shapeの頂点・CVを拡縮する。Transformの行列は変更しない。
+
+        Args:
+            scale (float | Iterable[float]): 一様倍率、またはXYZの倍率。
+            ws (bool): Falseはオブジェクト、Trueはワールド空間。
+            pivot (Iterable[float]): 指定空間の拡縮中心。現在のMaya距離単位。
+            indices (Iterable[int | tuple[int, int]] | None): 各Shapeの対象番号。
+                Noneは全要素。サーフェスは(U, V)の組。
+
+        Returns:
+            Transform: 自身。一回のUndoで戻せる。
+
+        Raises:
+            ValueError: 引数が不正な場合。
+            NotImplementedError: 対応していないShapeの場合。
+            RuntimeError: Mayaが変更を拒否した場合。
+
+        中間Shapeは対象外。インスタンスは共有形状全体に影響する。
+        途中で失敗した場合は停止し、完了済みの変更は自動で戻さない。
+        """
+        indices = None if indices is None else tuple(indices)
+        for shape in self.shapes():
+            shape.scale_geometry(scale, ws=ws, pivot=pivot, indices=indices)
+        return self
+
     def get_pivot(self, ws=False, *, kind="rotate"):
         """指定した種類のピボットを取得する。
 
@@ -517,7 +600,8 @@ class Transform(DagNode):
         return shapes
 
     @fast_edit
-    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    @undo_chunk("hlibTransformMirrorGeometry")
+    def mirror_geometry(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下のすべてのShapeのジオメトリをミラーする。
 
         直下の各Shape（Mesh、NurbsCurveなど mirror を実装するもの）へ同じ引数で
@@ -643,6 +727,136 @@ class Transform(DagNode):
         if any((position, rotation, scale, pivots)):
             cmds.matchTransform(self.full_name(), target.full_name(), position=position,
                                 rotation=rotation, scale=scale, pivots=pivots)
+        return self
+
+    @fast_edit
+    @undo_chunk("hlibTransformMirrorTransform")
+    def mirror_transform(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), *, fast=False):
+        """位置と向きを指定空間でビヘイビアミラーする。
+
+        Matrix.mirroredと同じ回転規約で、負スケールによる形状反転ではない。
+        Shapeの頂点・CVは編集しない。子孫は通常の親変換として追従する。
+        指定空間のスケール・シアーを保つが、親に非一様スケールがある場合は
+        ローカルのスケール・シアーが変わる場合がある。
+
+        Args:
+            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。xはYZ平面。
+            ws (bool): Trueはワールド、Falseは親Transformの座標空間。
+            pivot (Iterable[float]): 指定空間の中心。現在のMaya距離単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。
+
+        Returns:
+            Transform: 自身。Transforms/Jointsからの一括呼出も可能。
+
+        Raises:
+            TypeError: wsまたはfastがboolでない場合。
+            ValueError: 入力不正、特異な親行列、未対応のピボット/rotateAxisの場合。
+            RuntimeError: ロックや入力接続で更新できない場合。
+
+        既存set_matrixと同じ制約があり、非ゼロのピボット・
+        TransformのrotateAxisは更新前に拒否する。
+        """
+        from ..utils.mirror import mirror_arguments
+        if not isinstance(ws, bool):
+            raise TypeError("ws must be a bool")
+        _, center = mirror_arguments(axis, pivot)
+        center = tuple(om2.MDistance(value, om2.MDistance.uiUnit()).asCentimeters()
+                       for value in center)
+        name = self.full_name()
+        parent_node = self.parent_node()
+        parent = Matrix()
+        if parent_node is not None and self.plug("inheritsTransform").get():
+            # 親のチャンネル変更直後も評価済み値を取得する。
+            parent = Matrix(cmds.getAttr("{}.worldMatrix[{}]".format(
+                parent_node.full_name(), parent_node.dag_path().instanceNumber())))
+        offset = Matrix(cmds.getAttr(name + ".offsetParentMatrix"))
+        effective_parent = offset * parent
+        magnitude = max(1.0, *(sum(abs(effective_parent[row, col]) for col in range(3))
+                               for row in range(3)))
+        if abs(effective_parent.det4x4()) <= 1e-12 * magnitude ** 3:
+            raise ValueError("Cannot mirror with a singular parent or offsetParentMatrix")
+        attributes = ["rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate"]
+        if not self.mobject().hasFn(om2.MFn.kJoint):
+            attributes.append("rotateAxis")
+        if any(any(cmds.getAttr(name + "." + attr)[0]) for attr in attributes):
+            raise ValueError("mirror_transform does not support nonzero pivots or transform rotateAxis")
+        world = self.get_matrix(ws=True)
+        source = world if ws else world * parent.inverse()
+        target = source.mirrored(axis, center)
+        target_world = target if ws else target * parent
+        local = target_world * effective_parent.inverse()
+        # set_matrixの書込み経路はtranslateをUI距離単位として扱う。
+        for index in (12, 13, 14):
+            local[index] = om2.MDistance(local[index]).asUnits(om2.MDistance.uiUnit())
+        self.set_matrix(local, fast=fast)
+        return self
+
+    def get_offset_parent_matrix(self):
+        """offsetParentMatrixの現在値を取得する。
+
+        Returns:
+            Matrix: アトリビュート値の複製。ワールド行列やローカル行列との合成はしない。
+
+        Raises:
+            RuntimeError: ノードやアトリビュートが無効の場合。
+        """
+        return self.plug("offsetParentMatrix").get()
+
+    @fast_edit
+    @undo_chunk("hlibTransformSetOffsetParentMatrix")
+    def set_offset_parent_matrix(self, value, *, fast=False):
+        """offsetParentMatrixへ行列値を設定する。
+
+        Args:
+            value (Matrix | Iterable[float]): 別Transform.get_matrix()の戻り値などの4x4行列。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Transform: 自身。Transformsでは各対象へ同じ値を設定する。
+
+        Raises:
+            TypeError: fastがboolでない場合。
+            ValueError: 行列値が不正な場合。
+            RuntimeError: 無効な対象・ロック・入力接続などで更新できない場合。
+
+        TRSチャンネル値は変更しない。指定行列は既存ローカル行列と親行列に合成される。
+        ワールド姿勢の自動一致・入力接続の切断・ロック解除は行わない。
+        """
+        self.plug("offsetParentMatrix").set(value)
+        return self
+
+    def get_offset_parent_matrix(self):
+        """offsetParentMatrixの現在値を取得する。
+
+        Returns:
+            Matrix: アトリビュート値の複製。ワールド行列やローカル行列との合成はしない。
+
+        Raises:
+            RuntimeError: ノードやアトリビュートが無効の場合。
+        """
+        return self.plug("offsetParentMatrix").get()
+
+    @fast_edit
+    @undo_chunk("hlibTransformSetOffsetParentMatrix")
+    def set_offset_parent_matrix(self, value, *, fast=False):
+        """offsetParentMatrixへ行列値を設定する。
+
+        Args:
+            value (Matrix | Iterable[float]): 別Transform.get_matrix()の戻り値などの4x4行列。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Transform: 自身。Transformsでは各対象へ同じ値を設定する。
+
+        Raises:
+            TypeError: fastがboolでない場合。
+            ValueError: 行列値が不正な場合。
+            RuntimeError: 無効な対象・ロック・入力接続などで更新できない場合。
+
+        TRSチャンネル値は変更しない。指定行列は既存ローカル行列と親行列に合成される。
+        ワールド姿勢の自動一致・入力接続の切断・ロック解除は行わない。
+        """
+        self.plug("offsetParentMatrix").set(value)
         return self
 
     def get_matrix(self, ws=False):
@@ -1132,29 +1346,30 @@ class Transform(DagNode):
         matrix = self._replace_components(self.get_matrix(ws=ws), shear=value)
         return self.set_matrix(matrix, ws=ws)
 
-    def get_visibility(self):
-        """bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。"""
-        return bool(self.plug("visibility").get())
-
-    @fast_edit
-    @undo_chunk("hlibTransformSetVisible")
-    def set_visibility(self, state, *, fast=False):
-        """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
+    @flag_aliases("makeIdentity")
+    @undo_chunk("hlibTransformFreeze")
+    def freeze(self, **kwargs):
+        """MayaのmakeIdentity(apply=True)で形状の位置を保ってフリーズする。
 
         Args:
-            state (bool): visibilityへ設定する値。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            **kwargs (object): translate(t)、rotate(r)、scale(s)、normal(n)、
+                preserveNormals(pn)、jointOrient(jo)等のMaya標準フラグ。
+                成分の省略時の扱いもMayaに従う。applyはTrueのみ許可する。
 
         Returns:
-            Transform: 自身。
+            Transform: 自身。Transformsからも一括呼出でき、Undo可能。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Raises:
+            ValueError: apply=Falseを指定した場合。
+            TypeError: 長短フラグを重複指定した場合。
+            RuntimeError: Mayaがフリーズを拒否した場合。
+
+        子階層への適用、Jointの移動保持、スキニング済み対象や接続への制約も
+        Maya標準に従う。resetやJoint.freeze_rotationの姿勢移送とは異なる。
         """
-        if not isinstance(state, bool):
-            raise TypeError("state must be a bool")
-        self.plug("visibility").set(state)
-        return self
+        if kwargs.pop("apply", True) is not True:
+            raise ValueError("freeze requires apply=True")
+        return self.make_identity(apply=True, **kwargs)
 
     @undo_chunk("hlibTransformMakeIdentity")
     def make_identity(self, **kwargs):

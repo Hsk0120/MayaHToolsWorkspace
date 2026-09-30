@@ -376,6 +376,39 @@ class Vector(om2.MVector):
     __slots__ = ()
     __hash__ = None
 
+    def mirrored(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+        """指定中心から成分を反転した同型の複製を返す。
+
+        Translation・Scale・Shearでも数値反転として使用できる。
+        Scale・Shearの行列としての鏡映にはMatrix.mirroredを使う。
+
+        Args:
+            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
+            pivot (Iterable[float]): 値と同じ単位の中心。方向には原点を使う。
+
+        Returns:
+            Vector: 同型の新しい値。
+        """
+        from ..utils.mirror import mirror_arguments
+        axes, center = mirror_arguments(axis, pivot)
+        values = list(self)
+        for index in axes:
+            values[index] = 2 * center[index] - values[index]
+        return type(self)(values)
+
+    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+        """自身の3成分を反転する。
+
+        Args:
+            axis (str | int): mirroredと同じ反転軸。
+            pivot (Iterable[float]): 値と同じ単位の中心。
+
+        Returns:
+            Vector: 更新した自身。
+        """
+        self.x, self.y, self.z = self.mirrored(axis, pivot)
+        return self
+
     def __new__(cls, *args, **kwargs):
         """C++ の実体を確保した cls のインスタンス(ゼロベクトル)を作る。
 

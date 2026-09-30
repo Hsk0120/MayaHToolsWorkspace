@@ -30,6 +30,8 @@ __all__.append("json")
 # 公開名の一覧との一致は test_typing_exports.py が検証する。
 if TYPE_CHECKING:
     from .cmds import (
+        bindSkin,
+        mirrorJoint,
         createNurbs,
         createCurve,
         addAttr,

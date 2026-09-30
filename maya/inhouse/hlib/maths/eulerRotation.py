@@ -298,6 +298,33 @@ class EulerRotation(om2.MEulerRotation):
         """
         return Quaternion._wrap(self)
 
+    def mirrored(self, axis="x"):
+        """Matrixと同じ規約で向きをビヘイビアミラーした複製を返す。
+
+        Args:
+            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
+
+        Returns:
+            EulerRotation: 同型の新しい回転。Eulerの回転順序は維持する。
+        """
+        matrix = self.to_matrix().mirrored(axis)
+        rotation = matrix.quaternion.asEulerRotation()
+        rotation.reorderIt(self.order)
+        result = type(self)._wrap(rotation)
+        return result
+
+    def mirror(self, axis="x"):
+        """自身の向きをビヘイビアミラーする。
+
+        Args:
+            axis (str | int): mirroredと同じ反転軸。
+
+        Returns:
+            EulerRotation: 更新した自身。
+        """
+        self.setValue(self.mirrored(axis))
+        return self
+
     def to_matrix(self):
         """回転順序を反映した回転行列を返す。
 

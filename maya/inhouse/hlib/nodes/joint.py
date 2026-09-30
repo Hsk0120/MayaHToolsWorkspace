@@ -23,6 +23,38 @@ class Joint(Transform):
     Joint 固有の orientation、親子探索、skinCluster 連携を提供する。
     """
 
+    def get_segment_scale_compensate(self):
+        """親のスケール補正が有効か照会する。
+
+        Returns:
+            bool: segmentScaleCompensateの現在値。
+        """
+        return bool(self.plug("segmentScaleCompensate").get())
+
+    @fast_edit
+    @undo_chunk("hlibJointSetSegmentScaleCompensate")
+    def set_segment_scale_compensate(self, state, *, fast=False):
+        """親のスケール補正を切り替える。
+
+        segmentScaleCompensateだけを変更する。inverseScaleの接続やバインド情報は
+        変更しないため、親のスケールによっては姿勢やスキンの見た目が変わる。
+
+        Args:
+            state (bool): Trueで補正を有効、Falseで無効にする。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: stateまたはfastがboolでない場合。
+            RuntimeError: ロックや入力接続などで編集できない場合。
+        """
+        if not isinstance(state, bool):
+            raise TypeError("state must be a bool")
+        self.plug("segmentScaleCompensate").set(state)
+        return self
+
     def get_joint_orient(self):
         """jointOrient アトリビュートを EulerRotation として取得する。
 
@@ -235,6 +267,99 @@ class Joint(Transform):
         """
         super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
 
+
+    @undo_chunk("hlibJointConnectInverseScale")
+    def connect_inverse_scale(self, source=None, force=False):
+        """Transformのscaleを自身のinverseScaleへ接続する。
+
+        Args:
+            source (Transform | str | None): 接続元。省略時は直上の親Transform。
+                親がない場合は変更しない。
+            force (bool): 既存入力を置換する。Plug.connectと同様、接続先がロック中なら
+                一時解除して接続後にロックを戻す。既定False。
+
+        Returns:
+            Joint: 自身。同じ接続が既にある場合は変更しない。
+
+        Raises:
+            TypeError: sourceがTransformでない、またはforceがboolでない場合。
+            ValueError: 自身を接続元に指定した場合。
+            RuntimeError: 対象が無効、またはMayaが接続を拒否した場合。
+
+        segmentScaleCompensateの値は変更しない。接続により姿勢が変わる場合がある。
+        Jointsでは省略時に各joint自身の親を使用し、全体を一回のUndoで戻せる。
+        """
+        from .._core.coerce import to_node
+        if not isinstance(force, bool):
+            raise TypeError("force must be a bool")
+        if not self.is_valid():
+            raise RuntimeError("Cannot connect inverseScale on an invalid joint")
+        source = self.parent_node() if source is None else to_node(source)
+        if source is None:
+            return self
+        if not isinstance(source, Transform):
+            raise TypeError("source must be a Transform")
+        if source == self:
+            raise ValueError("inverseScale cannot use the joint itself as its source")
+        origin = source.plug("scale")
+        target = self.plug("inverseScale")
+        if not cmds.isConnected(origin.full_name(), target.full_name()):
+            origin.connect(target, force=force)
+        return self
+
+    @undo_chunk("hlibJointDisconnectInverseScale")
+    def disconnect_inverse_scale(self):
+        """inverseScaleと各軸の入力接続だけを切断する。
+
+        出力接続・segmentScaleCompensateは変更しない。値のリセットや姿勢補償は
+        行わず、切断後の値はMayaの切断動作に従う。接続がなければ何もしない。
+
+        Returns:
+            Joint: 自身。Jointsからも一括実行でき、通常Undoに対応する。
+
+        Raises:
+            RuntimeError: 対象が無効、ロックなどでMayaが切断を拒否した場合。
+        """
+        for name in ("inverseScale", "inverseScaleX", "inverseScaleY", "inverseScaleZ"):
+            target = self.plug(name)
+            origin = target.source()
+            if origin is not None:
+                origin.disconnect(target)
+        return self
+
+    def get_radius(self):
+        """ジョイント個別の表示半径を取得する。
+
+        Returns:
+            float: radiusアトリビュート値。Maya全体のjointDisplayScaleとは別の値。
+        """
+        return float(self.plug("radius").get())
+
+    @fast_edit
+    @undo_chunk("hlibJointSetRadius")
+    def set_radius(self, value, *, fast=False):
+        """ジョイント個別の表示半径を変更する。骨の長さ・scaleは変更しない。
+
+        Args:
+            value (float): 0以上の有限値。最終表示はMaya全体の表示倍率にも依存する。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
+        Returns:
+            Joint: 自身。Jointsでは各要素に同じ値を設定する。
+
+        Raises:
+            ValueError: valueが負数・非有限値の場合。
+            TypeError: valueが数値でない、またはfastがboolでない場合。
+            RuntimeError: Mayaが編集を拒否した場合。
+        """
+        import numbers
+        if isinstance(value, bool) or not isinstance(value, numbers.Real):
+            raise TypeError("radius must be a number")
+        value = float(value)
+        if not math.isfinite(value) or value < 0:
+            raise ValueError("radius must be finite and non-negative")
+        self.plug("radius").set(value)
+        return self
 
     def get_inverse_scale(self):
         """inverseScale アトリビュートを意味付き Scale として取得する。
