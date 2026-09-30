@@ -6,6 +6,14 @@
         document.querySelectorAll("pre.mermaid svg, div.mermaid svg").forEach(function (svg) {
             var viewBox = svg.viewBox && svg.viewBox.baseVal;
             if (viewBox && viewBox.width && viewBox.height) {
+                // 概要の小さな図は親幅に追従させ、狭い画面でも全体を表示する。
+                // 巨大な全体図・API継承図は従来どおり実寸と横スクロールを維持する。
+                if (svg.closest(".mermaid-fit")) {
+                    svg.style.width = "100%";
+                    svg.style.height = "auto";
+                    svg.style.maxWidth = viewBox.width + "px";
+                    return;
+                }
                 svg.style.width = viewBox.width + "px";
                 svg.style.height = viewBox.height + "px";
                 svg.style.maxWidth = "none";

@@ -48,6 +48,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+| Codex | 2026-09-30 | Sphinx表示調整の公開準備 | hlib数学型図の横並び維持・幅追従、hrig/hedit寸法統一の5ファイルを確認。diff成功、既存ビルド検証を継続採用してmainへのコミット対象を確定。 |
+
+| Codex | 2026-09-30 | hrig/hedit docsレイアウト | heditの独立CSSをhlibと同寸法へ更新、hrigは既存CSS共有を確認。全体1200/目次240/間隔28px・960px以下1列。両Sphinx -W成功、生成CSSのハッシュ一致・diff検査成功。ブラウザー目視/プッシュ未実施。 |
+
+| Codex | 2026-09-30 | hlib数学型図の配置 | ユーザー指示で元のTBへ戻し4枝を横並びに維持。objectラベルと親幅追従は保持。ソース・diff確認済み、配置1行変更のみで再ビルド/プッシュ未実施。 |
+
+| Codex | 2026-09-30 | hlib数学型図 | object（Python組み込み）へ表示変更。数学型図はLR配置で枝を縦に並べ、専用mermaid-fit指定で親幅以下へ追従。既存リンク維持。Sphinx -W・JS構文・diff検査成功。ブラウザー目視/プッシュ未実施。 |
+
 | Codex | 2026-09-30 | hlib docsレイアウト公開準備 | CSSと作業ログの2ファイルを確認。diff検査成功、前回Sphinx -W成功を継続採用してmainへのコミット対象を確定。 |
 
 | Codex | 2026-09-30 | hlib docsレイアウト | 全体1200px・右目次240px・列間28pxのGridへ変更し本文800px制限を解消。960px以下は1列、表/コード横スクロール・印刷対応。Sphinx -W・diff検査成功。ローカル表示のブラウザー制限があるため修正版目視未実施、未プッシュ。 |

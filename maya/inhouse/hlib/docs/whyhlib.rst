@@ -157,7 +157,7 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
 
 .. raw:: html
 
-   <pre class="mermaid">
+   <pre class="mermaid mermaid-fit">
       classDiagram
           direction TB
           class Matrix
@@ -168,7 +168,7 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
           class MQuaternion["OpenMaya.MQuaternion"]
           class MEulerRotation["OpenMaya.MEulerRotation"]
           class MVector["OpenMaya.MVector"]
-          class object
+          class object["object（Python組み込み）"]
           object <|-- MMatrix
           object <|-- MQuaternion
           object <|-- MEulerRotation
