@@ -9,6 +9,16 @@ class Face(Component):
     component_type = "f"
     count_attribute = "polygon_count"
 
+    def shading_engine(self):
+        """ShadingEngine | None: このインスタンスのフェースに割り当てられたセット。"""
+        self._validate()
+        return self.shape.face_shading_engines()[self.index]
+
+    def material(self):
+        """Node | None: 割り当てられたサーフェスシェーダー。"""
+        group = self.shading_engine()
+        return group.get_shader() if group is not None else None
+
     def vertices(self):
         """接続する頂点群を取得する。
 
@@ -22,6 +32,26 @@ class Face(Component):
 class Faces(Components):
     """同一 Mesh の Face 群。"""
     component_class = Face
+
+    def shading_engines(self):
+        """list[ShadingEngine]: 対象フェースの割り当てを重複なしで返す。"""
+        result = []
+        assignments = self.shape.face_shading_engines()
+        for face in self:
+            face._validate()
+            group = assignments[face.index]
+            if group is not None and group not in result:
+                result.append(group)
+        return result
+
+    def materials(self):
+        """list[Node]: 対象フェースのマテリアルを重複なしで返す。"""
+        result = []
+        for group in self.shading_engines():
+            material = group.get_shader()
+            if material is not None and material not in result:
+                result.append(material)
+        return result
 
     def vertices(self):
         """接続する頂点群を取得する。

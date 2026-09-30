@@ -37,9 +37,22 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-09-30 | 計算ノード追加 | 提案した計算・行列・カーブ情報22ノードのクラス、便利メソッド、テストとドキュメントを追加する。 |
+| Claude Code | 2026-10-01 | maya/inhouse/hedit(src/core/completion_*・python_declarations.*・symbols.*・src/editor/code_editor.*・main_window*.cpp・editor.h・theme.h・src/plugin/python_bridge.*・editor_host.cpp・src/python/hedit/bridge.py・tests/・docs/・release/*.mll) | マウスを重ねたときのdocstring表示(VS Code風のホバー) |
+
 
 
 
@@ -48,6 +61,30 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+- Codex (2026-10-01): hlibのノード/プラグ拡張・Preferences・Shelf・ウィンドウAPIと関連ドキュメント、hrigの単位API移行を公開コミット対象として確認。heditの進行中変更を除外。直近Sphinx -Wと対象テスト結果を確認し差分チェック成功。既知のBifrostテスト失敗・実GUI未検証は各作業記録のとおり。
+
+- Codex (2026-10-01): generalにWindow/WorkspaceControl/WorkspaceLayout、共通内部基底と取得コマンドを追加。表示/位置/サイズ・ドッキング・全体ロック・名前付き保存/切替・同一配置内メモリ退避/例外時復元を実装。使用ガイドと専用GUIテスト追加。2022/2027各15件中13成功/GUI2skip（UI呼出はmock）、Sphinx -W成功。専用2024 GUIは起動120秒timeoutで所有プロセス終了、実UI保存復元未検証。未push。
+
+- Codex (2026-10-01): Mayaウィンドウ設計を公式資料・標準MEL・既存hlibから調査。概念別クラスと一時退避/永続保存の区別を提案。調査メモはGit除外のdocs/research。実装変更・GUI実行・pushなし。
+
+- Codex (2026-10-01): Shelf/ShelfButtonとgetShelf/createShelfを追加。タブ一覧・選択・ボタン取得/追加/編集/削除・clear・明示MEL保存、遅延ロード対応、Sphinxガイド追加。2027 standaloneで8件中7成功/GUI1skip（保存・UI照会はmock）、型公開確認とSphinx -W成功。専用GUI起動はライセンスセッション作成失敗で開始不可。実GUI操作・保存未検証、未push。
+
+- Codex (2026-10-01): Preferencesの全setterにsave=False、save()を追加。ユーザー設定をoptionVarへ同期してMEL savePrefs -generalを呼ぶ。単位の既定値転記・シーン保存なし。2027の6テスト成功（保存呼出はmock）、Sphinx -W確認。standaloneではsavePrefsなしを確認しGUI専用の明示例外を追加。GUI実保存・再起動未検証、未push。
+
+- Codex (2026-10-01): 設定の作用範囲と保存先のSphinx一覧を追加。Preferences全get/setに保存区分を記載し、概念別操作クラスとスナップショットの区別を設計基準へ追記。保存用optionVarの同期と永続化の制限を明記。Sphinx -W成功、差分確認済み。実行処理変更なし、Maya再起動検証なし、未push。
+
+- Codex (2026-10-01): Preferencesへ単位・上方向・Undo・自動保存・選択順設定を追加。Unitsを廃止し変換はutils.units、一時切替はdecorators.native_unitsへ移行。Maya 2022全85ファイル成功、2027は84/85成功（既存Bifrost起動テスト失敗）。追加テスト成功、Sphinx警告なし。GUI未検証・未プッシュ。
+
+| Codex | 2026-10-01 | Scene仕様確認 | Scene/getSceneの現行実装を確認して説明。コード変更・Maya実行なし。 |
+
+| Claude Code | 2026-10-01 | maya/inhouse/hedit 調査(コード変更なし) | ウイルス誤検知の追加調査。uiScriptのloadPlugin+workspaceLayoutManager -saveによる再ロードの仕組み、meta_path先頭への差し込み、SVGの書き出し、非表示reporter、__import__/compile文字列、PDBの絶対パス、CFG無効などを洗い出して報告。 |
+
+| Codex | 2026-10-01 | カーブ長の単位 | NurbsCurve.lengthの既定を現在のシーン単位へ変更、unitで距離単位を指定可能にした。既存Units.get_linearを案内しconvert_distanceを追加。2022/2027各5テストとSphinx -W成功。GUI未検証、未push。 |
+
+| Codex | 2026-09-30 | NurbsCurveカーブ長 | length(tolerance, ws=False)へワールド空間照会を追加。メモリ内コピーで非均等スケール/シアー/有理曲線/インスタンス対応、元形状・Undoを変更しない。2022/2027各4テストとSphinx -W成功。GUI未検証、未push。 |
+
+| Codex | 2026-09-30 | 計算ノード追加 | 提案22ノード＋2026以降のAddDL/MultDL＋Maya基底2型をnodes直下に追加。入力/接続/演算モード/配列/ランプ/行列/形状評価を実装。2022/2024/2025/2026/2027各12テスト成功。2027全体823ケース、83ファイル中82成功（既知のflowWedging起動確認のみ失敗）。Sphinx -W成功。GUI未検証、未push。 |
 
 | Claude Code | 2026-09-30 | maya/inhouse/hedit 同梱Python起動 | 16進数変換(binascii.unhexlify)とexec(compile())をやめ、普通の文字列リテラル+importlib.abc.InspectLoaderで読み込むよう変更(ウイルス誤検知対策)。5版ビルド警告0、mllから該当文字列が消えたことを確認。run_tests/run_startup 5版・run_gui 2024/2027・Sphinx -W 成功。プッシュ済み。 |
 

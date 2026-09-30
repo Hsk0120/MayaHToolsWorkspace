@@ -916,7 +916,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         before = {name: self.existing(blend.plug(name)) for name in arrays}
         # maya.cmds で weight[5] の型を問い合わせると parentDirectory[5] なども作られる。
         weight = to_plug(blend.name() + ".weight[5]")
-        self.assertEqual(type(weight).__name__, "Plug")
+        self.assertEqual(type(weight).__name__, "FloatPlug")
         blend.plug("weight[7]")
         hlib.getDrivenKey(self.create("transform", "driver").plug("tx"), blend.name() + ".weight[0]")
         Selection([blend.name() + ".weight[6]"])
@@ -1428,15 +1428,15 @@ class NodePlugPathTest(_InteropCase):
         group = "inputTarget[0].inputTargetGroup"
         before = list(blend.plug(group).mplug().getExistingArrayAttributeIndices())
         cases = [
-            (average, "input1D[3]", "Plug"),
-            (average, "input3D[2].input3Dx", "Plug"),
+            (average, "input1D[3]", "FloatPlug"),
+            (average, "input3D[2].input3Dx", "FloatPlug"),
             (average, "input3D[2]", "CompoundPlug"),
-            (average, "i3[2].i3x", "Plug"),
+            (average, "i3[2].i3x", "FloatPlug"),
             (transform, "worldMatrix[0]", "MatrixPlug"),
             (transform, "wm[0]", "MatrixPlug"),
             (blend, group + "[7].inputTargetItem[6000].inputComponentsTarget", "Plug"),
-            (blend, "weight[0]", "Plug"),
-            (blend, "target", "Plug"),  # weight[0] のエイリアス
+            (blend, "weight[0]", "FloatPlug"),
+            (blend, "target", "FloatPlug"),  # weight[0] のエイリアス
         ]
         for node, path, class_name in cases:
             with self.subTest(path=path):

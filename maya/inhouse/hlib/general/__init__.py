@@ -10,7 +10,10 @@ from .plugin import Plugin
 from .plugins import Plugins
 from .pluginPackage import LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, PluginPackage
 from .workspace import Workspace
-from .units import Units
+from .preferences import Preferences
+
+# リロード時にも廃止した設定クラスを公開しない。
+globals().pop("Units", None)
 from .selection import Selection
 from .scene import Scene
 from .namespace import Namespace
@@ -29,7 +32,7 @@ from .scriptJobs import ScriptJobs
 __all__ = [
     "Color", "Colors", "Module", "Plugin", "Plugins", "PluginPackage",
     "LOAD_FAILED", "LOADED", "MISSING", "OUTDATED", "SKIPPED",
-    "Workspace", "Units", "Selection", "Scene", "Namespace",
+    "Workspace", "Preferences", "Selection", "Scene", "Namespace",
     "UiElement", "NodeEditor", "GraphEditor", "MainWindow", "TimeSlider",
     "Viewport", "Outliner", "ChannelBox", "Deferred", "ScriptJob", "ScriptJobs",
 ]
@@ -38,3 +41,14 @@ from .drivenKey import DrivenKey
 from .drivenKeys import DrivenKeys
 
 __all__ += ["DrivenKey", "DrivenKeys"]
+
+from .shelf import Shelf
+from .shelfButton import ShelfButton
+
+__all__ += ["Shelf", "ShelfButton"]
+
+from .window import Window
+from .workspaceControl import WorkspaceControl
+from .workspaceLayout import WorkspaceLayout
+
+__all__ += ["Window", "WorkspaceControl", "WorkspaceLayout"]

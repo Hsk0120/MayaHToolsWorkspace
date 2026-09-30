@@ -1,0 +1,102 @@
+"""RGB各成分を指定範囲に制限する。"""
+from .._core.registry import node_wrapper
+from .._core.coerce import to_plug
+from ..decorators.undo import undo_chunk
+from ..decorators._fast import fast_edit
+from ..maths import Vector
+from ._calculation import _Calculation
+from .node import Node
+
+
+@node_wrapper("clamp")
+class Clamp(Node):
+    """RGB各成分を指定範囲に制限する。"""
+
+    def input_plug(self):
+        """入力のPlugを取得する。
+        Returns:
+            Plug: 接続・値操作用の参照。
+        """
+        return self.plug('input')
+
+    def get_input(self):
+        """入力の評価値を取得する。
+        Returns:
+            Iterable[float]: 現在の値。
+        """
+        return self.input_plug().get()
+
+    @fast_edit
+    @undo_chunk("hlibCalculationEdit")
+    def set_input(self, value, *, fast=False):
+        """入力へ定数値を設定する。
+
+        Args:
+            value (Iterable[float]): 設定値。数値は有限値。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+        Returns:
+            Clamp: 自身。
+
+        Note:
+            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+        """
+        value = _Calculation.vector(value)
+        self.input_plug().set(value)
+        return self
+
+    @undo_chunk("hlibCalculationEdit")
+    def connect_input(self, source, force=False):
+        """入力へ接続する。
+
+        Args:
+            source (Plug | str | MPlug): 接続元。
+            force (bool): 既存接続を置き換えるか。
+        Returns:
+            Clamp: 自身。
+
+        Note:
+            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+        """
+        to_plug(source).connect(self.input_plug(), force=force)
+        return self
+
+    def get_range(self):
+        """現在の範囲を取得する。
+        Returns:
+            dict[str, tuple]: 各成分の上下限。
+        """
+        return {key: tuple(self.plug(attr).get()) for key, attr in (('min', 'min'), ('max', 'max'))}
+
+    @fast_edit
+    @undo_chunk("hlibCalculationEdit")
+    def set_range(self, min, max, *, fast=False):
+        """各成分の範囲をまとめて設定する。
+
+        Args:
+            min (Iterable[float]): XYZ/RGB順の有限な3要素。
+            max (Iterable[float]): XYZ/RGB順の有限な3要素。
+            fast (bool): TrueはUndoなし。
+        Returns:
+            Clamp: 自身。
+
+        Note:
+            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+        """
+        values = [_Calculation.vector(value) for value in (min, max)]
+        for attr, value in zip(('min', 'max'), values):
+            self.plug(attr).set(value)
+        return self
+
+    def output_plug(self):
+        """計算結果の接続用Plugを取得する。
+        Returns:
+            Plug: 出力参照。
+        """
+        return self.plug("output")
+
+    def result(self):
+        """現在の入力をMayaで評価した結果を取得する。
+        Returns:
+            Vector: 計算結果。
+        """
+        return Vector(self.output_plug().get())

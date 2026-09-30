@@ -15,3 +15,6 @@ __all__ = [
 
 # 再読み込み時も旧デコレータ名を公開しない。
 globals().pop("undoable", None)
+
+from .nativeUnits import native_units
+__all__ += ["native_units"]

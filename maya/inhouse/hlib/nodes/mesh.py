@@ -76,6 +76,27 @@ class Mesh(Shape):
         """
         return Vertices(self, indices)
 
+    def shading_engines(self):
+        """このDAGインスタンスのフェースへ割り当てられたShadingEngineを返す。
+
+        Returns:
+            list[ShadingEngine]: 使用中のセット。未割り当ては除外する。
+        """
+        from .shadingEngine import ShadingEngine
+        groups, indices = self.mesh_fn().getConnectedShaders(self.dag_path().instanceNumber())
+        return [ShadingEngine(groups[i]) for i in sorted(set(indices)) if i >= 0]
+
+    def face_shading_engines(self):
+        """面番号順の割り当てを取得する。
+
+        Returns:
+            list[ShadingEngine | None]: 全フェースの割り当て。未割り当てはNone。
+        """
+        from .shadingEngine import ShadingEngine
+        groups, indices = self.mesh_fn().getConnectedShaders(self.dag_path().instanceNumber())
+        wrapped = [ShadingEngine(group) for group in groups]
+        return [wrapped[i] if i >= 0 else None for i in indices]
+
     def mesh_fn(self):
         """MFnMesh を取得する。
 

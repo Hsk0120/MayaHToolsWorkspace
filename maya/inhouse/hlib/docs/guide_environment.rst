@@ -11,23 +11,60 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.general.units import Units
+   from hlib.general import Preferences
+   from hlib.decorators import native_units
 
-   print(Units.get_linear(), Units.get_angle(), Units.get_time())  # 例: "cm" "deg" "film"
-   Units.set_linear("m")
+   print(Preferences.get_linear_unit(), Preferences.get_angle_unit(), Preferences.get_time_unit())  # 例: "cm" "deg" "film"
+   Preferences.set_linear_unit("m")
 
-   with Units.native_units():
+   with native_units():
        # このブロック内は距離=cm、角度=radianとして扱える
        ...
    # ブロックを抜けると開始時点のUI単位(distanceは"m"のまま)へ復元される
 
-``Units`` の取得・設定はいずれも ``cmds.currentUnit`` の文字列表現
+``Preferences`` の単位取得・設定は ``cmds.currentUnit`` の文字列表現
 (``"cm"``/``"m"``、``"deg"``/``"rad"``、``"film"``/``"ntsc"`` 等)を使います。
-設定は Maya の Undo に対応します。``Units.native_units()`` は行列・ベクトル計算など
+設定は Maya の Undo に対応します。``native_units()`` は行列・ベクトル計算など
 シーンの表示単位に依存しない処理をしたい場合に使うコンテキストマネージャで、
 ``om2.MDistance``/``om2.MAngle`` の ``setUIUnit`` を直接呼ぶため MEL の往復が
 無く、ブロックを抜ける際(例外時を含む)に開始時点の単位へ復元します
 (時間単位には影響しません)。
+
+Preferencesの設定操作
+------------------------------------------------------------
+
+.. code-block:: python
+
+   Preferences.get_up_axis()  # "y" / "z"
+   Preferences.set_up_axis("y")
+   Preferences.set_track_selection_order(True)
+
+   Preferences.get_autosave_enabled()
+   Preferences.set_autosave_interval(600)  # 秒。保存は実行しない
+   Preferences.set_autosave_directory("D:/maya_autosave")
+   Preferences.get_autosave_directory()  # 実際の保存先をPathで取得
+
+   Preferences.get_undo_enabled()
+   Preferences.set_undo_limit(100)  # 無限を無効にし、上限100へ
+   Preferences.set_undo_infinite(True)
+
+保存区分と永続化の注意点は :doc:`settings_storage` を参照してください。
+
+Preferencesは現在のMaya設定を扱います。距離・角度・時間単位は現在のシーンに作用し、
+新規シーンの既定単位は変更しません。set_time_unitはMaya標準の挙動に従い、
+キーの実時間を維持してフレーム番号を調整します。
+set_up_axisは既定ではカメラを回転せず、rotate_view=Trueで表示の回転も指定できます。
+自動保存先の指定は指定フォルダー方式へ切り替えます。フォルダー作成・保存実行は行いません。
+
+set_undo_enabled(enabled, flush=True)はMaya標準のstateフラグで切り替えます。
+無効化で履歴が消去されます。flush=Falseは履歴を保持しますが、
+無効中にノード削除などを行うと、保持した履歴で正しくUndoできなくなる場合があります。
+Undoの有効・無効、無限、上限の変更はUndoチャンクへまとめません。
+上限を減らすと古い履歴が削除され得ます。
+
+旧Unitsクラスは廃止しました。単位設定はPreferencesへ、値の変換は
+``from hlib.utils import units`` のconvert_distance/distance_to_ui等へ移しました。
+一時的な単位切り替えは ``hlib.decorators.native_units`` を使用します。
 
 プラグインのロード状態
 ------------------------

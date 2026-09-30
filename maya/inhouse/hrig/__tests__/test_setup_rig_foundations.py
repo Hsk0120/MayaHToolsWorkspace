@@ -7,7 +7,9 @@ import hlib
 from hrig.setups import ControlShape, SoftIK
 from hlib.utils.scalarGraph import ScalarGraph
 from hlib.nodes import Container
-from hlib.general.units import Units
+from hlib.general import Preferences
+from hlib.utils import units
+from hlib.decorators import native_units
 
 
 class RigFoundationsTest(unittest.TestCase):
@@ -99,13 +101,13 @@ class RigFoundationsTest(unittest.TestCase):
     def test_conversion(self):
         """距離・角度・FPSの変換はシーン単位を変更しない。"""
         cmds.currentUnit(linear="m", angle="rad", time="ntsc")
-        self.assertEqual(Units.distance_to_ui(100), 1)
-        self.assertEqual(Units.distance_from_ui(1), 100)
-        self.assertAlmostEqual(Units.angle_to_ui(math.pi), math.pi)
-        self.assertAlmostEqual(Units.angle_from_ui(math.pi), math.pi)
-        self.assertAlmostEqual(Units.seconds_per_frame(), 1 / 30)
-        self.assertEqual(Units.get_linear(), "m")
-        self.assertEqual(Units.get_angle(), "rad")
+        self.assertEqual(units.distance_to_ui(100), 1)
+        self.assertEqual(units.distance_from_ui(1), 100)
+        self.assertAlmostEqual(units.angle_to_ui(math.pi), math.pi)
+        self.assertAlmostEqual(units.angle_from_ui(math.pi), math.pi)
+        self.assertAlmostEqual(units.seconds_per_frame(), 1 / 30)
+        self.assertEqual(Preferences.get_linear_unit(), "m")
+        self.assertEqual(Preferences.get_angle_unit(), "rad")
 
     def test_skin_bind_and_copy(self):
         """スキンのバインド・近似転送・履歴照会を共通APIで行う。"""
@@ -306,9 +308,9 @@ class RigFoundationsTest(unittest.TestCase):
     def test_general_layout(self):
         """各実装がgeneralに一つだけ存在し、選択入口も新クラスを返す。"""
         from pathlib import Path
-        from hlib.general import Units, Workspace, Selection
+        from hlib.general import Preferences, Workspace, Selection
 
-        for cls, module in ((Units, "units"), (Workspace, "workspace"), (Selection, "selection")):
+        for cls, module in ((Preferences, "preferences"), (Workspace, "workspace"), (Selection, "selection")):
             self.assertEqual(cls.__module__, "hlib.general." + module)
             self.assertFalse((Path(hlib.__file__).parent / (module + ".py")).exists())
         self.assertIsInstance(hlib.captureSelection(), Selection)

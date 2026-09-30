@@ -75,7 +75,7 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
      - Vertex/CV/Edge/Face/UV とその複数形。シーンを参照する座標コンポーネント
    * - ``general``
      - Mayaの共通クラス。Scene、Namespace、Plugin、Plugins、PluginPackage、Module、
-       Units、Workspace、Selection、各エディター、ScriptJob、Deferred、DrivenKey、DrivenKeys
+       Preferences、Workspace、Selection、各エディター、ScriptJob、Deferred、DrivenKey、DrivenKeys
    * - ``maths``
      - OpenMaya API 2.0 の型を継承した可変の値型。Vector・Translation・Scale・Shear は
        ``MVector``、Quaternion は ``MQuaternion``、EulerRotation は ``MEulerRotation``、
@@ -103,7 +103,7 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
 
 .. code-block:: python
 
-   from hlib.general import Workspace, Units, Plugin, ScriptJob
+   from hlib.general import Workspace, Preferences, Plugin, ScriptJob
    from hlib.decorators import undo_chunk
    from hlib.utils.fbx import import_fbx
    from hlib.utils.references import list_references

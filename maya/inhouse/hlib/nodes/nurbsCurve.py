@@ -2,6 +2,7 @@
 
 from ..decorators._fast import fast_edit
 
+import math
 import maya.api.OpenMaya as om2
 
 from .._core.registry import node_wrapper
@@ -113,21 +114,44 @@ class NurbsCurve(Shape):
         """
         return self.curve_fn().form
 
-    def length(self, tolerance=1e-6):
-        """オブジェクト空間の弧長を取得する。
+    def length(self, tolerance=1e-6, *, ws=False, unit=None):
+        """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
 
         Args:
-            tolerance (float): 弧長計算の許容誤差。正の値を指定する。
+            tolerance (float): 弧長計算の許容誤差。内部距離単位で正の有限値。
+            ws (bool): Trueはワールド空間。Falseは従来のオブジェクト空間。
+            unit (str | None): 出力単位。Noneは現在のシーンの距離UI単位。
+                mm/cm/m/km/in/ft/yd/mi、またはMayaの長名。
 
         Returns:
-            float: Maya API の内部距離単位での弧長。親のスケールは含めない。
+            float: 指定単位での弧長。単位省略時はシーン単位。
+                ws=Trueは親の非均等スケール・シアーとインスタンスの変換を含む。
 
         Raises:
-            ValueError: tolerance が正の値でない場合。
+            ValueError: toleranceが正の有限値でない、または単位名が未対応の場合。
+            TypeError: wsがboolでない、または単位の型が不正な場合。
+            RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
-        if not tolerance > 0:
-            raise ValueError("tolerance must be positive")
-        return self.curve_fn().length(tolerance)
+        from ..utils import units
+        # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
+        factor = units.convert_distance(1.0, from_unit="cm", to_unit=unit)
+        tolerance = float(tolerance)
+        if not math.isfinite(tolerance) or tolerance <= 0:
+            raise ValueError("tolerance must be positive and finite")
+        if type(ws) is not bool:
+            raise TypeError("ws must be a bool")
+        if not ws:
+            return self.curve_fn().length(tolerance) * factor
+        # lengthはオブジェクト空間で計算するため、メモリ内のコピーだけを
+        # ワールド座標へ変換する。元のCV・履歴・Undoキューは変更しない。
+        # copyにより次数・ノット・有理カーブのウェイトも維持する。
+        source = self.curve_fn()
+        data = om2.MFnNurbsCurveData().create()
+        copied = om2.MFnNurbsCurve().copy(source.object(), data)
+        curve = om2.MFnNurbsCurve(copied)
+        curve.setCVPositions(source.cvPositions(om2.MSpace.kWorld))
+        curve.updateCurve()
+        return curve.length(tolerance) * factor
 
     def get_cv_positions(self, ws=False):
         """CV の位置を取得する。

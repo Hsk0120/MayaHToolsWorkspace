@@ -90,7 +90,7 @@ class SplineRig:
         groups["ik"].plug("visibility").set(False)
         groups["setup"].plug("visibility").set(False)
         rig = cls(root)
-        angle = hlib.general.Units.angle_to_ui(math.pi / 2)
+        angle = hlib.utils.units.angle_to_ui(math.pi / 2)
         orient = {"x": (0, 0, 0), "y": (0, 0, angle), "z": (0, -angle, 0)}[axis]
         for role in ("fk", "ik", "deform"):
             parent = groups[role]
@@ -336,14 +336,14 @@ class SplineRig:
             parent_inverse = Matrix(parent.get_matrix(ws=True)).inverse()
             local = parent_inverse.transform_point(point)
             for a, value in zip("XYZ", (local.x, local.y, local.z)):
-                control.plug("translate" + a).set(hlib.general.Units.distance_to_ui(value))
+                control.plug("translate" + a).set(hlib.utils.units.distance_to_ui(value))
             if i in (0, len(controls) - 1):
                 source = matrices[0 if i == 0 else -1]
                 rotation = source.quaternion.to_matrix()
                 local_rotation = Matrix(rest.inverse() * rotation * parent_inverse).euler
                 local_rotation.reorderIt(control.plug("rotateOrder").get())
                 for a, value in zip("XYZ", local_rotation):
-                    control.plug("rotate" + a).set(hlib.general.Units.angle_to_ui(value))
+                    control.plug("rotate" + a).set(hlib.utils.units.angle_to_ui(value))
         mode = self.mode()
         try:
             self.set_mode("ik")
@@ -351,7 +351,7 @@ class SplineRig:
             for target, joint in zip(points, joints):
                 matrix = joint.get_matrix(ws=True)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
-            error = hlib.general.Units.distance_to_ui(max(errors))
+            error = hlib.utils.units.distance_to_ui(max(errors))
         finally:
             self.set_mode(mode)
         if tolerance is not None and error > tolerance:

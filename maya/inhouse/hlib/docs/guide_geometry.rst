@@ -74,10 +74,27 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
 
    curve = hlib.getNode("curve1").shape()
    print(curve.degree(), curve.cv_count(), curve.span_count())
-   print(curve.length())  # オブジェクト空間の弧長
+   print(curve.length())         # オブジェクト空間のカーブ長
+   print(curve.length(ws=True))  # 親のスケール等を含むワールド空間のカーブ長
+   print(curve.length(ws=True, unit="m"))  # メートルで取得
+
    cvs = curve.get_cv_positions(ws=True)
 
    print(curve.get_collocated_cv_groups())  # 重なった CV のグループ（無ければ []）
+
+``length()`` は計算ノードを追加せず、現在のカーブ長を取得します。
+戻り値は既定で現在のシーンの距離UI単位です。unitにはmm/cm/m/km/in/ft/yd/mi、
+またはMayaの長名を指定できます。シーン設定は変更しません。
+ws=Trueは非均等スケール・シアーと対象インスタンスの変換も反映します。
+toleranceは出力単位によらず内部単位（cm）での計算許容誤差です。
+
+.. code-block:: python
+
+   from hlib.general import Preferences
+   from hlib.utils import units
+
+   print(Preferences.get_linear_unit())  # 現在のシーン単位（例: "cm"）
+   print(units.convert_distance(100, from_unit="cm", to_unit="m"))  # 1.0
 
 位置配列は Maya API 2.0 の ``MPointArray``、法線配列は ``MFloatVectorArray`` です。
 距離は Maya API の内部単位を使い、``ws=False`` はオブジェクト空間です。

@@ -21,3 +21,6 @@ from .curveFit import CurveFit
 from .dampedSpring import DampedSpring
 
 __all__ += ["CurveFit", "DampedSpring"]
+
+from . import units
+__all__ += ["units"]

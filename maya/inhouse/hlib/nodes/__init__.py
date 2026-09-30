@@ -19,6 +19,46 @@ globals().update(_discovered_exports)
 # 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
 # 公開名の一覧との一致は test_typing_exports.py が検証する。
 if TYPE_CHECKING:
+    from .multiplyDivide import MultiplyDivide
+    from .vectorProduct import VectorProduct
+    from .angleBetween import AngleBetween
+    from .addDoubleLinear import AddDoubleLinear
+    from .multDoubleLinear import MultDoubleLinear
+    from .addDL import AddDL
+    from .multDL import MultDL
+    from .reverse import Reverse
+    from .clamp import Clamp
+    from .setRange import SetRange
+    from .condition import Condition
+    from .unitConversion import UnitConversion
+    from .THdependNode import THDependNode
+    from .abstractBaseCreate import AbstractBaseCreate
+    from .inverseMatrix import InverseMatrix
+    from .pickMatrix import PickMatrix
+    from .composeMatrix import ComposeMatrix
+    from .fourByFourMatrix import FourByFourMatrix
+    from .plusMinusAverage import PlusMinusAverage
+    from .remapValue import RemapValue
+    from .blendMatrix import BlendMatrix
+    from .aimMatrix import AimMatrix
+    from .pairBlend import PairBlend
+    from .curveInfo import CurveInfo
+    from .pointOnCurveInfo import PointOnCurveInfo
+    from .pointOnSurfaceInfo import PointOnSurfaceInfo
+    from .shadingDependNode import ShadingDependNode
+    from .paintableShadingDependNode import PaintableShadingDependNode
+    from .lambert import Lambert
+    from .reflect import Reflect
+    from .blinn import Blinn
+    from .phong import Phong
+    from .phongE import PhongE
+    from .standardSurface import StandardSurface
+    from .surfaceShader import SurfaceShader
+    from .texture2d import Texture2d
+    from .file import File
+    from .place2dTexture import Place2dTexture
+    from .place3dTexture import Place3dTexture
+    from .shadingEngine import ShadingEngine
     from .dagNode import DagNode
     from .node import Nodes
     from .transform import Transforms

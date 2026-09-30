@@ -21,7 +21,7 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
   (bool/int/float/enum/文字列/角度/距離/時間を ``cmds.getAttr`` と突き合わせ)
 - joint の jointOrient/rotateAxis 角度単位: ``test_joint.py`` の
   ``test_set_rotate_preserves_joint_orient_and_rotate_axis``
-- ``Units``: ``test_units.py``(``cmds.currentUnit`` と突き合わせ)
+- ``Preferences``: ``test_units.py``(``cmds.currentUnit`` と突き合わせ)
 - ``Workspace``: ``test_workspace.py``(``cmds.workspace`` と突き合わせ)
 - ``Plugin``: ``test_plugin.py``(``cmds.pluginInfo`` と突き合わせ)
 - ``Reference``: ``test_reference.py``(``cmds.referenceQuery`` と突き合わせ)

@@ -59,7 +59,7 @@ class SplineStretchLayer:
         if any(hlib.getNode(j).connections(type="skinCluster") for j in rig.joints()):
             raise ValueError("Add stretch before binding the spline")
         lengths = [
-            hlib.general.Units.distance_from_ui(hlib.getAttr(j.full_name() + ".translateX"))
+            hlib.utils.units.distance_from_ui(hlib.getAttr(j.full_name() + ".translateX"))
             for j in rig.members("ik")[1:]
         ]
         graph = LengthCompensation.create(sum(lengths), root.name() + "_stretchGraph")
@@ -183,7 +183,7 @@ class SplineStretchLayer:
             if active:
                 group.plug("outputs[{}]".format(i)).source().node.plug("output").connect(target)
             else:
-                target.set(hlib.general.Units.distance_to_ui(length))
+                target.set(hlib.utils.units.distance_to_ui(length))
         for source, joint in zip(
             self.rig.members("ik" if self.rig.active() else "fk"), self.rig.members("deform")
         ):

@@ -206,7 +206,7 @@ class SecondaryLayer:
             for frame in frames:
                 cmds.currentTime(frame, update=True)
                 row = [
-                    math.degrees(hlib.general.Units.angle_from_ui(v))
+                    math.degrees(hlib.utils.units.angle_from_ui(v))
                     for source in sources
                     for v in hlib.getAttr(source.plug("rotate"))
                 ]
@@ -218,7 +218,7 @@ class SecondaryLayer:
             settings = {
                 name: group.plug(name).get() for name in ("frequency", "damping", "angleLimit")
             }
-            interval = hlib.general.Units.seconds_per_frame()
+            interval = hlib.utils.units.seconds_per_frame()
             solved = DampedSpring.solve(
                 rows, interval, settings["frequency"], settings["damping"], settings["angleLimit"]
             )
@@ -227,7 +227,7 @@ class SecondaryLayer:
                 # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
                 old_times = set(cmds.keyframe(curve.full_name(), query=True, timeChange=True) or [])
                 for frame, row in zip(frames, solved):
-                    value = hlib.general.Units.angle_to_ui(math.radians(row[column]))
+                    value = hlib.utils.units.angle_to_ui(math.radians(row[column]))
                     cmds.setKeyframe(
                         curve.full_name(),
                         time=frame,

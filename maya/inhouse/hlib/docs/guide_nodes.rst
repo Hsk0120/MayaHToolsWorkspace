@@ -424,3 +424,105 @@ Node・Nodesを通してvisibilityアトリビュートを扱います。Transfo
 hiddenInOutlinerを操作します。ビューポートのvisibilityは変更しません。
 取得値はノードの表示設定であり、フィルターや親の折り畳み、Outlinerの非表示ノード表示設定を
 含む画面上の可視性ではありません。通常はUndo可能で、fast=TrueはUndo対象外です。
+
+
+エクストラアトリビュート
+------------------------------------
+
+.. code-block:: python
+
+   weight = node.add_attribute("weight", attribute_type="double", default_value=1,
+                               minValue=0, maxValue=1, keyable=True)
+   mode = node.add_attribute("mode", at="enum", enumName="off:on", keyable=True)
+   text = node.add_attribute("memo", data_type="string")
+   text.set("コントローラ")
+   vector = node.add_attribute("offset", attribute_type="double3")
+   vector.set((1, 2, 3))
+   extras = node.get_extra_attributes()  # トップレベルのPlug一覧
+   all_extras = node.get_extra_attributes(include_children=True)
+   same_plug = node.plug("weight")       # 個別に取得
+
+既存のadd_attributeで追加できます。Mayaの長名・短名フラグを受け付け、重複指定は拒否します。
+数値のdefault_valueはMayaの定義上の既定値です。文字列の初期値は追加後にsetで設定します。
+attribute_typeがdouble2/double3/float2/float3の場合、X/Y/Zの子も自動で追加します。
+一般的なcompoundを任意構成で作る場合はMaya標準のaddAttrで子まで定義してからplugで取得します。
+
+列挙結果は非表示・非keyableのユーザー定義アトリビュートも含みます。
+Mayaの標準アトリビュートは含みません。multiはArrayPlug、複合型はCompoundPlugまたは専用型です。
+追加・通常の値変更はUndo対応です。
+
+.. list-table:: 主な型と返却Plug
+   :header-rows: 1
+
+   * - Mayaの型
+     - Plugクラス
+   * - double / float
+     - DoublePlug / FloatPlug
+   * - long / short
+     - LongPlug / ShortPlug
+   * - bool / enum / string
+     - BoolPlug / EnumPlug / StringPlug
+   * - doubleAngle / doubleLinear / time
+     - DoubleAnglePlug / DoubleLinearPlug / TimePlug
+   * - double3 / matrix
+     - Double3Plug / MatrixPlug
+   * - message
+     - MessagePlug（値ではなく接続を扱う）
+
+EnumPlugはget/setで整数、enum_name/enum_valueでラベルと値を扱えます。
+専用型のないMayaデータ型は従来どおりPlugの対応範囲で使用できます。
+型の自動選択は標準アトリビュートにも適用されます。例えばfloatの配列要素もFloatPlugになります。
+
+マテリアル・シェーダーとテクスチャ
+------------------------------------------------------------
+
+ノードクラスのファイルはすべてnodes直下に配置しています。
+Lambert、Reflect、Blinn、Phong、PhongE、StandardSurface、SurfaceShader、
+ShadingEngine、File、Place2dTexture、Place3dTextureを型付きで取得できます。
+継承はMayaのノード型に合わせ、例えばBlinnとPhongはReflect、ReflectはLambertを継承します。
+StandardSurfaceはLambertの派生ではなく、SurfaceShaderはNodeから直接派生します。
+LambertとStandardSurfaceの中間型PaintableShadingDependNodeは、起動中のMayaの継承情報に
+存在する場合に使用します。Maya 2022ではShadingDependNodeを直接継承します。
+
+.. code-block:: python
+
+   import hlib
+
+   material = hlib.createShader("lambert", name="bodyMaterial")
+   material.plug("color").set((0.2, 0.4, 0.8))
+   group = hlib.createShadingGroup(material, name="bodySG")
+   body = hlib.getNode("body")  # 既存のTransform
+   group.assign(body)
+   mesh = body.shape()
+   group.assign(mesh.faces([0, 1, 2]))  # フェース単位にも割り当て可能
+   materials = mesh.materials()
+   face_material = mesh.face(0).material()
+   targets = group.members()  # NodeまたはFaceのリスト
+
+createShader/createShadingGroupのnameはnでも指定できます。
+シェーダーの作成とシェーディンググループの作成は分けて扱います。
+assignは既存の割り当てを置き換え、選択状態には依存しません。
+Meshのshading_engines/face_shading_enginesはDAGインスタンスごとの割り当てを取得します。
+face_shading_enginesはフェース順のリストで、未割り当てはNoneです。
+Transformのshading_enginesは直下の非中間シェイプを対象とします。
+シェーダー側のshading_enginesとassigned_objectsから割り当て先をたどることもできます。
+
+.. code-block:: python
+
+   texture = hlib.createNode("file", name="bodyTexture")
+   texture.set_file_path("C:/textures/body.<UDIM>.exr")
+   placement = hlib.createNode("place2dTexture")
+   placement.connect_texture(texture)
+   texture.plug("outColor").connect(material.plug("color"))
+   current_placement = texture.get_placement()
+   current_space = texture.get_color_space()
+
+connect_textureはUV・フィルター・繰り返しなどの標準接続をまとめて行います。
+既存の異なる接続を置き換える場合はforce=Trueを明示します。
+Fileのset_color_spaceは現在の色管理設定で有効な色空間を指定します。
+ファイルパスはそのまま保持し、UDIMの展開やファイルコピーは行いません。
+
+ShadingEngineのget_shader/set_shaderはkindにsurface、volume、displacementを指定できます。
+任意の出力はPlugで渡すかoutputで出力名を指定します。
+マテリアル固有の値はplugで扱い、表示色用のColorクラスへは変換しません。
+作成・割り当て・接続・値変更は通常のUndoに対応します。

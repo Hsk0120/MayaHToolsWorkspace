@@ -53,7 +53,7 @@ class LimbStretchLayer:
             return self.settings()
         rig, root = self.rig, self.rig.root
         lengths = [
-            hlib.general.Units.distance_from_ui(
+            hlib.utils.units.distance_from_ui(
                 hlib.getAttr(rig._member("ik" + str(i)) + ".translateX")
             )
             for i in (1, 2)
@@ -233,7 +233,7 @@ class LimbStretchLayer:
             if active:
                 group.plug("outputs[{}]".format(i)).source().node.plug("output").connect(target)
             else:
-                target.set(hlib.general.Units.distance_to_ui(length))
+                target.set(hlib.utils.units.distance_to_ui(length))
         soft = hlib.getPlug(rig._member("softGraph") + ".distance")
         if soft.source() is not None:
             soft.source().disconnect(soft)

@@ -788,7 +788,7 @@ hrigは構成・命名・レイヤー有効状態・LOD・リグの姿勢合わ�
 | 計算ノードの所有・追加・列挙 | `hlib.nodes.Container` |
 | 保存用message配列 | `hlib.plugs.ArrayPlug.source_nodes / append_message` |
 | 操作カーブ | `hrig.setups.ControlShape` |
-| 表示単位変換 | `hlib.general.Units` |
+| 表示単位変換 | `hlib.utils.units` |
 | スキンのバインド・最近傍ウェイト転送 | `hlib.nodes.SkinCluster` |
 | 標準演算とSoft IK | `hlib.utils.scalarGraph.ScalarGraph / SoftIK` |
 | Bifrost基本演算とSoft IK | `hlib_bifrost.utils.MathBuilder` / `hrig.setups.bifrostSoftIK.SoftIK` |

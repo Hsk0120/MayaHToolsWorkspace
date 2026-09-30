@@ -289,6 +289,43 @@ class Node:
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
 
+    def shading_engines(self):
+        """自身から直接接続されているShadingEngineを重複なしで返す。
+
+        Returns:
+            list[ShadingEngine]: 直接接続先。テクスチャから履歴を辿る操作ではない。
+        """
+        from .shadingEngine import ShadingEngine
+        names = cmds.listConnections(self.full_name(), source=False, destination=True,
+                                     type="shadingEngine") or []
+        return list(dict.fromkeys(ShadingEngine(name) for name in names))
+
+    def assigned_objects(self):
+        """接続先ShadingEngineのメンバーを重複なしで取得する。
+
+        Returns:
+            list[Node | Face]: 割り当て先オブジェクトまたはフェース。
+        """
+        result = []
+        for group in self.shading_engines():
+            for member in group.members():
+                if member not in result:
+                    result.append(member)
+        return result
+
+    def materials(self):
+        """接続/割り当て先のサーフェスマテリアルを取得する。
+
+        Returns:
+            list[Node]: 重複なしのマテリアル。未接続のShadingEngineは除く。
+        """
+        result = []
+        for group in self.shading_engines():
+            material = group.get_shader()
+            if material is not None and material not in result:
+                result.append(material)
+        return result
+
     def get_visibility(self):
         """bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。"""
         return bool(self.plug("visibility").get())
@@ -1170,12 +1207,15 @@ class Node:
     ):
         """アトリビュートを追加し、追加したPlugを返す。
 
+        attribute_typeがdouble2/double3/float2/float3ならXYZの子も自動作成する。
+        任意構成のcompoundはMaya標準addAttrで子まで定義してからplugで取得する。
+
         Args:
             long_name (str): 追加するアトリビュートのロング名。
             attribute_type (str | None): addAttr の attributeType。data_type と少なくとも一方が必要。
             data_type (str | None): addAttr の dataType。
             default_value (object | None): addAttr の defaultValue。None なら指定しない。
-            **kwargs (object): addAttr に渡す追加フラグ。明示引数に対応する短縮フラグは上書きする。
+            **kwargs (object): addAttrへ渡す長名・短名フラグ。重複指定は拒否する。
 
         Returns:
             Plug: 追加したアトリビュートの型に対応するプラグ。
@@ -1186,18 +1226,59 @@ class Node:
         """
         if not isinstance(long_name, str) or not long_name:
             raise ValueError("long_name must be a non-empty string")
-        if attribute_type is None and data_type is None:
-            raise ValueError("attribute_type or data_type is required")
-        add_kwargs = dict(kwargs)
-        add_kwargs["ln"] = long_name
+        from .._core.flags import normalize_flags
+        from ..cmds.addAttr import addAttr
+        add_kwargs = normalize_flags("addAttr", kwargs)
+        if "longName" in add_kwargs:
+            raise TypeError("long_name and longName cannot be specified together")
+        add_kwargs["longName"] = long_name
         if attribute_type is not None:
-            add_kwargs["at"] = attribute_type
+            if "attributeType" in add_kwargs:
+                raise TypeError("Specify attribute_type or attributeType, not both")
+            add_kwargs["attributeType"] = attribute_type
         if data_type is not None:
-            add_kwargs["dt"] = data_type
+            if "dataType" in add_kwargs:
+                raise TypeError("Specify data_type or dataType, not both")
+            add_kwargs["dataType"] = data_type
         if default_value is not None:
-            add_kwargs["dv"] = default_value
-        cmds.addAttr(self.name(), **add_kwargs)
-        return self.plug(long_name)
+            if "defaultValue" in add_kwargs:
+                raise TypeError("Specify default_value or defaultValue, not both")
+            add_kwargs["defaultValue"] = default_value
+        if not (add_kwargs.get("attributeType") or add_kwargs.get("dataType")):
+            raise ValueError("attribute_type or data_type is required")
+        vector_type = add_kwargs.get("attributeType")
+        if vector_type in ("double2", "double3", "float2", "float3"):
+            # Mayaは子が揃うまで複合Plugを公開しないため、XYZの子も同時に作る。
+            if "numberOfChildren" in add_kwargs:
+                raise ValueError("Vector child count is determined by attribute_type")
+            cmds.addAttr(self.full_name(), **add_kwargs)
+            for axis in "XYZ"[:int(vector_type[-1])]:
+                cmds.addAttr(self.full_name(), longName=long_name + axis,
+                             attributeType=vector_type[:-1], parent=long_name,
+                             keyable=bool(add_kwargs.get("keyable", False)))
+            return self.plug(long_name)
+        return addAttr(self, **add_kwargs)
+
+    def get_extra_attributes(self, include_children=False):
+        """ユーザー追加のエクストラアトリビュートを型付きPlugで取得する。
+
+        Args:
+            include_children (bool): Trueは複合アトリビュートの子も含める。
+
+        Returns:
+            list[Plug]: Mayaの列挙順のプラグ。配列はArrayPlugとして返す。
+                非表示・非keyableも含む。個別取得はplug("名前")を使用する。
+
+        Raises:
+            TypeError: include_childrenがboolでない場合。
+            RuntimeError: ノードが無効な場合。
+        """
+        if not isinstance(include_children, bool):
+            raise TypeError("include_children must be a bool")
+        if not self.is_valid():
+            raise RuntimeError("Cannot list attributes on an invalid node")
+        names = (cmds.listAttr(self.full_name(), userDefined=True) or []) if include_children else self.user_attribute_names()
+        return [self.plug(name) for name in names]
 
     def user_attribute_names(self):
         """トップレベルのユーザー定義アトリビュート名を現在の並び順で取得する。

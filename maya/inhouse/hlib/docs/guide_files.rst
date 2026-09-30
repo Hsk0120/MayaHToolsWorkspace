@@ -33,7 +33,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
     from hlib.general import Scene, list_references
     from hlib.general import Namespace
     from hlib.general import Plugin, Plugins
-    from hlib.general.units import Units
+    from hlib.general import Preferences
     from hlib.general.workspace import Workspace
     from hlib.general import TimeSlider, Viewport, Outliner
 

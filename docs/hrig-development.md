@@ -44,7 +44,7 @@ def set_layer_enabled(self, layer, enabled):
   レイヤー固有のノード名、所有グラフの選択と有効状態判断はhrigで決める。
 - 保存用message配列は`ArrayPlug.source_nodes()`と`append_message()`を使う。
   前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
-- 操作シェイプは`hrig.setups.ControlShape`、単位境界は`hlib.general.Units`を使う。
+- 操作シェイプは`hrig.setups.ControlShape`、単位境界は`hlib.utils.units`を使う。
   型名が必要な場合は`Plug.data_type()`を使用する（`Plug.type()`はPythonクラス）。
 - バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copy_weights_to`を使う。
   どの骨をLODへ含めるか、どのメッシュを表示するかはhrigの責務とする。
@@ -73,7 +73,7 @@ def set_layer_enabled(self, layer, enabled):
 
 - `maya.utils` の直接importも行わない。Pythonの遅延呼出しは
   `hlib.executeDeferred(callback, *args, **kwargs)` を使う。文字列コードは受け付けない。
-- 作業環境・単位・選択は `hlib.general.Workspace` / `Units` / `Selection` に配置する。
+- 作業環境・単位・選択は `hlib.general.Workspace` / `Preferences` / `Selection` に配置する。
   実装はgeneral配下の原則1クラス1ファイル（単数・対応する複数クラスは同居）。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
 
 ## リグセットアップの境界

@@ -791,6 +791,10 @@ class Transform(DagNode):
         self.set_matrix(local, fast=fast)
         return self
 
+    def shading_engines(self):
+        """list[ShadingEngine]: 直下の非中間Shapeで使用中のセット。インスタンス経路を保持。"""
+        return list(dict.fromkeys(group for shape in self.shapes() for group in shape.shading_engines()))
+
     def get_offset_parent_matrix(self):
         """offsetParentMatrixの現在値を取得する。
 

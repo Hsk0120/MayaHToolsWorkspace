@@ -139,7 +139,7 @@ class SkirtRig:
                 offset.plug("translate").set(
                     (radius * math.cos(angle), 0, radius * math.sin(angle))
                 )
-                offset.plug("rotateY").set(hlib.general.Units.angle_to_ui(-angle))
+                offset.plug("rotateY").set(hlib.utils.units.angle_to_ui(-angle))
                 parent = offset
                 for depth in range(joints_per_chain):
                     joint = hlib.createNode(
@@ -179,7 +179,7 @@ class SkirtRig:
                 rest.plug("translate").set(
                     (radius * math.cos(angle), -spacing * depth, radius * math.sin(angle))
                 )
-                rest.plug("rotateY").set(hlib.general.Units.angle_to_ui(-angle))
+                rest.plug("rotateY").set(hlib.utils.units.angle_to_ui(-angle))
                 constraint = hlib.addConstraint(
                     [rest, drivers[indices[0]][depth], drivers[indices[1]][depth]],
                     joint.full_name(),

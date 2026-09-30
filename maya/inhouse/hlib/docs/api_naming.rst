@@ -299,7 +299,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 
 * TimeSlider: ``get_current_time()``、``get_playback_range()``、
   ``get_animation_range()``、``get_selected_range()``。
-* Units: ``get_linear()``、``get_angle()``、``get_time()``。
+* Preferences: ``get_linear_unit()``、``get_angle_unit()``、``get_time_unit()``。
 * Viewport / Outliner: ``get_settings()``。
 * Workspace: ``get_rule()``、ルール名一覧は ``rule_names()``。
 * SkinCluster: ``get_max_influences()``。

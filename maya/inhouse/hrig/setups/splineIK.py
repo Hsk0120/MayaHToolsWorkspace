@@ -78,7 +78,7 @@ class SplineIK:
                 raise ValueError("Joint rotation already has an input")
         graph = cls(hlib.nodes.Container.create(name=name))
         points = [
-            tuple(hlib.general.Units.distance_to_ui(v) for v in c.get_translate(ws=True))
+            tuple(hlib.utils.units.distance_to_ui(v) for v in c.get_translate(ws=True))
             for c in controls
         ]
         curve = hlib.nodes.Node(hlib.createCurve(degree=3, point=points, name=name + "_curve"))

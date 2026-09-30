@@ -51,7 +51,8 @@ Mayaが削除した末尾の要素の過去の番号までは記憶しません�
 前者はNurbsCurve、後者はTransformを返します。
 リグ操作形状の命名・色・親への配置は ``hrig.setups.ControlShape`` の責務です。
 
-``Units.distance_to_ui(cm)`` / ``distance_from_ui(value)`` は距離、
+``from hlib.utils import units`` で読み込む
+``units.distance_to_ui(cm)`` / ``distance_from_ui(value)`` は距離、
 ``angle_to_ui(rad)`` / ``angle_from_ui(value)`` は角度の単位境界で使います。
 ``seconds_per_frame()`` は現在の時間単位での1フレームの秒数を返します。
 いずれもシーンの単位設定自体は変更しません。

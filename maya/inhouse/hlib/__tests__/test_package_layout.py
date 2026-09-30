@@ -14,7 +14,7 @@ class PackageLayoutTest(unittest.TestCase):
         importlib.reload(hlib)
         hlib.reload()
         for package, names in {
-            "general": ("Scene", "Namespace", "Plugin", "Plugins", "Units", "Workspace",
+            "general": ("Scene", "Namespace", "Plugin", "Plugins", "Preferences", "Workspace",
                         "Selection", "TimeSlider", "Viewport", "Outliner", "ScriptJob", "DrivenKey", "DrivenKeys"),
             "decorators": ("undo_chunk", "preserved_selection", "viewport_off"),
         }.items():
