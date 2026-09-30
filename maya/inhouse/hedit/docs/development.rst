@@ -194,6 +194,10 @@ Python のソースは ``src/python/`` に普通の ``.py`` として置きま�
 import フックを登録し、\ ``import hedit`` などは通常の ``.py`` と同じく import した時点で同梱ソースから読み込まれます
 (バッチ/mayapy でも登録するため、補完などの Python API は standalone でも使えます)。
 
+ソースは Python の普通の文字列リテラルとして渡し、実行は標準の ``importlib.abc.InspectLoader``\ (``get_source`` →
+``exec_module``\ )に任せます。ソースを符号化して戻したり、\ ``exec``\ ・\ ``compile`` を自前で呼んだりはしません。
+「符号化した文字列を戻して実行する」形はマルウェアの典型で、ウイルス対策ソフトに誤検知されやすいためです。
+
 * ``hedit.__version__`` は、ロード時に ``src/version.h`` の値が設定されます(``__init__.py`` には書きません)。
 * フックを ``sys.meta_path`` の先頭に置くのは、\ ``PYTHONPATH`` 上に同名のフォルダー(旧版の ``__pycache__``
   だけが残った ``scripts/hedit`` など)があっても、空の名前空間パッケージとして先に解決させないためです。

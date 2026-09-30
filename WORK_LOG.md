@@ -39,7 +39,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-09-30 | 通常visibility・未コミット公開 | Nodeへvisibility APIを集約し検証後に依頼済み未コミット変更をpushする。 |
+| Codex | 2026-09-30 | 計算ノード追加 | 提案した計算・行列・カーブ情報22ノードのクラス、便利メソッド、テストとドキュメントを追加する。 |
 
 
 
@@ -48,6 +48,15 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+| Claude Code | 2026-09-30 | maya/inhouse/hedit 同梱Python起動 | 16進数変換(binascii.unhexlify)とexec(compile())をやめ、普通の文字列リテラル+importlib.abc.InspectLoaderで読み込むよう変更(ウイルス誤検知対策)。5版ビルド警告0、mllから該当文字列が消えたことを確認。run_tests/run_startup 5版・run_gui 2024/2027・Sphinx -W 成功。プッシュ済み。 |
+
+| Codex | 2026-09-30 | ノード対応状況の確認 | 既存クラスと内製使用箇所を確認して追加方針を回答。実装変更なし。 |
+
+| Codex | 2026-09-30 | マテリアル/シェーダー | nodes直下に14型を追加、Mayaの継承（2022の中間型差を含む）へ対応。作成・割当・フェース/インスタンス照会・テクスチャ接続を追加。2022/2027の対象5テスト成功。2027全体810ケース/82ファイル中81成功、既知のBifrost起動確認のみ失敗。Sphinx -W成功。GUI未検証、未push。 |
+| Codex | 2026-09-30 | 通常visibility・未コミット公開 | 先行作業の全対象変更はe886528としてmainへpush済み。残っていた進行中行を整理。 |
+
+| Codex | 2026-09-30 | エクストラアトリビュート | add_attributeの長短フラグ・ベクトル子自動生成、get_extra_attributes、9種類の専用Plugを追加。2022新規2テスト成功。2027全体はBifrost flowWedging起動確認のみ失敗し変更対象成功。Sphinx -W成功。GUI未検証、未push。 |
 
 | Codex | 2026-09-30 | 通常visibility・未コミット公開準備 | get/set_visibilityをNodeへ集約。通常/アウトライナーの独立性とUndo検証成功。Maya2027全804ケース・80ファイル中79成功、既存Bifrost起動テストflowWedgingロード確認1件失敗。Sphinx -W成功。依頼済み全hlib変更をコミット/push対象に整理。GUI未検証。 |
 
