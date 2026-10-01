@@ -212,7 +212,6 @@ class RigFoundationsTest(unittest.TestCase):
         if not cmds.about(batch=True):
             self.skipTest("Batch-only contract")
         self.assertIsNone(MainWindow.name())
-        self.assertIsNone(MainWindow.widget())
         for editor in (NodeEditor, GraphEditor):
             with self.assertRaises(RuntimeError):
                 editor.show()

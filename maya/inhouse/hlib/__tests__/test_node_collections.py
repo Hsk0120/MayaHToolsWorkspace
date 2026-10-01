@@ -173,7 +173,7 @@ class NodeCollectionsTest(unittest.TestCase):
             def edit(self, value, *, extra=False):
                 """値と追加フラグを返す。"""
                 return value, extra
-        @bulk_api(Item, undo=False)
+        @bulk_api(Item, undo=False, reads=("edit",))
         class Base(BulkCollection):
             """基底コレクション。"""
         @bulk_api(Child, undo=False)

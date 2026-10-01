@@ -19,7 +19,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-| Codex | 2026-10-01 | hlib設計レビュー | 責務・継承・コレクション・参照寿命・保存契約を調査。実装変更なし。 |
+
+
+
 
 
 
@@ -53,6 +55,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-01 | maya/inhouse/hedit 全体(src・tests・docs・cmake・CMakeLists・release)・maya/modules/hedit.mod | 設計レビューの指摘15件の対応(配布・起動、Python呼出し、出力取り込み、状態保存、グローバル状態、補完エンジンの型、言語の列挙、テスト用コマンド分離、テスト構成、エスケープ統一、MainWindow分割、実行時の__file__ ほか) |
 
 
 
@@ -62,6 +65,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+- 2026-10-01 Codex: ユーザーのpush依頼に基づき、hlib設計修正・Qt依存除去・関連hrig/テスト/ドキュメント/開発規則を公開対象として確認。差分検査と直近の対象テスト・Sphinx成功を確認。GUI未検証と既知の互換制限は上記作業記録のとおり。
+
+- 2026-10-01 Codex: hlibのQt依存を除去。Window/WorkspaceControlの寿命をMaya API 2.0 MUiMessage削除通知で共有監視し、最終参照解放で解除。MainWindow.widgetを削除しhrig LayerEditorでQtのトップレベルUIから親を取得。テスト内のQt importも削除、再混入のAST検査を追加。AGENTS/CLAUDE/Copilotと設計・Sphinxへ方針を記載。2022/2027でhlib対象19件中16成功・GUI3skip（削除通知はmock）、hrig対象13件は2027成功。hrig2022は既存のPython3.10+型注釈でimport不可。Sphinx -Wと差分検査成功。実GUI削除通知・hrig親表示は未検証。未コミット・未push。
+
+- 2026-10-01 Codex: hlib設計5項目を修正。ConstraintをTransform派生、表示APIをDagNode/DagNodesへ移動。一括公開を明示宣言化し更新は自身を返す。単位setterからsave除去、他の保存要求はbatchで変更前検証。UI参照はQt実体の寿命を検証しUiSnapshotで退避、配置APIはドッキング範囲を名称へ明示。関連テスト・Sphinx・設計基準更新。全体2022は88ファイル成功、2027は既知flowWedging失敗のみ。追加の対象テストは両版成功（実Qt削除検知含む）。Sphinx -W成功。専用GUIは2027ライセンス初期化失敗、2024起動100秒timeoutで所有プロセス終了、実ドッキング復元未検証。未コミット・未push。
+
+| Claude Code | 2026-10-01 | maya/inhouse/hedit 設計レビュー(コード変更なし) | 配布・起動、画面スレッドでのPython同期呼出し、出力取り込みのMaya内部依存、自動保存の全書き直し、状態ファイル3種、グローバル状態、補完エンジンの型などを洗い出し、docs/research/hedit-design-review-20261001.md に記録。 |
+
+- 2026-10-01 Codex: hlibのクラス設計をレビュー。継承・基底責務・複数形API・保存契約・UI参照寿命を確認。Maya 2027 standaloneでconstraintの実際の継承を照会。実装変更なし。
 
 | Claude Code | 2026-10-01 | maya/inhouse/hedit ホバー | 名前にマウスを重ねる/Ctrl+K→Ctrl+Iで定義の見出しとdocstringを出すホバーを追加(core/docstrings・宣言の抽出・CompletionEngine::describe・bridge.describe・HoverPopup・hedit -describe)。tests/output_format_smoke.pyの末尾一致をMayaの遅延出力に強い判定へ修正。5版ビルド警告0、run_tests 5版・run_gui 2024/2027(+補完/整形/出力スイート)・run_session・run_startup・Sphinx -W 成功。未コミット。 |
 

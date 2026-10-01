@@ -4,7 +4,18 @@ from .._core.collection import BulkCollection, bulk_api
 from .drivenKey import DrivenKey, _plug, _curves, _sources, _contains_plug
 
 
-@bulk_api(DrivenKey)
+@bulk_api(
+    DrivenKey,
+    reads=(
+        'driver_plug',
+        'driven_plug',
+        'curves',
+        'exists',
+    ),
+    writes=(
+        'set_key',
+    ),
+)
 class DrivenKeys(BulkCollection):
     """DrivenKeyの保持順コレクション。同名メソッドを一括実行できる。"""
 

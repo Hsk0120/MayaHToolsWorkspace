@@ -1,33 +1,8 @@
-"""MayaのメインウィンドウをQtの親として取得する。"""
+"""Mayaのメインウィンドウ名を取得する。"""
 
 
 class MainWindow:
-    """Qtの版とOpenMayaUIのポインター変換を共通化する。"""
-
-    @staticmethod
-    def widget():
-        """現在のMayaメインウィンドウを取得する。
-
-        Qtは呼出時だけ読み込み、PySide6を優先してPySide2へフォールバックする。
-        ウィンドウの所有権はMayaにあり、呼出側で削除しない。
-
-        Returns:
-            QWidget | None: Maya所有のウィンドウ。バッチや未作成時はNone。
-        """
-        from maya import cmds, OpenMayaUI
-
-        if cmds.about(batch=True):
-            return None
-        pointer = OpenMayaUI.MQtUtil.mainWindow()
-        if not pointer:
-            return None
-        try:
-            from PySide6 import QtWidgets
-            from shiboken6 import wrapInstance
-        except ImportError:
-            from PySide2 import QtWidgets
-            from shiboken2 import wrapInstance
-        return wrapInstance(int(pointer), QtWidgets.QWidget)
+    """Maya標準UIの名前を照会する。ウィジェットへの変換は利用側で行う。"""
 
     @staticmethod
     def name():

@@ -52,3 +52,7 @@ from .workspaceControl import WorkspaceControl
 from .workspaceLayout import WorkspaceLayout
 
 __all__ += ["Window", "WorkspaceControl", "WorkspaceLayout"]
+
+from .uiSnapshot import UiSnapshot
+
+__all__ += ["UiSnapshot"]

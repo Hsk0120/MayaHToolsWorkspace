@@ -2,6 +2,8 @@
 
 ## 基本方針
 
+- hlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
+
 - hlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
 
 - Aiderへの実装委譲は行わない。Maya開発時のGPU・メモリ競合を避けるため、ローカルOllamaも作業のために自動起動・モデルロードしない。実装・レビュー・検証は担当エージェントが直接行う。ユーザーが明示的に再開を指示するまで、この方針を維持する。

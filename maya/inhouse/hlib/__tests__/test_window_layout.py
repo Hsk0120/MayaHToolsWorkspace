@@ -5,7 +5,11 @@ import unittest
 from unittest.mock import patch
 from contextlib import ExitStack
 import maya.cmds as cmds
-from hlib.general import Window, WorkspaceControl, WorkspaceLayout
+from hlib.general import Window, WorkspaceControl, WorkspaceLayout, UiSnapshot
+from hlib.general._windowReference import _WindowReference
+from hlib.general._uiLifetime import _UiLifetime
+from maya.api import OpenMayaUI
+import weakref
 
 
 class WindowApiTest(unittest.TestCase):
@@ -14,6 +18,15 @@ class WindowApiTest(unittest.TestCase):
     def setUp(self):
         """GUIコマンドを隔離する。保存先へ書き込まない。"""
         self.stack = ExitStack()
+        self.callbacks = {}
+        def register(name, callback):
+            """削除通知を記録し、テストから明示的に発火できるようにする。"""
+            self.callbacks[name] = callback
+            return len(self.callbacks)
+        self.stack.enter_context(patch.object(_UiLifetime, "_instances", weakref.WeakValueDictionary()))
+        self.stack.enter_context(patch.object(_UiLifetime, "_remove_callback"))
+        message = self.stack.enter_context(patch.object(OpenMayaUI, "MUiMessage"))
+        message.addUiDeletedCallback.side_effect = register
         self.addCleanup(self.stack.close)
         self.stack.enter_context(patch.object(cmds, "about", return_value=False))
         self.window = self.stack.enter_context(patch.object(cmds, "window", create=True, return_value=True))
@@ -66,6 +79,20 @@ class WindowApiTest(unittest.TestCase):
             window.restore({"kind": "window", "name": "test"})
         self.assertFalse(any(call[1].get("edit") for call in self.window.call_args_list))
 
+    def test_recreated_ui_and_immutable_snapshot(self):
+        """同名UI再生成で古い参照を無効にし、退避値の書換えを防ぐ。"""
+        original = Window("test")
+        snapshot = original._capture({"state": "saved", "visible": True, "resizable": True})
+        with self.assertRaises(TypeError):
+            snapshot.data["state"] = "changed"
+        self.callbacks["test"]()
+        self.assertFalse(original.exists())
+        replacement = Window("test")
+        self.window.reset_mock()
+        with self.assertRaises(RuntimeError):
+            replacement.restore(snapshot)
+        self.assertFalse(any(call[1].get("edit") for call in self.window.call_args_list))
+
     def test_dock_lock_and_arguments(self):
         """ロックを迂回せず、配置先フラグを正しく選ぶ。"""
         control = WorkspaceControl("tool")
@@ -110,10 +137,30 @@ class WindowApiTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             WorkspaceLayout.set_locked("false")
 
+    def test_layout_capture_excludes_floating_controls(self):
+        """浮動UIの削除は範囲外、ドックの再生成は復元前に拒否する。"""
+        def control(name, **flags):
+            """存在照会と浮動状態だけを返す。"""
+            return name == "floating" if flags.get("floating") else True
+        self.control.side_effect = control
+        self.window.side_effect = lambda name, **flags: "docking" if flags.get("dockingLayout") else True
+        with patch.object(cmds, "lsUI", return_value=["docked", "floating"]), patch("hlib.general.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=False):
+            layout = WorkspaceLayout()
+            snapshot = layout.capture_docking_layout()
+            self.assertEqual(snapshot.scope, "dockingLayout")
+            self.assertEqual([target.name() for target in snapshot._targets], ["MayaWindow", "docked"])
+            self.callbacks["floating"]()
+            snapshot.validate()
+            self.callbacks["docked"]()
+            self.window.reset_mock()
+            with self.assertRaises(RuntimeError):
+                layout.restore_docking_layout(snapshot)
+            self.assertFalse(any(call[1].get("edit") for call in self.window.call_args_list))
+
     def test_layout_restore_failure_restores_lock(self):
         """配置復元失敗でも元のロックに戻す。"""
         layout = WorkspaceLayout()
-        snapshot = {"kind": "workspaceLayout", "name": "Main", "main_window": "MayaWindow", "docking": "abc", "controls": [], "locked": False}
+        snapshot = UiSnapshot("dockingLayout", "Main", {"main_window": "MayaWindow", "docking": "abc", "locked": False}, (Window("MayaWindow"),))
         def window(name, **kw):
             if kw.get("edit"):
                 raise RuntimeError("restore failed")
@@ -121,8 +168,45 @@ class WindowApiTest(unittest.TestCase):
         self.window.side_effect = window
         with patch("hlib.general.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=True), patch.object(WorkspaceLayout, "set_locked") as lock:
             with self.assertRaisesRegex(RuntimeError, "restore failed"):
-                layout.restore(snapshot)
+                layout.restore_docking_layout(snapshot)
             self.assertEqual([call[0] for call in lock.call_args_list], [(False,), (True,)])
+
+
+class WindowLifetimeTest(unittest.TestCase):
+    """Mayaの削除callbackの共有・解放・同名再生成を検証する。"""
+
+    def test_callback_shared_and_released(self):
+        """最終参照解放で監視を解除し、Mayaから強参照が残らない。"""
+        import gc
+        with patch.object(_UiLifetime, "_instances", weakref.WeakValueDictionary()), patch.object(_UiLifetime, "_remove_callback") as remove, patch.object(OpenMayaUI, "MUiMessage") as message:
+            register = message.addUiDeletedCallback
+            register.return_value = 123
+            first = _UiLifetime.acquire("window", "shared")
+            second = _UiLifetime.acquire("window", "shared")
+            self.assertIs(first, second)
+            register.assert_called_once()
+            callback = register.call_args[0][1]
+            reference = weakref.ref(first)
+            del first
+            gc.collect()
+            remove.assert_not_called()
+            del second
+            gc.collect()
+            self.assertIsNone(reference())
+            remove.assert_called_once_with(123)
+            callback()  # 解放後の通知も安全。
+
+    def test_deleted_ui_gets_new_lifetime(self):
+        """同じ名前でも削除通知後は新しい寿命を割り当てる。"""
+        with patch.object(_UiLifetime, "_instances", weakref.WeakValueDictionary()), patch.object(_UiLifetime, "_remove_callback"), patch.object(OpenMayaUI, "MUiMessage") as message:
+            register = message.addUiDeletedCallback
+            register.return_value = 123
+            first = _UiLifetime.acquire("window", "recreated")
+            register.call_args[0][1](None)
+            second = _UiLifetime.acquire("window", "recreated")
+            self.assertFalse(first.alive)
+            self.assertTrue(second.alive)
+            self.assertIsNot(first, second)
 
 
 @unittest.skipUnless(os.environ.get("HLIB_WINDOW_LAYOUT_TEST") == "1" and not cmds.about(batch=True), "Requires disposable Maya GUI")
@@ -149,6 +233,22 @@ class WindowGuiTest(unittest.TestCase):
         finally:
             cmds.deleteUI(name, window=True)
 
+    def test_same_name_recreation_invalidates_reference(self):
+        """Maya標準UIの削除・同名再生成を検出する。"""
+        name = cmds.window(title="hlib lifetime test")
+        original = Window(name)
+        snapshot = original.capture()
+        cmds.deleteUI(name, window=True)
+        cmds.window(name, title="replacement")
+        try:
+            self.assertFalse(original.exists())
+            with self.assertRaises(RuntimeError):
+                original.show()
+            with self.assertRaises(RuntimeError):
+                Window(name).restore(snapshot)
+        finally:
+            cmds.deleteUI(name, window=True)
+
     def test_dock_and_layout(self):
         """独立プロファイルでドッキング・ロック・名前付き保存を確認する。"""
         import uuid
@@ -162,10 +262,10 @@ class WindowGuiTest(unittest.TestCase):
             WorkspaceLayout.unlock()
             control.dock("right")
             self.assertFalse(control.get_floating())
-            snapshot = original.capture()
+            snapshot = original.capture_docking_layout()
             control.undock()
             self.assertTrue(control.get_floating())
-            original.restore(snapshot)
+            original.restore_docking_layout(snapshot)
             self.assertFalse(control.get_floating())
             WorkspaceLayout.lock()
             self.assertTrue(WorkspaceLayout.get_locked())

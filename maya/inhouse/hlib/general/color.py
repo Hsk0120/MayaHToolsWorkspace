@@ -209,7 +209,22 @@ class Color:
         return f"Color({self.mode}={getattr(self, self.mode)!r})"
 
 
-@bulk_api(Color, undo=False)
+@bulk_api(
+    Color,
+    undo=False,
+    reads=(
+        'copy',
+    ),
+    writes=(
+        'refresh_palette',
+    ),
+    properties=(
+        'palette_source',
+        'mode',
+        'index',
+        'rgb',
+    ),
+)
 class Colors(BulkCollection):
     """順序と重複を保持するColorのコレクション。シーンは編集しない。
 

@@ -4,14 +4,14 @@ import unittest
 import maya.cmds as cmds
 import hlib
 hlib.reload()
-from hlib.nodes import Nodes
+from hlib.nodes import DagNodes
 
 
 class OutlinerVisibilityTest(unittest.TestCase):
     """設定値とUndo、一括操作を検証する。"""
 
     def test_visibility_and_undo(self):
-        nodes = Nodes([hlib.createNode("transform"), hlib.createNode("joint")])
+        nodes = DagNodes([hlib.createNode("transform"), hlib.createNode("joint")])
         try:
             self.assertEqual(nodes.get_outliner_visibility(), [True, True])
             nodes.set_outliner_visibility(False)

@@ -627,7 +627,34 @@ class Joint(Transform):
         return result
 
 @collection_export()
-@bulk_api(Joint)
+@bulk_api(
+    Joint,
+    reads=(
+        'get_segment_scale_compensate',
+        'get_joint_orient',
+        'get_radius',
+        'get_inverse_scale',
+        'parent_joint_name',
+        'child_joint_names',
+        'depth',
+        'is_joint',
+        'skin_clusters',
+        'transfer_target',
+        'reparent_children',
+        'chain_from_here',
+        'ik_handles',
+    ),
+    writes=(
+        'set_segment_scale_compensate',
+        'joint_orient_to_rotate',
+        'freeze_rotation',
+        'connect_inverse_scale',
+        'disconnect_inverse_scale',
+        'set_radius',
+        'delete',
+        'remove_influence',
+    ),
+)
 class Joints(Transforms):
     """Joint参照を保持するTransforms派生。型・重複規則はNodesに従う。"""
 

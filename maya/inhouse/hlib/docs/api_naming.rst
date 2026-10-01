@@ -279,7 +279,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 ノードコレクションの継承と色の戻り値
 ----------------------------------------------------------------------
 
-``Nodes`` / ``Transforms`` を追加し、``Joints`` は ``Transforms``、
+``Nodes → DagNodes → Transforms`` の継承で、``Joints`` は ``Transforms``、
 ``SkinClusters`` は ``Nodes`` の派生に変更しました。
 ``Joints`` の構築時に非jointを黙って除外せず ``TypeError`` にします。
 重複判定は同一ノード・同一DAGパスに統一し、異なるインスタンスパスを保持します。
@@ -287,7 +287,8 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 複数形の ``get_override_color()`` / ``get_outliner_color()`` は
 ``list[Color]`` から ``Colors`` に変わりました。
 複数形の色setterの戻り値は各結果のリストからコレクション自身へ変わりました。
-他の通常一括メソッドの戻り値や ``hlib.ls()`` の返却規則は維持しています。
+通常の一括更新もコレクション自身を返します。照会・生成結果が必要な操作は結果リストです。
+``hlib.ls()`` の返却規則は維持しています。
 使用例は :doc:`guide_nodes` と :doc:`node_colors` を参照してください。
 
 

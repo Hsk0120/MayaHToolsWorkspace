@@ -11,7 +11,8 @@ class Preferences:
 
     getメソッドは毎回Mayaを照会し、setメソッドは実行中の設定を変更する。
     単位はシーン保存の対象、それ以外はユーザー設定として扱われる。
-    save=Trueまたはsave()でユーザー設定を同期・保存する。シーンは保存しない。
+    単位以外のsetterのsave=Trueまたはsave()で一般ユーザー設定全体を保存する。
+    単位のsetterはsave引数を持たず、Scene.save()でシーンに保存する。
     各項目の保存区分は設定保存ガイドを参照する。"""
 
     @staticmethod
@@ -29,11 +30,10 @@ class Preferences:
 
     @staticmethod
     @undo_chunk("hlib.general.Preferences.set_linear_unit")
-    def set_linear_unit(unit, *, save=False):
+    def set_linear_unit(unit):
         """距離 UI 単位を変更する。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
             unit (str): ``cmds.currentUnit`` が受け付ける距離単位名
                 (例: ``"mm"``、``"cm"``、``"m"``、``"in"``、``"ft"``)。
 
@@ -44,12 +44,9 @@ class Preferences:
             RuntimeError: Maya が未対応の単位名を拒否した場合。
 
         Note:
-            現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
+            現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。 Scene.save()でシーンを保存する。
         """
-        Preferences._boolean(save)
         cmds.currentUnit(linear=unit)
-        if save:
-            Preferences.save()
 
 
     @staticmethod
@@ -67,11 +64,10 @@ class Preferences:
 
     @staticmethod
     @undo_chunk("hlib.general.Preferences.set_angle_unit")
-    def set_angle_unit(unit, *, save=False):
+    def set_angle_unit(unit):
         """角度 UI 単位を変更する。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
             unit (str): ``"deg"`` または ``"rad"``。
 
         Returns:
@@ -81,12 +77,9 @@ class Preferences:
             RuntimeError: Maya が未対応の単位名を拒否した場合。
 
         Note:
-            現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
+            現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。 Scene.save()でシーンを保存する。
         """
-        Preferences._boolean(save)
         cmds.currentUnit(angle=unit)
-        if save:
-            Preferences.save()
 
 
     @staticmethod
@@ -104,11 +97,10 @@ class Preferences:
 
     @staticmethod
     @undo_chunk("hlib.general.Preferences.set_time_unit")
-    def set_time_unit(unit, *, save=False):
+    def set_time_unit(unit):
         """時間 UI 単位を変更する。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
             unit (str): ``cmds.currentUnit`` が受け付ける時間単位名
                 (例: ``"film"``、``"ntsc"``、``"24fps"``)。
 
@@ -119,12 +111,9 @@ class Preferences:
             RuntimeError: Maya が未対応の単位名を拒否した場合。
 
         Note:
-            現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
+            現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。 Scene.save()でシーンを保存する。
         """
-        Preferences._boolean(save)
         cmds.currentUnit(time=unit)
-        if save:
-            Preferences.save()
 
 
 
@@ -140,6 +129,13 @@ class Preferences:
         if type(value) is not bool:
             raise TypeError("Expected bool")
         return value
+
+    @staticmethod
+    def _validate_save(save):
+        """保存要求を変更前に検証する。batchでの部分更新を防ぐ。"""
+        Preferences._boolean(save)
+        if save and cmds.about(batch=True):
+            raise RuntimeError("Preferences.save requires Maya GUI (savePrefs)")
 
     @staticmethod
     def get_up_axis():
@@ -159,7 +155,7 @@ class Preferences:
         """上方向を変更する。既定ではカメラを回転しない。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             axis (str): y/z。
             rotate_view (bool): 表示カメラも回転させるか。
         Returns:
@@ -168,7 +164,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         if axis not in ("y", "z"):
             raise ValueError("axis must be y or z")
         cmds.upAxis(axis=axis, rotateView=Preferences._boolean(rotate_view))
@@ -192,7 +188,7 @@ class Preferences:
         """Undoの記録を切り替える。Undoチャンクには含めない。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 記録するか。
             flush (bool): TrueはMaya標準のstateで切り替え、履歴を消去する。
                 Falseは履歴を保持する。無効中に破壊的操作を行った場合、以前の履歴は安全に戻せない。
@@ -202,7 +198,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         enabled = Preferences._boolean(enabled)
         flush = Preferences._boolean(flush)
         cmds.undoInfo(**{"state" if flush else "stateWithoutFlush": enabled})
@@ -226,7 +222,7 @@ class Preferences:
         """設定を変更する。Undo履歴の上限設定で、無限を無効にすると既存の上限が適用される。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 有効にするか。
         Returns:
             None: 値を返さない。
@@ -234,7 +230,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         cmds.undoInfo(infinity=Preferences._boolean(enabled))
         if save:
             Preferences.save()
@@ -257,7 +253,7 @@ class Preferences:
         """設定を変更する。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 有効にするか。
         Returns:
             None: 値を返さない。
@@ -265,7 +261,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         cmds.autoSave(enable=Preferences._boolean(enabled))
         if save:
             Preferences.save()
@@ -288,7 +284,7 @@ class Preferences:
         """設定を変更する。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 有効にするか。
         Returns:
             None: 値を返さない。
@@ -296,7 +292,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         cmds.selectPref(trackSelectionOrder=Preferences._boolean(enabled))
         if save:
             Preferences.save()
@@ -318,7 +314,7 @@ class Preferences:
         """履歴上限を設定し、無限を無効にする。古い履歴が削除され得る。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             count (int): 正の整数。
         Returns:
             None: 値を返さない。
@@ -326,7 +322,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         if type(count) is not int or not 1 <= count <= 4294967295:
             raise ValueError("count must be a positive uint")
         cmds.undoInfo(infinity=False, length=count)
@@ -351,7 +347,7 @@ class Preferences:
         """自動保存間隔を変更する。保存は実行しない。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             seconds (float): 正の有限な秒数。
         Returns:
             None: 値を返さない。
@@ -359,7 +355,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         seconds = float(seconds)
         if not math.isfinite(seconds) or seconds <= 0:
             raise ValueError("seconds must be positive and finite")
@@ -385,7 +381,7 @@ class Preferences:
         """自動保存先を指定フォルダー方式へ変更する。作成・保存は行わない。
 
         Args:
-            save (bool): Trueでユーザー設定を保存する。既定はFalse。シーン保存は行わない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             path (str | Path): 保存先。ユーザーホームを展開し絶対化する。
         Returns:
             None: 値を返さない。
@@ -393,7 +389,7 @@ class Preferences:
         Note:
             Maya全体の実行中設定を扱う。永続化はMayaのユーザー設定保存・同期処理に従う。 save=Trueの場合のみユーザー設定を保存する。シーンは保存しない。
         """
-        Preferences._boolean(save)
+        Preferences._validate_save(save)
         if not isinstance(path, (str, Path)) or not str(path).strip():
             raise ValueError("path must be a non-empty string or Path")
         folder = Path(path).expanduser().resolve()

@@ -1,6 +1,8 @@
 """ウィンドウ参照の存在確認・入力検証・一時復元を共通化する。"""
 from contextlib import contextmanager
 import maya.cmds as cmds
+from .uiSnapshot import UiSnapshot
+from ._uiLifetime import _UiLifetime
 
 
 class _WindowReference:
@@ -56,12 +58,20 @@ class _WindowReference:
         if not isinstance(name, str) or not name:
             raise TypeError("Expected a non-empty UI name")
         self._name = name
+        if not getattr(cmds, self._command)(name, exists=True):
+            raise RuntimeError("UI does not exist: " + name)
+        self._lifetime = _UiLifetime.acquire(self._command, name)
         self.name()
+
+    def _capture(self, data):
+        """参照寿命付きの変更不可スナップショットを作る。"""
+        return UiSnapshot(self._command, self.name(), data, (self,))
 
     def exists(self):
         """bool: 保持したUIが存在するか照会する。"""
         self._require_gui()
-        return bool(getattr(cmds, self._command)(self._name, exists=True))
+        return (self._lifetime.alive
+                and bool(getattr(cmds, self._command)(self._name, exists=True)))
 
     def name(self):
         """str: 存在を確認したUI名。削除済みはRuntimeError。"""
@@ -81,13 +91,17 @@ class _WindowReference:
         """復元対象とデータ型を更新前に検証する。
 
         Args:
-            snapshot (dict): captureの返り値。
+            snapshot (UiSnapshot): captureの返り値。
             fields (dict): キーと型。
         """
-        if not isinstance(snapshot, dict) or snapshot.get("kind") != self._command or snapshot.get("name") != self.name():
+        self.name()
+        if not isinstance(snapshot, UiSnapshot) or snapshot.scope != self._command or snapshot.name != self.name():
             raise ValueError("Snapshot belongs to another UI or type")
+        snapshot.validate()
+        if len(snapshot._targets) != 1 or snapshot._targets[0]._lifetime is not self._lifetime:
+            raise ValueError("Snapshot belongs to another UI instance")
         for key, expected in fields.items():
-            if type(snapshot.get(key)) is not expected:
+            if type(snapshot.data.get(key)) is not expected:
                 raise ValueError("Invalid snapshot field: " + key)
 
     @contextmanager

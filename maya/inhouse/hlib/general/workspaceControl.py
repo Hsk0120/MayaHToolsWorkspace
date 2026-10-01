@@ -98,20 +98,20 @@ class WorkspaceControl(_WindowReference):
         cmds.workspaceControl(self.name(), edit=True, collapse=collapsed)
 
     def capture(self):
-        """dict: stateString・表示・折り畳み状態をメモリに退避する。
+        """UiSnapshot: stateString・表示・折り畳み状態をメモリに退避する。
 
         stateStringはMayaとUI実装が管理する状態。周辺のタブ配置全体は
         WorkspaceLayoutで退避する。任意のエディタ内部データは含まない。
         """
-        return {"kind": self._command, "name": self.name(),
+        return self._capture({
                 "state": cmds.workspaceControl(self.name(), query=True, stateString=True),
-                "visible": self.get_visible(), "collapsed": self.get_collapsed()}
+                "visible": self.get_visible(), "collapsed": self.get_collapsed()})
 
     def restore(self, snapshot):
         """同じUIへ退避状態を戻す。失われたUIは再生成しない。
 
         Args:
-            snapshot (dict): captureの返り値。
+            snapshot (UiSnapshot): captureの返り値。
         """
         self._validate_snapshot(snapshot, {"state": str, "visible": bool, "collapsed": bool})
         cmds.workspaceControl(self.name(), edit=True, stateString=snapshot["state"])

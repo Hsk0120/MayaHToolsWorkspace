@@ -772,7 +772,37 @@ class SkinCluster(Node):
 
 
 @collection_export()
-@bulk_api(SkinCluster, per_item_only=("dump_weights", "load_weights"))
+@bulk_api(
+    SkinCluster,
+    per_item_only=(
+        'dump_weights',
+        'load_weights',
+    ),
+    reads=(
+        'deforms',
+        'influences',
+        'bind_pose',
+        'unused_influences',
+        'remove_unused_influences',
+        'has_influence',
+        'get_weights',
+        'dump_weights',
+        'get_max_influences',
+    ),
+    writes=(
+        'redistribute_weights',
+        'copy_weights_to',
+        'add_influences',
+        'restore_bind_pose',
+        'reset_bind_pose',
+        'set_weights',
+        'load_weights',
+        'transfer_weights',
+        'remove_influence',
+        'normalize_weights',
+        'set_max_influences',
+    ),
+)
 class SkinClusters(Nodes):
     """重複を除き、保持順にSkinClusterを操作するコレクション。"""
 
@@ -792,7 +822,7 @@ class SkinClusters(Nodes):
             joints (Joint | str | Iterable[Joint | str]): 登録を解除するjoint。
             transfer_to_parent (bool): Trueは祖先へ移送。FalseはMaya標準の解除のみ。
         Returns:
-            None: 値を返さない。
+            SkinClusters: 自身。
         Raises:
             TypeError: transfer_to_parentがboolでない場合。
             ValueError: 最後のinfluenceまで解除しようとした場合。
@@ -816,3 +846,4 @@ class SkinClusters(Nodes):
                 plans.append((skin, name))
         for skin, name in plans:
             skin.remove_influence(name, transfer_to_parent=transfer_to_parent)
+        return self

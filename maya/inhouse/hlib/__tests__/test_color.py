@@ -213,7 +213,7 @@ class ColorsTest(unittest.TestCase):
         colors = Colors([6, 17])
         with patch.object(cmds, 'about', return_value=True):
             result = colors.refresh_palette()
-        self.assertEqual(result, list(colors))
+        self.assertIs(result, colors)
         self.assertEqual(colors.palette_source, ['default', 'default'])
 
 

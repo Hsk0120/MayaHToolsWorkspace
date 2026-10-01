@@ -6,7 +6,26 @@ from hlib._core.collection import BulkCollection, bulk_api
 from .plugin import Plugin
 
 
-@bulk_api(Plugin, undo=False)
+@bulk_api(
+    Plugin,
+    undo=False,
+    reads=(
+        'is_registered',
+        'is_loaded',
+        'path',
+        'version_text',
+        'version',
+        'is_version_at_least',
+    ),
+    writes=(
+        'load',
+        'unload',
+        'ensure_loaded',
+    ),
+    properties=(
+        'name',
+    ),
+)
 class Plugins(BulkCollection):
     """プラグイン名または Plugin の列を、名前の重複を除いて保持するコレクション。"""
 

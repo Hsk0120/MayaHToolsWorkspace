@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from .place2dTexture import Place2dTexture
     from .place3dTexture import Place3dTexture
     from .shadingEngine import ShadingEngine
-    from .dagNode import DagNode
+    from .dagNode import DagNode, DagNodes
     from .node import Nodes
     from .transform import Transforms
     from .HIKCharacterNode import HIKCharacterNode

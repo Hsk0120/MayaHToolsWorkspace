@@ -61,19 +61,19 @@ class Window(_WindowReference):
         cmds.window(self.name(), edit=True, sizeable=enabled)
 
     def capture(self):
-        """dict: ネイティブwindow状態と表示・サイズ変更許可をメモリへ退避する。
+        """UiSnapshot: ネイティブwindow状態と表示・サイズ変更許可をメモリへ退避する。
 
         同一セッション・同一UIへのrestore用。内容や実行コードは保存しない。
         """
-        return {"kind": self._command, "name": self.name(),
+        return self._capture({
                 "state": cmds.window(self.name(), query=True, state=True),
-                "visible": self.get_visible(), "resizable": self.get_resizable()}
+                "visible": self.get_visible(), "resizable": self.get_resizable()})
 
     def restore(self, snapshot):
         """capture時点の状態を同じUIへ復元する。再生成しない。
 
         Args:
-            snapshot (dict): captureの返り値。
+            snapshot (UiSnapshot): captureの返り値。
         """
         self._validate_snapshot(snapshot, {"state": str, "visible": bool, "resizable": bool})
         cmds.window(self.name(), edit=True, state=snapshot["state"])

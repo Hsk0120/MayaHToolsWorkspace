@@ -7,9 +7,10 @@ import maya.cmds as cmds
 from .._core.coerce import to_node
 from ..decorators.undo import undo_chunk
 from .node import Node
+from .transform import Transform
 
 
-class Constraint(Node):
+class Constraint(Transform):
     """標準コンストレイントのターゲットとウェイトを取得・設定する共通ラッパー。
 
     具象クラスは各 nodeType ごとに専用ファイル(parentConstraint.py 等)で定義する。

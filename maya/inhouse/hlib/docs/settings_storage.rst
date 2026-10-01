@@ -64,10 +64,10 @@ Preferencesの各メソッド
    * - autosave_enabled / autosave_interval / autosave_directory
      - Mayaの自動保存設定。ユーザー設定
 
-setメソッドの既定は ``save=False`` です。現在値だけ変更し、設定ファイルは保存しません。
+単位以外のsetメソッドの既定は ``save=False`` です。現在値だけ変更し、設定ファイルは保存しません。
 ``save=True`` または ``Preferences.save()`` で、上方向・Undo・選択順・自動保存の
 現在値を保存用optionVarへ同期し、Maya標準のMELコマンド ``savePrefs -general`` を実行します。
-保存はMaya GUI専用です。batch / standaloneではRuntimeErrorになります。
+保存はMaya GUI専用です。batch / standaloneのsave=Trueは現在値を変更する前にRuntimeErrorになります。
 一般optionVar全体が書き出されるため、他の一般設定も保存対象になります。
 シーン・シェルフ・UI配置の保存は行いません。ディスクへの保存はUndoで戻りません。
 保存失敗は例外として通知し、既に変更した現在値は巻き戻しません。
@@ -82,9 +82,9 @@ setメソッドの既定は ``save=False`` です。現在値だけ変更し、�
    prefs.set_autosave_interval(600)
    prefs.save()  # 対応するユーザー設定をまとめて同期・保存
 
-単位はシーン側の設定です。単位setterの ``save=True`` もユーザー設定保存を呼びますが、
-単位を新規シーンの既定値へ転記したりシーンファイルへ保存したりはしません。
-単位を保持するにはシーンを保存してください。
+単位はシーン側の設定です。``set_linear_unit`` / ``set_angle_unit`` / ``set_time_unit``
+にsaveフラグはありません。単位を保持するにはScene.save()でシーンを保存してください。
+新規シーンの既定値には転記しません。
 
 ウィンドウの配置操作は :doc:`window_layouts` を参照してください。
 

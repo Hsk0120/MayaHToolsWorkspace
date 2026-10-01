@@ -36,7 +36,7 @@ class RemoveJointsTest(unittest.TestCase):
         skin.set_weights([self.parent, self.child], [0.25, 0.75])
         before = list(skin.get_weights([self.parent, self.child]))
         collection = hlib.nodes.SkinClusters([skin])
-        collection.remove_influences([self.child, self.child])
+        self.assertIs(collection.remove_influences([self.child, self.child]), collection)
         self.assertTrue(cmds.objExists(self.child))
         self.assertEqual(cmds.listRelatives(self.child, parent=True), [self.parent])
         self.assertFalse(skin.has_influence(self.child))

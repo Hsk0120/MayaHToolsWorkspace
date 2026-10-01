@@ -13,8 +13,8 @@ from ..decorators.undo import undo_chunk
 from .._core.registry import node_wrapper
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
 from ..maths.vector import _vector_of
-from .node import Node, Nodes
-from .dagNode import DagNode
+from .node import Node
+from .dagNode import DagNode, DagNodes
 from .._core.collection import bulk_api
 from .._core.registry import collection_export
 
@@ -829,40 +829,6 @@ class Transform(DagNode):
         self.plug("offsetParentMatrix").set(value)
         return self
 
-    def get_offset_parent_matrix(self):
-        """offsetParentMatrixの現在値を取得する。
-
-        Returns:
-            Matrix: アトリビュート値の複製。ワールド行列やローカル行列との合成はしない。
-
-        Raises:
-            RuntimeError: ノードやアトリビュートが無効の場合。
-        """
-        return self.plug("offsetParentMatrix").get()
-
-    @fast_edit
-    @undo_chunk("hlibTransformSetOffsetParentMatrix")
-    def set_offset_parent_matrix(self, value, *, fast=False):
-        """offsetParentMatrixへ行列値を設定する。
-
-        Args:
-            value (Matrix | Iterable[float]): 別Transform.get_matrix()の戻り値などの4x4行列。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-
-        Returns:
-            Transform: 自身。Transformsでは各対象へ同じ値を設定する。
-
-        Raises:
-            TypeError: fastがboolでない場合。
-            ValueError: 行列値が不正な場合。
-            RuntimeError: 無効な対象・ロック・入力接続などで更新できない場合。
-
-        TRSチャンネル値は変更しない。指定行列は既存ローカル行列と親行列に合成される。
-        ワールド姿勢の自動一致・入力接続の切断・ロック解除は行わない。
-        """
-        self.plug("offsetParentMatrix").set(value)
-        return self
-
     def get_matrix(self, ws=False):
         """変換行列を取得する。
 
@@ -1494,8 +1460,56 @@ class Transform(DagNode):
 
 
 @collection_export()
-@bulk_api(Transform)
-class Transforms(Nodes):
+@bulk_api(
+    Transform,
+    reads=(
+        'add_constraint',
+        'delete_constraints',
+        'transform_fn',
+        'get_pivot',
+        'bounding_box',
+        'root',
+        'child_nodes',
+        'child_transforms',
+        'leaves',
+        'siblings',
+        'shapes',
+        'shape',
+        'shading_engines',
+        'get_offset_parent_matrix',
+        'get_matrix',
+        'get_translate',
+        'get_rotate',
+        'get_scale',
+        'get_shear',
+        'get_quaternion',
+        'get_euler',
+        'closest_axis_to_vector',
+        'create_offset_groups',
+    ),
+    writes=(
+        'freeze',
+        'reset_pivot',
+        'reset',
+        'scale_geometry',
+        'set_pivot',
+        'center_pivot',
+        'mirror_geometry',
+        'transform',
+        'set_parent',
+        'match_transform',
+        'mirror_transform',
+        'set_offset_parent_matrix',
+        'set_matrix',
+        'set_translate',
+        'set_rotate',
+        'set_scale',
+        'set_shear',
+        'make_identity',
+        'unlock_and_disconnect_transform_channels',
+    ),
+)
+class Transforms(DagNodes):
     """Joint等の派生型を含むTransform参照のコレクション。
 
     型検証・色設定・参照のコピーはNodesに従う。座標・行列操作は各対象へ転送する。

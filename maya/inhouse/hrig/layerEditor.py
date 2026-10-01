@@ -272,7 +272,10 @@ class LayerEditor(QtWidgets.QDialog):
             LayerEditor: 表示中のインスタンス。
         """
         if cls._instance is None or not isValid(cls._instance):
-            parent = MainWindow.widget()
+            # Qtの親取得はUI実装側で行い、基礎ライブラリhlibへ依存を持ち込まない。
+            name = MainWindow.name()
+            parent = next((window for window in QtWidgets.QApplication.topLevelWidgets()
+                           if window.objectName() == name), None)
             cls._instance = cls(parent)
         cls._instance.show()
         cls._instance.raise_()

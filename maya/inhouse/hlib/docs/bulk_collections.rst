@@ -17,9 +17,10 @@ Joints・SkinClusters・Pluginsに、単体の公開インスタンスメソッ�
    joints.set_attribute_flags(["visibility"], keyable=False)
 
 引数は単体メソッドと同じで、全要素へ同じ引数を渡します。
-自動追加されたメソッドの戻り値は保持順のリストです。設定メソッドも各単体の戻り値のリストを返します。
-リストを返す単体メソッドでは二重リストになります。Noneも削除しません。
-空コレクションでは空リストです。uuid()/full_name()等の照会メソッドも、保持順のリストを返します。
+公開対象を明示した転送メソッドは、照会・生成結果が必要な操作では保持順の結果リスト、
+通常の更新ではコレクション自身を返します。call_eachも同じ規則です。
+照会結果がリストなら二重リストを保持し、Noneも除外しません。
+空コレクションでも照会は空リスト、更新は自身です。
 アトリビュート名の暗黙アクセスは転送しません。アトリビュート取得には ``joints.plug("translateX")`` を使います。
 
 要素別の引数
@@ -46,7 +47,7 @@ call_eachのargumentsは、各要素への位置引数タプルを並べた列�
 * Joints.skin_clusters: 重複を除いたSkinClustersを返す。
 * Joints.names()、sorted_by_depth(): 名前の一覧・階層順のコレクションを返す。
 * Joints.joint_orient_to_rotate、freeze_rotation: 全対象を事前検証し、Joints自身を返す。
-* SkinClusters.remove_influences: 保持するskinClusterのinfluence解除。joint削除はJoints.deleteを使います。
+* SkinClusters.remove_influences: 保持するskinClusterのinfluence解除。戻り値は自身です。joint削除はJoints.deleteを使います。
 * Plugins.loaded: ロード済みプラグインからコレクションを作る既存classmethod。
 
 自動追加APIより既存メソッドを優先します。同名で意味が異なる場合は、
@@ -83,7 +84,8 @@ Pluginのロード・アンロードとファイル入出力はシーンUndo対�
 
 コンポーネントの一括座標編集は :doc:`component_collections` を参照してください。
 Selectionは異種対象の取得時点の集合で、単一の単体型に対応しないため、この自動転送の対象外です。
-今回、未存在のNodesやTransforms等の新しいコレクションは追加していません。
+ノードの集合はNodes → DagNodes → Transforms → Jointsの順で継承します。
+単体メソッドの追加だけでは公開APIは増えず、bulk_apiのreads/writesで明示登録します。
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

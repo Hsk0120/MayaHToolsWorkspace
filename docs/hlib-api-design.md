@@ -124,11 +124,11 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 複数形ノードの基底クラス
 
-- ノードコレクションは `Nodes` を基底にし、単体に対応して `Transforms` → `Joints` のように継承する。`SkinClusters` は `Nodes` の派生。`Nodes` 自体は `Node` を継承しない。
+- ノードコレクションは `Nodes` を基底にし、単体に対応して `DagNodes` → `Transforms` → `Joints` のように継承する。`SkinClusters` は `Nodes` の派生。`Nodes` 自体は `Node` を継承しない。
 - `item_class` で受け入れるラッパー型を宣言する。入力は既存coerceで解決し、型の不一致を黙って除外せず例外にする。登録済みの外部拡張の派生ラッパーを基底型へ置き換えない。
 - 重複は同一ノードかつ同一DAGパスで判定する。異なるインスタンスパスをUUIDだけでまとめない。構築後の参照の削除によってコレクション長を暗黙に変えない。
 - 整数アクセスは保持中の参照、スライス/copyは同じ具象コレクションで同じシーン対象を参照する。ノード複製とは別。`Colors` は独立した値コピーである。
-- 通常の一括転送は結果リストを保つ。色getterは明示的に `Colors` を返す。関係検索を一律に平坦化したり、結果の内容からコレクション型を推測したりしない。
+- 照会・結果が必要な生成操作の一括転送は結果リストを保つ。通常の更新はコレクション自身を返す。色getterは明示的に `Colors` を返す。関係検索を一律に平坦化したり、結果の内容からコレクション型を推測したりしない。
 - 単色用 `set_override_color` と対象別 `set_override_colors` のように、同値の一括指定と一対一の列を分ける。色setterは自身を返し、入力・全対象の書込み可否・共有アトリビュートの矛盾を検証してから反映する。
 - `bulk_api` は明示実装を優先し、自動生成された継承メソッドのみ派生型のsignatureへ更新する。`per_item_only` は派生にも継承し、直接の一括入口を公開しない。
 - `Joints.delete` 等の階層・ウェイトを扱う専用処理は単純な転送へ置き換えない。Undoは自動ロールバックを意味しない。`ls` の返却規則の変更は別途使用側を含む移行として扱う。
@@ -161,3 +161,13 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 設定メソッドには作用範囲・保存区分・保存の有無を記載する。現在値の変更、保存用optionVarの同期、ディスク保存を区別する。
 - 保存先と保存・復元時期はSphinxのsettings_storage.rstに集約する。
 - 比較・復元・JSON出力が必要になった場合にスナップショット用データを設計する。未実装のcapture/apply等を使用例として掲載しない。
+
+### 基底責務・一括公開・UI退避の契約
+
+- ConstraintはMayaの継承に合わせTransform派生とする。表示・Outliner色・Drawing OverridesはDagNode、複数形はDagNodesに置く。Nodesは全DGノード共通の参照・アトリビュート・接続処理を扱う。
+- bulk_apiはreads/writes/propertiesを明示宣言する。単数APIの自動全公開はしない。readsは保持順の結果リスト、writesは自身。call_eachも同じ規則。既存の専用集約結果やdeleteのNoneはdocstringへ明示する。
+- Preferencesの単位setterはsaveを受け付けない。シーン保存で保持する。その他のsave=Trueは一般ユーザー設定全体の保存を意味し、batchでは更新前に拒否する。
+- Window/WorkspaceControlはMaya標準MUiMessageの削除通知で寿命を追跡し、同名再生成へ乗り換えない。UiSnapshotは同一セッション限定の変更不可値で、復元前に対象の寿命を検証する。
+- WorkspaceLayoutはcapture_docking_layout/restore_docking_layout/temporary_docking_layoutでメインウィンドウのドッキングとロックだけを退避する。浮動ウィンドウ・エディタ内容・UI再生成は範囲外。
+
+- hlibはQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/mel/OpenMayaUIの通知APIで扱い、MQtUtilによるポインター取得やQtへの変換は利用側のUIパッケージへ置く。MainWindowはUI名だけを返す。

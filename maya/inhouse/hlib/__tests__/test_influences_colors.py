@@ -93,7 +93,7 @@ class InfluencesColorsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 shape.set_override_color(value)
         self.assertEqual(shape.get_override_color().rgb, (0, 0.5, 1))
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(AttributeError):
             self.node("network").set_override_color(13)
 
 

@@ -1,7 +1,7 @@
 Outlinerとコントローラーの色
 ================================
 
-各ノードからOutliner色とDrawing Overrides色を設定できます。
+DagNode派生（Transform・Joint・Shape・Constraint）からOutliner色とDrawing Overrides色を設定できます。
 いずれも編集は1回のUndo/Redoに対応します。
 
 Outliner色
@@ -115,14 +115,14 @@ Outlinerへ色番号を渡した場合は対応RGBで設定されます。
 全入力を検証してから更新します。取得したリスト自体を書き換えても反映されません。
 ``mode`` / ``palette_source`` は各要素の値のリストを返します。
 ``copy()`` とスライスは、各Colorも独立したコピーになります。
-``refresh_palette()`` は各Colorを順に更新し、戻り値はColorのリストです。
+``refresh_palette()`` は各Colorを順に更新し、戻り値はColors自身です。
 途中の照会失敗時は停止し、更新済みの色は自動では戻しません。
 これらは保持値の操作で、ノードへの適用は各ノードのsetterで明示します。
 
 ノードコレクションとColors
 ------------------------------
 
-``Nodes`` と派生コレクション（``Transforms``・``Joints`` 等）の
+``DagNodes`` と派生コレクション（``Transforms``・``Joints`` 等）の
 ``get_override_color()`` / ``get_outliner_color()`` は ``Colors`` を返します。
 保持順に一色ずつ格納し、無効な色も省略しません。
 

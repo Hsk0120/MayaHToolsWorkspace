@@ -97,7 +97,11 @@ class PreferencesSaveTest(unittest.TestCase):
             original = Preferences.get_linear_unit()
             Preferences.set_linear_unit(original)
             save.assert_not_called()
-            Preferences.set_linear_unit(original, save=True)
+            with self.assertRaises(TypeError):
+                Preferences.set_linear_unit(original, save=True)
+            save.assert_not_called()
+            with patch.object(cmds, "about", return_value=False):
+                Preferences.set_track_selection_order(Preferences.get_track_selection_order(), save=True)
             save.assert_called_once_with()
             with self.assertRaises(TypeError):
                 Preferences.set_linear_unit(original, save=1)

@@ -268,7 +268,9 @@ unitConversion自体は削除対象に含めません。
 複数のノードを扱う
 ------------------------------
 
-``Nodes`` を基底に ``Transforms``、さらに ``Joints`` が継承します。
+``Nodes → DagNodes → Transforms → Joints`` の順に継承します。
+単数形も ``Node → DagNode → Transform`` に沿い、ConstraintはTransformを継承します。
+ConstraintもTransformsへ格納でき、DAG階層・表示操作を共有します。
 
 Jointの親スケール補正は ``get_segment_scale_compensate()`` で照会し、
 ``set_segment_scale_compensate(True)`` / ``set_segment_scale_compensate(False)``
@@ -407,7 +409,7 @@ bindMethod=3のジオデシックボクセルバインドは、標準コマン�
    node.set_outliner_visibility(False)  # 非表示
    node.set_outliner_visibility(True)   # 表示
    visible = node.get_outliner_visibility()
-   joints.set_outliner_visibility(False)  # Nodes/Transforms/Jointsでも一括操作可能
+   joints.set_outliner_visibility(False)  # DagNodes/Transforms/Jointsでも一括操作可能
 
 通常のビューポート表示は別のメソッドで操作します。
 
@@ -417,8 +419,8 @@ bindMethod=3のジオデシックボクセルバインドは、標準コマン�
    node.set_visibility(True)
    visible = node.get_visibility()
 
-Node・Nodesを通してvisibilityアトリビュートを扱います。Transform・Joint・Shapeでも
-使用でき、visibilityを持たないノードはエラーになります。取得値は自身の設定であり、
+表示・Outliner色・Drawing OverridesはDagNode・DagNodesで扱います。
+Transform・Joint・Shape・Constraintでも使用でき、汎用Node・Nodesでは公開しません。取得値は自身の設定であり、
 親の非表示や表示レイヤーを含む最終表示状態ではありません。
 
 hiddenInOutlinerを操作します。ビューポートのvisibilityは変更しません。
@@ -526,3 +528,16 @@ ShadingEngineのget_shader/set_shaderはkindにsurface、volume、displacement�
 任意の出力はPlugで渡すかoutputで出力名を指定します。
 マテリアル固有の値はplugで扱い、表示色用のColorクラスへは変換しません。
 作成・割り当て・接続・値変更は通常のUndoに対応します。
+
+一括APIの戻り値
+------------------------------------
+
+通常の更新（set_translate・freeze・set_visibilityなど）はコレクション自身を返します。
+照会は保持順の結果リスト、add_attribute等の生成結果が必要な操作も結果リストです。
+call_eachも同じ戻り値規則に従います。空のコレクションでもこの規則は変わりません。
+色の照会はColors、Joints.skin_clustersはSkinClustersという専用の集約結果を返します。
+明示実装のdeleteはNoneを返し、削除済み参照の連鎖操作には使用しません。
+
+開発者はbulk_apiのreads（結果リスト）・writes（自身）・propertiesで公開対象を宣言します。
+単数クラスへのメソッド追加だけでは一括APIは増えません。宣言とper_item_onlyの制限は
+派生コレクションへ継承されます。失敗時は後続処理を止めますが、自動ロールバックはしません。
