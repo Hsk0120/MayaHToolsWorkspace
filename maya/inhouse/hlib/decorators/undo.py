@@ -1,11 +1,13 @@
 """Maya の操作を Undo チャンクでまとめる。"""
 import contextlib
+from contextvars import ContextVar
 
 import maya.cmds as cmds
 from ._fast import is_fast
 
 # importlib.reloadでも廃止した公開名を残さない。
 globals().pop("undoable", None)
+_chunk_active = ContextVar("hlib_undo_chunk_active", default=False)
 
 
 @contextlib.contextmanager
@@ -17,6 +19,8 @@ def undo_chunk(name=None):
 
     チャンクを開いた場合は finally で閉じる。閉じる際の例外は抑制する。コンテキスト内部の例外は抑制せず、自動ロールバックもしない。
 
+    入れ子の通常チャンクは外側へまとめ、名前も外側を使う。
+    undo_transaction の独立したチャンクは省略しない。
     Undo非対応の操作やfast=Trueの直接更新を取り消せるようにはしない。
 
     Args:
@@ -26,18 +30,22 @@ def undo_chunk(name=None):
     Yields:
         None: コンテキスト内で実行した Maya 操作を同じ Undo として扱う。
     """
-    if is_fast():
+    if is_fast() or _chunk_active.get():
         yield
         return
     opened = False
+    token = None
     try:
         kwargs = {"openChunk": True}
         if name:
             kwargs["chunkName"] = str(name)
         cmds.undoInfo(**kwargs)
         opened = True
+        token = _chunk_active.set(True)
         yield
     finally:
+        if token is not None:
+            _chunk_active.reset(token)
         if opened:
             try:
                 cmds.undoInfo(closeChunk=True)

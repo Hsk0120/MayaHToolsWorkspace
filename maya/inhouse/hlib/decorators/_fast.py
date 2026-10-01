@@ -14,14 +14,22 @@ def is_fast():
 def fast_edit(function):
     """fast引数を検証し、内側の対応メソッドへ実行モードを伝える。"""
     signature = inspect.signature(function)
+    parameter = signature.parameters.get("fast")
+    keyword_only = parameter is not None and parameter.kind == inspect.Parameter.KEYWORD_ONLY
 
     @wraps(function)
     def wrapped(*args, **kwargs):
-        bound = signature.bind(*args, **kwargs)
-        fast = bound.arguments.get("fast", False)
+        # keyword-only は呼出しごとの Signature.bind を避ける。
+        # その他の引数の正当性は元関数の Python 呼出しが検証する。
+        if keyword_only:
+            fast = kwargs.get("fast", False)
+        else:
+            fast = signature.bind(*args, **kwargs).arguments.get("fast", False)
         if type(fast) is not bool:
             raise TypeError("fast must be a bool")
-        token = _active.set(is_fast() or fast)
+        if is_fast() or not fast:
+            return function(*args, **kwargs)
+        token = _active.set(True)
         try:
             return function(*args, **kwargs)
         finally:

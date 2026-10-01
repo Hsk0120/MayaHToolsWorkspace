@@ -24,7 +24,9 @@ def normalize_flags(function, kwargs):
     """関数の登録済み別名またはMayaコマンド名からフラグを正規化する。
 
     長名と短名の重複は拒否し、入力辞書は変更しない。"""
-    aliases = dict(getattr(function, "__hlib_flag_aliases__", {}))
+    if not kwargs:
+        return {}
+    aliases = getattr(function, "__hlib_flag_aliases__", {})
     command = function if isinstance(function, str) else getattr(function, "__hlib_maya_command__", None)
     if command:
         aliases = dict(_maya_aliases(command), **aliases)
@@ -47,10 +49,19 @@ def flag_aliases(command=None, **aliases):
     def decorate(function):
         signature = inspect.signature(function)
 
+        @lru_cache(maxsize=128)
+        def validate_shape(positional_count, names):
+            """値に依存しない引数の形だけを検証し、成功した形を上限付きで保持する。
+
+            値・ノード・Plugを保持しない。装飾ごとのキャッシュなのでreloadで
+            新しい関数が作られたときに古いsignatureを再利用しない。
+            """
+            signature.bind(*([None] * positional_count), **dict.fromkeys(names))
+
         @wraps(function)
         def wrapped(*args, **kwargs):
             normalized = normalize_flags(wrapped, kwargs)
-            signature.bind(*args, **normalized)
+            validate_shape(len(args), tuple(normalized))
             return function(*args, **normalized)
 
         wrapped.__hlib_flag_aliases__ = dict(aliases)

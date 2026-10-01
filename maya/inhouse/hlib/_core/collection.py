@@ -44,16 +44,43 @@ class BulkCollection:
         Pluginのload/unloadやファイルI/OはUndo対象外。
         """
         functions, args, kwargs = self._prepare_calls(method, arguments, keyword_arguments)
+        return self._execute_calls(method, functions, args, kwargs)
+
+    def _execute_calls(self, method, functions, args, kwargs):
+        """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。"""
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
         context = undo_chunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
-        result = []
+        result = [] if self._bulk_returns[method] != "self" else None
         with context:
             for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):
                 try:
-                    result.append(function(*row, **flags))
+                    value = function(*row, **flags)
+                    if result is not None:
+                        result.append(value)
                 except Exception as exc:
                     raise RuntimeError(f"{type(self).__name__}.{method} failed at item {index}: {exc}") from exc
-        return self if self._bulk_returns[method] == "self" else result
+        return self if result is None else result
+
+    def _call_shared(self, method, args, kwargs):
+        """同じ入力の検証を実関数ごとに共有し、全件検証後に実行する。
+
+        共有はこの呼出し内だけに限定する。派生overrideと個体callableは別に
+        検証し、クラス差替え・reload後の古いメソッドを保持しない。
+        """
+        functions = [getattr(item, method) for item in self._items]
+        shared = {}
+        keywords = []
+        for function in functions:
+            key = function.__func__ if inspect.ismethod(function) else None
+            if key is not None and key in shared:
+                flags = shared[key]
+            else:
+                flags = normalize_flags(function, kwargs)
+                inspect.signature(function).bind(*args, **flags)
+                if key is not None:
+                    shared[key] = flags
+            keywords.append(flags)
+        return self._execute_calls(method, functions, [args] * len(functions), keywords)
 
     def _prepare_calls(self, method, arguments, keyword_arguments):
         """全要素の引数を実行前に解決・検証する。
@@ -147,7 +174,10 @@ def bulk_api(item_class, undo=True, per_item_only=(), *, reads=(), writes=(), pr
 def _method(name, original, collection, result_kind):
     """同一引数で単体メソッドを呼ぶ公開メソッドを生成する。"""
     def method(self, *args, **kwargs):
-        return self.call_each(name, [args] * len(self), [kwargs] * len(self))
+        # 独自コレクションが公開入口をoverrideしている場合は従来どおり委譲する。
+        if type(self).call_each is not BulkCollection.call_each:
+            return self.call_each(name, [args] * len(self), [kwargs] * len(self))
+        return self._call_shared(name, args, kwargs)
     method._bulk_generated = True
     method.__name__ = name
     method.__qualname__ = collection.__name__ + "." + name

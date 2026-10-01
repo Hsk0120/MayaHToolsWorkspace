@@ -187,7 +187,42 @@ class SkinCluster(Node):
             om2.MIntArray: 指定順の物理インデックス配列。
         """
         from .._core.coerce import to_names
-        return om2.MIntArray([self._jnt_index(joint) for joint in to_names(joints)])
+        return om2.MIntArray(self._influence_indices(to_names(joints), self.fn.influenceObjects()))
+
+    def _influence_indices(self, joints, influences):
+        """一回の操作内でUUIDと名前の検索表を共有する。
+
+        Args:
+            joints (Iterable[str]): 入力順のinfluence名。
+            influences (om2.MDagPathArray): 操作開始時のinfluence配列。
+
+        Returns:
+            list[int | None]: 入力順の物理番号。未登録はNone。
+                同じUUIDの複数パスは従来の逐次検索と同じ先頭を選ぶ。
+        """
+        joints = list(joints)
+        if not joints:
+            return []
+        if len(joints) == 1:
+            # 単数指定では検索表全体を構築せず、一致した時点で終了する。
+            joint = joints[0]
+            uuid = self._uuid(joint)
+            for index, path in enumerate(influences):
+                if ((uuid and self._uuid(path.fullPathName()) == uuid)
+                        or path.partialPathName() == joint):
+                    return [index]
+            return [None]
+        by_uuid, by_name = {}, {}
+        for index, path in enumerate(influences):
+            uuid = self._uuid(path.fullPathName())
+            if uuid:
+                by_uuid.setdefault(uuid, index)
+            by_name.setdefault(path.partialPathName(), index)
+        result = []
+        for joint in joints:
+            candidates = (by_uuid.get(self._uuid(joint)), by_name.get(joint))
+            result.append(min((i for i in candidates if i is not None), default=None))
+        return result
 
     def influences(self):
         """influenceのDAGパスを保持するノードラッパーを取得する。
@@ -371,7 +406,8 @@ class SkinCluster(Node):
         """
         from .._core.coerce import to_names
         joints = to_names(joints)
-        physical_indices = [self._jnt_index(joint) for joint in joints]
+        influences = self.fn.influenceObjects()
+        physical_indices = self._influence_indices(joints, influences)
         if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
             raise ValueError("Influences must be non-empty, registered and unique")
         values = [float(value) for value in weights]
@@ -381,7 +417,6 @@ class SkinCluster(Node):
             raise ValueError("Weight count must match influence count or vertex count times influence count")
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Weights must be finite")
-        influences = self.fn.influenceObjects()
         # 削除済み influence による配列の穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
         logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
         if is_fast():

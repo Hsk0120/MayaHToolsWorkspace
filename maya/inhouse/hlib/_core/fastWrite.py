@@ -4,8 +4,17 @@ import maya.api.OpenMaya as om
 from ..decorators._fast import is_fast
 
 
-def writable(plug):
-    """ロック・入力接続・書込み不能アトリビュートをAPIで検査する。"""
+def writable(plug, _fn=None):
+    """ロック・入力接続・書込み不能アトリビュートをAPIで検査する。
+
+    Args:
+        plug (om.MPlug): 検査するプラグ。
+        _fn (om.MFnAttribute | None): 同じ更新内で生成したアトリビュートの
+            function set。省略時は新しく生成する。値や検査結果はキャッシュしない。
+
+    Raises:
+        RuntimeError: ロック・入力接続・書込み禁止がある場合。
+    """
     current = plug
     while True:
         if current.isLocked or current.isDestination:
@@ -16,19 +25,31 @@ def writable(plug):
             current = current.array()
         else:
             break
-    if not om.MFnAttribute(plug.attribute()).writable:
+    if not (_fn if _fn is not None else om.MFnAttribute(plug.attribute())).writable:
         raise RuntimeError("Attribute is not writable: " + plug.name())
 
 
-def check_range(plug, value):
-    """cmds.setAttrと同様、アトリビュートに設定されたハード範囲を検査する。"""
-    attribute = plug.attribute()
-    if attribute.hasFn(om.MFn.kUnitAttribute):
-        fn = om.MFnUnitAttribute(attribute)
-    elif attribute.hasFn(om.MFn.kNumericAttribute):
-        fn = om.MFnNumericAttribute(attribute)
-    else:
-        return
+def check_range(plug, value, _fn=None):
+    """cmds.setAttrと同様、アトリビュートに設定されたハード範囲を検査する。
+
+    Args:
+        plug (om.MPlug): 検査するプラグ。
+        value (float): 設定予定の値。単位型では現在のUI単位。
+        _fn (om.MFnNumericAttribute | om.MFnUnitAttribute | None): 同じ更新内で
+            生成したfunction set。範囲とUI単位は呼出しごとに照会する。
+
+    Raises:
+        RuntimeError: 値が設定されたハード範囲外の場合。
+    """
+    fn = _fn
+    if fn is None:
+        attribute = plug.attribute()
+        if attribute.hasFn(om.MFn.kUnitAttribute):
+            fn = om.MFnUnitAttribute(attribute)
+        elif attribute.hasFn(om.MFn.kNumericAttribute):
+            fn = om.MFnNumericAttribute(attribute)
+        else:
+            return
     for exists, getter, lower in ((fn.hasMin, fn.getMin, True), (fn.hasMax, fn.getMax, False)):
         if not exists():
             continue
@@ -41,8 +62,14 @@ def check_range(plug, value):
 
 def set_plug(plug, value):
     """MPlugへ単位を維持して直接設定する。未対応型は変更前に拒否する。"""
-    writable(plug)
     attribute = plug.attribute()
+    # 型判定・function set は1回の更新内で共有する。範囲・ロック等の
+    # 可変情報は毎回照会し、動的アトリビュートの削除をまたぐキャッシュは持たない。
+    unit = attribute.hasFn(om.MFn.kUnitAttribute)
+    numeric = not unit and attribute.hasFn(om.MFn.kNumericAttribute)
+    fn = (om.MFnUnitAttribute(attribute) if unit else
+          om.MFnNumericAttribute(attribute) if numeric else om.MFnAttribute(attribute))
+    writable(plug, fn)
     if plug.isCompound:
         values = tuple(value)
         if len(values) != plug.numChildren():
@@ -51,9 +78,9 @@ def set_plug(plug, value):
             writable(plug.child(i))
         for i, item in enumerate(values):
             set_plug(plug.child(i), item)
-    elif attribute.hasFn(om.MFn.kUnitAttribute):
-        check_range(plug, value)
-        kind = om.MFnUnitAttribute(attribute).unitType()
+    elif unit:
+        check_range(plug, value, fn)
+        kind = fn.unitType()
         if kind == om.MFnUnitAttribute.kAngle:
             plug.setMAngle(om.MAngle(value, om.MAngle.uiUnit()))
         elif kind == om.MFnUnitAttribute.kDistance:
@@ -62,9 +89,9 @@ def set_plug(plug, value):
             plug.setMTime(om.MTime(value, om.MTime.uiUnit()))
     elif attribute.hasFn(om.MFn.kEnumAttribute):
         plug.setInt(int(value))
-    elif attribute.hasFn(om.MFn.kNumericAttribute):
-        check_range(plug, value)
-        kind = om.MFnNumericAttribute(attribute).numericType()
+    elif numeric:
+        check_range(plug, value, fn)
+        kind = fn.numericType()
         if kind == om.MFnNumericData.kBoolean:
             plug.setBool(bool(value))
         elif kind in (om.MFnNumericData.kByte, om.MFnNumericData.kChar,

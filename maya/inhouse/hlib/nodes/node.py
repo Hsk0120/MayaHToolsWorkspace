@@ -1212,7 +1212,7 @@ class Node:
             # 配列インデックスを含まない名前(``boundingBox.boundingBoxMin`` のような子アトリビュートの
             # パスを含む)は、従来どおり findPlug で解決する。
             try:
-                mplug = om2.MFnDependencyNode(self._mobject).findPlug(name, False)
+                mplug = self._dependency_fn().findPlug(name, False)
             except RuntimeError:
                 mplug = None  # エイリアス名は findPlug で解決できないため、下で解決する。
             if mplug is not None:

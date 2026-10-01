@@ -46,8 +46,8 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 - ワールド空間アトリビュートのインスタンス番号の要素(``instanceCount(True)``)と
   ``cmds.ls(allPaths=True)``、インスタンスごとの ``Transform.get_matrix(ws=True)`` と
   ``cmds.xform(query=True, matrix=True, worldSpace=True)``
-- ``Transform.get_matrix`` (om2 の MPlug から直接読む。ワールド空間はインスタンスごとの
-  ``worldMatrix`` の要素)と ``cmds.getAttr``/``cmds.xform(query=True, matrix=True)``、
+- ``Transform.get_matrix`` (ローカルはMPlug、ワールドは対象インスタンスのDAGパスから取得)
+  と ``cmds.getAttr``/``cmds.xform(query=True, matrix=True)``、
   ``hlib.maths.Matrix`` の分解(行列式が負の場合を含む)と ``cmds.xform(matrix=...)`` で
   書き込まれるチャンネル値・decomposeMatrix ノードの出力、``Transform.get_rotate``/
   ``set_rotate`` の3成分と ``cmds.xform(rotation=...)`` (全回転順序)
@@ -231,7 +231,7 @@ class NamespaceParityTest(unittest.TestCase):
 class TransformMatrixParityTest(unittest.TestCase):
     """Transform の行列取得と hlib.maths の分解が cmds / decomposeMatrix と一致し続けることを検証する。
 
-    ``Transform.get_matrix`` は hlib の Plug ラッパーを介さず om2 の MPlug から直接読む。
+    ``Transform.get_matrix`` はローカルをMPlug、ワールドをDAGパスから取得する。
     ``hlib.maths.Matrix`` は om2.MMatrix を継承し、om2.MTransformationMatrix と同じ規約
     (行列式が負なら Z スケールを負にして 180 度を補う)で分解する。その規約が
     ``cmds.xform(matrix=...)`` によるチャンネル値と decomposeMatrix ノードの出力に

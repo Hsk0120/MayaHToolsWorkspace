@@ -1,8 +1,8 @@
 """変換行列を介して Transform ノードを操作する。"""
 
 from .._core.flags import flag_aliases
-from ..decorators._fast import fast_edit
-from .._core.fastWrite import set_attr
+from ..decorators._fast import fast_edit, is_fast
+from .._core.fastWrite import set_attr, set_plug
 
 import math
 
@@ -832,9 +832,9 @@ class Transform(DagNode):
     def get_matrix(self, ws=False):
         """変換行列を取得する。
 
-        Maya が評価・キャッシュ済みの ``matrix`` / ``worldMatrix`` アトリビュート値をそのまま
-        使うため、``jnt.plug("matrix")`` / ``jnt.plug("worldMatrix")`` の対応する要素と
-        常に一致する。hlib の Plug ラッパーを介さず OpenMaya の MPlug から直接読み取る。
+        ワールド空間は保持する DAG パスの inclusiveMatrix から取得する。
+        ローカル空間は評価済みの ``matrix`` アトリビュートを直接読み取る。
+        どちらも行列値を保持し続けず、呼出し時点の Maya の評価結果を返す。
 
         Args:
             ws (bool): ``True`` でワールド空間（``worldMatrix``）、``False`` （既定）で
@@ -850,10 +850,10 @@ class Transform(DagNode):
         """
         if not self.is_valid():
             raise RuntimeError("無効なノードの行列は取得できません")
-        # 名前による findPlug より速い、アトリビュートの MObject からの MPlug 生成を使う。
-        plug = om2.MPlug(self.mobject(), _transform_attribute("worldMatrix" if ws else "matrix"))
         if ws:
-            plug = plug.elementByLogicalIndex(self.dag_path().instanceNumber())
+            return Matrix._wrap(self.dag_path().inclusiveMatrix())
+        # 名前による findPlug より速い、アトリビュートの MObject からの MPlug 生成を使う。
+        plug = om2.MPlug(self.mobject(), _transform_attribute("matrix"))
         return Matrix._wrap(om2.MFnMatrixData(plug.asMObject()).matrix())
 
     def get_translate(self, ws=False):
@@ -1123,9 +1123,18 @@ class Transform(DagNode):
         """
         translate, quaternion, scale, shear, reference = self._decompose_like_channels(matrix, scale_reference)
         rotation = self._channel_rotation(quaternion, reference)
+        angle_unit = om2.MAngle.uiUnit()
+        rotation_values = tuple(om2.MAngle(component).asUnits(angle_unit) for component in rotation)
+        if is_fast():
+            # 保持するノードから直接プラグを構成する。名前の再解決を省いても
+            # 書込順・ロック/接続/範囲検査・UI単位は通常のfast経路と同じ。
+            for attribute, values in (("translate", translate), ("rotate", rotation_values),
+                                      ("scale", scale), ("shear", shear)):
+                set_plug(om2.MPlug(self.mobject(), _transform_attribute(attribute)), values)
+            return
         name = self.full_name()
         set_attr(f"{name}.translate", *translate)
-        set_attr(f"{name}.rotate", *(om2.MAngle(component).asUnits(om2.MAngle.uiUnit()) for component in rotation))
+        set_attr(f"{name}.rotate", *rotation_values)
         set_attr(f"{name}.scale", *scale)
         set_attr(f"{name}.shear", *shear)
 

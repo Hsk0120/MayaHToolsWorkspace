@@ -55,6 +55,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-01 | 未コミット変更全体 | 依頼に従い差分確認・コミット・push |
+
+
+
+
+
 
 
 
@@ -64,6 +70,20 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+- 2026-10-01 Codex: 全未コミット変更の公開準備。hlib速度改善・回帰テスト・ドキュメントと既存作業ログをまとめて差分確認。検証済み結果を維持し、Git対象外の調査・生成物は除外。
+
+- 2026-10-01 Claude Code: hrigフェイシャルモジュラーリグ（MetaHuman型・ゲームエンジン向け）の設計ドラフトをGit対象外docs/research/hrig-facial-design-20261001.mdに作成。製品コードは未変更。
+
+- 2026-10-01 Codex: 追加最適化を実装。同一引数一括呼出の実関数別検証共有・不要結果配列削除、Node.plugのfunction set再利用、fast行列の直接MPlug更新、短縮フラグの入力形検証キャッシュ、influence検索表共有。ウェイト範囲書込は失敗時挙動が違うため逐次更新を維持。新規テストの失敗検出とPython3.7 Mock互換も修正。最終関連227件は2022/2024/2025/2026/2027成功、2024全体91ファイル875件（9skip）成功、Sphinx -W成功。再計測はGit対象外docs/research保存。GUI未検証・未コミット・未push。
+
+- 2026-10-01 Codex: 追加の速度改善候補をコード調査。検討資料はGit対象外docs/researchに保存。既存の未コミット実装は保持し、新規の製品変更・再計測なし。
+
+- 2026-10-01 Codex: hlib速度改善4項目を実装。keyword-only fastのbind省略と状態変更抑制、world行列のDAGパス取得、通常Undoの重複チャンク省略（transaction境界維持）、fastWriteの更新内function set共有。Maya2022/2024/2025/2026/2027で関連180件ずつ成功。2024全体90ファイル成功・870件実行（9skip）、Sphinx -W成功。再計測はGit対象外docs/researchに保存。GUI未検証、未コミット・未push。
+
+- 2026-10-01 Codex: 速度改善候補を専用Mayaでプロファイル・試作比較し、検討資料をGit対象外docs/researchに保存。製品コードは未変更。
+
+- 2026-10-01 Codex: 依頼された速度比較を専用Maya standaloneで実測し、値一致・Undo復元を検証。詳細と再現スクリプトはGit対象外のdocs/research内に保存。製品コード変更なし。
 
 | Claude Code | 2026-10-01 | maya/inhouse/hedit 0.3.0 設計の見直し | 設計レビュー15件に対応(固定の出力先・自己ロードの廃止・アイコンのメモリ描画・meta_path位置・版情報/CFG/PDB・heditTest分離・状態の明示的な作成と破棄・Request/SymbolType・言語の列挙・エスケープ統一・CodeAssist分離・__file__・tabs/<id>.txtとpreferences.jsonとui.jsonの整理・Python例外の受け止め・出力取り込みの代替・ui_smokeの名前付き検査・.gitattributes)。5版ビルド警告0、run_tests/run_startup 5版・run_gui 2024/2027と各スイート・run_session 2024/2027・Sphinx -W 成功。 |
 
@@ -193,6 +213,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-01 | 未コミット変更全体 | 依頼に従い差分確認・コミット・push |
+
+
+
+
+
 | Codex | 2026-09-30 | hlib追加内部整理計画 | 後始末例外・登録衝突・bulk検証負荷・テスト環境再現性を実装から確認しresearchへ計画保存。公開API維持、実装変更・Maya実行なし。 |
 | Codex | 2026-09-30 | hlib参照/入力契約・tests/docs・hrig使用側 | Node/Plug固定hashと比較、Joint特例廃止、Component比較、具象Node型保証、DAG消失時の切替禁止、名前/Node混在拒否を反映。破棄済みMObjectのis_aliveクラッシュを保持handleで修正。各版2022/24/25/26/27の72ファイル/773件実行成功(skip5/5/2/2/2)、GUI2027 102成功exit0、discovery/reload・Sphinx -W成功。hrig混在1箇所修正後50/51成功、残り外部FKベイクの既知接続属性エラー。規約/移行ガイド更新。他版GUI未実施、未コミット。 |
 | Codex | 2026-09-30 | hlib設計固定前レビュー | Joint等価/hash特例、具象型生成、DAGパス切替、ls返却型、失敗契約を調査し候補をresearch保存。実装変更・Mayaテストなし。 |
