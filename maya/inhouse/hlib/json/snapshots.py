@@ -88,7 +88,6 @@ def _check_attribute_value(attr):
 class ValidationReport:
     """適用計画のエラー一覧。空ならvalid=True。"""
     errors: list = field(default_factory=list)
-
     @property
     def valid(self):
         """bool: エラーがないか。"""
@@ -157,7 +156,7 @@ class Snapshot:
                 seen.add(name)
                 if cmds.lockNode(name, query=True, lock=True)[0] or cmds.referenceQuery(name, isNodeReferenced=True):
                     raise ValueError("Locked or referenced target: " + name)
-                before = _validate_record(self.kind, node, record, options)
+                before = _KINDS[self.kind]._validate_record(node, record, options)
                 plan.changes.append({"target": name, "before": before, "after": record})
             except (ValueError, TypeError, RuntimeError, KeyError, IndexError, AttributeError, OverflowError) as error:
                 plan.errors.append(str(error))
@@ -193,8 +192,82 @@ class Snapshot:
                     names = [ref.resolve(**options).full_name() for ref in record["items"]]
                     cmds.select(names, replace=True) if names else cmds.select(clear=True)
                 else:
-                    _apply_record(self.kind, record["node"].resolve(**options), record, options)
+                    _KINDS[self.kind]._apply_record(record["node"].resolve(**options), record, options)
         return plan
+
+    @classmethod
+    def _validate_record(cls, node, record, options):
+        """共通アトリビュート・キー・接続を検証し、形状検証を委譲する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+
+        Returns:
+            dict: 変更前の値。
+        """
+        from maya import cmds
+        name = node.full_name()
+        before = {}
+        for attr in record.get("attributes", []):
+            _check_attribute_value(attr)
+            plug = name + "." + attr["name"]
+            current = _attribute(name, attr["name"])
+            if current["type"] != attr["type"]:
+                raise ValueError("Attribute type mismatch: " + plug)
+            if not cmds.getAttr(plug, settable=True) or cmds.listConnections(plug, source=True, destination=False):
+                raise ValueError("Attribute locked or connected: " + plug)
+            before[attr["name"]] = current["value"]
+        cls._validate_geometry(node, record, options, before)
+        if "inputs" in record:
+            AnimationSnapshot._validate_keys(node, record, before)
+        if "connections" in record:
+            DrivenKeysSnapshot._validate_connections(node, record, options)
+        from .codec import encode
+        encode(record)
+        return before
+
+    @classmethod
+    def _apply_record(cls, node, record, options):
+        """アトリビュート・形状・キーを既存の順序で適用する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+        """
+        from maya import cmds
+        name = node.full_name()
+        for attr in record.get("attributes", []):
+            _set_attribute(name, attr)
+        cls._apply_geometry(node, record, options)
+        if "inputs" in record:
+            # 全キーを先にcutするとMayaがカーブ本体を削除するため、保存キーを先に設定する。
+            AnimationSnapshot._apply_keys(node, record)
+
+    @staticmethod
+    def _validate_geometry(node, record, options, before):
+        """形状を持たない種類では追加検証を行わない。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+            before (dict): 変更前の値を追記する辞書。
+        """
+        pass
+
+    @staticmethod
+    def _apply_geometry(node, record, options):
+        """形状を持たない種類では追加更新を行わない。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+        """
+        pass
 
 
 class SelectionSnapshot(Snapshot):
@@ -204,9 +277,51 @@ class SelectionSnapshot(Snapshot):
 class AttributesSnapshot(Snapshot):
     """明示指定したアトリビュートの型と値。入力接続・ロックは変更しない。"""
 
+    @staticmethod
+    def _capture_record(node, attributes=None):
+        """指定アトリビュートの型と値を保存する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            attributes (Iterable[str] | None): 取得するアトリビュート名。用途により固定項目を使う。
+
+        Returns:
+            dict: 保存用のレコード。
+        """
+        record = {"node": NodeRef.capture(node)}
+        name = node.full_name()
+        attrs = attributes
+        if not attrs or isinstance(attrs, str):
+            raise ValueError("attributes must be a non-empty list")
+        record["attributes"] = [_attribute(name, attr) for attr in attrs]
+        return record
+
 
 class PoseSnapshot(Snapshot):
     """ローカルTRS・shear・回転順序・pivot・jointOrient等のポーズ。"""
+
+    @staticmethod
+    def _capture_record(node, attributes=None):
+        """Transform固有のポーズ項目を選び、アトリビュート取得を共有する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            attributes (Iterable[str] | None): 取得するアトリビュート名。用途により固定項目を使う。
+
+        Returns:
+            dict: 保存用のレコード。
+        """
+        from maya import cmds
+        name = node.full_name()
+        if not cmds.objectType(name, isAType="transform"):
+            raise ValueError("Pose requires Transform")
+        attrs = [p + axis for p in ("translate", "rotate", "scale", "rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate", "rotateAxis") for axis in "XYZ"]
+        attrs = ["rotateOrder"] + attrs + ["shearXY", "shearXZ", "shearYZ"]
+        if cmds.objExists(name + ".offsetParentMatrix"):
+            attrs.append("offsetParentMatrix")
+        if node.type() == "joint":
+            attrs += ["jointOrient" + a for a in "XYZ"] + ["segmentScaleCompensate"]
+        return AttributesSnapshot._capture_record(node, attrs)
 
 
 globals().pop("CurveSnapshot", None)
@@ -215,17 +330,282 @@ globals().pop("CurveSnapshot", None)
 class NurbsCurveSnapshot(Snapshot):
     """既存カーブのCV位置と表示色。同じ次数・ノット・ウェイトのみ適用可能。"""
 
+    @staticmethod
+    def _capture_record(node, attributes=None):
+        """カーブのトポロジー・CV・表示情報を保存する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            attributes (Iterable[str] | None): 取得するアトリビュート名。用途により固定項目を使う。
+
+        Returns:
+            dict: 保存用のレコード。
+        """
+        from maya import cmds
+        record = {"node": NodeRef.capture(node)}
+        name = node.full_name()
+        record["topology"] = _signature(name)
+        record["positions"] = [cmds.xform(name + ".cv[{}]".format(i), query=True, objectSpace=True, translation=True) for i in range(record["topology"]["vertices"])]
+        record["attributes"] = [_attribute(name, attr) for attr in ("overrideEnabled", "overrideRGBColors", "overrideColor", "overrideColorRGB", "lineWidth")]
+        return record
+
+    @staticmethod
+    def _validate_geometry(node, record, options, before):
+        """形状固有の一致条件を検証し、変更前の値を追記する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+            before (dict): 変更前の値を追記する辞書。
+        """
+        from maya import cmds
+        name = node.full_name()
+        shape = name
+        if _signature(shape) != record["topology"]:
+            raise ValueError("Topology differs: " + shape)
+        if cmds.listConnections(name + ".create", source=True, destination=False):
+            raise ValueError("Curve has construction history: " + name)
+        if len(record["positions"]) != record["topology"]["vertices"] or any(len(p) != 3 for p in record["positions"]):
+            raise ValueError("Invalid CV positions")
+        if any(not isinstance(v, (int, float)) or not math.isfinite(v) for p in record["positions"] for v in p):
+            raise ValueError("CV coordinates must be finite numbers")
+        for i in range(len(record["positions"])):
+            if not cmds.getAttr(name + ".controlPoints[{}]".format(i), settable=True):
+                raise ValueError("CV is locked or connected")
+        before["positions"] = [cmds.xform(name + ".cv[{}]".format(i), query=True, translation=True, objectSpace=True) for i in range(len(record["positions"]))]
+
+    @staticmethod
+    def _apply_geometry(node, record, options):
+        """検証済みの形状データを既存の順序で更新する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+        """
+        from maya import cmds
+        name = node.full_name()
+        for i, pos in enumerate(record["positions"]):
+            cmds.xform(name + ".cv[{}]".format(i), objectSpace=True, translation=pos)
+
 
 class SkinWeightsSnapshot(Snapshot):
     """既存mesh skinClusterの疎ウェイト・blendWeights・方式。"""
+
+    @staticmethod
+    def _capture_record(node, attributes=None):
+        """スキンの対象・influence・疎ウェイトを保存する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            attributes (Iterable[str] | None): 取得するアトリビュート名。用途により固定項目を使う。
+
+        Returns:
+            dict: 保存用のレコード。
+        """
+        from maya import cmds
+        record = {"node": NodeRef.capture(node)}
+        name = node.full_name()
+        if node.type() != "skinCluster":
+            raise ValueError("Expected skinCluster")
+        influences = node.influences()
+        weights = list(node.get_weights(influences))
+        record.update(geometry=NodeRef.capture(node.mesh_path.fullPathName()), topology=_signature(node.mesh_path.fullPathName()),
+                      influences=[NodeRef.capture(x) for x in influences], weights=[[i, v] for i, v in enumerate(weights) if v != 0.0])
+        count = record["topology"]["vertices"]
+        record["blend_weights"] = [cmds.getAttr(name + ".blendWeights[{}]".format(i)) for i in range(count)]
+        record["attributes"] = [_attribute(name, attr) for attr in ("skinningMethod", "normalizeWeights", "maintainMaxInfluences", "maxInfluences")]
+        return record
+
+    @staticmethod
+    def _validate_geometry(node, record, options, before):
+        """形状固有の一致条件を検証し、変更前の値を追記する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+            before (dict): 変更前の値を追記する辞書。
+        """
+        from maya import cmds
+        name = node.full_name()
+        shape = node.mesh_path.fullPathName()
+        if _signature(shape) != record["topology"]:
+            raise ValueError("Topology differs: " + shape)
+        geometry = record["geometry"].resolve(**options).full_name()
+        if geometry != node.mesh_path.fullPathName():
+            raise ValueError("Skin geometry mapping differs")
+        names = [r.resolve(**options).full_name() for r in record["influences"]]
+        current = [NodeRef.capture(x).resolve().full_name() for x in node.influences()]
+        if len(names) != len(set(names)) or set(names) != set(current):
+            raise ValueError("Influence membership differs")
+        size = record["topology"]["vertices"] * len(names)
+        indices = [p[0] for p in record["weights"]]
+        if len(set(indices)) != len(indices) or any(type(i) is not int or not 0 <= i < size for i in indices):
+            raise ValueError("Invalid sparse weight indices")
+        if len(record["blend_weights"]) != record["topology"]["vertices"]:
+            raise ValueError("Invalid blendWeights count")
+        if any(not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0 for _, v in record["weights"]):
+            raise ValueError("Weights must be non-negative finite numbers")
+        if any(not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 1 for v in record["blend_weights"]):
+            raise ValueError("blendWeights must be between zero and one")
+        for attr in ("weightList", "blendWeights"):
+            if cmds.getAttr(name + "." + attr, lock=True) or cmds.listConnections(name + "." + attr, source=True, destination=False):
+                raise ValueError("Weight attributes locked or connected")
+        for influence in names:
+            if cmds.objExists(influence + ".lockInfluenceWeights") and cmds.getAttr(influence + ".lockInfluenceWeights"):
+                raise ValueError("Influence weights locked: " + influence)
+        for attr in cmds.listAttr(name + ".weightList", multi=True) or []:
+            if cmds.getAttr(name + "." + attr, lock=True):
+                raise ValueError("Weight element locked: " + attr)
+        for i in range(record["topology"]["vertices"]):
+            if not cmds.getAttr(name + ".blendWeights[{}]".format(i), settable=True):
+                raise ValueError("Blend weight locked or connected")
+        before["weights"] = list(node.get_weights(names))
+
+    @staticmethod
+    def _apply_geometry(node, record, options):
+        """検証済みの形状データを既存の順序で更新する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+        """
+        from maya import cmds
+        name = node.full_name()
+        names = [r.resolve(**options).full_name() for r in record["influences"]]
+        weights = [0.0] * (record["topology"]["vertices"] * len(names))
+        for index, value in record["weights"]:
+            weights[index] = value
+        node.set_weights(names, weights)
+        for i, value in enumerate(record["blend_weights"]):
+            cmds.setAttr(name + ".blendWeights[{}]".format(i), value)
 
 
 class AnimationSnapshot(Snapshot):
     """既存AnimCurveの全キー・接線・Infinity。キーは全置換する。"""
 
+    @staticmethod
+    def _capture_record(node, attributes=None):
+        """既存AnimCurveのキー・接線・Infinityを保存する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            attributes (Iterable[str] | None): 取得するアトリビュート名。用途により固定項目を使う。
+
+        Returns:
+            dict: 保存用のレコード。
+        """
+        record = {"node": NodeRef.capture(node)}
+        if not node.type().startswith("animCurve"):
+            raise ValueError("Expected animation curve")
+        record.update(inputs=node.key_inputs(), values=node.key_values(), tangents=[node.get_tangent(i) for i in range(node.key_count())], infinity=node.get_infinity())
+        return record
+
+    @staticmethod
+    def _validate_keys(node, record, before):
+        """キーの値・順序・更新可能性を検証する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            before (dict): 変更前の値を追記する辞書。
+        """
+        from maya import cmds
+        name = node.full_name()
+        if any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in record["inputs"] + record["values"]):
+            raise ValueError("Animation keys must be finite numbers")
+        if not record["inputs"] and node.key_count():
+            raise ValueError("Cannot clear the last animation key while preserving the existing node")
+        if len(record["inputs"]) != len(record["values"]) or len(record["inputs"]) != len(record["tangents"]):
+            raise ValueError("Invalid key counts")
+        if any(a >= b for a, b in zip(record["inputs"], record["inputs"][1:])):
+            raise ValueError("Key inputs must be strictly increasing")
+        for attr in ("ktv", "preInfinity", "postInfinity"):
+            if cmds.getAttr(name + "." + attr, lock=True):
+                raise ValueError("Animation attribute locked: " + attr)
+        before.update(inputs=node.key_inputs(), values=node.key_values())
+
+    @staticmethod
+    def _apply_keys(node, record):
+        """既存カーブを維持し、キー・接線・Infinityを復元する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+        """
+        from maya import cmds
+        name = node.full_name()
+        # 全キーの先行削除はカーブ本体も消すため、保存キーを先に設定する。
+        for x, y in zip(record["inputs"], record["values"]):
+            node.set_key(x, y)
+        wanted = set(record["inputs"])
+        for i, x in reversed(list(enumerate(node.key_inputs()))):
+            if x not in wanted:
+                cmds.cutKey(name, clear=True, animation="objects", index=(i, i))
+        for i, tangent in enumerate(record["tangents"]):
+            node.set_tangent(i, weightedTangents=tangent["weightedTangents"])
+            node.set_tangent(i, lock=False)
+            if tangent["weightedTangents"]:
+                node.set_tangent(i, weightLock=False)
+            node.set_tangent(i, inTangentType=tangent["inTangentType"], outTangentType=tangent["outTangentType"])
+            fixed = {}
+            for prefix in ("in", "out"):
+                if tangent[prefix + "TangentType"] == "fixed":
+                    fixed[prefix + "Angle"] = tangent[prefix + "Angle"]
+                    if tangent["weightedTangents"]:
+                        fixed[prefix + "Weight"] = tangent[prefix + "Weight"]
+            if fixed:
+                node.set_tangent(i, **fixed)
+            node.set_tangent(i, lock=tangent["lock"])
+            if tangent["weightedTangents"]:
+                node.set_tangent(i, weightLock=tangent["weightLock"])
+        node.set_infinity(**record["infinity"])
+
 
 class DrivenKeysSnapshot(Snapshot):
     """既存SDKグラフのカーブ・blendWeighted値。接続構成は照合し、再作成しない。"""
+
+    @staticmethod
+    def _capture_record(node, attributes=None):
+        """SDK部品の値と既存の接続構成を保存する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            attributes (Iterable[str] | None): 取得するアトリビュート名。用途により固定項目を使う。
+
+        Returns:
+            dict: 保存用のレコード。
+        """
+        from maya import cmds
+        name = node.full_name()
+        if node.type().startswith("animCurve"):
+            record = AnimationSnapshot._capture_record(node, attributes)
+        elif node.type() in ("blendWeighted", "unitConversion"):
+            record = {"node": NodeRef.capture(node)}
+            attrs = ["conversionFactor"] if node.type() == "unitConversion" else ["weight[{}]".format(i) for i in cmds.getAttr(name + ".weight", multiIndices=True) or []]
+            record["attributes"] = [_attribute(name, attr) for attr in attrs]
+        else:
+            raise ValueError("Expected animation curve")
+        record["connections"] = _connections(name)
+        return record
+
+    @staticmethod
+    def _validate_connections(node, record, options):
+        """保存時のSDK接続が維持されているか検証する。
+
+        Args:
+            node (Node): 対象の既存ノード。
+            record (dict): 保存した一件分のデータ。
+            options (dict): 対象名と名前空間の解決設定。
+        """
+        name = node.full_name()
+        expected = {tuple(p.resolve(**options).full_name() for p in pair) for pair in record["connections"]}
+        actual = {tuple(p.resolve().full_name() for p in pair) for pair in _connections(name)}
+        if expected != actual:
+            raise ValueError("Driven-key connections differ: " + name)
 
 
 _KINDS = {"selection": SelectionSnapshot, "attributes": AttributesSnapshot, "pose": PoseSnapshot,
@@ -273,7 +653,7 @@ def capture(targets=None, kind="pose", attributes=None):
     if kind == "driven_keys":
         nodes = _sdk_nodes(nodes)
     unique = {n.full_name(): n for n in nodes}
-    records = [_capture_record(kind, node, attributes) for node in unique.values()]
+    records = [_KINDS[kind]._capture_record(node, attributes) for node in unique.values()]
     if not records:
         raise ValueError("No supported targets")
     result = _KINDS[kind](kind, records, _units())
@@ -307,174 +687,3 @@ def _connections(name):
     from maya import cmds
     pairs = cmds.listConnections(name, source=True, destination=True, connections=True, plugs=True) or []
     return [(PlugRef.capture(pairs[i]), PlugRef.capture(pairs[i + 1])) for i in range(0, len(pairs), 2)]
-
-
-def _capture_record(kind, node, attributes=None):
-    from maya import cmds
-    record = {"node": NodeRef.capture(node)}
-    name = node.full_name()
-    if kind in ("pose", "attributes"):
-        attrs = attributes
-        if kind == "pose":
-            if not cmds.objectType(name, isAType="transform"):
-                raise ValueError("Pose requires Transform")
-            attrs = [p + axis for p in ("translate", "rotate", "scale", "rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate", "rotateAxis") for axis in "XYZ"]
-            attrs = ["rotateOrder"] + attrs + ["shearXY", "shearXZ", "shearYZ"]
-            if cmds.objExists(name + ".offsetParentMatrix"):
-                attrs.append("offsetParentMatrix")
-            if node.type() == "joint":
-                attrs += ["jointOrient" + a for a in "XYZ"] + ["segmentScaleCompensate"]
-        if not attrs or isinstance(attrs, str):
-            raise ValueError("attributes must be a non-empty list")
-        record["attributes"] = [_attribute(name, attr) for attr in attrs]
-    elif kind == "curve":
-        record["topology"] = _signature(name)
-        record["positions"] = [cmds.xform(name + ".cv[{}]".format(i), query=True, objectSpace=True, translation=True) for i in range(record["topology"]["vertices"])]
-        record["attributes"] = [_attribute(name, attr) for attr in ("overrideEnabled", "overrideRGBColors", "overrideColor", "overrideColorRGB", "lineWidth")]
-    elif kind == "skin_weights":
-        if node.type() != "skinCluster":
-            raise ValueError("Expected skinCluster")
-        influences = node.influences()
-        weights = list(node.get_weights(influences))
-        record.update(geometry=NodeRef.capture(node.mesh_path.fullPathName()), topology=_signature(node.mesh_path.fullPathName()),
-                      influences=[NodeRef.capture(x) for x in influences], weights=[[i, v] for i, v in enumerate(weights) if v != 0.0])
-        count = record["topology"]["vertices"]
-        record["blend_weights"] = [cmds.getAttr(name + ".blendWeights[{}]".format(i)) for i in range(count)]
-        record["attributes"] = [_attribute(name, attr) for attr in ("skinningMethod", "normalizeWeights", "maintainMaxInfluences", "maxInfluences")]
-    elif kind in ("animation", "driven_keys"):
-        if node.type().startswith("animCurve"):
-            record.update(inputs=node.key_inputs(), values=node.key_values(), tangents=[node.get_tangent(i) for i in range(node.key_count())], infinity=node.get_infinity())
-        elif kind == "driven_keys" and node.type() in ("blendWeighted", "unitConversion"):
-            attrs = ["conversionFactor"] if node.type() == "unitConversion" else ["weight[{}]".format(i) for i in cmds.getAttr(name + ".weight", multiIndices=True) or []]
-            record["attributes"] = [_attribute(name, attr) for attr in attrs]
-        else:
-            raise ValueError("Expected animation curve")
-        if kind == "driven_keys":
-            record["connections"] = _connections(name)
-    return record
-
-
-def _validate_record(kind, node, record, options):
-    from maya import cmds
-    name = node.full_name()
-    before = {}
-    for attr in record.get("attributes", []):
-        _check_attribute_value(attr)
-        plug = name + "." + attr["name"]
-        current = _attribute(name, attr["name"])
-        if current["type"] != attr["type"]:
-            raise ValueError("Attribute type mismatch: " + plug)
-        if not cmds.getAttr(plug, settable=True) or cmds.listConnections(plug, source=True, destination=False):
-            raise ValueError("Attribute locked or connected: " + plug)
-        before[attr["name"]] = current["value"]
-    if kind in ("curve", "skin_weights"):
-        shape = name if kind == "curve" else node.mesh_path.fullPathName()
-        if _signature(shape) != record["topology"]:
-            raise ValueError("Topology differs: " + shape)
-        if kind == "curve":
-            if cmds.listConnections(name + ".create", source=True, destination=False):
-                raise ValueError("Curve has construction history: " + name)
-            if len(record["positions"]) != record["topology"]["vertices"] or any(len(p) != 3 for p in record["positions"]):
-                raise ValueError("Invalid CV positions")
-            if any(not isinstance(v, (int, float)) or not math.isfinite(v) for p in record["positions"] for v in p):
-                raise ValueError("CV coordinates must be finite numbers")
-            for i in range(len(record["positions"])):
-                if not cmds.getAttr(name + ".controlPoints[{}]".format(i), settable=True):
-                    raise ValueError("CV is locked or connected")
-            before["positions"] = [cmds.xform(name + ".cv[{}]".format(i), query=True, translation=True, objectSpace=True) for i in range(len(record["positions"]))]
-        else:
-            geometry = record["geometry"].resolve(**options).full_name()
-            if geometry != node.mesh_path.fullPathName():
-                raise ValueError("Skin geometry mapping differs")
-            names = [r.resolve(**options).full_name() for r in record["influences"]]
-            current = [NodeRef.capture(x).resolve().full_name() for x in node.influences()]
-            if len(names) != len(set(names)) or set(names) != set(current):
-                raise ValueError("Influence membership differs")
-            size = record["topology"]["vertices"] * len(names)
-            indices = [p[0] for p in record["weights"]]
-            if len(set(indices)) != len(indices) or any(type(i) is not int or not 0 <= i < size for i in indices):
-                raise ValueError("Invalid sparse weight indices")
-            if len(record["blend_weights"]) != record["topology"]["vertices"]:
-                raise ValueError("Invalid blendWeights count")
-            if any(not isinstance(v, (int, float)) or not math.isfinite(v) or v < 0 for _, v in record["weights"]):
-                raise ValueError("Weights must be non-negative finite numbers")
-            if any(not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 1 for v in record["blend_weights"]):
-                raise ValueError("blendWeights must be between zero and one")
-            for attr in ("weightList", "blendWeights"):
-                if cmds.getAttr(name + "." + attr, lock=True) or cmds.listConnections(name + "." + attr, source=True, destination=False):
-                    raise ValueError("Weight attributes locked or connected")
-            for influence in names:
-                if cmds.objExists(influence + ".lockInfluenceWeights") and cmds.getAttr(influence + ".lockInfluenceWeights"):
-                    raise ValueError("Influence weights locked: " + influence)
-            for attr in cmds.listAttr(name + ".weightList", multi=True) or []:
-                if cmds.getAttr(name + "." + attr, lock=True):
-                    raise ValueError("Weight element locked: " + attr)
-            for i in range(record["topology"]["vertices"]):
-                if not cmds.getAttr(name + ".blendWeights[{}]".format(i), settable=True):
-                    raise ValueError("Blend weight locked or connected")
-            before["weights"] = list(node.get_weights(names))
-    if "inputs" in record:
-        if any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in record["inputs"] + record["values"]):
-            raise ValueError("Animation keys must be finite numbers")
-        if not record["inputs"] and node.key_count():
-            raise ValueError("Cannot clear the last animation key while preserving the existing node")
-        if len(record["inputs"]) != len(record["values"]) or len(record["inputs"]) != len(record["tangents"]):
-            raise ValueError("Invalid key counts")
-        if any(a >= b for a, b in zip(record["inputs"], record["inputs"][1:])):
-            raise ValueError("Key inputs must be strictly increasing")
-        for attr in ("ktv", "preInfinity", "postInfinity"):
-            if cmds.getAttr(name + "." + attr, lock=True):
-                raise ValueError("Animation attribute locked: " + attr)
-        before.update(inputs=node.key_inputs(), values=node.key_values())
-    if "connections" in record:
-        expected = {tuple(p.resolve(**options).full_name() for p in pair) for pair in record["connections"]}
-        actual = {tuple(p.resolve().full_name() for p in pair) for pair in _connections(name)}
-        if expected != actual:
-            raise ValueError("Driven-key connections differ: " + name)
-    from .codec import encode
-    encode(record)
-    return before
-
-
-def _apply_record(kind, node, record, options):
-    from maya import cmds
-    name = node.full_name()
-    for attr in record.get("attributes", []):
-        _set_attribute(name, attr)
-    if kind == "curve":
-        for i, pos in enumerate(record["positions"]):
-            cmds.xform(name + ".cv[{}]".format(i), objectSpace=True, translation=pos)
-    elif kind == "skin_weights":
-        names = [r.resolve(**options).full_name() for r in record["influences"]]
-        weights = [0.0] * (record["topology"]["vertices"] * len(names))
-        for index, value in record["weights"]:
-            weights[index] = value
-        node.set_weights(names, weights)
-        for i, value in enumerate(record["blend_weights"]):
-            cmds.setAttr(name + ".blendWeights[{}]".format(i), value)
-    if "inputs" in record:
-        # 全キーを先にcutするとMayaがカーブ本体を削除するため、保存キーを先に設定する。
-        for x, y in zip(record["inputs"], record["values"]):
-            node.set_key(x, y)
-        wanted = set(record["inputs"])
-        for i, x in reversed(list(enumerate(node.key_inputs()))):
-            if x not in wanted:
-                cmds.cutKey(name, clear=True, animation="objects", index=(i, i))
-        for i, tangent in enumerate(record["tangents"]):
-            node.set_tangent(i, weightedTangents=tangent["weightedTangents"])
-            node.set_tangent(i, lock=False)
-            if tangent["weightedTangents"]:
-                node.set_tangent(i, weightLock=False)
-            node.set_tangent(i, inTangentType=tangent["inTangentType"], outTangentType=tangent["outTangentType"])
-            fixed = {}
-            for prefix in ("in", "out"):
-                if tangent[prefix + "TangentType"] == "fixed":
-                    fixed[prefix + "Angle"] = tangent[prefix + "Angle"]
-                    if tangent["weightedTangents"]:
-                        fixed[prefix + "Weight"] = tangent[prefix + "Weight"]
-            if fixed:
-                node.set_tangent(i, **fixed)
-            node.set_tangent(i, lock=tangent["lock"])
-            if tangent["weightedTangents"]:
-                node.set_tangent(i, weightLock=tangent["weightLock"])
-        node.set_infinity(**record["infinity"])

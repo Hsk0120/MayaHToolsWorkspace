@@ -69,6 +69,7 @@ class BulkCollection:
         """
         functions = [getattr(item, method) for item in self._items]
         shared = {}
+        signatures = {}
         keywords = []
         for function in functions:
             key = function.__func__ if inspect.ismethod(function) else None
@@ -76,7 +77,7 @@ class BulkCollection:
                 flags = shared[key]
             else:
                 flags = normalize_flags(function, kwargs)
-                inspect.signature(function).bind(*args, **flags)
+                self._signature(function, signatures).bind(*args, **flags)
                 if key is not None:
                     shared[key] = flags
             keywords.append(flags)
@@ -108,16 +109,26 @@ class BulkCollection:
         # この呼出内だけ共有し、reloadやクラスの差替え後に古いsignatureを保持しない。
         signatures = {}
         for function, row, flags in zip(functions, args, kwargs):
-            if inspect.ismethod(function):
-                key = function.__func__
-                if key not in signatures:
-                    signatures[key] = inspect.signature(function)
-                signature = signatures[key]
-            else:
-                # 個体ごとのcallableや__signature__を持つ値は独立に検証する。
-                signature = inspect.signature(function)
-            signature.bind(*row, **flags)
+            self._signature(function, signatures).bind(*row, **flags)
         return functions, args, kwargs
+
+    @staticmethod
+    def _signature(function, signatures):
+        """一回の検証内で実メソッドのsignatureだけを共有する。
+
+        Args:
+            function (callable): 実際に呼び出すメソッドまたは個体callable。
+            signatures (dict): 呼出し内だけで使うキャッシュ。
+
+        Returns:
+            inspect.Signature: 束縛済み引数に対応するsignature。
+        """
+        if not inspect.ismethod(function):
+            return inspect.signature(function)
+        key = function.__func__
+        if key not in signatures:
+            signatures[key] = inspect.signature(function)
+        return signatures[key]
 
 
 def bulk_api(item_class, undo=True, per_item_only=(), *, reads=(), writes=(), properties=()):

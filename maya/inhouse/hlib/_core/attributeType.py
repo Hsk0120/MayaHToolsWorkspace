@@ -243,4 +243,95 @@ def is_internal_data_type(mplug):
     return name is not None and name not in _PUBLIC_DATA_TYPES
 
 
-__all__ = ["attribute_type", "is_internal_data_type"]
+def _read_angle(mplug):
+    """角度アトリビュートの値を度で返す。
+
+    UI の角度単位によらず度を返す(``cmds.getAttr`` の既定と同じ。角度の UI 単位が
+    ラジアンの場合は ``cmds.getAttr`` の戻り値と異なる)。
+
+    Args:
+        mplug (om2.MPlug): 角度アトリビュートのプラグ。
+
+    Returns:
+        float: 度の値。
+    """
+    return mplug.asMAngle().asDegrees()
+
+
+def _read_distance(mplug):
+    """距離アトリビュートの値を現在の UI 単位で返す。
+
+    Args:
+        mplug (om2.MPlug): 距離アトリビュートのプラグ。
+
+    Returns:
+        float: UI 単位の値。
+    """
+    return mplug.asMDistance().asUnits(om2.MDistance.uiUnit())
+
+
+def _read_time(mplug):
+    """時間アトリビュートの値を現在の UI 単位で返す。
+
+    Args:
+        mplug (om2.MPlug): 時間アトリビュートのプラグ。
+
+    Returns:
+        float: UI 単位の値。
+    """
+    return mplug.asMTime().asUnits(om2.MTime.uiUnit())
+
+
+#: 型名 -> (読取、fast setter、入力変換)。charの読取は従来通りcmdsへ委譲する。
+#: floatは読取時にdouble精度で取得し、書込時にはfloatへ設定する。
+_NUMERIC_ACCESS = {
+    "bool": (om2.MPlug.asBool, om2.MPlug.setBool, bool),
+    "byte": (om2.MPlug.asInt, om2.MPlug.setInt, int),
+    "char": (False, om2.MPlug.setInt, int),
+    "short": (om2.MPlug.asInt, om2.MPlug.setInt, int),
+    "long": (om2.MPlug.asInt, om2.MPlug.setInt, int),
+    "float": (om2.MPlug.asDouble, om2.MPlug.setFloat, float),
+    "double": (om2.MPlug.asDouble, om2.MPlug.setDouble, float),
+}
+_NUMERIC_READERS = {kind: _NUMERIC_ACCESS[name][0]
+                    for kind, name in _NUMERIC_TYPE_NAMES.items() if name in _NUMERIC_ACCESS}
+NUMERIC_WRITERS = {kind: _NUMERIC_ACCESS[name][1:]
+                   for kind, name in _NUMERIC_TYPE_NAMES.items() if name in _NUMERIC_ACCESS}
+
+#: 単位アトリビュートの ``unitType()`` と、値を読む関数。
+_UNIT_READERS = {
+    om2.MFnUnitAttribute.kAngle: _read_angle,
+    om2.MFnUnitAttribute.kDistance: _read_distance,
+    om2.MFnUnitAttribute.kTime: _read_time,
+}
+
+#: :func:`value_reader` が「MPlug から直接読めない(``cmds.getAttr`` で読む)」ことを表す値。
+_CMDS_READER = False
+
+
+def value_reader(attribute):
+    """``Plug.get()`` が MPlug から直接値を読む関数を、アトリビュート定義から選ぶ。
+
+    アトリビュートの型はアトリビュートごとに変わらないため、Plug ごとに一度だけ求めて保持する。
+
+    Args:
+        attribute (om2.MObject): アトリビュートの MObject。
+
+    Returns:
+        callable | bool: MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、
+            角度・距離・時間の単位アトリビュート、enum、文字列アトリビュートが対象。それ以外は
+            ``_CMDS_READER`` (``cmds.getAttr`` で読む)。
+    """
+    if attribute.hasFn(om2.MFn.kNumericAttribute):
+        return _NUMERIC_READERS.get(om2.MFnNumericAttribute(attribute).numericType(), _CMDS_READER)
+    if attribute.hasFn(om2.MFn.kUnitAttribute):
+        return _UNIT_READERS.get(om2.MFnUnitAttribute(attribute).unitType(), _CMDS_READER)
+    if attribute.hasFn(om2.MFn.kEnumAttribute):
+        return om2.MPlug.asInt
+    if (attribute.hasFn(om2.MFn.kTypedAttribute)
+            and om2.MFnTypedAttribute(attribute).attrType() == om2.MFnData.kString):
+        return om2.MPlug.asString
+    return _CMDS_READER
+
+
+__all__ = ["attribute_type", "is_internal_data_type", "value_reader"]

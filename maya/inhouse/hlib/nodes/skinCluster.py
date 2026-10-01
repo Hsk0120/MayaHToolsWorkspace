@@ -125,9 +125,8 @@ class SkinCluster(Node):
         Returns:
             om2.MDagPath: Transform なら shape へ展開した DAG パス。
         """
-        selection = om2.MSelectionList()
-        selection.add(name)
-        path = selection.getDagPath(0)
+        # 名前とインスタンスパスの解決は既存Node/DagNodeの経路を共有する。
+        path = Node(name).dag_path()
         if path.node().hasFn(om2.MFn.kTransform):
             path.extendToShape()
         return path
@@ -155,13 +154,7 @@ class SkinCluster(Node):
         Returns:
             int | None: influenceObjects() 内の物理インデックス。UUID、次いでパーシャル名を比較する。見つからなければ None。
         """
-        uuid = self._uuid(joint)
-        for index, path in enumerate(self.fn.influenceObjects()):
-            if uuid and self._uuid(path.fullPathName()) == uuid:
-                return index
-            if path.partialPathName() == joint:
-                return index
-        return None
+        return self._influence_indices((joint,), self.fn.influenceObjects())[0]
 
     def _all_verts(self):
         """mesh の全頂点 component と頂点数を生成する。

@@ -19,6 +19,9 @@ def reload_package(package_name):
     Returns:
         tuple[module]: 再読み込みした module の tuple。
     """
+    # 新規ファイルの発見をimport machineryへ通知する。各モジュール所有の
+    # キャッシュはreload時に再生成し、ここに個別のキャッシュ一覧は持たない。
+    importlib.invalidate_caches()
     module_names = _discover_module_names(package_name)
     loaded_names = {
         name

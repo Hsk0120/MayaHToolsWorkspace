@@ -2,6 +2,7 @@
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
 from ..decorators._fast import is_fast
+from .attributeType import NUMERIC_WRITERS
 
 
 def writable(plug, _fn=None):
@@ -92,17 +93,11 @@ def set_plug(plug, value):
     elif numeric:
         check_range(plug, value, fn)
         kind = fn.numericType()
-        if kind == om.MFnNumericData.kBoolean:
-            plug.setBool(bool(value))
-        elif kind in (om.MFnNumericData.kByte, om.MFnNumericData.kChar,
-                      om.MFnNumericData.kShort, om.MFnNumericData.kInt):
-            plug.setInt(int(value))
-        elif kind == om.MFnNumericData.kFloat:
-            plug.setFloat(float(value))
-        elif kind == om.MFnNumericData.kDouble:
-            plug.setDouble(float(value))
-        else:
+        writer = NUMERIC_WRITERS.get(kind)
+        if writer is None:
             raise NotImplementedError("fast numeric type is not supported: " + plug.name())
+        setter, convert = writer
+        setter(plug, convert(value))
     elif attribute.hasFn(om.MFn.kMatrixAttribute):
         # hlib の Matrix は om.MMatrix の派生なので、変換せずにそのまま渡せる。
         matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)

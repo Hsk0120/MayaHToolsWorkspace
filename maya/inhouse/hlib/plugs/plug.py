@@ -1,7 +1,7 @@
 """Maya API 2.0 の MPlug をアトリビュートラッパーとして扱う。"""
 
 from ..decorators._fast import fast_edit, is_fast
-from .._core.attributeType import attribute_type, is_internal_data_type
+from .._core.attributeType import attribute_type, is_internal_data_type, value_reader
 from .._core.coerce import has_unresolved_index, to_plug
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import set_plug
@@ -138,92 +138,6 @@ def _held_matrix_type(mplug, depth=0):
     return None
 
 
-def _read_angle(mplug):
-    """角度アトリビュートの値を度で返す。
-
-    UI の角度単位によらず度を返す(``cmds.getAttr`` の既定と同じ。角度の UI 単位が
-    ラジアンの場合は ``cmds.getAttr`` の戻り値と異なる)。
-
-    Args:
-        mplug (om2.MPlug): 角度アトリビュートのプラグ。
-
-    Returns:
-        float: 度の値。
-    """
-    return mplug.asMAngle().asDegrees()
-
-
-def _read_distance(mplug):
-    """距離アトリビュートの値を現在の UI 単位で返す。
-
-    Args:
-        mplug (om2.MPlug): 距離アトリビュートのプラグ。
-
-    Returns:
-        float: UI 単位の値。
-    """
-    return mplug.asMDistance().asUnits(om2.MDistance.uiUnit())
-
-
-def _read_time(mplug):
-    """時間アトリビュートの値を現在の UI 単位で返す。
-
-    Args:
-        mplug (om2.MPlug): 時間アトリビュートのプラグ。
-
-    Returns:
-        float: UI 単位の値。
-    """
-    return mplug.asMTime().asUnits(om2.MTime.uiUnit())
-
-
-#: 数値アトリビュートの ``numericType()`` と、値を読む MPlug のメソッド。
-_NUMERIC_READERS = {
-    om2.MFnNumericData.kBoolean: om2.MPlug.asBool,
-    om2.MFnNumericData.kByte: om2.MPlug.asInt,
-    om2.MFnNumericData.kShort: om2.MPlug.asInt,
-    om2.MFnNumericData.kInt: om2.MPlug.asInt,
-    om2.MFnNumericData.kLong: om2.MPlug.asInt,
-    om2.MFnNumericData.kFloat: om2.MPlug.asDouble,
-    om2.MFnNumericData.kDouble: om2.MPlug.asDouble,
-}
-
-#: 単位アトリビュートの ``unitType()`` と、値を読む関数。
-_UNIT_READERS = {
-    om2.MFnUnitAttribute.kAngle: _read_angle,
-    om2.MFnUnitAttribute.kDistance: _read_distance,
-    om2.MFnUnitAttribute.kTime: _read_time,
-}
-
-#: :func:`_value_reader` が「MPlug から直接読めない(``cmds.getAttr`` で読む)」ことを表す値。
-_CMDS_READER = False
-
-
-def _value_reader(attribute):
-    """``Plug.get()`` が MPlug から直接値を読む関数を、アトリビュート定義から選ぶ。
-
-    アトリビュートの型はアトリビュートごとに変わらないため、Plug ごとに一度だけ求めて保持する。
-
-    Args:
-        attribute (om2.MObject): アトリビュートの MObject。
-
-    Returns:
-        callable | bool: MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、
-            角度・距離・時間の単位アトリビュート、enum、文字列アトリビュートが対象。それ以外は
-            ``_CMDS_READER`` (``cmds.getAttr`` で読む)。
-    """
-    if attribute.hasFn(om2.MFn.kNumericAttribute):
-        return _NUMERIC_READERS.get(om2.MFnNumericAttribute(attribute).numericType(), _CMDS_READER)
-    if attribute.hasFn(om2.MFn.kUnitAttribute):
-        return _UNIT_READERS.get(om2.MFnUnitAttribute(attribute).unitType(), _CMDS_READER)
-    if attribute.hasFn(om2.MFn.kEnumAttribute):
-        return om2.MPlug.asInt
-    if (attribute.hasFn(om2.MFn.kTypedAttribute)
-            and om2.MFnTypedAttribute(attribute).attrType() == om2.MFnData.kString):
-        return om2.MPlug.asString
-    return _CMDS_READER
-
-
 def _plug_exists(mplug):
     """プラグ(と経由する配列要素)がシーンに存在するか判定する。
 
@@ -272,7 +186,7 @@ class Plug:
     Undo でノード・アトリビュートが戻れば再び有効になる。"""
 
     _registry = None  #: initialize_plug_api() が構築後に注入する PlugRegistry。
-    _reader = None  #: get() が値を読む関数。初回の get() でアトリビュート定義から選ぶ(_value_reader)。
+    _reader = None  #: get() が値を読む関数。初回の get() でアトリビュート定義から選ぶ(value_reader)。
 
     def __new__(cls, node, mplug):
         """配列・登録アトリビュート型・複合アトリビュートの順にラッパー型を選ぶ。
@@ -1129,8 +1043,8 @@ class Plug:
         reader = self._reader
         if reader is None:
             # アトリビュートの型は変わらないため、読み方は Plug ごとに一度だけ選ぶ。
-            reader = self._reader = _value_reader(self._attribute)
-        if reader is not _CMDS_READER:
+            reader = self._reader = value_reader(self._attribute)
+        if reader is not False:
             return reader(self._mplug)
 
         if is_internal_data_type(self._mplug) and not _plug_exists(self._mplug):
