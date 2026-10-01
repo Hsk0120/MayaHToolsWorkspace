@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-10-01 | 未コミット変更全体 | 依頼に従い差分確認・コミット・push |
 
 
 
@@ -70,6 +69,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+- 2026-10-02 Claude Code: FramePlayerにタイムスライダー(クリック/ドラッグ・目盛り)と再生ボタン(Space)、ループ再生を追加。高精度タイマーのスレッドでコマ境目に合わせて進め、再生中は簡易拡大縮小で描画。24/29.97fpsはコマ落ち0、60fpsは8秒で2コマ。操作はウィンドウへのメッセージ送信で確認。未コミット。
+
+- 2026-10-01 Codex: hlib内部の責務を整理。SkinCluster検索共通化・DAG解決再利用、用途別Snapshotへの取得/検証/適用移動、Plug型読取/fast数値書込の定義共有、Bulkのsignature検証共有、bootstrap登録構築共通化とreload探索キャッシュ無効化。公開API/JSON形式/継承/部分失敗契約を維持。新規5テスト、5版対象134件（GUI1skip）成功、最終数値経路13件を5版再確認、2024全体92ファイル880件（9skip）成功。Sphinx -W成功、速度比較はほぼ同水準（詳細Git対象外）。GUI未実行・未コミット・未push。
+
+- 2026-10-01 Claude Code: 単独動画プレイヤーapps/FramePlayer/(C++/Media Foundation/Win32、外部ライブラリなし)の段階1を新規作成。全コマ先読み方式で←→コマ送り、確認用ツールFramePlayerVerifyでH.264(Bフレーム・長GOP・mp4/mov)とMJPEGの全コマ一致を確認。GUIはキー操作とウィンドウ描画を確認。未コミット。
+
+- 2026-10-01 Codex: hlibの共通基盤・Node/Plug・SkinCluster・JSONを読み取り確認し、既存API/継承/速度を維持する段階的リファクタリング計画を提示。製品コード変更・Maya実行なし。前回push済みの進行中行を解消。他ツールのapps作業は保持。
 
 - 2026-10-01 Codex: 全未コミット変更の公開準備。hlib速度改善・回帰テスト・ドキュメントと既存作業ログをまとめて差分確認。検証済み結果を維持し、Git対象外の調査・生成物は除外。
 
@@ -213,7 +220,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-10-01 | 未コミット変更全体 | 依頼に従い差分確認・コミット・push |
 
 
 
