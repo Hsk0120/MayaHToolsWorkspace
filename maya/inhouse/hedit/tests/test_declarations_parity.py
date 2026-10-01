@@ -1,4 +1,4 @@
-"""C++の宣言の抽出(hedit -declarations)が、以前のPython(ast)と同じ結果になるかを突き合わせる。
+"""C++の宣言の抽出(heditTest -declarations)が、以前のPython(ast)と同じ結果になるかを突き合わせる。
 
 以前のheditは、Pythonの ``ast.parse`` で宣言を読んでいた(hedit.completion.Index.symbols)。
 C++(src/core/python_declarations.cpp)へ移したので、実在の多数の.pyファイルで両方の結果を比べる。
@@ -84,7 +84,7 @@ class DeclarationParityTests(unittest.TestCase):
             except (SyntaxError, ValueError):
                 continue
             expected = reference_symbols(tree)
-            actual = json.loads(cmds.hedit(declarations=source))
+            actual = json.loads(cmds.heditTest(declarations=source))
             compared += 1
             if actual != expected:
                 missing = sorted(set(expected) - set(actual))

@@ -17,8 +17,9 @@ namespace hedit {
 
 /** @brief 編集画面が使う、Maya側の処理の一式。空の関数は「その機能は使えない」として扱う。 */
 struct EditorServices {
-    /// Pythonのコードを実行する。戻り値は出力欄へ追加する補足(通常は空)。
-    std::function<QString(const QString& source)> runPython;
+    /// Pythonのコードを実行する(本文, 保存先のパス)。保存先があれば、実行中だけ``__file__``をそのパスにする。
+    /// 戻り値は出力欄へ追加する補足(通常は空)。
+    std::function<QString(const QString& source, const QString& path)> runPython;
     /// MELのコードを実行する。戻り値はrunPythonと同じ。
     std::function<QString(const QString& source)> runMel;
     /// 補完の情報(組み込みの名前・ファイルから読んだ宣言のキャッシュ)を取り直す(Refresh completion)。

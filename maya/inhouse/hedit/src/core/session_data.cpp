@@ -5,20 +5,41 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUuid>
 
 namespace hedit {
 namespace {
 
 /// tabs.jsonの形式の版。形を変えるときは上げ、古い版の読み込みを考える。
-constexpr int kSessionFormatVersion = 1;
+constexpr int kSessionFormatVersion = 2;
+
+/// 本文をtabs.jsonに含んでいた古い形式の版(0.2.x)。読むだけ。
+constexpr int kInlineTextVersion = 1;
 
 }  // namespace
+
+bool isValidTabId(const QString& id) {
+    if (id.isEmpty() || id.size() > 64) {
+        return false;
+    }
+    for (const QChar c : id) {
+        const bool allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+        if (!allowed) {
+            return false;
+        }
+    }
+    return true;
+}
+
+QString newTabId() {
+    return QUuid::createUuid().toString(QUuid::Id128);
+}
 
 QByteArray sessionToJson(const SessionData& data) {
     QJsonArray tabs;
     for (const TabState& tab : data.tabs) {
         tabs.append(QJsonObject{
-            {"text", tab.text},
+            {"id", tab.id},
             {"path", tab.path},
             {"language", tab.language},
             {"modified", tab.modified},
@@ -44,21 +65,29 @@ bool sessionFromJson(const QByteArray& bytes, SessionData* data) {
     }
     const QJsonObject root = document.object();
     const QJsonArray entries = root.value("tabs").toArray();
-    if (root.value("version").toInt() != kSessionFormatVersion || entries.isEmpty()) {
+    const int version = root.value("version").toInt();
+    if ((version != kSessionFormatVersion && version != kInlineTextVersion) || entries.isEmpty()) {
         return false;
     }
-
     SessionData result;
     for (const QJsonValue& entry : entries) {
         const QJsonObject object = entry.toObject();
         // 必須の項目の型が違えば、壊れたファイルとして全体を読まない(元のファイルは残す)。
-        const bool valid = object.value("text").isString() && object.value("path").isString()
-                           && object.value("modified").isBool();
+        const bool hasText = version == kInlineTextVersion ? object.value("text").isString()
+                                                          : isValidTabId(object.value("id").toString());
+        const bool valid = hasText && object.value("path").isString() && object.value("modified").isBool();
         if (!valid) {
             return false;
         }
         TabState tab;
-        tab.text = object.value("text").toString();
+        if (version == kInlineTextVersion) {
+            tab.id = newTabId();  // 古い形式には識別子が無いので、ここで付ける。
+            tab.text = object.value("text").toString();
+            tab.textLoaded = true;
+        } else {
+            tab.id = object.value("id").toString();
+            tab.textLoaded = false;  // 本文はSessionStoreが tabs/<id>.txt から読む。
+        }
         tab.path = object.value("path").toString();
         tab.language = object.value("language").toString("python");
         tab.modified = object.value("modified").toBool();

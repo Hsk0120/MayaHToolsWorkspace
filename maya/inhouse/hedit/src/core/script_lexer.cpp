@@ -8,6 +8,18 @@
 #include <QStringList>
 
 namespace hedit {
+
+QString languageName(ScriptLanguage language) {
+    return language == ScriptLanguage::Mel ? QStringLiteral("mel") : QStringLiteral("python");
+}
+
+ScriptLanguage languageFromName(const QString& name) {
+    return name == QLatin1String("mel") ? ScriptLanguage::Mel : ScriptLanguage::Python;
+}
+
+ScriptLanguage languageForPath(const QString& path) {
+    return path.endsWith(QLatin1String(".mel"), Qt::CaseInsensitive) ? ScriptLanguage::Mel : ScriptLanguage::Python;
+}
 namespace {
 
 /// 2・3文字でひとまとまりの記号(長いものから調べる)。

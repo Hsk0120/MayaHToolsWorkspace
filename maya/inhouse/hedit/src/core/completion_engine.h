@@ -78,18 +78,44 @@ public:
     SymbolTable localDeclarations(const QString& text);
 
 private:
+    /** @brief 1回の問い合わせ(補完・ホバー)の中だけ使い回す情報。
+     * @details complete()・describe()の中で作り、関数を抜けると捨てる。次の問い合わせでは
+     * sys.pathとモジュールの中身を取り直すので、Python側の変化(import・reload)にすぐ追従する。
+     */
+    struct Request {
+        std::optional<QStringList> paths;         ///< sys.path(最初に必要になったときに1回だけ受け取る)。
+        QHash<QString, SymbolTable> modules;      ///< モジュール名 → 求めた中身。
+    };
+
+    /** @brief sys.pathの中で見つかったモジュールの場所。 */
+    struct ModuleLocation {
+        QString packageFolder;  ///< パッケージ(フォルダー)なら、そのフォルダー。
+        QString file;           ///< 読む.py(パッケージなら__init__.py)。名前空間パッケージなら空。
+        QString moduleName;     ///< 相対importの基準(``__init__.py``なら``name.__init__``)。
+    };
+
+    /** @brief sys.pathからモジュールの場所を探す(補完とホバーで共通)。
+     * @param request 今の問い合わせ。
+     * @param name モジュール名(``a.b``)。
+     * @return 見つかった場所の一覧。名前空間パッケージは複数の場所にまたがるため一覧にする。
+     * ファイルが見つかったところで探すのをやめる(Pythonのimportと同じ)。
+     */
+    QList<ModuleLocation> locateModule(Request& request, const QString& name);
+
     /** @brief モジュールの中の名前を返す。読み込み済みならPythonから、無ければsys.pathのファイルから。
+     * @param request 今の問い合わせ。
      * @param name モジュール名(``a.b``)。
      * @return 名前の表。見つからなければ空。
      */
-    SymbolTable moduleMembers(const QString& name);
+    SymbolTable moduleMembers(Request& request, const QString& name);
 
     /** @brief 名前が指す先(モジュール・クラス・from importの元)の中身を返す。
+     * @param request 今の問い合わせ。
      * @param item 名前の情報。
      * @param depth 循環を止めるための深さ。
      * @return 中身の名前の表。
      */
-    SymbolTable resolve(const Symbol& item, int depth = 0);
+    SymbolTable resolve(Request& request, const Symbol& item, int depth = 0);
 
     /** @brief ファイルの宣言を返す。更新日時と大きさが変わっていなければ前回の結果を使う。
      * @param path .pyファイル。
@@ -100,25 +126,26 @@ private:
     SymbolTable fileDeclarations(const QString& path, const QString& moduleName);
 
     /** @brief ``from X import Y``をたどり、Yの定義そのものにする(ホバー用)。
+     * @param request 今の問い合わせ。
      * @param item たどる名前。定義に置き換える。
      * @param module itemがあるモジュール名。たどった先のモジュールに置き換える(本文の中なら空)。
      * @param path モジュールの中でのitemの位置(``Class.method``なら``[Class, method]``)。
      */
-    void followImports(Symbol* item, QString* module, QStringList* path);
+    void followImports(Request& request, Symbol* item, QString* module, QStringList* path);
 
-    /** @brief モジュールのdocstringを返す(ホバー用)。 @param name モジュール名。 @param found 見つかったかを入れる。
+    /** @brief モジュールのdocstringを返す(ホバー用)。
+     * @param request 今の問い合わせ。
+     * @param name モジュール名。
+     * @param found 見つかったかを入れる。
      * @return docstring。
      */
-    QString moduleDocstring(const QString& name, bool* found);
+    QString moduleDocstring(Request& request, const QString& name, bool* found);
 
-    /** @brief sys.pathからモジュールのファイルを探す。 @param name モジュール名。
-     * @param moduleName 相対importの基準の名前を入れる(``__init__.py``なら``name.__init__``)。
-     * @return ``.py``のパス。無ければ空。
+    /** @brief sys.pathを返す。1回の問い合わせの中では、最初に受け取ったものを使い回す。
+     * @param request 今の問い合わせ。
+     * @return フォルダーの一覧。
      */
-    QString moduleFile(const QString& name, QString* moduleName);
-
-    /** @brief sys.pathを返す。1回の補完の中では、最初に取り出したものを使い回す。 @return フォルダーの一覧。 */
-    QStringList searchPaths();
+    QStringList searchPaths(Request& request);
 
     /** @brief ファイルの宣言のキャッシュ。 */
     struct CachedFile {
@@ -128,13 +155,11 @@ private:
         QString docstring;    ///< モジュールのdocstring。
     };
 
-    ModuleSource source_;                          ///< Pythonへの問い合わせ。
-    CompletionEnvironment environment_;            ///< 組み込みの名前と予約語。
-    QHash<QString, CachedFile> files_;             ///< パス → ファイルの宣言。
-    QString localsText_;                           ///< 前回の編集中の本文。
-    SymbolTable localsSymbols_;                    ///< 前回の編集中の本文の宣言。
-    std::optional<QStringList> requestPaths_;      ///< 1回の補完の中で使うsys.path。
-    QHash<QString, SymbolTable> requestModules_;   ///< 1回の補完の中で求めたモジュールの中身。
+    ModuleSource source_;                ///< Pythonへの問い合わせ。
+    CompletionEnvironment environment_;  ///< 組み込みの名前と予約語。
+    QHash<QString, CachedFile> files_;   ///< パス → ファイルの宣言(問い合わせをまたいで使う)。
+    QString localsText_;                 ///< 前回の編集中の本文。
+    SymbolTable localsSymbols_;          ///< 前回の編集中の本文の宣言。
 };
 
 /** @brief 本文の末尾の``a.b.c``の形の名前を返す(補完する位置の判定)。

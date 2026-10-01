@@ -64,11 +64,16 @@ def main(output_dir, finished):
         remaining = [25]
 
         def saved():
+            # tabs.jsonにはタブの並びなどだけを書き、本文はタブごとの tabs/<id>.txt に書く。
             try:
                 data = json.loads(path.read_text(encoding='utf-8'))
-            except (OSError, ValueError):
+                tabs = data.get('tabs', [])
+                if len(tabs) != 2 or 'text' in tabs[0]:
+                    return None
+                body = path.with_name('tabs').joinpath(tabs[0]['id'] + '.txt').read_text(encoding='utf-8')
+            except (OSError, ValueError, KeyError):
                 return None
-            return data if len(data.get('tabs', [])) == 2 and data['tabs'][0]['text'] == text else None
+            return data if body == text else None
 
         def verify():
             if saved() is None and remaining[0] > 0:

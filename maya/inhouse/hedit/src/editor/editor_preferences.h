@@ -1,19 +1,18 @@
 /** @file editor_preferences.h
- * @brief Edit > Preferences のオン・オフ設定と文字サイズを、preferences.iniへ保存する。
+ * @brief Edit > Preferences のオン・オフ設定と文字サイズを、preferences.jsonへ保存する。
  * @details 設定を追加するときは、editor_preferences.cppのkOptionsの表に1行足す
  * (docs/development.rstの「設定項目を追加する」参照)。
+ * 保存はcore/json_file.hのupdateJsonFileで、変えた項目だけを書き換える(同じユーザーの複数のMayaが
+ * 別々の項目を変えても、互いの変更を消さない)。0.2.xのpreferences.iniは、preferences.jsonが無いときに1回だけ読んで移す。
  */
 #pragma once
 #include <QHash>
 #include <QList>
 #include <QString>
-#include <memory>
-
-class QSettings;
 
 namespace hedit {
 
-/** @brief 設定の保存名(preferences.iniのキー)。打ち間違いを防ぐため、文字列は必ずこの定数を使う。
+/** @brief 設定の保存名(preferences.jsonのキー)。打ち間違いを防ぐため、文字列は必ずこの定数を使う。
  * @note 一度公開した保存名は変えない(変えると利用者の保存済みの設定が読まれなくなる)。
  */
 namespace option {
@@ -43,19 +42,17 @@ struct OptionDefinition {
 /** @brief 全ての設定の定義を、メニューに並べる順で返す。 @return 設定の表。 */
 const QList<OptionDefinition>& optionDefinitions();
 
-/** @brief 設定の値を保持し、変更をpreferences.iniへ保存する。 */
+/** @brief 設定の値を保持し、変更をpreferences.jsonへ保存する。 */
 class EditorPreferences {
 public:
     /// 文字サイズの初期値(100%時のピクセル数)。
     static constexpr int kDefaultFontPixels = 14;
 
     /** @brief 保存済みの値を読み込む。保存が無い設定は初期値になる。
-     * @param iniPath preferences.iniの絶対パス。空なら保存せず、全て初期値のまま使う。
+     * @param path preferences.jsonの絶対パス。空なら保存せず、全て初期値のまま使う。
+     * @details preferences.jsonが無く、同じフォルダーに0.2.xのpreferences.iniがあれば、その値を移す。
      */
-    explicit EditorPreferences(const QString& iniPath);
-
-    /** @brief QSettingsを閉じる。 */
-    ~EditorPreferences();
+    explicit EditorPreferences(const QString& path);
 
     /** @brief 設定の値を返す。 @param key 保存名。 @return オンならtrue。未登録の名前はfalse。 */
     bool option(const QString& key) const;
@@ -75,13 +72,13 @@ public:
 
     /** @brief 全ての設定と文字サイズを初期値に戻す。
      * @return 保存できた(または保存先が無い)ならtrue。書き込みに失敗したらfalse。
-     * @details preferences.iniからheditの項目を消す(値が無い項目は初期値として扱われる)。
+     * @details preferences.jsonからheditの項目を消す(値が無い項目は初期値として扱われる)。
      * 項目を消すので、将来初期値を変えたときも新しい初期値が使われる。
      */
     bool resetToDefaults();
 
 private:
-    std::unique_ptr<QSettings> settings_;  ///< 保存先。保存しない場合はnullptr。
+    QString path_;                         ///< 保存先(preferences.json)。保存しない場合は空。
     QHash<QString, bool> values_;          ///< 設定の現在の値。
     int fontPixels_ = kDefaultFontPixels;  ///< 文字サイズ。
 };

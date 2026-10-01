@@ -17,6 +17,18 @@ enum class ScriptLanguage {
     Mel,     ///< MEL。
 };
 
+/** @brief 言語の保存名(tabs.jsonやQtの動的プロパティ``language``に使う文字列)。
+ * @param language 言語。
+ * @return ``python``または``mel``。
+ */
+QString languageName(ScriptLanguage language);
+
+/** @brief 保存名から言語を返す。 @param name ``mel``ならMEL、それ以外はPython。 @return 言語。 */
+ScriptLanguage languageFromName(const QString& name);
+
+/** @brief ファイルの拡張子から言語を返す。 @param path ファイルのパス。 @return ``.mel``ならMEL、それ以外はPython。 */
+ScriptLanguage languageForPath(const QString& path);
+
 /** @brief 字句の種類。 */
 enum class TokenType {
     Name,      ///< 名前(変数・関数・予約語を含む)。予約語かどうかはisKeyword()で調べる。

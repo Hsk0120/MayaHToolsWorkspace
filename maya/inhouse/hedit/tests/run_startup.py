@@ -26,7 +26,7 @@ for version in sys.argv[1:] or ['2024', '2027']:
         for stage in stages:
             outcome = run_version(version, directory / version / stage, Path('C:/Program Files/Autodesk'), 120,
                                   shutdown_timeout=60, suite_path=PROJECT / 'tests/startup_smoke.py',
-                                  environment={'MAYA_MODULE_PATH': str(modules), 'HEDIT_SESSION_STAGE': stage,
+                                  environment={'MAYA_MODULE_PATH': str(modules), 'HEDIT_TEST_COMMANDS': '1', 'HEDIT_SESSION_STAGE': stage,
                                                'MAYA_APP_DIR': str(directory / version / first / 'maya_app'),
                                                'HEDIT_SESSION_FILE': str(directory / version / first / 'tabs.json')})
             results.append(outcome)

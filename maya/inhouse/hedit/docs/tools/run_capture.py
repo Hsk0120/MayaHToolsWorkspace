@@ -61,7 +61,7 @@ def main():
     print("Evidence: " + str(directory), flush=True)
     outcome = run_version(args.version, directory, Path("C:/Program Files/Autodesk"), args.timeout,
                           shutdown_timeout=60, suite_path=Path(__file__).with_name("capture_suite.py"),
-                          environment={"MAYA_MODULE_PATH": str(modules),
+                          environment={"MAYA_MODULE_PATH": str(modules), "HEDIT_TEST_COMMANDS": "1",
                                        "HEDIT_SESSION_FILE": str(session / "tabs.json")})
     suite = directory / "result.json"
     data = json.loads(suite.read_text(encoding="utf-8")) if suite.exists() else {}

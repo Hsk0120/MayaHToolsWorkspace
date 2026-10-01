@@ -40,6 +40,18 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     window.findChild(QtWidgets.QWidget, 'findBar').hide()
     window.findChild(QtWidgets.QAbstractButton, 'searchRegex').setChecked(False)
 
+    # 保存済みのタブを実行すると、実行中だけ__file__がそのファイルのパスになり、実行後は元に戻る。
+    import __main__
+    script_path = str(Path(directory) / 'file_probe.py')
+    had_file = '__file__' in vars(__main__)
+    previous_file = vars(__main__).get('__file__')
+    code.setProperty('path', script_path)
+    code.setPlainText('heditFileProbe = __file__')
+    action('Run all').trigger()
+    assert vars(__main__).get('heditFileProbe') == script_path, vars(__main__).get('heditFileProbe')
+    assert ('__file__' in vars(__main__)) == had_file and vars(__main__).get('__file__') == previous_file
+    code.setProperty('path', '')
+
     # ホバー: 名前の上でマウスが止まると(QEvent.ToolTip)、Mayaの実物のhedit.bridgeで説明を出す。Escで閉じる。
     code.setPlainText('import json\njson.dumps({})')
     cursor = code.textCursor()
@@ -149,5 +161,11 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     assert cmds.menuItem(menu, exists=True)
     assert cmds.menuItem(menu, query=True, command=True) == 'hedit -show'
     assert cmds.menuItem(menu, query=True, sourceType=True) == 'mel'
-    assert Path(cmds.menuItem(menu, query=True, image=True)).is_file()
+    # アイコンはファイルへ書き出さず、メニュー項目のQActionへメモリ上の画像を直接付ける。
+    import hedit_host
+    from maya import OpenMayaUI
+    action_type = getattr(QtWidgets, 'QAction', None) or QtGui.QAction
+    menu_action = hedit_host.wrapInstance(int(OpenMayaUI.MQtUtil.findMenuItem(menu)), action_type)
+    assert not menu_action.icon().isNull()
+    assert not cmds.menuItem(menu, query=True, image=True)
     window.grab().save(str(Path(directory) / 'features.png'))

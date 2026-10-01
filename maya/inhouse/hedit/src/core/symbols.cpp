@@ -5,8 +5,39 @@
 
 namespace hedit {
 
+Symbol Symbol::module(const QString& name) {
+    Symbol symbol;
+    symbol.type = SymbolType::Module;
+    symbol.target = name;
+    return symbol;
+}
+
+Symbol Symbol::import(const QString& module, const QString& name) {
+    Symbol symbol;
+    symbol.type = SymbolType::Import;
+    symbol.fromModule = module;
+    symbol.fromName = name;
+    return symbol;
+}
+
+Symbol Symbol::category(SymbolType type) {
+    Symbol symbol;
+    symbol.type = type;
+    return symbol;
+}
+
+QString Symbol::kindName() const {
+    if (type == SymbolType::Builtin) {
+        return QStringLiteral("builtin");
+    }
+    if (type == SymbolType::Keyword) {
+        return QStringLiteral("keyword");
+    }
+    return QString();
+}
+
 bool Symbol::operator==(const Symbol& other) const {
-    if (detail != other.detail || kind != other.kind || target != other.target || fromModule != other.fromModule
+    if (type != other.type || detail != other.detail || target != other.target || fromModule != other.fromModule
         || fromName != other.fromName || signature != other.signature || doc != other.doc) {
         return false;
     }
@@ -24,13 +55,13 @@ QJsonObject symbolTableToJson(const SymbolTable& table) {
         if (!symbol.detail.isEmpty()) {
             entry.insert("detail", symbol.detail);
         }
-        if (!symbol.kind.isEmpty()) {
-            entry.insert("kind", symbol.kind);
+        if (!symbol.kindName().isEmpty()) {
+            entry.insert("kind", symbol.kindName());
         }
-        if (!symbol.target.isEmpty()) {
+        if (symbol.type == SymbolType::Module) {
             entry.insert("target", symbol.target);
         }
-        if (!symbol.fromName.isEmpty()) {
+        if (symbol.type == SymbolType::Import) {
             entry.insert("from", symbol.fromModule);
             entry.insert("name", symbol.fromName);
         }
@@ -47,16 +78,22 @@ SymbolTable symbolTableFromJson(const QJsonObject& object) {
     for (auto it = object.begin(); it != object.end(); ++it) {
         const QJsonObject entry = it.value().toObject();
         Symbol symbol;
-        symbol.detail = entry.value("detail").toString();
-        symbol.kind = entry.value("kind").toString();
-        symbol.target = entry.value("target").toString();
-        if (entry.contains("name")) {
-            symbol.fromModule = entry.value("from").toString();
-            symbol.fromName = entry.value("name").toString();
-        }
-        if (entry.contains("members")) {
+        const QString kind = entry.value("kind").toString();
+        if (entry.contains("target")) {
+            symbol = Symbol::module(entry.value("target").toString());
+        } else if (entry.contains("name")) {
+            symbol = Symbol::import(entry.value("from").toString(), entry.value("name").toString());
+        } else if (entry.contains("members")) {
+            symbol.type = SymbolType::Class;
             symbol.members = std::make_shared<SymbolTable>(symbolTableFromJson(entry.value("members").toObject()));
+        } else if (kind == "builtin") {
+            symbol.type = SymbolType::Builtin;
+        } else if (kind == "keyword") {
+            symbol.type = SymbolType::Keyword;
+        } else if (!entry.value("detail").toString().isEmpty()) {
+            symbol.type = SymbolType::Function;
         }
+        symbol.detail = entry.value("detail").toString();
         table.insert(it.key(), symbol);
     }
     return table;

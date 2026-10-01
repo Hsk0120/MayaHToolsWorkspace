@@ -1,10 +1,12 @@
 /** @file plugin.cpp
  * @brief プラグインの入口。Mayaがロード時にinitializePlugin、アンロード時にuninitializePluginを呼ぶ。
  * @details ロードの流れ:
- * 1. ``hedit``コマンドを登録する(hedit_command.cpp)。
- * 2. 同梱のPython(補完・構文チェック用)をimportできるようにする(embedded_python.cpp)。
- * 3. GUIのMayaなら: 終了の通知を登録し、Windowメニューに項目を足し(window_menu.cpp)、
+ * 1. ``hedit``コマンドを登録する(hedit_command.cpp)。テスト用の環境変数があれば``heditTest``も(test_command.cpp)。
+ * 2. プラグイン全体で1つの状態を作る: 出力の取り込み(output_capture.cpp)→ Pythonとの受け渡し(python_bridge.cpp)。
+ * 3. 同梱のPython(補完・構文チェック用)をimportできるようにする(embedded_python.cpp)。
+ * 4. GUIのMayaなら: 終了の通知を登録し、ドックの状態を作り(dock.cpp)、Windowメニューに項目を足し(window_menu.cpp)、
  *    前回開いていた画面を復元する(dock.cpp)。
+ * アンロードでは逆の順番で壊す(uninitializePluginの番号付きのコメント)。
  * ``scripts/userSetup.py``(起動時にloadPluginを呼ぶだけ)・Plug-in Managerでのロード・autoloadの
  * どれでもここが呼ばれるので、プラグインのロードだけで準備が終わる。
  */
@@ -14,6 +16,7 @@
 #include "plugin/hedit_command.h"
 #include "plugin/output_capture.h"
 #include "plugin/python_bridge.h"
+#include "plugin/test_command.h"
 #include "plugin/window_menu.h"
 #include "version.h"
 #include <maya/MFnPlugin.h>
@@ -52,11 +55,24 @@ MStatus initializePlugin(MObject object) {
     if (!status) {
         return status;
     }
+    // テスト専用のコマンドは、テスト用の環境変数があるときだけ登録する(普段のMayaには出さない)。
+    if (hedit::HeditTestCommand::enabled()) {
+        plugin.registerCommand(hedit::HeditTestCommand::kName, hedit::HeditTestCommand::creator,
+                               hedit::HeditTestCommand::newSyntax);
+    }
+    // プラグインで1つだけの状態を、決まった順番で作る(壊すのはuninitializePluginで逆の順番)。
+    hedit::createOutputCapture();
+    hedit::python::initialize();
     // importフックはmayapy(GUIなし)でも登録する。補完などのPython APIはGUIに依存しないため。
     status = hedit::embedded::installModules();
     if (!status) {
         MGlobal::displayError("hedit: failed to install embedded Python modules.");
         plugin.deregisterCommand(hedit::HeditCommand::kName);
+        if (hedit::HeditTestCommand::enabled()) {
+            plugin.deregisterCommand(hedit::HeditTestCommand::kName);
+        }
+        hedit::python::shutdown();
+        hedit::destroyOutputCapture();
         return status;
     }
     if (isInteractive()) {
@@ -95,8 +111,8 @@ MStatus uninitializePlugin(MObject object) {
         MMessage::removeCallback(exitCallback);
         exitCallback = 0;
     }
-    // 4. importの補完の走査スレッドを止める。
-    hedit::python::stopModuleScan();
+    // 4. 補完の状態を壊す(importの補完の走査スレッドを止めて合流する)。
+    hedit::python::shutdown();
     // 5. ドックを削除し、未実行の遅延処理を取り消す。
     if (isInteractive()) {
         hedit::dock::release();
@@ -104,7 +120,12 @@ MStatus uninitializePlugin(MObject object) {
     // 6. 画面を破棄し、残った出力を捨てる。
     hedit::host::destroyEditor();
     hedit::outputCapture().take();
+    // 7. 出力の取り込みを壊す(購読は3.で外してある)。
+    hedit::destroyOutputCapture();
 
     MFnPlugin plugin(object);
+    if (hedit::HeditTestCommand::enabled()) {
+        plugin.deregisterCommand(hedit::HeditTestCommand::kName);
+    }
     return plugin.deregisterCommand(hedit::HeditCommand::kName);
 }

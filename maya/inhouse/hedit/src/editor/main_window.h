@@ -1,18 +1,20 @@
 /** @file main_window.h
  * @brief 編集画面の全体。各部品を組み立て、メニュー・タブ・保存と復元をつなぐ。
  * @details 実装は2つのファイルに分けている:
- * - main_window.cpp       : 組み立て・タブ・ファイル・自動保存・実行・補完・設定の反映
+ * - main_window.cpp       : 組み立て・タブ・ファイル・自動保存・実行・設定の反映
  * - main_window_menus.cpp : メニューとツールバーの組み立て、Preferencesのリセット
+ * 入力の補助(補完・ホバー・構文チェック・スペル)はCodeAssist(code_assist.h)が担当する。
  */
 #pragma once
+#include "core/script_lexer.h"
 #include "editor/editor.h"
 #include "editor/editor_preferences.h"
 #include "editor/session_store.h"
-#include "editor/spelling.h"
 #include <QElapsedTimer>
 #include <QHash>
 #include <QMainWindow>
 #include <QTimer>
+#include <memory>
 
 class QAction;
 class QComboBox;
@@ -23,6 +25,7 @@ class QSplitter;
 
 namespace hedit {
 
+class CodeAssist;
 class CodeEditor;
 class EditorTabs;
 class Explorer;
@@ -70,7 +73,7 @@ private:
     void buildLayout();
     /** @brief ステータスバーの補完の状態と言語の選択欄を作る。 */
     void buildStatusBar();
-    /** @brief タイマー(補完・構文チェック・スペル・自動保存)を用意する。 */
+    /** @brief 自動保存のタイマーを用意する。 */
     void setUpTimers();
 
     // ---- メニュー(main_window_menus.cpp) ----
@@ -94,7 +97,7 @@ private:
      * @param language ``python``または``mel``。
      * @return 新しいコード欄。所有者はタブ欄(呼出側でdeleteしない)。
      */
-    CodeEditor* newTab(const QString& language = "python");
+    CodeEditor* newTab(ScriptLanguage language = ScriptLanguage::Python);
     /** @brief 未保存なら確認してから、タブを閉じる。最後のタブを閉じたら空のタブを作る。
      * @param index 0始まりのタブ番号。
      */
@@ -108,7 +111,7 @@ private:
      * @param editor 対象のタブ。
      * @param language ``python``または``mel``。
      */
-    void setLanguage(CodeEditor* editor, const QString& language);
+    void setLanguage(CodeEditor* editor, ScriptLanguage language);
     /** @brief 本文が変わったときの処理(補完の予約・構文チェック・スペル・見出し)。
      * @param editor 変更されたタブ。
      */
@@ -159,28 +162,6 @@ private:
     /** @brief ステータスバーに文字を出す。 @param text 文字。 @param timeout 表示するミリ秒。0なら消えない。 */
     void showStatus(const QString& text, int timeout = 0);
 
-    // ---- 補完・構文チェック・スペル ----
-
-    /** @brief Mayaの補完環境を取り直す。 */
-    void refreshCompletion();
-    /** @brief 名前の説明(ホバー)を求める。コード欄のonHoverRequestedから呼ばれる。
-     * @param editor 説明を出すコード欄。
-     * @param end 名前の終わりの位置。
-     * @return 見出しとdocstring。MELのタブ・大きすぎる本文・説明が無い名前は空。
-     */
-    HoverInfo describeName(CodeEditor* editor, int end);
-
-    /** @brief 現在の位置の補完候補を求めて表示する。
-     * @param force Ctrl+Spaceからならtrue(自動補完の設定を無視する)。
-     */
-    void requestCompletion(bool force);
-    /** @brief 入力が止まってから構文チェックするよう予約する。 */
-    void scheduleAnalysis();
-    /** @brief 選択中のPythonタブを構文チェックする(実行はしない)。 */
-    void runAnalysis();
-    /** @brief 入力が止まってからスペルチェックするよう予約する。オフなら全タブの波線を消す。 */
-    void scheduleSpelling();
-
     // ---- 設定 ----
 
     /** @brief 設定をコード欄へ反映する。 @param editor 対象のタブ。 */
@@ -196,7 +177,7 @@ private:
     EditorServices services_;        ///< Maya側の処理の一式。
     EditorPreferences preferences_;  ///< 設定(preferences.ini)。
     SessionStore session_;           ///< 未保存タブの復元ファイル(tabs.json)。
-    Spelling spelling_;              ///< Windowsの英語辞書。
+    std::unique_ptr<CodeAssist> assist_;  ///< 入力の補助。servicesとpreferencesより後に壊れるよう、それらの後に置く。
     bool sessionDirty_ = true;       ///< 前回の自動保存の後に変化があったか。最初は保存が必要として始める。
 
     // 部品。全てこのウィンドウの子孫なので、deleteしなくてよい。
@@ -211,10 +192,6 @@ private:
     QLabel* completionStatus_ = nullptr;     ///< ステータスバーの補完の状態。
     QHash<QString, QAction*> optionActions_; ///< Preferencesのチェック項目(保存名 → メニュー項目)。
 
-    // タイマー。いずれも「最後の入力から一定時間後に1回だけ」動かすために使う。
-    QTimer completionTimer_;  ///< 入力が止まって250ms後に自動補完する。
-    QTimer analysisTimer_;    ///< 入力が止まって800ms後に構文チェックする。
-    QTimer spellingTimer_;    ///< 入力が止まって450ms後にスペルチェックする。
     QTimer sessionTimer_;     ///< 1秒ごとに、入力が止まっていて変化があればタブを自動保存する。
     QElapsedTimer lastEdit_;  ///< 最後に本文が変わってからの時間。
 };

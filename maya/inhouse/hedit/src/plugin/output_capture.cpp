@@ -13,6 +13,7 @@
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QThread>
+#include <memory>
 
 namespace hedit {
 namespace {
@@ -112,14 +113,29 @@ QString readMayaHistory() {
 
 }  // namespace
 
+namespace {
+/// プラグインで1つだけの出力の取り込み。initializePluginで作り、uninitializePluginの最後に壊す。
+std::unique_ptr<OutputCapture> captureInstance;
+}  // namespace
+
+void createOutputCapture() {
+    if (!captureInstance) {
+        captureInstance = std::make_unique<OutputCapture>();
+    }
+}
+
+void destroyOutputCapture() {
+    captureInstance.reset();
+}
+
 OutputCapture& outputCapture() {
-    // 関数の中のstatic変数は、最初に呼ばれたときに1回だけ作られる。
-    static OutputCapture instance;
-    return instance;
+    // 作る前・壊した後に呼ぶのはプログラムの誤り(呼出しの順番はplugin.cppのコメントを参照)。
+    Q_ASSERT(captureInstance);
+    return *captureInstance;
 }
 
 bool OutputCapture::start() {
-    if (reporterDocument_) {
+    if (reporterDocument_ || fallback_) {
         return true;  // 購読中。
     }
     // 同じメインスレッドで、履歴を一度取り込んでから購読を始める。
@@ -160,12 +176,23 @@ bool OutputCapture::subscribe() {
     if (!previousParent.isEmpty()) {
         mel("setParent " + melQuote(previousParent));
     }
-    reporterDocument_ = findReporterDocument(reporter);
+    // 試験用: 環境変数で、reporterが見つからないMayaと同じ動き(代わりの取り込み)にできる。
+    const bool forceFallback = qEnvironmentVariable("HEDIT_OUTPUT_FALLBACK") == QLatin1String("1");
+    reporterDocument_ = forceFallback ? nullptr : findReporterDocument(reporter);
     if (!reporterDocument_) {
-        return false;
+        // reporterの部品の作りはMayaの版で変わり得る(内部の構造に頼っているため)。見つからなければ、
+        // 公式の通知(MCommandMessage)の本文を自分で整えて表示する。編集画面は開ける。
+        if (!reporterWindow_.isEmpty() && melBool("window -exists " + melQuote(reporterWindow_))) {
+            mel("deleteUI -window " + melQuote(reporterWindow_));
+        }
+        reporterWindow_.clear();
+        fallback_ = true;
+        MGlobal::displayWarning("hedit: Maya's output reporter was not found; showing plain command output.");
+        return true;
     }
-    // hedit専用の文書だけ行数を制限し、長時間使ってもメモリが増え続けないようにする。
-    reporterDocument_->setMaximumBlockCount(5000);
+    // hedit専用の文書だけ行数を制限する。取り出すのは追記された部分だけなので、多くは要らない
+    // (表示用の保持は編集画面の出力欄が持つ)。
+    reporterDocument_->setMaximumBlockCount(1000);
 
     // 3. 文書への追記を購読する。contentsChangeは(位置, 削除した文字数, 追加した文字数)を知らせる。
     reporterConnection_ = QObject::connect(
@@ -188,8 +215,13 @@ bool OutputCapture::subscribe() {
 }
 
 void OutputCapture::onCommandOutput(const MString& message, MCommandMessage::MessageType type, void* clientData) {
-    Q_UNUSED(message);
     auto self = static_cast<OutputCapture*>(clientData);
+    if (self->fallback_) {
+        // 代わりの取り込み: 通知の本文を自分で整える(receiveは別スレッドからでも鍵を取って安全に貯める)。
+        const OutputKind kind = toOutputKind(type);
+        self->receive(formatCommandOutput(fromMString(message), kind), kind);
+        return;
+    }
     if (onMainThread()) {
         self->lastType_ = type;
     }
@@ -262,6 +294,7 @@ void OutputCapture::stopForExit() {
 }
 
 MStatus OutputCapture::stop() {
+    fallback_ = false;
     QObject::disconnect(reporterConnection_);
     reporterDocument_ = nullptr;
     if (!reporterWindow_.isEmpty() && melBool("window -exists " + melQuote(reporterWindow_))) {

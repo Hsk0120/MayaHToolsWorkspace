@@ -5,6 +5,7 @@
  * 編集画面の所有者はドック(MayaのUI)なので、QPointerで生存を確かめながら使う。
  */
 #include "plugin/dock.h"
+#include "core/json_file.h"
 #include "plugin/editor_host.h"
 #include "plugin/mel.h"
 #include "plugin/user_paths.h"
@@ -17,7 +18,7 @@
 #include <QJsonObject>
 #include <QMainWindow>
 #include <QPointer>
-#include <QSaveFile>
+#include <QEvent>
 #include <QTimer>
 
 namespace hedit {
@@ -27,7 +28,8 @@ namespace {
 /** @brief ドックの状態。プラグインで1つだけ持つ。 */
 struct DockState {
     QPointer<QObject> lifetime;   ///< 遅延実行の文脈。アンロード時に破棄して、未実行の処理を取り消す。
-    QPointer<QTimer> saveTimer;   ///< 表示中に1秒ごとにui.jsonを保存するタイマー。所有者は編集画面。
+    QPointer<QTimer> saveTimer;   ///< ドックの変化から少し待ってui.jsonを保存するタイマー(1回だけ動く)。所有者は編集画面。
+    QPointer<QObject> watcher;    ///< ドックの変化(付け替え・表示・非表示)を受け取る監視役。所有者は編集画面。
     bool quitting = false;        ///< Mayaの終了処理に入ったか。以後はUIの破棄で「閉じた」に書き換えない。
     bool userOpened = false;      ///< 最後に利用者が開いた状態か。閉じていれば次回は自動表示しない。
     bool showing = false;         ///< show()/restore()の実行中か。この間のuiScriptは何もしない。
@@ -48,11 +50,16 @@ struct ShowingScope {
 };
 
 /** @brief ドックの中身を作るuiScript(MEL)。
- * @details Maya起動時のワークスペース復元は、プラグインのロードより前にuiScriptを実行する。
- * そのままではheditコマンドが無くエラーになるため、未ロードならロードしてから復元する。
- * 引用符を使わない文にして、MELの文字列リテラルへそのまま埋め込めるようにしている。
+ * @details Maya起動時のワークスペース復元は、プラグインのロードより前にuiScriptを実行することがある。
+ * そのときはheditコマンドが無いので、ロード済みのときだけ中身を作る。未ロードなら空のドックを非表示に戻す
+ * (プラグインがロードされると、restorePrevious()がドックを表示し直し、Mayaがこのスクリプトを再び実行する)。
+ * 以前はここで``loadPlugin hedit``していたが、オートロードを切っていてもMayaが勝手にロードする原因になるため
+ * やめた。同じ理由で``-requiredPlugin``も付けない。
  */
-constexpr const char* kUiScript = "if (!`pluginInfo -q -loaded hedit`) loadPlugin hedit; hedit -restore;";
+constexpr const char* kUiScript =
+    "if (`pluginInfo -q -loaded hedit`) hedit -restore; "
+    "else evalDeferred \"if (`workspaceControl -exists heditDockWorkspaceControl`) "
+    "workspaceControl -e -visible false heditDockWorkspaceControl\";";
 
 /** @brief ドックを閉じたときのcloseCommand(MEL)。
  * @details 起動時に必要なプラグインが未ロードだと、Mayaは保存済みの浮動ドックを自動で閉じ、このコマンドを
@@ -113,17 +120,40 @@ bool attach(QMainWindow* editor, QWidget* parent) {
 
 /** @brief ui.jsonを読む。 @param saved 読み取った内容を入れる。 @return 読めた場合true。 */
 bool readState(QJsonObject& saved) {
-    QFile file(statePath());
-    if (!file.open(QIODevice::ReadOnly)) {
-        return false;
-    }
-    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
-    if (!document.isObject()) {
-        return false;
-    }
-    saved = document.object();
-    return true;
+    return readJsonFile(statePath(), &saved);
 }
+
+/** @brief ドックと編集画面の変化を受け取り、少し後にui.jsonを保存するよう予約する監視役。
+ * @details 以前は1秒ごとにMayaへ状態(浮動か・ワークスペース名)を問い合わせていた。今は、ドックの
+ * 付け替え(ドッキング・浮動の切り替え・ワークスペースの切り替え)や表示・非表示が起きたときだけ保存する。
+ */
+class DockWatcher : public QObject {
+public:
+    /** @brief 監視役を作る。 @param parent 所有者(編集画面)。 */
+    explicit DockWatcher(QObject* parent) : QObject(parent) {}
+
+protected:
+    /** @brief 付け替え・表示・非表示のイベントで保存を予約する。イベントは止めない。
+     * @param watched 監視している部品。
+     * @param event イベント。
+     * @return 常にfalse(イベントはそのまま部品へ届ける)。
+     */
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        switch (event->type()) {
+        case QEvent::ParentChange:
+        case QEvent::Show:
+        case QEvent::Hide:
+        case QEvent::WindowStateChange:
+            if (state.saveTimer) {
+                state.saveTimer->start();  // 続けて起きても、最後の変化の後に1回だけ保存する。
+            }
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+};
 
 /** @brief 前回開いていたか。 @return 開いていた、または記録が無い・読めない場合はtrue(明示的な復元を許す)。 */
 bool wasOpen() {
@@ -140,21 +170,34 @@ void hideIfClosed() {
     }
 }
 
-/** @brief 表示した後の登録(閉じる通知・1秒ごとの保存・終了通知)を行う。何度呼んでも重複しない。 */
+/** @brief 表示した後の登録(閉じる通知・変化したときの保存・終了通知)を行う。何度呼んでも重複しない。 */
 void afterOpened() {
     state.userOpened = true;
     mel("workspaceControl -e -closeCommand " + melQuote(kCloseCommand) + " " + quotedControl());
     // 保存済みのドックのuiScriptが古い形でも、次回の起動でプラグインをロードしてから復元できるよう、
     // 今のuiScriptへ書き換える(何度書いても同じ)。
     mel("workspaceControl -e -uiScript " + melQuote(kUiScript) + " " + quotedControl());
-    if (!state.saveTimer) {
+    QMainWindow* editor = host::editor(false);
+    if (!state.saveTimer && editor) {
         // タイマーの親を編集画面にするので、画面と一緒に破棄される。
-        state.saveTimer = new QTimer(host::editor(false));
-        state.saveTimer->setInterval(1000);
+        state.saveTimer = new QTimer(editor);
+        state.saveTimer->setSingleShot(true);
+        state.saveTimer->setInterval(500);
         // 接続の持ち主をタイマー自身にし、タイマーの破棄と同時に接続を外す。
         QObject::connect(state.saveTimer.data(), &QTimer::timeout, state.saveTimer.data(), [] { saveState(); });
     }
-    state.saveTimer->start();
+    if (!state.watcher && editor) {
+        state.watcher = new DockWatcher(editor);
+    }
+    // ドックの部品はMayaが作り直すことがあるので、開くたびに付け直す(同じ部品へは重複しない)。
+    if (state.watcher) {
+        for (QObject* target : {static_cast<QObject*>(controlWidget()), static_cast<QObject*>(editor)}) {
+            if (target) {
+                target->removeEventFilter(state.watcher);
+                target->installEventFilter(state.watcher);
+            }
+        }
+    }
     if (state.quitJob < 0) {
         state.quitJob = melInt("scriptJob -runOnce true -event \"quitApplication\" \"hedit -quitting\"");
     }
@@ -215,7 +258,7 @@ bool show(std::optional<bool> floating) {
         const bool floatingValue = floating.value_or(true);  // 初回は浮動で開く。
         mel("workspaceControl -label " + melQuote(title()) + " -retain true -loadImmediately true"
             " -floating " + QString(floatingValue ? "true" : "false") +
-            " -initialWidth 1050 -initialHeight 740 -requiredPlugin \"hedit\""
+            " -initialWidth 1050 -initialHeight 740"
             " -uiScript " + melQuote(kUiScript) + " " + quotedControl());
         if (!floatingValue) {
             mel("workspaceControl -e -dockToMainWindow \"bottom\" false " + quotedControl());
@@ -316,9 +359,9 @@ void onClosed() {
 }
 
 void onQuitting() {
-    // ドックの入れ子・タブの組み合わせは、Maya自身のワークスペースに保存する。
-    // workspaceControl -stateString は版によって空を返し、配置の復元には使えない。
-    mel("workspaceLayoutManager -save");
+    // ドックの入れ子・タブの組み合わせは、Maya自身が終了時にワークスペースへ保存する。
+    // 以前はここで workspaceLayoutManager -save を呼んでいたが、プラグインがMayaの設定を書き換えるのは
+    // やめた(ワークスペースの保存は利用者とMayaの設定に任せる)。
     saveState();
     state.quitting = true;
     if (state.saveTimer) {
@@ -339,14 +382,9 @@ void saveState() {
     if (current == state.lastSaved) {
         return;
     }
-    const QString path = statePath();
-    QDir().mkpath(QFileInfo(path).absolutePath());
-    QSaveFile file(path);
-    const bool written = file.open(QIODevice::WriteOnly)
-                         && file.write(QJsonDocument(current).toJson(QJsonDocument::Compact)) >= 0
-                         && file.commit();
-    if (!written) {
-        MGlobal::displayWarning(toMString("hedit layout could not be saved: " + file.errorString()));
+    QString error;
+    if (!writeJsonFile(statePath(), current, &error)) {
+        MGlobal::displayWarning(toMString("hedit layout could not be saved: " + error));
         return;
     }
     state.lastSaved = current;
@@ -359,6 +397,8 @@ void uninstall() {
     // deleteLaterだと、実際に破棄される前にhedit.mllがアンロードされ得る。その場で破棄する。
     delete state.saveTimer.data();
     state.saveTimer = nullptr;
+    delete state.watcher.data();
+    state.watcher = nullptr;
     if (state.quitJob >= 0 && melBool("scriptJob -exists " + QString::number(state.quitJob))) {
         mel("scriptJob -kill " + QString::number(state.quitJob) + " -force");
     }

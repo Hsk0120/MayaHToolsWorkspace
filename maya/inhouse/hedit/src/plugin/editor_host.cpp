@@ -40,7 +40,7 @@ void applyMayaAppearance() {
 /** @brief 編集画面へ渡す、Mayaの処理の一式を作る。 @return EditorServices。 */
 EditorServices mayaServices() {
     EditorServices services;
-    services.runPython = python::runPython;
+    services.runPython = [](const QString& source, const QString& path) { return python::runPython(source, path); };
     services.runMel = python::runMel;
     services.refreshCompletion = python::refreshCompletion;
     services.complete = python::complete;

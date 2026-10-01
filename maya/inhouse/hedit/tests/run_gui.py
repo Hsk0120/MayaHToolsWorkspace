@@ -15,7 +15,7 @@ if __name__ == '__main__':
     parser.add_argument('version', nargs='?', default='2027', choices=['2022', '2024', '2025', '2026', '2027'])
     parser.add_argument('--timeout', type=int, default=120)
     parser.add_argument('--shutdown-timeout', type=int, default=30)
-    parser.add_argument('--suite', choices=['gui_smoke.py', 'completion_output_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py'], default='gui_smoke.py')
+    parser.add_argument('--suite', choices=['gui_smoke.py', 'completion_output_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py'], default='gui_smoke.py')
     args = parser.parse_args()
     if args.timeout <= 0 or args.shutdown_timeout <= 0:
         parser.error('timeouts must be positive')
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     result = run_version(args.version, directory,
                          Path('C:/Program Files/Autodesk'), args.timeout, shutdown_timeout=args.shutdown_timeout,
                          suite_path=PROJECT / 'tests' / args.suite,
-                         environment={'MAYA_MODULE_PATH': str(modules)})
+                         environment={'MAYA_MODULE_PATH': str(modules), 'HEDIT_TEST_COMMANDS': '1'})
     # GUI処理の成功を、終了時の停止によって見失わない。終了異常は非ゼロで通知する。
     suite_path = directory / 'result.json'
     if suite_path.exists():

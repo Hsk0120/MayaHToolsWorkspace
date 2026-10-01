@@ -8,7 +8,7 @@
 ``maya/modules/hedit.mod`` が自動で読み込まれます。
 
 ``hedit.mod`` は、Maya のバージョン別のプラグインパス
-(``hedit/release/plug-ins/windows/<Mayaの年>/<hedit の版>/``)と、
+(``hedit/release/plug-ins/windows/<Mayaの年>/``\ 。版のフォルダーは作らないので、版を上げても場所は変わりません)と、
 起動時に ``hedit.mll`` を自動ロードするための最小の Python(``scripts/userSetup.py``)を設定します。
 
 hedit のロジック(Window メニュー登録・ドッキング・開閉状態の保存と復元・タブ保存・補完・静的解析など)は
@@ -30,6 +30,22 @@ Maya の GUI が起動すると、\ ``userSetup.py`` が次の idle で ``hedit`
      Plug-in Manager で ``hedit`` を明示ロードするか、Plug-in Manager の ``hedit`` 行で
      「Auto load」にチェックしてください(Maya 標準の永続設定で、hedit 自身は変更しません)。
    * ``.mod`` を追加・変更した後は、起動済みの Maya を再起動してください。
+   * hedit は、Maya のワークスペースの復元だけでは自分をロードしません(オートロードを切っていれば、
+     保存済みの hedit のドックがあってもロードされません。その場合ドックは表示せずに隠します)。
+
+hedit.mll 単体で使う場合
+------------------------
+
+ビルド環境の無い場所(会社の PC など)では、\ ``release/plug-ins/windows/<Mayaの年>/hedit.mll`` だけを
+固定のフォルダーに置き、Plug-in Manager の「Browse」でロードするか、そのフォルダーを ``MAYA_PLUG_IN_PATH`` に加えます。
+
+* フォルダーは版で変えないでください。Maya の「信頼できるプラグインの場所」とオートロードは、フォルダーとファイルの場所で
+  覚えています。版ごとに場所を変えると、そのたびに「信頼できないプラグインのロード」の確認が出て、確認で拒否したり
+  ロードに失敗したりすると、オートロードの設定が外れます。
+* 初回のロードで確認が出たら、Preferences → Security → Plug-ins の「My trusted plugin locations」にそのフォルダーを
+  追加します(スクリプトからは登録できません)。
+* ``hedit.mll`` には版などのファイル情報(エクスプローラーの「プロパティ → 詳細」)が入っています。
+  デジタル署名はしていないため、会社のウイルス対策ソフトが警告する場合は、管理者にフォルダー単位の除外を依頼してください。
 
 画面を開く
 ----------

@@ -51,6 +51,7 @@ def main():
         executable = Path('C:/Program Files/Autodesk/Maya' + version + '/bin/mayapy.exe')
         env = isolated_environment(executable, directory)
         env['MAYA_MODULE_PATH'] = str(ROOT / 'maya/modules')
+        env['HEDIT_TEST_COMMANDS'] = '1'  # テスト専用のheditTestコマンドを登録させる。
         # scripts/はuserSetup.py(起動時のloadPlugin('hedit')だけ)を含む。
         # hedit.*本体(src/python/)はhedit.mllに同梱され、loadPlugin時にsys.modulesへ展開する。
         env['PYTHONPATH'] += os.pathsep + str(PROJECT / 'scripts')
@@ -66,6 +67,7 @@ def main():
             env['QT_QPA_PLATFORM'] = 'offscreen'
             env['QT_PLUGIN_PATH'] = str(executable.parent.parent / 'plugins')
             env['QT_QPA_FONTDIR'] = str(Path(os.environ['WINDIR']) / 'Fonts')
+            env['QT_FORCE_STDERR_LOGGING'] = '1'  # 検査ごとのPASS / FAILをui.logへ出す(既定ではデバッガーへ出る)。
             smoke = ROOT / '.maya-output/plugin-build/hedit' / version / 'Release/hedit_ui_smoke.exe'
             ui = run([smoke, config, directory / 'editor.png'], env, directory, 'ui', timeout=40)
         results.append({'version': version, 'unit': unit, 'maya': maya, 'ui': ui})

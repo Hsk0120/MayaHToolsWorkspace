@@ -9,6 +9,7 @@
  */
 #include "editor/main_window.h"
 #include "core/script_file.h"
+#include "editor/code_assist.h"
 #include "editor/code_editor.h"
 #include "editor/editor_tabs.h"
 #include "editor/explorer.h"
@@ -41,25 +42,29 @@
 namespace hedit {
 namespace {
 
+/// コード欄の動的プロパティ: 復元ファイルでのタブの識別子(本文のファイル名 tabs/<id>.txt)。
+constexpr const char* kSessionIdProperty = "sessionId";
+
+/// コード欄の動的プロパティ: 最後に本文のファイルへ書いたときの文書の版(QTextDocument::revision)。
+/// 今の版と同じなら本文は変わっていないので、自動保存で本文のファイルを書き直さない。-1は未保存。
+constexpr const char* kSavedRevisionProperty = "sessionSavedRevision";
+
 /// 新しいタブ(復元するものが無いとき)の最初の本文。
 constexpr const char* kWelcomeText =
     "import maya.cmds as cmds\n\n# Ctrl+Space: completion    Ctrl+Enter: run\nprint(cmds.ls(selection=True))\n";
 
-/// 補完へ渡す本文の上限(文字数)。これを超える位置では補完しない。
-constexpr int kCompletionDocumentLimit = 200000;
-
-/** @brief tabs.jsonと同じフォルダーのpreferences.iniのパス。
+/** @brief tabs.jsonと同じフォルダーのpreferences.jsonのパス。
  * @param sessionPath tabs.jsonのパス。空なら保存しない。
- * @return preferences.iniの絶対パス。sessionPathが空なら空。
+ * @return preferences.jsonの絶対パス。sessionPathが空なら空。
  */
 QString preferencesPath(const QString& sessionPath) {
     if (sessionPath.isEmpty()) {
         return QString();
     }
-    return QFileInfo(sessionPath).absolutePath() + "/preferences.ini";
+    return QFileInfo(sessionPath).absolutePath() + "/preferences.json";
 }
 
-/** @brief QTextCursorの選択文字列を、普通の改行の文字列にする。
+/** @brief QTextCursorの選択文字列を、普通の改行の文字列にする(実行する選択範囲に使う)。
  * @param text selectedText()の戻り値。行の区切りがU+2029(段落区切り)になっている。
  * @return 改行を``\n``にした文字列。
  */
@@ -86,6 +91,12 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
 
     buildLayout();
     buildStatusBar();
+    // 入力の補助。一覧とステータスバーの部品を使うので、それらを作った後に作る。
+    CodeAssist::Context context;
+    context.currentEditor = [this] { return currentEditor(); };
+    context.editors = [this] { return tabs_->editors(); };
+    context.showStatus = [this](const QString& text, int timeout) { showStatus(text, timeout); };
+    assist_ = std::make_unique<CodeAssist>(services_, preferences_, problems_, completionStatus_, context);
     setZoom(preferences_.fontPixels());
     buildMenusAndToolbar();
     limitShortcutsToThisWindow();
@@ -99,8 +110,8 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
     restoreSession();
 
     sessionTimer_.start();
-    refreshCompletion();
-    scheduleAnalysis();
+    assist_->refreshCompletion();
+    assist_->scheduleAnalysis();
 }
 
 MainWindow::~MainWindow() {
@@ -125,12 +136,12 @@ void MainWindow::buildLayout() {
     connect(tabs_, &QTabWidget::tabCloseRequested, this, [this](int index) { closeTab(index); });
     connect(tabs_, &QTabWidget::currentChanged, this, [this] {
         markSessionDirty();
-        completionTimer_.stop();
         if (CodeEditor* editor = currentEditor()) {
             languageSelector_->setCurrentIndex(editor->isMel() ? 1 : 0);
         }
-        scheduleAnalysis();
-        scheduleSpelling();
+        if (assist_) {
+            assist_->onCurrentChanged();
+        }
         findBar_->scheduleRefresh();  // 検索バーを開いていれば、新しいタブで件数と強調を出し直す。
     });
     // ドラッグでタブを並べ替えたら、その順番も自動保存する。
@@ -196,34 +207,12 @@ void MainWindow::buildStatusBar() {
     // activatedは利用者が選んだときだけ出る(プログラムからの変更では出ない)。
     connect(languageSelector_, QOverload<int>::of(&QComboBox::activated), this, [this](int index) {
         if (CodeEditor* editor = currentEditor()) {
-            setLanguage(editor, index == 1 ? "mel" : "python");
+            setLanguage(editor, index == 1 ? ScriptLanguage::Mel : ScriptLanguage::Python);
         }
     });
 }
 
 void MainWindow::setUpTimers() {
-    // setSingleShot(true)のタイマーは、start()の後に1回だけtimeoutを出す。
-    // 入力のたびにstart()し直すので、「最後の入力から○ms後」に1回だけ動く。
-    completionTimer_.setSingleShot(true);
-    completionTimer_.setInterval(250);
-    connect(&completionTimer_, &QTimer::timeout, this, [this] { requestCompletion(false); });
-
-    analysisTimer_.setSingleShot(true);
-    analysisTimer_.setInterval(800);
-    connect(&analysisTimer_, &QTimer::timeout, this, [this] { runAnalysis(); });
-
-    spellingTimer_.setSingleShot(true);
-    connect(&spellingTimer_, &QTimer::timeout, this, [this] {
-        CodeEditor* editor = currentEditor();
-        if (!preferences_.option(option::kSpellCheck) || !editor) {
-            return;
-        }
-        editor->checkSpelling(spelling_);
-        if (!spelling_.available()) {
-            showStatus("English spell-check dictionary is unavailable on this Windows installation", 5000);
-        }
-    });
-
     // 入力中に全タブをJSONにしてディスクへ書かないよう、最後の入力から1.5秒以上経ってから保存する。
     // 変化が無ければsaveSession()は何もしない(全タブをJSONにする処理も省く)。
     sessionTimer_.setInterval(1000);
@@ -244,8 +233,10 @@ CodeEditor* MainWindow::currentEditor() const {
     return tabs_->currentEditor();
 }
 
-CodeEditor* MainWindow::newTab(const QString& language) {
+CodeEditor* MainWindow::newTab(ScriptLanguage language) {
     auto editor = new CodeEditor;
+    editor->setProperty(kSessionIdProperty, newTabId());
+    editor->setProperty(kSavedRevisionProperty, -1);
     applyPreferences(editor);
     tabs_->addTab(editor, "Untitled.py");  // addTabした時点で、タブ欄が所有者になる。
     setLanguage(editor, language);
@@ -253,8 +244,7 @@ CodeEditor* MainWindow::newTab(const QString& language) {
     editor->setFocus();
     markSessionDirty();
 
-    editor->onCompletionRequested = [this] { requestCompletion(true); };
-    editor->onHoverRequested = [this, editor](int end) { return describeName(editor, end); };
+    assist_->attach(editor);  // Ctrl+Spaceとホバーの問い合わせ先。
     editor->onRunRequested = [this] { runCode(false); };
     // キー入力の処理の途中でタブ(=キーを受け取った部品自身)を削除しないよう、処理の後へ予約する。
     // 予約の持ち主をeditorにしておけば、先にeditorが破棄された場合は予約も取り消される。
@@ -266,7 +256,7 @@ CodeEditor* MainWindow::newTab(const QString& language) {
     connect(editor->document(), &QTextDocument::modificationChanged, this, [this] { markSessionDirty(); });
     connect(editor->verticalScrollBar(), &QScrollBar::valueChanged, this, [this, editor] {
         if (editor == currentEditor()) {
-            scheduleSpelling();  // スクロールで表示範囲が変わったので調べ直す。
+            assist_->scheduleSpelling();  // スクロールで表示範囲が変わったので調べ直す。
         }
     });
     connect(editor, &QPlainTextEdit::cursorPositionChanged, this, [this, editor] {
@@ -281,17 +271,9 @@ CodeEditor* MainWindow::newTab(const QString& language) {
 void MainWindow::onTextChanged(CodeEditor* editor) {
     lastEdit_.restart();
     markSessionDirty();
-    editor->clearSpelling();
-    editor->hideCompletions();
-    completionTimer_.stop();
-    // 候補の確定による変更では、次の自動補完を予約しない(Enterで確定した後、次のEnterで改行できる)。
-    if (editor == currentEditor() && !editor->isInsertingCompletion()) {
-        completionTimer_.start();
-    }
+    assist_->onTextChanged(editor);  // 補完・構文チェック・スペルチェックを予約し直す。
     tabs_->updateTitle(editor);
     if (editor == currentEditor()) {
-        scheduleAnalysis();
-        scheduleSpelling();
         findBar_->scheduleRefresh();  // 本文が変わったので、検索の件数と強調を出し直す。
     }
 }
@@ -323,13 +305,13 @@ bool MainWindow::confirmClose(CodeEditor* editor) {
     return choice == QMessageBox::Save && saveFile(editor);
 }
 
-void MainWindow::setLanguage(CodeEditor* editor, const QString& language) {
+void MainWindow::setLanguage(CodeEditor* editor, ScriptLanguage language) {
     editor->setLanguage(language);
     tabs_->updateTitle(editor);
     markSessionDirty();
     if (editor == currentEditor()) {
         languageSelector_->setCurrentIndex(editor->isMel() ? 1 : 0);
-        scheduleAnalysis();
+        assist_->scheduleAnalysis();
     }
 }
 
@@ -355,7 +337,7 @@ void MainWindow::openFile(const QString& path) {
         QMessageBox::warning(this, "Open", error);
         return;
     }
-    CodeEditor* editor = newTab(QFileInfo(path).suffix().toLower() == "mel" ? "mel" : "python");
+    CodeEditor* editor = newTab(languageForPath(path));
     editor->setPlainText(text);
     editor->setFilePath(absolute);
     editor->document()->setModified(false);
@@ -434,9 +416,14 @@ void MainWindow::restoreSession() {
         delete widget;
     }
     for (const TabState& tab : data.tabs) {
-        CodeEditor* editor = newTab(tab.language);
+        CodeEditor* editor = newTab(languageFromName(tab.language));
         editor->setPlainText(tab.text);
         editor->setFilePath(tab.path);
+        editor->setProperty(kSessionIdProperty, tab.id);
+        // 本文のファイルがあれば、今の本文と同じなので、本文が変わるまで書き直さない。
+        // 古い形式(本文をtabs.jsonに含んでいた0.2.x)から読んだタブは、最初の保存で本文のファイルを作る。
+        const bool hasTextFile = QFileInfo::exists(session_.textPath(tab.id));
+        editor->setProperty(kSavedRevisionProperty, hasTextFile ? editor->document()->revision() : -1);
         // 元のファイルが削除・外部で変更されていても、復元した本文は未保存として残す。
         bool differsFromFile = false;
         if (!tab.path.isEmpty()) {
@@ -471,12 +458,20 @@ bool MainWindow::saveSession() {
     data.activeTab = tabs_->currentIndex();
     data.folders = explorer_->roots();
     data.explorerVisible = !explorerDock_->isHidden();
+    QList<QPair<CodeEditor*, int>> written;  // 本文を書いたタブと、そのときの文書の版。
     for (CodeEditor* editor : tabs_->editors()) {
         const QTextCursor cursor = editor->textCursor();
         TabState tab;
-        tab.text = editor->toPlainText();
+        tab.id = editor->property(kSessionIdProperty).toString();
+        // 本文が変わったタブだけ本文を渡す(全タブの本文を毎回複製・書き直ししない)。
+        const int revision = editor->document()->revision();
+        tab.textLoaded = editor->property(kSavedRevisionProperty).toInt() != revision;
+        if (tab.textLoaded) {
+            tab.text = editor->toPlainText();
+            written.append({editor, revision});
+        }
         tab.path = editor->filePath();
-        tab.language = editor->language();
+        tab.language = languageName(editor->language());
         tab.modified = editor->document()->isModified();
         tab.position = cursor.position();
         tab.anchor = cursor.anchor();
@@ -486,6 +481,9 @@ bool MainWindow::saveSession() {
     if (!session_.save(data, &error)) {
         showStatus("Tab recovery save failed: " + error);
         return false;
+    }
+    for (const auto& entry : written) {
+        entry.first->setProperty(kSavedRevisionProperty, entry.second);
     }
     sessionDirty_ = false;
     return true;
@@ -520,7 +518,8 @@ void MainWindow::runCode(bool all) {
     if (editor->isMel()) {
         result = services_.runMel ? services_.runMel(source) : "MEL execution is unavailable";
     } else {
-        result = services_.runPython ? services_.runPython(source) : "Python execution is unavailable";
+        result = services_.runPython ? services_.runPython(source, editor->filePath())
+                                     : "Python execution is unavailable";
     }
     if (!result.isEmpty()) {
         output_->appendNote(result);
@@ -625,109 +624,6 @@ void MainWindow::refreshOutputNow() {
 }
 
 // ===========================================================================
-// 補完・構文チェック・スペル
-// ===========================================================================
-
-void MainWindow::refreshCompletion() {
-    if (services_.refreshCompletion) {
-        services_.refreshCompletion();
-    }
-    completionStatus_->setText("Completion: ready (in Maya)");
-}
-
-void MainWindow::requestCompletion(bool force) {
-    CodeEditor* editor = currentEditor();
-    if (!services_.complete || !editor || !editor->hasFocus() || editor->isMel()) {
-        return;
-    }
-    QTextCursor cursor = editor->textCursor();
-    // 直前の1文字がドットかを調べる(本文全体をコピーしない)。
-    QTextCursor preceding = cursor;
-    preceding.movePosition(QTextCursor::PreviousCharacter, QTextCursor::KeepAnchor);
-    const bool afterDot = preceding.selectedText() == ".";
-    if (!force) {
-        // 自動補完は、設定でオンの場合だけ。名前の入力途中でもドットの直後でもなければ出さない。
-        const bool enabled = afterDot ? preferences_.option(option::kCompleteDot)
-                                      : preferences_.option(option::kCompleteLetters);
-        if (!enabled) {
-            return;
-        }
-        if (editor->completionPrefix().isEmpty() && !afterDot) {
-            return;
-        }
-    }
-    if (cursor.position() > kCompletionDocumentLimit) {
-        completionStatus_->setText("Completion: document limit (200k)");
-        return;
-    }
-    // 文書の先頭からカーソルまでを渡す。
-    cursor.setPosition(0, QTextCursor::KeepAnchor);
-    const CompletionResult result = services_.complete(normalizeSelectedText(cursor.selectedText()));
-    if (!result.error.isEmpty()) {
-        completionStatus_->setText("Completion: " + result.error);
-        return;
-    }
-
-    QList<CompletionItem> items;
-    for (const CompletionItem& item : result.items) {
-        if (item.kind == "keyword" && !preferences_.option(option::kIncludeKeywords)) {
-            continue;
-        }
-        if (item.kind == "builtin" && !preferences_.option(option::kIncludeBuiltins)) {
-            continue;
-        }
-        items.append(item);
-    }
-    completionStatus_->setText("Completion: ready (in Maya)");
-    editor->showCompletions(items);
-    // import文の候補を別スレッドで集めている途中なら、少し後に問い合わせ直す(追加の入力は不要)。
-    if (items.isEmpty() && result.pending) {
-        completionTimer_.start(250);
-    }
-}
-
-HoverInfo MainWindow::describeName(CodeEditor* editor, int end) {
-    // 補完と同じ上限を超える大きな本文や、MELのタブでは説明を出さない。
-    if (!services_.describe || editor->isMel() || editor->document()->characterCount() > kCompletionDocumentLimit) {
-        return HoverInfo();
-    }
-    return services_.describe(editor->toPlainText(), end);
-}
-
-void MainWindow::scheduleAnalysis() {
-    analysisTimer_.stop();
-    problems_->clear();
-    CodeEditor* editor = currentEditor();
-    const bool enabled = preferences_.option(option::kStaticAnalysis) && editor && !editor->isMel();
-    problems_->setVisible(enabled);
-    if (enabled) {
-        problems_->showWaiting();
-        analysisTimer_.start();
-    }
-}
-
-void MainWindow::runAnalysis() {
-    CodeEditor* editor = currentEditor();
-    if (!preferences_.option(option::kStaticAnalysis) || !services_.analyze || !editor || editor->isMel()) {
-        return;
-    }
-    problems_->showResult(services_.analyze(editor->toPlainText()));
-}
-
-void MainWindow::scheduleSpelling() {
-    spellingTimer_.stop();
-    if (!preferences_.option(option::kSpellCheck)) {
-        for (CodeEditor* editor : tabs_->editors()) {
-            editor->clearSpelling();
-        }
-        return;
-    }
-    if (currentEditor()) {
-        spellingTimer_.start(450);
-    }
-}
-
-// ===========================================================================
 // 設定
 // ===========================================================================
 
@@ -747,13 +643,13 @@ void MainWindow::onOptionToggled(const QString& key, bool enabled) {
     }
     // 設定ごとに、すぐ反映が必要なもの。
     if (key == option::kStaticAnalysis) {
-        scheduleAnalysis();
+        assist_->scheduleAnalysis();
     } else if (key == option::kOutputLineNumbers) {
         output_->view()->setLineNumbersVisible(enabled);
     } else if (key == option::kOutputWrap) {
         output_->setWrap(enabled);
     } else if (key == option::kSpellCheck) {
-        scheduleSpelling();
+        assist_->scheduleSpelling();
     }
 }
 

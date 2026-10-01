@@ -6,44 +6,16 @@
  * マルウェアの形と誤認しないようにするため。
  */
 #include "plugin/embedded_python.h"
+#include "core/python_literal.h"
 #include "embedded_python_sources.h"  // ビルド時に生成される(cmake/embed_python.cmake)。
 #include "version.h"
 #include <maya/MGlobal.h>
 #include <maya/MString.h>
-#include <cstdio>
 #include <string>
 
 namespace hedit {
 namespace embedded {
 namespace {
-
-/** @brief 文字列を、Pythonの文字列リテラル(``'...'``)にする。
- * @param text UTF-8の文字列(引用符・改行・バックスラッシュを含み得る)。
- * @return 引用符で囲んだリテラル。日本語などはUTF-8のまま入れる。
- * @details ``\``・``'``・改行・タブ・その他の制御文字だけをエスケープする。
- */
-std::string pythonLiteral(const char* text) {
-    std::string literal = "'";
-    for (auto p = reinterpret_cast<const unsigned char*>(text); *p; ++p) {
-        switch (*p) {
-        case '\\': literal += "\\\\"; break;
-        case '\'': literal += "\\'"; break;
-        case '\n': literal += "\\n"; break;
-        case '\r': literal += "\\r"; break;
-        case '\t': literal += "\\t"; break;
-        default:
-            if (*p < 0x20 || *p == 0x7F) {
-                char escaped[5];
-                std::snprintf(escaped, sizeof(escaped), "\\x%02x", *p);
-                literal += escaped;
-            } else {
-                literal += static_cast<char>(*p);
-            }
-        }
-    }
-    literal += "'";
-    return literal;
-}
 
 /// importフックを登録するPython。__hedit_bootstrap(ソースの辞書, パッケージ名の集合, 版)として呼ぶ。
 constexpr const char* kBootstrap = R"PY(
@@ -75,34 +47,39 @@ def __hedit_bootstrap(sources, packages, version):
                 module.__version__ = version
             super().exec_module(module)
 
-    # 前回のロードで登録したフックを外してから、新しいフックを先頭へ入れる。
+    # 前回のロードで登録したフックを外してから、標準のPathFinder(sys.pathの.pyを探す仕組み)の直前へ入れる。
+    # 組み込み・凍結モジュールの仕組みより後ろなので、hedit以外のimportの順番は変えない。
     sys.meta_path[:] = [finder for finder in sys.meta_path if type(finder).__name__ != 'HeditEmbeddedImporter']
     # 同梱以外(ディスク上の古いフォルダーなど)から読まれた同名のモジュールを取り除く。
     for name in [name for name in sys.modules if name in sources or name.startswith('hedit.')]:
         if getattr(getattr(sys.modules[name], '__spec__', None), 'origin', None) != 'hedit.mll':
             del sys.modules[name]
-    sys.meta_path.insert(0, HeditEmbeddedImporter())
+    import importlib.machinery
+    position = next((index for index, finder in enumerate(sys.meta_path)
+                     if finder is importlib.machinery.PathFinder), len(sys.meta_path))
+    sys.meta_path.insert(position, HeditEmbeddedImporter())
 )PY";
 
 }  // namespace
 
 MStatus installModules() {
-    std::string script = kBootstrap;
+    QString script = QString::fromUtf8(kBootstrap);
     script += "__hedit_bootstrap({\n";
     for (const PythonModule& module : kPythonModules) {
-        script += std::string("    '") + module.name + "': " + pythonLiteral(module.source) + ",\n";
+        script += "    " + pythonStringLiteral(QString::fromUtf8(module.name)) + ": "
+                  + pythonStringLiteral(QString::fromUtf8(module.source)) + ",\n";
     }
     script += "}, {";
     for (const PythonModule& module : kPythonModules) {
         if (module.isPackage) {
-            script += std::string("'") + module.name + "', ";
+            script += pythonStringLiteral(QString::fromUtf8(module.name)) + ", ";
         }
     }
-    script += "}, '" HEDIT_VERSION "')\n";
+    script += "}, " + pythonStringLiteral(QStringLiteral(HEDIT_VERSION)) + ")\n";
     // 一時関数を、Script Editorの名前空間(__main__)に残さない。
     script += "del __hedit_bootstrap\n";
     MString command;
-    command.setUTF8(script.c_str());
+    command.setUTF8(script.toUtf8().constData());
     return MGlobal::executePythonCommand(command, false, false);
 }
 

@@ -283,16 +283,13 @@ void readImport(const Words& words, SymbolTable& table) {
         if (dotted.isEmpty()) {
             continue;
         }
-        Symbol symbol;
         if (index + 1 < part.size() && isName(part[index], "as") && part[index + 1].type == TokenType::Name) {
             // import a.b as c → c は a.b を指す。
-            symbol.target = dotted;
-            table.insert(part[index + 1].text, symbol);
+            table.insert(part[index + 1].text, Symbol::module(dotted));
         } else {
             // import a.b → 使える名前は a で、a を指す。
             const QString top = dotted.section('.', 0, 0);
-            symbol.target = top;
-            table.insert(top, symbol);
+            table.insert(top, Symbol::module(top));
         }
     }
 }
@@ -345,15 +342,12 @@ void readFromImport(const Words& words, const QString& moduleName, SymbolTable& 
         if (part.size() >= 3 && isName(part[1], "as") && part[2].type == TokenType::Name) {
             alias = part[2].text;
         }
-        Symbol symbol;
         if (level > 0 && module.isEmpty()) {
             // from . import nodes → 親パッケージの中のモジュール nodes を指す。
-            symbol.target = parent + "." + name;
+            table.insert(alias, Symbol::module(parent + "." + name));
         } else {
-            symbol.fromModule = parent;
-            symbol.fromName = name;
+            table.insert(alias, Symbol::import(parent, name));
         }
-        table.insert(alias, symbol);
     }
 }
 
@@ -532,6 +526,7 @@ SymbolTable readBlock(const QVector<LogicalLine>& lines, int* index, int indent,
             if (!name.isEmpty()) {
                 const int colon = headerColon(words);
                 Symbol symbol;
+                symbol.type = SymbolType::Function;
                 symbol.detail = detail;
                 symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
                 symbol.doc = bodyDocstring(colon >= 0 ? words.mid(colon + 1) : Words(), lines, *index, indent);
@@ -546,6 +541,7 @@ SymbolTable readBlock(const QVector<LogicalLine>& lines, int* index, int indent,
             const int colon = headerColon(words);
             const Words inlineBody = colon >= 0 ? words.mid(colon + 1) : Words();
             Symbol symbol;
+            symbol.type = SymbolType::Class;
             symbol.detail = "class " + words[1].text;
             symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
             symbol.doc = bodyDocstring(inlineBody, lines, *index, indent);

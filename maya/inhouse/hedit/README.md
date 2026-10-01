@@ -190,7 +190,7 @@ Jedi・Pyright等、追加のPythonライブラリは不要です。同一プロ
 
 ## 編集・補完の設定
 
-**Edit → Preferences**で次の項目を切り替えられます。設定は復元ファイルと同じフォルダーの`preferences.ini`へ保存し、次回起動にも適用します。
+**Edit → Preferences**で次の項目を切り替えられます。設定は復元ファイルと同じフォルダーの`preferences.json`へ保存し(変えた項目だけを書き換えます)、次回起動にも適用します。
 
 | 項目 | 動作／初期値 |
 | --- | --- |
@@ -273,7 +273,7 @@ GUI内で表示、上下レイアウト、ドッキング／フローティン�
 
 前回開いていた場合は、Mayaの保存ワークスペースに登録された`uiScript`(`hedit -restore`)から画面を再構築します。プラグインのロード後、次のイベントループでC++(`src/plugin/dock.cpp`)が前回の状態を確かめて復元するため、Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのいずれでも同じ復元が行われます。ドックの入れ子・タブ位置はMaya標準のワークスペースに保持し、終了通知で現在の配置を保存します。ユーザーが閉じてから終了した場合は自動表示しません。
 
-タブ本文は`tabs.json`、開閉状態・フローティング状態・ワークスペース名は同じフォルダーの`ui.json`に保持します。終了中のUI破棄で「閉じた」扱いに書き換わることを防ぎます。元のMayaワークスペースが削除された場合は厳密な位置を復元できず、以前ドックしていた画面は下側に配置して警告します。Windowメニューまたは`hedit.show()`からも開けます。信頼設定を自動変更する機能はありません。
+タブの並びなどは`tabs.json`、タブごとの本文は`tabs/<id>.txt`(本文が変わったタブだけ書き直す)、開閉状態・フローティング状態・ワークスペース名は同じフォルダーの`ui.json`に保持します。終了中のUI破棄で「閉じた」扱いに書き換わることを防ぎます。元のMayaワークスペースが削除された場合は厳密な位置を復元できず、以前ドックしていた画面は下側に配置して警告します。Windowメニューまたは`hedit.show()`からも開けます。信頼設定を自動変更する機能はありません。
 
 ### Visual Studioプロジェクトだけを生成
 
@@ -307,7 +307,7 @@ C++の説明は[内製C++コメント規約](../../../docs/cpp-documentation.md)
 
 `initializePlugin`(`src/plugin/plugin.cpp`)は、Windowメニューの登録を`installWindowMenu()`
 (`src/plugin/window_menu.cpp`。MEL、`MGlobal::executeCommand`経由)で行います。メニューの緑のHアイコンもSVGを
-`window_menu.cpp`に同梱し、ロード時に`<userPrefDir>/hedit/hedit.svg`へ書き出して使うため、`icons/`フォルダーは不要です。続けて
+`window_menu.cpp`がメモリ上で描いてメニュー項目へ直接付けるため(ファイルは書き出しません)、`icons/`フォルダーは不要です。続けて
 次のイベントループで`src/plugin/dock.cpp`が前回画面の復元を行います。ドッキングはMELの`workspaceControl`と
 `MQtUtil::addWidgetToMayaLayout`で、`MayaQWidgetDockableMixin`は使いません。そのため**`userSetup.py`経由の
 自動ロード・Plug-in Managerでの明示ロード・Mayaのプラグインautoloadのどれでも、プラグインの

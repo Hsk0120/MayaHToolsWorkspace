@@ -3,16 +3,15 @@
  * @details フラグ一覧:
  * | フラグ(短い名前) | 動作 |
  * |---|---|
- * | (なし) | 編集画面を(未作成なら作って)そのアドレスを返す。GUIテストがPySideから画面を参照するときに使う |
- * | ``-show``(``-sh``) | 画面を開く。``-floating``(``-f``)を付けたときだけ浮動状態を変える |
+ * | (なし)・``-show``(``-sh``) | 画面を開く。``-floating``(``-f``)を付けたときだけ浮動状態を変える |
  * | ``-restore``(``-r``) | workspaceControlのuiScriptから呼ぶ。前回閉じていれば非表示のまま |
  * | ``-saveState``(``-ss``) | 開閉状態をすぐにui.jsonへ保存する |
  * | ``-sessionPath``(``-sp``) | tabs.jsonのパスを返す。画面を作らないのでmayapyでも使える |
  * | ``-closed``(``-cl``) | 内部用。ドックのcloseCommandから呼ばれる |
  * | ``-quitting``(``-qt``) | 内部用。Maya終了時のscriptJobから呼ばれる |
- * | ``-complete``(``-cp``) 本文 | テスト用。補完の結果をJSONで返す(画面は作らない) |
- * | ``-declarations``(``-dc``) 本文 | テスト用。本文から取り出した宣言をJSONで返す |
- * | ``-describe``(``-ds``) 本文 | テスト用。本文の末尾の名前のホバーの説明をJSONで返す |
+ *
+ * テスト用の入口(補完・宣言・ホバーのJSON、画面のアドレス)は、別のコマンド``heditTest``にある
+ * (plugin/test_command.h。テスト用の環境変数があるときだけ登録する)。
  */
 #pragma once
 #include <maya/MPxCommand.h>

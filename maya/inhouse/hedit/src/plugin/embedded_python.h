@@ -19,11 +19,13 @@ struct PythonModule {
     const char* source;  ///< ソースの本文(UTF-8、末尾は0)。
 };
 
-/** @brief 同梱のモジュールを配るimportフックを、Pythonのsys.meta_pathの先頭へ登録する。
+/** @brief 同梱のモジュールを配るimportフックを、Pythonのsys.meta_pathへ登録する。
  * @return 登録の結果。失敗時はPythonの例外の内容がScript Editorへ出る。
  * @details ``import hedit``などは、通常の.pyと同じくimportした時点で初めて実行される。
- * 先頭へ置くのは、PYTHONPATH上に同名のフォルダー(旧版の``__pycache__``だけが残った``scripts/hedit``等)が
- * あっても、それを先に見つけさせないため。そうした同梱以外から読まれた同名のモジュールは取り除く。
+ * 標準のPathFinder(sys.pathの.pyを探す仕組み)の直前へ置く。PYTHONPATH上に同名のフォルダー
+ * (旧版の``__pycache__``だけが残った``scripts/hedit``等)があっても、それを先に見つけさせないため。
+ * 組み込みモジュールなどの仕組みより後ろなので、hedit以外のimportには影響しない。
+ * 同梱以外から読まれた同名のモジュール(heditとhedit.*だけ)は取り除く。
  * 同梱から読み込み済みのモジュールは、アンロード/ロードをまたいで残す(補完のキャッシュを保つため)。
  */
 MStatus installModules();

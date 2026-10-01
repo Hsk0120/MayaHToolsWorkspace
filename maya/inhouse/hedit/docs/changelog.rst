@@ -9,6 +9,27 @@
 
    * - 版
      - 内容
+   * - 0.3.0
+     - 設計を見直した。
+
+       * プラグインの出力先を ``release/plug-ins/windows/<Mayaの年>/hedit.mll`` に固定(版のフォルダーをやめた)。
+         版を上げても、Maya の信頼済みの場所とオートロードの設定が外れない。
+       * Maya のワークスペースの復元だけでは hedit をロードしないようにした(uiScript の ``loadPlugin`` と
+         ``-requiredPlugin`` をやめた。未ロードなら空のドックを隠す)。Maya 終了時の ``workspaceLayoutManager -save`` もやめた。
+       * Window メニューのアイコンを、ファイル(``hedit.svg``)へ書き出さずにメモリ上で描いて付けるようにした。
+       * 同梱 Python の読み込みの仕組みを、\ ``sys.meta_path`` の先頭ではなく標準の PathFinder の直前へ入れるようにした。
+       * ``hedit.mll`` に版・製品名のファイル情報を付け、制御フローガードを有効にし、pdb の絶対パスを埋め込まないようにした。
+       * テスト用のフラグ(補完・宣言・ホバーの JSON、画面のアドレス)を ``hedit`` から外し、テスト専用の ``heditTest``
+         (環境変数 ``HEDIT_TEST_COMMANDS=1`` のときだけ登録)へ移した。フラグなしの ``hedit`` は ``hedit -show`` と同じ。
+       * 自動保存を、タブの並びなど(``tabs.json``)とタブごとの本文(``tabs/<id>.txt``)に分け、本文が変わったタブだけ
+         書き直すようにした。設定は ``preferences.json`` へ移し(0.2.x の ``preferences.ini`` から自動で移行)、変えた項目だけを
+         書き換える。\ ``ui.json`` は Maya へ毎秒問い合わせず、ドックが変化したときに保存する。
+       * Python 側の例外を ``hedit.bridge.safe_call`` で受け止め、補完のステータスに表示するようにした。
+       * Maya の非表示 reporter が見つからない Maya でも、公式の通知から出力を表示して編集画面を開けるようにした。
+       * 保存済みのタブを実行すると、実行中だけ ``__file__`` がそのファイルのパスになるようにした。
+       * 内部の整理: 入力の補助を ``CodeAssist`` に分離、名前の種類を ``SymbolType`` で表す、補完の 1 回の問い合わせの情報を
+         ``Request`` に分離、言語を列挙型に、Python の文字列のエスケープを ``core/python_literal`` に統一、
+         プラグイン全体の状態を明示的に作って壊す、\ ``hedit_ui_smoke.exe`` が検査ごとに PASS / FAIL を表示。
    * - 0.2.10
      - 専用の非表示 Maya reporter が整形した表示文書の追記だけを取得。標準スクリプトエディターと同じ記号・改行にそろえた。
        ドックのタイトルに版を表示。

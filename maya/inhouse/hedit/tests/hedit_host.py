@@ -40,7 +40,7 @@ def editor():
 
     Qt5ではドックへの付け替えや再表示で既存のPythonラッパーが無効になるため、毎回取り直す。
     """
-    address = int(cmds.hedit())
+    address = int(cmds.heditTest(editor=True))
     return _live_widget(address) or wrapInstance(address, QtWidgets.QWidget)
 
 

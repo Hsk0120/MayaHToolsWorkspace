@@ -34,7 +34,7 @@ QSet<QString> scanTopLevel(const QStringList& paths, const std::atomic_bool* can
         if (cancel && *cancel) {
             break;
         }
-        QDirIterator entries(path, QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
+        QDirIterator entries(path, QDir::AllEntries | QDir::NoDotAndDotDot);
         while (entries.hasNext()) {
             entries.next();
             const QString name = entries.fileName();

@@ -1,6 +1,6 @@
-"""補完(C++の補完エンジン)と構文チェック(同梱Python)をmayapyで検証する。
+"""補完・ホバー(C++の補完エンジン)と構文チェック(同梱Python)をmayapyで検証する。
 
-補完の判断はhedit.mllの中のC++が行うので、テスト用の ``hedit -complete`` コマンドで呼ぶ。
+補完の判断はhedit.mllの中のC++が行うので、テスト用の ``heditTest -complete`` コマンドで呼ぶ。
 モジュールの情報(sys.path・sys.modules)は実行中のPythonから取るので、テストはそれらを一時的に差し替える。
 対象のソースは実行しない(実行されると ``RuntimeError`` になる内容で確かめる)。
 """
@@ -24,7 +24,7 @@ from hedit.analysis import analyze
 
 def complete(source):
     """dict: C++の補完の結果(JSON)。"""
-    return json.loads(cmds.hedit(complete=source))
+    return json.loads(cmds.heditTest(complete=source))
 
 
 def names(source):
@@ -34,11 +34,11 @@ def names(source):
 
 def describe(source):
     """dict: 本文の末尾の名前のホバーの説明(``{"signature": ..., "doc": ...}``)。"""
-    return json.loads(cmds.hedit(describe=source))
+    return json.loads(cmds.heditTest(describe=source))
 
 
 class CompletionTests(unittest.TestCase):
-    """``hedit -complete`` による補完と、``hedit.analysis`` による構文チェックの検証。"""
+    """``heditTest -complete`` による補完と、``hedit.analysis`` による構文チェックの検証。"""
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
     def setUp(self):
@@ -50,7 +50,7 @@ class CompletionTests(unittest.TestCase):
         # C++は補完のたびにPythonのsys.pathを読む。一時フォルダーを先頭に置く。
         self.path = mock.patch.object(sys, 'path', [str(self.root)] + sys.path)
         self.path.start()
-        cmds.hedit(complete='')  # 前のテストのファイルのキャッシュに影響されないよう、まず1回呼ぶ。
+        cmds.heditTest(complete='')  # 前のテストのファイルのキャッシュに影響されないよう、まず1回呼ぶ。
 
     def tearDown(self):
         self.path.stop()
@@ -118,6 +118,16 @@ class CompletionTests(unittest.TestCase):
                              'property value')
         self.assertEqual(describe('len')['signature'], 'def len(obj, /)')
         self.assertEqual(describe('return'), {'signature': '', 'doc': ''})
+
+    def test_python_errors_are_reported_not_raised(self):
+        """hedit.bridgeの例外はPython側で受け止め、補完の結果のerrorとしてC++へ返る。"""
+        module = types.ModuleType('broken_info')
+        with mock.patch.dict(sys.modules, {'broken_info': module}), \
+                mock.patch.object(bridge, 'module_info', side_effect=RuntimeError('boom')):
+            result = complete('import broken_info\nbroken_info.x')
+        self.assertEqual(result['error'], 'Python error: RuntimeError: boom')
+        self.assertNotIn('error', complete('import sample\nsample.cre'))
+        self.assertEqual(json.loads(bridge.safe_call(lambda: 1 / 0))['error'], 'ZeroDivisionError: division by zero')
 
     def test_loaded_module_never_scans_search_paths(self):
         """読み込み済みのモジュールは、sys.path(遅いネットワーク上かもしれない)を見ずに補完する。"""

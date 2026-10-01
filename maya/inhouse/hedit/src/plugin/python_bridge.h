@@ -17,10 +17,12 @@ namespace python {
 
 /** @brief Pythonのコードを、Maya標準のPython実行経路で実行する。
  * @param source 実行するコード。
+ * @param path 保存先のパス。空でなければ、実行中だけ``__main__.__file__``をこのパスにする
+ * (保存済みのスクリプトが自分の場所を知れるように。実行後は元の値に戻す)。
  * @return 常に空(結果はMayaの共通の出力へ流れ、出力欄はそれを表示する)。
  * @note Script Editorと同じ名前空間(__main__)を使い、stdoutを横取りしない。
  */
-QString runPython(const QString& source);
+QString runPython(const QString& source, const QString& path = QString());
 
 /** @brief MELのコードを実行する。
  * @param source 実行するコード。
@@ -62,10 +64,13 @@ AnalysisResult analyze(const QString& source);
  */
 void startModuleScan();
 
-/** @brief 走査のスレッドを止めて合流する。プラグインのアンロード前に必ず呼ぶ。
+/** @brief Pythonとの受け渡しの状態(補完エンジン・公開名の控え・sys.pathの走査)を作る。initializePluginから呼ぶ。 */
+void initialize();
+
+/** @brief 走査のスレッドを止めて合流し、状態を壊す。プラグインのアンロード前に必ず呼ぶ。
  * @note スレッドのコードはhedit.mllの中にあるため、アンロード後に動くとMayaが落ちる。
  */
-void stopModuleScan();
+void shutdown();
 
 }  // namespace python
 }  // namespace hedit

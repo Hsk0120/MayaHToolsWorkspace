@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Claude Code | 2026-10-01 | maya/inhouse/hedit 全体(src・tests・docs・cmake・CMakeLists・release)・maya/modules/hedit.mod | 設計レビューの指摘15件の対応(配布・起動、Python呼出し、出力取り込み、状態保存、グローバル状態、補完エンジンの型、言語の列挙、テスト用コマンド分離、テスト構成、エスケープ統一、MainWindow分割、実行時の__file__ ほか) |
 
 
 
@@ -65,6 +64,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 ## 完了履歴
+
+| Claude Code | 2026-10-01 | maya/inhouse/hedit 0.3.0 設計の見直し | 設計レビュー15件に対応(固定の出力先・自己ロードの廃止・アイコンのメモリ描画・meta_path位置・版情報/CFG/PDB・heditTest分離・状態の明示的な作成と破棄・Request/SymbolType・言語の列挙・エスケープ統一・CodeAssist分離・__file__・tabs/<id>.txtとpreferences.jsonとui.jsonの整理・Python例外の受け止め・出力取り込みの代替・ui_smokeの名前付き検査・.gitattributes)。5版ビルド警告0、run_tests/run_startup 5版・run_gui 2024/2027と各スイート・run_session 2024/2027・Sphinx -W 成功。 |
 
 - 2026-10-01 Codex: ユーザーのpush依頼に基づき、hlib設計修正・Qt依存除去・関連hrig/テスト/ドキュメント/開発規則を公開対象として確認。差分検査と直近の対象テスト・Sphinx成功を確認。GUI未検証と既知の互換制限は上記作業記録のとおり。
 

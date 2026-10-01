@@ -43,4 +43,19 @@ OutputKind classifyHistoryLine(const QString& line) {
     return OutputKind::Normal;
 }
 
+QString formatCommandOutput(const QString& message, OutputKind kind) {
+    QString prefix;
+    switch (kind) {
+    case OutputKind::Warning: prefix = QStringLiteral("// Warning: "); break;
+    case OutputKind::Error: prefix = QStringLiteral("// Error: "); break;
+    case OutputKind::Result: prefix = QStringLiteral("// Result: "); break;
+    default: return message;
+    }
+    QString text = prefix + message;
+    if (!text.endsWith('\n')) {
+        text += '\n';
+    }
+    return text;
+}
+
 }  // namespace hedit

@@ -2,57 +2,74 @@
  * @brief Windowメニューの項目の追加・削除(MELで行う)。
  */
 #include "plugin/window_menu.h"
+#include "plugin/dock.h"
 #include "plugin/mel.h"
-#include "plugin/user_paths.h"
 #include <maya/MGlobal.h>
-#include <QDir>
-#include <QFile>
-#include <QSaveFile>
+#include <maya/MQtUtil.h>
+#include <QAction>
+#include <QIcon>
+#include <QPainter>
+#include <QPixmap>
+#include <QTimer>
 
 namespace hedit {
 namespace {
-
-/// Windowメニューの緑のHアイコン(元データはicons/hedit.svg)。.mll単体で使えるよう同梱する。
-constexpr const char* kMenuIconSvg =
-    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\">\n"
-    "  <rect x=\"1\" y=\"1\" width=\"22\" height=\"22\" rx=\"4\" fill=\"#69b66c\"/>\n"
-    "  <path d=\"M7 6v12M17 6v12M7 12h10\" fill=\"none\" stroke=\"#17251a\" stroke-width=\"3\"/>\n"
-    "</svg>\n";
 
 /// メニュー項目と区切り線のUI名。
 constexpr const char* kMenuItemName = "heditWindowMenuItem";
 constexpr const char* kDividerName = "heditWindowMenuDivider";
 
-/** @brief 同梱のアイコンをユーザー設定フォルダーへ書き出し、そのパスを返す。
- * @return アイコンの絶対パス。書き出せない場合は空(メニューはアイコンなしで追加する)。
- * @details ``menuItem -image``はファイルのパスしか受け付けないため、メモリ上のSVGを
- * ``<userPrefDir>/hedit/hedit.svg``へ置く。内容が同じなら書き直さない。
+/// メニュー項目がまだ無いとき(起動の初期でevalDeferredに回したとき)に、アイコンを付け直す間隔と回数。
+constexpr int kIconRetryInterval = 500;
+constexpr int kIconRetryCount = 120;
+
+/** @brief Windowメニューの緑のHアイコンを描く(元データはicons/hedit.svg)。
+ * @param size 1辺のピクセル数。
+ * @return アイコンの画像。
+ * @details ``menuItem -image``はファイルのパスしか受け付けないため、以前はSVGをユーザー設定フォルダーへ
+ * 書き出していた。DLLが埋め込みのデータをディスクへ書き出す形はウイルス対策ソフトに怪しまれやすいので、
+ * 今はメモリ上で描いて、メニュー項目のQActionへ直接付ける。
  */
-QString writeMenuIcon() {
-    const QString folder = userFolder();
-    if (folder.isEmpty() || !QDir().mkpath(folder)) {
-        return QString();
-    }
-    const QString path = folder + "/hedit.svg";
-    const QByteArray svg(kMenuIconSvg);
-    {
-        QFile current(path);
-        if (current.open(QIODevice::ReadOnly) && current.readAll() == svg) {
-            return path;
+QPixmap drawMenuIcon(int size) {
+    QPixmap pixmap(size, size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.scale(size / 24.0, size / 24.0);  // 24×24の方眼に描く(SVGと同じ座標)。
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor("#69b66c"));
+    painter.drawRoundedRect(QRectF(1, 1, 22, 22), 4, 4);
+    painter.setPen(QPen(QColor("#17251a"), 3, Qt::SolidLine, Qt::FlatCap));
+    painter.drawLine(QPointF(7, 6), QPointF(7, 18));
+    painter.drawLine(QPointF(17, 6), QPointF(17, 18));
+    painter.drawLine(QPointF(7, 12), QPointF(17, 12));
+    painter.end();
+    return pixmap;
+}
+
+/** @brief メニュー項目にアイコンを付ける。項目がまだ無ければ、少し後にやり直す。
+ * @param remaining やり直せる残りの回数。
+ * @details やり直しの予約はプラグインと同じ寿命のオブジェクト(dock::lifetime)に持たせるので、
+ * アンロードされたら取り消される(hedit.mllの中のコードを、アンロード後に呼ばない)。
+ */
+void applyMenuIcon(int remaining) {
+    QAction* action = MQtUtil::findMenuItem(toMString(kMenuItemName));
+    if (action) {
+        QIcon icon;
+        for (int size : {16, 20, 24, 32, 48}) {
+            icon.addPixmap(drawMenuIcon(size));
         }
+        action->setIcon(icon);
+        return;
     }
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(svg) != svg.size() || !file.commit()) {
-        return QString();
+    if (remaining > 0 && dock::lifetime()) {
+        QTimer::singleShot(kIconRetryInterval, dock::lifetime(), [remaining] { applyMenuIcon(remaining - 1); });
     }
-    return path;
 }
 
 }  // namespace
 
 MStatus installWindowMenu() {
-    const QString icon = writeMenuIcon();
-    const QString imageFlag = icon.isEmpty() ? QString() : "        -image " + melQuote(icon) + "\n";
     // MELのglobal procを定義してから呼ぶ。evalDeferredで後から呼べるように、procとして定義している。
     // buildViewMenuは、Windowメニューの中身をMayaに作らせる(未作成だと追加した項目の位置がずれる)。
     const QString script = QString(
@@ -69,15 +86,16 @@ MStatus installWindowMenu() {
         "        -annotation \"Open hedit (additional script editor)\"\n"
         "        -sourceType \"mel\"\n"
         "        -command \"hedit -show\"\n"
-        "%3"
         "        \"%1\";\n"
         "}\n"
         // メインメニューがあればすぐ追加する。evalDeferredは、loadPluginの処理中にidleが回ると
         // Mayaがまだ未ロードとみなす時点で実行され得るため、メニューを作る前(起動の初期)だけに使う。
         "if (`menu -exists \"MayaWindow|mainWindowMenu\"`) hedit_installMenu();\n"
         "else evalDeferred -lowestPriority \"hedit_installMenu\";\n")
-        .arg(QString(kMenuItemName), QString(kDividerName), imageFlag);
-    return MGlobal::executeCommand(toMString(script), false, false);
+        .arg(QString(kMenuItemName), QString(kDividerName));
+    const MStatus status = MGlobal::executeCommand(toMString(script), false, false);
+    applyMenuIcon(kIconRetryCount);
+    return status;
 }
 
 MStatus uninstallWindowMenu() {

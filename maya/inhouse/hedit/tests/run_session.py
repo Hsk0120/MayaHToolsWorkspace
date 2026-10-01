@@ -19,7 +19,7 @@ for version in sys.argv[1:] or ['2024', '2027']:
     for stage in ('write', 'read'):
         outcome = run_version(version, directory / version / stage, Path('C:/Program Files/Autodesk'), 120,
                               shutdown_timeout=60, suite_path=PROJECT / 'tests/session_smoke.py',
-                              environment={'MAYA_MODULE_PATH': str(modules), 'HEDIT_SESSION_STAGE': stage,
+                              environment={'MAYA_MODULE_PATH': str(modules), 'HEDIT_TEST_COMMANDS': '1', 'HEDIT_SESSION_STAGE': stage,
                                            'HEDIT_SESSION_FILE': str(directory / version / 'tabs.json')})
         results.append(outcome)
         print(json.dumps(outcome), flush=True)

@@ -3,6 +3,7 @@
  */
 #pragma once
 #include "core/completion_types.h"
+#include "core/script_lexer.h"
 #include "core/text_search.h"
 #include "editor/numbered_text_edit.h"
 #include <QList>
@@ -34,12 +35,12 @@ public:
 
     // ---- 言語と保存先 ----
 
-    /** @brief 言語を設定し、色分けを塗り直す。 @param language ``mel``以外は``python``として扱う。 */
-    void setLanguage(const QString& language);
-    /** @brief 言語を返す。 @return ``python``または``mel``。 */
-    QString language() const { return language_; }
+    /** @brief 言語を設定し、色分けを塗り直す。 @param language 言語。 */
+    void setLanguage(ScriptLanguage language);
+    /** @brief 言語を返す。 @return PythonかMEL。 */
+    ScriptLanguage language() const { return language_; }
     /** @brief MELのタブか。 @return MELならtrue。 */
-    bool isMel() const { return language_ == "mel"; }
+    bool isMel() const { return language_ == ScriptLanguage::Mel; }
     /** @brief 保存先を設定する。 @param path 絶対パス。未保存の新規タブは空。 */
     void setFilePath(const QString& path);
     /** @brief 保存先を返す。 @return 未保存の新規タブは空。
@@ -160,7 +161,7 @@ private:
     /** @brief カーソル行の背景とスペルの波線を、まとめて本文に重ねる。 */
     void updateDecorations();
 
-    QString language_ = "python";                        ///< ``python``か``mel``。
+    ScriptLanguage language_ = ScriptLanguage::Python;   ///< 言語。
     bool smartIndent_ = true;                            ///< Enterでインデントを引き継ぐか。
     bool backspaceToIndentStop_ = true;                  ///< Backspaceを4文字単位で消すか。
     bool insertingCompletion_ = false;                   ///< 候補の確定中か。

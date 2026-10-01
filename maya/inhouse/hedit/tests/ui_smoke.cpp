@@ -7,12 +7,17 @@
 #include "core/script_lexer.h"
 #include "core/module_scanner.h"
 #include "core/session_data.h"
+#include "editor/session_store.h"
+#include "editor/editor_preferences.h"
+#include "core/json_file.h"
+#include <QSettings>
 #include "core/text_search.h"
 #include "editor/edit_commands.h"
 #include "editor/editor.h"
 #include "editor/hover_popup.h"
 #include "editor/ui_scale.h"
 #include <QApplication>
+#include <functional>
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <QTemporaryDir>
@@ -156,32 +161,69 @@ bool sessionDataPasses() {
     data.folders = QStringList{"C:/scripts"};
     data.explorerVisible = true;
     hedit::TabState python;
+    python.id = hedit::newTabId();
     python.text = QString::fromUtf8("print('あ')\n");
     python.modified = true;
     python.position = 3;
     python.anchor = 1;
     hedit::TabState mel;
+    mel.id = hedit::newTabId();
     mel.text = "ls;";
     mel.path = "C:/scripts/a.mel";
     mel.language = "mel";
     data.tabs = {python, mel};
+    // version 2: tabs.jsonには本文を入れない(本文は tabs/<id>.txt)。
+    const QByteArray json = hedit::sessionToJson(data);
     hedit::SessionData loaded;
-    if (!hedit::sessionFromJson(hedit::sessionToJson(data), &loaded)) { qWarning() << "session round trip"; return false; }
+    if (json.contains("print") || !hedit::sessionFromJson(json, &loaded)) { qWarning() << "session round trip" << json; return false; }
     const bool same = loaded.activeTab == 1 && loaded.folders == data.folders && loaded.explorerVisible
-        && loaded.tabs.size() == 2 && loaded.tabs[0].text == python.text && loaded.tabs[0].modified
+        && loaded.tabs.size() == 2 && loaded.tabs[0].id == python.id && !loaded.tabs[0].textLoaded && loaded.tabs[0].modified
         && loaded.tabs[0].position == 3 && loaded.tabs[0].anchor == 1 && loaded.tabs[1].language == "mel"
         && loaded.tabs[1].path == mel.path;
     if (!same) { qWarning() << "session values differ"; return false; }
-    // 壊れたファイル・タブが無いファイル・版が違うファイル・必須の型が違うファイルは読まない。
-    for (const char* broken : {"{", "{\"version\":1,\"tabs\":[]}", "{\"version\":2,\"tabs\":[{}]}",
-                               "{\"version\":1,\"tabs\":[{\"text\":1,\"path\":\"\",\"modified\":false}]}"}) {
+    // 0.2.xの version 1(本文をtabs.jsonに含む形)も読める。識別子はその場で付ける。
+    const QByteArray legacy = "{\"version\":1,\"tabs\":[{\"text\":\"x = 1\",\"path\":\"\",\"modified\":true}]}";
+    if (!hedit::sessionFromJson(legacy, &loaded) || loaded.tabs.size() != 1 || loaded.tabs[0].text != "x = 1"
+        || !loaded.tabs[0].textLoaded || !hedit::isValidTabId(loaded.tabs[0].id)) {
+        qWarning() << "legacy session"; return false;
+    }
+    // 壊れたファイル・タブが無いファイル・版が違うファイル・必須の型が違うファイル・不正な識別子は読まない。
+    for (const char* broken : {"{", "{\"version\":2,\"tabs\":[]}", "{\"version\":3,\"tabs\":[{}]}",
+                               "{\"version\":1,\"tabs\":[{\"text\":1,\"path\":\"\",\"modified\":false}]}",
+                               "{\"version\":2,\"tabs\":[{\"id\":\"../x\",\"path\":\"\",\"modified\":false}]}"}) {
         if (hedit::sessionFromJson(broken, &loaded)) { qWarning() << "accepted broken session" << broken; return false; }
+    }
+    // SessionStore: 本文は変わったタブだけ書き、閉じたタブの本文のファイルは消す。
+    {
+        QTemporaryDir directory;
+        const QString path = QDir(directory.path()).filePath("tabs.json");
+        hedit::SessionStore store(path);
+        hedit::SessionData opened;
+        if (store.open(&opened) != hedit::SessionStore::OpenResult::NoFile) { qWarning() << "store open"; return false; }
+        QString error;
+        if (!store.save(data, &error)) { qWarning() << "store save" << error; return false; }
+        const QString melText = store.textPath(mel.id);
+        QFile::remove(melText);  // 2回目の保存で本文を書かないタブは、ファイルが作り直されないことで確かめる。
+        hedit::SessionData unchanged = data;
+        unchanged.tabs[1].textLoaded = false;
+        unchanged.tabs.removeFirst();  // 1つ目のタブを閉じた。
+        if (!store.save(unchanged, &error) || QFile::exists(melText) || QFile::exists(store.textPath(python.id))) {
+            qWarning() << "store incremental save"; return false;
+        }
+        hedit::SessionStore other(path);
+        if (other.open(&opened) != hedit::SessionStore::OpenResult::Locked) { qWarning() << "store lock"; return false; }
     }
     if (hedit::classifyHistoryLine("// Warning: x") != hedit::OutputKind::Warning
         || hedit::classifyHistoryLine("# Error: x") != hedit::OutputKind::Error
         || hedit::classifyHistoryLine("# Result: 1") != hedit::OutputKind::Result
         || hedit::classifyHistoryLine("print") != hedit::OutputKind::Normal) {
         qWarning() << "classifyHistoryLine"; return false;
+    }
+    // reporterが見つからないMayaでの代わりの取り込み: 通知の本文を整える。
+    if (hedit::formatCommandOutput("x", hedit::OutputKind::Warning) != "// Warning: x\n"
+        || hedit::formatCommandOutput("bad\n", hedit::OutputKind::Error) != "// Error: bad\n"
+        || hedit::formatCommandOutput("printed\n", hedit::OutputKind::Normal) != "printed\n") {
+        qWarning() << "formatCommandOutput"; return false;
     }
     return true;
 }
@@ -452,6 +494,41 @@ bool completionEnginePasses(const QByteArray& config) {
     return true;
 }
 
+/** @brief 設定の保存(preferences.json)と、0.2.xのpreferences.iniからの移行を検証する。
+ * @return すべて期待どおりならtrue。
+ */
+bool preferencesPasses() {
+    QTemporaryDir directory;
+    const QString json = QDir(directory.path()).filePath("preferences.json");
+    {
+        // 0.2.xのpreferences.iniがあれば、preferences.jsonが無いときに1回だけ移す。
+        QSettings legacy(QDir(directory.path()).filePath("preferences.ini"), QSettings::IniFormat);
+        legacy.setValue("spellCheck", false);
+        legacy.setValue("fontPixels", 18);
+        legacy.sync();
+    }
+    hedit::EditorPreferences first(json);
+    if (first.option(hedit::option::kSpellCheck) || first.fontPixels() != 18 || !QFile::exists(json)) {
+        qWarning() << "preferences migration"; return false;
+    }
+    // 別のMayaが別の項目を変えても、1項目ずつ書き換えるので互いの変更を消さない。
+    hedit::EditorPreferences second(json);
+    first.setOption(hedit::option::kWhitespace, true);
+    second.setOption(hedit::option::kOutputWrap, true);
+    QJsonObject saved;
+    if (!hedit::readJsonFile(json, &saved) || !saved.value("whitespace").toBool() || !saved.value("outputWrap").toBool()
+        || saved.value("spellCheck").toBool(true)) {
+        qWarning() << "preferences merge" << saved; return false;
+    }
+    // 初期値に戻すとheditの項目を消し、知らない項目は残す。
+    hedit::updateJsonFile(json, "futureOption", 1);
+    if (!first.resetToDefaults() || !hedit::readJsonFile(json, &saved) || saved.contains("whitespace")
+        || !saved.contains("futureOption") || !first.option(hedit::option::kSpellCheck)) {
+        qWarning() << "preferences reset" << saved; return false;
+    }
+    return true;
+}
+
 /** @brief 文字列リテラルの値・docstringの整形・宣言のdocstringと見出し(ホバー用)を検証する。
  * @return すべて期待どおりならtrue。
  */
@@ -526,6 +603,50 @@ bool scriptFilePasses() {
  * @param argv 実行ファイル名、設定JSON、画像保存先。
  * @return 成功0、機能別の失敗番号またはタイムアウト番号。
  */
+/** @brief 名前の付いた1つの検査。 */
+struct TestCase {
+    const char* name;            ///< 失敗したときに表示する名前。
+    std::function<bool()> run;   ///< 検査の本体。期待どおりならtrue。
+};
+
+/** @brief 検査を順に実行し、1件ずつ PASS / FAIL を表示する(途中で失敗しても残りを続ける)。
+ * @param cases 検査の一覧。
+ * @return 失敗した件数。
+ */
+int runCases(const QList<TestCase>& cases) {
+    int failed = 0;
+    for (const TestCase& test : cases) {
+        const bool ok = test.run();
+        qInfo().noquote() << (ok ? "PASS" : "FAIL") << test.name;
+        failed += ok ? 0 : 1;
+    }
+    qInfo().noquote() << QString("%1 of %2 checks passed").arg(cases.size() - failed).arg(cases.size());
+    return failed;
+}
+
+/** @brief 画面の拡大率(4K等のInterface Scaling)が、文字・アイコンの固定寸法に掛かるか。 @return 期待どおりならtrue。 */
+bool uiScalePasses() {
+    hedit::setUiScale(2.0);
+    hedit::EditorServices services;
+    services.runPython = [](const QString&, const QString&) { return QString(); };
+    auto large = hedit::createEditor(nullptr, services);
+    large->show();
+    QApplication::processEvents();
+    auto bar = large->findChild<QToolBar*>("scriptToolbar");
+    auto code = large->findChild<QPlainTextEdit*>("codeEditor");
+    const bool ok = hedit::scaled(20) == 40 && bar && bar->iconSize() == QSize(40, 40) && code && code->font().pixelSize() == 28;
+    if (!ok) qWarning() << "ui scale" << (bar ? bar->iconSize() : QSize()) << (code ? code->font().pixelSize() : -1);
+    delete large;
+    hedit::setUiScale(1.0);
+    return ok;
+}
+
+/** @brief 初回履歴の整形(空行を省き、空白だけの行は前後をつなぐ)。 @return 期待どおりならtrue。 */
+bool historyPasses() {
+    return hedit::compactHistory("one\r\n\noptimization\n \non\n\n\nnext\n") == "one\noptimization on\nnext\n"
+           && hedit::compactHistory("").isEmpty();
+}
+
 int main(int argc, char** argv) {
 #ifdef _WIN32
     // テストの障害は終了コードで監視し、ユーザーの画面にWERを残さない。
@@ -536,40 +657,30 @@ int main(int argc, char** argv) {
     QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/segoeui.ttf");
     QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/consola.ttf");
     if (argc != 3) return 2;
-    // 初回履歴の整形は過去の断片だけに使う。空行を省き、空白だけの行は前後をつなぐ。
-    if (hedit::compactHistory("one\r\n\noptimization\n \non\n\n\nnext\n")!="one\noptimization on\nnext\n"
-        || !hedit::compactHistory("").isEmpty()) return 11;
-    if (!moduleScanPasses()) return 12;
-    if (!textSearchPasses()) return 14;
-    if (!sessionDataPasses()) return 15;
-    if (!editCommandsPasses()) return 16;
-    if (!lexerPasses()) return 17;
-    if (!declarationsPasses()) return 18;
-    if (!scriptFilePasses()) return 20;
-    if (!docstringsPasses()) return 21;
-    // 4K等のMayaの拡大率(Interface Scaling)を、文字・アイコンの固定寸法に掛ける。
-    {
-        hedit::setUiScale(2.0);
-        hedit::EditorServices services;
-        services.runPython=[](const QString&) { return QString(); };
-
-        auto large=hedit::createEditor(nullptr,services);
-        large->show(); QApplication::processEvents();
-        auto bar=large->findChild<QToolBar*>("scriptToolbar");
-        auto code=large->findChild<QPlainTextEdit*>("codeEditor");
-        const bool ok=hedit::scaled(20)==40 && bar && bar->iconSize()==QSize(40,40) && code && code->font().pixelSize()==28;
-        if (!ok) qWarning() << "ui scale" << (bar ? bar->iconSize() : QSize()) << (code ? code->font().pixelSize() : -1);
-        delete large;
-        hedit::setUiScale(1.0);
-        if (!ok) return 13;
-    }
     QFile file(QString::fromLocal8Bit(argv[1])); if (!file.open(QIODevice::ReadOnly)) return 3;
-    QByteArray config = file.readAll();
-    if (!completionEnginePasses(config)) return 19;
+    const QByteArray config = file.readAll();
+    // Maya無しで確かめられる部分。1件ずつ名前を表示し、失敗があれば画面の検査に進まずに終える。
+    const int failed = runCases({
+        {"history", historyPasses},
+        {"moduleScan", moduleScanPasses},
+        {"textSearch", textSearchPasses},
+        {"sessionData", sessionDataPasses},
+        {"editCommands", editCommandsPasses},
+        {"lexer", lexerPasses},
+        {"declarations", declarationsPasses},
+        {"scriptFile", scriptFilePasses},
+        {"docstrings", docstringsPasses},
+        {"preferences", preferencesPasses},
+        {"uiScale", uiScalePasses},
+        {"completionEngine", [&config] { return completionEnginePasses(config); }},
+    });
+    if (failed > 0) {
+        return 10;
+    }
     bool outputSent=false;
     // Mayaの代わりに、決まった値を返す偽の関数を渡す。
     hedit::EditorServices services;
-    services.runPython = [](const QString& code) { return "executed: " + code; };
+    services.runPython = [](const QString& code, const QString&) { return "executed: " + code; };
 
     services.takeOutput = [&outputSent] {
         if (outputSent) return QList<hedit::OutputMessage>();

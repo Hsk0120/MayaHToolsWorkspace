@@ -85,6 +85,7 @@ private:
     QList<OutputMessage> pending_;          ///< 画面へまだ渡していない出力。
     int pendingSize_ = 0;                   ///< pending_の文字数の合計。
     bool omitted_ = false;                  ///< 上限を超えて古い出力を捨てたか。
+    bool fallback_ = false;                 ///< reporterが見つからず、通知の本文を自分で整えて取り込んでいるか。
 
     MCallbackId typeCallback_ = 0;                       ///< 出力の種類の通知のコールバック。
     MCommandMessage::MessageType lastType_ = MCommandMessage::kDisplay;  ///< 直前に通知された種類。
@@ -97,5 +98,11 @@ private:
 
 /** @brief プラグインで1つだけのOutputCaptureを返す。 @return 共有のインスタンス。 */
 OutputCapture& outputCapture();
+
+/** @brief プラグインで1つだけの出力の取り込みを作る(initializePluginから呼ぶ)。 */
+void createOutputCapture();
+
+/** @brief 出力の取り込みを壊す(uninitializePluginの最後に呼ぶ。購読はstop()で外しておく)。 */
+void destroyOutputCapture();
 
 }  // namespace hedit

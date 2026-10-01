@@ -24,4 +24,13 @@ QString compactHistory(QString text);
  */
 OutputKind classifyHistoryLine(const QString& line);
 
+/** @brief Mayaの出力の通知(MCommandMessage)の本文を、Script Editorに近い形に整える(代わりの取り込み用)。
+ * @param message 通知の本文。
+ * @param kind 種類。
+ * @return 警告・エラー・結果は``// Warning: ``などを付けて改行で終える。それ以外は本文のまま。
+ * @details 普段はMayaの非表示のreporterが整えた文字をそのまま使う。reporterが見つからないMaya
+ * (部品の作りが変わった版など)では、この整形で代わりに表示する。
+ */
+QString formatCommandOutput(const QString& message, OutputKind kind);
+
 }  // namespace hedit

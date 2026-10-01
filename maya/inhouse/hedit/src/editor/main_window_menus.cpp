@@ -5,6 +5,7 @@
  * 第3引数(this)はラムダの持ち主で、このウィンドウが破棄されると接続も外れる。
  * テストが項目を探すときは、表示名(text)かobjectNameを使う(docs/development.rstの一覧)。
  */
+#include "editor/code_assist.h"
 #include "editor/code_editor.h"
 #include "editor/editor_tabs.h"
 #include "editor/explorer.h"
@@ -29,7 +30,7 @@ void MainWindow::buildMenusAndToolbar() {
     // ---- File ----
     QMenu* file = menuBar()->addMenu("File");
     file->addAction("New Python tab", this, [this] { newTab(); }, QKeySequence::New);
-    file->addAction("New MEL tab", this, [this] { newTab("mel"); });
+    file->addAction("New MEL tab", this, [this] { newTab(ScriptLanguage::Mel); });
     QAction* openAction = file->addAction("Open…", this, [this] {
         openFile(QFileDialog::getOpenFileName(this, "Open script", {}, "Scripts (*.py *.mel);;All files (*)"));
     }, QKeySequence::Open);
@@ -118,7 +119,7 @@ void MainWindow::buildMenusAndToolbar() {
     QAction* runAllAction = command->addAction("Run all", this, [this] { runCode(true); });
     runAllAction->setShortcut(QKeySequence("F5"));
     command->addSeparator();
-    command->addAction("Refresh completion", this, [this] { refreshCompletion(); });
+    command->addAction("Refresh completion", this, [this] { assist_->refreshCompletion(); });
 
     // ---- ツールバー(Maya標準のScript Editorと同じアイコン) ----
     QToolBar* toolbar = addToolBar("Script editor");
@@ -216,8 +217,8 @@ void MainWindow::resetPreferences() {
     }
     output_->view()->setLineNumbersVisible(preferences_.option(option::kOutputLineNumbers));
     output_->setWrap(preferences_.option(option::kOutputWrap));
-    scheduleAnalysis();
-    scheduleSpelling();
+    assist_->scheduleAnalysis();
+    assist_->scheduleSpelling();
     applyZoom();
 
     if (saved) {

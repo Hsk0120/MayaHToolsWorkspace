@@ -2,6 +2,9 @@
  * @brief EditorPreferencesと設定の表。
  */
 #include "editor/editor_preferences.h"
+#include "core/json_file.h"
+#include <QFileInfo>
+#include <QJsonObject>
 #include <QSettings>
 #include <QtGlobal>
 
@@ -27,24 +30,48 @@ const QList<OptionDefinition>& optionDefinitions() {
     return options;
 }
 
-EditorPreferences::EditorPreferences(const QString& iniPath) {
-    if (!iniPath.isEmpty()) {
-        settings_ = std::make_unique<QSettings>(iniPath, QSettings::IniFormat);
+namespace {
+
+/// 文字サイズの保存名。
+constexpr const char* kFontPixelsKey = "fontPixels";
+
+/** @brief 0.2.xのpreferences.iniの値を読む(移行用)。
+ * @param iniPath preferences.iniのパス。
+ * @return 保存されていた項目。ファイルが無ければ空。
+ */
+QJsonObject readLegacyIni(const QString& iniPath) {
+    QJsonObject values;
+    if (!QFileInfo::exists(iniPath)) {
+        return values;
     }
+    QSettings legacy(iniPath, QSettings::IniFormat);
     for (const OptionDefinition& definition : optionDefinitions()) {
-        bool value = definition.defaultValue;
-        if (settings_) {
-            value = settings_->value(definition.key, definition.defaultValue).toBool();
+        if (legacy.contains(definition.key)) {
+            values.insert(definition.key, legacy.value(definition.key).toBool());
         }
-        values_.insert(definition.key, value);
     }
-    if (settings_) {
-        fontPixels_ = settings_->value("fontPixels", kDefaultFontPixels).toInt();
+    if (legacy.contains(kFontPixelsKey)) {
+        values.insert(kFontPixelsKey, legacy.value(kFontPixelsKey).toInt());
     }
+    return values;
 }
 
-// unique_ptr<QSettings>を破棄するにはQSettingsの完全な定義が必要なので、デストラクターは.cppに置く。
-EditorPreferences::~EditorPreferences() = default;
+}  // namespace
+
+EditorPreferences::EditorPreferences(const QString& path) : path_(path) {
+    QJsonObject saved;
+    if (!path_.isEmpty() && !readJsonFile(path_, &saved) && !QFileInfo::exists(path_)) {
+        // 初めて0.3以降を使う: 同じフォルダーのpreferences.ini(0.2.x)の値を移す。iniは消さずに残す。
+        saved = readLegacyIni(QFileInfo(path_).absolutePath() + "/preferences.ini");
+        if (!saved.isEmpty()) {
+            writeJsonFile(path_, saved);
+        }
+    }
+    for (const OptionDefinition& definition : optionDefinitions()) {
+        values_.insert(definition.key, saved.value(definition.key).toBool(definition.defaultValue));
+    }
+    fontPixels_ = qBound(10, saved.value(kFontPixelsKey).toInt(kDefaultFontPixels), 28);
+}
 
 bool EditorPreferences::option(const QString& key) const {
     return values_.value(key);
@@ -52,12 +79,8 @@ bool EditorPreferences::option(const QString& key) const {
 
 bool EditorPreferences::setOption(const QString& key, bool enabled) {
     values_[key] = enabled;
-    if (!settings_) {
-        return true;
-    }
-    settings_->setValue(key, enabled);
-    settings_->sync();  // すぐにファイルへ書く(Mayaが落ちても設定を失わない)。
-    return settings_->status() == QSettings::NoError;
+    // 変えた項目だけを書き換える。すぐにファイルへ書くので、Mayaが落ちても設定を失わない。
+    return path_.isEmpty() || updateJsonFile(path_, key, enabled);
 }
 
 bool EditorPreferences::resetToDefaults() {
@@ -65,22 +88,23 @@ bool EditorPreferences::resetToDefaults() {
         values_[definition.key] = definition.defaultValue;
     }
     fontPixels_ = kDefaultFontPixels;
-    if (!settings_) {
+    if (path_.isEmpty()) {
         return true;
     }
+    // heditの項目を消す(値が無い項目は初期値として扱う)。知らない項目(新しい版の設定など)は残す。
+    QJsonObject saved;
+    readJsonFile(path_, &saved);
     for (const OptionDefinition& definition : optionDefinitions()) {
-        settings_->remove(definition.key);
+        saved.remove(definition.key);
     }
-    settings_->remove("fontPixels");
-    settings_->sync();
-    return settings_->status() == QSettings::NoError;
+    saved.remove(kFontPixelsKey);
+    return writeJsonFile(path_, saved);
 }
 
 void EditorPreferences::setFontPixels(int pixels) {
     fontPixels_ = qBound(10, pixels, 28);
-    if (settings_) {
-        settings_->setValue("fontPixels", fontPixels_);
-        settings_->sync();
+    if (!path_.isEmpty()) {
+        updateJsonFile(path_, kFontPixelsKey, fontPixels_);
     }
 }
 

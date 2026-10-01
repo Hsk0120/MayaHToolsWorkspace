@@ -29,7 +29,7 @@ try:
 
     def complete(source):
         """C++の補完エンジンの候補名(hedit -complete)。"""
-        return [row['name'] for row in json.loads(cmds.hedit(complete=source))['items']]
+        return [row['name'] for row in json.loads(cmds.heditTest(complete=source))['items']]
 
     # 実際のMayaで動的に公開された名前も補完対象になる。
     import hlib

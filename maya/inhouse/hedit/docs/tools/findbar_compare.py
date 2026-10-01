@@ -54,7 +54,8 @@ def main():
     (modules / "hedit.mod").write_text(definition.replace("../inhouse/hedit", PROJECT.as_posix()), encoding="utf-8")
     session = directory.with_name(directory.name + "-session")
     session.mkdir(parents=True)
-    environment.update({"MAYA_MODULE_PATH": str(modules), "HEDIT_SESSION_FILE": str(session / "tabs.json")})
+    environment.update({"MAYA_MODULE_PATH": str(modules), "HEDIT_TEST_COMMANDS": "1",
+                        "HEDIT_SESSION_FILE": str(session / "tabs.json")})
     outcome = run_version(args.version, directory, Path("C:/Program Files/Autodesk"), args.timeout,
                           shutdown_timeout=60, suite_path=TOOLS / "findbar_suite.py", environment=environment)
     suite = directory / "result.json"

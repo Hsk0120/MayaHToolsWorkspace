@@ -14,6 +14,25 @@ import sys
 import types
 
 
+def safe_call(function, *args):
+    """関数を呼び、例外が起きたら理由を JSON で返す(C++ からの呼出しは全てこれを通す)。
+
+    例外を Script Editor へ流すと、補完のたびに同じエラーが出続けるうえ、hedit からは失敗が分からない。
+    ここで受け止めて ``{"error": "..."}`` を返し、C++ がステータスバーに出す。
+
+    Args:
+        function (callable): 呼ぶ関数(``hedit.bridge.module_info`` など)。
+        *args: 関数へ渡す引数。
+
+    Returns:
+        str: 関数の戻り値(JSON)。例外が起きたら ``{"error": "例外の型: 内容"}``。
+    """
+    try:
+        return function(*args)
+    except Exception as error:  # noqa: BLE001 (理由を C++ へ返すため、全ての例外を受け止める)
+        return json.dumps({'error': '%s: %s' % (type(error).__name__, error)})
+
+
 def _search_paths():
     """list[str]: sys.pathの各フォルダー(絶対パス)。"""
     return [os.path.abspath(path or os.curdir) for path in sys.path if isinstance(path, str)]
@@ -153,6 +172,42 @@ def describe(module_name, path):
         return json.dumps({'found': False})
     doc = inspect.cleandoc(doc) if isinstance(doc, str) else ''
     return json.dumps({'found': True, 'signature': signature, 'doc': doc}, ensure_ascii=True)
+
+
+_MISSING = object()
+_saved_main_files = []
+
+
+def push_main_file(path):
+    """``__main__.__file__`` を一時的にスクリプトのパスにする(保存済みのタブを実行する前に C++ が呼ぶ)。
+
+    Args:
+        path (str): 実行するスクリプトのパス。
+
+    Returns:
+        str: 常に ``"{}"``(C++ への戻り値の形をそろえるため)。
+    """
+    import __main__
+    _saved_main_files.append(vars(__main__).get('__file__', _MISSING))
+    __main__.__file__ = path
+    return '{}'
+
+
+def pop_main_file():
+    """``push_main_file`` で変えた ``__main__.__file__`` を元に戻す(実行の後に C++ が呼ぶ)。
+
+    Returns:
+        str: 常に ``"{}"``。
+    """
+    import __main__
+    if not _saved_main_files:
+        return '{}'
+    previous = _saved_main_files.pop()
+    if previous is _MISSING:
+        vars(__main__).pop('__file__', None)
+    else:
+        __main__.__file__ = previous
+    return '{}'
 
 
 def search_paths():

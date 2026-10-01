@@ -32,7 +32,7 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
     setFont(codeFont);
     setLineWrapMode(NoWrap);
     setTabStopDistance(fontMetrics().horizontalAdvance(' ') * 4);
-    setProperty("language", language_);
+    setProperty("language", languageName(language_));
 
     // 色分けは文書の子として作る(文書と一緒に破棄される)。
     highlighter_ = new SyntaxHighlighter(document());
@@ -173,9 +173,10 @@ void CodeEditor::focusOutEvent(QFocusEvent* event) {
     NumberedTextEdit::focusOutEvent(event);
 }
 
-void CodeEditor::setLanguage(const QString& language) {
-    language_ = language == "mel" ? QString("mel") : QString("python");
-    setProperty("language", language_);
+void CodeEditor::setLanguage(ScriptLanguage language) {
+    language_ = language;
+    // テストやPySideから参照できるよう、保存名(python/mel)を動的プロパティにも入れる。
+    setProperty("language", languageName(language_));
     highlighter_->setMel(isMel());
     highlighter_->rehighlight();
     hideCompletions();

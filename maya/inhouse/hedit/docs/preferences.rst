@@ -19,7 +19,7 @@
 一覧
 ----
 
-「メニュー表示名」は画面に出る英語の名前、「キー」は保存ファイル(``preferences.ini``)での名前です。
+「メニュー表示名」は画面に出る英語の名前、「キー」は保存ファイル(``preferences.json``)での名前です。
 
 .. list-table::
    :header-rows: 1
@@ -451,41 +451,44 @@ View メニューの操作で、Preferences のチェック項目ではありま
 保存先とファイル
 ~~~~~~~~~~~~~~~~
 
-設定は、タブの復元ファイル(``tabs.json``)と **同じフォルダー** の ``preferences.ini`` に保存します。
+設定は、タブの復元ファイル(``tabs.json``)と **同じフォルダー** の ``preferences.json`` に保存します。
 
 .. code-block:: text
 
-   <Mayaのユーザー設定フォルダー>/hedit/preferences.ini
-   例: C:/Users/<ユーザー名>/Documents/maya/2027/prefs/hedit/preferences.ini
+   <Mayaのユーザー設定フォルダー>/hedit/preferences.json
+   例: C:/Users/<ユーザー名>/Documents/maya/2027/prefs/hedit/preferences.json
 
 * ``cmds.internalVar(userPrefDir=True)`` の下です。 **Maya のバージョンごとに別のファイル** になるため、
   2024 と 2027 の設定は共有されません。
 * 自動テストなどで別の場所を使う場合は、環境変数 ``HEDIT_SESSION_FILE`` で ``tabs.json`` の場所を指定します
-  (``preferences.ini`` はその隣に置かれます)。
+  (``preferences.json`` はその隣に置かれます)。
+* 0.2.x の ``preferences.ini`` があり、\ ``preferences.json`` がまだ無いときは、最初の起動で値を移します
+  (``preferences.ini`` は消さずに残します)。
 
 ファイルの中身
 ~~~~~~~~~~~~~~
 
-INI 形式で、1 項目が 1 行です。\ **切り替えたことのある項目** と ``fontPixels``\ (文字サイズ。起動のたびに書かれます)が
-記録されます(``fontPixels`` は画面を作るたびに書かれます)。次の例は、13 項目すべてを一度ずつ切り替えた後の状態です。
+JSON 形式です。\ **切り替えたことのある項目** と ``fontPixels``\ (文字サイズ。画面を作るたびに書かれます)が
+記録されます。次の例は、13 項目すべてを一度ずつ切り替えた後の状態です。
 
-.. code-block:: ini
+.. code-block:: json
 
-   [General]
-   completeLetters=true
-   completeDot=true
-   includeKeywords=true
-   includeBuiltins=true
-   staticAnalysis=false
-   outputLineNumbers=false
-   outputWrap=false
-   spellCheck=true
-   smartIndent=true
-   backspaceIndent=true
-   whitespace=false
-   trimWhitespace=false
-   finalNewline=false
-   fontPixels=14
+   {
+       "completeLetters": true,
+       "completeDot": true,
+       "includeKeywords": true,
+       "includeBuiltins": true,
+       "staticAnalysis": false,
+       "outputLineNumbers": false,
+       "outputWrap": false,
+       "spellCheck": true,
+       "smartIndent": true,
+       "backspaceIndent": true,
+       "whitespace": false,
+       "trimWhitespace": false,
+       "finalNewline": false,
+       "fontPixels": 14
+   }
 
 * 値が無い項目は、上の表の **初期値** として扱います。
 * 手で編集しても構いませんが、Maya を閉じているときに行ってください(hedit が同時に書き換えることがあります)。
@@ -502,20 +505,22 @@ INI 形式で、1 項目が 1 行です。\ **切り替えたことのある項�
 
 * 確認ダイアログで **Reset** を押すと戻し、\ **Cancel** なら何も変えません。
 * チェックの状態・開いているすべてのタブ・出力欄・文字サイズ(標準 14 px)に、その場で反映します。
-* ``preferences.ini`` からは hedit の項目を消します。値が無い項目は初期値として扱うため、
+* ``preferences.json`` からは hedit の項目を消します(知らない項目は残します)。値が無い項目は初期値として扱うため、
   将来の版で初期値が変わった場合も、その新しい初期値が使われます(``fontPixels`` は次回の起動で再び書かれます)。
 * 開いているタブの本文・ファイル・Explorer のフォルダー、タブの復元ファイル(``tabs.json``)は変更しません。
 * 保存できなかった場合は、ステータスバーに「Could not save editor preferences」と表示します
   (その Maya の起動中は初期値で動きます)。
 
-Maya を閉じて ``preferences.ini`` を削除(または名前を変更)しても、すべての設定が初期値に戻ります。
+Maya を閉じて ``preferences.json`` を削除(または名前を変更)しても、すべての設定が初期値に戻ります。
 
 複数の Maya を同時に使う場合
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 同じユーザー・同じバージョンの Maya を複数起動している場合、設定ファイルは共有です。
-それぞれの hedit は起動時に読み込み、切り替えたときに書き込むため、
-後から切り替えたほうの値がファイルに残ります(すでに開いている他の Maya の画面は、次回の起動まで変わりません)。
+それぞれの hedit は起動時に読み込み、切り替えたときに **その項目だけ** を書き換えます
+(ファイルを読み直してから 1 項目を変えるので、別の Maya が切り替えた別の項目は消えません)。
+同じ項目を両方で切り替えた場合は、後から切り替えたほうの値が残ります
+(すでに開いている他の Maya の画面は、次回の起動まで変わりません)。
 
 用途別のおすすめ
 ----------------

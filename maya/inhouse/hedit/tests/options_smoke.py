@@ -100,11 +100,17 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
         assert code.toPlainText() == 'a = 1  \n# comment\t'
         from maya import cmds
         from pathlib import Path
-        settings = QtCore.QSettings(str(Path(cmds.hedit(sessionPath=True)).with_name('preferences.ini')), QtCore.QSettings.IniFormat)
-        assert str(settings.value('finalNewline')).lower() == 'true'
+        import json
+        preferences_path = Path(cmds.hedit(sessionPath=True)).with_name('preferences.json')
+
+        def saved_preferences():
+            """dict: preferences.jsonの今の中身。"""
+            return json.loads(preferences_path.read_text(encoding='utf-8')) if preferences_path.exists() else {}
+
+        assert saved_preferences().get('finalNewline') is True
 
         # Edit > Preferences > Reset to defaults…: 確認でキャンセルすれば何も変えず、
-        # Resetなら13項目と文字サイズを初期値へ戻し、preferences.iniから値を消す。
+        # Resetなら13項目と文字サイズを初期値へ戻し、preferences.jsonから値を消す。
         defaults = {'completeLetters': True, 'completeDot': True, 'includeKeywords': True, 'includeBuiltins': True,
                     'staticAnalysis': False, 'outputLineNumbers': False, 'outputWrap': False, 'spellCheck': True,
                     'smartIndent': True, 'backspaceIndent': True, 'whitespace': False,
@@ -137,8 +143,7 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
         assert {key: a.isChecked() for key, a in actions.items()} == defaults
         assert not (code.document().defaultTextOption().flags() & QtGui.QTextOption.ShowTabsAndSpaces)
         assert window.findChild(QtWidgets.QPlainTextEdit, 'output').lineWrapMode() == QtWidgets.QPlainTextEdit.NoWrap
-        settings.sync()
-        assert not any(settings.contains(key) for key in list(defaults) + ['fontPixels']), settings.allKeys()
+        assert not any(key in saved_preferences() for key in list(defaults) + ['fontPixels']), saved_preferences()
         # 文字サイズは、View > Reset zoomと同じ大きさ(標準14px)に戻っている。
         reset_style = window.styleSheet()
         assert reset_style != zoomed_style

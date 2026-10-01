@@ -98,8 +98,10 @@ set(HEDIT_CORE_SOURCES
     src/core/completion_engine.cpp src/core/completion_engine.h
     src/core/docstrings.cpp src/core/docstrings.h
     src/core/history_text.cpp src/core/history_text.h
+    src/core/json_file.cpp src/core/json_file.h
     src/core/module_scanner.cpp src/core/module_scanner.h
     src/core/python_declarations.cpp src/core/python_declarations.h
+    src/core/python_literal.cpp src/core/python_literal.h
     src/core/script_file.cpp src/core/script_file.h
     src/core/script_lexer.cpp src/core/script_lexer.h
     src/core/session_data.cpp src/core/session_data.h
@@ -109,6 +111,7 @@ set(HEDIT_CORE_SOURCES
 set(HEDIT_EDITOR_SOURCES
     src/editor/editor.cpp src/editor/editor.h
     src/editor/main_window.cpp src/editor/main_window_menus.cpp src/editor/main_window.h
+    src/editor/code_assist.cpp src/editor/code_assist.h
     src/editor/code_editor.cpp src/editor/code_editor.h
     src/editor/edit_commands.cpp src/editor/edit_commands.h
     src/editor/editor_preferences.cpp src/editor/editor_preferences.h
@@ -129,6 +132,7 @@ set(HEDIT_EDITOR_SOURCES
 set(HEDIT_PLUGIN_SOURCES
     src/plugin/plugin.cpp
     src/plugin/hedit_command.cpp src/plugin/hedit_command.h
+    src/plugin/test_command.cpp src/plugin/test_command.h
     src/plugin/editor_host.cpp src/plugin/editor_host.h
     src/plugin/output_capture.cpp src/plugin/output_capture.h
     src/plugin/python_bridge.cpp src/plugin/python_bridge.h
@@ -173,8 +177,9 @@ target_include_directories(hedit_ui_smoke PRIVATE src ${INCLUDE_DIRS})
 target_link_libraries(hedit_ui_smoke PRIVATE ${PACKAGE_LIBS} ole32)
 set_target_properties(hedit_ui_smoke PROPERTIES CXX_STANDARD 17)
 
-# set output directory for the Maya plugin (.mll)
-set(HEDIT_RELEASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/release/plug-ins/windows/${MAYA_VERSION}/${HEDIT_VERSION}")
+# Mayaのプラグイン(.mll)の出力先。版のフォルダーは作らない(release/plug-ins/windows/<Mayaの年>/hedit.mll)。
+# 版ごとにフォルダーを変えると、Mayaの「信頼済みのプラグインの場所」とオートロードの設定が版を上げるたびに外れるため。
+set(HEDIT_RELEASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/release/plug-ins/windows/${MAYA_VERSION}")
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_DEBUG          "${HEDIT_RELEASE_DIR}"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE        "${HEDIT_RELEASE_DIR}"
@@ -182,8 +187,24 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL     "${HEDIT_RELEASE_DIR}"
 )
 
-# output .pdb to build/pdb
+# .pdb(デバッグ情報)はビルドフォルダーへ置く。
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    PDB_OUTPUT_DIRECTORY_DEBUG              "${CMAKE_CURRENT_BINARY_DIR}/pdb/${HEDIT_VERSION}"
-    PDB_OUTPUT_DIRECTORY_RELEASE            "${CMAKE_CURRENT_BINARY_DIR}/pdb/${HEDIT_VERSION}"
+    PDB_OUTPUT_DIRECTORY_DEBUG              "${CMAKE_CURRENT_BINARY_DIR}/pdb"
+    PDB_OUTPUT_DIRECTORY_RELEASE            "${CMAKE_CURRENT_BINARY_DIR}/pdb"
 )
+
+if(MSVC)
+    # .mllに入るpdbの場所を、作業フォルダーの絶対パスではなくファイル名だけにする(/PDBALTPATH)。
+    # 制御フローガード(/guard:cf)で、不正な関数呼出しを防ぐ保護を有効にする。
+    target_compile_options(${PROJECT_NAME} PRIVATE /guard:cf)
+    target_link_options(${PROJECT_NAME} PRIVATE /guard:cf /PDBALTPATH:hedit.pdb)
+
+    # ファイル情報(版・製品名)。src/version.hの版から作る。
+    string(REPLACE "." ";" HEDIT_VERSION_PARTS "${HEDIT_VERSION}")
+    list(GET HEDIT_VERSION_PARTS 0 HEDIT_VERSION_MAJOR)
+    list(GET HEDIT_VERSION_PARTS 1 HEDIT_VERSION_MINOR)
+    list(GET HEDIT_VERSION_PARTS 2 HEDIT_VERSION_PATCH)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/hedit_version.rc.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/hedit_version.rc" @ONLY)
+    target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/hedit_version.rc")
+endif()

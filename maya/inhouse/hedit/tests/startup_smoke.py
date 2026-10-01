@@ -58,10 +58,24 @@ def _check(stage, output_dir, result):
     assert cmds.menuItem(host.MENU, exists=True), 'Window menu item was not added by plugin load'
     assert cmds.menuItem(host.MENU, query=True, command=True) == MENU_COMMAND
     assert cmds.menuItem(host.MENU, query=True, sourceType=True) == 'mel'
-    icon = Path(cmds.menuItem(host.MENU, query=True, image=True))
-    assert icon.name == 'hedit.svg' and icon.is_file(), 'Window menu icon is missing: {}'.format(icon)
-    result['checks'].append('window_menu_added_by_plugin_load')
     QtWidgets = host.QtWidgets
+    # アイコンはファイルへ書き出さず、メニュー項目のQActionへ直接付ける(起動の初期は少し後に付く)。
+    try:
+        from PySide6 import QtCore, QtGui
+        action_type = QtGui.QAction
+    except ImportError:
+        from PySide2 import QtCore
+        action_type = QtWidgets.QAction
+    menu_action = host.wrapInstance(int(OpenMayaUI.MQtUtil.findMenuItem(host.MENU)), action_type)
+    for attempt in range(100):
+        if not menu_action.icon().isNull():
+            break
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(100, loop.quit)
+        (loop.exec if hasattr(loop, 'exec') else loop.exec_)()
+    assert not menu_action.icon().isNull(), 'Window menu icon is missing'
+    assert not cmds.menuItem(host.MENU, query=True, image=True), 'Window menu icon must not be a file'
+    result['checks'].append('window_menu_added_by_plugin_load')
     if stage == 'write':
         # Windowメニューのクリックと同じコマンド(MEL)で開く。
         mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
@@ -88,6 +102,10 @@ def _check(stage, output_dir, result):
         assert json.loads(host.state_path().read_text(encoding='utf-8'))['open']
         result['checks'].append('saved_open_right_dock_and_unsaved_code')
     elif stage == 'read':
+        # 保存済みのドックがあっても、Mayaのワークスペースの復元だけではheditをロードしない
+        # (uiScriptのloadPluginと-requiredPluginをやめた)。ロードはuserSetupと同じ入口から行う。
+        assert not result['loaded_before_entry'], 'Workspace restore loaded hedit by itself'
+        result['checks'].append('workspace_restore_did_not_load_plugin')
         window = host.docked_editor()
         assert window is not None, 'Plugin load did not restore hedit'
         assert cmds.workspaceControl(host.CONTROL, exists=True)
