@@ -61,8 +61,18 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ```
 
-成果物は `build\Release\FramePlayer.exe`。ランタイムを静的リンクしているので、exe単体で配布できる。
-`build/` はGit対象外。
+成果物は `build\Release\FramePlayer.exe`。`build/` はGit対象外。
+
+### 配布用exeの更新
+
+配布するexeは `release\FramePlayer.exe`(Git管理対象)。ビルド後に次を実行したときだけ更新される
+(試しのビルドで管理対象のexeが変わらないようにするため)。
+
+```bat
+cmake --install build --config Release
+```
+
+ランタイムを静的リンクしているので、依存するのはWindows標準のDLLだけで、exe単体で配布できる。
 
 ## コマ送りの正確さの確認
 

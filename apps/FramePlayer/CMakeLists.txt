@@ -25,6 +25,10 @@ add_executable(FramePlayer WIN32
 )
 target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 winmm)
 
+# 配布用: `cmake --install build --config Release` でexeを release/ へコピーする(release/ はGit管理対象)。
+# ビルドのたびに管理対象のexeが変わらないよう、コピーはインストールを実行したときだけ行う。
+install(TARGETS FramePlayer RUNTIME DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/release")
+
 # コマ番号が正確に読めているかを確かめる確認用ツール(配布対象外)。
 add_executable(FramePlayerVerify tests/verify_frame_index.cpp)
 target_link_libraries(FramePlayerVerify PRIVATE frameplayer_core)
