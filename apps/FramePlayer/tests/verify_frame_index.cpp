@@ -4,25 +4,31 @@
  *
  * README記載の手順で作る確認用動画は、各コマの中央の帯に「コマ番号の2進数」を
  * 縦縞(左が最下位ビット、白=1・黒=0)で描いてある。上端は白、下端は黒の帯。
- * プレイヤーと同じClip::load()で読み込み、n番目に保持したコマの縞がnを表しているかを全コマ確認する。
- * 上下の帯で上下反転していないことも確かめる。
+ * プレイヤーと同じClip(目次・キャッシュ・裏での先読み)で、次の3通りの順番に全コマを取り出し、
+ * 取り出したコマの縞がコマ番号を表しているかを確かめる。上下の帯で上下反転していないことも確かめる。
+ *   - 先頭から順に(順再生・→キー)
+ *   - 末尾から逆順に(逆再生・←キー)
+ *   - ランダムな位置へ飛びながら(スライダー操作)
+ * キャッシュの上限を小さくすると、捨てたコマの読み直しやシークも確かめられる。
  *
- * 使い方: FramePlayerVerify.exe <動画> [期待するコマ数] [保持する最大幅(0なら縮小しない)]
+ * 使い方: FramePlayerVerify.exe <動画> [期待するコマ数] [--bits 縦縞の本数] [--cache-mb 上限MB] [--max-width 幅]
+ *         [--limit N](先頭からN・末尾からN・ランダムNだけ確かめる)
  * 終了コード: 0=全コマ一致、1=不一致あり、2=読み込み失敗や引数の誤り。
  */
 #include <windows.h>
 #include <objbase.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cwchar>
+#include <random>
 #include <string>
+#include <vector>
 
 #include "core/Clip.h"
 
 namespace {
-
-constexpr int kBits = 12;          ///< 縦縞の本数(表せるコマ番号は0〜4095)。
-constexpr int kDefaultMaxWidth = 1280;  ///< 既定ではプレイヤーと同じ縮小幅で確かめる。
 
 /**
  * @brief 指定位置周辺の明るさの平均を返す。
@@ -50,21 +56,52 @@ int brightnessAt(const frameplayer::Frame& frame, int cx, int cy) {
 /**
  * @brief コマに描かれたコマ番号を読み取る。
  * @param frame 対象のコマ。
+ * @param bits 縦縞の本数。
  * @return 読み取った番号。上下の帯が想定と違う(反転など)場合は-1。
  */
-int readIndex(const frameplayer::Frame& frame) {
+int readIndex(const frameplayer::Frame& frame, int bits) {
     if (brightnessAt(frame, frame.width / 2, frame.height / 16) < 128 ||
         brightnessAt(frame, frame.width / 2, frame.height * 15 / 16) >= 128) {
         return -1;
     }
     int value = 0;
-    for (int bit = 0; bit < kBits; ++bit) {
-        const int x = (2 * bit + 1) * frame.width / (2 * kBits);
+    for (int bit = 0; bit < bits; ++bit) {
+        const int x = (2 * bit + 1) * frame.width / (2 * bits);
         if (brightnessAt(frame, x, frame.height / 2) >= 128) {
             value |= 1 << bit;
         }
     }
     return value;
+}
+
+/**
+ * @brief 指定した順番で全コマを取り出し、番号の不一致を数える。
+ * @param clip 対象の動画。
+ * @param order 取り出すコマ番号の順番。
+ * @param direction 先読みの向き。
+ * @param bits 縦縞の本数。
+ * @param name 表示用の名前。
+ * @return 不一致(取り出せなかったコマを含む)の数。
+ */
+int runOrder(frameplayer::Clip& clip, const std::vector<int>& order, frameplayer::Clip::Direction direction, int bits,
+             const wchar_t* name) {
+    const auto start = std::chrono::steady_clock::now();
+    int mismatches = 0;
+    for (int index : order) {
+        const auto frame = clip.waitForFrame(index, direction, 20000);
+        const int found = frame ? readIndex(*frame, bits) : -2;
+        if (found != (index % (1 << bits))) {
+            if (mismatches < 10) {
+                std::wprintf(L"  %ls mismatch: frame %d reads as %d%ls\n", name, index, found,
+                             frame ? L"" : L" (not available)");
+            }
+            ++mismatches;
+        }
+    }
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    std::wprintf(L"%-8ls frames=%zu mismatches=%d time=%.2fs (%.0f frames/s)\n", name, order.size(), mismatches,
+                 seconds, order.size() / seconds);
+    return mismatches;
 }
 
 }  // namespace
@@ -77,8 +114,28 @@ int readIndex(const frameplayer::Frame& frame) {
  */
 int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
-        std::fwprintf(stderr, L"usage: FramePlayerVerify.exe <video> [expectedFrames] [maxWidth]\n");
+        std::fwprintf(stderr,
+                      L"usage: FramePlayerVerify.exe <video> [expectedFrames] [--bits N] [--cache-mb MB] "
+                      L"[--max-width W]\n");
         return 2;
+    }
+    int expected = -1;
+    int bits = 12;
+    long long cacheMb = 4096;
+    int maxWidth = 1280;
+    int limit = -1;
+    for (int i = 2; i < argc; ++i) {
+        if (std::wcscmp(argv[i], L"--bits") == 0 && i + 1 < argc) {
+            bits = _wtoi(argv[++i]);
+        } else if (std::wcscmp(argv[i], L"--cache-mb") == 0 && i + 1 < argc) {
+            cacheMb = _wtoi64(argv[++i]);
+        } else if (std::wcscmp(argv[i], L"--max-width") == 0 && i + 1 < argc) {
+            maxWidth = _wtoi(argv[++i]);
+        } else if (std::wcscmp(argv[i], L"--limit") == 0 && i + 1 < argc) {
+            limit = _wtoi(argv[++i]);
+        } else {
+            expected = _wtoi(argv[i]);
+        }
     }
     if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) {
         std::fwprintf(stderr, L"COM initialization failed\n");
@@ -89,26 +146,44 @@ int wmain(int argc, wchar_t** argv) {
     {
         frameplayer::Clip clip;
         std::wstring error;
-        const int maxWidth = argc >= 4 ? _wtoi(argv[3]) : kDefaultMaxWidth;
-        if (!clip.load(argv[1], maxWidth, {}, error)) {
+        const auto openStart = std::chrono::steady_clock::now();
+        if (!clip.open(argv[1], maxWidth, static_cast<std::size_t>(cacheMb) << 20, {}, error)) {
             std::fwprintf(stderr, L"load failed: %ls\n", error.c_str());
             result = 2;
         } else {
-            int mismatches = 0;
-            for (int i = 0; i < clip.frameCount(); ++i) {
-                const int found = readIndex(clip.frame(i));
-                if (found != (i % (1 << kBits))) {
-                    if (mismatches < 20) {
-                        std::wprintf(L"mismatch: frame %d reads as %d\n", i, found);
-                    }
-                    ++mismatches;
-                }
-            }
-            std::wprintf(L"frames=%d fps=%.3f size=%dx%d mismatches=%d\n", clip.frameCount(), clip.frameRate(),
-                         clip.frame(0).width, clip.frame(0).height, mismatches);
-            if (argc >= 3 && clip.frameCount() != _wtoi(argv[2])) {
-                std::wprintf(L"frame count differs: expected %d\n", _wtoi(argv[2]));
+            const double openSeconds =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - openStart).count();
+            const int count = clip.frameCount();
+            const auto first = clip.frame(0);
+            std::wprintf(L"frames=%d fps=%.3f size=%dx%d open=%.2fs cache=%lldMB [%ls]\n", count, clip.frameRate(),
+                         first ? first->width : 0, first ? first->height : 0, openSeconds, cacheMb,
+                         clip.description().c_str());
+            if (expected >= 0 && count != expected) {
+                std::wprintf(L"frame count differs: expected %d\n", expected);
                 result = 1;
+            }
+
+            // --limitを付けると、先頭からN・末尾からN・ランダムNだけを確かめる(長い動画用)。
+            const int span = limit > 0 ? std::min(limit, count) : count;
+            std::vector<int> forward(static_cast<size_t>(span));
+            std::vector<int> backward(static_cast<size_t>(span));
+            for (int i = 0; i < span; ++i) {
+                forward[static_cast<size_t>(i)] = i;
+                backward[static_cast<size_t>(i)] = count - 1 - i;
+            }
+            std::vector<int> random;
+            std::mt19937 generator(12345);
+            std::uniform_int_distribution<int> pick(0, count - 1);
+            for (int i = 0; i < std::min(count, limit > 0 ? limit : 300); ++i) {
+                random.push_back(pick(generator));
+            }
+
+            int mismatches = 0;
+            mismatches += runOrder(clip, forward, frameplayer::Clip::Direction::Forward, bits, L"forward");
+            mismatches += runOrder(clip, backward, frameplayer::Clip::Direction::Backward, bits, L"backward");
+            mismatches += runOrder(clip, random, frameplayer::Clip::Direction::Forward, bits, L"random");
+            if (!clip.error().empty()) {
+                std::wprintf(L"error: %ls\n", clip.error().c_str());
             }
             if (mismatches > 0) {
                 result = 1;

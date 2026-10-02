@@ -13,11 +13,12 @@ add_library(frameplayer_core STATIC
     src/core/Clip.cpp
     src/core/FrameSource.cpp
     src/core/MediaFoundationSource.cpp
+    src/core/Mp4SampleTable.cpp
 )
 target_include_directories(frameplayer_core PUBLIC src)
 target_compile_definitions(frameplayer_core PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(frameplayer_core PUBLIC /utf-8 /W4 /permissive-)
-target_link_libraries(frameplayer_core PUBLIC mfplat mfreadwrite mfuuid ole32)
+target_link_libraries(frameplayer_core PUBLIC mfplat mfreadwrite mfuuid ole32 d3d11)
 
 add_executable(FramePlayer WIN32
     src/app/main.cpp

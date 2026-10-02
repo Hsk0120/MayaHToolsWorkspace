@@ -17,7 +17,10 @@ namespace {
 
 constexpr wchar_t kClassName[] = L"FramePlayerWindow";
 constexpr wchar_t kAppName[] = L"FramePlayer";
-constexpr int kCacheMaxWidth = 1280;  ///< 保持する画像の最大幅。メモリ使用量を抑えるため。
+constexpr int kCacheMaxWidth = 1280;  ///< キャッシュする画像の最大幅。メモリ使用量を抑えるため。
+constexpr std::size_t kCacheBytes = std::size_t{4} << 30;  ///< キャッシュの上限(4GB)。
+constexpr UINT kFrameReadyMessage = WM_APP + 2;  ///< 裏の読み込みでコマがキャッシュに入ったときの知らせ。
+constexpr LONGLONG kCacheBarIntervalMs = 200;    ///< キャッシュ表示を描き直す最短間隔(ミリ秒)。
 constexpr int kLargeStep = 10;        ///< Shift併用時に移動するコマ数。
 constexpr UINT kPlaybackTickMessage = WM_APP + 1;  ///< 再生用スレッドが画面更新ごとに送る知らせ。
 constexpr double kDefaultRate = 24.0;              ///< フレームレートが不明な動画の再生速度。
@@ -30,6 +33,7 @@ constexpr COLORREF kSliderPlayed = RGB(56, 72, 92);
 constexpr COLORREF kTick = RGB(120, 120, 120);
 constexpr COLORREF kTickLabel = RGB(170, 170, 170);
 constexpr COLORREF kPlayhead = RGB(255, 150, 40);
+constexpr COLORREF kCached = RGB(80, 150, 230);
 
 /**
  * @brief 96DPI基準の長さを、ウィンドウのDPIに合わせた長さへ変換する。
@@ -169,15 +173,13 @@ void PlayerWindow::openClip(const std::wstring& path) {
     std::wstring error;
     HCURSOR previousCursor = SetCursor(LoadCursorW(nullptr, IDC_WAIT));
 
-    // 読み込み中はメッセージを処理できないため、進み具合はタイトルバーで知らせる。
-    const std::wstring name = fileNameOf(path);
-    const bool loaded = clip->load(
-        path, kCacheMaxWidth,
-        [this, &name](int loadedFrames) {
-            if (loadedFrames % 10 == 0) {
-                wchar_t title[512];
-                std::swprintf(title, 512, L"%ls - 読み込み中... %dコマ", name.c_str(), loadedFrames);
-                SetWindowTextW(hwnd_, title);
+    // 開くときは目次を作って先頭のコマを読むだけで、残りは裏のスレッドが先読みする。
+    // 裏のスレッドからの知らせはPostMessageでUIスレッドへ渡す。処理前の知らせが残っていれば送らない。
+    const bool loaded = clip->open(
+        path, kCacheMaxWidth, kCacheBytes,
+        [this] {
+            if (!frameReadyPending_.exchange(true)) {
+                PostMessageW(hwnd_, kFrameReadyMessage, 0, 0);
             }
         },
         error);
@@ -190,6 +192,10 @@ void PlayerWindow::openClip(const std::wstring& path) {
     }
     clip_ = std::move(clip);
     current_ = 0;
+    shownFrame_.reset();
+    cacheRuns_.clear();
+    cacheRunsTrack_ = RECT{};
+    clip_->setPlayhead(0, Clip::Direction::Forward, false);
     updateTitle();
     InvalidateRect(hwnd_, nullptr, FALSE);
 }
@@ -241,6 +247,9 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
     case kPlaybackTickMessage:
         onPlaybackTick();
         return 0;
+    case kFrameReadyMessage:
+        onFrameReady();
+        return 0;
     case WM_DROPFILES:
         onDropFiles(reinterpret_cast<HDROP>(wParam));
         return 0;
@@ -274,7 +283,7 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
     const int buttonTop = barTop + (barHeight - buttonSize) / 2;
     layout.button = {client.left + margin, buttonTop, client.left + margin + buttonSize, buttonTop + buttonSize};
     const int infoLeft = std::max(static_cast<int>(layout.button.right),
-                                  static_cast<int>(client.right) - margin - scaled(250, dpi));
+                                  static_cast<int>(client.right) - margin - scaled(320, dpi));
     layout.info = {infoLeft, barTop, client.right - margin, client.bottom};
     layout.slider = {layout.button.right + scaled(10, dpi), barTop + scaled(6, dpi), layout.info.left - scaled(10, dpi),
                      client.bottom - scaled(6, dpi)};
@@ -305,14 +314,22 @@ void PlayerWindow::paint() {
 
     const Layout layout = computeLayout();
     if (clip_) {
-        const Frame& frame = clip_->frame(current_);
+        // 表示中のコマがまだキャッシュに無いときは、直前に表示した画像を残して「読み込み中」と重ねる。
+        // 別のコマの画像を、そのコマ番号の画像として見せないための表示。
+        std::shared_ptr<const Frame> frame = clip_->frame(current_);
+        const bool waiting = !frame;
+        if (frame) {
+            shownFrame_ = frame;
+        } else {
+            frame = shownFrame_;
+        }
         const RECT& area = layout.video;
-        if (area.right > area.left && area.bottom > area.top) {
-            const RECT target = fitRect(area, frame.width, frame.height);
+        if (frame && area.right > area.left && area.bottom > area.top) {
+            const RECT target = fitRect(area, frame->width, frame->height);
             BITMAPINFO info{};
             info.bmiHeader.biSize = sizeof(info.bmiHeader);
-            info.bmiHeader.biWidth = frame.width;
-            info.bmiHeader.biHeight = -frame.height;  // 負にすると上の行から並ぶ画像として扱われる。
+            info.bmiHeader.biWidth = frame->width;
+            info.bmiHeader.biHeight = -frame->height;  // 負にすると上の行から並ぶ画像として扱われる。
             info.bmiHeader.biPlanes = 1;
             info.bmiHeader.biBitCount = 32;
             info.bmiHeader.biCompression = BI_RGB;
@@ -325,7 +342,17 @@ void PlayerWindow::paint() {
                 SetBrushOrgEx(dc, 0, 0, nullptr);
             }
             StretchDIBits(dc, target.left, target.top, target.right - target.left, target.bottom - target.top, 0, 0,
-                          frame.width, frame.height, frame.pixels.data(), &info, DIB_RGB_COLORS, SRCCOPY);
+                          frame->width, frame->height, frame->pixels.data(), &info, DIB_RGB_COLORS, SRCCOPY);
+        }
+        if (waiting) {
+            const wchar_t* label = clip_->isBroken(current_) ? L"このコマはデコードできません" : L"読み込み中…";
+            const int boxWidth = scaled(260, dpi);
+            const int boxHeight = scaled(40, dpi);
+            const int cx = (area.left + area.right) / 2;
+            const int cy = (area.top + area.bottom) / 2;
+            RECT box{cx - boxWidth / 2, cy - boxHeight / 2, cx + boxWidth / 2, cy + boxHeight / 2};
+            fillColor(dc, box, kControlFace);
+            DrawTextW(dc, label, -1, &box, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
         }
     } else {
         RECT message = layout.video;
@@ -384,6 +411,42 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     };
     const int playheadX = xOf(current_);
     fillColor(dc, RECT{s.left, s.top, playheadX, s.bottom}, kSliderPlayed);
+
+    // キャッシュ済みのコマを、スライダー下端の細い帯で示す。1画素に複数コマが入る場合は1つでもあれば塗る。
+    // 調べるには全コマ(1時間60fpsで21万6千)を見るので、再生中の毎回の描画では計算し直さず、
+    // 一定間隔(kCacheBarIntervalMs)ごと、またはスライダーの幅が変わったときだけ計算する。
+    static const LONGLONG frequency = ticksPerSecond();
+    const LONGLONG now = nowTicks();
+    if (cacheRunsTrack_.left != t.left || cacheRunsTrack_.right != t.right ||
+        (now - lastCacheBarTicks_) * 1000 / frequency >= kCacheBarIntervalMs) {
+        clip_->cachedFlags(cacheFlags_);
+        lastCacheBarTicks_ = now;
+        cacheRunsTrack_ = t;
+        cacheRuns_.clear();
+        int runStart = -1;
+        for (int x = t.left; x <= t.right; ++x) {
+            bool cached = false;
+            if (x < t.right && count > 0) {
+                const long long span = std::max(1, trackWidth);
+                const int first = static_cast<int>(static_cast<long long>(x - t.left) * (count - 1) / span);
+                const int last = std::max(
+                    first, static_cast<int>(static_cast<long long>(x + 1 - t.left) * (count - 1) / span) - 1);
+                for (int i = first; i <= std::min(last, count - 1) && !cached; ++i) {
+                    cached = cacheFlags_[static_cast<std::size_t>(i)] != 0;
+                }
+            }
+            if (cached && runStart < 0) {
+                runStart = x;
+            } else if (!cached && runStart >= 0) {
+                cacheRuns_.emplace_back(runStart, x);
+                runStart = -1;
+            }
+        }
+    }
+    const int barHeight = std::max(2, scaled(3, dpi));
+    for (const auto& [left, right] : cacheRuns_) {
+        fillColor(dc, RECT{left, s.bottom - barHeight, right, s.bottom}, kCached);
+    }
 
     // 目盛り。細かい目盛りは下側に短く、区切りの目盛りは長くしてコマ番号(1始まり)を添える。
     const double pixelsPerFrame = count > 1 ? static_cast<double>(trackWidth) / (count - 1) : trackWidth;
@@ -512,9 +575,26 @@ void PlayerWindow::setCurrentFrame(int index) {
     if (clamped == current_) {
         return;
     }
+    // 移動した向きに先読みさせる(←で戻り続けるときは前のコマを先に読む)。
+    const auto direction = clamped < current_ ? Clip::Direction::Backward : Clip::Direction::Forward;
     current_ = clamped;
+    clip_->setPlayhead(current_, direction, false);
     updateTitle();
     InvalidateRect(hwnd_, nullptr, FALSE);
+}
+
+void PlayerWindow::onFrameReady() {
+    frameReadyPending_ = false;
+    if (!clip_) {
+        return;
+    }
+    // 待っていたコマが届いたらすぐ描く。それ以外(先読みの進み具合)はキャッシュ表示を間引いて描き直す。
+    static const LONGLONG frequency = ticksPerSecond();
+    const bool waitingFrameArrived = clip_->frame(current_) && shownFrame_ != clip_->frame(current_);
+    const bool cacheBarDue = (nowTicks() - lastCacheBarTicks_) * 1000 / frequency >= kCacheBarIntervalMs;
+    if (waitingFrameArrived || cacheBarDue) {
+        InvalidateRect(hwnd_, nullptr, FALSE);
+    }
 }
 
 void PlayerWindow::togglePlayback() {
@@ -615,7 +695,12 @@ void PlayerWindow::onPlaybackTick() {
     const long long advanced = static_cast<long long>(elapsed * playbackRate());
     const int target = static_cast<int>((playStartFrame_ + advanced) % clip_->frameCount());
 
-    if (target != current_) {
+    // 裏の先読みを、時刻どおりに進んだ位置の先へ向ける(ループするので端を越えて先読みさせる)。
+    clip_->setPlayhead(target, Clip::Direction::Forward, true);
+
+    // リアルタイム優先: 目標のコマがまだキャッシュに無ければ、今のコマを表示したまま待つ。
+    // 時刻は進み続けるので、届いたときには途中のコマを飛ばして目標へ移る(その分をコマ落ちとして数える)。
+    if (target != current_ && clip_->frame(target)) {
         // 前回の表示から2コマ以上進んでいれば、その間のコマは表示されなかった(コマ落ち)。
         const int count = clip_->frameCount();
         const int step = (target - current_ + count) % count;

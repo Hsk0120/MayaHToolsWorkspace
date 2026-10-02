@@ -11,6 +11,8 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "core/Clip.h"
 
@@ -158,12 +160,24 @@ private:
      */
     double playbackRate() const;
 
+    /**
+     * @brief 裏の読み込みでコマがキャッシュに入ったときの処理。待っていたコマが届いたら描き直す。
+     * @note キャッシュ表示の描き直しは間引く(先読み中は1秒に数百回届くため)。
+     */
+    void onFrameReady();
+
     /** @brief タイトルバーにファイル名と現在のコマを表示する。 */
     void updateTitle();
 
     HWND hwnd_ = nullptr;
     std::unique_ptr<Clip> clip_;  ///< 表示中の動画。未読み込みならnullptr。
     int current_ = 0;             ///< 表示中のコマ番号(0始まり)。
+    std::shared_ptr<const Frame> shownFrame_;  ///< 最後に描いた画像。表示中のコマが読み込み中のとき代わりに残して「読み込み中」と重ねる。
+    std::atomic<bool> frameReadyPending_{false};  ///< 裏の読み込みからの知らせが未処理か(送りすぎ防止)。
+    std::vector<std::uint8_t> cacheFlags_;     ///< キャッシュ表示用の作業領域(描画のたびに確保しないため)。
+    LONGLONG lastCacheBarTicks_ = 0;           ///< キャッシュ表示を最後に計算した時刻。
+    std::vector<std::pair<int, int>> cacheRuns_;  ///< キャッシュ表示で塗る横の範囲[左, 右)の一覧。
+    RECT cacheRunsTrack_{};                    ///< cacheRuns_を計算したときのスライダーの範囲。
 
     bool playing_ = false;          ///< 再生中か。
     int playStartFrame_ = 0;        ///< 再生を始めたコマ番号。
