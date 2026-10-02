@@ -20,9 +20,18 @@ namespace {
 constexpr wchar_t kClassName[] = L"FramePlayerWindow";
 constexpr wchar_t kAppName[] = L"FramePlayer";
 constexpr int kCacheMaxWidth = 1280;                       ///< キャッシュする画像の最大幅。
-constexpr std::size_t kCacheBytes = std::size_t{4} << 30;  ///< 主メモリにキャッシュするときの上限(4GB)。
-constexpr std::size_t kGpuCacheMaxBytes = std::size_t{8} << 30;      ///< GPUのメモリにキャッシュするときの上限の最大(8GB)。
-constexpr std::size_t kGpuCacheDefaultBytes = std::size_t{2} << 30;  ///< GPUのメモリの予算が分からないときの上限(2GB)。
+// キャッシュの上限。MayaやUnreal Engineと同時に使っても邪魔にならないよう、既定は控えめにする。
+// 実際の上限は、設定(CacheMB・CacheSeconds)・GPUのメモリの予算の1/4・主メモリの残りのうち最も小さいもの。
+constexpr std::size_t kDefaultCacheMegabytes = 1024;  ///< キャッシュの上限の既定値(MB)。
+constexpr int kDefaultCacheSeconds = 30;              ///< キャッシュに持つ長さの既定値(秒)。
+constexpr std::size_t kMinCacheBytes = std::size_t{64} << 20;     ///< 上限を下げるときの下限(64MB)。
+constexpr std::size_t kLowMemoryCacheBytes = std::size_t{256} << 20;  ///< 主メモリが足りないときの上限(256MB)。
+constexpr int kThumbnailWidth = 320;                                ///< キーフレームの縮小画像の幅。
+constexpr std::size_t kThumbnailBytes = std::size_t{160} << 20;    ///< 縮小画像の合計の上限(1本あたり160MB)。
+constexpr UINT_PTR kResourceTimerId = 1;          ///< キャッシュの上限の見直しと休止の判定に使うタイマー。
+constexpr UINT kResourceTimerMs = 2000;           ///< そのタイマーの間隔(ミリ秒)。
+constexpr ULONGLONG kDormantAfterMinimizedMs = 30 * 1000;    ///< 最小化してから休止に入るまで(30秒)。
+constexpr ULONGLONG kDormantAfterInactiveMs = 5 * 60 * 1000;  ///< 背面になってから休止に入るまで(5分)。
 constexpr int kLargeStep = 10;                             ///< Shift併用時に移動するコマ数。
 constexpr double kDefaultRate = 24.0;                      ///< フレームレートが不明な動画の再生速度。
 constexpr UINT kViewFrameMessage = WM_APP + 1;   ///< VideoViewが表示するコマを変えたときの知らせ。
@@ -176,6 +185,9 @@ std::wstring fileNameOf(const std::wstring& path) {
 bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     instance_ = instance;
     loadAudioSettings();
+    loadCacheSettings();
+    // 主メモリが足りなくなるとWindowsが合図するので、タイマーで確かめてキャッシュを減らす。
+    lowMemory_ = CreateMemoryResourceNotification(LowMemoryResourceNotification);
     loadRecentFiles();
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -198,6 +210,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     }
     // 表示する前にタイトルバーの色を決めておく(白いタイトルバーが一瞬見えないように)。
     applyModernTitleBar(hwnd_);
+    SetTimer(hwnd_, kResourceTimerId, kResourceTimerMs, nullptr);
     // GPUが使えれば、デコード・キャッシュ・描画で同じデバイスを使う(GPUのメモリにあるコマをそのまま描くため)。
     gpu_ = GpuDevice::create();
     if (!view_.create(instance, hwnd_, kViewFrameMessage, gpu_)) {
@@ -223,8 +236,9 @@ void PlayerWindow::openClip(const std::wstring& path) {
     // 開くときは目次を作って先頭のコマを読むだけで、残りは裏のスレッドが先読みする。
     // 裏のスレッドからの知らせは、描画スレッドを起こす合図と、UIスレッドへのPostMessageにする。
     // UIへの知らせは、処理前のものが残っていれば送らない。
+    const bool comparing = compareClip_ != nullptr;
     const bool loaded = clip->open(
-        path, kCacheMaxWidth, kCacheBytes, gpuCacheBytes(), gpu_,
+        path, kCacheMaxWidth, cacheLimitFor(false, comparing), cacheLimitFor(true, comparing), gpu_,
         [this] {
             view_.wake();
             if (!frameReadyPending_.exchange(true)) {
@@ -251,11 +265,16 @@ void PlayerWindow::openClip(const std::wstring& path) {
     current_ = 0;
     cacheRuns_.clear();
     cacheRunsTrack_ = RECT{};
+    // 描画スレッドへ渡す前に、上限・動作状態・縮小画像を決めておく(preview()は描画スレッドから呼ばれる)。
+    appliedLimit_[0] = 0;
+    appliedFrames_[0] = 0;
+    applyCacheLimits();
+    clip_->setActivity(activity_);
+    clip_->startThumbnails(kThumbnailWidth, kThumbnailBytes);
     view_.setClip(clip_, audio_);
     clip_->setPlayhead(0, Clip::Direction::Forward, false);
     if (compareClip_) {
         // 比較中に1本目を差し替えた場合は、比較を続ける(キャッシュは半分ずつ)。
-        clip_->setCacheLimit(cacheLimitFor(clip_->cachesOnGpu(), true));
         view_.setCompareClip(compareClip_);
     }
     updateTitle();
@@ -286,6 +305,24 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
     case WM_SIZE:
         view_.setBounds(computeLayout().video);
         InvalidateRect(hwnd_, nullptr, FALSE);
+        if ((wParam == SIZE_MINIMIZED) != minimized_) {
+            minimized_ = wParam == SIZE_MINIMIZED;
+            minimizedSinceMs_ = GetTickCount64();
+            updateActivity();
+        }
+        return 0;
+    case WM_ACTIVATEAPP:
+        // 他のアプリが前面になったら先読みを控え、戻ってきたら再開する。
+        appActive_ = wParam != FALSE;
+        if (!appActive_) {
+            inactiveSinceMs_ = GetTickCount64();
+        }
+        updateActivity();
+        return 0;
+    case WM_TIMER:
+        if (wParam == kResourceTimerId) {
+            onResourceTimer();
+        }
         return 0;
     case WM_KEYDOWN:
         // Spaceの押しっぱなしで再生/停止が繰り返し切り替わらないよう、キーリピートは無視する。
@@ -336,9 +373,15 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         view_.shutdown();
         view_.setClip(nullptr);
         syncPowerRequest();
+        KillTimer(hwnd_, kResourceTimerId);
         compareClip_.reset();
         clip_.reset();
         audio_.reset();
+        releaseFonts();
+        if (lowMemory_) {
+            CloseHandle(lowMemory_);
+            lowMemory_ = nullptr;
+        }
         PostQuitMessage(0);
         return 0;
     default:
@@ -432,8 +475,7 @@ void PlayerWindow::paint() {
     fillColor(dc, client, kBackground);
 
     const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
-    HFONT font = createUiFont(14, dpi);
-    HGDIOBJ oldFont = SelectObject(dc, font);
+    HGDIOBJ oldFont = SelectObject(dc, uiFont(14, dpi));
     SetBkMode(dc, TRANSPARENT);
     paintControls(dc, computeLayout(), dpi);
 
@@ -441,7 +483,6 @@ void PlayerWindow::paint() {
     BitBlt(screen, area.left, area.top, width, height, dc, 0, 0, SRCCOPY);
 
     SelectObject(dc, oldFont);
-    DeleteObject(font);
     SelectObject(dc, oldBitmap);
     DeleteObject(backBuffer);
     DeleteDC(dc);
@@ -454,8 +495,7 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     fillColor(dc, layout.bar, kSurface);
 
     // 文字のボタン(「ファイル」「比較」)。比較中の「比較」は色を付けて、押すと比較をやめることを示す。
-    HFONT buttonFont = createUiFont(9, dpi);
-    HGDIOBJ oldFont = SelectObject(dc, buttonFont);
+    HGDIOBJ oldFont = SelectObject(dc, uiFont(9, dpi));
     SetTextColor(dc, kText);
     {
         // 角を丸めた薄い地と枠。比較中は強調色の地に黒い文字(メディア プレーヤーの「ファイルを開く」と同じ)。
@@ -481,7 +521,6 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
         }
     }
     SelectObject(dc, oldFont);
-    DeleteObject(buttonFont);
 
     // 移動・再生のボタン(Keyframe Proと同じく枠なしの記号)。
     const COLORREF ink = clip_ ? kIcon : kDisabled;
@@ -549,8 +588,7 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     fillColor(dc, RECT{playheadX - lineHalf / 2, t.top - scaled(5, dpi), playheadX - lineHalf / 2 + lineHalf + 1,
                        t.bottom + scaled(3, dpi)},
               kText);
-    HFONT currentFont = createUiFont(11, dpi);
-    oldFont = SelectObject(dc, currentFont);
+    oldFont = SelectObject(dc, uiFont(11, dpi));
     SetTextColor(dc, kText);
     wchar_t currentText[32];
     std::swprintf(currentText, 32, L"%d", current_ + 1);
@@ -562,11 +600,9 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     RECT currentRect{labelLeft, layout.timeline.top, labelLeft + textSize.cx, t.top - scaled(5, dpi)};
     DrawTextW(dc, currentText, -1, &currentRect, DT_LEFT | DT_BOTTOM | DT_SINGLELINE);
     SelectObject(dc, oldFont);
-    DeleteObject(currentFont);
 
     // 左に全体のコマ数、右にフレームレート。
-    HFONT smallFont = createUiFont(8, dpi);
-    oldFont = SelectObject(dc, smallFont);
+    oldFont = SelectObject(dc, uiFont(8, dpi));
     SetTextColor(dc, kSubText);
     wchar_t totalText[32];
     std::swprintf(totalText, 32, L"%d コマ", count);
@@ -577,7 +613,6 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     RECT rateRect{layout.rateLabel.left, t.top - scaled(6, dpi), layout.rateLabel.right, t.bottom + scaled(6, dpi)};
     DrawTextW(dc, rateText, -1, &rateRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     SelectObject(dc, oldFont);
-    DeleteObject(smallFont);
 }
 
 void PlayerWindow::paintTransportIcon(HDC dc, const RECT& box, TransportIcon icon, COLORREF ink) {
@@ -845,15 +880,13 @@ void PlayerWindow::paintVolume(HDC dc, const Layout& layout, int dpi) {
     DeleteObject(trackBrush);
 
     // 音量の数字は三角形の左上の空いている所に小さく出す。
-    HFONT smallFont = createUiFont(7, dpi);
-    HGDIOBJ oldFont = SelectObject(dc, smallFont);
+    HGDIOBJ oldFont = SelectObject(dc, uiFont(7, dpi));
     SetTextColor(dc, kSubText);
     wchar_t percent[16];
     std::swprintf(percent, 16, muted_ ? L"消音" : L"%d%%", static_cast<int>(volume_ * 100.0f + 0.5f));
     RECT percentRect{s.left, s.top - scaled(2, dpi), s.left + width * 2 / 3, s.top + height / 2};
     DrawTextW(dc, percent, -1, &percentRect, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOCLIP);
     SelectObject(dc, oldFont);
-    DeleteObject(smallFont);
 }
 
 void PlayerWindow::setVolume(float volume) {
@@ -1077,8 +1110,119 @@ std::wstring PlayerWindow::chooseVideoFile(const wchar_t* title) {
 }
 
 std::size_t PlayerWindow::cacheLimitFor(bool onGpu, bool comparing) const {
-    const std::size_t limit = onGpu ? gpuCacheBytes() : kCacheBytes;
+    std::size_t limit = cacheMegabytes_ << 20;
+    if (onGpu && gpu_) {
+        // Windowsが示す予算は、ほかのアプリ(MayaやUnreal Engine)がGPUのメモリを使うほど小さくなる。
+        // その1/4までにして、ほかのアプリの分を空けておく。
+        const std::size_t budget = gpu_->localMemoryBudget();
+        if (budget > 0) {
+            limit = std::min(limit, budget / 4);
+        }
+    }
+    if (memoryLow_) {
+        // GPUのメモリに置いたキャッシュも主メモリの予約(コミット)を使うので、どちらの場合も減らす。
+        limit = std::min(limit, kLowMemoryCacheBytes);
+    }
+    limit = std::max(limit, kMinCacheBytes);
     return comparing ? limit / 2 : limit;
+}
+
+int PlayerWindow::frameLimitFor(const Clip& clip) const {
+    const double rate = clip.frameRate() > 0.0 ? clip.frameRate() : kDefaultRate;
+    return std::max(1, static_cast<int>(std::lround(cacheSeconds_ * rate)));
+}
+
+void PlayerWindow::applyCacheLimits() {
+    const bool comparing = compareClip_ != nullptr;
+    Clip* clips[2] = {clip_.get(), compareClip_.get()};
+    for (int i = 0; i < 2; ++i) {
+        if (!clips[i]) {
+            continue;
+        }
+        const std::size_t bytes = cacheLimitFor(clips[i]->cachesOnGpu(), comparing);
+        const int frames = frameLimitFor(*clips[i]);
+        if (bytes != appliedLimit_[i]) {
+            clips[i]->setCacheLimit(bytes);
+            appliedLimit_[i] = bytes;
+        }
+        if (frames != appliedFrames_[i]) {
+            clips[i]->setFrameLimit(frames);
+            appliedFrames_[i] = frames;
+        }
+    }
+}
+
+void PlayerWindow::updateActivity() {
+    const ULONGLONG now = GetTickCount64();
+    const bool playing = view_.isPlaying();
+    const bool away = minimized_ || !appActive_;
+    if (playing || !away) {
+        dormant_ = false;
+    } else if ((minimized_ && now - minimizedSinceMs_ >= kDormantAfterMinimizedMs) ||
+               (!appActive_ && now - inactiveSinceMs_ >= kDormantAfterInactiveMs)) {
+        dormant_ = true;
+    }
+    const Clip::Activity activity = playing   ? Clip::Activity::Playing
+                                    : dormant_ ? Clip::Activity::Dormant
+                                    : away     ? Clip::Activity::Background
+                                               : Clip::Activity::Interactive;
+    if (activity == activity_) {
+        return;
+    }
+    activity_ = activity;
+    if (clip_) {
+        clip_->setActivity(activity);
+    }
+    if (compareClip_) {
+        compareClip_->setActivity(activity);
+    }
+    if (activity == Clip::Activity::Dormant) {
+        // 休止に入ったら、しばらく使っていない主メモリをWindowsへ返す(必要になれば自動で戻る)。
+        SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
+    }
+}
+
+void PlayerWindow::onResourceTimer() {
+    BOOL low = FALSE;
+    memoryLow_ = lowMemory_ && QueryMemoryResourceNotification(lowMemory_, &low) && low;
+    applyCacheLimits();
+    updateActivity();
+}
+
+void PlayerWindow::loadCacheSettings() {
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"CacheMB", RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+        ERROR_SUCCESS) {
+        cacheMegabytes_ = std::clamp<std::size_t>(value, 64, 64 * 1024);
+    }
+    size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"CacheSeconds", RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+        ERROR_SUCCESS) {
+        cacheSeconds_ = std::clamp<int>(static_cast<int>(value), 1, 24 * 60 * 60);
+    }
+}
+
+HFONT PlayerWindow::uiFont(int points, int dpi) {
+    if (dpi != fontsDpi_) {
+        releaseFonts();
+        fontsDpi_ = dpi;
+    }
+    for (const auto& [size, font] : fonts_) {
+        if (size == points) {
+            return font;
+        }
+    }
+    HFONT font = createUiFont(points, dpi);
+    fonts_.emplace_back(points, font);
+    return font;
+}
+
+void PlayerWindow::releaseFonts() {
+    for (const auto& entry : fonts_) {
+        DeleteObject(entry.second);
+    }
+    fonts_.clear();
 }
 
 void PlayerWindow::openCompare(const std::wstring& path) {
@@ -1091,7 +1235,7 @@ void PlayerWindow::openCompare(const std::wstring& path) {
     auto clip = std::make_shared<Clip>();
     std::wstring error;
     HCURSOR previousCursor = SetCursor(LoadCursorW(nullptr, IDC_WAIT));
-    // 2本目は最初から半分の上限で開く(1本目も下で半分にする)。音声は開かない(比較中は鳴らさない)。
+    // 2本目は最初から半分の上限で開く(1本目もapplyCacheLimits()で半分にする)。音声は開かない(比較中は鳴らさない)。
     const bool loaded = clip->open(
         path, kCacheMaxWidth, cacheLimitFor(false, true), cacheLimitFor(true, true), gpu_,
         [this] {
@@ -1106,9 +1250,14 @@ void PlayerWindow::openCompare(const std::wstring& path) {
         MessageBoxW(hwnd_, (path + L"\n\n" + error).c_str(), kAppName, MB_OK | MB_ICONWARNING);
         return;
     }
+    // 描画スレッドへ渡す前に、上限・動作状態・縮小画像を決めておく。縮小画像は2本で半分ずつにする。
     compareClip_ = std::move(clip);
     addRecentFile(path);
-    clip_->setCacheLimit(cacheLimitFor(clip_->cachesOnGpu(), true));
+    appliedLimit_[1] = 0;
+    appliedFrames_[1] = 0;
+    applyCacheLimits();
+    compareClip_->setActivity(activity_);
+    compareClip_->startThumbnails(kThumbnailWidth, kThumbnailBytes / 2);
     view_.setCompareOffset(0);
     view_.setCompareClip(compareClip_);
     view_.showFrame(view_.currentFrame(), Clip::Direction::Forward);
@@ -1119,9 +1268,9 @@ void PlayerWindow::openCompare(const std::wstring& path) {
 void PlayerWindow::closeCompare() {
     view_.setCompareClip(nullptr);
     compareClip_.reset();
-    if (clip_) {
-        clip_->setCacheLimit(cacheLimitFor(clip_->cachesOnGpu(), false));
-    }
+    appliedLimit_[1] = 0;
+    appliedFrames_[1] = 0;
+    applyCacheLimits();
     updateTitle();
     InvalidateRect(hwnd_, nullptr, FALSE);
 }
@@ -1174,6 +1323,8 @@ void PlayerWindow::togglePlayback() {
 }
 
 void PlayerWindow::syncPowerRequest() {
+    // 再生の開始・停止で、先読みの優先度など(動作状態)も切り替える。
+    updateActivity();
     // 再生中は画面が省電力で消えないようにする(消えると画面の書き換えが止まり、再生も進まなくなる)。
     // ES_CONTINUOUSの指定は呼び出したスレッドに結び付くので、常にUIスレッドから呼ぶ。
     const bool playing = view_.isPlaying();
@@ -1214,12 +1365,6 @@ void PlayerWindow::onFrameReady() {
     if ((nowTicks() - lastCacheBarTicks_) * 1000 / frequency >= kCacheBarIntervalMs) {
         invalidateBar();
     }
-}
-
-std::size_t PlayerWindow::gpuCacheBytes() const {
-    // 他のアプリや画面表示にもGPUのメモリが要るので、予算の半分までにする。
-    const std::size_t budget = gpu_ ? gpu_->localMemoryBudget() : 0;
-    return budget > 0 ? std::min(kGpuCacheMaxBytes, budget / 2) : kGpuCacheDefaultBytes;
 }
 
 void PlayerWindow::updateTitle() {

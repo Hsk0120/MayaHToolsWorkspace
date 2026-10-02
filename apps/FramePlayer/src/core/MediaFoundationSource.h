@@ -38,12 +38,14 @@ public:
      * @param maxWidth 返すコマの最大幅。GPUでデコードできる場合は、GPUでこの幅まで縮小して返す。
      * @param gpu 共有のGPUデバイス。nullptrならCPUでデコードする。
      * @param error 失敗時に理由を格納する。
+     * @param purpose 使い道。Thumbnailsのときは主メモリへ写す方式とCPUの方式だけを試し、先読みはしない。
      * @return 開けた読み込み元。失敗時はnullptr。
      * @note GPUでNV12のままGPUのメモリに置く方式、GPUでデコードして主メモリへ写す方式、CPUでデコードする方式の順に試す。
      *       CPUのときは縮小しない(呼び出し元で縮小する)。
      */
     static std::unique_ptr<MediaFoundationSource> open(const std::wstring& path, int maxWidth,
-                                                       std::shared_ptr<GpuDevice> gpu, std::wstring& error);
+                                                       std::shared_ptr<GpuDevice> gpu, std::wstring& error,
+                                                       SourcePurpose purpose = SourcePurpose::Playback);
 
     /** @brief Media Foundationの利用を終了する(open()で開始した分と対になる)。 */
     ~MediaFoundationSource() override;
@@ -63,6 +65,8 @@ public:
     bool seekToKeyFrame(int keyIndex) override;
     /** @copydoc FrameSource::readNext */
     bool readNext(Frame& out, int& index) override;
+    /** @copydoc FrameSource::releaseDecoder */
+    void releaseDecoder() override;
     /** @copydoc FrameSource::error */
     const std::wstring& error() const override { return error_; }
     /** @copydoc FrameSource::description */
@@ -198,6 +202,9 @@ private:
     Mode mode_ = Mode::Cpu;                           ///< 使っているデコードの方式。
     DXGI_COLOR_SPACE_TYPE colorSpace_ = DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709;  ///< NV12の色の解釈。
     std::wstring indexMethod_;                        ///< 目次の作り方(説明表示用)。
+    std::wstring path_;                               ///< 開いたファイル(デコーダーを作り直すときに使う)。
+    int maxWidth_ = 0;                                ///< 縮小する最大幅(デコーダーを作り直すときに使う)。
+    std::size_t pipelineDepth_ = 1;                   ///< GPUから主メモリへ写すときに先に命令しておくコマ数。
     bool started_ = false;  ///< MFStartup()に成功したか(デストラクターでMFShutdown()するため)。
 
     std::vector<LONGLONG> timestamps_;  ///< 目次。コマ番号順の表示時刻(100ns単位、昇順)。

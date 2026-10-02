@@ -279,10 +279,40 @@ private:
     void updateTitle();
 
     /**
-     * @brief GPUのメモリにキャッシュするときの上限を決める。
-     * @return バイト数。Windowsが示すGPUのメモリの予算の半分(最大8GB)。予算が分からなければ2GB。
+     * @brief キャッシュに持つコマ数の上限(設定の秒数分)を返す。
+     * @param clip 対象の動画。
+     * @return コマ数。
      */
-    std::size_t gpuCacheBytes() const;
+    int frameLimitFor(const Clip& clip) const;
+
+    /**
+     * @brief 今の設定・GPUのメモリの予算・主メモリの残りから、両方の動画のキャッシュの上限を決め直す。
+     * @note 変わったときだけ動画へ伝える。2秒ごとのタイマーと、動画を開いた・閉じたときに呼ぶ。
+     */
+    void applyCacheLimits();
+
+    /**
+     * @brief 再生・前面かどうか・最小化・放置時間から動作状態(Clip::Activity)を決め、動画へ伝える。
+     * @note 休止(Dormant)に入るときは、使っていない主メモリもWindowsへ返す。
+     */
+    void updateActivity();
+
+    /** @brief 2秒ごとのタイマー。キャッシュの上限の見直しと、休止に入るかの判定を行う。 */
+    void onResourceTimer();
+
+    /** @brief キャッシュの上限の設定(CacheMB・CacheSeconds)をレジストリから読む。無ければ既定値のまま。 */
+    void loadCacheSettings();
+
+    /**
+     * @brief 操作部の描画に使う書体を返す。作った書体は覚えておき、次の描画でも使う。
+     * @param points 文字の大きさ(ポイント)。
+     * @param dpi ウィンドウのDPI。変わったら作り直す。
+     * @return 書体。このクラスが持つので、呼び出し元は解放しない。
+     */
+    HFONT uiFont(int points, int dpi);
+
+    /** @brief 覚えている書体をすべて解放する。 */
+    void releaseFonts();
 
     HWND hwnd_ = nullptr;
     HINSTANCE instance_ = nullptr;
@@ -296,6 +326,20 @@ private:
     std::shared_ptr<AudioPlayer> audio_;  ///< 表示中の動画の音声。描画スレッドとも共有する。
     float volume_ = 0.8f;   ///< 音量(0.0〜1.0)。
     bool muted_ = false;    ///< 消音中か。
+    std::size_t cacheMegabytes_ = 1024;  ///< キャッシュの上限(MB)。設定CacheMB。
+    int cacheSeconds_ = 30;              ///< キャッシュに持つ長さの上限(秒)。設定CacheSeconds。
+    std::size_t appliedLimit_[2] = {};   ///< 動画へ最後に伝えたバイト数の上限(0=1本目、1=2本目)。
+    int appliedFrames_[2] = {};          ///< 動画へ最後に伝えたコマ数の上限。
+    bool memoryLow_ = false;             ///< Windowsが主メモリの不足を知らせているか。
+    HANDLE lowMemory_ = nullptr;         ///< 主メモリの不足を知る仕組み(CreateMemoryResourceNotification)。
+    bool appActive_ = true;              ///< このアプリが前面にあるか。
+    bool minimized_ = false;             ///< 最小化されているか。
+    bool dormant_ = false;               ///< 休止中か。
+    ULONGLONG inactiveSinceMs_ = 0;      ///< 前面でなくなった時刻(GetTickCount64)。
+    ULONGLONG minimizedSinceMs_ = 0;     ///< 最小化された時刻(GetTickCount64)。
+    Clip::Activity activity_ = Clip::Activity::Interactive;  ///< 動画へ最後に伝えた動作状態。
+    std::vector<std::pair<int, HFONT>> fonts_;  ///< 作った書体(大きさ, 書体)。
+    int fontsDpi_ = 0;                          ///< fonts_を作ったときのDPI。
     int current_ = 0;             ///< 操作部に表示しているコマ番号(VideoViewの表示に追従する)。
 
     std::atomic<bool> frameReadyPending_{false};  ///< 裏の読み込みからの知らせが未処理か(送りすぎ防止)。

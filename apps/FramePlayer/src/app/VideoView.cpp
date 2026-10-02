@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <climits>
 #include <cstdio>
 #include <string>
 
@@ -22,6 +23,7 @@ const D2D1_COLOR_F kBackground = {0.0f, 0.0f, 0.0f, 1.0f};  // Keyframe Proと�
 const D2D1_COLOR_F kText = {230 / 255.0f, 230 / 255.0f, 230 / 255.0f, 1.0f};
 const D2D1_COLOR_F kBox = {58 / 255.0f, 58 / 255.0f, 58 / 255.0f, 0.9f};
 constexpr UINT kSwapChainFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+constexpr int kPresentRetries = 25;  ///< 表示の順番待ちが詰まっているときにやり直す回数(2msずつ、最大約50ms)。
 
 /**
  * @brief QueryPerformanceCounterの現在値を返す。
@@ -467,8 +469,21 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
     if (context_->EndDraw() == static_cast<HRESULT>(D2DERR_RECREATE_TARGET)) {
         return false;
     }
-    // 次の垂直同期で表示する。ウィンドウが隠れているときは描いても見えないので少し休む。
-    const HRESULT hr = swapChain_->Present(1, 0);
+    // 表示する。画面の書き換えへの合わせ込みは、描く前にframeWaitable_で(眠って)待つことで行い、
+    // Present自体は画面の書き換えを待たない指定(同期間隔0)にする。同期間隔1で待たせると、画面の合成が
+    // 遅い環境(リモート接続や仮想ディスプレイで1秒に数回しか合成されない場合など)では、ドライバーが
+    // 1回あたり約250msもCPUを使い続けて待つことを確かめた(待たない指定DO_NOT_WAITも効かなかった)。
+    // ウィンドウ表示ではWindowsの画面合成が最新のコマを次の書き換えで表示するので、画面が裂けることはない。
+    // 表示の順番待ちが詰まっていれば、少し眠ってからやり直す。
+    HRESULT hr = swapChain_->Present(0, DXGI_PRESENT_DO_NOT_WAIT);
+    const LONGLONG retryTicks = ticksPerSecond() / 500;  // 2ms。
+    for (int retry = 0; hr == DXGI_ERROR_WAS_STILL_DRAWING && retry < kPresentRetries; ++retry) {
+        sleepTicks(retryTicks, false);
+        hr = swapChain_->Present(0, DXGI_PRESENT_DO_NOT_WAIT);
+    }
+    if (hr == DXGI_ERROR_WAS_STILL_DRAWING) {
+        return true;  // 合成が追いつかない。このコマの表示は見送り、次のコマで描き直す。
+    }
     if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
         return false;
     }
@@ -559,10 +574,30 @@ void VideoView::drawPane(const PaneState& pane, PaneCache& cache, const D2D1_REC
     }
 }
 
+void VideoView::sleepTicks(LONGLONG ticks, bool wakeOnSignal) {
+    if (ticks <= 0) {
+        return;
+    }
+    // 待機タイマーは100ns単位で、負の値は「今からの相対時間」を表す。
+    LARGE_INTEGER due;
+    due.QuadPart = -std::max<LONGLONG>(1, ticks * 10000000 / ticksPerSecond());
+    if (!timer_ || !SetWaitableTimer(timer_, &due, 0, nullptr, nullptr, FALSE)) {
+        Sleep(static_cast<DWORD>(std::max<LONGLONG>(1, ticks * 1000 / ticksPerSecond())));
+        return;
+    }
+    const HANDLE handles[] = {timer_, wakeEvent_};
+    WaitForMultipleObjects(wakeOnSignal ? 2 : 1, handles, FALSE, INFINITE);
+}
+
 void VideoView::renderLoop() {
     // Direct2D・DirectWriteはCOMの仕組みで作られるので、このスレッドでも初期化しておく。
     const HRESULT comResult = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     const LONGLONG frequency = ticksPerSecond();
+    // 高精度の待機タイマー(Windows 10 1803以降)。作れなければ通常の精度のタイマーを使う。
+    timer_ = CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    if (!timer_) {
+        timer_ = CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+    }
     bool ready = createDevice();
 
     PaneState drawn[2];   // 最後に描いた内容(停止中に描き直しが必要かの判断に使う)。
@@ -581,8 +616,30 @@ void VideoView::renderLoop() {
     bool waitingForAudio = false;     // 音声が鳴り始めるのを待っている間はtrue(映像を進めない)。
     LONGLONG audioWaitSince = 0;
 
+    // キャッシュに無いコマの代わりに、読み込み中に表示する画像を選ぶ。直前に描いた画像と、
+    // キーフレームの縮小画像のうち、表示すべきコマに近い方を使う(1コマ送りなら直前の画像、
+    // スライダーで遠くへ動かしたなら縮小画像になる)。
+    auto choosePlaceholder = [](PaneState& pane, const Clip* clip, const PaneState& previous) {
+        const bool hasPrevious = previous.clip == clip && previous.frame;
+        const long long previousDistance =
+            hasPrevious ? std::llabs(static_cast<long long>(previous.imageIndex) - pane.index) : LLONG_MAX;
+        int previewIndex = -1;
+        std::shared_ptr<const Frame> preview = clip->preview(pane.index, &previewIndex);
+        const long long previewDistance =
+            preview ? std::llabs(static_cast<long long>(previewIndex) - pane.index) : LLONG_MAX;
+        if (preview && previewDistance < previousDistance) {
+            pane.frame = std::move(preview);
+            pane.imageIndex = previewIndex;
+        } else if (hasPrevious) {
+            pane.frame = previous.frame;
+            pane.imageIndex = previous.imageIndex;
+        } else {
+            pane.imageIndex = -1;
+        }
+    };
+
     // 1本目のコマ番号から、2本目に表示する内容を作る(ずらした結果が範囲外なら「範囲外」)。
-    auto comparePane = [](const Clip* compare, int primaryIndex, int offset, const PaneState& previous) {
+    auto comparePane = [&](const Clip* compare, int primaryIndex, int offset, const PaneState& previous) {
         PaneState pane;
         pane.clip = compare;
         const int index = primaryIndex + offset;
@@ -590,10 +647,11 @@ void VideoView::renderLoop() {
         pane.outOfRange = index < 0 || index >= compare->frameCount();
         if (!pane.outOfRange) {
             pane.frame = compare->frame(index);
+            pane.imageIndex = index;
             pane.loading = !pane.frame;
             pane.broken = pane.loading && compare->isBroken(index);
-            if (!pane.frame && previous.clip == compare) {
-                pane.frame = previous.frame;  // 読み込み中は直前の画像を残す。
+            if (!pane.frame) {
+                choosePlaceholder(pane, compare, previous);
             }
         }
         return pane;
@@ -639,10 +697,11 @@ void VideoView::renderLoop() {
             panes[0].index = requested;
             if (clip) {
                 panes[0].frame = clip->frame(requested);
+                panes[0].imageIndex = requested;
                 panes[0].loading = !panes[0].frame;
                 panes[0].broken = panes[0].loading && clip->isBroken(requested);
-                if (!panes[0].frame && drawn[0].clip == clip.get()) {
-                    panes[0].frame = drawn[0].frame;  // 読み込み中は直前の画像を残す。
+                if (!panes[0].frame) {
+                    choosePlaceholder(panes[0], clip.get(), drawn[0]);
                 }
             }
             if (compare) {
@@ -677,12 +736,12 @@ void VideoView::renderLoop() {
             continue;
         }
 
-        // 再生中は画面更新ごとに1回描く。待機用オブジェクトが合図されるまで待つ。
-        WaitForSingleObject(frameWaitable_, 100);
-        if (!resizeIfNeeded()) {
-            ready = false;
-            continue;
-        }
+        // 再生中は、表示するコマが変わったときだけ描く。変わらない間は次のコマの時刻までタイマーで眠る
+        // (画面更新のたびに同じコマを描き直したり、画面更新を待ってCPUを使い続けたりしないため)。
+        RECT client;
+        GetClientRect(hwnd_, &client);
+        const UINT width = static_cast<UINT>(std::max(1L, client.right - client.left));
+        const UINT height = static_cast<UINT>(std::max(1L, client.bottom - client.top));
         const LONGLONG now = nowTicks();
         const int count = clip->frameCount();
         // 半コマ分の長さ。時計を半コマ早めておくと、コマの境目が画面更新と画面更新の中間に来る。
@@ -743,7 +802,8 @@ void VideoView::renderLoop() {
             comparePaneState = comparePane(compare.get(), target, offset, drawn[1]);
             compareReady = comparePaneState.outOfRange || !comparePaneState.loading;
         }
-        if (frame && compareReady && (target != shown || clip.get() != shownClip)) {
+        const bool advance = frame && compareReady && (target != shown || clip.get() != shownClip);
+        if (advance) {
             if (shown >= 0 && clip.get() == shownClip) {
                 const int step = (target - shown + count) % count;
                 if (step > 1) {
@@ -756,13 +816,36 @@ void VideoView::renderLoop() {
             drawn[0].clip = clip.get();
             drawn[0].frame = frame;
             drawn[0].index = target;
+            drawn[0].imageIndex = target;
             drawn[1] = compare ? comparePaneState : PaneState{};
             current_ = target;
             notifyParent();
         }
-        drawnPaneCount = paneCount;
-        drawnOffset = offset;
-        ready = draw(drawn, paneCount, offset);
+        if (advance || width != drawnWidth || height != drawnHeight || paneCount != drawnPaneCount ||
+            offset != drawnOffset) {
+            // 描ける状態(表示の順番待ちに空き)になるまで眠って待ち、次の画面更新に合わせて描く。
+            WaitForSingleObject(frameWaitable_, 100);
+            if (!resizeIfNeeded()) {
+                ready = false;
+                continue;
+            }
+            drawnPaneCount = paneCount;
+            drawnOffset = offset;
+            drawnWidth = width;
+            drawnHeight = height;
+            ready = draw(drawn, paneCount, offset);
+            continue;
+        }
+
+        // 次に表示が変わる時刻(次のコマの表示時刻)まで眠る。目標のコマがまだ届いていないときは、
+        // 届いた合図(wake)で起きる(合図を逃しても10msで確かめ直す)。操作の合図でも起きる。
+        LONGLONG waitTicks = frequency / 100;
+        if (frame) {
+            const long long nextMedia = target + 1 < count ? clip->frameTime(target + 1) : endTime;
+            const LONGLONG nextTicks = sessionStartTicks + (nextMedia - sessionStartMedia) * frequency / 10000000;
+            waitTicks = std::max<LONGLONG>(1, nextTicks - nowTicks());
+        }
+        sleepTicks(waitTicks, true);
     }
 
     // 後片付けは作ったスレッドで行う。
@@ -776,6 +859,10 @@ void VideoView::renderLoop() {
     if (frameWaitable_) {
         CloseHandle(frameWaitable_);
         frameWaitable_ = nullptr;
+    }
+    if (timer_) {
+        CloseHandle(timer_);
+        timer_ = nullptr;
     }
     if (SUCCEEDED(comResult)) {
         CoUninitialize();

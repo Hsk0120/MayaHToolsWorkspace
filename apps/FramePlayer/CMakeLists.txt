@@ -16,6 +16,7 @@ add_library(frameplayer_core STATIC
     src/core/Mp4SampleTable.cpp
     src/core/AudioPlayer.cpp
     src/core/GpuDevice.cpp
+    src/core/KeyframeThumbnails.cpp
 )
 target_include_directories(frameplayer_core PUBLIC src)
 target_compile_definitions(frameplayer_core PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)

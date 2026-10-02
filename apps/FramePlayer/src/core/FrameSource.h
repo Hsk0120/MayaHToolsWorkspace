@@ -16,6 +16,12 @@
 
 namespace frameplayer {
 
+/** @brief 読み込み元の使い道。デコードのやり方(先読みの深さ・返す形式)を変える。 */
+enum class SourcePurpose {
+    Playback,    ///< 再生用。続けて読む速さを優先し、GPUのテクスチャで返せるならそうする。
+    Thumbnails,  ///< キーフレームの縮小画像用。1コマずつ読み、主メモリのBGRA画像で返す。
+};
+
 /**
  * @brief コマ番号の目次を持ち、キーフレームから順にデコードしてコマを返す読み込み元。
  * @note コマ番号(0始まり)は開いたときに作る目次で決まり、どこから読み始めても同じ番号になる。
@@ -71,6 +77,13 @@ public:
     virtual bool readNext(Frame& out, int& index) = 0;
 
     /**
+     * @brief デコーダーを閉じ、デコーダーが持つメモリ(GPUのメモリを含む)を返す。
+     * @note 次のseekToKeyFrame()で作り直す。閉じた後はseekToKeyFrame()を呼ぶまでreadNext()は失敗する。
+     *       しばらく使わないとき(最小化中など)に呼ぶ。
+     */
+    virtual void releaseDecoder() {}
+
+    /**
      * @brief 直近の失敗の説明を返す。
      * @return 失敗していなければ空文字列。
      */
@@ -90,10 +103,11 @@ public:
  *                 読み込み元が縮小しない場合もあるので、呼び出し元は幅を確かめて必要なら縮小すること。
  * @param gpu 共有のGPUデバイス。nullptrならGPUを使わない。使える場合、コマはGPUのテクスチャで返ることがある。
  * @param error 失敗時に理由を格納する。
+ * @param purpose 使い道。Thumbnailsのときは主メモリのBGRA画像で返す(縮小できない方式では縮小しない)。
  * @return 開けた読み込み元。失敗時はnullptr。
  * @note 呼び出し元のスレッドでCOMが初期化済みである必要がある。
  */
 std::unique_ptr<FrameSource> openFrameSource(const std::wstring& path, int maxWidth, std::shared_ptr<GpuDevice> gpu,
-                                             std::wstring& error);
+                                             std::wstring& error, SourcePurpose purpose = SourcePurpose::Playback);
 
 }  // namespace frameplayer

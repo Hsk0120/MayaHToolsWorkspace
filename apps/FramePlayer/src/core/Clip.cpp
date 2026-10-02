@@ -13,10 +13,15 @@
 
 #include <ppl.h>
 
+#include "core/ThreadQos.h"
+
 namespace frameplayer {
 
 
 namespace {
+
+/// 最小化中や他のアプリが前面にあるときに先読みする範囲(秒)。再生ヘッドの近くだけにして、ほかのアプリに譲る。
+constexpr double kBackgroundPrefetchSeconds = 2.0;
 
 /**
  * @brief キャッシュしたコマが使うバイト数を返す。
@@ -44,6 +49,7 @@ std::shared_ptr<const Frame> makeCached(Frame&& decoded, int maxWidth) {
 }  // namespace
 
 Clip::~Clip() {
+    thumbnails_.reset();  // 縮小画像のスレッドを先に止める。
     {
         std::lock_guard<std::mutex> lock(mutex_);
         stop_ = true;
@@ -56,6 +62,7 @@ Clip::~Clip() {
 
 bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cpuCacheBytes, std::size_t gpuCacheBytes,
                 std::shared_ptr<GpuDevice> gpu, NotifyCallback notify, std::wstring& error) {
+    gpu_ = gpu;
     source_ = openFrameSource(path, maxWidth, std::move(gpu), error);
     if (!source_) {
         return false;
@@ -172,6 +179,70 @@ void Clip::setCacheLimit(std::size_t bytes) {
     wake_.notify_one();  // 上限を上げた場合は、増えた分を先読みさせる。
 }
 
+void Clip::setFrameLimit(int frames) {
+    std::vector<std::shared_ptr<const Frame>> released;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        frameLimit_ = std::max(1, frames);
+        evictLocked(released);
+    }
+    wake_.notify_one();
+}
+
+void Clip::setActivity(Activity activity) {
+    std::vector<std::shared_ptr<const Frame>> released;  // ロックを外してから解放する。
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (activity_ == activity) {
+            return;
+        }
+        activity_ = activity;
+        evictLocked(released);  // 休止に入るときは、ここで表示中の1コマまで減らす。
+    }
+    wake_.notify_one();
+    if (thumbnails_) {
+        // 縮小画像は、このアプリを操作している停止中だけ作る(再生中・背面・休止中は止めて譲る)。
+        thumbnails_->setPaused(activity != Activity::Interactive);
+    }
+}
+
+void Clip::startThumbnails(int width, std::size_t budgetBytes) {
+    Activity activity;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (thumbnails_ || capacityLocked() >= frameCount_) {
+            return;
+        }
+        activity = activity_;
+    }
+    thumbnails_ = std::make_unique<KeyframeThumbnails>();
+    thumbnails_->setPaused(activity != Activity::Interactive);
+    thumbnails_->start(path_, frameCount_, frameRate_, width, budgetBytes, gpu_, notify_);
+}
+
+std::shared_ptr<const Frame> Clip::preview(int index, int* imageIndex) const {
+    return thumbnails_ ? thumbnails_->nearest(index, imageIndex) : nullptr;
+}
+
+bool Clip::thumbnailProgress(int& done, int& total, std::size_t& bytes) const {
+    done = 0;
+    total = 0;
+    bytes = 0;
+    if (!thumbnails_) {
+        return true;
+    }
+    bytes = thumbnails_->bytes();
+    return thumbnails_->progress(done, total);
+}
+
+long long Clip::capacityLocked() const {
+    if (activity_ == Activity::Dormant) {
+        return 1;
+    }
+    const long long byBytes = std::max<long long>(1, static_cast<long long>(cacheBytes_ / frameBytes_));
+    return std::max<long long>(1, std::min<long long>(byBytes, frameLimit_));
+}
+
 std::wstring Clip::description() const {
     return description_;
 }
@@ -198,7 +269,14 @@ int Clip::findTargetLocked() const {
     // キャッシュに入るコマ数から、向きの先(ahead)と反対側(behind)の先読み範囲を決める。
     // behindをaheadの1/3以下にしておくと、distanceCostLocked()で範囲外のコマが必ず範囲内より遠くなり、
     // 範囲内のコマを入れるために範囲内のコマを捨てる(読み直しを繰り返す)ことが起きない。
-    const long long capacity = std::max<long long>(1, static_cast<long long>(cacheBytes_ / frameBytes_));
+    auto missing = [&](int index) {
+        return index >= 0 && !frames_[static_cast<std::size_t>(index)] && !broken_[static_cast<std::size_t>(index)];
+    };
+    if (activity_ == Activity::Dormant) {
+        // 休止中は表示に要る1コマだけを読む。
+        return missing(playhead_) ? playhead_ : -1;
+    }
+    const long long capacity = capacityLocked();
     int ahead = 0;
     int behind = 0;
     if (capacity >= frameCount_) {
@@ -216,10 +294,12 @@ int Clip::findTargetLocked() const {
     if (wrap_) {
         behind = std::min(behind, frameCount_ - 1 - ahead);
     }
-
-    auto missing = [&](int index) {
-        return index >= 0 && !frames_[static_cast<std::size_t>(index)] && !broken_[static_cast<std::size_t>(index)];
-    };
+    if (activity_ == Activity::Background) {
+        // ほかのアプリを使っている間は、再生ヘッドの近くだけにする(戻ってきたときの表示に要る分)。
+        const int nearby = std::max(1, static_cast<int>(frameRate_ > 0 ? frameRate_ * kBackgroundPrefetchSeconds : 48));
+        ahead = std::min(ahead, nearby);
+        behind = std::min(behind, nearby);
+    }
     for (int offset = 0; offset <= ahead; ++offset) {
         const int index = offsetIndexLocked(offset);
         if (index < 0) {
@@ -279,7 +359,8 @@ void Clip::storeLocked(int index, std::shared_ptr<const Frame> frame,
 void Clip::evictLocked(std::vector<std::shared_ptr<const Frame>>& released) {
     // 上限を超えたら、再生ヘッドから最も遠いコマから捨てる(再生ヘッドのコマは捨てない)。
     // 全コマ(1時間60fpsなら21万6千)ではなく、キャッシュにあるコマ(千数百)だけを調べる。
-    while (cachedBytes_ > cacheBytes_) {
+    const std::size_t maxFrames = static_cast<std::size_t>(capacityLocked());
+    while (cachedBytes_ > cacheBytes_ || cachedIndices_.size() > maxFrames) {
         std::size_t victimPosition = cachedIndices_.size();
         long long victimCost = -1;
         for (std::size_t position = 0; position < cachedIndices_.size(); ++position) {
@@ -311,15 +392,41 @@ void Clip::workerLoop() {
 
     // デコーダーが次に返すコマ番号。続けて読めば得られる位置を覚えておき、無駄なシークを避ける。-1は不明。
     int next = firstDecodedNext_;
+    bool background = false;  // このスレッドを「裏の作業」(低い優先度・省電力)にしているか。
+    bool decoderReleased = false;  // 休止のためにデコーダーを閉じたか。
     for (;;) {
         int target = -1;
+        Activity activity = Activity::Interactive;
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            wake_.wait(lock, [&] { return stop_ || (target = findTargetLocked()) >= 0; });
+            // 読むコマがあるとき、休止でデコーダーを閉じるとき、優先度を変えるときに起きる。
+            auto wantsBackground = [&] {
+                return activity_ == Activity::Background || activity_ == Activity::Dormant;
+            };
+            wake_.wait(lock, [&] {
+                return stop_ || (target = findTargetLocked()) >= 0 ||
+                       (activity_ == Activity::Dormant && !decoderReleased) || wantsBackground() != background;
+            });
             if (stop_) {
                 break;
             }
+            activity = activity_;
         }
+        const bool wantBackground = activity == Activity::Background || activity == Activity::Dormant;
+        if (wantBackground != background) {
+            setBackgroundWork(wantBackground);
+            background = wantBackground;
+        }
+        if (target < 0) {
+            if (activity == Activity::Dormant && !decoderReleased) {
+                // 休止中はデコーダーを閉じ、デコーダーが持つGPUのメモリも返す。次のシークで作り直される。
+                source_->releaseDecoder();
+                decoderReleased = true;
+                next = -1;
+            }
+            continue;
+        }
+        decoderReleased = false;
 
         // 続けて読んでいる位置がキーフレームと目標の間なら、シークせずに読み進める方が速い。
         const int key = source_->keyFrameAtOrBefore(target);

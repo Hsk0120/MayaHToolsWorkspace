@@ -165,6 +165,7 @@ private:
         const Clip* clip = nullptr;          ///< 表示する動画。無ければnullptr。
         std::shared_ptr<const Frame> frame;  ///< 描く画像。読み込み中なら直前の画像。
         int index = 0;                       ///< 表示すべきコマ番号(0始まり)。
+        int imageIndex = -1;                 ///< frameが実際に表すコマ番号(仮表示の画像なら近くのキーフレーム)。
         bool loading = false;                ///< 「読み込み中」を重ねるか。
         bool broken = false;                 ///< 「デコードできません」を重ねるか。
         bool outOfRange = false;             ///< ずらした結果、動画の範囲外か(画像を描かずに知らせる)。
@@ -195,6 +196,14 @@ private:
      * @return 描けた場合true。デバイスが失われた場合false。
      */
     bool draw(const PaneState* panes, int paneCount, int compareOffset);
+
+    /**
+     * @brief 描画スレッドを指定時間だけ眠らせる。合図(wake())があれば途中で起きる。
+     * @param ticks 眠る長さ(QueryPerformanceCounterの単位)。0以下なら眠らない。
+     * @param wakeOnSignal trueならwake()の合図でも起きる。
+     * @note 高精度の待機タイマーを使い、CPUを使わずに待つ(Sleepより時刻の誤差が小さい)。
+     */
+    void sleepTicks(LONGLONG ticks, bool wakeOnSignal);
 
     /**
      * @brief 1つの表示枠に画像と知らせを描く。描画スレッドでBeginDrawとEndDrawの間に呼ぶ。
@@ -240,6 +249,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Device> device_;
     Microsoft::WRL::ComPtr<IDXGISwapChain2> swapChain_;
     HANDLE frameWaitable_ = nullptr;  ///< 次の画面更新に描けるようになると合図される。
+    HANDLE timer_ = nullptr;          ///< 次のコマの時刻まで眠るための高精度の待機タイマー。
     Microsoft::WRL::ComPtr<ID2D1Factory3> d2dFactory_;
     Microsoft::WRL::ComPtr<ID2D1DeviceContext2> context_;  ///< NV12を描ける版(Windows 8.1以降)。
     Microsoft::WRL::ComPtr<ID2D1Bitmap1> target_;

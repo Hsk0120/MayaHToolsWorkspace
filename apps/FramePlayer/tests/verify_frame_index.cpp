@@ -25,6 +25,7 @@
 #include <cwchar>
 #include <random>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "core/Clip.h"
@@ -128,7 +129,7 @@ int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
         std::fwprintf(stderr,
                       L"usage: FramePlayerVerify.exe <video> [expectedFrames] [--bits N] [--cache-mb MB] "
-                      L"[--max-width W]\n");
+                      L"[--max-width W] [--limit N] [--cpu] [--no-check] [--thumbnails]\n");
         return 2;
     }
     int expected = -1;
@@ -138,6 +139,7 @@ int wmain(int argc, wchar_t** argv) {
     int limit = -1;
     bool useGpu = true;
     bool check = true;
+    bool thumbnails = false;
     for (int i = 2; i < argc; ++i) {
         if (std::wcscmp(argv[i], L"--bits") == 0 && i + 1 < argc) {
             bits = _wtoi(argv[++i]);
@@ -151,6 +153,8 @@ int wmain(int argc, wchar_t** argv) {
             useGpu = false;
         } else if (std::wcscmp(argv[i], L"--no-check") == 0) {
             check = false;
+        } else if (std::wcscmp(argv[i], L"--thumbnails") == 0) {
+            thumbnails = true;
         } else {
             expected = _wtoi(argv[i]);
         }
@@ -199,6 +203,40 @@ int wmain(int argc, wchar_t** argv) {
             }
 
             int mismatches = 0;
+            if (thumbnails) {
+                // キーフレームの縮小画像を作らせ、各画像に描かれた番号がそのキーフレームの番号と一致するかを見る。
+                const auto thumbStart = std::chrono::steady_clock::now();
+                clip.startThumbnails(320, std::size_t{160} << 20);
+                int done = 0;
+                int total = 0;
+                std::size_t bytes = 0;
+                while (!clip.thumbnailProgress(done, total, bytes)) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+                const double thumbSeconds =
+                    std::chrono::duration<double>(std::chrono::steady_clock::now() - thumbStart).count();
+                int checked = 0;
+                int wrong = 0;
+                int lastIndex = -1;
+                for (int i = 0; i < count; ++i) {
+                    int imageIndex = -1;
+                    const auto preview = clip.preview(i, &imageIndex);
+                    if (!preview || imageIndex == lastIndex) {
+                        continue;
+                    }
+                    lastIndex = imageIndex;
+                    ++checked;
+                    const int read = check ? readIndex(*preview, bits) : imageIndex;
+                    if (read != imageIndex) {
+                        if (++wrong <= 10) {
+                            std::wprintf(L"  thumbnail mismatch: keyframe %d reads as %d\n", imageIndex, read);
+                        }
+                    }
+                }
+                std::wprintf(L"thumbnails done=%d/%d checked=%d mismatches=%d bytes=%.1fMB time=%.2fs\n", done, total,
+                             checked, wrong, bytes / 1048576.0, thumbSeconds);
+                mismatches += wrong;
+            }
             mismatches += runOrder(clip, gpu.get(), forward, frameplayer::Clip::Direction::Forward, bits, check, L"forward");
             mismatches += runOrder(clip, gpu.get(), backward, frameplayer::Clip::Direction::Backward, bits, check, L"backward");
             mismatches += runOrder(clip, gpu.get(), random, frameplayer::Clip::Direction::Forward, bits, check, L"random");

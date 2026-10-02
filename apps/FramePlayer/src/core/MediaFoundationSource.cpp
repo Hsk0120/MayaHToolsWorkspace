@@ -43,8 +43,8 @@ HRESULT selectVideoOnly(IMFSourceReader* reader) {
 }  // namespace
 
 std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::wstring& path, int maxWidth,
-                                                                   std::shared_ptr<GpuDevice> gpu,
-                                                                   std::wstring& error) {
+                                                                   std::shared_ptr<GpuDevice> gpu, std::wstring& error,
+                                                                   SourcePurpose purpose) {
     std::unique_ptr<MediaFoundationSource> source(new MediaFoundationSource());
 
     // MFStartupは参照カウント式なので、読み込み元ごとに開始・終了してよい。
@@ -56,6 +56,10 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     }
     source->started_ = true;
     source->gpu_ = std::move(gpu);
+    source->path_ = path;
+    source->maxWidth_ = maxWidth;
+    // 縮小画像はキーフレームを1つずつ読むので、先の数コマまで命令しておくと無駄なデコードになる。
+    source->pipelineDepth_ = purpose == SourcePurpose::Thumbnails ? 1 : kGpuPipelineDepth;
 
     if (!source->buildIndex(path)) {
         error = source->error_;
@@ -67,7 +71,7 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     //   2. GPUでデコードし、RGBにして主メモリへ写す
     //   3. CPUでデコードする
     std::vector<Mode> modes;
-    if (source->gpu_ && source->gpu_->supportsNv12()) {
+    if (purpose == SourcePurpose::Playback && source->gpu_ && source->gpu_->supportsNv12()) {
         modes.push_back(Mode::GpuTexture);
     }
     if (source->gpu_) {
@@ -357,8 +361,26 @@ int MediaFoundationSource::indexOfTimestamp(LONGLONG timestamp) const {
     return (best >= 0 && bestDistance <= tolerance_) ? best : -1;
 }
 
+void MediaFoundationSource::releaseDecoder() {
+    if (!reader_) {
+        return;
+    }
+    // 先読み中のコマ・使い回しのテクスチャ・読み込み本体(デコーダー)の順に手放す。
+    // mode_は残しておき、作り直すときに同じ方式で作る。
+    clearPending();
+    stagingPool_.clear();
+    reader_.Reset();
+}
+
 bool MediaFoundationSource::seekToKeyFrame(int keyIndex) {
     error_.clear();
+    if (!reader_) {
+        // releaseDecoder()で閉じていれば、前と同じ方式で作り直す。
+        const Mode mode = mode_;
+        if (!createReader(path_, maxWidth_, mode)) {
+            return false;
+        }
+    }
     keyIndex = std::clamp(keyIndex, 0, frameCount() - 1);
     PROPVARIANT position;
     InitPropVariantFromInt64(timestamps_[static_cast<size_t>(keyIndex)], &position);
@@ -577,6 +599,10 @@ void MediaFoundationSource::copyRows(const BYTE* scan0, LONG pitch, const RECT& 
 
 bool MediaFoundationSource::readNext(Frame& out, int& index) {
     error_.clear();
+    if (!reader_) {
+        error_ = L"デコーダーを閉じています(先に読み込み位置を移す必要があります)";
+        return false;
+    }
     if (mode_ == Mode::GpuTexture) {
         // デコード(ReadSample)は鍵で囲まない(シークの説明を参照)。自分で出すGPUの命令(写し)だけを囲む。
         ComPtr<IMFSample> sample;
@@ -591,7 +617,7 @@ bool MediaFoundationSource::readNext(Frame& out, int& index) {
     // GPUのときは数コマ先までデコードと主メモリへの写しを命令しておき、古いものから受け取る。
     // GPUは命令を順に並行して処理するので、1コマずつ完了を待つより何倍も速い。
     const bool useGpu = mode_ == Mode::GpuReadback;
-    const std::size_t depth = useGpu ? kGpuPipelineDepth : 1;
+    const std::size_t depth = useGpu ? pipelineDepth_ : 1;
     while (!endOfStream_ && pending_.size() < depth) {
         ComPtr<IMFSample> sample;
         int sampleIndex = -1;

@@ -15,6 +15,7 @@
 
 #include "core/Frame.h"
 #include "core/FrameSource.h"
+#include "core/KeyframeThumbnails.h"
 
 namespace frameplayer {
 
@@ -32,6 +33,14 @@ public:
     /// 再生ヘッドの移動方向。先読みする向きを決める。
     /// Bothは前後に同じだけ先読みする(スライダーのドラッグなど、向きが定まらない操作で使う)。
     enum class Direction { Forward, Backward, Both };
+
+    /// ウィンドウと再生の状態。先読みの範囲と、裏のスレッドの優先度を決める。
+    enum class Activity {
+        Playing,      ///< 再生中。通常の優先度で、再生の先を読む。
+        Interactive,  ///< 停止中で、このアプリが前面にある。通常の優先度で上限まで先読みし、縮小画像も作る。
+        Background,   ///< 停止中で、最小化中または他のアプリが前面にある。低い優先度で、再生ヘッドの近くだけ読む。
+        Dormant,      ///< 長く使われていない。キャッシュを表示中の1コマまで減らし、デコーダーも閉じる。
+    };
 
     Clip() = default;
 
@@ -75,6 +84,44 @@ public:
      * @note 上限を下げた場合は、再生ヘッドから遠いコマから捨てて上限に収める。
      */
     void setCacheLimit(std::size_t bytes);
+
+    /**
+     * @brief キャッシュに持つコマ数の上限を変える(時間で上限を決めるため)。
+     * @param frames 上限のコマ数(1以上)。バイト数の上限と小さい方が効く。
+     */
+    void setFrameLimit(int frames);
+
+    /**
+     * @brief ウィンドウと再生の状態を伝える。先読みの範囲・優先度・縮小画像の作成を切り替える。
+     * @param activity 新しい状態。
+     */
+    void setActivity(Activity activity);
+
+    /**
+     * @brief キーフレームの縮小画像(キャッシュに無い位置の仮表示用)の作成を始める。
+     * @param width 縮小画像の幅。
+     * @param budgetBytes 縮小画像の合計の上限(バイト)。
+     * @note 全コマがキャッシュに入る短い動画では、仮表示が要らないので作らない。
+     */
+    void startThumbnails(int width, std::size_t budgetBytes);
+
+    /**
+     * @brief 指定したコマに近いキーフレームの縮小画像を返す(キャッシュに無いコマの仮表示用)。
+     * @param index コマ番号。
+     * @param imageIndex 返した画像のコマ番号(近くのキーフレーム)の格納先。nullptrなら格納しない。
+     * @return 主メモリのBGRA画像。縮小画像が無ければnullptr。
+     * @note 描画スレッドから呼んでよい(縮小画像はstartThumbnails()の後は差し替えない)。
+     */
+    std::shared_ptr<const Frame> preview(int index, int* imageIndex = nullptr) const;
+
+    /**
+     * @brief 縮小画像の作成の進み具合を返す(確認用ツールの表示に使う)。
+     * @param done 作った枚数。
+     * @param total 作る予定の枚数。
+     * @param bytes 縮小画像の合計バイト数。
+     * @return 作成を終えたならtrue。縮小画像を作らない場合もtrue(done=total=0)。
+     */
+    bool thumbnailProgress(int& done, int& total, std::size_t& bytes) const;
 
     /**
      * @brief コマ数を返す。
@@ -170,6 +217,12 @@ private:
     int findTargetLocked() const;
 
     /**
+     * @brief 今の上限(バイト数・コマ数・状態)で、キャッシュに持てるコマ数を返す。
+     * @return コマ数(1以上)。
+     */
+    long long capacityLocked() const;
+
+    /**
      * @brief 再生ヘッドから見たコマの「遠さ」を返す。mutex_を持った状態で呼ぶ。
      * @param index 0始まりのコマ番号。
      * @return 遠いほど大きい値。進む向きの先にあるコマは近く、後ろにあるコマは遠く扱う。
@@ -208,6 +261,10 @@ private:
     int maxWidth_ = 0;
     std::size_t cacheBytes_ = 0;
     bool cachesOnGpu_ = false;
+    int frameLimit_ = 0x7FFFFFFF;           ///< キャッシュに持つコマ数の上限。
+    Activity activity_ = Activity::Interactive;
+    std::shared_ptr<GpuDevice> gpu_;        ///< 縮小画像のデコードに渡す共有のGPUデバイス。
+    std::unique_ptr<KeyframeThumbnails> thumbnails_;  ///< キーフレームの縮小画像。作らない場合はnullptr。
     NotifyCallback notify_;
 
     mutable std::mutex mutex_;
