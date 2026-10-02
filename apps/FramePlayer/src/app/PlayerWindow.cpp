@@ -41,6 +41,17 @@ constexpr COLORREF kDisabled = RGB(110, 110, 110);
 constexpr wchar_t kSettingsKey[] = L"Software\\FramePlayer";  ///< 設定の保存先(HKEY_CURRENT_USERの下)。
 constexpr float kVolumeStep = 0.05f;                             ///< ↑↓キーで変える音量の幅。
 constexpr int kCompareLargeShift = 10;                           ///< Shift+[ ]で変える2本目のずらしの幅。
+constexpr std::size_t kMaxRecentFiles = 8;                       ///< 「最近使ったファイル」に残す数。
+
+/// ファイルのメニューの項目の番号。
+enum MenuCommand : UINT {
+    kMenuOpen = 1,
+    kMenuOpenCompare,
+    kMenuCloseCompare,
+    kMenuClearRecent,
+    kMenuExit,
+    kMenuRecentFirst = 100,  ///< 最近使ったファイルの1つ目(以降、順に番号を振る)。
+};
 
 /**
  * @brief 96DPI基準の長さを、ウィンドウのDPIに合わせた長さへ変換する。
@@ -127,6 +138,7 @@ std::wstring fileNameOf(const std::wstring& path) {
 bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     instance_ = instance;
     loadAudioSettings();
+    loadRecentFiles();
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = &PlayerWindow::windowProc;
@@ -195,6 +207,7 @@ void PlayerWindow::openClip(const std::wstring& path) {
 
     clip_ = std::move(clip);
     audio_ = std::move(audio);
+    addRecentFile(path);
     current_ = 0;
     cacheRuns_.clear();
     cacheRunsTrack_ = RECT{};
@@ -307,7 +320,9 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
     layout.bar = {client.left, barTop, client.right, client.bottom};
     const int buttonSize = scaled(32, dpi);
     const int buttonTop = barTop + (barHeight - buttonSize) / 2;
-    layout.button = {client.left + margin, buttonTop, client.left + margin + buttonSize, buttonTop + buttonSize};
+    layout.fileButton = {client.left + margin, buttonTop, client.left + margin + scaled(72, dpi), buttonTop + buttonSize};
+    const int playLeft = layout.fileButton.right + scaled(8, dpi);
+    layout.button = {playLeft, buttonTop, playLeft + buttonSize, buttonTop + buttonSize};
     const int infoLeft = std::max(static_cast<int>(layout.button.right),
                                   static_cast<int>(client.right) - margin - scaled(300, dpi));
     layout.info = {infoLeft, barTop, client.right - margin, client.bottom};
@@ -374,6 +389,18 @@ void PlayerWindow::paint() {
 void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     const bool playing = view_.isPlaying();
     paintVolume(dc, layout, dpi);
+
+    // 「ファイル」ボタン。押すとファイルのメニューを出す。
+    {
+        RECT b = layout.fileButton;
+        fillColor(dc, b, kControlFace);
+        HFONT buttonFont = createUiFont(9, dpi);
+        HGDIOBJ oldButtonFont = SelectObject(dc, buttonFont);
+        SetTextColor(dc, kText);
+        DrawTextW(dc, L"ファイル \u25BE", -1, &b, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(dc, oldButtonFont);
+        DeleteObject(buttonFont);
+    }
 
     // 「比較」ボタン。比較中は色を付けて、押すと比較をやめることを示す。
     {
@@ -576,6 +603,10 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
     volumeHit.top = layout.bar.top;
     volumeHit.bottom = layout.bar.bottom;
     InflateRect(&volumeHit, scaled(4, static_cast<int>(GetDpiForWindow(hwnd_))), 0);
+    if (PtInRect(&layout.fileButton, point)) {
+        showFileMenu();
+        return;
+    }
     if (PtInRect(&layout.volumeButton, point)) {
         toggleMute();
         return;
@@ -767,6 +798,122 @@ void PlayerWindow::onDropFiles(HDROP drop) {
     }
 }
 
+void PlayerWindow::showFileMenu() {
+    HMENU menu = CreatePopupMenu();
+    HMENU recent = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING, kMenuOpen, L"動画を開く...\tCtrl+O");
+    AppendMenuW(menu, MF_STRING | (clip_ ? 0 : MF_GRAYED), kMenuOpenCompare, L"比較する動画を開く...\tCtrl+Shift+O");
+    AppendMenuW(menu, MF_STRING | (compareClip_ ? 0 : MF_GRAYED), kMenuCloseCompare, L"比較を終了");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    // 最近使ったファイル。左にファイル名、右(タブの後ろ)にフォルダーを出す。
+    for (std::size_t i = 0; i < recentFiles_.size(); ++i) {
+        const std::wstring& path = recentFiles_[i];
+        const size_t slash = path.find_last_of(L"\\/");
+        const std::wstring name = slash == std::wstring::npos ? path : path.substr(slash + 1);
+        const std::wstring folder = slash == std::wstring::npos ? std::wstring() : path.substr(0, slash);
+        // &はメニューでは下線の印になるので、&&にして文字として出す。
+        std::wstring label;
+        for (wchar_t c : name) {
+            label += c;
+            if (c == L'&') {
+                label += L'&';
+            }
+        }
+        label += L"\t" + folder;
+        AppendMenuW(recent, MF_STRING, kMenuRecentFirst + static_cast<UINT>(i), label.c_str());
+    }
+    if (!recentFiles_.empty()) {
+        AppendMenuW(recent, MF_SEPARATOR, 0, nullptr);
+    }
+    AppendMenuW(recent, MF_STRING | (recentFiles_.empty() ? MF_GRAYED : 0), kMenuClearRecent, L"一覧を消去");
+    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(recent), L"最近使ったファイル");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, kMenuExit, L"終了");
+
+    // 操作部は画面の下にあるので、ボタンの上端から上向きに開く。選ぶか閉じるまで戻らない。
+    const RECT b = computeLayout().fileButton;
+    POINT corner{b.left, b.top};
+    ClientToScreen(hwnd_, &corner);
+    const UINT command = static_cast<UINT>(TrackPopupMenu(
+        menu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_NONOTIFY, corner.x, corner.y, 0, hwnd_, nullptr));
+    DestroyMenu(menu);  // 中の「最近使ったファイル」も一緒に破棄される。
+
+    switch (command) {
+    case kMenuOpen: {
+        const std::wstring path = chooseVideoFile(L"動画を選択");
+        if (!path.empty()) {
+            openClip(path);
+        }
+        break;
+    }
+    case kMenuOpenCompare: {
+        const std::wstring path = chooseVideoFile(L"比較する動画を選択");
+        if (!path.empty()) {
+            openCompare(path);
+        }
+        break;
+    }
+    case kMenuCloseCompare:
+        closeCompare();
+        break;
+    case kMenuClearRecent:
+        recentFiles_.clear();
+        saveRecentFiles();
+        break;
+    case kMenuExit:
+        PostMessageW(hwnd_, WM_CLOSE, 0, 0);
+        break;
+    default:
+        if (command >= kMenuRecentFirst && command < kMenuRecentFirst + recentFiles_.size()) {
+            const std::wstring path = recentFiles_[command - kMenuRecentFirst];  // openClipで一覧が変わるので写す。
+            openClip(path);
+        }
+        break;
+    }
+}
+
+void PlayerWindow::addRecentFile(const std::wstring& path) {
+    // 同じファイルは先頭へ移す(大文字小文字を区別しない)。
+    recentFiles_.erase(std::remove_if(recentFiles_.begin(), recentFiles_.end(),
+                                      [&](const std::wstring& item) { return _wcsicmp(item.c_str(), path.c_str()) == 0; }),
+                       recentFiles_.end());
+    recentFiles_.insert(recentFiles_.begin(), path);
+    if (recentFiles_.size() > kMaxRecentFiles) {
+        recentFiles_.resize(kMaxRecentFiles);
+    }
+    saveRecentFiles();
+}
+
+void PlayerWindow::loadRecentFiles() {
+    // REG_MULTI_SZ(文字列を\0で区切って並べ、最後に\0をもう1つ置いたもの)で保存してある。
+    DWORD size = 0;
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"RecentFiles", RRF_RT_REG_MULTI_SZ, nullptr, nullptr, &size) !=
+            ERROR_SUCCESS ||
+        size == 0) {
+        return;
+    }
+    std::vector<wchar_t> buffer(size / sizeof(wchar_t) + 1, L'\0');
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"RecentFiles", RRF_RT_REG_MULTI_SZ, nullptr, buffer.data(),
+                     &size) != ERROR_SUCCESS) {
+        return;
+    }
+    recentFiles_.clear();
+    for (const wchar_t* p = buffer.data(); *p && recentFiles_.size() < kMaxRecentFiles; p += wcslen(p) + 1) {
+        recentFiles_.emplace_back(p);
+    }
+}
+
+void PlayerWindow::saveRecentFiles() const {
+    std::wstring data;
+    for (const std::wstring& path : recentFiles_) {
+        data += path;
+        data += L'\0';
+    }
+    data += L'\0';
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"RecentFiles", REG_MULTI_SZ, data.data(),
+                    static_cast<DWORD>(data.size() * sizeof(wchar_t)));
+}
+
 std::wstring PlayerWindow::chooseVideoFile(const wchar_t* title) {
     // Windows標準のファイル選択画面(COMの部品)。UIスレッドはCOM初期化済み(main.cpp)。
     Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
@@ -823,6 +970,7 @@ void PlayerWindow::openCompare(const std::wstring& path) {
         return;
     }
     compareClip_ = std::move(clip);
+    addRecentFile(path);
     clip_->setCacheLimit(cacheLimitFor(clip_->cachesOnGpu(), true));
     view_.setCompareOffset(0);
     view_.setCompareClip(compareClip_);

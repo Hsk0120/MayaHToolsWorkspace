@@ -64,6 +64,7 @@ private:
     struct Layout {
         RECT video{};   ///< 映像の表示領域(VideoViewの子ウィンドウを置く)。
         RECT bar{};     ///< 下部の操作部全体。
+        RECT fileButton{};  ///< 「ファイル」ボタン(押すとファイルのメニューを出す)。
         RECT button{};  ///< 再生/停止ボタン。
         RECT slider{};  ///< タイムスライダー全体(クリック判定にも使う)。
         RECT compareButton{};  ///< 「比較」ボタン(2本目の動画を選ぶ。比較中に押すと比較をやめる)。
@@ -180,6 +181,24 @@ private:
     void onDropFiles(HDROP drop);
 
     /**
+     * @brief 「ファイル」ボタンの上にファイルのメニューを出し、選ばれた項目を実行する。
+     * @note メニューは選ぶか閉じるまで戻らない(Windows標準のメニュー)。
+     */
+    void showFileMenu();
+
+    /**
+     * @brief 開いた動画を「最近使ったファイル」の先頭に加え、保存する。
+     * @param path 動画ファイルのパス。
+     */
+    void addRecentFile(const std::wstring& path);
+
+    /** @brief 「最近使ったファイル」をレジストリから読む。 */
+    void loadRecentFiles();
+
+    /** @brief 「最近使ったファイル」をレジストリへ保存する。 */
+    void saveRecentFiles() const;
+
+    /**
      * @brief Windowsのファイル選択画面で動画を選ばせる。
      * @param title 画面の題名。
      * @return 選ばれたファイルのパス。取り消されたら空。
@@ -251,6 +270,7 @@ private:
     VideoView view_;              ///< 映像の表示と再生の時間管理。
     std::shared_ptr<Clip> clip_;  ///< 表示中の動画。描画スレッドとも共有する。未読み込みならnullptr。
     std::shared_ptr<Clip> compareClip_;  ///< 比較用の2本目の動画。比較していなければnullptr。
+    std::vector<std::wstring> recentFiles_;  ///< 最近使ったファイル(新しい順)。
     std::shared_ptr<AudioPlayer> audio_;  ///< 表示中の動画の音声。描画スレッドとも共有する。
     float volume_ = 0.8f;   ///< 音量(0.0〜1.0)。
     bool muted_ = false;    ///< 消音中か。
