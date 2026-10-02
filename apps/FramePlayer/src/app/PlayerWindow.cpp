@@ -4,6 +4,7 @@
  */
 #include "app/PlayerWindow.h"
 
+#include <dwmapi.h>
 #include <shobjidl.h>
 #include <windowsx.h>
 #include <wrl/client.h>
@@ -28,16 +29,21 @@ constexpr UINT kViewFrameMessage = WM_APP + 1;   ///< VideoViewが表示する�
 constexpr UINT kFrameReadyMessage = WM_APP + 2;  ///< 裏の読み込みでコマがキャッシュに入ったときの知らせ。
 constexpr LONGLONG kCacheBarIntervalMs = 200;    ///< キャッシュ表示を計算し直す最短間隔(ミリ秒)。
 
-constexpr COLORREF kBackground = RGB(32, 32, 32);
-constexpr COLORREF kText = RGB(230, 230, 230);
-constexpr COLORREF kControlFace = RGB(58, 58, 58);
-constexpr COLORREF kSliderFace = RGB(44, 44, 44);
-constexpr COLORREF kSliderPlayed = RGB(56, 72, 92);
-constexpr COLORREF kTick = RGB(120, 120, 120);
-constexpr COLORREF kTickLabel = RGB(170, 170, 170);
-constexpr COLORREF kPlayhead = RGB(255, 150, 40);
-constexpr COLORREF kCached = RGB(80, 150, 230);
-constexpr COLORREF kDisabled = RGB(110, 110, 110);
+// 色はWindows 11標準の「メディア プレーヤー」に合わせる(同じ動画を再生した画面から測った値)。
+constexpr COLORREF kBackground = RGB(0, 0, 0);       ///< 映像の周りの背景。
+constexpr COLORREF kSurface = RGB(20, 20, 20);       ///< タイトルバー・タイムライン・操作パネルの地(#141414)。
+constexpr COLORREF kTrack = RGB(148, 148, 148);      ///< タイムラインのバーのうちキャッシュに無い部分(#949494)。
+constexpr COLORREF kAccent = RGB(255, 130, 50);      ///< 強調色(キャッシュの帯・音量・比較中のボタン。#FF8232)。
+constexpr COLORREF kIcon = RGB(255, 255, 255);       ///< 移動・再生ボタンの記号。
+constexpr COLORREF kSubText = RGB(255, 255, 255);    ///< 補足の文字(コマ数・fps。メディア プレーヤーの時刻と同じ白)。
+constexpr COLORREF kVolumeTrack = RGB(69, 69, 69);   ///< 音量の三角形の地(#454545。メディア プレーヤーのつまみの色)。
+constexpr COLORREF kText = RGB(255, 255, 255);
+constexpr COLORREF kControlFace = RGB(38, 38, 38);    ///< 文字のボタンの地。
+constexpr COLORREF kControlBorder = RGB(51, 51, 51);  ///< 文字のボタンの枠。
+constexpr COLORREF kDisabled = RGB(106, 106, 106);    ///< 使えない記号(#6A6A6A)。
+constexpr DWORD kDwmUseImmersiveDarkMode = 20;  ///< DWMWA_USE_IMMERSIVE_DARK_MODE(古いSDKに無い場合があるので番号で持つ)。
+constexpr DWORD kDwmCaptionColor = 35;          ///< DWMWA_CAPTION_COLOR(Windows 11以降)。
+constexpr DWORD kDwmTextColor = 36;             ///< DWMWA_TEXT_COLOR(Windows 11以降)。
 constexpr wchar_t kSettingsKey[] = L"Software\\FramePlayer";  ///< 設定の保存先(HKEY_CURRENT_USERの下)。
 constexpr float kVolumeStep = 0.05f;                             ///< ↑↓キーで変える音量の幅。
 constexpr int kCompareLargeShift = 10;                           ///< Shift+[ ]で変える2本目のずらしの幅。
@@ -76,6 +82,54 @@ void fillColor(HDC dc, const RECT& rect, COLORREF color) {
 }
 
 /**
+ * @brief 矩形を既存のブラシで塗る。
+ * @param dc 描画先。
+ * @param rect 塗る範囲。
+ * @param brush ブラシ(呼び出し元が持つ)。
+ */
+void fillColorBrush(HDC dc, const RECT& rect, HBRUSH brush) {
+    FillRect(dc, &rect, brush);
+}
+
+/**
+ * @brief Windows 11の標準の文字(Segoe UI Variable)が使えるか調べる。
+ * @return 使えればtrue。結果は最初の1回だけ調べて覚えておく。
+ */
+bool hasVariableFont() {
+    static const bool found = [] {
+        HDC dc = GetDC(nullptr);
+        LOGFONTW query{};
+        query.lfCharSet = DEFAULT_CHARSET;
+        wcscpy_s(query.lfFaceName, L"Segoe UI Variable Text");
+        bool exists = false;
+        EnumFontFamiliesExW(
+            dc, &query,
+            [](const LOGFONTW*, const TEXTMETRICW*, DWORD, LPARAM param) -> int {
+                *reinterpret_cast<bool*>(param) = true;
+                return 0;
+            },
+            reinterpret_cast<LPARAM>(&exists), 0);
+        ReleaseDC(nullptr, dc);
+        return exists;
+    }();
+    return found;
+}
+
+/**
+ * @brief タイトルバーをダークにし、操作部と同じ色にする(Windows 11のアプリと同じ見た目)。
+ * @param hwnd 対象のウィンドウ。
+ * @note Windows 10では色の指定が効かず、ダークの指定だけが効く(失敗しても表示に支障はない)。
+ */
+void applyModernTitleBar(HWND hwnd) {
+    const BOOL dark = TRUE;
+    DwmSetWindowAttribute(hwnd, kDwmUseImmersiveDarkMode, &dark, sizeof(dark));
+    const COLORREF caption = kSurface;
+    DwmSetWindowAttribute(hwnd, kDwmCaptionColor, &caption, sizeof(caption));
+    const COLORREF text = kText;
+    DwmSetWindowAttribute(hwnd, kDwmTextColor, &text, sizeof(text));
+}
+
+/**
  * @brief 指定サイズのSegoe UIフォントを作る。
  * @param points 文字の大きさ(ポイント)。
  * @param dpi ウィンドウのDPI。
@@ -83,24 +137,8 @@ void fillColor(HDC dc, const RECT& rect, COLORREF color) {
  */
 HFONT createUiFont(int points, int dpi) {
     return CreateFontW(-MulDiv(points, dpi, 72), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-                       OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
-}
-
-/**
- * @brief 目盛りの間隔を、隣の目盛りとの距離が指定以上になる最小の「きりのよい数」から選ぶ。
- * @param pixelsPerFrame 1コマあたりの横幅(ピクセル)。
- * @param minSpacing 目盛り同士の最小距離(ピクセル)。
- * @return 目盛りの間隔(コマ数)。
- */
-int tickStep(double pixelsPerFrame, int minSpacing) {
-    static const int kSteps[] = {1,    2,    5,     10,    20,    50,     100,    200,   500,
-                                 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000};
-    for (int step : kSteps) {
-        if (step * pixelsPerFrame >= minSpacing) {
-            return step;
-        }
-    }
-    return 500000;
+                       OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH,
+                       hasVariableFont() ? L"Segoe UI Variable Text" : L"Segoe UI");
 }
 
 /**
@@ -158,6 +196,8 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     if (!hwnd_) {
         return false;
     }
+    // 表示する前にタイトルバーの色を決めておく(白いタイトルバーが一瞬見えないように)。
+    applyModernTitleBar(hwnd_);
     // GPUが使えれば、デコード・キャッシュ・描画で同じデバイスを使う(GPUのメモリにあるコマをそのまま描くため)。
     gpu_ = GpuDevice::create();
     if (!view_.create(instance, hwnd_, kViewFrameMessage, gpu_)) {
@@ -310,40 +350,62 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
     RECT client;
     GetClientRect(hwnd_, &client);
     const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
+    // Keyframe Proと同じく、下から「操作パネル」「タイムライン」の2段。映像はその上に余白なしで置く。
+    const int panelHeight = scaled(36, dpi);
+    const int timelineHeight = scaled(34, dpi);
+    const int panelTop = std::max(static_cast<int>(client.top), static_cast<int>(client.bottom) - panelHeight);
+    const int timelineTop = std::max(static_cast<int>(client.top), panelTop - timelineHeight);
     const int margin = scaled(8, dpi);
-    const int barHeight = scaled(44, dpi);
-    const int barTop = std::max(static_cast<int>(client.top), static_cast<int>(client.bottom) - barHeight);
 
     Layout layout;
-    layout.video = {client.left + margin, client.top + margin, client.right - margin,
-                    std::max(static_cast<int>(client.top) + margin, barTop)};
-    layout.bar = {client.left, barTop, client.right, client.bottom};
-    const int buttonSize = scaled(32, dpi);
-    const int buttonTop = barTop + (barHeight - buttonSize) / 2;
-    layout.fileButton = {client.left + margin, buttonTop, client.left + margin + scaled(72, dpi), buttonTop + buttonSize};
-    const int playLeft = layout.fileButton.right + scaled(8, dpi);
-    layout.button = {playLeft, buttonTop, playLeft + buttonSize, buttonTop + buttonSize};
-    const int infoLeft = std::max(static_cast<int>(layout.button.right),
-                                  static_cast<int>(client.right) - margin - scaled(300, dpi));
-    layout.info = {infoLeft, barTop, client.right - margin, client.bottom};
-    // 音量(スピーカーのボタンと音量スライダー)はコマ番号の左に置く。
-    const int volumeRight = layout.info.left - scaled(12, dpi);
-    const int volumeLeft = volumeRight - scaled(90, dpi);
-    layout.volumeSlider = {volumeLeft, barTop + barHeight / 2 - scaled(3, dpi), volumeRight,
-                           barTop + barHeight / 2 + scaled(3, dpi)};
-    const int speakerSize = scaled(24, dpi);
-    const int speakerTop = barTop + (barHeight - speakerSize) / 2;
-    layout.volumeButton = {volumeLeft - scaled(6, dpi) - speakerSize, speakerTop, volumeLeft - scaled(6, dpi),
-                           speakerTop + speakerSize};
-    const int compareWidth = scaled(52, dpi);
-    const int compareHeight = scaled(26, dpi);
-    const int compareTop = barTop + (barHeight - compareHeight) / 2;
-    layout.compareButton = {layout.volumeButton.left - scaled(12, dpi) - compareWidth, compareTop,
-                            layout.volumeButton.left - scaled(12, dpi), compareTop + compareHeight};
-    layout.slider = {layout.button.right + scaled(10, dpi), barTop + scaled(6, dpi),
-                     layout.compareButton.left - scaled(12, dpi), client.bottom - scaled(6, dpi)};
-    layout.track = layout.slider;
-    InflateRect(&layout.track, -scaled(4, dpi), 0);
+    layout.video = {client.left, client.top, client.right, timelineTop};
+    layout.bar = {client.left, timelineTop, client.right, client.bottom};
+    layout.timeline = {client.left, timelineTop, client.right, panelTop};
+    layout.panel = {client.left, panelTop, client.right, client.bottom};
+
+    // タイムライン: 左に全体のコマ数、右にフレームレートなど、間に細いバー。バーの上に今のコマ番号を出す。
+    layout.totalLabel = {client.left + margin, timelineTop, client.left + margin + scaled(80, dpi), panelTop};
+    layout.rateLabel = {std::max(static_cast<int>(layout.totalLabel.right), static_cast<int>(client.right) -
+                                                                                margin - scaled(64, dpi)),
+                        timelineTop, client.right - margin, panelTop};
+    const int trackHeight = scaled(6, dpi);
+    const int trackTop = panelTop - scaled(8, dpi) - trackHeight;
+    layout.track = {layout.totalLabel.right + scaled(8, dpi), trackTop, layout.rateLabel.left - scaled(8, dpi),
+                    trackTop + trackHeight};
+
+    // 操作パネル: 左に「ファイル」「比較」、中央に移動・再生のボタン、右に音量。
+    const int buttonHeight = scaled(26, dpi);
+    const int buttonTop = panelTop + (panelHeight - buttonHeight) / 2;
+    layout.fileButton = {client.left + margin, buttonTop, client.left + margin + scaled(72, dpi), buttonTop + buttonHeight};
+    layout.compareButton = {layout.fileButton.right + scaled(6, dpi), buttonTop,
+                            layout.fileButton.right + scaled(6, dpi) + scaled(56, dpi), buttonTop + buttonHeight};
+
+    const int transportSize = scaled(28, dpi);
+    const int playSize = scaled(32, dpi);
+    const int gap = scaled(4, dpi);
+    const int transportWidth = transportSize * 4 + playSize + gap * 4;
+    int x = (client.left + client.right) / 2 - transportWidth / 2;
+    auto place = [&](int size) {
+        const int top = panelTop + (panelHeight - size) / 2;
+        const RECT r{x, top, x + size, top + size};
+        x += size + gap;
+        return r;
+    };
+    layout.startButton = place(transportSize);
+    layout.prevButton = place(transportSize);
+    layout.button = place(playSize);
+    layout.nextButton = place(transportSize);
+    layout.endButton = place(transportSize);
+
+    const int volumeRight = client.right - margin;
+    const int volumeWidth = scaled(80, dpi);
+    const int volumeHeight = scaled(16, dpi);
+    const int volumeTop = panelTop + (panelHeight - volumeHeight) / 2;
+    layout.volumeSlider = {volumeRight - volumeWidth, volumeTop, volumeRight, volumeTop + volumeHeight};
+    const int speakerSize = scaled(22, dpi);
+    const int speakerTop = panelTop + (panelHeight - speakerSize) / 2;
+    layout.volumeButton = {layout.volumeSlider.left - scaled(6, dpi) - speakerSize, speakerTop,
+                           layout.volumeSlider.left - scaled(6, dpi), speakerTop + speakerSize};
     return layout;
 }
 
@@ -388,62 +450,55 @@ void PlayerWindow::paint() {
 
 void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     const bool playing = view_.isPlaying();
+    // タイムラインと下段は、メディアプレイヤーと同じく1枚の地として塗る。
+    fillColor(dc, layout.bar, kSurface);
+
+    // 文字のボタン(「ファイル」「比較」)。比較中の「比較」は色を付けて、押すと比較をやめることを示す。
+    HFONT buttonFont = createUiFont(9, dpi);
+    HGDIOBJ oldFont = SelectObject(dc, buttonFont);
+    SetTextColor(dc, kText);
+    {
+        // 角を丸めた薄い地と枠。比較中は強調色の地に黒い文字(メディア プレーヤーの「ファイルを開く」と同じ)。
+        const int radius = scaled(8, dpi);
+        auto roundButton = [&](RECT b, COLORREF face, COLORREF border, COLORREF ink, const wchar_t* text) {
+            HBRUSH brush = CreateSolidBrush(face);
+            HPEN pen = CreatePen(PS_SOLID, 1, border);
+            HGDIOBJ oldBrush = SelectObject(dc, brush);
+            HGDIOBJ oldPen = SelectObject(dc, pen);
+            RoundRect(dc, b.left, b.top, b.right, b.bottom, radius, radius);
+            SelectObject(dc, oldBrush);
+            SelectObject(dc, oldPen);
+            DeleteObject(brush);
+            DeleteObject(pen);
+            SetTextColor(dc, ink);
+            DrawTextW(dc, text, -1, &b, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        };
+        roundButton(layout.fileButton, kControlFace, kControlBorder, kText, L"ファイル ▾");
+        if (compareClip_) {
+            roundButton(layout.compareButton, kAccent, kAccent, kBackground, L"比較 ×");
+        } else {
+            roundButton(layout.compareButton, kControlFace, kControlBorder, kText, L"比較");
+        }
+    }
+    SelectObject(dc, oldFont);
+    DeleteObject(buttonFont);
+
+    // 移動・再生のボタン(Keyframe Proと同じく枠なしの記号)。
+    const COLORREF ink = clip_ ? kIcon : kDisabled;
+    paintTransportIcon(dc, layout.startButton, TransportIcon::Start, ink);
+    paintTransportIcon(dc, layout.prevButton, TransportIcon::Previous, ink);
+    paintTransportIcon(dc, layout.button, playing ? TransportIcon::Pause : TransportIcon::Play, clip_ ? kText : kDisabled);
+    paintTransportIcon(dc, layout.nextButton, TransportIcon::Next, ink);
+    paintTransportIcon(dc, layout.endButton, TransportIcon::End, ink);
+
     paintVolume(dc, layout, dpi);
 
-    // 「ファイル」ボタン。押すとファイルのメニューを出す。
-    {
-        RECT b = layout.fileButton;
-        fillColor(dc, b, kControlFace);
-        HFONT buttonFont = createUiFont(9, dpi);
-        HGDIOBJ oldButtonFont = SelectObject(dc, buttonFont);
-        SetTextColor(dc, kText);
-        DrawTextW(dc, L"ファイル \u25BE", -1, &b, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(dc, oldButtonFont);
-        DeleteObject(buttonFont);
-    }
-
-    // 「比較」ボタン。比較中は色を付けて、押すと比較をやめることを示す。
-    {
-        RECT b = layout.compareButton;
-        fillColor(dc, b, compareClip_ ? kSliderPlayed : kControlFace);
-        HFONT buttonFont = createUiFont(9, dpi);
-        HGDIOBJ oldButtonFont = SelectObject(dc, buttonFont);
-        SetTextColor(dc, kText);
-        DrawTextW(dc, compareClip_ ? L"比較 ×" : L"比較", -1, &b, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(dc, oldButtonFont);
-        DeleteObject(buttonFont);
-    }
-
-    // 再生/停止ボタン。再生中は停止(縦棒2本)、停止中は再生(三角)の記号を出す。
-    const RECT& b = layout.button;
-    fillColor(dc, b, kControlFace);
-    const int cx = (b.left + b.right) / 2;
-    const int cy = (b.top + b.bottom) / 2;
-    const int icon = (b.bottom - b.top) / 4;
-    if (playing) {
-        const int barWidth = std::max(2, icon * 2 / 3);
-        fillColor(dc, RECT{cx - icon + 1, cy - icon, cx - icon + 1 + barWidth, cy + icon}, kText);
-        fillColor(dc, RECT{cx + icon - barWidth, cy - icon, cx + icon, cy + icon}, kText);
-    } else {
-        const POINT triangle[] = {{cx - icon * 3 / 4, cy - icon}, {cx - icon * 3 / 4, cy + icon}, {cx + icon, cy}};
-        HBRUSH brush = CreateSolidBrush(kText);
-        HPEN pen = CreatePen(PS_SOLID, 1, kText);
-        HGDIOBJ oldBrush = SelectObject(dc, brush);
-        HGDIOBJ oldPen = SelectObject(dc, pen);
-        Polygon(dc, triangle, 3);
-        SelectObject(dc, oldBrush);
-        SelectObject(dc, oldPen);
-        DeleteObject(brush);
-        DeleteObject(pen);
-    }
-
-    // タイムスライダー。
-    const RECT& s = layout.slider;
+    // タイムライン(細いバー)。
     const RECT& t = layout.track;
-    if (s.right <= s.left) {
+    if (t.right <= t.left) {
         return;
     }
-    fillColor(dc, s, kSliderFace);
+    fillColor(dc, t, kTrack);
     if (!clip_) {
         return;
     }
@@ -452,12 +507,10 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     auto xOf = [&](int index) {
         return count > 1 ? t.left + static_cast<int>(static_cast<long long>(index) * trackWidth / (count - 1)) : t.left;
     };
-    const int playheadX = xOf(current_);
-    fillColor(dc, RECT{s.left, s.top, playheadX, s.bottom}, kSliderPlayed);
 
-    // キャッシュ済みのコマを、スライダー下端の細い帯で示す。1画素に複数コマが入る場合は1つでもあれば塗る。
+    // キャッシュ済みのコマを、バーの中に青で示す。1画素に複数コマが入る場合は1つでもあれば塗る。
     // 調べるには全コマ(1時間60fpsで21万6千)を見るので、毎回の描画では計算し直さず、
-    // 一定間隔(kCacheBarIntervalMs)ごと、またはスライダーの幅が変わったときだけ計算する。
+    // 一定間隔(kCacheBarIntervalMs)ごと、またはバーの幅が変わったときだけ計算する。
     static const LONGLONG frequency = ticksPerSecond();
     const LONGLONG now = nowTicks();
     if (cacheRunsTrack_.left != t.left || cacheRunsTrack_.right != t.right ||
@@ -467,71 +520,119 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
         cacheRunsTrack_ = t;
         cacheRuns_.clear();
         int runStart = -1;
-        for (int x = t.left; x <= t.right; ++x) {
+        for (int px = t.left; px <= t.right; ++px) {
             bool cached = false;
-            if (x < t.right && count > 0) {
+            if (px < t.right && count > 0) {
                 const long long span = std::max(1, trackWidth);
-                const int first = static_cast<int>(static_cast<long long>(x - t.left) * (count - 1) / span);
+                const int first = static_cast<int>(static_cast<long long>(px - t.left) * (count - 1) / span);
                 const int last = std::max(
-                    first, static_cast<int>(static_cast<long long>(x + 1 - t.left) * (count - 1) / span) - 1);
+                    first, static_cast<int>(static_cast<long long>(px + 1 - t.left) * (count - 1) / span) - 1);
                 for (int i = first; i <= std::min(last, count - 1) && !cached; ++i) {
                     cached = cacheFlags_[static_cast<std::size_t>(i)] != 0;
                 }
             }
             if (cached && runStart < 0) {
-                runStart = x;
+                runStart = px;
             } else if (!cached && runStart >= 0) {
-                cacheRuns_.emplace_back(runStart, x);
+                cacheRuns_.emplace_back(runStart, px);
                 runStart = -1;
             }
         }
     }
-    const int barHeight = std::max(2, scaled(3, dpi));
     for (const auto& [left, right] : cacheRuns_) {
-        fillColor(dc, RECT{left, s.bottom - barHeight, right, s.bottom}, kCached);
+        fillColor(dc, RECT{left, t.top, right, t.bottom}, kAccent);
     }
 
-    // 目盛り。細かい目盛りは下側に短く、区切りの目盛りは長くしてコマ番号(1始まり)を添える。
-    const double pixelsPerFrame = count > 1 ? static_cast<double>(trackWidth) / (count - 1) : trackWidth;
-    const int minor = tickStep(pixelsPerFrame, scaled(5, dpi));
-    const int major = tickStep(pixelsPerFrame, scaled(48, dpi));
-    const int height = s.bottom - s.top;
-    HFONT labelFont = createUiFont(8, dpi);
-    HGDIOBJ oldFont = SelectObject(dc, labelFont);
-    SetTextColor(dc, kTickLabel);
-    for (int number = minor; number <= count; number += minor) {
-        const int x = xOf(number - 1);
-        const bool isMajor = number % major == 0;
-        const int tickTop = isMajor ? s.top + height / 2 : s.bottom - height / 4;
-        fillColor(dc, RECT{x, tickTop, x + 1, s.bottom}, kTick);
-        if (isMajor) {
-            wchar_t label[16];
-            std::swprintf(label, 16, L"%d", number);
-            RECT labelRect{x + scaled(2, dpi), s.top, x + scaled(60, dpi), s.top + height / 2};
-            DrawTextW(dc, label, -1, &labelRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOCLIP);
-        }
-    }
-    SelectObject(dc, oldFont);
-    DeleteObject(labelFont);
-
-    // 再生位置の線。
-    const int half = std::max(1, scaled(1, dpi));
-    fillColor(dc, RECT{playheadX - half, s.top, playheadX + half + 1, s.bottom}, kPlayhead);
-
-    // コマ番号(1始まり)。再生中は再生開始からのコマ落ち(表示できなかったコマ)の数も出す。
-    wchar_t text[128];
-    if (playing) {
-        std::swprintf(text, 128, L"%d / %d   %.4g fps  コマ落ち %d", current_ + 1, count, playbackRate(),
-                      view_.droppedFrames());
-    } else if (compareClip_) {
-        std::swprintf(text, 128, L"%d / %d   %.4g fps  ずらし %+d", current_ + 1, count, playbackRate(),
-                      view_.compareOffset());
-    } else {
-        std::swprintf(text, 128, L"%d / %d   %.4g fps", current_ + 1, count, playbackRate());
-    }
+    // 今の位置: バーを貫く白い線と、その上の大きめのコマ番号(1始まり)。
+    const int playheadX = xOf(current_);
+    const int lineHalf = std::max(1, scaled(1, dpi));
+    fillColor(dc, RECT{playheadX - lineHalf / 2, t.top - scaled(5, dpi), playheadX - lineHalf / 2 + lineHalf + 1,
+                       t.bottom + scaled(3, dpi)},
+              kText);
+    HFONT currentFont = createUiFont(11, dpi);
+    oldFont = SelectObject(dc, currentFont);
     SetTextColor(dc, kText);
-    RECT infoRect = layout.info;
-    DrawTextW(dc, text, -1, &infoRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    wchar_t currentText[32];
+    std::swprintf(currentText, 32, L"%d", current_ + 1);
+    SIZE textSize{};
+    GetTextExtentPoint32W(dc, currentText, static_cast<int>(wcslen(currentText)), &textSize);
+    // 番号は線の真上に置き、タイムラインの端からはみ出さないように寄せる。
+    const int labelLeft = std::clamp(static_cast<int>(playheadX - textSize.cx / 2), static_cast<int>(t.left),
+                                     static_cast<int>(t.right - textSize.cx));
+    RECT currentRect{labelLeft, layout.timeline.top, labelLeft + textSize.cx, t.top - scaled(5, dpi)};
+    DrawTextW(dc, currentText, -1, &currentRect, DT_LEFT | DT_BOTTOM | DT_SINGLELINE);
+    SelectObject(dc, oldFont);
+    DeleteObject(currentFont);
+
+    // 左に全体のコマ数、右にフレームレート。
+    HFONT smallFont = createUiFont(8, dpi);
+    oldFont = SelectObject(dc, smallFont);
+    SetTextColor(dc, kSubText);
+    wchar_t totalText[32];
+    std::swprintf(totalText, 32, L"%d コマ", count);
+    RECT totalRect{layout.totalLabel.left, t.top - scaled(6, dpi), layout.totalLabel.right, t.bottom + scaled(6, dpi)};
+    DrawTextW(dc, totalText, -1, &totalRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    wchar_t rateText[32];
+    std::swprintf(rateText, 32, L"%.4g fps", playbackRate());
+    RECT rateRect{layout.rateLabel.left, t.top - scaled(6, dpi), layout.rateLabel.right, t.bottom + scaled(6, dpi)};
+    DrawTextW(dc, rateText, -1, &rateRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(dc, oldFont);
+    DeleteObject(smallFont);
+}
+
+void PlayerWindow::paintTransportIcon(HDC dc, const RECT& box, TransportIcon icon, COLORREF ink) {
+    // 記号は箱の中央に、箱の大きさに合わせて描く。三角はPolygon、縦棒は四角で描く。
+    const int cx = (box.left + box.right) / 2;
+    const int cy = (box.top + box.bottom) / 2;
+    const int h = std::max(3, static_cast<int>((box.bottom - box.top) / 4));  // 記号の高さの半分。
+    const int bar = std::max(2, h / 3);
+    HBRUSH brush = CreateSolidBrush(ink);
+    HPEN pen = CreatePen(PS_SOLID, 1, ink);
+    HGDIOBJ oldBrush = SelectObject(dc, brush);
+    HGDIOBJ oldPen = SelectObject(dc, pen);
+    auto triangleRight = [&](int left) {  // 右向きの三角(幅h)。
+        const POINT p[] = {{left, cy - h}, {left, cy + h}, {left + h, cy}};
+        Polygon(dc, p, 3);
+    };
+    auto triangleLeft = [&](int right) {  // 左向きの三角(幅h)。
+        const POINT p[] = {{right, cy - h}, {right, cy + h}, {right - h, cy}};
+        Polygon(dc, p, 3);
+    };
+    auto verticalBar = [&](int left) { fillColorBrush(dc, RECT{left, cy - h, left + bar, cy + h + 1}, brush); };
+    switch (icon) {
+    case TransportIcon::Play: {
+        const int w = h * 3 / 2;
+        const POINT p[] = {{cx - w / 2, cy - h - 1}, {cx - w / 2, cy + h + 1}, {cx + w - w / 2, cy}};
+        Polygon(dc, p, 3);
+        break;
+    }
+    case TransportIcon::Pause:
+        fillColorBrush(dc, RECT{cx - h + 1, cy - h, cx - h + 1 + bar + 1, cy + h + 1}, brush);
+        fillColorBrush(dc, RECT{cx + h - bar - 1, cy - h, cx + h, cy + h + 1}, brush);
+        break;
+    case TransportIcon::Start:  // |◀◀
+        verticalBar(cx - h - bar);
+        triangleLeft(cx);
+        triangleLeft(cx + h);
+        break;
+    case TransportIcon::Previous:  // |◀
+        verticalBar(cx - h / 2 - bar);
+        triangleLeft(cx + h / 2);
+        break;
+    case TransportIcon::Next:  // ▶|
+        triangleRight(cx - h / 2);
+        verticalBar(cx + h / 2 + 1);
+        break;
+    case TransportIcon::End:  // ▶▶|
+        triangleRight(cx - h);
+        triangleRight(cx);
+        verticalBar(cx + h + 1);
+        break;
+    }
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(brush);
+    DeleteObject(pen);
 }
 
 void PlayerWindow::onKeyDown(WPARAM key) {
@@ -598,10 +699,10 @@ void PlayerWindow::onKeyDown(WPARAM key) {
 void PlayerWindow::onLeftButtonDown(int x, int y) {
     const Layout layout = computeLayout();
     const POINT point{x, y};
-    // 音量スライダーは細いので、操作部の高さいっぱいまで当たり判定を広げる。
+    // 音量の三角形は小さいので、操作パネルの高さいっぱいまで当たり判定を広げる。
     RECT volumeHit = layout.volumeSlider;
-    volumeHit.top = layout.bar.top;
-    volumeHit.bottom = layout.bar.bottom;
+    volumeHit.top = layout.panel.top;
+    volumeHit.bottom = layout.panel.bottom;
     InflateRect(&volumeHit, scaled(4, static_cast<int>(GetDpiForWindow(hwnd_))), 0);
     if (PtInRect(&layout.fileButton, point)) {
         showFileMenu();
@@ -631,15 +732,25 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
     if (!clip_) {
         return;
     }
+    const int current = view_.currentFrame();
     if (PtInRect(&layout.button, point)) {
         togglePlayback();
-    } else if (PtInRect(&layout.slider, point)) {
+    } else if (PtInRect(&layout.startButton, point)) {
+        goToFrame(0);
+    } else if (PtInRect(&layout.prevButton, point)) {
+        goToFrame(current - 1);
+    } else if (PtInRect(&layout.nextButton, point)) {
+        goToFrame(current + 1);
+    } else if (PtInRect(&layout.endButton, point)) {
+        goToFrame(clip_->frameCount() - 1);
+    } else if (PtInRect(&layout.timeline, point)) {
+        // タイムラインの段のどこを押してもよい(バーは細いので)。
         // ドラッグ中にウィンドウ外へ出てもマウスの動きを受け取れるよう、マウスを取り込む。
         // 再生中に触った場合は、ドラッグ中はそのコマを表示し、離したらその位置から再生を続ける(YouTubeと同じ)。
         resumeAfterScrub_ = view_.isPlaying();
         scrubbing_ = true;
         SetCapture(hwnd_);
-        goToFrame(frameFromX(x));
+        goToFrame(frameFromX(x), true);
     }
 }
 
@@ -647,7 +758,7 @@ void PlayerWindow::onMouseMove(int x) {
     if (volumeDragging_) {
         setVolume(volumeFromX(x));
     } else if (scrubbing_ && clip_) {
-        goToFrame(frameFromX(x));
+        goToFrame(frameFromX(x), true);
     }
 }
 
@@ -677,7 +788,7 @@ void PlayerWindow::paintVolume(HDC dc, const Layout& layout, int dpi) {
     // 比較中は音声を鳴らさないので、音声なしと同じく薄く表示する。
     const bool hasAudio = audio_ && audio_->hasAudio() && !compareClip_;
     // 音声の無い動画のときは、操作はできるが薄い色で描く(設定は次の動画に引き継がれる)。
-    const COLORREF ink = (clip_ && !hasAudio) ? kDisabled : kText;
+    const COLORREF ink = (clip_ && !hasAudio) ? kDisabled : kIcon;
 
     // スピーカーの形(四角+台形)。消音中は×、そうでなければ音の大きさに応じて弧を描く。
     const RECT& b = layout.volumeButton;
@@ -710,13 +821,39 @@ void PlayerWindow::paintVolume(HDC dc, const Layout& layout, int dpi) {
     DeleteObject(brush);
     DeleteObject(pen);
 
-    // 音量スライダー。消音中は塗りを薄くする。
+    // 音量は右上がりの三角形で示す(Keyframe Proと同じ)。左から音量の分だけ塗り、残りは枠だけ。
     const RECT& s = layout.volumeSlider;
-    fillColor(dc, s, kSliderFace);
-    const int filled = s.left + static_cast<int>((s.right - s.left) * volume_ + 0.5f);
-    fillColor(dc, RECT{s.left, s.top, filled, s.bottom}, (muted_ || !hasAudio) ? kDisabled : kCached);
-    const int knob = std::max(2, scaled(3, dpi));
-    fillColor(dc, RECT{filled - knob, s.top - knob, filled + knob, s.bottom + knob}, ink);
+    const int width = std::max(1L, s.right - s.left);
+    const int height = s.bottom - s.top;
+    const POINT outline[] = {{s.left, s.bottom}, {s.right, s.bottom}, {s.right, s.top}};
+    HBRUSH trackBrush = CreateSolidBrush(kVolumeTrack);
+    HPEN noPen = static_cast<HPEN>(GetStockObject(NULL_PEN));
+    oldBrush = SelectObject(dc, trackBrush);
+    oldPen = SelectObject(dc, noPen);
+    Polygon(dc, outline, 3);
+    const int fx = s.left + static_cast<int>(width * volume_ + 0.5f);
+    if (fx > s.left) {
+        const POINT filled[] = {{s.left, s.bottom}, {fx, s.bottom}, {fx, s.bottom - height * (fx - s.left) / width}};
+        HBRUSH fillBrush = CreateSolidBrush((muted_ || !hasAudio) ? kDisabled : kAccent);
+        SelectObject(dc, fillBrush);
+        Polygon(dc, filled, 3);
+        SelectObject(dc, trackBrush);
+        DeleteObject(fillBrush);
+    }
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(trackBrush);
+
+    // 音量の数字は三角形の左上の空いている所に小さく出す。
+    HFONT smallFont = createUiFont(7, dpi);
+    HGDIOBJ oldFont = SelectObject(dc, smallFont);
+    SetTextColor(dc, kSubText);
+    wchar_t percent[16];
+    std::swprintf(percent, 16, muted_ ? L"消音" : L"%d%%", static_cast<int>(volume_ * 100.0f + 0.5f));
+    RECT percentRect{s.left, s.top - scaled(2, dpi), s.left + width * 2 / 3, s.top + height / 2};
+    DrawTextW(dc, percent, -1, &percentRect, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOCLIP);
+    SelectObject(dc, oldFont);
+    DeleteObject(smallFont);
 }
 
 void PlayerWindow::setVolume(float volume) {
@@ -1007,7 +1144,7 @@ int PlayerWindow::frameFromX(int x) const {
     return std::clamp(static_cast<int>(rounded / trackWidth), 0, count - 1);
 }
 
-void PlayerWindow::goToFrame(int index) {
+void PlayerWindow::goToFrame(int index, bool scrubbing) {
     const int clamped = std::clamp(index, 0, clip_->frameCount() - 1);
     const bool wasPlaying = view_.isPlaying();
     const int shown = view_.currentFrame();
@@ -1015,7 +1152,10 @@ void PlayerWindow::goToFrame(int index) {
         return;
     }
     // 移動した向きに先読みさせる(←で戻り続けるときは前のコマを先に読む)。
-    const auto direction = clamped < shown ? Clip::Direction::Backward : Clip::Direction::Forward;
+    // ドラッグ中は向きが細かく入れ替わるので、前後に同じだけ先読みさせる(先読みの範囲が行ったり来たりしないように)。
+    const auto direction = scrubbing ? Clip::Direction::Both
+                           : clamped < shown ? Clip::Direction::Backward
+                                             : Clip::Direction::Forward;
     view_.showFrame(clamped, direction);
     syncPowerRequest();
     current_ = clamped;
@@ -1050,6 +1190,12 @@ double PlayerWindow::playbackRate() const {
 
 void PlayerWindow::onViewFrameChanged() {
     view_.acknowledgeNotify();
+    // 停止中の表示コマは操作(goToFrame)で決めたものを正とする。描画側の知らせは遅れて届くことがあり、
+    // それで書き換えると、ドラッグ中に今の位置の表示が行ったり来たりして見えるため。
+    if (!view_.isPlaying()) {
+        invalidateBar();
+        return;
+    }
     const int shown = view_.currentFrame();
     if (shown != current_) {
         current_ = shown;

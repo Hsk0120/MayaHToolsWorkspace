@@ -27,7 +27,7 @@ add_executable(FramePlayer WIN32
     src/app/PlayerWindow.cpp
     src/app/VideoView.cpp
 )
-target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi)
+target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi dwmapi)
 
 # 配布用: `cmake --install build --config Release` でexeを release/ へコピーする(release/ はGit管理対象)。
 # ビルドのたびに管理対象のexeが変わらないよう、コピーはインストールを実行したときだけ行う。

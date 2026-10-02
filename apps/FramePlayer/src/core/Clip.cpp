@@ -182,7 +182,7 @@ std::wstring Clip::error() const {
 }
 
 int Clip::offsetIndexLocked(int offset) const {
-    const int sign = direction_ == Direction::Forward ? 1 : -1;
+    const int sign = direction_ == Direction::Backward ? -1 : 1;
     long long index = static_cast<long long>(playhead_) + static_cast<long long>(sign) * offset;
     if (wrap_) {
         index %= frameCount_;
@@ -204,6 +204,11 @@ int Clip::findTargetLocked() const {
     if (capacity >= frameCount_) {
         ahead = frameCount_ - 1;  // 全コマが入るなら全体を読む。
         behind = frameCount_ - 1;
+    } else if (direction_ == Direction::Both) {
+        // 向きが定まらない操作(ドラッグ)では前後に半分ずつ。向きが変わるたびに先読みの範囲が
+        // 入れ替わって、捨てて読み直すことを繰り返さないようにするため。
+        ahead = static_cast<int>((capacity - 1) / 2);
+        behind = ahead;
     } else {
         ahead = static_cast<int>((capacity - 1) * 3 / 4);
         behind = ahead / 3;
@@ -237,17 +242,19 @@ int Clip::findTargetLocked() const {
 }
 
 long long Clip::distanceCostLocked(int index) const {
-    const long long sign = direction_ == Direction::Forward ? 1 : -1;
+    const long long sign = direction_ == Direction::Backward ? -1 : 1;
     const long long offset = sign * (static_cast<long long>(index) - playhead_);
+    // 後ろにあるコマは、向きが決まっていれば3倍遠く、前後に同じだけ読むときは同じ遠さとして扱う。
+    const long long behindWeight = direction_ == Direction::Both ? 1 : 3;
     if (wrap_) {
         // ループ時は、先に回り込んで届く距離と、後ろにある距離の近い方で測る。
         long long forward = offset % frameCount_;
         if (forward < 0) {
             forward += frameCount_;
         }
-        return std::min(forward, 3 * (frameCount_ - forward));
+        return std::min(forward, behindWeight * (frameCount_ - forward));
     }
-    return offset >= 0 ? offset : -3 * offset;
+    return offset >= 0 ? offset : -behindWeight * offset;
 }
 
 void Clip::storeLocked(int index, std::shared_ptr<const Frame> frame,

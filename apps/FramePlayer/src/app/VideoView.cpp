@@ -18,7 +18,7 @@ namespace frameplayer {
 namespace {
 
 constexpr wchar_t kClassName[] = L"FramePlayerVideoView";
-const D2D1_COLOR_F kBackground = {32 / 255.0f, 32 / 255.0f, 32 / 255.0f, 1.0f};
+const D2D1_COLOR_F kBackground = {0.0f, 0.0f, 0.0f, 1.0f};  // Keyframe Proと同じく映像の周りは黒。
 const D2D1_COLOR_F kText = {230 / 255.0f, 230 / 255.0f, 230 / 255.0f, 1.0f};
 const D2D1_COLOR_F kBox = {58 / 255.0f, 58 / 255.0f, 58 / 255.0f, 0.9f};
 constexpr UINT kSwapChainFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
@@ -670,7 +670,8 @@ void VideoView::renderLoop() {
             drawnOffset = offset;
             drawnWidth = width;
             drawnHeight = height;
-            current_ = requested;
+            // 停止中の表示コマ(current_)はshowFrame()が決める。ここで書き戻すと、描き始めた後に
+            // 新しい指示が来た場合に古い番号へ戻ってしまう(スライダーのドラッグ中に行ったり来たりして見える)。
             ready = draw(panes, paneCount, offset);
             notifyParent();
             continue;

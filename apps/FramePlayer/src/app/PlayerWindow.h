@@ -60,18 +60,30 @@ public:
     void openClip(const std::wstring& path);
 
 private:
-    /** @brief ウィンドウ内の各部品の位置(クライアント座標)。 */
+    /** @brief 移動・再生ボタンの記号。 */
+    enum class TransportIcon { Start, Previous, Play, Pause, Next, End };
+
+    /**
+     * @brief ウィンドウ内の各部品の位置(クライアント座標)。
+     * @note Keyframe Proと同じく、映像の下にタイムラインの段、その下に操作パネルの段を置く。
+     */
     struct Layout {
-        RECT video{};   ///< 映像の表示領域(VideoViewの子ウィンドウを置く)。
-        RECT bar{};     ///< 下部の操作部全体。
-        RECT fileButton{};  ///< 「ファイル」ボタン(押すとファイルのメニューを出す)。
-        RECT button{};  ///< 再生/停止ボタン。
-        RECT slider{};  ///< タイムスライダー全体(クリック判定にも使う)。
+        RECT video{};          ///< 映像の表示領域(VideoViewの子ウィンドウを置く)。
+        RECT bar{};            ///< 下部(タイムラインと操作パネル)全体。
+        RECT timeline{};       ///< タイムラインの段(押すとその位置へ移動。ドラッグも可)。
+        RECT track{};          ///< タイムラインの細いバー(コマを割り当てる横幅)。
+        RECT totalLabel{};     ///< 全体のコマ数の文字。
+        RECT rateLabel{};      ///< フレームレートなどの文字。
+        RECT panel{};          ///< 操作パネルの段。
+        RECT fileButton{};     ///< 「ファイル」ボタン(押すとファイルのメニューを出す)。
         RECT compareButton{};  ///< 「比較」ボタン(2本目の動画を選ぶ。比較中に押すと比較をやめる)。
-        RECT volumeButton{};  ///< スピーカーのボタン(押すと消音を切り替える)。
-        RECT volumeSlider{};  ///< 音量スライダー(クリック判定には上下に広げた範囲を使う)。
-        RECT track{};   ///< スライダーのうちコマを割り当てる横幅(両端は再生位置の線が収まるよう内側に寄せる)。
-        RECT info{};    ///< コマ番号などの文字。
+        RECT startButton{};    ///< 先頭へ移動するボタン。
+        RECT prevButton{};     ///< 1コマ戻るボタン。
+        RECT button{};         ///< 再生/停止ボタン。
+        RECT nextButton{};     ///< 1コマ進むボタン。
+        RECT endButton{};      ///< 末尾へ移動するボタン。
+        RECT volumeButton{};   ///< スピーカーのボタン(押すと消音を切り替える)。
+        RECT volumeSlider{};   ///< 音量の三角形(クリック判定には上下に広げた範囲を使う)。
     };
 
     /**
@@ -104,7 +116,16 @@ private:
     void paint();
 
     /**
-     * @brief 再生ボタン・タイムスライダー・コマ番号を描く。
+     * @brief 移動・再生ボタンの記号を描く。
+     * @param dc 描画先。
+     * @param box ボタンの範囲(記号はその中央に描く)。
+     * @param icon 記号の種類。
+     * @param ink 記号の色。
+     */
+    void paintTransportIcon(HDC dc, const RECT& box, TransportIcon icon, COLORREF ink);
+
+    /**
+     * @brief 操作パネル・タイムライン・コマ番号を描く。
      * @param dc 描画先(裏の画像)。
      * @param layout 各部品の位置。
      * @param dpi ウィンドウのDPI。
@@ -229,8 +250,9 @@ private:
     /**
      * @brief 再生を止め、指定したコマを表示する。範囲外は端に丸める。
      * @param index 0始まりのコマ番号。
+     * @param scrubbing タイムラインのドラッグ中か。trueなら前後に同じだけ先読みさせる。
      */
-    void goToFrame(int index);
+    void goToFrame(int index, bool scrubbing = false);
 
     /** @brief 再生中なら停止し、そうでなければ現在のコマから再生する。 */
     void togglePlayback();

@@ -30,7 +30,8 @@ public:
     using NotifyCallback = std::function<void()>;
 
     /// 再生ヘッドの移動方向。先読みする向きを決める。
-    enum class Direction { Forward, Backward };
+    /// Bothは前後に同じだけ先読みする(スライダーのドラッグなど、向きが定まらない操作で使う)。
+    enum class Direction { Forward, Backward, Both };
 
     Clip() = default;
 
