@@ -8,27 +8,26 @@
 #include <shellapi.h>
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
+#include "app/VideoView.h"
 #include "core/Clip.h"
 
 namespace frameplayer {
 
 /**
- * @brief 動画を表示し、キー操作・タイムスライダー・再生ボタンでコマを移動するウィンドウ。
- * @note 動画1本を扱う。描画はGDIで行い、ちらつき防止のため裏の画像に描いてから転送する。
- *       タイムスライダーと再生ボタンは標準部品を使わず、paint()で直接描いてマウス操作も自前で判定する。
+ * @brief 動画の表示領域(VideoView)と、再生ボタン・タイムスライダー・コマ番号を持つウィンドウ。
+ * @note 映像の描画と再生の時間管理はVideoViewの描画スレッドが行う。このウィンドウ(UIスレッド)は
+ *       キーとマウスの操作をVideoViewへの指示に変え、下部の操作部をGDIで描く。
+ *       操作部の描画が遅れても映像の再生には影響しない。
  */
 class PlayerWindow {
 public:
     PlayerWindow() = default;
-
-    /** @brief 再生用スレッドが残っていれば止めてから破棄する(通常はWM_DESTROYで止まっている)。 */
-    ~PlayerWindow();
 
     PlayerWindow(const PlayerWindow&) = delete;
     PlayerWindow& operator=(const PlayerWindow&) = delete;
@@ -42,16 +41,17 @@ public:
     bool create(HINSTANCE instance, int showCommand);
 
     /**
-     * @brief 動画を読み込んで表示する。失敗時はメッセージボックスで知らせる。
+     * @brief 動画を開いて表示する。失敗時はメッセージボックスで知らせる。
      * @param path 動画ファイルのパス。
-     * @note 読み込みが終わるまで戻らない(読み込み中の操作はできない)。再生中なら停止する。
+     * @note 目次を作って先頭のコマを読むまで戻らない。残りは裏で先読みする。
      */
     void openClip(const std::wstring& path);
 
 private:
     /** @brief ウィンドウ内の各部品の位置(クライアント座標)。 */
     struct Layout {
-        RECT video{};   ///< 動画を表示する範囲。
+        RECT video{};   ///< 映像の表示領域(VideoViewの子ウィンドウを置く)。
+        RECT bar{};     ///< 下部の操作部全体。
         RECT button{};  ///< 再生/停止ボタン。
         RECT slider{};  ///< タイムスライダー全体(クリック判定にも使う)。
         RECT track{};   ///< スライダーのうちコマを割り当てる横幅(両端は再生位置の線が収まるよう内側に寄せる)。
@@ -84,7 +84,7 @@ private:
      */
     Layout computeLayout() const;
 
-    /** @brief ウィンドウ全体を描画する。 */
+    /** @brief 操作部と余白を描く。映像の領域は子ウィンドウ(VideoView)が描く。 */
     void paint();
 
     /**
@@ -94,6 +94,9 @@ private:
      * @param dpi ウィンドウのDPI。
      */
     void paintControls(HDC dc, const Layout& layout, int dpi);
+
+    /** @brief 操作部だけを描き直すよう要求する(映像の領域は描き直さない)。 */
+    void invalidateBar();
 
     /**
      * @brief キー入力でコマを移動する。再生中なら停止してから移動する(Spaceは再生/停止の切り替え)。
@@ -131,28 +134,16 @@ private:
     int frameFromX(int x) const;
 
     /**
-     * @brief 表示するコマを変更する。範囲外は端に丸める。
+     * @brief 再生を止め、指定したコマを表示する。範囲外は端に丸める。
      * @param index 0始まりのコマ番号。
      */
-    void setCurrentFrame(int index);
+    void goToFrame(int index);
 
     /** @brief 再生中なら停止し、そうでなければ現在のコマから再生する。 */
     void togglePlayback();
 
-    /** @brief 現在のコマから再生を始める。最後のコマにいる場合は先頭から始める。 */
-    void startPlayback();
-
-    /** @brief 再生を止める。表示中のコマはそのまま。 */
-    void stopPlayback();
-
-    /** @brief 再生用スレッドに停止を合図し、終了を待って後片付けする。スレッドが無ければ何もしない。 */
-    void joinTickThread();
-
-    /**
-     * @brief 再生用スレッドからの知らせ(コマの境目ごと)の処理。再生開始からの経過時間で表示すべきコマを求めて表示する。
-     * @note 最後まで進んだら先頭に戻って繰り返す。経過時間で決めるため、描画が遅れてもコマが飛ぶだけで速さは保たれる。
-     */
-    void onPlaybackTick();
+    /** @brief 再生中だけ、画面の省電力(表示の消灯)とスリープを止めるようWindowsへ伝える。 */
+    void syncPowerRequest();
 
     /**
      * @brief 再生に使うフレームレートを返す。
@@ -160,9 +151,12 @@ private:
      */
     double playbackRate() const;
 
+    /** @brief VideoViewが表示するコマを変えたときの処理。コマ番号の表示を更新する。 */
+    void onViewFrameChanged();
+
     /**
-     * @brief 裏の読み込みでコマがキャッシュに入ったときの処理。待っていたコマが届いたら描き直す。
-     * @note キャッシュ表示の描き直しは間引く(先読み中は1秒に数百回届くため)。
+     * @brief 裏の読み込みでコマがキャッシュに入ったときの処理。キャッシュ表示を間引いて描き直す。
+     * @note 先読み中は1秒に数百回届くため、描き直しは一定間隔に抑える。
      */
     void onFrameReady();
 
@@ -170,25 +164,20 @@ private:
     void updateTitle();
 
     HWND hwnd_ = nullptr;
-    std::unique_ptr<Clip> clip_;  ///< 表示中の動画。未読み込みならnullptr。
-    int current_ = 0;             ///< 表示中のコマ番号(0始まり)。
-    std::shared_ptr<const Frame> shownFrame_;  ///< 最後に描いた画像。表示中のコマが読み込み中のとき代わりに残して「読み込み中」と重ねる。
+    HINSTANCE instance_ = nullptr;
+    // 破棄の順序: clip_(裏の読み込みスレッド)を先に止めてからview_を破棄する(宣言の逆順に破棄される)。
+    VideoView view_;              ///< 映像の表示と再生の時間管理。
+    std::shared_ptr<Clip> clip_;  ///< 表示中の動画。描画スレッドとも共有する。未読み込みならnullptr。
+    int current_ = 0;             ///< 操作部に表示しているコマ番号(VideoViewの表示に追従する)。
+
     std::atomic<bool> frameReadyPending_{false};  ///< 裏の読み込みからの知らせが未処理か(送りすぎ防止)。
-    std::vector<std::uint8_t> cacheFlags_;     ///< キャッシュ表示用の作業領域(描画のたびに確保しないため)。
-    LONGLONG lastCacheBarTicks_ = 0;           ///< キャッシュ表示を最後に計算した時刻。
+    std::vector<std::uint8_t> cacheFlags_;        ///< キャッシュ表示用の作業領域(描画のたびに確保しないため)。
+    LONGLONG lastCacheBarTicks_ = 0;              ///< キャッシュ表示を最後に計算した時刻。
     std::vector<std::pair<int, int>> cacheRuns_;  ///< キャッシュ表示で塗る横の範囲[左, 右)の一覧。
-    RECT cacheRunsTrack_{};                    ///< cacheRuns_を計算したときのスライダーの範囲。
+    RECT cacheRunsTrack_{};                       ///< cacheRuns_を計算したときのスライダーの範囲。
 
-    bool playing_ = false;          ///< 再生中か。
-    int playStartFrame_ = 0;        ///< 再生を始めたコマ番号。
-    LONGLONG playStartTicks_ = 0;   ///< 再生を始めた時刻(QueryPerformanceCounterの値)。
-    int droppedFrames_ = 0;         ///< 再生開始から表示できずに飛ばしたコマ数(描画が追いついているかの確認用)。
-
-    std::thread tickThread_;                ///< コマの境目ごとに再生の知らせを送るスレッド。再生中だけ動く。
-    HANDLE stopEvent_ = nullptr;            ///< tickThread_への停止の合図。再生中だけ存在する。
-    std::atomic<bool> tickPending_{false};  ///< 送った知らせがまだ処理されていないか(送りすぎ防止)。
-
-    bool scrubbing_ = false;  ///< タイムスライダーをドラッグ中か。
+    bool scrubbing_ = false;      ///< タイムスライダーをドラッグ中か。
+    bool keepDisplayOn_ = false;  ///< 画面の消灯を止めるようWindowsへ伝えているか。
 };
 
 }  // namespace frameplayer
