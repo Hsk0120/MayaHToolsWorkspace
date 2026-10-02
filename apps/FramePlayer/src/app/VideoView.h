@@ -5,7 +5,7 @@
 #pragma once
 
 #include <windows.h>
-#include <d2d1_1.h>
+#include <d2d1_3.h>
 #include <d3d11.h>
 #include <dwrite.h>
 #include <dxgi1_3.h>
@@ -14,18 +14,23 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 
+#include "core/AudioPlayer.h"
+#include "core/GpuDevice.h"
 #include "core/Clip.h"
 
 namespace frameplayer {
 
 /**
- * @brief 映像の表示と再生の時間管理を受け持つ子ウィンドウ。
+ * @brief 映像の表示と再生の時間管理を受け持つ子ウィンドウ。比較用の2本目の動画を右に並べて表示できる。
  * @note 描画は専用のスレッドで行い、画面の書き換え(垂直同期)に合わせて表示する。
  *       再生中に表示するコマも描画スレッドが経過時間から決めるので、UIスレッド(キー操作やスライダーの描画)が
  *       一時的に止まっても再生は止まらない。表示するコマが変わると、親ウィンドウへnotifyMessageを送る。
  *       公開メソッドはUIスレッドから呼ぶ。描画スレッドと共有する状態はmutex_とatomicで保護する。
+ *       2本目の動画(比較)は、1本目のコマ番号にずらし(オフセット)を足したコマを表示する。再生中は両方のコマが
+ *       そろってから進めるので、左右がずれて見えることはない。比較中は音声を鳴らさない。
  */
 class VideoView {
 public:
@@ -42,9 +47,11 @@ public:
      * @param instance アプリのインスタンスハンドル。
      * @param parent 親ウィンドウ。
      * @param notifyMessage 表示するコマが変わったときに親へ送るメッセージ。
+     * @param gpu デコード・キャッシュと共有するGPUデバイス。GPUのメモリにあるコマをそのまま描くのに必要。
+     *            nullptrなら描画用のデバイスを自分で作る(GPUが無ければCPU用の代わり)。
      * @return 作成できた場合true。
      */
-    bool create(HINSTANCE instance, HWND parent, UINT notifyMessage);
+    bool create(HINSTANCE instance, HWND parent, UINT notifyMessage, std::shared_ptr<GpuDevice> gpu = nullptr);
 
     /** @brief 描画スレッドを止める。親ウィンドウが破棄される前に呼ぶ。2回目以降は何もしない。 */
     void shutdown();
@@ -58,8 +65,27 @@ public:
     /**
      * @brief 表示する動画を差し替える。再生は止め、先頭のコマを表示する。
      * @param clip 表示する動画。nullptrなら何も表示しない。
+     * @param audio 動画の音声。nullptrまたは音声なしなら、PCの時計だけで再生する。
      */
-    void setClip(std::shared_ptr<Clip> clip);
+    void setClip(std::shared_ptr<Clip> clip, std::shared_ptr<AudioPlayer> audio = nullptr);
+
+    /**
+     * @brief 比較用の2本目の動画を設定する。再生中なら止める。
+     * @param clip 2本目の動画。nullptrなら比較をやめて1本だけ表示する。
+     */
+    void setCompareClip(std::shared_ptr<Clip> clip);
+
+    /**
+     * @brief 2本目のずらしを設定する。2本目には「1本目のコマ番号+ずらし」のコマを表示する。
+     * @param offset ずらすコマ数(負も可)。
+     */
+    void setCompareOffset(int offset);
+
+    /**
+     * @brief 2本目のずらしを返す。
+     * @return コマ数。
+     */
+    int compareOffset() const { return compareOffset_; }
 
     /**
      * @brief 再生を止め、指定したコマを表示する。
@@ -70,7 +96,8 @@ public:
 
     /**
      * @brief 現在表示しているコマから再生を始める。
-     * @param rate 1秒あたりのコマ数。
+     * @param rate 1秒あたりのコマ数(表示中のコマ番号の換算と、半コマずらしに使う)。
+     * @note 音声があれば音声も鳴らし、映像の進みを音声の再生位置に合わせる。
      */
     void play(double rate);
 
@@ -133,15 +160,50 @@ private:
      */
     bool resizeIfNeeded();
 
+    /** @brief 1つの表示枠(1本目または2本目)に描く内容。 */
+    struct PaneState {
+        const Clip* clip = nullptr;          ///< 表示する動画。無ければnullptr。
+        std::shared_ptr<const Frame> frame;  ///< 描く画像。読み込み中なら直前の画像。
+        int index = 0;                       ///< 表示すべきコマ番号(0始まり)。
+        bool loading = false;                ///< 「読み込み中」を重ねるか。
+        bool broken = false;                 ///< 「デコードできません」を重ねるか。
+        bool outOfRange = false;             ///< ずらした結果、動画の範囲外か(画像を描かずに知らせる)。
+
+        /**
+         * @brief 前回描いた内容と同じかを返す(停止中に描き直しが必要かの判断に使う)。
+         * @param other 比べる内容。
+         * @return 同じならtrue。
+         */
+        bool same(const PaneState& other) const {
+            return clip == other.clip && frame == other.frame && index == other.index && loading == other.loading &&
+                   broken == other.broken && outOfRange == other.outOfRange;
+        }
+    };
+
+    /** @brief 表示枠ごとに、GPUへ写した画像を覚えておく(同じ画像なら写し直さない)。描画スレッドだけが使う。 */
+    struct PaneCache {
+        std::shared_ptr<const Frame> source;               ///< 写した元の画像(保持して取り違えを防ぐ)。
+        Microsoft::WRL::ComPtr<ID2D1Bitmap1> bitmap;       ///< 主メモリのコマをGPUへ写したもの。
+        Microsoft::WRL::ComPtr<ID2D1ImageSource> image;    ///< GPUのコマ(NV12)をRGBとして描くための入口。
+    };
+
     /**
      * @brief 1回分を描いて画面に出す。描画スレッドで呼ぶ。
-     * @param clip 表示中の動画。
-     * @param frame 描く画像。nullptrなら画像を描かない。
-     * @param loading 「読み込み中」を重ねるか。
-     * @param broken 「デコードできません」を重ねるか。
+     * @param panes 表示枠の内容(1本目、比較中なら2本目)。
+     * @param paneCount 表示枠の数(1か2)。
+     * @param compareOffset 2本目のずらし(表示用)。
      * @return 描けた場合true。デバイスが失われた場合false。
      */
-    bool draw(const Clip* clip, const std::shared_ptr<const Frame>& frame, bool loading, bool broken);
+    bool draw(const PaneState* panes, int paneCount, int compareOffset);
+
+    /**
+     * @brief 1つの表示枠に画像と知らせを描く。描画スレッドでBeginDrawとEndDrawの間に呼ぶ。
+     * @param pane 描く内容。
+     * @param cache この表示枠の画像の覚え。
+     * @param area 表示枠の範囲。
+     * @param label 表示枠の下に出す文字。空なら出さない(比較中だけ出す)。
+     */
+    void drawPane(const PaneState& pane, PaneCache& cache, const D2D1_RECT_F& area, const std::wstring& label);
 
     /** @brief 親ウィンドウへ「表示するコマが変わった」と知らせる(未処理の知らせがあれば送らない)。 */
     void notifyParent();
@@ -154,11 +216,14 @@ private:
     // UIスレッドから描画スレッドへの指示。mutex_で保護する。
     mutable std::mutex mutex_;
     std::shared_ptr<Clip> clip_;
+    std::shared_ptr<Clip> compare_;       ///< 比較用の2本目の動画。比較していなければnullptr。
+    std::atomic<int> compareOffset_{0};   ///< 2本目のずらし(コマ数)。
+    std::shared_ptr<AudioPlayer> audio_;  ///< 再生中に鳴らす音声。無ければnullptr。
     int requested_ = 0;              ///< 停止中に表示するコマ。
     bool playRequested_ = false;     ///< 再生中か(UIスレッドの指示)。
     double rate_ = 24.0;             ///< 再生速度(1秒あたりのコマ数)。
     int playStartFrame_ = 0;         ///< 再生を始めたコマ。
-    LONGLONG playStartTicks_ = 0;    ///< 再生を始めた時刻(QueryPerformanceCounter)。0なら次の画面更新で決める。
+    int playSession_ = 0;            ///< play()のたびに増やす番号。描画スレッドが新しい再生の始まりを知るのに使う。
     bool stopThread_ = false;
 
     // 描画スレッドからUIスレッドへの状態。
@@ -169,17 +234,19 @@ private:
     HANDLE wakeEvent_ = nullptr;     ///< 描画スレッドを起こす合図(自動リセット)。
     std::thread thread_;
 
+    std::shared_ptr<GpuDevice> gpu_;  ///< 共有のGPUデバイス。無ければnullptr。
+
     // 以下は描画スレッドだけが使う。
     Microsoft::WRL::ComPtr<ID3D11Device> device_;
     Microsoft::WRL::ComPtr<IDXGISwapChain2> swapChain_;
     HANDLE frameWaitable_ = nullptr;  ///< 次の画面更新に描けるようになると合図される。
-    Microsoft::WRL::ComPtr<ID2D1Factory1> d2dFactory_;
-    Microsoft::WRL::ComPtr<ID2D1DeviceContext> context_;
+    Microsoft::WRL::ComPtr<ID2D1Factory3> d2dFactory_;
+    Microsoft::WRL::ComPtr<ID2D1DeviceContext2> context_;  ///< NV12を描ける版(Windows 8.1以降)。
     Microsoft::WRL::ComPtr<ID2D1Bitmap1> target_;
-    Microsoft::WRL::ComPtr<ID2D1Bitmap1> frameBitmap_;  ///< 表示中の画像をGPUへ写したもの。
-    std::shared_ptr<const Frame> frameBitmapSource_;     ///< frameBitmap_に写した画像(同じなら写し直さない)。
+    PaneCache paneCaches_[2];  ///< 表示枠ごとの画像の覚え(0=1本目、1=2本目)。
     Microsoft::WRL::ComPtr<IDWriteFactory> writeFactory_;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> textFormat_;
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> labelFormat_;  ///< 比較中に各表示枠の下に出す文字(左寄せ・小さめ)。
     UINT swapWidth_ = 0;
     UINT swapHeight_ = 0;
 };

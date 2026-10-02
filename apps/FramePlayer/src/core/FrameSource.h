@@ -12,6 +12,7 @@
 #include <string>
 
 #include "core/Frame.h"
+#include "core/GpuDevice.h"
 
 namespace frameplayer {
 
@@ -37,6 +38,14 @@ public:
      * @return 1秒あたりのコマ数。不明なら0。
      */
     virtual double frameRate() const = 0;
+
+    /**
+     * @brief コマの表示時刻を返す。
+     * @param index 0始まりのコマ番号。0以上frameCount()未満であること。
+     * @return 表示時刻(100ns単位)。音声と同じ時間軸。
+     * @note 目次は開いた後に変わらないので、どのスレッドから呼んでもよい。
+     */
+    virtual long long frameTime(int index) const = 0;
 
     /**
      * @brief 指定したコマ以前で最も近いキーフレーム(単独でデコードできるコマ)を返す。
@@ -79,10 +88,12 @@ public:
  * @param path 開くファイルのパス。
  * @param maxWidth 返すコマの最大幅の希望。読み込み元が縮小できる場合(GPUでのデコードなど)に使う。
  *                 読み込み元が縮小しない場合もあるので、呼び出し元は幅を確かめて必要なら縮小すること。
+ * @param gpu 共有のGPUデバイス。nullptrならGPUを使わない。使える場合、コマはGPUのテクスチャで返ることがある。
  * @param error 失敗時に理由を格納する。
  * @return 開けた読み込み元。失敗時はnullptr。
  * @note 呼び出し元のスレッドでCOMが初期化済みである必要がある。
  */
-std::unique_ptr<FrameSource> openFrameSource(const std::wstring& path, int maxWidth, std::wstring& error);
+std::unique_ptr<FrameSource> openFrameSource(const std::wstring& path, int maxWidth, std::shared_ptr<GpuDevice> gpu,
+                                             std::wstring& error);
 
 }  // namespace frameplayer

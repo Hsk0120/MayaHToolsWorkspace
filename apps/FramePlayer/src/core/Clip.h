@@ -44,15 +44,36 @@ public:
      * @brief 動画を開き、目次を作って先読みを始める。
      * @param path 動画ファイルのパス。
      * @param maxWidth キャッシュする画像の最大幅(ピクセル)。これより大きい動画は縦横比を保って縮小する。
-     * @param cacheBytes キャッシュの上限(バイト)。
+     * @param cpuCacheBytes 主メモリにキャッシュするときの上限(バイト)。
+     * @param gpuCacheBytes GPUのメモリにキャッシュするときの上限(バイト)。
+     * @param gpu 共有のGPUデバイス。nullptrならGPUを使わない。
      * @param notify コマがキャッシュに入ったときに裏のスレッドから呼ばれる。重い処理をしないこと。
      * @param error 失敗時に理由を格納する。
      * @return 開けた場合true。
      * @note 呼び出し元のスレッドでCOMが初期化済みである必要がある。1つのClipで1回だけ呼ぶ。
-     *       先頭のコマを読み込んでから戻る(大きさを確定するため)。
+     *       先頭のコマを読み込んでから戻る(大きさと、主メモリ・GPUのどちらに置くかを確定するため)。
      */
-    bool open(const std::wstring& path, int maxWidth, std::size_t cacheBytes, NotifyCallback notify,
-              std::wstring& error);
+    bool open(const std::wstring& path, int maxWidth, std::size_t cpuCacheBytes, std::size_t gpuCacheBytes,
+              std::shared_ptr<GpuDevice> gpu, NotifyCallback notify, std::wstring& error);
+
+    /**
+     * @brief キャッシュをGPUのメモリに置いているかを返す。
+     * @return GPUのメモリならtrue。
+     */
+    bool cachesOnGpu() const { return cachesOnGpu_; }
+
+    /**
+     * @brief キャッシュの上限を返す。
+     * @return バイト数。
+     */
+    std::size_t cacheLimit() const;
+
+    /**
+     * @brief キャッシュの上限を変える(2本目の動画を開いたときに分け合うためなど)。
+     * @param bytes 新しい上限(バイト)。
+     * @note 上限を下げた場合は、再生ヘッドから遠いコマから捨てて上限に収める。
+     */
+    void setCacheLimit(std::size_t bytes);
 
     /**
      * @brief コマ数を返す。
@@ -65,6 +86,21 @@ public:
      * @return 1秒あたりのコマ数。不明なら0。
      */
     double frameRate() const { return frameRate_; }
+
+    /**
+     * @brief コマの表示時刻を返す。
+     * @param index 0始まりのコマ番号。範囲外は端に丸める。
+     * @return 表示時刻(100ns単位)。音声と同じ時間軸。
+     * @note 開いた後は変わらないので、どのスレッドから呼んでもよい。
+     */
+    long long frameTime(int index) const;
+
+    /**
+     * @brief 指定した時刻に表示すべきコマ(表示時刻がその時刻以前で最も新しいコマ)を返す。
+     * @param time 時刻(100ns単位)。
+     * @return 0始まりのコマ番号。最初のコマより前なら0。
+     */
+    int frameAtTime(long long time) const;
 
     /**
      * @brief 開いたファイルのパスを返す。
@@ -150,6 +186,12 @@ private:
                      std::vector<std::shared_ptr<const Frame>>& released);
 
     /**
+     * @brief キャッシュの合計が上限を超えていれば、再生ヘッドから遠いコマから捨てる。mutex_を持った状態で呼ぶ。
+     * @param released 捨てたコマの格納先。呼び出し元がロックを外してから解放する。
+     */
+    void evictLocked(std::vector<std::shared_ptr<const Frame>>& released);
+
+    /**
      * @brief 再生ヘッドからoffset離れたコマ番号を返す。mutex_を持った状態で呼ぶ。
      * @param offset 向きに沿った距離。負なら反対向き。
      * @return コマ番号。範囲外(ループしない場合)なら-1。
@@ -159,10 +201,12 @@ private:
     std::unique_ptr<FrameSource> source_;  ///< open()の後は裏のスレッドだけが使う。
     std::wstring path_;
     std::wstring description_;
+    std::vector<long long> frameTimes_;  ///< コマ番号ごとの表示時刻(open()で目次から写す。以後変えない)。
     int frameCount_ = 0;
     double frameRate_ = 0.0;
     int maxWidth_ = 0;
     std::size_t cacheBytes_ = 0;
+    bool cachesOnGpu_ = false;
     NotifyCallback notify_;
 
     mutable std::mutex mutex_;

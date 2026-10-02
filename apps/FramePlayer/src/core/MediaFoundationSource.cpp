@@ -43,6 +43,7 @@ HRESULT selectVideoOnly(IMFSourceReader* reader) {
 }  // namespace
 
 std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::wstring& path, int maxWidth,
+                                                                   std::shared_ptr<GpuDevice> gpu,
                                                                    std::wstring& error) {
     std::unique_ptr<MediaFoundationSource> source(new MediaFoundationSource());
 
@@ -54,38 +55,46 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
         return nullptr;
     }
     source->started_ = true;
+    source->gpu_ = std::move(gpu);
 
     if (!source->buildIndex(path)) {
         error = source->error_;
         return nullptr;
     }
 
-    // まずGPUでのデコードを試し、先頭のコマを実際に読めたら採用する。
-    // 使えない環境(GPUが無い・形式が非対応など)では、CPUでのデコードに切り替える。
-    if (source->createReader(path, maxWidth, true)) {
-        Frame probe;
-        int probeIndex = -1;
-        if (source->readNext(probe, probeIndex) && source->seekToKeyFrame(0)) {
-            return source;
+    // 速い方式から順に試し、先頭のコマを実際に読めたものを採用する。
+    //   1. GPUでデコードし、NV12のままGPUのメモリに置く(主メモリへ写さない。キャッシュもGPU)
+    //   2. GPUでデコードし、RGBにして主メモリへ写す
+    //   3. CPUでデコードする
+    std::vector<Mode> modes;
+    if (source->gpu_ && source->gpu_->supportsNv12()) {
+        modes.push_back(Mode::GpuTexture);
+    }
+    if (source->gpu_) {
+        modes.push_back(Mode::GpuReadback);
+    }
+    modes.push_back(Mode::Cpu);
+    for (Mode mode : modes) {
+        if (source->createReader(path, maxWidth, mode)) {
+            Frame probe;
+            int probeIndex = -1;
+            if (source->readNext(probe, probeIndex) && source->seekToKeyFrame(0)) {
+                return source;
+            }
         }
+        source->clearPending();
+        source->stagingPool_.clear();
+        source->reader_.Reset();
     }
-    source->clearPending();
-    source->stagingPool_.clear();
-    source->reader_.Reset();
-    source->context_.Reset();
-    source->manager_.Reset();
-    source->device_.Reset();
-    if (!source->createReader(path, maxWidth, false)) {
-        error = source->error_;
-        return nullptr;
-    }
-    return source;
+    error = source->error_.empty() ? L"動画をデコードできません" : source->error_;
+    return nullptr;
 }
 
-bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth, bool useGpu) {
+bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth, Mode mode) {
     error_.clear();
     reader_.Reset();
-    usingGpu_ = false;
+    mode_ = Mode::Cpu;
+    const bool useGpu = mode != Mode::Cpu;
 
     ComPtr<IMFAttributes> attributes;
     HRESULT hr = MFCreateAttributes(&attributes, 3);
@@ -93,33 +102,13 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         setError(L"属性を作成できません", hr);
         return false;
     }
-    // 映像処理を有効にすると、YUVからRGB32への変換まで行う。
+    // 映像処理を有効にすると、色変換や縮小まで行う。
     // ADVANCEDの方がVideo Processor MFTを使うため、通常版より大幅に速い(1080pで約3倍を確認)。
     attributes->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, TRUE);
     if (useGpu) {
-        // GPU(Direct3D 11)を渡すと、デコード・色変換・縮小をGPUで行う。結果はLock2Dで主メモリへ写す。
-        // 読み込み本体はUIスレッドで作り裏のスレッドで使うので、デバイスを複数スレッド対応にしておく。
-        static const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
-                                                   D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
-        hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-                               D3D11_CREATE_DEVICE_VIDEO_SUPPORT | D3D11_CREATE_DEVICE_BGRA_SUPPORT, levels,
-                               static_cast<UINT>(std::size(levels)), D3D11_SDK_VERSION, &device_, nullptr, nullptr);
-        ComPtr<ID3D10Multithread> multithread;
-        if (SUCCEEDED(hr)) {
-            hr = device_.As(&multithread);
-        }
-        if (SUCCEEDED(hr)) {
-            multithread->SetMultithreadProtected(TRUE);
-            UINT resetToken = 0;
-            hr = MFCreateDXGIDeviceManager(&resetToken, &manager_);
-            if (SUCCEEDED(hr)) {
-                hr = manager_->ResetDevice(device_.Get(), resetToken);
-            }
-        }
-        if (SUCCEEDED(hr)) {
-            device_->GetImmediateContext(&context_);
-            hr = attributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, manager_.Get());
-        }
+        // 共有のGPUデバイスを渡すと、デコード・色変換・縮小をGPUで行う。
+        gpu_->device()->GetImmediateContext(context_.ReleaseAndGetAddressOf());
+        hr = attributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, gpu_->manager());
         if (SUCCEEDED(hr)) {
             hr = attributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
         }
@@ -160,8 +149,14 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         }
     }
 
-    // RGB32(BGRX)を優先し、受け付けられなければARGB32(BGRA)を試す。どちらも並びは同じ。
-    for (const GUID& subtype : {MFVideoFormat_RGB32, MFVideoFormat_ARGB32}) {
+    // NV12のときはNV12だけ。RGBのときはRGB32(BGRX)を優先し、受け付けられなければARGB32(BGRA)を試す。
+    std::vector<GUID> subtypes;
+    if (mode == Mode::GpuTexture) {
+        subtypes = {MFVideoFormat_NV12};
+    } else {
+        subtypes = {MFVideoFormat_RGB32, MFVideoFormat_ARGB32};
+    }
+    for (const GUID& subtype : subtypes) {
         ComPtr<IMFMediaType> outputType;
         hr = MFCreateMediaType(&outputType);
         if (SUCCEEDED(hr)) {
@@ -181,13 +176,14 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         }
     }
     if (FAILED(hr)) {
-        setError(L"RGBへの変換を設定できません", hr);
+        setError(L"出力形式を設定できません", hr);
         return false;
     }
+    mode_ = mode;
     if (!updateFormat()) {
+        mode_ = Mode::Cpu;
         return false;
     }
-    usingGpu_ = useGpu;
     return true;
 }
 
@@ -196,8 +192,7 @@ MediaFoundationSource::~MediaFoundationSource() {
     stagingPool_.clear();
     reader_.Reset();
     context_.Reset();
-    manager_.Reset();
-    device_.Reset();
+    gpu_.reset();
     if (started_) {
         MFShutdown();
     }
@@ -334,7 +329,10 @@ bool MediaFoundationSource::setIndex(std::vector<std::pair<LONGLONG, bool>> samp
 }
 
 std::wstring MediaFoundationSource::description() const {
-    return std::wstring(usingGpu_ ? L"デコード: GPU" : L"デコード: CPU") + L" / 目次: " + indexMethod_;
+    const wchar_t* decode = mode_ == Mode::GpuTexture    ? L"デコード: GPU(キャッシュもGPU)"
+                            : mode_ == Mode::GpuReadback ? L"デコード: GPU"
+                                                         : L"デコード: CPU";
+    return std::wstring(decode) + L" / 目次: " + indexMethod_;
 }
 
 int MediaFoundationSource::keyFrameAtOrBefore(int index) const {
@@ -364,6 +362,8 @@ bool MediaFoundationSource::seekToKeyFrame(int keyIndex) {
     keyIndex = std::clamp(keyIndex, 0, frameCount() - 1);
     PROPVARIANT position;
     InitPropVariantFromInt64(timestamps_[static_cast<size_t>(keyIndex)], &position);
+    // Media Foundationの呼び出し(シーク・デコード)は鍵で囲まない。GPUのデコーダーは別のスレッドでも
+    // GPUを使うことがあり、ここで鍵を持ったまま待つと互いに待ち合って止まる(デッドロック)ため。
     const HRESULT hr = reader_->SetCurrentPosition(GUID_NULL, position);
     PropVariantClear(&position);
     if (FAILED(hr)) {
@@ -392,6 +392,18 @@ bool MediaFoundationSource::updateFormat() {
         defaultStride_ = static_cast<LONG>(stride);
     } else if (FAILED(MFGetStrideForBitmapInfoHeader(MFVideoFormat_RGB32.Data1, bufferWidth_, &defaultStride_))) {
         defaultStride_ = static_cast<LONG>(bufferWidth_ * 4);
+    }
+
+    // NV12のまま持つときは、描画でRGBへ変換するための色の解釈(BT.709/601、映像用/全範囲)を記録する。
+    // 指定が無ければ、HD以上はBT.709、それ未満はBT.601、範囲は映像用(16〜235)とみなす。
+    if (mode_ == Mode::GpuTexture) {
+        const UINT32 matrix = MFGetAttributeUINT32(type.Get(), MF_MT_YUV_MATRIX, MFVideoTransferMatrix_Unknown);
+        const UINT32 range = MFGetAttributeUINT32(type.Get(), MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_Unknown);
+        const bool bt709 = matrix == MFVideoTransferMatrix_BT709 ||
+                           (matrix != MFVideoTransferMatrix_BT601 && bufferHeight_ >= 720);
+        const bool full = range == MFNominalRange_0_255;
+        colorSpace_ = bt709 ? (full ? DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P709 : DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709)
+                            : (full ? DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P601 : DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P601);
     }
 
     // H.264の1080pは1088行で届くことがあるため、表示範囲の指定があれば切り出す。
@@ -480,7 +492,7 @@ bool MediaFoundationSource::enqueueGpuCopy(IMFSample* sample, int index) {
         stagingDesc.SampleDesc.Count = 1;
         stagingDesc.Usage = D3D11_USAGE_STAGING;
         stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        if (FAILED(device_->CreateTexture2D(&stagingDesc, nullptr, &staging))) {
+        if (FAILED(gpu_->device()->CreateTexture2D(&stagingDesc, nullptr, &staging))) {
             return false;
         }
     }
@@ -565,9 +577,21 @@ void MediaFoundationSource::copyRows(const BYTE* scan0, LONG pitch, const RECT& 
 
 bool MediaFoundationSource::readNext(Frame& out, int& index) {
     error_.clear();
+    if (mode_ == Mode::GpuTexture) {
+        // デコード(ReadSample)は鍵で囲まない(シークの説明を参照)。自分で出すGPUの命令(写し)だけを囲む。
+        ComPtr<IMFSample> sample;
+        const int status = readDecodedSample(sample, index);
+        if (status <= 0) {
+            return false;
+        }
+        auto lock = gpu_->lock();
+        return copyToTexture(sample.Get(), out);
+    }
+
     // GPUのときは数コマ先までデコードと主メモリへの写しを命令しておき、古いものから受け取る。
     // GPUは命令を順に並行して処理するので、1コマずつ完了を待つより何倍も速い。
-    const std::size_t depth = usingGpu_ ? kGpuPipelineDepth : 1;
+    const bool useGpu = mode_ == Mode::GpuReadback;
+    const std::size_t depth = useGpu ? kGpuPipelineDepth : 1;
     while (!endOfStream_ && pending_.size() < depth) {
         ComPtr<IMFSample> sample;
         int sampleIndex = -1;
@@ -579,7 +603,12 @@ bool MediaFoundationSource::readNext(Frame& out, int& index) {
             endOfStream_ = true;
             break;
         }
-        if (!usingGpu_ || !enqueueGpuCopy(sample.Get(), sampleIndex)) {
+        bool enqueued = false;
+        if (useGpu) {
+            auto lock = gpu_->lock();
+            enqueued = enqueueGpuCopy(sample.Get(), sampleIndex);
+        }
+        if (!enqueued) {
             PendingFrame pending;
             pending.index = sampleIndex;
             pending.visible = visible_;
@@ -593,7 +622,69 @@ bool MediaFoundationSource::readNext(Frame& out, int& index) {
     PendingFrame pending = std::move(pending_.front());
     pending_.pop_front();
     index = pending.index;
-    return pending.staging ? copyFromStaging(pending, out) : copyFromSample(pending.sample.Get(), pending.visible, out);
+    if (pending.staging) {
+        auto lock = gpu_->lock();
+        return copyFromStaging(pending, out);
+    }
+    return copyFromSample(pending.sample.Get(), pending.visible, out);
+}
+
+bool MediaFoundationSource::copyToTexture(IMFSample* sample, Frame& out) {
+    ComPtr<IMFMediaBuffer> buffer;
+    ComPtr<IMFDXGIBuffer> dxgiBuffer;
+    ComPtr<ID3D11Texture2D> texture;
+    UINT subresource = 0;
+    HRESULT hr = sample->GetBufferByIndex(0, &buffer);
+    if (SUCCEEDED(hr)) {
+        hr = buffer.As(&dxgiBuffer);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = dxgiBuffer->GetResource(IID_PPV_ARGS(&texture));
+    }
+    if (SUCCEEDED(hr)) {
+        hr = dxgiBuffer->GetSubresourceIndex(&subresource);
+    }
+    if (FAILED(hr)) {
+        setError(L"GPU上のコマを取り出せません", hr);
+        return false;
+    }
+    D3D11_TEXTURE2D_DESC sourceDesc{};
+    texture->GetDesc(&sourceDesc);
+    if (sourceDesc.Format != DXGI_FORMAT_NV12) {
+        setError(L"GPU上のコマがNV12ではありません", E_FAIL);
+        return false;
+    }
+
+    // デコーダーの出力はデコーダーが使い回すので、キャッシュ用に新しいテクスチャへ写す。
+    // 描画で読めるよう、シェーダーから読める指定で作る。表示範囲(偶数に揃える)だけを写す。
+    const UINT width = static_cast<UINT>(visible_.right - visible_.left) & ~1u;
+    const UINT height = static_cast<UINT>(visible_.bottom - visible_.top) & ~1u;
+    D3D11_TEXTURE2D_DESC desc{};
+    desc.Width = width;
+    desc.Height = height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_NV12;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    ComPtr<ID3D11Texture2D> copy;
+    hr = gpu_->device()->CreateTexture2D(&desc, nullptr, &copy);
+    if (FAILED(hr)) {
+        setError(L"GPUのメモリにコマを置けません", hr);
+        return false;
+    }
+    const D3D11_BOX box{static_cast<UINT>(visible_.left) & ~1u, static_cast<UINT>(visible_.top) & ~1u, 0,
+                        (static_cast<UINT>(visible_.left) & ~1u) + width, (static_cast<UINT>(visible_.top) & ~1u) + height,
+                        1};
+    context_->CopySubresourceRegion(copy.Get(), 0, 0, 0, 0, texture.Get(), subresource, &box);
+
+    out.width = static_cast<int>(width);
+    out.height = static_cast<int>(height);
+    out.pixels.clear();
+    out.texture = std::move(copy);
+    out.colorSpace = colorSpace_;
+    return true;
 }
 
 void MediaFoundationSource::clearPending() {

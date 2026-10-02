@@ -24,7 +24,7 @@ namespace {
  * @return 画素データのバイト数。
  */
 std::size_t bytesOf(const Frame& frame) {
-    return frame.pixels.size() * sizeof(std::uint32_t);
+    return frame.bytes();
 }
 
 /**
@@ -34,7 +34,8 @@ std::size_t bytesOf(const Frame& frame) {
  * @return キャッシュに入れるコマ。
  */
 std::shared_ptr<const Frame> makeCached(Frame&& decoded, int maxWidth) {
-    if (maxWidth <= 0 || decoded.width <= maxWidth) {
+    // GPUのコマはGPUで縮小済みなので、そのまま持つ。
+    if (decoded.onGpu() || maxWidth <= 0 || decoded.width <= maxWidth) {
         return std::make_shared<const Frame>(std::move(decoded));
     }
     return std::make_shared<const Frame>(shrinkToWidth(decoded, maxWidth));
@@ -53,9 +54,9 @@ Clip::~Clip() {
     }
 }
 
-bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cacheBytes, NotifyCallback notify,
-                std::wstring& error) {
-    source_ = openFrameSource(path, maxWidth, error);
+bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cpuCacheBytes, std::size_t gpuCacheBytes,
+                std::shared_ptr<GpuDevice> gpu, NotifyCallback notify, std::wstring& error) {
+    source_ = openFrameSource(path, maxWidth, std::move(gpu), error);
     if (!source_) {
         return false;
     }
@@ -63,8 +64,12 @@ bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cacheBytes, 
     frameCount_ = source_->frameCount();
     frameRate_ = source_->frameRate();
     description_ = source_->description();
+    frameTimes_.resize(static_cast<std::size_t>(frameCount_));
+    for (int i = 0; i < frameCount_; ++i) {
+        frameTimes_[static_cast<std::size_t>(i)] = source_->frameTime(i);
+    }
     maxWidth_ = maxWidth;
-    cacheBytes_ = cacheBytes;
+    cacheBytes_ = cpuCacheBytes;
     notify_ = std::move(notify);
     frames_.assign(static_cast<std::size_t>(frameCount_), nullptr);
     broken_.assign(static_cast<std::size_t>(frameCount_), 0);
@@ -79,6 +84,9 @@ bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cacheBytes, 
         }
         std::shared_ptr<const Frame> first = makeCached(std::move(decoded), maxWidth_);
         frameBytes_ = std::max<std::size_t>(1, bytesOf(*first));
+        // 読み込み元がGPUのテクスチャで返すなら、キャッシュはGPUのメモリに置き、その上限を使う。
+        cachesOnGpu_ = first->onGpu();
+        cacheBytes_ = cachesOnGpu_ ? gpuCacheBytes : cpuCacheBytes;
         std::vector<std::shared_ptr<const Frame>> released;
         std::lock_guard<std::mutex> lock(mutex_);
         storeLocked(index, std::move(first), released);
@@ -90,6 +98,18 @@ bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cacheBytes, 
 
     worker_ = std::thread(&Clip::workerLoop, this);
     return true;
+}
+
+long long Clip::frameTime(int index) const {
+    if (frameTimes_.empty()) {
+        return 0;
+    }
+    return frameTimes_[static_cast<std::size_t>(std::clamp(index, 0, frameCount_ - 1))];
+}
+
+int Clip::frameAtTime(long long time) const {
+    const auto it = std::upper_bound(frameTimes_.begin(), frameTimes_.end(), time);
+    return it == frameTimes_.begin() ? 0 : static_cast<int>(it - frameTimes_.begin()) - 1;
 }
 
 std::shared_ptr<const Frame> Clip::frame(int index) const {
@@ -135,6 +155,21 @@ void Clip::cachedFlags(std::vector<std::uint8_t>& flags) const {
 bool Clip::isBroken(int index) const {
     std::lock_guard<std::mutex> lock(mutex_);
     return index >= 0 && index < frameCount_ && broken_[static_cast<std::size_t>(index)] != 0;
+}
+
+std::size_t Clip::cacheLimit() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return cacheBytes_;
+}
+
+void Clip::setCacheLimit(std::size_t bytes) {
+    std::vector<std::shared_ptr<const Frame>> released;  // ロックを外してから解放する。
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        cacheBytes_ = std::max<std::size_t>(bytes, frameBytes_);
+        evictLocked(released);
+    }
+    wake_.notify_one();  // 上限を上げた場合は、増えた分を先読みさせる。
 }
 
 std::wstring Clip::description() const {
@@ -231,6 +266,10 @@ void Clip::storeLocked(int index, std::shared_ptr<const Frame> frame,
     broken_[static_cast<std::size_t>(index)] = 0;
     cachedIndices_.push_back(index);
 
+    evictLocked(released);
+}
+
+void Clip::evictLocked(std::vector<std::shared_ptr<const Frame>>& released) {
     // 上限を超えたら、再生ヘッドから最も遠いコマから捨てる(再生ヘッドのコマは捨てない)。
     // 全コマ(1時間60fpsなら21万6千)ではなく、キャッシュにあるコマ(千数百)だけを調べる。
     while (cachedBytes_ > cacheBytes_) {

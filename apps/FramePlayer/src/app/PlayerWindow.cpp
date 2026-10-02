@@ -4,7 +4,9 @@
  */
 #include "app/PlayerWindow.h"
 
+#include <shobjidl.h>
 #include <windowsx.h>
+#include <wrl/client.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -17,7 +19,9 @@ namespace {
 constexpr wchar_t kClassName[] = L"FramePlayerWindow";
 constexpr wchar_t kAppName[] = L"FramePlayer";
 constexpr int kCacheMaxWidth = 1280;                       ///< キャッシュする画像の最大幅。
-constexpr std::size_t kCacheBytes = std::size_t{4} << 30;  ///< キャッシュの上限(4GB)。
+constexpr std::size_t kCacheBytes = std::size_t{4} << 30;  ///< 主メモリにキャッシュするときの上限(4GB)。
+constexpr std::size_t kGpuCacheMaxBytes = std::size_t{8} << 30;      ///< GPUのメモリにキャッシュするときの上限の最大(8GB)。
+constexpr std::size_t kGpuCacheDefaultBytes = std::size_t{2} << 30;  ///< GPUのメモリの予算が分からないときの上限(2GB)。
 constexpr int kLargeStep = 10;                             ///< Shift併用時に移動するコマ数。
 constexpr double kDefaultRate = 24.0;                      ///< フレームレートが不明な動画の再生速度。
 constexpr UINT kViewFrameMessage = WM_APP + 1;   ///< VideoViewが表示するコマを変えたときの知らせ。
@@ -33,6 +37,10 @@ constexpr COLORREF kTick = RGB(120, 120, 120);
 constexpr COLORREF kTickLabel = RGB(170, 170, 170);
 constexpr COLORREF kPlayhead = RGB(255, 150, 40);
 constexpr COLORREF kCached = RGB(80, 150, 230);
+constexpr COLORREF kDisabled = RGB(110, 110, 110);
+constexpr wchar_t kSettingsKey[] = L"Software\\FramePlayer";  ///< 設定の保存先(HKEY_CURRENT_USERの下)。
+constexpr float kVolumeStep = 0.05f;                             ///< ↑↓キーで変える音量の幅。
+constexpr int kCompareLargeShift = 10;                           ///< Shift+[ ]で変える2本目のずらしの幅。
 
 /**
  * @brief 96DPI基準の長さを、ウィンドウのDPIに合わせた長さへ変換する。
@@ -118,6 +126,7 @@ std::wstring fileNameOf(const std::wstring& path) {
 
 bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     instance_ = instance;
+    loadAudioSettings();
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = &PlayerWindow::windowProc;
@@ -137,7 +146,9 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     if (!hwnd_) {
         return false;
     }
-    if (!view_.create(instance, hwnd_, kViewFrameMessage)) {
+    // GPUが使えれば、デコード・キャッシュ・描画で同じデバイスを使う(GPUのメモリにあるコマをそのまま描くため)。
+    gpu_ = GpuDevice::create();
+    if (!view_.create(instance, hwnd_, kViewFrameMessage, gpu_)) {
         DestroyWindow(hwnd_);
         return false;
     }
@@ -151,6 +162,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
 void PlayerWindow::openClip(const std::wstring& path) {
     view_.stop();
     syncPowerRequest();
+    resumeAfterScrub_ = false;  // 別の動画を開くときは、ドラッグ前の再生を引き継がない。
     endScrub();
     auto clip = std::make_shared<Clip>();
     std::wstring error;
@@ -160,7 +172,7 @@ void PlayerWindow::openClip(const std::wstring& path) {
     // 裏のスレッドからの知らせは、描画スレッドを起こす合図と、UIスレッドへのPostMessageにする。
     // UIへの知らせは、処理前のものが残っていれば送らない。
     const bool loaded = clip->open(
-        path, kCacheMaxWidth, kCacheBytes,
+        path, kCacheMaxWidth, kCacheBytes, gpuCacheBytes(), gpu_,
         [this] {
             view_.wake();
             if (!frameReadyPending_.exchange(true)) {
@@ -175,12 +187,24 @@ void PlayerWindow::openClip(const std::wstring& path) {
         MessageBoxW(hwnd_, (path + L"\n\n" + error).c_str(), kAppName, MB_OK | MB_ICONWARNING);
         return;
     }
+    // 音声は無くても動画は再生できる(音声なしとして扱う)。
+    auto audio = std::make_shared<AudioPlayer>();
+    audio->open(path);
+    audio->setVolume(volume_);
+    audio->setMuted(muted_);
+
     clip_ = std::move(clip);
+    audio_ = std::move(audio);
     current_ = 0;
     cacheRuns_.clear();
     cacheRunsTrack_ = RECT{};
-    view_.setClip(clip_);
+    view_.setClip(clip_, audio_);
     clip_->setPlayhead(0, Clip::Direction::Forward, false);
+    if (compareClip_) {
+        // 比較中に1本目を差し替えた場合は、比較を続ける(キャッシュは半分ずつ)。
+        clip_->setCacheLimit(cacheLimitFor(clip_->cachesOnGpu(), true));
+        view_.setCompareClip(compareClip_);
+    }
     updateTitle();
     InvalidateRect(hwnd_, nullptr, FALSE);
 }
@@ -227,8 +251,16 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         endScrub();
         return 0;
     case WM_CAPTURECHANGED:
-        // 他のウィンドウにマウスを取られたときもドラッグを終える。
-        scrubbing_ = false;
+        // 他のウィンドウにマウスを取られたときもドラッグを終える(endScrub()の中で外したときは何もしない)。
+        if (scrubbing_ || volumeDragging_) {
+            const bool resume = scrubbing_ && resumeAfterScrub_;
+            scrubbing_ = false;
+            volumeDragging_ = false;
+            resumeAfterScrub_ = false;
+            if (resume) {
+                resumePlayback();
+            }
+        }
         return 0;
     case kViewFrameMessage:
         onViewFrameChanged();
@@ -251,7 +283,9 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         view_.shutdown();
         view_.setClip(nullptr);
         syncPowerRequest();
+        compareClip_.reset();
         clip_.reset();
+        audio_.reset();
         PostQuitMessage(0);
         return 0;
     default:
@@ -275,10 +309,24 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
     const int buttonTop = barTop + (barHeight - buttonSize) / 2;
     layout.button = {client.left + margin, buttonTop, client.left + margin + buttonSize, buttonTop + buttonSize};
     const int infoLeft = std::max(static_cast<int>(layout.button.right),
-                                  static_cast<int>(client.right) - margin - scaled(320, dpi));
+                                  static_cast<int>(client.right) - margin - scaled(300, dpi));
     layout.info = {infoLeft, barTop, client.right - margin, client.bottom};
-    layout.slider = {layout.button.right + scaled(10, dpi), barTop + scaled(6, dpi), layout.info.left - scaled(10, dpi),
-                     client.bottom - scaled(6, dpi)};
+    // 音量(スピーカーのボタンと音量スライダー)はコマ番号の左に置く。
+    const int volumeRight = layout.info.left - scaled(12, dpi);
+    const int volumeLeft = volumeRight - scaled(90, dpi);
+    layout.volumeSlider = {volumeLeft, barTop + barHeight / 2 - scaled(3, dpi), volumeRight,
+                           barTop + barHeight / 2 + scaled(3, dpi)};
+    const int speakerSize = scaled(24, dpi);
+    const int speakerTop = barTop + (barHeight - speakerSize) / 2;
+    layout.volumeButton = {volumeLeft - scaled(6, dpi) - speakerSize, speakerTop, volumeLeft - scaled(6, dpi),
+                           speakerTop + speakerSize};
+    const int compareWidth = scaled(52, dpi);
+    const int compareHeight = scaled(26, dpi);
+    const int compareTop = barTop + (barHeight - compareHeight) / 2;
+    layout.compareButton = {layout.volumeButton.left - scaled(12, dpi) - compareWidth, compareTop,
+                            layout.volumeButton.left - scaled(12, dpi), compareTop + compareHeight};
+    layout.slider = {layout.button.right + scaled(10, dpi), barTop + scaled(6, dpi),
+                     layout.compareButton.left - scaled(12, dpi), client.bottom - scaled(6, dpi)};
     layout.track = layout.slider;
     InflateRect(&layout.track, -scaled(4, dpi), 0);
     return layout;
@@ -325,6 +373,19 @@ void PlayerWindow::paint() {
 
 void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     const bool playing = view_.isPlaying();
+    paintVolume(dc, layout, dpi);
+
+    // 「比較」ボタン。比較中は色を付けて、押すと比較をやめることを示す。
+    {
+        RECT b = layout.compareButton;
+        fillColor(dc, b, compareClip_ ? kSliderPlayed : kControlFace);
+        HFONT buttonFont = createUiFont(9, dpi);
+        HGDIOBJ oldButtonFont = SelectObject(dc, buttonFont);
+        SetTextColor(dc, kText);
+        DrawTextW(dc, compareClip_ ? L"比較 ×" : L"比較", -1, &b, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(dc, oldButtonFont);
+        DeleteObject(buttonFont);
+    }
 
     // 再生/停止ボタン。再生中は停止(縦棒2本)、停止中は再生(三角)の記号を出す。
     const RECT& b = layout.button;
@@ -435,6 +496,9 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     if (playing) {
         std::swprintf(text, 128, L"%d / %d   %.4g fps  コマ落ち %d", current_ + 1, count, playbackRate(),
                       view_.droppedFrames());
+    } else if (compareClip_) {
+        std::swprintf(text, 128, L"%d / %d   %.4g fps  ずらし %+d", current_ + 1, count, playbackRate(),
+                      view_.compareOffset());
     } else {
         std::swprintf(text, 128, L"%d / %d   %.4g fps", current_ + 1, count, playbackRate());
     }
@@ -444,6 +508,39 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
 }
 
 void PlayerWindow::onKeyDown(WPARAM key) {
+    const bool shift = GetKeyState(VK_SHIFT) < 0;
+    // Ctrl+O: 1本目をファイル選択画面で開く。Ctrl+Shift+O: 2本目(比較)を開く。
+    if (key == 'O' && GetKeyState(VK_CONTROL) < 0) {
+        const std::wstring path = chooseVideoFile(shift ? L"比較する動画を選択" : L"動画を選択");
+        if (!path.empty()) {
+            if (shift) {
+                openCompare(path);
+            } else {
+                openClip(path);
+            }
+        }
+        return;
+    }
+    // [ ]: 比較中の2本目のずらしを1コマ(Shift併用で10コマ)変える。
+    if ((key == VK_OEM_4 || key == VK_OEM_6) && compareClip_) {
+        const int amount = shift ? kCompareLargeShift : 1;
+        shiftCompare(key == VK_OEM_4 ? -amount : amount);
+        return;
+    }
+    // 音量の操作は動画を開いていなくても受け付ける。
+    switch (key) {
+    case 'M':
+        toggleMute();
+        return;
+    case VK_UP:
+        setVolume(volume_ + kVolumeStep);
+        return;
+    case VK_DOWN:
+        setVolume(volume_ - kVolumeStep);
+        return;
+    default:
+        break;
+    }
     if (!clip_) {
         return;
     }
@@ -472,15 +569,43 @@ void PlayerWindow::onKeyDown(WPARAM key) {
 }
 
 void PlayerWindow::onLeftButtonDown(int x, int y) {
+    const Layout layout = computeLayout();
+    const POINT point{x, y};
+    // 音量スライダーは細いので、操作部の高さいっぱいまで当たり判定を広げる。
+    RECT volumeHit = layout.volumeSlider;
+    volumeHit.top = layout.bar.top;
+    volumeHit.bottom = layout.bar.bottom;
+    InflateRect(&volumeHit, scaled(4, static_cast<int>(GetDpiForWindow(hwnd_))), 0);
+    if (PtInRect(&layout.volumeButton, point)) {
+        toggleMute();
+        return;
+    }
+    if (PtInRect(&layout.compareButton, point)) {
+        if (compareClip_) {
+            closeCompare();
+        } else {
+            const std::wstring path = chooseVideoFile(L"比較する動画を選択");
+            if (!path.empty()) {
+                openCompare(path);
+            }
+        }
+        return;
+    }
+    if (PtInRect(&volumeHit, point)) {
+        volumeDragging_ = true;
+        SetCapture(hwnd_);
+        setVolume(volumeFromX(x));
+        return;
+    }
     if (!clip_) {
         return;
     }
-    const Layout layout = computeLayout();
-    const POINT point{x, y};
     if (PtInRect(&layout.button, point)) {
         togglePlayback();
     } else if (PtInRect(&layout.slider, point)) {
         // ドラッグ中にウィンドウ外へ出てもマウスの動きを受け取れるよう、マウスを取り込む。
+        // 再生中に触った場合は、ドラッグ中はそのコマを表示し、離したらその位置から再生を続ける(YouTubeと同じ)。
+        resumeAfterScrub_ = view_.isPlaying();
         scrubbing_ = true;
         SetCapture(hwnd_);
         goToFrame(frameFromX(x));
@@ -488,25 +613,237 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
 }
 
 void PlayerWindow::onMouseMove(int x) {
-    if (scrubbing_ && clip_) {
+    if (volumeDragging_) {
+        setVolume(volumeFromX(x));
+    } else if (scrubbing_ && clip_) {
         goToFrame(frameFromX(x));
     }
 }
 
 void PlayerWindow::endScrub() {
-    if (scrubbing_) {
+    const bool resume = scrubbing_ && resumeAfterScrub_;
+    if (scrubbing_ || volumeDragging_) {
+        // ReleaseCapture()はWM_CAPTURECHANGEDをすぐ送ってくるので、先に状態を戻しておく。
         scrubbing_ = false;
+        volumeDragging_ = false;
+        resumeAfterScrub_ = false;
         ReleaseCapture();
+    }
+    if (resume) {
+        resumePlayback();
     }
 }
 
-void PlayerWindow::onDropFiles(HDROP drop) {
-    wchar_t path[MAX_PATH * 4];
-    const bool hasFile = DragQueryFileW(drop, 0, path, static_cast<UINT>(std::size(path))) > 0;
-    DragFinish(drop);
-    if (hasFile) {
-        openClip(path);
+void PlayerWindow::resumePlayback() {
+    if (clip_ && !view_.isPlaying()) {
+        view_.play(playbackRate());
+        syncPowerRequest();
+        invalidateBar();
     }
+}
+
+void PlayerWindow::paintVolume(HDC dc, const Layout& layout, int dpi) {
+    // 比較中は音声を鳴らさないので、音声なしと同じく薄く表示する。
+    const bool hasAudio = audio_ && audio_->hasAudio() && !compareClip_;
+    // 音声の無い動画のときは、操作はできるが薄い色で描く(設定は次の動画に引き継がれる)。
+    const COLORREF ink = (clip_ && !hasAudio) ? kDisabled : kText;
+
+    // スピーカーの形(四角+台形)。消音中は×、そうでなければ音の大きさに応じて弧を描く。
+    const RECT& b = layout.volumeButton;
+    const int cy = (b.top + b.bottom) / 2;
+    const int unit = std::max(1, static_cast<int>((b.bottom - b.top) / 8));
+    const int left = b.left + unit;
+    const POINT speaker[] = {{left, cy - unit},         {left + 2 * unit, cy - unit}, {left + 4 * unit, cy - 3 * unit},
+                             {left + 4 * unit, cy + 3 * unit}, {left + 2 * unit, cy + unit}, {left, cy + unit}};
+    HBRUSH brush = CreateSolidBrush(ink);
+    HPEN pen = CreatePen(PS_SOLID, std::max(1, scaled(2, dpi) / 2 + 1), ink);
+    HGDIOBJ oldBrush = SelectObject(dc, brush);
+    HGDIOBJ oldPen = SelectObject(dc, pen);
+    Polygon(dc, speaker, static_cast<int>(std::size(speaker)));
+    SelectObject(dc, GetStockObject(NULL_BRUSH));
+    const int waveX = left + 5 * unit;
+    if (muted_) {
+        MoveToEx(dc, waveX, cy - 2 * unit, nullptr);
+        LineTo(dc, waveX + 3 * unit, cy + 2 * unit);
+        MoveToEx(dc, waveX + 3 * unit, cy - 2 * unit, nullptr);
+        LineTo(dc, waveX, cy + 2 * unit);
+    } else {
+        const int waves = volume_ <= 0.0f ? 0 : (volume_ < 0.5f ? 1 : 2);
+        for (int i = 1; i <= waves; ++i) {
+            const int r = (i + 1) * unit + unit / 2;
+            Arc(dc, waveX - r, cy - r, waveX + r, cy + r, waveX + r, cy + r, waveX + r, cy - r);
+        }
+    }
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(brush);
+    DeleteObject(pen);
+
+    // 音量スライダー。消音中は塗りを薄くする。
+    const RECT& s = layout.volumeSlider;
+    fillColor(dc, s, kSliderFace);
+    const int filled = s.left + static_cast<int>((s.right - s.left) * volume_ + 0.5f);
+    fillColor(dc, RECT{s.left, s.top, filled, s.bottom}, (muted_ || !hasAudio) ? kDisabled : kCached);
+    const int knob = std::max(2, scaled(3, dpi));
+    fillColor(dc, RECT{filled - knob, s.top - knob, filled + knob, s.bottom + knob}, ink);
+}
+
+void PlayerWindow::setVolume(float volume) {
+    volume_ = std::clamp(volume, 0.0f, 1.0f);
+    muted_ = false;  // 音量を変えたら消音は解除する(一般的なプレイヤーと同じ)。
+    if (audio_) {
+        audio_->setVolume(volume_);
+        audio_->setMuted(false);
+    }
+    saveAudioSettings();
+    invalidateBar();
+}
+
+void PlayerWindow::toggleMute() {
+    muted_ = !muted_;
+    if (audio_) {
+        audio_->setMuted(muted_);
+    }
+    saveAudioSettings();
+    invalidateBar();
+}
+
+float PlayerWindow::volumeFromX(int x) const {
+    const RECT s = computeLayout().volumeSlider;
+    const int width = std::max(1L, s.right - s.left);
+    return std::clamp(static_cast<float>(x - s.left) / width, 0.0f, 1.0f);
+}
+
+void PlayerWindow::loadAudioSettings() {
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"Volume", RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+        ERROR_SUCCESS) {
+        volume_ = std::clamp(static_cast<float>(value) / 100.0f, 0.0f, 1.0f);
+    }
+    size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"Muted", RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+        ERROR_SUCCESS) {
+        muted_ = value != 0;
+    }
+}
+
+void PlayerWindow::saveAudioSettings() const {
+    const DWORD volume = static_cast<DWORD>(volume_ * 100.0f + 0.5f);
+    const DWORD muted = muted_ ? 1 : 0;
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"Volume", REG_DWORD, &volume, sizeof(volume));
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"Muted", REG_DWORD, &muted, sizeof(muted));
+}
+
+void PlayerWindow::onDropFiles(HDROP drop) {
+    const UINT count = DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+    std::vector<std::wstring> paths;
+    for (UINT i = 0; i < std::min(count, 2u); ++i) {
+        wchar_t path[MAX_PATH * 4];
+        if (DragQueryFileW(drop, i, path, static_cast<UINT>(std::size(path))) > 0) {
+            paths.emplace_back(path);
+        }
+    }
+    POINT point{};
+    DragQueryPoint(drop, &point);  // 落とした位置(クライアント座標)。
+    DragFinish(drop);
+    if (paths.empty()) {
+        return;
+    }
+    if (paths.size() >= 2) {
+        openClip(paths[0]);
+        if (clip_) {
+            openCompare(paths[1]);
+        }
+        return;
+    }
+    // 1つだけなら、1本目を開いている状態で映像の右半分へ落としたときは2本目(比較)にする。
+    const RECT video = computeLayout().video;
+    const bool rightHalf = PtInRect(&video, point) && point.x >= (video.left + video.right) / 2;
+    if (clip_ && rightHalf) {
+        openCompare(paths[0]);
+    } else {
+        openClip(paths[0]);
+    }
+}
+
+std::wstring PlayerWindow::chooseVideoFile(const wchar_t* title) {
+    // Windows標準のファイル選択画面(COMの部品)。UIスレッドはCOM初期化済み(main.cpp)。
+    Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+        return std::wstring();
+    }
+    const COMDLG_FILTERSPEC types[] = {
+        {L"動画ファイル", L"*.mp4;*.mov;*.m4v;*.avi;*.wmv;*.mkv;*.mts;*.m2ts"},
+        {L"すべてのファイル", L"*.*"},
+    };
+    dialog->SetFileTypes(static_cast<UINT>(std::size(types)), types);
+    dialog->SetTitle(title);
+    if (FAILED(dialog->Show(hwnd_))) {
+        return std::wstring();  // 取り消された。
+    }
+    Microsoft::WRL::ComPtr<IShellItem> item;
+    PWSTR path = nullptr;
+    if (FAILED(dialog->GetResult(&item)) || FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+        return std::wstring();
+    }
+    std::wstring result = path;
+    CoTaskMemFree(path);
+    return result;
+}
+
+std::size_t PlayerWindow::cacheLimitFor(bool onGpu, bool comparing) const {
+    const std::size_t limit = onGpu ? gpuCacheBytes() : kCacheBytes;
+    return comparing ? limit / 2 : limit;
+}
+
+void PlayerWindow::openCompare(const std::wstring& path) {
+    if (!clip_) {
+        openClip(path);
+        return;
+    }
+    view_.stop();
+    syncPowerRequest();
+    auto clip = std::make_shared<Clip>();
+    std::wstring error;
+    HCURSOR previousCursor = SetCursor(LoadCursorW(nullptr, IDC_WAIT));
+    // 2本目は最初から半分の上限で開く(1本目も下で半分にする)。音声は開かない(比較中は鳴らさない)。
+    const bool loaded = clip->open(
+        path, kCacheMaxWidth, cacheLimitFor(false, true), cacheLimitFor(true, true), gpu_,
+        [this] {
+            view_.wake();
+            if (!frameReadyPending_.exchange(true)) {
+                PostMessageW(hwnd_, kFrameReadyMessage, 0, 0);
+            }
+        },
+        error);
+    SetCursor(previousCursor);
+    if (!loaded) {
+        MessageBoxW(hwnd_, (path + L"\n\n" + error).c_str(), kAppName, MB_OK | MB_ICONWARNING);
+        return;
+    }
+    compareClip_ = std::move(clip);
+    clip_->setCacheLimit(cacheLimitFor(clip_->cachesOnGpu(), true));
+    view_.setCompareOffset(0);
+    view_.setCompareClip(compareClip_);
+    view_.showFrame(view_.currentFrame(), Clip::Direction::Forward);
+    updateTitle();
+    InvalidateRect(hwnd_, nullptr, FALSE);
+}
+
+void PlayerWindow::closeCompare() {
+    view_.setCompareClip(nullptr);
+    compareClip_.reset();
+    if (clip_) {
+        clip_->setCacheLimit(cacheLimitFor(clip_->cachesOnGpu(), false));
+    }
+    updateTitle();
+    InvalidateRect(hwnd_, nullptr, FALSE);
+}
+
+void PlayerWindow::shiftCompare(int delta) {
+    view_.setCompareOffset(view_.compareOffset() + delta);
+    invalidateBar();
 }
 
 int PlayerWindow::frameFromX(int x) const {
@@ -585,14 +922,23 @@ void PlayerWindow::onFrameReady() {
     }
 }
 
+std::size_t PlayerWindow::gpuCacheBytes() const {
+    // 他のアプリや画面表示にもGPUのメモリが要るので、予算の半分までにする。
+    const std::size_t budget = gpu_ ? gpu_->localMemoryBudget() : 0;
+    return budget > 0 ? std::min(kGpuCacheMaxBytes, budget / 2) : kGpuCacheDefaultBytes;
+}
+
 void PlayerWindow::updateTitle() {
     if (!clip_) {
         SetWindowTextW(hwnd_, kAppName);
         return;
     }
-    wchar_t title[512];
-    std::swprintf(title, 512, L"%ls - %ls [%d / %d]", fileNameOf(clip_->path()).c_str(), kAppName, current_ + 1,
-                  clip_->frameCount());
+    wchar_t title[1024];
+    std::wstring names = fileNameOf(clip_->path());
+    if (compareClip_) {
+        names += L" | " + fileNameOf(compareClip_->path());
+    }
+    std::swprintf(title, 1024, L"%ls - %ls [%d / %d]", names.c_str(), kAppName, current_ + 1, clip_->frameCount());
     SetWindowTextW(hwnd_, title);
 }
 

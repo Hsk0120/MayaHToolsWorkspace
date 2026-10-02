@@ -14,18 +14,20 @@ add_library(frameplayer_core STATIC
     src/core/FrameSource.cpp
     src/core/MediaFoundationSource.cpp
     src/core/Mp4SampleTable.cpp
+    src/core/AudioPlayer.cpp
+    src/core/GpuDevice.cpp
 )
 target_include_directories(frameplayer_core PUBLIC src)
 target_compile_definitions(frameplayer_core PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(frameplayer_core PUBLIC /utf-8 /W4 /permissive-)
-target_link_libraries(frameplayer_core PUBLIC mfplat mfreadwrite mfuuid ole32 d3d11)
+target_link_libraries(frameplayer_core PUBLIC mfplat mfreadwrite mfuuid ole32 d3d11 dxgi propsys)
 
 add_executable(FramePlayer WIN32
     src/app/main.cpp
     src/app/PlayerWindow.cpp
     src/app/VideoView.cpp
 )
-target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 d2d1 dwrite dxgi)
+target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi)
 
 # 配布用: `cmake --install build --config Release` でexeを release/ へコピーする(release/ はGit管理対象)。
 # ビルドのたびに管理対象のexeが変わらないよう、コピーはインストールを実行したときだけ行う。

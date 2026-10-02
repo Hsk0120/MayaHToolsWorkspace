@@ -15,7 +15,9 @@
 #include <vector>
 
 #include "app/VideoView.h"
+#include "core/AudioPlayer.h"
 #include "core/Clip.h"
+#include "core/GpuDevice.h"
 
 namespace frameplayer {
 
@@ -41,6 +43,16 @@ public:
     bool create(HINSTANCE instance, int showCommand);
 
     /**
+     * @brief 比較用の2本目の動画を開き、右に並べて表示する。失敗時はメッセージボックスで知らせる。
+     * @param path 動画ファイルのパス。
+     * @note 1本目を開いていなければ、1本目として開く。キャッシュの上限は2本で半分ずつにする。
+     */
+    void openCompare(const std::wstring& path);
+
+    /** @brief 比較をやめ、1本目だけを表示する。1本目のキャッシュの上限を元に戻す。 */
+    void closeCompare();
+
+    /**
      * @brief 動画を開いて表示する。失敗時はメッセージボックスで知らせる。
      * @param path 動画ファイルのパス。
      * @note 目次を作って先頭のコマを読むまで戻らない。残りは裏で先読みする。
@@ -54,6 +66,9 @@ private:
         RECT bar{};     ///< 下部の操作部全体。
         RECT button{};  ///< 再生/停止ボタン。
         RECT slider{};  ///< タイムスライダー全体(クリック判定にも使う)。
+        RECT compareButton{};  ///< 「比較」ボタン(2本目の動画を選ぶ。比較中に押すと比較をやめる)。
+        RECT volumeButton{};  ///< スピーカーのボタン(押すと消音を切り替える)。
+        RECT volumeSlider{};  ///< 音量スライダー(クリック判定には上下に広げた範囲を使う)。
         RECT track{};   ///< スライダーのうちコマを割り当てる横幅(両端は再生位置の線が収まるよう内側に寄せる)。
         RECT info{};    ///< コマ番号などの文字。
     };
@@ -117,14 +132,73 @@ private:
      */
     void onMouseMove(int x);
 
-    /** @brief スライダーのドラッグを終える。マウスの取り込み(SetCapture)も解除する。 */
+    /**
+     * @brief スライダー(タイム・音量)のドラッグを終える。マウスの取り込み(SetCapture)も解除する。
+     * @note 再生中にタイムスライダーを触った場合は、離した位置から再生を続ける。
+     */
     void endScrub();
 
+    /** @brief 停止中なら、表示中のコマから再生を始める(スライダーのドラッグ後に再生を続けるため)。 */
+    void resumePlayback();
+
     /**
-     * @brief ドロップされたファイルのうち最初の1つを開く。
+     * @brief スピーカーのボタンと音量スライダーを描く。
+     * @param dc 描画先(裏の画像)。
+     * @param layout 各部品の位置。
+     * @param dpi ウィンドウのDPI。
+     */
+    void paintVolume(HDC dc, const Layout& layout, int dpi);
+
+    /**
+     * @brief 音量を変える。消音中なら消音も解除する。設定は保存して次回の起動でも使う。
+     * @param volume 0.0〜1.0。範囲外は端に丸める。
+     */
+    void setVolume(float volume);
+
+    /** @brief 消音を切り替える。設定は保存して次回の起動でも使う。 */
+    void toggleMute();
+
+    /**
+     * @brief 音量スライダー上のx座標に対応する音量を返す。
+     * @param x クライアント座標のx。
+     * @return 0.0〜1.0。
+     */
+    float volumeFromX(int x) const;
+
+    /** @brief 音量と消音の設定をレジストリ(HKCU\Software\FramePlayer)から読む。無ければ既定値のまま。 */
+    void loadAudioSettings();
+
+    /** @brief 音量と消音の設定をレジストリへ保存する。 */
+    void saveAudioSettings() const;
+
+    /**
+     * @brief ドロップされたファイルを開く。
      * @param drop ドロップ情報。処理後に解放する。
+     * @note 2つ以上なら1つ目を1本目、2つ目を2本目(比較)として開く。1つの場合、1本目を開いている状態で
+     *       映像の右半分へ落とすと2本目、それ以外は1本目として開く。
      */
     void onDropFiles(HDROP drop);
+
+    /**
+     * @brief Windowsのファイル選択画面で動画を選ばせる。
+     * @param title 画面の題名。
+     * @return 選ばれたファイルのパス。取り消されたら空。
+     */
+    std::wstring chooseVideoFile(const wchar_t* title);
+
+    /**
+     * @brief 比較中の2本目のずらしを変える。
+     * @param delta 変える量(コマ数)。
+     */
+    void shiftCompare(int delta);
+
+    /**
+     * @brief 動画のキャッシュの上限を返す。比較中は2本で半分ずつにする。
+     * @param onGpu GPUのメモリにキャッシュする動画か。
+     * @param comparing 比較中か。
+     * @return バイト数。
+     */
+    std::size_t cacheLimitFor(bool onGpu, bool comparing) const;
 
     /**
      * @brief スライダー上のx座標に対応するコマ番号を返す。
@@ -163,11 +237,23 @@ private:
     /** @brief タイトルバーにファイル名と現在のコマを表示する。 */
     void updateTitle();
 
+    /**
+     * @brief GPUのメモリにキャッシュするときの上限を決める。
+     * @return バイト数。Windowsが示すGPUのメモリの予算の半分(最大8GB)。予算が分からなければ2GB。
+     */
+    std::size_t gpuCacheBytes() const;
+
     HWND hwnd_ = nullptr;
     HINSTANCE instance_ = nullptr;
-    // 破棄の順序: clip_(裏の読み込みスレッド)を先に止めてからview_を破棄する(宣言の逆順に破棄される)。
+    // 破棄の順序: clip_(裏の読み込みスレッド)を先に止めてからview_を破棄し、最後にgpu_を破棄する
+    // (宣言の逆順に破棄される)。
+    std::shared_ptr<GpuDevice> gpu_;  ///< デコード・キャッシュ・描画で共有するGPUデバイス。無ければnullptr。
     VideoView view_;              ///< 映像の表示と再生の時間管理。
     std::shared_ptr<Clip> clip_;  ///< 表示中の動画。描画スレッドとも共有する。未読み込みならnullptr。
+    std::shared_ptr<Clip> compareClip_;  ///< 比較用の2本目の動画。比較していなければnullptr。
+    std::shared_ptr<AudioPlayer> audio_;  ///< 表示中の動画の音声。描画スレッドとも共有する。
+    float volume_ = 0.8f;   ///< 音量(0.0〜1.0)。
+    bool muted_ = false;    ///< 消音中か。
     int current_ = 0;             ///< 操作部に表示しているコマ番号(VideoViewの表示に追従する)。
 
     std::atomic<bool> frameReadyPending_{false};  ///< 裏の読み込みからの知らせが未処理か(送りすぎ防止)。
@@ -177,6 +263,8 @@ private:
     RECT cacheRunsTrack_{};                       ///< cacheRuns_を計算したときのスライダーの範囲。
 
     bool scrubbing_ = false;      ///< タイムスライダーをドラッグ中か。
+    bool volumeDragging_ = false; ///< 音量スライダーをドラッグ中か。
+    bool resumeAfterScrub_ = false;  ///< タイムスライダーを離したら再生を続けるか(触ったときに再生中だった)。
     bool keepDisplayOn_ = false;  ///< 画面の消灯を止めるようWindowsへ伝えているか。
 };
 

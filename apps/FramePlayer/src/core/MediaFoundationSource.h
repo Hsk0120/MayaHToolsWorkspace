@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "core/FrameSource.h"
+#include "core/GpuDevice.h"
 
 namespace frameplayer {
 
@@ -35,11 +36,14 @@ public:
      * @brief 動画ファイルを開き、目次を作る。
      * @param path 動画ファイルのパス。
      * @param maxWidth 返すコマの最大幅。GPUでデコードできる場合は、GPUでこの幅まで縮小して返す。
+     * @param gpu 共有のGPUデバイス。nullptrならCPUでデコードする。
      * @param error 失敗時に理由を格納する。
      * @return 開けた読み込み元。失敗時はnullptr。
-     * @note GPUでのデコードを試し、使えなければCPUでデコードする。CPUのときは縮小しない(呼び出し元で縮小する)。
+     * @note GPUでNV12のままGPUのメモリに置く方式、GPUでデコードして主メモリへ写す方式、CPUでデコードする方式の順に試す。
+     *       CPUのときは縮小しない(呼び出し元で縮小する)。
      */
-    static std::unique_ptr<MediaFoundationSource> open(const std::wstring& path, int maxWidth, std::wstring& error);
+    static std::unique_ptr<MediaFoundationSource> open(const std::wstring& path, int maxWidth,
+                                                       std::shared_ptr<GpuDevice> gpu, std::wstring& error);
 
     /** @brief Media Foundationの利用を終了する(open()で開始した分と対になる)。 */
     ~MediaFoundationSource() override;
@@ -51,6 +55,8 @@ public:
     int frameCount() const override { return static_cast<int>(timestamps_.size()); }
     /** @copydoc FrameSource::frameRate */
     double frameRate() const override { return frameRate_; }
+    /** @copydoc FrameSource::frameTime */
+    long long frameTime(int index) const override { return timestamps_[static_cast<std::size_t>(index)]; }
     /** @copydoc FrameSource::keyFrameAtOrBefore */
     int keyFrameAtOrBefore(int index) const override;
     /** @copydoc FrameSource::seekToKeyFrame */
@@ -63,6 +69,13 @@ public:
     std::wstring description() const override;
 
 private:
+    /** @brief デコードの方式。 */
+    enum class Mode {
+        Cpu,          ///< CPUでデコードし、RGBで主メモリに返す。
+        GpuReadback,  ///< GPUでデコード・RGBへの変換・縮小し、主メモリへ写して返す。
+        GpuTexture,   ///< GPUでデコード・縮小し、NV12のままGPUのメモリのテクスチャで返す。
+    };
+
     /** @brief open()以外から作らせないための非公開コンストラクター。 */
     MediaFoundationSource() = default;
 
@@ -87,10 +100,19 @@ private:
      * @brief デコード用の読み込み本体を作る。
      * @param path 動画ファイルのパス。
      * @param maxWidth GPUのときに縮小する最大幅。
-     * @param useGpu GPU(Direct3D 11)でデコード・色変換・縮小するか。
+     * @param mode デコードの方式。
      * @return 作れた場合true。失敗時はerror_を設定してfalse。
      */
-    bool createReader(const std::wstring& path, int maxWidth, bool useGpu);
+    bool createReader(const std::wstring& path, int maxWidth, Mode mode);
+
+    /**
+     * @brief GPU上のデコード結果(NV12)を、キャッシュ用の新しいテクスチャへ写してoutに入れる。完了は待たない。
+     * @param sample GPU上にあるコマ。
+     * @param out 格納先。
+     * @return 写す命令を出せた場合true。
+     * @note 呼び出し元がGPUの鍵をかけておくこと。
+     */
+    bool copyToTexture(IMFSample* sample, Frame& out);
 
     /**
      * @brief デコードしたコマの表示時刻から、目次のコマ番号を求める。
@@ -167,14 +189,14 @@ private:
      */
     void setError(const wchar_t* message, HRESULT hr);
 
-    Microsoft::WRL::ComPtr<ID3D11Device> device_;          ///< GPUでデコードするときのDirect3D 11デバイス。
-    Microsoft::WRL::ComPtr<IMFDXGIDeviceManager> manager_;  ///< deviceをMedia Foundationへ渡すための管理役。
-    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;  ///< GPUからの写しに使う。
+    std::shared_ptr<GpuDevice> gpu_;                       ///< 共有のGPUデバイス。無ければnullptr。
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;  ///< GPU上での写しに使う。
     Microsoft::WRL::ComPtr<IMFSourceReader> reader_;  ///< デコード用の読み込み本体。所有する。
     std::deque<PendingFrame> pending_;                ///< 先読み中のコマ(古い順)。
     std::vector<Microsoft::WRL::ComPtr<ID3D11Texture2D>> stagingPool_;  ///< 使い回すステージングテクスチャ。
     bool endOfStream_ = false;                        ///< 先読み中に終端へ達したか。
-    bool usingGpu_ = false;                           ///< GPUでデコードしているか。
+    Mode mode_ = Mode::Cpu;                           ///< 使っているデコードの方式。
+    DXGI_COLOR_SPACE_TYPE colorSpace_ = DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709;  ///< NV12の色の解釈。
     std::wstring indexMethod_;                        ///< 目次の作り方(説明表示用)。
     bool started_ = false;  ///< MFStartup()に成功したか(デストラクターでMFShutdown()するため)。
 

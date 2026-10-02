@@ -13,7 +13,7 @@
  * @param instance アプリのインスタンスハンドル。
  * @param showCommand 初期表示方法。
  * @return 終了コード。
- * @note コマンドライン引数に動画のパスがあれば起動時に開く。
+ * @note コマンドライン引数に動画のパスがあれば起動時に開く(2つあれば2つ目を比較用として右に並べる)。
  */
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // 高DPIのモニターでぼやけないよう、モニターごとの拡大率に対応する。
@@ -38,6 +38,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             if (argv) {
                 if (argc > 1) {
                     window.openClip(argv[1]);
+                }
+                if (argc > 2) {
+                    window.openCompare(argv[2]);  // 2つ目は比較用として右に並べる。
                 }
                 LocalFree(argv);
             }

@@ -12,7 +12,8 @@
  * キャッシュの上限を小さくすると、捨てたコマの読み直しやシークも確かめられる。
  *
  * 使い方: FramePlayerVerify.exe <動画> [期待するコマ数] [--bits 縦縞の本数] [--cache-mb 上限MB] [--max-width 幅]
- *         [--limit N](先頭からN・末尾からN・ランダムNだけ確かめる)
+ *         [--limit N](先頭からN・末尾からN・ランダムNだけ確かめる) [--cpu](GPUを使わない) [--no-check](番号を確かめず速さだけ測る)
+ * GPUのメモリにキャッシュしたコマは、主メモリへ読み出してから縞を読む。
  * 終了コード: 0=全コマ一致、1=不一致あり、2=読み込み失敗や引数の誤り。
  */
 #include <windows.h>
@@ -27,6 +28,7 @@
 #include <vector>
 
 #include "core/Clip.h"
+#include "core/GpuDevice.h"
 
 namespace {
 
@@ -77,19 +79,29 @@ int readIndex(const frameplayer::Frame& frame, int bits) {
 /**
  * @brief 指定した順番で全コマを取り出し、番号の不一致を数える。
  * @param clip 対象の動画。
+ * @param gpu GPUのコマを読み出すためのデバイス。GPUを使わないならnullptr。
  * @param order 取り出すコマ番号の順番。
  * @param direction 先読みの向き。
  * @param bits 縦縞の本数。
+ * @param check 縞を読んで番号を確かめるか。falseなら取り出せたかだけを見る(速さの測定用)。
  * @param name 表示用の名前。
  * @return 不一致(取り出せなかったコマを含む)の数。
  */
-int runOrder(frameplayer::Clip& clip, const std::vector<int>& order, frameplayer::Clip::Direction direction, int bits,
-             const wchar_t* name) {
+int runOrder(frameplayer::Clip& clip, const frameplayer::GpuDevice* gpu, const std::vector<int>& order,
+             frameplayer::Clip::Direction direction, int bits, bool check, const wchar_t* name) {
     const auto start = std::chrono::steady_clock::now();
     int mismatches = 0;
     for (int index : order) {
         const auto frame = clip.waitForFrame(index, direction, 20000);
-        const int found = frame ? readIndex(*frame, bits) : -2;
+        int found = -2;
+        if (frame && !check) {
+            found = index % (1 << bits);  // 速さだけを測るときは縞を読まない(取り出せたかだけを見る)。
+        } else if (frame && frame->onGpu()) {
+            frameplayer::Frame cpuFrame;
+            found = (gpu && gpu->readBack(*frame, cpuFrame)) ? readIndex(cpuFrame, bits) : -3;
+        } else if (frame) {
+            found = readIndex(*frame, bits);
+        }
         if (found != (index % (1 << bits))) {
             if (mismatches < 10) {
                 std::wprintf(L"  %ls mismatch: frame %d reads as %d%ls\n", name, index, found,
@@ -124,6 +136,8 @@ int wmain(int argc, wchar_t** argv) {
     long long cacheMb = 4096;
     int maxWidth = 1280;
     int limit = -1;
+    bool useGpu = true;
+    bool check = true;
     for (int i = 2; i < argc; ++i) {
         if (std::wcscmp(argv[i], L"--bits") == 0 && i + 1 < argc) {
             bits = _wtoi(argv[++i]);
@@ -133,6 +147,10 @@ int wmain(int argc, wchar_t** argv) {
             maxWidth = _wtoi(argv[++i]);
         } else if (std::wcscmp(argv[i], L"--limit") == 0 && i + 1 < argc) {
             limit = _wtoi(argv[++i]);
+        } else if (std::wcscmp(argv[i], L"--cpu") == 0) {
+            useGpu = false;
+        } else if (std::wcscmp(argv[i], L"--no-check") == 0) {
+            check = false;
         } else {
             expected = _wtoi(argv[i]);
         }
@@ -144,10 +162,12 @@ int wmain(int argc, wchar_t** argv) {
 
     int result = 0;
     {
+        const std::shared_ptr<frameplayer::GpuDevice> gpu = useGpu ? frameplayer::GpuDevice::create() : nullptr;
         frameplayer::Clip clip;
         std::wstring error;
         const auto openStart = std::chrono::steady_clock::now();
-        if (!clip.open(argv[1], maxWidth, static_cast<std::size_t>(cacheMb) << 20, {}, error)) {
+        const std::size_t cacheBytes = static_cast<std::size_t>(cacheMb) << 20;
+        if (!clip.open(argv[1], maxWidth, cacheBytes, cacheBytes, gpu, {}, error)) {
             std::fwprintf(stderr, L"load failed: %ls\n", error.c_str());
             result = 2;
         } else {
@@ -179,9 +199,9 @@ int wmain(int argc, wchar_t** argv) {
             }
 
             int mismatches = 0;
-            mismatches += runOrder(clip, forward, frameplayer::Clip::Direction::Forward, bits, L"forward");
-            mismatches += runOrder(clip, backward, frameplayer::Clip::Direction::Backward, bits, L"backward");
-            mismatches += runOrder(clip, random, frameplayer::Clip::Direction::Forward, bits, L"random");
+            mismatches += runOrder(clip, gpu.get(), forward, frameplayer::Clip::Direction::Forward, bits, check, L"forward");
+            mismatches += runOrder(clip, gpu.get(), backward, frameplayer::Clip::Direction::Backward, bits, check, L"backward");
+            mismatches += runOrder(clip, gpu.get(), random, frameplayer::Clip::Direction::Forward, bits, check, L"random");
             if (!clip.error().empty()) {
                 std::wprintf(L"error: %ls\n", clip.error().c_str());
             }
