@@ -68,7 +68,66 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+## hlib 修正予定（2026-10-02 追加レビュー）
+
+- [ ] Component._resolve_input: 単数解決で範囲を全ラッパーへ展開する前に要素数を検証する。Maya2027で441頂点生成後の拒否を再現。
+- [ ] Node.add_attribute: ベクトル型の分岐前にquery/edit禁止を検証し、通常型と例外の契約を揃える。
+- [x] extensions._initialize: 拡張ごとのsys.modules削除をやめ、再読み込み対象の無効化とimport/登録を別段階にする。拡張AがBを継承すると、Bの再importでAの基底が登録済みBと別クラスになる。Maya2027の一時拡張2個で両方loaded・issubclass=Falseを再現。
+- [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
+
 ## 完了履歴
+
+- Codex (2026-10-02): 未コミット変更全体のコミット対象を確認。hlib構成/入力解決/拡張リロード、hrig利用側、文書/テスト/規約の223ファイル。生成物・外部調査ログなし。直近のMaya2022/2027各36テストとSphinx成功を確認し、末尾空行を整備。mainへコミット・pushを実行（結果はチャットで報告）。
+
+- Codex (2026-10-02): 拡張のimport試行名を追跡し、親の初期化失敗後に残った子モジュールも次のreloadで一括解除。利用可否確認後に依存ソースを検証し、unavailableな拡張の非対応構文を解析しないよう修正。修正後初回reload/探索パス削除/利用可能時の構文検証の回帰テスト追加。Maya2022/2027は関連5ファイル各36テスト＋コマンド再読み込みスクリプト成功。Sphinx警告なし、対象差分チェック成功。GUI/他バージョン未実施、未push。
+
+- 2026-10-02 Claude Code: FramePlayerに2画面比較(段階C)を追加。右半分へのドロップ・2ファイル同時ドロップ・「比較」ボタン/Ctrl+Shift+Oのファイル選択・起動引数で2本目を開く。コマ番号で同期し[ ]でずらし、範囲外は表示で知らせる。再生は両方のコマがそろってから進める。比較中は消音、キャッシュは半分ずつ(Clip::setCacheLimit)。メッセージ送信で表示・同期・ずらし・再生・終了・ファイル選択画面を確認(実際のドラッグ操作は未確認)。release/のexe更新。未コミット。
+
+- Codex (2026-10-02): 拡張リロードを追加レビュー。Maya2022/2027で初期化例外後の孤立サブモジュールが残り、修正後最初のreloadでも古いconfig値を使うことを再現。Maya2022で利用不可の拡張も全ソース先行解析により新Python構文でerrorになることを再現（2027ではunavailable）。実装変更なし。
+
+- Codex (2026-10-02): hlib.reloadで宣言済み拡張を先に一括解除し、本体再読み込み後に再検出・登録するよう変更。他拡張への静的import/ラッパー継承を拒否、初期化中reloadを拒否。Bifrostは宣言先行・サブパッケージ遅延importへ。Maya2022/2027の関連5ファイル各34テスト＋コマンド追加変更削除スクリプト成功、先行importの新規プロセス検証成功。Sphinx警告なし。GUI/他バージョン未実施、未push。Componentとadd_attributeの2項目は修正予定のまま。
+
+- 2026-10-02 Claude Code: FramePlayerのタイムスライダーを、再生中に触ったらドラッグ中はそのコマを表示し、離したらその位置から再生を続けるよう変更(YouTube同様)。停止中は停止のまま。release/のexeを更新。未コミット。
+
+- 2026-10-02 Claude Code: FramePlayerに音声再生(MF+WASAPI、映像を音声位置に同期・差±0.03ms)と音量UI(スピーカー/スライダー/M・↑↓、HKCUに保存)を追加。続けてキャッシュをGPUメモリ(NV12)へ移行(GpuDevice共有、D2Dで直接描画、予算の半分・最大8GB)。720pで約4600コマ保持・主メモリ約200MB。確認用ツール12通り全一致。デコード中にGPUの鍵を持つとデッドロックするため鍵は自前の写しと描画だけに限定。未コミット。
+
+- Codex (2026-10-02): hlibの依存関係を追加レビュー。Maya2027 standaloneで拡張先行importの誤判定・拡張間継承のクラス不一致を再現。hlib本体2回reload後のモジュール直下クラス参照/直接基底に旧クラスなし。前回2件と計4件を修正予定へ記録。実装変更・GUI確認・全バージョン実行なし。
+
+- Codex (2026-10-02): hlib参照構造変更後を追加レビュー。Maya2027 standaloneで単数Component解決が441要素生成後に範囲拒否すること、vector add_attributeのquery/edit共通検証漏れを確認。実装変更なし。
+
+- Codex (2026-10-02): Objectへ汎用入力展開、Nodesへ展開済み列の混在検査を分配。Node.add_attributeからcmds逆参照を除き、addAttrはNode共通実装へ委譲。executeDeferredはDeferred.callへ委譲。_core.collectionのNodes参照を削除し実行方針をNodes._dispatch_sharedへ移動。公開API/Undo/独自call_eachを維持。Maya 2022全93ファイル成功、2027は既知のflowWedgingロード確認のみ失敗。追加を含む重点40テストは両版成功。Sphinx警告なし・差分チェック成功。GUI未実施、未push。
+
+- Codex (2026-10-02): hlib実装243 Pythonファイルのimport・主要呼出しを静的レビュー。Object/Nodes間の入力処理、Node.add_attributeとDeferred.callのcmds依存、_core.collectionのNodes参照、root一括初期化を設計上の改善候補として整理。Node/Plug等の必要な相互参照と区別。実装変更・Maya再実行なし。
+
+- Codex (2026-10-02): hlib/hlib_bifrost/hlib_posedriverconnectの公開別名、転送専用モジュール、動的属性、JSON読替え、フォールバックを追加監査。追加削除対象の旧互換入口は見つからず。現行の短縮フラグ・Mayaアトリビュートアクセス・任意拡張判定・リロード時の廃止名削除は維持。Maya 2027の関連5ファイル38テストは失敗なし（GUI1件スキップ）。実装変更なし、作業記録のみ更新。
+
+- 2026-10-02 Claude Code: FramePlayerの映像をVideoView(子ウィンドウ+描画専用スレッド、D3D11+Direct2D、垂直同期)で表示するよう変更。再生の時間管理も描画スレッドへ移し、再生中は画面消灯を抑止。操作(コマ送り・スライダー・再生・終了)と番号一致を確認。リモートデスクトップ(画面32Hz)では24fpsのコマ落ち0、60fpsは画面の書き換え回数の上限で約半分落ちる。ローカル画面での60fps測定は未。CLAUDE.md/AGENTS.md/copilot-instructionsの日本語報告ルールを具体化。未コミット。
+
+- Codex (2026-10-02): hlibと拡張の旧API互換を調査。Matrixのrotation引数/プロパティ・decomposeの重複rotationキー・_wrap_copy・to_mmatrix、SkinClusterのsinusoidal、JSONのTranslate/Rotate旧型タグ変換を削除。利用例と回帰テスト更新。短縮フラグ・Maya型変換・基底インターフェース・廃止名除去処理は維持。Maya 2022全93ファイル884テスト成功、2027は既知のflowWedgingロード確認のみ失敗。Sphinx警告なし、差分チェック成功。GUI未実施・未push。
+
+- Codex (2026-10-02): generalをscene/ui/environment/eventsへ分割し、hlib_bifrostの導入管理もenvironmentへ移動。ObjectをNode/Plug/Componentの共通基底・種類判別入口として追加、coerceを削除して各基底に入力解決を集約。内製利用側、Sphinx、開発規約を更新。Maya 2022/2024は全93ファイル成功、2025/2026/2027は92/93成功（各883テスト、GUI等6〜9スキップ）。残る失敗はflowWedgingのロード確認（2027では変更前から記録あり）。hrig/Bifrost追加18テスト成功。Sphinx警告なし、差分チェック成功。GUI実操作・pushは未実施。
+
+- 2026-10-02 Claude Code: FramePlayer高速化。GPU(D3D11)でデコード・色変換・縮小し4コマ先まで並行処理(4K60 80Mbpsで57→約200コマ/秒)、mp4/movのサンプルテーブル直読で目次作成(1時間36GBで開く約1秒)、キャッシュ解放をロック外へ、キャッシュ帯の計算を間引き。確認用ツールで全テスト動画の順・逆・ランダム一致。再生中のコマ落ちは現在のPC負荷由来(旧版・Keyframe Proも同条件で落ちる)。36GB検証ファイルは削除。未コミット。
+
+- Codex (2026-10-02): 全体の責務を再確認。JSON保存形式とシーン更新の境界、SkinCluster保存経路、入力解決、テスト分離を優先する段階案を整理。便利API・数学型・登録機構は維持。実装変更・テスト実行なし。
+
+- Codex (2026-10-02): 計算ノード21ファイルの値検証・設定41か所と接続45か所を既存_Calculationへ集約。公開signature・Undo・fast・戻り値を維持。Deferred.callはexecuteDeferredへ委譲しJSONは維持。Maya 2024全92ファイル成功、2027は91/92（Bifrost起動テストでflowWedgingのloaded確認が失敗）。追加回帰テスト成功、Sphinx警告なし。GUI未検証。
+
+- 2026-10-02 Claude Code: FramePlayerを先読みキャッシュ方式へ移行(段階A)。デコードせずに表示時刻の目次を作り、デコード結果を目次と照合して番号を確定。上限4GBのキャッシュと再生ヘッド周辺の裏読み込み、スライダーにキャッシュ帯。確認用ツールで順・逆・ランダム×キャッシュ4GB/64MBの全コマ一致、7200コマ動画も一致・開く0.24s。未コミット。
+
+- Codex (2026-10-02): nodesの単純Plug転送を静的調査。直接getを返す68メソッド、connect後selfを返す49メソッドを候補抽出。計算ノード中心の削減案と、配列生成・値検証・型変換・戻り値を維持する注意点を提示。実装変更・Maya実行なし。
+
+- Codex (2026-10-02): hlibのクラス削減候補を実装・内製利用箇所から確認。標準API転送のみのクラス整理、状態を持たない計算クラスの関数化、所有権管理型の維持を提案。実装変更・Maya実行なし。
+
+- Codex (2026-10-02): BulkCollectionを削除し、反復・一括実行・事前検証・Undo・signature共有をNodesへ移動。派生call_eachの委譲と既存sliceを維持。Maya 2024全92ファイル・876テスト（GUI等9スキップ）成功、Sphinx警告なし。
+
+- 2026-10-02 Claude Code: FramePlayerに配布用exeのインストール手順(cmake --install → apps/FramePlayer/release/)を追加し、exeをコミット・push済み(faebb0a)。hlibの他の未コミット変更はユーザー指示によりpush対象外。
+
+- Codex (2026-10-02): Plugins/Colors/DrivenKeysを削除。Plugin.loaded・DrivenKey.find・複数ノード色取得をlist化、利用側とドキュメント更新。Maya 2024全92ファイル成功、Sphinx警告なし。BulkCollectionはNodesへ一括実行機能を移して削除可能と確認し、今回は維持。
+
+- 2026-10-02 Codex: 基底クラスによる共通化を検討。既存BulkCollectionへの重複集約、Maya継承に沿うGeometryFilter系、UI内部参照基底の候補と適用境界を確認。製品変更・Maya実行なし。
+
+- 2026-10-02 Codex: hlibの不要処理を静的調査。製品231ファイル（init等除外）のAST・内製使用側・テスト参照から削除/統合候補と動的登録等の維持対象を区別。詳細はGit対象外docs/researchに保存。製品コード変更・Maya実行なし。
 
 - 2026-10-02 Claude Code: FramePlayerにタイムスライダー(クリック/ドラッグ・目盛り)と再生ボタン(Space)、ループ再生を追加。高精度タイマーのスレッドでコマ境目に合わせて進め、再生中は簡易拡大縮小で描画。24/29.97fpsはコマ落ち0、60fpsは8秒で2コマ。操作はウィンドウへのメッセージ送信で確認。未コミット。
 

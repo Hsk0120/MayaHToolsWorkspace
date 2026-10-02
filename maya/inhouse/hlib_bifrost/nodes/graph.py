@@ -24,7 +24,7 @@ class Graph:
     def create(cls, name="bifrostGraphShape"):
         """必要なプラグインをロードしてグラフを生成する。"""
         from hlib.nodes import Node as MayaNode
-        from hlib_bifrost.general.bifrost import Bifrost
+        from hlib_bifrost.environment.bifrost import Bifrost
 
         Bifrost.ensure_available()
         parent = MayaNode.create("transform", name=name + "Transform", skipSelect=True)

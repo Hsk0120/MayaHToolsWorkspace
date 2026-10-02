@@ -23,26 +23,28 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 ``new()``、``open()``、``save_as()`` を自身で実行した場合は保持パスも更新します。
 ``save()``、``save_as()``、``is_modified()`` は現在のシーンとパスが一致する場合のみ
 使用できます。未保存シーン同士はパスで区別できません。
-クラスの定義先は ``hlib.general.Scene``、名前空間クラスは ``hlib.general.Namespace`` です。
+クラスの定義先は ``hlib.scene.Scene``、名前空間クラスは ``hlib.scene.Namespace`` です。
 
 旧 ``hlib.scenes`` / ``hlib.session`` は廃止しました。直接importする場合は次の分類を使います。
 ``hlib.getScene()`` など、コマンドから取得する入口は従来どおりです。
 
 .. code-block:: python
 
-    from hlib.general import Scene, list_references
-    from hlib.general import Namespace
-    from hlib.general import Plugin, Plugins
-    from hlib.general import Preferences
-    from hlib.general.workspace import Workspace
-    from hlib.general import TimeSlider, Viewport, Outliner
+    from hlib.scene import Scene
+
+    from hlib.utils.references import list_references
+    from hlib.scene import Namespace
+    from hlib.environment import Plugin
+    from hlib.environment import Preferences
+    from hlib.environment.workspace import Workspace
+    from hlib.ui import TimeSlider, Viewport, Outliner
 
 シーン情報
 ----------
 
 .. code-block:: python
 
-   from hlib.general import Scene
+   from hlib.scene import Scene
 
    scene = Scene()
    print(scene.path)  # 未保存なら None
@@ -53,7 +55,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 
 .. code-block:: python
 
-   from hlib.general import list_references
+   from hlib.utils.references import list_references
 
    for reference in list_references():
        print(reference.filename(), reference.associated_namespace(), reference.is_loaded())

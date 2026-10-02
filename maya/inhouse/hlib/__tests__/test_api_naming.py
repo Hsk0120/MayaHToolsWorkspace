@@ -1,4 +1,4 @@
-"""命名整理後の共通API・保存データ互換・公開境界を検証する。"""
+"""命名整理後の共通API・旧入口拒否・公開境界を検証する。"""
 
 import importlib
 import inspect
@@ -70,14 +70,25 @@ class ApiNamingTest(unittest.TestCase):
         self.assertFalse(hasattr(hlib.maths, 'Translate'))
         self.assertFalse(hasattr(hlib.maths, 'Rotate'))
         for old, cls in (('Translate', Translation), ('Rotate', EulerRotation)):
-            value = decode({'type': 'math:' + old, 'value': encode({'values': [1, 2, 3]})})
+            with self.assertRaises(ValueError):
+                decode({'type': 'math:' + old, 'value': encode({'values': [1, 2, 3]})})
+            value = decode(encode(cls(1, 2, 3)))
             self.assertIsInstance(value, cls)
             self.assertEqual(tuple(value), (1, 2, 3))
 
+    def test_matrix_has_no_compatibility_entries(self):
+        from hlib.maths import Matrix
+        with self.assertRaises(TypeError):
+            Matrix(rotation=(0, 0, 0))
+        for name in ('rotation', '_wrap_copy', 'to_mmatrix'):
+            self.assertFalse(hasattr(Matrix, name), name)
+        matrix = Matrix(rotate=(0.1, 0.2, 0.3))
+        self.assertEqual(set(matrix.decompose()), {'translate', 'euler', 'quaternion', 'scale', 'shear'})
+
     def test_module_paths(self):
-        for module, cls in (('general.channelBox', 'ChannelBox'),
-                            ('general.timeSlider', 'TimeSlider'),
-                            ('general.drivenKey', 'DrivenKey'),
+        for module, cls in (('ui.channelBox', 'ChannelBox'),
+                            ('ui.timeSlider', 'TimeSlider'),
+                            ('scene.drivenKey', 'DrivenKey'),
                             ('maths.eulerRotation', 'EulerRotation'),
                             ('maths.translation', 'Translation')):
             self.assertTrue(inspect.isclass(getattr(importlib.import_module('hlib.' + module), cls)))

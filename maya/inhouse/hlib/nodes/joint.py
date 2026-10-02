@@ -289,12 +289,12 @@ class Joint(Transform):
         segmentScaleCompensateの値は変更しない。接続により姿勢が変わる場合がある。
         Jointsでは省略時に各joint自身の親を使用し、全体を一回のUndoで戻せる。
         """
-        from .._core.coerce import to_node
+        from hlib.nodes.node import Node as _InputNode
         if not isinstance(force, bool):
             raise TypeError("force must be a bool")
         if not self.is_valid():
             raise RuntimeError("Cannot connect inverseScale on an invalid joint")
-        source = self.parent_node() if source is None else to_node(source)
+        source = self.parent_node() if source is None else _InputNode._resolve_input(source)
         if source is None:
             return self
         if not isinstance(source, Transform):

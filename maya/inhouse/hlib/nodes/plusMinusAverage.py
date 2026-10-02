@@ -1,6 +1,5 @@
 """配列入力の加算・減算・平均を計算する。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
@@ -113,7 +112,8 @@ class PlusMinusAverage(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = to_plug(source)
+        from hlib.plugs.plug import Plug as _InputPlug
+        source = _InputPlug._resolve_input(source)
         target = self._input_array(dimension).element(_Calculation.index(index), create=True)
         source.connect(target, force=force)
         return self

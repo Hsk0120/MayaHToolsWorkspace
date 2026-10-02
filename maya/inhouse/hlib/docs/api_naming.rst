@@ -164,20 +164,20 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 
    * - 旧モジュール
      - 新モジュール
-   * - hlib.general.channelBox
-     - hlib.general.channelBox
-   * - hlib.general.timeSlider
-     - hlib.general.timeSlider
-   * - hlib.general.drivenKey
-     - hlib.general.drivenKey
+   * - hlib.ui.channelBox
+     - hlib.ui.channelBox
+   * - hlib.ui.timeSlider
+     - hlib.ui.timeSlider
+   * - hlib.scene.drivenKey
+     - hlib.scene.drivenKey
    * - hlib.maths.eulerRotation
      - hlib.maths.eulerRotation
    * - hlib.maths.translate
      - hlib.maths.translation
 
 ``hlib.getChannelBox()`` / ``hlib.getTimeSlider()`` / ``hlib.getDrivenKey()`` のコマンド名は変わりません。
-JSONに保存済みの ``math:Translate`` はTranslation、``math:Rotate`` はXYZ順の
-EulerRotationとして読み込めます。成分値は換算せず引き継ぎます。
+旧JSON型タグ ``math:Translate``・``math:Rotate`` は受け付けず、ValueErrorになります。
+現在の型タグは ``math:Translation``・``math:EulerRotation`` です。
 EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読み込み後は
 ``order_name`` で名前、``order`` でom2の番号を取得できます。
 
@@ -252,7 +252,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   スケールを持つノードで旧取得値と異なる場合があります。
   Jointへの設定は黙って無視せず ``TypeError`` にします。
 * 保持値は括弧なしで参照します。対象は ``Scene.path`` / ``Scene.name``、
-  ``Plugin.name`` / ``Module.name``（複数形の ``Plugins.name`` は名前のリスト）、``Selection.items``、
+  ``Plugin.name`` / ``Module.name``、``Selection.items``、
   ``Viewport.name`` / ``Viewport.panel``、``Outliner.name`` です。
   ``Selection.items`` は従来どおりコピーなので、返却リストを変更しても元は変わりません。
   Mayaに照会する ``Plugin.path()`` / ``Module.path()``、
@@ -271,7 +271,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 
 ``Node.outliner_color()`` は ``get_outliner_color()``、
 ``Node.override_color()`` は ``get_override_color()`` に変更しました。
-戻り値は ``hlib.general.Color`` です。RGBは ``.rgb``、色番号は ``.index``、
+戻り値は ``hlib.ui.Color`` です。RGBは ``.rgb``、色番号は ``.index``、
 有効形式は ``.mode`` で取得します。詳細は :doc:`node_colors` を参照してください。
 ``BlendColors.color()`` は ``color_plug()`` に変更し、
 数値の取得には ``get_color(index)`` を追加しました。
@@ -285,7 +285,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 重複判定は同一ノード・同一DAGパスに統一し、異なるインスタンスパスを保持します。
 
 複数形の ``get_override_color()`` / ``get_outliner_color()`` は
-``list[Color]`` から ``Colors`` に変わりました。
+``list[Color]`` を返します。
 複数形の色setterの戻り値は各結果のリストからコレクション自身へ変わりました。
 通常の一括更新もコレクション自身を返します。照会・生成結果が必要な操作は結果リストです。
 ``hlib.ls()`` の返却規則は維持しています。
@@ -462,13 +462,13 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
    * - ``Nodes(values)`` と派生コレクション
      - 共通入力解決で扱える対象列
      - 要素型を検証したコレクション
-   * - ``to_names`` を利用するコマンドの対象引数
+   * - ``Object._input_names`` を利用するコマンドの対象引数
      - 名前・Node・Plug・Component・Components・API参照とその列
      - Mayaへ渡す名前。各コマンド固有の対象制約は別途適用
 
 同じ対象列では名前文字列とNodeを混ぜません。独立した引数や数値まで同じ型に
 揃える規則ではありません。コレクションの型制約や空列の扱いは各APIに従います。
-``to_names`` 等は内部APIで、利用側の通常の入口は ``hlib.getNode`` / ``hlib.getPlug`` です。
+``Object._input_names`` 等は内部APIで、利用側の通常の入口は ``hlib.getNode`` / ``hlib.getPlug`` です。
 
 ``Joint(name)`` 等のNode具象クラスは、異なる種類のノードを拒否します。
 Plug派生の直接コンストラクターは、拡張実装で指定クラスを割り当てる低水準の入口として
@@ -575,3 +575,12 @@ fastを指定できるメソッド
      - ``set_position``, ``set_u``, ``set_v``
    * - ``UVs``
      - ``set_position``, ``set_positions``, ``set_u``, ``set_v``
+
+旧互換入口の廃止
+----------------
+
+* Matrixの回転指定・読み書きは ``rotate`` に統一。``rotation`` 引数・プロパティは廃止。
+* Matrix.decompose()のオイラー回転キーは ``euler``。重複する ``rotation`` キーは廃止。
+* ``Matrix._wrap_copy`` は廃止。内部実装は ``_wrap`` を使います。
+* ``Matrix.to_mmatrix()`` は廃止。OpenMayaへはそのまま渡せます。基底型の複製が必要なら ``om2.MMatrix(matrix)`` を使います。
+* ``SkinCluster.redistribute_weights()`` の曲線名は ``sine``。旧 ``sinusoidal`` はValueErrorになります。

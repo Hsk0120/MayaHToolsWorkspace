@@ -669,7 +669,7 @@ def build_limb(definition=None, backend="standard"):
     if backend not in ("standard", "bifrost", "cpp"):
         raise ValueError("Unknown backend: " + backend)
     if backend == "bifrost":
-        from hlib_bifrost.general import Bifrost
+        from hlib_bifrost.environment import Bifrost
 
         Bifrost.ensure_available()
     saved_selection = [item.full_name() for item in hlib.ls(selection=True, long=True)] or []

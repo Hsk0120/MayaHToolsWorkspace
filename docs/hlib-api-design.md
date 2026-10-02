@@ -52,7 +52,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 
 - シーンのノード・アトリビュート・コンポーネントを表すクラスの `__str__` は、`maya.cmds` が一意に解決できる名前を返す。`Node` は最短一意名、`Plug` は `<ノードの最短一意名>.<アトリビュートパス>`、`Component` はシェイプの完全パス付きの名前とし、呼び出すたびに現在のシーンから求める(名前変更・親子付け替えに追従する)。
 - 単一の対象を表すクラス(`Node`・`Plug` など)に `__len__`/`__iter__` を追加しない。`maya.cmds` がシーケンスとして展開してしまう。複数の対象を表すコレクションは反復可能にしてよい。
-- ノードやアトリビュートを受け取るコマンド・メソッドは、文字列に加えて hlib のオブジェクトと Maya API 2.0 のオブジェクト(`MObject`・`MDagPath`・`MPlug`)を受け付ける。正規化は `hlib._core.coerce` で行い、各APIで独自に判定しない。
+- ノードやアトリビュートを受け取るコマンド・メソッドは、文字列に加えて hlib のオブジェクトと Maya API 2.0 のオブジェクト(`MObject`・`MDagPath`・`MPlug`)を受け付ける。正規化は `Object`・`Node`・`Plug`・`Component` の内部メソッドで行い、各APIで独自に判定しない。
 - ノードが必要な引数(`parent` など)は、Plug を所有ノード、Component を所有シェイプへ解決する。プラグ名を `maya.cmds` へそのまま渡して黙って無視させない。
 - 名前を解決できない場合(存在しない・複数の対象に一致する)は最初の一致を黙って返さず例外にする(`"bulk*"` のようなパターンも同じ。パターンは `hlib.ls` で扱う)。対象を名前へ変換する引数(`to_name`/`to_names`/`to_node_name`)の例外の種類は、対応しない型が `TypeError`、空・削除済みの対象が `ValueError`、解決できない文字列が `RuntimeError` とする。既存の API が削除済みの対象を `RuntimeError` にしている場合(`Node(...)`/`hlib.getNode`、`hlib.addConstraint` の拘束元・拘束先)は、その規則を変えない(`to_node` は削除済みの Node などをそのまま返し、扱いを呼び出し側に任せる)。ただし所有ノードが有効なまま `deleteAttr` でアトリビュートが削除された Plug・MPlug は、所有ノードへ解決すると削除済みの対象を黙って受け付けるため、ノードが必要な引数でも `ValueError` にする(`DeletedAttributeError`。既存の規則を保つため `RuntimeError` の派生でもある)。削除済みの対象の判定メソッド(`is_parent_of` など)は `False` を返す。
 - オブジェクトの取得・ラップ(`node.plug()` などによる Plug の生成)はシーンを変更しない。配列要素の作成などシーンの変更は `element(index, create=True)` のように明示的な操作で行う。評価も起こさないことを基本とし、例外は仕様として明記する。現在の例外は値によって型が変わるアトリビュートで、入力接続が無い場合と、接続元も値によって型が変わるアトリビュートの場合(`choice2.input[0]` ← `choice1.output` など)は、`cmds.getAttr(type=True)` と同じく値を読むため上流の評価が起こり、評価でワールド空間の出力の要素が作られる場合もある。
@@ -68,7 +68,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 
 | 対象 | 推奨ルール | 例 |
 | --- | --- | --- |
-| パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`general` |
+| パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`scene` |
 | Mayaコマンドとそのファイル | Mayaと同じcamelCase | `createNode.py` / `createNode()` |
 | Mayaノードのファイル | nodeTypeと同じ表記 | `skinCluster.py`、`animCurveTL.py` |
 | その他の実装ファイル | lowerCamelCase | `channelBox.py`、`timeSlider.py`、`eulerRotation.py` |
@@ -76,7 +76,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 | 独自メソッド | snake_case | `get_matrix()`、`set_weights()` |
 
 Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優先する。
-例えば `cmds/getChannelBox.py` はコマンド、`general/channelBox.py` はエディターの実装で、いずれもlowerCamelCaseのファイル名を使う。
+例えば `cmds/getChannelBox.py` はコマンド、`ui/channelBox.py` はエディターの実装で、いずれもlowerCamelCaseのファイル名を使う。
 
 このファイル名規則はhlibとすべての `hlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。関数・独自メソッド・変数のsnake_caseは維持する。
 
@@ -125,7 +125,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 ### 複数形ノードの基底クラス
 
 - ノードコレクションは `Nodes` を基底にし、単体に対応して `DagNodes` → `Transforms` → `Joints` のように継承する。`SkinClusters` は `Nodes` の派生。`Nodes` 自体は `Node` を継承しない。
-- `item_class` で受け入れるラッパー型を宣言する。入力は既存coerceで解決し、型の不一致を黙って除外せず例外にする。登録済みの外部拡張の派生ラッパーを基底型へ置き換えない。
+- `item_class` で受け入れるラッパー型を宣言する。入力は各基底クラスの共通処理で解決し、型の不一致を黙って除外せず例外にする。登録済みの外部拡張の派生ラッパーを基底型へ置き換えない。
 - 重複は同一ノードかつ同一DAGパスで判定する。異なるインスタンスパスをUUIDだけでまとめない。構築後の参照の削除によってコレクション長を暗黙に変えない。
 - 整数アクセスは保持中の参照、スライス/copyは同じ具象コレクションで同じシーン対象を参照する。ノード複製とは別。`Colors` は独立した値コピーである。
 - 照会・結果が必要な生成操作の一括転送は結果リストを保つ。通常の更新はコレクション自身を返す。色getterは明示的に `Colors` を返す。関係検索を一律に平坦化したり、結果の内容からコレクション型を推測したりしない。
@@ -171,3 +171,26 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - WorkspaceLayoutはcapture_docking_layout/restore_docking_layout/temporary_docking_layoutでメインウィンドウのドッキングとロックだけを退避する。浮動ウィンドウ・エディタ内容・UI再生成は範囲外。
 
 - hlibはQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/mel/OpenMayaUIの通知APIで扱い、MQtUtilによるポインター取得やQtへの変換は利用側のUIパッケージへ置く。MainWindowはUI名だけを返す。
+
+## 入力解決とパッケージ境界
+
+- `object.py` の `Object` は単数の `Node`・`Plug`・`Component` の共通基底。`Object(value)` は具体的な参照型を返し、既存ラッパーはそのまま返す。比較・ハッシュ・寿命は各参照型が担当する。
+- `Node._resolve_input()` はノードを必要とする内部処理、`Plug._resolve_input()` はアトリビュート入力、`Component._resolve_input()` は単一要素入力を解決する。各公開APIで判定処理を複製しない。
+- `Object._input_name()` / `_input_names()` はcmds向けの名前変換。文字列をそのまま渡す既存の規則を維持し、対象解決を必要とする `Object()` と区別する。
+- `Nodes._resolve_inputs()` は複数入力を検証する。名前だけ／Nodeだけを受け付け、同じ対象列の文字列とNodeの混在は拒否する。空集合など各APIの規則は維持する。
+- シーン状態・関係は `scene`、標準UI参照・表示色は `ui`、環境・プラグイン導入状態は `environment`、通知・遅延実行は `events`。汎用関数は `utils`、一時保存は `json` に置く。
+- 数学値・複数形コレクション・UI・保存データは `Object` の派生にしない。既存の便利メソッド・Undo・fastの意味は維持する。
+- 旧 `general` / `_core/coerce.py` の互換ファイルは残さず、内製利用側も正式な配置へ更新する。
+
+### 内部の参照方向
+
+- 入力の汎用展開は `Object._flatten_inputs()`、展開済み列の名前/Node混在検査は `Nodes._validate_inputs()`。検査からObjectの展開へ戻らない。`Nodes._resolve_inputs()` は両者を順に呼ぶノード側入口。
+- 公開コマンドはクラス側の共通処理に委譲する。`addAttr` は `Node._add_attribute()`、`executeDeferred` は `Deferred.call()` を呼ぶ。クラス側から公開コマンドへ戻らない。Undoと短縮フラグは各公開入口の契約を維持する。
+- `_core.collection` は転送メソッドを生成し、実行は `Nodes._dispatch_shared()` に任せる。独自 `call_each()` のoverride判定と共通引数の実行方針はNodesが所有する。
+
+### 任意拡張の参照方向と再読み込み
+
+- 拡張はhlibの公開APIへ依存し、他のhlib_*をimport・継承しない。組合せ処理はhrig等の利用側に置く。
+- 拡張の__init__.pyは宣言を先に完了し、hlibやラッパーを先行importしない。公開サブパッケージは必要時に読み込む。
+- hlib.reload()は宣言済み拡張の一括解除、本体の再読み込み、拡張の再検出・登録の順で処理する。外部SDKとMayaプラグインは再ロードしない。
+- リロード後は利用側の拡張パッケージ・クラス・インスタンス参照を取得し直す。初期化中のリロードは拒否する。

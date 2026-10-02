@@ -4,7 +4,7 @@ from maya import cmds
 
 from functools import partial
 import hlib
-from hlib.general import MainWindow
+from hlib.ui import MainWindow
 
 
 class Menu:

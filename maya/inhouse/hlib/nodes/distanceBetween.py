@@ -2,7 +2,6 @@
 
 from ..decorators._fast import fast_edit
 
-from .._core.coerce import to_node
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from .node import Node
@@ -59,7 +58,8 @@ class DistanceBetween(Node):
             RuntimeError: ロックや既存接続により変更できない場合。
                 途中の変更は自動では戻さず、一回のUndoで戻せる。
         """
-        nodes = [to_node(first), to_node(second)]
+        from hlib.nodes.node import Node as _InputNode
+        nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
         if not all(isinstance(node, Transform) for node in nodes):
             raise TypeError("Both inputs must be transforms")
         self.set_points((0, 0, 0), (0, 0, 0))

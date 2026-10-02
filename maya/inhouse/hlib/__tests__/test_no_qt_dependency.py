@@ -5,7 +5,7 @@ import sys
 import unittest
 from unittest.mock import patch
 import hlib
-from hlib.general import MainWindow
+from hlib.ui import MainWindow
 
 
 class NoQtDependencyTest(unittest.TestCase):

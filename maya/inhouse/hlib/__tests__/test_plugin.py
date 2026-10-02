@@ -1,4 +1,4 @@
-"""hlib.general.plugin の Plugin/Plugins を検証するMaya内テスト。"""
+"""hlib.environment.plugin の Plugin を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.general import Plugin, Plugins
+from hlib.environment import Plugin
 from hlib.utils import Version
 
 
@@ -84,21 +84,18 @@ class PluginTest(unittest.TestCase):
         self.assertNotEqual(Plugin(self.plugin_name), "not a plugin")
 
 
-class PluginsTest(unittest.TestCase):
-    """Plugins コレクションの重複除去と loaded() を検証する。"""
-
-    def test_constructor_dedupes_by_name(self):
-        collection = Plugins(["matrixNodes", "matrixNodes", Plugin("matrixNodes")])
-        self.assertEqual(len(collection), 1)
-        self.assertEqual([item.name for item in collection], ["matrixNodes"])
+class PluginListingTest(unittest.TestCase):
+    """Plugin.loaded() を検証する。"""
 
     def test_loaded_includes_known_loaded_plugin(self):
         was_loaded = cmds.pluginInfo("matrixNodes", query=True, loaded=True)
         if not was_loaded:
             cmds.loadPlugin("matrixNodes")
         try:
-            loaded = Plugins.loaded()
-            self.assertIn(Plugin("matrixNodes"), list(loaded))
+            loaded = Plugin.loaded()
+            self.assertIsInstance(loaded, list)
+            self.assertTrue(all(isinstance(item, Plugin) for item in loaded))
+            self.assertIn(Plugin("matrixNodes"), loaded)
         finally:
             if not was_loaded:
                 cmds.unloadPlugin("matrixNodes")

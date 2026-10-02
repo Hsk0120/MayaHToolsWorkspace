@@ -3,7 +3,6 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from hlib._core.coerce import selection_owner, to_plug
 from hlib.components import Component, Components, Vertex, Vertices, CV, CVs, Edge, Edges, Face, Faces, UV, UVs
 from ..decorators.undo import undo_chunk
 from hlib.nodes.node import Node
@@ -35,6 +34,7 @@ class Selection:
             TypeError: 非対応型、またはMesh/NurbsCurve以外のコンポーネントの場合。
             RuntimeError: 名前が解決できない場合。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         singles = (
             str,
             Node,
@@ -64,7 +64,7 @@ class Selection:
             elif isinstance(item, om2.MSelectionList):
                 resolved.extend(self._resolve(item))
             elif isinstance(item, om2.MPlug):
-                resolved.append(to_plug(item))
+                resolved.append(_InputPlug._resolve_input(item))
             elif isinstance(item, (om2.MObject, om2.MDagPath)):
                 resolved.append(Node(item))
             else:
@@ -81,13 +81,7 @@ class Selection:
         name は要素を追加したときの文字列で、1要素の場合にインスタンス化された
         ノードのアトリビュートの所有インスタンスを求めるために使う(selection_owner 参照)。
         """
-        types = {
-            om2.MFn.kMeshVertComponent: Vertex,
-            om2.MFn.kMeshEdgeComponent: Edge,
-            om2.MFn.kMeshPolygonComponent: Face,
-            om2.MFn.kMeshMapComponent: UV,
-            om2.MFn.kCurveCVComponent: CV,
-        }
+        from hlib.nodes.node import Node as _InputNode
         result = []
         for index in range(selection.length()):
             try:
@@ -97,7 +91,7 @@ class Selection:
             if plug is not None and not plug.isNull:
                 # インスタンス化されたノードのアトリビュートは、選択されたインスタンスのノードを所有ノードにする。
                 hint = name if selection.length() == 1 else None
-                mobject, path = selection_owner(selection, index, hint)
+                mobject, path = _InputNode._selection_owner(selection, index, hint)
                 result.append(Plug(Node(path if path is not None else mobject), plug))
                 continue
             try:
@@ -108,15 +102,7 @@ class Selection:
             if component.isNull():
                 result.append(Node(path))
                 continue
-            cls = types.get(component.apiType())
-            if cls is None:
-                raise TypeError("Only mesh vertices/edges/faces/UVs and curve CVs are supported")
-            shape = Node(path)
-            fn = om2.MFnSingleIndexedComponent(component)
-            indices = (
-                range(getattr(shape, cls.count_attribute)) if fn.isComplete else fn.getElements()
-            )
-            result.extend(cls(shape, i) for i in indices)
+            result.extend(Component._from_api(path, component))
         return result
 
     @classmethod

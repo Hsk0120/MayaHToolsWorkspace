@@ -182,7 +182,7 @@ animCurve とミュート
 (``cmds.getAttr`` の問い合わせで作成するため Undo の対象外です)。ただし ``message`` 型の
 ように値を持たないアトリビュートの配列では要素を作成できません。返した要素 Plug へ接続した時点で
 要素ができるため、``add_element()`` は接続するまで同じ番号の要素 Plug を返します。
-Plug を作る・取得する操作そのもの(``hlib._core.coerce.to_plug("pma1.input1D[10]")`` や
+Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.input1D[10]")`` や
 ``Selection([...])`` など)は、存在しない要素の Plug でも要素を作りません。
 ``worldMatrix`` などのインスタンスごとのアトリビュートは、評価前でもインスタンス番号の要素
 (作成直後のノードの ``worldMatrix[0]`` など)を ``element()``/``elements()`` で取得できます。

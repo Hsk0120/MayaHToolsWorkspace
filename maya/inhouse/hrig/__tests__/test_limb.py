@@ -20,7 +20,7 @@ class LimbTest(unittest.TestCase):
     def setUpClass(cls):
         """プラグイン初期化はテスト対象のUndoから分離する。"""
         if cls.backend == "bifrost":
-            from hlib_bifrost.general import Bifrost
+            from hlib_bifrost.environment import Bifrost
             Bifrost.ensure_available()
 
     def setUp(self):

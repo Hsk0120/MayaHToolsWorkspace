@@ -185,11 +185,11 @@ class ApiRefinementsTest(unittest.TestCase):
 
     def test_stored_properties_do_not_query_maya(self):
         """保持値の参照はMaya照会をせず、Selectionの返却リストはコピー。"""
-        scene = hlib.general.Scene(Path("stored.ma"))
-        plugin = hlib.general.Plugin("example")
-        module = hlib.general.Module("example")
-        selection = hlib.general.Selection([self.create("transform")])
-        view = object.__new__(hlib.general.Viewport)
+        scene = hlib.scene.Scene(Path("stored.ma"))
+        plugin = hlib.environment.Plugin("example")
+        module = hlib.environment.Module("example")
+        selection = hlib.scene.Selection([self.create("transform")])
+        view = object.__new__(hlib.ui.Viewport)
         view._name, view._panel = "editor", "panel"
         with patch.object(cmds, "file", side_effect=AssertionError("Unexpected query")), patch.object(
             cmds, "pluginInfo", side_effect=AssertionError("Unexpected query")

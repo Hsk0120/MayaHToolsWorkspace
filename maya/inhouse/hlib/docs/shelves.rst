@@ -7,7 +7,7 @@ UIの作成・変更・削除はシーンのUndo対象外で、保存済みフ�
 .. code-block:: python
 
    import hlib
-   from hlib.general import Shelf
+   from hlib.ui import Shelf
 
    shelf = hlib.getShelf()  # 現在のタブ。新規作成しない
    print([item.name() for item in Shelf.list()])

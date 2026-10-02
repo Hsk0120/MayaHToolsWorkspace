@@ -2,7 +2,6 @@
 
 from maya import cmds
 from .._core.flags import flag_aliases
-from .._core.coerce import to_names
 from ..decorators.undo import undo_chunk
 from .._core.commandResult import CommandResult
 
@@ -25,8 +24,9 @@ def createIkHandle(*args, **kwargs):
 
 
     """
+    from hlib.object import Object as _InputObject
     if kwargs.get("query") or kwargs.get("edit"):
         raise ValueError("createIkHandle supports creation only")
     options = CommandResult.node_flags(kwargs, ("startJoint", "endEffector", "curve"))
-    result = cmds.ikHandle(*to_names(args), **options)
+    result = cmds.ikHandle(*_InputObject._input_names(args), **options)
     return CommandResult.references(result if isinstance(result, list) else [result])

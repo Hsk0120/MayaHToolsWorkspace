@@ -95,17 +95,18 @@ def ls(*args, **kwargs):
 
     ノード・アトリビュート名を返す検索用（アトリビュートはPlug）。コンポーネント・型名等を返すMayaフラグは
     ラッパー化できない場合がある。検索結果が空なら空コレクションまたは空リスト。"""
-    from .._core.coerce import to_names, node_inputs
+    from hlib.nodes.node import Nodes as _InputNodes
+    from hlib.object import Object as _InputObject
     from ..nodes import Joints, Node, SkinClusters
 
     targets = []
-    for arg in node_inputs([arg for arg in args if arg is not None]):
+    for arg in _InputNodes._resolve_inputs([arg for arg in args if arg is not None]):
         if arg is None:
             continue
         if isinstance(arg, str):
             targets.append(arg)
         else:
-            targets.extend(to_names(arg))
+            targets.extend(_InputObject._input_names(arg))
     # 空の列だけを渡した場合に maya.cmds.ls() の全ノード検索へ変わらないようにする。
     names = (cmds.ls(*targets, **kwargs) or []) if targets or not args else []
     node_type = kwargs.get("type")

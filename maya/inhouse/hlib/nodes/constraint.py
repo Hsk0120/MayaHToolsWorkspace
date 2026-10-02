@@ -4,7 +4,6 @@ from ..decorators._fast import fast_edit
 
 import maya.cmds as cmds
 
-from .._core.coerce import to_node
 from ..decorators.undo import undo_chunk
 from .node import Node
 from .transform import Transform
@@ -61,7 +60,8 @@ class Constraint(Transform):
         Raises:
             ValueError: ターゲットが登録されていない場合。
         """
-        requested = to_node(target).full_name()
+        from hlib.nodes.node import Node as _InputNode
+        requested = _InputNode._resolve_input(target).full_name()
         for node, plug in zip(self.targets(), self.weight_plugs()):
             if node.full_name() == requested:
                 return plug.get()
@@ -86,13 +86,14 @@ class Constraint(Transform):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
+        from hlib.nodes.node import Node as _InputNode
+        from hlib.nodes.node import Nodes as _InputNodes
         weight_plugs = self.weight_plugs()
         if not targets:
             for plug in weight_plugs:
                 plug.set(weight)
             return self
-        from .._core.coerce import node_inputs
-        requested = {to_node(target).full_name() for target in node_inputs(targets)}
+        requested = {_InputNode._resolve_input(target).full_name() for target in _InputNodes._resolve_inputs(targets)}
         available = {node.full_name(): plug for node, plug in zip(self.targets(), weight_plugs)}
         missing = requested - available.keys()
         if missing:

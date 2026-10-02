@@ -32,6 +32,15 @@ class Plugin:
         if node_type in cls._HIK_NODE_TYPES:
             cls("mayaHIK").ensure_loaded()
 
+    @classmethod
+    def loaded(cls):
+        """ロード済みプラグインを取得する。
+
+        Returns:
+            list[Plugin]: Mayaが返す順序のプラグイン一覧。
+        """
+        return [cls(name) for name in (cmds.pluginInfo(query=True, listPlugins=True) or [])]
+
     def __init__(self, name):
         """プラグイン名を保持する。
 

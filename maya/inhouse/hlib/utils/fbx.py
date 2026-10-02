@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from maya import cmds, mel
-from ..general import Plugin
+from hlib.environment import Plugin
 
 
 def _path(value, existing=False):
@@ -74,7 +74,7 @@ def export_fbx(path, selection=None, overwrite=False, animation=True):
     Note:
         FBXのAnimation設定と選択を復元する。他のFBX設定は現在値を使う。
     """
-    from hlib._core.coerce import to_node_name
+    from hlib.nodes.node import Node as _InputNode
     target = _path(path)
     if target.exists() and not overwrite:
         raise FileExistsError(str(target))
@@ -82,7 +82,7 @@ def export_fbx(path, selection=None, overwrite=False, animation=True):
     if selection is not None:
         if isinstance(selection, str):
             raise TypeError('selection must be a sequence, not a string')
-        nodes = [to_node_name(node) for node in selection]
+        nodes = [_InputNode._input_name(node) for node in selection]
         if not nodes:
             raise ValueError('selection must not be empty')
     Plugin('fbxmaya').ensure_loaded()

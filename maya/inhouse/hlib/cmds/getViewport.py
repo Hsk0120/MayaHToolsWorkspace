@@ -22,6 +22,6 @@ def getViewport(panel=None):
     Raises:
         RuntimeError: 使用できるmodelPanelがない、またはバッチ実行の場合。
     """
-    from ..general import Viewport
+    from hlib.ui import Viewport
 
     return Viewport(panel)

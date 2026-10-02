@@ -48,6 +48,29 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 本ドキュメントの使用例は ``plug()`` に統一しています。
 アトリビュート取得は ``plug()`` に統一しています。
 
+対象の種類を判別して取得する
+----------------------------
+
+ノード・アトリビュート・コンポーネント（頂点・エッジ・フェース・CV・UV）を
+同じ入口で取得したい場合は ``hlib.Object()`` を使います。
+既存対象の参照を返し、新しいノードは作成しません。
+以下は ``pCube1`` が存在するシーンでの例です。
+
+.. code-block:: python
+
+   node = hlib.Object("pCube1")          # Transform
+   plug = hlib.Object("pCube1.tx")       # DoubleLinearPlug
+   vertex = hlib.Object("pCube1.vtx[0]") # Vertex
+   print(isinstance(node, hlib.Object))  # True
+   print(hlib.Object(node) is node)      # True
+
+``Object`` は単数の ``Node``・``Plug``・``Component`` の共通基底です。
+数学型、複数形コレクション、UI、保存データは継承しません。
+要素範囲は ``Object`` ではなく ``hlib.scene.Selection("pCube1.vtx[0:3]")`` で取得します。
+アトリビュートとコンポーネントの名前が重なる場合はMayaの選択解決に従います。
+アトリビュートとして明示する場合は ``node.plug()`` または ``hlib.getPlug()`` を使います。
+対象の種類が決まっている既存コードでは ``hlib.getNode()``・``hlib.getPlug()`` をそのまま使えます。
+
 クラスを直接importして使う
 ---------------------------
 

@@ -8,7 +8,7 @@ import re
 import hlib
 
 from hrig.setups.swingTwist import SwingTwist
-from hlib.general.drivenKey import DrivenKey
+from hlib.scene.drivenKey import DrivenKey
 from hlib.decorators.undo import undo_transaction
 
 

@@ -160,7 +160,7 @@ class MatrixFollow:
                     / version
                     / "hrigNodes.mll"
                 )
-                hlib.general.Plugin(str(plugin)).ensure_loaded()
+                hlib.environment.Plugin(str(plugin)).ensure_loaded()
                 graph = hlib.createNode("hrigMatrixFollow", name=name, skipSelect=True)
             else:
                 from .bifrostMatrixFollow import BifrostMatrixFollow

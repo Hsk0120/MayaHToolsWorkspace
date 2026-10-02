@@ -2,7 +2,6 @@
 
 from hlib.nodes.container import Container
 from hlib.plugs.plug import Plug
-from hlib._core.coerce import to_plug
 from hlib.decorators.undo import undo_transaction
 
 
@@ -38,10 +37,11 @@ class ScalarGraph:
             value (float | str | Plug): 定数または入力プラグ名。
             destination (str): 接続先プラグ名。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         if isinstance(value, (str, Plug)):
-            to_plug(value).connect(destination)
+            _InputPlug._resolve_input(value).connect(destination)
         else:
-            to_plug(destination).set(value)
+            _InputPlug._resolve_input(destination).set(value)
 
     @undo_transaction("hlib.ScalarGraph.sum")
     def sum(self, role, left, right, subtract=False):
@@ -56,11 +56,12 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         node = self._node("plusMinusAverage", role)
-        to_plug(node + ".operation").set(2 if subtract else 1)
+        _InputPlug._resolve_input(node + ".operation").set(2 if subtract else 1)
         self._feed(left, node + ".input1D[0]")
         self._feed(right, node + ".input1D[1]")
-        return to_plug(node + ".output1D")
+        return _InputPlug._resolve_input(node + ".output1D")
 
     @undo_transaction("hlib.ScalarGraph.multiply")
     def multiply(self, role, left, right, operation=1):
@@ -75,11 +76,12 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         node = self._node("multiplyDivide", role)
-        to_plug(node + ".operation").set(operation)
+        _InputPlug._resolve_input(node + ".operation").set(operation)
         self._feed(left, node + ".input1X")
         self._feed(right, node + ".input2X")
-        return to_plug(node + ".outputX")
+        return _InputPlug._resolve_input(node + ".outputX")
 
     @undo_transaction("hlib.ScalarGraph.condition")
     def condition(self, role, left, right, yes, no):
@@ -95,8 +97,9 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         node = self._node("condition", role)
-        to_plug(node + ".operation").set(2)
+        _InputPlug._resolve_input(node + ".operation").set(2)
         for value, attr in (
             (left, "firstTerm"),
             (right, "secondTerm"),
@@ -104,4 +107,4 @@ class ScalarGraph:
             (no, "colorIfFalseR"),
         ):
             self._feed(value, node + "." + attr)
-        return to_plug(node + ".outColorR")
+        return _InputPlug._resolve_input(node + ".outColorR")

@@ -1,10 +1,12 @@
 """Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）と同一シェイプの要素群。"""
 
+from hlib.object import Object
+
 import math
 import operator
 
 
-class Component:
+class Component(Object):
     """シェイプと番号を保持する単体コンポーネントへの参照。
 
     Mayaの形状要素（頂点・エッジ・フェース・CV・UV）に共通する基底クラス。
@@ -14,6 +16,72 @@ class Component:
     shape_type = None
     component_type = None
     count_attribute = None
+
+    @staticmethod
+    def _from_api(path, component):
+        """APIのコンポーネント範囲を単数ラッパーへ展開する。
+
+        Args:
+            path (MDagPath): 所有シェイプのインスタンスパス。
+            component (MObject): 単一インデックスのコンポーネント。
+        Returns:
+            list[Component]: Mayaの要素順の参照。
+        Raises:
+            TypeError: 非対応のコンポーネント種類の場合。
+        """
+        import maya.api.OpenMaya as om2
+        from hlib.nodes.node import Node
+        from .vertex import Vertex
+        from .edge import Edge
+        from .face import Face
+        from .uv import UV
+        from .cv import CV
+        types = {
+            om2.MFn.kMeshVertComponent: Vertex,
+            om2.MFn.kMeshEdgeComponent: Edge,
+            om2.MFn.kMeshPolygonComponent: Face,
+            om2.MFn.kMeshMapComponent: UV,
+            om2.MFn.kCurveCVComponent: CV,
+        }
+        cls = types.get(component.apiType())
+        if cls is None:
+            raise TypeError("Only mesh vertices/edges/faces/UVs and curve CVs are supported")
+        shape = Node(path)
+        fn = om2.MFnSingleIndexedComponent(component)
+        indices = range(getattr(shape, cls.count_attribute)()) if fn.isComplete else fn.getElements()
+        return [cls(shape, index) for index in indices]
+
+    @staticmethod
+    def _resolve_input(value):
+        """名前・既存参照・APIの組から単一コンポーネントを取得する。
+
+        Args:
+            value (str | Component | tuple): 参照または(MDagPath, MObject)。
+        Returns:
+            Component: 対応する具体型。既存参照はそのまま返す。
+        Raises:
+            TypeError: 入力型が非対応の場合。
+            ValueError: 対象が単一要素でない場合。
+            RuntimeError: 名前を解決できない場合。
+        """
+        import maya.api.OpenMaya as om2
+        if isinstance(value, Component):
+            return value
+        if isinstance(value, str):
+            if not value:
+                raise ValueError("Expected a non-empty component name")
+            selection = om2.MSelectionList()
+            selection.add(value)
+            if selection.length() != 1:
+                raise ValueError("Expected one component")
+            value = selection.getComponent(0)
+        if not (isinstance(value, tuple) and len(value) == 2
+                and isinstance(value[0], om2.MDagPath) and isinstance(value[1], om2.MObject)):
+            raise TypeError("Expected a component reference, name or (MDagPath, MObject)")
+        items = Component._from_api(*value)
+        if len(items) != 1:
+            raise ValueError("Expected one component; use Selection for ranges")
+        return items[0]
 
     def __init__(self, shape, index):
         """シェイプと実際のコンポーネント番号を保持する。

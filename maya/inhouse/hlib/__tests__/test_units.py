@@ -8,7 +8,7 @@ import maya.api.OpenMaya as om2
 
 import hlib
 hlib.reload()
-from hlib.general import Preferences
+from hlib.environment import Preferences
 from hlib.utils import units
 from hlib.decorators import native_units
 

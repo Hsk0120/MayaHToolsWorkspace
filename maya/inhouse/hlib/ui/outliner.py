@@ -2,7 +2,7 @@
 
 import maya.cmds as cmds
 
-from ._editor import _Editor
+from hlib.ui._editor import _Editor
 
 
 class Outliner(_Editor):

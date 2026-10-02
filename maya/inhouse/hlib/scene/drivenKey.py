@@ -5,7 +5,6 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from hlib._core.attributeType import attribute_type
-from hlib._core.coerce import to_plug
 from hlib.decorators.undo import undo_chunk
 from hlib.nodes.node import Node
 from hlib.plugs.plug import Plug
@@ -37,8 +36,9 @@ def _plug(value):
     文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため
     (:func:`hlib._core.attributeType.attribute_type`)、検証でシーンは変更しない。
     """
+    from hlib.plugs.plug import Plug as _InputPlug
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
-        result = to_plug(value)
+        result = _InputPlug._resolve_input(value)
     else:
         raise TypeError("Expected a Plug, MPlug or node.attribute string")
     if not result.is_valid() or not cmds.objExists(result.full_name()):
@@ -143,12 +143,13 @@ class DrivenKey:
         ドライバーは名前ではなくプラグ自体で照合するため、インスタンス化されたシェイプの
         アトリビュートをどのインスタンスのパスから指定しても同じ関係として扱う。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         driver = self.driver_plug().mplug()
         return [
             curve
             for curve in _curves(self.driven_plug())
             if _contains_plug(
-                (to_plug(source).mplug() for source in _sources(curve.full_name() + ".input")),
+                (_InputPlug._resolve_input(source).mplug() for source in _sources(curve.full_name() + ".input")),
                 driver,
             )
         ]
@@ -196,3 +197,31 @@ class DrivenKey:
         # 現在値と異なる位置のキー更新後も、駆動先が古い評価値を保持しないようにする。
         cmds.dgdirty([curve.full_name() for curve in self.curves()])
         return self
+
+    @classmethod
+    def find(cls, driven):
+        """駆動先に接続された関係を取得する。シーンは変更しない。
+
+        Args:
+            driven (Plug | om2.MPlug | str): 検索する駆動先アトリビュート。文字列は ``"node.attribute"`` 形式。
+        Returns:
+            list[DrivenKey]: 対応するドライバーごとの関係。対象外の構成は含めない
+                (数値スカラーでないドライバー。``choice.output`` のような値によって型が
+                変わる generic アトリビュートなど)。同じドライバー(プラグ自体で照合する)は1件にまとめる。
+        Raises:
+            ValueError: driven が非スカラー・非数値の場合。
+            TypeError: driven が Plug・MPlug・アトリビュート名のいずれでもない場合。
+            RuntimeError: driven のアトリビュートが存在しない場合。
+        """
+        target = _plug(driven)
+        items, seen = [], []
+        for curve in _curves(target):
+            for source in _sources(curve.full_name() + ".input"):
+                try:
+                    driver = _plug(source)
+                except ValueError:
+                    continue  # 数値スカラーでないドライバーは DrivenKey の対象外。
+                if not _contains_plug(seen, driver.mplug()):
+                    seen.append(driver.mplug())
+                    items.append(cls(driver, target))
+        return items

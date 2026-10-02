@@ -5,7 +5,8 @@ import maya.cmds as cmds
 import hlib
 hlib.reload()
 from hlib.nodes import Node, Joints, SkinClusters
-from hlib.general import Namespace, UiElement
+from hlib.scene import Namespace
+from hlib.ui import UiElement
 
 class NamingContractsTest(unittest.TestCase):
     """改名後の戻り値と複数形への展開を検証する。"""

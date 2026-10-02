@@ -4,8 +4,8 @@ from .snapshots import Snapshot, ApplyPlan, _units
 
 def _state(kind, name, flags=None):
     from maya import cmds
-    from ..general.viewport import Viewport
-    from ..general.outliner import Outliner
+    from hlib.ui.viewport import Viewport
+    from hlib.ui.outliner import Outliner
     if kind == "timeline":
         values = {key: cmds.playbackOptions(query=True, **{key: True}) for key in
                   ("animationStartTime", "animationEndTime", "minTime", "maxTime")}
@@ -71,8 +71,8 @@ class EditorSnapshot(Snapshot):
         """変更前にNotImplementedErrorを送出する。保存・読み込み・比較のみ対応。
 
         Args:
-            mapping (dict | None): API互換のため受け取るが適用しない。
-            namespace_map (dict | None): API互換のため受け取るが適用しない。
+            mapping (dict | None): Snapshot共通インターフェースの引数。この型では適用自体が未対応。
+            namespace_map (dict | None): Snapshot共通インターフェースの引数。この型では適用自体が未対応。
         Raises:
             NotImplementedError: 全エディター状態のUndoを標準コマンドだけでは保証できないため。
         """
@@ -81,9 +81,9 @@ class EditorSnapshot(Snapshot):
 
 def capture_editors(targets):
     """hlibのViewport/Outliner/TimeSliderまたはその列を取得する。"""
-    from ..general.viewport import Viewport
-    from ..general.outliner import Outliner
-    from ..general.timeSlider import TimeSlider
+    from hlib.ui.viewport import Viewport
+    from hlib.ui.outliner import Outliner
+    from hlib.ui.timeSlider import TimeSlider
     types = (Viewport, Outliner, TimeSlider)
     items = [targets] if isinstance(targets, types) else list(targets)
     records = []

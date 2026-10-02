@@ -45,7 +45,7 @@ class BacklogContractsTest(unittest.TestCase):
 
     def test_jobs_continue_and_retry(self):
         """解除失敗後も続行し、失敗分だけ再試行する。"""
-        cls = importlib.import_module('hlib.general.scriptJobs').ScriptJobs
+        cls = importlib.import_module('hlib.events.scriptJobs').ScriptJobs
         logger = importlib.import_module('hlib.utils.logger')
         group = cls()
         bad, good = mock.Mock(), mock.Mock()
@@ -87,14 +87,14 @@ class BacklogContractsTest(unittest.TestCase):
 
     def test_signature_cache_respects_overrides(self):
         """派生ごとの引数と後からの変更を独立に検証する。"""
-        bulk = importlib.import_module('hlib._core.collection')
+        bulk = importlib.import_module('hlib.nodes.node')
         class A:
             def edit(self, value):
                 """1引数を受け取る。"""
         class B:
             def edit(self, value, required):
                 """2引数を受け取る。"""
-        group = bulk.BulkCollection()
+        group = bulk.Nodes()
         group._bulk_methods = {'edit': A.edit}
         group._items = [A(), A(), B()]
         with self.assertRaises(TypeError):

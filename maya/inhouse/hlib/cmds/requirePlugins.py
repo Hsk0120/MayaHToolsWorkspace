@@ -13,7 +13,7 @@ Synopsis
 Bifrost など別途インストールする製品を確認する用途を想定しています。
 
 プラグインのロードを行うためシーンは変更しません(プラグインの登録だけが変わります)。
-:class:`hlib.general.PluginPackage` の ``try_load`` を 1 回の呼び出しにしたものです。
+:class:`hlib.environment.PluginPackage` の ``try_load`` を 1 回の呼び出しにしたものです。
 
 Return value
 ------------
@@ -23,7 +23,7 @@ Return value
     ``"missing"``(未導入または版が古い。ロードしていない)/
     ``"outdated"``(導入済みだが、既にロードされているプラグインが古い版)/
     ``"load-failed"``(必要な版は導入済みだが、一部のプラグインをロードできない)。
-    ``hlib.general`` の ``LOADED``・``SKIPPED``・``MISSING``・``OUTDATED``・``LOAD_FAILED``
+    ``hlib.environment`` の ``LOADED``・``SKIPPED``・``MISSING``・``OUTDATED``・``LOAD_FAILED``
     と同じ値です。
 
 Related commands
@@ -113,7 +113,8 @@ def requirePlugins(plugins, minimum_version=None, module=None, version_plugin=No
         ValueError: plugins が空、minimum_version が版として解釈できない場合。
         TypeError: plugins の要素が文字列でも Plugin でもない場合。
     """
-    from ..general import Plugin, PluginPackage
+    from hlib.environment import Plugin
+    from hlib.environment import PluginPackage
 
     if isinstance(plugins, (str, Plugin)):
         plugins = (plugins,)

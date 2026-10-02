@@ -1,10 +1,44 @@
 """計算ノードの入力検証と参照解決をまとめる。"""
 import math
-from .._core.coerce import to_node
 
 
 class _Calculation:
     """Mayaノード継承を変更せず共有する内部操作。"""
+
+    @staticmethod
+    def set_value(value, validator, target, *indices):
+        """値を検証してから対象Plugを解決し、設定する。
+
+        Args:
+            value (object): 入力値。
+            validator (callable): 値の検証・型変換。例外はそのまま返す。
+            target (callable): ノード固有のPlug取得メソッド。
+            *indices: Plug取得に渡す番号。
+
+        Note:
+            値の検証を先に行い、不正値による対象解決を避ける。
+            Undoとfastの範囲は呼出元の公開メソッドで管理する。
+        """
+        value = validator(value)
+        target(*indices).set(value)
+
+    @staticmethod
+    def connect(source, target, *indices, force=False):
+        """接続元を解決してから対象Plugを取得し、接続する。
+
+        Args:
+            source (Plug | str | MPlug): 接続元。
+            target (callable): ノード固有のPlug取得メソッド。
+            *indices: Plug取得に渡す番号。
+            force (bool): 既存接続を置き換えるか。
+
+        Note:
+            接続方向とロック処理はPlug.connectへ集約する。
+            接続元の解決失敗時には接続先を取得しない。
+        """
+        from hlib.plugs.plug import Plug as _InputPlug
+        source = _InputPlug._resolve_input(source)
+        source.connect(target(*indices), force=force)
 
     @staticmethod
     def index(value, allowed=None):
@@ -114,9 +148,10 @@ class _Calculation:
             TypeError: シェイプ型が異なる場合。
             ValueError: Transformの対象シェイプが一意でない場合。
         """
+        from hlib.nodes.node import Node as _InputNode
         from .transform import Transform
         _Calculation.boolean(world_space)
-        node = to_node(value)
+        node = _InputNode._resolve_input(value)
         if isinstance(node, Transform):
             shapes = [s for s in node.shapes() if s.is_type(node_type)]
             if len(shapes) != 1:

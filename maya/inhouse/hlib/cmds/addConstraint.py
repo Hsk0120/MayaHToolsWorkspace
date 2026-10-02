@@ -33,10 +33,10 @@ def addConstraint(sources, target, type="parent", maintainOffset=False, **kwargs
         ValueError: 未対応の種類、空の拘束元、照会・編集モードを指定した場合。
         RuntimeError: 対象が無効、またはMayaが操作を拒否した場合。
     """
-    from .._core.coerce import to_node
+    from hlib.nodes.node import Node as _InputNode
     from ..nodes.transform import Transform
 
-    target_node = to_node(target)
+    target_node = _InputNode._resolve_input(target)
     if not isinstance(target_node, Transform):
         raise TypeError("target must resolve to a Transform")
     return target_node.add_constraint(sources, type=type, maintainOffset=maintainOffset, **kwargs)

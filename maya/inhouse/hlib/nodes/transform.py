@@ -151,6 +151,8 @@ class Transform(DagNode):
         typeはtyp、maintainOffsetはmoでも指定可能。同時指定はTypeError。
         maintainOffsetはparent/point/orient/scale/aim以外では使用しない。
         """
+        from hlib.nodes.node import Node as _InputNode
+        from hlib.nodes.node import Nodes as _InputNodes
         from .constraint import Constraint
 
         if not isinstance(type, str):
@@ -166,7 +168,6 @@ class Transform(DagNode):
             raise ValueError(f"Unsupported constraint type: {type}")
         if not self.is_valid():
             raise RuntimeError("Cannot constrain an invalid transform")
-        from .._core.coerce import to_node
         from ..components.component import Component, Components
         from ..plugs.plug import Plug
 
@@ -178,14 +179,13 @@ class Transform(DagNode):
         # 無い(追従しない)拘束を黙って作るため、Transform 以外は TypeError にする。
         requires_transform = command_name in _TRANSFORM_SOURCE_CONSTRAINTS
         names = []
-        from .._core.coerce import node_inputs
-        for source in node_inputs(sources):
+        for source in _InputNodes._resolve_inputs(sources):
             if source is None or (isinstance(source, str) and not source):
                 raise TypeError("Constraint sources must be non-empty names or Node objects")
             # 文字列も含めて所有ノードへ解決する。Plug・MPlug・"node.attribute" は所有ノード、
             # Component・"pCube1.vtx[0]" は所有シェイプを拘束元にする(maya.cmds へ
             # プラグ名・コンポーネント名をそのまま渡すと拘束元として扱われないため)。
-            source = to_node(source)
+            source = _InputNode._resolve_input(source)
             if not source.is_valid():
                 raise RuntimeError("Constraint target is invalid")
             if requires_transform and not source.mobject().hasFn(om2.MFn.kTransform):
@@ -701,7 +701,7 @@ class Transform(DagNode):
 
         Args:
             target (Transform | str | om2.MObject | om2.MDagPath): 合わせ先のTransformまたはjoint。
-                hlib._core.coerce.to_node が受け付ける型(Plug は所有ノード)を指定できる。
+                hlib.nodes.Node._resolve_input が受け付ける型(Plug は所有ノード)を指定できる。
             position (bool): 位置を合わせる。
             rotation (bool): 回転を合わせる。
             scale (bool): スケールを合わせる。
@@ -719,9 +719,9 @@ class Transform(DagNode):
         maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
         shearの一致や行列全体のコピーは保証しない。
         """
-        from .._core.coerce import to_node
+        from hlib.nodes.node import Node as _InputNode
 
-        target = to_node(target)
+        target = _InputNode._resolve_input(target)
         if not isinstance(target, Transform):
             raise TypeError("Target must be a transform or joint")
         if any((position, rotation, scale, pivots)):

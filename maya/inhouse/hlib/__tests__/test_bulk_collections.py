@@ -70,19 +70,8 @@ class BulkCollectionsTest(unittest.TestCase):
         self.assertEqual(len(skins[:1]), 1)
         self.assertTrue(callable(skins.remove_influences))
 
-    def test_plugins_and_registration_coverage(self):
-        from hlib.general import Plugin, Plugins
-        plugins = Plugins(["hlibMissingA", "hlibMissingB"])
-        self.assertEqual(plugins.name, ["hlibMissingA", "hlibMissingB"])
-        self.assertEqual(plugins.is_loaded(), [False, False])
-        calls = []
-        def fake_load(item, **kwargs):
-            calls.append((item.name, kwargs))
-            return item
-        with patch.object(Plugin, "load", fake_load):
-            self.assertEqual(len(plugins.load(quiet=True)), 2)
-        self.assertEqual(calls, [("hlibMissingA", {"quiet": True}), ("hlibMissingB", {"quiet": True})])
-        for collection, single in ((self.joints, hlib.nodes.Joint), (hlib.nodes.SkinClusters(), hlib.nodes.SkinCluster), (plugins, Plugin)):
+    def test_registration_coverage(self):
+        for collection, single in ((self.joints, hlib.nodes.Joint), (hlib.nodes.SkinClusters(), hlib.nodes.SkinCluster)):
             for name in dir(single):
                 if not name.startswith("_") and inspect.isfunction(inspect.getattr_static(single, name)):
                     self.assertIn(name, collection._bulk_methods)

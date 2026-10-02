@@ -17,7 +17,7 @@ for _owner in globals().get("_jobs", {}).values():
 if globals().get("_events") is not None:
     _events.stop()
 _jobs = {}
-_events = hlib.general.ScriptJobs()
+_events = hlib.events.ScriptJobs()
 _busy = False
 LAYERS = (
     "fk",
@@ -320,7 +320,7 @@ def refresh_jobs():
         ]
         if rig.root.has_attribute("targetSpace"):
             attrs += [rig._member(role) + ".space" for role in ("target", "pole")]
-        jobs = hlib.general.ScriptJobs()
+        jobs = hlib.events.ScriptJobs()
         try:
             for attr in attrs:
                 jobs.add(

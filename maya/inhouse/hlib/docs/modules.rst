@@ -41,7 +41,11 @@ Utilities
 .. toctree::
    :maxdepth: 1
 
-   autoapi/hlib/general/index
+   autoapi/hlib/scene/index
+   autoapi/hlib/ui/index
+   autoapi/hlib/environment/index
+   autoapi/hlib/events/index
+   autoapi/hlib/object/index
    autoapi/hlib/utils/index
    autoapi/hlib/decorators/index
    autoapi/hlib/json/index

@@ -535,7 +535,7 @@ ShadingEngineのget_shader/set_shaderはkindにsurface、volume、displacement�
 通常の更新（set_translate・freeze・set_visibilityなど）はコレクション自身を返します。
 照会は保持順の結果リスト、add_attribute等の生成結果が必要な操作も結果リストです。
 call_eachも同じ戻り値規則に従います。空のコレクションでもこの規則は変わりません。
-色の照会はColors、Joints.skin_clustersはSkinClustersという専用の集約結果を返します。
+色の照会はlist[Color]、Joints.skin_clustersはSkinClustersという専用の集約結果を返します。
 明示実装のdeleteはNoneを返し、削除済み参照の連鎖操作には使用しません。
 
 開発者はbulk_apiのreads（結果リスト）・writes（自身）・propertiesで公開対象を宣言します。

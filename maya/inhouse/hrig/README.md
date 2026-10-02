@@ -330,7 +330,7 @@ Pythonの書式・日本語Google形式docstringはhlibに合わせます。
 詳細は [hrig実装ルール](../../../docs/hrig-development.md) を参照してください。
 
 ノード生成・属性・接続・行列の操作にはhlibの公開APIを使用します。
-GUI監視は `hlib.general.ScriptJobs`、変更があるときだけ行う状態表示の更新は
+GUI監視は `hlib.events.ScriptJobs`、変更があるときだけ行う状態表示の更新は
 `Plug.set_if_changed()` を使用します。FK/IKやLODの判断、リグの再探索はhrig側の責務です。
 IKハンドル構築、スキン作成・ウェイト転送、プリミティブ作成などにはMaya専用コマンドを使用します。
 
@@ -424,7 +424,7 @@ Undo/Redo・シーン読込・Mode/LOD/Enabled変更を表示へ反映します�
 ## Swing / Twistドリブンキーレイヤー
 
 ジョイントのローカル回転をSwingとTwistへ分解し、その1成分から単一属性をSDKで駆動します。
-分解は`hrig.setups.SwingTwist`、SDK生成は既存の`hlib.general.DrivenKey`を使用します。
+分解は`hrig.setups.SwingTwist`、SDK生成は既存の`hlib.scene.DrivenKey`を使用します。
 
 ```python
 import hlib
@@ -803,7 +803,8 @@ Bifrostは明示指定時だけ使用し、hlib側からhrigに依存しませ�
 
 ```python
 from hrig.setups import SoftIK, SpaceSwitch, SplineIK
-from hlib.general import DrivenKey, DrivenKeys
+from hlib.scene import DrivenKey
+from hlib.environment import DrivenKeys
 from hlib.utils.scalarGraph import ScalarGraph
 ```
 

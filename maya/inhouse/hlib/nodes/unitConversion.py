@@ -1,6 +1,5 @@
 """Mayaの単位変換係数を扱う。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
@@ -39,8 +38,7 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.scalar(value)
-        self.input_plug().set(value)
+        _Calculation.set_value(value, _Calculation.scalar, self.input_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -56,7 +54,7 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.input_plug(), force=force)
+        _Calculation.connect(source, self.input_plug, force=force)
         return self
 
     def factor_plug(self):
@@ -87,8 +85,7 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.scalar(value)
-        self.factor_plug().set(value)
+        _Calculation.set_value(value, _Calculation.scalar, self.factor_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -104,7 +101,7 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.factor_plug(), force=force)
+        _Calculation.connect(source, self.factor_plug, force=force)
         return self
 
     def output_plug(self):

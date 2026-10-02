@@ -9,6 +9,6 @@ def executeDeferred(callback, *args, **kwargs):
         *args: 関数の位置引数。
         **kwargs: 関数のキーワード引数。
     """
-    from ..general.deferred import Deferred
+    from ..events.deferred import Deferred
 
-    Deferred.call(callback, *args, **kwargs)
+    return Deferred.call(callback, *args, **kwargs)

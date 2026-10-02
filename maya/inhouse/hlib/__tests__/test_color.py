@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib.general import Color, Colors
+from hlib.ui import Color
 
 
 class ColorTest(unittest.TestCase):
@@ -84,8 +84,7 @@ class ColorTest(unittest.TestCase):
         self.assertIsNone(disabled.index)
         self.assertIsNone(disabled.rgb)
         self.assertEqual(Color.coerce(None), disabled)
-        self.assertEqual(Colors([default, None]).index, [0, None])
-        self.assertEqual(len(Colors()), 0)
+        self.assertEqual([Color.coerce(value).index for value in [default, None]], [0, None])
         self.node.set_override_color(default)
         self.assertEqual(self.node.get_override_color(), default)
         self.node.set_override_color(None)
@@ -170,51 +169,6 @@ class ColorTest(unittest.TestCase):
         finally:
             cmds.delete(blend)
 
-
-
-class ColorsTest(unittest.TestCase):
-    """値コレクションの独立性と一括同期を検証する。"""
-
-    def test_order_and_copy(self):
-        """重複を保ち、入力・コピー・スライスは互いに独立する。"""
-        original = Color(index=6)
-        colors = Colors([original, 6, (1, 0, 0), None])
-        self.assertEqual(len(colors), 4)
-        self.assertEqual(colors.index, [6, 6, 13, None])
-        self.assertEqual(colors.mode, ['index', 'index', 'rgb', 'disabled'])
-        with patch.object(cmds, 'colorIndex', side_effect=AssertionError('Unexpected query')):
-            copied, sliced = colors.copy(), colors[:2]
-            colors[0].index = 17
-            self.assertEqual(original.index, 6)
-            self.assertEqual(copied[0].index, 6)
-            self.assertEqual(sliced.index, [6, 6])
-        self.assertIsInstance(sliced, Colors)
-        self.assertEqual(list(colors)[0].index, 17)
-        self.assertEqual(colors[-1].mode, 'disabled')
-        self.assertEqual(Colors().rgb, [])
-
-    def test_assignment_is_prevalidated(self):
-        """一括同期と、不正な後続値でも先行要素を変更しないことを検証する。"""
-        colors = Colors([6, 17])
-        first = colors[0]
-        colors.rgb = [(1, 0, 0), (0, 0, 1)]
-        self.assertEqual(colors.index, [13, 6])
-        self.assertIs(colors[0], first)
-        colors.index = [17, 6]
-        self.assertEqual(colors.rgb, [(1, 1, 0), (0, 0, 1)])
-        for name, values in [('index', [13, 32]), ('rgb', [(0, 0, 0), (2, 0, 0)]), ('index', [1])]:
-            before = colors.copy()
-            with self.assertRaises(ValueError):
-                setattr(colors, name, values)
-            self.assertEqual(list(colors), list(before))
-
-    def test_bulk_refresh(self):
-        """既存の一括APIを通して、Undoなしでパレットを更新できる。"""
-        colors = Colors([6, 17])
-        with patch.object(cmds, 'about', return_value=True):
-            result = colors.refresh_palette()
-        self.assertIs(result, colors)
-        self.assertEqual(colors.palette_source, ['default', 'default'])
 
 
 if __name__ == '__main__':

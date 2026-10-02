@@ -1,17 +1,16 @@
 """Maya の依存ノードと DAG ノードを扱う基底ラッパー。"""
 
+from hlib.object import Object
+
+import contextlib
+import inspect
 from typing import Any
 
-from .._core.collection import BulkCollection, bulk_api
+from .._core.collection import bulk_api
+from .._core.flags import normalize_flags
 from .._core.registry import collection_export
 
 from ..decorators._fast import fast_edit
-from .._core.coerce import (
-    DeletedAttributeError,
-    deleted_attribute_error,
-    mplug_attribute_exists,
-    selection_owner,
-)
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -40,10 +39,12 @@ def _resolve_node(node):
     Raises:
         TypeError: 対応しない入力型、または依存ノード以外(アトリビュートなど)を指す MObject の場合。
         ValueError: 所有ノードは有効で、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
-            (:class:`hlib._core.coerce.DeletedAttributeError`。``RuntimeError`` の派生でもある)。
+            (:class:`hlib.plugs.plug.DeletedAttributeError`。``RuntimeError`` の派生でもある)。
         RuntimeError: 名前を解決できない(存在しない、または複数の対象に一致する)場合、
             または空・無効な(削除済みの)ラッパーや om2 オブジェクトを指定した場合。
     """
+    from hlib.plugs.plug import Plug as _InputPlug
+    from hlib.plugs.plug import DeletedAttributeError
     if isinstance(node, str):
         selection = om2.MSelectionList()
         try:
@@ -63,7 +64,7 @@ def _resolve_node(node):
                 f"名前が一意ではありません(複数の対象に一致します): {node}",
                 from_exception=None,
             )
-        return selection_owner(selection, 0, node)
+        return Node._selection_owner(selection, 0, node)
     if isinstance(node, om2.MDagPath):
         if not node.isValid() or not om2.MObjectHandle(node.node()).isValid():
             raise RuntimeError("無効な(削除済みの)MDagPath からノードは解決できません")
@@ -85,7 +86,7 @@ def _resolve_node(node):
         owner = node.node()
         # 所有ノードが有効でも、deleteAttr で削除されたアトリビュートの MPlug は削除済みの対象として扱う
         # (hlib のコマンドと同じ。所有ノードが削除済みなら下の MObject の解決で RuntimeError)。
-        if om2.MObjectHandle(owner).isValid() and not mplug_attribute_exists(node, owner):
+        if om2.MObjectHandle(owner).isValid() and not _InputPlug._mplug_attribute_exists(node, owner):
             raise DeletedAttributeError("削除済みのアトリビュートの MPlug からノードは解決できません")
         return _resolve_node(owner)
     if isinstance(node, Node):
@@ -98,7 +99,7 @@ def _resolve_node(node):
     from ..plugs.plug import Plug
 
     if isinstance(node, Plug):
-        error = deleted_attribute_error(node)
+        error = _InputPlug._deleted_attribute_error(node)
         if error is not None:
             raise error
         return _resolve_node(node.node)
@@ -133,7 +134,7 @@ def _is_deleted_api_object(value):
 def _query_target(other):
     """判定メソッド(``is_parent_of`` など)の対象をノードへ解決する。
 
-    ``hlib._core.coerce.to_node`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
+    ``hlib.nodes.Node._resolve_input`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
     所有ノードが削除済みの Plug・Component、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug、
     削除済みのノードを指す om2 オブジェクト)は例外にせず None を返す(判定は False)。
 
@@ -149,10 +150,10 @@ def _query_target(other):
         RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
             または空の MObject・MPlug の場合。
     """
-    from .._core.coerce import to_node
+    from hlib.plugs.plug import DeletedAttributeError
 
     try:
-        node = to_node(other)
+        node = Node._resolve_input(other)
     except DeletedAttributeError:
         return None
     except RuntimeError:
@@ -263,7 +264,7 @@ def _create_movable_attr(node, info):
     return plug
 
 
-class Node:
+class Node(Object):
     """Maya の依存ノード・DAG ノードを表す共通ラッパー。
 
     生成時は登録済みのノード型に対応するラッパーを選択する。
@@ -273,7 +274,7 @@ class Node:
     複数の対象に一致する場合や、空・削除済みの対象は RuntimeError になる
     (``"bulk*"`` のように複数のノードに一致するパターンも最初の一致を返さない。
     パターンは ``hlib.ls`` を使う)。所有ノードは有効でアトリビュートだけが ``deleteAttr`` で
-    削除された Plug・MPlug は ValueError(``hlib._core.coerce.DeletedAttributeError``。
+    削除された Plug・MPlug は ValueError(``hlib.plugs.plug.DeletedAttributeError``。
     RuntimeError の派生でもあるため、従来どおり RuntimeError としても捕捉できる)。
 
     インスタンス化されたノードは、指定されたインスタンスの DAG パスを保持する。
@@ -284,6 +285,168 @@ class Node:
     Node はそのまま ``cmds.select(node)`` のように maya.cmds へ渡せる。名前は
     呼び出すたびに再計算するため、名前変更・親子付け替えに追従する。
     削除済みのノードは空文字列になる。"""
+
+    @staticmethod
+    def _selection_owner(selection, index, name=None):
+        """MSelectionList の要素を所有するノードの MObject と DAG パスを返す。
+
+        ノード・コンポーネントの要素は選択されたインスタンスの DAG パスを返す。
+        アトリビュート(プラグ)の要素は ``MSelectionList.getDagPath()`` を使えず、選択リスト自体も
+        インスタンスの情報を持たないため、インスタンス化された DAG ノードのアトリビュートは
+        次の順にノード部分からインスタンスのパスを求める。
+
+        1. name(要素を追加したときの文字列)。``|grpB|box1|boxShape.castsShadows`` は
+           ``|grpB|box1|boxShape`` のインスタンスを指す。
+        2. 選択文字列。``worldMatrix[1]`` のようなインスタンスごとのアトリビュートは、要素番号の
+           インスタンスが選択文字列に現れる。
+
+        ``|box1.castsShadows`` のように transform の名前でシェイプのアトリビュートを指す文字列は、
+        ノード部分が指す transform のパスを所有シェイプまで伸ばす(``|box1|boxShape``)。
+        どちらからも求められない場合は最初のインスタンスのパスを返す。
+
+        Args:
+            selection (om2.MSelectionList): 対象を含む選択リスト。
+            index (int): 要素の位置。
+            name (str | None): 要素を追加したときの文字列。分かっている場合に指定する。
+
+        Returns:
+            tuple[om2.MObject, om2.MDagPath | None]: 所有ノードの MObject と、DAG ノードで
+                あれば DAG パス(DG ノードは None)。
+        """
+        mobject = selection.getDependNode(index)
+        if not mobject.hasFn(om2.MFn.kDagNode):
+            return mobject, None
+        try:
+            return mobject, selection.getDagPath(index)
+        except (RuntimeError, TypeError):
+            pass
+        fn = om2.MFnDagNode(mobject)
+        if fn.isInstanced():
+            candidates = [name] if name else []
+            candidates.extend(selection.getSelectionStrings(index))
+            for text in candidates:
+                # ノード名には "." を含められないため、最初の "." までがノード部分になる。
+                owner = om2.MSelectionList()
+                try:
+                    owner.add(text.split(".", 1)[0])
+                    dag_path = owner.getDagPath(0)
+                except (RuntimeError, TypeError):
+                    continue
+                if dag_path.node() == mobject:
+                    return mobject, dag_path
+                # transform の名前でシェイプのアトリビュートを指す場合は、名前が指す transform の
+                # インスタンスの下にある所有シェイプまでパスを伸ばす。
+                for child in range(dag_path.childCount()):
+                    if dag_path.child(child) == mobject:
+                        dag_path.push(mobject)
+                        return mobject, dag_path
+        return mobject, fn.getPath()
+
+    @staticmethod
+    def _unique_node_name(mobject):
+        """ノードの MObject から maya.cmds で一意に解決できる最短名を返す。
+
+        DAG ノードは最初のインスタンスの最短一意パス(``MDagPath.partialPathName()``)、
+        DG ノードはノード名を返す。``Node.name()`` と同じ規則。
+
+        Args:
+            mobject (om2.MObject): 依存ノードの MObject。
+
+        Returns:
+            str: 最短一意名。
+        """
+        if mobject.hasFn(om2.MFn.kDagNode):
+            return om2.MFnDagNode(mobject).getPath().partialPathName()
+        return om2.MFnDependencyNode(mobject).name()
+
+    @staticmethod
+    def _mobject_name(mobject):
+        """依存ノードの MObject を完全 DAG パスまたは DG ノード名へ変換する。
+
+        Args:
+            mobject (om2.MObject): 変換対象。
+
+        Returns:
+            str: 完全 DAG パス(最初のインスタンス)、または DG ノード名。
+
+        Raises:
+            ValueError: 空、または削除済みノードの MObject の場合。
+            TypeError: アトリビュート・コンポーネント・データなど依存ノード以外を指す場合。
+        """
+        if mobject.isNull():
+            raise ValueError("空の MObject は指定できません")
+        if not om2.MObjectHandle(mobject).isValid():
+            raise ValueError("削除済みノードの MObject は指定できません")
+        if not mobject.hasFn(om2.MFn.kDependencyNode):
+            raise TypeError("MObject には依存ノードを指定してください(アトリビュート・コンポーネント・データは不可)")
+        if mobject.hasFn(om2.MFn.kDagNode):
+            return om2.MFnDagNode(mobject).getPath().fullPathName()
+        return om2.MFnDependencyNode(mobject).name()
+
+    @staticmethod
+    def _resolve_input(value):
+        """対象を Node インスタンスへ変換する。
+
+        Plug・MPlug は所有ノード、Component・Components は所有シェイプへ解決する。
+
+        Args:
+            value (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):
+                変換対象。
+
+        Returns:
+            Node: value が Node ならそのまま、Plug なら ``plug.node``、コンポーネントなら
+                ``shape``。それ以外は ``Node(value)`` (Maya へ解決し、型に応じたラッパーを返す)。
+                削除済みの Node と、所有ノードが削除済みの Plug・Component は例外にせずそのまま
+                返す(``Node.is_valid()`` が ``False``。扱いは呼び出し側で決める)。
+
+        Raises:
+            TypeError: 対応しない型の場合。
+            ValueError: 所有ノードは有効で、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
+                (:class:`DeletedAttributeError`。``RuntimeError`` の派生でもある)。
+            RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
+                または空・削除済みのノードを指す om2 オブジェクトの場合(``Node(value)`` と同じ)。
+        """
+        from hlib.object import Object as _InputObject
+        from hlib.plugs.plug import Plug as _InputPlug
+        node_class, plug_class, component_class, components_class = _InputObject._classes()
+        if isinstance(value, node_class):
+            return value
+        if isinstance(value, plug_class):
+            error = _InputPlug._deleted_attribute_error(value)
+            if error is not None:
+                raise error
+            return value.node
+        if isinstance(value, (component_class, components_class)):
+            return value.shape
+        if isinstance(value, (str, om2.MObject, om2.MDagPath, om2.MPlug)):
+            return node_class(value)
+        raise _InputObject._unsupported(value)
+
+    @staticmethod
+    def _input_name(value):
+        """ノードが必要な単一の引数(``parent`` など)を、所有ノードの完全パスへ変換する。
+
+        Node._resolve_input と同じ規則で解決する(Plug・MPlug は所有ノード、Component は所有シェイプ)。
+        ``"node.attribute"`` 形式の文字列も所有ノードになるため、maya.cmds のように
+        プラグ名の ``parent`` が黙って無視されることはない。
+
+        Args:
+            value (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug): 変換対象。
+
+        Returns:
+            str: 所有ノードの完全 DAG パス(DG ノードはノード名)。
+
+        Raises:
+            TypeError: 対応しない型、または Components などの複数の対象を渡した場合。
+            ValueError: 空文字列、または無効な(削除済みの。アトリビュートだけが削除された Plug・MPlug を
+                含む)対象の場合。
+            RuntimeError: 文字列を解決できない(存在しない、または複数のノードに一致する)場合。
+        """
+        from hlib.object import Object as _InputObject
+        # 型と有効性の検査は Object._input_name と同じ規則(TypeError / ValueError)にそろえる。
+        _InputObject._input_name(value)
+        return Node._resolve_input(value).full_name()
+
 
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
@@ -344,20 +507,19 @@ class Node:
             TypeError: parent が対応しない型の場合。
             RuntimeError: parent の名前を解決できない場合、または Maya が作成を拒否した場合。
 
-        ``parent`` はノードが必要な引数として ``hlib._core.coerce.to_node_name`` で
+        ``parent`` はノードが必要な引数として ``hlib.nodes.Node._input_name`` で
         所有ノードの完全パスへ変換する。Plug・MPlug・``"node.attribute"`` は所有ノード、
         Component は所有シェイプを親にする(シェイプを親にした場合の配置は
         ``maya.cmds.createNode`` と同じ)。
         """
-        from .._core.coerce import to_node_name
 
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
-        from ..general import Plugin
+        from hlib.environment import Plugin
         Plugin.ensure_node_plugin(type)
         for key in ("parent", "p"):
             if kwargs.get(key) is not None:
-                kwargs[key] = to_node_name(kwargs[key])
+                kwargs[key] = Node._input_name(kwargs[key])
         created_name = cmds.createNode(type, **kwargs)
         return cls(created_name)
 
@@ -615,7 +777,7 @@ class Node:
                 削除済みのノードを指す om2 オブジェクトを含む)では False。
 
         Raises:
-            TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
+            TypeError: other が対応しない型の場合(対応する型は hlib.nodes.Node._resolve_input を参照)。
             RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
         other_node = _query_target(other)
@@ -638,7 +800,7 @@ class Node:
                 含む)では False。
 
         Raises:
-            TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
+            TypeError: other が対応しない型の場合(対応する型は hlib.nodes.Node._resolve_input を参照)。
             RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
         other_node = _query_target(other)
@@ -662,7 +824,7 @@ class Node:
                 含む)では False。
 
         Raises:
-            TypeError: other が対応しない型の場合(対応する型は hlib._core.coerce.to_node を参照)。
+            TypeError: other が対応しない型の場合(対応する型は hlib.nodes.Node._resolve_input を参照)。
             RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
         other_node = _query_target(other)
@@ -735,7 +897,7 @@ class Node:
         """
         # namespaces.namespace が ..nodes を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from ..general import Namespace
+        from hlib.scene import Namespace
 
         node_name = self.node_name()
         if ":" not in node_name:
@@ -790,7 +952,7 @@ class Node:
             RuntimeError: namespace移動に失敗した場合。
         """
         # namespaces.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
-        from ..general import Namespace
+        from hlib.scene import Namespace
 
         if isinstance(namespace, Namespace):
             target_namespace = namespace
@@ -821,9 +983,9 @@ class Node:
         Returns:
             list[Plug]: 接続先の外部Plugを重複なしで格納したリスト。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         # plugs.plug が ..nodes.node を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from .._core.coerce import plug_path, unique_node_name
         from ..plugs.plug import Plug
 
         plugs = []
@@ -833,7 +995,7 @@ class Node:
                 # MPlug.name() は短いノード名しか含まず、同名ノード(grp1|dup と grp2|dup)の
                 # プラグを同一視してしまうため、所有ノードの一意な名前とアトリビュートパスで重複を判定する
                 # (MObjectHandle.hashCode() は別ノードで衝突しうるため使わない)。
-                key = (unique_node_name(connected.node()), plug_path(connected))
+                key = (Node._unique_node_name(connected.node()), _InputPlug._plug_path(connected))
                 if key in seen:
                     continue
                 node = Node(connected.node())
@@ -1059,7 +1221,6 @@ class Node:
         if not isinstance(long_name, str) or not long_name:
             raise ValueError("long_name must be a non-empty string")
         from .._core.flags import normalize_flags
-        from ..cmds.addAttr import addAttr
         add_kwargs = normalize_flags("addAttr", kwargs)
         if "longName" in add_kwargs:
             raise TypeError("long_name and longName cannot be specified together")
@@ -1089,7 +1250,40 @@ class Node:
                              attributeType=vector_type[:-1], parent=long_name,
                              keyable=bool(add_kwargs.get("keyable", False)))
             return self.plug(long_name)
-        return addAttr(self, **add_kwargs)
+        return self._add_attribute(self, **add_kwargs)
+
+    @staticmethod
+    def _add_attribute(target, **kwargs):
+        """Maya形式のフラグで追加し、Plugを返す共通実装。
+
+        Args:
+            target (str | Node | Plug): 操作対象。
+            **kwargs (object): 正規化済みのMaya長名フラグ。
+        Returns:
+            Plug: 追加した参照。
+        Raises:
+            ValueError: 照会・編集、または名前の指定が不正な場合。
+            RuntimeError: Mayaが追加を拒否した場合。
+        """
+        from hlib.object import Object as _InputObject
+        from hlib.plugs.plug import Plug as _InputPlug
+
+        if kwargs.get("query") or kwargs.get("edit"):
+            raise ValueError("addAttr supports creation only")
+        name = _InputObject._input_name(target)
+        if (
+            not kwargs.get("query")
+            and "." not in name
+            and not (kwargs.get("longName") or kwargs.get("shortName"))
+        ):
+            raise ValueError("Specify longName or shortName")
+        cmds.addAttr(name, **kwargs)
+        if "." in name:
+            return _InputPlug._resolve_input(name)
+        attribute = kwargs.get("longName") or kwargs.get("shortName")
+        if not attribute:
+            raise ValueError("Specify longName or shortName")
+        return Node._resolve_input(target).plug(attribute)
 
     def get_extra_attributes(self, include_children=False):
         """ユーザー追加のエクストラアトリビュートを型付きPlugで取得する。
@@ -1201,6 +1395,8 @@ class Node:
                 2147483647 を超える場合(``input1D[4294967296]`` のような番号を別の要素へ
                 読み替えない)も含む。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
+        from hlib.plugs.plug import MAX_LOGICAL_INDEX
         if not isinstance(name, str) or not name:
             raise ValueError("name には空でないアトリビュートパスを指定してください")
         if not self.is_valid():
@@ -1217,11 +1413,10 @@ class Node:
                 mplug = None  # エイリアス名は findPlug で解決できないため、下で解決する。
             if mplug is not None:
                 return Plug(self, mplug)
-        from .._core.coerce import MAX_LOGICAL_INDEX, attribute_path_plug, has_out_of_range_index
 
-        mplug = attribute_path_plug(self._mobject, name)
+        mplug = _InputPlug._attribute_path_plug(self._mobject, name)
         if mplug is None:
-            if has_out_of_range_index(name):
+            if _InputPlug._has_out_of_range_index(name):
                 raise AttributeError(
                     f"配列インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {self.name()}.{name}"
                 )
@@ -1389,27 +1584,179 @@ class Node:
         'move_attribute_order',
     ),
 )
-class Nodes(BulkCollection):
+class Nodes:
     """型を検証し、入力順のノード参照を保持するコレクション。
 
     同一ノード・同一DAGパスの重複だけを除外する。異なるインスタンスパスは保持する。
     コピーやスライスは参照を共有し、シーンのノードは複製しない。
     """
 
+    @staticmethod
+    def _resolve_inputs(values):
+        """対象列を一度だけ展開し、名前とNodeの混在を変換前に拒否する。
+
+        Args:
+            values (object): 単体、または対象の反復可能列。既存のAPI型も保持する。
+        Returns:
+            list: 入力順の対象。空列は空のまま返す。
+        Raises:
+            TypeError: 同じ対象列に文字列とNodeが混在している場合。
+        """
+        result = Object._flatten_inputs(values)
+        Nodes._validate_inputs(result)
+        return result
+
+    @staticmethod
+    def _validate_inputs(values):
+        """展開済み対象列の名前とNodeの混在を拒否する。
+
+        Args:
+            values (list): Objectが展開した対象列。値の変換は行わない。
+        Raises:
+            TypeError: 名前とNodeが混在する場合。
+        """
+        if any(isinstance(value, str) for value in values) and any(isinstance(value, Node) for value in values):
+            raise TypeError("Names and Node objects cannot be mixed in the same target collection")
+
+
+
     item_class = Node
+
+    def __iter__(self):
+        """保持順に要素を反復する。
+
+        Returns:
+            Iterator: 保持している要素のイテレータ。
+        """
+        return iter(self._items)
+
+    def __len__(self):
+        """int: 保持要素数。"""
+        return len(self._items)
+
+    def call_each(self, method, arguments, keyword_arguments=None):
+        """各要素へ異なる引数を渡す。メソッド名は単体の公開インスタンスメソッドのみ。
+
+        Args:
+            method (str): set_translate等。create・特殊メソッドは不可。
+            arguments (Iterable[tuple]): 要素数と同じ数の位置引数タプル。
+            keyword_arguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空。
+        Returns:
+            list | Nodes: 照会・結果を返す操作は保持順のリスト、更新は自身。
+                ネストしたリストもそのまま保持する。
+        Raises:
+            ValueError: メソッド名・件数が不正な場合。
+            TypeError: 引数のシグネチャが不正な場合。実行前に全件確認する。
+            RuntimeError: 単体の処理が失敗した場合。対象番号を含み、後続は実行しない。
+
+        シーン編集は1回のUndoにまとめる。自動ロールバックはしない。
+        ファイルI/OはUndo対象外。
+        """
+        functions, args, kwargs = self._prepare_calls(method, arguments, keyword_arguments)
+        return self._execute_calls(method, functions, args, kwargs)
+
+    def _execute_calls(self, method, functions, args, kwargs):
+        """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。"""
+        all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
+        context = undo_chunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
+        result = [] if self._bulk_returns[method] != "self" else None
+        with context:
+            for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):
+                try:
+                    value = function(*row, **flags)
+                    if result is not None:
+                        result.append(value)
+                except Exception as exc:
+                    raise RuntimeError(f"{type(self).__name__}.{method} failed at item {index}: {exc}") from exc
+        return self if result is None else result
+
+    def _dispatch_shared(self, method, args, kwargs):
+        """単体APIの転送先を決める。独自call_eachのoverrideを維持する。"""
+        if type(self).call_each is not Nodes.call_each:
+            return self.call_each(method, [args] * len(self), [kwargs] * len(self))
+        return self._call_shared(method, args, kwargs)
+
+    def _call_shared(self, method, args, kwargs):
+        """同じ入力の検証を実関数ごとに共有し、全件検証後に実行する。
+
+        共有はこの呼出し内だけに限定する。派生overrideと個体callableは別に
+        検証し、クラス差替え・reload後の古いメソッドを保持しない。
+        """
+        functions = [getattr(item, method) for item in self._items]
+        shared = {}
+        signatures = {}
+        keywords = []
+        for function in functions:
+            key = function.__func__ if inspect.ismethod(function) else None
+            if key is not None and key in shared:
+                flags = shared[key]
+            else:
+                flags = normalize_flags(function, kwargs)
+                self._signature(function, signatures).bind(*args, **flags)
+                if key is not None:
+                    shared[key] = flags
+            keywords.append(flags)
+        return self._execute_calls(method, functions, [args] * len(functions), keywords)
+
+    def _prepare_calls(self, method, arguments, keyword_arguments):
+        """全要素の引数を実行前に解決・検証する。
+
+        Args:
+            method (str): 登録済みの単体メソッド名。
+            arguments (Iterable[tuple]): 要素別の位置引数。
+            keyword_arguments (Iterable[dict] | None): 要素別のキーワード引数。
+
+        Returns:
+            tuple: 呼出先・位置引数・正規化済みキーワード引数の各リスト。
+
+        Raises:
+            ValueError: メソッド名または件数が不正な場合。
+            TypeError: 引数が各呼出先のシグネチャと一致しない場合。
+        """
+        if method not in self._bulk_methods:
+            raise ValueError(f"Unsupported instance method: {method}")
+        args = [tuple(row) for row in arguments]
+        kwargs = [{} for _ in self._items] if keyword_arguments is None else [dict(row) for row in keyword_arguments]
+        if len(args) != len(self) or len(kwargs) != len(self):
+            raise ValueError("Argument count must match collection length")
+        functions = [getattr(item, method) for item in self._items]
+        kwargs = [normalize_flags(function, flags) for function, flags in zip(functions, kwargs)]
+        # この呼出内だけ共有し、reloadやクラスの差替え後に古いsignatureを保持しない。
+        signatures = {}
+        for function, row, flags in zip(functions, args, kwargs):
+            self._signature(function, signatures).bind(*row, **flags)
+        return functions, args, kwargs
+
+    @staticmethod
+    def _signature(function, signatures):
+        """一回の検証内で実メソッドのsignatureだけを共有する。
+
+        Args:
+            function (callable): 実際に呼び出すメソッドまたは個体callable。
+            signatures (dict): 呼出し内だけで使うキャッシュ。
+
+        Returns:
+            inspect.Signature: 束縛済み引数に対応するsignature。
+        """
+        if not inspect.ismethod(function):
+            return inspect.signature(function)
+        key = function.__func__
+        if key not in signatures:
+            signatures[key] = inspect.signature(function)
+        return signatures[key]
+
 
     def __init__(self, names=()):
         """ノード入力を解決して構築する。検索やシーン変更は行わない。
 
         Args:
             names (object | Iterable[object]): 名前・Node・API参照等、またはその列。
-                単一の名前も受け付ける。解決は共通coerce規則に従う。
+                単一の名前も受け付ける。解決はNodesの共通入力規則に従う。
         Raises:
             TypeError: 解決結果がitem_classの派生でない場合。
             RuntimeError: 名前を解決できない、または削除済みの対象の場合。
             ValueError: 共通入力解決が不正な参照を検出した場合。
         """
-        from .._core.coerce import to_node
         if isinstance(names, (str, Node)):
             names = [names]
         else:
@@ -1417,11 +1764,10 @@ class Nodes(BulkCollection):
                 names = iter(names)
             except TypeError:
                 names = [names]
-        from .._core.coerce import node_inputs
-        names = node_inputs(names)
+        names = Nodes._resolve_inputs(names)
         items, seen = [], set()
         for value in names:
-            node = to_node(value)
+            node = Node._resolve_input(value)
             if not node.is_valid():
                 raise RuntimeError("Cannot collect an invalid node")
             if not isinstance(node, self.item_class):

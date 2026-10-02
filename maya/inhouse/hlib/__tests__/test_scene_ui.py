@@ -19,13 +19,13 @@ class SceneUiTest(unittest.TestCase):
         self.panel = self.view.panel
 
     def test_public_api_and_reload(self):
-        for name, cls in (("getTimeSlider", hlib.general.TimeSlider),
-                          ("getViewport", hlib.general.Viewport),
-                          ("getOutliner", hlib.general.Outliner)):
+        for name, cls in (("getTimeSlider", hlib.ui.TimeSlider),
+                          ("getViewport", hlib.ui.Viewport),
+                          ("getOutliner", hlib.ui.Outliner)):
             self.assertIs(getattr(hlib, name), getattr(hlib.cmds, name))
-        self.assertIsInstance(hlib.getTimeSlider(), hlib.general.TimeSlider)
-        self.assertIsInstance(self.view, hlib.general.Viewport)
-        self.assertIsInstance(self.outliner, hlib.general.Outliner)
+        self.assertIsInstance(hlib.getTimeSlider(), hlib.ui.TimeSlider)
+        self.assertIsInstance(self.view, hlib.ui.Viewport)
+        self.assertIsInstance(self.outliner, hlib.ui.Outliner)
         self.assertEqual(self.view.panel, self.panel)
 
     def test_viewport_restore_after_exception_and_nesting(self):
@@ -46,7 +46,7 @@ class SceneUiTest(unittest.TestCase):
         self.assertEqual(self.view.camera(), camera)
 
     def test_main_pane_suspend_exception_nested_and_already_disabled(self):
-        view = hlib.general.Viewport
+        view = hlib.ui.Viewport
         before = view.is_enabled()
         calls = []
         try:
@@ -70,7 +70,7 @@ class SceneUiTest(unittest.TestCase):
     def test_viewport_off_and_bake(self):
         from unittest.mock import patch
         from hlib.decorators import viewport_off
-        view = hlib.general.Viewport
+        view = hlib.ui.Viewport
         before = view.is_enabled()
         calls = []
 

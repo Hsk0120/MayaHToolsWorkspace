@@ -65,7 +65,7 @@ class CommonRigApiTest(unittest.TestCase):
         if not cmds.about(batch=True):
             self.skipTest("Batch-only guard")
         with self.assertRaises(RuntimeError):
-            hlib.general.ScriptJob(event="SelectionChanged", callback=lambda: None)
+            hlib.events.ScriptJob(event="SelectionChanged", callback=lambda: None)
 
     def test_owner_lifecycle(self):
         """Maya呼出を模倣し、重複防止・外部解除後の再登録・所有解除を検証する。"""
@@ -86,7 +86,7 @@ class CommonRigApiTest(unittest.TestCase):
         with patch.object(cmds, "about", return_value=False), patch.object(
             cmds, "scriptJob", side_effect=script_job
         ):
-            jobs = hlib.general.ScriptJobs()
+            jobs = hlib.events.ScriptJobs()
             first = jobs.add("selection", event="SelectionChanged", callback=lambda: None)
             self.assertIs(
                 first, jobs.add("selection", event="SelectionChanged", callback=lambda: None)

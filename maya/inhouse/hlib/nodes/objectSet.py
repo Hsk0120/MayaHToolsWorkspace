@@ -2,7 +2,6 @@
 
 import maya.cmds as cmds
 
-from .._core.coerce import to_name, to_names
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from .node import Node
@@ -36,8 +35,9 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
+        from hlib.object import Object as _InputObject
         if members:
-            cmds.sets(to_names(members), add=self.name())
+            cmds.sets(_InputObject._input_names(members), add=self.name())
         return self
 
     @undo_chunk("hlibObjectSetRemove")
@@ -50,8 +50,9 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
+        from hlib.object import Object as _InputObject
         if members:
-            cmds.sets(to_names(members), remove=self.name())
+            cmds.sets(_InputObject._input_names(members), remove=self.name())
         return self
 
     def is_member(self, member):
@@ -63,4 +64,5 @@ class ObjectSet(Node):
         Returns:
             bool: メンバーの場合は True。
         """
-        return bool(cmds.sets(to_name(member), isMember=self.name()))
+        from hlib.object import Object as _InputObject
+        return bool(cmds.sets(_InputObject._input_name(member), isMember=self.name()))

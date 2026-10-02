@@ -329,16 +329,12 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
                     # 大きい側の割合が強調され、0.75 より大きくなる。
                     self.assertGreater(weights[0], 0.75)
 
-    def test_redistribute_weights_treats_legacy_sinusoidal_as_sine(self):
+    def test_redistribute_weights_rejects_old_curve_name(self):
         self.skin.set_weights([self.root, self.child], [0.75, 0.25])
-
-        self.skin.redistribute_weights([0], method="sinusoidal")
-        self.skin.redistribute_weights([1], method="sine")
-
-        weights = list(self.skin.get_weights([self.root, self.child]))
-        self.assertAlmostEqual(weights[0], weights[2], places=12)
-        self.assertAlmostEqual(weights[1], weights[3], places=12)
-        self.assertGreater(weights[0], 0.75)
+        before = list(self.skin.get_weights([self.root, self.child]))
+        with self.assertRaises(ValueError):
+            self.skin.redistribute_weights([0], method="sinusoidal")
+        self.assertEqual(list(self.skin.get_weights([self.root, self.child])), before)
 
     def test_redistribute_weights_raises_for_unsupported_method_and_out_of_range_vertex(self):
         with self.assertRaises(ValueError):

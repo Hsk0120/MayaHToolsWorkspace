@@ -86,7 +86,7 @@ maya.cmds へそのまま渡せるもの
   (``elements()``・``get()``・``array_plug[1]``)。``Transform.get_matrix(ws=True)`` は
   ラッパーが保持するインスタンスの要素(``worldMatrix[<インスタンス番号>]``)を使います。
 - ``om2.MDagPath`` の ``str()`` も最短一意パスなので渡せます。
-- Plug を作る・取得する操作(``node.plug()``、``node.plugs()``、``to_plug()``、
+- Plug を作る・取得する操作(``node.plug()``、``node.plugs()``、``Plug._resolve_input()``、
   ``Selection([...])`` など)は、原則としてシーンを変更しません。アトリビュート型はアトリビュート定義から求め、
   maya.cmds へ問い合わせないためです(評価も起こしません)。例外は次の項目の
   「値によって型が変わるアトリビュート」で、値を読むためノードが計算する出力の評価(compute)が起こり、
@@ -138,7 +138,7 @@ maya.cmds へそのまま渡せるもの
   (``input1D[4294967296]`` など)は ``node.plug()`` では ``AttributeError``、
   ``array_plug.element()``/``array_plug[i]`` では ``IndexError`` で、別の要素へ読み替えません
   (``MPlug.elementByLogicalIndex()`` は ``input1D[0]`` へ変換します)。なお名前の文字列
-  (``to_plug("pma.input1D[4294967296]")``、``cmds.getAttr`` など)は、maya.cmds と同じく
+  (``Plug._resolve_input("pma.input1D[4294967296]")``、``cmds.getAttr`` など)は、maya.cmds と同じく
   2147483647 番の要素として解決されます。
   ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できず、接続した時点で
   要素ができます(``add_element()`` は接続するまで同じ番号を返します)。
@@ -168,7 +168,7 @@ maya.cmds へそのまま渡せるもの
      - ``hlib.getNode(mobject)`` の戻り値、または hlib のコマンド
    * - ``om2.MPlug``
      - ``str()`` が ``MPlug.name()`` で、短いノード名しか含まない。同じ短い名前のノードがあると曖昧になる
-     - hlib の Plug(``hlib._core.coerce.to_plug`` 相当の変換は hlib のコマンドと ``Plug.connect()`` が行う)
+     - hlib の Plug(``Plug._resolve_input`` 相当の変換は hlib のコマンドと ``Plug.connect()`` が行う)
 
 生の ``om2.MPlug`` は、削除操作をまたいで保持しないでください。hlib のコマンドと
 ノードが必要な引数(``hlib.getNode``、``hlib.addConstraint`` の拘束元・拘束先など)は
@@ -179,9 +179,9 @@ maya.cmds へそのまま渡せるもの
 MPlug は最初のインスタンスとして扱います(Plug と文字列は名前が指すインスタンスを保持します)。
 
 ワールド空間アトリビュート(``worldMatrix`` など)の ``ArrayPlug`` の ``str()`` (``g|c.worldMatrix``)は、
-maya.cmds・``to_plug()``・``hlib.getNode()`` では配列ではなく、名前が指すインスタンスの要素
+maya.cmds・``Plug._resolve_input()``・``hlib.getNode()`` では配列ではなく、名前が指すインスタンスの要素
 (``worldMatrix[<インスタンス番号>]``)として解決されます。``cmds.getAttr(str(world), size=True)`` は
-インスタンスの数によらず ``1`` を返し、``to_plug(str(world))`` は要素の ``MatrixPlug`` です。
+インスタンスの数によらず ``1`` を返し、``Plug._resolve_input(str(world))`` は要素の ``MatrixPlug`` です。
 配列の要素を扱う場合は ``world.elements()``・``world[1]`` を使ってください。
 
 .. code-block:: python
@@ -252,7 +252,7 @@ hlib のコマンドが受け付ける入力
 
    import maya.api.OpenMaya as om2
    from hlib.components import Vertices
-   from hlib.general.selection import Selection
+   from hlib.scene.selection import Selection
 
    hlib.select([dup1.plug("tx"), dup2.mobject(), Vertices(cube.shape(), [0, 1])])
    print(cmds.objExists(dup1.plug("tx").name()))   # True
@@ -285,7 +285,7 @@ Component・Components・``"pCube1.vtx[0]"`` を所有シェイプとして扱�
   ください(MPlug はインスタンスの情報を持たないため、最初のインスタンスになります)。
 
 アトリビュートが必要な引数(``Plug.connect``、``Plug.disconnect``、``Plug.is_connected_to``、
-``hlib.getDrivenKey``、``DrivenKeys.find``)は、Plug・MPlug とアトリビュート名の文字列を受け付けます。
+``hlib.getDrivenKey``、``DrivenKey.find``)は、Plug・MPlug とアトリビュート名の文字列を受け付けます。
 文字列は ``str(plug)`` が返す形式(``grp1|dup.translateX``、``bs.weight[0]``、
 エイリアス名の ``bs.smile``、``cubeShape.pnts[2].pntx`` など)も maya.cmds と同じ規則で解決します。
 mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i]`` のように
@@ -324,8 +324,8 @@ Plug は1つのアトリビュートを表すためです。シェイプの名�
   渡した場合も従来どおり ``RuntimeError`` です。
   ただし所有ノードは有効なまま ``deleteAttr`` でアトリビュートが削除された Plug・MPlug は、所有ノードへ
   解決せず、ノードが必要な引数(``Node(...)``/``hlib.getNode``、``hlib.addConstraint`` の拘束元・
-  拘束先、``hlib._core.coerce.to_node`` など)でも、名前へ変換する引数と同じく ``ValueError``
-  です(``hlib._core.coerce.DeletedAttributeError``。``RuntimeError`` の派生でもあるため、
+  拘束先、``hlib.nodes.Node._resolve_input`` など)でも、名前へ変換する引数と同じく ``ValueError``
+  です(``hlib.plugs.plug.DeletedAttributeError``。``RuntimeError`` の派生でもあるため、
   ``Node(...)`` の失敗を ``except RuntimeError`` で捕捉するコードもそのまま使えます)。
   ``Node.is_parent_of``/``is_child_of``/``is_ancestor_of`` の判定は、削除済みの対象
   (削除済みの Node、所有ノードが削除済みの Plug・Component、アトリビュートが削除済みの Plug・MPlug、

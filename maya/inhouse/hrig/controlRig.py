@@ -204,7 +204,7 @@ class ControlRig:
             key = rig.root.uuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.general.ScriptJobs()
+            jobs = hlib.events.ScriptJobs()
             for name in ("lod", "enabled"):
                 jobs.add(
                     name,

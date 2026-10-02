@@ -1,7 +1,6 @@
 """マテリアル接続と形状への割り当てを扱う。"""
 import maya.cmds as cmds
 from .._core.registry import node_wrapper
-from .._core.coerce import to_names, to_node, to_plug
 from ..decorators.undo import undo_chunk
 from .objectSet import ObjectSet
 
@@ -60,12 +59,14 @@ class ShadingEngine(ObjectSet):
             ValueError: 種別が不正な場合。
             RuntimeError: Mayaが接続を拒否した場合。
         """
+        from hlib.nodes.node import Node as _InputNode
+        from hlib.plugs.plug import Plug as _InputPlug
         from ..plugs import Plug
         target = self.plug(self._shader_attribute(kind))
         if isinstance(shader, Plug) or isinstance(shader, str) and "." in shader:
-            source = to_plug(shader)
+            source = _InputPlug._resolve_input(shader)
         else:
-            source = to_node(shader).plug(output or ("displacement" if kind == "displacement" else "outColor"))
+            source = _InputNode._resolve_input(shader).plug(output or ("displacement" if kind == "displacement" else "outColor"))
         source.connect(target, force=True)
         return self
 
@@ -80,7 +81,8 @@ class ShadingEngine(ObjectSet):
         Raises:
             RuntimeError: Mayaが割り当てを拒否した場合。
         """
-        names = to_names(targets)
+        from hlib.object import Object as _InputObject
+        names = _InputObject._input_names(targets)
         if names:
             cmds.sets(names, edit=True, forceElement=self.full_name())
         return self

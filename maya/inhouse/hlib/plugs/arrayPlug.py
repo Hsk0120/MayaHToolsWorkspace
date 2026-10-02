@@ -6,7 +6,6 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.attributeType import is_internal_data_type
-from .._core.coerce import MAX_LOGICAL_INDEX
 from ..decorators.undo import undo_chunk
 from .plug import Plug, _instance_count
 
@@ -61,7 +60,7 @@ class ArrayPlug(Plug):
         """array プラグへの直接の値設定を禁止する。
 
         Args:
-            fast (bool): 互換シグネチャ用。値にかかわらず配列全体への設定を拒否する。
+            fast (bool): Plug共通インターフェースの引数。値にかかわらず配列全体への設定を拒否する。
             value (object): 設定要求値。内容に関係なく拒否する。
 
         Returns:
@@ -101,6 +100,7 @@ class ArrayPlug(Plug):
                 など。:func:`hlib._core.attributeType.is_internal_data_type`)の配列の場合
                 (要素を問い合わせると Maya が異常終了する場合があるため作成しない)。
         """
+        from hlib.plugs.plug import MAX_LOGICAL_INDEX
         self._require_valid()
         if not 0 <= index <= MAX_LOGICAL_INDEX:
             raise IndexError(
@@ -233,6 +233,7 @@ class ArrayPlug(Plug):
         Returns:
             int: 追加した論理インデックス。途中の穴は再利用しない。
         """
+        from hlib.plugs.plug import MAX_LOGICAL_INDEX
         from ..nodes.node import Node
         self._require_valid()
         if not self._mplug.attribute().hasFn(om2.MFn.kMessageAttribute):

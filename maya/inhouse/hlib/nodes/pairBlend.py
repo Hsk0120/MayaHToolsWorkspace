@@ -1,6 +1,5 @@
 """移動・回転をブレンドする。Euler/Quaternion補間を選択できる。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
@@ -39,8 +38,7 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.scalar(value)
-        self.weight_plug().set(value)
+        _Calculation.set_value(value, _Calculation.scalar, self.weight_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -56,7 +54,7 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.weight_plug(), force=force)
+        _Calculation.connect(source, self.weight_plug, force=force)
         return self
 
     def get_rotation_interpolation(self):
@@ -144,8 +142,7 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.translate_plug(index).set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.translate_plug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -162,7 +159,7 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.translate_plug(index), force=force)
+        _Calculation.connect(source, self.translate_plug, index, force=force)
         return self
 
     def rotate_plug(self, index):
@@ -200,8 +197,7 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.rotate_plug(index).set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.rotate_plug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -218,7 +214,7 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.rotate_plug(index), force=force)
+        _Calculation.connect(source, self.rotate_plug, index, force=force)
         return self
 
     def output_plug(self, kind="translate"):

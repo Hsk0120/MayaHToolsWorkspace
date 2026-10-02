@@ -14,22 +14,24 @@ class PackageLayoutTest(unittest.TestCase):
         importlib.reload(hlib)
         hlib.reload()
         for package, names in {
-            "general": ("Scene", "Namespace", "Plugin", "Plugins", "Preferences", "Workspace",
-                        "Selection", "TimeSlider", "Viewport", "Outliner", "ScriptJob", "DrivenKey", "DrivenKeys"),
+            "scene": ("Scene", "Namespace", "Selection", "DrivenKey"),
+            "environment": ("Plugin", "Preferences", "Workspace"),
+            "events": ("ScriptJob", "ScriptJobs", "Deferred"),
+            "ui": ("TimeSlider", "Viewport", "Outliner"),
             "decorators": ("undo_chunk", "preserved_selection", "viewport_off"),
         }.items():
             module = importlib.import_module("hlib." + package)
             self.assertIs(getattr(hlib, package), module)
             for name in names:
                 self.assertTrue(hasattr(module, name), (package, name))
-        self.assertIsInstance(hlib.getScene(), hlib.general.Scene)
-        self.assertIsInstance(hlib.getTimeSlider(), hlib.general.TimeSlider)
+        self.assertIsInstance(hlib.getScene(), hlib.scene.Scene)
+        self.assertIsInstance(hlib.getTimeSlider(), hlib.ui.TimeSlider)
         for name in ("getScene", "getTimeSlider", "getViewport", "getOutliner"):
             self.assertIs(getattr(hlib, name), getattr(hlib.cmds, name))
 
     def test_reload_removes_obsolete_package_names(self):
         # 旧版を読み込んでいたセッションの残存モジュール参照を再現する。
-        obsolete = ("scenes", "session", "context", "files", "editors", "events",
+        obsolete = ("scenes", "session", "context", "files", "editors", "general",
                     "namespaces", "plugins", "animation")
         for name in obsolete:
             module = types.ModuleType("hlib." + name)
@@ -63,7 +65,7 @@ class PackageLayoutTest(unittest.TestCase):
                     if path.is_dir() and (path / "__init__.py").exists()
                     and not path.name.startswith("_")}
         self.assertEqual(packages, {"cmds", "nodes", "plugs", "maths", "json", "utils",
-                                    "general", "components", "decorators"})
+                                    "scene", "ui", "environment", "events", "components", "decorators"})
 
 
 if __name__ == "__main__":

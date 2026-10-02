@@ -130,7 +130,7 @@ class DagNode(Node):
 
     def get_outliner_color(self):
         """Color: このノードのOutliner色。無効時はdisabledモード。"""
-        from ..general.color import Color
+        from hlib.ui.color import Color
         if not cmds.getAttr(self.full_name() + ".useOutlinerColor"):
             return Color.disabled()
         return Color(rgb=cmds.getAttr(self.full_name() + ".outlinerColor")[0])
@@ -149,7 +149,7 @@ class DagNode(Node):
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
-        from ..general.color import Color
+        from hlib.ui.color import Color
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value, outliner=True))
         return self
@@ -160,7 +160,7 @@ class DagNode(Node):
         親・表示レイヤー・選択ハイライトは合成しない。
         アトリビュートがない場合はRuntimeError。無効時はdisabledモードを返す。
         """
-        from ..general.color import Color
+        from hlib.ui.color import Color
         name = self.full_name()
         if not cmds.getAttr(name + ".overrideEnabled"):
             return Color.disabled()
@@ -184,7 +184,7 @@ class DagNode(Node):
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
-        from ..general.color import Color
+        from hlib.ui.color import Color
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value))
         return self
@@ -260,14 +260,12 @@ class DagNodes(Nodes):
     item_class = DagNode
 
     def get_override_color(self):
-        """Colors: 各対象のDrawing Overrides色。無効状態も保持順で返す。"""
-        from ..general.color import Colors
-        return Colors(node.get_override_color() for node in self)
+        """list[Color]: 各対象のDrawing Overrides色。無効状態も保持順で返す。"""
+        return [node.get_override_color() for node in self]
 
     def get_outliner_color(self):
-        """Colors: 各対象のOutliner色。無効状態も保持順で返す。"""
-        from ..general.color import Colors
-        return Colors(node.get_outliner_color() for node in self)
+        """list[Color]: 各対象のOutliner色。無効状態も保持順で返す。"""
+        return [node.get_outliner_color() for node in self]
 
     @fast_edit
     @undo_chunk("hlibNodesOverrideColor")
@@ -283,7 +281,7 @@ class DagNodes(Nodes):
             ValueError: 色の値が不正。
             RuntimeError: 対象が無効、アトリビュートがない、編集不可または更新失敗。
         """
-        from ..general.color import Color
+        from hlib.ui.color import Color
         value = Color.coerce(color)
         return self._set_colors([value] * len(self), outliner=False)
 
@@ -298,7 +296,7 @@ class DagNodes(Nodes):
         Returns:
             DagNodes: 自身。全対象の事前検証・例外規則はset_override_colorと同じ。
         """
-        from ..general.color import Color
+        from hlib.ui.color import Color
         value = Color.coerce(color)
         return self._set_colors([value] * len(self), outliner=True)
 
@@ -308,7 +306,7 @@ class DagNodes(Nodes):
         """保持順に一色ずつDrawing Overridesを設定する。
 
         Args:
-            colors (Colors | Iterable): 対象数と同数のColor・番号・RGB・Noneの列。
+            colors (Iterable): 対象数と同数のColor・番号・RGB・Noneの列。
             fast (bool): TrueはUndoなし。既定False。
         Returns:
             DagNodes: 自身。
@@ -316,8 +314,8 @@ class DagNodes(Nodes):
             ValueError: 件数不一致、不正な色、共有アトリビュートに異なる値を要求した場合。
             RuntimeError: 事前検証または反映失敗。実行時失敗の自動ロールバックはしない。
         """
-        from ..general.color import Colors
-        return self._set_colors(Colors(colors), outliner=False)
+        from hlib.ui.color import Color
+        return self._set_colors([Color.coerce(color) for color in colors], outliner=False)
 
     @fast_edit
     @undo_chunk("hlibNodesOutlinerColors")
@@ -325,13 +323,13 @@ class DagNodes(Nodes):
         """保持順に一色ずつOutliner色を設定する。
 
         Args:
-            colors (Colors | Iterable): 対象数と同数の色指定の列。
+            colors (Iterable): 対象数と同数の色指定の列。
             fast (bool): TrueはUndoなし。既定False。
         Returns:
             DagNodes: 自身。事前検証・例外規則はset_override_colorsと同じ。
         """
-        from ..general.color import Colors
-        return self._set_colors(Colors(colors), outliner=True)
+        from hlib.ui.color import Color
+        return self._set_colors([Color.coerce(color) for color in colors], outliner=True)
 
     def _set_colors(self, colors, *, outliner):
         """全色・対象を検証し、共有アトリビュートの競合を除いて更新計画を実行する。"""

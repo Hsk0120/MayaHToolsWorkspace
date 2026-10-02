@@ -1,7 +1,7 @@
-ノード・プラグインの複数形API
+ノードの複数形API
 ============================================================
 
-Joints・SkinClusters・Pluginsに、単体の公開インスタンスメソッドを
+Joints・SkinClustersに、単体の公開インスタンスメソッドを
 同名で一括実行する入口を追加しました。JointsではJointが継承するTransform・Nodeの
 メソッドも使えます。登録時にクラスへメソッドを追加するため、dirでも確認できます。
 
@@ -51,14 +51,13 @@ call_eachのargumentsは、各要素への位置引数タプルを並べた列�
 * Joints.names()、sorted_by_depth(): 名前の一覧・階層順のコレクションを返す。
 * Joints.joint_orient_to_rotate、freeze_rotation: 全対象を事前検証し、Joints自身を返す。
 * SkinClusters.remove_influences: 保持するskinClusterのinfluence解除。戻り値は自身です。joint削除はJoints.deleteを使います。
-* Plugins.loaded: ロード済みプラグインからコレクションを作る既存classmethod。
 
 自動追加APIより既存メソッドを優先します。同名で意味が異なる場合は、
 call_eachで単体メソッドを明示できます。
 単体のclassmethod・staticmethod・非公開メソッド・特殊メソッドは一括転送しません。
 全クラスにlen・添字・同型sliceを用意しています。
 
-SkinClustersとPlugins
+SkinClusters
 ------------------------------------------------------------
 
 .. code-block:: python
@@ -67,12 +66,6 @@ SkinClustersとPlugins
    influences_by_skin = skins.influences()
    flags = skins.has_influence("joint1")
    skins.call_each("dump_weights", [("C:/data/skinA.json",), ("C:/data/skinB.json",)])
-
-   from hlib.general import Plugins
-   plugins = Plugins(["pluginA", "pluginB"])
-   states = plugins.is_loaded()
-   # 実際にロードしたい場合:
-   # plugins.ensure_loaded()
 
 dump_weights/load_weightsはパスの取り違えを避けるため、同一引数の一括転送から除外し、
 call_eachで要素別に指定します。パスの重複や上書きの判断は呼び出し側で行います。

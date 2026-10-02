@@ -425,7 +425,7 @@ class SplineRig:
             key = rig.root.uuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.general.ScriptJobs()
+            jobs = hlib.events.ScriptJobs()
             attrs = ["mode", "lod", "enabled"]
             if rig.root.has_attribute("hrigEnabled_stretch"):
                 attrs.append("hrigEnabled_stretch")

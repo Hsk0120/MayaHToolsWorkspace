@@ -1,6 +1,5 @@
 """接続したsurfaceの形状情報をMayaで評価する。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ..maths import Vector
@@ -32,7 +31,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.input_plug(), force=force)
+        _Calculation.connect(source, self.input_plug, force=force)
         return self
 
     @undo_chunk("hlibCalculationEdit")

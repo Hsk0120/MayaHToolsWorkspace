@@ -61,7 +61,7 @@ def getNode(value):
     Raises:
         TypeError: 未対応の入力型、または依存ノード以外(アトリビュートなど)を指す MObject の場合。
         ValueError: 所有ノードは有効で、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
-            (``hlib._core.coerce.DeletedAttributeError``。RuntimeError の派生でもある)。
+            (``hlib.plugs.plug.DeletedAttributeError``。RuntimeError の派生でもある)。
         RuntimeError: ノードを解決できない(存在しない、または ``"bulk*"`` のようなパターンを
             含めて複数の対象に一致する)場合、または空・削除済みのラッパーや om2 オブジェクトを
             指定した場合。

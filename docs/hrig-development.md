@@ -61,7 +61,7 @@ def set_layer_enabled(self, layer, enabled):
 - hrigからOpenMaya/OpenMayaUIを直接importしない。数学型は `hlib.maths` の
   Matrix/Vector/EulerRotation等、位置変換は `Matrix.transform_point`、回転分解は
   `Matrix.quaternion`・`Matrix.euler` を使う。位置と方向の変換を混同しない。
-  MayaのQt親ウィンドウは `hlib.general.MainWindow.widget()` で取得する。
+  MayaのQt親ウィンドウは `hlib.ui.MainWindow.widget()` で取得する。
 
 - `maya.mel` もhrigから直接使用しない。メインウィンドウ名は
   `MainWindow.name()`、標準エディター起動は `NodeEditor.show()` / `GraphEditor.show()`
@@ -73,14 +73,14 @@ def set_layer_enabled(self, layer, enabled):
 
 - `maya.utils` の直接importも行わない。Pythonの遅延呼出しは
   `hlib.executeDeferred(callback, *args, **kwargs)` を使う。文字列コードは受け付けない。
-- 作業環境・単位・選択は `hlib.general.Workspace` / `Preferences` / `Selection` に配置する。
-  実装はgeneral配下の原則1クラス1ファイル（単数・対応する複数クラスは同居）。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
+- 作業環境・単位・選択は `hlib.environment.Workspace` / `Preferences` / `Selection` に配置する。
+  実装はscene/ui/environment/eventsの用途別パッケージ配下の原則1クラス1ファイル（単数・対応する複数クラスは同居）。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
 
 ## リグセットアップの境界
 
 Maya標準の概念・操作はhlibへ、リグの構成・追従・補正・コントロール設定は `hrig.setups` へ置く。標準ノードだけで構成していてもリグの組み方を決める処理はhrigの責務。Spline IKソルバーの作成は `hlib.createIkHandle`、CVコントロール接続・両端Twist・停止経路を組み合わせる構築は `hrig.setups.SplineIK` とする。
 
-`DrivenKey` / `DrivenKeys` は `hlib.general`、純粋なカーブ近似・減衰ばねは `hlib.utils`。hlibとhlib_bifrostにはhrigへの依存を作らず、セットアップのテスト・文書もhrigに置く。
+`DrivenKey` は `hlib.scene`、純粋なカーブ近似・減衰ばねは `hlib.utils`。hlibとhlib_bifrostにはhrigへの依存を作らず、セットアップのテスト・文書もhrigに置く。
 
 通知は `hlib.utils.logger.warning/error/info`、通常のPython出力は `logger.print` に集約する。`hlib.warning` / `hlib.cmds.warning` は使用しない。
 

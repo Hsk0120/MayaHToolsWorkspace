@@ -3,7 +3,6 @@
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from .._core.coerce import to_node_name
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from .node import Node
@@ -72,14 +71,15 @@ class BlendShape(Node):
             TypeError: target・base が対応しない型の場合。
             ValueError: target・base が空文字列、または削除済みの対象の場合。
         """
-        target_name = to_node_name(target)
+        from hlib.nodes.node import Node as _InputNode
+        target_name = _InputNode._input_name(target)
         if base is None:
             geometries = self.geometry()
             if not geometries:
                 raise RuntimeError("Cannot determine the base geometry for this blendShape")
             base_name = geometries[0].full_name()
         else:
-            base_name = to_node_name(base)
+            base_name = _InputNode._input_name(base)
         if weight_index is None:
             weight_index = self.plug("weight").next_available_index()
         cmds.blendShape(

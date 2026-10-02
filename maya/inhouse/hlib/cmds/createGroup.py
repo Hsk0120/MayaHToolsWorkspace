@@ -108,15 +108,16 @@ def createGroup(nodes=None, **kwargs):
             ため)、または nodes・parent に空文字列や削除済みの対象が含まれる場合。
         RuntimeError: parent の名前を解決できない場合、または Maya がグループ作成を拒否した場合。
     """
+    from hlib.nodes.node import Node as _InputNode
+    from hlib.object import Object as _InputObject
     from ..nodes import Node
-    from .._core.coerce import to_names, to_node_name
 
     if kwargs.get("parent") is not None:
-        kwargs["parent"] = to_node_name(kwargs["parent"])
+        kwargs["parent"] = _InputNode._input_name(kwargs["parent"])
     if nodes is None:
         result = cmds.group(**kwargs)
         return Node(result)
-    names = to_names(nodes)
+    names = _InputObject._input_names(nodes)
     if not names and not kwargs.get("empty"):
         # maya.cmds.group は対象が無いと現在の選択をグループ化するため、明示的に拒否する。
         raise ValueError("グループ化する対象がありません(空のグループは empty=True で作成してください)")

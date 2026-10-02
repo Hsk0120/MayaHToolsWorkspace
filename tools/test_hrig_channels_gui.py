@@ -51,8 +51,8 @@ def main(output_dir=None, finished=None):
         """各操作後にGUIのidleへ制御を返す。"""
         check(not cmds.about(batch=True), 'Maya GUI')
         import hlib
-        common_owner = hlib.general.ScriptJobs()
-        external_owner = hlib.general.ScriptJobs()
+        common_owner = hlib.events.ScriptJobs()
+        external_owner = hlib.events.ScriptJobs()
         probe = hlib.createNode('transform', name='eventProbe', skipSelect=True)
         probe.add_attribute('setting', attribute_type='long', default_value=0)
         observed = []
@@ -70,7 +70,7 @@ def main(output_dir=None, finished=None):
             yield
             check(len(observed) == 2, 'Common attribute job survives rename')
             import importlib
-            importlib.reload(hlib.general)
+            importlib.reload(hlib.ui)
             check(first.exists(), 'Common job ownership survives library reload')
             common_owner.stop()
             probe.plug('setting').set(3)

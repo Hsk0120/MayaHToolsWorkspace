@@ -2,7 +2,6 @@
 
 import maya.cmds as cmds
 
-from .._core.coerce import to_names
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from .node import Node
@@ -36,8 +35,9 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
+        from hlib.object import Object as _InputObject
         if members:
-            cmds.editDisplayLayerMembers(self.name(), to_names(members))
+            cmds.editDisplayLayerMembers(self.name(), _InputObject._input_names(members))
         return self
 
     @undo_chunk("hlibDisplayLayerRemoveMembers")
@@ -53,8 +53,9 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
+        from hlib.object import Object as _InputObject
         if members:
-            cmds.editDisplayLayerMembers("defaultLayer", to_names(members))
+            cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
         return self
 
     @undo_chunk("hlibDisplayLayerSetCurrent")

@@ -10,6 +10,6 @@ def getWorkspaceControl(name):
     Returns:
         WorkspaceControl: 対象への参照。
     """
-    from ..general import WorkspaceControl
+    from hlib.ui import WorkspaceControl
 
     return WorkspaceControl(name)

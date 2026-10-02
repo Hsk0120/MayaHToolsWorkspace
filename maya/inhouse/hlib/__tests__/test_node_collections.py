@@ -54,26 +54,26 @@ class NodeCollectionsTest(unittest.TestCase):
 
     def test_colors_roundtrip_and_undo(self):
         """色の取得・個別反映・一回のUndoを検証する。"""
-        from hlib.general import Color, Colors
+        from hlib.ui import Color
         joints = self.joints
-        self.assertIsInstance(joints.get_override_color(), Colors)
-        self.assertEqual(joints.get_override_color().mode, ['disabled'] * 2)
+        self.assertIsInstance(joints.get_override_color(), list)
+        self.assertEqual([color.mode for color in joints.get_override_color()], ['disabled'] * 2)
         self.assertIs(joints.set_override_colors([13, 6]), joints)
-        self.assertEqual(joints.get_override_color().index, [13, 6])
+        self.assertEqual([color.index for color in joints.get_override_color()], [13, 6])
         cmds.undo()
-        self.assertEqual(joints.get_override_color().mode, ['disabled'] * 2)
+        self.assertEqual([color.mode for color in joints.get_override_color()], ['disabled'] * 2)
         cmds.redo()
         colors = joints.get_override_color()
         colors[0].index = 17
-        self.assertEqual(joints.get_override_color().index, [13, 6])
+        self.assertEqual([color.index for color in joints.get_override_color()], [13, 6])
         joints.set_override_colors(colors)
-        self.assertEqual(joints.get_override_color().index, [17, 6])
+        self.assertEqual([color.index for color in joints.get_override_color()], [17, 6])
         joints.set_outliner_colors([Color(), None])
-        self.assertEqual(joints.get_outliner_color().mode, ['rgb', 'disabled'])
+        self.assertEqual([color.mode for color in joints.get_outliner_color()], ['rgb', 'disabled'])
         joints.set_outliner_color(13)
-        self.assertEqual(joints.get_outliner_color().rgb, [(1, 0, 0)] * 2)
+        self.assertEqual([color.rgb for color in joints.get_outliner_color()], [(1, 0, 0)] * 2)
         joints.set_override_color(None)
-        self.assertEqual(joints.get_override_color().mode, ['disabled'] * 2)
+        self.assertEqual([color.mode for color in joints.get_override_color()], ['disabled'] * 2)
 
     def test_prevalidation_fast_and_empty(self):
         """後続ロック・入力接続・不正色を検証してから変更する。"""
@@ -84,16 +84,16 @@ class NodeCollectionsTest(unittest.TestCase):
             try:
                 with self.assertRaisesRegex(RuntimeError, 'item 1'):
                     self.joints.set_override_colors([13, (1, .5, 0)], fast=fast)
-                self.assertEqual(self.joints.get_override_color().index, [6, 6])
+                self.assertEqual([color.index for color in self.joints.get_override_color()], [6, 6])
             finally:
                 cmds.setAttr(self.names[1] + '.overrideRGBColors', lock=False)
             with self.assertRaises(ValueError):
                 self.joints.set_override_colors([13], fast=fast)
             with self.assertRaises(ValueError):
                 self.joints.set_override_colors([13, 32], fast=fast)
-            self.assertEqual(self.joints.get_override_color().index, [6, 6])
+            self.assertEqual([color.index for color in self.joints.get_override_color()], [6, 6])
             self.joints.set_override_colors([17, 13], fast=fast)
-            self.assertEqual(self.joints.get_override_color().index, [17, 13])
+            self.assertEqual([color.index for color in self.joints.get_override_color()], [17, 13])
         cmds.connectAttr(self.names[0] + '.overrideColor', self.names[1] + '.overrideColor')
         try:
             with self.assertRaises(RuntimeError):
@@ -128,7 +128,7 @@ class NodeCollectionsTest(unittest.TestCase):
         nodes.set_override_colors([6, 6])
         with self.assertRaises(ValueError):
             nodes.set_override_colors([13, 17])
-        self.assertEqual(nodes.get_override_color().index, [6, 6])
+        self.assertEqual([color.index for color in nodes.get_override_color()], [6, 6])
 
     def test_parent_deletion_and_extension_reference(self):
         """親子削除と、派生ラッパーを作り直さず保持することを確認する。"""
@@ -162,9 +162,16 @@ class NodeCollectionsTest(unittest.TestCase):
 
     def test_bulk_inheritance_signature_and_restrictions(self):
         """自動生成は派生signatureへ更新し、明示実装と禁止設定を保つ。"""
-        from hlib._core.collection import BulkCollection, bulk_api
-        class Item:
+        from hlib._core.collection import bulk_api
+        class Item(hlib.nodes.Node):
             """基底の単体API。"""
+            def __new__(cls):
+                """転送検証用の参照を、Maya照会なしで作る。"""
+                return object.__new__(cls)
+
+            def __init__(self):
+                """テスト用のためMayaノードを保持しない。"""
+
             def edit(self, value):
                 """入力を返す。"""
                 return value
@@ -174,7 +181,7 @@ class NodeCollectionsTest(unittest.TestCase):
                 """値と追加フラグを返す。"""
                 return value, extra
         @bulk_api(Item, undo=False, reads=("edit",))
-        class Base(BulkCollection):
+        class Base(hlib.nodes.Nodes):
             """基底コレクション。"""
         @bulk_api(Child, undo=False)
         class Derived(Base):

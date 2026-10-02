@@ -2,7 +2,6 @@
 
 import maya.cmds as cmds
 
-from .._core.coerce import to_names, to_node
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
 from ..maths import Matrix
@@ -20,8 +19,9 @@ class DagPose(Node):
     @staticmethod
     def _transform_names(members):
         """対象を有効なTransformの完全パスに揃える。空入力はValueError。"""
+        from hlib.object import Object as _InputObject
         names = []
-        for name in to_names(members):
+        for name in _InputObject._input_names(members):
             node = Node(name)
             if not node.is_valid() or not node.is_type("transform"):
                 raise ValueError(f"Expected a valid transform or joint: {name}")
@@ -84,7 +84,8 @@ class DagPose(Node):
             ValueError: skinCluster以外を指定した場合。
             RuntimeError: 無効なノード、またはdagPose以外が接続されている場合。
         """
-        skin = to_node(skin_cluster)
+        from hlib.nodes.node import Node as _InputNode
+        skin = _InputNode._resolve_input(skin_cluster)
         if not skin.is_valid():
             raise RuntimeError("Cannot access an invalid skinCluster")
         if not skin.is_type("skinCluster"):
@@ -120,7 +121,8 @@ class DagPose(Node):
         Raises:
             ValueError: このポーズのメンバーでない場合。
         """
-        node = to_node(member)
+        from hlib.nodes.node import Node as _InputNode
+        node = _InputNode._resolve_input(member)
         for index, item in zip(self.member_indices(), self.members()):
             if item.full_name() == node.full_name():
                 return index

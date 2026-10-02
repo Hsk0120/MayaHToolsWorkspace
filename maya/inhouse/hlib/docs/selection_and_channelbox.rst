@@ -41,7 +41,7 @@ Selection
 
 .. code-block:: python
 
-   from hlib.general.selection import Selection
+   from hlib.scene.selection import Selection
 
    selection = Selection(["pCube1", "pCubeShape2.vtx[0:3]"])
 

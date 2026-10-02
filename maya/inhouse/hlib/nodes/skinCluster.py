@@ -61,9 +61,9 @@ class SkinCluster(Node):
         Returns:
             SkinCluster: 作成したskinCluster。
         """
+        from hlib.nodes.node import Nodes as _InputNodes
         mesh = Node(mesh)
-        from .._core.coerce import node_inputs
-        influences = [Node(n) for n in node_inputs(influences)]
+        influences = [Node(n) for n in _InputNodes._resolve_inputs(influences)]
         if not influences or type(max_influences) is not int or max_influences < 1:
             raise ValueError("Expected influences and a positive maximum influence count")
         if cmds.ls(cmds.listHistory(mesh.full_name()) or [], type="skinCluster"):
@@ -179,8 +179,8 @@ class SkinCluster(Node):
         Returns:
             om2.MIntArray: 指定順の物理インデックス配列。
         """
-        from .._core.coerce import to_names
-        return om2.MIntArray(self._influence_indices(to_names(joints), self.fn.influenceObjects()))
+        from hlib.object import Object as _InputObject
+        return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self.fn.influenceObjects()))
 
     def _influence_indices(self, joints, influences):
         """一回の操作内でUUIDと名前の検索表を共有する。
@@ -239,11 +239,11 @@ class SkinCluster(Node):
 
         既存ウェイトの再配分や正規化は行わず、既存のロック設定も変更しない。
         """
-        from .._core.coerce import to_names
+        from hlib.object import Object as _InputObject
 
         existing = {Node(path.node()).uuid() for path in self.fn.influenceObjects()}
         names = []
-        for name in to_names(joints):
+        for name in _InputObject._input_names(joints):
             node = Node(name)
             if not node.is_type("joint"):
                 raise ValueError(f"Expected a joint: {name}")
@@ -397,8 +397,8 @@ class SkinCluster(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        from .._core.coerce import to_names
-        joints = to_names(joints)
+        from hlib.object import Object as _InputObject
+        joints = _InputObject._input_names(joints)
         influences = self.fn.influenceObjects()
         physical_indices = self._influence_indices(joints, influences)
         if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
@@ -510,8 +510,7 @@ class SkinCluster(Node):
         Args:
             vertices (Iterable[int]): 対象頂点インデックス。重複は1回として扱う。
             method (str): 曲線名。``hlib.maths.easing.CURVES`` のいずれか
-                (例: ``"cubic"``、``"sine"``、``"exponential"``)。互換のため
-                旧名 ``"sinusoidal"`` も ``"sine"`` として受け付ける。
+                (例: ``"cubic"``、``"sine"``、``"exponential"``)。
                 ``"linear"`` は配分を変えない。
 
         Returns:
@@ -524,7 +523,7 @@ class SkinCluster(Node):
         """
         if not isinstance(method, str):
             raise TypeError(f"Easing method must be a str, got {type(method).__name__}")
-        curve = {"sinusoidal": "sine"}.get(method, method)
+        curve = method
         if curve not in easing.CURVES:
             raise ValueError(f"Unsupported easing method: {method}")
         vertex_count = om2.MFnMesh(self.mesh_path).numVertices
@@ -592,8 +591,8 @@ class SkinCluster(Node):
             TypeError: ペアが反復可能でない、または未対応の参照型の場合。
             RuntimeError: 接続ノード名・型名からスキニングレイヤーを検出した場合、または Maya 操作に失敗した場合。
         """
+        from hlib.nodes.node import Node as _InputNode
         self._raise_if_layers()
-        from .._core.coerce import to_node
 
         pairs = []
         for pair in source_target_pairs:
@@ -602,7 +601,7 @@ class SkinCluster(Node):
             pair = tuple(pair)
             if len(pair) != 2:
                 raise ValueError("Expected exactly two influences per pair")
-            source, target = (to_node(value) for value in pair)
+            source, target = (_InputNode._resolve_input(value) for value in pair)
             if any(not node.is_valid() or not self.has_influence(node.full_name()) for node in (source, target)):
                 raise ValueError("Both nodes must be influences of this skinCluster")
             if source.uuid() != target.uuid():

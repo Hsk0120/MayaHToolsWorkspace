@@ -90,7 +90,7 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
 
 .. code-block:: python
 
-   from hlib.general import Preferences
+   from hlib.environment import Preferences
    from hlib.utils import units
 
    print(Preferences.get_linear_unit())  # 現在のシーン単位（例: "cm"）

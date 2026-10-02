@@ -3,7 +3,6 @@
 Mayaの同名bindSkinコマンド（リジッドバインド）を転送する関数ではない。
 """
 import maya.cmds as cmds
-from .._core.coerce import node_inputs, to_node
 from .._core.flags import flag_aliases
 from ..decorators.undo import undo_chunk
 
@@ -32,13 +31,15 @@ def bindSkin(geometry, influences, **kwargs):
     完了済み作成は自動で戻さない。bindMethod=3は標準コマンドと同様、作成後に
     別途geomBindが必要。選択から対象を推測しない。
     """
+    from hlib.nodes.node import Node as _InputNode
+    from hlib.nodes.node import Nodes as _InputNodes
     from ..nodes.skinCluster import SkinCluster, SkinClusters
     operations = {"query", "edit", "unbind", "unbindKeepHistory", "remove", "removeInfluence",
                   "addInfluence", "geometry", "influence", "selectInfluenceVerts"}
     if operations.intersection(kwargs):
         raise ValueError("bindSkin accepts creation flags only")
-    geometries = [to_node(value) for value in node_inputs(geometry)]
-    joints = [to_node(value) for value in node_inputs(influences)]
+    geometries = [_InputNode._resolve_input(value) for value in _InputNodes._resolve_inputs(geometry)]
+    joints = [_InputNode._resolve_input(value) for value in _InputNodes._resolve_inputs(influences)]
     if not geometries or not joints:
         raise ValueError("Geometry and influences must not be empty")
     if len(set(geometries)) != len(geometries):

@@ -291,14 +291,14 @@ def test_matrix_exposes_translation_scale_and_shear_values():
         shear=(0.1, 0.2, 0.3),
     )
     assert isinstance(m.translate, Translation)
-    assert isinstance(m.rotation, EulerRotation)
-    assert isinstance(m.rotation, EulerRotation)
+    assert isinstance(m.rotate, EulerRotation)
+    assert isinstance(m.rotate, EulerRotation)
     assert isinstance(m.euler, EulerRotation)
     assert isinstance(m.quaternion, Quaternion)
     assert isinstance(m.scale, Scale)
     assert isinstance(m.shear, Shear)
     assert tuple(m.translate) == (1.0, 2.0, 3.0)
-    assert all(math.isclose(value, 0.0, abs_tol=1e-12) for value in m.rotation)
+    assert all(math.isclose(value, 0.0, abs_tol=1e-12) for value in m.rotate)
     assert all(math.isclose(actual, expected) for actual, expected in zip(m.scale, (2.0, 3.0, 4.0)))
     assert all(math.isclose(actual, expected) for actual, expected in zip(m.shear, (0.1, 0.2, 0.3)))
 
@@ -401,7 +401,7 @@ def test_matrix_mmatrix_and_transformation_bridge():
 
     matrix = Matrix(translate=(1.0, 2.0, 3.0), scale=(2.0, 3.0, 4.0))
 
-    mmatrix = matrix.to_mmatrix()
+    mmatrix = om2.MMatrix(matrix)
     assert isinstance(mmatrix, om2.MMatrix)
     assert tuple(mmatrix) == tuple(matrix)
 
@@ -713,7 +713,7 @@ def test_mixed_arithmetic_with_om2_types_returns_hlib_types():
     assert type(e.reorder(om2.MEulerRotation.kXYZ)) is om2.MEulerRotation
     assert type(e.asQuaternion()) is om2.MQuaternion
     assert type(m.adjoint()) is om2.MMatrix
-    assert type(m.to_mmatrix()) is om2.MMatrix
+    assert type(om2.MMatrix(m)) is om2.MMatrix
 
 
 def test_quaternion_product_follows_om2_order():
@@ -791,12 +791,12 @@ def test_matrix_compose_honours_euler_order_and_keeps_zero_scale():
     # 3成分は従来どおり XYZ 順序。
     assert Matrix(rotate=(0.3, -0.5, 0.9)).is_equivalent(om2.MEulerRotation(0.3, -0.5, 0.9).asMatrix(), 1e-12)
     matrix = Matrix(translate=(1.0, 2.0, 3.0), scale=(2.0, 2.0, 2.0))
-    matrix.rotation = euler
+    matrix.rotate = euler
     assert tuple(matrix.translate) == (1.0, 2.0, 3.0)
     assert matrix.scale.is_equivalent(Vector(2.0, 2.0, 2.0), 1e-12)
     assert matrix.quaternion.isEquivalent(euler.to_quaternion(), 1e-12)
     matrix.rotate = Quaternion()
-    assert matrix.rotation.is_equivalent(EulerRotation(), 1e-12)
+    assert matrix.rotate.is_equivalent(EulerRotation(), 1e-12)
     # ゼロや微小なスケールは MTransformationMatrix のように 1e-12 へ丸めない。
     assert Matrix(scale=(0.0, 1.0, 1.0))[0, 0] == 0.0
     assert Matrix(scale=(1e-13, 1.0, 1.0))[0, 0] == 1e-13
@@ -813,7 +813,7 @@ def test_matrix_compose_honours_euler_order_and_keeps_zero_scale():
     before = tuple(unchanged)
 
     def set_zero_quaternion():
-        unchanged.rotation = Quaternion(0.0, 0.0, 0.0, 0.0)
+        unchanged.rotate = Quaternion(0.0, 0.0, 0.0, 0.0)
 
     _assert_raises(ValueError, set_zero_quaternion)
     assert tuple(unchanged) == before
@@ -844,7 +844,7 @@ def test_matrix_negative_determinant_decomposes_like_transformation_matrix():
     assert parts["scale"].z < 0.0 and parts["scale"].x > 0.0
     assert parts["quaternion"].isEquivalent(transformation.rotation(asQuaternion=True), 1e-12)
     assert parts["euler"].isEquivalent(transformation.rotation(), 1e-12)
-    assert parts["rotation"] == parts["euler"] and parts["rotation"] is not parts["euler"]
+    assert "rotation" not in parts
     rebuilt = Matrix.compose(parts["translate"], parts["quaternion"], parts["scale"], parts["shear"])
     assert rebuilt.is_equivalent(matrix, 1e-12)
     # setter も同じ規約で再合成し、行列そのものは変わらない。

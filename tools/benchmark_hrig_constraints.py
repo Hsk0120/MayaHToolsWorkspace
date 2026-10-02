@@ -284,7 +284,7 @@ def main():
             else ("parent", "decompose", "opm")
         )
         if args.plugins:
-            from hlib_bifrost.general.bifrost import Bifrost
+            from hlib_bifrost.environment.bifrost import Bifrost
 
             Bifrost.ensure_available()
         result = {

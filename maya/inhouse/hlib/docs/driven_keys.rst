@@ -40,15 +40,16 @@
 
 .. code-block:: python
 
-   from hlib.general import DrivenKeys
+   from hlib.scene import DrivenKey
 
-   relations = DrivenKeys.find("joint.rotateZ")
-   print(relations.driver_plug())      # ドライバーPlugのリスト
-   print(relations.curves())      # 関係ごとのカーブリスト
-   relations.set_key(0, 0)        # 同じ値を一括設定、1回のUndoで戻せる
+   relations = DrivenKey.find("joint.rotateZ")
+   print([relation.driver_plug() for relation in relations])      # ドライバーPlugのリスト
+   print([relation.curves() for relation in relations])      # 関係ごとのカーブリスト
+   for relation in relations:
+       relation.set_key(0, 0)
 
-``DrivenKeys([relation1, relation2])`` で明示的にまとめることもできます。
-``call_each()`` では既存のコレクションと同様に要素別の引数を指定できます。
+``[relation1, relation2]`` のように通常のリストで保持します。
+各set_keyはそれぞれUndoできます。
 途中の失敗は例外として通知し、それ以前の変更は自動で取り消しません。
 
 対応する接続構成

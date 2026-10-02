@@ -11,7 +11,7 @@ UI単位と内部単位への一時切り替え
 
 .. code-block:: python
 
-   from hlib.general import Preferences
+   from hlib.environment import Preferences
    from hlib.decorators import native_units
 
    print(Preferences.get_linear_unit(), Preferences.get_angle_unit(), Preferences.get_time_unit())  # 例: "cm" "deg" "film"
@@ -71,14 +71,14 @@ Undoの有効・無効、無限、上限の変更はUndoチャンクへまとめ
 
 .. code-block:: python
 
-   from hlib.general import Plugin, Plugins
+   from hlib.environment import Plugin
 
    plugin = Plugin("matrixNodes")
    print(plugin.is_loaded(), plugin.path(), plugin.version())
    plugin.unload()
    plugin.ensure_loaded()   # 未ロードなら冪等にロードする
 
-   for loaded in Plugins.loaded():
+   for loaded in Plugin.loaded():
        print(loaded.name())
 
 ``is_loaded``/``is_registered`` は未知のプラグイン名でも例外にならず ``False``
@@ -96,7 +96,7 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 
 .. code-block:: python
 
-   from hlib.general import Module, PluginPackage
+   from hlib.environment import Module, PluginPackage
 
    print(Module("Bifrost").version())            # Versionの文字列表現(未登録なら None)
    print(Module("Bifrost").is_version_at_least("3.0.0"))
@@ -127,10 +127,10 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 実装の配置と版番号ユーティリティ
 ------------------------------------------------------------
 
-``hlib.general`` は原則1クラス1ファイルで構成します。単数クラスと対応する複数クラスは同じファイルにまとめられます。
-``plugin.py`` は ``Plugin``、``plugins.py`` は ``Plugins``、
+``hlib.environment`` は原則1クラス1ファイルで構成します。単数クラスと対応する複数クラスは同じファイルにまとめられます。
+``plugin.py`` は ``Plugin``、
 ``module.py`` は ``Module``、``package.py`` は ``PluginPackage`` を定義します。
-利用側は引き続き ``from hlib.general import Plugin, Plugins, Module, PluginPackage``
+利用側は引き続き ``from hlib.environment import Plugin, Module, PluginPackage``
 で取得できます。
 
 ノード型に対応する標準プラグインのロードは ``Plugin.ensure_node_plugin(node_type)``
@@ -143,7 +143,7 @@ Mayaに依存しない不変の値クラスで、``hlib.utils`` からも取得�
 .. code-block:: python
 
    from hlib.utils import Version
-   from hlib.general import Plugin
+   from hlib.environment import Plugin
 
    version = Plugin("bifrostGraph").version()
    if version is not None:
@@ -178,7 +178,7 @@ SemVerのプレリリース順序(例えばrc版が正式版より小さいと�
 
 .. code-block:: python
 
-   from hlib.general.workspace import Workspace
+   from hlib.environment.workspace import Workspace
 
    print(Workspace.root())               # 現在のワークスペースのルート
    print(Workspace.get_rule("scene"))        # 例: "scenes"

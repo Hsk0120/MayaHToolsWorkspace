@@ -42,7 +42,7 @@ class Reference(Node):
         """
         # namespaces.namespace が ..nodes を逆方向 import しないため単純な import で足りるが、
         # hlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
-        from ..general import Namespace
+        from hlib.scene import Namespace
 
         return Namespace(self.reference_fn().associatedNamespace(False))
 

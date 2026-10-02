@@ -99,9 +99,9 @@ def bakeResults(nodes, **kwargs):
         ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合。
         RuntimeError: Maya がベイクを拒否した場合。
     """
-    from .._core.coerce import to_names
+    from hlib.object import Object as _InputObject
 
-    names = to_names(nodes)
+    names = _InputObject._input_names(nodes)
     if not names:
         raise ValueError("nodes には1つ以上のノードを指定してください")
     cmds.bakeResults(*names, **kwargs)

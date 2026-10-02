@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import maya.cmds as cmds
-from hlib.general import Preferences
+from hlib.environment import Preferences
 
 
 class PreferencesTest(unittest.TestCase):
@@ -109,7 +109,7 @@ class PreferencesSaveTest(unittest.TestCase):
     def test_save_sync_and_error(self):
         from unittest.mock import patch
         import maya.cmds as cmds
-        with patch.object(cmds, "about", return_value=False), patch.object(cmds, "optionVar") as option, patch("hlib.general.preferences.mel.eval") as save:
+        with patch.object(cmds, "about", return_value=False), patch.object(cmds, "optionVar") as option, patch("hlib.environment.preferences.mel.eval") as save:
             Preferences.save()
             save.assert_called_once_with("savePrefs -general;")
             option.assert_any_call(intValue=("TrackSelectionOrder", int(Preferences.get_track_selection_order())))

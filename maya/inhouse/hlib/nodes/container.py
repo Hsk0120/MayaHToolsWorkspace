@@ -2,7 +2,6 @@
 
 from maya import cmds
 from .._core.registry import node_wrapper
-from .._core.coerce import to_names
 from ..decorators.undo import undo_transaction, undo_chunk
 from .node import Node
 
@@ -44,7 +43,8 @@ class Container(Node):
         Returns:
             Container: 自身。
         """
-        nodes = [Node(name) for name in to_names(members, allow_plugs=False)]
+        from hlib.object import Object as _InputObject
+        nodes = [Node(name) for name in _InputObject._input_names(members, allow_plugs=False)]
         if nodes:
             cmds.container(
                 self.full_name(), edit=True, addNode=[Node(n).full_name() for n in nodes]

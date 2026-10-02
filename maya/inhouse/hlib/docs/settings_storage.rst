@@ -74,7 +74,7 @@ Preferencesの各メソッド
 
 .. code-block:: python
 
-   from hlib.general import Preferences
+   from hlib.environment import Preferences
 
    prefs = Preferences()
    prefs.set_track_selection_order(True, save=True)
@@ -97,7 +97,7 @@ Windowsの標準位置は ``Documents/maya/<version>/prefs`` ですが、環境�
 .. code-block:: python
 
    import maya.cmds as cmds
-   from hlib.general import Preferences
+   from hlib.environment import Preferences
 
    prefs = Preferences()
    print(prefs.get_linear_unit())  # 現在値の照会のみ

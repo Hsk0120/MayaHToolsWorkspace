@@ -117,7 +117,7 @@ class TweakLayer:
                 key = group.uuid()
                 if key in cls._jobs:
                     continue
-                jobs = hlib.general.ScriptJobs()
+                jobs = hlib.events.ScriptJobs()
                 for plug in (
                     group.plug("enabled"),
                     rig.root.plug("hrigLod" if rig.root.has_attribute("hrigLod") else "lod"),

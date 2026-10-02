@@ -14,21 +14,21 @@
     import hlib
     hlib.reload()
 
-    slider = hlib.getTimeSlider()  # hlib.general.TimeSlider
+    slider = hlib.getTimeSlider()  # hlib.ui.TimeSlider
     print(slider.get_current_time(), slider.get_playback_range())
     slider.set_playback_range(1, 120)
     with slider.preserve_time():
         slider.set_current_time(24)
     print(slider.get_selected_range())  # 未選択はNone。選択範囲の終端は含まない
 
-    view = hlib.getViewport()  # hlib.general.Viewport
+    view = hlib.getViewport()  # hlib.ui.Viewport
     print(view.panel, view.camera())
     with view.temporary_settings(grid=False, joints=False):
         pass  # 終了時に指定した表示設定を復元
     with view.suspend():
         pass  # 重い処理。例外時もメインペインの表示状態を復元
 
-    outliner = hlib.getOutliner()  # hlib.general.Outliner
+    outliner = hlib.getOutliner()  # hlib.ui.Outliner
     outliner.set_settings(showShapes=True, showNamespace=True)
     outliner.expand_all()       # 展開
     outliner.expand_all(False)  # 折りたたむ

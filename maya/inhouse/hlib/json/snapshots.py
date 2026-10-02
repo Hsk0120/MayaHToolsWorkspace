@@ -256,7 +256,6 @@ class Snapshot:
             options (dict): 対象名と名前空間の解決設定。
             before (dict): 変更前の値を追記する辞書。
         """
-        pass
 
     @staticmethod
     def _apply_geometry(node, record, options):
@@ -267,7 +266,6 @@ class Snapshot:
             record (dict): 保存した一件分のデータ。
             options (dict): 対象名と名前空間の解決設定。
         """
-        pass
 
 
 class SelectionSnapshot(Snapshot):
@@ -624,7 +622,7 @@ def capture(targets=None, kind="pose", attributes=None):
         Snapshot: 未解決参照と値を持つ用途別Snapshot。
     """
     from maya import cmds
-    from ..general.selection import Selection
+    from hlib.scene.selection import Selection
     from ..components import Component
     from ..plugs.plug import Plug
     if kind == "editor":

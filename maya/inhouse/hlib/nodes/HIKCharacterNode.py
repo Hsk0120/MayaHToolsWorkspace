@@ -3,9 +3,8 @@
 import json
 from maya import cmds, mel
 from .._core.registry import node_wrapper
-from .._core.coerce import to_node_name
 from ..decorators.undo import undo_chunk
-from ..general import Plugin
+from hlib.environment import Plugin
 from .node import Node
 
 
@@ -52,10 +51,11 @@ class HIKCharacterNode(Node):
         Note:
             定義の検証・ロックはMayaのHumanIK UIで行う。
         """
+        from hlib.nodes.node import Node as _InputNode
         _prepare()
         if self.is_definition_locked():
             raise RuntimeError('Unlock the character definition before editing')
-        name = to_node_name(joint)
+        name = _InputNode._input_name(joint)
         if cmds.nodeType(name) != 'joint':
             raise TypeError('Expected a joint')
         if not isinstance(role, str):

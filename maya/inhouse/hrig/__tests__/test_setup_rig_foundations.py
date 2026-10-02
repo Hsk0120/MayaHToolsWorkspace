@@ -7,7 +7,7 @@ import hlib
 from hrig.setups import ControlShape, SoftIK
 from hlib.utils.scalarGraph import ScalarGraph
 from hlib.nodes import Container
-from hlib.general import Preferences
+from hlib.environment import Preferences
 from hlib.utils import units
 from hlib.decorators import native_units
 
@@ -207,7 +207,9 @@ class RigFoundationsTest(unittest.TestCase):
 
     def test_editor_batch_guards(self):
         """GUIを持たない場合は親を返さず、エディター起動を明示的に拒否する。"""
-        from hlib.general import MainWindow, NodeEditor, GraphEditor
+        from hlib.ui import MainWindow
+        from hlib.ui import NodeEditor
+        from hlib.ui import GraphEditor
 
         if not cmds.about(batch=True):
             self.skipTest("Batch-only contract")
@@ -304,12 +306,14 @@ class RigFoundationsTest(unittest.TestCase):
         cmds.redo()
         self.assertTrue(cmds.objExists(name))
 
-    def test_general_layout(self):
-        """各実装がgeneralに一つだけ存在し、選択入口も新クラスを返す。"""
+    def test_package_layout(self):
+        """各実装が用途別パッケージに一つだけ存在し、選択入口も新クラスを返す。"""
         from pathlib import Path
-        from hlib.general import Preferences, Workspace, Selection
+        from hlib.environment import Preferences
+        from hlib.environment import Workspace
+        from hlib.scene import Selection
 
         for cls, module in ((Preferences, "preferences"), (Workspace, "workspace"), (Selection, "selection")):
-            self.assertEqual(cls.__module__, "hlib.general." + module)
+            self.assertEqual(cls.__module__, "hlib." + ("scene" if module == "selection" else "environment") + "." + module)
             self.assertFalse((Path(hlib.__file__).parent / (module + ".py")).exists())
         self.assertIsInstance(hlib.captureSelection(), Selection)

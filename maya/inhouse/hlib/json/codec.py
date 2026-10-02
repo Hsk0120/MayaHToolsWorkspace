@@ -71,7 +71,7 @@ def _decode_math(name, args):
     """数学型の記録を検証し、hlib.maths の値へ復元する。
 
     Args:
-        name (str): ``"Vector"`` などの型名(旧名は変換済み)。
+        name (str): ``"Vector"`` などの型名。
         args (object): 記録の中身を decode した値。``{"values": [...]}``、EulerRotation は
             ``"order"`` (名前または om2 の番号)も持てる。
 
@@ -133,7 +133,7 @@ def encode(value):
     from ..nodes.node import Node
     from ..plugs.plug import Plug
     from ..components import Component, Components
-    from ..general.selection import Selection
+    from hlib.scene.selection import Selection
     from .snapshots import Snapshot
     if isinstance(value, Node):
         value = NodeRef.capture(value)
@@ -174,7 +174,7 @@ def decode(value):
         from .snapshots import Snapshot
         return Snapshot.from_data(decode(data))
     if kind.startswith("math:"):
-        name = {"Translate": "Translation", "Rotate": "EulerRotation"}.get(kind[5:], kind[5:])
+        name = kind[5:]
         if name not in _MATH_SIZES:
             raise ValueError("Unknown math type")
         return _decode_math(name, decode(data))

@@ -300,7 +300,7 @@ om2 の関数が返した ``om2.MMatrix`` は ``Matrix.from_mmatrix()`` で ``Ma
    transformation = om2.MTransformationMatrix(matrix)   # そのまま渡せる
    copied = Matrix.from_mmatrix(transformation.asMatrix())
    print(copied.is_equivalent(matrix))    # True
-   api_matrix = matrix.to_mmatrix()       # 素の om2.MMatrix の複製(互換用)
+   api_matrix = om2.MMatrix(matrix)       # 素の om2.MMatrix として複製
 
 ``to_transformation()`` / ``from_transformation()`` で
 Maya API 2.0 の ``MTransformationMatrix`` とも相互変換できます。

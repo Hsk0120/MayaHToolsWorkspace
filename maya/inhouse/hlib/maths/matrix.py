@@ -332,7 +332,7 @@ class Matrix(om2.MMatrix):
         _MMatrix.__init__(self)
         return self
 
-    def __init__(self, values=None, *, translate=None, rotate=None, rotation=None, scale=None, shear=None):
+    def __init__(self, values=None, *, translate=None, rotate=None, scale=None, shear=None):
         """入力行列、または TRS / shear 成分から値を設定する。
 
         入力をすべて検証してから書き込むため、例外時に値は変わらない。
@@ -344,8 +344,6 @@ class Matrix(om2.MMatrix):
             rotate (Iterable[float] | EulerRotation | Quaternion | None): XYZ 順の
                 ラジアン3成分、回転順序を反映する EulerRotation(om2.MEulerRotation)、
                 または四元数(正規化して使う)。None は回転なし。
-            rotation (Iterable[float] | EulerRotation | Quaternion | None): rotate の
-                互換引数。None 以外なら rotate より優先する。
             scale (Iterable[float] | None): XYZ のスケール成分。None は 1。0 や
                 微小値もそのまま書き込む。
             shear (Iterable[float] | None): XY、XZ、YZ のシアー成分。None は 0。
@@ -375,8 +373,6 @@ class Matrix(om2.MMatrix):
             if not _set_sequence(self, values):
                 _set_sequence(self, _flat_values(values))
             return
-        if rotation is not None:
-            rotate = rotation
         if translate is None and rotate is None and scale is None and shear is None:
             self.setToIdentity()
             return
@@ -406,9 +402,6 @@ class Matrix(om2.MMatrix):
         else:
             _MMatrix.__init__(result, value)
         return result
-
-    #: 互換用の別名。:meth:`_wrap` と同じ。
-    _wrap_copy = _wrap
 
     # ------------------------------------------------------------------ 生成・変換
     @classmethod
@@ -468,17 +461,6 @@ class Matrix(om2.MMatrix):
             Matrix: 呼び出したクラスの新しい行列。
         """
         return cls._wrap(transformation.asMatrix())
-
-    def to_mmatrix(self):
-        """素の om2.MMatrix の複製を返す(互換用)。
-
-        Matrix 自体が om2.MMatrix の派生なので、om2 の関数へはそのまま渡せる。
-        派生型ではなく基底型が必要な場合や、別名参照を避けたい場合に使う。
-
-        Returns:
-            om2.MMatrix: 現在の成分から作った新しいオブジェクト。
-        """
-        return _MMatrix(self)
 
     def to_transformation(self):
         """om2.MTransformationMatrix へ変換する。
@@ -640,10 +622,10 @@ class Matrix(om2.MMatrix):
         return EulerRotation._wrap(self._checked_transformation().rotation())
 
     @property
-    def rotation(self):
+    def rotate(self):
         """回転成分を XYZ 順序の EulerRotation として取得または設定する。
 
-        ``rotate`` は同じプロパティの別名。設定時は XYZ 順のラジアン3成分、回転順序を
+        設定時は XYZ 順のラジアン3成分、回転順序を
         反映する EulerRotation、または Quaternion を受け取り、スケール・シアー・
         平行移動を保って再合成する。取得・設定とも、分解できない場合は ValueError。
 
@@ -652,8 +634,8 @@ class Matrix(om2.MMatrix):
         """
         return EulerRotation._wrap(self._checked_transformation().rotation())
 
-    @rotation.setter
-    def rotation(self, value):
+    @rotate.setter
+    def rotate(self, value):
         """回転成分を置き換えて再合成する。
 
         Args:
@@ -664,16 +646,13 @@ class Matrix(om2.MMatrix):
         """
         self._recompose(rotate=value)
 
-    rotate = rotation
-
     def decompose(self):
         """行列を意味付きの変換成分へ分解する。
 
-        om2.MTransformationMatrix を1回だけ作って分解する。rotation と euler は
-        同じ値の別々のオブジェクト。
+        om2.MTransformationMatrix を1回だけ作って分解する。
 
         Returns:
-            dict[str, object]: translate(Translation)、rotation / euler
+            dict[str, object]: translate(Translation)、euler
             (EulerRotation、XYZ 順序)、quaternion(Quaternion)、scale(Scale)、
             shear(Shear)を含む辞書。
 
@@ -684,7 +663,6 @@ class Matrix(om2.MMatrix):
         euler = tm.rotation()
         return {
             "translate": self._translation(),
-            "rotation": EulerRotation._wrap(euler),
             "quaternion": Quaternion._wrap(tm.rotation(asQuaternion=True)),
             "euler": EulerRotation._wrap(euler),
             "scale": _vector_of(Scale, tm.scale(_K_TRANSFORM)),

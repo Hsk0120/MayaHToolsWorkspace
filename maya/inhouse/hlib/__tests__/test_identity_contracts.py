@@ -3,7 +3,6 @@ import unittest
 import maya.cmds as cmds
 import hlib
 from hlib.nodes import Node, Joint, Nodes
-from hlib._core.coerce import to_names
 
 class IdentityContractTest(unittest.TestCase):
     """名前に依存しない参照の契約。"""
@@ -66,14 +65,15 @@ class IdentityContractTest(unittest.TestCase):
 
     def test_mixed_rejected(self):
         """列全体の形式を変換前に検証する。"""
+        from hlib.object import Object as _InputObject
         n=Node(cmds.createNode('joint'))
         for values in ([n.name(),n],[n,n.name()]):
             with self.assertRaises(TypeError):
-                to_names(iter(values))
+                _InputObject._input_names(iter(values))
             with self.assertRaises(TypeError):
                 Nodes(values)
         self.assertEqual(len(Nodes([n,Node(n)])),1)
-        self.assertEqual(to_names([n]),[n.full_name()])
+        self.assertEqual(_InputObject._input_names([n]),[n.full_name()])
 
     def test_instance_identity(self):
         """同じノードの別インスタンスを比較で区別する。"""

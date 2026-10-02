@@ -1,6 +1,6 @@
 """Maya標準windowの表示・サイズ・位置を操作する。"""
 import maya.cmds as cmds
-from ._windowReference import _WindowReference
+from hlib.ui._windowReference import _WindowReference
 
 
 class Window(_WindowReference):

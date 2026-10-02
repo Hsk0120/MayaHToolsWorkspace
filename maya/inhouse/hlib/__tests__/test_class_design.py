@@ -71,9 +71,16 @@ class ClassDesignTest(unittest.TestCase):
 
     def test_bulk_requires_declaration(self):
         """単数クラスへのメソッド追加だけでは公開範囲が広がらない。"""
-        from hlib._core.collection import BulkCollection, bulk_api
-        class Item:
+        from hlib._core.collection import bulk_api
+        class Item(hlib.nodes.Node):
             """公開対象を選択する単体。"""
+            def __new__(cls):
+                """転送検証用の参照を、Maya照会なしで作る。"""
+                return object.__new__(cls)
+
+            def __init__(self):
+                """テスト用のためMayaノードを保持しない。"""
+
             def query(self):
                 """保持値を返す。"""
                 return 3
@@ -81,7 +88,7 @@ class ClassDesignTest(unittest.TestCase):
                 """一括公開しない操作。"""
                 raise AssertionError("must not run")
         @bulk_api(Item, undo=False, reads=("query",))
-        class Items(BulkCollection):
+        class Items(hlib.nodes.Nodes):
             """明示した照会だけを持つ集合。"""
         values = Items()
         values._items = [Item()]
@@ -92,7 +99,7 @@ class ClassDesignTest(unittest.TestCase):
 
     def test_save_scope_prevalidation(self):
         """単位saveとbatchの保存要求は現在値を変更する前に拒否する。"""
-        from hlib.general import Preferences
+        from hlib.environment import Preferences
         with patch.object(cmds, "currentUnit") as unit:
             for method in (Preferences.set_linear_unit, Preferences.set_angle_unit, Preferences.set_time_unit):
                 with self.assertRaises(TypeError):

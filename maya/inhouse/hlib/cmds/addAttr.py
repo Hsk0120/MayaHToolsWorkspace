@@ -1,8 +1,6 @@
 """アトリビュートを追加する。照会・編集はPlugのメソッドを使用する。"""
 
-from maya import cmds
 from .._core.flags import flag_aliases
-from .._core.coerce import to_name
 from ..decorators.undo import undo_chunk
 
 
@@ -24,21 +22,5 @@ def addAttr(target, **kwargs):
 
 
     """
-    from .._core.coerce import to_plug, to_node
-
-    if kwargs.get("query") or kwargs.get("edit"):
-        raise ValueError("addAttr supports creation only")
-    name = to_name(target)
-    if (
-        not kwargs.get("query")
-        and "." not in name
-        and not (kwargs.get("longName") or kwargs.get("shortName"))
-    ):
-        raise ValueError("Specify longName or shortName")
-    cmds.addAttr(name, **kwargs)
-    if "." in name:
-        return to_plug(name)
-    attribute = kwargs.get("longName") or kwargs.get("shortName")
-    if not attribute:
-        raise ValueError("Specify longName or shortName")
-    return to_node(target).plug(attribute)
+    from ..nodes.node import Node
+    return Node._add_attribute(target, **kwargs)

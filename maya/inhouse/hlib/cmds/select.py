@@ -104,10 +104,10 @@ def select(nodes=None, **kwargs):
         ValueError: nodes の要素に空文字列、または削除済みの対象が含まれる場合。
         RuntimeError: Maya が選択を拒否した場合。
     """
-    from .._core.coerce import to_names
+    from hlib.object import Object as _InputObject
 
     if nodes is None:
         cmds.select(**kwargs)
         return
-    names = to_names(nodes)
+    names = _InputObject._input_names(nodes)
     cmds.select(names, **kwargs)

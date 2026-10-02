@@ -86,10 +86,10 @@ def delete(nodes):
             何も削除しない)。
         RuntimeError: Maya が削除を拒否した場合。
     """
-    from .._core.coerce import to_names
+    from hlib.object import Object as _InputObject
     from ..nodes.node import Node
 
-    names = to_names(nodes, allow_plugs=False)
+    names = _InputObject._input_names(nodes, allow_plugs=False)
     if not names:
         raise ValueError("nodes には1つ以上のノードを指定してください")
     # アトリビュート・コンポーネント文字列は所有ノードへ変換せず、標準の扱いを維持する。

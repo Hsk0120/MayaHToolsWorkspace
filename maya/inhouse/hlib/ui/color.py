@@ -3,7 +3,6 @@
 import math
 import maya.cmds as cmds
 
-from hlib._core.collection import BulkCollection, bulk_api
 
 
 class Color:
@@ -208,90 +207,5 @@ class Color:
             return "Color.disabled()"
         return f"Color({self.mode}={getattr(self, self.mode)!r})"
 
-
-@bulk_api(
-    Color,
-    undo=False,
-    reads=(
-        'copy',
-    ),
-    writes=(
-        'refresh_palette',
-    ),
-    properties=(
-        'palette_source',
-        'mode',
-        'index',
-        'rgb',
-    ),
-)
-class Colors(BulkCollection):
-    """順序と重複を保持するColorのコレクション。シーンは編集しない。
-
-    入力Colorはコピーして保持する。整数アクセスで保持中のColorを返し、
-    スライスとcopyは独立したColorsを返す。
-    """
-
-    def __init__(self, values=()):
-        """色の列を正規化して保持する。
-
-        Args:
-            values (Iterable[Color | int | Iterable[float] | None]):
-                Color、色番号、RGB、無効状態の列。RGB一色もリストで囲む。
-        Raises:
-            ValueError: 色指定が不正な場合。
-            RuntimeError: Mayaパレットの取得に失敗した場合。
-        """
-        self._items = [Color.coerce(value) for value in values]
-
-    def __iter__(self):
-        """Iterator[Color]: 保持中の色を順に返す。要素への変更は自身に反映する。"""
-        return iter(self._items)
-
-    @property
-    def index(self):
-        """list[int | None]: 各色の番号。代入時は要素数が一致する番号列を受け取る。"""
-        return [color.index for color in self]
-
-    @index.setter
-    def index(self, values):
-        """全番号を事前検証して設定し、それぞれのRGBも同期する。"""
-        values = self._validated_values(values, Color._validate_index)
-        for color, value in zip(self, values):
-            color.index = value
-
-    @property
-    def rgb(self):
-        """list[tuple | None]: 各色のRGB。代入時は要素数が一致するRGB列を受け取る。"""
-        return [color.rgb for color in self]
-
-    @rgb.setter
-    def rgb(self, values):
-        """全RGBを事前検証して設定し、それぞれの近似番号も同期する。"""
-        values = self._validated_values(values, Color._validate_rgb)
-        for color, value in zip(self, values):
-            color.rgb = value
-
-    def _validated_values(self, values, validator):
-        """件数と全入力値を検証する。失敗時は保持値を変更しない。
-
-        Args:
-            values (Iterable): 各要素へ設定する値。
-            validator (callable): 値の検証と正規化を行う関数。
-        Returns:
-            list: 検証済みの値。
-        Raises:
-            ValueError: 件数の不一致または不正な値。
-        """
-        values = list(values)
-        if len(values) != len(self):
-            raise ValueError("Value count must match Colors length")
-        return [validator(value) for value in values]
-
-    def copy(self):
-        """Colors: Mayaに照会せず、各Colorもコピーした独立コレクションを返す。"""
-        return type(self)(self)
-
-    def __repr__(self):
-        """str: 保持順の色指定を表示する。"""
-        return f"{type(self).__name__}({self._items!r})"
+# 再読み込み前の旧コレクション参照を残さない。
+globals().pop("Colors", None)

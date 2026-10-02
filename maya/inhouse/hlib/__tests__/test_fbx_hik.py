@@ -37,7 +37,7 @@ class StandardPluginsTest(unittest.TestCase):
         cmds.setKeyframe(joint,attribute='rotateZ',time=1,value=0)
         cmds.setKeyframe(joint,attribute='rotateZ',time=10,value=45)
         cmds.select(joint)
-        hlib.general.Plugin('fbxmaya').ensure_loaded()
+        hlib.environment.Plugin('fbxmaya').ensure_loaded()
         old = mel.eval('FBXProperty Export|IncludeGrp|Animation -q;')
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'animation.fbx'

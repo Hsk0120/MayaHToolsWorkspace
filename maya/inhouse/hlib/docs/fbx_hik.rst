@@ -9,7 +9,7 @@ FBXファイル
 
 .. code-block:: python
 
-    from hlib.general import export_fbx, import_fbx
+    from hlib.utils.fbx import export_fbx, import_fbx
     export_fbx('C:/work/motion.fbx', selection=['rootJoint'], animation=True)
     nodes = import_fbx('C:/work/motion.fbx', namespace='source')
 

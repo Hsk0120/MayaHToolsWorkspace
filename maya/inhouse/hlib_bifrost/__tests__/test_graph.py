@@ -3,7 +3,7 @@
 import unittest
 from maya import cmds
 from hlib_bifrost.nodes import Graph
-from hlib_bifrost.general import Bifrost
+from hlib_bifrost.environment import Bifrost
 
 
 class GraphTest(unittest.TestCase):
@@ -28,7 +28,7 @@ class GraphTest(unittest.TestCase):
         for folder, names in (
             ("nodes", ("Graph", "Node", "Compound")),
             ("plugs", ("Port",)),
-            ("general", ("Bifrost",)),
+            ("environment", ("Bifrost",)),
             ("utils", ("MathBuilder",)),
         ):
             for name in names:

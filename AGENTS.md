@@ -16,7 +16,9 @@
 
 - hlib/hlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。hlib.cmdsの追加は既存の入力解決・短縮フラグ・Undo規則に合わせ、ノード/アトリビュート/UI参照はhlibオブジェクトで返す。数値・真偽値等の照会値は値として返す。生のcmds転送クラスは追加しない。
 
-- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`maths`・`json`・`utils`・`general`・`components`・`decorators` を基本とし、新しいサービスごとにフォルダを増やさない。ノード/アトリビュート以外のMaya共通クラス（作業環境・シーン・UI・イベント・プラグイン）は `general`、汎用関数は `utils`、デコレータは `decorators` へ置く。`hlib_*` も該当する分類に合わせる。
+- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`scene`・`ui`・`environment`・`events`・`json`・`utils`・`decorators` を基本とする。シーン内の状態・関係は `scene`、Maya標準UIと表示色は `ui`、作業環境・導入状態は `environment`、通知・遅延実行は `events`、汎用関数は `utils` に置く。個別サービスごとにフォルダを増やさず、`hlib_*` も同じ分類に合わせる。
+
+- `hlib.Object` (`object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。
 
 - hlib.cmdsの公開関数とファイルは同名のlowerCamelCaseとし、create/add/set/get等の動詞+対象で命名する。create/add/setは照会を兼ねず、照会・既存対象の編集はオブジェクトのメソッドへ寄せる。lsは慣用名として維持し、delete/duplicate/select等の動詞も維持する。旧名の互換入口は残さず使用側を更新する。
 
@@ -24,7 +26,7 @@
 
 - hlibおよび `hlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotation.py`、`scriptJob.py`、`channelBox.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `hlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
 
-- hlibはMaya標準の名前・概念と汎用的な基礎APIを扱う。標準の関係型は `general`、リグ非依存の数値計算は `utils`、骨の追従・Soft IK・補正・操作形状などの独自セットアップは `hrig.setups` に置く。`hlib/animation` は作らない。Bifrostでも演算部品は `hlib_bifrost.utils`、リグの組み方はhrigに置く。
+- hlibはMaya標準の名前・概念と汎用的な基礎APIを扱う。標準の関係型は `scene`、リグ非依存の数値計算は `utils`、骨の追従・Soft IK・補正・操作形状などの独自セットアップは `hrig.setups` に置く。`hlib/animation` は作らない。Bifrostでも演算部品は `hlib_bifrost.utils`、リグの組み方はhrigに置く。
 
 - about/currentTime/cutKey/deleteUI/keyframe/listConnections/listHistory/listRelatives/menu/menuItem/objExists/parent/playbackOptions/setKeyframe はmaya.cmdsを直接使用する。hrigにも適用し、同名hlibラッパーを再追加しない。必要なNode/Plug変換は使用側で明示する。
 
@@ -32,7 +34,7 @@
 
 - 外部ツールの調査メモ・比較表・候補一覧・調査インベントリは `docs/research/` にローカル保存し、Gitへ登録・プッシュしたりSphinxへ掲載したりしない。公開ドキュメントには実装済み機能の仕様・使い方を記載する。
 
-- このリポジトリでの説明・作業報告は日本語で行う。
+- このリポジトリでの説明・作業報告は日本語で行う。途中経過の報告・質問・確認・最終報告を含め、ユーザーへの返答はすべて日本語にする。英語の資料やツール出力を読んだ後、長い作業の途中、文脈が要約された後でも英語に切り替えない。コード・コマンド・識別子・ログの引用はそのままでよい。
 - Claude Code / Codex / GitHub Copilot を並行運用する前提のリポジトリ。作業開始前に
   `WORK_LOG.md` を確認し、他ツールが進行中の範囲と重ならないか確認する。作業開始時に
   「進行中」へ自分の行を追加し、完了時に「完了履歴」へ移す(運用ルールは同ファイル参照)。
@@ -98,7 +100,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 - `hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
 - `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
 - Mayaの信頼済みプラグインの場所(`optionVar SafeModeAllowedlistPaths`)をスクリプトから変更しない。MayaのSafeModeが拒否する設定で、迂回せずユーザーがPreferences > Securityで登録する。
-- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.general`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
+- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.environment`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
 
 ### 外部ツールと連携
 

@@ -63,7 +63,7 @@ import maya.cmds as cmds
 import hlib
 hlib.reload()
 from hlib.nodes import Node
-from hlib.general import Namespace
+from hlib.scene import Namespace
 from hlib.plugs import Plug
 from hlib._core.attributeType import attribute_type
 
@@ -695,7 +695,7 @@ class NameResolutionParityTest(unittest.TestCase):
             cmds.namespace(removeNamespace=":" + self.namespace, deleteNamespaceContent=True)
 
     def test_component_named_attributes_match_cmds_connectAttr(self):
-        from hlib._core.coerce import to_plug
+        from hlib.plugs.plug import Plug as _InputPlug
 
         cube = Node(cmds.polyCube(name="cube", constructionHistory=False)[0])
         mesh = cube.shape()
@@ -717,7 +717,7 @@ class NameResolutionParityTest(unittest.TestCase):
         for source_plug, text in cases:
             with self.subTest(plug=text):
                 cmds.connectAttr(str(source_plug), text)
-                resolved = to_plug(text)
+                resolved = _InputPlug._resolve_input(text)
                 self.assertEqual(resolved.source().mplug(), source_plug.mplug())
                 self.assertIn(resolved.mplug(), list(source_plug.mplug().connectedTo(False, True)))
                 self.assertEqual(cmds.getAttr(str(resolved), type=True), cmds.getAttr(text, type=True))

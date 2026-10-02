@@ -1,6 +1,5 @@
 """2値の比較により出力を切り替える。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ..maths import Vector
@@ -72,8 +71,7 @@ class Condition(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.scalar(value)
-        self.input_plug(index).set(value)
+        _Calculation.set_value(value, _Calculation.scalar, self.input_plug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -90,7 +88,7 @@ class Condition(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.input_plug(index), force=force)
+        _Calculation.connect(source, self.input_plug, index, force=force)
         return self
 
     def true_value_plug(self):
@@ -121,8 +119,7 @@ class Condition(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.true_value_plug().set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.true_value_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -138,7 +135,7 @@ class Condition(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.true_value_plug(), force=force)
+        _Calculation.connect(source, self.true_value_plug, force=force)
         return self
 
     def false_value_plug(self):
@@ -169,8 +166,7 @@ class Condition(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.false_value_plug().set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.false_value_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -186,7 +182,7 @@ class Condition(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.false_value_plug(), force=force)
+        _Calculation.connect(source, self.false_value_plug, force=force)
         return self
 
     def output_plug(self):

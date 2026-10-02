@@ -11,6 +11,6 @@ Examples
 
 def captureSelection():
     """Selection: 現在の選択を保持する。Channel Boxの選択アトリビュートは含めない。"""
-    from ..general.selection import Selection
+    from hlib.scene.selection import Selection
 
     return Selection.capture()

@@ -53,14 +53,14 @@ Colorで番号とRGBを扱う
 ------------------------------
 
 引数なしの ``Color()`` は ``Color(index=0)`` と同じ色番号0で初期化します。
-無効状態は ``Color.disabled()`` で明示します。``Colors()`` は空のコレクションです。
+無効状態は ``Color.disabled()`` で明示します。複数の色は通常のリストで保持します。
 
 ``Color`` は表示色を保持する可変オブジェクトです。プロパティを変更すると、
 もう一方の表現も同期します。変更だけではシーンには反映されません。
 
 .. code-block:: python
 
-   from hlib.general import Color
+   from hlib.ui import Color
 
    color = Color(index=17)
    print(color.rgb)               # パレットのRGB
@@ -92,38 +92,31 @@ Outlinerへ色番号を渡した場合は対応RGBで設定されます。
 取得したColorを変更しても、再度setterを呼ぶまではノードを変更しません。
 ``BlendColors`` は数値の補間ノードなので、この表示色クラスは使用しません。
 
-複数の色を扱うColors
+複数の色を扱うリスト
 ------------------------------
 
-``Colors`` は ``Color`` と同じモジュールで定義し、順序と重複を保持します。
-入力Colorはコピーされ、整数アクセスでは保持中のColorを取得できます。
+複数の色は通常のリストで保持します。色ごとの値は内包表記で取得できます。
 
 .. code-block:: python
 
-   from hlib.general import Colors
+   from hlib.ui import Color
 
-   colors = Colors([6, 17, (1, 0.45, 0)])
-   print(colors.index)          # 各色の番号リスト
-   print(colors.rgb)            # 各色のRGBリスト
-   colors[0].rgb = (1, 0, 0)   # 一色を変更
-   colors.index = [13, 17, 6]  # 全色の番号とRGBを同期
-   colors.rgb = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
-   copied = colors.copy()
-   subset = colors[:2]
+   colors = [Color.coerce(value) for value in [6, 17, (1, 0.45, 0)]]
+   print([color.index for color in colors])
+   print([color.rgb for color in colors])
+   colors[0].rgb = (1, 0, 0)
+   copied = [color.copy() for color in colors]
+   for color in colors:
+       color.refresh_palette()
 
-``index`` / ``rgb`` への代入は要素数と同じ長さの列を受け取り、
-全入力を検証してから更新します。取得したリスト自体を書き換えても反映されません。
-``mode`` / ``palette_source`` は各要素の値のリストを返します。
-``copy()`` とスライスは、各Colorも独立したコピーになります。
-``refresh_palette()`` は各Colorを順に更新し、戻り値はColors自身です。
-途中の照会失敗時は停止し、更新済みの色は自動では戻しません。
-これらは保持値の操作で、ノードへの適用は各ノードのsetterで明示します。
+リストのスライスは要素を共有します。色も独立させる場合は上記のようにcopyを呼びます。
+ノードへの適用はsetterで明示します。
 
-ノードコレクションとColors
-------------------------------
+ノードコレクションと色のリスト
+--------------------------------------
 
 ``DagNodes`` と派生コレクション（``Transforms``・``Joints`` 等）の
-``get_override_color()`` / ``get_outliner_color()`` は ``Colors`` を返します。
+``get_override_color()`` / ``get_outliner_color()`` は ``list[Color]`` を返します。
 保持順に一色ずつ格納し、無効な色も省略しません。
 
 .. code-block:: python

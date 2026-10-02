@@ -1,6 +1,5 @@
 """Maya標準のジョイント階層ミラーを型付きの結果で返す。"""
 import maya.cmds as cmds
-from .._core.coerce import to_node
 from .._core.flags import flag_aliases
 from ..decorators.undo import undo_chunk
 
@@ -25,8 +24,9 @@ def mirrorJoint(joint, **kwargs):
 
     オプションの既定値もMayaに従う。全作成を一回のUndoで戻せる。
     """
+    from hlib.nodes.node import Node as _InputNode
     from ..nodes.joint import Joint, Joints
-    source = to_node(joint)
+    source = _InputNode._resolve_input(joint)
     if not isinstance(source, Joint):
         raise TypeError("mirrorJoint requires a Joint")
     names = cmds.mirrorJoint(source.full_name(), **kwargs) or []

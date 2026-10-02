@@ -16,6 +16,35 @@ class InternalRefactoringTest(unittest.TestCase):
         cmds.undoInfo(state=True)
         cmds.currentUnit(linear="cm", angle="deg", time="film")
 
+    def test_class_operations_do_not_call_command_entries(self):
+        """公開コマンドを差し替えてもクラスの追加・予約操作を実行できる。"""
+        import importlib
+        import maya.utils
+        from hlib.events import Deferred
+        add_module = importlib.import_module("hlib.cmds.addAttr")
+        deferred_module = importlib.import_module("hlib.cmds.executeDeferred")
+        node = hlib.createNode("transform")
+        with patch.object(add_module, "addAttr", side_effect=AssertionError("reverse dependency")):
+            plug = node.add_attribute("referenceCheck", attribute_type="double", default_value=3)
+        self.assertEqual(plug.get(), 3)
+        cmds.undo()
+        self.assertFalse(cmds.attributeQuery("referenceCheck", node=node.full_name(), exists=True))
+        callback = lambda: None
+        with patch.object(deferred_module, "executeDeferred", side_effect=AssertionError("reverse dependency")), \
+                patch.object(maya.utils, "executeDeferred") as enqueue:
+            Deferred.call(callback, 3, value=4)
+            enqueue.assert_called_once_with(callback, 3, value=4)
+
+    def test_general_input_expansion_does_not_reenter_node_resolution(self):
+        """一度きりの反復入力とPlug列を、Nodesの解決入口へ戻らず名前にする。"""
+        from hlib.nodes.node import Nodes
+        node = hlib.createNode("transform")
+        plug = node.plug("tx")
+        with patch.object(Nodes, "_resolve_inputs", side_effect=AssertionError("input cycle")):
+            self.assertEqual(hlib.Object._input_names(x for x in [[plug]]), [plug.full_name()])
+            with self.assertRaises(TypeError):
+                hlib.Object._input_names([node, node.full_name()])
+
     def test_snapshot_base_kind_and_serialized_shape(self):
         """基底Snapshotのkindによる適用と既存JSON構造を維持する。"""
         from hlib.json.snapshots import Snapshot
@@ -115,6 +144,50 @@ class InternalRefactoringTest(unittest.TestCase):
             node.plug("tx").set(9, fast=True)
             self.assertEqual(node.plug("tx").get(), 9)
             self.assertIs(hlib.getNode, hlib.cmds.getNode)
+
+    def test_calculation_validation_before_target_resolution(self):
+        """不正入力で接続先解決や更新を開始しない。"""
+        node = hlib.createNode("addDoubleLinear")
+        node.set_input(1, 5)
+        with patch.object(type(node), "input_plug", side_effect=AssertionError("target resolved")):
+            with self.assertRaises(ValueError):
+                node.set_input(1, float("nan"))
+            with self.assertRaises(TypeError):
+                node.connect_input(1, object())
+        self.assertEqual(node.get_input(1), 5)
+
+    def test_calculation_shared_edit_modes(self):
+        """共通化後も戻り値・Undo・fast・接続元の入力形式を維持する。"""
+        node = hlib.createNode("addDoubleLinear")
+        source = hlib.createNode("addDoubleLinear")
+        node.set_input(1, 2)
+        self.assertIs(node.set_input(1, 7), node)
+        cmds.undo()
+        self.assertEqual(node.get_input(1), 2)
+        cmds.redo()
+        self.assertEqual(node.get_input(1), 7)
+        cmds.flushUndo()
+        self.assertIs(node.set_input(1, 9, fast=True), node)
+        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
+        self.assertEqual(node.get_input(1), 9)
+        for value in (source.output_plug(), source.output_plug().full_name(), source.output_plug().mplug()):
+            self.assertIs(node.connect_input(1, value), node)
+            self.assertTrue(source.output_plug().is_connected_to(node.input_plug(1)))
+            cmds.undo()
+            self.assertFalse(source.output_plug().is_connected_to(node.input_plug(1)))
+
+    def test_deferred_entrypoints_share_validation(self):
+        """どちらの入口も同じ引数で一度だけMayaへ予約する。"""
+        import maya.utils
+        from hlib.events import Deferred
+        callback = lambda value: value
+        for entry in (hlib.executeDeferred, Deferred.call):
+            with patch.object(maya.utils, "executeDeferred") as enqueue:
+                self.assertIsNone(entry(callback, 1, flag=True))
+                enqueue.assert_called_once_with(callback, 1, flag=True)
+                with self.assertRaises(TypeError):
+                    entry("print('not callable')")
+                self.assertEqual(enqueue.call_count, 1)
 
 
 if __name__ == "__main__":

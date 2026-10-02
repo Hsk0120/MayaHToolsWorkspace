@@ -13,10 +13,10 @@ class CommandResult:
         Returns:
             Node | Plug: 改名に追従する参照。
         """
-        from .._core.coerce import to_plug
+        from hlib.plugs.plug import Plug as _InputPlug
         from ..nodes.node import Node
 
-        return to_plug(name) if "." in name else Node(name)
+        return _InputPlug._resolve_input(name) if "." in name else Node(name)
 
     @classmethod
     def references(cls, names):
@@ -39,10 +39,10 @@ class CommandResult:
         Returns:
             dict: 変換済みコピー。
         """
-        from .._core.coerce import to_node_name
+        from hlib.nodes.node import Node as _InputNode
 
         result = dict(kwargs)
         for key in keys:
             if key in result:
-                result[key] = to_node_name(result[key])
+                result[key] = _InputNode._input_name(result[key])
         return result

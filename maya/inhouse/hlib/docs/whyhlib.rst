@@ -49,9 +49,9 @@ hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
    * - ``maths``
      - Matrix・Quaternion・Vector・EulerRotation
      - シーンから取得した値の計算。計算だけではシーンを変更しない
-   * - ``general``
-     - Scene・Selection・Color・Viewport
-     - シーン・選択・色・UIなど、ノードやアトリビュート以外のMaya共通概念
+   * - ``scene`` / ``ui`` / ``environment`` / ``events``
+     - Scene・Selection・Color・Viewport・Preferences・ScriptJob
+     - シーン、表示、作業環境、通知を用途別に扱う
    * - ``cmds``
      - getNode・createNode・lsなどの関数
      - 対象の取得・作成の入口。通常は ``hlib.getNode()`` のように呼ぶ

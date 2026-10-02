@@ -29,7 +29,7 @@ class Preferences:
 
 
     @staticmethod
-    @undo_chunk("hlib.general.Preferences.set_linear_unit")
+    @undo_chunk("hlib.environment.Preferences.set_linear_unit")
     def set_linear_unit(unit):
         """距離 UI 単位を変更する。
 
@@ -63,7 +63,7 @@ class Preferences:
 
 
     @staticmethod
-    @undo_chunk("hlib.general.Preferences.set_angle_unit")
+    @undo_chunk("hlib.environment.Preferences.set_angle_unit")
     def set_angle_unit(unit):
         """角度 UI 単位を変更する。
 
@@ -96,7 +96,7 @@ class Preferences:
 
 
     @staticmethod
-    @undo_chunk("hlib.general.Preferences.set_time_unit")
+    @undo_chunk("hlib.environment.Preferences.set_time_unit")
     def set_time_unit(unit):
         """時間 UI 単位を変更する。
 

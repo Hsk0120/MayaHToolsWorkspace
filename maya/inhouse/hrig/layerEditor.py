@@ -3,7 +3,9 @@
 from functools import partial
 
 import hlib
-from hlib.general import MainWindow, NodeEditor, GraphEditor
+from hlib.ui import MainWindow
+from hlib.ui import NodeEditor
+from hlib.ui import GraphEditor
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
@@ -76,8 +78,8 @@ class LayerEditor(QtWidgets.QDialog):
         self._busy = False
         self._pending = False
         self._closed = False
-        self._jobs = hlib.general.ScriptJobs()
-        self._attributes = hlib.general.ScriptJobs()
+        self._jobs = hlib.events.ScriptJobs()
+        self._attributes = hlib.events.ScriptJobs()
         self.setStyleSheet("""
             QDialog { background:#24262c; color:#e3e5ed; }
             QLabel { color:#d5d8e2; } QGroupBox { color:#aeb5c8; border:1px solid #424650;

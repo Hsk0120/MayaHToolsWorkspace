@@ -4,7 +4,7 @@
 ``Window`` は通常ウィンドウ、``WorkspaceControl`` はドッキングUIの容器、
 ``WorkspaceLayout`` は画面全体のワークスペースを扱います。
 プロジェクトのフォルダーを扱う既存 ``Workspace`` とは別です。
-すべて ``hlib.general`` にあり、参照を作るだけではUIを作成・移動・保存しません。
+すべて ``hlib.ui`` にあり、参照を作るだけではUIを作成・移動・保存しません。
 対象はMaya標準コマンドへ登録されたUIです。任意のQtウィジェットは対象外です。
 
 画面全体の保存と切り替え
@@ -13,7 +13,7 @@
 .. code-block:: python
 
    import hlib
-   from hlib.general import WorkspaceLayout
+   from hlib.ui import WorkspaceLayout
 
    layout = hlib.getWorkspaceLayout()  # 現在の配置への参照
    print([item.name() for item in WorkspaceLayout.list()])
@@ -41,7 +41,7 @@
 
 .. code-block:: python
 
-   from hlib.general import MainWindow, Window
+   from hlib.ui import MainWindow, Window
 
    window = hlib.getWindow(MainWindow.name())
    print(window.get_size())             # (width, height)
@@ -59,7 +59,7 @@ UIの所有者はMayaであり、このAPIはメインウィンドウの削除�
 
 .. code-block:: python
 
-   from hlib.general import WorkspaceControl
+   from hlib.ui import WorkspaceControl
 
    controls = WorkspaceControl.list()
    # 実在する名前を選んで取得する

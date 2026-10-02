@@ -1,6 +1,5 @@
 """行列の使用成分を選択する。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
@@ -40,8 +39,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = Matrix(value)
-        self.input_plug().set(value)
+        _Calculation.set_value(value, Matrix, self.input_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -57,7 +55,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.input_plug(), force=force)
+        _Calculation.connect(source, self.input_plug, force=force)
         return self
 
     def use_translate_plug(self):
@@ -88,8 +86,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.boolean(value)
-        self.use_translate_plug().set(value)
+        _Calculation.set_value(value, _Calculation.boolean, self.use_translate_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -105,7 +102,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.use_translate_plug(), force=force)
+        _Calculation.connect(source, self.use_translate_plug, force=force)
         return self
 
     def use_rotate_plug(self):
@@ -136,8 +133,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.boolean(value)
-        self.use_rotate_plug().set(value)
+        _Calculation.set_value(value, _Calculation.boolean, self.use_rotate_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -153,7 +149,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.use_rotate_plug(), force=force)
+        _Calculation.connect(source, self.use_rotate_plug, force=force)
         return self
 
     def use_scale_plug(self):
@@ -184,8 +180,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.boolean(value)
-        self.use_scale_plug().set(value)
+        _Calculation.set_value(value, _Calculation.boolean, self.use_scale_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -201,7 +196,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.use_scale_plug(), force=force)
+        _Calculation.connect(source, self.use_scale_plug, force=force)
         return self
 
     def use_shear_plug(self):
@@ -232,8 +227,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.boolean(value)
-        self.use_shear_plug().set(value)
+        _Calculation.set_value(value, _Calculation.boolean, self.use_shear_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -249,7 +243,7 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.use_shear_plug(), force=force)
+        _Calculation.connect(source, self.use_shear_plug, force=force)
         return self
 
     def output_plug(self):

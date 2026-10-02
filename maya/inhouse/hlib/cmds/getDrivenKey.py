@@ -19,6 +19,6 @@ def getDrivenKey(driver, driven):
     Returns:
         DrivenKey: 未作成の関係も保持できる。set_keyでキーを作成する。
     """
-    from hlib.general.drivenKey import DrivenKey
+    from hlib.scene.drivenKey import DrivenKey
 
     return DrivenKey(driver, driven)

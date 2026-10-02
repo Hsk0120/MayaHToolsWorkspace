@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib._core.collection import BulkCollection, bulk_api
+from hlib._core.collection import bulk_api
 from hlib._core.flags import flag_aliases
 
 
@@ -24,8 +24,15 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         """同じ引数でも異なる実関数は全件検証し、差替えにも追従する。"""
         calls = []
 
-        class Item:
+        class Item(hlib.nodes.Node):
             """テスト用の単数型。"""
+            def __new__(cls):
+                """転送検証用の参照を、Maya照会なしで作る。"""
+                return object.__new__(cls)
+
+            def __init__(self):
+                """テスト用のためMayaノードを保持しない。"""
+
             def edit(self, value):
                 """呼出順を記録する。"""
                 calls.append(value)
@@ -39,7 +46,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 return self
 
         @bulk_api(Item, undo=False, writes=("edit",))
-        class Items(BulkCollection):
+        class Items(hlib.nodes.Nodes):
             """引数検証用のコレクション。"""
             def __init__(self, items):
                 """参照を保持する。"""

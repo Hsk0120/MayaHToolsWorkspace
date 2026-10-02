@@ -50,19 +50,23 @@ class DrivenKeyTest(unittest.TestCase):
         self.assertEqual(len(one.curves()), 1)
         self.assertEqual(len(two.curves()), 1)
         self.assertNotEqual(one.curves()[0].full_name(), two.curves()[0].full_name())
-        found = hlib.general.DrivenKeys.find(self.b + ".ty")
+        found = hlib.scene.DrivenKey.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
         cmds.setAttr(self.a + ".tx", 5)
         cmds.setAttr(self.c + ".tx", 5)
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 15)
-        found.set_key(10, 30)
+        self.assertIsInstance(found, list)
+        from hlib.decorators.undo import undo_chunk
+        with undo_chunk("testDrivenKeys"):
+            for relation in found:
+                relation.set_key(10, 30)
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 30)
         cmds.undo()
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 15)
         cmds.redo()
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 30)
         self.assertEqual(len(found[:1]), 1)
-        self.assertEqual(len(found.driver_plug()), 2)
+        self.assertEqual(len([relation.driver_plug() for relation in found]), 2)
 
     def test_existing_maya_keys_and_weight_branch(self):
         cmds.setDrivenKeyframe(self.b + ".ty", currentDriver=self.a + ".tx", driverValue=0, value=0)
@@ -70,9 +74,9 @@ class DrivenKeyTest(unittest.TestCase):
         blend = cmds.listConnections(self.b + ".ty", source=True, destination=False,
                                      type="blendWeighted", skipConversionNodes=True)[0]
         cmds.setDrivenKeyframe(blend + ".weight[0]", currentDriver=self.a + ".tz", driverValue=0, value=1)
-        found = hlib.general.DrivenKeys.find(self.b + ".ty")
+        found = hlib.scene.DrivenKey.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
-        self.assertEqual({p.full_name() for p in found.driver_plug()},
+        self.assertEqual({p.full_name() for p in [relation.driver_plug() for relation in found]},
                          {hlib.getNode(self.a).plug("tx").full_name(), hlib.getNode(self.c).plug("tx").full_name()})
         relation = hlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
         self.assertEqual(len(relation.curves()), 1)
@@ -100,7 +104,7 @@ class DrivenKeyTest(unittest.TestCase):
             relation.set_key(0, 0)
         self.assertTrue(cmds.isConnected(self.c + ".ty", self.b + ".ty"))
         self.assertFalse(relation.exists())
-        self.assertEqual(len(hlib.general.DrivenKeys.find(self.b + ".ty")), 0)
+        self.assertEqual(len(hlib.scene.DrivenKey.find(self.b + ".ty")), 0)
         cmds.delete(self.a)
         with self.assertRaises(RuntimeError):
             relation.set_key(0, 0)
@@ -129,7 +133,7 @@ class DrivenKeyTest(unittest.TestCase):
         same = hlib.getDrivenKey(hlib.getNode(first_shape).plug("drv"), self.c + ".tx")
         self.assertEqual([curve.full_name() for curve in same.curves()],
                          [curve.full_name() for curve in relation.curves()])
-        found = hlib.general.DrivenKeys.find(self.c + ".tx")
+        found = hlib.scene.DrivenKey.find(self.c + ".tx")
         self.assertEqual(len(found), 1)
         cmds.setAttr(first_shape + ".drv", 1)
         self.assertAlmostEqual(cmds.getAttr(self.c + ".tx"), 10.0)
@@ -148,9 +152,9 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.setKeyframe(curve, float=1.0, value=1.0)
         cmds.connectAttr(choice + ".output", curve + ".input")
         cmds.connectAttr(curve + ".output", self.b + ".tz")
-        self.assertEqual(len(hlib.general.DrivenKeys.find(self.b + ".tz")), 0)
-        self.assertEqual(len(hlib.general.DrivenKeys.find(self.b + ".ty")), 1)
-        self.assertEqual(len(hlib.general.DrivenKeys.find(hlib.getNode(self.b).plug("ty").mplug())), 1)
+        self.assertEqual(len(hlib.scene.DrivenKey.find(self.b + ".tz")), 0)
+        self.assertEqual(len(hlib.scene.DrivenKey.find(self.b + ".ty")), 1)
+        self.assertEqual(len(hlib.scene.DrivenKey.find(hlib.getNode(self.b).plug("ty").mplug())), 1)
 
 
 if __name__ == "__main__":

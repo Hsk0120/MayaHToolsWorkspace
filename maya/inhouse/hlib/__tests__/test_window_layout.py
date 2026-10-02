@@ -5,9 +5,12 @@ import unittest
 from unittest.mock import patch
 from contextlib import ExitStack
 import maya.cmds as cmds
-from hlib.general import Window, WorkspaceControl, WorkspaceLayout, UiSnapshot
-from hlib.general._windowReference import _WindowReference
-from hlib.general._uiLifetime import _UiLifetime
+from hlib.ui import Window
+from hlib.ui import WorkspaceControl
+from hlib.ui import WorkspaceLayout
+from hlib.ui import UiSnapshot
+from hlib.ui._windowReference import _WindowReference
+from hlib.ui._uiLifetime import _UiLifetime
 from maya.api import OpenMayaUI
 import weakref
 
@@ -33,7 +36,7 @@ class WindowApiTest(unittest.TestCase):
         self.control = self.stack.enter_context(patch.object(cmds, "workspaceControl", create=True, return_value=True))
         self.manager = self.stack.enter_context(patch.object(cmds, "workspaceLayoutManager", create=True))
         self.manager.side_effect = lambda **kw: ["Main", "Other"] if kw.get("listLayouts") else "Main"
-        self.mel = self.stack.enter_context(patch("hlib.general.workspaceLayout.mel.eval"))
+        self.mel = self.stack.enter_context(patch("hlib.ui.workspaceLayout.mel.eval"))
 
     def test_batch_rejected(self):
         """batchではUI参照を生成しない。"""
@@ -144,7 +147,7 @@ class WindowApiTest(unittest.TestCase):
             return name == "floating" if flags.get("floating") else True
         self.control.side_effect = control
         self.window.side_effect = lambda name, **flags: "docking" if flags.get("dockingLayout") else True
-        with patch.object(cmds, "lsUI", return_value=["docked", "floating"]), patch("hlib.general.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=False):
+        with patch.object(cmds, "lsUI", return_value=["docked", "floating"]), patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=False):
             layout = WorkspaceLayout()
             snapshot = layout.capture_docking_layout()
             self.assertEqual(snapshot.scope, "dockingLayout")
@@ -166,7 +169,7 @@ class WindowApiTest(unittest.TestCase):
                 raise RuntimeError("restore failed")
             return True
         self.window.side_effect = window
-        with patch("hlib.general.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=True), patch.object(WorkspaceLayout, "set_locked") as lock:
+        with patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=True), patch.object(WorkspaceLayout, "set_locked") as lock:
             with self.assertRaisesRegex(RuntimeError, "restore failed"):
                 layout.restore_docking_layout(snapshot)
             self.assertEqual([call[0] for call in lock.call_args_list], [(False,), (True,)])

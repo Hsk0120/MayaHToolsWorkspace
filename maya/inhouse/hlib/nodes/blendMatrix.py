@@ -1,6 +1,5 @@
 """論理番号順に行列をブレンドする。加重平均ではない。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
@@ -40,8 +39,7 @@ class BlendMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = Matrix(value)
-        self.input_plug().set(value)
+        _Calculation.set_value(value, Matrix, self.input_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -57,7 +55,7 @@ class BlendMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.input_plug(), force=force)
+        _Calculation.connect(source, self.input_plug, force=force)
         return self
 
     def envelope_plug(self):
@@ -88,8 +86,7 @@ class BlendMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.scalar(value)
-        self.envelope_plug().set(value)
+        _Calculation.set_value(value, _Calculation.scalar, self.envelope_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -105,7 +102,7 @@ class BlendMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.envelope_plug(), force=force)
+        _Calculation.connect(source, self.envelope_plug, force=force)
         return self
 
     def target_indices(self):
@@ -161,8 +158,9 @@ class BlendMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
+        from hlib.plugs.plug import Plug as _InputPlug
         index = _Calculation.index(index)
-        source, weight = to_plug(source), _Calculation.scalar(weight)
+        source, weight = _InputPlug._resolve_input(source), _Calculation.scalar(weight)
         target = self.plug("target").element(index, create=True)
         source.connect(target.child("targetMatrix"), force=force)
         target.child("weight").set(weight)

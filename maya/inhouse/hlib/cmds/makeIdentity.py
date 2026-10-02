@@ -2,7 +2,6 @@
 
 from maya import cmds
 from .._core.flags import flag_aliases
-from .._core.coerce import to_names
 from ..decorators.undo import undo_chunk
 
 
@@ -24,9 +23,10 @@ def makeIdentity(*args, **kwargs):
 
 
     """
+    from hlib.object import Object as _InputObject
     from ..nodes.node import Node
 
-    names = to_names(args)
+    names = _InputObject._input_names(args)
     if not names:
         names = cmds.ls(selection=True, long=True) or []
     if not names:

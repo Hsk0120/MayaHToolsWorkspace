@@ -1,6 +1,5 @@
 """移動・回転・スケール・シアーから行列を構築する。"""
 from .._core.registry import node_wrapper
-from .._core.coerce import to_plug
 from ..decorators.undo import undo_chunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
@@ -40,8 +39,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.translate_plug().set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.translate_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -57,7 +55,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.translate_plug(), force=force)
+        _Calculation.connect(source, self.translate_plug, force=force)
         return self
 
     def rotate_plug(self):
@@ -88,8 +86,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.rotate_plug().set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.rotate_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -105,7 +102,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.rotate_plug(), force=force)
+        _Calculation.connect(source, self.rotate_plug, force=force)
         return self
 
     def scale_plug(self):
@@ -136,8 +133,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.scale_plug().set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.scale_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -153,7 +149,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.scale_plug(), force=force)
+        _Calculation.connect(source, self.scale_plug, force=force)
         return self
 
     def shear_plug(self):
@@ -184,8 +180,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value)
-        self.shear_plug().set(value)
+        _Calculation.set_value(value, _Calculation.vector, self.shear_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -201,7 +196,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.shear_plug(), force=force)
+        _Calculation.connect(source, self.shear_plug, force=force)
         return self
 
     def quaternion_plug(self):
@@ -249,7 +244,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.quaternion_plug(), force=force)
+        _Calculation.connect(source, self.quaternion_plug, force=force)
         return self
 
     def use_euler_rotation_plug(self):
@@ -280,8 +275,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.boolean(value)
-        self.use_euler_rotation_plug().set(value)
+        _Calculation.set_value(value, _Calculation.boolean, self.use_euler_rotation_plug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
@@ -297,7 +291,7 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        to_plug(source).connect(self.use_euler_rotation_plug(), force=force)
+        _Calculation.connect(source, self.use_euler_rotation_plug, force=force)
         return self
 
     def get_rotate_order(self):

@@ -22,6 +22,8 @@ def run():
 import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
+import maya.standalone
+maya.standalone.initialize(name="python")
 import hlib
 from importlib import reload
 from hlib._core import bootstrap
@@ -85,10 +87,11 @@ assert hlib.cmds.reload() == 'command'
 assert hlib.reload is not hlib.cmds.reload
 hlib.reload()
 print("PASS: existing commands, addition, modification, removal, missing function, exclusions, root exports")
+maya.standalone.uninitialize()
 '''
         script_path = Path(directory) / "verify.py"
         script_path.write_text(script, encoding="utf-8")
-        subprocess.run([sys.executable, str(script_path), directory], check=True)
+        subprocess.run([sys.executable, str(script_path), directory], check=True, timeout=120)
 
 
 if __name__ == "__main__":

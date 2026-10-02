@@ -2,6 +2,7 @@
 import importlib
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 
@@ -9,6 +10,29 @@ import hlib
 
 
 class ExtensionsTest(unittest.TestCase):
+    def test_bifrost_first_import_in_fresh_process(self):
+        """先行importを軽い宣言だけで完了し、後から正常に検出する。"""
+        script = '''
+import sys
+import hlib_bifrost
+assert "hlib" not in sys.modules
+import maya.standalone
+maya.standalone.initialize(name="python")
+import hlib
+state = hlib.extensions.status()["hlib_bifrost"]["state"]
+assert state in ("loaded", "unavailable"), state
+assert hlib_bifrost.nodes.Graph is not None
+old = hlib_bifrost
+hlib.reload()
+import hlib_bifrost
+assert hlib_bifrost is not old
+maya.standalone.uninitialize()
+'''
+        result = subprocess.run([sys.executable, '-c', script],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                timeout=120)
+        self.assertEqual(result.returncode, 0, result.stdout.decode(errors='replace'))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='hlib_extensions_')
         self.path = Path(self.temp.name)
@@ -59,6 +83,87 @@ class ExtensionsTest(unittest.TestCase):
         states = hlib.extensions.status()
         self.assertEqual(states['hlib_fixture_unavailable']['state'], 'unavailable')
         self.assertEqual(states['hlib_fixture_unmarked']['state'], 'skipped')
+
+    def test_cross_extension_dependency_is_rejected_before_wrapper_import(self):
+        """他拡張の継承・関数内importは登録前に拒否する。"""
+        base = self.package('hlib_fixture_zbase', 'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
+        self.wrappers(base, 'nodes', 'from hlib.nodes import Node\nfrom hlib.extensions import node_wrapper\n@node_wrapper("fixtureBase")\nclass Base(Node): pass\n')
+        child = self.package('hlib_fixture_achild', 'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
+        self.wrappers(child, 'nodes', 'from hlib_fixture_zbase.nodes.sample import Base\nfrom hlib.extensions import node_wrapper\n@node_wrapper("fixtureChild")\nclass Child(Base): pass\n')
+        hlib.reload()
+        self.assertEqual(hlib.extensions.status()['hlib_fixture_achild']['state'], 'error')
+        self.assertNotIn('hlib_fixture_achild.nodes', sys.modules)
+        self.assertIsNone(hlib.nodes.Node._registry.lookup('fixtureChild'))
+        self.assertEqual(hlib.extensions.status()['hlib_fixture_zbase']['state'], 'loaded')
+
+    def test_failed_import_recovers_on_first_reload(self):
+        """親のimport失敗で孤立した子も更新し、探索パスから外した場合も解除する。"""
+        name = 'hlib_fixture_recovery'
+        path = self.package(name, 'from . import config\nraise RuntimeError("broken initialization")\n')
+        (path / 'config.py').write_text('VALUE = 1\n', encoding='utf-8')
+        hlib.reload()
+        self.assertEqual(hlib.extensions.status()[name]['state'], 'error')
+        self.assertNotIn(name, sys.modules)
+        self.assertIn(name + '.config', sys.modules)
+        (path / 'config.py').write_text('VALUE = 22222\n', encoding='utf-8')
+        (path / '__init__.py').write_text(
+            'from . import config\nHLIB_EXTENSION_API = 1\n'
+            'def is_available(): return config.VALUE == 22222\n', encoding='utf-8')
+        hlib.reload()
+        self.assertEqual(hlib.extensions.status()[name]['state'], 'loaded')
+        self.assertEqual(sys.modules[name + '.config'].VALUE, 22222)
+        # 再び失敗させ、親がない状態で探索パスからも削除する。
+        (path / '__init__.py').write_text('from . import config\nraise RuntimeError("again")\n', encoding='utf-8')
+        hlib.reload()
+        sys.path.remove(self.temp.name)
+        try:
+            hlib.reload()
+            self.assertNotIn(name + '.config', sys.modules)
+        finally:
+            sys.path.insert(0, self.temp.name)
+
+    def test_unavailable_extension_does_not_parse_implementation(self):
+        """利用不可なら現Pythonで読めない実装を解析せず、利用可能時は検証する。"""
+        name = 'hlib_fixture_optional'
+        path = self.package(name, 'HLIB_EXTENSION_API = 1\ndef is_available(): return False\n')
+        # バージョンに依存せず、解析されると必ず失敗する構文で検証する。
+        (path / 'implementation.py').write_text('def invalid(\n', encoding='utf-8')
+        hlib.reload()
+        self.assertEqual(hlib.extensions.status()[name]['state'], 'unavailable')
+        self.assertNotIn(name + '.implementation', sys.modules)
+        (path / '__init__.py').write_text(
+            'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n', encoding='utf-8')
+        hlib.reload()
+        self.assertEqual(hlib.extensions.status()[name]['state'], 'error')
+
+    def test_reload_removes_all_extensions_before_reimport(self):
+        """名前順で後の拡張も最初の再import前に解除し、SDKは保持する。"""
+        import types
+        self.package('hlib_fixture_zlast', 'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
+        first = self.package('hlib_fixture_afirst', 'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
+        hlib.reload()
+        sdk = types.ModuleType('fixture_external_sdk')
+        sys.modules[sdk.__name__] = sdk
+        try:
+            (first / '__init__.py').write_text(
+                'import sys\nassert "hlib_fixture_zlast" not in sys.modules\n'
+                'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n', encoding='utf-8')
+            hlib.reload()
+            self.assertEqual(hlib.extensions.status()['hlib_fixture_afirst']['state'], 'loaded')
+            self.assertIs(sys.modules[sdk.__name__], sdk)
+        finally:
+            sys.modules.pop(sdk.__name__, None)
+
+    def test_reentrant_reload_preserves_modules(self):
+        """初期化中のreload要求は、一部だけ解除せず拒否する。"""
+        from unittest import mock
+        self.package('hlib_fixture_reentry', 'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
+        hlib.reload()
+        module = sys.modules['hlib_fixture_reentry']
+        with mock.patch.object(hlib.extensions, '_loading', True):
+            with self.assertRaises(RuntimeError):
+                hlib.reload()
+        self.assertIs(sys.modules['hlib_fixture_reentry'], module)
 
     def test_collision_is_atomic_and_errors_visible(self):
         path = self.package('hlib_fixture_conflict', 'HLIB_EXTENSION_API = 1\ndef is_available(): return True\n')

@@ -11,7 +11,7 @@ import hlib
 hlib.reload()
 from hlib.nodes import Node
 from hlib.nodes.reference import Reference
-from hlib.general import Namespace
+from hlib.scene import Namespace
 from hlib.utils.references import create_reference, list_references
 
 
