@@ -70,9 +70,9 @@ Examples
     selected = hlib.ls(selection=True)
 """
 
-from .._core.flags import flag_aliases
-
 import maya.cmds as cmds
+
+from .._core.flags import flag_aliases
 
 
 @flag_aliases("ls")

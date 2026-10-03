@@ -66,8 +66,8 @@ Examples
 """
 
 from .._core.flags import flag_aliases
-
 from ..decorators.undo import undoChunk
+
 
 @flag_aliases("createNode")
 @undoChunk("hlib.cmds.createNode.createNode")

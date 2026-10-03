@@ -1,9 +1,9 @@
 """Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）と同一シェイプの要素群。"""
 
-from ..object import Object
-
 import math
 import operator
+
+from ..object import Object
 
 
 class Component(Object):
@@ -16,6 +16,73 @@ class Component(Object):
     shape_type = None
     component_type = None
     count_attribute = None
+
+    def __init__(self, shape, index):
+        """シェイプと実際のコンポーネント番号を保持する。
+
+        Args:
+            shape (Shape): 対応する Mesh または NurbsCurve ラッパー。
+            index (int): ゼロ始まりの番号。負の番号は不可。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: シェイプ型または番号の型が不正な場合。
+            IndexError: 番号が範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        self._shape = shape
+        if isinstance(index, bool):
+            raise TypeError("Component index must be an integer, not bool")
+        self._index = operator.index(index)
+        self._validate()
+
+    def __eq__(self, other):
+        """同じシェイプのインスタンス・種類・番号を指すか比較する。"""
+        if not isinstance(other, Component):
+            return NotImplemented
+        return (self._shape == other._shape and self.component_type == other.component_type
+                and self._index == other._index)
+
+    def __hash__(self):
+        """保持シェイプ・種類・番号のハッシュを返す。位置の更新では変化しない。"""
+        return hash((self._shape, self.component_type, self._index))
+
+    def __str__(self):
+        """コンポーネント名を返す。
+
+        Returns:
+            str: 現在の完全パス付きコンポーネント名。
+        """
+        return self.fullName()
+
+    @property
+    def shape(self):
+        """所有シェイプを取得する。
+
+        Returns:
+            Shape: 保持しているラッパー。
+        """
+        return self._shape
+
+    @property
+    def index(self):
+        """コンポーネントの実番号を取得する。
+
+        Returns:
+            int: ゼロ始まりの番号。
+        """
+        return self._index
+
+    def fullName(self):
+        """現在の DAG パスを使ってコンポーネント名を取得する。
+
+        Returns:
+            str: シェイプの完全パスとコンポーネントの種類・番号を含む名前。
+        """
+        self._validate()
+        return f"{self._shape.fullName()}.{self.component_type}[{self._index}]"
 
     @staticmethod
     def _from_api(path, component):
@@ -90,56 +157,6 @@ class Component(Object):
             raise ValueError("Expected one component; use Selection for ranges")
         return items[0]
 
-    def __init__(self, shape, index):
-        """シェイプと実際のコンポーネント番号を保持する。
-
-        Args:
-            shape (Shape): 対応する Mesh または NurbsCurve ラッパー。
-            index (int): ゼロ始まりの番号。負の番号は不可。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            TypeError: シェイプ型または番号の型が不正な場合。
-            IndexError: 番号が範囲外の場合。
-            RuntimeError: シェイプが無効な場合。
-        """
-        self._shape = shape
-        if isinstance(index, bool):
-            raise TypeError("Component index must be an integer, not bool")
-        self._index = operator.index(index)
-        self._validate()
-
-    def __hash__(self):
-        """保持シェイプ・種類・番号のハッシュを返す。位置の更新では変化しない。"""
-        return hash((self._shape, self.component_type, self._index))
-
-    def __eq__(self, other):
-        """同じシェイプのインスタンス・種類・番号を指すか比較する。"""
-        if not isinstance(other, Component):
-            return NotImplemented
-        return (self._shape == other._shape and self.component_type == other.component_type
-                and self._index == other._index)
-
-    @property
-    def shape(self):
-        """所有シェイプを取得する。
-
-        Returns:
-            Shape: 保持しているラッパー。
-        """
-        return self._shape
-
-    @property
-    def index(self):
-        """コンポーネントの実番号を取得する。
-
-        Returns:
-            int: ゼロ始まりの番号。
-        """
-        return self._index
-
     def _get_coordinate(self, axis, **space):
         """指定軸の現在座標を返す。axisは派生クラスが検証済みの整数。"""
         return self.getPosition(**space)[axis]
@@ -169,24 +186,6 @@ class Component(Object):
             raise TypeError(f"Expected a {self.shape_type} shape")
         if not 0 <= self._index < getattr(self._shape, self.count_attribute)():
             raise IndexError(f"Component index out of range: {self._index}")
-
-    def fullName(self):
-        """現在の DAG パスを使ってコンポーネント名を取得する。
-
-        Returns:
-            str: シェイプの完全パスとコンポーネントの種類・番号を含む名前。
-        """
-        self._validate()
-        return f"{self._shape.fullName()}.{self.component_type}[{self._index}]"
-
-    def __str__(self):
-        """コンポーネント名を返す。
-
-        Returns:
-            str: 現在の完全パス付きコンポーネント名。
-        """
-        return self.fullName()
-
 
     @staticmethod
     def _finite_coordinates(value, size):
@@ -244,6 +243,39 @@ class Components:
         selected = range(getattr(shape, self.component_class.count_attribute)()) if indices is None else indices
         self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
 
+    def __len__(self):
+        """保持要素数を取得する。
+
+        Returns:
+            int: コレクションの要素数。
+        """
+        return len(self._indices)
+
+    def __iter__(self):
+        """保持順に単体ラッパーを返す。
+
+        Yields:
+            Component: 現在のシェイプと番号を参照するラッパー。
+        """
+        for index in self._indices:
+            yield self.component_class(self._shape, index)
+
+    def __getitem__(self, index):
+        """コレクション内の位置で要素を取得する。
+
+        Args:
+            index (int | slice): 実番号ではなく保持列内の位置。負の添字にも対応する。
+
+        Returns:
+            Component | Components: 単体、または同じ型の部分コレクション。
+
+        Raises:
+            IndexError: 添字が範囲外の場合。
+        """
+        if isinstance(index, slice):
+            return type(self)(self._shape, self._indices[index])
+        return self.component_class(self._shape, self._indices[index])
+
     @property
     def shape(self):
         """所有シェイプを取得する。
@@ -261,46 +293,6 @@ class Components:
             tuple[int, ...]: 順序を維持した重複なしの番号列。
         """
         return self._indices
-
-    def __len__(self):
-        """保持要素数を取得する。
-
-        Returns:
-            int: コレクションの要素数。
-        """
-        return len(self._indices)
-
-    def _name_prefix(self):
-        """全番号をまとめて再検証し、``<シェイプの完全パス>.<種類>`` を返す。
-
-        Returns:
-            str: ``|cube|cubeShape.vtx`` のような接頭辞。
-
-        Raises:
-            TypeError: 対応しないシェイプ型の場合。
-            IndexError: いずれかの番号が現在の要素数の範囲外の場合。
-            RuntimeError: シェイプが無効な場合。
-        """
-        self._validate()
-        return f"{self._shape.fullName()}.{self.component_class.component_type}"
-
-    def _validate(self):
-        """シェイプと保持番号を一括検証し、名前や単数ラッパーは生成しない。
-
-        Raises:
-            TypeError: シェイプ型が異なる場合。
-            IndexError: トポロジー変更により番号が範囲外になった場合。
-            RuntimeError: シェイプが無効な場合。
-        """
-        component_class = self.component_class
-        if not self._shape.isValid():
-            raise RuntimeError("Component shape is invalid")
-        if self._shape.type() != component_class.shape_type:
-            raise TypeError(f"Expected a {component_class.shape_type} shape")
-        if self._indices:
-            largest = max(self._indices)
-            if largest >= getattr(self._shape, component_class.count_attribute)():
-                raise IndexError(f"Component index out of range: {largest}")
 
     def fullNames(self):
         """保持順の完全コンポーネント名を取得する。
@@ -346,6 +338,38 @@ class Components:
         if start is not None:
             names.append(self._range_name(prefix, start, previous))
         return names
+
+    def _name_prefix(self):
+        """全番号をまとめて再検証し、``<シェイプの完全パス>.<種類>`` を返す。
+
+        Returns:
+            str: ``|cube|cubeShape.vtx`` のような接頭辞。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: いずれかの番号が現在の要素数の範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        self._validate()
+        return f"{self._shape.fullName()}.{self.component_class.component_type}"
+
+    def _validate(self):
+        """シェイプと保持番号を一括検証し、名前や単数ラッパーは生成しない。
+
+        Raises:
+            TypeError: シェイプ型が異なる場合。
+            IndexError: トポロジー変更により番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        component_class = self.component_class
+        if not self._shape.isValid():
+            raise RuntimeError("Component shape is invalid")
+        if self._shape.type() != component_class.shape_type:
+            raise TypeError(f"Expected a {component_class.shape_type} shape")
+        if self._indices:
+            largest = max(self._indices)
+            if largest >= getattr(self._shape, component_class.count_attribute)():
+                raise IndexError(f"Component index out of range: {largest}")
 
     @staticmethod
     def _range_name(prefix, start, end):
@@ -409,28 +433,3 @@ class Components:
         for row, item in zip(rows, values):
             row[axis] = item
         return rows
-
-    def __iter__(self):
-        """保持順に単体ラッパーを返す。
-
-        Yields:
-            Component: 現在のシェイプと番号を参照するラッパー。
-        """
-        for index in self._indices:
-            yield self.component_class(self._shape, index)
-
-    def __getitem__(self, index):
-        """コレクション内の位置で要素を取得する。
-
-        Args:
-            index (int | slice): 実番号ではなく保持列内の位置。負の添字にも対応する。
-
-        Returns:
-            Component | Components: 単体、または同じ型の部分コレクション。
-
-        Raises:
-            IndexError: 添字が範囲外の場合。
-        """
-        if isinstance(index, slice):
-            return type(self)(self._shape, self._indices[index])
-        return self.component_class(self._shape, self._indices[index])

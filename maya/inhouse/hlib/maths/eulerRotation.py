@@ -198,24 +198,308 @@ class EulerRotation(om2.MEulerRotation):
         self.z = z
         self.order = index
 
-    @classmethod
-    def _wrap(cls, value):
-        """om2 の値を複製した cls のインスタンスを返す。
-
-        Python の ``__new__`` / ``__init__`` を通さず(利用者の派生クラスの ``__init__`` も
-        呼ばない)、基底の ``__init__`` で C++ の実体を確保する。
+    def __getitem__(self, index):
+        """回転成分を取得する。
 
         Args:
-            value (om2.MEulerRotation | om2.MQuaternion | om2.MMatrix): 複製元。
-                ``setValue`` が受け付ける値。MEulerRotation なら順序も写す。
+            index (int | slice): -3〜2 の添字(X、Y、Z の順)、またはスライス。
 
         Returns:
-            EulerRotation: cls の新しいインスタンス。
+            float | tuple[float, ...]: 指定成分(ラジアン)。スライスでは成分の tuple。
+
+        Raises:
+            IndexError: 添字が範囲外の場合。
+            TypeError: 添字が整数・スライス以外の場合。
         """
-        result = _NEW(cls)
-        _INIT(result)
-        result.setValue(value)
+        if index.__class__ is int and -3 <= index < 3:
+            return _GET(self, index)
+        if isinstance(index, slice):
+            return (self.x, self.y, self.z)[index]
+        return _GET(self, _checked_index(index, 3, "EulerRotation"))
+
+    def __setitem__(self, index, value):
+        """回転成分を設定する。
+
+        Args:
+            index (int): -3〜2 の添字。
+            value (float): 設定する値(ラジアン)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            IndexError: 添字が範囲外の場合。
+            TypeError: 添字が整数以外の場合。
+        """
+        if index.__class__ is not int or not -3 <= index < 3:
+            index = _checked_index(index, 3, "EulerRotation")
+        _SET(self, index, value)
+
+    def __iter__(self):
+        """X、Y、Z の順に回転成分を反復する。
+
+        Returns:
+            Iterator[float]: 3成分(ラジアン)のイテレータ。
+        """
+        return iter((self.x, self.y, self.z))
+
+    def __reduce__(self):
+        """copy / pickle 用に、コンストラクタを通さずに再構築する情報を返す。
+
+        Returns:
+            tuple: ``(_rebuild, (type(self), (x, y, z, order))[, state])``。
+            利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
+            アトリビュートは再構築時に復元する。
+        """
+        return _reduce_value(self, (self.x, self.y, self.z, self.order))
+
+    def __reduce_ex__(self, protocol):
+        """pickle のプロトコルにかかわらず __reduce__ と同じ情報を返す。
+
+        Args:
+            protocol (int): pickle のプロトコル番号。使用しない。
+
+        Returns:
+            tuple: ``__reduce__()`` の結果。
+        """
+        return self.__reduce__()
+
+    def __copy__(self):
+        """同じ型・同じ成分と順序の複製を返す。
+
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
+
+        Returns:
+            EulerRotation: 自身と同じクラスの新しいインスタンス。
+        """
+        return _copy_state(self, type(self)._wrap(self))
+
+    def __deepcopy__(self, memo):
+        """同じ型・同じ成分と順序の複製を返す。
+
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
+
+        Args:
+            memo (dict): copy.deepcopy の memo。
+
+        Returns:
+            EulerRotation: 自身と同じクラスの新しいインスタンス。
+        """
+        return _copy_state(self, type(self)._wrap(self), memo)
+
+    def __repr__(self):
+        """度数法の回転成分と回転順序名を含むデバッグ表現を返す。
+
+        Returns:
+            str: ``EulerRotation(degrees=(90, 0, -45), order='xyz')`` の形式の文字列。
+            内部値はラジアンのまま。
+        """
+        values = ", ".join("{:.15g}".format(value) for value in self.asDegrees())
+        return "{}(degrees=({}), order={!r})".format(type(self).__name__, values, self.orderName)
+
+    __str__ = __repr__
+
+    def __eq__(self, other):
+        """MEulerRotation 系との比較を om2 と同じ規則(順序を含む完全一致)で行う。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: MEulerRotation 系なら om2 の比較結果。
+            その他の om2 の型は False。それ以外の型は NotImplemented(相手の比較に委ね、
+            どちらも判断しなければ False になる)。
+        """
+        if isinstance(other, _MEuler):
+            return _MEuler.__eq__(self, other)
+        return _foreign_comparison(other, False)
+
+    def __ne__(self, other):
+        """``__eq__`` の否定を返す。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: MEulerRotation 系なら om2 の比較結果。
+            その他の om2 の型は True。それ以外の型は NotImplemented。
+        """
+        if isinstance(other, _MEuler):
+            return _MEuler.__ne__(self, other)
+        return _foreign_comparison(other, True)
+
+    def __add__(self, other):
+        """om2 の ``+`` の結果を EulerRotation で返す。
+
+        Args:
+            other (object): MEulerRotation 系。順序が違えば自身の順序へ変換して加算する。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 和。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MEuler):
+            return NotImplemented
+        return EulerRotation._wrap(_MEuler.__add__(self, other))
+
+    def __radd__(self, other):
+        """左辺の MEulerRotation 系との和を返す。
+
+        Args:
+            other (object): MEulerRotation 系。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 和。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MEuler):
+            return NotImplemented
+        return EulerRotation._wrap(_MEuler.__add__(other, self))
+
+    def __iadd__(self, other):
+        """MEulerRotation 系を自身へ加算する。
+
+        Args:
+            other (object): MEulerRotation 系。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MEuler):
+            return NotImplemented
+        return _MEuler.__iadd__(self, other)
+
+    def __sub__(self, other):
+        """om2 の ``-`` の結果を EulerRotation で返す。
+
+        Args:
+            other (object): MEulerRotation 系。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 差。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MEuler):
+            return NotImplemented
+        return EulerRotation._wrap(_MEuler.__sub__(self, other))
+
+    def __rsub__(self, other):
+        """左辺の MEulerRotation 系から自身を引いた値を返す。
+
+        Args:
+            other (object): MEulerRotation 系。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 差。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MEuler):
+            return NotImplemented
+        return EulerRotation._wrap(_MEuler.__sub__(other, self))
+
+    def __isub__(self, other):
+        """MEulerRotation 系を自身から減算する。
+
+        Args:
+            other (object): MEulerRotation 系。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MEuler):
+            return NotImplemented
+        return _MEuler.__isub__(self, other)
+
+    def __mul__(self, other):
+        """om2 の ``*`` の結果を EulerRotation で返す。
+
+        Args:
+            other (object): 数値(成分のスケール)、または MEulerRotation 系 /
+                MQuaternion 系(自身を先に適用する回転の合成)。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 結果。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, (int, float, _MEuler, _MQuaternion)):
+            return NotImplemented
+        return EulerRotation._wrap(_MEuler.__mul__(self, other))
+
+    def __rmul__(self, other):
+        """左辺からの乗算を om2 の意味論で行う。
+
+        Args:
+            other (object): 数値、または左辺の MEulerRotation 系。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 結果。対応しない型は NotImplemented。
+        """
+        if isinstance(other, _NUMBER):
+            return EulerRotation._wrap(_MEuler.__mul__(self, other))
+        if isinstance(other, _MEuler):
+            return EulerRotation._wrap(_MEuler.__mul__(other, self))
+        return NotImplemented
+
+    def __imul__(self, other):
+        """数値倍、または回転の合成を自身へ適用する。
+
+        Args:
+            other (object): 数値、MEulerRotation 系、または MQuaternion 系。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, (int, float, _MEuler, _MQuaternion)):
+            return NotImplemented
+        return _MEuler.__imul__(self, other)
+
+    def __truediv__(self, other):
+        """数値による成分ごとの除算を返す(om2 には無い hlib の拡張)。
+
+        順序は保持し、各成分を other で割る。
+
+        Args:
+            other (object): 除数の int または float。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 新しい回転値。対応しない型は NotImplemented。
+
+        Raises:
+            ZeroDivisionError: other が 0 の場合。
+        """
+        if not isinstance(other, _NUMBER):
+            return NotImplemented
+        if other == 0:
+            raise ZeroDivisionError("EulerRotation division by zero")
+        result = EulerRotation._wrap(self)
+        result.x = self.x / other
+        result.y = self.y / other
+        result.z = self.z / other
         return result
+
+    def __itruediv__(self, other):
+        """数値で自身の各成分を除算する(hlib の拡張。順序は変えない)。
+
+        Args:
+            other (object): 除数の int または float。
+
+        Returns:
+            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+
+        Raises:
+            ZeroDivisionError: other が 0 の場合。
+        """
+        if not isinstance(other, _NUMBER):
+            return NotImplemented
+        if other == 0:
+            raise ZeroDivisionError("EulerRotation division by zero")
+        self.x = self.x / other
+        self.y = self.y / other
+        self.z = self.z / other
+        return self
+
+    def __neg__(self):
+        """om2 の単項 ``-`` (逆回転の成分)を EulerRotation で返す。
+
+        Returns:
+            EulerRotation: 新しい回転値。
+        """
+        return EulerRotation._wrap(_MEuler.__neg__(self))
 
     @classmethod
     def fromIterable(cls, values, order="xyz"):
@@ -254,7 +538,6 @@ class EulerRotation(om2.MEulerRotation):
         """
         return cls(math.radians(x), math.radians(y), math.radians(z), order)
 
-    # ------------------------------------------------------------------ 値
     @property
     def orderName(self):
         """回転順序の名前(``"xyz"`` など)を取得または設定する。
@@ -353,311 +636,24 @@ class EulerRotation(om2.MEulerRotation):
             other = EulerRotation(other)
         return _MEuler.isEquivalent(self, other, tolerance)
 
-    # ------------------------------------------------------------------ 添字・反復
-    def __getitem__(self, index):
-        """回転成分を取得する。
+    @classmethod
+    def _wrap(cls, value):
+        """om2 の値を複製した cls のインスタンスを返す。
+
+        Python の ``__new__`` / ``__init__`` を通さず(利用者の派生クラスの ``__init__`` も
+        呼ばない)、基底の ``__init__`` で C++ の実体を確保する。
 
         Args:
-            index (int | slice): -3〜2 の添字(X、Y、Z の順)、またはスライス。
+            value (om2.MEulerRotation | om2.MQuaternion | om2.MMatrix): 複製元。
+                ``setValue`` が受け付ける値。MEulerRotation なら順序も写す。
 
         Returns:
-            float | tuple[float, ...]: 指定成分(ラジアン)。スライスでは成分の tuple。
-
-        Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数・スライス以外の場合。
+            EulerRotation: cls の新しいインスタンス。
         """
-        if index.__class__ is int and -3 <= index < 3:
-            return _GET(self, index)
-        if isinstance(index, slice):
-            return (self.x, self.y, self.z)[index]
-        return _GET(self, _checked_index(index, 3, "EulerRotation"))
-
-    def __setitem__(self, index, value):
-        """回転成分を設定する。
-
-        Args:
-            index (int): -3〜2 の添字。
-            value (float): 設定する値(ラジアン)。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数以外の場合。
-        """
-        if index.__class__ is not int or not -3 <= index < 3:
-            index = _checked_index(index, 3, "EulerRotation")
-        _SET(self, index, value)
-
-    def __iter__(self):
-        """X、Y、Z の順に回転成分を反復する。
-
-        Returns:
-            Iterator[float]: 3成分(ラジアン)のイテレータ。
-        """
-        return iter((self.x, self.y, self.z))
-
-    # ------------------------------------------------------------------ 複製・表示・比較
-    def __reduce__(self):
-        """copy / pickle 用に、コンストラクタを通さずに再構築する情報を返す。
-
-        Returns:
-            tuple: ``(_rebuild, (type(self), (x, y, z, order))[, state])``。
-            利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
-            アトリビュートは再構築時に復元する。
-        """
-        return _reduce_value(self, (self.x, self.y, self.z, self.order))
-
-    def __reduce_ex__(self, protocol):
-        """pickle のプロトコルにかかわらず __reduce__ と同じ情報を返す。
-
-        Args:
-            protocol (int): pickle のプロトコル番号。使用しない。
-
-        Returns:
-            tuple: ``__reduce__()`` の結果。
-        """
-        return self.__reduce__()
-
-    def __copy__(self):
-        """同じ型・同じ成分と順序の複製を返す。
-
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
-
-        Returns:
-            EulerRotation: 自身と同じクラスの新しいインスタンス。
-        """
-        return _copy_state(self, type(self)._wrap(self))
-
-    def __deepcopy__(self, memo):
-        """同じ型・同じ成分と順序の複製を返す。
-
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
-
-        Args:
-            memo (dict): copy.deepcopy の memo。
-
-        Returns:
-            EulerRotation: 自身と同じクラスの新しいインスタンス。
-        """
-        return _copy_state(self, type(self)._wrap(self), memo)
-
-    def __repr__(self):
-        """度数法の回転成分と回転順序名を含むデバッグ表現を返す。
-
-        Returns:
-            str: ``EulerRotation(degrees=(90, 0, -45), order='xyz')`` の形式の文字列。
-            内部値はラジアンのまま。
-        """
-        values = ", ".join("{:.15g}".format(value) for value in self.asDegrees())
-        return "{}(degrees=({}), order={!r})".format(type(self).__name__, values, self.orderName)
-
-    __str__ = __repr__
-
-    def __eq__(self, other):
-        """MEulerRotation 系との比較を om2 と同じ規則(順序を含む完全一致)で行う。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: MEulerRotation 系なら om2 の比較結果。
-            その他の om2 の型は False。それ以外の型は NotImplemented(相手の比較に委ね、
-            どちらも判断しなければ False になる)。
-        """
-        if isinstance(other, _MEuler):
-            return _MEuler.__eq__(self, other)
-        return _foreign_comparison(other, False)
-
-    def __ne__(self, other):
-        """``__eq__`` の否定を返す。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: MEulerRotation 系なら om2 の比較結果。
-            その他の om2 の型は True。それ以外の型は NotImplemented。
-        """
-        if isinstance(other, _MEuler):
-            return _MEuler.__ne__(self, other)
-        return _foreign_comparison(other, True)
-
-    # ------------------------------------------------------------------ 演算
-    def __add__(self, other):
-        """om2 の ``+`` の結果を EulerRotation で返す。
-
-        Args:
-            other (object): MEulerRotation 系。順序が違えば自身の順序へ変換して加算する。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 和。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MEuler):
-            return NotImplemented
-        return EulerRotation._wrap(_MEuler.__add__(self, other))
-
-    def __radd__(self, other):
-        """左辺の MEulerRotation 系との和を返す。
-
-        Args:
-            other (object): MEulerRotation 系。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 和。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MEuler):
-            return NotImplemented
-        return EulerRotation._wrap(_MEuler.__add__(other, self))
-
-    def __sub__(self, other):
-        """om2 の ``-`` の結果を EulerRotation で返す。
-
-        Args:
-            other (object): MEulerRotation 系。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 差。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MEuler):
-            return NotImplemented
-        return EulerRotation._wrap(_MEuler.__sub__(self, other))
-
-    def __rsub__(self, other):
-        """左辺の MEulerRotation 系から自身を引いた値を返す。
-
-        Args:
-            other (object): MEulerRotation 系。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 差。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MEuler):
-            return NotImplemented
-        return EulerRotation._wrap(_MEuler.__sub__(other, self))
-
-    def __mul__(self, other):
-        """om2 の ``*`` の結果を EulerRotation で返す。
-
-        Args:
-            other (object): 数値(成分のスケール)、または MEulerRotation 系 /
-                MQuaternion 系(自身を先に適用する回転の合成)。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 結果。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, (int, float, _MEuler, _MQuaternion)):
-            return NotImplemented
-        return EulerRotation._wrap(_MEuler.__mul__(self, other))
-
-    def __rmul__(self, other):
-        """左辺からの乗算を om2 の意味論で行う。
-
-        Args:
-            other (object): 数値、または左辺の MEulerRotation 系。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 結果。対応しない型は NotImplemented。
-        """
-        if isinstance(other, _NUMBER):
-            return EulerRotation._wrap(_MEuler.__mul__(self, other))
-        if isinstance(other, _MEuler):
-            return EulerRotation._wrap(_MEuler.__mul__(other, self))
-        return NotImplemented
-
-    def __truediv__(self, other):
-        """数値による成分ごとの除算を返す(om2 には無い hlib の拡張)。
-
-        順序は保持し、各成分を other で割る。
-
-        Args:
-            other (object): 除数の int または float。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 新しい回転値。対応しない型は NotImplemented。
-
-        Raises:
-            ZeroDivisionError: other が 0 の場合。
-        """
-        if not isinstance(other, _NUMBER):
-            return NotImplemented
-        if other == 0:
-            raise ZeroDivisionError("EulerRotation division by zero")
-        result = EulerRotation._wrap(self)
-        result.x = self.x / other
-        result.y = self.y / other
-        result.z = self.z / other
+        result = _NEW(cls)
+        _INIT(result)
+        result.setValue(value)
         return result
-
-    def __neg__(self):
-        """om2 の単項 ``-`` (逆回転の成分)を EulerRotation で返す。
-
-        Returns:
-            EulerRotation: 新しい回転値。
-        """
-        return EulerRotation._wrap(_MEuler.__neg__(self))
-
-    def __iadd__(self, other):
-        """MEulerRotation 系を自身へ加算する。
-
-        Args:
-            other (object): MEulerRotation 系。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MEuler):
-            return NotImplemented
-        return _MEuler.__iadd__(self, other)
-
-    def __isub__(self, other):
-        """MEulerRotation 系を自身から減算する。
-
-        Args:
-            other (object): MEulerRotation 系。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MEuler):
-            return NotImplemented
-        return _MEuler.__isub__(self, other)
-
-    def __imul__(self, other):
-        """数値倍、または回転の合成を自身へ適用する。
-
-        Args:
-            other (object): 数値、MEulerRotation 系、または MQuaternion 系。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, (int, float, _MEuler, _MQuaternion)):
-            return NotImplemented
-        return _MEuler.__imul__(self, other)
-
-    def __itruediv__(self, other):
-        """数値で自身の各成分を除算する(hlib の拡張。順序は変えない)。
-
-        Args:
-            other (object): 除数の int または float。
-
-        Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-
-        Raises:
-            ZeroDivisionError: other が 0 の場合。
-        """
-        if not isinstance(other, _NUMBER):
-            return NotImplemented
-        if other == 0:
-            raise ZeroDivisionError("EulerRotation division by zero")
-        self.x = self.x / other
-        self.y = self.y / other
-        self.z = self.z / other
-        return self
 
 
 # reload時にも廃止した公開名を残さない。

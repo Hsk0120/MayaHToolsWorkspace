@@ -1,6 +1,7 @@
 """アトリビュート値または状態を照会する。"""
 
-from maya import cmds
+import maya.cmds as cmds
+
 from .._core.flags import flag_aliases
 
 

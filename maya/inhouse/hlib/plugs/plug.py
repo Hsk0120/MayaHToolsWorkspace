@@ -1,18 +1,29 @@
 """Maya API 2.0 の MPlug をアトリビュートラッパーとして扱う。"""
 
-from ..object import Object
+import re
 
-from ..decorators._fast import fast_edit, is_fast
+import maya.api.OpenMaya as om2
+import maya.cmds as cmds
+
 from .._core.attributeType import attributeType, is_internal_data_type, value_reader
-from .._core.unitValue import convert
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import set_plug
-
-import maya.cmds as cmds
-import maya.api.OpenMaya as om2
-
+from .._core.unitValue import convert
+from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
+from ..object import Object
 
+#: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理インデックスの並び。
+_PLUG_PATH_TOKEN = re.compile(r"(\w+)((?:\[\d+\])*)\Z")
+
+#: 区切り内の論理インデックス(``[2]`` の ``2``)。
+_PLUG_PATH_INDEX = re.compile(r"\[(\d+)\]")
+
+#: 配列要素の論理インデックスの上限(``MPlug.logicalIndex()`` が返す符号付き 32 ビット整数の最大値)。
+#: ``MPlug.elementByLogicalIndex()`` はこれを超える番号を黙って別の番号へ変換する
+#: (``2147483648``〜``4294967295`` は負の番号、``4294967296`` は ``0``)ため、アトリビュートパスでは
+#: 範囲外として扱う。
+MAX_LOGICAL_INDEX = 2147483647
 
 #: cmds.setAttr へ値をそのまま(型名付きで、長さ指定なし)渡せば済むスカラー配列型。
 _SCALAR_ARRAY_TYPES = frozenset(("doubleArray", "floatArray", "Int32Array", "Int64Array"))
@@ -22,6 +33,15 @@ _LENGTH_PREFIXED_ARRAY_TYPES = frozenset((
     "stringArray", "vectorArray", "floatVectorArray", "pointArray", "matrixArray",
     "componentList",
 ))
+
+#: ``MFnDependencyNode.attributeClass()`` が、ノードに無いアトリビュート(削除済みの動的アトリビュートなど)に返す値。
+_INVALID_ATTRIBUTE = om2.MFnDependencyNode.kInvalidAttr
+
+#: ``MFnDependencyNode.attributeClass()`` が、ノード型に組み込みの(静的な)アトリビュートに返す値。
+_NORMAL_ATTRIBUTE = om2.MFnDependencyNode.kNormalAttr
+
+#: 値によって型が変わるアトリビュートの接続元を辿る最大の段数(循環する接続の保護)。
+_MAX_SOURCE_DEPTH = 16
 
 
 def _instance_count(array):
@@ -40,13 +60,6 @@ def _instance_count(array):
     if not node.hasFn(om2.MFn.kDagNode) or not om2.MFnAttribute(array.attribute()).worldSpace:
         return 0
     return om2.MFnDagNode(node).instanceCount(True)
-
-
-#: ``MFnDependencyNode.attributeClass()`` が、ノードに無いアトリビュート(削除済みの動的アトリビュートなど)に返す値。
-_INVALID_ATTRIBUTE = om2.MFnDependencyNode.kInvalidAttr
-
-#: ``MFnDependencyNode.attributeClass()`` が、ノード型に組み込みの(静的な)アトリビュートに返す値。
-_NORMAL_ATTRIBUTE = om2.MFnDependencyNode.kNormalAttr
 
 
 def _attribute_class(node, attribute_handle, attribute):
@@ -71,10 +84,6 @@ def _attribute_class(node, attribute_handle, attribute):
     if not attribute_handle.isValid():
         return _INVALID_ATTRIBUTE
     return node._dependency_fn().attributeClass(attribute)
-
-
-#: 値によって型が変わるアトリビュートの接続元を辿る最大の段数(循環する接続の保護)。
-_MAX_SOURCE_DEPTH = 16
 
 
 def _held_matrix_type(mplug, depth=0):
@@ -166,24 +175,6 @@ def _plug_exists(mplug):
             return True
 
 
-import re
-
-import maya.api.OpenMaya as om2
-
-#: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理インデックスの並び。
-_PLUG_PATH_TOKEN = re.compile(r"(\w+)((?:\[\d+\])*)\Z")
-
-#: 区切り内の論理インデックス(``[2]`` の ``2``)。
-_PLUG_PATH_INDEX = re.compile(r"\[(\d+)\]")
-
-#: 配列要素の論理インデックスの上限(``MPlug.logicalIndex()`` が返す符号付き 32 ビット整数の最大値)。
-#: ``MPlug.elementByLogicalIndex()`` はこれを超える番号を黙って別の番号へ変換する
-#: (``2147483648``〜``4294967295`` は負の番号、``4294967296`` は ``0``)ため、アトリビュートパスでは
-#: 範囲外として扱う。
-MAX_LOGICAL_INDEX = 2147483647
-
-
-
 class DeletedAttributeError(ValueError, RuntimeError):
     """``deleteAttr`` で削除されたアトリビュートの Plug・MPlug を、ノードが必要な引数に渡した場合の例外。
 
@@ -217,314 +208,6 @@ class Plug(Object):
     値の取得・設定、アトリビュートの情報・接続の問い合わせ、要素・子・親の取得は RuntimeError に
     なる(削除済みの MPlug を Maya へ渡すと異常終了する場合があるため)。
     Undo でノード・アトリビュートが戻れば再び有効になる。"""
-
-    @staticmethod
-    def _plug_path(mplug):
-        """ノード名を除いた、maya.cmds で解決できるアトリビュートパスを返す。
-
-        ロング名と、必要な配列インデックス(``worldMatrix[0]``、``pnts[2].pntx`` 等)・
-        インスタンス番号を含み、エイリアスがあればエイリアス名を使う
-        (``MPlug.name()`` のアトリビュート部分と同じ表記)。
-
-        Args:
-            mplug (om2.MPlug): 対象のプラグ。
-
-        Returns:
-            str: ``translateX`` や ``worldMatrix[0]`` のようなアトリビュートパス。
-        """
-        # 名前付き引数より位置引数の方が呼び出しが速いため、位置で渡す。順に
-        # includeNodeName, includeNonMandatoryIndices, includeInstancedIndices,
-        # useAlias, useFullAttributePath, useLongNames。
-        return mplug.partialName(False, True, True, True, False, True)
-
-    @staticmethod
-    def _mplug_attribute_exists(mplug, node=None):
-        """MPlug のアトリビュートが所有ノードに存在するか判定する(所有ノードは有効であること)。
-
-        ``deleteAttr`` で削除された動的アトリビュートの MPlug は、Undo のためにアトリビュートの MObject が保持された
-        ままの場合があり ``MObjectHandle.isValid()`` だけでは判定できないため、所有ノードの
-        ``MFnDependencyNode.attributeClass()`` で確かめる(ノードに無いアトリビュートは ``kInvalidAttr``)。
-
-        Args:
-            mplug (om2.MPlug): 判定するプラグ。
-            node (om2.MObject | None): 所有ノード。分かっている場合に指定する。
-
-        Returns:
-            bool: アトリビュートが存在する場合は True。
-        """
-        attribute = mplug.attribute()
-        if attribute.isNull() or not om2.MObjectHandle(attribute).isValid():
-            return False
-        if node is None:
-            node = mplug.node()
-        kind = om2.MFnDependencyNode(node).attributeClass(attribute)
-        return kind != om2.MFnDependencyNode.kInvalidAttr
-
-    @staticmethod
-    def _mplug_name(mplug):
-        """MPlug を ``Plug.fullName()`` と同じ形式の一意なプラグ名へ変換する。
-
-        所有ノードが Undo の対象から外れて削除された(``flushUndo`` 後・Undo 無効・シーンの
-        切り替え)MPlug は、``MPlug.node()`` の時点で Maya が異常終了し、API では検出できない。
-        MPlug を削除操作をまたいで保持せず、hlib の Plug を保持すること(:doc:`/cmds_interop`)。
-
-        Args:
-            mplug (om2.MPlug): 変換対象。
-
-        Returns:
-            str: ``<ノードの最短一意名>.<アトリビュートパス>``。
-
-        Raises:
-            ValueError: 空の MPlug、所有ノードが削除済み、またはアトリビュートが削除済み(``deleteAttr``)の場合。
-        """
-        from ..nodes.node import Node as _InputNode
-        if mplug.isNull:
-            raise ValueError("空の MPlug は指定できません")
-        node = mplug.node()
-        if not om2.MObjectHandle(node).isValid():
-            raise ValueError("削除済みノードの MPlug は指定できません")
-        if not Plug._mplug_attribute_exists(mplug, node):
-            raise ValueError("削除済みのアトリビュートの MPlug は指定できません")
-        return _InputNode._unique_node_name(node) + "." + Plug._plug_path(mplug)
-
-    @staticmethod
-    def _deleted_attribute_error(plug):
-        """所有ノードが有効なままアトリビュートが削除された Plug の例外を返す(該当しなければ None)。
-
-        Args:
-            plug (Plug): 判定する hlib の Plug。
-
-        Returns:
-            DeletedAttributeError | None: アトリビュートが ``deleteAttr`` で削除済みなら送出する例外。
-                所有ノードが削除済みの場合(無効な所有ノードとして扱う)と、有効な Plug は None。
-        """
-        if plug.node.isValid() and not plug.isValid():
-            return DeletedAttributeError("削除済みのアトリビュートの Plug からノードは解決できません")
-        return None
-
-    @staticmethod
-    def _find_plug(mobject, name):
-        """ノードのアトリビュート名(ロング名・ショート名・エイリアス)から MPlug を求める。
-
-        ``MFnDependencyNode.findPlug()`` はエイリアスを解決しないため、見つからない場合は
-        エイリアスの一覧(``bs.smile`` → ``weight[0]`` など)からアトリビュートパスを求めて解決する。
-
-        Args:
-            mobject (om2.MObject): 所有ノード。
-            name (str): アトリビュート名。
-
-        Returns:
-            om2.MPlug | None: プラグ。アトリビュートが無い場合は None。
-        """
-        fn = om2.MFnDependencyNode(mobject)
-        try:
-            return fn.findPlug(name, False)
-        except RuntimeError:
-            pass
-        for alias, attribute_path in fn.getAliasList():
-            if alias == name:
-                return Plug._attribute_path_plug(mobject, attribute_path)
-        return None
-
-    @staticmethod
-    def _has_out_of_range_index(attribute_path):
-        """アトリビュートパスが :data:`MAX_LOGICAL_INDEX` を超える配列インデックスを含むか判定する。
-
-        Args:
-            attribute_path (str): ノード名を含まないアトリビュートパス(``input1D[4294967296]`` など)。
-
-        Returns:
-            bool: 範囲外のインデックスを含む場合は True。
-        """
-        return any(int(index) > MAX_LOGICAL_INDEX for index in _PLUG_PATH_INDEX.findall(attribute_path))
-
-    @staticmethod
-    def _has_unresolved_index(mplug):
-        """論理インデックスが未確定(-1)の配列要素を経由するプラグか判定する。
-
-        ``findPlug("input3Dx")`` のように配列複合アトリビュートの子を要素を指定せずに取得すると
-        ``input3D[-1].input3Dx`` のようなプラグになり、maya.cmds では解決できない。
-
-        Args:
-            mplug (om2.MPlug): 判定するプラグ。
-
-        Returns:
-            bool: 未確定のインデックスを含む場合は True。
-        """
-        current = mplug
-        while True:
-            if current.isElement:
-                if current.logicalIndex() < 0:
-                    return True
-                current = current.array()
-            elif current.isChild:
-                current = current.parent()
-            else:
-                return False
-
-    @staticmethod
-    def _attribute_path_plug(mobject, attribute_path, first=None):
-        """ノードとアトリビュートパス(``input1D[3]``、``pnts[2].pntx`` など)から MPlug を求める。
-
-        ``.`` で区切った各区切りのアトリビュート名(ロング名・ショート名。先頭はエイリアスも可)と
-        ``[i]`` の論理インデックスを順に辿る。存在しない配列要素もプラグとして返し、
-        要素は作らない(シーンを変更しない)。
-
-        Args:
-            mobject (om2.MObject): 所有ノード。
-            attribute_path (str): ノード名を含まないアトリビュートパス。
-            first (om2.MPlug | None): 先頭の区切りのアトリビュート名に対応するプラグが既に分かっている
-                場合に指定する(transform からシェイプへ伸ばして探した場合など)。
-
-        Returns:
-            om2.MPlug | None: プラグ。アトリビュートとして解決できない場合(存在しないアトリビュート、範囲指定、
-                配列でないアトリビュートへのインデックス、:data:`MAX_LOGICAL_INDEX` を超えるインデックス、
-                配列要素の番号を指定しない子アトリビュートなど)は None。
-        """
-        mplug = None
-        for token in attribute_path.split("."):
-            match = _PLUG_PATH_TOKEN.match(token)
-            if match is None:
-                return None
-            name, indices = match.groups()
-            if mplug is None:
-                mplug = first if first is not None else Plug._find_plug(mobject, name)
-                if mplug is None:
-                    return None
-            else:
-                if mplug.isArray or not mplug.isCompound:
-                    return None
-                for child_index in range(mplug.numChildren()):
-                    child = mplug.child(child_index)
-                    attribute = om2.MFnAttribute(child.attribute())
-                    if name in (attribute.name, attribute.shortName):
-                        mplug = child
-                        break
-                else:
-                    return None
-            for index in _PLUG_PATH_INDEX.findall(indices):
-                index = int(index)
-                if not mplug.isArray or index > MAX_LOGICAL_INDEX:
-                    # 範囲外の番号は elementByLogicalIndex() が別の番号へ変換してしまう
-                    # (input1D[4294967296] が input1D[0] を指す)ため、解決できない名前として扱う。
-                    return None
-                mplug = mplug.elementByLogicalIndex(index)
-        if mplug is None or Plug._has_unresolved_index(mplug):
-            # 子アトリビュート名だけを指定した場合などの未確定(-1)のインデックスは maya.cmds で解決できない。
-            return None
-        return mplug
-
-    @staticmethod
-    def _plug_from_path(text):
-        """``"node.attr[i].child"`` 形式の文字列を、ノード部分とアトリビュートパスを辿って MPlug へ解決する。
-
-        mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i]`` のように
-        コンポーネント名としても解釈されるアトリビュートは、MSelectionList が頂点・CV として登録し
-        プラグとして取り出せないため、Plug の入力解決ではこの関数で解決し直す(maya.cmds の
-        ``connectAttr``/``setAttr`` などと同じくアトリビュートとして扱う)。transform の名前で
-        シェイプのアトリビュートを指す場合(``pCube1.pnts[3]``)は、唯一のシェイプ(中間オブジェクトを
-        除く)へ伸ばして解決する。
-
-        Args:
-            text (str): アトリビュートを指す名前。
-
-        Returns:
-            tuple[om2.MObject | om2.MDagPath, om2.MPlug] | None: 所有ノード(DAG ノードは
-                名前が指すインスタンスの MDagPath)とプラグ。アトリビュートとして解決できない場合
-                (存在しないアトリビュート、範囲指定、配列でないアトリビュートへのインデックスなど)は None。
-        """
-        node_part, separator, attribute_path = text.partition(".")
-        if not separator or not attribute_path:
-            return None
-        owner = om2.MSelectionList()
-        try:
-            owner.add(node_part)
-        except RuntimeError:
-            return None
-        if owner.length() != 1:
-            return None
-        mobject = owner.getDependNode(0)
-        dagPath = owner.getDagPath(0) if mobject.hasFn(om2.MFn.kDagNode) else None
-        match = _PLUG_PATH_TOKEN.match(attribute_path.split(".", 1)[0])
-        if match is None:
-            return None
-        first = Plug._find_plug(mobject, match.group(1))
-        if first is None:
-            # transform の名前でシェイプのアトリビュートを指す場合は、唯一のシェイプで探す。
-            if dagPath is None or not mobject.hasFn(om2.MFn.kTransform):
-                return None
-            shape_path = om2.MDagPath(dagPath)
-            try:
-                shape_path.extendToShape()
-            except RuntimeError:
-                return None
-            mobject, dagPath = shape_path.node(), shape_path
-            first = Plug._find_plug(mobject, match.group(1))
-            if first is None:
-                return None
-        mplug = Plug._attribute_path_plug(mobject, attribute_path, first)
-        if mplug is None:
-            return None
-        return (dagPath if dagPath is not None else mobject), mplug
-
-    @staticmethod
-    def _resolve_input(value):
-        """対象を hlib の Plug インスタンスへ変換する。
-
-        文字列は ``str(plug)``・``plug.fullName()`` が返す形式(``grp1|dup.translateX``、
-        ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[2].pntx`` など)を含め、
-        maya.cmds と同じ規則で解決する。インスタンス化された DAG ノードのアトリビュートは、
-        名前が指すインスタンスのノードを所有ノードにする。コンポーネント名としても
-        解釈されるアトリビュート(mesh の ``pnts[i]``、nurbsCurve・lattice の ``controlPoints[i]`` など)は、
-        ``connectAttr`` などと同じくアトリビュートとして解決する。
-
-        Args:
-            value (Plug | om2.MPlug | str): Plug、MPlug、または ``"node.attribute"`` 形式のアトリビュート名。
-
-        Returns:
-            Plug: value が Plug ならそのまま(削除済みでも例外にしない。``Plug.isValid()`` で
-                確かめる)、それ以外はアトリビュート型に応じた Plug ラッパー。
-
-        Raises:
-            TypeError: 対応しない型、または文字列がアトリビュートを指していない場合。
-            ValueError: 空文字列、または空の MPlug の場合。
-            RuntimeError: 文字列を解決できない(存在しない、または複数の対象に一致する)場合。
-                MPlug の所有ノードが削除済み、またはアトリビュートが ``deleteAttr`` で削除済みの場合
-                (``Node(...)``・``Plug(...)`` の生成と同じ。Undo の対象から外れて削除された
-                ノードの MPlug は検出できず、Maya が異常終了する)。
-        """
-        from ..nodes.node import Node as _InputNode
-        from ..object import Object as _InputObject
-        node_class, plug_class, _, _ = _InputObject._classes()
-        if isinstance(value, plug_class):
-            return value
-        if isinstance(value, om2.MPlug):
-            if value.isNull:
-                raise ValueError("空の MPlug は指定できません")
-            return plug_class(node_class(value.node()), value)
-        if isinstance(value, str):
-            if not value:
-                raise ValueError("空でないアトリビュート名を指定してください")
-            selection = om2.MSelectionList()
-            try:
-                selection.add(value)
-            except RuntimeError as error:
-                raise RuntimeError(f"アトリビュートが見つかりません: {value}") from error
-            if selection.length() != 1:
-                raise RuntimeError(f"複数の対象に一致します。一意なアトリビュート名を指定してください: {value}")
-            try:
-                mplug = selection.getPlug(0)
-            except TypeError as error:
-                # pnts[i]・controlPoints[i] などは頂点・CV として登録されるため、アトリビュートパスを辿る。
-                resolved = Plug._plug_from_path(value)
-                if resolved is None:
-                    raise TypeError(f"アトリビュートを指す名前ではありません: {value}") from error
-                owner, mplug = resolved
-                return plug_class(node_class(owner), mplug)
-            mobject, dagPath = _InputNode._selection_owner(selection, 0, value)
-            return plug_class(node_class(dagPath if dagPath is not None else mobject), mplug)
-        raise TypeError(f"Plug、om2.MPlug、またはアトリビュート名を指定してください: {type(value).__name__}")
-
 
     _registry = None  #: initialize_plug_api() が構築後に注入する PlugRegistry。
     _reader = None  #: get() が値を読む関数。初回の get() でアトリビュート定義から選ぶ(value_reader)。
@@ -624,24 +307,6 @@ class Plug(Object):
                       and _attribute_class(node, self._attribute_handle, attribute) == _NORMAL_ATTRIBUTE)
         self._static_attribute = static
 
-    def _attribute_exists(self):
-        """アトリビュートが所有ノードに存在し続けているか判定する(所有ノードは有効であること)。
-
-        頻繁に呼ばれる :meth:`_require_valid`・:meth:`fullName` は、呼び出しの負荷を
-        避けるため同じ判定を直接書いている(変更する場合はそろえること)。
-
-        Returns:
-            bool: 静的アトリビュート、または削除されていない動的アトリビュートの場合は True。
-        """
-        if self._static_attribute:
-            return True
-        return (self._attribute_handle.isValid()
-                and self._node._dependency_fn().attributeClass(self._attribute) != _INVALID_ATTRIBUTE)
-
-    def __hash__(self):
-        """生成時の所有ノードとアトリビュートパスに基づく固定ハッシュを返す。"""
-        return self._identity_hash
-
     def __eq__(self, other):
         """生存中の同じアトリビュート参照を比較する。削除済みのAPIへ照会しない。"""
         if not isinstance(other, Plug):
@@ -650,6 +315,31 @@ class Plug(Object):
                 and self._attribute_handle.isAlive() and other._attribute_handle.isAlive()):
             return False
         return self._identity_path == other._identity_path and self._mplug == other._mplug
+
+    def __hash__(self):
+        """生成時の所有ノードとアトリビュートパスに基づく固定ハッシュを返す。"""
+        return self._identity_hash
+
+    def __repr__(self):
+        """デバッグ用に完全修飾プラグ名を含む表現を返す。
+
+        Returns:
+            str: Plug と完全修飾プラグ名を含む文字列表現。所有ノードが無効、またはアトリビュートが削除済みなら
+                ``<Plug invalid>``。
+        """
+        name = self.fullName()
+        if not name:
+            return "<Plug invalid>"
+        return f"Plug({name!r})"
+
+    @property
+    def node(self):
+        """この Plug を所有する hlib ノードを取得する。
+
+        Returns:
+            Node: 所有ノード。
+        """
+        return self._node
 
     def isValid(self):
         """所有ノードとアトリビュートの参照が有効か判定する。
@@ -663,33 +353,6 @@ class Plug(Object):
         handle = self._node._handle
         return handle is not None and handle.isValid() and self._attribute_exists()
 
-    def _require_valid(self):
-        """所有ノードとアトリビュートが有効か確かめる。
-
-        削除済みの動的アトリビュートの MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの
-        MPlug は古い値を返す(Undo の対象から外れた削除では問い合わせで異常終了する場合も
-        ある)ため、MPlug・アトリビュートを扱う前に必ず確かめる。静的アトリビュートはノードが有効な間は常に
-        存在するため、ノードの確認だけで済む。動的アトリビュートは所有ノードの
-        ``MFnDependencyNode.attributeClass()`` で存在を確かめる(:meth:`_attribute_exists`)。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
-        """
-        node = self._node
-        handle = node._handle
-        if handle is None or not handle.isValid():
-            raise RuntimeError("所有ノードが無効な(削除済みの)アトリビュートは扱えません")
-        if not self._static_attribute:
-            # _attribute_exists() と同じ判定。get()/set() のたびに呼ばれるため直接書く。
-            fn = node._fn_cache
-            if fn is None:
-                fn = node._dependency_fn()
-            if not self._attribute_handle.isValid() or fn.attributeClass(self._attribute) == _INVALID_ATTRIBUTE:
-                raise RuntimeError("削除済みのアトリビュートは扱えません")
-
     def mplug(self):
         """内部で保持する Maya API 2.0 MPlug を返す。
 
@@ -697,15 +360,6 @@ class Plug(Object):
             om2.MPlug: ラップ対象のプラグ。
         """
         return self._mplug
-
-    @property
-    def node(self):
-        """この Plug を所有する hlib ノードを取得する。
-
-        Returns:
-            Node: 所有ノード。
-        """
-        return self._node
 
     def name(self):
         """ノード名を含まない短いプラグ名を取得する。
@@ -878,30 +532,6 @@ class Plug(Object):
         """
         self._require_valid()
         return self._mplug.isKeyable
-
-
-    @staticmethod
-    def _validated_flags(locked=None, keyable=None, channelBox=None):
-        """状態値を全件検証し、Mayaのフラグ名へ変換する。
-
-        Args:
-            locked (bool | None): ロック状態。Noneは変更しない。
-            keyable (bool | None): キー可能状態。
-            channelBox (bool | None): Channel Box表示状態。
-
-        Returns:
-            dict: 指定されたMayaフラグだけを含む辞書。
-
-        Raises:
-            TypeError: boolまたはNone以外の状態がある場合。
-        """
-        flags = {}
-        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channelBox)):
-            if value is not None:
-                if not isinstance(value, bool):
-                    raise TypeError(f"{name} must be bool or None")
-                flags[name] = value
-        return flags
 
     @fast_edit
     @undoChunk("hlibPlugSetFlags")
@@ -1301,7 +931,6 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isLocked
 
-
     def isMuted(self):
         """アトリビュートがミュートされているか判定する。
 
@@ -1400,24 +1029,6 @@ class Plug(Object):
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
             return tuple(value[0])
         return value
-
-    def _require_writable(self):
-        """保持参照と複合型の全子の書込み可否を検証する。シーンは変更しない。
-
-        Raises:
-            RuntimeError: 無効な参照、ロック、入力接続、書込み禁止の場合。
-        """
-        from .._core.fastWrite import writable
-        self._require_valid()
-
-        def check(plug):
-            """複合型の子も確認する。配列要素は展開・作成しない。"""
-            writable(plug)
-            if plug.isCompound:
-                for index in range(plug.numChildren()):
-                    check(plug.child(index))
-
-        check(self._mplug)
 
     @fast_edit
     @undoChunk("hlibPlugSet")
@@ -1699,17 +1310,394 @@ class Plug(Object):
             cmds.disconnectAttr(self.fullName(), destination.fullName())
         return self
 
-    def __repr__(self):
-        """デバッグ用に完全修飾プラグ名を含む表現を返す。
+    @staticmethod
+    def _plug_path(mplug):
+        """ノード名を除いた、maya.cmds で解決できるアトリビュートパスを返す。
+
+        ロング名と、必要な配列インデックス(``worldMatrix[0]``、``pnts[2].pntx`` 等)・
+        インスタンス番号を含み、エイリアスがあればエイリアス名を使う
+        (``MPlug.name()`` のアトリビュート部分と同じ表記)。
+
+        Args:
+            mplug (om2.MPlug): 対象のプラグ。
 
         Returns:
-            str: Plug と完全修飾プラグ名を含む文字列表現。所有ノードが無効、またはアトリビュートが削除済みなら
-                ``<Plug invalid>``。
+            str: ``translateX`` や ``worldMatrix[0]`` のようなアトリビュートパス。
         """
-        name = self.fullName()
-        if not name:
-            return "<Plug invalid>"
-        return f"Plug({name!r})"
+        # 名前付き引数より位置引数の方が呼び出しが速いため、位置で渡す。順に
+        # includeNodeName, includeNonMandatoryIndices, includeInstancedIndices,
+        # useAlias, useFullAttributePath, useLongNames。
+        return mplug.partialName(False, True, True, True, False, True)
+
+    @staticmethod
+    def _mplug_attribute_exists(mplug, node=None):
+        """MPlug のアトリビュートが所有ノードに存在するか判定する(所有ノードは有効であること)。
+
+        ``deleteAttr`` で削除された動的アトリビュートの MPlug は、Undo のためにアトリビュートの MObject が保持された
+        ままの場合があり ``MObjectHandle.isValid()`` だけでは判定できないため、所有ノードの
+        ``MFnDependencyNode.attributeClass()`` で確かめる(ノードに無いアトリビュートは ``kInvalidAttr``)。
+
+        Args:
+            mplug (om2.MPlug): 判定するプラグ。
+            node (om2.MObject | None): 所有ノード。分かっている場合に指定する。
+
+        Returns:
+            bool: アトリビュートが存在する場合は True。
+        """
+        attribute = mplug.attribute()
+        if attribute.isNull() or not om2.MObjectHandle(attribute).isValid():
+            return False
+        if node is None:
+            node = mplug.node()
+        kind = om2.MFnDependencyNode(node).attributeClass(attribute)
+        return kind != om2.MFnDependencyNode.kInvalidAttr
+
+    @staticmethod
+    def _mplug_name(mplug):
+        """MPlug を ``Plug.fullName()`` と同じ形式の一意なプラグ名へ変換する。
+
+        所有ノードが Undo の対象から外れて削除された(``flushUndo`` 後・Undo 無効・シーンの
+        切り替え)MPlug は、``MPlug.node()`` の時点で Maya が異常終了し、API では検出できない。
+        MPlug を削除操作をまたいで保持せず、hlib の Plug を保持すること(:doc:`/cmds_interop`)。
+
+        Args:
+            mplug (om2.MPlug): 変換対象。
+
+        Returns:
+            str: ``<ノードの最短一意名>.<アトリビュートパス>``。
+
+        Raises:
+            ValueError: 空の MPlug、所有ノードが削除済み、またはアトリビュートが削除済み(``deleteAttr``)の場合。
+        """
+        from ..nodes.node import Node as _InputNode
+        if mplug.isNull:
+            raise ValueError("空の MPlug は指定できません")
+        node = mplug.node()
+        if not om2.MObjectHandle(node).isValid():
+            raise ValueError("削除済みノードの MPlug は指定できません")
+        if not Plug._mplug_attribute_exists(mplug, node):
+            raise ValueError("削除済みのアトリビュートの MPlug は指定できません")
+        return _InputNode._unique_node_name(node) + "." + Plug._plug_path(mplug)
+
+    @staticmethod
+    def _deleted_attribute_error(plug):
+        """所有ノードが有効なままアトリビュートが削除された Plug の例外を返す(該当しなければ None)。
+
+        Args:
+            plug (Plug): 判定する hlib の Plug。
+
+        Returns:
+            DeletedAttributeError | None: アトリビュートが ``deleteAttr`` で削除済みなら送出する例外。
+                所有ノードが削除済みの場合(無効な所有ノードとして扱う)と、有効な Plug は None。
+        """
+        if plug.node.isValid() and not plug.isValid():
+            return DeletedAttributeError("削除済みのアトリビュートの Plug からノードは解決できません")
+        return None
+
+    @staticmethod
+    def _find_plug(mobject, name):
+        """ノードのアトリビュート名(ロング名・ショート名・エイリアス)から MPlug を求める。
+
+        ``MFnDependencyNode.findPlug()`` はエイリアスを解決しないため、見つからない場合は
+        エイリアスの一覧(``bs.smile`` → ``weight[0]`` など)からアトリビュートパスを求めて解決する。
+
+        Args:
+            mobject (om2.MObject): 所有ノード。
+            name (str): アトリビュート名。
+
+        Returns:
+            om2.MPlug | None: プラグ。アトリビュートが無い場合は None。
+        """
+        fn = om2.MFnDependencyNode(mobject)
+        try:
+            return fn.findPlug(name, False)
+        except RuntimeError:
+            pass
+        for alias, attribute_path in fn.getAliasList():
+            if alias == name:
+                return Plug._attribute_path_plug(mobject, attribute_path)
+        return None
+
+    @staticmethod
+    def _has_out_of_range_index(attribute_path):
+        """アトリビュートパスが :data:`MAX_LOGICAL_INDEX` を超える配列インデックスを含むか判定する。
+
+        Args:
+            attribute_path (str): ノード名を含まないアトリビュートパス(``input1D[4294967296]`` など)。
+
+        Returns:
+            bool: 範囲外のインデックスを含む場合は True。
+        """
+        return any(int(index) > MAX_LOGICAL_INDEX for index in _PLUG_PATH_INDEX.findall(attribute_path))
+
+    @staticmethod
+    def _has_unresolved_index(mplug):
+        """論理インデックスが未確定(-1)の配列要素を経由するプラグか判定する。
+
+        ``findPlug("input3Dx")`` のように配列複合アトリビュートの子を要素を指定せずに取得すると
+        ``input3D[-1].input3Dx`` のようなプラグになり、maya.cmds では解決できない。
+
+        Args:
+            mplug (om2.MPlug): 判定するプラグ。
+
+        Returns:
+            bool: 未確定のインデックスを含む場合は True。
+        """
+        current = mplug
+        while True:
+            if current.isElement:
+                if current.logicalIndex() < 0:
+                    return True
+                current = current.array()
+            elif current.isChild:
+                current = current.parent()
+            else:
+                return False
+
+    @staticmethod
+    def _attribute_path_plug(mobject, attribute_path, first=None):
+        """ノードとアトリビュートパス(``input1D[3]``、``pnts[2].pntx`` など)から MPlug を求める。
+
+        ``.`` で区切った各区切りのアトリビュート名(ロング名・ショート名。先頭はエイリアスも可)と
+        ``[i]`` の論理インデックスを順に辿る。存在しない配列要素もプラグとして返し、
+        要素は作らない(シーンを変更しない)。
+
+        Args:
+            mobject (om2.MObject): 所有ノード。
+            attribute_path (str): ノード名を含まないアトリビュートパス。
+            first (om2.MPlug | None): 先頭の区切りのアトリビュート名に対応するプラグが既に分かっている
+                場合に指定する(transform からシェイプへ伸ばして探した場合など)。
+
+        Returns:
+            om2.MPlug | None: プラグ。アトリビュートとして解決できない場合(存在しないアトリビュート、範囲指定、
+                配列でないアトリビュートへのインデックス、:data:`MAX_LOGICAL_INDEX` を超えるインデックス、
+                配列要素の番号を指定しない子アトリビュートなど)は None。
+        """
+        mplug = None
+        for token in attribute_path.split("."):
+            match = _PLUG_PATH_TOKEN.match(token)
+            if match is None:
+                return None
+            name, indices = match.groups()
+            if mplug is None:
+                mplug = first if first is not None else Plug._find_plug(mobject, name)
+                if mplug is None:
+                    return None
+            else:
+                if mplug.isArray or not mplug.isCompound:
+                    return None
+                for child_index in range(mplug.numChildren()):
+                    child = mplug.child(child_index)
+                    attribute = om2.MFnAttribute(child.attribute())
+                    if name in (attribute.name, attribute.shortName):
+                        mplug = child
+                        break
+                else:
+                    return None
+            for index in _PLUG_PATH_INDEX.findall(indices):
+                index = int(index)
+                if not mplug.isArray or index > MAX_LOGICAL_INDEX:
+                    # 範囲外の番号は elementByLogicalIndex() が別の番号へ変換してしまう
+                    # (input1D[4294967296] が input1D[0] を指す)ため、解決できない名前として扱う。
+                    return None
+                mplug = mplug.elementByLogicalIndex(index)
+        if mplug is None or Plug._has_unresolved_index(mplug):
+            # 子アトリビュート名だけを指定した場合などの未確定(-1)のインデックスは maya.cmds で解決できない。
+            return None
+        return mplug
+
+    @staticmethod
+    def _plug_from_path(text):
+        """``"node.attr[i].child"`` 形式の文字列を、ノード部分とアトリビュートパスを辿って MPlug へ解決する。
+
+        mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i]`` のように
+        コンポーネント名としても解釈されるアトリビュートは、MSelectionList が頂点・CV として登録し
+        プラグとして取り出せないため、Plug の入力解決ではこの関数で解決し直す(maya.cmds の
+        ``connectAttr``/``setAttr`` などと同じくアトリビュートとして扱う)。transform の名前で
+        シェイプのアトリビュートを指す場合(``pCube1.pnts[3]``)は、唯一のシェイプ(中間オブジェクトを
+        除く)へ伸ばして解決する。
+
+        Args:
+            text (str): アトリビュートを指す名前。
+
+        Returns:
+            tuple[om2.MObject | om2.MDagPath, om2.MPlug] | None: 所有ノード(DAG ノードは
+                名前が指すインスタンスの MDagPath)とプラグ。アトリビュートとして解決できない場合
+                (存在しないアトリビュート、範囲指定、配列でないアトリビュートへのインデックスなど)は None。
+        """
+        node_part, separator, attribute_path = text.partition(".")
+        if not separator or not attribute_path:
+            return None
+        owner = om2.MSelectionList()
+        try:
+            owner.add(node_part)
+        except RuntimeError:
+            return None
+        if owner.length() != 1:
+            return None
+        mobject = owner.getDependNode(0)
+        dagPath = owner.getDagPath(0) if mobject.hasFn(om2.MFn.kDagNode) else None
+        match = _PLUG_PATH_TOKEN.match(attribute_path.split(".", 1)[0])
+        if match is None:
+            return None
+        first = Plug._find_plug(mobject, match.group(1))
+        if first is None:
+            # transform の名前でシェイプのアトリビュートを指す場合は、唯一のシェイプで探す。
+            if dagPath is None or not mobject.hasFn(om2.MFn.kTransform):
+                return None
+            shape_path = om2.MDagPath(dagPath)
+            try:
+                shape_path.extendToShape()
+            except RuntimeError:
+                return None
+            mobject, dagPath = shape_path.node(), shape_path
+            first = Plug._find_plug(mobject, match.group(1))
+            if first is None:
+                return None
+        mplug = Plug._attribute_path_plug(mobject, attribute_path, first)
+        if mplug is None:
+            return None
+        return (dagPath if dagPath is not None else mobject), mplug
+
+    @staticmethod
+    def _resolve_input(value):
+        """対象を hlib の Plug インスタンスへ変換する。
+
+        文字列は ``str(plug)``・``plug.fullName()`` が返す形式(``grp1|dup.translateX``、
+        ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[2].pntx`` など)を含め、
+        maya.cmds と同じ規則で解決する。インスタンス化された DAG ノードのアトリビュートは、
+        名前が指すインスタンスのノードを所有ノードにする。コンポーネント名としても
+        解釈されるアトリビュート(mesh の ``pnts[i]``、nurbsCurve・lattice の ``controlPoints[i]`` など)は、
+        ``connectAttr`` などと同じくアトリビュートとして解決する。
+
+        Args:
+            value (Plug | om2.MPlug | str): Plug、MPlug、または ``"node.attribute"`` 形式のアトリビュート名。
+
+        Returns:
+            Plug: value が Plug ならそのまま(削除済みでも例外にしない。``Plug.isValid()`` で
+                確かめる)、それ以外はアトリビュート型に応じた Plug ラッパー。
+
+        Raises:
+            TypeError: 対応しない型、または文字列がアトリビュートを指していない場合。
+            ValueError: 空文字列、または空の MPlug の場合。
+            RuntimeError: 文字列を解決できない(存在しない、または複数の対象に一致する)場合。
+                MPlug の所有ノードが削除済み、またはアトリビュートが ``deleteAttr`` で削除済みの場合
+                (``Node(...)``・``Plug(...)`` の生成と同じ。Undo の対象から外れて削除された
+                ノードの MPlug は検出できず、Maya が異常終了する)。
+        """
+        from ..nodes.node import Node as _InputNode
+        from ..object import Object as _InputObject
+        node_class, plug_class, _, _ = _InputObject._classes()
+        if isinstance(value, plug_class):
+            return value
+        if isinstance(value, om2.MPlug):
+            if value.isNull:
+                raise ValueError("空の MPlug は指定できません")
+            return plug_class(node_class(value.node()), value)
+        if isinstance(value, str):
+            if not value:
+                raise ValueError("空でないアトリビュート名を指定してください")
+            selection = om2.MSelectionList()
+            try:
+                selection.add(value)
+            except RuntimeError as error:
+                raise RuntimeError(f"アトリビュートが見つかりません: {value}") from error
+            if selection.length() != 1:
+                raise RuntimeError(f"複数の対象に一致します。一意なアトリビュート名を指定してください: {value}")
+            try:
+                mplug = selection.getPlug(0)
+            except TypeError as error:
+                # pnts[i]・controlPoints[i] などは頂点・CV として登録されるため、アトリビュートパスを辿る。
+                resolved = Plug._plug_from_path(value)
+                if resolved is None:
+                    raise TypeError(f"アトリビュートを指す名前ではありません: {value}") from error
+                owner, mplug = resolved
+                return plug_class(node_class(owner), mplug)
+            mobject, dagPath = _InputNode._selection_owner(selection, 0, value)
+            return plug_class(node_class(dagPath if dagPath is not None else mobject), mplug)
+        raise TypeError(f"Plug、om2.MPlug、またはアトリビュート名を指定してください: {type(value).__name__}")
+
+    def _attribute_exists(self):
+        """アトリビュートが所有ノードに存在し続けているか判定する(所有ノードは有効であること)。
+
+        頻繁に呼ばれる :meth:`_require_valid`・:meth:`fullName` は、呼び出しの負荷を
+        避けるため同じ判定を直接書いている(変更する場合はそろえること)。
+
+        Returns:
+            bool: 静的アトリビュート、または削除されていない動的アトリビュートの場合は True。
+        """
+        if self._static_attribute:
+            return True
+        return (self._attribute_handle.isValid()
+                and self._node._dependency_fn().attributeClass(self._attribute) != _INVALID_ATTRIBUTE)
+
+    def _require_valid(self):
+        """所有ノードとアトリビュートが有効か確かめる。
+
+        削除済みの動的アトリビュートの MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの
+        MPlug は古い値を返す(Undo の対象から外れた削除では問い合わせで異常終了する場合も
+        ある)ため、MPlug・アトリビュートを扱う前に必ず確かめる。静的アトリビュートはノードが有効な間は常に
+        存在するため、ノードの確認だけで済む。動的アトリビュートは所有ノードの
+        ``MFnDependencyNode.attributeClass()`` で存在を確かめる(:meth:`_attribute_exists`)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        node = self._node
+        handle = node._handle
+        if handle is None or not handle.isValid():
+            raise RuntimeError("所有ノードが無効な(削除済みの)アトリビュートは扱えません")
+        if not self._static_attribute:
+            # _attribute_exists() と同じ判定。get()/set() のたびに呼ばれるため直接書く。
+            fn = node._fn_cache
+            if fn is None:
+                fn = node._dependency_fn()
+            if not self._attribute_handle.isValid() or fn.attributeClass(self._attribute) == _INVALID_ATTRIBUTE:
+                raise RuntimeError("削除済みのアトリビュートは扱えません")
+
+    @staticmethod
+    def _validated_flags(locked=None, keyable=None, channelBox=None):
+        """状態値を全件検証し、Mayaのフラグ名へ変換する。
+
+        Args:
+            locked (bool | None): ロック状態。Noneは変更しない。
+            keyable (bool | None): キー可能状態。
+            channelBox (bool | None): Channel Box表示状態。
+
+        Returns:
+            dict: 指定されたMayaフラグだけを含む辞書。
+
+        Raises:
+            TypeError: boolまたはNone以外の状態がある場合。
+        """
+        flags = {}
+        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channelBox)):
+            if value is not None:
+                if not isinstance(value, bool):
+                    raise TypeError(f"{name} must be bool or None")
+                flags[name] = value
+        return flags
+
+    def _require_writable(self):
+        """保持参照と複合型の全子の書込み可否を検証する。シーンは変更しない。
+
+        Raises:
+            RuntimeError: 無効な参照、ロック、入力接続、書込み禁止の場合。
+        """
+        from .._core.fastWrite import writable
+        self._require_valid()
+
+        def check(plug):
+            """複合型の子も確認する。配列要素は展開・作成しない。"""
+            writable(plug)
+            if plug.isCompound:
+                for index in range(plug.numChildren()):
+                    check(plug.child(index))
+
+        check(self._mplug)
 
     @staticmethod
     def _node_from_mplug(mplug):

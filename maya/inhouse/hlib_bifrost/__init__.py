@@ -4,6 +4,8 @@ import importlib as _importlib
 
 HLIB_EXTENSION_API = 1
 
+__all__ = ["nodes", "plugs", "utils", "environment", "is_available"]
+
 
 def is_available():
     """bool: hlib拡張検出プロトコルから対応プラグインの状態を照会する。"""
@@ -26,6 +28,3 @@ def __getattr__(name):
     module = _importlib.import_module(__name__ + "." + name)
     globals()[name] = module
     return module
-
-
-__all__ = ["nodes", "plugs", "utils", "environment", "is_available"]

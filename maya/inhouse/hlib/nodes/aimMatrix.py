@@ -1,7 +1,8 @@
 """指定した軸をターゲットへ向ける行列を生成する。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from ._calculation import _Calculation
 from .node import Node

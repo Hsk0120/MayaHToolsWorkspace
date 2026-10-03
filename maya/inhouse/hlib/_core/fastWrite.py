@@ -1,6 +1,8 @@
 """対応する値更新のcmds/OpenMayaバックエンド。独自プラグインは使わない。"""
-import maya.cmds as cmds
+
 import maya.api.OpenMaya as om
+import maya.cmds as cmds
+
 from ..decorators._fast import is_fast
 from .attributeType import NUMERIC_WRITERS
 from .unitValue import convert

@@ -1,6 +1,7 @@
 """DAGの兄弟順序を変更する。"""
 
-from maya import cmds
+import maya.cmds as cmds
+
 from .._core.flags import flag_aliases
 from ..decorators.undo import undoChunk
 

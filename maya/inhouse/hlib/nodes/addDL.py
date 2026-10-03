@@ -1,7 +1,8 @@
 """Maya 2026以降の距離型加算ノード。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ._calculation import _Calculation
 from .node import Node
 

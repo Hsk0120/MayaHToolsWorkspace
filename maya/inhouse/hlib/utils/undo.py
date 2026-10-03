@@ -1,6 +1,6 @@
 """MayaのUndo状態を変更せず照会する。"""
 
-from maya import cmds
+import maya.cmds as cmds
 
 
 def isEnabled():

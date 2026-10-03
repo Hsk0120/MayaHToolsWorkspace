@@ -1,7 +1,8 @@
 """ランプで値を再マッピングする。色ランプも操作できる。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ._calculation import _Calculation
 from .node import Node
 
@@ -86,18 +87,6 @@ class RemapValue(Node):
             self.plug(attr).set(value)
         return self
 
-    def _ramp_array(self, kind):
-        """ランプ配列を取得する。
-
-        Args:
-            kind (str): value/color。
-        Returns:
-            ArrayPlug: ランプの参照。
-        """
-        if kind not in ("value", "color"):
-            raise ValueError("kind must be value or color")
-        return self.plug(kind)
-
     def rampPoints(self, kind="value"):
         """ランプの既存点を取得する。
 
@@ -171,3 +160,15 @@ class RemapValue(Node):
             float: 計算結果。
         """
         return self.outputPlug().get()
+
+    def _ramp_array(self, kind):
+        """ランプ配列を取得する。
+
+        Args:
+            kind (str): value/color。
+        Returns:
+            ArrayPlug: ランプの参照。
+        """
+        if kind not in ("value", "color"):
+            raise ValueError("kind must be value or color")
+        return self.plug(kind)

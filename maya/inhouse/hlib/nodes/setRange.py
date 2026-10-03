@@ -1,7 +1,8 @@
 """XYZ各成分を旧範囲から新範囲へ線形変換する。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .node import Node

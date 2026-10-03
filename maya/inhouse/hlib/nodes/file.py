@@ -1,7 +1,8 @@
 """Mayaのfileノードを扱う。"""
+
 from .._core.registry import node_wrapper
-from .texture2d import Texture2d
 from ..decorators.undo import undoChunk
+from .texture2d import Texture2d
 
 
 @node_wrapper("file")

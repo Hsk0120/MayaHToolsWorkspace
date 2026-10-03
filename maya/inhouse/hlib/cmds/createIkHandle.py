@@ -1,9 +1,10 @@
 """IKハンドルとエフェクターを生成する。"""
 
-from maya import cmds
+import maya.cmds as cmds
+
+from .._core.commandResult import CommandResult
 from .._core.flags import flag_aliases
 from ..decorators.undo import undoChunk
-from .._core.commandResult import CommandResult
 
 
 @flag_aliases("ikHandle")

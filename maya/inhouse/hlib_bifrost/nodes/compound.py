@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from maya import cmds
+
+import maya.cmds as cmds
+
 from .node import Node
 
 

@@ -1,4 +1,5 @@
 """型タグ付きJSON変換。任意クラスのimport・コード実行は行わない。"""
+
 import math
 from dataclasses import fields
 

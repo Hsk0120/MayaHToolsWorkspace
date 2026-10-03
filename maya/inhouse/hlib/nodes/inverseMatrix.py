@@ -1,7 +1,8 @@
 """逆行列を計算する。Maya付属matrixNodesの明示的なロードが必要。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .THdependNode import THDependNode
 

@@ -1,9 +1,8 @@
 """Maya の標準コンストレイントに共通するターゲット・ウェイトの取得と設定を扱う。"""
 
-from ..decorators._fast import fast_edit
-
 import maya.cmds as cmds
 
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from .node import Node
 from .transform import Transform

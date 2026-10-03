@@ -6,10 +6,6 @@ Vector 系・Quaternion・EulerRotation・Matrix は OpenMaya API 2.0
 easing だけは標準ライブラリの math のみを使う純粋な関数群。
 """
 
-# importlib.reloadは辞書を保持するため、廃止した公開名を明示的に除く。
-for _obsolete in ("Translate", "Rotate"):
-    globals().pop(_obsolete, None)
-
 from maya.api.OpenMaya import MSpace
 
 from . import easing
@@ -20,6 +16,10 @@ from .scale import Scale
 from .shear import Shear
 from .translation import Translation
 from .vector import Vector
+
+# importlib.reloadは辞書を保持するため、廃止した公開名を明示的に除く。
+for _obsolete in ("Translate", "Rotate"):
+    globals().pop(_obsolete, None)
 
 __all__ = [
     "MSpace",

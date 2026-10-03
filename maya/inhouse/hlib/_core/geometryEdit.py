@@ -1,6 +1,8 @@
 """形状座標の照会と通常/fast更新。通常はcmds、fastは履歴なし形状へ直接書く。"""
+
 import maya.api.OpenMaya as om
 import maya.cmds as cmds
+
 from ..decorators._fast import is_fast
 from .fastWrite import writable
 

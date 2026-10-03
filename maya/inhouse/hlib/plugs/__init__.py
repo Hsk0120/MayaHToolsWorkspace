@@ -1,9 +1,9 @@
 """アトリビュートラッパーを検出して公開する。"""
 
 from .._core.discovery import discover_plug_package
-from .plug import Plug
 from .arrayPlug import ArrayPlug
 from .compoundPlug import CompoundPlug
+from .plug import Plug
 
 # Plug/ArrayPlug/CompoundPlug は他モジュールからの型参照（isinstance 判定や基底クラス
 # としての利用）が多いため明示 import する。bool/double3/matrix などの具象 wrapper は

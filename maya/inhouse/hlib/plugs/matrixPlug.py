@@ -2,10 +2,10 @@
 
 import maya.api.OpenMaya as om2
 
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undoChunk
 from .._core.fastWrite import set_attr, set_plug
 from .._core.registry import plug_wrapper
+from ..decorators._fast import fast_edit, is_fast
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .plug import Plug
 

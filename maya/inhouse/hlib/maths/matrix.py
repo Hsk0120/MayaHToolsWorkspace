@@ -380,30 +380,349 @@ class Matrix(om2.MMatrix):
         self.setToIdentity()
         _compose_into(self, *parts)
 
-    @classmethod
-    def _wrap(cls, value):
-        """om2 の行列を複製した cls のインスタンスを返す。
-
-        Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの
-        ``__init__`` も呼ばない)。:func:`_assign` で写すため、符号付きゼロ・inf・NaN を
-        含めて値は value と一致し、om2 のコピーコンストラクタ(多重定義の解決が遅い)より速い。
+    def __getitem__(self, index):
+        """行列要素を取得する。
 
         Args:
-            value (om2.MMatrix | om2.MFloatMatrix): 複製元。
+            index (int | slice | tuple[int, int]): 平坦な添字(負の添字も可)、スライス、
+                または (行, 列)。行・列はそれぞれ -4〜3。
 
         Returns:
-            Matrix: cls の新しいインスタンス。
-        """
-        result = _MMatrix.__new__(cls)
-        if isinstance(value, _MMatrix):
-            _MMatrix.__init__(result)
-            _MMatrix.__imul__(result, -0.0)
-            _MMatrix.__iadd__(result, value)
-        else:
-            _MMatrix.__init__(result, value)
-        return result
+            float | tuple[float, ...]: 指定要素。スライスでは tuple。
 
-    # ------------------------------------------------------------------ 生成・変換
+        Raises:
+            IndexError: 添字が範囲外の場合(平坦な添字は -16〜15)。
+            TypeError: 添字が整数・スライス・tuple 以外の場合。
+        """
+        if index.__class__ is _INT:
+            if -16 <= index < 16:
+                # -16〜15 の範囲では ``index & 15`` が負の添字を 0〜15 へ正規化する。
+                return _GET(self, index & 15)
+        elif index.__class__ is tuple:
+            # よく使う m[行, 列](-4〜3 の int)は表を引いて _flat_index を通さない。表は
+            # 1.0 や True とも一致するため、行・列が int そのものか確かめてから使う。
+            try:
+                flat = _CELL_INDEX.get(index)
+            except TypeError:  # ハッシュできない要素は _flat_index で TypeError にする。
+                flat = None
+            if flat is not None and index[0].__class__ is _INT is index[1].__class__:
+                return _GET(self, flat)
+        if isinstance(index, tuple):
+            return _GET(self, _flat_index(index))
+        if isinstance(index, slice):
+            return tuple(_SCALED(self, 1.0))[index]
+        return _GET(self, _checked_index(index, 16, "Matrix"))
+
+    def __setitem__(self, index, value):
+        """行列要素を設定する。
+
+        Args:
+            index (int | tuple[int, int]): 平坦な添字(-16〜15)、または (行, 列)。
+            value (float): 設定する値。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            IndexError: 添字が範囲外の場合。
+            TypeError: 添字が整数・tuple 以外の場合。
+        """
+        if index.__class__ is _INT:
+            if -16 <= index < 16:
+                _SET(self, index & 15, value)
+                return
+        elif index.__class__ is tuple:
+            # __getitem__ と同じく、m[行, 列](-4〜3 の int)は表を引く。
+            try:
+                flat = _CELL_INDEX.get(index)
+            except TypeError:
+                flat = None
+            if flat is not None and index[0].__class__ is _INT is index[1].__class__:
+                _SET(self, flat, value)
+                return
+        if isinstance(index, tuple):
+            index = _flat_index(index)
+        else:
+            index = _checked_index(index, 16, "Matrix")
+        _SET(self, index, value)
+
+    def __iter__(self):
+        """行優先順の16要素を反復する。
+
+        要素は反復を始めた時点の値(素の om2.MMatrix へ写した値)を返す。
+
+        Returns:
+            Iterator[float]: 16要素のイテレータ。
+        """
+        return iter(_SCALED(self, 1.0))
+
+    def __reduce__(self):
+        """copy / pickle 用に、コンストラクタを通さずに再構築する情報を返す。
+
+        Returns:
+            tuple: ``(_rebuild, (type(self), 16要素の tuple)[, state])``。
+            利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
+            アトリビュートは再構築時に復元する。
+        """
+        return _reduce_value(self, tuple(_SCALED(self, 1.0)))
+
+    def __reduce_ex__(self, protocol):
+        """pickle のプロトコルにかかわらず __reduce__ と同じ情報を返す。
+
+        Args:
+            protocol (int): pickle のプロトコル番号。使用しない。
+
+        Returns:
+            tuple: ``__reduce__()`` の結果。
+        """
+        return self.__reduce__()
+
+    def __copy__(self):
+        """同じ型・同じ値の複製を返す。
+
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいインスタンス。
+        """
+        return _copy_state(self, type(self)._wrap(self))
+
+    def __deepcopy__(self, memo):
+        """同じ型・同じ値の複製を返す。
+
+        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
+
+        Args:
+            memo (dict): copy.deepcopy の memo。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいインスタンス。
+        """
+        return _copy_state(self, type(self)._wrap(self), memo)
+
+    def __repr__(self):
+        """4行の値を含むデバッグ表現を返す。
+
+        Returns:
+            str: 型名と現在の成分を含む文字列表現。
+        """
+        return "{}({!r})".format(type(self).__name__, self.rows)
+
+    __str__ = __repr__
+
+    def __eq__(self, other):
+        """MMatrix 系との全要素の完全一致を判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: MMatrix 系なら om2 と同じ比較の結果。
+            その他の om2 の型は False。それ以外の型は NotImplemented(相手の比較に委ね、
+            どちらも判断しなければ False になる)。
+        """
+        if isinstance(other, _MMatrix):
+            return _MMatrix.__eq__(self, other)
+        return _foreign_comparison(other, False)
+
+    def __ne__(self, other):
+        """``__eq__`` の否定を返す。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: MMatrix 系なら om2 と同じ比較の結果。
+            その他の om2 の型は True。それ以外の型は NotImplemented。
+        """
+        if isinstance(other, _MMatrix):
+            return _MMatrix.__ne__(self, other)
+        return _foreign_comparison(other, True)
+
+    def __mul__(self, other):
+        """行列積、スカラー倍、またはベクトル・点との列ベクトルとしての積を返す。
+
+        ベクトルと点は om2 と同じ列ベクトルとしての積(``v * mᵀ``)を計算し、
+        om2 の型(``om2.MVector`` / ``om2.MPoint``)が右辺でも hlib の Vector で返す。
+
+        Args:
+            other (object): 右側の MMatrix 系、数値、MVector 系、または om2.MPoint。
+
+        Returns:
+            Matrix | Vector | types.NotImplementedType: 行列・数値なら ``type(self)`` の
+            新しい行列。MVector 系なら om2 の列ベクトルとしての積の Vector。om2.MPoint なら
+            om2 の列ベクトルとしての積(同次座標の4成分)の x、y、z を持つ Vector(w は捨て、
+            w で割らない)。対応しない型は NotImplemented。
+        """
+        if isinstance(other, _MMatrix):
+            result = _new(type(self))
+            result.setToProduct(self, other)
+            return result
+        if isinstance(other, _NUMBER):
+            return type(self)._wrap(_MMatrix.__mul__(self, other))
+        if isinstance(other, _MVector):
+            result = _VECTOR_NEW(Vector)
+            _VECTOR_INIT(result)
+            _VECTOR_IADD(result, _VECTOR_RMUL(other, self))
+            return result
+        if isinstance(other, _MPoint):
+            value = _MPoint.__rmul__(other, self)
+            result = _VECTOR_NEW(Vector)
+            _VECTOR_INIT(result)
+            result.x = value.x
+            result.y = value.y
+            result.z = value.z
+            return result
+        return NotImplemented
+
+    def __rmul__(self, other):
+        """左辺の MMatrix 系との行列積、またはスカラー倍を返す。
+
+        Args:
+            other (object): 左側の MMatrix 系、または数値。
+
+        Returns:
+            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+            対応しない型は NotImplemented。
+        """
+        if isinstance(other, _MMatrix):
+            result = _new(type(self))
+            result.setToProduct(other, self)
+            return result
+        if isinstance(other, _NUMBER):
+            return type(self)._wrap(_MMatrix.__mul__(self, other))
+        return NotImplemented
+
+    def __imul__(self, other):
+        """自身へ右から行列を掛ける、またはスカラー倍する。
+
+        Args:
+            other (object): MMatrix 系または数値。
+
+        Returns:
+            Matrix | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, (int, float, _MMatrix)):
+            return NotImplemented
+        return _MMatrix.__imul__(self, other)
+
+    def __matmul__(self, other):
+        """``@`` 演算子による行列積(``*`` と同じ)。
+
+        Args:
+            other (object): 右側の MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: 行列積。行列以外は NotImplemented(TypeError)。
+        """
+        if isinstance(other, _MMatrix):
+            return self.__mul__(other)
+        return NotImplemented
+
+    def __rmatmul__(self, other):
+        """左辺の MMatrix 系との ``@`` による行列積。
+
+        Args:
+            other (object): 左側の MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: 行列積。行列以外は NotImplemented。
+        """
+        if isinstance(other, _MMatrix):
+            return self.__rmul__(other)
+        return NotImplemented
+
+    def __imatmul__(self, other):
+        """``@=`` で自身へ右から行列を掛ける(``*=`` と同じ in-place の行列積)。
+
+        Args:
+            other (object): MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: 自身。行列以外は NotImplemented(TypeError)。
+        """
+        if not isinstance(other, _MMatrix):
+            return NotImplemented
+        return _MMatrix.__imul__(self, other)
+
+    def __add__(self, other):
+        """成分ごとの和を返す。
+
+        Args:
+            other (object): MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+        """
+        if not isinstance(other, _MMatrix):
+            return NotImplemented
+        return type(self)._wrap(_MMatrix.__add__(self, other))
+
+    def __radd__(self, other):
+        """左辺の MMatrix 系との成分ごとの和を返す。
+
+        Args:
+            other (object): MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+        """
+        if not isinstance(other, _MMatrix):
+            return NotImplemented
+        return type(self)._wrap(_MMatrix.__add__(other, self))
+
+    def __iadd__(self, other):
+        """MMatrix 系を成分ごとに自身へ加算する。
+
+        Args:
+            other (object): MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MMatrix):
+            return NotImplemented
+        return _MMatrix.__iadd__(self, other)
+
+    def __sub__(self, other):
+        """成分ごとの差を返す。
+
+        Args:
+            other (object): MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+        """
+        if not isinstance(other, _MMatrix):
+            return NotImplemented
+        return type(self)._wrap(_MMatrix.__sub__(self, other))
+
+    def __rsub__(self, other):
+        """左辺の MMatrix 系から自身を引いた成分ごとの差を返す。
+
+        Args:
+            other (object): MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+        """
+        if not isinstance(other, _MMatrix):
+            return NotImplemented
+        return type(self)._wrap(_MMatrix.__sub__(other, self))
+
+    def __isub__(self, other):
+        """MMatrix 系を成分ごとに自身から減算する。
+
+        Args:
+            other (object): MMatrix 系。
+
+        Returns:
+            Matrix | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MMatrix):
+            return NotImplemented
+        return _MMatrix.__isub__(self, other)
+
     @classmethod
     def identity(cls):
         """単位行列を生成する。
@@ -462,15 +781,6 @@ class Matrix(om2.MMatrix):
         """
         return cls._wrap(transformation.asMatrix())
 
-    def toTransformation(self):
-        """om2.MTransformationMatrix へ変換する。
-
-        Returns:
-            om2.MTransformationMatrix: 現在の成分から作った新しいオブジェクト。
-        """
-        return _MTransformationMatrix(self)
-
-    # ------------------------------------------------------------------ 値
     @property
     def values(self):
         """行優先順の16要素を取得する。
@@ -489,34 +799,6 @@ class Matrix(om2.MMatrix):
         """
         values = tuple(_SCALED(self, 1.0))
         return (values[0:4], values[4:8], values[8:12], values[12:16])
-
-    def _checked_transformation(self):
-        """分解できることを確かめてから MTransformationMatrix を作る。
-
-        om2 はゼロスケールの行列も黙って分解するため、3x3 の行列式が 0 なら
-        ValueError にする。
-
-        Returns:
-            om2.MTransformationMatrix: 自身から作った変換行列。
-
-        Raises:
-            ValueError: いずれかのスケール軸がゼロなど、3x3 部分が特異な場合。
-        """
-        if self.det3x3() == 0.0:
-            raise ValueError("Cannot decompose a matrix with a zero scale axis")
-        return _MTransformationMatrix(self)
-
-    def _translation(self):
-        """添字12〜14を Translation として返す。
-
-        Returns:
-            Translation: 平行移動成分の新しいインスタンス。
-        """
-        result = _zero(Translation)
-        result.x = _GET(self, 12)
-        result.y = _GET(self, 13)
-        result.z = _GET(self, 14)
-        return result
 
     @property
     def translate(self):
@@ -646,6 +928,14 @@ class Matrix(om2.MMatrix):
         """
         self._recompose(rotate=value)
 
+    def toTransformation(self):
+        """om2.MTransformationMatrix へ変換する。
+
+        Returns:
+            om2.MTransformationMatrix: 現在の成分から作った新しいオブジェクト。
+        """
+        return _MTransformationMatrix(self)
+
     def decompose(self):
         """行列を意味付きの変換成分へ分解する。
 
@@ -669,33 +959,6 @@ class Matrix(om2.MMatrix):
             "shear": _vector_of(Shear, tm.shear(_K_TRANSFORM)),
         }
 
-    def _recompose(self, rotate=None, scale=None, shear=None):
-        """分解値の一部を置き換えて、自身の値を組み立て直す。
-
-        入力をすべて検証してから書き込むため、例外時に自身は変わらない。
-
-        Args:
-            rotate (Iterable[float] | EulerRotation | Quaternion | None): 新しい回転。None は現在の値。
-            scale (Iterable[float] | None): 新しいスケール。None は現在の値。
-            shear (Iterable[float] | None): 新しいシアー。None は現在の値。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            ValueError: 現在の行列を分解できない場合、または入力が不正な場合。
-        """
-        tm = self._checked_transformation()
-        parts = _components(
-            (_GET(self, 12), _GET(self, 13), _GET(self, 14)),
-            tm.rotation(asQuaternion=True) if rotate is None else rotate,
-            tm.scale(_K_TRANSFORM) if scale is None else scale,
-            tm.shear(_K_TRANSFORM) if shear is None else shear,
-        )
-        self.setToIdentity()
-        _compose_into(self, *parts)
-
-    # ------------------------------------------------------------------ 計算
     def determinant(self):
         """4x4 の行列式を返す。
 
@@ -840,351 +1103,82 @@ class Matrix(om2.MMatrix):
             _SET(self, index, _GET(result, index))
         return self
 
-    # ------------------------------------------------------------------ 添字・反復
-    def __getitem__(self, index):
-        """行列要素を取得する。
+    @classmethod
+    def _wrap(cls, value):
+        """om2 の行列を複製した cls のインスタンスを返す。
+
+        Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの
+        ``__init__`` も呼ばない)。:func:`_assign` で写すため、符号付きゼロ・inf・NaN を
+        含めて値は value と一致し、om2 のコピーコンストラクタ(多重定義の解決が遅い)より速い。
 
         Args:
-            index (int | slice | tuple[int, int]): 平坦な添字(負の添字も可)、スライス、
-                または (行, 列)。行・列はそれぞれ -4〜3。
+            value (om2.MMatrix | om2.MFloatMatrix): 複製元。
 
         Returns:
-            float | tuple[float, ...]: 指定要素。スライスでは tuple。
+            Matrix: cls の新しいインスタンス。
+        """
+        result = _MMatrix.__new__(cls)
+        if isinstance(value, _MMatrix):
+            _MMatrix.__init__(result)
+            _MMatrix.__imul__(result, -0.0)
+            _MMatrix.__iadd__(result, value)
+        else:
+            _MMatrix.__init__(result, value)
+        return result
+
+    def _checked_transformation(self):
+        """分解できることを確かめてから MTransformationMatrix を作る。
+
+        om2 はゼロスケールの行列も黙って分解するため、3x3 の行列式が 0 なら
+        ValueError にする。
+
+        Returns:
+            om2.MTransformationMatrix: 自身から作った変換行列。
 
         Raises:
-            IndexError: 添字が範囲外の場合(平坦な添字は -16〜15)。
-            TypeError: 添字が整数・スライス・tuple 以外の場合。
+            ValueError: いずれかのスケール軸がゼロなど、3x3 部分が特異な場合。
         """
-        if index.__class__ is _INT:
-            if -16 <= index < 16:
-                # -16〜15 の範囲では ``index & 15`` が負の添字を 0〜15 へ正規化する。
-                return _GET(self, index & 15)
-        elif index.__class__ is tuple:
-            # よく使う m[行, 列](-4〜3 の int)は表を引いて _flat_index を通さない。表は
-            # 1.0 や True とも一致するため、行・列が int そのものか確かめてから使う。
-            try:
-                flat = _CELL_INDEX.get(index)
-            except TypeError:  # ハッシュできない要素は _flat_index で TypeError にする。
-                flat = None
-            if flat is not None and index[0].__class__ is _INT is index[1].__class__:
-                return _GET(self, flat)
-        if isinstance(index, tuple):
-            return _GET(self, _flat_index(index))
-        if isinstance(index, slice):
-            return tuple(_SCALED(self, 1.0))[index]
-        return _GET(self, _checked_index(index, 16, "Matrix"))
+        if self.det3x3() == 0.0:
+            raise ValueError("Cannot decompose a matrix with a zero scale axis")
+        return _MTransformationMatrix(self)
 
-    def __setitem__(self, index, value):
-        """行列要素を設定する。
+    def _translation(self):
+        """添字12〜14を Translation として返す。
+
+        Returns:
+            Translation: 平行移動成分の新しいインスタンス。
+        """
+        result = _zero(Translation)
+        result.x = _GET(self, 12)
+        result.y = _GET(self, 13)
+        result.z = _GET(self, 14)
+        return result
+
+    def _recompose(self, rotate=None, scale=None, shear=None):
+        """分解値の一部を置き換えて、自身の値を組み立て直す。
+
+        入力をすべて検証してから書き込むため、例外時に自身は変わらない。
 
         Args:
-            index (int | tuple[int, int]): 平坦な添字(-16〜15)、または (行, 列)。
-            value (float): 設定する値。
+            rotate (Iterable[float] | EulerRotation | Quaternion | None): 新しい回転。None は現在の値。
+            scale (Iterable[float] | None): 新しいスケール。None は現在の値。
+            shear (Iterable[float] | None): 新しいシアー。None は現在の値。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数・tuple 以外の場合。
+            ValueError: 現在の行列を分解できない場合、または入力が不正な場合。
         """
-        if index.__class__ is _INT:
-            if -16 <= index < 16:
-                _SET(self, index & 15, value)
-                return
-        elif index.__class__ is tuple:
-            # __getitem__ と同じく、m[行, 列](-4〜3 の int)は表を引く。
-            try:
-                flat = _CELL_INDEX.get(index)
-            except TypeError:
-                flat = None
-            if flat is not None and index[0].__class__ is _INT is index[1].__class__:
-                _SET(self, flat, value)
-                return
-        if isinstance(index, tuple):
-            index = _flat_index(index)
-        else:
-            index = _checked_index(index, 16, "Matrix")
-        _SET(self, index, value)
-
-    def __iter__(self):
-        """行優先順の16要素を反復する。
-
-        要素は反復を始めた時点の値(素の om2.MMatrix へ写した値)を返す。
-
-        Returns:
-            Iterator[float]: 16要素のイテレータ。
-        """
-        return iter(_SCALED(self, 1.0))
-
-    # ------------------------------------------------------------------ 複製・表示・比較
-    def __reduce__(self):
-        """copy / pickle 用に、コンストラクタを通さずに再構築する情報を返す。
-
-        Returns:
-            tuple: ``(_rebuild, (type(self), 16要素の tuple)[, state])``。
-            利用者の派生クラスの ``__init__`` は呼ばず、``__dict__`` と ``__slots__`` の
-            アトリビュートは再構築時に復元する。
-        """
-        return _reduce_value(self, tuple(_SCALED(self, 1.0)))
-
-    def __reduce_ex__(self, protocol):
-        """pickle のプロトコルにかかわらず __reduce__ と同じ情報を返す。
-
-        Args:
-            protocol (int): pickle のプロトコル番号。使用しない。
-
-        Returns:
-            tuple: ``__reduce__()`` の結果。
-        """
-        return self.__reduce__()
-
-    def __copy__(self):
-        """同じ型・同じ値の複製を返す。
-
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
-
-        Returns:
-            Matrix: 自身と同じクラスの新しいインスタンス。
-        """
-        return _copy_state(self, type(self)._wrap(self))
-
-    def __deepcopy__(self, memo):
-        """同じ型・同じ値の複製を返す。
-
-        利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートは深く複製する。
-
-        Args:
-            memo (dict): copy.deepcopy の memo。
-
-        Returns:
-            Matrix: 自身と同じクラスの新しいインスタンス。
-        """
-        return _copy_state(self, type(self)._wrap(self), memo)
-
-    def __repr__(self):
-        """4行の値を含むデバッグ表現を返す。
-
-        Returns:
-            str: 型名と現在の成分を含む文字列表現。
-        """
-        return "{}({!r})".format(type(self).__name__, self.rows)
-
-    __str__ = __repr__
-
-    def __eq__(self, other):
-        """MMatrix 系との全要素の完全一致を判定する。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: MMatrix 系なら om2 と同じ比較の結果。
-            その他の om2 の型は False。それ以外の型は NotImplemented(相手の比較に委ね、
-            どちらも判断しなければ False になる)。
-        """
-        if isinstance(other, _MMatrix):
-            return _MMatrix.__eq__(self, other)
-        return _foreign_comparison(other, False)
-
-    def __ne__(self, other):
-        """``__eq__`` の否定を返す。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: MMatrix 系なら om2 と同じ比較の結果。
-            その他の om2 の型は True。それ以外の型は NotImplemented。
-        """
-        if isinstance(other, _MMatrix):
-            return _MMatrix.__ne__(self, other)
-        return _foreign_comparison(other, True)
-
-    # ------------------------------------------------------------------ 演算
-    def __mul__(self, other):
-        """行列積、スカラー倍、またはベクトル・点との列ベクトルとしての積を返す。
-
-        ベクトルと点は om2 と同じ列ベクトルとしての積(``v * mᵀ``)を計算し、
-        om2 の型(``om2.MVector`` / ``om2.MPoint``)が右辺でも hlib の Vector で返す。
-
-        Args:
-            other (object): 右側の MMatrix 系、数値、MVector 系、または om2.MPoint。
-
-        Returns:
-            Matrix | Vector | types.NotImplementedType: 行列・数値なら ``type(self)`` の
-            新しい行列。MVector 系なら om2 の列ベクトルとしての積の Vector。om2.MPoint なら
-            om2 の列ベクトルとしての積(同次座標の4成分)の x、y、z を持つ Vector(w は捨て、
-            w で割らない)。対応しない型は NotImplemented。
-        """
-        if isinstance(other, _MMatrix):
-            result = _new(type(self))
-            result.setToProduct(self, other)
-            return result
-        if isinstance(other, _NUMBER):
-            return type(self)._wrap(_MMatrix.__mul__(self, other))
-        if isinstance(other, _MVector):
-            result = _VECTOR_NEW(Vector)
-            _VECTOR_INIT(result)
-            _VECTOR_IADD(result, _VECTOR_RMUL(other, self))
-            return result
-        if isinstance(other, _MPoint):
-            value = _MPoint.__rmul__(other, self)
-            result = _VECTOR_NEW(Vector)
-            _VECTOR_INIT(result)
-            result.x = value.x
-            result.y = value.y
-            result.z = value.z
-            return result
-        return NotImplemented
-
-    def __rmul__(self, other):
-        """左辺の MMatrix 系との行列積、またはスカラー倍を返す。
-
-        Args:
-            other (object): 左側の MMatrix 系、または数値。
-
-        Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
-            対応しない型は NotImplemented。
-        """
-        if isinstance(other, _MMatrix):
-            result = _new(type(self))
-            result.setToProduct(other, self)
-            return result
-        if isinstance(other, _NUMBER):
-            return type(self)._wrap(_MMatrix.__mul__(self, other))
-        return NotImplemented
-
-    def __matmul__(self, other):
-        """``@`` 演算子による行列積(``*`` と同じ)。
-
-        Args:
-            other (object): 右側の MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: 行列積。行列以外は NotImplemented(TypeError)。
-        """
-        if isinstance(other, _MMatrix):
-            return self.__mul__(other)
-        return NotImplemented
-
-    def __rmatmul__(self, other):
-        """左辺の MMatrix 系との ``@`` による行列積。
-
-        Args:
-            other (object): 左側の MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: 行列積。行列以外は NotImplemented。
-        """
-        if isinstance(other, _MMatrix):
-            return self.__rmul__(other)
-        return NotImplemented
-
-    def __add__(self, other):
-        """成分ごとの和を返す。
-
-        Args:
-            other (object): MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
-        """
-        if not isinstance(other, _MMatrix):
-            return NotImplemented
-        return type(self)._wrap(_MMatrix.__add__(self, other))
-
-    def __radd__(self, other):
-        """左辺の MMatrix 系との成分ごとの和を返す。
-
-        Args:
-            other (object): MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
-        """
-        if not isinstance(other, _MMatrix):
-            return NotImplemented
-        return type(self)._wrap(_MMatrix.__add__(other, self))
-
-    def __sub__(self, other):
-        """成分ごとの差を返す。
-
-        Args:
-            other (object): MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
-        """
-        if not isinstance(other, _MMatrix):
-            return NotImplemented
-        return type(self)._wrap(_MMatrix.__sub__(self, other))
-
-    def __rsub__(self, other):
-        """左辺の MMatrix 系から自身を引いた成分ごとの差を返す。
-
-        Args:
-            other (object): MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
-        """
-        if not isinstance(other, _MMatrix):
-            return NotImplemented
-        return type(self)._wrap(_MMatrix.__sub__(other, self))
-
-    def __imul__(self, other):
-        """自身へ右から行列を掛ける、またはスカラー倍する。
-
-        Args:
-            other (object): MMatrix 系または数値。
-
-        Returns:
-            Matrix | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, (int, float, _MMatrix)):
-            return NotImplemented
-        return _MMatrix.__imul__(self, other)
-
-    def __iadd__(self, other):
-        """MMatrix 系を成分ごとに自身へ加算する。
-
-        Args:
-            other (object): MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MMatrix):
-            return NotImplemented
-        return _MMatrix.__iadd__(self, other)
-
-    def __isub__(self, other):
-        """MMatrix 系を成分ごとに自身から減算する。
-
-        Args:
-            other (object): MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MMatrix):
-            return NotImplemented
-        return _MMatrix.__isub__(self, other)
-
-    def __imatmul__(self, other):
-        """``@=`` で自身へ右から行列を掛ける(``*=`` と同じ in-place の行列積)。
-
-        Args:
-            other (object): MMatrix 系。
-
-        Returns:
-            Matrix | types.NotImplementedType: 自身。行列以外は NotImplemented(TypeError)。
-        """
-        if not isinstance(other, _MMatrix):
-            return NotImplemented
-        return _MMatrix.__imul__(self, other)
+        tm = self._checked_transformation()
+        parts = _components(
+            (_GET(self, 12), _GET(self, 13), _GET(self, 14)),
+            tm.rotation(asQuaternion=True) if rotate is None else rotate,
+            tm.scale(_K_TRANSFORM) if scale is None else scale,
+            tm.shear(_K_TRANSFORM) if shear is None else shear,
+        )
+        self.setToIdentity()
+        _compose_into(self, *parts)
 
 
 def _flat_index(index):

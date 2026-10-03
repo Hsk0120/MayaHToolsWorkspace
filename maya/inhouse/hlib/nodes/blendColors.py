@@ -1,10 +1,11 @@
 """二つのRGB入力をblenderで補間する。"""
 
-from ..decorators._fast import fast_edit
-
 import math
+
 import maya.cmds as cmds
+
 from .._core.registry import node_wrapper
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from .node import Node
 
@@ -12,13 +13,6 @@ from .node import Node
 @node_wrapper("blendColors")
 class BlendColors(Node):
     """color1 * blender + color2 * (1 - blender)を評価するノード。"""
-
-    @staticmethod
-    def _index(index):
-        """入力番号1または2を検証する。不正値はValueError。"""
-        if isinstance(index, bool) or not isinstance(index, int) or index not in (1, 2):
-            raise ValueError("Color index must be 1 or 2")
-        return index
 
     def colorPlug(self, index):
         """入力色のPlugを取得する。
@@ -135,3 +129,10 @@ class BlendColors(Node):
     def result(self):
         """tuple[float, float, float]: 評価済みRGB値。"""
         return tuple(self.outputPlug().get())
+
+    @staticmethod
+    def _index(index):
+        """入力番号1または2を検証する。不正値はValueError。"""
+        if isinstance(index, bool) or not isinstance(index, int) or index not in (1, 2):
+            raise ValueError("Color index must be 1 or 2")
+        return index

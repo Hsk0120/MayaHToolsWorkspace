@@ -1,7 +1,11 @@
 """Maya DGのBifrostグラフをhlibのノード参照で管理する。"""
 
-from maya import cmds
+import maya.cmds as cmds
+
 from .._binding import coreModule
+# ルートCompoundへの参照。DGノードとは独立したVNN参照。
+from .compound import Compound
+
 undoTransaction = coreModule('decorators.undo').undoTransaction
 
 
@@ -69,7 +73,3 @@ class Graph:
         if children != [self.name()]:
             raise ValueError("Parent contains other children; delete the graph shape explicitly")
         core.delete(parent)
-
-
-# ルートCompoundへの参照。DGノードとは独立したVNN参照。
-from .compound import Compound

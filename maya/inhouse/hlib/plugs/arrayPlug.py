@@ -1,11 +1,10 @@
 """配列アトリビュートの論理インデックスと要素プラグを扱う。"""
 
-from ..decorators._fast import fast_edit, is_fast
-
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.attributeType import is_internal_data_type
+from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
 from .plug import Plug, _instance_count
 
@@ -20,28 +19,23 @@ class ArrayPlug(Plug):
     ``array_plug.fullName()`` を渡す。要素 Plug(``array_plug[0]``)と、
     hlib のコマンド(``hlib.select`` など)は ArrayPlug をそのまま受け付ける。"""
 
-    def _existing_indices(self):
-        """存在する要素の論理インデックスを昇順で返す。
+    def __getitem__(self, index):
+        """論理インデックスの要素プラグを取得する。
 
-        データを持つ要素(``getExistingArrayAttributeIndices()``)に加え、
-        ``worldMatrix`` などのワールド空間アトリビュートでは、所有 DAG ノードのインスタンス番号
-        (0～インスタンス数-1)も存在する要素として扱う。ワールド空間アトリビュートの要素は
-        評価されるまでデータを持たず、作成直後のノードでは一覧に現れないため。
-        インスタンス数には、インスタンス化された祖先による間接インスタンスも含める
-        (``MDagPath.instanceNumber()`` と同じ数え方)。
+        ``__len__``/``__iter__`` は持たない。``for`` 文は Python の旧来の
+        シーケンス規約で 0 から順に取得し、最初の欠番で止まるため、既存要素の
+        列挙には :meth:`elements` を使う。
+
+        Args:
+            index (int): 論理インデックス。
 
         Returns:
-            list[int]: 論理インデックス。
+            Plug: 対応する要素プラグ。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+            IndexError: 指定した論理インデックスが存在しない場合(0〜2147483647 の範囲外を含む)。
         """
-        self._require_valid()
-        indices = list(self._mplug.getExistingArrayAttributeIndices())
-        count = _instance_count(self._mplug)
-        if count:
-            indices = sorted(set(indices).union(range(count)))
-        return indices
+        return self.element(index)
 
     def get(self):
         """既存インデックスをキーにした要素値の dict を返す。
@@ -72,32 +66,6 @@ class ArrayPlug(Plug):
         fastにかかわらず要素Plugのset()を使用する。
         """
         raise TypeError("Set an array element instead of the array plug")
-
-    @staticmethod
-    def _validate_index(index):
-        """Mayaの論理番号を検証する。範囲外はIndexError、型不正はTypeError。"""
-        from .plug import MAX_LOGICAL_INDEX
-        if isinstance(index, bool) or not isinstance(index, int):
-            raise TypeError("Logical index must be an integer")
-        if not 0 <= index <= MAX_LOGICAL_INDEX:
-            raise IndexError("Logical index must be in 0..2147483647")
-        return index
-
-    def _element_reference(self, index):
-        """書込み・接続用の参照のみを取得し、欠番の要素を作成しない。
-
-        Args:
-            index (int): 論理番号。
-
-        Returns:
-            Plug: 型付き参照。危険な内部データ型の未作成要素は拒否する。
-        """
-        self._require_valid()
-        index = self._validate_index(index)
-        mplug = self._mplug.elementByLogicalIndex(index)
-        if is_internal_data_type(mplug) and index not in self._mplug.getExistingArrayAttributeIndices():
-            raise RuntimeError("Cannot create an internal data element: " + self.fullName())
-        return Plug(self._node, mplug)
 
     def element(self, index, create=False):
         """論理インデックスの要素プラグを取得する。
@@ -222,24 +190,6 @@ class ArrayPlug(Plug):
         cmds.removeMultiInstance(f"{self.fullName()}[{index}]", b=True)
         return self
 
-    def __getitem__(self, index):
-        """論理インデックスの要素プラグを取得する。
-
-        ``__len__``/``__iter__`` は持たない。``for`` 文は Python の旧来の
-        シーケンス規約で 0 から順に取得し、最初の欠番で止まるため、既存要素の
-        列挙には :meth:`elements` を使う。
-
-        Args:
-            index (int): 論理インデックス。
-
-        Returns:
-            Plug: 対応する要素プラグ。
-
-        Raises:
-            IndexError: 指定した論理インデックスが存在しない場合(0〜2147483647 の範囲外を含む)。
-        """
-        return self.element(index)
-
     def sourceNodes(self):
         """配列要素への接続元ノードを論理インデックス順に取得する。
 
@@ -273,3 +223,52 @@ class ArrayPlug(Plug):
             raise IndexError("Message array index limit reached")
         Node(node).plug("message").connect(self._element_reference(index))
         return index
+
+    def _existing_indices(self):
+        """存在する要素の論理インデックスを昇順で返す。
+
+        データを持つ要素(``getExistingArrayAttributeIndices()``)に加え、
+        ``worldMatrix`` などのワールド空間アトリビュートでは、所有 DAG ノードのインスタンス番号
+        (0～インスタンス数-1)も存在する要素として扱う。ワールド空間アトリビュートの要素は
+        評価されるまでデータを持たず、作成直後のノードでは一覧に現れないため。
+        インスタンス数には、インスタンス化された祖先による間接インスタンスも含める
+        (``MDagPath.instanceNumber()`` と同じ数え方)。
+
+        Returns:
+            list[int]: 論理インデックス。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        indices = list(self._mplug.getExistingArrayAttributeIndices())
+        count = _instance_count(self._mplug)
+        if count:
+            indices = sorted(set(indices).union(range(count)))
+        return indices
+
+    @staticmethod
+    def _validate_index(index):
+        """Mayaの論理番号を検証する。範囲外はIndexError、型不正はTypeError。"""
+        from .plug import MAX_LOGICAL_INDEX
+        if isinstance(index, bool) or not isinstance(index, int):
+            raise TypeError("Logical index must be an integer")
+        if not 0 <= index <= MAX_LOGICAL_INDEX:
+            raise IndexError("Logical index must be in 0..2147483647")
+        return index
+
+    def _element_reference(self, index):
+        """書込み・接続用の参照のみを取得し、欠番の要素を作成しない。
+
+        Args:
+            index (int): 論理番号。
+
+        Returns:
+            Plug: 型付き参照。危険な内部データ型の未作成要素は拒否する。
+        """
+        self._require_valid()
+        index = self._validate_index(index)
+        mplug = self._mplug.elementByLogicalIndex(index)
+        if is_internal_data_type(mplug) and index not in self._mplug.getExistingArrayAttributeIndices():
+            raise RuntimeError("Cannot create an internal data element: " + self.fullName())
+        return Plug(self._node, mplug)

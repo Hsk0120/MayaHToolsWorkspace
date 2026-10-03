@@ -65,7 +65,7 @@ class ColorTest(unittest.TestCase):
                 cmds, 'colorIndex', side_effect=lambda i, **kw: Color._DEFAULT_PALETTE[i]) as query:
             color = Color(index=0)
             self.assertEqual(color.rgb, Color._DEFAULT_PALETTE[0])
-            self.assertEqual([call.args[0] for call in query.call_args_list], list(range(1, 32)))
+            self.assertEqual([call[0][0] for call in query.call_args_list], list(range(1, 32)))
 
     def test_batch_palette(self):
         """バッチではGUI照会せず、標準値で相互変換できる。"""

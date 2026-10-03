@@ -83,6 +83,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-04): レビューの軽微な指摘3点を修正。docs/hlib-api-design.mdのimport群の並び(`import x`→`from x import`の各モジュール名順)と`__init__.py`の扱い(対象外は`hlib/__init__.py`のみ)を実態に合わせ、tools/check_hlib_layout.pyの`--fix`を内側のクラス(クラス内・関数内)にも対応(外側から深さ順)。docs/hlib-testing.mdに内側クラスと`--compare`が順序依存の変化を検出しない旨を追記。既存262ファイルは`--fix`で変更なし・違反0。mayapy 2022〜2027で全件passed。Copilotの整理と合わせてコミット・プッシュ。
+
+- Claude Code (2026-10-04): CopilotのhlibPEP8レイアウト整理(170ファイル)をレビュー。HEADとのAST比較で関数・クラス本体・モジュール文は順序以外同一、モジュール/クラス本体の実行時参照・同名再束縛・dataclassフィールド順・説明コメントの付き先に変化なしを確認(削除コメントは区切り線のみ)。整形ツールの冪等性も確認。test_color.pyの`call.args`(Python3.8以降)を`call[0][0]`へ直し、mayapy 2022〜2027で全件passed(各98ファイル/933テスト)。GUI専用テスト(test_scene_ui等)はGUI未起動のため未実施。未コミット。
+
+- GitHub Copilot (2026-10-04): hlib・hlib_bifrost・hlib_posedriverconnect(テスト除く170ファイル)をPEP8レイアウトへ整理。importをstdlib→maya→相対の3群・アルファベット順、`from maya import cmds`を`import maya.cmds as cmds`へ、定数・`__all__`をimport直後へ、クラス内を属性→`__init__`→特殊メソッド→classmethod→property→公開→非公開の順にしget/set対を隣接。名前・本文・デコレータ・docstringは不変(`tools/check_hlib_layout.py --compare`で確認)。規則をdocs/hlib-api-design.md・hlib-testing.mdへ追記し、検査・整形スクリプトtools/check_hlib_layout.pyを追加。mayapy 2022〜2027でrun_hlib_testsを実行し、2023〜2027はpassed(2027: 98ファイル/933テスト)。2022のtest_color.pyの1件はPython3.7に無い`mock.call.args`を使う既存テストの問題で今回の変更と無関係。GUIでのrun_all_tests.py・Bifrost/PoseDriverConnect実プラグインは未実施。未コミット。
+
+- Codex (2026-10-04): ユーザー指示でQwen3-Coder30B・Llama3.3 70B・Qwen3-Coder-Next80Bを取得し、同一3問と再測定で回答・速度・メモリを比較。Python固定10例／組合せ1365例、Maya2027 standalone8条件で生成コードを検証。速度中央値185／2.14／41.2 token/s、Maya成功6／1／7件。回答全文・測定結果をdocs/research/localLlmComparison.mdとlocalLlmBenchmark/へローカル保存。終了時アンロード確認。Maya GUI併用・長文・費用削減額は未検証。他作業のhlib変更は保持。
+
+- Codex (2026-10-03): ローカルLLM検討用にCPU・RAM・GPU・ディスク容量を読み取り確認。RTX3090Ti 24GB／RAM64GBを確認し、30B・70B・80B候補とMaya連携案をdocs/research/localLlmHardware.mdへローカル保存。モデル起動・ダウンロードなし。推論速度・Maya併用は未検証。
+
 | Claude Code | 2026-10-03 | maya/modules/CharcoalEditor2.mod | 2023・2025のmllが2023/windows・2025/windowsに置かれたのでmodを確認。各版をmayapyでロードし、実際の版に合わせて2025=2.10.2・2027=2.8.1へ修正(2022/2023/2024=2.6.4、2026=2.7.6)。submoduleへのmll追加はsubmodule側で未コミット。 |
 
 | Claude Code | 2026-10-03 | maya/modules/CharcoalEditor2.mod | 2023の項目を追加(2.6.4・2023/windows)。submoduleに2023用(と2025用)のmllが無いため、置くまでは2023ではロードできない。未コミット。 |
@@ -375,6 +385,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-03 | docs/research/localLlmBenchmark* | ユーザー許可により3モデルをダウンロードし、同一問題の回答・速度・メモリを逐次比較。 |
 
 
 

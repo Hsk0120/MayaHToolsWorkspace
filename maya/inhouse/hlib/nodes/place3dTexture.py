@@ -1,4 +1,5 @@
 """Mayaのplace3dTextureノードを扱う。"""
+
 from .._core.registry import node_wrapper
 from .transform import Transform
 

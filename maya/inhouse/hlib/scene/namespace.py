@@ -31,21 +31,83 @@ class Namespace:
             raise ValueError("name must be a non-empty string")
         self._name = self._normalize(name)
 
-    @staticmethod
-    def _normalize(name):
-        """Namespace名をMayaの絶対表記へ正規化する。
-
-        Args:
-            name (str): 正規化する名前。
+    def __repr__(self):
+        """Namespaceのデバッグ表現を返す。
 
         Returns:
-            str: / を : に置き換え、両端の : を除いて先頭に : を付けた名前。区切り文字だけなら :。
+            str: Namespace と保持名を含む文字列表現。
         """
-        name = name.replace("/", ":")
-        if name == ":" or not name.strip(":"):
-            return ":"
-        name = name.strip(":")
-        return ":" + name
+        return f"Namespace({self._name!r})"
+
+    def __str__(self):
+        """Namespaceの絶対名を返す。
+
+        Returns:
+            str: 正規化済みの保持名。存在確認はしない。
+        """
+        return self._name
+
+    def __eq__(self, other):
+        """Namespace名を基準に同一性を判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: Namespace 同士は保持名を比較する。異なる型では NotImplemented。
+        """
+        if not isinstance(other, Namespace):
+            return NotImplemented
+        return self._name == other._name
+
+    def __hash__(self):
+        """Namespace名を使ったハッシュ値を返す。
+
+        Returns:
+            int: 現在の保持名のハッシュ。rename/move により変化するため、集合や辞書キーとして保持中の名前変更は避ける。
+        """
+        return hash(self._name)
+
+    @classmethod
+    def current(cls):
+        """カレントNamespaceを返す。
+
+        Returns:
+            Namespace: 現在のカレントNamespace。
+        """
+        return cls(om2.MNamespace.currentNamespace())
+
+    @classmethod
+    @undoChunk("hlibNamespaceCreate")
+    def create(cls, name, parent=":"):
+        """Namespaceを作成し、作成したNamespaceを返す。
+
+        単一階層の name とルート以外の parent を組み合わせると、作成先は parent 配下だが戻り値の保持名には parent が反映されない。現在の実装では、完全な入れ子名を name に指定すると作成先と戻り値が一致する。
+
+        Args:
+            name (str | Namespace): 作成する名前。入れ子の名前なら、その名前に含まれる親を優先する。
+            parent (str | Namespace): 単一階層名を作成する親。存在しなければ再帰的に作成する。
+
+        Returns:
+            Namespace: name を正規化したラッパー。存在する場合もそのラッパーを返す。
+
+        Raises:
+            ValueError: name または parent が不正な場合。
+            RuntimeError: Maya が作成を拒否した場合。
+        """
+        namespace = cls(name)
+        parent_namespace = cls(parent)
+        if ":" in namespace.name.strip(":"):
+            parent_namespace = namespace.parent()
+        if namespace.exists():
+            return namespace
+        if parent_namespace is None:
+            raise ValueError("root namespace cannot be created")
+        if not parent_namespace.exists():
+            cls.create(parent_namespace)
+        leaf_name = namespace.name.rsplit(":", 1)[-1]
+        cmds.namespace(add=leaf_name, parent=parent_namespace.name)
+        return namespace
 
     @property
     def name(self):
@@ -111,15 +173,6 @@ class Namespace:
         mobjects = om2.MNamespace.getNamespaceObjects(self._name, recurse) or []
         return [Node(mobject) for mobject in mobjects]
 
-    @classmethod
-    def current(cls):
-        """カレントNamespaceを返す。
-
-        Returns:
-            Namespace: 現在のカレントNamespace。
-        """
-        return cls(om2.MNamespace.currentNamespace())
-
     @undoChunk("hlibNamespaceSetCurrent")
     def setCurrent(self):
         """カレントNamespaceを自身へ切り替える。
@@ -155,38 +208,6 @@ class Namespace:
         finally:
             if previous.exists():
                 previous.setCurrent()
-
-    @classmethod
-    @undoChunk("hlibNamespaceCreate")
-    def create(cls, name, parent=":"):
-        """Namespaceを作成し、作成したNamespaceを返す。
-
-        単一階層の name とルート以外の parent を組み合わせると、作成先は parent 配下だが戻り値の保持名には parent が反映されない。現在の実装では、完全な入れ子名を name に指定すると作成先と戻り値が一致する。
-
-        Args:
-            name (str | Namespace): 作成する名前。入れ子の名前なら、その名前に含まれる親を優先する。
-            parent (str | Namespace): 単一階層名を作成する親。存在しなければ再帰的に作成する。
-
-        Returns:
-            Namespace: name を正規化したラッパー。存在する場合もそのラッパーを返す。
-
-        Raises:
-            ValueError: name または parent が不正な場合。
-            RuntimeError: Maya が作成を拒否した場合。
-        """
-        namespace = cls(name)
-        parent_namespace = cls(parent)
-        if ":" in namespace.name.strip(":"):
-            parent_namespace = namespace.parent()
-        if namespace.exists():
-            return namespace
-        if parent_namespace is None:
-            raise ValueError("root namespace cannot be created")
-        if not parent_namespace.exists():
-            cls.create(parent_namespace)
-        leaf_name = namespace.name.rsplit(":", 1)[-1]
-        cmds.namespace(add=leaf_name, parent=parent_namespace.name)
-        return namespace
 
     @undoChunk("hlibNamespaceRename")
     def rename(self, name):
@@ -236,29 +257,6 @@ class Namespace:
         self._name = target.name
         return self
 
-    def _move_contents(self, target):
-        """Namespaceの内容を別Namespaceへ移し、元Namespaceを削除する。
-
-        移動先を作成し、force=True で内容を移して元を削除する。自身の保持名はここでは更新しない。
-
-        Args:
-            target (Namespace): 新規作成する移動先。親は存在している必要がある。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: 移動先が既存、親が存在しない、または Maya 操作が失敗した場合。
-        """
-        if target.exists():
-            raise RuntimeError(f"Namespace already exists: {target.name}")
-        target_parent = target.parent()
-        if target_parent is None or not target_parent.exists():
-            raise RuntimeError(f"Namespace does not exist: {target_parent}")
-        cmds.namespace(add=target.name.rsplit(":", 1)[-1], parent=target_parent.name)
-        cmds.namespace(moveNamespace=(self._name, target.name), force=True)
-        cmds.namespace(removeNamespace=self._name)
-
     @undoChunk("hlibNamespaceRemove")
     def remove(self, destination=":"):
         """内容を移動してNamespaceを削除する。
@@ -282,39 +280,41 @@ class Namespace:
         cmds.namespace(removeNamespace=self._name)
         return destination_namespace
 
-    def __str__(self):
-        """Namespaceの絶対名を返す。
-
-        Returns:
-            str: 正規化済みの保持名。存在確認はしない。
-        """
-        return self._name
-
-    def __repr__(self):
-        """Namespaceのデバッグ表現を返す。
-
-        Returns:
-            str: Namespace と保持名を含む文字列表現。
-        """
-        return f"Namespace({self._name!r})"
-
-    def __eq__(self, other):
-        """Namespace名を基準に同一性を判定する。
+    @staticmethod
+    def _normalize(name):
+        """Namespace名をMayaの絶対表記へ正規化する。
 
         Args:
-            other (object): 比較対象。
+            name (str): 正規化する名前。
 
         Returns:
-            bool | types.NotImplementedType: Namespace 同士は保持名を比較する。異なる型では NotImplemented。
+            str: / を : に置き換え、両端の : を除いて先頭に : を付けた名前。区切り文字だけなら :。
         """
-        if not isinstance(other, Namespace):
-            return NotImplemented
-        return self._name == other._name
+        name = name.replace("/", ":")
+        if name == ":" or not name.strip(":"):
+            return ":"
+        name = name.strip(":")
+        return ":" + name
 
-    def __hash__(self):
-        """Namespace名を使ったハッシュ値を返す。
+    def _move_contents(self, target):
+        """Namespaceの内容を別Namespaceへ移し、元Namespaceを削除する。
+
+        移動先を作成し、force=True で内容を移して元を削除する。自身の保持名はここでは更新しない。
+
+        Args:
+            target (Namespace): 新規作成する移動先。親は存在している必要がある。
 
         Returns:
-            int: 現在の保持名のハッシュ。rename/move により変化するため、集合や辞書キーとして保持中の名前変更は避ける。
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: 移動先が既存、親が存在しない、または Maya 操作が失敗した場合。
         """
-        return hash(self._name)
+        if target.exists():
+            raise RuntimeError(f"Namespace already exists: {target.name}")
+        target_parent = target.parent()
+        if target_parent is None or not target_parent.exists():
+            raise RuntimeError(f"Namespace does not exist: {target_parent}")
+        cmds.namespace(add=target.name.rsplit(":", 1)[-1], parent=target_parent.name)
+        cmds.namespace(moveNamespace=(self._name, target.name), force=True)
+        cmds.namespace(removeNamespace=self._name)

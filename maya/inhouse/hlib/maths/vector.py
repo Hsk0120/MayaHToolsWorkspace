@@ -20,6 +20,10 @@ _SET = _MVector.__setitem__
 _NUMBER = (int, float)
 #: MVector のコンストラクタへそのまま渡せる om2 の3成分型。
 _OM2_POINT_TYPES = (_MPoint, om2.MFloatVector, om2.MFloatPoint)
+#: 型ごとの判定結果のキャッシュ。動的に作られた型が溜まり続けないよう上限を設ける。
+_TYPE_CACHE_LIMIT = 256
+_OM2_TYPES = {}
+_STATEFUL_TYPES = {}
 
 
 def _as_mvector(value):
@@ -137,12 +141,6 @@ def _checked_index(index, size, name):
     if not 0 <= position < size:
         raise IndexError("{} index out of range".format(name))
     return position
-
-
-#: 型ごとの判定結果のキャッシュ。動的に作られた型が溜まり続けないよう上限を設ける。
-_TYPE_CACHE_LIMIT = 256
-_OM2_TYPES = {}
-_STATEFUL_TYPES = {}
 
 
 def _is_om2_type(cls):
@@ -376,39 +374,6 @@ class Vector(om2.MVector):
     __slots__ = ()
     __hash__ = None
 
-    def mirrored(self, axis="x", pivot=(0.0, 0.0, 0.0)):
-        """指定中心から成分を反転した同型の複製を返す。
-
-        Translation・Scale・Shearでも数値反転として使用できる。
-        Scale・Shearの行列としての鏡映にはMatrix.mirroredを使う。
-
-        Args:
-            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
-            pivot (Iterable[float]): 値と同じ単位の中心。方向には原点を使う。
-
-        Returns:
-            Vector: 同型の新しい値。
-        """
-        from ..utils.mirror import mirrorArguments
-        axes, center = mirrorArguments(axis, pivot)
-        values = list(self)
-        for index in axes:
-            values[index] = 2 * center[index] - values[index]
-        return type(self)(values)
-
-    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
-        """自身の3成分を反転する。
-
-        Args:
-            axis (str | int): mirroredと同じ反転軸。
-            pivot (Iterable[float]): 値と同じ単位の中心。
-
-        Returns:
-            Vector: 更新した自身。
-        """
-        self.x, self.y, self.z = self.mirrored(axis, pivot)
-        return self
-
     def __new__(cls, *args, **kwargs):
         """C++ の実体を確保した cls のインスタンス(ゼロベクトル)を作る。
 
@@ -479,25 +444,6 @@ class Vector(om2.MVector):
         self.y = source.y
         self.z = source.z
 
-    @classmethod
-    def fromIterable(cls, values):
-        """3要素の反復可能オブジェクトから生成する。
-
-        Args:
-            values (Iterable[float]): 3要素の反復可能オブジェクト。
-
-        Returns:
-            Vector: 呼び出したクラスの新しいインスタンス。
-
-        Raises:
-            ValueError: 要素数が3でない場合。
-        """
-        values = tuple(values)
-        if len(values) != 3:
-            raise ValueError("{} expects 3 values".format(cls.__name__))
-        return cls(values[0], values[1], values[2])
-
-    # ------------------------------------------------------------------ 添字・反復
     def __getitem__(self, index):
         """成分を取得する。
 
@@ -543,7 +489,6 @@ class Vector(om2.MVector):
         """
         return iter((self.x, self.y, self.z))
 
-    # ------------------------------------------------------------------ 複製・表示
     def __reduce__(self):
         """copy / pickle 用に、コンストラクタを通さずに再構築する情報を返す。
 
@@ -566,21 +511,6 @@ class Vector(om2.MVector):
             tuple: ``__reduce__()`` の結果。
         """
         return self.__reduce__()
-
-    def _duplicate(self):
-        """同じ型・同じ成分の新しいインスタンスを返す(追加のアトリビュートは写さない)。
-
-        利用者の派生クラスの ``__init__`` は呼ばない。
-
-        Returns:
-            Vector: 自身と同じクラスの新しいインスタンス。
-        """
-        result = _NEW(type(self))
-        _INIT(result)
-        result.x = self.x
-        result.y = self.y
-        result.z = self.z
-        return result
 
     def __copy__(self):
         """同じ型・同じ成分の複製を返す。
@@ -615,7 +545,6 @@ class Vector(om2.MVector):
 
     __str__ = __repr__
 
-    # ------------------------------------------------------------------ 比較
     def __eq__(self, other):
         """MVector 系との成分の完全一致を判定する。
 
@@ -645,7 +574,6 @@ class Vector(om2.MVector):
             return _MVector.__ne__(self, other)
         return _foreign_comparison(other, True)
 
-    # ------------------------------------------------------------------ 演算
     def __add__(self, other):
         """MVector 系との成分ごとの加算を返す。
 
@@ -680,6 +608,22 @@ class Vector(om2.MVector):
         _MVector.__iadd__(result, self)
         return result
 
+    def __iadd__(self, other):
+        """MVector 系を自身へ加算する。
+
+        om2 の MVector を継承した型では、対応しない型との ``+=`` が例外にならず
+        NotImplemented が代入されてしまうため、型を検査してから委譲する。
+
+        Args:
+            other (object): 加算する MVector 系。
+
+        Returns:
+            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented(TypeError になる)。
+        """
+        if not isinstance(other, _MVector):
+            return NotImplemented
+        return _MVector.__iadd__(self, other)
+
     def __sub__(self, other):
         """MVector 系との成分ごとの減算を返す。
 
@@ -713,6 +657,19 @@ class Vector(om2.MVector):
         _MVector.__iadd__(result, other)
         _MVector.__isub__(result, self)
         return result
+
+    def __isub__(self, other):
+        """MVector 系を自身から減算する。
+
+        Args:
+            other (object): 減算する MVector 系。
+
+        Returns:
+            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MVector):
+            return NotImplemented
+        return _MVector.__isub__(self, other)
 
     def __mul__(self, other):
         """om2 の意味論で乗算する。
@@ -770,6 +727,20 @@ class Vector(om2.MVector):
             return result
         return NotImplemented
 
+    def __imul__(self, other):
+        """数値倍、または MMatrix 系による行ベクトル規約の方向変換を自身へ適用する。
+
+        Args:
+            other (object): 数値または MMatrix 系。
+
+        Returns:
+            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented
+            (MVector 系を渡した場合は om2 と同じく内積へ戻り、名前が float に再束縛される)。
+        """
+        if not isinstance(other, (int, float, _MMatrix)):
+            return NotImplemented
+        return _MVector.__imul__(self, other)
+
     def __truediv__(self, other):
         """数値による成分ごとの除算を返す。
 
@@ -791,6 +762,24 @@ class Vector(om2.MVector):
         _MVector.__iadd__(result, self)
         _MVector.__itruediv__(result, other)
         return result
+
+    def __itruediv__(self, other):
+        """数値で自身を除算する。
+
+        Args:
+            other (object): 除数の int または float。
+
+        Returns:
+            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+
+        Raises:
+            ZeroDivisionError: other が 0 の場合。
+        """
+        if not isinstance(other, _NUMBER):
+            return NotImplemented
+        if other == 0:
+            raise ZeroDivisionError("Vector division by zero")
+        return _MVector.__itruediv__(self, other)
 
     def __xor__(self, other):
         """MVector 系との外積を返す(om2 の ``^``)。
@@ -827,79 +816,6 @@ class Vector(om2.MVector):
         _MVector.__iadd__(result, _MVector.__xor__(other, self))
         return result
 
-    def __neg__(self):
-        """各成分の符号を反転した値を返す。
-
-        Returns:
-            Vector: 新しい Vector。派生クラスの型は保持しない。
-        """
-        result = _NEW(Vector)
-        _INIT(result)
-        _MVector.__iadd__(result, self)
-        _MVector.__imul__(result, -1.0)
-        return result
-
-    def __iadd__(self, other):
-        """MVector 系を自身へ加算する。
-
-        om2 の MVector を継承した型では、対応しない型との ``+=`` が例外にならず
-        NotImplemented が代入されてしまうため、型を検査してから委譲する。
-
-        Args:
-            other (object): 加算する MVector 系。
-
-        Returns:
-            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented(TypeError になる)。
-        """
-        if not isinstance(other, _MVector):
-            return NotImplemented
-        return _MVector.__iadd__(self, other)
-
-    def __isub__(self, other):
-        """MVector 系を自身から減算する。
-
-        Args:
-            other (object): 減算する MVector 系。
-
-        Returns:
-            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MVector):
-            return NotImplemented
-        return _MVector.__isub__(self, other)
-
-    def __imul__(self, other):
-        """数値倍、または MMatrix 系による行ベクトル規約の方向変換を自身へ適用する。
-
-        Args:
-            other (object): 数値または MMatrix 系。
-
-        Returns:
-            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented
-            (MVector 系を渡した場合は om2 と同じく内積へ戻り、名前が float に再束縛される)。
-        """
-        if not isinstance(other, (int, float, _MMatrix)):
-            return NotImplemented
-        return _MVector.__imul__(self, other)
-
-    def __itruediv__(self, other):
-        """数値で自身を除算する。
-
-        Args:
-            other (object): 除数の int または float。
-
-        Returns:
-            Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-
-        Raises:
-            ZeroDivisionError: other が 0 の場合。
-        """
-        if not isinstance(other, _NUMBER):
-            return NotImplemented
-        if other == 0:
-            raise ZeroDivisionError("Vector division by zero")
-        return _MVector.__itruediv__(self, other)
-
     def __ixor__(self, other):
         """MVector 系との外積で自身を書き換える(om2 の MVector には無い in-place 版)。
 
@@ -917,7 +833,69 @@ class Vector(om2.MVector):
         self.z = result.z
         return self
 
-    # ------------------------------------------------------------------ hlib 名のメソッド
+    def __neg__(self):
+        """各成分の符号を反転した値を返す。
+
+        Returns:
+            Vector: 新しい Vector。派生クラスの型は保持しない。
+        """
+        result = _NEW(Vector)
+        _INIT(result)
+        _MVector.__iadd__(result, self)
+        _MVector.__imul__(result, -1.0)
+        return result
+
+    @classmethod
+    def fromIterable(cls, values):
+        """3要素の反復可能オブジェクトから生成する。
+
+        Args:
+            values (Iterable[float]): 3要素の反復可能オブジェクト。
+
+        Returns:
+            Vector: 呼び出したクラスの新しいインスタンス。
+
+        Raises:
+            ValueError: 要素数が3でない場合。
+        """
+        values = tuple(values)
+        if len(values) != 3:
+            raise ValueError("{} expects 3 values".format(cls.__name__))
+        return cls(values[0], values[1], values[2])
+
+    def mirrored(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+        """指定中心から成分を反転した同型の複製を返す。
+
+        Translation・Scale・Shearでも数値反転として使用できる。
+        Scale・Shearの行列としての鏡映にはMatrix.mirroredを使う。
+
+        Args:
+            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
+            pivot (Iterable[float]): 値と同じ単位の中心。方向には原点を使う。
+
+        Returns:
+            Vector: 同型の新しい値。
+        """
+        from ..utils.mirror import mirrorArguments
+        axes, center = mirrorArguments(axis, pivot)
+        values = list(self)
+        for index in axes:
+            values[index] = 2 * center[index] - values[index]
+        return type(self)(values)
+
+    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+        """自身の3成分を反転する。
+
+        Args:
+            axis (str | int): mirroredと同じ反転軸。
+            pivot (Iterable[float]): 値と同じ単位の中心。
+
+        Returns:
+            Vector: 更新した自身。
+        """
+        self.x, self.y, self.z = self.mirrored(axis, pivot)
+        return self
+
     def dot(self, other):
         """内積を返す。
 
@@ -1036,4 +1014,19 @@ class Vector(om2.MVector):
         _MVector.__isub__(result, self)
         _MVector.__imul__(result, t)
         _MVector.__iadd__(result, self)
+        return result
+
+    def _duplicate(self):
+        """同じ型・同じ成分の新しいインスタンスを返す(追加のアトリビュートは写さない)。
+
+        利用者の派生クラスの ``__init__`` は呼ばない。
+
+        Returns:
+            Vector: 自身と同じクラスの新しいインスタンス。
+        """
+        result = _NEW(type(self))
+        _INIT(result)
+        result.x = self.x
+        result.y = self.y
+        result.z = self.z
         return result

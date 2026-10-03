@@ -1,6 +1,6 @@
 """Maya GUIのscriptJobの登録と寿命を管理する。"""
 
-from maya import cmds
+import maya.cmds as cmds
 
 
 class ScriptJob:

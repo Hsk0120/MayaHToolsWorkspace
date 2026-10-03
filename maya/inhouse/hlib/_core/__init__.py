@@ -1,13 +1,13 @@
 """hlib の型登録・検出・初期化・再読み込み機能を公開する。"""
 
+from .bootstrap import initialize_node_api, initialize_plug_api
+from .discovery import discover_node_package, discover_plug_package
 from .registry import (
 	NodeRegistry,
 	collection_export,
 	node_wrapper,
 	plug_wrapper,
 )
-from .discovery import discover_node_package, discover_plug_package
-from .bootstrap import initialize_node_api, initialize_plug_api
 from .reload import reload_package
 
 __all__ = [

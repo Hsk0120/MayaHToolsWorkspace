@@ -1,8 +1,7 @@
 """二点間、またはTransformの原点間の距離を扱う。"""
 
-from ..decorators._fast import fast_edit
-
 from .._core.registry import node_wrapper
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from .node import Node
 from .transform import Transform

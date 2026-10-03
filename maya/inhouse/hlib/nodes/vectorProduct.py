@@ -1,7 +1,8 @@
 """内積・外積・行列による点/ベクトル変換。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Matrix, Vector
 from ._calculation import _Calculation
 from .shadingDependNode import ShadingDependNode

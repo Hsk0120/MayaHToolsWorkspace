@@ -1,6 +1,7 @@
 """選択セットを生成する。照会・編集はObjectSetのメソッドを使用する。"""
 
-from maya import cmds
+import maya.cmds as cmds
+
 from .._core.flags import flag_aliases
 from ..decorators.undo import undoChunk
 

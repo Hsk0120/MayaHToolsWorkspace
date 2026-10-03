@@ -1,10 +1,12 @@
 """シーンを変更せず保持・解決できるMaya参照。"""
+
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class NodeRef:
     """UUID・絶対名・ノード型を保存する。同名候補は自動選択しない。"""
+
     uuid: str
     path: str
     node_type: str
@@ -95,6 +97,7 @@ class NodeRef:
 @dataclass(frozen=True)
 class PlugRef:
     """ノード参照とアトリビュートパス。配列の論理番号を保持する。"""
+
     node: NodeRef
     attribute: str
 
@@ -136,6 +139,7 @@ class PlugRef:
 @dataclass(frozen=True)
 class ComponentRef:
     """単体コンポーネント参照。UVは取得時のUVセットも保持する。"""
+
     node: NodeRef
     kind: str
     index: int

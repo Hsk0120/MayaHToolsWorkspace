@@ -1,10 +1,12 @@
 """Mesh の Edge とコレクション。"""
+
 from .component import Component, Components
 from .vertex import Vertices
 
 
 class Edge(Component):
     """Mesh の単一コンポーネント。"""
+
     shape_type = "mesh"
     component_type = "e"
     count_attribute = "numEdges"
@@ -21,6 +23,7 @@ class Edge(Component):
 
 class Edges(Components):
     """同一 Mesh の Edge 群。"""
+
     component_class = Edge
 
     def vertices(self):

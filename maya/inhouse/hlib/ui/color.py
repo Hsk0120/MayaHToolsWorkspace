@@ -1,8 +1,8 @@
 """Mayaの表示色指定とパレットのスナップショットを扱う。"""
 
 import math
-import maya.cmds as cmds
 
+import maya.cmds as cmds
 
 
 class Color:
@@ -77,43 +77,42 @@ class Color:
         elif rgb is not None:
             self.rgb = rgb
 
-    @staticmethod
-    def _validate_index(value):
-        """0～31の整数を検証する。boolや範囲外はValueError。"""
-        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 31:
-            raise ValueError("Color index must be an integer from 0 to 31")
-        return value
+    def __eq__(self, other):
+        """形式と指定値を比較する。画面上の見た目や近似一致は比較しない。"""
+        if not isinstance(other, Color):
+            return NotImplemented
+        return self.mode == other.mode and (
+            self.index == other.index if self.mode == "index" else self.rgb == other.rgb)
 
-    @staticmethod
-    def _validate_rgb(value):
-        """有限なRGB三要素へ変換する。不正値はValueError。"""
-        try:
-            if isinstance(value, (str, bytes)):
-                raise ValueError("RGB must be three numbers")
-            values = tuple(float(v) for v in value)
-        except (TypeError, ValueError, OverflowError) as exc:
-            raise ValueError("RGB must be three numbers") from exc
-        if len(values) != 3 or not all(math.isfinite(v) and 0 <= v <= 1 for v in values):
-            raise ValueError("RGB values must be finite and between 0 and 1")
-        return values
+    def __repr__(self):
+        """str: 指定形式と値を表示する。"""
+        if self.mode == "disabled":
+            return "Color.disabled()"
+        return f"Color({self.mode}={getattr(self, self.mode)!r})"
 
     @classmethod
-    def _read_palette(cls):
-        """現在のMayaパレットを読み取る。設定・保存はしない。"""
-        if cmds.about(batch=True):
-            return cls._DEFAULT_PALETTE, "default"
-        try:
-            # 0はDrawing Overridesの既定色。Maya 2023ではcolorIndexで照会できない。
-            palette = (cls._DEFAULT_PALETTE[0],) + tuple(
-                cls._validate_rgb(cmds.colorIndex(i, query=True)) for i in range(1, 32))
-        except (ValueError, TypeError) as exc:
-            raise RuntimeError("Cannot read Maya color palette") from exc
-        return palette, "maya"
+    def disabled(cls):
+        """Color: 無効状態を作成する。"""
+        result = cls()
+        result._mode, result._index, result._rgb = "disabled", None, None
+        return result
 
-    @staticmethod
-    def _nearest(rgb, palette):
-        """RGBから通常色1～31の最近傍番号を求める。"""
-        return min(range(1, 32), key=lambda i: sum((a - b) ** 2 for a, b in zip(rgb, palette[i])))
+    @classmethod
+    def coerce(cls, value):
+        """Color・番号・RGB・Noneを独立したColorへ正規化する。
+
+        Args:
+            value (Color | int | Iterable[float] | None): Noneは無効状態。
+        Returns:
+            Color: 正規化した値。入力Colorはコピーする。
+        """
+        if isinstance(value, cls):
+            return value.copy()
+        if value is None:
+            return cls.disabled()
+        if isinstance(value, int):
+            return cls(index=value)
+        return cls(rgb=value)
 
     @property
     def paletteSource(self):
@@ -155,13 +154,6 @@ class Color:
         rgb = self._validate_rgb(value)
         self._index, self._rgb, self._mode = self._nearest(rgb, self._palette), rgb, "rgb"
 
-    @classmethod
-    def disabled(cls):
-        """Color: 無効状態を作成する。"""
-        result = cls()
-        result._mode, result._index, result._rgb = "disabled", None, None
-        return result
-
     def refreshPalette(self):
         """Mayaのパレットを再取得し、指定形式を保って対応値を再計算する。
 
@@ -187,35 +179,44 @@ class Color:
         result._palette_source = self.paletteSource
         return result
 
+    @staticmethod
+    def _validate_index(value):
+        """0～31の整数を検証する。boolや範囲外はValueError。"""
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 31:
+            raise ValueError("Color index must be an integer from 0 to 31")
+        return value
+
+    @staticmethod
+    def _validate_rgb(value):
+        """有限なRGB三要素へ変換する。不正値はValueError。"""
+        try:
+            if isinstance(value, (str, bytes)):
+                raise ValueError("RGB must be three numbers")
+            values = tuple(float(v) for v in value)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("RGB must be three numbers") from exc
+        if len(values) != 3 or not all(math.isfinite(v) and 0 <= v <= 1 for v in values):
+            raise ValueError("RGB values must be finite and between 0 and 1")
+        return values
+
     @classmethod
-    def coerce(cls, value):
-        """Color・番号・RGB・Noneを独立したColorへ正規化する。
+    def _read_palette(cls):
+        """現在のMayaパレットを読み取る。設定・保存はしない。"""
+        if cmds.about(batch=True):
+            return cls._DEFAULT_PALETTE, "default"
+        try:
+            # 0はDrawing Overridesの既定色。Maya 2023ではcolorIndexで照会できない。
+            palette = (cls._DEFAULT_PALETTE[0],) + tuple(
+                cls._validate_rgb(cmds.colorIndex(i, query=True)) for i in range(1, 32))
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError("Cannot read Maya color palette") from exc
+        return palette, "maya"
 
-        Args:
-            value (Color | int | Iterable[float] | None): Noneは無効状態。
-        Returns:
-            Color: 正規化した値。入力Colorはコピーする。
-        """
-        if isinstance(value, cls):
-            return value.copy()
-        if value is None:
-            return cls.disabled()
-        if isinstance(value, int):
-            return cls(index=value)
-        return cls(rgb=value)
+    @staticmethod
+    def _nearest(rgb, palette):
+        """RGBから通常色1～31の最近傍番号を求める。"""
+        return min(range(1, 32), key=lambda i: sum((a - b) ** 2 for a, b in zip(rgb, palette[i])))
 
-    def __eq__(self, other):
-        """形式と指定値を比較する。画面上の見た目や近似一致は比較しない。"""
-        if not isinstance(other, Color):
-            return NotImplemented
-        return self.mode == other.mode and (
-            self.index == other.index if self.mode == "index" else self.rgb == other.rgb)
-
-    def __repr__(self):
-        """str: 指定形式と値を表示する。"""
-        if self.mode == "disabled":
-            return "Color.disabled()"
-        return f"Color({self.mode}={getattr(self, self.mode)!r})"
 
 # 再読み込み前の旧コレクション参照を残さない。
 globals().pop("Colors", None)

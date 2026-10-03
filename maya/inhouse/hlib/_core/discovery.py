@@ -4,6 +4,8 @@ import importlib
 import inspect
 import pkgutil
 
+__all__ = ["discover_node_package", "discover_plug_package"]
+
 
 def discover_node_package(package_name):
     """パッケージ内の metadata 付き wrapper と export を発見する。
@@ -79,6 +81,3 @@ def _discover_typed_package(package_name, type_attr):
                         wrapper_class.__module__, wrapper_class.__qualname__))
                 exports[name] = wrapper_class
     return wrappers, exports
-
-
-__all__ = ["discover_node_package", "discover_plug_package"]

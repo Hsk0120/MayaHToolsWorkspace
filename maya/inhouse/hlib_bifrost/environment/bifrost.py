@@ -1,6 +1,7 @@
 """Bifrostの対応版確認と明示ロード。"""
 
-from maya import cmds
+import maya.cmds as cmds
+
 from .._binding import coreModule
 
 

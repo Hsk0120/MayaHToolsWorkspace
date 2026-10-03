@@ -1,8 +1,8 @@
 """Mayaに依存しない版番号の値を扱う。"""
 
+import re
 from dataclasses import dataclass
 from functools import total_ordering
-import re
 
 
 @total_ordering
@@ -50,27 +50,55 @@ class Version:
         object.__setattr__(self, "_parts", parts)
         object.__setattr__(self, "_suffix", suffix)
 
-    @staticmethod
-    def _component(value):
-        """版番号の一桁を非負整数へ変換する。
+    def __eq__(self, other):
+        """版番号同士の数値列を比較する。
 
         Args:
-            value (int | str): 整数または数字だけの文字列。
+            other (object): 比較対象。
 
         Returns:
-            int: 検証済みの非負整数。
-
-        Raises:
-            TypeError: bool・小数など整数でない場合。
-            ValueError: 負の整数の場合。
+            bool | NotImplementedType: Version以外はNotImplemented。
         """
-        if isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
-            return int(value)
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError("Version components must be integers")
-        if value < 0:
-            raise ValueError("Version components must be non-negative")
-        return value
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._comparison_key() == other._comparison_key()
+
+    def __hash__(self):
+        """等しい版番号に同じハッシュを返す。
+
+        Returns:
+            int: ゼロ埋めと接尾辞に依存しないハッシュ。
+        """
+        return hash(self._comparison_key())
+
+    def __lt__(self, other):
+        """数値列の大小を比較する。接尾辞は順位に影響しない。
+
+        Args:
+            other (Version): 比較対象。
+
+        Returns:
+            bool | NotImplementedType: Version以外はNotImplemented。
+        """
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self._comparison_key() < other._comparison_key()
+
+    def __repr__(self):
+        """デバッグ用にクラス名と版番号を表示する。
+
+        Returns:
+            str: Versionのコンストラクター形式。
+        """
+        return "{}({!r})".format(type(self).__name__, str(self))
+
+    def __str__(self):
+        """数値列と接尾辞を文字列へ変換する。
+
+        Returns:
+            str: 3.0.0.0-buildのような文字列。先頭のゼロ・外側の空白は正規化する。
+        """
+        return ".".join(str(part) for part in self._parts) + self._suffix
 
     @classmethod
     def parse(cls, value):
@@ -161,6 +189,28 @@ class Version:
             raise ValueError("Invalid minimum version: {!r}".format(minimum))
         return self >= required
 
+    @staticmethod
+    def _component(value):
+        """版番号の一桁を非負整数へ変換する。
+
+        Args:
+            value (int | str): 整数または数字だけの文字列。
+
+        Returns:
+            int: 検証済みの非負整数。
+
+        Raises:
+            TypeError: bool・小数など整数でない場合。
+            ValueError: 負の整数の場合。
+        """
+        if isinstance(value, str) and re.fullmatch(r"[0-9]+", value):
+            return int(value)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError("Version components must be integers")
+        if value < 0:
+            raise ValueError("Version components must be non-negative")
+        return value
+
     def _comparison_key(self):
         """比較とハッシュ用に、末尾のゼロを除いた数値列を返す。
 
@@ -171,53 +221,3 @@ class Version:
         while len(parts) > 1 and parts[-1] == 0:
             parts = parts[:-1]
         return parts
-
-    def __eq__(self, other):
-        """版番号同士の数値列を比較する。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | NotImplementedType: Version以外はNotImplemented。
-        """
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self._comparison_key() == other._comparison_key()
-
-    def __lt__(self, other):
-        """数値列の大小を比較する。接尾辞は順位に影響しない。
-
-        Args:
-            other (Version): 比較対象。
-
-        Returns:
-            bool | NotImplementedType: Version以外はNotImplemented。
-        """
-        if not isinstance(other, type(self)):
-            return NotImplemented
-        return self._comparison_key() < other._comparison_key()
-
-    def __hash__(self):
-        """等しい版番号に同じハッシュを返す。
-
-        Returns:
-            int: ゼロ埋めと接尾辞に依存しないハッシュ。
-        """
-        return hash(self._comparison_key())
-
-    def __str__(self):
-        """数値列と接尾辞を文字列へ変換する。
-
-        Returns:
-            str: 3.0.0.0-buildのような文字列。先頭のゼロ・外側の空白は正規化する。
-        """
-        return ".".join(str(part) for part in self._parts) + self._suffix
-
-    def __repr__(self):
-        """デバッグ用にクラス名と版番号を表示する。
-
-        Returns:
-            str: Versionのコンストラクター形式。
-        """
-        return "{}({!r})".format(type(self).__name__, str(self))

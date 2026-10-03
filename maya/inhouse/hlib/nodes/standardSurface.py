@@ -1,6 +1,8 @@
 """MayaのstandardSurfaceノードを扱う。"""
-from .._core.registry import node_wrapper
+
 import maya.cmds as cmds
+
+from .._core.registry import node_wrapper
 from .paintableShadingDependNode import PaintableShadingDependNode
 from .shadingDependNode import ShadingDependNode
 

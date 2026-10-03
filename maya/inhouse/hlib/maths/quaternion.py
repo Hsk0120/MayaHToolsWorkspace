@@ -161,26 +161,6 @@ class Quaternion(om2.MQuaternion):
         # 軸角などの形は om2 の多重定義の解決に任せる(不正な引数も om2 と同じ ValueError)。
         self.setValue(_MQuaternion(*args))
 
-    @classmethod
-    def _wrap(cls, value):
-        """om2 の値を複製した cls のインスタンスを返す。
-
-        Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの
-        ``__init__`` も呼ばない)。
-
-        Args:
-            value (om2.MQuaternion | om2.MEulerRotation | om2.MMatrix): 複製元。
-                ``setValue`` が受け付ける値。
-
-        Returns:
-            Quaternion: cls の新しいインスタンス。
-        """
-        result = _NEW(cls)
-        _INIT(result)
-        result.setValue(value)
-        return result
-
-    # ------------------------------------------------------------------ 添字・反復
     def __getitem__(self, index):
         """成分を取得する。
 
@@ -226,7 +206,6 @@ class Quaternion(om2.MQuaternion):
         """
         return iter((self.x, self.y, self.z, self.w))
 
-    # ------------------------------------------------------------------ 複製・表示
     def __reduce__(self):
         """copy / pickle 用に、コンストラクタを通さずに再構築する情報を返す。
 
@@ -281,7 +260,6 @@ class Quaternion(om2.MQuaternion):
 
     __str__ = __repr__
 
-    # ------------------------------------------------------------------ 比較
     def __eq__(self, other):
         """MQuaternion 系との成分の完全一致を判定する。
 
@@ -311,7 +289,6 @@ class Quaternion(om2.MQuaternion):
             return _MQuaternion.__ne__(self, other)
         return _foreign_comparison(other, True)
 
-    # ------------------------------------------------------------------ 演算
     def __mul__(self, other):
         """om2 の順序で四元数の積を返す(自身を先に適用する回転)。
 
@@ -373,6 +350,19 @@ class Quaternion(om2.MQuaternion):
             return NotImplemented
         return Quaternion._wrap(_MQuaternion.__add__(self, other))
 
+    def __radd__(self, other):
+        """左辺の MQuaternion 系との成分ごとの和を返す。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 和。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        return Quaternion._wrap(_MQuaternion.__add__(other, self))
+
     def __iadd__(self, other):
         """MQuaternion 系を成分ごとに自身へ加算する(om2 の MQuaternion には無い in-place 版)。
 
@@ -386,33 +376,6 @@ class Quaternion(om2.MQuaternion):
             return NotImplemented
         self.setValue(_MQuaternion.__add__(self, other))
         return self
-
-    def __isub__(self, other):
-        """MQuaternion 系を成分ごとに自身から減算する(om2 の MQuaternion には無い in-place 版)。
-
-        Args:
-            other (object): MQuaternion 系。
-
-        Returns:
-            Quaternion | types.NotImplementedType: 自身。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MQuaternion):
-            return NotImplemented
-        self.setValue(_MQuaternion.__sub__(self, other))
-        return self
-
-    def __radd__(self, other):
-        """左辺の MQuaternion 系との成分ごとの和を返す。
-
-        Args:
-            other (object): MQuaternion 系。
-
-        Returns:
-            Quaternion | types.NotImplementedType: 和。対応しない型は NotImplemented。
-        """
-        if not isinstance(other, _MQuaternion):
-            return NotImplemented
-        return Quaternion._wrap(_MQuaternion.__add__(other, self))
 
     def __sub__(self, other):
         """成分ごとの差を返す(om2 の ``-``)。
@@ -440,6 +403,20 @@ class Quaternion(om2.MQuaternion):
             return NotImplemented
         return Quaternion._wrap(_MQuaternion.__sub__(other, self))
 
+    def __isub__(self, other):
+        """MQuaternion 系を成分ごとに自身から減算する(om2 の MQuaternion には無い in-place 版)。
+
+        Args:
+            other (object): MQuaternion 系。
+
+        Returns:
+            Quaternion | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+        """
+        if not isinstance(other, _MQuaternion):
+            return NotImplemented
+        self.setValue(_MQuaternion.__sub__(self, other))
+        return self
+
     def __neg__(self):
         """全成分の符号を反転した四元数を返す(同じ回転を表す)。
 
@@ -448,7 +425,34 @@ class Quaternion(om2.MQuaternion):
         """
         return Quaternion._wrap(_MQuaternion.__neg__(self))
 
-    # ------------------------------------------------------------------ hlib 名のメソッド
+    @classmethod
+    def fromAxisAngle(cls, axis, angle):
+        """軸と角度から回転四元数を生成する。
+
+        Args:
+            axis (om2.MVector | Iterable[float]): 回転軸。内部で正規化する。
+            angle (float): 回転角度(ラジアン)。
+
+        Returns:
+            Quaternion: axis を中心に angle だけ回転する単位四元数。
+
+        Raises:
+            ValueError: axis がゼロベクトルの場合(om2 は単位四元数を返す)。
+        """
+        axis = _as_mvector(axis)
+        length = axis.length()
+        if length == 0.0:
+            raise ValueError("Cannot normalize a zero vector")
+        half = angle / 2.0
+        sine = math.sin(half)
+        result = _NEW(cls)
+        _INIT(result)
+        result.x = axis.x / length * sine
+        result.y = axis.y / length * sine
+        result.z = axis.z / length * sine
+        result.w = math.cos(half)
+        return result
+
     def dot(self, other):
         """4成分の内積を返す。
 
@@ -573,34 +577,6 @@ class Quaternion(om2.MQuaternion):
             ValueError: 自身または other がゼロ四元数の場合。
         """
         return Quaternion._wrap(_MQuaternion.slerp(_unit_copy(self), _unit_copy(other), t, spin))
-
-    @classmethod
-    def fromAxisAngle(cls, axis, angle):
-        """軸と角度から回転四元数を生成する。
-
-        Args:
-            axis (om2.MVector | Iterable[float]): 回転軸。内部で正規化する。
-            angle (float): 回転角度(ラジアン)。
-
-        Returns:
-            Quaternion: axis を中心に angle だけ回転する単位四元数。
-
-        Raises:
-            ValueError: axis がゼロベクトルの場合(om2 は単位四元数を返す)。
-        """
-        axis = _as_mvector(axis)
-        length = axis.length()
-        if length == 0.0:
-            raise ValueError("Cannot normalize a zero vector")
-        half = angle / 2.0
-        sine = math.sin(half)
-        result = _NEW(cls)
-        _INIT(result)
-        result.x = axis.x / length * sine
-        result.y = axis.y / length * sine
-        result.z = axis.z / length * sine
-        result.w = math.cos(half)
-        return result
 
     def toAxisAngle(self):
         """軸と角度の組へ分解する。
@@ -730,3 +706,22 @@ class Quaternion(om2.MQuaternion):
         from .matrix import Matrix
 
         return Matrix._wrap(_unit_copy(self).asMatrix())
+
+    @classmethod
+    def _wrap(cls, value):
+        """om2 の値を複製した cls のインスタンスを返す。
+
+        Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの
+        ``__init__`` も呼ばない)。
+
+        Args:
+            value (om2.MQuaternion | om2.MEulerRotation | om2.MMatrix): 複製元。
+                ``setValue`` が受け付ける値。
+
+        Returns:
+            Quaternion: cls の新しいインスタンス。
+        """
+        result = _NEW(cls)
+        _INIT(result)
+        result.setValue(value)
+        return result

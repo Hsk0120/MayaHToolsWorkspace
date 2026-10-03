@@ -1,4 +1,5 @@
 """メインペインの表示を一時停止する共通コンテキスト。"""
+
 from contextlib import contextmanager
 
 import maya.cmds as cmds

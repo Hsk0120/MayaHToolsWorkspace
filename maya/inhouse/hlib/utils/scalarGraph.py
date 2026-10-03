@@ -1,8 +1,8 @@
 """所有containerへ標準scalar演算を構築する。"""
 
+from ..decorators.undo import undoTransaction
 from ..nodes.container import Container
 from ..plugs.plug import Plug
-from ..decorators.undo import undoTransaction
 
 
 class ScalarGraph:
@@ -15,33 +15,6 @@ class ScalarGraph:
             container (str | Container): 演算ノードの所有先。
         """
         self.container = Container(container)
-
-    def _node(self, kind, role):
-        """演算ノードを作成し、削除・保存用のcontainerへ登録する。
-
-        Args:
-            kind (str): 標準ノード型。
-            role (str): 演算の識別名。
-
-        Returns:
-            str: 作成したノード名。
-        """
-        node = self.container.createNode(kind, name=self.container.name() + "_" + role).fullName()
-        return node
-
-    @staticmethod
-    def _feed(value, destination):
-        """入力へ定数を設定するかプラグを接続する。
-
-        Args:
-            value (float | str | Plug): 定数または入力プラグ名。
-            destination (str): 接続先プラグ名。
-        """
-        from ..plugs.plug import Plug as _InputPlug
-        if isinstance(value, (str, Plug)):
-            _InputPlug._resolve_input(value).connect(destination)
-        else:
-            _InputPlug._resolve_input(destination).set(value)
 
     @undoTransaction("hlib.ScalarGraph.sum")
     def sum(self, role, left, right, subtract=False):
@@ -108,3 +81,30 @@ class ScalarGraph:
         ):
             self._feed(value, node + "." + attr)
         return _InputPlug._resolve_input(node + ".outColorR")
+
+    def _node(self, kind, role):
+        """演算ノードを作成し、削除・保存用のcontainerへ登録する。
+
+        Args:
+            kind (str): 標準ノード型。
+            role (str): 演算の識別名。
+
+        Returns:
+            str: 作成したノード名。
+        """
+        node = self.container.createNode(kind, name=self.container.name() + "_" + role).fullName()
+        return node
+
+    @staticmethod
+    def _feed(value, destination):
+        """入力へ定数を設定するかプラグを接続する。
+
+        Args:
+            value (float | str | Plug): 定数または入力プラグ名。
+            destination (str): 接続先プラグ名。
+        """
+        from ..plugs.plug import Plug as _InputPlug
+        if isinstance(value, (str, Plug)):
+            _InputPlug._resolve_input(value).connect(destination)
+        else:
+            _InputPlug._resolve_input(destination).set(value)

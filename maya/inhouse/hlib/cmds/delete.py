@@ -63,9 +63,9 @@ Examples
     hlib.delete(node)
 """
 
-from ..decorators.undo import undoChunk
-
 import maya.cmds as cmds
+
+from ..decorators.undo import undoChunk
 
 
 @undoChunk("hlib.cmds.delete.delete")

@@ -1,13 +1,13 @@
 """TransformとShapeに共通するDAG階層へのアクセスを提供する。"""
 
 import maya.api.OpenMaya as om2
-
 import maya.cmds as cmds
-from .node import Node, Nodes
+
 from .._core.collection import bulk_api
 from .._core.registry import collection_export
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
+from .node import Node, Nodes
 
 
 class DagNode(Node):
@@ -224,7 +224,6 @@ class DagNode(Node):
         self._apply_display_color(self._prepare_display_color(updates))
 
 
-
 @collection_export()
 @bulk_api(
     DagNode,
@@ -254,10 +253,6 @@ class DagNodes(Nodes):
         """list[Color]: 各対象のDrawing Overrides色。無効状態も保持順で返す。"""
         return [node.getOverrideColor() for node in self]
 
-    def getOutlinerColor(self):
-        """list[Color]: 各対象のOutliner色。無効状態も保持順で返す。"""
-        return [node.getOutlinerColor() for node in self]
-
     @fast_edit
     @undoChunk("hlibNodesOverrideColor")
     def setOverrideColor(self, color, *, fast=False):
@@ -275,6 +270,10 @@ class DagNodes(Nodes):
         from ..ui.color import Color
         value = Color.coerce(color)
         return self._set_colors([value] * len(self), outliner=False)
+
+    def getOutlinerColor(self):
+        """list[Color]: 各対象のOutliner色。無効状態も保持順で返す。"""
+        return [node.getOutlinerColor() for node in self]
 
     @fast_edit
     @undoChunk("hlibNodesOutlinerColor")

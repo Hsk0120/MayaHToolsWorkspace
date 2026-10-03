@@ -9,7 +9,8 @@ query/edit、object=False、polygonによる非NURBS出力は受け付けない�
 生成全体を1回のUndoで戻せる。
 """
 
-from maya import cmds
+import maya.cmds as cmds
+
 from .._core.flags import flag_aliases, normalize_flags
 from ..decorators.undo import undoChunk
 

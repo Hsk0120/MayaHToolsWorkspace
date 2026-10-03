@@ -1,7 +1,8 @@
 """XYZ成分ごとの乗算・除算・累乗。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .shadingDependNode import ShadingDependNode

@@ -4,12 +4,12 @@
 """
 
 from .component import Component, Components
-from .pointComponent import PointComponent, PointComponents
-from .vertex import Vertex, Vertices
 from .cv import CV, CVs
 from .edge import Edge, Edges
 from .face import Face, Faces
+from .pointComponent import PointComponent, PointComponents
 from .uv import UV, UVs
+from .vertex import Vertex, Vertices
 
 __all__ = [
     "Component", "Components", "PointComponent", "PointComponents",

@@ -1,6 +1,7 @@
 """Joint削除時のウェイト移送と階層保持。公開コレクションから分離する。"""
 
 import maya.cmds as cmds
+
 from ..decorators.undo import undoChunk
 
 

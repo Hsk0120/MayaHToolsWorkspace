@@ -1,25 +1,24 @@
 """変換行列を介して Transform ノードを操作する。"""
-from maya.api.OpenMaya import MSpace
-from .._core.space import world_space
-
-from .._core.flags import flag_aliases
-from ..decorators._fast import fast_edit, is_fast
-from .._core.fastWrite import set_attr, set_plug
 
 import math
 import numbers
 
-import maya.cmds as cmds
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
+from maya.api.OpenMaya import MSpace
 
-from ..decorators.undo import undoChunk
+from .._core.collection import bulk_api
+from .._core.fastWrite import set_attr, set_plug
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
+from .._core.registry import collection_export
+from .._core.space import world_space
+from ..decorators._fast import fast_edit, is_fast
+from ..decorators.undo import undoChunk
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
 from ..maths.vector import _vector_of
-from .node import Node
 from .dagNode import DagNode, DagNodes
-from .._core.collection import bulk_api
-from .._core.registry import collection_export
+from .node import Node
 
 #: 拘束元の transform の値(位置・回転など)を使うコンストレイント。拘束元は Transform に限る。
 _TRANSFORM_SOURCE_CONSTRAINTS = frozenset((
@@ -567,22 +566,6 @@ class Transform(DagNode):
             if isinstance(candidate, Transform) and candidate.uuid() != self_uuid
         ]
 
-    @staticmethod
-    def _world_assemblies():
-        """ワールド直下の Transform をすべて取得する。
-
-        Returns:
-            list[Node]: ワールド直下(DAGパスの長さが1)の Transform ラッパー。
-        """
-        iterator = om2.MItDag(om2.MItDag.kBreadthFirst, om2.MFn.kTransform)
-        assemblies = []
-        while not iterator.isDone():
-            path = iterator.getPath()
-            if path.length() == 1:
-                assemblies.append(Node(path))
-            iterator.next()
-        return assemblies
-
     def shapes(self, intermediates=False):
         """このTransform直下のShapeを取得する。
 
@@ -865,6 +848,35 @@ class Transform(DagNode):
         plug = om2.MPlug(self.mobject(), _transform_attribute("matrix"))
         return Matrix._wrap(om2.MFnMatrixData(plug.asMObject()).matrix())
 
+    @fast_edit
+    @undoChunk("hlibTransformSetMatrix")
+    def setMatrix(self, matrix, space=MSpace.kObject, *, fast=False):
+        """行列をローカルまたはワールド空間で設定する。
+
+        行列を分解して translate・rotate・scale・shear に書き込む。スケールの符号と
+        Euler の解は、同じ行列になる候補のうち現在のチャンネル値に近いものを選ぶ
+        (詳細は ``_apply_local_matrix``)。そのため ``cmds.xform(matrix=...)``
+        (常に om2 の規約で書く)とは、負スケールのノードや Euler の別解でチャンネル値が
+        異なることがあるが、結果の行列は同じ。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            matrix (Matrix | sequence): 適用する変換行列。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
+            ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        ws = world_space(space)
+        return self._set_matrix(matrix, ws)
+
     def getTranslation(self, space=MSpace.kObject):
         """Translation を取得する。
 
@@ -876,6 +888,34 @@ class Transform(DagNode):
         """
         ws = world_space(space)
         return self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject).translate
+
+    @fast_edit
+    @undoChunk("hlibTransformSetTranslate")
+    def setTranslation(self, value, space=MSpace.kObject, *, fast=False):
+        """平行移動をローカルまたはワールド空間で設定する。
+
+        rotate・scale・shear のチャンネル値は(浮動小数点の誤差を除いて)変えない
+        (transform の rotateAxis は 0 を前提とする。joint は jointOrient / rotateAxis を保つ)。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Translation | sequence): 新しい平行移動値。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        ws = world_space(space)
+        matrix = self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject)
+        matrix.translate = value
+        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
 
     def getRotation(self, space=MSpace.kObject):
         """Euler 回転値を、ノードの rotateOrder で取得する。
@@ -900,6 +940,56 @@ class Transform(DagNode):
         _, quaternion, _, _, reference = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
         return EulerRotation._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
 
+    @fast_edit
+    @undoChunk("hlibTransformSetRotate")
+    def setRotation(self, value, unit="rad", space=MSpace.kObject, *, fast=False):
+        """Euler回転を設定する。
+
+        3成分の値は ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値として
+        解釈する(:meth:`getRotation` や ``plug("rotate").get()`` の値をそのまま渡せる)。
+        書き込む rotate は、同じ回転を表す解のうち現在のチャンネル値に最も近いもの。
+        ローカル空間の transform では通常は渡した値がそのまま入る(浮動小数点の誤差を
+        除く。現在値が 0 のノードへ 370 度を渡すと 10 度になるなど、等価な解に
+        置き換わることはある)。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Iterable[float] | EulerRotation | Quaternion): 回転値。3成分はノードの
+                rotateOrder の値として解釈する。EulerRotation(om2.MEulerRotation)は
+                その回転順序を反映する。unit が rad の場合は Quaternion も受け入れる。
+                ノードへは rotateOrder に並べ替えて書き込む。
+            unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
+                値にだけ使える。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: unit が rad/deg 以外、deg を EulerRotation / Quaternion と指定、
+                値が3成分でない、行列が分解不能、または必要な親行列が反転不能の場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        ws = world_space(space)
+        if unit not in ("rad", "deg"):
+            raise ValueError("unit must be 'rad' or 'deg'")
+        if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
+            if unit == "deg":
+                raise ValueError("unit='deg' is only supported for three plain components")
+        else:
+            if not self.isValid():
+                raise RuntimeError("Cannot set an invalid transform")
+            x, y, z = value
+            if unit == "deg":
+                x, y, z = math.radians(x), math.radians(y), math.radians(z)
+            # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
+            value = EulerRotation(x, y, z, self._rotate_order())
+        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), rotate=value)
+        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
+
     def getScale(self, space=MSpace.kObject):
         """Scale を取得する。
 
@@ -923,6 +1013,40 @@ class Transform(DagNode):
         _, _, scale, _, _ = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
         return Scale(*scale)
 
+    @fast_edit
+    @undoChunk("hlibTransformSetScale")
+    def setScale(self, value, space=MSpace.kObject, *, fast=False):
+        """スケールをローカルまたはワールド空間で設定する。
+
+        回転・シアー・平行移動は保つ(回転とシアーは :meth:`getScale` と同じ規約で
+        分解した値)。書き込むスケールの符号は、行列式の符号が許す限り value の符号の
+        とおりにする(ローカル空間の transform では常にそのまま入る)。例えば rotate が
+        (10, 20, 30)、scale が (1, 1, 1) の transform へ (-1, 1, 1) を設定すると scale は
+        (-1, 1, 1)、rotate は (10, 20, 30) のまま(``cmds.setAttr`` で scale だけを書いた
+        場合と同じ)。ワールド空間で親の行列式が負の場合など、value の符号の組み合わせを
+        取れないときは現在の scale チャンネル値、それも合わなければ om2 の規約(Z が負)に
+        揃える。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Scale | sequence): 新しいスケール値。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        ws = world_space(space)
+        value = tuple(value)
+        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), scale=value)
+        return self._set_matrix(matrix, ws, scale_reference=value)
+
     def getShear(self, space=MSpace.kObject):
         """Shear を取得する。
 
@@ -941,6 +1065,32 @@ class Transform(DagNode):
         ws = world_space(space)
         _, _, _, shear, _ = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
         return Shear(*shear)
+
+    @fast_edit
+    @undoChunk("hlibTransformSetShear")
+    def setShear(self, value, space=MSpace.kObject, *, fast=False):
+        """Shearをローカルまたはワールド空間で設定する。
+
+        値は :meth:`getShear` と同じ規約で解釈し、回転・スケール・平行移動は保つ。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Shear | sequence): 新しいShear値。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        ws = world_space(space)
+        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), shear=value)
+        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
 
     def getQuaternion(self, space=MSpace.kObject):
         """Quaternion を取得する。
@@ -978,6 +1128,164 @@ class Transform(DagNode):
         ws = world_space(space)
         _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
         return EulerRotation._wrap(quaternion.asEulerRotation())
+
+    @flag_aliases("makeIdentity")
+    @undoChunk("hlibTransformFreeze")
+    def freeze(self, **kwargs):
+        """MayaのmakeIdentity(apply=True)で形状の位置を保ってフリーズする。
+
+        Args:
+            **kwargs (object): translate(t)、rotate(r)、scale(s)、normal(n)、
+                preserveNormals(pn)、jointOrient(jo)等のMaya標準フラグ。
+                成分の省略時の扱いもMayaに従う。applyはTrueのみ許可する。
+
+        Returns:
+            Transform: 自身。Transformsからも一括呼出でき、Undo可能。
+
+        Raises:
+            ValueError: apply=Falseを指定した場合。
+            TypeError: 長短フラグを重複指定した場合。
+            RuntimeError: Mayaがフリーズを拒否した場合。
+
+        子階層への適用、Jointの移動保持、スキニング済み対象や接続への制約も
+        Maya標準に従う。resetやJoint.freezeRotationの姿勢移送とは異なる。
+        """
+        if kwargs.pop("apply", True) is not True:
+            raise ValueError("freeze requires apply=True")
+        return self.makeIdentity(apply=True, **kwargs)
+
+    @undoChunk("hlibTransformMakeIdentity")
+    def makeIdentity(self, **kwargs):
+        """cmds.makeIdentity のシンプルなラッパー。
+
+        Args:
+            kwargs: cmds.makeIdentity にそのまま渡す追加のフラグ
+                (apply、translate、rotate、scale、normal など)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効、または Maya が拒否した場合。
+        """
+        if not self.isValid():
+            raise RuntimeError("Cannot freeze transform of an invalid transform")
+        cmds.makeIdentity(self.fullName(), **kwargs)
+        return self
+
+    @undoChunk("hlibTransformReleaseSRT")
+    def unlockAndDisconnectTransformChannels(self):
+        """translate/rotate/scale/shear とその子チャンネルを一括でアンロック・切断する。
+
+        各チャンネルとその X/Y/Z 子の両方についてロック解除と接続解除を行う。
+        既にアンロック・未接続のチャンネルは変化しない。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        if not self.isValid():
+            raise RuntimeError("Cannot release SRT channels of an invalid transform")
+        for channel in ("translate", "rotate", "scale", "shear"):
+            plug = self.plug(channel)
+            plug.setFlags(locked=False)
+            plug.disconnect()
+            for child in plug.children():
+                child.setFlags(locked=False)
+                child.disconnect()
+        return self
+
+    def closestAxisToVector(self, ref_vector, include_negative=True):
+        """自身のローカル軸のうち、ワールド空間の方向ベクトルに最も近いものを求める。
+
+        各ローカル軸をワールド行列（回転・スケールのみ、平行移動は無視）で変換し、
+        正規化した上で ref_vector との内積が最大のものを選ぶ。
+
+        Args:
+            ref_vector (Vector | Iterable[float]): 比較対象のワールド空間方向ベクトル。
+            include_negative (bool): True の場合、負方向の軸（-x/-y/-z）も候補に含める。
+
+        Returns:
+            str: 最も近い軸名("x"、"y"、"z"。include_negative が True なら
+                "-x"、"-y"、"-z" も返り得る)。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+            ValueError: ref_vector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
+        """
+        if not self.isValid():
+            raise RuntimeError("Cannot evaluate axes of an invalid transform")
+        if not isinstance(ref_vector, Vector):
+            ref_vector = Vector(*ref_vector)
+        ref_vector = ref_vector.normalized()
+        matrix = self.getMatrix(space=MSpace.kWorld)
+        axes = {"x": Vector(1.0, 0.0, 0.0), "y": Vector(0.0, 1.0, 0.0), "z": Vector(0.0, 0.0, 1.0)}
+        if include_negative:
+            axes.update({f"-{name}": axis * -1.0 for name, axis in axes.items()})
+        best_axis = None
+        best_dot = None
+        for name, axis in axes.items():
+            world_axis = matrix.transformVector(axis).normalized()
+            dot = world_axis.dot(ref_vector)
+            if best_dot is None or dot > best_dot:
+                best_dot = dot
+                best_axis = name
+        return best_axis
+
+    @undoChunk("hlibTransformCreateOffsetGroups")
+    def createOffsetGroups(self, *names):
+        """自身を現在のワールド行列に一致させたオフセット(ゼロ)グループで包む。
+
+        names の並びは外側から内側の順(例: ``"zero", "offset"`` なら zero が
+        元の親の直下、offset が自身の直上の親になる)。各グループは作成時点の
+        自身のワールド行列にそのまま一致するため、自身をそこへ付け替えても
+        ワールド位置は変化しない。
+
+        Args:
+            names (str): 作成するグループ名。外側から内側の順。省略時は
+                ``"<自身の名前>_offset"`` という1個のグループを作成する。
+
+        Returns:
+            list[Transform]: 作成したグループ。names と同じ並び(外側から内側)。
+
+        Raises:
+            RuntimeError: ノードが無効、または Maya がグループ作成・親変更を拒否した場合。
+        """
+        if not self.isValid():
+            raise RuntimeError("Cannot create offset groups for an invalid transform")
+        if not names:
+            names = (f"{self.name()}_offset",)
+        matrix = self.getMatrix(space=MSpace.kWorld)
+        parent = self.parentNode()
+        groups = []
+        for name in names:
+            kwargs = {}
+            if parent is not None:
+                kwargs["parent"] = parent.fullName()
+            group = Transform(cmds.group(empty=True, name=name, **kwargs))
+            group.setMatrix(matrix, space=MSpace.kWorld)
+            groups.append(group)
+            parent = group
+        self.setParent(groups[-1])
+        return groups
+
+    @staticmethod
+    def _world_assemblies():
+        """ワールド直下の Transform をすべて取得する。
+
+        Returns:
+            list[Node]: ワールド直下(DAGパスの長さが1)の Transform ラッパー。
+        """
+        iterator = om2.MItDag(om2.MItDag.kBreadthFirst, om2.MFn.kTransform)
+        assemblies = []
+        while not iterator.isDone():
+            path = iterator.getPath()
+            if path.length() == 1:
+                assemblies.append(Node(path))
+            iterator.next()
+        return assemblies
 
     def _parent_world_matrix(self):
         """親Transformのワールド行列を取得する。
@@ -1153,35 +1461,6 @@ class Transform(DagNode):
         set_attr(f"{name}.scale", *scale)
         set_attr(f"{name}.shear", *shear)
 
-    @fast_edit
-    @undoChunk("hlibTransformSetMatrix")
-    def setMatrix(self, matrix, space=MSpace.kObject, *, fast=False):
-        """行列をローカルまたはワールド空間で設定する。
-
-        行列を分解して translate・rotate・scale・shear に書き込む。スケールの符号と
-        Euler の解は、同じ行列になる候補のうち現在のチャンネル値に近いものを選ぶ
-        (詳細は ``_apply_local_matrix``)。そのため ``cmds.xform(matrix=...)``
-        (常に om2 の規約で書く)とは、負スケールのノードや Euler の別解でチャンネル値が
-        異なることがあるが、結果の行列は同じ。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            matrix (Matrix | sequence): 適用する変換行列。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
-            ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        ws = world_space(space)
-        return self._set_matrix(matrix, ws)
-
     def _set_matrix(self, matrix, ws=False, scale_reference=None):
         """:meth:`setMatrix` の本体。Undo チャンクと fast の扱いは呼び出し元に任せる。
 
@@ -1206,286 +1485,6 @@ class Transform(DagNode):
         local_matrix = matrix if not ws else matrix * self._parent_world_matrix().inverse()
         self._apply_local_matrix(local_matrix, scale_reference)
         return self
-
-    @fast_edit
-    @undoChunk("hlibTransformSetTranslate")
-    def setTranslation(self, value, space=MSpace.kObject, *, fast=False):
-        """平行移動をローカルまたはワールド空間で設定する。
-
-        rotate・scale・shear のチャンネル値は(浮動小数点の誤差を除いて)変えない
-        (transform の rotateAxis は 0 を前提とする。joint は jointOrient / rotateAxis を保つ)。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Translation | sequence): 新しい平行移動値。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        ws = world_space(space)
-        matrix = self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject)
-        matrix.translate = value
-        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
-
-    @fast_edit
-    @undoChunk("hlibTransformSetRotate")
-    def setRotation(self, value, unit="rad", space=MSpace.kObject, *, fast=False):
-        """Euler回転を設定する。
-
-        3成分の値は ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値として
-        解釈する(:meth:`getRotation` や ``plug("rotate").get()`` の値をそのまま渡せる)。
-        書き込む rotate は、同じ回転を表す解のうち現在のチャンネル値に最も近いもの。
-        ローカル空間の transform では通常は渡した値がそのまま入る(浮動小数点の誤差を
-        除く。現在値が 0 のノードへ 370 度を渡すと 10 度になるなど、等価な解に
-        置き換わることはある)。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Iterable[float] | EulerRotation | Quaternion): 回転値。3成分はノードの
-                rotateOrder の値として解釈する。EulerRotation(om2.MEulerRotation)は
-                その回転順序を反映する。unit が rad の場合は Quaternion も受け入れる。
-                ノードへは rotateOrder に並べ替えて書き込む。
-            unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
-                値にだけ使える。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: unit が rad/deg 以外、deg を EulerRotation / Quaternion と指定、
-                値が3成分でない、行列が分解不能、または必要な親行列が反転不能の場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        ws = world_space(space)
-        if unit not in ("rad", "deg"):
-            raise ValueError("unit must be 'rad' or 'deg'")
-        if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
-            if unit == "deg":
-                raise ValueError("unit='deg' is only supported for three plain components")
-        else:
-            if not self.isValid():
-                raise RuntimeError("Cannot set an invalid transform")
-            x, y, z = value
-            if unit == "deg":
-                x, y, z = math.radians(x), math.radians(y), math.radians(z)
-            # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
-            value = EulerRotation(x, y, z, self._rotate_order())
-        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), rotate=value)
-        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
-
-    @fast_edit
-    @undoChunk("hlibTransformSetScale")
-    def setScale(self, value, space=MSpace.kObject, *, fast=False):
-        """スケールをローカルまたはワールド空間で設定する。
-
-        回転・シアー・平行移動は保つ(回転とシアーは :meth:`getScale` と同じ規約で
-        分解した値)。書き込むスケールの符号は、行列式の符号が許す限り value の符号の
-        とおりにする(ローカル空間の transform では常にそのまま入る)。例えば rotate が
-        (10, 20, 30)、scale が (1, 1, 1) の transform へ (-1, 1, 1) を設定すると scale は
-        (-1, 1, 1)、rotate は (10, 20, 30) のまま(``cmds.setAttr`` で scale だけを書いた
-        場合と同じ)。ワールド空間で親の行列式が負の場合など、value の符号の組み合わせを
-        取れないときは現在の scale チャンネル値、それも合わなければ om2 の規約(Z が負)に
-        揃える。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Scale | sequence): 新しいスケール値。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        ws = world_space(space)
-        value = tuple(value)
-        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), scale=value)
-        return self._set_matrix(matrix, ws, scale_reference=value)
-
-    @fast_edit
-    @undoChunk("hlibTransformSetShear")
-    def setShear(self, value, space=MSpace.kObject, *, fast=False):
-        """Shearをローカルまたはワールド空間で設定する。
-
-        値は :meth:`getShear` と同じ規約で解釈し、回転・スケール・平行移動は保つ。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Shear | sequence): 新しいShear値。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        ws = world_space(space)
-        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), shear=value)
-        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
-
-    @flag_aliases("makeIdentity")
-    @undoChunk("hlibTransformFreeze")
-    def freeze(self, **kwargs):
-        """MayaのmakeIdentity(apply=True)で形状の位置を保ってフリーズする。
-
-        Args:
-            **kwargs (object): translate(t)、rotate(r)、scale(s)、normal(n)、
-                preserveNormals(pn)、jointOrient(jo)等のMaya標準フラグ。
-                成分の省略時の扱いもMayaに従う。applyはTrueのみ許可する。
-
-        Returns:
-            Transform: 自身。Transformsからも一括呼出でき、Undo可能。
-
-        Raises:
-            ValueError: apply=Falseを指定した場合。
-            TypeError: 長短フラグを重複指定した場合。
-            RuntimeError: Mayaがフリーズを拒否した場合。
-
-        子階層への適用、Jointの移動保持、スキニング済み対象や接続への制約も
-        Maya標準に従う。resetやJoint.freezeRotationの姿勢移送とは異なる。
-        """
-        if kwargs.pop("apply", True) is not True:
-            raise ValueError("freeze requires apply=True")
-        return self.makeIdentity(apply=True, **kwargs)
-
-    @undoChunk("hlibTransformMakeIdentity")
-    def makeIdentity(self, **kwargs):
-        """cmds.makeIdentity のシンプルなラッパー。
-
-        Args:
-            kwargs: cmds.makeIdentity にそのまま渡す追加のフラグ
-                (apply、translate、rotate、scale、normal など)。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            RuntimeError: ノードが無効、または Maya が拒否した場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("Cannot freeze transform of an invalid transform")
-        cmds.makeIdentity(self.fullName(), **kwargs)
-        return self
-
-    @undoChunk("hlibTransformReleaseSRT")
-    def unlockAndDisconnectTransformChannels(self):
-        """translate/rotate/scale/shear とその子チャンネルを一括でアンロック・切断する。
-
-        各チャンネルとその X/Y/Z 子の両方についてロック解除と接続解除を行う。
-        既にアンロック・未接続のチャンネルは変化しない。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            RuntimeError: ノードが無効な場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("Cannot release SRT channels of an invalid transform")
-        for channel in ("translate", "rotate", "scale", "shear"):
-            plug = self.plug(channel)
-            plug.setFlags(locked=False)
-            plug.disconnect()
-            for child in plug.children():
-                child.setFlags(locked=False)
-                child.disconnect()
-        return self
-
-    def closestAxisToVector(self, ref_vector, include_negative=True):
-        """自身のローカル軸のうち、ワールド空間の方向ベクトルに最も近いものを求める。
-
-        各ローカル軸をワールド行列（回転・スケールのみ、平行移動は無視）で変換し、
-        正規化した上で ref_vector との内積が最大のものを選ぶ。
-
-        Args:
-            ref_vector (Vector | Iterable[float]): 比較対象のワールド空間方向ベクトル。
-            include_negative (bool): True の場合、負方向の軸（-x/-y/-z）も候補に含める。
-
-        Returns:
-            str: 最も近い軸名("x"、"y"、"z"。include_negative が True なら
-                "-x"、"-y"、"-z" も返り得る)。
-
-        Raises:
-            RuntimeError: ノードが無効な場合。
-            ValueError: ref_vector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("Cannot evaluate axes of an invalid transform")
-        if not isinstance(ref_vector, Vector):
-            ref_vector = Vector(*ref_vector)
-        ref_vector = ref_vector.normalized()
-        matrix = self.getMatrix(space=MSpace.kWorld)
-        axes = {"x": Vector(1.0, 0.0, 0.0), "y": Vector(0.0, 1.0, 0.0), "z": Vector(0.0, 0.0, 1.0)}
-        if include_negative:
-            axes.update({f"-{name}": axis * -1.0 for name, axis in axes.items()})
-        best_axis = None
-        best_dot = None
-        for name, axis in axes.items():
-            world_axis = matrix.transformVector(axis).normalized()
-            dot = world_axis.dot(ref_vector)
-            if best_dot is None or dot > best_dot:
-                best_dot = dot
-                best_axis = name
-        return best_axis
-
-    @undoChunk("hlibTransformCreateOffsetGroups")
-    def createOffsetGroups(self, *names):
-        """自身を現在のワールド行列に一致させたオフセット(ゼロ)グループで包む。
-
-        names の並びは外側から内側の順(例: ``"zero", "offset"`` なら zero が
-        元の親の直下、offset が自身の直上の親になる)。各グループは作成時点の
-        自身のワールド行列にそのまま一致するため、自身をそこへ付け替えても
-        ワールド位置は変化しない。
-
-        Args:
-            names (str): 作成するグループ名。外側から内側の順。省略時は
-                ``"<自身の名前>_offset"`` という1個のグループを作成する。
-
-        Returns:
-            list[Transform]: 作成したグループ。names と同じ並び(外側から内側)。
-
-        Raises:
-            RuntimeError: ノードが無効、または Maya がグループ作成・親変更を拒否した場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("Cannot create offset groups for an invalid transform")
-        if not names:
-            names = (f"{self.name()}_offset",)
-        matrix = self.getMatrix(space=MSpace.kWorld)
-        parent = self.parentNode()
-        groups = []
-        for name in names:
-            kwargs = {}
-            if parent is not None:
-                kwargs["parent"] = parent.fullName()
-            group = Transform(cmds.group(empty=True, name=name, **kwargs))
-            group.setMatrix(matrix, space=MSpace.kWorld)
-            groups.append(group)
-            parent = group
-        self.setParent(groups[-1])
-        return groups
 
 
 @collection_export()

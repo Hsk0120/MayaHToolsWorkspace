@@ -1,9 +1,11 @@
 """PoseDriverConnectのポーズブレンダーをhlibノードとして扱う。"""
 
+from epic_pose_wrangler.v2.model.pose_blender import UEPoseBlenderNode as NativePoseBlender
+
 from .._binding import coreModule
+
 Node = coreModule('nodes').Node
 node_wrapper = coreModule('extensions').node_wrapper
-from epic_pose_wrangler.v2.model.pose_blender import UEPoseBlenderNode as NativePoseBlender
 
 
 @node_wrapper("UEPoseBlenderNode")

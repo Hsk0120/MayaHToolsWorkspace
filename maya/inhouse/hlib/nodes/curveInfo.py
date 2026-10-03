@@ -1,4 +1,5 @@
 """接続したcurveの形状情報をMayaで評価する。"""
+
 from .._core.registry import node_wrapper
 from ..decorators.undo import undoChunk
 from ._calculation import _Calculation

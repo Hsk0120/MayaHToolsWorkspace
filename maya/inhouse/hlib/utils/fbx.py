@@ -1,7 +1,10 @@
 """Maya 2022以降のFBX読み書き。import時にfbxmayaをロードしない。"""
 
 from pathlib import Path
-from maya import cmds, mel
+
+import maya.cmds as cmds
+import maya.mel as mel
+
 from ..environment import Plugin
 
 

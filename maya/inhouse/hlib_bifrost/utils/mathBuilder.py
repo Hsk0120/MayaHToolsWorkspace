@@ -1,7 +1,8 @@
 """Bifrostの定数・接続・基本数値演算を組み立てる。"""
 
-from ..plugs.port import Port
 from .._binding import coreModule
+from ..plugs.port import Port
+
 undoTransaction = coreModule('decorators.undo').undoTransaction
 
 

@@ -1,16 +1,15 @@
 """Maya のメッシュシェイプを扱う。"""
-from maya.api.OpenMaya import MSpace
-from .._core.space import world_space
-
-from ..decorators._fast import fast_edit
 
 import maya.api.OpenMaya as om2
+from maya.api.OpenMaya import MSpace
 
 from .._core.registry import node_wrapper
-from ..components.vertex import Vertex, Vertices
+from .._core.space import world_space
 from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
+from ..components.vertex import Vertex, Vertices
+from ..decorators._fast import fast_edit
 from .shape import Shape
 
 

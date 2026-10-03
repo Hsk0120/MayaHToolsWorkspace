@@ -1,5 +1,7 @@
 """マテリアル接続と形状への割り当てを扱う。"""
+
 import maya.cmds as cmds
+
 from .._core.registry import node_wrapper
 from ..decorators.undo import undoChunk
 from .objectSet import ObjectSet
@@ -29,21 +31,6 @@ class ShadingEngine(ObjectSet):
         """
         plug = self.getShaderPlug(kind)
         return None if plug is None else plug.node
-
-    @staticmethod
-    def _shader_attribute(kind):
-        """接続種別をMayaのアトリビュート名へ変換する。
-
-        Args:
-            kind (str): surface/volume/displacement。
-        Returns:
-            str: 対応する接続先名。
-        Raises:
-            ValueError: 未対応の種別の場合。
-        """
-        if kind not in ("surface", "volume", "displacement"):
-            raise ValueError("kind must be surface, volume, or displacement")
-        return kind + "Shader"
 
     @undoChunk("hlibShadingEngineSetShader")
     def setShader(self, shader, kind="surface", output=None):
@@ -106,3 +93,18 @@ class ShadingEngine(ObjectSet):
             else:
                 result.append(Node(name))
         return result
+
+    @staticmethod
+    def _shader_attribute(kind):
+        """接続種別をMayaのアトリビュート名へ変換する。
+
+        Args:
+            kind (str): surface/volume/displacement。
+        Returns:
+            str: 対応する接続先名。
+        Raises:
+            ValueError: 未対応の種別の場合。
+        """
+        if kind not in ("surface", "volume", "displacement"):
+            raise ValueError("kind must be surface, volume, or displacement")
+        return kind + "Shader"

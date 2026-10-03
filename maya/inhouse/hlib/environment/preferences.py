@@ -1,8 +1,11 @@
 """Mayaの作業単位とユーザー設定を操作する。"""
+
 import math
 from pathlib import Path
+
 import maya.cmds as cmds
 import maya.mel as mel
+
 from ..decorators.undo import undoChunk
 
 
@@ -27,7 +30,6 @@ class Preferences:
         """
         return cmds.currentUnit(query=True, linear=True)
 
-
     @staticmethod
     @undoChunk("hlib.environment.Preferences.setLinearUnit")
     def setLinearUnit(unit):
@@ -48,7 +50,6 @@ class Preferences:
         """
         cmds.currentUnit(linear=unit)
 
-
     @staticmethod
     def getAngleUnit():
         """現在の角度 UI 単位を取得する。
@@ -60,7 +61,6 @@ class Preferences:
             現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。
         """
         return cmds.currentUnit(query=True, angle=True)
-
 
     @staticmethod
     @undoChunk("hlib.environment.Preferences.setAngleUnit")
@@ -81,7 +81,6 @@ class Preferences:
         """
         cmds.currentUnit(angle=unit)
 
-
     @staticmethod
     def getTimeUnit():
         """現在の時間 UI 単位を取得する。
@@ -93,7 +92,6 @@ class Preferences:
             現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。
         """
         return cmds.currentUnit(query=True, time=True)
-
 
     @staticmethod
     @undoChunk("hlib.environment.Preferences.setTimeUnit")
@@ -114,28 +112,6 @@ class Preferences:
             現在のシーンに作用し、シーン保存時に保持される。新規シーンの既定値とは別。 Scene.save()でシーンを保存する。
         """
         cmds.currentUnit(time=unit)
-
-
-
-    @staticmethod
-    def _boolean(value):
-        """boolのみ受け付ける。
-
-        Args:
-            value (bool): 検証する値。
-        Returns:
-            bool: 検証済み。型が異なる場合はTypeError。
-        """
-        if type(value) is not bool:
-            raise TypeError("Expected bool")
-        return value
-
-    @staticmethod
-    def _validate_save(save):
-        """保存要求を変更前に検証する。batchでの部分更新を防ぐ。"""
-        Preferences._boolean(save)
-        if save and cmds.about(batch=True):
-            raise RuntimeError("Preferences.save requires Maya GUI (savePrefs)")
 
     @staticmethod
     def getUpAxis():
@@ -427,3 +403,23 @@ class Preferences:
         # 起動時のMayaは分単位の保存値を60倍して秒に戻す。
         cmds.optionVar(floatValue=("autoSaveInterval", Preferences.getAutosaveInterval() / 60.0))
         mel.eval("savePrefs -general;")
+
+    @staticmethod
+    def _boolean(value):
+        """boolのみ受け付ける。
+
+        Args:
+            value (bool): 検証する値。
+        Returns:
+            bool: 検証済み。型が異なる場合はTypeError。
+        """
+        if type(value) is not bool:
+            raise TypeError("Expected bool")
+        return value
+
+    @staticmethod
+    def _validate_save(save):
+        """保存要求を変更前に検証する。batchでの部分更新を防ぐ。"""
+        Preferences._boolean(save)
+        if save and cmds.about(batch=True):
+            raise RuntimeError("Preferences.save requires Maya GUI (savePrefs)")

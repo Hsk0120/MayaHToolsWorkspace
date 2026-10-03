@@ -1,36 +1,20 @@
 """アニメーションカーブの共通操作。編集はMayaコマンドでUndoに対応する。"""
 
 import math
+
 import maya.cmds as cmds
-from .._core.unitValue import convert
-from ..utils.units import angleToUi, angleFromUi
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
+from .._core.unitValue import convert
 from ..decorators._fast import fast_edit, is_fast
+from ..decorators.undo import undoChunk
+from ..utils.units import angleToUi, angleFromUi
 from .node import Node
 
 
 @node_wrapper("animCurve")
 class AnimCurve(Node):
     """8種類のカーブの基底クラス。数値は内部単位(cm/rad/秒)を使う。"""
-
-    def _unit_value(self, value, output=False, to_ui=True):
-        """入出力の単位型に従いコマンド境界で値を変換する。"""
-        return convert(self.plug("output" if output else "input").mplug(), value, to_ui)
-
-    @staticmethod
-    def _finite(value):
-        """有限の数値へ変換する。不正値はValueError。"""
-        value = float(value)
-        if not math.isfinite(value):
-            raise ValueError("Expected a finite value")
-        return value
-
-    def _index(self, index):
-        """存在するキー番号を検証する。不正値はIndexError。"""
-        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < self.keyCount():
-            raise IndexError("Key index is out of range")
-        return (index, index)
 
     def isTimeInput(self):
         """bool: 横軸が時間ならTrue、単位なしならFalse。"""
@@ -233,3 +217,21 @@ class AnimCurve(Node):
     def drivenPlugs(self):
         """list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。"""
         return self.outputPlug().destinations()
+
+    def _unit_value(self, value, output=False, to_ui=True):
+        """入出力の単位型に従いコマンド境界で値を変換する。"""
+        return convert(self.plug("output" if output else "input").mplug(), value, to_ui)
+
+    @staticmethod
+    def _finite(value):
+        """有限の数値へ変換する。不正値はValueError。"""
+        value = float(value)
+        if not math.isfinite(value):
+            raise ValueError("Expected a finite value")
+        return value
+
+    def _index(self, index):
+        """存在するキー番号を検証する。不正値はIndexError。"""
+        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < self.keyCount():
+            raise IndexError("Key index is out of range")
+        return (index, index)

@@ -5,6 +5,8 @@ import pkgutil
 import sys
 import types
 
+__all__ = ["reload_package"]
+
 
 def reload_package(package_name):
     """package_name 配下の Python module を検出し、依存順に再読み込みする。
@@ -133,6 +135,3 @@ def _module_dependencies(module, module_names):
         if owner in module_names and owner != module.__name__:
             dependencies.add(owner)
     return dependencies
-
-
-__all__ = ["reload_package"]

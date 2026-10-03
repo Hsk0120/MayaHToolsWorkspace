@@ -1,12 +1,12 @@
 """Maya に登録されているモジュール(``.mod`` で定義したもの)を扱う。"""
 
-# Versionへ集約した旧関数参照をreload時に残さない。
-for _name in ("parse_version", "is_at_least", "format_version"):
-    globals().pop(_name, None)
-
 import maya.cmds as cmds
 
 from ..utils.version import Version
+
+# Versionへ集約した旧関数参照をreload時に残さない。
+for _name in ("parse_version", "is_at_least", "format_version"):
+    globals().pop(_name, None)
 
 
 class Module:
@@ -28,6 +28,43 @@ class Module:
         if not isinstance(name, str) or not name:
             raise ValueError("name must be a non-empty string")
         self._name = name
+
+    def __eq__(self, other):
+        """モジュール名を基準に同一性を判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: Module 同士は名前の一致。異なる型では NotImplemented。
+        """
+        if not isinstance(other, Module):
+            return NotImplemented
+        return self._name == other._name
+
+    def __hash__(self):
+        """モジュール名を使ったハッシュ値を返す。
+
+        Returns:
+            int: 保持している名前のハッシュ。
+        """
+        return hash(self._name)
+
+    def __repr__(self):
+        """デバッグ用にクラス名とモジュール名を含む表現を返す。
+
+        Returns:
+            str: 型名とモジュール名を含む文字列表現。
+        """
+        return "Module({!r})".format(self._name)
+
+    def __str__(self):
+        """モジュール名を返す。
+
+        Returns:
+            str: 保持しているモジュール名。
+        """
+        return self._name
 
     @property
     def name(self):
@@ -65,7 +102,6 @@ class Module:
         """
         return Version.parse(self.versionText())
 
-
     def isVersionAtLeast(self, minimum):
         """モジュールの版が ``minimum`` 以上か判定する。
 
@@ -93,40 +129,3 @@ class Module:
         if not self.isRegistered():
             return None
         return cmds.moduleInfo(path=True, moduleName=self._name) or None
-
-    def __eq__(self, other):
-        """モジュール名を基準に同一性を判定する。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: Module 同士は名前の一致。異なる型では NotImplemented。
-        """
-        if not isinstance(other, Module):
-            return NotImplemented
-        return self._name == other._name
-
-    def __hash__(self):
-        """モジュール名を使ったハッシュ値を返す。
-
-        Returns:
-            int: 保持している名前のハッシュ。
-        """
-        return hash(self._name)
-
-    def __str__(self):
-        """モジュール名を返す。
-
-        Returns:
-            str: 保持しているモジュール名。
-        """
-        return self._name
-
-    def __repr__(self):
-        """デバッグ用にクラス名とモジュール名を含む表現を返す。
-
-        Returns:
-            str: 型名とモジュール名を含む文字列表現。
-        """
-        return "Module({!r})".format(self._name)

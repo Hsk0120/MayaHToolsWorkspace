@@ -1,4 +1,5 @@
 """Maya付属プラグインのTHdependNode基底型。"""
+
 from .._core.registry import node_wrapper
 from .node import Node
 

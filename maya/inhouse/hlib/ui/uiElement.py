@@ -15,6 +15,10 @@ class UiElement:
             raise ValueError("Expected a menu or menuItem name")
         self._name, self._kind = str(name), kind
 
+    def __str__(self):
+        """str: Maya UI名を返す。"""
+        return self._name
+
     @property
     def name(self):
         """str: 保持しているMaya UI名を返す。"""
@@ -31,7 +35,3 @@ class UiElement:
         from maya import cmds
 
         cmds.deleteUI(self._name, **{self._kind: True})
-
-    def __str__(self):
-        """str: Maya UI名を返す。"""
-        return self._name

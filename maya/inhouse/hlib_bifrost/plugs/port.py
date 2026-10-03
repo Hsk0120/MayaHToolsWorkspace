@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+import maya.cmds as cmds
+
 from ..nodes.node import Node
-from maya import cmds
 
 
 @dataclass(frozen=True)

@@ -1,14 +1,15 @@
 """Maya のロード済み/登録済みプラグインを扱う。"""
 
+import maya.cmds as cmds
+
+from ..utils.version import Version
+
 # 旧構成からreloadした場合も、移動したコレクションクラスを残さない。
 globals().pop("Plugins", None)
 
 # Versionへ集約した旧関数参照をreload時に残さない。
 for _name in ("parse_version", "is_at_least", "format_version"):
     globals().pop(_name, None)
-
-import maya.cmds as cmds
-from ..utils.version import Version
 
 
 class Plugin:
@@ -18,6 +19,60 @@ class Plugin:
         "HIKCharacterNode", "HIKSolverNode", "HIKRetargeterNode",
         "HIKControlSetNode", "HIKSkeletonGeneratorNode",
     ))
+
+    def __init__(self, name):
+        """プラグイン名を保持する。
+
+        Args:
+            name (str): プラグインファイル名(拡張子を除く。例: ``"matrixNodes"``)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: name が空文字列または文字列以外の場合。
+        """
+        if not isinstance(name, str) or not name:
+            raise ValueError("name must be a non-empty string")
+        self._name = name
+
+    def __eq__(self, other):
+        """プラグイン名を基準に同一性を判定する。
+
+        Args:
+            other (object): 比較対象。
+
+        Returns:
+            bool | types.NotImplementedType: Plugin 同士は名前の一致。
+                異なる型では NotImplemented。
+        """
+        if not isinstance(other, Plugin):
+            return NotImplemented
+        return self._name == other._name
+
+    def __hash__(self):
+        """プラグイン名を使ったハッシュ値を返す。
+
+        Returns:
+            int: 保持している名前のハッシュ。
+        """
+        return hash(self._name)
+
+    def __repr__(self):
+        """デバッグ用にクラス名とプラグイン名を含む表現を返す。
+
+        Returns:
+            str: 型名とプラグイン名を含む文字列表現。
+        """
+        return f"Plugin({self._name!r})"
+
+    def __str__(self):
+        """プラグイン名を返す。
+
+        Returns:
+            str: 保持しているプラグイン名。
+        """
+        return self._name
 
     @classmethod
     def ensureNodePlugin(cls, node_type):
@@ -40,22 +95,6 @@ class Plugin:
             list[Plugin]: Mayaが返す順序のプラグイン一覧。
         """
         return [cls(name) for name in (cmds.pluginInfo(query=True, listPlugins=True) or [])]
-
-    def __init__(self, name):
-        """プラグイン名を保持する。
-
-        Args:
-            name (str): プラグインファイル名(拡張子を除く。例: ``"matrixNodes"``)。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            ValueError: name が空文字列または文字列以外の場合。
-        """
-        if not isinstance(name, str) or not name:
-            raise ValueError("name must be a non-empty string")
-        self._name = name
 
     @property
     def name(self):
@@ -111,7 +150,6 @@ class Plugin:
                 取得した値をreplaceしてもMaya側の版は変更されない。
         """
         return Version.parse(self.versionText())
-
 
     def isVersionAtLeast(self, minimum):
         """プラグインの版が ``minimum`` 以上か判定する。
@@ -181,41 +219,3 @@ class Plugin:
         if not self.isLoaded():
             self.load()
         return self
-
-    def __eq__(self, other):
-        """プラグイン名を基準に同一性を判定する。
-
-        Args:
-            other (object): 比較対象。
-
-        Returns:
-            bool | types.NotImplementedType: Plugin 同士は名前の一致。
-                異なる型では NotImplemented。
-        """
-        if not isinstance(other, Plugin):
-            return NotImplemented
-        return self._name == other._name
-
-    def __hash__(self):
-        """プラグイン名を使ったハッシュ値を返す。
-
-        Returns:
-            int: 保持している名前のハッシュ。
-        """
-        return hash(self._name)
-
-    def __str__(self):
-        """プラグイン名を返す。
-
-        Returns:
-            str: 保持しているプラグイン名。
-        """
-        return self._name
-
-    def __repr__(self):
-        """デバッグ用にクラス名とプラグイン名を含む表現を返す。
-
-        Returns:
-            str: 型名とプラグイン名を含む文字列表現。
-        """
-        return f"Plugin({self._name!r})"

@@ -1,4 +1,5 @@
 """オブジェクトAPIのMSpace指定を検証する。"""
+
 from maya.api.OpenMaya import MSpace
 
 

@@ -1,7 +1,8 @@
 """RGB各成分を指定範囲に制限する。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .node import Node

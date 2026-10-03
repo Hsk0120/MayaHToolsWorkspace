@@ -1,8 +1,7 @@
 """行列を配列の順番で乗算するmultMatrixを扱う。"""
 
-from ..decorators._fast import fast_edit
-
 from .._core.registry import node_wrapper
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .node import Node
@@ -11,14 +10,6 @@ from .node import Node
 @node_wrapper("multMatrix")
 class MultMatrix(Node):
     """matrixInの論理インデックス順に行列を乗算する。"""
-
-    @staticmethod
-    def _index(index):
-        """非負の整数インデックスを検証する。不正値はValueError。"""
-        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
-            raise ValueError("Matrix index must be a non-negative integer")
-        from ..plugs.arrayPlug import ArrayPlug
-        return ArrayPlug._validate_index(index)
 
     def inputPlug(self, index):
         """既存入力のPlugを取得する。未存在要素は作成しない。
@@ -99,3 +90,11 @@ class MultMatrix(Node):
     def result(self):
         """Matrix: 現在の入力を乗算した評価済み行列。"""
         return self.outputPlug().get()
+
+    @staticmethod
+    def _index(index):
+        """非負の整数インデックスを検証する。不正値はValueError。"""
+        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+            raise ValueError("Matrix index must be a non-negative integer")
+        from ..plugs.arrayPlug import ArrayPlug
+        return ArrayPlug._validate_index(index)

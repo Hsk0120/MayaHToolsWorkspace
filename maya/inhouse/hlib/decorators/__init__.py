@@ -1,5 +1,6 @@
 """デコレータ関連ユーティリティを公開するパッケージ。"""
 
+from .nativeUnits import nativeUnits
 from .selection import preservedSelection
 from .skin import preservedSkinShape
 from .undo import undoChunk, undoTransaction
@@ -11,14 +12,11 @@ __all__ = [
     "undoChunk",
     "undoTransaction",
     "viewportOff",
+    "nativeUnits",
 ]
 
 # 再読み込み時も旧デコレータ名を公開しない。
 globals().pop("undoable", None)
-
-from .nativeUnits import nativeUnits
-__all__ += ["nativeUnits"]
-
 
 # reload時にも廃止した公開名を残さない。
 for _obsolete_name in ('native_units', 'preserved_selection', 'preserved_skin_shape', 'undo_chunk', 'undo_transaction', 'viewport_off'):

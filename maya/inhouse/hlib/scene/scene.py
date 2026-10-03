@@ -24,11 +24,17 @@ class Scene:
         """
         self._path = self._current_path() if path is None else self._path_arg(path).resolve()
 
-    @staticmethod
-    def _current_path():
-        """現在のシーンの絶対パスを返す。未保存なら None。"""
-        value = cmds.file(query=True, sceneName=True)
-        return Path(value).resolve() if value else None
+    def __repr__(self):
+        """保持するシーンパスを含むデバッグ表現を返す。
+
+        Returns:
+            str: 保持するパスを含む文字列表現。
+        """
+        return f"Scene(path={self.path!r})"
+
+    def __str__(self):
+        """保持パスを表示する。未保存の場合は untitled。"""
+        return str(self._path) if self._path is not None else "untitled"
 
     @property
     def path(self):
@@ -39,19 +45,6 @@ class Scene:
         """
         return self._path
 
-    def isCurrent(self):
-        """保持パスが現在のシーンと一致するか返す。未保存同士は一致とする。"""
-        return self.path == self._current_path()
-
-    def _require_current(self):
-        """現在のシーンと一致しない場合は RuntimeError を送出する。"""
-        if not self.isCurrent():
-            raise RuntimeError("Scene is not the current Maya scene; open it first")
-
-    def __str__(self):
-        """保持パスを表示する。未保存の場合は untitled。"""
-        return str(self._path) if self._path is not None else "untitled"
-
     @property
     def name(self):
         """保持パスのファイル名を返す。
@@ -61,6 +54,10 @@ class Scene:
         """
         scene_path = self.path
         return scene_path.name if scene_path is not None else None
+
+    def isCurrent(self):
+        """保持パスが現在のシーンと一致するか返す。未保存同士は一致とする。"""
+        return self.path == self._current_path()
 
     def isNew(self):
         """保持パスが未保存シーンを表すか判定する。
@@ -213,6 +210,17 @@ class Scene:
         return [Node(name) for name in new_names]
 
     @staticmethod
+    def _current_path():
+        """現在のシーンの絶対パスを返す。未保存なら None。"""
+        value = cmds.file(query=True, sceneName=True)
+        return Path(value).resolve() if value else None
+
+    def _require_current(self):
+        """現在のシーンと一致しない場合は RuntimeError を送出する。"""
+        if not self.isCurrent():
+            raise RuntimeError("Scene is not the current Maya scene; open it first")
+
+    @staticmethod
     def _path_arg(path):
         """Scene操作用のパス引数をPathへ変換する。
 
@@ -246,11 +254,3 @@ class Scene:
         if fileType is None:
             raise ValueError("path must have a .ma or .mb extension")
         return fileType
-
-    def __repr__(self):
-        """保持するシーンパスを含むデバッグ表現を返す。
-
-        Returns:
-            str: 保持するパスを含む文字列表現。
-        """
-        return f"Scene(path={self.path!r})"

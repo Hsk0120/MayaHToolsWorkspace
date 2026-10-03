@@ -1,24 +1,17 @@
 """Mayaのシェルフタブを取得・編集・保存する。"""
+
 import json
 import re
 from pathlib import Path
+
 import maya.cmds as cmds
 import maya.mel as mel
+
 from ..ui.shelfButton import ShelfButton
 
 
 class Shelf:
     """既存シェルフの参照。生成だけではタブを作らない。"""
-
-    @staticmethod
-    def _top():
-        """str: Maya標準のシェルフタブ親。GUIなしはRuntimeError。"""
-        if cmds.about(batch=True):
-            raise RuntimeError("Shelf requires Maya GUI")
-        top = mel.eval('global string $gShelfTopLevel; $gShelfTopLevel;')
-        if not top or not cmds.shelfTabLayout(top, exists=True):
-            raise RuntimeError("Maya shelf tabs are unavailable")
-        return top
 
     def __init__(self, name=None):
         """既存タブを参照する。
@@ -31,14 +24,8 @@ class Shelf:
         self._name = name or cmds.shelfTabLayout(self._top(), query=True, selectTab=True)
         self.name()
 
-    def exists(self):
-        """bool: 参照先のシェルフが存在するか取得する。"""
-        return bool(self._name and cmds.shelfLayout(self._name, exists=True))
-
-    def name(self):
-        """str: 存在を確認したUI名。削除済みはRuntimeError。"""
-        if not self.exists():
-            raise RuntimeError("Shelf is unavailable: " + str(self._name))
+    def __str__(self):
+        """str: 保持したUI名を返す。"""
         return self._name
 
     @classmethod
@@ -67,14 +54,15 @@ class Shelf:
         cmds.shelfTabLayout(top, edit=True, tabLabel=(result, name))
         return cls(result)
 
-    def _load(self):
-        """標準タブの遅延ロードを完了させ、未ロード内容の上書きを防ぐ。"""
-        name = self.name().split("|")[-1]
-        old_parent = cmds.setParent(query=True)
-        try:
-            mel.eval('loadNamedShelf(' + json.dumps(name) + ');')
-        finally:
-            cmds.setParent(old_parent)
+    def exists(self):
+        """bool: 参照先のシェルフが存在するか取得する。"""
+        return bool(self._name and cmds.shelfLayout(self._name, exists=True))
+
+    def name(self):
+        """str: 存在を確認したUI名。削除済みはRuntimeError。"""
+        if not self.exists():
+            raise RuntimeError("Shelf is unavailable: " + str(self._name))
+        return self._name
 
     def select(self):
         """自身のタブを選択し、標準シェルフの内容をロードする。"""
@@ -140,6 +128,21 @@ class Shelf:
             raise RuntimeError("Failed to save shelf: " + str(target))
         return target
 
-    def __str__(self):
-        """str: 保持したUI名を返す。"""
-        return self._name
+    @staticmethod
+    def _top():
+        """str: Maya標準のシェルフタブ親。GUIなしはRuntimeError。"""
+        if cmds.about(batch=True):
+            raise RuntimeError("Shelf requires Maya GUI")
+        top = mel.eval('global string $gShelfTopLevel; $gShelfTopLevel;')
+        if not top or not cmds.shelfTabLayout(top, exists=True):
+            raise RuntimeError("Maya shelf tabs are unavailable")
+        return top
+
+    def _load(self):
+        """標準タブの遅延ロードを完了させ、未ロード内容の上書きを防ぐ。"""
+        name = self.name().split("|")[-1]
+        old_parent = cmds.setParent(query=True)
+        try:
+            mel.eval('loadNamedShelf(' + json.dumps(name) + ');')
+        finally:
+            cmds.setParent(old_parent)

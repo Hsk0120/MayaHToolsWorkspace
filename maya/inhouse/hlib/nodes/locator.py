@@ -1,8 +1,7 @@
 """Maya の locator シェイプを扱う。"""
 
-from ..decorators._fast import fast_edit
-
 from .._core.registry import node_wrapper
+from ..decorators._fast import fast_edit
 from ..maths import Translation
 from .shape import Shape
 

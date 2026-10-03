@@ -1,5 +1,7 @@
 """内部単位での一時処理を提供する。"""
+
 from contextlib import contextmanager
+
 import maya.api.OpenMaya as om2
 
 

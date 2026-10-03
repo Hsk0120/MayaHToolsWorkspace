@@ -1,4 +1,5 @@
 """既存エディターとタイムラインの状態保存。"""
+
 from .snapshots import Snapshot, ApplyPlan, _units
 
 

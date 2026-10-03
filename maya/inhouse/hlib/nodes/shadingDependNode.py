@@ -1,4 +1,5 @@
 """MayaのshadingDependNodeノードを扱う。"""
+
 from .._core.registry import node_wrapper
 from .node import Node
 

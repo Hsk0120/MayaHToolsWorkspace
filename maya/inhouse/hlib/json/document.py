@@ -1,17 +1,14 @@
 """hlib JSONの形式とバージョン。"""
+
 from dataclasses import dataclass, field
 
 
 @dataclass
 class JsonDocument:
     """任意データと明示指定のメタデータ。ユーザー名やシーンパスは自動収集しない。"""
+
     data: object
     metadata: dict = field(default_factory=dict)
-
-    def toData(self):
-        """形式バージョン1のJSON基本値を返す。"""
-        from .codec import encode
-        return {"format": "hlib.json", "version": 1, "metadata": encode(self.metadata), "data": encode(self.data)}
 
     @classmethod
     def fromData(cls, value):
@@ -30,3 +27,8 @@ class JsonDocument:
         if not isinstance(metadata, dict):
             raise ValueError("Metadata must be a dictionary")
         return cls(decode(value["data"]), metadata)
+
+    def toData(self):
+        """形式バージョン1のJSON基本値を返す。"""
+        from .codec import encode
+        return {"format": "hlib.json", "version": 1, "metadata": encode(self.metadata), "data": encode(self.data)}

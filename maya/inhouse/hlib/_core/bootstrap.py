@@ -4,6 +4,8 @@ import importlib
 
 from .registry import NodeRegistry
 
+__all__ = ["initialize_node_api", "initialize_plug_api"]
+
 
 def _initialize_registry(package_name, subpackage, base_name, inherited=False):
     """検出済みの標準型から新しい登録表を作り、基底へ取り付ける。
@@ -47,6 +49,3 @@ def initialize_plug_api(package_name):
         NodeRegistry: 初期化した型登録表。
     """
     return _initialize_registry(package_name, "plugs", "Plug")
-
-
-__all__ = ["initialize_node_api", "initialize_plug_api"]

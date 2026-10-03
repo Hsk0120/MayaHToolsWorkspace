@@ -1,7 +1,8 @@
 """論理番号順に行列をブレンドする。加重平均ではない。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from ._calculation import _Calculation
 from .node import Node
@@ -123,27 +124,6 @@ class BlendMatrix(Node):
         return self.plug("target").element(_Calculation.index(index))
 
     @undoChunk("hlibCalculationEdit")
-    def setTarget(self, index, matrix, weight=1.0):
-        """ターゲットの行列とウェイトを設定する。
-
-        Args:
-            index (int): 非負の論理番号。
-            matrix (Matrix | Iterable[float]): 行列。
-            weight (float): 有限なウェイト。
-        Returns:
-            BlendMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
-        """
-        index = _Calculation.index(index)
-        matrix, weight = Matrix(matrix), _Calculation.scalar(weight)
-        target = self.plug("target")._element_reference(index)
-        target.child("targetMatrix").set(matrix)
-        target.child("weight").set(weight)
-        return self
-
-    @undoChunk("hlibCalculationEdit")
     def connectTarget(self, index, source, weight=1.0, force=False):
         """行列Plugをターゲットへ接続する。
 
@@ -191,6 +171,27 @@ class BlendMatrix(Node):
         """
         target = self.targetPlug(index)
         return {"matrix": Matrix(target.child("targetMatrix").get()), "weight": target.child("weight").get()}
+
+    @undoChunk("hlibCalculationEdit")
+    def setTarget(self, index, matrix, weight=1.0):
+        """ターゲットの行列とウェイトを設定する。
+
+        Args:
+            index (int): 非負の論理番号。
+            matrix (Matrix | Iterable[float]): 行列。
+            weight (float): 有限なウェイト。
+        Returns:
+            BlendMatrix: 自身。
+
+        Note:
+            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+        """
+        index = _Calculation.index(index)
+        matrix, weight = Matrix(matrix), _Calculation.scalar(weight)
+        target = self.plug("target")._element_reference(index)
+        target.child("targetMatrix").set(matrix)
+        target.child("weight").set(weight)
+        return self
 
     def outputPlug(self):
         """計算結果の接続用Plugを取得する。

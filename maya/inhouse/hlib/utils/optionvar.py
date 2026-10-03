@@ -125,6 +125,90 @@ class OptionVar:
         """
         return "{}({!r})".format(type(self).__name__, self._prefix)
 
+    def __getitem__(self, key):
+        """``store[key]`` でキーの現在の値を取得する。
+
+        Args:
+            key (str): 設定のキー。
+
+        Returns:
+            object: 保存済みの値。無ければデフォルト値。
+
+        Raises:
+            KeyError: 保存済みの値もデフォルト値も無い場合。
+            TypeError: key が文字列でない場合。
+            ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
+        """
+        value = self._resolve(key)
+        if value is _MISSING:
+            raise KeyError(key)
+        return value
+
+    def __setitem__(self, key, value):
+        """``store[key] = value`` で :meth:`set` と同じく値を保存する。
+
+        Args:
+            key (str): 設定のキー。
+            value (object): 保存する値。JSON で表せるものに限る。
+
+        Raises:
+            TypeError: :meth:`set` と同じ条件。
+            ValueError: :meth:`set` と同じ条件。
+        """
+        self.set(key, value)
+
+    def __delitem__(self, key):
+        """``del store[key]`` で保存済みの値を削除する。
+
+        :meth:`reset` と違い、読み出せる値が保存されていなければ KeyError を送出する。
+        削除後もデフォルト値があれば、``store[key]`` はデフォルト値を返す。
+
+        Args:
+            key (str): 設定のキー。
+
+        Raises:
+            KeyError: 読み出せる値が保存されていない場合。
+            TypeError: key が文字列でない場合。
+            ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
+        """
+        if not self.isStored(key):
+            raise KeyError(key)
+        cmds.optionVar(remove=self.fullName(key))
+
+    def __contains__(self, key):
+        """``key in store`` で値を取得できるキーか判定する。
+
+        キーとして使えない値(文字列以外や、使えない文字を含む文字列)には
+        例外を送出せず False を返す。
+
+        Args:
+            key (object): 判定するキー。
+
+        Returns:
+            bool: 保存済みの値かデフォルト値があれば True。
+        """
+        try:
+            _validate_key(key)
+        except (TypeError, ValueError):
+            return False
+        return self._resolve(key) is not _MISSING
+
+    def __iter__(self):
+        """``for key in store`` で :meth:`keys` の結果を順に返す。
+
+        Returns:
+            Iterator[str]: キー名のイテレータ。
+        """
+        return iter(self.keys())
+
+    def __len__(self):
+        """``len(store)`` で :meth:`keys` の件数を返す。
+
+        Returns:
+            int: 値を取得できるキーの数。
+        """
+        return len(self.keys())
+
     @property
     def prefix(self):
         """str: optionVar 名の先頭に付ける接頭辞。区切りの ``.`` は含まない。"""
@@ -151,9 +235,6 @@ class OptionVar:
         _validate_key(key)
         return self._prefix + _SEPARATOR + key
 
-    # ------------------------------------------------------------------
-    # 読み出し
-    # ------------------------------------------------------------------
     def get(self, key, fallback=None):
         """キーの現在の値を取得する。
 
@@ -171,42 +252,23 @@ class OptionVar:
         value = self._resolve(key)
         return fallback if value is _MISSING else value
 
-    def __getitem__(self, key):
-        """``store[key]`` でキーの現在の値を取得する。
+    def set(self, key, value):
+        """値を JSON テキストへ変換して optionVar に保存する。
+
+        デフォルト値と同じ値であっても保存する。
 
         Args:
             key (str): 設定のキー。
-
-        Returns:
-            object: 保存済みの値。無ければデフォルト値。
+            value (object): 保存する値。JSON で表せるものに限る。
 
         Raises:
-            KeyError: 保存済みの値もデフォルト値も無い場合。
-            TypeError: key が文字列でない場合。
+            TypeError: key が文字列でない場合。value に JSON で表せない型や
+                文字列以外の ``dict`` キーを含む場合。
             ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
+                value に NaN・無限大・循環参照を含む場合や、入れ子が深すぎる場合。
         """
-        value = self._resolve(key)
-        if value is _MISSING:
-            raise KeyError(key)
-        return value
-
-    def __contains__(self, key):
-        """``key in store`` で値を取得できるキーか判定する。
-
-        キーとして使えない値(文字列以外や、使えない文字を含む文字列)には
-        例外を送出せず False を返す。
-
-        Args:
-            key (object): 判定するキー。
-
-        Returns:
-            bool: 保存済みの値かデフォルト値があれば True。
-        """
-        try:
-            _validate_key(key)
-        except (TypeError, ValueError):
-            return False
-        return self._resolve(key) is not _MISSING
+        name = self.fullName(key)
+        cmds.optionVar(stringValue=(name, _to_json(value)))
 
     def isStored(self, key):
         """キーに読み出せる値が保存されているか問い合わせる。
@@ -272,56 +334,6 @@ class OptionVar:
         merged.update(self._stored_values())
         return {key: merged[key] for key in sorted(merged)}
 
-    def __iter__(self):
-        """``for key in store`` で :meth:`keys` の結果を順に返す。
-
-        Returns:
-            Iterator[str]: キー名のイテレータ。
-        """
-        return iter(self.keys())
-
-    def __len__(self):
-        """``len(store)`` で :meth:`keys` の件数を返す。
-
-        Returns:
-            int: 値を取得できるキーの数。
-        """
-        return len(self.keys())
-
-    # ------------------------------------------------------------------
-    # 書き込み・削除
-    # ------------------------------------------------------------------
-    def set(self, key, value):
-        """値を JSON テキストへ変換して optionVar に保存する。
-
-        デフォルト値と同じ値であっても保存する。
-
-        Args:
-            key (str): 設定のキー。
-            value (object): 保存する値。JSON で表せるものに限る。
-
-        Raises:
-            TypeError: key が文字列でない場合。value に JSON で表せない型や
-                文字列以外の ``dict`` キーを含む場合。
-            ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
-                value に NaN・無限大・循環参照を含む場合や、入れ子が深すぎる場合。
-        """
-        name = self.fullName(key)
-        cmds.optionVar(stringValue=(name, _to_json(value)))
-
-    def __setitem__(self, key, value):
-        """``store[key] = value`` で :meth:`set` と同じく値を保存する。
-
-        Args:
-            key (str): 設定のキー。
-            value (object): 保存する値。JSON で表せるものに限る。
-
-        Raises:
-            TypeError: :meth:`set` と同じ条件。
-            ValueError: :meth:`set` と同じ条件。
-        """
-        self.set(key, value)
-
     def update(self, values):
         """複数のキーをまとめて保存する。
 
@@ -359,24 +371,6 @@ class OptionVar:
         cmds.optionVar(remove=name)
         return True
 
-    def __delitem__(self, key):
-        """``del store[key]`` で保存済みの値を削除する。
-
-        :meth:`reset` と違い、読み出せる値が保存されていなければ KeyError を送出する。
-        削除後もデフォルト値があれば、``store[key]`` はデフォルト値を返す。
-
-        Args:
-            key (str): 設定のキー。
-
-        Raises:
-            KeyError: 読み出せる値が保存されていない場合。
-            TypeError: key が文字列でない場合。
-            ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
-        """
-        if not self.isStored(key):
-            raise KeyError(key)
-        cmds.optionVar(remove=self.fullName(key))
-
     def resetAll(self):
         """接頭辞の直下にある optionVar を全て削除する。
 
@@ -393,9 +387,6 @@ class OptionVar:
             removed.append(key)
         return removed
 
-    # ------------------------------------------------------------------
-    # 内部処理
-    # ------------------------------------------------------------------
     def _resolve(self, key):
         """保存済みの値、無ければデフォルト値を返す。どちらも無ければ _MISSING。"""
         value = self._read_stored(key)

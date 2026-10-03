@@ -1,10 +1,11 @@
 """重み付き加算ノード。ウェイトの正規化はしない。"""
 
-from ..decorators._fast import fast_edit
-
 import math
+
 import maya.cmds as cmds
+
 from .._core.registry import node_wrapper
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from .node import Node
 
@@ -12,14 +13,6 @@ from .node import Node
 @node_wrapper("blendWeighted")
 class BlendWeighted(Node):
     """input[i] * weight[i]を合計する。weightの既定値は1。"""
-
-    @staticmethod
-    def _index(index):
-        """非負の整数を検証する。不正値はValueError。"""
-        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
-            raise ValueError("Expected a non-negative integer index")
-        from ..plugs.arrayPlug import ArrayPlug
-        return ArrayPlug._validate_index(index)
 
     def inputIndices(self):
         """list[int]: 存在するinputの論理番号。疎な配列を保持する。"""
@@ -32,14 +25,6 @@ class BlendWeighted(Node):
     def getWeights(self):
         """dict[int, float]: 既存inputに対応するウェイト。未設定要素は1。"""
         return {i: self.getWeight(i) for i in self.inputIndices()}
-
-    def _set(self, attr, index, value):
-        """有限値を設定する。通常はcmds、fastは保持するMPlugへ書く。"""
-        index, value = self._index(index), float(value)
-        if not math.isfinite(value):
-            raise ValueError("Expected a finite value")
-        self.plug(attr)._element_reference(index).set(value)
-        return self
 
     def inputPlug(self, index):
         """既存入力のPlugを取得する。未存在要素は作成しない。
@@ -66,22 +51,6 @@ class BlendWeighted(Node):
         """
         return self.inputPlug(index).get()
 
-    def getWeight(self, index):
-        """既存inputに対応する倍率を取得する。未設定weightは1を返す。
-
-        Args:
-            index (int): inputの論理インデックス。
-        Returns:
-            float: 評価済み倍率。未設定のweight要素は作成しない。
-        Raises:
-            IndexError: inputが存在しない場合。
-        """
-        self.inputPlug(index)
-        weights = self.plug("weight")
-        if index not in weights.mplug().getExistingArrayAttributeIndices():
-            return 1.0
-        return weights.element(index).get()
-
     @fast_edit
     @undoChunk("hlibBlendWeightedInput")
     def setInput(self, index, value, *, fast=False):
@@ -98,6 +67,22 @@ class BlendWeighted(Node):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         return self._set("input", index, value)
+
+    def getWeight(self, index):
+        """既存inputに対応する倍率を取得する。未設定weightは1を返す。
+
+        Args:
+            index (int): inputの論理インデックス。
+        Returns:
+            float: 評価済み倍率。未設定のweight要素は作成しない。
+        Raises:
+            IndexError: inputが存在しない場合。
+        """
+        self.inputPlug(index)
+        weights = self.plug("weight")
+        if index not in weights.mplug().getExistingArrayAttributeIndices():
+            return 1.0
+        return weights.element(index).get()
 
     @fast_edit
     @undoChunk("hlibBlendWeightedWeight")
@@ -142,3 +127,19 @@ class BlendWeighted(Node):
     def result(self):
         """float: 現在の重み付き合計。"""
         return self.outputPlug().get()
+
+    @staticmethod
+    def _index(index):
+        """非負の整数を検証する。不正値はValueError。"""
+        if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+            raise ValueError("Expected a non-negative integer index")
+        from ..plugs.arrayPlug import ArrayPlug
+        return ArrayPlug._validate_index(index)
+
+    def _set(self, attr, index, value):
+        """有限値を設定する。通常はcmds、fastは保持するMPlugへ書く。"""
+        index, value = self._index(index), float(value)
+        if not math.isfinite(value):
+            raise ValueError("Expected a finite value")
+        self.plug(attr)._element_reference(index).set(value)
+        return self

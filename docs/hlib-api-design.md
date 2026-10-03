@@ -31,6 +31,38 @@
 - 日本語Google形式docstringで引数・戻り値・副作用を説明する。Mayaのattributeは「アトリビュート」と表記する。
 - hlibにQt依存・独自Mayaプラグインを追加せず、ノード・Plug・Componentの共通処理は各基底へ集約する。
 
+### ファイル・クラスのレイアウト規則
+
+hlib・`hlib_*` のPythonファイルはPEP8の並びを基準にする。並びは挙動に影響しないため、
+名前・本文・デコレータの積み順・docstringを変えずに整える。
+`python tools/check_hlib_layout.py --check` が規則を検査し、`--fix` が並び替えと空行の正規化を行い、
+`--snapshot`/`--compare` で整理前後の関数本体・import束縛・モジュール文が同一であることを確認できる(Maya不要。
+実行方法は `docs/hlib-testing.md`)。
+
+| 位置 | 規則 |
+| --- | --- |
+| モジュール先頭 | docstring → `from __future__` → import → `if TYPE_CHECKING:` → `__all__`・定数 → 関数・クラス |
+| import群 | 標準ライブラリ → `maya.*` などのサードパーティ → 相対import の3グループ。グループ間は空行1行。グループ内は isort の既定と同じく `import x` 形式を先にまとめ、続けて `from x import y` 形式を置き、それぞれをモジュール名順(大文字小文字を区別しない。`..` は `.` より先)にする。例: `import inspect` → `import re` → `from functools import wraps`。 |
+| import形式 | `import maya.cmds as cmds`、`import maya.mel as mel`、`import maya.api.OpenMaya as om2`。`from maya.api.OpenMaya import MSpace` のような個別名のimportは可。 |
+| 定数 | import群の直後に置き、関数・クラスの後へ置かない。説明は `#:` の行末コメント。 |
+| 空行 | トップレベルの定義間は2行、クラス内のメンバー間は1行、`class` 行とdocstringの間は0行、デコレータと `def` の間は0行、3行以上の空行は使わない。ファイル末尾は改行1つ。クラス内に区切り線のコメント(`# ----- 比較` など)は置かず、下記の並び順で区分する。 |
+| クラス内の順 | docstring → クラス属性 → `__new__`/`__init__`/`__post_init__` → その他の特殊メソッド → 公開 classmethod/staticmethod → property → 公開メソッド → 非公開メソッド(`_` 始まり。static/classmethodも含む) |
+| 対になる操作 | `getX`/`setX`、`isX`/`setX`、`x()`/`setX()`、`connect`/`disconnect*`、`lock`/`unlock`、`show`/`hide`、`addX`/`removeX`、`__eq__`/`__ne__`/`__hash__`、`__repr__`/`__str__`、`__getitem__`/`__setitem__`、`__copy__`/`__deepcopy__`、各演算子と `__r*__`/`__i*__` は隣接させる。property の setter は getter の直後。 |
+
+- 公開メソッドの全体をアルファベット順には並べ替えない。対の隣接と上記グループ分けだけを行う。
+- 関数・メソッド内の遅延import(循環回避、Maya非依存の維持)、`try/except ImportError`、
+  `if TYPE_CHECKING:` の中身は移動しない。
+- import文の間に実行文があり、その初期化順そのものが仕様の `__init__.py`(現在は `hlib/__init__.py` のみ)は
+  並び替えの対象外。空行だけを整える(`--check` は「スキップ」として表示する)。
+- それ以外の `__init__.py` も通常の規則で並べる。import群の途中にあった `globals().pop(...)`・
+  `__all__ +=` のような、importの結果に依存しない文はimport群の後へまとめる
+  (`decorators`・`utils`・`json`・`maths`)。`nodes`・`plugs`・`cmds` の登録処理はimport群の後にあり、import群だけが並び替えの対象になる。
+- `@dataclass` のフィールド順、`__str__ = __repr__` のような先行定義を参照する代入、
+  `item_class = Node` のようなクラス属性は、参照先が先に定義される位置を維持する。
+- `__all__` はPEP8の「import前」ではなく、import群の直後に置く(`__init__.py` の動的な
+  `__all__` と位置を揃えるための意図的な逸脱)。
+- 行の長さは規則の対象外。
+
 ## コマンド層とオブジェクト・数学層
 
 - `hlib.cmds` はMayaコマンドの名前・長短フラグ・単位解釈を基準にする。

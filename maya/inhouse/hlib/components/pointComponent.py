@@ -1,13 +1,12 @@
 """XYZ 座標を持つコンポーネントと要素群の座標操作。"""
-from maya.api.OpenMaya import MSpace
-from .._core.space import world_space
-
-from ..decorators._fast import fast_edit
-from .._core import geometryEdit as geometry_edit
 
 import math
 
+from maya.api.OpenMaya import MSpace
 
+from .._core import geometryEdit as geometry_edit
+from .._core.space import world_space
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from .component import Component, Components
 
@@ -156,25 +155,6 @@ class PointComponents(Components):
     """XYZ 座標を持つコンポーネント群。"""
 
     @fast_edit
-    def setPosition(self, value, space=MSpace.kObject, *, fast=False):
-        """全要素を同じ座標へ設定する。要素別にはsetPositionsを使う。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Iterable[float]): 有限のXYZ座標。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-        Returns:
-            PointComponents: 自身。全要素が同じ位置に集まる。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
-        """
-        ws = world_space(space)
-        point = Component._finite_coordinates(value, 3)
-        return self.setPositions([point] * len(self), space=MSpace.kWorld if ws else MSpace.kObject)
-
-    @fast_edit
     @undoChunk("hlibComponentsSetPositions")
     def setPositions(self, values, space=MSpace.kObject, *, fast=False):
         """保持順の座標列を設定する。全件の座標・対象を検証してから書き込む。
@@ -312,6 +292,25 @@ class PointComponents(Components):
             return []
         self._validate()
         return geometry_edit.positions(self._shape, self._indices, ws)
+
+    @fast_edit
+    def setPosition(self, value, space=MSpace.kObject, *, fast=False):
+        """全要素を同じ座標へ設定する。要素別にはsetPositionsを使う。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Iterable[float]): 有限のXYZ座標。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+        Returns:
+            PointComponents: 自身。全要素が同じ位置に集まる。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
+        """
+        ws = world_space(space)
+        point = Component._finite_coordinates(value, 3)
+        return self.setPositions([point] * len(self), space=MSpace.kWorld if ws else MSpace.kObject)
 
     @fast_edit
     @undoChunk("hlibComponentsMirror")

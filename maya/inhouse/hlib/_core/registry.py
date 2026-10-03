@@ -3,6 +3,13 @@
 from .discovery import discover_node_package
 from .typeHierarchy import inherited_node_types
 
+__all__ = [
+    "NodeRegistry",
+    "collection_export",
+    "discover_node_package",
+    "node_wrapper",
+]
+
 
 def node_wrapper(node_type, public=True):
     """Maya の nodeType と Python wrapper class の対応を宣言する。
@@ -227,10 +234,3 @@ class NodeRegistry:
             type: 登録済みまたはフォールバックのラッパークラス。
         """
         return self.wrapper_class(node_type)
-
-__all__ = [
-    "NodeRegistry",
-    "collection_export",
-    "discover_node_package",
-    "node_wrapper",
-]

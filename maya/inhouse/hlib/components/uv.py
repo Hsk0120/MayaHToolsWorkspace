@@ -1,14 +1,16 @@
 """Mesh の現在の UV セットを参照する UV 型。"""
 
-from ..decorators._fast import fast_edit, is_fast
-from .._core import geometryEdit as geometry_edit
 import maya.cmds as cmds
-from .component import Component, Components
+
+from .._core import geometryEdit as geometry_edit
+from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
+from .component import Component, Components
 
 
 class UV(Component):
     """現在の UV セットの単一 UV。UV セット切替後は切替先を参照する。"""
+
     shape_type = "mesh"
     component_type = "map"
     count_attribute = "numUVs"
@@ -104,24 +106,8 @@ class UV(Component):
 
 class UVs(Components):
     """同一 Mesh の現在の UV セットの UV 群。"""
+
     component_class = UV
-
-    @fast_edit
-    def setPosition(self, value, *, fast=False):
-        """全UVを同じ座標へ設定する。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Iterable[float]): 有限のU、V座標。
-        Returns:
-            UVs: 自身。要素別の指定にはsetPositionsを使う。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        fastで入力履歴付き形状を編集するとNotImplementedError。
-        """
-        point = Component._finite_coordinates(value, 2)
-        return self.setPositions([point] * len(self))
 
     @fast_edit
     @undoChunk("hlibUVsSetPositions")
@@ -207,3 +193,20 @@ class UVs(Components):
             list[tuple[float, float]]: U、V 座標列。
         """
         return [item.getPosition() for item in self]
+
+    @fast_edit
+    def setPosition(self, value, *, fast=False):
+        """全UVを同じ座標へ設定する。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Iterable[float]): 有限のU、V座標。
+        Returns:
+            UVs: 自身。要素別の指定にはsetPositionsを使う。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        fastで入力履歴付き形状を編集するとNotImplementedError。
+        """
+        point = Component._finite_coordinates(value, 2)
+        return self.setPositions([point] * len(self))

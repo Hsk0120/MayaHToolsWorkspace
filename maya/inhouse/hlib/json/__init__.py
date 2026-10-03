@@ -1,14 +1,15 @@
 """Maya/hlibの参照・数学型・状態をJSONで一時保存する公開入口。"""
-globals().pop("CurveSnapshot", None)
 
-from .jsonText import JsonText
 from .document import JsonDocument
+from .editors import EditorSnapshot
+from .jsonText import JsonText
 from .references import NodeRef, PlugRef, ComponentRef
-from .storage import dump, dumps, load, loads, loadDocument
 from .snapshots import (Snapshot, SelectionSnapshot, AttributesSnapshot, PoseSnapshot,
                         NurbsCurveSnapshot, SkinWeightsSnapshot, AnimationSnapshot,
                         DrivenKeysSnapshot, ValidationReport, ApplyPlan, capture)
-from .editors import EditorSnapshot
+from .storage import dump, dumps, load, loads, loadDocument
+
+globals().pop("CurveSnapshot", None)
 
 __all__ = ["JsonText", "JsonDocument", "NodeRef", "PlugRef", "ComponentRef", "dump", "dumps", "load", "loads",
            "loadDocument", "Snapshot", "SelectionSnapshot", "AttributesSnapshot", "PoseSnapshot",

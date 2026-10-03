@@ -1,4 +1,5 @@
 """シーン設定を書き換えずに距離・角度・時間を変換する。"""
+
 import maya.api.OpenMaya as om2
 
 

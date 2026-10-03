@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from .object import Object
 from . import scene, ui, environment, events, cmds, nodes, plugs, components, utils, decorators, maths, json
+
 globals().pop("general", None)
 from ._core import bootstrap as _bootstrap
 from ._core.reload import reload_package as _reload_package
@@ -92,5 +93,6 @@ __all__ += list(_command_exports)
 
 # 標準APIを利用できる状態にしてから任意拡張を検出する。
 from . import extensions
+
 extensions._initialize()
 __all__.append("extensions")

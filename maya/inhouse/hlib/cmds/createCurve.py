@@ -1,8 +1,9 @@
 """Maya標準のNURBSカーブを作成する。"""
 
-from maya import cmds
-from .._core.flags import flag_aliases
+import maya.cmds as cmds
+
 from .._core.commandResult import CommandResult
+from .._core.flags import flag_aliases
 from ..decorators.undo import undoChunk
 
 

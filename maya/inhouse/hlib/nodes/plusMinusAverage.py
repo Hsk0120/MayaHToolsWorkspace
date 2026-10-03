@@ -1,7 +1,8 @@
 """配列入力の加算・減算・平均を計算する。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ._calculation import _Calculation
 from .shadingDependNode import ShadingDependNode
 
@@ -34,16 +35,6 @@ class PlusMinusAverage(ShadingDependNode):
         value = _Calculation.enumValue(mode, ('none', 'sum', 'subtract', 'average'))
         self.plug("operation").set(value)
         return self
-
-    def _input_array(self, dimension):
-        """入力配列を取得する。
-
-        Args:
-            dimension (int): 1/2/3。
-        Returns:
-            ArrayPlug: 入力配列。
-        """
-        return self.plug("input%dD" % _Calculation.index(dimension, (1, 2, 3)))
 
     def inputIndices(self, dimension=1):
         """既存の入力番号を取得する。
@@ -153,3 +144,13 @@ class PlusMinusAverage(ShadingDependNode):
             float | tuple: 評価済み出力。
         """
         return self.outputPlug(dimension).get()
+
+    def _input_array(self, dimension):
+        """入力配列を取得する。
+
+        Args:
+            dimension (int): 1/2/3。
+        Returns:
+            ArrayPlug: 入力配列。
+        """
+        return self.plug("input%dD" % _Calculation.index(dimension, (1, 2, 3)))

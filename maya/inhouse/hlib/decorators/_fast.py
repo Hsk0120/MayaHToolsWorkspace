@@ -1,7 +1,8 @@
 """明示したfast引数の有効範囲。Undoのグローバル設定は変更しない。"""
+
+import inspect
 from contextvars import ContextVar
 from functools import wraps
-import inspect
 
 _active = ContextVar("hlib_fast_edit", default=False)
 

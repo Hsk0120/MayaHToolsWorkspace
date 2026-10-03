@@ -1,4 +1,5 @@
 """同一Mayaセッションでのみ有効なUI状態のメモリ退避値。"""
+
 from dataclasses import dataclass, field
 from types import MappingProxyType
 

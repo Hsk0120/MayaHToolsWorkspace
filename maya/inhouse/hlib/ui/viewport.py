@@ -43,38 +43,6 @@ class Viewport(_Editor):
         self._panel = panel
         self._name = cmds.modelPanel(panel, query=True, modelEditor=True)
 
-    @property
-    def panel(self):
-        """str: 保持しているmodelPanel名を返す。"""
-        return self._panel
-
-    def camera(self):
-        """str: 現在表示しているカメラ名を返す。"""
-        self._require_exists()
-        return cmds.modelEditor(self._name, query=True, camera=True)
-
-    def setCamera(self, camera):
-        """表示カメラを変更する。
-
-        Args:
-            camera (str): Mayaが解決できるカメラ名。
-
-        Returns:
-            None: 値を返さない。
-        """
-        self._require_exists()
-        cmds.modelEditor(self._name, edit=True, camera=camera)
-
-    @staticmethod
-    def _main_pane():
-        """str: Mayaのメインペインを取得する。GUIがなければ RuntimeError。"""
-        if cmds.about(batch=True):
-            raise RuntimeError("Viewport suspension requires Maya GUI")
-        pane = mel.eval('global string $gMainPane; $hlibMainPane = $gMainPane;')
-        if not pane or not cmds.paneLayout(pane, exists=True):
-            raise RuntimeError("Maya main pane is unavailable")
-        return pane
-
     @staticmethod
     def isEnabled():
         """bool: メインペインのmanage状態。描画エンジンの状態ではない。"""
@@ -112,3 +80,35 @@ class Viewport(_Editor):
         finally:
             if cmds.paneLayout(pane, exists=True):
                 cmds.paneLayout(pane, edit=True, manage=previous)
+
+    @property
+    def panel(self):
+        """str: 保持しているmodelPanel名を返す。"""
+        return self._panel
+
+    def camera(self):
+        """str: 現在表示しているカメラ名を返す。"""
+        self._require_exists()
+        return cmds.modelEditor(self._name, query=True, camera=True)
+
+    def setCamera(self, camera):
+        """表示カメラを変更する。
+
+        Args:
+            camera (str): Mayaが解決できるカメラ名。
+
+        Returns:
+            None: 値を返さない。
+        """
+        self._require_exists()
+        cmds.modelEditor(self._name, edit=True, camera=camera)
+
+    @staticmethod
+    def _main_pane():
+        """str: Mayaのメインペインを取得する。GUIがなければ RuntimeError。"""
+        if cmds.about(batch=True):
+            raise RuntimeError("Viewport suspension requires Maya GUI")
+        pane = mel.eval('global string $gMainPane; $hlibMainPane = $gMainPane;')
+        if not pane or not cmds.paneLayout(pane, exists=True):
+            raise RuntimeError("Maya main pane is unavailable")
+        return pane

@@ -20,7 +20,7 @@ pipe、pyramid、prism、helix、platonicSolid。対応するMayaコマンド名
 押し出し・結合など既存メッシュを編集するpolyコマンドは対象外です。
 """
 
-from maya import cmds
+import maya.cmds as cmds
 
 from .._core.flags import flag_aliases, normalize_flags
 from ..decorators.undo import undoChunk

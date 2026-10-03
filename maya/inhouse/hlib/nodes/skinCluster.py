@@ -1,24 +1,22 @@
 """skinCluster のウェイト操作と joint 削除を支援する。"""
-from maya.api.OpenMaya import MSpace
-from .._core.space import world_space
-
-from ..decorators._fast import fast_edit, is_fast
-from .._core.fastWrite import set_attr
-from .._core.fastWrite import writable, check_range
-
-from ..decorators.undo import undoChunk
 
 import json
 import math
 from decimal import Decimal, localcontext, ROUND_FLOOR
 
-import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
+import maya.cmds as cmds
+from maya.api.OpenMaya import MSpace
 
-from .._core.registry import collection_export, node_wrapper
 from .._core.collection import bulk_api
+from .._core.fastWrite import set_attr
+from .._core.fastWrite import writable, check_range
+from .._core.registry import collection_export, node_wrapper
+from .._core.space import world_space
+from ..decorators._fast import fast_edit, is_fast
 from ..decorators.selection import preservedSelection
+from ..decorators.undo import undoChunk
 from ..maths import easing
 from .joint import Joint
 from .node import Node, Nodes
@@ -103,121 +101,6 @@ class SkinCluster(Node):
         cmds.copySkinWeights(sourceSkin=self.fullName(), destinationSkin=target.fullName(),
                              noMirror=True, surfaceAssociation="closestPoint",
                              influenceAssociation=["name", "closestJoint"], normalize=True)
-
-    def _uuid(self, node):
-        """ノード名から Maya UUID を取得する。
-
-        Args:
-            node (str): UUID を問い合わせるノード名。
-
-        Returns:
-            str | None: 対応する UUID。ノードが存在しない場合は None。
-        """
-        try:
-            return Node(node).uuid()
-        except RuntimeError:
-            return None
-
-    def _get_dag_path(self, name):
-        """geometry 名から shape まで展開した MDagPath を取得する。
-
-        Args:
-            name (str): geometry のノード名。
-
-        Returns:
-            om2.MDagPath: Transform なら shape へ展開した DAG パス。
-        """
-        # 名前とインスタンスパスの解決は既存Node/DagNodeの経路を共有する。
-        path = Node(name).dagPath()
-        if path.node().hasFn(om2.MFn.kTransform):
-            path.extendToShape()
-        return path
-
-    def _mesh(self):
-        """skinCluster が変形する先頭 geometry 名を取得する。
-
-        Returns:
-            str: skinCluster に登録された先頭 geometry 名(フルパス)。
-
-        Raises:
-            IndexError: geometry がない場合。
-        """
-        geometries = oma2.MFnGeometryFilter(self.mobject()).getOutputGeometry()
-        if not geometries:
-            raise IndexError("This skinCluster has no output geometry")
-        return om2.MFnDagNode(geometries[0]).fullPathName()
-
-    def _jnt_index(self, joint):
-        """influence 配列内の joint インデックスを UUID 優先で取得する。
-
-        Args:
-            joint (str): 検索する influence 名。
-
-        Returns:
-            int | None: influenceObjects() 内の物理インデックス。UUID、次いでパーシャル名を比較する。見つからなければ None。
-        """
-        return self._influence_indices((joint,), self.fn.influenceObjects())[0]
-
-    def _all_verts(self):
-        """mesh の全頂点 component と頂点数を生成する。
-
-        Returns:
-            tuple[om2.MObject, int]: 全頂点を含む component と頂点数。
-        """
-        numVertices = om2.MFnMesh(self.mesh_path).numVertices
-        component_fn = om2.MFnSingleIndexedComponent()
-        vertices = component_fn.create(om2.MFn.kMeshVertComponent)
-        component_fn.addElements(range(numVertices))
-        return vertices, numVertices
-
-    def _jnt_indices(self, joints):
-        """joint 群を skinCluster influence インデックス配列へ変換する。
-
-        未登録名を除外しない。解決結果が None のまま配列変換されると失敗する。
-
-        Args:
-            joints (Iterable[str]): すべて対象 skinCluster に存在する influence 名。
-
-        Returns:
-            om2.MIntArray: 指定順の物理インデックス配列。
-        """
-        from ..object import Object as _InputObject
-        return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self.fn.influenceObjects()))
-
-    def _influence_indices(self, joints, influences):
-        """一回の操作内でUUIDと名前の検索表を共有する。
-
-        Args:
-            joints (Iterable[str]): 入力順のinfluence名。
-            influences (om2.MDagPathArray): 操作開始時のinfluence配列。
-
-        Returns:
-            list[int | None]: 入力順の物理番号。未登録はNone。
-                同じUUIDの複数パスは従来の逐次検索と同じ先頭を選ぶ。
-        """
-        joints = list(joints)
-        if not joints:
-            return []
-        if len(joints) == 1:
-            # 単数指定では検索表全体を構築せず、一致した時点で終了する。
-            joint = joints[0]
-            uuid = self._uuid(joint)
-            for index, path in enumerate(influences):
-                if ((uuid and self._uuid(path.fullPathName()) == uuid)
-                        or path.partialPathName() == joint):
-                    return [index]
-            return [None]
-        by_uuid, by_name = {}, {}
-        for index, path in enumerate(influences):
-            uuid = self._uuid(path.fullPathName())
-            if uuid:
-                by_uuid.setdefault(uuid, index)
-            by_name.setdefault(path.partialPathName(), index)
-        result = []
-        for joint in joints:
-            candidates = (by_uuid.get(self._uuid(joint)), by_name.get(joint))
-            result.append(min((i for i in candidates if i is not None), default=None))
-        return result
 
     def influences(self):
         """influenceのDAGパスを保持するノードラッパーを取得する。
@@ -557,22 +440,6 @@ class SkinCluster(Node):
             for logical_index, value in zip(logical_indices, final):
                 set_attr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value)
 
-    def _xfer_pair(self, source_joint, target_joint):
-        """選択された source influence 頂点のウェイトを target へ移す。
-
-        元 influence に影響される頂点を選択し、skinPercent の transformMoveWeights を実行する。選択状態の復元は呼び出し側が行う。
-
-        Args:
-            source_joint (str): 移送元の influence 名。
-            target_joint (str): 移送先の influence 名。
-
-        Returns:
-            None: 値を返さない。
-        """
-        cmds.skinCluster(self.name(), edit=True, selectInfluenceVerts=source_joint)
-        if om2.MGlobal.getActiveSelectionList().length():
-            cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
-
     @undoChunk("hlib.nodes.skinCluster.transferWeights")
     def transferWeights(self, source_target_pairs):
         """複数のsource/target組についてウェイトを移す。
@@ -642,6 +509,206 @@ class SkinCluster(Node):
                 summed.extend((0.0, weights[i] + weights[i + 1]))
             self.setWeights([source.fullName(), target], summed)
         cmds.skinCluster(self.name(), edit=True, removeInfluence=source.fullName())
+
+    @fast_edit
+    @undoChunk("hlibSkinClusterNormalizeWeights")
+    def normalizeWeights(self, decimals=None, *, fast=False):
+        """先頭meshの各頂点ウェイトを合計1へ正規化する。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            decimals (int | None): 0〜15の小数桁数。Noneは桁丸めなし。
+                桁指定時は端数を配分し、十進数として合計1を維持する。
+                同率の場合はinfluenceの登録順を優先する。
+        Returns:
+            SkinCluster: 自身。
+        Raises:
+            ValueError: 不正な桁数、負値・非有限値・合計ゼロの頂点の場合。
+            RuntimeError: ロック・接続・レイヤー、またはMayaの編集失敗。
+
+        全頂点を事前検証する。normalizeWeights設定・influence数は変更しない。
+        保存値は浮動小数点のため合計に機械精度の誤差は生じ得る。Undo対応。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        names, values = self._normalized_weights(decimals)
+        self.setWeights(names, values)
+        return self
+
+    def getMaxInfluences(self):
+        """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
+        return self.plug("maxInfluences").get()
+
+    @fast_edit
+    @undoChunk("hlibSkinClusterSetMaxInfluences")
+    def setMaxInfluences(self, count, maintain=True, prune=False, *, fast=False):
+        """最大influence設定を変更し、任意で既存ウェイトも制限する。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            count (int): 1以上の最大数。
+            maintain (bool): maintainMaxInfluencesを有効にするか。
+            prune (bool): Trueで先頭meshの各頂点の大きいcount個だけを残し正規化。
+                Falseは設定だけ変更し、既存ウェイトを変更しない。
+        Returns:
+            SkinCluster: 自身。
+        Raises:
+            ValueError: 不正なcount、またはprune時に正規化できないウェイト。
+            TypeError: maintain/pruneがboolでない場合。
+            RuntimeError: ロック・レイヤー・Mayaの編集失敗。
+
+        skinCluster編集コマンドの再バインドを避け、アトリビュートを直接設定する。Undo対応。
+
+        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
+        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        """
+        if type(count) is not int or not 1 <= count <= 2147483647:
+            raise ValueError("count must be a positive 32-bit integer")
+        if type(maintain) is not bool or type(prune) is not bool:
+            raise TypeError("maintain and prune must be bool")
+        settings = [self.plug(attr) for attr in ("maxInfluences", "maintainMaxInfluences")]
+        for plug in settings:
+            if plug.mplug().isFreeToChange() != om2.MPlug.kFreeToChange:
+                attr = plug.attributeName()
+                raise RuntimeError("Setting is locked or connected: " + attr)
+        computed = self._normalized_weights(limit=count) if prune else None
+        settings[0].set(count)
+        settings[1].set(maintain)
+        if computed:
+            self.setWeights(*computed)
+        return self
+
+    def _uuid(self, node):
+        """ノード名から Maya UUID を取得する。
+
+        Args:
+            node (str): UUID を問い合わせるノード名。
+
+        Returns:
+            str | None: 対応する UUID。ノードが存在しない場合は None。
+        """
+        try:
+            return Node(node).uuid()
+        except RuntimeError:
+            return None
+
+    def _get_dag_path(self, name):
+        """geometry 名から shape まで展開した MDagPath を取得する。
+
+        Args:
+            name (str): geometry のノード名。
+
+        Returns:
+            om2.MDagPath: Transform なら shape へ展開した DAG パス。
+        """
+        # 名前とインスタンスパスの解決は既存Node/DagNodeの経路を共有する。
+        path = Node(name).dagPath()
+        if path.node().hasFn(om2.MFn.kTransform):
+            path.extendToShape()
+        return path
+
+    def _mesh(self):
+        """skinCluster が変形する先頭 geometry 名を取得する。
+
+        Returns:
+            str: skinCluster に登録された先頭 geometry 名(フルパス)。
+
+        Raises:
+            IndexError: geometry がない場合。
+        """
+        geometries = oma2.MFnGeometryFilter(self.mobject()).getOutputGeometry()
+        if not geometries:
+            raise IndexError("This skinCluster has no output geometry")
+        return om2.MFnDagNode(geometries[0]).fullPathName()
+
+    def _jnt_index(self, joint):
+        """influence 配列内の joint インデックスを UUID 優先で取得する。
+
+        Args:
+            joint (str): 検索する influence 名。
+
+        Returns:
+            int | None: influenceObjects() 内の物理インデックス。UUID、次いでパーシャル名を比較する。見つからなければ None。
+        """
+        return self._influence_indices((joint,), self.fn.influenceObjects())[0]
+
+    def _all_verts(self):
+        """mesh の全頂点 component と頂点数を生成する。
+
+        Returns:
+            tuple[om2.MObject, int]: 全頂点を含む component と頂点数。
+        """
+        numVertices = om2.MFnMesh(self.mesh_path).numVertices
+        component_fn = om2.MFnSingleIndexedComponent()
+        vertices = component_fn.create(om2.MFn.kMeshVertComponent)
+        component_fn.addElements(range(numVertices))
+        return vertices, numVertices
+
+    def _jnt_indices(self, joints):
+        """joint 群を skinCluster influence インデックス配列へ変換する。
+
+        未登録名を除外しない。解決結果が None のまま配列変換されると失敗する。
+
+        Args:
+            joints (Iterable[str]): すべて対象 skinCluster に存在する influence 名。
+
+        Returns:
+            om2.MIntArray: 指定順の物理インデックス配列。
+        """
+        from ..object import Object as _InputObject
+        return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self.fn.influenceObjects()))
+
+    def _influence_indices(self, joints, influences):
+        """一回の操作内でUUIDと名前の検索表を共有する。
+
+        Args:
+            joints (Iterable[str]): 入力順のinfluence名。
+            influences (om2.MDagPathArray): 操作開始時のinfluence配列。
+
+        Returns:
+            list[int | None]: 入力順の物理番号。未登録はNone。
+                同じUUIDの複数パスは従来の逐次検索と同じ先頭を選ぶ。
+        """
+        joints = list(joints)
+        if not joints:
+            return []
+        if len(joints) == 1:
+            # 単数指定では検索表全体を構築せず、一致した時点で終了する。
+            joint = joints[0]
+            uuid = self._uuid(joint)
+            for index, path in enumerate(influences):
+                if ((uuid and self._uuid(path.fullPathName()) == uuid)
+                        or path.partialPathName() == joint):
+                    return [index]
+            return [None]
+        by_uuid, by_name = {}, {}
+        for index, path in enumerate(influences):
+            uuid = self._uuid(path.fullPathName())
+            if uuid:
+                by_uuid.setdefault(uuid, index)
+            by_name.setdefault(path.partialPathName(), index)
+        result = []
+        for joint in joints:
+            candidates = (by_uuid.get(self._uuid(joint)), by_name.get(joint))
+            result.append(min((i for i in candidates if i is not None), default=None))
+        return result
+
+    def _xfer_pair(self, source_joint, target_joint):
+        """選択された source influence 頂点のウェイトを target へ移す。
+
+        元 influence に影響される頂点を選択し、skinPercent の transformMoveWeights を実行する。選択状態の復元は呼び出し側が行う。
+
+        Args:
+            source_joint (str): 移送元の influence 名。
+            target_joint (str): 移送先の influence 名。
+
+        Returns:
+            None: 値を返さない。
+        """
+        cmds.skinCluster(self.name(), edit=True, selectInfluenceVerts=source_joint)
+        if om2.MGlobal.getActiveSelectionList().length():
+            cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
 
     def _influence_removal_target(self, joint, transfer_to_parent=True):
         """削除可否と祖先移送先を変更前に確認する。"""
@@ -725,75 +792,6 @@ class SkinCluster(Node):
                     row = [Decimal(v) / scale for v in ticks]
                 result.extend(float(v) for v in row)
         return names, result
-
-    @fast_edit
-    @undoChunk("hlibSkinClusterNormalizeWeights")
-    def normalizeWeights(self, decimals=None, *, fast=False):
-        """先頭meshの各頂点ウェイトを合計1へ正規化する。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            decimals (int | None): 0〜15の小数桁数。Noneは桁丸めなし。
-                桁指定時は端数を配分し、十進数として合計1を維持する。
-                同率の場合はinfluenceの登録順を優先する。
-        Returns:
-            SkinCluster: 自身。
-        Raises:
-            ValueError: 不正な桁数、負値・非有限値・合計ゼロの頂点の場合。
-            RuntimeError: ロック・接続・レイヤー、またはMayaの編集失敗。
-
-        全頂点を事前検証する。normalizeWeights設定・influence数は変更しない。
-        保存値は浮動小数点のため合計に機械精度の誤差は生じ得る。Undo対応。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        names, values = self._normalized_weights(decimals)
-        self.setWeights(names, values)
-        return self
-
-    def getMaxInfluences(self):
-        """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
-        return self.plug("maxInfluences").get()
-
-    @fast_edit
-    @undoChunk("hlibSkinClusterSetMaxInfluences")
-    def setMaxInfluences(self, count, maintain=True, prune=False, *, fast=False):
-        """最大influence設定を変更し、任意で既存ウェイトも制限する。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            count (int): 1以上の最大数。
-            maintain (bool): maintainMaxInfluencesを有効にするか。
-            prune (bool): Trueで先頭meshの各頂点の大きいcount個だけを残し正規化。
-                Falseは設定だけ変更し、既存ウェイトを変更しない。
-        Returns:
-            SkinCluster: 自身。
-        Raises:
-            ValueError: 不正なcount、またはprune時に正規化できないウェイト。
-            TypeError: maintain/pruneがboolでない場合。
-            RuntimeError: ロック・レイヤー・Mayaの編集失敗。
-
-        skinCluster編集コマンドの再バインドを避け、アトリビュートを直接設定する。Undo対応。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        """
-        if type(count) is not int or not 1 <= count <= 2147483647:
-            raise ValueError("count must be a positive 32-bit integer")
-        if type(maintain) is not bool or type(prune) is not bool:
-            raise TypeError("maintain and prune must be bool")
-        settings = [self.plug(attr) for attr in ("maxInfluences", "maintainMaxInfluences")]
-        for plug in settings:
-            if plug.mplug().isFreeToChange() != om2.MPlug.kFreeToChange:
-                attr = plug.attributeName()
-                raise RuntimeError("Setting is locked or connected: " + attr)
-        computed = self._normalized_weights(limit=count) if prune else None
-        settings[0].set(count)
-        settings[1].set(maintain)
-        if computed:
-            self.setWeights(*computed)
-        return self
 
     def _has_layer_plugs(self):
         """スキニングレイヤー関連ノードが接続されているか判定する。

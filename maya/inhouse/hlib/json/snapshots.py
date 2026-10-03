@@ -1,7 +1,9 @@
 """既存シーンの状態を保存し、事前検証後に明示適用する。"""
-from dataclasses import dataclass, field
+
 import hashlib
 import math
+from dataclasses import dataclass, field
+
 from .references import NodeRef, PlugRef, ComponentRef
 
 
@@ -142,7 +144,9 @@ def _check_attribute_value(attr):
 @dataclass
 class ValidationReport:
     """適用計画のエラー一覧。空ならvalid=True。"""
+
     errors: list = field(default_factory=list)
+
     @property
     def valid(self):
         """bool: エラーがないか。"""
@@ -152,6 +156,7 @@ class ValidationReport:
 @dataclass
 class ApplyPlan:
     """対象対応と変更前後を保持する。apply時には最新状態で再検証する。"""
+
     snapshot: object
     mapping: dict = field(default_factory=dict)
     namespace_map: dict = field(default_factory=dict)
@@ -166,14 +171,11 @@ class ApplyPlan:
 @dataclass
 class Snapshot:
     """用途、レコード、取得時単位を持つデータ。取得後はシーンへ追従しない。"""
+
     kind: str
     records: list
     units: dict
     version: int = 1
-
-    def toData(self):
-        """保存用データを返す。"""
-        return {"kind": self.kind, "records": self.records, "units": self.units, "version": self.version}
 
     @classmethod
     def fromData(cls, data):
@@ -193,6 +195,10 @@ class Snapshot:
             from .editors import EditorSnapshot
             return EditorSnapshot(**data)
         return _KINDS[data["kind"]](**data)
+
+    def toData(self):
+        """保存用データを返す。"""
+        return {"kind": self.kind, "records": self.records, "units": self.units, "version": self.version}
 
     def plan(self, mapping=None, namespace_map=None):
         """シーンを変更せず、変更候補と検証エラーを収集する。

@@ -1,17 +1,15 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
-from ..decorators._fast import fast_edit
-from .._core.fastWrite import set_attr
-
-from ..decorators.undo import undoChunk
-
 import math
 
-import maya.cmds as cmds
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 
-from .._core.registry import collection_export, node_wrapper
 from .._core.collection import bulk_api
+from .._core.fastWrite import set_attr
+from .._core.registry import collection_export, node_wrapper
+from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import EulerRotation, Matrix, Scale
 from .transform import Transform, Transforms, _closest_euler
 
@@ -63,49 +61,6 @@ class Joint(Transform):
         """
         values = self._compound_values("jointOrient", angle=True)
         return EulerRotation(*(math.radians(value) for value in values))
-
-    def _rotation_order(self):
-        """Maya の rotateOrder を API の回転順序へ変換する。
-
-        rotateOrder の番号(0=xyz〜5=zyx)は MEulerRotation.kXYZ〜kZYX と同じ並び。
-
-        Returns:
-            int: rotateOrder に対応する Maya API 2.0 の MEulerRotation 定数。
-        """
-        return self._rotate_order()
-
-    def _joint_rotation_transfer_values(self, to_orient=False):
-        """書込み可否を検証し、合成後の回転を現在の角度単位で返す。
-
-        Args:
-            to_orient (bool): TrueでjointOrient用XYZ、FalseでrotateOrderのrotate用。
-        Returns:
-            tuple[float, float, float] | None: 合成値。移送元が0ならNone。
-        Raises:
-            RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
-        """
-        if not self.isJoint():
-            raise RuntimeError("Cannot change orientation of an invalid joint")
-        orient = self._compound_values("jointOrient", angle=True)
-        rotate = self._compound_values("rotate", angle=True)
-        if not any(rotate if to_orient else orient):
-            return None
-        name = self.fullName()
-        for attribute in ("rotate", "jointOrient"):
-            for suffix in ("", "X", "Y", "Z"):
-                plug = name + "." + attribute + suffix
-                if (not cmds.getAttr(plug, settable=True)
-                        or cmds.connectionInfo(plug, isDestination=True)):
-                    raise RuntimeError("Attribute must be unlocked and have no input connection: " + plug)
-        rotation = om2.MEulerRotation(
-            *(math.radians(v) for v in rotate),
-            self._rotation_order())
-        # jointOrientはrotateOrderに関係なくXYZ。MayaのR * JOを合成する。
-        orientation = om2.MEulerRotation(*(math.radians(v) for v in orient))
-        combined = om2.MTransformationMatrix(rotation.asMatrix() * orientation.asMatrix())
-        result = combined.rotation(asQuaternion=True).asEulerRotation()
-        result.reorderIt(om2.MEulerRotation.kXYZ if to_orient else self._rotation_order())
-        return tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in result)
 
     @fast_edit
     @undoChunk("hlibJointsJointOrientToRotate")
@@ -159,115 +114,6 @@ class Joint(Transform):
             raise RuntimeError("Cannot freeze rotation of an invalid joint")
         self._apply_rotation_transfer(self._joint_rotation_transfer_values(to_orient=True), to_orient=True)
         return self
-
-    def _apply_rotation_transfer(self, values, to_orient=False):
-        """検証済みの回転移送値を適用する。Undo/fastは呼出元の範囲に従う。
-
-        Args:
-            values (tuple | None): 現在のUI角度単位の3成分。Noneなら更新しない。
-            to_orient (bool): TrueならjointOrientへ移しrotateを0にする。
-        """
-        if values is None:
-            return
-        set_attr(self.fullName() + ".jointOrient", *(values if to_orient else (0, 0, 0)))
-        set_attr(self.fullName() + ".rotate", *((0, 0, 0) if to_orient else values))
-
-    def _rotation_quaternion(self, attribute):
-        """jointOrient / rotateAxis を API quaternion へ変換する。
-
-        MAngle から明示的に度数法で取得し、ラジアンへ変換する。現在の UI 角度単位に依存しない。
-        Maya の jointOrient と
-        rotateAxis は rotateOrder にかかわらず常に XYZ 順序で評価されるため、
-        XYZ として解釈する。
-
-        Args:
-            attribute (str): 度の3成分として読み取る回転アトリビュート名(jointOrient / rotateAxis)。
-
-        Returns:
-            om2.MQuaternion: XYZ 順序で解釈した回転。
-        """
-        values = self._compound_values(attribute, angle=True)
-        rotation = om2.MEulerRotation(*(math.radians(value) for value in values))
-        return rotation.asQuaternion()
-
-    def _remove_segment_scale_compensation(self, matrix):
-        """ssc と inverseScale が適用された後の行列から補正前の値を戻す。
-
-        Maya の joint の行列は S · RA · R · JO · IS · T(IS は inverseScale の逆数の
-        対角行列)なので、3x3 部分へ inverseScale の対角行列を右から掛けて IS を打ち消す。
-        平行移動は IS の後に適用されるため変えない。
-
-        Args:
-            matrix (Matrix): スケール補正を取り除く対象行列。
-
-        Returns:
-            Matrix: ssc が無効なら入力そのもの。有効なら IS を打ち消した新しい行列。
-
-        Raises:
-            ValueError: ssc が有効で inverseScale の成分の絶対値が 1e-12 未満の場合。
-        """
-        if not self.plug("ssc").get():
-            return matrix
-        inverse_scale = self._compound_values("inverseScale")
-        if any(abs(value) < 1e-12 for value in inverse_scale):
-            raise ValueError("inverseScale components must be non-zero when segmentScaleCompensate is enabled")
-        result = matrix * Matrix(scale=inverse_scale)
-        result.translate = matrix.translate
-        return result
-
-    def _rotate_reference(self, reference):
-        """:meth:`getRotation` が Euler の解を選ぶ基準を返す。
-
-        joint の getRotation は jointOrient と rotateAxis を含む回転で rotate チャンネルとは
-        別の回転なので、チャンネル値ではなく 0 回転(ノードの rotateOrder)を基準にする。
-
-        Args:
-            reference (om2.MEulerRotation): 現在の rotate チャンネル値(順序だけを使う)。
-
-        Returns:
-            om2.MEulerRotation: 0 回転。順序はノードの rotateOrder。
-        """
-        return om2.MEulerRotation(0.0, 0.0, 0.0, reference.order)
-
-    def _channel_rotation(self, quaternion, reference):
-        """ローカル行列の回転から jointOrient と rotateAxis を除き、rotate の値へ変換する。
-
-        Maya の joint の回転は rotateAxis、rotate、jointOrient の順に適用されるため、
-        rotate = rotateAxis⁻¹ · 行列の回転 · jointOrient⁻¹(om2 の四元数の積の順序)。
-
-        Args:
-            quaternion (om2.MQuaternion): ローカル行列の回転。
-            reference (om2.MEulerRotation): 現在の rotate チャンネル値。
-
-        Returns:
-            om2.MEulerRotation: ノードの rotateOrder で表した、reference に最も近い解。
-        """
-        rotate_axis = self._rotation_quaternion("rotateAxis")
-        joint_orient = self._rotation_quaternion("jointOrient")
-        return _closest_euler(rotate_axis.conjugate() * quaternion * joint_orient.conjugate(), reference)
-
-    def _apply_local_matrix(self, matrix, scale_reference=None):
-        """jointOrient と rotateAxis を保持して local 行列を適用する。
-
-        segmentScaleCompensate の補正を除いてから、Transform と同じ規約(スケールの
-        符号を scale_reference または現在のチャンネル値に、Euler の解を現在のチャンネル値に
-        揃える)で分解して書き込む。rotate は jointOrient と rotateAxis を回転から除いた値。
-        角度の読み書きは Maya の角度単位が度であることを前提とする。
-
-        Args:
-            matrix (Matrix): 適用するローカル行列。
-            scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
-                (``setScale`` で要求した値)。None なら現在の scale チャンネル値に合わせる。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
-            RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
-        """
-        super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
-
 
     @undoChunk("hlibJointConnectInverseScale")
     def connectInverseScale(self, source=None, force=False):
@@ -369,26 +215,6 @@ class Joint(Transform):
             Scale: joint の inverseScale 値。
         """
         return Scale(*self._compound_values("inverseScale"))
-
-    def _compound_values(self, attribute, angle=False):
-        """compound アトリビュートを 3 要素の tuple として取得する。
-
-        Args:
-            attribute (str): 読み取る複合アトリビュート名。
-            angle (bool): True の場合、各子を角度アトリビュートとして度数法の値で取得する。
-                現在の UI 角度単位に関係なく、MAngle.asDegrees() を使用する。
-                False の場合は単位変換のない生の double として取得する。
-
-        Returns:
-            tuple[float, float, float]: 最初の子 3 要素の値。無効なノードでは (0.0, 0.0, 0.0)。
-                有効時は子の数を事前検査せず、3 要素を読み取る。
-        """
-        if not self.isValid():
-            return (0.0, 0.0, 0.0)
-        plug = om2.MFnDependencyNode(self._mobject).findPlug(attribute, False)
-        if angle:
-            return tuple(plug.child(index).asMAngle().asDegrees() for index in range(3))
-        return tuple(plug.child(index).asDouble() for index in range(3))
 
     def parentJointName(self):
         """親 joint の名前を取得する。
@@ -538,25 +364,6 @@ class Joint(Transform):
         for child_joint in self.childJointNames():
             cmds.parent(child_joint, parent_joint)
 
-    @staticmethod
-    def _unique_ordered(items):
-        """順序を保ったまま重複要素を除外する。
-
-        Args:
-            items (Iterable[Hashable]): 重複を除去するハッシュ可能な要素。
-
-        Returns:
-            list: 最初の出現順を維持した要素リスト。
-        """
-        seen = set()
-        unique_items = []
-        for item in items:
-            if item in seen:
-                continue
-            seen.add(item)
-            unique_items.append(item)
-        return unique_items
-
     def chainFromHere(self, to=None):
         """自身を起点とする joint チェーンを順に取得する。
 
@@ -627,6 +434,197 @@ class Joint(Transform):
             seen.add(node.uuid())
             result.append(IkHandle(node.mobject()))
         return result
+
+    def _rotation_order(self):
+        """Maya の rotateOrder を API の回転順序へ変換する。
+
+        rotateOrder の番号(0=xyz〜5=zyx)は MEulerRotation.kXYZ〜kZYX と同じ並び。
+
+        Returns:
+            int: rotateOrder に対応する Maya API 2.0 の MEulerRotation 定数。
+        """
+        return self._rotate_order()
+
+    def _joint_rotation_transfer_values(self, to_orient=False):
+        """書込み可否を検証し、合成後の回転を現在の角度単位で返す。
+
+        Args:
+            to_orient (bool): TrueでjointOrient用XYZ、FalseでrotateOrderのrotate用。
+        Returns:
+            tuple[float, float, float] | None: 合成値。移送元が0ならNone。
+        Raises:
+            RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
+        """
+        if not self.isJoint():
+            raise RuntimeError("Cannot change orientation of an invalid joint")
+        orient = self._compound_values("jointOrient", angle=True)
+        rotate = self._compound_values("rotate", angle=True)
+        if not any(rotate if to_orient else orient):
+            return None
+        name = self.fullName()
+        for attribute in ("rotate", "jointOrient"):
+            for suffix in ("", "X", "Y", "Z"):
+                plug = name + "." + attribute + suffix
+                if (not cmds.getAttr(plug, settable=True)
+                        or cmds.connectionInfo(plug, isDestination=True)):
+                    raise RuntimeError("Attribute must be unlocked and have no input connection: " + plug)
+        rotation = om2.MEulerRotation(
+            *(math.radians(v) for v in rotate),
+            self._rotation_order())
+        # jointOrientはrotateOrderに関係なくXYZ。MayaのR * JOを合成する。
+        orientation = om2.MEulerRotation(*(math.radians(v) for v in orient))
+        combined = om2.MTransformationMatrix(rotation.asMatrix() * orientation.asMatrix())
+        result = combined.rotation(asQuaternion=True).asEulerRotation()
+        result.reorderIt(om2.MEulerRotation.kXYZ if to_orient else self._rotation_order())
+        return tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in result)
+
+    def _apply_rotation_transfer(self, values, to_orient=False):
+        """検証済みの回転移送値を適用する。Undo/fastは呼出元の範囲に従う。
+
+        Args:
+            values (tuple | None): 現在のUI角度単位の3成分。Noneなら更新しない。
+            to_orient (bool): TrueならjointOrientへ移しrotateを0にする。
+        """
+        if values is None:
+            return
+        set_attr(self.fullName() + ".jointOrient", *(values if to_orient else (0, 0, 0)))
+        set_attr(self.fullName() + ".rotate", *((0, 0, 0) if to_orient else values))
+
+    def _rotation_quaternion(self, attribute):
+        """jointOrient / rotateAxis を API quaternion へ変換する。
+
+        MAngle から明示的に度数法で取得し、ラジアンへ変換する。現在の UI 角度単位に依存しない。
+        Maya の jointOrient と
+        rotateAxis は rotateOrder にかかわらず常に XYZ 順序で評価されるため、
+        XYZ として解釈する。
+
+        Args:
+            attribute (str): 度の3成分として読み取る回転アトリビュート名(jointOrient / rotateAxis)。
+
+        Returns:
+            om2.MQuaternion: XYZ 順序で解釈した回転。
+        """
+        values = self._compound_values(attribute, angle=True)
+        rotation = om2.MEulerRotation(*(math.radians(value) for value in values))
+        return rotation.asQuaternion()
+
+    def _remove_segment_scale_compensation(self, matrix):
+        """ssc と inverseScale が適用された後の行列から補正前の値を戻す。
+
+        Maya の joint の行列は S · RA · R · JO · IS · T(IS は inverseScale の逆数の
+        対角行列)なので、3x3 部分へ inverseScale の対角行列を右から掛けて IS を打ち消す。
+        平行移動は IS の後に適用されるため変えない。
+
+        Args:
+            matrix (Matrix): スケール補正を取り除く対象行列。
+
+        Returns:
+            Matrix: ssc が無効なら入力そのもの。有効なら IS を打ち消した新しい行列。
+
+        Raises:
+            ValueError: ssc が有効で inverseScale の成分の絶対値が 1e-12 未満の場合。
+        """
+        if not self.plug("ssc").get():
+            return matrix
+        inverse_scale = self._compound_values("inverseScale")
+        if any(abs(value) < 1e-12 for value in inverse_scale):
+            raise ValueError("inverseScale components must be non-zero when segmentScaleCompensate is enabled")
+        result = matrix * Matrix(scale=inverse_scale)
+        result.translate = matrix.translate
+        return result
+
+    def _rotate_reference(self, reference):
+        """:meth:`getRotation` が Euler の解を選ぶ基準を返す。
+
+        joint の getRotation は jointOrient と rotateAxis を含む回転で rotate チャンネルとは
+        別の回転なので、チャンネル値ではなく 0 回転(ノードの rotateOrder)を基準にする。
+
+        Args:
+            reference (om2.MEulerRotation): 現在の rotate チャンネル値(順序だけを使う)。
+
+        Returns:
+            om2.MEulerRotation: 0 回転。順序はノードの rotateOrder。
+        """
+        return om2.MEulerRotation(0.0, 0.0, 0.0, reference.order)
+
+    def _channel_rotation(self, quaternion, reference):
+        """ローカル行列の回転から jointOrient と rotateAxis を除き、rotate の値へ変換する。
+
+        Maya の joint の回転は rotateAxis、rotate、jointOrient の順に適用されるため、
+        rotate = rotateAxis⁻¹ · 行列の回転 · jointOrient⁻¹(om2 の四元数の積の順序)。
+
+        Args:
+            quaternion (om2.MQuaternion): ローカル行列の回転。
+            reference (om2.MEulerRotation): 現在の rotate チャンネル値。
+
+        Returns:
+            om2.MEulerRotation: ノードの rotateOrder で表した、reference に最も近い解。
+        """
+        rotate_axis = self._rotation_quaternion("rotateAxis")
+        joint_orient = self._rotation_quaternion("jointOrient")
+        return _closest_euler(rotate_axis.conjugate() * quaternion * joint_orient.conjugate(), reference)
+
+    def _apply_local_matrix(self, matrix, scale_reference=None):
+        """jointOrient と rotateAxis を保持して local 行列を適用する。
+
+        segmentScaleCompensate の補正を除いてから、Transform と同じ規約(スケールの
+        符号を scale_reference または現在のチャンネル値に、Euler の解を現在のチャンネル値に
+        揃える)で分解して書き込む。rotate は jointOrient と rotateAxis を回転から除いた値。
+        角度の読み書きは Maya の角度単位が度であることを前提とする。
+
+        Args:
+            matrix (Matrix): 適用するローカル行列。
+            scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
+                (``setScale`` で要求した値)。None なら現在の scale チャンネル値に合わせる。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
+            RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
+        """
+        super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
+
+    def _compound_values(self, attribute, angle=False):
+        """compound アトリビュートを 3 要素の tuple として取得する。
+
+        Args:
+            attribute (str): 読み取る複合アトリビュート名。
+            angle (bool): True の場合、各子を角度アトリビュートとして度数法の値で取得する。
+                現在の UI 角度単位に関係なく、MAngle.asDegrees() を使用する。
+                False の場合は単位変換のない生の double として取得する。
+
+        Returns:
+            tuple[float, float, float]: 最初の子 3 要素の値。無効なノードでは (0.0, 0.0, 0.0)。
+                有効時は子の数を事前検査せず、3 要素を読み取る。
+        """
+        if not self.isValid():
+            return (0.0, 0.0, 0.0)
+        plug = om2.MFnDependencyNode(self._mobject).findPlug(attribute, False)
+        if angle:
+            return tuple(plug.child(index).asMAngle().asDegrees() for index in range(3))
+        return tuple(plug.child(index).asDouble() for index in range(3))
+
+    @staticmethod
+    def _unique_ordered(items):
+        """順序を保ったまま重複要素を除外する。
+
+        Args:
+            items (Iterable[Hashable]): 重複を除去するハッシュ可能な要素。
+
+        Returns:
+            list: 最初の出現順を維持した要素リスト。
+        """
+        seen = set()
+        unique_items = []
+        for item in items:
+            if item in seen:
+                continue
+            seen.add(item)
+            unique_items.append(item)
+        return unique_items
+
 
 @collection_export()
 @bulk_api(
@@ -715,20 +713,6 @@ class Joints(Transforms):
         """
         return self._transfer_rotation(to_orient=True)
 
-    def _transfer_rotation(self, to_orient=False):
-        """全対象の準備成功後に回転移送を適用する。
-
-        Args:
-            to_orient (bool): TrueならrotateをjointOrientへ移す。
-
-        Returns:
-            Joints: 自身。途中の失敗で完了済み更新は自動で戻さない。
-        """
-        plans = [(joint, joint._joint_rotation_transfer_values(to_orient=to_orient)) for joint in self]
-        for joint, values in plans:
-            joint._apply_rotation_transfer(values, to_orient=to_orient)
-        return self
-
     def skinClusters(self):
         """全 joint に関連する skinCluster を取得する。
 
@@ -765,3 +749,17 @@ class Joints(Transforms):
         from .._core.jointDeletion import _JointDeletion
 
         _JointDeletion(self).execute()
+
+    def _transfer_rotation(self, to_orient=False):
+        """全対象の準備成功後に回転移送を適用する。
+
+        Args:
+            to_orient (bool): TrueならrotateをjointOrientへ移す。
+
+        Returns:
+            Joints: 自身。途中の失敗で完了済み更新は自動で戻さない。
+        """
+        plans = [(joint, joint._joint_rotation_transfer_values(to_orient=to_orient)) for joint in self]
+        for joint, values in plans:
+            joint._apply_rotation_transfer(values, to_orient=to_orient)
+        return self

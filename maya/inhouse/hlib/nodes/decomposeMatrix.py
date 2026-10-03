@@ -1,8 +1,7 @@
 """行列を変換成分に分解するdecomposeMatrixを扱う。"""
 
-from ..decorators._fast import fast_edit
-
 from .._core.registry import node_wrapper
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from ..maths.eulerRotation import orderIndex
@@ -20,10 +19,6 @@ class DecomposeMatrix(Node):
     def getInput(self):
         """Matrix: 現在の入力行列。接続済みなら接続元を評価する。"""
         return self.inputPlug().get()
-
-    def getRotateOrder(self):
-        """int: 入力回転順序。MayaのrotateOrderと同じ番号0〜5。"""
-        return self.plug("inputRotateOrder").get()
 
     @fast_edit
     @undoChunk("hlibDecomposeMatrixSetInput")
@@ -46,22 +41,9 @@ class DecomposeMatrix(Node):
         self.plug("inputMatrix").set(Matrix(value))
         return self
 
-    @undoChunk("hlibDecomposeMatrixConnectInput")
-    def connectInput(self, source, force=False):
-        """行列Plugを入力へ接続する。
-
-        Args:
-            source (Plug): 接続元の行列Plug。
-            force (bool): 既存入力を置き換えるか。
-
-        Returns:
-            DecomposeMatrix: 自身。
-
-        Raises:
-            RuntimeError: 型不一致などでMayaが接続を拒否した場合。
-        """
-        source.connect(self.plug("inputMatrix"), force=force)
-        return self
+    def getRotateOrder(self):
+        """int: 入力回転順序。MayaのrotateOrderと同じ番号0〜5。"""
+        return self.plug("inputRotateOrder").get()
 
     @fast_edit
     @undoChunk("hlibDecomposeMatrixRotateOrder")
@@ -84,6 +66,23 @@ class DecomposeMatrix(Node):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         self.plug("inputRotateOrder").set(orderIndex(order))
+        return self
+
+    @undoChunk("hlibDecomposeMatrixConnectInput")
+    def connectInput(self, source, force=False):
+        """行列Plugを入力へ接続する。
+
+        Args:
+            source (Plug): 接続元の行列Plug。
+            force (bool): 既存入力を置き換えるか。
+
+        Returns:
+            DecomposeMatrix: 自身。
+
+        Raises:
+            RuntimeError: 型不一致などでMayaが接続を拒否した場合。
+        """
+        source.connect(self.plug("inputMatrix"), force=force)
         return self
 
     def outputPlugs(self):

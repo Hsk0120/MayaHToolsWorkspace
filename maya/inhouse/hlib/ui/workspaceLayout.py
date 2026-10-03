@@ -1,11 +1,14 @@
 """Mayaの画面ワークスペースを管理する。プロジェクトのWorkspaceとは別。"""
+
 from contextlib import contextmanager
+
 import maya.cmds as cmds
 import maya.mel as mel
+
 from ..ui._windowReference import _WindowReference
 from ..ui.mainWindow import MainWindow
-from ..ui.window import Window
 from ..ui.uiSnapshot import UiSnapshot
+from ..ui.window import Window
 
 
 class WorkspaceLayout:
@@ -23,6 +26,10 @@ class WorkspaceLayout:
         self._name = name if name is not None else cmds.workspaceLayoutManager(query=True, current=True)
         self.name()
 
+    def __str__(self):
+        """str: 保持した配置名。"""
+        return self._name
+
     @classmethod
     def list(cls):
         """list[WorkspaceLayout]: Mayaに登録済みの配置を取得する。"""
@@ -33,6 +40,34 @@ class WorkspaceLayout:
     def current(cls):
         """WorkspaceLayout: 現在の配置への新しい参照。"""
         return cls()
+
+    @staticmethod
+    def getLocked():
+        """bool: Maya全体のドッキングロック状態を取得する。"""
+        _WindowReference._require_gui()
+        return bool(cmds.optionVar(query="workspacesLockDocking"))
+
+    @staticmethod
+    def setLocked(locked):
+        """Maya右上の鍵と同じ状態を設定する。ディスク保存は行わない。
+
+        Args:
+            locked (bool): 移動・閉じる操作をロックするか。サイズ変更・折り畳みは可能。
+        """
+        _WindowReference._require_gui()
+        _WindowReference._boolean(locked)
+        # 標準手続きはoptionVarと鍵アイコンの表示を同期する。
+        mel.eval('source "workspaceHelperProcs.mel"; updateWorkspaceDocking {};'.format(int(locked)))
+
+    @staticmethod
+    def lock():
+        """全体のドッキング操作をロックする。個別ウィンドウの固定ではない。"""
+        WorkspaceLayout.setLocked(True)
+
+    @staticmethod
+    def unlock():
+        """全体のドッキングロックを解除する。"""
+        WorkspaceLayout.setLocked(False)
 
     def exists(self):
         """bool: 登録済みの配置か取得する。"""
@@ -48,11 +83,6 @@ class WorkspaceLayout:
     def isCurrent(self):
         """bool: 現在使用中の配置か取得する。"""
         return self.name() == cmds.workspaceLayoutManager(query=True, current=True)
-
-    def _require_current(self):
-        """別の配置を誤って保存・復元しないよう検証する。"""
-        if not self.isCurrent():
-            raise RuntimeError("Activate this workspace layout first")
 
     def activate(self):
         """配置名で切り替える。Mayaの自動保存設定に従う副作用がある。
@@ -95,34 +125,6 @@ class WorkspaceLayout:
         result = type(self)(name)
         result.activate()
         return result
-
-    @staticmethod
-    def getLocked():
-        """bool: Maya全体のドッキングロック状態を取得する。"""
-        _WindowReference._require_gui()
-        return bool(cmds.optionVar(query="workspacesLockDocking"))
-
-    @staticmethod
-    def setLocked(locked):
-        """Maya右上の鍵と同じ状態を設定する。ディスク保存は行わない。
-
-        Args:
-            locked (bool): 移動・閉じる操作をロックするか。サイズ変更・折り畳みは可能。
-        """
-        _WindowReference._require_gui()
-        _WindowReference._boolean(locked)
-        # 標準手続きはoptionVarと鍵アイコンの表示を同期する。
-        mel.eval('source "workspaceHelperProcs.mel"; updateWorkspaceDocking {};'.format(int(locked)))
-
-    @staticmethod
-    def lock():
-        """全体のドッキング操作をロックする。個別ウィンドウの固定ではない。"""
-        WorkspaceLayout.setLocked(True)
-
-    @staticmethod
-    def unlock():
-        """全体のドッキングロックを解除する。"""
-        WorkspaceLayout.setLocked(False)
 
     def captureDockingLayout(self):
         """UiSnapshot: メインウィンドウのドッキング配置とロックをメモリ退避する。
@@ -185,6 +187,7 @@ class WorkspaceLayout:
         finally:
             self.restoreDockingLayout(snapshot)
 
-    def __str__(self):
-        """str: 保持した配置名。"""
-        return self._name
+    def _require_current(self):
+        """別の配置を誤って保存・復元しないよう検証する。"""
+        if not self.isCurrent():
+            raise RuntimeError("Activate this workspace layout first")

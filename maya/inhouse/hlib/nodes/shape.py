@@ -1,17 +1,19 @@
 """DAG シェイプの共通操作を提供する。"""
-from maya.api.OpenMaya import MSpace
-from .._core.space import world_space
-from .._core import geometryEdit
-from ..decorators._fast import fast_edit, is_fast
 
+import math
+import numbers
+import operator
+
+import maya.api.OpenMaya as om2
+import maya.cmds as cmds
+from maya.api.OpenMaya import MSpace
+
+from .._core import geometryEdit
+from .._core.space import world_space
+from ..decorators._fast import fast_edit, is_fast
+from ..decorators.undo import undoChunk
 from .dagNode import DagNode
 from .transform import Transform
-from ..decorators.undo import undoChunk
-import math
-import operator
-import numbers
-import maya.cmds as cmds
-import maya.api.OpenMaya as om2
 
 
 class Shape(DagNode):

@@ -1,7 +1,8 @@
 """個別の16要素から行列を構築する。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .node import Node
 

@@ -1,7 +1,10 @@
 """HumanIKキャラクター定義。Maya標準MELを必要な操作時だけ利用する。"""
 
 import json
-from maya import cmds, mel
+
+import maya.cmds as cmds
+import maya.mel as mel
+
 from .._core.registry import node_wrapper
 from ..decorators.undo import undoChunk
 from ..environment import Plugin
@@ -48,6 +51,23 @@ class HIKCharacterNode(Node):
         """bool: キャラクタライズがロック済みか照会する。"""
         return bool(cmds.getAttr(self.fullName() + '.InputCharacterizationLock'))
 
+    def joint(self, role):
+        """Node | None: 指定役割に割り当てられた骨を取得する。
+
+        Args:
+            role (str): HIK のジョイントロール名。
+
+        Returns:
+            Node | None: ロールに接続された最初のノード。未割り当てなら None。
+        """
+        _prepare()
+        index = cmds.hikGetNodeIdFromName(role)
+        if index < 0 or cmds.GetHIKNodeName(index) != role:
+            raise ValueError('Unknown HumanIK role: ' + role)
+        values = cmds.listConnections(self.fullName() + '.' + role,
+                                      source=True, destination=False) or []
+        return Node(values[0]) if values else None
+
     @undoChunk('hlib.HIKCharacterNode.setJoint')
     def setJoint(self, role, joint):
         """ロック前の定義へ骨を割り当てる。
@@ -75,22 +95,11 @@ class HIKCharacterNode(Node):
         if not self.joint(role) or self.joint(role).fullName() != name:
             raise RuntimeError('HumanIK did not assign the joint')
 
-    def joint(self, role):
-        """Node | None: 指定役割に割り当てられた骨を取得する。
-
-        Args:
-            role (str): HIK のジョイントロール名。
-
-        Returns:
-            Node | None: ロールに接続された最初のノード。未割り当てなら None。
-        """
+    def source(self):
+        """HIKCharacterNode | None: 現在のリターゲット入力を取得する。"""
         _prepare()
-        index = cmds.hikGetNodeIdFromName(role)
-        if index < 0 or cmds.GetHIKNodeName(index) != role:
-            raise ValueError('Unknown HumanIK role: ' + role)
-        values = cmds.listConnections(self.fullName() + '.' + role,
-                                      source=True, destination=False) or []
-        return Node(values[0]) if values else None
+        value = mel.eval('hikGetRetargetCharacterInput({});'.format(_quote(self.fullName())))
+        return HIKCharacterNode(value) if value else None
 
     @undoChunk('hlib.HIKCharacterNode.setSource')
     def setSource(self, source):
@@ -111,9 +120,3 @@ class HIKCharacterNode(Node):
         actual = self.source()
         if actual is None or actual.fullName() != source.fullName():
             raise RuntimeError('HumanIK did not connect the requested source')
-
-    def source(self):
-        """HIKCharacterNode | None: 現在のリターゲット入力を取得する。"""
-        _prepare()
-        value = mel.eval('hikGetRetargetCharacterInput({});'.format(_quote(self.fullName())))
-        return HIKCharacterNode(value) if value else None

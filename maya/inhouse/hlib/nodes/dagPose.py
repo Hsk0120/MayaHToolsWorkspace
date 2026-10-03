@@ -1,10 +1,10 @@
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
-from maya.api.OpenMaya import MSpace
-from .._core.space import world_space
 
 import maya.cmds as cmds
+from maya.api.OpenMaya import MSpace
 
 from .._core.registry import node_wrapper
+from .._core.space import world_space
 from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .node import Node
@@ -17,27 +17,6 @@ class DagPose(Node):
     バインドポーズも同じノード型で、isBindPose()で区別する。
     reset()はこのノードの保存姿勢を更新し、skinCluster.bindPreMatrixは変更しない。
     """
-
-    @staticmethod
-    def _transform_names(members):
-        """対象を有効なTransformの完全パスに揃える。空入力はValueError。"""
-        from ..object import Object as _InputObject
-        names = []
-        for name in _InputObject._input_names(members):
-            node = Node(name)
-            if not node.isValid() or not node.isType("transform"):
-                raise ValueError(f"Expected a valid transform or joint: {name}")
-            if node.fullName() not in names:
-                names.append(node.fullName())
-        if not names:
-            raise ValueError("At least one transform or joint is required")
-        return names
-
-    def _pose_name(self):
-        """有効なdagPoseの名前を返す。削除済みならRuntimeError。"""
-        if not self.isValid():
-            raise RuntimeError("Cannot access an invalid dagPose")
-        return self.fullName()
 
     @classmethod
     @undoChunk("hlibDagPoseCreate")
@@ -68,11 +47,6 @@ class DagPose(Node):
             result = cmds.rename(result, name)
         return Node(result)
 
-    def isBindPose(self):
-        """bool: バインドポーズとして保存されたノードならTrue。"""
-        self._pose_name()
-        return bool(self.plug("bindPose").get())
-
     @classmethod
     def fromSkinCluster(cls, skin_cluster):
         """skinClusterに接続されているバインドポーズを取得する。
@@ -101,6 +75,11 @@ class DagPose(Node):
         if not pose.isType("dagPose"):
             raise RuntimeError("skinCluster.bindPose is not connected to a dagPose")
         return pose
+
+    def isBindPose(self):
+        """bool: バインドポーズとして保存されたノードならTrue。"""
+        self._pose_name()
+        return bool(self.plug("bindPose").get())
 
     def memberIndices(self):
         """list[int]: 現在もメンバーが接続されている論理番号。欠番は保持する。"""
@@ -232,3 +211,24 @@ class DagPose(Node):
             self.memberIndex(target)
         cmds.dagPose(names, remove=True, name=self._pose_name())
         return self
+
+    @staticmethod
+    def _transform_names(members):
+        """対象を有効なTransformの完全パスに揃える。空入力はValueError。"""
+        from ..object import Object as _InputObject
+        names = []
+        for name in _InputObject._input_names(members):
+            node = Node(name)
+            if not node.isValid() or not node.isType("transform"):
+                raise ValueError(f"Expected a valid transform or joint: {name}")
+            if node.fullName() not in names:
+                names.append(node.fullName())
+        if not names:
+            raise ValueError("At least one transform or joint is required")
+        return names
+
+    def _pose_name(self):
+        """有効なdagPoseの名前を返す。削除済みならRuntimeError。"""
+        if not self.isValid():
+            raise RuntimeError("Cannot access an invalid dagPose")
+        return self.fullName()

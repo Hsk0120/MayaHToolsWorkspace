@@ -20,11 +20,6 @@ class _Editor:
         """bool: エディターが現在存在するか返す。"""
         return bool(getattr(cmds, self._command)(self._name, exists=True))
 
-    def _require_exists(self):
-        """参照先が削除されていた場合は RuntimeError を送出する。"""
-        if not self.exists():
-            raise RuntimeError(f"Editor no longer exists: {self._name}")
-
     def getSettings(self, *flags):
         """指定した表示設定を取得する。
 
@@ -43,12 +38,6 @@ class _Editor:
         command = getattr(cmds, self._command)
         return {flag: command(self._name, query=True, **{flag: True})
                 for flag in (flags or self._flags)}
-
-    def _validate_flags(self, flags):
-        """未対応のフラグがある場合は変更前に ValueError を送出する。"""
-        unknown = set(flags) - set(self._flags)
-        if unknown:
-            raise ValueError(f"Unsupported display flags: {sorted(unknown)}")
 
     def setSettings(self, **flags):
         """表示設定を変更する。フラグ値の検証はMayaへ委譲する。
@@ -89,3 +78,14 @@ class _Editor:
         finally:
             if previous and self.exists():
                 self.setSettings(**previous)
+
+    def _require_exists(self):
+        """参照先が削除されていた場合は RuntimeError を送出する。"""
+        if not self.exists():
+            raise RuntimeError(f"Editor no longer exists: {self._name}")
+
+    def _validate_flags(self, flags):
+        """未対応のフラグがある場合は変更前に ValueError を送出する。"""
+        unknown = set(flags) - set(self._flags)
+        if unknown:
+            raise ValueError(f"Unsupported display flags: {sorted(unknown)}")

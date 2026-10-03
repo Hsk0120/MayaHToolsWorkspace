@@ -1,7 +1,7 @@
 """NURBS カーブの CV と CV コレクション。"""
 
-from .pointComponent import PointComponent, PointComponents
 from .._core.geometryEdit import command_indices
+from .pointComponent import PointComponent, PointComponents
 
 
 class CV(PointComponent):

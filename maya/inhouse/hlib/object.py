@@ -1,4 +1,5 @@
 """Mayaシーン内の単一対象を表す共通基底と取得入口。"""
+
 import maya.api.OpenMaya as om2
 
 

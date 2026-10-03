@@ -74,36 +74,18 @@ class Selection:
             unique.setdefault(item.fullName(), item)
         self._items = tuple(unique.values())
 
-    @staticmethod
-    def _resolve(selection, name=None):
-        """MSelectionListをhlibの単体参照へ変換する。非対応要素はTypeError。
+    def __len__(self):
+        """int: 保持数。コンポーネントは単体で数え、削除済み参照も含む。
+        fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
+        return len(self._items)
 
-        name は要素を追加したときの文字列で、1要素の場合にインスタンス化された
-        ノードのアトリビュートの所有インスタンスを求めるために使う(selection_owner 参照)。
-        """
-        from ..nodes.node import Node as _InputNode
-        result = []
-        for index in range(selection.length()):
-            try:
-                plug = selection.getPlug(index)
-            except (RuntimeError, TypeError):
-                plug = None
-            if plug is not None and not plug.isNull:
-                # インスタンス化されたノードのアトリビュートは、選択されたインスタンスのノードを所有ノードにする。
-                hint = name if selection.length() == 1 else None
-                mobject, path = _InputNode._selection_owner(selection, index, hint)
-                result.append(Plug(Node(path if path is not None else mobject), plug))
-                continue
-            try:
-                path, component = selection.getComponent(index)
-            except (RuntimeError, TypeError):
-                result.append(Node(selection.getDependNode(index)))
-                continue
-            if component.isNull():
-                result.append(Node(path))
-                continue
-            result.extend(Component._from_api(path, component))
-        return result
+    def __iter__(self):
+        """Iterator: 保持順に参照を返す。"""
+        return iter(self._items)
+
+    def __getitem__(self, index):
+        """単体参照、またはsliceに対応する参照のtupleを返す。"""
+        return self._items[index]
 
     @classmethod
     def capture(cls):
@@ -179,30 +161,6 @@ class Selection:
                 result.append(item)
         return Selection(result)
 
-    def _valid(self, item):
-        """削除されたノード・アトリビュート・範囲外要素を検出する。"""
-        try:
-            if isinstance(item, Node):
-                return item.isValid()
-            if isinstance(item, Plug) and not item.isValid():
-                # 所有ノードの削除に加え、deleteAttr で削除された動的アトリビュートも無効として扱う。
-                return False
-            return bool(cmds.objExists(item.fullName()))
-        except (RuntimeError, ValueError, IndexError):
-            return False
-
-    def _names(self, missing):
-        """変更前に有効な名前を解決する。missing不正はValueError、欠落はRuntimeError。"""
-        if missing not in ("skip", "error"):
-            raise ValueError("missing must be 'skip' or 'error'")
-        names = []
-        for item in self._items:
-            if self._valid(item):
-                names.append(item.fullName())
-            elif missing == "error":
-                raise RuntimeError("Selection contains a missing item")
-        return names
-
     @undoChunk("hlibSelectionSelect")
     def select(self, mode="replace", missing="skip"):
         """保持した対象を現在の選択に反映する。
@@ -228,15 +186,57 @@ class Selection:
             cmds.select(clear=True)
         return self
 
-    def __len__(self):
-        """int: 保持数。コンポーネントは単体で数え、削除済み参照も含む。
-        fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
-        return len(self._items)
+    @staticmethod
+    def _resolve(selection, name=None):
+        """MSelectionListをhlibの単体参照へ変換する。非対応要素はTypeError。
 
-    def __iter__(self):
-        """Iterator: 保持順に参照を返す。"""
-        return iter(self._items)
+        name は要素を追加したときの文字列で、1要素の場合にインスタンス化された
+        ノードのアトリビュートの所有インスタンスを求めるために使う(selection_owner 参照)。
+        """
+        from ..nodes.node import Node as _InputNode
+        result = []
+        for index in range(selection.length()):
+            try:
+                plug = selection.getPlug(index)
+            except (RuntimeError, TypeError):
+                plug = None
+            if plug is not None and not plug.isNull:
+                # インスタンス化されたノードのアトリビュートは、選択されたインスタンスのノードを所有ノードにする。
+                hint = name if selection.length() == 1 else None
+                mobject, path = _InputNode._selection_owner(selection, index, hint)
+                result.append(Plug(Node(path if path is not None else mobject), plug))
+                continue
+            try:
+                path, component = selection.getComponent(index)
+            except (RuntimeError, TypeError):
+                result.append(Node(selection.getDependNode(index)))
+                continue
+            if component.isNull():
+                result.append(Node(path))
+                continue
+            result.extend(Component._from_api(path, component))
+        return result
 
-    def __getitem__(self, index):
-        """単体参照、またはsliceに対応する参照のtupleを返す。"""
-        return self._items[index]
+    def _valid(self, item):
+        """削除されたノード・アトリビュート・範囲外要素を検出する。"""
+        try:
+            if isinstance(item, Node):
+                return item.isValid()
+            if isinstance(item, Plug) and not item.isValid():
+                # 所有ノードの削除に加え、deleteAttr で削除された動的アトリビュートも無効として扱う。
+                return False
+            return bool(cmds.objExists(item.fullName()))
+        except (RuntimeError, ValueError, IndexError):
+            return False
+
+    def _names(self, missing):
+        """変更前に有効な名前を解決する。missing不正はValueError、欠落はRuntimeError。"""
+        if missing not in ("skip", "error"):
+            raise ValueError("missing must be 'skip' or 'error'")
+        names = []
+        for item in self._items:
+            if self._valid(item):
+                names.append(item.fullName())
+            elif missing == "error":
+                raise RuntimeError("Selection contains a missing item")
+        return names

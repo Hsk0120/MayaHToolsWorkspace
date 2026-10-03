@@ -80,11 +80,10 @@ Examples
     empty = hlib.createGroup(name="emptyGrp", world=True, empty=True)
 """
 
-from ..decorators.undo import undoChunk
+import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-
-import maya.cmds as cmds
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("group")

@@ -1,10 +1,11 @@
 """double3アトリビュートを意味付きの3成分値として読み書きする。"""
 
 import math
+
 import maya.api.OpenMaya as om2
 
-from ..decorators._fast import fast_edit
 from .._core.registry import plug_wrapper
+from ..decorators._fast import fast_edit
 from ..maths import EulerRotation, Scale, Shear, Translation, Vector
 from .compoundPlug import CompoundPlug
 

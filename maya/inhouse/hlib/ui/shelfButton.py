@@ -1,4 +1,5 @@
 """Mayaのシェルフボタンを操作する。"""
+
 import maya.cmds as cmds
 
 
@@ -15,6 +16,10 @@ class ShelfButton:
             raise RuntimeError("ShelfButton requires Maya GUI")
         self._name = str(name)
         self.name()
+
+    def __str__(self):
+        """str: 保持したUI名を返す。"""
+        return self._name
 
     def exists(self):
         """bool: ボタンが存在するか取得する。"""
@@ -66,9 +71,23 @@ class ShelfButton:
         """str: 登録済みコマンドを取得する。実行はしない。"""
         return cmds.shelfButton(self.name(), query=True, command=True)
 
+    def setCommand(self, command, language="python"):
+        """実行コードと言語を変更する。コードは実行しない。
+
+        Args:
+            command (str): コード文字列。
+            language (str): pythonまたはmel。
+        """
+        self._validate_command(command, language)
+        cmds.shelfButton(self.name(), edit=True, command=command, sourceType=language)
+
     def getLanguage(self):
         """str: pythonまたはmelを取得する。"""
         return cmds.shelfButton(self.name(), query=True, sourceType=True)
+
+    def delete(self):
+        """ボタンをUIから削除する。保存済みファイルは変更しない。"""
+        cmds.deleteUI(self.name(), control=True)
 
     @staticmethod
     def _validate_command(command, language):
@@ -82,21 +101,3 @@ class ShelfButton:
             raise TypeError("command must be a string")
         if language not in ("python", "mel"):
             raise ValueError("language must be python or mel")
-
-    def setCommand(self, command, language="python"):
-        """実行コードと言語を変更する。コードは実行しない。
-
-        Args:
-            command (str): コード文字列。
-            language (str): pythonまたはmel。
-        """
-        self._validate_command(command, language)
-        cmds.shelfButton(self.name(), edit=True, command=command, sourceType=language)
-
-    def delete(self):
-        """ボタンをUIから削除する。保存済みファイルは変更しない。"""
-        cmds.deleteUI(self.name(), control=True)
-
-    def __str__(self):
-        """str: 保持したUI名を返す。"""
-        return self._name

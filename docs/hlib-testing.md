@@ -83,3 +83,37 @@ GUI操作の確認は対象バージョンのMayaで別途行います。一括�
 `--allow-missing`は未インストールによる終了コードだけを抑制し、結果の`missing`表記は残します。
 
 設定・一時ファイルは診断用に保持します。実行終了後、不要な日時フォルダーは手動で削除できます。
+
+## レイアウト規則の検査(Maya不要)
+
+`docs/hlib-api-design.md` の「ファイル・クラスのレイアウト規則」は、`tools/check_hlib_layout.py` で検査します。
+`ast`と`tokenize`だけを使うため、通常のPythonで実行でき、hlibやMayaをimportしません。
+
+```powershell
+# 規則違反を一覧表示(違反があれば終了コード1)。既定の対象はhlib・hlib_bifrost・hlib_posedriverconnect
+python tools/check_hlib_layout.py --check
+
+# 対象を絞る
+python tools/check_hlib_layout.py --check maya/inhouse/hlib/nodes
+
+# import群の並び替え・クラス内メンバーの並び替え・空行の正規化を書き込む
+python tools/check_hlib_layout.py --fix maya/inhouse/hlib/nodes
+
+# クラスのメンバー構成(分類・行範囲)を表示する
+python tools/check_hlib_layout.py --outline maya/inhouse/hlib/nodes/node.py
+
+# 並び替え前に構造を保存し、並び替え後に関数本体・import束縛・モジュール文が同一か比較する
+python tools/check_hlib_layout.py --snapshot .maya-output/layout-baseline.json
+python tools/check_hlib_layout.py --compare .maya-output/layout-baseline.json
+```
+
+`--fix`はメンバーの本文・docstring・デコレータを変更せず、付随するコメントと一緒に移動します。
+`--check`と同じく、クラス内や関数内に定義した内側のクラスも並び替えの対象です(外側から順に処理します)。
+メソッドを参照するクラス属性や同名メンバーのあるクラスは並び替えず、`--check`で「スキップ」として表示します。
+実行後は`--compare`とMayaでのテストで等価性を確認してください。
+
+`--compare`は定義の順序や空行を無視し、各関数・クラスのAST(docstring・デコレータ含む)と
+モジュールレベルのimport束縛・その他の文・コメントを比較します。差分があれば一覧表示して終了コード1になります。
+順序を無視するため、並べ替えで参照より後に定義が移った場合などの順序依存の変化は検出しません。そうした構成は`--fix`が
+「スキップ」として並べ替えない設計ですが、手で並べ替えた場合はMayaでのテストで確認してください。
+import文の間に実行文がある`__init__.py`は、`--check`のimport順検査をスキップして表示します。

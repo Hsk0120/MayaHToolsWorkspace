@@ -1,8 +1,8 @@
 """コマンド固有の短縮フラグを、実行前に長名へ統一する。"""
 
-from functools import lru_cache, wraps
 import inspect
 import re
+from functools import lru_cache, wraps
 
 import maya.cmds as cmds
 

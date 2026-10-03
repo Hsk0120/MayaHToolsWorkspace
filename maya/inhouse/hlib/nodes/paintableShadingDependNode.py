@@ -1,4 +1,5 @@
 """MayaのpaintableShadingDependNodeノードを扱う。"""
+
 from .._core.registry import node_wrapper
 from .shadingDependNode import ShadingDependNode
 

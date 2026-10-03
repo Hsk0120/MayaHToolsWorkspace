@@ -48,6 +48,8 @@ from functools import partial
 
 import maya.api.OpenMaya as om2
 
+__all__ = ["attributeType", "is_internal_data_type", "value_reader"]
+
 _N = om2.MFnNumericData
 _D = om2.MFnData
 
@@ -388,6 +390,3 @@ def value_reader(attribute):
             return om2.MPlug.asString
         return _ARRAY_READERS.get(kind, _CMDS_READER)
     return _CMDS_READER
-
-
-__all__ = ["attributeType", "is_internal_data_type", "value_reader"]

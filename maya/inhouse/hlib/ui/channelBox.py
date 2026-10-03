@@ -1,12 +1,12 @@
 """既存Channel Boxの表示対象と選択アトリビュートを取得する。"""
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 import maya.mel as mel
-import maya.api.OpenMaya as om2
 
+from ..decorators.undo import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
-from ..decorators.undo import undoChunk
 
 
 class ChannelBox:
@@ -33,14 +33,6 @@ class ChannelBox:
         if not self.exists():
             raise RuntimeError(f"Channel Box is unavailable: {self._name}")
         return self._name
-
-    def _section_names(self, section):
-        """sectionを検証する。未対応の名前はValueError。"""
-        if section == "all":
-            return tuple(self._sections)
-        if section not in self._sections:
-            raise ValueError("section must be main, shape, history, output or all")
-        return (section,)
 
     def displayedNodes(self, section="main"):
         """指定欄の表示対象を返す。
@@ -104,3 +96,11 @@ class ChannelBox:
     def clearSelection(self):
         """アトリビュートのUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。"""
         cmds.channelBox(self.name(), edit=True, select="")
+
+    def _section_names(self, section):
+        """sectionを検証する。未対応の名前はValueError。"""
+        if section == "all":
+            return tuple(self._sections)
+        if section not in self._sections:
+            raise ValueError("section must be main, shape, history, output or all")
+        return (section,)

@@ -1,5 +1,7 @@
 """MayaのドッキングUIの容器を操作する。"""
+
 import maya.cmds as cmds
+
 from ..ui._windowReference import _WindowReference
 
 
@@ -26,13 +28,6 @@ class WorkspaceControl(_WindowReference):
         """浮動ウィンドウへ切り離す。全体ロック中は拒否する。"""
         self._require_unlocked()
         cmds.workspaceControl(self.name(), edit=True, floating=True)
-
-    @staticmethod
-    def _require_unlocked():
-        """ユーザーが有効にしたドッキングロックを迂回しない。"""
-        from ..ui.workspaceLayout import WorkspaceLayout
-        if WorkspaceLayout.getLocked():
-            raise RuntimeError("Unlock the workspace layout before changing docking")
 
     def dock(self, side="right", target=None):
         """Maya本体または他のドックの横へ配置する。
@@ -117,3 +112,10 @@ class WorkspaceControl(_WindowReference):
         cmds.workspaceControl(self.name(), edit=True, stateString=snapshot["state"])
         cmds.workspaceControl(self.name(), edit=True, collapse=snapshot["collapsed"])
         cmds.workspaceControl(self.name(), edit=True, visible=snapshot["visible"])
+
+    @staticmethod
+    def _require_unlocked():
+        """ユーザーが有効にしたドッキングロックを迂回しない。"""
+        from ..ui.workspaceLayout import WorkspaceLayout
+        if WorkspaceLayout.getLocked():
+            raise RuntimeError("Unlock the workspace layout before changing docking")

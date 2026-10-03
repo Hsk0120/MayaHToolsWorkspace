@@ -1,6 +1,7 @@
 """Maya containerによる計算ノードの所有管理。"""
 
-from maya import cmds
+import maya.cmds as cmds
+
 from .._core.registry import node_wrapper
 from ..decorators.undo import undoTransaction, undoChunk
 from .node import Node

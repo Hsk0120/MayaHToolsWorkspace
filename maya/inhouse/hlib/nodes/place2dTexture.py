@@ -1,7 +1,8 @@
 """Mayaのplace2dTextureノードを扱う。"""
+
 from .._core.registry import node_wrapper
-from .shadingDependNode import ShadingDependNode
 from ..decorators.undo import undoChunk
+from .shadingDependNode import ShadingDependNode
 
 
 @node_wrapper("place2dTexture")

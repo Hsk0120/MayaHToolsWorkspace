@@ -4,6 +4,16 @@ import builtins
 import html
 import logging
 
+__all__ = [
+    "MayaHandler",
+    "debug",
+    "error",
+    "get_logger",
+    "info",
+    "print",
+    "raise_with_notify",
+    "warning",
+]
 
 LOGGER_NAME = __package__.split(".", 1)[0]
 _VIEWPORT_COLORS = {
@@ -11,6 +21,7 @@ _VIEWPORT_COLORS = {
     logging.ERROR: "#ff4d4d",
     logging.CRITICAL: "#ff4d4d",
 }
+_UNSET = object()
 
 
 def _message_from(record):
@@ -178,9 +189,6 @@ def error(message, *args, **kwargs):
     get_logger().error(message, *args, **kwargs)
 
 
-_UNSET = object()
-
-
 def raise_with_notify(exception_type, message, *args, from_exception=_UNSET, **kwargs):
     """エラーを通知してから指定型の例外を送出する。
 
@@ -204,15 +212,3 @@ def raise_with_notify(exception_type, message, *args, from_exception=_UNSET, **k
     if from_exception is _UNSET:
         raise exception
     raise exception from from_exception
-
-
-__all__ = [
-    "MayaHandler",
-    "debug",
-    "error",
-    "get_logger",
-    "info",
-    "print",
-    "raise_with_notify",
-    "warning",
-]

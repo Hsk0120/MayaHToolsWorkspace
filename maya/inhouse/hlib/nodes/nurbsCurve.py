@@ -1,14 +1,14 @@
 """Maya の NURBS カーブシェイプを扱う。"""
-from maya.api.OpenMaya import MSpace
-from .._core.space import world_space
-
-from ..decorators._fast import fast_edit
 
 import math
+
 import maya.api.OpenMaya as om2
+from maya.api.OpenMaya import MSpace
 
 from .._core.registry import node_wrapper
+from .._core.space import world_space
 from ..components.cv import CV, CVs
+from ..decorators._fast import fast_edit
 from .shape import Shape
 
 

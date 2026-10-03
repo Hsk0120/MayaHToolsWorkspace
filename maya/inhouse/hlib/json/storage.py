@@ -1,8 +1,10 @@
 """UTF-8 JSONの一時保存と置換保存。読み込みではシーンを変更しない。"""
+
 import json as _json
 import os
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
 from .document import JsonDocument
 
 

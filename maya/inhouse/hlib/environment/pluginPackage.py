@@ -1,18 +1,18 @@
 """モジュールとプラグインの組で導入される製品(Bifrost など)の導入確認とロード。"""
 
+import maya.cmds as cmds
+
+from ..environment.module import Module
+from ..environment.plugin import Plugin
+from ..utils import logger
+from ..utils.version import Version
+
 # クラスメソッドへ移した旧モジュール関数をreload時に除去する。
 globals().pop("_maya_year", None)
 
 # Versionへ集約した旧関数参照をreload時に残さない。
 for _name in ("parse_version", "is_at_least", "format_version"):
     globals().pop(_name, None)
-
-import maya.cmds as cmds
-from ..utils import logger
-
-from ..environment.module import Module
-from ..environment.plugin import Plugin
-from ..utils.version import Version
 
 SKIPPED = "skipped"
 """str: 対象外の Maya バージョンのため何もしなかった。"""
@@ -82,6 +82,26 @@ class PluginPackage:
         self._minimum_maya = None if minimum_maya is None else int(minimum_maya)
         self._install_hint = install_hint
 
+    def __repr__(self):
+        """デバッグ用に製品名と最小の版を含む表現を返す。
+
+        Returns:
+            str: 型名・製品名・最小の版を含む文字列表現。
+        """
+        return "PluginPackage({!r}, minimum_version={})".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし"))
+
+    @staticmethod
+    def showDialog(message, title="インストールが必要です"):
+        """警告ダイアログを表示する。GUI がないバッチ・スタンドアロンでは何もしない。
+
+        Args:
+            message (str): 表示する文章。
+            title (str): ダイアログのタイトル。
+        """
+        if cmds.about(batch=True):
+            return
+        cmds.confirmDialog(title=title, message=message, button=["OK"], defaultButton="OK", icon="warning")
+
     @property
     def name(self):
         """製品名を取得する。
@@ -126,15 +146,6 @@ class PluginPackage:
             int | None: 年。指定していない場合は None。
         """
         return self._minimum_maya
-
-    @staticmethod
-    def _maya_year():
-        """現在のMayaの年版を照会する。
-
-        Returns:
-            int: 2025などの年版。
-        """
-        return int(str(cmds.about(version=True)).split(".")[0])
 
     def isMayaSupported(self):
         """現在の Maya が対象のバージョンか判定する。
@@ -209,18 +220,6 @@ class PluginPackage:
             "{wanted} or later was not found for Maya {year}. Please install it."
         ).format(wanted=wanted, found=(str(found) if found is not None else "なし"), hint=hint, year=year)
 
-    @staticmethod
-    def showDialog(message, title="インストールが必要です"):
-        """警告ダイアログを表示する。GUI がないバッチ・スタンドアロンでは何もしない。
-
-        Args:
-            message (str): 表示する文章。
-            title (str): ダイアログのタイトル。
-        """
-        if cmds.about(batch=True):
-            return
-        cmds.confirmDialog(title=title, message=message, button=["OK"], defaultButton="OK", icon="warning")
-
     def loadPlugins(self):
         """全プラグインをロードする。ロードできない名前があっても続行する。
 
@@ -272,6 +271,15 @@ class PluginPackage:
             return OUTDATED
         return LOAD_FAILED if failed else LOADED
 
+    @staticmethod
+    def _maya_year():
+        """現在のMayaの年版を照会する。
+
+        Returns:
+            int: 2025などの年版。
+        """
+        return int(str(cmds.about(version=True)).split(".")[0])
+
     def _report(self, show, warn, message):
         """指定した通知先へメッセージを送る。
 
@@ -284,11 +292,3 @@ class PluginPackage:
             logger.warning("[hlib] " + message.split("\n")[0])
         if show is not None:
             show(message)
-
-    def __repr__(self):
-        """デバッグ用に製品名と最小の版を含む表現を返す。
-
-        Returns:
-            str: 型名・製品名・最小の版を含む文字列表現。
-        """
-        return "PluginPackage({!r}, minimum_version={})".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし"))

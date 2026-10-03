@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import maya.cmds as cmds
+
 if TYPE_CHECKING:
     from .graph import Graph
-from maya import cmds
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,22 @@ class Node:
 
     graph: Graph
     path: str
+
+    @staticmethod
+    def identifier(value):
+        """VNN内部パスの単一識別子を検証する。
+
+        Args:
+            value (str): ポートまたはノード名。
+
+        Returns:
+            str: 検証した識別子。
+        """
+        import re
+
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError("Expected a simple identifier: {!r}".format(value))
+        return value
 
     def ports(self):
         """tuple[str]: VNNが返すポート名を照会する。"""
@@ -43,19 +60,3 @@ class Node:
         flag = "createOutputPort" if output else "createInputPort"
         cmds.vnnNode(self.graph.name(), self.path, **{flag: (name, dataType)})
         return self.port(name)
-
-    @staticmethod
-    def identifier(value):
-        """VNN内部パスの単一識別子を検証する。
-
-        Args:
-            value (str): ポートまたはノード名。
-
-        Returns:
-            str: 検証した識別子。
-        """
-        import re
-
-        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
-            raise ValueError("Expected a simple identifier: {!r}".format(value))
-        return value

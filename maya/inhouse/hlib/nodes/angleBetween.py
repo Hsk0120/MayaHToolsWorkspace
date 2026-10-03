@@ -1,7 +1,8 @@
 """2本のベクトルのなす角と回転。"""
+
 from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
+from ..decorators.undo import undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .node import Node

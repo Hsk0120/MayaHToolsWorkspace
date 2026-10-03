@@ -1,15 +1,35 @@
 """複合アトリビュートとその子プラグを扱う。"""
 
-from ..decorators._fast import fast_edit
-
 import maya.api.OpenMaya as om2
 
+from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from .plug import Plug
 
 
 class CompoundPlug(Plug):
     """compound アトリビュート用の Plug。"""
+
+    def __getattr__(self, name):
+        """子を Python アトリビュート形式で取得する。
+
+        Args:
+            name (str): 子アトリビュート名。
+
+        Returns:
+            Plug: 解決した子プラグ。
+
+        Raises:
+            AttributeError: private 名または存在しない子を指定した場合。所有ノード・アトリビュートが
+                削除済みの(無効な)Plug の場合も、``hasattr``/``getattr(..., default)`` が
+                使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+        try:
+            return self.child(name)
+        except (AttributeError, TypeError, RuntimeError) as error:
+            raise AttributeError(f"No plug member named {name!r}") from error
 
     def get(self):
         """子プラグの値を集めた tuple を返す。
@@ -58,17 +78,6 @@ class CompoundPlug(Plug):
                 self._child_at(index).set(child_value)
         return self
 
-    def _child_at(self, index):
-        """有効性を確かめ済みの前提で、子インデックスの子 Plug を作る。
-
-        Args:
-            index (int): 子インデックス。
-
-        Returns:
-            Plug: 子プラグ。
-        """
-        return Plug(self._node, self._mplug.child(index))
-
     def child(self, name_or_index):
         """子 Plug を取得する。
 
@@ -106,23 +115,13 @@ class CompoundPlug(Plug):
         self._require_valid()
         return [self._child_at(index) for index in range(self._mplug.numChildren())]
 
-    def __getattr__(self, name):
-        """子を Python アトリビュート形式で取得する。
+    def _child_at(self, index):
+        """有効性を確かめ済みの前提で、子インデックスの子 Plug を作る。
 
         Args:
-            name (str): 子アトリビュート名。
+            index (int): 子インデックス。
 
         Returns:
-            Plug: 解決した子プラグ。
-
-        Raises:
-            AttributeError: private 名または存在しない子を指定した場合。所有ノード・アトリビュートが
-                削除済みの(無効な)Plug の場合も、``hasattr``/``getattr(..., default)`` が
-                使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
+            Plug: 子プラグ。
         """
-        if name.startswith("_"):
-            raise AttributeError(name)
-        try:
-            return self.child(name)
-        except (AttributeError, TypeError, RuntimeError) as error:
-            raise AttributeError(f"No plug member named {name!r}") from error
+        return Plug(self._node, self._mplug.child(index))

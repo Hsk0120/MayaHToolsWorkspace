@@ -2,6 +2,8 @@
 
 import maya.cmds as cmds
 
+__all__ = ["inherited_node_types", "clear_cache"]
+
 #: node_type -> 継承チェーン(自身を先頭、基底型へ向かう順)の tuple。
 _INHERITED_TYPES_CACHE = {}
 
@@ -41,6 +43,3 @@ def clear_cache():
         None: 値を返さない。
     """
     _INHERITED_TYPES_CACHE.clear()
-
-
-__all__ = ["inherited_node_types", "clear_cache"]
