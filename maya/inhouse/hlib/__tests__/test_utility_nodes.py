@@ -22,58 +22,58 @@ class UtilityNodesTest(unittest.TestCase):
 
     def test_registration_and_matrix_product(self):
         a, b = self.create("transform", "a"), self.create("transform", "b")
-        cmds.setAttr(a.full_name() + ".translate", 2, 3, 4)
-        cmds.setAttr(b.full_name() + ".rotateY", 40)
+        cmds.setAttr(a.fullName() + ".translate", 2, 3, 4)
+        cmds.setAttr(b.fullName() + ".rotateY", 40)
         mult = self.create("multMatrix", "mult")
         self.assertIsInstance(mult, hlib.nodes.MultMatrix)
-        mult.set_input(0, a.get_matrix()).set_input(3, b.get_matrix())
-        expected = a.get_matrix() * b.get_matrix()
+        mult.setInput(0, a.getMatrix()).setInput(3, b.getMatrix())
+        expected = a.getMatrix() * b.getMatrix()
         for x, y in zip(mult.result(), expected):
             self.assertAlmostEqual(x, y)
         cmds.undo()
-        for x, y in zip(mult.result(), a.get_matrix()):
+        for x, y in zip(mult.result(), a.getMatrix()):
             self.assertAlmostEqual(x, y)
         cmds.redo()
         for x, y in zip(mult.result(), expected):
             self.assertAlmostEqual(x, y)
         with self.assertRaises(ValueError):
-            mult.set_input(-1, expected)
+            mult.setInput(-1, expected)
 
     def test_live_matrix_connections_and_decomposition(self):
         source = self.create("transform", "source")
         mult = self.create("multMatrix", "mult")
         decompose = self.create("decomposeMatrix", "decompose")
         self.assertIsInstance(decompose, hlib.nodes.DecomposeMatrix)
-        mult.connect_input(0, source.plug("matrix"))
-        decompose.connect_input(mult.output_plug())
-        cmds.setAttr(source.full_name() + ".translate", 5, 6, 7)
-        self.assertEqual(tuple(decompose.output_plugs()["translate"].get()), (5, 6, 7))
-        decompose.set_rotate_order("zyx")
+        mult.connectInput(0, source.plug("matrix"))
+        decompose.connectInput(mult.outputPlug())
+        cmds.setAttr(source.fullName() + ".translate", 5, 6, 7)
+        self.assertEqual(tuple(decompose.outputPlugs()["translate"].get()), (5, 6, 7))
+        decompose.setRotateOrder("zyx")
         self.assertEqual(decompose.plug("inputRotateOrder").get(), 5)
         cmds.undo()
         self.assertEqual(decompose.plug("inputRotateOrder").get(), 0)
         cmds.redo()
         self.assertEqual(decompose.plug("inputRotateOrder").get(), 5)
         with self.assertRaises(ValueError):
-            decompose.set_rotate_order("bad")
+            decompose.setRotateOrder("bad")
         other = self.create("multMatrix", "other")
-        decompose.connect_input(other.output_plug(), force=True)
-        self.assertTrue(other.output_plug().is_connected_to(decompose.plug("inputMatrix")))
+        decompose.connectInput(other.outputPlug(), force=True)
+        self.assertTrue(other.outputPlug().isConnectedTo(decompose.plug("inputMatrix")))
         cmds.undo()
-        self.assertTrue(mult.output_plug().is_connected_to(decompose.plug("inputMatrix")))
+        self.assertTrue(mult.outputPlug().isConnectedTo(decompose.plug("inputMatrix")))
         cmds.redo()
-        self.assertTrue(other.output_plug().is_connected_to(decompose.plug("inputMatrix")))
+        self.assertTrue(other.outputPlug().isConnectedTo(decompose.plug("inputMatrix")))
 
     def test_decompose_constant_and_undo(self):
         source = self.create("transform", "source")
-        cmds.setAttr(source.full_name() + ".translate", 3, 4, 5)
+        cmds.setAttr(source.fullName() + ".translate", 3, 4, 5)
         node = self.create("decomposeMatrix", "decompose")
-        node.set_input(source.get_matrix())
-        self.assertEqual(tuple(node.output_plugs()["translate"].get()), (3, 4, 5))
+        node.setInput(source.getMatrix())
+        self.assertEqual(tuple(node.outputPlugs()["translate"].get()), (3, 4, 5))
         cmds.undo()
-        self.assertEqual(tuple(node.output_plugs()["translate"].get()), (0, 0, 0))
+        self.assertEqual(tuple(node.outputPlugs()["translate"].get()), (0, 0, 0))
         cmds.redo()
-        self.assertEqual(tuple(node.output_plugs()["translate"].get()), (3, 4, 5))
+        self.assertEqual(tuple(node.outputPlugs()["translate"].get()), (3, 4, 5))
 
     def test_distance_points_units_and_undo(self):
         node = self.create("distanceBetween", "distance")
@@ -81,30 +81,30 @@ class UtilityNodesTest(unittest.TestCase):
         previous = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
-            node.set_points((0, 0, 0), (3, 4, 0))
+            node.setPoints((0, 0, 0), (3, 4, 0))
             self.assertAlmostEqual(node.distance(), 5)
             cmds.undo()
             self.assertAlmostEqual(node.distance(), 0)
             cmds.redo()
             self.assertAlmostEqual(node.distance(), 5)
             with self.assertRaises(ValueError):
-                node.set_points((0, 0, 0), (float("nan"), 1, 2))
+                node.setPoints((0, 0, 0), (float("nan"), 1, 2))
             self.assertAlmostEqual(node.distance(), 5)
         finally:
             cmds.currentUnit(linear=previous)
 
     def test_distance_live_transforms_and_undo(self):
         a, b = self.create("transform", "a"), self.create("transform", "b")
-        cmds.setAttr(b.full_name() + ".translate", 3, 4, 0)
+        cmds.setAttr(b.fullName() + ".translate", 3, 4, 0)
         node = self.create("distanceBetween", "distance")
-        node.connect_transforms(a, b.full_name())
+        node.connectTransforms(a, b.fullName())
         self.assertAlmostEqual(node.distance(), 5)
         cmds.undo()
-        self.assertFalse(node.plug("inMatrix1").is_destination())
-        self.assertFalse(node.plug("inMatrix2").is_destination())
+        self.assertFalse(node.plug("inMatrix1").isDestination())
+        self.assertFalse(node.plug("inMatrix2").isDestination())
         cmds.redo()
         self.assertAlmostEqual(node.distance(), 5)
-        cmds.setAttr(b.full_name() + ".translateY", 0)
+        cmds.setAttr(b.fullName() + ".translateY", 0)
         self.assertAlmostEqual(node.distance(), 3)
 
 

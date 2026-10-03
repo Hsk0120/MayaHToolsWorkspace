@@ -78,7 +78,7 @@ class SpaceTest(unittest.TestCase):
         cmds.setAttr(target + ".rz", 25)
         self.assertMatrix(self.matrix(pole), before * target_before.inverse() * self.matrix(target))
         chest = hlib.createNode("transform", name="chest", skipSelect=True)
-        chest.set_translate((2, 3, 4))
+        chest.setTranslation((2, 3, 4))
         rig.add_space("ik", "chest", chest)
         before = self.matrix(target)
         reference = self.matrix("chest")

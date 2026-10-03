@@ -54,7 +54,7 @@ def main(output_dir=None, finished=None):
         common_owner = hlib.events.ScriptJobs()
         external_owner = hlib.events.ScriptJobs()
         probe = hlib.createNode('transform', name='eventProbe', skipSelect=True)
-        probe.add_attribute('setting', attribute_type='long', default_value=0)
+        probe.addAttribute('setting', attributeType='long', defaultValue=0)
         observed = []
         external = external_owner.add('external', event='SelectionChanged', callback=lambda: None)
         try:
@@ -210,7 +210,7 @@ def main(output_dir=None, finished=None):
         check(rig.mode() == 'ik','Explicit switch without matching')
         editors = [cmds.outlinerPanel(panel,q=True,outlinerEditor=True)
                    for panel in cmds.getPanel(type='outlinerPanel')]
-        cmds.select(rig.root.full_name())
+        cmds.select(rig.root.fullName())
         yield
         for editor in editors:
             cmds.outlinerEditor(editor,e=True,expandAllSelectedItems=True)

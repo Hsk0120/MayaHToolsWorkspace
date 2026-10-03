@@ -9,7 +9,7 @@ from .objectSet import ObjectSet
 class ShadingEngine(ObjectSet):
     """Mayaのレンダー用セット。表面・ボリューム・変位シェーダーを保持する。"""
 
-    def get_shader_plug(self, kind="surface"):
+    def getShaderPlug(self, kind="surface"):
         """シェーダー接続元を取得する。
 
         Args:
@@ -19,7 +19,7 @@ class ShadingEngine(ObjectSet):
         """
         return self.plug(self._shader_attribute(kind)).source()
 
-    def get_shader(self, kind="surface"):
+    def getShader(self, kind="surface"):
         """接続元のシェーダーノードを取得する。
 
         Args:
@@ -27,7 +27,7 @@ class ShadingEngine(ObjectSet):
         Returns:
             Node | None: 型付きノード。未接続ならNone。
         """
-        plug = self.get_shader_plug(kind)
+        plug = self.getShaderPlug(kind)
         return None if plug is None else plug.node
 
     @staticmethod
@@ -46,7 +46,7 @@ class ShadingEngine(ObjectSet):
         return kind + "Shader"
 
     @undo_chunk("hlibShadingEngineSetShader")
-    def set_shader(self, shader, kind="surface", output=None):
+    def setShader(self, shader, kind="surface", output=None):
         """指定シェーダーの出力へ接続を置き換える。
 
         Args:
@@ -84,7 +84,7 @@ class ShadingEngine(ObjectSet):
         from hlib.object import Object as _InputObject
         names = _InputObject._input_names(targets)
         if names:
-            cmds.sets(names, edit=True, forceElement=self.full_name())
+            cmds.sets(names, edit=True, forceElement=self.fullName())
         return self
 
     def members(self):
@@ -94,13 +94,13 @@ class ShadingEngine(ObjectSet):
             list[Node | Face]: オブジェクトまたは単体フェース。インスタンスパスを保持する。
         """
         from .node import Node
-        names = cmds.sets(self.full_name(), query=True) or []
+        names = cmds.sets(self.fullName(), query=True) or []
         result = []
         for name in cmds.ls(names, long=True, flatten=True) or []:
             if ".f[" in name:
                 path, index = name.rsplit(".f[", 1)
                 mesh = Node(path)
-                if not mesh.is_type("mesh"):
+                if not mesh.isType("mesh"):
                     mesh = mesh.shape()
                 result.append(mesh.face(int(index[:-1])))
             else:

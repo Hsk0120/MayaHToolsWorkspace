@@ -75,7 +75,7 @@ class Plugin:
         """
         return bool(cmds.pluginInfo(self._name, query=True, registered=True))
 
-    def is_loaded(self):
+    def isLoaded(self):
         """プラグインが現在ロードされているか判定する。
 
         Returns:
@@ -142,9 +142,13 @@ class Plugin:
             Plugin: 自身。
 
         Raises:
-            RuntimeError: Maya がロードを拒否した場合。
+            RuntimeError: Mayaがロードを拒否した、または初期化後も未ロードの場合。
         """
         cmds.loadPlugin(self._name, **kwargs)
+        # Pythonプラグインの初期化失敗は、例外なしのNoneとして返る場合がある。
+        # 戻り値だけでは既にロード済みのquiet呼出しと区別できないため状態を照会する。
+        if not self.isLoaded():
+            raise RuntimeError("Plugin initialization did not complete: " + self._name)
         return self
 
     def unload(self, force=False):
@@ -174,7 +178,7 @@ class Plugin:
         Raises:
             RuntimeError: Maya がロードを拒否した場合。
         """
-        if not self.is_loaded():
+        if not self.isLoaded():
             self.load()
         return self
 

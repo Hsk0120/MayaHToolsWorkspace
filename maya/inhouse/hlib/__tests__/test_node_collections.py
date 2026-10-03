@@ -1,4 +1,5 @@
 """ノードコレクションの継承・参照・色更新の契約を検証する。"""
+from maya.api.OpenMaya import MSpace
 import inspect
 import sys
 import unittest
@@ -47,7 +48,7 @@ class NodeCollectionsTest(unittest.TestCase):
         self.assertTrue(self.joints.names()[0].endswith('renamed'))
         self.assertEqual(len(Nodes(self.joints)), 2)
         cmds.delete(self.joints[0])
-        self.assertEqual(self.joints.is_valid(), [False, True])
+        self.assertEqual(self.joints.isValid(), [False, True])
         self.assertEqual(len(self.joints[:]), 2)
         with self.assertRaises(RuntimeError):
             Joints(self.joints)
@@ -56,63 +57,63 @@ class NodeCollectionsTest(unittest.TestCase):
         """色の取得・個別反映・一回のUndoを検証する。"""
         from hlib.ui import Color
         joints = self.joints
-        self.assertIsInstance(joints.get_override_color(), list)
-        self.assertEqual([color.mode for color in joints.get_override_color()], ['disabled'] * 2)
-        self.assertIs(joints.set_override_colors([13, 6]), joints)
-        self.assertEqual([color.index for color in joints.get_override_color()], [13, 6])
+        self.assertIsInstance(joints.getOverrideColor(), list)
+        self.assertEqual([color.mode for color in joints.getOverrideColor()], ['disabled'] * 2)
+        self.assertIs(joints.setOverrideColors([13, 6]), joints)
+        self.assertEqual([color.index for color in joints.getOverrideColor()], [13, 6])
         cmds.undo()
-        self.assertEqual([color.mode for color in joints.get_override_color()], ['disabled'] * 2)
+        self.assertEqual([color.mode for color in joints.getOverrideColor()], ['disabled'] * 2)
         cmds.redo()
-        colors = joints.get_override_color()
+        colors = joints.getOverrideColor()
         colors[0].index = 17
-        self.assertEqual([color.index for color in joints.get_override_color()], [13, 6])
-        joints.set_override_colors(colors)
-        self.assertEqual([color.index for color in joints.get_override_color()], [17, 6])
-        joints.set_outliner_colors([Color(), None])
-        self.assertEqual([color.mode for color in joints.get_outliner_color()], ['rgb', 'disabled'])
-        joints.set_outliner_color(13)
-        self.assertEqual([color.rgb for color in joints.get_outliner_color()], [(1, 0, 0)] * 2)
-        joints.set_override_color(None)
-        self.assertEqual([color.mode for color in joints.get_override_color()], ['disabled'] * 2)
+        self.assertEqual([color.index for color in joints.getOverrideColor()], [13, 6])
+        joints.setOverrideColors(colors)
+        self.assertEqual([color.index for color in joints.getOverrideColor()], [17, 6])
+        joints.setOutlinerColors([Color(), None])
+        self.assertEqual([color.mode for color in joints.getOutlinerColor()], ['rgb', 'disabled'])
+        joints.setOutlinerColor(13)
+        self.assertEqual([color.rgb for color in joints.getOutlinerColor()], [(1, 0, 0)] * 2)
+        joints.setOverrideColor(None)
+        self.assertEqual([color.mode for color in joints.getOverrideColor()], ['disabled'] * 2)
 
     def test_prevalidation_fast_and_empty(self):
         """後続ロック・入力接続・不正色を検証してから変更する。"""
         from hlib.nodes import Joints
         for fast in (False, True):
-            self.joints.set_override_color(6, fast=fast)
+            self.joints.setOverrideColor(6, fast=fast)
             cmds.setAttr(self.names[1] + '.overrideRGBColors', lock=True)
             try:
                 with self.assertRaisesRegex(RuntimeError, 'item 1'):
-                    self.joints.set_override_colors([13, (1, .5, 0)], fast=fast)
-                self.assertEqual([color.index for color in self.joints.get_override_color()], [6, 6])
+                    self.joints.setOverrideColors([13, (1, .5, 0)], fast=fast)
+                self.assertEqual([color.index for color in self.joints.getOverrideColor()], [6, 6])
             finally:
                 cmds.setAttr(self.names[1] + '.overrideRGBColors', lock=False)
             with self.assertRaises(ValueError):
-                self.joints.set_override_colors([13], fast=fast)
+                self.joints.setOverrideColors([13], fast=fast)
             with self.assertRaises(ValueError):
-                self.joints.set_override_colors([13, 32], fast=fast)
-            self.assertEqual([color.index for color in self.joints.get_override_color()], [6, 6])
-            self.joints.set_override_colors([17, 13], fast=fast)
-            self.assertEqual([color.index for color in self.joints.get_override_color()], [17, 13])
+                self.joints.setOverrideColors([13, 32], fast=fast)
+            self.assertEqual([color.index for color in self.joints.getOverrideColor()], [6, 6])
+            self.joints.setOverrideColors([17, 13], fast=fast)
+            self.assertEqual([color.index for color in self.joints.getOverrideColor()], [17, 13])
         cmds.connectAttr(self.names[0] + '.overrideColor', self.names[1] + '.overrideColor')
         try:
             with self.assertRaises(RuntimeError):
-                self.joints.set_override_color(6)
+                self.joints.setOverrideColor(6)
             self.assertEqual(cmds.getAttr(self.names[0] + '.overrideColor'), 17)
         finally:
             cmds.disconnectAttr(self.names[0] + '.overrideColor', self.names[1] + '.overrideColor')
         cmds.lockNode(self.names[1], lock=True)
         try:
             with self.assertRaises(RuntimeError):
-                self.joints.set_override_color(6)
+                self.joints.setOverrideColor(6)
         finally:
             cmds.lockNode(self.names[1], lock=False)
-        self.assertEqual(len(Joints().get_override_color()), 0)
-        self.assertIsInstance(Joints().set_override_colors([]), Joints)
+        self.assertEqual(len(Joints().getOverrideColor()), 0)
+        self.assertIsInstance(Joints().setOverrideColors([]), Joints)
         with self.assertRaises(ValueError):
-            Joints().set_override_color(32)
+            Joints().setOverrideColor(32)
         with self.assertRaises(TypeError):
-            Joints().set_override_color(6, fast=1)
+            Joints().setOverrideColor(6, fast=1)
 
     def test_instance_paths_and_shared_color_conflicts(self):
         """パス別行列を保持し、共有アトリビュートへ矛盾した更新を拒否する。"""
@@ -124,11 +125,11 @@ class NodeCollectionsTest(unittest.TestCase):
         paths = cmds.ls(leaf, long=True, allPaths=True)
         nodes = Transforms(paths + paths)
         self.assertEqual(len(nodes), 2)
-        self.assertNotEqual(list(nodes.get_matrix(ws=True)[0]), list(nodes.get_matrix(ws=True)[1]))
-        nodes.set_override_colors([6, 6])
+        self.assertNotEqual(list(nodes.getMatrix(space=MSpace.kWorld)[0]), list(nodes.getMatrix(space=MSpace.kWorld)[1]))
+        nodes.setOverrideColors([6, 6])
         with self.assertRaises(ValueError):
-            nodes.set_override_colors([13, 17])
-        self.assertEqual([color.index for color in nodes.get_override_color()], [6, 6])
+            nodes.setOverrideColors([13, 17])
+        self.assertEqual([color.index for color in nodes.getOverrideColor()], [6, 6])
 
     def test_parent_deletion_and_extension_reference(self):
         """親子削除と、派生ラッパーを作り直さず保持することを確認する。"""
@@ -193,12 +194,12 @@ class NodeCollectionsTest(unittest.TestCase):
         restricted = Restricted()
         restricted._items = [Child()]
         self.assertFalse(hasattr(restricted, 'edit'))
-        self.assertEqual(restricted.call_each('edit', [(3,)]), [(3, False)])
+        self.assertEqual(restricted.callEach('edit', [(3,)]), [(3, False)])
         @bulk_api(Child, undo=False)
         class Grandchild(Restricted):
             """禁止設定を継承する。"""
         self.assertFalse(hasattr(Grandchild(), 'edit'))
-        self.assertEqual(hlib.nodes.Joints.freeze_rotation.__module__, 'hlib.nodes.joint')
+        self.assertEqual(hlib.nodes.Joints.freezeRotation.__module__, 'hlib.nodes.joint')
 
 
 if __name__ == '__main__':

@@ -480,7 +480,7 @@ class Vector(om2.MVector):
         self.z = source.z
 
     @classmethod
-    def from_iterable(cls, values):
+    def fromIterable(cls, values):
         """3要素の反復可能オブジェクトから生成する。
 
         Args:
@@ -746,7 +746,7 @@ class Vector(om2.MVector):
 
         ``m * v`` (m は MMatrix 系)は om2 と同じく列ベクトルとしての積
         (``v * mᵀ``)になる。位置を行列で変換する場合は
-        :meth:`hlib.maths.matrix.Matrix.transform_point`、方向は ``v * m`` を使う。
+        :meth:`hlib.maths.matrix.Matrix.transformPoint`、方向は ``v * m`` を使う。
 
         Args:
             other (object): 数値または MMatrix 系。
@@ -943,7 +943,7 @@ class Vector(om2.MVector):
         _MVector.__iadd__(result, _MVector.__xor__(self, _as_mvector(other)))
         return result
 
-    def length_squared(self):
+    def lengthSquared(self):
         """長さの2乗(自身との内積)を返す。
 
         平方根を計算しないため、長さの比較だけが目的なら length() より速い。
@@ -974,7 +974,7 @@ class Vector(om2.MVector):
         _MVector.__itruediv__(result, length)
         return result
 
-    def distance_to(self, other):
+    def distanceTo(self, other):
         """2点間のユークリッド距離を返す。
 
         Args:
@@ -985,7 +985,7 @@ class Vector(om2.MVector):
         """
         return _MVector.__sub__(self, _as_mvector(other)).length()
 
-    def angle_to(self, other):
+    def angleTo(self, other):
         """別のベクトルとの成す角度をラジアンで返す。
 
         ``atan2(|a × b|, a · b)`` で計算するため、ほぼ平行・反平行な場合も精度を
@@ -1005,7 +1005,7 @@ class Vector(om2.MVector):
             raise ValueError("Cannot measure the angle to or from a zero vector")
         return math.atan2(_MVector.__xor__(self, other).length(), _MVector.__mul__(self, other))
 
-    def is_equivalent(self, other, tolerance=1e-10):
+    def isEquivalent(self, other, tolerance=1e-10):
         """許容誤差付きでほぼ等しいか判定する。
 
         om2 の ``isEquivalent`` に委譲するため、2点間のユークリッド距離が

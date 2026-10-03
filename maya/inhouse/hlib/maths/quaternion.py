@@ -73,7 +73,7 @@ class Quaternion(om2.MQuaternion):
     不正な引数は om2 と同じく ValueError。生成時や積の計算時に正規化は行わない。
 
     積 ``q1 * q2`` は om2 と同じ順序で、q1 を先に適用してから q2 を適用する回転
-    になる(``(q1 * q2).to_matrix()`` は ``q1.to_matrix() * q2.to_matrix()`` と同じ回転。Hamilton 積の
+    になる(``(q1 * q2).toMatrix()`` は ``q1.toMatrix() * q2.toMatrix()`` と同じ回転。Hamilton 積の
     ``q2 ⊗ q1`` に等しい)。``+``、``-``、単項の ``-`` は om2 の成分ごとの演算。
     ``数値 * q`` は om2 と同じく4成分のスカラー倍(``q * 数値`` と ``/`` は om2 と
     同じく未対応)。演算結果は hlib の :class:`Quaternion` で返す(``om2.MQuaternion`` が
@@ -509,7 +509,7 @@ class Quaternion(om2.MQuaternion):
         result.invertIt()
         return result
 
-    def rotate_vector(self, vector):
+    def rotateVector(self, vector):
         """ベクトルをこの回転で変換する。
 
         自身を正規化してから適用するため、正規化していない四元数でも結果の大きさは
@@ -528,7 +528,7 @@ class Quaternion(om2.MQuaternion):
         _MVector.__iadd__(result, _as_mvector(vector).rotateBy(_unit_copy(self)))
         return result
 
-    def angle_to(self, other):
+    def angleTo(self, other):
         """別の四元数が表す回転との角度差をラジアンで返す。
 
         両方を正規化し、二重被覆(q と -q が同じ回転)を考慮する。acos を使わず
@@ -575,7 +575,7 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.slerp(_unit_copy(self), _unit_copy(other), t, spin))
 
     @classmethod
-    def from_axis_angle(cls, axis, angle):
+    def fromAxisAngle(cls, axis, angle):
         """軸と角度から回転四元数を生成する。
 
         Args:
@@ -602,7 +602,7 @@ class Quaternion(om2.MQuaternion):
         result.w = math.cos(half)
         return result
 
-    def to_axis_angle(self):
+    def toAxisAngle(self):
         """軸と角度の組へ分解する。
 
         om2 の ``asAxisAngle`` と異なり、w が負なら符号を反転して角度を 0 から pi の
@@ -629,7 +629,7 @@ class Quaternion(om2.MQuaternion):
         result.z = rotation.z / sine
         return result, angle
 
-    def to_swing_twist(self, axis=(1.0, 0.0, 0.0)):
+    def toSwingTwist(self, axis=(1.0, 0.0, 0.0)):
         """指定軸まわりの捻り(twist)と、それ以外の曲げ(swing)へ分解する。
 
         ``twist`` は axis 周りだけの回転、``swing`` は axis の向きを変える残りの
@@ -671,7 +671,7 @@ class Quaternion(om2.MQuaternion):
         swing = twist.conjugate() * rotation
         return swing, twist
 
-    def to_euler(self, order="xyz"):
+    def toEuler(self, order="xyz"):
         """EulerRotation へ変換する。
 
         正規化した回転行列を ``om2.MEulerRotation.decompose`` で分解するため、
@@ -702,7 +702,7 @@ class Quaternion(om2.MQuaternion):
         Returns:
             Quaternion: 同型の新しい回転。Eulerの回転順序は維持する。
         """
-        matrix = self.to_matrix().mirrored(axis)
+        matrix = self.toMatrix().mirrored(axis)
         result = type(self)._wrap(matrix.quaternion)
         return result
 
@@ -718,7 +718,7 @@ class Quaternion(om2.MQuaternion):
         self.setValue(self.mirrored(axis))
         return self
 
-    def to_matrix(self):
+    def toMatrix(self):
         """正規化した回転を表す Matrix を返す。
 
         Returns:

@@ -27,12 +27,12 @@ class Node:
 
         return Port(self, self.identifier(name))
 
-    def add_port(self, name, data_type, output=False):
+    def add_port(self, name, dataType, output=False):
         """内部ノードへ動的ポートを追加する。
 
         Args:
             name (str): 未使用のポート名。
-            data_type (str): Bifrost型名。
+            dataType (str): Bifrost型名。
             output (bool): 出力ポートならTrue。
         Returns:
             Port: 追加したポート。
@@ -41,7 +41,7 @@ class Node:
         if name in [p.rsplit(".", 1)[-1] for p in self.ports()]:
             raise ValueError("Port already exists: " + name)
         flag = "createOutputPort" if output else "createInputPort"
-        cmds.vnnNode(self.graph.name(), self.path, **{flag: (name, data_type)})
+        cmds.vnnNode(self.graph.name(), self.path, **{flag: (name, dataType)})
         return self.port(name)
 
     @staticmethod

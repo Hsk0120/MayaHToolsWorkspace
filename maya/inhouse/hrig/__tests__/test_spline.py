@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+import math
 import unittest
 from unittest.mock import patch
 
@@ -43,7 +44,7 @@ class SplineTest(unittest.TestCase):
                     self.same(self.position(joint), [i * 1.5 if a == axis else 0 for a in "xyz"])
                 self.assertIsInstance(ModuleRegistry.get(rig.root), SplineRig)
                 self.assertIn(
-                    rig.root.full_name().lstrip("|"),
+                    rig.root.fullName().lstrip("|"),
                     [n.lstrip("|") for n in ModuleRegistry.roots()],
                 )
 
@@ -58,7 +59,7 @@ class SplineTest(unittest.TestCase):
             self.assertAlmostEqual(sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5, 10 / 6, places=4)
         last = rig.joints()[-2]
         before = cmds.xform(last, query=True, worldSpace=True, matrix=True)
-        rig.controls()[-1].plug("ry").set(45)
+        rig.controls()[-1].plug("ry").set(math.radians(45))
         after = cmds.xform(last, query=True, worldSpace=True, matrix=True)
         self.assertGreater(max(abs(a - b) for a, b in zip(before, after)), 0.05)
         for mode in ("off", "serial", "parallel"):
@@ -77,7 +78,7 @@ class SplineTest(unittest.TestCase):
         handle = rig.graph().member("handle")
         self.assertIsNone(handle.plug("inCurve").source())
         self.assertEqual(handle.plug("nodeState").get(), 2)
-        rig.members("fk")[1].plug("rz").set(25)
+        rig.members("fk")[1].plug("rz").set(math.radians(25))
         self.same(self.position(rig.joints()[3]), self.position(rig.members("fk")[3]))
         rig.set_mode("ik")
         self.same(self.position(rig.joints()[3]), before)
@@ -96,9 +97,9 @@ class SplineTest(unittest.TestCase):
         """ルートの移動回転・均等scale・単位差を確認する。"""
         cmds.currentUnit(linear="m", angle="rad")
         rig = build_spline(length=2, axis="z")
-        rig.controls()[1].plug("tx").set(0.3)
+        rig.controls()[1].plug("tx").set(30)
         local = [self.position(j) for j in rig.joints()]
-        rig.root.plug("translate").set((1, 2, 3))
+        rig.root.plug("translate").set((100, 200, 300))
         for axis in "XYZ":
             rig.root.plug("scale" + axis).set(2)
         for p, joint in zip(local, rig.joints()):
@@ -112,7 +113,7 @@ class SplineTest(unittest.TestCase):
         """キー付きカーブのフレーム再評価とIKからFKへの姿勢保持を確認する。"""
         rig = build_spline()
         for time, value in ((1, 0), (10, 3), (20, -2)):
-            cmds.setKeyframe(rig.controls()[1].full_name(), attribute="tx", time=time, value=value)
+            cmds.setKeyframe(rig.controls()[1].fullName(), attribute="tx", time=time, value=value)
         expected = {}
         for time in (1, 10, 20):
             cmds.currentTime(time)

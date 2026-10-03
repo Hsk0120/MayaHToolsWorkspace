@@ -12,8 +12,8 @@ cluster・blendShape・skinClusterと、スキン変形を保持した編集を�
 .. code-block:: python
 
    skin = hlib.getNode("skinCluster1")
-   skin.add_influences("extra_joint")
-   skin.add_influences(["extra_joint2", hlib.getNode("extra_joint3")])
+   skin.addInfluences("extra_joint")
+   skin.addInfluences(["extra_joint2", hlib.getNode("extra_joint3")])
 
 Jointをウェイト0で登録します。既存ウェイトの正規化・再配分は行いません。
 既存influenceと重複指定は無視し、空リストは何もしません。
@@ -27,36 +27,36 @@ influenceを取り除き、親へウェイトを加算する
 
    skin = hlib.getNode("skinCluster1")
    joint = hlib.getNode("extra_joint")
-   skin.remove_influence(joint)
+   skin.removeInfluence(joint)
    # またはjoint側から、接続する全skinClusterを対象にする
-   # joint.remove_influence()
+   # joint.removeInfluence()
    # 対象を一つに限定する場合
-   # joint.remove_influence(skin)
+   # joint.removeInfluence(skin)
 
 同じskinClusterに登録された最も近い祖先influenceへ元ウェイトを加算し、
 指定jointのinfluence登録だけを外します。jointノードや子階層は変更しません。
 親が直接登録されていなければさらに祖先を探し、移送先がなければMaya標準の
 removeInfluenceによる再配分に任せます。最後の一つのinfluenceはエラーにします。
 ``transfer_to_parent=False`` をSkinCluster側へ渡すと標準除去のみ行います。
-``Joint.remove_influence()`` は未スキニングなら何もしません。
+``Joint.removeInfluence()`` は未スキニングなら何もしません。
 
 ウェイトの正規化と最大influence数
 -----------------------------------
 
 .. code-block:: python
 
-   skin.normalize_weights()            # 各頂点の合計を1にする
-   skin.normalize_weights(decimals=3)  # 小数3桁へ丸め、端数を配分して合計1にする
-   skin.set_max_influences(4)          # 設定のみ。既存ウェイトは変更しない
-   skin.set_max_influences(4, prune=True)  # 大きい4個を残し、残りを0にして正規化
-   print(skin.get_max_influences())
+   skin.normalizeWeights()            # 各頂点の合計を1にする
+   skin.normalizeWeights(decimals=3)  # 小数3桁へ丸め、端数を配分して合計1にする
+   skin.setMaxInfluences(4)          # 設定のみ。既存ウェイトは変更しない
+   skin.setMaxInfluences(4, prune=True)  # 大きい4個を残し、残りを0にして正規化
+   print(skin.getMaxInfluences())
 
 正規化とpruneは先頭meshの全頂点が対象です。小数桁数は0〜15を指定できます。
 例えば同じ重みが3つなら、小数2桁では0.34、0.33、0.33とし、同率時は登録順を
 優先します。浮動小数点の保存値には機械精度の誤差があり得ます。
 合計0・負値・非有限値、ロック・入力接続・スキニングレイヤーは編集前に拒否します。
-``normalize_weights`` は ``normalizeWeights`` 設定を変えません。
-``set_max_influences`` は既定で ``maintainMaxInfluences`` も有効にします。
+``normalizeWeights`` は ``normalizeWeights`` 設定を変えません。
+``setMaxInfluences`` は既定で ``maintainMaxInfluences`` も有効にします。
 ``maintain=False`` で無効にできます。設定だけでは既存の非ゼロ数は制限されません。
 これらの変更は一回のUndoで戻せます。実行途中の例外は通知し、自動ロールバックはしません。
 
@@ -69,23 +69,23 @@ cluster と locator
    from hlib.nodes import Node
 
    mesh = hlib.getNode("pCube1")
-   cluster_name, handle_name = cmds.cluster(mesh.full_name() + ".vtx[0:2]")
+   cluster_name, handle_name = cmds.cluster(mesh.fullName() + ".vtx[0:2]")
    cluster = Node(cluster_name)
 
-   print(cluster.weighted_node())   # cluster1Handle（ハンドル transform）
+   print(cluster.weightedNode())   # cluster1Handle（ハンドル transform）
    print(cluster.geometry())        # [Mesh(...)]（変形対象の shape）
 
    loc_transform = cmds.spaceLocator(name="myLocator")[0]
    loc_shape_name = cmds.listRelatives(loc_transform, shapes=True)[0]
    locator = Node(loc_shape_name)
 
-   print(locator.get_position())         # Translation(0.0, 0.0, 0.0)
-   locator.set_position((1.0, 2.0, 3.0))
+   print(locator.getPosition())         # Translation(0.0, 0.0, 0.0)
+   locator.setPosition((1.0, 2.0, 3.0))
 
-``cluster`` ノードは自動的に ``Cluster`` ラッパーへ解決されます。``weighted_node``
+``cluster`` ノードは自動的に ``Cluster`` ラッパーへ解決されます。``weightedNode``
 はクラスタのハンドル transform（デフォーマ本体とは別ノード）、``geometry`` は
 変形対象の shape を返します。``locator`` シェイプは ``Locator`` ラッパーへ解決され、
-``get_position``/``set_position`` は ``localPosition`` アトリビュートを ``Translation`` として
+``getPosition``/``setPosition`` は ``localPosition`` アトリビュートを ``Translation`` として
 扱います。
 
 blendShape のターゲット操作
@@ -98,22 +98,22 @@ blendShape のターゲット操作
    base = hlib.getNode("pCube1")
    target = hlib.getNode("pCube2")   # base と同じトポロジーの別メッシュ
 
-   bs = Node(cmds.blendShape(target.full_name(), base.full_name(), name="myBlendShape")[0])
-   print(bs.target_aliases())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
-   print(bs.get_weights())            # [0.0]
-   bs.weight_plugs()[0].set(1.0)
+   bs = Node(cmds.blendShape(target.fullName(), base.fullName(), name="myBlendShape")[0])
+   print(bs.targetAliases())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
+   print(bs.getWeights())            # [0.0]
+   bs.weightPlugs()[0].set(1.0)
 
    new_target = hlib.getNode("pCube3")
-   weight_plug = bs.add_target(new_target)   # 空いている weight インデックスへ追加
-   weight_plug.set(0.5)
-   print(bs.target_aliases())            # ['pCube2', 'pCube3']
+   weightPlug = bs.addTarget(new_target)   # 空いている weight インデックスへ追加
+   weightPlug.set(0.5)
+   print(bs.targetAliases())            # ['pCube2', 'pCube3']
 
-``targets``/``weight_plugs``/``weights`` は ``aliases()`` をそのまま利用しており、
+``targets``/``weightPlugs``/``weights`` は ``aliases()`` をそのまま利用しており、
 weight 配列のインデックス順ではなく ``cmds.aliasAttr`` が返す順序に従います。
-``add_target`` は ``base`` を省略すると既存の base geometry の先頭を使い、
-``weight_index`` を省略すると ``plug("weight").next_available_index()`` で空きインデックス
+``addTarget`` は ``base`` を省略すると既存の base geometry の先頭を使い、
+``weight_index`` を省略すると ``plug("weight").nextAvailableIndex()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
-設定されるため、戻り値のプラグの ``full_name`` は ``weight[N]`` ではなく
+設定されるため、戻り値のプラグの ``fullName`` は ``weight[N]`` ではなく
 ターゲット名を含む表記になります（``attribute()`` メソッドは常に ``"weight"``）。
 
 skinCluster ウェイトのバックアップ・復元
@@ -124,14 +124,14 @@ skinCluster ウェイトのバックアップ・復元
    from hlib.nodes.skinCluster import SkinCluster
 
    skin = SkinCluster("hlibExampleMeshSkinCluster")
-   skin.dump_weights("C:/tmp/hlibExampleWeights.json")
+   skin.dumpWeights("C:/tmp/hlibExampleWeights.json")
 
    # ... 別シーンで読み込み直す、または同じシーンで何か変更した後に復元する場合 ...
-   skin.load_weights("C:/tmp/hlibExampleWeights.json")
+   skin.loadWeights("C:/tmp/hlibExampleWeights.json")
 
-``dump_weights``/``load_weights`` は ``influences()`` と同じ並びの全 influence の
+``dumpWeights``/``loadWeights`` は ``influences()`` と同じ並びの全 influence の
 頂点ウェイトを単純な JSON 形式でファイルへ書き出し・読み込みます。
-``load_weights`` は、書き出し時の頂点数が現在の mesh と一致し、記録された
+``loadWeights`` は、書き出し時の頂点数が現在の mesh と一致し、記録された
 influence がすべて現在の skinCluster に存在することを要求します。
 一致しない場合はウェイトを変更せず ``ValueError`` を送出します
 （influence 名が異なる、頂点数が変わった状態への読み込みは

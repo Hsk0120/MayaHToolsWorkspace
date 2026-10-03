@@ -4,7 +4,7 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from hlib._core.attributeType import attribute_type
+from hlib._core.attributeType import attributeType
 from hlib.decorators.undo import undo_chunk
 from hlib.nodes.node import Node
 from hlib.plugs.plug import Plug
@@ -34,18 +34,18 @@ def _plug(value):
     ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。
     アトリビュートが見つからない、または名前が一意でない場合は RuntimeError、アトリビュートを指さない
     文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため
-    (:func:`hlib._core.attributeType.attribute_type`)、検証でシーンは変更しない。
+    (:func:`hlib._core.attributeType.attributeType`)、検証でシーンは変更しない。
     """
     from hlib.plugs.plug import Plug as _InputPlug
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
         result = _InputPlug._resolve_input(value)
     else:
         raise TypeError("Expected a Plug, MPlug or node.attribute string")
-    if not result.is_valid() or not cmds.objExists(result.full_name()):
+    if not result.isValid() or not cmds.objExists(result.fullName()):
         raise RuntimeError("Cannot access an invalid plug")
     if result.mplug().isArray or result.mplug().isCompound:
         raise ValueError("Expected a scalar plug, not an array or compound")
-    if attribute_type(result.mplug()) not in _NUMERIC_SCALAR_TYPES:
+    if attributeType(result.mplug()) not in _NUMERIC_SCALAR_TYPES:
         raise ValueError("Expected a numeric scalar plug")
     return result
 
@@ -54,7 +54,7 @@ def _contains_plug(plugs, mplug):
     """同じプラグ(所有ノード・アトリビュート・配列インデックスが一致)が含まれるか判定する。
 
     インスタンス化されたシェイプのアトリビュートは、どのインスタンスのパスから取得しても同じ
-    プラグになる。名前(インスタンスのパスを含む ``full_name()``)では比較しない。
+    プラグになる。名前(インスタンスのパスを含む ``fullName()``)では比較しない。
 
     Args:
         plugs (Iterable[om2.MPlug]): 比較対象のプラグ。
@@ -98,7 +98,7 @@ def _curves(driven, strict=False):
             elif strict:
                 raise RuntimeError(f"Unsupported driven-key connection: {source}")
 
-    visit(driven.full_name())
+    visit(driven.fullName())
     return found
 
 
@@ -126,13 +126,13 @@ class DrivenKey:
 
     def __repr__(self):
         """str: ドライバーと駆動先のアトリビュート名を含む表示。"""
-        return f"DrivenKey({self.driver_plug().full_name()!r}, {self.driven_plug().full_name()!r})"
+        return f"DrivenKey({self.driverPlug().fullName()!r}, {self.drivenPlug().fullName()!r})"
 
-    def driver_plug(self):
+    def driverPlug(self):
         """Plug: ドライバー。削除済みの場合は例外。"""
         return _plug(self._driver)
 
-    def driven_plug(self):
+    def drivenPlug(self):
         """Plug: 駆動先。削除済みの場合は例外。"""
         return _plug(self._driven)
 
@@ -144,12 +144,12 @@ class DrivenKey:
         アトリビュートをどのインスタンスのパスから指定しても同じ関係として扱う。
         """
         from hlib.plugs.plug import Plug as _InputPlug
-        driver = self.driver_plug().mplug()
+        driver = self.driverPlug().mplug()
         return [
             curve
-            for curve in _curves(self.driven_plug())
+            for curve in _curves(self.drivenPlug())
             if _contains_plug(
-                (_InputPlug._resolve_input(source).mplug() for source in _sources(curve.full_name() + ".input")),
+                (_InputPlug._resolve_input(source).mplug() for source in _sources(curve.fullName() + ".input")),
                 driver,
             )
         ]
@@ -159,14 +159,14 @@ class DrivenKey:
         return bool(self.curves())
 
     @undo_chunk("hlibDrivenKeySetKey")
-    def set_key(self, driver_value, value, in_tangent="linear", out_tangent="linear"):
+    def setKey(self, driver_value, value, inTangentType="linear", outTangentType="linear"):
         """指定値でキーを追加・更新する。ドライバーの現在値は変更しない。
 
         Args:
-            driver_value (float): 現在のMaya UI単位での入力値。
-            value (float): 現在のMaya UI単位での出力値。
-            in_tangent (str): Mayaの入力接線型。
-            out_tangent (str): Mayaの出力接線型。
+            driver_value (float): 内部単位(cm/rad/秒)での入力値。
+            value (float): 内部単位(cm/rad/秒)での出力値。
+            inTangentType (str): Mayaの入力接線型。
+            outTangentType (str): Mayaの出力接線型。
         Returns:
             DrivenKey: 自身。
         Raises:
@@ -176,26 +176,27 @@ class DrivenKey:
         複数ドライバーはMaya標準のblendWeightedで合成する。
         pairBlendの自動挿入は行わない。最終出力は他カーブやウェイトにも依存する。
         """
+        from .._core.unitValue import convert
         x, y = float(driver_value), float(value)
         if not math.isfinite(x) or not math.isfinite(y):
             raise ValueError("Expected finite key values")
-        driver, driven = self.driver_plug(), self.driven_plug()
+        driver, driven = self.driverPlug(), self.drivenPlug()
         _curves(driven, strict=True)
         if len(self.curves()) > 1:
             raise RuntimeError("Multiple curves match this driver/driven pair")
         count = cmds.setDrivenKeyframe(
-            driven.full_name(),
-            currentDriver=driver.full_name(),
-            driverValue=x,
-            value=y,
-            inTangentType=in_tangent,
-            outTangentType=out_tangent,
+            driven.fullName(),
+            currentDriver=driver.fullName(),
+            driverValue=convert(driver.mplug(), x),
+            value=convert(driven.mplug(), y),
+            inTangentType=inTangentType,
+            outTangentType=outTangentType,
             insertBlend=False,
         )
         if not count:
             raise RuntimeError("Maya did not set a driven key")
         # 現在値と異なる位置のキー更新後も、駆動先が古い評価値を保持しないようにする。
-        cmds.dgdirty([curve.full_name() for curve in self.curves()])
+        cmds.dgdirty([curve.fullName() for curve in self.curves()])
         return self
 
     @classmethod
@@ -216,7 +217,7 @@ class DrivenKey:
         target = _plug(driven)
         items, seen = [], []
         for curve in _curves(target):
-            for source in _sources(curve.full_name() + ".input"):
+            for source in _sources(curve.fullName() + ".input"):
                 try:
                     driver = _plug(source)
                 except ValueError:

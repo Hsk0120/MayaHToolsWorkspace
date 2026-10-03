@@ -61,7 +61,7 @@ class IdentityContractTest(unittest.TestCase):
         a=Node(cmds.createNode('transform'));b=Node(cmds.createNode('transform'))
         with self.assertRaises(TypeError):
             hlib.delete([a,b.name()])
-        self.assertTrue(a.is_valid());self.assertTrue(b.is_valid())
+        self.assertTrue(a.isValid());self.assertTrue(b.isValid())
 
     def test_mixed_rejected(self):
         """列全体の形式を変換前に検証する。"""
@@ -73,21 +73,21 @@ class IdentityContractTest(unittest.TestCase):
             with self.assertRaises(TypeError):
                 Nodes(values)
         self.assertEqual(len(Nodes([n,Node(n)])),1)
-        self.assertEqual(_InputObject._input_names([n]),[n.full_name()])
+        self.assertEqual(_InputObject._input_names([n]),[n.fullName()])
 
     def test_instance_identity(self):
         """同じノードの別インスタンスを比較で区別する。"""
         t=cmds.polyCube()[0]; other=cmds.instance(t)[0]
         a=Node(cmds.listRelatives(t,shapes=True,fullPath=True)[0])
         b=Node(cmds.listRelatives(other,shapes=True,fullPath=True)[0])
-        self.assertTrue(a.same_node(b))
-        self.assertFalse(a.same_instance(b))
+        self.assertTrue(a.sameNode(b))
+        self.assertFalse(a.sameInstance(b))
         self.assertNotEqual(a,b)
         self.assertEqual(hash(a),hash(b))
         cmds.delete(t)
         with self.assertRaises(RuntimeError):
-            a.full_name()
-        self.assertTrue(b.is_valid())
+            a.fullName()
+        self.assertTrue(b.isValid())
 
 if __name__=='__main__':
     unittest.main(argv=[__file__])

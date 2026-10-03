@@ -27,19 +27,19 @@ class DagNodeTest(unittest.TestCase):
 
     def test_shared_methods_and_parent(self):
         """共通実装を継承し、親取得とtransform取得の違いを保持する。"""
-        for method in ("dag_path", "dag_fn", "parent_path"):
+        for method in ("dagPath", "dagFn", "parentPath"):
             self.assertIs(getattr(Transform, method), getattr(DagNode, method))
             self.assertIs(getattr(Shape, method), getattr(DagNode, method))
         parent = cmds.createNode("transform")
         child = cmds.createNode("transform", parent=parent)
         mesh = cmds.createNode("mesh", parent=child)
         root, transform, shape = map(DagNode, (parent, child, mesh))
-        self.assertIsNone(root.parent_path())
-        self.assertEqual(transform.parent_node(), root)
-        self.assertEqual(shape.parent_node(), transform)
+        self.assertIsNone(root.parentPath())
+        self.assertEqual(transform.parentNode(), root)
+        self.assertEqual(shape.parentNode(), transform)
         self.assertEqual(shape.transform(), transform)
         self.assertEqual(transform.transform(), transform)
-        self.assertEqual(shape.dag_fn().object(), shape.mobject())
+        self.assertEqual(shape.dagFn().object(), shape.mobject())
 
 
 if __name__ == "__main__":

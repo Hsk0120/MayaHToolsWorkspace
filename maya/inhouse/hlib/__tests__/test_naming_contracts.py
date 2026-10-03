@@ -24,16 +24,16 @@ class NamingContractsTest(unittest.TestCase):
         """係数値と接続用参照を区別できる。"""
         node = Node(cmds.createNode('blendColors'))
         try:
-            node.set_blender(.25)
-            self.assertAlmostEqual(node.get_blender(), .25)
-            self.assertEqual(node.blender_plug().attribute_name(), 'blender')
-            self.assertEqual(node.output_plug().attribute_name(), 'output')
+            node.setBlender(.25)
+            self.assertAlmostEqual(node.getBlender(), .25)
+            self.assertEqual(node.blenderPlug().attributeName(), 'blender')
+            self.assertEqual(node.outputPlug().attributeName(), 'output')
         finally:
-            cmds.delete(node.full_name())
+            cmds.delete(node.fullName())
 
     def test_bulk_getters_are_exposed(self):
         """単数形から新しい取得名が複数形へ展開される。"""
-        self.assertTrue(callable(Joints.get_joint_orient))
-        self.assertTrue(callable(Joints.get_inverse_scale))
-        self.assertTrue(callable(SkinClusters.get_max_influences))
+        self.assertTrue(callable(Joints.getJointOrient))
+        self.assertTrue(callable(Joints.getInverseScale))
+        self.assertTrue(callable(SkinClusters.getMaxInfluences))
         self.assertNotIn('joint_orient', Joints.__dict__)

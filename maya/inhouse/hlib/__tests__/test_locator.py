@@ -13,7 +13,7 @@ from hlib.nodes.locator import Locator
 
 
 class LocatorTest(unittest.TestCase):
-    """get_position/set_position を検証する。"""
+    """getPosition/setPosition を検証する。"""
 
     def setUp(self):
         self.transform = cmds.spaceLocator(name="hlibLocatorTest")[0]
@@ -30,12 +30,12 @@ class LocatorTest(unittest.TestCase):
         self.assertIsInstance(self.locator, Locator)
 
     def test_get_position_default(self):
-        self.assertEqual(self.locator.get_position(), Translation(0.0, 0.0, 0.0))
+        self.assertEqual(self.locator.getPosition(), Translation(0.0, 0.0, 0.0))
 
     def test_set_position_round_trips(self):
-        result = self.locator.set_position((1.0, 2.0, 3.0))
+        result = self.locator.setPosition((1.0, 2.0, 3.0))
         self.assertIs(result, self.locator)
-        self.assertEqual(self.locator.get_position(), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(self.locator.getPosition(), Translation(1.0, 2.0, 3.0))
 
 
 if __name__ == "__main__":

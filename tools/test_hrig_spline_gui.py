@@ -70,7 +70,7 @@ def main(output_dir=None, finished=None):
         editor.tree.setCurrentItem(row("spline:1"))
         editor.select_node()
         check(
-            cmds.ls(selection=True, long=True) == [rig.controls()[1].full_name()],
+            cmds.ls(selection=True, long=True) == [rig.controls()[1].fullName()],
             "Control selection",
         )
         editor.mode.setCurrentIndex(0)
@@ -103,7 +103,7 @@ def main(output_dir=None, finished=None):
         cmds.undo()
         yield
         check(rig.layer_enabled(), "Layer Undo")
-        cmds.setAttr(rig.root.full_name() + ".lod", 0)
+        cmds.setAttr(rig.root.fullName() + ".lod", 0)
         for _ in range(20):
             yield
             if rig.graph().member("handle").plug("inCurve").source() is None:
@@ -120,7 +120,7 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "spline.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         rig = SplineRig("spineDemo")
-        cmds.setAttr(rig.root.full_name() + ".mode", 0)
+        cmds.setAttr(rig.root.fullName() + ".mode", 0)
         for _ in range(20):
             yield
             if rig.graph().member("handle").plug("inCurve").source() is None:

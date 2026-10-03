@@ -45,13 +45,13 @@ class WorkspaceLayout:
             raise RuntimeError("Workspace layout is unavailable: " + str(self._name))
         return self._name
 
-    def is_current(self):
+    def isCurrent(self):
         """bool: 現在使用中の配置か取得する。"""
         return self.name() == cmds.workspaceLayoutManager(query=True, current=True)
 
     def _require_current(self):
         """別の配置を誤って保存・復元しないよう検証する。"""
-        if not self.is_current():
+        if not self.isCurrent():
             raise RuntimeError("Activate this workspace layout first")
 
     def activate(self):
@@ -75,7 +75,7 @@ class WorkspaceLayout:
         self._require_current()
         cmds.workspaceLayoutManager(save=True)
 
-    def save_as(self, name, overwrite=False):
+    def saveAs(self, name, overwrite=False):
         """現在の配置を別名で保存して切り替える。
 
         Args:

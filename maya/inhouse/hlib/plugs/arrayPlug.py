@@ -1,6 +1,6 @@
 """配列アトリビュートの論理インデックスと要素プラグを扱う。"""
 
-from ..decorators._fast import fast_edit
+from ..decorators._fast import fast_edit, is_fast
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -17,7 +17,7 @@ class ArrayPlug(Plug):
     ``__getitem__`` があるため、maya.cmds は ArrayPlug オブジェクト自体を
     シーケンスとして展開しようとして失敗する(``cmds.getAttr(array_plug)`` は不可)。
     配列アトリビュート全体を maya.cmds へ渡す場合は ``str(array_plug)`` または
-    ``array_plug.full_name()`` を渡す。要素 Plug(``array_plug[0]``)と、
+    ``array_plug.fullName()`` を渡す。要素 Plug(``array_plug[0]``)と、
     hlib のコマンド(``hlib.select`` など)は ArrayPlug をそのまま受け付ける。"""
 
     def _existing_indices(self):
@@ -83,9 +83,10 @@ class ArrayPlug(Plug):
             index (int): 論理インデックス。
             create (bool): True の場合、データを持つ要素が無ければ Maya 上に要素を
                 作成してから返す(``cmds.getAttr`` の問い合わせで作成するため Undo 対象外)。
+                fast更新の内部では参照だけを取得し、値の書込み時に要素を作成する。
                 ただし ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できない。
                 この場合も要素プラグは返すため接続先・接続元に使え、要素は接続した時点で
-                存在するようになる(それまで ``elements()`` や ``next_available_index()`` には現れない)。
+                存在するようになる(それまで ``elements()`` や ``nextAvailableIndex()`` には現れない)。
 
         Returns:
             Plug: 要素プラグ。
@@ -104,20 +105,23 @@ class ArrayPlug(Plug):
         self._require_valid()
         if not 0 <= index <= MAX_LOGICAL_INDEX:
             raise IndexError(
-                f"論理インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {index} ({self.full_name()})"
+                f"論理インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {index} ({self.fullName()})"
             )
         mplug = self._mplug.elementByLogicalIndex(index)
         if index not in self._mplug.getExistingArrayAttributeIndices():
             if create:
                 if is_internal_data_type(mplug):
                     raise RuntimeError(
-                        f"Maya 内部のデータ型の配列には要素を作成できません: {self.full_name()}"
+                        f"Maya 内部のデータ型の配列には要素を作成できません: {self.fullName()}"
                     )
                 # maya.cmds は存在しない要素を問い合わせると要素を作成する。Plug の生成
                 # (アトリビュート型の判定)は maya.cmds へ問い合わせず要素を作らないため、ここで作成する。
-                cmds.getAttr(f"{self.full_name()}[{index}]", type=True)
+                # fast更新はこの参照へ値を書く時に要素を実体化する。
+                # 型照会のためのコマンド評価・名前の再解決を挟まない。
+                if not is_fast():
+                    cmds.getAttr(f"{self.fullName()}[{index}]", type=True)
             elif index not in self._existing_indices():
-                raise IndexError(f"No element at logical index {index} on {self.full_name()}")
+                raise IndexError(f"No element at logical index {index} on {self.fullName()}")
         return Plug(self._node, mplug)
 
     def elements(self):
@@ -133,7 +137,7 @@ class ArrayPlug(Plug):
         return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
                 for index in self._existing_indices()]
 
-    def next_available_index(self, start=0):
+    def nextAvailableIndex(self, start=0):
         """接続・データを持つ要素が存在しない論理インデックスを探す。
 
         cymel の同名メソッドとは異なり、ロック状態や子要素の再帰チェックは行わない
@@ -160,8 +164,8 @@ class ArrayPlug(Plug):
         return index
 
     @undo_chunk("hlibArrayPlugAddElement")
-    def add_element(self):
-        """次の空きインデックス(next_available_index())へ要素を作成して返す。
+    def addElement(self):
+        """次の空きインデックス(nextAvailableIndex())へ要素を作成して返す。
 
         ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できないため
         (:meth:`element` 参照)、返した要素へ接続するまでは、呼び出すたびに同じ
@@ -170,10 +174,10 @@ class ArrayPlug(Plug):
         Returns:
             Plug: 作成した要素プラグ。
         """
-        return self.element(self.next_available_index(), create=True)
+        return self.element(self.nextAvailableIndex(), create=True)
 
     @undo_chunk("hlibArrayPlugRemoveElement")
-    def remove_element(self, index):
+    def removeElement(self, index):
         """指定した論理インデックスの要素を削除する。
 
         Args:
@@ -188,8 +192,8 @@ class ArrayPlug(Plug):
         """
         self._require_valid()
         if index not in self._mplug.getExistingArrayAttributeIndices():
-            raise IndexError(f"No element at logical index {index} on {self.full_name()}")
-        cmds.removeMultiInstance(f"{self.full_name()}[{index}]", b=True)
+            raise IndexError(f"No element at logical index {index} on {self.fullName()}")
+        cmds.removeMultiInstance(f"{self.fullName()}[{index}]", b=True)
         return self
 
     def __getitem__(self, index):
@@ -210,7 +214,7 @@ class ArrayPlug(Plug):
         """
         return self.element(index)
 
-    def source_nodes(self):
+    def sourceNodes(self):
         """配列要素への接続元ノードを論理インデックス順に取得する。
 
         Returns:
@@ -223,8 +227,8 @@ class ArrayPlug(Plug):
                 result[element.mplug().logicalIndex()] = source.node
         return result
 
-    @undo_chunk("hlib.ArrayPlug.append_message")
-    def append_message(self, node):
+    @undo_chunk("hlib.ArrayPlug.appendMessage")
+    def appendMessage(self, node):
         """message配列の最大インデックスの次へノード参照を追加する。
 
         Args:

@@ -53,16 +53,16 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 独自メソッドの引数
 ------------------------------
 
-``hlib.addConstraint`` と ``Transform.add_constraint`` （Jointにも継承）は
+``hlib.addConstraint`` と ``Transform.addConstraint`` （Jointにも継承）は
 ``type`` / ``typ`` と ``maintainOffset`` / ``mo`` を受け付けます。
-これはhlibが明示した別名です。``Joints.add_constraint`` や
-``call_each`` にも同じ指定を渡せます。位置引数と短名による二重指定もエラーです。
+これはhlibが明示した別名です。``Joints.addConstraint`` や
+``callEach`` にも同じ指定を渡せます。位置引数と短名による二重指定もエラーです。
 
 .. code-block:: python
 
    source = hlib.createNode("transform", name="source")
    target = hlib.createNode("transform", name="target")
-   target.add_constraint(source, typ="point", mo=True)
+   target.addConstraint(source, typ="point", mo=True)
 
 他の独自引数に短名を自動生成することはありません。
 たとえば既存の座標メソッドの ``ws`` や高速編集の ``fast`` は、

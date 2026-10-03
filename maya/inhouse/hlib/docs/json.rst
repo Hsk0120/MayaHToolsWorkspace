@@ -151,7 +151,7 @@ Undoを補うための独自Mayaプラグインは同梱・ロードしません
 JSON全体は ``format="hlib.json"``、``version=1`` を持ち、Snapshotにも版を持たせています。
 数学型は型名を保持し、EulerRotationはラジアンと回転順序、Matrixは行優先16要素です。
 EulerRotationの回転順序は、``order`` がom2の番号(int)になった後も従来どおり
-``"zyx"`` などの名前(``order_name``)で保存し、読み込み時は名前と番号のどちらも受け付けます。
+``"zyx"`` などの名前(``orderName``)で保存し、読み込み時は名前と番号のどちらも受け付けます。
 om2名のメソッド(``normal()``、``asMatrix()`` など)が返すom2の基底型(``MVector``、
 ``MQuaternion``、``MEulerRotation``、``MMatrix``)も、対応するhlibの型として保存します
 (読み込み結果はhlibの型)。利用者が定義した派生クラスや ``MPoint`` などは未対応型です。
@@ -160,5 +160,5 @@ om2名のメソッド(``normal()``、``asMatrix()`` など)が返すom2の基底
 dict自体も型タグで包むため、利用者の ``type`` キーなどと衝突しません。
 非有限値、未対応型、文字列以外のdictキー、重複JSONキー、未対応形式は拒否します。
 任意クラスのimport、pickle、コード実行は行いません。
-既存の ``SkinCluster.dump_weights()/load_weights()`` の形式とは別形式です。
+既存の ``SkinCluster.dumpWeights()/loadWeights()`` の形式とは別形式です。
 旧形式の自動移行や、外部ツール形式の直接読み込みは行いません。

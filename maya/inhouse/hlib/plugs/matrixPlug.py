@@ -2,9 +2,9 @@
 
 import maya.api.OpenMaya as om2
 
-from ..decorators._fast import fast_edit
+from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undo_chunk
-from .._core.fastWrite import set_attr
+from .._core.fastWrite import set_attr, set_plug
 from .._core.registry import plug_wrapper
 from ..maths import Matrix
 from .plug import Plug
@@ -24,7 +24,7 @@ class MatrixPlug(Plug):
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
-        return Matrix.from_mmatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
+        return Matrix.fromMMatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
     @fast_edit
     @undo_chunk("hlibMatrixPlugSet")
@@ -45,7 +45,11 @@ class MatrixPlug(Plug):
         ノード自体の変換にはTransform.set_matrixを使う。
         """
         self._require_valid()
-        if self.attribute_name() in ("worldMatrix", "wm"):
+        if self.attributeName() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
-        set_attr(self.full_name(), *tuple(Matrix(value)), type="matrix")
+        matrix = Matrix(value)
+        if is_fast():
+            set_plug(self._mplug, matrix)
+        else:
+            set_attr(self.fullName(), *tuple(matrix), type="matrix")
         return self

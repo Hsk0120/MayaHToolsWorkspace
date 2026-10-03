@@ -1,7 +1,7 @@
 """重み付き加算ノード。ウェイトの正規化はしない。"""
 
-from ..decorators._fast import fast_edit
-from .._core.fastWrite import set_attr
+from ..decorators._fast import fast_edit, is_fast
+from .._core.fastWrite import set_attr, set_plug
 
 import math
 import maya.cmds as cmds
@@ -21,27 +21,30 @@ class BlendWeighted(Node):
             raise ValueError("Expected a non-negative integer index")
         return index
 
-    def input_indices(self):
+    def inputIndices(self):
         """list[int]: 存在するinputの論理番号。疎な配列を保持する。"""
-        return cmds.getAttr(self.full_name() + ".input", multiIndices=True) or []
+        return list(self.plug("input").mplug().getExistingArrayAttributeIndices())
 
-    def input_plugs(self):
+    def inputPlugs(self):
         """dict[int, Plug]: 既存入力の番号とPlug。"""
-        return {i: self.plug("input").element(i) for i in self.input_indices()}
+        return {i: self.plug("input").element(i) for i in self.inputIndices()}
 
-    def get_weights(self):
+    def getWeights(self):
         """dict[int, float]: 既存inputに対応するウェイト。未設定要素は1。"""
-        return {i: self.get_weight(i) for i in self.input_indices()}
+        return {i: self.getWeight(i) for i in self.inputIndices()}
 
     def _set(self, attr, index, value):
-        """有限値をcmdsで設定する。呼び出し元がUndoをまとめる。"""
+        """有限値を設定する。通常はcmds、fastは保持するMPlugへ書く。"""
         index, value = self._index(index), float(value)
         if not math.isfinite(value):
             raise ValueError("Expected a finite value")
-        set_attr(f"{self.full_name()}.{attr}[{index}]", value)
+        if is_fast():
+            set_plug(self.plug(attr).element(index, create=True).mplug(), value)
+        else:
+            set_attr(f"{self.fullName()}.{attr}[{index}]", value)
         return self
 
-    def input_plug(self, index):
+    def inputPlug(self, index):
         """既存入力のPlugを取得する。未存在要素は作成しない。
 
         Args:
@@ -54,7 +57,7 @@ class BlendWeighted(Node):
         """
         return self.plug("input").element(self._index(index))
 
-    def get_input(self, index):
+    def getInput(self, index):
         """既存入力の評価値を取得する。接続済みなら接続元を評価する。
 
         Args:
@@ -64,9 +67,9 @@ class BlendWeighted(Node):
         Raises:
             IndexError: 入力要素が存在しない場合。
         """
-        return self.input_plug(index).get()
+        return self.inputPlug(index).get()
 
-    def get_weight(self, index):
+    def getWeight(self, index):
         """既存inputに対応する倍率を取得する。未設定weightは1を返す。
 
         Args:
@@ -76,7 +79,7 @@ class BlendWeighted(Node):
         Raises:
             IndexError: inputが存在しない場合。
         """
-        self.input_plug(index)
+        self.inputPlug(index)
         weights = self.plug("weight")
         if index not in weights.mplug().getExistingArrayAttributeIndices():
             return 1.0
@@ -84,7 +87,7 @@ class BlendWeighted(Node):
 
     @fast_edit
     @undo_chunk("hlibBlendWeightedInput")
-    def set_input(self, index, value, *, fast=False):
+    def setInput(self, index, value, *, fast=False):
         """定数入力を設定する。既存接続は切断しない。
 
         Args:
@@ -101,7 +104,7 @@ class BlendWeighted(Node):
 
     @fast_edit
     @undo_chunk("hlibBlendWeightedWeight")
-    def set_weight(self, index, value, *, fast=False):
+    def setWeight(self, index, value, *, fast=False):
         """ウェイトを設定する。負値も使用可能。
 
         Args:
@@ -117,7 +120,7 @@ class BlendWeighted(Node):
         return self._set("weight", index, value)
 
     @undo_chunk("hlibBlendWeightedConnect")
-    def connect_input(self, index, source, force=False):
+    def connectInput(self, index, source, force=False):
         """入力を接続する。
 
         Args:
@@ -128,17 +131,17 @@ class BlendWeighted(Node):
             BlendWeighted: 自身。
         """
         index = self._index(index)
-        target = f"{self.full_name()}.input[{index}]"
-        if index in self.input_indices() and not cmds.listConnections(target, source=True, destination=False):
+        target = f"{self.fullName()}.input[{index}]"
+        if index in self.inputIndices() and not cmds.listConnections(target, source=True, destination=False):
             # connectAttrのUndoだけでは配列要素の定数値が失われるため履歴に記録する。
             set_attr(target, cmds.getAttr(target))
-        cmds.connectAttr(source.full_name(), target, force=force)
+        cmds.connectAttr(source.fullName(), target, force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """Plug: 出力プラグ。"""
         return self.plug("output")
 
     def result(self):
         """float: 現在の重み付き合計。"""
-        return self.output_plug().get()
+        return self.outputPlug().get()

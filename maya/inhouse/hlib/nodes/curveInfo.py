@@ -9,7 +9,7 @@ from .abstractBaseCreate import AbstractBaseCreate
 class CurveInfo(AbstractBaseCreate):
     """接続したcurveの形状情報をMayaで評価する。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """形状データの入力を取得する。
         Returns:
             Plug: 入力参照。
@@ -17,7 +17,7 @@ class CurveInfo(AbstractBaseCreate):
         return self.plug("inputCurve")
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """形状データPlugを入力へ接続する。
 
         Args:
@@ -29,11 +29,11 @@ class CurveInfo(AbstractBaseCreate):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, force=force)
+        _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_curve(self, curve, world_space=True, force=False):
+    def connectCurve(self, curve, world_space=True, force=False):
         """形状またはTransformを解決して接続する。
 
         Args:
@@ -46,11 +46,11 @@ class CurveInfo(AbstractBaseCreate):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = _Calculation.geometry_output(curve, "nurbsCurve", world_space)
-        source.connect(self.input_plug(), force=force)
+        source = _Calculation.geometryOutput(curve, "nurbsCurve", world_space)
+        source.connect(self.inputPlug(), force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -62,11 +62,11 @@ class CurveInfo(AbstractBaseCreate):
         Returns:
             float: 計算結果。
         """
-        return self.output_plug().get()
+        return self.outputPlug().get()
 
-    def arc_length(self):
+    def arcLength(self):
         """接続された空間でのカーブ長を取得する。
         Returns:
             float: カーブ長。
         """
-        return self.output_plug().get()
+        return self.outputPlug().get()

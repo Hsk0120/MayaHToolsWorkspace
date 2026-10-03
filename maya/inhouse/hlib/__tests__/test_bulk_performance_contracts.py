@@ -70,7 +70,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
 
         class CustomItems(Items):
             """公開一括入口を拡張する利用側コレクション。"""
-            def call_each(self, method, arguments, keyword_arguments=None):
+            def callEach(self, method, arguments, keyword_arguments=None):
                 """利用側のoverrideへ委譲されることを確認する。"""
                 return "custom"
 
@@ -97,18 +97,18 @@ class BulkPerformanceContractsTest(unittest.TestCase):
     def test_plug_lookup_follows_alias_rename_delete_undo(self):
         """function set再利用後もノードや動的アトリビュートの変化に追従する。"""
         node = hlib.getNode(cmds.createNode("transform"))
-        cmds.addAttr(node.full_name(), ln="amount", at="double")
+        cmds.addAttr(node.fullName(), ln="amount", at="double")
         node.plug("amount").set(3)
-        cmds.aliasAttr("aliasAmount", node.full_name() + ".amount")
+        cmds.aliasAttr("aliasAmount", node.fullName() + ".amount")
         self.assertEqual(node.plug("aliasAmount").get(), 3)
-        cmds.rename(node.full_name(), "renamed")
-        cmds.deleteAttr(node.full_name() + ".amount")
+        cmds.rename(node.fullName(), "renamed")
+        cmds.deleteAttr(node.fullName() + ".amount")
         with self.assertRaises(AttributeError):
             node.plug("amount")
         cmds.undo()
         self.assertEqual(node.plug("amount").get(), 3)
-        cmds.deleteAttr(node.full_name() + ".amount")
-        cmds.addAttr(node.full_name(), ln="amount", at="long", dv=7)
+        cmds.deleteAttr(node.fullName() + ".amount")
+        cmds.addAttr(node.fullName(), ln="amount", at="long", dv=7)
         self.assertEqual(node.plug("amount").get(), 7)
 
     def test_fast_matrix_matches_normal_with_units_and_joint(self):
@@ -116,15 +116,15 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         for kind in ("transform", "joint"):
             node = hlib.getNode(cmds.createNode(kind))
             if kind == "joint":
-                cmds.setAttr(node.full_name() + ".jointOrient", 11, 23, 7)
+                cmds.setAttr(node.fullName() + ".jointOrient", 11, 23, 7)
             for linear, angle in (("cm", "deg"), ("m", "rad")):
                 cmds.currentUnit(linear=linear, angle=angle)
                 target = hlib.maths.Matrix(translate=(2, 3, 4))
-                node.set_matrix(target)
-                expected = list(node.get_matrix())
-                node.set_translate((0, 0, 0))
-                node.set_matrix(target, fast=True)
-                for a, b in zip(node.get_matrix(), expected):
+                node.setMatrix(target)
+                expected = list(node.getMatrix())
+                node.setTranslation((0, 0, 0))
+                node.setMatrix(target, fast=True)
+                for a, b in zip(node.getMatrix(), expected):
                     self.assertAlmostEqual(a, b, places=7)
 
     def test_weight_order_holes_duplicate_and_partial_failure(self):
@@ -132,19 +132,19 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         joints = [cmds.createNode("joint") for _ in range(4)]
         mesh = cmds.polyCube(ch=False)[0]
         skin = hlib.getNode(cmds.skinCluster(joints, mesh, tsb=True)[0])
-        cmds.skinCluster(skin.full_name(), e=True, ri=joints[1])
-        skin.set_weights([joints[3], joints[0]], [.2, .3])
-        values = list(skin.get_weights([joints[0], joints[3]]))
+        cmds.skinCluster(skin.fullName(), e=True, ri=joints[1])
+        skin.setWeights([joints[3], joints[0]], [.2, .3])
+        values = list(skin.getWeights([joints[0], joints[3]]))
         self.assertAlmostEqual(values[0], .3)
         self.assertAlmostEqual(values[1], .2)
         with self.assertRaises(ValueError):
-            skin.set_weights([joints[0], cmds.ls(joints[0], long=True)[0]], [.1, .2])
-        prefix = skin.full_name() + ".weightList[0].weights"
+            skin.setWeights([joints[0], cmds.ls(joints[0], long=True)[0]], [.1, .2])
+        prefix = skin.fullName() + ".weightList[0].weights"
         before = cmds.getAttr(prefix + "[0]")
         protected = cmds.getAttr(prefix + "[2]")
         cmds.setAttr(prefix + "[2]", lock=True)
         with self.assertRaises(RuntimeError):
-            skin.set_weights([joints[0], joints[2]], [.4, .6])
+            skin.setWeights([joints[0], joints[2]], [.4, .6])
         self.assertAlmostEqual(cmds.getAttr(prefix + "[0]"), .4)
         self.assertEqual(cmds.getAttr(prefix + "[2]"), protected)
         cmds.undo()

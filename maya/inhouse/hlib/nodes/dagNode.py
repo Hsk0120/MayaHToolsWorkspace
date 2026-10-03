@@ -16,7 +16,7 @@ class DagNode(Node):
 
     __hlib_public__ = True
 
-    def dag_path(self):
+    def dagPath(self):
         """保持するインスタンスのDAGパスを取得する。
 
         Returns:
@@ -27,7 +27,7 @@ class DagNode(Node):
         """
         return self._current_dag_path()
 
-    def dag_fn(self):
+    def dagFn(self):
         """保持するDAGパスに対応するfunction setを取得する。
 
         Returns:
@@ -36,9 +36,9 @@ class DagNode(Node):
         Raises:
             RuntimeError: 保持していたパスが無効な場合。
         """
-        return om2.MFnDagNode(self.dag_path())
+        return om2.MFnDagNode(self.dagPath())
 
-    def parent_path(self):
+    def parentPath(self):
         """保持するインスタンスの親パスを取得する。
 
         Returns:
@@ -47,31 +47,31 @@ class DagNode(Node):
         Raises:
             RuntimeError: ノードは存在するが保持していたパスが無効な場合。
         """
-        if not self.is_valid():
+        if not self.isValid():
             return None
-        path = self.dag_path()
+        path = self.dagPath()
         if path.length() <= 1:
             return None
         parent = om2.MDagPath(path)
         parent.pop()
         return parent
 
-    def parent_node(self):
+    def parentNode(self):
         """親ノードを汎用 Node として取得する。
 
         Returns:
             Node | None: 親ノード。親がない場合は ``None``。
         """
-        parent_path = self.parent_path()
-        return Node(parent_path) if parent_path is not None else None
+        parentPath = self.parentPath()
+        return Node(parentPath) if parentPath is not None else None
 
-    def get_visibility(self):
+    def getVisibility(self):
         """bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。"""
         return bool(self.plug("visibility").get())
 
     @fast_edit
     @undo_chunk("hlibNodeSetVisible")
-    def set_visibility(self, state, *, fast=False):
+    def setVisibility(self, state, *, fast=False):
         """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
 
         Args:
@@ -89,7 +89,7 @@ class DagNode(Node):
         self.plug("visibility").set(state)
         return self
 
-    def get_outliner_visibility(self):
+    def getOutlinerVisibility(self):
         """アウトライナーでの表示を許可する設定値を取得する。
 
         Returns:
@@ -105,7 +105,7 @@ class DagNode(Node):
 
     @fast_edit
     @undo_chunk("hlibNodeSetOutlinerVisibility")
-    def set_outliner_visibility(self, state, *, fast=False):
+    def setOutlinerVisibility(self, state, *, fast=False):
         """ノードのアウトライナー表示を切り替える。
 
         Args:
@@ -128,16 +128,16 @@ class DagNode(Node):
         self.plug("hiddenInOutliner").set(not state)
         return self
 
-    def get_outliner_color(self):
+    def getOutlinerColor(self):
         """Color: このノードのOutliner色。無効時はdisabledモード。"""
         from hlib.ui.color import Color
-        if not cmds.getAttr(self.full_name() + ".useOutlinerColor"):
+        if not self.plug("useOutlinerColor").get():
             return Color.disabled()
-        return Color(rgb=cmds.getAttr(self.full_name() + ".outlinerColor")[0])
+        return Color(rgb=self.plug("outlinerColor").get())
 
     @fast_edit
     @undo_chunk("hlibNodeOutlinerColor")
-    def set_outliner_color(self, color, *, fast=False):
+    def setOutlinerColor(self, color, *, fast=False):
         """このノードのOutliner色を設定する。色番号は保持RGBへ変換する。
 
         Args:
@@ -154,23 +154,22 @@ class DagNode(Node):
         self._set_display_color(self._display_color_updates(value, outliner=True))
         return self
 
-    def get_override_color(self):
+    def getOverrideColor(self):
         """Color: 自身のDrawing Overrides色。最終表示色ではない。
 
         親・表示レイヤー・選択ハイライトは合成しない。
         アトリビュートがない場合はRuntimeError。無効時はdisabledモードを返す。
         """
         from hlib.ui.color import Color
-        name = self.full_name()
-        if not cmds.getAttr(name + ".overrideEnabled"):
+        if not self.plug("overrideEnabled").get():
             return Color.disabled()
-        if cmds.getAttr(name + ".overrideRGBColors"):
-            return Color(rgb=cmds.getAttr(name + ".overrideColorRGB")[0])
-        return Color(index=cmds.getAttr(name + ".overrideColor"))
+        if self.plug("overrideRGBColors").get():
+            return Color(rgb=self.plug("overrideColorRGB").get())
+        return Color(index=self.plug("overrideColor").get())
 
     @fast_edit
     @undo_chunk("hlibNodeOverrideColor")
-    def set_override_color(self, color, *, fast=False):
+    def setOverrideColor(self, color, *, fast=False):
         """指定形式のままDrawing Overrides色を設定する。子Shapeへは転送しない。
 
         Args:
@@ -205,11 +204,11 @@ class DagNode(Node):
     def _prepare_display_color(self, updates):
         """全アトリビュートの存在・書込み可否を検証してPlugと値の計画を返す。"""
         from .._core.fastWrite import writable
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("Cannot color an invalid node")
-        if cmds.lockNode(self.full_name(), query=True, lock=True)[0]:
-            raise RuntimeError("Cannot color a locked node: " + self.full_name())
-        if any(not cmds.objExists(self.full_name() + "." + name) for name, _ in updates):
+        if om2.MFnDependencyNode(self.mobject()).isLocked:
+            raise RuntimeError("Cannot color a locked node: " + self.fullName())
+        if any(not cmds.objExists(self.fullName() + "." + name) for name, _ in updates):
             raise RuntimeError("Node does not have the requested display color attributes")
         plugs = [(self.plug(name), value) for name, value in updates]
         for plug, value in plugs:
@@ -224,9 +223,9 @@ class DagNode(Node):
         """検証済みの計画を現在のfastモードで適用する。実行時失敗は伝播する。"""
         for plug, value in plugs:
             if isinstance(value, tuple):
-                set_attr(plug.full_name(), *value, type="float3")
+                set_attr(plug.fullName(), *value, type="float3")
             else:
-                set_attr(plug.full_name(), value)
+                set_attr(plug.fullName(), value)
 
     def _set_display_color(self, updates):
         """単体の表示色を全アトリビュート検証後に反映する。"""
@@ -238,20 +237,20 @@ class DagNode(Node):
 @bulk_api(
     DagNode,
     reads=(
-        'dag_path',
-        'dag_fn',
-        'parent_path',
-        'parent_node',
-        'get_visibility',
-        'get_outliner_visibility',
-        'get_outliner_color',
-        'get_override_color',
+        'dagPath',
+        'dagFn',
+        'parentPath',
+        'parentNode',
+        'getVisibility',
+        'getOutlinerVisibility',
+        'getOutlinerColor',
+        'getOverrideColor',
     ),
     writes=(
-        'set_visibility',
-        'set_outliner_visibility',
-        'set_outliner_color',
-        'set_override_color',
+        'setVisibility',
+        'setOutlinerVisibility',
+        'setOutlinerColor',
+        'setOverrideColor',
     ),
 )
 class DagNodes(Nodes):
@@ -259,17 +258,17 @@ class DagNodes(Nodes):
 
     item_class = DagNode
 
-    def get_override_color(self):
+    def getOverrideColor(self):
         """list[Color]: 各対象のDrawing Overrides色。無効状態も保持順で返す。"""
-        return [node.get_override_color() for node in self]
+        return [node.getOverrideColor() for node in self]
 
-    def get_outliner_color(self):
+    def getOutlinerColor(self):
         """list[Color]: 各対象のOutliner色。無効状態も保持順で返す。"""
-        return [node.get_outliner_color() for node in self]
+        return [node.getOutlinerColor() for node in self]
 
     @fast_edit
     @undo_chunk("hlibNodesOverrideColor")
-    def set_override_color(self, color, *, fast=False):
+    def setOverrideColor(self, color, *, fast=False):
         """全対象へ同じ表示色を設定する。全対象の事前検証後に反映する。
 
         Args:
@@ -287,7 +286,7 @@ class DagNodes(Nodes):
 
     @fast_edit
     @undo_chunk("hlibNodesOutlinerColor")
-    def set_outliner_color(self, color, *, fast=False):
+    def setOutlinerColor(self, color, *, fast=False):
         """全対象へ同じOutliner色を設定する。
 
         Args:
@@ -302,7 +301,7 @@ class DagNodes(Nodes):
 
     @fast_edit
     @undo_chunk("hlibNodesOverrideColors")
-    def set_override_colors(self, colors, *, fast=False):
+    def setOverrideColors(self, colors, *, fast=False):
         """保持順に一色ずつDrawing Overridesを設定する。
 
         Args:
@@ -319,7 +318,7 @@ class DagNodes(Nodes):
 
     @fast_edit
     @undo_chunk("hlibNodesOutlinerColors")
-    def set_outliner_colors(self, colors, *, fast=False):
+    def setOutlinerColors(self, colors, *, fast=False):
         """保持順に一色ずつOutliner色を設定する。
 
         Args:

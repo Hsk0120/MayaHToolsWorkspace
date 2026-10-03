@@ -11,7 +11,7 @@ from .shape import Shape
 class Locator(Shape):
     """Maya の locator シェイプラッパー。"""
 
-    def get_position(self):
+    def getPosition(self):
         """localPosition を取得する。
 
         Returns:
@@ -20,7 +20,7 @@ class Locator(Shape):
         return Translation(*self.plug("localPosition").get())
 
     @fast_edit
-    def set_position(self, value, *, fast=False):
+    def setPosition(self, value, *, fast=False):
         """localPosition を設定する。
 
         Args:

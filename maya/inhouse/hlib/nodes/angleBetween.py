@@ -11,7 +11,7 @@ from .node import Node
 class AngleBetween(Node):
     """2本のベクトルのなす角と回転。"""
 
-    def input_plug(self, index):
+    def inputPlug(self, index):
         """入力のPlugを取得する。
 
         Args:
@@ -21,7 +21,7 @@ class AngleBetween(Node):
         """
         return self.plug(f"vector{_Calculation.index(index, (1, 2))}")
 
-    def get_input(self, index):
+    def getInput(self, index):
         """入力の評価値を取得する。
 
         Args:
@@ -29,11 +29,11 @@ class AngleBetween(Node):
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.input_plug(index).get()
+        return self.inputPlug(index).get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, index, value, *, fast=False):
+    def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -46,11 +46,11 @@ class AngleBetween(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.input_plug, index)
+        _Calculation.set_value(value, _Calculation.vector, self.inputPlug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, index, source, force=False):
+    def connectInput(self, index, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -63,10 +63,10 @@ class AngleBetween(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, index, force=force)
+        _Calculation.connect(source, self.inputPlug, index, force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -78,18 +78,18 @@ class AngleBetween(Node):
         Returns:
             float: 計算結果。
         """
-        return self.output_plug().get()
+        return self.outputPlug().get()
 
-    def get_axis(self):
+    def getAxis(self):
         """回転軸を取得する。
         Returns:
             Vector: 回転軸。
         """
         return Vector(self.plug("axis").get())
 
-    def get_rotation(self):
+    def getRotation(self):
         """Euler回転を取得する。
         Returns:
-            tuple[float, float, float]: XYZ順、度。
+            tuple[float, float, float]: XYZ順、rad。
         """
         return tuple(self.plug("euler").get())

@@ -26,13 +26,13 @@ class Double3Plug(CompoundPlug):
 
         Returns:
             Vector | Translation | EulerRotation | Scale | Shear: アトリビュートの値。
-                rotateはラジアン・ノードのrotateOrder、距離は現在のUI単位。
+                rotateはラジアン・ノードのrotateOrder、距離はcm。
 
         Raises:
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
-        value_type = self._value_types.get(self.attribute_name(), Vector)
+        value_type = self._value_types.get(self.attributeName(), Vector)
         if value_type is EulerRotation:
             order = int(self.node.plug("ro").get())
             # UIの角度単位に依存せず、値型はラジアンで構築する。
@@ -58,11 +58,11 @@ class Double3Plug(CompoundPlug):
             ValueError: 要素数・有限値・角度単位が不正、または型付き回転にdegを指定した場合。
             RuntimeError: アトリビュートが無効、ロック・接続済み、またはMayaが更新を拒否した場合。
 
-        ワールド空間やjointOrientを含む姿勢の変更はTransform.set_rotate等を使う。
+        ワールド空間やjointOrientを含む姿勢の変更はTransform.setRotation等を使う。
         通常モードは1回のUndoで戻せる。Mayaの実行時エラーを自動ロールバックはしない。
         """
         self._require_valid()
-        if self._value_types.get(self.attribute_name()) is EulerRotation:
+        if self._value_types.get(self.attributeName()) is EulerRotation:
             if unit not in ("rad", "deg"):
                 raise ValueError("unit must be 'rad' or 'deg'")
             order = int(self.node.plug("ro").get())
@@ -77,8 +77,6 @@ class Double3Plug(CompoundPlug):
                     values = tuple(math.radians(v) for v in values)
             if len(values) != 3 or not all(math.isfinite(v) for v in values):
                 raise ValueError("Expected three finite rotation components")
-            # 子Plug.setとcmds.setAttrはUI単位で書く。fastでも同じ数値を渡す。
-            values = tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in values)
         else:
             values = tuple(value)
             if len(values) != 3 or not all(math.isfinite(v) for v in values):

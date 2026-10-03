@@ -10,23 +10,23 @@ from .node import Node
 class UnitConversion(Node):
     """Mayaの単位変換係数を扱う。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """入力のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("input")
 
-    def get_input(self):
+    def getInput(self):
         """入力の評価値を取得する。
         Returns:
             float: 現在の値。
         """
-        return self.input_plug().get()
+        return self.inputPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, value, *, fast=False):
+    def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -38,11 +38,11 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.scalar, self.input_plug)
+        _Calculation.set_value(value, _Calculation.scalar, self.inputPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -54,26 +54,26 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, force=force)
+        _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
-    def factor_plug(self):
+    def factorPlug(self):
         """変換係数のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("conversionFactor")
 
-    def get_factor(self):
+    def getFactor(self):
         """変換係数の評価値を取得する。
         Returns:
             float: 現在の値。
         """
-        return self.factor_plug().get()
+        return self.factorPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_factor(self, value, *, fast=False):
+    def setFactor(self, value, *, fast=False):
         """変換係数へ定数値を設定する。
 
         Args:
@@ -85,11 +85,11 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.scalar, self.factor_plug)
+        _Calculation.set_value(value, _Calculation.scalar, self.factorPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_factor(self, source, force=False):
+    def connectFactor(self, source, force=False):
         """変換係数へ接続する。
 
         Args:
@@ -101,10 +101,10 @@ class UnitConversion(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.factor_plug, force=force)
+        _Calculation.connect(source, self.factorPlug, force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -116,4 +116,4 @@ class UnitConversion(Node):
         Returns:
             float: 計算結果。
         """
-        return self.output_plug().get()
+        return self.outputPlug().get()

@@ -35,7 +35,7 @@ class ScriptJob:
             options["event"] = [event, callback]
         else:
 
-            options["attributeChange"] = [_InputPlug._resolve_input(attribute).full_name(), callback]
+            options["attributeChange"] = [_InputPlug._resolve_input(attribute).fullName(), callback]
         self._id = cmds.scriptJob(**options)
         self._stopped = False
 

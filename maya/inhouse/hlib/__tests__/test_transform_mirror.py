@@ -1,4 +1,5 @@
 """ノードミラーの空間・回転・UndoをMaya内で検証する。"""
+from maya.api.OpenMaya import MSpace
 import sys
 import unittest
 
@@ -31,62 +32,62 @@ class TransformMirrorTest(unittest.TestCase):
                         cmds.setAttr(name + ".rotate", 12, 23, 34)
                         if node_type == "joint":
                             cmds.setAttr(name + ".jointOrient", 5, 10, 15)
-                        original = node.get_matrix(ws=True)
-                        parent = Node(self.parent).get_matrix(ws=True)
+                        original = node.getMatrix(space=MSpace.kWorld)
+                        parent = Node(self.parent).getMatrix(space=MSpace.kWorld)
                         source = original if ws else original * parent.inverse()
                         expected = source.mirrored(axis, (4, 5, 6))
                         if not ws:
                             expected = expected * parent
-                        self.assertIs(node.mirror_transform(axis, ws, (4, 5, 6), fast=fast), node)
-                        self.assertTrue(node.get_matrix(ws=True).isEquivalent(expected, 1e-7),
+                        self.assertIs(node.mirrorTransform(axis, MSpace.kWorld if ws else MSpace.kObject, (4, 5, 6), fast=fast), node)
+                        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(expected, 1e-7),
                                         (node_type, fast, ws, axis))
                         if not fast:
                             cmds.undo()
-                            self.assertTrue(node.get_matrix(ws=True).isEquivalent(original, 1e-7))
+                            self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(original, 1e-7))
                             cmds.redo()
-                        node.mirror_transform(axis, ws, (4, 5, 6), fast=fast)
-                        self.assertTrue(node.get_matrix(ws=True).isEquivalent(original, 1e-7))
+                        node.mirrorTransform(axis, MSpace.kWorld if ws else MSpace.kObject, (4, 5, 6), fast=fast)
+                        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(original, 1e-7))
                         cmds.delete(name)
 
     def test_offset_pivot_units_and_bulk(self):
         name = cmds.createNode("transform", parent=self.parent)
         node = Node(name)
         cmds.setAttr(name + ".offsetParentMatrix", *Matrix(translate=(4, 2, 1)), type="matrix")
-        original = node.get_matrix(ws=True)
+        original = node.getMatrix(space=MSpace.kWorld)
         unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
-            node.mirror_transform("x", ws=True, pivot=(1, 0, 0))
-            self.assertTrue(node.get_matrix(ws=True).isEquivalent(
-                original.mirrored("x", (100, 0, 0)), 1e-7))
+            node.mirrorTransform("x", space=MSpace.kWorld, pivot=(1, 0, 0))
+            self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(
+                original.mirrored("x", (1, 0, 0)), 1e-7))
         finally:
             cmds.currentUnit(linear=unit)
         cmds.xform(name, pivots=(1, 2, 3))
         with self.assertRaises(ValueError):
-            node.mirror_transform(fast=True)
+            node.mirrorTransform(fast=True)
         joints = Joints([Node(cmds.createNode("joint", parent=self.parent)) for _ in range(2)])
-        before = joints.get_matrix(ws=True)
-        joints.mirror_transform("z", ws=True)
+        before = joints.getMatrix(space=MSpace.kWorld)
+        joints.mirrorTransform("z", space=MSpace.kWorld)
         cmds.undo()
         for node, matrix in zip(joints, before):
-            self.assertTrue(node.get_matrix(ws=True).isEquivalent(matrix, 1e-7))
+            self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(matrix, 1e-7))
 
     def test_invalid_inputs_and_inherits_transform(self):
         node = Node(cmds.createNode("transform", parent=self.parent))
         node.plug("inheritsTransform").set(False)
-        node.set_translate((1, 2, 3))
-        original = node.get_matrix(ws=True)
-        node.mirror_transform("x")
-        self.assertTrue(node.get_matrix(ws=True).isEquivalent(original.mirrored("x"), 1e-7))
-        original = node.get_matrix(ws=True)
+        node.setTranslation((1, 2, 3))
+        original = node.getMatrix(space=MSpace.kWorld)
+        node.mirrorTransform("x")
+        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(original.mirrored("x"), 1e-7))
+        original = node.getMatrix(space=MSpace.kWorld)
         for kwargs in ({"axis": "xx"}, {"pivot": (float("nan"), 0, 0)}, {"ws": 1}):
             with self.assertRaises((ValueError, TypeError)):
-                node.mirror_transform(**kwargs)
-            self.assertTrue(node.get_matrix(ws=True).isEquivalent(original, 1e-7))
+                node.mirrorTransform(**kwargs)
+            self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(original, 1e-7))
         node.plug("inheritsTransform").set(True)
         cmds.setAttr(self.parent + ".scaleX", 0)
         with self.assertRaises(ValueError):
-            node.mirror_transform(ws=True)
+            node.mirrorTransform(space=MSpace.kWorld)
 
 
 if __name__ == "__main__":

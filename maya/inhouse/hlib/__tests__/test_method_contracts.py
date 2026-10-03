@@ -1,4 +1,5 @@
 """メソッド整理後の責務・Undo・旧入口の除去をMayaで検証する。"""
+from maya.api.OpenMaya import MSpace
 import sys
 import unittest
 import uuid
@@ -24,22 +25,22 @@ class MethodContractTest(unittest.TestCase):
 
     def test_matrix_attribute_never_redirects_to_transform(self):
         """Transform上の行列アトリビュートでもTRSを変えず、Undoでアトリビュート値を戻す。"""
-        self.node.set_translate((2, 3, 4))
-        plug = self.node.add_attribute(long_name='storedMatrix', data_type='matrix')
+        self.node.setTranslation((2, 3, 4))
+        plug = self.node.addAttribute(longName='storedMatrix', dataType='matrix')
         identity = hlib.maths.Matrix()
         plug.set(identity)
         value = hlib.maths.Matrix(translate=(8, 9, 10))
-        before = self.node.get_matrix()
+        before = self.node.getMatrix()
         plug.set(value)
-        self.assertTrue(plug.get().is_equivalent(value))
-        self.assertTrue(self.node.get_matrix().is_equivalent(before))
+        self.assertTrue(plug.get().isEquivalent(value))
+        self.assertTrue(self.node.getMatrix().isEquivalent(before))
         cmds.undo()
-        self.assertTrue(plug.get().is_equivalent(identity))
+        self.assertTrue(plug.get().isEquivalent(identity))
         cmds.redo()
-        self.assertTrue(plug.get().is_equivalent(value))
+        self.assertTrue(plug.get().isEquivalent(value))
         plug.set(identity, fast=True)
-        self.assertTrue(plug.get().is_equivalent(identity))
-        self.assertTrue(self.node.get_matrix().is_equivalent(before))
+        self.assertTrue(plug.get().isEquivalent(identity))
+        self.assertTrue(self.node.getMatrix().isEquivalent(before))
         with self.assertRaises(TypeError):
             plug.set(value, ws=True)
         with self.assertRaises(TypeError):
@@ -47,14 +48,14 @@ class MethodContractTest(unittest.TestCase):
 
     def test_visibility_state_and_undo(self):
         """表示状態変更と入力検証を確認する。"""
-        self.node.set_visibility(False)
+        self.node.setVisibility(False)
         self.assertFalse(self.node.plug('visibility').get())
         cmds.undo()
         self.assertTrue(self.node.plug('visibility').get())
-        self.node.set_visibility(False, fast=True)
+        self.node.setVisibility(False, fast=True)
         self.assertFalse(self.node.plug('visibility').get())
         with self.assertRaises(TypeError):
-            self.node.set_visibility('false')
+            self.node.setVisibility('false')
 
     def test_selection_empty_modes_and_invalid_mode(self):
         """追加・除外の空入力で現在選択を消さない。"""
@@ -85,7 +86,7 @@ class MethodContractTest(unittest.TestCase):
                            (MatrixPlug, ('set_value',))):
             for name in names:
                 self.assertFalse(hasattr(cls, name), (cls, name))
-        self.assertIn('set_visibility', Joints._bulk_methods)
+        self.assertIn('setVisibility', Joints._bulk_methods)
         self.assertNotIn('hide', Joints._bulk_methods)
 
 
@@ -105,13 +106,13 @@ class MethodContractTest(unittest.TestCase):
                     joint.plug('rotate').set((17, 23, 31), unit='deg')
                     joint.plug('scale').set((1.2, 1.3, 1.4))
                     for fast in (False, True):
-                        before = joint.get_matrix(ws=True)
+                        before = joint.getMatrix(space=MSpace.kWorld)
                         rotation = joint.plug('rotate').get()
                         scale = joint.plug('scale').get()
                         joint.plug('rotate').set(rotation, fast=fast)
                         joint.plug('scale').set(scale, fast=fast)
-                        self.assertTrue(joint.get_matrix(ws=True).is_equivalent(before, 1e-9))
-                        self.assertTrue(joint.plug('rotate').get().is_equivalent(rotation, 1e-9))
+                        self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(before, 1e-9))
+                        self.assertTrue(joint.plug('rotate').get().isEquivalent(rotation, 1e-9))
         finally:
             cmds.currentUnit(angle=old_unit)
 
@@ -125,7 +126,7 @@ class MethodContractTest(unittest.TestCase):
         plug.set(value)
         self.assertTrue(plug.get().asMatrix().isEquivalent(value.asMatrix(), 1e-9))
         cmds.undo()
-        self.assertTrue(plug.get().is_equivalent(original, 1e-9))
+        self.assertTrue(plug.get().isEquivalent(original, 1e-9))
         cmds.redo()
         self.assertTrue(plug.get().asMatrix().isEquivalent(value.asMatrix(), 1e-9))
         for fast in (False, True):
@@ -143,22 +144,22 @@ class MethodContractTest(unittest.TestCase):
     def test_flags_validate_before_write_and_preserve_omitted_state(self):
         """省略・不正値・Undo・fastの状態設定契約を確認する。"""
         plug = self.node.plug('tx')
-        plug.set_flags(keyable=False, channel_box=True)
-        self.assertFalse(plug.is_keyable())
-        self.assertTrue(cmds.getAttr(plug.full_name(), channelBox=True))
-        plug.set_flags(locked=True)
-        self.assertTrue(plug.is_locked())
-        self.assertFalse(plug.is_keyable())
+        plug.setFlags(keyable=False, channelBox=True)
+        self.assertFalse(plug.isKeyable())
+        self.assertTrue(cmds.getAttr(plug.fullName(), channelBox=True))
+        plug.setFlags(locked=True)
+        self.assertTrue(plug.isLocked())
+        self.assertFalse(plug.isKeyable())
         cmds.undo()
-        self.assertFalse(plug.is_locked())
+        self.assertFalse(plug.isLocked())
         with self.assertRaises(TypeError):
-            plug.set_flags(locked=True, keyable='false')
-        self.assertFalse(plug.is_locked())
-        self.node.set_attribute_flags(['tx'], locked=True, fast=True)
-        self.assertTrue(plug.is_locked())
-        plug.set_flags(locked=False, keyable=True, fast=True)
-        self.assertTrue(plug.is_keyable())
-        self.assertFalse(plug.is_locked())
+            plug.setFlags(locked=True, keyable='false')
+        self.assertFalse(plug.isLocked())
+        self.node.setAttributeFlags(['tx'], locked=True, fast=True)
+        self.assertTrue(plug.isLocked())
+        plug.setFlags(locked=False, keyable=True, fast=True)
+        self.assertTrue(plug.isKeyable())
+        self.assertFalse(plug.isLocked())
         self.assertFalse(hasattr(type(plug), 'set_locked'))
 
     def test_constraint_invalid_target_never_partially_updates(self):
@@ -167,15 +168,15 @@ class MethodContractTest(unittest.TestCase):
         b = hlib.createNode('transform', name=self.ns + ':b')
         outsider = hlib.createNode('transform', name=self.ns + ':outsider')
         constraint = hlib.addConstraint([a, b], self.node, type='point')
-        before = constraint.get_weights()
+        before = constraint.getWeights()
         for fast in (False, True):
             with self.assertRaises(ValueError):
-                constraint.set_weight(.25, a, outsider, fast=fast)
-            self.assertEqual(constraint.get_weights(), before)
-        constraint.set_weight(.25, a)
-        self.assertAlmostEqual(constraint.get_weights()[0], .25)
+                constraint.setWeight(.25, a, outsider, fast=fast)
+            self.assertEqual(constraint.getWeights(), before)
+        constraint.setWeight(.25, a)
+        self.assertAlmostEqual(constraint.getWeights()[0], .25)
         cmds.undo()
-        self.assertEqual(constraint.get_weights(), before)
+        self.assertEqual(constraint.getWeights(), before)
 
     def test_plug_space_argument_and_redundant_methods_are_removed(self):
         """アトリビュートの型にかかわらず空間指定と古い別名を公開しない。"""

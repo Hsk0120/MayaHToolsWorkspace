@@ -11,23 +11,23 @@ from .node import Node
 class Reverse(Node):
     """XYZ各成分の1-inputを計算する。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """入力のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('input')
 
-    def get_input(self):
+    def getInput(self):
         """入力の評価値を取得する。
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.input_plug().get()
+        return self.inputPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, value, *, fast=False):
+    def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -39,11 +39,11 @@ class Reverse(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.input_plug)
+        _Calculation.set_value(value, _Calculation.vector, self.inputPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -55,10 +55,10 @@ class Reverse(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, force=force)
+        _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -70,4 +70,4 @@ class Reverse(Node):
         Returns:
             Vector: 計算結果。
         """
-        return Vector(self.output_plug().get())
+        return Vector(self.outputPlug().get())

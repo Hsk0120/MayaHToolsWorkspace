@@ -1,4 +1,4 @@
-"""DecomposeMatrix.set_rotate_order が回転順序の名前と番号の両方を受け付けることを検証する。"""
+"""DecomposeMatrix.setRotateOrder が回転順序の名前と番号の両方を受け付けることを検証する。"""
 
 import sys
 import unittest
@@ -21,44 +21,44 @@ class DecomposeMatrixRotateOrderTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.namespace, deleteNamespaceContent=True)
 
     def rotate_order(self):
-        return cmds.getAttr(self.node.full_name() + ".inputRotateOrder")
+        return cmds.getAttr(self.node.fullName() + ".inputRotateOrder")
 
     def test_accepts_names_and_order_numbers(self):
         names = hlib.maths.eulerRotation.ORDER_NAMES
         for index, name in enumerate(names):
-            self.assertIs(self.node.set_rotate_order(name), self.node)
+            self.assertIs(self.node.setRotateOrder(name), self.node)
             self.assertEqual(self.rotate_order(), index)
-            self.node.set_rotate_order(0)
-            self.assertIs(self.node.set_rotate_order(index), self.node)
+            self.node.setRotateOrder(0)
+            self.assertIs(self.node.setRotateOrder(index), self.node)
             self.assertEqual(self.rotate_order(), index)
-            self.node.set_rotate_order(0)
-            self.node.set_rotate_order(name.upper())
+            self.node.setRotateOrder(0)
+            self.node.setRotateOrder(name.upper())
             self.assertEqual(self.rotate_order(), index)
         # EulerRotation.order(om2 の番号)や om2 の定数をそのまま渡せる。
         euler = hlib.maths.EulerRotation(0.1, 0.2, 0.3, "yxz")
-        self.node.set_rotate_order(euler.order)
+        self.node.setRotateOrder(euler.order)
         self.assertEqual(self.rotate_order(), om2.MEulerRotation.kYXZ)
-        self.node.set_rotate_order(om2.MEulerRotation.kZXY)
+        self.node.setRotateOrder(om2.MEulerRotation.kZXY)
         self.assertEqual(self.rotate_order(), 2)
 
     def test_invalid_orders_raise_without_editing(self):
-        self.node.set_rotate_order("zyx")
+        self.node.setRotateOrder("zyx")
         for invalid in ("bad", "", 6, -1, True, 1.0, None):
             with self.assertRaises(ValueError, msg=repr(invalid)):
-                self.node.set_rotate_order(invalid)
+                self.node.setRotateOrder(invalid)
             self.assertEqual(self.rotate_order(), 5)
 
     def test_number_is_undoable_and_fast_mode_writes_directly(self):
-        self.node.set_rotate_order(4)
+        self.node.setRotateOrder(4)
         self.assertEqual(self.rotate_order(), 4)
         cmds.undo()
         self.assertEqual(self.rotate_order(), 0)
         cmds.redo()
         self.assertEqual(self.rotate_order(), 4)
-        self.node.set_rotate_order(3, fast=True)
+        self.node.setRotateOrder(3, fast=True)
         self.assertEqual(self.rotate_order(), 3)
         with self.assertRaises(ValueError):
-            self.node.set_rotate_order(7, fast=True)
+            self.node.setRotateOrder(7, fast=True)
         self.assertEqual(self.rotate_order(), 3)
 
 

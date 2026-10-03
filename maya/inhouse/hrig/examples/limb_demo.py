@@ -79,7 +79,7 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
         hlib.getNode(value) for value in (cmds.parent(proxy, rig._member("moduleGeometry")) or [])
     ][0]
     # デモの公開戻り値は従来通り名前。構築中は型付き参照で扱う。
-    high, proxy = high.full_name(), proxy.full_name()
+    high, proxy = high.fullName(), proxy.fullName()
     high_skin = bind_mesh(rig, high)
     proxy_skin = create_skin_lod(rig, high, proxy, high_skin)
     rig._layer_members("moduleSet", [high, proxy, high_skin, proxy_skin])

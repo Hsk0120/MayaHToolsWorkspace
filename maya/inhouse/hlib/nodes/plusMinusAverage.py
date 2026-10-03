@@ -10,16 +10,16 @@ from .shadingDependNode import ShadingDependNode
 class PlusMinusAverage(ShadingDependNode):
     """配列入力の加算・減算・平均を計算する。"""
 
-    def get_operation(self):
+    def getOperation(self):
         """現在のモード名を取得する。
         Returns:
             str: none, sum, subtract, average。
         """
-        return _Calculation.enum_name(self.plug("operation"), ('none', 'sum', 'subtract', 'average'))
+        return _Calculation.enumName(self.plug("operation"), ('none', 'sum', 'subtract', 'average'))
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_operation(self, mode, *, fast=False):
+    def setOperation(self, mode, *, fast=False):
         """モードを設定する。
 
         Args:
@@ -31,7 +31,7 @@ class PlusMinusAverage(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enum_value(mode, ('none', 'sum', 'subtract', 'average'))
+        value = _Calculation.enumValue(mode, ('none', 'sum', 'subtract', 'average'))
         self.plug("operation").set(value)
         return self
 
@@ -45,7 +45,7 @@ class PlusMinusAverage(ShadingDependNode):
         """
         return self.plug("input%dD" % _Calculation.index(dimension, (1, 2, 3)))
 
-    def input_indices(self, dimension=1):
+    def inputIndices(self, dimension=1):
         """既存の入力番号を取得する。
 
         Args:
@@ -55,7 +55,7 @@ class PlusMinusAverage(ShadingDependNode):
         """
         return list(self._input_array(dimension).mplug().getExistingArrayAttributeIndices())
 
-    def input_plug(self, index, dimension=1):
+    def inputPlug(self, index, dimension=1):
         """既存の入力を参照する。
 
         Args:
@@ -66,7 +66,7 @@ class PlusMinusAverage(ShadingDependNode):
         """
         return self._input_array(dimension).element(_Calculation.index(index))
 
-    def get_input(self, index, dimension=1):
+    def getInput(self, index, dimension=1):
         """入力の評価値を取得する。
 
         Args:
@@ -75,10 +75,10 @@ class PlusMinusAverage(ShadingDependNode):
         Returns:
             float | tuple: 入力値。
         """
-        return self.input_plug(index, dimension).get()
+        return self.inputPlug(index, dimension).get()
 
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, index, value, dimension=1):
+    def setInput(self, index, value, dimension=1):
         """指定番号に入力値を設定する。
 
         Args:
@@ -98,7 +98,7 @@ class PlusMinusAverage(ShadingDependNode):
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, index, source, dimension=1, force=False):
+    def connectInput(self, index, source, dimension=1, force=False):
         """指定番号に接続する。
 
         Args:
@@ -119,7 +119,7 @@ class PlusMinusAverage(ShadingDependNode):
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def remove_input(self, index, dimension=1):
+    def removeInput(self, index, dimension=1):
         """入力要素とその接続を削除する。
 
         Args:
@@ -131,10 +131,10 @@ class PlusMinusAverage(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        self._input_array(dimension).remove_element(_Calculation.index(index))
+        self._input_array(dimension).removeElement(_Calculation.index(index))
         return self
 
-    def output_plug(self, dimension=1):
+    def outputPlug(self, dimension=1):
         """出力Plugを取得する。
 
         Args:
@@ -152,4 +152,4 @@ class PlusMinusAverage(ShadingDependNode):
         Returns:
             float | tuple: 評価済み出力。
         """
-        return self.output_plug(dimension).get()
+        return self.outputPlug(dimension).get()

@@ -1,4 +1,4 @@
-"""列挙値。get/setは整数値、enum_name/enum_valueは名前と値を扱う。"""
+"""列挙値。get/setは整数値、enumName/enum_valueは名前と値を扱う。"""
 
 from .._core.registry import plug_wrapper
 from .plug import Plug
@@ -6,4 +6,4 @@ from .plug import Plug
 
 @plug_wrapper("enum")
 class EnumPlug(Plug):
-    """列挙値。get/setは整数値、enum_name/enum_valueは名前と値を扱う。"""
+    """列挙値。get/setは整数値、enumName/enum_valueは名前と値を扱う。"""

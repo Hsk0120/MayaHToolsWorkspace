@@ -78,6 +78,13 @@ class Component(Object):
         if not (isinstance(value, tuple) and len(value) == 2
                 and isinstance(value[0], om2.MDagPath) and isinstance(value[1], om2.MObject)):
             raise TypeError("Expected a component reference, name or (MDagPath, MObject)")
+        # 単数解決では、広い範囲を単体ラッパーへ展開する前に拒否する。
+        if not value[1].hasFn(om2.MFn.kSingleIndexedComponent):
+            raise TypeError("Expected a single-indexed component")
+        component_fn = om2.MFnSingleIndexedComponent(value[1])
+        count = component_fn.getCompleteData() if component_fn.isComplete else component_fn.elementCount
+        if count != 1:
+            raise ValueError("Expected one component; use Selection for ranges")
         items = Component._from_api(*value)
         if len(items) != 1:
             raise ValueError("Expected one component; use Selection for ranges")
@@ -135,13 +142,13 @@ class Component(Object):
 
     def _get_coordinate(self, axis, **space):
         """指定軸の現在座標を返す。axisは派生クラスが検証済みの整数。"""
-        return self.get_position(**space)[axis]
+        return self.getPosition(**space)[axis]
 
     def _set_coordinate(self, axis, value, **space):
         """指定軸だけを置換し、派生クラスの座標更新へ委譲する。"""
-        position = list(self.get_position(**space))
+        position = list(self.getPosition(**space))
         position[axis] = value
-        return self.set_position(position, **space)
+        return self.setPosition(position, **space)
 
     def _validate(self):
         """現在のシェイプ型と番号を再検査する。
@@ -154,23 +161,23 @@ class Component(Object):
             IndexError: 番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
         """
-        if not callable(getattr(self._shape, "is_valid", None)):
+        if not callable(getattr(self._shape, "isValid", None)):
             raise TypeError("shape must be an hlib shape wrapper")
-        if not self._shape.is_valid():
+        if not self._shape.isValid():
             raise RuntimeError("Component shape is invalid")
         if self._shape.type() != self.shape_type:
             raise TypeError(f"Expected a {self.shape_type} shape")
         if not 0 <= self._index < getattr(self._shape, self.count_attribute)():
             raise IndexError(f"Component index out of range: {self._index}")
 
-    def full_name(self):
+    def fullName(self):
         """現在の DAG パスを使ってコンポーネント名を取得する。
 
         Returns:
             str: シェイプの完全パスとコンポーネントの種類・番号を含む名前。
         """
         self._validate()
-        return f"{self._shape.full_name()}.{self.component_type}[{self._index}]"
+        return f"{self._shape.fullName()}.{self.component_type}[{self._index}]"
 
     def __str__(self):
         """コンポーネント名を返す。
@@ -178,7 +185,7 @@ class Component(Object):
         Returns:
             str: 現在の完全パス付きコンポーネント名。
         """
-        return self.full_name()
+        return self.fullName()
 
 
     @staticmethod
@@ -228,9 +235,9 @@ class Components:
             RuntimeError: シェイプが無効な場合。
         """
         self._shape = shape
-        if not callable(getattr(shape, "is_valid", None)):
+        if not callable(getattr(shape, "isValid", None)):
             raise TypeError("shape must be an hlib shape wrapper")
-        if not shape.is_valid():
+        if not shape.isValid():
             raise RuntimeError("Component shape is invalid")
         if shape.type() != self.component_class.shape_type:
             raise TypeError(f"Expected a {self.component_class.shape_type} shape")
@@ -274,8 +281,19 @@ class Components:
             IndexError: いずれかの番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
         """
+        self._validate()
+        return f"{self._shape.fullName()}.{self.component_class.component_type}"
+
+    def _validate(self):
+        """シェイプと保持番号を一括検証し、名前や単数ラッパーは生成しない。
+
+        Raises:
+            TypeError: シェイプ型が異なる場合。
+            IndexError: トポロジー変更により番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
         component_class = self.component_class
-        if not self._shape.is_valid():
+        if not self._shape.isValid():
             raise RuntimeError("Component shape is invalid")
         if self._shape.type() != component_class.shape_type:
             raise TypeError(f"Expected a {component_class.shape_type} shape")
@@ -283,9 +301,8 @@ class Components:
             largest = max(self._indices)
             if largest >= getattr(self._shape, component_class.count_attribute)():
                 raise IndexError(f"Component index out of range: {largest}")
-        return f"{self._shape.full_name()}.{component_class.component_type}"
 
-    def full_names(self):
+    def fullNames(self):
         """保持順の完全コンポーネント名を取得する。
 
         全番号の再検証はまとめて1回だけ行う。
@@ -301,7 +318,7 @@ class Components:
         prefix = self._name_prefix()
         return [f"{prefix}[{index}]" for index in self._indices]
 
-    def compact_names(self):
+    def compactNames(self):
         """保持順で連続する番号を範囲指定にまとめた名前を取得する。
 
         ``maya.cmds`` へ多数の要素を渡す用途向け(``hlib.select`` などが使う)。
@@ -364,11 +381,11 @@ class Components:
 
     def _get_coordinate(self, axis, **space):
         """保持順の指定軸の値を返す。axisは派生クラスが選択する。"""
-        return [point[axis] for point in self.get_position(**space)]
+        return [point[axis] for point in self.getPosition(**space)]
 
     def _set_coordinate(self, axis, value, **space):
         """全要素の指定軸を置換し、座標列の検証・更新へ委譲する。"""
-        return self.set_positions(self._axis_rows(self.get_position(**space), axis, value), **space)
+        return self.setPositions(self._axis_rows(self.getPosition(**space), axis, value), **space)
 
     def _axis_rows(self, positions, axis, value):
         """軸の一括設定用座標を作る。スカラーは全要素、列は保持順に対応する。

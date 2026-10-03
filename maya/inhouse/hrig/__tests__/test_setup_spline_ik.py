@@ -32,7 +32,7 @@ class SplineIKTest(unittest.TestCase):
         self.assertGreater(
             abs(
                 cmds.xform(
-                    self.joints[2].full_name(), query=True, worldSpace=True, translation=True
+                    self.joints[2].fullName(), query=True, worldSpace=True, translation=True
                 )[1]
             ),
             0.1,
@@ -42,7 +42,7 @@ class SplineIKTest(unittest.TestCase):
         graph.set_enabled(True)
         self.assertIsNotNone(graph.member("handle").plug("inCurve").source())
         hlib.delete(graph.container)
-        self.assertTrue(all(cmds.objExists(n.full_name()) for n in self.joints + self.controls))
+        self.assertTrue(all(cmds.objExists(n.fullName()) for n in self.joints + self.controls))
         self.assertFalse(cmds.ls("splineGraph*"))
 
     def test_invalid_inputs(self):

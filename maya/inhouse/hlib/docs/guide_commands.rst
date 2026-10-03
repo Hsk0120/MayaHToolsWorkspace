@@ -39,7 +39,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。
 ``delete`` は複数ノードもまとめて受け付けます。Plug(アトリビュート)を渡すと ``TypeError`` です
 (``maya.cmds.delete`` はアトリビュートを削除せず何もしないため)。動的アトリビュートの削除は
-``plug.delete_attribute()``、所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
+``plug.deleteAttribute()``、所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
 
 選択とアニメーション
 --------------------
@@ -73,7 +73,7 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
 
 アトリビュートの取得・設定・接続（``getAttr``/``setAttr``/``connectAttr``/``addAttr``）は
 コマンドとしては用意していません。``node.plug("attrName")`` が返す ``Plug`` の
-``get()``/``set()``/``connect()``、および ``node.add_attribute()`` を使ってください。
+``get()``/``set()``/``connect()``、および ``node.addAttribute()`` を使ってください。
 ``Plug`` は ``maya.cmds.getAttr(plug)`` のように maya.cmds へそのまま渡すこともできます
 （:doc:`cmds_interop`）。
 
@@ -121,7 +121,7 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
      - ``getDrivenKey``
 
 ``create`` / ``add`` は生成・追加専用です。拘束の照会は
-``constraint.targets()`` / ``constraint.weight_plugs()``、編集は
-``constraint.set_weight()`` を使います。セットは
+``constraint.targets()`` / ``constraint.weightPlugs()``、編集は
+``constraint.setWeight()`` を使います。セットは
 ``object_set.members()`` / ``add()`` / ``remove()`` を使います。
-``getDrivenKey`` は関係取得のみで、キーの生成は ``set_key()`` です。
+``getDrivenKey`` は関係取得のみで、キーの生成は ``setKey()`` です。

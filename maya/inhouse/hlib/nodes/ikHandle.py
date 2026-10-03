@@ -10,7 +10,7 @@ from .transform import Transform
 class IkHandle(Transform):
     """極ベクトル拘束の作成を含む Transform 操作に対応する IK ハンドル。"""
 
-    def end_joint(self):
+    def endJoint(self):
         """IK チェーンの末端 joint を取得する。
 
         ikEffector ノードの translate 接続元を辿って end joint を特定する
@@ -28,13 +28,13 @@ class IkHandle(Transform):
         source = effector_plug.node.plug("translateX").source()
         if source is None:
             return None
-        return Joint(source.node.full_name())
+        return Joint(source.node.fullName())
 
     def joints(self, include_tip=False):
         """IK チェーンを構成する joint を start joint から順に取得する。
 
         Args:
-            include_tip (bool): True の場合、末端 joint(``end_joint()``)も
+            include_tip (bool): True の場合、末端 joint(``endJoint()``)も
                 末尾に含める。``cmds.ikHandle(query=True, jointList=True)`` は
                 既定では末端 joint を含まない。
 
@@ -47,12 +47,12 @@ class IkHandle(Transform):
         """
         from .joint import Joint
 
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("Cannot query the joint list of an invalid IK handle")
-        names = cmds.ikHandle(self.full_name(), query=True, jointList=True) or []
+        names = cmds.ikHandle(self.fullName(), query=True, jointList=True) or []
         joints = [Joint(name) for name in names]
         if include_tip:
-            tip = self.end_joint()
+            tip = self.endJoint()
             if tip is not None:
                 joints.append(tip)
         return joints

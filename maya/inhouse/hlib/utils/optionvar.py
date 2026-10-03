@@ -80,7 +80,7 @@ class OptionVar:
 
     Examples:
         >>> settings = OptionVar("myTool", defaults={"size": 1.0, "axes": ["x"]})
-        >>> settings.full_name("size")
+        >>> settings.fullName("size")
         'myTool.size'
         >>> settings["size"]
         1.0
@@ -135,7 +135,7 @@ class OptionVar:
         """dict[str, object]: キーごとのデフォルト値。参照するたびに新しい辞書を返す。"""
         return {key: json.loads(text) for key, text in self._default_texts.items()}
 
-    def full_name(self, key):
+    def fullName(self, key):
         """キーに対応する optionVar 名を組み立てる。Maya への問い合わせは行わない。
 
         Args:
@@ -306,7 +306,7 @@ class OptionVar:
             ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
                 value に NaN・無限大・循環参照を含む場合や、入れ子が深すぎる場合。
         """
-        name = self.full_name(key)
+        name = self.fullName(key)
         cmds.optionVar(stringValue=(name, _to_json(value)))
 
     def __setitem__(self, key, value):
@@ -334,7 +334,7 @@ class OptionVar:
             TypeError: :meth:`set` と同じ条件。
             ValueError: :meth:`set` と同じ条件。
         """
-        pending = [(self.full_name(key), _to_json(value)) for key, value in dict(values).items()]
+        pending = [(self.fullName(key), _to_json(value)) for key, value in dict(values).items()]
         for name, text in pending:
             cmds.optionVar(stringValue=(name, text))
 
@@ -353,7 +353,7 @@ class OptionVar:
             TypeError: key が文字列でない場合。
             ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
         """
-        name = self.full_name(key)
+        name = self.fullName(key)
         if not cmds.optionVar(exists=name):
             return False
         cmds.optionVar(remove=name)
@@ -375,7 +375,7 @@ class OptionVar:
         """
         if not self.is_stored(key):
             raise KeyError(key)
-        cmds.optionVar(remove=self.full_name(key))
+        cmds.optionVar(remove=self.fullName(key))
 
     def reset_all(self):
         """接頭辞の直下にある optionVar を全て削除する。
@@ -405,7 +405,7 @@ class OptionVar:
 
     def _read_stored(self, key):
         """キーの optionVar を読んで JSON を解釈する。無い・読めない場合は _MISSING。"""
-        name = self.full_name(key)
+        name = self.fullName(key)
         if not cmds.optionVar(exists=name):
             return _MISSING
         return _from_json(cmds.optionVar(query=name))

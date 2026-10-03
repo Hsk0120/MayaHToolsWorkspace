@@ -25,10 +25,10 @@ class InternalRefactoringTest(unittest.TestCase):
         deferred_module = importlib.import_module("hlib.cmds.executeDeferred")
         node = hlib.createNode("transform")
         with patch.object(add_module, "addAttr", side_effect=AssertionError("reverse dependency")):
-            plug = node.add_attribute("referenceCheck", attribute_type="double", default_value=3)
+            plug = node.addAttribute("referenceCheck", attributeType="double", defaultValue=3)
         self.assertEqual(plug.get(), 3)
         cmds.undo()
-        self.assertFalse(cmds.attributeQuery("referenceCheck", node=node.full_name(), exists=True))
+        self.assertFalse(cmds.attributeQuery("referenceCheck", node=node.fullName(), exists=True))
         callback = lambda: None
         with patch.object(deferred_module, "executeDeferred", side_effect=AssertionError("reverse dependency")), \
                 patch.object(maya.utils, "executeDeferred") as enqueue:
@@ -41,9 +41,9 @@ class InternalRefactoringTest(unittest.TestCase):
         node = hlib.createNode("transform")
         plug = node.plug("tx")
         with patch.object(Nodes, "_resolve_inputs", side_effect=AssertionError("input cycle")):
-            self.assertEqual(hlib.Object._input_names(x for x in [[plug]]), [plug.full_name()])
+            self.assertEqual(hlib.Object._input_names(x for x in [[plug]]), [plug.fullName()])
             with self.assertRaises(TypeError):
-                hlib.Object._input_names([node, node.full_name()])
+                hlib.Object._input_names([node, node.fullName()])
 
     def test_snapshot_base_kind_and_serialized_shape(self):
         """基底Snapshotのkindによる適用と既存JSON構造を維持する。"""
@@ -97,7 +97,7 @@ class InternalRefactoringTest(unittest.TestCase):
         queries = [joints[2], joints[0], joints[2], "notAnInfluence"]
         self.assertEqual([skin._jnt_index(x) for x in queries],
                          skin._influence_indices(queries, skin.fn.influenceObjects()))
-        cmds.skinCluster(skin.full_name(), edit=True, removeInfluence=joints[1])
+        cmds.skinCluster(skin.fullName(), edit=True, removeInfluence=joints[1])
         self.assertIsNone(skin._jnt_index(joints[1]))
         self.assertEqual(skin._jnt_index(joints[2]), 1)
         cmds.undo()
@@ -109,21 +109,21 @@ class InternalRefactoringTest(unittest.TestCase):
         for kind, value in (("bool", True), ("byte", 12), ("char", 3), ("short", -2),
                             ("long", 53), ("float", 1.25), ("double", 2.5)):
             name = "value_" + kind
-            cmds.addAttr(node.full_name(), longName=name, attributeType=kind)
+            cmds.addAttr(node.fullName(), longName=name, attributeType=kind)
             plug = node.plug(name)
             plug.set(value)
             normal = plug.get()
             plug.set(0, fast=True)
             plug.set(value, fast=True)
             self.assertEqual(plug.get(), normal)
-            self.assertEqual(plug.data_type(), kind)
+            self.assertEqual(plug.dataType(), kind)
         cmds.currentUnit(linear="m", angle="rad")
         node.plug("tx").set(2, fast=True)
         self.assertAlmostEqual(node.plug("tx").get(), 2)
-        # 角度のgetは従来から度。setの単位と安易に共通化しない。
+        # 角度のget/setはUI単位によらずrad。
         node.plug("rx").set(1, fast=True)
         import math
-        self.assertAlmostEqual(node.plug("rx").get(), math.degrees(1))
+        self.assertAlmostEqual(node.plug("rx").get(), 1.0)
 
     def test_reload_rebuilds_registry_and_caches(self):
         """新しい基底・型登録・型情報で再取得でき、独自登録を残さない。"""
@@ -148,33 +148,33 @@ class InternalRefactoringTest(unittest.TestCase):
     def test_calculation_validation_before_target_resolution(self):
         """不正入力で接続先解決や更新を開始しない。"""
         node = hlib.createNode("addDoubleLinear")
-        node.set_input(1, 5)
-        with patch.object(type(node), "input_plug", side_effect=AssertionError("target resolved")):
+        node.setInput(1, 5)
+        with patch.object(type(node), "inputPlug", side_effect=AssertionError("target resolved")):
             with self.assertRaises(ValueError):
-                node.set_input(1, float("nan"))
+                node.setInput(1, float("nan"))
             with self.assertRaises(TypeError):
-                node.connect_input(1, object())
-        self.assertEqual(node.get_input(1), 5)
+                node.connectInput(1, object())
+        self.assertEqual(node.getInput(1), 5)
 
     def test_calculation_shared_edit_modes(self):
         """共通化後も戻り値・Undo・fast・接続元の入力形式を維持する。"""
         node = hlib.createNode("addDoubleLinear")
         source = hlib.createNode("addDoubleLinear")
-        node.set_input(1, 2)
-        self.assertIs(node.set_input(1, 7), node)
+        node.setInput(1, 2)
+        self.assertIs(node.setInput(1, 7), node)
         cmds.undo()
-        self.assertEqual(node.get_input(1), 2)
+        self.assertEqual(node.getInput(1), 2)
         cmds.redo()
-        self.assertEqual(node.get_input(1), 7)
+        self.assertEqual(node.getInput(1), 7)
         cmds.flushUndo()
-        self.assertIs(node.set_input(1, 9, fast=True), node)
+        self.assertIs(node.setInput(1, 9, fast=True), node)
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        self.assertEqual(node.get_input(1), 9)
-        for value in (source.output_plug(), source.output_plug().full_name(), source.output_plug().mplug()):
-            self.assertIs(node.connect_input(1, value), node)
-            self.assertTrue(source.output_plug().is_connected_to(node.input_plug(1)))
+        self.assertEqual(node.getInput(1), 9)
+        for value in (source.outputPlug(), source.outputPlug().fullName(), source.outputPlug().mplug()):
+            self.assertIs(node.connectInput(1, value), node)
+            self.assertTrue(source.outputPlug().isConnectedTo(node.inputPlug(1)))
             cmds.undo()
-            self.assertFalse(source.output_plug().is_connected_to(node.input_plug(1)))
+            self.assertFalse(source.outputPlug().isConnectedTo(node.inputPlug(1)))
 
     def test_deferred_entrypoints_share_validation(self):
         """どちらの入口も同じ引数で一度だけMayaへ予約する。"""

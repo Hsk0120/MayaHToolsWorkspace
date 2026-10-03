@@ -21,7 +21,7 @@
    layout.unlock()
    print(layout.get_locked())
 
-   saved = layout.save_as("MyRiggingLayout")  # 保存し、その配置へ切り替える
+   saved = layout.saveAs("MyRiggingLayout")  # 保存し、その配置へ切り替える
    saved.save()                        # 使用中の配置を上書き保存
    hlib.getWorkspaceLayout("MyRiggingLayout").activate()
    # saved.reset()                     # 未保存変更を捨てて保存済み配置へ戻す
@@ -29,8 +29,8 @@
 ロックは全体のドッキング操作に作用し、個別ウィンドウの位置固定ではありません。
 ロック中もサイズ変更・折り畳みはできます。設定の切り替えだけでは設定ファイルへ保存しません。
 配置はMaya標準のユーザー設定 ``prefs/workspaces`` へ保存され、シーン保存とは別です。
-``save_as`` は同名配置があれば拒否し、意図した上書きだけ ``overwrite=True`` で許可します。
-参照した配置が現在使用中でなければ ``save`` / ``save_as`` / ``reset`` は拒否します。
+``saveAs`` は同名配置があれば拒否し、意図した上書きだけ ``overwrite=True`` で許可します。
+参照した配置が現在使用中でなければ ``save`` / ``saveAs`` / ``reset`` は拒否します。
 
 ``activate`` はMayaの自動保存設定に従い、切り替え元の配置が自動保存される場合があります。
 このAPIは自動保存設定を暗黙に変更しません。保存・配置切り替えはシーンUndoによる復元を保証しません。
@@ -45,12 +45,12 @@
 
    window = hlib.getWindow(MainWindow.name())
    print(window.get_size())             # (width, height)
-   print(window.get_position())         # (x, y)、Mayaのtop/left順を変換
+   print(window.getPosition())         # (x, y)、Mayaのtop/left順を変換
    window.set_resizable(False)          # サイズ変更のみ禁止
    window.set_resizable(True)
    print([item.name() for item in Window.list()])
 
-``set_position(x, y)``、``set_size(width, height)``、``show()``、``hide()`` も使用できます。
+``setPosition(x, y)``、``set_size(width, height)``、``show()``、``hide()`` も使用できます。
 ``hide`` は削除ではありません。メインウィンドウを非表示にする必要は通常ありません。
 UIの所有者はMayaであり、このAPIはメインウィンドウの削除メソッドを提供しません。
 

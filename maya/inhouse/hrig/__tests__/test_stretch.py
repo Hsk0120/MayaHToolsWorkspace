@@ -64,9 +64,9 @@ class StretchTest(unittest.TestCase):
         cmds.currentUnit(linear="m")
         rig = build_spline(length=2, axis="z")
         group = rig.add_stretch()
-        rig.controls()[-1].plug("tz").set(1)
+        rig.controls()[-1].plug("tz").set(100)
         self.same(self.position(rig.joints()[-1]), (0, 0, 3))
-        rig.controls()[1].plug("ty").set(0.2)
+        rig.controls()[1].plug("ty").set(20)
         before = [self.matrix(j) for j in rig.joints()]
         rig.match_fk()
         rig.set_mode("fk")
@@ -157,9 +157,9 @@ class StretchTest(unittest.TestCase):
         rig = build_spline()
         rig.add_stretch()
         cmds.undo()
-        self.assertFalse(rig.root.has_attribute("stretchGroup"))
+        self.assertFalse(rig.root.hasAttribute("stretchGroup"))
         cmds.redo()
-        self.assertTrue(rig.root.has_attribute("stretchGroup"))
+        self.assertTrue(rig.root.hasAttribute("stretchGroup"))
         other = build_spline("bound")
         mesh = cmds.polyCube()[0]
         cmds.skinCluster(other.joints(), mesh, toSelectedBones=True)

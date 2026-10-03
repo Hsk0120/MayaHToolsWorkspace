@@ -117,16 +117,16 @@ class Object(metaclass=_ObjectType):
         if isinstance(value, str):
             name = value
         elif isinstance(value, node_class):
-            name = value.full_name()
+            name = value.fullName()
             if not name:
                 raise ValueError("無効な(削除済みの)ノードは指定できません")
         elif isinstance(value, plug_class):
-            name = value.full_name()
+            name = value.fullName()
             if not name:
                 raise ValueError("無効な(所有ノードまたはアトリビュートが削除済みの)Plug は指定できません")
         elif isinstance(value, component_class):
             try:
-                name = value.full_name()
+                name = value.fullName()
             except (RuntimeError, IndexError) as error:
                 raise ValueError(f"無効なコンポーネントは指定できません: {error}") from error
         elif isinstance(value, om2.MPlug):
@@ -237,7 +237,7 @@ class Object(metaclass=_ObjectType):
             if isinstance(value, components_class):
                 try:
                     # 全番号の検証はコレクションごとに1回だけ行い、連続する番号は範囲指定にまとめる。
-                    names.extend(value.compact_names())
+                    names.extend(value.compactNames())
                 except (RuntimeError, IndexError) as error:
                     raise ValueError(f"無効なコンポーネントは指定できません: {error}") from error
                 return

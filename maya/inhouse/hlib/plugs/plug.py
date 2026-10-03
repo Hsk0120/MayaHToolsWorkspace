@@ -3,7 +3,8 @@
 from hlib.object import Object
 
 from ..decorators._fast import fast_edit, is_fast
-from .._core.attributeType import attribute_type, is_internal_data_type, value_reader
+from .._core.attributeType import attributeType, is_internal_data_type, value_reader
+from .._core.unitValue import convert
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import set_plug
 
@@ -124,7 +125,7 @@ def _held_matrix_type(mplug, depth=0):
         source = sources[0]
         if source.isArray:
             return None
-        type_name = attribute_type(source)
+        type_name = attributeType(source)
         if type_name is not None:
             return "matrix" if type_name == "matrix" else None
         if depth >= _MAX_SOURCE_DEPTH:
@@ -203,16 +204,16 @@ class Plug(Object):
     専用クラスを選択する。基底クラスの書き込み・接続・ロック操作は
     Undo チャンクで囲まれる。派生クラス独自の経路は各メソッドを参照する。
 
-    ``str(plug)`` と ``full_name()`` は maya.cmds で一意に解決できる
+    ``str(plug)`` と ``fullName()`` は maya.cmds で一意に解決できる
     ``<ノードの最短一意名>.<アトリビュートパス>`` を返すため、Plug はそのまま
     ``cmds.getAttr(plug)``/``cmds.connectAttr(a, b)`` などへ渡せる。
     短い名前が重複するノード(``grp1|dup`` と ``grp2|dup``)でも一意で、
     名前変更・親子付け替えにも追従する。ただし ``ArrayPlug`` は ``[]`` で要素を
     取得できるため maya.cmds がシーケンスとして展開しようとして失敗する。
-    配列アトリビュート全体を渡す場合は ``str(plug)`` か ``plug.full_name()`` を渡す。
+    配列アトリビュート全体を渡す場合は ``str(plug)`` か ``plug.fullName()`` を渡す。
 
     所有ノードが削除された、または動的アトリビュートが ``deleteAttr`` で削除された Plug は
-    無効になり(:meth:`is_valid`)、``str()``・:meth:`full_name`・:meth:`name` は空文字列、
+    無効になり(:meth:`isValid`)、``str()``・:meth:`fullName`・:meth:`name` は空文字列、
     値の取得・設定、アトリビュートの情報・接続の問い合わせ、要素・子・親の取得は RuntimeError に
     なる(削除済みの MPlug を Maya へ渡すと異常終了する場合があるため)。
     Undo でノード・アトリビュートが戻れば再び有効になる。"""
@@ -261,7 +262,7 @@ class Plug(Object):
 
     @staticmethod
     def _mplug_name(mplug):
-        """MPlug を ``Plug.full_name()`` と同じ形式の一意なプラグ名へ変換する。
+        """MPlug を ``Plug.fullName()`` と同じ形式の一意なプラグ名へ変換する。
 
         所有ノードが Undo の対象から外れて削除された(``flushUndo`` 後・Undo 無効・シーンの
         切り替え)MPlug は、``MPlug.node()`` の時点で Maya が異常終了し、API では検出できない。
@@ -297,7 +298,7 @@ class Plug(Object):
             DeletedAttributeError | None: アトリビュートが ``deleteAttr`` で削除済みなら送出する例外。
                 所有ノードが削除済みの場合(無効な所有ノードとして扱う)と、有効な Plug は None。
         """
-        if plug.node.is_valid() and not plug.is_valid():
+        if plug.node.isValid() and not plug.isValid():
             return DeletedAttributeError("削除済みのアトリビュートの Plug からノードは解決できません")
         return None
 
@@ -443,34 +444,34 @@ class Plug(Object):
         if owner.length() != 1:
             return None
         mobject = owner.getDependNode(0)
-        dag_path = owner.getDagPath(0) if mobject.hasFn(om2.MFn.kDagNode) else None
+        dagPath = owner.getDagPath(0) if mobject.hasFn(om2.MFn.kDagNode) else None
         match = _PLUG_PATH_TOKEN.match(attribute_path.split(".", 1)[0])
         if match is None:
             return None
         first = Plug._find_plug(mobject, match.group(1))
         if first is None:
             # transform の名前でシェイプのアトリビュートを指す場合は、唯一のシェイプで探す。
-            if dag_path is None or not mobject.hasFn(om2.MFn.kTransform):
+            if dagPath is None or not mobject.hasFn(om2.MFn.kTransform):
                 return None
-            shape_path = om2.MDagPath(dag_path)
+            shape_path = om2.MDagPath(dagPath)
             try:
                 shape_path.extendToShape()
             except RuntimeError:
                 return None
-            mobject, dag_path = shape_path.node(), shape_path
+            mobject, dagPath = shape_path.node(), shape_path
             first = Plug._find_plug(mobject, match.group(1))
             if first is None:
                 return None
         mplug = Plug._attribute_path_plug(mobject, attribute_path, first)
         if mplug is None:
             return None
-        return (dag_path if dag_path is not None else mobject), mplug
+        return (dagPath if dagPath is not None else mobject), mplug
 
     @staticmethod
     def _resolve_input(value):
         """対象を hlib の Plug インスタンスへ変換する。
 
-        文字列は ``str(plug)``・``plug.full_name()`` が返す形式(``grp1|dup.translateX``、
+        文字列は ``str(plug)``・``plug.fullName()`` が返す形式(``grp1|dup.translateX``、
         ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[2].pntx`` など)を含め、
         maya.cmds と同じ規則で解決する。インスタンス化された DAG ノードのアトリビュートは、
         名前が指すインスタンスのノードを所有ノードにする。コンポーネント名としても
@@ -481,7 +482,7 @@ class Plug(Object):
             value (Plug | om2.MPlug | str): Plug、MPlug、または ``"node.attribute"`` 形式のアトリビュート名。
 
         Returns:
-            Plug: value が Plug ならそのまま(削除済みでも例外にしない。``Plug.is_valid()`` で
+            Plug: value が Plug ならそのまま(削除済みでも例外にしない。``Plug.isValid()`` で
                 確かめる)、それ以外はアトリビュート型に応じた Plug ラッパー。
 
         Raises:
@@ -520,8 +521,8 @@ class Plug(Object):
                     raise TypeError(f"アトリビュートを指す名前ではありません: {value}") from error
                 owner, mplug = resolved
                 return plug_class(node_class(owner), mplug)
-            mobject, dag_path = _InputNode._selection_owner(selection, 0, value)
-            return plug_class(node_class(dag_path if dag_path is not None else mobject), mplug)
+            mobject, dagPath = _InputNode._selection_owner(selection, 0, value)
+            return plug_class(node_class(dagPath if dagPath is not None else mobject), mplug)
         raise TypeError(f"Plug、om2.MPlug、またはアトリビュート名を指定してください: {type(value).__name__}")
 
 
@@ -532,7 +533,7 @@ class Plug(Object):
         """配列・登録アトリビュート型・複合アトリビュートの順にラッパー型を選ぶ。
 
         登録アトリビュート型の判定には ``cmds.getAttr(type=True)`` と同じ型名を使う。型名は
-        アトリビュート定義から求め(:func:`hlib._core.attributeType.attribute_type`)、maya.cmds へ
+        アトリビュート定義から求め(:func:`hlib._core.attributeType.attributeType`)、maya.cmds へ
         問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。
         値によって型が変わるアトリビュート(generic アトリビュートなど)は、存在する要素が行列を保持していれば
         ``cmds.getAttr(type=True)`` と同じく ``matrix`` として扱う(``MatrixPlug``)。
@@ -583,7 +584,7 @@ class Plug(Object):
             else:
                 resolved_class = None
                 if cls._registry is not None:
-                    type_name = attribute_type(mplug)
+                    type_name = attributeType(mplug)
                     if type_name is None:
                         type_name = _held_matrix_type(mplug)
                     resolved_class = cls._registry.lookup(type_name)
@@ -626,7 +627,7 @@ class Plug(Object):
     def _attribute_exists(self):
         """アトリビュートが所有ノードに存在し続けているか判定する(所有ノードは有効であること)。
 
-        頻繁に呼ばれる :meth:`_require_valid`・:meth:`full_name` は、呼び出しの負荷を
+        頻繁に呼ばれる :meth:`_require_valid`・:meth:`fullName` は、呼び出しの負荷を
         避けるため同じ判定を直接書いている(変更する場合はそろえること)。
 
         Returns:
@@ -645,12 +646,12 @@ class Plug(Object):
         """生存中の同じアトリビュート参照を比較する。削除済みのAPIへ照会しない。"""
         if not isinstance(other, Plug):
             return NotImplemented
-        if not (self._node.is_alive() and other._node.is_alive()
+        if not (self._node.isAlive() and other._node.isAlive()
                 and self._attribute_handle.isAlive() and other._attribute_handle.isAlive()):
             return False
         return self._identity_path == other._identity_path and self._mplug == other._mplug
 
-    def is_valid(self):
+    def isValid(self):
         """所有ノードとアトリビュートがシーンに存在し、値を読み書きできるか判定する。
 
         Returns:
@@ -709,9 +710,9 @@ class Plug(Object):
 
         Returns:
             str: 必要な multi インデックスを含むプラグ名。所有ノードが無効(削除済み)、
-                またはアトリビュートが削除済みの場合は空文字列(:meth:`full_name` と同じ)。
+                またはアトリビュートが削除済みの場合は空文字列(:meth:`fullName` と同じ)。
         """
-        if not self.is_valid():
+        if not self.isValid():
             return ""
         return self._mplug.partialName(
             includeNodeName=False,
@@ -719,7 +720,7 @@ class Plug(Object):
             useLongNames=False,
         )
 
-    def full_name(self):
+    def fullName(self):
         """maya.cmds で一意に解決できる、ノード名を含む完全修飾プラグ名を取得する。
 
         ``<ノードの最短一意名>.<アトリビュートパス>`` の形式。ノード名は ``Node.name()``
@@ -737,7 +738,7 @@ class Plug(Object):
 
         Returns:
             str: 完全修飾プラグ名。所有ノードが無効(削除済み)、またはアトリビュートが削除済みの
-                場合は空文字列(:meth:`is_valid` が ``False``)。
+                場合は空文字列(:meth:`isValid` が ``False``)。
         """
         node = self._node
         handle = node._handle
@@ -750,23 +751,23 @@ class Plug(Object):
                 not self._attribute_handle.isValid()
                 or fn.attributeClass(self._attribute) == _INVALID_ATTRIBUTE):
             return ""  # _attribute_exists() と同じ判定(str() のたびに呼ばれるため直接書く)。
-        dag_path = node._dag_path
-        if dag_path is None:
+        dagPath = node._dag_path
+        if dagPath is None:
             # DG ノードの名前はシーン内で一意(Maya は DAG ノードとの重複も許さない)。
             return self._mplug.name()
         # インスタンス化されたノードとアンダーワールドのノード(``shape->node``)は、
         # Node.name() がパスを含むため、同じ表記になるよう下の経路で求める。
-        if dag_path.isValid() and not dag_path.isInstanced() and dag_path.pathCount() == 1 and fn.hasUniqueName():
+        if dagPath.isValid() and not dagPath.isInstanced() and dagPath.pathCount() == 1 and fn.hasUniqueName():
             return self._mplug.name()
         # plug_path() と同じ引数。頻繁に呼ばれるため関数呼び出しを省いて直接問い合わせる。
         return node.name() + "." + self._mplug.partialName(False, True, True, True, False, True)
 
-    #: ``str(plug)`` は :meth:`full_name` と同じ(maya.cmds は文字列以外の引数に ``str()`` を
+    #: ``str(plug)`` は :meth:`fullName` と同じ(maya.cmds は文字列以外の引数に ``str()`` を
     #: 適用するため、Plug をそのまま ``cmds.getAttr(plug)`` のように渡せる)。頻繁に呼ばれるため、
     #: 呼び出しを1段省けるよう同じ関数を割り当てる。
-    __str__ = full_name
+    __str__ = fullName
 
-    def attribute_name(self):
+    def attributeName(self):
         """基になる Maya アトリビュートのロング名を取得する。
 
         Returns:
@@ -778,7 +779,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).name
 
-    def nice_name(self):
+    def niceName(self):
         """UI 表示用のニース名を取得する。
 
         Returns:
@@ -789,7 +790,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return cmds.attributeName(self.full_name(), nice=True)
+        return cmds.attributeName(self.fullName(), nice=True)
 
     def type(self):
         """このプラグを表す現在の hlib クラスを返す。
@@ -799,7 +800,7 @@ class Plug(Object):
         """
         return type(self)
 
-    def data_type(self):
+    def dataType(self):
         """アトリビュート定義からMayaのデータ型名を取得する。値の評価は行わない。
 
         Returns:
@@ -809,20 +810,20 @@ class Plug(Object):
             type()はPythonラッパークラスを返す。未作成の配列要素を生成しない。
         """
         self._require_valid()
-        return attribute_type(self._mplug)
+        return attributeType(self._mplug)
 
-    def is_array(self):
+    def isArray(self):
         """multi アトリビュートか判定する。
 
-        ``is_array``/``is_compound``/``is_element``/``is_child`` はプラグの構造だけを返すため、
-        無効な Plug(:meth:`is_valid` が ``False``)でも例外にしない。
+        ``isArray``/``isCompound``/``isElement``/``isChild`` はプラグの構造だけを返すため、
+        無効な Plug(:meth:`isValid` が ``False``)でも例外にしない。
 
         Returns:
             bool: array プラグの場合は ``True``。
         """
         return self._mplug.isArray
 
-    def is_compound(self):
+    def isCompound(self):
         """compound アトリビュートか判定する。
 
         Returns:
@@ -830,7 +831,7 @@ class Plug(Object):
         """
         return self._mplug.isCompound
 
-    def is_element(self):
+    def isElement(self):
         """multi アトリビュートの要素プラグか判定する。
 
         Returns:
@@ -838,7 +839,7 @@ class Plug(Object):
         """
         return self._mplug.isElement
 
-    def is_child(self):
+    def isChild(self):
         """compound アトリビュートの子プラグか判定する。
 
         Returns:
@@ -861,7 +862,7 @@ class Plug(Object):
             return None
         return Plug(self._node, self._mplug.parent())
 
-    def is_keyable(self):
+    def isKeyable(self):
         """チャンネルボックスでキー可能なアトリビュートか判定する。
 
         setAttr(keyable=...) によるプラグ単位の動的な上書きを反映する
@@ -878,13 +879,13 @@ class Plug(Object):
 
 
     @staticmethod
-    def _validated_flags(locked=None, keyable=None, channel_box=None):
+    def _validated_flags(locked=None, keyable=None, channelBox=None):
         """状態値を全件検証し、Mayaのフラグ名へ変換する。
 
         Args:
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー可能状態。
-            channel_box (bool | None): Channel Box表示状態。
+            channelBox (bool | None): Channel Box表示状態。
 
         Returns:
             dict: 指定されたMayaフラグだけを含む辞書。
@@ -893,7 +894,7 @@ class Plug(Object):
             TypeError: boolまたはNone以外の状態がある場合。
         """
         flags = {}
-        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channel_box)):
+        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channelBox)):
             if value is not None:
                 if not isinstance(value, bool):
                     raise TypeError(f"{name} must be bool or None")
@@ -902,13 +903,13 @@ class Plug(Object):
 
     @fast_edit
     @undo_chunk("hlibPlugSetFlags")
-    def set_flags(self, *, locked=None, keyable=None, channel_box=None, fast=False):
+    def setFlags(self, *, locked=None, keyable=None, channelBox=None, fast=False):
         """アトリビュートの状態をまとめて変更する。省略した状態は変更しない。
 
         Args:
             locked (bool | None): ロック状態。
             keyable (bool | None): キー設定可否。
-            channel_box (bool | None): Channel Box表示。キー可能なアトリビュートはFalseでも表示される。
+            channelBox (bool | None): Channel Box表示。キー可能なアトリビュートはFalseでも表示される。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
@@ -918,13 +919,13 @@ class Plug(Object):
             TypeError: 状態がbool/None以外の場合。
             RuntimeError: アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
-        flags = self._validated_flags(locked, keyable, channel_box)
+        flags = self._validated_flags(locked, keyable, channelBox)
         self._require_valid()
         if flags:
-            set_attr(self.full_name(), **flags)
+            set_attr(self.fullName(), **flags)
         return self
 
-    def is_connected(self):
+    def isConnected(self):
         """入出力接続を持つか判定する。
 
         Returns:
@@ -936,7 +937,7 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isConnected
 
-    def is_source(self):
+    def isSource(self):
         """出力接続元か判定する。
 
         Returns:
@@ -948,7 +949,7 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isSource
 
-    def is_destination(self):
+    def isDestination(self):
         """入力接続先か判定する。
 
         Returns:
@@ -960,7 +961,7 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isDestination
 
-    def is_hidden(self):
+    def isHidden(self):
         """UI から隠されたアトリビュートか判定する。
 
         Returns:
@@ -972,7 +973,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).hidden
 
-    def is_dynamic(self):
+    def isDynamic(self):
         """動的に追加されたアトリビュート（addAttr によるカスタムアトリビュート等）か判定する。
 
         Returns:
@@ -984,7 +985,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).dynamic
 
-    def is_readable(self):
+    def isReadable(self):
         """値を取得できるアトリビュートか判定する。
 
         Returns:
@@ -996,7 +997,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).readable
 
-    def is_writable(self):
+    def isWritable(self):
         """値を設定できるアトリビュートか判定する。
 
         Returns:
@@ -1008,7 +1009,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).writable
 
-    def is_storable(self):
+    def isStorable(self):
         """シーンファイルへ値が保存されるアトリビュートか判定する。
 
         Returns:
@@ -1020,7 +1021,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).storable
 
-    def has_min(self):
+    def hasMin(self):
         """最小値制限を持つアトリビュートか判定する。
 
         数値アトリビュート、角度・距離・時間アトリビュートのみ対応する。それ以外は常に ``False``。
@@ -1039,7 +1040,7 @@ class Plug(Object):
             return om2.MFnUnitAttribute(attr).hasMin()
         return False
 
-    def has_max(self):
+    def hasMax(self):
         """最大値制限を持つアトリビュートか判定する。
 
         数値アトリビュート、角度・距離・時間アトリビュートのみ対応する。それ以外は常に ``False``。
@@ -1105,7 +1106,7 @@ class Plug(Object):
             return fn.getMax() if fn.hasMax() else None
         return None
 
-    def has_soft_min(self):
+    def hasSoftMin(self):
         """ソフト最小値（UIスライダーの下限）を持つアトリビュートか判定する。
 
         数値アトリビュート、角度・距離・時間アトリビュートのみ対応する。それ以外は常に ``False``。
@@ -1124,7 +1125,7 @@ class Plug(Object):
             return om2.MFnUnitAttribute(attr).hasSoftMin()
         return False
 
-    def has_soft_max(self):
+    def hasSoftMax(self):
         """ソフト最大値（UIスライダーの上限）を持つアトリビュートか判定する。
 
         数値アトリビュート、角度・距離・時間アトリビュートのみ対応する。それ以外は常に ``False``。
@@ -1143,7 +1144,7 @@ class Plug(Object):
             return om2.MFnUnitAttribute(attr).hasSoftMax()
         return False
 
-    def soft_min(self):
+    def softMin(self):
         """設定されているソフト最小値（UIスライダーの下限）を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -1166,7 +1167,7 @@ class Plug(Object):
             return fn.getSoftMin() if fn.hasSoftMin() else None
         return None
 
-    def soft_max(self):
+    def softMax(self):
         """設定されているソフト最大値（UIスライダーの上限）を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -1211,7 +1212,7 @@ class Plug(Object):
             return om2.MFnEnumAttribute(attr).default
         return None
 
-    def enum_name(self):
+    def enumName(self):
         """enum アトリビュートの現在値に対応するフィールド名を取得する。
 
         Returns:
@@ -1224,11 +1225,11 @@ class Plug(Object):
         self._require_valid()
         attr = self._mplug.attribute()
         if not attr.hasFn(om2.MFn.kEnumAttribute):
-            raise TypeError("enum_name は enum アトリビュートにのみ使用できます")
+            raise TypeError("enumName は enum アトリビュートにのみ使用できます")
         return om2.MFnEnumAttribute(attr).fieldName(int(self.get()))
 
     @undo_chunk("hlibPlugSetEnumNames")
-    def set_enum_names(self, names):
+    def setEnumNames(self, names):
         """enumアトリビュートの表示名を指定順に更新する。
 
         Args:
@@ -1244,7 +1245,7 @@ class Plug(Object):
         """
         self._require_valid()
         if not self._mplug.attribute().hasFn(om2.MFn.kEnumAttribute):
-            raise TypeError("set_enum_names requires an enum attribute")
+            raise TypeError("setEnumNames requires an enum attribute")
         if isinstance(names, str):
             raise TypeError("names must be a sequence of strings")
         names = list(names)
@@ -1252,11 +1253,11 @@ class Plug(Object):
             raise TypeError("enum names must be strings")
         if not names or any(not name or ":" in name or "=" in name for name in names):
             raise ValueError("enum names must be non-empty and contain no ':' or '='")
-        cmds.addAttr(self.full_name(), edit=True, enumName=":".join(names))
+        cmds.addAttr(self.fullName(), edit=True, enumName=":".join(names))
         return self
 
-    def enum_value(self, name):
-        """enum アトリビュートのフィールド名に対応する値を取得する(enum_name の逆引き)。
+    def enumValue(self, name):
+        """enum アトリビュートのフィールド名に対応する値を取得する(enumName の逆引き)。
 
         Args:
             name (str): 検索するフィールド名。
@@ -1272,7 +1273,7 @@ class Plug(Object):
         self._require_valid()
         attr = self._mplug.attribute()
         if not attr.hasFn(om2.MFn.kEnumAttribute):
-            raise TypeError("enum_value は enum アトリビュートにのみ使用できます")
+            raise TypeError("enumValue は enum アトリビュートにのみ使用できます")
         enum_fn = om2.MFnEnumAttribute(attr)
         for value in range(enum_fn.getMin(), enum_fn.getMax() + 1):
             try:
@@ -1282,7 +1283,7 @@ class Plug(Object):
                 continue
         raise ValueError(f"No enum field named {name!r}")
 
-    def is_locked(self):
+    def isLocked(self):
         """プラグがロックされているか判定する。
 
         Returns:
@@ -1295,7 +1296,7 @@ class Plug(Object):
         return self._mplug.isLocked
 
 
-    def is_muted(self):
+    def isMuted(self):
         """アトリビュートがミュートされているか判定する。
 
         Returns:
@@ -1305,10 +1306,10 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return bool(cmds.mute(self.full_name(), query=True))
+        return bool(cmds.mute(self.fullName(), query=True))
 
     @undo_chunk("hlibPlugSetMuted")
-    def set_muted(self, state):
+    def setMuted(self, state):
         """ミュート状態を設定する。Trueは現在値で固定し、Falseは解除する。
 
         Args:
@@ -1325,13 +1326,13 @@ class Plug(Object):
         if not isinstance(state, bool):
             raise TypeError("state must be a bool")
         if state:
-            cmds.mute(self.full_name())
+            cmds.mute(self.fullName())
         else:
-            cmds.mute(self.full_name(), disable=True, force=True)
+            cmds.mute(self.fullName(), disable=True, force=True)
         return self
 
     @undo_chunk("hlibPlugDeleteAttr")
-    def delete_attribute(self, force=False):
+    def deleteAttribute(self, force=False):
         """このアトリビュートをノードから削除する。
 
         動的に追加されたアトリビュート（addAttr によるカスタムアトリビュート）にのみ使用できる。
@@ -1352,17 +1353,16 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        if force and self.is_locked():
-            set_attr(self.full_name(), lock=False)
-        cmds.deleteAttr(self.full_name())
+        if force and self.isLocked():
+            set_attr(self.fullName(), lock=False)
+        cmds.deleteAttr(self.fullName())
 
     def get(self):
         """評価済みの Maya アトリビュート値を取得する。
 
         bool/int/float 系の数値アトリビュート、角度・距離・時間の単位アトリビュート、enum、
-        文字列アトリビュートは Maya API 2.0(MPlug)経由で直接読み取り、MEL コマンドの
-        往復を避ける。角度は度、距離・時間は現在の UI 単位で返し、
-        ``cmds.getAttr`` の既定挙動と一致させる。message アトリビュートや mesh/カーブ等の
+        文字列および対応する型付き配列は Maya API 2.0経由で直接読み取り、MEL コマンドの
+        往復を避ける。角度はrad、距離はcm、時間は秒で返す。message アトリビュートや mesh/カーブ等の
         複雑な typed data アトリビュートのように対応する読み取り方法が無いものは
         ``cmds.getAttr`` にフォールバックする。
 
@@ -1373,7 +1373,7 @@ class Plug(Object):
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合
-                (:meth:`is_valid` が ``False``。削除前の古い値は返さない)。
+                (:meth:`isValid` が ``False``。削除前の古い値は返さない)。
                 Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない
                 配列要素の場合(値を読むと Maya が異常終了する場合があるため。
                 :func:`hlib._core.attributeType.is_internal_data_type`)。
@@ -1388,9 +1388,9 @@ class Plug(Object):
 
         if is_internal_data_type(self._mplug) and not _plug_exists(self._mplug):
             raise RuntimeError(
-                f"Maya 内部のデータ型の存在しない要素の値は読めません: {self.full_name()}"
+                f"Maya 内部のデータ型の存在しない要素の値は読めません: {self.fullName()}"
             )
-        value = cmds.getAttr(self.full_name())
+        value = cmds.getAttr(self.fullName())
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
             return tuple(value[0])
         return value
@@ -1406,12 +1406,12 @@ class Plug(Object):
         要求する引数の形(単純な ``*value`` 展開ではなく、型名や要素数の
         明示)が数値コンパウンド(double3 等)や matrix と異なるため、
         アトリビュート定義から ``cmds.getAttr(..., type=True)`` と同じアトリビュート型名を求めてから
-        (:func:`hlib._core.attributeType.attribute_type`)対応する形で呼び出す。
+        (:func:`hlib._core.attributeType.attributeType`)対応する形で呼び出す。
         それ以外の型(数値コンパウンド、matrix 等)は従来通り ``*value`` で展開する。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (object): 設定する Maya 互換値。
+            value (object): 設定する値。距離cm、角度rad、時間秒。
 
         Returns:
             Plug: 自身。
@@ -1426,23 +1426,24 @@ class Plug(Object):
         if is_fast():
             set_plug(self._mplug, value)
             return self
+        value = convert(self._mplug, value)
         if isinstance(value, str):
-            set_attr(self.full_name(), value, type="string")
+            set_attr(self.fullName(), value, type="string")
             return self
         if isinstance(value, (tuple, list)):
-            attr_type = attribute_type(self._mplug)
+            attr_type = attributeType(self._mplug)
             if attr_type in _SCALAR_ARRAY_TYPES:
-                set_attr(self.full_name(), value, type=attr_type)
+                set_attr(self.fullName(), value, type=attr_type)
             elif attr_type in _LENGTH_PREFIXED_ARRAY_TYPES:
-                set_attr(self.full_name(), len(value), *value, type=attr_type)
+                set_attr(self.fullName(), len(value), *value, type=attr_type)
             else:
-                set_attr(self.full_name(), *value)
+                set_attr(self.fullName(), *value)
             return self
-        set_attr(self.full_name(), value)
+        set_attr(self.fullName(), value)
         return self
 
     @undo_chunk("hlibPlugSetIfChanged")
-    def set_if_changed(self, value, *, unlock=False):
+    def setIfChanged(self, value, *, unlock=False):
         """スカラー値が変わる場合だけ更新し、不要なアトリビュート通知を避ける。
 
         Args:
@@ -1457,17 +1458,17 @@ class Plug(Object):
             RuntimeError: Mayaがアトリビュート更新を拒否した場合。
         """
         if not isinstance(value, (bool, int, float, str)):
-            raise TypeError("set_if_changed supports scalar values only")
+            raise TypeError("setIfChanged supports scalar values only")
         if self.get() == value:
             return False
-        locked = self.is_locked()
+        locked = self.isLocked()
         if unlock and locked:
-            self.set_flags(locked=False)
+            self.setFlags(locked=False)
         try:
             self.set(value)
         finally:
             if unlock and locked:
-                self.set_flags(locked=True)
+                self.setFlags(locked=True)
         return True
 
     @fast_edit
@@ -1475,7 +1476,7 @@ class Plug(Object):
     def reset(self, *, fast=False):
         """数値・単位・enumアトリビュートを定義上の既定値へ戻す。
 
-        単位アトリビュートは現在のMaya表示単位へ変換する。複合アトリビュートは子ごとに処理する。
+        単位アトリビュートは内部単位で扱う。複合アトリビュートは子ごとに処理する。
         接続の切断やロック解除はしない。失敗前の変更は自動では戻さない。
 
         Args:
@@ -1491,7 +1492,7 @@ class Plug(Object):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if self.is_array():
+        if self.isArray():
             raise TypeError("Reset an array element instead of the array plug")
         self._require_valid()
         if self._mplug.isCompound:
@@ -1500,13 +1501,13 @@ class Plug(Object):
             return self
         value = self.default()
         if value is None:
-            raise TypeError(f"No supported default value for {self.full_name()}")
+            raise TypeError(f"No supported default value for {self.fullName()}")
         if isinstance(value, om2.MAngle):
-            value = value.asUnits(om2.MAngle.uiUnit())
+            value = value.asRadians()
         elif isinstance(value, om2.MDistance):
-            value = value.asUnits(om2.MDistance.uiUnit())
+            value = value.asCentimeters()
         elif isinstance(value, om2.MTime):
-            value = value.asUnits(om2.MTime.uiUnit())
+            value = value.asUnits(om2.MTime.kSeconds)
         self.set(value)
         return self
 
@@ -1523,7 +1524,7 @@ class Plug(Object):
         sources = self._mplug.connectedTo(True, False)
         return Plug(self._node_from_mplug(sources[0]), sources[0]) if sources else None
 
-    def anim_curve(self):
+    def animCurve(self):
         """このプラグに直接接続された animCurve ノードを取得する。
 
         pairBlend やアニメーションレイヤーを介した間接的な animCurve は解決しない
@@ -1556,7 +1557,7 @@ class Plug(Object):
         self._require_valid()
         return [Plug(self._node_from_mplug(plug), plug) for plug in self._mplug.connectedTo(False, True)]
 
-    def is_connected_to(self, other):
+    def isConnectedTo(self, other):
         """指定したプラグと接続されているか判定する。
 
         入力・出力いずれの向きでも一致すれば True を返す。
@@ -1612,14 +1613,14 @@ class Plug(Object):
         """
         self._require_valid()
         target = Plug._resolve_input(target)
-        should_unlock = force and target.is_locked()
+        should_unlock = force and target.isLocked()
         if should_unlock:
-            target.set_flags(locked=False)
+            target.setFlags(locked=False)
         try:
-            cmds.connectAttr(self.full_name(), target.full_name(), force=force)
+            cmds.connectAttr(self.fullName(), target.fullName(), force=force)
         finally:
             if should_unlock:
-                target.set_flags(locked=True)
+                target.setFlags(locked=True)
         return target
 
     @undo_chunk("hlibPlugDisconnect")
@@ -1646,13 +1647,13 @@ class Plug(Object):
         self._require_valid()
         if target is not None:
             target = Plug._resolve_input(target)
-            cmds.disconnectAttr(self.full_name(), target.full_name())
+            cmds.disconnectAttr(self.fullName(), target.fullName())
             return self
         source = self.source()
         if source is not None:
-            cmds.disconnectAttr(source.full_name(), self.full_name())
+            cmds.disconnectAttr(source.fullName(), self.fullName())
         for destination in self.destinations():
-            cmds.disconnectAttr(self.full_name(), destination.full_name())
+            cmds.disconnectAttr(self.fullName(), destination.fullName())
         return self
 
     def __repr__(self):
@@ -1662,7 +1663,7 @@ class Plug(Object):
             str: Plug と完全修飾プラグ名を含む文字列表現。所有ノードが無効、またはアトリビュートが削除済みなら
                 ``<Plug invalid>``。
         """
-        name = self.full_name()
+        name = self.fullName()
         if not name:
             return "<Plug invalid>"
         return f"Plug({name!r})"

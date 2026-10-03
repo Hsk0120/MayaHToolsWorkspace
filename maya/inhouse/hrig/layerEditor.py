@@ -321,7 +321,7 @@ class LayerEditor(QtWidgets.QDialog):
         data = item.data(0, QtCore.Qt.UserRole) if item else None
         if not data:
             raise ValueError("モジュールまたはレイヤーを選択してください")
-        roots = [item.full_name() for item in hlib.ls(data["root"], long=True)] or []
+        roots = [item.fullName() for item in hlib.ls(data["root"], long=True)] or []
         if not roots:
             raise ValueError("モジュールが削除されています")
         return ModuleRegistry.get(roots[0]), data
@@ -390,7 +390,7 @@ class LayerEditor(QtWidgets.QDialog):
                     continue
                 states = _states(rig)
                 for role, label in self.LABELS.items():
-                    if not rig.root.has_attribute("channel_" + role):
+                    if not rig.root.hasAttribute("channel_" + role):
                         continue
                     node = hlib.getNode(rig._member("channel_" + role))
                     item = self._row(
@@ -427,7 +427,7 @@ class LayerEditor(QtWidgets.QDialog):
                 for name in ("hrigMode", "hrigLod") + tuple(
                     "hrigEnabled_" + role for role in self.OPTIONAL
                 ):
-                    if rig.root.has_attribute(name):
+                    if rig.root.hasAttribute(name):
                         self._attributes.add(
                             (uuid, name),
                             attribute=rig.root.plug(name),
@@ -511,7 +511,7 @@ class LayerEditor(QtWidgets.QDialog):
                 0, QtCore.Qt.Checked if rig.layer_enabled("stretch") else QtCore.Qt.Unchecked
             )
         attrs = ["mode", "lod", "enabled"]
-        if rig.root.has_attribute("hrigEnabled_stretch"):
+        if rig.root.hasAttribute("hrigEnabled_stretch"):
             attrs.append("hrigEnabled_stretch")
         for name in attrs:
             self._attributes.add(
@@ -594,7 +594,7 @@ class LayerEditor(QtWidgets.QDialog):
                     {"root": uuid, "role": kind + ":" + str(index), "target": group.uuid()},
                 )
         for kind in ("follow", "spring", "pose"):
-            if rig.root.has_attribute("hrigEnabled_" + kind):
+            if rig.root.hasAttribute("hrigEnabled_" + kind):
                 attrs.append("hrigEnabled_" + kind)
         for name in attrs:
             self._attributes.add(
@@ -745,9 +745,9 @@ class LayerEditor(QtWidgets.QDialog):
             return
         data = item.data(0, QtCore.Qt.UserRole)
         enabled = item.checkState(0) == QtCore.Qt.Checked
-        roots = [item.full_name() for item in hlib.ls(data["root"], long=True)] or []
+        roots = [item.fullName() for item in hlib.ls(data["root"], long=True)] or []
         if roots and data["role"].startswith("tweak:"):
-            group = hlib.getNode([item.full_name() for item in hlib.ls(data["target"], long=True)][0])
+            group = hlib.getNode([item.fullName() for item in hlib.ls(data["target"], long=True)][0])
             with undo_transaction("hrig.Tweak.enabled"):
                 group.plug("enabled").set(enabled)
                 TweakLayer(ModuleRegistry.get(roots[0])).update()
@@ -841,10 +841,10 @@ class LayerEditor(QtWidgets.QDialog):
             selected = [
                 n
                 for n in (
-                    [item.full_name() for item in hlib.ls(selection=True, type="joint", long=True)]
+                    [item.fullName() for item in hlib.ls(selection=True, type="joint", long=True)]
                     or []
                 )
-                if n.startswith(rig.root.full_name() + "|")
+                if n.startswith(rig.root.fullName() + "|")
             ]
             layer = TweakLayer(rig)
             layer.add(
@@ -895,7 +895,7 @@ class LayerEditor(QtWidgets.QDialog):
     def select_node(self):
         """現在行の設定ノードをMayaで選択する。"""
         _, data = self.current()
-        names = [item.full_name() for item in hlib.ls(data["target"], long=True)] or []
+        names = [item.fullName() for item in hlib.ls(data["target"], long=True)] or []
         if names:
             hlib.select(names, replace=True)
 
@@ -908,9 +908,9 @@ class LayerEditor(QtWidgets.QDialog):
         """SDKの詳細行を選択して、標準グラフエディターでカーブを編集する。"""
         _, data = self.current()
         node = hlib.getNode(
-            ([item.full_name() for item in hlib.ls(data["target"], long=True)] or [""])[0]
+            ([item.fullName() for item in hlib.ls(data["target"], long=True)] or [""])[0]
         )
-        if not node.has_attribute("curve"):
+        if not node.hasAttribute("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
         hlib.select(node.plug("curve").source().node, replace=True)
         GraphEditor.show()

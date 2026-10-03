@@ -19,7 +19,7 @@ class MultMatrix(Node):
             raise ValueError("Matrix index must be a non-negative integer")
         return index
 
-    def input_plug(self, index):
+    def inputPlug(self, index):
         """既存入力のPlugを取得する。未存在要素は作成しない。
 
         Args:
@@ -32,7 +32,7 @@ class MultMatrix(Node):
         """
         return self.plug("matrixIn").element(self._index(index))
 
-    def get_input(self, index):
+    def getInput(self, index):
         """既存入力の評価値を取得する。接続済みなら接続元を評価する。
 
         Args:
@@ -42,11 +42,11 @@ class MultMatrix(Node):
         Raises:
             IndexError: 入力要素が存在しない場合。
         """
-        return self.input_plug(index).get()
+        return self.inputPlug(index).get()
 
     @fast_edit
     @undo_chunk("hlibMultMatrixSetInput")
-    def set_input(self, index, value, *, fast=False):
+    def setInput(self, index, value, *, fast=False):
         """指定スロットに定数行列を設定する。入力接続は切断しない。
 
         Args:
@@ -70,7 +70,7 @@ class MultMatrix(Node):
         return self
 
     @undo_chunk("hlibMultMatrixConnectInput")
-    def connect_input(self, index, source, force=False):
+    def connectInput(self, index, source, force=False):
         """行列Plugを指定スロットへ接続する。
 
         Args:
@@ -89,10 +89,10 @@ class MultMatrix(Node):
         source.connect(self.plug("matrixIn").element(index, create=True), force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """MatrixPlug: matrixSum出力。別ノードへの接続に使用する。"""
         return self.plug("matrixSum")
 
     def result(self):
         """Matrix: 現在の入力を乗算した評価済み行列。"""
-        return self.output_plug().get()
+        return self.outputPlug().get()

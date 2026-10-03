@@ -10,7 +10,7 @@ from .node import Node
 class FourByFourMatrix(Node):
     """個別の16要素から行列を構築する。"""
 
-    def get_matrix(self):
+    def getMatrix(self):
         """16要素の入力行列を取得する。
         Returns:
             Matrix: 入力値。
@@ -19,7 +19,7 @@ class FourByFourMatrix(Node):
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_matrix(self, value, *, fast=False):
+    def setMatrix(self, value, *, fast=False):
         """16要素をまとめて設定する。
 
         Args:
@@ -37,7 +37,7 @@ class FourByFourMatrix(Node):
                 self.plug("in%d%d" % (r, c)).set(value[r * 4 + c])
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -49,4 +49,4 @@ class FourByFourMatrix(Node):
         Returns:
             Matrix: 計算結果。
         """
-        return Matrix(self.output_plug().get())
+        return Matrix(self.outputPlug().get())

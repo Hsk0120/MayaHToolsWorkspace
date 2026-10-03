@@ -10,23 +10,23 @@ from .node import Node
 class PairBlend(Node):
     """移動・回転をブレンドする。Euler/Quaternion補間を選択できる。"""
 
-    def weight_plug(self):
+    def weightPlug(self):
         """ブレンドウェイトのPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("weight")
 
-    def get_weight(self):
+    def getWeight(self):
         """ブレンドウェイトの評価値を取得する。
         Returns:
             float: 現在の値。
         """
-        return self.weight_plug().get()
+        return self.weightPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_weight(self, value, *, fast=False):
+    def setWeight(self, value, *, fast=False):
         """ブレンドウェイトへ定数値を設定する。
 
         Args:
@@ -38,11 +38,11 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.scalar, self.weight_plug)
+        _Calculation.set_value(value, _Calculation.scalar, self.weightPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_weight(self, source, force=False):
+    def connectWeight(self, source, force=False):
         """ブレンドウェイトへ接続する。
 
         Args:
@@ -54,19 +54,19 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.weight_plug, force=force)
+        _Calculation.connect(source, self.weightPlug, force=force)
         return self
 
-    def get_rotation_interpolation(self):
+    def getRotationInterpolation(self):
         """現在のモード名を取得する。
         Returns:
             str: euler, quaternion。
         """
-        return _Calculation.enum_name(self.plug("rotInterpolation"), ('euler', 'quaternion'))
+        return _Calculation.enumName(self.plug("rotInterpolation"), ('euler', 'quaternion'))
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_rotation_interpolation(self, mode, *, fast=False):
+    def setRotationInterpolation(self, mode, *, fast=False):
         """モードを設定する。
 
         Args:
@@ -78,20 +78,20 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enum_value(mode, ('euler', 'quaternion'))
+        value = _Calculation.enumValue(mode, ('euler', 'quaternion'))
         self.plug("rotInterpolation").set(value)
         return self
 
-    def get_rotate_order(self):
+    def getRotateOrder(self):
         """現在のモード名を取得する。
         Returns:
             str: xyz, yzx, zxy, xzy, yxz, zyx。
         """
-        return _Calculation.enum_name(self.plug("rotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
+        return _Calculation.enumName(self.plug("rotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_rotate_order(self, mode, *, fast=False):
+    def setRotateOrder(self, mode, *, fast=False):
         """モードを設定する。
 
         Args:
@@ -103,12 +103,12 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enum_value(mode, ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
+        value = _Calculation.enumValue(mode, ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
         self.plug("rotateOrder").set(value)
         return self
 
-    def translate_plug(self, index):
-        """translate入力（移動はUI距離単位、回転は度）のPlugを取得する。
+    def translatePlug(self, index):
+        """translate入力（移動はcm、回転はrad）のPlugを取得する。
 
         Args:
             index (int): 入力番号1または2。
@@ -117,20 +117,20 @@ class PairBlend(Node):
         """
         return self.plug(f"inTranslate{_Calculation.index(index, (1, 2))}")
 
-    def get_translate(self, index):
-        """translate入力（移動はUI距離単位、回転は度）の評価値を取得する。
+    def getTranslation(self, index):
+        """translate入力（移動はcm、回転はrad）の評価値を取得する。
 
         Args:
             index (int): 入力番号1または2。
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.translate_plug(index).get()
+        return self.translatePlug(index).get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_translate(self, index, value, *, fast=False):
-        """translate入力（移動はUI距離単位、回転は度）へ定数値を設定する。
+    def setTranslation(self, index, value, *, fast=False):
+        """translate入力（移動はcm、回転はrad）へ定数値を設定する。
 
         Args:
             index (int): 入力番号1または2。
@@ -142,12 +142,12 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.translate_plug, index)
+        _Calculation.set_value(value, _Calculation.vector, self.translatePlug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_translate(self, index, source, force=False):
-        """translate入力（移動はUI距離単位、回転は度）へ接続する。
+    def connectTranslate(self, index, source, force=False):
+        """translate入力（移動はcm、回転はrad）へ接続する。
 
         Args:
             index (int): 入力番号1または2。
@@ -159,11 +159,11 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.translate_plug, index, force=force)
+        _Calculation.connect(source, self.translatePlug, index, force=force)
         return self
 
-    def rotate_plug(self, index):
-        """rotate入力（移動はUI距離単位、回転は度）のPlugを取得する。
+    def rotatePlug(self, index):
+        """rotate入力（移動はcm、回転はrad）のPlugを取得する。
 
         Args:
             index (int): 入力番号1または2。
@@ -172,20 +172,20 @@ class PairBlend(Node):
         """
         return self.plug(f"inRotate{_Calculation.index(index, (1, 2))}")
 
-    def get_rotate(self, index):
-        """rotate入力（移動はUI距離単位、回転は度）の評価値を取得する。
+    def getRotation(self, index):
+        """rotate入力（移動はcm、回転はrad）の評価値を取得する。
 
         Args:
             index (int): 入力番号1または2。
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.rotate_plug(index).get()
+        return self.rotatePlug(index).get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_rotate(self, index, value, *, fast=False):
-        """rotate入力（移動はUI距離単位、回転は度）へ定数値を設定する。
+    def setRotation(self, index, value, *, fast=False):
+        """rotate入力（移動はcm、回転はrad）へ定数値を設定する。
 
         Args:
             index (int): 入力番号1または2。
@@ -197,12 +197,12 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.rotate_plug, index)
+        _Calculation.set_value(value, _Calculation.vector, self.rotatePlug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_rotate(self, index, source, force=False):
-        """rotate入力（移動はUI距離単位、回転は度）へ接続する。
+    def connectRotate(self, index, source, force=False):
+        """rotate入力（移動はcm、回転はrad）へ接続する。
 
         Args:
             index (int): 入力番号1または2。
@@ -214,10 +214,10 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.rotate_plug, index, force=force)
+        _Calculation.connect(source, self.rotatePlug, index, force=force)
         return self
 
-    def output_plug(self, kind="translate"):
+    def outputPlug(self, kind="translate"):
         """移動または回転の出力を取得する。
 
         Args:
@@ -235,6 +235,6 @@ class PairBlend(Node):
         Args:
             kind (str): translate/rotate。
         Returns:
-            tuple[float, float, float]: 移動はUI距離単位、回転は度。
+            tuple[float, float, float]: 移動はcm、回転はrad。
         """
-        return tuple(self.output_plug(kind).get())
+        return tuple(self.outputPlug(kind).get())

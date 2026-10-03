@@ -12,7 +12,7 @@ class UERBFSolverNode(Node):
 
     def native_api(self):
         """RBFNode: 現在名から外部APIラッパーを取得する。直接編集のUndoは外部仕様。"""
-        return RBFNode(self.full_name())
+        return RBFNode(self.fullName())
 
     def drivers(self):
         """list[Node]: 接続されたドライバーを外部APIの順序で取得する。"""
@@ -27,7 +27,7 @@ class UERBFSolverNode(Node):
         return self.native_api().radius()
 
     @undo_chunk("hlibPoseDriverConnectSetRadius")
-    def set_radius(self, value):
+    def setRadius(self, value):
         """ソルバー半径を変更する。Maya cmds経由でUndo可能。
 
         Args:

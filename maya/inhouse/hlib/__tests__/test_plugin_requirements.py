@@ -21,23 +21,23 @@ import hlib.environment.pluginPackage as package_module
 
 
 class PluginVersionTest(unittest.TestCase):
-    plugin_name = "matrixNodes"
+    pluginName = "matrixNodes"
 
     def setUp(self):
-        self.was_loaded = cmds.pluginInfo(self.plugin_name, query=True, loaded=True)
+        self.was_loaded = cmds.pluginInfo(self.pluginName, query=True, loaded=True)
         if not self.was_loaded:
-            cmds.loadPlugin(self.plugin_name)
+            cmds.loadPlugin(self.pluginName)
 
     def tearDown(self):
-        if not self.was_loaded and cmds.pluginInfo(self.plugin_name, query=True, loaded=True):
-            cmds.unloadPlugin(self.plugin_name)
+        if not self.was_loaded and cmds.pluginInfo(self.pluginName, query=True, loaded=True):
+            cmds.unloadPlugin(self.pluginName)
 
     def test_version_parts_match_version_string(self):
-        plugin = Plugin(self.plugin_name)
+        plugin = Plugin(self.pluginName)
         self.assertEqual(plugin.version().parts, Version.parse(plugin.version_text()).parts)
 
     def test_is_version_at_least(self):
-        plugin = Plugin(self.plugin_name)
+        plugin = Plugin(self.pluginName)
         self.assertTrue(plugin.is_version_at_least("0"))
         self.assertFalse(plugin.is_version_at_least("999999"))
         with self.assertRaises(ValueError):
@@ -166,6 +166,18 @@ class PluginPackageFlowTest(unittest.TestCase):
         loader.assert_called_once_with()
         self.assertEqual(self.shown, [])
         self.assertEqual(self.fake.warnings, [])
+
+    def test_silent_initialization_failure_is_not_loaded(self):
+        """Mayaが初期化失敗を例外にしない場合もLOAD_FAILEDを返す。"""
+        with mock.patch.object(PluginPackage, "installed_version", return_value=Version((3, 0, 0))), \
+                mock.patch.object(cmds, "loadPlugin", return_value=None), \
+                mock.patch.object(Plugin, "isLoaded", return_value=False):
+            result = self.make().try_load(dialog=self.shown.append)
+        self.assertEqual(result, LOAD_FAILED)
+        self.assertEqual(len(self.fake.warnings), 2)
+        self.assertIn("pluginA", self.fake.warnings[0])
+        self.assertIn("pluginB", self.fake.warnings[1])
+        self.assertEqual(self.shown, [])
 
     def test_newer_version_is_accepted(self):
         result, _ = self.run_flow(self.make(), (3, 1, 0, 8), loaded_version=(3, 1, 0, 8))
@@ -319,7 +331,7 @@ class BifrostTest(unittest.TestCase):
         self.assertEqual(self.package.try_load(dialog=shown.append), LOADED)
         self.assertEqual(shown, [])
         for plugin in self.package.plugins:
-            self.assertTrue(plugin.is_loaded(), plugin.name)
+            self.assertTrue(plugin.isLoaded(), plugin.name)
         self.assertTrue(self.package.loaded_version().is_at_least("3.0.0"))
 
     def test_too_new_version_is_reported_missing(self):

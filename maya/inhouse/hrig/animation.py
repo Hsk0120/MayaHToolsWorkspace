@@ -1,4 +1,5 @@
 """対応済み3関節チェーンからhrigコントローラーへベイクする。"""
+from hlib.maths import MSpace
 
 from maya import cmds
 
@@ -33,10 +34,10 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         raise ValueError("mode must be fk or ik")
     if not all(math.isfinite(v) for v in (start, end, step)) or step <= 0 or end < start:
         raise ValueError("Invalid frame range")
-    sources = [hlib.getNode(node).full_name() for node in source_joints]
+    sources = [hlib.getNode(node).fullName() for node in source_joints]
     if len(sources) != 3 or len(set(sources)) != 3:
         raise ValueError("Expected three different source joints")
-    root = rig.root.full_name()
+    root = rig.root.fullName()
     for source in sources:
         if hlib.getNode(source).type() != "joint" or source.startswith(root + "|"):
             raise ValueError("Source must be an external joint")
@@ -51,10 +52,10 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         keyed += [controls["target"], controls["pole"]]
     for node in keyed:
         for attr in attributes:
-            if hlib.getPlug(node + "." + attr).is_locked():
+            if hlib.getPlug(node + "." + attr).isLocked():
                 raise ValueError("Locked control channel: " + node + "." + attr)
             sources_in = [
-                item.full_name()
+                item.fullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (
@@ -75,10 +76,10 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         ]
         for frame in frames:
             cmds.currentTime(frame)
-            matrices = [list(hlib.getNode(node).get_matrix(ws=True)) for node in sources]
+            matrices = [list(hlib.getNode(node).getMatrix(space=MSpace.kWorld)) for node in sources]
             if mode == "ik":
                 inverse = Matrix(hlib.getPlug(root + ".worldInverseMatrix[0]").get())
-                points = [inverse.transform_point(matrix[12:15]) for matrix in matrices]
+                points = [inverse.transformPoint(matrix[12:15]) for matrix in matrices]
                 if Vector(points[0]).length() > 1e-4:
                     raise ValueError(
                         "IK source root must coincide with the rig root at each sample"

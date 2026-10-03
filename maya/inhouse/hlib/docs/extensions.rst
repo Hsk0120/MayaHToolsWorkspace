@@ -120,9 +120,9 @@ PoseDriverConnect本体のPythonパス・対応Mayaプラグインは別途必�
        print(solver.drivers())
        print(solver.num_poses())
        print(solver.radius())
-       solver.set_radius(45.0)
+       solver.setRadius(45.0)
 
 ``UEPoseBlenderNode`` は ``driven_transform()`` と ``envelope()`` を提供します。
 専用クラスは ``hlib.getNode()`` / ``hlib.ls()`` から自動で選ばれます。
-``set_radius()`` はUndo可能です。``native_api()`` から外部APIを直接操作する場合は
+``setRadius()`` はUndo可能です。``native_api()`` から外部APIを直接操作する場合は
 そのAPI自身のUndoと副作用の仕様に従います。

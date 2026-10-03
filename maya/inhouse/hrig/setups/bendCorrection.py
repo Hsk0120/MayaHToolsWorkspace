@@ -34,7 +34,7 @@ class BendCorrection:
         node = hlib.nodes.Node.create(
             kind, name=self.container.name() + "_" + suffix, skipSelect=True
         )
-        self.container.add_members(node)
+        self.container.addMembers(node)
         return node
 
     @classmethod
@@ -80,19 +80,22 @@ class BendCorrection:
             ("innerPush", -0.2, {}),
             ("outerPush", -0.2, {}),
         ):
-            owner.add_attribute(
-                long_name=attr,
-                attribute_type="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
-                default_value=value,
+            owner.addAttribute(
+                longName=attr,
+                attributeType="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
+                defaultValue=value,
                 **bounds
             )
             # addAttrの距離defaultは内部cmなので、初期値をUI距離単位で明示設定する。
-            owner.plug(attr).set(value)
-        owner.add_attribute(long_name="matrix", data_type="matrix")
-        owner.add_attribute(long_name="restMatrix", data_type="matrix")
+            owner.plug(attr).set(
+                hlib.utils.units.distance_from_ui(value)
+                if attr.endswith(("Rest", "Push")) else value
+            )
+        owner.addAttribute(longName="matrix", dataType="matrix")
+        owner.addAttribute(longName="restMatrix", dataType="matrix")
         for attr in ("inner", "outer", "response"):
-            owner.add_attribute(
-                long_name=attr, attribute_type="double" if attr == "response" else "doubleLinear"
+            owner.addAttribute(
+                longName=attr, attributeType="double" if attr == "response" else "doubleLinear"
             )
         relative = graph._node("multMatrix", "relative")
         joint.plug("matrix").connect(relative.plug("matrixIn[0]"))
@@ -103,7 +106,7 @@ class BendCorrection:
         blend.plug("inputMatrix").set(rest)
         relative.plug("matrixSum").connect(blend.plug("target[0].targetMatrix"))
         blend.plug("target[0].weight").set(1)
-        if blend.has_attribute("target[0].rotateWeight"):
+        if blend.hasAttribute("target[0].rotateWeight"):
             owner.plug("rotationRatio").connect(blend.plug("target[0].rotateWeight"))
             for part in ("scale", "shear"):
                 blend.plug("target[0]." + part + "Weight").set(0)
@@ -175,5 +178,5 @@ class BendCorrection:
             offset.plug("output1D").connect(owner.plug(side))
         extra = [node for node in hlib.ls(type="unitConversion") if node.uuid() not in conversions]
         if extra:
-            hlib.nodes.Container(owner).add_members(*extra)
+            hlib.nodes.Container(owner).addMembers(*extra)
         return graph

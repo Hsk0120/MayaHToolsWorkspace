@@ -13,7 +13,7 @@ class ExtraAttributesTest(unittest.TestCase):
         self.node = hlib.createNode("transform")
 
     def tearDown(self):
-        cmds.delete(self.node.full_name())
+        cmds.delete(self.node.fullName())
 
     def test_types_values_and_list(self):
         cases = [("double", "DoublePlug", 1.5), ("float", "FloatPlug", 2.5),
@@ -21,38 +21,38 @@ class ExtraAttributesTest(unittest.TestCase):
                  ("bool", "BoolPlug", True), ("doubleAngle", "DoubleAnglePlug", 35),
                  ("doubleLinear", "DoubleLinearPlug", 7), ("time", "TimePlug", 10)]
         for index, (kind, class_name, value) in enumerate(cases):
-            plug = self.node.add_attribute("extra%d" % index, at=kind, keyable=True)
+            plug = self.node.addAttribute("extra%d" % index, at=kind, keyable=True)
             self.assertEqual(type(plug).__name__, class_name)
             plug.set(value)
             self.assertAlmostEqual(plug.get(), value)
-        string = self.node.add_attribute("textValue", data_type="string")
+        string = self.node.addAttribute("textValue", dataType="string")
         self.assertIsInstance(string, hlib.plugs.StringPlug)
         string.set("日本語")
         self.assertEqual(string.get(), "日本語")
-        enum = self.node.add_attribute("mode", attribute_type="enum", enumName="off:on", default_value=1)
+        enum = self.node.addAttribute("mode", attributeType="enum", enumName="off:on", defaultValue=1)
         self.assertIsInstance(enum, hlib.plugs.EnumPlug)
-        self.assertEqual(enum.enum_name(), "on")
-        self.assertEqual(enum.enum_value("off"), 0)
-        message = self.node.add_attribute("link", attribute_type="message")
+        self.assertEqual(enum.enumName(), "on")
+        self.assertEqual(enum.enumValue("off"), 0)
+        message = self.node.addAttribute("link", attributeType="message")
         self.assertIsInstance(message, hlib.plugs.MessagePlug)
         self.node.plug("message").connect(message)
         self.assertEqual(message.source(), self.node.plug("message"))
-        self.assertEqual(len(self.node.get_extra_attributes()), len(cases) + 3)
-        self.assertNotIn(self.node.plug("translate"), self.node.get_extra_attributes())
+        self.assertEqual(len(self.node.getExtraAttributes()), len(cases) + 3)
+        self.assertNotIn(self.node.plug("translate"), self.node.getExtraAttributes())
 
     def test_compound_array_and_undo(self):
-        compound = self.node.add_attribute("vectorValue", attribute_type="double3")
+        compound = self.node.addAttribute("vectorValue", attributeType="double3")
         self.assertIsInstance(compound, hlib.plugs.Double3Plug)
-        self.assertEqual(len(self.node.get_extra_attributes()), 1)
-        self.assertEqual(len(self.node.get_extra_attributes(include_children=True)), 4)
-        array = self.node.add_attribute("weights", attribute_type="double", multi=True)
+        self.assertEqual(len(self.node.getExtraAttributes()), 1)
+        self.assertEqual(len(self.node.getExtraAttributes(include_children=True)), 4)
+        array = self.node.addAttribute("weights", attributeType="double", multi=True)
         self.assertIsInstance(array, hlib.plugs.ArrayPlug)
         self.assertIsInstance(array.element(0, create=True), hlib.plugs.DoublePlug)
-        self.node.add_attribute("undoValue", attribute_type="long")
+        self.node.addAttribute("undoValue", attributeType="long")
         cmds.undo()
-        self.assertFalse(self.node.has_attribute("undoValue"))
+        self.assertFalse(self.node.hasAttribute("undoValue"))
         with self.assertRaises(TypeError):
-            self.node.add_attribute("duplicateFlags", attribute_type="double", at="double")
+            self.node.addAttribute("duplicateFlags", attributeType="double", at="double")
 
 
 if __name__ == "__main__":

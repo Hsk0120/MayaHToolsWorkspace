@@ -49,7 +49,7 @@ class NamespaceApiTest(unittest.TestCase):
 
     def test_nodes_and_node_namespace(self):
         node = Node.create(type="transform", name="namespaceNode")
-        node.set_namespace(self.root)
+        node.setNamespace(self.root)
         self.assertEqual(node.namespace(), self.root)
         self.assertIn(node.name(), [item.name() for item in self.root.nodes()])
         cmds.delete(node.name())
@@ -57,9 +57,9 @@ class NamespaceApiTest(unittest.TestCase):
     def test_nodes_recurse_includes_child_namespace_nodes(self):
         child = Namespace.create(f"{self.root_name}:child")
         top_node = Node.create(type="transform", name="hlibNamespaceRecurseTop")
-        top_node.set_namespace(self.root)
+        top_node.setNamespace(self.root)
         child_node = Node.create(type="transform", name="hlibNamespaceRecurseChild")
-        child_node.set_namespace(child)
+        child_node.setNamespace(child)
 
         direct_names = [item.name() for item in self.root.nodes()]
         self.assertIn(top_node.name(), direct_names)
@@ -84,31 +84,31 @@ class NamespaceApiTest(unittest.TestCase):
     def test_current_set_as_current_and_as_current_context(self):
         root_current = Namespace.current()
         try:
-            self.root.set_current()
+            self.root.setCurrent()
             self.assertEqual(Namespace.current(), self.root)
 
             child = Namespace.create(f"{self.root_name}:child")
-            with child.as_current():
+            with child.asCurrent():
                 self.assertEqual(Namespace.current(), child)
             self.assertEqual(Namespace.current(), self.root)
 
             try:
-                with child.as_current():
+                with child.asCurrent():
                     raise RuntimeError("boom")
             except RuntimeError:
                 pass
             self.assertEqual(Namespace.current(), self.root)
         finally:
             if root_current.exists():
-                root_current.set_current()
+                root_current.setCurrent()
 
     def test_set_as_current_raises_for_missing_namespace(self):
         try:
-            Namespace(":hlibNamespaceDoesNotExist").set_current()
+            Namespace(":hlibNamespaceDoesNotExist").setCurrent()
         except RuntimeError:
             pass
         else:
-            raise AssertionError("set_current on a missing namespace should raise RuntimeError")
+            raise AssertionError("setCurrent on a missing namespace should raise RuntimeError")
 
     def test_rename_move_and_remove(self):
         child = Namespace.create(f"{self.root_name}:child")

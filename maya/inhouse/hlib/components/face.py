@@ -7,17 +7,17 @@ class Face(Component):
     """Mesh の単一コンポーネント。"""
     shape_type = "mesh"
     component_type = "f"
-    count_attribute = "polygon_count"
+    count_attribute = "numPolygons"
 
-    def shading_engine(self):
+    def shadingEngine(self):
         """ShadingEngine | None: このインスタンスのフェースに割り当てられたセット。"""
         self._validate()
-        return self.shape.face_shading_engines()[self.index]
+        return self.shape.faceShadingEngines()[self.index]
 
     def material(self):
         """Node | None: 割り当てられたサーフェスシェーダー。"""
-        group = self.shading_engine()
-        return group.get_shader() if group is not None else None
+        group = self.shadingEngine()
+        return group.getShader() if group is not None else None
 
     def vertices(self):
         """接続する頂点群を取得する。
@@ -26,17 +26,17 @@ class Face(Component):
             Vertices: Maya の接続順の頂点群。
         """
         self._validate()
-        return Vertices(self.shape, self.shape.mesh_fn().getPolygonVertices(self.index))
+        return Vertices(self.shape, self.shape.meshFn().getPolygonVertices(self.index))
 
 
 class Faces(Components):
     """同一 Mesh の Face 群。"""
     component_class = Face
 
-    def shading_engines(self):
+    def shadingEngines(self):
         """list[ShadingEngine]: 対象フェースの割り当てを重複なしで返す。"""
         result = []
-        assignments = self.shape.face_shading_engines()
+        assignments = self.shape.faceShadingEngines()
         for face in self:
             face._validate()
             group = assignments[face.index]
@@ -47,8 +47,8 @@ class Faces(Components):
     def materials(self):
         """list[Node]: 対象フェースのマテリアルを重複なしで返す。"""
         result = []
-        for group in self.shading_engines():
-            material = group.get_shader()
+        for group in self.shadingEngines():
+            material = group.getShader()
             if material is not None and material not in result:
                 result.append(material)
         return result

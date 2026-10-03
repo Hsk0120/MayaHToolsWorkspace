@@ -31,7 +31,7 @@ class ObjectTest(unittest.TestCase):
             with self.subTest(item=type(item).__name__):
                 self.assertIsInstance(item, hlib.Object)
                 self.assertIs(hlib.Object(item), item)
-                resolved = hlib.Object(item.full_name())
+                resolved = hlib.Object(item.fullName())
                 self.assertEqual(resolved, item)
                 self.assertEqual(hash(resolved), hash(item))
         self.assertNotIsInstance(hlib.nodes.Nodes([node]), hlib.Object)

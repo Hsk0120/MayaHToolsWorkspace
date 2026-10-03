@@ -1,7 +1,7 @@
 """拘束元から対象へコンストレイントを追加する。
 
 ``hlib.addConstraint(sources, target, type="parent", maintainOffset=False)``
-で単一のConstraintを返す。照会はConstraint.targets()/weight_plugs()、
+で単一のConstraintを返す。照会はConstraint.targets()/weightPlugs()、
 ウェイト編集はset_weight()、他のアトリビュートはPlugで操作する。query/editは受け付けない。
 種類はparent、point、orient、scale、aim、poleVector、geometry、normal、tangent、
 pointOnPoly。Constraint接尾辞付きの型名も指定できる。
@@ -39,4 +39,4 @@ def addConstraint(sources, target, type="parent", maintainOffset=False, **kwargs
     target_node = _InputNode._resolve_input(target)
     if not isinstance(target_node, Transform):
         raise TypeError("target must resolve to a Transform")
-    return target_node.add_constraint(sources, type=type, maintainOffset=maintainOffset, **kwargs)
+    return target_node.addConstraint(sources, type=type, maintainOffset=maintainOffset, **kwargs)

@@ -27,7 +27,7 @@ def list_references(top_level_only=False):
     names = [name for name in (cmds.ls(type="reference") or []) if name != _SHARED_REFERENCE_NODE]
     references = [Reference(name) for name in names]
     if top_level_only:
-        references = [reference for reference in references if reference.parent_reference() is None]
+        references = [reference for reference in references if reference.parentReference() is None]
     return references
 
 
@@ -63,7 +63,7 @@ def create_reference(path, namespace=None):
     created = [Reference(name) for name in (cmds.ls(type="reference") or []) if name not in existing]
     # 参照先ファイル自身がネストした参照を持つ場合、その子参照ノードも同時に
     # 新規ノードとして現れるため、親を持たないトップレベルのものだけを選ぶ。
-    top_level = [reference for reference in created if reference.parent_reference() is None]
+    top_level = [reference for reference in created if reference.parentReference() is None]
     if len(top_level) != 1:
         names = [reference.name() for reference in created]
         raise RuntimeError(f"Failed to identify the newly created reference node: {names}")

@@ -78,7 +78,7 @@ class PoseRbf:
         node = hlib.nodes.Node.create(
             kind, name=self.container.name() + "_" + suffix, skipSelect=True
         )
-        self.container.add_members(node)
+        self.container.addMembers(node)
         return node
 
     @classmethod
@@ -106,7 +106,7 @@ class PoseRbf:
         if len(drivers) != len(scales) or cmds.objExists(name):
             raise ValueError("Driver count mismatch or name exists")
         for plug in drivers:
-            kind = hlib.getAttr(plug.full_name(), type=True)
+            kind = hlib.getAttr(plug.fullName(), type=True)
             if (
                 kind not in ("double", "float", "long", "short", "doubleAngle")
                 or plug.mplug().isArray
@@ -115,12 +115,12 @@ class PoseRbf:
         graph = cls(hlib.nodes.Container.create(name=name))
         owner = graph.container
         for attr in ("inputs", "outputs", "coefficients"):
-            owner.add_attribute(long_name=attr, attribute_type="double", multi=True)
-        owner.add_attribute(long_name="data", data_type="string")
+            owner.addAttribute(longName=attr, attributeType="double", multi=True)
+        owner.addAttribute(longName="data", dataType="string")
         owner.plug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
         for index, source in enumerate(drivers):
             destination = owner.plug("inputs[{}]".format(index))
-            if hlib.getAttr(source.full_name(), type=True) == "doubleAngle":
+            if hlib.getAttr(source.fullName(), type=True) == "doubleAngle":
                 convert = graph._node("unitConversion", "degrees{}".format(index))
                 source.connect(convert.plug("input"))
                 convert.plug("conversionFactor").set(180 / math.pi)

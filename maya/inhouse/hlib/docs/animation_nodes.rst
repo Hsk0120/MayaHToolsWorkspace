@@ -18,23 +18,23 @@ AnimCurve
    import hlib
 
    curve = hlib.createNode("animCurveUU")
-   curve.set_key(0, 0).set_key(1, 10)
+   curve.setKey(0, 0).setKey(1, 10)
    print(curve.evaluate(0.5))  # 5.0
-   print(curve.key_inputs(), curve.key_values())
-   curve.set_tangent(0, outTangentType="flat")
-   curve.set_infinity(pre="constant", post="linear")
+   print(curve.keyInputs(), curve.keyValues())
+   curve.setTangent(0, outTangentType="flat")
+   curve.setInfinity(pre="constant", post="linear")
    curve.mirror(input=True, value=False)
 
-``key_count()``、``remove_key(index)``、``tangent(index)``、``infinity()``、
-``shift_keys()``、``scale_keys()`` も利用できます。
-時間・角度・距離の数値は現在のMaya UI単位です。
-set_keyの既定接線はlinear。既存キーを指定した場合は値を更新します。
-接線の詳細編集はset_tangentを使い、weightedTangentsはカーブ全体へ適用されます。
+``keyCount()``、``removeKey(index)``、``getTangent(index)``、``getInfinity()``、
+``shiftKeys()``、``scaleKeys()`` も利用できます。
+時間は秒、角度はrad、距離はcmです。接線角度もradです。
+setKeyの既定接線はlinear。既存キーを指定した場合は値を更新します。
+接線の詳細編集はsetTangentを使い、weightedTangentsはカーブ全体へ適用されます。
 mirrorはキーの入力・出力値の反転であり、ワールド座標のミラーではありません。
 接線の反転はMayaのscaleKeyの規則に従います。
 
-``driver_plug()`` はinputの直接接続元、``output_plug()`` は出力Plug、
-``driven_plugs()`` は直接の接続先を返します。
+``driverPlug()`` はinputの直接接続元、``outputPlug()`` は出力Plug、
+``drivenPlugs()`` は直接の接続先を返します。
 変換・合成ノードやアニメーションレイヤー越しの探索はまだ行いません。
 
 BlendWeighted
@@ -46,15 +46,15 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
 .. code-block:: python
 
    blend = hlib.createNode("blendWeighted")
-   blend.set_input(0, 3).set_input(5, 10)
-   blend.set_weight(5, 0.5)
+   blend.setInput(0, 3).setInput(5, 10)
+   blend.setWeight(5, 0.5)
    print(blend.result())  # 8.0
-   print(blend.input_indices())  # [0, 5]
-   blend.connect_input(0, curve.output_plug())
+   print(blend.inputIndices())  # [0, 5]
+   blend.connectInput(0, curve.outputPlug())
 
-``inputs()`` は番号からPlug、``get_weights()`` は入力番号から倍率のdictです。
-``output_plug()`` を別のアトリビュートへ接続できます。
-接続の上書きには ``connect_input(..., force=True)`` を明示します。
+``inputs()`` は番号からPlug、``getWeights()`` は入力番号から倍率のdictです。
+``outputPlug()`` を別のアトリビュートへ接続できます。
+接続の上書きには ``connectInput(..., force=True)`` を明示します。
 編集メソッドは内部でUndoチャンクにまとめるため、通常は外側にundo_chunkは不要です。
 
 SDKの作成と対応経路の探索は :doc:`driven_keys`、
@@ -63,5 +63,5 @@ SDKの作成と対応経路の探索は :doc:`driven_keys`、
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
 
-``set_infinity(pre="cycle")`` はpre側だけ変更し、post側を維持します。
-両側を戻す場合は ``set_infinity(pre="constant", post="constant")`` を使います。
+``setInfinity(pre="cycle")`` はpre側だけ変更し、post側を維持します。
+両側を戻す場合は ``setInfinity(pre="constant", post="constant")`` を使います。

@@ -55,6 +55,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-03 | maya/inhouse/FramePlayer/ | FramePlayerの最適化検討とリファクタリング |
 
 
 
@@ -70,12 +71,36 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## hlib 修正予定（2026-10-02 追加レビュー）
 
-- [ ] Component._resolve_input: 単数解決で範囲を全ラッパーへ展開する前に要素数を検証する。Maya2027で441頂点生成後の拒否を再現。
-- [ ] Node.add_attribute: ベクトル型の分岐前にquery/edit禁止を検証し、通常型と例外の契約を揃える。
+- [x] Component._resolve_input: 単数解決で範囲を全ラッパーへ展開する前に要素数を検証する。Maya2027で441頂点生成後の拒否を再現。
+- [x] Node.add_attribute: ベクトル型の分岐前にquery/edit禁止を検証し、通常型と例外の契約を揃える。
 - [x] extensions._initialize: 拡張ごとのsys.modules削除をやめ、再読み込み対象の無効化とimport/登録を別段階にする。拡張AがBを継承すると、Bの再importでAの基底が登録済みBと別クラスになる。Maya2027の一時拡張2個で両方loaded・issubclass=Falseを再現。
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-03): プッシュ依頼対応。検証済みhlib om2リファクタリング・API単位/命名整理・hrig使用側移行・Bifrostロード状態判定修正と関連ドキュメントを送信対象に確定。FramePlayer作業中変更とdocs/researchのローカル調査メモは対象外。ステージ差分チェック成功。
+
+- Codex (2026-10-03): Bifrost flowWedging失敗を調査。原因はサンドボックスによるLocalAppDataのFlowGraphEngineログ書込み拒否。承認済み通常権限でロード成功を確認。Plugin.loadにロード後の状態検証を追加し、例外なしの初期化失敗をRuntimeError／PluginPackageのload-failedとして扱う。回帰3テスト追加。Maya2025/2026/2027の全95ファイル・各908テスト失敗なし（GUI等6件スキップ）、Sphinx警告なし、差分チェック成功。セキュリティ設定・外部プラグインは未変更。GUI未実施、未コミット。ログは.maya-output/bifrost-load-verified/20261003_095921_758940。
+
+- Codex (2026-10-03): hlibのコマンド層cmds基準／オブジェクト・数学層OpenMaya基準を実装。Plug・姿勢・座標・キーをcm/rad/秒へ統一、MSpace・lowerCamelCase・配列形・周期CV番号を整理。通常cmds Undo／fast om2の単位を共通化し、hrig使用側と移行文書を更新（旧別名なし）。Maya2022/2024は各905テスト失敗なし、2025/2026/2027は各905テスト中flowWedgingロード確認1件のみ失敗。GUI等は各6〜9件スキップ。hrig 47＋69テスト成功、257 Pythonファイル構文確認、Sphinx警告なし・差分チェック成功。GUI未実施、未コミット。詳細はdocs/research/hlibOm2PublicContract.txt。
+
+- Codex (2026-10-03): om2優先リファクタリングを実装。Mesh/非周期CV取得、型付き配列読取り、JSON取得、表示色・スキン検証をAPI化し、fast配列作成/行列書込みのcmds往復を削減。単数Componentとベクトルadd_attributeの既知2件も修正。通常Undoと周期CV等の互換経路を維持。Maya2022全94ファイル900テスト成功、2027は既知のflowWedgingロード確認のみ失敗。2024/2025/2026は重点各38テスト失敗なし（GUI1スキップ）。Sphinx警告なし・差分チェック成功。2601頂点の公開取得は同条件の従来相当72〜74msから0.40〜0.57ms。詳細・計測はdocs/research/hlibOm2Implementation.txt。GUI未実施、未コミット。
+
+- Codex (2026-10-03): hlibのom2優先方針で実装243ファイルを静的棚卸し（直接cmds呼出し472箇所・fast宣言122箇所）。共通基盤、座標取得、配列作成、JSON、スキン等を精読し、段階的移行計画とインベントリをdocs/researchへローカル保存。Maya2022/2027 standaloneの既存fast各8テスト成功、2601頂点取得の限定計測とfast中のgetAttr/接続境界を確認。本体変更・GUI検証・全テスト・コミットなし。
+
+- Codex (2026-10-03): hlibリファクタリング計画相談のため設計規約・直近履歴・入力解決・add_attribute・JSON・初期化入口を確認。既知2件の修正、JSONの責務整理、初期化順序の明文化を候補化。実装変更・Maya実行なし。
+
+- 2026-10-03 Claude Code: FramePlayerをmaya/inhouse/FramePlayer/へ移し、hlibに依存しない単体パッケージ化(exeはパッケージ直下、Maya側はpython/frameplayer、maya/modules/FramePlayer.mod、単体用FramePlayer.mod、HTools/animation/framePlayerSync.pyは入口のみ)。Mayaのタイムスライダーと双方向連携(FramePlayerが127.0.0.1:7010で待ち受け、frame/range/play/stop/stateを1行命令でやり取り、受け取った変化は両側で送り返さない、ずらし・倍率・範囲同期)。Maya 2026で双方向・再生追従・ずらし・切断を確認(確認後に終了)。同期の遅れを両側の時刻記録で実測(コマ送り→表示1.5ms、FP→Maya反映6〜35msはMayaの計算分、再生追従は24fpsで100%・遅れ0コマ、重い60fpsでも遅れ最大2コマ)。接続直後にFramePlayerの古い範囲でMayaを上書きする不具合を修正。FRAMEPLAYER_SYNC_LOGで時刻記録。CLAUDE.mdの構成に追記。タイムスライダーのMaya風構造と合わせてコミット・push済み(c9cde6d)。
+
+- 2026-10-03 Claude Code: FramePlayerのタイムスライダーをMayaと同じ構造に変更(上段=再生範囲の目盛り・現在フレームの区画と番号・現在フレーム欄・再生ボタン、下段=開始フレーム欄・つまみ付きレンジバー・終了フレーム欄)。開始フレーム(既定1、設定StartFrame)、再生範囲(I/O・つまみ・ドラッグ・ダブルクリックで全体切替、範囲内ループと先読み)、Alt+,/.、Maya連携の窓口TimeSyncを追加。Maya 2026を起動して同条件のキャプチャで比較(確認後に終了)。release/のexe更新。未コミット。
+
+- 2026-10-03 Claude Code: FramePlayerを軽量化。キャッシュ上限を1GB・30秒分・GPU予算の1/4・主メモリ不足時256MBの最小に(設定CacheMB/CacheSeconds)、再生中は変化時だけ描画しPresent(0)で空回り解消(画面合成が4Hzの環境で1コア→全体0.4%)、背面は前後2秒だけ先読み+低優先度/EcoQoS、最小化30秒/背面5分で休止(キャッシュとデコーダー解放)、キーフレームの縮小画像(幅320・RGB565・160MBまで)で仮表示。720p60・5分でGPUメモリ8.6GB→約1GB。確認用ツールに--thumbnailsを追加し全一致。コミット・push済み。
+
+- 2026-10-03 Claude Code: FramePlayerの色合いをWindows 11の「メディア プレーヤー」に合わせた(Storeから導入して同じ動画を再生・キャプチャし画素を実測。地・タイトルバー#141414、バー#949494、強調#FF8232)。タイトルバーをDWMでダーク化、文字をSegoe UI Variableに。Keyframe Pro風UI・スライダー修正と合わせてコミット・push済み(15ac0b6)。
+
+- 2026-10-03 Claude Code: FramePlayerの操作部をKeyframe Pro風に変更(映像下にスライダーの行=細い帯・現在コマ番号・総コマ数・fps(コマ落ち・ずらしの表示は削除し帯を右端近くまで延長)、下段に左ファイル/比較・中央の先頭/戻る/再生/進む/末尾・右に三角形の音量)。スライダー操作時にキャッシュ帯と現在コマ表示が行ったり来たりする問題を修正(ドラッグ中は前後対称に先読み、停止中の古い表示通知でUIを戻さない)。メッセージ送信+PrintWindowの連続キャプチャで確認。release/のexe更新。未コミット。
+
+- 2026-10-03 Claude Code: FramePlayerの操作部左端に「ファイル」ボタンとメニュー(動画を開く/比較する動画を開く/比較を終了/最近使ったファイル(8件、HKCUのRecentFilesに保存、一覧を消去)/終了)を追加。メニュー項目と有効・無効を外から読み取って確認。release/のexe更新。未コミット。
 
 - Codex (2026-10-02): 未コミット変更全体のコミット対象を確認。hlib構成/入力解決/拡張リロード、hrig利用側、文書/テスト/規約の223ファイル。生成物・外部調査ログなし。直近のMaya2022/2027各36テストとSphinx成功を確認し、末尾空行を整備。mainへコミット・pushを実行（結果はチャットで報告）。
 

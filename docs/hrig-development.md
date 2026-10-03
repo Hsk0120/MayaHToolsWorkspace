@@ -40,13 +40,15 @@ def set_layer_enabled(self, layer, enabled):
 
 ## 共通処理の配置
 
-- 所有DGは`hlib.nodes.Container`の`create`・`create_node`・`add`・`members`を使う。
+- 所有DGは`hlib.nodes.Container`の`create`・`createNode`・`add`・`members`を使う。
   レイヤー固有のノード名、所有グラフの選択と有効状態判断はhrigで決める。
-- 保存用message配列は`ArrayPlug.source_nodes()`と`append_message()`を使う。
+- 保存用message配列は`ArrayPlug.sourceNodes()`と`appendMessage()`を使う。
   前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
 - 操作シェイプは`hrig.setups.ControlShape`、単位境界は`hlib.utils.units`を使う。
-  型名が必要な場合は`Plug.data_type()`を使用する（`Plug.type()`はPythonクラス）。
-- バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copy_weights_to`を使う。
+  Plugと数学型の距離はcm、角度はrad、時間は秒。UI単位のビルダー入力は境界で変換する。
+  空間指定は`hlib.maths.MSpace`の定数を使う。
+  型名が必要な場合は`Plug.dataType()`を使用する（`Plug.type()`はPythonクラス）。
+- バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copyWeightsTo`を使う。
   どの骨をLODへ含めるか、どのメッシュを表示するかはhrigの責務とする。
 - 単位なし標準DG演算は`hlib.utils.scalarGraph.ScalarGraph`、Soft IKは`hrig.setups.SoftIK`。
   Bifrostの演算構築は`hlib_bifrost.utils.MathBuilder`、Soft IKは`hrig.setups.bifrostSoftIK.SoftIK`へ置く。
@@ -56,10 +58,10 @@ def set_layer_enabled(self, layer, enabled):
   短縮フラグ正規化、入力参照の解決、Undo規則を既存コマンドに合わせる。
   ノードはNode、属性はPlug、UIはUiElementを返す。数値やboolの照会は値として返す。
   汎用の生cmds転送クラスは追加しない。リグの保存済み名前形式が必要な境界だけ
-  `.name()` / `.full_name()` で明示変換する。
+  `.name()` / `.fullName()` で明示変換する。
 
 - hrigからOpenMaya/OpenMayaUIを直接importしない。数学型は `hlib.maths` の
-  Matrix/Vector/EulerRotation等、位置変換は `Matrix.transform_point`、回転分解は
+  Matrix/Vector/EulerRotation等、位置変換は `Matrix.transformPoint`、回転分解は
   `Matrix.quaternion`・`Matrix.euler` を使う。位置と方向の変換を混同しない。
   MayaのQt親ウィンドウは `hlib.ui.MainWindow.widget()` で取得する。
 

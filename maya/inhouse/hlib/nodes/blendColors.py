@@ -21,7 +21,7 @@ class BlendColors(Node):
             raise ValueError("Color index must be 1 or 2")
         return index
 
-    def color_plug(self, index):
+    def colorPlug(self, index):
         """入力色のPlugを取得する。
 
         Args:
@@ -31,13 +31,13 @@ class BlendColors(Node):
         """
         return self.plug(f"color{self._index(index)}")
 
-    def get_color(self, index):
+    def getColor(self, index):
         """tuple[float, float, float]: 計算用RGB。表示色Colorへは変換しない。"""
-        return tuple(self.color_plug(index).get())
+        return tuple(self.colorPlug(index).get())
 
     @fast_edit
     @undo_chunk("hlibBlendColorsSetColor")
-    def set_color(self, index, value, *, fast=False):
+    def setColor(self, index, value, *, fast=False):
         """入力色を設定する。既存接続は切断しない。
 
         Args:
@@ -53,15 +53,15 @@ class BlendColors(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        target = self.color_plug(index)
+        target = self.colorPlug(index)
         values = tuple(float(v) for v in value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Color must contain three finite values")
-        set_attr(target.full_name(), *values, type="float3")
+        set_attr(target.fullName(), *values, type="float3")
         return self
 
     @undo_chunk("hlibBlendColorsConnectColor")
-    def connect_color(self, index, source, force=False):
+    def connectColor(self, index, source, force=False):
         """入力色へ接続する。互換性はMayaが判定する。
 
         Args:
@@ -71,24 +71,24 @@ class BlendColors(Node):
         Returns:
             BlendColors: 自身。
         """
-        source.connect(self.color_plug(index), force=force)
+        source.connect(self.colorPlug(index), force=force)
         return self
 
-    def blender_plug(self):
+    def blenderPlug(self):
         """Plug: 補間係数。0ならcolor2、1ならcolor1。"""
         return self.plug("blender")
 
-    def get_blender(self):
+    def getBlender(self):
         """補間係数の評価値を取得する。
 
         Returns:
             float: color2からcolor1への補間係数。
         """
-        return self.blender_plug().get()
+        return self.blenderPlug().get()
 
     @fast_edit
     @undo_chunk("hlibBlendColorsSetBlender")
-    def set_blender(self, value, *, fast=False):
+    def setBlender(self, value, *, fast=False):
         """補間係数を設定する。既存接続は切断しない。
 
         Args:
@@ -106,11 +106,11 @@ class BlendColors(Node):
         value = float(value)
         if not math.isfinite(value) or not 0 <= value <= 1:
             raise ValueError("Blender must be a finite value between 0 and 1")
-        self.blender_plug().set(value)
+        self.blenderPlug().set(value)
         return self
 
     @undo_chunk("hlibBlendColorsConnectBlender")
-    def connect_blender(self, source, force=False):
+    def connectBlender(self, source, force=False):
         """補間係数に接続する。接続元の値は制限しない。
 
         Args:
@@ -119,13 +119,13 @@ class BlendColors(Node):
         Returns:
             BlendColors: 自身。
         """
-        source.connect(self.blender_plug(), force=force)
+        source.connect(self.blenderPlug(), force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """CompoundPlug: RGB出力。別アトリビュートへの接続に使用する。"""
         return self.plug("output")
 
     def result(self):
         """tuple[float, float, float]: 評価済みRGB値。"""
-        return tuple(self.output_plug().get())
+        return tuple(self.outputPlug().get())

@@ -1,4 +1,6 @@
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
+from maya.api.OpenMaya import MSpace
+from .._core.space import world_space
 
 import maya.cmds as cmds
 
@@ -12,7 +14,7 @@ from .node import Node
 class DagPose(Node):
     """MayaのdagPose。姿勢の保存・復元と、保存済み行列の照会を提供する。
 
-    バインドポーズも同じノード型で、is_bind_pose()で区別する。
+    バインドポーズも同じノード型で、isBindPose()で区別する。
     reset()はこのノードの保存姿勢を更新し、skinCluster.bindPreMatrixは変更しない。
     """
 
@@ -23,29 +25,29 @@ class DagPose(Node):
         names = []
         for name in _InputObject._input_names(members):
             node = Node(name)
-            if not node.is_valid() or not node.is_type("transform"):
+            if not node.isValid() or not node.isType("transform"):
                 raise ValueError(f"Expected a valid transform or joint: {name}")
-            if node.full_name() not in names:
-                names.append(node.full_name())
+            if node.fullName() not in names:
+                names.append(node.fullName())
         if not names:
             raise ValueError("At least one transform or joint is required")
         return names
 
     def _pose_name(self):
         """有効なdagPoseの名前を返す。削除済みならRuntimeError。"""
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("Cannot access an invalid dagPose")
-        return self.full_name()
+        return self.fullName()
 
     @classmethod
     @undo_chunk("hlibDagPoseCreate")
-    def create(cls, members, name=None, bind_pose=False, hierarchy=True):
+    def create(cls, members, name=None, bindPose=False, hierarchy=True):
         """現在の姿勢を新しいポーズに保存する。選択状態は参照しない。
 
         Args:
             members (Node | str | Iterable[Node | str]): 保存するTransformまたはJoint。
             name (str | None): 作成名。NoneならMayaの自動命名。
-            bind_pose (bool): バインドポーズとして保存するか。
+            bindPose (bool): バインドポーズとして保存するか。
             hierarchy (bool): TrueならMaya標準の階層保存、Falseなら指定対象のみ。
                 Mayaは復元に必要な親の情報も保存する場合がある。
 
@@ -59,19 +61,20 @@ class DagPose(Node):
         names = cls._transform_names(members)
         if name is not None and (not isinstance(name, str) or not name):
             raise ValueError("name must be a non-empty string or None")
-        flags = {"save": True, "bindPose": bind_pose, "selection": not hierarchy}
+        flags = {"save": True, "bindPose": bindPose, "selection": not hierarchy}
         # dagPoseのnameフラグはRedo時に名前空間を失うため、renameに任せる。
         result = cmds.dagPose(names, **flags)
         if name is not None:
             result = cmds.rename(result, name)
         return Node(result)
 
-    def is_bind_pose(self):
+    def isBindPose(self):
         """bool: バインドポーズとして保存されたノードならTrue。"""
-        return bool(cmds.getAttr(self._pose_name() + ".bindPose"))
+        self._pose_name()
+        return bool(self.plug("bindPose").get())
 
     @classmethod
-    def from_skin_cluster(cls, skin_cluster):
+    def fromSkinCluster(cls, skin_cluster):
         """skinClusterに接続されているバインドポーズを取得する。
 
         Args:
@@ -86,32 +89,32 @@ class DagPose(Node):
         """
         from hlib.nodes.node import Node as _InputNode
         skin = _InputNode._resolve_input(skin_cluster)
-        if not skin.is_valid():
+        if not skin.isValid():
             raise RuntimeError("Cannot access an invalid skinCluster")
-        if not skin.is_type("skinCluster"):
+        if not skin.isType("skinCluster"):
             raise ValueError("Expected a skinCluster")
-        names = cmds.listConnections(skin.full_name() + ".bindPose", source=True,
+        names = cmds.listConnections(skin.fullName() + ".bindPose", source=True,
                                      destination=False) or []
         if not names:
             return None
         pose = Node(names[0])
-        if not pose.is_type("dagPose"):
+        if not pose.isType("dagPose"):
             raise RuntimeError("skinCluster.bindPose is not connected to a dagPose")
         return pose
 
-    def member_indices(self):
+    def memberIndices(self):
         """list[int]: 現在もメンバーが接続されている論理番号。欠番は保持する。"""
         name = self._pose_name()
-        return [i for i in (cmds.getAttr(name + ".members", multiIndices=True) or [])
+        return [i for i in self.plug("members").mplug().getExistingArrayAttributeIndices()
                 if cmds.listConnections(f"{name}.members[{i}]", source=True, destination=False)]
 
     def members(self):
         """list[Node]: 保存対象をmembers配列の論理番号順に返す。"""
         name = self._pose_name()
         return [Node(cmds.listConnections(f"{name}.members[{i}]", source=True,
-                                          destination=False)[0]) for i in self.member_indices()]
+                                          destination=False)[0]) for i in self.memberIndices()]
 
-    def member_index(self, member):
+    def memberIndex(self, member):
         """指定メンバーの論理番号を返す。
 
         Args:
@@ -123,36 +126,37 @@ class DagPose(Node):
         """
         from hlib.nodes.node import Node as _InputNode
         node = _InputNode._resolve_input(member)
-        for index, item in zip(self.member_indices(), self.members()):
-            if item.full_name() == node.full_name():
+        for index, item in zip(self.memberIndices(), self.members()):
+            if item.fullName() == node.fullName():
                 return index
         raise ValueError(f"Not a member of {self._pose_name()}: {member}")
 
-    def get_matrix(self, member, ws=False):
+    def getMatrix(self, member, space=MSpace.kObject):
         """現在のノード行列ではなく、保存時の行列を取得する。
 
         Args:
             member (Node | str): 保存対象のノード。
-            ws (bool): Trueなら保存時のワールド行列、Falseならローカル行列。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             Matrix: 保存行列のコピー。
         Raises:
             ValueError: メンバーでない場合。
         """
-        index = self.member_index(member)
+        ws = world_space(space)
+        index = self.memberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
-        return Matrix(cmds.getAttr(f"{self._pose_name()}.{attribute}[{index}]"))
+        return Matrix(self.plug(attribute).element(index).get())
 
-    def not_at_pose(self):
+    def notAtPose(self):
         """list[Node]: MayaのatPose照会で保存姿勢と異なると判定されたメンバー。"""
         return [Node(name) for name in
                 (cmds.dagPose(self._pose_name(), query=True, atPose=True) or [])]
 
-    def is_at_pose(self):
+    def isAtPose(self):
         """bool: MayaのatPose照会で差異がない場合はTrue。"""
-        return not self.not_at_pose()
+        return not self.notAtPose()
 
-    def skin_clusters(self):
+    def skinClusters(self):
         """list[SkinCluster]: このポーズをbindPoseとして参照するskinCluster。"""
         plugs = cmds.listConnections(self._pose_name() + ".message", source=False,
                                      destination=True, type="skinCluster", plugs=True) or []
@@ -160,16 +164,17 @@ class DagPose(Node):
         return [Node(name) for name in dict.fromkeys(names)]
 
     @undo_chunk("hlibDagPoseRestore")
-    def restore(self, ws=False):
+    def restore(self, space=MSpace.kObject):
         """保存した姿勢へ戻す。接続やロックの解除は行わない。
 
         Args:
-            ws (bool): TrueならMayaのglobal復元、Falseならローカル復元。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             DagPose: 自身。
         Raises:
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
+        ws = world_space(space)
         cmds.dagPose(self._pose_name(), restore=True, g=ws)
         return self
 
@@ -193,12 +198,12 @@ class DagPose(Node):
             return self
         names = self._transform_names(targets)
         for target in names:
-            self.member_index(target)
+            self.memberIndex(target)
         cmds.dagPose(names, reset=True, name=name)
         return self
 
     @undo_chunk("hlibDagPoseAdd")
-    def add_members(self, *members):
+    def addMembers(self, *members):
         """TransformまたはJointを現在の姿勢で追加する。
 
         Args:
@@ -210,7 +215,7 @@ class DagPose(Node):
         return self
 
     @undo_chunk("hlibDagPoseRemove")
-    def remove_members(self, *members):
+    def removeMembers(self, *members):
         """メンバーをポーズから外す。シーンのノード自体は削除しない。
 
         残るメンバーの親として必要なノードはMayaによって保持される場合がある。
@@ -224,6 +229,6 @@ class DagPose(Node):
         """
         names = self._transform_names(members)
         for target in names:
-            self.member_index(target)
+            self.memberIndex(target)
         cmds.dagPose(names, remove=True, name=self._pose_name())
         return self

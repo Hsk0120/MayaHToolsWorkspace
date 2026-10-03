@@ -8,12 +8,12 @@ from ..decorators.undo import undo_chunk
 class File(Texture2d):
     """Mayaの継承型に対応するFile。値と接続はPlugで操作する。"""
 
-    def get_file_path(self):
+    def getFilePath(self):
         """str: ファイルパス。UDIM等のトークンは展開せず返す。"""
         return self.plug("fileTextureName").get()
 
     @undo_chunk("hlibFileSetPath")
-    def set_file_path(self, path):
+    def setFilePath(self, path):
         """ファイルパスを設定する。存在確認・コピーは行わない。
 
         Args:
@@ -26,12 +26,12 @@ class File(Texture2d):
         self.plug("fileTextureName").set(path)
         return self
 
-    def get_color_space(self):
+    def getColorSpace(self):
         """str: 現在の入力色空間名。"""
         return self.plug("colorSpace").get()
 
     @undo_chunk("hlibFileSetColorSpace")
-    def set_color_space(self, name):
+    def setColorSpace(self, name):
         """入力色空間を設定する。
 
         Args:

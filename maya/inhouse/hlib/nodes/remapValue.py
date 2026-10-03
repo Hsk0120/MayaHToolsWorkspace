@@ -10,23 +10,23 @@ from .node import Node
 class RemapValue(Node):
     """ランプで値を再マッピングする。色ランプも操作できる。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """入力のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("inputValue")
 
-    def get_input(self):
+    def getInput(self):
         """入力の評価値を取得する。
         Returns:
             float: 現在の値。
         """
-        return self.input_plug().get()
+        return self.inputPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, value, *, fast=False):
+    def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -38,11 +38,11 @@ class RemapValue(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.scalar, self.input_plug)
+        _Calculation.set_value(value, _Calculation.scalar, self.inputPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -54,10 +54,10 @@ class RemapValue(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, force=force)
+        _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
-    def get_range(self):
+    def getRange(self):
         """入出力範囲を取得する。
         Returns:
             dict[str, float]: 入出力の上下限。
@@ -66,7 +66,7 @@ class RemapValue(Node):
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_range(self, input_min, input_max, output_min, output_max, *, fast=False):
+    def setRange(self, input_min, input_max, output_min, output_max, *, fast=False):
         """入出力範囲を設定する。
 
         Args:
@@ -98,7 +98,7 @@ class RemapValue(Node):
             raise ValueError("kind must be value or color")
         return self.plug(kind)
 
-    def ramp_points(self, kind="value"):
+    def rampPoints(self, kind="value"):
         """ランプの既存点を取得する。
 
         Args:
@@ -114,7 +114,7 @@ class RemapValue(Node):
         return result
 
     @undo_chunk("hlibCalculationEdit")
-    def set_ramp_point(self, index, position, value, interpolation="linear", kind="value"):
+    def setRampPoint(self, index, position, value, interpolation="linear", kind="value"):
         """指定番号のランプ点を追加または編集する。
 
         Args:
@@ -135,7 +135,7 @@ class RemapValue(Node):
         if not 0 <= position <= 1:
             raise ValueError("position must be in 0..1")
         value = _Calculation.scalar(value) if kind == "value" else _Calculation.vector(value)
-        mode = _Calculation.enum_value(interpolation, ("none", "linear", "smooth", "spline"))
+        mode = _Calculation.enumValue(interpolation, ("none", "linear", "smooth", "spline"))
         point = array.element(index, create=True)
         point.child(0).set(position)
         point.child(1).set(value)
@@ -143,7 +143,7 @@ class RemapValue(Node):
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def remove_ramp_point(self, index, kind="value"):
+    def removeRampPoint(self, index, kind="value"):
         """指定したランプ点を削除する。
 
         Args:
@@ -155,10 +155,10 @@ class RemapValue(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        self._ramp_array(kind).remove_element(_Calculation.index(index))
+        self._ramp_array(kind).removeElement(_Calculation.index(index))
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -170,4 +170,4 @@ class RemapValue(Node):
         Returns:
             float: 計算結果。
         """
-        return self.output_plug().get()
+        return self.outputPlug().get()

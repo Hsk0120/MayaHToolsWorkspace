@@ -26,9 +26,9 @@ class MatrixFollow:
             source (Node): 入力Transform。
             target (Node): 出力バッファ。
         """
-        pending, visited = [source, target.parent_node()], set()
+        pending, visited = [source, target.parentNode()], set()
         # target自体のインスタンスも確認する。親のインスタンスは探索で検出する。
-        if len(cmds.listRelatives(target.full_name(), allParents=True) or []) > 1:
+        if len(cmds.listRelatives(target.fullName(), allParents=True) or []) > 1:
             raise ValueError("Instanced targets are not supported")
         while pending:
             item = pending.pop()
@@ -38,13 +38,13 @@ class MatrixFollow:
             if item.uuid() == target.uuid():
                 raise ValueError("Source or parent depends on target")
             if isinstance(item, (hlib.nodes.Transform, hlib.nodes.Shape)):
-                parents = cmds.listRelatives(item.full_name(), allParents=True, fullPath=True) or []
+                parents = cmds.listRelatives(item.fullName(), allParents=True, fullPath=True) or []
                 if len(parents) > 1:
                     raise ValueError("Instanced hierarchy is not supported")
                 pending.extend(hlib.getNode(parent) for parent in parents)
             pairs = (
                 cmds.listConnections(
-                    item.full_name(), source=True, destination=False, plugs=True, connections=True
+                    item.fullName(), source=True, destination=False, plugs=True, connections=True
                 )
                 or []
             )
@@ -76,7 +76,7 @@ class MatrixFollow:
         source, target = hlib.getNode(source), hlib.getNode(target)
         if source.type() != "transform" or target.type() != "transform":
             raise ValueError("MatrixFollow requires transform buffers, not joints")
-        if source.uuid() == target.uuid() or target.is_ancestor_of(source):
+        if source.uuid() == target.uuid() or target.isAncestorOf(source):
             raise ValueError("Source must not depend on the target hierarchy")
         MatrixFollow._validate_dependencies(source, target)
         identity = Matrix()
@@ -104,14 +104,14 @@ class MatrixFollow:
                 raise ValueError("Target channels must have no incoming connections")
         if target.plug("offsetParentMatrix").source() is not None:
             raise ValueError("Target offsetParentMatrix is already connected")
-        if target.is_locked() or target.plug("offsetParentMatrix").is_locked():
+        if target.isLocked() or target.plug("offsetParentMatrix").isLocked():
             raise ValueError("Target offsetParentMatrix must be writable")
         if (
             not target.plug("inheritsTransform").get()
             or target.plug("inheritsTransform").source() is not None
         ):
             raise ValueError("Target must inherit its parent transform")
-        parent = target.parent_node()
+        parent = target.parentNode()
         if parent is not None:
             parent_matrix = Matrix(parent.plug("worldMatrix[0]").get())
             if parent_matrix.isSingular() or any(

@@ -31,7 +31,7 @@ class TwistDistribution:
         node = hlib.nodes.Node.create(
             kind, name=self.container.name() + "_" + suffix, skipSelect=True
         )
-        self.container.add_members(node)
+        self.container.addMembers(node)
         return node
 
     @classmethod
@@ -63,12 +63,12 @@ class TwistDistribution:
             raise ValueError("Twist container already exists: " + name)
         graph = cls(hlib.nodes.Container.create(name=name))
         owner = graph.container
-        owner.add_attribute(long_name="twistMatrix", data_type="matrix")
-        owner.add_attribute(long_name="relativeDecompose", attribute_type="message")
+        owner.addAttribute(longName="twistMatrix", dataType="matrix")
+        owner.addAttribute(longName="relativeDecompose", attributeType="message")
         relative = graph._node("multMatrix", "relative")
         parents = [
             hlib.getNode(value)
-            for value in (cmds.listRelatives(end.full_name(), parent=True, fullPath=True) or [])
+            for value in (cmds.listRelatives(end.fullName(), parent=True, fullPath=True) or [])
         ] or []
         if [node.uuid() for node in parents] == [start.uuid()]:
             # 隣接骨ならワールド行列を介さず、OPMを含む実ローカル行列を使う。
@@ -132,7 +132,7 @@ class TwistDistribution:
         # Maya 2022はbool、2025以降は連続ウェイトで成分を選択する。
         attrs = (
             ("translateWeight", "scaleWeight", "shearWeight")
-            if blend.has_attribute("target[0].translateWeight")
+            if blend.hasAttribute("target[0].translateWeight")
             else ("useTranslate", "useScale", "useShear")
         )
         for attr in attrs:

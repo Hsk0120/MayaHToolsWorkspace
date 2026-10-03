@@ -4,7 +4,7 @@ from .fastWrite import writable
 
 
 def geometry(shape, indices, edit=False):
-    path = shape.dag_path()
+    path = shape.dagPath()
     mesh = path.node().hasFn(om.MFn.kMesh)
     fn = om.MFnMesh(path) if mesh else om.MFnNurbsCurve(path)
     if edit:
@@ -26,14 +26,27 @@ def geometry(shape, indices, edit=False):
 
 
 def positions(shape, indices, ws=False):
+    """指定した点を保持順・cm単位で取得する。
+
+    Args:
+        shape (Shape): 有効なMeshまたはNurbsCurve。
+        indices (Sequence[int]): 検証済みの点番号。
+        ws (bool): Trueならワールド空間へ変換する。
+
+    Returns:
+        list[tuple[float, float, float]]: 指定順の座標。単点では全点を取得しない。
+    """
     path, fn, mesh = geometry(shape, indices)
-    points = fn.getPoints() if mesh else fn.cvPositions()
-    transform = path.inclusiveMatrix() if ws else om.MMatrix()
-    scale = om.MDistance(1, om.MDistance.kCentimeters).asUnits(om.MDistance.uiUnit())
-    return [tuple(v * scale for v in list(points[i] * transform)[:3]) for i in indices]
+    space = om.MSpace.kWorld if ws else om.MSpace.kObject
+    if len(indices) == 1:
+        points = [fn.getPoint(indices[0], space) if mesh else fn.cvPosition(indices[0], space)]
+    else:
+        all_points = fn.getPoints(space) if mesh else fn.cvPositions(space)
+        points = (all_points[i] for i in indices)
+    return [(point.x, point.y, point.z) for point in points]
 
 
-def set_positions(shape, indices, values, ws=False):
+def setPositions(shape, indices, values, ws=False):
     if not indices:
         return
     path, fn, mesh = geometry(shape, indices, edit=True)
@@ -42,9 +55,8 @@ def set_positions(shape, indices, values, ws=False):
     if ws and abs(transform.det4x4()) < 1e-12:
         raise ValueError("Cannot edit in world space with a singular transform")
     inverse = transform.inverse() if ws else om.MMatrix()
-    scale = om.MDistance(1, om.MDistance.uiUnit()).asCentimeters()
     for index, value in zip(indices, values):
-        point = om.MPoint(*(v * scale for v in value)) * inverse
+        point = om.MPoint(*value) * inverse
         point.w = points[index].w
         points[index] = point
     if mesh:

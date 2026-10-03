@@ -11,7 +11,7 @@ from .shadingDependNode import ShadingDependNode
 class MultiplyDivide(ShadingDependNode):
     """XYZ成分ごとの乗算・除算・累乗。"""
 
-    def input_plug(self, index):
+    def inputPlug(self, index):
         """入力のPlugを取得する。
 
         Args:
@@ -21,7 +21,7 @@ class MultiplyDivide(ShadingDependNode):
         """
         return self.plug(f"input{_Calculation.index(index, (1, 2))}")
 
-    def get_input(self, index):
+    def getInput(self, index):
         """入力の評価値を取得する。
 
         Args:
@@ -29,11 +29,11 @@ class MultiplyDivide(ShadingDependNode):
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.input_plug(index).get()
+        return self.inputPlug(index).get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, index, value, *, fast=False):
+    def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -46,11 +46,11 @@ class MultiplyDivide(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.input_plug, index)
+        _Calculation.set_value(value, _Calculation.vector, self.inputPlug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, index, source, force=False):
+    def connectInput(self, index, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -63,19 +63,19 @@ class MultiplyDivide(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, index, force=force)
+        _Calculation.connect(source, self.inputPlug, index, force=force)
         return self
 
-    def get_operation(self):
+    def getOperation(self):
         """現在のモード名を取得する。
         Returns:
             str: none, multiply, divide, power。
         """
-        return _Calculation.enum_name(self.plug("operation"), ('none', 'multiply', 'divide', 'power'))
+        return _Calculation.enumName(self.plug("operation"), ('none', 'multiply', 'divide', 'power'))
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_operation(self, mode, *, fast=False):
+    def setOperation(self, mode, *, fast=False):
         """モードを設定する。
 
         Args:
@@ -87,11 +87,11 @@ class MultiplyDivide(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enum_value(mode, ('none', 'multiply', 'divide', 'power'))
+        value = _Calculation.enumValue(mode, ('none', 'multiply', 'divide', 'power'))
         self.plug("operation").set(value)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -103,4 +103,4 @@ class MultiplyDivide(ShadingDependNode):
         Returns:
             Vector: 計算結果。
         """
-        return Vector(self.output_plug().get())
+        return Vector(self.outputPlug().get())

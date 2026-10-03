@@ -28,11 +28,11 @@ class FollowLayer:
             dict[str, Node]: IDと設定グループ。
         """
         root = self.rig.root
-        if not root.has_attribute("followGroups"):
+        if not root.hasAttribute("followGroups"):
             return {}
         return {
             node.plug("followId").get(): node
-            for node in root.plug("followGroups").source_nodes().values()
+            for node in root.plug("followGroups").sourceNodes().values()
         }
 
     def joints(self, identifier=None):
@@ -46,7 +46,7 @@ class FollowLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple(group.plug("joint").source().node.full_name() for group in selected)
+        return tuple(group.plug("joint").source().node.fullName() for group in selected)
 
     @undo_transaction("hrig.FollowLayer.add")
     def add(self, identifier, joint, mode="full", axis="x", ratio=0.5):
@@ -69,17 +69,17 @@ class FollowLayer:
         if identifier in self.groups():
             raise ValueError("Follow identifier already exists")
         joint = hlib.getNode(joint)
-        if joint.type() != "joint" or not joint.full_name().startswith(
-            self.rig.root.full_name() + "|"
+        if joint.type() != "joint" or not joint.fullName().startswith(
+            self.rig.root.fullName() + "|"
         ):
             raise ValueError("Expected a joint inside the module")
         parent = (
             [
-                item.full_name()
+                item.fullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (
-                        cmds.listRelatives(joint.full_name(), parent=True, fullPath=True) or []
+                        cmds.listRelatives(joint.fullName(), parent=True, fullPath=True) or []
                     )
                 ]
             ]
@@ -92,50 +92,50 @@ class FollowLayer:
             joint, name=stem + "_graph", mode=mode, axis=axis, ratio=ratio
         )
         group = hlib.createNode("transform", name=stem + "_grp", parent=parent, skipSelect=True)
-        group.add_attribute(long_name="followId", data_type="string").set(identifier)
-        group.add_attribute(long_name="axis", data_type="string").set(axis)
-        group.add_attribute(
-            long_name="ratio",
-            attribute_type="double",
-            default_value=ratio,
+        group.addAttribute(longName="followId", dataType="string").set(identifier)
+        group.addAttribute(longName="axis", dataType="string").set(axis)
+        group.addAttribute(
+            longName="ratio",
+            attributeType="double",
+            defaultValue=ratio,
             minValue=0,
             maxValue=1,
             keyable=True,
         )
-        group.add_attribute(
-            long_name="followMode",
-            attribute_type="enum",
+        group.addAttribute(
+            longName="followMode",
+            attributeType="enum",
             enumName="Full:Twist:Swing",
-            default_value=("full", "twist", "swing").index(mode),
+            defaultValue=("full", "twist", "swing").index(mode),
         )
-        group.set_attribute_flags(["followMode"], channel_box=True)
+        group.setAttributeFlags(["followMode"], channelBox=True)
         for attr in ("ratio", "followMode"):
             group.plug(attr).connect(graph.container.plug(attr))
-        group.set_attribute_flags(["followId", "axis"], locked=True)
+        group.setAttributeFlags(["followId", "axis"], locked=True)
         bone = hlib.createNode("joint", name=stem + "_jnt", parent=group, skipSelect=True)
         bone.plug("segmentScaleCompensate").set(False)
         bone.plug("radius").set(0.55)
         bone.plug("overrideEnabled").set(True)
         bone.plug("overrideColor").set(13)
         for attr, node in (("joint", bone), ("graph", graph.container), ("sourceJoint", joint)):
-            group.add_attribute(long_name=attr, attribute_type="message")
+            group.addAttribute(longName=attr, attributeType="message")
             node.plug("message").connect(group.plug(attr))
         root = self.rig.root
         for attr in ("followGroups", "hrigOwned"):
-            if not root.has_attribute(attr):
-                root.add_attribute(long_name=attr, attribute_type="message", multi=True)
-        if not root.has_attribute("hrigEnabled_follow"):
-            root.add_attribute(long_name="hrigEnabled_follow", attribute_type="bool", default_value=True)
+            if not root.hasAttribute(attr):
+                root.addAttribute(longName=attr, attributeType="message", multi=True)
+        if not root.hasAttribute("hrigEnabled_follow"):
+            root.addAttribute(longName="hrigEnabled_follow", attributeType="bool", defaultValue=True)
         for attr, nodes in (("followGroups", (group,)), ("hrigOwned", (group, graph.container))):
             for node in nodes:
-                root.plug(attr).append_message(node)
-        group.set_attribute_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
+                root.plug(attr).appendMessage(node)
+        group.setAttributeFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
         self.update()
         # スカートには腕脚の表示ノードを作らず、既存の監視入口を再登録する。
         from .skirtRig import SkirtRig
 
         if isinstance(self.rig, SkirtRig):
-            root.set_attribute_flags(["hrigEnabled_follow"], channel_box=True)
+            root.setAttributeFlags(["hrigEnabled_follow"], channelBox=True)
             jobs = SkirtRig._jobs.pop(root.uuid(), None)
             if jobs is not None:
                 jobs.stop()
@@ -144,7 +144,7 @@ class FollowLayer:
             from .channel_controls import sync_display
 
             sync_display(self.rig)
-        return bone.full_name()
+        return bone.fullName()
 
     def update(self):
         """Enabled/LODに応じて出力を切断し、基準姿勢へ戻す。"""

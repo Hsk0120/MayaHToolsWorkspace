@@ -6,20 +6,21 @@
 
 .. code-block:: python
 
+   import math
    import hlib
 
    relation = hlib.getDrivenKey(driver="ctrl.rotateY", driven="joint.rotateZ")
-   relation.set_key(driver_value=0, value=0)
-   relation.set_key(driver_value=90, value=45)
+   relation.setKey(driver_value=0, value=0)
+   relation.setKey(driver_value=math.pi / 2, value=math.pi / 4)
 
-   print(relation.driver_plug())
-   print(relation.driven_plug())
+   print(relation.driverPlug())
+   print(relation.drivenPlug())
    print(relation.exists())
    print(relation.curves())
 
 ``hlib.getDrivenKey()`` は既存のアトリビュートを保持し、取得だけではシーンを変更しません。
-``set_key()`` でMayaのsetDrivenKeyframeを実行し、キーを作成・更新します。
-引数は現在のMaya UI単位で、ドライバーの現在値は変更しません。
+``setKey()`` でMayaのsetDrivenKeyframeを実行し、キーを作成・更新します。
+引数はアトリビュートに応じたcm/rad/秒で、ドライバーの現在値は変更しません。
 接線は既定でlinearです。通常、外側にundo_chunkを指定する必要はありません。
 
 カーブを詳しく編集する
@@ -28,12 +29,12 @@
 .. code-block:: python
 
    for curve in relation.curves():
-       print(curve.key_inputs(), curve.key_values())
-       curve.set_tangent(0, outTangentType="flat")
+       print(curve.keyInputs(), curve.keyValues())
+       curve.setTangent(0, outTangentType="flat")
 
 カーブ単体の補間やキー削除は :doc:`animation_nodes` のAnimCurveメソッドで行います。
 カーブの生の入力値は、単位変換がある場合にドライバーのUI単位と異なります。
-``set_key()`` はドライバーのUI単位で設定できます。
+``setKey()`` はドライバーの内部単位で設定できます。
 
 複数の関係を扱う
 --------------------
@@ -43,13 +44,13 @@
    from hlib.scene import DrivenKey
 
    relations = DrivenKey.find("joint.rotateZ")
-   print([relation.driver_plug() for relation in relations])      # ドライバーPlugのリスト
+   print([relation.driverPlug() for relation in relations])      # ドライバーPlugのリスト
    print([relation.curves() for relation in relations])      # 関係ごとのカーブリスト
    for relation in relations:
-       relation.set_key(0, 0)
+       relation.setKey(0, 0)
 
 ``[relation1, relation2]`` のように通常のリストで保持します。
-各set_keyはそれぞれUndoできます。
+各setKeyはそれぞれUndoできます。
 途中の失敗は例外として通知し、それ以前の変更は自動で取り消しません。
 
 対応する接続構成

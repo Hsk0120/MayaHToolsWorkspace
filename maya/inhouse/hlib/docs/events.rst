@@ -46,7 +46,7 @@ importだけでは監視を開始しません。バッチでは登録を拒否�
 ``hlib.getPlug("settings_ctrl.enabled")`` は既存アトリビュートを型に対応するPlugへ解決します。
 Plug自身やOpenMaya API 2.0のMPlugも受け付けます。
 
-``Plug.set_if_changed(value, unlock=False)`` はbool/int/float/strのスカラー値を
+``Plug.setIfChanged(value, unlock=False)`` はbool/int/float/strのスカラー値を
 厳密比較し、異なる場合だけ更新します。更新した場合はTrue、同じならFalseを返します。
 ``unlock=True`` では一時的にロックを解除し、書込みに失敗した場合もロックを復元します。
 接続先への書込みやキーのあるアトリビュートに特別な迂回処理は行いません。

@@ -37,36 +37,36 @@ class SceneApiTest(unittest.TestCase):
         self.assertIs(Scene, SceneFromPackage)
         self.assertIsNone(self.scene.path)
         self.assertIsNone(self.scene.name)
-        self.assertTrue(self.scene.is_new())
-        self.assertFalse(self.scene.is_modified())
+        self.assertTrue(self.scene.isNew())
+        self.assertFalse(self.scene.isModified())
 
     def test_save_open_and_new(self):
         cmds.createNode("transform", name="hlibSceneApiNode")
-        self.assertTrue(self.scene.is_modified())
+        self.assertTrue(self.scene.isModified())
 
-        result = self.scene.save_as(self.path)
+        result = self.scene.saveAs(self.path)
         self.assertIs(result, self.scene)
         self.assertEqual(self.scene.path, self.path)
         self.assertEqual(self.scene.name, self.path.name)
-        self.assertEqual(self.scene.file_type(), "mayaAscii")
-        self.assertFalse(self.scene.is_modified())
+        self.assertEqual(self.scene.fileType(), "mayaAscii")
+        self.assertFalse(self.scene.isModified())
 
         self.scene.open(self.path, force=True, prompt=False)
         self.assertEqual(self.scene.path, self.path)
         self.scene.new(force=True, prompt=False)
-        self.assertTrue(self.scene.is_new())
+        self.assertTrue(self.scene.isNew())
 
     def test_invalid_save_as_extension(self):
         with self.assertRaises(ValueError):
-            self.scene.save_as(self.path.with_suffix(".txt"))
+            self.scene.saveAs(self.path.with_suffix(".txt"))
 
     def test_import_file_brings_in_nodes_under_namespace(self):
         cmds.createNode("transform", name="hlibImportSourceNode")
-        self.scene.save_as(self.import_path)
+        self.scene.saveAs(self.import_path)
         self.scene.new(force=True, prompt=False)
         cmds.createNode("transform", name="hlibSceneApiNode")
 
-        new_nodes = self.scene.import_file(self.import_path, namespace="hlibImportedNs")
+        new_nodes = self.scene.importFile(self.import_path, namespace="hlibImportedNs")
         imported_names = [node.name() for node in new_nodes]
         self.assertTrue(any(name.endswith("hlibImportSourceNode") for name in imported_names))
         self.assertTrue(cmds.objExists("hlibImportedNs:hlibImportSourceNode"))
@@ -74,12 +74,12 @@ class SceneApiTest(unittest.TestCase):
 
     def test_import_file_requires_current_scene(self):
         cmds.createNode("transform", name="hlibImportSourceNode")
-        self.scene.save_as(self.import_path)
+        self.scene.saveAs(self.import_path)
         self.scene.new(force=True, prompt=False)
 
         stale = Scene(self.import_path)
         with self.assertRaises(RuntimeError):
-            stale.import_file(self.import_path)
+            stale.importFile(self.import_path)
 
     def test_scene_command_snapshots_without_opening(self):
         self.assertIs(hlib.getScene, hlib.cmds.getScene)
@@ -87,18 +87,18 @@ class SceneApiTest(unittest.TestCase):
         other = hlib.getScene(self.path)
         self.assertEqual(other.path, self.path.resolve())
         self.assertEqual(str(other), str(self.path.resolve()))
-        self.assertTrue(self.scene.is_new())
-        self.assertFalse(other.is_current())
+        self.assertTrue(self.scene.isNew())
+        self.assertFalse(other.isCurrent())
         with self.assertRaises(RuntimeError):
             other.save()
         with self.assertRaises(RuntimeError):
-            other.is_modified()
-        self.scene.save_as(self.path)
+            other.isModified()
+        self.scene.saveAs(self.path)
         captured = hlib.getScene()
         self.scene.new(force=True, prompt=False)
         self.assertEqual(captured.path, self.path.resolve())
         captured.open(force=True, prompt=False)
-        self.assertTrue(captured.is_current())
+        self.assertTrue(captured.isCurrent())
         self.assertEqual(hlib.getScene().path, self.path.resolve())
         with self.assertRaises(ValueError):
             hlib.getScene("")

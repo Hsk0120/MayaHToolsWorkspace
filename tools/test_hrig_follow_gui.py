@@ -123,7 +123,7 @@ def main(output_dir=None, finished=None):
         check(not rig.layer_enabled("follow"), "Skirt follow checkbox")
         rig.set_layer_enabled("follow", True)
         yield
-        cmds.setAttr(rig.root.full_name() + ".hrigEnabled_follow", False)
+        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_follow", False)
         yield
         check(
             hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is None,
@@ -149,7 +149,7 @@ def main(output_dir=None, finished=None):
         yield
         rig = SkirtRig("skirtFollow")
         check(len(rig.follow_joints()) == 1, "Save reload keeps follow references")
-        cmds.setAttr(rig.root.full_name() + ".hrigEnabled_follow", False)
+        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_follow", False)
         yield
         check(
             hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is None,

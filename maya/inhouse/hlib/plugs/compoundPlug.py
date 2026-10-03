@@ -87,7 +87,7 @@ class CompoundPlug(Plug):
             attribute = om2.MFnAttribute(child.attribute())
             if name_or_index in (attribute.name, attribute.shortName):
                 return Plug(self._node, child)
-        raise AttributeError(f"No child named {name_or_index!r} on {self.full_name()}")
+        raise AttributeError(f"No child named {name_or_index!r} on {self.fullName()}")
 
     def children(self):
         """直接の子 Plug をすべて取得する。

@@ -23,34 +23,34 @@ class Constraint(Transform):
         Returns:
             list[Node]: ターゲットのラッパー。登録がなければ空リスト。
         """
-        names = getattr(cmds, self.type())(self.full_name(), query=True, targetList=True) or []
+        names = getattr(cmds, self.type())(self.fullName(), query=True, targetList=True) or []
         return [Node(name) for name in names]
 
-    def weight_aliases(self):
+    def weightAliases(self):
         """各ターゲットのウェイトアトリビュートの別名を取得する。
 
         Returns:
             list[str]: targets() と同じ順序のアトリビュート別名。
         """
-        return getattr(cmds, self.type())(self.full_name(), query=True, weightAliasList=True) or []
+        return getattr(cmds, self.type())(self.fullName(), query=True, weightAliasList=True) or []
 
-    def weight_plugs(self):
+    def weightPlugs(self):
         """ターゲットのウェイトプラグを取得する。
 
         Returns:
             list[Plug]: targets() と同じ順序のプラグ。set() で値を変更できる。
         """
-        return [self.plug(alias) for alias in self.weight_aliases()]
+        return [self.plug(alias) for alias in self.weightAliases()]
 
-    def get_weights(self):
+    def getWeights(self):
         """ターゲットの現在のウェイトを取得する。
 
         Returns:
             list[float]: targets() と同じ順序の値。正規化は行わない。
         """
-        return [plug.get() for plug in self.weight_plugs()]
+        return [plug.get() for plug in self.weightPlugs()]
 
-    def get_weight(self, target):
+    def getWeight(self, target):
         """指定ターゲットの現在のウェイトを取得する。
 
         Args:
@@ -61,15 +61,15 @@ class Constraint(Transform):
             ValueError: ターゲットが登録されていない場合。
         """
         from hlib.nodes.node import Node as _InputNode
-        requested = _InputNode._resolve_input(target).full_name()
-        for node, plug in zip(self.targets(), self.weight_plugs()):
-            if node.full_name() == requested:
+        requested = _InputNode._resolve_input(target).fullName()
+        for node, plug in zip(self.targets(), self.weightPlugs()):
+            if node.fullName() == requested:
                 return plug.get()
         raise ValueError(f"Target not found on this constraint: {requested}")
 
     @fast_edit
     @undo_chunk("hlibConstraintSetWeight")
-    def set_weight(self, weight, *targets, fast=False):
+    def setWeight(self, weight, *targets, fast=False):
         """ターゲットのウェイトをまとめて設定する。
 
         Args:
@@ -88,13 +88,13 @@ class Constraint(Transform):
         """
         from hlib.nodes.node import Node as _InputNode
         from hlib.nodes.node import Nodes as _InputNodes
-        weight_plugs = self.weight_plugs()
+        weightPlugs = self.weightPlugs()
         if not targets:
-            for plug in weight_plugs:
+            for plug in weightPlugs:
                 plug.set(weight)
             return self
-        requested = {_InputNode._resolve_input(target).full_name() for target in _InputNodes._resolve_inputs(targets)}
-        available = {node.full_name(): plug for node, plug in zip(self.targets(), weight_plugs)}
+        requested = {_InputNode._resolve_input(target).fullName() for target in _InputNodes._resolve_inputs(targets)}
+        available = {node.fullName(): plug for node, plug in zip(self.targets(), weightPlugs)}
         missing = requested - available.keys()
         if missing:
             raise ValueError(f"Targets not found on this constraint: {sorted(missing)}")

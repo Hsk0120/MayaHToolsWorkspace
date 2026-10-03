@@ -21,7 +21,7 @@ class ControlRig:
             root (str | Node): モジュールルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.has_attribute("hrigControlDefinition"):
+        if not self.root.hasAttribute("hrigControlDefinition"):
             raise ValueError("Not a control module")
 
     @classmethod
@@ -40,22 +40,22 @@ class ControlRig:
         ]:
             raise ValueError("Use a unique module name")
         root = hlib.createNode("transform", name=name, skipSelect=True)
-        root.add_attribute(long_name="hrigControlDefinition", data_type="string").set(
+        root.addAttribute(longName="hrigControlDefinition", dataType="string").set(
             hlib.json.JsonText.dumps(dict(kind=kind))
         )
-        root.add_attribute(long_name="lod", attribute_type="enum", enumName="Low:Full", default_value=1)
-        root.add_attribute(long_name="enabled", attribute_type="bool", default_value=True)
-        root.set_attribute_flags(["lod", "enabled"], channel_box=True)
-        root.add_attribute(long_name="angles", attribute_type="doubleAngle", multi=True)
+        root.addAttribute(longName="lod", attributeType="enum", enumName="Low:Full", defaultValue=1)
+        root.addAttribute(longName="enabled", attributeType="bool", defaultValue=True)
+        root.setAttributeFlags(["lod", "enabled"], channelBox=True)
+        root.addAttribute(longName="angles", attributeType="doubleAngle", multi=True)
         for attr in ("controls", "deform", "sources", "targets"):
-            root.add_attribute(long_name=attr, attribute_type="message", multi=True)
+            root.addAttribute(longName=attr, attributeType="message", multi=True)
         for role in ("control", "deform", "layer"):
             node = hlib.createNode(
                 "transform", name=name + "_" + role + "_grp", parent=root, skipSelect=True
             )
-            root.add_attribute(long_name=role + "Group", attribute_type="message")
+            root.addAttribute(longName=role + "Group", attributeType="message")
             node.plug("message").connect(root.plug(role + "Group"))
-        root.add_attribute(long_name="graph", attribute_type="message")
+        root.addAttribute(longName="graph", attributeType="message")
         hlib.nodes.Container.create(name=name + "_graph").plug("message").connect(
             root.plug("graph")
         )
@@ -87,7 +87,7 @@ class ControlRig:
             attr (str): message配列名。
             node (Node): 登録対象。
         """
-        self.root.plug(attr).append_message(node)
+        self.root.plug(attr).appendMessage(node)
 
     def members(self, attr):
         """登録順にノードを取得する。
@@ -98,7 +98,7 @@ class ControlRig:
         Returns:
             list[Node]: 登録ノード。
         """
-        return list(self.root.plug(attr).source_nodes().values())
+        return list(self.root.plug(attr).sourceNodes().values())
 
     def own(self, node):
         """DGノードの寿命をモジュールにまとめる。
@@ -106,7 +106,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        hlib.nodes.Container(self.root.plug("graph").source().node).add_members(node)
+        hlib.nodes.Container(self.root.plug("graph").source().node).addMembers(node)
 
     def joints(self):
         """変形骨とTweak骨を取得する。
@@ -116,7 +116,7 @@ class ControlRig:
         """
         from .tweakLayer import TweakLayer
 
-        return tuple(n.full_name() for n in self.members("deform")) + TweakLayer(self).joints()
+        return tuple(n.fullName() for n in self.members("deform")) + TweakLayer(self).joints()
 
     def lod(self):
         """LOD値を取得する。
@@ -183,7 +183,7 @@ class ControlRig:
                 elif not active and previous is not None:
                     previous.disconnect(destination)
                     destination.set(0)
-            source.plug("nodeState").set_if_changed(0 if active else 2)
+            source.plug("nodeState").setIfChanged(0 if active else 2)
         from .tweakLayer import TweakLayer
 
         TweakLayer(self).update()
@@ -198,7 +198,7 @@ class ControlRig:
                 jobs.stop()
                 del cls._jobs[key]
         for attr in [
-            item.full_name() for item in hlib.ls("*.hrigControlDefinition", recursive=True)
+            item.fullName() for item in hlib.ls("*.hrigControlDefinition", recursive=True)
         ] or []:
             rig = cls(attr.rsplit(".", 1)[0])
             key = rig.root.uuid()
@@ -222,7 +222,7 @@ class ControlRig:
         Args:
             key (str): ルートUUID。
         """
-        names = [item.full_name() for item in hlib.ls(key, long=True)] or []
+        names = [item.fullName() for item in hlib.ls(key, long=True)] or []
         if names:
             rig = cls(names[0])
             active = rig.lod() == 1 and rig.layer_enabled(rig.kind())

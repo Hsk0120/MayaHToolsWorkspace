@@ -331,7 +331,7 @@ Pythonの書式・日本語Google形式docstringはhlibに合わせます。
 
 ノード生成・属性・接続・行列の操作にはhlibの公開APIを使用します。
 GUI監視は `hlib.events.ScriptJobs`、変更があるときだけ行う状態表示の更新は
-`Plug.set_if_changed()` を使用します。FK/IKやLODの判断、リグの再探索はhrig側の責務です。
+`Plug.setIfChanged()` を使用します。FK/IKやLODの判断、リグの再探索はhrig側の責務です。
 IKハンドル構築、スキン作成・ウェイト転送、プリミティブ作成などにはMaya専用コマンドを使用します。
 
 ## 肘・膝の曲げ補助レイヤー
@@ -786,7 +786,7 @@ hrigは構成・命名・レイヤー有効状態・LOD・リグの姿勢合わ�
 | 処理 | 実装先 |
 | --- | --- |
 | 計算ノードの所有・追加・列挙 | `hlib.nodes.Container` |
-| 保存用message配列 | `hlib.plugs.ArrayPlug.source_nodes / append_message` |
+| 保存用message配列 | `hlib.plugs.ArrayPlug.sourceNodes / appendMessage` |
 | 操作カーブ | `hrig.setups.ControlShape` |
 | 表示単位変換 | `hlib.utils.units` |
 | スキンのバインド・最近傍ウェイト転送 | `hlib.nodes.SkinCluster` |

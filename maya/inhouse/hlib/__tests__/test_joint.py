@@ -1,4 +1,5 @@
 """hlib.nodes.joint の Joint ラッパーを検証するMaya内テスト。"""
+from maya.api.OpenMaya import MSpace
 
 import math
 import sys
@@ -35,7 +36,7 @@ class JointTest(unittest.TestCase):
         cmds.select(clear=True)
         joint_name = cmds.joint(name=self.namespace + ":" + name)
         if parent is not None:
-            cmds.parent(joint_name, parent.full_name())
+            cmds.parent(joint_name, parent.fullName())
         self.created.append(joint_name)
         return Joint(joint_name)
 
@@ -44,69 +45,69 @@ class JointTest(unittest.TestCase):
         parent = self.create_joint("sscParent")
         child = self.create_joint("sscChild", parent)
         joints = Joints([parent, child])
-        self.assertEqual(joints.get_segment_scale_compensate(), [True, True])
-        joints.set_segment_scale_compensate(False)
-        self.assertEqual(joints.get_segment_scale_compensate(), [False, False])
+        self.assertEqual(joints.getSegmentScaleCompensate(), [True, True])
+        joints.setSegmentScaleCompensate(False)
+        self.assertEqual(joints.getSegmentScaleCompensate(), [False, False])
         cmds.undo()
-        self.assertEqual(joints.get_segment_scale_compensate(), [True, True])
+        self.assertEqual(joints.getSegmentScaleCompensate(), [True, True])
         cmds.redo()
-        self.assertEqual(joints.get_segment_scale_compensate(), [False, False])
-        self.assertIs(child.set_segment_scale_compensate(True, fast=True), child)
-        self.assertTrue(child.get_segment_scale_compensate())
+        self.assertEqual(joints.getSegmentScaleCompensate(), [False, False])
+        self.assertIs(child.setSegmentScaleCompensate(True, fast=True), child)
+        self.assertTrue(child.getSegmentScaleCompensate())
         with self.assertRaises(TypeError):
-            child.set_segment_scale_compensate(1)
+            child.setSegmentScaleCompensate(1)
 
     def test_inverse_scale_connect_disconnect_bulk(self):
         from hlib.nodes.joint import Joints
         parent = self.create_joint("connectParent")
         child = self.create_joint("connectChild", parent)
         joints = Joints([parent, child])
-        joints.disconnect_inverse_scale()
+        joints.disconnectInverseScale()
         self.assertIsNone(child.plug("inverseScale").source())
-        joints.connect_inverse_scale()
+        joints.connectInverseScale()
         self.assertEqual(child.plug("inverseScale").source(), parent.plug("scale"))
         cmds.undo()
         self.assertIsNone(child.plug("inverseScale").source())
-        child.connect_inverse_scale(parent.full_name())
-        child.connect_inverse_scale()  # 同じ接続はそのまま
-        child.disconnect_inverse_scale()
+        child.connectInverseScale(parent.fullName())
+        child.connectInverseScale()  # 同じ接続はそのまま
+        child.disconnectInverseScale()
         parent.plug("sx").connect(child.plug("inverseScaleX"))
         parent.plug("sy").connect(child.plug("inverseScaleY"))
         child.plug("inverseScaleZ").connect(parent.plug("radius"))
-        child.disconnect_inverse_scale()
+        child.disconnectInverseScale()
         self.assertIsNone(child.plug("inverseScaleX").source())
         self.assertIsNone(child.plug("inverseScaleY").source())
         self.assertEqual(parent.plug("radius").source(), child.plug("inverseScaleZ"))
         with self.assertRaises(ValueError):
-            child.connect_inverse_scale(child)
+            child.connectInverseScale(child)
 
     def test_joint_radius_and_bulk_undo(self):
         from hlib.nodes.joint import Joints
         joints = Joints([self.create_joint("radiusA"), self.create_joint("radiusB")])
-        before = joints.get_radius()
-        joints.set_radius(2.5)
-        self.assertEqual(joints.get_radius(), [2.5, 2.5])
+        before = joints.getRadius()
+        joints.setRadius(2.5)
+        self.assertEqual(joints.getRadius(), [2.5, 2.5])
         cmds.undo()
-        self.assertEqual(joints.get_radius(), before)
+        self.assertEqual(joints.getRadius(), before)
         cmds.redo()
-        self.assertEqual(joints.get_radius(), [2.5, 2.5])
-        joints[0].set_radius(0, fast=True)
-        self.assertEqual(joints[0].get_radius(), 0)
+        self.assertEqual(joints.getRadius(), [2.5, 2.5])
+        joints[0].setRadius(0, fast=True)
+        self.assertEqual(joints[0].getRadius(), 0)
         for value in (-1, float("nan"), float("inf")):
             with self.assertRaises(ValueError):
-                joints[0].set_radius(value)
+                joints[0].setRadius(value)
 
     def test_node_create_resolves_to_joint_wrapper(self):
         joint = self.create_joint("hlibJointBasic")
         self.assertIsInstance(joint, Joint)
-        self.assertIsInstance(Node(joint.full_name()), Joint)
+        self.assertIsInstance(Node(joint.fullName()), Joint)
 
     def test_joint_orient_returns_degrees_converted_to_radians(self):
         joint = self.create_joint("hlibJointOrient")
-        cmds.setAttr(joint.full_name() + ".jointOrientX", 90.0)
-        cmds.setAttr(joint.full_name() + ".jointOrientY", -45.0)
+        cmds.setAttr(joint.fullName() + ".jointOrientX", 90.0)
+        cmds.setAttr(joint.fullName() + ".jointOrientY", -45.0)
 
-        orient = joint.get_joint_orient()
+        orient = joint.getJointOrient()
         self.assertIsInstance(orient, EulerRotation)
         self.assertAlmostEqual(orient.x, math.radians(90.0), places=9)
         self.assertAlmostEqual(orient.y, math.radians(-45.0), places=9)
@@ -114,53 +115,53 @@ class JointTest(unittest.TestCase):
 
     def test_joint_orient_z_returns_radians(self):
         joint = self.create_joint("hlibJointOrientation")
-        cmds.setAttr(joint.full_name() + ".jointOrientZ", 30.0)
-        self.assertAlmostEqual(joint.get_joint_orient().z, math.radians(30.0))
+        cmds.setAttr(joint.fullName() + ".jointOrientZ", 30.0)
+        self.assertAlmostEqual(joint.getJointOrient().z, math.radians(30.0))
 
     def test_inverse_scale_is_not_angle_converted(self):
         joint = self.create_joint("hlibJointInverseScale")
-        cmds.setAttr(joint.full_name() + ".inverseScale", 2.0, 3.0, 4.0)
+        cmds.setAttr(joint.fullName() + ".inverseScale", 2.0, 3.0, 4.0)
 
-        inverse_scale = joint.get_inverse_scale()
+        inverse_scale = joint.getInverseScale()
         self.assertIsInstance(inverse_scale, Scale)
         self.assertEqual(tuple(inverse_scale), (2.0, 3.0, 4.0))
 
     def test_set_rotate_preserves_joint_orient_and_rotate_axis(self):
         # jointOrient/rotateAxis は度数法のアトリビュートなので、内部で角度単位を取り違えると
-        # ここで大きくズレる（asDouble() はラジアンを返すため）。set_rotate は
+        # ここで大きくズレる（asDouble() はラジアンを返すため）。setRotation は
         # rotateAxis/jointOrient を補正した上で .rotate チャンネルへ書き込むため、
-        # .rotate の生値ではなく get_rotate() による round-trip で検証する。
+        # .rotate の生値ではなく getRotation() による round-trip で検証する。
         joint = self.create_joint("hlibJointOrientPreserve")
-        cmds.setAttr(joint.full_name() + ".jointOrientX", 90.0)
-        cmds.setAttr(joint.full_name() + ".rotateAxisY", 30.0)
+        cmds.setAttr(joint.fullName() + ".jointOrientX", 90.0)
+        cmds.setAttr(joint.fullName() + ".rotateAxisY", 30.0)
 
-        joint.set_rotate((0.0, math.radians(45.0), 0.0))
+        joint.setRotation((0.0, math.radians(45.0), 0.0))
 
-        self.assertAlmostEqual(cmds.getAttr(joint.full_name() + ".jointOrientX"), 90.0, places=6)
-        self.assertAlmostEqual(cmds.getAttr(joint.full_name() + ".rotateAxisY"), 30.0, places=6)
+        self.assertAlmostEqual(cmds.getAttr(joint.fullName() + ".jointOrientX"), 90.0, places=6)
+        self.assertAlmostEqual(cmds.getAttr(joint.fullName() + ".rotateAxisY"), 30.0, places=6)
 
-        rotate = joint.get_rotate()
+        rotate = joint.getRotation()
         self.assertAlmostEqual(rotate.x, 0.0, places=6)
         self.assertAlmostEqual(rotate.y, math.radians(45.0), places=6)
         self.assertAlmostEqual(rotate.z, 0.0, places=6)
 
     def test_negative_scale_joint_set_matrix_round_trip_keeps_world_matrix(self):
         # 回転・スケール・シアーを同じ MTransformationMatrix の分解から取るため、
-        # 行列式が負(負スケール)の joint でも set_matrix(get_matrix()) で姿勢が変わらない。
+        # 行列式が負(負スケール)の joint でも setMatrix(getMatrix()) で姿勢が変わらない。
         root = self.create_joint("hlibJointNegativeRoot")
         joint = self.create_joint("hlibJointNegative", parent=root)
-        name = joint.full_name()
-        cmds.setAttr(root.full_name() + ".rotate", 15.0, -25.0, 35.0)
+        name = joint.fullName()
+        cmds.setAttr(root.fullName() + ".rotate", 15.0, -25.0, 35.0)
         cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
         cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
         cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
-        world = joint.get_matrix(ws=True)
+        world = joint.getMatrix(space=MSpace.kWorld)
 
-        joint.set_matrix(joint.get_matrix())
-        self.assertTrue(joint.get_matrix(ws=True).is_equivalent(world, 1e-9))
-        joint.set_matrix(world, ws=True)
-        self.assertTrue(joint.get_matrix(ws=True).is_equivalent(world, 1e-9))
+        joint.setMatrix(joint.getMatrix())
+        self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9))
+        joint.setMatrix(world, space=MSpace.kWorld)
+        self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9))
         self.assertAlmostEqual(cmds.getAttr(name + ".jointOrientZ"), 30.0, places=6)
 
     def test_segment_scale_compensate_round_trip_under_scaled_parent(self):
@@ -168,23 +169,23 @@ class JointTest(unittest.TestCase):
         # IS を正しく打ち消すため、非一様スケールの親の下でも姿勢とチャンネル値が変わらない。
         root = self.create_joint("hlibJointSscRoot")
         joint = self.create_joint("hlibJointSsc", parent=root)
-        name = joint.full_name()
-        cmds.setAttr(root.full_name() + ".scale", 2.0, 3.0, 0.5)
-        cmds.connectAttr(root.full_name() + ".scale", name + ".inverseScale", force=True)
+        name = joint.fullName()
+        cmds.setAttr(root.fullName() + ".scale", 2.0, 3.0, 0.5)
+        cmds.connectAttr(root.fullName() + ".scale", name + ".inverseScale", force=True)
         cmds.setAttr(name + ".segmentScaleCompensate", True)
         cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
         cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
         cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
-        world = joint.get_matrix(ws=True)
+        world = joint.getMatrix(space=MSpace.kWorld)
         for operation in (
-            lambda: joint.set_matrix(joint.get_matrix()),
-            lambda: joint.set_matrix(world, ws=True),
-            lambda: joint.set_translate(joint.get_translate()),
-            lambda: joint.set_scale(joint.get_scale()),
+            lambda: joint.setMatrix(joint.getMatrix()),
+            lambda: joint.setMatrix(world, space=MSpace.kWorld),
+            lambda: joint.setTranslation(joint.getTranslation()),
+            lambda: joint.setScale(joint.getScale()),
         ):
             operation()
-            self.assertTrue(joint.get_matrix(ws=True).is_equivalent(world, 1e-9))
+            self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9))
             for actual, expected in zip(cmds.getAttr(name + ".translate")[0], (1.0, 2.0, 3.0)):
                 self.assertAlmostEqual(actual, expected, places=9)
             for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], (40.0, -50.0, 60.0)):
@@ -195,14 +196,14 @@ class JointTest(unittest.TestCase):
     def test_set_matrix_round_trip_for_every_rotate_order_with_orient_and_axis(self):
         for order in range(6):
             joint = self.create_joint("hlibJointOrder%d" % order)
-            name = joint.full_name()
+            name = joint.fullName()
             cmds.setAttr(name + ".rotateOrder", order)
             cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
             cmds.setAttr(name + ".rotateAxis", 5.0, -15.0, 25.0)
             cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
-            local = joint.get_matrix()
-            joint.set_matrix(local)
-            self.assertTrue(joint.get_matrix().is_equivalent(local, 1e-9), order)
+            local = joint.getMatrix()
+            joint.setMatrix(local)
+            self.assertTrue(joint.getMatrix().isEquivalent(local, 1e-9), order)
             self.assertAlmostEqual(cmds.getAttr(name + ".rotateAxisY"), -15.0, places=6)
 
     def test_parent_children_depth_and_is_joint(self):
@@ -210,19 +211,19 @@ class JointTest(unittest.TestCase):
         mid = self.create_joint("hlibJointHierarchyMid", parent=root)
         leaf = self.create_joint("hlibJointHierarchyLeaf", parent=mid)
 
-        self.assertIsNone(root.parent_joint_name())
-        self.assertEqual(mid.parent_joint_name(), root.name())
-        self.assertEqual(leaf.parent_joint_name(), mid.name())
+        self.assertIsNone(root.parentJointName())
+        self.assertEqual(mid.parentJointName(), root.name())
+        self.assertEqual(leaf.parentJointName(), mid.name())
 
-        self.assertEqual(root.child_joint_names(), [mid.name()])
-        self.assertEqual(mid.child_joint_names(), [leaf.name()])
-        self.assertEqual(leaf.child_joint_names(), [])
+        self.assertEqual(root.childJointNames(), [mid.name()])
+        self.assertEqual(mid.childJointNames(), [leaf.name()])
+        self.assertEqual(leaf.childJointNames(), [])
 
         self.assertEqual(root.depth(), 0)
         self.assertEqual(mid.depth(), 1)
         self.assertEqual(leaf.depth(), 2)
 
-        self.assertTrue(root.is_joint())
+        self.assertTrue(root.isJoint())
 
         non_joint = Node.create(type="transform", name="hlibJointNonJoint")
         self.created.append(non_joint.name())
@@ -234,7 +235,7 @@ class JointTest(unittest.TestCase):
         joint = self.create_joint("hlibJointUnderTransform")
         cmds.parent(joint.name(), transform_parent.name())
 
-        self.assertIsNone(joint.parent_joint_name())
+        self.assertIsNone(joint.parentJointName())
 
     def test_reparent_children(self):
         root = self.create_joint("hlibJointReparentRoot")
@@ -242,31 +243,31 @@ class JointTest(unittest.TestCase):
         leaf1 = self.create_joint("hlibJointReparentLeaf1", parent=mid)
         leaf2 = self.create_joint("hlibJointReparentLeaf2", parent=mid)
 
-        mid.reparent_children(root.name())
+        mid.reparentChildren(root.name())
 
         # mid 自身は root の子のまま残り、mid が持っていた子(leaf1/leaf2)だけが
         # root の直接の子へ移る。
         self.assertEqual(
-            sorted(root.child_joint_names()),
+            sorted(root.childJointNames()),
             sorted([mid.name(), leaf1.name(), leaf2.name()]),
         )
-        self.assertEqual(mid.child_joint_names(), [])
+        self.assertEqual(mid.childJointNames(), [])
 
     def test_chain_from_here_and_ik_handles_dedupe_multiple_plugs(self):
         root = self.create_joint("hlibJointIkRoot")
         mid = self.create_joint("hlibJointIkMid", parent=root)
         tip = self.create_joint("hlibJointIkTip", parent=mid)
 
-        chain = root.chain_from_here()
-        self.assertEqual([joint.full_name() for joint in chain], [root.full_name(), mid.full_name(), tip.full_name()])
+        chain = root.chainFromHere()
+        self.assertEqual([joint.fullName() for joint in chain], [root.fullName(), mid.fullName(), tip.fullName()])
 
-        self.assertEqual(root.ik_handles(), [])
-        handle_name = cmds.ikHandle(startJoint=root.full_name(), endEffector=tip.full_name(), solver="ikRPsolver")[0]
+        self.assertEqual(root.ikHandles(), [])
+        handle_name = cmds.ikHandle(startJoint=root.fullName(), endEffector=tip.fullName(), solver="ikRPsolver")[0]
         self.created.append(handle_name)
 
         # startJoint 接続に加え、poleVector 拘束などで同じ joint から同じ
         # ikHandle へ複数の接続が生じても、ノード単位で重複を除いて1件になる。
-        found = root.ik_handles()
+        found = root.ikHandles()
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0].name(), handle_name)
 
@@ -276,10 +277,10 @@ class JointTest(unittest.TestCase):
         joint = self.create_joint("hlibJointSkinCluster")
         mesh_transform = cmds.polyCube(name="hlibJointSkinClusterMesh", constructionHistory=False)[0]
         self.created.append(mesh_transform)
-        skin_name = cmds.skinCluster(joint.full_name(), mesh_transform)[0]
+        skin_name = cmds.skinCluster(joint.fullName(), mesh_transform)[0]
         self.created.append(skin_name)
 
-        found = joint.skin_clusters()
+        found = joint.skinClusters()
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0].name(), skin_name)
 

@@ -1,4 +1,5 @@
 """部分更新・事前検証・保持値の公開契約をMayaで検証する。"""
+from maya.api.OpenMaya import MSpace
 
 import sys
 import unittest
@@ -36,134 +37,134 @@ class ApiRefinementsTest(unittest.TestCase):
         cmds.parent(joints[1], joints[0])
         mesh = cmds.polyCube(name=self.ns + ":mesh", constructionHistory=False)[0]
         skin = hlib.nodes.SkinCluster.bind(mesh, joints)
-        pose = skin.bind_pose()
+        pose = skin.bindPose()
         if pose:
             pose.rename(self.ns + ":pose")
         skin.plug("normalizeWeights").set(0)
-        skin.set_weights(joints, [.2, .5, .3])
+        skin.setWeights(joints, [.2, .5, .3])
         return skin, joints
 
     def test_infinity_partial_update_and_undo(self):
         """省略側を維持し、不正な後半指定で前半も変更しない。"""
         for kind in ("animCurveUU", "animCurveTL"):
             curve = self.create(kind)
-            curve.set_infinity(pre="cycle", post="linear")
-            curve.set_infinity(pre="oscillate")
-            self.assertEqual(curve.get_infinity(), dict(pre="oscillate", post="linear"))
+            curve.setInfinity(pre="cycle", post="linear")
+            curve.setInfinity(pre="oscillate")
+            self.assertEqual(curve.getInfinity(), dict(pre="oscillate", post="linear"))
             cmds.undo()
-            self.assertEqual(curve.get_infinity(), dict(pre="cycle", post="linear"))
+            self.assertEqual(curve.getInfinity(), dict(pre="cycle", post="linear"))
             cmds.redo()
-            before = curve.get_infinity()
-            curve.set_infinity()
-            self.assertEqual(curve.get_infinity(), before)
+            before = curve.getInfinity()
+            curve.setInfinity()
+            self.assertEqual(curve.getInfinity(), before)
             for invalid in ("invalid", [], True):
                 with self.assertRaises(ValueError):
-                    curve.set_infinity(pre="constant", post=invalid)
-                self.assertEqual(curve.get_infinity(), before)
-            curve.set_infinity(pre="constant", post="constant")
-            self.assertEqual(curve.get_infinity(), dict(pre="constant", post="constant"))
+                    curve.setInfinity(pre="constant", post=invalid)
+                self.assertEqual(curve.getInfinity(), before)
+            curve.setInfinity(pre="constant", post="constant")
+            self.assertEqual(curve.getInfinity(), dict(pre="constant", post="constant"))
 
     def test_pivot_kinds_preserve_matrix_and_units(self):
         """別々のピボット、親・負scale・Joint・単位変換とUndoを確認する。"""
         parent = self.create("transform")
-        parent.set_translate((4, 6, 8))
-        parent.set_scale((-2, 3, 1))
+        parent.setTranslation((4, 6, 8))
+        parent.setScale((-2, 3, 1))
         for type in ("transform", "joint"):
             node = self.create(type)
-            node.set_parent(parent)
-            node.set_rotate((.3, .4, .5))
-            node.set_scale((1.2, .7, 2))
+            node.setParent(parent)
+            node.setRotation((.3, .4, .5))
+            node.setScale((1.2, .7, 2))
             if type == "joint":
-                before = node.get_matrix(ws=True)
+                before = node.getMatrix(space=MSpace.kWorld)
                 for kind in ("rotate", "scale", "both"):
                     with self.assertRaises(TypeError):
-                        node.set_pivot((1, 2, 3), kind=kind)
-                    self.assertTrue(node.get_matrix(ws=True).is_equivalent(before))
+                        node.setPivot((1, 2, 3), kind=kind)
+                    self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before))
                 continue
             if type == "joint":
-                before = node.get_matrix(ws=True)
+                before = node.getMatrix(space=MSpace.kWorld)
                 for kind in ("rotate", "scale", "both"):
                     with self.assertRaises(TypeError):
-                        node.set_pivot((1, 2, 3), kind=kind)
-                    self.assertTrue(node.get_matrix(ws=True).is_equivalent(before))
+                        node.setPivot((1, 2, 3), kind=kind)
+                    self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before))
                 continue
-            node.set_pivot((1, 2, 3), kind="rotate")
-            node.set_pivot((-2, 1, 4), kind="scale")
+            node.setPivot((1, 2, 3), kind="rotate")
+            node.setPivot((-2, 1, 4), kind="scale")
             for unit in ("cm", "m"):
                 cmds.currentUnit(linear=unit)
                 for ws in (False, True):
                     for kind in ("rotate", "scale", "both"):
-                        before = node.get_matrix(ws=True)
-                        old = {k: tuple(node.get_pivot(ws=ws, kind=k)) for k in ("rotate", "scale")}
-                        node.set_pivot((12, 15, 18), ws=ws, kind=kind)
-                        self.assertTrue(node.get_matrix(ws=True).is_equivalent(before, 1e-8))
+                        before = node.getMatrix(space=MSpace.kWorld)
+                        old = {k: tuple(node.getPivot(space=MSpace.kWorld if ws else MSpace.kObject, kind=k)) for k in ("rotate", "scale")}
+                        node.setPivot((12, 15, 18), space=MSpace.kWorld if ws else MSpace.kObject, kind=kind)
+                        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before, 1e-8))
                         for k in ("rotate", "scale"):
                             expected = (12, 15, 18) if kind in (k, "both") else old[k]
-                            for a, b in zip(node.get_pivot(ws=ws, kind=k), expected):
+                            for a, b in zip(node.getPivot(space=MSpace.kWorld if ws else MSpace.kObject, kind=k), expected):
                                 self.assertAlmostEqual(a, b, places=7, msg=(type, unit, ws, kind, k))
                         cmds.undo()
                         for k in old:
-                            for a, b in zip(node.get_pivot(ws=ws, kind=k), old[k]):
+                            for a, b in zip(node.getPivot(space=MSpace.kWorld if ws else MSpace.kObject, kind=k), old[k]):
                                 self.assertAlmostEqual(a, b, places=7, msg=(type, unit, ws, kind, k))
                         cmds.redo()
-                        self.assertTrue(node.get_matrix(ws=True).is_equivalent(before, 1e-8))
+                        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before, 1e-8))
                         cmds.undo()
 
     def test_pivot_validation_and_default_target(self):
         """既定は回転のみ。不正入力は更新せず、補償なしも選べる。"""
         node = self.create("transform")
-        node.set_rotate((.2, .4, .1))
-        before = node.get_matrix()
-        scale = node.get_pivot(kind="scale")
-        node.set_pivot((1, 2, 3))
-        self.assertEqual(node.get_pivot(kind="scale"), scale)
-        self.assertTrue(node.get_matrix().is_equivalent(before))
+        node.setRotation((.2, .4, .1))
+        before = node.getMatrix()
+        scale = node.getPivot(kind="scale")
+        node.setPivot((1, 2, 3))
+        self.assertEqual(node.getPivot(kind="scale"), scale)
+        self.assertTrue(node.getMatrix().isEquivalent(before))
         for kwargs in (dict(kind="bad"), dict(preserve="False")):
             with self.assertRaises((TypeError, ValueError)):
-                node.set_pivot((9, 9, 9), **kwargs)
+                node.setPivot((9, 9, 9), **kwargs)
         for value in ((1, 2), (float("nan"), 0, 0)):
             with self.assertRaises(ValueError):
-                node.set_pivot(value)
-        for a, b in zip(node.get_pivot(), (1, 2, 3)):
+                node.setPivot(value)
+        for a, b in zip(node.getPivot(), (1, 2, 3)):
             self.assertAlmostEqual(a, b)
-        node.set_pivot((5, 6, 7), preserve=False)
-        self.assertFalse(node.get_matrix().is_equivalent(before))
+        node.setPivot((5, 6, 7), preserve=False)
+        self.assertFalse(node.getMatrix().isEquivalent(before))
         self.assertFalse(hasattr(type(node), "pivot"))
 
     def test_removal_flag_validation_across_entries(self):
         """単体・複数・Jointとも文字列のFalseを更新前に拒否する。"""
         skin, joints = self.skin()
-        before = list(skin.get_weights(joints))
+        before = list(skin.getWeights(joints))
         actions = (
-            lambda value: skin.remove_influence(joints[1], transfer_to_parent=value),
-            lambda value: joints[1].remove_influence(skin, transfer_to_parent=value),
-            lambda value: hlib.nodes.SkinClusters([skin]).remove_influences(joints[1], transfer_to_parent=value),
+            lambda value: skin.removeInfluence(joints[1], transfer_to_parent=value),
+            lambda value: joints[1].removeInfluence(skin, transfer_to_parent=value),
+            lambda value: hlib.nodes.SkinClusters([skin]).removeInfluences(joints[1], transfer_to_parent=value),
         )
         for action in actions:
             for value in ("False", 0, None):
                 with self.assertRaises(TypeError):
                     action(value)
-                self.assertEqual(list(skin.get_weights(joints)), before)
-                self.assertTrue(skin.has_influence(joints[1]))
+                self.assertEqual(list(skin.getWeights(joints)), before)
+                self.assertTrue(skin.hasInfluence(joints[1]))
 
     def test_transfer_validates_every_pair_before_editing(self):
         """後続の未登録・欠損ペアを検証してから移送し、選択も維持する。"""
         skin, joints = self.skin()
         outside = self.create("joint")
         cmds.select(joints[2])
-        before = list(skin.get_weights(joints))
+        before = list(skin.getWeights(joints))
         for bad in ((joints[0], outside), (joints[0],), "bad"):
             with self.assertRaises(ValueError):
-                skin.transfer_weights([(joints[0], joints[1]), bad])
-            self.assertEqual(list(skin.get_weights(joints)), before)
-            self.assertEqual(cmds.ls(selection=True, long=True), [joints[2].full_name()])
+                skin.transferWeights([(joints[0], joints[1]), bad])
+            self.assertEqual(list(skin.getWeights(joints)), before)
+            self.assertEqual(cmds.ls(selection=True, long=True), [joints[2].fullName()])
 
     def test_transfer_generator_order_self_pair_and_undo(self):
         """Maya API参照とgeneratorを受け付け、連鎖移送の順序を保つ。"""
         skin, joints = self.skin()
-        before = list(skin.get_weights(joints))
-        skin.transfer_weights([(joints[0], joints[0])])
-        self.assertEqual(list(skin.get_weights(joints)), before)
+        before = list(skin.getWeights(joints))
+        skin.transferWeights([(joints[0], joints[0])])
+        self.assertEqual(list(skin.getWeights(joints)), before)
         # 元の移送はskinPercentの正規化規則を使う。同じ標準操作の結果と比較する。
         cmds.undoInfo(openChunk=True)
         try:
@@ -172,16 +173,16 @@ class ApiRefinementsTest(unittest.TestCase):
                 cmds.skinPercent(skin, transformMoveWeights=[source, target])
         finally:
             cmds.undoInfo(closeChunk=True)
-        expected = list(skin.get_weights(joints))
+        expected = list(skin.getWeights(joints))
         cmds.undo()
-        skin.transfer_weights(pair for pair in ((joints[0].mobject(), joints[1]), (joints[1], joints[2].dag_path())))
-        values = list(skin.get_weights(joints))
+        skin.transferWeights(pair for pair in ((joints[0].mobject(), joints[1]), (joints[1], joints[2].dagPath())))
+        values = list(skin.getWeights(joints))
         for a, b in zip(values, expected):
             self.assertAlmostEqual(a, b)
         cmds.undo()
-        self.assertEqual(list(skin.get_weights(joints)), before)
+        self.assertEqual(list(skin.getWeights(joints)), before)
         cmds.redo()
-        self.assertEqual(list(skin.get_weights(joints)), values)
+        self.assertEqual(list(skin.getWeights(joints)), values)
 
     def test_stored_properties_do_not_query_maya(self):
         """保持値の参照はMaya照会をせず、Selectionの返却リストはコピー。"""

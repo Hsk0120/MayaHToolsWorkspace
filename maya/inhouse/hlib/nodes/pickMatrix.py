@@ -11,23 +11,23 @@ from .node import Node
 class PickMatrix(Node):
     """行列の使用成分を選択する。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """入力のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("inputMatrix")
 
-    def get_input(self):
+    def getInput(self):
         """入力の評価値を取得する。
         Returns:
             Matrix: 現在の値。
         """
-        return self.input_plug().get()
+        return self.inputPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, value, *, fast=False):
+    def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -39,11 +39,11 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, Matrix, self.input_plug)
+        _Calculation.set_value(value, Matrix, self.inputPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -55,26 +55,26 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, force=force)
+        _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
-    def use_translate_plug(self):
+    def useTranslatePlug(self):
         """translate成分を使用するかのPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('useTranslate')
 
-    def get_use_translate(self):
+    def getUseTranslate(self):
         """translate成分を使用するかの評価値を取得する。
         Returns:
             bool: 現在の値。
         """
-        return self.use_translate_plug().get()
+        return self.useTranslatePlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_use_translate(self, value, *, fast=False):
+    def setUseTranslate(self, value, *, fast=False):
         """translate成分を使用するかへ定数値を設定する。
 
         Args:
@@ -86,11 +86,11 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.use_translate_plug)
+        _Calculation.set_value(value, _Calculation.boolean, self.useTranslatePlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_use_translate(self, source, force=False):
+    def connectUseTranslate(self, source, force=False):
         """translate成分を使用するかへ接続する。
 
         Args:
@@ -102,26 +102,26 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.use_translate_plug, force=force)
+        _Calculation.connect(source, self.useTranslatePlug, force=force)
         return self
 
-    def use_rotate_plug(self):
+    def useRotatePlug(self):
         """rotate成分を使用するかのPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('useRotate')
 
-    def get_use_rotate(self):
+    def getUseRotate(self):
         """rotate成分を使用するかの評価値を取得する。
         Returns:
             bool: 現在の値。
         """
-        return self.use_rotate_plug().get()
+        return self.useRotatePlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_use_rotate(self, value, *, fast=False):
+    def setUseRotate(self, value, *, fast=False):
         """rotate成分を使用するかへ定数値を設定する。
 
         Args:
@@ -133,11 +133,11 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.use_rotate_plug)
+        _Calculation.set_value(value, _Calculation.boolean, self.useRotatePlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_use_rotate(self, source, force=False):
+    def connectUseRotate(self, source, force=False):
         """rotate成分を使用するかへ接続する。
 
         Args:
@@ -149,26 +149,26 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.use_rotate_plug, force=force)
+        _Calculation.connect(source, self.useRotatePlug, force=force)
         return self
 
-    def use_scale_plug(self):
+    def useScalePlug(self):
         """scale成分を使用するかのPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('useScale')
 
-    def get_use_scale(self):
+    def getUseScale(self):
         """scale成分を使用するかの評価値を取得する。
         Returns:
             bool: 現在の値。
         """
-        return self.use_scale_plug().get()
+        return self.useScalePlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_use_scale(self, value, *, fast=False):
+    def setUseScale(self, value, *, fast=False):
         """scale成分を使用するかへ定数値を設定する。
 
         Args:
@@ -180,11 +180,11 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.use_scale_plug)
+        _Calculation.set_value(value, _Calculation.boolean, self.useScalePlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_use_scale(self, source, force=False):
+    def connectUseScale(self, source, force=False):
         """scale成分を使用するかへ接続する。
 
         Args:
@@ -196,26 +196,26 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.use_scale_plug, force=force)
+        _Calculation.connect(source, self.useScalePlug, force=force)
         return self
 
-    def use_shear_plug(self):
+    def useShearPlug(self):
         """shear成分を使用するかのPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('useShear')
 
-    def get_use_shear(self):
+    def getUseShear(self):
         """shear成分を使用するかの評価値を取得する。
         Returns:
             bool: 現在の値。
         """
-        return self.use_shear_plug().get()
+        return self.useShearPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_use_shear(self, value, *, fast=False):
+    def setUseShear(self, value, *, fast=False):
         """shear成分を使用するかへ定数値を設定する。
 
         Args:
@@ -227,11 +227,11 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.use_shear_plug)
+        _Calculation.set_value(value, _Calculation.boolean, self.useShearPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_use_shear(self, source, force=False):
+    def connectUseShear(self, source, force=False):
         """shear成分を使用するかへ接続する。
 
         Args:
@@ -243,10 +243,10 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.use_shear_plug, force=force)
+        _Calculation.connect(source, self.useShearPlug, force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -258,4 +258,4 @@ class PickMatrix(Node):
         Returns:
             Matrix: 計算結果。
         """
-        return Matrix(self.output_plug().get())
+        return Matrix(self.outputPlug().get())

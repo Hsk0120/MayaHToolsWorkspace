@@ -32,13 +32,13 @@ class Compound(Node):
         cmds.vnnCompound(self.graph.name(), self.path, create=name)
         return Compound(self.graph, self.child(name).path)
 
-    def add_port(self, name, data_type, output=False):
+    def add_port(self, name, dataType, output=False):
         """Port: Compound境界にポートを追加する。内部接続はio_portを使う。"""
         name = self.identifier(name)
         if name in [p.rsplit(".", 1)[-1] for p in self.ports()]:
             raise ValueError("Port already exists: " + name)
         flag = "createOutputPort" if output else "createInputPort"
-        cmds.vnnCompound(self.graph.name(), self.path, **{flag: (name, data_type)})
+        cmds.vnnCompound(self.graph.name(), self.path, **{flag: (name, dataType)})
         return self.port(name)
 
     def io_port(self, name, output=False):

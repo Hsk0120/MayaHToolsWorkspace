@@ -107,7 +107,7 @@ class _Calculation:
         return value
 
     @staticmethod
-    def enum_value(value, names):
+    def enumValue(value, names):
         """モード名または番号をMayaの番号へ変換する。
 
         Args:
@@ -123,7 +123,7 @@ class _Calculation:
         return _Calculation.index(value, range(len(names)))
 
     @staticmethod
-    def enum_name(plug, names):
+    def enumName(plug, names):
         """Mayaの列挙値を公開名へ変換する。
 
         Args:
@@ -135,7 +135,7 @@ class _Calculation:
         return names[_Calculation.index(plug.get(), range(len(names)))]
 
     @staticmethod
-    def geometry_output(value, node_type, world_space):
+    def geometryOutput(value, node_type, world_space):
         """カーブ/サーフェスの入力元Plugを解決する。
 
         Args:
@@ -153,13 +153,13 @@ class _Calculation:
         _Calculation.boolean(world_space)
         node = _InputNode._resolve_input(value)
         if isinstance(node, Transform):
-            shapes = [s for s in node.shapes() if s.is_type(node_type)]
+            shapes = [s for s in node.shapes() if s.isType(node_type)]
             if len(shapes) != 1:
                 raise ValueError("Expected exactly one matching shape")
             node = shapes[0]
-        if not node.is_type(node_type):
+        if not node.isType(node_type):
             raise TypeError("Expected a " + node_type)
         if world_space:
             # 接続作成操作の内部だけで呼ぶ。未評価worldSpace要素の作成を明示する。
-            return node.plug("worldSpace").element(node.dag_path().instanceNumber(), create=True)
+            return node.plug("worldSpace").element(node.dagPath().instanceNumber(), create=True)
         return node.plug("local")

@@ -84,7 +84,7 @@ class EulerRotation(om2.MEulerRotation):
     成分は数値だけで、文字列などは om2 と同じく ValueError になる。
     ``order`` は om2 と同じ int(``kXYZ`` = 0、``kYZX`` = 1、``kZXY`` = 2、``kXZY`` = 3、
     ``kYXZ`` = 4、``kZYX`` = 5。Maya の rotateOrder アトリビュートの番号と同じ並び)で、
-    名前は :attr:`order_name` で取得・設定する。コンストラクタの order には
+    名前は :attr:`orderName` で取得・設定する。コンストラクタの order には
     名前(``"zyx"`` など。大文字小文字を問わない)と番号のどちらも使える。
 
     演算子は om2 の意味論に従い、結果を hlib の :class:`EulerRotation` で返す。
@@ -218,7 +218,7 @@ class EulerRotation(om2.MEulerRotation):
         return result
 
     @classmethod
-    def from_iterable(cls, values, order="xyz"):
+    def fromIterable(cls, values, order="xyz"):
         """3要素の反復可能オブジェクトから生成する。
 
         Args:
@@ -237,7 +237,7 @@ class EulerRotation(om2.MEulerRotation):
         return cls(values[0], values[1], values[2], order)
 
     @classmethod
-    def from_degrees(cls, x, y, z, order="xyz"):
+    def fromDegrees(cls, x, y, z, order="xyz"):
         """度数法の3成分から生成する。
 
         Args:
@@ -256,7 +256,7 @@ class EulerRotation(om2.MEulerRotation):
 
     # ------------------------------------------------------------------ 値
     @property
-    def order_name(self):
+    def orderName(self):
         """回転順序の名前(``"xyz"`` など)を取得または設定する。
 
         設定時は名前(大文字小文字を問わない)と om2 の番号のどちらも受け付け、
@@ -267,8 +267,8 @@ class EulerRotation(om2.MEulerRotation):
         """
         return ORDER_NAMES[self.order]
 
-    @order_name.setter
-    def order_name(self, value):
+    @orderName.setter
+    def orderName(self, value):
         """回転順序を名前または番号で設定する。
 
         Args:
@@ -282,7 +282,7 @@ class EulerRotation(om2.MEulerRotation):
         """
         self.order = order_index(value)
 
-    def as_degrees(self):
+    def asDegrees(self):
         """回転成分を度数法の3要素 tuple として取得する。
 
         Returns:
@@ -290,7 +290,7 @@ class EulerRotation(om2.MEulerRotation):
         """
         return (math.degrees(self.x), math.degrees(self.y), math.degrees(self.z))
 
-    def to_quaternion(self):
+    def toQuaternion(self):
         """回転順序を反映した Quaternion へ変換する。
 
         Returns:
@@ -307,7 +307,7 @@ class EulerRotation(om2.MEulerRotation):
         Returns:
             EulerRotation: 同型の新しい回転。Eulerの回転順序は維持する。
         """
-        matrix = self.to_matrix().mirrored(axis)
+        matrix = self.toMatrix().mirrored(axis)
         rotation = matrix.quaternion.asEulerRotation()
         rotation.reorderIt(self.order)
         result = type(self)._wrap(rotation)
@@ -325,7 +325,7 @@ class EulerRotation(om2.MEulerRotation):
         self.setValue(self.mirrored(axis))
         return self
 
-    def to_matrix(self):
+    def toMatrix(self):
         """回転順序を反映した回転行列を返す。
 
         Returns:
@@ -335,7 +335,7 @@ class EulerRotation(om2.MEulerRotation):
 
         return Matrix._wrap(self.asMatrix())
 
-    def is_equivalent(self, other, tolerance=1e-10):
+    def isEquivalent(self, other, tolerance=1e-10):
         """許容誤差付きでほぼ等しいか判定する。
 
         om2 の ``isEquivalent`` に委譲するため、回転順序が一致し、各成分の差が
@@ -451,8 +451,8 @@ class EulerRotation(om2.MEulerRotation):
             str: ``EulerRotation(degrees=(90, 0, -45), order='xyz')`` の形式の文字列。
             内部値はラジアンのまま。
         """
-        values = ", ".join("{:.15g}".format(value) for value in self.as_degrees())
-        return "{}(degrees=({}), order={!r})".format(type(self).__name__, values, self.order_name)
+        values = ", ".join("{:.15g}".format(value) for value in self.asDegrees())
+        return "{}(degrees=({}), order={!r})".format(type(self).__name__, values, self.orderName)
 
     __str__ = __repr__
 

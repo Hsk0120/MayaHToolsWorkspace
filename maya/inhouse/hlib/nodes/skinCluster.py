@@ -1,4 +1,6 @@
 """skinCluster のウェイト操作と joint 削除を支援する。"""
+from maya.api.OpenMaya import MSpace
+from .._core.space import world_space
 
 from ..decorators._fast import fast_edit, is_fast
 from .._core.fastWrite import set_attr
@@ -66,9 +68,9 @@ class SkinCluster(Node):
         influences = [Node(n) for n in _InputNodes._resolve_inputs(influences)]
         if not influences or type(max_influences) is not int or max_influences < 1:
             raise ValueError("Expected influences and a positive maximum influence count")
-        if cmds.ls(cmds.listHistory(mesh.full_name()) or [], type="skinCluster"):
+        if cmds.ls(cmds.listHistory(mesh.fullName()) or [], type="skinCluster"):
             raise ValueError("Geometry already has a skinCluster")
-        return cls(cmds.skinCluster([n.full_name() for n in influences], mesh.full_name(),
+        return cls(cmds.skinCluster([n.fullName() for n in influences], mesh.fullName(),
                                    toSelectedBones=True, maximumInfluences=max_influences,
                                    normalizeWeights=1)[0])
 
@@ -81,11 +83,11 @@ class SkinCluster(Node):
         Returns:
             bool: 履歴内に存在する場合True。
         """
-        history = cmds.ls(cmds.listHistory(Node(geometry).full_name()) or [], type="skinCluster") or []
+        history = cmds.ls(cmds.listHistory(Node(geometry).fullName()) or [], type="skinCluster") or []
         return self.uuid() in [Node(n).uuid() for n in history]
 
-    @undo_chunk("hlib.SkinCluster.copy_weights_to")
-    def copy_weights_to(self, target):
+    @undo_chunk("hlib.SkinCluster.copyWeightsTo")
+    def copyWeightsTo(self, target):
         """別skinClusterへ最近傍でウェイトを転送する。
 
         Args:
@@ -98,7 +100,7 @@ class SkinCluster(Node):
         target = SkinCluster(target)
         if target.uuid() == self.uuid():
             raise ValueError("Source and destination skinClusters must differ")
-        cmds.copySkinWeights(sourceSkin=self.full_name(), destinationSkin=target.full_name(),
+        cmds.copySkinWeights(sourceSkin=self.fullName(), destinationSkin=target.fullName(),
                              noMirror=True, surfaceAssociation="closestPoint",
                              influenceAssociation=["name", "closestJoint"], normalize=True)
 
@@ -126,7 +128,7 @@ class SkinCluster(Node):
             om2.MDagPath: Transform なら shape へ展開した DAG パス。
         """
         # 名前とインスタンスパスの解決は既存Node/DagNodeの経路を共有する。
-        path = Node(name).dag_path()
+        path = Node(name).dagPath()
         if path.node().hasFn(om2.MFn.kTransform):
             path.extendToShape()
         return path
@@ -162,11 +164,11 @@ class SkinCluster(Node):
         Returns:
             tuple[om2.MObject, int]: 全頂点を含む component と頂点数。
         """
-        vertex_count = om2.MFnMesh(self.mesh_path).numVertices
+        numVertices = om2.MFnMesh(self.mesh_path).numVertices
         component_fn = om2.MFnSingleIndexedComponent()
         vertices = component_fn.create(om2.MFn.kMeshVertComponent)
-        component_fn.addElements(range(vertex_count))
-        return vertices, vertex_count
+        component_fn.addElements(range(numVertices))
+        return vertices, numVertices
 
     def _jnt_indices(self, joints):
         """joint 群を skinCluster influence インデックス配列へ変換する。
@@ -226,7 +228,7 @@ class SkinCluster(Node):
         return [Node(path) for path in self.fn.influenceObjects()]
 
     @undo_chunk("hlibSkinClusterAddInfluences")
-    def add_influences(self, joints):
+    def addInfluences(self, joints):
         """ジョイントをウェイト0で登録する。既存influence・重複指定は無視する。
 
         Args:
@@ -245,16 +247,16 @@ class SkinCluster(Node):
         names = []
         for name in _InputObject._input_names(joints):
             node = Node(name)
-            if not node.is_type("joint"):
+            if not node.isType("joint"):
                 raise ValueError(f"Expected a joint: {name}")
             if node.uuid() not in existing:
                 existing.add(node.uuid())
-                names.append(node.full_name())
+                names.append(node.fullName())
         if names:
-            cmds.skinCluster(self.full_name(), edit=True, addInfluence=names, weight=0.0)
+            cmds.skinCluster(self.fullName(), edit=True, addInfluence=names, weight=0.0)
         return self
 
-    def bind_pose(self):
+    def bindPose(self):
         """bindPoseアトリビュートに接続された保存ポーズを取得する。
 
         Returns:
@@ -265,17 +267,17 @@ class SkinCluster(Node):
         """
         from .dagPose import DagPose
 
-        return DagPose.from_skin_cluster(self)
+        return DagPose.fromSkinCluster(self)
 
     @undo_chunk("hlibSkinClusterRestoreBindPose")
-    def restore_bind_pose(self, ws=True):
+    def restoreBindPose(self, space=MSpace.kWorld):
         """接続されたポーズの全メンバーを保存姿勢へ復元する。
 
         ポーズを共有する別のskinClusterや、influence以外のメンバーにも影響する。
         ロックや入力接続は解除しない。
 
         Args:
-            ws (bool): Trueならワールド姿勢、Falseならローカル姿勢を復元する。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
 
         Returns:
             SkinCluster: 自身。
@@ -283,14 +285,15 @@ class SkinCluster(Node):
         Raises:
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
-        pose = self.bind_pose()
+        ws = world_space(space)
+        pose = self.bindPose()
         if pose is None:
-            raise RuntimeError(f"No bind pose connected to {self.full_name()}")
-        pose.restore(ws=ws)
+            raise RuntimeError(f"No bind pose connected to {self.fullName()}")
+        pose.restore(space=MSpace.kWorld if ws else MSpace.kObject)
         return self
 
     @undo_chunk("hlibSkinClusterResetBindPose")
-    def reset_bind_pose(self):
+    def resetBindPose(self):
         """このskinClusterのinfluenceの保存姿勢を現在の姿勢へ更新する。
 
         接続されたポーズ内のinfluenceだけを更新する。共有ポーズを参照する他の
@@ -304,13 +307,13 @@ class SkinCluster(Node):
             ValueError: influenceが空、またはポーズに含まれていない場合。
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが更新を拒否した場合。
         """
-        pose = self.bind_pose()
+        pose = self.bindPose()
         if pose is None:
-            raise RuntimeError(f"No bind pose connected to {self.full_name()}")
+            raise RuntimeError(f"No bind pose connected to {self.fullName()}")
         pose.reset(self.influences())
         return self
 
-    def unused_influences(self):
+    def unusedInfluences(self):
         """ウェイトを持たないinfluenceを検索する。シーンは変更しない。
 
         Returns:
@@ -320,13 +323,13 @@ class SkinCluster(Node):
         Raises:
             RuntimeError: skinClusterが無効、または照会に失敗した場合。
         """
-        weighted = cmds.skinCluster(self.full_name(), query=True, weightedInfluence=True) or []
+        weighted = cmds.skinCluster(self.fullName(), query=True, weightedInfluence=True) or []
         used = {Node(name).uuid() for name in weighted}
         return [Node(path.node()) for path in self.fn.influenceObjects()
                 if Node(path.node()).uuid() not in used]
 
     @undo_chunk("hlibSkinClusterRemoveUnusedInfluences")
-    def remove_unused_influences(self):
+    def removeUnusedInfluences(self):
         """未使用influenceの登録を外す。jointノード自体は削除しない。
 
         Returns:
@@ -336,14 +339,14 @@ class SkinCluster(Node):
             ValueError: 全influenceが未使用で、削除すると登録が空になる場合。
             RuntimeError: Mayaが削除を拒否した場合。完了済み処理は自動では戻さない。
         """
-        unused = self.unused_influences()
+        unused = self.unusedInfluences()
         if unused and len(unused) == len(self.influences()):
             raise ValueError("Cannot remove every influence from a skinCluster")
         for node in unused:
-            self.remove_influence(node.full_name(), transfer_to_parent=False)
+            self.removeInfluence(node.fullName(), transfer_to_parent=False)
         return unused
 
-    def has_influence(self, joint):
+    def hasInfluence(self, joint):
         """指定したjointがinfluenceに含まれるか判定する。
 
         Args:
@@ -360,7 +363,7 @@ class SkinCluster(Node):
             for path in self.fn.influenceObjects()
         )
 
-    def get_weights(self, joints):
+    def getWeights(self, joints):
         """指定したjointの全頂点ウェイトを取得する。
 
         Args:
@@ -374,7 +377,7 @@ class SkinCluster(Node):
 
     @fast_edit
     @undo_chunk("hlibSkinClusterSetWeights")
-    def set_weights(self, joints, weights, *, fast=False):
+    def setWeights(self, joints, weights, *, fast=False):
         """指定したjointの全頂点ウェイトを設定する。
 
         cmds.setAttr で指定 influence のみを書き換える。正規化は行わず、
@@ -404,9 +407,9 @@ class SkinCluster(Node):
         if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
             raise ValueError("Influences must be non-empty, registered and unique")
         values = [float(value) for value in weights]
-        vertex_count = om2.MFnMesh(self.mesh_path).numVertices
+        numVertices = om2.MFnMesh(self.mesh_path).numVertices
         width = len(joints)
-        if len(values) not in (width, vertex_count * width):
+        if len(values) not in (width, numVertices * width):
             raise ValueError("Weight count must match influence count or vertex count times influence count")
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Weights must be finite")
@@ -415,7 +418,7 @@ class SkinCluster(Node):
         if is_fast():
             weights_plug = om2.MFnDependencyNode(self.mobject()).findPlug("weightList", False)
             edits = []
-            for vertex in range(vertex_count):
+            for vertex in range(numVertices):
                 row = weights_plug.elementByLogicalIndex(vertex).child(0)
                 offset = 0 if len(values) == width else vertex * width
                 for column, index in enumerate(logical_indices):
@@ -428,8 +431,8 @@ class SkinCluster(Node):
             for plug, value in edits:
                 plug.setDouble(value)
             return
-        name = self.full_name()
-        for vertex in range(vertex_count):
+        name = self.fullName()
+        for vertex in range(numVertices):
             offset = 0 if len(values) == width else vertex * width
             for column, logical_index in enumerate(logical_indices):
                 set_attr(
@@ -437,7 +440,7 @@ class SkinCluster(Node):
                     values[offset + column],
                 )
 
-    def dump_weights(self, path):
+    def dumpWeights(self, path):
         """全 influence の頂点ウェイトを JSON ファイルへ書き出す。
 
         シーン間でのバックアップ・復元・転送を想定した単純な JSON 形式で書き出す。
@@ -450,19 +453,19 @@ class SkinCluster(Node):
             None: 値を返さない。
         """
         influences = [node.name() for node in self.influences()]
-        _, vertex_count = self._all_verts()
+        _, numVertices = self._all_verts()
         payload = {
             "influences": influences,
-            "vertex_count": vertex_count,
-            "weights": list(self.get_weights(influences)),
+            "numVertices": numVertices,
+            "weights": list(self.getWeights(influences)),
         }
         with open(path, "w", encoding="utf-8") as file:
             json.dump(payload, file)
 
     @fast_edit
     @undo_chunk("hlibSkinClusterLoadWeights")
-    def load_weights(self, path, *, fast=False):
-        """dump_weights() が書き出した JSON ファイルからウェイトを読み込み設定する。
+    def loadWeights(self, path, *, fast=False):
+        """dumpWeights() が書き出した JSON ファイルからウェイトを読み込み設定する。
 
         ファイルに記録された influence がすべてこの skinCluster に存在し、
         頂点数が現在の mesh と一致することを要求する。一致しない場合は
@@ -484,21 +487,21 @@ class SkinCluster(Node):
         """
         with open(path, "r", encoding="utf-8") as file:
             payload = json.load(file)
-        _, vertex_count = self._all_verts()
-        if payload["vertex_count"] != vertex_count:
+        _, numVertices = self._all_verts()
+        if payload["numVertices"] != numVertices:
             raise ValueError(
-                f"Stored vertex count ({payload['vertex_count']}) does not match "
-                f"the current mesh vertex count ({vertex_count})"
+                f"Stored vertex count ({payload['numVertices']}) does not match "
+                f"the current mesh vertex count ({numVertices})"
             )
         influences = payload["influences"]
         current_influences = {node.name() for node in self.influences()}
         missing = [name for name in influences if name not in current_influences]
         if missing:
             raise ValueError(f"Influences missing from this skinCluster: {missing}")
-        self.set_weights(influences, payload["weights"])
+        self.setWeights(influences, payload["weights"])
 
-    @undo_chunk("hlib.nodes.skinCluster.redistribute_weights")
-    def redistribute_weights(self, vertices, method="cubic"):
+    @undo_chunk("hlib.nodes.skinCluster.redistributeWeights")
+    def redistributeWeights(self, vertices, method="cubic"):
         """頂点ごとのウェイト配分を、イージング曲線で強弱をつけて配り直す。
 
         対象頂点それぞれについて、influence 別のウェイトを合計1に揃えた
@@ -526,17 +529,17 @@ class SkinCluster(Node):
         curve = method
         if curve not in easing.CURVES:
             raise ValueError(f"Unsupported easing method: {method}")
-        vertex_count = om2.MFnMesh(self.mesh_path).numVertices
+        numVertices = om2.MFnMesh(self.mesh_path).numVertices
         vertex_indices = sorted({int(index) for index in vertices})
         for vertex in vertex_indices:
-            if not (0 <= vertex < vertex_count):
+            if not (0 <= vertex < numVertices):
                 raise IndexError(f"Vertex index out of range: {vertex}")
         if not vertex_indices:
             return
         influence_paths = self.fn.influenceObjects()
         all_indices = om2.MIntArray(range(len(influence_paths)))
         logical_indices = [self.fn.indexForInfluenceObject(path) for path in influence_paths]
-        name = self.full_name()
+        name = self.fullName()
         for vertex in vertex_indices:
             component_fn = om2.MFnSingleIndexedComponent()
             component = component_fn.create(om2.MFn.kMeshVertComponent)
@@ -570,8 +573,8 @@ class SkinCluster(Node):
         if om2.MGlobal.getActiveSelectionList().length():
             cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
 
-    @undo_chunk("hlib.nodes.skinCluster.transfer_weights")
-    def transfer_weights(self, source_target_pairs):
+    @undo_chunk("hlib.nodes.skinCluster.transferWeights")
+    def transferWeights(self, source_target_pairs):
         """複数のsource/target組についてウェイトを移す。
 
         処理が途中で失敗しても選択状態は preserved_selection により復元される。完了済みの
@@ -602,16 +605,16 @@ class SkinCluster(Node):
             if len(pair) != 2:
                 raise ValueError("Expected exactly two influences per pair")
             source, target = (_InputNode._resolve_input(value) for value in pair)
-            if any(not node.is_valid() or not self.has_influence(node.full_name()) for node in (source, target)):
+            if any(not node.isValid() or not self.hasInfluence(node.fullName()) for node in (source, target)):
                 raise ValueError("Both nodes must be influences of this skinCluster")
             if source.uuid() != target.uuid():
-                pairs.append((source.full_name(), target.full_name()))
+                pairs.append((source.fullName(), target.fullName()))
         with preserved_selection():
             for source_joint, target_joint in pairs:
                 self._xfer_pair(source_joint, target_joint)
 
-    @undo_chunk("hlib.nodes.skinCluster.remove_influence")
-    def remove_influence(self, joint, transfer_to_parent=True):
+    @undo_chunk("hlib.nodes.skinCluster.removeInfluence")
+    def removeInfluence(self, joint, transfer_to_parent=True):
         """祖先influenceへ加算後、登録を外す。jointノードは削除しない。
 
         同じskinClusterの最も近い祖先influenceを移送先にする。
@@ -633,12 +636,12 @@ class SkinCluster(Node):
         source, target = self._influence_removal_target(joint, transfer_to_parent)
         if target is not None:
             # skinPercentの移送は正規化設定に依存するため、保存値を明示的に加算する。
-            weights = list(self.get_weights([source.full_name(), target]))
+            weights = list(self.getWeights([source.fullName(), target]))
             summed = []
             for i in range(0, len(weights), 2):
                 summed.extend((0.0, weights[i] + weights[i + 1]))
-            self.set_weights([source.full_name(), target], summed)
-        cmds.skinCluster(self.name(), edit=True, removeInfluence=source.full_name())
+            self.setWeights([source.fullName(), target], summed)
+        cmds.skinCluster(self.name(), edit=True, removeInfluence=source.fullName())
 
     def _influence_removal_target(self, joint, transfer_to_parent=True):
         """削除可否と祖先移送先を変更前に確認する。"""
@@ -646,11 +649,11 @@ class SkinCluster(Node):
             raise TypeError("transfer_to_parent must be a bool")
         self._raise_if_layers()
         source = joint if isinstance(joint, Node) else Node(joint)
-        if not source.is_valid() or not self.has_influence(source.full_name()):
+        if not source.isValid() or not self.hasInfluence(source.fullName()):
             raise ValueError("Joint is not an influence of this skinCluster")
         if len(self.influences()) <= 1:
             raise ValueError("Cannot remove the last influence")
-        target = source.transfer_target(self) if transfer_to_parent and isinstance(source, Joint) else None
+        target = source.transferTarget(self) if transfer_to_parent and isinstance(source, Joint) else None
         if target is not None:
             self._editable_weights()
         return source, target
@@ -658,22 +661,41 @@ class SkinCluster(Node):
     def _editable_weights(self):
         """先頭meshの全influence値を取得し、ロック・接続・レイヤーを拒否する。"""
         self._raise_if_layers()
-        names = [node.name() for node in self.influences()]
+        influences = self.influences()
+        names = [node.name() for node in influences]
         if not names:
             raise ValueError("No influences")
-        for name in names:
-            if cmds.objExists(name + ".lockInfluenceWeights") and cmds.getAttr(name + ".lockInfluenceWeights"):
-                raise RuntimeError("Influence is locked: " + name)
-        path = self.full_name() + ".weightList"
-        if cmds.getAttr(path, lock=True) or cmds.listConnections(path, source=True, destination=False):
+        for node in influences:
+            if node.hasAttribute("lockInfluenceWeights") and node.plug("lockInfluenceWeights").get():
+                raise RuntimeError("Influence is locked: " + node.name())
+        path = self.fullName() + ".weightList"
+        weight_list = self.plug("weightList").mplug()
+        if weight_list.isLocked or cmds.listConnections(path, source=True, destination=False):
             raise RuntimeError("Weights are locked or connected")
-        for attr in cmds.listAttr(path, multi=True) or []:
-            if cmds.getAttr(self.full_name() + "." + attr, lock=True):
-                raise RuntimeError("Weight element is locked: " + attr)
-        weights = list(self.get_weights(names))
+        self._validate_weight_locks(weight_list)
+        weights = list(self.getWeights(names))
         if any(not math.isfinite(v) or v < 0 for v in weights):
             raise ValueError("Weights must be finite and non-negative")
         return names, weights
+
+    @staticmethod
+    def _validate_weight_locks(plug):
+        """既存の疎なウェイト要素だけを辿りロックを検証する。
+
+        Args:
+            plug (om2.MPlug): weightListとその子。未存在要素は作成しない。
+
+        Raises:
+            RuntimeError: 要素または親のアトリビュートがロックされている場合。
+        """
+        if plug.isLocked:
+            raise RuntimeError("Weight element is locked: " + plug.name())
+        if plug.isArray:
+            for index in plug.getExistingArrayAttributeIndices():
+                SkinCluster._validate_weight_locks(plug.elementByLogicalIndex(index))
+        elif plug.isCompound:
+            for index in range(plug.numChildren()):
+                SkinCluster._validate_weight_locks(plug.child(index))
 
     def _normalized_weights(self, decimals=None, limit=None):
         """正規化結果をメモリ上で計算する。丸めは最大剰余法で合計を維持する。"""
@@ -706,7 +728,7 @@ class SkinCluster(Node):
 
     @fast_edit
     @undo_chunk("hlibSkinClusterNormalizeWeights")
-    def normalize_weights(self, decimals=None, *, fast=False):
+    def normalizeWeights(self, decimals=None, *, fast=False):
         """先頭meshの各頂点ウェイトを合計1へ正規化する。
 
         Args:
@@ -727,16 +749,16 @@ class SkinCluster(Node):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         names, values = self._normalized_weights(decimals)
-        self.set_weights(names, values)
+        self.setWeights(names, values)
         return self
 
-    def get_max_influences(self):
+    def getMaxInfluences(self):
         """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
-        return cmds.getAttr(self.full_name() + ".maxInfluences")
+        return self.plug("maxInfluences").get()
 
     @fast_edit
     @undo_chunk("hlibSkinClusterSetMaxInfluences")
-    def set_max_influences(self, count, maintain=True, prune=False, *, fast=False):
+    def setMaxInfluences(self, count, maintain=True, prune=False, *, fast=False):
         """最大influence設定を変更し、任意で既存ウェイトも制限する。
 
         Args:
@@ -761,14 +783,16 @@ class SkinCluster(Node):
             raise ValueError("count must be a positive 32-bit integer")
         if type(maintain) is not bool or type(prune) is not bool:
             raise TypeError("maintain and prune must be bool")
-        for attr in ("maxInfluences", "maintainMaxInfluences"):
-            if not cmds.getAttr(self.full_name() + "." + attr, settable=True):
+        settings = [self.plug(attr) for attr in ("maxInfluences", "maintainMaxInfluences")]
+        for plug in settings:
+            if plug.mplug().isFreeToChange() != om2.MPlug.kFreeToChange:
+                attr = plug.attributeName()
                 raise RuntimeError("Setting is locked or connected: " + attr)
         computed = self._normalized_weights(limit=count) if prune else None
-        set_attr(self.full_name() + ".maxInfluences", count)
-        set_attr(self.full_name() + ".maintainMaxInfluences", maintain)
+        settings[0].set(count)
+        settings[1].set(maintain)
         if computed:
-            self.set_weights(*computed)
+            self.setWeights(*computed)
         return self
 
     def _has_layer_plugs(self):
@@ -778,10 +802,10 @@ class SkinCluster(Node):
             bool: 接続ノードの名前または型名にレイヤー判定用トークンが含まれる場合は True。実際のレイヤーデータの有無は調べない。
         """
         # ノード名・型だけが必要。genericアトリビュートを含む接続のPlug生成は避ける。
-        for name in cmds.listConnections(self.full_name(), source=True, destination=True) or []:
-            node_name = name.lower()
-            node_type = cmds.nodeType(name).lower()
-            if any(token in node_name or token in node_type for token in self._LAYER_TOKENS):
+        for name in cmds.listConnections(self.fullName(), source=True, destination=True) or []:
+            nodeName = name.lower()
+            node_type = Node(name).type().lower()
+            if any(token in nodeName or token in node_type for token in self._LAYER_TOKENS):
                 return True
         return False
 
@@ -802,32 +826,32 @@ class SkinCluster(Node):
 @bulk_api(
     SkinCluster,
     per_item_only=(
-        'dump_weights',
-        'load_weights',
+        'dumpWeights',
+        'loadWeights',
     ),
     reads=(
         'deforms',
         'influences',
-        'bind_pose',
-        'unused_influences',
-        'remove_unused_influences',
-        'has_influence',
-        'get_weights',
-        'dump_weights',
-        'get_max_influences',
+        'bindPose',
+        'unusedInfluences',
+        'removeUnusedInfluences',
+        'hasInfluence',
+        'getWeights',
+        'dumpWeights',
+        'getMaxInfluences',
     ),
     writes=(
-        'redistribute_weights',
-        'copy_weights_to',
-        'add_influences',
-        'restore_bind_pose',
-        'reset_bind_pose',
-        'set_weights',
-        'load_weights',
-        'transfer_weights',
-        'remove_influence',
-        'normalize_weights',
-        'set_max_influences',
+        'redistributeWeights',
+        'copyWeightsTo',
+        'addInfluences',
+        'restoreBindPose',
+        'resetBindPose',
+        'setWeights',
+        'loadWeights',
+        'transferWeights',
+        'removeInfluence',
+        'normalizeWeights',
+        'setMaxInfluences',
     ),
 )
 class SkinClusters(Nodes):
@@ -836,7 +860,7 @@ class SkinClusters(Nodes):
     item_class = SkinCluster
 
     @undo_chunk("hlibSkinClustersRemoveInfluences")
-    def remove_influences(self, joints, transfer_to_parent=True):
+    def removeInfluences(self, joints, transfer_to_parent=True):
         """保持するskinClusterのinfluence登録だけを解除する。
 
         jointノードや親子関係は変更しない。祖先influenceがあればウェイトを
@@ -860,17 +884,17 @@ class SkinClusters(Nodes):
         if not isinstance(transfer_to_parent, bool):
             raise TypeError("transfer_to_parent must be a bool")
         targets = Joints([joints] if isinstance(joints, (Node, str)) else joints)
-        if any(not joint.is_joint() for joint in targets):
+        if any(not joint.isJoint() for joint in targets):
             raise RuntimeError("Expected valid joints")
-        targets = targets.sorted_by_depth()
+        targets = targets.sortedByDepth()
         plans = []
         for skin in self:
-            names = [joint.full_name() for joint in targets if skin.has_influence(joint.full_name())]
+            names = [joint.fullName() for joint in targets if skin.hasInfluence(joint.fullName())]
             if names and len(names) >= len(skin.influences()):
-                raise ValueError("Cannot remove all influences of " + skin.full_name())
+                raise ValueError("Cannot remove all influences of " + skin.fullName())
             for name in names:
                 skin._influence_removal_target(name, transfer_to_parent)
                 plans.append((skin, name))
         for skin, name in plans:
-            skin.remove_influence(name, transfer_to_parent=transfer_to_parent)
+            skin.removeInfluence(name, transfer_to_parent=transfer_to_parent)
         return self

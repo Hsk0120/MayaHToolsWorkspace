@@ -35,35 +35,35 @@ class BlendShapeTest(unittest.TestCase):
         self.assertIsInstance(self.bs, BlendShape)
 
     def test_targets_and_weights(self):
-        self.assertEqual(self.bs.target_aliases(), [self.target1, self.target2])
-        self.assertEqual(self.bs.get_weights(), [0.0, 0.0])
-        self.assertEqual(len(self.bs.weight_plugs()), 2)
+        self.assertEqual(self.bs.targetAliases(), [self.target1, self.target2])
+        self.assertEqual(self.bs.getWeights(), [0.0, 0.0])
+        self.assertEqual(len(self.bs.weightPlugs()), 2)
 
-        self.bs.weight_plugs()[0].set(0.5)
-        self.assertEqual(self.bs.get_weights(), [0.5, 0.0])
+        self.bs.weightPlugs()[0].set(0.5)
+        self.assertEqual(self.bs.getWeights(), [0.5, 0.0])
 
     def test_add_target_creates_new_weight_element(self):
         target3 = cmds.polyCube(name="hlibBlendShapeTarget3", constructionHistory=False)[0]
         self.created.append(target3)
         cmds.move(0, 0, 3, target3 + ".vtx[0]")
 
-        weight_plug = self.bs.add_target(target3)
+        weightPlug = self.bs.addTarget(target3)
         # weight[2] は自動的に target3 の名前でエイリアスされるため、
-        # full_name はロング名ではなくエイリアス名で表示される。
-        self.assertEqual(weight_plug.full_name(), self.bs.full_name() + "." + target3)
-        self.assertEqual(self.bs.target_aliases(), [self.target1, self.target2, target3])
+        # fullName はロング名ではなくエイリアス名で表示される。
+        self.assertEqual(weightPlug.fullName(), self.bs.fullName() + "." + target3)
+        self.assertEqual(self.bs.targetAliases(), [self.target1, self.target2, target3])
 
-        weight_plug.set(1.0)
-        self.assertEqual(self.bs.get_weights(), [0.0, 0.0, 1.0])
+        weightPlug.set(1.0)
+        self.assertEqual(self.bs.getWeights(), [0.0, 0.0, 1.0])
 
     def test_add_target_accepts_explicit_weight_index(self):
         target3 = cmds.polyCube(name="hlibBlendShapeTarget3", constructionHistory=False)[0]
         self.created.append(target3)
         cmds.move(0, 0, 3, target3 + ".vtx[0]")
 
-        weight_plug = self.bs.add_target(target3, weight_index=5)
-        self.assertEqual(weight_plug.full_name(), self.bs.full_name() + "." + target3)
-        self.assertEqual(weight_plug.attribute_name(), "weight")
+        weightPlug = self.bs.addTarget(target3, weight_index=5)
+        self.assertEqual(weightPlug.fullName(), self.bs.fullName() + "." + target3)
+        self.assertEqual(weightPlug.attributeName(), "weight")
 
 
 if __name__ == "__main__":

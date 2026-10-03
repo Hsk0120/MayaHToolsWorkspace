@@ -30,11 +30,11 @@ class Container(Node):
             list[Node]: メンバー。入出力の接続先は自動で含めない。
         """
         return [
-            Node(n) for n in (cmds.container(self.full_name(), query=True, nodeList=True) or [])
+            Node(n) for n in (cmds.container(self.fullName(), query=True, nodeList=True) or [])
         ]
 
     @undo_chunk("hlib.Container.add")
-    def add_members(self, *members):
+    def addMembers(self, *members):
         """指定ノードを所有下へ追加する。別containerからは強制移動しない。
 
         Args:
@@ -47,12 +47,12 @@ class Container(Node):
         nodes = [Node(name) for name in _InputObject._input_names(members, allow_plugs=False)]
         if nodes:
             cmds.container(
-                self.full_name(), edit=True, addNode=[Node(n).full_name() for n in nodes]
+                self.fullName(), edit=True, addNode=[Node(n).fullName() for n in nodes]
             )
         return self
 
-    @undo_transaction("hlib.Container.create_node")
-    def create_node(self, type, name=None):
+    @undo_transaction("hlib.Container.createNode")
+    def createNode(self, type, name=None):
         """標準ノードを生成し所有下へまとめる。
 
         Args:
@@ -63,5 +63,5 @@ class Container(Node):
             Node: 作成したノード。
         """
         node = Node.create(type, name=name or self.name() + "_" + type, skipSelect=True)
-        self.add_members(node)
+        self.addMembers(node)
         return node

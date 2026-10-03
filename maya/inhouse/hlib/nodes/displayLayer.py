@@ -23,7 +23,7 @@ class DisplayLayer(Node):
         return [Node(name) for name in names]
 
     @undo_chunk("hlibDisplayLayerAddMembers")
-    def add_members(self, *members):
+    def addMembers(self, *members):
         """メンバーを追加する。
 
         displayLayer のメンバーシップは常に単一のレイヤーに限られるため、
@@ -41,7 +41,7 @@ class DisplayLayer(Node):
         return self
 
     @undo_chunk("hlibDisplayLayerRemoveMembers")
-    def remove_members(self, *members):
+    def removeMembers(self, *members):
         """メンバーを既定の defaultLayer へ戻して除外する。
 
         ``editDisplayLayerMembers`` に明示的な削除フラグは無く、Maya の
@@ -59,7 +59,7 @@ class DisplayLayer(Node):
         return self
 
     @undo_chunk("hlibDisplayLayerSetCurrent")
-    def set_current(self):
+    def setCurrent(self):
         """このレイヤーを現在のレイヤー(新規作成ノードの追加先)にする。
 
         Returns:

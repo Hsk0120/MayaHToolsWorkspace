@@ -25,7 +25,7 @@ class SpaceSwitch:
             buffer (str | Node): createで初期化したtransform。
         """
         self.buffer = hlib.nodes.Node(buffer)
-        if not self.buffer.has_attribute("spaceChoice"):
+        if not self.buffer.hasAttribute("spaceChoice"):
             raise ValueError("Not a space-switch buffer")
 
     @classmethod
@@ -40,15 +40,15 @@ class SpaceSwitch:
             SpaceSwitch: 空間登録前の切替オブジェクト。
         """
         buffer = hlib.nodes.Node(buffer)
-        if buffer.type() != "transform" or buffer.has_attribute("spaceChoice"):
+        if buffer.type() != "transform" or buffer.hasAttribute("spaceChoice"):
             raise ValueError("Expected an unused transform")
         if buffer.plug("offsetParentMatrix").source() is not None:
             raise ValueError("offsetParentMatrix is already connected")
         identity = Matrix()
         if any(abs(a - b) > 1e-8 for a, b in zip(buffer.plug("matrix").get(), identity)):
             raise ValueError("Space buffer must have identity local channels")
-        buffer.add_attribute(long_name="spaceChoice", attribute_type="message")
-        buffer.add_attribute(long_name="spaceLabels", data_type="string")
+        buffer.addAttribute(longName="spaceChoice", attributeType="message")
+        buffer.addAttribute(longName="spaceLabels", dataType="string")
         buffer.plug("spaceLabels").set("[]")
         choice = hlib.nodes.Node.create("choice", name=buffer.name() + "_choice", skipSelect=True)
         choice.plug("message").connect(buffer.plug("spaceChoice"))
@@ -97,8 +97,8 @@ class SpaceSwitch:
         """
         if not isinstance(target, hlib.nodes.Transform):
             raise ValueError("Space target must have a world matrix")
-        path = target.full_name()
-        if path == self.buffer.full_name() or path.startswith(self.buffer.full_name() + "|"):
+        path = target.fullName()
+        if path == self.buffer.fullName() or path.startswith(self.buffer.fullName() + "|"):
             raise ValueError("Space target cannot be the buffer or its descendant")
         pending, visited = [target], set()
         while pending:
@@ -114,7 +114,7 @@ class SpaceSwitch:
                 parents = [
                     hlib.getNode(value)
                     for value in (
-                        cmds.listRelatives(item.full_name(), parent=True, fullPath=True) or []
+                        cmds.listRelatives(item.fullName(), parent=True, fullPath=True) or []
                     )
                 ] or []
                 pending.extend(hlib.nodes.Node(parent) for parent in parents)
@@ -122,7 +122,7 @@ class SpaceSwitch:
                 hlib.getPlug(value)
                 for value in (
                     cmds.listConnections(
-                        item.full_name(),
+                        item.fullName(),
                         source=True,
                         destination=False,
                         plugs=True,
@@ -184,7 +184,7 @@ class SpaceSwitch:
         parent = [
             hlib.getNode(value)
             for value in (
-                cmds.listRelatives(self.buffer.full_name(), parent=True, fullPath=True) or []
+                cmds.listRelatives(self.buffer.fullName(), parent=True, fullPath=True) or []
             )
         ] or []
         if parent:

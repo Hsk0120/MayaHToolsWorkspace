@@ -10,6 +10,8 @@ easing だけは標準ライブラリの math のみを使う純粋な関数群�
 for _obsolete in ("Translate", "Rotate"):
     globals().pop(_obsolete, None)
 
+from maya.api.OpenMaya import MSpace
+
 from . import easing
 from .eulerRotation import EulerRotation
 from .matrix import Matrix
@@ -20,6 +22,7 @@ from .translation import Translation
 from .vector import Vector
 
 __all__ = [
+    "MSpace",
     "EulerRotation",
     "Matrix",
     "Quaternion",

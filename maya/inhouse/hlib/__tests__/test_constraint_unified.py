@@ -44,12 +44,12 @@ class UnifiedConstraintTest(unittest.TestCase):
         self.assertEqual(
             result.targets()[0].uuid(), self.source.uuid()
         )
-        weight = result.weight_plugs()[0]
-        result.set_weight(0.25)
+        weight = result.weightPlugs()[0]
+        result.setWeight(0.25)
         self.assertAlmostEqual(weight.get(), 0.25)
         cmds.undo()
         self.assertAlmostEqual(weight.get(), 1.0)
-        name = result.full_name()
+        name = result.fullName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
         cmds.redo()
@@ -58,10 +58,10 @@ class UnifiedConstraintTest(unittest.TestCase):
     def test_parent_orient_and_transform_creation(self):
         for kind in ("parent", "orient"):
             with self.subTest(kind=kind):
-                result = self.target.add_constraint(self.source, type=kind, weight=0.3)
+                result = self.target.addConstraint(self.source, type=kind, weight=0.3)
                 self.assertEqual(result.type(), kind + "Constraint")
-                self.assertAlmostEqual(result.get_weights()[0], 0.3)
-                cmds.delete(result.full_name())
+                self.assertAlmostEqual(result.getWeights()[0], 0.3)
+                cmds.delete(result.fullName())
 
     def test_conflicting_flags_and_modes_do_not_create_nodes(self):
         before = set(cmds.ls())
@@ -70,7 +70,7 @@ class UnifiedConstraintTest(unittest.TestCase):
                 self.source, self.target, type="aim", wuo=self.up, worldUpObject=self.up
             )
         with self.assertRaises(ValueError):
-            self.target.add_constraint(self.source, type="aim", q=True)
+            self.target.addConstraint(self.source, type="aim", q=True)
         with self.assertRaises(ValueError):
             hlib.addConstraint(self.source, self.target, type="aim", query=True, edit=True)
         self.assertEqual(set(cmds.ls()), before)

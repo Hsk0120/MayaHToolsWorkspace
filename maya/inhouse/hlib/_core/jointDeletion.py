@@ -34,8 +34,8 @@ class _JointDeletion:
         # コレクションはインスタンスパスを保持するが、削除・ウェイト移送は
         # ノード全体の操作。同一UUIDの別パスを二度処理しない。
         target_joints, seen = [], set()
-        for joint in self._joints.sorted_by_depth():
-            if not joint.is_valid():
+        for joint in self._joints.sortedByDepth():
+            if not joint.isValid():
                 raise RuntimeError("Cannot delete an invalid joint")
             key = joint.uuid()
             if key not in seen:
@@ -44,32 +44,32 @@ class _JointDeletion:
         # 祖先influenceへ加算できる組だけを計画する。それ以外は標準削除に任せる。
         plans = []
         for joint in target_joints:
-            if not joint.is_joint():
+            if not joint.isJoint():
                 raise RuntimeError("Cannot delete an invalid joint")
             transfers = []
-            for skin in joint.skin_clusters():
-                target = joint.transfer_target(skin)
+            for skin in joint.skinClusters():
+                target = joint.transferTarget(skin)
                 if target:
                     skin._raise_if_layers()
                     transfers.append((skin, target))
             plans.append((joint, transfers))
         for joint, transfers in plans:
-            name = joint.full_name()
+            name = joint.fullName()
             stage = "transfer weights"
             try:
                 for skin, target in transfers:
-                    skin.transfer_weights([(joint.full_name(), target)])
+                    skin.transferWeights([(joint.fullName(), target)])
                     stage = "remove influence"
-                    skin.remove_influence(joint.full_name(), transfer_to_parent=False)
+                    skin.removeInfluence(joint.fullName(), transfer_to_parent=False)
                     stage = "transfer weights"
                 stage = "reparent children"
-                parent = joint.parent_node()
-                for child in joint.child_transforms():
+                parent = joint.parentNode()
+                for child in joint.childTransforms():
                     if parent is None:
-                        cmds.parent(child.full_name(), world=True)
+                        cmds.parent(child.fullName(), world=True)
                     else:
-                        cmds.parent(child.full_name(), parent.full_name())
+                        cmds.parent(child.fullName(), parent.fullName())
                 stage = "delete joint"
-                cmds.delete(joint.full_name())
+                cmds.delete(joint.fullName())
             except Exception as exc:
                 raise RuntimeError(f"Failed to {stage} for {name}: {exc}") from exc

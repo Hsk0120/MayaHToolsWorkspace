@@ -23,7 +23,7 @@ class NodeDeleteTest(unittest.TestCase):
     def test_command_delegates_and_batch_undo(self):
         root = hlib.createNode('transform', skipSelect=True)
         child = hlib.createNode('transform', parent=root, skipSelect=True)
-        names = [root.full_name(), child.full_name()]
+        names = [root.fullName(), child.fullName()]
         original = hlib.nodes.Node.delete
         with patch.object(hlib.nodes.Node, 'delete', autospec=True, side_effect=original) as method:
             hlib.delete([root, child, root])
@@ -37,7 +37,7 @@ class NodeDeleteTest(unittest.TestCase):
     def test_instance_delete_and_invalid_node(self):
         node = hlib.createNode('transform', skipSelect=True)
         node.delete()
-        self.assertFalse(node.is_valid())
+        self.assertFalse(node.isValid())
         with self.assertRaises(RuntimeError):
             node.delete()
 
@@ -46,18 +46,18 @@ class NodeDeleteTest(unittest.TestCase):
         child = hlib.createNode('joint', parent=joint, skipSelect=True)
         original = hlib.nodes.Joint.delete
         with patch.object(hlib.nodes.Joint, 'delete', autospec=True, side_effect=original) as method:
-            hlib.delete(joint.full_name())
+            hlib.delete(joint.fullName())
             self.assertEqual(method.call_count, 1)
-        self.assertFalse(joint.is_valid())
-        self.assertTrue(child.is_valid())
+        self.assertFalse(joint.isValid())
+        self.assertTrue(child.isValid())
         cmds.undo()
-        self.assertTrue(joint.is_valid())
-        self.assertEqual(child.parent_node().uuid(), joint.uuid())
+        self.assertTrue(joint.isValid())
+        self.assertEqual(child.parentNode().uuid(), joint.uuid())
 
     def test_components_mixed_with_node_and_wildcard(self):
         mesh = hlib.createPolygon(ch=False)
-        hlib.delete([mesh.transform(), mesh.full_name() + '.f[0]'])
-        self.assertFalse(mesh.is_valid())
+        hlib.delete([mesh.transform(), mesh.fullName() + '.f[0]'])
+        self.assertFalse(mesh.isValid())
         for name in ('matchA','matchB'):
             hlib.createNode('transform', name=name, skipSelect=True)
         hlib.delete(self.namespace + ':match*')

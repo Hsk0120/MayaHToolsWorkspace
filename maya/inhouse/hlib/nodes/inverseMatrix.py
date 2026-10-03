@@ -10,23 +10,23 @@ from .THdependNode import THDependNode
 class InverseMatrix(THDependNode):
     """逆行列を計算する。Maya付属matrixNodesの明示的なロードが必要。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """入力のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("inputMatrix")
 
-    def get_input(self):
+    def getInput(self):
         """入力の評価値を取得する。
         Returns:
             Matrix: 現在の値。
         """
-        return self.input_plug().get()
+        return self.inputPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, value, *, fast=False):
+    def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -39,11 +39,11 @@ class InverseMatrix(THDependNode):
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         value = Matrix(value)
-        self.input_plug().set(value)
+        self.inputPlug().set(value)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -56,10 +56,10 @@ class InverseMatrix(THDependNode):
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         from hlib.plugs.plug import Plug as _InputPlug
-        _InputPlug._resolve_input(source).connect(self.input_plug(), force=force)
+        _InputPlug._resolve_input(source).connect(self.inputPlug(), force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -71,4 +71,4 @@ class InverseMatrix(THDependNode):
         Returns:
             Matrix: 計算結果。
         """
-        return Matrix(self.output_plug().get())
+        return Matrix(self.outputPlug().get())

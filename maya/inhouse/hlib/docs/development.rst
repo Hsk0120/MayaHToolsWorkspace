@@ -38,7 +38,7 @@
 
 照会やラッパー取得はチャンクの対象にしません。時刻変更・UI表示・ファイル操作・
 プラグイン管理など、Maya標準のUndoで戻せない操作をUndo可能にするものではありません。
-``SkinCluster.set_weights()`` と ``load_weights()`` もUndo／Redoに対応します。
+``SkinCluster.setWeights()`` と ``loadWeights()`` もUndo／Redoに対応します。
 通常のシーン編集はUndo対応のMayaコマンドを使います。対応メソッドの
 ``fast=True`` はOpenMayaへ直接書き込み、Undo対象外です（:doc:`fast_edit`）。
 例外時はチャンクを閉じますが、
@@ -182,8 +182,8 @@ Undo 対応が必要な操作** に使用します(ノード・アトリビュ�
 - ``MSelectionList`` によるノード名解決・存在確認(``cmds.objExists`` の代替)
 - ``MPlug`` の ``asDouble``/``asInt``/``asBool``/``asString``/``asMAngle``/
   ``asMDistance``/``asMTime`` 等によるアトリビュート値の取得
-  (``plugs/plug.py`` の ``Plug.get()`` を参照。現実装の単一角度Plugは度、
-  距離・時間は現在のUI単位。角度UI単位がradの場合はcmds.getAttrと異なる)
+  (``plugs/plug.py`` の ``Plug.get()`` を参照。角度はrad、距離はcm、時間は秒。
+  UI単位を扱うコマンド層との境界でだけ変換する)
 - ``MFnDependencyNode.getConnections()``/``MPlug.connectedTo()`` による接続の列挙
 - ``MGlobal.getActiveSelectionList()`` による選択状態の取得。
   復元はUndo対応の ``cmds.select`` で行う（``preserved_selection`` を参照）。
@@ -200,26 +200,26 @@ Undo 対応が必要な操作** に使用します(ノード・アトリビュ�
 
 Mayaコマンド独自の判定をそのまま提供する処理も例外です。
 ``Node.history()`` は ``listHistory`` の構築履歴順、
-``SkinCluster.unused_influences()`` は ``weightedInfluence`` の使用判定、
-``Node.reset_attributes()`` は ``getAttr(settable=True)`` の書き込み可否を使用します。
+``SkinCluster.unusedInfluences()`` は ``weightedInfluence`` の使用判定、
+``Node.resetAttributes()`` は ``getAttr(settable=True)`` の書き込み可否を使用します。
 APIのグラフ走査や個別フラグから似た判定を再構築して意味を変えないためです。
 
 ``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶためのアトリビュート型名は、
 ``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列(``PlugRegistry`` のキー)を、
-アトリビュート定義から om2 で求めます(``_core/attributeType.py`` の ``attribute_type()``。
+アトリビュート定義から om2 で求めます(``_core/attributeType.py`` の ``attributeType()``。
 ``MFnNumericAttribute.numericType()``、``MFnUnitAttribute``・enum・message・matrix の
 apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデータ型は
 ``MFnAttribute.getAddAttrCmd()`` の型指定)。``cmds.getAttr(type=True)`` は使いません。
 存在しない配列要素を問い合わせると要素を作る(blendShape の ``weight[i]`` では
 ``parentDirectory[i]`` なども作られる)、nurbsSurface の ``patchUVIds`` の存在しない要素で
 Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・``face[i]`` など)で例外になる、
-といった副作用と失敗を避けるためです。``attribute_type()`` は値を読まないため評価も
+といった副作用と失敗を避けるためです。``attributeType()`` は値を読まないため評価も
 起こしません(例外は次の「値によって型が変わるアトリビュート」)。
 
 - mesh の ``controlPoints`` はアトリビュート定義が ``double3`` でも ``cmds.getAttr(type=True)`` が
   ``float3`` を返すため、このアトリビュートだけ ``float3`` として扱います(nurbsCurve などは ``double3``)。
 - 値によって型が変わるアトリビュート(generic アトリビュート、任意のデータを受け付ける typed アトリビュート、
-  ``geometry`` 型)は、アトリビュート定義だけでは型名が決まらないため ``attribute_type()`` は
+  ``geometry`` 型)は、アトリビュート定義だけでは型名が決まらないため ``attributeType()`` は
   ``None`` を返します。``Plug(node, mplug)`` は、generic アトリビュートと任意のデータを受け付ける
   typed アトリビュート(``MFnData.kAny``。``choice`` の ``input``/``output`` など)が行列を保持して
   いれば、``cmds.getAttr(type=True)`` と同じく ``matrix`` として ``MatrixPlug`` を選びます
@@ -259,7 +259,7 @@ Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・`
 ワールド空間の出力の要素の作成)を除き、シーンを変更しません。要素の作成が必要な処理は
 ``ArrayPlug.element(index, create=True)`` のように明示します。所有ノードが削除済み、
 または動的アトリビュートが ``deleteAttr`` で削除済みの場合は、Plug の生成を ``RuntimeError`` にし、
-既存の Plug も無効(``Plug.is_valid()`` が ``False``。``str()``・``name()`` は空文字列、
+既存の Plug も無効(``Plug.isValid()`` が ``False``。``str()``・``name()`` は空文字列、
 値の取得・設定と、アトリビュートの情報・接続の問い合わせは ``RuntimeError``)として扱います。
 削除済みのアトリビュートの MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの MPlug は
 古い値を返し、Undo の対象から外れた削除済みノードの MPlug は名前の問い合わせでも
@@ -301,7 +301,7 @@ network を各 2000 個作成した実測。比較の基準は ``maya.cmds`` へ
   保持するため、以前の約 0.4〜0.65 倍です(transform の ``tx`` は約 0.5〜0.65 倍、DG ノードの
   動的アトリビュートは約 0.4〜0.5 倍)。値を読むたびに行う有効性の確認(動的アトリビュートは
   ``attributeClass()``)はこの中に含まれます。
-- ``str(plug)``/``Plug.full_name()`` は、DAG ノードの Plug で以前の約 2〜2.6 倍
+- ``str(plug)``/``Plug.fullName()`` は、DAG ノードの Plug で以前の約 2〜2.6 倍
   (1 回あたり約 +1µs)です。以前は ``MPlug.name()`` をそのまま返していたため、同じ短い
   名前のノードがあると曖昧な名前になっていました。一意な名前を返すために
   ``MFnDependencyNode.hasUniqueName()`` を毎回問い合わせる必要があり(名前の一意性は
@@ -309,7 +309,7 @@ network を各 2000 個作成した実測。比較の基準は ``maya.cmds`` へ
   DG ノードは一意性の確認が不要なため、静的アトリビュートで約 1.2 倍、アトリビュートの存在確認
   (``attributeClass()``)が加わる動的アトリビュートで約 1.2〜1.6 倍です。名前を繰り返し使うループでは、
   ``str(plug)`` を一度だけ求めて使い回すか、``plug.mplug()`` を直接使ってください。
-  判定の処理(``_require_valid()``・``full_name()`` のアトリビュートの存在確認)は呼び出しの負荷を
+  判定の処理(``_require_valid()``・``fullName()`` のアトリビュートの存在確認)は呼び出しの負荷を
   避けるため ``_attribute_exists()`` と同じ内容を直接書いています。変更する場合は3か所を
   そろえてください。
 
@@ -332,10 +332,10 @@ maya.cmds へ渡す名前と入力の正規化
 
 利用者向けの仕様は :doc:`cmds_interop` にまとめています。hlib の実装では次を守ります。
 
-- maya.cmds へ渡すプラグ名は ``Plug.full_name()``、または ``Plug._plug_path()``/``Node._unique_node_name()``/``Object._input_name()`` で作ります。``MPlug.name()`` と
+- maya.cmds へ渡すプラグ名は ``Plug.fullName()``、または ``Plug._plug_path()``/``Node._unique_node_name()``/``Object._input_name()`` で作ります。``MPlug.name()`` と
   ``MFnDependencyNode.name()`` は短いノード名しか含まず、同じ短い名前のノード
   (``grp1|dup`` と ``grp2|dup``)があると曖昧になるため、maya.cmds へ渡したり
-  重複判定のキーにしたりしません。例外は ``Plug.full_name()`` の高速経路で、短い名前が
+  重複判定のキーにしたりしません。例外は ``Plug.fullName()`` の高速経路で、短い名前が
   一意なノード(DG ノードと、``hasUniqueName()`` が真でインスタンス化されていない
   アンダーワールド以外の DAG ノード)に限り ``MPlug.name()`` をそのまま返します(このとき ``MPlug.name()`` は
   ``<最短一意名>.<アトリビュートパス>`` と一致します。``str(plug)`` は大量に呼ばれるため)。
@@ -347,14 +347,14 @@ maya.cmds へ渡す名前と入力の正規化
   ``ValueError``、解決できない(存在しない・一意でない)文字列が ``RuntimeError`` です。
   ただし ``Node._resolve_input`` は削除済みの Node と、所有ノードが削除済みの Plug・Component を
   そのまま(無効な所有ノードとして)返し、有効性の扱いは呼び出し側の API に任せます
-  (``Node(...)``/``hlib.getNode`` と ``hlib.addConstraint``/``Transform.add_constraint`` は
-  従来どおり ``RuntimeError``、``Node.is_parent_of`` などの判定は ``False``)。所有ノードが
+  (``Node(...)``/``hlib.getNode`` と ``hlib.addConstraint``/``Transform.addConstraint`` は
+  従来どおり ``RuntimeError``、``Node.isParentOf`` などの判定は ``False``)。所有ノードが
   有効でアトリビュートだけが削除された Plug・MPlug は、返す Node で削除を表せないため ``Node._resolve_input`` でも
   ``DeletedAttributeError`` (``ValueError``。``RuntimeError`` の派生でもある)です。
 - ``MSelectionList`` のアトリビュートの要素は ``getDagPath()`` を使えず、インスタンスの情報も
   持たないため、所有ノードは ``Node._selection_owner()`` で求めます(元の文字列の
   ノード部分から、名前が指すインスタンスを保持します)。
-- ``Components`` を maya.cmds へ渡すときは ``compact_names()`` で連続する番号を範囲指定に
+- ``Components`` を maya.cmds へ渡すときは ``compactNames()`` で連続する番号を範囲指定に
   まとめ、全番号の検証もコレクションごとに1回だけ行います。
 - Node・Plug など単一の対象を表すクラスに ``__len__``/``__iter__`` を追加しません。
   maya.cmds がシーケンスとして展開してしまうためです。``__getitem__`` を持つ

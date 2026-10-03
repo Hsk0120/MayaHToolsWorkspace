@@ -5,7 +5,7 @@ Examples
 .. code-block:: python
 
     for plug in hlib.getChannelBox().selected_plugs():
-        print(plug.full_name())
+        print(plug.fullName())
 """
 
 

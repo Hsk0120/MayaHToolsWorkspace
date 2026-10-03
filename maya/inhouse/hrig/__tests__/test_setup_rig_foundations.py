@@ -24,9 +24,9 @@ class RigFoundationsTest(unittest.TestCase):
     def test_container_and_scalar_graph(self):
         """演算評価、動的ラッパー、改名と所有削除を確認する。"""
         owner = hlib.nodes.Container.create("owned")
-        self.assertIsInstance(hlib.getNode(owner.full_name()), hlib.nodes.Container)
+        self.assertIsInstance(hlib.getNode(owner.fullName()), hlib.nodes.Container)
         source = hlib.createNode("transform", name="external")
-        source.add_attribute(long_name="value", attribute_type="double", default_value=3)
+        source.addAttribute(longName="value", attributeType="double", defaultValue=3)
         graph = ScalarGraph(owner)
         total = graph.sum("sum", source.plug("value"), 2)
         product = graph.multiply("product", total, 4)
@@ -34,51 +34,51 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertAlmostEqual(hlib.getPlug(chosen).get(), 20)
         owner.rename("renamed")
         self.assertEqual(len(owner.members()), 3)
-        node = owner.create_node("multiplyDivide")
+        node = owner.createNode("multiplyDivide")
         self.assertIn(node.uuid(), [n.uuid() for n in owner.members()])
         cmds.undo()
         self.assertEqual(len(owner.members()), 3)
         hlib.delete(owner)
-        self.assertTrue(source.is_valid())
+        self.assertTrue(source.isValid())
         self.assertFalse(cmds.ls(type="multiplyDivide"))
 
     def test_sparse_messages(self):
         """穴のあるmessage配列を読み、末尾へ追加してUndoする。"""
         owner = hlib.createNode("network", name="refs")
-        array = owner.add_attribute(long_name="items", attribute_type="message", multi=True)
+        array = owner.addAttribute(longName="items", attributeType="message", multi=True)
         first = hlib.createNode("transform", name="first")
         second = hlib.createNode("transform", name="second")
         first.plug("message").connect(owner.plug("items[3]"))
         second.plug("message").connect(owner.plug("items[7]"))
-        self.assertEqual(list(array.source_nodes()), [3, 7])
-        index = array.append_message(second)
+        self.assertEqual(list(array.sourceNodes()), [3, 7])
+        index = array.appendMessage(second)
         self.assertEqual(index, 8)
         second.rename("renamedSecond")
-        self.assertEqual(array.source_nodes()[8].name(), "renamedSecond")
+        self.assertEqual(array.sourceNodes()[8].name(), "renamedSecond")
         cmds.undo()
         cmds.undo()
-        self.assertEqual(list(array.source_nodes()), [3, 7])
-        invalid = owner.add_attribute(long_name="values", attribute_type="double", multi=True)
+        self.assertEqual(list(array.sourceNodes()), [3, 7])
+        invalid = owner.addAttribute(longName="values", attributeType="double", multi=True)
         with self.assertRaises(TypeError):
-            invalid.append_message(first)
+            invalid.appendMessage(first)
 
     def test_shape_undo_and_units(self):
         """形状追加は既存のTRSとシェイプを変更せず、m単位でも成立する。"""
         cmds.currentUnit(linear="m")
         target = hlib.createNode("joint", name="control")
         target.plug("tx").set(2)
-        target.plug("rz").set(25)
-        self.assertEqual(target.plug("tx").data_type(), "doubleLinear")
-        self.assertEqual(target.plug("rz").data_type(), "doubleAngle")
-        before = list(target.get_matrix())
+        target.plug("rz").set(math.radians(25))
+        self.assertEqual(target.plug("tx").dataType(), "doubleLinear")
+        self.assertEqual(target.plug("rz").dataType(), "doubleAngle")
+        before = list(target.getMatrix())
         first = ControlShape.circle(target, radius=0.02)
         second = ControlShape.circle(target, radius=0.03, normal=(0, 1, 0))
         self.assertEqual(len(target.shapes()), 2)
-        self.assertEqual(list(target.get_matrix()), before)
+        self.assertEqual(list(target.getMatrix()), before)
         cmds.undo()
         self.assertEqual(len(target.shapes()), 1)
-        self.assertTrue(first[0].is_valid())
-        self.assertFalse(second[0].is_valid())
+        self.assertTrue(first[0].isValid())
+        self.assertFalse(second[0].isValid())
         with self.assertRaises(ValueError):
             ControlShape.circle(target, normal=(0, 0, 0))
         self.assertEqual(len(target.shapes()), 1)
@@ -118,35 +118,35 @@ class RigFoundationsTest(unittest.TestCase):
         copied = hlib.nodes.SkinCluster.bind(target, [joint])
         self.assertTrue(skin.deforms(source))
         self.assertFalse(skin.deforms(target))
-        skin.copy_weights_to(copied)
+        skin.copyWeightsTo(copied)
         self.assertAlmostEqual(
             cmds.skinPercent(
-                copied.full_name(), target + ".vtx[0]", query=True, transform=joint.full_name()
+                copied.fullName(), target + ".vtx[0]", query=True, transform=joint.fullName()
             ),
             1,
         )
         with self.assertRaises(ValueError):
             hlib.nodes.SkinCluster.bind(source, [joint])
         with self.assertRaises(ValueError):
-            skin.copy_weights_to(skin)
+            skin.copyWeightsTo(skin)
 
     def test_maya_compatible_values(self):
         """属性検索と表示単位は型付きPlugの取得規則と区別して維持する。"""
 
         node = hlib.createNode("transform", name="rawUnits")
-        node.add_attribute(long_name="marker", attribute_type="message")
-        cmds.setAttr(node.full_name() + ".tx", 200)
-        cmds.setAttr(node.full_name() + ".rz", 90)
+        node.addAttribute(longName="marker", attributeType="message")
+        cmds.setAttr(node.fullName() + ".tx", 200)
+        cmds.setAttr(node.fullName() + ".rz", 90)
         cmds.currentUnit(linear="m", angle="rad")
-        self.assertAlmostEqual(hlib.getAttr(node.full_name() + ".tx"), 2)
-        self.assertAlmostEqual(hlib.getAttr(node.full_name() + ".rz"), math.pi / 2)
+        self.assertAlmostEqual(hlib.getAttr(node.fullName() + ".tx"), 2)
+        self.assertAlmostEqual(hlib.getAttr(node.fullName() + ".rz"), math.pi / 2)
         self.assertEqual(
             [p.node.uuid() for p in hlib.ls("*.marker", recursive=True)], [node.uuid()]
         )
         self.assertEqual([n.uuid() for n in hlib.ls(node.uuid(), long=True)], [node.uuid()])
-        self.assertTrue(hlib.getAttr(node.full_name() + ".tx", settable=True))
-        cmds.setAttr(node.full_name() + ".tx", lock=True)
-        self.assertFalse(hlib.getAttr(node.full_name() + ".tx", settable=True))
+        self.assertTrue(hlib.getAttr(node.fullName() + ".tx", settable=True))
+        cmds.setAttr(node.fullName() + ".tx", lock=True)
+        self.assertFalse(hlib.getAttr(node.fullName() + ".tx", settable=True))
 
     def test_maya_command_boundary_in_hrig(self):
         """指定した標準コマンドのみmaya.cmds直接使用を許可する。"""
@@ -264,7 +264,7 @@ class RigFoundationsTest(unittest.TestCase):
         target = hlib.createNode("transform", name="typedTarget")
         constraint = hlib.addConstraint(mesh, target, maintainOffset=True)
         self.assertIsInstance(constraint, hlib.nodes.ParentConstraint)
-        weight = constraint.weight_plugs()[0]
+        weight = constraint.weightPlugs()[0]
         self.assertIsInstance(weight, hlib.plugs.Plug)
         self.assertEqual(constraint.targets()[0].uuid(), mesh.uuid())
         pairs = [
@@ -300,7 +300,7 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertAlmostEqual(history.plug("radius").get(), 2.5)
         curve = hlib.createCurve(d=1, p=[(0, 0, 0), (2, 0, 0)], n="typedCurve")
         self.assertIsInstance(curve, hlib.nodes.Transform)
-        name = curve.full_name()
+        name = curve.fullName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
         cmds.redo()

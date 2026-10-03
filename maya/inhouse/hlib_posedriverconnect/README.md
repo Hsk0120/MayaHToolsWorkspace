@@ -30,7 +30,7 @@ for solver in hlib.ls(type="UERBFSolverNode"):
     print(solver.drivers())       # list[hlib.nodes.Node]
     print(solver.num_poses())
     print(solver.radius())
-    solver.set_radius(45.0)      # Undo可能
+    solver.setRadius(45.0)      # Undo可能
 
 for blender in hlib.ls(type="UEPoseBlenderNode"):
     print(blender.driven_transform())  # NodeまたはNone
@@ -39,7 +39,7 @@ for blender in hlib.ls(type="UEPoseBlenderNode"):
 
 `native_api()`はPoseDriverConnectのモデルラッパーを返します。
 その戻り値を直接操作した場合のUndo・副作用は外部APIの仕様に従います。
-サンプルの編集メソッドは`set_radius()`のみです。全外部APIを自動公開しません。
+サンプルの編集メソッドは`setRadius()`のみです。全外部APIを自動公開しません。
 
 専用属性データ型のないサンプルなので`plugs/`は設けていません。
 数値・行列などはhlib標準のPlugを使い、グローバルな属性型登録を上書きしません。

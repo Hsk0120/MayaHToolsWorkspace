@@ -32,12 +32,12 @@ class Window(_WindowReference):
         size = self._pair(width, height, positive=True)
         cmds.window(self.name(), edit=True, widthHeight=size)
 
-    def get_position(self):
+    def getPosition(self):
         """tuple[int, int]: 左・上の位置(x, y)を取得する。"""
         top, left = cmds.window(self.name(), query=True, topLeftCorner=True)
         return left, top
 
-    def set_position(self, x, y):
+    def setPosition(self, x, y):
         """ウィンドウの左上位置を変更する。
 
         Args:

@@ -28,6 +28,7 @@ platonicSolidを使用できます。``polyCube`` 等のMayaコマンド名で�
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    mesh = hlib.createPolygon(type="cube", name="body", width=2, constructionHistory=False)
    sphere = hlib.createPolygon(typ="sphere", r=3, sx=24, sy=16)
    mesh.transform().plug("translateX").set(5)
@@ -46,6 +47,7 @@ plane、torusを選択します。寸法や分割数、履歴は各Mayaコマン
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    circle = hlib.createNurbs(type="circle", radius=2)  # NurbsCurve
    sphere = hlib.createNurbs(type="sphere", radius=3)  # NurbsSurface
    faces = hlib.createNurbs(type="cube")  # list[NurbsSurface]（6枚）
@@ -67,29 +69,31 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    mesh = hlib.getNode("pCube1").shape()
-   print(mesh.vertex_count(), mesh.edge_count(), mesh.polygon_count())
-   points = mesh.get_points(ws=True)
-   normals = mesh.get_normals(ws=True, angle_weighted=True)
+   print(mesh.numVertices(), mesh.numEdges(), mesh.numPolygons())
+   points = mesh.getPoints(space=MSpace.kWorld)
+   normals = mesh.getNormals(space=MSpace.kWorld, angle_weighted=True)
 
    curve = hlib.getNode("curve1").shape()
-   print(curve.degree(), curve.cv_count(), curve.span_count())
+   print(curve.degree(), curve.numCVs(), curve.numSpans())
    print(curve.length())         # オブジェクト空間のカーブ長
-   print(curve.length(ws=True))  # 親のスケール等を含むワールド空間のカーブ長
-   print(curve.length(ws=True, unit="m"))  # メートルで取得
+   print(curve.length(space=MSpace.kWorld))  # 親のスケール等を含むワールド空間のカーブ長
+   print(curve.length(space=MSpace.kWorld, unit="m"))  # メートルで取得
 
-   cvs = curve.get_cv_positions(ws=True)
+   cvs = curve.cvPositions(space=MSpace.kWorld)
 
-   print(curve.get_collocated_cv_groups())  # 重なった CV のグループ（無ければ []）
+   print(curve.getCollocatedCVGroups())  # 重なった CV のグループ（無ければ []）
 
 ``length()`` は計算ノードを追加せず、現在のカーブ長を取得します。
 戻り値は既定で現在のシーンの距離UI単位です。unitにはmm/cm/m/km/in/ft/yd/mi、
 またはMayaの長名を指定できます。シーン設定は変更しません。
-ws=Trueは非均等スケール・シアーと対象インスタンスの変換も反映します。
+space=MSpace.kWorldは非均等スケール・シアーと対象インスタンスの変換も反映します。
 toleranceは出力単位によらず内部単位（cm）での計算許容誤差です。
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    from hlib.environment import Preferences
    from hlib.utils import units
 
@@ -97,9 +101,9 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
    print(units.convert_distance(100, from_unit="cm", to_unit="m"))  # 1.0
 
 位置配列は Maya API 2.0 の ``MPointArray``、法線配列は ``MFloatVectorArray`` です。
-距離は Maya API の内部単位を使い、``ws=False`` はオブジェクト空間です。
+距離は Maya API の内部単位を使い、``space=MSpace.kObject`` はオブジェクト空間です。
 ``normals`` の ``angle_weighted=True`` は隣接面の角度で重み付けした法線を返します。
-``get_collocated_cv_groups`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの
+``getCollocatedCVGroups`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの
 重複 CV など）を検出し、2個以上重なっているグループのみを CV 番号のリストとして
 返します（単独の CV は含みません）。``tolerance`` で同一位置とみなす距離の
 許容誤差を調整できます。
@@ -112,10 +116,11 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
 
 .. code-block:: python
 
-   mesh.mirror(axis="x", ws=True)        # ワールドの X=0 平面で反転
-   curve.mirror(axis="z", ws=False)      # オブジェクト空間の Z=0 平面で反転
-   mesh.mirror(axis="xy", ws=True)       # ワールドの X、Y 座標を両方反転
-   curve.mirror(axis="x", ws=True, pivot=(10, 0, 0))  # ワールドの X=10 を中心に反転
+   from maya.api.OpenMaya import MSpace
+   mesh.mirror(axis="x", space=MSpace.kWorld)        # ワールドの X=0 平面で反転
+   curve.mirror(axis="z", space=MSpace.kObject)      # オブジェクト空間の Z=0 平面で反転
+   mesh.mirror(axis="xy", space=MSpace.kWorld)       # ワールドの X、Y 座標を両方反転
+   curve.mirror(axis="x", space=MSpace.kWorld, pivot=(10, 0, 0))  # ワールドの X=10 を中心に反転
    mesh.mirror(axis="x", indices=[0, 1, 2])          # 指定した頂点だけ反転
 
 ``axis`` は x、y、z またはその組み合わせを指定します。大文字も使用できます。
@@ -125,7 +130,7 @@ Transform のピボット位置は自動では使用しません。
 ``indices=None`` は全頂点／全 CV、空のリストは変更なしです。
 
 Transform直下の全Shapeをまとめて反転する場合は
-``transform.mirror_geometry(axis="x", ws=False)`` を使います。
+``transform.mirrorGeometry(axis="x", space=MSpace.kObject)`` を使います。
 従来の ``Transform.mirror()`` はこの名前へ変更しました。
 Shapeやコンポーネントの ``mirror()`` は変更していません。
 
@@ -140,13 +145,14 @@ Shapeやコンポーネントの ``mirror()`` は変更していません。
 
 .. code-block:: python
 
-   node.mirror_transform(axis="x", ws=True)   # ワールドのYZ平面
-   node.mirror_transform(axis="z", ws=False)  # ペアレント空間のXY平面
-   node.mirror_transform(axis="xy", ws=True, pivot=(10, 0, 0))
+   from maya.api.OpenMaya import MSpace
+   node.mirrorTransform(axis="x", space=MSpace.kWorld)   # ワールドのYZ平面
+   node.mirrorTransform(axis="z", space=MSpace.kObject)  # ペアレント空間のXY平面
+   node.mirrorTransform(axis="xy", space=MSpace.kWorld, pivot=(10, 0, 0))
 
 Transform・Jointで使用でき、Transforms・Jointsからも一括実行できます。
 通常処理はUndo対応、``fast=True`` はUndoなしです。
-``pivot`` は現在のMaya距離単位です。``ws=False`` は形状ミラーの
+``pivot`` は現在のMaya距離単位です。``space=MSpace.kObject`` は形状ミラーの
 オブジェクト空間と異なり、親Transformの座標空間です。
 
 向きは ``Matrix.mirrored()`` と同じビヘイビアミラーです。
@@ -163,34 +169,35 @@ Transform・Jointで使用でき、Transforms・Jointsからも一括実行で�
 コンポーネントと座標
 --------------------
 
-Vertex / CV はシーンを参照する単体ラッパーです。``get_x()`` / ``get_y()`` /
-``get_z()`` はオブジェクト空間の座標を、Mayaの現在の距離単位で返します。
-``set_x(value)`` などのメソッドでシーンを更新し、Undoできます。座標のスナップショットが
-必要な場合は ``get_position()`` が返すタプルを保持してください。
+Vertex / CV はシーンを参照する単体ラッパーです。``getX()`` / ``getY()`` /
+``getZ()`` はオブジェクト空間の座標を、Mayaの現在の距離単位で返します。
+``setX(value)`` などのメソッドでシーンを更新し、Undoできます。座標のスナップショットが
+必要な場合は ``getPosition()`` が返すタプルを保持してください。
 
 .. code-block:: python
 
+    from maya.api.OpenMaya import MSpace
     mesh = hlib.nodes.Mesh("pCubeShape1")
     vertex = mesh.vertex(0)
-    print(vertex.get_x(), vertex.get_y(), vertex.get_z())
-    vertex.set_x(2.0)
-    vertex.set_position((1, 2, 3), ws=True)
-    print(vertex.get_position(ws=True))
+    print(vertex.getX(), vertex.getY(), vertex.getZ())
+    vertex.setX(2.0)
+    vertex.setPosition((1, 2, 3), space=MSpace.kWorld)
+    print(vertex.getPosition(space=MSpace.kWorld))
 
     curve = hlib.nodes.NurbsCurve("curveShape1")
     cv = curve.cv(0)
-    cv.set_z(-cv.get_z())
-    curve.cvs().mirror(axis="z", ws=False)
-    mesh.vertices([0, 1, 2]).mirror(axis="x", ws=True)
+    cv.setZ(-cv.getZ())
+    curve.cvs().mirror(axis="z", space=MSpace.kObject)
+    mesh.vertices([0, 1, 2]).mirror(axis="x", space=MSpace.kWorld)
 
     edge = mesh.edge(0)       # Edge
     face = mesh.face(0)       # Face
     mesh.edges([0, 1]).vertices().mirror(axis="x")
     vertices = mesh.faces([0, 1]).vertices()
     uv = mesh.uv(0)           # UV
-    uv.set_u(0.25)
-    uv.set_v(0.75)
-    print(mesh.uvs().get_position())
+    uv.setU(0.25)
+    uv.setV(0.75)
+    print(mesh.uvs().getPosition())
 
 単体型は Vertex、CV、Edge、Face、UV、複数形は Vertices、CVs、Edges、Faces、UVs です。
 複数形は反復、添字、スライスに対応します。番号は作成時に固定し、座標は現在の値を
@@ -209,17 +216,18 @@ Shapeのスケール
 
 .. code-block:: python
 
-   shape.scale_geometry(2)                         # オブジェクト空間で一様2倍
-   shape.scale_geometry((2, 1, 0.5))               # XYZ別の倍率
-   shape.scale_geometry((1, 2, 1), ws=True)        # ワールドY方向だけ2倍
-   shape.scale_geometry(2, pivot=(1, 0, 0))        # 指定中心から拡縮
-   transform.scale_geometry((2, 1, 1))            # 直下の全Shape
-   mesh.scale_geometry(2, indices=[0, 1])         # 頂点を限定
-   surface.scale_geometry(2, indices=[(0, 0)])    # サーフェスの(U, V) CV
+   from maya.api.OpenMaya import MSpace
+   shape.scaleGeometry(2)                         # オブジェクト空間で一様2倍
+   shape.scaleGeometry((2, 1, 0.5))               # XYZ別の倍率
+   shape.scaleGeometry((1, 2, 1), space=MSpace.kWorld)        # ワールドY方向だけ2倍
+   shape.scaleGeometry(2, pivot=(1, 0, 0))        # 指定中心から拡縮
+   transform.scaleGeometry((2, 1, 1))            # 直下の全Shape
+   mesh.scaleGeometry(2, indices=[0, 1])         # 頂点を限定
+   surface.scaleGeometry(2, indices=[(0, 0)])    # サーフェスの(U, V) CV
 
 メッシュ、NURBSカーブ、NURBSサーフェスに対応します。頂点・CVの座標だけを編集し、
 Transformの行列は変更しません。既定はオブジェクト空間の原点が中心です。
-``ws=True`` ではワールド空間の原点になり、``pivot`` もその空間の現在のMaya距離単位で指定します。
+``space=MSpace.kWorld`` ではワールド空間の原点になり、``pivot`` もその空間の現在のMaya距離単位で指定します。
 Transformのピボット位置は自動では使いません。
 
 通常のUndoに対応します。負数・0の倍率も指定できますが、面の頂点順は変更しません。

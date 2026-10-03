@@ -28,11 +28,11 @@ class BendLayer:
             dict[str, Node]: IDと設定グループ。
         """
         root = self.rig.root
-        if not root.has_attribute("bendGroups"):
+        if not root.hasAttribute("bendGroups"):
             return {}
         return {
             node.plug("bendId").get(): node
-            for node in root.plug("bendGroups").source_nodes().values()
+            for node in root.plug("bendGroups").sourceNodes().values()
         }
 
     def joints(self, identifier=None):
@@ -47,7 +47,7 @@ class BendLayer:
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
         return tuple(
-            group.plug(role).source().node.full_name()
+            group.plug(role).source().node.fullName()
             for group in selected
             for role in ("half", "inner", "outer")
         )
@@ -84,18 +84,18 @@ class BendLayer:
             raise ValueError("Choose two different axes from x, y, z")
         joint = hlib.getNode(joint)
         parents = [
-            item.full_name()
+            item.fullName()
             for item in [
                 hlib.getNode(value)
                 for value in (
-                    cmds.listRelatives(joint.full_name(), parent=True, fullPath=True) or []
+                    cmds.listRelatives(joint.fullName(), parent=True, fullPath=True) or []
                 )
             ]
         ] or []
         if joint.type() != "joint" or not parents or hlib.getNode(parents[0]).type() != "joint":
             raise ValueError("Expected a joint with a parent joint")
         parent = hlib.getNode(parents[0])
-        stem = self.rig.node_name("bendSet").removesuffix("_set") + "_" + identifier
+        stem = self.rig.nodeName("bendSet").removesuffix("_set") + "_" + identifier
         names = [
             stem + suffix for suffix in ("_grp", "_graph", "_half_jnt", "_inner_jnt", "_outer_jnt")
         ]
@@ -103,18 +103,18 @@ class BendLayer:
             raise ValueError("Bend node names already exist")
         root = self.rig.root
         owned = []
-        if not root.has_attribute("bendSet"):
-            selection = hlib.createSet(empty=True, name=self.rig.node_name("bendSet")).full_name()
+        if not root.hasAttribute("bendSet"):
+            selection = hlib.createSet(empty=True, name=self.rig.nodeName("bendSet")).fullName()
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            root.add_attribute(long_name="bendGroups", attribute_type="message", multi=True)
+            root.addAttribute(longName="bendGroups", attributeType="message", multi=True)
             owned.append(hlib.getNode(selection))
         group = hlib.createNode("transform", name=names[0], parent=parent, skipSelect=True)
-        group.add_attribute(long_name="bendId", data_type="string").set(identifier)
-        group.add_attribute(long_name="pushAxis", data_type="string").set(push_axis)
+        group.addAttribute(longName="bendId", dataType="string").set(identifier)
+        group.addAttribute(longName="pushAxis", dataType="string").set(push_axis)
         graph = BendCorrection.create(parent, joint, names[1], bend_axis)
         owner = graph.container
-        group.add_attribute(long_name="graph", attribute_type="message")
+        group.addAttribute(longName="graph", attributeType="message")
         owner.plug("message").connect(group.plug("graph"))
         for attr in (
             "rotationRatio",
@@ -130,14 +130,14 @@ class BendLayer:
                 bounds = {"minValue": 0.001}
             if attr == "bendSign":
                 bounds = {"minValue": -1, "maxValue": 1}
-            group.add_attribute(
-                long_name=attr,
-                attribute_type="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
-                default_value=owner.plug(attr).get(),
+            group.addAttribute(
+                longName=attr,
+                attributeType="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
+                defaultValue=owner.plug(attr).get(),
                 **bounds
             )
             group.plug(attr).set(owner.plug(attr).get())
-            group.set_attribute_flags([attr], keyable=False, channel_box=True)
+            group.setAttributeFlags([attr], keyable=False, channelBox=True)
             group.plug(attr).connect(owner.plug(attr))
         joints = []
         for role, name in zip(("half", "inner", "outer"), names[2:]):
@@ -146,15 +146,15 @@ class BendLayer:
             )
             bone.plug("segmentScaleCompensate").set(False)
             bone.plug("radius").set(0.35 if role == "half" else 0.25)
-            group.add_attribute(long_name=role, attribute_type="message")
+            group.addAttribute(longName=role, attributeType="message")
             bone.plug("message").connect(group.plug(role))
             joints.append(bone)
-        root.plug("bendGroups").append_message(group)
+        root.plug("bendGroups").appendMessage(group)
         owned.extend([group, owner])
         for node in owned:
-            root.plug("hrigOwned").append_message(node)
+            root.plug("hrigOwned").appendMessage(node)
         self.rig._layer_members(
-            "bendSet", [group.full_name(), owner.full_name()] + [n.full_name() for n in joints]
+            "bendSet", [group.fullName(), owner.fullName()] + [n.fullName() for n in joints]
         )
         from .limb import _lock_group
 
@@ -163,7 +163,7 @@ class BendLayer:
         from .channel_controls import sync_display
 
         sync_display(self.rig)
-        return tuple(n.full_name() for n in joints)
+        return tuple(n.fullName() for n in joints)
 
     def update(self):
         """無効時に出力を切断して基準姿勢へ戻し、親だけを継承する。"""

@@ -164,7 +164,7 @@ class PluginPackage:
             Version | None: 版。ロードされていない場合は None。
         """
         plugin = self._version_plugin
-        if plugin is None or not plugin.is_loaded():
+        if plugin is None or not plugin.isLoaded():
             return None
         return plugin.version()
 

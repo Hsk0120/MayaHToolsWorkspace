@@ -54,7 +54,7 @@ class ControlShape:
                     [
                         hlib.getNode(value)
                         for value in (
-                            cmds.parent(shape, target.full_name(), shape=True, relative=True) or []
+                            cmds.parent(shape, target.fullName(), shape=True, relative=True) or []
                         )
                     ][0]
                 )

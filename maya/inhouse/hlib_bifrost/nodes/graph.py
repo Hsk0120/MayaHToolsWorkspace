@@ -33,7 +33,7 @@ class Graph:
                 MayaNode.create("bifrostGraphShape", name=name, parent=parent, skipSelect=True)
             )
         except Exception:
-            cmds.delete(parent.full_name())
+            cmds.delete(parent.fullName())
             raise
 
     @property
@@ -43,7 +43,7 @@ class Graph:
 
     def name(self):
         """str: 現在のDG完全名を取得する。"""
-        return self.node.full_name()
+        return self.node.fullName()
 
     def parent(self):
         """所有するDAG親を取得する。
@@ -64,7 +64,7 @@ class Graph:
         import hlib
 
         parent = self.parent()
-        children = cmds.listRelatives(parent.full_name(), children=True, fullPath=True) or []
+        children = cmds.listRelatives(parent.fullName(), children=True, fullPath=True) or []
         if children != [self.name()]:
             raise ValueError("Parent contains other children; delete the graph shape explicitly")
         hlib.delete(parent)

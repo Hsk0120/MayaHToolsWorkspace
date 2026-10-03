@@ -26,12 +26,12 @@ class SoftIK:
         """
         if not math.isfinite(length) or length <= 0:
             raise ValueError("length must be positive and finite")
-        owner = hlib.nodes.Container.create(name).full_name()
+        owner = hlib.nodes.Container.create(name).fullName()
         builder = ScalarGraph(owner)
         try:
             for attr, value in (("distance", 0.0), ("softness", 0.0), ("ratio", 1.0)):
-                hlib.nodes.Node(owner).add_attribute(
-                    long_name=attr, attribute_type="double", default_value=value
+                hlib.nodes.Node(owner).addAttribute(
+                    longName=attr, attributeType="double", defaultValue=value
                 )
             distance = builder.condition("distance", owner + ".distance", 0, owner + ".distance", 0)
             soft = builder.condition("softMin", owner + ".softness", 0, owner + ".softness", 0)

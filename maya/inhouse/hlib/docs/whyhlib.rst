@@ -14,12 +14,13 @@ hlibはPyMELに依存せず、独自のAPIを提供します。
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    import hlib
 
    control = hlib.getNode("control")
-   control.set_translate((1, 2, 3))
+   control.setTranslation((1, 2, 3))
    control.plug("visibility").set(True)
-   matrix = control.get_matrix(ws=True)
+   matrix = control.getMatrix(space=MSpace.kWorld)
 
 この例の ``control`` は既存のTransform名です。以下の作成例はMaya内で実行できます。
 hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリです。
@@ -197,7 +198,7 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
 **Mayaへの問い合わせはメソッド、保持する値はプロパティを基本とします。**
 例えば ``node.name()`` は現在の名前を問い合わせ、``plug.node`` は保持する所有ノード参照です。
 ``matrix`` や ``quaternion`` の成分を変更しても、取得元ノードへ自動反映されません。
-反映には ``set_matrix()`` や ``set_rotate()`` を明示的に呼びます。
+反映には ``setMatrix()`` や ``setRotation()`` を明示的に呼びます。
 
 ノード単位で操作する
 ----------------------------------------------------------------------
@@ -207,15 +208,16 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    import hlib
 
    source = hlib.createNode("transform", name="hlibDemo_source")
    target = hlib.createNode("transform", name="hlibDemo_target")
 
-   source.set_translate((1, 2, 3))
-   source.set_scale((2, 2, 2))
-   source.set_outliner_color((0.3, 0.7, 1.0))
-   target.set_matrix(source.get_matrix(ws=True), ws=True)
+   source.setTranslation((1, 2, 3))
+   source.setScale((2, 2, 2))
+   source.setOutlinerColor((0.3, 0.7, 1.0))
+   target.setMatrix(source.getMatrix(space=MSpace.kWorld), space=MSpace.kWorld)
 
 .. list-table:: 便利な操作の例
    :header-rows: 1
@@ -224,16 +226,16 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
      - メソッド
      - 用途
    * - Transform
-     - ``get_matrix()`` / ``set_matrix()``
+     - ``getMatrix()`` / ``setMatrix()``
      - 変換行列を取得・反映する
    * - Transform
-     - ``add_constraint()`` / ``delete_constraints()``
+     - ``addConstraint()`` / ``deleteConstraints()``
      - 拘束を作成・削除する
    * - Joint
-     - ``freeze_rotation()`` / ``joint_orient_to_rotate()``
+     - ``freezeRotation()`` / ``jointOrientToRotate()``
      - rotateとjointOrientの間で姿勢を移す
    * - SkinCluster
-     - ``get_weights()`` / ``set_weights()``
+     - ``getWeights()`` / ``setWeights()``
      - スキンウェイトを取得・反映する
    * - Mesh・NurbsCurve
      - ``mirror()``
@@ -243,9 +245,10 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    transforms = hlib.nodes.Transforms([source, target])
-   transforms.set_translate((0, 5, 0))
-   matrices = transforms.get_matrix(ws=True)
+   transforms.setTranslation((0, 5, 0))
+   matrices = transforms.getMatrix(space=MSpace.kWorld)
 
 一括操作の戻り値と事前検証の範囲は各メソッドの仕様に従います。
 詳しくは :doc:`guide_nodes` と :doc:`modules` を参照してください。
@@ -258,6 +261,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    # 上の作成例で用意したsourceとtargetを使用
    translate_x = source.plug("tx")
    translate_x.set(10)
@@ -267,13 +271,13 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    source.plug("tx").disconnect(target.plug("tx"))
 
    target.plug("visibility").set(False)
-   target.plug("visibility").set_flags(locked=True)
+   target.plug("visibility").setFlags(locked=True)
 
 ``tx`` と ``translateX`` は同じアトリビュートを指します。
 ``translate`` のような3成分アトリビュートは ``Double3Plug``、配列アトリビュートは ``ArrayPlug`` など、
 アトリビュートの構造に合ったラッパーが選ばれます。
 
-ノードの ``set_rotate()`` は姿勢を扱い、``plug("rotate").set()`` はrotateアトリビュートの値を扱います。
+ノードの ``setRotation()`` は姿勢を扱い、``plug("rotate").set()`` はrotateアトリビュートの値を扱います。
 JointのjointOrientなどがある場合、この2つは同じ操作とは限りません。
 詳しい受付対象は :doc:`cmds_interop` を参照してください。
 
@@ -292,19 +296,20 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    import hlib
 
    reference = hlib.createNode("transform", name="hlibDemo_reference")
    driven = hlib.createNode("transform", name="hlibDemo_driven")
-   reference.set_translate((10, 0, 0))
-   driven.set_translate((12, 3, 0))
+   reference.setTranslation((10, 0, 0))
+   driven.setTranslation((12, 3, 0))
 
-   reference_world = reference.get_matrix(ws=True)
-   driven_world = driven.get_matrix(ws=True)
+   reference_world = reference.getMatrix(space=MSpace.kWorld)
+   driven_world = driven.getMatrix(space=MSpace.kWorld)
    relative = driven_world * reference_world.inverse()
 
    restored_world = relative * reference_world
-   driven.set_matrix(restored_world, ws=True)
+   driven.setMatrix(restored_world, space=MSpace.kWorld)
 
 ``*`` で行列積、``inverse()`` で逆行列を扱えます。
 逆行列を求める例では、ゼロスケールなどの特異な行列を避けてください。
@@ -313,23 +318,24 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 クォータニオンの補間
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-回転も ``get_quaternion()`` で取得し、``slerp()`` で補間した結果をそのまま反映できます。
+回転も ``getQuaternion()`` で取得し、``slerp()`` で補間した結果をそのまま反映できます。
 
 .. code-block:: python
 
+   from maya.api.OpenMaya import MSpace
    import hlib
 
    start = hlib.createNode("transform", name="hlibDemo_start")
    end = hlib.createNode("transform", name="hlibDemo_end")
    result = hlib.createNode("transform", name="hlibDemo_result")
-   end.set_rotate((0, 90, 0), unit="deg")
+   end.setRotation((0, 90, 0), unit="deg")
 
-   q_start = start.get_quaternion(ws=True)
-   q_end = end.get_quaternion(ws=True)
+   q_start = start.getQuaternion(space=MSpace.kWorld)
+   q_end = end.getQuaternion(space=MSpace.kWorld)
    q_middle = q_start.slerp(q_end, 0.5)
-   result.set_rotate(q_middle, ws=True)
+   result.setRotation(q_middle, space=MSpace.kWorld)
 
-   rotation_matrix = q_middle.to_matrix()
+   rotation_matrix = q_middle.toMatrix()
 
 ``0.5`` は2つの回転の中間です。Quaternionには角度単位を別途指定しません。
 数値で回転を渡す場合は既定がラジアンで、上の例では ``unit="deg"`` を明示しています。

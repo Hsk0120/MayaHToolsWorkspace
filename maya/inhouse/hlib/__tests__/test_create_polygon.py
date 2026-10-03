@@ -46,26 +46,26 @@ class CreatePolygonTest(unittest.TestCase):
                     mesh = hlib.createPolygon(type=kind, constructionHistory=history)
                     self.assertIsInstance(mesh, hlib.nodes.Mesh)
                     self.assertIsInstance(mesh.transform(), hlib.nodes.Transform)
-                    self.assertGreater(cmds.polyEvaluate(mesh.full_name(), vertex=True), 0)
+                    self.assertGreater(cmds.polyEvaluate(mesh.fullName(), vertex=True), 0)
                     nodes = [hlib.getNode(value) for value in (cmds.listHistory(mesh) or [])]
                     self.assertEqual(any(node.type() == command for node in nodes), history)
 
     def test_flags_dimensions_and_rename(self):
         mesh = hlib.createPolygon(typ="polyCube", n="box", w=2, h=4, d=6, sx=2, ch=False)
         self.assertEqual(mesh.transform().name().split(":")[-1], "box")
-        self.assertEqual(cmds.exactWorldBoundingBox(mesh.full_name()), [-1, -2, -3, 1, 2, 3])
-        self.assertEqual(cmds.polyEvaluate(mesh.full_name(), vertex=True), 12)
+        self.assertEqual(cmds.exactWorldBoundingBox(mesh.fullName()), [-1, -2, -3, 1, 2, 3])
+        self.assertEqual(cmds.polyEvaluate(mesh.fullName(), vertex=True), 12)
         identity = mesh.uuid()
         mesh.transform().rename("renamedBox")
         self.assertEqual(mesh.uuid(), identity)
-        self.assertIn("renamedBox", mesh.full_name())
+        self.assertIn("renamedBox", mesh.fullName())
 
     def test_default_type_and_undo_redo(self):
         mesh = hlib.createPolygon()
-        shape = mesh.full_name()
-        parent = mesh.transform().full_name()
+        shape = mesh.fullName()
+        parent = mesh.transform().fullName()
         history = [
-            node.full_name()
+            node.fullName()
             for node in [hlib.getNode(value) for value in (cmds.listHistory(mesh) or [])]
             if node.type() == "polyCube"
         ]

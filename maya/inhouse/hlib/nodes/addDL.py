@@ -10,7 +10,7 @@ from .node import Node
 class AddDL(Node):
     """Maya 2026以降の距離型加算ノード。"""
 
-    def input_plug(self, index):
+    def inputPlug(self, index):
         """入力のPlugを取得する。
 
         Args:
@@ -20,7 +20,7 @@ class AddDL(Node):
         """
         return self.plug(f"input{_Calculation.index(index, (1, 2))}")
 
-    def get_input(self, index):
+    def getInput(self, index):
         """入力の評価値を取得する。
 
         Args:
@@ -28,11 +28,11 @@ class AddDL(Node):
         Returns:
             float: 現在の値。
         """
-        return self.input_plug(index).get()
+        return self.inputPlug(index).get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, index, value, *, fast=False):
+    def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -45,11 +45,11 @@ class AddDL(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.scalar, self.input_plug, index)
+        _Calculation.set_value(value, _Calculation.scalar, self.inputPlug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, index, source, force=False):
+    def connectInput(self, index, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -62,10 +62,10 @@ class AddDL(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, index, force=force)
+        _Calculation.connect(source, self.inputPlug, index, force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -77,4 +77,4 @@ class AddDL(Node):
         Returns:
             float: 計算結果。
         """
-        return self.output_plug().get()
+        return self.outputPlug().get()

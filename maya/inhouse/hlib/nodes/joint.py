@@ -23,7 +23,7 @@ class Joint(Transform):
     Joint 固有の orientation、親子探索、skinCluster 連携を提供する。
     """
 
-    def get_segment_scale_compensate(self):
+    def getSegmentScaleCompensate(self):
         """親のスケール補正が有効か照会する。
 
         Returns:
@@ -33,7 +33,7 @@ class Joint(Transform):
 
     @fast_edit
     @undo_chunk("hlibJointSetSegmentScaleCompensate")
-    def set_segment_scale_compensate(self, state, *, fast=False):
+    def setSegmentScaleCompensate(self, state, *, fast=False):
         """親のスケール補正を切り替える。
 
         segmentScaleCompensateだけを変更する。inverseScaleの接続やバインド情報は
@@ -55,7 +55,7 @@ class Joint(Transform):
         self.plug("segmentScaleCompensate").set(state)
         return self
 
-    def get_joint_orient(self):
+    def getJointOrient(self):
         """jointOrient アトリビュートを EulerRotation として取得する。
 
         Returns:
@@ -84,13 +84,13 @@ class Joint(Transform):
         Raises:
             RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
         """
-        if not self.is_joint():
+        if not self.isJoint():
             raise RuntimeError("Cannot change orientation of an invalid joint")
         orient = self._compound_values("jointOrient", angle=True)
         rotate = self._compound_values("rotate", angle=True)
         if not any(rotate if to_orient else orient):
             return None
-        name = self.full_name()
+        name = self.fullName()
         for attribute in ("rotate", "jointOrient"):
             for suffix in ("", "X", "Y", "Z"):
                 plug = name + "." + attribute + suffix
@@ -109,7 +109,7 @@ class Joint(Transform):
 
     @fast_edit
     @undo_chunk("hlibJointsJointOrientToRotate")
-    def joint_orient_to_rotate(self, *, fast=False):
+    def jointOrientToRotate(self, *, fast=False):
         """現在の姿勢を保ち、jointOrientをrotateに合成して0にする。
 
         XYZの数値加算ではなく回転を合成する。rotateOrder、rotateAxis、移動、
@@ -128,14 +128,14 @@ class Joint(Transform):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if not self.is_joint():
+        if not self.isJoint():
             raise RuntimeError("Cannot change orientation of an invalid joint")
         self._apply_rotation_transfer(self._joint_rotation_transfer_values())
         return self
 
     @fast_edit
     @undo_chunk("hlibJointsFreezeRotation")
-    def freeze_rotation(self, *, fast=False):
+    def freezeRotation(self, *, fast=False):
         """姿勢を保ち、rotateをjointOrientへ合成してrotateを0にする。
 
         スキニング済みjointにも使用できる。jointの行列を保持するため、
@@ -155,7 +155,7 @@ class Joint(Transform):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if not self.is_joint():
+        if not self.isJoint():
             raise RuntimeError("Cannot freeze rotation of an invalid joint")
         self._apply_rotation_transfer(self._joint_rotation_transfer_values(to_orient=True), to_orient=True)
         return self
@@ -169,8 +169,8 @@ class Joint(Transform):
         """
         if values is None:
             return
-        set_attr(self.full_name() + ".jointOrient", *(values if to_orient else (0, 0, 0)))
-        set_attr(self.full_name() + ".rotate", *((0, 0, 0) if to_orient else values))
+        set_attr(self.fullName() + ".jointOrient", *(values if to_orient else (0, 0, 0)))
+        set_attr(self.fullName() + ".rotate", *((0, 0, 0) if to_orient else values))
 
     def _rotation_quaternion(self, attribute):
         """jointOrient / rotateAxis の Maya degrees アトリビュートを API quaternion へ変換する。
@@ -215,9 +215,9 @@ class Joint(Transform):
         return result
 
     def _rotate_reference(self, reference):
-        """:meth:`get_rotate` が Euler の解を選ぶ基準を返す。
+        """:meth:`getRotation` が Euler の解を選ぶ基準を返す。
 
-        joint の get_rotate は jointOrient と rotateAxis を含む回転で rotate チャンネルとは
+        joint の getRotation は jointOrient と rotateAxis を含む回転で rotate チャンネルとは
         別の回転なので、チャンネル値ではなく 0 回転(ノードの rotateOrder)を基準にする。
 
         Args:
@@ -256,7 +256,7 @@ class Joint(Transform):
         Args:
             matrix (Matrix): 適用するローカル行列。
             scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
-                (``set_scale`` で要求した値)。None なら現在の scale チャンネル値に合わせる。
+                (``setScale`` で要求した値)。None なら現在の scale チャンネル値に合わせる。
 
         Returns:
             None: 値を返さない。
@@ -269,7 +269,7 @@ class Joint(Transform):
 
 
     @undo_chunk("hlibJointConnectInverseScale")
-    def connect_inverse_scale(self, source=None, force=False):
+    def connectInverseScale(self, source=None, force=False):
         """Transformのscaleを自身のinverseScaleへ接続する。
 
         Args:
@@ -292,9 +292,9 @@ class Joint(Transform):
         from hlib.nodes.node import Node as _InputNode
         if not isinstance(force, bool):
             raise TypeError("force must be a bool")
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("Cannot connect inverseScale on an invalid joint")
-        source = self.parent_node() if source is None else _InputNode._resolve_input(source)
+        source = self.parentNode() if source is None else _InputNode._resolve_input(source)
         if source is None:
             return self
         if not isinstance(source, Transform):
@@ -303,12 +303,12 @@ class Joint(Transform):
             raise ValueError("inverseScale cannot use the joint itself as its source")
         origin = source.plug("scale")
         target = self.plug("inverseScale")
-        if not cmds.isConnected(origin.full_name(), target.full_name()):
+        if not cmds.isConnected(origin.fullName(), target.fullName()):
             origin.connect(target, force=force)
         return self
 
     @undo_chunk("hlibJointDisconnectInverseScale")
-    def disconnect_inverse_scale(self):
+    def disconnectInverseScale(self):
         """inverseScaleと各軸の入力接続だけを切断する。
 
         出力接続・segmentScaleCompensateは変更しない。値のリセットや姿勢補償は
@@ -327,7 +327,7 @@ class Joint(Transform):
                 origin.disconnect(target)
         return self
 
-    def get_radius(self):
+    def getRadius(self):
         """ジョイント個別の表示半径を取得する。
 
         Returns:
@@ -337,7 +337,7 @@ class Joint(Transform):
 
     @fast_edit
     @undo_chunk("hlibJointSetRadius")
-    def set_radius(self, value, *, fast=False):
+    def setRadius(self, value, *, fast=False):
         """ジョイント個別の表示半径を変更する。骨の長さ・scaleは変更しない。
 
         Args:
@@ -361,7 +361,7 @@ class Joint(Transform):
         self.plug("radius").set(value)
         return self
 
-    def get_inverse_scale(self):
+    def getInverseScale(self):
         """inverseScale アトリビュートを意味付き Scale として取得する。
 
         Returns:
@@ -381,39 +381,39 @@ class Joint(Transform):
         Returns:
             tuple: アトリビュート値のタプル。無効なノードでは (0.0, 0.0, 0.0)。有効時は要素数を検査しない。
         """
-        if not self.is_valid():
+        if not self.isValid():
             return (0.0, 0.0, 0.0)
         plug = om2.MFnDependencyNode(self._mobject).findPlug(attribute, False)
         if angle:
             return tuple(plug.child(index).asMAngle().asDegrees() for index in range(3))
         return tuple(plug.child(index).asDouble() for index in range(3))
 
-    def parent_joint_name(self):
+    def parentJointName(self):
         """親 joint の名前を取得する。
 
         Returns:
             str | None: 親 joint 名。親が joint でない場合は ``None``。
         """
-        if not self.is_valid():
+        if not self.isValid():
             return None
-        parent = self.parent_node()
-        if parent is None or not parent.is_valid():
+        parent = self.parentNode()
+        if parent is None or not parent.isValid():
             return None
         if not parent.mobject().hasFn(om2.MFn.kJoint):
             return None
         return parent.name()
 
-    def child_joint_names(self):
+    def childJointNames(self):
         """直接の子 joint 名を取得する。
 
         Returns:
             list[str]: 子 joint 名のリスト。
         """
-        if not self.is_valid():
+        if not self.isValid():
             return []
         return [
             child.name()
-            for child in self.child_nodes()
+            for child in self.childNodes()
             if child.mobject().hasFn(om2.MFn.kJoint)
         ]
 
@@ -424,19 +424,19 @@ class Joint(Transform):
             int: root joint を 0 とする階層深度。
         """
         depth = 0
-        current_joint = self.parent_joint_name()
+        current_joint = self.parentJointName()
         while current_joint:
             depth += 1
-            current_joint = Joint(current_joint).parent_joint_name()
+            current_joint = Joint(current_joint).parentJointName()
         return depth
 
-    def is_joint(self):
+    def isJoint(self):
         """ラップ対象が joint か判定する。
 
         Returns:
             bool: 有効な joint の場合は ``True``。
         """
-        return self.is_valid() and self.mobject().hasFn(om2.MFn.kJoint)
+        return self.isValid() and self.mobject().hasFn(om2.MFn.kJoint)
 
     def delete(self):
         """祖先influenceへウェイトを移送し、このjointを削除する。
@@ -454,11 +454,11 @@ class Joint(Transform):
         Raises:
             RuntimeError: 無効なjoint、ウェイト移送・再親付け・削除の失敗。
         """
-        if not self.is_joint():
+        if not self.isJoint():
             raise RuntimeError("Cannot delete an invalid joint")
         Joints([self]).delete()
 
-    def skin_clusters(self):
+    def skinClusters(self):
         """この joint に接続する skinCluster を取得する。
 
         Returns:
@@ -466,7 +466,7 @@ class Joint(Transform):
         """
         from .skinCluster import SkinCluster
 
-        if not self.is_valid():
+        if not self.isValid():
             return []
         seen = set()
         result = []
@@ -479,7 +479,7 @@ class Joint(Transform):
         return result
 
     @undo_chunk("hlibJointRemoveInfluence")
-    def remove_influence(self, skin_cluster=None, *, transfer_to_parent=True):
+    def removeInfluence(self, skin_cluster=None, *, transfer_to_parent=True):
         """ウェイトの再配分方法を選んでinfluence登録を外す。joint自体は残す。
 
         Args:
@@ -496,18 +496,18 @@ class Joint(Transform):
         事前検証する。途中失敗は例外で停止し、完了済み操作は一回のUndoで戻せる。
         """
         from .skinCluster import SkinCluster
-        if not self.is_joint():
+        if not self.isJoint():
             raise RuntimeError("Cannot remove an invalid joint influence")
         if not isinstance(transfer_to_parent, bool):
             raise TypeError("transfer_to_parent must be a bool")
-        skins = self.skin_clusters() if skin_cluster is None else [skin_cluster if isinstance(skin_cluster, SkinCluster) else SkinCluster(skin_cluster)]
+        skins = self.skinClusters() if skin_cluster is None else [skin_cluster if isinstance(skin_cluster, SkinCluster) else SkinCluster(skin_cluster)]
         for skin in skins:
             skin._influence_removal_target(self, transfer_to_parent=transfer_to_parent)
         for skin in skins:
-            skin.remove_influence(self, transfer_to_parent=transfer_to_parent)
+            skin.removeInfluence(self, transfer_to_parent=transfer_to_parent)
         return self
 
-    def transfer_target(self, skin):
+    def transferTarget(self, skin):
         """ウェイト移送先となる最も近い親 influence を探索する。
 
         Args:
@@ -516,15 +516,15 @@ class Joint(Transform):
         Returns:
             str | None: 移送先の親 joint 名。見つからない場合は ``None``。
         """
-        ancestor = self.parent_joint_name()
+        ancestor = self.parentJointName()
         while ancestor:
-            if skin.has_influence(ancestor):
+            if skin.hasInfluence(ancestor):
                 return ancestor
-            ancestor = Joint(ancestor).parent_joint_name()
+            ancestor = Joint(ancestor).parentJointName()
         return None
 
-    @undo_chunk("hlib.nodes.joint.reparent_children")
-    def reparent_children(self, parent_joint):
+    @undo_chunk("hlib.nodes.joint.reparentChildren")
+    def reparentChildren(self, parent_joint):
         """子 joint を指定した親 joint へ付け替える。
 
         Args:
@@ -533,7 +533,7 @@ class Joint(Transform):
         Returns:
             None: 値を返さない。
         """
-        for child_joint in self.child_joint_names():
+        for child_joint in self.childJointNames():
             cmds.parent(child_joint, parent_joint)
 
     @staticmethod
@@ -555,7 +555,7 @@ class Joint(Transform):
             unique_items.append(item)
         return unique_items
 
-    def chain_from_here(self, to=None):
+    def chainFromHere(self, to=None):
         """自身を起点とする joint チェーンを順に取得する。
 
         Args:
@@ -572,27 +572,27 @@ class Joint(Transform):
             RuntimeError: 自身が無効な場合。
             ValueError: to が自身の子孫でない場合。
         """
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("Cannot build a chain from an invalid joint")
         if to is None:
             chain = [self]
             current = self
             while True:
-                children = current.child_joint_names()
+                children = current.childJointNames()
                 if len(children) != 1:
                     return chain
                 current = Joint(children[0])
                 chain.append(current)
         target = to if isinstance(to, Joint) else Joint(to)
-        if not self.is_ancestor_of(target):
+        if not self.isAncestorOf(target):
             raise ValueError("to must be a descendant of this joint")
         chain = [self]
         current = self
         while current.uuid() != target.uuid():
             next_joint = next(
                 (
-                    Joint(name) for name in current.child_joint_names()
-                    if Joint(name).uuid() == target.uuid() or Joint(name).is_ancestor_of(target)
+                    Joint(name) for name in current.childJointNames()
+                    if Joint(name).uuid() == target.uuid() or Joint(name).isAncestorOf(target)
                 ),
                 None,
             )
@@ -602,7 +602,7 @@ class Joint(Transform):
             current = next_joint
         return chain
 
-    def ik_handles(self):
+    def ikHandles(self):
         """自身を start joint とする IK ハンドルを取得する。
 
         自身が IK チェーンの途中や末端の joint である場合は対象にならない。
@@ -614,7 +614,7 @@ class Joint(Transform):
         """
         from .ikHandle import IkHandle
 
-        if not self.is_valid():
+        if not self.isValid():
             return []
         seen = set()
         result = []
@@ -630,29 +630,29 @@ class Joint(Transform):
 @bulk_api(
     Joint,
     reads=(
-        'get_segment_scale_compensate',
-        'get_joint_orient',
-        'get_radius',
-        'get_inverse_scale',
-        'parent_joint_name',
-        'child_joint_names',
+        'getSegmentScaleCompensate',
+        'getJointOrient',
+        'getRadius',
+        'getInverseScale',
+        'parentJointName',
+        'childJointNames',
         'depth',
-        'is_joint',
-        'skin_clusters',
-        'transfer_target',
-        'reparent_children',
-        'chain_from_here',
-        'ik_handles',
+        'isJoint',
+        'skinClusters',
+        'transferTarget',
+        'reparentChildren',
+        'chainFromHere',
+        'ikHandles',
     ),
     writes=(
-        'set_segment_scale_compensate',
-        'joint_orient_to_rotate',
-        'freeze_rotation',
-        'connect_inverse_scale',
-        'disconnect_inverse_scale',
-        'set_radius',
+        'setSegmentScaleCompensate',
+        'jointOrientToRotate',
+        'freezeRotation',
+        'connectInverseScale',
+        'disconnectInverseScale',
+        'setRadius',
         'delete',
-        'remove_influence',
+        'removeInfluence',
     ),
 )
 class Joints(Transforms):
@@ -660,7 +660,7 @@ class Joints(Transforms):
 
     item_class = Joint
 
-    def sorted_by_depth(self):
+    def sortedByDepth(self):
         """深い joint から順に並べた新しいコレクションを返す。
 
         Returns:
@@ -670,7 +670,7 @@ class Joints(Transforms):
 
     @fast_edit
     @undo_chunk("hlibJointsJointOrientToRotate")
-    def joint_orient_to_rotate(self, *, fast=False):
+    def jointOrientToRotate(self, *, fast=False):
         """全jointの姿勢を保ち、jointOrientをrotateへ合成して0にする。
 
         全対象の値と書込み可否を変更前に検証する。回転順序・角度単位に対応し、
@@ -692,7 +692,7 @@ class Joints(Transforms):
 
     @fast_edit
     @undo_chunk("hlibJointsFreezeRotation")
-    def freeze_rotation(self, *, fast=False):
+    def freezeRotation(self, *, fast=False):
         """全jointのrotateをjointOrientへ移し、姿勢を保ってrotateを0にする。
 
         スキニング済みでも実行でき、ウェイト・bindPreMatrix・バインドポーズを
@@ -727,7 +727,7 @@ class Joints(Transforms):
             joint._apply_rotation_transfer(values, to_orient=to_orient)
         return self
 
-    def skin_clusters(self):
+    def skinClusters(self):
         """全 joint に関連する skinCluster を取得する。
 
         Returns:
@@ -735,15 +735,15 @@ class Joints(Transforms):
         """
         from .skinCluster import SkinClusters
 
-        skin_clusters = []
+        skinClusters = []
         seen = set()
         for joint in self._items:
-            for skin in joint.skin_clusters():
+            for skin in joint.skinClusters():
                 if skin.uuid() in seen:
                     continue
                 seen.add(skin.uuid())
-                skin_clusters.append(skin)
-        return SkinClusters(skin_clusters)
+                skinClusters.append(skin)
+        return SkinClusters(skinClusters)
 
     def delete(self):
         """ウェイト移送後にコレクション内の joint を削除する。

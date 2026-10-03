@@ -1,4 +1,5 @@
 """高速化で保持すべき評価・Undo・更新時検証の契約を確認する。"""
+from maya.api.OpenMaya import MSpace
 import sys
 import unittest
 from unittest.mock import patch
@@ -102,10 +103,10 @@ class PerformanceContractsTest(unittest.TestCase):
 
     def assert_matrix(self, node):
         """対象インスタンスのworldMatrixとローカルmatrixの一致を確認する。"""
-        path = node.dag_path()
+        path = node.dagPath()
         for ws, attr in ((True, "worldMatrix[%d]" % path.instanceNumber()), (False, "matrix")):
             expected = cmds.getAttr(path.fullPathName() + "." + attr)
-            for a, b in zip(node.get_matrix(ws=ws), expected):
+            for a, b in zip(node.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), expected):
                 self.assertAlmostEqual(a, b, places=8)
 
     def test_matrix_joint_and_transform_evaluation(self):
@@ -148,15 +149,15 @@ class PerformanceContractsTest(unittest.TestCase):
         first, second = hlib.getNode("|a|child"), hlib.getNode("|b|child")
         self.assert_matrix(first)
         self.assert_matrix(second)
-        self.assertNotEqual(list(first.get_matrix(ws=True)), list(second.get_matrix(ws=True)))
+        self.assertNotEqual(list(first.getMatrix(space=MSpace.kWorld)), list(second.getMatrix(space=MSpace.kWorld)))
         n = cmds.createNode("transform", name="single")
         node = hlib.getNode(n)
         n = cmds.rename(n, "renamed")
         cmds.parent(n, a)
         self.assert_matrix(node)
-        cmds.delete(node.full_name())
+        cmds.delete(node.fullName())
         with self.assertRaises(RuntimeError):
-            node.get_matrix(ws=True)
+            node.getMatrix(space=MSpace.kWorld)
         cmds.undo()
         self.assert_matrix(node)
 
@@ -186,7 +187,7 @@ class PerformanceContractsTest(unittest.TestCase):
         for unit in ("cm", "m"):
             cmds.currentUnit(linear=unit)
             node.plug("tx").set(3, fast=True)
-            self.assertAlmostEqual(cmds.getAttr(name + ".tx"), 3)
+            self.assertAlmostEqual(node.plug("tx").mplug().asMDistance().asCentimeters(), 3)
 
 
 if __name__ == "__main__":

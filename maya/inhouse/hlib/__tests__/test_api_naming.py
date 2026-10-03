@@ -29,40 +29,40 @@ class ApiNamingTest(unittest.TestCase):
 
     def test_subclasses_keep_node_connection_queries(self):
         driver = hlib.createNode('transform')
-        cmds.addAttr(driver.full_name(), longName='driver', attributeType='double')
+        cmds.addAttr(driver.fullName(), longName='driver', attributeType='double')
         source = driver.plug('driver')
         curve = hlib.createNode('animCurveUU')
         source.connect(curve.plug('input'))
-        curve.set_key(0, 2)
-        curve.set_key(3, 5)
+        curve.setKey(0, 2)
+        curve.setKey(3, 5)
         blend = hlib.createNode('blendWeighted')
-        blend.connect_input(0, source)
+        blend.connectInput(0, source)
         for node in (curve, blend):
-            self.assertEqual([p.full_name() for p in node.inputs(type='transform')], [source.full_name()])
+            self.assertEqual([p.fullName() for p in node.inputs(type='transform')], [source.fullName()])
             self.assertEqual(node.inputs(type='mesh'), [])
-        self.assertEqual(curve.key_inputs(), [0, 3])
-        self.assertEqual(blend.input_plugs()[0].node, blend)
+        self.assertEqual(curve.keyInputs(), [0, 3])
+        self.assertEqual(blend.inputPlugs()[0].node, blend)
 
     def test_live_queries_and_stored_properties(self):
         node = hlib.createNode('joint')
         plug = node.plug('translateX')
-        self.assertTrue(callable(node.full_name))
-        self.assertTrue(callable(node.is_locked))
+        self.assertTrue(callable(node.fullName))
+        self.assertTrue(callable(node.isLocked))
         self.assertTrue(callable(plug.name))
         self.assertIsInstance(inspect.getattr_static(type(plug), 'node'), property)
-        before = node.full_name()
+        before = node.fullName()
         node.rename('renamed')
-        self.assertNotEqual(node.full_name(), before)
-        self.assertTrue(plug.full_name().startswith(node.name() + '.'))
+        self.assertNotEqual(node.fullName(), before)
+        self.assertTrue(plug.fullName().startswith(node.name() + '.'))
         self.assertIsInstance(hlib.nodes.Joints([node]).uuid(), list)
 
     def test_public_collection_has_no_deletion_workflow(self):
         for name in ('gather', 'apply', 'finalize'):
             self.assertFalse(hasattr(hlib.nodes.SkinClusters, name))
         joint = hlib.createNode('joint')
-        child = hlib.createNode('joint', parent=joint.full_name())
-        self.assertEqual(child.parent_joint_name(), joint.name())
-        self.assertEqual(joint.child_joint_names(), [child.name()])
+        child = hlib.createNode('joint', parent=joint.fullName())
+        self.assertEqual(child.parentJointName(), joint.name())
+        self.assertEqual(joint.childJointNames(), [child.name()])
 
     def test_math_types_and_old_json_records(self):
         from hlib.json.codec import encode, decode

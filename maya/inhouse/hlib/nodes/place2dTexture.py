@@ -9,7 +9,7 @@ class Place2dTexture(ShadingDependNode):
     """Mayaの継承型に対応するPlace2dTexture。値と接続はPlugで操作する。"""
 
     @undo_chunk("hlibPlace2dConnect")
-    def connect_texture(self, texture, force=False):
+    def connectTexture(self, texture, force=False):
         """標準の2D配置アトリビュートをテクスチャへ接続する。
 
         Args:
@@ -31,7 +31,7 @@ class Place2dTexture(ShadingDependNode):
                  "noiseUV", "vertexUvOne", "vertexUvTwo", "vertexUvThree", "vertexCameraOne")
         pairs = [(name, name) for name in names] + [("outUV", "uvCoord"), ("outUvFilterSize", "uvFilterSize")]
         for origin, target in pairs:
-            if texture.has_attribute(target):
+            if texture.hasAttribute(target):
                 source = self.plug(origin)
                 destination = texture.plug(target)
                 if destination.source() != source:

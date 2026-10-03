@@ -296,7 +296,7 @@ class Matrix(om2.MMatrix):
       (``v * mᵀ``)の :class:`~hlib.maths.vector.Vector`。
     * ``m * p`` (p は om2.MPoint): om2 の列ベクトルとしての積(同次座標の4成分)の
       x、y、z を持つ Vector。結果の w は捨てる(``Vector(om2.MPoint)`` と同じく w で割らない)。
-    * ``m @ v`` は TypeError。位置の変換には :meth:`transform_point` (または
+    * ``m @ v`` は TypeError。位置の変換には :meth:`transformPoint` (または
       ``om2.MPoint(p) * m``)を使う。
 
     ``*=`` / ``@=`` / ``+=`` / ``-=`` は自身を書き換える。値は可変で、添字
@@ -435,7 +435,7 @@ class Matrix(om2.MMatrix):
         return cls(translate=translate, rotate=rotate, scale=scale, shear=shear)
 
     @classmethod
-    def from_mmatrix(cls, matrix):
+    def fromMMatrix(cls, matrix):
         """Maya API 2.0 の行列から、複製した hlib の行列を作る。
 
         Matrix はそれ自体が om2.MMatrix なので、om2 へ渡すための変換は不要。
@@ -451,7 +451,7 @@ class Matrix(om2.MMatrix):
         return cls(matrix)
 
     @classmethod
-    def from_transformation(cls, transformation):
+    def fromTransformation(cls, transformation):
         """Maya API 2.0 の変換行列から hlib の行列を生成する。
 
         Args:
@@ -462,7 +462,7 @@ class Matrix(om2.MMatrix):
         """
         return cls._wrap(transformation.asMatrix())
 
-    def to_transformation(self):
+    def toTransformation(self):
         """om2.MTransformationMatrix へ変換する。
 
         Returns:
@@ -704,7 +704,7 @@ class Matrix(om2.MMatrix):
         """
         return self.det4x4()
 
-    def is_equivalent(self, other, tolerance=1e-10):
+    def isEquivalent(self, other, tolerance=1e-10):
         """許容誤差付きでほぼ等しいか判定する。
 
         ``==`` は完全一致なので、浮動小数点誤差を許容した比較にはこちらを使う。
@@ -744,7 +744,7 @@ class Matrix(om2.MMatrix):
         """
         return type(self)._wrap(_MMatrix.transpose(self))
 
-    def transform_point(self, value):
+    def transformPoint(self, value):
         """行ベクトル規約で位置を変換する。
 
         同次座標の w を 1 として扱い、射影除算は行わない。``om2.MPoint(p) * m`` と
@@ -771,7 +771,7 @@ class Matrix(om2.MMatrix):
         result.z += _GET(self, 14)
         return result
 
-    def transform_vector(self, value):
+    def transformVector(self, value):
         """行ベクトル規約で方向を変換する(``Vector(value) * m`` と同じ)。
 
         同次座標の w を 0 として扱う。

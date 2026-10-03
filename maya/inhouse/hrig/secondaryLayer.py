@@ -29,9 +29,9 @@ class SecondaryLayer:
             dict[int, Node]: 列番号と設定グループ。
         """
         root = self.rig.root
-        if not root.has_attribute("secondaryGroups"):
+        if not root.hasAttribute("secondaryGroups"):
             return {}
-        return root.plug("secondaryGroups").source_nodes()
+        return root.plug("secondaryGroups").sourceNodes()
 
     @staticmethod
     def _members(group, attr):
@@ -44,7 +44,7 @@ class SecondaryLayer:
         Returns:
             list[Node]: 参照先。
         """
-        return list(group.plug(attr).source_nodes().values())
+        return list(group.plug(attr).sourceNodes().values())
 
     @staticmethod
     def _node(owner, kind, suffix):
@@ -58,7 +58,7 @@ class SecondaryLayer:
         Returns:
             Node: 生成ノード。
         """
-        return hlib.nodes.Container(owner).create_node(kind, name=owner.name() + "_" + suffix)
+        return hlib.nodes.Container(owner).createNode(kind, name=owner.name() + "_" + suffix)
 
     @undo_transaction("hrig.SecondaryLayer.add")
     def add(self, driver_index=0):
@@ -81,21 +81,21 @@ class SecondaryLayer:
         if [item.name() for item in hlib.ls(stem + "_*")]:
             raise ValueError("Secondary names already exist")
         parent = [
-            item.full_name()
+            item.fullName()
             for item in [
                 hlib.getNode(value)
                 for value in (
-                    cmds.listRelatives(sources[0].full_name(), parent=True, fullPath=True) or []
+                    cmds.listRelatives(sources[0].fullName(), parent=True, fullPath=True) or []
                 )
             ]
         ][0]
         group = hlib.createNode("transform", name=stem + "_grp", parent=parent, skipSelect=True)
         owner = hlib.nodes.Container.create(name=stem + "_graph")
-        group.add_attribute(long_name="graph", attribute_type="message")
+        group.addAttribute(longName="graph", attributeType="message")
         owner.plug("message").connect(group.plug("graph"))
-        group.add_attribute(long_name="baked", attribute_type="bool", default_value=False)
-        group.add_attribute(long_name="bakeInfo", data_type="string").set("{}")
-        group.add_attribute(long_name="poseGraph", attribute_type="message")
+        group.addAttribute(longName="baked", attributeType="bool", defaultValue=False)
+        group.addAttribute(longName="bakeInfo", dataType="string").set("{}")
+        group.addAttribute(longName="poseGraph", attributeType="message")
         for name, value, low, high in (
             ("intensity", 1, 0, 1),
             ("frequency", 3, 0.01, 30),
@@ -103,17 +103,17 @@ class SecondaryLayer:
             ("angleLimit", 45, 0.01, 170),
             ("poseIntensity", 1, 0, 1),
         ):
-            group.add_attribute(
-                long_name=name,
-                attribute_type="double",
-                default_value=value,
+            group.addAttribute(
+                longName=name,
+                attributeType="double",
+                defaultValue=value,
                 minValue=low,
                 maxValue=high,
                 keyable=name.endswith("ntensity"),
             )
-            group.set_attribute_flags([name], channel_box=True)
+            group.setAttributeFlags([name], channelBox=True)
         for attr in ("sources", "targets", "blends", "poses", "curves", "poseWeights"):
-            group.add_attribute(long_name=attr, attribute_type="message", multi=True)
+            group.addAttribute(longName=attr, attributeType="message", multi=True)
         target_parent = group
         for index, source in enumerate(sources):
             target = hlib.createNode(
@@ -155,16 +155,16 @@ class SecondaryLayer:
                 )
             target_parent = target
         for attr in ("secondaryGroups", "hrigOwned"):
-            if not root.has_attribute(attr):
-                root.add_attribute(long_name=attr, attribute_type="message", multi=True)
+            if not root.hasAttribute(attr):
+                root.addAttribute(longName=attr, attributeType="message", multi=True)
         group.plug("message").connect(root.plug("secondaryGroups[{}]".format(driver_index)))
         for node in (group, owner):
-            root.plug("hrigOwned").append_message(node)
+            root.plug("hrigOwned").appendMessage(node)
         for kind in ("spring", "pose"):
             attr = "hrigEnabled_" + kind
-            if not root.has_attribute(attr):
-                root.add_attribute(long_name=attr, attribute_type="bool", default_value=True)
-            root.set_attribute_flags([attr], channel_box=True)
+            if not root.hasAttribute(attr):
+                root.addAttribute(longName=attr, attributeType="bool", defaultValue=True)
+            root.setAttributeFlags([attr], channelBox=True)
         self.update()
         from .skirtRig import SkirtRig
 
@@ -225,18 +225,18 @@ class SecondaryLayer:
             for column, curve in enumerate(self._members(group, "curves")):
                 # 全キーを先に消すとMayaが空のanimCurve自体を削除することがある。
                 # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
-                old_times = set(cmds.keyframe(curve.full_name(), query=True, timeChange=True) or [])
+                old_times = set(cmds.keyframe(curve.fullName(), query=True, timeChange=True) or [])
                 for frame, row in zip(frames, solved):
                     value = hlib.utils.units.angle_to_ui(math.radians(row[column]))
                     cmds.setKeyframe(
-                        curve.full_name(),
+                        curve.fullName(),
                         time=frame,
                         value=value,
                         inTangentType="linear",
                         outTangentType="linear",
                     )
                 for time in old_times - set(frames):
-                    cmds.cutKey(curve.full_name(), time=(time, time), clear=True)
+                    cmds.cutKey(curve.fullName(), time=(time, time), clear=True)
             group.plug("baked").set(True)
             group.plug("bakeInfo").set(
                 hlib.json.JsonText.dumps(
@@ -279,7 +279,7 @@ class SecondaryLayer:
         graph = PoseRbf.create(drivers, poses, values, scales, name=group.name() + "_poses")
         graph.container.plug("message").connect(group.plug("poseGraph"))
         root = self.rig.root
-        root.plug("hrigOwned").append_message(graph.container)
+        root.plug("hrigOwned").appendMessage(graph.container)
         owner = group.plug("graph").source().node
         for index in range(count):
             weight = self._node(owner, "multDoubleLinear", "poseWeight{}".format(index))
@@ -309,7 +309,7 @@ class SecondaryLayer:
                 hlib.getPlug(value)
                 for value in (
                     cmds.listConnections(
-                        constraint.full_name(),
+                        constraint.fullName(),
                         source=True,
                         destination=False,
                         plugs=True,

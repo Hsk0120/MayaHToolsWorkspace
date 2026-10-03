@@ -48,7 +48,7 @@ class WindowApiTest(unittest.TestCase):
     def test_position_order_and_validation(self):
         """公開x/yをMayaのtop/leftへ変換する。"""
         window = Window("test")
-        window.set_position(-20, 40)
+        window.setPosition(-20, 40)
         self.window.assert_called_with("test", edit=True, topLeftCorner=(40, -20))
         with self.assertRaises(TypeError):
             window.set_size(True, 10)
@@ -127,9 +127,9 @@ class WindowApiTest(unittest.TestCase):
             other.save()
         current = WorkspaceLayout.current()
         with self.assertRaises(ValueError):
-            current.save_as("Other")
+            current.saveAs("Other")
         with self.assertRaises(ValueError):
-            current.save_as("C:/somewhere")
+            current.saveAs("C:/somewhere")
         current.save()
         self.manager.assert_called_with(save=True)
 
@@ -231,8 +231,8 @@ class WindowGuiTest(unittest.TestCase):
             window.restore(snapshot)
             self.assertTrue(window.get_visible())
             self.assertFalse(window.get_resizable())
-            window.set_position(200, 180)
-            self.assertEqual(window.get_position(), (200, 180))
+            window.setPosition(200, 180)
+            self.assertEqual(window.getPosition(), (200, 180))
         finally:
             cmds.deleteUI(name, window=True)
 
@@ -273,8 +273,8 @@ class WindowGuiTest(unittest.TestCase):
             WorkspaceLayout.lock()
             self.assertTrue(WorkspaceLayout.get_locked())
             WorkspaceLayout.unlock()
-            saved = original.save_as(layout_name)
-            self.assertTrue(saved.is_current())
+            saved = original.saveAs(layout_name)
+            self.assertTrue(saved.isCurrent())
             saved.save()
             original.activate()
         finally:

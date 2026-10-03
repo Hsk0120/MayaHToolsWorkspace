@@ -12,7 +12,7 @@ from hlib.nodes.cluster import Cluster
 
 
 class ClusterTest(unittest.TestCase):
-    """weighted_node/geometry を検証する。"""
+    """weightedNode/geometry を検証する。"""
 
     def setUp(self):
         self.mesh = cmds.polyCube(name="hlibClusterMesh", constructionHistory=False)[0]
@@ -30,9 +30,9 @@ class ClusterTest(unittest.TestCase):
         self.assertIsInstance(self.cluster, Cluster)
 
     def test_weighted_node_returns_handle_transform(self):
-        weighted_node = self.cluster.weighted_node()
-        self.assertIsInstance(weighted_node, Node)
-        self.assertEqual(weighted_node.name(), self.handle_name)
+        weightedNode = self.cluster.weightedNode()
+        self.assertIsInstance(weightedNode, Node)
+        self.assertEqual(weightedNode.name(), self.handle_name)
 
     def test_geometry_returns_affected_shape(self):
         geometry = self.cluster.geometry()

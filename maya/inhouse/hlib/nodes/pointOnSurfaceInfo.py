@@ -11,7 +11,7 @@ from .abstractBaseCreate import AbstractBaseCreate
 class PointOnSurfaceInfo(AbstractBaseCreate):
     """接続したsurfaceの形状情報をMayaで評価する。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """形状データの入力を取得する。
         Returns:
             Plug: 入力参照。
@@ -19,7 +19,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         return self.plug("inputSurface")
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """形状データPlugを入力へ接続する。
 
         Args:
@@ -31,11 +31,11 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, force=force)
+        _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_surface(self, surface, world_space=True, force=False):
+    def connectSurface(self, surface, world_space=True, force=False):
         """形状またはTransformを解決して接続する。
 
         Args:
@@ -48,11 +48,11 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = _Calculation.geometry_output(surface, "nurbsSurface", world_space)
-        source.connect(self.input_plug(), force=force)
+        source = _Calculation.geometryOutput(surface, "nurbsSurface", world_space)
+        source.connect(self.inputPlug(), force=force)
         return self
 
-    def get_parameters(self):
+    def getParameters(self):
         """現在のUVパラメーターを取得する。
         Returns:
             tuple[float, float]: U/V。
@@ -61,7 +61,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_parameters(self, u, v, percentage=False, *, fast=False):
+    def setParameters(self, u, v, percentage=False, *, fast=False):
         """UVと百分率モードを設定する。
 
         Args:
@@ -84,21 +84,21 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         self.plug("parameterV").set(v)
         return self
 
-    def get_percentage(self):
+    def getPercentage(self):
         """百分率モードを取得する。
         Returns:
             bool: 0～1のパラメーターを使うか。
         """
         return self.plug("turnOnPercentage").get()
 
-    def get_position(self):
+    def getPosition(self):
         """接続された空間での位置を取得する。
         Returns:
             Vector: XYZ位置。
         """
         return Vector(self.plug("position").get())
 
-    def get_normal(self, normalized=True):
+    def getNormal(self, normalized=True):
         """法線を取得する。
 
         Args:
@@ -109,7 +109,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         _Calculation.boolean(normalized)
         return Vector(self.plug("normalizedNormal" if normalized else "normal").get())
 
-    def get_tangent(self, direction="u", normalized=True):
+    def getTangent(self, direction="u", normalized=True):
         """UまたはV方向の接線を取得する。
 
         Args:

@@ -43,22 +43,22 @@ class RotationFollow(SwingTwist):
         base = SwingTwist.create(joint, name=name, axis=axis)
         graph = cls(base.container)
         owner = graph.container
-        owner.add_attribute(
-            long_name="followMode",
-            attribute_type="enum",
+        owner.addAttribute(
+            longName="followMode",
+            attributeType="enum",
             enumName="Full:Twist:Swing",
-            default_value=("full", "twist", "swing").index(mode),
+            defaultValue=("full", "twist", "swing").index(mode),
         )
-        owner.add_attribute(
-            long_name="ratio",
-            attribute_type="double",
-            default_value=ratio,
+        owner.addAttribute(
+            longName="ratio",
+            attributeType="double",
+            defaultValue=ratio,
             minValue=0,
             maxValue=1,
             keyable=True,
         )
         for attr in ("matrix", "restMatrix"):
-            owner.add_attribute(long_name=attr, data_type="matrix")
+            owner.addAttribute(longName=attr, dataType="matrix")
         # restDeltaより手前の実ローカル行列から位置を取得する。
         relative = graph._node("multMatrix", "sourceLocal")
         joint.plug("matrix").connect(relative.plug("matrixIn[0]"))

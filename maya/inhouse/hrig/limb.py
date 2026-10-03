@@ -1,4 +1,5 @@
 """3関節のFK/IKとSoft IKの最小実装。切替は明示メソッドで行う。"""
+from hlib.maths import MSpace
 
 from maya import cmds
 
@@ -30,11 +31,11 @@ def _lock_group(node):
     Args:
         node (str | Node): TRSとシアーをロックするノード。
     """
-    hlib.getNode(node).set_attribute_flags(
+    hlib.getNode(node).setAttributeFlags(
         ("tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz", "shearXY", "shearXZ", "shearYZ"),
         locked=True,
         keyable=False,
-        channel_box=False,
+        channelBox=False,
     )
 
 
@@ -49,7 +50,7 @@ def _set_world_matrix(node, matrix):
         xform(worldSpace=True)のRedo時の親空間再変換を避けるため、
         計算済みTRSを標準setAttrで保存する。ピボット編集は対象外。
     """
-    hlib.getNode(node).set_matrix(matrix, ws=True)
+    hlib.getNode(node).setMatrix(matrix, space=MSpace.kWorld)
 
 
 class LimbRig:
@@ -62,7 +63,7 @@ class LimbRig:
             root (str | Node): hrigDefinition属性を持つルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.has_attribute("hrigDefinition"):
+        if not self.root.hasAttribute("hrigDefinition"):
             raise ValueError("Not an hrig root")
 
     def _member(self, role):
@@ -75,10 +76,10 @@ class LimbRig:
         Returns:
             str: メンバーの完全名。
         """
-        source = self.root.plug(role).source() if self.root.has_attribute(role) else None
+        source = self.root.plug(role).source() if self.root.hasAttribute(role) else None
         if source is None:
             raise RuntimeError("Missing rig member: " + role)
-        return source.node.full_name()
+        return source.node.fullName()
 
     def _bind(self, role, node):
         """生成物へのメッセージ参照を登録する。
@@ -87,8 +88,8 @@ class LimbRig:
             role (str): 未登録の参照識別子。
             node (str | Node): 参照するノード。
         """
-        root = self.root.full_name()
-        hlib.getNode(root).add_attribute(long_name=role, attribute_type="message")
+        root = self.root.fullName()
+        hlib.getNode(root).addAttribute(longName=role, attributeType="message")
         hlib.getNode(node).plug("message").connect(root + "." + role)
 
     def controls(self):
@@ -136,7 +137,7 @@ class LimbRig:
 
         SpaceLayer(self).switch(control, label)
 
-    def node_name(self, role):
+    def nodeName(self, role):
         """保存した定義に基づく生成名を取得する。
 
         Args:
@@ -147,7 +148,7 @@ class LimbRig:
             str: 命名規則を適用したノード名。
         """
         definition = RigDefinition.from_data(
-            hlib.json.JsonText.loads(hlib.getPlug(self.root.full_name() + ".hrigDefinition").get())
+            hlib.json.JsonText.loads(hlib.getPlug(self.root.fullName() + ".hrigDefinition").get())
         )
         return limb_names(definition)[role]
 
@@ -158,8 +159,8 @@ class LimbRig:
             role (str): セットの参照識別子。
             nodes (Sequence[str]): 追加するノード名。
         """
-        if hlib.getNode(self.root.full_name()).has_attribute(role):
-            hlib.getNode(self._member(role)).add_members(*nodes)
+        if hlib.getNode(self.root.fullName()).hasAttribute(role):
+            hlib.getNode(self._member(role)).addMembers(*nodes)
 
     def _local_matrix(self, role):
         """オフセットを含む親コントローラー空間の行列プラグ名を取得する。
@@ -173,7 +174,7 @@ class LimbRig:
         """
         member = "targetMatrix" if role == "target" else "fkMatrix" + role[2:]
         if role.startswith("fk") or role == "target":
-            if hlib.getNode(self.root.full_name()).has_attribute(member):
+            if hlib.getNode(self.root.fullName()).hasAttribute(member):
                 return self._member(member) + ".matrixSum"
         return self._member(role) + ".matrix"
 
@@ -360,7 +361,7 @@ class LimbRig:
         Returns:
             str: fkまたはik。
         """
-        return hlib.getPlug(self.root.full_name() + ".hrigMode").get()
+        return hlib.getPlug(self.root.fullName() + ".hrigMode").get()
 
     def lod(self):
         """現在のLODを照会する。
@@ -369,7 +370,7 @@ class LimbRig:
         Returns:
             int: 0はSoft IK・補助骨なし、1は全機能。
         """
-        return hlib.getPlug(self.root.full_name() + ".hrigLod").get()
+        return hlib.getPlug(self.root.fullName() + ".hrigLod").get()
 
     @undo_transaction("hrig.LimbRig.set_backend")
     def set_backend(self, backend):
@@ -380,7 +381,7 @@ class LimbRig:
         """
         if backend not in ("standard", "bifrost", "cpp"):
             raise ValueError("Unknown backend: " + backend)
-        root = self.root.full_name()
+        root = self.root.fullName()
         if hlib.getPlug(root + ".hrigBackend").get() == backend:
             return
         old = self._member("softGraph")
@@ -389,14 +390,14 @@ class LimbRig:
             raise RuntimeError("Invalid Soft IK ownership: rig root cannot be replaced")
         length = hlib.getPlug(root + ".hrigLength").get()
         source = hlib.getPlug(old + ".distance").source()
-        graph, owner = create_soft_ik(self.node_name("soft"), length, backend)
+        graph, owner = create_soft_ik(self.nodeName("soft"), length, backend)
         if owner != graph:
             from hlib.nodes import Node
 
             reference = Node(graph)
-            parent = self._member("softSetup") if hlib.getNode(root).has_attribute("softSetup") else root
-            owner = hlib.getNode(owner).set_parent(parent).full_name()
-            graph = reference.full_name()
+            parent = self._member("softSetup") if hlib.getNode(root).hasAttribute("softSetup") else root
+            owner = hlib.getNode(owner).setParent(parent).fullName()
+            graph = reference.fullName()
             hlib.getPlug(graph + ".visibility").set(False)
         source.connect(graph + ".distance")
         hlib.getPlug(self._member("target") + ".softness").connect(graph + ".softness")
@@ -406,7 +407,7 @@ class LimbRig:
             )
         hlib.getPlug(graph + ".message").connect(root + ".softGraph", force=True)
         hlib.getPlug(owner + ".message").connect(root + ".softOwner", force=True)
-        hlib.getNode(root).plug("hrigOwned").append_message(owner)
+        hlib.getNode(root).plug("hrigOwned").appendMessage(owner)
         self._layer_members("softSet", [owner, graph])
         hlib.getPlug(root + ".hrigBackend").set(backend)
         self._update_evaluation()
@@ -415,9 +416,9 @@ class LimbRig:
     @undo_chunk("hrig.LimbRig.delete")
     def delete(self):
         """所有する生成物を削除する。外部スキンやアニメーションの保護は呼出側で行う。"""
-        root = self.root.full_name()
+        root = self.root.fullName()
         owned = [
-            item.full_name()
+            item.fullName()
             for item in [
                 hlib.getNode(value)
                 for value in (
@@ -449,7 +450,7 @@ class LimbRig:
             destination = self._member("joint" + str(index)) + ".offsetParentMatrix"
             _disconnect(destination)
             hlib.getPlug(source).connect(destination)
-        hlib.getPlug(self.root.full_name() + ".hrigMode").set(mode)
+        hlib.getPlug(self.root.fullName() + ".hrigMode").set(mode)
         self._update_evaluation()
 
     def layer_enabled(self, layer):
@@ -463,8 +464,8 @@ class LimbRig:
             bool: 使用する設定ならTrue。実際の評価状態とは異なる。
         """
         attr = "hrigEnabled_" + layer
-        root = self.root.full_name()
-        return bool(hlib.getPlug(root + "." + attr).get()) if hlib.getNode(root).has_attribute(attr) else True
+        root = self.root.fullName()
+        return bool(hlib.getPlug(root + "." + attr).get()) if hlib.getNode(root).hasAttribute(attr) else True
 
     @undo_chunk("hrig.LimbRig.set_layer_enabled")
     def set_layer_enabled(self, layer, enabled):
@@ -476,10 +477,10 @@ class LimbRig:
         """
         if layer not in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             raise ValueError("Unknown optional layer: " + layer)
-        root = self.root.full_name()
+        root = self.root.fullName()
         attr = "hrigEnabled_" + layer
-        if not hlib.getNode(root).has_attribute(attr):
-            hlib.getNode(root).add_attribute(long_name=attr, attribute_type="bool", default_value=True)
+        if not hlib.getNode(root).hasAttribute(attr):
+            hlib.getNode(root).addAttribute(longName=attr, attributeType="bool", defaultValue=True)
         hlib.getPlug(root + "." + attr).set(bool(enabled))
         self._update_evaluation()
 
@@ -492,7 +493,7 @@ class LimbRig:
         """
         if type(lod) is not int or lod not in (0, 1):
             raise ValueError("This prototype supports LOD 0 or 1")
-        hlib.getPlug(self.root.full_name() + ".hrigLod").set(lod)
+        hlib.getPlug(self.root.fullName() + ".hrigLod").set(lod)
         self._update_evaluation()
 
     def _update_evaluation(self):
@@ -501,12 +502,12 @@ class LimbRig:
         detailed = self.lod() == 1
         handle, graph = self._member("handle"), self._member("softGraph")
         scale = self._member("softScale")
-        root = self.root.full_name()
+        root = self.root.fullName()
         target = self._member("target")
         soft = detailed and self.layer_enabled("soft")
-        foot = detailed and self.layer_enabled("foot") and hlib.getNode(root).has_attribute("footMatrix")
+        foot = detailed and self.layer_enabled("foot") and hlib.getNode(root).hasAttribute("footMatrix")
         position = target + ".translate"
-        if hlib.getNode(root).has_attribute("targetDecompose"):
+        if hlib.getNode(root).hasAttribute("targetDecompose"):
             position = self._member("targetDecompose") + ".outputTranslate"
         position = self._member("footDecompose") + ".outputTranslate" if foot else position
         matrix = self._member("footMatrix") + ".matrixSum" if foot else self._local_matrix("target")
@@ -564,7 +565,7 @@ class LimbRig:
     @undo_chunk("hrig.LimbRig.match_fk")
     def match_fk(self):
         """現在の変形姿勢をFKへ合わせる。モード切替やキー設定は行わない。"""
-        matrices = [hlib.getNode(j).get_matrix(ws=True) for j in self.joints()[:3]]
+        matrices = [hlib.getNode(j).getMatrix(space=MSpace.kWorld) for j in self.joints()[:3]]
         for index, matrix in enumerate(matrices):
             _set_world_matrix(self._member("fk" + str(index)), matrix)
 
@@ -578,28 +579,28 @@ class LimbRig:
             ("heelRoll", "toeRoll", "ballRoll") if self.lod() and self.layer_enabled("foot") else ()
         ):
             if (
-                hlib.getNode(target).has_attribute(attr)
+                hlib.getNode(target).hasAttribute(attr)
                 and abs(hlib.getPlug(target + "." + attr).get()) > 1e-8
             ):
                 raise ValueError("Reset reverse-foot rolls before matching IK")
         joints = self.joints()[:3]
-        a, b, c = [Vector(hlib.getNode(j).get_translate(ws=True)) for j in joints]
+        a, b, c = [Vector(hlib.getNode(j).getTranslation(space=MSpace.kWorld)) for j in joints]
         axis = c - a
         if axis.length() < 1e-8:
             raise ValueError("Cannot match IK when the endpoint coincides with the root")
         projection = a + axis * (((b - a) * axis) / (axis * axis))
         offset = b - projection
         if offset.length() < 1e-8:
-            offset = Vector(hlib.getNode(self._member("pole")).get_translate(ws=True)) - b
+            offset = Vector(hlib.getNode(self._member("pole")).getTranslation(space=MSpace.kWorld)) - b
             offset -= axis * ((offset * axis) / (axis * axis))
         if offset.length() < 1e-8:
             raise ValueError("Choose a pole direction before matching a straight chain")
         pole_position = tuple(b + offset.normal() * axis.length())
         # 逆算は部位空間で行うため、ルートの一様スケールにも追従する。
-        inverse = Matrix(hlib.getPlug(self.root.full_name() + ".worldInverseMatrix[0]").get())
-        local_end = inverse.transform_point(c)
+        inverse = Matrix(hlib.getPlug(self.root.fullName() + ".worldInverseMatrix[0]").get())
+        local_end = inverse.transformPoint(c)
         distance = Vector(local_end).length()
-        length = hlib.getPlug(self.root.full_name() + ".hrigLength").get()
+        length = hlib.getPlug(self.root.fullName() + ".hrigLength").get()
         soft = (
             hlib.getPlug(self._member("target") + ".softness").get()
             if self.lod() and self.layer_enabled("soft")
@@ -617,15 +618,16 @@ class LimbRig:
             desired = length - soft - soft * math.log((length - distance) / soft)
         pole = self._member("pole")
         local_position = Vector(local_end).normal() * desired
-        world_position = inverse.inverse().transform_point(local_position)
-        matrix = list(hlib.getNode(joints[-1]).get_matrix(ws=True))
+        world_position = inverse.inverse().transformPoint(local_position)
+        matrix = list(hlib.getNode(joints[-1]).getMatrix(space=MSpace.kWorld))
         matrix[12:15] = tuple(world_position)[:3]
         _set_world_matrix(target, matrix)
         # PoleがFoot空間の場合はIK目標の移動後の親空間へ変換する。
-        pole_local = Matrix(hlib.getPlug(pole + ".parentInverseMatrix[0]").get()).transform_point(
+        pole_local = Matrix(hlib.getPlug(pole + ".parentInverseMatrix[0]").get()).transformPoint(
             pole_position
         )
-        hlib.getPlug(pole + ".translate").set((*tuple(pole_local)[:3],))
+        for axis, value in zip("XYZ", tuple(pole_local)[:3]):
+            hlib.getPlug(pole + ".translate" + axis).set(value)
 
 
 @undo_chunk("hrig.build_limb")
@@ -672,7 +674,7 @@ def build_limb(definition=None, backend="standard"):
         from hlib_bifrost.environment import Bifrost
 
         Bifrost.ensure_available()
-    saved_selection = [item.full_name() for item in hlib.ls(selection=True, long=True)] or []
+    saved_selection = [item.fullName() for item in hlib.ls(selection=True, long=True)] or []
     created = []
 
     def create(kind, suffix, parent=None):
@@ -688,22 +690,22 @@ def build_limb(definition=None, backend="standard"):
             str: 生成したノードの完全名。
         """
         kwargs = {"parent": parent} if parent else {}
-        node = hlib.createNode(kind, name=names[suffix], skipSelect=True, **kwargs).full_name()
+        node = hlib.createNode(kind, name=names[suffix], skipSelect=True, **kwargs).fullName()
         created.append(node)
         return node
 
     try:
-        root = hlib.createNode("transform", name=definition.name, skipSelect=True).full_name()
+        root = hlib.createNode("transform", name=definition.name, skipSelect=True).fullName()
         created.append(root)
         for attr in ("hrigDefinition", "hrigMode", "hrigBackend"):
-            hlib.getNode(root).add_attribute(long_name=attr, data_type="string")
+            hlib.getNode(root).addAttribute(longName=attr, dataType="string")
         hlib.getPlug(root + ".hrigDefinition").set(hlib.json.JsonText.dumps(definition.to_data()))
         hlib.getPlug(root + ".hrigBackend").set(backend)
         rig = LimbRig(root)
-        hlib.getNode(root).add_attribute(long_name="hrigLod", attribute_type="long", default_value=1)
+        hlib.getNode(root).addAttribute(longName="hrigLod", attributeType="long", defaultValue=1)
         length = ordered[1].translation[0] + ordered[2].translation[0]
-        hlib.getNode(root).add_attribute(
-            long_name="hrigLength", attribute_type="double", default_value=length
+        hlib.getNode(root).addAttribute(
+            longName="hrigLength", attributeType="double", defaultValue=length
         )
         for role in ("geometryGroup", "jointGroup", "controlGroup", "setupGroup"):
             node = create("transform", role, root)
@@ -725,11 +727,11 @@ def build_limb(definition=None, backend="standard"):
             _lock_group(node)
             rig._bind(role, node)
         for role in ("moduleSet", "fkSet", "ikSet", "softSet", "helperSet"):
-            node = hlib.createSet(empty=True, name=names[role]).full_name()
+            node = hlib.createSet(empty=True, name=names[role]).fullName()
             created.append(node)
             rig._bind(role, node)
             if role != "moduleSet":
-                hlib.getNode(rig._member("moduleSet")).add_members(node)
+                hlib.getNode(rig._member("moduleSet")).addMembers(node)
         for chain in ("fk", "ik", "joint"):
             parent = rig._member(
                 {"fk": "fkControls", "ik": "ikSetup", "joint": "moduleJoints"}[chain]
@@ -772,16 +774,16 @@ def build_limb(definition=None, backend="standard"):
         hlib.getPlug(matrix + ".matrixSum").connect(target_decompose + ".inputMatrix")
         target_rotation = create("transform", "targetRotation", rig._member("ikSetup"))
         rig._bind("targetRotation", target_rotation)
-        hlib.getNode(target).add_attribute(
-            long_name="softness",
-            attribute_type="double",
+        hlib.getNode(target).addAttribute(
+            longName="softness",
+            attributeType="double",
             minValue=0,
             maxValue=length,
-            default_value=length * 0.1,
+            defaultValue=length * 0.1,
             keyable=True,
         )
         # preferredAngleで伸び切った初期チェーンの曲げ平面を定義する。
-        hlib.getPlug(rig._member("ik1") + ".preferredAngleZ").set(-10)
+        hlib.getPlug(rig._member("ik1") + ".preferredAngleZ").set(math.radians(-10))
         handle, effector = hlib.createIkHandle(
             startJoint=rig._member("ik0"),
             endEffector=rig._member("ik2"),
@@ -790,7 +792,7 @@ def build_limb(definition=None, backend="standard"):
         )
         effector = hlib.getNode(effector).rename(names["effector"])
         created.extend((handle, effector))
-        handle = hlib.getNode(handle).set_parent(rig._member("ikSetup")).full_name()
+        handle = hlib.getNode(handle).setParent(rig._member("ikSetup")).fullName()
         rig._bind("handle", handle)
         constraints = [
             hlib.addConstraint(
@@ -815,9 +817,9 @@ def build_limb(definition=None, backend="standard"):
             from hlib.nodes import Node
 
             graph_ref = Node(graph)
-            graph_parent = hlib.getNode(graph_parent).set_parent(rig._member("softSetup")).full_name()
+            graph_parent = hlib.getNode(graph_parent).setParent(rig._member("softSetup")).fullName()
             created[-1] = graph_parent
-            graph = graph_ref.full_name()
+            graph = graph_ref.fullName()
             hlib.getPlug(graph + ".visibility").set(False)
         rig._bind("softGraph", graph)
         rig._bind("softOwner", graph_parent)
@@ -880,7 +882,7 @@ def build_limb(definition=None, backend="standard"):
             ],
         }.items():
             rig._layer_members(role, list(set(rig._member(member) for member in members)))
-        hlib.getNode(root).add_attribute(long_name="hrigOwned", attribute_type="message", multi=True)
+        hlib.getNode(root).addAttribute(longName="hrigOwned", attributeType="message", multi=True)
         for index, node in enumerate(created):
             if node != root and cmds.objExists(node):
                 hlib.getNode(node).plug("message").connect(root + ".hrigOwned[{}]".format(index))

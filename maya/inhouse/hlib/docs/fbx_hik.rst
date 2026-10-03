@@ -31,13 +31,13 @@ HumanIKノード
 .. code-block:: python
 
     from hlib.nodes import HIKCharacterNode
-    character = HIKCharacterNode.create_character('Character')
-    character.set_joint('Hips', 'hipsJoint')
+    character = HIKCharacterNode.createCharacter('Character')
+    character.setJoint('Hips', 'hipsJoint')
     hips = character.joint('Hips')
 
 骨割当は標準MELを使うため、HumanIK用アトリビュート・ラベルなども更新されます。
 定義の妥当性確認とロックはHumanIK UIで行ってください。
-ロック済みの既存キャラクター間では ``target.set_source(source)`` が標準MELへ
+ロック済みの既存キャラクター間では ``target.setSource(source)`` が標準MELへ
 リターゲット接続を依頼します。未ロックや自己接続は拒否します。
 ``target.source()`` で現在の入力を取得できます。
 

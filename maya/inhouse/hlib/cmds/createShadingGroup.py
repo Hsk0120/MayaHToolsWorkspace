@@ -19,5 +19,5 @@ def createShadingGroup(shader=None, name=None):
     flags = {} if name is None else {"name": name}
     group = ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True, **flags))
     if shader is not None:
-        group.set_shader(shader)
+        group.setShader(shader)
     return group

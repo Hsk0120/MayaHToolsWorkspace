@@ -18,7 +18,7 @@ def bind_mesh(rig, mesh, helpers=True):
         str: 作成したskinCluster。
     """
     joints = rig.joints() if helpers else rig.joints()[:3]
-    return hlib.nodes.SkinCluster.bind(mesh, joints, max_influences=4).full_name()
+    return hlib.nodes.SkinCluster.bind(mesh, joints, max_influences=4).fullName()
 
 
 @undo_chunk("hrig.create_skin_lod")
@@ -42,13 +42,13 @@ def create_skin_lod(rig, source, proxy, source_skin):
         raise TypeError("Expected a skinCluster")
     if not hlib.nodes.SkinCluster(source_skin).deforms(source):
         raise ValueError("source_skin does not deform source")
-    if [item.full_name() for item in hlib.ls(source, long=True)] == [
-        item.full_name() for item in hlib.ls(proxy, long=True)
+    if [item.fullName() for item in hlib.ls(source, long=True)] == [
+        item.fullName() for item in hlib.ls(proxy, long=True)
     ]:
         raise ValueError("Source and proxy must be different")
     target_skin = bind_mesh(rig, proxy, helpers=False)
     try:
-        hlib.nodes.SkinCluster(source_skin).copy_weights_to(target_skin)
+        hlib.nodes.SkinCluster(source_skin).copyWeightsTo(target_skin)
     except Exception:
         hlib.delete(target_skin)
         raise

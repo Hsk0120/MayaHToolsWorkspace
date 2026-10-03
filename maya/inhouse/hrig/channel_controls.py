@@ -54,7 +54,7 @@ def _write(plug, value):
         plug (str): 表示属性の名前。
         value (bool | int): 適用済みの状態。
     """
-    hlib.getPlug(plug).set_if_changed(value, unlock=True)
+    hlib.getPlug(plug).setIfChanged(value, unlock=True)
 
 
 def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
@@ -68,12 +68,12 @@ def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
         enum (str | None): コロン区切りのenum名。
         readonly (bool): Trueなら属性をロックする。
     """
-    args = {"long_name": name, "attribute_type": kind, "default_value": default}
+    args = {"longName": name, "attributeType": kind, "defaultValue": default}
     if enum:
         args["enumName"] = enum
     reference = hlib.getNode(node)
-    reference.add_attribute(**args)
-    reference.set_attribute_flags([name], keyable=False, channel_box=True, locked=readonly)
+    reference.addAttribute(**args)
+    reference.setAttributeFlags([name], keyable=False, channelBox=True, locked=readonly)
 
 
 def _exists(rig):
@@ -87,7 +87,7 @@ def _exists(rig):
         bool: 表示用モジュールの参照があればTrue。
     """
     return (
-        rig.root.has_attribute("channelModule") and rig.root.plug("channelModule").source() is not None
+        rig.root.hasAttribute("channelModule") and rig.root.plug("channelModule").source() is not None
     )
 
 
@@ -111,23 +111,23 @@ def _states(rig):
         "foot": ik
         and detail
         and rig.layer_enabled("foot")
-        and hlib.getNode(rig.root.full_name()).has_attribute("footMatrix"),
+        and hlib.getNode(rig.root.fullName()).hasAttribute("footMatrix"),
     }
-    if rig.root.has_attribute("targetSpace"):
+    if rig.root.hasAttribute("targetSpace"):
         states["space"] = True
-    if rig.root.has_attribute("channel_twist"):
+    if rig.root.hasAttribute("channel_twist"):
         states["twist"] = detail and rig.layer_enabled("twist") and bool(rig.twist_joints())
-    if rig.root.has_attribute("channel_bend"):
+    if rig.root.hasAttribute("channel_bend"):
         states["bend"] = detail and rig.layer_enabled("bend") and bool(rig.bend_joints())
-    if rig.root.has_attribute("channel_driven"):
+    if rig.root.hasAttribute("channel_driven"):
         from .drivenLayer import DrivenLayer
 
         states["driven"] = (
             detail and rig.layer_enabled("driven") and bool(DrivenLayer(rig).graphs())
         )
-    if rig.root.has_attribute("channel_follow"):
+    if rig.root.hasAttribute("channel_follow"):
         states["follow"] = detail and rig.layer_enabled("follow") and bool(rig.follow_joints())
-    if rig.root.has_attribute("channel_stretch"):
+    if rig.root.hasAttribute("channel_stretch"):
         from .limbStretchLayer import LimbStretchLayer
 
         states["stretch"] = LimbStretchLayer(rig).active()
@@ -142,7 +142,7 @@ def sync_display(rig):
     """
     if not _exists(rig):
         return
-    if rig.root.has_attribute("targetSpace"):
+    if rig.root.hasAttribute("targetSpace"):
         from .spaceLayer import SpaceLayer
 
         SpaceLayer(rig).sync()
@@ -174,8 +174,8 @@ def attach(rig):
         return rig._member("channelModule")
     from .limb import _lock_group
 
-    root = rig.root.full_name()
-    stem = rig.node_name("moduleSet").removesuffix("_set")
+    root = rig.root.fullName()
+    stem = rig.nodeName("moduleSet").removesuffix("_set")
     group_name = (
         "modules_grp"
         if root.rsplit("|", 1)[-1] == "rig"
@@ -185,34 +185,34 @@ def attach(rig):
     if any(cmds.objExists(name) for name in names):
         raise ValueError("Module display names already exist")
     nodes = []
-    group = hlib.createNode("transform", name=group_name, parent=root, skipSelect=True).full_name()
+    group = hlib.createNode("transform", name=group_name, parent=root, skipSelect=True).fullName()
     hlib.reorder(group, front=True)
-    module = hlib.createNode("transform", name=stem, parent=group, skipSelect=True).full_name()
+    module = hlib.createNode("transform", name=stem, parent=group, skipSelect=True).fullName()
     nodes.extend((group, module))
     rig._bind("channelModule", module)
-    hlib.getNode(module).add_attribute(long_name="hrigChannelRoot", attribute_type="message")
+    hlib.getNode(module).addAttribute(longName="hrigChannelRoot", attributeType="message")
     hlib.getPlug(root + ".message").connect(module + ".hrigChannelRoot")
     _attribute(module, "mode", "enum", int(rig.mode() == "ik"), "FK:IK")
     _attribute(module, "lod", "enum", rig.lod(), "Low:Full")
     _attribute(module, "matchOnSwitch", default=True)
     for layer, name in zip(LAYERS, names[2:]):
-        node = hlib.createNode("transform", name=name, parent=module, skipSelect=True).full_name()
+        node = hlib.createNode("transform", name=name, parent=module, skipSelect=True).fullName()
         nodes.append(node)
         rig._bind("channel_" + layer, node)
         if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             attr = "hrigEnabled_" + layer
-            if not hlib.getNode(root).has_attribute(attr):
-                hlib.getNode(root).add_attribute(long_name=attr, attribute_type="bool", default_value=True)
+            if not hlib.getNode(root).hasAttribute(attr):
+                hlib.getNode(root).addAttribute(longName=attr, attributeType="bool", defaultValue=True)
             _attribute(node, "enabled", default=rig.layer_enabled(layer))
         _attribute(node, "active", readonly=True)
         hlib.getPlug(node + ".useOutlinerColor").set(True)
     for node in nodes:
         _lock_group(node)
-        hlib.getNode(node).set_attribute_flags(
-            ["visibility"], keyable=False, channel_box=False, locked=True
+        hlib.getNode(node).setAttributeFlags(
+            ["visibility"], keyable=False, channelBox=False, locked=True
         )
     for node in nodes:
-        hlib.getNode(root).plug("hrigOwned").append_message(node)
+        hlib.getNode(root).plug("hrigOwned").appendMessage(node)
     sync_display(rig)
     install()
     return module
@@ -230,10 +230,10 @@ def apply(rig):
     enabled = {
         layer: bool(hlib.getPlug(rig._member("channel_" + layer) + ".enabled").get())
         for layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch")
-        if rig.root.has_attribute("channel_" + layer)
+        if rig.root.hasAttribute("channel_" + layer)
     }
     spaces = {}
-    if rig.root.has_attribute("targetSpace"):
+    if rig.root.hasAttribute("targetSpace"):
         for role in ("target", "pole"):
             switch = rig.space_switch(role)
             requested = hlib.getPlug(rig._member(role) + ".space").get()
@@ -278,7 +278,7 @@ def _changed(root_uuid):
     global _busy
     if _busy:
         return
-    roots = [item.full_name() for item in hlib.ls(root_uuid, long=True)] or []
+    roots = [item.fullName() for item in hlib.ls(root_uuid, long=True)] or []
     if not roots:
         return
     _busy = True
@@ -302,7 +302,7 @@ def refresh_jobs():
         if not hlib.ls(key) or not jobs.exists():
             jobs.stop()
             del _jobs[key]
-    for plug in [item.full_name() for item in hlib.ls("*.hrigChannelRoot", recursive=True)] or []:
+    for plug in [item.fullName() for item in hlib.ls("*.hrigChannelRoot", recursive=True)] or []:
         module = plug.rsplit(".", 1)[0]
         source = hlib.getPlug(plug).source()
         if source is None:
@@ -316,9 +316,9 @@ def refresh_jobs():
         attrs += [
             rig._member("channel_" + layer) + ".enabled"
             for layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch")
-            if rig.root.has_attribute("channel_" + layer)
+            if rig.root.hasAttribute("channel_" + layer)
         ]
-        if rig.root.has_attribute("targetSpace"):
+        if rig.root.hasAttribute("targetSpace"):
             attrs += [rig._member(role) + ".space" for role in ("target", "pole")]
         jobs = hlib.events.ScriptJobs()
         try:

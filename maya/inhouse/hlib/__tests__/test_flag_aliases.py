@@ -49,7 +49,7 @@ class FlagAliasesTest(unittest.TestCase):
         node.plug("translateX").set(7)
         self.assertEqual(node.plug("tx").get(), 7)
         cmds.addAttr(
-            node.full_name(), longName="customAmount", shortName="ca", attributeType="double"
+            node.fullName(), longName="customAmount", shortName="ca", attributeType="double"
         )
         node.ca.set(2)
         self.assertEqual(node.customAmount.get(), 2)
@@ -58,25 +58,25 @@ class FlagAliasesTest(unittest.TestCase):
         source = hlib.createNode("transform")
         joint = hlib.createNode("joint")
         result = hlib.addConstraint(source, joint, typ="point", mo=True)
-        self.assertEqual(cmds.nodeType(result.full_name()), "pointConstraint")
+        self.assertEqual(cmds.nodeType(result.fullName()), "pointConstraint")
         hlib.delete(result)
         joints = hlib.nodes.Joints([joint])
-        results = joints.add_constraint(source, typ="point", mo=True)
+        results = joints.addConstraint(source, typ="point", mo=True)
         self.assertEqual(len(results), 1)
         hlib.delete(results)
         with self.assertRaises(TypeError):
-            joint.add_constraint(source, "point", typ="point")
+            joint.addConstraint(source, "point", typ="point")
         with self.assertRaises(TypeError):
-            joints.add_constraint(source, type="point", typ="point")
+            joints.addConstraint(source, type="point", typ="point")
 
     def test_native_command_specific_flags(self):
         parent = hlib.createGroup(em=True, n="parent")
-        node = hlib.createNode("transform", n="child", p=parent.full_name())
+        node = hlib.createNode("transform", n="child", p=parent.fullName())
         copy = hlib.duplicate(node, n="copy")
-        self.assertTrue(cmds.objExists(copy.full_name()))
+        self.assertTrue(cmds.objExists(copy.fullName()))
         # setKeyframeのtはtime。lsのtypeに対する短縮名ではない。
         cmds.setKeyframe(node, at="tx", t=1, v=4)
-        self.assertEqual(cmds.keyframe(node.full_name(), q=True, at="tx", vc=True), [4])
+        self.assertEqual(cmds.keyframe(node.fullName(), q=True, at="tx", vc=True), [4])
         hlib.select(cl=True)
         self.assertEqual(hlib.ls(sl=True), [])
 

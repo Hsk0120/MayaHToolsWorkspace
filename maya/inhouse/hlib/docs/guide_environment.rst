@@ -74,15 +74,18 @@ Undoの有効・無効、無限、上限の変更はUndoチャンクへまとめ
    from hlib.environment import Plugin
 
    plugin = Plugin("matrixNodes")
-   print(plugin.is_loaded(), plugin.path(), plugin.version())
+   print(plugin.isLoaded(), plugin.path(), plugin.version())
    plugin.unload()
    plugin.ensure_loaded()   # 未ロードなら冪等にロードする
 
    for loaded in Plugin.loaded():
        print(loaded.name())
 
-``is_loaded``/``is_registered`` は未知のプラグイン名でも例外にならず ``False``
+``isLoaded``/``is_registered`` は未知のプラグイン名でも例外にならず ``False``
 を返します。``path``/``version`` も未登録なら ``None`` です。
+``load()`` は呼出し後のロード状態も確認します。Mayaが初期化失敗をPython例外にせず
+戻った場合も、未ロードなら ``RuntimeError`` になります。``PluginPackage.try_load()`` は
+この失敗を ``"load-failed"`` として報告します。
 ``version()`` は ``Version`` オブジェクトを返します。数値として解釈できない版も ``None``
 になります。Mayaが返す文字列が必要なら ``version_text()``、数値のタプルが必要なら
 ``version()`` がNoneでないことを確認して ``version.parts`` を使います。``is_version_at_least("3.0.0")`` でも比較できます。

@@ -17,18 +17,18 @@ class StandardPluginsTest(unittest.TestCase):
     def test_hik_character_and_roles(self):
         """標準MELで定義を作り、型と骨割当を確認する。"""
         from hlib.nodes import HIKCharacterNode, HIKSolverNode
-        character = HIKCharacterNode.create_character('testCharacter')
+        character = HIKCharacterNode.createCharacter('testCharacter')
         self.assertIsInstance(character, HIKCharacterNode)
         joint = cmds.createNode('joint',name='testHips')
-        character.set_joint('Hips',joint)
-        self.assertEqual(character.joint('Hips').full_name(), '|testHips')
+        character.setJoint('Hips',joint)
+        self.assertEqual(character.joint('Hips').fullName(), '|testHips')
         self.assertIsNone(character.joint('LeftHand'))
         with self.assertRaises(ValueError):
-            character.set_joint('not_a_role',joint)
+            character.setJoint('not_a_role',joint)
         self.assertIsInstance(hlib.createNode('HIKSolverNode'), HIKSolverNode)
-        other = HIKCharacterNode.create_character('other')
+        other = HIKCharacterNode.createCharacter('other')
         with self.assertRaises(RuntimeError):
-            character.set_source(other)
+            character.setSource(other)
 
     def test_fbx_animation_roundtrip(self):
         """選択と設定を復元し、骨アニメーションを再読込できる。"""

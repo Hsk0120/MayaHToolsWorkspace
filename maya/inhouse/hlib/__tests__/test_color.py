@@ -85,10 +85,10 @@ class ColorTest(unittest.TestCase):
         self.assertIsNone(disabled.rgb)
         self.assertEqual(Color.coerce(None), disabled)
         self.assertEqual([Color.coerce(value).index for value in [default, None]], [0, None])
-        self.node.set_override_color(default)
-        self.assertEqual(self.node.get_override_color(), default)
-        self.node.set_override_color(None)
-        self.assertEqual(self.node.get_override_color(), disabled)
+        self.node.setOverrideColor(default)
+        self.assertEqual(self.node.getOverrideColor(), default)
+        self.node.setOverrideColor(None)
+        self.assertEqual(self.node.getOverrideColor(), disabled)
 
     def test_validation_and_disabled(self):
         """不正値は既存の同期状態を壊さない。"""
@@ -116,56 +116,56 @@ class ColorTest(unittest.TestCase):
     def test_node_modes_roundtrip_and_undo(self):
         """指定形式を保って適用し、Undo/Redoと取得値の再設定を確認する。"""
         n = self.node
-        self.assertEqual(n.get_override_color().mode, 'disabled')
+        self.assertEqual(n.getOverrideColor().mode, 'disabled')
         color = Color(index=17)
-        n.set_override_color(color)
-        self.assertEqual(n.get_override_color(), color)
+        n.setOverrideColor(color)
+        self.assertEqual(n.getOverrideColor(), color)
         cmds.undo()
-        self.assertEqual(n.get_override_color().mode, 'disabled')
+        self.assertEqual(n.getOverrideColor().mode, 'disabled')
         cmds.redo()
         color.rgb = (.123, .456, .789)
-        self.assertEqual(n.get_override_color().mode, 'index')
-        n.set_override_color(color)
-        self.assertEqual(n.get_override_color().mode, 'rgb')
-        for a, b in zip(n.get_override_color().rgb, color.rgb):
+        self.assertEqual(n.getOverrideColor().mode, 'index')
+        n.setOverrideColor(color)
+        self.assertEqual(n.getOverrideColor().mode, 'rgb')
+        for a, b in zip(n.getOverrideColor().rgb, color.rgb):
             self.assertAlmostEqual(a, b, places=6)
-        n.set_override_color(n.get_override_color())
-        n.set_outliner_color(Color(index=6))
-        self.assertEqual(n.get_outliner_color().mode, 'rgb')
-        for a, b in zip(n.get_outliner_color().rgb, Color(index=6).rgb):
+        n.setOverrideColor(n.getOverrideColor())
+        n.setOutlinerColor(Color(index=6))
+        self.assertEqual(n.getOutlinerColor().mode, 'rgb')
+        for a, b in zip(n.getOutlinerColor().rgb, Color(index=6).rgb):
             self.assertAlmostEqual(a, b, places=6)
-        n.set_override_color(Color.disabled())
-        self.assertEqual(n.get_override_color().mode, 'disabled')
-        n.set_outliner_color(None)
-        self.assertEqual(n.get_outliner_color().mode, 'disabled')
+        n.setOverrideColor(Color.disabled())
+        self.assertEqual(n.getOverrideColor().mode, 'disabled')
+        n.setOutlinerColor(None)
+        self.assertEqual(n.getOutlinerColor().mode, 'disabled')
 
     def test_fast_and_prevalidation(self):
         """fast経路と、後続フラグのロック時に色を先に変更しないことを確認する。"""
         for fast in (False, True):
             n = self.node
-            n.set_override_color(6, fast=fast)
-            self.assertEqual(n.get_override_color().index, 6)
-            n.plug('overrideRGBColors').set_flags(locked=True)
+            n.setOverrideColor(6, fast=fast)
+            self.assertEqual(n.getOverrideColor().index, 6)
+            n.plug('overrideRGBColors').setFlags(locked=True)
             try:
                 with self.assertRaises(RuntimeError):
-                    n.set_override_color((1, .5, 0), fast=fast)
-                self.assertEqual(n.get_override_color().index, 6)
+                    n.setOverrideColor((1, .5, 0), fast=fast)
+                self.assertEqual(n.getOverrideColor().index, 6)
             finally:
-                n.plug('overrideRGBColors').set_flags(locked=False)
-            n.set_outliner_color(17, fast=fast)
-            self.assertEqual(n.get_outliner_color().mode, 'rgb')
+                n.plug('overrideRGBColors').setFlags(locked=False)
+            n.setOutlinerColor(17, fast=fast)
+            self.assertEqual(n.getOutlinerColor().mode, 'rgb')
 
     def test_bulk_and_blend_colors_remain_numeric(self):
         """複数形もColorを返し、BlendColorsの計算値は表示色に制限しない。"""
         joint = hlib.createNode('joint', parent=self.node)
         joints = hlib.nodes.Joints([joint])
-        joints.set_override_color(Color(index=17))
-        self.assertEqual(joints.get_override_color()[0].index, 17)
+        joints.setOverrideColor(Color(index=17))
+        self.assertEqual(joints.getOverrideColor()[0].index, 17)
         blend = hlib.createNode('blendColors')
         try:
-            blend.set_color(1, (2, -1, 3))
-            self.assertEqual(blend.get_color(1), (2, -1, 3))
-            self.assertIsInstance(blend.color_plug(1), hlib.plugs.Plug)
+            blend.setColor(1, (2, -1, 3))
+            self.assertEqual(blend.getColor(1), (2, -1, 3))
+            self.assertIsInstance(blend.colorPlug(1), hlib.plugs.Plug)
         finally:
             cmds.delete(blend)
 

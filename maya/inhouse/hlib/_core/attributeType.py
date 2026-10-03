@@ -44,6 +44,7 @@ float の頂点座標として扱い ``cmds.getAttr(type=True)`` が ``float3`` 
 """
 
 import re
+from functools import partial
 
 import maya.api.OpenMaya as om2
 
@@ -174,7 +175,7 @@ def _is_mesh_control_points(mplug, attribute):
     return mplug.node().hasFn(om2.MFn.kMesh) and om2.MFnAttribute(attribute).name == "controlPoints"
 
 
-def attribute_type(mplug):
+def attributeType(mplug):
     """プラグのアトリビュート型名を、``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列で返す。
 
     アトリビュート定義だけから求めるため、存在しない配列要素や、``cmds.getAttr`` が例外になる
@@ -206,11 +207,11 @@ def attribute_type(mplug):
             return "float3"
         return name
     if api_type == om2.MFn.kTypedAttribute:
-        data_type = om2.MFnTypedAttribute(attribute).attrType()
-        name = _DATA_TYPE_NAMES.get(data_type)
+        dataType = om2.MFnTypedAttribute(attribute).attrType()
+        name = _DATA_TYPE_NAMES.get(dataType)
         if name is not None:
             return name
-        if data_type == _D.kAny:
+        if dataType == _D.kAny:
             return None
         return _add_attr_type_name(attribute)
     if api_type in _VALUE_DEPENDENT_API_TYPES:
@@ -236,50 +237,49 @@ def is_internal_data_type(mplug):
     attribute = mplug.attribute()
     if attribute.apiType() != om2.MFn.kTypedAttribute:
         return False
-    data_type = om2.MFnTypedAttribute(attribute).attrType()
-    if data_type in _DATA_TYPE_NAMES or data_type == _D.kAny:
+    dataType = om2.MFnTypedAttribute(attribute).attrType()
+    if dataType in _DATA_TYPE_NAMES or dataType == _D.kAny:
         return False
     name = _add_attr_type_name(attribute)
     return name is not None and name not in _PUBLIC_DATA_TYPES
 
 
 def _read_angle(mplug):
-    """角度アトリビュートの値を度で返す。
+    """角度アトリビュートの値をラジアンで返す。
 
-    UI の角度単位によらず度を返す(``cmds.getAttr`` の既定と同じ。角度の UI 単位が
-    ラジアンの場合は ``cmds.getAttr`` の戻り値と異なる)。
+    UIの角度単位に依存しない。
 
     Args:
         mplug (om2.MPlug): 角度アトリビュートのプラグ。
 
     Returns:
-        float: 度の値。
+        float: rad単位の値。
     """
-    return mplug.asMAngle().asDegrees()
+    return mplug.asMAngle().asRadians()
 
 
 def _read_distance(mplug):
-    """距離アトリビュートの値を現在の UI 単位で返す。
+    """距離アトリビュートの値をcmで返す。
 
     Args:
         mplug (om2.MPlug): 距離アトリビュートのプラグ。
 
     Returns:
-        float: UI 単位の値。
+        float: 内部単位の値。
     """
-    return mplug.asMDistance().asUnits(om2.MDistance.uiUnit())
+    return mplug.asMDistance().asCentimeters()
 
 
 def _read_time(mplug):
-    """時間アトリビュートの値を現在の UI 単位で返す。
+    """時間アトリビュートの値を秒で返す。
 
     Args:
         mplug (om2.MPlug): 時間アトリビュートのプラグ。
 
     Returns:
-        float: UI 単位の値。
+        float: 内部単位の値。
     """
-    return mplug.asMTime().asUnits(om2.MTime.uiUnit())
+    return mplug.asMTime().asUnits(om2.MTime.kSeconds)
 
 
 #: 型名 -> (読取、fast setter、入力変換)。charの読取は従来通りcmdsへ委譲する。
@@ -309,6 +309,59 @@ _UNIT_READERS = {
 _CMDS_READER = False
 
 
+def typed_data(mplug):
+    """型付きデータを取得し、未初期化値だけをnullとして扱う。
+
+    Args:
+        mplug (om2.MPlug): 所有ノードとアトリビュートの有効性を検証済みのプラグ。
+
+    Returns:
+        om2.MObject: 値のコピー。未初期化値はnull。
+
+    Raises:
+        RuntimeError: null以外の理由でデータを取得できない場合。
+    """
+    try:
+        return mplug.asMObject()
+    except RuntimeError:
+        # asMObjectはnullでもkFailureを送出する。データハンドルでnullだけを
+        # 確認し、借りたハンドルは必ず解放する。評価失敗を空値へ読み替えない。
+        handle = mplug.asMDataHandle()
+        try:
+            if handle.data().isNull():
+                return om2.MObject.kNullObj
+        finally:
+            mplug.destructHandle(handle)
+        raise
+
+
+def _read_array(mplug, factory, tuples=False):
+    """型付き配列を要素数によらずlistとして返す。
+
+    Args:
+        mplug (om2.MPlug): 読取対象。
+        factory (type): データfunction set。
+        tuples (bool): 点・ベクトルをtupleへ変換する。
+
+    Returns:
+        list | None: 値のコピー。空配列は[]、未初期化データはNone。
+    """
+    data = typed_data(mplug)
+    if data.isNull():
+        return None
+    values = factory(data).array()
+    return [tuple(value) for value in values] if tuples else list(values)
+
+
+_ARRAY_READERS = {
+    _D.kDoubleArray: partial(_read_array, factory=om2.MFnDoubleArrayData),
+    _D.kIntArray: partial(_read_array, factory=om2.MFnIntArrayData),
+    _D.kStringArray: partial(_read_array, factory=om2.MFnStringArrayData),
+    _D.kVectorArray: partial(_read_array, factory=om2.MFnVectorArrayData, tuples=True),
+    _D.kPointArray: partial(_read_array, factory=om2.MFnPointArrayData, tuples=True),
+}
+
+
 def value_reader(attribute):
     """``Plug.get()`` が MPlug から直接値を読む関数を、アトリビュート定義から選ぶ。
 
@@ -319,7 +372,8 @@ def value_reader(attribute):
 
     Returns:
         callable | bool: MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、
-            角度・距離・時間の単位アトリビュート、enum、文字列アトリビュートが対象。それ以外は
+            角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/
+            stringArray/vectorArray/pointArrayが対象。それ以外は
             ``_CMDS_READER`` (``cmds.getAttr`` で読む)。
     """
     if attribute.hasFn(om2.MFn.kNumericAttribute):
@@ -328,10 +382,12 @@ def value_reader(attribute):
         return _UNIT_READERS.get(om2.MFnUnitAttribute(attribute).unitType(), _CMDS_READER)
     if attribute.hasFn(om2.MFn.kEnumAttribute):
         return om2.MPlug.asInt
-    if (attribute.hasFn(om2.MFn.kTypedAttribute)
-            and om2.MFnTypedAttribute(attribute).attrType() == om2.MFnData.kString):
-        return om2.MPlug.asString
+    if attribute.hasFn(om2.MFn.kTypedAttribute):
+        kind = om2.MFnTypedAttribute(attribute).attrType()
+        if kind == om2.MFnData.kString:
+            return om2.MPlug.asString
+        return _ARRAY_READERS.get(kind, _CMDS_READER)
     return _CMDS_READER
 
 
-__all__ = ["attribute_type", "is_internal_data_type", "value_reader"]
+__all__ = ["attributeType", "is_internal_data_type", "value_reader"]

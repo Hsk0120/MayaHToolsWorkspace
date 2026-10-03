@@ -29,6 +29,6 @@ def mirrorJoint(joint, **kwargs):
     source = _InputNode._resolve_input(joint)
     if not isinstance(source, Joint):
         raise TypeError("mirrorJoint requires a Joint")
-    names = cmds.mirrorJoint(source.full_name(), **kwargs) or []
+    names = cmds.mirrorJoint(source.fullName(), **kwargs) or []
     result = [Joint(name) for name in names if cmds.nodeType(name) == "joint"]
     return result[0] if len(result) == 1 else Joints(result)

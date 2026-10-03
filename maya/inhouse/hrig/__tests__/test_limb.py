@@ -57,8 +57,8 @@ class LimbTest(unittest.TestCase):
 
     def test_modes_and_parent_transform(self):
         """部位の親変換と明示的な評価ブロックを検証する。"""
-        cmds.setAttr(self.rig.root.full_name()+'.translate',3,4,5)
-        cmds.setAttr(self.rig.root.full_name()+'.rotateZ',90)
+        cmds.setAttr(self.rig.root.fullName()+'.translate',3,4,5)
+        cmds.setAttr(self.rig.root.fullName()+'.rotateZ',90)
         for value,expected in zip(self.position(),(3,14,5)):
             self.assertAlmostEqual(value,expected,places=5)
         self.assertEqual(cmds.getAttr(self.rig._member('handle')+'.nodeState'),2)
@@ -152,7 +152,7 @@ class LimbTest(unittest.TestCase):
         cmds.file(new=True, force=True)
         demo = build_demo()
         rig = demo['rig']
-        self.assertEqual(rig.root.full_name(), '|rig')
+        self.assertEqual(rig.root.fullName(), '|rig')
         for group in ('geo_grp', 'jnt_grp', 'ctrl_grp', 'setup_grp'):
             self.assertTrue(cmds.objExists('|rig|' + group))
         self.assertTrue(cmds.objExists('|rig|jnt_grp|limb_jnt_grp|root_jnt|mid_jnt|tip_jnt'))
@@ -173,8 +173,8 @@ class LimbTest(unittest.TestCase):
         self.assertTrue(cmds.sets(rig._member('helper'), isMember=rig._member('helperSet')))
         self.assertFalse(cmds.getAttr(rig._member('setupGroup') + '.visibility'))
         rig.set_lod(0)
-        cmds.setAttr(rig.root.full_name() + '.translate', 3, 4, 5)
-        cmds.setAttr(rig.root.full_name() + '.rotateZ', 90)
+        cmds.setAttr(rig.root.fullName() + '.translate', 3, 4, 5)
+        cmds.setAttr(rig.root.fullName() + '.rotateZ', 90)
         for actual, expected in zip(cmds.xform(rig.joints()[2], q=True, ws=True, t=True), (3, 12, 5)):
             self.assertAlmostEqual(actual, expected, delta=0.002)
         rig.match_fk(); rig.set_mode('fk')

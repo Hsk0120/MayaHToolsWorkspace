@@ -107,7 +107,7 @@ class BendTest(unittest.TestCase):
         """親の変形を継承し、単位変更後もLODの基準位置を維持する。"""
         half, inner, outer = self.rig.add_bend()
         cmds.setAttr(self.rig.controls()["fk1"] + ".rz", 90)
-        root = self.rig.root.full_name()
+        root = self.rig.root.fullName()
         cmds.setAttr(root + ".translate", 2, 3, 4)
         cmds.setAttr(root + ".rotate", 10, 20, 30)
         cmds.setAttr(root + ".scale", 2, 2, 2)

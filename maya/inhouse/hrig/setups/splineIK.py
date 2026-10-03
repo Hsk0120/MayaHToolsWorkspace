@@ -1,4 +1,5 @@
 """標準Spline IKと、コントロールからカーブへの接続を生成する。"""
+from hlib.maths import MSpace
 
 from maya import cmds
 
@@ -61,7 +62,7 @@ class SplineIK:
             raise ValueError("Use distinct controls")
         for node in controls + [parent]:
             if node.type() != "transform" or any(
-                node.full_name().startswith(j.full_name() + "|") for j in joints
+                node.fullName().startswith(j.fullName() + "|") for j in joints
             ):
                 raise ValueError("Controls and parent must be transforms outside the IK chain")
         for i, joint in enumerate(joints):
@@ -78,19 +79,19 @@ class SplineIK:
                 raise ValueError("Joint rotation already has an input")
         graph = cls(hlib.nodes.Container.create(name=name))
         points = [
-            tuple(hlib.utils.units.distance_to_ui(v) for v in c.get_translate(ws=True))
+            tuple(hlib.utils.units.distance_to_ui(v) for v in c.getTranslation(space=MSpace.kWorld))
             for c in controls
         ]
         curve = hlib.nodes.Node(hlib.createCurve(degree=3, point=points, name=name + "_curve"))
         [
             hlib.getNode(value)
-            for value in (cmds.parent(curve.full_name(), parent.full_name(), relative=True) or [])
+            for value in (cmds.parent(curve.fullName(), parent.fullName(), relative=True) or [])
         ]
         shape = hlib.nodes.Node(
             [
                 hlib.getNode(value)
                 for value in (
-                    cmds.listRelatives(curve.full_name(), shapes=True, fullPath=True) or []
+                    cmds.listRelatives(curve.fullName(), shapes=True, fullPath=True) or []
                 )
             ][0]
         )
@@ -105,12 +106,12 @@ class SplineIK:
             curve.plug("worldInverseMatrix[0]").connect(matrix.plug("matrixIn[1]"))
             matrix.plug("matrixSum").connect(position.plug("inputMatrix"))
             position.plug("outputTranslate").connect(shape.plug("controlPoints[{}]".format(index)))
-            graph.container.add_members(matrix, position)
+            graph.container.addMembers(matrix, position)
         handle_name, effector_name = hlib.createIkHandle(
-            startJoint=joints[0].full_name(),
-            endEffector=joints[-1].full_name(),
+            startJoint=joints[0].fullName(),
+            endEffector=joints[-1].fullName(),
             solver="ikSplineSolver",
-            curve=curve.full_name(),
+            curve=curve.fullName(),
             createCurve=False,
             parentCurve=False,
             rootOnCurve=True,
@@ -118,7 +119,7 @@ class SplineIK:
         )[:2]
         handle, effector = hlib.nodes.Node(handle_name), hlib.nodes.Node(effector_name)
         effector.rename(name + "_effector")
-        [hlib.getNode(value) for value in (cmds.parent(handle.full_name(), parent.full_name()) or [])]
+        [hlib.getNode(value) for value in (cmds.parent(handle.fullName(), parent.fullName()) or [])]
         handle.plug("dTwistControlEnable").set(True)
         handle.plug("dWorldUpType").set(4)
         handle.plug("dForwardAxis").set(0)
@@ -129,9 +130,9 @@ class SplineIK:
         controls[0].plug("worldMatrix[0]").connect(handle.plug("dWorldUpMatrix"))
         controls[-1].plug("worldMatrix[0]").connect(handle.plug("dWorldUpMatrixEnd"))
         for role, node in (("handle", handle), ("curve", curve), ("effector", effector)):
-            graph.container.add_attribute(long_name=role, attribute_type="message")
+            graph.container.addAttribute(longName=role, attributeType="message")
             node.plug("message").connect(graph.container.plug(role))
-            graph.container.add_members(node)
+            graph.container.addMembers(node)
         curve.plug("visibility").set(False)
         handle.plug("visibility").set(False)
         return graph
@@ -152,7 +153,7 @@ class SplineIK:
                         hlib.getNode(value)
                         for value in (
                             cmds.listRelatives(
-                                self.member("curve").full_name(), shapes=True, fullPath=True
+                                self.member("curve").fullName(), shapes=True, fullPath=True
                             )
                             or []
                         )

@@ -57,7 +57,7 @@ def main(output_dir=None, finished=None):
         rig, _ = editor.current()
         source = rig.driver_chains()[0][0]
         for time, value in ((1, 0), (8, 60), (24, 60)):
-            cmds.setKeyframe(source.full_name(), attribute="rx", time=time, value=value)
+            cmds.setKeyframe(source.fullName(), attribute="rx", time=time, value=value)
         cmds.currentTime(8)
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("spring"))
         check(editor.add_button.isEnabled(), "Spring sample available")
@@ -90,7 +90,7 @@ def main(output_dir=None, finished=None):
         source.plug("rz").set(60)
         yield
         check(abs(graph.plug("outputs[0]").get() + 20) < 0.001, "Two-input pose combination")
-        cmds.setAttr(rig.root.full_name() + ".hrigEnabled_pose", False)
+        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_pose", False)
         yield
         for _ in range(20):
             if SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").source() is None:
@@ -128,7 +128,7 @@ def main(output_dir=None, finished=None):
             group.plug("baked").get() and group.plug("poseGraph").source() is not None,
             "Reload cache and pose data",
         )
-        cmds.setAttr(rig.root.full_name() + ".hrigEnabled_spring", False)
+        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_spring", False)
         yield
         check(
             SecondaryLayer._members(group, "blends")[0].plug("inRotateX2").source() is None,

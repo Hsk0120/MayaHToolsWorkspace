@@ -37,7 +37,7 @@ class FingerRig(ControlRig):
         rig = cls._create(name, "finger")
         settings = rig.group("layer")
         for attr in ("curl", "spread"):
-            settings.add_attribute(long_name=attr, attribute_type="doubleAngle", keyable=True)
+            settings.addAttribute(longName=attr, attributeType="doubleAngle", keyable=True)
         for f in range(finger_count):
             for attr, default in (
                 ("curl{}".format(f + 1), 0),
@@ -46,10 +46,10 @@ class FingerRig(ControlRig):
                     0 if finger_count == 1 else 2 * f / (finger_count - 1) - 1,
                 ),
             ):
-                settings.add_attribute(
-                    long_name=attr,
-                    attribute_type="doubleAngle" if attr.startswith("curl") else "double",
-                    default_value=default,
+                settings.addAttribute(
+                    longName=attr,
+                    attributeType="doubleAngle" if attr.startswith("curl") else "double",
+                    defaultValue=default,
                     keyable=True,
                 )
             parent = rig.group("control")
@@ -80,10 +80,10 @@ class FingerRig(ControlRig):
                     ControlShape.circle(control, spacing * 0.25, (1, 0, 0), 17)
                     rig.register("controls", control)
                     weight_attr = "curlWeight{}_{}".format(f + 1, j + 1)
-                    settings.add_attribute(
-                        long_name=weight_attr,
-                        attribute_type="double",
-                        default_value=1,
+                    settings.addAttribute(
+                        longName=weight_attr,
+                        attributeType="double",
+                        defaultValue=1,
                         keyable=True,
                     )
                     total = hlib.createNode(
@@ -111,7 +111,7 @@ class FingerRig(ControlRig):
                         )
                     rig.register("sources", multiply)
                     rig.register("targets", layer)
-                control.set_attribute_flags(
+                control.setAttributeFlags(
                     ["translate", "scale", "visibility"], locked=True, keyable=False
                 )
                 parent, bone_parent = control, bone

@@ -35,19 +35,19 @@ class CommonMethodsTest(unittest.TestCase):
     def test_attr_flags_batch_undo(self):
         node = self.create("flags")
         attrs = ["translateX", "translateY"]
-        before = [(node.plug(a).is_locked(), node.plug(a).is_keyable()) for a in attrs]
-        self.assertIs(node.set_attribute_flags(attrs, locked=True, keyable=False), node)
+        before = [(node.plug(a).isLocked(), node.plug(a).isKeyable()) for a in attrs]
+        self.assertIs(node.setAttributeFlags(attrs, locked=True, keyable=False), node)
         for a in attrs:
-            self.assertTrue(node.plug(a).is_locked())
-            self.assertFalse(node.plug(a).is_keyable())
+            self.assertTrue(node.plug(a).isLocked())
+            self.assertFalse(node.plug(a).isKeyable())
         cmds.undo()
-        self.assertEqual([(node.plug(a).is_locked(), node.plug(a).is_keyable()) for a in attrs], before)
+        self.assertEqual([(node.plug(a).isLocked(), node.plug(a).isKeyable()) for a in attrs], before)
         cmds.redo()
-        self.assertTrue(all(node.plug(a).is_locked() for a in attrs))
-        node.set_attribute_flags(attrs, locked=False, channel_box=True)
-        self.assertTrue(cmds.getAttr(node.plug(attrs[0]).full_name(), channelBox=True))
+        self.assertTrue(all(node.plug(a).isLocked() for a in attrs))
+        node.setAttributeFlags(attrs, locked=False, channelBox=True)
+        self.assertTrue(cmds.getAttr(node.plug(attrs[0]).fullName(), channelBox=True))
         with self.assertRaises(TypeError):
-            node.set_attribute_flags(attrs, locked="false")
+            node.setAttributeFlags(attrs, locked="false")
 
     def test_center_pivot_preserves_geometry_and_undo(self):
         name = cmds.polyCube(name=self.namespace + ":pivotMesh")[0]
@@ -57,7 +57,7 @@ class CommonMethodsTest(unittest.TestCase):
         cmds.setAttr(name + ".scaleX", 2)
         points = cmds.xform(name + ".vtx[*]", query=True, translation=True, worldSpace=True)
         before = cmds.xform(name, query=True, pivots=True)
-        self.assertIs(node.center_pivot(), node)
+        self.assertIs(node.centerPivot(), node)
         after = cmds.xform(name, query=True, pivots=True)
         self.assertNotEqual(after, before)
         for a, b in zip(points, cmds.xform(name + ".vtx[*]", query=True, translation=True, worldSpace=True)):
@@ -77,13 +77,13 @@ class CommonMethodsTest(unittest.TestCase):
                                         ("angle", "doubleAngle", 0.75),
                                         ("time", "time", 12.0),
                                         ("amount", "double", 1.25)):
-                cmds.addAttr(node.full_name(), longName=name, attributeType=kind, defaultValue=default)
-                value_before = cmds.getAttr(node.full_name() + "." + name)
+                cmds.addAttr(node.fullName(), longName=name, attributeType=kind, defaultValue=default)
+                value_before = cmds.getAttr(node.fullName() + "." + name)
                 plug = node.plug(name)
                 plug.set(99)
                 plug.reset()
-                self.assertAlmostEqual(cmds.getAttr(plug.full_name()), value_before)
-            cmds.addAttr(node.full_name(), longName="choice", attributeType="enum",
+                self.assertAlmostEqual(cmds.getAttr(plug.fullName()), value_before)
+            cmds.addAttr(node.fullName(), longName="choice", attributeType="enum",
                          enumName="A:B:C", defaultValue=2)
             node.plug("choice").set(0)
             node.plug("choice").reset()
@@ -94,18 +94,18 @@ class CommonMethodsTest(unittest.TestCase):
     def test_reset_attrs_skips_locked_and_connected_channels(self):
         node, source = self.create("control"), self.create("driver")
         node.plug("translate").set((2, 3, 4))
-        node.plug("translateX").set_flags(locked=True)
+        node.plug("translateX").setFlags(locked=True)
         source.plug("translateY").connect(node.plug("translateY"))
-        changed = node.reset_attributes()
-        names = [plug.full_name() for plug in changed]
-        self.assertNotIn(node.plug("translateX").full_name(), names)
-        self.assertNotIn(node.plug("translateY").full_name(), names)
+        changed = node.resetAttributes()
+        names = [plug.fullName() for plug in changed]
+        self.assertNotIn(node.plug("translateX").fullName(), names)
+        self.assertNotIn(node.plug("translateY").fullName(), names)
         self.assertEqual(node.plug("translateZ").get(), 0)
         cmds.undo()
         self.assertEqual(node.plug("translateZ").get(), 4)
         with self.assertRaises(RuntimeError):
-            node.reset_attributes("translateX")
-        cmds.addAttr(node.full_name(), longName="text", dataType="string")
+            node.resetAttributes("translateX")
+        cmds.addAttr(node.fullName(), longName="text", dataType="string")
         with self.assertRaises(TypeError):
             node.plug("text").reset()
 
@@ -113,76 +113,76 @@ class CommonMethodsTest(unittest.TestCase):
         parent = self.create("parent")
         parent.plug("translate").set((4, 2, -1))
         target = self.create("target")
-        actual = self.create("actual", parent=parent.full_name())
-        expected = self.create("expected", parent=parent.full_name())
+        actual = self.create("actual", parent=parent.fullName())
+        expected = self.create("expected", parent=parent.fullName())
         target.plug("translate").set((10, 3, -5))
         target.plug("rotate").set((20, 30, 10))
         target.plug("scale").set((2, 3, 4))
-        before = cmds.xform(actual.full_name(), query=True, matrix=True, worldSpace=True)
-        cmds.matchTransform(expected.full_name(), target.full_name(), position=True, rotation=True, scale=True, pivots=False)
-        self.assertIs(actual.match_transform(target), actual)
-        after = cmds.xform(actual.full_name(), query=True, matrix=True, worldSpace=True)
-        for a, b in zip(after, cmds.xform(expected.full_name(), query=True, matrix=True, worldSpace=True)):
+        before = cmds.xform(actual.fullName(), query=True, matrix=True, worldSpace=True)
+        cmds.matchTransform(expected.fullName(), target.fullName(), position=True, rotation=True, scale=True, pivots=False)
+        self.assertIs(actual.matchTransform(target), actual)
+        after = cmds.xform(actual.fullName(), query=True, matrix=True, worldSpace=True)
+        for a, b in zip(after, cmds.xform(expected.fullName(), query=True, matrix=True, worldSpace=True)):
             self.assertAlmostEqual(a, b)
         cmds.undo()
-        for a, b in zip(before, cmds.xform(actual.full_name(), query=True, matrix=True, worldSpace=True)):
+        for a, b in zip(before, cmds.xform(actual.fullName(), query=True, matrix=True, worldSpace=True)):
             self.assertAlmostEqual(a, b)
         cmds.redo()
-        for a, b in zip(after, cmds.xform(actual.full_name(), query=True, matrix=True, worldSpace=True)):
+        for a, b in zip(after, cmds.xform(actual.fullName(), query=True, matrix=True, worldSpace=True)):
             self.assertAlmostEqual(a, b)
 
     def test_match_position_only_and_noop(self):
         actual, target = self.create("actual"), self.create("target")
-        cmds.setAttr(actual.full_name() + ".rotate", 15, 0, 0)
+        cmds.setAttr(actual.fullName() + ".rotate", 15, 0, 0)
         target.plug("translate").set((7, 8, 9))
-        actual.match_transform(target.full_name(), rotation=False, scale=False)
+        actual.matchTransform(target.fullName(), rotation=False, scale=False)
         self.assertEqual(tuple(actual.plug("translate").get()), (7, 8, 9))
-        self.assertAlmostEqual(actual.plug("rotateX").get(), 15)
+        self.assertAlmostEqual(actual.plug("rotateX").get(), __import__("math").radians(15))
         undo_name = cmds.undoInfo(query=True, undoName=True)
-        actual.match_transform(target, position=False, rotation=False, scale=False)
+        actual.matchTransform(target, position=False, rotation=False, scale=False)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
         with self.assertRaises(TypeError):
-            actual.match_transform(self.create("network", type="network"))
+            actual.matchTransform(self.create("network", type="network"))
 
     def skin(self):
         joints = [self.create("joint" + str(i), type="joint") for i in range(3)]
         mesh = cmds.polyCube(name=self.namespace + ":mesh")[0]
-        skin = hlib.getNode(cmds.skinCluster([j.full_name() for j in joints], mesh)[0])
+        skin = hlib.getNode(cmds.skinCluster([j.fullName() for j in joints], mesh)[0])
         return joints, hlib.getNode(mesh), skin
 
     def test_history_filtered_and_empty(self):
         joints, mesh, skin = self.skin()
         self.assertIn(skin.uuid(), [node.uuid() for node in mesh.history(type="skinCluster")])
         self.assertIn(skin.uuid(), [node.uuid() for node in mesh.history(type="geometryFilter")])
-        native = cmds.listHistory(mesh.full_name()) or []
+        native = cmds.listHistory(mesh.fullName()) or []
         expected = list(dict.fromkeys(hlib.getNode(name).uuid() for name in native if hlib.getNode(name).uuid() != mesh.uuid()))
         self.assertEqual([node.uuid() for node in mesh.history()], expected)
         self.assertEqual(self.create("empty").history(type="skinCluster"), [])
 
     def test_unused_influences_undo_and_joint_survival(self):
         joints, mesh, skin = self.skin()
-        names = [joint.full_name() for joint in joints]
-        skin.set_weights(names, [1, 0, 0])
-        self.assertEqual([node.uuid() for node in skin.unused_influences()], [j.uuid() for j in joints[1:]])
-        before = list(skin.get_weights(names))
-        removed = skin.remove_unused_influences()
+        names = [joint.fullName() for joint in joints]
+        skin.setWeights(names, [1, 0, 0])
+        self.assertEqual([node.uuid() for node in skin.unusedInfluences()], [j.uuid() for j in joints[1:]])
+        before = list(skin.getWeights(names))
+        removed = skin.removeUnusedInfluences()
         self.assertEqual([node.uuid() for node in removed], [j.uuid() for j in joints[1:]])
-        self.assertTrue(all(j.is_valid() for j in joints))
+        self.assertTrue(all(j.isValid() for j in joints))
         self.assertEqual(len(skin.influences()), 1)
         cmds.undo()
-        self.assertEqual(list(skin.get_weights(names)), before)
+        self.assertEqual(list(skin.getWeights(names)), before)
         cmds.redo()
         self.assertEqual(len(skin.influences()), 1)
-        self.assertEqual(skin.remove_unused_influences(), [])
+        self.assertEqual(skin.removeUnusedInfluences(), [])
 
     def test_unused_influences_keep_small_weights_and_reject_empty_binding(self):
         joints, mesh, skin = self.skin()
-        names = [joint.full_name() for joint in joints]
-        skin.set_weights(names, [1 - 1e-8, 1e-8, 0])
-        self.assertEqual([node.uuid() for node in skin.unused_influences()], [joints[2].uuid()])
-        skin.set_weights(names, [0, 0, 0])
+        names = [joint.fullName() for joint in joints]
+        skin.setWeights(names, [1 - 1e-8, 1e-8, 0])
+        self.assertEqual([node.uuid() for node in skin.unusedInfluences()], [joints[2].uuid()])
+        skin.setWeights(names, [0, 0, 0])
         with self.assertRaises(ValueError):
-            skin.remove_unused_influences()
+            skin.removeUnusedInfluences()
         self.assertEqual(len(skin.influences()), 3)
 
 

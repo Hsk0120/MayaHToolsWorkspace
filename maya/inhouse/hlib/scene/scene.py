@@ -39,13 +39,13 @@ class Scene:
         """
         return self._path
 
-    def is_current(self):
+    def isCurrent(self):
         """保持パスが現在のシーンと一致するか返す。未保存同士は一致とする。"""
         return self.path == self._current_path()
 
     def _require_current(self):
         """現在のシーンと一致しない場合は RuntimeError を送出する。"""
-        if not self.is_current():
+        if not self.isCurrent():
             raise RuntimeError("Scene is not the current Maya scene; open it first")
 
     def __str__(self):
@@ -62,7 +62,7 @@ class Scene:
         scene_path = self.path
         return scene_path.name if scene_path is not None else None
 
-    def is_new(self):
+    def isNew(self):
         """保持パスが未保存シーンを表すか判定する。
 
         Returns:
@@ -70,7 +70,7 @@ class Scene:
         """
         return self.path is None
 
-    def is_modified(self):
+    def isModified(self):
         """現在のシーンに未保存の変更があるか判定する。
 
         Returns:
@@ -82,13 +82,13 @@ class Scene:
         self._require_current()
         return bool(cmds.file(query=True, modified=True))
 
-    def file_type(self):
+    def fileType(self):
         """現在のシーンは Maya に照会し、それ以外は保持パスの拡張子から形式を返す。
 
         Returns:
             str | None: Mayaのファイル形式名。未保存または未取得の場合は ``None``。
         """
-        if not self.is_current():
+        if not self.isCurrent():
             return self._FILE_TYPES.get(self.path.suffix.lower()) if self.path else None
         file_types = cmds.file(query=True, type=True) or []
         return file_types[0] if file_types else None
@@ -134,12 +134,12 @@ class Scene:
         self._path = self._current_path()
         return self
 
-    def save(self, force=False, file_type=None):
+    def save(self, force=False, fileType=None):
         """現在のシーンを保存する。
 
         Args:
             force (bool): ``True`` の場合は既存ファイルを上書きする。
-            file_type (str | None): Mayaのファイル形式。省略時は現在の形式を使う。
+            fileType (str | None): Mayaのファイル形式。省略時は現在の形式を使う。
 
         Returns:
             Scene: 自身。
@@ -148,15 +148,15 @@ class Scene:
             RuntimeError: 現在のシーンと一致しない、または保存先がない場合。
         """
         self._require_current()
-        if self.is_new():
+        if self.isNew():
             raise RuntimeError("Cannot save an untitled scene without a path")
         kwargs = {"save": True, "force": force}
-        if file_type is not None:
-            kwargs["type"] = file_type
+        if fileType is not None:
+            kwargs["type"] = fileType
         cmds.file(**kwargs)
         return self
 
-    def save_as(self, path, force=False, file_type=None):
+    def saveAs(self, path, force=False, fileType=None):
         """指定したパスへ現在のシーンを保存する。
 
         保存前に現在のシーン名を変更する。保存失敗時も元のシーン名へ戻さない。保存先ディレクトリは作成しない。
@@ -164,25 +164,25 @@ class Scene:
         Args:
             path (str | Path): 保存先のシーンファイルパス。
             force (bool): ``True`` の場合は既存ファイルを上書きする。
-            file_type (str | None): Mayaのファイル形式。省略時は拡張子から推測する。
+            fileType (str | None): Mayaのファイル形式。省略時は拡張子から推測する。
 
         Returns:
             Scene: 自身。
 
         Raises:
-            ValueError: path が不正、または file_type が未指定で拡張子が .ma/.mb 以外の場合。
+            ValueError: path が不正、または fileType が未指定で拡張子が .ma/.mb 以外の場合。
             RuntimeError: 現在のシーンと一致しない、または Maya が保存できない場合。
         """
         self._require_current()
         scene_path = self._path_arg(path)
-        resolved_type = file_type or self._file_type_for(scene_path)
+        resolved_type = fileType or self._file_type_for(scene_path)
         cmds.file(rename=str(scene_path))
         self._path = self._current_path()
         kwargs = {"save": True, "force": force, "type": resolved_type}
         cmds.file(**kwargs)
         return self
 
-    def import_file(self, path, namespace=None, preserve_references=False):
+    def importFile(self, path, namespace=None, preserve_references=False):
         """他のシーンファイルの内容を現在のシーンへインポートする。
 
         インポート先は常に現在のシーンであり、保持パス(self)自体は変化しない。
@@ -242,10 +242,10 @@ class Scene:
         Raises:
             ValueError: .ma/.mb 以外の拡張子の場合。
         """
-        file_type = cls._FILE_TYPES.get(path.suffix.lower())
-        if file_type is None:
+        fileType = cls._FILE_TYPES.get(path.suffix.lower())
+        if fileType is None:
             raise ValueError("path must have a .ma or .mb extension")
-        return file_type
+        return fileType
 
     def __repr__(self):
         """現在のシーンパスを含むデバッグ表現を返す。

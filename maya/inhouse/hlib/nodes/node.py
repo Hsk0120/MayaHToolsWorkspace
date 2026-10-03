@@ -68,8 +68,8 @@ def _resolve_node(node):
     if isinstance(node, om2.MDagPath):
         if not node.isValid() or not om2.MObjectHandle(node.node()).isValid():
             raise RuntimeError("無効な(削除済みの)MDagPath からノードは解決できません")
-        dag_path = om2.MDagPath(node)
-        return dag_path.node(), dag_path
+        dagPath = om2.MDagPath(node)
+        return dagPath.node(), dagPath
     if isinstance(node, om2.MObject):
         if node.isNull():
             raise RuntimeError("空の MObject からノードは解決できません")
@@ -78,8 +78,8 @@ def _resolve_node(node):
         if not node.hasFn(om2.MFn.kDependencyNode):
             raise TypeError("MObject には依存ノードを指定してください(アトリビュート・コンポーネント・データは不可)")
         mobject = om2.MObject(node)
-        dag_path = om2.MFnDagNode(mobject).getPath() if mobject.hasFn(om2.MFn.kDagNode) else None
-        return mobject, dag_path
+        dagPath = om2.MFnDagNode(mobject).getPath() if mobject.hasFn(om2.MFn.kDagNode) else None
+        return mobject, dagPath
     if isinstance(node, om2.MPlug):
         if node.isNull:
             raise RuntimeError("空の MPlug からノードは解決できません")
@@ -90,10 +90,10 @@ def _resolve_node(node):
             raise DeletedAttributeError("削除済みのアトリビュートの MPlug からノードは解決できません")
         return _resolve_node(owner)
     if isinstance(node, Node):
-        if not node.is_valid():
+        if not node.isValid():
             raise RuntimeError("無効な(削除済みの)ノードは指定できません")
-        dag_path = node._current_dag_path()
-        return om2.MObject(node._mobject), om2.MDagPath(dag_path) if dag_path is not None else None
+        dagPath = node._current_dag_path()
+        return om2.MObject(node._mobject), om2.MDagPath(dagPath) if dagPath is not None else None
     # plugs/components は nodes を逆方向に import するため、循環回避のため遅延 import する。
     from ..components.component import Component, Components
     from ..plugs.plug import Plug
@@ -132,7 +132,7 @@ def _is_deleted_api_object(value):
 
 
 def _query_target(other):
-    """判定メソッド(``is_parent_of`` など)の対象をノードへ解決する。
+    """判定メソッド(``isParentOf`` など)の対象をノードへ解決する。
 
     ``hlib.nodes.Node._resolve_input`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
     所有ノードが削除済みの Plug・Component、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug、
@@ -160,7 +160,7 @@ def _query_target(other):
         if _is_deleted_api_object(other):
             return None
         raise
-    return node if node.is_valid() else None
+    return node if node.isValid() else None
 
 
 _MOVABLE_NUMERIC_TYPES = {
@@ -171,7 +171,7 @@ _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kLong: "long",
     om2.MFnNumericData.kFloat: "float",
     om2.MFnNumericData.kDouble: "double",
-}  #: move_attribute_order() が再作成できる数値アトリビュート型と cmds.addAttr(attributeType=) の対応。
+}  #: moveAttributeOrder() が再作成できる数値アトリビュート型と cmds.addAttr(attributeType=) の対応。
 
 
 def _dump_movable_attr(plug):
@@ -184,21 +184,21 @@ def _dump_movable_attr(plug):
         plug (Plug): ダンプ対象の動的アトリビュートプラグ。
 
     Returns:
-        dict: add_attribute() での再作成と値・状態の復元に必要な情報。
+        dict: addAttribute() での再作成と値・状態の復元に必要な情報。
 
     Raises:
         TypeError: 複合・配列アトリビュート、または対応しないアトリビュート型の場合。
     """
-    if plug.is_array() or plug.is_compound():
-        raise TypeError(f"Cannot reorder compound or array attributes: {plug.full_name()}")
+    if plug.isArray() or plug.isCompound():
+        raise TypeError(f"Cannot reorder compound or array attributes: {plug.fullName()}")
     attr = plug.mplug().attribute()
     info = {
-        "long_name": plug.attribute_name(),
-        "nice_name": plug.nice_name(),
-        "hidden": plug.is_hidden(),
-        "keyable": plug.is_keyable(),
-        "channel_box": bool(cmds.getAttr(plug.full_name(), channelBox=True)),
-        "locked": plug.is_locked(),
+        "longName": plug.attributeName(),
+        "niceName": plug.niceName(),
+        "hidden": plug.isHidden(),
+        "keyable": plug.isKeyable(),
+        "channelBox": bool(cmds.getAttr(plug.fullName(), channelBox=True)),
+        "locked": plug.isLocked(),
         "value": plug.get(),
         "source": plug.source(),
         "destinations": plug.destinations(),
@@ -207,21 +207,21 @@ def _dump_movable_attr(plug):
         numeric_type = om2.MFnNumericAttribute(attr).numericType()
         type_name = _MOVABLE_NUMERIC_TYPES.get(numeric_type)
         if type_name is None:
-            raise TypeError(f"Unsupported numeric attribute type for reordering: {plug.full_name()}")
-        info["attribute_type"] = type_name
-        if plug.has_min():
+            raise TypeError(f"Unsupported numeric attribute type for reordering: {plug.fullName()}")
+        info["attributeType"] = type_name
+        if plug.hasMin():
             info["min"] = plug.min()
-        if plug.has_max():
+        if plug.hasMax():
             info["max"] = plug.max()
-        info["default_value"] = plug.default()
+        info["defaultValue"] = plug.default()
     elif attr.hasFn(om2.MFn.kEnumAttribute):
-        info["attribute_type"] = "enum"
-        info["enum_name"] = cmds.attributeQuery(plug.attribute_name(), node=plug.node.full_name(), listEnum=True)[0]
-        info["default_value"] = plug.default()
+        info["attributeType"] = "enum"
+        info["enumName"] = cmds.attributeQuery(plug.attributeName(), node=plug.node.fullName(), listEnum=True)[0]
+        info["defaultValue"] = plug.default()
     elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
-        info["data_type"] = "string"
+        info["dataType"] = "string"
     else:
-        raise TypeError(f"Unsupported attribute type for reordering: {plug.full_name()}")
+        raise TypeError(f"Unsupported attribute type for reordering: {plug.fullName()}")
     return info
 
 
@@ -236,31 +236,31 @@ def _create_movable_attr(node, info):
         Plug: 再作成したアトリビュートプラグ。
     """
     kwargs = {"hidden": info["hidden"]}
-    if info["nice_name"]:
-        kwargs["niceName"] = info["nice_name"]
+    if info["niceName"]:
+        kwargs["niceName"] = info["niceName"]
     if "min" in info:
         kwargs["minValue"] = info["min"]
     if "max" in info:
         kwargs["maxValue"] = info["max"]
-    if "enum_name" in info:
-        kwargs["enumName"] = info["enum_name"]
-    plug = node.add_attribute(
-        info["long_name"],
-        attribute_type=info.get("attribute_type"),
-        data_type=info.get("data_type"),
-        default_value=info.get("default_value"),
+    if "enumName" in info:
+        kwargs["enumName"] = info["enumName"]
+    plug = node.addAttribute(
+        info["longName"],
+        attributeType=info.get("attributeType"),
+        dataType=info.get("dataType"),
+        defaultValue=info.get("defaultValue"),
         **kwargs,
     )
     plug.set(info["value"])
-    plug.set_flags(keyable=info["keyable"])
+    plug.setFlags(keyable=info["keyable"])
     if not info["keyable"]:
-        plug.set_flags(channel_box=info["channel_box"])
+        plug.setFlags(channelBox=info["channelBox"])
     if info["source"] is not None:
         info["source"].connect(plug)
     for destination in info["destinations"]:
         plug.connect(destination)
     if info["locked"]:
-        plug.set_flags(locked=True)
+        plug.setFlags(locked=True)
     return plug
 
 
@@ -329,17 +329,17 @@ class Node(Object):
                 owner = om2.MSelectionList()
                 try:
                     owner.add(text.split(".", 1)[0])
-                    dag_path = owner.getDagPath(0)
+                    dagPath = owner.getDagPath(0)
                 except (RuntimeError, TypeError):
                     continue
-                if dag_path.node() == mobject:
-                    return mobject, dag_path
+                if dagPath.node() == mobject:
+                    return mobject, dagPath
                 # transform の名前でシェイプのアトリビュートを指す場合は、名前が指す transform の
                 # インスタンスの下にある所有シェイプまでパスを伸ばす。
-                for child in range(dag_path.childCount()):
-                    if dag_path.child(child) == mobject:
-                        dag_path.push(mobject)
-                        return mobject, dag_path
+                for child in range(dagPath.childCount()):
+                    if dagPath.child(child) == mobject:
+                        dagPath.push(mobject)
+                        return mobject, dagPath
         return mobject, fn.getPath()
 
     @staticmethod
@@ -397,7 +397,7 @@ class Node(Object):
             Node: value が Node ならそのまま、Plug なら ``plug.node``、コンポーネントなら
                 ``shape``。それ以外は ``Node(value)`` (Maya へ解決し、型に応じたラッパーを返す)。
                 削除済みの Node と、所有ノードが削除済みの Plug・Component は例外にせずそのまま
-                返す(``Node.is_valid()`` が ``False``。扱いは呼び出し側で決める)。
+                返す(``Node.isValid()`` が ``False``。扱いは呼び出し側で決める)。
 
         Raises:
             TypeError: 対応しない型の場合。
@@ -445,31 +445,31 @@ class Node(Object):
         from hlib.object import Object as _InputObject
         # 型と有効性の検査は Object._input_name と同じ規則(TypeError / ValueError)にそろえる。
         _InputObject._input_name(value)
-        return Node._resolve_input(value).full_name()
+        return Node._resolve_input(value).fullName()
 
 
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
 
-    def shading_engines(self):
+    def shadingEngines(self):
         """自身から直接接続されているShadingEngineを重複なしで返す。
 
         Returns:
             list[ShadingEngine]: 直接接続先。テクスチャから履歴を辿る操作ではない。
         """
         from .shadingEngine import ShadingEngine
-        names = cmds.listConnections(self.full_name(), source=False, destination=True,
+        names = cmds.listConnections(self.fullName(), source=False, destination=True,
                                      type="shadingEngine") or []
         return list(dict.fromkeys(ShadingEngine(name) for name in names))
 
-    def assigned_objects(self):
+    def assignedObjects(self):
         """接続先ShadingEngineのメンバーを重複なしで取得する。
 
         Returns:
             list[Node | Face]: 割り当て先オブジェクトまたはフェース。
         """
         result = []
-        for group in self.shading_engines():
+        for group in self.shadingEngines():
             for member in group.members():
                 if member not in result:
                     result.append(member)
@@ -482,8 +482,8 @@ class Node(Object):
             list[Node]: 重複なしのマテリアル。未接続のShadingEngineは除く。
         """
         result = []
-        for group in self.shading_engines():
-            material = group.get_shader()
+        for group in self.shadingEngines():
+            material = group.getShader()
             if material is not None and material not in result:
                 result.append(material)
         return result
@@ -616,7 +616,7 @@ class Node(Object):
         """保持するノードの MFnDependencyNode を返す(作成は初回の1回だけ)。
 
         名前・アトリビュートの問い合わせのたびに関数セットを作り直さないためのキャッシュ。
-        ノードが有効(:meth:`is_valid`)であることを呼び出し側で確かめてから使う。
+        ノードが有効(:meth:`isValid`)であることを呼び出し側で確かめてから使う。
 
         Returns:
             om2.MFnDependencyNode: このノードの関数セット。
@@ -634,10 +634,10 @@ class Node(Object):
         Raises:
             RuntimeError: 保持しているDAGインスタンスが削除された場合。
         """
-        dag_path = self._dag_path
-        if dag_path is not None and not dag_path.isValid():
+        dagPath = self._dag_path
+        if dagPath is not None and not dagPath.isValid():
             raise RuntimeError("The referenced DAG instance no longer exists")
-        return dag_path
+        return dagPath
 
     def __hash__(self):
         """生成時のMayaハンドルのハッシュを返す。改名・削除後も変化しない。"""
@@ -647,23 +647,23 @@ class Node(Object):
         """生存中の同じ対象を比較する。DAGはインスタンスのパスも区別する。"""
         if not isinstance(other, Node):
             return NotImplemented
-        if not self.is_alive() or not other.is_alive():
+        if not self.isAlive() or not other.isAlive():
             return False
         if self._dag_path is not None and other._dag_path is not None:
             return self._dag_path == other._dag_path
         return self._mobject == other._mobject
 
-    def same_node(self, other):
+    def sameNode(self, other):
         """別インスタンスも含め、同じ生存中のMayaノードを指すか返す。"""
-        return (isinstance(other, Node) and self.is_alive() and other.is_alive()
+        return (isinstance(other, Node) and self.isAlive() and other.isAlive()
                 and self._mobject == other._mobject)
 
-    def same_instance(self, other):
+    def sameInstance(self, other):
         """同じ生存中のDAGインスタンスか返す。非DAGノードはFalse。"""
         return (isinstance(other, Node) and self._dag_path is not None
                 and other._dag_path is not None and self == other)
 
-    def is_valid(self):
+    def isValid(self):
         """Maya シーン上でノードが有効か判定する。
 
         Returns:
@@ -672,7 +672,7 @@ class Node(Object):
         handle = self._handle
         return handle is not None and handle.isValid()
 
-    def is_alive(self):
+    def isAlive(self):
         """ノードの Maya オブジェクトがメモリ上に生存しているか判定する。
 
         Returns:
@@ -697,7 +697,7 @@ class Node(Object):
         """
         return om2.MFnDependencyNode(self._mobject).typeName
 
-    def type_id(self):
+    def typeId(self):
         """Maya の内部 typeId を整数で返す。
 
         同一 Maya セッション内でノード型を高速に比較する用途に使う。
@@ -708,7 +708,7 @@ class Node(Object):
         """
         return om2.MFnDependencyNode(self._mobject).typeId.id()
 
-    def plugin_name(self):
+    def pluginName(self):
         """ノード型がプラグイン由来の場合、そのプラグイン名を取得する。
 
         Returns:
@@ -725,11 +725,11 @@ class Node(Object):
         """
         return cmds.getClassification(self.type())
 
-    def is_type(self, node_type):
+    def isType(self, node_type):
         """自身の nodeType が指定型そのもの、またはその派生型か判定する。
 
         ``cmds.nodeType(inherited=True)`` による継承チェーンで判定するため、
-        例えば mesh ノードは ``is_type("shape")`` で True になる。
+        例えば mesh ノードは ``isType("shape")`` で True になる。
 
         Args:
             node_type (str): 判定する Maya nodeType 名。
@@ -742,21 +742,21 @@ class Node(Object):
         """
         if not isinstance(node_type, str) or not node_type:
             raise ValueError("node_type must be a non-empty string")
-        if not self.is_valid():
+        if not self.isValid():
             return False
-        return node_type in (cmds.nodeType(self.full_name(), inherited=True) or [])
+        return node_type in (cmds.nodeType(self.fullName(), inherited=True) or [])
 
-    def is_locked(self):
+    def isLocked(self):
         """ノード自体がロックされているか判定する。
 
-        アトリビュート単位のロックは Plug.is_locked() を参照する。
+        アトリビュート単位のロックは Plug.isLocked() を参照する。
 
         Returns:
             bool: ロックされている場合は True。
         """
         return om2.MFnDependencyNode(self._mobject).isLocked
 
-    def is_referenced(self):
+    def isReferenced(self):
         """ノードが参照ファイルから読み込まれたものか判定する。
 
         Returns:
@@ -764,7 +764,7 @@ class Node(Object):
         """
         return om2.MFnDependencyNode(self._mobject).isFromReferencedFile
 
-    def is_ancestor_of(self, other):
+    def isAncestorOf(self, other):
         """other が自身の DAG 階層上の子孫か判定する。
 
         Args:
@@ -781,13 +781,13 @@ class Node(Object):
             RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
         other_node = _query_target(other)
-        self_full = self.full_name()
+        self_full = self.fullName()
         if other_node is None or not self_full:
             return False
-        other_full = other_node.full_name()
+        other_full = other_node.fullName()
         return other_full != self_full and other_full.startswith(self_full + "|")
 
-    def is_parent_of(self, other):
+    def isParentOf(self, other):
         """other が自身の直接の子か判定する（孫以下は対象外）。
 
         Args:
@@ -804,14 +804,14 @@ class Node(Object):
             RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
         """
         other_node = _query_target(other)
-        self_full = self.full_name()
+        self_full = self.fullName()
         if other_node is None or not self_full:
             return False
-        other_full = other_node.full_name()
+        other_full = other_node.fullName()
         parent_prefix, separator, _ = other_full.rpartition("|")
         return bool(separator) and parent_prefix == self_full
 
-    def is_child_of(self, other):
+    def isChildOf(self, other):
         """other が自身の直接の親か判定する（祖父母以上は対象外）。
 
         Args:
@@ -830,9 +830,9 @@ class Node(Object):
         other_node = _query_target(other)
         if other_node is None:
             return False
-        return other_node.is_parent_of(self)
+        return other_node.isParentOf(self)
 
-    def attribute_count(self):
+    def attributeCount(self):
         """ノードが持つアトリビュートの総数を取得する。
 
         Returns:
@@ -853,14 +853,14 @@ class Node(Object):
         Raises:
             RuntimeError: DAG パスを保持していない場合。
         """
-        dag_path = self._current_dag_path()
-        if dag_path is None:
+        dagPath = self._current_dag_path()
+        if dagPath is None:
             raise RuntimeError("DAG ノードではありません")
         if full:
-            return dag_path.fullPathName()
-        return dag_path.partialPathName()
+            return dagPath.fullPathName()
+        return dagPath.partialPathName()
 
-    def is_root(self):
+    def isRoot(self):
         """DAG ノードがワールド直下か判定する。
 
         Returns:
@@ -869,12 +869,12 @@ class Node(Object):
         Raises:
             RuntimeError: DAG パスを保持していない場合。
         """
-        dag_path = self._current_dag_path()
-        if dag_path is None:
+        dagPath = self._current_dag_path()
+        if dagPath is None:
             raise RuntimeError("DAG ノードではありません")
-        return dag_path.length() == 1
+        return dagPath.length() == 1
 
-    def node_name(self, remove_namespace=False):
+    def nodeName(self, remove_namespace=False):
         """DAG パスを除いたノード名を返す。
 
         Args:
@@ -884,10 +884,10 @@ class Node(Object):
             str: namespaceを含むノード名。``remove_namespace`` が ``True`` の場合は
                 namespaceを含まないノード名。
         """
-        node_name = om2.MFnDependencyNode(self._mobject).name()
+        nodeName = om2.MFnDependencyNode(self._mobject).name()
         if remove_namespace:
-            node_name = node_name.rsplit(":", 1)[-1]
-        return node_name
+            nodeName = nodeName.rsplit(":", 1)[-1]
+        return nodeName
 
     def namespace(self):
         """ノードが属するネームスペースを返す。
@@ -899,10 +899,10 @@ class Node(Object):
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
         from hlib.scene import Namespace
 
-        node_name = self.node_name()
-        if ":" not in node_name:
+        nodeName = self.nodeName()
+        if ":" not in nodeName:
             return Namespace(":")
-        return Namespace(node_name.rsplit(":", 1)[0])
+        return Namespace(nodeName.rsplit(":", 1)[0])
 
     @undo_chunk("hlibNodeDelete")
     def delete(self):
@@ -917,9 +917,9 @@ class Node(Object):
         Raises:
             RuntimeError: 対象が無効、またはMayaが削除を拒否した場合。
         """
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("Cannot delete an invalid node")
-        cmds.delete(self.full_name())
+        cmds.delete(self.fullName())
 
     @undo_chunk("hlibNodeRename")
     def rename(self, name, ignore_shape=False):
@@ -938,7 +938,7 @@ class Node(Object):
         return cmds.rename(self.name(), name, ignoreShape=ignore_shape)
 
     @undo_chunk("hlibNodeSetNamespace")
-    def set_namespace(self, namespace):
+    def setNamespace(self, namespace):
         """ノードを指定したネームスペースへ移動する。
 
         Args:
@@ -963,11 +963,11 @@ class Node(Object):
         if not target_namespace.exists() and target_namespace.name != ":":
             target_namespace = Namespace.create(target_namespace)
         namespace_name = target_namespace.name
-        node_name = self.node_name(True)
+        nodeName = self.nodeName(True)
         new_name = (
-            f"{namespace_name}:{node_name}"
+            f"{namespace_name}:{nodeName}"
             if namespace_name != ":"
-            else node_name
+            else nodeName
         )
         return cmds.rename(self.name(), new_name)
 
@@ -978,7 +978,7 @@ class Node(Object):
             as_source (bool): 接続元Plugを検索対象に含めるかどうか。
             as_destination (bool): 接続先Plugを検索対象に含めるかどうか。
             type (str | None): 指定した場合、接続先ノードの nodeType が
-                ``is_type`` で一致するものだけに絞り込む(継承チェーンも判定)。
+                ``isType`` で一致するものだけに絞り込む(継承チェーンも判定)。
 
         Returns:
             list[Plug]: 接続先の外部Plugを重複なしで格納したリスト。
@@ -999,7 +999,7 @@ class Node(Object):
                 if key in seen:
                     continue
                 node = Node(connected.node())
-                if type is not None and not node.is_type(type):
+                if type is not None and not node.isType(type):
                     continue
                 seen.add(key)
                 plugs.append(Plug(node, connected))
@@ -1037,15 +1037,15 @@ class Node(Object):
                 (継承チェーンも判定)。
 
         Returns:
-            list[Plug]: 入力元と出力先の外部プラグ。一意なプラグ名(``full_name()``)で
+            list[Plug]: 入力元と出力先の外部プラグ。一意なプラグ名(``fullName()``)で
                 重複を除外する。接続がなければ空リスト。
         """
         plugs = []
         seen = set()
         for plug in self.inputs(type=type) + self.outputs(type=type):
-            if plug.full_name() in seen:
+            if plug.fullName() in seen:
                 continue
-            seen.add(plug.full_name())
+            seen.add(plug.fullName())
             plugs.append(plug)
         return plugs
 
@@ -1062,19 +1062,19 @@ class Node(Object):
         Raises:
             RuntimeError: 無効なノード、またはMayaの履歴検索が失敗した場合。
         """
-        names = cmds.listHistory(self.full_name(), future=future) or []
+        names = cmds.listHistory(self.fullName(), future=future) or []
         result, seen = [], {self.uuid()}
         for name in names:
             node = Node(name)
             if node.uuid() in seen:
                 continue
             seen.add(node.uuid())
-            if type is None or node.is_type(type):
+            if type is None or node.isType(type):
                 result.append(node)
         return result
 
     @undo_chunk("hlibNodeResetAttrs")
-    def reset_attributes(self, attributes=None):
+    def resetAttributes(self, attributes=None):
         """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。
 
         Args:
@@ -1092,8 +1092,8 @@ class Node(Object):
         """
         if attributes is None:
             plugs = [plug for plug in self.plugs(keyable=True, scalar=True)
-                     if plug.default() is not None and not plug.is_destination()
-                     and cmds.getAttr(plug.full_name(), settable=True)]
+                     if plug.default() is not None and not plug.isDestination()
+                     and cmds.getAttr(plug.fullName(), settable=True)]
         else:
             if isinstance(attributes, str):
                 attributes = [attributes]
@@ -1104,7 +1104,7 @@ class Node(Object):
 
     @fast_edit
     @undo_chunk("hlibNodeSetAttrFlags")
-    def set_attribute_flags(self, attributes, locked=None, keyable=None, channel_box=None, *, fast=False):
+    def setAttributeFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
         """指定したアトリビュートのロック・キー設定可否・Channel Box表示をまとめて変更する。
 
         Args:
@@ -1113,7 +1113,7 @@ class Node(Object):
                 複合アトリビュートの子まで変更する場合は子アトリビュート名を明示する。
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー設定可否。Noneは変更しない。
-            channel_box (bool | None): Channel Box表示。Noneは変更しない。
+            channelBox (bool | None): Channel Box表示。Noneは変更しない。
                 keyable=TrueのアトリビュートはMayaの仕様により表示される。
 
         Returns:
@@ -1128,13 +1128,13 @@ class Node(Object):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         from ..plugs.plug import Plug
-        flags = Plug._validated_flags(locked, keyable, channel_box)
+        flags = Plug._validated_flags(locked, keyable, channelBox)
         if isinstance(attributes, str):
             attributes = [attributes]
         plugs = [self.plug(name) for name in attributes]
         if flags:
             for plug in plugs:
-                plug.set_flags(locked=locked, keyable=keyable, channel_box=channel_box)
+                plug.setFlags(locked=locked, keyable=keyable, channelBox=channelBox)
         return self
 
     def plugs(self, **kwargs):
@@ -1152,9 +1152,9 @@ class Node(Object):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートは列挙できません")
-        names = cmds.listAttr(self.full_name(), **kwargs) or []
+        names = cmds.listAttr(self.fullName(), **kwargs) or []
         plugs = []
         for name in names:
             try:
@@ -1173,83 +1173,99 @@ class Node(Object):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("無効なノードのエイリアスは取得できません")
         # plugs.plug が ..nodes.node を逆方向 import するため、
         # 循環回避のためここで遅延 import する（plug() と同じ理由）。
         from ..plugs.plug import Plug
 
-        flat = cmds.aliasAttr(self.full_name(), query=True) or []
+        flat = cmds.aliasAttr(self.fullName(), query=True) or []
         pairs = []
         for index in range(0, len(flat), 2):
-            alias_name, attribute_name = flat[index], flat[index + 1]
+            alias_name, attributeName = flat[index], flat[index + 1]
             # 配列要素(例: "weight[0]")は findPlug が解決できないため、
             # ブラケット付きアトリビュートパスも扱える MSelectionList 経由で解決する。
             selection = om2.MSelectionList()
-            selection.add(f"{self.full_name()}.{attribute_name}")
+            selection.add(f"{self.fullName()}.{attributeName}")
             pairs.append((alias_name, Plug(self, selection.getPlug(0))))
         return pairs
 
     @undo_chunk("hlibNodeAddAttr")
-    def add_attribute(
+    def addAttribute(
         self,
-        long_name,
-        attribute_type=None,
-        data_type=None,
-        default_value=None,
+        longName,
+        attributeType=None,
+        dataType=None,
+        defaultValue=None,
         **kwargs,
     ):
         """アトリビュートを追加し、追加したPlugを返す。
 
-        attribute_typeがdouble2/double3/float2/float3ならXYZの子も自動作成する。
+        attributeTypeがdouble2/double3/float2/float3ならXYZの子も自動作成する。
         任意構成のcompoundはMaya標準addAttrで子まで定義してからplugで取得する。
 
         Args:
-            long_name (str): 追加するアトリビュートのロング名。
-            attribute_type (str | None): addAttr の attributeType。data_type と少なくとも一方が必要。
-            data_type (str | None): addAttr の dataType。
-            default_value (object | None): addAttr の defaultValue。None なら指定しない。
+            longName (str): 追加するアトリビュートのロング名。
+            attributeType (str | None): addAttr の attributeType。dataType と少なくとも一方が必要。
+            dataType (str | None): addAttr の dataType。
+            defaultValue (object | None): 初期値。単位型はcm/rad/秒またはAPIの単位型。
+                Noneなら指定しない。timeのdefaultValueはMayaのaddAttrの制限に従う。
             **kwargs (object): addAttrへ渡す長名・短名フラグ。重複指定は拒否する。
+                minValue/maxValue/softMinValue/softMaxValueも内部単位で受け取る。
 
         Returns:
             Plug: 追加したアトリビュートの型に対応するプラグ。
 
         Raises:
-            ValueError: long_name が空または文字列以外、あるいはアトリビュート型の指定がない場合。
+            ValueError: longName が空または文字列以外、あるいはアトリビュート型の指定がない場合。
             RuntimeError: Maya がアトリビュート追加を拒否した場合。
         """
-        if not isinstance(long_name, str) or not long_name:
-            raise ValueError("long_name must be a non-empty string")
+        if not isinstance(longName, str) or not longName:
+            raise ValueError("longName must be a non-empty string")
         from .._core.flags import normalize_flags
         add_kwargs = normalize_flags("addAttr", kwargs)
+        if add_kwargs.get("query") or add_kwargs.get("edit"):
+            raise ValueError("addAttr supports creation only")
         if "longName" in add_kwargs:
-            raise TypeError("long_name and longName cannot be specified together")
-        add_kwargs["longName"] = long_name
-        if attribute_type is not None:
+            raise TypeError("longName and ln cannot be specified together")
+        add_kwargs["longName"] = longName
+        if attributeType is not None:
             if "attributeType" in add_kwargs:
-                raise TypeError("Specify attribute_type or attributeType, not both")
-            add_kwargs["attributeType"] = attribute_type
-        if data_type is not None:
+                raise TypeError("Specify attributeType or at, not both")
+            add_kwargs["attributeType"] = attributeType
+        if dataType is not None:
             if "dataType" in add_kwargs:
-                raise TypeError("Specify data_type or dataType, not both")
-            add_kwargs["dataType"] = data_type
-        if default_value is not None:
+                raise TypeError("Specify dataType or dt, not both")
+            add_kwargs["dataType"] = dataType
+        if defaultValue is not None:
             if "defaultValue" in add_kwargs:
-                raise TypeError("Specify default_value or defaultValue, not both")
-            add_kwargs["defaultValue"] = default_value
+                raise TypeError("Specify defaultValue or dv, not both")
+            add_kwargs["defaultValue"] = defaultValue
         if not (add_kwargs.get("attributeType") or add_kwargs.get("dataType")):
-            raise ValueError("attribute_type or data_type is required")
+            raise ValueError("attributeType or dataType is required")
+        unit_type = {
+            "doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
+            "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
+            "time": (om2.MTime, om2.MTime.kSeconds),
+        }.get(add_kwargs.get("attributeType"))
+        if unit_type:
+            cls, internal = unit_type
+            for flag in ("defaultValue", "minValue", "maxValue", "softMinValue", "softMaxValue"):
+                if flag in add_kwargs:
+                    value = add_kwargs[flag]
+                    quantity = value if isinstance(value, cls) else cls(value, internal)
+                    add_kwargs[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
         vector_type = add_kwargs.get("attributeType")
         if vector_type in ("double2", "double3", "float2", "float3"):
             # Mayaは子が揃うまで複合Plugを公開しないため、XYZの子も同時に作る。
             if "numberOfChildren" in add_kwargs:
-                raise ValueError("Vector child count is determined by attribute_type")
-            cmds.addAttr(self.full_name(), **add_kwargs)
+                raise ValueError("Vector child count is determined by attributeType")
+            cmds.addAttr(self.fullName(), **add_kwargs)
             for axis in "XYZ"[:int(vector_type[-1])]:
-                cmds.addAttr(self.full_name(), longName=long_name + axis,
-                             attributeType=vector_type[:-1], parent=long_name,
+                cmds.addAttr(self.fullName(), longName=longName + axis,
+                             attributeType=vector_type[:-1], parent=longName,
                              keyable=bool(add_kwargs.get("keyable", False)))
-            return self.plug(long_name)
+            return self.plug(longName)
         return self._add_attribute(self, **add_kwargs)
 
     @staticmethod
@@ -1285,7 +1301,7 @@ class Node(Object):
             raise ValueError("Specify longName or shortName")
         return Node._resolve_input(target).plug(attribute)
 
-    def get_extra_attributes(self, include_children=False):
+    def getExtraAttributes(self, include_children=False):
         """ユーザー追加のエクストラアトリビュートを型付きPlugで取得する。
 
         Args:
@@ -1301,12 +1317,12 @@ class Node(Object):
         """
         if not isinstance(include_children, bool):
             raise TypeError("include_children must be a bool")
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("Cannot list attributes on an invalid node")
-        names = (cmds.listAttr(self.full_name(), userDefined=True) or []) if include_children else self.user_attribute_names()
+        names = (cmds.listAttr(self.fullName(), userDefined=True) or []) if include_children else self.userAttributeNames()
         return [self.plug(name) for name in names]
 
-    def user_attribute_names(self):
+    def userAttributeNames(self):
         """トップレベルのユーザー定義アトリビュート名を現在の並び順で取得する。
 
         複合アトリビュートの子は含まない。
@@ -1317,13 +1333,13 @@ class Node(Object):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートは列挙できません")
-        names = cmds.listAttr(self.full_name(), userDefined=True) or []
-        return [name for name in names if not self.plug(name).is_child()]
+        names = cmds.listAttr(self.fullName(), userDefined=True) or []
+        return [name for name in names if not self.plug(name).isChild()]
 
     @undo_chunk("hlibNodeMoveAttribute")
-    def move_attribute_order(self, name, offset):
+    def moveAttributeOrder(self, name, offset):
         """ユーザー定義アトリビュートを Channel Box 上で前後に移動する。
 
         Maya にはアトリビュートの並び替え API が無いため、移動元と移動先のうち手前側の
@@ -1347,9 +1363,9 @@ class Node(Object):
                 含まれる場合。
             RuntimeError: ノードが無効な場合。
         """
-        names = self.user_attribute_names()
+        names = self.userAttributeNames()
         if name not in names:
-            raise ValueError(f"{name} is not a top-level user-defined attribute of {self.full_name()}")
+            raise ValueError(f"{name} is not a top-level user-defined attribute of {self.fullName()}")
         old_index = names.index(name)
         new_index = max(0, min(len(names) - 1, old_index + offset))
         if new_index == old_index:
@@ -1361,7 +1377,7 @@ class Node(Object):
 
         infos = [_dump_movable_attr(self.plug(attr_name)) for attr_name in to_recreate]
         for attr_name in to_recreate:
-            self.plug(attr_name).delete_attribute(force=True)
+            self.plug(attr_name).deleteAttribute(force=True)
         for info in infos:
             _create_movable_attr(self, info)
         return self
@@ -1375,7 +1391,7 @@ class Node(Object):
         アトリビュート名(ロング名・ショート名・エイリアス)に加え、配列要素と子アトリビュートを含むアトリビュートパス
         (``input1D[3]``、``worldMatrix[0]``、``pnts[2].pntx``、
         ``inputTarget[0].inputTargetGroup[7].inputTargetItem[6000].inputComponentsTarget``)を
-        指定できる。形式は ``str(plug)`` のアトリビュート部分(``Plug.full_name()`` の ``.`` 以降)と同じ。
+        指定できる。形式は ``str(plug)`` のアトリビュート部分(``Plug.fullName()`` の ``.`` 以降)と同じ。
         配列インデックスは 0〜2147483647(``MPlug.logicalIndex()`` の範囲)で指定する。
         存在しない配列要素の Plug を取得しても要素は作られない(値によって型が変わるアトリビュートの
         評価を除き、シーンを変更しない。:doc:`/cmds_interop` を参照)。
@@ -1399,7 +1415,7 @@ class Node(Object):
         from hlib.plugs.plug import MAX_LOGICAL_INDEX
         if not isinstance(name, str) or not name:
             raise ValueError("name には空でないアトリビュートパスを指定してください")
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
         # plugs.plug ⇔ nodes の相互依存を避けるための遅延 import。inputs()/outputs() と同じ理由。
         from ..plugs.plug import Plug
@@ -1423,7 +1439,7 @@ class Node(Object):
             raise AttributeError(f"アトリビュートが見つかりません: {self.name()}.{name}")
         return Plug(self, mplug)
 
-    def has_attribute(self, name):
+    def hasAttribute(self, name):
         """アトリビュートパスを解決できるか判定する。
 
         Args:
@@ -1444,7 +1460,7 @@ class Node(Object):
         Returns:
             str | None: 有効なノードの UUID。無効な場合は ``None``。
         """
-        if not self.is_valid():
+        if not self.isValid():
             return None
         return om2.MFnDependencyNode(self._mobject).uuid().asString()
 
@@ -1457,14 +1473,14 @@ class Node(Object):
         handle = self._handle
         if handle is None or not handle.isValid():
             return ""
-        dag_path = self._dag_path
-        if dag_path is None:
+        dagPath = self._dag_path
+        if dagPath is None:
             return self._dependency_fn().name()
-        if not dag_path.isValid():
-            dag_path = self._current_dag_path()
-        return dag_path.partialPathName()
+        if not dagPath.isValid():
+            dagPath = self._current_dag_path()
+        return dagPath.partialPathName()
 
-    def full_name(self):
+    def fullName(self):
         """Maya の完全 DAG パスまたは DG ノード名を返す。
 
         Returns:
@@ -1473,12 +1489,12 @@ class Node(Object):
         handle = self._handle
         if handle is None or not handle.isValid():
             return ""
-        dag_path = self._dag_path
-        if dag_path is None:
+        dagPath = self._dag_path
+        if dagPath is None:
             return self._dependency_fn().name()
-        if not dag_path.isValid():
-            dag_path = self._current_dag_path()
-        return dag_path.fullPathName()
+        if not dagPath.isValid():
+            dagPath = self._current_dag_path()
+        return dagPath.fullPathName()
 
     def __str__(self):
         """Maya の最短一意ノード名を文字列として返す。
@@ -1498,7 +1514,7 @@ class Node(Object):
         Returns:
             str: 有効なら型名とノード名、無効なら型名と invalid を含む文字列。
         """
-        if self.is_valid():
+        if self.isValid():
             return f"{type(self).__name__}({self.name()!r})"
         return f"<{type(self).__name__} invalid>"
 
@@ -1523,7 +1539,7 @@ class Node(Object):
         """
         if name.startswith("_"):
             raise AttributeError(name)
-        if not self.is_valid():
+        if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
         try:
             return self.plug(name)
@@ -1537,51 +1553,51 @@ class Node(Object):
 @bulk_api(
     Node,
     reads=(
-        'shading_engines',
-        'assigned_objects',
+        'shadingEngines',
+        'assignedObjects',
         'materials',
-        'same_node',
-        'same_instance',
-        'is_valid',
-        'is_alive',
+        'sameNode',
+        'sameInstance',
+        'isValid',
+        'isAlive',
         'mobject',
         'type',
-        'type_id',
-        'plugin_name',
+        'typeId',
+        'pluginName',
         'classification',
-        'is_type',
-        'is_locked',
-        'is_referenced',
-        'is_ancestor_of',
-        'is_parent_of',
-        'is_child_of',
-        'attribute_count',
+        'isType',
+        'isLocked',
+        'isReferenced',
+        'isAncestorOf',
+        'isParentOf',
+        'isChildOf',
+        'attributeCount',
         'path',
-        'is_root',
-        'node_name',
+        'isRoot',
+        'nodeName',
         'namespace',
         'rename',
         'inputs',
         'outputs',
         'connections',
         'history',
-        'reset_attributes',
+        'resetAttributes',
         'plugs',
         'aliases',
-        'add_attribute',
-        'get_extra_attributes',
-        'user_attribute_names',
+        'addAttribute',
+        'getExtraAttributes',
+        'userAttributeNames',
         'plug',
-        'has_attribute',
+        'hasAttribute',
         'uuid',
         'name',
-        'full_name',
+        'fullName',
     ),
     writes=(
         'delete',
-        'set_namespace',
-        'set_attribute_flags',
-        'move_attribute_order',
+        'setNamespace',
+        'setAttributeFlags',
+        'moveAttributeOrder',
     ),
 )
 class Nodes:
@@ -1634,7 +1650,7 @@ class Nodes:
         """int: 保持要素数。"""
         return len(self._items)
 
-    def call_each(self, method, arguments, keyword_arguments=None):
+    def callEach(self, method, arguments, keyword_arguments=None):
         """各要素へ異なる引数を渡す。メソッド名は単体の公開インスタンスメソッドのみ。
 
         Args:
@@ -1672,8 +1688,8 @@ class Nodes:
 
     def _dispatch_shared(self, method, args, kwargs):
         """単体APIの転送先を決める。独自call_eachのoverrideを維持する。"""
-        if type(self).call_each is not Nodes.call_each:
-            return self.call_each(method, [args] * len(self), [kwargs] * len(self))
+        if type(self).callEach is not Nodes.callEach:
+            return self.callEach(method, [args] * len(self), [kwargs] * len(self))
         return self._call_shared(method, args, kwargs)
 
     def _call_shared(self, method, args, kwargs):
@@ -1768,12 +1784,12 @@ class Nodes:
         items, seen = [], set()
         for value in names:
             node = Node._resolve_input(value)
-            if not node.is_valid():
+            if not node.isValid():
                 raise RuntimeError("Cannot collect an invalid node")
             if not isinstance(node, self.item_class):
                 raise TypeError(f"{type(self).__name__} requires {self.item_class.__name__}, got {type(node).__name__}")
             # 構築時だけキーを使用。以後の改名・親変更はNode参照が追跡する。
-            key = (node.uuid(), node.full_name())
+            key = (node.uuid(), node.fullName())
             if key not in seen:
                 seen.add(key)
                 items.append(node)
@@ -1816,10 +1832,10 @@ class Nodes:
                 途中までの変更は自動で戻さない。全体は一回のUndoで戻せる。
         """
         for index, node in enumerate(self):
-            if not node.is_valid():
+            if not node.isValid():
                 raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
         for index, node in enumerate(self):
-            if node.is_valid():
+            if node.isValid():
                 try:
                     node.delete()
                 except Exception as exc:

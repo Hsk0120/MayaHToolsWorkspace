@@ -60,13 +60,13 @@ class BendCorrectionTest(unittest.TestCase):
         before = set(cmds.ls())
         graph = BendCorrection.create(parent, joint)
         cmds.setAttr(joint + ".rz", 90)
-        self.assertAlmostEqual(graph.container.plug("inner").get(), 0.3, places=5)
+        self.assertAlmostEqual(graph.container.plug("inner").get(), 30, places=5)
         cmds.currentUnit(linear="cm")
         self.assertAlmostEqual(graph.container.plug("inner").get(), 30, places=4)
         graph.container.plug("innerPush").set(-10)
         self.assertAlmostEqual(graph.container.plug("inner").get(), 40, places=4)
         created = set(cmds.ls()) - before
-        cmds.delete(graph.container.full_name())
+        cmds.delete(graph.container.fullName())
         self.assertFalse(created.intersection(cmds.ls()))
 
     def test_bad_parent_does_not_edit_scene(self):

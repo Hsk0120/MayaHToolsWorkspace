@@ -54,7 +54,7 @@ def main(output_dir=None, finished=None):
         rig.root.plug("blend").set(0.5)
         yield
         check(0 < rig.chains()[0][0].plug("rotateX").get() < 50, "Blend adjusts pose")
-        cmds.setAttr(rig.root.full_name() + ".enabled", False)
+        cmds.setAttr(rig.root.fullName() + ".enabled", False)
         yield
         (output / "jobs-state.json").write_text(
             json.dumps(
@@ -103,7 +103,7 @@ def main(output_dir=None, finished=None):
         yield
         check(not rig.layer_enabled(), "Layer checkbox changes enabled")
         rig.set_layer_enabled("radial", True)
-        cmds.setAttr(rig.root.full_name() + ".lod", 0)
+        cmds.setAttr(rig.root.fullName() + ".lod", 0)
         yield
         check(rig.chains()[0][0].plug("rotateX").source() is None, "Channel LOD stops output")
         rig.set_lod(1)
@@ -114,7 +114,7 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "skirt.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         rig = SkirtRig("renamedSkirt")
-        cmds.setAttr(rig.root.full_name() + ".enabled", False)
+        cmds.setAttr(rig.root.fullName() + ".enabled", False)
         yield
         check(rig.chains()[0][0].plug("rotateX").source() is None, "Reload restores attribute jobs")
         rig.set_layer_enabled("radial", True)

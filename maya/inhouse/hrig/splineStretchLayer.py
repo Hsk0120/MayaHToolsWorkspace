@@ -26,7 +26,7 @@ class SplineStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.plug("stretchGroup").source() if root.has_attribute("stretchGroup") else None
+        source = root.plug("stretchGroup").source() if root.hasAttribute("stretchGroup") else None
         return source.node if source is not None else None
 
     @staticmethod
@@ -41,7 +41,7 @@ class SplineStretchLayer:
         Returns:
             Node: 生成ノード。
         """
-        return hlib.nodes.Container(owner).create_node(kind, name=owner.name() + "_" + role)
+        return hlib.nodes.Container(owner).createNode(kind, name=owner.name() + "_" + role)
 
     @undo_transaction("hrig.SplineStretchLayer.add")
     def add(self):
@@ -59,7 +59,7 @@ class SplineStretchLayer:
         if any(hlib.getNode(j).connections(type="skinCluster") for j in rig.joints()):
             raise ValueError("Add stretch before binding the spline")
         lengths = [
-            hlib.utils.units.distance_from_ui(hlib.getAttr(j.full_name() + ".translateX"))
+            hlib.utils.units.distance_from_ui(hlib.getAttr(j.fullName() + ".translateX"))
             for j in rig.members("ik")[1:]
         ]
         graph = LengthCompensation.create(sum(lengths), root.name() + "_stretchGraph")
@@ -67,20 +67,20 @@ class SplineStretchLayer:
         group = hlib.createNode(
             "transform", name=root.name() + "_stretch_grp", parent=root, skipSelect=True
         )
-        group.set_attribute_flags(
+        group.setAttributeFlags(
             ["translate", "rotate", "scale", "visibility"], locked=True, keyable=False
         )
-        group.add_attribute(long_name="graph", attribute_type="message")
+        group.addAttribute(longName="graph", attributeType="message")
         owner.plug("message").connect(group.plug("graph"))
-        group.add_attribute(long_name="restLengths", data_type="string").set(
+        group.addAttribute(longName="restLengths", dataType="string").set(
             hlib.json.JsonText.dumps(lengths)
         )
-        group.add_attribute(long_name="outputs", attribute_type="message", multi=True)
-        group.add_attribute(long_name="measurement", attribute_type="message")
-        root.add_attribute(long_name="stretchGroup", attribute_type="message")
+        group.addAttribute(longName="outputs", attributeType="message", multi=True)
+        group.addAttribute(longName="measurement", attributeType="message")
+        root.addAttribute(longName="stretchGroup", attributeType="message")
         group.plug("message").connect(root.plug("stretchGroup"))
-        root.add_attribute(long_name="hrigEnabled_stretch", attribute_type="bool", default_value=True)
-        root.set_attribute_flags(["hrigEnabled_stretch"], channel_box=True)
+        root.addAttribute(longName="hrigEnabled_stretch", attributeType="bool", defaultValue=True)
+        root.setAttributeFlags(["hrigEnabled_stretch"], channelBox=True)
         for attr, value, low, high in (
             ("stretch", 1, 0, 1),
             ("squash", 1, 0, 1),
@@ -88,10 +88,10 @@ class SplineStretchLayer:
             ("minSquash", 0.1, 0.01, 1),
             ("maxStretch", 2, 1, 100),
         ):
-            group.add_attribute(
-                long_name=attr,
-                attribute_type="double",
-                default_value=value,
+            group.addAttribute(
+                longName=attr,
+                attributeType="double",
+                defaultValue=value,
                 minValue=low,
                 maxValue=high,
                 keyable=True,
@@ -100,11 +100,11 @@ class SplineStretchLayer:
         curve = rig.graph().member("curve")
         shape = hlib.getNode(
             [
-                item.full_name()
+                item.fullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (
-                        cmds.listRelatives(curve.full_name(), shapes=True, fullPath=True) or []
+                        cmds.listRelatives(curve.fullName(), shapes=True, fullPath=True) or []
                     )
                 ]
             ][0]
@@ -162,11 +162,11 @@ class SplineStretchLayer:
         if active and target.source() is None:
             shape = hlib.getNode(
                 [
-                    item.full_name()
+                    item.fullName()
                     for item in [
                         hlib.getNode(value)
                         for value in (
-                            cmds.listRelatives(curve.full_name(), shapes=True, fullPath=True) or []
+                            cmds.listRelatives(curve.fullName(), shapes=True, fullPath=True) or []
                         )
                     ]
                 ][0]
@@ -183,7 +183,7 @@ class SplineStretchLayer:
             if active:
                 group.plug("outputs[{}]".format(i)).source().node.plug("output").connect(target)
             else:
-                target.set(hlib.utils.units.distance_to_ui(length))
+                target.set(length)
         for source, joint in zip(
             self.rig.members("ik" if self.rig.active() else "fk"), self.rig.members("deform")
         ):

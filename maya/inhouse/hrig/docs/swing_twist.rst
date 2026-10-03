@@ -13,9 +13,9 @@ Swing / Twistとドリブンキー
 
    graph = SwingTwist.create("elbow_jnt", name="elbowDriver", axis="x")
    relation = DrivenKey(graph.container.plug("swingZ"), "corrective_jnt.translateY")
-   relation.set_key(-90, -1)
-   relation.set_key(0, 0)
-   relation.set_key(90, 1)
+   relation.setKey(-90, -1)
+   relation.setKey(0, 0)
+   relation.setKey(90, 1)
 
 ``axis`` はTwistの長手軸です。 ``rest=False`` なら生成時の姿勢を差し引かずに扱います。
 出力は以下です。

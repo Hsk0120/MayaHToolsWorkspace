@@ -10,14 +10,14 @@ Undo不要の値更新
 
    node = hlib.getNode("pCube1")
    node.plug("translateX").set(10, fast=True)
-   node.set_translate((1, 2, 3), fast=True)
+   node.setTranslation((1, 2, 3), fast=True)
 
    shape = hlib.getNode("pCubeShape1")
-   shape.vertices().set_position((0, 1, 0), fast=True)
+   shape.vertices().setPosition((0, 1, 0), fast=True)
    shape.vertices().mirror(axis="x", fast=True)
 
    joints = hlib.ls(type="joint")
-   joints.freeze_rotation(fast=True)
+   joints.freezeRotation(fast=True)
 
 対応範囲
 --------
@@ -25,16 +25,21 @@ Undo不要の値更新
 * Plugの ``set`` / ``reset`` とロック・keyable・channelBoxの設定。
   配列は要素Plugを取得して設定します。
 * Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー。
-* Joint / Jointsの ``freeze_rotation`` と ``joint_orient_to_rotate``。
+* Joint / Jointsの ``freezeRotation`` と ``jointOrientToRotate``。
 * NodeのOutliner色・override色・アトリビュート表示フラグ。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
-* SkinClusterの ``set_weights`` / ``load_weights`` / ``normalize_weights`` /
-  ``set_max_influences``。
+* SkinClusterの ``setWeights`` / ``loadWeights`` / ``normalizeWeights`` /
+  ``setMaxInfluences``。
 * Locator、BlendColors、BlendWeighted、MultMatrix、DecomposeMatrix、
   DistanceBetween、Constraintの値設定メソッド。
 
 対応メソッドから生成される複数形クラスの一括呼出しでも同じ引数を使用できます。
 読み取りメソッドやプロパティ代入にはフラグはありません。
+Mesh・NURBSカーブの座標取得は通常時もOpenMayaを使います。
+単点取得では全点を読み出さず、複数点は保持順にまとめて取得します。
+距離はcm、空間はMSpaceで指定し、履歴付き形状も読み取れます。
+周期カーブもAPIのCV番号を使います。通常更新とcmdsへ渡す名前では末尾の重複CVを
+対応する独立CVへ写します。fastの周期カーブ更新は未対応です。
 ノード作成・削除・接続変更、アニメーションキー編集、ファイル・UI操作などには
 このフラグを追加していません。個々のAPIリファレンスのシグネチャで確認してください。
 
@@ -54,6 +59,11 @@ Plugは数値・単位・enum・文字列・行列・対応するデータ配列
 未対応の型は ``NotImplementedError``、ロックや入力接続がある値はエラーになります。
 型判定の結果は1回の更新内で再利用しますが、ロック・接続・値の範囲・UI単位は
 更新するたびに確認します。削除されたアトリビュートの検証も省略しません。
+fastの配列値設定では、MPlugの参照を取得して値を書き込む時に要素を実体化します。
+型照会のための ``cmds.getAttr`` や、行列Plugの名前の再解決は挟みません。
+doubleArray・Int32Array・stringArray・vectorArray・pointArrayの読取りもAPIを使い、
+配列は常にlistです。空配列は[]、未初期化データはNone、点・ベクトルはtupleのlistです。
+1要素でも外側のlistを省きません。
 OpenMayaの直接設定はcmdsの全フラグを置き換えるものではありません。
 
 頂点・CV・UVではAPIの一括更新、ウェイトではMPlugの直接設定を使用します。

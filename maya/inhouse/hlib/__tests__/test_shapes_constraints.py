@@ -1,4 +1,5 @@
 """形状ラッパーと標準コンストレイントを Maya 内で検証する。"""
+from maya.api.OpenMaya import MSpace
 
 import sys
 import unittest
@@ -35,28 +36,28 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def test_delete_constraints_direct_and_undo(self):
         source, driven, other = self.transform(), self.transform(), self.transform()
-        constraint = driven.add_constraint(source)
-        untouched = other.add_constraint(driven)
-        name, untouched_name = constraint.full_name(), untouched.full_name()
-        self.assertEqual(driven.delete_constraints(), [name])
+        constraint = driven.addConstraint(source)
+        untouched = other.addConstraint(driven)
+        name, untouched_name = constraint.fullName(), untouched.fullName()
+        self.assertEqual(driven.deleteConstraints(), [name])
         self.assertFalse(cmds.objExists(name))
         self.assertTrue(cmds.objExists(untouched_name))
-        self.assertTrue(source.is_valid())
+        self.assertTrue(source.isValid())
         cmds.undo()
         self.assertTrue(cmds.objExists(name))
         cmds.redo()
         self.assertFalse(cmds.objExists(name))
-        self.assertEqual(driven.delete_constraints(), [])
+        self.assertEqual(driven.deleteConstraints(), [])
 
     def test_delete_constraints_pair_blend_preserves_animation(self):
         source, driven = self.transform(), self.transform()
-        cmds.setKeyframe(driven.full_name(), attribute='translateX', time=1, value=2)
-        animation = cmds.listConnections(driven.full_name(), source=True, destination=False, type='animCurve')[0]
-        constraint = driven.add_constraint(source, type='point')
-        name = constraint.full_name()
-        blends = cmds.listConnections(driven.full_name(), source=True, destination=False, type='pairBlend')
+        cmds.setKeyframe(driven.fullName(), attribute='translateX', time=1, value=2)
+        animation = cmds.listConnections(driven.fullName(), source=True, destination=False, type='animCurve')[0]
+        constraint = driven.addConstraint(source, type='point')
+        name = constraint.fullName()
+        blends = cmds.listConnections(driven.fullName(), source=True, destination=False, type='pairBlend')
         self.assertTrue(blends)
-        deleted = driven.delete_constraints()
+        deleted = driven.deleteConstraints()
         self.assertIn(name, deleted)
         for blend in blends:
             self.assertIn(blend, deleted)
@@ -68,17 +69,17 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def test_delete_constraints_shared_output_rejected(self):
         source, driven, other = self.transform(), self.transform(), self.transform()
-        constraint = driven.add_constraint(source, type='point')
-        cmds.connectAttr(constraint.full_name() + '.constraintTranslateX', other.full_name() + '.translateX')
+        constraint = driven.addConstraint(source, type='point')
+        cmds.connectAttr(constraint.fullName() + '.constraintTranslateX', other.fullName() + '.translateX')
         with self.assertRaises(RuntimeError):
-            driven.delete_constraints()
-        self.assertTrue(constraint.is_valid())
+            driven.deleteConstraints()
+        self.assertTrue(constraint.isValid())
 
     def test_delete_constraints_keeps_unrelated_pair_blend(self):
         driven = self.transform()
         blend = cmds.createNode('pairBlend')
-        cmds.connectAttr(blend + '.outTranslate', driven.full_name() + '.translate')
-        self.assertEqual(driven.delete_constraints(), [])
+        cmds.connectAttr(blend + '.outTranslate', driven.fullName() + '.translate')
+        self.assertEqual(driven.deleteConstraints(), [])
         self.assertTrue(cmds.objExists(blend))
 
     def test_camera_shape_wrapper_and_focal_length(self):
@@ -87,30 +88,30 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertIsInstance(camera, hlib.nodes.Camera)
 
         cmds.setAttr(camera_shape_name + '.focalLength', 50.0)
-        self.assertAlmostEqual(camera.get_focal_length(), 50.0)
+        self.assertAlmostEqual(camera.getFocalLength(), 50.0)
 
         import maya.api.OpenMaya as om2
-        self.assertIsInstance(camera.camera_fn(), om2.MFnCamera)
+        self.assertIsInstance(camera.cameraFn(), om2.MFnCamera)
 
     def test_mesh_and_curve_geometry(self):
         cube = hlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
         mesh = cube.shape()
         self.assertIsInstance(mesh, hlib.nodes.Mesh)
-        self.assertEqual((mesh.vertex_count(), mesh.edge_count(), mesh.polygon_count()), (8, 12, 6))
-        local_x = mesh.get_points()[0].x
-        cmds.setAttr(cube.full_name() + '.translateX', 5)
-        self.assertAlmostEqual(mesh.get_points(ws=True)[0].x, local_x + 5)
+        self.assertEqual((mesh.numVertices(), mesh.numEdges(), mesh.numPolygons()), (8, 12, 6))
+        local_x = mesh.getPoints()[0].x
+        cmds.setAttr(cube.fullName() + '.translateX', 5)
+        self.assertAlmostEqual(mesh.getPoints(space=MSpace.kWorld)[0].x, local_x + 5)
 
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0), (3, 4, 0)]))
         shape = curve.shape()
         self.assertIsInstance(shape, hlib.nodes.NurbsCurve)
-        self.assertEqual((shape.cv_count(), shape.span_count(), shape.degree()), (3, 2, 1))
+        self.assertEqual((shape.numCVs(), shape.numSpans(), shape.degree()), (3, 2, 1))
         self.assertAlmostEqual(shape.length(), 7)
-        cmds.setAttr(curve.full_name() + '.scaleX', 2)
+        cmds.setAttr(curve.fullName() + '.scaleX', 2)
         self.assertAlmostEqual(shape.length(), 7)
-        cmds.setAttr(curve.full_name() + '.translateY', 2)
-        self.assertAlmostEqual(shape.get_cv_positions(ws=True)[0].y, 2)
-        self.assertAlmostEqual(shape.get_cv_positions()[0].y, 0)
+        cmds.setAttr(curve.fullName() + '.translateY', 2)
+        self.assertAlmostEqual(shape.cvPositions(space=MSpace.kWorld)[0].y, 2)
+        self.assertAlmostEqual(shape.cvPositions()[0].y, 0)
         with self.assertRaises(ValueError):
             shape.length(0)
 
@@ -118,14 +119,14 @@ class ShapesConstraintsTest(unittest.TestCase):
         cube = hlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
         mesh = cube.shape()
 
-        local_normals = mesh.get_normals()
-        self.assertEqual(len(local_normals), mesh.vertex_count())
+        local_normals = mesh.getNormals()
+        self.assertEqual(len(local_normals), mesh.numVertices())
         for normal in local_normals:
             self.assertAlmostEqual(sum(c * c for c in (normal.x, normal.y, normal.z)) ** 0.5, 1.0, places=5)
 
-        cmds.setAttr(cube.full_name() + '.rotateY', 90)
-        world_normals = mesh.get_normals(ws=True)
-        self.assertEqual(len(world_normals), mesh.vertex_count())
+        cmds.setAttr(cube.fullName() + '.rotateY', 90)
+        world_normals = mesh.getNormals(space=MSpace.kWorld)
+        self.assertEqual(len(world_normals), mesh.numVertices())
         self.assertFalse(
             all(
                 abs(a.x - b.x) < 1e-5 and abs(a.y - b.y) < 1e-5 and abs(a.z - b.z) < 1e-5
@@ -133,42 +134,42 @@ class ShapesConstraintsTest(unittest.TestCase):
             )
         )
 
-        weighted = mesh.get_normals(angle_weighted=True)
-        self.assertEqual(len(weighted), mesh.vertex_count())
+        weighted = mesh.getNormals(angle_weighted=True)
+        self.assertEqual(len(weighted), mesh.numVertices())
 
     def test_basic_constraints_targets_weights_and_registration(self):
         for kind in ('parent', 'point', 'orient', 'scale', 'aim'):
             with self.subTest(kind=kind):
                 source, second, driven = self.transform(), self.transform(), self.transform()
-                cmds.setAttr(source.full_name() + '.translateX', 3)
-                result = driven.add_constraint([source, second], kind, maintainOffset=True)
+                cmds.setAttr(source.fullName() + '.translateX', 3)
+                result = driven.addConstraint([source, second], kind, maintainOffset=True)
                 expected = getattr(hlib.nodes, kind.title() + 'Constraint')
                 self.assertIsInstance(result, expected)
-                self.assertIsInstance(hlib.nodes.Node(result.full_name()), expected)
+                self.assertIsInstance(hlib.nodes.Node(result.fullName()), expected)
                 self.assertEqual([node.uuid() for node in result.targets()], [source.uuid(), second.uuid()])
-                self.assertEqual(result.get_weights(), [1.0, 1.0])
-                self.assertEqual(len(result.weight_aliases()), 2)
-                result.weight_plugs()[0].set(0.25)
-                self.assertEqual(result.get_weights(), [0.25, 1.0])
+                self.assertEqual(result.getWeights(), [1.0, 1.0])
+                self.assertEqual(len(result.weightAliases()), 2)
+                result.weightPlugs()[0].set(0.25)
+                self.assertEqual(result.getWeights(), [0.25, 1.0])
 
     def test_constraint_set_weight(self):
         source, second, driven = self.transform(), self.transform(), self.transform()
-        result = driven.add_constraint([source, second], 'point', maintainOffset=True)
-        self.assertEqual(result.get_weights(), [1.0, 1.0])
+        result = driven.addConstraint([source, second], 'point', maintainOffset=True)
+        self.assertEqual(result.getWeights(), [1.0, 1.0])
 
-        returned = result.set_weight(0.5)
+        returned = result.setWeight(0.5)
         self.assertIs(returned, result)
-        self.assertEqual(result.get_weights(), [0.5, 0.5])
+        self.assertEqual(result.getWeights(), [0.5, 0.5])
 
-        result.set_weight(0.25, source)
-        self.assertEqual(result.get_weights(), [0.25, 0.5])
+        result.setWeight(0.25, source)
+        self.assertEqual(result.getWeights(), [0.25, 0.5])
 
-        result.set_weight(0.75, source, second)
-        self.assertEqual(result.get_weights(), [0.75, 0.75])
+        result.setWeight(0.75, source, second)
+        self.assertEqual(result.getWeights(), [0.75, 0.75])
 
         unrelated = self.transform()
         with self.assertRaises(ValueError):
-            result.set_weight(1.0, unrelated)
+            result.setWeight(1.0, unrelated)
 
     def test_top_level_constraint_command(self):
         self.assertTrue(callable(hlib_cmds.addConstraint))
@@ -181,7 +182,7 @@ class ShapesConstraintsTest(unittest.TestCase):
 
         source_name = self.transform()
         target_name = self.transform()
-        result = hlib_cmds.addConstraint(source_name.full_name(), target_name.full_name(), type='point')
+        result = hlib_cmds.addConstraint(source_name.fullName(), target_name.fullName(), type='point')
         self.assertEqual([node.uuid() for node in result.targets()], [source_name.uuid()])
 
     def test_specialized_constraints(self):
@@ -189,15 +190,15 @@ class ShapesConstraintsTest(unittest.TestCase):
         for kind, expected in [('geometry', hlib.nodes.GeometryConstraint), ('normal', hlib.nodes.NormalConstraint),
                                ('pointOnPoly', hlib.nodes.PointOnPolyConstraint)]:
             with self.subTest(kind=kind):
-                result = self.transform().add_constraint(mesh, kind)
+                result = self.transform().addConstraint(mesh, kind)
                 self.assertIsInstance(result, expected)
                 self.assertEqual(len(result.targets()), 1)
-                self.assertEqual(result.get_weights(), [1.0])
+                self.assertEqual(result.getWeights(), [1.0])
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0)]))
-        result = self.transform().add_constraint(curve, 'tangent')
+        result = self.transform().addConstraint(curve, 'tangent')
         self.assertIsInstance(result, hlib.nodes.TangentConstraint)
         self.assertEqual(len(result.targets()), 1)
-        self.assertEqual(result.get_weights(), [1.0])
+        self.assertEqual(result.getWeights(), [1.0])
 
         cmds.select(clear=True)
         start = cmds.joint(position=(0, 0, 0))
@@ -205,10 +206,10 @@ class ShapesConstraintsTest(unittest.TestCase):
         end = cmds.joint(position=(4, 0, 0))
         handle = hlib.nodes.Node(cmds.ikHandle(startJoint=start, endEffector=end, solver='ikRPsolver')[0])
         self.assertIsInstance(handle, hlib.nodes.IkHandle)
-        result = handle.add_constraint(self.transform(), 'poleVector')
+        result = handle.addConstraint(self.transform(), 'poleVector')
         self.assertIsInstance(result, hlib.nodes.PoleVectorConstraint)
         self.assertEqual(len(result.targets()), 1)
-        self.assertEqual(result.get_weights(), [1.0])
+        self.assertEqual(result.getWeights(), [1.0])
 
     def test_joint_chain_from_here_and_ik_handle_queries(self):
         cmds.select(clear=True)
@@ -216,49 +217,49 @@ class ShapesConstraintsTest(unittest.TestCase):
         j2 = hlib.nodes.Joint(cmds.joint(position=(2, 0, 0)))
         j3 = hlib.nodes.Joint(cmds.joint(position=(4, 0, 0)))
         branch = hlib.nodes.Joint(cmds.joint(position=(4, 2, 0)))
-        j3.set_parent(j2)
-        branch.set_parent(j2)
+        j3.setParent(j2)
+        branch.setParent(j2)
 
-        chain = j1.chain_from_here()
-        self.assertEqual([joint.full_name() for joint in chain], [j1.full_name(), j2.full_name()])
+        chain = j1.chainFromHere()
+        self.assertEqual([joint.fullName() for joint in chain], [j1.fullName(), j2.fullName()])
 
-        chain_to_j3 = j1.chain_from_here(j3)
+        chain_to_j3 = j1.chainFromHere(j3)
         self.assertEqual(
-            [joint.full_name() for joint in chain_to_j3],
-            [j1.full_name(), j2.full_name(), j3.full_name()],
+            [joint.fullName() for joint in chain_to_j3],
+            [j1.fullName(), j2.fullName(), j3.fullName()],
         )
 
         cmds.select(clear=True)
         unrelated = hlib.nodes.Joint(cmds.joint(position=(0, 5, 0)))
         with self.assertRaises(ValueError):
-            j1.chain_from_here(unrelated)
+            j1.chainFromHere(unrelated)
 
-        self.assertEqual(j1.ik_handles(), [])
+        self.assertEqual(j1.ikHandles(), [])
         handle = hlib.nodes.Node(
-            cmds.ikHandle(startJoint=j1.full_name(), endEffector=j3.full_name(), solver='ikRPsolver')[0]
+            cmds.ikHandle(startJoint=j1.fullName(), endEffector=j3.fullName(), solver='ikRPsolver')[0]
         )
         self.assertIsInstance(handle, hlib.nodes.IkHandle)
 
-        found_handles = j1.ik_handles()
+        found_handles = j1.ikHandles()
         self.assertEqual(len(found_handles), 1)
-        self.assertEqual(found_handles[0].full_name(), handle.full_name())
-        self.assertEqual(j2.ik_handles(), [])
+        self.assertEqual(found_handles[0].fullName(), handle.fullName())
+        self.assertEqual(j2.ikHandles(), [])
 
-        self.assertEqual(handle.end_joint().full_name(), j3.full_name())
+        self.assertEqual(handle.endJoint().fullName(), j3.fullName())
         joint_list = handle.joints()
-        self.assertEqual([joint.full_name() for joint in joint_list], [j1.full_name(), j2.full_name()])
+        self.assertEqual([joint.fullName() for joint in joint_list], [j1.fullName(), j2.fullName()])
         joint_list_with_tip = handle.joints(include_tip=True)
         self.assertEqual(
-            [joint.full_name() for joint in joint_list_with_tip],
-            [j1.full_name(), j2.full_name(), j3.full_name()],
+            [joint.fullName() for joint in joint_list_with_tip],
+            [j1.fullName(), j2.fullName(), j3.fullName()],
         )
 
     def test_creation_undo_and_redo(self):
         if not cmds.undoInfo(query=True, state=True):
             self.skipTest('Undo is disabled in this Maya session')
         source, driven = self.transform(), self.transform()
-        result = driven.add_constraint(source, 'pointConstraint')
-        name = result.full_name()
+        result = driven.addConstraint(source, 'pointConstraint')
+        name = result.fullName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
         cmds.redo()
@@ -266,18 +267,18 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def test_point_evaluation_and_parent_offset(self):
         source, driven = self.transform(), self.transform()
-        cmds.setAttr(source.full_name() + '.translateX', 4)
-        driven.add_constraint(source.full_name(), 'point')
-        self.assertAlmostEqual(cmds.getAttr(driven.full_name() + '.translateX'), 4)
-        cmds.setAttr(source.full_name() + '.translateX', 7)
-        self.assertAlmostEqual(cmds.getAttr(driven.full_name() + '.translateX'), 7)
+        cmds.setAttr(source.fullName() + '.translateX', 4)
+        driven.addConstraint(source.fullName(), 'point')
+        self.assertAlmostEqual(cmds.getAttr(driven.fullName() + '.translateX'), 4)
+        cmds.setAttr(source.fullName() + '.translateX', 7)
+        self.assertAlmostEqual(cmds.getAttr(driven.fullName() + '.translateX'), 7)
 
         offset_driven = self.transform()
-        cmds.setAttr(offset_driven.full_name() + '.translateX', 10)
-        offset_driven.add_constraint(source, maintainOffset=True)
-        self.assertAlmostEqual(cmds.getAttr(offset_driven.full_name() + '.translateX'), 10)
-        cmds.setAttr(source.full_name() + '.translateX', 9)
-        self.assertAlmostEqual(cmds.getAttr(offset_driven.full_name() + '.translateX'), 12)
+        cmds.setAttr(offset_driven.fullName() + '.translateX', 10)
+        offset_driven.addConstraint(source, maintainOffset=True)
+        self.assertAlmostEqual(cmds.getAttr(offset_driven.fullName() + '.translateX'), 10)
+        cmds.setAttr(source.fullName() + '.translateX', 9)
+        self.assertAlmostEqual(cmds.getAttr(offset_driven.fullName() + '.translateX'), 12)
 
     def test_invalid_requests_do_not_create_nodes(self):
         source, driven = self.transform(), self.transform()
@@ -289,7 +290,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         ]
         for sources, kind, error in invalid_requests:
             with self.assertRaises(error):
-                driven.add_constraint(sources, kind)
+                driven.addConstraint(sources, kind)
         self.assertEqual(before, set(cmds.ls(long=True)))
 
     def mirror_shapes(self):
@@ -297,15 +298,15 @@ class ShapesConstraintsTest(unittest.TestCase):
         cube = hlib.nodes.Node(cmds.polyCube()[0])
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(1, 2, 3), (4, 1, -2), (2, 5, 1)]))
         parent = self.transform()
-        cmds.setAttr(parent.full_name() + '.translate', 4, -2, 3)
-        cmds.setAttr(parent.full_name() + '.rotate', 23, 41, -17)
-        cmds.setAttr(parent.full_name() + '.scale', 2, 0.7, 1.3)
-        cmds.parent(cube.full_name(), curve.full_name(), parent.full_name(), relative=True)
+        cmds.setAttr(parent.fullName() + '.translate', 4, -2, 3)
+        cmds.setAttr(parent.fullName() + '.rotate', 23, 41, -17)
+        cmds.setAttr(parent.fullName() + '.scale', 2, 0.7, 1.3)
+        cmds.parent(cube.fullName(), curve.fullName(), parent.fullName(), relative=True)
         return [cube.shape(), curve.shape()]
 
     def positions(self, shape, ws=False):
         """API の内部距離単位で形状の全位置を返す。"""
-        points = shape.get_points(ws) if isinstance(shape, hlib.nodes.Mesh) else shape.get_cv_positions(ws)
+        points = shape.getPoints(MSpace.kWorld if ws else MSpace.kObject) if isinstance(shape, hlib.nodes.Mesh) else shape.cvPositions(MSpace.kWorld if ws else MSpace.kObject)
         return [tuple(point)[:3] for point in points]
 
     def assert_positions(self, actual, expected):
@@ -322,32 +323,32 @@ class ShapesConstraintsTest(unittest.TestCase):
                 for shape in self.mirror_shapes():
                     with self.subTest(shape=shape.type(), ws=ws, axes=axes):
                         before = self.positions(shape, ws)
-                        parent = shape.parent_node()
-                        matrix = cmds.xform(parent.full_name(), query=True, matrix=True, worldSpace=True)
+                        parent = shape.parentNode()
+                        matrix = cmds.xform(parent.fullName(), query=True, matrix=True, worldSpace=True)
                         selected = {'xyz'.index(a) for a in axes.lower()}
                         expected = [tuple(-v if i in selected else v for i, v in enumerate(p)) for p in before]
-                        self.assertIs(shape.mirror(axes, ws=ws), shape)
+                        self.assertIs(shape.mirror(axes, space=MSpace.kWorld if ws else MSpace.kObject), shape)
                         self.assert_positions(self.positions(shape, ws), expected)
-                        self.assertEqual(cmds.xform(parent.full_name(), query=True, matrix=True, worldSpace=True), matrix)
+                        self.assertEqual(cmds.xform(parent.fullName(), query=True, matrix=True, worldSpace=True), matrix)
 
     def test_transform_mirror_all_shapes(self):
         parent = self.transform()
         cube = hlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(1, 2, 3), (4, 1, -2), (2, 5, 1)]))
-        cmds.parent(cube.shape().full_name(), curve.shape().full_name(), parent.full_name(), shape=True, relative=True)
+        cmds.parent(cube.shape().fullName(), curve.shape().fullName(), parent.fullName(), shape=True, relative=True)
         shapes = parent.shapes()
-        before = {shape.full_name(): self.positions(shape, True) for shape in shapes}
-        matrix = cmds.xform(parent.full_name(), query=True, matrix=True, worldSpace=True)
+        before = {shape.fullName(): self.positions(shape, True) for shape in shapes}
+        matrix = cmds.xform(parent.fullName(), query=True, matrix=True, worldSpace=True)
 
-        self.assertIs(parent.mirror_geometry(axis='x', ws=True), parent)
+        self.assertIs(parent.mirrorGeometry(axis='x', space=MSpace.kWorld), parent)
 
         mirrored_shapes = parent.shapes()
-        self.assertEqual({shape.full_name() for shape in mirrored_shapes}, set(before))
+        self.assertEqual({shape.fullName() for shape in mirrored_shapes}, set(before))
         for shape in mirrored_shapes:
-            positions = before[shape.full_name()]
+            positions = before[shape.fullName()]
             expected = [(-point[0], point[1], point[2]) for point in positions]
             self.assert_positions(self.positions(shape, True), expected)
-        self.assertEqual(cmds.xform(parent.full_name(), query=True, matrix=True, worldSpace=True), matrix)
+        self.assertEqual(cmds.xform(parent.fullName(), query=True, matrix=True, worldSpace=True), matrix)
 
     def test_mirror_custom_pivot_subset_and_distance_units(self):
         import maya.api.OpenMaya as om2
@@ -358,10 +359,10 @@ class ShapesConstraintsTest(unittest.TestCase):
                 for shape in self.mirror_shapes():
                     before = self.positions(shape, ws)
                     pivot = (1, 2, 3)
-                    internal = [om2.MDistance(v, om2.MDistance.uiUnit()).asCentimeters() for v in pivot]
+                    internal = pivot
                     expected = list(before)
                     expected[0] = (2 * internal[0] - before[0][0], before[0][1], 2 * internal[2] - before[0][2])
-                    shape.mirror('xz', ws=ws, pivot=pivot, indices=[0, 0])
+                    shape.mirror('xz', space=MSpace.kWorld if ws else MSpace.kObject, pivot=pivot, indices=[0, 0])
                     self.assert_positions(self.positions(shape, ws), expected)
         finally:
             cmds.currentUnit(linear=previous)
@@ -371,7 +372,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.skipTest('Undo is disabled in this Maya session')
         for shape in self.mirror_shapes():
             before = self.positions(shape, True)
-            shape.mirror('x', ws=True)
+            shape.mirror('x', space=MSpace.kWorld)
             after = self.positions(shape, True)
             cmds.undo()
             self.assert_positions(self.positions(shape, True), before)
@@ -382,7 +383,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         for shape in self.mirror_shapes():
             before = self.positions(shape)
             for kwargs, error in [({'axis': ''}, ValueError), ({'axis': 'xx'}, ValueError),
-                                  ({'axis': 'a'}, ValueError), ({'ws': 'world'}, ValueError),
+                                  ({'axis': 'a'}, ValueError), ({'space': 'world'}, ValueError),
                                   ({'pivot': (0, 1)}, ValueError), ({'pivot': (0, float('nan'), 0)}, ValueError),
                                   ({'indices': [0, -1]}, IndexError), ({'indices': [0, 10000]}, IndexError),
                                   ({'indices': [0, 1.2]}, TypeError)]:
@@ -391,34 +392,34 @@ class ShapesConstraintsTest(unittest.TestCase):
                 self.assert_positions(self.positions(shape), before)
             self.assertIs(shape.mirror(indices=[]), shape)
             self.assert_positions(self.positions(shape), before)
-            cmds.setAttr(shape.parent_node().full_name() + '.scaleX', 0)
+            cmds.setAttr(shape.parentNode().fullName() + '.scaleX', 0)
             with self.assertRaises(ValueError):
-                shape.mirror(ws=True)
+                shape.mirror(space=MSpace.kWorld)
 
     def test_mirror_periodic_curve(self):
         curve = hlib.nodes.Node(cmds.circle(constructionHistory=False)[0])
         shape = curve.shape()
         before = self.positions(shape)
-        form, degree, count = shape.form(), shape.degree(), shape.cv_count()
+        form, degree, count = shape.form(), shape.degree(), shape.numCVs()
         shape.mirror('x')
         self.assert_positions(self.positions(shape), [(-x, y, z) for x, y, z in before])
-        self.assertEqual((shape.form(), shape.degree(), shape.cv_count()), (form, degree, count))
+        self.assertEqual((shape.form(), shape.degree(), shape.numCVs()), (form, degree, count))
 
     def test_nurbs_curve_get_collocated_cv_groups(self):
         curve = hlib.nodes.Node(
             cmds.curve(degree=1, point=[(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0)])
         )
         shape = curve.shape()
-        self.assertEqual(shape.get_collocated_cv_groups(), [])
+        self.assertEqual(shape.getCollocatedCVGroups(), [])
 
-        cmds.move(1, 0, 0, shape.full_name() + '.cv[2]', absolute=True)
-        self.assertEqual(shape.get_collocated_cv_groups(), [[1, 2]])
+        cmds.move(1, 0, 0, shape.fullName() + '.cv[2]', absolute=True)
+        self.assertEqual(shape.getCollocatedCVGroups(), [[1, 2]])
 
-        cmds.move(1, 0, 0, shape.full_name() + '.cv[3]', absolute=True)
-        self.assertEqual(shape.get_collocated_cv_groups(), [[1, 2, 3]])
+        cmds.move(1, 0, 0, shape.fullName() + '.cv[3]', absolute=True)
+        self.assertEqual(shape.getCollocatedCVGroups(), [[1, 2, 3]])
 
         with self.assertRaises(ValueError):
-            shape.get_collocated_cv_groups(tolerance=0)
+            shape.getCollocatedCVGroups(tolerance=0)
 
     def test_component_collections_and_live_positions(self):
         for shape in self.mirror_shapes():
@@ -434,55 +435,55 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.assertEqual(collection[-1].index, 0)
             self.assertIsInstance(collection[:1], collection_type)
             self.assertEqual(collection[:1].indices, (2,))
-            self.assertEqual(collection[0].get_position(), collection.get_position()[0])
+            self.assertEqual(collection[0].getPosition(), collection.getPosition()[0])
             single = shape.vertex(2) if is_mesh else shape.cv(2)
-            before = single.get_position()
+            before = single.getPosition()
             self.assertIs(collection.mirror('z'), collection)
-            self.assert_positions([single.get_position()], [(before[0], before[1], -before[2])])
-            old_name = single.full_name()
+            self.assert_positions([single.getPosition()], [(before[0], before[1], -before[2])])
+            old_name = single.fullName()
             shape.rename('renamedMirrorShape')
-            self.assertNotEqual(single.full_name(), old_name)
-            self.assertTrue(cmds.objExists(single.full_name()))
+            self.assertNotEqual(single.fullName(), old_name)
+            self.assertTrue(cmds.objExists(single.fullName()))
             other_type = hlib.components.CVs if is_mesh else hlib.components.Vertices
             with self.assertRaises(TypeError):
                 other_type(shape, [])
-            cmds.delete(shape.full_name())
+            cmds.delete(shape.fullName())
             with self.assertRaises(RuntimeError):
-                single.get_position()
+                single.getPosition()
 
     def test_xyz_and_mesh_components(self):
         mesh, curve = self.mirror_shapes()
         for item in (mesh.vertex(0), curve.cv(0)):
-            before = item.get_position()
+            before = item.getPosition()
             for axis in 'xyz':
-                getattr(item, "set_" + axis)(2.75)
-                self.assertAlmostEqual(getattr(item, "get_" + axis)(), 2.75)
+                getattr(item, "set" + axis.upper())(2.75)
+                self.assertAlmostEqual(getattr(item, "get" + axis.upper())(), 2.75)
                 cmds.undo()
-                self.assert_positions([item.get_position()], [before])
-            item.set_position((3, 4, 5), ws=True)
-            self.assert_positions([item.get_position(ws=True)], [(3, 4, 5)])
+                self.assert_positions([item.getPosition()], [before])
+            item.setPosition((3, 4, 5), space=MSpace.kWorld)
+            self.assert_positions([item.getPosition(space=MSpace.kWorld)], [(3, 4, 5)])
             cmds.undo()
             with self.assertRaises(ValueError):
-                item.set_position((1, float('nan'), 3))
-            self.assert_positions([item.get_position()], [before])
-        self.assertEqual(len(mesh.edges()), mesh.edge_count())
-        self.assertEqual(len(mesh.faces()), mesh.polygon_count())
+                item.setPosition((1, float('nan'), 3))
+            self.assert_positions([item.getPosition()], [before])
+        self.assertEqual(len(mesh.edges()), mesh.numEdges())
+        self.assertEqual(len(mesh.faces()), mesh.numPolygons())
         self.assertEqual(len(mesh.edge(0).vertices()), 2)
         self.assertEqual(len(mesh.face(0).vertices()), 4)
-        self.assertEqual(len(mesh.edges().vertices()), mesh.vertex_count())
-        self.assertEqual(len(mesh.faces().vertices()), mesh.vertex_count())
-        self.assertEqual(len(mesh.uvs()), mesh.uv_count())
+        self.assertEqual(len(mesh.edges().vertices()), mesh.numVertices())
+        self.assertEqual(len(mesh.faces().vertices()), mesh.numVertices())
+        self.assertEqual(len(mesh.uvs()), mesh.numUVs())
         uv = mesh.uv(0)
-        before = uv.get_position()
-        uv.set_u(0.125)
-        self.assertAlmostEqual(uv.get_u(), 0.125)
-        self.assertAlmostEqual(uv.get_v(), before[1])
+        before = uv.getPosition()
+        uv.setU(0.125)
+        self.assertAlmostEqual(uv.getU(), 0.125)
+        self.assertAlmostEqual(uv.getV(), before[1])
         cmds.undo()
-        self.assertEqual(uv.get_position(), before)
-        uv.set_v(0.375)
-        self.assertAlmostEqual(uv.get_v(), 0.375)
+        self.assertEqual(uv.getPosition(), before)
+        uv.setV(0.375)
+        self.assertAlmostEqual(uv.getV(), 0.375)
         cmds.undo()
-        self.assertEqual(mesh.uvs([0]).get_position(), [before])
+        self.assertEqual(mesh.uvs([0]).getPosition(), [before])
         for collection in (hlib.components.Edges, hlib.components.Faces, hlib.components.UVs):
             with self.assertRaises(TypeError):
                 collection(curve)

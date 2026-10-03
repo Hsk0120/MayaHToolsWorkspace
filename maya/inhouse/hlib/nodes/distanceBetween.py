@@ -14,12 +14,12 @@ class DistanceBetween(Node):
 
     @fast_edit
     @undo_chunk("hlibDistanceBetweenSetPoints")
-    def set_points(self, point1, point2, *, fast=False):
+    def setPoints(self, point1, point2, *, fast=False):
         """各入力行列の空間における二点を設定する。行列は変更しない。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            point1 (Iterable[float]): 第一の点。Mayaの現在の距離表示単位。
+            point1 (Iterable[float]): 第一の点。内部距離単位cm。
             point2 (Iterable[float]): 第二の点。同じ単位。
 
         Returns:
@@ -42,7 +42,7 @@ class DistanceBetween(Node):
         return self
 
     @undo_chunk("hlibDistanceBetweenConnectTransforms")
-    def connect_transforms(self, first, second, force=False):
+    def connectTransforms(self, first, second, force=False):
         """二つのTransform原点のワールド距離を測る接続を設定する。
 
         Args:
@@ -62,17 +62,17 @@ class DistanceBetween(Node):
         nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
         if not all(isinstance(node, Transform) for node in nodes):
             raise TypeError("Both inputs must be transforms")
-        self.set_points((0, 0, 0), (0, 0, 0))
+        self.setPoints((0, 0, 0), (0, 0, 0))
         for number, node in enumerate(nodes, 1):
-            index = node.dag_path().instanceNumber()
+            index = node.dagPath().instanceNumber()
             node.plug("worldMatrix").element(index, create=True).connect(
                 self.plug(f"inMatrix{number}"), force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """Plug: distance出力。別アトリビュートへの接続に使用する。"""
         return self.plug("distance")
 
     def distance(self):
-        """float: 評価済み距離。Mayaの現在の距離表示単位。"""
-        return self.output_plug().get()
+        """float: 評価済み距離。内部距離単位cm。"""
+        return self.outputPlug().get()

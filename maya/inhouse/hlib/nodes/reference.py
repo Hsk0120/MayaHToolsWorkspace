@@ -12,7 +12,7 @@ from .node import Node
 class Reference(Node):
     """Maya の reference ノードラッパー。参照ファイルの照会・ロード制御を提供する。"""
 
-    def reference_fn(self):
+    def referenceFn(self):
         """MFnReference を取得する。
 
         Returns:
@@ -32,9 +32,9 @@ class Reference(Node):
         Returns:
             str: 参照ファイルのパス。
         """
-        return self.reference_fn().fileName(resolved, with_copy_number, False)
+        return self.referenceFn().fileName(resolved, with_copy_number, False)
 
-    def associated_namespace(self):
+    def associatedNamespace(self):
         """参照内容が読み込まれている Namespace を取得する。
 
         Returns:
@@ -44,15 +44,15 @@ class Reference(Node):
         # hlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
         from hlib.scene import Namespace
 
-        return Namespace(self.reference_fn().associatedNamespace(False))
+        return Namespace(self.referenceFn().associatedNamespace(False))
 
-    def is_loaded(self):
+    def isLoaded(self):
         """参照が現在ロードされているか判定する。
 
         Returns:
             bool: ロード済みなら True。
         """
-        return self.reference_fn().isLoaded()
+        return self.referenceFn().isLoaded()
 
     def nodes(self):
         """この参照が持ち込んだノードを取得する。
@@ -63,17 +63,17 @@ class Reference(Node):
         Raises:
             RuntimeError: 参照が現在アンロードされている場合。
         """
-        if not self.is_loaded():
+        if not self.isLoaded():
             raise RuntimeError("Cannot enumerate nodes of an unloaded reference")
-        return [Node(mobject) for mobject in self.reference_fn().nodes()]
+        return [Node(mobject) for mobject in self.referenceFn().nodes()]
 
-    def parent_reference(self):
+    def parentReference(self):
         """親の Reference を取得する(ネストした参照の場合)。
 
         Returns:
             Reference | None: 親参照。トップレベルの参照では None。
         """
-        parent = self.reference_fn().parentReference()
+        parent = self.referenceFn().parentReference()
         if parent.isNull():
             return None
         return Reference(parent)
@@ -86,11 +86,11 @@ class Reference(Node):
         """
         from hlib.utils.references import list_references
 
-        own_name = self.full_name()
+        own_name = self.fullName()
         children = []
         for reference in list_references():
-            parent = reference.parent_reference()
-            if parent is not None and parent.full_name() == own_name:
+            parent = reference.parentReference()
+            if parent is not None and parent.fullName() == own_name:
                 children.append(reference)
         return children
 
@@ -101,21 +101,21 @@ class Reference(Node):
             Reference: トップレベルの参照。自身がトップレベルならそのまま自身。
         """
         reference = self
-        parent = reference.parent_reference()
+        parent = reference.parentReference()
         while parent is not None:
             reference = parent
-            parent = reference.parent_reference()
+            parent = reference.parentReference()
         return reference
 
-    def is_top_level(self):
+    def isTopLevel(self):
         """トップレベル(親を持たない)の参照か判定する。
 
         Returns:
             bool: 親参照が無ければ True。
         """
-        return self.parent_reference() is None
+        return self.parentReference() is None
 
-    def edit_strings(self, successful=True, failed=False):
+    def editStrings(self, successful=True, failed=False):
         """このReferenceに対するEdit(MELコマンド文字列)一覧を取得する。
 
         Args:
@@ -130,7 +130,7 @@ class Reference(Node):
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
-    def edit_node_names(self, successful=True, failed=False):
+    def editNodeNames(self, successful=True, failed=False):
         """Editの影響を受けたノードのフルパス名一覧を取得する。
 
         Args:
@@ -145,12 +145,12 @@ class Reference(Node):
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
-    def edit_attribute_names(self, successful=True, failed=False):
+    def editAttributeNames(self, successful=True, failed=False):
         """Editの影響を受けたアトリビュートの短縮名一覧を取得する。
 
         Maya の ``referenceQuery -editAttrs`` 自体がノード名を含まないアトリビュート名の
         みを返す(コンパウンドアトリビュートの子を編集した場合は親の短縮名になる)。
-        どのノードのアトリビュートかは ``edit_node_names()`` や ``edit_strings()`` と合わせて判断する。
+        どのノードのアトリビュートかは ``editNodeNames()`` や ``editStrings()`` と合わせて判断する。
 
         Args:
             successful (bool): 実際に適用された(成功した)Editを含めるか。

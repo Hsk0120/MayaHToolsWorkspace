@@ -32,7 +32,7 @@ class LengthCompensation:
         node = hlib.nodes.Node.create(
             kind, name=self.container.name() + "_" + role, skipSelect=True
         )
-        self.container.add_members(node)
+        self.container.addMembers(node)
         return node
 
     @classmethod
@@ -65,13 +65,13 @@ class LengthCompensation:
             ("maxStretch", 2, 1, 100),
         ):
             kwargs = dict(
-                long_name=attr, attribute_type="double", default_value=value, minValue=low
+                longName=attr, attributeType="double", defaultValue=value, minValue=low
             )
             if high is not None:
                 kwargs["maxValue"] = high
-            owner.add_attribute(**kwargs)
+            owner.addAttribute(**kwargs)
         for attr in ("lengthScale", "volumeScale"):
-            owner.add_attribute(long_name=attr, attribute_type="double")
+            owner.addAttribute(longName=attr, attributeType="double")
         ratio = graph._node("multiplyDivide", "ratio")
         ratio.plug("operation").set(2)
         owner.plug("inputLength").connect(ratio.plug("input1X"))

@@ -18,7 +18,7 @@ Maya標準ノードを使用し、独自プラグインを作成・ロードし�
    result = builder.multiply("scale", total, 0.5)
    print(result.get())
 
-``Container.create_node(kind, name=None)`` は作成と所有登録を一つのUndoへまとめます。
+``Container.createNode(kind, name=None)`` は作成と所有登録を一つのUndoへまとめます。
 ``add(*nodes)`` は既存ノードを追加し、``members()`` は直接所属するノードを取得します。
 削除には既存の ``hlib.delete(owner)`` を使用します。Mayaの削除規則に従うため、
 接続が失われた上流network等の自動削除を抑止する機能ではありません。
@@ -34,13 +34,13 @@ Soft IKなどのリグセットアップは ``hrig.setups`` がこれらの基�
 保存参照とアトリビュート型
 ------------------------------
 
-``node.plug("members").source_nodes()`` は配列の接続元を
+``node.plug("members").sourceNodes()`` は配列の接続元を
 ``{論理インデックス: Node}`` として返します。未接続の要素は含めません。
-message配列の ``append_message(node)`` は既存の最大インデックスの次へ追加し、
+message配列の ``appendMessage(node)`` は既存の最大インデックスの次へ追加し、
 その番号を返します。途中の穴を再利用せず、追加操作はUndo対象です。
 Mayaが削除した末尾の要素の過去の番号までは記憶しません。
 
-``Plug.data_type()`` はアトリビュート定義からdoubleLinear等のMaya型名を読み、
+``Plug.dataType()`` はアトリビュート定義からdoubleLinear等のMaya型名を読み、
 値や未作成配列要素を評価しません。型が値に依存するgeneric等はNoneです。
 ``Plug.type()`` は従来どおりPythonのラッパークラスを返します。
 
@@ -62,7 +62,7 @@ Mayaが削除した末尾の要素の過去の番号までは記憶しません�
 
 ``SkinCluster.bind(mesh, influences, max_influences=4)`` は未スキニングの
 形状をバインドしてラッパーを返します。``deforms(geometry)`` で履歴内の所属を照会できます。
-``source_skin.copy_weights_to(target_skin)`` はclosestPoint、name/closestJointで
+``source_skin.copyWeightsTo(target_skin)`` はclosestPoint、name/closestJointで
 近似転送し、ウェイトを正規化します。別のバインド済みskinClusterを指定してください。
 形状削減、異なる基準姿勢の補正、LODで使用する骨の選択は行いません。
 
@@ -82,7 +82,7 @@ Mayaが削除した末尾の要素の過去の番号までは記憶しません�
    transform = mesh.transform()                  # Transform
 
 ``createSet`` はObjectSet、``createIkHandle`` はNode列、
-``createPolygon`` は単一のMesh、``addConstraint`` は単一のConstraintを返します。照会には ``weight_plugs()`` / ``targets()`` を使います。
+``createPolygon`` は単一のMesh、``addConstraint`` は単一のConstraintを返します。照会には ``weightPlugs()`` / ``targets()`` を使います。
 検索・親子付け・時刻/キー・メニュー操作は ``maya.cmds`` を直接使用します。
 ``cmds.listConnections(connections=True)`` は文字列の平坦なペア列を返します。
 必要なNode/Plug変換は使用側で行います。

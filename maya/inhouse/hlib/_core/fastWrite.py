@@ -3,6 +3,7 @@ import maya.cmds as cmds
 import maya.api.OpenMaya as om
 from ..decorators._fast import is_fast
 from .attributeType import NUMERIC_WRITERS
+from .unitValue import convert
 
 
 def writable(plug, _fn=None):
@@ -35,9 +36,9 @@ def check_range(plug, value, _fn=None):
 
     Args:
         plug (om.MPlug): 検査するプラグ。
-        value (float): 設定予定の値。単位型では現在のUI単位。
+        value (float): 設定予定の値。単位型ではcm/rad/秒。
         _fn (om.MFnNumericAttribute | om.MFnUnitAttribute | None): 同じ更新内で
-            生成したfunction set。範囲とUI単位は呼出しごとに照会する。
+            生成したfunction set。範囲と単位定義は呼出しごとに照会する。
 
     Raises:
         RuntimeError: 値が設定されたハード範囲外の場合。
@@ -56,7 +57,7 @@ def check_range(plug, value, _fn=None):
             continue
         limit = getter()
         if isinstance(limit, (om.MAngle, om.MDistance, om.MTime)):
-            limit = limit.asUnits(type(limit).uiUnit())
+            limit = convert(plug, limit, to_ui=False)
         if (lower and value < limit) or (not lower and value > limit):
             raise RuntimeError("Value outside attribute limits: " + plug.name())
 
@@ -83,11 +84,11 @@ def set_plug(plug, value):
         check_range(plug, value, fn)
         kind = fn.unitType()
         if kind == om.MFnUnitAttribute.kAngle:
-            plug.setMAngle(om.MAngle(value, om.MAngle.uiUnit()))
+            plug.setMAngle(om.MAngle(value, om.MAngle.kRadians))
         elif kind == om.MFnUnitAttribute.kDistance:
-            plug.setMDistance(om.MDistance(value, om.MDistance.uiUnit()))
+            plug.setMDistance(om.MDistance(value, om.MDistance.kCentimeters))
         else:
-            plug.setMTime(om.MTime(value, om.MTime.uiUnit()))
+            plug.setMTime(om.MTime(value, om.MTime.kSeconds))
     elif attribute.hasFn(om.MFn.kEnumAttribute):
         plug.setInt(int(value))
     elif numeric:
@@ -139,4 +140,4 @@ def set_attr(name, *values, **kwargs):
     if set(kwargs) - {"type"}:
         raise NotImplementedError("Unsupported fast setAttr flags")
     value = values[0] if len(values) == 1 else values
-    set_plug(plug, value)
+    set_plug(plug, convert(plug, value, to_ui=False))

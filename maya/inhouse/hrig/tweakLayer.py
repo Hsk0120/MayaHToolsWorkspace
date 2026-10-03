@@ -28,11 +28,11 @@ class TweakLayer:
             dict[str, Node]: IDとグループ。
         """
         root = self.rig.root
-        if not root.has_attribute("tweakGroups"):
+        if not root.hasAttribute("tweakGroups"):
             return {}
         return {
             node.plug("tweakId").get(): node
-            for node in root.plug("tweakGroups").source_nodes().values()
+            for node in root.plug("tweakGroups").sourceNodes().values()
         }
 
     def joints(self):
@@ -41,7 +41,7 @@ class TweakLayer:
         Returns:
             tuple[str]: 完全名。
         """
-        return tuple(g.plug("joint").source().node.full_name() for g in self.groups().values())
+        return tuple(g.plug("joint").source().node.fullName() for g in self.groups().values())
 
     @undo_transaction("hrig.TweakLayer.add")
     def add(self, identifier, joint):
@@ -58,13 +58,13 @@ class TweakLayer:
             raise ValueError("Use a unique tweak identifier")
         joint = hlib.getNode(joint)
         root = self.rig.root
-        if joint.type() != "joint" or not joint.full_name().startswith(root.full_name() + "|"):
+        if joint.type() != "joint" or not joint.fullName().startswith(root.fullName() + "|"):
             raise ValueError("Select a joint inside the module")
         stem = root.name() + "_tweak_" + identifier
         group = hlib.createNode("transform", name=stem + "_grp", parent=joint, skipSelect=True)
-        group.add_attribute(long_name="tweakId", data_type="string").set(identifier)
-        group.add_attribute(long_name="enabled", attribute_type="bool", default_value=True)
-        group.set_attribute_flags(["enabled"], channel_box=True)
+        group.addAttribute(longName="tweakId", dataType="string").set(identifier)
+        group.addAttribute(longName="enabled", attributeType="bool", defaultValue=True)
+        group.setAttributeFlags(["enabled"], channelBox=True)
         control = hlib.createNode("transform", name=stem + "_ctrl", parent=group, skipSelect=True)
         bone = hlib.createNode("joint", name=stem + "_jnt", parent=group, skipSelect=True)
         bone.plug("segmentScaleCompensate").set(False)
@@ -73,12 +73,12 @@ class TweakLayer:
 
         ControlShape.circle(control, 0.35, (1, 0, 0), 13)
         for attr, node in (("control", control), ("joint", bone)):
-            group.add_attribute(long_name=attr, attribute_type="message")
+            group.addAttribute(longName=attr, attributeType="message")
             node.plug("message").connect(group.plug(attr))
-        if not root.has_attribute("tweakGroups"):
-            root.add_attribute(long_name="tweakGroups", attribute_type="message", multi=True)
-        root.plug("tweakGroups").append_message(group)
-        group.set_attribute_flags(["translate", "rotate", "scale"], locked=True, keyable=False)
+        if not root.hasAttribute("tweakGroups"):
+            root.addAttribute(longName="tweakGroups", attributeType="message", multi=True)
+        root.plug("tweakGroups").appendMessage(group)
+        group.setAttributeFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
         self.update()
         from .channel_controls import install
 
@@ -98,7 +98,7 @@ class TweakLayer:
             elif not active and previous is not None:
                 previous.disconnect(destination)
                 destination.set(hlib.maths.Matrix())
-            control.plug("visibility").set_if_changed(active)
+            control.plug("visibility").setIfChanged(active)
 
     @classmethod
     def refresh_jobs(cls):
@@ -120,10 +120,10 @@ class TweakLayer:
                 jobs = hlib.events.ScriptJobs()
                 for plug in (
                     group.plug("enabled"),
-                    rig.root.plug("hrigLod" if rig.root.has_attribute("hrigLod") else "lod"),
+                    rig.root.plug("hrigLod" if rig.root.hasAttribute("hrigLod") else "lod"),
                 ):
                     jobs.add(
-                        plug.full_name(),
+                        plug.fullName(),
                         attribute=plug,
                         callback=partial(cls._changed, rig.root.uuid()),
                         kill_with_scene=True,
@@ -140,7 +140,7 @@ class TweakLayer:
         """
         from .moduleRegistry import ModuleRegistry
 
-        names = [item.full_name() for item in hlib.ls(root_uuid, long=True)] or []
+        names = [item.fullName() for item in hlib.ls(root_uuid, long=True)] or []
         if not names:
             return
         layer = cls(ModuleRegistry.get(names[0]))

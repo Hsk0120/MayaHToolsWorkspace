@@ -20,57 +20,57 @@ class BlendColorsTest(unittest.TestCase):
     def test_values_and_undo(self):
         b = self.blend
         self.assertIsInstance(b, hlib.nodes.BlendColors)
-        b.set_color(1, (1, 0, 0)).set_color(2, (0, 0, 1))
-        b.set_blender(0)
+        b.setColor(1, (1, 0, 0)).setColor(2, (0, 0, 1))
+        b.setBlender(0)
         self.assertEqual(b.result(), (0, 0, 1))
-        b.set_blender(1)
+        b.setBlender(1)
         self.assertEqual(b.result(), (1, 0, 0))
-        b.set_blender(0.25)
+        b.setBlender(0.25)
         self.assertEqual(b.result(), (0.25, 0, 0.75))
         cmds.undo()
         self.assertEqual(b.result(), (1, 0, 0))
         cmds.redo()
         self.assertEqual(b.result(), (0.25, 0, 0.75))
-        b.set_color(1, (2, -1, 3))
+        b.setColor(1, (2, -1, 3))
         cmds.undo()
-        self.assertEqual(tuple(b.color_plug(1).get()), (1, 0, 0))
+        self.assertEqual(tuple(b.colorPlug(1).get()), (1, 0, 0))
         cmds.redo()
-        self.assertEqual(tuple(b.color_plug(1).get()), (2, -1, 3))
+        self.assertEqual(tuple(b.colorPlug(1).get()), (2, -1, 3))
 
     def test_connections(self):
         b = self.blend
         source = hlib.createNode("blendColors", name=self.ns + ":source")
-        source.set_color(1, (0, 1, 0)).set_blender(1)
+        source.setColor(1, (0, 1, 0)).setBlender(1)
         control = hlib.createNode("transform", name=self.ns + ":control")
         control.plug("tx").set(1)
-        b.connect_color(1, source.output_plug()).connect_blender(control.plug("tx"))
+        b.connectColor(1, source.outputPlug()).connectBlender(control.plug("tx"))
         self.assertEqual(b.result(), (0, 1, 0))
         cmds.undo()
-        self.assertFalse(cmds.listConnections(b.blender_plug().full_name(), source=True, destination=False))
+        self.assertFalse(cmds.listConnections(b.blenderPlug().fullName(), source=True, destination=False))
         cmds.redo()
         self.assertEqual(b.result(), (0, 1, 0))
         replacement = hlib.createNode("blendColors", name=self.ns + ":replacement")
         with self.assertRaises(RuntimeError):
-            b.connect_color(1, replacement.output_plug())
-        b.connect_color(1, replacement.output_plug(), force=True)
-        self.assertTrue(cmds.isConnected(replacement.output_plug().full_name(), b.color_plug(1).full_name()))
+            b.connectColor(1, replacement.outputPlug())
+        b.connectColor(1, replacement.outputPlug(), force=True)
+        self.assertTrue(cmds.isConnected(replacement.outputPlug().fullName(), b.colorPlug(1).fullName()))
         cmds.undo()
-        self.assertTrue(cmds.isConnected(source.output_plug().full_name(), b.color_plug(1).full_name()))
+        self.assertTrue(cmds.isConnected(source.outputPlug().fullName(), b.colorPlug(1).fullName()))
         with self.assertRaises(RuntimeError):
-            b.set_color(1, (1, 1, 1))
+            b.setColor(1, (1, 1, 1))
 
     def test_invalid_values_do_not_change_inputs(self):
-        before = self.blend.color_plug(1).get()
+        before = self.blend.colorPlug(1).get()
         for value in ((1, 2), (1, float("nan"), 3)):
             with self.assertRaises(ValueError):
-                self.blend.set_color(1, value)
+                self.blend.setColor(1, value)
         for index in (0, 3, True, 1.0):
             with self.assertRaises(ValueError):
-                self.blend.color_plug(index)
+                self.blend.colorPlug(index)
         for value in (-1, 2, float("inf")):
             with self.assertRaises(ValueError):
-                self.blend.set_blender(value)
-        self.assertEqual(self.blend.color_plug(1).get(), before)
+                self.blend.setBlender(value)
+        self.assertEqual(self.blend.colorPlug(1).get(), before)
 
 
 if __name__ == "__main__":

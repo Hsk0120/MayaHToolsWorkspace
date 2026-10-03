@@ -21,31 +21,31 @@ class BulkCollectionsTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_common_and_per_item_transform_undo(self):
-        self.joints.set_translate((1, 2, 3))
-        self.assertEqual([tuple(p) for p in self.joints.get_translate()], [(1, 2, 3)] * 2)
+        self.joints.setTranslation((1, 2, 3))
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(1, 2, 3)] * 2)
         cmds.undo()
-        self.assertEqual([tuple(p) for p in self.joints.get_translate()], [(0, 0, 0)] * 2)
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(0, 0, 0)] * 2)
         cmds.redo()
-        self.assertEqual([tuple(p) for p in self.joints.get_translate()], [(1, 2, 3)] * 2)
-        self.joints.call_each("set_translate", [((4, 5, 6),), ((7, 8, 9),)])
-        self.assertEqual([tuple(p) for p in self.joints.get_translate()], [(4, 5, 6), (7, 8, 9)])
-        self.assertEqual(self.joints.is_joint(), [True, True])
-        self.assertEqual(self.joints.full_name(), [item.full_name() for item in self.joints])
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(1, 2, 3)] * 2)
+        self.joints.callEach("setTranslation", [((4, 5, 6),), ((7, 8, 9),)])
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(4, 5, 6), (7, 8, 9)])
+        self.assertEqual(self.joints.isJoint(), [True, True])
+        self.assertEqual(self.joints.fullName(), [item.fullName() for item in self.joints])
         self.assertEqual(self.joints[:1].names(), self.names[:1])
         self.assertEqual(len(self.joints), 2)
         self.assertFalse(hasattr(self.joints, "create"))
-        self.assertEqual(hlib.nodes.Joints().get_translate(), [])
+        self.assertEqual(hlib.nodes.Joints().getTranslation(), [])
 
     def test_argument_validation_and_failure_context(self):
         with self.assertRaises(ValueError):
-            self.joints.call_each("set_translate", [((1, 2, 3),)])
+            self.joints.callEach("setTranslation", [((1, 2, 3),)])
         with self.assertRaises(TypeError):
-            self.joints.call_each("set_translate", [((1, 2, 3),), ()])
-        self.assertEqual([tuple(p) for p in self.joints.get_translate()], [(0, 0, 0)] * 2)
+            self.joints.callEach("setTranslation", [((1, 2, 3),), ()])
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(0, 0, 0)] * 2)
         cmds.setAttr(self.names[1] + ".translateX", lock=True)
         try:
-            with self.assertRaisesRegex(RuntimeError, "set_translate failed at item 1"):
-                self.joints.set_translate((5, 0, 0))
+            with self.assertRaisesRegex(RuntimeError, "setTranslation failed at item 1"):
+                self.joints.setTranslation((5, 0, 0))
             self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 5)
             cmds.undo()
             self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 0)
@@ -56,19 +56,19 @@ class BulkCollectionsTest(unittest.TestCase):
         meshes = [cmds.polyCube(name=self.ns + ":mesh")[0] for _ in range(2)]
         skins = hlib.nodes.SkinClusters([cmds.skinCluster(self.names, mesh, toSelectedBones=True)[0] for mesh in meshes])
         self.assertEqual(len(skins.influences()), 2)
-        self.assertEqual(skins.has_influence(self.names[0]), [True, True])
+        self.assertEqual(skins.hasInfluence(self.names[0]), [True, True])
         for skin, mesh in zip(skins, meshes):
-            cmds.skinPercent(skin.full_name(), mesh, transformValue=[(self.names[0], 0.75), (self.names[1], 0.25)])
-        skins.transfer_weights([(self.names[0], self.names[1])])
+            cmds.skinPercent(skin.fullName(), mesh, transformValue=[(self.names[0], 0.75), (self.names[1], 0.25)])
+        skins.transferWeights([(self.names[0], self.names[1])])
         for skin, mesh in zip(skins, meshes):
-            self.assertAlmostEqual(cmds.skinPercent(skin.full_name(), mesh + ".vtx[0]", query=True, transform=self.names[1]), 1)
+            self.assertAlmostEqual(cmds.skinPercent(skin.fullName(), mesh + ".vtx[0]", query=True, transform=self.names[1]), 1)
         cmds.undo()
         for skin, mesh in zip(skins, meshes):
-            self.assertAlmostEqual(cmds.skinPercent(skin.full_name(), mesh + ".vtx[0]", query=True, transform=self.names[0]), 0.75)
-        self.assertFalse(hasattr(skins, "dump_weights"))
-        self.assertIn("dump_weights", skins._bulk_methods)
+            self.assertAlmostEqual(cmds.skinPercent(skin.fullName(), mesh + ".vtx[0]", query=True, transform=self.names[0]), 0.75)
+        self.assertFalse(hasattr(skins, "dumpWeights"))
+        self.assertIn("dumpWeights", skins._bulk_methods)
         self.assertEqual(len(skins[:1]), 1)
-        self.assertTrue(callable(skins.remove_influences))
+        self.assertTrue(callable(skins.removeInfluences))
 
     def test_registration_coverage(self):
         for collection, single in ((self.joints, hlib.nodes.Joint), (hlib.nodes.SkinClusters(), hlib.nodes.SkinCluster)):

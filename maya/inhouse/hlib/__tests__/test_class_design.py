@@ -29,18 +29,18 @@ class ClassDesignTest(unittest.TestCase):
             self.assertIn("transform", cmds.nodeType(name, inherited=True))
             node = Node(name)
             self.assertIsInstance(node, Transform)
-            self.assertEqual(DagNode(name).dag_path().fullPathName(), node.full_name())
+            self.assertEqual(DagNode(name).dagPath().fullPathName(), node.fullName())
             self.assertEqual(Transform(name), node)
             nodes = Transforms([node])
-            self.assertIs(nodes.set_visibility(False), nodes)
-            self.assertFalse(node.get_visibility())
+            self.assertIs(nodes.setVisibility(False), nodes)
+            self.assertFalse(node.getVisibility())
 
     def test_display_api_is_dag_only(self):
         """DG基底に表示専用APIを公開せずDAG単数・複数で共有する。"""
         from hlib.nodes import Node, Nodes, DagNode, DagNodes, Transforms, Joints
-        methods = ("get_visibility", "set_visibility", "get_outliner_color",
-                   "set_outliner_color", "get_override_color", "set_override_color",
-                   "get_outliner_visibility", "set_outliner_visibility")
+        methods = ("getVisibility", "setVisibility", "getOutlinerColor",
+                   "setOutlinerColor", "getOverrideColor", "setOverrideColor",
+                   "getOutlinerVisibility", "setOutlinerVisibility")
         for method in methods:
             self.assertFalse(hasattr(Node, method))
             self.assertFalse(hasattr(Nodes, method))
@@ -57,16 +57,16 @@ class ClassDesignTest(unittest.TestCase):
         from hlib.nodes import Transforms
         names = [cmds.createNode("transform", name=self.ns + ":t" + str(i)) for i in range(2)]
         nodes = Transforms(names)
-        self.assertIs(nodes.set_translate((1, 2, 3)), nodes)
-        self.assertEqual([tuple(v) for v in nodes.get_translate()], [(1, 2, 3)] * 2)
+        self.assertIs(nodes.setTranslation((1, 2, 3)), nodes)
+        self.assertEqual([tuple(v) for v in nodes.getTranslation()], [(1, 2, 3)] * 2)
         cmds.undo()
-        self.assertEqual([tuple(v) for v in nodes.get_translate()], [(0, 0, 0)] * 2)
-        self.assertIs(nodes.call_each("set_translate", [((4, 0, 0),), ((5, 0, 0),)]), nodes)
-        self.assertEqual([tuple(v) for v in nodes.get_translate()], [(4, 0, 0), (5, 0, 0)])
-        self.assertEqual(len(nodes.add_attribute("custom", attribute_type="double")), 2)
+        self.assertEqual([tuple(v) for v in nodes.getTranslation()], [(0, 0, 0)] * 2)
+        self.assertIs(nodes.callEach("setTranslation", [((4, 0, 0),), ((5, 0, 0),)]), nodes)
+        self.assertEqual([tuple(v) for v in nodes.getTranslation()], [(4, 0, 0), (5, 0, 0)])
+        self.assertEqual(len(nodes.addAttribute("custom", attributeType="double")), 2)
         empty = Transforms()
-        self.assertIs(empty.set_translate((0, 0, 0)), empty)
-        self.assertEqual(empty.get_translate(), [])
+        self.assertIs(empty.setTranslation((0, 0, 0)), empty)
+        self.assertEqual(empty.getTranslation(), [])
         self.assertIs(nodes.freeze(), nodes)
 
     def test_bulk_requires_declaration(self):
@@ -95,7 +95,7 @@ class ClassDesignTest(unittest.TestCase):
         self.assertEqual(values.query(), [3])
         self.assertFalse(hasattr(values, "not_exported"))
         with self.assertRaises(ValueError):
-            values.call_each("not_exported", [()])
+            values.callEach("not_exported", [()])
 
     def test_save_scope_prevalidation(self):
         """単位saveとbatchの保存要求は現在値を変更する前に拒否する。"""

@@ -1,4 +1,6 @@
 """XYZ 座標を持つコンポーネントと要素群の座標操作。"""
+from maya.api.OpenMaya import MSpace
+from .._core.space import world_space
 
 from ..decorators._fast import fast_edit, is_fast
 from .._core import fastGeometry as fast_geometry
@@ -6,6 +8,7 @@ from .._core import fastGeometry as fast_geometry
 import math
 
 import maya.cmds as cmds
+import maya.api.OpenMaya as om2
 
 from ..decorators.undo import undo_chunk
 from .component import Component, Components
@@ -14,80 +17,83 @@ from .component import Component, Components
 class PointComponent(Component):
     """XYZ 座標を持つ頂点または CV。座標はシーンの現在値を参照する。"""
 
-    def get_position(self, ws=False):
+    def getPosition(self, space=MSpace.kObject):
         """現在の座標を取得する。
 
         Args:
-            ws (bool): True はワールド、False はオブジェクト空間。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
 
         Returns:
-            tuple[float, float, float]: Maya の現在の距離単位による XYZ 座標。
+            tuple[float, float, float]: cm単位の XYZ 座標。
 
         Raises:
-            ValueError: ws が bool でない場合。
+            ValueError: spaceが対応するMSpace定数でない場合。
         """
+        ws = world_space(space)
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
-        if is_fast():
-            self._validate()
-            return fast_geometry.positions(self.shape, [self.index], ws)[0]
-        # MFnMesh.getPoint/MFnNurbsCurve.cvPosition への置き換えを検討したが、
-        # 周期(periodic)カーブでは MFnNurbsCurve.numCVs が cmds の cv[] で
-        # アドレス可能な数(重複ラップ分を除いた実編集可能数)より多く、
-        # ラップ側のインデックスで cmds.xform の書き込みと食い違う実挙動が
-        # あるため、cmds.xform のまま維持する(set_position の書き込み経路と
-        # 読み取り単位・アドレッシングを一致させるため)。
-        space = {"worldSpace": True} if ws else {"objectSpace": True}
-        return tuple(cmds.xform(self.full_name(), query=True, translation=True, **space))
+        self._validate()
+        return fast_geometry.positions(self.shape, [self.index], ws)[0]
 
     @fast_edit
     @undo_chunk("hlibComponentPosition")
-    def set_position(self, value, ws=False, *, fast=False):
+    def setPosition(self, value, space=MSpace.kObject, *, fast=False):
         """座標を設定する。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Iterable[float]): 現在の距離単位での有限な XYZ 座標。
-            ws (bool): True はワールド、False はオブジェクト空間。
+            value (Iterable[float]): cm単位での有限な XYZ 座標。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
 
         Returns:
             PointComponent: 編集した自身。
 
         Raises:
-            ValueError: 座標または ws が不正な場合。
+            ValueError: 座標またはspace が不正な場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
+        ws = world_space(space)
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
         value = self._finite_coordinates(value, 3)
         if is_fast():
             self._validate()
-            fast_geometry.set_positions(self.shape, [self.index], [value], ws)
+            fast_geometry.setPositions(self.shape, [self.index], [value], ws)
             return self
         space = {"worldSpace": True} if ws else {"objectSpace": True}
-        cmds.xform(self.full_name(), absolute=True, translation=value, **space)
+        self._validate()
+        index = self.index
+        if self.shape.type() == "nurbsCurve":
+            fn = self.shape.curveFn()
+            if fn.form == om2.MFnNurbsCurve.kPeriodic:
+                # API末尾の重複CVは独立CVと同じ位置を表す。cmdsの末尾丸めを避ける。
+                index %= fn.numCVs - fn.degree
+        name = "{}.{}[{}]".format(self.shape.fullName(), "vtx" if self.shape.type() == "mesh" else "cv", index)
+        value = tuple(om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in value)
+        cmds.xform(name, absolute=True, translation=value, **space)
         return self
 
-    def get_x(self, ws=False):
+    def getX(self, space=MSpace.kObject):
         """X成分の現在値を取得する。
 
         Args:
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             float: 座標値。
         """
-        return self._get_coordinate(0, ws=ws)
+        ws = world_space(space)
+        return self._get_coordinate(0, space=space)
 
     @fast_edit
-    def set_x(self, value, ws=False, *, fast=False):
+    def setX(self, value, space=MSpace.kObject, *, fast=False):
         """X成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float): 有限な座標。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
             PointComponent: 更新した自身。
@@ -97,25 +103,27 @@ class PointComponent(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(0, value, ws=ws)
+        ws = world_space(space)
+        return self._set_coordinate(0, value, space=space)
 
-    def get_y(self, ws=False):
+    def getY(self, space=MSpace.kObject):
         """Y成分の現在値を取得する。
 
         Args:
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             float: 座標値。
         """
-        return self._get_coordinate(1, ws=ws)
+        ws = world_space(space)
+        return self._get_coordinate(1, space=space)
 
     @fast_edit
-    def set_y(self, value, ws=False, *, fast=False):
+    def setY(self, value, space=MSpace.kObject, *, fast=False):
         """Y成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float): 有限な座標。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
             PointComponent: 更新した自身。
@@ -125,25 +133,27 @@ class PointComponent(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(1, value, ws=ws)
+        ws = world_space(space)
+        return self._set_coordinate(1, value, space=space)
 
-    def get_z(self, ws=False):
+    def getZ(self, space=MSpace.kObject):
         """Z成分の現在値を取得する。
 
         Args:
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             float: 座標値。
         """
-        return self._get_coordinate(2, ws=ws)
+        ws = world_space(space)
+        return self._get_coordinate(2, space=space)
 
     @fast_edit
-    def set_z(self, value, ws=False, *, fast=False):
+    def setZ(self, value, space=MSpace.kObject, *, fast=False):
         """Z成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float): 有限な座標。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
             PointComponent: 更新した自身。
@@ -153,20 +163,21 @@ class PointComponent(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(2, value, ws=ws)
+        ws = world_space(space)
+        return self._set_coordinate(2, value, space=space)
 
 
 class PointComponents(Components):
     """XYZ 座標を持つコンポーネント群。"""
 
     @fast_edit
-    def set_position(self, value, ws=False, *, fast=False):
+    def setPosition(self, value, space=MSpace.kObject, *, fast=False):
         """全要素を同じ座標へ設定する。要素別にはset_positionsを使う。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float]): 有限のXYZ座標。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             PointComponents: 自身。全要素が同じ位置に集まる。
 
@@ -174,56 +185,62 @@ class PointComponents(Components):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
+        ws = world_space(space)
         point = Component._finite_coordinates(value, 3)
-        return self.set_positions([point] * len(self), ws=ws)
+        return self.setPositions([point] * len(self), space=MSpace.kWorld if ws else MSpace.kObject)
 
     @fast_edit
     @undo_chunk("hlibComponentsSetPositions")
-    def set_positions(self, values, ws=False, *, fast=False):
+    def setPositions(self, values, space=MSpace.kObject, *, fast=False):
         """保持順の座標列を設定する。全件の座標・対象を検証してから書き込む。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             values (Iterable[Iterable[float]]): 要素数と同じ数のXYZ座標。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             PointComponents: 自身。空集合と空座標列は何もしない。
         Raises:
-            ValueError: 件数・座標・wsが不正な場合。
+            ValueError: 件数・座標・spaceが不正な場合。
             RuntimeError: Mayaが編集を拒否した場合。完了済み変更は自動で戻さない。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
+        ws = world_space(space)
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
         rows = self._coordinate_rows(values, 3)
-        components = list(self)
-        if is_fast():
-            fast_geometry.set_positions(self._shape, [c.index for c in components], rows, ws)
+        if not self._indices:
             return self
+        if is_fast():
+            self._validate()
+            fast_geometry.setPositions(self._shape, self._indices, rows, ws)
+            return self
+        components = list(self)
         for component, point in zip(components, rows):
-            component.set_position(point, ws=ws)
+            component.setPosition(point, space=MSpace.kWorld if ws else MSpace.kObject)
         return self
 
-    def get_x(self, ws=False):
+    def getX(self, space=MSpace.kObject):
         """X成分の現在値を取得する。
 
         Args:
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             list[float]: 保持順の座標値。
         """
-        return self._get_coordinate(0, ws=ws)
+        ws = world_space(space)
+        return self._get_coordinate(0, space=space)
 
     @fast_edit
-    def set_x(self, value, ws=False, *, fast=False):
+    def setX(self, value, space=MSpace.kObject, *, fast=False):
         """X成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
             PointComponents: 更新した自身。
@@ -233,25 +250,27 @@ class PointComponents(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(0, value, ws=ws)
+        ws = world_space(space)
+        return self._set_coordinate(0, value, space=space)
 
-    def get_y(self, ws=False):
+    def getY(self, space=MSpace.kObject):
         """Y成分の現在値を取得する。
 
         Args:
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             list[float]: 保持順の座標値。
         """
-        return self._get_coordinate(1, ws=ws)
+        ws = world_space(space)
+        return self._get_coordinate(1, space=space)
 
     @fast_edit
-    def set_y(self, value, ws=False, *, fast=False):
+    def setY(self, value, space=MSpace.kObject, *, fast=False):
         """Y成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
             PointComponents: 更新した自身。
@@ -261,25 +280,27 @@ class PointComponents(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(1, value, ws=ws)
+        ws = world_space(space)
+        return self._set_coordinate(1, value, space=space)
 
-    def get_z(self, ws=False):
+    def getZ(self, space=MSpace.kObject):
         """Z成分の現在値を取得する。
 
         Args:
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
         Returns:
             list[float]: 保持順の座標値。
         """
-        return self._get_coordinate(2, ws=ws)
+        ws = world_space(space)
+        return self._get_coordinate(2, space=space)
 
     @fast_edit
-    def set_z(self, value, ws=False, *, fast=False):
+    def setZ(self, value, space=MSpace.kObject, *, fast=False):
         """Z成分だけを設定し、他の成分を維持する。
 
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
-            ws (bool): Trueはワールド、Falseはオブジェクト空間。距離は現在のUI単位。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
         Returns:
             PointComponents: 更新した自身。
@@ -289,36 +310,39 @@ class PointComponents(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(2, value, ws=ws)
+        ws = world_space(space)
+        return self._set_coordinate(2, value, space=space)
 
-    def get_position(self, ws=False):
+    def getPosition(self, space=MSpace.kObject):
         """保持順に現在の座標を取得する。
 
         Args:
-            ws (bool): True はワールド、False はオブジェクト空間。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
 
         Returns:
-            list[tuple[float, float, float]]: Maya の現在の距離単位での座標列。
+            list[tuple[float, float, float]]: cm単位の座標列。
 
         Raises:
-            ValueError: ws が bool でない場合。
+            ValueError: spaceが対応するMSpace定数でない場合。
         """
+        ws = world_space(space)
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
-        if is_fast():
-            return fast_geometry.positions(self._shape, [c.index for c in self], ws)
-        return [component.get_position(ws) for component in self]
+        if not self._indices:
+            return []
+        self._validate()
+        return fast_geometry.positions(self._shape, self._indices, ws)
 
     @fast_edit
     @undo_chunk("hlibComponentsMirror")
-    def mirror(self, axis="x", ws=False, pivot=(0.0, 0.0, 0.0), *, fast=False):
+    def mirror(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), *, fast=False):
         """保持している頂点または CV をまとめてミラーする。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): x、y、z または重複のない組み合わせ。大文字も可。
-            ws (bool): True はワールド、False はオブジェクト空間。
-            pivot (Iterable[float]): 選択空間の反転中心。現在の距離単位。既定は原点。
+            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            pivot (Iterable[float]): 選択空間の反転中心。cm単位。既定は原点。
 
         Returns:
             PointComponents: 編集したコレクション自身。
@@ -336,6 +360,7 @@ class PointComponents(Components):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
+        ws = world_space(space)
         if not isinstance(axis, str) or not axis or any(a not in "xyz" for a in axis.lower()):
             raise ValueError("axis must contain x, y, or z")
         axis = axis.lower()
@@ -353,13 +378,13 @@ class PointComponents(Components):
         if not components:
             return self
         if ws:
-            matrix = self._shape.dag_path().inclusiveMatrix()
+            matrix = self._shape.dagPath().inclusiveMatrix()
             # Maya はゼロスケールを微小値へ置換するため行列の大きさも考慮する。
             magnitude = max(1.0, *(sum(abs(matrix[row * 4 + col]) for col in range(3)) for row in range(3)))
             if abs(matrix.det4x4()) <= 1e-12 * magnitude ** 3:
                 raise ValueError("Cannot mirror in world space with a near-singular transform")
-        points = self.get_position(ws)
+        points = self.getPosition(MSpace.kWorld if ws else MSpace.kObject)
         mirrored_axes = {"xyz".index(a) for a in axis}
         rows = [[2.0 * pivot[i] - value if i in mirrored_axes else value for i, value in enumerate(point)] for point in points]
-        self.set_positions(rows, ws=ws)
+        self.setPositions(rows, space=MSpace.kWorld if ws else MSpace.kObject)
         return self

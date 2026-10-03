@@ -11,7 +11,7 @@ from .shadingDependNode import ShadingDependNode
 class VectorProduct(ShadingDependNode):
     """内積・外積・行列による点/ベクトル変換。"""
 
-    def input_plug(self, index):
+    def inputPlug(self, index):
         """入力のPlugを取得する。
 
         Args:
@@ -21,7 +21,7 @@ class VectorProduct(ShadingDependNode):
         """
         return self.plug(f"input{_Calculation.index(index, (1, 2))}")
 
-    def get_input(self, index):
+    def getInput(self, index):
         """入力の評価値を取得する。
 
         Args:
@@ -29,11 +29,11 @@ class VectorProduct(ShadingDependNode):
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.input_plug(index).get()
+        return self.inputPlug(index).get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_input(self, index, value, *, fast=False):
+    def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
 
         Args:
@@ -46,11 +46,11 @@ class VectorProduct(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.input_plug, index)
+        _Calculation.set_value(value, _Calculation.vector, self.inputPlug, index)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_input(self, index, source, force=False):
+    def connectInput(self, index, source, force=False):
         """入力へ接続する。
 
         Args:
@@ -63,19 +63,19 @@ class VectorProduct(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.input_plug, index, force=force)
+        _Calculation.connect(source, self.inputPlug, index, force=force)
         return self
 
-    def get_operation(self):
+    def getOperation(self):
         """現在のモード名を取得する。
         Returns:
             str: none, dot, cross, vector_matrix, point_matrix。
         """
-        return _Calculation.enum_name(self.plug("operation"), ('none', 'dot', 'cross', 'vector_matrix', 'point_matrix'))
+        return _Calculation.enumName(self.plug("operation"), ('none', 'dot', 'cross', 'vector_matrix', 'point_matrix'))
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_operation(self, mode, *, fast=False):
+    def setOperation(self, mode, *, fast=False):
         """モードを設定する。
 
         Args:
@@ -87,27 +87,27 @@ class VectorProduct(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enum_value(mode, ('none', 'dot', 'cross', 'vector_matrix', 'point_matrix'))
+        value = _Calculation.enumValue(mode, ('none', 'dot', 'cross', 'vector_matrix', 'point_matrix'))
         self.plug("operation").set(value)
         return self
 
-    def matrix_plug(self):
+    def matrixPlug(self):
         """変換行列のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("matrix")
 
-    def get_matrix(self):
+    def getMatrix(self):
         """変換行列の評価値を取得する。
         Returns:
             Matrix: 現在の値。
         """
-        return self.matrix_plug().get()
+        return self.matrixPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_matrix(self, value, *, fast=False):
+    def setMatrix(self, value, *, fast=False):
         """変換行列へ定数値を設定する。
 
         Args:
@@ -119,11 +119,11 @@ class VectorProduct(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, Matrix, self.matrix_plug)
+        _Calculation.set_value(value, Matrix, self.matrixPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_matrix(self, source, force=False):
+    def connectMatrix(self, source, force=False):
         """変換行列へ接続する。
 
         Args:
@@ -135,26 +135,26 @@ class VectorProduct(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.matrix_plug, force=force)
+        _Calculation.connect(source, self.matrixPlug, force=force)
         return self
 
-    def normalize_output_plug(self):
+    def normalizeOutputPlug(self):
         """出力正規化のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug("normalizeOutput")
 
-    def get_normalize_output(self):
+    def getNormalizeOutput(self):
         """出力正規化の評価値を取得する。
         Returns:
             bool: 現在の値。
         """
-        return self.normalize_output_plug().get()
+        return self.normalizeOutputPlug().get()
 
     @fast_edit
     @undo_chunk("hlibCalculationEdit")
-    def set_normalize_output(self, value, *, fast=False):
+    def setNormalizeOutput(self, value, *, fast=False):
         """出力正規化へ定数値を設定する。
 
         Args:
@@ -166,11 +166,11 @@ class VectorProduct(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.normalize_output_plug)
+        _Calculation.set_value(value, _Calculation.boolean, self.normalizeOutputPlug)
         return self
 
     @undo_chunk("hlibCalculationEdit")
-    def connect_normalize_output(self, source, force=False):
+    def connectNormalizeOutput(self, source, force=False):
         """出力正規化へ接続する。
 
         Args:
@@ -182,10 +182,10 @@ class VectorProduct(ShadingDependNode):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.normalize_output_plug, force=force)
+        _Calculation.connect(source, self.normalizeOutputPlug, force=force)
         return self
 
-    def output_plug(self):
+    def outputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
@@ -197,4 +197,4 @@ class VectorProduct(ShadingDependNode):
         Returns:
             Vector: 計算結果。
         """
-        return Vector(self.output_plug().get())
+        return Vector(self.outputPlug().get())

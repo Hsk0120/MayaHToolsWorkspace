@@ -9,20 +9,20 @@
 コンストレイント
 ----------------
 
-``add_constraint`` は呼び出し元を拘束し、引数のノードを拘束元にします。
+``addConstraint`` は呼び出し元を拘束し、引数のノードを拘束元にします。
 次の例はシーンにノードとコンストレイントを追加します。
 
 .. code-block:: python
 
    driver = hlib.createNode("transform", name="hlibDriver")
    driven = hlib.createNode("transform", name="hlibDriven")
-   constraint = driven.add_constraint(driver, "parent", maintainOffset=True)
+   constraint = driven.addConstraint(driver, "parent", maintainOffset=True)
    print(constraint.targets())
-   print(constraint.weight_aliases(), constraint.get_weights())
-   constraint.weight_plugs()[0].set(0.5)
+   print(constraint.weightAliases(), constraint.getWeights())
+   constraint.weightPlugs()[0].set(0.5)
 
-   constraint.set_weight(1.0)             # 全ターゲットに一括設定
-   constraint.set_weight(0.2, driver)      # 特定ターゲットのみ（Node/str/複数指定可）
+   constraint.setWeight(1.0)             # 全ターゲットに一括設定
+   constraint.setWeight(0.2, driver)      # 特定ターゲットのみ（Node/str/複数指定可）
 
 複数の拘束元はリストで指定できます。型名は ``"parent"`` と
 ``"parentConstraint"`` の両方に対応します。戻り値は ``ParentConstraint`` などの
@@ -33,8 +33,8 @@
 tangent、pointOnPoly です。PoleVector は RP IK ハンドル、Tangent は NURBS カーブ、
 Geometry／Normal／PointOnPoly は各 Maya コマンドに適した形状を指定してください。
 IK ハンドルは ``hlib.getNode(handle_name)`` から ``IkHandle`` として取得でき、
-``handle.add_constraint(driver, "poleVector")`` を使用できます。
-``set_weight`` はターゲットを省略すると全ターゲット、指定すると該当ターゲットのみ
+``handle.addConstraint(driver, "poleVector")`` を使用できます。
+``setWeight`` はターゲットを省略すると全ターゲット、指定すると該当ターゲットのみ
 ウェイトを設定します。``targets()`` に含まれないターゲットを指定すると ``ValueError``
 になります。
 
@@ -54,10 +54,10 @@ jointOrientをrotateへ移す
 .. code-block:: python
 
    joint = hlib.getNode("leg_RF_knee_IK_jnt")
-   joint.joint_orient_to_rotate()
+   joint.jointOrientToRotate()
 
    joints = hlib.ls(selection=True, type="joint")
-   joints.joint_orient_to_rotate()
+   joints.jointOrientToRotate()
 
 XYZの値を単純加算せず、回転を合成してrotateOrderに合わせたrotateへ変換します。
 rotateAxis・移動・スケールと子の姿勢を保持し、度・ラジアンのどちらの角度単位でも使えます。
@@ -69,16 +69,16 @@ rotateAxis・移動・スケールと子の姿勢を保持し、度・ラジア�
 スキニング済みjointの回転フリーズ
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-逆方向の操作は ``freeze_rotation()`` です。現在のrotateをjointOrientへ合成し、
+逆方向の操作は ``freezeRotation()`` です。現在のrotateをjointOrientへ合成し、
 rotateを0にします。ジョイントと子の姿勢を保持するため、スキニング後でも使用できます。
 
 .. code-block:: python
 
    joint = hlib.getNode("leg_RF_knee_IK_jnt")
-   joint.freeze_rotation()
+   joint.freezeRotation()
 
    joints = hlib.ls(selection=True, type="joint")
-   joints.freeze_rotation()
+   joints.freezeRotation()
 
 回転だけが対象です。translate・scale・rotateAxis・rotateOrderは変更しません。
 skinClusterのウェイト・bindPreMatrixや保存済みバインドポーズも変更せず、
@@ -101,29 +101,29 @@ rotateが既に0の対象は何もしません。それ以外でrotate／jointOr
    mid = Joint(cmds.joint(position=(2, 0, 0)))
    tip = Joint(cmds.joint(position=(4, 0, 0)))
 
-   print(root.chain_from_here())        # [root, mid, tip]（子が1つの間だけ辿る）
-   print(root.chain_from_here(tip))     # 同上。tip まで明示的に辿る
+   print(root.chainFromHere())        # [root, mid, tip]（子が1つの間だけ辿る）
+   print(root.chainFromHere(tip))     # 同上。tip まで明示的に辿る
 
    handle_name = cmds.ikHandle(startJoint=root.name(), endEffector=tip.name(),
                                 solver="ikRPsolver")[0]
    handle = hlib.getNode(handle_name)
 
-   print(root.ik_handles())             # [IkHandle(...)]（自身が start joint の場合のみ）
-   print(mid.ik_handles())              # []（途中の joint は対象外）
+   print(root.ikHandles())             # [IkHandle(...)]（自身が start joint の場合のみ）
+   print(mid.ikHandles())              # []（途中の joint は対象外）
 
-   print(handle.end_joint())            # tip
+   print(handle.endJoint())            # tip
    print(handle.joints())            # [root, mid]（末端 joint は含まない）
    print(handle.joints(include_tip=True))  # [root, mid, tip]
 
-``chain_from_here`` は ``to`` を省略すると、子 joint がちょうど1つの間だけ辿り、
+``chainFromHere`` は ``to`` を省略すると、子 joint がちょうど1つの間だけ辿り、
 分岐（子が0または2つ以上）に達したところで止まります。``to`` を指定した場合は
 そこまでの経路を辿り、``to`` が自身の子孫でなければ ``ValueError`` になります。
-``ik_handles`` は自身が **start joint** である IK ハンドルのみを対象にします。
+``ikHandles`` は自身が **start joint** である IK ハンドルのみを対象にします。
 Maya は IK ハンドルの ``startJoint`` への接続からしか joint 側を解決できないため、
 チェーン途中の joint では常に空リストになります。``IkHandle.joints`` は
 ``cmds.ikHandle(query=True, jointList=True)`` をラップしており、これは仕様上
 末端 joint を含まないため、必要なら ``include_tip=True`` を指定してください。
-``end_joint`` は ikEffector ノードの translate 接続元を辿って解決します。
+``endJoint`` は ikEffector ノードの translate 接続元を辿って解決します。
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。

@@ -91,7 +91,7 @@ class PluginVersionValueTest(unittest.TestCase):
         package = PluginPackage("Example", plugins=("example",), minimum_version=Version("3"))
         self.assertIsInstance(package.minimum_version, Version)
         with patch.object(Plugin, "version_text", return_value="3.1-build"), patch.object(
-            Plugin, "is_loaded", return_value=True
+            Plugin, "isLoaded", return_value=True
         ):
             self.assertEqual(package.installed_version(), Version("3.1"))
             self.assertIsInstance(package.loaded_version(), Version)

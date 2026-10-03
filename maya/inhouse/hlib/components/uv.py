@@ -11,21 +11,21 @@ class UV(Component):
     """現在の UV セットの単一 UV。UV セット切替後は切替先を参照する。"""
     shape_type = "mesh"
     component_type = "map"
-    count_attribute = "uv_count"
+    count_attribute = "numUVs"
 
-    def get_position(self):
+    def getPosition(self):
         """UV 座標を取得する。
 
         Returns:
             tuple[float, float]: 単位を持たない U、V 座標。
         """
         self._validate()
-        mesh_fn = self.shape.mesh_fn()
-        return tuple(mesh_fn.getUV(self._index, uvSet=mesh_fn.currentUVSetName()))
+        meshFn = self.shape.meshFn()
+        return tuple(meshFn.getUV(self._index, uvSet=meshFn.currentUVSetName()))
 
     @fast_edit
     @undo_chunk("hlibUVPosition")
-    def set_position(self, value, *, fast=False):
+    def setPosition(self, value, *, fast=False):
         """UV 座標を設定する。
 
         Args:
@@ -47,11 +47,11 @@ class UV(Component):
             self._validate()
             fast_geometry.set_uvs(self.shape, [self.index], [(u, v)])
             return self
-        cmds.polyEditUV(self.full_name(), relative=False, uValue=u, vValue=v,
-                        uvSetName=self.shape.mesh_fn().currentUVSetName())
+        cmds.polyEditUV(self.fullName(), relative=False, uValue=u, vValue=v,
+                        uvSetName=self.shape.meshFn().currentUVSetName())
         return self
 
-    def get_u(self):
+    def getU(self):
         """U成分の現在値を取得する。
 
         Returns:
@@ -60,7 +60,7 @@ class UV(Component):
         return self._get_coordinate(0)
 
     @fast_edit
-    def set_u(self, value, *, fast=False):
+    def setU(self, value, *, fast=False):
         """U成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -76,7 +76,7 @@ class UV(Component):
         """
         return self._set_coordinate(0, value)
 
-    def get_v(self):
+    def getV(self):
         """V成分の現在値を取得する。
 
         Returns:
@@ -85,7 +85,7 @@ class UV(Component):
         return self._get_coordinate(1)
 
     @fast_edit
-    def set_v(self, value, *, fast=False):
+    def setV(self, value, *, fast=False):
         """V成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -107,7 +107,7 @@ class UVs(Components):
     component_class = UV
 
     @fast_edit
-    def set_position(self, value, *, fast=False):
+    def setPosition(self, value, *, fast=False):
         """全UVを同じ座標へ設定する。
 
         Args:
@@ -121,11 +121,11 @@ class UVs(Components):
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         point = Component._finite_coordinates(value, 2)
-        return self.set_positions([point] * len(self))
+        return self.setPositions([point] * len(self))
 
     @fast_edit
     @undo_chunk("hlibUVsSetPositions")
-    def set_positions(self, values, *, fast=False):
+    def setPositions(self, values, *, fast=False):
         """保持順にUV座標を設定する。全件の座標・対象を先に検証する。
 
         Args:
@@ -147,10 +147,10 @@ class UVs(Components):
             fast_geometry.set_uvs(self._shape, [c.index for c in components], rows)
             return self
         for item, point in zip(components, rows):
-            item.set_position(point)
+            item.setPosition(point)
         return self
 
-    def get_u(self):
+    def getU(self):
         """U成分の現在値を取得する。
 
         Returns:
@@ -159,7 +159,7 @@ class UVs(Components):
         return self._get_coordinate(0)
 
     @fast_edit
-    def set_u(self, value, *, fast=False):
+    def setU(self, value, *, fast=False):
         """U成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -175,7 +175,7 @@ class UVs(Components):
         """
         return self._set_coordinate(0, value)
 
-    def get_v(self):
+    def getV(self):
         """V成分の現在値を取得する。
 
         Returns:
@@ -184,7 +184,7 @@ class UVs(Components):
         return self._get_coordinate(1)
 
     @fast_edit
-    def set_v(self, value, *, fast=False):
+    def setV(self, value, *, fast=False):
         """V成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -200,10 +200,10 @@ class UVs(Components):
         """
         return self._set_coordinate(1, value)
 
-    def get_position(self):
+    def getPosition(self):
         """保持順の UV 座標を取得する。
 
         Returns:
             list[tuple[float, float]]: U、V 座標列。
         """
-        return [item.get_position() for item in self]
+        return [item.getPosition() for item in self]

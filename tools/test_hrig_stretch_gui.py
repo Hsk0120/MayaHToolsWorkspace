@@ -61,12 +61,12 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
         yield
         spline, _ = editor.current()
-        check(spline.root.has_attribute("stretchGroup"), "UI adds spline layer")
+        check(spline.root.hasAttribute("stretchGroup"), "UI adds spline layer")
         editor.tree.setCurrentItem(row("stretch"))
         editor.select_node()
         settings = spline.root.plug("stretchGroup").source().node
         check(
-            cmds.ls(selection=True, long=True) == [settings.full_name()],
+            cmds.ls(selection=True, long=True) == [settings.fullName()],
             "Spline settings selection",
         )
         spline.controls()[-1].plug("ty").set(10)
@@ -96,7 +96,7 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
         yield
         limb, _ = editor.current()
-        check(isinstance(limb, LimbRig) and limb.root.has_attribute("stretchGroup"), "UI adds arm layer")
+        check(isinstance(limb, LimbRig) and limb.root.hasAttribute("stretchGroup"), "UI adds arm layer")
         limb.set_mode("ik")
         limb.set_layer_enabled("soft", False)
         cmds.setAttr(limb.controls()["target"] + ".tx", 7)
@@ -106,7 +106,7 @@ def main(output_dir=None, finished=None):
             "Arm reaches stretched endpoint",
         )
         settings = limb.root.plug("stretchGroup").source().node
-        cmds.setAttr(settings.full_name() + ".enabled", False)
+        cmds.setAttr(settings.fullName() + ".enabled", False)
         for _ in range(20):
             yield
             if not limb.layer_enabled("stretch"):
@@ -134,7 +134,7 @@ def main(output_dir=None, finished=None):
         yield
         limb = LimbRig("stretchArm")
         settings = limb.root.plug("stretchGroup").source().node
-        cmds.setAttr(settings.full_name() + ".enabled", False)
+        cmds.setAttr(settings.fullName() + ".enabled", False)
         for _ in range(20):
             yield
             if not limb.layer_enabled("stretch"):

@@ -1,4 +1,5 @@
 """別TransformのMatrixをoffsetParentMatrixへ設定する経路を検証する。"""
+from maya.api.OpenMaya import MSpace
 import sys
 import unittest
 import maya.cmds as cmds
@@ -17,21 +18,21 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.target = hlib.createNode("transform", parent=self.root)
 
     def tearDown(self):
-        cmds.delete(self.root.full_name())
+        cmds.delete(self.root.fullName())
 
     def test_matrix_type_copy_undo_and_fast(self):
-        self.source.set_translate((2, 3, 4))
-        self.source.set_rotate((.2, .3, .4))
-        self.source.set_scale((2, 3, 4))
-        value = self.source.get_matrix()
+        self.source.setTranslation((2, 3, 4))
+        self.source.setRotation((.2, .3, .4))
+        self.source.setScale((2, 3, 4))
+        value = self.source.getMatrix()
         plug = self.target.plug("offsetParentMatrix")
         self.assertIsInstance(value, Matrix)
         self.assertIsInstance(plug, MatrixPlug)
         self.assertIs(plug.set(value), plug)
         self.assertIsInstance(plug.get(), Matrix)
         self.assertTrue(plug.get().isEquivalent(value, 1e-9))
-        self.assertTrue(self.target.get_matrix().isEquivalent(Matrix(), 1e-9))
-        self.assertTrue(self.target.get_matrix(ws=True).isEquivalent(value, 1e-9))
+        self.assertTrue(self.target.getMatrix().isEquivalent(Matrix(), 1e-9))
+        self.assertTrue(self.target.getMatrix(space=MSpace.kWorld).isEquivalent(value, 1e-9))
         cmds.undo()
         self.assertTrue(plug.get().isEquivalent(Matrix(), 1e-9))
         cmds.redo()
@@ -42,54 +43,54 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertTrue(plug.get().isEquivalent(value, 1e-9))
 
     def test_world_alignment_preserves_channels(self):
-        self.root.set_translate((10, 20, 30))
-        self.root.set_rotate((.1, .2, .3))
-        self.root.set_scale((2, 3, 4))
-        self.source.set_translate((4, 5, 6))
-        self.target.set_translate((1, 2, 3))
-        self.target.set_rotate((.4, .5, .6))
-        local = self.target.get_matrix()
-        world = self.source.get_matrix(ws=True)
-        offset = local.inverse() * world * self.root.get_matrix(ws=True).inverse()
+        self.root.setTranslation((10, 20, 30))
+        self.root.setRotation((.1, .2, .3))
+        self.root.setScale((2, 3, 4))
+        self.source.setTranslation((4, 5, 6))
+        self.target.setTranslation((1, 2, 3))
+        self.target.setRotation((.4, .5, .6))
+        local = self.target.getMatrix()
+        world = self.source.getMatrix(space=MSpace.kWorld)
+        offset = local.inverse() * world * self.root.getMatrix(space=MSpace.kWorld).inverse()
         self.target.plug("offsetParentMatrix").set(offset)
-        self.assertTrue(self.target.get_matrix().isEquivalent(local, 1e-9))
-        self.assertTrue(self.target.get_matrix(ws=True).isEquivalent(world, 1e-8))
+        self.assertTrue(self.target.getMatrix().isEquivalent(local, 1e-9))
+        self.assertTrue(self.target.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-8))
 
     def test_transform_methods_and_collection(self):
         from hlib.nodes import Transforms
         nodes = Transforms([self.source, self.target])
         value = Matrix(translate=(4, 5, 6))
-        self.assertIs(self.target.set_offset_parent_matrix(value), self.target)
-        self.assertTrue(self.target.get_offset_parent_matrix().isEquivalent(value))
+        self.assertIs(self.target.setOffsetParentMatrix(value), self.target)
+        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
         cmds.undo()
-        self.assertTrue(self.target.get_offset_parent_matrix().isEquivalent(Matrix()))
-        nodes.set_offset_parent_matrix(value)
-        self.assertTrue(all(matrix.isEquivalent(value) for matrix in nodes.get_offset_parent_matrix()))
+        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(Matrix()))
+        nodes.setOffsetParentMatrix(value)
+        self.assertTrue(all(matrix.isEquivalent(value) for matrix in nodes.getOffsetParentMatrix()))
         cmds.undo()
-        self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.get_offset_parent_matrix()))
-        self.target.set_offset_parent_matrix(value, fast=True)
-        self.assertTrue(self.target.get_offset_parent_matrix().isEquivalent(value))
-        cmds.setAttr(self.target.full_name() + ".offsetParentMatrix", lock=True)
+        self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.getOffsetParentMatrix()))
+        self.target.setOffsetParentMatrix(value, fast=True)
+        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
+        cmds.setAttr(self.target.fullName() + ".offsetParentMatrix", lock=True)
         with self.assertRaises(RuntimeError):
-            self.target.set_offset_parent_matrix(Matrix())
+            self.target.setOffsetParentMatrix(Matrix())
 
     def test_transform_methods_and_collection(self):
         from hlib.nodes import Transforms
         nodes = Transforms([self.source, self.target])
         value = Matrix(translate=(4, 5, 6))
-        self.assertIs(self.target.set_offset_parent_matrix(value), self.target)
-        self.assertTrue(self.target.get_offset_parent_matrix().isEquivalent(value))
+        self.assertIs(self.target.setOffsetParentMatrix(value), self.target)
+        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
         cmds.undo()
-        self.assertTrue(self.target.get_offset_parent_matrix().isEquivalent(Matrix()))
-        nodes.set_offset_parent_matrix(value)
-        self.assertTrue(all(matrix.isEquivalent(value) for matrix in nodes.get_offset_parent_matrix()))
+        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(Matrix()))
+        nodes.setOffsetParentMatrix(value)
+        self.assertTrue(all(matrix.isEquivalent(value) for matrix in nodes.getOffsetParentMatrix()))
         cmds.undo()
-        self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.get_offset_parent_matrix()))
-        self.target.set_offset_parent_matrix(value, fast=True)
-        self.assertTrue(self.target.get_offset_parent_matrix().isEquivalent(value))
-        cmds.setAttr(self.target.full_name() + ".offsetParentMatrix", lock=True)
+        self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.getOffsetParentMatrix()))
+        self.target.setOffsetParentMatrix(value, fast=True)
+        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
+        cmds.setAttr(self.target.fullName() + ".offsetParentMatrix", lock=True)
         with self.assertRaises(RuntimeError):
-            self.target.set_offset_parent_matrix(Matrix())
+            self.target.setOffsetParentMatrix(Matrix())
 
 
 if __name__ == "__main__":

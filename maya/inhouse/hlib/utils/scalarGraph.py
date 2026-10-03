@@ -26,7 +26,7 @@ class ScalarGraph:
         Returns:
             str: 作成したノード名。
         """
-        node = self.container.create_node(kind, name=self.container.name() + "_" + role).full_name()
+        node = self.container.createNode(kind, name=self.container.name() + "_" + role).fullName()
         return node
 
     @staticmethod

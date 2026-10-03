@@ -73,7 +73,7 @@ class NodeCreationTest(unittest.TestCase):
         self.assertIs(hlib.getNode, hlib_cmds.getNode)
         wrapped = hlib.getNode(name)
         self.assertIsInstance(wrapped, Joint)
-        for value in (wrapped.mobject(), wrapped.dag_path()):
+        for value in (wrapped.mobject(), wrapped.dagPath()):
             self.assertIsInstance(hlib.getNode(value), Joint)
         self.assertEqual(cmds.ls(long=True), before)
         self.assertEqual(cmds.ls(sl=True, long=True), selection)
@@ -154,7 +154,7 @@ class SceneEditingCommandsTest(unittest.TestCase):
         self.created.append(copy.name())
 
         self.assertIsInstance(copy, Node)
-        self.assertNotEqual(copy.full_name(), original.full_name())
+        self.assertNotEqual(copy.fullName(), original.fullName())
         self.assertTrue(cmds.objExists("hlibDuplicateCopy"))
 
     def test_group_wraps_given_nodes_and_supports_empty_group(self):
@@ -225,7 +225,7 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
         cmds.currentTime(24)
         cmds.setKeyframe(node.plug("translateX"), value=10.0)
 
-        times = cmds.keyframe(node.full_name(), attribute="translateX", query=True, timeChange=True)
+        times = cmds.keyframe(node.fullName(), attribute="translateX", query=True, timeChange=True)
         self.assertEqual(sorted(times), [1.0, 24.0])
 
     def test_bake_results_creates_keys_across_range(self):
@@ -237,7 +237,7 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
 
         hlib_cmds.bakeResults(node, time=(1, 10), attribute=["translateX"], simulation=True)
 
-        times = cmds.keyframe(node.full_name(), attribute="translateX", query=True, timeChange=True)
+        times = cmds.keyframe(node.fullName(), attribute="translateX", query=True, timeChange=True)
         self.assertEqual(len(times), 10)
         self.assertEqual(sorted(times), [float(t) for t in range(1, 11)])
 

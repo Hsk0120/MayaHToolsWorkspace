@@ -77,7 +77,7 @@ def build_scene(cmds, backend, count, maintain_offset, chain=False, validate=Tru
                 MatrixFollow._build(
                     source_node,
                     target_node,
-                    target_node.parent_node(),
+                    target_node.parentNode(),
                     offset,
                     target + "_followMatrix",
                     selected,
@@ -166,7 +166,7 @@ def benchmark_skirt(cmds, args):
                             (120, end * (1 + column * 0.1 + depth * 0.2)),
                         ):
                             cmds.setKeyframe(
-                                driver.full_name(),
+                                driver.fullName(),
                                 attribute="rotate" + axis,
                                 time=frame,
                                 value=value,
@@ -177,8 +177,8 @@ def benchmark_skirt(cmds, args):
                 ("translateX", 0, 12),
                 ("rotateY", 0, 55),
             ):
-                cmds.setKeyframe(rig.root.full_name(), attribute=attr, time=1, value=start)
-                cmds.setKeyframe(rig.root.full_name(), attribute=attr, time=120, value=end)
+                cmds.setKeyframe(rig.root.fullName(), attribute=attr, time=1, value=start)
+                cmds.setKeyframe(rig.root.fullName(), attribute=attr, time=120, value=end)
             outputs = [joint + ".worldMatrix[0]" for joint in rig.joints()]
             cmds.evaluationManager(mode=mode)
             values = []

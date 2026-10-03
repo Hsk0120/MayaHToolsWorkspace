@@ -62,7 +62,7 @@ Examples
     import hlib
 
     node = hlib.createNode("transform", name="example")
-    print(node.full_name())
+    print(node.fullName())
 """
 
 from .._core.flags import flag_aliases

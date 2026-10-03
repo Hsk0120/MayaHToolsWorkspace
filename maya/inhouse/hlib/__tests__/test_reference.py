@@ -54,7 +54,7 @@ class ReferenceTest(unittest.TestCase):
 
     def test_namespace_returns_namespace_instance(self):
         reference = Node(self.ref_node_name)
-        namespace = reference.associated_namespace()
+        namespace = reference.associatedNamespace()
         self.assertIsInstance(namespace, Namespace)
         self.assertEqual(namespace, Namespace(self.namespace_name))
 
@@ -62,52 +62,52 @@ class ReferenceTest(unittest.TestCase):
         """継承APIはノード自身、専用APIは参照内容を照会する。"""
         reference = Node(self.ref_node_name)
         self.assertEqual(reference.namespace(), Namespace(':'))
-        self.assertEqual(reference.associated_namespace(), Namespace(self.namespace_name))
+        self.assertEqual(reference.associatedNamespace(), Namespace(self.namespace_name))
         with self.assertRaises(RuntimeError):
-            reference.is_root()
-        self.assertTrue(reference.is_top_level())
+            reference.isRoot()
+        self.assertTrue(reference.isTopLevel())
 
     def test_is_loaded_and_nodes(self):
         reference = Node(self.ref_node_name)
-        self.assertTrue(reference.is_loaded())
+        self.assertTrue(reference.isLoaded())
         nodes = reference.nodes()
         self.assertEqual(len(nodes), 1)
         self.assertTrue(nodes[0].name().startswith(self.namespace_name + ":"))
 
     def test_parent_reference_is_none_for_top_level(self):
         reference = Node(self.ref_node_name)
-        self.assertIsNone(reference.parent_reference())
+        self.assertIsNone(reference.parentReference())
 
     def test_is_root_root_and_children_for_top_level_reference(self):
         reference = Node(self.ref_node_name)
-        self.assertTrue(reference.is_top_level())
+        self.assertTrue(reference.isTopLevel())
         self.assertEqual(reference.root().name(), reference.name())
         self.assertEqual(reference.children(), [])
 
     def test_edit_strings_nodes_attrs_reflect_applied_edit(self):
         reference = Node(self.ref_node_name)
-        self.assertEqual(reference.edit_strings(), [])
-        self.assertEqual(reference.edit_node_names(), [])
-        self.assertEqual(reference.edit_attribute_names(), [])
+        self.assertEqual(reference.editStrings(), [])
+        self.assertEqual(reference.editNodeNames(), [])
+        self.assertEqual(reference.editAttributeNames(), [])
 
-        node_name = f"{self.namespace_name}:hlibReferenceExportHelper"
-        cmds.setAttr(node_name + ".translateX", 3.0)
+        nodeName = f"{self.namespace_name}:hlibReferenceExportHelper"
+        cmds.setAttr(nodeName + ".translateX", 3.0)
 
-        edit_strings = reference.edit_strings()
-        self.assertTrue(any("translate" in edit for edit in edit_strings))
-        self.assertIn("|" + node_name, reference.edit_node_names())
-        self.assertIn("translate", reference.edit_attribute_names())
+        editStrings = reference.editStrings()
+        self.assertTrue(any("translate" in edit for edit in editStrings))
+        self.assertIn("|" + nodeName, reference.editNodeNames())
+        self.assertIn("translate", reference.editAttributeNames())
 
     def test_unload_load_round_trip(self):
         reference = Node(self.ref_node_name)
         result = reference.unload()
         self.assertIs(result, reference)
-        self.assertFalse(reference.is_loaded())
+        self.assertFalse(reference.isLoaded())
         self.assertFalse(cmds.referenceQuery(self.ref_node_name, isLoaded=True))
 
         result = reference.load()
         self.assertIs(result, reference)
-        self.assertTrue(reference.is_loaded())
+        self.assertTrue(reference.isLoaded())
 
     def test_nodes_raises_when_unloaded(self):
         reference = Node(self.ref_node_name)
@@ -156,9 +156,9 @@ class CreateReferenceTest(unittest.TestCase):
     def test_creates_reference_under_requested_namespace(self):
         self.created = create_reference(self.ref_path, namespace="hlibCreateReferenceNs")
         self.assertIsInstance(self.created, Reference)
-        self.assertTrue(self.created.is_loaded())
+        self.assertTrue(self.created.isLoaded())
         self.assertTrue(cmds.objExists("hlibCreateReferenceNs:hlibCreateReferenceHelper"))
-        self.assertEqual(self.created.associated_namespace(), Namespace("hlibCreateReferenceNs"))
+        self.assertEqual(self.created.associatedNamespace(), Namespace("hlibCreateReferenceNs"))
 
     def test_created_reference_is_included_in_list_references(self):
         self.created = create_reference(self.ref_path, namespace="hlibCreateReferenceNs2")
@@ -204,15 +204,15 @@ class NestedReferenceTest(unittest.TestCase):
             os.rmdir(self.tmp_dir)
 
     def test_top_level_reference_reports_nested_child(self):
-        self.assertTrue(self.top.is_top_level())
+        self.assertTrue(self.top.isTopLevel())
         self.assertEqual(self.top.root().name(), self.top.name())
         child_names = [child.name() for child in self.top.children()]
         self.assertEqual(child_names, [self.nested_name])
 
     def test_nested_reference_resolves_parent_and_root(self):
         nested = Node(self.nested_name)
-        self.assertFalse(nested.is_top_level())
-        self.assertEqual(nested.parent_reference().name(), self.top.name())
+        self.assertFalse(nested.isTopLevel())
+        self.assertEqual(nested.parentReference().name(), self.top.name())
         self.assertEqual(nested.root().name(), self.top.name())
 
 

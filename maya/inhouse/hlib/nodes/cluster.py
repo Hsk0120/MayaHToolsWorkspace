@@ -11,7 +11,7 @@ from .node import Node
 class Cluster(Node):
     """Maya の cluster デフォーマラッパー。"""
 
-    def weighted_node(self):
+    def weightedNode(self):
         """このクラスタに対応するハンドル transform を取得する。
 
         Returns:

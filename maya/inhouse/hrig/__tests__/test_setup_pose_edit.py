@@ -1,5 +1,6 @@
 """RBF登録編集とカーブ近似の共通API検証。"""
 
+import math
 import unittest
 from maya import cmds
 import hlib
@@ -21,11 +22,11 @@ class PoseEditTest(unittest.TestCase):
         driver = hlib.createNode("transform", name="input")
         graph = PoseRbf.create([driver.plug("rx")], [[0], [60]], [[0], [30]], [60])
         target = hlib.createNode("network", name="target")
-        target.add_attribute(long_name="value", attribute_type="double")
+        target.addAttribute(longName="value", attributeType="double")
         graph.container.plug("outputs[0]").connect(target.plug("value"))
         uuid = graph.container.uuid()
         graph.set_data([[0], [30], [60]], [[0], [10], [40]], [40])
-        driver.plug("rx").set(30)
+        driver.plug("rx").set(math.radians(30))
         self.assertAlmostEqual(graph.capture()[0], 30, places=5)
         self.assertAlmostEqual(target.plug("value").get(), 10, places=4)
         graph.set_data([[0], [60]], [[0], [20]], [50])

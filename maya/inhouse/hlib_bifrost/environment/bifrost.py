@@ -16,7 +16,7 @@ class Bifrost:
         if cmds.about(apiVersion=True) < 20250000:
             return False
         plugin = Plugin("bifrostGraph")
-        if not plugin.is_loaded():
+        if not plugin.isLoaded():
             return False
         version = plugin.version()
         return version is not None and version.is_at_least(cls.MIN_VERSION)

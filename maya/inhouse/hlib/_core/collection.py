@@ -85,4 +85,4 @@ class _PerItemOnly:
 
     def __get__(self, instance, owner=None):
         """直接取得を拒否する。call_eachは単体から関数を取得するため利用可能。"""
-        raise AttributeError(f"{self._name} requires call_each with per-item arguments")
+        raise AttributeError(f"{self._name} requires callEach with per-item arguments")

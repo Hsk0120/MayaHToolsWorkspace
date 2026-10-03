@@ -1,4 +1,5 @@
 """ツイスト行列分配と行列属性の直接設定を実Mayaで検証する。"""
+from hlib.maths import MSpace
 
 import math
 import unittest
@@ -22,7 +23,7 @@ class TwistDistributionTest(unittest.TestCase):
 
         node = hlib.createNode("joint", name="joint", skipSelect=True)
         node.plug("translateX").set(2)
-        plug = node.add_attribute(long_name="rest", data_type="matrix")
+        plug = node.addAttribute(longName="rest", dataType="matrix")
         value = Matrix()
         value[12] = 3
         plug.set(value)
@@ -30,9 +31,9 @@ class TwistDistributionTest(unittest.TestCase):
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
         node.plug("offsetParentMatrix").set(value)
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
-        self.assertAlmostEqual(node.get_translate(ws=True)[0], 5)
+        self.assertAlmostEqual(node.getTranslation(space=MSpace.kWorld)[0], 5)
         cmds.undo()
-        self.assertAlmostEqual(node.get_translate(ws=True)[0], 2)
+        self.assertAlmostEqual(node.getTranslation(space=MSpace.kWorld)[0], 2)
 
     def test_fraction_and_ownership(self):
         """親子でない二つの姿勢も始点空間で補間し、外部参照を削除しない。"""
@@ -40,9 +41,9 @@ class TwistDistributionTest(unittest.TestCase):
 
         start = hlib.createNode("transform", name="start", skipSelect=True)
         end = hlib.createNode("transform", name="end", skipSelect=True)
-        start.set_translate((1, 0, 0))
-        end.set_translate((9, 0, 0))
-        end.plug("rotateX").set(120)
+        start.setTranslation((1, 0, 0))
+        end.setTranslation((9, 0, 0))
+        end.plug("rotateX").set(math.radians(120))
         graph = TwistDistribution.create(start, end)
         output = graph.sample(0.25, "quarter")
         matrix = om.MMatrix(output.get())
@@ -51,9 +52,9 @@ class TwistDistributionTest(unittest.TestCase):
         self.assertAlmostEqual(
             math.degrees(2 * math.atan2(quaternion.x, quaternion.w)), 30, places=4
         )
-        owned = cmds.container(graph.container.full_name(), query=True, nodeList=True)
+        owned = cmds.container(graph.container.fullName(), query=True, nodeList=True)
         hlib.delete(graph.container)
-        self.assertTrue(start.is_valid() and end.is_valid())
+        self.assertTrue(start.isValid() and end.isValid())
         self.assertFalse(any(cmds.objExists(n) for n in owned))
 
     def test_invalid_fraction(self):

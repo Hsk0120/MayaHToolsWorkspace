@@ -13,21 +13,21 @@ from .node import Node
 class DecomposeMatrix(Node):
     """Mayaの行列分解ノード。接続先の親空間やjointOrientの補正は行わない。"""
 
-    def input_plug(self):
+    def inputPlug(self):
         """MatrixPlug: inputMatrixの参照。"""
         return self.plug("inputMatrix")
 
-    def get_input(self):
+    def getInput(self):
         """Matrix: 現在の入力行列。接続済みなら接続元を評価する。"""
-        return self.input_plug().get()
+        return self.inputPlug().get()
 
-    def get_rotate_order(self):
+    def getRotateOrder(self):
         """int: 入力回転順序。MayaのrotateOrderと同じ番号0〜5。"""
         return self.plug("inputRotateOrder").get()
 
     @fast_edit
     @undo_chunk("hlibDecomposeMatrixSetInput")
-    def set_input(self, value, *, fast=False):
+    def setInput(self, value, *, fast=False):
         """定数行列を入力する。入力接続は切断しない。
 
         Args:
@@ -47,7 +47,7 @@ class DecomposeMatrix(Node):
         return self
 
     @undo_chunk("hlibDecomposeMatrixConnectInput")
-    def connect_input(self, source, force=False):
+    def connectInput(self, source, force=False):
         """行列Plugを入力へ接続する。
 
         Args:
@@ -65,7 +65,7 @@ class DecomposeMatrix(Node):
 
     @fast_edit
     @undo_chunk("hlibDecomposeMatrixRotateOrder")
-    def set_rotate_order(self, order, *, fast=False):
+    def setRotateOrder(self, order, *, fast=False):
         """出力Euler回転の回転順序を指定する。
 
         Args:
@@ -86,10 +86,10 @@ class DecomposeMatrix(Node):
         self.plug("inputRotateOrder").set(order_index(order))
         return self
 
-    def output_plugs(self):
+    def outputPlugs(self):
         """dict[str, Plug]: translate・rotate・scale・shearをキーとする出力Plug。
 
-        rotateの子Plug.get()は度、translateは現在の距離表示単位で返す。
+        rotateの子Plug.get()はrad、translateはcmで返す。
         出力を接続する場合はMayaが接続先のアトリビュート単位を扱う。
         """
         return {key: self.plug(name) for key, name in (

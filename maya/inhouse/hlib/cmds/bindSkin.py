@@ -44,8 +44,8 @@ def bindSkin(geometry, influences, **kwargs):
         raise ValueError("Geometry and influences must not be empty")
     if len(set(geometries)) != len(geometries):
         raise ValueError("Duplicate geometry")
-    names = [node.full_name() for node in joints]
-    geometry_names = [node.full_name() for node in geometries]
+    names = [node.fullName() for node in joints]
+    geometry_names = [node.fullName() for node in geometries]
     result = []
     for name in geometry_names:
         created = cmds.skinCluster(*names, name, **kwargs)

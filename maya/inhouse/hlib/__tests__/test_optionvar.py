@@ -74,10 +74,10 @@ class StorageFormatTest(OptionVarTestBase):
         self.assertIsInstance(raw, str)
         self.assertTrue(all(ord(char) < 128 for char in raw), raw)
         self.assertEqual(json.loads(raw), {"name": "日本", "items": [1, 2]})
-        self.assertEqual(self.store.full_name("data"), self.base + ".data")
+        self.assertEqual(self.store.fullName("data"), self.base + ".data")
 
     def test_value_is_overwritten_even_when_previous_optionvar_was_array(self):
-        name = self.store.full_name("list")
+        name = self.store.fullName("list")
         cmds.optionVar(intValueAppend=(name, 1))
         cmds.optionVar(intValueAppend=(name, 2))
         self.store["list"] = {"now": "dict"}
@@ -265,7 +265,7 @@ class ListingTest(OptionVarTestBase):
         self.assertEqual(self.store["k"], "parent")
         self.assertEqual(child["k"], "child")
         self.assertEqual(sibling["k"], "sibling")
-        self.assertEqual(child.full_name("k"), self.base + ".child.k")
+        self.assertEqual(child.fullName("k"), self.base + ".child.k")
 
 
 class LegacyValueTest(OptionVarTestBase):
@@ -274,14 +274,14 @@ class LegacyValueTest(OptionVarTestBase):
     def setUp(self):
         super().setUp()
         self.store = OptionVar(self.base, defaults={"count": 10})
-        cmds.optionVar(intValue=(self.store.full_name("count"), 99))
-        cmds.optionVar(stringValue=(self.store.full_name("text"), "plain text"))
-        cmds.optionVar(stringValue=(self.store.full_name("nan"), "NaN"))
-        cmds.optionVar(floatValue=(self.store.full_name("real"), 1.5))
-        cmds.optionVar(stringValueAppend=(self.store.full_name("array"), "a"))
+        cmds.optionVar(intValue=(self.store.fullName("count"), 99))
+        cmds.optionVar(stringValue=(self.store.fullName("text"), "plain text"))
+        cmds.optionVar(stringValue=(self.store.fullName("nan"), "NaN"))
+        cmds.optionVar(floatValue=(self.store.fullName("real"), 1.5))
+        cmds.optionVar(stringValueAppend=(self.store.fullName("array"), "a"))
         # float の範囲を超える数値は json.loads だけだと無限大になってしまう。
-        cmds.optionVar(stringValue=(self.store.full_name("huge"), "1e400"))
-        cmds.optionVar(stringValue=(self.store.full_name("nested_huge"), '{"a":[-1E400]}'))
+        cmds.optionVar(stringValue=(self.store.fullName("huge"), "1e400"))
+        cmds.optionVar(stringValue=(self.store.fullName("nested_huge"), '{"a":[-1E400]}'))
 
     def test_unreadable_values_are_treated_as_not_stored(self):
         self.assertEqual(self.store["count"], 10)
@@ -312,7 +312,7 @@ class LegacyValueTest(OptionVarTestBase):
     def test_too_deeply_nested_json_text_is_treated_as_not_stored(self):
         # json.loads が RecursionError を送出する深さの配列を、クラスを通さずに書き込む。
         depth = 100000
-        cmds.optionVar(stringValue=(self.store.full_name("deep"), "[" * depth + "]" * depth))
+        cmds.optionVar(stringValue=(self.store.fullName("deep"), "[" * depth + "]" * depth))
         self.assertFalse(self.store.is_stored("deep"))
         self.assertNotIn("deep", self.store)
         self.assertEqual(self.store.get("deep", "fallback"), "fallback")
@@ -330,7 +330,7 @@ class LegacyValueTest(OptionVarTestBase):
             "quoted": ('"text"', "text"),
         }
         for key, (text, _) in raw_texts.items():
-            cmds.optionVar(stringValue=(self.store.full_name(key), text))
+            cmds.optionVar(stringValue=(self.store.fullName(key), text))
         for key, (_, expected) in raw_texts.items():
             with self.subTest(key=key):
                 self.assertTrue(self.store.is_stored(key))
@@ -389,7 +389,7 @@ class ValidationTest(OptionVarTestBase):
                 with self.assertRaises(ValueError):
                     OptionVar(self.base, defaults={key: 1})
                 with self.assertRaises(ValueError):
-                    self.store.full_name(key)
+                    self.store.fullName(key)
                 self.assertNotIn(key, self.store)
         self.assertEqual(
             [name for name in cmds.optionVar(list=True) or [] if name.startswith(self.base)], []
@@ -399,14 +399,14 @@ class ValidationTest(OptionVarTestBase):
         store = OptionVar(self.base + "._Tool_2")
         store["2nd_Key"] = "ok"
         self.assertEqual(store["2nd_Key"], "ok")
-        self.assertEqual(store.full_name("2nd_Key"), self.base + "._Tool_2.2nd_Key")
+        self.assertEqual(store.fullName("2nd_Key"), self.base + "._Tool_2.2nd_Key")
         self.assertEqual(store.stored_keys(), ["2nd_Key"])
 
     def test_prefix_property_and_repr(self):
         store = OptionVar("studio.tool")
         self.assertEqual(store.prefix, "studio.tool")
         self.assertEqual(repr(store), "OptionVar('studio.tool')")
-        self.assertEqual(store.full_name("size"), "studio.tool.size")
+        self.assertEqual(store.fullName("size"), "studio.tool.size")
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ class Selection:
                 om2.MObject | om2.MDagPath | om2.MPlug | om2.MSelectionList]): 対象。
                 文字列には範囲指定も使える。単一対象も指定可能。MObject・MDagPath は
                 ノード、MPlug はアトリビュート、MSelectionList と Selection はその要素として扱う。
-                full_name が重複する対象は最初の1件のみを保持する。
+                fullName が重複する対象は最初の1件のみを保持する。
 
         Raises:
             TypeError: 非対応型、またはMesh/NurbsCurve以外のコンポーネントの場合。
@@ -71,7 +71,7 @@ class Selection:
                 raise TypeError("Unsupported selection item")
         unique = {}
         for item in resolved:
-            unique.setdefault(item.full_name(), item)
+            unique.setdefault(item.fullName(), item)
         self._items = tuple(unique.values())
 
     @staticmethod
@@ -113,7 +113,7 @@ class Selection:
     @property
     def items(self):
         """list[Node | Plug | Component]: 保持順の対象。削除済み参照も保持する。
-        full_name が重複する対象は構築時に除かれている(__init__ 参照)。"""
+        fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
         return list(self._items)
 
     def nodes(self, type=None):
@@ -128,7 +128,7 @@ class Selection:
         return [
             item
             for item in self._items
-            if isinstance(item, Node) and item.is_valid() and (type is None or item.is_type(type))
+            if isinstance(item, Node) and item.isValid() and (type is None or item.isType(type))
         ]
 
     def plugs(self):
@@ -141,7 +141,7 @@ class Selection:
         classes = {Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs}
         for item in self._items:
             if isinstance(item, Component) and self._valid(item):
-                key = (item.shape.full_name(), item.__class__)
+                key = (item.shape.fullName(), item.__class__)
                 groups.setdefault(key, (item.shape, []))[1].append(item.index)
         return [classes[kind](shape, indices) for (_, kind), (shape, indices) in groups.items()]
 
@@ -155,7 +155,7 @@ class Selection:
                     if isinstance(item, Node)
                     else item.shape if isinstance(item, Component) else item.node
                 )
-                result.setdefault(node.full_name(), node)
+                result.setdefault(node.fullName(), node)
         return list(result.values())
 
     def filter(self, type):
@@ -171,7 +171,7 @@ class Selection:
         for item in self._items:
             if not self._valid(item):
                 continue
-            if isinstance(item, Node) and item.is_type(type):
+            if isinstance(item, Node) and item.isType(type):
                 result.append(item)
             elif isinstance(item, Component) and item.component_type == type:
                 result.append(item)
@@ -183,11 +183,11 @@ class Selection:
         """削除されたノード・アトリビュート・範囲外要素を検出する。"""
         try:
             if isinstance(item, Node):
-                return item.is_valid()
-            if isinstance(item, Plug) and not item.is_valid():
+                return item.isValid()
+            if isinstance(item, Plug) and not item.isValid():
                 # 所有ノードの削除に加え、deleteAttr で削除された動的アトリビュートも無効として扱う。
                 return False
-            return bool(cmds.objExists(item.full_name()))
+            return bool(cmds.objExists(item.fullName()))
         except (RuntimeError, ValueError, IndexError):
             return False
 
@@ -198,7 +198,7 @@ class Selection:
         names = []
         for item in self._items:
             if self._valid(item):
-                names.append(item.full_name())
+                names.append(item.fullName())
             elif missing == "error":
                 raise RuntimeError("Selection contains a missing item")
         return names
@@ -230,7 +230,7 @@ class Selection:
 
     def __len__(self):
         """int: 保持数。コンポーネントは単体で数え、削除済み参照も含む。
-        full_name が重複する対象は構築時に除かれている(__init__ 参照)。"""
+        fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
         return len(self._items)
 
     def __iter__(self):

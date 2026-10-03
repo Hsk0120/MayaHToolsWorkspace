@@ -1,4 +1,5 @@
 """カーブ長の空間・インスタンス・評価更新をMayaで検証する。"""
+from maya.api.OpenMaya import MSpace
 import math
 import sys
 import unittest
@@ -26,22 +27,22 @@ class CurveLengthTest(unittest.TestCase):
     def test_world_space_instances_and_no_edits(self):
         """非均等スケールとシアー、別インスタンスを正しく評価する。"""
         transform = hlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (1, 1, 0)]))
-        instance = hlib.getNode(cmds.instance(transform.full_name())[0])
+        instance = hlib.getNode(cmds.instance(transform.fullName())[0])
         transform.plug("scale").set((2, 3, 1))
         transform.plug("shearXY").set(.5)
         curve = transform.shape()
         before = set(cmds.ls())
         undo_before = cmds.undoInfo(query=True, undoName=True)
         self.assertAlmostEqual(curve.length(1e-6), math.sqrt(2))
-        end = cmds.pointPosition(curve.full_name() + ".cv[1]", world=True)
+        end = cmds.pointPosition(curve.fullName() + ".cv[1]", world=True)
         expected = math.sqrt(sum(v*v for v in end))
-        self.assertAlmostEqual(curve.length(ws=True), expected)
-        self.assertAlmostEqual(instance.shape().length(ws=True), math.sqrt(2))
+        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), expected)
+        self.assertAlmostEqual(instance.shape().length(space=MSpace.kWorld), math.sqrt(2))
         self.assertEqual(set(cmds.ls()), before)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_before)
         cmds.currentUnit(linear="m")
-        self.assertAlmostEqual(curve.length(ws=True), expected / 100)
-        self.assertAlmostEqual(curve.length(ws=True, unit="cm"), expected)
+        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), expected)
+        self.assertAlmostEqual(curve.length(space=MSpace.kWorld, unit="cm"), expected)
         self.assertAlmostEqual(curve.length(unit="mm"), math.sqrt(2) * 10)
         self.assertAlmostEqual(curve.length(unit="meter"), math.sqrt(2) / 100)
         self.assertEqual(cmds.currentUnit(query=True, linear=True), "m")
@@ -67,11 +68,11 @@ class CurveLengthTest(unittest.TestCase):
         curve = hlib.getNode(transform).shape()
         cmds.setAttr(transform + ".scale", 2, 3, 1)
         info = cmds.createNode("curveInfo")
-        cmds.connectAttr(curve.full_name() + ".worldSpace[0]", info + ".inputCurve")
-        self.assertAlmostEqual(curve.length(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
-        original = curve.length(ws=True)
+        cmds.connectAttr(curve.fullName() + ".worldSpace[0]", info + ".inputCurve")
+        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), cmds.getAttr(info + ".arcLength"), places=4)
+        original = curve.length(space=MSpace.kWorld)
         cmds.setAttr(history + ".radius", 4)
-        self.assertAlmostEqual(curve.length(ws=True), original * 2, places=4)
+        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), original * 2, places=4)
 
     def test_validation(self):
         """不正な許容誤差と空間フラグを拒否する。"""
@@ -79,8 +80,8 @@ class CurveLengthTest(unittest.TestCase):
         for tolerance in (0, -1, float("nan"), float("inf")):
             with self.assertRaises(ValueError):
                 curve.length(tolerance)
-        with self.assertRaises(TypeError):
-            curve.length(ws=1)
+        with self.assertRaises(ValueError):
+            curve.length(space=True)
         with self.assertRaises(TypeError):
             curve.length(unit=1)
         with self.assertRaises(ValueError):
@@ -94,8 +95,8 @@ class CurveLengthTest(unittest.TestCase):
         cmds.setAttr(transform + ".scale", 2, 3, 1)
         curve = hlib.getNode(transform).shape()
         info = cmds.createNode("curveInfo")
-        cmds.connectAttr(curve.full_name() + ".worldSpace[0]", info + ".inputCurve")
-        self.assertAlmostEqual(curve.length(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
+        cmds.connectAttr(curve.fullName() + ".worldSpace[0]", info + ".inputCurve")
+        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), cmds.getAttr(info + ".arcLength"), places=4)
 
 
 if __name__ == "__main__":

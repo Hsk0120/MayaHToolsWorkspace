@@ -10,18 +10,18 @@ from .shape import Shape
 class Camera(Shape):
     """Maya camera shape ノードのラッパー。"""
 
-    def camera_fn(self):
+    def cameraFn(self):
         """MFnCamera を取得する。
 
         Returns:
             om2.MFnCamera: この camera の function set。
         """
-        return om2.MFnCamera(self.dag_path())
+        return om2.MFnCamera(self.dagPath())
 
-    def get_focal_length(self):
+    def getFocalLength(self):
         """焦点距離を取得する。
 
         Returns:
             float: Maya の焦点距離。
         """
-        return self.camera_fn().focalLength
+        return self.cameraFn().focalLength

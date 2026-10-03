@@ -20,8 +20,8 @@ Sceneオブジェクトと参照ファイルの取得・操作を説明します
     # other.open() # 明示的に開く場合
 
 Scene は取得時のパスを保持します。現在のシーンの切替・名前変更に自動追従しません。
-``new()``、``open()``、``save_as()`` を自身で実行した場合は保持パスも更新します。
-``save()``、``save_as()``、``is_modified()`` は現在のシーンとパスが一致する場合のみ
+``new()``、``open()``、``saveAs()`` を自身で実行した場合は保持パスも更新します。
+``save()``、``saveAs()``、``isModified()`` は現在のシーンとパスが一致する場合のみ
 使用できます。未保存シーン同士はパスで区別できません。
 クラスの定義先は ``hlib.scene.Scene``、名前空間クラスは ``hlib.scene.Namespace`` です。
 
@@ -48,7 +48,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 
    scene = Scene()
    print(scene.path)  # 未保存なら None
-   print(scene.is_modified())
+   print(scene.isModified())
 
 参照(reference)の列挙と操作
 -------------------------------
@@ -58,7 +58,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
    from hlib.utils.references import list_references
 
    for reference in list_references():
-       print(reference.filename(), reference.associated_namespace(), reference.is_loaded())
+       print(reference.filename(), reference.associatedNamespace(), reference.isLoaded())
 
    top_level = list_references(top_level_only=True)  # ネストした参照を除外
 
@@ -69,5 +69,5 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 
 参照ノード自体は ``hlib.nodes.Reference`` として自動解決されます
 (``hlib.getNode("参照ノード名")`` でも取得可能)。``filename``/``namespace``/
-``is_loaded``/``nodes``/``parent_reference`` は ``MFnReference`` 経由の
+``isLoaded``/``nodes``/``parentReference`` は ``MFnReference`` 経由の
 読み取り専用照会、``load``/``unload``/``remove`` は Undo 対応の編集操作です。

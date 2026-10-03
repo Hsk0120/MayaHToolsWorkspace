@@ -7,7 +7,7 @@ class Edge(Component):
     """Mesh の単一コンポーネント。"""
     shape_type = "mesh"
     component_type = "e"
-    count_attribute = "edge_count"
+    count_attribute = "numEdges"
 
     def vertices(self):
         """接続する頂点群を取得する。
@@ -16,7 +16,7 @@ class Edge(Component):
             Vertices: Maya の接続順の頂点群。
         """
         self._validate()
-        return Vertices(self.shape, self.shape.mesh_fn().getEdgeVertices(self.index))
+        return Vertices(self.shape, self.shape.meshFn().getEdgeVertices(self.index))
 
 
 class Edges(Components):

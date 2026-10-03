@@ -5,8 +5,8 @@ Examples
 .. code-block:: python
 
     relation = hlib.getDrivenKey("ctrl.rotateY", "joint.rotateZ")
-    relation.set_key(driver_value=0, value=0)
-    relation.set_key(driver_value=90, value=45)
+    relation.setKey(driver_value=0, value=0)
+    relation.setKey(driver_value=90, value=45)
 """
 
 

@@ -16,7 +16,7 @@ class BaseRefactoringTest(unittest.TestCase):
         """後半の不正な引数でも先頭を編集しない。"""
         joints = hlib.nodes.Joints(self.names)
         with self.assertRaises(TypeError):
-            joints.call_each("set_translate", [((1, 2, 3),), ((4, 5, 6),)], [{}, {"bad_flag": True}])
+            joints.callEach("setTranslation", [((1, 2, 3),), ((4, 5, 6),)], [{}, {"bad_flag": True}])
         self.assertEqual(cmds.getAttr(self.names[0] + ".translate")[0], (0, 0, 0))
 
     def test_rotation_validation_before_edit(self):
@@ -26,7 +26,7 @@ class BaseRefactoringTest(unittest.TestCase):
         cmds.setAttr(self.names[1] + ".jointOrientX", lock=True)
         before = cmds.getAttr(self.names[0] + ".rotate")[0]
         with self.assertRaises(RuntimeError):
-            hlib.nodes.Joints(self.names).freeze_rotation()
+            hlib.nodes.Joints(self.names).freezeRotation()
         self.assertEqual(cmds.getAttr(self.names[0] + ".rotate")[0], before)
 
     def test_single_and_plural_undo(self):
@@ -37,7 +37,7 @@ class BaseRefactoringTest(unittest.TestCase):
         many = hlib.nodes.Joints(self.names)
         before = [cmds.getAttr(name + ".rotate")[0] for name in self.names]
         for target in (single, many):
-            self.assertIs(target.freeze_rotation(), target)
+            self.assertIs(target.freezeRotation(), target)
             cmds.undo()
             for name, values in zip(self.names, before):
                 self.assertEqual(cmds.getAttr(name + ".rotate")[0], values)

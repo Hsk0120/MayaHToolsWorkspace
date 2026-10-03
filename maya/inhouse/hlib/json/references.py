@@ -12,12 +12,26 @@ class NodeRef:
     @classmethod
     def capture(cls, node):
         """Nodeまたは一意な名前から参照を取得する。"""
-        from maya import cmds
-        name = (node.full_name() if hasattr(node, "full_name") else node)
-        names = cmds.ls(name, long=True) or []
-        if len(names) != 1 or "." in names[0]:
+        import maya.api.OpenMaya as om2
+        from ..nodes.node import Node
+        name = (node.fullName() if hasattr(node, "fullName") else node)
+        if isinstance(node, Node):
+            if not node.isValid():
+                raise ValueError("Expected one node: {}".format(name))
+            return cls(node.uuid(), name, node.type())
+        selection = om2.MSelectionList()
+        try:
+            selection.add(name)
+        except (RuntimeError, TypeError) as exc:
+            raise ValueError("Expected one node: {}".format(name)) from exc
+        if selection.length() != 1 or "." in name:
             raise ValueError("Expected one node: {}".format(name))
-        return cls(cmds.ls(names[0], uuid=True)[0], names[0], cmds.nodeType(names[0]))
+        try:
+            value = selection.getDagPath(0)
+        except (RuntimeError, TypeError):
+            value = selection.getDependNode(0)
+        node = Node(value)
+        return cls(node.uuid(), node.fullName(), node.type())
 
     def resolve(self, mapping=None, namespace_map=None):
         """明示マップ→名前空間変換→UUID→絶対名の順でNodeを解決する。
@@ -29,7 +43,7 @@ class NodeRef:
         mapping, namespace_map = mapping or {}, namespace_map or {}
         explicit = self.path in mapping
         name = mapping.get(self.path, self.path)
-        name = (name.full_name() if hasattr(name, "full_name") else name)
+        name = (name.fullName() if hasattr(name, "fullName") else name)
         if not explicit and namespace_map:
             parts = name.split("|")
             for i, part in enumerate(parts):
@@ -52,9 +66,10 @@ class NodeRef:
             candidates = cmds.ls(name, long=True) or []
         if len(candidates) != 1:
             raise ValueError("Node missing or ambiguous: {}".format(name))
-        if cmds.nodeType(candidates[0]) != self.node_type:
+        node = Node(candidates[0])
+        if node.type() != self.node_type:
             raise ValueError("Node type mismatch: {}".format(name))
-        return Node(candidates[0])
+        return node
 
 
 @dataclass(frozen=True)
@@ -66,7 +81,7 @@ class PlugRef:
     @classmethod
     def capture(cls, plug):
         """Plugまたはアトリビュート名を参照へ変換する。"""
-        name = (plug.full_name() if hasattr(plug, "full_name") else plug)
+        name = (plug.fullName() if hasattr(plug, "fullName") else plug)
         node, attr = name.split(".", 1)
         return cls(NodeRef.capture(node), attr)
 
@@ -76,7 +91,7 @@ class PlugRef:
         key = self.node.path + "." + self.attribute
         if key in mapping:
             from ..nodes.node import Node
-            name = (mapping[key].full_name() if hasattr(mapping[key], "full_name") else mapping[key])
+            name = (mapping[key].fullName() if hasattr(mapping[key], "fullName") else mapping[key])
             node, attr = name.split(".", 1)
             return NodeRef.capture(node).resolve().plug(attr)
         return self.node.resolve(**kwargs).plug(self.attribute)
@@ -93,18 +108,16 @@ class ComponentRef:
     @classmethod
     def capture(cls, component):
         """hlibの単体コンポーネントから参照を取得する。"""
-        from maya import cmds
-        name = component.full_name()
+        name = component.fullName()
         kind = name.rsplit(".", 1)[1].split("[")[0]
-        uv = (cmds.polyUVSet(component.shape.full_name(), query=True, currentUVSet=True) or [""])[0] if kind == "map" else ""
+        uv = component.shape.meshFn().currentUVSetName() if kind == "map" else ""
         return cls(NodeRef.capture(component.shape), kind, component.index, uv)
 
     def resolve(self, **kwargs):
         """番号とUVセットを検証して単体コンポーネントを返す。"""
-        from maya import cmds
         from ..components import Vertex, CV, Edge, Face, UV
         types = {"vtx": Vertex, "cv": CV, "e": Edge, "f": Face, "map": UV}
         node = self.node.resolve(**kwargs)
-        if self.uv_set and (cmds.polyUVSet(node.full_name(), query=True, currentUVSet=True) or [""])[0] != self.uv_set:
+        if self.uv_set and node.meshFn().currentUVSetName() != self.uv_set:
             raise ValueError("UV set mismatch")
         return types[self.kind](node, self.index)
