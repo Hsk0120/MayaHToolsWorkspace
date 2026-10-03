@@ -11,7 +11,7 @@ SET MAYA_CORE=maya_core.bat
 ::----------------------------------------------------------------
 ::Startup Maya
 ::  Args:
-::      MAYA_EXE = "C:\Program Files\Autodesk\Maya2023\bin\maya.exe" 
+::      MAYA_EXE = "C:\Program Files\Autodesk\Maya2023\bin\maya.exe"
 ::      MAYA_UI_LANGUAGE = "en_US"
 ::      OPEN_FILE=%3
 ::      MEL=%4
