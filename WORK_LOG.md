@@ -83,6 +83,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-03): OpenRVを maya/external/openrv にsubmodule登録(浅いクローン)。色再現性の調査メモは docs/research/openrv_color.md(Git対象外)。mainへpush。
+
+- Claude Code (2026-10-03): FramePlayerにMaya準拠のショートカット(Alt+V再生/停止・Alt+Shift+V範囲の最初へ・Esc停止・K+左ドラッグのスクラブ)とフルスクリーン(Ctrl+F・映像のダブルクリック・右クリックのメニュー、Escで戻る)を追加。実キー入力の自動操作で全項目を確認。mainへpush。
+
 - Claude Code (2026-10-03): FramePlayerのVFR動画(Xbox Game Bar録画)のコマ落ちを修正。Video Processor MFTが色変換・縮小時に時刻を平均fpsの等間隔へ付け直し、約半数のコマが目次と照合できず捨てられていた。MF_XVP_DISABLE_FRCで変換を止めた。FramePlayerVerifyで対象動画693コマ(GPU/CPU・シーク含む)と縞の確認動画の不一致0。mainへpush。
 
 - Codex (2026-10-03): パッケージ名汎用化の実装・拡張・Sphinx・回帰テストを公開対象として確定。差分チェックと前回のMaya5版・最終回帰3件・3名称Sphinxの成功記録を確認し、mainへコミット・push。他作業の変更は対象外。

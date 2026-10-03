@@ -117,3 +117,7 @@
 [submodule "maya/inhouse/MayaCinematicCameraHUD"]
 	path = maya/inhouse/MayaCinematicCameraHUD
 	url = https://github.com/Hsk0120/MayaCinematicCameraHUD.git
+[submodule "maya/external/openrv"]
+	path = maya/external/openrv
+	url = https://github.com/AcademySoftwareFoundation/openrv.git
+	shallow = true
