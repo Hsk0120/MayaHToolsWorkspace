@@ -56,25 +56,22 @@ public:
     bool supportsNv12() const { return supportsNv12_; }
 
     /**
+     * @brief P010(10bitの動画の形式)のテクスチャをキャッシュと描画に使えるかを返す。
+     * @return 使えればtrue。
+     */
+    bool supportsP010() const { return supportsP010_; }
+
+    /**
      * @brief GPUのメモリのうち、このアプリが使ってよい量の目安を返す(Windowsが示す予算)。
      * @return バイト数。分からなければ0。
      */
     std::size_t localMemoryBudget() const;
 
     /**
-     * @brief GPUのメモリ上のコマ(NV12)を主メモリのBGRA画像へ読み出す。
-     * @param frame GPUのコマ。
-     * @param out 読み出した画像の格納先(pixelsだけを持つコマになる)。
-     * @return 読み出せた場合true。
-     * @note 確認用ツールで画像の中身を調べるためのもの。GPUの完了を待つので遅い。再生には使わない。
-     */
-    bool readBack(const Frame& frame, Frame& out) const;
-
-    /**
      * @brief 一連のGPU処理を他のスレッドと混ざらないように囲む鍵。lock()の戻り値が生きている間は他のスレッドを待たせる。
      * @return 鍵を外すまでの間有効なオブジェクト。
      * @note 鍵の本体はDirect3Dの複数スレッド保護(ID3D10Multithread)で、同じスレッドからは重ねてかけられる。
-     *       裏の読み込み(デコード1回分)と描画(Direct2Dの描画1回分)の両方をこの鍵で囲み、互いに待ち合わせる。
+     *       裏の読み込み(デコード1回分)と描画(1回分)の両方をこの鍵で囲み、互いに待ち合わせる。
      */
     class Lock {
     public:
@@ -111,6 +108,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D10Multithread> multithread_;
     Microsoft::WRL::ComPtr<IMFDXGIDeviceManager> manager_;
     bool supportsNv12_ = false;
+    bool supportsP010_ = false;
     bool started_ = false;  ///< MFStartup()に成功したか。
 };
 

@@ -111,6 +111,7 @@ private:
     std::vector<std::vector<std::uint16_t>> images_;   ///< positions_に対応する縮小画像(RGB565)。未作成は空。
     int imageWidth_ = 0;                               ///< 縮小画像の幅(最初の1枚で決まる)。
     int imageHeight_ = 0;                              ///< 縮小画像の高さ(最初の1枚で決まる)。
+    ColorInfo imageColor_;                             ///< 縮小画像の色の解釈(最初の1枚で決まる)。
     std::size_t bytes_ = 0;                            ///< 作った縮小画像の合計バイト数。
     mutable int lastPosition_ = -1;                    ///< 最後にnearest()で返した画像の位置(positions_の添字)。
     mutable std::shared_ptr<const Frame> lastFrame_;   ///< 最後にnearest()で返した画像。

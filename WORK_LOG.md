@@ -83,6 +83,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-03): FramePlayerの色をニュートラルに正確再現。色情報(行列/範囲/色域/伝達関数/ビット数、mp4のcolrも自前で読む)を読み、Windowsの映像処理を通さず自前のHLSL(fxcで埋め込み)でYUV→RGB・縮小・色域変換・HDR(HDR画面は明るさそのまま、SDR画面はBT.2390で203cd/m²へ)・10bit(P010・scRGB出力)。右クリックで色の情報の表示と手動の指定。確認用動画の生成スクリプトとFramePlayerColorCheckで10本×SDR/HDR画面×GPU/CPU/縮小がすべて許容差内。実機のHDR画面での確認は未。mainへpush。
+
 - Claude Code (2026-10-03): OpenRVを maya/external/openrv にsubmodule登録(浅いクローン)。色再現性の調査メモは docs/research/openrv_color.md(Git対象外)。mainへpush。
 
 - Claude Code (2026-10-03): FramePlayerにMaya準拠のショートカット(Alt+V再生/停止・Alt+Shift+V範囲の最初へ・Esc停止・K+左ドラッグのスクラブ)とフルスクリーン(Ctrl+F・映像のダブルクリック・右クリックのメニュー、Escで戻る)を追加。実キー入力の自動操作で全項目を確認。mainへpush。

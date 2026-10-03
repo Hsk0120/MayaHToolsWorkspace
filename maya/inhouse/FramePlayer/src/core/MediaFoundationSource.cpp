@@ -72,6 +72,157 @@ void disableFrameRateConversion(IMFSourceReader* reader) {
     }
 }
 
+/**
+ * @brief Source Readerがデコーダーの後にWindowsの映像処理(Video Processor)を挟んだかを返す。
+ * @param reader 出力形式を設定し終えたSource Reader。
+ * @return 挟んでいればtrue。
+ * @note 求めた形式をデコーダーがそのまま出せないときだけ挟まる(8bitの動画でP010を求めたときなど)。
+ */
+bool hasVideoProcessor(IMFSourceReader* reader) {
+    ComPtr<IMFSourceReaderEx> readerEx;
+    if (FAILED(reader->QueryInterface(IID_PPV_ARGS(&readerEx)))) {
+        return false;
+    }
+    for (DWORD i = 0;; ++i) {
+        GUID category{};
+        ComPtr<IMFTransform> transform;
+        if (FAILED(readerEx->GetTransformForStream(kVideoStream, i, &category, &transform))) {
+            return false;
+        }
+        if (category == MFT_CATEGORY_VIDEO_PROCESSOR) {
+            return true;
+        }
+    }
+}
+
+/**
+ * @brief Media Foundationの形式の属性から分かる色の情報を当てはめる。
+ * @param type 形式。
+ * @param info 当てはめる先。分かった項目だけを差し替え、出所をFileにする。
+ * @return 行列・色域・伝達関数のどれかが分かったらtrue(範囲だけならデコーダーの既定値のことがあるのでfalse)。
+ */
+bool applyMediaTypeColor(IMFMediaType* type, ColorInfo& info) {
+    auto get = [type](const GUID& key) {
+        UINT32 value = 0;
+        return SUCCEEDED(type->GetUINT32(key, &value)) ? static_cast<int>(value) : -1;
+    };
+    bool described = false;
+    switch (get(MF_MT_YUV_MATRIX)) {
+    case MFVideoTransferMatrix_BT709:
+        info.matrix = ColorMatrix::Bt709;
+        info.matrixSource = ColorSource::File;
+        described = true;
+        break;
+    case MFVideoTransferMatrix_BT601:
+        info.matrix = ColorMatrix::Bt601;
+        info.matrixSource = ColorSource::File;
+        described = true;
+        break;
+    case MFVideoTransferMatrix_SMPTE240M:
+        info.matrix = ColorMatrix::Smpte240m;
+        info.matrixSource = ColorSource::File;
+        described = true;
+        break;
+    case MFVideoTransferMatrix_BT2020_10:
+    case MFVideoTransferMatrix_BT2020_12:
+        info.matrix = ColorMatrix::Bt2020;
+        info.matrixSource = ColorSource::File;
+        described = true;
+        break;
+    default:
+        break;
+    }
+    bool knownPrimaries = true;
+    switch (get(MF_MT_VIDEO_PRIMARIES)) {
+    case MFVideoPrimaries_BT709:
+        info.primaries = ColorPrimaries::Bt709;
+        break;
+    case MFVideoPrimaries_BT470_2_SysBG:
+    case MFVideoPrimaries_EBU3213:
+        info.primaries = ColorPrimaries::Bt601_625;
+        break;
+    case MFVideoPrimaries_SMPTE170M:
+    case MFVideoPrimaries_SMPTE240M:
+    case MFVideoPrimaries_SMPTE_C:
+        info.primaries = ColorPrimaries::Bt601_525;
+        break;
+    case MFVideoPrimaries_BT2020:
+        info.primaries = ColorPrimaries::Bt2020;
+        break;
+    case MFVideoPrimaries_DCI_P3:
+        info.primaries = ColorPrimaries::DciP3;
+        break;
+    case 13:  // MFVideoPrimaries_Display_P3(新しいSDKだけにある名前)。
+        info.primaries = ColorPrimaries::DisplayP3;
+        break;
+    default:
+        knownPrimaries = false;  // 不明・未対応は変えない。
+        break;
+    }
+    if (knownPrimaries) {
+        info.primariesSource = ColorSource::File;
+        described = true;
+    }
+    switch (const int transfer = get(MF_MT_TRANSFER_FUNCTION)) {
+    case MFVideoTransFunc_10:
+    case 17:  // MFVideoTransFunc_10_rel
+        info.transfer = TransferFunction::Linear;
+        info.transferSource = ColorSource::File;
+        described = true;
+        break;
+    case MFVideoTransFunc_2084:
+        info.transfer = TransferFunction::Pq;
+        info.transferSource = ColorSource::File;
+        described = true;
+        break;
+    case MFVideoTransFunc_HLG:
+        info.transfer = TransferFunction::Hlg;
+        info.transferSource = ColorSource::File;
+        described = true;
+        break;
+    default:
+        if (transfer > 0) {
+            info.transfer = TransferFunction::Sdr;  // ガンマ・BT.709・sRGBなど、SDRの曲線。
+            info.transferSource = ColorSource::File;
+            described = true;
+        }
+        break;
+    }
+    switch (get(MF_MT_VIDEO_NOMINAL_RANGE)) {
+    case MFNominalRange_0_255:
+        info.range = ColorRange::Full;
+        info.rangeSource = ColorSource::File;
+        break;
+    case MFNominalRange_16_235:
+        info.range = ColorRange::Limited;
+        info.rangeSource = ColorSource::File;
+        break;
+    default:
+        break;
+    }
+    switch (get(MF_MT_VIDEO_CHROMA_SITING)) {
+    case MFVideoChromaSubsampling_MPEG2:
+        info.siting = ChromaSiting::Left;
+        break;
+    case MFVideoChromaSubsampling_MPEG1:
+        info.siting = ChromaSiting::Center;
+        break;
+    case MFVideoChromaSubsampling_Cosited:
+        info.siting = ChromaSiting::TopLeft;
+        break;
+    default:
+        break;
+    }
+    const int maxContent = get(MF_MT_MAX_LUMINANCE_LEVEL);
+    const int maxMastering = get(MF_MT_MAX_MASTERING_LUMINANCE);
+    if (maxContent > 0) {
+        info.maxContentNits = static_cast<float>(maxContent);
+    } else if (maxMastering > 0) {
+        info.maxContentNits = static_cast<float>(maxMastering);
+    }
+    return described;
+}
+
 }  // namespace
 
 std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::wstring& path, int maxWidth,
@@ -119,6 +270,7 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
             source->tolerance_ = indexer->tolerance_;
             source->frameRate_ = indexer->frameRate_;
             source->indexMethod_ = std::move(indexer->indexMethod_);
+            source->mp4Color_ = indexer->mp4Color_;
             traceLog("open index %.1f ms frames=%d", (nowTicks() - indexStart) * 1000.0 / ticksPerSecond(),
                      source->frameCount());
         }
@@ -126,9 +278,10 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     };
 
     // 速い方式から順に試し、先頭のコマを実際に読めたものを採用する。
-    //   1. GPUでデコードし、NV12のままGPUのメモリに置く(主メモリへ写さない。キャッシュもGPU)
-    //   2. GPUでデコードし、RGBにして主メモリへ写す
+    //   1. GPUでデコードし、YUVのままGPUのメモリに置く(主メモリへ写さない。キャッシュもGPU)
+    //   2. GPUでデコードし、YUVのまま主メモリへ写す
     //   3. CPUでデコードする
+    // どの方式もYUVのまま受け取り、RGBへの変換は描画のときに自前のシェーダーで行う(FrameRenderer)。
     std::vector<Mode> modes;
     if (purpose == SourcePurpose::Playback && source->gpu_ && source->gpu_->supportsNv12()) {
         modes.push_back(Mode::GpuTexture);
@@ -171,9 +324,11 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
 }
 
 bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth, Mode mode) {
+    (void)maxWidth;  // 縮小はデコードの後に自前で行う(Windowsの映像処理を通さないため)。
     error_.clear();
     reader_.Reset();
     mode_ = Mode::Cpu;
+    colorChecked_ = false;
     const bool useGpu = mode != Mode::Cpu;
 
     ComPtr<IMFAttributes> attributes;
@@ -182,11 +337,11 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         setError(L"属性を作成できません", hr);
         return false;
     }
-    // 映像処理を有効にすると、色変換や縮小まで行う。
-    // ADVANCEDの方がVideo Processor MFTを使うため、通常版より大幅に速い(1080pで約3倍を確認)。
+    // デコーダーがNV12・P010を出さない形式(MJPEGのYUY2など)だけ、Windowsの映像処理でNV12へ並べ替える。
+    // デコーダーがそのまま出せるときは映像処理は挟まらない(色の変換・縮小はさせない)。
     attributes->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, TRUE);
     if (useGpu) {
-        // 共有のGPUデバイスを渡すと、デコード・色変換・縮小をGPUで行う。
+        // 共有のGPUデバイスを渡すと、GPUでデコードする。
         gpu_->device()->GetImmediateContext(context_.ReleaseAndGetAddressOf());
         hr = attributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, gpu_->manager());
         if (SUCCEEDED(hr)) {
@@ -206,54 +361,41 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         setError(L"動画ファイルを開けません", hr);
         return false;
     }
-
-    // GPUのときは、表示範囲を縦横比を保ってmaxWidthに縮めた大きさで受け取る(縮小もGPUで行う)。
-    UINT32 outputWidth = 0;
-    UINT32 outputHeight = 0;
+    // 動画の形式(圧縮されたまま)に付いている色の情報を覚えておく。
+    nativeColor_ = ColorInfo{};
+    nativeDescribed_ = false;
+    codec_ = GUID_NULL;
     ComPtr<IMFMediaType> nativeType;
-    if (useGpu && maxWidth > 0 && SUCCEEDED(reader_->GetNativeMediaType(kVideoStream, 0, &nativeType))) {
-        UINT32 width = 0;
-        UINT32 height = 0;
-        MFGetAttributeSize(nativeType.Get(), MF_MT_FRAME_SIZE, &width, &height);
-        MFVideoArea area{};
-        UINT32 blobSize = 0;
-        if (SUCCEEDED(nativeType->GetBlob(MF_MT_MINIMUM_DISPLAY_APERTURE, reinterpret_cast<UINT8*>(&area),
-                                          sizeof(area), &blobSize)) &&
-            blobSize == sizeof(area) && area.Area.cx > 0 && area.Area.cy > 0) {
-            width = static_cast<UINT32>(area.Area.cx);
-            height = static_cast<UINT32>(area.Area.cy);
-        }
-        if (width > static_cast<UINT32>(maxWidth) && height > 0) {
-            outputWidth = static_cast<UINT32>(maxWidth);
-            outputHeight = std::max<UINT32>(2, (height * outputWidth / width + 1) & ~1u);  // 偶数に丸める。
-        }
+    if (SUCCEEDED(reader_->GetNativeMediaType(kVideoStream, 0, &nativeType))) {
+        nativeDescribed_ = applyMediaTypeColor(nativeType.Get(), nativeColor_);
+        nativeType->GetGUID(MF_MT_SUBTYPE, &codec_);
     }
 
-    // NV12のときはNV12だけ。RGBのときはRGB32(BGRX)を優先し、受け付けられなければARGB32(BGRA)を試す。
-    std::vector<GUID> subtypes;
-    if (mode == Mode::GpuTexture) {
-        subtypes = {MFVideoFormat_NV12};
-    } else {
-        subtypes = {MFVideoFormat_RGB32, MFVideoFormat_ARGB32};
-    }
-    for (const GUID& subtype : subtypes) {
+    // 10bitの動画はP010のまま受け取りたいが、8bitの動画でP010を求めるとWindowsの映像処理が挟まって変換される。
+    // そこでまずP010を求め、映像処理が挟まらなければ(デコーダーがP010を出せる=10bitの動画)P010を使い、
+    // 挟まったらNV12に戻す。GPUのメモリにP010を置けない場合はNV12にしない(10bitを8bitに落とさないため)。
+    auto setOutput = [&](const GUID& subtype) {
         ComPtr<IMFMediaType> outputType;
-        hr = MFCreateMediaType(&outputType);
-        if (SUCCEEDED(hr)) {
-            hr = outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        HRESULT result = MFCreateMediaType(&outputType);
+        if (SUCCEEDED(result)) {
+            result = outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
         }
-        if (SUCCEEDED(hr)) {
-            hr = outputType->SetGUID(MF_MT_SUBTYPE, subtype);
+        if (SUCCEEDED(result)) {
+            result = outputType->SetGUID(MF_MT_SUBTYPE, subtype);
         }
-        if (SUCCEEDED(hr) && outputWidth > 0) {
-            hr = MFSetAttributeSize(outputType.Get(), MF_MT_FRAME_SIZE, outputWidth, outputHeight);
+        if (SUCCEEDED(result)) {
+            result = reader_->SetCurrentMediaType(kVideoStream, nullptr, outputType.Get());
         }
-        if (SUCCEEDED(hr)) {
-            hr = reader_->SetCurrentMediaType(kVideoStream, nullptr, outputType.Get());
-        }
-        if (SUCCEEDED(hr)) {
-            break;
-        }
+        return result;
+    };
+    layout_ = PixelLayout::P010;
+    hr = setOutput(MFVideoFormat_P010);
+    if (FAILED(hr) || hasVideoProcessor(reader_.Get())) {
+        layout_ = PixelLayout::Nv12;
+        hr = setOutput(MFVideoFormat_NV12);
+    } else if (mode == Mode::GpuTexture && !gpu_->supportsP010()) {
+        setError(L"GPUのメモリに10bitのコマを置けません", E_FAIL);
+        return false;  // 次の方式(主メモリへ写す)で読む。
     }
     if (FAILED(hr)) {
         setError(L"出力形式を設定できません", hr);
@@ -272,6 +414,8 @@ MediaFoundationSource::~MediaFoundationSource() {
     heldFrame_ = Frame{};
     pending_.clear();  // MFShutdownより先に読み込み本体とGPUの資源を解放する。
     stagingPool_.clear();
+    copyTexture_.Reset();
+    scaler_.reset();
     reader_.Reset();
     context_.Reset();
     gpu_.reset();
@@ -306,6 +450,8 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
     // ただしMedia Foundationが返す時刻と食い違うと番号がずれるので、先頭の一部だけ実際に読んで照合する。
     Mp4SampleTable table;
     const bool haveTable = readMp4SampleTable(path, table);
+    // 色の情報(colr)は、目次として使えない場合でも読めていれば使う。
+    mp4Color_ = {table.colorPrimaries, table.transferCharacteristics, table.matrixCoefficients, table.fullRange};
     const std::size_t probeCount = haveTable ? std::min<std::size_t>(table.presentationTimes.size(), 240) : 0;
 
     // 圧縮されたコマはデコード順に届く。表示時刻と「キーフレームか」を集める。
@@ -414,7 +560,7 @@ std::wstring MediaFoundationSource::description() const {
     const wchar_t* decode = mode_ == Mode::GpuTexture    ? L"デコード: GPU(キャッシュもGPU)"
                             : mode_ == Mode::GpuReadback ? L"デコード: GPU"
                                                          : L"デコード: CPU";
-    return std::wstring(decode) + L" / 目次: " + indexMethod_;
+    return std::wstring(decode) + L" / 目次: " + indexMethod_ + L" / 色: " + describeColor(color_);
 }
 
 int MediaFoundationSource::keyFrameAtOrBefore(int index) const {
@@ -449,6 +595,7 @@ void MediaFoundationSource::releaseDecoder() {
     // mode_は残しておき、作り直すときに同じ方式で作る。
     clearPending();
     stagingPool_.clear();
+    copyTexture_.Reset();
     reader_.Reset();
 }
 
@@ -490,28 +637,17 @@ bool MediaFoundationSource::updateFormat() {
         return false;
     }
 
-    // 行の間隔。属性が無ければ形式と幅から求める(負なら下の行から並ぶ)。
+    // 明るさの面の1行のバイト数。属性が無ければ幅から求める(NV12・P010は上の行から並ぶ)。
     UINT32 stride = 0;
     if (SUCCEEDED(type->GetUINT32(MF_MT_DEFAULT_STRIDE, &stride))) {
         defaultStride_ = static_cast<LONG>(stride);
-    } else if (FAILED(MFGetStrideForBitmapInfoHeader(MFVideoFormat_RGB32.Data1, bufferWidth_, &defaultStride_))) {
-        defaultStride_ = static_cast<LONG>(bufferWidth_ * 4);
-    }
-
-    // NV12のまま持つときは、描画でRGBへ変換するための色の解釈(BT.709/601、映像用/全範囲)を記録する。
-    // 指定が無ければ、HD以上はBT.709、それ未満はBT.601、範囲は映像用(16〜235)とみなす。
-    if (mode_ == Mode::GpuTexture) {
-        const UINT32 matrix = MFGetAttributeUINT32(type.Get(), MF_MT_YUV_MATRIX, MFVideoTransferMatrix_Unknown);
-        const UINT32 range = MFGetAttributeUINT32(type.Get(), MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_Unknown);
-        const bool bt709 = matrix == MFVideoTransferMatrix_BT709 ||
-                           (matrix != MFVideoTransferMatrix_BT601 && bufferHeight_ >= 720);
-        const bool full = range == MFNominalRange_0_255;
-        colorSpace_ = bt709 ? (full ? DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P709 : DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709)
-                            : (full ? DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P601 : DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P601);
+    } else {
+        defaultStride_ = static_cast<LONG>(bufferWidth_ * (layout_ == PixelLayout::P010 ? 2 : 1));
     }
 
     // H.264の1080pは1088行で届くことがあるため、表示範囲の指定があれば切り出す。
-    visible_ = {0, 0, static_cast<LONG>(bufferWidth_), static_cast<LONG>(bufferHeight_)};
+    // YUV 4:2:0は色の画素が2×2に1つなので、位置と大きさを偶数に揃える。
+    RECT visible{0, 0, static_cast<LONG>(bufferWidth_), static_cast<LONG>(bufferHeight_)};
     MFVideoArea area{};
     UINT32 blobSize = 0;
     if (SUCCEEDED(type->GetBlob(MF_MT_MINIMUM_DISPLAY_APERTURE, reinterpret_cast<UINT8*>(&area), sizeof(area),
@@ -521,10 +657,65 @@ bool MediaFoundationSource::updateFormat() {
                area.OffsetY.value + area.Area.cy};
         if (r.left >= 0 && r.top >= 0 && r.right <= static_cast<LONG>(bufferWidth_) &&
             r.bottom <= static_cast<LONG>(bufferHeight_) && r.right > r.left && r.bottom > r.top) {
-            visible_ = r;
+            visible = r;
         }
     }
+    visible.left &= ~1L;
+    visible.top &= ~1L;
+    visible.right = visible.left + ((visible.right - visible.left) & ~1L);
+    visible.bottom = visible.top + ((visible.bottom - visible.top) & ~1L);
+    if (visible.right <= visible.left || visible.bottom <= visible.top) {
+        setError(L"映像が小さすぎます", E_FAIL);
+        return false;
+    }
+    visible_ = visible;
+    updateColor(type.Get());
     return true;
+}
+
+void MediaFoundationSource::updateColor(IMFMediaType* outputType) {
+    // 優先順(後のものほど優先): 大きさからの推定 → デコーダーの出力の形式 → 動画の形式 → mp4/movのcolr。
+    ColorInfo color = guessColorInfo(visible_.right - visible_.left, visible_.bottom - visible_.top);
+    // MJPEG(JPEG)は色の画素が中間にある。H.264・HEVCなどは左寄せが既定。
+    if (codec_ == MFVideoFormat_MJPG) {
+        color.siting = ChromaSiting::Center;
+        color.range = ColorRange::Full;  // JPEGは全範囲。
+    }
+    if (outputType) {
+        ColorInfo decoded = color;
+        // デコーダーの出力は、動画に色の指定が無くても範囲だけ既定値を入れることがある。
+        // 行列・色域・伝達関数のどれかが分かったときだけ、動画の指定として扱う。
+        if (applyMediaTypeColor(outputType, decoded)) {
+            color = decoded;
+        } else {
+            color.maxContentNits = decoded.maxContentNits;
+        }
+    }
+    if (nativeDescribed_) {
+        // 動画の形式の値で、分かっている項目だけを上書きする。
+        if (nativeColor_.matrixSource == ColorSource::File) {
+            color.matrix = nativeColor_.matrix;
+            color.matrixSource = ColorSource::File;
+        }
+        if (nativeColor_.rangeSource == ColorSource::File) {
+            color.range = nativeColor_.range;
+            color.rangeSource = ColorSource::File;
+        }
+        if (nativeColor_.primariesSource == ColorSource::File) {
+            color.primaries = nativeColor_.primaries;
+            color.primariesSource = ColorSource::File;
+        }
+        if (nativeColor_.transferSource == ColorSource::File) {
+            color.transfer = nativeColor_.transfer;
+            color.transferSource = ColorSource::File;
+        }
+    }
+    if (nativeColor_.maxContentNits > 0.0f) {
+        color.maxContentNits = nativeColor_.maxContentNits;
+    }
+    applyH273(color, mp4Color_[0], mp4Color_[1], mp4Color_[2], mp4Color_[3]);
+    color.bitDepth = layout_ == PixelLayout::P010 ? 10 : 8;
+    color_ = color;
 }
 
 int MediaFoundationSource::readDecodedSample(ComPtr<IMFSample>& sample, int& index) {
@@ -546,6 +737,14 @@ int MediaFoundationSource::readDecodedSample(ComPtr<IMFSample>& sample, int& ind
         if (!sample) {
             // 映像の途切れを示す通知(STREAMTICK)などはコマとして数えない。
             continue;
+        }
+        if (!colorChecked_) {
+            // デコーダーは最初のコマをデコードしてから、動画の中の色の情報を出力の形式に入れる(movなど)。
+            colorChecked_ = true;
+            ComPtr<IMFMediaType> current;
+            if (SUCCEEDED(reader_->GetCurrentMediaType(kVideoStream, &current))) {
+                updateColor(current.Get());
+            }
         }
         // 目次と照合して番号を決める。照合できないコマや、シーク位置より前のコマは返さない。
         index = indexOfTimestamp(timestamp);
@@ -575,8 +774,8 @@ bool MediaFoundationSource::enqueueGpuCopy(IMFSample* sample, int index) {
     }
     D3D11_TEXTURE2D_DESC desc{};
     texture->GetDesc(&desc);
-    if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM && desc.Format != DXGI_FORMAT_B8G8R8X8_UNORM) {
-        return false;  // RGBへの変換がされていない。
+    if (desc.Format != DXGI_FORMAT_NV12 && desc.Format != DXGI_FORMAT_P010) {
+        return false;
     }
 
     // 主メモリから読めるテクスチャ(ステージング)へ写す命令だけを出し、完了は待たない。
@@ -626,10 +825,13 @@ bool MediaFoundationSource::copyFromStaging(PendingFrame& pending, Frame& out) {
         setError(L"GPUからコマを読み出せません", hr);
         return false;
     }
+    // NV12・P010のステージングは、明るさの面(テクスチャの高さ分の行)の直後に色の面が続く。
     RECT visible = pending.visible;
-    visible.right = std::min<LONG>(visible.right, static_cast<LONG>(desc.Width));
-    visible.bottom = std::min<LONG>(visible.bottom, static_cast<LONG>(desc.Height));
-    copyRows(static_cast<const BYTE*>(mapped.pData), static_cast<LONG>(mapped.RowPitch), visible, out);
+    visible.right = std::min<LONG>(visible.right, static_cast<LONG>(desc.Width) & ~1L);
+    visible.bottom = std::min<LONG>(visible.bottom, static_cast<LONG>(desc.Height) & ~1L);
+    const auto* luma = static_cast<const BYTE*>(mapped.pData);
+    copyPlanes(luma, luma + static_cast<std::size_t>(mapped.RowPitch) * desc.Height, static_cast<LONG>(mapped.RowPitch),
+               visible, out);
     context_->Unmap(pending.staging.Get(), 0);
     stagingPool_.push_back(std::move(pending.staging));
     return true;
@@ -644,6 +846,7 @@ bool MediaFoundationSource::copyFromSample(IMFSample* sample, const RECT& visibl
     }
 
     // 2Dバッファなら行の先頭と間隔を正しく返してくれる。そうでなければ形式の情報から求める。
+    // NV12・P010は、明るさの面(デコード結果の高さ分の行)の直後に色の面が同じ行の間隔で続く。
     BYTE* scan0 = nullptr;
     LONG pitch = 0;
     ComPtr<IMF2DBuffer> buffer2d;
@@ -657,30 +860,43 @@ bool MediaFoundationSource::copyFromSample(IMFSample* sample, const RECT& visibl
             setError(L"コマのデータを読めません", hr);
             return false;
         }
+        scan0 = raw;
         pitch = defaultStride_;
-        scan0 = pitch < 0 ? raw + static_cast<LONGLONG>(-pitch) * (bufferHeight_ - 1) : raw;
     }
-    copyRows(scan0, pitch, visible, out);
+    if (pitch <= 0) {
+        setError(L"コマのデータの並びに対応していません", E_FAIL);
+    } else {
+        copyPlanes(scan0, scan0 + static_cast<std::size_t>(pitch) * bufferHeight_, pitch, visible, out);
+    }
     if (locked2d) {
         buffer2d->Unlock2D();
     } else {
         buffer->Unlock();
     }
-    return true;
+    return pitch > 0;
 }
 
-void MediaFoundationSource::copyRows(const BYTE* scan0, LONG pitch, const RECT& visible, Frame& out) {
+void MediaFoundationSource::copyPlanes(const BYTE* luma, const BYTE* chroma, LONG pitch, const RECT& visible,
+                                       Frame& out) const {
+    const std::size_t valueBytes = layout_ == PixelLayout::P010 ? 2 : 1;
     out.width = visible.right - visible.left;
     out.height = visible.bottom - visible.top;
-    out.pixels.resize(static_cast<size_t>(out.width) * out.height);
+    out.layout = layout_;
+    out.color = color_;
+    out.pixels.clear();
+    out.texture.Reset();
+    out.chroma.Reset();
+    const std::size_t row = static_cast<std::size_t>(out.width) * valueBytes;
+    out.planes.resize(row * out.height * 3 / 2);
+    // 明るさの面は1画素1つ、色の面は横2画素で1組(U,V)なので、行のバイト数はどちらも幅×値のバイト数。
     for (int y = 0; y < out.height; ++y) {
-        const BYTE* src = scan0 + static_cast<LONGLONG>(pitch) * (visible.top + y) + visible.left * 4;
-        std::uint32_t* dst = out.pixels.data() + static_cast<size_t>(y) * out.width;
-        std::memcpy(dst, src, static_cast<size_t>(out.width) * 4);
-        // RGB32の4バイト目は未定義なので、不透明として埋める。
-        for (int x = 0; x < out.width; ++x) {
-            dst[x] |= 0xFF000000u;
-        }
+        std::memcpy(out.planes.data() + row * y,
+                    luma + static_cast<std::size_t>(pitch) * (visible.top + y) + visible.left * valueBytes, row);
+    }
+    BYTE* chromaOut = out.planes.data() + row * out.height;
+    for (int y = 0; y < out.height / 2; ++y) {
+        std::memcpy(chromaOut + row * y,
+                    chroma + static_cast<std::size_t>(pitch) * (visible.top / 2 + y) + visible.left * valueBytes, row);
     }
 }
 
@@ -771,40 +987,73 @@ bool MediaFoundationSource::copyToTexture(IMFSample* sample, Frame& out) {
     }
     D3D11_TEXTURE2D_DESC sourceDesc{};
     texture->GetDesc(&sourceDesc);
-    if (sourceDesc.Format != DXGI_FORMAT_NV12) {
-        setError(L"GPU上のコマがNV12ではありません", E_FAIL);
+    const DXGI_FORMAT format = layout_ == PixelLayout::P010 ? DXGI_FORMAT_P010 : DXGI_FORMAT_NV12;
+    if (sourceDesc.Format != format) {
+        setError(L"GPU上のコマがNV12・P010ではありません", E_FAIL);
         return false;
     }
 
-    // デコーダーの出力はデコーダーが使い回すので、キャッシュ用に新しいテクスチャへ写す。
-    // 描画で読めるよう、シェーダーから読める指定で作る。表示範囲(偶数に揃える)だけを写す。
-    const UINT width = static_cast<UINT>(visible_.right - visible_.left) & ~1u;
-    const UINT height = static_cast<UINT>(visible_.bottom - visible_.top) & ~1u;
-    D3D11_TEXTURE2D_DESC desc{};
-    desc.Width = width;
-    desc.Height = height;
-    desc.MipLevels = 1;
-    desc.ArraySize = 1;
-    desc.Format = DXGI_FORMAT_NV12;
-    desc.SampleDesc.Count = 1;
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    // デコーダーの出力はデコーダーが使い回すので、表示範囲だけをシェーダーから読めるテクスチャへ写す。
+    const UINT width = static_cast<UINT>(visible_.right - visible_.left);
+    const UINT height = static_cast<UINT>(visible_.bottom - visible_.top);
+    // キャッシュの最大幅より大きければ、写した後に自前のシェーダーで縮小する(写す先は使い回す)。
+    const bool shrink = maxWidth_ > 0 && width > static_cast<UINT>(maxWidth_);
     ComPtr<ID3D11Texture2D> copy;
-    hr = gpu_->device()->CreateTexture2D(&desc, nullptr, &copy);
-    if (FAILED(hr)) {
-        setError(L"GPUのメモリにコマを置けません", hr);
-        return false;
+    if (shrink && copyTexture_) {
+        D3D11_TEXTURE2D_DESC existing{};
+        copyTexture_->GetDesc(&existing);
+        if (existing.Width == width && existing.Height == height && existing.Format == format) {
+            copy = copyTexture_;
+        }
     }
-    const D3D11_BOX box{static_cast<UINT>(visible_.left) & ~1u, static_cast<UINT>(visible_.top) & ~1u, 0,
-                        (static_cast<UINT>(visible_.left) & ~1u) + width, (static_cast<UINT>(visible_.top) & ~1u) + height,
-                        1};
+    if (!copy) {
+        D3D11_TEXTURE2D_DESC desc{};
+        desc.Width = width;
+        desc.Height = height;
+        desc.MipLevels = 1;
+        desc.ArraySize = 1;
+        desc.Format = format;
+        desc.SampleDesc.Count = 1;
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        hr = gpu_->device()->CreateTexture2D(&desc, nullptr, &copy);
+        if (FAILED(hr)) {
+            setError(L"GPUのメモリにコマを置けません", hr);
+            return false;
+        }
+        if (shrink) {
+            copyTexture_ = copy;
+        }
+    }
+    const D3D11_BOX box{static_cast<UINT>(visible_.left), static_cast<UINT>(visible_.top), 0,
+                        static_cast<UINT>(visible_.left) + width, static_cast<UINT>(visible_.top) + height, 1};
     context_->CopySubresourceRegion(copy.Get(), 0, 0, 0, 0, texture.Get(), subresource, &box);
 
+    out.color = color_;
+    out.pixels.clear();
+    out.planes.clear();
+    if (shrink) {
+        if (!scaler_) {
+            scaler_ = std::make_unique<FrameRenderer>();
+            if (!scaler_->create(gpu_->device())) {
+                scaler_.reset();
+            }
+        }
+        // 縦横比を保ち、偶数に揃える。
+        const int targetWidth = maxWidth_ & ~1;
+        const int targetHeight = std::max(2, static_cast<int>((static_cast<long long>(height) * targetWidth / width + 1) & ~1LL));
+        if (!scaler_ || !scaler_->downscale(context_.Get(), copy.Get(), layout_, static_cast<int>(width),
+                                            static_cast<int>(height), color_.siting, targetWidth, targetHeight, out)) {
+            setError(L"コマを縮小できません", E_FAIL);
+            return false;
+        }
+        return true;
+    }
     out.width = static_cast<int>(width);
     out.height = static_cast<int>(height);
-    out.pixels.clear();
+    out.layout = layout_;
     out.texture = std::move(copy);
-    out.colorSpace = colorSpace_;
+    out.chroma.Reset();
     return true;
 }
 

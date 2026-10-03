@@ -499,7 +499,21 @@ private:
     void showFileMenu();
 
     /**
-     * @brief 右クリックのメニュー(再生/停止・フルスクリーン)を出し、選ばれた項目を実行する。
+     * @brief 色の解釈の手動の指定のメニューを作る。
+     * @param clip 対象の動画。
+     * @param clipIndex 1本目なら0、2本目なら1(メニューの番号に入れる)。
+     * @return 作ったメニュー。呼び出し元のメニューに入れて一緒に破棄する。
+     */
+    HMENU createColorMenu(const Clip& clip, int clipIndex) const;
+
+    /**
+     * @brief 色の解釈の手動の指定のメニューで選ばれた項目を当てはめる。
+     * @param command メニューの番号(kMenuColorFirst〜kMenuColorLast)。
+     */
+    void applyColorCommand(UINT command);
+
+    /**
+     * @brief 右クリックのメニュー(再生/停止・フルスクリーン・色の情報・色の解釈)を出し、選ばれた項目を実行する。
      * @param screenPoint メニューを出す位置(画面座標)。キーボードから開いたとき(x・yとも-1)はマウスの位置に出す。
      */
     void showContextMenu(POINT screenPoint);

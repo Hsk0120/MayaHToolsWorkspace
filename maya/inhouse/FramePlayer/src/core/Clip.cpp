@@ -41,8 +41,8 @@ std::size_t bytesOf(const Frame& frame) {
  * @return キャッシュに入れるコマ。
  */
 std::shared_ptr<const Frame> makeCached(Frame&& decoded, int maxWidth) {
-    // GPUのコマはGPUで縮小済みなので、そのまま持つ。
-    if (decoded.onGpu() || maxWidth <= 0 || decoded.width <= maxWidth) {
+    // GPUのコマはGPUで縮小済み、主メモリのYUVのコマは縮小しない(描画のときにRGBへ戻す)ので、そのまま持つ。
+    if (decoded.onGpu() || decoded.isYuv() || maxWidth <= 0 || decoded.width <= maxWidth) {
         return std::make_shared<const Frame>(std::move(decoded));
     }
     return std::make_shared<const Frame>(shrinkToWidth(decoded, maxWidth));
@@ -95,6 +95,10 @@ bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cpuCacheByte
         }
         std::shared_ptr<const Frame> first = makeCached(std::move(decoded), maxWidth_);
         frameBytes_ = std::max<std::size_t>(1, bytesOf(*first));
+        {
+            std::lock_guard<std::mutex> lock(colorMutex_);
+            color_ = first->color;
+        }
         // 読み込み元がGPUのテクスチャで返すなら、キャッシュはGPUのメモリに置き、その上限を使う。
         cachesOnGpu_ = first->onGpu();
         cacheBytes_ = cachesOnGpu_ ? gpuCacheBytes : cpuCacheBytes;
@@ -507,6 +511,8 @@ void Clip::workerLoop() {
             std::shared_ptr<const Frame> cached;
             try {
                 cached = makeCached(std::move(decoded), maxWidth_);
+                std::lock_guard<std::mutex> lock(colorMutex_);
+                color_ = cached->color;  // デコーダーが途中で色の情報を変えたときのため、最後のコマの解釈を覚える。
             } catch (const std::bad_alloc&) {
                 std::lock_guard<std::mutex> lock(mutex_);
                 error_ = L"メモリが足りません。キャッシュの上限を小さくしてください";
@@ -550,6 +556,7 @@ Frame shrinkToWidth(const Frame& source, int maxWidth) {
     }
 
     Frame result;
+    result.color = source.color;
     result.width = maxWidth;
     result.height = std::max(1, static_cast<int>(static_cast<long long>(source.height) * maxWidth / source.width));
     result.pixels.resize(static_cast<size_t>(result.width) * result.height);

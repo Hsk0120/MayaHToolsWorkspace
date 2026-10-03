@@ -13,11 +13,13 @@
  *
  * 使い方: FramePlayerVerify.exe <動画> [期待するコマ数] [--bits 縦縞の本数] [--cache-mb 上限MB] [--max-width 幅]
  *         [--limit N](先頭からN・末尾からN・ランダムNだけ確かめる) [--cpu](GPUを使わない) [--no-check](番号を確かめず速さだけ測る)
- * GPUのメモリにキャッシュしたコマは、主メモリへ読み出してから縞を読む。
+ * YUVのコマ(GPUのメモリ・主メモリ)は、主メモリへ読み出し、色の解釈に従ってBGRAにしてから縞を読む。
  * 終了コード: 0=全コマ一致、1=不一致あり、2=読み込み失敗や引数の誤り。
  */
 #include <windows.h>
+#include <d3d11.h>
 #include <objbase.h>
+#include <wrl/client.h>
 
 #include <chrono>
 #include <cstdio>
@@ -29,6 +31,7 @@
 #include <vector>
 
 #include "core/Clip.h"
+#include "core/ColorInfo.h"
 #include "core/GpuDevice.h"
 
 namespace {
@@ -54,6 +57,82 @@ int brightnessAt(const frameplayer::Frame& frame, int cx, int cy) {
         }
     }
     return count ? sum / count : 0;
+}
+
+/**
+ * @brief GPUのテクスチャの1つの面を主メモリへ読み出し、余白なしで並べてoutの後ろに足す。
+ * @param gpu デバイス。
+ * @param texture 読み出すテクスチャ。
+ * @param rowBytes 1行のバイト数。
+ * @param rows 読む行数。
+ * @param firstRow NV12・P010の1枚のテクスチャで色の面を読むときは、明るさの面の行数(読み出した先で飛ばす行数)。
+ * @param out 格納先。
+ * @return 成功ならtrue。
+ */
+bool readPlane(const frameplayer::GpuDevice& gpu, ID3D11Texture2D* texture, std::size_t rowBytes, int rows,
+               int firstRow, std::vector<std::uint8_t>& out) {
+    D3D11_TEXTURE2D_DESC desc{};
+    texture->GetDesc(&desc);
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.BindFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    desc.MiscFlags = 0;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> staging;
+    if (FAILED(gpu.device()->CreateTexture2D(&desc, nullptr, &staging))) {
+        return false;
+    }
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
+    gpu.device()->GetImmediateContext(&context);
+    auto guard = gpu.lock();
+    context->CopyResource(staging.Get(), texture);
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (FAILED(context->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped))) {
+        return false;
+    }
+    const auto* base = static_cast<const std::uint8_t*>(mapped.pData) + static_cast<std::size_t>(mapped.RowPitch) * firstRow;
+    for (int y = 0; y < rows; ++y) {
+        const std::uint8_t* row = base + static_cast<std::size_t>(mapped.RowPitch) * y;
+        out.insert(out.end(), row, row + rowBytes);
+    }
+    context->Unmap(staging.Get(), 0);
+    return true;
+}
+
+/**
+ * @brief コマを主メモリのBGRAの画像にする(縞を読むため)。
+ * @param gpu GPUのコマを読み出すデバイス。GPUを使わないならnullptr。
+ * @param frame コマ。
+ * @param out 格納先。
+ * @return 成功ならtrue。
+ */
+bool toBgra(const frameplayer::GpuDevice* gpu, const frameplayer::Frame& frame, frameplayer::Frame& out) {
+    if (!frame.isYuv()) {
+        out = frame;
+        return true;
+    }
+    const bool p010 = frame.layout == frameplayer::PixelLayout::P010;
+    std::vector<std::uint8_t> planes;
+    if (frame.onGpu()) {
+        if (!gpu) {
+            return false;
+        }
+        // 1枚のNV12・P010なら、色の面は明るさの面の直後の行にある。縮小したコマは2枚に分かれている。
+        const std::size_t rowBytes = static_cast<std::size_t>(frame.width) * (p010 ? 2 : 1);
+        ID3D11Texture2D* chroma = frame.chroma ? frame.chroma.Get() : frame.texture.Get();
+        if (!readPlane(*gpu, frame.texture.Get(), rowBytes, frame.height, 0, planes) ||
+            !readPlane(*gpu, chroma, rowBytes, frame.height / 2, frame.chroma ? 0 : frame.height, planes)) {
+            return false;
+        }
+    }
+    const std::vector<std::uint8_t>& source = frame.onGpu() ? planes : frame.planes;
+    out = frameplayer::Frame{};
+    out.width = frame.width;
+    out.height = frame.height;
+    out.color = frame.color;
+    out.pixels.resize(static_cast<std::size_t>(frame.width) * frame.height);
+    frameplayer::convertPlanesToBgra(source.data(), frame.width, frame.height, p010, frame.color, frame.width,
+                                     frame.height, out.pixels.data());
+    return true;
 }
 
 /**
@@ -97,11 +176,9 @@ int runOrder(frameplayer::Clip& clip, const frameplayer::GpuDevice* gpu, const s
         int found = -2;
         if (frame && !check) {
             found = index % (1 << bits);  // 速さだけを測るときは縞を読まない(取り出せたかだけを見る)。
-        } else if (frame && frame->onGpu()) {
-            frameplayer::Frame cpuFrame;
-            found = (gpu && gpu->readBack(*frame, cpuFrame)) ? readIndex(cpuFrame, bits) : -3;
         } else if (frame) {
-            found = readIndex(*frame, bits);
+            frameplayer::Frame rgb;
+            found = toBgra(gpu, *frame, rgb) ? readIndex(rgb, bits) : -3;
         }
         if (found != (index % (1 << bits))) {
             if (mismatches < 10) {

@@ -11,12 +11,15 @@
 #include <mfreadwrite.h>
 #include <wrl/client.h>
 
+#include <array>
 #include <deque>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "core/ColorInfo.h"
+#include "core/FrameRenderer.h"
 #include "core/FrameSource.h"
 #include "core/GpuDevice.h"
 
@@ -28,20 +31,21 @@ namespace frameplayer {
  *       開いたときに、デコードせずに圧縮されたままのコマを最後まで読み、表示時刻を並べ替えて
  *       「コマ番号→表示時刻」の目次とキーフレームの一覧を作る。デコードしたコマは表示時刻を
  *       目次と照合して番号を決めるので、途中から読んでも番号がずれない。
- *       色変換はSource Readerの映像処理機能に任せ、BGRA(RGB32)で受け取る。
+ *       コマはデコーダーが出すYUV(NV12・P010)のまま受け取り、Windowsの映像処理(色の変換・縮小)は通さない。
+ *       RGBへの変換は描画のときにFrameRendererが色の解釈(color_)に従って行う。
  */
 class MediaFoundationSource : public FrameSource {
 public:
     /**
      * @brief 動画ファイルを開き、目次を作る。
      * @param path 動画ファイルのパス。
-     * @param maxWidth 返すコマの最大幅。GPUでデコードできる場合は、GPUでこの幅まで縮小して返す。
+     * @param maxWidth 返すコマの最大幅。GPUのメモリに置く方式なら、自前のシェーダーでこの幅まで縮小して返す。
      * @param gpu 共有のGPUデバイス。nullptrならCPUでデコードする。
      * @param error 失敗時に理由を格納する。
      * @param purpose 使い道。Thumbnailsのときは主メモリへ写す方式とCPUの方式だけを試し、先読みはしない。
      * @return 開けた読み込み元。失敗時はnullptr。
      * @note GPUでNV12のままGPUのメモリに置く方式、GPUでデコードして主メモリへ写す方式、CPUでデコードする方式の順に試す。
-     *       CPUのときは縮小しない(呼び出し元で縮小する)。
+     *       主メモリへ写す方式とCPUの方式では縮小しない。
      */
     static std::unique_ptr<MediaFoundationSource> open(const std::wstring& path, int maxWidth,
                                                        std::shared_ptr<GpuDevice> gpu, std::wstring& error,
@@ -75,9 +79,9 @@ public:
 private:
     /** @brief デコードの方式。 */
     enum class Mode {
-        Cpu,          ///< CPUでデコードし、RGBで主メモリに返す。
-        GpuReadback,  ///< GPUでデコード・RGBへの変換・縮小し、主メモリへ写して返す。
-        GpuTexture,   ///< GPUでデコード・縮小し、NV12のままGPUのメモリのテクスチャで返す。
+        Cpu,          ///< CPUでデコードし、YUVのまま主メモリに返す。
+        GpuReadback,  ///< GPUでデコードし、YUVのまま主メモリへ写して返す。
+        GpuTexture,   ///< GPUでデコード(必要なら自前で縮小)し、YUVのままGPUのメモリのテクスチャで返す。
     };
 
     /** @brief open()以外から作らせないための非公開コンストラクター。 */
@@ -110,7 +114,8 @@ private:
     bool createReader(const std::wstring& path, int maxWidth, Mode mode);
 
     /**
-     * @brief GPU上のデコード結果(NV12)を、キャッシュ用の新しいテクスチャへ写してoutに入れる。完了は待たない。
+     * @brief GPU上のデコード結果(NV12・P010)の表示範囲を、キャッシュ用の新しいテクスチャへ写してoutに入れる。
+     *        キャッシュの最大幅より大きければ自前のシェーダーで縮小する。完了は待たない。
      * @param sample GPU上にあるコマ。
      * @param out 格納先。
      * @return 写す命令を出せた場合true。
@@ -146,7 +151,7 @@ private:
      * @brief GPU上のコマを主メモリから読めるテクスチャへ写す命令を出し、先読みの列に加える。完了は待たない。
      * @param sample GPU上にあるコマ。
      * @param index コマ番号。
-     * @return 命令を出せた場合true。GPU上のコマでない、RGBでないなどの場合false。
+     * @return 命令を出せた場合true。GPU上のコマでない、NV12・P010でないなどの場合false。
      */
     bool enqueueGpuCopy(IMFSample* sample, int index);
 
@@ -168,19 +173,27 @@ private:
     bool copyFromSample(IMFSample* sample, const RECT& visible, Frame& out);
 
     /**
-     * @brief 画像の行を切り出してoutへ写し、不透明にする。
-     * @param scan0 先頭行の位置。
-     * @param pitch 1行のバイト数。負なら下の行から並ぶ。
-     * @param visible 切り出す範囲。
+     * @brief YUVの明るさの面と色の面から表示範囲を切り出し、主メモリのコマとしてoutへ写す。
+     * @param luma 明るさの面の先頭行の位置。
+     * @param chroma 色の面の先頭行の位置。
+     * @param pitch 1行のバイト数(明るさの面と色の面で同じ)。
+     * @param visible 切り出す範囲(明るさの画素の単位。位置と大きさは偶数)。
      * @param out 格納先。
      */
-    static void copyRows(const BYTE* scan0, LONG pitch, const RECT& visible, Frame& out);
+    void copyPlanes(const BYTE* luma, const BYTE* chroma, LONG pitch, const RECT& visible, Frame& out) const;
+
+    /**
+     * @brief 色の解釈(color_)を決め直す。
+     * @param outputType デコーダーの出力の形式。最初のコマをデコードした後は、動画の中の色の情報が入っている。
+     * @note 優先順(後のものほど優先): 大きさからの推定、デコーダーの出力の形式、動画の形式、mp4/movのcolrボックス。
+     */
+    void updateColor(IMFMediaType* outputType);
 
     /** @brief 先読みしていたコマを捨てる(シーク時など)。 */
     void clearPending();
 
     /**
-     * @brief 出力形式(大きさ・行の間隔・表示範囲)を読み直す。
+     * @brief 出力形式(大きさ・行の間隔・表示範囲・色の解釈)を読み直す。
      * @return 取得できた場合true。失敗時はerror_を設定してfalse。
      * @note 開いた直後と、デコーダーが形式の変更を通知したときに呼ぶ。
      */
@@ -203,7 +216,15 @@ private:
     std::vector<Microsoft::WRL::ComPtr<ID3D11Texture2D>> stagingPool_;  ///< 使い回すステージングテクスチャ。
     bool endOfStream_ = false;                        ///< 先読み中に終端へ達したか。
     Mode mode_ = Mode::Cpu;                           ///< 使っているデコードの方式。
-    DXGI_COLOR_SPACE_TYPE colorSpace_ = DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709;  ///< NV12の色の解釈。
+    PixelLayout layout_ = PixelLayout::Nv12;          ///< デコーダーから受け取る並び(NV12かP010)。
+    ColorInfo color_;                                 ///< 色の解釈(返すコマに付ける)。
+    ColorInfo nativeColor_;                           ///< 動画の形式(圧縮されたまま)に付いていた色の情報。
+    bool nativeDescribed_ = false;                    ///< nativeColor_に行列・色域・伝達関数のどれかがあるか。
+    bool colorChecked_ = false;                       ///< 最初のコマの後で色の情報を読み直したか。
+    GUID codec_ = GUID_NULL;                          ///< 動画の圧縮形式(MJPEGの色の位置の判断に使う)。
+    std::array<int, 4> mp4Color_{-1, -1, -1, -1};     ///< mp4/movのcolr(色域・伝達関数・行列・全範囲)。無ければ負。
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> copyTexture_;  ///< 縮小する前に写す先(使い回す)。
+    std::unique_ptr<FrameRenderer> scaler_;           ///< GPUのメモリに置くコマを縮小するシェーダー。
     std::wstring indexMethod_;                        ///< 目次の作り方(説明表示用)。
     std::wstring path_;                               ///< 開いたファイル(デコーダーを作り直すときに使う)。
     int maxWidth_ = 0;                                ///< 縮小する最大幅(デコーダーを作り直すときに使う)。
@@ -217,8 +238,8 @@ private:
 
     UINT32 bufferWidth_ = 0;   ///< デコード結果の幅(余白を含む)。
     UINT32 bufferHeight_ = 0;  ///< デコード結果の高さ(余白を含む)。
-    LONG defaultStride_ = 0;   ///< 1行のバイト数。負なら下の行から並ぶ。
-    RECT visible_{};           ///< 表示すべき範囲(1080pの動画が1088行で届く場合などに切り出す)。
+    LONG defaultStride_ = 0;   ///< 明るさの面の1行のバイト数(2Dバッファで読めないときに使う)。
+    RECT visible_{};           ///< 表示すべき範囲(1080pの動画が1088行で届く場合などに切り出す。偶数に揃える)。
     double frameRate_ = 0.0;
     std::wstring error_;
 };

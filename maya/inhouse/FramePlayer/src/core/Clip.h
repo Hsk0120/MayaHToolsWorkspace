@@ -208,6 +208,33 @@ public:
     std::wstring description() const;
 
     /**
+     * @brief 動画の色の解釈(動画の指定・推定。手動の指定は含まない)を返す。
+     * @return 最後にデコードしたコマの色の解釈。
+     */
+    ColorInfo color() const {
+        std::lock_guard<std::mutex> lock(colorMutex_);
+        return color_;
+    }
+
+    /**
+     * @brief 色の解釈の手動の指定を返す。描画スレッドからも呼べる。
+     * @return 手動の指定(既定はすべて自動)。
+     */
+    ColorOverride colorOverride() const {
+        std::lock_guard<std::mutex> lock(colorMutex_);
+        return colorOverride_;
+    }
+
+    /**
+     * @brief 色の解釈を手動で指定する(行列・範囲・色域・伝達関数ごと)。描画のときに当てはめる。
+     * @param value 手動の指定。各項目が負なら自動(動画の指定・推定のまま)。
+     */
+    void setColorOverride(const ColorOverride& value) {
+        std::lock_guard<std::mutex> lock(colorMutex_);
+        colorOverride_ = value;
+    }
+
+    /**
      * @brief 裏での読み込みで起きた失敗の説明を返す。
      * @return 失敗していなければ空文字列。
      */
@@ -284,6 +311,9 @@ private:
     std::unique_ptr<KeyframeThumbnails> thumbnails_;  ///< キーフレームの縮小画像。作らない場合はnullptr。
     NotifyCallback notify_;
 
+    mutable std::mutex colorMutex_;  ///< color_とcolorOverride_を守る(描画スレッド・裏の読み込み・UIスレッドから使う)。
+    ColorInfo color_;                ///< 動画の色の解釈(最後にデコードしたコマのもの)。
+    ColorOverride colorOverride_;    ///< 色の解釈の手動の指定。
     mutable std::mutex mutex_;
     std::condition_variable wake_;          ///< 裏のスレッドを起こす(再生ヘッドの移動・終了)。
     std::condition_variable frameStored_;   ///< コマがキャッシュに入ったことをwaitForFrame()へ知らせる。

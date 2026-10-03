@@ -9,12 +9,14 @@
 #include "core/TraceLog.h"
 
 #include <objbase.h>
+#include <wingdi.h>
 
 #include <algorithm>
 #include <cmath>
 #include <climits>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 using Microsoft::WRL::ComPtr;
 
@@ -23,7 +25,6 @@ namespace frameplayer {
 namespace {
 
 constexpr wchar_t kClassName[] = L"FramePlayerVideoView";
-const D2D1_COLOR_F kBackground = {0.0f, 0.0f, 0.0f, 1.0f};  // Keyframe Proと同じく映像の周りは黒。
 const D2D1_COLOR_F kText = {230 / 255.0f, 230 / 255.0f, 230 / 255.0f, 1.0f};
 const D2D1_COLOR_F kBox = {58 / 255.0f, 58 / 255.0f, 58 / 255.0f, 0.9f};
 constexpr UINT kSwapChainFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
@@ -49,6 +50,73 @@ D2D1_RECT_F fitRect(const D2D1_RECT_F& area, int width, int height) {
     const float left = std::floor(area.left + (areaWidth - w) / 2);
     const float top = std::floor(area.top + (areaHeight - h) / 2);
     return D2D1::RectF(left, top, left + std::floor(w), top + std::floor(h));
+}
+
+/**
+ * @brief 枠の中に縦横比を保って収めた範囲を、画素の矩形で返す。
+ * @param area 収める枠。
+ * @param width 画像の幅。
+ * @param height 画像の高さ。
+ * @return 矩形。
+ */
+RECT fitPixels(const D2D1_RECT_F& area, int width, int height) {
+    const D2D1_RECT_F r = fitRect(area, width, height);
+    return RECT{static_cast<LONG>(r.left), static_cast<LONG>(r.top), static_cast<LONG>(r.right),
+                static_cast<LONG>(r.bottom)};
+}
+
+/**
+ * @brief sRGBの値をリニアな値にする(IEC 61966-2-1)。
+ * @param v sRGBの値(0〜1)。
+ * @return リニアな値。
+ */
+float srgbToLinear(float v) {
+    return v <= 0.04045f ? v / 12.92f : std::pow((v + 0.055f) / 1.055f, 2.4f);
+}
+
+/**
+ * @brief モニターでWindowsが使うSDRの白の明るさ(HDRが有効なときの「SDRコンテンツの明るさ」の設定)を返す。
+ * @param monitor 対象のモニター。
+ * @return 明るさ(cd/m²)。分からなければ80。
+ */
+float sdrWhiteNits(HMONITOR monitor) {
+    MONITORINFOEXW info{};
+    info.cbSize = sizeof(info);
+    if (!GetMonitorInfoW(monitor, &info)) {
+        return 80.0f;
+    }
+    UINT32 pathCount = 0;
+    UINT32 modeCount = 0;
+    if (GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &pathCount, &modeCount) != ERROR_SUCCESS) {
+        return 80.0f;
+    }
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);
+    std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
+    if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &pathCount, paths.data(), &modeCount, modes.data(), nullptr) !=
+        ERROR_SUCCESS) {
+        return 80.0f;
+    }
+    // GDIの画面の名前(\\.\DISPLAY1など)が同じ経路を探し、その出力先の設定を読む。
+    for (UINT32 i = 0; i < pathCount; ++i) {
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME source{};
+        source.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        source.header.size = sizeof(source);
+        source.header.adapterId = paths[i].sourceInfo.adapterId;
+        source.header.id = paths[i].sourceInfo.id;
+        if (DisplayConfigGetDeviceInfo(&source.header) != ERROR_SUCCESS ||
+            wcscmp(source.viewGdiDeviceName, info.szDevice) != 0) {
+            continue;
+        }
+        DISPLAYCONFIG_SDR_WHITE_LEVEL white{};
+        white.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL;
+        white.header.size = sizeof(white);
+        white.header.adapterId = paths[i].targetInfo.adapterId;
+        white.header.id = paths[i].targetInfo.id;
+        if (DisplayConfigGetDeviceInfo(&white.header) == ERROR_SUCCESS && white.SDRWhiteLevel > 0) {
+            return white.SDRWhiteLevel / 1000.0f * 80.0f;  // 1000が80cd/m²。
+        }
+    }
+    return 80.0f;
 }
 
 /**
@@ -305,9 +373,12 @@ LRESULT CALLBACK VideoView::windowProc(HWND hwnd, UINT message, WPARAM wParam, L
 }
 
 bool VideoView::createDevice() {
+    backBuffer_.Reset();
     swapChain_.Reset();
     context_.Reset();
     target_.Reset();
+    d3dContext_.Reset();
+    scRgb_ = false;
     for (PaneCache& cache : paneCaches_) {
         cache = PaneCache{};
     }
@@ -333,6 +404,10 @@ bool VideoView::createDevice() {
         }
     }
     if (FAILED(hr)) {
+        return false;
+    }
+    device_->GetImmediateContext(&d3dContext_);
+    if (!renderer_.create(device_.Get())) {
         return false;
     }
 
@@ -420,23 +495,139 @@ bool VideoView::createDevice() {
             labelFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
             labelFormat_->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
         }
+        writeFactory_->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                                        DWRITE_FONT_STRETCH_NORMAL, size * 0.7f, L"ja-jp",
+                                        infoFormat_.ReleaseAndGetAddressOf());
+        if (infoFormat_) {
+            infoFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            infoFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+            infoFormat_->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+        }
     }
     return createTarget();
 }
 
 bool VideoView::createTarget() {
+    // 映像はDirect3Dで、文字と枠はDirect2Dで、同じ裏画面に描く。
+    ComPtr<ID3D11Texture2D> buffer;
     ComPtr<IDXGISurface> surface;
-    if (FAILED(swapChain_->GetBuffer(0, IID_PPV_ARGS(&surface)))) {
+    if (FAILED(swapChain_->GetBuffer(0, IID_PPV_ARGS(&buffer))) || FAILED(buffer.As(&surface)) ||
+        FAILED(device_->CreateRenderTargetView(buffer.Get(), nullptr, &backBuffer_))) {
         return false;
     }
+    const DXGI_FORMAT format = scRgb_ ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_B8G8R8A8_UNORM;
     const D2D1_BITMAP_PROPERTIES1 properties = D2D1::BitmapProperties1(
-        D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
-        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE), 96.0f, 96.0f);
+        D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW, D2D1::PixelFormat(format, D2D1_ALPHA_MODE_IGNORE),
+        96.0f, 96.0f);
     if (FAILED(context_->CreateBitmapFromDxgiSurface(surface.Get(), &properties, &target_))) {
         return false;
     }
     context_->SetTarget(target_.Get());
+    // 16bit浮動小数点の描画先ではClearTypeが使えないので、文字は白黒の濃淡で滑らかにする。
+    context_->SetTextAntialiasMode(scRgb_ ? D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE : D2D1_TEXT_ANTIALIAS_MODE_DEFAULT);
     return true;
+}
+
+bool VideoView::setOutputFormat(bool scRgb) {
+    // 裏画面への参照をすべて外してから形式を変える(外さないとResizeBuffersが失敗する)。
+    context_->SetTarget(nullptr);
+    target_.Reset();
+    backBuffer_.Reset();
+    d3dContext_->OMSetRenderTargets(0, nullptr, nullptr);
+    d3dContext_->Flush();
+    auto apply = [&](bool wide) {
+        const DXGI_FORMAT format = wide ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_B8G8R8A8_UNORM;
+        if (FAILED(swapChain_->ResizeBuffers(0, swapWidth_, swapHeight_, format, kSwapChainFlags))) {
+            return false;
+        }
+        // scRGBはリニアなBT.709(1.0が80cd/m²)、8bitはsRGB(Windowsの既定)として画面に合成してもらう。
+        const DXGI_COLOR_SPACE_TYPE space =
+            wide ? DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709 : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+        UINT support = 0;
+        if (FAILED(swapChain_->CheckColorSpaceSupport(space, &support)) ||
+            !(support & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) || FAILED(swapChain_->SetColorSpace1(space))) {
+            return !wide;  // 8bitは既定の色空間のままでよい。
+        }
+        return true;
+    };
+    bool ok = apply(scRgb);
+    if (!ok && scRgb) {
+        scRgbUnavailable_ = true;  // 以後は8bitの描画先に、画面に合わせた値を出す。
+        ok = apply(false);
+        scRgb = false;
+    }
+    scRgb_ = scRgb;
+    traceLog("output format scRGB=%d ok=%d", scRgb ? 1 : 0, ok ? 1 : 0);
+    return ok && createTarget() && scRgb_ == scRgb;
+}
+
+void VideoView::updateDisplayState() {
+    const HMONITOR monitor = MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONEAREST);
+    const bool stale = displayDirty_.exchange(false) || monitor != displayMonitor_ || !displayFactory_ ||
+                       !displayFactory_->IsCurrent();
+    if (!stale) {
+        return;
+    }
+    displayMonitor_ = monitor;
+    // 画面の構成が変わると古い工場は古い状態を返すので、毎回作り直してモニターを探す。
+    displayFactory_.Reset();
+    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&displayFactory_)))) {
+        return;
+    }
+    bool hdr = false;
+    ComPtr<IDXGIAdapter1> adapter;
+    for (UINT a = 0; displayFactory_->EnumAdapters1(a, adapter.ReleaseAndGetAddressOf()) == S_OK; ++a) {
+        ComPtr<IDXGIOutput> output;
+        for (UINT o = 0; adapter->EnumOutputs(o, output.ReleaseAndGetAddressOf()) == S_OK; ++o) {
+            ComPtr<IDXGIOutput6> output6;
+            DXGI_OUTPUT_DESC1 desc{};
+            if (SUCCEEDED(output.As(&output6)) && SUCCEEDED(output6->GetDesc1(&desc)) && desc.Monitor == monitor) {
+                hdr = desc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
+            }
+        }
+    }
+    display_.hdr = hdr;
+    display_.sdrWhiteNits = hdr ? sdrWhiteNits(monitor) : 80.0f;
+    displayHdr_ = hdr;
+    traceLog("display hdr=%d sdrWhite=%.0f", hdr ? 1 : 0, display_.sdrWhiteNits);
+}
+
+D2D1_COLOR_F VideoView::uiColor(const D2D1_COLOR_F& color) const {
+    if (!scRgb_) {
+        return color;
+    }
+    const float scale = display_.hdr ? display_.sdrWhiteNits / 80.0f : 1.0f;
+    return D2D1::ColorF(srgbToLinear(color.r) * scale, srgbToLinear(color.g) * scale, srgbToLinear(color.b) * scale,
+                        color.a);
+}
+
+std::wstring VideoView::colorInfoText(const ColorInfo& color, FrameRenderer::Output output) const {
+    std::wstring text = L"色: " + describeColor(color) + L"\n出力: ";
+    wchar_t buffer[160];
+    switch (output) {
+    case FrameRenderer::Output::Direct8:
+        text += L"値をそのまま(8bit)";
+        break;
+    case FrameRenderer::Output::Encoded8:
+        text += L"画面に合わせて変換(8bit)";
+        break;
+    case FrameRenderer::Output::ScRgb:
+    default:
+        if (color.isHdr() && display_.hdr) {
+            text += L"HDRの画面へ明るさそのまま(scRGB)";
+        } else if (color.isHdr()) {
+            const float peak = color.maxContentNits > 0.0f ? color.maxContentNits : 1000.0f;
+            std::swprintf(buffer, 160, L"SDRの画面に収める(最大%.0fcd/m²→基準の白203cd/m²、BT.2390)", peak);
+            text += buffer;
+        } else if (display_.hdr) {
+            std::swprintf(buffer, 160, L"HDRの画面のSDRの白(%.0fcd/m²)で(scRGB)", display_.sdrWhiteNits);
+            text += buffer;
+        } else {
+            text += color.isPassThrough() ? L"値をそのまま(scRGB)" : L"色域をBT.709へ変換(scRGB)";
+        }
+        break;
+    }
+    return text;
 }
 
 bool VideoView::resizeIfNeeded() {
@@ -450,6 +641,9 @@ bool VideoView::resizeIfNeeded() {
     // 裏画面への参照をすべて外してから大きさを変える(外さないとResizeBuffersが失敗する)。
     context_->SetTarget(nullptr);
     target_.Reset();
+    backBuffer_.Reset();
+    d3dContext_->OMSetRenderTargets(0, nullptr, nullptr);
+    d3dContext_->Flush();
     if (FAILED(swapChain_->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, kSwapChainFlags))) {
         return false;
     }
@@ -459,52 +653,92 @@ bool VideoView::resizeIfNeeded() {
 }
 
 bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
-    // 共有のGPUデバイスを使うときは、描画1回分が裏の読み込み(GPUへの写し)と混ざらないよう鍵で囲む。
+    // 共有のGPUデバイスを使うときは、描画1回分が裏の読み込み(GPUへの写し・縮小)と混ざらないよう鍵で囲む。
     std::unique_ptr<GpuDevice::Lock> lock;
     if (gpu_) {
         lock = gpu_->lockPtr();
     }
-    context_->BeginDraw();
-    context_->SetTransform(D2D1::Matrix3x2F::Identity());
-    context_->Clear(kBackground);
-    const D2D1_RECT_F area = D2D1::RectF(0, 0, static_cast<float>(swapWidth_), static_cast<float>(swapHeight_));
+    updateDisplayState();
 
-    if (!panes[0].clip && textFormat_) {
-        ComPtr<ID2D1SolidColorBrush> textBrush;
-        context_->CreateSolidColorBrush(kText, &textBrush);
-        static const wchar_t message[] = L"動画ファイルをドロップしてください";
-        context_->DrawText(message, static_cast<UINT32>(std::size(message) - 1), textFormat_.Get(), area,
-                           textBrush.Get());
-    } else if (paneCount == 1) {
-        drawPane(panes[0], paneCaches_[0], area, std::wstring(), outOfRangeDetail(panes[0], 0));
-    } else {
-        // 比較中は左右に分けて並べる。間に少し隙間を空ける。
-        const float gap = 6.0f * GetDpiForWindow(hwnd_) / 96.0f;
+    // 各表示枠の色の解釈(手動の指定を当てはめたもの)と、描画先の形式を決める。
+    ColorInfo colors[2];
+    bool wantScRgb = false;
+    for (int i = 0; i < paneCount; ++i) {
+        const PaneState& pane = panes[i];
+        if (pane.clip && pane.frame && !pane.outOfRange) {
+            colors[i] = applyOverride(pane.frame->color, pane.clip->colorOverride());
+            wantScRgb = wantScRgb || FrameRenderer::needsScRgb(colors[i], display_);
+        }
+    }
+    wantScRgb = wantScRgb && !scRgbUnavailable_;
+    if (wantScRgb != scRgb_ && !setOutputFormat(wantScRgb) && !target_) {
+        return false;
+    }
+
+    // 表示枠の配置。比較中は左右に分けて並べ(間に少し隙間)、各枠の下に文字の行を取る。
+    const float scaleDpi = GetDpiForWindow(hwnd_) / 96.0f;
+    const D2D1_RECT_F area = D2D1::RectF(0, 0, static_cast<float>(swapWidth_), static_cast<float>(swapHeight_));
+    D2D1_RECT_F imageAreas[2] = {area, area};
+    D2D1_RECT_F labelAreas[2] = {};
+    if (paneCount == 2) {
+        const float gap = 6.0f * scaleDpi;
         const float middle = (area.left + area.right) / 2;
-        const D2D1_RECT_F left = D2D1::RectF(area.left, area.top, middle - gap / 2, area.bottom);
-        const D2D1_RECT_F right = D2D1::RectF(middle + gap / 2, area.top, area.right, area.bottom);
+        const D2D1_RECT_F halves[2] = {D2D1::RectF(area.left, area.top, middle - gap / 2, area.bottom),
+                                       D2D1::RectF(middle + gap / 2, area.top, area.right, area.bottom)};
         for (int i = 0; i < 2; ++i) {
-            const PaneState& pane = panes[i];
-            wchar_t label[512];
-            const std::wstring name = pane.clip ? fileNameOf(pane.clip->path()) : std::wstring();
-            const int count = pane.clip ? pane.clip->frameCount() : 0;
-            if (i == 0 && pane.outOfRange) {
-                std::swprintf(label, 512, L"%ls   範囲外 / %d", name.c_str(), count - 1 + frameNumberStart_);
-            } else if (i == 0) {
-                std::swprintf(label, 512, L"%ls   %d / %d", name.c_str(), pane.index + frameNumberStart_,
-                              count - 1 + frameNumberStart_);
-            } else if (pane.outOfRange) {
-                std::swprintf(label, 512, L"%ls   範囲外 / %d   (オフセット %+df)", name.c_str(),
-                              count - 1 + frameNumberStart_, compareOffset);
-            } else {
-                std::swprintf(label, 512, L"%ls   %d / %d   (オフセット %+df)", name.c_str(), pane.index + frameNumberStart_,
-                              count - 1 + frameNumberStart_,
-                              compareOffset);
-            }
-            drawPane(pane, paneCaches_[i], i == 0 ? left : right, label, outOfRangeDetail(pane, i == 0 ? 0 : -compareOffset));
+            labelAreas[i] = D2D1::RectF(halves[i].left, halves[i].bottom - 24 * scaleDpi, halves[i].right, halves[i].bottom);
+            imageAreas[i] = D2D1::RectF(halves[i].left, halves[i].top, halves[i].right, labelAreas[i].top);
         }
     }
 
+    // 映像(Direct3D)。
+    const float black[4] = {0.0f, 0.0f, 0.0f, 1.0f};  // Keyframe Proと同じく映像の周りは黒。
+    d3dContext_->ClearRenderTargetView(backBuffer_.Get(), black);
+    if (panes[0].clip) {
+        for (int i = 0; i < paneCount; ++i) {
+            drawPaneImage(panes[i], colors[i], paneCaches_[i], imageAreas[i]);
+        }
+    }
+
+    // 文字と枠(Direct2D)。
+    context_->BeginDraw();
+    context_->SetTransform(D2D1::Matrix3x2F::Identity());
+    if (!panes[0].clip && textFormat_) {
+        ComPtr<ID2D1SolidColorBrush> textBrush;
+        context_->CreateSolidColorBrush(uiColor(kText), &textBrush);
+        static const wchar_t message[] = L"動画ファイルをドロップしてください";
+        context_->DrawText(message, static_cast<UINT32>(std::size(message) - 1), textFormat_.Get(), area,
+                           textBrush.Get());
+    } else {
+        for (int i = 0; i < paneCount; ++i) {
+            const PaneState& pane = panes[i];
+            std::wstring label;
+            if (paneCount == 2) {
+                wchar_t text[512];
+                const std::wstring name = pane.clip ? fileNameOf(pane.clip->path()) : std::wstring();
+                const int count = pane.clip ? pane.clip->frameCount() : 0;
+                if (i == 0 && pane.outOfRange) {
+                    std::swprintf(text, 512, L"%ls   範囲外 / %d", name.c_str(), count - 1 + frameNumberStart_);
+                } else if (i == 0) {
+                    std::swprintf(text, 512, L"%ls   %d / %d", name.c_str(), pane.index + frameNumberStart_,
+                                  count - 1 + frameNumberStart_);
+                } else if (pane.outOfRange) {
+                    std::swprintf(text, 512, L"%ls   範囲外 / %d   (オフセット %+df)", name.c_str(),
+                                  count - 1 + frameNumberStart_, compareOffset);
+                } else {
+                    std::swprintf(text, 512, L"%ls   %d / %d   (オフセット %+df)", name.c_str(),
+                                  pane.index + frameNumberStart_, count - 1 + frameNumberStart_, compareOffset);
+                }
+                label = text;
+            }
+            std::wstring info;
+            if (showColorInfo_ && pane.clip && pane.frame && !pane.outOfRange) {
+                info = colorInfoText(colors[i], FrameRenderer::chooseOutput(colors[i], display_, scRgb_));
+            }
+            drawPaneText(pane, imageAreas[i], labelAreas[i], label, outOfRangeDetail(pane, i == 0 ? 0 : -compareOffset),
+                         info);
+        }
+    }
     if (context_->EndDraw() == static_cast<HRESULT>(D2DERR_RECREATE_TARGET)) {
         return false;
     }
@@ -542,65 +776,26 @@ std::wstring VideoView::outOfRangeDetail(const PaneState& pane, int shift) const
     return text;
 }
 
-void VideoView::drawPane(const PaneState& pane, PaneCache& cache, const D2D1_RECT_F& paneArea,
-                         const std::wstring& label, const std::wstring& detail) {
+void VideoView::drawPaneImage(const PaneState& pane, const ColorInfo& color, PaneCache& cache,
+                              const D2D1_RECT_F& area) {
+    const std::shared_ptr<const Frame>& frame = pane.outOfRange ? nullptr : pane.frame;
+    if (!frame || frame->width <= 0 || frame->height <= 0) {
+        return;
+    }
+    // コマが変わったとき(または色の解釈を変えたとき)だけRGBへ戻し直す。拡大縮小と画面への合わせ込みは毎回行う。
+    if (renderer_.prepare(d3dContext_.Get(), frame, color, cache.image)) {
+        renderer_.present(d3dContext_.Get(), backBuffer_.Get(), fitPixels(area, frame->width, frame->height),
+                          cache.image, FrameRenderer::chooseOutput(color, display_, scRgb_), display_);
+    }
+}
+
+void VideoView::drawPaneText(const PaneState& pane, const D2D1_RECT_F& area, const D2D1_RECT_F& labelArea,
+                             const std::wstring& label, const std::wstring& detail, const std::wstring& info) {
     const float scaleDpi = GetDpiForWindow(hwnd_) / 96.0f;
     ComPtr<ID2D1SolidColorBrush> textBrush;
-    context_->CreateSolidColorBrush(kText, &textBrush);
-
-    // 比較中は表示枠の下に文字の行を取り、残りに画像を収める。
-    D2D1_RECT_F area = paneArea;
-    D2D1_RECT_F labelArea{};
-    if (!label.empty()) {
-        labelArea = D2D1::RectF(area.left, area.bottom - 24 * scaleDpi, area.right, area.bottom);
-        area.bottom = labelArea.top;
-    }
-
-    const std::shared_ptr<const Frame>& frame = pane.outOfRange ? nullptr : pane.frame;
-    if (frame && frame->onGpu() && frame->width > 0 && frame->height > 0) {
-        // GPUのメモリにあるコマ(NV12)は、写さずにそのまま描く。RGBへの変換はDirect2Dが描画時に行う。
-        if (cache.source != frame) {
-            ComPtr<IDXGISurface> surface;
-            cache.image.Reset();
-            if (SUCCEEDED(frame->texture.As(&surface))) {
-                IDXGISurface* surfaces[] = {surface.Get()};
-                context_->CreateImageSourceFromDxgi(surfaces, 1, frame->colorSpace,
-                                                    D2D1_IMAGE_SOURCE_FROM_DXGI_OPTIONS_NONE, &cache.image);
-            }
-            cache.source = frame;  // 保持しておくと、同じアドレスの別の画像と取り違えない。
-        }
-        if (cache.image) {
-            // 拡大縮小はGPUの高画質な補間で行う。画像の原点を表示位置へ移し、表示の大きさへ拡大する。
-            const D2D1_RECT_F target = fitRect(area, frame->width, frame->height);
-            const float scale = (target.right - target.left) / static_cast<float>(frame->width);
-            context_->SetTransform(D2D1::Matrix3x2F::Scale(scale, scale) *
-                                   D2D1::Matrix3x2F::Translation(target.left, target.top));
-            context_->DrawImage(cache.image.Get(), D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC);
-            context_->SetTransform(D2D1::Matrix3x2F::Identity());
-        }
-    } else if (frame && frame->width > 0 && frame->height > 0) {
-        // 主メモリのコマは、表示する画像が変わったときだけGPUへ写す(再生中も同じコマを描き直すことがあるため)。
-        if (cache.source != frame) {
-            const D2D1_SIZE_U size = D2D1::SizeU(static_cast<UINT32>(frame->width), static_cast<UINT32>(frame->height));
-            if (!cache.bitmap || cache.bitmap->GetPixelSize().width != size.width ||
-                cache.bitmap->GetPixelSize().height != size.height) {
-                const D2D1_BITMAP_PROPERTIES1 properties = D2D1::BitmapProperties1(
-                    D2D1_BITMAP_OPTIONS_NONE, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE),
-                    96.0f, 96.0f);
-                cache.bitmap.Reset();
-                context_->CreateBitmap(size, nullptr, 0, &properties, &cache.bitmap);
-            }
-            if (cache.bitmap) {
-                cache.bitmap->CopyFromMemory(nullptr, frame->pixels.data(), static_cast<UINT32>(frame->width) * 4);
-                cache.source = frame;
-            }
-        }
-        if (cache.bitmap) {
-            context_->DrawBitmap(cache.bitmap.Get(), fitRect(area, frame->width, frame->height), 1.0f,
-                                 D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, nullptr);
-        }
-    }
-
+    context_->CreateSolidColorBrush(uiColor(kText), &textBrush);
+    ComPtr<ID2D1SolidColorBrush> boxBrush;
+    context_->CreateSolidColorBrush(uiColor(kBox), &boxBrush);
     // 表示中のコマが無いときは、直前の画像の上に知らせを重ねる(別のコマをそのコマとして見せないため)。
     const wchar_t* notice = pane.outOfRange ? L"範囲外"
                             : pane.broken   ? L"このコマはデコードできません"
@@ -615,8 +810,6 @@ void VideoView::drawPane(const PaneState& pane, PaneCache& cache, const D2D1_REC
         const float half = 20 * scaleDpi;
         const D2D1_RECT_F box =
             D2D1::RectF(cx - halfWidth, cy - half, cx + halfWidth, cy + half + (hasDetail ? 18 * scaleDpi : 0));
-        ComPtr<ID2D1SolidColorBrush> boxBrush;
-        context_->CreateSolidColorBrush(kBox, &boxBrush);
         context_->FillRectangle(box, boxBrush.Get());
         const D2D1_RECT_F noticeArea = D2D1::RectF(box.left, box.top, box.right, cy + half - (hasDetail ? 6 * scaleDpi : 0));
         context_->DrawText(notice, static_cast<UINT32>(wcslen(notice)), textFormat_.Get(), noticeArea, textBrush.Get());
@@ -630,6 +823,24 @@ void VideoView::drawPane(const PaneState& pane, PaneCache& cache, const D2D1_REC
     if (!label.empty() && labelFormat_) {
         context_->DrawText(label.c_str(), static_cast<UINT32>(label.size()), labelFormat_.Get(), labelArea,
                            textBrush.Get());
+    }
+
+    // 色の情報は左上に、読みやすいよう半透明の箱の上に出す。
+    if (!info.empty() && infoFormat_ && writeFactory_) {
+        ComPtr<IDWriteTextLayout> layout;
+        const float margin = 8 * scaleDpi;
+        if (SUCCEEDED(writeFactory_->CreateTextLayout(info.c_str(), static_cast<UINT32>(info.size()), infoFormat_.Get(),
+                                                      std::max(1.0f, area.right - area.left - margin * 2),
+                                                      std::max(1.0f, area.bottom - area.top - margin * 2), &layout))) {
+            DWRITE_TEXT_METRICS metrics{};
+            layout->GetMetrics(&metrics);
+            const float padding = 4 * scaleDpi;
+            const D2D1_RECT_F box = D2D1::RectF(area.left + margin - padding, area.top + margin - padding,
+                                                area.left + margin + metrics.width + padding,
+                                                area.top + margin + metrics.height + padding);
+            context_->FillRectangle(box, boxBrush.Get());
+            context_->DrawTextLayout(D2D1::Point2F(area.left + margin, area.top + margin), layout.Get(), textBrush.Get());
+        }
     }
 }
 
@@ -662,6 +873,7 @@ void VideoView::renderLoop() {
     PaneState drawn[2];   // 最後に描いた内容(停止中に描き直しが必要かの判断に使う)。
     std::shared_ptr<AudioPlayer> sessionAudio;  // 今の再生で鳴らしている音声(途中で鳴らせなくなったら止める)。
     int drawnOffset = 0;
+    int drawnGeneration = -1;  // 最後に描いたときのredrawGeneration_。
     int drawnPaneCount = 0;
     UINT drawnWidth = 0;
     UINT drawnHeight = 0;
@@ -786,9 +998,10 @@ void VideoView::renderLoop() {
             GetClientRect(hwnd_, &client);
             const UINT width = static_cast<UINT>(std::max(1L, client.right - client.left));
             const UINT height = static_cast<UINT>(std::max(1L, client.bottom - client.top));
+            const int generation = redrawGeneration_;
             const bool changed = !panes[0].same(drawn[0]) || (compare && !panes[1].same(drawn[1])) ||
                                  paneCount != drawnPaneCount || offset != drawnOffset || width != drawnWidth ||
-                                 height != drawnHeight;
+                                 height != drawnHeight || generation != drawnGeneration;
             if (!changed) {
                 WaitForSingleObject(wakeEvent_, 250);
                 continue;
@@ -804,6 +1017,7 @@ void VideoView::renderLoop() {
             drawnOffset = offset;
             drawnWidth = width;
             drawnHeight = height;
+            drawnGeneration = generation;
             // 停止中の表示コマ(current_)はshowFrame()が決める。ここで書き戻すと、描き始めた後に
             // 新しい指示が来た場合に古い番号へ戻ってしまう(スライダーのドラッグ中に行ったり来たりして見える)。
             ready = draw(panes, paneCount, offset);
@@ -912,8 +1126,9 @@ void VideoView::renderLoop() {
             current_ = target;
             notifyParent();
         }
+        const int generation = redrawGeneration_;
         if (advance || width != drawnWidth || height != drawnHeight || paneCount != drawnPaneCount ||
-            offset != drawnOffset) {
+            offset != drawnOffset || generation != drawnGeneration) {
             // 描ける状態(表示の順番待ちに空き)になるまで眠って待ち、次の画面更新に合わせて描く。
             WaitForSingleObject(frameWaitable_, 100);
             if (!resizeIfNeeded()) {
@@ -924,6 +1139,7 @@ void VideoView::renderLoop() {
             drawnOffset = offset;
             drawnWidth = width;
             drawnHeight = height;
+            drawnGeneration = generation;
             ready = draw(drawn, paneCount, offset);
             traceLog("present playing %d", drawn[0].index);
             continue;
@@ -946,7 +1162,10 @@ void VideoView::renderLoop() {
     }
     target_.Reset();
     context_.Reset();
+    backBuffer_.Reset();
     swapChain_.Reset();
+    renderer_ = FrameRenderer{};
+    d3dContext_.Reset();
     device_.Reset();
     if (frameWaitable_) {
         CloseHandle(frameWaitable_);

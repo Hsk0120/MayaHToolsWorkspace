@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cwchar>
+#include <initializer_list>
 #include <iterator>
 #include <string>
 
@@ -49,6 +50,11 @@ enum MenuCommand : UINT {
     kMenuExit,
     kMenuTogglePlayback,  ///< 右クリックのメニュー: 再生/停止。
     kMenuFullscreen,      ///< 右クリックのメニュー: フルスクリーンの切り替え。
+    kMenuColorInfo,       ///< 右クリックのメニュー: 色の情報の表示の切り替え。
+    /// 右クリックのメニュー: 色の解釈の手動の指定。番号 = kMenuColorFirst + 動画(0/1)×100 + 項目×10 + (値+1)。
+    /// 項目は0=行列、1=範囲、2=色域、3=伝達関数、4=手動の指定をすべて解除。値が-1(0番)なら自動。
+    kMenuColorFirst = 1000,
+    kMenuColorLast = 1199,
     kMenuRecentFirst = 100,  ///< 最近使ったファイルの1つ目(以降、順に番号を振る)。
 };
 
@@ -95,6 +101,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     }
     view_.setBounds(computeLayout().video);
     view_.setFrameNumberStart(settings_.startFrame);
+    view_.setShowColorInfo(settings_.showColorInfo);
     createTooltips();
     DragAcceptFiles(hwnd_, TRUE);
     ShowWindow(hwnd_, showCommand);
@@ -214,6 +221,12 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         return 0;
     case WM_ERASEBKGND:
         return 1;  // paint()で塗るので消去は不要。
+    case WM_DISPLAYCHANGE:
+    case WM_SETTINGCHANGE:
+    case WM_EXITSIZEMOVE:
+        // 画面の構成・HDRの有無・SDRの白の明るさの変更、別のモニターへの移動。映像の出し方を調べ直す。
+        view_.displayChanged();
+        return DefWindowProcW(hwnd_, message, wParam, lParam);
     case WM_SIZE:
         view_.setBounds(computeLayout().video);
         updateTooltipRects();
@@ -519,6 +532,80 @@ void PlayerWindow::showFileMenu() {
     }
 }
 
+HMENU PlayerWindow::createColorMenu(const Clip& clip, int clipIndex) const {
+    const ColorInfo detected = clip.color();
+    const ColorOverride current = clip.colorOverride();
+    HMENU menu = CreatePopupMenu();
+    // 1つの項目の選択肢を並べる。先頭は「自動」(動画の指定・推定のまま。今の値を添える)。
+    auto addField = [&](int field, const wchar_t* title, int selected, const wchar_t* automatic,
+                        std::initializer_list<std::pair<int, const wchar_t*>> choices) {
+        HMENU sub = CreatePopupMenu();
+        const UINT base = kMenuColorFirst + static_cast<UINT>(clipIndex * 100 + field * 10);
+        const std::wstring autoLabel = std::wstring(L"自動(") + automatic + L")";
+        AppendMenuW(sub, MF_STRING | (selected < 0 ? MF_CHECKED : 0), base, autoLabel.c_str());
+        AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+        for (const auto& [value, label] : choices) {
+            AppendMenuW(sub, MF_STRING | (selected == value ? MF_CHECKED : 0), base + static_cast<UINT>(value + 1), label);
+        }
+        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(sub), title);
+    };
+    auto value = [](auto v) { return static_cast<int>(v); };
+    addField(0, L"YUVの行列", current.matrix, colorName(detected.matrix),
+             {{value(ColorMatrix::Bt601), colorName(ColorMatrix::Bt601)},
+              {value(ColorMatrix::Bt709), colorName(ColorMatrix::Bt709)},
+              {value(ColorMatrix::Bt2020), colorName(ColorMatrix::Bt2020)}});
+    addField(1, L"範囲", current.range, colorName(detected.range),
+             {{value(ColorRange::Limited), colorName(ColorRange::Limited)},
+              {value(ColorRange::Full), colorName(ColorRange::Full)}});
+    addField(2, L"色域", current.primaries, colorName(detected.primaries),
+             {{value(ColorPrimaries::Bt709), colorName(ColorPrimaries::Bt709)},
+              {value(ColorPrimaries::Bt601_525), colorName(ColorPrimaries::Bt601_525)},
+              {value(ColorPrimaries::Bt601_625), colorName(ColorPrimaries::Bt601_625)},
+              {value(ColorPrimaries::Bt2020), colorName(ColorPrimaries::Bt2020)},
+              {value(ColorPrimaries::DisplayP3), colorName(ColorPrimaries::DisplayP3)},
+              {value(ColorPrimaries::DciP3), colorName(ColorPrimaries::DciP3)}});
+    addField(3, L"伝達関数", current.transfer, colorName(detected.transfer),
+             {{value(TransferFunction::Sdr), colorName(TransferFunction::Sdr)},
+              {value(TransferFunction::Pq), colorName(TransferFunction::Pq)},
+              {value(TransferFunction::Hlg), colorName(TransferFunction::Hlg)},
+              {value(TransferFunction::Linear), colorName(TransferFunction::Linear)}});
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (current.any() ? 0 : MF_GRAYED),
+                kMenuColorFirst + static_cast<UINT>(clipIndex * 100 + 40), L"手動の指定をすべて解除");
+    return menu;
+}
+
+void PlayerWindow::applyColorCommand(UINT command) {
+    const UINT offset = command - kMenuColorFirst;
+    const int clipIndex = static_cast<int>(offset / 100);
+    const int field = static_cast<int>(offset % 100 / 10);
+    const int value = static_cast<int>(offset % 10) - 1;
+    Clip* clip = clipIndex == 0 ? clip_.get() : compareClip_.get();
+    if (!clip) {
+        return;
+    }
+    ColorOverride override = clip->colorOverride();
+    switch (field) {
+    case 0:
+        override.matrix = value;
+        break;
+    case 1:
+        override.range = value;
+        break;
+    case 2:
+        override.primaries = value;
+        break;
+    case 3:
+        override.transfer = value;
+        break;
+    default:
+        override = ColorOverride{};
+        break;
+    }
+    clip->setColorOverride(override);
+    view_.redraw();
+}
+
 void PlayerWindow::showContextMenu(POINT screenPoint) {
     if (screenPoint.x == -1 && screenPoint.y == -1) {
         GetCursorPos(&screenPoint);
@@ -528,9 +615,24 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
                 view_.isPlaying() ? L"停止\tSpace" : L"再生\tSpace");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING | (fullscreen_ ? MF_CHECKED : 0), kMenuFullscreen, L"フルスクリーン\tCtrl+F");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (settings_.showColorInfo ? MF_CHECKED : 0), kMenuColorInfo, L"色の情報を表示");
+    // 色の解釈の手動の指定(動画の指定が誤っているときに直す)。比較中は動画ごとに分ける。
+    if (clip_ && compareClip_) {
+        const std::wstring first = L"色の解釈: 1本目(" + fileNameOf(clip_->path()) + L")";
+        const std::wstring second = L"色の解釈: 2本目(" + fileNameOf(compareClip_->path()) + L")";
+        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*clip_, 0)), first.c_str());
+        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*compareClip_, 1)), second.c_str());
+    } else if (clip_) {
+        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*clip_, 0)), L"色の解釈");
+    }
     const UINT command = static_cast<UINT>(TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
                                                           screenPoint.x, screenPoint.y, 0, hwnd_, nullptr));
-    DestroyMenu(menu);
+    DestroyMenu(menu);  // 中の項目のメニューも一緒に破棄される。
+    if (command >= kMenuColorFirst && command <= kMenuColorLast) {
+        applyColorCommand(command);
+        return;
+    }
     switch (command) {
     case kMenuTogglePlayback:
         if (clip_) {
@@ -539,6 +641,11 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
         break;
     case kMenuFullscreen:
         toggleFullscreen();
+        break;
+    case kMenuColorInfo:
+        settings_.showColorInfo = !settings_.showColorInfo;
+        settings_.saveShowColorInfo();
+        view_.setShowColorInfo(settings_.showColorInfo);
         break;
     default:
         break;

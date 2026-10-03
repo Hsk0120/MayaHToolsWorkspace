@@ -1,6 +1,6 @@
 /**
  * @file VideoView.h
- * @brief 映像を表示する子ウィンドウ。描画専用のスレッドがGPU(Direct3D 11 + Direct2D)で描く。
+ * @brief 映像を表示する子ウィンドウ。描画専用のスレッドがGPU(Direct3D 11で映像、Direct2Dで文字)で描く。
  */
 #pragma once
 
@@ -8,7 +8,7 @@
 #include <d2d1_3.h>
 #include <d3d11.h>
 #include <dwrite.h>
-#include <dxgi1_3.h>
+#include <dxgi1_6.h>
 #include <wrl/client.h>
 
 #include <atomic>
@@ -21,6 +21,7 @@
 #include "core/AudioPlayer.h"
 #include "core/GpuDevice.h"
 #include "core/Clip.h"
+#include "core/FrameRenderer.h"
 
 namespace frameplayer {
 
@@ -34,6 +35,8 @@ namespace frameplayer {
  *       そろってから進めるので、左右がずれて見えることはない。比較中は音声を鳴らさない。
  *       コマ番号は1本目の動画の1コマ目を0とするタイムライン上の番号で、動画の外(負の番号や最後のコマより後)も
  *       表示・再生できる(Mayaのタイムラインと同じく、範囲は動画の長さに縛られない)。動画の外では「範囲外」と出す。
+ *       色はFrameRendererで規格どおりに変換する。SDR・BT.709の8bitの動画は値をそのまま8bitの描画先へ出し、
+ *       HDR・BT.709以外の色域・10bitの動画を表示するときは、描画先を16bit浮動小数点(scRGB)に切り替える。
  */
 class VideoView {
 public:
@@ -147,6 +150,33 @@ public:
     /** @brief 親ウィンドウがnotifyMessageを処理したことを伝える。次の変化を再び知らせられるようにする。 */
     void acknowledgeNotify() { notifyPending_ = false; }
 
+    /**
+     * @brief 色の解釈の情報を映像の上に出すかを設定する。
+     * @param show 出すならtrue。
+     */
+    void setShowColorInfo(bool show) {
+        showColorInfo_ = show;
+        redraw();
+    }
+
+    /** @brief 描き直す(色の解釈の手動の指定を変えたときなど、コマが同じでも見え方が変わるとき)。 */
+    void redraw() {
+        ++redrawGeneration_;
+        wake();
+    }
+
+    /** @brief 画面の状態(HDRの有無・SDRの白の明るさ・表示するモニター)を調べ直して描き直す。 */
+    void displayChanged() {
+        displayDirty_ = true;
+        redraw();
+    }
+
+    /**
+     * @brief 表示中の画面の状態を返す(情報の表示用)。
+     * @return HDRが有効ならtrue。
+     */
+    bool displayHdr() const { return displayHdr_; }
+
 private:
     /**
      * @brief 子ウィンドウのメッセージ処理。描画はすべて描画スレッドが行うので、ここでは背景を消さないだけ。
@@ -200,11 +230,9 @@ private:
         }
     };
 
-    /** @brief 表示枠ごとに、GPUへ写した画像を覚えておく(同じ画像なら写し直さない)。描画スレッドだけが使う。 */
+    /** @brief 表示枠ごとに、RGBへ戻した画像を覚えておく(同じコマ・同じ色の解釈なら作り直さない)。描画スレッドだけが使う。 */
     struct PaneCache {
-        std::shared_ptr<const Frame> source;               ///< 写した元の画像(保持して取り違えを防ぐ)。
-        Microsoft::WRL::ComPtr<ID2D1Bitmap1> bitmap;       ///< 主メモリのコマをGPUへ写したもの。
-        Microsoft::WRL::ComPtr<ID2D1ImageSource> image;    ///< GPUのコマ(NV12)をRGBとして描くための入口。
+        FrameRenderer::Image image;  ///< RGBへ戻した画像。
     };
 
     /**
@@ -225,15 +253,54 @@ private:
     void sleepTicks(LONGLONG ticks, bool wakeOnSignal);
 
     /**
-     * @brief 1つの表示枠に画像と知らせを描く。描画スレッドでBeginDrawとEndDrawの間に呼ぶ。
+     * @brief 1つの表示枠の画像をDirect3Dで描く。描画スレッドで、文字を描く前に呼ぶ。
      * @param pane 描く内容。
+     * @param color 当てはめる色の解釈(手動の指定を含む)。
      * @param cache この表示枠の画像の覚え。
-     * @param area 表示枠の範囲。
+     * @param area 画像を収める範囲。
+     */
+    void drawPaneImage(const PaneState& pane, const ColorInfo& color, PaneCache& cache, const D2D1_RECT_F& area);
+
+    /**
+     * @brief 1つの表示枠の文字(知らせ・下の行・色の情報)をDirect2Dで描く。描画スレッドでBeginDrawとEndDrawの間に呼ぶ。
+     * @param pane 描く内容。
+     * @param area 画像を収める範囲。
+     * @param labelArea 下の行の範囲。
      * @param label 表示枠の下に出す文字。空なら出さない(比較中だけ出す)。
      * @param detail 「範囲外」の下に添える説明(動画がタイムラインのどこにあるか)。空なら出さない。
+     * @param info 左上に出す色の情報。空なら出さない。
      */
-    void drawPane(const PaneState& pane, PaneCache& cache, const D2D1_RECT_F& area, const std::wstring& label,
-                  const std::wstring& detail);
+    void drawPaneText(const PaneState& pane, const D2D1_RECT_F& area, const D2D1_RECT_F& labelArea,
+                      const std::wstring& label, const std::wstring& detail, const std::wstring& info);
+
+    /**
+     * @brief 画面の状態(HDRの有無・SDRの白の明るさ)を、必要なら調べ直す。描画スレッドで呼ぶ。
+     * @note 表示するモニターが変わったとき、Windowsの画面の構成が変わったとき(DXGIの工場が古くなったとき)、
+     *       displayChanged()が呼ばれたときだけ調べる(毎回は調べない)。
+     */
+    void updateDisplayState();
+
+    /**
+     * @brief 描画先の形式を切り替える。描画スレッドで呼ぶ。
+     * @param scRgb trueなら16bit浮動小数点(scRGB)、falseなら8bit(BGRA)。
+     * @return 切り替えられたらtrue。scRGBにできなければ8bitに戻してfalse。
+     */
+    bool setOutputFormat(bool scRgb);
+
+    /**
+     * @brief 文字や枠の色(sRGBの値)を、今の描画先で同じ見た目になる値にする。
+     * @param color sRGBの色。
+     * @return 8bitの描画先ならそのまま、scRGBならリニアにしてSDRの白の明るさを掛けた色。
+     */
+    D2D1_COLOR_F uiColor(const D2D1_COLOR_F& color) const;
+
+    /**
+     * @brief 色の情報の文字を作る(情報の表示用)。
+     * @param color 当てはめた色の解釈。
+     * @param output 描画先への出し方。
+     * @return 2行の文字。
+     */
+    std::wstring colorInfoText(const ColorInfo& color, FrameRenderer::Output output) const;
 
     /**
      * @brief 「範囲外」の下に添える説明を作る。
@@ -276,20 +343,33 @@ private:
     std::thread thread_;
 
     std::shared_ptr<GpuDevice> gpu_;  ///< 共有のGPUデバイス。無ければnullptr。
+    std::atomic<bool> showColorInfo_{false};  ///< 色の情報を映像の上に出すか。
+    std::atomic<int> redrawGeneration_{0};    ///< 描き直しの要求の番号(redraw()のたびに増やす)。
+    std::atomic<bool> displayDirty_{true};    ///< 画面の状態を調べ直すか。
+    std::atomic<bool> displayHdr_{false};     ///< 表示中の画面のHDRが有効か(UIスレッドから読む写し)。
 
     // 以下は描画スレッドだけが使う。
     Microsoft::WRL::ComPtr<ID3D11Device> device_;
-    Microsoft::WRL::ComPtr<IDXGISwapChain2> swapChain_;
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> d3dContext_;   ///< 映像を描く即時コンテキスト。
+    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> backBuffer_;  ///< 裏画面に映像を描く窓口。
+    Microsoft::WRL::ComPtr<IDXGISwapChain3> swapChain_;
+    FrameRenderer renderer_;          ///< 映像の変換と描画。
+    bool scRgb_ = false;              ///< 描画先が16bit浮動小数点(scRGB)か。
+    bool scRgbUnavailable_ = false;   ///< scRGBの描画先を作れなかった(以後は8bitで画面に合わせて出す)。
+    FrameRenderer::DisplayState display_;      ///< 表示中の画面の状態。
+    HMONITOR displayMonitor_ = nullptr;        ///< display_を調べたモニター。
+    Microsoft::WRL::ComPtr<IDXGIFactory1> displayFactory_;  ///< display_を調べたときの工場(古くなったら調べ直す)。
     HANDLE frameWaitable_ = nullptr;  ///< 次の画面更新に描けるようになると合図される。
     HANDLE timer_ = nullptr;          ///< 次のコマの時刻まで眠るための高精度の待機タイマー。
     Microsoft::WRL::ComPtr<ID2D1Factory3> d2dFactory_;
-    Microsoft::WRL::ComPtr<ID2D1DeviceContext2> context_;  ///< NV12を描ける版(Windows 8.1以降)。
+    Microsoft::WRL::ComPtr<ID2D1DeviceContext2> context_;  ///< 文字と枠を描く。
     Microsoft::WRL::ComPtr<ID2D1Bitmap1> target_;
     PaneCache paneCaches_[2];  ///< 表示枠ごとの画像の覚え(0=1本目、1=2本目)。
     Microsoft::WRL::ComPtr<IDWriteFactory> writeFactory_;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> textFormat_;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> labelFormat_;  ///< 比較中に各表示枠の下に出す文字(左寄せ・小さめ)。
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailFormat_;  ///< 「範囲外」の下に添える説明(中央寄せ・小さめ)。
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> infoFormat_;    ///< 色の情報(左上寄せ・小さめ)。
     UINT swapWidth_ = 0;
     UINT swapHeight_ = 0;
 };

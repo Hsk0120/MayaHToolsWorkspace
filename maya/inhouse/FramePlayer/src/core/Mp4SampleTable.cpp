@@ -9,6 +9,7 @@
  *                                    > ctts  デコード時刻から表示時刻へのずれ(Bフレームがあるとき)
  *                                    > stss  キーフレームの番号(無ければ全コマがキーフレーム)
  *                                    > stsz  コマ数の確認用
+ *                                    > stsd > (avc1など) > colr  色の情報(H.273の番号)
  * 数値はすべてビッグエンディアン。
  */
 #include "core/Mp4SampleTable.h"
@@ -152,6 +153,43 @@ bool readMoov(const std::wstring& path, std::vector<std::uint8_t>& moov) {
     return found;
 }
 
+/**
+ * @brief 映像の形式の説明(stsd)の最初の項目にあるcolrボックスから、色の情報を読む。
+ * @param stbl stblボックスの中身。
+ * @param table 格納先。読めなければ変えない。
+ * @note 'nclx'(ISO/IEC 14496-12)は範囲の印まで、'nclc'(QuickTime)は3つの番号だけを持つ。
+ *       'prof'(ICCプロファイル)は扱わない。
+ */
+void readColor(Range stbl, Mp4SampleTable& table) {
+    const Range stsd = findChild(stbl, "stsd");
+    // stsdの中身: 版とフラグ(4)、項目数(4)、その後に項目(ボックス)が並ぶ。
+    if (!stsd.valid() || stsd.end - stsd.begin < 16) {
+        return;
+    }
+    const std::uint8_t* entry = stsd.begin + 8;
+    const std::uint32_t entrySize = readU32(entry);
+    // 映像の項目は、ボックスの見出し(8)の後に決まった78バイトの説明があり、その後に子ボックスが並ぶ。
+    constexpr std::ptrdiff_t kVisualHeader = 8 + 78;
+    if (entrySize < kVisualHeader || entrySize > static_cast<std::uint64_t>(stsd.end - entry)) {
+        return;
+    }
+    const Range colr = findChild(Range{entry + kVisualHeader, entry + entrySize}, "colr");
+    if (!colr.valid() || colr.end - colr.begin < 10) {
+        return;
+    }
+    const bool nclx = isType(colr.begin, "nclx");
+    if (!nclx && !isType(colr.begin, "nclc")) {
+        return;
+    }
+    auto readU16 = [](const std::uint8_t* p) { return (p[0] << 8) | p[1]; };
+    table.colorPrimaries = readU16(colr.begin + 4);
+    table.transferCharacteristics = readU16(colr.begin + 6);
+    table.matrixCoefficients = readU16(colr.begin + 8);
+    if (nclx && colr.end - colr.begin >= 11) {
+        table.fullRange = (colr.begin[10] & 0x80) ? 1 : 0;
+    }
+}
+
 }  // namespace
 
 bool readMp4SampleTable(const std::wstring& path, Mp4SampleTable& table) {
@@ -195,6 +233,7 @@ bool readMp4SampleTable(const std::wstring& path, Mp4SampleTable& table) {
     if (!stbl.valid() || timescale == 0) {
         return false;
     }
+    readColor(stbl, table);
 
     // stts: デコード時刻の間隔を「コマ数×間隔」の並びで持つ。
     const Range stts = findChild(stbl, "stts");
