@@ -6,7 +6,8 @@
  * - セットアップを作る: `WinAppSetup.exe --build <アプリ.ini> --out <Setup.exe>`
  *   (このexeを写し、写した方にアプリの中身を埋め込む)
  * - インストール: 中身を埋め込んだSetup.exeを起動する。`/S` で画面を出さずに入れる。
- *   `--dir <フォルダ>` でインストール先、`--no-file-types` で関連付けをしない。
+ *   `--dir <フォルダ>` でインストール先、`--extensions .mp4;.mov` で関連付ける拡張子、`--no-file-types` で関連付けをしない、
+ *   `--no-context-menu` で右クリックに出さない。
  * - アンインストール: インストール先の `Uninstall.exe --uninstall`(「アプリ」一覧から呼ばれる)。
  *   `/S` で画面を出さず、`--remove-data` で設定などのデータも消す。
  *
@@ -35,6 +36,7 @@ constexpr int kInstallButton = 100;      ///< 「インストール」ボタン�
 constexpr int kChangeDirButton = 101;    ///< 「インストール先を変更」ボタン。
 constexpr int kCloseAppsButton = 102;    ///< 「閉じて続ける」ボタン。
 constexpr int kUninstallButton = 103;    ///< 「アンインストール」ボタン。
+constexpr int kAssociationsButton = 104;  ///< 「ファイルの関連付けを変更」ボタン。
 
 /** @brief コマンドラインの指定。 */
 struct Arguments {
@@ -44,9 +46,48 @@ struct Arguments {
     bool silent = false;         ///< /S: 画面を出さない。
     std::wstring dir;            ///< --dir: インストール先。
     bool noFileTypes = false;    ///< --no-file-types: 関連付けをしない。
+    std::wstring extensions;     ///< --extensions: 関連付ける拡張子(「.mp4;.mov」の形)。省くと前回の選択かすべて。
+    bool noContextMenu = false;  ///< --no-context-menu: 右クリックに項目を出さない。
     bool removeData = false;     ///< --remove-data: アンインストールでデータも消す。
     bool tempCopy = false;       ///< --temp-copy: 一時フォルダへ写した自分として動いている(アンインストール)。
     DWORD waitPid = 0;           ///< --wait-pid: このプロセスが終わるのを待ってから始める。
+};
+
+/** @brief 同じアプリのセットアップ・アンインストールが同時に動かないようにする鍵(名前付きのミューテックス)。 */
+class AppLock {
+public:
+    AppLock() = default;
+    AppLock(const AppLock&) = delete;
+    AppLock& operator=(const AppLock&) = delete;
+
+    /** @brief 鍵を持っていれば手放す。 */
+    ~AppLock() {
+        if (mutex_) {
+            if (owned_) {
+                ReleaseMutex(mutex_);
+            }
+            CloseHandle(mutex_);
+        }
+    }
+
+    /**
+     * @brief 鍵を取る。ほかが持っていれば、手放すまで少し待つ。
+     * @param id アプリの識別名(鍵の名前に使う)。
+     * @return 取れたらtrue。60秒待っても取れなければfalse。
+     */
+    bool acquire(const std::wstring& id) {
+        mutex_ = CreateMutexW(nullptr, FALSE, (L"Local\\WinAppSetup-" + id).c_str());
+        if (!mutex_) {
+            return false;
+        }
+        const DWORD result = WaitForSingleObject(mutex_, 60000);
+        owned_ = result == WAIT_OBJECT_0 || result == WAIT_ABANDONED;  // 前の持ち主が落ちていても取れる。
+        return owned_;
+    }
+
+private:
+    HANDLE mutex_ = nullptr;
+    bool owned_ = false;
 };
 
 /**
@@ -74,6 +115,8 @@ bool parseArguments(Arguments& args) {
         else if (arg == L"--dir") next(args.dir);
         else if (arg.size() > 3 && wak::equalsIgnoreCase(arg.substr(0, 3), L"/D=")) args.dir = arg.substr(3);
         else if (arg == L"--no-file-types") args.noFileTypes = true;
+        else if (arg == L"--extensions") next(args.extensions);
+        else if (arg == L"--no-context-menu") args.noContextMenu = true;
         else if (arg == L"--remove-data") args.removeData = true;
         else if (arg == L"--temp-copy") args.tempCopy = true;
         else if (arg == L"--wait-pid") {
@@ -186,40 +229,93 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
     std::wstring dir = !args.dir.empty() ? wak::fullPath(args.dir)
                        : existing.found  ? wak::fullPath(existing.dir)
                                          : wak::defaultInstallDir(manifest);
-    bool fileTypes = !manifest.progId.empty() && !args.noFileTypes;
     wak::logLine(L"%ls %ls  インストール先: %ls%ls", manifest.name.c_str(), manifest.version.c_str(), dir.c_str(),
                  existing.found ? (L"  (更新。今の版 " + existing.version + L")").c_str() : L"");
 
+    // 関連付けの初期値: 新しく入れるときはすべて。更新のときは前回の選択(記録から読む)。コマンドラインの指定が優先。
+    const bool hasFileTypes = !manifest.progId.empty();
+    wak::AssociationChoice choice;
+    choice.extensions = manifest.extensions;
+    choice.selected.assign(manifest.extensions.size(), hasFileTypes);
+    choice.hasContextMenu = !manifest.contextMenu.empty();
+    choice.contextMenu = choice.hasContextMenu;
+    wak::RecordInfo previous;
+    if (existing.found && wak::readRecordInfo(existing.dir, previous)) {
+        for (std::size_t i = 0; i < choice.extensions.size(); ++i) {
+            choice.selected[i] = false;
+            for (const std::wstring& extension : previous.extensions) {
+                choice.selected[i] = choice.selected[i] || wak::equalsIgnoreCase(extension, choice.extensions[i]);
+            }
+        }
+        choice.contextMenu = choice.hasContextMenu && previous.contextMenu;
+    }
+    if (!args.extensions.empty()) {
+        const std::vector<std::wstring> wanted = wak::split(args.extensions, L';');
+        for (std::size_t i = 0; i < choice.extensions.size(); ++i) {
+            choice.selected[i] = false;
+            for (const std::wstring& extension : wanted) {
+                choice.selected[i] = choice.selected[i] || wak::equalsIgnoreCase(extension, choice.extensions[i]);
+            }
+        }
+    }
+    if (args.noFileTypes || !hasFileTypes) {
+        choice.selected.assign(choice.extensions.size(), false);
+    }
+    if (args.noContextMenu) {
+        choice.contextMenu = false;
+    }
+    // 選んだ拡張子の説明(確認の画面に出す)。多いときは最初の4つと数だけ。
+    auto summary = [&]() {
+        std::wstring text;
+        int count = 0;
+        for (std::size_t i = 0; i < choice.extensions.size(); ++i) {
+            if (choice.selected[i]) {
+                if (count < 4) {
+                    text += (text.empty() ? L"" : L" ") + choice.extensions[i];
+                }
+                ++count;
+            }
+        }
+        if (count == 0) {
+            return std::wstring(L"関連付けしない");
+        }
+        if (count > 4) {
+            text += L" ほか" + std::to_wstring(count - 4) + L"種類";
+        }
+        if (choice.hasContextMenu) {
+            text += choice.contextMenu ? L"(右クリックあり)" : L"(右クリックなし)";
+        }
+        return text;
+    };
+
     if (!args.silent) {
-        // 確認の画面。インストール先は変えられる(更新のときは、今の場所のまま)。
+        // 確認の画面。選択肢を縦に並べ、それぞれの下に今の設定を出す。
         for (;;) {
             wak::DialogSpec spec;
             spec.title = title;
-            spec.instruction = existing.found ? manifest.name + L" を " + existing.version + L" から " + manifest.version +
-                                                    L" に更新します"
-                                              : manifest.name + L" " + manifest.version + L" をインストールします";
-            spec.content = L"インストール先:\n" + dir + L"\n\nこのユーザーだけにインストールします(管理者の権限は要りません)。"
-                           L"\n設定の「アプリ」から、いつでもアンインストールできます。";
-            spec.buttons = {{kInstallButton, existing.found ? L"更新" : L"インストール"}};
             if (!existing.found) {
-                spec.buttons.push_back({kChangeDirButton, L"インストール先を変更..."});
+                spec.instruction = manifest.name + L" " + manifest.version + L" をインストールします";
+            } else if (existing.version == manifest.version) {
+                spec.instruction = manifest.name + L" " + manifest.version + L" を入れ直します";  // 同じ版の上書き(修復)。
+            } else {
+                spec.instruction =
+                    manifest.name + L" を " + existing.version + L" から " + manifest.version + L" に更新します";
+            }
+            spec.content = L"このユーザーだけにインストールします(管理者の権限は要りません)。"
+                           L"設定の「アプリ」から、いつでもアンインストールできます。";
+            spec.commandLinks = true;
+            const wchar_t* action = !existing.found                         ? L"インストールする\n"
+                                    : existing.version == manifest.version ? L"入れ直す\n"
+                                                                            : L"更新する\n";
+            spec.buttons = {{kInstallButton, action + dir}};
+            if (!existing.found) {
+                spec.buttons.push_back({kChangeDirButton, L"インストール先を変更する\nフォルダを選んで、その中に入れます"});
+            }
+            if (hasFileTypes && manifest.fileTypesOptional) {
+                spec.buttons.push_back({kAssociationsButton, L"ファイルの関連付けを変更する\n" + summary()});
             }
             spec.cancelButton = true;
-            if (!manifest.progId.empty() && manifest.fileTypesOptional) {
-                // 拡張子が多いときは、最初の1つと数だけを書く(チェックボックスの文が折り返さないように)。
-                std::wstring extensions = manifest.extensions.front();
-                if (manifest.extensions.size() == 2) {
-                    extensions += L" " + manifest.extensions[1];
-                } else if (manifest.extensions.size() > 2) {
-                    extensions += L" ほか" + std::to_wstring(manifest.extensions.size() - 1) + L"種類";
-                }
-                spec.verification = L"右クリックと「プログラムから開く」に追加(" + extensions + L")";
-                spec.verificationChecked = fileTypes;
-            }
             const wak::DialogResult result = wak::showDialog(spec);
-            if (!spec.verification.empty()) {
-                fileTypes = result.verification;
-            }
             if (result.button == kChangeDirButton) {
                 const std::wstring chosen = wak::chooseFolder(L"インストール先のフォルダを選択", wak::parentPath(dir));
                 if (!chosen.empty()) {
@@ -228,6 +324,10 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
                     const std::wstring last = full.substr(full.find_last_of(L'\\') + 1);
                     dir = wak::equalsIgnoreCase(last, manifest.id) ? full : wak::joinPath(full, manifest.id);
                 }
+                continue;
+            }
+            if (result.button == kAssociationsButton) {
+                wak::chooseAssociations(title, manifest.name, choice);
                 continue;
             }
             if (result.button != kInstallButton) {
@@ -249,7 +349,13 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
 
     wak::InstallOptions options;
     options.installDir = dir;
-    options.fileTypes = fileTypes;
+    for (std::size_t i = 0; i < choice.extensions.size(); ++i) {
+        if (choice.selected[i]) {
+            options.extensions.push_back(choice.extensions[i]);
+        }
+    }
+    options.contextMenu = choice.contextMenu;
+    wak::logLine(L"関連付け: %ls", summary().c_str());
     bool ok = false;
     auto work = [&](const std::function<void(int, const std::wstring&)>& progress) {
         ok = wak::install(manifest, files, options, progress, error);
@@ -264,23 +370,22 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
         return 2;
     }
 
+    const bool associated = !options.extensions.empty();
     if (!args.silent) {
         const std::wstring exePath = wak::joinPath(dir, manifest.executable);
         wak::DialogSpec spec;
         spec.title = title;
         spec.instruction = existing.found ? L"更新しました" : L"インストールしました";
         spec.content = L"スタートメニューの「" + manifest.name + L"」から起動できます。";
-        if (fileTypes) {
-            spec.content += L"\n\nファイルをいつも " + manifest.name +
-                            L" で開くには、設定の <a href=\"ms-settings:defaultapps\">既定のアプリ</a> で選んでください"
-                            L"(Windowsの決まりで、既定のアプリは本人が選びます)。";
-            spec.onLink = [](const std::wstring& href) {
-                ShellExecuteW(nullptr, L"open", href.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-            };
+        if (associated) {
+            // 既定のアプリはWindowsの決まりで本人が選ぶ(アプリからは設定できない)ので、選び方を案内する。
+            spec.content += L"\n\nファイルをいつも " + manifest.name + L" で開くには、ファイルを右クリックして"
+                            L"「プログラムから開く」→「別のプログラムを選択」で " + manifest.name +
+                            L" を選び、「常に使う」を押してください。";
         }
         spec.closeButton = true;
         spec.verification = manifest.name + L" を起動する";
-        spec.verificationChecked = true;
+        spec.verificationChecked = false;  // 起動は本人が選んだときだけ(既定はオフ)。
         if (wak::showDialog(spec).verification) {
             ShellExecuteW(nullptr, L"open", exePath.c_str(), nullptr, wak::parentPath(exePath).c_str(), SW_SHOWNORMAL);
         }
@@ -433,7 +538,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     Arguments args;
     if (!parseArguments(args)) {
         wak::logLine(L"使い方: WinAppSetup --build <アプリ.ini> --out <Setup.exe> / Setup.exe [/S] [--dir <フォルダ>] "
-                     L"[--no-file-types] / Uninstall.exe --uninstall [/S] [--remove-data]");
+                     L"[--extensions .mp4;.mov] [--no-file-types] [--no-context-menu] / Uninstall.exe --uninstall [/S] [--remove-data]");
         result = 2;
     } else if (!args.buildManifest.empty()) {
         result = args.buildOutput.empty() ? 2 : wak::buildSetup(args.buildManifest, args.buildOutput);
@@ -446,7 +551,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         GetTempPathW(MAX_PATH, tempDir);
         const std::wstring id = embedded ? manifest.id : L"WinAppSetup";
         wak::openLog(wak::joinPath(tempDir, id + (args.uninstall ? L"-uninstall.log" : L"-setup.log")));
-        if (args.uninstall) {
+        // 同じアプリのインストールとアンインストールが同時に動かないようにする(互いのファイルや登録を消し合わないため)。
+        // アンインストールは、インストール先から一時フォルダへ写した方だけが作業するので、そちらで取る。
+        AppLock lock;
+        const bool needsLock = !args.uninstall || args.tempCopy;
+        if (needsLock && !lock.acquire(id)) {
+            showError(id, L"同じアプリのセットアップかアンインストールが動いています。終わってから、もう一度実行してください。",
+                      args.silent);
+            result = 2;
+        } else if (args.uninstall) {
             result = runUninstall(args, id);
         } else if (!embedded) {
             showError(L"WinAppSetup",

@@ -45,6 +45,7 @@ enum MenuCommand : UINT {
     kMenuOpenCompare,
     kMenuCloseCompare,
     kMenuClearRecent,
+    kMenuAutoPlay,
     kMenuExit,
     kMenuRecentFirst = 100,  ///< 最近使ったファイルの1つ目(以降、順に番号を振る)。
 };
@@ -147,6 +148,14 @@ void PlayerWindow::openClip(const std::wstring& path) {
     }
     updateTitle();
     InvalidateRect(hwnd_, nullptr, FALSE);
+    autoPlay();
+}
+
+void PlayerWindow::autoPlay() {
+    // Mayaとの連携モードでは自動再生しない(タイムラインはMaya側が動かす。勝手に再生するとMayaも再生させてしまう)。
+    if (settings_.autoPlay && !syncServer_) {
+        resumePlayback();
+    }
 }
 
 std::shared_ptr<Clip> PlayerWindow::loadClip(const std::wstring& path, bool comparing) {
@@ -434,6 +443,8 @@ void PlayerWindow::showFileMenu() {
     AppendMenuW(recent, MF_STRING | (settings_.recentFiles.empty() ? MF_GRAYED : 0), kMenuClearRecent, L"一覧を消去");
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(recent), L"最近使ったファイル");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (settings_.autoPlay ? MF_CHECKED : 0), kMenuAutoPlay, L"開いたら自動で再生");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, kMenuExit, L"終了");
 
     // 操作部は画面の下にあるので、ボタンの上端から上向きに開く。選ぶか閉じるまで戻らない。
@@ -465,6 +476,10 @@ void PlayerWindow::showFileMenu() {
     case kMenuClearRecent:
         settings_.recentFiles.clear();
         settings_.saveRecentFiles();
+        break;
+    case kMenuAutoPlay:
+        settings_.autoPlay = !settings_.autoPlay;
+        settings_.saveAutoPlay();
         break;
     case kMenuExit:
         PostMessageW(hwnd_, WM_CLOSE, 0, 0);
@@ -605,6 +620,7 @@ void PlayerWindow::openCompare(const std::wstring& path) {
     view_.showFrame(view_.currentFrame(), Clip::Direction::Forward);
     updateTitle();
     InvalidateRect(hwnd_, nullptr, FALSE);
+    autoPlay();
 }
 
 void PlayerWindow::closeCompare() {

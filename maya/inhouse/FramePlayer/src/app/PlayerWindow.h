@@ -439,6 +439,12 @@ private:
      */
     void endScrub();
 
+    /**
+     * @brief 動画を開いた後に、設定(「開いたら自動で再生」)に従って再生を始める。
+     * @note Mayaとの連携モードのときは再生しない(タイムラインはMaya側が動かすため)。
+     */
+    void autoPlay();
+
     /** @brief 停止中なら、表示中のコマから再生を始める(スライダーのドラッグ後に再生を続けるため)。 */
     void resumePlayback();
 

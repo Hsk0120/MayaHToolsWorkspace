@@ -28,6 +28,7 @@ struct Settings {
     int cacheSeconds = kDefaultCacheSeconds;              ///< キャッシュに持つ長さの上限(秒)。CacheSeconds。
     int startFrame = kDefaultStartFrame;                  ///< 動画の開始(タイムライン上で1コマ目を置くフレーム番号)。StartFrame。
     unsigned short syncPort = kDefaultSyncPort;           ///< 連携の待ち受け口の番号。SyncPort。
+    bool autoPlay = true;                                 ///< 動画を開いたら自動で再生するか。AutoPlay。
     std::vector<std::wstring> recentFiles;                ///< 最近使ったファイル(新しい順)。RecentFiles。
 
     /** @brief 全ての項目をレジストリから読む。 */
@@ -38,6 +39,9 @@ struct Settings {
 
     /** @brief 動画の開始を保存する。 */
     void saveStartFrame() const;
+
+    /** @brief 自動再生の設定を保存する。 */
+    void saveAutoPlay() const;
 
     /** @brief 最近使ったファイルを保存する。 */
     void saveRecentFiles() const;

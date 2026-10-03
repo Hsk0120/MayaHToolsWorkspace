@@ -756,7 +756,7 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
     }
 
     // レジストリ: 関連付け(右クリック・「プログラムから開く」・既定のアプリの候補)。
-    if (ok && options.fileTypes && !manifest.progId.empty()) {
+    if (ok && !options.extensions.empty() && !manifest.progId.empty()) {
         report(85, L"ファイルの種類を登録しています");
         const std::wstring classes = L"Software\\Classes\\";
         const std::wstring command = L"\"" + exePath + L"\" \"%1\"";
@@ -777,14 +777,14 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
              setString(capabilities, L"ApplicationDescription",
                        manifest.description.empty() ? manifest.name : manifest.description) &&
              setString(capabilities, L"ApplicationIcon", icon);
-        for (const std::wstring& extension : manifest.extensions) {
+        for (const std::wstring& extension : options.extensions) {
             if (!ok) {
                 break;
             }
             ok = setString(appKey + L"\\SupportedTypes", extension, L"") &&
                  setString(capabilities + L"\\FileAssociations", extension, manifest.progId) &&
                  session.addValue(classes + extension + L"\\OpenWithProgids", manifest.progId, L"");
-            if (ok && !manifest.contextMenu.empty()) {
+            if (ok && options.contextMenu && !manifest.contextMenu.empty()) {
                 // 右クリックの項目。拡張子ごとの共有の場所に、自分の項目のキーだけを足す。
                 const std::wstring verb = classes + L"SystemFileAssociations\\" + extension + L"\\shell\\" + manifest.progId;
                 ok = session.ownKey(verb) && setString(verb, L"", manifest.contextMenu) &&
@@ -866,6 +866,21 @@ bool readRecordInfo(const std::wstring& installDir, RecordInfo& info) {
     info.version = record.version;
     info.executable = record.executable;
     info.hasUserData = !record.userDataRegistry.empty() || !record.userDataFolders.empty();
+    // 関連付けた拡張子は「Software\Classes\.mp4\OpenWithProgids」に足した値から、右クリックは
+    // 「...\SystemFileAssociations\...」のキーから分かる。
+    const std::wstring classes = L"Software\\Classes\\";
+    const std::wstring openWith = L"\\OpenWithProgids";
+    for (const Action& action : record.actions) {
+        if (action.type == Action::Type::Value && action.path.size() > classes.size() + openWith.size() &&
+            equalsIgnoreCase(action.path.substr(0, classes.size()), classes) &&
+            equalsIgnoreCase(action.path.substr(action.path.size() - openWith.size()), openWith)) {
+            info.extensions.push_back(
+                action.path.substr(classes.size(), action.path.size() - classes.size() - openWith.size()));
+        }
+        if (action.type == Action::Type::Key && action.path.find(L"\\SystemFileAssociations\\") != std::wstring::npos) {
+            info.contextMenu = true;
+        }
+    }
     return true;
 }
 

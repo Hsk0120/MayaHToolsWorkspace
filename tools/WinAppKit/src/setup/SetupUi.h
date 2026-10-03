@@ -29,7 +29,26 @@ struct DialogSpec {
     bool verificationChecked = false;  ///< チェックボックスの最初の状態。
     DialogIcon icon = DialogIcon::App;
     std::function<void(const std::wstring&)> onLink;  ///< リンクが押されたときに呼ぶ(hrefを渡す)。
+    bool commandLinks = false;  ///< ボタンを縦に並べた大きな選択肢(コマンドリンク)にするか。文字の「\n」以降は小さな説明になる。
 };
+
+/** @brief 関連付けの選択(関連付けの画面で選ぶ内容)。 */
+struct AssociationChoice {
+    std::vector<std::wstring> extensions;  ///< 候補の拡張子。
+    std::vector<bool> selected;            ///< 拡張子ごとに、関連付けるか(extensionsと同じ数)。
+    bool hasContextMenu = false;           ///< 右クリックの項目を出せるアプリか(出せなければ選択肢を出さない)。
+    bool contextMenu = true;               ///< 右クリックに項目を出すか。
+};
+
+/**
+ * @brief 関連付けを選ぶ画面を出す。拡張子ごとのチェックボックス・すべて選択/解除・右クリックに出すかを選べる。
+ * @param title ウィンドウのタイトル。
+ * @param appName アプリの表示名(説明の文に使う)。
+ * @param choice 最初の状態。「決定」なら選んだ内容で書き換える。
+ * @return 「決定」ならtrue、取り消されたらfalse(choiceは変えない)。
+ * @note チェックボックスを並べる必要があるので、タスクダイアログではなく、メモリ上で組み立てたダイアログを使う。
+ */
+bool chooseAssociations(const std::wstring& title, const std::wstring& appName, AssociationChoice& choice);
 
 /** @brief ダイアログの結果。 */
 struct DialogResult {

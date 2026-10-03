@@ -58,6 +58,9 @@ void Settings::load() {
     if (readDword(L"SyncPort", value) && value > 0 && value < 65536) {
         syncPort = static_cast<unsigned short>(value);
     }
+    if (readDword(L"AutoPlay", value)) {
+        autoPlay = value != 0;
+    }
 
     // 最近使ったファイルはREG_MULTI_SZ(文字列を\0で区切って並べ、最後に\0をもう1つ置いたもの)で保存してある。
     DWORD size = 0;
@@ -84,6 +87,10 @@ void Settings::saveAudio() const {
 
 void Settings::saveStartFrame() const {
     writeDword(L"StartFrame", static_cast<DWORD>(startFrame));
+}
+
+void Settings::saveAutoPlay() const {
+    writeDword(L"AutoPlay", autoPlay ? 1 : 0);
 }
 
 void Settings::saveRecentFiles() const {

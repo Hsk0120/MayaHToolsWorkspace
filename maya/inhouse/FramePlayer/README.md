@@ -144,9 +144,11 @@ Windowsが標準で読める形式。確認済み: H.264(mp4/mov、Bフレーム
 | 比較する動画を開く... (Ctrl+Shift+O) | 2本目の動画を選び、右に並べて比較する |
 | 比較を終了 | 比較をやめて1本だけ表示する |
 | 最近使ったファイル | 最近開いた動画(最大8つ)。選ぶと1本目として開く。「一覧を消去」で消せる |
+| 開いたら自動で再生 | 動画を開いたら(起動時の引数・ドロップ・メニュー・比較も)そのまま再生する。既定はオン。押すと切り替える |
 | 終了 | アプリを閉じる |
 
-最近使ったファイルの一覧は `HKEY_CURRENT_USER\Software\FramePlayer` の `RecentFiles` に保存する。
+最近使ったファイルの一覧は `HKEY_CURRENT_USER\Software\FramePlayer` の `RecentFiles` に、自動再生は `AutoPlay`(1/0)に保存する。
+Mayaとの連携モードのときは自動再生しない(タイムラインはMaya側が動かすため)。
 コマ番号の表示は1始まり(Mayaのタイムラインに合わせる)。
 
 ## 性能の目安
@@ -289,11 +291,16 @@ cmake --install build --config Release
 
 - インストール先は `%LOCALAPPDATA%\Programs\FramePlayer`(このユーザーだけ。管理者権限は不要)。
 - 設定の「アプリ」一覧に載り、そこからアンインストールできる。スタートメニューにも追加する。
-- インストールの画面で選べば、動画ファイル(.mp4 .mov .m4v .avi .wmv .mkv .mts .m2ts)の右クリックに「FramePlayerで開く」、
-  「プログラムから開く」と設定の「既定のアプリ」の候補に FramePlayer を追加する(既定のアプリそのものは、本人が設定画面で選ぶ)。
+- 関連付け: インストールの画面の「ファイルの関連付けを変更する」で、関連付ける拡張子(.mp4 .mov .m4v .avi .wmv .mkv .mts
+  .m2ts から選ぶ。既定はすべて)と、右クリックに「FramePlayerで開く」を出すかを選べる。選んだ拡張子は右クリックの
+  「プログラムから開く」の候補に FramePlayer を追加する。更新のときは前回の選択を引き継ぐ。
+- 既定のアプリ: Windowsの決まりで、アプリが勝手に既定にはできない。動画を右クリックして「プログラムから開く」→
+  「別のプログラムを選択」で FramePlayer を選び、「常に使う」を押すと既定になる(拡張子ごと。インストールの完了画面でも案内する)。
 - アンインストールで「設定などのデータも削除する」を選ぶと、音量・最近使ったファイル(`HKCU\Software\FramePlayer`)と
   連携の鍵(`%LOCALAPPDATA%\FramePlayer`)も消す。選ばなければ残る。
 - 画面なしで入れる・消すとき: `FramePlayerSetup.exe /S`、`"%LOCALAPPDATA%\Programs\FramePlayer\Uninstall.exe" --uninstall /S`。
+  画面なしのときの関連付けは `--extensions .mp4;.mov`(拡張子を選ぶ)・`--no-file-types`(しない)・`--no-context-menu`
+  (右クリックに出さない)で指定する。
 
 仕組み(記録とアンインストール、安全のための決まり、確かめたこと)は `tools/WinAppKit/README.md` を参照。
 

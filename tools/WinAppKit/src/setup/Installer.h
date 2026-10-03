@@ -21,8 +21,9 @@ namespace wak {
 
 /** @brief インストールの指定。 */
 struct InstallOptions {
-    std::wstring installDir;  ///< インストール先(正規の形)。
-    bool fileTypes = true;    ///< 関連付け(右クリック・「プログラムから開く」・既定のアプリの候補)を登録するか。
+    std::wstring installDir;               ///< インストール先(正規の形)。
+    std::vector<std::wstring> extensions;  ///< 関連付ける拡張子(設定ファイルの Extensions のうち選ばれたもの)。空なら関連付けない。
+    bool contextMenu = true;               ///< 関連付ける拡張子の右クリックに項目を出すか(設定ファイルに ContextMenu があるときだけ)。
 };
 
 /** @brief 既にインストールされている同じアプリの情報。 */
@@ -101,6 +102,8 @@ struct RecordInfo {
     std::wstring version;     ///< バージョン。
     std::wstring executable;  ///< 本体のexe(インストール先からの相対パス)。
     bool hasUserData = false; ///< 「データも削除」で消すものがあるか。
+    std::vector<std::wstring> extensions;  ///< 関連付けた拡張子(更新のときに、前回の選択を初期値にするため)。
+    bool contextMenu = false;              ///< 右クリックに項目を出したか。
 };
 
 /**

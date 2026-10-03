@@ -45,8 +45,10 @@ CSSの細かな指定は使えない。アイコンは図形とパスだけで�
 rem セットアップを作る(このexeを写し、写した方にアプリの中身とアイコンを埋め込む)
 WinAppSetup.exe --build <アプリ.wak.ini> --out <AppSetup.exe>
 
-rem インストール(画面あり)。/S で画面を出さない。--dir でインストール先、--no-file-types で関連付けをしない
-AppSetup.exe [/S] [--dir <フォルダ>] [--no-file-types]
+rem インストール(画面あり)。/S で画面を出さない。--dir でインストール先。
+rem 関連付け: --extensions で拡張子を選ぶ(省くと前回の選択、初めてならすべて)、--no-file-types でしない、
+rem --no-context-menu で右クリックに出さない
+AppSetup.exe [/S] [--dir <フォルダ>] [--extensions .mp4;.mov] [--no-file-types] [--no-context-menu]
 
 rem アンインストール(設定の「アプリ」から呼ばれる)。/S で画面を出さない。--remove-data で設定などのデータも消す
 <インストール先>\Uninstall.exe --uninstall [/S] [--remove-data]
@@ -66,8 +68,27 @@ rem アンインストール(設定の「アプリ」から呼ばれる)。/S �
 | スタートメニュー | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\<Name>.lnk` |
 | 関連付け(選んだときだけ) | 開き方の定義 `Classes\<ProgId>`、「別のアプリを選択」の表示 `Classes\Applications\<exe名>`、拡張子の `OpenWithProgids` に値を1つ、右クリック `Classes\SystemFileAssociations\<拡張子>\shell\<ProgId>`、既定のアプリの候補 `Software\<Id>\Capabilities` と `Software\RegisteredApplications` |
 
-既定のアプリそのものは設定しない(Windowsの決まりで、既定のアプリは本人が設定画面で選ぶ)。
-インストールの完了画面から、設定の「既定のアプリ」を開ける。
+### 画面
+
+1. 確認: 縦に並んだ選択肢で「インストールする」「インストール先を変更する」「ファイルの関連付けを変更する」を選ぶ
+   (それぞれの下に、今の設定を出す)。
+2. 関連付け: 拡張子ごとのチェックボックス、すべて選択/解除、右クリックに出すか。
+   チェックボックスを並べるため、タスクダイアログではなく、メモリ上で組み立てたダイアログ(リソースファイル不要)で出す。
+   更新のときは、前回の選択(記録の OpenWithProgids の値と右クリックのキー)を初期値にする。
+3. 進み具合 → 完了(アプリを起動するかを選べる。既定はオフ)。
+
+### 既定のアプリ
+
+既定のアプリそのものは設定しない。Windowsの決まりで、既定のアプリは本人がWindowsの画面で選ぶもので、アプリが既定の記録
+(UserChoice)を書き換えても無効になる(Windows 11 では UCPD というドライバーが書き換えを止める)。代わりに、関連付けた拡張子の
+右クリックの「プログラムから開く」の候補にアプリを出す(拡張子の `OpenWithProgids`)。利用者がそこから「別のプログラムを選択」で
+アプリを選び「常に使う」を押すと既定になる。完了画面でこの手順を案内する。Keyframe Pro・PowerDVD など、このPCで既定に
+なっている動画プレイヤーも同じく利用者の選択で既定になっていた(設定の「既定のアプリ」の一覧には出ていない)。
+
+調べて分かったこと(2026-10-03): 設定の「既定のアプリ」のアプリごとのページ(`ms-settings:defaultapps?registeredAppUser=<名前>`)は、
+新しく登録したユーザー単位のアプリでは開かなかった(Windowsの関連付けのAPI `LaunchAdvancedAssociationUI` も「見つからない」を返す)。
+能力の宣言の置き場所・表示名・URLの関連付け・署名・スタートメニュー・「アプリ」一覧への登録をそろえても、再起動しても同じで、
+前からある登録(Zoom・Chrome)では開いた。そのため、この方法での案内はしない。
 
 ### 記録とアンインストール
 
@@ -91,6 +112,9 @@ rem アンインストール(設定の「アプリ」から呼ばれる)。/S �
   途中にアプリの `Id` の階層があるものだけ(例: `HKCU\Software\FramePlayer`、`{LocalAppData}\FramePlayer`)。
   `Microsoft`・`Classes`・`Temp`・`Programs` など共有の場所は消さない。フォルダを消すときは、ジャンクションなどの先へは入らない。
 - 起動中のアプリは、Windows標準のRestart Managerで見つけ、閉じてよいかを聞いてから閉じる(画面なしのときは閉じる)。
+- 同じアプリのインストールとアンインストールは同時に動かない(アプリごとの名前付きミューテックス `Local\WinAppSetup-<Id>`。
+  ほかが動いていれば最大60秒待ち、終わらなければ知らせて止める)。アンインストールは裏で一時フォルダの自分が続きを行うので、
+  続けてインストールすると互いのファイルや登録を消し合うことがあったため。
 
 ### アプリの設定ファイル(.wak.ini)
 
