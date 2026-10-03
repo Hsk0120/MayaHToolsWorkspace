@@ -14,6 +14,8 @@
 #include <ppl.h>
 
 #include "core/ThreadQos.h"
+#include "core/TraceLog.h"
+#include "core/Util.h"
 
 namespace frameplayer {
 
@@ -63,7 +65,9 @@ Clip::~Clip() {
 bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cpuCacheBytes, std::size_t gpuCacheBytes,
                 std::shared_ptr<GpuDevice> gpu, NotifyCallback notify, std::wstring& error) {
     gpu_ = gpu;
+    const LONGLONG sourceStart = nowTicks();
     source_ = openFrameSource(path, maxWidth, std::move(gpu), error);
+    const LONGLONG sourceEnd = nowTicks();
     if (!source_) {
         return false;
     }
@@ -102,6 +106,8 @@ bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cpuCacheByte
         return false;
     }
     firstDecodedNext_ = index + 1;
+    traceLog("open source %.1f ms first frame %.1f ms", (sourceEnd - sourceStart) * 1000.0 / ticksPerSecond(),
+             (nowTicks() - sourceEnd) * 1000.0 / ticksPerSecond());
 
     worker_ = std::thread(&Clip::workerLoop, this);
     return true;

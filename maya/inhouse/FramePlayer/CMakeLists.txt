@@ -26,8 +26,11 @@ target_link_libraries(frameplayer_core PUBLIC mfplat mfreadwrite mfuuid ole32 d3
 add_executable(FramePlayer WIN32
     src/app/main.cpp
     src/app/PlayerWindow.cpp
+    src/app/PlayerWindowControls.cpp
     src/app/VideoView.cpp
     src/app/SyncServer.cpp
+    src/app/Ui.cpp
+    src/app/Settings.cpp
 )
 target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi dwmapi comctl32 ws2_32)
 

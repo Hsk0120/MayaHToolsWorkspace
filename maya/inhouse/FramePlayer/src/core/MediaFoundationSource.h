@@ -196,6 +196,9 @@ private:
     std::shared_ptr<GpuDevice> gpu_;                       ///< 共有のGPUデバイス。無ければnullptr。
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;  ///< GPU上での写しに使う。
     Microsoft::WRL::ComPtr<IMFSourceReader> reader_;  ///< デコード用の読み込み本体。所有する。
+    Frame heldFrame_;                                 ///< 開いたときに試しに読んだ先頭のコマ(最初のreadNext()で返す)。
+    int heldIndex_ = -1;                              ///< heldFrame_のコマ番号。
+    bool hasHeldFrame_ = false;                       ///< heldFrame_を持っているか。
     std::deque<PendingFrame> pending_;                ///< 先読み中のコマ(古い順)。
     std::vector<Microsoft::WRL::ComPtr<ID3D11Texture2D>> stagingPool_;  ///< 使い回すステージングテクスチャ。
     bool endOfStream_ = false;                        ///< 先読み中に終端へ達したか。

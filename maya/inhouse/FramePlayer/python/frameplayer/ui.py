@@ -73,17 +73,32 @@ def _options():
     return values
 
 
+def _sync_options(values):
+    """画面の値を、FramePlayerSync の設定(接続先を除く)の形にする。
+
+    Args:
+        values (dict): _options() の結果。
+
+    Returns:
+        dict: FramePlayerSync の引数・属性の名前と値。
+    """
+    return {
+        "offset": int(values["offset"]),
+        "multiplier": float(values["multiplier"]),
+        "sync_range": bool(values["syncRange"]),
+        "maya_to_player": bool(values["mayaToPlayer"]),
+        "player_to_maya": bool(values["playerToMaya"]),
+    }
+
+
 def _apply_options(*_):
     """画面で変えた設定を、つながっている接続にすぐ反映する。"""
-    values = _options()
+    options = _sync_options(_options())
     sync = frameplayer.current()
     if sync is None:
         return
-    sync.offset = int(values["offset"])
-    sync.multiplier = float(values["multiplier"])
-    sync.sync_range = bool(values["syncRange"])
-    sync.maya_to_player = bool(values["mayaToPlayer"])
-    sync.player_to_maya = bool(values["playerToMaya"])
+    for name, value in options.items():
+        setattr(sync, name, value)
     if sync.maya_to_player:
         sync.push_state()
 
@@ -116,15 +131,7 @@ def _connect(warn):
         bool: 接続できた場合True。
     """
     values = _options()
-    result = frameplayer.connect(
-        port=int(values["port"]),
-        offset=int(values["offset"]),
-        multiplier=float(values["multiplier"]),
-        sync_range=bool(values["syncRange"]),
-        maya_to_player=bool(values["mayaToPlayer"]),
-        player_to_maya=bool(values["playerToMaya"]),
-        on_status=_update_status,
-    )
+    result = frameplayer.connect(port=int(values["port"]), on_status=_update_status, **_sync_options(values))
     if result is None and warn:
         cmds.warning("FramePlayerに接続できません。FramePlayerを起動してから接続してください(ポート %d)。"
                      % int(values["port"]))

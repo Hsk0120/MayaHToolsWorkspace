@@ -4,6 +4,9 @@
  */
 #include "core/MediaFoundationSource.h"
 
+#include "core/TraceLog.h"
+#include "core/Util.h"
+
 #include <d3d11.h>
 #include <mfapi.h>
 #include <mferror.h>
@@ -12,6 +15,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <future>
 #include <iterator>
 #include <limits>
 #include <utility>
@@ -61,10 +65,37 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     // 縮小画像はキーフレームを1つずつ読むので、先の数コマまで命令しておくと無駄なデコードになる。
     source->pipelineDepth_ = purpose == SourcePurpose::Thumbnails ? 1 : kGpuPipelineDepth;
 
-    if (!source->buildIndex(path)) {
-        error = source->error_;
-        return nullptr;
-    }
+    // 目次の作成(圧縮されたままのコマやmp4の目次を読む)と、デコーダーの準備は互いに依存しないので並行して行う。
+    // 目次は別の読み込み元(indexer)で作り、できあがったらこの読み込み元へ移す(同じメンバーを2つのスレッドで
+    // 触らないようにするため)。目次が要るのは、試しに1コマ読んで番号を照合するときから。
+    std::unique_ptr<MediaFoundationSource> indexer(new MediaFoundationSource());
+    const LONGLONG indexStart = nowTicks();
+    std::future<bool> indexTask = std::async(std::launch::async, [&indexer, &path] {
+        const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        const bool built = indexer->buildIndex(path);
+        if (SUCCEEDED(com)) {
+            CoUninitialize();
+        }
+        return built;
+    });
+    bool indexReady = false;
+    auto waitForIndex = [&] {
+        if (!indexReady) {
+            indexReady = true;
+            if (!indexTask.get()) {
+                source->error_ = indexer->error_;
+                return false;
+            }
+            source->timestamps_ = std::move(indexer->timestamps_);
+            source->keyFrames_ = std::move(indexer->keyFrames_);
+            source->tolerance_ = indexer->tolerance_;
+            source->frameRate_ = indexer->frameRate_;
+            source->indexMethod_ = std::move(indexer->indexMethod_);
+            traceLog("open index %.1f ms frames=%d", (nowTicks() - indexStart) * 1000.0 / ticksPerSecond(),
+                     source->frameCount());
+        }
+        return !source->timestamps_.empty();
+    };
 
     // 速い方式から順に試し、先頭のコマを実際に読めたものを採用する。
     //   1. GPUでデコードし、NV12のままGPUのメモリに置く(主メモリへ写さない。キャッシュもGPU)
@@ -79,10 +110,27 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     }
     modes.push_back(Mode::Cpu);
     for (Mode mode : modes) {
-        if (source->createReader(path, maxWidth, mode)) {
+        const LONGLONG readerStart = nowTicks();
+        const bool created = source->createReader(path, maxWidth, mode);
+        const LONGLONG readerEnd = nowTicks();
+        if (!waitForIndex()) {
+            error = source->error_.empty() ? L"目次を作れません" : source->error_;
+            return nullptr;
+        }
+        if (created) {
+            // 試しに先頭のコマを読み、読めた方式を採用する。読んだコマは捨てずに持っておき、最初のreadNext()で返す
+            // (先頭へ戻して同じコマをもう一度デコードする手間を省く)。
+            const LONGLONG probeStart = nowTicks();
             Frame probe;
             int probeIndex = -1;
-            if (source->readNext(probe, probeIndex) && source->seekToKeyFrame(0)) {
+            if (source->readNext(probe, probeIndex)) {
+                source->heldFrame_ = std::move(probe);
+                source->heldIndex_ = probeIndex;
+                source->hasHeldFrame_ = true;
+                traceLog("open reader mode=%d %.1f ms (wait index %.1f ms) probe %.1f ms", static_cast<int>(mode),
+                         (readerEnd - readerStart) * 1000.0 / ticksPerSecond(),
+                         (probeStart - readerEnd) * 1000.0 / ticksPerSecond(),
+                         (nowTicks() - probeStart) * 1000.0 / ticksPerSecond());
                 return source;
             }
         }
@@ -192,6 +240,7 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
 }
 
 MediaFoundationSource::~MediaFoundationSource() {
+    heldFrame_ = Frame{};
     pending_.clear();  // MFShutdownより先に読み込み本体とGPUの資源を解放する。
     stagingPool_.clear();
     reader_.Reset();
@@ -365,7 +414,9 @@ void MediaFoundationSource::releaseDecoder() {
     if (!reader_) {
         return;
     }
-    // 先読み中のコマ・使い回しのテクスチャ・読み込み本体(デコーダー)の順に手放す。
+    // 開いたときに読んだコマ・先読み中のコマ・使い回しのテクスチャ・読み込み本体(デコーダー)の順に手放す。
+    hasHeldFrame_ = false;
+    heldFrame_ = Frame{};
     // mode_は残しておき、作り直すときに同じ方式で作る。
     clearPending();
     stagingPool_.clear();
@@ -374,6 +425,8 @@ void MediaFoundationSource::releaseDecoder() {
 
 bool MediaFoundationSource::seekToKeyFrame(int keyIndex) {
     error_.clear();
+    hasHeldFrame_ = false;  // 位置を移すので、開いたときに読んだコマはもう返さない。
+    heldFrame_ = Frame{};
     if (!reader_) {
         // releaseDecoder()で閉じていれば、前と同じ方式で作り直す。
         const Mode mode = mode_;
@@ -599,6 +652,14 @@ void MediaFoundationSource::copyRows(const BYTE* scan0, LONG pitch, const RECT& 
 
 bool MediaFoundationSource::readNext(Frame& out, int& index) {
     error_.clear();
+    if (hasHeldFrame_) {
+        // 開いたときに試しに読んだ先頭のコマ(デコーダーはその次から読める位置にある)。
+        out = std::move(heldFrame_);
+        index = heldIndex_;
+        heldFrame_ = Frame{};
+        hasHeldFrame_ = false;
+        return true;
+    }
     if (!reader_) {
         error_ = L"デコーダーを閉じています(先に読み込み位置を移す必要があります)";
         return false;

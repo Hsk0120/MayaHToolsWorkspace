@@ -4,7 +4,9 @@
  */
 #include "app/VideoView.h"
 
-#include "app/SyncLog.h"
+#include "core/Util.h"
+
+#include "core/TraceLog.h"
 
 #include <objbase.h>
 
@@ -26,36 +28,6 @@ const D2D1_COLOR_F kText = {230 / 255.0f, 230 / 255.0f, 230 / 255.0f, 1.0f};
 const D2D1_COLOR_F kBox = {58 / 255.0f, 58 / 255.0f, 58 / 255.0f, 0.9f};
 constexpr UINT kSwapChainFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 constexpr int kPresentRetries = 25;  ///< 表示の順番待ちが詰まっているときにやり直す回数(2msずつ、最大約50ms)。
-
-/**
- * @brief QueryPerformanceCounterの現在値を返す。
- * @return 高精度タイマーの値。
- */
-LONGLONG nowTicks() {
-    LARGE_INTEGER value;
-    QueryPerformanceCounter(&value);
-    return value.QuadPart;
-}
-
-/**
- * @brief QueryPerformanceCounterの1秒あたりの値を返す。
- * @return 1秒あたりの値。
- */
-LONGLONG ticksPerSecond() {
-    LARGE_INTEGER value;
-    QueryPerformanceFrequency(&value);
-    return value.QuadPart;
-}
-
-/**
- * @brief パスからファイル名部分を取り出す。
- * @param path ファイルのパス。
- * @return 最後の区切り文字より後ろ。
- */
-std::wstring fileNameOf(const std::wstring& path) {
-    const size_t pos = path.find_last_of(L"\\/");
-    return pos == std::wstring::npos ? path : path.substr(pos + 1);
-}
 
 /**
  * @brief 枠の中に縦横比を保って最大の大きさで収まる矩形を求める。
@@ -755,7 +727,7 @@ void VideoView::renderLoop() {
             // 停止中の表示コマ(current_)はshowFrame()が決める。ここで書き戻すと、描き始めた後に
             // 新しい指示が来た場合に古い番号へ戻ってしまう(スライダーのドラッグ中に行ったり来たりして見える)。
             ready = draw(panes, paneCount, offset);
-            syncLog("present stopped %d image=%d loading=%d", panes[0].index, panes[0].imageIndex,
+            traceLog("present stopped %d image=%d loading=%d", panes[0].index, panes[0].imageIndex,
                     panes[0].loading ? 1 : 0);
             notifyParent();
             continue;
@@ -860,7 +832,7 @@ void VideoView::renderLoop() {
             drawnWidth = width;
             drawnHeight = height;
             ready = draw(drawn, paneCount, offset);
-            syncLog("present playing %d", drawn[0].index);
+            traceLog("present playing %d", drawn[0].index);
             continue;
         }
 

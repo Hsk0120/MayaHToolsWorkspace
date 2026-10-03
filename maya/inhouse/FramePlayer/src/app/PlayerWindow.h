@@ -14,8 +14,10 @@
 #include <utility>
 #include <vector>
 
+#include "app/Settings.h"
 #include "app/SyncServer.h"
 #include "app/TimeSync.h"
+#include "app/Ui.h"
 #include "app/VideoView.h"
 #include "core/AudioPlayer.h"
 #include "core/Clip.h"
@@ -68,7 +70,7 @@ public:
      * @brief 現在のフレーム番号を返す。
      * @return フレーム番号。
      */
-    int currentSceneFrame() const { return current_ + startFrame_; }
+    int currentSceneFrame() const { return current_ + settings_.startFrame; }
 
     /**
      * @brief 再生を止め、指定したフレームを表示する。範囲外は動画の端に丸める。
@@ -96,8 +98,38 @@ public:
     void setTimeSync(std::unique_ptr<TimeSync> sync) { sync_ = std::move(sync); }
 
 private:
-    /** @brief 移動・再生ボタンの記号。 */
-    enum class TransportIcon { Start, Previous, Play, Pause, Next, End };
+    // ---- 定数(PlayerWindow.cppとPlayerWindowControls.cppで共有する) ----
+    static constexpr int kLargeStep = 10;  ///< Shift併用時に移動するコマ数。
+    static constexpr double kDefaultRate = 24.0;  ///< フレームレートが不明な動画の再生速度。
+    static constexpr UINT kViewFrameMessage = WM_APP + 1;  ///< VideoViewが表示するコマを変えたときの知らせ。
+    static constexpr UINT kFrameReadyMessage = WM_APP + 2;  ///< 裏の読み込みでコマがキャッシュに入ったときの知らせ。
+    static constexpr UINT kEditCommitMessage = WM_APP + 3;  ///< 数字の欄でEnterが押されたときの知らせ。
+    static constexpr UINT kEditCancelMessage = WM_APP + 4;  ///< 数字の欄でEscが押されたときの知らせ。
+    static constexpr UINT kSyncMessage = WM_APP + 5;  ///< 連携の待ち受け口(SyncServer)からの知らせ。
+    static constexpr LONGLONG kCacheBarIntervalMs = 200;  ///< キャッシュ表示を計算し直す最短間隔(ミリ秒)。
+    static constexpr float kVolumeStep = 0.05f;  ///< ↑↓キーで変える音量の幅。
+    static constexpr int kCompareLargeShift = 10;
+    static constexpr LONGLONG kPlayingTitleIntervalMs = 250;  ///< 再生中にタイトルバーを書き換える最短間隔(ミリ秒)。
+    static constexpr int kCacheStripHeight = 3;               ///< 目盛りの下端のキャッシュの帯の高さ(96DPIでのピクセル)。
+
+    /** @brief 目盛りの作り置きを作ったときの条件。どれかが変わったら作り直す。 */
+    struct RulerKey {
+        int width = 0;
+        int height = 0;
+        int first = -1;
+        int last = -1;
+        int startFrame = 0;
+        int dpi = 0;
+        /**
+         * @brief 全ての条件が同じかを返す。
+         * @param other 比べる条件。
+         * @return 同じならtrue。
+         */
+        bool operator==(const RulerKey& other) const {
+            return width == other.width && height == other.height && first == other.first && last == other.last &&
+                   startFrame == other.startFrame && dpi == other.dpi;
+        }
+    };  ///< Shift+[ ]で変える2本目のずらしの幅。
 
     /** @brief マウスでドラッグしている部品。 */
     enum class Drag {
@@ -140,6 +172,22 @@ private:
     };
 
     /**
+     * @brief 動画ファイルを開く(目次を作り、先頭のコマを読む)。失敗時はメッセージボックスで知らせる。
+     * @param path 動画ファイルのパス。
+     * @param comparing 比較中として開くか(キャッシュの上限が半分になる)。
+     * @return 開けた動画。失敗時はnullptr。
+     */
+    std::shared_ptr<Clip> loadClip(const std::wstring& path, bool comparing);
+
+    /**
+     * @brief 開いた動画を描画スレッドへ渡す前の準備(キャッシュの上限・動作状態・縮小画像の作成開始)をする。
+     * @param clip 対象の動画。clip_かcompareClip_に入れた後に呼ぶ。
+     * @param slot 0なら1本目、1なら2本目(キャッシュの上限を覚えておく場所)。
+     * @param thumbnailBytes 縮小画像の合計の上限(バイト)。
+     */
+    void prepareClip(Clip& clip, int slot, std::size_t thumbnailBytes);
+
+    /**
      * @brief Windowsから届くメッセージを、対応するPlayerWindowへ振り分ける。
      * @param hwnd 対象ウィンドウ。
      * @param message メッセージの種類。
@@ -169,21 +217,20 @@ private:
     void paint();
 
     /**
-     * @brief 移動・再生ボタンの記号を描く。
-     * @param dc 描画先。
-     * @param box ボタンの範囲(記号はその中央に描く)。
-     * @param icon 記号の種類。
-     * @param ink 記号の色。
-     */
-    void paintTransportIcon(HDC dc, const RECT& box, TransportIcon icon, COLORREF ink);
-
-    /**
-     * @brief 操作パネル・タイムライン・コマ番号を描く。
+     * @brief 操作部(タイムスライダーとレンジスライダーの2段)を描く。
      * @param dc 描画先(裏の画像)。
      * @param layout 各部品の位置。
      * @param dpi ウィンドウのDPI。
+     * @param area 描き直す範囲。かからない段は描かない。
      */
-    void paintControls(HDC dc, const Layout& layout, int dpi);
+    void paintControls(HDC dc, const Layout& layout, int dpi, const RECT& area);
+
+    /**
+     * @brief キャッシュの有無を表す帯(塗る範囲)を、必要なときだけ計算し直す。
+     * @param layout 各部品の位置。
+     * @note 一定間隔(kCacheBarIntervalMs)ごと、または横幅や再生範囲が変わったときだけ計算する。
+     */
+    void updateCacheRuns(const Layout& layout);
 
     /**
      * @brief タイムスライダー(目盛り・現在のフレーム・キャッシュの帯)を描く。
@@ -192,6 +239,16 @@ private:
      * @param dpi ウィンドウのDPI。
      */
     void paintTimeSlider(HDC dc, const Layout& layout, int dpi);
+
+    /**
+     * @brief 目盛り(地・細かい目盛り・数字の付く目盛りと数字)を、左上を(0, 0)として描く(作り置き用)。
+     * @param dc 描画先(作り置きの画像)。
+     * @param width 幅。
+     * @param height 高さ。
+     * @param slab 地の色。
+     * @param dpi ウィンドウのDPI。
+     */
+    void paintRulerMarks(HDC dc, int width, int height, COLORREF slab, int dpi);
 
     /**
      * @brief レンジスライダー(動画全体の中の再生範囲と、両端のつまみ)を描く。
@@ -225,6 +282,9 @@ private:
 
     /** @brief 操作部だけを描き直すよう要求する(映像の領域は描き直さない)。 */
     void invalidateBar();
+
+    /** @brief タイムスライダーの段(上段)だけを描き直すよう要求する(再生中にコマが進んだとき)。 */
+    void invalidateTimeRow();
 
     /**
      * @brief キー入力でコマを移動する。再生中なら停止してから移動する(Spaceは再生/停止の切り替え)。
@@ -291,12 +351,6 @@ private:
      */
     float volumeFromX(int x) const;
 
-    /** @brief 音量と消音の設定をレジストリ(HKCU\Software\FramePlayer)から読む。無ければ既定値のまま。 */
-    void loadAudioSettings();
-
-    /** @brief 音量と消音の設定をレジストリへ保存する。 */
-    void saveAudioSettings() const;
-
     /**
      * @brief ドロップされたファイルを開く。
      * @param drop ドロップ情報。処理後に解放する。
@@ -310,18 +364,6 @@ private:
      * @note メニューは選ぶか閉じるまで戻らない(Windows標準のメニュー)。
      */
     void showFileMenu();
-
-    /**
-     * @brief 開いた動画を「最近使ったファイル」の先頭に加え、保存する。
-     * @param path 動画ファイルのパス。
-     */
-    void addRecentFile(const std::wstring& path);
-
-    /** @brief 「最近使ったファイル」をレジストリから読む。 */
-    void loadRecentFiles();
-
-    /** @brief 「最近使ったファイル」をレジストリへ保存する。 */
-    void saveRecentFiles() const;
 
     /**
      * @brief Windowsのファイル選択画面で動画を選ばせる。
@@ -349,6 +391,15 @@ private:
      * @param delta -1なら戻る、1なら進む。
      */
     void stepFrame(int delta);
+
+    /**
+     * @brief レンジスライダーのバー上のx座標が、どの部品(左右のつまみ・範囲の中)に当たるかを返す。
+     * @param layout 各部品の位置。
+     * @param x クライアント座標のx。
+     * @return RangeStart・RangeEnd・RangeMoveのどれか。どれにも当たらなければNone。
+     * @note クリックしたときと、カーソルの形を決めるときの両方で使う(判定を揃えるため)。
+     */
+    Drag hitTestRange(const Layout& layout, int x) const;
 
     /**
      * @brief タイムスライダーの目盛り上のx座標に対応するコマ番号を返す。
@@ -403,12 +454,6 @@ private:
      */
     static LRESULT CALLBACK editProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR id,
                                      DWORD_PTR data);
-
-    /** @brief 開始フレームの設定(StartFrame)をレジストリから読む。無ければ1。 */
-    void loadTimelineSettings();
-
-    /** @brief 開始フレームの設定をレジストリへ保存する。 */
-    void saveTimelineSettings() const;
 
     /**
      * @brief 連携の待ち受け口(SyncServer)からの知らせを処理する。
@@ -486,20 +531,6 @@ private:
     /** @brief 2秒ごとのタイマー。キャッシュの上限の見直しと、休止に入るかの判定を行う。 */
     void onResourceTimer();
 
-    /** @brief キャッシュの上限の設定(CacheMB・CacheSeconds)をレジストリから読む。無ければ既定値のまま。 */
-    void loadCacheSettings();
-
-    /**
-     * @brief 操作部の描画に使う書体を返す。作った書体は覚えておき、次の描画でも使う。
-     * @param points 文字の大きさ(ポイント)。
-     * @param dpi ウィンドウのDPI。変わったら作り直す。
-     * @return 書体。このクラスが持つので、呼び出し元は解放しない。
-     */
-    HFONT uiFont(int points, int dpi);
-
-    /** @brief 覚えている書体をすべて解放する。 */
-    void releaseFonts();
-
     HWND hwnd_ = nullptr;
     HINSTANCE instance_ = nullptr;
     // 破棄の順序: clip_(裏の読み込みスレッド)を先に止めてからview_を破棄し、最後にgpu_を破棄する
@@ -508,12 +539,8 @@ private:
     VideoView view_;              ///< 映像の表示と再生の時間管理。
     std::shared_ptr<Clip> clip_;  ///< 表示中の動画。描画スレッドとも共有する。未読み込みならnullptr。
     std::shared_ptr<Clip> compareClip_;  ///< 比較用の2本目の動画。比較していなければnullptr。
-    std::vector<std::wstring> recentFiles_;  ///< 最近使ったファイル(新しい順)。
+    Settings settings_;                   ///< 次回の起動でも使う設定(音量・キャッシュ上限・開始フレームなど)。
     std::shared_ptr<AudioPlayer> audio_;  ///< 表示中の動画の音声。描画スレッドとも共有する。
-    float volume_ = 0.8f;   ///< 音量(0.0〜1.0)。
-    bool muted_ = false;    ///< 消音中か。
-    std::size_t cacheMegabytes_ = 1024;  ///< キャッシュの上限(MB)。設定CacheMB。
-    int cacheSeconds_ = 30;              ///< キャッシュに持つ長さの上限(秒)。設定CacheSeconds。
     std::size_t appliedLimit_[2] = {};   ///< 動画へ最後に伝えたバイト数の上限(0=1本目、1=2本目)。
     int appliedFrames_[2] = {};          ///< 動画へ最後に伝えたコマ数の上限。
     bool memoryLow_ = false;             ///< Windowsが主メモリの不足を知らせているか。
@@ -524,10 +551,13 @@ private:
     ULONGLONG inactiveSinceMs_ = 0;      ///< 前面でなくなった時刻(GetTickCount64)。
     ULONGLONG minimizedSinceMs_ = 0;     ///< 最小化された時刻(GetTickCount64)。
     Clip::Activity activity_ = Clip::Activity::Interactive;  ///< 動画へ最後に伝えた動作状態。
-    std::vector<std::pair<int, HFONT>> fonts_;  ///< 作った書体(大きさ, 書体)。
-    int fontsDpi_ = 0;                          ///< fonts_を作ったときのDPI。
+    ui::FontCache fonts_;     ///< 操作部の描画に使う書体(大きさごとに使い回す)。
+    ui::BackBuffer backBuffer_;
+    ui::Layer rulerLayer_;           ///< 目盛りの作り置き(通常の地)。
+    ui::Layer rulerHighlightLayer_;  ///< 目盛りの作り置き(現在のフレームの区画の色の地)。
+    RulerKey rulerKey_;              ///< 目盛りの作り置きを作ったときの条件。
+    LONGLONG lastTitleTicks_ = 0;    ///< 最後にタイトルバーを書き換えた時刻。  ///< 操作部の描画に使う裏の画像(使い回す)。
     int current_ = 0;             ///< 操作部に表示しているコマ番号(VideoViewの表示に追従する)。
-    int startFrame_ = 1;          ///< 動画の1コマ目のフレーム番号(タイムスライダーの番号の始まり)。設定StartFrame。
     int playFirst_ = 0;           ///< 再生範囲の最初のコマ番号。
     int playLast_ = 0;            ///< 再生範囲の最後のコマ番号。
     int savedFirst_ = -1;         ///< レンジスライダーのダブルクリックで戻す再生範囲の最初(-1なら無し)。
@@ -541,7 +571,6 @@ private:
     HBRUSH editBrush_ = nullptr;  ///< 入力用の子ウィンドウの背景のブラシ。
     std::unique_ptr<TimeSync> sync_;  ///< タイムスライダーの変化を知らせる先(Mayaとの連携など)。無ければnullptr。
     SyncServer* syncServer_ = nullptr;  ///< sync_が連携の待ち受け口のときの、その口(sync_が持つ)。
-    unsigned short syncPort_ = 7010;    ///< 連携の待ち受け口の番号。設定SyncPort。
     bool applyingRemote_ = false;       ///< 連携先から受け取った命令を実行中か(実行中の変化は送り返さない)。
     int notifiedFrame_ = 0x7FFFFFFF;  ///< 連携先へ最後に知らせたフレーム番号。
     bool notifiedPlaying_ = false;    ///< 連携先へ最後に知らせた再生状態。

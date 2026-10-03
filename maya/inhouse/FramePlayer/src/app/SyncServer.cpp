@@ -6,7 +6,7 @@
 
 #include <ws2tcpip.h>
 
-#include "app/SyncLog.h"
+#include "core/TraceLog.h"
 
 #include <cstdio>
 
@@ -98,7 +98,7 @@ void SyncServer::sendLine(const std::string& line) {
     const std::string data = line + "\n";
     // 接続は待たない設定にしてあるので、相手の受け取りが詰まっていれば送らずに戻る(UIを止めない)。
     const int sent = send(client_, data.data(), static_cast<int>(data.size()), 0);
-    syncLog("send %s result=%d", line.c_str(), sent == SOCKET_ERROR ? -WSAGetLastError() : sent);
+    traceLog("send %s result=%d", line.c_str(), sent == SOCKET_ERROR ? -WSAGetLastError() : sent);
 }
 
 void SyncServer::currentFrameChanged(int frame) {
@@ -183,7 +183,7 @@ void SyncServer::run() {
                     line.pop_back();
                 }
                 if (!line.empty()) {
-                    syncLog("recv %s", line.c_str());
+                    traceLog("recv %s", line.c_str());
                     auto* message = new std::string(std::move(line));
                     if (!PostMessageW(window_, message_, kLine, reinterpret_cast<LPARAM>(message))) {
                         delete message;  // ウィンドウが無くなっていた。

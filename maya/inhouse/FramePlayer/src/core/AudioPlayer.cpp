@@ -4,6 +4,8 @@
  */
 #include "core/AudioPlayer.h"
 
+#include "core/Util.h"
+
 #include <audioclient.h>
 #include <mfapi.h>
 #include <mmdeviceapi.h>
@@ -25,26 +27,6 @@ namespace {
 constexpr DWORD kAudioStream = static_cast<DWORD>(MF_SOURCE_READER_FIRST_AUDIO_STREAM);
 /// WASAPIのバッファの長さ(100ns単位)。短いほど開始が速いが、途切れやすくなる。
 constexpr REFERENCE_TIME kBufferDuration = 1000000;  // 100ms
-
-/**
- * @brief QueryPerformanceCounterの現在値を返す。
- * @return 高精度タイマーの値。
- */
-LONGLONG nowTicks() {
-    LARGE_INTEGER value;
-    QueryPerformanceCounter(&value);
-    return value.QuadPart;
-}
-
-/**
- * @brief QueryPerformanceCounterの1秒あたりの値を返す。
- * @return 1秒あたりの値。
- */
-LONGLONG ticksPerSecond() {
-    LARGE_INTEGER value;
-    QueryPerformanceFrequency(&value);
-    return value.QuadPart;
-}
 
 }  // namespace
 
