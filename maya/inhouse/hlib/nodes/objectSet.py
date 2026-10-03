@@ -35,7 +35,7 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         if members:
             cmds.sets(_InputObject._input_names(members), add=self.name())
         return self
@@ -50,7 +50,7 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         if members:
             cmds.sets(_InputObject._input_names(members), remove=self.name())
         return self
@@ -64,5 +64,5 @@ class ObjectSet(Node):
         Returns:
             bool: メンバーの場合は True。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         return bool(cmds.sets(_InputObject._input_name(member), isMember=self.name()))

@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 import maya.cmds as cmds
 import maya.mel as mel
-from hlib.ui.shelfButton import ShelfButton
+from ..ui.shelfButton import ShelfButton
 
 
 class Shelf:

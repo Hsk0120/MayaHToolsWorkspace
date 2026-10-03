@@ -87,7 +87,7 @@ def duplicate(node, **kwargs):
         ValueError: node が空文字列、または削除済みの対象の場合。
         RuntimeError: Maya が複製を拒否した場合。
     """
-    from hlib.object import Object as _InputObject
+    from ..object import Object as _InputObject
     from ..nodes import Node
 
     name = _InputObject._input_name(node)

@@ -17,6 +17,7 @@ __all__ = ["status", "node_wrapper", "plug_wrapper"]
 
 _states = {}
 _loading = False
+_extension_pattern = re.compile(re.escape(__package__) + r"_[a-z][a-z0-9_]*")
 # 親のimportに失敗すると子だけsys.modulesに残るため、試行した名前も保持する。
 # extensions自体のreloadでも、次の一括解除まで追跡を失わない。
 _attempted = globals().get("_attempted", set())
@@ -34,12 +35,12 @@ def _prepare_reload():
     初期化途中の再入では、モジュールを一つも削除せず拒否する。
     """
     roots = {name for name, module in list(sys.modules.items())
-             if re.fullmatch(r"hlib_[a-z][a-z0-9_]*", name)
+             if _extension_pattern.fullmatch(name)
              and getattr(module, "HLIB_EXTENSION_API", None) == 1}
     roots.update(_attempted)
     if _loading or any(getattr(getattr(sys.modules.get(name), "__spec__", None),
                                "_initializing", False) for name in roots):
-        raise RuntimeError("Cannot reload hlib while an extension is initializing")
+        raise RuntimeError("Cannot reload " + __package__ + " while an extension is initializing")
     for name in list(sys.modules):
         if name.split(".", 1)[0] in roots:
             del sys.modules[name]
@@ -74,7 +75,7 @@ def _validate_dependencies(name, locations):
                     imports = [node.module or ""]
                 for target in imports:
                     package = target.split(".", 1)[0]
-                    if package != name and re.fullmatch(r"hlib_[a-z][a-z0-9_]*", package):
+                    if package != name and _extension_pattern.fullmatch(package):
                         raise ValueError("Extensions must not depend on each other: "
                                          + name + " -> " + package)
 
@@ -93,7 +94,7 @@ def _initialize():
         candidates = {}
         for path in dict.fromkeys(sys.path):
             for info in pkgutil.iter_modules([path]):
-                if info.ispkg and re.fullmatch(r"hlib_[a-z][a-z0-9_]*", info.name):
+                if info.ispkg and _extension_pattern.fullmatch(info.name):
                     location = os.path.normcase(os.path.realpath(path))
                     candidates.setdefault(info.name, set()).add(location)
         for name, locations in sorted(candidates.items()):
@@ -102,7 +103,7 @@ def _initialize():
                     raise ValueError("Duplicate extension package: " + name)
                 previous = sys.modules.get(name)
                 if getattr(getattr(previous, "__spec__", None), "_initializing", False):
-                    raise RuntimeError("Extension __init__ must not import hlib or wrappers; "
+                    raise RuntimeError("Extension __init__ must not import " + __package__ + " or wrappers; "
                                        "finish its declarations before loading submodules")
                 _attempted.add(name)
                 package = importlib.import_module(name)
@@ -124,7 +125,7 @@ def _initialize():
                         continue
                     wrappers, exports = discover(name + "." + suffix)
                     for key, cls in wrappers.items():
-                        if any(base_cls.__module__.split(".", 1)[0].startswith("hlib_")
+                        if any(_extension_pattern.fullmatch(base_cls.__module__.split(".", 1)[0])
                                and base_cls.__module__.split(".", 1)[0] != name
                                for base_cls in cls.__mro__):
                             raise TypeError("Extension wrappers must not inherit from another extension")
@@ -155,6 +156,6 @@ def _initialize():
                 _states[name] = {"state": "loaded", "reason": ""}
             except Exception as exc:
                 _states[name] = {"state": "error", "reason": str(exc)}
-                logger.warning("hlib extension %s: %s", name, exc)
+                logger.warning("%s extension %s: %s", __package__, name, exc)
     finally:
         _loading = False

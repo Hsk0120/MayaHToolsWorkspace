@@ -112,7 +112,7 @@ class PlusMinusAverage(ShadingDependNode):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         source = _InputPlug._resolve_input(source)
         target = self._input_array(dimension)._element_reference(_Calculation.index(index))
         source.connect(target, force=force)

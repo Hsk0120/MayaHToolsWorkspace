@@ -108,8 +108,8 @@ def createGroup(nodes=None, **kwargs):
             ため)、または nodes・parent に空文字列や削除済みの対象が含まれる場合。
         RuntimeError: parent の名前を解決できない場合、または Maya がグループ作成を拒否した場合。
     """
-    from hlib.nodes.node import Node as _InputNode
-    from hlib.object import Object as _InputObject
+    from ..nodes.node import Node as _InputNode
+    from ..object import Object as _InputObject
     from ..nodes import Node
 
     if kwargs.get("parent") is not None:

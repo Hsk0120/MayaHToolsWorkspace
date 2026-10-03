@@ -112,8 +112,8 @@ class Object(metaclass=_ObjectType):
             TypeError: 対応しない型の場合。
             ValueError: 空文字列、または無効な対象の場合。
         """
-        from hlib.nodes.node import Node as _InputNode
-        from hlib.plugs.plug import Plug as _InputPlug
+        from .nodes.node import Node as _InputNode
+        from .plugs.plug import Plug as _InputPlug
         if isinstance(value, str):
             name = value
         elif isinstance(value, node_class):
@@ -220,7 +220,7 @@ class Object(metaclass=_ObjectType):
                 Plug・MPlug が含まれる場合。同じ対象列に文字列とNodeが混在する場合。
             ValueError: いずれかの要素が空文字列、または無効な対象の場合。
         """
-        from hlib.nodes.node import Nodes as _InputNodes
+        from .nodes.node import Nodes as _InputNodes
         node_class, plug_class, component_class, components_class = Object._classes()
         singles = (str, node_class, plug_class, component_class, om2.MObject, om2.MDagPath, om2.MPlug)
         names = []

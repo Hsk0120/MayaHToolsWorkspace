@@ -35,7 +35,7 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         if members:
             cmds.editDisplayLayerMembers(self.name(), _InputObject._input_names(members))
         return self
@@ -53,7 +53,7 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         if members:
             cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
         return self

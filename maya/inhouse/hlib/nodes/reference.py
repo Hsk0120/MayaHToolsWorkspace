@@ -42,7 +42,7 @@ class Reference(Node):
         """
         # namespaces.namespace が ..nodes を逆方向 import しないため単純な import で足りるが、
         # hlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
-        from hlib.scene import Namespace
+        from ..scene import Namespace
 
         return Namespace(self.referenceFn().associatedNamespace(False))
 
@@ -84,7 +84,7 @@ class Reference(Node):
         Returns:
             list[Reference]: 子参照。無ければ空リスト。孫以下は含めない。
         """
-        from hlib.utils.references import listReferences
+        from ..utils.references import listReferences
 
         own_name = self.fullName()
         children = []

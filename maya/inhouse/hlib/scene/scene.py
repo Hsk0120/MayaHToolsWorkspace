@@ -202,7 +202,7 @@ class Scene:
             RuntimeError: 保持パスが現在のシーンと一致しない、または Maya がインポートに失敗した場合。
         """
         self._require_current()
-        from hlib.nodes.node import Node
+        from ..nodes.node import Node
 
         scene_path = self._path_arg(path)
         kwargs = {"returnNewNodes": True, "preserveReferences": preserve_references}

@@ -86,7 +86,7 @@ def delete(nodes):
             何も削除しない)。
         RuntimeError: Maya が削除を拒否した場合。
     """
-    from hlib.object import Object as _InputObject
+    from ..object import Object as _InputObject
     from ..nodes.node import Node
 
     names = _InputObject._input_names(nodes, allow_plugs=False)

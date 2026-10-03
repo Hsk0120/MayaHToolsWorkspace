@@ -15,6 +15,7 @@ Contents
    :maxdepth: 2
 
    installation
+   package_names
    whyhlib
    getting_started
    usage

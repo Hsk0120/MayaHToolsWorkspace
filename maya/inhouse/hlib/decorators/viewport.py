@@ -22,7 +22,7 @@ def viewportOff():
     if cmds.about(batch=True):
         yield
         return
-    from hlib.ui.viewport import Viewport
+    from ..ui.viewport import Viewport
 
     with Viewport.suspend():
         yield

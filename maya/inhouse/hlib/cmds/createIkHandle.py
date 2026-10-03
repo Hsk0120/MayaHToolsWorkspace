@@ -24,7 +24,7 @@ def createIkHandle(*args, **kwargs):
 
 
     """
-    from hlib.object import Object as _InputObject
+    from ..object import Object as _InputObject
     if kwargs.get("query") or kwargs.get("edit"):
         raise ValueError("createIkHandle supports creation only")
     options = CommandResult.node_flags(kwargs, ("startJoint", "endEffector", "curve"))

@@ -1,8 +1,8 @@
 """所有containerへ標準scalar演算を構築する。"""
 
-from hlib.nodes.container import Container
-from hlib.plugs.plug import Plug
-from hlib.decorators.undo import undoTransaction
+from ..nodes.container import Container
+from ..plugs.plug import Plug
+from ..decorators.undo import undoTransaction
 
 
 class ScalarGraph:
@@ -37,7 +37,7 @@ class ScalarGraph:
             value (float | str | Plug): 定数または入力プラグ名。
             destination (str): 接続先プラグ名。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         if isinstance(value, (str, Plug)):
             _InputPlug._resolve_input(value).connect(destination)
         else:
@@ -56,7 +56,7 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         node = self._node("plusMinusAverage", role)
         _InputPlug._resolve_input(node + ".operation").set(2 if subtract else 1)
         self._feed(left, node + ".input1D[0]")
@@ -76,7 +76,7 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         node = self._node("multiplyDivide", role)
         _InputPlug._resolve_input(node + ".operation").set(operation)
         self._feed(left, node + ".input1X")
@@ -97,7 +97,7 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         node = self._node("condition", role)
         _InputPlug._resolve_input(node + ".operation").set(2)
         for value, attr in (

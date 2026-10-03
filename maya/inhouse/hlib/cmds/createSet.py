@@ -22,7 +22,7 @@ def createSet(*members, **kwargs):
         TypeError: 入力型または長短フラグの指定が不正な場合。
         RuntimeError: Mayaが生成を拒否した場合。
     """
-    from hlib.object import Object as _InputObject
+    from ..object import Object as _InputObject
     from ..nodes.objectSet import ObjectSet
 
     operations = ("query", "edit", "addElement", "forceElement", "remove", "isMember",

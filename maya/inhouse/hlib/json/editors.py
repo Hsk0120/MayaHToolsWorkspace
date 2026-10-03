@@ -14,8 +14,8 @@ def _state(kind, name, flags=None):
         dict: editor、target、values。時間は現在の Maya 時間単位。
     """
     from maya import cmds
-    from hlib.ui.viewport import Viewport
-    from hlib.ui.outliner import Outliner
+    from ..ui.viewport import Viewport
+    from ..ui.outliner import Outliner
     if kind == "timeline":
         values = {key: cmds.playbackOptions(query=True, **{key: True}) for key in
                   ("animationStartTime", "animationEndTime", "minTime", "maxTime")}
@@ -111,9 +111,9 @@ def captureEditors(targets):
     Raises:
         TypeError: 対応していない UI 型を指定した場合。
     """
-    from hlib.ui.viewport import Viewport
-    from hlib.ui.outliner import Outliner
-    from hlib.ui.timeSlider import TimeSlider
+    from ..ui.viewport import Viewport
+    from ..ui.outliner import Outliner
+    from ..ui.timeSlider import TimeSlider
     types = (Viewport, Outliner, TimeSlider)
     items = [targets] if isinstance(targets, types) else list(targets)
     records = []

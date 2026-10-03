@@ -31,8 +31,8 @@ def bindSkin(geometry, influences, **kwargs):
     完了済み作成は自動で戻さない。bindMethod=3は標準コマンドと同様、作成後に
     別途geomBindが必要。選択から対象を推測しない。
     """
-    from hlib.nodes.node import Node as _InputNode
-    from hlib.nodes.node import Nodes as _InputNodes
+    from ..nodes.node import Node as _InputNode
+    from ..nodes.node import Nodes as _InputNodes
     from ..nodes.skinCluster import SkinCluster, SkinClusters
     operations = {"query", "edit", "unbind", "unbindKeepHistory", "remove", "removeInfluence",
                   "addInfluence", "geometry", "influence", "selectInfluenceVerts"}

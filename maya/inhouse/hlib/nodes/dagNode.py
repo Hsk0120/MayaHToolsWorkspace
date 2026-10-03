@@ -129,7 +129,7 @@ class DagNode(Node):
 
     def getOutlinerColor(self):
         """Color: このノードのOutliner色。無効時はdisabledモード。"""
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         if not self.plug("useOutlinerColor").get():
             return Color.disabled()
         return Color(rgb=self.plug("outlinerColor").get())
@@ -148,7 +148,7 @@ class DagNode(Node):
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value, outliner=True))
         return self
@@ -159,7 +159,7 @@ class DagNode(Node):
         親・表示レイヤー・選択ハイライトは合成しない。
         アトリビュートがない場合はRuntimeError。無効時はdisabledモードを返す。
         """
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         if not self.plug("overrideEnabled").get():
             return Color.disabled()
         if self.plug("overrideRGBColors").get():
@@ -182,7 +182,7 @@ class DagNode(Node):
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value))
         return self
@@ -272,7 +272,7 @@ class DagNodes(Nodes):
             ValueError: 色の値が不正。
             RuntimeError: 対象が無効、アトリビュートがない、編集不可または更新失敗。
         """
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         value = Color.coerce(color)
         return self._set_colors([value] * len(self), outliner=False)
 
@@ -287,7 +287,7 @@ class DagNodes(Nodes):
         Returns:
             DagNodes: 自身。全対象の事前検証・例外規則はset_override_colorと同じ。
         """
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         value = Color.coerce(color)
         return self._set_colors([value] * len(self), outliner=True)
 
@@ -305,7 +305,7 @@ class DagNodes(Nodes):
             ValueError: 件数不一致、不正な色、共有アトリビュートに異なる値を要求した場合。
             RuntimeError: 事前検証または反映失敗。実行時失敗の自動ロールバックはしない。
         """
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         return self._set_colors([Color.coerce(color) for color in colors], outliner=False)
 
     @fast_edit
@@ -319,7 +319,7 @@ class DagNodes(Nodes):
         Returns:
             DagNodes: 自身。事前検証・例外規則はset_override_colorsと同じ。
         """
-        from hlib.ui.color import Color
+        from ..ui.color import Color
         return self._set_colors([Color.coerce(color) for color in colors], outliner=True)
 
     def _set_colors(self, colors, *, outliner):

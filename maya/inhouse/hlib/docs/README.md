@@ -43,6 +43,11 @@ Mayaや外部submoduleは不要で、Python 3.11と本フォルダーの `requir
 
 ## ローカルビルド
 
+パッケージ名を変更した場合、`conf.py`は親フォルダー名を使い、本文・API参照・使用例・
+継承図をその名前で生成します。以下のビルドコマンドのパスも変更後の配置へ合わせてください。
+生成物の検査には `tools/check_hlib_docs.py --package-name mlib --docs-conf <変更後のdocs/conf.py> --check-directory <HTML出力先>`
+を使用できます。命名と拡張の規約は `package_names.rst` を参照してください。
+
 Python 3.11 以上を使用します。Maya や mayapy は不要です。
 リポジトリルートから PowerShell で実行してください。
 `py` がない場合は、インストール済み Python の実行ファイルを指定します。

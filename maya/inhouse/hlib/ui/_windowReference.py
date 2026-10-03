@@ -1,8 +1,8 @@
 """ウィンドウ参照の存在確認・入力検証・一時復元を共通化する。"""
 from contextlib import contextmanager
 import maya.cmds as cmds
-from hlib.ui.uiSnapshot import UiSnapshot
-from hlib.ui._uiLifetime import _UiLifetime
+from ..ui.uiSnapshot import UiSnapshot
+from ..ui._uiLifetime import _UiLifetime
 
 
 class _WindowReference:

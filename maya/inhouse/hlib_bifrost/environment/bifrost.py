@@ -1,6 +1,7 @@
 """Bifrostの対応版確認と明示ロード。"""
 
 from maya import cmds
+from .._binding import coreModule
 
 
 class Bifrost:
@@ -11,7 +12,7 @@ class Bifrost:
     @classmethod
     def is_available(cls):
         """bool: Maya 2025以降で対応Bifrostがロード済みならTrue。"""
-        from hlib.environment import Plugin
+        Plugin = coreModule('environment').Plugin
 
         if cmds.about(apiVersion=True) < 20250000:
             return False
@@ -28,10 +29,10 @@ class Bifrost:
         Raises:
             RuntimeError: MayaやBifrostが対応版でない、またはロードに失敗した場合。
         """
-        from hlib.environment import Plugin
+        Plugin = coreModule('environment').Plugin
 
         if cmds.about(apiVersion=True) < 20250000:
-            raise RuntimeError("hlib_bifrost requires Maya 2025 or newer")
+            raise RuntimeError(__package__.split(".", 1)[0] + " requires Maya 2025 or newer")
         Plugin("bifrostGraph").ensureLoaded()
         if not cls.is_available():
-            raise RuntimeError("hlib_bifrost requires Bifrost 3.0.0.0 or newer")
+            raise RuntimeError(__package__.split(".", 1)[0] + " requires Bifrost 3.0.0.0 or newer")

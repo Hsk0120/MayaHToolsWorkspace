@@ -36,7 +36,7 @@ class _Calculation:
             接続方向とロック処理はPlug.connectへ集約する。
             接続元の解決失敗時には接続先を取得しない。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         source = _InputPlug._resolve_input(source)
         source.connect(target(*indices), force=force)
 
@@ -151,7 +151,7 @@ class _Calculation:
             TypeError: シェイプ型が異なる場合。
             ValueError: Transformの対象シェイプが一意でない場合。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         from .transform import Transform
         _Calculation.boolean(world_space)
         node = _InputNode._resolve_input(value)

@@ -22,6 +22,6 @@ def getOutliner(editor=None):
     Raises:
         RuntimeError: 対象アウトライナーが存在しない、またはバッチ実行の場合。
     """
-    from hlib.ui import Outliner
+    from ..ui import Outliner
 
     return Outliner(editor)

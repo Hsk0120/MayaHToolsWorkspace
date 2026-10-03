@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import logging
+import re
 import sys
 
 import autoapi
@@ -12,14 +13,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _mermaidClasses import ancestor_class_diagram, collect_class_hierarchy, package_class_diagrams
 
+_PACKAGE_NAME = Path(__file__).resolve().parent.parent.name
+
 
 class _DynamicExportFilter(logging.Filter):
     """Ignore only aliases populated by hlib's runtime discovery."""
 
     def filter(self, record):
         return record.getMessage() not in {
-            "Cannot resolve import of hlib.nodes.Joints in hlib",
-            "Cannot resolve import of hlib.nodes.SkinClusters in hlib",
+            f"Cannot resolve import of {_PACKAGE_NAME}.nodes.Joints in {_PACKAGE_NAME}",
+            f"Cannot resolve import of {_PACKAGE_NAME}.nodes.SkinClusters in {_PACKAGE_NAME}",
         }
 
 
@@ -29,7 +32,7 @@ class _ReexportedSubpackageFilter(logging.Filter):
     親ページとサブパッケージページの両方に載せてしまう重複警告だけを無視する。"""
 
     _IGNORED_MESSAGE_PREFIXES = (
-        "duplicate object description of hlib.cmds,",
+        f"duplicate object description of {_PACKAGE_NAME}.cmds,",
     )
 
     def filter(self, record):
@@ -40,7 +43,7 @@ class _ReexportedSubpackageFilter(logging.Filter):
 logging.getLogger("sphinx.autoapi._mapper").addFilter(_DynamicExportFilter())
 logging.getLogger("sphinx").addFilter(_ReexportedSubpackageFilter())
 
-project = "hlib"
+project = _PACKAGE_NAME
 copyright = "2026 Hsk0120"
 language = "ja"
 extensions = ["autoapi.extension", "sphinx.ext.napoleon"]
@@ -80,7 +83,7 @@ html_js_files = [
     (_MERMAID_URL, {"integrity": _MERMAID_SRI, "crossorigin": "anonymous", "defer": "defer"}),
     ("mermaid-init.js", {"defer": "defer"}),
 ]
-html_title = "hlib ドキュメント"
+html_title = f"{_PACKAGE_NAME} ドキュメント"
 
 # hlib配下のクラス継承関係をast静的解析のみで集計する(hlib・Mayaをimportしない)。
 # 各クラスページの継承図(_templates/autoapi/python/class.rst)と、
@@ -142,6 +145,7 @@ def _prepare_jinja_env(jinja_env):
       ``_templates/autoapi`` の同名ファイルが優先されるため、上書きした
       テンプレートから元の既定表示へ処理を委ねるにはこの接頭辞で指定する。
     """
+    jinja_env.globals["package_name"] = _PACKAGE_NAME
     jinja_env.globals["ancestor_class_diagram"] = (
         lambda class_name: ancestor_class_diagram(class_name, _CLASS_HIERARCHY)
     )
@@ -161,10 +165,10 @@ def _write_generated_docs(app):
     generated_dir = Path(__file__).resolve().parent / "_generated"
     generated_dir.mkdir(exist_ok=True)
     content = (
-        "hlib 全体クラス図\n"
-        "------------------\n"
+        f"{_PACKAGE_NAME} 全体クラス図\n"
+        + "-" * (len(_PACKAGE_NAME) + 20) + "\n"
         "\n"
-        f"hlib全 {len(_CLASS_HIERARCHY)} クラスの継承関係"
+        f"{_PACKAGE_NAME}全 {len(_CLASS_HIERARCHY)} クラスの継承関係"
         "を分類ごとの図で表示します。矢印の三角側が基底クラスです。\n"
         "他の分類の基底クラスは、継承を追えるよう各図にも掲載します。\n"
         "クラス名をクリックするとAPIリファレンスへ移動できます。\n"
@@ -181,6 +185,32 @@ def _write_generated_docs(app):
     (generated_dir / "full_class_diagram.rst").write_text(content, encoding="utf-8")
 
 
+def _adapt_package_name(app, docname, source):
+    """本文・使用例・AutoAPI参照を、配置されたパッケージ名へ合わせる。
+
+    JSON形式識別子、宣言定数、ページのファイル名は変更しない。
+    元の rst/Python ファイルは書き換えず、ビルド入力だけを変換する。
+
+    Args:
+        app: Sphinxアプリケーション。
+        docname (str): 処理中のページ名。
+        source (list[str]): 変換対象のソース。先頭要素だけを更新する。
+    """
+    if _PACKAGE_NAME == "hlib":
+        return
+    pattern = r'(https?://[^\s<>`]+|[\"\x27]hlib\.json[\"\x27])|(?<![A-Za-z0-9_])hlib(?=$|[._/]|[^A-Za-z0-9_-])'
+    before = source[0].splitlines()
+    after = [re.sub(pattern, lambda match: match[1] or _PACKAGE_NAME, line)
+             for line in before]
+    # 長いパッケージ名でもreSTの見出し線が短くならないようにする。
+    for index in range(1, len(after)):
+        line = after[index].strip()
+        if line and len(set(line)) == 1 and line[0] in "=-~^\"" and before[index - 1] != after[index - 1]:
+            after[index] = line[0] * max(len(line), len(after[index - 1]) * 2)
+    source[0] = "\n".join(after) + "\n"
+
+
 def setup(app):
+    app.connect("source-read", _adapt_package_name)
     app.connect("autoapi-skip-member", _include_constructors)
     app.connect("builder-inited", _write_generated_docs)

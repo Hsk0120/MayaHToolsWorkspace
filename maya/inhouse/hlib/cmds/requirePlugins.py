@@ -113,8 +113,8 @@ def requirePlugins(plugins, minimum_version=None, module=None, version_plugin=No
         ValueError: plugins が空、minimum_version が版として解釈できない場合。
         TypeError: plugins の要素が文字列でも Plugin でもない場合。
     """
-    from hlib.environment import Plugin
-    from hlib.environment import PluginPackage
+    from ..environment import Plugin
+    from ..environment import PluginPackage
 
     if isinstance(plugins, (str, Plugin)):
         plugins = (plugins,)

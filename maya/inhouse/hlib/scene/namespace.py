@@ -106,7 +106,7 @@ class Namespace:
             return []
         # nodes.node が ..namespaces を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from hlib.nodes import Node
+        from ..nodes import Node
 
         mobjects = om2.MNamespace.getNamespaceObjects(self._name, recurse) or []
         return [Node(mobject) for mobject in mobjects]

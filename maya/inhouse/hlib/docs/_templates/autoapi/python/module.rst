@@ -4,15 +4,15 @@
   それ以外は sphinx-autoapi に同梱された既定テンプレートへそのまま委ねる。
   "autoapi-packaged/" 接頭辞は conf.py の _prepare_jinja_env で登録している。
 -#}
-{% set command_package = "hlib.cmds" %}
+{% set command_package = package_name ~ ".cmds" %}
 {% if obj.id == command_package %}
-hlib コマンドリファレンス
-========================================
+{{ package_name }} コマンドリファレンス
+{{ "=" * (package_name|length + 30) }}
 
 .. py:module:: {{ command_package }}
 
 コマンド名を選ぶと、構文・戻り値・フラグ・使用例を確認できます。
-Python では ``hlib.<コマンド名>()`` として呼び出します。
+Python では ``{{ package_name }}.<コマンド名>()`` として呼び出します。
 
 .. toctree::
    :maxdepth: 1
@@ -39,7 +39,7 @@ Python では ``hlib.<コマンド名>()`` として呼び出します。
    :depth: 1
 
 {% if entry_point %}
-.. py:currentmodule:: hlib
+.. py:currentmodule:: {{ package_name }}
 
 .. py:function:: {{ command_name }}({{ entry_point.args }})
    :no-index-entry:

@@ -84,6 +84,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-03): パッケージ名汎用化の実装・拡張・Sphinx・回帰テストを公開対象として確定。差分チェックと前回のMaya5版・最終回帰3件・3名称Sphinxの成功記録を確認し、mainへコミット・push。他作業の変更は対象外。
+
+- Codex (2026-10-03): コア内を相対import化し、拡張検出/reload/ロガーを実パッケージ名に追従。Bifrost/PoseDriverConnectは既知サフィックスを除いて接続先コアを解決。JSON形式・HLIB宣言は維持。Sphinxのタイトル/本文/API/継承図と生成物検査CLIを汎用化しpackage_names.rstに手順を追加。Maya5版全98ファイル成功（2022/24/25/26は930件、2027は931件）。最終3回帰テストは2022/2027成功：mlib/studio_libコピー、元名import禁止、Undo/fast/形状/JSON/拡張/reload、固定import検査、Sphinx変換。PoseDriverConnectの別名登録はSDKスタブによる検証。hlib/mlib/studio_libraryのSphinx -W、各482HTMLの資産検査/APIリンク存在確認、diff check成功。GUI・改名環境での実Bifrost/PoseDriverConnectプラグイン操作は未検証。未コミット・未push。詳細docs/research/packageNameImplementation.txt。
+
 - Codex (2026-10-03): Sphinx本文10ページを実装/docstringと整合（space、cm、法線平均、Plug定義フラグ/要素実体化、数学型、BlendShapeエイリアス、JSON参照解決）。Sphinx -W成功、Python例164ブロックの構文確認、diff check成功。これまでの責務共通化・camelCase移行・利用側更新・docstringを合わせてmainへの公開対象とした。先行のMaya5版各929件成功を確認。今回の本文例のMaya実行/GUI確認は未実施。
 
 - Codex (2026-10-03): hlib実装245ファイル・モジュール/クラス/関数/メソッドのdocstring 2,085件を抽出し、引数・旧名・戻り値を静的検査。実装との意味の照合により62ファイル145件を修正（法線平均、Plug有効性、数学型返却、単位、接続置換、JSON復元制限、旧名、引数説明）。全245ファイルでdocstring除外AST一致、引数照合指摘0、Sphinx -W成功、diff check成功。今回Maya内の動作・全使用例の実行は未実施。未コミット・未push。詳細docs/research/hlibDocstringResult.json。

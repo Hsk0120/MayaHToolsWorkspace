@@ -43,7 +43,7 @@ class Container(Node):
         Returns:
             Container: 自身。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         nodes = [Node(name) for name in _InputObject._input_names(members, allow_plugs=False)]
         if nodes:
             cmds.container(

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import maya.cmds as cmds
 import maya.mel as mel
 
-from hlib.ui._editor import _Editor
+from ..ui._editor import _Editor
 
 
 class Viewport(_Editor):

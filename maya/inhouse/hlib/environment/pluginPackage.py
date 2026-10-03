@@ -10,9 +10,9 @@ for _name in ("parse_version", "is_at_least", "format_version"):
 import maya.cmds as cmds
 from ..utils import logger
 
-from hlib.environment.module import Module
-from hlib.environment.plugin import Plugin
-from hlib.utils.version import Version
+from ..environment.module import Module
+from ..environment.plugin import Plugin
+from ..utils.version import Version
 
 SKIPPED = "skipped"
 """str: 対象外の Maya バージョンのため何もしなかった。"""

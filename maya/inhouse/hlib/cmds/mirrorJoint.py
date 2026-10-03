@@ -24,7 +24,7 @@ def mirrorJoint(joint, **kwargs):
 
     オプションの既定値もMayaに従う。全作成を一回のUndoで戻せる。
     """
-    from hlib.nodes.node import Node as _InputNode
+    from ..nodes.node import Node as _InputNode
     from ..nodes.joint import Joint, Joints
     source = _InputNode._resolve_input(joint)
     if not isinstance(source, Joint):

@@ -77,7 +77,7 @@ class BlendShape(Node):
             TypeError: target・base が対応しない型の場合。
             ValueError: target・base が空文字列、または削除済みの対象の場合。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         target_name = _InputNode._input_name(target)
         if base is None:
             geometries = self.geometry()

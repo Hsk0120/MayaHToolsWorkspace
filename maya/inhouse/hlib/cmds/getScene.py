@@ -59,6 +59,6 @@ def getScene(path=None):
     Raises:
         ValueError: パスが空または未対応の型の場合。
     """
-    from hlib.scene import Scene
+    from ..scene import Scene
 
     return Scene(path)

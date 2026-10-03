@@ -21,7 +21,7 @@ def getAttr(target, **kwargs):
 
     距離・角度は現在のUI単位。Plug.getの固定単位とは区別する。
     """
-    from hlib.plugs.plug import Plug as _InputPlug
+    from ..plugs.plug import Plug as _InputPlug
     from ..maths import Matrix, Vector
 
     plug = _InputPlug._resolve_input(target)

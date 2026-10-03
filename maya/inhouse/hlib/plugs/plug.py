@@ -1,6 +1,6 @@
 """Maya API 2.0 の MPlug をアトリビュートラッパーとして扱う。"""
 
-from hlib.object import Object
+from ..object import Object
 
 from ..decorators._fast import fast_edit, is_fast
 from .._core.attributeType import attributeType, is_internal_data_type, value_reader
@@ -277,7 +277,7 @@ class Plug(Object):
         Raises:
             ValueError: 空の MPlug、所有ノードが削除済み、またはアトリビュートが削除済み(``deleteAttr``)の場合。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         if mplug.isNull:
             raise ValueError("空の MPlug は指定できません")
         node = mplug.node()
@@ -493,8 +493,8 @@ class Plug(Object):
                 (``Node(...)``・``Plug(...)`` の生成と同じ。Undo の対象から外れて削除された
                 ノードの MPlug は検出できず、Maya が異常終了する)。
         """
-        from hlib.nodes.node import Node as _InputNode
-        from hlib.object import Object as _InputObject
+        from ..nodes.node import Node as _InputNode
+        from ..object import Object as _InputObject
         node_class, plug_class, _, _ = _InputObject._classes()
         if isinstance(value, plug_class):
             return value

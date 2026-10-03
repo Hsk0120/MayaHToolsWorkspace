@@ -13,7 +13,7 @@ class CommandResult:
         Returns:
             Node | Plug: 改名に追従する参照。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         from ..nodes.node import Node
 
         return _InputPlug._resolve_input(name) if "." in name else Node(name)
@@ -39,7 +39,7 @@ class CommandResult:
         Returns:
             dict: 変換済みコピー。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
 
         result = dict(kwargs)
         for key in keys:

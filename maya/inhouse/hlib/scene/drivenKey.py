@@ -4,10 +4,10 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from hlib._core.attributeType import attributeType
-from hlib.decorators.undo import undoChunk
-from hlib.nodes.node import Node
-from hlib.plugs.plug import Plug
+from .._core.attributeType import attributeType
+from ..decorators.undo import undoChunk
+from ..nodes.node import Node
+from ..plugs.plug import Plug
 
 #: ドライバー・駆動先に使える数値スカラーのアトリビュート型名。
 _NUMERIC_SCALAR_TYPES = frozenset(
@@ -36,7 +36,7 @@ def _plug(value):
     文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため
     (:func:`hlib._core.attributeType.attributeType`)、検証でシーンは変更しない。
     """
-    from hlib.plugs.plug import Plug as _InputPlug
+    from ..plugs.plug import Plug as _InputPlug
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
         result = _InputPlug._resolve_input(value)
     else:
@@ -143,7 +143,7 @@ class DrivenKey:
         ドライバーは名前ではなくプラグ自体で照合するため、インスタンス化されたシェイプの
         アトリビュートをどのインスタンスのパスから指定しても同じ関係として扱う。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         driver = self.driverPlug().mplug()
         return [
             curve

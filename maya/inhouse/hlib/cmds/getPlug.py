@@ -15,6 +15,6 @@ def getPlug(value):
         ValueError: 空の名前または空のMPlugを指定した場合。
         RuntimeError: アトリビュートを解決できない場合。
     """
-    from hlib.plugs.plug import Plug as _InputPlug
+    from ..plugs.plug import Plug as _InputPlug
 
     return _InputPlug._resolve_input(value)

@@ -59,8 +59,8 @@ class ShadingEngine(ObjectSet):
             ValueError: 種別が不正な場合。
             RuntimeError: Mayaが接続を拒否した場合。
         """
-        from hlib.nodes.node import Node as _InputNode
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..nodes.node import Node as _InputNode
+        from ..plugs.plug import Plug as _InputPlug
         from ..plugs import Plug
         target = self.plug(self._shader_attribute(kind))
         if isinstance(shader, Plug) or isinstance(shader, str) and "." in shader:
@@ -81,7 +81,7 @@ class ShadingEngine(ObjectSet):
         Raises:
             RuntimeError: Mayaが割り当てを拒否した場合。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         names = _InputObject._input_names(targets)
         if names:
             cmds.sets(names, edit=True, forceElement=self.fullName())

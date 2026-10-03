@@ -139,7 +139,7 @@ def encode(value):
     from ..nodes.node import Node
     from ..plugs.plug import Plug
     from ..components import Component, Components
-    from hlib.scene.selection import Selection
+    from ..scene.selection import Selection
     from .snapshots import Snapshot
     if isinstance(value, Node):
         value = NodeRef.capture(value)

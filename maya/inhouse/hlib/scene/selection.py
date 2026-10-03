@@ -3,10 +3,10 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from hlib.components import Component, Components, Vertex, Vertices, CV, CVs, Edge, Edges, Face, Faces, UV, UVs
+from ..components import Component, Components, Vertex, Vertices, CV, CVs, Edge, Edges, Face, Faces, UV, UVs
 from ..decorators.undo import undoChunk
-from hlib.nodes.node import Node
-from hlib.plugs.plug import Plug
+from ..nodes.node import Node
+from ..plugs.plug import Plug
 
 
 class Selection:
@@ -34,7 +34,7 @@ class Selection:
             TypeError: 非対応型、またはMesh/NurbsCurve以外のコンポーネントの場合。
             RuntimeError: 名前が解決できない場合。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         singles = (
             str,
             Node,
@@ -81,7 +81,7 @@ class Selection:
         name は要素を追加したときの文字列で、1要素の場合にインスタンス化された
         ノードのアトリビュートの所有インスタンスを求めるために使う(selection_owner 参照)。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         result = []
         for index in range(selection.length()):
             try:

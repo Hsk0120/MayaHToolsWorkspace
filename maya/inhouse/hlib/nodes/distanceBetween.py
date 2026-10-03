@@ -58,7 +58,7 @@ class DistanceBetween(Node):
             RuntimeError: ロックや既存接続により変更できない場合。
                 途中の変更は自動では戻さず、一回のUndoで戻せる。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
         if not all(isinstance(node, Transform) for node in nodes):
             raise TypeError("Both inputs must be transforms")

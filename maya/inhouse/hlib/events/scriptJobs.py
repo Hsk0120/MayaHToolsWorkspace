@@ -1,6 +1,6 @@
 """複数のscriptJobを所有者単位で管理する。"""
 
-from hlib.events.scriptJob import ScriptJob
+from ..events.scriptJob import ScriptJob
 
 
 class ScriptJobs:

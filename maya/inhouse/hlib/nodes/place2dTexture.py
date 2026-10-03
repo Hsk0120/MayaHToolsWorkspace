@@ -21,7 +21,7 @@ class Place2dTexture(ShadingDependNode):
             TypeError: 対象がTexture2dでない場合。
             RuntimeError: 接続できない場合。完了済み接続は自動で戻さない。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         from .texture2d import Texture2d
         texture = _InputNode._resolve_input(texture)
         if not isinstance(texture, Texture2d):

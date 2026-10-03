@@ -2,10 +2,10 @@
 from contextlib import contextmanager
 import maya.cmds as cmds
 import maya.mel as mel
-from hlib.ui._windowReference import _WindowReference
-from hlib.ui.mainWindow import MainWindow
-from hlib.ui.window import Window
-from hlib.ui.uiSnapshot import UiSnapshot
+from ..ui._windowReference import _WindowReference
+from ..ui.mainWindow import MainWindow
+from ..ui.window import Window
+from ..ui.uiSnapshot import UiSnapshot
 
 
 class WorkspaceLayout:
@@ -134,7 +134,7 @@ class WorkspaceLayout:
         main = MainWindow.name()
         if not main or not cmds.window(main, exists=True):
             raise RuntimeError("Maya main window is unavailable")
-        from hlib.ui.workspaceControl import WorkspaceControl
+        from ..ui.workspaceControl import WorkspaceControl
         # 浮動UIはこの退避範囲に含めない。削除されてもドッキング復元を妨げない。
         targets = [Window(main)]
         targets.extend(control for control in WorkspaceControl.list() if not control.getFloating())

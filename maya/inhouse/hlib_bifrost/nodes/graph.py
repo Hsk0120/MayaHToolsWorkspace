@@ -1,7 +1,8 @@
 """Maya DGのBifrostグラフをhlibのノード参照で管理する。"""
 
 from maya import cmds
-from hlib.decorators.undo import undoTransaction
+from .._binding import coreModule
+undoTransaction = coreModule('decorators.undo').undoTransaction
 
 
 class Graph:
@@ -13,7 +14,7 @@ class Graph:
         Args:
             node: hlibで解決可能なDGノード。
         """
-        from hlib.nodes import Node as MayaNode
+        MayaNode = coreModule('nodes').Node
 
         self.node = MayaNode(node)
         if self.node.type() != "bifrostGraphShape":
@@ -23,8 +24,8 @@ class Graph:
     @undoTransaction("hlib_bifrost.Graph.create")
     def create(cls, name="bifrostGraphShape"):
         """必要なプラグインをロードしてグラフを生成する。"""
-        from hlib.nodes import Node as MayaNode
-        from hlib_bifrost.environment.bifrost import Bifrost
+        MayaNode = coreModule('nodes').Node
+        from ..environment.bifrost import Bifrost
 
         Bifrost.ensure_available()
         parent = MayaNode.create("transform", name=name + "Transform", skipSelect=True)
@@ -51,7 +52,7 @@ class Graph:
         Returns:
             Node: グラフshapeのtransform親。
         """
-        from hlib.nodes import Node as MayaNode
+        MayaNode = coreModule('nodes').Node
 
         names = cmds.listRelatives(self.name(), parent=True, fullPath=True) or []
         if not names:
@@ -61,13 +62,13 @@ class Graph:
     @undoTransaction("hlib_bifrost.Graph.delete")
     def delete(self):
         """グラフと現在のDAG親を削除する。親に他の子があれば拒否する。"""
-        import hlib
+        core = coreModule()
 
         parent = self.parent()
         children = cmds.listRelatives(parent.fullName(), children=True, fullPath=True) or []
         if children != [self.name()]:
             raise ValueError("Parent contains other children; delete the graph shape explicitly")
-        hlib.delete(parent)
+        core.delete(parent)
 
 
 # ルートCompoundへの参照。DGノードとは独立したVNN参照。

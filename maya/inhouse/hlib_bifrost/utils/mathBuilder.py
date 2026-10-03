@@ -1,7 +1,8 @@
 """Bifrostの定数・接続・基本数値演算を組み立てる。"""
 
-from hlib_bifrost.plugs.port import Port
-from hlib.decorators.undo import undoTransaction
+from ..plugs.port import Port
+from .._binding import coreModule
+undoTransaction = coreModule('decorators.undo').undoTransaction
 
 
 class MathBuilder:

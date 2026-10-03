@@ -33,7 +33,7 @@ def addConstraint(sources, target, type="parent", maintainOffset=False, **kwargs
         ValueError: 未対応の種類、空の拘束元、照会・編集モードを指定した場合。
         RuntimeError: 対象が無効、またはMayaが操作を拒否した場合。
     """
-    from hlib.nodes.node import Node as _InputNode
+    from ..nodes.node import Node as _InputNode
     from ..nodes.transform import Transform
 
     target_node = _InputNode._resolve_input(target)

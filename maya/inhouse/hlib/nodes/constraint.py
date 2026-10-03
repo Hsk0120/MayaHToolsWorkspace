@@ -60,7 +60,7 @@ class Constraint(Transform):
         Raises:
             ValueError: ターゲットが登録されていない場合。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         requested = _InputNode._resolve_input(target).fullName()
         for node, plug in zip(self.targets(), self.weightPlugs()):
             if node.fullName() == requested:
@@ -86,8 +86,8 @@ class Constraint(Transform):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        from hlib.nodes.node import Node as _InputNode
-        from hlib.nodes.node import Nodes as _InputNodes
+        from ..nodes.node import Node as _InputNode
+        from ..nodes.node import Nodes as _InputNodes
         weightPlugs = self.weightPlugs()
         if not targets:
             for plug in weightPlugs:

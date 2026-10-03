@@ -8,7 +8,7 @@ for _name in ("parse_version", "is_at_least", "format_version"):
     globals().pop(_name, None)
 
 import maya.cmds as cmds
-from hlib.utils.version import Version
+from ..utils.version import Version
 
 
 class Plugin:

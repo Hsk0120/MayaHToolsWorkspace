@@ -4,8 +4,8 @@ import maya.cmds as cmds
 import maya.mel as mel
 import maya.api.OpenMaya as om2
 
-from hlib.nodes.node import Node
-from hlib.plugs.plug import Plug
+from ..nodes.node import Node
+from ..plugs.plug import Plug
 from ..decorators.undo import undoChunk
 
 

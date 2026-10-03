@@ -1,6 +1,6 @@
 """MayaのドッキングUIの容器を操作する。"""
 import maya.cmds as cmds
-from hlib.ui._windowReference import _WindowReference
+from ..ui._windowReference import _WindowReference
 
 
 class WorkspaceControl(_WindowReference):
@@ -30,7 +30,7 @@ class WorkspaceControl(_WindowReference):
     @staticmethod
     def _require_unlocked():
         """ユーザーが有効にしたドッキングロックを迂回しない。"""
-        from hlib.ui.workspaceLayout import WorkspaceLayout
+        from ..ui.workspaceLayout import WorkspaceLayout
         if WorkspaceLayout.getLocked():
             raise RuntimeError("Unlock the workspace layout before changing docking")
 

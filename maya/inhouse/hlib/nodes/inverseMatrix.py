@@ -55,7 +55,7 @@ class InverseMatrix(THDependNode):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         _InputPlug._resolve_input(source).connect(self.inputPlug(), force=force)
         return self
 

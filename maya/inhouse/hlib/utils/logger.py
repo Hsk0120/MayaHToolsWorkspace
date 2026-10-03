@@ -5,7 +5,7 @@ import html
 import logging
 
 
-LOGGER_NAME = "hlib"
+LOGGER_NAME = __package__.split(".", 1)[0]
 _VIEWPORT_COLORS = {
     logging.WARNING: "#ffcc00",
     logging.ERROR: "#ff4d4d",
@@ -78,7 +78,7 @@ def get_logger():
     """Maya 向けハンドラを設定した共有ロガーを取得する。
 
     Returns:
-        logging.Logger: 名前がhlibのロガー。DEBUGレベル、親への伝播なし。
+        logging.Logger: コアパッケージ名のロガー。DEBUGレベル、親への伝播なし。
             reload前のMayaHandlerは現在の型へ置換し、通知を重複させない。
     """
     logger = logging.getLogger(LOGGER_NAME)

@@ -21,7 +21,7 @@ class DagPose(Node):
     @staticmethod
     def _transform_names(members):
         """対象を有効なTransformの完全パスに揃える。空入力はValueError。"""
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         names = []
         for name in _InputObject._input_names(members):
             node = Node(name)
@@ -87,7 +87,7 @@ class DagPose(Node):
             ValueError: skinCluster以外を指定した場合。
             RuntimeError: 無効なノード、またはdagPose以外が接続されている場合。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         skin = _InputNode._resolve_input(skin_cluster)
         if not skin.isValid():
             raise RuntimeError("Cannot access an invalid skinCluster")
@@ -124,7 +124,7 @@ class DagPose(Node):
         Raises:
             ValueError: このポーズのメンバーでない場合。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         node = _InputNode._resolve_input(member)
         for index, item in zip(self.memberIndices(), self.members()):
             if item.fullName() == node.fullName():

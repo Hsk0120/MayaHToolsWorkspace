@@ -23,7 +23,7 @@ class ScriptJob:
             TypeError: callbackが呼び出せない場合。
             RuntimeError: バッチ実行中、またはMayaが登録を拒否した場合。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         if (event is None) == (attribute is None):
             raise ValueError("Specify exactly one of event or attribute")
         if not callable(callback):

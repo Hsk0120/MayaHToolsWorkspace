@@ -1,6 +1,6 @@
 """Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）と同一シェイプの要素群。"""
 
-from hlib.object import Object
+from ..object import Object
 
 import math
 import operator
@@ -30,7 +30,7 @@ class Component(Object):
             TypeError: 非対応のコンポーネント種類の場合。
         """
         import maya.api.OpenMaya as om2
-        from hlib.nodes.node import Node
+        from ..nodes.node import Node
         from .vertex import Vertex
         from .edge import Edge
         from .face import Face

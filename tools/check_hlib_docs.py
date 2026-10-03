@@ -115,7 +115,20 @@ class _ScriptTags(HTMLParser):
             self.scripts.append({name: value for name, value in attrs})
 
 
-def check_built_html(directory, pin):
+def _cases(package_name):
+    """対象パッケージ名に対応するAPIページとクラス名を返す。
+
+    Args:
+        package_name (str): 対象のコアパッケージ名。
+
+    Returns:
+        list[tuple[str, str]]: APIページとリンク先クラスの組。
+    """
+    return [(path.replace("hlib", package_name), target.replace("hlib", package_name))
+            for path, target in CASES]
+
+
+def check_built_html(directory, pin, package_name="hlib"):
     """ビルド済みHTMLを、ブラウザもネットワークも使わずに検査する。
 
     - Mermaid本体(mermaid.min.js など)がビルド出力に含まれていないこと。
@@ -141,13 +154,13 @@ def check_built_html(directory, pin):
         if any("mermaid" in (script.get("src") or "") for script in parser.scripts):
             _check_script_list(parser.scripts, pin, source)
             checked.add(source)
-    missing = sorted({source for source, _ in CASES} - checked)
+    missing = sorted({source for source, _ in _cases(package_name)} - checked)
     assert not missing, f"Pages with class diagrams do not load Mermaid: {missing}"
     return len(checked)
 
 
-def stamp(directory, sha):
-    paths = sorted({path for path, _ in CASES} | set(ASSETS))
+def stamp(directory, sha, package_name="hlib"):
+    paths = sorted({path for path, _ in _cases(package_name)} | set(ASSETS))
     payload = {"commit": sha, "files": {
         path: hashlib.sha256((directory / path).read_bytes()).hexdigest()
         for path in paths
@@ -195,7 +208,7 @@ def check_mermaid_script(page, source, pin):
     _check_script_list(scripts, pin, source)
 
 
-def check_browser(base, output, pin):
+def check_browser(base, output, pin, package_name="hlib"):
     from playwright.sync_api import sync_playwright, expect
 
     output.mkdir(parents=True, exist_ok=True)
@@ -213,7 +226,7 @@ def check_browser(base, output, pin):
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 try:
-                    for index, (source, destination) in enumerate(CASES):
+                    for index, (source, destination) in enumerate(_cases(package_name)):
                         response = page.goto(urljoin(base, source), wait_until="networkidle")
                         assert response and response.ok, f"Cannot open {source}"
                         check_mermaid_script(page, source, pin)
@@ -276,22 +289,25 @@ def main():
     parser.add_argument("--sha", help="commit expected in build-info.json (not used by --check-directory)")
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--output", type=Path, default=Path(".maya-output/docs-browser"))
+    parser.add_argument("--package-name", default="hlib", help="対象のコアパッケージ名")
+    parser.add_argument("--docs-conf", type=Path, help="対象のdocs/conf.py。省略時はパッケージ名から解決")
     args = parser.parse_args()
     if not args.check_directory and not args.sha:
         parser.error("--sha is required unless --check-directory is used")
-    pin = read_mermaid_pin()
+    conf_path = args.docs_conf or DOCS_CONF.parents[2] / args.package_name / "docs/conf.py"
+    pin = read_mermaid_pin(conf_path)
     if args.check_directory:
-        pages = check_built_html(args.check_directory, pin)
+        pages = check_built_html(args.check_directory, pin, args.package_name)
         print(f"Verified {pages} HTML pages: Mermaid is loaded only from {pin['src']} "
               "with the SRI pinned in docs/conf.py, and is not bundled.")
         return
     if args.stamp_directory:
-        stamp(args.stamp_directory, args.sha)
+        stamp(args.stamp_directory, args.sha, args.package_name)
         return
     server = None
     try:
         if args.directory:
-            check_built_html(args.directory, pin)
+            check_built_html(args.directory, pin, args.package_name)
             handler = functools.partial(SimpleHTTPRequestHandler, directory=str(args.directory.resolve()))
             server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
             threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -299,7 +315,7 @@ def main():
         else:
             base = args.url.rstrip("/") + "/"
         wait_for_release(base, args.sha, args.timeout)
-        check_browser(base, args.output, pin)
+        check_browser(base, args.output, pin, args.package_name)
         message = f"Verified commit {args.sha}: publication files and 8 Chromium click cases passed."
         print(message)
         if os.environ.get("GITHUB_STEP_SUMMARY"):

@@ -263,7 +263,7 @@ class ArrayPlug(Plug):
         Returns:
             int: 追加した論理インデックス。途中の穴は再利用しない。
         """
-        from hlib.plugs.plug import MAX_LOGICAL_INDEX
+        from ..plugs.plug import MAX_LOGICAL_INDEX
         from ..nodes.node import Node
         self._require_valid()
         if not self._mplug.attribute().hasFn(om2.MFn.kMessageAttribute):

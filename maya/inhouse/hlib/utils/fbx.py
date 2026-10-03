@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from maya import cmds, mel
-from hlib.environment import Plugin
+from ..environment import Plugin
 
 
 def _path(value, existing=False):
@@ -74,7 +74,7 @@ def exportFbx(path, selection=None, overwrite=False, animation=True):
     Note:
         FBXのAnimation設定と選択を復元する。他のFBX設定は現在値を使う。
     """
-    from hlib.nodes.node import Node as _InputNode
+    from ..nodes.node import Node as _InputNode
     target = _path(path)
     if target.exists() and not overwrite:
         raise FileExistsError(str(target))

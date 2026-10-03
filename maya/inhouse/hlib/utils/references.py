@@ -22,7 +22,7 @@ def listReferences(top_level_only=False):
     """
     # nodes.reference が ..namespaces を逆方向 import しないが、
     # hlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
-    from hlib.nodes.reference import Reference
+    from ..nodes.reference import Reference
 
     names = [name for name in (cmds.ls(type="reference") or []) if name != _SHARED_REFERENCE_NODE]
     references = [Reference(name) for name in names]
@@ -48,7 +48,7 @@ def createReference(path, namespace=None):
         RuntimeError: Maya が参照の作成に失敗した、または作成された参照ノードを
             一意に特定できない場合。
     """
-    from hlib.nodes.reference import Reference
+    from ..nodes.reference import Reference
 
     if not isinstance(path, (str, Path)) or not str(path):
         raise ValueError("path must be a non-empty string or Path")

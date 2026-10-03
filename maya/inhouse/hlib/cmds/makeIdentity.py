@@ -23,7 +23,7 @@ def makeIdentity(*args, **kwargs):
 
 
     """
-    from hlib.object import Object as _InputObject
+    from ..object import Object as _InputObject
     from ..nodes.node import Node
 
     names = _InputObject._input_names(args)

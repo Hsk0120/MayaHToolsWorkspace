@@ -63,7 +63,7 @@ class SkinCluster(Node):
         Returns:
             SkinCluster: 作成したskinCluster。
         """
-        from hlib.nodes.node import Nodes as _InputNodes
+        from ..nodes.node import Nodes as _InputNodes
         mesh = Node(mesh)
         influences = [Node(n) for n in _InputNodes._resolve_inputs(influences)]
         if not influences or type(max_influences) is not int or max_influences < 1:
@@ -181,7 +181,7 @@ class SkinCluster(Node):
         Returns:
             om2.MIntArray: 指定順の物理インデックス配列。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self.fn.influenceObjects()))
 
     def _influence_indices(self, joints, influences):
@@ -241,7 +241,7 @@ class SkinCluster(Node):
 
         既存ウェイトの再配分や正規化は行わず、既存のロック設定も変更しない。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
 
         existing = {Node(path.node()).uuid() for path in self.fn.influenceObjects()}
         names = []
@@ -400,7 +400,7 @@ class SkinCluster(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         joints = _InputObject._input_names(joints)
         influences = self.fn.influenceObjects()
         physical_indices = self._influence_indices(joints, influences)
@@ -594,7 +594,7 @@ class SkinCluster(Node):
             TypeError: ペアが反復可能でない、または未対応の参照型の場合。
             RuntimeError: 接続ノード名・型名からスキニングレイヤーを検出した場合、または Maya 操作に失敗した場合。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
         self._raise_if_layers()
 
         pairs = []

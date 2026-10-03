@@ -158,7 +158,7 @@ class BlendMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         index = _Calculation.index(index)
         source, weight = _InputPlug._resolve_input(source), _Calculation.scalar(weight)
         target = self.plug("target")._element_reference(index)

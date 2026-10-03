@@ -1,6 +1,6 @@
 """Maya の依存ノードと DAG ノードを扱う基底ラッパー。"""
 
-from hlib.object import Object
+from ..object import Object
 
 import contextlib
 import inspect
@@ -43,8 +43,8 @@ def _resolve_node(node):
         RuntimeError: 名前を解決できない(存在しない、または複数の対象に一致する)場合、
             または空・無効な(削除済みの)ラッパーや om2 オブジェクトを指定した場合。
     """
-    from hlib.plugs.plug import Plug as _InputPlug
-    from hlib.plugs.plug import DeletedAttributeError
+    from ..plugs.plug import Plug as _InputPlug
+    from ..plugs.plug import DeletedAttributeError
     if isinstance(node, str):
         selection = om2.MSelectionList()
         try:
@@ -150,7 +150,7 @@ def _query_target(other):
         RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
             または空の MObject・MPlug の場合。
     """
-    from hlib.plugs.plug import DeletedAttributeError
+    from ..plugs.plug import DeletedAttributeError
 
     try:
         node = Node._resolve_input(other)
@@ -406,8 +406,8 @@ class Node(Object):
             RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
                 または空・削除済みのノードを指す om2 オブジェクトの場合(``Node(value)`` と同じ)。
         """
-        from hlib.object import Object as _InputObject
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..object import Object as _InputObject
+        from ..plugs.plug import Plug as _InputPlug
         node_class, plug_class, component_class, components_class = _InputObject._classes()
         if isinstance(value, node_class):
             return value
@@ -442,7 +442,7 @@ class Node(Object):
                 含む)対象の場合。
             RuntimeError: 文字列を解決できない(存在しない、または複数のノードに一致する)場合。
         """
-        from hlib.object import Object as _InputObject
+        from ..object import Object as _InputObject
         # 型と有効性の検査は Object._input_name と同じ規則(TypeError / ValueError)にそろえる。
         _InputObject._input_name(value)
         return Node._resolve_input(value).fullName()
@@ -515,7 +515,7 @@ class Node(Object):
 
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
-        from hlib.environment import Plugin
+        from ..environment import Plugin
         Plugin.ensureNodePlugin(type)
         for key in ("parent", "p"):
             if kwargs.get(key) is not None:
@@ -911,7 +911,7 @@ class Node(Object):
         """
         # namespaces.namespace が ..nodes を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from hlib.scene import Namespace
+        from ..scene import Namespace
 
         nodeName = self.nodeName()
         if ":" not in nodeName:
@@ -966,7 +966,7 @@ class Node(Object):
             RuntimeError: namespace移動に失敗した場合。
         """
         # namespaces.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
-        from hlib.scene import Namespace
+        from ..scene import Namespace
 
         if isinstance(namespace, Namespace):
             target_namespace = namespace
@@ -997,7 +997,7 @@ class Node(Object):
         Returns:
             list[Plug]: 接続先の外部Plugを重複なしで格納したリスト。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import Plug as _InputPlug
         # plugs.plug が ..nodes.node を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
         from ..plugs.plug import Plug
@@ -1283,8 +1283,8 @@ class Node(Object):
             ValueError: 照会・編集、または名前の指定が不正な場合。
             RuntimeError: Mayaが追加を拒否した場合。
         """
-        from hlib.object import Object as _InputObject
-        from hlib.plugs.plug import Plug as _InputPlug
+        from ..object import Object as _InputObject
+        from ..plugs.plug import Plug as _InputPlug
 
         if kwargs.get("query") or kwargs.get("edit"):
             raise ValueError("addAttr supports creation only")
@@ -1431,8 +1431,8 @@ class Node(Object):
                 2147483647 を超える場合(``input1D[4294967296]`` のような番号を別の要素へ
                 読み替えない)も含む。
         """
-        from hlib.plugs.plug import Plug as _InputPlug
-        from hlib.plugs.plug import MAX_LOGICAL_INDEX
+        from ..plugs.plug import Plug as _InputPlug
+        from ..plugs.plug import MAX_LOGICAL_INDEX
         if not isinstance(name, str) or not name:
             raise ValueError("name には空でないアトリビュートパスを指定してください")
         if not self.isValid():

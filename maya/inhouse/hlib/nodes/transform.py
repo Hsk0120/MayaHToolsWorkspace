@@ -154,8 +154,8 @@ class Transform(DagNode):
         typeはtyp、maintainOffsetはmoでも指定可能。同時指定はTypeError。
         maintainOffsetはparent/point/orient/scale/aim以外では使用しない。
         """
-        from hlib.nodes.node import Node as _InputNode
-        from hlib.nodes.node import Nodes as _InputNodes
+        from ..nodes.node import Node as _InputNode
+        from ..nodes.node import Nodes as _InputNodes
         from .constraint import Constraint
 
         if not isinstance(type, str):
@@ -732,7 +732,7 @@ class Transform(DagNode):
         maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
         shearの一致や行列全体のコピーは保証しない。
         """
-        from hlib.nodes.node import Node as _InputNode
+        from ..nodes.node import Node as _InputNode
 
         target = _InputNode._resolve_input(target)
         if not isinstance(target, Transform):

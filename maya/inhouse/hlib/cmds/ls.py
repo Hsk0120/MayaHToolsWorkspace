@@ -95,8 +95,8 @@ def ls(*args, **kwargs):
 
     ノード・アトリビュート名を返す検索用（アトリビュートはPlug）。コンポーネント・型名等を返すMayaフラグは
     ラッパー化できない場合がある。検索結果が空なら空コレクションまたは空リスト。"""
-    from hlib.nodes.node import Nodes as _InputNodes
-    from hlib.object import Object as _InputObject
+    from ..nodes.node import Nodes as _InputNodes
+    from ..object import Object as _InputObject
     from ..nodes import Joints, Node, SkinClusters
 
     targets = []
