@@ -1,4 +1,5 @@
 """同梱の外部SDKと対応バイナリがある場合にサンプルを実機検証する。"""
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -9,6 +10,32 @@ import hlib
 
 ROOT = Path(__file__).resolve().parents[4]
 EXTERNAL = ROOT / 'maya/external/PoseDriverConnect'
+
+
+def _isTrustedLocation(folder):
+    """GUIでプラグインを警告なしにロードできる場所か返す。
+
+    GUIでは信頼済みの場所(Preferences > Security > Plug-ins)に無いフォルダーのプラグインをロードすると、
+    警告ダイアログで処理が止まる。信頼済みの場所はスクリプトから登録できない(SafeModeが拒否する)ため、
+    未登録ならロードせずにテストをskipする。mayapy(バッチ)では警告が出ない。
+
+    Args:
+        folder (Path): プラグインのフォルダー。
+
+    Returns:
+        bool: バッチ実行中、または信頼済みの場所に登録済みなら True。
+    """
+    if cmds.about(batch=True):
+        return True
+    if not cmds.optionVar(exists="SafeModeAllowedlistPaths"):
+        return False
+    value = cmds.optionVar(query="SafeModeAllowedlistPaths")
+    paths = value if isinstance(value, (list, tuple)) else [value]
+
+    def normalize(path):
+        return os.path.normpath(str(path)).replace("\\", "/").rstrip("/").lower()
+
+    return normalize(folder) in {normalize(path) for path in paths}
 
 
 class PoseDriverConnectTest(unittest.TestCase):
@@ -30,6 +57,8 @@ class PoseDriverConnectTest(unittest.TestCase):
             binary = EXTERNAL / 'plug-ins/windows' / str(cmds.about(version=True)).split('.')[0] / 'MayaUERBFPlugin.mll'
             if not binary.exists():
                 self.skipTest('Wrapper registration passed; matching Maya plugin binary not installed')
+            if not _isTrustedLocation(binary.parent):
+                self.skipTest('Wrapper registration passed; plugin location is not trusted in this GUI session')
             # 本テストだけが外部標準製品のプラグインを明示的にロードする。
             cmds.loadPlugin(str(binary), quiet=True)
             solver = hlib.createNode('UERBFSolverNode', name='hlibTestRBF_' + uuid.uuid4().hex)

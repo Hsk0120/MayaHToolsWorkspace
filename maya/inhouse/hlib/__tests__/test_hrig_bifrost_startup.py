@@ -64,7 +64,10 @@ class InitializeTest(unittest.TestCase):
         self.addCleanup(env.stop)
 
     def test_batch_session_does_nothing(self):
-        with mock.patch.object(self.mod.hlib, "executeDeferred") as deferred:
+        # GUI 内で実行しても検証できるよう、バッチ状態をモックで固定する。
+        batch = mock.Mock()
+        batch.about.return_value = True
+        with mock.patch.object(self.mod, "cmds", batch),                 mock.patch.object(self.mod.hlib, "executeDeferred") as deferred:
             self.mod.initialize()
         deferred.assert_not_called()
         self.assertFalse(self.mod._scheduled)

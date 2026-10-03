@@ -4,15 +4,30 @@
 
 ## 実行
 
-### 全バージョンを専用GUIで実行
+### 全バージョンを専用GUIで実行（Mayaの起動は不要）
 
 ```powershell
 & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/run_hlib_gui_versions.py --allow-missing
+
+# スイート・バージョンを限定
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/run_hlib_gui_versions.py --suite unit --versions 2027
 ```
 
-Maya 2022～2027を順番に起動します。各GUIは専用の設定・一時フォルダーを使用し、commandPortは使用しません。テスト終了後は、このランナーが起動したMayaだけを終了します。`--versions 2024 2027`で対象を限定できます。GUI版の起動に必要なライセンス認証は通常どおり必要です。
+Maya 2022～2027を順番に起動します。Mayaを事前に起動しておく必要はありません。各GUIは専用の設定・一時フォルダーを使用し、commandPortは使用しません。普段使っているMayaが起動中でも影響しません。テスト終了後は、このランナーが起動したMayaだけを終了します。`--versions 2024 2027`で対象を限定できます。GUI版の起動に必要なライセンス認証は通常どおり必要です。
 
-結果は`.maya-output/gui-version-tests/<日時>/summary.json`、各バージョンの`result.json`・ログ・PNGに保存します。起動失敗やライセンスエラーで結果を取得できない場合は成功扱いにしません。`--timeout`は起動・テストの各段階の制限秒数（既定240秒）、`--shutdown-timeout`はテスト後の終了待ち秒数（既定120秒。Mayaのメモリ解放に十数秒かかるため）です。外側のPythonが監視するため、Mayaがモーダルダイアログで停止しても期限は進みます。超過時はランナーが起動したPIDと子プロセスだけを終了し、`monitor.json`へ段階・停止結果を保存します。`--allow-missing`は未インストールだけを終了コードの失敗判定から除外し、テスト失敗・起動失敗は除外しません。画像の目視確認と手動操作は下記の確認対象に従って別途記録します。
+`--suite`で実行内容を選びます。スイートごとに使い捨てのGUIを1回起動します。
+
+| `--suite` | 内容 |
+| --- | --- |
+| `all`（既定） | `unit`と`visual`の両方 |
+| `unit` | `hlib/__tests__`の単体テスト一式（`run_all_tests.py`、`tools/run_hlib_unit_gui_tests.py`経由）。mayapyではskipされるGUI専用ケース、`test_scene_ui.py`、使い捨てGUI専用の`test_window_layout.py`のウィンドウ配置テストも実行する |
+| `visual` | 下記の実パネル適用・画像保存スイート（`run_hlib_gui_tests.py`） |
+
+`unit`はシーンの新規作成やウィンドウ配置の変更を行うため、ランナーが設定する`HLIB_DISPOSABLE_GUI=1`が無いと実行を拒否します。普段使うGUIへ送信しないでください。
+
+専用GUIは毎回新しい設定フォルダーを使うため、信頼済みのプラグインの場所が登録されていません。GUIで未登録の場所のプラグインをロードすると「Untrusted Plugin Loading」の警告ダイアログで停止します（登録はSafeModeによりスクリプトから行えません）。そのため、ワークスペース内の外部プラグインをロードするテスト（`test_posedriverconnect_extension.py`）は、GUIで場所が未登録ならロードせずにskipします。ロード自体はmayapyのテスト（警告が出ない）で確認します。新しくテストでワークスペース内のプラグインをロードする場合も同じ扱いにしてください。万一ダイアログで止まった場合はクリックせず、`--timeout`で打ち切られるのを待つか、`launch.json`のPIDだけを終了してください。
+
+結果は`.maya-output/gui-version-tests/<日時>/summary.txt`・`summary.json`、各バージョン・スイートの`<年>/<スイート>/result.json`・ログ・PNGに保存します。起動失敗やライセンスエラーで結果を取得できない場合は成功扱いにしません。`--timeout`は起動・テストの各段階の制限秒数（既定600秒）、`--shutdown-timeout`はテスト後の終了待ち秒数（既定120秒。Mayaのメモリ解放に十数秒かかるため）です。外側のPythonが監視するため、Mayaがモーダルダイアログで停止しても期限は進みます。超過時はランナーが起動したPIDと子プロセスだけを終了し、`monitor.json`へ段階・停止結果を保存します。`--allow-missing`は未インストールだけを終了コードの失敗判定から除外し、テスト失敗・起動失敗は除外しません。画像の目視確認と手動操作は下記の確認対象に従って別途記録します。
 
 専用の`userPrefs.mel`では`SafeModeExecUserSetupScript=0`とし、追加のuserSetupを実行しません。このファイルは先頭に`//Maya Preference <年> (Release 1)`行と`optionVar -version 3;`が無いとMayaに無視され、既定値(実行する)になって、標準プラグイン(MASH等)の`userSetup.py`に対する「Secure UserSetup Checksum verification」ダイアログが終了時に出てMayaが終了できなくなります(ヘッダーは必須)。チェックサム確認を無効化してスクリプトを信頼する設定ではありません。普段使う設定は変更しません。終了前には使い捨てシーンの変更済みフラグを解除し、Pythonコールバックを抜けてからMELの`quit -abort`で終了します。途中で手動クリックした場合、その回を無人実行成功とは記録しないでください。
 

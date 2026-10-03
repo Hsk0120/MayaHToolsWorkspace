@@ -55,7 +55,7 @@ Pythonからも`python tools/run_hlib_tests.py --versions 2027`として実行�
 
 | ファイル | 理由 |
 | --- | --- |
-| `test_scene_ui.py` | 実GUIのパネルが必要 |
+| `test_scene_ui.py` | 実GUIのパネルが必要（専用GUIランナーの`unit`スイートで実行） |
 | `test_command_discovery.py` | 既存一括ランナーの除外対象。別プロセス専用テスト |
 | `test_maya_standalone.py` | 既存の手動疎通用スクリプト |
 | `test_slack_postMessage.py` | 実際に外部へメッセージを送信するため |
@@ -63,7 +63,7 @@ Pythonからも`python tools/run_hlib_tests.py --versions 2027`として実行�
 個々のテスト内でもGUI専用ケースなどがskipされることがあります。詳細ログの`skipped`を確認してください。
 Maya 2022では`playbackOptions`自体がUndo履歴を作らないため、タイムライン範囲変更(`TimeSlider.setPlaybackRange`/
 `setAnimationRange`)はこのバージョンに限りUndo/Redoできません(Mayaネイティブの制限で、hlibは独自プラグインでは補いません)。
-GUI操作の確認は対象バージョンのMayaで別途行います。一括テストはシーンを新規作成するテストを含むため、GUIへ送る場合は未保存の作業がない状態で実行してください。
+GUI専用のケースと`test_scene_ui.py`は、Mayaを起動していなくても`tools/run_hlib_gui_versions.py --suite unit`で使い捨てのGUIを起動して実行できます（[GUI検証](hlib-gui-testing.md)）。一括テストはシーンを新規作成するテストを含むため、起動中のGUIへ送る場合は未保存の作業がない状態で実行してください。
 
 ## 結果
 

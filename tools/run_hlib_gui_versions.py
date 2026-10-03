@@ -1,4 +1,11 @@
-"""専用設定のMaya GUIをバージョンごとに起動し、GUIスイートを実行する。"""
+"""専用設定のMaya GUIをバージョンごとに起動し、GUIテストを実行する。
+
+起動済みのMayaは不要。各スイートは使い捨てのGUIを1回ずつ起動し、終了後にそのGUIだけを終了する。
+
+- ``unit``: hlib/__tests__ の単体テスト一式(``run_all_tests.py``)。GUI専用ケースと test_scene_ui.py を含む。
+- ``visual``: 実パネルへの適用と画像保存を行う ``run_hlib_gui_tests.py``。
+- ``all``: 上記の両方(既定)。
+"""
 import argparse
 import datetime
 import json
@@ -10,6 +17,16 @@ import time
 import traceback
 
 from run_hlib_tests import ROOT, VERSIONS, isolated_environment, maya_executable, write_json
+
+#: スイート名と (Maya内で実行するファイル, 追加の環境変数)。
+SUITES = {
+    "unit": ("tools/run_hlib_unit_gui_tests.py", {
+        # 使い捨てGUIだけで実行するテスト(シーンの新規作成・ウィンドウ配置の変更)を有効にする。
+        "HLIB_DISPOSABLE_GUI": "1",
+        "HLIB_WINDOW_LAYOUT_TEST": "1",
+    }),
+    "visual": ("tools/run_hlib_gui_tests.py", {}),
+}
 from _maya_test_process import monitor_process, stop_owned_process
 
 
@@ -115,34 +132,65 @@ def run_version(version, directory, install_root, timeout, shutdown_timeout=120,
     return result
 
 
+def combine(version, results):
+    """スイートごとの結果を1バージョンの結果にまとめる。"""
+    statuses = [result["status"] for result in results.values()]
+    if all(status == "missing" for status in statuses):
+        status = "missing"
+    elif all(status == "passed" for status in statuses):
+        status = "passed"
+    elif "timeout" in statuses:
+        status = "timeout"
+    elif "error" in statuses:
+        status = "error"
+    else:
+        status = "failed"
+    return {"requested_version": version, "status": status, "suites": results}
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--versions", nargs="+", choices=VERSIONS, default=list(VERSIONS))
+    parser.add_argument("--suite", choices=("all",) + tuple(SUITES), default="all",
+                        help="実行するスイート(既定: all)")
     parser.add_argument("--install-root", type=Path, default=Path(os.environ.get("ProgramFiles", "C:/Program Files")) / "Autodesk")
-    parser.add_argument("--timeout", type=int, default=240)
+    parser.add_argument("--timeout", type=int, default=600, help="起動・テストの各段階の制限秒数")
     parser.add_argument("--shutdown-timeout", type=int, default=120)
     parser.add_argument("--allow-missing", action="store_true")
     args = parser.parse_args()
     if args.timeout <= 0 or args.shutdown_timeout <= 0:
         parser.error("timeouts must be positive")
+    suites = list(SUITES) if args.suite == "all" else [args.suite]
     output = ROOT / ".maya-output/gui-version-tests" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     output.mkdir(parents=True)
     print("GUI results: " + str(output), flush=True)
     results = []
+    lines = ["Maya\tSuite\tStatus\tFailed files"]
     for version in dict.fromkeys(args.versions):
-        print("Maya {} GUI: starting".format(version), flush=True)
-        try:
-            result = run_version(version, output / version, args.install_root, args.timeout, args.shutdown_timeout)
-        except Exception:
-            result = {"requested_version": version, "status": "error", "error": traceback.format_exc()}
-        results.append(result)
-        write_json(output / version / "run-result.json", result)
+        suite_results = {}
+        for name in suites:
+            path, environment = SUITES[name]
+            print("Maya {} GUI {}: starting".format(version, name), flush=True)
+            try:
+                result = run_version(version, output / version / name, args.install_root, args.timeout,
+                                     args.shutdown_timeout, suite_path=ROOT / path, environment=environment)
+            except Exception:
+                result = {"requested_version": version, "status": "error", "error": traceback.format_exc()}
+            result["suite"] = name
+            suite_results[name] = result
+            write_json(output / version / name / "run-result.json", result)
+            print("Maya {} GUI {}: {}".format(version, name, result["status"]), flush=True)
+            lines.append("{}\t{}\t{}\t{}".format(version, name, result["status"],
+                                                  ", ".join(result.get("failed_files", []))))
+            if result["status"] == "missing":
+                break
+        results.append(combine(version, suite_results))
         write_json(output / "summary.json", results)
-        print("Maya {} GUI: {}".format(version, result["status"]), flush=True)
+    (output / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines), flush=True)
     if any(r["status"] not in ("passed", "missing") for r in results):
         return 1
     return 0 if args.allow_missing or all(r["status"] == "passed" for r in results) else 2
-
 
 if __name__ == "__main__":
     sys.exit(main())

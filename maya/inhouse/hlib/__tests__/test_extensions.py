@@ -1,5 +1,6 @@
 """任意拡張の自動検出・依存不在・衝突・再読み込みを検証する。"""
 import importlib
+import os
 from pathlib import Path
 import sys
 import subprocess
@@ -7,6 +8,24 @@ import tempfile
 import unittest
 
 import hlib
+
+
+def mayapy_executable():
+    """子プロセス用の mayapy を返す。
+
+    Maya GUI 内では ``sys.executable`` が maya.exe になり、``-c`` を渡すと新しい GUI が起動してしまうため、
+    同じフォルダーの mayapy を使う。見つからなければテストを skip する。
+
+    Returns:
+        str: mayapy のパス。
+    """
+    executable = Path(sys.executable)
+    if executable.stem.lower() == "mayapy":
+        return str(executable)
+    candidate = executable.with_name("mayapy.exe" if os.name == "nt" else "mayapy")
+    if not candidate.is_file():
+        raise unittest.SkipTest("mayapy が見つからない: {}".format(candidate))
+    return str(candidate)
 
 
 class ExtensionsTest(unittest.TestCase):
@@ -28,7 +47,7 @@ import hlib_bifrost
 assert hlib_bifrost is not old
 maya.standalone.uninitialize()
 '''
-        result = subprocess.run([sys.executable, '-c', script],
+        result = subprocess.run([mayapy_executable(), '-c', script],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout.decode(errors='replace'))

@@ -1022,7 +1022,8 @@ class PlugCreationSideEffectTest(_InteropCase):
         cmds.getAttr(choice.name() + ".output")
 
         def count():
-            return mel.eval("global int $%s; $tmp = $%s;" % (counter, counter))
+            # GUI では $tmp などの一般的な名前が別の型のグローバル変数として既に存在するため、固有の名前で読む。
+            return int(mel.eval("global int $%s; $%s_read = $%s;" % (counter, counter, counter)))
 
         cmds.setAttr(source.plug("tx"), 5.0)
         before = count()
@@ -1073,7 +1074,8 @@ class PlugCreationSideEffectTest(_InteropCase):
             chains[label] = downstream
 
         def count():
-            return mel.eval("global int $%s; $tmp = $%s;" % (counter, counter))
+            # GUI では $tmp などの一般的な名前が別の型のグローバル変数として既に存在するため、固有の名前で読む。
+            return int(mel.eval("global int $%s; $%s_read = $%s;" % (counter, counter, counter)))
 
         for label, expected in (("unitConversion", Plug), ("choice", None)):
             with self.subTest(source=label):
