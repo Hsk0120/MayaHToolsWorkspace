@@ -159,6 +159,7 @@ private:
         RangeMove,   ///< レンジスライダーの範囲(長さを保って移動)。
         PaneMain,    ///< 1本目(左)の映像の上の中ボタン。1本目だけを動かす(2本目の表示は動かさない)。
         PaneCompare, ///< 2本目(右)の映像の上の中ボタン。2本目のオフセットを変える。
+        KeyScrub,    ///< Kを押しながら映像の上を左ドラッグ(Mayaの仮想タイムスライダー)。現在のフレームを動かす。
     };
 
     /**
@@ -407,6 +408,16 @@ private:
     void onMiddleButtonDown(int x, int y);
 
     /**
+     * @brief Kを押しながら映像の上で左ボタンが押されたら、現在のフレームを動かすドラッグを始める(Mayaの仮想タイムスライダー)。
+     * @param x クライアント座標のx。
+     * @param y クライアント座標のy。
+     * @return ドラッグを始めたらtrue(押した位置が映像の外・Kを押していない・動画が無いときはfalse)。
+     * @note 押した位置からの左右の距離でコマを動かす(中ボタンのドラッグと同じ距離で1コマ)。比較中は2本とも
+     *       オフセットを保って動く。再生中なら押した時点で止め、離したら再生を続ける。
+     */
+    bool beginKeyScrub(int x, int y);
+
+    /**
      * @brief 映像の上の中ボタンドラッグ中か。
      * @return Drag::PaneMainかDrag::PaneCompareならtrue。
      */
@@ -422,6 +433,7 @@ private:
 
     /**
      * @brief マウスの左ボタンのダブルクリック。レンジスライダー上なら、動画全体と直前の再生範囲を切り替える(Mayaと同じ)。
+     *        映像の上なら、フルスクリーンを切り替える。
      * @param x クライアント座標のx。
      * @param y クライアント座標のy。
      */
@@ -485,6 +497,19 @@ private:
      * @note メニューは選ぶか閉じるまで戻らない(Windows標準のメニュー)。
      */
     void showFileMenu();
+
+    /**
+     * @brief 右クリックのメニュー(再生/停止・フルスクリーン)を出し、選ばれた項目を実行する。
+     * @param screenPoint メニューを出す位置(画面座標)。キーボードから開いたとき(x・yとも-1)はマウスの位置に出す。
+     */
+    void showContextMenu(POINT screenPoint);
+
+    /**
+     * @brief フルスクリーン表示と通常のウィンドウを切り替える。
+     * @note フルスクリーンは、枠とタイトルバーを外して、ウィンドウがあるモニター全体を覆う(操作部はそのまま表示する)。
+     *       戻すときは、フルスクリーンにする前の位置・大きさ・最大化の状態に戻す。
+     */
+    void toggleFullscreen();
 
     /**
      * @brief Windowsのファイル選択画面で動画を選ばせる。
@@ -693,6 +718,8 @@ private:
     HANDLE lowMemory_ = nullptr;         ///< 主メモリの不足を知る仕組み(CreateMemoryResourceNotification)。
     bool appActive_ = true;              ///< このアプリが前面にあるか。
     bool minimized_ = false;             ///< 最小化されているか。
+    bool fullscreen_ = false;            ///< フルスクリーン表示中か。
+    WINDOWPLACEMENT windowedPlacement_{sizeof(WINDOWPLACEMENT)};  ///< フルスクリーンにする前の位置・大きさ(戻すときに使う)。
     bool dormant_ = false;               ///< 休止中か。
     ULONGLONG inactiveSinceMs_ = 0;      ///< 前面でなくなった時刻(GetTickCount64)。
     ULONGLONG minimizedSinceMs_ = 0;     ///< 最小化された時刻(GetTickCount64)。

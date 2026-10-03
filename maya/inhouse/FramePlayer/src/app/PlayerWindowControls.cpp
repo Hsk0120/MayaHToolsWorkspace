@@ -559,6 +559,16 @@ void PlayerWindow::onKeyDown(WPARAM key) {
         }
         return;
     }
+    // Ctrl+F: フルスクリーンの切り替え。
+    if (key == 'F' && GetKeyState(VK_CONTROL) < 0) {
+        toggleFullscreen();
+        return;
+    }
+    // Esc: フルスクリーン中なら元のウィンドウに戻す(再生は続ける)。
+    if (key == VK_ESCAPE && fullscreen_) {
+        toggleFullscreen();
+        return;
+    }
     // [ ]: 比較中の2本目のオフセットを1コマ(Shift併用で10コマ)変える。
     if ((key == VK_OEM_4 || key == VK_OEM_6) && compareClip_) {
         const int amount = shift ? kCompareLargeShift : 1;
@@ -584,6 +594,13 @@ void PlayerWindow::onKeyDown(WPARAM key) {
     }
     if (key == VK_SPACE) {
         togglePlayback();
+        return;
+    }
+    // Esc: 再生を止める(Mayaと同じ)。止まっているときは何もしない(フルスクリーン中は上で元に戻す)。
+    if (key == VK_ESCAPE) {
+        if (view_.isPlaying()) {
+            togglePlayback();
+        }
         return;
     }
     const int current = view_.currentFrame();
@@ -638,6 +655,9 @@ void PlayerWindow::stepFrame(int delta) {
 void PlayerWindow::onLeftButtonDown(int x, int y) {
     if (editField_ != EditField::None) {
         commitEdit();  // 入力中に他の所を押したら、入力を確定する。
+    }
+    if (beginKeyScrub(x, y)) {
+        return;
     }
     const Layout layout = computeLayout();
     const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
@@ -771,6 +791,29 @@ void PlayerWindow::onMiddleButtonDown(int x, int y) {
     SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
 }
 
+bool PlayerWindow::beginKeyScrub(int x, int y) {
+    // Kは文字のキーなので、押しているかはキーボードの状態で調べる(Mayaと同じく、Kを押している間だけ有効)。
+    if (!clip_ || drag_ != Drag::None || GetKeyState('K') >= 0) {
+        return false;
+    }
+    const Layout layout = computeLayout();
+    const POINT point{x, y};
+    if (!PtInRect(&layout.video, point)) {
+        return false;
+    }
+    drag_ = Drag::KeyScrub;
+    resumeAfterScrub_ = view_.isPlaying();
+    if (resumeAfterScrub_) {
+        togglePlayback();
+    }
+    paneDragX_ = x;
+    paneDragFrame_ = view_.currentFrame();
+    // 取り込み中はWM_SETCURSORが来ないので、ここで形を決める。
+    SetCapture(hwnd_);
+    SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
+    return true;
+}
+
 void PlayerWindow::onMouseMove(int x, int y) {
     if (drag_ == Drag::None) {
         // マウスが乗っている部品を明るくする。ウィンドウから出たときに戻せるよう、出たことの知らせを頼んでおく。
@@ -784,13 +827,17 @@ void PlayerWindow::onMouseMove(int x, int y) {
     switch (drag_) {
     case Drag::PaneMain:
     case Drag::PaneCompare:
+    case Drag::KeyScrub:
         if (clip_) {
             // 押した位置からの距離をコマ数にする(0の前後で幅が変わらないよう、負の側も同じ幅で区切る)。
             const int perFrame =
                 std::max(1, ui::scaled(kPaneDragPixelsPerFrame, static_cast<int>(GetDpiForWindow(hwnd_))));
             const int moved = x - paneDragX_;
             const int frames = moved >= 0 ? moved / perFrame : -((-moved + perFrame - 1) / perFrame);
-            if (drag_ == Drag::PaneCompare) {
+            if (drag_ == Drag::KeyScrub) {
+                // 現在のフレームを動かす(比較中の2本目もオフセットを保って一緒に動く)。
+                goToFrame(clampIndex(static_cast<long long>(paneDragFrame_) + frames), true);
+            } else if (drag_ == Drag::PaneCompare) {
                 if (compareClip_ && paneDragOffset_ + frames != view_.compareOffset()) {
                     shiftCompare(paneDragOffset_ + frames - view_.compareOffset());
                 }
@@ -902,11 +949,11 @@ const wchar_t* PlayerWindow::tooltipText(Part part) const {
     case Part::CurrentField:
         return L"現在のフレーム(押して番号を入力)";
     case Part::StartButton:
-        return L"再生範囲の最初へ (Home)";
+        return L"再生範囲の最初へ (Home / Alt+Shift+V)";
     case Part::PrevButton:
         return L"1フレーム戻る (← / Alt+,)";
     case Part::PlayButton:
-        return L"再生 / 停止 (Space)";
+        return L"再生 / 停止 (Space / Alt+V)";
     case Part::NextButton:
         return L"1フレーム進む (→ / Alt+.)";
     case Part::EndButton:
@@ -1013,6 +1060,11 @@ void PlayerWindow::onDoubleClick(int x, int y) {
         }
         return;
     }
+    // 映像の上のダブルクリックは、フルスクリーンの切り替え(一般的な動画プレイヤーと同じ)。
+    if (PtInRect(&layout.video, point)) {
+        toggleFullscreen();
+        return;
+    }
     // ダブルクリックの2回目も、普通のクリックとして扱う(ボタンの連打で取りこぼさないように)。
     onLeftButtonDown(x, y);
 }
@@ -1041,7 +1093,7 @@ bool PlayerWindow::updateCursor() {
 
 void PlayerWindow::endScrub() {
     const bool resume = resumeAfterScrub_;
-    if ((drag_ == Drag::Scrub || drag_ == Drag::PaneMain) && clip_) {
+    if ((drag_ == Drag::Scrub || drag_ == Drag::PaneMain || drag_ == Drag::KeyScrub) && clip_) {
         updateTitle();  // ドラッグ中は間引いていたので、離した位置にする。
     }
     if (drag_ != Drag::None) {

@@ -47,6 +47,8 @@ enum MenuCommand : UINT {
     kMenuClearRecent,
     kMenuAutoPlay,
     kMenuExit,
+    kMenuTogglePlayback,  ///< 右クリックのメニュー: 再生/停止。
+    kMenuFullscreen,      ///< 右クリックのメニュー: フルスクリーンの切り替え。
     kMenuRecentFirst = 100,  ///< 最近使ったファイルの1つ目(以降、順に番号を振る)。
 };
 
@@ -243,9 +245,26 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         onKeyDown(wParam);
         return 0;
     case WM_SYSKEYDOWN:
-        // Alt+, / Alt+. : 1コマ戻る/進む(Mayaと同じ)。それ以外のAltの組み合わせはWindowsに任せる。
+        // Mayaと同じAltの組み合わせ。それ以外はWindowsに任せる。
+        //   Alt+, / Alt+. : 1コマ戻る/進む
+        //   Alt+V         : 再生/停止(押しっぱなしで切り替わり続けないよう、キーリピートは無視する)
+        //   Alt+Shift+V   : 再生範囲の最初へ
         if (clip_ && (wParam == VK_OEM_COMMA || wParam == VK_OEM_PERIOD)) {
             stepFrame(wParam == VK_OEM_COMMA ? -1 : 1);
+            return 0;
+        }
+        if (clip_ && wParam == 'V') {
+            if (GetKeyState(VK_SHIFT) < 0) {
+                goToFrame(playFirst_);
+            } else if (!(lParam & (1 << 30))) {
+                togglePlayback();
+            }
+            return 0;
+        }
+        return DefWindowProcW(hwnd_, message, wParam, lParam);
+    case WM_SYSCHAR:
+        // 上で処理したAltの組み合わせは、Windowsに渡すとメニューのアクセスキーを探して見つからず、警告音が鳴る。
+        if (clip_ && (wParam == L',' || wParam == L'.' || wParam == L'v' || wParam == L'V')) {
             return 0;
         }
         return DefWindowProcW(hwnd_, message, wParam, lParam);
@@ -255,7 +274,8 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         }
         return 0;
     case WM_LBUTTONDBLCLK:
-        if (!paneDragging()) {
+        // Kを押しながら素早く押し直したときの2回目も、普通に押したのと同じにドラッグを始める。
+        if (!paneDragging() && !beginKeyScrub(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam))) {
             onDoubleClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         }
         return 0;
@@ -266,6 +286,12 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
     case WM_MBUTTONUP:
         if (paneDragging()) {
             endScrub();
+        }
+        return 0;
+    case WM_CONTEXTMENU:
+        // 右クリック(またはアプリケーションキー・Shift+F10)でメニューを出す。
+        if (drag_ == Drag::None) {
+            showContextMenu(POINT{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)});
         }
         return 0;
     case WM_SETCURSOR:
@@ -490,6 +516,56 @@ void PlayerWindow::showFileMenu() {
             openClip(path);
         }
         break;
+    }
+}
+
+void PlayerWindow::showContextMenu(POINT screenPoint) {
+    if (screenPoint.x == -1 && screenPoint.y == -1) {
+        GetCursorPos(&screenPoint);
+    }
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING | (clip_ ? 0 : MF_GRAYED), kMenuTogglePlayback,
+                view_.isPlaying() ? L"停止\tSpace" : L"再生\tSpace");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (fullscreen_ ? MF_CHECKED : 0), kMenuFullscreen, L"フルスクリーン\tCtrl+F");
+    const UINT command = static_cast<UINT>(TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+                                                          screenPoint.x, screenPoint.y, 0, hwnd_, nullptr));
+    DestroyMenu(menu);
+    switch (command) {
+    case kMenuTogglePlayback:
+        if (clip_) {
+            togglePlayback();
+        }
+        break;
+    case kMenuFullscreen:
+        toggleFullscreen();
+        break;
+    default:
+        break;
+    }
+}
+
+void PlayerWindow::toggleFullscreen() {
+    const LONG_PTR style = GetWindowLongPtrW(hwnd_, GWL_STYLE);
+    if (!fullscreen_) {
+        // 今のウィンドウがあるモニター全体(タスクバーも覆う)に広げる。戻せるよう、今の位置と最大化の状態を覚えておく。
+        MONITORINFO monitor{sizeof(MONITORINFO)};
+        if (!GetWindowPlacement(hwnd_, &windowedPlacement_) ||
+            !GetMonitorInfoW(MonitorFromWindow(hwnd_, MONITOR_DEFAULTTOPRIMARY), &monitor)) {
+            return;
+        }
+        fullscreen_ = true;
+        SetWindowLongPtrW(hwnd_, GWL_STYLE, style & ~static_cast<LONG_PTR>(WS_OVERLAPPEDWINDOW));
+        const RECT& r = monitor.rcMonitor;
+        SetWindowPos(hwnd_, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    } else {
+        // 枠を戻してから、覚えておいた位置・大きさ(最大化していたなら最大化)に戻す。
+        fullscreen_ = false;
+        SetWindowLongPtrW(hwnd_, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(hwnd_, &windowedPlacement_);
+        SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     }
 }
 
