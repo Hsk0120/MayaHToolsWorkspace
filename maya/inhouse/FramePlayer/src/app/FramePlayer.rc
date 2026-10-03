@@ -1,0 +1,6 @@
+#pragma code_page(65001)
+// FramePlayer.exe に埋め込むリソース。
+// アイコンの元は resources/icon/*.svg。.ico の作り直しは README の「アイコン」を参照。
+#include "Resource.h"
+
+IDI_APP_ICON ICON "../../resources/icon/FramePlayer.ico"

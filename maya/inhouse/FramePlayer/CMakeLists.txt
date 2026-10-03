@@ -32,6 +32,7 @@ add_executable(FramePlayer WIN32
     src/app/SyncAuth.cpp
     src/app/Ui.cpp
     src/app/Settings.cpp
+    src/app/FramePlayer.rc
 )
 target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi dwmapi comctl32 uxtheme ws2_32 bcrypt)
 

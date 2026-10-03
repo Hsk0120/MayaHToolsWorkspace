@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FramePlayer のアイコン(24px用)。24 x 24 の座標 = 1単位が1画素。目盛りは潰れるので描かない。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <rect x="1" y="1" width="22" height="22" rx="5" ry="5" fill="#FF8232"/>
+  <path d="M6 4 H17 V7 H10 V10 H15 V13 H10 V16 H6 Z" fill="#FFFFFF"/>
+  <rect x="4" y="18" width="16" height="2" fill="#1C1C1C"/>
+</svg>

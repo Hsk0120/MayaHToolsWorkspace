@@ -6,6 +6,7 @@
 
 #include "core/Util.h"
 
+#include "app/Resource.h"
 #include "app/Settings.h"
 #include "core/TraceLog.h"
 #include "app/Ui.h"
@@ -61,7 +62,10 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     wc.lpfnWndProc = &PlayerWindow::windowProc;
     wc.hInstance = instance;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    // アプリのアイコン(resources/icon のSVGから作った .ico をexeに埋め込んである)。大きい方はタスクバーと
+    // Alt+Tab、小さい方はタイトルバーに使われる。画面の拡大率に合う大きさを選んで読む。
+    LoadIconMetric(instance, MAKEINTRESOURCEW(IDI_APP_ICON), LIM_LARGE, &wc.hIcon);
+    LoadIconMetric(instance, MAKEINTRESOURCEW(IDI_APP_ICON), LIM_SMALL, &wc.hIconSm);
     wc.lpszClassName = kClassName;
     wc.style = CS_DBLCLKS;  // レンジスライダーのダブルクリック(全体と直前の範囲の切り替え)を受け取る。
     // 背景はpaint()で塗るので、ここでは指定しない(ちらつき防止)。

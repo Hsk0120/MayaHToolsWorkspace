@@ -252,6 +252,26 @@ cmake --install build --config Release
 
 ランタイムを静的リンクしているので、依存するのはWindows標準のDLLだけで、exe単体で配布できる。
 
+### アイコン
+
+アイコンの元は `resources/icon/` のSVG(図形とパスだけで描く)。サイズごとに画素の升目に合わせて描き分けている。
+
+| ファイル | 使うサイズ | 座標 |
+| --- | --- | --- |
+| `FramePlayer.svg` | 32px以上 | 256×256。32pxで1画素=8単位なので、形の端を8の倍数に揃える |
+| `FramePlayer-24.svg` | 24px | 24×24(1単位=1画素)。目盛りは省く |
+| `FramePlayer-16.svg` | 16px・20px | 16×16(1単位=16pxの1画素)。目盛りは省く |
+
+SVGを直したら、`tools/WinAppKit`(このワークスペースの汎用の道具)の IconBuilder で `.ico` を作り直し、
+FramePlayerをビルドし直す(`.ico` はexeに埋め込まれる。`src/app/FramePlayer.rc`)。
+
+```bat
+cd resources\icon
+..\..\..\..\..\tools\WinAppKit\build\Release\IconBuilder.exe --svg FramePlayer.svg --svg-for 16,20=FramePlayer-16.svg --svg-for 24=FramePlayer-24.svg --ico FramePlayer.ico
+```
+
+`FramePlayer.ico` はGit管理対象(このパッケージだけでビルドできるように。IconBuilderが無くてもよい)。
+
 ## コマ送りの正確さの確認
 
 `build\Release\FramePlayerVerify.exe` は、プレイヤーと同じ読み込み処理(目次・キャッシュ・先読み)で、
@@ -399,6 +419,7 @@ FramePlayer/
 ├ FramePlayer.exe     プレイヤー本体(配布用。Git管理対象)
 ├ FramePlayer.mod     このフォルダを単体で使うときのMayaモジュール定義
 ├ python/frameplayer/ Maya側の連携パッケージ(sync.py=接続、ui.py=画面)
+├ resources/icon/     アイコンの元のSVGと、exeに埋め込む .ico
 ├ src/                プレイヤーのC++ソース
 ├ tests/              コマ番号の正確さの確認用ツール
 └ CMakeLists.txt

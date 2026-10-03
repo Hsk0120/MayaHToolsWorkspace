@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FramePlayer のアイコン(32px以上で使う大きい版)。
+  256 x 256 の座標で描く。32pxで1画素 = 8単位なので、形の端は8の倍数に揃える(縮めてもにじまないように)。
+  色は操作部と同じ強調色 #FF8232 と、地の暗い色 #1C1C1C。
+  24px以下は、画素の升目で描いた FramePlayer-24.svg / FramePlayer-16.svg を使う(細かい目盛りが潰れるため)。
+  .ico の作り方は README の「アイコン」を参照。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- 地: 角を丸めた四角 -->
+  <rect x="8" y="8" width="240" height="240" rx="56" ry="56" fill="#FF8232"/>
+  <!-- 頭文字 F -->
+  <path d="M80 48 H176 V80 H120 V104 H168 V136 H120 V176 H80 Z" fill="#FFFFFF"/>
+  <!-- タイムスライダー: 横線と目盛り -->
+  <rect x="40" y="200" width="176" height="16" fill="#1C1C1C"/>
+  <rect x="64" y="184" width="8" height="16" fill="#1C1C1C"/>
+  <rect x="104" y="184" width="8" height="16" fill="#1C1C1C"/>
+  <rect x="144" y="184" width="8" height="16" fill="#1C1C1C"/>
+  <rect x="184" y="184" width="8" height="16" fill="#1C1C1C"/>
+</svg>
