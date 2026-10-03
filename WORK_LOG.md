@@ -83,6 +83,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-03): ユーザー指示でGit除外対象外の残存変更を確認。.vscode/settings.jsonのWinAppKit CMake参照先をコミット・push。heditの2テストは内容差分がなくステージ操作で変更表示が解消。設定JSONと参照先の存在、差分チェックを確認。Mayaコード変更なし。
+
 - Codex (2026-10-03): Maya2023対応とheditバイナリをコミット・push。HUDサブモジュールの2023バイナリを先行pushし親参照を更新。前回のhlib932テスト・GUI15件・hedit・追加Color9件・Sphinx成功記録と差分チェックを確認。既存のheditテスト変更と.vscodeは対象外。
 
 - Codex (2026-10-03): Maya2023英語/日本語バッチと11個の.modを追加。Qt5.15のDebug参照補正とdevkitキャッシュ更新でHUD/heditの2023ビルド成功。両プラグイン・mGear・PoseDriverConnectのロード確認。2023のcolorIndex(0)照会を回避し、再生範囲Undo不可の既知制限を2023にも記載、GUIテストのSelection旧名を更新。hlib98ファイル932テストと追加Color9テスト、GUI15件、hedit単体/Maya/画面/専用GUI、Qt補正回帰、Sphinx警告なし成功。hrig/Bifrost拡張は2025以降向け、Charcoal/MetaHumanは2023バイナリなし。手動GUI操作・HUD描画・通常バッチからの起動は未検証。既存変更を保持、未コミット。
