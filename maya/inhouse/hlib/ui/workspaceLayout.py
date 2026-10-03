@@ -1,18 +1,17 @@
 """Mayaの画面ワークスペースを管理する。プロジェクトのWorkspaceとは別。"""
 
-from contextlib import contextmanager
-
 import maya.cmds as cmds
 import maya.mel as mel
 
 from ..ui._windowReference import _WindowReference
-from ..ui.mainWindow import MainWindow
-from ..ui.uiSnapshot import UiSnapshot
-from ..ui.window import Window
 
 
 class WorkspaceLayout:
-    """登録済みの画面配置への参照。保存とメモリ退避を明確に分ける。"""
+    """登録済みの画面配置への参照。配置の切り替え・保存と全体のドッキングロックを扱う。
+
+    ドッキング配置のメモリ退避・復元は提供しない。Mayaのコマンドからは workspaceControl の
+    ドッキング先(分割・タブの構成)を照会できず、``window -dockingLayout`` にも含まれないため。
+    """
 
     def __init__(self, name=None):
         """登録済みの配置を参照する。切り替えや保存は行わない。
@@ -126,68 +125,7 @@ class WorkspaceLayout:
         result.activate()
         return result
 
-    def captureDockingLayout(self):
-        """UiSnapshot: メインウィンドウのドッキング配置とロックをメモリ退避する。
-
-        同じセッション・同じ配置・既存UIを対象にする。ファイルは作らない。
-        独立した浮動ウィンドウの位置やエディタの内容は対象外。
-        """
-        self._require_current()
-        main = MainWindow.name()
-        if not main or not cmds.window(main, exists=True):
-            raise RuntimeError("Maya main window is unavailable")
-        from ..ui.workspaceControl import WorkspaceControl
-        # 浮動UIはこの退避範囲に含めない。削除されてもドッキング復元を妨げない。
-        targets = [Window(main)]
-        targets.extend(control for control in WorkspaceControl.list() if not control.getFloating())
-        return UiSnapshot("dockingLayout", self.name(), {
-            "main_window": main,
-            "docking": cmds.window(main, query=True, dockingLayout=True),
-            "locked": self.getLocked(),
-        }, tuple(targets))
-
-    def restoreDockingLayout(self, snapshot):
-        """メモリ退避したドッキング配置とロックを復元する。
-
-        Args:
-            snapshot (UiSnapshot): captureDockingLayoutの返り値。
-
-        Note:
-            別のワークスペースへ切り替えた場合や、退避時のUIが削除された場合は拒否する。
-            追加されたUIの削除は行わない。Mayaの復元失敗時はロックのみ元に戻し例外を伝える。
-        """
-        self._require_current()
-        if not isinstance(snapshot, UiSnapshot) or snapshot.scope != "dockingLayout" or snapshot.name != self.name():
-            raise ValueError("Snapshot belongs to another workspace layout")
-        if type(snapshot.data.get("docking")) is not str or type(snapshot.data.get("locked")) is not bool:
-            raise ValueError("Invalid layout snapshot")
-        snapshot.validate()
-        main = MainWindow.name()
-        if snapshot.data.get("main_window") != main or not snapshot._targets or snapshot._targets[0].name() != main:
-            raise RuntimeError("Snapshot main window is unavailable")
-        old_lock = self.getLocked()
-        self.unlock()
-        try:
-            cmds.window(main, edit=True, dockingLayout=snapshot["docking"])
-        except BaseException:
-            self.setLocked(old_lock)
-            raise
-        self.setLocked(snapshot["locked"])
-
-    @contextmanager
-    def temporaryDockingLayout(self):
-        """同じ配置でのドッキング編集を例外時も復元する。ファイル保存はしない。
-
-        Yields:
-            WorkspaceLayout: この配置。ブロック内でUI削除・配置切り替えは行わないこと。
-        """
-        snapshot = self.captureDockingLayout()
-        try:
-            yield self
-        finally:
-            self.restoreDockingLayout(snapshot)
-
     def _require_current(self):
-        """別の配置を誤って保存・復元しないよう検証する。"""
+        """別の配置を誤ってリセット・保存しないよう検証する。"""
         if not self.isCurrent():
             raise RuntimeError("Activate this workspace layout first")

@@ -260,7 +260,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - bulk_apiはreads/writes/propertiesを明示宣言する。単数APIの自動全公開はしない。readsは保持順の結果リスト、writesは自身。callEachも同じ規則。既存の専用集約結果やdeleteのNoneはdocstringへ明示する。
 - Preferencesの単位setterはsaveを受け付けない。シーン保存で保持する。その他のsave=Trueは一般ユーザー設定全体の保存を意味し、batchでは更新前に拒否する。
 - Window/WorkspaceControlはMaya標準MUiMessageの削除通知で寿命を追跡し、同名再生成へ乗り換えない。UiSnapshotは同一セッション限定の変更不可値で、復元前に対象の寿命を検証する。
-- WorkspaceLayoutはcapture_docking_layout/restoreDockingLayout/temporary_docking_layoutでメインウィンドウのドッキングとロックだけを退避する。浮動ウィンドウ・エディタ内容・UI再生成は範囲外。
+- WorkspaceLayoutは配置の切り替え・保存と全体のドッキングロックを扱い、ドッキング配置のメモリ退避・復元は提供しない。cmds/melからはworkspaceControlのドッキング先を照会できず、`window -dockingLayout`/`-state`にも含まれないため(Qtが必要になるが、hlibはQtをimportしない)。配置全体を戻す場合は保存済み配置をactivate/resetで読み直す。
 
 - hlibはQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/mel/OpenMayaUIの通知APIで扱い、MQtUtilによるポインター取得やQtへの変換は利用側のUIパッケージへ置く。MainWindowはUI名だけを返す。
 

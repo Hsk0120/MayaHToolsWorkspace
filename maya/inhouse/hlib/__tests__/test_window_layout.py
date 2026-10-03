@@ -8,7 +8,6 @@ import maya.cmds as cmds
 from hlib.ui import Window
 from hlib.ui import WorkspaceControl
 from hlib.ui import WorkspaceLayout
-from hlib.ui import UiSnapshot
 from hlib.ui._windowReference import _WindowReference
 from hlib.ui._uiLifetime import _UiLifetime
 from maya.api import OpenMayaUI
@@ -140,39 +139,10 @@ class WindowApiTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             WorkspaceLayout.setLocked("false")
 
-    def test_layout_capture_excludes_floating_controls(self):
-        """浮動UIの削除は範囲外、ドックの再生成は復元前に拒否する。"""
-        def control(name, **flags):
-            """存在照会と浮動状態だけを返す。"""
-            return name == "floating" if flags.get("floating") else True
-        self.control.side_effect = control
-        self.window.side_effect = lambda name, **flags: "docking" if flags.get("dockingLayout") else True
-        with patch.object(cmds, "lsUI", return_value=["docked", "floating"]), patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "getLocked", return_value=False):
-            layout = WorkspaceLayout()
-            snapshot = layout.captureDockingLayout()
-            self.assertEqual(snapshot.scope, "dockingLayout")
-            self.assertEqual([target.name() for target in snapshot._targets], ["MayaWindow", "docked"])
-            self.callbacks["floating"]()
-            snapshot.validate()
-            self.callbacks["docked"]()
-            self.window.reset_mock()
-            with self.assertRaises(RuntimeError):
-                layout.restoreDockingLayout(snapshot)
-            self.assertFalse(any(call[1].get("edit") for call in self.window.call_args_list))
-
-    def test_layout_restore_failure_restores_lock(self):
-        """配置復元失敗でも元のロックに戻す。"""
-        layout = WorkspaceLayout()
-        snapshot = UiSnapshot("dockingLayout", "Main", {"main_window": "MayaWindow", "docking": "abc", "locked": False}, (Window("MayaWindow"),))
-        def window(name, **kw):
-            if kw.get("edit"):
-                raise RuntimeError("restore failed")
-            return True
-        self.window.side_effect = window
-        with patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "getLocked", return_value=True), patch.object(WorkspaceLayout, "setLocked") as lock:
-            with self.assertRaisesRegex(RuntimeError, "restore failed"):
-                layout.restoreDockingLayout(snapshot)
-            self.assertEqual([call[0] for call in lock.call_args_list], [(False,), (True,)])
+    def test_docking_snapshot_api_is_not_provided(self):
+        """workspaceControlのドッキングを復元できないメモリ退避APIは提供しない。"""
+        for name in ("captureDockingLayout", "restoreDockingLayout", "temporaryDockingLayout"):
+            self.assertFalse(hasattr(WorkspaceLayout, name), name)
 
 
 class WindowLifetimeTest(unittest.TestCase):
@@ -253,7 +223,7 @@ class WindowGuiTest(unittest.TestCase):
             cmds.deleteUI(name, window=True)
 
     def test_dock_and_layout(self):
-        """独立プロファイルでドッキング・ロック・名前付き保存を確認する。"""
+        """独立プロファイルでドッキング・切り離し・ロック・名前付き保存を確認する。"""
         import uuid
         name = "hlibWindowTest" + uuid.uuid4().hex[:8]
         layout_name = "hlibLayoutTest" + uuid.uuid4().hex[:8]
@@ -265,10 +235,9 @@ class WindowGuiTest(unittest.TestCase):
             WorkspaceLayout.unlock()
             control.dock("right")
             self.assertFalse(control.getFloating())
-            snapshot = original.captureDockingLayout()
             control.undock()
             self.assertTrue(control.getFloating())
-            original.restoreDockingLayout(snapshot)
+            control.dock("left")
             self.assertFalse(control.getFloating())
             WorkspaceLayout.lock()
             self.assertTrue(WorkspaceLayout.getLocked())

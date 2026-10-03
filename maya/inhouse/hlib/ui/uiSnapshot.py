@@ -8,7 +8,7 @@ from types import MappingProxyType
 class UiSnapshot:
     """変更不可の退避値。JSON化や別セッションへの持ち越しは対象外。
 
-    scopeはwindow/workspaceControl/dockingLayout。dataはその範囲の状態だけを
+    scopeはwindow/workspaceControl。dataはその範囲の状態だけを
     保持する。エディタの内容・スクリプト・UIの再生成処理は含まない。
     """
 

@@ -83,6 +83,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-04): `WorkspaceLayout.captureDockingLayout/restoreDockingLayout/temporaryDockingLayout`を削除(ユーザー指示)。専用GUIでの調査で、cmds/melからworkspaceControlのドッキング先を照会する手段が無いことを確認(`workspaceControl -q -dockToMainWindow`はNone、`workspaceLayoutManager -parentWorkspaceControl`は空、`window -dockingLayout`/`-state`に含まれず復元しても戻らない、`saveAs`のJSONは現在の配置名を切り替えretain=Falseのドックを含まない、`floating=False`でも戻らない)。Qtを使えばできるがhlibはQt禁止のため不可。テストはモック2件を削除し、GUIテストをdock→undock→dockに変更、削除APIが無いことの確認を追加。docs(window_layouts.rst・hlib-api-design.md)とUiSnapshotのdocstringを更新。専用GUI unit 2022〜2027全passed(各99ファイル/941テスト、WindowGuiTest実行)、mayapy 2022〜2027全passed。未コミット。
+
+- Claude Code (2026-10-04): 起動中Maya 2027でGUIテスト(visual 15件passed、GUI内run_all_tests 99ファイル)。GUI内でのみ失敗した3件を修正(test_cmds_interopのMEL `$tmp`がGUIでは文字列のグローバル変数、test_extensionsがGUIでは`sys.executable`=maya.exeを起動、test_hrig_bifrost_startupのバッチ判定未モック)。Maya未起動でもGUIテストできるよう`run_hlib_gui_versions.py`に`--suite all|unit|visual`(既定all)を追加し、新規`run_hlib_unit_gui_tests.py`で使い捨てGUI内にrun_all_tests一式(GUI専用ケース・test_scene_ui・test_window_layout含む)を実行。専用GUIは信頼済みプラグインの場所が未登録で警告ダイアログに止まるため、test_posedriverconnect_extensionはGUIで未登録ならskip(登録はしない)。2022〜2027でvisual全passed、unitは942テスト中`test_window_layout` 1件のみ失敗: `WorkspaceLayout.restoreDockingLayout()`が使う`window -dockingLayout`にworkspaceControlのドッキングが含まれず、浮動にしたウィンドウが戻らない(hlib本体の既存の問題。未修正)。mayapy 2022〜2027全passed。未コミット。
+
 - Claude Code (2026-10-04): レビューの軽微な指摘3点を修正。docs/hlib-api-design.mdのimport群の並び(`import x`→`from x import`の各モジュール名順)と`__init__.py`の扱い(対象外は`hlib/__init__.py`のみ)を実態に合わせ、tools/check_hlib_layout.pyの`--fix`を内側のクラス(クラス内・関数内)にも対応(外側から深さ順)。docs/hlib-testing.mdに内側クラスと`--compare`が順序依存の変化を検出しない旨を追記。既存262ファイルは`--fix`で変更なし・違反0。mayapy 2022〜2027で全件passed。Copilotの整理と合わせてコミット・プッシュ。
 
 - Claude Code (2026-10-04): CopilotのhlibPEP8レイアウト整理(170ファイル)をレビュー。HEADとのAST比較で関数・クラス本体・モジュール文は順序以外同一、モジュール/クラス本体の実行時参照・同名再束縛・dataclassフィールド順・説明コメントの付き先に変化なしを確認(削除コメントは区切り線のみ)。整形ツールの冪等性も確認。test_color.pyの`call.args`(Python3.8以降)を`call[0][0]`へ直し、mayapy 2022〜2027で全件passed(各98ファイル/933テスト)。GUI専用テスト(test_scene_ui等)はGUI未起動のため未実施。未コミット。

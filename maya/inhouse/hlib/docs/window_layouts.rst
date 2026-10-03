@@ -81,23 +81,15 @@ UIの所有者はMayaであり、このAPIはメインウィンドウの削除�
 メモリへの一時退避
 ------------------------------------
 
-.. code-block:: python
-
-   layout = hlib.getWorkspaceLayout()
-   snapshot = layout.captureDockingLayout()
-   # 同じ配置の中でドッキングを編集する
-   layout.restoreDockingLayout(snapshot)
-
-   with layout.temporaryDockingLayout():
-       layout.unlock()
-       # 一時的なドッキング変更
-       ...
-   # 例外時も開始時点の配置とロックへ復元する
-
-``Window`` / ``WorkspaceControl`` にも ``capture`` / ``restore`` / ``temporaryState`` があります。
+``Window`` / ``WorkspaceControl`` には ``capture`` / ``restore`` / ``temporaryState`` があります。
 退避値は変更不可の ``UiSnapshot`` です。``scope`` に保存範囲、``name`` に対象名、
 ``data`` に取得時点の値を保持し、復元前に元のUIの生存を検証します。
 同一セッション内でのみ使用でき、JSON化・ファイル保存・UI再生成には対応しません。
+
+``WorkspaceLayout`` はドッキング配置（どのドックをどこへ・どのタブにまとめたか）のメモリ退避・復元を提供しません。
+Mayaのコマンドからは ``workspaceControl`` のドッキング先を照会できず、メインウィンドウの
+``window -dockingLayout`` / ``-state`` にも含まれないためです。配置全体を戻す場合は、
+``save`` / ``saveAs`` で保存した配置を ``activate`` または ``reset`` で読み直してください。
 
 .. list-table:: 退避する範囲
    :header-rows: 1
@@ -111,17 +103,13 @@ UIの所有者はMayaであり、このAPIはメインウィンドウの削除�
    * - WorkspaceControl
      - MayaのstateString・表示・折り畳み
      - 周辺タブの配置全体、任意のエディタ内部データ
-   * - WorkspaceLayout
-     - メインウィンドウのドッキング配置・全体ロック
-     - 独立した浮動ウィンドウの位置、エディタ内部データ
 
-全体配置のメモリ復元は、同じ名前の配置が使用中で、退避時にドッキングされていたworkspaceControlが
-残っている場合に限ります。ブロック内でUIを削除したり別の配置へ切り替えたりしないでください。
+``temporaryState`` のブロック内では対象のUIを削除しないでください。
 参照はMaya標準のUI削除通知（MUiMessage）で寿命を追跡し、
 削除・同名での再作成後の復元は拒否します。監視は最後の参照の解放時に解除します。
 hlibはQt関連ライブラリをimportしません。MainWindowはname()でMayaのUI名だけを返し、
 Qtの親ウィジェットへの変換は利用側のUI実装で行います。
-退避時から浮動していたウィンドウはドッキング退避の検証対象にも含めません。追加されたUIは削除しません。
+追加されたUIは削除しません。
 消えたUIを勝手に再生成せず、復元できない場合は例外を返します。
 復元処理自体が失敗した場合、ブロック内の例外は例外チェーンで確認できます。
 
