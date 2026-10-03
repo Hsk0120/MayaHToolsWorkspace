@@ -1175,20 +1175,8 @@ class Node(Object):
         """
         if not self.isValid():
             raise RuntimeError("無効なノードのエイリアスは取得できません")
-        # plugs.plug が ..nodes.node を逆方向 import するため、
-        # 循環回避のためここで遅延 import する（plug() と同じ理由）。
-        from ..plugs.plug import Plug
-
-        flat = cmds.aliasAttr(self.fullName(), query=True) or []
-        pairs = []
-        for index in range(0, len(flat), 2):
-            alias_name, attributeName = flat[index], flat[index + 1]
-            # 配列要素(例: "weight[0]")は findPlug が解決できないため、
-            # ブラケット付きアトリビュートパスも扱える MSelectionList 経由で解決する。
-            selection = om2.MSelectionList()
-            selection.add(f"{self.fullName()}.{attributeName}")
-            pairs.append((alias_name, Plug(self, selection.getPlug(0))))
-        return pairs
+        # 配列・複合パスの解決はplug()へ集約し、Mayaコマンドと名前再解決を避ける。
+        return [(alias, self.plug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
     @undo_chunk("hlibNodeAddAttr")
     def addAttribute(
@@ -1313,14 +1301,33 @@ class Node(Object):
 
         Raises:
             TypeError: include_childrenがboolでない場合。
-            RuntimeError: ノードが無効な場合。
+            RuntimeError: ノードが無効な場合。またはinclude_children=Trueで、
+                番号を指定しない複合配列の子が含まれる場合。
         """
         if not isinstance(include_children, bool):
             raise TypeError("include_children must be a bool")
         if not self.isValid():
             raise RuntimeError("Cannot list attributes on an invalid node")
-        names = (cmds.listAttr(self.fullName(), userDefined=True) or []) if include_children else self.userAttributeNames()
-        return [self.plug(name) for name in names]
+        # 名前へ変換して再検索せず、定義から型付きPlugを作る。配列の要素は展開しない。
+        from ..plugs.plug import Plug
+        return [Plug(self, om2.MPlug(self._mobject, attribute))
+                for attribute in self._user_attributes(include_children)]
+
+    def _user_attributes(self, include_children=False):
+        """動的アトリビュートの定義を追加順に列挙する。
+
+        Args:
+            include_children (bool): Trueなら複合型の子の定義も含める。
+
+        Yields:
+            om2.MObject: アトリビュート定義。配列要素の取得・作成は行わない。
+        """
+        fn = self._dependency_fn()
+        for index in range(fn.attributeCount()):
+            attribute = fn.attribute(index)
+            definition = om2.MFnAttribute(attribute)
+            if definition.dynamic and (include_children or definition.parent.isNull()):
+                yield attribute
 
     def userAttributeNames(self):
         """トップレベルのユーザー定義アトリビュート名を現在の並び順で取得する。
@@ -1328,15 +1335,14 @@ class Node(Object):
         複合アトリビュートの子は含まない。
 
         Returns:
-            list[str]: ロング名のリスト。並び順は Channel Box の表示順。
+            list[str]: ロング名のリスト。並び順はMayaへの追加順。
 
         Raises:
             RuntimeError: ノードが無効な場合。
         """
         if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートは列挙できません")
-        names = cmds.listAttr(self.fullName(), userDefined=True) or []
-        return [name for name in names if not self.plug(name).isChild()]
+        return [om2.MFnAttribute(attribute).name for attribute in self._user_attributes()]
 
     @undo_chunk("hlibNodeMoveAttribute")
     def moveAttributeOrder(self, name, offset):

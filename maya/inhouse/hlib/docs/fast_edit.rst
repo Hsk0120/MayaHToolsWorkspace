@@ -28,12 +28,14 @@ Undo不要の値更新
 * Joint / Jointsの ``freezeRotation`` と ``jointOrientToRotate``。
 * NodeのOutliner色・override色・アトリビュート表示フラグ。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
+* Shape / Transformの ``scaleGeometry``。履歴なしメッシュ・非周期カーブに対応。
 * SkinClusterの ``setWeights`` / ``loadWeights`` / ``normalizeWeights`` /
   ``setMaxInfluences``。
 * Locator、BlendColors、BlendWeighted、MultMatrix、DecomposeMatrix、
   DistanceBetween、Constraintの値設定メソッド。
 
 対応メソッドから生成される複数形クラスの一括呼出しでも同じ引数を使用できます。
+``AnimCurve.setInfinity`` の外挿設定も ``fast=True`` に対応します。
 読み取りメソッドやプロパティ代入にはフラグはありません。
 Mesh・NURBSカーブの座標取得は通常時もOpenMayaを使います。
 単点取得では全点を読み出さず、複数点は保持順にまとめて取得します。
@@ -52,6 +54,7 @@ Mesh・NURBSカーブの座標取得は通常時もOpenMayaを使います。
 
 形状の直接編集は入力履歴のないメッシュ・非周期NURBSカーブに限定します。
 スキニング等の入力履歴がある形状と周期カーブは ``NotImplementedError`` になります。
+``scaleGeometry(fast=True)`` ではNURBSサーフェスも未対応です。
 履歴付き形状の座標編集には通常モードを使用してください。
 SkinClusterのウェイト更新は履歴付きメッシュでも使用できます。
 
@@ -65,6 +68,9 @@ doubleArray・Int32Array・stringArray・vectorArray・pointArrayの読取りも
 配列は常にlistです。空配列は[]、未初期化データはNone、点・ベクトルはtupleのlistです。
 1要素でも外側のlistを省きません。
 OpenMayaの直接設定はcmdsの全フラグを置き換えるものではありません。
+
+重み付きCVのワールド座標はAPIのMPointのXYZ成分です。通常・fastの設定とも
+CVのwを維持して逆変換し、取得値を同じ空間へ設定しても位置が変わらないようにします。
 
 頂点・CV・UVではAPIの一括更新、ウェイトではMPlugの直接設定を使用します。
 小さなアトリビュート更新まで常に高速になる保証はありません。

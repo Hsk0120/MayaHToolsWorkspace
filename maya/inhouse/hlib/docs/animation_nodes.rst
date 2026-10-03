@@ -65,3 +65,7 @@ SDKの作成と対応経路の探索は :doc:`driven_keys`、
 
 ``setInfinity(pre="cycle")`` はpre側だけ変更し、post側を維持します。
 両側を戻す場合は ``setInfinity(pre="constant", post="constant")`` を使います。
+``getInfinity()`` はOpenMaya経由で取得します。
+``setInfinity(pre="cycle", fast=True)`` はUndo不要の直接更新です。
+fast時は指定した両側のロック・入力接続を更新前に検証します。
+キーや接線の編集は従来どおりMayaコマンドでUndoに対応します。

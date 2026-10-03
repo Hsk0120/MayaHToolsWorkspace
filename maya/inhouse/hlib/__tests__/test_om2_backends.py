@@ -156,6 +156,121 @@ class Om2BackendsTest(unittest.TestCase):
                 node.addAttribute('bad', attributeType='double3', **{flag: True})
             self.assertFalse(node.hasAttribute('bad'))
 
+    def test_scale_geometry_bulk_read_and_fast_units(self):
+        """拡縮の取得をAPIへ寄せ、通常Undoとfastの値・単位・インスタンスを比較する。"""
+        factories = (
+            lambda: cmds.polyCube(ch=False)[0],
+            lambda: cmds.curve(d=1, pw=[(1, 2, 3, 1), (3, 4, 5, 2), (2, -1, 4, .5)]),
+        )
+        for factory in factories:
+            source = factory()
+            instance = cmds.instance(source)[0]
+            cmds.setAttr(instance + '.translate', 5, 3, -2)
+            cmds.setAttr(instance + '.rotate', 15, 30, 45)
+            cmds.setAttr(instance + '.scale', -2, 3, .5)
+            node = hlib.getNode(instance)
+            shape = node.shape()
+            points = shape.vertices() if shape.type() == 'mesh' else shape.cvs()
+            for unit in ('cm', 'm'):
+                cmds.currentUnit(linear=unit)
+                for space in (MSpace.kObject, MSpace.kWorld):
+                    before = points.getPosition(space)
+                    factors, pivot = (2, .5, -1), (1, 2, 3)
+                    expected = [tuple(pivot[i] + (p[i] - pivot[i]) * factors[i] for i in range(3))
+                                if index in (0, 2) else p for index, p in enumerate(before)]
+                    with patch.object(cmds, 'xform', wraps=cmds.xform) as xform:
+                        node.scaleGeometry(factors, space=space, pivot=pivot, indices=[2, 0, 2])
+                    self.assertEqual(len(xform.call_args_list), 2)
+                    self.assertTrue(all(not call[1].get('query') for call in xform.call_args_list))
+                    self.assert_points(points.getPosition(space), expected)
+                    cmds.undo()
+                    self.assert_points(points.getPosition(space), before)
+                    cmds.redo()
+                    self.assert_points(points.getPosition(space), expected)
+                    cmds.undo()
+                    queue = cmds.undoInfo(query=True, undoName=True)
+                    weights = None if shape.type() == 'mesh' else [p.w for p in shape.curveFn().cvPositions()]
+                    with self.forbidden('xform', 'ls', 'getAttr', 'setAttr', 'undoInfo'):
+                        node.scaleGeometry(factors, space=space, pivot=pivot, indices=[2, 0, 2], fast=True)
+                    self.assert_points(points.getPosition(space), expected)
+                    self.assertEqual(cmds.undoInfo(query=True, undoName=True), queue)
+                    if weights is not None:
+                        self.assertEqual([p.w for p in shape.curveFn().cvPositions()], weights)
+                cmds.currentUnit(linear='cm')
+
+    def test_scale_geometry_fast_rejections_preserve_points(self):
+        """履歴・周期・サーフェス・ロック・不正番号を直接更新前に拒否する。"""
+        for name in (cmds.polyCube(ch=True)[0], cmds.circle(ch=False)[0], cmds.nurbsPlane(ch=False)[0]):
+            node = hlib.getNode(name)
+            shape = node.shape()
+            token = '.vtx[*]' if shape.type() == 'mesh' else '.cv[*][*]' if shape.type() == 'nurbsSurface' else '.cv[*]'
+            before = cmds.xform(shape.fullName() + token, query=True, translation=True)
+            with self.assertRaises(NotImplementedError):
+                node.scaleGeometry(2, fast=True)
+            self.assertEqual(cmds.xform(shape.fullName() + token, query=True, translation=True), before)
+        shape = hlib.getNode(cmds.polyCube(ch=False)[0]).shape()
+        before = shape.vertices().getPosition()
+        for indices, exception in (([0, 999], IndexError), ([True], TypeError)):
+            with self.assertRaises(exception):
+                shape.scaleGeometry(2, indices=indices, fast=True)
+            self.assert_points(shape.vertices().getPosition(), before)
+        cmds.setAttr(shape.fullName() + '.pnts[2].pntx', lock=True)
+        with self.assertRaises(RuntimeError):
+            shape.scaleGeometry(2, indices=[0, 2], fast=True)
+        self.assert_points(shape.vertices().getPosition(), before)
+        with self.assertRaises(TypeError):
+            shape.scaleGeometry(2, fast=1)
+
+    def test_periodic_scaling_maps_duplicate_cv_once(self):
+        """API末尾と先頭の同一CVを通常モードで一回だけ拡縮する。"""
+        shape = hlib.getNode(cmds.circle(ch=False)[0]).shape()
+        end = shape.numCVs() - shape.curveFn().degree
+        before = shape.cvs().getPosition()
+        shape.scaleGeometry(2, indices=[0, end, 0])
+        expected = [tuple(v * 2 for v in point) if i in (0, end) else point for i, point in enumerate(before)]
+        self.assert_points(shape.cvs().getPosition(), expected)
+        cmds.undo()
+        self.assert_points(shape.cvs().getPosition(), before)
+
+    def test_rational_cv_world_position_roundtrip(self):
+        """重み付きCVはAPIワールドXYZの取得と通常・fast設定で往復する。"""
+        node = hlib.getNode(cmds.curve(d=1, pw=[(1, 2, 3, 2), (3, 4, 5, .5)]))
+        node.setTranslation((10, 20, 30))
+        node.setScale((-2, 3, .5))
+        cvs = node.shape().cvs()
+        cmds.currentUnit(linear='m')
+        try:
+            before = cvs.getPosition(MSpace.kWorld)
+            cvs.setPositions(before, space=MSpace.kWorld)
+            self.assert_points(cvs.getPosition(MSpace.kWorld), before)
+            changed = [tuple(v + 1 for v in point) for point in before]
+            cvs.setPositions(changed, space=MSpace.kWorld)
+            self.assert_points(cvs.getPosition(MSpace.kWorld), changed)
+            cmds.undo()
+            self.assert_points(cvs.getPosition(MSpace.kWorld), before)
+            with self.forbidden('xform', 'setAttr', 'undoInfo'):
+                cvs.setPositions(changed, space=MSpace.kWorld, fast=True)
+            self.assert_points(cvs.getPosition(MSpace.kWorld), changed)
+        finally:
+            cmds.currentUnit(linear='cm')
+
+    def test_aliases_use_api_for_sparse_and_renamed_nodes(self):
+        """配列要素のalias取得はcmdsを使わず、改名・削除Undoを追跡する。"""
+        node = hlib.createNode('blendShape')
+        cmds.setAttr(node.fullName() + '.weight[7]', .5)
+        cmds.aliasAttr('sparseWeight', node.fullName() + '.weight[7]')
+        cmds.aliasAttr('envelopeAlias', node.fullName() + '.envelope')
+        expected = cmds.aliasAttr(node.fullName(), query=True)
+        node.rename('aliasRenamed')
+        with self.forbidden('aliasAttr', 'ls', 'getAttr'):
+            pairs = node.aliases()
+        self.assertEqual([alias for alias, _ in pairs], expected[::2])
+        self.assertEqual(dict(pairs)['sparseWeight'], node.plug('weight[7]'))
+        cmds.aliasAttr(node.fullName() + '.sparseWeight', remove=True)
+        self.assertNotIn('sparseWeight', dict(node.aliases()))
+        cmds.undo()
+        self.assertIn('sparseWeight', dict(node.aliases()))
+
 
 if __name__ == '__main__':
     unittest.main(argv=[sys.argv[0]])

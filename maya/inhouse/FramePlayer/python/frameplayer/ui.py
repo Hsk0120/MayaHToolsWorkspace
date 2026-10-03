@@ -1,6 +1,6 @@
 """FramePlayerとの連携を操作する、Maya標準の部品(maya.cmds)で作った小さな画面。
 
-接続・切断、FramePlayerの起動、番号の対応(ずらし・倍率)、連携の向き、再生範囲を合わせるかを設定する。
+接続・切断、FramePlayerの起動、番号の対応(オフセット・倍率)、連携の向き、再生範囲を合わせるかを設定する。
 設定はMayaの設定(optionVar)に保存し、次に開いたときも使う。
 """
 
@@ -133,8 +133,7 @@ def _connect(warn):
     values = _options()
     result = frameplayer.connect(port=int(values["port"]), on_status=_update_status, **_sync_options(values))
     if result is None and warn:
-        cmds.warning("FramePlayerに接続できません。FramePlayerを起動してから接続してください(ポート %d)。"
-                     % int(values["port"]))
+        cmds.warning(frameplayer.last_error())
     _update_status()
     return result is not None
 
@@ -196,9 +195,12 @@ def show():
         str: 画面(window)の名前。
     """
     if cmds.window(WINDOW, exists=True):
-        cmds.showWindow(WINDOW)
-        _update_status()
-        return WINDOW
+        if _controls:
+            cmds.showWindow(WINDOW)
+            _update_status()
+            return WINDOW
+        # このモジュールを読み込み直した(部品の一覧が空になった)ので、画面を作り直す。
+        cmds.deleteUI(WINDOW)
     cmds.window(WINDOW, title="FramePlayer連携", widthHeight=(320, 300), sizeable=True)
     cmds.columnLayout(adjustableColumn=True, rowSpacing=6, columnAttach=("both", 8))
     _controls["status"] = cmds.text(label="未接続", height=24, backgroundColor=(0.35, 0.35, 0.35))
@@ -214,7 +216,7 @@ def show():
                                       changeCommand=_apply_options)
     cmds.setParent("..")
     cmds.rowLayout(numberOfColumns=2, columnWidth2=(150, 140))
-    cmds.text(label="ずらし (FramePlayer - Maya)", align="left")
+    cmds.text(label="オフセット [f] (FramePlayer - Maya)", align="left")
     _controls["offset"] = cmds.intField(value=int(_load("offset")), changeCommand=_apply_options)
     cmds.setParent("..")
     cmds.rowLayout(numberOfColumns=2, columnWidth2=(150, 140))

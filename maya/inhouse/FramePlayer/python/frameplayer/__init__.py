@@ -16,9 +16,10 @@ import subprocess
 
 from frameplayer.sync import DEFAULT_HOST, DEFAULT_PORT, FramePlayerSync
 
-__all__ = ["FramePlayerSync", "connect", "disconnect", "current", "launch", "player_executable", "show"]
+__all__ = ["FramePlayerSync", "connect", "disconnect", "current", "last_error", "launch", "player_executable", "show"]
 
-_current = None  # 今使っている接続(1つだけ持つ)。
+_current = None     # 今使っている接続(1つだけ持つ)。
+_last_error = ""    # 最後に接続できなかった理由。
 
 
 def player_executable():
@@ -37,11 +38,13 @@ def player_executable():
     return os.path.join(package_root, "FramePlayer.exe")
 
 
-def launch(*paths):
+def launch(*paths, sync=True):
     """FramePlayerを起動する。
 
     Args:
         *paths (str): 開く動画のパス。2つ渡すと2本目を比較として開く。
+        sync (bool): Trueなら連携モード(Mayaからの接続を待つ)で起動する。FramePlayerは通常モードでは
+            ポートを開かないので、Mayaと連携するときはTrueのままにする。
 
     Returns:
         subprocess.Popen: 起動したプロセス。
@@ -52,7 +55,10 @@ def launch(*paths):
     executable = player_executable()
     if not os.path.isfile(executable):
         raise RuntimeError("FramePlayer.exe が見つかりません: %s" % executable)
-    return subprocess.Popen([executable] + [str(path) for path in paths], close_fds=True)
+    arguments = [executable] + [str(path) for path in paths]
+    if sync:
+        arguments.append("--sync")
+    return subprocess.Popen(arguments, close_fds=True)
 
 
 def current():
@@ -71,6 +77,7 @@ def connect(port=DEFAULT_PORT, host=DEFAULT_HOST, **options):
 
     Args:
         port (int): FramePlayerの待ち受け口の番号(FramePlayerの設定 ``SyncPort``、既定7010)。
+            つないだ直後に、互いが同じ鍵(``%LOCALAPPDATA%\\FramePlayer\\sync.key``)を持つ相手かを確かめる。
         host (str): FramePlayerの待ち受け口のアドレス。
         **options: FramePlayerSync に渡す設定(offset・multiplier・sync_range・maya_to_player・
             player_to_maya・on_status)。
@@ -78,13 +85,24 @@ def connect(port=DEFAULT_PORT, host=DEFAULT_HOST, **options):
     Returns:
         FramePlayerSync or None: 接続できた場合は接続。できなければNone。
     """
-    global _current
+    global _current, _last_error
     disconnect()
     sync = FramePlayerSync(host=host, port=port, **options)
     if not sync.connect():
+        _last_error = sync.last_error
         return None
+    _last_error = ""
     _current = sync
     return sync
+
+
+def last_error():
+    """最後に接続できなかった理由を返す。
+
+    Returns:
+        str: 理由。最後の接続が成功していれば空。
+    """
+    return _last_error
 
 
 def disconnect():

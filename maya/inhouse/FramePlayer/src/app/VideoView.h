@@ -14,6 +14,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -29,7 +30,7 @@ namespace frameplayer {
  *       再生中に表示するコマも描画スレッドが経過時間から決めるので、UIスレッド(キー操作やスライダーの描画)が
  *       一時的に止まっても再生は止まらない。表示するコマが変わると、親ウィンドウへnotifyMessageを送る。
  *       公開メソッドはUIスレッドから呼ぶ。描画スレッドと共有する状態はmutex_とatomicで保護する。
- *       2本目の動画(比較)は、1本目のコマ番号にずらし(オフセット)を足したコマを表示する。再生中は両方のコマが
+ *       2本目の動画(比較)は、1本目のコマ番号にオフセットを足したコマを表示する。再生中は両方のコマが
  *       そろってから進めるので、左右がずれて見えることはない。比較中は音声を鳴らさない。
  */
 class VideoView {
@@ -76,13 +77,13 @@ public:
     void setCompareClip(std::shared_ptr<Clip> clip);
 
     /**
-     * @brief 2本目のずらしを設定する。2本目には「1本目のコマ番号+ずらし」のコマを表示する。
+     * @brief 2本目のオフセットを設定する。2本目には「1本目のコマ番号+オフセット」のコマを表示する。
      * @param offset ずらすコマ数(負も可)。
      */
     void setCompareOffset(int offset);
 
     /**
-     * @brief 2本目のずらしを返す。
+     * @brief 2本目のオフセットを返す。
      * @return コマ数。
      */
     int compareOffset() const { return compareOffset_; }
@@ -105,8 +106,9 @@ public:
      * @brief 再生を止め、指定したコマを表示する。
      * @param index 0始まりのコマ番号。範囲外は端に丸める。
      * @param direction 先読みする向き(移動してきた向き)。
+     * @param compareOffset 指定すると、2本目のオフセットも同時に変える(途中の組み合わせを描かないよう、同じ鍵の中で変える)。
      */
-    void showFrame(int index, Clip::Direction direction);
+    void showFrame(int index, Clip::Direction direction, std::optional<int> compareOffset = std::nullopt);
 
     /**
      * @brief 現在表示しているコマから再生を始める。
@@ -182,7 +184,7 @@ private:
         int imageIndex = -1;                 ///< frameが実際に表すコマ番号(仮表示の画像なら近くのキーフレーム)。
         bool loading = false;                ///< 「読み込み中」を重ねるか。
         bool broken = false;                 ///< 「デコードできません」を重ねるか。
-        bool outOfRange = false;             ///< ずらした結果、動画の範囲外か(画像を描かずに知らせる)。
+        bool outOfRange = false;             ///< オフセットを足した結果、動画の範囲外か(画像を描かずに知らせる)。
 
         /**
          * @brief 前回描いた内容と同じかを返す(停止中に描き直しが必要かの判断に使う)。
@@ -206,7 +208,7 @@ private:
      * @brief 1回分を描いて画面に出す。描画スレッドで呼ぶ。
      * @param panes 表示枠の内容(1本目、比較中なら2本目)。
      * @param paneCount 表示枠の数(1か2)。
-     * @param compareOffset 2本目のずらし(表示用)。
+     * @param compareOffset 2本目のオフセット(表示用)。
      * @return 描けた場合true。デバイスが失われた場合false。
      */
     bool draw(const PaneState* panes, int paneCount, int compareOffset);
@@ -240,7 +242,7 @@ private:
     mutable std::mutex mutex_;
     std::shared_ptr<Clip> clip_;
     std::shared_ptr<Clip> compare_;       ///< 比較用の2本目の動画。比較していなければnullptr。
-    std::atomic<int> compareOffset_{0};   ///< 2本目のずらし(コマ数)。
+    std::atomic<int> compareOffset_{0};   ///< 2本目のオフセット(コマ数)。
     std::shared_ptr<AudioPlayer> audio_;  ///< 再生中に鳴らす音声。無ければnullptr。
     int requested_ = 0;              ///< 停止中に表示するコマ。
     bool playRequested_ = false;     ///< 再生中か(UIスレッドの指示)。

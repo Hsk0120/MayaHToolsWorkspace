@@ -224,11 +224,17 @@ Shapeのスケール
    transform.scaleGeometry((2, 1, 1))            # 直下の全Shape
    mesh.scaleGeometry(2, indices=[0, 1])         # 頂点を限定
    surface.scaleGeometry(2, indices=[(0, 0)])    # サーフェスの(U, V) CV
+   mesh.scaleGeometry(2, fast=True)              # om2で直接更新、Undoなし
 
 メッシュ、NURBSカーブ、NURBSサーフェスに対応します。頂点・CVの座標だけを編集し、
 Transformの行列は変更しません。既定はオブジェクト空間の原点が中心です。
-``space=MSpace.kWorld`` ではワールド空間の原点になり、``pivot`` もその空間の現在のMaya距離単位で指定します。
+``space=MSpace.kWorld`` ではワールド空間の原点になり、``pivot`` はその空間のcm単位で指定します。
 Transformのピボット位置は自動では使いません。
 
 通常のUndoに対応します。負数・0の倍率も指定できますが、面の頂点順は変更しません。
 周期CVはMayaの連動規則に従い、インスタンスでは共有形状全体に影響します。
+メッシュ・カーブは座標をom2で一括取得し、通常更新はcmdsでUndoに対応します。
+``fast=True`` は入力履歴なしのメッシュ・非周期カーブに対応し、Undoへ記録しません。
+サーフェス・周期カーブ・入力履歴付き形状のfast更新は ``NotImplementedError`` です。
+周期カーブの先頭と末尾が同じCVを表す場合、番号をまとめて一回だけ拡縮します。
+重み付きCVのワールドXYZはOpenMayaの値を使い、設定時もCVの重みを保持して逆変換します。

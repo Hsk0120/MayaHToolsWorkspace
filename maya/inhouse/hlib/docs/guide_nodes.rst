@@ -467,6 +467,10 @@ attributeTypeがdouble2/double3/float2/float3の場合、X/Y/Zの子も自動で
 
 列挙結果は非表示・非keyableのユーザー定義アトリビュートも含みます。
 Mayaの標準アトリビュートは含みません。multiはArrayPlug、複合型はCompoundPlugまたは専用型です。
+列挙はOpenMayaの定義情報から追加順に取得し、空配列や疎な配列の要素を作成しません。
+``userAttributeNames()`` と既定の ``getExtraAttributes()`` は複合配列もトップレベルのみ返します。
+``include_children=True`` で複合配列の子が含まれる場合は、番号なしのPlugを作れないため
+RuntimeErrorになります。子の操作には ``node.plug("items[7].amount")`` のように番号を指定します。
 追加・通常の値変更はUndo対応です。
 
 .. list-table:: 主な型と返却Plug

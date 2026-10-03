@@ -9,7 +9,7 @@ namespace frameplayer {
 /**
  * @brief タイムスライダーの変化を外部へ知らせる窓口。連携の方式(Mayaのcommandなど)ごとに派生クラスを作る。
  * @note フレーム番号はタイムスライダーに表示している番号(動画の1コマ目が開始フレーム)で渡す。
- *       Mayaのフレームとの対応(ずらし・倍率など)は派生クラス側で行う。
+ *       Mayaのフレームとの対応(オフセット・倍率など)は派生クラス側で行う。
  *       どの関数もUIスレッドから呼ばれる。時間のかかる通信は派生クラス側で別のスレッドに任せること。
  *
  *       外部からFramePlayerを動かすときは、PlayerWindowのgoToSceneFrame()・setPlaybackRangeScene()・

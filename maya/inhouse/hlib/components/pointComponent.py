@@ -68,6 +68,9 @@ class PointComponent(Component):
         index = self.index
         if self.shape.type() == "nurbsCurve":
             fn = self.shape.curveFn()
+            if ws:
+                value = fast_geometry.object_positions(self.shape, [index], [value])[0]
+                space = {"objectSpace": True}
             if fn.form == om2.MFnNurbsCurve.kPeriodic:
                 # API末尾の重複CVは独立CVと同じ位置を表す。cmdsの末尾丸めを避ける。
                 index %= fn.numCVs - fn.degree

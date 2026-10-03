@@ -6,6 +6,8 @@ from .._core.unitValue import convert
 from ..utils.units import angle_to_ui, angle_from_ui
 from .._core.registry import node_wrapper
 from ..decorators.undo import undo_chunk
+from ..decorators._fast import fast_edit, is_fast
+from .._core.fastWrite import writable
 from .node import Node
 
 
@@ -135,28 +137,37 @@ class AnimCurve(Node):
     def getInfinity(self):
         """dict: pre/postをキーとした外挿方法名。"""
         names = {0: "constant", 1: "linear", 3: "cycle", 4: "cycleRelative", 5: "oscillate"}
-        return {key: names[cmds.getAttr(self.fullName() + "." + key + "Infinity")]
+        return {key: names[self.plug(key + "Infinity").get()]
                 for key in ("pre", "post")}
 
+    @fast_edit
     @undo_chunk("hlibAnimCurveInfinity")
-    def setInfinity(self, *, pre=None, post=None):
+    def setInfinity(self, *, pre=None, post=None, fast=False):
         """指定した側だけ外挿方法を変更する。省略した側は維持する。
 
         Args:
             pre (str | None): constant/linear/cycle/cycleRelative/oscillate。
                 Noneは変更しない。
             post (str | None): preと同じ選択肢。Noneは変更しない。
+            fast (bool): Trueはom2で直接更新し、Undoなし。既定Falseはcmdsで更新。
         Returns:
             AnimCurve: 自身。
         Raises:
             ValueError: 指定した外挿方法が不正な場合。両側を変更前に検証する。
+            TypeError: fastがboolでない場合。
+            RuntimeError: ノードが無効、または更新先がロック・接続などで書込み不可の場合。
         """
         allowed = {"constant": 0, "linear": 1, "cycle": 3, "cycleRelative": 4, "oscillate": 5}
         values = {key: value for key, value in (("pre", pre), ("post", post)) if value is not None}
         if any(not isinstance(value, str) or value not in allowed for value in values.values()):
             raise ValueError("Unsupported infinity type")
-        for key, value in values.items():
-            cmds.setAttr(self.fullName() + "." + key + "Infinity", allowed[value])
+        targets = [(self.plug(key + "Infinity"), allowed[value]) for key, value in values.items()]
+        if is_fast():
+            # 片側を書いた後にもう片側のロック・接続で失敗しないよう先に確認する。
+            for plug, value in targets:
+                writable(plug.mplug())
+        for plug, value in targets:
+            plug.set(value)
         return self
 
     @undo_chunk("hlibAnimCurveShift")

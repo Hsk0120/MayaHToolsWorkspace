@@ -152,7 +152,7 @@ void VideoView::setCompareOffset(int offset) {
     wake();
 }
 
-void VideoView::showFrame(int index, Clip::Direction direction) {
+void VideoView::showFrame(int index, Clip::Direction direction, std::optional<int> compareOffset) {
     std::shared_ptr<Clip> clip;
     std::shared_ptr<Clip> compare;
     std::shared_ptr<AudioPlayer> audio;
@@ -167,6 +167,9 @@ void VideoView::showFrame(int index, Clip::Direction direction) {
         requested_ = std::clamp(index, 0, clip->frameCount() - 1);
         playRequested_ = false;
         index = requested_;
+        if (compareOffset) {
+            compareOffset_ = *compareOffset;
+        }
     }
     playing_ = false;
     current_ = index;
@@ -444,10 +447,10 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
                 std::swprintf(label, 512, L"%ls   %d / %d", name.c_str(), pane.index + frameNumberStart_,
                               count - 1 + frameNumberStart_);
             } else if (pane.outOfRange) {
-                std::swprintf(label, 512, L"%ls   範囲外 / %d   (ずらし %+d)", name.c_str(),
+                std::swprintf(label, 512, L"%ls   範囲外 / %d   (オフセット %+df)", name.c_str(),
                               count - 1 + frameNumberStart_, compareOffset);
             } else {
-                std::swprintf(label, 512, L"%ls   %d / %d   (ずらし %+d)", name.c_str(), pane.index + frameNumberStart_,
+                std::swprintf(label, 512, L"%ls   %d / %d   (オフセット %+df)", name.c_str(), pane.index + frameNumberStart_,
                               count - 1 + frameNumberStart_,
                               compareOffset);
             }
@@ -627,7 +630,7 @@ void VideoView::renderLoop() {
         }
     };
 
-    // 1本目のコマ番号から、2本目に表示する内容を作る(ずらした結果が範囲外なら「範囲外」)。
+    // 1本目のコマ番号から、2本目に表示する内容を作る(オフセットを足した結果が範囲外なら「範囲外」)。
     auto comparePane = [&](const Clip* compare, int primaryIndex, int offset, const PaneState& previous) {
         PaneState pane;
         pane.clip = compare;
@@ -652,6 +655,7 @@ void VideoView::renderLoop() {
         std::shared_ptr<AudioPlayer> audio;
         bool playing = false;
         int requested = 0;
+        int offset = 0;
         int startFrame = 0;
         int playSession = 0;
         double rate = 24.0;
@@ -668,6 +672,7 @@ void VideoView::renderLoop() {
             audio = (audio_ && audio_->hasAudio() && !compare) ? audio_ : nullptr;
             playing = playRequested_ && clip;
             requested = requested_;
+            offset = compareOffset_;  // 表示するコマと同じ鍵の中で読む(showFrame()で両方を同時に変えるため)。
             startFrame = playStartFrame_;
             playSession = playSession_;
             rate = rate_;
@@ -676,7 +681,6 @@ void VideoView::renderLoop() {
                 rangeLast = std::clamp(playLast_, rangeFirst, clip->frameCount() - 1);
             }
         }
-        const int offset = compareOffset_;
         const int paneCount = compare ? 2 : 1;
         if (!ready) {
             // デバイスを作れなかった(または失われた)。少し待って作り直す。

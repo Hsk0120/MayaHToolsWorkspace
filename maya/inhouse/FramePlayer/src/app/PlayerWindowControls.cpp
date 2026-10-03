@@ -83,7 +83,9 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
     layout.compareButton = {compareRight - ui::scaled(56, dpi), textButtonTop, compareRight, textButtonTop + textButtonHeight};
     const int fileRight = static_cast<int>(layout.compareButton.left) - gap;
     layout.fileButton = {fileRight - ui::scaled(72, dpi), textButtonTop, fileRight, textButtonTop + textButtonHeight};
-    const int rateRight = static_cast<int>(layout.fileButton.left) - ui::scaled(12, dpi);
+    const int syncRight = static_cast<int>(layout.fileButton.left) - gap;
+    layout.syncButton = {syncRight - ui::scaled(80, dpi), textButtonTop, syncRight, textButtonTop + textButtonHeight};
+    const int rateRight = static_cast<int>(layout.syncButton.left) - ui::scaled(12, dpi);
     layout.rateLabel = {rateRight - ui::scaled(56, dpi), rangeTop, rateRight, bottom};
     const int endFieldRight = static_cast<int>(layout.rateLabel.left) - gap;
     layout.endField = {endFieldRight - fieldWidth, rangeFieldTop, endFieldRight, rangeFieldTop + fieldHeight};
@@ -167,6 +169,13 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi, const RE
     SelectObject(dc, fonts_.get(9, dpi));
     const int radius = ui::scaled(8, dpi);
     ui::drawRoundButton(dc, layout.fileButton, ui::kControlFace, ui::kControlBorder, ui::kText, L"ファイル ▾", radius);
+    // 「Maya連携」: 通常モードは薄い地。連携モードは強調色の地で、つながるまでは「連携待ち」、つながったら「連携中」。
+    if (syncServer_) {
+        ui::drawRoundButton(dc, layout.syncButton, ui::kAccent, ui::kAccent, ui::kBackground,
+                            syncServer_->connected() ? L"連携中" : L"連携待ち", radius);
+    } else {
+        ui::drawRoundButton(dc, layout.syncButton, ui::kControlFace, ui::kControlBorder, ui::kText, L"Maya連携", radius);
+    }
     if (compareClip_) {
         ui::drawRoundButton(dc, layout.compareButton, ui::kAccent, ui::kAccent, ui::kBackground, L"比較 ×", radius);
     } else {
@@ -513,7 +522,7 @@ void PlayerWindow::onKeyDown(WPARAM key) {
         }
         return;
     }
-    // [ ]: 比較中の2本目のずらしを1コマ(Shift併用で10コマ)変える。
+    // [ ]: 比較中の2本目のオフセットを1コマ(Shift併用で10コマ)変える。
     if ((key == VK_OEM_4 || key == VK_OEM_6) && compareClip_) {
         const int amount = shift ? kCompareLargeShift : 1;
         shiftCompare(key == VK_OEM_4 ? -amount : amount);
@@ -609,6 +618,10 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
         toggleMute();
         return;
     }
+    if (PtInRect(&layout.syncButton, point)) {
+        setSyncEnabled(!syncEnabled());
+        return;
+    }
     if (PtInRect(&layout.compareButton, point)) {
         if (compareClip_) {
             closeCompare();
@@ -685,8 +698,60 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
     }
 }
 
+void PlayerWindow::onMiddleButtonDown(int x, int y) {
+    if (!clip_ || drag_ != Drag::None) {
+        return;
+    }
+    const Layout layout = computeLayout();
+    const POINT point{x, y};
+    if (!PtInRect(&layout.video, point)) {
+        return;
+    }
+    if (editField_ != EditField::None) {
+        commitEdit();
+    }
+    // 比較中は左右の半分ずつがそれぞれの動画の表示枠(VideoViewと同じ分け方)。
+    const bool comparePane = compareClip_ && x >= (layout.video.left + layout.video.right) / 2;
+    drag_ = comparePane ? Drag::PaneCompare : Drag::PaneMain;
+    // 左右どちらでも、タイムスライダーのドラッグと同じく押した時点で再生を止め、離したら再生を続ける
+    // (動かしている間は、合わせたいコマを止まった状態で見比べられるように)。
+    resumeAfterScrub_ = view_.isPlaying();
+    if (resumeAfterScrub_) {
+        togglePlayback();
+    }
+    paneDragX_ = x;
+    paneDragFrame_ = view_.currentFrame();
+    paneDragOffset_ = view_.compareOffset();
+    // ウィンドウの外へ出てもマウスの動きを受け取れるよう取り込む(取り込み中はWM_SETCURSORが来ないので、ここで形を決める)。
+    SetCapture(hwnd_);
+    SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
+}
+
 void PlayerWindow::onMouseMove(int x) {
     switch (drag_) {
+    case Drag::PaneMain:
+    case Drag::PaneCompare:
+        if (clip_) {
+            // 押した位置からの距離をコマ数にする(0の前後で幅が変わらないよう、負の側も同じ幅で区切る)。
+            const int perFrame =
+                std::max(1, ui::scaled(kPaneDragPixelsPerFrame, static_cast<int>(GetDpiForWindow(hwnd_))));
+            const int moved = x - paneDragX_;
+            const int frames = moved >= 0 ? moved / perFrame : -((-moved + perFrame - 1) / perFrame);
+            if (drag_ == Drag::PaneCompare) {
+                if (compareClip_ && paneDragOffset_ + frames != view_.compareOffset()) {
+                    shiftCompare(paneDragOffset_ + frames - view_.compareOffset());
+                }
+            } else {
+                // 1本目だけを動かす: 動かした分だけオフセットを逆に変え、2本目に表示するコマはそのままにする。
+                const int target = std::clamp(paneDragFrame_ + frames, 0, clip_->frameCount() - 1);
+                std::optional<int> offset;
+                if (compareClip_) {
+                    offset = paneDragOffset_ - (target - paneDragFrame_);
+                }
+                goToFrame(target, true, offset);
+            }
+        }
+        break;
     case Drag::Volume:
         setVolume(volumeFromX(x));
         break;
@@ -757,7 +822,8 @@ bool PlayerWindow::updateCursor() {
             target = hitTestRange(layout, point.x);
         }
     }
-    const bool sizing = target == Drag::RangeStart || target == Drag::RangeEnd;
+    const bool sizing = target == Drag::RangeStart || target == Drag::RangeEnd || target == Drag::PaneMain ||
+                        target == Drag::PaneCompare;
     if (sizing) {
         SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
     }
@@ -765,8 +831,8 @@ bool PlayerWindow::updateCursor() {
 }
 
 void PlayerWindow::endScrub() {
-    const bool resume = drag_ == Drag::Scrub && resumeAfterScrub_;
-    if (drag_ == Drag::Scrub && clip_) {
+    const bool resume = resumeAfterScrub_;
+    if ((drag_ == Drag::Scrub || drag_ == Drag::PaneMain) && clip_) {
         updateTitle();  // ドラッグ中は間引いていたので、離した位置にする。
     }
     if (drag_ != Drag::None) {

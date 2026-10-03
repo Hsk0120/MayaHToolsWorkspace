@@ -346,8 +346,9 @@ class Transform(DagNode):
             raise TypeError("ws must be a bool")
         return self.setPivot((0, 0, 0), space=MSpace.kWorld if ws else MSpace.kObject, kind=kind, preserve=True)
 
+    @fast_edit
     @undo_chunk("hlibTransformScaleGeometry")
-    def scaleGeometry(self, scale, space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None):
+    def scaleGeometry(self, scale, space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下の全Shapeの頂点・CVを拡縮する。Transformの行列は変更しない。
 
         Args:
@@ -356,9 +357,10 @@ class Transform(DagNode):
             pivot (Iterable[float]): 指定空間の拡縮中心。内部距離単位cm。
             indices (Iterable[int | tuple[int, int]] | None): 各Shapeの対象番号。
                 Noneは全要素。サーフェスは(U, V)の組。
+            fast (bool): Trueは履歴なしメッシュ・非周期カーブをom2で直接更新し、Undoなし。
 
         Returns:
-            Transform: 自身。一回のUndoで戻せる。
+            Transform: 自身。通常モードは一回のUndoで戻せる。
 
         Raises:
             ValueError: 引数が不正な場合。

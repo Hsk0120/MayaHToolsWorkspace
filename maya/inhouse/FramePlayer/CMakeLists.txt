@@ -29,10 +29,11 @@ add_executable(FramePlayer WIN32
     src/app/PlayerWindowControls.cpp
     src/app/VideoView.cpp
     src/app/SyncServer.cpp
+    src/app/SyncAuth.cpp
     src/app/Ui.cpp
     src/app/Settings.cpp
 )
-target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi dwmapi comctl32 ws2_32)
+target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi dwmapi comctl32 ws2_32 bcrypt)
 
 # 配布用: `cmake --install build --config Release` でexeをこのフォルダ(パッケージ直下)へコピーする(Git管理対象)。
 # ビルドのたびに管理対象のexeが変わらないよう、コピーはインストールを実行したときだけ行う。

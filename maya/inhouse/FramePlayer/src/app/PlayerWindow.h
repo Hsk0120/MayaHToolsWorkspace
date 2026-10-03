@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -92,6 +93,19 @@ public:
     void setPlaying(bool playing);
 
     /**
+     * @brief Mayaとの連携モード(待ち受け口を開いて接続を待つ)を切り替える。
+     * @param enabled trueなら連携モードにする。falseなら接続を切り、待ち受け口も閉じる(通常モード)。
+     * @note 通常モードではポートを開かない。開けなかった場合はメッセージボックスで知らせ、通常モードのまま。
+     */
+    void setSyncEnabled(bool enabled);
+
+    /**
+     * @brief 連携モードかを返す。
+     * @return 連携モード(待ち受け口を開いている)ならtrue。
+     */
+    bool syncEnabled() const { return syncServer_ != nullptr; }
+
+    /**
      * @brief タイムスライダーの変化を知らせる先を設定する。
      * @param sync 知らせる先。nullptrなら知らせない。
      */
@@ -108,9 +122,11 @@ private:
     static constexpr UINT kSyncMessage = WM_APP + 5;  ///< 連携の待ち受け口(SyncServer)からの知らせ。
     static constexpr LONGLONG kCacheBarIntervalMs = 200;  ///< キャッシュ表示を計算し直す最短間隔(ミリ秒)。
     static constexpr float kVolumeStep = 0.05f;  ///< ↑↓キーで変える音量の幅。
-    static constexpr int kCompareLargeShift = 10;
+    static constexpr int kCompareLargeShift = 10;  ///< Shift+[ ]で変える2本目のオフセットの幅。
+    static constexpr int kPaneDragPixelsPerFrame = 8;  ///< 映像の上の中ボタンドラッグで1コマ動かす距離(96DPIでのピクセル)。
     static constexpr LONGLONG kPlayingTitleIntervalMs = 250;  ///< 再生中にタイトルバーを書き換える最短間隔(ミリ秒)。
-    static constexpr int kCacheStripHeight = 3;               ///< 目盛りの下端のキャッシュの帯の高さ(96DPIでのピクセル)。
+    static constexpr int kCacheStripHeight = 3;  ///< 目盛りの下端のキャッシュの帯の高さ(96DPIでのピクセル)。
+    static constexpr long long kMaxSyncFrame = 100000000;  ///< 連携で受け付けるフレーム番号の絶対値の上限。
 
     /** @brief 目盛りの作り置きを作ったときの条件。どれかが変わったら作り直す。 */
     struct RulerKey {
@@ -129,7 +145,7 @@ private:
             return width == other.width && height == other.height && first == other.first && last == other.last &&
                    startFrame == other.startFrame && dpi == other.dpi;
         }
-    };  ///< Shift+[ ]で変える2本目のずらしの幅。
+    };
 
     /** @brief マウスでドラッグしている部品。 */
     enum class Drag {
@@ -139,6 +155,8 @@ private:
         RangeStart,  ///< レンジスライダーの左のつまみ(再生範囲の最初)。
         RangeEnd,    ///< レンジスライダーの右のつまみ(再生範囲の最後)。
         RangeMove,   ///< レンジスライダーの範囲(長さを保って移動)。
+        PaneMain,    ///< 1本目(左)の映像の上の中ボタン。1本目だけを動かす(2本目の表示は動かさない)。
+        PaneCompare, ///< 2本目(右)の映像の上の中ボタン。2本目のオフセットを変える。
     };
 
     /** @brief 数字を入力できる欄。 */
@@ -165,6 +183,7 @@ private:
         RECT rangeBar{};       ///< レンジスライダーのバー(動画全体を割り当てる横幅)。
         RECT endField{};       ///< 終了フレーム(動画の最後のコマの番号)の欄。
         RECT rateLabel{};      ///< フレームレートの文字。
+        RECT syncButton{};     ///< 「Maya連携」ボタン(押すと連携モードと通常モードを切り替える)。
         RECT fileButton{};     ///< 「ファイル」ボタン(押すとファイルのメニューを出す)。
         RECT compareButton{};  ///< 「比較」ボタン(2本目の動画を選ぶ。比較中に押すと比較をやめる)。
         RECT volumeButton{};   ///< スピーカーのボタン(押すと消音を切り替える)。
@@ -300,7 +319,23 @@ private:
     void onLeftButtonDown(int x, int y);
 
     /**
-     * @brief スライダーをドラッグ中なら、マウス位置のコマへ移動する。
+     * @brief マウスの中ボタンが押されたときの処理。映像の上なら、その映像のコマを動かすドラッグを始める。
+     * @param x クライアント座標のx。
+     * @param y クライアント座標のy。
+     * @note 比較中は、左の映像の上なら1本目だけを動かし(2本目の表示はそのまま、オフセットが逆に変わる)、
+     *       右の映像の上なら2本目のオフセットを変える。1本だけのときは、その動画のコマを動かす。
+     *       再生中なら押した時点で止め、離したら再生を続ける。
+     */
+    void onMiddleButtonDown(int x, int y);
+
+    /**
+     * @brief 映像の上の中ボタンドラッグ中か。
+     * @return Drag::PaneMainかDrag::PaneCompareならtrue。
+     */
+    bool paneDragging() const { return drag_ == Drag::PaneMain || drag_ == Drag::PaneCompare; }
+
+    /**
+     * @brief スライダーをドラッグ中なら、マウス位置のコマへ移動する。映像の上の中ボタンドラッグ中なら、動いた距離に合わせてコマ・オフセットを変える。
      * @param x クライアント座標のx。
      */
     void onMouseMove(int x);
@@ -319,8 +354,8 @@ private:
     bool updateCursor();
 
     /**
-     * @brief スライダー(タイム・音量)のドラッグを終える。マウスの取り込み(SetCapture)も解除する。
-     * @note 再生中にタイムスライダーを触った場合は、離した位置から再生を続ける。
+     * @brief スライダー(タイム・音量)や映像の上の中ボタンのドラッグを終える。マウスの取り込み(SetCapture)も解除する。
+     * @note 再生中にタイムスライダーを触った(または映像の上で中ボタンドラッグを始めた)場合は、離した位置から再生を続ける。
      */
     void endScrub();
 
@@ -373,7 +408,7 @@ private:
     std::wstring chooseVideoFile(const wchar_t* title);
 
     /**
-     * @brief 比較中の2本目のずらしを変える。
+     * @brief 比較中の2本目のオフセットを変える。
      * @param delta 変える量(コマ数)。
      */
     void shiftCompare(int delta);
@@ -482,8 +517,9 @@ private:
      * @brief 再生を止め、指定したコマを表示する。範囲外は端に丸める。
      * @param index 0始まりのコマ番号。
      * @param scrubbing タイムラインのドラッグ中か。trueなら前後に同じだけ先読みさせる。
+     * @param compareOffset 指定すると、2本目のオフセットも同時に変える(2本目の表示を途中の位置へ動かさないため)。
      */
-    void goToFrame(int index, bool scrubbing = false);
+    void goToFrame(int index, bool scrubbing = false, std::optional<int> compareOffset = std::nullopt);
 
     /** @brief 再生中なら停止し、そうでなければ現在のコマから再生する。 */
     void togglePlayback();
@@ -552,11 +588,11 @@ private:
     ULONGLONG minimizedSinceMs_ = 0;     ///< 最小化された時刻(GetTickCount64)。
     Clip::Activity activity_ = Clip::Activity::Interactive;  ///< 動画へ最後に伝えた動作状態。
     ui::FontCache fonts_;     ///< 操作部の描画に使う書体(大きさごとに使い回す)。
-    ui::BackBuffer backBuffer_;
+    ui::BackBuffer backBuffer_;      ///< 操作部の描画に使う裏の画像(使い回す)。
     ui::Layer rulerLayer_;           ///< 目盛りの作り置き(通常の地)。
     ui::Layer rulerHighlightLayer_;  ///< 目盛りの作り置き(現在のフレームの区画の色の地)。
     RulerKey rulerKey_;              ///< 目盛りの作り置きを作ったときの条件。
-    LONGLONG lastTitleTicks_ = 0;    ///< 最後にタイトルバーを書き換えた時刻。  ///< 操作部の描画に使う裏の画像(使い回す)。
+    LONGLONG lastTitleTicks_ = 0;    ///< 最後にタイトルバーを書き換えた時刻。
     int current_ = 0;             ///< 操作部に表示しているコマ番号(VideoViewの表示に追従する)。
     int playFirst_ = 0;           ///< 再生範囲の最初のコマ番号。
     int playLast_ = 0;            ///< 再生範囲の最後のコマ番号。
@@ -566,6 +602,9 @@ private:
     int dragAnchor_ = 0;          ///< 範囲の移動を始めたときのマウス位置のコマ番号。
     int dragFirst_ = 0;           ///< 範囲の移動を始めたときの再生範囲の最初。
     int dragLast_ = 0;            ///< 同じく最後。
+    int paneDragX_ = 0;           ///< 映像の上の中ボタンドラッグを始めたときのマウスのx。
+    int paneDragFrame_ = 0;       ///< 同じく、そのときの1本目のコマ番号。
+    int paneDragOffset_ = 0;      ///< 同じく、そのときの2本目のオフセット。
     EditField editField_ = EditField::None;  ///< 入力中の欄。
     HWND editControl_ = nullptr;  ///< 入力用の子ウィンドウ(入力中だけある)。
     HBRUSH editBrush_ = nullptr;  ///< 入力用の子ウィンドウの背景のブラシ。
@@ -585,7 +624,7 @@ private:
     std::vector<std::pair<int, int>> cacheRuns_;  ///< キャッシュ表示で塗る横の範囲[左, 右)の一覧。
     RECT cacheRunsTrack_{};                       ///< cacheRuns_を計算したときのスライダーの範囲。
 
-    bool resumeAfterScrub_ = false;  ///< タイムスライダーを離したら再生を続けるか(触ったときに再生中だった)。
+    bool resumeAfterScrub_ = false;  ///< ドラッグを終えたら再生を続けるか(再生中にドラッグを始めた)。
     bool keepDisplayOn_ = false;  ///< 画面の消灯を止めるようWindowsへ伝えているか。
 };
 

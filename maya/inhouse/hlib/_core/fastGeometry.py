@@ -47,6 +47,14 @@ def positions(shape, indices, ws=False):
 
 
 def setPositions(shape, indices, values, ws=False):
+    """検証済みのcm座標を一括設定する。CVのwは変更しない。
+
+    Args:
+        shape (Shape): 履歴なしMeshまたは非周期NurbsCurve。
+        indices (Sequence[int]): 検証済みの番号。
+        values (Sequence[Sequence[float]]): 設定するXYZ。
+        ws (bool): TrueならAPIワールド座標、Falseならローカル座標。
+    """
     if not indices:
         return
     path, fn, mesh = geometry(shape, indices, edit=True)
@@ -56,7 +64,8 @@ def setPositions(shape, indices, values, ws=False):
         raise ValueError("Cannot edit in world space with a singular transform")
     inverse = transform.inverse() if ws else om.MMatrix()
     for index, value in zip(indices, values):
-        point = om.MPoint(*value) * inverse
+        # cvPositions(kWorld)はCVのwも行列積に使う。同じwで逆変換して往復を保つ。
+        point = om.MPoint(value[0], value[1], value[2], points[index].w) * inverse
         point.w = points[index].w
         points[index] = point
     if mesh:
@@ -65,6 +74,37 @@ def setPositions(shape, indices, values, ws=False):
     else:
         fn.setCVPositions(points)
         fn.updateCurve()
+
+
+def object_positions(shape, indices, values):
+    """APIのワールド座標を、CVの重みを保持したローカルXYZへ変換する。
+
+    Args:
+        shape (Shape): MeshまたはNurbsCurve。
+        indices (Sequence[int]): 検証済みの番号。
+        values (Sequence[Sequence[float]]): APIのワールドXYZ。距離はcm。
+
+    Returns:
+        list[tuple[float, float, float]]: cmdsのobjectSpaceへ渡すcmの座標。
+
+    Raises:
+        ValueError: ワールド行列が特異な場合。
+    """
+    path, fn, mesh = geometry(shape, indices)
+    matrix = path.inclusiveMatrix()
+    if abs(matrix.det4x4()) < 1e-12:
+        raise ValueError("Cannot edit in world space with a singular transform")
+    inverse = matrix.inverse()
+    if mesh:
+        weights = [1.0] * len(indices)
+    elif len(indices) == 1:
+        weights = [fn.cvPosition(indices[0]).w]
+    else:
+        cvs = fn.cvPositions()
+        weights = [cvs[i].w for i in indices]
+    points = [om.MPoint(row[0], row[1], row[2], weight) * inverse
+              for row, weight in zip(values, weights)]
+    return [(point.x, point.y, point.z) for point in points]
 
 
 def set_uvs(shape, indices, values):

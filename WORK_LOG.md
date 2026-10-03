@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Claude Code | 2026-10-03 | maya/inhouse/FramePlayer/ | FramePlayerの最適化検討とリファクタリング |
 
 
 
@@ -89,6 +88,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - Codex (2026-10-03): hlibのom2優先方針で実装243ファイルを静的棚卸し（直接cmds呼出し472箇所・fast宣言122箇所）。共通基盤、座標取得、配列作成、JSON、スキン等を精読し、段階的移行計画とインベントリをdocs/researchへローカル保存。Maya2022/2027 standaloneの既存fast各8テスト成功、2601頂点取得の限定計測とfast中のgetAttr/接続境界を確認。本体変更・GUI検証・全テスト・コミットなし。
 
 - Codex (2026-10-03): hlibリファクタリング計画相談のため設計規約・直近履歴・入力解決・add_attribute・JSON・初期化入口を確認。既知2件の修正、JSONの責務整理、初期化順序の明文化を候補化。実装変更・Maya実行なし。
+
+- 2026-10-03 Claude Code: FramePlayerの映像の上の中ボタンドラッグを追加(8px/1f)。比較中は右の映像で2本目のオフセット、左の映像で1本目だけを動かす(オフセットを逆に変えて右の表示は固定。表示コマとオフセットを描画スレッドと同じ鍵の中で同時に変える)。1本のときはコマを動かす。再生中は左右どちらのドラッグでも押した時点で止め、離した位置から再生を続ける。PlayerWindow.hのずれていたコメントを修正。メッセージ送信とキャプチャで確認。コミット・push済み。
+
+- 2026-10-03 Claude Code: FramePlayerの「ずらし」を「オフセット」に改称(比較表示・Maya連携画面・README・コメント)し、フレームの量に単位fを付けた(比較表示「(オフセット +12f)」、Maya画面「オフセット [f]」、READMEのキー操作・遅れの数値)。位置を表す番号(現在フレーム・範囲・目盛り)は数字のみのまま。ビルドしてパッケージ直下のexeを更新、比較画面のキャプチャで確認。コミット・push済み。
+
+- 2026-10-03 Claude Code: FramePlayerとMayaの連携を安全化。通常はポートを開かず、下段の「Maya連携」ボタン(または起動引数--sync、Maya側launchは既定でsync)で連携モードの時だけ127.0.0.1で待ち受け。%LOCALAPPDATA%\FramePlayer\sync.key(本人とSYSTEMのみの権限に明示設定)を鍵にチャレンジとHMAC-SHA256で相互認証、未認証は命令を受けず5秒で切断、未認証接続で認証済みを切らない、命令と数値(±1億)と行長を検査。セキュリティ確認17項目(FramePlayer側)・9項目(Maya側、偽物と鍵なしを拒否)・通常モードでポート/鍵なし・遅れ同等を確認。モジュール再読込時に連携画面を作り直すよう修正。コミット・push済み。
+
+- 2026-10-03 Claude Code: FramePlayerをさらに最適化。目盛りを2枚(通常/現在区画)作り置きして写すだけに、コマ移動時は上段だけ描き直し、再生中・ドラッグ中のタイトル書き換えを1秒4回に間引き(60fps再生中の描画0.70→0.29ms、ドラッグ中0.82→0.34ms)。動画を開くとき目次作成とデコーダー準備を並行し、試しに読んだ先頭コマを再利用(4K60で0.24→0.15秒)。時刻記録をcore/TraceLog.h(FRAMEPLAYER_TRACE_LOG、旧名も可)へ移し開く各段階・描画を記録。確認用ツール全一致、画面操作・比較・連携の通信で変化なしを確認。前回のリファクタリングと合わせてコミット・push済み。
+
+- 2026-10-03 Claude Code: FramePlayerの最適化とリファクタリング。操作部の描き直しを段ごとに(再生中は上段だけ)、停止中の不要な描き直しを削除、ブラシ・裏の画像を使い回し(60fps再生中の描画合計684→382ms、UIスレッドCPU約10→4%)。PlayerWindow.cpp(2056行)を本体806行と操作部PlayerWindowControls.cpp 930行に分割、色・GDI部品をUi、設定をSettings、重複していた時刻関数をcore/Util.hへ。動画を開く処理・レンジの当たり判定・Maya側の設定変換の重複を統合、未使用定数を削除。確認用ツール・画面操作・2本比較・連携の通信・Maya(画面からの接続と遅れの実測)で動作が変わらないことを確認。コミット・push済み。
 
 - 2026-10-03 Claude Code: FramePlayerをmaya/inhouse/FramePlayer/へ移し、hlibに依存しない単体パッケージ化(exeはパッケージ直下、Maya側はpython/frameplayer、maya/modules/FramePlayer.mod、単体用FramePlayer.mod、HTools/animation/framePlayerSync.pyは入口のみ)。Mayaのタイムスライダーと双方向連携(FramePlayerが127.0.0.1:7010で待ち受け、frame/range/play/stop/stateを1行命令でやり取り、受け取った変化は両側で送り返さない、ずらし・倍率・範囲同期)。Maya 2026で双方向・再生追従・ずらし・切断を確認(確認後に終了)。同期の遅れを両側の時刻記録で実測(コマ送り→表示1.5ms、FP→Maya反映6〜35msはMayaの計算分、再生追従は24fpsで100%・遅れ0コマ、重い60fpsでも遅れ最大2コマ)。接続直後にFramePlayerの古い範囲でMayaを上書きする不具合を修正。FRAMEPLAYER_SYNC_LOGで時刻記録。CLAUDE.mdの構成に追記。タイムスライダーのMaya風構造と合わせてコミット・push済み(c9cde6d)。
 

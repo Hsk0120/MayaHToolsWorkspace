@@ -6,6 +6,10 @@
 #include <objbase.h>
 #include <shellapi.h>
 
+#include <cwchar>
+#include <string>
+#include <vector>
+
 #include "app/PlayerWindow.h"
 
 /**
@@ -33,16 +37,29 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
             MessageBoxW(nullptr, L"ウィンドウを作成できません", L"FramePlayer", MB_OK | MB_ICONERROR);
             exitCode = 1;
         } else {
+            // 引数: [動画] [比較する動画] [--sync]。--syncがあれば連携モードで始める(Mayaから起動したとき)。
             int argc = 0;
             LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
             if (argv) {
-                if (argc > 1) {
-                    window.openClip(argv[1]);
-                }
-                if (argc > 2) {
-                    window.openCompare(argv[2]);  // 2つ目は比較用として右に並べる。
+                std::vector<std::wstring> paths;
+                bool sync = false;
+                for (int i = 1; i < argc; ++i) {
+                    if (wcscmp(argv[i], L"--sync") == 0) {
+                        sync = true;
+                    } else {
+                        paths.emplace_back(argv[i]);
+                    }
                 }
                 LocalFree(argv);
+                if (sync) {
+                    window.setSyncEnabled(true);
+                }
+                if (paths.size() > 0) {
+                    window.openClip(paths[0]);
+                }
+                if (paths.size() > 1) {
+                    window.openCompare(paths[1]);  // 2つ目は比較用として右に並べる。
+                }
             }
 
             MSG message;

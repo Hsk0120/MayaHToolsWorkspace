@@ -79,15 +79,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     // 表示する前にタイトルバーの色を決めておく(白いタイトルバーが一瞬見えないように)。
     ui::applyDarkTitleBar(hwnd_);
     SetTimer(hwnd_, kResourceTimerId, kResourceTimerMs, nullptr);
-    // Mayaなどと連携するための待ち受け口を開く(このPCの中からだけ接続できる)。
-    // 同じ番号を他のアプリ(2つ目のFramePlayerなど)が使っていれば、連携なしで動く。
-    {
-        auto server = std::make_unique<SyncServer>();
-        if (server->start(hwnd_, kSyncMessage, settings_.syncPort)) {
-            syncServer_ = server.get();
-            sync_ = std::move(server);
-        }
-    }
+    // Mayaとの連携の待ち受け口は、通常は開かない(「Maya連携」ボタンか、起動時の --sync で開く)。
     // GPUが使えれば、デコード・キャッシュ・描画で同じデバイスを使う(GPUのメモリにあるコマをそのまま描くため)。
     gpu_ = GpuDevice::create();
     if (!view_.create(instance, hwnd_, kViewFrameMessage, gpu_)) {
@@ -242,10 +234,23 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         }
         return DefWindowProcW(hwnd_, message, wParam, lParam);
     case WM_LBUTTONDOWN:
-        onLeftButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        if (!paneDragging()) {  // 中ボタンでドラッグ中の左クリックは無視する。
+            onLeftButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        }
         return 0;
     case WM_LBUTTONDBLCLK:
-        onDoubleClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        if (!paneDragging()) {
+            onDoubleClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        }
+        return 0;
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONDBLCLK:  // 素早く2回押したときの2回目も、普通に押したのと同じに扱う。
+        onMiddleButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
+    case WM_MBUTTONUP:
+        if (paneDragging()) {
+            endScrub();
+        }
         return 0;
     case WM_SETCURSOR:
         if (LOWORD(lParam) == HTCLIENT && updateCursor()) {
@@ -279,12 +284,14 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         onMouseMove(GET_X_LPARAM(lParam));
         return 0;
     case WM_LBUTTONUP:
-        endScrub();
+        if (!paneDragging()) {
+            endScrub();
+        }
         return 0;
     case WM_CAPTURECHANGED:
         // 他のウィンドウにマウスを取られたときもドラッグを終える(endScrub()の中で外したときは何もしない)。
         if (drag_ != Drag::None) {
-            const bool resume = drag_ == Drag::Scrub && resumeAfterScrub_;
+            const bool resume = resumeAfterScrub_;
             drag_ = Drag::None;
             resumeAfterScrub_ = false;
             if (resume) {
@@ -668,33 +675,92 @@ void PlayerWindow::onSyncMessage(WPARAM event, LPARAM lParam) {
         // ここで自分のフレームや範囲も送ると、相手が送ってくる状態と行き違いになり、相手を古い状態で上書きしてしまう。
         sendSyncState();
         updateTitle();
+        invalidateBar();  // 「Maya連携」ボタンの表示(連携待ち→連携中)を変える。
         break;
     case SyncServer::kDisconnected:
         updateTitle();
+        invalidateBar();
         break;
     default:
         break;
     }
 }
 
-void PlayerWindow::applySyncCommand(const std::string& line) {
-    // 1行の命令: frame <番号> / range <最初> <最後> / play / stop / hello <名前>
-    char command[16] = {};
-    int first = 0;
-    int second = 0;
-    const int fields =
-        sscanf_s(line.c_str(), "%15s %d %d", command, static_cast<unsigned>(sizeof(command)), &first, &second);
-    if (fields < 1) {
+void PlayerWindow::setSyncEnabled(bool enabled) {
+    if (enabled == (syncServer_ != nullptr)) {
         return;
     }
-    const std::string name = command;
+    if (enabled) {
+        // 連携モードにしたときだけ、このPCの中からだけ接続できる待ち受け口を開く(相手は鍵で確かめる)。
+        auto server = std::make_unique<SyncServer>();
+        if (!server->start(hwnd_, kSyncMessage, settings_.syncPort)) {
+            wchar_t message[512];
+            std::swprintf(message, 512,
+                          L"Maya連携を始められません。\n\n"
+                          L"ポート %u を他のアプリ(別のFramePlayerなど)が使っているか、連携の鍵を用意できません。",
+                          static_cast<unsigned>(settings_.syncPort));
+            MessageBoxW(hwnd_, message, kAppName, MB_OK | MB_ICONWARNING);
+            return;
+        }
+        syncServer_ = server.get();
+        sync_ = std::move(server);
+    } else {
+        // 通常モードに戻したら、接続を切って待ち受け口も閉じる。
+        syncServer_ = nullptr;
+        sync_.reset();
+    }
+    notifiedFrame_ = 0x7FFFFFFF;
+    notifiedPlaying_ = false;
+    updateTitle();
+    invalidateBar();
+}
+
+void PlayerWindow::applySyncCommand(const std::string& line) {
+    // 1行の命令: frame <番号> / range <最初> <最後> / play / stop / hello <名前>
+    // 決まった命令と、決まった数の整数だけを受け付ける。それ以外(余分な語・範囲外の数・数でない文字)は無視する。
+    std::vector<std::string> words;
+    for (std::size_t start = 0; start < line.size() && words.size() <= 3;) {
+        const std::size_t end = line.find(' ', start);
+        if (end != start) {
+            words.push_back(line.substr(start, end == std::string::npos ? std::string::npos : end - start));
+        }
+        if (end == std::string::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    auto toFrame = [](const std::string& text, int& value) {
+        // フレーム番号は±1億まで(int・コマ番号の計算であふれないように)。
+        if (text.empty() || text.size() > 12) {
+            return false;
+        }
+        char* end = nullptr;
+        const long long parsed = std::strtoll(text.c_str(), &end, 10);
+        if (!end || *end != '\0' || parsed < -kMaxSyncFrame || parsed > kMaxSyncFrame) {
+            return false;
+        }
+        value = static_cast<int>(parsed);
+        return true;
+    };
+    if (words.empty()) {
+        return;
+    }
+    const std::string& name = words[0];
+    int first = 0;
+    int second = 0;
+    const bool isFrame = name == "frame" && words.size() == 2 && toFrame(words[1], first);
+    const bool isRange = name == "range" && words.size() == 3 && toFrame(words[1], first) && toFrame(words[2], second);
+    const bool isPlay = (name == "play" || name == "stop") && words.size() == 1;
+    if (!isFrame && !isRange && !isPlay) {
+        return;  // helloや知らない命令は何もしない。
+    }
     traceLog("apply %s", line.c_str());
     applyingRemote_ = true;
-    if (name == "frame" && fields >= 2) {
+    if (isFrame) {
         if (clip_ && first != currentSceneFrame()) {
             goToSceneFrame(first);
         }
-    } else if (name == "range" && fields >= 3) {
+    } else if (isRange) {
         setPlaybackRangeScene(std::min(first, second), std::max(first, second));
     } else if (name == "play") {
         setPlaying(true);
@@ -708,17 +774,20 @@ void PlayerWindow::sendSyncState() {
     if (!syncServer_) {
         return;
     }
-    syncServer_->sendLine("hello FramePlayer 1");
+    syncServer_->sendLine("hello FramePlayer 2");
     syncServer_->playStateChanged(view_.isPlaying());
     notifiedPlaying_ = view_.isPlaying();
     notifiedFrame_ = 0x7FFFFFFF;  // 次にフレームが変わったら必ず知らせる。
 }
 
-void PlayerWindow::goToFrame(int index, bool scrubbing) {
+void PlayerWindow::goToFrame(int index, bool scrubbing, std::optional<int> compareOffset) {
     const int clamped = std::clamp(index, 0, clip_->frameCount() - 1);
     const bool wasPlaying = view_.isPlaying();
     const int shown = view_.currentFrame();
     if (clamped == shown && !wasPlaying) {
+        if (compareOffset && *compareOffset != view_.compareOffset()) {
+            view_.setCompareOffset(*compareOffset);
+        }
         return;
     }
     // 移動した向きに先読みさせる(←で戻り続けるときは前のコマを先に読む)。
@@ -726,7 +795,7 @@ void PlayerWindow::goToFrame(int index, bool scrubbing) {
     const auto direction = scrubbing ? Clip::Direction::Both
                            : clamped < shown ? Clip::Direction::Backward
                                              : Clip::Direction::Forward;
-    view_.showFrame(clamped, direction);
+    view_.showFrame(clamped, direction, compareOffset);
     syncPowerRequest();
     current_ = clamped;
     // ドラッグ中のタイトルバーの書き換えは間引く(離したときにendScrub()で最新にする)。
