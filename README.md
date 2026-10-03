@@ -33,6 +33,7 @@ hrigの機能仕様・テスト方法・テストシーン・計測結果を掲�
 ```bat
 cd maya
 maya_2022_en.bat
+maya_2023_en.bat
 maya_2024_en.bat
 maya_2025_en.bat
 maya_2026_en.bat
@@ -41,6 +42,7 @@ rem 日本語: *_ja.bat
 ```
 
 - `maya_2022_en.bat`: Maya 2022 (en_US)
+- `maya_2023_en.bat`: Maya 2023 (en_US)
 - `maya_2024_en.bat`: Maya 2024 (en_US)
 - `maya_2025_en.bat`: Maya 2025 (en_US)
 - `maya_2026_en.bat`: Maya 2026 (en_US)

@@ -1,6 +1,9 @@
 + MAYAVERSION:2022 PLATFORM:win64 MayaCinematicCameraHUD 1.1.0 ../inhouse/MayaCinematicCameraHUD
 MAYA_PLUG_IN_PATH +:= release/plug-ins/windows/2022
 
++ MAYAVERSION:2023 PLATFORM:win64 MayaCinematicCameraHUD 1.1.0 ../inhouse/MayaCinematicCameraHUD
+MAYA_PLUG_IN_PATH +:= release/plug-ins/windows/2023
+
 + MAYAVERSION:2024 PLATFORM:win64 MayaCinematicCameraHUD 1.1.0 ../inhouse/MayaCinematicCameraHUD
 MAYA_PLUG_IN_PATH +:= release/plug-ins/windows/2024
 

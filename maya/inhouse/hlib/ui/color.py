@@ -103,7 +103,9 @@ class Color:
         if cmds.about(batch=True):
             return cls._DEFAULT_PALETTE, "default"
         try:
-            palette = tuple(cls._validate_rgb(cmds.colorIndex(i, query=True)) for i in range(32))
+            # 0はDrawing Overridesの既定色。Maya 2023ではcolorIndexで照会できない。
+            palette = (cls._DEFAULT_PALETTE[0],) + tuple(
+                cls._validate_rgb(cmds.colorIndex(i, query=True)) for i in range(1, 32))
         except (ValueError, TypeError) as exc:
             raise RuntimeError("Cannot read Maya color palette") from exc
         return palette, "maya"

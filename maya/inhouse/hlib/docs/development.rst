@@ -371,7 +371,7 @@ hlib は ``MFnPlugin`` によるコマンド登録・ノード登録など、May
 「cmds/om2 だけでは実現できないので専用プラグインを作る」という選択肢は
 取らないでください。
 
-これは実際に、Maya 2022 の ``playbackOptions`` がUndo履歴を作らない制限を
+これは実際に、Maya 2022・2023 の ``playbackOptions`` がUndo履歴を作らない制限を
 補うため、``_core/_playback_range_command.py`` に専用の ``MPxCommand``
 (``hlibSetPlaybackRange``)を実装していたことがありましたが、以下の理由で
 撤去し、この方針として明文化しました。
@@ -384,7 +384,7 @@ hlib は ``MFnPlugin`` によるコマンド登録・ノード登録など、May
 - 対象の制限はMayaネイティブの既知の挙動であり、cmds/om2の使い分け方針
   (前節参照)の範囲内で吸収できないものは、無理に回避せず制限として
   docstring に明記するに留める(``TimeSlider.setPlaybackRange`` の
-  Maya 2022 に関する記載を参照)。
+  Maya 2022・2023 に関する記載を参照)。
 
 「Undo対応にしたいが cmds/om2 だけでは足りない」という要求が出た場合も、
 専用プラグインの新規作成ではなく、既存の ``undoChunk``/``undoTransaction``

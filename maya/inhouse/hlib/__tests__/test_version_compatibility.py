@@ -41,7 +41,7 @@ class VersionCompatibilityTest(unittest.TestCase):
         slider = hlib.getTimeSlider()
         playback, animation = slider.getPlaybackRange(), slider.getAnimationRange()
         try:
-            if str(cmds.about(version=True)).startswith("2022"):
+            if str(cmds.about(version=True)).startswith(("2022", "2023")):
                 before = cmds.undoInfo(query=True, undoName=True)
                 slider.setPlaybackRange(-12, 103)
                 hlib.reload()
@@ -50,7 +50,7 @@ class VersionCompatibilityTest(unittest.TestCase):
                 slider.setAnimationRange(-24, 206)
                 self.assertEqual(slider.getAnimationRange(), (-24, 206))
                 self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
-                return  # Maya 2022では履歴を作らない。直前の別操作をUndoしない。
+                return  # Maya 2022・2023では履歴を作らない。直前の別操作をUndoしない。
             slider.setPlaybackRange(-12, 103)
             hlib.reload()
             cmds.undo()

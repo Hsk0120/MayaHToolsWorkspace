@@ -1,7 +1,7 @@
 """Mayaのインストール先から、ビルド用のローカルdevkitを生成する（Windows専用）。
 
 Maya 2025 以降はdevkitが別配布で、インストール先には ``cmake/pluginEntry.cmake`` が無い。
-また Maya 2022/2024 はQtのcmake/ヘッダ用zipが未展開で、展開には管理者権限が要る。
+また Maya 2022～2024 はQtのcmake/ヘッダ用zipが未展開で、展開には管理者権限が要る。
 一方、ヘッダ・ライブラリ・moc・Qt用zipはインストール先に揃っているため、
 ``.maya-output/devkit/<年>/`` に ``DEVKIT_LOCATION`` として使える構成を生成する
 （Program Files配下は書き換えない）。
@@ -27,7 +27,7 @@ except ImportError:  # Windows以外
 ROOT = Path(__file__).resolve().parents[1]
 DEVKIT_ROOT = ROOT / ".maya-output/devkit"
 # 生成物の構成を変えたら上げる（古い生成物は自動で作り直される）。
-LAYOUT_VERSION = "4"
+LAYOUT_VERSION = "5"
 CMAKE_FILES = ("pluginEntry.cmake", "devkit.cmake", "gpuCache.cmake", "mayald.cmake")
 
 
@@ -116,7 +116,9 @@ def _patch_qt5_cmake(cmake_dir):
         if not re.match(r"Qt5(Core|Gui|Widgets)", path.name):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        new = re.sub(r"(\r?\n)(\s*)(_populate[^\(]+\([^,\)]+,?\s*DEBUG[^\)]*\))", r"\1\2# \3", text)
+        # Qt 5.15はDEBUGが先頭引数、旧版は構成名が後続引数にある。
+        new = re.sub(r"(\r?\n)([ \t]*)(_populate[^\(]+\(\s*DEBUG\b[^\)]*\))", r"\1\2# \3", text)
+        new = re.sub(r"(\r?\n)([ \t]*)(_populate[^\(]+\([^,\)]+,?\s+DEBUG\b[^\)]*\))", r"\1\2# \3", new)
         if path.name.endswith("Config.cmake"):
             new = re.sub(r"(\r?\n)(\s*)(include\(\$\{pluginTarget\}\))", r"\1\2# \3 # Plugins disabled", new)
         if new != text:

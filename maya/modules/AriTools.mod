@@ -3,6 +3,11 @@ scripts: ./mel
 icons: ./icons
 PYTHONPATH +:= ./
 
++ MAYAVERSION:2023 PLATFORM:win64 AriTools 1.0.0 ../external/AriTools
+scripts: ./mel
+icons: ./icons
+PYTHONPATH +:= ./
+
 + MAYAVERSION:2024 PLATFORM:win64 AriTools 1.0.0 ../external/AriTools
 scripts: ./mel
 icons: ./icons

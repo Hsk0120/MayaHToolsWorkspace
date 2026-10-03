@@ -1,6 +1,9 @@
 + MAYAVERSION:2022 PLATFORM:win64 MayaCommandPorts 1.0.0 ../inhouse/MayaCommandPorts
 PYTHONPATH +:= .
 
++ MAYAVERSION:2023 PLATFORM:win64 MayaCommandPorts 1.0.0 ../inhouse/MayaCommandPorts
+PYTHONPATH +:= .
+
 + MAYAVERSION:2024 PLATFORM:win64 MayaCommandPorts 1.0.0 ../inhouse/MayaCommandPorts
 PYTHONPATH +:= .
 

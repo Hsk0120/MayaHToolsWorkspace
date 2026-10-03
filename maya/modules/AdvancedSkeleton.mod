@@ -3,6 +3,11 @@ scripts: ./
 PYTHONPATH +:= ./
 MAYA_SCRIPT_PATH +:= ./
 
++ MAYAVERSION:2023 PLATFORM:win64 AdvancedSkeletonHTools 1.0.0 ../external/AdvancedSkeleton
+scripts: ./
+PYTHONPATH +:= ./
+MAYA_SCRIPT_PATH +:= ./
+
 + MAYAVERSION:2024 PLATFORM:win64 AdvancedSkeletonHTools 1.0.0 ../external/AdvancedSkeleton
 scripts: ./
 PYTHONPATH +:= ./

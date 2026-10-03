@@ -63,7 +63,7 @@ def main(output_dir=None, finished=None):
                 lambda: cmds.deleteUI(connection) if connection else None,
                 lambda: cmds.deleteUI(channel_connection) if channel_connection else None,
                 lambda: cmds.namespace(removeNamespace=prefix, deleteNamespaceContent=True) if cmds.namespace(exists=prefix) else None,
-                lambda: selection.restore(),
+                lambda: selection.select(),
                 lambda: cmds.currentTime(original_time),
                 lambda: cmds.setFocus(original_focus) if original_focus and cmds.getPanel(typeOf=original_focus) else None):
             try:
@@ -179,7 +179,7 @@ def main(output_dir=None, finished=None):
                 saved = hlib.captureSelection()
                 before = cmds.ls(selection=True, flatten=True, long=True)
                 cmds.select(clear=True)
-                saved.restore()
+                saved.select()
                 self.assertEqual(cmds.ls(selection=True, flatten=True, long=True), before)
                 capture("component_selection")
                 cmds.select(clear=True)

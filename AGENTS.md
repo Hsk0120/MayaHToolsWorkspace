@@ -66,7 +66,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 
 ## 起動と実行
 
-- 起動バッチは2022・2024・2025・2026・2027用がある。対象バージョンのインストールを確認して使用する。
+- 起動バッチは2022・2023・2024・2025・2026・2027用がある。対象バージョンのインストールを確認して使用する。
 - バッチは環境変数を設定し、存在する場合はユーザーの `Documents/maya/<version>/Maya.env` を読み込む。ユーザー環境を無断で書き換えない。
 - VS Codeでは `MayaHToolsWorkspace.code-workspace` を開き、対象ファイルを保存して `Ctrl+Shift+B` で送信する。
 - 現在の送信タスクはMaya 2027の `mayapy.exe` を使用する。実際のパスはワークスペースの `maya.pythonExecutable` を確認する。

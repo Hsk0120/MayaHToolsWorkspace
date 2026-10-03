@@ -24,7 +24,7 @@ class ColorTest(unittest.TestCase):
     def test_palette_and_synchronization(self):
         """実パレット全番号と、無照会のプロパティ更新を検証する。"""
         color = Color(index=17)
-        palette = Color._DEFAULT_PALETTE if cmds.about(batch=True) else [tuple(cmds.colorIndex(i, query=True)) for i in range(32)]
+        palette = Color._DEFAULT_PALETTE if cmds.about(batch=True) else [Color._DEFAULT_PALETTE[0]] + [tuple(cmds.colorIndex(i, query=True)) for i in range(1, 32)]
         self.assertEqual(color.paletteSource, 'default' if cmds.about(batch=True) else 'maya')
         with patch.object(cmds, 'colorIndex', side_effect=AssertionError('Unexpected query')):
             for i in range(32):
@@ -58,6 +58,14 @@ class ColorTest(unittest.TestCase):
         self.assertEqual(index.rgb, (.1, .2, .3))
         rgb.rgb = (0, 0, 0)
         self.assertEqual(rgb.index, 1)
+
+    def test_gui_palette_never_queries_disabled_index(self):
+        """照会できない0番を避け、通常色1～31はMayaから取得する。"""
+        with patch.object(cmds, 'about', return_value=False), patch.object(
+                cmds, 'colorIndex', side_effect=lambda i, **kw: Color._DEFAULT_PALETTE[i]) as query:
+            color = Color(index=0)
+            self.assertEqual(color.rgb, Color._DEFAULT_PALETTE[0])
+            self.assertEqual([call.args[0] for call in query.call_args_list], list(range(1, 32)))
 
     def test_batch_palette(self):
         """バッチではGUI照会せず、標準値で相互変換できる。"""

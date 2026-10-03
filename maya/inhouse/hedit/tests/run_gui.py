@@ -12,7 +12,7 @@ from run_hlib_gui_versions import run_version
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('version', nargs='?', default='2027', choices=['2022', '2024', '2025', '2026', '2027'])
+    parser.add_argument('version', nargs='?', default='2027', choices=['2022', '2023', '2024', '2025', '2026', '2027'])
     parser.add_argument('--timeout', type=int, default=120)
     parser.add_argument('--shutdown-timeout', type=int, default=30)
     parser.add_argument('--suite', choices=['gui_smoke.py', 'completion_output_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py'], default='gui_smoke.py')

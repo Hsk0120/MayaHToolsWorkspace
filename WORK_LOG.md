@@ -83,6 +83,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-03): Maya2023対応とheditバイナリをコミット・push。HUDサブモジュールの2023バイナリを先行pushし親参照を更新。前回のhlib932テスト・GUI15件・hedit・追加Color9件・Sphinx成功記録と差分チェックを確認。既存のheditテスト変更と.vscodeは対象外。
+
+- Codex (2026-10-03): Maya2023英語/日本語バッチと11個の.modを追加。Qt5.15のDebug参照補正とdevkitキャッシュ更新でHUD/heditの2023ビルド成功。両プラグイン・mGear・PoseDriverConnectのロード確認。2023のcolorIndex(0)照会を回避し、再生範囲Undo不可の既知制限を2023にも記載、GUIテストのSelection旧名を更新。hlib98ファイル932テストと追加Color9テスト、GUI15件、hedit単体/Maya/画面/専用GUI、Qt補正回帰、Sphinx警告なし成功。hrig/Bifrost拡張は2025以降向け、Charcoal/MetaHumanは2023バイナリなし。手動GUI操作・HUD描画・通常バッチからの起動は未検証。既存変更を保持、未コミット。
+
 - Claude Code (2026-10-03): FramePlayerの色をニュートラルに正確再現。色情報(行列/範囲/色域/伝達関数/ビット数、mp4のcolrも自前で読む)を読み、Windowsの映像処理を通さず自前のHLSL(fxcで埋め込み)でYUV→RGB・縮小・色域変換・HDR(HDR画面は明るさそのまま、SDR画面はBT.2390で203cd/m²へ)・10bit(P010・scRGB出力)。右クリックで色の情報の表示と手動の指定。確認用動画の生成スクリプトとFramePlayerColorCheckで10本×SDR/HDR画面×GPU/CPU/縮小がすべて許容差内。実機のHDR画面での確認は未。mainへpush。
 
 - Claude Code (2026-10-03): OpenRVを maya/external/openrv にsubmodule登録(浅いクローン)。色再現性の調査メモは docs/research/openrv_color.md(Git対象外)。mainへpush。

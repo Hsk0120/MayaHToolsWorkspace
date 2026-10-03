@@ -26,9 +26,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import maya_devkit  # noqa: E402
 
 # Mayaバージョンに対応するMSVCプラットフォームツールセット。
-# 2022/2024/2026 は MayaCinematicCameraHUD の実ビルドで確認済み。2023/2025/2027 は未確認の想定値。
+# 2022/2023/2024/2026 は MayaCinematicCameraHUD の実ビルドで確認済み。2025/2027 は未確認の想定値。
 TOOLSETS = {2022: "v142", 2023: "v142", 2024: "v143", 2025: "v143", 2026: "v145", 2027: "v145"}
-VERIFIED = {2022, 2024, 2026}
+VERIFIED = {2022, 2023, 2024, 2026}
 
 GENERATORS = {18: "Visual Studio 18 2026", 17: "Visual Studio 17 2022", 16: "Visual Studio 16 2019"}
 VSWHERE = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Microsoft Visual Studio/Installer/vswhere.exe"

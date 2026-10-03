@@ -38,7 +38,7 @@ def run(command, env, directory, name, timeout=120):
 
 
 def main():
-    """引数の各版(省略時は全5版)で、単体テスト・standalone・offscreen の UI テストを順に実行する。
+    """引数の各版(省略時は全6版)で、単体テスト・standalone・offscreen の UI テストを順に実行する。
 
     Returns:
         int: すべて成功なら 0、それ以外は 1。
@@ -46,7 +46,7 @@ def main():
     results = []
     output = ROOT / '.maya-output/hedit-tests' / datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     output.mkdir(parents=True)
-    for version in (sys.argv[1:] or ['2022', '2024', '2025', '2026', '2027']):
+    for version in (sys.argv[1:] or ['2022', '2023', '2024', '2025', '2026', '2027']):
         directory = output / version; directory.mkdir()
         executable = Path('C:/Program Files/Autodesk/Maya' + version + '/bin/mayapy.exe')
         env = isolated_environment(executable, directory)

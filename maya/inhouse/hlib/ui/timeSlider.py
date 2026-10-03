@@ -69,7 +69,7 @@ class TimeSlider:
     def _set_range(self, start, end, start_flag, end_flag):
         """有限値かつ開始<=終了を検証して範囲を設定する。
 
-        Maya 2022 の ``playbackOptions`` はUndo履歴を作らないため、その
+        Maya 2022・2023 の ``playbackOptions`` はUndo履歴を作らないため、その
         バージョンではこのメソッド(および ``setPlaybackRange``/
         ``setAnimationRange``)による変更はUndo/Redoできない
         (Mayaネイティブの既知の制限で、hlibは独自プラグインでは補わない方針)。
@@ -89,7 +89,7 @@ class TimeSlider:
     def setPlaybackRange(self, start, end):
         """再生範囲を設定する。
 
-        Maya 2022 では ``playbackOptions`` 自体がUndo履歴を作らないため、
+        Maya 2022・2023 では ``playbackOptions`` 自体がUndo履歴を作らないため、
         このバージョンでの変更はUndo/Redoできない(Mayaネイティブの制限)。
 
         Args:
@@ -105,7 +105,7 @@ class TimeSlider:
     def setAnimationRange(self, start, end):
         """アニメーション全体の範囲を設定する。
 
-        Maya 2022 では ``playbackOptions`` 自体がUndo履歴を作らないため、
+        Maya 2022・2023 では ``playbackOptions`` 自体がUndo履歴を作らないため、
         このバージョンでの変更はUndo/Redoできない(Mayaネイティブの制限)。
 
         Args:
