@@ -52,10 +52,12 @@ def check(output, QtCore, QtGui, QtWidgets, QtTest):
         QtTest.QTest.keyClicks(output, 'cannot_edit')
         assert output.toPlainText() == text
         output.setPlainText('\n'.join('line %s' % i for i in range(150)))
+        # 途中までスクロールしていても、新しいログが来たら最下部へ移る(選択範囲は保つ)。
         output.verticalScrollBar().setValue(0)
-        om.MGlobal.displayInfo('scroll_preserved')
+        om.MGlobal.displayInfo('scroll_to_newest')
         wait()
-        assert output.verticalScrollBar().value() == 0
+        assert output.verticalScrollBar().value() == output.verticalScrollBar().maximum()
+        assert output.toPlainText().rstrip().endswith('scroll_to_newest')
         output.moveCursor(QtGui.QTextCursor.End)
         output.verticalScrollBar().setValue(output.verticalScrollBar().maximum())
         om.MGlobal.displayInfo('follow_tail')

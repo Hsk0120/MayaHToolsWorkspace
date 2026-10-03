@@ -33,7 +33,7 @@ def main():
         int: 成功なら0。
     """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("version", nargs="?", default="2027", choices=["2022", "2024", "2025", "2026", "2027"])
+    parser.add_argument("version", nargs="?", default="2027", choices=["2022", "2023", "2024", "2025", "2026", "2027"])
     parser.add_argument("--no-vscode", action="store_true", help="VS Code を撮らず、hedit だけを撮る")
     parser.add_argument("--timeout", type=int, default=180)
     args = parser.parse_args()

@@ -12,6 +12,9 @@
    * - 0.3.0
      - 設計を見直した。
 
+       * Maya 2023 に対応した(``release/plug-ins/windows/2023/hedit.mll``)。
+       * 出力欄は、新しいログが表示されたら途中を見ていても必ず最下部へスクロールするようにした(選択範囲は保つ)。
+
        * プラグインの出力先を ``release/plug-ins/windows/<Mayaの年>/hedit.mll`` に固定(版のフォルダーをやめた)。
          版を上げても、Maya の信頼済みの場所とオートロードの設定が外れない。
        * Maya のワークスペースの復元だけでは hedit をロードしないようにした(uiScript の ``loadPlugin`` と

@@ -199,8 +199,6 @@ void OutputPanel::append(const QList<OutputMessage>& messages) {
     const int oldVertical = vertical->value();
     const int oldHorizontal = horizontal->value();
     const bool hasSelection = view_->textCursor().hasSelection();
-    // 末尾を見ていて、選択もしていなければ、追加後も末尾へ追従する。
-    const bool followEnd = oldVertical >= vertical->maximum() && !hasSelection;
 
     // 利用者の選択範囲を覚えておく。setKeepPositionOnInsertで、追記しても位置がずれないようにする。
     QTextCursor anchor(view_->document());
@@ -213,6 +211,7 @@ void OutputPanel::append(const QList<OutputMessage>& messages) {
     // 表示用のカーソルとは別のカーソルで末尾へ追記する。
     QTextCursor writer(view_->document());
     writer.movePosition(QTextCursor::End);
+    bool added = false;  // 表示モードで隠す種類だけなら、何も追加されない。
     for (const OutputMessage& message : messages) {
         if (!accepts(message.kind)) {
             continue;
@@ -220,6 +219,7 @@ void OutputPanel::append(const QList<OutputMessage>& messages) {
         QTextCharFormat format;
         format.setForeground(colorFor(message.kind));
         writer.insertText(message.text, format);
+        added = added || !message.text.isEmpty();
     }
     // 以後の追記(appendNote等)が直前の色を引き継がないよう、通常の色へ戻す。
     QTextCharFormat normal;
@@ -231,7 +231,9 @@ void OutputPanel::append(const QList<OutputMessage>& messages) {
         selection.setPosition(caret.position(), QTextCursor::KeepAnchor);
         view_->setTextCursor(selection);
     }
-    vertical->setValue(followEnd ? vertical->maximum() : oldVertical);
+    // 新しいログが表示されたら、スクロール位置にかかわらず必ず最下部へ移る(途中を見ていても、
+    // 更新に気づけるように)。選択範囲は上で戻してあるので、コピーしたい範囲は保たれる。
+    vertical->setValue(added ? vertical->maximum() : oldVertical);
     horizontal->setValue(oldHorizontal);
 }
 

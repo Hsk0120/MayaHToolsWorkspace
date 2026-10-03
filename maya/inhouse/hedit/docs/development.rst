@@ -312,7 +312,7 @@ Windows で、Visual Studio と Maya の devkit が必要です。親リポジ�
 
 .. code-block:: powershell
 
-   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2024 2025 2026 2027
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2023 2024 2025 2026 2027
 
 * ビルドフォルダーは ``.maya-output/plugin-build/`` の下(Git の対象外)です。
 * 出力は ``release/plug-ins/windows/<Mayaの年>/hedit.mll`` です(版のフォルダーは作りません。Maya の信頼済みの場所と
@@ -349,8 +349,8 @@ Visual Studio のプロジェクトだけを作る
 
 .. code-block:: powershell
 
-   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_tests.py 2022 2024 2025 2026 2027
-   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_startup.py 2022 2024 2025 2026 2027
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_tests.py 2022 2023 2024 2025 2026 2027
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_startup.py 2022 2023 2024 2025 2026 2027
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_gui.py 2027
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_session.py 2024 2027
 

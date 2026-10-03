@@ -37,7 +37,7 @@ SAMPLE_FILES = {
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("version", nargs="?", default="2027", choices=["2022", "2024", "2025", "2026", "2027"])
+    parser.add_argument("version", nargs="?", default="2027", choices=["2022", "2023", "2024", "2025", "2026", "2027"])
     parser.add_argument("--timeout", type=int, default=180)
     args = parser.parse_args()
     directory = ROOT / ".maya-output/hedit-docs" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -83,6 +83,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+| Claude Code | 2026-10-03 | maya/modules/CharcoalEditor2.mod | 2023・2025のmllが2023/windows・2025/windowsに置かれたのでmodを確認。各版をmayapyでロードし、実際の版に合わせて2025=2.10.2・2027=2.8.1へ修正(2022/2023/2024=2.6.4、2026=2.7.6)。submoduleへのmll追加はsubmodule側で未コミット。 |
+
+| Claude Code | 2026-10-03 | maya/modules/CharcoalEditor2.mod | 2023の項目を追加(2.6.4・2023/windows)。submoduleに2023用(と2025用)のmllが無いため、置くまでは2023ではロードできない。未コミット。 |
+
+| Claude Code | 2026-10-03 | maya/inhouse/hedit Maya 2023対応・CLAUDE.md | hedit.mllを2023でビルド(警告0)、hedit.modに2023を追加、docs/README/撮影ツールの版の一覧に2023を追加。CLAUDE.mdの版の一覧・ツールセット(2023=v142)を更新し「2023未インストール」の記載を削除。2023でrun_tests・run_gui(全スイート)・run_startup・run_session・Sphinx -W 成功。未コミット。 |
+
+| Claude Code | 2026-10-03 | maya/inhouse/hedit 出力欄のスクロール | 新しいログが表示されたら途中を見ていても必ず最下部へスクロール(選択範囲は保持)。テスト・usage/README/changelogを更新。5版ビルド警告0、run_tests 2024/2027・run_gui 2024/2027・output_format 2027・Sphinx -W 成功。未コミット。 |
+
 - Codex (2026-10-03): ユーザー指示でGit除外対象外の残存変更を確認。.vscode/settings.jsonのWinAppKit CMake参照先をコミット・push。heditの2テストは内容差分がなくステージ操作で変更表示が解消。設定JSONと参照先の存在、差分チェックを確認。Mayaコード変更なし。
 
 - Codex (2026-10-03): Maya2023対応とheditバイナリをコミット・push。HUDサブモジュールの2023バイナリを先行pushし親参照を更新。前回のhlib932テスト・GUI15件・hedit・追加Color9件・Sphinx成功記録と差分チェックを確認。既存のheditテスト変更と.vscodeは対象外。

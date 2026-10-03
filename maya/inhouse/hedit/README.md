@@ -154,7 +154,7 @@ Edit → Preferences → Spell check (English)で英語のスペル波線を切�
 
 0.1.14では操作したいコード欄または出力欄をクリックし、Ctrl+Gで下部に行番号入力欄を開けます。1始まりの行番号を入力してEnterで移動、Escで取り消します。Maya 2024ではEsc後にフォーカスがビューポートへ戻る場合があるため、その場合はコード欄・出力欄をクリックして操作を続けてください。
 
-ログの追記中も選択範囲とスクロール位置を保持します。選択がなく末尾を表示している場合だけ新しいログへ追従します。表示上限の5,000行を超えて削除された古いログや、Clear outputで消した文字列は保持対象外です。
+新しいログが表示されると、スクロール位置にかかわらず必ず最下部へ移ります(選択範囲は保持します)。表示上限の5,000行を超えて削除された古いログや、Clear outputで消した文字列は保持対象外です。
 
 0.2.10から、専用の非表示Maya reporterが整形した表示文書の追記だけを取得します。通常のPython/MELのprintはそのまま、情報通知は`// `、Pythonの警告・例外は`# Warning:`／`# Error:`など、標準Script Editorと同じ記号・改行になります。複数行の通知や空行にもMaya側の書式を適用し、独自の末尾` //`は追加しません。
 
@@ -223,15 +223,15 @@ Mayaと同じプロセスで同期解析するため、解析中は短時間UI�
 - zip内ソース、未ロードのバイナリ拡張、`__getattr__`で生成される未知の属性は完全には補完できません。
 - 補完は静的な名前の候補であり、型・構文の正しさを保証するものではありません。
 - スクリプト実行自体はMayaのメインスレッドで行うため、長時間の実行中はMayaが待機します。
-- WindowsのMaya 2022（Python 3）／2024／2025／2026／2027でビルド、単体、standalone、GUI各28項目を検証済みです。2023はこの環境に未インストールのため未検証です。
+- WindowsのMaya 2022（Python 3）／2023／2024／2025／2026／2027でビルド、単体、standalone、GUI各28項目を検証済みです。2023はこの環境に未インストールのため未検証です。
 
 ## 開発・テスト
 
 リポジトリ直下から実行します。Maya devkitとVisual Studioの既存ビルド基盤を使用します。
 
 ```powershell
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2024 2025 2026 2027
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_tests.py 2022 2024 2025 2026 2027
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2023 2024 2025 2026 2027
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/hedit/tests/run_tests.py 2022 2023 2024 2025 2026 2027
 ```
 
 テストは補完ユニットテスト、Maya standaloneでの`.mod`／プラグイン／実在する補完候補の確認、同じC++ウィジェットによるoffscreen描画・補完挿入・実行ボタン確認に分かれています。ログ・画像は`.maya-output/hedit-tests/`に保存します。offscreen検証とMaya GUI内での操作確認は別です。
@@ -278,7 +278,7 @@ GUI内で表示、上下レイアウト、ドッキング／フローティン�
 ### Visual Studioプロジェクトだけを生成
 
 ```powershell
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2024 2025 2026 2027 --generate-only
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2023 2024 2025 2026 2027 --generate-only
 ```
 
 `.maya-output/plugin-build/hedit/2024/hedit.sln`または`2027/hedit.sln`をVisual Studioで開きます。通常のビルドでも同じプロジェクトを生成します。`.maya-output/`はGit除外済みで、.sln/.vcxprojは登録しません。構成変更は生成されたプロジェクトではなくCMakeLists.txtへ反映します。
