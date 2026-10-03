@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Claude Code | 2026-10-03 | tools/WinAppKit/・maya/inhouse/FramePlayer/ | 汎用の自作インストーラー(WinAppKit)と、FramePlayerのインストーラー |
 
 
 
@@ -83,6 +82,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Claude Code (2026-10-03): FramePlayerのVFR動画(Xbox Game Bar録画)のコマ落ちを修正。Video Processor MFTが色変換・縮小時に時刻を平均fpsの等間隔へ付け直し、約半数のコマが目次と照合できず捨てられていた。MF_XVP_DISABLE_FRCで変換を止めた。FramePlayerVerifyで対象動画693コマ(GPU/CPU・シーク含む)と縞の確認動画の不一致0。mainへpush。
 
 - Codex (2026-10-03): パッケージ名汎用化の実装・拡張・Sphinx・回帰テストを公開対象として確定。差分チェックと前回のMaya5版・最終回帰3件・3名称Sphinxの成功記録を確認し、mainへコミット・push。他作業の変更は対象外。
 

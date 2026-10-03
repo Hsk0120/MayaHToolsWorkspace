@@ -44,6 +44,34 @@ HRESULT selectVideoOnly(IMFSourceReader* reader) {
     return reader->SetStreamSelection(kVideoStream, TRUE);
 }
 
+/**
+ * @brief Source Readerが挟んだVideo Processor MFTのフレームレート変換を止める。
+ * @param reader 出力形式を設定し終えたSource Reader。
+ * @note 色変換や縮小のためにVideo Processorが挟まると、可変フレームレート(VFR)の動画では出力の時刻が
+ *       平均フレームレートの等間隔に付け直される(Xbox Game Barの録画などで確認)。すると目次の時刻と照合できず、
+ *       約半分のコマが表示されない(コマ落ちに見える)。MF_XVP_DISABLE_FRCで変換を止め、元の時刻をそのまま使う。
+ *       Video Processorが挟まらない場合は何もしない。
+ */
+void disableFrameRateConversion(IMFSourceReader* reader) {
+    ComPtr<IMFSourceReaderEx> readerEx;
+    if (FAILED(reader->QueryInterface(IID_PPV_ARGS(&readerEx)))) {
+        return;
+    }
+    for (DWORD i = 0;; ++i) {
+        GUID category{};
+        ComPtr<IMFTransform> transform;
+        if (FAILED(readerEx->GetTransformForStream(kVideoStream, i, &category, &transform))) {
+            break;
+        }
+        ComPtr<IMFAttributes> attributes;
+        if (category == MFT_CATEGORY_VIDEO_PROCESSOR && SUCCEEDED(transform->GetAttributes(&attributes))) {
+            const HRESULT hr = attributes->SetUINT32(MF_XVP_DISABLE_FRC, TRUE);
+            traceLog("video processor %lu disable FRC hr=0x%08lX", static_cast<unsigned long>(i),
+                     static_cast<unsigned long>(hr));
+        }
+    }
+}
+
 }  // namespace
 
 std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::wstring& path, int maxWidth,
@@ -231,6 +259,7 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         setError(L"出力形式を設定できません", hr);
         return false;
     }
+    disableFrameRateConversion(reader_.Get());
     mode_ = mode;
     if (!updateFormat()) {
         mode_ = Mode::Cpu;
@@ -522,6 +551,11 @@ int MediaFoundationSource::readDecodedSample(ComPtr<IMFSample>& sample, int& ind
         index = indexOfTimestamp(timestamp);
         if (index >= minimumIndex_) {
             return 1;
+        }
+        if (index < 0) {
+            // 照合できないコマは表示しない(別のコマとして見せないため)。原因を調べられるよう時刻を記録する。
+            traceLog("decode unmatched timestamp=%lld (tolerance=%lld)", static_cast<long long>(timestamp),
+                     static_cast<long long>(tolerance_));
         }
     }
 }
