@@ -3,8 +3,12 @@
  * @brief FramePlayerの起動処理。
  */
 #include <windows.h>
+#include <commctrl.h>
 #include <objbase.h>
 #include <shellapi.h>
+
+// コモンコントロールの新しい版(6)を使う。ツールチップ・入力欄・メッセージボックスが今のWindowsの見た目になる。
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #include <cwchar>
 #include <string>
@@ -22,6 +26,9 @@
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // 高DPIのモニターでぼやけないよう、モニターごとの拡大率に対応する。
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+    const INITCOMMONCONTROLSEX controls{sizeof(INITCOMMONCONTROLSEX), ICC_WIN95_CLASSES};
+    InitCommonControlsEx(&controls);  // ツールチップを使うため。
 
     // Media FoundationはCOMを使うため、このスレッドでCOMを初期化しておく。
     const HRESULT comResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);

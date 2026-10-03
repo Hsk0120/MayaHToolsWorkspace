@@ -32,6 +32,8 @@ namespace frameplayer {
  *       公開メソッドはUIスレッドから呼ぶ。描画スレッドと共有する状態はmutex_とatomicで保護する。
  *       2本目の動画(比較)は、1本目のコマ番号にオフセットを足したコマを表示する。再生中は両方のコマが
  *       そろってから進めるので、左右がずれて見えることはない。比較中は音声を鳴らさない。
+ *       コマ番号は1本目の動画の1コマ目を0とするタイムライン上の番号で、動画の外(負の番号や最後のコマより後)も
+ *       表示・再生できる(Mayaのタイムラインと同じく、範囲は動画の長さに縛られない)。動画の外では「範囲外」と出す。
  */
 class VideoView {
 public:
@@ -90,7 +92,7 @@ public:
 
     /**
      * @brief 再生範囲を設定する。再生はこの範囲の中でループする。
-     * @param first 範囲の最初のコマ番号(0始まり)。
+     * @param first 範囲の最初のコマ番号(動画の外でもよい)。
      * @param last 範囲の最後のコマ番号(first以上)。
      * @note 再生中に変えた場合、今のコマが範囲の外なら範囲の最初から再生し直す。
      */
@@ -104,7 +106,7 @@ public:
 
     /**
      * @brief 再生を止め、指定したコマを表示する。
-     * @param index 0始まりのコマ番号。範囲外は端に丸める。
+     * @param index コマ番号(1本目の1コマ目が0)。動画の外なら「範囲外」と表示する。
      * @param direction 先読みする向き(移動してきた向き)。
      * @param compareOffset 指定すると、2本目のオフセットも同時に変える(途中の組み合わせを描かないよう、同じ鍵の中で変える)。
      */
@@ -113,7 +115,8 @@ public:
     /**
      * @brief 現在表示しているコマから再生を始める。
      * @param rate 1秒あたりのコマ数(表示中のコマ番号の換算と、半コマずらしに使う)。
-     * @note 音声があれば音声も鳴らし、映像の進みを音声の再生位置に合わせる。
+     * @note 音声があれば音声も鳴らし、映像の進みを音声の再生位置に合わせる。ただし再生範囲が動画の外にかかるときは
+     *       音声を鳴らさず、PCの時計で進める(動画の外には音声が無いため)。
      */
     void play(double rate);
 
@@ -128,7 +131,7 @@ public:
 
     /**
      * @brief 表示しているコマ番号を返す。
-     * @return 0始まりのコマ番号。
+     * @return コマ番号(1本目の1コマ目が0。動画の外なら負や最後のコマより大きい値)。
      */
     int currentFrame() const { return current_; }
 
@@ -180,11 +183,11 @@ private:
     struct PaneState {
         const Clip* clip = nullptr;          ///< 表示する動画。無ければnullptr。
         std::shared_ptr<const Frame> frame;  ///< 描く画像。読み込み中なら直前の画像。
-        int index = 0;                       ///< 表示すべきコマ番号(0始まり)。
+        int index = 0;                       ///< 表示すべきコマ番号(1本目の1コマ目が0)。
         int imageIndex = -1;                 ///< frameが実際に表すコマ番号(仮表示の画像なら近くのキーフレーム)。
         bool loading = false;                ///< 「読み込み中」を重ねるか。
         bool broken = false;                 ///< 「デコードできません」を重ねるか。
-        bool outOfRange = false;             ///< オフセットを足した結果、動画の範囲外か(画像を描かずに知らせる)。
+        bool outOfRange = false;             ///< 表示すべきコマが動画の外か(画像を描かずに知らせる)。
 
         /**
          * @brief 前回描いた内容と同じかを返す(停止中に描き直しが必要かの判断に使う)。
@@ -227,8 +230,18 @@ private:
      * @param cache この表示枠の画像の覚え。
      * @param area 表示枠の範囲。
      * @param label 表示枠の下に出す文字。空なら出さない(比較中だけ出す)。
+     * @param detail 「範囲外」の下に添える説明(動画がタイムラインのどこにあるか)。空なら出さない。
      */
-    void drawPane(const PaneState& pane, PaneCache& cache, const D2D1_RECT_F& area, const std::wstring& label);
+    void drawPane(const PaneState& pane, PaneCache& cache, const D2D1_RECT_F& area, const std::wstring& label,
+                  const std::wstring& detail);
+
+    /**
+     * @brief 「範囲外」の下に添える説明を作る。
+     * @param pane 表示枠の内容。
+     * @param shift その動画の1コマ目が、タイムライン上で1本目の1コマ目から何コマ後にあるか(2本目は-オフセット)。
+     * @return 「動画は 1001〜8200」のような説明。範囲外でなければ空。
+     */
+    std::wstring outOfRangeDetail(const PaneState& pane, int shift) const;
 
     /** @brief 親ウィンドウへ「表示するコマが変わった」と知らせる(未処理の知らせがあれば送らない)。 */
     void notifyParent();
@@ -249,7 +262,7 @@ private:
     double rate_ = 24.0;             ///< 再生速度(1秒あたりのコマ数)。
     int playStartFrame_ = 0;         ///< 再生を始めたコマ。
     int playFirst_ = 0;              ///< 再生範囲の最初のコマ。
-    int playLast_ = 0x7FFFFFFF;      ///< 再生範囲の最後のコマ(動画の範囲に丸めて使う)。
+    int playLast_ = 0;               ///< 再生範囲の最後のコマ。
     std::atomic<int> frameNumberStart_{1};  ///< 表示するフレーム番号の始まり(1コマ目の番号)。
     int playSession_ = 0;            ///< play()のたびに増やす番号。描画スレッドが新しい再生の始まりを知るのに使う。
     bool stopThread_ = false;
@@ -276,6 +289,7 @@ private:
     Microsoft::WRL::ComPtr<IDWriteFactory> writeFactory_;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> textFormat_;
     Microsoft::WRL::ComPtr<IDWriteTextFormat> labelFormat_;  ///< 比較中に各表示枠の下に出す文字(左寄せ・小さめ)。
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> detailFormat_;  ///< 「範囲外」の下に添える説明(中央寄せ・小さめ)。
     UINT swapWidth_ = 0;
     UINT swapHeight_ = 0;
 };

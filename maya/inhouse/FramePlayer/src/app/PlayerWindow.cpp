@@ -88,6 +88,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     }
     view_.setBounds(computeLayout().video);
     view_.setFrameNumberStart(settings_.startFrame);
+    createTooltips();
     DragAcceptFiles(hwnd_, TRUE);
     ShowWindow(hwnd_, showCommand);
     UpdateWindow(hwnd_);
@@ -124,11 +125,12 @@ void PlayerWindow::openClip(const std::wstring& path) {
     prepareClip(*clip_, 0, kThumbnailBytes);
     view_.setClip(clip_, audio_);
     clip_->setPlayhead(0, Clip::Direction::Forward, false);
-    // 再生範囲は動画全体から始める。
-    playFirst_ = 0;
-    playLast_ = clip_->frameCount() - 1;
-    savedFirst_ = -1;
-    savedLast_ = -1;
+    // 全体範囲・再生範囲は、動画のある所(動画の開始から最後のコマまで)から始める。
+    animFirst_ = 0;
+    animLast_ = clip_->frameCount() - 1;
+    playFirst_ = animFirst_;
+    playLast_ = animLast_;
+    hasSavedRange_ = false;
     view_.setPlaybackRange(playFirst_, playLast_);
     clip_->setLoopRange(playFirst_, playLast_);
     if (sync_) {
@@ -199,6 +201,7 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         return 1;  // paint()で塗るので消去は不要。
     case WM_SIZE:
         view_.setBounds(computeLayout().video);
+        updateTooltipRects();
         InvalidateRect(hwnd_, nullptr, FALSE);
         if ((wParam == SIZE_MINIMIZED) != minimized_) {
             minimized_ = wParam == SIZE_MINIMIZED;
@@ -281,8 +284,21 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         cancelEdit();
         return 0;
     case WM_MOUSEMOVE:
-        onMouseMove(GET_X_LPARAM(lParam));
+        onMouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         return 0;
+    case WM_MOUSELEAVE:
+        trackingLeave_ = false;
+        setHover(Part::None);
+        return 0;
+    case WM_NOTIFY: {
+        // ツールチップが出す文字を尋ねてきたら、部品の説明を返す(状態で変わる説明があるため、その都度返す)。
+        auto* header = reinterpret_cast<NMHDR*>(lParam);
+        if (tooltip_ && header->hwndFrom == tooltip_ && header->code == TTN_GETDISPINFOW) {
+            auto* info = reinterpret_cast<NMTTDISPINFOW*>(lParam);
+            info->lpszText = const_cast<wchar_t*>(tooltipText(static_cast<Part>(info->hdr.idFrom)));
+        }
+        return 0;
+    }
     case WM_LBUTTONUP:
         if (!paneDragging()) {
             endScrub();
@@ -602,35 +618,82 @@ void PlayerWindow::shiftCompare(int delta) {
     invalidateBar();
 }
 
+int PlayerWindow::clampIndex(long long index) const {
+    const long long start = settings_.startFrame;
+    return static_cast<int>(std::clamp(index, -kMaxSyncFrame - start, kMaxSyncFrame - start));
+}
+
 void PlayerWindow::setPlaybackRange(int first, int last) {
+    // Mayaと同じく、全体範囲の外を再生範囲にしたら全体範囲を広げる。
+    first = clampIndex(first);
+    last = clampIndex(std::max(first, last));
+    setTimeRange(std::min(animFirst_, first), std::max(animLast_, last), first, last);
+}
+
+void PlayerWindow::setTimeRange(int animFirst, int animLast, int playFirst, int playLast) {
     if (!clip_) {
         return;
     }
-    const int maxIndex = clip_->frameCount() - 1;
-    first = std::clamp(first, 0, maxIndex);
-    last = std::clamp(last, first, maxIndex);
-    if (first == playFirst_ && last == playLast_) {
+    animFirst = clampIndex(animFirst);
+    animLast = clampIndex(std::max(animFirst, animLast));
+    playFirst = std::clamp(playFirst, animFirst, animLast);
+    playLast = std::clamp(playLast, playFirst, animLast);
+    const bool playChanged = playFirst != playFirst_ || playLast != playLast_;
+    if (!playChanged && animFirst == animFirst_ && animLast == animLast_) {
         return;
     }
-    playFirst_ = first;
-    playLast_ = last;
-    view_.setPlaybackRange(first, last);
-    clip_->setLoopRange(first, last);
+    animFirst_ = animFirst;
+    animLast_ = animLast;
+    playFirst_ = playFirst;
+    playLast_ = playLast;
+    if (playChanged) {
+        view_.setPlaybackRange(playFirst, playLast);
+        // 先読みのループは、再生範囲のうち動画のある部分だけ(動画の外にはコマが無い)。
+        const int maxIndex = clip_->frameCount() - 1;
+        clip_->setLoopRange(std::clamp(playFirst, 0, maxIndex), std::clamp(playLast, 0, maxIndex));
+    }
     updateTitle();
     invalidateBar();
-    if (sync_ && !applyingRemote_) {
-        sync_->playbackRangeChanged(settings_.startFrame + first, settings_.startFrame + last);
+    if (playChanged && sync_ && !applyingRemote_) {
+        sync_->playbackRangeChanged(settings_.startFrame + playFirst, settings_.startFrame + playLast);
     }
+}
+
+void PlayerWindow::setClipStart(int frame) {
+    frame = std::clamp(frame, -1000000, 100000000);
+    const int delta = frame - settings_.startFrame;
+    if (delta == 0) {
+        return;
+    }
+    settings_.startFrame = frame;
+    settings_.saveStartFrame();
+    view_.setFrameNumberStart(frame);
+    if (clip_) {
+        // コマ番号は動画の1コマ目からの数なので、動画を後ろへ動かした分だけ引くと、フレーム番号は変わらない。
+        // 連携先へ知らせる必要もない(フレーム番号の再生範囲・現在のフレームは同じまま)。
+        animFirst_ = clampIndex(static_cast<long long>(animFirst_) - delta);
+        animLast_ = clampIndex(static_cast<long long>(animLast_) - delta);
+        playFirst_ = clampIndex(static_cast<long long>(playFirst_) - delta);
+        playLast_ = clampIndex(static_cast<long long>(playLast_) - delta);
+        hasSavedRange_ = false;
+        view_.setPlaybackRange(playFirst_, playLast_);
+        const int maxIndex = clip_->frameCount() - 1;
+        clip_->setLoopRange(std::clamp(playFirst_, 0, maxIndex), std::clamp(playLast_, 0, maxIndex));
+        goToFrame(static_cast<int>(static_cast<long long>(current_) - delta));
+    }
+    updateTitle();
+    InvalidateRect(hwnd_, nullptr, FALSE);
 }
 
 void PlayerWindow::goToSceneFrame(int frame) {
     if (clip_) {
-        goToFrame(frame - settings_.startFrame);
+        goToFrame(clampIndex(static_cast<long long>(frame) - settings_.startFrame));
     }
 }
 
 void PlayerWindow::setPlaybackRangeScene(int first, int last) {
-    setPlaybackRange(first - settings_.startFrame, last - settings_.startFrame);
+    setPlaybackRange(clampIndex(static_cast<long long>(first) - settings_.startFrame),
+                     clampIndex(static_cast<long long>(last) - settings_.startFrame));
 }
 
 void PlayerWindow::setPlaying(bool playing) {
@@ -781,7 +844,7 @@ void PlayerWindow::sendSyncState() {
 }
 
 void PlayerWindow::goToFrame(int index, bool scrubbing, std::optional<int> compareOffset) {
-    const int clamped = std::clamp(index, 0, clip_->frameCount() - 1);
+    const int clamped = clampIndex(index);  // 動画の外も表示できる(「範囲外」と出す)。
     const bool wasPlaying = view_.isPlaying();
     const int shown = view_.currentFrame();
     if (clamped == shown && !wasPlaying) {
@@ -884,8 +947,9 @@ void PlayerWindow::updateTitle() {
     if (compareClip_) {
         names += L" | " + fileNameOf(compareClip_->path());
     }
-    std::swprintf(title, 1024, L"%ls - %ls [%d / %d-%d]%ls", names.c_str(), kAppName, currentSceneFrame(), settings_.startFrame,
-                  settings_.startFrame + clip_->frameCount() - 1,
+    // [現在のフレーム / 再生範囲]
+    std::swprintf(title, 1024, L"%ls - %ls [%d / %d-%d]%ls", names.c_str(), kAppName, currentSceneFrame(),
+                  settings_.startFrame + playFirst_, settings_.startFrame + playLast_,
                   (syncServer_ && syncServer_->connected()) ? L" - 連携中" : L"");
     SetWindowTextW(hwnd_, title);
 }

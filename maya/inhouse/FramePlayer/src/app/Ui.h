@@ -28,6 +28,14 @@ inline constexpr COLORREF kCurrentColumn = RGB(70, 70, 70);  ///< 現在のフ�
 inline constexpr COLORREF kLabelBox = RGB(52, 52, 52);       ///< 現在のフレームの番号の箱。
 inline constexpr COLORREF kRangeSelected = RGB(58, 58, 58);  ///< レンジスライダーの再生範囲。
 inline constexpr COLORREF kHandle = RGB(148, 148, 148);      ///< レンジスライダーのつまみ。
+inline constexpr COLORREF kRulerOutside = RGB(16, 16, 16);   ///< 目盛りとバーのうち、動画の外の部分の地。
+inline constexpr COLORREF kRangeSelectedOutside = RGB(44, 44, 44);  ///< 再生範囲のうち、動画の外の部分。
+inline constexpr COLORREF kControlHover = RGB(54, 54, 54);   ///< マウスが乗っているボタン・欄の地。
+inline constexpr COLORREF kControlBorderHover = RGB(84, 84, 84);  ///< マウスが乗っているボタン・欄の枠。
+inline constexpr COLORREF kAccentHover = RGB(255, 157, 94);  ///< マウスが乗っている強調色のボタンの地。
+inline constexpr COLORREF kSecondaryText = RGB(176, 176, 176);  ///< 控えめな文字(全体範囲の欄・ラベル)。
+inline constexpr int kTextPoints = 9;   ///< 操作部の文字(欄・ボタン・ラベル・fps)の大きさ(ポイント)。
+inline constexpr int kSmallPoints = 8;  ///< 小さい文字(目盛りの数字・現在のフレームの箱・音量)の大きさ(ポイント)。
 
 /** @brief 移動・再生ボタンの記号。 */
 enum class TransportIcon { Start, Previous, Play, Pause, Next, End };

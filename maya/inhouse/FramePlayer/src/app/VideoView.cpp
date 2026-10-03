@@ -51,6 +51,44 @@ D2D1_RECT_F fitRect(const D2D1_RECT_F& area, int width, int height) {
     return D2D1::RectF(left, top, left + std::floor(w), top + std::floor(h));
 }
 
+/**
+ * @brief タイムライン上のコマ番号の表示時刻を返す。動画の外は、端のコマから1コマの長さずつ延ばして求める。
+ * @param clip 1本目の動画。
+ * @param index コマ番号(1本目の1コマ目が0。負や最後のコマより後も可)。
+ * @param period 1コマの長さ(100ns単位)。
+ * @return 表示時刻(100ns単位)。動画の中ならclip.frameTime()と同じ。
+ */
+long long timelineTime(const Clip& clip, int index, long long period) {
+    const int last = clip.frameCount() - 1;
+    if (index < 0) {
+        return clip.frameTime(0) + static_cast<long long>(index) * period;
+    }
+    if (index > last) {
+        return clip.frameTime(last) + static_cast<long long>(index - last) * period;
+    }
+    return clip.frameTime(index);
+}
+
+/**
+ * @brief 指定した時刻に表示すべきタイムライン上のコマ番号を返す(timelineTime()の逆)。
+ * @param clip 1本目の動画。
+ * @param time 時刻(100ns単位)。
+ * @param period 1コマの長さ(100ns単位)。
+ * @return コマ番号。動画より前なら負、後なら最後のコマより大きい値。
+ */
+int timelineFrameAt(const Clip& clip, long long time, long long period) {
+    const int last = clip.frameCount() - 1;
+    const long long firstTime = clip.frameTime(0);
+    const long long lastTime = clip.frameTime(last);
+    if (time < firstTime) {
+        return -static_cast<int>((firstTime - time + period - 1) / period);  // 切り下げ(負の側)。
+    }
+    if (time >= lastTime + period) {
+        return last + static_cast<int>((time - lastTime) / period);
+    }
+    return clip.frameAtTime(time);
+}
+
 }  // namespace
 
 VideoView::~VideoView() {
@@ -164,9 +202,8 @@ void VideoView::showFrame(int index, Clip::Direction direction, std::optional<in
         if (!clip) {
             return;
         }
-        requested_ = std::clamp(index, 0, clip->frameCount() - 1);
+        requested_ = index;
         playRequested_ = false;
-        index = requested_;
         if (compareOffset) {
             compareOffset_ = *compareOffset;
         }
@@ -176,7 +213,8 @@ void VideoView::showFrame(int index, Clip::Direction direction, std::optional<in
     if (audio) {
         audio->stop();  // コマ送り・スライダー操作では音を鳴らさない。
     }
-    clip->setPlayhead(index, direction, false);
+    // 動画の外を表示するときは、近い方の端の周りを先読みしておく(動画の中へ戻ってきたときにすぐ出せるように)。
+    clip->setPlayhead(std::clamp(index, 0, clip->frameCount() - 1), direction, false);
     if (compare) {
         compare->setPlayhead(std::clamp(index + compareOffset_, 0, compare->frameCount() - 1), direction, false);
     }
@@ -186,8 +224,8 @@ void VideoView::showFrame(int index, Clip::Direction direction, std::optional<in
 void VideoView::setPlaybackRange(int first, int last) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        playFirst_ = std::max(0, first);
-        playLast_ = std::max(playFirst_, last);
+        playFirst_ = first;
+        playLast_ = std::max(first, last);
     }
     wake();
 }
@@ -195,12 +233,12 @@ void VideoView::setPlaybackRange(int first, int last) {
 void VideoView::play(double rate) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!clip_ || clip_->frameCount() <= 1) {
-            return;
+        if (!clip_ || playLast_ <= playFirst_) {
+            return;  // 1コマだけの範囲は再生しない。
         }
         // 再生範囲の外、または範囲の最後のコマで再生を始めたら、範囲の最初から(Mayaと同じ)。
-        const int first = std::clamp(playFirst_, 0, clip_->frameCount() - 1);
-        const int last = std::clamp(playLast_, first, clip_->frameCount() - 1);
+        const int first = playFirst_;
+        const int last = playLast_;
         int start = current_;
         if (start < first || start >= last) {
             start = first;
@@ -370,6 +408,13 @@ bool VideoView::createDevice() {
         writeFactory_->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
                                         DWRITE_FONT_STRETCH_NORMAL, size * 0.8f, L"ja-jp",
                                         labelFormat_.ReleaseAndGetAddressOf());
+        writeFactory_->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                                        DWRITE_FONT_STRETCH_NORMAL, size * 0.7f, L"ja-jp",
+                                        detailFormat_.ReleaseAndGetAddressOf());
+        if (detailFormat_) {
+            detailFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+            detailFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+        }
         if (labelFormat_) {
             labelFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
             labelFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
@@ -431,7 +476,7 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
         context_->DrawText(message, static_cast<UINT32>(std::size(message) - 1), textFormat_.Get(), area,
                            textBrush.Get());
     } else if (paneCount == 1) {
-        drawPane(panes[0], paneCaches_[0], area, std::wstring());
+        drawPane(panes[0], paneCaches_[0], area, std::wstring(), outOfRangeDetail(panes[0], 0));
     } else {
         // 比較中は左右に分けて並べる。間に少し隙間を空ける。
         const float gap = 6.0f * GetDpiForWindow(hwnd_) / 96.0f;
@@ -443,7 +488,9 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
             wchar_t label[512];
             const std::wstring name = pane.clip ? fileNameOf(pane.clip->path()) : std::wstring();
             const int count = pane.clip ? pane.clip->frameCount() : 0;
-            if (i == 0) {
+            if (i == 0 && pane.outOfRange) {
+                std::swprintf(label, 512, L"%ls   範囲外 / %d", name.c_str(), count - 1 + frameNumberStart_);
+            } else if (i == 0) {
                 std::swprintf(label, 512, L"%ls   %d / %d", name.c_str(), pane.index + frameNumberStart_,
                               count - 1 + frameNumberStart_);
             } else if (pane.outOfRange) {
@@ -454,7 +501,7 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
                               count - 1 + frameNumberStart_,
                               compareOffset);
             }
-            drawPane(pane, paneCaches_[i], i == 0 ? left : right, label);
+            drawPane(pane, paneCaches_[i], i == 0 ? left : right, label, outOfRangeDetail(pane, i == 0 ? 0 : -compareOffset));
         }
     }
 
@@ -485,8 +532,18 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
     return true;
 }
 
+std::wstring VideoView::outOfRangeDetail(const PaneState& pane, int shift) const {
+    if (!pane.outOfRange || !pane.clip) {
+        return std::wstring();
+    }
+    const long long first = static_cast<long long>(frameNumberStart_) + shift;
+    wchar_t text[96];
+    std::swprintf(text, 96, L"動画は %lld〜%lld", first, first + pane.clip->frameCount() - 1);
+    return text;
+}
+
 void VideoView::drawPane(const PaneState& pane, PaneCache& cache, const D2D1_RECT_F& paneArea,
-                         const std::wstring& label) {
+                         const std::wstring& label, const std::wstring& detail) {
     const float scaleDpi = GetDpiForWindow(hwnd_) / 96.0f;
     ComPtr<ID2D1SolidColorBrush> textBrush;
     context_->CreateSolidColorBrush(kText, &textBrush);
@@ -553,11 +610,21 @@ void VideoView::drawPane(const PaneState& pane, PaneCache& cache, const D2D1_REC
         const float cx = (area.left + area.right) / 2;
         const float cy = (area.top + area.bottom) / 2;
         const float halfWidth = std::min(130 * scaleDpi, (area.right - area.left) / 2);
-        const D2D1_RECT_F box = D2D1::RectF(cx - halfWidth, cy - 20 * scaleDpi, cx + halfWidth, cy + 20 * scaleDpi);
+        // 説明を添えるときは箱を下へ広げ、知らせの下に小さく出す。
+        const bool hasDetail = !detail.empty() && detailFormat_;
+        const float half = 20 * scaleDpi;
+        const D2D1_RECT_F box =
+            D2D1::RectF(cx - halfWidth, cy - half, cx + halfWidth, cy + half + (hasDetail ? 18 * scaleDpi : 0));
         ComPtr<ID2D1SolidColorBrush> boxBrush;
         context_->CreateSolidColorBrush(kBox, &boxBrush);
         context_->FillRectangle(box, boxBrush.Get());
-        context_->DrawText(notice, static_cast<UINT32>(wcslen(notice)), textFormat_.Get(), box, textBrush.Get());
+        const D2D1_RECT_F noticeArea = D2D1::RectF(box.left, box.top, box.right, cy + half - (hasDetail ? 6 * scaleDpi : 0));
+        context_->DrawText(notice, static_cast<UINT32>(wcslen(notice)), textFormat_.Get(), noticeArea, textBrush.Get());
+        if (hasDetail) {
+            const D2D1_RECT_F detailArea = D2D1::RectF(box.left, noticeArea.bottom, box.right, box.bottom - 6 * scaleDpi);
+            context_->DrawText(detail.c_str(), static_cast<UINT32>(detail.size()), detailFormat_.Get(), detailArea,
+                               textBrush.Get());
+        }
     }
 
     if (!label.empty() && labelFormat_) {
@@ -593,11 +660,13 @@ void VideoView::renderLoop() {
     bool ready = createDevice();
 
     PaneState drawn[2];   // 最後に描いた内容(停止中に描き直しが必要かの判断に使う)。
+    std::shared_ptr<AudioPlayer> sessionAudio;  // 今の再生で鳴らしている音声(途中で鳴らせなくなったら止める)。
     int drawnOffset = 0;
     int drawnPaneCount = 0;
     UINT drawnWidth = 0;
     UINT drawnHeight = 0;
-    int shown = -1;  // 再生中に最後に表示した1本目のコマ番号(コマ落ちの計算用)。
+    int shown = 0;            // 再生中に最後に表示した1本目のコマ番号(コマ落ちの計算用)。
+    bool shownValid = false;  // shownが有効か(コマ番号は負もあり得るので、別に持つ)。
     const Clip* shownClip = nullptr;
 
     // 再生中の時計。sessionStartMedia(動画の時刻)をsessionStartTicks(PCの時刻)に再生し始めたものとして、
@@ -676,10 +745,16 @@ void VideoView::renderLoop() {
             startFrame = playStartFrame_;
             playSession = playSession_;
             rate = rate_;
-            if (clip) {
-                rangeFirst = std::clamp(playFirst_, 0, clip->frameCount() - 1);
-                rangeLast = std::clamp(playLast_, rangeFirst, clip->frameCount() - 1);
+            rangeFirst = playFirst_;
+            rangeLast = std::max(playFirst_, playLast_);
+            // 音声は動画の中にしか無いので、再生範囲が動画の外にかかるときはPCの時計で進める。
+            if (audio && clip && (rangeFirst < 0 || rangeLast >= clip->frameCount())) {
+                audio = nullptr;
             }
+        }
+        if (sessionAudio && sessionAudio != audio) {
+            sessionAudio->stop();  // 再生中に範囲が動画の外へ広がった・比較を始めたなど。
+            sessionAudio = nullptr;
         }
         const int paneCount = compare ? 2 : 1;
         if (!ready) {
@@ -694,7 +769,8 @@ void VideoView::renderLoop() {
             PaneState panes[2];
             panes[0].clip = clip.get();
             panes[0].index = requested;
-            if (clip) {
+            panes[0].outOfRange = clip && (requested < 0 || requested >= clip->frameCount());
+            if (clip && !panes[0].outOfRange) {
                 panes[0].frame = clip->frame(requested);
                 panes[0].imageIndex = requested;
                 panes[0].loading = !panes[0].frame;
@@ -748,11 +824,13 @@ void VideoView::renderLoop() {
         // 境目と画面更新が重なると、わずかな揺れでコマが飛んだり重なったりするため。
         const LONGLONG halfFrameTicks = static_cast<LONGLONG>(frequency * 0.5 / rate);
         const long long halfFrameMedia = static_cast<long long>(10000000 * 0.5 / rate);
+        const long long period = std::max<long long>(1, static_cast<long long>(10000000 / rate));  // 動画の外の1コマ。
         auto beginSession = [&](int fromFrame) {
-            sessionStartMedia = clip->frameTime(fromFrame);
+            sessionStartMedia = timelineTime(*clip, fromFrame, period);
             sessionStartTicks = now - halfFrameTicks;
             waitingForAudio = audio != nullptr;
             audioWaitSince = now;
+            sessionAudio = audio;
             if (audio) {
                 audio->start(sessionStartMedia);
             }
@@ -781,13 +859,20 @@ void VideoView::renderLoop() {
         // 今表示すべき動画の時刻と、そのコマ。再生範囲の最後のコマを表示し終えたら、範囲の最初から繰り返す。
         // 再生中に範囲が変わり、今の時刻が範囲より前になった場合も範囲の最初からにする。
         long long mediaNow = sessionStartMedia + (now - sessionStartTicks) * 10000000 / frequency;
-        const long long endTime = clip->frameTime(rangeLast) + 2 * halfFrameMedia;
-        if (mediaNow >= endTime || mediaNow < clip->frameTime(rangeFirst) - 2 * halfFrameMedia) {
+        const long long endTime = timelineTime(*clip, rangeLast, period) + 2 * halfFrameMedia;
+        if (mediaNow >= endTime || mediaNow < timelineTime(*clip, rangeFirst, period) - 2 * halfFrameMedia) {
             beginSession(rangeFirst);
             mediaNow = sessionStartMedia + halfFrameMedia;
         }
-        const int target = std::clamp(clip->frameAtTime(mediaNow), rangeFirst, rangeLast);
-        clip->setPlayhead(target, Clip::Direction::Forward, true);
+        const int frameCount = clip->frameCount();
+        const int target = std::clamp(timelineFrameAt(*clip, mediaNow, period), rangeFirst, rangeLast);
+        const bool targetInClip = target >= 0 && target < frameCount;
+        // 先読みの位置: 動画の中ならそのコマ。動画より前なら1コマ目(これから入る所)。動画より後なら、
+        // ループで戻る範囲の最初(動画の中に無ければ1コマ目)。
+        const int prefetch = targetInClip ? target
+                             : target < 0 ? 0
+                                          : std::clamp(rangeFirst, 0, frameCount - 1);
+        clip->setPlayhead(prefetch, Clip::Direction::Forward, true);
         if (compare) {
             compare->setPlayhead(std::clamp(target + offset, 0, compare->frameCount() - 1), Clip::Direction::Forward,
                                  false);
@@ -796,16 +881,18 @@ void VideoView::renderLoop() {
         // リアルタイム優先: 目標のコマがキャッシュに無ければ、今のコマを表示したまま待つ。
         // 届いたときには途中のコマを飛ばして目標へ移る(その分をコマ落ちとして数える)。
         // 比較中は左右両方のコマがそろってから進める(片方だけ進んでずれて見えないように)。
-        const std::shared_ptr<const Frame> frame = clip->frame(target);
+        // 動画の外のコマは、待たずに「範囲外」として進める。
+        const std::shared_ptr<const Frame> frame = targetInClip ? clip->frame(target) : nullptr;
+        const bool primaryReady = !targetInClip || frame;
         PaneState comparePaneState;
         bool compareReady = true;
         if (compare) {
             comparePaneState = comparePane(compare.get(), target, offset, drawn[1]);
             compareReady = comparePaneState.outOfRange || !comparePaneState.loading;
         }
-        const bool advance = frame && compareReady && (target != shown || clip.get() != shownClip);
+        const bool advance = primaryReady && compareReady && (target != shown || clip.get() != shownClip);
         if (advance) {
-            if (shown >= 0 && clip.get() == shownClip) {
+            if (shownValid && clip.get() == shownClip) {
                 const int length = rangeLast - rangeFirst + 1;
                 const int step = ((target - shown) % length + length) % length;
                 if (step > 1) {
@@ -813,12 +900,14 @@ void VideoView::renderLoop() {
                 }
             }
             shown = target;
+            shownValid = true;
             shownClip = clip.get();
             drawn[0] = PaneState{};
             drawn[0].clip = clip.get();
             drawn[0].frame = frame;
             drawn[0].index = target;
-            drawn[0].imageIndex = target;
+            drawn[0].imageIndex = targetInClip ? target : -1;
+            drawn[0].outOfRange = !targetInClip;
             drawn[1] = compare ? comparePaneState : PaneState{};
             current_ = target;
             notifyParent();
@@ -843,8 +932,8 @@ void VideoView::renderLoop() {
         // 次に表示が変わる時刻(次のコマの表示時刻)まで眠る。目標のコマがまだ届いていないときは、
         // 届いた合図(wake)で起きる(合図を逃しても10msで確かめ直す)。操作の合図でも起きる。
         LONGLONG waitTicks = frequency / 100;
-        if (frame) {
-            const long long nextMedia = target + 1 <= rangeLast ? clip->frameTime(target + 1) : endTime;
+        if (primaryReady) {
+            const long long nextMedia = target + 1 <= rangeLast ? timelineTime(*clip, target + 1, period) : endTime;
             const LONGLONG nextTicks = sessionStartTicks + (nextMedia - sessionStartMedia) * frequency / 10000000;
             waitTicks = std::max<LONGLONG>(1, nextTicks - nowTicks());
         }

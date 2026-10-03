@@ -65,7 +65,8 @@ public:
     void openClip(const std::wstring& path);
 
     // ---- タイムスライダーの外部からの操作(Mayaとの連携などの窓口) ----
-    // フレーム番号はタイムスライダーに表示している番号(動画の1コマ目が開始フレーム)。UIスレッドから呼ぶ。
+    // フレーム番号はタイムスライダーに表示している番号(Mayaと同じく、動画の長さに縛られない)。
+    // 動画はタイムラインの「動画の開始」の番号に置かれ、動画の外のフレームでは「範囲外」と表示する。UIスレッドから呼ぶ。
 
     /**
      * @brief 現在のフレーム番号を返す。
@@ -74,13 +75,13 @@ public:
     int currentSceneFrame() const { return current_ + settings_.startFrame; }
 
     /**
-     * @brief 再生を止め、指定したフレームを表示する。範囲外は動画の端に丸める。
+     * @brief 再生を止め、指定したフレームを表示する。動画の外なら「範囲外」と表示する。
      * @param frame フレーム番号。
      */
     void goToSceneFrame(int frame);
 
     /**
-     * @brief 再生範囲を設定する。動画の範囲に丸める。
+     * @brief 再生範囲を設定する。全体範囲の外にかかるときは、Mayaと同じく全体範囲を広げる。
      * @param first 範囲の最初のフレーム番号。
      * @param last 範囲の最後のフレーム番号。
      */
@@ -136,6 +137,7 @@ private:
         int last = -1;
         int startFrame = 0;
         int dpi = 0;
+        int clipFrames = 0;  ///< 動画のコマ数(動画の外を暗く塗る範囲が変わるため)。
         /**
          * @brief 全ての条件が同じかを返す。
          * @param other 比べる条件。
@@ -143,7 +145,7 @@ private:
          */
         bool operator==(const RulerKey& other) const {
             return width == other.width && height == other.height && first == other.first && last == other.last &&
-                   startFrame == other.startFrame && dpi == other.dpi;
+                   startFrame == other.startFrame && dpi == other.dpi && clipFrames == other.clipFrames;
         }
     };
 
@@ -159,13 +161,48 @@ private:
         PaneCompare, ///< 2本目(右)の映像の上の中ボタン。2本目のオフセットを変える。
     };
 
+    /**
+     * @brief 操作部の部品(マウスが乗っている部品の判定・ホバーの表示・ツールチップに使う)。
+     * @note ツールチップの識別番号にも使うので、Noneは0にしておく。
+     */
+    enum class Part : UINT_PTR {
+        None = 0,
+        Ruler,
+        CurrentField,
+        StartButton,
+        PrevButton,
+        PlayButton,
+        NextButton,
+        EndButton,
+        AnimStartField,
+        PlayStartField,
+        RangeBar,
+        PlayEndField,
+        AnimEndField,
+        ClipStartField,
+        SyncButton,
+        FileButton,
+        CompareButton,
+        VolumeButton,
+        VolumeSlider,
+        Count,  ///< 部品の数(繰り返し用)。
+    };
+
     /** @brief 数字を入力できる欄。 */
-    enum class EditField { None, Current, StartFrame };
+    enum class EditField {
+        None,
+        Current,    ///< 現在のフレーム。
+        AnimStart,  ///< 全体範囲の最初。
+        PlayStart,  ///< 再生範囲の最初。
+        PlayEnd,    ///< 再生範囲の最後。
+        AnimEnd,    ///< 全体範囲の最後。
+        ClipStart,  ///< 動画の開始(動画の1コマ目を置くフレーム番号)。
+    };
 
     /**
      * @brief ウィンドウ内の各部品の位置(クライアント座標)。
      * @note Mayaと同じく、映像の下にタイムスライダーの段、その下にレンジスライダーの段を置く。
-     *       タイムスライダーは再生範囲だけを目盛りで表示し、レンジスライダーは動画全体の中の再生範囲を表す。
+     *       タイムスライダーは再生範囲だけを目盛りで表示し、レンジスライダーは全体範囲の中の再生範囲を表す。
      */
     struct Layout {
         RECT video{};          ///< 映像の表示領域(VideoViewの子ウィンドウを置く)。
@@ -179,9 +216,13 @@ private:
         RECT nextButton{};     ///< 1コマ進むボタン。
         RECT endButton{};      ///< 再生範囲の最後へ移動するボタン。
         RECT rangeRow{};       ///< レンジスライダーの段。
-        RECT startField{};     ///< 開始フレーム(動画の1コマ目の番号)の欄(押すと入力できる)。
-        RECT rangeBar{};       ///< レンジスライダーのバー(動画全体を割り当てる横幅)。
-        RECT endField{};       ///< 終了フレーム(動画の最後のコマの番号)の欄。
+        RECT animStartField{};  ///< 全体範囲の最初の欄(押すと入力できる。以下の欄も同じ)。
+        RECT playStartField{};  ///< 再生範囲の最初の欄。
+        RECT rangeBar{};        ///< レンジスライダーのバー(全体範囲を割り当てる横幅)。
+        RECT playEndField{};    ///< 再生範囲の最後の欄。
+        RECT animEndField{};    ///< 全体範囲の最後の欄。
+        RECT clipStartLabel{};  ///< 「動画の開始」の文字。
+        RECT clipStartField{};  ///< 動画の開始(動画の1コマ目を置くフレーム番号)の欄。
         RECT rateLabel{};      ///< フレームレートの文字。
         RECT syncButton{};     ///< 「Maya連携」ボタン(押すと連携モードと通常モードを切り替える)。
         RECT fileButton{};     ///< 「ファイル」ボタン(押すとファイルのメニューを出す)。
@@ -265,9 +306,10 @@ private:
      * @param width 幅。
      * @param height 高さ。
      * @param slab 地の色。
+     * @param outside 動画の外の部分の地の色。
      * @param dpi ウィンドウのDPI。
      */
-    void paintRulerMarks(HDC dc, int width, int height, COLORREF slab, int dpi);
+    void paintRulerMarks(HDC dc, int width, int height, COLORREF slab, COLORREF outside, int dpi);
 
     /**
      * @brief レンジスライダー(動画全体の中の再生範囲と、両端のつまみ)を描く。
@@ -282,10 +324,46 @@ private:
      * @param dc 描画先(裏の画像)。
      * @param rect 欄の範囲。
      * @param value 表示する数。
-     * @param editable 入力できる欄か(できない欄は文字を薄くする)。
+     * @param part 欄の部品(マウスが乗っていれば明るくする)。
+     * @param primary 主な欄か。falseなら控えめな見た目にする(全体範囲の欄。再生範囲の欄と見分けるため)。
      * @param dpi ウィンドウのDPI。
      */
-    void paintField(HDC dc, const RECT& rect, int value, bool editable, int dpi);
+    void paintField(HDC dc, const RECT& rect, int value, Part part, bool primary, int dpi);
+
+    /**
+     * @brief 部品の範囲を返す(クリック・ホバー・ツールチップの判定に使う)。
+     * @param layout 各部品の位置。
+     * @param part 部品。
+     * @return 範囲。目盛り・バー・音量は、押しやすいよう段の高さいっぱいに広げた範囲。
+     */
+    RECT partRect(const Layout& layout, Part part) const;
+
+    /**
+     * @brief 位置にある部品を返す。
+     * @param layout 各部品の位置。
+     * @param point クライアント座標。
+     * @return 部品。どれにも当たらなければPart::None。
+     */
+    Part hitTestPart(const Layout& layout, POINT point) const;
+
+    /**
+     * @brief 部品の説明(ツールチップの文字)を返す。
+     * @param part 部品。
+     * @return 説明。静的な文字列なので、呼び出し元で保持してよい。
+     */
+    const wchar_t* tooltipText(Part part) const;
+
+    /** @brief ツールチップを作り、各部品を登録する。 */
+    void createTooltips();
+
+    /** @brief ウィンドウの大きさが変わったときに、ツールチップの各部品の範囲を合わせる。 */
+    void updateTooltipRects();
+
+    /**
+     * @brief マウスが乗っている部品を変える。変わったら操作部を描き直す。
+     * @param part 新しい部品。
+     */
+    void setHover(Part part);
 
     /**
      * @brief コマのキャッシュの有無を、横幅の画素ごとの塗る範囲にまとめる。
@@ -336,9 +414,11 @@ private:
 
     /**
      * @brief スライダーをドラッグ中なら、マウス位置のコマへ移動する。映像の上の中ボタンドラッグ中なら、動いた距離に合わせてコマ・オフセットを変える。
+     *        ドラッグ中でなければ、マウスが乗っている部品を明るく表示する。
      * @param x クライアント座標のx。
+     * @param y クライアント座標のy。
      */
-    void onMouseMove(int x);
+    void onMouseMove(int x, int y);
 
     /**
      * @brief マウスの左ボタンのダブルクリック。レンジスライダー上なら、動画全体と直前の再生範囲を切り替える(Mayaと同じ)。
@@ -439,31 +519,55 @@ private:
     /**
      * @brief タイムスライダーの目盛り上のx座標に対応するコマ番号を返す。
      * @param x クライアント座標のx。
-     * @return 0始まりのコマ番号。再生範囲の外は範囲の端に丸める。
+     * @return コマ番号(動画の1コマ目が0)。再生範囲の外は範囲の端に丸める。
      */
     int frameFromX(int x) const;
 
     /**
      * @brief レンジスライダーのバー上のx座標に対応するコマ番号を返す。
      * @param x クライアント座標のx。
-     * @return 0始まりのコマ番号。動画の範囲外は端に丸める。
+     * @return コマ番号(動画の1コマ目が0)。全体範囲の外は端に丸める。
      */
     int rangeFrameFromX(int x) const;
 
     /**
      * @brief レンジスライダーのバー上で、コマの区画の左端のx座標を返す。
      * @param layout 各部品の位置。
-     * @param index コマ番号(frameCountを渡すとバーの右端)。
+     * @param index コマ番号(全体範囲の最後+1を渡すとバーの右端)。
      * @return x座標。
      */
     int rangeXOf(const Layout& layout, int index) const;
 
     /**
-     * @brief 再生範囲を設定する。動画の範囲に丸め、表示・再生・先読み・連携先へ伝える。
-     * @param first 範囲の最初のコマ番号。
+     * @brief 再生範囲を設定する。全体範囲の外にかかるときは、Mayaと同じく全体範囲を広げる。
+     * @param first 範囲の最初のコマ番号(動画の1コマ目が0。動画の外でもよい)。
      * @param last 範囲の最後のコマ番号。
      */
     void setPlaybackRange(int first, int last);
+
+    /**
+     * @brief 全体範囲と再生範囲をまとめて設定し、表示・再生・先読み・連携先へ伝える。
+     * @param animFirst 全体範囲の最初のコマ番号。
+     * @param animLast 全体範囲の最後のコマ番号(animFirstより前なら同じにする)。
+     * @param playFirst 再生範囲の最初のコマ番号(全体範囲に収める)。
+     * @param playLast 再生範囲の最後のコマ番号(全体範囲に収める)。
+     * @note 連携先へは再生範囲が変わったときだけ知らせる(Mayaとは再生範囲を合わせる)。
+     */
+    void setTimeRange(int animFirst, int animLast, int playFirst, int playLast);
+
+    /**
+     * @brief 動画をタイムライン上で置く位置(動画の1コマ目のフレーム番号)を変える。
+     * @param frame 新しい開始のフレーム番号。
+     * @note タイムライン(全体範囲・再生範囲・現在のフレームの番号)はそのままにして、動画だけを動かす。設定にも保存する。
+     */
+    void setClipStart(int frame);
+
+    /**
+     * @brief コマ番号を、扱えるフレーム番号の範囲(±1億。連携で受け付ける範囲と同じ)に収める。
+     * @param index コマ番号(動画の1コマ目が0)。
+     * @return 収めたコマ番号。
+     */
+    int clampIndex(long long index) const;
 
     /**
      * @brief 数字の欄の入力を始める。欄の上に入力用の子ウィンドウ(EDIT)を重ねる。
@@ -594,9 +698,12 @@ private:
     RulerKey rulerKey_;              ///< 目盛りの作り置きを作ったときの条件。
     LONGLONG lastTitleTicks_ = 0;    ///< 最後にタイトルバーを書き換えた時刻。
     int current_ = 0;             ///< 操作部に表示しているコマ番号(VideoViewの表示に追従する)。
-    int playFirst_ = 0;           ///< 再生範囲の最初のコマ番号。
+    int animFirst_ = 0;           ///< 全体範囲の最初のコマ番号(動画の1コマ目が0。動画の外でもよい)。
+    int animLast_ = 0;            ///< 全体範囲の最後のコマ番号。
+    int playFirst_ = 0;           ///< 再生範囲の最初のコマ番号(全体範囲の中)。
     int playLast_ = 0;            ///< 再生範囲の最後のコマ番号。
-    int savedFirst_ = -1;         ///< レンジスライダーのダブルクリックで戻す再生範囲の最初(-1なら無し)。
+    int savedFirst_ = 0;          ///< レンジスライダーのダブルクリックで戻す再生範囲の最初。
+    bool hasSavedRange_ = false;  ///< savedFirst_・savedLast_が有効か(コマ番号は負もあり得るので、別に持つ)。
     int savedLast_ = -1;          ///< 同じく最後。
     Drag drag_ = Drag::None;      ///< ドラッグしている部品。
     int dragAnchor_ = 0;          ///< 範囲の移動を始めたときのマウス位置のコマ番号。
@@ -607,6 +714,9 @@ private:
     int paneDragOffset_ = 0;      ///< 同じく、そのときの2本目のオフセット。
     EditField editField_ = EditField::None;  ///< 入力中の欄。
     HWND editControl_ = nullptr;  ///< 入力用の子ウィンドウ(入力中だけある)。
+    HWND tooltip_ = nullptr;      ///< 部品の説明を出すツールチップ(このウィンドウが持ち、一緒に破棄される)。
+    Part hover_ = Part::None;     ///< マウスが乗っている部品。
+    bool trackingLeave_ = false;  ///< マウスがウィンドウから出たことの知らせ(WM_MOUSELEAVE)を頼んでいるか。
     HBRUSH editBrush_ = nullptr;  ///< 入力用の子ウィンドウの背景のブラシ。
     std::unique_ptr<TimeSync> sync_;  ///< タイムスライダーの変化を知らせる先(Mayaとの連携など)。無ければnullptr。
     SyncServer* syncServer_ = nullptr;  ///< sync_が連携の待ち受け口のときの、その口(sync_が持つ)。
@@ -617,6 +727,8 @@ private:
     RECT rangeCacheRunsBar_{};                         ///< rangeCacheRuns_を計算したときのバーの範囲。
     int cacheRunsFirst_ = -1;                          ///< cacheRuns_を計算したときの再生範囲の最初。
     int cacheRunsLast_ = -1;                           ///< 同じく最後。
+    int cacheRunsAnimFirst_ = 0;                       ///< rangeCacheRuns_を計算したときの全体範囲の最初。
+    int cacheRunsAnimLast_ = -1;                       ///< 同じく最後。
 
     std::atomic<bool> frameReadyPending_{false};  ///< 裏の読み込みからの知らせが未処理か(送りすぎ防止)。
     std::vector<std::uint8_t> cacheFlags_;        ///< キャッシュ表示用の作業領域(描画のたびに確保しないため)。
