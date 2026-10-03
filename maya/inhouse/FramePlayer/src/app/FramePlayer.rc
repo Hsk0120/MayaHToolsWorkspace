@@ -1,6 +1,41 @@
 #pragma code_page(65001)
 // FramePlayer.exe に埋め込むリソース。
 // アイコンの元は resources/icon/*.svg。.ico の作り直しは README の「アイコン」を参照。
+// バージョンを上げるときは FP_VERSION_* を変える(インストーラーは、ここからバージョンを読む)。
+#include <winver.h>
 #include "Resource.h"
 
+#define FP_VERSION_MAJOR 1
+#define FP_VERSION_MINOR 0
+#define FP_VERSION_PATCH 0
+#define FP_VERSION_TEXT "1.0.0"
+
 IDI_APP_ICON ICON "../../resources/icon/FramePlayer.ico"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION FP_VERSION_MAJOR, FP_VERSION_MINOR, FP_VERSION_PATCH, 0
+PRODUCTVERSION FP_VERSION_MAJOR, FP_VERSION_MINOR, FP_VERSION_PATCH, 0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE 0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041104B0"
+        BEGIN
+            VALUE "ProductName", "FramePlayer"
+            VALUE "FileDescription", "FramePlayer"
+            VALUE "Comments", "コマ送りと2本の比較に特化した動画プレイヤー"
+            VALUE "FileVersion", FP_VERSION_TEXT
+            VALUE "ProductVersion", FP_VERSION_TEXT
+            VALUE "InternalName", "FramePlayer"
+            VALUE "OriginalFilename", "FramePlayer.exe"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0411, 1200
+    END
+END

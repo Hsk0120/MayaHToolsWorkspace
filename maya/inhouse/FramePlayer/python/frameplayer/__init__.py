@@ -22,20 +22,51 @@ _current = None     # 今使っている接続(1つだけ持つ)。
 _last_error = ""    # 最後に接続できなかった理由。
 
 
+def _installed_executable():
+    """インストーラーで入れたFramePlayerの実行ファイルのパスを返す。
+
+    インストーラーはWindowsの「App Paths」(``HKEY_CURRENT_USER`` または ``HKEY_LOCAL_MACHINE`` の
+    ``Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\FramePlayer.exe``)に場所を登録する。
+
+    Returns:
+        str: パス。インストールされていなければ空文字列。
+    """
+    try:
+        import winreg
+    except ImportError:  # Windows以外。
+        return ""
+    key_path = r"Software\Microsoft\Windows\CurrentVersion\App Paths\FramePlayer.exe"
+    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(root, key_path) as key:
+                path, _ = winreg.QueryValueEx(key, "")
+        except OSError:
+            continue
+        if path and os.path.isfile(path):
+            return path
+    return ""
+
+
 def player_executable():
     """FramePlayerの実行ファイルのパスを返す。
 
-    環境変数 ``FRAMEPLAYER_EXE`` があればそれを、無ければこのパッケージに同梱の
-    ``FramePlayer.exe``(パッケージ直下)を使う。
+    次の順に探す。
+
+    1. 環境変数 ``FRAMEPLAYER_EXE``
+    2. このパッケージに同梱の ``FramePlayer.exe``(パッケージ直下。リポジトリから使うとき)
+    3. インストーラーで入れたFramePlayer(Windowsの「App Paths」に登録された場所)
 
     Returns:
-        str: 実行ファイルのパス(存在するかは確かめない)。
+        str: 実行ファイルのパス。どこにも無ければ、同梱の場所(存在しない)を返す。
     """
     path = os.environ.get("FRAMEPLAYER_EXE")
     if path:
         return path
     package_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    return os.path.join(package_root, "FramePlayer.exe")
+    bundled = os.path.join(package_root, "FramePlayer.exe")
+    if os.path.isfile(bundled):
+        return bundled
+    return _installed_executable() or bundled
 
 
 def launch(*paths, sync=True):

@@ -14,3 +14,17 @@ add_compile_options(/utf-8 /W4)
 add_executable(IconBuilder src/IconBuilder.cpp)
 target_compile_definitions(IconBuilder PRIVATE UNICODE _UNICODE NOMINMAX)
 target_link_libraries(IconBuilder PRIVATE d2d1 windowscodecs shlwapi ole32)
+
+# 汎用のインストーラー。同じexeが「セットアップを作る(--build)」「インストール」「アンインストール」を受け持つ。
+add_executable(WinAppSetup WIN32
+    src/setup/Main.cpp
+    src/setup/Common.cpp
+    src/setup/Manifest.cpp
+    src/setup/Package.cpp
+    src/setup/Builder.cpp
+    src/setup/Installer.cpp
+    src/setup/SetupUi.cpp
+)
+target_include_directories(WinAppSetup PRIVATE src)
+target_compile_definitions(WinAppSetup PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(WinAppSetup PRIVATE comctl32 shell32 ole32 advapi32 version cabinet rstrtmgr)

@@ -272,6 +272,31 @@ cd resources\icon
 
 `FramePlayer.ico` はGit管理対象(このパッケージだけでビルドできるように。IconBuilderが無くてもよい)。
 
+### インストーラー
+
+`tools/WinAppKit` の汎用インストーラー(WinAppSetup)で、FramePlayerのセットアップ(`FramePlayerSetup.exe`)を作れる。
+設定は `installer/FramePlayer.wak.ini`。バージョンは `src/app/FramePlayer.rc` の `FP_VERSION_*` から読む
+(上げるときは .rc を変えてビルドし、`cmake --install` してからセットアップを作る)。
+
+```bat
+cmake --build build --config Release
+cmake --install build --config Release
+..\..\..\tools\WinAppKit\build\Release\WinAppSetup.exe --build installer\FramePlayer.wak.ini --out FramePlayerSetup.exe
+```
+
+セットアップはパッケージ直下の `FramePlayerSetup.exe`(`FramePlayer.exe` と同じくGit管理対象)。配るときはこのexeを渡す。
+`FramePlayer.exe` を更新したら、セットアップも作り直す(中に `FramePlayer.exe` を含むため)。
+
+- インストール先は `%LOCALAPPDATA%\Programs\FramePlayer`(このユーザーだけ。管理者権限は不要)。
+- 設定の「アプリ」一覧に載り、そこからアンインストールできる。スタートメニューにも追加する。
+- インストールの画面で選べば、動画ファイル(.mp4 .mov .m4v .avi .wmv .mkv .mts .m2ts)の右クリックに「FramePlayerで開く」、
+  「プログラムから開く」と設定の「既定のアプリ」の候補に FramePlayer を追加する(既定のアプリそのものは、本人が設定画面で選ぶ)。
+- アンインストールで「設定などのデータも削除する」を選ぶと、音量・最近使ったファイル(`HKCU\Software\FramePlayer`)と
+  連携の鍵(`%LOCALAPPDATA%\FramePlayer`)も消す。選ばなければ残る。
+- 画面なしで入れる・消すとき: `FramePlayerSetup.exe /S`、`"%LOCALAPPDATA%\Programs\FramePlayer\Uninstall.exe" --uninstall /S`。
+
+仕組み(記録とアンインストール、安全のための決まり、確かめたこと)は `tools/WinAppKit/README.md` を参照。
+
 ## コマ送りの正確さの確認
 
 `build\Release\FramePlayerVerify.exe` は、プレイヤーと同じ読み込み処理(目次・キャッシュ・先読み)で、
@@ -417,9 +442,11 @@ FramePlayerの追従(どちらも範囲内のループを含めて同じフレ�
 ```
 FramePlayer/
 ├ FramePlayer.exe     プレイヤー本体(配布用。Git管理対象)
+├ FramePlayerSetup.exe インストーラー(配布用。Git管理対象。中にFramePlayer.exeを含む)
 ├ FramePlayer.mod     このフォルダを単体で使うときのMayaモジュール定義
 ├ python/frameplayer/ Maya側の連携パッケージ(sync.py=接続、ui.py=画面)
 ├ resources/icon/     アイコンの元のSVGと、exeに埋め込む .ico
+├ installer/          インストーラーの設定(tools/WinAppKit の WinAppSetup で読む)
 ├ src/                プレイヤーのC++ソース
 ├ tests/              コマ番号の正確さの確認用ツール
 └ CMakeLists.txt
@@ -429,7 +456,8 @@ FramePlayer/
   HToolsのメニュー項目(`HTools/animation/framePlayerSync.py`)は、`frameplayer.show()` を呼ぶだけの入口。
 - 単体で使うとき(別のリポジトリとして配布するときなど)は、このフォルダを `MAYA_MODULE_PATH` に加えると
   同梱の `FramePlayer.mod` で読み込まれる。
-- exeの場所は環境変数 `FRAMEPLAYER_EXE` で変えられる(無ければパッケージ直下の `FramePlayer.exe`)。
+- Mayaから起動するexeは、環境変数 `FRAMEPLAYER_EXE` → パッケージ直下の `FramePlayer.exe` → インストーラーで入れた
+  FramePlayer(Windowsの App Paths に登録された場所)の順に探す。
 
 ## ソース構成
 

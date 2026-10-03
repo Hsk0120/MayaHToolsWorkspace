@@ -120,6 +120,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 - Codex (2026-10-03): hlibリファクタリング計画相談のため設計規約・直近履歴・入力解決・add_attribute・JSON・初期化入口を確認。既知2件の修正、JSONの責務整理、初期化順序の明文化を候補化。実装変更・Maya実行なし。
 
+- 2026-10-03 Claude Code: 汎用の自作インストーラー WinAppSetup を tools/WinAppKit に追加(Windows標準の機能だけ。1つのexeが --build でセットアップ作成・インストール・アンインストールを担当。アプリごとの設定はINI、中身はRCDATAにLZMS圧縮で埋め込み、アイコンも埋め込み)。ユーザー単位(%LOCALAPPDATA%\Programs、管理者不要)で、ファイル・「アプリ」一覧(Uninstall)・App Paths・スタートメニュー・関連付け(ProgId・OpenWithProgids・Applications・右クリック・Capabilities/RegisteredApplications)を登録し、作ったものを uninstall.wak に記録。アンインストールは記録だけを逆順に消す(共有キーは値だけ、途中のキー・フォルダは空なら)、一時フォルダへ自分を写して続行し最後に自分を消す。更新・失敗時の巻き戻し・起動中アプリの終了(Restart Manager)・危険なインストール先とデータ削除先(Idを含まない場所・共有フォルダ)の拒否。画面はタスクダイアログ、/S で無人。FramePlayerに installer/FramePlayer.wak.ini とVERSIONINFO(1.0.0)を追加し、セットアップはパッケージ直下の FramePlayerSetup.exe(Git管理対象)に出力、Maya側はインストール版もApp Pathsから探す。インストール・更新・起動中のアンインストール(前後でレジストリとファイルが完全一致)・データ削除の安全条件・画面操作を確認。winget list には出ない点は未調査。コミット・push済み。
+
 - 2026-10-03 Claude Code: FramePlayerのアイコンを作成(D案: オレンジの角丸四角に白いF、下にタイムスライダーの目盛り)。元はSVG(resources/icon。32px以上用は8単位、24px・16px用は画素の升目で描き分け)。汎用の道具置き場 tools/WinAppKit を新設し、SVGから.icoを作るIconBuilder(Direct2DのSVG描画とWICだけで作成、サイズごとにSVGを指定可)を追加。.icoをFramePlayer.rcでexeに埋め込み、LoadIconMetricでタスクバー・タイトルバーに表示。Common Controls 6が前提。exeから取り出したアイコンとタイトルバーで確認。コミット・push済み。
 
 - 2026-10-03 Claude Code: FramePlayerのUIを整理。全体範囲の欄を控えめな色にして再生範囲の欄と区別、バー内の重複した番号を削除、まとまりの間隔を16pxに統一、欄とボタンの高さ(24px)と文字(9pt/8pt)を統一。目盛りとバーで動画の外を暗く塗り、「範囲外」に動画の位置(比較中はオフセット込み)を添え、再生範囲外の現在フレームを目盛りの端に矢印付きで表示。全部品にツールチップ(ダーク、ショートカット付き)、ボタン・欄にホバー表示。コモンコントロール6をマニフェストで指定、uxthemeをリンク。キャプチャで確認(ホバーとツールチップは実際のカーソルを一時的に動かして確認し元に戻した)。コミット・push済み。
