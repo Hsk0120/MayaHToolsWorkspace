@@ -27,12 +27,13 @@ add_executable(FramePlayer WIN32
     src/app/main.cpp
     src/app/PlayerWindow.cpp
     src/app/VideoView.cpp
+    src/app/SyncServer.cpp
 )
-target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi dwmapi)
+target_link_libraries(FramePlayer PRIVATE frameplayer_core user32 gdi32 shell32 advapi32 d2d1 dwrite dxgi dwmapi comctl32 ws2_32)
 
-# 配布用: `cmake --install build --config Release` でexeを release/ へコピーする(release/ はGit管理対象)。
+# 配布用: `cmake --install build --config Release` でexeをこのフォルダ(パッケージ直下)へコピーする(Git管理対象)。
 # ビルドのたびに管理対象のexeが変わらないよう、コピーはインストールを実行したときだけ行う。
-install(TARGETS FramePlayer RUNTIME DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/release")
+install(TARGETS FramePlayer RUNTIME DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # コマ番号が正確に読めているかを確かめる確認用ツール(配布対象外)。
 add_executable(FramePlayerVerify tests/verify_frame_index.cpp)

@@ -81,6 +81,7 @@ maya/
 │  ├ hlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)
 │  ├ MayaCommandPorts/  HTools/hlibから独立したcommandPort初期化モジュール
 │  ├ integrations/   外部サービス連携(Slack, mGearガイド操作)
+│  ├ FramePlayer/    コマ送り確認用の動画プレイヤー(C++のexeをパッケージ直下に置く)と、Mayaのタイムスライダーと双方向に連携するPythonパッケージ(`python/frameplayer`)。hlibに依存しない単体パッケージで、将来は別リポジトリでの公開も検討中。詳細は同フォルダのREADME
 │  └ MayaCinematicCameraHUD/  C++プラグイン(別リポジトリのsubmodule。このワークスペースで編集・ビルドする)
 ├ modules/      各ツールをMayaに認識させる .mod ファイル(2022/2024/2025/2026/2027対応、MAYA_MODULE_PATHの対象)
 ├ modules_disabled/  上記と同形式だが未登録の .mod ファイル(無効化されたツール/汎用ライブラリ)。有効化するには modules/ へ移動する

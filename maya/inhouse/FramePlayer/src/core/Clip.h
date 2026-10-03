@@ -181,6 +181,14 @@ public:
     void setPlayhead(int index, Direction direction, bool wrap);
 
     /**
+     * @brief ループ再生する範囲(再生範囲)を伝える。ループ中(wrap)の先読みは、この範囲の中で回り込む。
+     * @param first 範囲の最初のコマ番号。
+     * @param last 範囲の最後のコマ番号(first以上)。
+     * @note 範囲の外のコマは、ループ中は最も遠いものとして先に捨てる。
+     */
+    void setLoopRange(int first, int last);
+
+    /**
      * @brief どのコマがキャッシュにあるかを返す(タイムラインの表示用)。
      * @param flags コマごとに、キャッシュにあれば1、無ければ0を格納する。
      */
@@ -215,6 +223,13 @@ private:
      * @note 再生ヘッド、向きの先(上限の約3/4)、反対側(約1/4)の順に、未キャッシュのコマを探す。
      */
     int findTargetLocked() const;
+
+    /**
+     * @brief ループする範囲を、動画の範囲に収めて返す。
+     * @param first 範囲の最初のコマ番号の格納先。
+     * @param last 範囲の最後のコマ番号の格納先。
+     */
+    void loopBoundsLocked(int& first, int& last) const;
 
     /**
      * @brief 今の上限(バイト数・コマ数・状態)で、キャッシュに持てるコマ数を返す。
@@ -262,6 +277,8 @@ private:
     std::size_t cacheBytes_ = 0;
     bool cachesOnGpu_ = false;
     int frameLimit_ = 0x7FFFFFFF;           ///< キャッシュに持つコマ数の上限。
+    int loopFirst_ = 0;                     ///< ループする範囲の最初のコマ番号。
+    int loopLast_ = 0x7FFFFFFF;             ///< ループする範囲の最後のコマ番号(動画の範囲に丸めて使う)。
     Activity activity_ = Activity::Interactive;
     std::shared_ptr<GpuDevice> gpu_;        ///< 縮小画像のデコードに渡す共有のGPUデバイス。
     std::unique_ptr<KeyframeThumbnails> thumbnails_;  ///< キーフレームの縮小画像。作らない場合はnullptr。

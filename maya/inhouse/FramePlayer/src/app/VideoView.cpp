@@ -4,6 +4,8 @@
  */
 #include "app/VideoView.h"
 
+#include "app/SyncLog.h"
+
 #include <objbase.h>
 
 #include <algorithm>
@@ -206,15 +208,27 @@ void VideoView::showFrame(int index, Clip::Direction direction) {
     wake();
 }
 
+void VideoView::setPlaybackRange(int first, int last) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        playFirst_ = std::max(0, first);
+        playLast_ = std::max(playFirst_, last);
+    }
+    wake();
+}
+
 void VideoView::play(double rate) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!clip_ || clip_->frameCount() <= 1) {
             return;
         }
+        // 再生範囲の外、または範囲の最後のコマで再生を始めたら、範囲の最初から(Mayaと同じ)。
+        const int first = std::clamp(playFirst_, 0, clip_->frameCount() - 1);
+        const int last = std::clamp(playLast_, first, clip_->frameCount() - 1);
         int start = current_;
-        if (start >= clip_->frameCount() - 1) {
-            start = 0;  // 最後のコマで再生を始めたら先頭から。
+        if (start < first || start >= last) {
+            start = first;
         }
         requested_ = start;
         playStartFrame_ = start;
@@ -455,11 +469,14 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
             const std::wstring name = pane.clip ? fileNameOf(pane.clip->path()) : std::wstring();
             const int count = pane.clip ? pane.clip->frameCount() : 0;
             if (i == 0) {
-                std::swprintf(label, 512, L"%ls   %d / %d", name.c_str(), pane.index + 1, count);
+                std::swprintf(label, 512, L"%ls   %d / %d", name.c_str(), pane.index + frameNumberStart_,
+                              count - 1 + frameNumberStart_);
             } else if (pane.outOfRange) {
-                std::swprintf(label, 512, L"%ls   範囲外 / %d   (ずらし %+d)", name.c_str(), count, compareOffset);
+                std::swprintf(label, 512, L"%ls   範囲外 / %d   (ずらし %+d)", name.c_str(),
+                              count - 1 + frameNumberStart_, compareOffset);
             } else {
-                std::swprintf(label, 512, L"%ls   %d / %d   (ずらし %+d)", name.c_str(), pane.index + 1, count,
+                std::swprintf(label, 512, L"%ls   %d / %d   (ずらし %+d)", name.c_str(), pane.index + frameNumberStart_,
+                              count - 1 + frameNumberStart_,
                               compareOffset);
             }
             drawPane(pane, paneCaches_[i], i == 0 ? left : right, label);
@@ -666,6 +683,8 @@ void VideoView::renderLoop() {
         int startFrame = 0;
         int playSession = 0;
         double rate = 24.0;
+        int rangeFirst = 0;
+        int rangeLast = 0;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (stopThread_) {
@@ -680,6 +699,10 @@ void VideoView::renderLoop() {
             startFrame = playStartFrame_;
             playSession = playSession_;
             rate = rate_;
+            if (clip) {
+                rangeFirst = std::clamp(playFirst_, 0, clip->frameCount() - 1);
+                rangeLast = std::clamp(playLast_, rangeFirst, clip->frameCount() - 1);
+            }
         }
         const int offset = compareOffset_;
         const int paneCount = compare ? 2 : 1;
@@ -732,6 +755,8 @@ void VideoView::renderLoop() {
             // 停止中の表示コマ(current_)はshowFrame()が決める。ここで書き戻すと、描き始めた後に
             // 新しい指示が来た場合に古い番号へ戻ってしまう(スライダーのドラッグ中に行ったり来たりして見える)。
             ready = draw(panes, paneCount, offset);
+            syncLog("present stopped %d image=%d loading=%d", panes[0].index, panes[0].imageIndex,
+                    panes[0].loading ? 1 : 0);
             notifyParent();
             continue;
         }
@@ -743,7 +768,6 @@ void VideoView::renderLoop() {
         const UINT width = static_cast<UINT>(std::max(1L, client.right - client.left));
         const UINT height = static_cast<UINT>(std::max(1L, client.bottom - client.top));
         const LONGLONG now = nowTicks();
-        const int count = clip->frameCount();
         // 半コマ分の長さ。時計を半コマ早めておくと、コマの境目が画面更新と画面更新の中間に来る。
         // 境目と画面更新が重なると、わずかな揺れでコマが飛んだり重なったりするため。
         const LONGLONG halfFrameTicks = static_cast<LONGLONG>(frequency * 0.5 / rate);
@@ -778,14 +802,15 @@ void VideoView::renderLoop() {
             }
         }
 
-        // 今表示すべき動画の時刻と、そのコマ。最後のコマを表示し終えたら先頭から繰り返す。
+        // 今表示すべき動画の時刻と、そのコマ。再生範囲の最後のコマを表示し終えたら、範囲の最初から繰り返す。
+        // 再生中に範囲が変わり、今の時刻が範囲より前になった場合も範囲の最初からにする。
         long long mediaNow = sessionStartMedia + (now - sessionStartTicks) * 10000000 / frequency;
-        const long long endTime = clip->frameTime(count - 1) + 2 * halfFrameMedia;
-        if (mediaNow >= endTime) {
-            beginSession(0);
+        const long long endTime = clip->frameTime(rangeLast) + 2 * halfFrameMedia;
+        if (mediaNow >= endTime || mediaNow < clip->frameTime(rangeFirst) - 2 * halfFrameMedia) {
+            beginSession(rangeFirst);
             mediaNow = sessionStartMedia + halfFrameMedia;
         }
-        const int target = clip->frameAtTime(mediaNow);
+        const int target = std::clamp(clip->frameAtTime(mediaNow), rangeFirst, rangeLast);
         clip->setPlayhead(target, Clip::Direction::Forward, true);
         if (compare) {
             compare->setPlayhead(std::clamp(target + offset, 0, compare->frameCount() - 1), Clip::Direction::Forward,
@@ -805,7 +830,8 @@ void VideoView::renderLoop() {
         const bool advance = frame && compareReady && (target != shown || clip.get() != shownClip);
         if (advance) {
             if (shown >= 0 && clip.get() == shownClip) {
-                const int step = (target - shown + count) % count;
+                const int length = rangeLast - rangeFirst + 1;
+                const int step = ((target - shown) % length + length) % length;
                 if (step > 1) {
                     dropped_ += step - 1;
                 }
@@ -834,6 +860,7 @@ void VideoView::renderLoop() {
             drawnWidth = width;
             drawnHeight = height;
             ready = draw(drawn, paneCount, offset);
+            syncLog("present playing %d", drawn[0].index);
             continue;
         }
 
@@ -841,7 +868,7 @@ void VideoView::renderLoop() {
         // 届いた合図(wake)で起きる(合図を逃しても10msで確かめ直す)。操作の合図でも起きる。
         LONGLONG waitTicks = frequency / 100;
         if (frame) {
-            const long long nextMedia = target + 1 < count ? clip->frameTime(target + 1) : endTime;
+            const long long nextMedia = target + 1 <= rangeLast ? clip->frameTime(target + 1) : endTime;
             const LONGLONG nextTicks = sessionStartTicks + (nextMedia - sessionStartMedia) * frequency / 10000000;
             waitTicks = std::max<LONGLONG>(1, nextTicks - nowTicks());
         }

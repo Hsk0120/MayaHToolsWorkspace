@@ -4,6 +4,9 @@
  */
 #include "app/PlayerWindow.h"
 
+#include "app/SyncLog.h"
+
+#include <commctrl.h>
 #include <dwmapi.h>
 #include <shobjidl.h>
 #include <windowsx.h>
@@ -11,7 +14,10 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <cwchar>
 #include <iterator>
+#include <string>
 
 namespace frameplayer {
 
@@ -36,6 +42,9 @@ constexpr int kLargeStep = 10;                             ///< Shift併用時�
 constexpr double kDefaultRate = 24.0;                      ///< フレームレートが不明な動画の再生速度。
 constexpr UINT kViewFrameMessage = WM_APP + 1;   ///< VideoViewが表示するコマを変えたときの知らせ。
 constexpr UINT kFrameReadyMessage = WM_APP + 2;  ///< 裏の読み込みでコマがキャッシュに入ったときの知らせ。
+constexpr UINT kEditCommitMessage = WM_APP + 3;  ///< 数字の欄でEnterが押されたときの知らせ。
+constexpr UINT kEditCancelMessage = WM_APP + 4;  ///< 数字の欄でEscが押されたときの知らせ。
+constexpr UINT kSyncMessage = WM_APP + 5;        ///< 連携の待ち受け口(SyncServer)からの知らせ。
 constexpr LONGLONG kCacheBarIntervalMs = 200;    ///< キャッシュ表示を計算し直す最短間隔(ミリ秒)。
 
 // 色はWindows 11標準の「メディア プレーヤー」に合わせる(同じ動画を再生した画面から測った値)。
@@ -50,6 +59,14 @@ constexpr COLORREF kText = RGB(255, 255, 255);
 constexpr COLORREF kControlFace = RGB(38, 38, 38);    ///< 文字のボタンの地。
 constexpr COLORREF kControlBorder = RGB(51, 51, 51);  ///< 文字のボタンの枠。
 constexpr COLORREF kDisabled = RGB(106, 106, 106);    ///< 使えない記号(#6A6A6A)。
+constexpr COLORREF kRuler = RGB(32, 32, 32);          ///< タイムスライダーの目盛りとレンジスライダーのバーの地。
+constexpr COLORREF kTick = RGB(84, 84, 84);           ///< 細かい目盛り。
+constexpr COLORREF kMajorTick = RGB(110, 110, 110);   ///< 数字の付く目盛り。
+constexpr COLORREF kRulerText = RGB(197, 197, 197);   ///< 目盛りの数字。
+constexpr COLORREF kCurrentColumn = RGB(70, 70, 70);  ///< 現在のフレームの区画。
+constexpr COLORREF kLabelBox = RGB(52, 52, 52);       ///< 現在のフレームの番号の箱。
+constexpr COLORREF kRangeSelected = RGB(58, 58, 58);  ///< レンジスライダーの再生範囲。
+constexpr COLORREF kHandle = RGB(148, 148, 148);      ///< レンジスライダーのつまみ。
 constexpr DWORD kDwmUseImmersiveDarkMode = 20;  ///< DWMWA_USE_IMMERSIVE_DARK_MODE(古いSDKに無い場合があるので番号で持つ)。
 constexpr DWORD kDwmCaptionColor = 35;          ///< DWMWA_CAPTION_COLOR(Windows 11以降)。
 constexpr DWORD kDwmTextColor = 36;             ///< DWMWA_TEXT_COLOR(Windows 11以降)。
@@ -186,6 +203,8 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     instance_ = instance;
     loadAudioSettings();
     loadCacheSettings();
+    loadTimelineSettings();
+    editBrush_ = CreateSolidBrush(kControlFace);
     // 主メモリが足りなくなるとWindowsが合図するので、タイマーで確かめてキャッシュを減らす。
     lowMemory_ = CreateMemoryResourceNotification(LowMemoryResourceNotification);
     loadRecentFiles();
@@ -196,6 +215,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
     wc.lpszClassName = kClassName;
+    wc.style = CS_DBLCLKS;  // レンジスライダーのダブルクリック(全体と直前の範囲の切り替え)を受け取る。
     // 背景はpaint()で塗るので、ここでは指定しない(ちらつき防止)。
     if (!RegisterClassExW(&wc)) {
         return false;
@@ -211,6 +231,15 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     // 表示する前にタイトルバーの色を決めておく(白いタイトルバーが一瞬見えないように)。
     applyModernTitleBar(hwnd_);
     SetTimer(hwnd_, kResourceTimerId, kResourceTimerMs, nullptr);
+    // Mayaなどと連携するための待ち受け口を開く(このPCの中からだけ接続できる)。
+    // 同じ番号を他のアプリ(2つ目のFramePlayerなど)が使っていれば、連携なしで動く。
+    {
+        auto server = std::make_unique<SyncServer>();
+        if (server->start(hwnd_, kSyncMessage, syncPort_)) {
+            syncServer_ = server.get();
+            sync_ = std::move(server);
+        }
+    }
     // GPUが使えれば、デコード・キャッシュ・描画で同じデバイスを使う(GPUのメモリにあるコマをそのまま描くため)。
     gpu_ = GpuDevice::create();
     if (!view_.create(instance, hwnd_, kViewFrameMessage, gpu_)) {
@@ -218,6 +247,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
         return false;
     }
     view_.setBounds(computeLayout().video);
+    view_.setFrameNumberStart(startFrame_);
     DragAcceptFiles(hwnd_, TRUE);
     ShowWindow(hwnd_, showCommand);
     UpdateWindow(hwnd_);
@@ -227,6 +257,7 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
 void PlayerWindow::openClip(const std::wstring& path) {
     view_.stop();
     syncPowerRequest();
+    cancelEdit();
     resumeAfterScrub_ = false;  // 別の動画を開くときは、ドラッグ前の再生を引き継がない。
     endScrub();
     auto clip = std::make_shared<Clip>();
@@ -273,6 +304,17 @@ void PlayerWindow::openClip(const std::wstring& path) {
     clip_->startThumbnails(kThumbnailWidth, kThumbnailBytes);
     view_.setClip(clip_, audio_);
     clip_->setPlayhead(0, Clip::Direction::Forward, false);
+    // 再生範囲は動画全体から始める。
+    playFirst_ = 0;
+    playLast_ = clip_->frameCount() - 1;
+    savedFirst_ = -1;
+    savedLast_ = -1;
+    view_.setPlaybackRange(playFirst_, playLast_);
+    clip_->setLoopRange(playFirst_, playLast_);
+    if (sync_) {
+        sync_->playbackRangeChanged(startFrame_ + playFirst_, startFrame_ + playLast_);
+    }
+    notifyCurrentFrame();
     if (compareClip_) {
         // 比較中に1本目を差し替えた場合は、比較を続ける(キャッシュは半分ずつ)。
         view_.setCompareClip(compareClip_);
@@ -331,8 +373,46 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         }
         onKeyDown(wParam);
         return 0;
+    case WM_SYSKEYDOWN:
+        // Alt+, / Alt+. : 1コマ戻る/進む(Mayaと同じ)。それ以外のAltの組み合わせはWindowsに任せる。
+        if (clip_ && (wParam == VK_OEM_COMMA || wParam == VK_OEM_PERIOD)) {
+            stepFrame(wParam == VK_OEM_COMMA ? -1 : 1);
+            return 0;
+        }
+        return DefWindowProcW(hwnd_, message, wParam, lParam);
     case WM_LBUTTONDOWN:
         onLeftButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
+    case WM_LBUTTONDBLCLK:
+        onDoubleClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
+    case WM_SETCURSOR:
+        if (LOWORD(lParam) == HTCLIENT && updateCursor()) {
+            return TRUE;
+        }
+        return DefWindowProcW(hwnd_, message, wParam, lParam);
+    case WM_COMMAND:
+        // 数字の欄から離れたら(他の所を押した・他のアプリへ移ったなど)、入力を確定する。
+        if (editControl_ && reinterpret_cast<HWND>(lParam) == editControl_ && HIWORD(wParam) == EN_KILLFOCUS) {
+            commitEdit();
+        }
+        return 0;
+    case WM_CTLCOLOREDIT:
+        if (editControl_ && reinterpret_cast<HWND>(lParam) == editControl_) {
+            HDC editDc = reinterpret_cast<HDC>(wParam);
+            SetTextColor(editDc, kText);
+            SetBkColor(editDc, kControlFace);
+            return reinterpret_cast<LRESULT>(editBrush_);
+        }
+        return DefWindowProcW(hwnd_, message, wParam, lParam);
+    case kEditCommitMessage:
+        commitEdit();
+        return 0;
+    case kSyncMessage:
+        onSyncMessage(wParam, lParam);
+        return 0;
+    case kEditCancelMessage:
+        cancelEdit();
         return 0;
     case WM_MOUSEMOVE:
         onMouseMove(GET_X_LPARAM(lParam));
@@ -342,10 +422,9 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         return 0;
     case WM_CAPTURECHANGED:
         // 他のウィンドウにマウスを取られたときもドラッグを終える(endScrub()の中で外したときは何もしない)。
-        if (scrubbing_ || volumeDragging_) {
-            const bool resume = scrubbing_ && resumeAfterScrub_;
-            scrubbing_ = false;
-            volumeDragging_ = false;
+        if (drag_ != Drag::None) {
+            const bool resume = drag_ == Drag::Scrub && resumeAfterScrub_;
+            drag_ = Drag::None;
             resumeAfterScrub_ = false;
             if (resume) {
                 resumePlayback();
@@ -369,6 +448,9 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         return 0;
     }
     case WM_DESTROY:
+        // 連携の待ち受けを先に止める(以降の知らせを受け取らない)。
+        syncServer_ = nullptr;
+        sync_.reset();
         // 描画スレッドを止めてから動画を手放す(手放すと裏の読み込みスレッドも止まる)。
         view_.shutdown();
         view_.setClip(nullptr);
@@ -377,7 +459,12 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         compareClip_.reset();
         clip_.reset();
         audio_.reset();
+        cancelEdit();
         releaseFonts();
+        if (editBrush_) {
+            DeleteObject(editBrush_);
+            editBrush_ = nullptr;
+        }
         if (lowMemory_) {
             CloseHandle(lowMemory_);
             lowMemory_ = nullptr;
@@ -393,62 +480,71 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
     RECT client;
     GetClientRect(hwnd_, &client);
     const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
-    // Keyframe Proと同じく、下から「操作パネル」「タイムライン」の2段。映像はその上に余白なしで置く。
-    const int panelHeight = scaled(36, dpi);
-    const int timelineHeight = scaled(34, dpi);
-    const int panelTop = std::max(static_cast<int>(client.top), static_cast<int>(client.bottom) - panelHeight);
-    const int timelineTop = std::max(static_cast<int>(client.top), panelTop - timelineHeight);
+    const int left = static_cast<int>(client.left);
+    const int right = static_cast<int>(client.right);
+    const int bottom = static_cast<int>(client.bottom);
+    // Mayaと同じく、下から「レンジスライダー」「タイムスライダー」の2段。映像はその上に余白なしで置く。
+    const int rangeHeight = scaled(32, dpi);
+    const int timeHeight = scaled(40, dpi);
+    const int rangeTop = std::max(static_cast<int>(client.top), bottom - rangeHeight);
+    const int timeTop = std::max(static_cast<int>(client.top), rangeTop - timeHeight);
     const int margin = scaled(8, dpi);
+    const int gap = scaled(6, dpi);
+    const int fieldWidth = scaled(64, dpi);
+    const int fieldHeight = scaled(22, dpi);
 
     Layout layout;
-    layout.video = {client.left, client.top, client.right, timelineTop};
-    layout.bar = {client.left, timelineTop, client.right, client.bottom};
-    layout.timeline = {client.left, timelineTop, client.right, panelTop};
-    layout.panel = {client.left, panelTop, client.right, client.bottom};
+    layout.video = {left, static_cast<int>(client.top), right, timeTop};
+    layout.bar = {left, timeTop, right, bottom};
+    layout.timeRow = {left, timeTop, right, rangeTop};
+    layout.rangeRow = {left, rangeTop, right, bottom};
 
-    // タイムライン: 左に全体のコマ数、右にフレームレートなど、間に細いバー。バーの上に今のコマ番号を出す。
-    layout.totalLabel = {client.left + margin, timelineTop, client.left + margin + scaled(80, dpi), panelTop};
-    layout.rateLabel = {std::max(static_cast<int>(layout.totalLabel.right), static_cast<int>(client.right) -
-                                                                                margin - scaled(64, dpi)),
-                        timelineTop, client.right - margin, panelTop};
-    const int trackHeight = scaled(6, dpi);
-    const int trackTop = panelTop - scaled(8, dpi) - trackHeight;
-    layout.track = {layout.totalLabel.right + scaled(8, dpi), trackTop, layout.rateLabel.left - scaled(8, dpi),
-                    trackTop + trackHeight};
-
-    // 操作パネル: 左に「ファイル」「比較」、中央に移動・再生のボタン、右に音量。
-    const int buttonHeight = scaled(26, dpi);
-    const int buttonTop = panelTop + (panelHeight - buttonHeight) / 2;
-    layout.fileButton = {client.left + margin, buttonTop, client.left + margin + scaled(72, dpi), buttonTop + buttonHeight};
-    layout.compareButton = {layout.fileButton.right + scaled(6, dpi), buttonTop,
-                            layout.fileButton.right + scaled(6, dpi) + scaled(56, dpi), buttonTop + buttonHeight};
-
-    const int transportSize = scaled(28, dpi);
-    const int playSize = scaled(32, dpi);
-    const int gap = scaled(4, dpi);
-    const int transportWidth = transportSize * 4 + playSize + gap * 4;
-    int x = (client.left + client.right) / 2 - transportWidth / 2;
-    auto place = [&](int size) {
-        const int top = panelTop + (panelHeight - size) / 2;
-        const RECT r{x, top, x + size, top + size};
-        x += size + gap;
+    // タイムスライダーの段: 左から目盛り、現在のフレームの欄、移動・再生のボタン(Mayaと同じ並び)。
+    const int buttonSize = scaled(26, dpi);
+    const int buttonGap = scaled(2, dpi);
+    int x = right - margin - (buttonSize * 5 + buttonGap * 4);
+    const int buttonsLeft = x;
+    auto placeButton = [&] {
+        const int top = timeTop + (timeHeight - buttonSize) / 2;
+        const RECT r{x, top, x + buttonSize, top + buttonSize};
+        x += buttonSize + buttonGap;
         return r;
     };
-    layout.startButton = place(transportSize);
-    layout.prevButton = place(transportSize);
-    layout.button = place(playSize);
-    layout.nextButton = place(transportSize);
-    layout.endButton = place(transportSize);
+    layout.startButton = placeButton();
+    layout.prevButton = placeButton();
+    layout.button = placeButton();
+    layout.nextButton = placeButton();
+    layout.endButton = placeButton();
+    const int timeFieldTop = timeTop + (timeHeight - fieldHeight) / 2;
+    layout.currentField = {buttonsLeft - gap - fieldWidth, timeFieldTop, buttonsLeft - gap, timeFieldTop + fieldHeight};
+    layout.ruler = {left + margin, timeTop + scaled(4, dpi),
+                    std::max(left + margin + 1, static_cast<int>(layout.currentField.left) - gap), rangeTop - scaled(2, dpi)};
 
-    const int volumeRight = client.right - margin;
+    // レンジスライダーの段: 左から開始フレームの欄、バー、終了フレームの欄、fps、「ファイル」「比較」、音量。
+    const int rangeFieldTop = rangeTop + (rangeHeight - fieldHeight) / 2;
+    layout.startField = {left + margin, rangeFieldTop, left + margin + fieldWidth, rangeFieldTop + fieldHeight};
     const int volumeWidth = scaled(80, dpi);
     const int volumeHeight = scaled(16, dpi);
-    const int volumeTop = panelTop + (panelHeight - volumeHeight) / 2;
-    layout.volumeSlider = {volumeRight - volumeWidth, volumeTop, volumeRight, volumeTop + volumeHeight};
+    const int volumeTop = rangeTop + (rangeHeight - volumeHeight) / 2;
+    layout.volumeSlider = {right - margin - volumeWidth, volumeTop, right - margin, volumeTop + volumeHeight};
     const int speakerSize = scaled(22, dpi);
-    const int speakerTop = panelTop + (panelHeight - speakerSize) / 2;
-    layout.volumeButton = {layout.volumeSlider.left - scaled(6, dpi) - speakerSize, speakerTop,
-                           layout.volumeSlider.left - scaled(6, dpi), speakerTop + speakerSize};
+    const int speakerTop = rangeTop + (rangeHeight - speakerSize) / 2;
+    const int speakerRight = static_cast<int>(layout.volumeSlider.left) - gap;
+    layout.volumeButton = {speakerRight - speakerSize, speakerTop, speakerRight, speakerTop + speakerSize};
+    const int textButtonHeight = scaled(24, dpi);
+    const int textButtonTop = rangeTop + (rangeHeight - textButtonHeight) / 2;
+    const int compareRight = static_cast<int>(layout.volumeButton.left) - scaled(12, dpi);
+    layout.compareButton = {compareRight - scaled(56, dpi), textButtonTop, compareRight, textButtonTop + textButtonHeight};
+    const int fileRight = static_cast<int>(layout.compareButton.left) - gap;
+    layout.fileButton = {fileRight - scaled(72, dpi), textButtonTop, fileRight, textButtonTop + textButtonHeight};
+    const int rateRight = static_cast<int>(layout.fileButton.left) - scaled(12, dpi);
+    layout.rateLabel = {rateRight - scaled(56, dpi), rangeTop, rateRight, bottom};
+    const int endFieldRight = static_cast<int>(layout.rateLabel.left) - gap;
+    layout.endField = {endFieldRight - fieldWidth, rangeFieldTop, endFieldRight, rangeFieldTop + fieldHeight};
+    layout.rangeBar = {static_cast<int>(layout.startField.right) + gap, rangeFieldTop,
+                       std::max(static_cast<int>(layout.startField.right) + gap + 1,
+                                static_cast<int>(layout.endField.left) - gap),
+                       rangeFieldTop + fieldHeight};
     return layout;
 }
 
@@ -491,12 +587,11 @@ void PlayerWindow::paint() {
 
 void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     const bool playing = view_.isPlaying();
-    // タイムラインと下段は、メディアプレイヤーと同じく1枚の地として塗る。
+    // 2段は、メディア プレーヤーと同じく1枚の地として塗る。
     fillColor(dc, layout.bar, kSurface);
 
     // 文字のボタン(「ファイル」「比較」)。比較中の「比較」は色を付けて、押すと比較をやめることを示す。
     HGDIOBJ oldFont = SelectObject(dc, uiFont(9, dpi));
-    SetTextColor(dc, kText);
     {
         // 角を丸めた薄い地と枠。比較中は強調色の地に黒い文字(メディア プレーヤーの「ファイルを開く」と同じ)。
         const int radius = scaled(8, dpi);
@@ -522,96 +617,261 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi) {
     }
     SelectObject(dc, oldFont);
 
-    // 移動・再生のボタン(Keyframe Proと同じく枠なしの記号)。
+    // 移動・再生のボタン(枠なしの記号)。
     const COLORREF ink = clip_ ? kIcon : kDisabled;
     paintTransportIcon(dc, layout.startButton, TransportIcon::Start, ink);
     paintTransportIcon(dc, layout.prevButton, TransportIcon::Previous, ink);
-    paintTransportIcon(dc, layout.button, playing ? TransportIcon::Pause : TransportIcon::Play, clip_ ? kText : kDisabled);
+    paintTransportIcon(dc, layout.button, playing ? TransportIcon::Pause : TransportIcon::Play, ink);
     paintTransportIcon(dc, layout.nextButton, TransportIcon::Next, ink);
     paintTransportIcon(dc, layout.endButton, TransportIcon::End, ink);
-
     paintVolume(dc, layout, dpi);
 
-    // タイムライン(細いバー)。
-    const RECT& t = layout.track;
-    if (t.right <= t.left) {
+    // キャッシュの有無は全コマ(1時間60fpsで21万6千)を調べるので、毎回の描画では計算し直さず、
+    // 一定間隔(kCacheBarIntervalMs)ごと、または横幅や再生範囲が変わったときだけ計算する。
+    if (clip_) {
+        static const LONGLONG frequency = ticksPerSecond();
+        const LONGLONG now = nowTicks();
+        const RECT& ruler = layout.ruler;
+        const RECT& rangeBar = layout.rangeBar;
+        if (cacheRunsTrack_.left != ruler.left || cacheRunsTrack_.right != ruler.right ||
+            rangeCacheRunsBar_.left != rangeBar.left || rangeCacheRunsBar_.right != rangeBar.right ||
+            cacheRunsFirst_ != playFirst_ || cacheRunsLast_ != playLast_ ||
+            (now - lastCacheBarTicks_) * 1000 / frequency >= kCacheBarIntervalMs) {
+            clip_->cachedFlags(cacheFlags_);
+            lastCacheBarTicks_ = now;
+            cacheRunsTrack_ = ruler;
+            rangeCacheRunsBar_ = rangeBar;
+            cacheRunsFirst_ = playFirst_;
+            cacheRunsLast_ = playLast_;
+            buildCacheRuns(cacheFlags_, playFirst_, playLast_, ruler.left, ruler.right - ruler.left, cacheRuns_);
+            buildCacheRuns(cacheFlags_, 0, clip_->frameCount() - 1, rangeBar.left, rangeBar.right - rangeBar.left,
+                           rangeCacheRuns_);
+        }
+    }
+    paintTimeSlider(dc, layout, dpi);
+    paintRangeSlider(dc, layout, dpi);
+
+    // 数字の欄。開始フレームは入力できる(動画の1コマ目の番号を変える)。終了フレームは表示だけ。
+    const int count = clip_ ? clip_->frameCount() : 0;
+    paintField(dc, layout.currentField, currentSceneFrame(), true, dpi);
+    paintField(dc, layout.startField, startFrame_, true, dpi);
+    paintField(dc, layout.endField, startFrame_ + std::max(0, count - 1), false, dpi);
+
+    // フレームレート。
+    oldFont = SelectObject(dc, uiFont(8, dpi));
+    SetTextColor(dc, kSubText);
+    wchar_t rateText[32];
+    std::swprintf(rateText, 32, L"%.4g fps", playbackRate());
+    RECT rateRect = layout.rateLabel;
+    DrawTextW(dc, rateText, -1, &rateRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(dc, oldFont);
+}
+
+void PlayerWindow::buildCacheRuns(const std::vector<std::uint8_t>& flags, int first, int last, int left, int width,
+                                  std::vector<std::pair<int, int>>& runs) {
+    // 横幅の各画素に割り当たるコマのうち、1つでもキャッシュにあれば塗る。
+    runs.clear();
+    const int count = last - first + 1;
+    if (count <= 0 || width <= 0 || flags.empty()) {
         return;
     }
-    fillColor(dc, t, kTrack);
+    int runStart = -1;
+    for (int px = 0; px <= width; ++px) {
+        bool cached = false;
+        if (px < width) {
+            const int f0 = first + static_cast<int>(static_cast<long long>(px) * count / width);
+            const int f1 = std::max(f0 + 1, first + static_cast<int>(static_cast<long long>(px + 1) * count / width));
+            for (int i = f0; i < f1 && i <= last && !cached; ++i) {
+                cached = i >= 0 && i < static_cast<int>(flags.size()) && flags[static_cast<std::size_t>(i)] != 0;
+            }
+        }
+        if (cached && runStart < 0) {
+            runStart = left + px;
+        } else if (!cached && runStart >= 0) {
+            runs.emplace_back(runStart, left + px);
+            runStart = -1;
+        }
+    }
+}
+
+void PlayerWindow::paintTimeSlider(HDC dc, const Layout& layout, int dpi) {
+    const RECT& r = layout.ruler;
+    const int width = r.right - r.left;
+    if (width < 2) {
+        return;
+    }
+    fillColor(dc, r, kRuler);
     if (!clip_) {
         return;
     }
-    const int count = clip_->frameCount();
-    const int trackWidth = t.right - t.left;
+    // 再生範囲の各コマに同じ幅の区画を割り当てる(Mayaと同じく、目盛りは区画の左端)。
+    const int first = playFirst_;
+    const int last = playLast_;
+    const int count = last - first + 1;
     auto xOf = [&](int index) {
-        return count > 1 ? t.left + static_cast<int>(static_cast<long long>(index) * trackWidth / (count - 1)) : t.left;
+        return static_cast<int>(r.left) + static_cast<int>(static_cast<long long>(index - first) * width / count);
     };
+    const double pixelsPerFrame = static_cast<double>(width) / count;
+    const int strip = scaled(3, dpi);  // 下端のキャッシュの帯の高さ。
+    const int tickBottom = r.bottom - strip;
 
-    // キャッシュ済みのコマを、バーの中に青で示す。1画素に複数コマが入る場合は1つでもあれば塗る。
-    // 調べるには全コマ(1時間60fpsで21万6千)を見るので、毎回の描画では計算し直さず、
-    // 一定間隔(kCacheBarIntervalMs)ごと、またはバーの幅が変わったときだけ計算する。
-    static const LONGLONG frequency = ticksPerSecond();
-    const LONGLONG now = nowTicks();
-    if (cacheRunsTrack_.left != t.left || cacheRunsTrack_.right != t.right ||
-        (now - lastCacheBarTicks_) * 1000 / frequency >= kCacheBarIntervalMs) {
-        clip_->cachedFlags(cacheFlags_);
-        lastCacheBarTicks_ = now;
-        cacheRunsTrack_ = t;
-        cacheRuns_.clear();
-        int runStart = -1;
-        for (int px = t.left; px <= t.right; ++px) {
-            bool cached = false;
-            if (px < t.right && count > 0) {
-                const long long span = std::max(1, trackWidth);
-                const int first = static_cast<int>(static_cast<long long>(px - t.left) * (count - 1) / span);
-                const int last = std::max(
-                    first, static_cast<int>(static_cast<long long>(px + 1 - t.left) * (count - 1) / span) - 1);
-                for (int i = first; i <= std::min(last, count - 1) && !cached; ++i) {
-                    cached = cacheFlags_[static_cast<std::size_t>(i)] != 0;
-                }
-            }
-            if (cached && runStart < 0) {
-                runStart = px;
-            } else if (!cached && runStart >= 0) {
-                cacheRuns_.emplace_back(runStart, px);
-                runStart = -1;
+    // 現在のフレームの区画(目盛りより先に描き、目盛りが上に重なるようにする)。
+    const bool currentInRange = current_ >= first && current_ <= last;
+    int currentLeft = 0;
+    int currentRight = 0;
+    if (currentInRange) {
+        currentLeft = xOf(current_);
+        currentRight = std::max(currentLeft + scaled(2, dpi), xOf(current_ + 1));
+        fillColor(dc, RECT{currentLeft, r.top, currentRight, tickBottom}, kCurrentColumn);
+    }
+
+    // 数字の間隔は1・2・5・10・20・50…の中で、数字どうしが重ならない最小のもの。
+    HGDIOBJ oldFont = SelectObject(dc, uiFont(8, dpi));
+    wchar_t widest[32];
+    std::swprintf(widest, 32, L"%d", std::max(std::abs(startFrame_ + first), std::abs(startFrame_ + last)) * 10);
+    SIZE labelSize{};
+    GetTextExtentPoint32W(dc, widest, static_cast<int>(wcslen(widest)), &labelSize);
+    const double minSpacing = labelSize.cx + scaled(8, dpi);
+    long long major = 1;
+    for (long long base = 1; major * pixelsPerFrame < minSpacing && base < 100000000; base *= 10) {
+        for (int multiplier : {1, 2, 5}) {
+            major = base * multiplier;
+            if (major * pixelsPerFrame >= minSpacing) {
+                break;
             }
         }
     }
-    for (const auto& [left, right] : cacheRuns_) {
-        fillColor(dc, RECT{left, t.top, right, t.bottom}, kAccent);
+    // 細かい目盛りは、1コマごとに5ピクセル以上空くなら各コマ、そうでなければ数字の間隔の1/5か1/2。
+    const double minTick = scaled(5, dpi);
+    long long minor = 0;
+    if (pixelsPerFrame >= minTick) {
+        minor = 1;
+    } else if (major % 5 == 0 && (major / 5) * pixelsPerFrame >= minTick) {
+        minor = major / 5;
+    } else if (major % 2 == 0 && (major / 2) * pixelsPerFrame >= minTick) {
+        minor = major / 2;
+    }
+    // 目盛りの番号はフレーム番号(開始フレームを足した番号)で揃える。
+    const long long sceneFirst = static_cast<long long>(startFrame_) + first;
+    const long long sceneLast = static_cast<long long>(startFrame_) + last;
+    auto firstMultiple = [&](long long step) {
+        const long long q = sceneFirst / step;
+        const long long candidate = q * step;
+        return candidate < sceneFirst ? candidate + step : candidate;
+    };
+    if (minor > 0) {
+        for (long long frame = firstMultiple(minor); frame <= sceneLast; frame += minor) {
+            const int x = xOf(static_cast<int>(frame - startFrame_));
+            fillColor(dc, RECT{x, tickBottom - scaled(5, dpi), x + 1, tickBottom}, kTick);
+        }
+    }
+    SetTextColor(dc, kRulerText);
+    for (long long frame = firstMultiple(major); frame <= sceneLast; frame += major) {
+        const int x = xOf(static_cast<int>(frame - startFrame_));
+        fillColor(dc, RECT{x, r.top + scaled(2, dpi), x + 1, tickBottom}, kMajorTick);
+        wchar_t text[32];
+        std::swprintf(text, 32, L"%lld", frame);
+        // 右端で切れてしまう数字は描かない(途中で切れた数字は別の数に見えるため)。
+        SIZE textSize{};
+        GetTextExtentPoint32W(dc, text, static_cast<int>(wcslen(text)), &textSize);
+        if (x + scaled(3, dpi) + textSize.cx <= r.right) {
+            RECT textRect{x + scaled(3, dpi), r.top + scaled(1, dpi), r.right, tickBottom};
+            DrawTextW(dc, text, -1, &textRect, DT_LEFT | DT_TOP | DT_SINGLELINE);
+        }
     }
 
-    // 今の位置: バーを貫く白い線と、その上の大きめのコマ番号(1始まり)。
-    const int playheadX = xOf(current_);
-    const int lineHalf = std::max(1, scaled(1, dpi));
-    fillColor(dc, RECT{playheadX - lineHalf / 2, t.top - scaled(5, dpi), playheadX - lineHalf / 2 + lineHalf + 1,
-                       t.bottom + scaled(3, dpi)},
-              kText);
-    oldFont = SelectObject(dc, uiFont(11, dpi));
-    SetTextColor(dc, kText);
-    wchar_t currentText[32];
-    std::swprintf(currentText, 32, L"%d", current_ + 1);
-    SIZE textSize{};
-    GetTextExtentPoint32W(dc, currentText, static_cast<int>(wcslen(currentText)), &textSize);
-    // 番号は線の真上に置き、タイムラインの端からはみ出さないように寄せる。
-    const int labelLeft = std::clamp(static_cast<int>(playheadX - textSize.cx / 2), static_cast<int>(t.left),
-                                     static_cast<int>(t.right - textSize.cx));
-    RECT currentRect{labelLeft, layout.timeline.top, labelLeft + textSize.cx, t.top - scaled(5, dpi)};
-    DrawTextW(dc, currentText, -1, &currentRect, DT_LEFT | DT_BOTTOM | DT_SINGLELINE);
+    // 下端の帯: キャッシュに入っているコマ。
+    for (const auto& [runLeft, runRight] : cacheRuns_) {
+        fillColor(dc, RECT{runLeft, r.bottom - strip, runRight, r.bottom}, kAccent);
+    }
+
+    // 現在のフレームの番号は、区画の右下に箱で出す(右端で入らなければ左側)。
+    if (currentInRange) {
+        wchar_t text[32];
+        std::swprintf(text, 32, L"%d", currentSceneFrame());
+        SIZE size{};
+        GetTextExtentPoint32W(dc, text, static_cast<int>(wcslen(text)), &size);
+        const int boxWidth = size.cx + scaled(8, dpi);
+        const int boxHeight = size.cy + scaled(2, dpi);
+        int boxLeft = currentRight + 1;
+        if (boxLeft + boxWidth > r.right) {
+            boxLeft = currentLeft - 1 - boxWidth;
+        }
+        RECT box{boxLeft, tickBottom - boxHeight, boxLeft + boxWidth, tickBottom};
+        fillColor(dc, box, kLabelBox);
+        SetTextColor(dc, kText);
+        DrawTextW(dc, text, -1, &box, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    }
+    SelectObject(dc, oldFont);
+}
+
+int PlayerWindow::rangeXOf(const Layout& layout, int index) const {
+    const RECT& b = layout.rangeBar;
+    const int count = clip_ ? std::max(1, clip_->frameCount()) : 1;
+    return static_cast<int>(b.left) + static_cast<int>(static_cast<long long>(index) * (b.right - b.left) / count);
+}
+
+void PlayerWindow::paintRangeSlider(HDC dc, const Layout& layout, int dpi) {
+    const RECT& b = layout.rangeBar;
+    if (b.right - b.left < 2) {
+        return;
+    }
+    fillColor(dc, b, kRuler);
+    if (!clip_) {
+        return;
+    }
+    // 動画全体の中の再生範囲を明るく塗り、両端につまみを置く。つまみの内側に範囲の最初と最後の番号を出す。
+    const int x0 = rangeXOf(layout, playFirst_);
+    const int x1 = std::max(x0 + scaled(2, dpi), rangeXOf(layout, playLast_ + 1));
+    const int handle = scaled(6, dpi);
+    fillColor(dc, RECT{x0, b.top, x1, b.bottom}, kRangeSelected);
+    fillColor(dc, RECT{x0, b.top, x0 + handle, b.bottom}, kHandle);
+    fillColor(dc, RECT{std::max(x0, x1 - handle), b.top, x1, b.bottom}, kHandle);
+
+    HGDIOBJ oldFont = SelectObject(dc, uiFont(8, dpi));
+    SetTextColor(dc, kRulerText);
+    wchar_t firstText[32];
+    wchar_t lastText[32];
+    std::swprintf(firstText, 32, L"%d", startFrame_ + playFirst_);
+    std::swprintf(lastText, 32, L"%d", startFrame_ + playLast_);
+    SIZE firstSize{};
+    SIZE lastSize{};
+    GetTextExtentPoint32W(dc, firstText, static_cast<int>(wcslen(firstText)), &firstSize);
+    GetTextExtentPoint32W(dc, lastText, static_cast<int>(wcslen(lastText)), &lastSize);
+    const int pad = scaled(4, dpi);
+    // 範囲が狭くて両方入らないときは、入る方だけを出す。
+    if (x1 - x0 >= 2 * handle + firstSize.cx + lastSize.cx + 3 * pad) {
+        RECT firstRect{x0 + handle + pad, b.top, x1, b.bottom};
+        DrawTextW(dc, firstText, -1, &firstRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        RECT lastRect{x0, b.top, x1 - handle - pad, b.bottom};
+        DrawTextW(dc, lastText, -1, &lastRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    } else if (x1 - x0 >= 2 * handle + firstSize.cx + 2 * pad) {
+        RECT firstRect{x0 + handle + pad, b.top, x1, b.bottom};
+        DrawTextW(dc, firstText, -1, &firstRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    }
     SelectObject(dc, oldFont);
 
-    // 左に全体のコマ数、右にフレームレート。
-    oldFont = SelectObject(dc, uiFont(8, dpi));
-    SetTextColor(dc, kSubText);
-    wchar_t totalText[32];
-    std::swprintf(totalText, 32, L"%d コマ", count);
-    RECT totalRect{layout.totalLabel.left, t.top - scaled(6, dpi), layout.totalLabel.right, t.bottom + scaled(6, dpi)};
-    DrawTextW(dc, totalText, -1, &totalRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-    wchar_t rateText[32];
-    std::swprintf(rateText, 32, L"%.4g fps", playbackRate());
-    RECT rateRect{layout.rateLabel.left, t.top - scaled(6, dpi), layout.rateLabel.right, t.bottom + scaled(6, dpi)};
-    DrawTextW(dc, rateText, -1, &rateRect, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    // 下端の帯: 動画全体のうちキャッシュに入っているコマ。
+    const int strip = scaled(2, dpi);
+    for (const auto& [runLeft, runRight] : rangeCacheRuns_) {
+        fillColor(dc, RECT{runLeft, b.bottom - strip, runRight, b.bottom}, kAccent);
+    }
+}
+
+void PlayerWindow::paintField(HDC dc, const RECT& rect, int value, bool editable, int dpi) {
+    fillColor(dc, rect, kControlFace);
+    HBRUSH border = CreateSolidBrush(kControlBorder);
+    FrameRect(dc, &rect, border);
+    DeleteObject(border);
+    if (!clip_) {
+        return;
+    }
+    HGDIOBJ oldFont = SelectObject(dc, uiFont(9, dpi));
+    SetTextColor(dc, editable ? kText : kDisabled);
+    wchar_t text[32];
+    std::swprintf(text, 32, L"%d", value);
+    RECT textRect = rect;
+    DrawTextW(dc, text, -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     SelectObject(dc, oldFont);
 }
 
@@ -712,33 +972,66 @@ void PlayerWindow::onKeyDown(WPARAM key) {
         return;
     }
     const int current = view_.currentFrame();
-    const int step = (GetKeyState(VK_SHIFT) < 0) ? kLargeStep : 1;
     switch (key) {
     case VK_RIGHT:
-        goToFrame(current + step);
+        if (shift) {
+            goToFrame(current + kLargeStep);
+        } else {
+            stepFrame(1);
+        }
         break;
     case VK_LEFT:
-        goToFrame(current - step);
+        if (shift) {
+            goToFrame(current - kLargeStep);
+        } else {
+            stepFrame(-1);
+        }
         break;
     case VK_HOME:
-        goToFrame(0);
+        goToFrame(playFirst_);
         break;
     case VK_END:
-        goToFrame(clip_->frameCount() - 1);
+        goToFrame(playLast_);
+        break;
+    case 'I':
+        // 再生範囲の最初を今のフレームにする(最後より後なら最後も合わせる)。
+        setPlaybackRange(current, std::max(playLast_, current));
+        break;
+    case 'O':
+        // 再生範囲の最後を今のフレームにする(最初より前なら最初も合わせる)。
+        setPlaybackRange(std::min(playFirst_, current), current);
         break;
     default:
         break;
     }
 }
 
+void PlayerWindow::stepFrame(int delta) {
+    // Mayaと同じく、再生範囲の端で1コマ送ると反対の端へ回り込む(範囲の外にいるときは回り込まない)。
+    const int current = view_.currentFrame();
+    int next = current + delta;
+    if (current >= playFirst_ && current <= playLast_) {
+        if (next > playLast_) {
+            next = playFirst_;
+        } else if (next < playFirst_) {
+            next = playLast_;
+        }
+    }
+    goToFrame(next);
+}
+
 void PlayerWindow::onLeftButtonDown(int x, int y) {
+    if (editField_ != EditField::None) {
+        commitEdit();  // 入力中に他の所を押したら、入力を確定する。
+    }
     const Layout layout = computeLayout();
+    const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
     const POINT point{x, y};
-    // 音量の三角形は小さいので、操作パネルの高さいっぱいまで当たり判定を広げる。
+    // 音量の三角形は小さいので、レンジスライダーの段の高さいっぱいまで当たり判定を広げる。
     RECT volumeHit = layout.volumeSlider;
-    volumeHit.top = layout.panel.top;
-    volumeHit.bottom = layout.panel.bottom;
-    InflateRect(&volumeHit, scaled(4, static_cast<int>(GetDpiForWindow(hwnd_))), 0);
+    volumeHit.top = layout.rangeRow.top;
+    volumeHit.bottom = layout.rangeRow.bottom;
+    InflateRect(&volumeHit, scaled(4, dpi), 0);
     if (PtInRect(&layout.fileButton, point)) {
         showFileMenu();
         return;
@@ -759,7 +1052,7 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
         return;
     }
     if (PtInRect(&volumeHit, point)) {
-        volumeDragging_ = true;
+        drag_ = Drag::Volume;
         SetCapture(hwnd_);
         setVolume(volumeFromX(x));
         return;
@@ -767,42 +1060,158 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
     if (!clip_) {
         return;
     }
-    const int current = view_.currentFrame();
+    if (PtInRect(&layout.currentField, point)) {
+        beginEdit(EditField::Current);
+        return;
+    }
+    if (PtInRect(&layout.startField, point)) {
+        beginEdit(EditField::StartFrame);
+        return;
+    }
     if (PtInRect(&layout.button, point)) {
         togglePlayback();
-    } else if (PtInRect(&layout.startButton, point)) {
-        goToFrame(0);
-    } else if (PtInRect(&layout.prevButton, point)) {
-        goToFrame(current - 1);
-    } else if (PtInRect(&layout.nextButton, point)) {
-        goToFrame(current + 1);
-    } else if (PtInRect(&layout.endButton, point)) {
-        goToFrame(clip_->frameCount() - 1);
-    } else if (PtInRect(&layout.timeline, point)) {
-        // タイムラインの段のどこを押してもよい(バーは細いので)。
-        // ドラッグ中にウィンドウ外へ出てもマウスの動きを受け取れるよう、マウスを取り込む。
-        // 再生中に触った場合は、ドラッグ中はそのコマを表示し、離したらその位置から再生を続ける(YouTubeと同じ)。
+        return;
+    }
+    if (PtInRect(&layout.startButton, point)) {
+        goToFrame(playFirst_);
+        return;
+    }
+    if (PtInRect(&layout.prevButton, point)) {
+        stepFrame(-1);
+        return;
+    }
+    if (PtInRect(&layout.nextButton, point)) {
+        stepFrame(1);
+        return;
+    }
+    if (PtInRect(&layout.endButton, point)) {
+        goToFrame(playLast_);
+        return;
+    }
+    RECT rulerHit = layout.ruler;
+    rulerHit.top = layout.timeRow.top;
+    rulerHit.bottom = layout.timeRow.bottom;
+    if (PtInRect(&rulerHit, point)) {
+        // 目盛りの段のどこを押してもよい。ドラッグ中にウィンドウ外へ出てもマウスの動きを受け取れるよう、
+        // マウスを取り込む。再生中に触った場合は、ドラッグ中はそのコマを表示し、離したらその位置から再生を続ける。
         resumeAfterScrub_ = view_.isPlaying();
-        scrubbing_ = true;
+        drag_ = Drag::Scrub;
         SetCapture(hwnd_);
         goToFrame(frameFromX(x), true);
+        return;
+    }
+    RECT rangeHit = layout.rangeBar;
+    rangeHit.top = layout.rangeRow.top;
+    rangeHit.bottom = layout.rangeRow.bottom;
+    if (PtInRect(&rangeHit, point)) {
+        // つまみ(少し広めに判定)なら範囲の端を、範囲の中なら長さを保って範囲を動かす。
+        const int x0 = rangeXOf(layout, playFirst_);
+        const int x1 = std::max(x0 + scaled(2, dpi), rangeXOf(layout, playLast_ + 1));
+        const int handle = scaled(6, dpi) + scaled(3, dpi);
+        if (x >= x0 - scaled(3, dpi) && x < x0 + handle && (x - x0) <= (x1 - x)) {
+            drag_ = Drag::RangeStart;
+        } else if (x <= x1 + scaled(3, dpi) && x > x1 - handle) {
+            drag_ = Drag::RangeEnd;
+        } else if (x >= x0 && x < x1) {
+            drag_ = Drag::RangeMove;
+            dragAnchor_ = rangeFrameFromX(x);
+            dragFirst_ = playFirst_;
+            dragLast_ = playLast_;
+        } else {
+            return;
+        }
+        SetCapture(hwnd_);
     }
 }
 
 void PlayerWindow::onMouseMove(int x) {
-    if (volumeDragging_) {
+    switch (drag_) {
+    case Drag::Volume:
         setVolume(volumeFromX(x));
-    } else if (scrubbing_ && clip_) {
-        goToFrame(frameFromX(x), true);
+        break;
+    case Drag::Scrub:
+        if (clip_) {
+            goToFrame(frameFromX(x), true);
+        }
+        break;
+    case Drag::RangeStart:
+        if (clip_) {
+            setPlaybackRange(std::min(rangeFrameFromX(x), playLast_), playLast_);
+        }
+        break;
+    case Drag::RangeEnd:
+        if (clip_) {
+            setPlaybackRange(playFirst_, std::max(rangeFrameFromX(x), playFirst_));
+        }
+        break;
+    case Drag::RangeMove:
+        if (clip_) {
+            // 長さを保ったまま、動画の範囲からはみ出さないように動かす。
+            const int length = dragLast_ - dragFirst_;
+            const int first = std::clamp(dragFirst_ + rangeFrameFromX(x) - dragAnchor_, 0,
+                                         std::max(0, clip_->frameCount() - 1 - length));
+            setPlaybackRange(first, first + length);
+        }
+        break;
+    case Drag::None:
+        break;
     }
 }
 
+void PlayerWindow::onDoubleClick(int x, int y) {
+    const Layout layout = computeLayout();
+    const POINT point{x, y};
+    RECT rangeHit = layout.rangeBar;
+    rangeHit.top = layout.rangeRow.top;
+    rangeHit.bottom = layout.rangeRow.bottom;
+    if (clip_ && PtInRect(&rangeHit, point)) {
+        // Mayaと同じく、動画全体と、直前の再生範囲を切り替える。
+        const int last = clip_->frameCount() - 1;
+        if (playFirst_ == 0 && playLast_ == last) {
+            if (savedFirst_ >= 0 && savedLast_ >= savedFirst_ && savedLast_ <= last) {
+                setPlaybackRange(savedFirst_, savedLast_);
+            }
+        } else {
+            savedFirst_ = playFirst_;
+            savedLast_ = playLast_;
+            setPlaybackRange(0, last);
+        }
+        return;
+    }
+    // ダブルクリックの2回目も、普通のクリックとして扱う(ボタンの連打で取りこぼさないように)。
+    onLeftButtonDown(x, y);
+}
+
+bool PlayerWindow::updateCursor() {
+    if (!clip_) {
+        return false;
+    }
+    bool sizing = drag_ == Drag::RangeStart || drag_ == Drag::RangeEnd;
+    if (drag_ == Drag::None) {
+        POINT point;
+        GetCursorPos(&point);
+        ScreenToClient(hwnd_, &point);
+        const Layout layout = computeLayout();
+        const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
+        if (point.y >= layout.rangeBar.top && point.y < layout.rangeBar.bottom) {
+            const int x0 = rangeXOf(layout, playFirst_);
+            const int x1 = std::max(x0 + scaled(2, dpi), rangeXOf(layout, playLast_ + 1));
+            const int handle = scaled(9, dpi);
+            sizing = (point.x >= x0 - scaled(3, dpi) && point.x < x0 + handle) ||
+                     (point.x <= x1 + scaled(3, dpi) && point.x > x1 - handle);
+        }
+    }
+    if (sizing) {
+        SetCursor(LoadCursorW(nullptr, IDC_SIZEWE));
+    }
+    return sizing;
+}
+
 void PlayerWindow::endScrub() {
-    const bool resume = scrubbing_ && resumeAfterScrub_;
-    if (scrubbing_ || volumeDragging_) {
+    const bool resume = drag_ == Drag::Scrub && resumeAfterScrub_;
+    if (drag_ != Drag::None) {
         // ReleaseCapture()はWM_CAPTURECHANGEDをすぐ送ってくるので、先に状態を戻しておく。
-        scrubbing_ = false;
-        volumeDragging_ = false;
+        drag_ = Drag::None;
         resumeAfterScrub_ = false;
         ReleaseCapture();
     }
@@ -1281,16 +1690,274 @@ void PlayerWindow::shiftCompare(int delta) {
 }
 
 int PlayerWindow::frameFromX(int x) const {
-    const int count = clip_->frameCount();
-    const RECT track = computeLayout().track;
-    const int trackWidth = track.right - track.left;
-    if (count <= 1 || trackWidth <= 0) {
+    const RECT ruler = computeLayout().ruler;
+    const int width = ruler.right - ruler.left;
+    const int count = playLast_ - playFirst_ + 1;
+    if (count <= 1 || width <= 0) {
+        return playFirst_;
+    }
+    // 目盛りの区画(コマごとに同じ幅)のうち、xを含む区画のコマ。
+    const long long offset = static_cast<long long>(x - ruler.left) * count / width;
+    return std::clamp(playFirst_ + static_cast<int>(offset), playFirst_, playLast_);
+}
+
+int PlayerWindow::rangeFrameFromX(int x) const {
+    const RECT bar = computeLayout().rangeBar;
+    const int width = bar.right - bar.left;
+    const int count = clip_ ? clip_->frameCount() : 0;
+    if (count <= 1 || width <= 0) {
         return 0;
     }
-    // 最も近いコマに合わせる(四捨五入)。
-    const long long offset = static_cast<long long>(x - track.left) * (count - 1);
-    const long long rounded = offset >= 0 ? offset + trackWidth / 2 : offset - trackWidth / 2;
-    return std::clamp(static_cast<int>(rounded / trackWidth), 0, count - 1);
+    const long long offset = static_cast<long long>(x - bar.left) * count / width;
+    return std::clamp(static_cast<int>(offset), 0, count - 1);
+}
+
+void PlayerWindow::setPlaybackRange(int first, int last) {
+    if (!clip_) {
+        return;
+    }
+    const int maxIndex = clip_->frameCount() - 1;
+    first = std::clamp(first, 0, maxIndex);
+    last = std::clamp(last, first, maxIndex);
+    if (first == playFirst_ && last == playLast_) {
+        return;
+    }
+    playFirst_ = first;
+    playLast_ = last;
+    view_.setPlaybackRange(first, last);
+    clip_->setLoopRange(first, last);
+    updateTitle();
+    invalidateBar();
+    if (sync_ && !applyingRemote_) {
+        sync_->playbackRangeChanged(startFrame_ + first, startFrame_ + last);
+    }
+}
+
+void PlayerWindow::goToSceneFrame(int frame) {
+    if (clip_) {
+        goToFrame(frame - startFrame_);
+    }
+}
+
+void PlayerWindow::setPlaybackRangeScene(int first, int last) {
+    setPlaybackRange(first - startFrame_, last - startFrame_);
+}
+
+void PlayerWindow::setPlaying(bool playing) {
+    if (clip_ && playing != view_.isPlaying()) {
+        togglePlayback();
+    }
+}
+
+void PlayerWindow::notifyCurrentFrame() {
+    const int frame = currentSceneFrame();
+    if (applyingRemote_) {
+        notifiedFrame_ = frame;  // 相手から受け取った位置なので送り返さない(相手は既にこの位置にいる)。
+        return;
+    }
+    if (sync_ && frame != notifiedFrame_) {
+        notifiedFrame_ = frame;
+        sync_->currentFrameChanged(frame);
+    }
+}
+
+void PlayerWindow::notifyPlayState() {
+    const bool playing = view_.isPlaying();
+    if (applyingRemote_) {
+        notifiedPlaying_ = playing;
+        return;
+    }
+    if (sync_ && playing != notifiedPlaying_) {
+        notifiedPlaying_ = playing;
+        sync_->playStateChanged(playing);
+    }
+}
+
+void PlayerWindow::beginEdit(EditField field) {
+    if (!clip_) {
+        return;
+    }
+    if (editField_ != EditField::None) {
+        commitEdit();
+    }
+    const Layout layout = computeLayout();
+    const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
+    const RECT& r = field == EditField::Current ? layout.currentField : layout.startField;
+    const int value = field == EditField::Current ? currentSceneFrame() : startFrame_;
+    // 欄の上に、同じ大きさの入力用の子ウィンドウを重ねる。文字の高さに合わせて上下の中央に置く。
+    HFONT font = uiFont(9, dpi);
+    const int textHeight = scaled(16, dpi);
+    const int top = r.top + (r.bottom - r.top - textHeight) / 2;
+    editField_ = field;
+    editControl_ = CreateWindowExW(0, L"EDIT", std::to_wstring(value).c_str(),
+                                   WS_CHILD | WS_VISIBLE | ES_CENTER | ES_AUTOHSCROLL, r.left + 2, top,
+                                   r.right - r.left - 4, textHeight, hwnd_, nullptr, instance_, nullptr);
+    if (!editControl_) {
+        editField_ = EditField::None;
+        return;
+    }
+    SendMessageW(editControl_, WM_SETFONT, reinterpret_cast<WPARAM>(font), FALSE);
+    // EnterとEscを受け取るため、入力用の子ウィンドウのメッセージを横取りする(Windows標準のサブクラス化)。
+    SetWindowSubclass(editControl_, &PlayerWindow::editProc, 1, reinterpret_cast<DWORD_PTR>(this));
+    SendMessageW(editControl_, EM_SETSEL, 0, -1);
+    SetFocus(editControl_);
+}
+
+void PlayerWindow::commitEdit() {
+    if (editField_ == EditField::None || !editControl_) {
+        return;
+    }
+    wchar_t text[64] = {};
+    GetWindowTextW(editControl_, text, 64);
+    const EditField field = editField_;
+    // 先に状態を戻してから子ウィンドウを壊す(壊すときの「入力欄から離れた」知らせで、もう一度確定しないように)。
+    editField_ = EditField::None;
+    HWND edit = editControl_;
+    editControl_ = nullptr;
+    SetFocus(hwnd_);
+    DestroyWindow(edit);
+
+    wchar_t* end = nullptr;
+    const long value = std::wcstol(text, &end, 10);
+    while (end && *end == L' ') {
+        ++end;
+    }
+    if (end == text || (end && *end != L'\0')) {
+        invalidateBar();
+        return;  // 数字として読めない。
+    }
+    if (field == EditField::Current) {
+        goToSceneFrame(static_cast<int>(value));
+    } else {
+        startFrame_ = static_cast<int>(std::clamp<long>(value, -1000000, 100000000));
+        saveTimelineSettings();
+        view_.setFrameNumberStart(startFrame_);
+        updateTitle();
+        if (sync_) {
+            sync_->playbackRangeChanged(startFrame_ + playFirst_, startFrame_ + playLast_);
+            notifyCurrentFrame();
+        }
+    }
+    InvalidateRect(hwnd_, nullptr, FALSE);
+}
+
+void PlayerWindow::cancelEdit() {
+    if (editField_ == EditField::None || !editControl_) {
+        return;
+    }
+    editField_ = EditField::None;
+    HWND edit = editControl_;
+    editControl_ = nullptr;
+    SetFocus(hwnd_);
+    DestroyWindow(edit);
+    invalidateBar();
+}
+
+LRESULT CALLBACK PlayerWindow::editProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR id,
+                                        DWORD_PTR data) {
+    auto* self = reinterpret_cast<PlayerWindow*>(data);
+    switch (message) {
+    case WM_KEYDOWN:
+        // EnterとEscは、子ウィンドウの処理中に自分を壊さないよう、親へPostMessageで知らせて後で処理する。
+        if (wParam == VK_RETURN) {
+            PostMessageW(self->hwnd_, kEditCommitMessage, 0, 0);
+            return 0;
+        }
+        if (wParam == VK_ESCAPE) {
+            PostMessageW(self->hwnd_, kEditCancelMessage, 0, 0);
+            return 0;
+        }
+        break;
+    case WM_CHAR:
+        if (wParam == L'\r' || wParam == 0x1B) {
+            return 0;  // 1行の入力欄にEnter・Escを渡すと警告音が鳴るので渡さない。
+        }
+        break;
+    case WM_NCDESTROY:
+        RemoveWindowSubclass(hwnd, &PlayerWindow::editProc, id);
+        break;
+    default:
+        break;
+    }
+    return DefSubclassProc(hwnd, message, wParam, lParam);
+}
+
+void PlayerWindow::onSyncMessage(WPARAM event, LPARAM lParam) {
+    switch (event) {
+    case SyncServer::kLine: {
+        std::unique_ptr<std::string> line(reinterpret_cast<std::string*>(lParam));
+        applySyncCommand(*line);
+        break;
+    }
+    case SyncServer::kConnected:
+        // つながったら挨拶と再生状態だけを知らせる。フレームと再生範囲は相手(Maya)側を正とし、相手から届く。
+        // ここで自分のフレームや範囲も送ると、相手が送ってくる状態と行き違いになり、相手を古い状態で上書きしてしまう。
+        sendSyncState();
+        updateTitle();
+        break;
+    case SyncServer::kDisconnected:
+        updateTitle();
+        break;
+    default:
+        break;
+    }
+}
+
+void PlayerWindow::applySyncCommand(const std::string& line) {
+    // 1行の命令: frame <番号> / range <最初> <最後> / play / stop / hello <名前>
+    char command[16] = {};
+    int first = 0;
+    int second = 0;
+    const int fields =
+        sscanf_s(line.c_str(), "%15s %d %d", command, static_cast<unsigned>(sizeof(command)), &first, &second);
+    if (fields < 1) {
+        return;
+    }
+    const std::string name = command;
+    syncLog("apply %s", line.c_str());
+    applyingRemote_ = true;
+    if (name == "frame" && fields >= 2) {
+        if (clip_ && first != currentSceneFrame()) {
+            goToSceneFrame(first);
+        }
+    } else if (name == "range" && fields >= 3) {
+        setPlaybackRangeScene(std::min(first, second), std::max(first, second));
+    } else if (name == "play") {
+        setPlaying(true);
+    } else if (name == "stop") {
+        setPlaying(false);
+    }
+    applyingRemote_ = false;
+}
+
+void PlayerWindow::sendSyncState() {
+    if (!syncServer_) {
+        return;
+    }
+    syncServer_->sendLine("hello FramePlayer 1");
+    syncServer_->playStateChanged(view_.isPlaying());
+    notifiedPlaying_ = view_.isPlaying();
+    notifiedFrame_ = 0x7FFFFFFF;  // 次にフレームが変わったら必ず知らせる。
+}
+
+void PlayerWindow::loadTimelineSettings() {
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"StartFrame", RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+        ERROR_SUCCESS) {
+        startFrame_ = static_cast<int>(value);  // 負の番号もそのまま(DWORDの値を符号付きとして読む)。
+    }
+    size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, L"SyncPort", RRF_RT_REG_DWORD, nullptr, &value, &size) ==
+            ERROR_SUCCESS &&
+        value > 0 && value < 65536) {
+        syncPort_ = static_cast<unsigned short>(value);
+    }
+}
+
+void PlayerWindow::saveTimelineSettings() const {
+    const DWORD value = static_cast<DWORD>(startFrame_);
+    RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, L"StartFrame", REG_DWORD, &value, sizeof(value));
 }
 
 void PlayerWindow::goToFrame(int index, bool scrubbing) {
@@ -1310,6 +1977,7 @@ void PlayerWindow::goToFrame(int index, bool scrubbing) {
     current_ = clamped;
     updateTitle();
     invalidateBar();
+    notifyCurrentFrame();
 }
 
 void PlayerWindow::togglePlayback() {
@@ -1333,6 +2001,7 @@ void PlayerWindow::syncPowerRequest() {
     }
     keepDisplayOn_ = playing;
     SetThreadExecutionState(playing ? (ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED) : ES_CONTINUOUS);
+    notifyPlayState();
 }
 
 double PlayerWindow::playbackRate() const {
@@ -1351,6 +2020,7 @@ void PlayerWindow::onViewFrameChanged() {
     if (shown != current_) {
         current_ = shown;
         updateTitle();
+        notifyCurrentFrame();
     }
     invalidateBar();
 }
@@ -1377,7 +2047,9 @@ void PlayerWindow::updateTitle() {
     if (compareClip_) {
         names += L" | " + fileNameOf(compareClip_->path());
     }
-    std::swprintf(title, 1024, L"%ls - %ls [%d / %d]", names.c_str(), kAppName, current_ + 1, clip_->frameCount());
+    std::swprintf(title, 1024, L"%ls - %ls [%d / %d-%d]%ls", names.c_str(), kAppName, currentSceneFrame(), startFrame_,
+                  startFrame_ + clip_->frameCount() - 1,
+                  (syncServer_ && syncServer_->connected()) ? L" - 連携中" : L"");
     SetWindowTextW(hwnd_, title);
 }
 

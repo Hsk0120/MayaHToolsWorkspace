@@ -88,6 +88,20 @@ public:
     int compareOffset() const { return compareOffset_; }
 
     /**
+     * @brief 再生範囲を設定する。再生はこの範囲の中でループする。
+     * @param first 範囲の最初のコマ番号(0始まり)。
+     * @param last 範囲の最後のコマ番号(first以上)。
+     * @note 再生中に変えた場合、今のコマが範囲の外なら範囲の最初から再生し直す。
+     */
+    void setPlaybackRange(int first, int last);
+
+    /**
+     * @brief 比較中の表示枠の下に出すフレーム番号の始まり(動画の1コマ目の番号)を設定する。
+     * @param start 1コマ目のフレーム番号。
+     */
+    void setFrameNumberStart(int start) { frameNumberStart_ = start; }
+
+    /**
      * @brief 再生を止め、指定したコマを表示する。
      * @param index 0始まりのコマ番号。範囲外は端に丸める。
      * @param direction 先読みする向き(移動してきた向き)。
@@ -232,6 +246,9 @@ private:
     bool playRequested_ = false;     ///< 再生中か(UIスレッドの指示)。
     double rate_ = 24.0;             ///< 再生速度(1秒あたりのコマ数)。
     int playStartFrame_ = 0;         ///< 再生を始めたコマ。
+    int playFirst_ = 0;              ///< 再生範囲の最初のコマ。
+    int playLast_ = 0x7FFFFFFF;      ///< 再生範囲の最後のコマ(動画の範囲に丸めて使う)。
+    std::atomic<int> frameNumberStart_{1};  ///< 表示するフレーム番号の始まり(1コマ目の番号)。
     int playSession_ = 0;            ///< play()のたびに増やす番号。描画スレッドが新しい再生の始まりを知るのに使う。
     bool stopThread_ = false;
 

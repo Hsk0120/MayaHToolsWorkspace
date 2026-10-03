@@ -151,6 +151,20 @@ void Clip::setPlayhead(int index, Direction direction, bool wrap) {
     wake_.notify_one();
 }
 
+void Clip::setLoopRange(int first, int last) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        loopFirst_ = std::max(0, first);
+        loopLast_ = std::max(loopFirst_, last);
+    }
+    wake_.notify_one();
+}
+
+void Clip::loopBoundsLocked(int& first, int& last) const {
+    first = std::clamp(loopFirst_, 0, std::max(0, frameCount_ - 1));
+    last = std::clamp(loopLast_, first, std::max(0, frameCount_ - 1));
+}
+
 void Clip::cachedFlags(std::vector<std::uint8_t>& flags) const {
     std::lock_guard<std::mutex> lock(mutex_);
     flags.resize(frames_.size());
@@ -256,11 +270,16 @@ int Clip::offsetIndexLocked(int offset) const {
     const int sign = direction_ == Direction::Backward ? -1 : 1;
     long long index = static_cast<long long>(playhead_) + static_cast<long long>(sign) * offset;
     if (wrap_) {
-        index %= frameCount_;
-        if (index < 0) {
-            index += frameCount_;
+        // ループ中は再生範囲の中で回り込む。
+        int first = 0;
+        int last = 0;
+        loopBoundsLocked(first, last);
+        const long long length = static_cast<long long>(last) - first + 1;
+        long long relative = (index - first) % length;
+        if (relative < 0) {
+            relative += length;
         }
-        return static_cast<int>(index);
+        return static_cast<int>(first + relative);
     }
     return (index < 0 || index >= frameCount_) ? -1 : static_cast<int>(index);
 }
@@ -277,11 +296,16 @@ int Clip::findTargetLocked() const {
         return missing(playhead_) ? playhead_ : -1;
     }
     const long long capacity = capacityLocked();
+    // ループ中は再生範囲の中だけを読む。
+    int loopFirst = 0;
+    int loopLast = 0;
+    loopBoundsLocked(loopFirst, loopLast);
+    const int span = wrap_ ? loopLast - loopFirst + 1 : frameCount_;
     int ahead = 0;
     int behind = 0;
-    if (capacity >= frameCount_) {
-        ahead = frameCount_ - 1;  // 全コマが入るなら全体を読む。
-        behind = frameCount_ - 1;
+    if (capacity >= span) {
+        ahead = span - 1;  // 全コマ(ループ中は範囲の全コマ)が入るなら全体を読む。
+        behind = span - 1;
     } else if (direction_ == Direction::Both) {
         // 向きが定まらない操作(ドラッグ)では前後に半分ずつ。向きが変わるたびに先読みの範囲が
         // 入れ替わって、捨てて読み直すことを繰り返さないようにするため。
@@ -292,7 +316,7 @@ int Clip::findTargetLocked() const {
         behind = ahead / 3;
     }
     if (wrap_) {
-        behind = std::min(behind, frameCount_ - 1 - ahead);
+        behind = std::min(behind, span - 1 - ahead);
     }
     if (activity_ == Activity::Background) {
         // ほかのアプリを使っている間は、再生ヘッドの近くだけにする(戻ってきたときの表示に要る分)。
@@ -327,12 +351,20 @@ long long Clip::distanceCostLocked(int index) const {
     // 後ろにあるコマは、向きが決まっていれば3倍遠く、前後に同じだけ読むときは同じ遠さとして扱う。
     const long long behindWeight = direction_ == Direction::Both ? 1 : 3;
     if (wrap_) {
-        // ループ時は、先に回り込んで届く距離と、後ろにある距離の近い方で測る。
-        long long forward = offset % frameCount_;
-        if (forward < 0) {
-            forward += frameCount_;
+        // ループ時は、再生範囲の中で先に回り込んで届く距離と、後ろにある距離の近い方で測る。
+        // 範囲の外のコマは再生では使わないので、範囲の中のどのコマよりも遠いものとして扱う。
+        int first = 0;
+        int last = 0;
+        loopBoundsLocked(first, last);
+        const long long length = static_cast<long long>(last) - first + 1;
+        if (index < first || index > last) {
+            return 4LL * (frameCount_ + 1) * 3 + std::llabs(static_cast<long long>(index) - playhead_);
         }
-        return std::min(forward, behindWeight * (frameCount_ - forward));
+        long long forward = offset % length;
+        if (forward < 0) {
+            forward += length;
+        }
+        return std::min(forward, behindWeight * (length - forward));
     }
     return offset >= 0 ? offset : -behindWeight * offset;
 }
