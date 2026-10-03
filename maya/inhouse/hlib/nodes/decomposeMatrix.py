@@ -3,9 +3,9 @@
 from ..decorators._fast import fast_edit
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
-from ..maths.eulerRotation import order_index
+from ..maths.eulerRotation import orderIndex
 from .node import Node
 
 
@@ -26,7 +26,7 @@ class DecomposeMatrix(Node):
         return self.plug("inputRotateOrder").get()
 
     @fast_edit
-    @undo_chunk("hlibDecomposeMatrixSetInput")
+    @undoChunk("hlibDecomposeMatrixSetInput")
     def setInput(self, value, *, fast=False):
         """定数行列を入力する。入力接続は切断しない。
 
@@ -46,7 +46,7 @@ class DecomposeMatrix(Node):
         self.plug("inputMatrix").set(Matrix(value))
         return self
 
-    @undo_chunk("hlibDecomposeMatrixConnectInput")
+    @undoChunk("hlibDecomposeMatrixConnectInput")
     def connectInput(self, source, force=False):
         """行列Plugを入力へ接続する。
 
@@ -64,7 +64,7 @@ class DecomposeMatrix(Node):
         return self
 
     @fast_edit
-    @undo_chunk("hlibDecomposeMatrixRotateOrder")
+    @undoChunk("hlibDecomposeMatrixRotateOrder")
     def setRotateOrder(self, order, *, fast=False):
         """出力Euler回転の回転順序を指定する。
 
@@ -83,7 +83,7 @@ class DecomposeMatrix(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        self.plug("inputRotateOrder").set(order_index(order))
+        self.plug("inputRotateOrder").set(orderIndex(order))
         return self
 
     def outputPlugs(self):

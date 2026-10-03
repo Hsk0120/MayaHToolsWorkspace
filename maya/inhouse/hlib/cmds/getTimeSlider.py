@@ -5,9 +5,9 @@ Examples
 .. code-block:: python
 
     slider = hlib.getTimeSlider()
-    print(slider.get_playback_range())
-    with slider.preserve_time():
-        slider.set_current_time(10)
+    print(slider.getPlaybackRange())
+    with slider.preserveTime():
+        slider.setCurrentTime(10)
 """
 
 

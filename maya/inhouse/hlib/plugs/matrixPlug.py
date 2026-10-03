@@ -3,7 +3,7 @@
 import maya.api.OpenMaya as om2
 
 from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .._core.fastWrite import set_attr, set_plug
 from .._core.registry import plug_wrapper
 from ..maths import Matrix
@@ -27,7 +27,7 @@ class MatrixPlug(Plug):
         return Matrix.fromMMatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
     @fast_edit
-    @undo_chunk("hlibMatrixPlugSet")
+    @undoChunk("hlibMatrixPlugSet")
     def set(self, value, *, fast=False):
         """対象の行列アトリビュートへ直接書き込む。所有ノードのTRSへ委譲しない。
 
@@ -42,7 +42,7 @@ class MatrixPlug(Plug):
             TypeError: worldMatrixなどの書込み不可アトリビュートを指定した場合。
             RuntimeError: 所有ノード・アトリビュートが無効、またはMayaが更新を拒否した場合。
 
-        ノード自体の変換にはTransform.set_matrixを使う。
+        ノード自体の変換にはTransform.setMatrixを使う。
         """
         self._require_valid()
         if self.attributeName() in ("worldMatrix", "wm"):

@@ -5,7 +5,7 @@ from maya import cmds
 import math
 import hlib
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class LengthCompensation:
@@ -36,7 +36,7 @@ class LengthCompensation:
         return node
 
     @classmethod
-    @undo_transaction("hrig.LengthCompensation.create")
+    @undoTransaction("hrig.LengthCompensation.create")
     def create(cls, rest_length, name="lengthCompensation"):
         """伸長・圧縮を独立に調整できる計算グラフを生成する。
 

@@ -6,23 +6,11 @@ from maya import cmds
 import math
 import hlib
 
-from hlib.decorators.undo import undo_chunk
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoChunk
+from hlib.decorators.undo import undoTransaction
 from .definition import limb_definition, RigDefinition
 from .backends import create_soft_ik
 from .naming import limb_names
-
-
-def _disconnect(destination):
-    """入力接続だけを切断する。出力接続は保持する。
-
-    Args:
-        destination (str | Plug): 入力を外す属性。
-    """
-    plug = hlib.getPlug(destination)
-    source = plug.source()
-    if source is not None:
-        source.disconnect(plug)
 
 
 def _lock_group(node):
@@ -148,7 +136,7 @@ class LimbRig:
             str: 命名規則を適用したノード名。
         """
         definition = RigDefinition.from_data(
-            hlib.json.JsonText.loads(hlib.getPlug(self.root.fullName() + ".hrigDefinition").get())
+            hlib.json.JsonText.loads(self.root.plug("hrigDefinition").get())
         )
         return limb_names(definition)[role]
 
@@ -361,7 +349,7 @@ class LimbRig:
         Returns:
             str: fkまたはik。
         """
-        return hlib.getPlug(self.root.fullName() + ".hrigMode").get()
+        return self.root.plug("hrigMode").get()
 
     def lod(self):
         """現在のLODを照会する。
@@ -370,9 +358,9 @@ class LimbRig:
         Returns:
             int: 0はSoft IK・補助骨なし、1は全機能。
         """
-        return hlib.getPlug(self.root.fullName() + ".hrigLod").get()
+        return self.root.plug("hrigLod").get()
 
-    @undo_transaction("hrig.LimbRig.set_backend")
+    @undoTransaction("hrig.LimbRig.set_backend")
     def set_backend(self, backend):
         """Soft IK実装だけを交換し、骨・コントローラー・スキンを保持する。
 
@@ -413,7 +401,7 @@ class LimbRig:
         self._update_evaluation()
         hlib.delete(old_owner)
 
-    @undo_chunk("hrig.LimbRig.delete")
+    @undoChunk("hrig.LimbRig.delete")
     def delete(self):
         """所有する生成物を削除する。外部スキンやアニメーションの保護は呼出側で行う。"""
         root = self.root.fullName()
@@ -436,7 +424,7 @@ class LimbRig:
         if cmds.objExists(root):
             hlib.delete(root)
 
-    @undo_chunk("hrig.LimbRig.set_mode")
+    @undoChunk("hrig.LimbRig.set_mode")
     def set_mode(self, mode):
         """FK/IKの計算経路を切り替える。姿勢合わせはmatch_fk/match_ikを先に呼ぶ。
 
@@ -448,9 +436,9 @@ class LimbRig:
         for index in range(3):
             source = self._local_matrix(("fk" if mode == "fk" else "ik") + str(index))
             destination = self._member("joint" + str(index)) + ".offsetParentMatrix"
-            _disconnect(destination)
+            hlib.getPlug(destination).disconnectInput()
             hlib.getPlug(source).connect(destination)
-        hlib.getPlug(self.root.fullName() + ".hrigMode").set(mode)
+        self.root.plug("hrigMode").set(mode)
         self._update_evaluation()
 
     def layer_enabled(self, layer):
@@ -467,7 +455,7 @@ class LimbRig:
         root = self.root.fullName()
         return bool(hlib.getPlug(root + "." + attr).get()) if hlib.getNode(root).hasAttribute(attr) else True
 
-    @undo_chunk("hrig.LimbRig.set_layer_enabled")
+    @undoChunk("hrig.LimbRig.set_layer_enabled")
     def set_layer_enabled(self, layer, enabled):
         """任意レイヤーの使用設定を変更し、計算経路を更新する。
 
@@ -484,7 +472,7 @@ class LimbRig:
         hlib.getPlug(root + "." + attr).set(bool(enabled))
         self._update_evaluation()
 
-    @undo_chunk("hrig.LimbRig.set_lod")
+    @undoChunk("hrig.LimbRig.set_lod")
     def set_lod(self, lod):
         """LODを選び、不要な経路を切断する。スキンLODは別操作。
 
@@ -493,7 +481,7 @@ class LimbRig:
         """
         if type(lod) is not int or lod not in (0, 1):
             raise ValueError("This prototype supports LOD 0 or 1")
-        hlib.getPlug(self.root.fullName() + ".hrigLod").set(lod)
+        self.root.plug("hrigLod").set(lod)
         self._update_evaluation()
 
     def _update_evaluation(self):
@@ -512,24 +500,24 @@ class LimbRig:
         position = self._member("footDecompose") + ".outputTranslate" if foot else position
         matrix = self._member("footMatrix") + ".matrixSum" if foot else self._local_matrix("target")
         for destination in (self._member("distance") + ".point2", scale + ".input1"):
-            _disconnect(destination)
+            hlib.getPlug(destination).disconnectInput()
             hlib.getPlug(position).connect(destination)
         rotation_input = self._member("targetRotation") + ".offsetParentMatrix"
-        _disconnect(rotation_input)
+        hlib.getPlug(rotation_input).disconnectInput()
         hlib.getPlug(matrix).connect(rotation_input)
         hlib.getPlug(handle + ".nodeState").set(0 if ik else 2)
-        _disconnect(handle + ".translate")
+        hlib.getPlug(handle + ".translate").disconnectInput()
         if ik:
             source = scale + ".output" if soft else position
             hlib.getPlug(source).connect(handle + ".translate")
         # Bifrostを非表示にしても評価停止にはならない。接続も外してblockする。
         hlib.getPlug(graph + ".nodeState").set(0 if ik and soft else 2)
         helper = self._member("helper")
-        _disconnect(helper + ".rotate")
+        hlib.getPlug(helper + ".rotate").disconnectInput()
         if detailed and self.layer_enabled("helper"):
             source = self._local_matrix(("ik" if ik else "fk") + "1")
             decompose = self._member("helperDecompose")
-            _disconnect(decompose + ".inputMatrix")
+            hlib.getPlug(decompose + ".inputMatrix").disconnectInput()
             hlib.getPlug(source).connect(decompose + ".inputMatrix")
             hlib.getPlug(self._member("helperScale") + ".output").connect(helper + ".rotate")
         else:
@@ -562,14 +550,14 @@ class LimbRig:
 
         sync_display(self)
 
-    @undo_chunk("hrig.LimbRig.match_fk")
+    @undoChunk("hrig.LimbRig.match_fk")
     def match_fk(self):
         """現在の変形姿勢をFKへ合わせる。モード切替やキー設定は行わない。"""
         matrices = [hlib.getNode(j).getMatrix(space=MSpace.kWorld) for j in self.joints()[:3]]
         for index, matrix in enumerate(matrices):
             _set_world_matrix(self._member("fk" + str(index)), matrix)
 
-    @undo_chunk("hrig.LimbRig.match_ik")
+    @undoChunk("hrig.LimbRig.match_ik")
     def match_ik(self):
         """現在姿勢からIK目標とpoleを合わせる。Soft IK分の距離を逆算する。"""
         from hlib.maths import Matrix, Vector
@@ -597,10 +585,10 @@ class LimbRig:
             raise ValueError("Choose a pole direction before matching a straight chain")
         pole_position = tuple(b + offset.normal() * axis.length())
         # 逆算は部位空間で行うため、ルートの一様スケールにも追従する。
-        inverse = Matrix(hlib.getPlug(self.root.fullName() + ".worldInverseMatrix[0]").get())
+        inverse = Matrix(self.root.plug("worldInverseMatrix[0]").get())
         local_end = inverse.transformPoint(c)
         distance = Vector(local_end).length()
-        length = hlib.getPlug(self.root.fullName() + ".hrigLength").get()
+        length = self.root.plug("hrigLength").get()
         soft = (
             hlib.getPlug(self._member("target") + ".softness").get()
             if self.lod() and self.layer_enabled("soft")
@@ -630,7 +618,7 @@ class LimbRig:
             hlib.getPlug(pole + ".translate" + axis).set(value)
 
 
-@undo_chunk("hrig.build_limb")
+@undoChunk("hrig.build_limb")
 def build_limb(definition=None, backend="standard"):
     """最小3関節リグを構築する。任意チェーンやレイヤーはまだ扱わない。
 

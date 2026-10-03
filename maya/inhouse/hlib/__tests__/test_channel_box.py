@@ -42,17 +42,17 @@ class ChannelBoxTest(unittest.TestCase):
     def test_section_mapping_alias_and_missing_attribute(self):
         with patch.object(module.cmds, "about", return_value=False), patch.object(module.cmds, "channelBox", side_effect=self.query):
             channel = hlib.getChannelBox("testChannelBox")
-            self.assertEqual(len(channel.displayed_nodes()), 2)
-            names = [plug.fullName() for plug in channel.selected_plugs()]
+            self.assertEqual(len(channel.displayedNodes()), 2)
+            names = [plug.fullName() for plug in channel.selectedPlugs()]
             self.assertEqual(len(names), 3)
             self.assertIn(self.a + ".customAlias", names)
             cmds.setAttr(self.a + ".amount", 2.5)
-            alias_plug = next(plug for plug in channel.selected_plugs() if plug.fullName().endswith(".customAlias"))
+            alias_plug = next(plug for plug in channel.selectedPlugs() if plug.fullName().endswith(".customAlias"))
             self.assertEqual(alias_plug.get(), 2.5)
             self.assertIn(self.b + ".translateX", names)
-            self.assertEqual(channel.selected_attributes(), ["tx", "customAlias"])
+            self.assertEqual(channel.selectedAttributes(), ["tx", "customAlias"])
             with self.assertRaises(ValueError):
-                channel.selected_plugs("invalid")
+                channel.selectedPlugs("invalid")
 
     def test_no_selection_and_gui_unavailable(self):
         with patch.object(module.cmds, "about", return_value=True):
@@ -61,7 +61,7 @@ class ChannelBoxTest(unittest.TestCase):
         self.responses["selectedMainAttributes"] = []
         self.responses["selectedHistoryAttributes"] = []
         with patch.object(module.cmds, "about", return_value=False), patch.object(module.cmds, "channelBox", side_effect=self.query):
-            self.assertEqual(hlib.getChannelBox("testChannelBox").selected_plugs(), [])
+            self.assertEqual(hlib.getChannelBox("testChannelBox").selectedPlugs(), [])
             with self.assertRaises(RuntimeError):
                 hlib.getChannelBox("missing")
 

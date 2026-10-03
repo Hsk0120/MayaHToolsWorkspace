@@ -8,7 +8,7 @@ import re
 import hlib
 
 from hlib.maths.matrix import Matrix
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SpaceSwitch:
@@ -29,7 +29,7 @@ class SpaceSwitch:
             raise ValueError("Not a space-switch buffer")
 
     @classmethod
-    @undo_transaction("hrig.SpaceSwitch.create")
+    @undoTransaction("hrig.SpaceSwitch.create")
     def create(cls, buffer):
         """恒等TRSのtransformへ選択ノードを追加する。
 
@@ -151,7 +151,7 @@ class SpaceSwitch:
             raise ValueError("Singular or near-zero scale in space matrix")
         return matrix.inverse()
 
-    @undo_transaction("hrig.SpaceSwitch.add")
+    @undoTransaction("hrig.SpaceSwitch.add")
     def add(self, label, target=None):
         """指定ノードまたはワールドを空間として追加する。
 
@@ -200,7 +200,7 @@ class SpaceSwitch:
             choice.plug("output").connect(self.buffer.plug("offsetParentMatrix"))
         return len(labels)
 
-    @undo_transaction("hrig.SpaceSwitch.switch")
+    @undoTransaction("hrig.SpaceSwitch.switch")
     def switch(self, label):
         """ワールド姿勢と子のローカルチャンネルを保持して空間を切り替える。
 

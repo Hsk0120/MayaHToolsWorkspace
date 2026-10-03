@@ -8,11 +8,11 @@
 
 通常の利用では、hlibの編集コマンドやメソッドをそのまま呼び出します。
 作成・削除・複製・グループ化・選択・キー設定・ベイク・コンストレイント作成は
-各コマンド内で ``undo_chunk`` を使い、複数の内部操作を一回のUndoにまとめます。
+各コマンド内で ``undoChunk`` を使い、複数の内部操作を一回のUndoにまとめます。
 アトリビュート・トランスフォーム・コンポーネントの編集や、ウェイト移送とjoint削除の
 複合処理も、対応するメソッド内でチャンクを管理します。
 複合アトリビュートの ``CompoundPlug.set()`` は全子アトリビュートを一回で戻します。
-``preserved_selection()`` は選択の復元もUndo対応のコマンドで行い、
+``preservedSelection()`` は選択の復元もUndo対応のコマンドで行い、
 ブロック内の編集と選択変更をまとめてUndo／Redoします。
 タイムスライダーの範囲変更はMayaのバージョンによりUndo対応が異なります。
 各メソッドの制限を参照してください。
@@ -22,9 +22,9 @@
 .. code-block:: python
 
    import hlib
-   from hlib.decorators import undo_chunk
+   from hlib.decorators import undoChunk
 
-   @undo_chunk("createControl")
+   @undoChunk("createControl")
    def create_control():
        node = hlib.createNode("transform", name="control")
        node.plug("visibility").set(False)
@@ -32,8 +32,8 @@
 
 このツールでは作成とアトリビュート変更を一回のUndoで戻せます。内部の通常チャンクは
 外側のチャンクへまとめられ、Undoキューには外側の名前が表示されます。
-``undo_transaction`` のチャンクはロールバックの境界なので、この省略の対象にしません。
-処理ブロックをまとめる場合は ``with undo_chunk("処理名"):`` も使用できます。
+``undoTransaction`` のチャンクはロールバックの境界なので、この省略の対象にしません。
+処理ブロックをまとめる場合は ``with undoChunk("処理名"):`` も使用できます。
 デコレータには括弧が必要です。名前の省略時はMayaの既定表示を使います。
 
 照会やラッパー取得はチャンクの対象にしません。時刻変更・UI表示・ファイル操作・
@@ -44,18 +44,18 @@
 例外時はチャンクを閉じますが、
 完了済み操作を自動ロールバックしません。
 
-例外時に完了済みの操作も自動でロールバックしたい場合は、``undo_chunk`` の代わりに
-``undo_transaction`` を使用します。ブロック内で例外が発生すると、チャンクを閉じたうえで
+例外時に完了済みの操作も自動でロールバックしたい場合は、``undoChunk`` の代わりに
+``undoTransaction`` を使用します。ブロック内で例外が発生すると、チャンクを閉じたうえで
 ``cmds.undo()`` を1回実行してブロック内のUndo対象操作を巻き戻してから、元の例外をそのまま
-再送出します。正常終了時は ``undo_chunk`` と同様、通常の1回のUndoにまとまります。
+再送出します。正常終了時は ``undoChunk`` と同様、通常の1回のUndoにまとまります。
 Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外の変更は復元できません。
 ロールバック自体の失敗は抑制されるため、全変更の復元を保証するものではありません。
 
 .. code-block:: python
 
-   from hlib.decorators import undo_transaction
+   from hlib.decorators import undoTransaction
 
-   with undo_transaction("importRig"):
+   with undoTransaction("importRig"):
        rig_root = hlib.createNode("transform", name="rig")
        # ここで例外が発生すると rig の作成も含めて全て巻き戻る
        validate_rig(rig_root)
@@ -112,9 +112,9 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
    from hlib.environment import Workspace, Preferences, Plugin
 
    from hlib.events import ScriptJob
-   from hlib.decorators import undo_chunk
-   from hlib.utils.fbx import import_fbx
-   from hlib.utils.references import list_references
+   from hlib.decorators import undoChunk
+   from hlib.utils.fbx import importFbx
+   from hlib.utils.references import listReferences
 
 .. include:: _generated/full_class_diagram.rst
 
@@ -172,7 +172,7 @@ maya.cmds と OpenMaya API 2.0 の使い分け
 hlib 内部の実装では、``maya.cmds``(``cmds``)は **シーンに変化を与え、かつ
 Undo 対応が必要な操作** に使用します(ノード・アトリビュート・接続の
 作成/削除/設定、親子付け、選択変更、名前空間の作成/移動/削除など)。
-これらは既存の ``@undo_chunk`` デコレータ(``hlib/decorators/undo.py``)や
+これらは既存の ``@undoChunk`` デコレータ(``hlib/decorators/undo.py``)や
 ``cmds.undoInfo`` の Undo チャンクに乗せる前提で cmds を使い続けます。
 
 それ以外の **読み取り専用の照会** は ``maya.api.OpenMaya``(``om2``、
@@ -186,7 +186,7 @@ Undo 対応が必要な操作** に使用します(ノード・アトリビュ�
   UI単位を扱うコマンド層との境界でだけ変換する)
 - ``MFnDependencyNode.getConnections()``/``MPlug.connectedTo()`` による接続の列挙
 - ``MGlobal.getActiveSelectionList()`` による選択状態の取得。
-  復元はUndo対応の ``cmds.select`` で行う（``preserved_selection`` を参照）。
+  復元はUndo対応の ``cmds.select`` で行う（``preservedSelection`` を参照）。
 - ``MNamespace`` による名前空間の存在確認・列挙(``scene/namespace.py``)
 - ``MFnGeometryFilter.getOutputGeometry()`` による blendShape/cluster 等の
   デフォーマの出力ジオメトリ取得
@@ -383,11 +383,11 @@ hlib は ``MFnPlugin`` によるコマンド登録・ノード登録など、May
   別種の保守コストが増える。
 - 対象の制限はMayaネイティブの既知の挙動であり、cmds/om2の使い分け方針
   (前節参照)の範囲内で吸収できないものは、無理に回避せず制限として
-  docstring に明記するに留める(``TimeSlider.set_playback_range`` の
+  docstring に明記するに留める(``TimeSlider.setPlaybackRange`` の
   Maya 2022 に関する記載を参照)。
 
 「Undo対応にしたいが cmds/om2 だけでは足りない」という要求が出た場合も、
-専用プラグインの新規作成ではなく、既存の ``undo_chunk``/``undo_transaction``
+専用プラグインの新規作成ではなく、既存の ``undoChunk``/``undoTransaction``
 (前節参照)で表現できないか、または対象操作自体をMayaの制限として
 受け入れて文書化できないかを先に検討してください。
 
@@ -420,7 +420,7 @@ Edge / Face / UV は Component、Edges / Faces / UVs は Components を継承し
 Examples を記述すると、コマンド専用テンプレートで個別ページを生成します。
 
 Maya に対応するコマンドの関数名・ファイル名は Maya と同じキャメルケースに
-揃えます。例: ``createNode.py`` の ``createNode()``。独自のクラスメソッドはsnake_caseにします。
+揃えます。例: ``createNode.py`` の ``createNode()``。公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCaseにします。
 
 
 nodes のファイル名
@@ -454,7 +454,7 @@ maths のファイル名
 -------------------
 
 ``cmds`` はMayaに合わせたcamelCase、``nodes`` はMaya nodeTypeと同名にします。
-それ以外の実装モジュールもlowerCamelCase、クラスはPascalCase、独自メソッドはsnake_caseです。
+それ以外の実装モジュールもlowerCamelCase、クラスはPascalCase、公開メソッドはlowerCamelCaseです。
 例えば ``EulerRotation`` は ``maths/eulerRotation.py``、``ChannelBox`` は
 ``ui/channelBox.py`` に置きます。移動の値型は ``Translation``、
 回転の値型は回転順序を持つ ``EulerRotation`` に統一しています。

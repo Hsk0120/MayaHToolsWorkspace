@@ -63,12 +63,12 @@ Examples
     hlib.delete(node)
 """
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 import maya.cmds as cmds
 
 
-@undo_chunk("hlib.cmds.delete.delete")
+@undoChunk("hlib.cmds.delete.delete")
 def delete(nodes):
     """指定したノード・コンポーネントを削除する。
 

@@ -55,6 +55,13 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-03 | tools/WinAppKit/・maya/inhouse/FramePlayer/ | 汎用の自作インストーラー(WinAppKit)と、FramePlayerのインストーラー |
+
+
+
+
+
+
 
 
 
@@ -76,6 +83,26 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-03): Sphinx本文10ページを実装/docstringと整合（space、cm、法線平均、Plug定義フラグ/要素実体化、数学型、BlendShapeエイリアス、JSON参照解決）。Sphinx -W成功、Python例164ブロックの構文確認、diff check成功。これまでの責務共通化・camelCase移行・利用側更新・docstringを合わせてmainへの公開対象とした。先行のMaya5版各929件成功を確認。今回の本文例のMaya実行/GUI確認は未実施。
+
+- Codex (2026-10-03): hlib実装245ファイル・モジュール/クラス/関数/メソッドのdocstring 2,085件を抽出し、引数・旧名・戻り値を静的検査。実装との意味の照合により62ファイル145件を修正（法線平均、Plug有効性、数学型返却、単位、接続置換、JSON復元制限、旧名、引数説明）。全245ファイルでdocstring除外AST一致、引数照合指摘0、Sphinx -W成功、diff check成功。今回Maya内の動作・全使用例の実行は未実施。未コミット・未push。詳細docs/research/hlibDocstringResult.json。
+
+- Codex (2026-10-03): hlib公開関数/メソッド/propertyの116種類の旧綴りをcamelCaseへ統一し、hlib_*・hrig・HTools・テスト・ドキュメントの使用側を更新。AGENTS/CLAUDE/API設計/開発ガイドへ命名例外・保持値/照会・単位/Undoのルールを明文化。旧名reload除去と保存キー維持の3テスト追加。Maya5版各929件失敗0(skip9/9/6/6/6)、hrig2027 47+69件成功、最終旧名除去3件成功、Sphinx -W成功・構文/差分確認済み。GUI実操作未検証、未コミット・未push。詳細docs/research/hlibCamelCaseImplementation.txt。
+
+- Codex (2026-10-03): hlib全245 Pythonファイルの明示定義1,840件を静的棚卸しし、命名と処理内容を重点照合。法線API・Joint削除・型/回転順序の返却表現・UI作用範囲等を優先度別に整理。docs/research/hlibNamingAudit.txtへローカル保存（Git対象外）。既存テスト/Autodesk資料と静的照合、製品コード変更・Maya実行なし。
+
+- Codex (2026-10-03): hlib責務委譲を実装。Plug書込み検証/値更新、ArrayPlug番号/編集用参照、geometryEditの単数・複数・Shape共通書込み、disconnectInput、hrig参照/単位委譲、JSON単位共有を整理。7テスト追加、Maya5版各926件失敗0(skip9/9/6/6/6)、2027hrig47+69成功、Sphinx -W成功・差分確認。2601点一括218.8ms対単数反復315.6ms、1点fast優位なし。GUI未実施、未コミット。詳細docs/research/hlibResponsibilityImplementation.txt。
+
+- Codex (2026-10-03): hlibの責務・委譲・共通化を調査。Plug書込み、幾何編集、配列参照/作成、入力切断、呼出側の参照/単位往復、複合検証、JSON境界の7候補を実装から整理。所有クラスと段階別受入条件、共通化しない境界をdocs/research/hlibResponsibilityRefactoringPlan.txtへ保存（Git対象外）。本体変更・Maya実行なし。
+
+- Codex (2026-10-03): hlibの追加om2移行13ファイルをコミット。並行作業でFramePlayerのステージが入り08b0ed4は混在コミットになり、分離作業中に別作業側からorigin/mainへ送信済み。リモートのhlib内容一致を確認し公開履歴を保持、ローカルも08b0ed4へ同期。既存作業ファイル保持。919テスト失敗0・6skip、コミット差分チェック成功。
+
+- Codex (2026-10-03): AnimCurve.getInfinityをom2照会へ移行、setInfinity(fast=True)を追加。共通Plugバックエンドで通常Undo/fast直接更新を統一し、fast両側を更新前にロック・接続検証。全8型×5外挿方法を含む2テスト追加、5版各21件成功、2027全体919件・失敗0・6件skip。差分確認済み。GUI・性能計測・Sphinx未実施、未コミット。詳細docs/research/hlibOm2Infinity.txt。
+
+- Codex (2026-10-03): Node.userAttributeNames/getExtraAttributesをom2定義列挙へ移行。複合配列を含むトップレベル一覧の失敗を修正し、配列を展開せず追加順を保持。4テスト追加、5版各73件成功、2027全体917件・失敗0・6件skip。100アトリビュートの名前列挙は限定計測0.899→0.304ms。GUI/Sphinx未実施、差分確認済み・未コミット。詳細はdocs/research/hlibOm2DynamicAttributes.txt。
+
+- Codex (2026-10-03): hlib om2追加移行。scaleGeometryのom2一括照会・fast更新、aliasesのAPI照会、重み付きCVのワールド座標往復を修正。2022/2024/2025/2026各83件成功、2027全体913件・失敗0・6件skip。差分確認済み。GUI/性能計測は未実施。Sphinxは既存venvの実行元欠落・利用可能Pythonに依存なしのため未実行。未コミット。
 
 - Codex (2026-10-03): プッシュ依頼対応。検証済みhlib om2リファクタリング・API単位/命名整理・hrig使用側移行・Bifrostロード状態判定修正と関連ドキュメントを送信対象に確定。FramePlayer作業中変更とdocs/researchのローカル調査メモは対象外。ステージ差分チェック成功。
 
@@ -319,6 +346,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+
 
 
 

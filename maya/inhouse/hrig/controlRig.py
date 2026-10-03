@@ -6,7 +6,7 @@ from functools import partial
 import re
 
 import hlib
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class ControlRig:
@@ -139,7 +139,7 @@ class ControlRig:
             raise ValueError("Unknown layer")
         return bool(self.root.plug("enabled").get())
 
-    @undo_transaction("hrig.ControlRig.enabled")
+    @undoTransaction("hrig.ControlRig.enabled")
     def set_layer_enabled(self, layer, enabled):
         """レイヤーを切り替える。
 
@@ -151,7 +151,7 @@ class ControlRig:
         self.root.plug("enabled").set(bool(enabled))
         self.update()
 
-    @undo_transaction("hrig.ControlRig.lod")
+    @undoTransaction("hrig.ControlRig.lod")
     def set_lod(self, value):
         """LODを切り替える。
 
@@ -163,7 +163,7 @@ class ControlRig:
         self.root.plug("lod").set(value)
         self.update()
 
-    @undo_transaction("hrig.ControlRig.update")
+    @undoTransaction("hrig.ControlRig.update")
     def update(self):
         """重ねる回転のみを停止し、手付けFKを維持する。"""
         active = self.lod() == 1 and self.layer_enabled(self.kind())
@@ -229,7 +229,7 @@ class ControlRig:
             if any(bool(n.plug("rotateX").source()) != active for n in rig.members("targets")):
                 rig.update()
 
-    @undo_transaction("hrig.ControlRig.delete")
+    @undoTransaction("hrig.ControlRig.delete")
     def delete(self):
         """スキン未使用のモジュールを所有DGとともに削除する。"""
         if any(hlib.getNode(j).connections(type="skinCluster") for j in self.joints()):

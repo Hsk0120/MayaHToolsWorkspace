@@ -3,11 +3,10 @@
 import math
 import maya.cmds as cmds
 from .._core.unitValue import convert
-from ..utils.units import angle_to_ui, angle_from_ui
+from ..utils.units import angleToUi, angleFromUi
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit, is_fast
-from .._core.fastWrite import writable
 from .node import Node
 
 
@@ -65,7 +64,7 @@ class AnimCurve(Node):
             raise RuntimeError("Cannot evaluate an empty curve")
         return self._unit_value(result[0], output=True, to_ui=False)
 
-    @undo_chunk("hlibAnimCurveSetKey")
+    @undoChunk("hlibAnimCurveSetKey")
     def setKey(self, input, value, inTangentType="linear", outTangentType="linear"):
         """キーを追加、同じ入力位置なら更新する。
 
@@ -84,7 +83,7 @@ class AnimCurve(Node):
                         outTangentType=outTangentType, **{flag: position})
         return self
 
-    @undo_chunk("hlibAnimCurveRemoveKey")
+    @undoChunk("hlibAnimCurveRemoveKey")
     def removeKey(self, index):
         """指定番号のキーを削除する。キークリップボードは変更しない。
 
@@ -109,10 +108,10 @@ class AnimCurve(Node):
                 for flag in ("inTangentType", "outTangentType", "inAngle", "outAngle",
                              "inWeight", "outWeight", "lock", "weightLock", "weightedTangents")}
         for flag in ("inAngle", "outAngle"):
-            result[flag] = angle_from_ui(result[flag])
+            result[flag] = angleFromUi(result[flag])
         return result
 
-    @undo_chunk("hlibAnimCurveSetTangent")
+    @undoChunk("hlibAnimCurveSetTangent")
     def setTangent(self, index, **kwargs):
         """キーの接線を変更する。Mayaの接線ロック規則に従う。
 
@@ -130,7 +129,7 @@ class AnimCurve(Node):
         kwargs = dict(kwargs)
         for flag in ("inAngle", "outAngle"):
             if flag in kwargs:
-                kwargs[flag] = angle_to_ui(kwargs[flag])
+                kwargs[flag] = angleToUi(kwargs[flag])
         cmds.keyTangent(self.fullName(), edit=True, index=self._index(index), animation="objects", **kwargs)
         return self
 
@@ -141,7 +140,7 @@ class AnimCurve(Node):
                 for key in ("pre", "post")}
 
     @fast_edit
-    @undo_chunk("hlibAnimCurveInfinity")
+    @undoChunk("hlibAnimCurveInfinity")
     def setInfinity(self, *, pre=None, post=None, fast=False):
         """指定した側だけ外挿方法を変更する。省略した側は維持する。
 
@@ -165,12 +164,12 @@ class AnimCurve(Node):
         if is_fast():
             # 片側を書いた後にもう片側のロック・接続で失敗しないよう先に確認する。
             for plug, value in targets:
-                writable(plug.mplug())
+                plug._require_writable()
         for plug, value in targets:
             plug.set(value)
         return self
 
-    @undo_chunk("hlibAnimCurveShift")
+    @undoChunk("hlibAnimCurveShift")
     def shiftKeys(self, input_offset=0, value_offset=0):
         """全キーを移動する。
 
@@ -188,7 +187,7 @@ class AnimCurve(Node):
                           valueChange=y, **{flag: x})
         return self
 
-    @undo_chunk("hlibAnimCurveScale")
+    @undoChunk("hlibAnimCurveScale")
     def scaleKeys(self, input_scale=1, value_scale=1, input_pivot=0, value_pivot=0):
         """全キーを基準値のまわりで拡縮する。接線処理はMayaのscaleKeyに従う。
 
@@ -211,7 +210,7 @@ class AnimCurve(Node):
         return self
 
     def mirror(self, input=False, value=True, input_pivot=0, value_pivot=0):
-        """入力軸・出力軸を反転する。内部のscale_keysでUndoをまとめる。
+        """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。
 
         Args:
             input (bool): 横軸を反転するか。

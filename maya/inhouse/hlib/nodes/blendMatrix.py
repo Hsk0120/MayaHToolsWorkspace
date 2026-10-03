@@ -1,6 +1,6 @@
 """論理番号順に行列をブレンドする。加重平均ではない。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
 from ._calculation import _Calculation
@@ -26,7 +26,7 @@ class BlendMatrix(Node):
         return self.inputPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -42,7 +42,7 @@ class BlendMatrix(Node):
         _Calculation.set_value(value, Matrix, self.inputPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
@@ -53,7 +53,7 @@ class BlendMatrix(Node):
             BlendMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, force=force)
         return self
@@ -73,7 +73,7 @@ class BlendMatrix(Node):
         return self.envelopePlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setEnvelope(self, value, *, fast=False):
         """全体ウェイトへ定数値を設定する。
 
@@ -89,7 +89,7 @@ class BlendMatrix(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.envelopePlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectEnvelope(self, source, force=False):
         """全体ウェイトへ接続する。
 
@@ -100,7 +100,7 @@ class BlendMatrix(Node):
             BlendMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.envelopePlug, force=force)
         return self
@@ -122,7 +122,7 @@ class BlendMatrix(Node):
         """
         return self.plug("target").element(_Calculation.index(index))
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setTarget(self, index, matrix, weight=1.0):
         """ターゲットの行列とウェイトを設定する。
 
@@ -138,12 +138,12 @@ class BlendMatrix(Node):
         """
         index = _Calculation.index(index)
         matrix, weight = Matrix(matrix), _Calculation.scalar(weight)
-        target = self.plug("target").element(index, create=True)
+        target = self.plug("target")._element_reference(index)
         target.child("targetMatrix").set(matrix)
         target.child("weight").set(weight)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectTarget(self, index, source, weight=1.0, force=False):
         """行列Plugをターゲットへ接続する。
 
@@ -156,17 +156,17 @@ class BlendMatrix(Node):
             BlendMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         from hlib.plugs.plug import Plug as _InputPlug
         index = _Calculation.index(index)
         source, weight = _InputPlug._resolve_input(source), _Calculation.scalar(weight)
-        target = self.plug("target").element(index, create=True)
+        target = self.plug("target")._element_reference(index)
         source.connect(target.child("targetMatrix"), force=force)
         target.child("weight").set(weight)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def removeTarget(self, index):
         """ターゲットとその接続を削除する。
 

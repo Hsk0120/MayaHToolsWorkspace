@@ -1,11 +1,11 @@
 """Maya標準のジョイント階層ミラーを型付きの結果で返す。"""
 import maya.cmds as cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("mirrorJoint")
-@undo_chunk("hlibMirrorJoint")
+@undoChunk("hlibMirrorJoint")
 def mirrorJoint(joint, **kwargs):
     """指定Joint以下の階層をMaya標準の規約でミラー複製する。
 

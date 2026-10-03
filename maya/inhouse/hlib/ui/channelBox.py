@@ -6,7 +6,7 @@ import maya.api.OpenMaya as om2
 
 from hlib.nodes.node import Node
 from hlib.plugs.plug import Plug
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 class ChannelBox:
@@ -42,7 +42,7 @@ class ChannelBox:
             raise ValueError("section must be main, shape, history, output or all")
         return (section,)
 
-    def displayed_nodes(self, section="main"):
+    def displayedNodes(self, section="main"):
         """指定欄の表示対象を返す。
 
         Args:
@@ -59,7 +59,7 @@ class ChannelBox:
                 result.setdefault(node.fullName(), node)
         return list(result.values())
 
-    def selected_attributes(self, section="main"):
+    def selectedAttributes(self, section="main"):
         """指定欄の選択アトリビュート名を取得する。
 
         Args:
@@ -74,7 +74,7 @@ class ChannelBox:
             names.extend(cmds.channelBox(self.name(), query=True, **{flag: True}) or [])
         return list(dict.fromkeys(names))
 
-    def selected_plugs(self, section="all"):
+    def selectedPlugs(self, section="all"):
         """表示ノードと選択アトリビュートを欄ごとに対応付ける。
 
         Args:
@@ -86,10 +86,10 @@ class ChannelBox:
         """
         result = {}
         for part in self._section_names(section):
-            attrs = self.selected_attributes(part)
+            attrs = self.selectedAttributes(part)
             if not attrs:
                 continue
-            for node in self.displayed_nodes(part):
+            for node in self.displayedNodes(part):
                 for attr in attrs:
                     selection = om2.MSelectionList()
                     try:
@@ -100,7 +100,7 @@ class ChannelBox:
                     result.setdefault(plug.fullName(), plug)
         return list(result.values())
 
-    @undo_chunk("hlibChannelBoxClearSelection")
-    def clear_selection(self):
+    @undoChunk("hlibChannelBoxClearSelection")
+    def clearSelection(self):
         """アトリビュートのUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。"""
         cmds.channelBox(self.name(), edit=True, select="")

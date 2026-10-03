@@ -5,7 +5,7 @@ from .._core.space import world_space
 import maya.cmds as cmds
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .node import Node
 
@@ -40,7 +40,7 @@ class DagPose(Node):
         return self.fullName()
 
     @classmethod
-    @undo_chunk("hlibDagPoseCreate")
+    @undoChunk("hlibDagPoseCreate")
     def create(cls, members, name=None, bindPose=False, hierarchy=True):
         """現在の姿勢を新しいポーズに保存する。選択状態は参照しない。
 
@@ -163,7 +163,7 @@ class DagPose(Node):
         names = [plug.rsplit(".", 1)[0] for plug in plugs if plug.endswith(".bindPose")]
         return [Node(name) for name in dict.fromkeys(names)]
 
-    @undo_chunk("hlibDagPoseRestore")
+    @undoChunk("hlibDagPoseRestore")
     def restore(self, space=MSpace.kObject):
         """保存した姿勢へ戻す。接続やロックの解除は行わない。
 
@@ -178,7 +178,7 @@ class DagPose(Node):
         cmds.dagPose(self._pose_name(), restore=True, g=ws)
         return self
 
-    @undo_chunk("hlibDagPoseReset")
+    @undoChunk("hlibDagPoseReset")
     def reset(self, members=None):
         """保存姿勢を現在の姿勢へ更新する。ノードを保存姿勢へ戻す操作ではない。
 
@@ -202,7 +202,7 @@ class DagPose(Node):
         cmds.dagPose(names, reset=True, name=name)
         return self
 
-    @undo_chunk("hlibDagPoseAdd")
+    @undoChunk("hlibDagPoseAdd")
     def addMembers(self, *members):
         """TransformまたはJointを現在の姿勢で追加する。
 
@@ -214,7 +214,7 @@ class DagPose(Node):
         cmds.dagPose(self._transform_names(members), addToPose=True, name=self._pose_name())
         return self
 
-    @undo_chunk("hlibDagPoseRemove")
+    @undoChunk("hlibDagPoseRemove")
     def removeMembers(self, *members):
         """メンバーをポーズから外す。シーンのノード自体は削除しない。
 

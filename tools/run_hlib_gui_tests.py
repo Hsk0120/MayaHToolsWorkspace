@@ -142,11 +142,11 @@ def main(output_dir=None, finished=None):
             def test_editor_snapshot_read_only(self):
                 saved = hlib.json.loads(hlib.json.dumps(hlib.json.capture(
                     [hlib.getViewport(panel), hlib.getOutliner(editor)], kind="editor")))
-                before = hlib.getViewport(panel).get_settings()
+                before = hlib.getViewport(panel).getSettings()
                 self.assertTrue(saved.plan().errors)
                 with self.assertRaises(NotImplementedError):
                     saved.apply()
-                self.assertEqual(hlib.getViewport(panel).get_settings(), before)
+                self.assertEqual(hlib.getViewport(panel).getSettings(), before)
 
             def test_colors_disable_undo_redo(self):
                 for node, override, rgb in zip(curves, (13, (0, .75, 1), (1, .4, 0)),
@@ -156,8 +156,8 @@ def main(output_dir=None, finished=None):
                 outliner_control = cmds.outlinerEditor(editor, query=True, control=True)
                 for label in ("colors", "disabled", "undo", "redo"):
                     if label == "disabled":
-                        from hlib.decorators import undo_chunk
-                        with undo_chunk("hlibGuiDisableColors"):
+                        from hlib.decorators import undoChunk
+                        with undoChunk("hlibGuiDisableColors"):
                             for node in curves:
                                 node.setOutlinerColor(None)
                                 node.shape().setOverrideColor(None)
@@ -171,8 +171,8 @@ def main(output_dir=None, finished=None):
 
             def test_visibility_and_component_selection(self):
                 view = hlib.getViewport(panel)
-                with view.temporary_settings(nurbsCurves=False):
-                    self.assertFalse(view.get_settings("nurbsCurves")["nurbsCurves"])
+                with view.temporarySettings(nurbsCurves=False):
+                    self.assertFalse(view.getSettings("nurbsCurves")["nurbsCurves"])
                     capture("curves_hidden")
                 capture("curves_restored")
                 cmds.select(curves[0].fullName() + ".cv[0:2]", replace=True)
@@ -191,20 +191,20 @@ def main(output_dir=None, finished=None):
                 box = hlib.getChannelBox(channel)
                 cmds.channelBox(channel, edit=True, select=node.fullName() + ".guiAmount")
                 capture("channel_selected", channel)
-                self.assertEqual(len(box.selected_plugs()), 1,
+                self.assertEqual(len(box.selectedPlugs()), 1,
                                  str(cmds.channelBox(channel, query=True, mainObjectList=True)))
-                self.assertEqual(box.selected_plugs()[0].get(), 0)
-                box.clear_selection()
-                self.assertEqual(box.selected_plugs(), [])
+                self.assertEqual(box.selectedPlugs()[0].get(), 0)
+                box.clearSelection()
+                self.assertEqual(box.selectedPlugs(), [])
                 capture("channel_cleared", channel)
                 cmds.select(clear=True)
 
             def test_outliner_expansion_display(self):
                 outliner = hlib.getOutliner(editor)
-                with outliner.temporary_settings(showShapes=True):
-                    outliner.expand_all(True)
+                with outliner.temporarySettings(showShapes=True):
+                    outliner.expandAll(True)
                     capture("outliner_shapes", cmds.outlinerEditor(editor, query=True, control=True))
-                    outliner.expand_all(False)
+                    outliner.expandAll(False)
                     capture("outliner_collapsed", cmds.outlinerEditor(editor, query=True, control=True))
 
             def test_logger_notification(self):

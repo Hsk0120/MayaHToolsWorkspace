@@ -4,7 +4,7 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 
 
@@ -13,16 +13,21 @@ class BlendShape(Node):
     """Maya の blendShape ラッパー。ターゲットの追加とウェイト操作を提供する。"""
 
     def targetAliases(self):
-        """ターゲット名を weight 配列の並び順で取得する。
+        """ノードのエイリアス名を aliases() の順序で取得する。
+
+        通常はターゲットの weight のエイリアスだが、他のアトリビュートのエイリアスも
+        含む。weight の論理インデックスによる並べ替えや絞り込みは行わない。
 
         Returns:
-            list[str]: ターゲットのエイリアス名(既定ではターゲット shape の
+            list[str]: エイリアス名(既定ではターゲット shape の
                 トランスフォーム名)。
         """
         return [alias for alias, _ in self.aliases()]
 
     def weightPlugs(self):
-        """ターゲットのウェイトプラグを取得する。
+        """エイリアスが付いたプラグを targetAliases() と同じ順序で取得する。
+
+        weight 以外にエイリアスを設定した場合、そのプラグも含む。
 
         Returns:
             list[Plug]: targetAliases() と同じ順序のプラグ。set() で値を変更できる。
@@ -30,10 +35,11 @@ class BlendShape(Node):
         return [plug for _, plug in self.aliases()]
 
     def getWeights(self):
-        """ターゲットの現在のウェイトを取得する。
+        """weightPlugs() が返すプラグの現在値を取得する。
 
         Returns:
-            list[float]: targetAliases() と同じ順序の値。
+            list[object]: targetAliases() と同じ順序の値。通常の weight は float。
+                weight 以外のエイリアスがある場合は、そのプラグの値も含む。
         """
         return [plug.get() for plug in self.weightPlugs()]
 
@@ -45,7 +51,7 @@ class BlendShape(Node):
         """
         return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mobject()).getOutputGeometry()]
 
-    @undo_chunk("hlibBlendShapeAddTarget")
+    @undoChunk("hlibBlendShapeAddTarget")
     def addTarget(self, target, base=None, weight_index=None, full_weight=1.0):
         """ターゲットを追加する。
 

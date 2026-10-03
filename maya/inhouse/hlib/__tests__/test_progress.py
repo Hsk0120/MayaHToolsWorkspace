@@ -1,4 +1,4 @@
-"""hlib.utils.progress の progress_bar を検証するMaya内テスト。"""
+"""hlib.utils.progress の progressBar を検証するMaya内テスト。"""
 
 import contextlib
 import io
@@ -8,7 +8,7 @@ import unittest
 import hlib
 hlib.reload()
 import hlib.utils
-from hlib.utils.progress import progress_bar
+from hlib.utils.progress import progressBar
 
 
 def _frames(output):
@@ -51,7 +51,7 @@ class ProgressBarOutputTest(unittest.TestCase):
 
     def test_exact_output_for_known_length(self):
         buffer = io.StringIO()
-        result = list(progress_bar(["a", "b", "c", "d"], width=8, stream=buffer))
+        result = list(progressBar(["a", "b", "c", "d"], width=8, stream=buffer))
         self.assertEqual(result, ["a", "b", "c", "d"])
         self.assertEqual(
             buffer.getvalue(),
@@ -68,7 +68,7 @@ class ProgressBarOutputTest(unittest.TestCase):
         buffer = io.StringIO()
         items = list(range(100))
         received = []
-        list(progress_bar(items, width=10, stream=buffer, notify=received.append))
+        list(progressBar(items, width=10, stream=buffer, notify=received.append))
         self.assertTrue(received[29].endswith(" 29% 29/100"))
         self.assertIn("|==--------|", received[29])
         self.assertTrue(received[-1].endswith("100% 100/100"))
@@ -76,31 +76,31 @@ class ProgressBarOutputTest(unittest.TestCase):
     def test_items_are_returned_unchanged(self):
         marker = object()
         items = [marker, None, 0, ""]
-        result = list(progress_bar(items, stream=io.StringIO()))
+        result = list(progressBar(items, stream=io.StringIO()))
         self.assertEqual(len(result), 4)
         self.assertIs(result[0], marker)
         self.assertEqual(result[1:], [None, 0, ""])
 
     def test_label_is_trimmed_and_separated_by_one_space(self):
         buffer = io.StringIO()
-        list(progress_bar(["x"], label="hlibTest:   ", width=2, stream=buffer))
+        list(progressBar(["x"], label="hlibTest:   ", width=2, stream=buffer))
         self.assertEqual(_frames(buffer.getvalue())[-1], "hlibTest: |==| 100% 1/1\n")
 
     def test_blank_label_is_omitted(self):
         buffer = io.StringIO()
-        list(progress_bar(["x"], label="  ", width=2, stream=buffer))
+        list(progressBar(["x"], label="  ", width=2, stream=buffer))
         self.assertTrue(_frames(buffer.getvalue())[0].startswith("|--|"))
 
     def test_bar_width_is_constant(self):
         received = []
-        list(progress_bar(range(7), width=5, stream=io.StringIO(), notify=received.append))
+        list(progressBar(range(7), width=5, stream=io.StringIO(), notify=received.append))
         for text in received:
             bar = text.split("|")[1]
             self.assertEqual(len(bar), 5)
 
     def test_more_items_than_total_keeps_bar_full(self):
         received = []
-        list(progress_bar(["a", "b", "c"], total=2, width=4, stream=io.StringIO(), notify=received.append))
+        list(progressBar(["a", "b", "c"], total=2, width=4, stream=io.StringIO(), notify=received.append))
         self.assertEqual(received[-1], "|====| 100% 3/2")
 
 
@@ -110,7 +110,7 @@ class ProgressBarUnknownLengthTest(unittest.TestCase):
     def test_generator_without_total_shows_count_only(self):
         buffer = io.StringIO()
         generator = (value * 2 for value in range(3))
-        result = list(progress_bar(generator, label="scan", stream=buffer))
+        result = list(progressBar(generator, label="scan", stream=buffer))
         self.assertEqual(result, [0, 2, 4])
         self.assertEqual(
             _frames(buffer.getvalue()),
@@ -121,13 +121,13 @@ class ProgressBarUnknownLengthTest(unittest.TestCase):
     def test_generator_with_explicit_total_shows_bar(self):
         received = []
         generator = iter(["a", "b"])
-        list(progress_bar(generator, total=2, width=2, stream=io.StringIO(), notify=received.append))
+        list(progressBar(generator, total=2, width=2, stream=io.StringIO(), notify=received.append))
         self.assertEqual(received, ["|--|   0% 0/2", "|=-|  50% 1/2", "|==| 100% 2/2"])
 
     def test_empty_generator_produces_no_output(self):
         buffer = io.StringIO()
         received = []
-        result = list(progress_bar(iter([]), stream=buffer, notify=received.append))
+        result = list(progressBar(iter([]), stream=buffer, notify=received.append))
         self.assertEqual(result, [])
         self.assertEqual(buffer.getvalue(), "")
         self.assertEqual(received, [])
@@ -139,7 +139,7 @@ class ProgressBarLifecycleTest(unittest.TestCase):
     def test_empty_sequence_produces_no_output(self):
         buffer = io.StringIO()
         received = []
-        result = list(progress_bar([], stream=buffer, notify=received.append))
+        result = list(progressBar([], stream=buffer, notify=received.append))
         self.assertEqual(result, [])
         self.assertEqual(buffer.getvalue(), "")
         self.assertEqual(received, [])
@@ -147,7 +147,7 @@ class ProgressBarLifecycleTest(unittest.TestCase):
     def test_notify_receives_each_drawn_line_without_control_characters(self):
         buffer = io.StringIO()
         received = []
-        list(progress_bar(["x", "y"], width=4, stream=buffer, notify=received.append))
+        list(progressBar(["x", "y"], width=4, stream=buffer, notify=received.append))
         # 最初の要素を取り出した時点の0件表示と、各要素の処理後で計3回。
         self.assertEqual(received, ["|----|   0% 0/2", "|==--|  50% 1/2", "|====| 100% 2/2"])
         for text in received:
@@ -156,12 +156,12 @@ class ProgressBarLifecycleTest(unittest.TestCase):
         self.assertEqual(_frames(buffer.getvalue())[:-1], received[:-1])
 
     def test_notify_return_value_is_ignored(self):
-        result = list(progress_bar(["a"], stream=io.StringIO(), notify=lambda text: "ignored"))
+        result = list(progressBar(["a"], stream=io.StringIO(), notify=lambda text: "ignored"))
         self.assertEqual(result, ["a"])
 
     def test_progress_counts_only_finished_items(self):
         received = []
-        iterator = progress_bar(["a", "b", "c"], width=3, stream=io.StringIO(), notify=received.append)
+        iterator = progressBar(["a", "b", "c"], width=3, stream=io.StringIO(), notify=received.append)
         self.assertEqual(next(iterator), "a")
         # 最初の要素を受け取った直後は、まだ1件も処理済みではない。
         self.assertEqual(received, ["|---|   0% 0/3"])
@@ -172,7 +172,7 @@ class ProgressBarLifecycleTest(unittest.TestCase):
     def test_break_closes_line_with_newline(self):
         buffer = io.StringIO()
         received = []
-        iterator = progress_bar(["a", "b", "c", "d"], width=4, stream=buffer, notify=received.append)
+        iterator = progressBar(["a", "b", "c", "d"], width=4, stream=buffer, notify=received.append)
         for item in iterator:
             if item == "b":
                 break
@@ -183,7 +183,7 @@ class ProgressBarLifecycleTest(unittest.TestCase):
 
     def test_exception_in_loop_body_closes_line(self):
         buffer = io.StringIO()
-        iterator = progress_bar(["a", "b"], stream=buffer)
+        iterator = progressBar(["a", "b"], stream=buffer)
         with self.assertRaises(RuntimeError):
             for _ in iterator:
                 raise RuntimeError("stop")
@@ -197,7 +197,7 @@ class ProgressBarLifecycleTest(unittest.TestCase):
         def failing_notify(text):
             raise RuntimeError("notify failed")
 
-        iterator = progress_bar(["a", "b"], width=2, stream=buffer, notify=failing_notify)
+        iterator = progressBar(["a", "b"], width=2, stream=buffer, notify=failing_notify)
         with self.assertRaises(RuntimeError):
             next(iterator)
         self.assertEqual(buffer.getvalue(), "\r|--|   0% 0/2\n")
@@ -211,7 +211,7 @@ class ProgressBarLifecycleTest(unittest.TestCase):
             if len(calls) == 2:
                 raise RuntimeError("notify failed")
 
-        iterator = progress_bar(["a", "b"], width=2, stream=buffer, notify=notify_fails_on_second_call)
+        iterator = progressBar(["a", "b"], width=2, stream=buffer, notify=notify_fails_on_second_call)
         self.assertEqual(next(iterator), "a")
         with self.assertRaises(RuntimeError):
             next(iterator)
@@ -225,7 +225,7 @@ class ProgressBarStreamFailureTest(unittest.TestCase):
     def test_first_write_failure_is_not_replaced_by_closing_newline(self):
         # 書き込みが毎回失敗する出力先。行を閉じる改行の失敗(2回目)で置き換わらないこと。
         stream = _BrokenStream(lambda text: True)
-        iterator = progress_bar(["a", "b"], stream=stream)
+        iterator = progressBar(["a", "b"], stream=stream)
         with self.assertRaises(OSError) as caught:
             next(iterator)
         self.assertEqual(str(caught.exception), "write failure #1")
@@ -233,7 +233,7 @@ class ProgressBarStreamFailureTest(unittest.TestCase):
 
     def test_later_write_failure_is_not_replaced_by_closing_newline(self):
         stream = _BrokenStream(lambda text: "1/2" in text or text == "\n")
-        iterator = progress_bar(["a", "b"], width=2, stream=stream)
+        iterator = progressBar(["a", "b"], width=2, stream=stream)
         self.assertEqual(next(iterator), "a")
         with self.assertRaises(OSError) as caught:
             next(iterator)
@@ -247,7 +247,7 @@ class ProgressBarStreamFailureTest(unittest.TestCase):
             raise ValueError("source failed")
 
         stream = _BrokenStream(lambda text: text == "\n")
-        iterator = progress_bar(source(), stream=stream)
+        iterator = progressBar(source(), stream=stream)
         self.assertEqual(next(iterator), "a")
         with self.assertRaises(ValueError) as caught:
             next(iterator)
@@ -258,7 +258,7 @@ class ProgressBarStreamFailureTest(unittest.TestCase):
     def test_closing_newline_failure_on_early_close_is_not_raised(self):
         # break 後の close では、改行の失敗を送出しない(GeneratorExit を優先する)。
         stream = _BrokenStream(lambda text: text == "\n")
-        iterator = progress_bar(["a", "b"], stream=stream)
+        iterator = progressBar(["a", "b"], stream=stream)
         self.assertEqual(next(iterator), "a")
         iterator.close()
         self.assertEqual(stream.failures, 1)
@@ -267,7 +267,7 @@ class ProgressBarStreamFailureTest(unittest.TestCase):
         # 反復が最後まで終わった後の改行の失敗は、捨てずに呼び出し側へ伝える。
         stream = _BrokenStream(lambda text: text == "\n")
         with self.assertRaises(OSError) as caught:
-            list(progress_bar(["a"], width=2, stream=stream))
+            list(progressBar(["a"], width=2, stream=stream))
         self.assertEqual(str(caught.exception), "write failure #1")
         self.assertEqual(stream.parts, ["\r|--|   0% 0/1", "\r|==| 100% 1/1"])
 
@@ -278,17 +278,17 @@ class ProgressBarStreamTest(unittest.TestCase):
     def test_default_stream_is_resolved_at_call_time(self):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            result = list(progress_bar(["a"], width=2))
+            result = list(progressBar(["a"], width=2))
         self.assertEqual(result, ["a"])
         self.assertEqual(buffer.getvalue(), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
 
     def test_stream_without_flush_is_supported(self):
         stream = _WriteOnlyStream()
-        list(progress_bar(["a"], width=2, stream=stream))
+        list(progressBar(["a"], width=2, stream=stream))
         self.assertEqual("".join(stream.parts), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
 
     def test_exported_from_utils_package(self):
-        self.assertIs(hlib.utils.progress_bar, progress_bar)
+        self.assertIs(hlib.utils.progressBar, progressBar)
 
 
 class ProgressBarValidationTest(unittest.TestCase):
@@ -296,28 +296,28 @@ class ProgressBarValidationTest(unittest.TestCase):
 
     def test_invalid_width_raises_immediately(self):
         with self.assertRaises(ValueError):
-            progress_bar(["a"], width=0)
+            progressBar(["a"], width=0)
         with self.assertRaises(TypeError):
-            progress_bar(["a"], width=2.5)
+            progressBar(["a"], width=2.5)
         with self.assertRaises(TypeError):
-            progress_bar(["a"], width=True)
+            progressBar(["a"], width=True)
 
     def test_invalid_total_raises_immediately(self):
         with self.assertRaises(ValueError):
-            progress_bar(["a"], total=-1)
+            progressBar(["a"], total=-1)
         with self.assertRaises(TypeError):
-            progress_bar(["a"], total="3")
+            progressBar(["a"], total="3")
 
     def test_non_str_label_raises_immediately(self):
         # 反復を始める前(呼び出し時)に型の誤りを検出する。
         with self.assertRaises(TypeError):
-            progress_bar(["a"], label=None)
+            progressBar(["a"], label=None)
         with self.assertRaises(TypeError):
-            progress_bar(["a"], label=3)
+            progressBar(["a"], label=3)
 
     def test_options_are_keyword_only(self):
         with self.assertRaises(TypeError):
-            progress_bar(["a"], "label")
+            progressBar(["a"], "label")
 
 
 if __name__ == "__main__":

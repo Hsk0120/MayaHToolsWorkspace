@@ -4,11 +4,11 @@ import contextlib
 
 import maya.cmds as cmds
 
-from .undo import undo_chunk
+from .undo import undoChunk
 
 
 @contextlib.contextmanager
-def preserved_skin_shape(joints):
+def preservedSkinShape(joints):
     """指定jointに影響するskinClusterの変形を保ったまま、jointの姿勢を編集する。
 
     対象に接続するskinClusterをmoveJointsModeへ切り替え、終了時に
@@ -33,7 +33,7 @@ def preserved_skin_shape(joints):
     skin_names = [skin.fullName() for skin in skins]
     previous_modes = {}
 
-    with undo_chunk("hlibPreservedSkinShape"):
+    with undoChunk("hlibPreservedSkinShape"):
         for name in skin_names:
             try:
                 previous_modes[name] = bool(cmds.skinCluster(name, query=True, moveJointsMode=True))
@@ -53,3 +53,8 @@ def preserved_skin_shape(joints):
                     cmds.skinCluster(name, edit=True, moveJointsMode=state)
                 except RuntimeError:
                     pass
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('preserved_skin_shape',):
+    globals().pop(_obsolete_name, None)

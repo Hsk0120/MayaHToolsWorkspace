@@ -3,7 +3,7 @@
 from ..decorators._fast import fast_edit
 from .._core.fastWrite import set_attr
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 import math
 
@@ -32,7 +32,7 @@ class Joint(Transform):
         return bool(self.plug("segmentScaleCompensate").get())
 
     @fast_edit
-    @undo_chunk("hlibJointSetSegmentScaleCompensate")
+    @undoChunk("hlibJointSetSegmentScaleCompensate")
     def setSegmentScaleCompensate(self, state, *, fast=False):
         """親のスケール補正を切り替える。
 
@@ -108,7 +108,7 @@ class Joint(Transform):
         return tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in result)
 
     @fast_edit
-    @undo_chunk("hlibJointsJointOrientToRotate")
+    @undoChunk("hlibJointsJointOrientToRotate")
     def jointOrientToRotate(self, *, fast=False):
         """現在の姿勢を保ち、jointOrientをrotateに合成して0にする。
 
@@ -134,7 +134,7 @@ class Joint(Transform):
         return self
 
     @fast_edit
-    @undo_chunk("hlibJointsFreezeRotation")
+    @undoChunk("hlibJointsFreezeRotation")
     def freezeRotation(self, *, fast=False):
         """姿勢を保ち、rotateをjointOrientへ合成してrotateを0にする。
 
@@ -173,9 +173,10 @@ class Joint(Transform):
         set_attr(self.fullName() + ".rotate", *((0, 0, 0) if to_orient else values))
 
     def _rotation_quaternion(self, attribute):
-        """jointOrient / rotateAxis の Maya degrees アトリビュートを API quaternion へ変換する。
+        """jointOrient / rotateAxis を API quaternion へ変換する。
 
-        アトリビュート値は度であると仮定してラジアンへ変換する。Maya の jointOrient と
+        MAngle から明示的に度数法で取得し、ラジアンへ変換する。現在の UI 角度単位に依存しない。
+        Maya の jointOrient と
         rotateAxis は rotateOrder にかかわらず常に XYZ 順序で評価されるため、
         XYZ として解釈する。
 
@@ -268,7 +269,7 @@ class Joint(Transform):
         super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
 
 
-    @undo_chunk("hlibJointConnectInverseScale")
+    @undoChunk("hlibJointConnectInverseScale")
     def connectInverseScale(self, source=None, force=False):
         """Transformのscaleを自身のinverseScaleへ接続する。
 
@@ -307,7 +308,7 @@ class Joint(Transform):
             origin.connect(target, force=force)
         return self
 
-    @undo_chunk("hlibJointDisconnectInverseScale")
+    @undoChunk("hlibJointDisconnectInverseScale")
     def disconnectInverseScale(self):
         """inverseScaleと各軸の入力接続だけを切断する。
 
@@ -336,7 +337,7 @@ class Joint(Transform):
         return float(self.plug("radius").get())
 
     @fast_edit
-    @undo_chunk("hlibJointSetRadius")
+    @undoChunk("hlibJointSetRadius")
     def setRadius(self, value, *, fast=False):
         """ジョイント個別の表示半径を変更する。骨の長さ・scaleは変更しない。
 
@@ -374,12 +375,13 @@ class Joint(Transform):
 
         Args:
             attribute (str): 読み取る複合アトリビュート名。
-            angle (bool): True の場合、各子を角度アトリビュートとして度数法の値で取得する
-                (``cmds.getAttr`` が角度アトリビュートを現在の角度単位で返すのに合わせる)。
+            angle (bool): True の場合、各子を角度アトリビュートとして度数法の値で取得する。
+                現在の UI 角度単位に関係なく、MAngle.asDegrees() を使用する。
                 False の場合は単位変換のない生の double として取得する。
 
         Returns:
-            tuple: アトリビュート値のタプル。無効なノードでは (0.0, 0.0, 0.0)。有効時は要素数を検査しない。
+            tuple[float, float, float]: 最初の子 3 要素の値。無効なノードでは (0.0, 0.0, 0.0)。
+                有効時は子の数を事前検査せず、3 要素を読み取る。
         """
         if not self.isValid():
             return (0.0, 0.0, 0.0)
@@ -478,7 +480,7 @@ class Joint(Transform):
             result.append(SkinCluster(node.mobject()))
         return result
 
-    @undo_chunk("hlibJointRemoveInfluence")
+    @undoChunk("hlibJointRemoveInfluence")
     def removeInfluence(self, skin_cluster=None, *, transfer_to_parent=True):
         """ウェイトの再配分方法を選んでinfluence登録を外す。joint自体は残す。
 
@@ -523,7 +525,7 @@ class Joint(Transform):
             ancestor = Joint(ancestor).parentJointName()
         return None
 
-    @undo_chunk("hlib.nodes.joint.reparentChildren")
+    @undoChunk("hlib.nodes.joint.reparentChildren")
     def reparentChildren(self, parent_joint):
         """子 joint を指定した親 joint へ付け替える。
 
@@ -669,7 +671,7 @@ class Joints(Transforms):
         return Joints(sorted(self._items, key=lambda joint: joint.depth(), reverse=True))
 
     @fast_edit
-    @undo_chunk("hlibJointsJointOrientToRotate")
+    @undoChunk("hlibJointsJointOrientToRotate")
     def jointOrientToRotate(self, *, fast=False):
         """全jointの姿勢を保ち、jointOrientをrotateへ合成して0にする。
 
@@ -691,7 +693,7 @@ class Joints(Transforms):
         return self._transfer_rotation()
 
     @fast_edit
-    @undo_chunk("hlibJointsFreezeRotation")
+    @undoChunk("hlibJointsFreezeRotation")
     def freezeRotation(self, *, fast=False):
         """全jointのrotateをjointOrientへ移し、姿勢を保ってrotateを0にする。
 

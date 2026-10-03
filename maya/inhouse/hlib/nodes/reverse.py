@@ -1,6 +1,6 @@
 """XYZ各成分の1-inputを計算する。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Vector
 from ._calculation import _Calculation
@@ -26,7 +26,7 @@ class Reverse(Node):
         return self.inputPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -42,7 +42,7 @@ class Reverse(Node):
         _Calculation.set_value(value, _Calculation.vector, self.inputPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
@@ -53,7 +53,7 @@ class Reverse(Node):
             Reverse: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, force=force)
         return self

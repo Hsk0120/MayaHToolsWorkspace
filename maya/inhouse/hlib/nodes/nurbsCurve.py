@@ -138,7 +138,7 @@ class NurbsCurve(Shape):
         ws = world_space(space)
         from ..utils import units
         # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
-        factor = units.convert_distance(1.0, from_unit="cm", to_unit=unit)
+        factor = units.convertDistance(1.0, from_unit="cm", to_unit=unit)
         tolerance = float(tolerance)
         if not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError("tolerance must be positive and finite")

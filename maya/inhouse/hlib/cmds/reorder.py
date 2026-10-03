@@ -2,11 +2,11 @@
 
 from maya import cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("reorder")
-@undo_chunk("hlib.cmds.reorder")
+@undoChunk("hlib.cmds.reorder")
 def reorder(*args, **kwargs):
     """DAGの兄弟順序を変更する。
 

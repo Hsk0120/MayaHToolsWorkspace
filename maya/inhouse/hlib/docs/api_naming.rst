@@ -57,6 +57,17 @@ JSONスナップショットは単位情報付きの保存形式を使い、適�
 命名規則
 ----------------------------------------------------------------------
 
+公開関数・メソッド・プロパティは、UI・環境・JSON・utils・decoratorsを含め
+lowerCamelCaseへ統一します。例えば ``get_settings`` は ``getSettings``、
+``undo_chunk`` は ``undoChunk``、``to_data`` は ``toData``、
+``minimum_version`` プロパティは ``minimumVersion`` です。
+旧名の別名は残しません。コンストラクター引数の ``minimum_version`` は維持します。
+
+Maya標準名、om2継承メソッド、Python特殊メソッド、標準APIと通知APIの
+``get_logger`` / ``raise_with_notify`` は例外です。引数・内部関数・ローカル変数は
+snake_caseを使用できます。保存キー・保存フィールドは変更しません。
+この表記整理によって単位、戻り値、Undo、編集範囲の仕様は変更していません。
+
 * パッケージ: 既存の小文字名を維持。``hlib_bifrost`` 等の拡張名も変更しない。
 * 一般Pythonモジュール: lowerCamelCase。例: ``eulerRotation.py``、``scriptJob.py``。
   hlibとすべての ``hlib_*`` 拡張パッケージで共通。
@@ -258,7 +269,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   インフルエンスの解除は ``SkinClusters.removeInfluences()`` です。
   ``SkinCluster.bind`` の最大数指定は ``max_influences`` に統一しました。
 * ``PluginPackage`` の保持値 ``name`` / ``plugins`` / ``module`` /
-  ``minimum_version`` / ``minimum_maya`` はプロパティです。
+  ``minimumVersion`` / ``minimumMaya`` はプロパティです。
 
 これらの旧入口は残していません。ノードの入力・出力取得、回転表現の取得、
 ジョイント回転のフリーズは、それぞれの意味が明確な既存メソッドを維持しています。
@@ -270,7 +281,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 * ``Double3Plug.set`` はTransformへ委譲せず、対象チャンネルだけを書き込みます。
   旧コードで姿勢の変更を意図していた場合はTransformの ``setRotation`` 等へ移行します。
 * 全Plugの ``get`` から ``ws`` を削除しました。アトリビュートの値に空間指定はありません。
-* ``set_locked`` / ``set_keyable`` / ``set_channel_box`` は、それぞれ
+* ``setLocked`` / ``set_keyable`` / ``set_channel_box`` は、それぞれ
   ``setFlags(locked=...)`` / ``setFlags(keyable=...)`` / ``setFlags(channelBox=...)``
   へ統一しました。同時指定もでき、全フラグを検証してから更新します。
 * ``Joint.orientation()`` は廃止し ``getJointOrient()`` を使います。
@@ -348,11 +359,11 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 値の取得と設定は ``get_*`` / ``set_*``、接続用Plugの取得は ``*_plug()``
 に統一しました。旧メソッド名の互換別名はありません。
 
-* TimeSlider: ``get_current_time()``、``get_playback_range()``、
-  ``get_animation_range()``、``get_selected_range()``。
-* Preferences: ``get_linear_unit()``、``get_angle_unit()``、``get_time_unit()``。
-* Viewport / Outliner: ``get_settings()``。
-* Workspace: ``get_rule()``、ルール名一覧は ``rule_names()``。
+* TimeSlider: ``getCurrentTime()``、``getPlaybackRange()``、
+  ``getAnimationRange()``、``getSelectedRange()``。
+* Preferences: ``getLinearUnit()``、``getAngleUnit()``、``getTimeUnit()``。
+* Viewport / Outliner: ``getSettings()``。
+* Workspace: ``getRule()``、ルール名一覧は ``ruleNames()``。
 * SkinCluster: ``getMaxInfluences()``。
 * Joint: ``getJointOrient()``、``getInverseScale()``。
 * Camera: ``getFocalLength()``。Mesh: ``getPoints()``、``getNormals()``。
@@ -393,8 +404,8 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
      - ``associatedNamespace()``
    * - ``Reference.isRoot()`` （参照階層の判定）
      - ``isTopLevel()``
-   * - ``PluginPackage.ensure_loaded()``
-     - ``try_load()`` （状態文字列を返す）
+   * - ``PluginPackage.ensureLoaded()``
+     - ``tryLoad()`` （状態文字列を返す）
    * - ``Node.add_attr()`` / ``has_attr()``
      - ``addAttribute()`` / ``hasAttribute()``
    * - ``Node.reset_attrs()`` / ``set_attr_flags()``
@@ -436,10 +447,10 @@ weight未設定時は要素を作らず1を返します。
 成分別編集とメンバー入力
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-頂点・CVの ``getX/getY/getZ`` と ``setX/setY/setZ`` は ``ws`` を受け取り、
+頂点・CVの ``getX/getY/getZ`` と ``setX/setY/setZ`` は ``space=MSpace.kObject`` / ``MSpace.kWorld`` を受け取り、
 軸setterは ``fast`` にも対応して自身を返します。複数形ではスカラーを全要素へ、
 数値列を保持順の各要素へ設定します。UVの ``setU/setV`` も ``fast`` と自身返却に対応しますが、
-UVへ空間指定 ``ws`` は追加しません。通常更新はUndo可能、``fast=True`` はUndo不要の明示指定です。
+UVへ空間指定 ``space`` は追加しません。通常更新はUndo可能、``fast=True`` はUndo不要の明示指定です。
 
 ``Container`` / ``DagPose`` のメンバー追加と、DagPoseの除外は可変長入力とリスト入力に対応します。
 例えば ``pose.addMembers(a, b)`` と ``pose.addMembers([a, b])`` は同じです。
@@ -488,7 +499,7 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
 ``ls()`` の戻り値規則は維持します。joint/skinCluster指定は専用コレクション、
 その他はリストです。copy/sliceは参照のコピーで、シーンのノード複製ではありません。
 一括操作の実行中に失敗した場合は停止し、完了済み操作を自動では戻しません。
-``undo_chunk`` と ``undo_transaction`` の保証範囲はそれぞれの仕様に従います。
+``undoChunk`` と ``undoTransaction`` の保証範囲はそれぞれの仕様に従います。
 ``reload()`` 後は保持しているラッパーを取得し直してください。
 旧クラスのインスタンスを新しい型へ自動移行したり、新旧間の比較を保証したりしません。
 
@@ -549,9 +560,9 @@ Plug派生の直接コンストラクターは、拡張実装で指定クラス�
    * - ファイル・UI・プラグイン管理
      - シーンUndoやfastによる復旧の保証対象ではない
 
-fastの完了済み更新はUndoや ``undo_transaction`` では戻せません。
-``undo_chunk`` はUndoをまとめるだけで、例外時に自動で巻き戻しません。
-``undo_transaction`` は巻き戻しを試みますが、その成功を保証しません。
+fastの完了済み更新はUndoや ``undoTransaction`` では戻せません。
+``undoChunk`` はUndoをまとめるだけで、例外時に自動で巻き戻しません。
+``undoTransaction`` は巻き戻しを試みますが、その成功を保証しません。
 後始末が失敗した場合は警告し、本処理が投げた例外を優先します。
 復旧用ガードの作成またはチャンク終了に失敗した場合は、無関係なUndo履歴を
 戻すことを避けるため、自動巻き戻しを実行しません。

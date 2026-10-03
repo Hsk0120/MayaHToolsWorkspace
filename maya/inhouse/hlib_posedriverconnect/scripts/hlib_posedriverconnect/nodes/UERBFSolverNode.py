@@ -2,7 +2,7 @@
 
 from hlib.nodes import Node
 from hlib.extensions import node_wrapper
-from hlib.decorators import undo_chunk
+from hlib.decorators import undoChunk
 from epic_pose_wrangler.v2.model.api import RBFNode
 
 
@@ -26,7 +26,7 @@ class UERBFSolverNode(Node):
         """float: 外部APIの半径設定値を取得する。"""
         return self.native_api().radius()
 
-    @undo_chunk("hlibPoseDriverConnectSetRadius")
+    @undoChunk("hlibPoseDriverConnectSetRadius")
     def setRadius(self, value):
         """ソルバー半径を変更する。Maya cmds経由でUndo可能。
 

@@ -34,19 +34,19 @@ class PluginVersionTest(unittest.TestCase):
 
     def test_version_parts_match_version_string(self):
         plugin = Plugin(self.pluginName)
-        self.assertEqual(plugin.version().parts, Version.parse(plugin.version_text()).parts)
+        self.assertEqual(plugin.version().parts, Version.parse(plugin.versionText()).parts)
 
     def test_is_version_at_least(self):
         plugin = Plugin(self.pluginName)
-        self.assertTrue(plugin.is_version_at_least("0"))
-        self.assertFalse(plugin.is_version_at_least("999999"))
+        self.assertTrue(plugin.isVersionAtLeast("0"))
+        self.assertFalse(plugin.isVersionAtLeast("999999"))
         with self.assertRaises(ValueError):
-            plugin.is_version_at_least("bad")
+            plugin.isVersionAtLeast("bad")
 
     def test_unknown_plugin_has_no_version(self):
         plugin = Plugin("hlibDoesNotExistPlugin123")
         self.assertIsNone(plugin.version())
-        self.assertFalse(plugin.is_version_at_least("0"))
+        self.assertFalse(plugin.isVersionAtLeast("0"))
 
 
 class ModuleTest(unittest.TestCase):
@@ -57,10 +57,10 @@ class ModuleTest(unittest.TestCase):
 
     def test_unknown_module(self):
         module = Module("hlibDoesNotExistModule123")
-        self.assertFalse(module.is_registered())
+        self.assertFalse(module.isRegistered())
         self.assertIsNone(module.version())
         self.assertIsNone(module.path())
-        self.assertFalse(module.is_version_at_least("0"))
+        self.assertFalse(module.isVersionAtLeast("0"))
 
     def test_registered_module_matches_moduleInfo(self):
         modules = cmds.moduleInfo(listModules=True) or []
@@ -68,9 +68,9 @@ class ModuleTest(unittest.TestCase):
             self.skipTest("登録済みモジュールが無い")
         name = modules[0]
         module = Module(name)
-        self.assertTrue(module.is_registered())
-        self.assertEqual(module.version_text(), cmds.moduleInfo(version=True, moduleName=name) or None)
-        self.assertEqual(module.version(), Version.parse(module.version_text()))
+        self.assertTrue(module.isRegistered())
+        self.assertEqual(module.versionText(), cmds.moduleInfo(version=True, moduleName=name) or None)
+        self.assertEqual(module.version(), Version.parse(module.versionText()))
         self.assertEqual(module.path(), cmds.moduleInfo(path=True, moduleName=name) or None)
 
     def test_equality_hash_and_repr(self):
@@ -122,11 +122,11 @@ class PluginPackageFlowTest(unittest.TestCase):
         options.update(kwargs)
         return PluginPackage("ProductX", **options)
 
-    def run_flow(self, package, installed, loaded_version=None, failed=()):
-        with mock.patch.object(PluginPackage, "installed_version", return_value=Version.parse(installed)), \
-                mock.patch.object(PluginPackage, "loaded_version", return_value=Version.parse(loaded_version)), \
-                mock.patch.object(PluginPackage, "load_plugins", return_value=list(failed)) as loader:
-            result = package.try_load(dialog=self.shown.append)
+    def run_flow(self, package, installed, loadedVersion=None, failed=()):
+        with mock.patch.object(PluginPackage, "installedVersion", return_value=Version.parse(installed)), \
+                mock.patch.object(PluginPackage, "loadedVersion", return_value=Version.parse(loadedVersion)), \
+                mock.patch.object(PluginPackage, "loadPlugins", return_value=list(failed)) as loader:
+            result = package.tryLoad(dialog=self.shown.append)
         return result, loader
 
     def test_constructor_validation(self):
@@ -145,13 +145,13 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.assertEqual(package.name, "ProductX")
         self.assertEqual([p.name for p in package.plugins], ["pluginA", "pluginB"])
         self.assertEqual(str(package.module), "ModuleX")
-        self.assertEqual(package.minimum_version, Version((3, 0, 0)))
-        self.assertEqual(package.minimum_maya, 2025)
+        self.assertEqual(package.minimumVersion, Version((3, 0, 0)))
+        self.assertEqual(package.minimumMaya, 2025)
         self.assertIn("ProductX", repr(package))
         default = PluginPackage("y", plugins=("first", "second"))
         self.assertIsNone(default.module)
-        self.assertIsNone(default.minimum_version)
-        self.assertIsNone(default.minimum_maya)
+        self.assertIsNone(default.minimumVersion)
+        self.assertIsNone(default.minimumMaya)
 
     def test_old_maya_is_skipped(self):
         self.fake.year = "2024"
@@ -161,7 +161,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.assertEqual(self.shown, [])
 
     def test_supported_version_loads_without_dialog(self):
-        result, loader = self.run_flow(self.make(), (3, 0, 0, 0), loaded_version=(3, 0, 0, 0))
+        result, loader = self.run_flow(self.make(), (3, 0, 0, 0), loadedVersion=(3, 0, 0, 0))
         self.assertEqual(result, LOADED)
         loader.assert_called_once_with()
         self.assertEqual(self.shown, [])
@@ -169,10 +169,10 @@ class PluginPackageFlowTest(unittest.TestCase):
 
     def test_silent_initialization_failure_is_not_loaded(self):
         """Mayaが初期化失敗を例外にしない場合もLOAD_FAILEDを返す。"""
-        with mock.patch.object(PluginPackage, "installed_version", return_value=Version((3, 0, 0))), \
+        with mock.patch.object(PluginPackage, "installedVersion", return_value=Version((3, 0, 0))), \
                 mock.patch.object(cmds, "loadPlugin", return_value=None), \
                 mock.patch.object(Plugin, "isLoaded", return_value=False):
-            result = self.make().try_load(dialog=self.shown.append)
+            result = self.make().tryLoad(dialog=self.shown.append)
         self.assertEqual(result, LOAD_FAILED)
         self.assertEqual(len(self.fake.warnings), 2)
         self.assertIn("pluginA", self.fake.warnings[0])
@@ -180,7 +180,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.assertEqual(self.shown, [])
 
     def test_newer_version_is_accepted(self):
-        result, _ = self.run_flow(self.make(), (3, 1, 0, 8), loaded_version=(3, 1, 0, 8))
+        result, _ = self.run_flow(self.make(), (3, 1, 0, 8), loadedVersion=(3, 1, 0, 8))
         self.assertEqual(result, LOADED)
 
     def test_missing_shows_dialog_and_does_not_load(self):
@@ -199,7 +199,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.assertIn("2.15.0.0", self.shown[0])
 
     def test_already_loaded_old_plugin_is_reported(self):
-        result, _ = self.run_flow(self.make(), (3, 0, 0, 0), loaded_version=(2, 15, 0, 0))
+        result, _ = self.run_flow(self.make(), (3, 0, 0, 0), loadedVersion=(2, 15, 0, 0))
         self.assertEqual(result, OUTDATED)
         self.assertEqual(len(self.shown), 1)
 
@@ -216,11 +216,11 @@ class PluginPackageFlowTest(unittest.TestCase):
 
     def test_dialog_options(self):
         package = self.make()
-        with mock.patch.object(PluginPackage, "installed_version", return_value=None):
-            self.assertEqual(package.try_load(dialog=False, warn=False), MISSING)
+        with mock.patch.object(PluginPackage, "installedVersion", return_value=None):
+            self.assertEqual(package.tryLoad(dialog=False, warn=False), MISSING)
             self.assertEqual(self.fake.dialogs, [])
             self.assertEqual(self.fake.warnings, [])
-            self.assertEqual(package.try_load(), MISSING)
+            self.assertEqual(package.tryLoad(), MISSING)
         self.assertEqual(len(self.fake.dialogs), 1)
         self.assertIn("ProductX", self.fake.dialogs[0]["title"])
         self.assertEqual(self.fake.dialogs[0]["icon"], "warning")
@@ -228,8 +228,8 @@ class PluginPackageFlowTest(unittest.TestCase):
     def test_dialog_is_skipped_in_batch(self):
         self.fake.batch = True
         package = self.make()
-        with mock.patch.object(PluginPackage, "installed_version", return_value=None):
-            self.assertEqual(package.try_load(), MISSING)
+        with mock.patch.object(PluginPackage, "installedVersion", return_value=None):
+            self.assertEqual(package.tryLoad(), MISSING)
         self.assertEqual(self.fake.dialogs, [])
 
     def test_custom_install_hint(self):
@@ -243,11 +243,11 @@ class PluginPackageRealTest(unittest.TestCase):
     def test_unknown_package_is_not_installed(self):
         package = PluginPackage("Unknown", plugins=("hlibDoesNotExistPlugin123",),
                                 module="hlibDoesNotExistModule123", minimum_version="1.0")
-        self.assertIsNone(package.installed_version())
-        self.assertIsNone(package.loaded_version())
-        self.assertFalse(package.is_installed())
+        self.assertIsNone(package.installedVersion())
+        self.assertIsNone(package.loadedVersion())
+        self.assertFalse(package.isInstalled())
         shown = []
-        self.assertEqual(package.try_load(dialog=shown.append), MISSING)
+        self.assertEqual(package.tryLoad(dialog=shown.append), MISSING)
         self.assertEqual(len(shown), 1)
 
     def test_standard_plugin_package_loads(self):
@@ -255,10 +255,10 @@ class PluginPackageRealTest(unittest.TestCase):
         was_loaded = cmds.pluginInfo(name, query=True, loaded=True)
         try:
             package = PluginPackage("Matrix nodes", plugins=(name,))
-            self.assertEqual(package.try_load(dialog=False), LOADED)
-            self.assertTrue(package.is_installed())
+            self.assertEqual(package.tryLoad(dialog=False), LOADED)
+            self.assertTrue(package.isInstalled())
             self.assertTrue(cmds.pluginInfo(name, query=True, loaded=True))
-            self.assertEqual(package.loaded_version(), Plugin(name).version())
+            self.assertEqual(package.loadedVersion(), Plugin(name).version())
         finally:
             if not was_loaded and cmds.pluginInfo(name, query=True, loaded=True):
                 cmds.unloadPlugin(name)
@@ -266,12 +266,12 @@ class PluginPackageRealTest(unittest.TestCase):
     def test_unknown_package_without_minimum_version_is_missing_after_load_fails(self):
         package = PluginPackage("Unknown", plugins=("hlibDoesNotExistPlugin123",))
         shown = []
-        self.assertEqual(package.try_load(dialog=shown.append), MISSING)
+        self.assertEqual(package.tryLoad(dialog=shown.append), MISSING)
         self.assertEqual(len(shown), 1)
 
     def test_installed_version_falls_back_to_plugin_version(self):
         package = PluginPackage("Matrix nodes", plugins=("matrixNodes",), module="hlibDoesNotExistModule123")
-        self.assertEqual(package.installed_version(), Plugin("matrixNodes").version())
+        self.assertEqual(package.installedVersion(), Plugin("matrixNodes").version())
 
 
 class RequirePluginsCommandTest(unittest.TestCase):
@@ -323,21 +323,21 @@ class BifrostTest(unittest.TestCase):
         self.package = PluginPackage("Bifrost", plugins=("mayaVnnPlugin", "bifrostGraph", "flowWedging"),
                                      module="Bifrost", version_plugin="bifrostGraph",
                                      minimum_version="3.0.0", minimum_maya=2025)
-        if year < 2025 or not self.package.is_installed():
+        if year < 2025 or not self.package.isInstalled():
             self.skipTest("Maya 2025以降でBifrost 3.0.0以降が導入された環境でのみ実行する")
 
     def test_try_load(self):
         shown = []
-        self.assertEqual(self.package.try_load(dialog=shown.append), LOADED)
+        self.assertEqual(self.package.tryLoad(dialog=shown.append), LOADED)
         self.assertEqual(shown, [])
         for plugin in self.package.plugins:
             self.assertTrue(plugin.isLoaded(), plugin.name)
-        self.assertTrue(self.package.loaded_version().is_at_least("3.0.0"))
+        self.assertTrue(self.package.loadedVersion().isAtLeast("3.0.0"))
 
     def test_too_new_version_is_reported_missing(self):
         package = PluginPackage("Bifrost", plugins=("bifrostGraph",), module="Bifrost", minimum_version="99.0")
         shown = []
-        self.assertEqual(package.try_load(dialog=shown.append), MISSING)
+        self.assertEqual(package.tryLoad(dialog=shown.append), MISSING)
         self.assertIn("99.0", shown[0])
 
 

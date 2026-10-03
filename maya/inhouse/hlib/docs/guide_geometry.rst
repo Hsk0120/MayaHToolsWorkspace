@@ -86,7 +86,8 @@ Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
    print(curve.getCollocatedCVGroups())  # 重なった CV のグループ（無ければ []）
 
 ``length()`` は計算ノードを追加せず、現在のカーブ長を取得します。
-戻り値は既定で現在のシーンの距離UI単位です。unitにはmm/cm/m/km/in/ft/yd/mi、
+戻り値は既定でcmです。``unit=None`` の場合だけ現在の距離UI単位を使います。
+unitにはmm/cm/m/km/in/ft/yd/mi、
 またはMayaの長名を指定できます。シーン設定は変更しません。
 space=MSpace.kWorldは非均等スケール・シアーと対象インスタンスの変換も反映します。
 toleranceは出力単位によらず内部単位（cm）での計算許容誤差です。
@@ -97,12 +98,14 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
    from hlib.environment import Preferences
    from hlib.utils import units
 
-   print(Preferences.get_linear_unit())  # 現在のシーン単位（例: "cm"）
-   print(units.convert_distance(100, from_unit="cm", to_unit="m"))  # 1.0
+   print(Preferences.getLinearUnit())  # 現在のシーン単位（例: "cm"）
+   print(units.convertDistance(100, from_unit="cm", to_unit="m"))  # 1.0
 
 位置配列は Maya API 2.0 の ``MPointArray``、法線配列は ``MFloatVectorArray`` です。
 距離は Maya API の内部単位を使い、``space=MSpace.kObject`` はオブジェクト空間です。
-``normals`` の ``angle_weighted=True`` は隣接面の角度で重み付けした法線を返します。
+``getNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を
+頂点ごとに平均して、頂点番号順に返します。``angle_weighted=True`` は角度で重み付けし、
+Falseは角度による重み付けをしません。面ごとの法線配列や最初の面法線ではありません。
 ``getCollocatedCVGroups`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの
 重複 CV など）を検出し、2個以上重なっているグループのみを CV 番号のリストとして
 返します（単独の CV は含みません）。``tolerance`` で同一位置とみなす距離の
@@ -124,8 +127,8 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
    mesh.mirror(axis="x", indices=[0, 1, 2])          # 指定した頂点だけ反転
 
 ``axis`` は x、y、z またはその組み合わせを指定します。大文字も使用できます。
-``ws`` の既定値は ``False`` です。``pivot`` は指定した空間の座標で、
-単位は Maya の現在の距離単位です。既定はその空間の原点で、
+``space`` の既定値は ``MSpace.kObject`` です。``pivot`` は指定した空間の座標で、
+単位はcmです。既定はその空間の原点で、
 Transform のピボット位置は自動では使用しません。
 ``indices=None`` は全頂点／全 CV、空のリストは変更なしです。
 
@@ -152,7 +155,7 @@ Shapeやコンポーネントの ``mirror()`` は変更していません。
 
 Transform・Jointで使用でき、Transforms・Jointsからも一括実行できます。
 通常処理はUndo対応、``fast=True`` はUndoなしです。
-``pivot`` は現在のMaya距離単位です。``space=MSpace.kObject`` は形状ミラーの
+``pivot`` はcm単位です。``space=MSpace.kObject`` は形状ミラーの
 オブジェクト空間と異なり、親Transformの座標空間です。
 
 向きは ``Matrix.mirrored()`` と同じビヘイビアミラーです。
@@ -170,7 +173,8 @@ Transform・Jointで使用でき、Transforms・Jointsからも一括実行で�
 --------------------
 
 Vertex / CV はシーンを参照する単体ラッパーです。``getX()`` / ``getY()`` /
-``getZ()`` はオブジェクト空間の座標を、Mayaの現在の距離単位で返します。
+``getZ()`` は既定でオブジェクト空間の座標を、cm単位で返します。
+``space=MSpace.kWorld`` でワールド空間を指定できます。
 ``setX(value)`` などのメソッドでシーンを更新し、Undoできます。座標のスナップショットが
 必要な場合は ``getPosition()`` が返すタプルを保持してください。
 
@@ -200,8 +204,10 @@ Vertex / CV はシーンを参照する単体ラッパーです。``getX()`` / `
     print(mesh.uvs().getPosition())
 
 単体型は Vertex、CV、Edge、Face、UV、複数形は Vertices、CVs、Edges、Faces、UVs です。
-複数形は反復、添字、スライスに対応します。番号は作成時に固定し、座標は現在の値を
+複数形は反復、添字、スライスに対応します。番号はOpenMayaと同じで作成時に固定し、座標は現在の値を
 取得します。トポロジー変更後の要素の同一性は保証しません。
+周期カーブのCVは末尾の重複CVもAPI番号で参照します。cmdsへ渡す名前や通常更新では、
+末尾の重複CVを先頭の対応する番号へ変換します。
 UV は現在の UV セットを参照し、セットを切り替えると切替先を参照します。
 既存の ``mesh.mirror()`` / ``curve.mirror()`` も複数形へ委譲して使用できます。
 
@@ -238,3 +244,9 @@ Transformのピボット位置は自動では使いません。
 サーフェス・周期カーブ・入力履歴付き形状のfast更新は ``NotImplementedError`` です。
 周期カーブの先頭と末尾が同じCVを表す場合、番号をまとめて一回だけ拡縮します。
 重み付きCVのワールドXYZはOpenMayaの値を使い、設定時もCVの重みを保持して逆変換します。
+
+
+単数の ``setPosition``、複数の ``setPositions``、Shapeの ``scaleGeometry`` は
+同じ座標書込み処理を使います。複数点の通常更新も単数ラッパーを生成し直さず、
+指定順でcmdsへ書き込みます。通常更新は一回のUndo、fast更新はUndoなしです。
+周期CVを複数回指定した座標設定は後の値を優先し、拡縮では同じCVを一回だけ処理します。

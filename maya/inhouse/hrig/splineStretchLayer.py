@@ -5,7 +5,7 @@ from maya import cmds
 import hlib
 
 from hrig.setups import LengthCompensation
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SplineStretchLayer:
@@ -43,7 +43,7 @@ class SplineStretchLayer:
         """
         return hlib.nodes.Container(owner).createNode(kind, name=owner.name() + "_" + role)
 
-    @undo_transaction("hrig.SplineStretchLayer.add")
+    @undoTransaction("hrig.SplineStretchLayer.add")
     def add(self):
         """現在の骨長を基準に伸縮レイヤーを追加する。
 
@@ -59,7 +59,7 @@ class SplineStretchLayer:
         if any(hlib.getNode(j).connections(type="skinCluster") for j in rig.joints()):
             raise ValueError("Add stretch before binding the spline")
         lengths = [
-            hlib.utils.units.distance_from_ui(hlib.getAttr(j.fullName() + ".translateX"))
+            j.plug("translateX").get()
             for j in rig.members("ik")[1:]
         ]
         graph = LengthCompensation.create(sum(lengths), root.name() + "_stretchGraph")

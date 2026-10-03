@@ -19,10 +19,21 @@ def dumps(data, metadata=None, indent=2):
         TypeError: 未対応型・文字列以外の辞書キー等の場合。
         ValueError: 非有限値等の場合。"""
     document = data if isinstance(data, JsonDocument) else JsonDocument(data, metadata or {})
-    return _json.dumps(document.to_data(), ensure_ascii=False, allow_nan=False, indent=indent)
+    return _json.dumps(document.toData(), ensure_ascii=False, allow_nan=False, indent=indent)
 
 
 def _pairs(pairs):
+    """JSON オブジェクトのキー重複を拒否して辞書を作る。
+
+    Args:
+        pairs (Iterable): キーと値の組。
+
+    Returns:
+        dict: 重複のない辞書。
+
+    Raises:
+        ValueError: 同じキーが複数回現れた場合。
+    """
     result = {}
     for key, value in pairs:
         if key in result:
@@ -45,9 +56,20 @@ def loads(text):
 
 
 def _read_document(text):
+    """JSON テキストを検証してドキュメントへ復号する。
+
+    Args:
+        text (str): hlib.json の JSON テキスト。
+
+    Returns:
+        JsonDocument: 復号したドキュメント。
+
+    Raises:
+        ValueError: JSON が不正、キーが重複、非有限数を含む場合など。
+    """
     def invalid(value):
         raise ValueError("Invalid JSON number: " + value)
-    return JsonDocument.from_data(_json.loads(text, object_pairs_hook=_pairs, parse_constant=invalid))
+    return JsonDocument.fromData(_json.loads(text, object_pairs_hook=_pairs, parse_constant=invalid))
 
 
 def dump(data, path=None, metadata=None, indent=2):
@@ -88,7 +110,7 @@ def dump(data, path=None, metadata=None, indent=2):
         raise
 
 
-def load_document(path):
+def loadDocument(path):
     """メタデータを含むJsonDocumentを読み込む。
 
     Args:
@@ -113,4 +135,9 @@ def load(path):
         OSError: ファイルを読み込めない場合。
         ValueError: デコード・JSON構文・形式/版等が不正な場合。
         KeyError: 必須フィールドが欠落している場合。"""
-    return load_document(path).data
+    return loadDocument(path).data
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('load_document',):
+    globals().pop(_obsolete_name, None)

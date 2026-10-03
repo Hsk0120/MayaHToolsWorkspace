@@ -1,6 +1,6 @@
 """ランプで値を再マッピングする。色ランプも操作できる。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
 from .node import Node
@@ -25,7 +25,7 @@ class RemapValue(Node):
         return self.inputPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -41,7 +41,7 @@ class RemapValue(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.inputPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
@@ -52,7 +52,7 @@ class RemapValue(Node):
             RemapValue: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, force=force)
         return self
@@ -65,7 +65,7 @@ class RemapValue(Node):
         return {key: self.plug(attr).get() for key, attr in (("input_min", "inputMin"), ("input_max", "inputMax"), ("output_min", "outputMin"), ("output_max", "outputMax"))}
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setRange(self, input_min, input_max, output_min, output_max, *, fast=False):
         """入出力範囲を設定する。
 
@@ -113,7 +113,7 @@ class RemapValue(Node):
             result[index] = {"position": point.child(0).get(), "value": point.child(1).get(), "interpolation": point.child(2).get()}
         return result
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setRampPoint(self, index, position, value, interpolation="linear", kind="value"):
         """指定番号のランプ点を追加または編集する。
 
@@ -142,7 +142,7 @@ class RemapValue(Node):
         point.child(2).set(mode)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def removeRampPoint(self, index, kind="value"):
         """指定したランプ点を削除する。
 

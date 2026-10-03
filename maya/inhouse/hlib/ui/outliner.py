@@ -37,7 +37,7 @@ class Outliner(_Editor):
             raise RuntimeError(f"No outlinerEditor available: {editor}")
         self._name = editor
 
-    def expand_all(self, expanded=True):
+    def expandAll(self, expanded=True):
         """表示中の階層をすべて展開、または折りたたむ。
 
         Args:

@@ -12,7 +12,14 @@ def is_fast():
 
 
 def fast_edit(function):
-    """fast引数を検証し、内側の対応メソッドへ実行モードを伝える。"""
+    """fast引数を検証し、内側の対応メソッドへ実行モードを伝える。
+
+    Args:
+        function (callable): fast 引数を持つ編集関数。
+
+    Returns:
+        callable: fast の検証と実行モードの伝播を行う関数。
+    """
     signature = inspect.signature(function)
     parameter = signature.parameters.get("fast")
     keyword_only = parameter is not None and parameter.kind == inspect.Parameter.KEYWORD_ONLY

@@ -15,31 +15,31 @@
     hlib.reload()
 
     slider = hlib.getTimeSlider()  # hlib.ui.TimeSlider
-    print(slider.get_current_time(), slider.get_playback_range())
-    slider.set_playback_range(1, 120)
-    with slider.preserve_time():
-        slider.set_current_time(24)
-    print(slider.get_selected_range())  # 未選択はNone。選択範囲の終端は含まない
+    print(slider.getCurrentTime(), slider.getPlaybackRange())
+    slider.setPlaybackRange(1, 120)
+    with slider.preserveTime():
+        slider.setCurrentTime(24)
+    print(slider.getSelectedRange())  # 未選択はNone。選択範囲の終端は含まない
 
     view = hlib.getViewport()  # hlib.ui.Viewport
     print(view.panel, view.camera())
-    with view.temporary_settings(grid=False, joints=False):
+    with view.temporarySettings(grid=False, joints=False):
         pass  # 終了時に指定した表示設定を復元
     with view.suspend():
         pass  # 重い処理。例外時もメインペインの表示状態を復元
 
     outliner = hlib.getOutliner()  # hlib.ui.Outliner
-    outliner.set_settings(showShapes=True, showNamespace=True)
-    outliner.expand_all()       # 展開
-    outliner.expand_all(False)  # 折りたたむ
+    outliner.setSettings(showShapes=True, showNamespace=True)
+    outliner.expandAll()       # 展開
+    outliner.expandAll(False)  # 折りたたむ
 
-``Viewport.suspend()`` はmGearの ``viewport_off`` と同様に、メインペインの
+``Viewport.suspend()`` はmGearの ``viewportOff`` と同様に、メインペインの
 ``manage`` を一時的に無効化します。計算・再生を停止する機能ではありません。
 メインペイン内のアウトライナー等も対象となり、切り離したウィンドウは対象外です。
 元から非表示の場合は非表示へ戻り、ネストと例外にも対応します。
-手動切替には ``Viewport.set_enabled(False/True)``、照会には ``is_enabled()`` を使います。
+手動切替には ``Viewport.setEnabled(False/True)``、照会には ``isEnabled()`` を使います。
 
-表示設定はMayaの長いフラグ名で指定します。``get_settings()`` は対応する表示設定のみを
+表示設定はMayaの長いフラグ名で指定します。``getSettings()`` は対応する表示設定のみを
 返し、UI全体やカメラ・階層展開状態は保存しません。
 対象を明示する場合は ``hlib.getViewport("modelPanel4")``、
 ``hlib.getOutliner("outlinerPanel1")`` のように指定します。UIの自動作成は行いません。
@@ -57,19 +57,19 @@ ChannelBoxと選択状態の操作は :doc:`selection_and_channelbox` を参照�
 
 ``hlib.bakeResults()`` はGUIでのベイク中、自動でメインペインを非表示にします。
 正常終了・例外のどちらでも元の表示状態へ戻します。
-ベイク以外のツールには ``viewport_off()`` をデコレーターまたはコンテキストとして使えます。
+ベイク以外のツールには ``viewportOff()`` をデコレーターまたはコンテキストとして使えます。
 
 .. code-block:: python
 
-    from hlib.decorators import viewport_off
+    from hlib.decorators import viewportOff
 
-    @viewport_off()
+    @viewportOff()
     def build_animation():
         hlib.bakeResults("pCube1", time=(1, 120), attribute="translateX")
 
-    with viewport_off():
+    with viewportOff():
         build_animation()
 
-括弧付きの ``@viewport_off()`` を使用します。入れ子でも途中で表示は戻りません。
+括弧付きの ``@viewportOff()`` を使用します。入れ子でも途中で表示は戻りません。
 バッチ実行では表示操作を省略し、ブロックの処理だけ実行します。
 OGS・refresh・評価設定は変更しません。例外時に処理を自動再実行することもありません。

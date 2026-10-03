@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 
 
@@ -24,7 +24,7 @@ class ObjectSet(Node):
         names = cmds.sets(self.name(), query=True) or []
         return [name if "." in name else Node(name) for name in names]
 
-    @undo_chunk("hlibObjectSetAdd")
+    @undoChunk("hlibObjectSetAdd")
     def addMembers(self, *members):
         """メンバーを追加する。
 
@@ -40,7 +40,7 @@ class ObjectSet(Node):
             cmds.sets(_InputObject._input_names(members), add=self.name())
         return self
 
-    @undo_chunk("hlibObjectSetRemove")
+    @undoChunk("hlibObjectSetRemove")
     def removeMembers(self, *members):
         """メンバーを除外する。
 

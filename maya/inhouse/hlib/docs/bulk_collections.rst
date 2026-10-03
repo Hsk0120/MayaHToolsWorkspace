@@ -36,7 +36,7 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
    joints.callEach(
        "setTranslation",
        [((1, 2, 3),), ((4, 5, 6),)],
-       [{"ws": True}, {"ws": True}],
+       [{"space": MSpace.kWorld}, {"space": MSpace.kWorld}],
    )
    joints.callEach("rename", [("arm_joint",), ("leg_joint",)])
 

@@ -3,7 +3,7 @@
 import math
 
 
-def mirror_arguments(axis, pivot):
+def mirrorArguments(axis, pivot):
     """反転軸と有限な中心座標を検証する。
 
     Args:
@@ -30,3 +30,8 @@ def mirror_arguments(axis, pivot):
     if len(center) != 3 or not all(math.isfinite(value) for value in center):
         raise ValueError("pivot must contain three finite numbers")
     return tuple("xyz".index(value) for value in axis), center
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('mirror_arguments',):
+    globals().pop(_obsolete_name, None)

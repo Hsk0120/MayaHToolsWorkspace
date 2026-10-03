@@ -77,12 +77,12 @@ Preferencesの各メソッド
    from hlib.environment import Preferences
 
    prefs = Preferences()
-   prefs.set_track_selection_order(True, save=True)
-   prefs.set_undo_limit(100)
-   prefs.set_autosave_interval(600)
+   prefs.setTrackSelectionOrder(True, save=True)
+   prefs.setUndoLimit(100)
+   prefs.setAutosaveInterval(600)
    prefs.save()  # 対応するユーザー設定をまとめて同期・保存
 
-単位はシーン側の設定です。``set_linear_unit`` / ``set_angle_unit`` / ``set_time_unit``
+単位はシーン側の設定です。``setLinearUnit`` / ``setAngleUnit`` / ``setTimeUnit``
 にsaveフラグはありません。単位を保持するにはScene.save()でシーンを保存してください。
 新規シーンの既定値には転記しません。
 
@@ -100,7 +100,7 @@ Windowsの標準位置は ``Documents/maya/<version>/prefs`` ですが、環境�
    from hlib.environment import Preferences
 
    prefs = Preferences()
-   print(prefs.get_linear_unit())  # 現在値の照会のみ
+   print(prefs.getLinearUnit())  # 現在値の照会のみ
    print(cmds.internalVar(userPrefDir=True))
    print(cmds.internalVar(userShelfDir=True))
 

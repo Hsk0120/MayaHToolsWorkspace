@@ -7,7 +7,7 @@ import re
 import hlib
 
 from hrig.setups.rotationFollow import RotationFollow
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class FollowLayer:
@@ -48,7 +48,7 @@ class FollowLayer:
         selected = [groups[identifier]] if identifier is not None else groups.values()
         return tuple(group.plug("joint").source().node.fullName() for group in selected)
 
-    @undo_transaction("hrig.FollowLayer.add")
+    @undoTransaction("hrig.FollowLayer.add")
     def add(self, identifier, joint, mode="full", axis="x", ratio=0.5):
         """入力と同じ親空間に独立した追従骨を追加する。
 

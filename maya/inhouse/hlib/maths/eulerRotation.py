@@ -22,7 +22,7 @@ ORDER_NAMES = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
 _ORDER_INDEX = {name: index for index, name in enumerate(ORDER_NAMES)}
 
 
-def order_index(order):
+def orderIndex(order):
     """回転順序の名前または番号を om2 の番号(0〜5)へ変換する。
 
     Args:
@@ -98,7 +98,7 @@ class EulerRotation(om2.MEulerRotation):
     MEulerRotation 系以外との比較は :class:`~hlib.maths.vector.Vector` と同じく
     例外にしない。表示は度に変換するが、内部値はラジアン。
 
-    snake_case のメソッドは hlib の型を返す。om2 から継承した camelCase のメソッド
+    回転値を返す独自メソッドは hlib の型を返す。om2 から継承した camelCase のメソッド
     (``asQuaternion``、``asMatrix``、``reorder``、``bound``、``closestSolution`` など)は
     om2 の基底型を返す。
     """
@@ -147,7 +147,7 @@ class EulerRotation(om2.MEulerRotation):
             if count == 3 or count == 4:
                 x, y, z = args[0], args[1], args[2]
                 if isinstance(x, _NUMBER) and isinstance(y, _NUMBER) and isinstance(z, _NUMBER):
-                    index = order_index(args[3]) if count == 4 else 0
+                    index = orderIndex(args[3]) if count == 4 else 0
                     self.x = x
                     self.y = y
                     self.z = z
@@ -188,7 +188,7 @@ class EulerRotation(om2.MEulerRotation):
                 x = y = z = 0.0
             else:
                 raise TypeError("EulerRotation expects (), (x, y, z[, order]), (values[, order]) or (EulerRotation)")
-        index = 0 if order is None else order_index(order)
+        index = 0 if order is None else orderIndex(order)
         if not (isinstance(x, _NUMBER) and isinstance(y, _NUMBER) and isinstance(z, _NUMBER)):
             # 数値以外は om2 の変換規則に任せる(文字列などは om2 と同じ ValueError)。
             source = _MEuler(x, y, z)
@@ -280,7 +280,7 @@ class EulerRotation(om2.MEulerRotation):
         Raises:
             ValueError: 未対応の回転順序の場合。
         """
-        self.order = order_index(value)
+        self.order = orderIndex(value)
 
     def asDegrees(self):
         """回転成分を度数法の3要素 tuple として取得する。
@@ -658,3 +658,8 @@ class EulerRotation(om2.MEulerRotation):
         self.y = self.y / other
         self.z = self.z / other
         return self
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('order_index',):
+    globals().pop(_obsolete_name, None)

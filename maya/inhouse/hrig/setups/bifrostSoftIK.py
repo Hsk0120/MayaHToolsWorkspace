@@ -1,7 +1,7 @@
 """BifrostでSoft IKの距離減衰を構成する。"""
 
 import math
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 from hlib_bifrost.nodes.graph import Graph
 from hlib_bifrost.utils.mathBuilder import MathBuilder
 
@@ -10,7 +10,7 @@ class SoftIK:
     """モジュール階層に依存しない距離・softness・ratioグラフ。"""
 
     @classmethod
-    @undo_transaction("hlib_bifrost.SoftIK.create")
+    @undoTransaction("hlib_bifrost.SoftIK.create")
     def create(cls, name, length):
         """同一距離単位の入力から位置倍率を計算する。
 

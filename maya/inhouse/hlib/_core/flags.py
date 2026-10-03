@@ -23,7 +23,15 @@ def _maya_aliases(command):
 def normalize_flags(function, kwargs):
     """関数の登録済み別名またはMayaコマンド名からフラグを正規化する。
 
-    長名と短名の重複は拒否し、入力辞書は変更しない。"""
+    長名と短名の重複は拒否し、入力辞書は変更しない。
+
+    Args:
+        function (callable | str): 登録済み関数または Maya コマンド名。
+        kwargs (dict): 正規化するキーワード引数。
+
+    Returns:
+        dict: 短名を長名に置き換えた新しい辞書。
+    """
     if not kwargs:
         return {}
     aliases = getattr(function, "__hlib_flag_aliases__", {})
@@ -45,6 +53,13 @@ def flag_aliases(command=None, **aliases):
 
     シグネチャとdocstringを保持する。別名の競合と位置引数との重複は
     関数本体（Undoチャンク等を含む）の実行前に検出する。
+
+    Args:
+        command (str | None): Maya コマンド名。
+        **aliases: 短名をキー、長名を値とする対応。
+
+    Returns:
+        callable: フラグを正規化するデコレータ。
     """
     def decorate(function):
         signature = inspect.signature(function)

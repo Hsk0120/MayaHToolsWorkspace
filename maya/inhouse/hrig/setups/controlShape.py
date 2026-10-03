@@ -4,14 +4,14 @@ from maya import cmds
 
 import math
 import hlib
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class ControlShape:
     """リグ構造に依存しない表示形状の作成。"""
 
     @staticmethod
-    @undo_transaction("hrig.ControlShape.circle")
+    @undoTransaction("hrig.ControlShape.circle")
     def circle(target, radius=0.45, normal=(0, 0, 1), color=17, name=None):
         """ローカル原点へ円シェイプを追加し、既存TRS・形状を維持する。
 

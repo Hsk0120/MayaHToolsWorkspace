@@ -11,15 +11,15 @@ UIの作成・変更・削除はシーンのUndo対象外で、保存済みフ�
 
    shelf = hlib.getShelf()  # 現在のタブ。新規作成しない
    print([item.name() for item in Shelf.list()])
-   print([button.get_label() for button in shelf.buttons()])
+   print([button.getLabel() for button in shelf.buttons()])
 
    shelf = hlib.createShelf("MyTools")  # 同名がある場合は例外
-   button = shelf.add_button(
+   button = shelf.addButton(
        "Selection", "import maya.cmds as cmds; print(cmds.ls(sl=True))",
        annotation="選択ノードを表示", language="python")
-   button.set_icon("commandButton.png")
-   button.set_label("Selected")
-   button.set_command('print "Hello";', language="mel")
+   button.setIcon("commandButton.png")
+   button.setLabel("Selected")
+   button.setCommand('print "Hello";', language="mel")
    shelf.select()
 
 ``buttons()`` はボタンオブジェクトを表示順で返し、区切り線は除外します。
@@ -41,7 +41,7 @@ UIの作成・変更・削除はシーンのUndo対象外で、保存済みフ�
 Maya側のシェルフ管理・保存機能で行います。
 
 Python callable（関数オブジェクト）はMayaのMEL形式へ保存できないため、
-add_button/set_commandには文字列を指定します。登録時にコードは実行しません。
+addButton/set_commandには文字列を指定します。登録時にコードは実行しません。
 既存ボタンに複数言語のコールバックが混在する場合など、Maya標準saveShelfの制限は残ります。
 
 参考: `Maya saveShelf <https://help.autodesk.com/cloudhelp/2026/ENU/Maya-Tech-Docs/CommandsPython/saveShelf.html>`_

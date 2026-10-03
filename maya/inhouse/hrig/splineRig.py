@@ -11,7 +11,7 @@ import hlib
 from hlib.maths import Matrix, EulerRotation
 
 from hrig.setups import SplineIK
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SplineRig:
@@ -31,7 +31,7 @@ class SplineRig:
             raise ValueError("Not an hrig spline module")
 
     @classmethod
-    @undo_transaction("hrig.SplineRig.create")
+    @undoTransaction("hrig.SplineRig.create")
     def create(cls, name="spine01", joint_count=7, control_count=4, length=10.0, axis="y"):
         """正軸上の骨列と独立したカーブコントロールを作成する。
 
@@ -102,7 +102,7 @@ class SplineRig:
                     parent=parent,
                     skipSelect=True,
                 )
-                joint.plug("translateX").set(hlib.utils.units.distance_from_ui(length / (joint_count - 1)) if i else 0)
+                joint.plug("translateX").set(hlib.utils.units.distanceFromUi(length / (joint_count - 1)) if i else 0)
                 joint.plug("jointOrient").set(orient if i == 0 else (0, 0, 0))
                 joint.plug("segmentScaleCompensate").set(False)
                 joint.plug("radius").set(0.2)
@@ -122,7 +122,7 @@ class SplineRig:
                 skipSelect=True,
             )
             offset.plug("translate").set(
-                tuple(hlib.utils.units.distance_from_ui(v * length * i / (control_count - 1)) for v in normal)
+                tuple(hlib.utils.units.distanceFromUi(v * length * i / (control_count - 1)) for v in normal)
             )
             control = hlib.createNode(
                 "transform",
@@ -252,7 +252,7 @@ class SplineRig:
         """
         return self.mode() == "ik" and self.lod() == 1 and self.layer_enabled()
 
-    @undo_transaction("hrig.SplineRig.set_mode")
+    @undoTransaction("hrig.SplineRig.set_mode")
     def set_mode(self, mode):
         """構成モードを切り替える。姿勢合わせは行わない。
 
@@ -264,7 +264,7 @@ class SplineRig:
         self.root.plug("mode").set(int(mode == "ik"))
         self.update()
 
-    @undo_transaction("hrig.SplineRig.match_fk")
+    @undoTransaction("hrig.SplineRig.match_fk")
     def match_fk(self):
         """現在の変形骨の姿勢をFKへコピーする。キーの自動作成はしない。"""
         values = [
@@ -291,7 +291,7 @@ class SplineRig:
                     if parent_locked:
                         joint.setAttributeFlags([attr], locked=True)
 
-    @undo_transaction("hrig.SplineRig.match_ik")
+    @undoTransaction("hrig.SplineRig.match_ik")
     def match_ik(self, tolerance=None):
         """現在の変形骨へSplineコントロールを近似配置する。
 
@@ -352,7 +352,7 @@ class SplineRig:
             for target, joint in zip(points, joints):
                 matrix = joint.getMatrix(space=MSpace.kWorld)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
-            error = hlib.utils.units.distance_to_ui(max(errors))
+            error = hlib.utils.units.distanceToUi(max(errors))
         finally:
             self.set_mode(mode)
         if tolerance is not None and error > tolerance:
@@ -361,7 +361,7 @@ class SplineRig:
             )
         return error
 
-    @undo_transaction("hrig.SplineRig.set_lod")
+    @undoTransaction("hrig.SplineRig.set_lod")
     def set_lod(self, value):
         """LowではFKへ戻す。
 
@@ -373,7 +373,7 @@ class SplineRig:
         self.root.plug("lod").set(value)
         self.update()
 
-    @undo_transaction("hrig.SplineRig.set_layer_enabled")
+    @undoTransaction("hrig.SplineRig.set_layer_enabled")
     def set_layer_enabled(self, layer, enabled):
         """Splineレイヤーを切り替える。
 
@@ -389,7 +389,7 @@ class SplineRig:
         )
         self.update()
 
-    @undo_transaction("hrig.SplineRig.update")
+    @undoTransaction("hrig.SplineRig.update")
     def update(self):
         """使用する骨列だけを変形骨へ接続し、不要なIKを停止する。"""
         active = self.active()
@@ -466,7 +466,7 @@ class SplineRig:
         finally:
             cls._busy = False
 
-    @undo_transaction("hrig.SplineRig.delete")
+    @undoTransaction("hrig.SplineRig.delete")
     def delete(self):
         """スキン未使用なら所有グラフと階層を削除する。"""
         if any(hlib.getNode(joint).connections(type="skinCluster") for joint in self.joints()):

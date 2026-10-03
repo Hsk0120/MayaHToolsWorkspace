@@ -75,13 +75,13 @@ from .._core.flags import flag_aliases
 
 import maya.cmds as cmds
 
-from ..decorators.undo import undo_chunk
-from ..decorators.viewport import viewport_off
+from ..decorators.undo import undoChunk
+from ..decorators.viewport import viewportOff
 
 
 @flag_aliases("bakeResults")
-@undo_chunk("hlib.cmds.bakeResults.bakeResults")
-@viewport_off()
+@undoChunk("hlib.cmds.bakeResults.bakeResults")
+@viewportOff()
 def bakeResults(nodes, **kwargs):
     """指定したノードのアニメーションをキーフレームへベイクする。
 

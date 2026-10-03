@@ -9,7 +9,7 @@ from hlib.utils.scalarGraph import ScalarGraph
 from hlib.nodes import Container
 from hlib.environment import Preferences
 from hlib.utils import units
-from hlib.decorators import native_units
+from hlib.decorators import nativeUnits
 
 
 class RigFoundationsTest(unittest.TestCase):
@@ -101,13 +101,13 @@ class RigFoundationsTest(unittest.TestCase):
     def test_conversion(self):
         """距離・角度・FPSの変換はシーン単位を変更しない。"""
         cmds.currentUnit(linear="m", angle="rad", time="ntsc")
-        self.assertEqual(units.distance_to_ui(100), 1)
-        self.assertEqual(units.distance_from_ui(1), 100)
-        self.assertAlmostEqual(units.angle_to_ui(math.pi), math.pi)
-        self.assertAlmostEqual(units.angle_from_ui(math.pi), math.pi)
-        self.assertAlmostEqual(units.seconds_per_frame(), 1 / 30)
-        self.assertEqual(Preferences.get_linear_unit(), "m")
-        self.assertEqual(Preferences.get_angle_unit(), "rad")
+        self.assertEqual(units.distanceToUi(100), 1)
+        self.assertEqual(units.distanceFromUi(1), 100)
+        self.assertAlmostEqual(units.angleToUi(math.pi), math.pi)
+        self.assertAlmostEqual(units.angleFromUi(math.pi), math.pi)
+        self.assertAlmostEqual(units.secondsPerFrame(), 1 / 30)
+        self.assertEqual(Preferences.getLinearUnit(), "m")
+        self.assertEqual(Preferences.getAngleUnit(), "rad")
 
     def test_skin_bind_and_copy(self):
         """スキンのバインド・近似転送・履歴照会を共通APIで行う。"""

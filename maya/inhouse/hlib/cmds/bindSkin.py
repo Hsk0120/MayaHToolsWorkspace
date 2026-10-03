@@ -4,11 +4,11 @@ Mayaの同名bindSkinコマンド（リジッドバインド）を転送する�
 """
 import maya.cmds as cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("skinCluster")
-@undo_chunk("hlibCreateSkinCluster")
+@undoChunk("hlibCreateSkinCluster")
 def bindSkin(geometry, influences, **kwargs):
     """明示した形状とインフルエンスをバインドする。
 

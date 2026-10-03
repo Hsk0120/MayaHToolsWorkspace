@@ -11,7 +11,7 @@ query/edit、object=False、polygonによる非NURBS出力は受け付けない�
 
 from maya import cmds
 from .._core.flags import flag_aliases, normalize_flags
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 _PRIMITIVES = {
     "circle": "circle",
@@ -26,7 +26,7 @@ _PRIMITIVES = {
 
 
 @flag_aliases(typ="type")
-@undo_chunk("hlib.cmds.createNurbs")
+@undoChunk("hlib.cmds.createNurbs")
 def createNurbs(type="circle", **kwargs):
     """種類を指定してNURBSプリミティブのシェイプを生成する。
 

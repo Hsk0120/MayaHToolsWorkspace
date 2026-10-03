@@ -18,7 +18,7 @@ class PackageLayoutTest(unittest.TestCase):
             "environment": ("Plugin", "Preferences", "Workspace"),
             "events": ("ScriptJob", "ScriptJobs", "Deferred"),
             "ui": ("TimeSlider", "Viewport", "Outliner"),
-            "decorators": ("undo_chunk", "preserved_selection", "viewport_off"),
+            "decorators": ("undoChunk", "preservedSelection", "viewportOff"),
         }.items():
             module = importlib.import_module("hlib." + package)
             self.assertIs(getattr(hlib, package), module)

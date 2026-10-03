@@ -45,7 +45,7 @@ def main(output_dir=None, finished=None):
         rig, _ = editor.current()
         check(isinstance(rig, SkirtRig) and len(rig.joints()) == 48, "Sixteen chains created")
         check(
-            not editor.mode.isEnabled() and not editor.add_button.isEnabled(),
+            not editor.mode.isEnabled() and not editor.addButton.isEnabled(),
             "Limb-only controls disabled",
         )
         rig.driver_chains()[0][0].plug("rotateX").set(50)

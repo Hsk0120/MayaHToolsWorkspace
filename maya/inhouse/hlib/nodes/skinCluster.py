@@ -6,7 +6,7 @@ from ..decorators._fast import fast_edit, is_fast
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import writable, check_range
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 import json
 import math
@@ -18,7 +18,7 @@ import maya.api.OpenMayaAnim as oma2
 
 from .._core.registry import collection_export, node_wrapper
 from .._core.collection import bulk_api
-from ..decorators.selection import preserved_selection
+from ..decorators.selection import preservedSelection
 from ..maths import easing
 from .joint import Joint
 from .node import Node, Nodes
@@ -51,7 +51,7 @@ class SkinCluster(Node):
         self.fn = oma2.MFnSkinCluster(self.mobject())
 
     @classmethod
-    @undo_chunk("hlib.SkinCluster.bind")
+    @undoChunk("hlib.SkinCluster.bind")
     def bind(cls, mesh, influences, max_influences=4):
         """未スキニングの形状を指定influenceへバインドする。
 
@@ -86,7 +86,7 @@ class SkinCluster(Node):
         history = cmds.ls(cmds.listHistory(Node(geometry).fullName()) or [], type="skinCluster") or []
         return self.uuid() in [Node(n).uuid() for n in history]
 
-    @undo_chunk("hlib.SkinCluster.copyWeightsTo")
+    @undoChunk("hlib.SkinCluster.copyWeightsTo")
     def copyWeightsTo(self, target):
         """別skinClusterへ最近傍でウェイトを転送する。
 
@@ -227,7 +227,7 @@ class SkinCluster(Node):
         """
         return [Node(path) for path in self.fn.influenceObjects()]
 
-    @undo_chunk("hlibSkinClusterAddInfluences")
+    @undoChunk("hlibSkinClusterAddInfluences")
     def addInfluences(self, joints):
         """ジョイントをウェイト0で登録する。既存influence・重複指定は無視する。
 
@@ -269,7 +269,7 @@ class SkinCluster(Node):
 
         return DagPose.fromSkinCluster(self)
 
-    @undo_chunk("hlibSkinClusterRestoreBindPose")
+    @undoChunk("hlibSkinClusterRestoreBindPose")
     def restoreBindPose(self, space=MSpace.kWorld):
         """接続されたポーズの全メンバーを保存姿勢へ復元する。
 
@@ -292,7 +292,7 @@ class SkinCluster(Node):
         pose.restore(space=MSpace.kWorld if ws else MSpace.kObject)
         return self
 
-    @undo_chunk("hlibSkinClusterResetBindPose")
+    @undoChunk("hlibSkinClusterResetBindPose")
     def resetBindPose(self):
         """このskinClusterのinfluenceの保存姿勢を現在の姿勢へ更新する。
 
@@ -328,7 +328,7 @@ class SkinCluster(Node):
         return [Node(path.node()) for path in self.fn.influenceObjects()
                 if Node(path.node()).uuid() not in used]
 
-    @undo_chunk("hlibSkinClusterRemoveUnusedInfluences")
+    @undoChunk("hlibSkinClusterRemoveUnusedInfluences")
     def removeUnusedInfluences(self):
         """未使用influenceの登録を外す。jointノード自体は削除しない。
 
@@ -376,7 +376,7 @@ class SkinCluster(Node):
         return self.fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
 
     @fast_edit
-    @undo_chunk("hlibSkinClusterSetWeights")
+    @undoChunk("hlibSkinClusterSetWeights")
     def setWeights(self, joints, weights, *, fast=False):
         """指定したjointの全頂点ウェイトを設定する。
 
@@ -463,7 +463,7 @@ class SkinCluster(Node):
             json.dump(payload, file)
 
     @fast_edit
-    @undo_chunk("hlibSkinClusterLoadWeights")
+    @undoChunk("hlibSkinClusterLoadWeights")
     def loadWeights(self, path, *, fast=False):
         """dumpWeights() が書き出した JSON ファイルからウェイトを読み込み設定する。
 
@@ -500,7 +500,7 @@ class SkinCluster(Node):
             raise ValueError(f"Influences missing from this skinCluster: {missing}")
         self.setWeights(influences, payload["weights"])
 
-    @undo_chunk("hlib.nodes.skinCluster.redistributeWeights")
+    @undoChunk("hlib.nodes.skinCluster.redistributeWeights")
     def redistributeWeights(self, vertices, method="cubic"):
         """頂点ごとのウェイト配分を、イージング曲線で強弱をつけて配り直す。
 
@@ -573,11 +573,11 @@ class SkinCluster(Node):
         if om2.MGlobal.getActiveSelectionList().length():
             cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
 
-    @undo_chunk("hlib.nodes.skinCluster.transferWeights")
+    @undoChunk("hlib.nodes.skinCluster.transferWeights")
     def transferWeights(self, source_target_pairs):
         """複数のsource/target組についてウェイトを移す。
 
-        処理が途中で失敗しても選択状態は preserved_selection により復元される。完了済みの
+        処理が途中で失敗しても選択状態は preservedSelection により復元される。完了済みの
         ウェイト変更はロールバックしない。正規化はMayaのskinPercentと
         skinClusterのnormalizeWeights設定に従う。
 
@@ -609,11 +609,11 @@ class SkinCluster(Node):
                 raise ValueError("Both nodes must be influences of this skinCluster")
             if source.uuid() != target.uuid():
                 pairs.append((source.fullName(), target.fullName()))
-        with preserved_selection():
+        with preservedSelection():
             for source_joint, target_joint in pairs:
                 self._xfer_pair(source_joint, target_joint)
 
-    @undo_chunk("hlib.nodes.skinCluster.removeInfluence")
+    @undoChunk("hlib.nodes.skinCluster.removeInfluence")
     def removeInfluence(self, joint, transfer_to_parent=True):
         """祖先influenceへ加算後、登録を外す。jointノードは削除しない。
 
@@ -727,7 +727,7 @@ class SkinCluster(Node):
         return names, result
 
     @fast_edit
-    @undo_chunk("hlibSkinClusterNormalizeWeights")
+    @undoChunk("hlibSkinClusterNormalizeWeights")
     def normalizeWeights(self, decimals=None, *, fast=False):
         """先頭meshの各頂点ウェイトを合計1へ正規化する。
 
@@ -757,7 +757,7 @@ class SkinCluster(Node):
         return self.plug("maxInfluences").get()
 
     @fast_edit
-    @undo_chunk("hlibSkinClusterSetMaxInfluences")
+    @undoChunk("hlibSkinClusterSetMaxInfluences")
     def setMaxInfluences(self, count, maintain=True, prune=False, *, fast=False):
         """最大influence設定を変更し、任意で既存ウェイトも制限する。
 
@@ -859,7 +859,7 @@ class SkinClusters(Nodes):
 
     item_class = SkinCluster
 
-    @undo_chunk("hlibSkinClustersRemoveInfluences")
+    @undoChunk("hlibSkinClustersRemoveInfluences")
     def removeInfluences(self, joints, transfer_to_parent=True):
         """保持するskinClusterのinfluence登録だけを解除する。
 

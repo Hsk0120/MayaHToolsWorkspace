@@ -2,10 +2,10 @@
 
 import hlib
 
-from hlib.decorators.undo import undo_chunk
+from hlib.decorators.undo import undoChunk
 
 
-@undo_chunk("hrig.bind_mesh")
+@undoChunk("hrig.bind_mesh")
 def bind_mesh(rig, mesh, helpers=True):
     """未スキニングのメッシュを部位の変形骨へバインドする。
 
@@ -21,7 +21,7 @@ def bind_mesh(rig, mesh, helpers=True):
     return hlib.nodes.SkinCluster.bind(mesh, joints, max_influences=4).fullName()
 
 
-@undo_chunk("hrig.create_skin_lod")
+@undoChunk("hrig.create_skin_lod")
 def create_skin_lod(rig, source, proxy, source_skin):
     """別トポロジーの軽量モデルへウェイトを転送し、補助骨を使わずバインドする。
 
@@ -55,7 +55,7 @@ def create_skin_lod(rig, source, proxy, source_skin):
     return target_skin
 
 
-@undo_chunk("hrig.set_mesh_lod")
+@undoChunk("hrig.set_mesh_lod")
 def set_mesh_lod(high_mesh, high_skin, proxy_mesh, proxy_skin, proxy=False):
     """表示とskinClusterのenvelope/nodeStateをセットで切り替える。
 

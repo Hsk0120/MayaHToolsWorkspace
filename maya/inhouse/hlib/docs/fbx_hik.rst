@@ -9,9 +9,9 @@ FBXファイル
 
 .. code-block:: python
 
-    from hlib.utils.fbx import export_fbx, import_fbx
-    export_fbx('C:/work/motion.fbx', selection=['rootJoint'], animation=True)
-    nodes = import_fbx('C:/work/motion.fbx', namespace='source')
+    from hlib.utils.fbx import exportFbx, importFbx
+    exportFbx('C:/work/motion.fbx', selection=['rootJoint'], animation=True)
+    nodes = importFbx('C:/work/motion.fbx', namespace='source')
 
 書き出しは既定で上書きを拒否します。書き出し対象を省略するとシーン全体を出力します。
 選択とAnimation設定を復元し、それ以外のFBX設定は現在値を使います。

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 class Namespace:
@@ -120,7 +120,7 @@ class Namespace:
         """
         return cls(om2.MNamespace.currentNamespace())
 
-    @undo_chunk("hlibNamespaceSetCurrent")
+    @undoChunk("hlibNamespaceSetCurrent")
     def setCurrent(self):
         """カレントNamespaceを自身へ切り替える。
 
@@ -157,7 +157,7 @@ class Namespace:
                 previous.setCurrent()
 
     @classmethod
-    @undo_chunk("hlibNamespaceCreate")
+    @undoChunk("hlibNamespaceCreate")
     def create(cls, name, parent=":"):
         """Namespaceを作成し、作成したNamespaceを返す。
 
@@ -188,7 +188,7 @@ class Namespace:
         cmds.namespace(add=leaf_name, parent=parent_namespace.name)
         return namespace
 
-    @undo_chunk("hlibNamespaceRename")
+    @undoChunk("hlibNamespaceRename")
     def rename(self, name):
         """Namespace自身の名前を変更する。
 
@@ -211,7 +211,7 @@ class Namespace:
         self._name = target.name
         return self
 
-    @undo_chunk("hlibNamespaceMove")
+    @undoChunk("hlibNamespaceMove")
     def move(self, parent=":"):
         """Namespaceを指定した親Namespaceへ移動する。
 
@@ -259,7 +259,7 @@ class Namespace:
         cmds.namespace(moveNamespace=(self._name, target.name), force=True)
         cmds.namespace(removeNamespace=self._name)
 
-    @undo_chunk("hlibNamespaceRemove")
+    @undoChunk("hlibNamespaceRemove")
     def remove(self, destination=":"):
         """内容を移動してNamespaceを削除する。
 

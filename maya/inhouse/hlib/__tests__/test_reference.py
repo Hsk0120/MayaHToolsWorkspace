@@ -1,4 +1,4 @@
-"""hlib.nodes.reference の Reference と hlib.utils.references.list_references を検証するMaya内テスト。"""
+"""hlib.nodes.reference の Reference と hlib.utils.references.listReferences を検証するMaya内テスト。"""
 
 import os
 import sys
@@ -12,7 +12,7 @@ hlib.reload()
 from hlib.nodes import Node
 from hlib.nodes.reference import Reference
 from hlib.scene import Namespace
-from hlib.utils.references import create_reference, list_references
+from hlib.utils.references import createReference, listReferences
 
 
 class ReferenceTest(unittest.TestCase):
@@ -121,19 +121,19 @@ class ReferenceTest(unittest.TestCase):
         self.assertFalse(cmds.objExists(self.ref_node_name))
 
     def test_list_references_includes_created_reference(self):
-        references = list_references()
+        references = listReferences()
         self.assertIn(self.ref_node_name, [reference.name() for reference in references])
 
     def test_list_references_top_level_only_excludes_none_here(self):
         # このテストではネストした参照を作らないため、top_level_only=True でも
         # 通常の一覧と同じ結果になることだけを確認する。
-        all_refs = {reference.name() for reference in list_references()}
-        top_refs = {reference.name() for reference in list_references(top_level_only=True)}
+        all_refs = {reference.name() for reference in listReferences()}
+        top_refs = {reference.name() for reference in listReferences(top_level_only=True)}
         self.assertEqual(all_refs, top_refs)
 
 
 class CreateReferenceTest(unittest.TestCase):
-    """hlib.utils.references.create_reference による参照の新規作成を検証する。"""
+    """hlib.utils.references.createReference による参照の新規作成を検証する。"""
 
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
@@ -154,19 +154,19 @@ class CreateReferenceTest(unittest.TestCase):
             os.rmdir(self.tmp_dir)
 
     def test_creates_reference_under_requested_namespace(self):
-        self.created = create_reference(self.ref_path, namespace="hlibCreateReferenceNs")
+        self.created = createReference(self.ref_path, namespace="hlibCreateReferenceNs")
         self.assertIsInstance(self.created, Reference)
         self.assertTrue(self.created.isLoaded())
         self.assertTrue(cmds.objExists("hlibCreateReferenceNs:hlibCreateReferenceHelper"))
         self.assertEqual(self.created.associatedNamespace(), Namespace("hlibCreateReferenceNs"))
 
     def test_created_reference_is_included_in_list_references(self):
-        self.created = create_reference(self.ref_path, namespace="hlibCreateReferenceNs2")
-        self.assertIn(self.created.name(), [reference.name() for reference in list_references()])
+        self.created = createReference(self.ref_path, namespace="hlibCreateReferenceNs2")
+        self.assertIn(self.created.name(), [reference.name() for reference in listReferences()])
 
     def test_invalid_path_raises_value_error(self):
         with self.assertRaises(ValueError):
-            create_reference("")
+            createReference("")
 
 
 class NestedReferenceTest(unittest.TestCase):
@@ -188,7 +188,7 @@ class NestedReferenceTest(unittest.TestCase):
         cmds.file(save=True, type="mayaAscii", force=True)
 
         cmds.file(new=True, force=True)
-        self.top = create_reference(self.mid_path, namespace="hlibNestedMidNs")
+        self.top = createReference(self.mid_path, namespace="hlibNestedMidNs")
         self.nested_name = next(
             name for name in cmds.ls(type="reference")
             if name not in ("sharedReferenceNode", self.top.name())

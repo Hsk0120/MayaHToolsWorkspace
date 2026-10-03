@@ -3,7 +3,7 @@
 from ..decorators._fast import fast_edit
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 from .transform import Transform
 
@@ -13,7 +13,7 @@ class DistanceBetween(Node):
     """inMatrix1/2で変換したpoint1/2間の距離を評価する。"""
 
     @fast_edit
-    @undo_chunk("hlibDistanceBetweenSetPoints")
+    @undoChunk("hlibDistanceBetweenSetPoints")
     def setPoints(self, point1, point2, *, fast=False):
         """各入力行列の空間における二点を設定する。行列は変更しない。
 
@@ -41,7 +41,7 @@ class DistanceBetween(Node):
             self.plug(name).set(point)
         return self
 
-    @undo_chunk("hlibDistanceBetweenConnectTransforms")
+    @undoChunk("hlibDistanceBetweenConnectTransforms")
     def connectTransforms(self, first, second, force=False):
         """二つのTransform原点のワールド距離を測る接続を設定する。
 

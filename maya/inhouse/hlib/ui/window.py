@@ -18,11 +18,11 @@ class Window(_WindowReference):
         """ウィンドウを表示する。"""
         cmds.showWindow(self.name())
 
-    def get_size(self):
+    def getSize(self):
         """tuple[int, int]: 枠を除く幅・高さをピクセルで取得する。"""
         return tuple(cmds.window(self.name(), query=True, widthHeight=True))
 
-    def set_size(self, width, height):
+    def setSize(self, width, height):
         """ウィンドウの幅・高さを変更する。
 
         Args:
@@ -47,11 +47,11 @@ class Window(_WindowReference):
         x, y = self._pair(x, y)
         cmds.window(self.name(), edit=True, topLeftCorner=(y, x))
 
-    def get_resizable(self):
+    def getResizable(self):
         """bool: ユーザーがサイズを変更できるか取得する。"""
         return bool(cmds.window(self.name(), query=True, sizeable=True))
 
-    def set_resizable(self, enabled):
+    def setResizable(self, enabled):
         """サイズ変更を許可する。移動禁止やドッキングロックではない。
 
         Args:
@@ -67,7 +67,7 @@ class Window(_WindowReference):
         """
         return self._capture({
                 "state": cmds.window(self.name(), query=True, state=True),
-                "visible": self.get_visible(), "resizable": self.get_resizable()})
+                "visible": self.getVisible(), "resizable": self.getResizable()})
 
     def restore(self, snapshot):
         """capture時点の状態を同じUIへ復元する。再生成しない。
@@ -77,5 +77,5 @@ class Window(_WindowReference):
         """
         self._validate_snapshot(snapshot, {"state": str, "visible": bool, "resizable": bool})
         cmds.window(self.name(), edit=True, state=snapshot["state"])
-        self.set_resizable(snapshot["resizable"])
+        self.setResizable(snapshot["resizable"])
         cmds.window(self.name(), edit=True, visible=snapshot["visible"])

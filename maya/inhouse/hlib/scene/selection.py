@@ -4,7 +4,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from hlib.components import Component, Components, Vertex, Vertices, CV, CVs, Edge, Edges, Face, Faces, UV, UVs
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from hlib.nodes.node import Node
 from hlib.plugs.plug import Plug
 
@@ -203,7 +203,7 @@ class Selection:
                 raise RuntimeError("Selection contains a missing item")
         return names
 
-    @undo_chunk("hlibSelectionSelect")
+    @undoChunk("hlibSelectionSelect")
     def select(self, mode="replace", missing="skip"):
         """保持した対象を現在の選択に反映する。
 

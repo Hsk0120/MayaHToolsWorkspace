@@ -38,7 +38,7 @@ class PluginPackage:
         ...     "Bifrost", plugins=("mayaVnnPlugin", "bifrostGraph", "flowWedging"),
         ...     module="Bifrost", version_plugin="bifrostGraph",
         ...     minimum_version="3.0.0", minimum_maya=2025)
-        >>> bifrost.try_load()   # 入っていなければ警告ダイアログを出す
+        >>> bifrost.tryLoad()   # 入っていなければ警告ダイアログを出す
         'loaded'
     """
 
@@ -110,7 +110,7 @@ class PluginPackage:
         return self._module
 
     @property
-    def minimum_version(self):
+    def minimumVersion(self):
         """必要な最小の版を取得する。
 
         Returns:
@@ -119,7 +119,7 @@ class PluginPackage:
         return self._minimum_version
 
     @property
-    def minimum_maya(self):
+    def minimumMaya(self):
         """対象とする最小の Maya の年を取得する。
 
         Returns:
@@ -136,7 +136,7 @@ class PluginPackage:
         """
         return int(str(cmds.about(version=True)).split(".")[0])
 
-    def is_maya_supported(self):
+    def isMayaSupported(self):
         """現在の Maya が対象のバージョンか判定する。
 
         Returns:
@@ -144,7 +144,7 @@ class PluginPackage:
         """
         return self._minimum_maya is None or self._maya_year() >= self._minimum_maya
 
-    def installed_version(self):
+    def installedVersion(self):
         """Maya に登録されている製品の版を取得する。
 
         モジュールが登録されていればその版、無ければ版を調べるプラグインの版を使う。
@@ -157,7 +157,7 @@ class PluginPackage:
             version = self._version_plugin.version()
         return version
 
-    def loaded_version(self):
+    def loadedVersion(self):
         """ロード済みの、版を調べるプラグインの版を取得する。
 
         Returns:
@@ -168,24 +168,24 @@ class PluginPackage:
             return None
         return plugin.version()
 
-    def is_installed(self):
+    def isInstalled(self):
         """必要な版が導入されているか判定する。
 
         ロード前のプラグインは Maya に登録されていない場合がある。``minimum_version`` を
-        指定しない製品は、この判定が False でも :meth:`try_load` がロードを試みる。
+        指定しない製品は、この判定が False でも :meth:`tryLoad` がロードを試みる。
 
         Returns:
             bool: ``minimum_version`` 以上が導入されていれば True。``minimum_version`` を指定していない
             場合は、版が取れるか、モジュールまたはプラグインが 1 つでも登録されていれば True。
         """
-        version = self.installed_version()
+        version = self.installedVersion()
         if self._minimum_version is not None:
             return version is not None and version >= self._minimum_version
         if version is not None:
             return True
-        if self._module is not None and self._module.is_registered():
+        if self._module is not None and self._module.isRegistered():
             return True
-        return any(plugin.is_registered() for plugin in self._plugins)
+        return any(plugin.isRegistered() for plugin in self._plugins)
 
     def message(self, found=None):
         """導入が必要なときの警告文を作る。
@@ -197,7 +197,7 @@ class PluginPackage:
             str: 日本語と英語の警告文。
         """
         if found is None:
-            found = self.installed_version()
+            found = self.installedVersion()
         wanted = "{} {}".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし")) if self._minimum_version \
             else self._name
         year = self._maya_year()
@@ -210,7 +210,7 @@ class PluginPackage:
         ).format(wanted=wanted, found=(str(found) if found is not None else "なし"), hint=hint, year=year)
 
     @staticmethod
-    def show_dialog(message, title="インストールが必要です"):
+    def showDialog(message, title="インストールが必要です"):
         """警告ダイアログを表示する。GUI がないバッチ・スタンドアロンでは何もしない。
 
         Args:
@@ -221,7 +221,7 @@ class PluginPackage:
             return
         cmds.confirmDialog(title=title, message=message, button=["OK"], defaultButton="OK", icon="warning")
 
-    def load_plugins(self):
+    def loadPlugins(self):
         """全プラグインをロードする。ロードできない名前があっても続行する。
 
         Returns:
@@ -237,14 +237,14 @@ class PluginPackage:
                     self._name, plugin.name, error))
         return failed
 
-    def try_load(self, dialog=True, warn=True):
+    def tryLoad(self, dialog=True, warn=True):
         """必要な版が導入されていれば全プラグインをロードし、無ければ警告する。
 
         ``minimum_maya`` 未満の Maya では何もしない。導入されていない、または版が古い場合は
         プラグインをロードせず、警告(``warn``)とダイアログ(``dialog``)を出す。
 
         Args:
-            dialog (bool | Callable[[str], None]): True で :meth:`show_dialog` を使う。
+            dialog (bool | Callable[[str], None]): True で :meth:`showDialog` を使う。
                 False・None で表示しない。関数を渡すと警告文を受け取って呼ぶ(テストや独自 UI 用)。
             warn (bool): True で ``logger.warning`` にも警告を出す。
 
@@ -252,20 +252,20 @@ class PluginPackage:
             str: ``SKIPPED`` (対象外)/``LOADED`` (ロードした)/``MISSING`` (未導入・古い)/
             ``OUTDATED`` (既に古い版がロード済み)/``LOAD_FAILED`` (一部をロードできない)。
         """
-        if not self.is_maya_supported():
+        if not self.isMayaSupported():
             return SKIPPED
         title = "{} のインストールが必要です".format(self._name)
-        show = (lambda text: self.show_dialog(text, title)) if dialog is True else (dialog or None)
-        installed = self.is_installed()
+        show = (lambda text: self.showDialog(text, title)) if dialog is True else (dialog or None)
+        installed = self.isInstalled()
         if not installed and self._minimum_version is not None:
-            self._report(show, warn, self.message(self.installed_version()))
+            self._report(show, warn, self.message(self.installedVersion()))
             return MISSING
-        failed = self.load_plugins()
+        failed = self.loadPlugins()
         if not installed and self._plugins and len(failed) == len(self._plugins):
             # 版を指定しない製品は、ロードできるかどうかで導入の有無を判断する。
             self._report(show, warn, self.message())
             return MISSING
-        running = self.loaded_version()
+        running = self.loadedVersion()
         if self._minimum_version is not None and running is not None \
                 and running < self._minimum_version:
             self._report(show, warn, self.message(running))
@@ -273,6 +273,13 @@ class PluginPackage:
         return LOAD_FAILED if failed else LOADED
 
     def _report(self, show, warn, message):
+        """指定した通知先へメッセージを送る。
+
+        Args:
+            show (callable | None): メッセージ全体を渡す表示コールバック。
+            warn (bool): 最初の行を warning にも渡すか。
+            message (str): 通知内容。コールバックの例外は伝播する。
+        """
         if warn:
             logger.warning("[hlib] " + message.split("\n")[0])
         if show is not None:

@@ -1,7 +1,7 @@
 """マテリアル接続と形状への割り当てを扱う。"""
 import maya.cmds as cmds
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .objectSet import ObjectSet
 
 
@@ -45,7 +45,7 @@ class ShadingEngine(ObjectSet):
             raise ValueError("kind must be surface, volume, or displacement")
         return kind + "Shader"
 
-    @undo_chunk("hlibShadingEngineSetShader")
+    @undoChunk("hlibShadingEngineSetShader")
     def setShader(self, shader, kind="surface", output=None):
         """指定シェーダーの出力へ接続を置き換える。
 
@@ -70,7 +70,7 @@ class ShadingEngine(ObjectSet):
         source.connect(target, force=True)
         return self
 
-    @undo_chunk("hlibShadingEngineAssign")
+    @undoChunk("hlibShadingEngineAssign")
     def assign(self, targets):
         """形状またはフェースへ割り当て、既存の割り当てを置き換える。
 

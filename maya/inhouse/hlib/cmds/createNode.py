@@ -67,10 +67,10 @@ Examples
 
 from .._core.flags import flag_aliases
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 @flag_aliases("createNode")
-@undo_chunk("hlib.cmds.createNode.createNode")
+@undoChunk("hlib.cmds.createNode.createNode")
 def createNode(type, **kwargs):
     """Mayaノードを作成し、実際の型に対応するラッパーを返す。
 

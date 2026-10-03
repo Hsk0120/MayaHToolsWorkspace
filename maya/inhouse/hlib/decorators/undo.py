@@ -11,16 +11,16 @@ _chunk_active = ContextVar("hlib_undo_chunk_active", default=False)
 
 
 @contextlib.contextmanager
-def undo_chunk(name=None):
+def undoChunk(name=None):
     """複数の Maya 操作を 1 回の Undo チャンクにまとめる。
 
-    ``with undo_chunk("処理名"):`` と ``@undo_chunk("処理名")`` の両方で使用できる。
+    ``with undoChunk("処理名"):`` と ``@undoChunk("処理名")`` の両方で使用できる。
     デコレータには括弧が必要。関数の戻り値・メタデータを保持し、反復呼び出しも可能。
 
     チャンクを開いた場合は finally で閉じる。閉じる際の例外は抑制する。コンテキスト内部の例外は抑制せず、自動ロールバックもしない。
 
     入れ子の通常チャンクは外側へまとめ、名前も外側を使う。
-    undo_transaction の独立したチャンクは省略しない。
+    undoTransaction の独立したチャンクは省略しない。
     Undo非対応の操作やfast=Trueの直接更新を取り消せるようにはしない。
 
     Args:
@@ -55,15 +55,15 @@ def undo_chunk(name=None):
 
 
 @contextlib.contextmanager
-def undo_transaction(name=None):
+def undoTransaction(name=None):
     """例外発生時に自動でロールバックする Undo トランザクション。
 
-    ``with undo_transaction("処理名"):`` と ``@undo_transaction("処理名")`` の
+    ``with undoTransaction("処理名"):`` と ``@undoTransaction("処理名")`` の
     両方で使用できる。デコレータには括弧が必要。
 
     ブロック内で例外が発生した場合、チャンクを閉じたうえで ``cmds.undo()`` を
     1回実行してブロック内のUndo対象操作を巻き戻してから、元の例外をそのまま
-    再送出する。正常終了時はロールバックせず、undo_chunk と同様に1回の
+    再送出する。正常終了時はロールバックせず、undoChunk と同様に1回の
     Undo にまとまったチャンクとして履歴に残る。
 
     Undoが有効であることが前提。fast=True・ファイル操作等は巻き戻せない。
@@ -121,3 +121,8 @@ def undo_transaction(name=None):
         raise
     else:
         cmds.undoInfo(closeChunk=True)
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('undo_chunk', 'undo_transaction'):
+    globals().pop(_obsolete_name, None)

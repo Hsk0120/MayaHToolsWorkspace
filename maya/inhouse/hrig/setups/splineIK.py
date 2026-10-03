@@ -5,7 +5,7 @@ from maya import cmds
 
 import hlib
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SplineIK:
@@ -31,7 +31,7 @@ class SplineIK:
         return self.container.plug(name).source().node
 
     @classmethod
-    @undo_transaction("hrig.SplineIK.create")
+    @undoTransaction("hrig.SplineIK.create")
     def create(cls, joints, controls, parent, name="splineGraph", up_axis="z"):
         """X軸方向の骨列を、3次カーブで制御する。
 
@@ -79,7 +79,7 @@ class SplineIK:
                 raise ValueError("Joint rotation already has an input")
         graph = cls(hlib.nodes.Container.create(name=name))
         points = [
-            tuple(hlib.utils.units.distance_to_ui(v) for v in c.getTranslation(space=MSpace.kWorld))
+            tuple(hlib.utils.units.distanceToUi(v) for v in c.getTranslation(space=MSpace.kWorld))
             for c in controls
         ]
         curve = hlib.nodes.Node(hlib.createCurve(degree=3, point=points, name=name + "_curve"))
@@ -137,7 +137,7 @@ class SplineIK:
         handle.plug("visibility").set(False)
         return graph
 
-    @undo_transaction("hrig.SplineIK.set_enabled")
+    @undoTransaction("hrig.SplineIK.set_enabled")
     def set_enabled(self, enabled):
         """停止時はカーブ入力を切断し、ソルバーを無効化する。
 

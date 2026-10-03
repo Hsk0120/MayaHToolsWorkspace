@@ -134,24 +134,24 @@ class LookupTest(OptionVarTestBase):
         self.assertIsNone(self.store.get("missing"))
         self.assertEqual(self.store.get("missing", "fallback"), "fallback")
         self.assertNotIn("missing", self.store)
-        self.assertFalse(self.store.is_stored("missing"))
+        self.assertFalse(self.store.isStored("missing"))
 
     def test_default_is_used_until_a_value_is_stored(self):
         store = OptionVar(self.base, defaults={"size": 1.0})
         self.assertEqual(store["size"], 1.0)
         self.assertEqual(store.get("size", "fallback"), 1.0)
         self.assertIn("size", store)
-        self.assertFalse(store.is_stored("size"))
+        self.assertFalse(store.isStored("size"))
         self.assertFalse(self.exists("size"))
 
         store["size"] = 4.0
         self.assertEqual(store["size"], 4.0)
-        self.assertTrue(store.is_stored("size"))
+        self.assertTrue(store.isStored("size"))
 
     def test_value_equal_to_default_is_still_stored(self):
         store = OptionVar(self.base, defaults={"size": 1.0})
         store["size"] = 1.0
-        self.assertTrue(store.is_stored("size"))
+        self.assertTrue(store.isStored("size"))
         self.assertEqual(json.loads(self.raw("size")), 1.0)
 
     def test_defaults_are_returned_as_independent_copies(self):
@@ -219,7 +219,7 @@ class ModificationTest(OptionVarTestBase):
         self.assertFalse(self.exists("first"))
 
         self.store.update({"first": 1, "second": [2]})
-        self.assertEqual(self.store.to_dict(), {"first": 1, "second": [2]})
+        self.assertEqual(self.store.toDict(), {"first": 1, "second": [2]})
 
     def test_reset_all_removes_only_direct_members(self):
         child = OptionVar(self.base + ".child")
@@ -229,8 +229,8 @@ class ModificationTest(OptionVarTestBase):
         child["a"] = "child"
         sibling["a"] = "sibling"
 
-        self.assertEqual(store.reset_all(), ["a", "b"])
-        self.assertEqual(store.stored_keys(), [])
+        self.assertEqual(store.resetAll(), ["a", "b"])
+        self.assertEqual(store.storedKeys(), [])
         self.assertEqual(store["a"], 0)
         self.assertEqual(child["a"], "child")
         self.assertEqual(sibling["a"], "sibling")
@@ -244,11 +244,11 @@ class ListingTest(OptionVarTestBase):
         store["b"] = 2
         store["a"] = 5
 
-        self.assertEqual(store.stored_keys(), ["a", "b"])
+        self.assertEqual(store.storedKeys(), ["a", "b"])
         self.assertEqual(store.keys(), ["a", "b", "c"])
         self.assertEqual(store.values(), [5, 2, 3])
         self.assertEqual(store.items(), [("a", 5), ("b", 2), ("c", 3)])
-        self.assertEqual(store.to_dict(), {"a": 5, "b": 2, "c": 3})
+        self.assertEqual(store.toDict(), {"a": 5, "b": 2, "c": 3})
         self.assertEqual(list(store), ["a", "b", "c"])
         self.assertEqual(len(store), 3)
 
@@ -285,17 +285,17 @@ class LegacyValueTest(OptionVarTestBase):
 
     def test_unreadable_values_are_treated_as_not_stored(self):
         self.assertEqual(self.store["count"], 10)
-        self.assertFalse(self.store.is_stored("count"))
+        self.assertFalse(self.store.isStored("count"))
         for key in ("text", "nan", "real", "array", "huge", "nested_huge"):
             with self.subTest(key=key):
                 self.assertNotIn(key, self.store)
-                self.assertFalse(self.store.is_stored(key))
+                self.assertFalse(self.store.isStored(key))
                 self.assertEqual(self.store.get(key, "fallback"), "fallback")
                 with self.assertRaises(KeyError):
                     del self.store[key]
-        self.assertEqual(self.store.stored_keys(), [])
+        self.assertEqual(self.store.storedKeys(), [])
         self.assertEqual(self.store.keys(), ["count"])
-        self.assertEqual(self.store.to_dict(), {"count": 10})
+        self.assertEqual(self.store.toDict(), {"count": 10})
 
     def test_unreadable_values_can_be_overwritten_and_removed(self):
         self.store["array"] = ["now", "json"]
@@ -305,7 +305,7 @@ class LegacyValueTest(OptionVarTestBase):
         self.assertFalse(self.exists("text"))
 
         self.assertEqual(
-            self.store.reset_all(), ["array", "count", "huge", "nan", "nested_huge", "real"]
+            self.store.resetAll(), ["array", "count", "huge", "nan", "nested_huge", "real"]
         )
         self.assertEqual(self.store["count"], 10)
 
@@ -313,11 +313,11 @@ class LegacyValueTest(OptionVarTestBase):
         # json.loads が RecursionError を送出する深さの配列を、クラスを通さずに書き込む。
         depth = 100000
         cmds.optionVar(stringValue=(self.store.fullName("deep"), "[" * depth + "]" * depth))
-        self.assertFalse(self.store.is_stored("deep"))
+        self.assertFalse(self.store.isStored("deep"))
         self.assertNotIn("deep", self.store)
         self.assertEqual(self.store.get("deep", "fallback"), "fallback")
-        self.assertEqual(self.store.stored_keys(), [])
-        self.assertEqual(self.store.to_dict(), {"count": 10})
+        self.assertEqual(self.store.storedKeys(), [])
+        self.assertEqual(self.store.toDict(), {"count": 10})
         self.assertTrue(self.store.reset("deep"))
         self.assertFalse(self.exists("deep"))
 
@@ -333,19 +333,19 @@ class LegacyValueTest(OptionVarTestBase):
             cmds.optionVar(stringValue=(self.store.fullName(key), text))
         for key, (_, expected) in raw_texts.items():
             with self.subTest(key=key):
-                self.assertTrue(self.store.is_stored(key))
+                self.assertTrue(self.store.isStored(key))
                 restored = self.store[key]
                 self.assertEqual(restored, expected)
                 self.assertIs(type(restored), type(expected))
 
     def test_names_breaking_key_rules_are_ignored(self):
-        # 名前の規則に合わない optionVar は一覧にも reset_all にも含めない
+        # 名前の規則に合わない optionVar は一覧にも resetAll にも含めない
         # (後始末は tearDown が接頭辞で直接行う)。
         for suffix in ("bad-key", "space key"):
             cmds.optionVar(stringValue=(self.base + "." + suffix, "1"))
-        self.assertEqual(self.store.stored_keys(), [])
+        self.assertEqual(self.store.storedKeys(), [])
         self.assertEqual(
-            self.store.reset_all(), ["array", "count", "huge", "nan", "nested_huge", "real", "text"]
+            self.store.resetAll(), ["array", "count", "huge", "nan", "nested_huge", "real", "text"]
         )
         self.assertTrue(cmds.optionVar(exists=self.base + ".bad-key"))
 
@@ -400,7 +400,7 @@ class ValidationTest(OptionVarTestBase):
         store["2nd_Key"] = "ok"
         self.assertEqual(store["2nd_Key"], "ok")
         self.assertEqual(store.fullName("2nd_Key"), self.base + "._Tool_2.2nd_Key")
-        self.assertEqual(store.stored_keys(), ["2nd_Key"])
+        self.assertEqual(store.storedKeys(), ["2nd_Key"])
 
     def test_prefix_property_and_repr(self):
         store = OptionVar("studio.tool")

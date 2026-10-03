@@ -142,7 +142,7 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
 # ---------------------------------------------------------------------------
 # カーブ作成
 # ---------------------------------------------------------------------------
-@undo.undo_chunk()
+@undo.undoChunk()
 def _curve(
     points,
     name=DEFAULT_SHAPE_NAME,

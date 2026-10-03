@@ -25,7 +25,7 @@ class _Editor:
         if not self.exists():
             raise RuntimeError(f"Editor no longer exists: {self._name}")
 
-    def get_settings(self, *flags):
+    def getSettings(self, *flags):
         """指定した表示設定を取得する。
 
         Args:
@@ -50,7 +50,7 @@ class _Editor:
         if unknown:
             raise ValueError(f"Unsupported display flags: {sorted(unknown)}")
 
-    def set_settings(self, **flags):
+    def setSettings(self, **flags):
         """表示設定を変更する。フラグ値の検証はMayaへ委譲する。
 
         Args:
@@ -69,7 +69,7 @@ class _Editor:
             getattr(cmds, self._command)(self._name, edit=True, **flags)
 
     @contextmanager
-    def temporary_settings(self, **flags):
+    def temporarySettings(self, **flags):
         """表示設定を一時変更し、例外時も指定した設定を元に戻す。
 
         Args:
@@ -82,10 +82,10 @@ class _Editor:
             ValueError: 未対応のフラグの場合。
             RuntimeError: エディターが存在しない場合。
         """
-        previous = self.get_settings(*flags) if flags else {}
+        previous = self.getSettings(*flags) if flags else {}
         try:
-            self.set_settings(**flags)
+            self.setSettings(**flags)
             yield self
         finally:
             if previous and self.exists():
-                self.set_settings(**previous)
+                self.setSettings(**previous)

@@ -7,10 +7,10 @@ import math
 import hlib
 
 from hlib.maths import Matrix, Vector
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
-@undo_transaction("hrig.bake_source")
+@undoTransaction("hrig.bake_source")
 def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
     """外部の受け側骨をサンプリングし、FKまたはIKのキーへ変換する。
 

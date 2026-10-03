@@ -4,7 +4,7 @@ from ..decorators._fast import fast_edit
 
 import maya.cmds as cmds
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 from .transform import Transform
 
@@ -68,7 +68,7 @@ class Constraint(Transform):
         raise ValueError(f"Target not found on this constraint: {requested}")
 
     @fast_edit
-    @undo_chunk("hlibConstraintSetWeight")
+    @undoChunk("hlibConstraintSetWeight")
     def setWeight(self, weight, *targets, fast=False):
         """ターゲットのウェイトをまとめて設定する。
 

@@ -68,25 +68,25 @@ RuntimeErrorになります。新しいUIは生成しません。
    import hlib
 
    channel = hlib.getChannelBox()
-   plugs = channel.selected_plugs()
-   nodes = channel.displayed_nodes()
-   attributes = channel.selected_attributes()
+   plugs = channel.selectedPlugs()
+   nodes = channel.displayedNodes()
+   attributes = channel.selectedAttributes()
 
-``selected_plugs()`` は選択アトリビュートをPlugとして返します。短縮名やaliasを解決し、
+``selectedPlugs()`` は選択アトリビュートをPlugとして返します。短縮名やaliasを解決し、
 各ノードに存在しないアトリビュートと重複を除外します。未選択なら空リストです。
 アトリビュート値の取得・変更には返されたPlugのメソッドを使います。
 
 ``section`` には ``main``、``shape``、``history``、``output``、``all`` を指定できます。
-``selected_plugs()`` の既定値は ``all``、
-``displayed_nodes()`` と ``selected_attributes()`` の既定値は ``main`` です。
+``selectedPlugs()`` の既定値は ``all``、
+``displayedNodes()`` と ``selectedAttributes()`` の既定値は ``main`` です。
 表示ノードはMayaがその欄のobjectListとして返す対象です。
 
 .. code-block:: python
 
-   shape_plugs = channel.selected_plugs(section="shape")
-   channel.clear_selection()
+   shape_plugs = channel.selectedPlugs(section="shape")
+   channel.clearSelection()
 
-``clear_selection()`` はアトリビュートのUI選択を解除します。
+``clearSelection()`` はアトリビュートのUI選択を解除します。
 ``hlib.getChannelBox("既存コントロール名")`` で独自UIも参照できます。
 Channel Boxのアトリビュート選択とシーンのアクティブ選択は別です。
 ``captureSelection()`` はChannel Boxの選択アトリビュートを取得しません。

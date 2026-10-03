@@ -23,7 +23,7 @@ pipe、pyramid、prism、helix、platonicSolid。対応するMayaコマンド名
 from maya import cmds
 
 from .._core.flags import flag_aliases, normalize_flags
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 _PRIMITIVES = {
     "cube": "polyCube",
@@ -41,7 +41,7 @@ _PRIMITIVES = {
 
 
 @flag_aliases(typ="type")
-@undo_chunk("hlib.cmds.createPolygon")
+@undoChunk("hlib.cmds.createPolygon")
 def createPolygon(type="cube", **kwargs):
     """種類を指定してプリミティブを生成し、Meshを返す。
 

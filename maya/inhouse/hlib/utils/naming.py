@@ -50,7 +50,7 @@ def _clean_segment(segment):
     return cleaned
 
 
-def legalize_name(name):
+def legalizeName(name):
     """文字列を Maya のノード名として受け付けられる形へ変換する。
 
     コロン ``:`` を名前空間の区切りとして残し、区切られた各区間(名前空間名と
@@ -74,9 +74,9 @@ def legalize_name(name):
         TypeError: name が str でない場合。
 
     Examples:
-        >>> legalize_name("  arm L.001 ")
+        >>> legalizeName("  arm L.001 ")
         'arm_L_001'
-        >>> legalize_name("rig:2nd joint")
+        >>> legalizeName("rig:2nd joint")
         'rig:_2nd_joint'
     """
     if not isinstance(name, str):
@@ -95,3 +95,8 @@ def legalize_name(name):
     if text.startswith(_SEPARATOR):
         return _SEPARATOR + joined
     return joined
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('legalize_name',):
+    globals().pop(_obsolete_name, None)

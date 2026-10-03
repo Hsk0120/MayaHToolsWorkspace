@@ -1,11 +1,11 @@
 """シェーディンググループを作成する。"""
 import maya.cmds as cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases(n="name")
-@undo_chunk("hlibCreateShadingGroup")
+@undoChunk("hlibCreateShadingGroup")
 def createShadingGroup(shader=None, name=None):
     """レンダー用セットを作成し、必要なら表面シェーダーを接続する。
 

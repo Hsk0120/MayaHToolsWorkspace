@@ -3,14 +3,14 @@
 from maya import cmds
 
 import hlib
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SampleBuilder:
     """UIとテストから共通に使う、サンプル生成の入口。"""
 
     @staticmethod
-    @undo_transaction("hrig.SampleBuilder.module")
+    @undoTransaction("hrig.SampleBuilder.module")
     def module(name, demo=False):
         """独立した3関節モジュールを生成する。
 
@@ -53,7 +53,7 @@ class SampleBuilder:
         return prefix + str(index)
 
     @staticmethod
-    @undo_transaction("hrig.SampleBuilder.layer")
+    @undoTransaction("hrig.SampleBuilder.layer")
     def layer(rig, kind, count=3, component="swingZ", axis="x", ratio=0.5):
         """選択部位へサンプルを追加し、設定先を返す。
 

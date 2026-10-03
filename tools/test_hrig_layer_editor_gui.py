@@ -69,7 +69,7 @@ def main(output_dir=None, finished=None):
         check(rig.mode() == "fk", "Base module starts in FK")
         for kind in ("twist", "bend", "driven", "foot", "soft", "helper"):
             editor.layer_type.setCurrentIndex(editor.layer_type.findData(kind))
-            QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+            QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
             yield
             check(not editor.status.text().startswith("操作できません"), "Add sample " + kind)
         check(len(rig.twist_joints()) == 3 and len(rig.bend_joints()) == 3, "Sample joints created")
@@ -164,7 +164,7 @@ def main(output_dir=None, finished=None):
         cmds.file(new=True, force=True)
         yield
         check(
-            editor.tree.topLevelItemCount() == 0 and not editor.add_button.isEnabled(),
+            editor.tree.topLevelItemCount() == 0 and not editor.addButton.isEnabled(),
             "New scene clears panel",
         )
         editor.close()

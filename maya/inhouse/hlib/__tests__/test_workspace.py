@@ -41,15 +41,15 @@ class WorkspaceTest(unittest.TestCase):
             Workspace.open(123)
 
     def test_rule_get_set_round_trip(self):
-        self.assertEqual(Workspace.get_rule("scene"), self.previous_scene_rule)
-        Workspace.set_rule("scene", "hlibScenesDir")
-        self.assertEqual(Workspace.get_rule("scene"), "hlibScenesDir")
+        self.assertEqual(Workspace.getRule("scene"), self.previous_scene_rule)
+        Workspace.setRule("scene", "hlibScenesDir")
+        self.assertEqual(Workspace.getRule("scene"), "hlibScenesDir")
 
     def test_rule_returns_empty_string_for_unknown_rule(self):
-        self.assertEqual(Workspace.get_rule("hlibDoesNotExistRule123"), "")
+        self.assertEqual(Workspace.getRule("hlibDoesNotExistRule123"), "")
 
     def test_rules_includes_known_rule_names(self):
-        rules = Workspace.rule_names()
+        rules = Workspace.ruleNames()
         self.assertIn("scene", rules)
 
     def test_expand_resolves_relative_to_root_literally(self):
@@ -58,10 +58,10 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(expanded, Workspace.root() / "myScene.ma")
 
     def test_path_for_combines_root_rule_and_filename(self):
-        result = Workspace.path_for("scene", "myScene.ma")
+        result = Workspace.pathFor("scene", "myScene.ma")
         self.assertEqual(result, Workspace.root() / self.previous_scene_rule / "myScene.ma")
 
-        directory_only = Workspace.path_for("scene")
+        directory_only = Workspace.pathFor("scene")
         self.assertEqual(directory_only, Workspace.root() / self.previous_scene_rule)
 
 

@@ -1,7 +1,7 @@
 """Mayaのfileノードを扱う。"""
 from .._core.registry import node_wrapper
 from .texture2d import Texture2d
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @node_wrapper("file")
@@ -12,7 +12,7 @@ class File(Texture2d):
         """str: ファイルパス。UDIM等のトークンは展開せず返す。"""
         return self.plug("fileTextureName").get()
 
-    @undo_chunk("hlibFileSetPath")
+    @undoChunk("hlibFileSetPath")
     def setFilePath(self, path):
         """ファイルパスを設定する。存在確認・コピーは行わない。
 
@@ -30,7 +30,7 @@ class File(Texture2d):
         """str: 現在の入力色空間名。"""
         return self.plug("colorSpace").get()
 
-    @undo_chunk("hlibFileSetColorSpace")
+    @undoChunk("hlibFileSetColorSpace")
     def setColorSpace(self, name):
         """入力色空間を設定する。
 

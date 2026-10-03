@@ -1,10 +1,10 @@
 """Mesh の現在の UV セットを参照する UV 型。"""
 
 from ..decorators._fast import fast_edit, is_fast
-from .._core import fastGeometry as fast_geometry
+from .._core import geometryEdit as geometry_edit
 import maya.cmds as cmds
 from .component import Component, Components
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 class UV(Component):
@@ -24,7 +24,7 @@ class UV(Component):
         return tuple(meshFn.getUV(self._index, uvSet=meshFn.currentUVSetName()))
 
     @fast_edit
-    @undo_chunk("hlibUVPosition")
+    @undoChunk("hlibUVPosition")
     def setPosition(self, value, *, fast=False):
         """UV 座標を設定する。
 
@@ -45,7 +45,7 @@ class UV(Component):
         u, v = self._finite_coordinates(value, 2)
         if is_fast():
             self._validate()
-            fast_geometry.set_uvs(self.shape, [self.index], [(u, v)])
+            geometry_edit.set_uvs(self.shape, [self.index], [(u, v)])
             return self
         cmds.polyEditUV(self.fullName(), relative=False, uValue=u, vValue=v,
                         uvSetName=self.shape.meshFn().currentUVSetName())
@@ -114,7 +114,7 @@ class UVs(Components):
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float]): 有限のU、V座標。
         Returns:
-            UVs: 自身。要素別の指定にはset_positionsを使う。
+            UVs: 自身。要素別の指定にはsetPositionsを使う。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -124,7 +124,7 @@ class UVs(Components):
         return self.setPositions([point] * len(self))
 
     @fast_edit
-    @undo_chunk("hlibUVsSetPositions")
+    @undoChunk("hlibUVsSetPositions")
     def setPositions(self, values, *, fast=False):
         """保持順にUV座標を設定する。全件の座標・対象を先に検証する。
 
@@ -144,7 +144,7 @@ class UVs(Components):
         rows = self._coordinate_rows(values, 2)
         components = list(self)
         if is_fast():
-            fast_geometry.set_uvs(self._shape, [c.index for c in components], rows)
+            geometry_edit.set_uvs(self._shape, [c.index for c in components], rows)
             return self
         for item, point in zip(components, rows):
             item.setPosition(point)

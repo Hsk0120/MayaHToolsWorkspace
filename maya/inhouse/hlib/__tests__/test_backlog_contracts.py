@@ -17,7 +17,7 @@ class BacklogContractsTest(unittest.TestCase):
         error = ValueError('primary')
         with mock.patch.object(undo.cmds, 'undoInfo', side_effect=[None, RuntimeError('close')]), mock.patch.object(logger, 'warning') as warning:
             with self.assertRaises(ValueError) as caught:
-                with undo.undo_chunk():
+                with undo.undoChunk():
                     raise error
             self.assertIs(caught.exception, error)
             warning.assert_called_once()
@@ -28,7 +28,7 @@ class BacklogContractsTest(unittest.TestCase):
         logger = importlib.import_module('hlib.utils.logger')
         with mock.patch.object(undo.cmds, 'undoInfo', side_effect=[None, RuntimeError('close')]), mock.patch.object(undo.cmds, 'createNode', side_effect=RuntimeError('guard')), mock.patch.object(undo.cmds, 'undo', side_effect=RuntimeError('rollback')) as rollback, mock.patch.object(logger, 'warning') as warning:
             with self.assertRaisesRegex(ValueError, 'primary'):
-                with undo.undo_transaction():
+                with undo.undoTransaction():
                     raise ValueError('primary')
             self.assertEqual(warning.call_count, 3)
             rollback.assert_not_called()
@@ -39,7 +39,7 @@ class BacklogContractsTest(unittest.TestCase):
         logger = importlib.import_module('hlib.utils.logger')
         with mock.patch.object(undo.cmds, 'undoInfo'), mock.patch.object(undo.cmds, 'createNode', return_value='guard'), mock.patch.object(undo.cmds, 'delete'), mock.patch.object(undo.cmds, 'undo', side_effect=RuntimeError('rollback')), mock.patch.object(logger, 'warning') as warning:
             with self.assertRaisesRegex(ValueError, 'primary'):
-                with undo.undo_transaction():
+                with undo.undoTransaction():
                     raise ValueError('primary')
             warning.assert_called_once()
 

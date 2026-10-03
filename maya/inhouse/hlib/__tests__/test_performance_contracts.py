@@ -9,7 +9,7 @@ import hlib
 
 hlib.reload()
 from hlib.decorators._fast import fast_edit, is_fast
-from hlib.decorators.undo import undo_chunk, undo_transaction
+from hlib.decorators.undo import undoChunk, undoTransaction
 
 
 class PerformanceContractsTest(unittest.TestCase):
@@ -59,9 +59,9 @@ class PerformanceContractsTest(unittest.TestCase):
         node = hlib.getNode(cmds.createNode("transform"))
         original = cmds.undoInfo
         with patch.object(cmds, "undoInfo", wraps=original) as calls:
-            with undo_chunk("outer"):
+            with undoChunk("outer"):
                 node.plug("tx").set(3)
-                with undo_chunk("inner"):
+                with undoChunk("inner"):
                     node.plug("ty").set(7)
         self.assertEqual(sum(bool(c[1].get("openChunk")) for c in calls.call_args_list), 1)
         self.assertEqual(sum(bool(c[1].get("closeChunk")) for c in calls.call_args_list), 1)
@@ -75,10 +75,10 @@ class PerformanceContractsTest(unittest.TestCase):
         """開閉の失敗や本体の例外で後続操作のチャンクを省略しない。"""
         with patch.object(cmds, "undoInfo", side_effect=RuntimeError("open failed")):
             with self.assertRaises(RuntimeError):
-                with undo_chunk("failed"):
+                with undoChunk("failed"):
                     pass
         with self.assertRaises(ValueError):
-            with undo_chunk("body failed"):
+            with undoChunk("body failed"):
                 raise ValueError("body")
         node = hlib.getNode(cmds.createNode("transform"))
         node.plug("tx").set(8)
@@ -88,15 +88,15 @@ class PerformanceContractsTest(unittest.TestCase):
     def test_transaction_is_not_suppressed(self):
         """トランザクション自体の独立チャンクは通常チャンク内でも維持する。"""
         with patch.object(cmds, "undoInfo") as calls:
-            with undo_chunk("outer"):
-                with undo_transaction("transaction"):
-                    with undo_chunk("inner"):
+            with undoChunk("outer"):
+                with undoTransaction("transaction"):
+                    with undoChunk("inner"):
                         pass
         names = [c[1].get("chunkName") for c in calls.call_args_list if c[1].get("openChunk")]
         self.assertEqual(names, ["outer", "transaction"])
         node = hlib.getNode(cmds.createNode("transform"))
         with self.assertRaises(ValueError):
-            with undo_transaction("rollback"):
+            with undoTransaction("rollback"):
                 node.plug("tx").set(9)
                 raise ValueError("rollback")
         self.assertEqual(node.plug("tx").get(), 0)

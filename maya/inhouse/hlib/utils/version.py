@@ -144,7 +144,7 @@ class Version:
         object.__setattr__(result, "_suffix", self._suffix)
         return result
 
-    def is_at_least(self, minimum):
+    def isAtLeast(self, minimum):
         """必要な版番号以上か判定する。
 
         Args:

@@ -2,17 +2,17 @@
 
 ``hlib.addConstraint(sources, target, type="parent", maintainOffset=False)``
 で単一のConstraintを返す。照会はConstraint.targets()/weightPlugs()、
-ウェイト編集はset_weight()、他のアトリビュートはPlugで操作する。query/editは受け付けない。
+ウェイト編集はsetWeight()、他のアトリビュートはPlugで操作する。query/editは受け付けない。
 種類はparent、point、orient、scale、aim、poleVector、geometry、normal、tangent、
 pointOnPoly。Constraint接尾辞付きの型名も指定できる。
 """
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases(typ="type", mo="maintainOffset")
-@undo_chunk("hlib.cmds.addConstraint")
+@undoChunk("hlib.cmds.addConstraint")
 def addConstraint(sources, target, type="parent", maintainOffset=False, **kwargs):
     """対象へ拘束を追加する。選択状態から対象を補完しない。
 

@@ -146,15 +146,15 @@ class Mesh(Shape):
         return self.meshFn().getPoints(space)
 
     def getNormals(self, space=MSpace.kObject, angle_weighted=False):
-        """全頂点の法線を取得する。
+        """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
         Args:
             space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
             angle_weighted (bool): True の場合は隣接面の角度で重み付けした法線を取得する。
 
         Returns:
-            om2.MFloatVectorArray: 頂点番号順の法線。共有頂点は面ごとに異なる
-                場合があるため、代表値として最初の面法線を返す(MFnMesh の仕様)。
+            om2.MFloatVectorArray: 頂点番号順の平均法線。angle_weighted=False では
+                角度による重み付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
         ws = world_space(space)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject

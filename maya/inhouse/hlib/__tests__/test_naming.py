@@ -7,77 +7,77 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.utils.naming import legalize_name
+from hlib.utils.naming import legalizeName
 
 
 class LegalizeNameTest(unittest.TestCase):
-    """legalize_name が Maya のノード名として有効な文字列を返すことを検証する。"""
+    """legalizeName が Maya のノード名として有効な文字列を返すことを検証する。"""
 
     def test_returns_unchanged_for_already_legal_names(self):
-        self.assertEqual(legalize_name("hlibValidName"), "hlibValidName")
-        self.assertEqual(legalize_name("hlib_valid_name_2"), "hlib_valid_name_2")
-        self.assertEqual(legalize_name("_hlibLeadingUnderscore"), "_hlibLeadingUnderscore")
+        self.assertEqual(legalizeName("hlibValidName"), "hlibValidName")
+        self.assertEqual(legalizeName("hlib_valid_name_2"), "hlib_valid_name_2")
+        self.assertEqual(legalizeName("_hlibLeadingUnderscore"), "_hlibLeadingUnderscore")
 
     def test_strips_surrounding_whitespace(self):
-        self.assertEqual(legalize_name("  hlibName  "), "hlibName")
-        self.assertEqual(legalize_name("\thlibName\n"), "hlibName")
+        self.assertEqual(legalizeName("  hlibName  "), "hlibName")
+        self.assertEqual(legalizeName("\thlibName\n"), "hlibName")
 
     def test_prefixes_underscore_when_name_starts_with_a_digit(self):
-        self.assertEqual(legalize_name("123abc"), "_123abc")
+        self.assertEqual(legalizeName("123abc"), "_123abc")
 
     def test_collapses_illegal_character_runs_into_a_single_underscore(self):
-        self.assertEqual(legalize_name("hlib name!!  test"), "hlib_name_test")
-        self.assertEqual(legalize_name("a---b"), "a_b")
+        self.assertEqual(legalizeName("hlib name!!  test"), "hlib_name_test")
+        self.assertEqual(legalizeName("a---b"), "a_b")
 
     def test_keeps_underscores_that_were_already_in_the_input(self):
-        self.assertEqual(legalize_name("hlib__double"), "hlib__double")
-        self.assertEqual(legalize_name("hlib_-name"), "hlib__name")
+        self.assertEqual(legalizeName("hlib__double"), "hlib__double")
+        self.assertEqual(legalizeName("hlib_-name"), "hlib__name")
 
     def test_replaces_dag_separator_dot_and_non_ascii_characters(self):
-        self.assertEqual(legalize_name("grp|node"), "grp_node")
-        self.assertEqual(legalize_name("arm.L"), "arm_L")
-        self.assertEqual(legalize_name("héllo"), "h_llo")
-        self.assertEqual(legalize_name("腕L"), "_L")
+        self.assertEqual(legalizeName("grp|node"), "grp_node")
+        self.assertEqual(legalizeName("arm.L"), "arm_L")
+        self.assertEqual(legalizeName("héllo"), "h_llo")
+        self.assertEqual(legalizeName("腕L"), "_L")
 
     def test_does_not_treat_non_ascii_digits_as_digits(self):
         # 上付きの「2」は数字扱いせず、使えない文字として置き換える。
-        self.assertEqual(legalize_name("²abc"), "_abc")
+        self.assertEqual(legalizeName("²abc"), "_abc")
 
     def test_preserves_namespace_colon_separators(self):
-        self.assertEqual(legalize_name("hlibNamespace:hlibName"), "hlibNamespace:hlibName")
+        self.assertEqual(legalizeName("hlibNamespace:hlibName"), "hlibNamespace:hlibName")
 
     def test_applies_digit_rule_to_every_namespace_segment(self):
-        self.assertEqual(legalize_name("ns:1abc"), "ns:_1abc")
-        self.assertEqual(legalize_name("1ns:2sub:leaf"), "_1ns:_2sub:leaf")
+        self.assertEqual(legalizeName("ns:1abc"), "ns:_1abc")
+        self.assertEqual(legalizeName("1ns:2sub:leaf"), "_1ns:_2sub:leaf")
 
     def test_strips_whitespace_around_namespace_separators(self):
-        self.assertEqual(legalize_name("ns : hlib name"), "ns:hlib_name")
+        self.assertEqual(legalizeName("ns : hlib name"), "ns:hlib_name")
 
     def test_drops_empty_namespace_segments(self):
-        self.assertEqual(legalize_name("a::b"), "a:b")
-        self.assertEqual(legalize_name("ns:"), "ns")
-        self.assertEqual(legalize_name("ns:   "), "ns")
+        self.assertEqual(legalizeName("a::b"), "a:b")
+        self.assertEqual(legalizeName("ns:"), "ns")
+        self.assertEqual(legalizeName("ns:   "), "ns")
 
     def test_keeps_a_single_leading_colon_for_root_namespace(self):
-        self.assertEqual(legalize_name(":hlibRootName"), ":hlibRootName")
-        self.assertEqual(legalize_name("  ::ns:leaf"), ":ns:leaf")
+        self.assertEqual(legalizeName(":hlibRootName"), ":hlibRootName")
+        self.assertEqual(legalizeName("  ::ns:leaf"), ":ns:leaf")
 
     def test_empty_or_whitespace_only_input_becomes_underscore(self):
-        self.assertEqual(legalize_name(""), "_")
-        self.assertEqual(legalize_name("   "), "_")
-        self.assertEqual(legalize_name(":"), "_")
-        self.assertEqual(legalize_name(" : : "), "_")
+        self.assertEqual(legalizeName(""), "_")
+        self.assertEqual(legalizeName("   "), "_")
+        self.assertEqual(legalizeName(":"), "_")
+        self.assertEqual(legalizeName(" : : "), "_")
 
     def test_all_illegal_characters_becomes_underscore(self):
-        self.assertEqual(legalize_name("!!!"), "_")
+        self.assertEqual(legalizeName("!!!"), "_")
 
     def test_non_string_input_raises_type_error(self):
         with self.assertRaises(TypeError):
-            legalize_name(None)
+            legalizeName(None)
         with self.assertRaises(TypeError):
-            legalize_name(123)
+            legalizeName(123)
         with self.assertRaises(TypeError):
-            legalize_name(b"hlibBytes")
+            legalizeName(b"hlibBytes")
 
 
 class LegalizeNameMayaAcceptanceTest(unittest.TestCase):
@@ -106,12 +106,12 @@ class LegalizeNameMayaAcceptanceTest(unittest.TestCase):
         ]
         for raw in raw_names:
             with self.subTest(raw=raw):
-                legal = legalize_name(self.NAMESPACE + ":" + raw)
+                legal = legalizeName(self.NAMESPACE + ":" + raw)
                 created = cmds.createNode("transform", name=legal)
                 self.assertEqual(created, legal)
 
     def test_maya_accepts_leading_colon_as_root_namespace(self):
-        legal = legalize_name(":" + self.NAMESPACE + ":5 leaf")
+        legal = legalizeName(":" + self.NAMESPACE + ":5 leaf")
         self.assertEqual(legal, ":" + self.NAMESPACE + ":_5_leaf")
         created = cmds.createNode("transform", name=legal)
         self.assertEqual(created, legal[1:])

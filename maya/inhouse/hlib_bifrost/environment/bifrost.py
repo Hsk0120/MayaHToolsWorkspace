@@ -19,7 +19,7 @@ class Bifrost:
         if not plugin.isLoaded():
             return False
         version = plugin.version()
-        return version is not None and version.is_at_least(cls.MIN_VERSION)
+        return version is not None and version.isAtLeast(cls.MIN_VERSION)
 
     @classmethod
     def ensure_available(cls):
@@ -32,6 +32,6 @@ class Bifrost:
 
         if cmds.about(apiVersion=True) < 20250000:
             raise RuntimeError("hlib_bifrost requires Maya 2025 or newer")
-        Plugin("bifrostGraph").ensure_loaded()
+        Plugin("bifrostGraph").ensureLoaded()
         if not cls.is_available():
             raise RuntimeError("hlib_bifrost requires Bifrost 3.0.0.0 or newer")

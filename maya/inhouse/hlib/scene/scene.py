@@ -66,7 +66,7 @@ class Scene:
         """保持パスが未保存シーンを表すか判定する。
 
         Returns:
-            bool: 現在のシーンにパスがない場合は True。
+            bool: このインスタンスが保持するパスがない場合は True。
         """
         return self.path is None
 
@@ -248,9 +248,9 @@ class Scene:
         return fileType
 
     def __repr__(self):
-        """現在のシーンパスを含むデバッグ表現を返す。
+        """保持するシーンパスを含むデバッグ表現を返す。
 
         Returns:
-            str: 現在のパスを含む文字列表現。
+            str: 保持するパスを含む文字列表現。
         """
         return f"Scene(path={self.path!r})"

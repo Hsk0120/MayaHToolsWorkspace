@@ -60,7 +60,7 @@ def main(output_dir=None, finished=None):
             "UI spine creation",
         )
         check(
-            not editor.add_button.isEnabled() and not editor.bake_button.isEnabled(),
+            not editor.addButton.isEnabled() and not editor.bake_button.isEnabled(),
             "Unsupported sample actions disabled",
         )
         rig.controls()[1].plug("tx").set(3)

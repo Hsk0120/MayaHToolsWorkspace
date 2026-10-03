@@ -6,7 +6,7 @@ import math
 import maya.cmds as cmds
 import maya.mel as mel
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 class TimeSlider:
     """現在のタイムラインを参照する。時刻の単位はMayaの現在の時間単位。
@@ -40,11 +40,11 @@ class TimeSlider:
             raise ValueError("Time must be finite")
         return value
 
-    def get_current_time(self):
+    def getCurrentTime(self):
         """float: 現在の時刻を返す。"""
         return float(cmds.currentTime(query=True))
 
-    def set_current_time(self, value, update=True):
+    def setCurrentTime(self, value, update=True):
         """現在時刻を変更する。
 
         Args:
@@ -56,12 +56,12 @@ class TimeSlider:
         """
         cmds.currentTime(self._time(value), edit=True, update=update)
 
-    def get_playback_range(self):
+    def getPlaybackRange(self):
         """tuple[float, float]: 再生の開始・終了時刻。両端を含む。"""
         return (float(cmds.playbackOptions(query=True, minTime=True)),
                 float(cmds.playbackOptions(query=True, maxTime=True)))
 
-    def get_animation_range(self):
+    def getAnimationRange(self):
         """tuple[float, float]: アニメーション全体の開始・終了時刻。両端を含む。"""
         return (float(cmds.playbackOptions(query=True, animationStartTime=True)),
                 float(cmds.playbackOptions(query=True, animationEndTime=True)))
@@ -70,8 +70,8 @@ class TimeSlider:
         """有限値かつ開始<=終了を検証して範囲を設定する。
 
         Maya 2022 の ``playbackOptions`` はUndo履歴を作らないため、その
-        バージョンではこのメソッド(および ``set_playback_range``/
-        ``set_animation_range``)による変更はUndo/Redoできない
+        バージョンではこのメソッド(および ``setPlaybackRange``/
+        ``setAnimationRange``)による変更はUndo/Redoできない
         (Mayaネイティブの既知の制限で、hlibは独自プラグインでは補わない方針)。
         """
         start, end = self._time(start), self._time(end)
@@ -79,14 +79,14 @@ class TimeSlider:
             raise ValueError("Range start must not exceed end")
         if start_flag == "minTime":
             # 自動拡張されたanimation範囲は標準Undoで戻らないため明示的に記録する。
-            animation_start, animation_end = self.get_animation_range()
+            animation_start, animation_end = self.getAnimationRange()
             expanded = (min(animation_start, start), max(animation_end, end))
             if expanded != (animation_start, animation_end):
                 cmds.playbackOptions(animationStartTime=expanded[0], animationEndTime=expanded[1])
         cmds.playbackOptions(**{start_flag: start, end_flag: end})
 
-    @undo_chunk("hlibTimeSliderPlaybackRange")
-    def set_playback_range(self, start, end):
+    @undoChunk("hlibTimeSliderPlaybackRange")
+    def setPlaybackRange(self, start, end):
         """再生範囲を設定する。
 
         Maya 2022 では ``playbackOptions`` 自体がUndo履歴を作らないため、
@@ -101,8 +101,8 @@ class TimeSlider:
         """
         self._set_range(start, end, "minTime", "maxTime")
 
-    @undo_chunk("hlibTimeSliderAnimationRange")
-    def set_animation_range(self, start, end):
+    @undoChunk("hlibTimeSliderAnimationRange")
+    def setAnimationRange(self, start, end):
         """アニメーション全体の範囲を設定する。
 
         Maya 2022 では ``playbackOptions`` 自体がUndo履歴を作らないため、
@@ -117,7 +117,7 @@ class TimeSlider:
         """
         self._set_range(start, end, "animationStartTime", "animationEndTime")
 
-    def get_selected_range(self):
+    def getSelectedRange(self):
         """タイムスライダー上の選択範囲を取得する。
 
         Returns:
@@ -130,7 +130,7 @@ class TimeSlider:
             return None
         return tuple(float(x) for x in cmds.timeControl(control, query=True, rangeArray=True))
 
-    def is_playing(self):
+    def isPlaying(self):
         """bool: 再生中か返す。"""
         return bool(cmds.play(query=True, state=True))
 
@@ -150,14 +150,14 @@ class TimeSlider:
         cmds.play(state=False)
 
     @contextmanager
-    def preserve_time(self):
+    def preserveTime(self):
         """例外時も開始時の時刻へ戻す。再生状態や範囲は復元しない。
 
         Yields:
             TimeSlider: このインスタンス。
         """
-        previous = self.get_current_time()
+        previous = self.getCurrentTime()
         try:
             yield self
         finally:
-            self.set_current_time(previous)
+            self.setCurrentTime(previous)

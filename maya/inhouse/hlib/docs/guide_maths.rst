@@ -39,8 +39,11 @@ C++ 実装で行われます。
 
 演算子と om2 名(``normal``、``asMatrix``、``rotateBy`` などの camelCase)のメソッドは
 om2 と同じ意味です。演算子の結果は hlib の型で返ります(例外は :ref:`maths-result-types`)が、
-om2 名のメソッドは om2 の基底型(``om2.MVector`` など)を返します。hlib の型が必要なときは、
-同じ働きを持つ snake_case のメソッド(``normalized``、``toMatrix`` など)を使ってください。
+継承した値型を返すメソッドは om2 の基底型(``om2.MVector`` など)を返します。
+``isEquivalent()`` はbool、``length()`` はfloatです。
+``Matrix.inverse()`` / ``transpose()``、``Quaternion.conjugate()`` / ``inverse()`` など、
+hlibで上書きしたメソッドはhlibの型を返します。hlib の型が必要なときは、
+hlib独自の補助メソッド(``normalized``、``toMatrix`` など)を使ってください。
 ``hlib.maths`` の import には Maya(mayapy または Maya 本体)が必要です。
 ``hlib.maths.easing`` だけは標準ライブラリの ``math`` のみを使う関数群です。
 

@@ -31,12 +31,12 @@ class VersionTest(unittest.TestCase):
         self.assertEqual(len(set(versions)), 1)
         self.assertTrue(Version("3.10") > Version("3.9"))
         self.assertTrue(Version("3.0.1") > Version("3"))
-        self.assertTrue(Version("3.1").is_at_least((3, 0, 0)))
-        self.assertFalse(Version("2.99").is_at_least("3.0"))
+        self.assertTrue(Version("3.1").isAtLeast((3, 0, 0)))
+        self.assertFalse(Version("2.99").isAtLeast("3.0"))
         self.assertNotEqual(Version("3"), "3")
         self.assertNotEqual(Version("3"), (3,))
         with self.assertRaises(ValueError):
-            Version("3").is_at_least("bad")
+            Version("3").isAtLeast("bad")
 
     def test_invalid_values(self):
         """小数の切捨て・bool・負数・空値を版番号として採用しない。"""
@@ -67,7 +67,7 @@ class PluginVersionValueTest(unittest.TestCase):
         """各問い合わせは新しいスナップショットを返す。"""
         for cls in (Plugin, Module):
             with self.subTest(cls=cls), patch.object(
-                cls, "version_text", side_effect=["3.0.0.0-build", "3.1.0.0-next"]
+                cls, "versionText", side_effect=["3.0.0.0-build", "3.1.0.0-next"]
             ) as query:
                 reference = cls("example")
                 first = reference.version()
@@ -80,19 +80,19 @@ class PluginVersionValueTest(unittest.TestCase):
 
     def test_unparseable_version_keeps_raw_text(self):
         """数値版がない場合も生文字列を照会できる。"""
-        with patch.object(Plugin, "version_text", return_value="development"):
+        with patch.object(Plugin, "versionText", return_value="development"):
             plugin = Plugin("example")
             self.assertIsNone(plugin.version())
-            self.assertEqual(plugin.version_text(), "development")
-            self.assertFalse(plugin.is_version_at_least("1"))
+            self.assertEqual(plugin.versionText(), "development")
+            self.assertFalse(plugin.isVersionAtLeast("1"))
 
     def test_package_uses_values(self):
         """最低版・導入版・ロード版に共通の値型を使う。"""
         package = PluginPackage("Example", plugins=("example",), minimum_version=Version("3"))
-        self.assertIsInstance(package.minimum_version, Version)
-        with patch.object(Plugin, "version_text", return_value="3.1-build"), patch.object(
+        self.assertIsInstance(package.minimumVersion, Version)
+        with patch.object(Plugin, "versionText", return_value="3.1-build"), patch.object(
             Plugin, "isLoaded", return_value=True
         ):
-            self.assertEqual(package.installed_version(), Version("3.1"))
-            self.assertIsInstance(package.loaded_version(), Version)
-            self.assertTrue(package.is_installed())
+            self.assertEqual(package.installedVersion(), Version("3.1"))
+            self.assertIsInstance(package.loadedVersion(), Version)
+            self.assertTrue(package.isInstalled())

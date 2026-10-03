@@ -1,12 +1,12 @@
 """Menu-compatible entry point for selected joint removal."""
 
 import hlib
-from hlib.decorators import undo_chunk
+from hlib.decorators import undoChunk
 
 hlib.reload()
 from hlib import cmds as hlib_cmds
 
-@undo_chunk("removeSelectedJoints")
+@undoChunk("removeSelectedJoints")
 def remove_selected_joint():
     """Move selected joint weights to parent influences and delete them."""
     joints = hlib_cmds.ls(sl=True, type="joint", long=True)

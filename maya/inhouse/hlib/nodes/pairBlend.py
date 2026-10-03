@@ -1,6 +1,6 @@
 """移動・回転をブレンドする。Euler/Quaternion補間を選択できる。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
 from .node import Node
@@ -25,7 +25,7 @@ class PairBlend(Node):
         return self.weightPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setWeight(self, value, *, fast=False):
         """ブレンドウェイトへ定数値を設定する。
 
@@ -41,7 +41,7 @@ class PairBlend(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.weightPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectWeight(self, source, force=False):
         """ブレンドウェイトへ接続する。
 
@@ -52,7 +52,7 @@ class PairBlend(Node):
             PairBlend: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.weightPlug, force=force)
         return self
@@ -65,7 +65,7 @@ class PairBlend(Node):
         return _Calculation.enumName(self.plug("rotInterpolation"), ('euler', 'quaternion'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setRotationInterpolation(self, mode, *, fast=False):
         """モードを設定する。
 
@@ -90,7 +90,7 @@ class PairBlend(Node):
         return _Calculation.enumName(self.plug("rotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setRotateOrder(self, mode, *, fast=False):
         """モードを設定する。
 
@@ -108,7 +108,7 @@ class PairBlend(Node):
         return self
 
     def translatePlug(self, index):
-        """translate入力（移動はcm、回転はrad）のPlugを取得する。
+        """translate入力（cm）のPlugを取得する。
 
         Args:
             index (int): 入力番号1または2。
@@ -118,7 +118,7 @@ class PairBlend(Node):
         return self.plug(f"inTranslate{_Calculation.index(index, (1, 2))}")
 
     def getTranslation(self, index):
-        """translate入力（移動はcm、回転はrad）の評価値を取得する。
+        """translate入力（cm）の評価値を取得する。
 
         Args:
             index (int): 入力番号1または2。
@@ -128,9 +128,9 @@ class PairBlend(Node):
         return self.translatePlug(index).get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setTranslation(self, index, value, *, fast=False):
-        """translate入力（移動はcm、回転はrad）へ定数値を設定する。
+        """translate入力（cm）へ定数値を設定する。
 
         Args:
             index (int): 入力番号1または2。
@@ -145,9 +145,9 @@ class PairBlend(Node):
         _Calculation.set_value(value, _Calculation.vector, self.translatePlug, index)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectTranslate(self, index, source, force=False):
-        """translate入力（移動はcm、回転はrad）へ接続する。
+        """translate入力（cm）へ接続する。
 
         Args:
             index (int): 入力番号1または2。
@@ -157,13 +157,13 @@ class PairBlend(Node):
             PairBlend: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.translatePlug, index, force=force)
         return self
 
     def rotatePlug(self, index):
-        """rotate入力（移動はcm、回転はrad）のPlugを取得する。
+        """rotate入力（rad）のPlugを取得する。
 
         Args:
             index (int): 入力番号1または2。
@@ -173,7 +173,7 @@ class PairBlend(Node):
         return self.plug(f"inRotate{_Calculation.index(index, (1, 2))}")
 
     def getRotation(self, index):
-        """rotate入力（移動はcm、回転はrad）の評価値を取得する。
+        """rotate入力（rad）の評価値を取得する。
 
         Args:
             index (int): 入力番号1または2。
@@ -183,9 +183,9 @@ class PairBlend(Node):
         return self.rotatePlug(index).get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setRotation(self, index, value, *, fast=False):
-        """rotate入力（移動はcm、回転はrad）へ定数値を設定する。
+        """rotate入力（rad）へ定数値を設定する。
 
         Args:
             index (int): 入力番号1または2。
@@ -200,9 +200,9 @@ class PairBlend(Node):
         _Calculation.set_value(value, _Calculation.vector, self.rotatePlug, index)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectRotate(self, index, source, force=False):
-        """rotate入力（移動はcm、回転はrad）へ接続する。
+        """rotate入力（rad）へ接続する。
 
         Args:
             index (int): 入力番号1または2。
@@ -212,7 +212,7 @@ class PairBlend(Node):
             PairBlend: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.rotatePlug, index, force=force)
         return self

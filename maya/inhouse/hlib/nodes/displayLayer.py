@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 
 
@@ -22,7 +22,7 @@ class DisplayLayer(Node):
         names = cmds.editDisplayLayerMembers(self.name(), query=True, fullNames=True) or []
         return [Node(name) for name in names]
 
-    @undo_chunk("hlibDisplayLayerAddMembers")
+    @undoChunk("hlibDisplayLayerAddMembers")
     def addMembers(self, *members):
         """メンバーを追加する。
 
@@ -40,7 +40,7 @@ class DisplayLayer(Node):
             cmds.editDisplayLayerMembers(self.name(), _InputObject._input_names(members))
         return self
 
-    @undo_chunk("hlibDisplayLayerRemoveMembers")
+    @undoChunk("hlibDisplayLayerRemoveMembers")
     def removeMembers(self, *members):
         """メンバーを既定の defaultLayer へ戻して除外する。
 
@@ -58,7 +58,7 @@ class DisplayLayer(Node):
             cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
         return self
 
-    @undo_chunk("hlibDisplayLayerSetCurrent")
+    @undoChunk("hlibDisplayLayerSetCurrent")
     def setCurrent(self):
         """このレイヤーを現在のレイヤー(新規作成ノードの追加先)にする。
 

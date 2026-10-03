@@ -41,7 +41,7 @@ JSON変換や置換に失敗した場合、既存ファイルを成功したも�
 
     data = hlib.json.load(path)
     node = data["target"].resolve()
-    document = hlib.json.load_document(path)
+    document = hlib.json.loadDocument(path)
     print(document.metadata)
 
 通常のdictはdict、Snapshotは用途別Snapshotとして戻ります。
@@ -112,8 +112,9 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
     source = saved.records[0]["node"].path
     saved.apply(mapping={source: "anotherControl"})
 
-明示対応を優先し、その次に名前空間変換を使います。
-どちらも指定しない場合はUUID、その後に保存名で解決します。
+保存パスに該当する明示対応を優先し、該当しない場合は名前空間変換を使います。
+明示対応が該当せず、名前空間マップが空の場合だけUUIDを検索し、見つからなければ保存名で解決します。
+名前空間マップが非空の場合、置換する名前空間がなくても元のUUIDへフォールバックしません。
 候補が複数ある場合、型が異なる場合、不明な場合はエラーにします。
 エディターのmappingはUI名同士の対応です。
 

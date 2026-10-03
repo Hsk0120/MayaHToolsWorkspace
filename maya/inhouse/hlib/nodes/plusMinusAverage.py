@@ -1,6 +1,6 @@
 """配列入力の加算・減算・平均を計算する。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
 from .shadingDependNode import ShadingDependNode
@@ -18,7 +18,7 @@ class PlusMinusAverage(ShadingDependNode):
         return _Calculation.enumName(self.plug("operation"), ('none', 'sum', 'subtract', 'average'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setOperation(self, mode, *, fast=False):
         """モードを設定する。
 
@@ -77,7 +77,7 @@ class PlusMinusAverage(ShadingDependNode):
         """
         return self.inputPlug(index, dimension).get()
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, index, value, dimension=1):
         """指定番号に入力値を設定する。
 
@@ -94,10 +94,10 @@ class PlusMinusAverage(ShadingDependNode):
         index = _Calculation.index(index)
         array = self._input_array(dimension)
         value = _Calculation.scalar(value) if dimension == 1 else _Calculation.vector(value, dimension)
-        array.element(index, create=True).set(value)
+        array._element_reference(index).set(value)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, index, source, dimension=1, force=False):
         """指定番号に接続する。
 
@@ -110,15 +110,15 @@ class PlusMinusAverage(ShadingDependNode):
             PlusMinusAverage: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         from hlib.plugs.plug import Plug as _InputPlug
         source = _InputPlug._resolve_input(source)
-        target = self._input_array(dimension).element(_Calculation.index(index), create=True)
+        target = self._input_array(dimension)._element_reference(_Calculation.index(index))
         source.connect(target, force=force)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def removeInput(self, index, dimension=1):
         """入力要素とその接続を削除する。
 

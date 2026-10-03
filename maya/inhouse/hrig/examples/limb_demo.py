@@ -4,13 +4,13 @@ from maya import cmds
 
 import hlib
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 from hrig import build_limb, limb_definition
 from hrig.reverse_foot import add_reverse_foot
 from hrig.skin import bind_mesh, create_skin_lod, set_mesh_lod
 
 
-@undo_transaction("hrig.build_demo")
+@undoTransaction("hrig.build_demo")
 def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True):
     """デモを現在シーンへ追加する。同名ノードがあれば拒否する。
 

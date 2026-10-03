@@ -40,7 +40,7 @@ class Workspace:
         cmds.workspace(str(path), openWorkspace=True)
 
     @staticmethod
-    def get_rule(name):
+    def getRule(name):
         """指定したファイルルールのサブディレクトリを取得する。
 
         Args:
@@ -53,7 +53,7 @@ class Workspace:
         return cmds.workspace(fileRuleEntry=name)
 
     @staticmethod
-    def set_rule(name, path):
+    def setRule(name, path):
         """ファイルルールのサブディレクトリを設定する。
 
         Args:
@@ -69,7 +69,7 @@ class Workspace:
         cmds.workspace(fileRule=(name, str(path)))
 
     @staticmethod
-    def rule_names():
+    def ruleNames():
         """定義済みのファイルルール名の一覧を取得する。
 
         Returns:
@@ -83,9 +83,9 @@ class Workspace:
 
         ``name`` はそのままルートへ連結される文字列として扱われ、
         ファイルルール名としては解決されない(例: ``"scene"`` は
-        ``get_rule("scene")`` が返す ``"scenes"`` には解決されず、文字通り
+        ``getRule("scene")`` が返す ``"scenes"`` には解決されず、文字通り
         ``<root>/scene`` になる)。ルールが指すディレクトリを取得する場合は
-        ``path_for`` を使う。
+        ``pathFor`` を使う。
 
         Args:
             name (str): 展開する相対パスまたはファイル名。
@@ -96,7 +96,7 @@ class Workspace:
         return Path(cmds.workspace(expandName=name))
 
     @staticmethod
-    def path_for(rule_name, filename=""):
+    def pathFor(rule_name, filename=""):
         """指定したファイルルールのディレクトリを絶対パスで取得する。
 
         Args:
@@ -106,6 +106,6 @@ class Workspace:
         Returns:
             Path: 絶対パス。
         """
-        relative = Workspace.get_rule(rule_name)
+        relative = Workspace.getRule(rule_name)
         base = Workspace.root() / relative if relative else Workspace.root()
         return base / filename if filename else base

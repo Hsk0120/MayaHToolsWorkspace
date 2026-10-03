@@ -8,14 +8,14 @@ import hlib
 
 from hrig.setups.twistDistribution import TwistDistribution
 from hlib.maths.matrix import Matrix
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SwingTwist(TwistDistribution):
     """標準ノードで分解し、度単位のスカラー出力を公開する。"""
 
     @classmethod
-    @undo_transaction("hrig.SwingTwist.create")
+    @undoTransaction("hrig.SwingTwist.create")
     def create(cls, joint, name="swingTwist", axis="x", rest=True):
         """直接の親空間で、作成時の姿勢を基準に回転を分解する。
 

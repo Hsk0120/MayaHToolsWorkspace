@@ -11,7 +11,14 @@ class NodeRef:
 
     @classmethod
     def capture(cls, node):
-        """Nodeまたは一意な名前から参照を取得する。"""
+        """Nodeまたは一意な名前から参照を取得する。
+
+        Args:
+            node (Node | str): 有効なノードまたは一意に解決できる名前。
+
+        Returns:
+            NodeRef: UUID、パス、ノード型を保持する参照。
+        """
         import maya.api.OpenMaya as om2
         from ..nodes.node import Node
         name = (node.fullName() if hasattr(node, "fullName") else node)
@@ -34,9 +41,22 @@ class NodeRef:
         return cls(node.uuid(), node.fullName(), node.type())
 
     def resolve(self, mapping=None, namespace_map=None):
-        """明示マップ→名前空間変換→UUID→絶対名の順でNodeを解決する。
+        """保存参照を現在のシーンのノードへ解決する。
 
-        マップ指定時は元UUIDへフォールバックしない。型違い・不明・曖昧ならValueError。
+        明示的なパスマップを優先し、該当しない場合は名前空間マップを適用する。
+        パスマップが該当せず名前空間マップも空の場合だけ UUID を検索し、
+        見つからなければ保存パスで検索する。名前空間マップが非空の場合は、
+        置換対象がなくても元の UUID へフォールバックしない。
+
+        Args:
+            mapping (dict | None): 保存パスから移行先ノード名または Node への対応。
+            namespace_map (dict | None): 保存名前空間から移行先名前空間への対応。
+
+        Returns:
+            Node: 保存した node_type と一致するノード。
+
+        Raises:
+            ValueError: 対象が不明・曖昧、またはノード型が異なる場合。
         """
         from maya import cmds
         from ..nodes.node import Node
@@ -80,13 +100,29 @@ class PlugRef:
 
     @classmethod
     def capture(cls, plug):
-        """Plugまたはアトリビュート名を参照へ変換する。"""
+        """Plugまたはアトリビュート名を参照へ変換する。
+
+        Args:
+            plug (Plug | str): プラグまたはノード名を含むアトリビュート名。
+
+        Returns:
+            PlugRef: ノード参照とアトリビュートパス。ここではノードを検証し、
+                アトリビュートの存在検証は resolve() に委ねる。
+        """
         name = (plug.fullName() if hasattr(plug, "fullName") else plug)
         node, attr = name.split(".", 1)
         return cls(NodeRef.capture(node), attr)
 
     def resolve(self, **kwargs):
-        """現在のシーンのPlugへ解決する。"""
+        """現在のシーンのPlugへ解決する。
+
+        Args:
+            **kwargs: NodeRef.resolve() に渡す mapping、namespace_map。
+                mapping には完全なアトリビュート名同士の対応も指定できる。
+
+        Returns:
+            Plug: 現在のシーンで解決したプラグ。
+        """
         mapping = kwargs.get("mapping") or {}
         key = self.node.path + "." + self.attribute
         if key in mapping:
@@ -107,14 +143,28 @@ class ComponentRef:
 
     @classmethod
     def capture(cls, component):
-        """hlibの単体コンポーネントから参照を取得する。"""
+        """hlibの単体コンポーネントから参照を取得する。
+
+        Args:
+            component (Component): 対応する単体コンポーネント。
+
+        Returns:
+            ComponentRef: 形状参照、種類、API の番号。UV は現在の UV セット名も保持する。
+        """
         name = component.fullName()
         kind = name.rsplit(".", 1)[1].split("[")[0]
         uv = component.shape.meshFn().currentUVSetName() if kind == "map" else ""
         return cls(NodeRef.capture(component.shape), kind, component.index, uv)
 
     def resolve(self, **kwargs):
-        """番号とUVセットを検証して単体コンポーネントを返す。"""
+        """番号とUVセットを検証して単体コンポーネントを返す。
+
+        Args:
+            **kwargs: NodeRef.resolve() に渡す mapping、namespace_map。
+
+        Returns:
+            Component: 現在の形状の単体コンポーネント。UV セットは切り替えない。
+        """
         from ..components import Vertex, CV, Edge, Face, UV
         types = {"vtx": Vertex, "cv": CV, "e": Edge, "f": Face, "map": UV}
         node = self.node.resolve(**kwargs)

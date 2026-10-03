@@ -44,12 +44,12 @@ class PluginTest(unittest.TestCase):
 
     def test_is_registered_and_is_loaded_for_known_plugin(self):
         plugin = Plugin(self.pluginName)
-        self.assertTrue(plugin.is_registered())
+        self.assertTrue(plugin.isRegistered())
         self.assertTrue(plugin.isLoaded())
 
     def test_is_registered_and_is_loaded_for_unknown_plugin(self):
         plugin = Plugin("hlibDoesNotExistPlugin123")
-        self.assertFalse(plugin.is_registered())
+        self.assertFalse(plugin.isRegistered())
         self.assertFalse(plugin.isLoaded())
         self.assertIsNone(plugin.path())
         self.assertIsNone(plugin.version())
@@ -60,7 +60,7 @@ class PluginTest(unittest.TestCase):
         self.assertIsInstance(path, str)
         self.assertTrue(path.lower().endswith((".mll", ".py", ".so", ".bundle")))
         self.assertIsInstance(plugin.version(), Version)
-        self.assertIsInstance(plugin.version_text(), str)
+        self.assertIsInstance(plugin.versionText(), str)
 
     def test_unload_load_and_ensure_loaded_round_trip(self):
         plugin = Plugin(self.pluginName)
@@ -70,12 +70,12 @@ class PluginTest(unittest.TestCase):
         self.assertIs(result, plugin)
         self.assertFalse(plugin.isLoaded())
 
-        result = plugin.ensure_loaded()
+        result = plugin.ensureLoaded()
         self.assertIs(result, plugin)
         self.assertTrue(plugin.isLoaded())
 
-        # 既にロード済みの状態で ensure_loaded を呼んでもエラーにならない。
-        plugin.ensure_loaded()
+        # 既にロード済みの状態で ensureLoaded を呼んでもエラーにならない。
+        plugin.ensureLoaded()
         self.assertTrue(plugin.isLoaded())
 
     def test_equality_and_hash(self):

@@ -101,13 +101,13 @@ class ClassDesignTest(unittest.TestCase):
         """単位saveとbatchの保存要求は現在値を変更する前に拒否する。"""
         from hlib.environment import Preferences
         with patch.object(cmds, "currentUnit") as unit:
-            for method in (Preferences.set_linear_unit, Preferences.set_angle_unit, Preferences.set_time_unit):
+            for method in (Preferences.setLinearUnit, Preferences.setAngleUnit, Preferences.setTimeUnit):
                 with self.assertRaises(TypeError):
                     method("anything", save=True)
             unit.assert_not_called()
         with patch.object(cmds, "about", return_value=True), patch.object(cmds, "selectPref") as selection:
             with self.assertRaises(RuntimeError):
-                Preferences.set_track_selection_order(True, save=True)
+                Preferences.setTrackSelectionOrder(True, save=True)
             selection.assert_not_called()
 
 

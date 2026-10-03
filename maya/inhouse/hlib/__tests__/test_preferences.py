@@ -15,10 +15,10 @@ class PreferencesTest(unittest.TestCase):
         axis = cmds.upAxis(query=True, axis=True)
         order = cmds.selectPref(query=True, trackSelectionOrder=True)
         try:
-            Preferences.set_up_axis("z" if axis == "y" else "y")
-            self.assertNotEqual(Preferences.get_up_axis(), axis)
-            Preferences.set_track_selection_order(not order)
-            self.assertEqual(Preferences.get_track_selection_order(), not order)
+            Preferences.setUpAxis("z" if axis == "y" else "y")
+            self.assertNotEqual(Preferences.getUpAxis(), axis)
+            Preferences.setTrackSelectionOrder(not order)
+            self.assertEqual(Preferences.getTrackSelectionOrder(), not order)
         finally:
             cmds.upAxis(axis=axis)
             cmds.selectPref(trackSelectionOrder=order)
@@ -30,15 +30,15 @@ class PreferencesTest(unittest.TestCase):
         previous = {f: cmds.autoSave(query=True, **{f: True})
                     for f in ("enable", "interval", "folder", "destination")}
         try:
-            Preferences.set_autosave_enabled(False)
-            Preferences.set_autosave_interval(999999)
-            self.assertEqual(Preferences.get_autosave_interval(), 999999)
+            Preferences.setAutosaveEnabled(False)
+            Preferences.setAutosaveInterval(999999)
+            self.assertEqual(Preferences.getAutosaveInterval(), 999999)
             folder = Path(tempfile.gettempdir()) / "hlibPreferenceTest"
-            Preferences.set_autosave_directory(folder)
-            self.assertEqual(Preferences.get_autosave_directory(), folder)
+            Preferences.setAutosaveDirectory(folder)
+            self.assertEqual(Preferences.getAutosaveDirectory(), folder)
             self.assertEqual(cmds.autoSave(query=True, destination=True), 1)
-            Preferences.set_autosave_enabled(True)
-            self.assertTrue(Preferences.get_autosave_enabled())
+            Preferences.setAutosaveEnabled(True)
+            self.assertTrue(Preferences.getAutosaveEnabled())
         finally:
             cmds.autoSave(enable=False)
             cmds.autoSave(interval=previous["interval"], folder=previous["folder"], destination=previous["destination"])
@@ -51,20 +51,20 @@ class PreferencesTest(unittest.TestCase):
         previous = {f: cmds.undoInfo(query=True, **{f: True}) for f in ("state", "infinity", "length")}
         node = None
         try:
-            Preferences.set_undo_enabled(True)
-            Preferences.set_undo_limit(100)
-            self.assertFalse(Preferences.get_undo_infinite())
-            self.assertEqual(Preferences.get_undo_limit(), 100)
-            Preferences.set_undo_infinite(True)
-            self.assertTrue(Preferences.get_undo_infinite())
+            Preferences.setUndoEnabled(True)
+            Preferences.setUndoLimit(100)
+            self.assertFalse(Preferences.getUndoInfinite())
+            self.assertEqual(Preferences.getUndoLimit(), 100)
+            Preferences.setUndoInfinite(True)
+            self.assertTrue(Preferences.getUndoInfinite())
             node = cmds.createNode("transform")
             last = cmds.undoInfo(query=True, undoName=True)
-            Preferences.set_undo_enabled(False, flush=False)
-            self.assertFalse(Preferences.get_undo_enabled())
-            Preferences.set_undo_enabled(True, flush=False)
+            Preferences.setUndoEnabled(False, flush=False)
+            self.assertFalse(Preferences.getUndoEnabled())
+            Preferences.setUndoEnabled(True, flush=False)
             self.assertEqual(cmds.undoInfo(query=True, undoName=True), last)
-            Preferences.set_undo_enabled(False)
-            Preferences.set_undo_enabled(True)
+            Preferences.setUndoEnabled(False)
+            Preferences.setUndoEnabled(True)
             self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         finally:
             if node and cmds.objExists(node):
@@ -75,17 +75,17 @@ class PreferencesTest(unittest.TestCase):
     def test_validation(self):
         """不正な値は設定を変更する前に拒否する。"""
         with self.assertRaises(TypeError):
-            Preferences.set_autosave_enabled(1)
+            Preferences.setAutosaveEnabled(1)
         for value in (0, -1, float("inf"), float("nan")):
             with self.assertRaises(ValueError):
-                Preferences.set_autosave_interval(value)
+                Preferences.setAutosaveInterval(value)
         for value in (0, -1, True):
             with self.assertRaises(ValueError):
-                Preferences.set_undo_limit(value)
+                Preferences.setUndoLimit(value)
         with self.assertRaises(ValueError):
-            Preferences.set_up_axis("x")
+            Preferences.setUpAxis("x")
         with self.assertRaises(ValueError):
-            Preferences.set_autosave_directory("")
+            Preferences.setAutosaveDirectory("")
 
 
 class PreferencesSaveTest(unittest.TestCase):
@@ -94,17 +94,17 @@ class PreferencesSaveTest(unittest.TestCase):
     def test_explicit_save_and_default(self):
         from unittest.mock import patch
         with patch.object(Preferences, "save") as save:
-            original = Preferences.get_linear_unit()
-            Preferences.set_linear_unit(original)
+            original = Preferences.getLinearUnit()
+            Preferences.setLinearUnit(original)
             save.assert_not_called()
             with self.assertRaises(TypeError):
-                Preferences.set_linear_unit(original, save=True)
+                Preferences.setLinearUnit(original, save=True)
             save.assert_not_called()
             with patch.object(cmds, "about", return_value=False):
-                Preferences.set_track_selection_order(Preferences.get_track_selection_order(), save=True)
+                Preferences.setTrackSelectionOrder(Preferences.getTrackSelectionOrder(), save=True)
             save.assert_called_once_with()
             with self.assertRaises(TypeError):
-                Preferences.set_linear_unit(original, save=1)
+                Preferences.setLinearUnit(original, save=1)
 
     def test_save_sync_and_error(self):
         from unittest.mock import patch
@@ -112,8 +112,8 @@ class PreferencesSaveTest(unittest.TestCase):
         with patch.object(cmds, "about", return_value=False), patch.object(cmds, "optionVar") as option, patch("hlib.environment.preferences.mel.eval") as save:
             Preferences.save()
             save.assert_called_once_with("savePrefs -general;")
-            option.assert_any_call(intValue=("TrackSelectionOrder", int(Preferences.get_track_selection_order())))
-            option.assert_any_call(floatValue=("autoSaveInterval", Preferences.get_autosave_interval() / 60.0))
+            option.assert_any_call(intValue=("TrackSelectionOrder", int(Preferences.getTrackSelectionOrder())))
+            option.assert_any_call(floatValue=("autoSaveInterval", Preferences.getAutosaveInterval() / 60.0))
             self.assertFalse(any("workingUnit" in str(call) for call in option.call_args_list))
             save.side_effect = RuntimeError("save failed")
             with self.assertRaises(RuntimeError):

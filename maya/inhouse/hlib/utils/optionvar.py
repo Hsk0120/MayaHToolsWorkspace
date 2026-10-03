@@ -54,7 +54,7 @@ class OptionVar:
     デフォルト値の扱い
         デフォルト値と同じ値を保存した場合も、そのまま optionVar に書き込む。
         デフォルト値へ戻すには :meth:`reset` で保存済みの値を削除する。接頭辞の
-        全キーをまとめて戻す場合は :meth:`reset_all` を使う。デフォルト値は
+        全キーをまとめて戻す場合は :meth:`resetAll` を使う。デフォルト値は
         コンストラクタでのみ指定でき、取り出すたびに新しいオブジェクトとして返すため、
         戻り値を書き換えてもデフォルト値には影響しない。
 
@@ -63,8 +63,8 @@ class OptionVar:
         変換せず「保存されていない」ものとして扱う。NaN・無限大の表記や、
         ``1e400`` のように ``float`` の範囲を超える数値を含む文字列、入れ子が
         深すぎて解釈できない文字列もこれに当たる。
-        取得時はデフォルト値へフォールバックし、:meth:`stored_keys` には含めない。
-        :meth:`set` で上書きでき、:meth:`reset`/:meth:`reset_all` で削除できる。
+        取得時はデフォルト値へフォールバックし、:meth:`storedKeys` には含めない。
+        :meth:`set` で上書きでき、:meth:`reset`/:meth:`resetAll` で削除できる。
 
         一方、JSON として解釈できる文字列は、このクラス以外の手段で書き込まれた
         ものでも JSON として読む。例えば ``cmds.optionVar(stringValue=(name, "123"))``
@@ -85,7 +85,7 @@ class OptionVar:
         >>> settings["size"]
         1.0
         >>> settings["size"] = 2.5
-        >>> settings.is_stored("size")
+        >>> settings.isStored("size")
         True
         >>> settings.reset("size")
         True
@@ -208,7 +208,7 @@ class OptionVar:
             return False
         return self._resolve(key) is not _MISSING
 
-    def is_stored(self, key):
+    def isStored(self, key):
         """キーに読み出せる値が保存されているか問い合わせる。
 
         デフォルト値の有無は考慮しない。JSON として読めない optionVar は
@@ -226,7 +226,7 @@ class OptionVar:
         """
         return self._read_stored(key) is not _MISSING
 
-    def stored_keys(self):
+    def storedKeys(self):
         """読み出せる値が保存されているキーを列挙する。
 
         接頭辞の直下にある optionVar だけが対象で、``<prefix>.<子>.<キー>`` のような
@@ -252,7 +252,7 @@ class OptionVar:
         Returns:
             list[object]: 各キーの現在の値。
         """
-        return list(self.to_dict().values())
+        return list(self.toDict().values())
 
     def items(self):
         """:meth:`keys` の順にキーと現在の値の組を列挙する。
@@ -260,9 +260,9 @@ class OptionVar:
         Returns:
             list[tuple[str, object]]: ``(キー, 値)`` のリスト。
         """
-        return list(self.to_dict().items())
+        return list(self.toDict().items())
 
-    def to_dict(self):
+    def toDict(self):
         """全キーの現在の値を、保存済みの値を優先して辞書にまとめる。
 
         Returns:
@@ -373,11 +373,11 @@ class OptionVar:
             TypeError: key が文字列でない場合。
             ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
         """
-        if not self.is_stored(key):
+        if not self.isStored(key):
             raise KeyError(key)
         cmds.optionVar(remove=self.fullName(key))
 
-    def reset_all(self):
+    def resetAll(self):
         """接頭辞の直下にある optionVar を全て削除する。
 
         JSON として読めない optionVar も削除する。``<prefix>.<子>.<キー>`` のような

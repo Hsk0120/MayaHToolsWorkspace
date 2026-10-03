@@ -63,7 +63,14 @@ def check_range(plug, value, _fn=None):
 
 
 def set_plug(plug, value):
-    """MPlugへ単位を維持して直接設定する。未対応型は変更前に拒否する。"""
+    """MPlugへ単位を維持して直接設定する。Undo には記録しない。
+
+    複合値は子ごとに順次更新するため、途中の値や型で失敗すると先行する更新が残る。
+
+    Args:
+        plug (MPlug): 更新対象。
+        value (object): 設定値。角度 rad、距離 cm、時間 sec。
+    """
     attribute = plug.attribute()
     # 型判定・function set は1回の更新内で共有する。範囲・ロック等の
     # 可変情報は毎回照会し、動的アトリビュートの削除をまたぐキャッシュは持たない。
@@ -126,7 +133,13 @@ def set_plug(plug, value):
 
 
 def set_attr(name, *values, **kwargs):
-    """既存のsetAttrと同じ値入力を、明示fast時だけMPlugへ渡す。"""
+    """既存のsetAttrと同じ値入力を、明示fast時だけMPlugへ渡す。
+
+    Args:
+        name (str): アトリビュート名。
+        *values: cmds.setAttr と同じ形・現在の Maya 単位の値。
+        **kwargs: setAttr のフラグ。fast 時の対応フラグは限定される。
+    """
     if not is_fast():
         return cmds.setAttr(name, *values, **kwargs)
     selection = om.MSelectionList()

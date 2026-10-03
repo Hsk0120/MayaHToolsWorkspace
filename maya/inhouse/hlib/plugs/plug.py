@@ -11,7 +11,7 @@ from .._core.fastWrite import set_plug
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 #: cmds.setAttr へ値をそのまま(型名付きで、長さ指定なし)渡せば済むスカラー配列型。
@@ -420,7 +420,7 @@ class Plug(Object):
 
         mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i]`` のように
         コンポーネント名としても解釈されるアトリビュートは、MSelectionList が頂点・CV として登録し
-        プラグとして取り出せないため、to_plug はこの関数で解決し直す(maya.cmds の
+        プラグとして取り出せないため、Plug の入力解決ではこの関数で解決し直す(maya.cmds の
         ``connectAttr``/``setAttr`` などと同じくアトリビュートとして扱う)。transform の名前で
         シェイプのアトリビュートを指す場合(``pCube1.pnts[3]``)は、唯一のシェイプ(中間オブジェクトを
         除く)へ伸ばして解決する。
@@ -652,7 +652,9 @@ class Plug(Object):
         return self._identity_path == other._identity_path and self._mplug == other._mplug
 
     def isValid(self):
-        """所有ノードとアトリビュートがシーンに存在し、値を読み書きできるか判定する。
+        """所有ノードとアトリビュートの参照が有効か判定する。
+
+        ロック・接続・アトリビュート定義による読み書きの可否は判定しない。
 
         Returns:
             bool: 所有ノードが有効で、アトリビュート(動的アトリビュートは ``deleteAttr`` で削除されうる)が
@@ -902,7 +904,7 @@ class Plug(Object):
         return flags
 
     @fast_edit
-    @undo_chunk("hlibPlugSetFlags")
+    @undoChunk("hlibPlugSetFlags")
     def setFlags(self, *, locked=None, keyable=None, channelBox=None, fast=False):
         """アトリビュートの状態をまとめて変更する。省略した状態は変更しない。
 
@@ -986,10 +988,12 @@ class Plug(Object):
         return om2.MFnAttribute(self._mplug.attribute()).dynamic
 
     def isReadable(self):
-        """値を取得できるアトリビュートか判定する。
+        """アトリビュート定義の readable フラグを取得する。
+
+        値の取得が成功することを保証する検査ではない。
 
         Returns:
-            bool: 読み取り可能な場合は ``True``。
+            bool: 定義の readable が有効な場合は ``True``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -998,10 +1002,12 @@ class Plug(Object):
         return om2.MFnAttribute(self._mplug.attribute()).readable
 
     def isWritable(self):
-        """値を設定できるアトリビュートか判定する。
+        """アトリビュート定義の writable フラグを取得する。
+
+        ロックや入力接続を含めた現在の編集可否は判定しない。
 
         Returns:
-            bool: 書き込み可能な場合は ``True``。
+            bool: 定義の writable が有効な場合は ``True``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -1228,7 +1234,7 @@ class Plug(Object):
             raise TypeError("enumName は enum アトリビュートにのみ使用できます")
         return om2.MFnEnumAttribute(attr).fieldName(int(self.get()))
 
-    @undo_chunk("hlibPlugSetEnumNames")
+    @undoChunk("hlibPlugSetEnumNames")
     def setEnumNames(self, names):
         """enumアトリビュートの表示名を指定順に更新する。
 
@@ -1308,7 +1314,7 @@ class Plug(Object):
         self._require_valid()
         return bool(cmds.mute(self.fullName(), query=True))
 
-    @undo_chunk("hlibPlugSetMuted")
+    @undoChunk("hlibPlugSetMuted")
     def setMuted(self, state):
         """ミュート状態を設定する。Trueは現在値で固定し、Falseは解除する。
 
@@ -1331,7 +1337,7 @@ class Plug(Object):
             cmds.mute(self.fullName(), disable=True, force=True)
         return self
 
-    @undo_chunk("hlibPlugDeleteAttr")
+    @undoChunk("hlibPlugDeleteAttr")
     def deleteAttribute(self, force=False):
         """このアトリビュートをノードから削除する。
 
@@ -1395,8 +1401,26 @@ class Plug(Object):
             return tuple(value[0])
         return value
 
+    def _require_writable(self):
+        """保持参照と複合型の全子の書込み可否を検証する。シーンは変更しない。
+
+        Raises:
+            RuntimeError: 無効な参照、ロック、入力接続、書込み禁止の場合。
+        """
+        from .._core.fastWrite import writable
+        self._require_valid()
+
+        def check(plug):
+            """複合型の子も確認する。配列要素は展開・作成しない。"""
+            writable(plug)
+            if plug.isCompound:
+                for index in range(plug.numChildren()):
+                    check(plug.child(index))
+
+        check(self._mplug)
+
     @fast_edit
-    @undo_chunk("hlibPlugSet")
+    @undoChunk("hlibPlugSet")
     def set(self, value, *, fast=False):
         """プラグ値を変更する。
 
@@ -1442,7 +1466,7 @@ class Plug(Object):
         set_attr(self.fullName(), value)
         return self
 
-    @undo_chunk("hlibPlugSetIfChanged")
+    @undoChunk("hlibPlugSetIfChanged")
     def setIfChanged(self, value, *, unlock=False):
         """スカラー値が変わる場合だけ更新し、不要なアトリビュート通知を避ける。
 
@@ -1472,7 +1496,7 @@ class Plug(Object):
         return True
 
     @fast_edit
-    @undo_chunk("hlibPlugReset")
+    @undoChunk("hlibPlugReset")
     def reset(self, *, fast=False):
         """数値・単位・enumアトリビュートを定義上の既定値へ戻す。
 
@@ -1572,7 +1596,7 @@ class Plug(Object):
         Raises:
             TypeError: other が Plug・MPlug・アトリビュート名のいずれでもない場合、または文字列が
                 アトリビュートを指していない場合。
-            ValueError: other が空文字列、または空の MPlug の場合(``to_plug`` と同じ)。
+            ValueError: other が空文字列、または空の MPlug の場合。
             RuntimeError: 自身の所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
                 other の文字列を解決できない(存在しない、または複数のアトリビュートに一致する)場合、
                 other の MPlug の所有ノードまたはアトリビュートが削除済みの場合。
@@ -1584,7 +1608,7 @@ class Plug(Object):
             for connected in self._mplug.connectedTo(True, True)
         )
 
-    @undo_chunk("hlibPlugConnect")
+    @undoChunk("hlibPlugConnect")
     def connect(self, target, force=False):
         """このプラグを別のプラグへ接続する。
 
@@ -1606,7 +1630,7 @@ class Plug(Object):
         Raises:
             TypeError: target が Plug・MPlug・アトリビュート名のいずれでもない場合、または文字列が
                 アトリビュートを指していない場合。
-            ValueError: target が空文字列、または空の MPlug の場合(``to_plug`` と同じ)。
+            ValueError: target が空文字列、または空の MPlug の場合。
             RuntimeError: 自身または target の所有ノードが無効(削除済み)、またはアトリビュートが
                 削除済みの場合。target の文字列を解決できない(存在しない、または複数のアトリビュートに
                 一致する)場合。Maya が接続を拒否した場合。
@@ -1623,7 +1647,26 @@ class Plug(Object):
                 target.setFlags(locked=True)
         return target
 
-    @undo_chunk("hlibPlugDisconnect")
+    @undoChunk("hlibPlugDisconnectInput")
+    def disconnectInput(self):
+        """直接の入力接続だけを解除する。出力接続と子の独立した接続は保持する。
+
+        親の複合接続を解除する場合は、子ではなく親Plugに対して呼び出す。
+        未接続なら何も変更しない。unitConversionは削除しない。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            RuntimeError: 参照が無効、またはロック等でMayaが解除を拒否した場合。
+        """
+        self._require_valid()
+        source = self.source()
+        if source is not None:
+            source.disconnect(self)
+        return self
+
+    @undoChunk("hlibPlugDisconnect")
     def disconnect(self, target=None):
         """プラグ接続を解除する。
 
@@ -1638,7 +1681,7 @@ class Plug(Object):
         Raises:
             TypeError: target が None・Plug・MPlug・アトリビュート名のいずれでもない場合、または
                 文字列がアトリビュートを指していない場合。
-            ValueError: target が空文字列、または空の MPlug の場合(``to_plug`` と同じ)。
+            ValueError: target が空文字列、または空の MPlug の場合。
             RuntimeError: 自身の所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
                 target の文字列を解決できない(存在しない、または複数のアトリビュートに一致する)場合、
                 target の MPlug の所有ノードまたはアトリビュートが削除済みの場合。Maya が接続解除を
@@ -1670,7 +1713,7 @@ class Plug(Object):
 
     @staticmethod
     def _node_from_mplug(mplug):
-        """MPlug の所有 MObject から汎用 Node ラッパーを生成する。
+        """MPlug の所有 MObject から登録された型の Node ラッパーを生成する。
 
         Args:
             mplug (om2.MPlug): 所有ノードを取得するプラグ。

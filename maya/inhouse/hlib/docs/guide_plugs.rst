@@ -39,7 +39,7 @@
 列挙します。listAttr が報告する名前の一部（未確保の要素を持つ配列複合アトリビュートの子など、
 ``publishedNodeInfo`` のような組み込みアトリビュートでよく見られます）は実際には評価できず
 黙ってスキップされるため、件数は listAttr の結果と必ずしも一致しません。
-``aliases`` は ``cmds.aliasAttr`` のクエリ結果を ``(エイリアス名, Plug)`` の
+``aliases`` は OpenMaya で取得したエイリアスを ``(エイリアス名, Plug)`` の
 タプル列として返します。``Plug.fullName()`` はアトリビュートにエイリアスがあればエイリアス名を
 使う(``MPlug.name()`` と同じ表記)ため、戻り値の Plug の ``fullName()`` も
 ロング名(``translateY``)ではなくエイリアス名(``myAlias``)を含む表記になります。
@@ -107,7 +107,10 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 避けるため、hlib 内部では変換を行いません。必要な単位は呼び出し側で
 ``.value`` や ``.asUnits(...)`` を使って変換してください。
 ``enumName`` は enum アトリビュート以外に使うと ``TypeError`` になります。
-``isReadable``/``isWritable``/``isStorable`` で読み取り・書き込み・保存可否を、
+``isValid()`` は所有ノードとアトリビュートの参照が有効かを判定します。
+値の読み書きが成功することまでは保証しません。
+``isReadable``/``isWritable``/``isStorable`` はアトリビュート定義の各フラグを返し、
+ロックや入力接続を含む現在の編集可否を判定するものではありません。
 ``hasSoftMin``/``softMin``/``hasSoftMax``/``softMax`` で UI スライダーの
 ソフトレンジ（値の入力自体は制限しない）を取得できます。
 ``enumValue(name)`` は ``enumName()`` の逆引きで、フィールド名から enum 値を
@@ -182,10 +185,12 @@ animCurve とミュート
 ``nextAvailableIndex`` は ``getExistingArrayAttributeIndices()`` に含まれない
 最初のインデックスを返す単純な実装です。cymel の同名メソッドと異なり、
 ロック状態や子要素の再帰チェックは行いません。``addElement`` は
-``nextAvailableIndex()`` の位置へ要素を作成して返し、``removeElement`` は
+``nextAvailableIndex()`` の位置の要素Plugを返し、``removeElement`` は
 指定インデックスの要素を削除します（存在しなければ ``IndexError``）。
 ``element(index, create=True)`` は要素が無ければ Maya 上に作成してから返します
-(``cmds.getAttr`` の問い合わせで作成するため Undo の対象外です)。ただし ``message`` 型の
+(``cmds.getAttr`` の問い合わせで作成するため Undo の対象外です)。
+fast更新の内部では参照だけを取得し、値の書き込みまで実体化を遅延します。
+ただし ``message`` 型の
 ように値を持たないアトリビュートの配列では要素を作成できません。返した要素 Plug へ接続した時点で
 要素ができるため、``addElement()`` は接続するまで同じ番号の要素 Plug を返します。
 Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.input1D[10]")`` や
@@ -230,3 +235,17 @@ UI単位を変更しても ``set(get())`` は同じ値を維持します。
 設定時は数値3成分のrad/deg、またはEulerRotation/Quaternionを使えます。
 型付き回転はノードのrotateOrderへ変換します。設定はjointOrientやrotateAxis、
 他のチャンネルを変更しません。通常モードはUndo対応、``fast=True`` はUndoなしです。
+
+
+入力接続だけの解除
+------------------
+
+``destination.disconnectInput()`` は直接の入力だけを解除し、自身を返します。
+出力接続・子の独立接続・unitConversionノードは保持します。未接続なら何もしません。
+親の複合接続を解除するときは親Plugへ呼び出します。通常のUndo/Redoに対応します。
+``disconnect()`` の引数省略による入出力両方の解除とは用途を区別してください。
+
+配列の編集は番号・値・参照を検証してから書込みまたは接続します。
+内部処理は要素を事前に実体化しません。公開 ``element(index, create=True)`` の
+明示作成は維持します。論理番号はboolを除く整数で、範囲は0〜2147483647です。
+型不正はTypeError、範囲外はIndexErrorになります。

@@ -4,7 +4,7 @@ Examples
 --------
 .. code-block:: python
 
-    for plug in hlib.getChannelBox().selected_plugs():
+    for plug in hlib.getChannelBox().selectedPlugs():
         print(plug.fullName())
 """
 

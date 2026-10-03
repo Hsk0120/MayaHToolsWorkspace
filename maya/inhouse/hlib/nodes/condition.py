@@ -1,6 +1,6 @@
 """2値の比較により出力を切り替える。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Vector
 from ._calculation import _Calculation
@@ -19,7 +19,7 @@ class Condition(Node):
         return _Calculation.enumName(self.plug("operation"), ('equal', 'not_equal', 'greater', 'greater_equal', 'less', 'less_equal'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setOperation(self, mode, *, fast=False):
         """モードを設定する。
 
@@ -57,7 +57,7 @@ class Condition(Node):
         return self.inputPlug(index).get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -74,7 +74,7 @@ class Condition(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.inputPlug, index)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, index, source, force=False):
         """入力へ接続する。
 
@@ -86,7 +86,7 @@ class Condition(Node):
             Condition: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, index, force=force)
         return self
@@ -106,7 +106,7 @@ class Condition(Node):
         return self.trueValuePlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setTrueValue(self, value, *, fast=False):
         """条件成立時のRGB値へ定数値を設定する。
 
@@ -122,7 +122,7 @@ class Condition(Node):
         _Calculation.set_value(value, _Calculation.vector, self.trueValuePlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectTrueValue(self, source, force=False):
         """条件成立時のRGB値へ接続する。
 
@@ -133,7 +133,7 @@ class Condition(Node):
             Condition: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.trueValuePlug, force=force)
         return self
@@ -153,7 +153,7 @@ class Condition(Node):
         return self.falseValuePlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setFalseValue(self, value, *, fast=False):
         """条件不成立時のRGB値へ定数値を設定する。
 
@@ -169,7 +169,7 @@ class Condition(Node):
         _Calculation.set_value(value, _Calculation.vector, self.falseValuePlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectFalseValue(self, source, force=False):
         """条件不成立時のRGB値へ接続する。
 
@@ -180,7 +180,7 @@ class Condition(Node):
             Condition: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.falseValuePlug, force=force)
         return self

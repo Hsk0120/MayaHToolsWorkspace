@@ -2,8 +2,8 @@
 
 from .version import Version
 from .logger import debug, error, info, get_logger, raise_with_notify, warning
-from .naming import legalize_name
-from .progress import progress_bar
+from .naming import legalizeName
+from .progress import progressBar
 
 __all__ = [
 	"Version",
@@ -11,8 +11,8 @@ __all__ = [
 	"error",
 	"get_logger",
     "info",
-	"legalize_name",
-	"progress_bar",
+	"legalizeName",
+	"progressBar",
 	"raise_with_notify",
 	"warning",
 ]
@@ -24,3 +24,8 @@ __all__ += ["CurveFit", "DampedSpring"]
 
 from . import units
 __all__ += ["units"]
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('legalize_name', 'progress_bar'):
+    globals().pop(_obsolete_name, None)

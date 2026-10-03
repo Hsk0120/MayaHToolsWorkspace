@@ -5,7 +5,7 @@ from maya import cmds
 from functools import partial
 import re
 import hlib
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class TweakLayer:
@@ -43,7 +43,7 @@ class TweakLayer:
         """
         return tuple(g.plug("joint").source().node.fullName() for g in self.groups().values())
 
-    @undo_transaction("hrig.TweakLayer.add")
+    @undoTransaction("hrig.TweakLayer.add")
     def add(self, identifier, joint):
         """選択骨の子へゼロ姿勢のTweakを追加する。スキンへは自動追加しない。
 
@@ -85,7 +85,7 @@ class TweakLayer:
         install()
         return control
 
-    @undo_transaction("hrig.TweakLayer.update")
+    @undoTransaction("hrig.TweakLayer.update")
     def update(self):
         """Enabled/LODに応じて局所行列の入力を切り替える。"""
         for group in self.groups().values():

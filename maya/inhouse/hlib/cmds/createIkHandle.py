@@ -2,12 +2,12 @@
 
 from maya import cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .._core.commandResult import CommandResult
 
 
 @flag_aliases("ikHandle")
-@undo_chunk("hlib.cmds.createIkHandle")
+@undoChunk("hlib.cmds.createIkHandle")
 def createIkHandle(*args, **kwargs):
     """IKハンドルとエフェクターを生成する。
 

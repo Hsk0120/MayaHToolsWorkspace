@@ -6,9 +6,8 @@ import maya.cmds as cmds
 from .node import Node, Nodes
 from .._core.collection import bulk_api
 from .._core.registry import collection_export
-from .._core.fastWrite import set_attr
 from ..decorators._fast import fast_edit
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 class DagNode(Node):
@@ -57,7 +56,7 @@ class DagNode(Node):
         return parent
 
     def parentNode(self):
-        """親ノードを汎用 Node として取得する。
+        """親ノードを登録された型の Node として取得する。
 
         Returns:
             Node | None: 親ノード。親がない場合は ``None``。
@@ -70,7 +69,7 @@ class DagNode(Node):
         return bool(self.plug("visibility").get())
 
     @fast_edit
-    @undo_chunk("hlibNodeSetVisible")
+    @undoChunk("hlibNodeSetVisible")
     def setVisibility(self, state, *, fast=False):
         """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
 
@@ -104,7 +103,7 @@ class DagNode(Node):
         return not bool(self.plug("hiddenInOutliner").get())
 
     @fast_edit
-    @undo_chunk("hlibNodeSetOutlinerVisibility")
+    @undoChunk("hlibNodeSetOutlinerVisibility")
     def setOutlinerVisibility(self, state, *, fast=False):
         """ノードのアウトライナー表示を切り替える。
 
@@ -136,7 +135,7 @@ class DagNode(Node):
         return Color(rgb=self.plug("outlinerColor").get())
 
     @fast_edit
-    @undo_chunk("hlibNodeOutlinerColor")
+    @undoChunk("hlibNodeOutlinerColor")
     def setOutlinerColor(self, color, *, fast=False):
         """このノードのOutliner色を設定する。色番号は保持RGBへ変換する。
 
@@ -168,7 +167,7 @@ class DagNode(Node):
         return Color(index=self.plug("overrideColor").get())
 
     @fast_edit
-    @undo_chunk("hlibNodeOverrideColor")
+    @undoChunk("hlibNodeOverrideColor")
     def setOverrideColor(self, color, *, fast=False):
         """指定形式のままDrawing Overrides色を設定する。子Shapeへは転送しない。
 
@@ -203,7 +202,6 @@ class DagNode(Node):
 
     def _prepare_display_color(self, updates):
         """全アトリビュートの存在・書込み可否を検証してPlugと値の計画を返す。"""
-        from .._core.fastWrite import writable
         if not self.isValid():
             raise RuntimeError("Cannot color an invalid node")
         if om2.MFnDependencyNode(self.mobject()).isLocked:
@@ -212,20 +210,14 @@ class DagNode(Node):
             raise RuntimeError("Node does not have the requested display color attributes")
         plugs = [(self.plug(name), value) for name, value in updates]
         for plug, value in plugs:
-            writable(plug.mplug())
-            if isinstance(value, tuple):
-                for child in plug.children():
-                    writable(child.mplug())
+            plug._require_writable()
         return plugs
 
     @staticmethod
     def _apply_display_color(plugs):
         """検証済みの計画を現在のfastモードで適用する。実行時失敗は伝播する。"""
         for plug, value in plugs:
-            if isinstance(value, tuple):
-                set_attr(plug.fullName(), *value, type="float3")
-            else:
-                set_attr(plug.fullName(), value)
+            plug.set(value)
 
     def _set_display_color(self, updates):
         """単体の表示色を全アトリビュート検証後に反映する。"""
@@ -267,7 +259,7 @@ class DagNodes(Nodes):
         return [node.getOutlinerColor() for node in self]
 
     @fast_edit
-    @undo_chunk("hlibNodesOverrideColor")
+    @undoChunk("hlibNodesOverrideColor")
     def setOverrideColor(self, color, *, fast=False):
         """全対象へ同じ表示色を設定する。全対象の事前検証後に反映する。
 
@@ -285,7 +277,7 @@ class DagNodes(Nodes):
         return self._set_colors([value] * len(self), outliner=False)
 
     @fast_edit
-    @undo_chunk("hlibNodesOutlinerColor")
+    @undoChunk("hlibNodesOutlinerColor")
     def setOutlinerColor(self, color, *, fast=False):
         """全対象へ同じOutliner色を設定する。
 
@@ -300,7 +292,7 @@ class DagNodes(Nodes):
         return self._set_colors([value] * len(self), outliner=True)
 
     @fast_edit
-    @undo_chunk("hlibNodesOverrideColors")
+    @undoChunk("hlibNodesOverrideColors")
     def setOverrideColors(self, colors, *, fast=False):
         """保持順に一色ずつDrawing Overridesを設定する。
 
@@ -317,7 +309,7 @@ class DagNodes(Nodes):
         return self._set_colors([Color.coerce(color) for color in colors], outliner=False)
 
     @fast_edit
-    @undo_chunk("hlibNodesOutlinerColors")
+    @undoChunk("hlibNodesOutlinerColors")
     def setOutlinerColors(self, colors, *, fast=False):
         """保持順に一色ずつOutliner色を設定する。
 

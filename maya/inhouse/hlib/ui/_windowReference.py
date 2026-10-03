@@ -79,7 +79,7 @@ class _WindowReference:
             raise RuntimeError("UI no longer exists: " + self._name)
         return self._name
 
-    def get_visible(self):
+    def getVisible(self):
         """bool: 現在の表示設定を照会する。"""
         return bool(getattr(cmds, self._command)(self.name(), query=True, visible=True))
 
@@ -105,7 +105,7 @@ class _WindowReference:
                 raise ValueError("Invalid snapshot field: " + key)
 
     @contextmanager
-    def temporary_state(self):
+    def temporaryState(self):
         """表示状態を退避し、例外時も復元する。ファイル保存は行わない。
 
         Yields:

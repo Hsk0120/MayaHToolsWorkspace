@@ -1,6 +1,6 @@
 """逆行列を計算する。Maya付属matrixNodesの明示的なロードが必要。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
 from .THdependNode import THDependNode
@@ -25,7 +25,7 @@ class InverseMatrix(THDependNode):
         return self.inputPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -42,7 +42,7 @@ class InverseMatrix(THDependNode):
         self.inputPlug().set(value)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
@@ -53,7 +53,7 @@ class InverseMatrix(THDependNode):
             InverseMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         from hlib.plugs.plug import Plug as _InputPlug
         _InputPlug._resolve_input(source).connect(self.inputPlug(), force=force)

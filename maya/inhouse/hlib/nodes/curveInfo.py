@@ -1,6 +1,6 @@
 """接続したcurveの形状情報をMayaで評価する。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ._calculation import _Calculation
 from .abstractBaseCreate import AbstractBaseCreate
 
@@ -16,7 +16,7 @@ class CurveInfo(AbstractBaseCreate):
         """
         return self.plug("inputCurve")
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """形状データPlugを入力へ接続する。
 
@@ -27,12 +27,12 @@ class CurveInfo(AbstractBaseCreate):
             CurveInfo: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectCurve(self, curve, world_space=True, force=False):
         """形状またはTransformを解決して接続する。
 
@@ -44,7 +44,7 @@ class CurveInfo(AbstractBaseCreate):
             CurveInfo: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         source = _Calculation.geometryOutput(curve, "nurbsCurve", world_space)
         source.connect(self.inputPlug(), force=force)

@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 基本方針
 
+- hlibの公開関数・メソッド・プロパティはlowerCamelCase、クラスはPascalCase。例外・引数・保存形式の扱いは `docs/hlib-api-design.md` の「確定したコーディングルール」を正とする。
+
 - hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`scene`・`ui`・`environment`・`events`・`json`・`utils`・`decorators` を基本とする。シーン内の状態・関係は `scene`、Maya標準UIと表示色は `ui`、作業環境・導入状態は `environment`、通知・遅延実行は `events`、汎用関数は `utils` に置く。個別サービスごとにフォルダを増やさず、`hlib_*` も同じ分類に合わせる。
 
 - `hlib.Object` (`object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。
@@ -160,10 +162,10 @@ Maya公式 `maya.cmds` ではなく `maya.api.OpenMaya`(API 2.0)を主に用い�
 - **maya.cmds・OpenMaya との受け渡し**: `Node`/`Plug`/`Component` はそのまま `maya.cmds` に渡せる(`__str__` が毎回取り直す一意な名前を返す。Plug は「ノードの一意名 + ロング名のアトリビュートパス」)。コンポーネントの集まりは cmds がシーケンスとして展開する。`ArrayPlug` 自体と `om2.MObject` は cmds に渡せない。hlib のコマンドは Node/Plug/Component/集まり/`MObject`/`MDagPath`/`MPlug` を受け付ける(`object.py・nodes/node.py・plugs/plug.py・components/component.py`)。Node/Plug を str や `__len__` を持つ型にしない(cmds の解釈が変わる)。仕様は `hlib/docs/cmds_interop.rst`。
 - **`hlib/cmds/` ― ファイル名駆動のコマンド自動公開**: `cmds/<コマンド名>.py` に同名の関数(例: `createNode.py` の `createNode()`)を定義するだけで、`hlib.cmds.<コマンド名>` と `hlib.<コマンド名>` の両方から呼べるようになる(`cmds/__init__.py` の編集は不要。非公開名・サブパッケージ・同名関数を持たないファイルは対象外)。既存コマンドは `createNode`/`ls`/`node`/`constraint`/`scene`。命名は Maya コマンドに合わせてキャメルケース。各モジュールの docstring は Synopsis/Return value/Flags/Examples 形式で書き、Sphinx側の専用テンプレートで個別ページとして生成される。`hlib.reload()` は追加・変更・削除を検出して両方の公開名に反映する。
 - **依存順リロード** (`hlib/_core/reload.py`): `hlib.reload()` がパッケージ配下の現存モジュールをmodule globals内の相互参照から依存グラフを推定し、依存先を先に安全な順序でreloadする。Script Editor上での開発・修正の反映に使う。
-- `hlib/maths/`: `Vector`/`Translation`/`Scale`/`Shear`(`om2.MVector` を継承)、`Quaternion`(`MQuaternion`)、`EulerRotation`(`MEulerRotation`。`Vector` の派生ではない)、`Matrix`(`MMatrix`)。om2 の関数へそのまま渡せ、演算は om2 の実装で高速に行う。意味は om2 に合わせる: `q1*q2` は q1 を先に適用、`v*m` は行ベクトルの方向変換、`m*v` は列ベクトルの積、位置の変換は `Matrix.transform_point()`、分解は `MTransformationMatrix` の規約。値は可変でハッシュ不可(dict のキー・set の要素にできない)。`EulerRotation` は内部値が radian で order は om2 の番号(int。名前は `order_name`)。snake_case のメソッドは hlib の型、om2 由来の camelCase のメソッドは om2 の基底型を返す。`easing` だけは標準 `math` のみ。
+- `hlib/maths/`: `Vector`/`Translation`/`Scale`/`Shear`(`om2.MVector` を継承)、`Quaternion`(`MQuaternion`)、`EulerRotation`(`MEulerRotation`。`Vector` の派生ではない)、`Matrix`(`MMatrix`)。om2 の関数へそのまま渡せ、演算は om2 の実装で高速に行う。意味は om2 に合わせる: `q1*q2` は q1 を先に適用、`v*m` は行ベクトルの方向変換、`m*v` は列ベクトルの積、位置の変換は `Matrix.transformPoint()`、分解は `MTransformationMatrix` の規約。値は可変でハッシュ不可(dict のキー・set の要素にできない)。`EulerRotation` は内部値が radian で order は om2 の番号(int。名前は `orderName`)。hlib独自APIもlowerCamelCaseを使う。戻り値は各メソッドの契約に従い、継承したom2のメソッド名と独自補助の名前を区別する。`easing` だけは標準 `math` のみ。
 - `hlib/components/`: Mesh/NurbsCurveの部分要素を、作成時に番号を固定した参照として提供する(`Vertex`/`Vertices`、`CV`/`CVs`、`Edge`/`Edges`、`Face`/`Faces`、`UV`/`UVs`)。座標は都度シーンから取得し、`Vertex`/`CV`(`PointComponent`系)は代入で即座にシーンへ反映しUndoできる。トポロジー変更後の番号の同一性は保証しない。
-- シーン情報は `hlib.scene.Scene`、名前空間は `hlib.scene.Namespace`、エディターは `hlib.ui`、作業環境とプラグイン管理は `hlib.environment`、通知は `hlib.events` に置く。参照ファイルの列挙は `hlib.utils.references.list_references()`、参照ノードは `hlib.nodes.Reference` で扱う。
-- `hlib/decorators/`: `undo.py` の `undo_chunk` コンテキストマネージャ兼デコレータと `undo_transaction` で複数のMaya操作を単一のUndoチャンクにまとめる。`selection.py` の `preserved_selection` コンテキストマネージャはブロックの前後でMayaの選択状態を保存・復元する(ブロック内で例外が起きても復元される)。
+- シーン情報は `hlib.scene.Scene`、名前空間は `hlib.scene.Namespace`、エディターは `hlib.ui`、作業環境とプラグイン管理は `hlib.environment`、通知は `hlib.events` に置く。参照ファイルの列挙は `hlib.utils.references.listReferences()`、参照ノードは `hlib.nodes.Reference` で扱う。
+- `hlib/decorators/`: `undo.py` の `undoChunk` コンテキストマネージャ兼デコレータと `undoTransaction` で複数のMaya操作を単一のUndoチャンクにまとめる。`selection.py` の `preservedSelection` コンテキストマネージャはブロックの前後でMayaの選択状態を保存・復元する(ブロック内で例外が起きても復元される)。
 - `hlib/utils/`: `logger.py`(ログ出力)、`progress.py`(Maya非依存の進捗バー、Slack通知等への`notify`コールバック対応)。
 - `hlib/__init__.py` は公開サブパッケージ、`Object`、`reload()`、動的公開コマンドを公開する。`hlib.getNode()` / `hlib.getScene()` は対象を明示した入口、`hlib.Object()` は単一のノード・Plug・コンポーネントを判別する入口。具体クラスは所属パッケージからimportする。再読み込みは廃止済みモジュール参照も除去する。
 

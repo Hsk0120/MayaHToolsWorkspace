@@ -1,6 +1,6 @@
 """移動・回転・スケール・シアーから行列を構築する。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
 from ._calculation import _Calculation
@@ -12,23 +12,23 @@ class ComposeMatrix(Node):
     """移動・回転・スケール・シアーから行列を構築する。"""
 
     def translatePlug(self):
-        """translate入力（回転はrad）のPlugを取得する。
+        """translate入力（移動はcm）のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('inputTranslate')
 
     def getTranslation(self):
-        """translate入力（回転はrad）の評価値を取得する。
+        """translate入力（移動はcm）の評価値を取得する。
         Returns:
             Iterable[float]: 現在の値。
         """
         return self.translatePlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setTranslation(self, value, *, fast=False):
-        """translate入力（回転はrad）へ定数値を設定する。
+        """translate入力（移動はcm）へ定数値を設定する。
 
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
@@ -42,9 +42,9 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.translatePlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectTranslate(self, source, force=False):
-        """translate入力（回転はrad）へ接続する。
+        """translate入力（移動はcm）へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。
@@ -53,7 +53,7 @@ class ComposeMatrix(Node):
             ComposeMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.translatePlug, force=force)
         return self
@@ -73,7 +73,7 @@ class ComposeMatrix(Node):
         return self.rotatePlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setRotation(self, value, *, fast=False):
         """rotate入力（回転はrad）へ定数値を設定する。
 
@@ -89,7 +89,7 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.rotatePlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectRotate(self, source, force=False):
         """rotate入力（回転はrad）へ接続する。
 
@@ -100,29 +100,29 @@ class ComposeMatrix(Node):
             ComposeMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.rotatePlug, force=force)
         return self
 
     def scalePlug(self):
-        """scale入力（回転はrad）のPlugを取得する。
+        """scale入力（無次元）のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('inputScale')
 
     def getScale(self):
-        """scale入力（回転はrad）の評価値を取得する。
+        """scale入力（無次元）の評価値を取得する。
         Returns:
             Iterable[float]: 現在の値。
         """
         return self.scalePlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setScale(self, value, *, fast=False):
-        """scale入力（回転はrad）へ定数値を設定する。
+        """scale入力（無次元）へ定数値を設定する。
 
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
@@ -136,9 +136,9 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.scalePlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectScale(self, source, force=False):
-        """scale入力（回転はrad）へ接続する。
+        """scale入力（無次元）へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。
@@ -147,29 +147,29 @@ class ComposeMatrix(Node):
             ComposeMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.scalePlug, force=force)
         return self
 
     def shearPlug(self):
-        """shear入力（回転はrad）のPlugを取得する。
+        """shear入力（無次元）のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
         return self.plug('inputShear')
 
     def getShear(self):
-        """shear入力（回転はrad）の評価値を取得する。
+        """shear入力（無次元）の評価値を取得する。
         Returns:
             Iterable[float]: 現在の値。
         """
         return self.shearPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setShear(self, value, *, fast=False):
-        """shear入力（回転はrad）へ定数値を設定する。
+        """shear入力（無次元）へ定数値を設定する。
 
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
@@ -183,9 +183,9 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.shearPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectShear(self, source, force=False):
-        """shear入力（回転はrad）へ接続する。
+        """shear入力（無次元）へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。
@@ -194,7 +194,7 @@ class ComposeMatrix(Node):
             ComposeMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.shearPlug, force=force)
         return self
@@ -214,7 +214,7 @@ class ComposeMatrix(Node):
         return self.quaternionPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setQuaternion(self, value, *, fast=False):
         """XYZW順のQuaternion入力へ定数値を設定する。
 
@@ -231,7 +231,7 @@ class ComposeMatrix(Node):
         self.quaternionPlug().set(value)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectQuaternion(self, source, force=False):
         """XYZW順のQuaternion入力へ接続する。
 
@@ -242,7 +242,7 @@ class ComposeMatrix(Node):
             ComposeMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.quaternionPlug, force=force)
         return self
@@ -262,7 +262,7 @@ class ComposeMatrix(Node):
         return self.useEulerRotationPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setUseEulerRotation(self, value, *, fast=False):
         """Euler入力を使用するかへ定数値を設定する。
 
@@ -278,7 +278,7 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.boolean, self.useEulerRotationPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectUseEulerRotation(self, source, force=False):
         """Euler入力を使用するかへ接続する。
 
@@ -289,7 +289,7 @@ class ComposeMatrix(Node):
             ComposeMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.useEulerRotationPlug, force=force)
         return self
@@ -302,7 +302,7 @@ class ComposeMatrix(Node):
         return _Calculation.enumName(self.plug("inputRotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setRotateOrder(self, mode, *, fast=False):
         """モードを設定する。
 

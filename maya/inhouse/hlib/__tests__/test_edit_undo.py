@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib.decorators import preserved_selection, undo_chunk
+from hlib.decorators import preservedSelection, undoChunk
 
 
 class EditUndoTest(unittest.TestCase):
@@ -33,7 +33,7 @@ class EditUndoTest(unittest.TestCase):
     def test_selection_restored_on_redo_and_exception(self):
         cmds.select(self.node)
         with self.assertRaises(ValueError):
-            with preserved_selection():
+            with preservedSelection():
                 cmds.select(clear=True)
                 hlib.getNode(self.node).plug("visibility").set(False)
                 raise ValueError("test")
@@ -47,7 +47,7 @@ class EditUndoTest(unittest.TestCase):
 
     def test_selection_skips_deleted_object(self):
         cmds.select(self.node)
-        with preserved_selection():
+        with preservedSelection():
             cmds.delete(self.node)
         self.assertEqual(cmds.ls(selection=True), [])
         cmds.undo()
@@ -61,7 +61,7 @@ class EditUndoTest(unittest.TestCase):
         try:
             cmds.select(mesh + ".vtx[0:3]", replace=True)
             before = cmds.ls(selection=True, flatten=True, long=True)
-            with preserved_selection():
+            with preservedSelection():
                 cmds.select(self.node, replace=True)
                 hlib.getNode(self.node).plug("visibility").set(False)
             self.assertEqual(cmds.ls(selection=True, flatten=True, long=True), before)
@@ -74,30 +74,30 @@ class EditUndoTest(unittest.TestCase):
 
     def test_ranges_group_with_tool(self):
         slider = hlib.getTimeSlider()
-        playback, animation = slider.get_playback_range(), slider.get_animation_range()
+        playback, animation = slider.getPlaybackRange(), slider.getAnimationRange()
         try:
             if str(cmds.about(version=True)).startswith("2022"):
                 # 空のUndoチャンクではネイティブの非Undo操作を補えない。
                 before = cmds.undoInfo(query=True, undoName=True)
-                with undo_chunk("rangeTool"):
-                    slider.set_animation_range(-20, 200)
-                    slider.set_playback_range(-10, 100)
-                self.assertEqual(slider.get_playback_range(), (-10, 100))
-                self.assertEqual(slider.get_animation_range(), (-20, 200))
+                with undoChunk("rangeTool"):
+                    slider.setAnimationRange(-20, 200)
+                    slider.setPlaybackRange(-10, 100)
+                self.assertEqual(slider.getPlaybackRange(), (-10, 100))
+                self.assertEqual(slider.getAnimationRange(), (-20, 200))
                 self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
                 return
-            with undo_chunk("rangeTool"):
-                slider.set_animation_range(-20, 200)
-                slider.set_playback_range(-10, 100)
+            with undoChunk("rangeTool"):
+                slider.setAnimationRange(-20, 200)
+                slider.setPlaybackRange(-10, 100)
             cmds.undo()
-            self.assertEqual(slider.get_playback_range(), playback)
-            self.assertEqual(slider.get_animation_range(), animation)
+            self.assertEqual(slider.getPlaybackRange(), playback)
+            self.assertEqual(slider.getAnimationRange(), animation)
             cmds.redo()
-            self.assertEqual(slider.get_playback_range(), (-10, 100))
-            self.assertEqual(slider.get_animation_range(), (-20, 200))
+            self.assertEqual(slider.getPlaybackRange(), (-10, 100))
+            self.assertEqual(slider.getAnimationRange(), (-20, 200))
         finally:
-            slider.set_animation_range(*animation)
-            slider.set_playback_range(*playback)
+            slider.setAnimationRange(*animation)
+            slider.setPlaybackRange(*playback)
 
 
 if __name__ == "__main__":

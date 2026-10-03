@@ -51,16 +51,16 @@ class CurveLengthTest(unittest.TestCase):
         """UnitsのUI照会と明示変換を検証する。"""
         from hlib.utils import units
         from hlib.environment import Preferences
-        self.assertEqual(Preferences.get_linear_unit(), "cm")
+        self.assertEqual(Preferences.getLinearUnit(), "cm")
         for unit, centimeters in (("mm", .1), ("cm", 1), ("m", 100),
                                   ("km", 100000), ("in", 2.54), ("ft", 30.48),
                                   ("yd", 91.44), ("mi", 160934.4)):
-            self.assertAlmostEqual(units.convert_distance(1, unit, "cm"), centimeters)
-            self.assertAlmostEqual(units.convert_distance(centimeters, "cm", unit), 1)
+            self.assertAlmostEqual(units.convertDistance(1, unit, "cm"), centimeters)
+            self.assertAlmostEqual(units.convertDistance(centimeters, "cm", unit), 1)
         cmds.currentUnit(linear="m")
-        self.assertEqual(Preferences.get_linear_unit(), "m")
-        self.assertAlmostEqual(units.convert_distance(100, "cm"), 1)
-        self.assertAlmostEqual(units.convert_distance(1, to_unit="cm"), 100)
+        self.assertEqual(Preferences.getLinearUnit(), "m")
+        self.assertAlmostEqual(units.convertDistance(100, "cm"), 1)
+        self.assertAlmostEqual(units.convertDistance(1, to_unit="cm"), 100)
 
     def test_curved_history_and_updates(self):
         """曲線の弧長と履歴・親の変更を評価する。"""

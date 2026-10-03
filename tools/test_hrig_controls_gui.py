@@ -114,7 +114,7 @@ def main(output_dir=None, finished=None):
             "Channel Box restores curl",
         )
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("tweak"))
-        QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+        QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         tweaks = TweakLayer(finger)
         check(len(tweaks.groups()) == 1, "Tweak added through UI")

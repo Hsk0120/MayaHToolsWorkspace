@@ -7,7 +7,7 @@ import math
 import hlib
 
 from hlib.maths.matrix import Matrix
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class BendCorrection:
@@ -38,7 +38,7 @@ class BendCorrection:
         return node
 
     @classmethod
-    @undo_transaction("hrig.BendCorrection.create")
+    @undoTransaction("hrig.BendCorrection.create")
     def create(cls, parent, joint, name="bend", axis="z"):
         """直接の親子から、基準姿勢に対する回転補間と曲げ応答を生成する。
 
@@ -88,7 +88,7 @@ class BendCorrection:
             )
             # addAttrの距離defaultは内部cmなので、初期値をUI距離単位で明示設定する。
             owner.plug(attr).set(
-                hlib.utils.units.distance_from_ui(value)
+                hlib.utils.units.distanceFromUi(value)
                 if attr.endswith(("Rest", "Push")) else value
             )
         owner.addAttribute(longName="matrix", dataType="matrix")

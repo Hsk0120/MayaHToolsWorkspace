@@ -6,7 +6,7 @@ import math
 
 import hlib
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class RadialWeights:
@@ -78,7 +78,7 @@ class RadialWeights:
         return node
 
     @classmethod
-    @undo_transaction("hrig.RadialWeights.create")
+    @undoTransaction("hrig.RadialWeights.create")
     def create(cls, angle, count, name="radialWeights"):
         """FalloffとBlendから二方向・基準姿勢のウェイトを出力する。
 

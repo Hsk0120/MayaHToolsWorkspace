@@ -11,12 +11,12 @@ import hlib
 hlib.reload()
 from hlib.nodes.joint import Joint, Joints
 from hlib.nodes.skinCluster import SkinCluster
-from hlib.decorators import undo_chunk
+from hlib.decorators import undoChunk
 from hlib.maths import easing
 
 
 class SkinClusterTransferWeightsBatchTest(unittest.TestCase):
-    """transferWeights が preserved_selection 経由で選択状態を保存・復元することを検証する。"""
+    """transferWeights が preservedSelection 経由で選択状態を保存・復元することを検証する。"""
 
     def setUp(self):
         self.root = cmds.createNode("joint", name="hlibSkinClusterRoot")
@@ -208,7 +208,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
     def test_partial_weights_and_tool_chunk(self):
         joints = [self.root, self.child]
         before = list(self.skin.getWeights(joints))
-        with undo_chunk("weightTool"):
+        with undoChunk("weightTool"):
             self.skin.setWeights([self.child], [0.125])
             hlib.getNode(self.mesh_transform).plug("visibility").set(False)
         after = list(self.skin.getWeights(joints))

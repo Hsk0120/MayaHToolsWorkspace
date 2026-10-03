@@ -6,16 +6,33 @@ from .references import NodeRef, PlugRef, ComponentRef
 
 
 def _units():
+    """現在の Maya の距離・角度・時間の単位名を辞書で返す。"""
     from maya import cmds
     return {key: cmds.currentUnit(query=True, **{key: True}) for key in ("linear", "angle", "time")}
 
 
 def _node(value):
+    """既存の Node をそのまま返し、それ以外は Node として解決する。
+
+    Args:
+        value (object): ノード入力。
+
+    Returns:
+        Node: 解決したノード。
+    """
     from ..nodes.node import Node
     return value if isinstance(value, Node) else Node(value)
 
 
 def _items(value):
+    """単数入力を一要素のリストにし、その他の列をリストにする。
+
+    Args:
+        value (object): 文字列、fullName を持つ参照、または反復可能な列。
+
+    Returns:
+        list: 入力の列。
+    """
     if isinstance(value, str) or hasattr(value, "fullName"):
         return [value]
     return list(value)
@@ -24,9 +41,7 @@ def _items(value):
 def _signature(shape):
     """位置に依存しないトポロジー情報。頂点番号対応を検証する。"""
     from maya.api import OpenMaya as om
-    selection = om.MSelectionList()
-    selection.add(shape)
-    path = selection.getDagPath(0)
+    path = om.MDagPath(_node(shape).dagPath())
     if path.node().hasFn(om.MFn.kTransform):
         path.extendToShape()
     if path.node().hasFn(om.MFn.kMesh):
@@ -63,12 +78,8 @@ def _attribute_value(plug):
     if plug.isCompound:
         return [tuple(_attribute_value(plug.child(i)) for i in range(plug.numChildren()))]
     if attribute.hasFn(om2.MFn.kUnitAttribute):
-        kind = om2.MFnUnitAttribute(attribute).unitType()
-        if kind == om2.MFnUnitAttribute.kAngle:
-            return plug.asMAngle().asUnits(om2.MAngle.uiUnit())
-        if kind == om2.MFnUnitAttribute.kDistance:
-            return plug.asMDistance().asUnits(om2.MDistance.uiUnit())
-        return plug.asMTime().asUnits(om2.MTime.uiUnit())
+        from .._core.unitValue import convert
+        return convert(plug, value_reader(attribute)(plug), to_ui=True)
     if attribute.hasFn(om2.MFn.kMatrixAttribute):
         data = typed_data(plug)
         return None if data.isNull() else list(om2.MFnMatrixData(data).matrix())
@@ -89,6 +100,12 @@ def _attribute_value(plug):
 
 
 def _set_attribute(node, attr):
+    """保存した型と値を cmds.setAttr へ渡して復元する。
+
+    Args:
+        node (str): 対象ノード名。
+        attr (dict): name、type、value を持つ保存データ。単位の変換は行わない。
+    """
     from maya import cmds
     name, kind, value = node + "." + attr["name"], attr["type"], attr["value"]
     if kind == "string":
@@ -154,13 +171,20 @@ class Snapshot:
     units: dict
     version: int = 1
 
-    def to_data(self):
+    def toData(self):
         """保存用データを返す。"""
         return {"kind": self.kind, "records": self.records, "units": self.units, "version": self.version}
 
     @classmethod
-    def from_data(cls, data):
-        """既知の用途・版だけを読み込む。"""
+    def fromData(cls, data):
+        """既知の用途・版だけを読み込む。
+
+        Args:
+            data (dict): kind、version、records、units を持つ保存データ。
+
+        Returns:
+            Snapshot: kind に対応するスナップショット。
+        """
         if type(data.get("version")) is not int or data["version"] != 1 or data.get("kind") not in set(_KINDS) | {"editor"}:
             raise ValueError("Unsupported snapshot kind/version")
         if not isinstance(data.get("records"), list) or not isinstance(data.get("units"), dict):
@@ -171,7 +195,18 @@ class Snapshot:
         return _KINDS[data["kind"]](**data)
 
     def plan(self, mapping=None, namespace_map=None):
-        """変更候補とエラーを収集する。単位不一致は自動変換せず拒否する。"""
+        """シーンを変更せず、変更候補と検証エラーを収集する。
+
+        選択スナップショット以外は保存時との Maya 単位の不一致をエラーに記録する。
+        単位は自動変換しない。選択スナップショットでは単位を比較しない。
+
+        Args:
+            mapping (dict | None): 保存ノードパスから移行先への対応。
+            namespace_map (dict | None): 保存名前空間から移行先への対応。
+
+        Returns:
+            ApplyPlan: 変更前後の候補と検証エラー。
+        """
         from maya import cmds
         plan = ApplyPlan(self, dict(mapping or {}), dict(namespace_map or {}))
         options = {"mapping": plan.mapping, "namespace_map": plan.namespace_map}
@@ -201,7 +236,14 @@ class Snapshot:
         return plan
 
     def validate(self, **kwargs):
-        """ValidationReport: planのエラーを返す。シーンは変更しない。"""
+        """適用候補の検証エラーを返す。シーンは変更しない。
+
+        Args:
+            **kwargs: plan() に渡す mapping、namespace_map。
+
+        Returns:
+            ValidationReport: 適用候補の検証エラー。
+        """
         return ValidationReport(self.plan(**kwargs).errors)
 
     def apply(self, mapping=None, namespace_map=None):
@@ -217,14 +259,14 @@ class Snapshot:
             RuntimeError: Undo無効または実行中のMayaエラー。途中変更は一回のUndoで戻せるが自動rollbackはしない。
         """
         from maya import cmds
-        from ..decorators.undo import undo_chunk
+        from ..decorators.undo import undoChunk
         plan = self.plan(mapping, namespace_map)
         if plan.errors:
             raise ValueError("\n".join(plan.errors))
         if not cmds.undoInfo(query=True, state=True):
             raise RuntimeError("Snapshot.apply requires Undo enabled")
         options = {"mapping": plan.mapping, "namespace_map": plan.namespace_map}
-        with undo_chunk("hlibJsonApply"):
+        with undoChunk("hlibJsonApply"):
             for record in self.records:
                 if self.kind == "selection":
                     names = [ref.resolve(**options).fullName() for ref in record["items"]]
@@ -379,7 +421,7 @@ class NurbsCurveSnapshot(Snapshot):
         from maya import cmds
         record = {"node": NodeRef.capture(node)}
         name = node.fullName()
-        record["topology"] = _signature(name)
+        record["topology"] = _signature(node)
         record["positions"] = [cmds.xform(cv.fullName(), query=True, translation=True, objectSpace=True) for cv in node.cvs()]
         record["attributes"] = [_attribute(node, attr) for attr in ("overrideEnabled", "overrideRGBColors", "overrideColor", "overrideColorRGB", "lineWidth")]
         return record
@@ -537,11 +579,11 @@ class AnimationSnapshot(Snapshot):
         record = {"node": NodeRef.capture(node)}
         if not node.type().startswith("animCurve"):
             raise ValueError("Expected animation curve")
-        from ..utils.units import angle_to_ui
+        from ..utils.units import angleToUi
         tangents = [node.getTangent(i) for i in range(node.keyCount())]
         for tangent in tangents:
             for flag in ("inAngle", "outAngle"):
-                tangent[flag] = angle_to_ui(tangent[flag])
+                tangent[flag] = angleToUi(tangent[flag])
         record.update(inputs=[node._unit_value(v) for v in node.keyInputs()],
                       values=[node._unit_value(v, output=True) for v in node.keyValues()],
                       tangents=tangents, infinity=node.getInfinity())
@@ -598,8 +640,8 @@ class AnimationSnapshot(Snapshot):
             fixed = {}
             for prefix in ("in", "out"):
                 if tangent[prefix + "TangentType"] == "fixed":
-                    from ..utils.units import angle_from_ui
-                    fixed[prefix + "Angle"] = angle_from_ui(tangent[prefix + "Angle"])
+                    from ..utils.units import angleFromUi
+                    fixed[prefix + "Angle"] = angleFromUi(tangent[prefix + "Angle"])
                     if tangent["weightedTangents"]:
                         fixed[prefix + "Weight"] = tangent[prefix + "Weight"]
             if fixed:
@@ -673,8 +715,8 @@ def capture(targets=None, kind="pose", attributes=None):
     from ..components import Component
     from ..plugs.plug import Plug
     if kind == "editor":
-        from .editors import capture_editors
-        return capture_editors(targets)
+        from .editors import captureEditors
+        return captureEditors(targets)
     if kind not in _KINDS:
         raise ValueError("Unknown snapshot kind: " + kind)
     if kind == "selection":
@@ -729,6 +771,15 @@ def _sdk_nodes(nodes):
 
 
 def _connections(name):
+    """指定対象の接続を PlugRef の組として取得する。
+
+    Args:
+        name (str): listConnections に渡す対象名。
+
+    Returns:
+        list[tuple[PlugRef, PlugRef]]: 対象側、接続相手側の順の組。
+            接続元、接続先の順へ並べ替える処理は行わない。
+    """
     from maya import cmds
     pairs = cmds.listConnections(name, source=True, destination=True, connections=True, plugs=True) or []
     return [(PlugRef.capture(pairs[i]), PlugRef.capture(pairs[i + 1])) for i in range(0, len(pairs), 2)]

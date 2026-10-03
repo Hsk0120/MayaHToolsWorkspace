@@ -2,7 +2,7 @@
 
 import math
 import hlib
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 from .controlRig import ControlRig
 from hrig.setups import ControlShape
 
@@ -11,7 +11,7 @@ class AimRig(ControlRig):
     """首と左右眼に独立ターゲットとUpを持つAimレイヤー。"""
 
     @classmethod
-    @undo_transaction("hrig.AimRig.create")
+    @undoTransaction("hrig.AimRig.create")
     def create(cls, name="look01", size=2.0):
         """正Zを視線、正Yを上として作成する。
 

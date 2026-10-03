@@ -7,7 +7,7 @@ import re
 import hlib
 
 from hrig.setups.bendCorrection import BendCorrection
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class BendLayer:
@@ -52,7 +52,7 @@ class BendLayer:
             for role in ("half", "inner", "outer")
         )
 
-    @undo_transaction("hrig.BendLayer.add")
+    @undoTransaction("hrig.BendLayer.add")
     def add(self, identifier, joint, bend_axis="z", push_axis="y"):
         """関節の親空間に50%回転骨、その子に内外骨を生成する。
 

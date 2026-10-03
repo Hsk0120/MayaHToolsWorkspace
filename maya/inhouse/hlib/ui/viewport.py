@@ -11,7 +11,7 @@ from hlib.ui._editor import _Editor
 class Viewport(_Editor):
     """既存modelPanelの表示設定を操作する。生成時にUIを変更しない。
 
-    get_settings/set_settings は modelEditor の長いフラグ名を使う。
+    getSettings/setSettings は modelEditor の長いフラグ名を使う。
     suspend は個別パネルではなく、Mayaのメインペイン全体に作用する。
     """
 
@@ -53,7 +53,7 @@ class Viewport(_Editor):
         self._require_exists()
         return cmds.modelEditor(self._name, query=True, camera=True)
 
-    def set_camera(self, camera):
+    def setCamera(self, camera):
         """表示カメラを変更する。
 
         Args:
@@ -76,12 +76,12 @@ class Viewport(_Editor):
         return pane
 
     @staticmethod
-    def is_enabled():
+    def isEnabled():
         """bool: メインペインのmanage状態。描画エンジンの状態ではない。"""
         return bool(cmds.paneLayout(Viewport._main_pane(), query=True, manage=True))
 
     @staticmethod
-    def set_enabled(enabled):
+    def setEnabled(enabled):
         """mGear viewport_offと同じ方式でメインペインを表示/非表示にする。
 
         Args:

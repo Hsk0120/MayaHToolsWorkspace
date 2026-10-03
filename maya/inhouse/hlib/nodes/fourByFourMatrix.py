@@ -1,6 +1,6 @@
 """個別の16要素から行列を構築する。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
 from .node import Node
@@ -18,7 +18,7 @@ class FourByFourMatrix(Node):
         return Matrix([self.plug("in%d%d" % (r, c)).get() for r in range(4) for c in range(4)])
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setMatrix(self, value, *, fast=False):
         """16要素をまとめて設定する。
 

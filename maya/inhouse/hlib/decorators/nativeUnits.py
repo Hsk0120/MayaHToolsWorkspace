@@ -4,7 +4,7 @@ import maya.api.OpenMaya as om2
 
 
 @contextmanager
-def native_units():
+def nativeUnits():
     """ブロック内だけ内部単位(距離=cm、角度=radian)を強制する。
 
     行列やベクトルの演算など、シーンの表示単位に依存しない計算をしたい場合に
@@ -26,3 +26,8 @@ def native_units():
     finally:
         om2.MDistance.setUIUnit(previous_linear)
         om2.MAngle.setUIUnit(previous_angle)
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('native_units',):
+    globals().pop(_obsolete_name, None)

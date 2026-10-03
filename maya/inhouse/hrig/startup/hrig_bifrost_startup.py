@@ -66,7 +66,7 @@ def run(dialog=True):
     Returns:
         str: ``hlib.environment`` の ``LOADED``・``SKIPPED``・``MISSING``・``OUTDATED``・``LOAD_FAILED``。
     """
-    result = package().try_load(dialog=dialog)
+    result = package().tryLoad(dialog=dialog)
     if result == "loaded":
         from hlib.utils import logger
 

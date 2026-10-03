@@ -3,6 +3,16 @@ from .snapshots import Snapshot, ApplyPlan, _units
 
 
 def _state(kind, name, flags=None):
+    """エディタまたはタイムラインの対応する設定値を問い合わせる。
+
+    Args:
+        kind (str): viewport、outliner、timeline のいずれか。
+        name (str): UI 名。timeline では参照しない。
+        flags (Iterable[str] | None): 照会するフラグ。省略時は対応する全フラグ。
+
+    Returns:
+        dict: editor、target、values。時間は現在の Maya 時間単位。
+    """
     from maya import cmds
     from hlib.ui.viewport import Viewport
     from hlib.ui.outliner import Outliner
@@ -31,7 +41,16 @@ class EditorSnapshot(Snapshot):
     """
 
     def plan(self, mapping=None, namespace_map=None):
-        """UI名のmappingを適用して前後の設定を検証する。"""
+        """UI 名の対応を適用し、変更候補と検証エラーを収集する。
+
+        Args:
+            mapping (dict | None): 保存した UI 名から現在の UI 名への対応。
+            namespace_map (dict | None): 非空の指定は未対応としてエラーに記録する。
+
+        Returns:
+            ApplyPlan: 変更候補とエラー。全 UI 状態の Undo を保証できないため、
+                現在は適用未対応のエラーを必ず含む。シーンや UI は変更しない。
+        """
         from maya import cmds
         from .codec import encode
         plan = ApplyPlan(self, dict(mapping or {}), dict(namespace_map or {}))
@@ -79,8 +98,19 @@ class EditorSnapshot(Snapshot):
         raise NotImplementedError("EditorSnapshot supports capture/load/plan only; applying editor state without guaranteed Undo is not supported")
 
 
-def capture_editors(targets):
-    """hlibのViewport/Outliner/TimeSliderまたはその列を取得する。"""
+def captureEditors(targets):
+    """Maya エディタの設定値をスナップショットとして取得する。
+
+    Args:
+        targets (Viewport | Outliner | TimeSlider | Iterable): 対象 UI またはその列。
+
+    Returns:
+        EditorSnapshot: 対象名・対応する設定値・現在の Maya 単位を保持するデータ。
+            UI オブジェクト自体ではない。復元の適用は未対応。
+
+    Raises:
+        TypeError: 対応していない UI 型を指定した場合。
+    """
     from hlib.ui.viewport import Viewport
     from hlib.ui.outliner import Outliner
     from hlib.ui.timeSlider import TimeSlider
@@ -95,3 +125,8 @@ def capture_editors(targets):
         else:
             raise TypeError("Expected Viewport, Outliner or TimeSlider")
     return EditorSnapshot("editor", records, _units())
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('capture_editors',):
+    globals().pop(_obsolete_name, None)

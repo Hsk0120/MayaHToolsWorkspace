@@ -3,7 +3,7 @@
 from ..decorators._fast import fast_edit
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .node import Node
 
@@ -17,7 +17,8 @@ class MultMatrix(Node):
         """非負の整数インデックスを検証する。不正値はValueError。"""
         if isinstance(index, bool) or not isinstance(index, int) or index < 0:
             raise ValueError("Matrix index must be a non-negative integer")
-        return index
+        from ..plugs.arrayPlug import ArrayPlug
+        return ArrayPlug._validate_index(index)
 
     def inputPlug(self, index):
         """既存入力のPlugを取得する。未存在要素は作成しない。
@@ -45,7 +46,7 @@ class MultMatrix(Node):
         return self.inputPlug(index).get()
 
     @fast_edit
-    @undo_chunk("hlibMultMatrixSetInput")
+    @undoChunk("hlibMultMatrixSetInput")
     def setInput(self, index, value, *, fast=False):
         """指定スロットに定数行列を設定する。入力接続は切断しない。
 
@@ -66,10 +67,10 @@ class MultMatrix(Node):
         """
         index = self._index(index)
         value = Matrix(value)
-        self.plug("matrixIn").element(index, create=True).set(value)
+        self.plug("matrixIn")._element_reference(index).set(value)
         return self
 
-    @undo_chunk("hlibMultMatrixConnectInput")
+    @undoChunk("hlibMultMatrixConnectInput")
     def connectInput(self, index, source, force=False):
         """行列Plugを指定スロットへ接続する。
 
@@ -86,7 +87,9 @@ class MultMatrix(Node):
             RuntimeError: 型不一致などでMayaが接続を拒否した場合。
         """
         index = self._index(index)
-        source.connect(self.plug("matrixIn").element(index, create=True), force=force)
+        from ..plugs.plug import Plug
+        source = Plug._resolve_input(source)
+        source.connect(self.plug("matrixIn")._element_reference(index), force=force)
         return self
 
     def outputPlug(self):

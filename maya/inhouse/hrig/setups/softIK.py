@@ -5,7 +5,7 @@ import math
 import hlib
 
 from hlib import getPlug as to_plug
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 from hlib.utils.scalarGraph import ScalarGraph
 
 
@@ -13,7 +13,7 @@ class SoftIK:
     """距離・softnessからIK目標の位置倍率を作る標準DGビルダー。"""
 
     @classmethod
-    @undo_transaction("hrig.SoftIK.create")
+    @undoTransaction("hrig.SoftIK.create")
     def create(cls, name, length):
         """標準ノードをcontainerへまとめ、入出力属性を返す。
 

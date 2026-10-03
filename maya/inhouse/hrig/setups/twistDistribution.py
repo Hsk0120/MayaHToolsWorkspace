@@ -4,7 +4,7 @@ from maya import cmds
 
 import hlib
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class TwistDistribution:
@@ -35,7 +35,7 @@ class TwistDistribution:
         return node
 
     @classmethod
-    @undo_transaction("hrig.TwistDistribution.create")
+    @undoTransaction("hrig.TwistDistribution.create")
     def create(cls, start, end, name="twist", axis="x"):
         """相対Quaternionの軸成分から純粋なツイストを抽出する。
 
@@ -113,7 +113,7 @@ class TwistDistribution:
         compose.plug("outputMatrix").connect(owner.plug("twistMatrix"))
         return graph
 
-    @undo_transaction("hrig.TwistDistribution.sample")
+    @undoTransaction("hrig.TwistDistribution.sample")
     def sample(self, fraction, name):
         """位置とツイストを同じ割合で補間した始点空間の行列を作る。
 

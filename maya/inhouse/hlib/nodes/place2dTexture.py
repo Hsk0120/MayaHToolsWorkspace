@@ -1,14 +1,14 @@
 """Mayaのplace2dTextureノードを扱う。"""
 from .._core.registry import node_wrapper
 from .shadingDependNode import ShadingDependNode
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @node_wrapper("place2dTexture")
 class Place2dTexture(ShadingDependNode):
     """Mayaの継承型に対応するPlace2dTexture。値と接続はPlugで操作する。"""
 
-    @undo_chunk("hlibPlace2dConnect")
+    @undoChunk("hlibPlace2dConnect")
     def connectTexture(self, texture, force=False):
         """標準の2D配置アトリビュートをテクスチャへ接続する。
 

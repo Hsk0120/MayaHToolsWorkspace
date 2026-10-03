@@ -77,7 +77,7 @@ Examples
     hlib.select(clear=True)
 """
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 from .._core.flags import flag_aliases
 
@@ -85,7 +85,7 @@ import maya.cmds as cmds
 
 
 @flag_aliases("select")
-@undo_chunk("hlib.cmds.select.select")
+@undoChunk("hlib.cmds.select.select")
 def select(nodes=None, **kwargs):
     """指定したノード・アトリビュート・コンポーネントを選択する。
 

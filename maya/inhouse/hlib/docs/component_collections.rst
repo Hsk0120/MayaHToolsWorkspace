@@ -23,8 +23,8 @@ Vertices・CVs・UVsでも単体と同じ名前で座標を取得・設定でき
 ``setPosition(value)`` は全要素への同じ値の適用、
 ``setPositions(values)`` は要素ごとの設定です。引数の形による暗黙の切り替えはしません。
 
-* Vertex / Vertices、CV / CVs: XYZ、ws指定、getX()/setX()等。
-* UV / UVs: UV座標、getU()/setU()等。現在のUVセットを参照し、ws指定はありません。
+* Vertex / Vertices、CV / CVs: XYZ（cm）、space指定、getX()/setX()等。
+* UV / UVs: UV座標、getU()/setU()等。現在のUVセットを参照し、space指定はありません。
 * Edge / Edges、Face / Faces: vertices()で接続頂点を取得できます。
   Edges/Facesの結果は共有頂点の重複を除いたVerticesです。
   位置を変える場合は ``faces.vertices().setPositions(...)`` などを使います。

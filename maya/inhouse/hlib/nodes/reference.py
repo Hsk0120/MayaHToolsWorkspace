@@ -4,7 +4,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 
 
@@ -84,11 +84,11 @@ class Reference(Node):
         Returns:
             list[Reference]: 子参照。無ければ空リスト。孫以下は含めない。
         """
-        from hlib.utils.references import list_references
+        from hlib.utils.references import listReferences
 
         own_name = self.fullName()
         children = []
-        for reference in list_references():
+        for reference in listReferences():
             parent = reference.parentReference()
             if parent is not None and parent.fullName() == own_name:
                 children.append(reference)
@@ -164,7 +164,7 @@ class Reference(Node):
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
-    @undo_chunk("hlibReferenceLoad")
+    @undoChunk("hlibReferenceLoad")
     def load(self):
         """参照をロードする。
 
@@ -177,7 +177,7 @@ class Reference(Node):
         cmds.file(loadReference=self.name())
         return self
 
-    @undo_chunk("hlibReferenceUnload")
+    @undoChunk("hlibReferenceUnload")
     def unload(self):
         """参照をアンロードする。
 
@@ -190,7 +190,7 @@ class Reference(Node):
         cmds.file(unloadReference=self.name())
         return self
 
-    @undo_chunk("hlibReferenceRemove")
+    @undoChunk("hlibReferenceRemove")
     def remove(self):
         """参照を削除する(参照ノードとその内容をシーンから除去する)。
 

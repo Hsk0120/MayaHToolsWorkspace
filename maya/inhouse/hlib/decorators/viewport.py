@@ -5,10 +5,10 @@ import maya.cmds as cmds
 
 
 @contextmanager
-def viewport_off():
+def viewportOff():
     """メインペインを非表示にし、終了時に以前の表示状態へ戻す。
 
-    ``@viewport_off()`` と ``with viewport_off():`` の両方で使用できる。
+    ``@viewportOff()`` と ``with viewportOff():`` の両方で使用できる。
     GUIではViewport.suspendと同じpaneLayoutのmanage方式を使用する。
     バッチ実行では表示操作を行わない。OGS・refresh・評価設定は変更しない。
     入れ子でも元の状態を維持し、処理中の例外は再実行せず伝播する。
@@ -26,3 +26,8 @@ def viewport_off():
 
     with Viewport.suspend():
         yield
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('viewport_off',):
+    globals().pop(_obsolete_name, None)

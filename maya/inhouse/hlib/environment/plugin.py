@@ -20,7 +20,7 @@ class Plugin:
     ))
 
     @classmethod
-    def ensure_node_plugin(cls, node_type):
+    def ensureNodePlugin(cls, node_type):
         """指定ノード型が必要とする標準同梱プラグインをロードする。
 
         Args:
@@ -30,7 +30,7 @@ class Plugin:
             RuntimeError: Mayaがプラグインのロードを拒否した場合。
         """
         if node_type in cls._HIK_NODE_TYPES:
-            cls("mayaHIK").ensure_loaded()
+            cls("mayaHIK").ensureLoaded()
 
     @classmethod
     def loaded(cls):
@@ -66,7 +66,7 @@ class Plugin:
         """
         return self._name
 
-    def is_registered(self):
+    def isRegistered(self):
         """Maya がこのプラグインを認識しているか判定する。
 
         Returns:
@@ -89,17 +89,17 @@ class Plugin:
         Returns:
             str | None: 登録済みプラグインのファイルパス。未登録の場合は None。
         """
-        if not self.is_registered():
+        if not self.isRegistered():
             return None
         return cmds.pluginInfo(self._name, query=True, path=True) or None
 
-    def version_text(self):
+    def versionText(self):
         """Mayaが返すプラグインの版文字列をそのまま取得する。
 
         Returns:
             str | None: 生の版文字列。未登録・空の場合はNone。
         """
-        if not self.is_registered():
+        if not self.isRegistered():
             return None
         return cmds.pluginInfo(self._name, query=True, version=True) or None
 
@@ -110,10 +110,10 @@ class Plugin:
             Version | None: 問い合わせ時点の版。未登録・解釈不能ならNone。
                 取得した値をreplaceしてもMaya側の版は変更されない。
         """
-        return Version.parse(self.version_text())
+        return Version.parse(self.versionText())
 
 
-    def is_version_at_least(self, minimum):
+    def isVersionAtLeast(self, minimum):
         """プラグインの版が ``minimum`` 以上か判定する。
 
         Args:
@@ -166,7 +166,7 @@ class Plugin:
         cmds.unloadPlugin(self._name, force=force)
         return self
 
-    def ensure_loaded(self):
+    def ensureLoaded(self):
         """未ロードであればロードする(冪等)。
 
         Args:

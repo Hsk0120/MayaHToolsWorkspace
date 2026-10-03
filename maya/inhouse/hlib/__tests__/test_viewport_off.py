@@ -4,25 +4,25 @@ import unittest
 from unittest.mock import patch
 import maya.cmds as cmds
 import hlib
-from hlib.decorators import viewport_off
+from hlib.decorators import viewportOff
 
 
 class ViewportOffTest(unittest.TestCase):
     def test_batch_context_and_decorator(self):
         calls = []
 
-        @viewport_off()
+        @viewportOff()
         def operation(value):
             calls.append(value)
             return value
 
         with patch.object(cmds, 'about', return_value=True), patch.object(
                 cmds, 'paneLayout', side_effect=AssertionError('Unexpected UI call')):
-            with viewport_off():
+            with viewportOff():
                 self.assertEqual(operation(1), 1)
                 self.assertEqual(operation(2), 2)
             with self.assertRaisesRegex(RuntimeError, 'original'):
-                with viewport_off():
+                with viewportOff():
                     raise RuntimeError('original')
         self.assertEqual(calls, [1, 2])
 

@@ -3,7 +3,7 @@
 from maya import cmds
 from hlib_bifrost.nodes.graph import Graph
 from hlib_bifrost.utils.mathBuilder import MathBuilder
-from hlib.utils.undo import is_enabled
+from hlib.utils.undo import isEnabled
 
 
 class BifrostMatrixFollow:
@@ -19,7 +19,7 @@ class BifrostMatrixFollow:
         Returns:
             Graph: 入出力がMayaのmatrix属性として公開されたグラフ。
         """
-        if is_enabled() or not cmds.about(batch=True):
+        if isEnabled() or not cmds.about(batch=True):
             raise RuntimeError(
                 "Bifrost matrix graph is experimental; use an isolated process with Undo disabled"
             )

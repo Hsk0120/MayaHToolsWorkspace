@@ -4,7 +4,7 @@ from ..decorators._fast import fast_edit
 
 import maya.api.OpenMaya as om2
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .plug import Plug
 
 
@@ -24,12 +24,13 @@ class CompoundPlug(Plug):
         return tuple(self._child_at(index).get() for index in range(self._mplug.numChildren()))
 
     @fast_edit
-    @undo_chunk("hlibCompoundPlugSet")
+    @undoChunk("hlibCompoundPlugSet")
     def set(self, value, *, fast=False):
         """子数と同数のシーケンスを各子プラグへ設定する。
 
         子の変更を一回のUndoにまとめる。要素数は先に検査する。
-        設定途中の失敗時に、先に設定した子の値を自動で戻す処理はない。
+        float/long/shortの固定長数値型は全子の書込み可否を確認し型付きで一括設定する。
+        その他の複合型は子ごとの設定を使う。途中の失敗時に完了済みの値は自動で戻さない。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
@@ -49,8 +50,12 @@ class CompoundPlug(Plug):
         values = tuple(value)
         if len(values) != self._mplug.numChildren():
             raise ValueError("Compound plug value length does not match its child count")
-        for index, child_value in enumerate(values):
-            self._child_at(index).set(child_value)
+        if self.dataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
+            self._require_writable()
+            Plug.set(self, values)
+        else:
+            for index, child_value in enumerate(values):
+                self._child_at(index).set(child_value)
         return self
 
     def _child_at(self, index):

@@ -19,7 +19,7 @@
    print([item.name() for item in WorkspaceLayout.list()])
    layout.lock()                       # Maya右上の鍵と同じ
    layout.unlock()
-   print(layout.get_locked())
+   print(layout.getLocked())
 
    saved = layout.saveAs("MyRiggingLayout")  # 保存し、その配置へ切り替える
    saved.save()                        # 使用中の配置を上書き保存
@@ -44,13 +44,13 @@
    from hlib.ui import MainWindow, Window
 
    window = hlib.getWindow(MainWindow.name())
-   print(window.get_size())             # (width, height)
+   print(window.getSize())             # (width, height)
    print(window.getPosition())         # (x, y)、Mayaのtop/left順を変換
-   window.set_resizable(False)          # サイズ変更のみ禁止
-   window.set_resizable(True)
+   window.setResizable(False)          # サイズ変更のみ禁止
+   window.setResizable(True)
    print([item.name() for item in Window.list()])
 
-``setPosition(x, y)``、``set_size(width, height)``、``show()``、``hide()`` も使用できます。
+``setPosition(x, y)``、``setSize(width, height)``、``show()``、``hide()`` も使用できます。
 ``hide`` は削除ではありません。メインウィンドウを非表示にする必要は通常ありません。
 UIの所有者はMayaであり、このAPIはメインウィンドウの削除メソッドを提供しません。
 
@@ -65,17 +65,17 @@ UIの所有者はMayaであり、このAPIはメインウィンドウの削除�
    # 実在する名前を選んで取得する
    if controls:
        control = hlib.getWorkspaceControl(controls[0].name())
-       print(control.get_floating(), control.get_size())
+       print(control.getFloating(), control.getSize())
        control.show()
        # WorkspaceLayout.unlock()後に明示的に配置を変更する
        # control.dock("right")
        # control.dock("left", target=another_control)
-       # control.tab_to(another_control)
+       # control.tabTo(another_control)
        # control.undock()
-       # control.set_size(500, 350)  # 浮動状態でのみ使用可能
+       # control.setSize(500, 350)  # 浮動状態でのみ使用可能
 
-``set_collapsed`` はタブの親を折り畳むため、同じグループの他タブにも影響します。
-``dock`` / ``undock`` / ``tab_to`` は全体ロック中に例外を返します。
+``setCollapsed`` はタブの親を折り畳むため、同じグループの他タブにも影響します。
+``dock`` / ``undock`` / ``tabTo`` は全体ロック中に例外を返します。
 ``show`` は非表示・最小化・折り畳みを解除し、タブをアクティブにします。
 
 メモリへの一時退避
@@ -84,17 +84,17 @@ UIの所有者はMayaであり、このAPIはメインウィンドウの削除�
 .. code-block:: python
 
    layout = hlib.getWorkspaceLayout()
-   snapshot = layout.capture_docking_layout()
+   snapshot = layout.captureDockingLayout()
    # 同じ配置の中でドッキングを編集する
-   layout.restore_docking_layout(snapshot)
+   layout.restoreDockingLayout(snapshot)
 
-   with layout.temporary_docking_layout():
+   with layout.temporaryDockingLayout():
        layout.unlock()
        # 一時的なドッキング変更
        ...
    # 例外時も開始時点の配置とロックへ復元する
 
-``Window`` / ``WorkspaceControl`` にも ``capture`` / ``restore`` / ``temporary_state`` があります。
+``Window`` / ``WorkspaceControl`` にも ``capture`` / ``restore`` / ``temporaryState`` があります。
 退避値は変更不可の ``UiSnapshot`` です。``scope`` に保存範囲、``name`` に対象名、
 ``data`` に取得時点の値を保持し、復元前に元のUIの生存を検証します。
 同一セッション内でのみ使用でき、JSON化・ファイル保存・UI再生成には対応しません。

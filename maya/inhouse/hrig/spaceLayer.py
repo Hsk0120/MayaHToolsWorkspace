@@ -3,7 +3,7 @@
 import hlib
 
 from hrig.setups import SpaceSwitch
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SpaceLayer:
@@ -57,7 +57,7 @@ class SpaceLayer:
         if members:
             self.rig._layer_members("spaceSet", members)
 
-    @undo_transaction("hrig.SpaceLayer.attach")
+    @undoTransaction("hrig.SpaceLayer.attach")
     def attach(self):
         """IK Local/World、Pole Local/World/Footの空間切替を追加する。"""
         if self.rig.root.hasAttribute("targetSpace"):
@@ -94,7 +94,7 @@ class SpaceLayer:
             self.rig._member("targetMatrix") + ".matrixIn[2]"
         )
 
-    @undo_transaction("hrig.SpaceLayer.add")
+    @undoTransaction("hrig.SpaceLayer.add")
     def add(self, control, label, target=None):
         """任意ノードを参照空間へ追加する。Noneはワールドを表す。
 
@@ -117,7 +117,7 @@ class SpaceLayer:
         node = self.rig._member(self._role(control))
         hlib.getPlug(node + ".space").setEnumNames(switch.labels())
 
-    @undo_transaction("hrig.SpaceLayer.switch")
+    @undoTransaction("hrig.SpaceLayer.switch")
     def switch(self, control, label):
         """姿勢とコントローラーのチャンネルを保持して参照空間を変更する。
 

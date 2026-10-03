@@ -87,7 +87,7 @@ class Quaternion(om2.MQuaternion):
     完全一致で(``q`` と ``-q`` は同じ回転でも等しくない)、MQuaternion 系以外との
     比較は :class:`~hlib.maths.vector.Vector` と同じく例外にしない。
 
-    snake_case のメソッドと ``conjugate()`` / ``inverse()`` / ``slerp()`` は hlib の
+    四元数を返す独自メソッドと ``conjugate()`` / ``inverse()`` / ``slerp()`` は hlib の
     型を返す。om2 から継承した camelCase のメソッド(``asMatrix``、
     ``asEulerRotation``、``normal``、``log`` など)は om2 の基底型を返す。
     """
@@ -688,9 +688,9 @@ class Quaternion(om2.MQuaternion):
         Raises:
             ValueError: order が未対応の場合、またはゼロ四元数の場合。
         """
-        from .eulerRotation import EulerRotation, order_index
+        from .eulerRotation import EulerRotation, orderIndex
 
-        index = order_index(order)
+        index = orderIndex(order)
         return EulerRotation._wrap(om2.MEulerRotation.decompose(_unit_copy(self).asMatrix(), index))
 
     def mirrored(self, axis="x"):

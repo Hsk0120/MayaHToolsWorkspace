@@ -76,10 +76,10 @@ Colorで番号とRGBを扱う
 色空間の変換は行いません。番号0はDrawing Overridesの既定色指定なので、
 RGBからの近似対象は1～31です。番号0のRGBは最終的な画面表示色を表しません。
 
-GUIでは生成時のMayaパレットを保持します。``palette_source`` は ``"maya"`` です。
+GUIでは生成時のMayaパレットを保持します。``paletteSource`` は ``"maya"`` です。
 バッチ・スタンドアロンではパレット照会が利用できないため、標準パレットを使い
 ``"default"`` になります。バッチではGUIのカスタムパレットを反映しません。
-``refresh_palette()`` で明示的に再取得できます。通常のプロパティ操作と
+``refreshPalette()`` で明示的に再取得できます。通常のプロパティ操作と
 ``copy()`` はMayaに問い合わせません。
 
 ``getOutlinerColor()`` と ``getOverrideColor()`` はどちらも ``Color`` を返します。
@@ -107,7 +107,7 @@ Outlinerへ色番号を渡した場合は対応RGBで設定されます。
    colors[0].rgb = (1, 0, 0)
    copied = [color.copy() for color in colors]
    for color in colors:
-       color.refresh_palette()
+       color.refreshPalette()
 
 リストのスライスは要素を共有します。色も独立させる場合は上記のようにcopyを呼びます。
 ノードへの適用はsetterで明示します。

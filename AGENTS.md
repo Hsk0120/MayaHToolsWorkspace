@@ -2,6 +2,8 @@
 
 ## 基本方針
 
+- hlibの公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCase（`getSettings`・`undoChunk`・`minimumVersion`）とする。クラスはPascalCase。Maya標準名・om2継承/オーバーライド・Python特殊メソッド・標準ライブラリに合わせたAPIは元の名前を維持し、通知APIの`get_logger`/`raise_with_notify`も例外として維持する。引数・内部関数・ローカル変数はsnake_caseを使用できるが、Mayaのコマンドフラグは標準表記を優先する。JSON等の保存キーはAPI改名で変更しない。詳細と例外は`docs/hlib-api-design.md`の「確定したコーディングルール」を参照する。
+
 - hlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
 
 - hlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。

@@ -108,13 +108,14 @@ blendShape のターゲット操作
    weightPlug.set(0.5)
    print(bs.targetAliases())            # ['pCube2', 'pCube3']
 
-``targets``/``weightPlugs``/``weights`` は ``aliases()`` をそのまま利用しており、
-weight 配列のインデックス順ではなく ``cmds.aliasAttr`` が返す順序に従います。
+``targetAliases()`` / ``weightPlugs()`` / ``getWeights()`` は ``aliases()`` の順序に従います。
+weight配列の論理インデックスで並べ替えません。weight以外のアトリビュートに
+エイリアスを付けた場合、その名前・Plug・値も含みます。
 ``addTarget`` は ``base`` を省略すると既存の base geometry の先頭を使い、
 ``weight_index`` を省略すると ``plug("weight").nextAvailableIndex()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
 設定されるため、戻り値のプラグの ``fullName`` は ``weight[N]`` ではなく
-ターゲット名を含む表記になります（``attribute()`` メソッドは常に ``"weight"``）。
+ターゲット名を含む表記になります（``attributeName()`` では実際のアトリビュート名を取得できます）。
 
 skinCluster ウェイトのバックアップ・復元
 ------------------------------------------
@@ -142,15 +143,15 @@ influence がすべて現在の skinCluster に存在することを要求しま
 
 .. code-block:: python
 
-   from hlib.decorators import preserved_skin_shape
+   from hlib.decorators import preservedSkinShape
    from hlib.nodes.joint import Joint
 
    joint = Joint("hlibExampleJoint")
-   with preserved_skin_shape([joint]):
+   with preservedSkinShape([joint]):
        # 現在のjoint姿勢をスキニング基準へ反映する。
        joint.plug("jointOrientZ").set(45.0)
 
-``preserved_skin_shape`` は Maya標準の ``skinCluster -moveJointsMode`` /
+``preservedSkinShape`` は Maya標準の ``skinCluster -moveJointsMode`` /
 ``-recacheBindMatrices`` を使い、ブロック内での joint 姿勢変更を
 「新しいバインド姿勢」として扱います。関節の向きを付け直す、
 リグを組み替えるといった作業で、既存のスキニングを壊したくない場合に使います。

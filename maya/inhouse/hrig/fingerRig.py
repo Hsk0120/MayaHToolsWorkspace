@@ -2,7 +2,7 @@
 
 import math
 import hlib
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 from .controlRig import ControlRig
 from hrig.setups import ControlShape
 
@@ -11,7 +11,7 @@ class FingerRig(ControlRig):
     """正X方向の指列を作り、曲げZと開きYを別レイヤーで操作する。"""
 
     @classmethod
-    @undo_transaction("hrig.FingerRig.create")
+    @undoTransaction("hrig.FingerRig.create")
     def create(cls, name="hand01", finger_count=5, joint_count=3, length=3.0, spacing=1.0):
         """等間隔の指サンプルを作成する。親指の解剖学的配置は手動で調整する。
 

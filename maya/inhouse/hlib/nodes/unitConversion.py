@@ -1,6 +1,6 @@
 """Mayaの単位変換係数を扱う。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
 from .node import Node
@@ -25,7 +25,7 @@ class UnitConversion(Node):
         return self.inputPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -41,7 +41,7 @@ class UnitConversion(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.inputPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
@@ -52,7 +52,7 @@ class UnitConversion(Node):
             UnitConversion: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, force=force)
         return self
@@ -72,7 +72,7 @@ class UnitConversion(Node):
         return self.factorPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setFactor(self, value, *, fast=False):
         """変換係数へ定数値を設定する。
 
@@ -88,7 +88,7 @@ class UnitConversion(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.factorPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectFactor(self, source, force=False):
         """変換係数へ接続する。
 
@@ -99,7 +99,7 @@ class UnitConversion(Node):
             UnitConversion: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.factorPlug, force=force)
         return self

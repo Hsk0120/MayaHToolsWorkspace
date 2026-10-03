@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 import maya.cmds as cmds
 import maya.mel as mel
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 class Preferences:
@@ -16,7 +16,7 @@ class Preferences:
     各項目の保存区分は設定保存ガイドを参照する。"""
 
     @staticmethod
-    def get_linear_unit():
+    def getLinearUnit():
         """現在の距離 UI 単位を取得する。
 
         Returns:
@@ -29,8 +29,8 @@ class Preferences:
 
 
     @staticmethod
-    @undo_chunk("hlib.environment.Preferences.set_linear_unit")
-    def set_linear_unit(unit):
+    @undoChunk("hlib.environment.Preferences.setLinearUnit")
+    def setLinearUnit(unit):
         """距離 UI 単位を変更する。
 
         Args:
@@ -50,7 +50,7 @@ class Preferences:
 
 
     @staticmethod
-    def get_angle_unit():
+    def getAngleUnit():
         """現在の角度 UI 単位を取得する。
 
         Returns:
@@ -63,8 +63,8 @@ class Preferences:
 
 
     @staticmethod
-    @undo_chunk("hlib.environment.Preferences.set_angle_unit")
-    def set_angle_unit(unit):
+    @undoChunk("hlib.environment.Preferences.setAngleUnit")
+    def setAngleUnit(unit):
         """角度 UI 単位を変更する。
 
         Args:
@@ -83,7 +83,7 @@ class Preferences:
 
 
     @staticmethod
-    def get_time_unit():
+    def getTimeUnit():
         """現在の時間 UI 単位を取得する。
 
         Returns:
@@ -96,8 +96,8 @@ class Preferences:
 
 
     @staticmethod
-    @undo_chunk("hlib.environment.Preferences.set_time_unit")
-    def set_time_unit(unit):
+    @undoChunk("hlib.environment.Preferences.setTimeUnit")
+    def setTimeUnit(unit):
         """時間 UI 単位を変更する。
 
         Args:
@@ -138,7 +138,7 @@ class Preferences:
             raise RuntimeError("Preferences.save requires Maya GUI (savePrefs)")
 
     @staticmethod
-    def get_up_axis():
+    def getUpAxis():
         """現在の上方向を取得する。
 
         Returns:
@@ -150,8 +150,8 @@ class Preferences:
         return cmds.upAxis(query=True, axis=True)
 
     @staticmethod
-    @undo_chunk("hlibPreferences")
-    def set_up_axis(axis, rotate_view=False, *, save=False):
+    @undoChunk("hlibPreferences")
+    def setUpAxis(axis, rotate_view=False, *, save=False):
         """上方向を変更する。既定ではカメラを回転しない。
 
         Args:
@@ -172,7 +172,7 @@ class Preferences:
             Preferences.save()
 
     @staticmethod
-    def get_undo_enabled():
+    def getUndoEnabled():
         """現在の設定を取得する。
 
         Returns:
@@ -184,7 +184,7 @@ class Preferences:
         return bool(cmds.undoInfo(query=True, state=True))
 
     @staticmethod
-    def set_undo_enabled(enabled, flush=True, *, save=False):
+    def setUndoEnabled(enabled, flush=True, *, save=False):
         """Undoの記録を切り替える。Undoチャンクには含めない。
 
         Args:
@@ -206,7 +206,7 @@ class Preferences:
             Preferences.save()
 
     @staticmethod
-    def get_undo_infinite():
+    def getUndoInfinite():
         """現在の設定を取得する。
 
         Returns:
@@ -218,7 +218,7 @@ class Preferences:
         return bool(cmds.undoInfo(query=True, infinity=True))
 
     @staticmethod
-    def set_undo_infinite(enabled, *, save=False):
+    def setUndoInfinite(enabled, *, save=False):
         """設定を変更する。Undo履歴の上限設定で、無限を無効にすると既存の上限が適用される。
 
         Args:
@@ -236,7 +236,7 @@ class Preferences:
             Preferences.save()
 
     @staticmethod
-    def get_autosave_enabled():
+    def getAutosaveEnabled():
         """現在の設定を取得する。
 
         Returns:
@@ -248,8 +248,8 @@ class Preferences:
         return bool(cmds.autoSave(query=True, enable=True))
 
     @staticmethod
-    @undo_chunk("hlibPreferences")
-    def set_autosave_enabled(enabled, *, save=False):
+    @undoChunk("hlibPreferences")
+    def setAutosaveEnabled(enabled, *, save=False):
         """設定を変更する。
 
         Args:
@@ -267,7 +267,7 @@ class Preferences:
             Preferences.save()
 
     @staticmethod
-    def get_track_selection_order():
+    def getTrackSelectionOrder():
         """現在の設定を取得する。
 
         Returns:
@@ -279,8 +279,8 @@ class Preferences:
         return bool(cmds.selectPref(query=True, trackSelectionOrder=True))
 
     @staticmethod
-    @undo_chunk("hlibPreferences")
-    def set_track_selection_order(enabled, *, save=False):
+    @undoChunk("hlibPreferences")
+    def setTrackSelectionOrder(enabled, *, save=False):
         """設定を変更する。
 
         Args:
@@ -298,7 +298,7 @@ class Preferences:
             Preferences.save()
 
     @staticmethod
-    def get_undo_limit():
+    def getUndoLimit():
         """設定されているUndo履歴の上限を取得する。
 
         Returns:
@@ -310,7 +310,7 @@ class Preferences:
         return cmds.undoInfo(query=True, length=True)
 
     @staticmethod
-    def set_undo_limit(count, *, save=False):
+    def setUndoLimit(count, *, save=False):
         """履歴上限を設定し、無限を無効にする。古い履歴が削除され得る。
 
         Args:
@@ -330,7 +330,7 @@ class Preferences:
             Preferences.save()
 
     @staticmethod
-    def get_autosave_interval():
+    def getAutosaveInterval():
         """自動保存の間隔を取得する。
 
         Returns:
@@ -342,8 +342,8 @@ class Preferences:
         return cmds.autoSave(query=True, interval=True)
 
     @staticmethod
-    @undo_chunk("hlibPreferences")
-    def set_autosave_interval(seconds, *, save=False):
+    @undoChunk("hlibPreferences")
+    def setAutosaveInterval(seconds, *, save=False):
         """自動保存間隔を変更する。保存は実行しない。
 
         Args:
@@ -364,7 +364,7 @@ class Preferences:
             Preferences.save()
 
     @staticmethod
-    def get_autosave_directory():
+    def getAutosaveDirectory():
         """現在の保存方式を反映した実際の自動保存先を取得する。
 
         Returns:
@@ -376,8 +376,8 @@ class Preferences:
         return Path(cmds.autoSave(query=True, destinationFolder=True))
 
     @staticmethod
-    @undo_chunk("hlibPreferences")
-    def set_autosave_directory(path, *, save=False):
+    @undoChunk("hlibPreferences")
+    def setAutosaveDirectory(path, *, save=False):
         """自動保存先を指定フォルダー方式へ変更する。作成・保存は行わない。
 
         Args:
@@ -413,17 +413,17 @@ class Preferences:
         if cmds.about(batch=True):
             raise RuntimeError("Preferences.save requires Maya GUI (savePrefs)")
         integer_values = {
-            "undoIsEnabled": Preferences.get_undo_enabled(),
-            "undoIsInfinite": Preferences.get_undo_infinite(),
-            "undoLength": Preferences.get_undo_limit(),
-            "TrackSelectionOrder": Preferences.get_track_selection_order(),
-            "autoSaveEnable": Preferences.get_autosave_enabled(),
+            "undoIsEnabled": Preferences.getUndoEnabled(),
+            "undoIsInfinite": Preferences.getUndoInfinite(),
+            "undoLength": Preferences.getUndoLimit(),
+            "TrackSelectionOrder": Preferences.getTrackSelectionOrder(),
+            "autoSaveEnable": Preferences.getAutosaveEnabled(),
             "autoSaveDestination": cmds.autoSave(query=True, destination=True),
         }
         for name, value in integer_values.items():
             cmds.optionVar(intValue=(name, int(value)))
-        cmds.optionVar(stringValue=("upAxisDirection", Preferences.get_up_axis()))
+        cmds.optionVar(stringValue=("upAxisDirection", Preferences.getUpAxis()))
         cmds.optionVar(stringValue=("autoSaveFolder", cmds.autoSave(query=True, folder=True)))
         # 起動時のMayaは分単位の保存値を60倍して秒に戻す。
-        cmds.optionVar(floatValue=("autoSaveInterval", Preferences.get_autosave_interval() / 60.0))
+        cmds.optionVar(floatValue=("autoSaveInterval", Preferences.getAutosaveInterval() / 60.0))
         mel.eval("savePrefs -general;")

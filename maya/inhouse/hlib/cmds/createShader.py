@@ -1,11 +1,11 @@
 """Mayaのシェーダーノードを作成する。"""
 import maya.cmds as cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases(n="name")
-@undo_chunk("hlibCreateShader")
+@undoChunk("hlibCreateShader")
 def createShader(type, name=None):
     """シェーダーとしてノードを作成する。割り当てセットは別途作成する。
 

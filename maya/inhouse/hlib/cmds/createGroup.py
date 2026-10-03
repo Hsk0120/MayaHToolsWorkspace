@@ -80,7 +80,7 @@ Examples
     empty = hlib.createGroup(name="emptyGrp", world=True, empty=True)
 """
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 from .._core.flags import flag_aliases
 
@@ -88,7 +88,7 @@ import maya.cmds as cmds
 
 
 @flag_aliases("group")
-@undo_chunk("hlib.cmds.createGroup.group")
+@undoChunk("hlib.cmds.createGroup.group")
 def createGroup(nodes=None, **kwargs):
     """指定したノードを新規 Transform でグループ化し、そのラッパーを返す。
 

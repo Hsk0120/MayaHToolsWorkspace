@@ -8,7 +8,7 @@ import hlib
 
 from hlib.utils.dampedSpring import DampedSpring
 from hrig.setups.poseRbf import PoseRbf
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SecondaryLayer:
@@ -60,7 +60,7 @@ class SecondaryLayer:
         """
         return hlib.nodes.Container(owner).createNode(kind, name=owner.name() + "_" + suffix)
 
-    @undo_transaction("hrig.SecondaryLayer.add")
+    @undoTransaction("hrig.SecondaryLayer.add")
     def add(self, driver_index=0):
         """手付け骨とは別に出力骨列と設定を作る。既存なら再利用する。
 
@@ -174,7 +174,7 @@ class SecondaryLayer:
         SkirtRig.refresh_jobs()
         return group
 
-    @undo_transaction("hrig.SecondaryLayer.bake")
+    @undoTransaction("hrig.SecondaryLayer.bake")
     def bake(self, driver_index=0, start=None, end=None):
         """元のローカル回転を順次サンプルし、所有カーブへ揺れを焼き込む。
 
@@ -206,7 +206,7 @@ class SecondaryLayer:
             for frame in frames:
                 cmds.currentTime(frame, update=True)
                 row = [
-                    math.degrees(hlib.utils.units.angle_from_ui(v))
+                    math.degrees(hlib.utils.units.angleFromUi(v))
                     for source in sources
                     for v in hlib.getAttr(source.plug("rotate"))
                 ]
@@ -218,7 +218,7 @@ class SecondaryLayer:
             settings = {
                 name: group.plug(name).get() for name in ("frequency", "damping", "angleLimit")
             }
-            interval = hlib.utils.units.seconds_per_frame()
+            interval = hlib.utils.units.secondsPerFrame()
             solved = DampedSpring.solve(
                 rows, interval, settings["frequency"], settings["damping"], settings["angleLimit"]
             )
@@ -227,7 +227,7 @@ class SecondaryLayer:
                 # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
                 old_times = set(cmds.keyframe(curve.fullName(), query=True, timeChange=True) or [])
                 for frame, row in zip(frames, solved):
-                    value = hlib.utils.units.angle_to_ui(math.radians(row[column]))
+                    value = hlib.utils.units.angleToUi(math.radians(row[column]))
                     cmds.setKeyframe(
                         curve.fullName(),
                         time=frame,
@@ -248,7 +248,7 @@ class SecondaryLayer:
             cmds.currentTime(original, update=True)
         return group
 
-    @undo_transaction("hrig.SecondaryLayer.add_pose")
+    @undoTransaction("hrig.SecondaryLayer.add_pose")
     def add_pose(self, driver_index, drivers, poses, values, scales):
         """多入力ポーズから出力列の各骨XYZ回転補正を生成する。
 
@@ -272,9 +272,7 @@ class SecondaryLayer:
         allowed = {node.uuid() for chain in self.rig.driver_chains() for node in chain}
         for driver in drivers:
             plug = hlib.getPlug(driver)
-            if plug.node.uuid() not in allowed or plug.mplug().partialName(
-                useLongNames=True
-            ) not in ("rotateX", "rotateY", "rotateZ"):
+            if plug.node.uuid() not in allowed or plug.attributeName() not in ("rotateX", "rotateY", "rotateZ"):
                 raise ValueError("Use original driver joint rotation attributes")
         graph = PoseRbf.create(drivers, poses, values, scales, name=group.name() + "_poses")
         graph.container.plug("message").connect(group.plug("poseGraph"))

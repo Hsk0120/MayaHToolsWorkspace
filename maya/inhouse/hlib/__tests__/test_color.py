@@ -25,7 +25,7 @@ class ColorTest(unittest.TestCase):
         """実パレット全番号と、無照会のプロパティ更新を検証する。"""
         color = Color(index=17)
         palette = Color._DEFAULT_PALETTE if cmds.about(batch=True) else [tuple(cmds.colorIndex(i, query=True)) for i in range(32)]
-        self.assertEqual(color.palette_source, 'default' if cmds.about(batch=True) else 'maya')
+        self.assertEqual(color.paletteSource, 'default' if cmds.about(batch=True) else 'maya')
         with patch.object(cmds, 'colorIndex', side_effect=AssertionError('Unexpected query')):
             for i in range(32):
                 color.index = i
@@ -48,13 +48,13 @@ class ColorTest(unittest.TestCase):
         palette = [(0., 0., 0.)] * 32
         palette[17] = (.1, .2, .3)
         with patch.object(cmds, 'about', return_value=False), patch.object(cmds, 'colorIndex', side_effect=lambda i, **kw: palette[i]):
-            self.assertIs(index.refresh_palette(), index)
-            rgb.refresh_palette()
+            self.assertIs(index.refreshPalette(), index)
+            rgb.refreshPalette()
         self.assertEqual(index.rgb, (.1, .2, .3))
         self.assertEqual(rgb.index, 17)
         with patch.object(cmds, 'about', return_value=False), patch.object(cmds, 'colorIndex', side_effect=RuntimeError('failed')):
             with self.assertRaises(RuntimeError):
-                index.refresh_palette()
+                index.refreshPalette()
         self.assertEqual(index.rgb, (.1, .2, .3))
         rgb.rgb = (0, 0, 0)
         self.assertEqual(rgb.index, 1)
@@ -64,11 +64,11 @@ class ColorTest(unittest.TestCase):
         with patch.object(cmds, 'about', return_value=True), patch.object(cmds, 'colorIndex', side_effect=AssertionError('GUI query')):
             color = Color(index=13)
             self.assertEqual(color.rgb, (1, 0, 0))
-            self.assertEqual(color.palette_source, 'default')
+            self.assertEqual(color.paletteSource, 'default')
             color.rgb = (0, 0, 1)
             self.assertEqual(color.index, 6)
-            self.assertEqual(color.copy().palette_source, 'default')
-            color.refresh_palette()
+            self.assertEqual(color.copy().paletteSource, 'default')
+            color.refreshPalette()
 
     def test_default_color_and_explicit_disabled(self):
         """既定色0と無効状態を区別し、RGB単独指定も維持する。"""

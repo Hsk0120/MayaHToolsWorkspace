@@ -1,9 +1,25 @@
-"""形状座標のOpenMaya一括編集。履歴を持つ形状には直接上書きしない。"""
+"""形状座標の照会と通常/fast更新。通常はcmds、fastは履歴なし形状へ直接書く。"""
 import maya.api.OpenMaya as om
+import maya.cmds as cmds
+from ..decorators._fast import is_fast
 from .fastWrite import writable
 
 
 def geometry(shape, indices, edit=False):
+    """形状の DAG パスと関数セットを取得し、必要なら直接編集の条件を検査する。
+
+    Args:
+        shape (Mesh | NurbsCurve): 呼び出し側で型を解決した形状。
+        indices (Iterable[int]): 編集する制御点番号。
+        edit (bool): 周期カーブ・履歴・ロックなど直接編集できない条件を検査するか。
+
+    Returns:
+        tuple: DAG パス、MFnMesh または MFnNurbsCurve、メッシュかを示す bool。
+
+    Raises:
+        NotImplementedError: edit=True で周期カーブや入力履歴がある場合。
+        RuntimeError: edit=True で対象がロックされている場合。
+    """
     path = shape.dagPath()
     mesh = path.node().hasFn(om.MFn.kMesh)
     fn = om.MFnMesh(path) if mesh else om.MFnNurbsCurve(path)
@@ -46,7 +62,54 @@ def positions(shape, indices, ws=False):
     return [(point.x, point.y, point.z) for point in points]
 
 
+def command_indices(shape, indices):
+    """検証済みのAPI番号をcmds用番号へ写す。順序と重複は維持する。
+
+    Args:
+        shape (Shape): MeshまたはNurbsCurve。
+        indices (Sequence[int]): APIの番号。
+
+    Returns:
+        list[int]: 周期カーブでは末尾の重複CVを先頭の独立CVへ写した番号。
+    """
+    _, fn, mesh = geometry(shape, indices)
+    if not mesh and fn.form == om.MFnNurbsCurve.kPeriodic:
+        return [index % (fn.numCVs - fn.degree) for index in indices]
+    return list(indices)
+
+
 def setPositions(shape, indices, values, ws=False):
+    """検証済みのcm座標を書き込む。Undo範囲は呼出元が管理する。
+
+    Args:
+        shape (Shape): MeshまたはNurbsCurve。
+        indices (Sequence[int]): 検証済みのAPI番号。重複は後の値を優先。
+        values (Sequence[Sequence[float]]): 番号と同数の有限なXYZ。
+        ws (bool): Trueならワールド座標。
+
+    Raises:
+        NotImplementedError: fastで未対応の形状の場合。
+        RuntimeError: Mayaが書込みを拒否した場合。完了済みの変更は戻さない。
+    """
+    if not indices:
+        return
+    if is_fast():
+        _set_positions_direct(shape, indices, values, ws)
+        return
+    _, _, mesh = geometry(shape, indices)
+    if ws and not mesh:
+        values = object_positions(shape, indices, values)
+        ws = False
+    numbers = command_indices(shape, indices)
+    name, token = shape.fullName(), "vtx" if mesh else "cv"
+    unit = om.MDistance.uiUnit()
+    for index, value in zip(numbers, values):
+        coordinates = [om.MDistance(v).asUnits(unit) for v in value]
+        cmds.xform("{}.{}[{}]".format(name, token, index), absolute=True,
+                   translation=coordinates, worldSpace=ws, objectSpace=not ws)
+
+
+def _set_positions_direct(shape, indices, values, ws=False):
     """検証済みのcm座標を一括設定する。CVのwは変更しない。
 
     Args:
@@ -108,6 +171,13 @@ def object_positions(shape, indices, values):
 
 
 def set_uvs(shape, indices, values):
+    """現在の UV セットを OpenMaya で直接更新する。Undo には記録しない。
+
+    Args:
+        shape (Mesh): 対象メッシュ。
+        indices (Iterable[int]): 呼び出し側で検証した UV 番号。
+        values (Iterable): indices と対応する (u, v) の列。
+    """
     if not indices:
         return
     _, fn, _ = geometry(shape, [], edit=True)

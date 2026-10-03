@@ -4,7 +4,7 @@ import math
 import hlib
 
 from hrig.setups import LengthCompensation
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class LimbStretchLayer:
@@ -42,7 +42,7 @@ class LimbStretchLayer:
         """
         return hlib.nodes.Container(owner).createNode(kind, name=owner.name() + "_" + role)
 
-    @undo_transaction("hrig.LimbStretchLayer.add")
+    @undoTransaction("hrig.LimbStretchLayer.add")
     def add(self):
         """長さ・体積のレイヤーを追加する。骨長比率は維持する。
 
@@ -53,7 +53,7 @@ class LimbStretchLayer:
             return self.settings()
         rig, root = self.rig, self.rig.root
         lengths = [
-            hlib.utils.units.distance_from_ui(
+            hlib.utils.units.distanceFromUi(
                 hlib.getAttr(rig._member("ik" + str(i)) + ".translateX")
             )
             for i in (1, 2)

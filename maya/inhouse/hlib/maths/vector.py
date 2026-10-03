@@ -345,7 +345,7 @@ class Vector(om2.MVector):
     ``Vector(x=1, y=2, z=3)`` のキーワード引数(省略した成分は 0)も使える。
     成分は数値だけで、文字列などの不正な引数は om2 と同じく ValueError になる。
 
-    演算子は om2 の意味論に従い、結果を常に基底の :class:`Vector` として返す
+    演算子は om2 の意味論に従い、ベクトルの結果を基底の :class:`Vector` として返す
     (Translation などの派生型は保持しない)。``om2.MVector`` が左辺の ``+`` / ``-`` /
     ``^`` も、右辺の Vector の反射演算子が先に呼ばれるため Vector を返す。
 
@@ -367,8 +367,8 @@ class Vector(om2.MVector):
     それ以外は相手の比較に委ね、どちらも判断しなければ False)。ただし om2 の型が
     左辺の比較(``om2.MPoint() == Vector()`` など)は om2 側が TypeError を送出する。
 
-    snake_case のメソッド(``normalized`` や ``cross`` など)は hlib の型を返す。
-    om2 から継承した camelCase のメソッド(``normal``、``rotateBy``、``isEquivalent``
+    hlib独自のメソッド(``normalized`` や ``cross`` など)は hlib の型を返す。
+    om2 から継承した camelCase のメソッド(``normal``、``rotateBy``
     など)と ``kXaxisVector`` などのクラス定数は om2 の基底型 ``om2.MVector`` を
     返す。クラス定数は om2 の共有オブジェクトなので書き換えないこと。
     """
@@ -389,8 +389,8 @@ class Vector(om2.MVector):
         Returns:
             Vector: 同型の新しい値。
         """
-        from ..utils.mirror import mirror_arguments
-        axes, center = mirror_arguments(axis, pivot)
+        from ..utils.mirror import mirrorArguments
+        axes, center = mirrorArguments(axis, pivot)
         values = list(self)
         for index in axes:
             values[index] = 2 * center[index] - values[index]

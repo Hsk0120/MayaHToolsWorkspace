@@ -154,7 +154,7 @@ class JsonTest(unittest.TestCase):
         path = hlib.json.dump({"日本語": 1}, metadata={"label": "test"})
         self.paths.append(path)
         self.assertEqual(hlib.json.load(path), {"日本語": 1})
-        self.assertEqual(hlib.json.load_document(path).metadata["label"], "test")
+        self.assertEqual(hlib.json.loadDocument(path).metadata["label"], "test")
         with patch("hlib.json.storage.os.replace", side_effect=OSError("test failure")):
             with self.assertRaises(OSError):
                 hlib.json.dump({"new": 2}, path)
@@ -356,13 +356,13 @@ class JsonTest(unittest.TestCase):
             cmds.showWindow(window)
             viewport, outliner = hlib.getViewport(panel), hlib.getOutliner(editor)
             saved = self.roundtrip(hlib.json.capture([viewport, outliner], kind="editor"))
-            original = viewport.get_settings("grid")["grid"]
-            viewport.set_settings(grid=not original)
+            original = viewport.getSettings("grid")["grid"]
+            viewport.setSettings(grid=not original)
             self.assertTrue(saved.plan().errors)
             with self.assertRaises(NotImplementedError):
                 saved.apply()
-            self.assertEqual(viewport.get_settings("grid")["grid"], not original)
-            self.assertEqual(outliner.get_settings(), saved.records[1]["values"])
+            self.assertEqual(viewport.getSettings("grid")["grid"], not original)
+            self.assertEqual(outliner.getSettings(), saved.records[1]["values"])
         finally:
             cmds.deleteUI(window)
 

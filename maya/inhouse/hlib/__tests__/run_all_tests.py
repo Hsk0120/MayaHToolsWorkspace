@@ -21,7 +21,7 @@ Maya の Script Editor)で、このファイル自体を送信して実行する
 ログは ``__tests__/.logs/`` 配下へ ``YYYYMMDD_HHMMSS.log`` として書き出す
 (``*.log`` は .gitignore 済み)。将来的な Slack 通知などへの接続点として、
 ``run_all(notify=...)`` にサマリ文字列を受け取るコールバックを渡せる
-(``hlib.utils.progress.progress_bar`` の ``notify`` と同じ考え方)。
+(``hlib.utils.progress.progressBar`` の ``notify`` と同じ考え方)。
 """
 
 import contextlib

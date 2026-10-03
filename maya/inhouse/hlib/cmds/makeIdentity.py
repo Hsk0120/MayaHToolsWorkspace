@@ -2,11 +2,11 @@
 
 from maya import cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("makeIdentity")
-@undo_chunk("hlib.cmds.makeIdentity")
+@undoChunk("hlib.cmds.makeIdentity")
 def makeIdentity(*args, **kwargs):
     """transform成分をフリーズする。
 

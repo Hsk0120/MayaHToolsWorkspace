@@ -3,10 +3,10 @@
 import math
 import hlib
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
-@undo_transaction("hrig.add_reverse_foot")
+@undoTransaction("hrig.add_reverse_foot")
 def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     """IK目標の下へheel→toe→ballの回転ピボットを重ねる。
 

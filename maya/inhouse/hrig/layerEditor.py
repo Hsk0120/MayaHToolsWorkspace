@@ -14,7 +14,7 @@ except ImportError:
     from PySide2 import QtCore, QtGui, QtWidgets
     from shiboken2 import isValid
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 from .sampleBuilder import SampleBuilder
 from .moduleRegistry import ModuleRegistry
 from .skirtRig import SkirtRig
@@ -225,15 +225,15 @@ class LayerEditor(QtWidgets.QDialog):
         self.ratio.setRange(0, 100)
         self.ratio.setValue(50)
         self.ratio.setSuffix(" %")
-        self.add_button = QtWidgets.QPushButton("＋ 追加")
-        self.add_button.clicked.connect(partial(self._run, self.add_layer))
+        self.addButton = QtWidgets.QPushButton("＋ 追加")
+        self.addButton.clicked.connect(partial(self._run, self.add_layer))
         for widget in (
             self.layer_type,
             self.count,
             self.component,
             self.axis,
             self.ratio,
-            self.add_button,
+            self.addButton,
         ):
             row.addWidget(widget)
         add_layout.addLayout(row)
@@ -722,7 +722,7 @@ class LayerEditor(QtWidgets.QDialog):
         follow = str(self.layer_type.currentData()).startswith("follow")
         secondary = self.layer_type.currentData() in ("spring", "pose")
         stretch = self.layer_type.currentData() == "stretch"
-        self.add_button.setEnabled(
+        self.addButton.setEnabled(
             enabled
             and (
                 self.layer_type.currentData() == "tweak"
@@ -748,7 +748,7 @@ class LayerEditor(QtWidgets.QDialog):
         roots = [item.fullName() for item in hlib.ls(data["root"], long=True)] or []
         if roots and data["role"].startswith("tweak:"):
             group = hlib.getNode([item.fullName() for item in hlib.ls(data["target"], long=True)][0])
-            with undo_transaction("hrig.Tweak.enabled"):
+            with undoTransaction("hrig.Tweak.enabled"):
                 group.plug("enabled").set(enabled)
                 TweakLayer(ModuleRegistry.get(roots[0])).update()
             self.schedule_refresh()
@@ -861,7 +861,7 @@ class LayerEditor(QtWidgets.QDialog):
             self.ratio.value() / 100,
         )
 
-    @undo_transaction("hrig.LayerEditor.mode")
+    @undoTransaction("hrig.LayerEditor.mode")
     def change_mode(self):
         """姿勢を合わせてFK/IKを切り替える。"""
         rig, _ = self.current()

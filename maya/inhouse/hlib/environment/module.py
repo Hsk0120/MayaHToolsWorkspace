@@ -38,7 +38,7 @@ class Module:
         """
         return self._name
 
-    def is_registered(self):
+    def isRegistered(self):
         """Maya がこのモジュールを認識しているか判定する。
 
         Returns:
@@ -46,13 +46,13 @@ class Module:
         """
         return self._name in (cmds.moduleInfo(listModules=True) or [])
 
-    def version_text(self):
+    def versionText(self):
         """Mayaが返すモジュールの版文字列をそのまま取得する。
 
         Returns:
             str | None: 生の版文字列。未登録・空の場合はNone。
         """
-        if not self.is_registered():
+        if not self.isRegistered():
             return None
         return cmds.moduleInfo(version=True, moduleName=self._name) or None
 
@@ -63,10 +63,10 @@ class Module:
             Version | None: 問い合わせ時点の版。未登録・解釈不能ならNone。
                 取得した値をreplaceしてもMaya側の版は変更されない。
         """
-        return Version.parse(self.version_text())
+        return Version.parse(self.versionText())
 
 
-    def is_version_at_least(self, minimum):
+    def isVersionAtLeast(self, minimum):
         """モジュールの版が ``minimum`` 以上か判定する。
 
         Args:
@@ -90,7 +90,7 @@ class Module:
         Returns:
             str | None: モジュールの場所。未登録の場合は None。
         """
-        if not self.is_registered():
+        if not self.isRegistered():
             return None
         return cmds.moduleInfo(path=True, moduleName=self._name) or None
 

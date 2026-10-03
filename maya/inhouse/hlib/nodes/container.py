@@ -2,7 +2,7 @@
 
 from maya import cmds
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_transaction, undo_chunk
+from ..decorators.undo import undoTransaction, undoChunk
 from .node import Node
 
 
@@ -11,7 +11,7 @@ class Container(Node):
     """削除・保存を一括管理するDGノードの所有単位。"""
 
     @classmethod
-    @undo_transaction("hlib.Container.create")
+    @undoTransaction("hlib.Container.create")
     def create(cls, name="container"):
         """空の所有containerを作成する。
 
@@ -33,7 +33,7 @@ class Container(Node):
             Node(n) for n in (cmds.container(self.fullName(), query=True, nodeList=True) or [])
         ]
 
-    @undo_chunk("hlib.Container.add")
+    @undoChunk("hlib.Container.add")
     def addMembers(self, *members):
         """指定ノードを所有下へ追加する。別containerからは強制移動しない。
 
@@ -51,7 +51,7 @@ class Container(Node):
             )
         return self
 
-    @undo_transaction("hlib.Container.createNode")
+    @undoTransaction("hlib.Container.createNode")
     def createNode(self, type, name=None):
         """標準ノードを生成し所有下へまとめる。
 

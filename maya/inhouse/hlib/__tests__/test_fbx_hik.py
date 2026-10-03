@@ -32,22 +32,22 @@ class StandardPluginsTest(unittest.TestCase):
 
     def test_fbx_animation_roundtrip(self):
         """選択と設定を復元し、骨アニメーションを再読込できる。"""
-        from hlib.utils.fbx import export_fbx, import_fbx
+        from hlib.utils.fbx import exportFbx, importFbx
         joint = cmds.createNode('joint',name='roundtripJoint')
         cmds.setKeyframe(joint,attribute='rotateZ',time=1,value=0)
         cmds.setKeyframe(joint,attribute='rotateZ',time=10,value=45)
         cmds.select(joint)
-        hlib.environment.Plugin('fbxmaya').ensure_loaded()
+        hlib.environment.Plugin('fbxmaya').ensureLoaded()
         old = mel.eval('FBXProperty Export|IncludeGrp|Animation -q;')
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'animation.fbx'
-            export_fbx(path,selection=[joint])
+            exportFbx(path,selection=[joint])
             self.assertEqual(cmds.ls(selection=True), [joint])
             self.assertEqual(mel.eval('FBXProperty Export|IncludeGrp|Animation -q;'),old)
             with self.assertRaises(FileExistsError):
-                export_fbx(path,selection=[joint])
+                exportFbx(path,selection=[joint])
             cmds.file(new=True,force=True)
-            nodes = import_fbx(path,namespace='incoming')
+            nodes = importFbx(path,namespace='incoming')
             self.assertIn('|incoming:roundtripJoint',nodes)
             self.assertNotIn('time1',nodes)
             self.assertEqual(cmds.keyframe('incoming:roundtripJoint.rotateZ',query=True,valueChange=True),[0,45])

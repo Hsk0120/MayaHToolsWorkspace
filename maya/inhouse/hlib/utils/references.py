@@ -4,13 +4,13 @@ from pathlib import Path
 
 import maya.cmds as cmds
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 # Maya が常に作成する共有参照ノード。ユーザーが作成した参照ではないため一覧から除外する。
 _SHARED_REFERENCE_NODE = "sharedReferenceNode"
 
 
-def list_references(top_level_only=False):
+def listReferences(top_level_only=False):
     """シーン内の参照を Reference ラッパーの一覧として取得する。
 
     Args:
@@ -31,8 +31,8 @@ def list_references(top_level_only=False):
     return references
 
 
-@undo_chunk("hlibCreateReference")
-def create_reference(path, namespace=None):
+@undoChunk("hlibCreateReference")
+def createReference(path, namespace=None):
     """新しい Reference を作成する。
 
     Args:
@@ -68,3 +68,8 @@ def create_reference(path, namespace=None):
         names = [reference.name() for reference in created]
         raise RuntimeError(f"Failed to identify the newly created reference node: {names}")
     return top_level[0]
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('create_reference', 'list_references'):
+    globals().pop(_obsolete_name, None)

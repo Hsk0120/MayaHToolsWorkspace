@@ -1,7 +1,7 @@
 """Maya DGのBifrostグラフをhlibのノード参照で管理する。"""
 
 from maya import cmds
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class Graph:
@@ -20,7 +20,7 @@ class Graph:
             raise TypeError("Expected bifrostGraphShape")
 
     @classmethod
-    @undo_transaction("hlib_bifrost.Graph.create")
+    @undoTransaction("hlib_bifrost.Graph.create")
     def create(cls, name="bifrostGraphShape"):
         """必要なプラグインをロードしてグラフを生成する。"""
         from hlib.nodes import Node as MayaNode
@@ -58,7 +58,7 @@ class Graph:
             raise ValueError("Graph has no DAG parent")
         return MayaNode(names[0])
 
-    @undo_transaction("hlib_bifrost.Graph.delete")
+    @undoTransaction("hlib_bifrost.Graph.delete")
     def delete(self):
         """グラフと現在のDAG親を削除する。親に他の子があれば拒否する。"""
         import hlib

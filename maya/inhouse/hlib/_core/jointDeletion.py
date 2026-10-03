@@ -1,7 +1,7 @@
 """Joint削除時のウェイト移送と階層保持。公開コレクションから分離する。"""
 
 import maya.cmds as cmds
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 class _JointDeletion:
@@ -15,7 +15,7 @@ class _JointDeletion:
         """
         self._joints = joints
 
-    @undo_chunk("hlibJointDelete")
+    @undoChunk("hlibJointDelete")
     def execute(self):
         """joint階層を深い順に処理し、ウェイト移送後にjointを削除する。
 

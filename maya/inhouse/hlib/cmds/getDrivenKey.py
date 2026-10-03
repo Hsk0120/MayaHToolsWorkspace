@@ -17,7 +17,7 @@ def getDrivenKey(driver, driven):
         driver (Plug | om2.MPlug | str): ドライバーアトリビュート。文字列は ``"node.attribute"`` 形式。
         driven (Plug | om2.MPlug | str): 駆動されるアトリビュート。
     Returns:
-        DrivenKey: 未作成の関係も保持できる。set_keyでキーを作成する。
+        DrivenKey: 未作成の関係も保持できる。setKey() でキーを作成する。
     """
     from hlib.scene.drivenKey import DrivenKey
 

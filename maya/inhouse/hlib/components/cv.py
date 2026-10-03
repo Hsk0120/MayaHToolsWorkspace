@@ -1,7 +1,7 @@
 """NURBS カーブの CV と CV コレクション。"""
 
 from .pointComponent import PointComponent, PointComponents
-import maya.api.OpenMaya as om2
+from .._core.geometryEdit import command_indices
 
 
 class CV(PointComponent):
@@ -18,10 +18,7 @@ class CV(PointComponent):
             str: 同じ位置を編集するMayaコンポーネント名。indexはAPI番号を保持する。
         """
         self._validate()
-        fn = self.shape.curveFn()
-        index = self.index
-        if fn.form == om2.MFnNurbsCurve.kPeriodic:
-            index %= fn.numCVs - fn.degree
+        index = command_indices(self.shape, [self.index])[0]
         return "{}.cv[{}]".format(self.shape.fullName(), index)
 
 
@@ -32,7 +29,10 @@ class CVs(PointComponents):
 
     def fullNames(self):
         """保持順のcmds用CV名を返す。周期末尾は対応する独立CVの名前となる。"""
-        return [cv.fullName() for cv in self]
+        self._validate()
+        name = self.shape.fullName()
+        return ["{}.cv[{}]".format(name, index)
+                for index in command_indices(self.shape, self.indices)]
 
     def compactNames(self):
         """cmds用CV名を返す。周期CVの対応を保つため範囲へ圧縮しない。"""

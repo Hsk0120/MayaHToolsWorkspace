@@ -306,8 +306,8 @@ class Matrix(om2.MMatrix):
     同じく例外にしない。成分を取得するプロパティ(``translate`` など)は複製を返すため、
     戻り値を書き換えても行列は変わらない。
 
-    snake_case のメソッドとプロパティは hlib の型を返す。om2 から継承した
-    camelCase のメソッド(``adjoint``、``homogenize``、``getElement`` など)は
+    行列や変換成分を返す独自メソッドとプロパティは hlib の型を返す。om2 から継承した
+    camelCase のメソッド(``adjoint``、``homogenize`` など)は
     om2 の基底型を返し、同名の ``inverse()`` / ``transpose()`` は hlib 版で上書きする。
     """
 
@@ -813,8 +813,8 @@ class Matrix(om2.MMatrix):
         Raises:
             ValueError: axisが不正、またはpivotが有限の3成分でない場合。
         """
-        from ..utils.mirror import mirror_arguments
-        axes, center = mirror_arguments(axis, pivot)
+        from ..utils.mirror import mirrorArguments
+        axes, center = mirrorArguments(axis, pivot)
         result = type(self)._wrap(self)
         for axis in axes:
             for row in range(3):

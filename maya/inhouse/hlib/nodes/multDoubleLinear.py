@@ -1,6 +1,6 @@
 """距離型の2入力を乗算する。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ._calculation import _Calculation
 from .node import Node
@@ -31,7 +31,7 @@ class MultDoubleLinear(Node):
         return self.inputPlug(index).get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -48,7 +48,7 @@ class MultDoubleLinear(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.inputPlug, index)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, index, source, force=False):
         """入力へ接続する。
 
@@ -60,7 +60,7 @@ class MultDoubleLinear(Node):
             MultDoubleLinear: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, index, force=force)
         return self

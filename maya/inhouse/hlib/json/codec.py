@@ -109,6 +109,12 @@ def encode(value):
     頻度の高い基本値・dict・list・tuple・数学型を先に型そのもので判定し、
     Node などの判定に必要な遅延 import(循環 import を避けるため関数内で行う)は
     それ以外の値のときだけ行う。
+
+    Args:
+        value (object): 対応する基本値、数学値、シーン参照または保存データ。
+
+    Returns:
+        object: JSON 基本値と型タグで表したデータ。JSON 文字列ではない。
     """
     kind = type(value)
     if value is None or kind is bool or kind is str or kind is int:
@@ -146,12 +152,19 @@ def encode(value):
     if type(value) in (NodeRef, PlugRef, ComponentRef):
         return {"type": type(value).__name__, "value": {f.name: encode(getattr(value, f.name)) for f in fields(value)}}
     if isinstance(value, Snapshot):
-        return {"type": "snapshot", "value": encode(value.to_data())}
+        return {"type": "snapshot", "value": encode(value.toData())}
     raise TypeError("Unsupported JSON value: {}".format(type(value).__name__))
 
 
 def decode(value):
-    """固定の許可型のみ復元する。参照は解決せず、シーンを変更しない。"""
+    """固定の許可型のみ復元する。参照は解決せず、シーンを変更しない。
+
+    Args:
+        value (object): encode() の出力に対応する基本値または型タグ付きデータ。
+
+    Returns:
+        object: 復号した値。シーン参照は NodeRef / PlugRef / ComponentRef のまま保持する。
+    """
     if value is None or type(value) in (bool, str, int, float):
         if isinstance(value, float) and not math.isfinite(value):
             raise ValueError("Non-finite number")
@@ -172,7 +185,7 @@ def decode(value):
         return decode(data)
     if kind == "snapshot":
         from .snapshots import Snapshot
-        return Snapshot.from_data(decode(data))
+        return Snapshot.fromData(decode(data))
     if kind.startswith("math:"):
         name = kind[5:]
         if name not in _MATH_SIZES:

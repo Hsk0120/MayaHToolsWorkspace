@@ -17,7 +17,7 @@ def _path(value, existing=False):
     return result
 
 
-def import_fbx(path, namespace=None):
+def importFbx(path, namespace=None):
     """FBXを現在のシーンへ追加する。既存シーンの置換は行わない。
 
     Args:
@@ -30,7 +30,7 @@ def import_fbx(path, namespace=None):
         ImportModeだけaddへ変更して復元する。他の設定は現在値を使用する。
     """
     target = _path(path, existing=True)
-    Plugin('fbxmaya').ensure_loaded()
+    Plugin('fbxmaya').ensureLoaded()
     kwargs = {'namespace': namespace} if namespace is not None else {}
     # FBXは既存ノードのUUIDも変更することがあるため、MObjectの同一性で判定する。
     from maya.api import OpenMaya as om
@@ -61,7 +61,7 @@ def import_fbx(path, namespace=None):
     return tuple(result)
 
 
-def export_fbx(path, selection=None, overwrite=False, animation=True):
+def exportFbx(path, selection=None, overwrite=False, animation=True):
     """シーン全体または明示したノードをFBXへ書き出す。
 
     Args:
@@ -85,7 +85,7 @@ def export_fbx(path, selection=None, overwrite=False, animation=True):
         nodes = [_InputNode._input_name(node) for node in selection]
         if not nodes:
             raise ValueError('selection must not be empty')
-    Plugin('fbxmaya').ensure_loaded()
+    Plugin('fbxmaya').ensureLoaded()
     saved_selection = cmds.ls(selection=True, long=True) or []
     saved_animation = mel.eval('FBXProperty Export|IncludeGrp|Animation -q;')
     try:
@@ -98,3 +98,8 @@ def export_fbx(path, selection=None, overwrite=False, animation=True):
         mel.eval('FBXProperty Export|IncludeGrp|Animation -v {};'.format('true' if saved_animation else 'false'))
         cmds.select(saved_selection, replace=True) if saved_selection else cmds.select(clear=True)
     return target
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('export_fbx', 'import_fbx'):
+    globals().pop(_obsolete_name, None)

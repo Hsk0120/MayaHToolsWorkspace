@@ -1,6 +1,6 @@
 """指定した軸をターゲットへ向ける行列を生成する。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix
 from ._calculation import _Calculation
@@ -26,7 +26,7 @@ class AimMatrix(Node):
         return self.inputPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -42,7 +42,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, Matrix, self.inputPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
@@ -53,7 +53,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, force=force)
         return self
@@ -73,7 +73,7 @@ class AimMatrix(Node):
         return self.envelopePlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setEnvelope(self, value, *, fast=False):
         """全体ウェイトへ定数値を設定する。
 
@@ -89,7 +89,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.envelopePlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectEnvelope(self, source, force=False):
         """全体ウェイトへ接続する。
 
@@ -100,7 +100,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.envelopePlug, force=force)
         return self
@@ -120,7 +120,7 @@ class AimMatrix(Node):
         return self.primaryMatrixPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setPrimaryMatrix(self, value, *, fast=False):
         """primaryターゲット行列へ定数値を設定する。
 
@@ -136,7 +136,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, Matrix, self.primaryMatrixPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectPrimaryMatrix(self, source, force=False):
         """primaryターゲット行列へ接続する。
 
@@ -147,7 +147,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.primaryMatrixPlug, force=force)
         return self
@@ -167,7 +167,7 @@ class AimMatrix(Node):
         return self.primaryAxisPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setPrimaryAxis(self, value, *, fast=False):
         """primary入力軸へ定数値を設定する。
 
@@ -183,7 +183,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.primaryAxisPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectPrimaryAxis(self, source, force=False):
         """primary入力軸へ接続する。
 
@@ -194,7 +194,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.primaryAxisPlug, force=force)
         return self
@@ -214,7 +214,7 @@ class AimMatrix(Node):
         return self.primaryVectorPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setPrimaryVector(self, value, *, fast=False):
         """primaryターゲットベクトルへ定数値を設定する。
 
@@ -230,7 +230,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.primaryVectorPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectPrimaryVector(self, source, force=False):
         """primaryターゲットベクトルへ接続する。
 
@@ -241,7 +241,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.primaryVectorPlug, force=force)
         return self
@@ -254,7 +254,7 @@ class AimMatrix(Node):
         return _Calculation.enumName(self.plug("primaryMode"), ('lock', 'aim', 'align'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setPrimaryMode(self, mode, *, fast=False):
         """モードを設定する。
 
@@ -286,7 +286,7 @@ class AimMatrix(Node):
         return self.secondaryMatrixPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setSecondaryMatrix(self, value, *, fast=False):
         """secondaryターゲット行列へ定数値を設定する。
 
@@ -302,7 +302,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, Matrix, self.secondaryMatrixPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectSecondaryMatrix(self, source, force=False):
         """secondaryターゲット行列へ接続する。
 
@@ -313,7 +313,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.secondaryMatrixPlug, force=force)
         return self
@@ -333,7 +333,7 @@ class AimMatrix(Node):
         return self.secondaryAxisPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setSecondaryAxis(self, value, *, fast=False):
         """secondary入力軸へ定数値を設定する。
 
@@ -349,7 +349,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.secondaryAxisPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectSecondaryAxis(self, source, force=False):
         """secondary入力軸へ接続する。
 
@@ -360,7 +360,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.secondaryAxisPlug, force=force)
         return self
@@ -380,7 +380,7 @@ class AimMatrix(Node):
         return self.secondaryVectorPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setSecondaryVector(self, value, *, fast=False):
         """secondaryターゲットベクトルへ定数値を設定する。
 
@@ -396,7 +396,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.secondaryVectorPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectSecondaryVector(self, source, force=False):
         """secondaryターゲットベクトルへ接続する。
 
@@ -407,7 +407,7 @@ class AimMatrix(Node):
             AimMatrix: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.secondaryVectorPlug, force=force)
         return self
@@ -420,7 +420,7 @@ class AimMatrix(Node):
         return _Calculation.enumName(self.plug("secondaryMode"), ('none', 'aim', 'align'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setSecondaryMode(self, mode, *, fast=False):
         """モードを設定する。
 

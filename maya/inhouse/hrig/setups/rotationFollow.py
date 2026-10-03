@@ -7,14 +7,14 @@ import math
 from hlib.maths import Matrix
 
 from hrig.setups.swingTwist import SwingTwist
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class RotationFollow(SwingTwist):
     """基準姿勢からの回転をQuaternion補間する標準DG。"""
 
     @classmethod
-    @undo_transaction("hrig.RotationFollow.create")
+    @undoTransaction("hrig.RotationFollow.create")
     def create(cls, joint, name="rotationFollow", mode="full", axis="x", ratio=0.5):
         """親空間での追従行列を生成する。
 

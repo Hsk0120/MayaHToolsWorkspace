@@ -1,12 +1,11 @@
 """二つのRGB入力をblenderで補間する。"""
 
 from ..decorators._fast import fast_edit
-from .._core.fastWrite import set_attr
 
 import math
 import maya.cmds as cmds
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 
 
@@ -32,11 +31,18 @@ class BlendColors(Node):
         return self.plug(f"color{self._index(index)}")
 
     def getColor(self, index):
-        """tuple[float, float, float]: 計算用RGB。表示色Colorへは変換しない。"""
+        """指定した入力の RGB 値を取得する。
+
+        Args:
+            index (int): 入力番号。colorPlug() の番号規約に従う。
+
+        Returns:
+            tuple[float, float, float]: 計算用 RGB。表示色 Color へは変換しない。
+        """
         return tuple(self.colorPlug(index).get())
 
     @fast_edit
-    @undo_chunk("hlibBlendColorsSetColor")
+    @undoChunk("hlibBlendColorsSetColor")
     def setColor(self, index, value, *, fast=False):
         """入力色を設定する。既存接続は切断しない。
 
@@ -57,10 +63,10 @@ class BlendColors(Node):
         values = tuple(float(v) for v in value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Color must contain three finite values")
-        set_attr(target.fullName(), *values, type="float3")
+        target.set(values)
         return self
 
-    @undo_chunk("hlibBlendColorsConnectColor")
+    @undoChunk("hlibBlendColorsConnectColor")
     def connectColor(self, index, source, force=False):
         """入力色へ接続する。互換性はMayaが判定する。
 
@@ -87,7 +93,7 @@ class BlendColors(Node):
         return self.blenderPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibBlendColorsSetBlender")
+    @undoChunk("hlibBlendColorsSetBlender")
     def setBlender(self, value, *, fast=False):
         """補間係数を設定する。既存接続は切断しない。
 
@@ -109,7 +115,7 @@ class BlendColors(Node):
         self.blenderPlug().set(value)
         return self
 
-    @undo_chunk("hlibBlendColorsConnectBlender")
+    @undoChunk("hlibBlendColorsConnectBlender")
     def connectBlender(self, source, force=False):
         """補間係数に接続する。接続元の値は制限しない。
 

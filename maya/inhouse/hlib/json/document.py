@@ -8,14 +8,21 @@ class JsonDocument:
     data: object
     metadata: dict = field(default_factory=dict)
 
-    def to_data(self):
+    def toData(self):
         """形式バージョン1のJSON基本値を返す。"""
         from .codec import encode
         return {"format": "hlib.json", "version": 1, "metadata": encode(self.metadata), "data": encode(self.data)}
 
     @classmethod
-    def from_data(cls, value):
-        """形式・版を検証して読み込む。未対応版はValueError。"""
+    def fromData(cls, value):
+        """形式・版を検証して読み込む。未対応版はValueError。
+
+        Args:
+            value (dict): format、version、metadata、data を持つ保存データ。
+
+        Returns:
+            JsonDocument: 復号した値とメタデータを持つドキュメント。
+        """
         from .codec import decode
         if not isinstance(value, dict) or value.get("format") != "hlib.json" or type(value.get("version")) is not int or value["version"] != 1:
             raise ValueError("Unsupported hlib JSON format/version")

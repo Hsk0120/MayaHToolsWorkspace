@@ -2,15 +2,13 @@
 from maya.api.OpenMaya import MSpace
 from .._core.space import world_space
 
-from ..decorators._fast import fast_edit, is_fast
-from .._core import fastGeometry as fast_geometry
+from ..decorators._fast import fast_edit
+from .._core import geometryEdit as geometry_edit
 
 import math
 
-import maya.cmds as cmds
-import maya.api.OpenMaya as om2
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .component import Component, Components
 
 
@@ -33,10 +31,10 @@ class PointComponent(Component):
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
         self._validate()
-        return fast_geometry.positions(self.shape, [self.index], ws)[0]
+        return geometry_edit.positions(self.shape, [self.index], ws)[0]
 
     @fast_edit
-    @undo_chunk("hlibComponentPosition")
+    @undoChunk("hlibComponentPosition")
     def setPosition(self, value, space=MSpace.kObject, *, fast=False):
         """座標を設定する。
 
@@ -59,24 +57,8 @@ class PointComponent(Component):
         if not isinstance(ws, bool):
             raise ValueError("ws must be a bool")
         value = self._finite_coordinates(value, 3)
-        if is_fast():
-            self._validate()
-            fast_geometry.setPositions(self.shape, [self.index], [value], ws)
-            return self
-        space = {"worldSpace": True} if ws else {"objectSpace": True}
         self._validate()
-        index = self.index
-        if self.shape.type() == "nurbsCurve":
-            fn = self.shape.curveFn()
-            if ws:
-                value = fast_geometry.object_positions(self.shape, [index], [value])[0]
-                space = {"objectSpace": True}
-            if fn.form == om2.MFnNurbsCurve.kPeriodic:
-                # API末尾の重複CVは独立CVと同じ位置を表す。cmdsの末尾丸めを避ける。
-                index %= fn.numCVs - fn.degree
-        name = "{}.{}[{}]".format(self.shape.fullName(), "vtx" if self.shape.type() == "mesh" else "cv", index)
-        value = tuple(om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in value)
-        cmds.xform(name, absolute=True, translation=value, **space)
+        geometry_edit.setPositions(self.shape, [self.index], [value], ws)
         return self
 
     def getX(self, space=MSpace.kObject):
@@ -175,7 +157,7 @@ class PointComponents(Components):
 
     @fast_edit
     def setPosition(self, value, space=MSpace.kObject, *, fast=False):
-        """全要素を同じ座標へ設定する。要素別にはset_positionsを使う。
+        """全要素を同じ座標へ設定する。要素別にはsetPositionsを使う。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
@@ -193,7 +175,7 @@ class PointComponents(Components):
         return self.setPositions([point] * len(self), space=MSpace.kWorld if ws else MSpace.kObject)
 
     @fast_edit
-    @undo_chunk("hlibComponentsSetPositions")
+    @undoChunk("hlibComponentsSetPositions")
     def setPositions(self, values, space=MSpace.kObject, *, fast=False):
         """保持順の座標列を設定する。全件の座標・対象を検証してから書き込む。
 
@@ -217,13 +199,8 @@ class PointComponents(Components):
         rows = self._coordinate_rows(values, 3)
         if not self._indices:
             return self
-        if is_fast():
-            self._validate()
-            fast_geometry.setPositions(self._shape, self._indices, rows, ws)
-            return self
-        components = list(self)
-        for component, point in zip(components, rows):
-            component.setPosition(point, space=MSpace.kWorld if ws else MSpace.kObject)
+        self._validate()
+        geometry_edit.setPositions(self._shape, self._indices, rows, ws)
         return self
 
     def getX(self, space=MSpace.kObject):
@@ -334,10 +311,10 @@ class PointComponents(Components):
         if not self._indices:
             return []
         self._validate()
-        return fast_geometry.positions(self._shape, self._indices, ws)
+        return geometry_edit.positions(self._shape, self._indices, ws)
 
     @fast_edit
-    @undo_chunk("hlibComponentsMirror")
+    @undoChunk("hlibComponentsMirror")
     def mirror(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), *, fast=False):
         """保持している頂点または CV をまとめてミラーする。
 

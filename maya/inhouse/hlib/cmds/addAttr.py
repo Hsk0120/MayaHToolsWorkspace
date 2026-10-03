@@ -1,11 +1,11 @@
 """アトリビュートを追加する。照会・編集はPlugのメソッドを使用する。"""
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("addAttr")
-@undo_chunk("hlib.cmds.addAttr")
+@undoChunk("hlib.cmds.addAttr")
 def addAttr(target, **kwargs):
     """アトリビュートを追加する。照会・編集はPlugのメソッドを使用する。
 

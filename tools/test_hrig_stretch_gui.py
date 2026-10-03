@@ -57,8 +57,8 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("stretch"))
-        check(editor.add_button.isEnabled(), "Spline stretch available")
-        QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+        check(editor.addButton.isEnabled(), "Spline stretch available")
+        QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         spline, _ = editor.current()
         check(spline.root.hasAttribute("stretchGroup"), "UI adds spline layer")
@@ -93,7 +93,7 @@ def main(output_dir=None, finished=None):
         editor.module_name.setText("stretchArm")
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+        QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         limb, _ = editor.current()
         check(isinstance(limb, LimbRig) and limb.root.hasAttribute("stretchGroup"), "UI adds arm layer")

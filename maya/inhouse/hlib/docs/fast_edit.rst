@@ -48,7 +48,7 @@ Mesh・NURBSカーブの座標取得は通常時もOpenMayaを使います。
 動作と制限
 ----------
 
-``fast=True`` の変更は、外側を ``undo_chunk`` や ``undo_transaction`` で
+``fast=True`` の変更は、外側を ``undoChunk`` や ``undoTransaction`` で
 囲んでも取り消せません。既存のUndo履歴が同じ値を操作すると、その値が上書きされる場合があります。
 途中で例外が起きた場合も、完了済みの直接更新は自動では戻しません。
 

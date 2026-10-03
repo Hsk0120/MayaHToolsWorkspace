@@ -13,7 +13,7 @@ Synopsis
 Bifrost など別途インストールする製品を確認する用途を想定しています。
 
 プラグインのロードを行うためシーンは変更しません(プラグインの登録だけが変わります)。
-:class:`hlib.environment.PluginPackage` の ``try_load`` を 1 回の呼び出しにしたものです。
+:class:`hlib.environment.PluginPackage` の ``tryLoad`` を 1 回の呼び出しにしたものです。
 
 Return value
 ------------
@@ -126,4 +126,4 @@ def requirePlugins(plugins, minimum_version=None, module=None, version_plugin=No
     package = PluginPackage(name, plugins=plugins, module=module, version_plugin=version_plugin,
                             minimum_version=minimum_version, minimum_maya=minimum_maya,
                             install_hint=install_hint)
-    return package.try_load(dialog=dialog)
+    return package.tryLoad(dialog=dialog)

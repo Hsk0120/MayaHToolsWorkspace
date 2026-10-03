@@ -9,7 +9,7 @@ import re
 import hlib
 
 from hrig.setups.radialWeights import RadialWeights
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class SkirtRig:
@@ -29,7 +29,7 @@ class SkirtRig:
             raise ValueError("Not an hrig skirt module")
 
     @classmethod
-    @undo_transaction("hrig.SkirtRig.create")
+    @undoTransaction("hrig.SkirtRig.create")
     def create(
         cls,
         name="skirt01",
@@ -125,8 +125,8 @@ class SkirtRig:
             group.plug("message").connect(root.plug(role + "Group"))
             groups[role] = group
         groups["rest"].plug("visibility").set(False)
-        radius = hlib.utils.units.distance_from_ui(radius)
-        spacing = hlib.utils.units.distance_from_ui(length) / (joints_per_chain - 1)
+        radius = hlib.utils.units.distanceFromUi(radius)
+        spacing = hlib.utils.units.distanceFromUi(length) / (joints_per_chain - 1)
         for role, count, registry in (
             ("driver", driver_count, "drivers"),
             ("follower", chain_count, "followers"),
@@ -375,7 +375,7 @@ class SkirtRig:
             raise ValueError("Unknown skirt layer: " + layer)
         return bool(self.root.plug("enabled").get())
 
-    @undo_transaction("hrig.SkirtRig.set_layer_enabled")
+    @undoTransaction("hrig.SkirtRig.set_layer_enabled")
     def set_layer_enabled(self, layer, enabled):
         """使用設定を変更して評価接続を更新する。
 
@@ -391,7 +391,7 @@ class SkirtRig:
         self.root.plug(attr).set(bool(enabled))
         self.update()
 
-    @undo_transaction("hrig.SkirtRig.set_lod")
+    @undoTransaction("hrig.SkirtRig.set_lod")
     def set_lod(self, value):
         """構成用LODを変更する。アニメーション切替用ではない。
 
@@ -403,7 +403,7 @@ class SkirtRig:
         self.root.plug("lod").set(value)
         self.update()
 
-    @undo_transaction("hrig.SkirtRig.update")
+    @undoTransaction("hrig.SkirtRig.update")
     def update(self):
         """無効時は出力を切断し、変形骨を作成時の姿勢へ戻す。"""
         active = self.layer_enabled() and self.lod() == 1
@@ -503,7 +503,7 @@ class SkirtRig:
         finally:
             cls._busy = False
 
-    @undo_transaction("hrig.SkirtRig.delete")
+    @undoTransaction("hrig.SkirtRig.delete")
     def delete(self):
         """所有DGと階層を削除する。スキン使用中なら拒否する。"""
         for joint in self.joints():

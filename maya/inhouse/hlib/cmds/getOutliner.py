@@ -5,7 +5,7 @@ Examples
 .. code-block:: python
 
     outliner = hlib.getOutliner()
-    outliner.set_settings(showShapes=True)
+    outliner.setSettings(showShapes=True)
 """
 
 

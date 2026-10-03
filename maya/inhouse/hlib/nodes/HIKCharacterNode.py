@@ -3,14 +3,14 @@
 import json
 from maya import cmds, mel
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from hlib.environment import Plugin
 from .node import Node
 
 
 def _prepare():
     """標準HumanIK実装をロードする。UIは作成しない。"""
-    Plugin('mayaHIK').ensure_loaded()
+    Plugin('mayaHIK').ensureLoaded()
     for script, procedure in (
             ('hikGlobalUtils.mel', 'hikCreateCharacter'),
             ('hikCharacterControlsUtils.mel', 'hikGetControlRig'),
@@ -31,7 +31,14 @@ class HIKCharacterNode(Node):
 
     @classmethod
     def createCharacter(cls, name='Character'):
-        """標準MELでキャラクター一式を作る。現在キャラクターも変更される。"""
+        """標準MELでキャラクター一式を作る。現在キャラクターも変更される。
+
+        Args:
+            name (str): 作成する空でないキャラクタ名。
+
+        Returns:
+            HIKCharacterNode: 作成したキャラクタ。MEL の作成処理は現在のキャラクタも変更する。
+        """
         if not isinstance(name, str) or not name:
             raise ValueError('Expected a character name')
         _prepare()
@@ -41,7 +48,7 @@ class HIKCharacterNode(Node):
         """bool: キャラクタライズがロック済みか照会する。"""
         return bool(cmds.getAttr(self.fullName() + '.InputCharacterizationLock'))
 
-    @undo_chunk('hlib.HIKCharacterNode.setJoint')
+    @undoChunk('hlib.HIKCharacterNode.setJoint')
     def setJoint(self, role, joint):
         """ロック前の定義へ骨を割り当てる。
 
@@ -69,7 +76,14 @@ class HIKCharacterNode(Node):
             raise RuntimeError('HumanIK did not assign the joint')
 
     def joint(self, role):
-        """Node | None: 指定役割に割り当てられた骨を取得する。"""
+        """Node | None: 指定役割に割り当てられた骨を取得する。
+
+        Args:
+            role (str): HIK のジョイントロール名。
+
+        Returns:
+            Node | None: ロールに接続された最初のノード。未割り当てなら None。
+        """
         _prepare()
         index = cmds.hikGetNodeIdFromName(role)
         if index < 0 or cmds.GetHIKNodeName(index) != role:
@@ -78,9 +92,14 @@ class HIKCharacterNode(Node):
                                       source=True, destination=False) or []
         return Node(values[0]) if values else None
 
-    @undo_chunk('hlib.HIKCharacterNode.setSource')
+    @undoChunk('hlib.HIKCharacterNode.setSource')
     def setSource(self, source):
-        """検証・ロック済みの別キャラクターをリターゲット入力にする。"""
+        """検証・ロック済みの別キャラクターをリターゲット入力にする。
+
+        Args:
+            source (HIKCharacterNode | str): 自分以外のソースキャラクタ。
+                両キャラクタの定義がロック済みであること。
+        """
         _prepare()
         source = Node(source)
         if not isinstance(source, HIKCharacterNode) or source == self:

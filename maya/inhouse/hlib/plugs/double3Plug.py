@@ -4,7 +4,6 @@ import math
 import maya.api.OpenMaya as om2
 
 from ..decorators._fast import fast_edit
-from .._core.fastWrite import writable
 from .._core.registry import plug_wrapper
 from ..maths import EulerRotation, Scale, Shear, Translation, Vector
 from .compoundPlug import CompoundPlug
@@ -81,6 +80,5 @@ class Double3Plug(CompoundPlug):
             values = tuple(value)
             if len(values) != 3 or not all(math.isfinite(v) for v in values):
                 raise ValueError("Expected three finite components")
-        for index in range(3):
-            writable(self._child_at(index).mplug())
+        self._require_writable()
         return super().set(values)

@@ -19,6 +19,7 @@ Sceneオブジェクトと参照ファイルの取得・操作を説明します
     print(other)    # パスを表示するだけで、ファイルは開かない
     # other.open() # 明示的に開く場合
 
+``isNew()`` は保持パスがNoneかを判定し、``repr(scene)`` も保持パスを表示します。
 Scene は取得時のパスを保持します。現在のシーンの切替・名前変更に自動追従しません。
 ``new()``、``open()``、``saveAs()`` を自身で実行した場合は保持パスも更新します。
 ``save()``、``saveAs()``、``isModified()`` は現在のシーンとパスが一致する場合のみ
@@ -32,7 +33,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 
     from hlib.scene import Scene
 
-    from hlib.utils.references import list_references
+    from hlib.utils.references import listReferences
     from hlib.scene import Namespace
     from hlib.environment import Plugin
     from hlib.environment import Preferences
@@ -55,14 +56,14 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 
 .. code-block:: python
 
-   from hlib.utils.references import list_references
+   from hlib.utils.references import listReferences
 
-   for reference in list_references():
+   for reference in listReferences():
        print(reference.filename(), reference.associatedNamespace(), reference.isLoaded())
 
-   top_level = list_references(top_level_only=True)  # ネストした参照を除外
+   top_level = listReferences(top_level_only=True)  # ネストした参照を除外
 
-   reference = list_references()[0]
+   reference = listReferences()[0]
    reference.unload()
    reference.load()
    print(reference.nodes())  # 参照内のノードをラッパーで取得(アンロード中はRuntimeError)

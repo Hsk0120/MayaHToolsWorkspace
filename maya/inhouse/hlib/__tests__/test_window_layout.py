@@ -51,11 +51,11 @@ class WindowApiTest(unittest.TestCase):
         window.setPosition(-20, 40)
         self.window.assert_called_with("test", edit=True, topLeftCorner=(40, -20))
         with self.assertRaises(TypeError):
-            window.set_size(True, 10)
+            window.setSize(True, 10)
         with self.assertRaises(ValueError):
-            window.set_size(0, 10)
+            window.setSize(0, 10)
         with self.assertRaises(TypeError):
-            window.set_resizable(1)
+            window.setResizable(1)
 
     def test_snapshot_rejected_before_edit(self):
         """他のUIの退避データを誤適用しない。"""
@@ -70,7 +70,7 @@ class WindowApiTest(unittest.TestCase):
         window = Window("test")
         with patch.object(window, "capture", return_value={"state": "saved"}), patch.object(window, "restore") as restore:
             with self.assertRaisesRegex(RuntimeError, "body"):
-                with window.temporary_state():
+                with window.temporaryState():
                     raise RuntimeError("body")
             restore.assert_called_once_with({"state": "saved"})
 
@@ -99,25 +99,25 @@ class WindowApiTest(unittest.TestCase):
     def test_dock_lock_and_arguments(self):
         """ロックを迂回せず、配置先フラグを正しく選ぶ。"""
         control = WorkspaceControl("tool")
-        with patch.object(WorkspaceLayout, "get_locked", return_value=True):
+        with patch.object(WorkspaceLayout, "getLocked", return_value=True):
             with self.assertRaises(RuntimeError):
                 control.undock()
-        with patch.object(WorkspaceLayout, "get_locked", return_value=False):
+        with patch.object(WorkspaceLayout, "getLocked", return_value=False):
             control.dock("left")
             self.control.assert_called_with("tool", edit=True, dockToMainWindow=("left", False))
             control.dock("right", "target")
             self.control.assert_called_with("tool", edit=True, dockToControl=("target", "right"))
             with self.assertRaises(ValueError):
-                control.tab_to("tool")
+                control.tabTo("tool")
 
     def test_floating_resize_only(self):
         """ドッキング中のresizeWidth/Height適用を防ぐ。"""
         control = WorkspaceControl("tool")
-        with patch.object(control, "get_floating", return_value=False):
+        with patch.object(control, "getFloating", return_value=False):
             with self.assertRaises(RuntimeError):
-                control.set_size(200, 150)
-        with patch.object(control, "get_floating", return_value=True):
-            control.set_size(200, 150)
+                control.setSize(200, 150)
+        with patch.object(control, "getFloating", return_value=True):
+            control.setSize(200, 150)
             self.control.assert_called_with("tool", edit=True, resizeWidth=200, resizeHeight=150)
 
     def test_layout_save_current_guard_and_collision(self):
@@ -138,7 +138,7 @@ class WindowApiTest(unittest.TestCase):
         WorkspaceLayout.lock()
         self.assertIn("updateWorkspaceDocking 1", self.mel.call_args[0][0])
         with self.assertRaises(TypeError):
-            WorkspaceLayout.set_locked("false")
+            WorkspaceLayout.setLocked("false")
 
     def test_layout_capture_excludes_floating_controls(self):
         """浮動UIの削除は範囲外、ドックの再生成は復元前に拒否する。"""
@@ -147,9 +147,9 @@ class WindowApiTest(unittest.TestCase):
             return name == "floating" if flags.get("floating") else True
         self.control.side_effect = control
         self.window.side_effect = lambda name, **flags: "docking" if flags.get("dockingLayout") else True
-        with patch.object(cmds, "lsUI", return_value=["docked", "floating"]), patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=False):
+        with patch.object(cmds, "lsUI", return_value=["docked", "floating"]), patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "getLocked", return_value=False):
             layout = WorkspaceLayout()
-            snapshot = layout.capture_docking_layout()
+            snapshot = layout.captureDockingLayout()
             self.assertEqual(snapshot.scope, "dockingLayout")
             self.assertEqual([target.name() for target in snapshot._targets], ["MayaWindow", "docked"])
             self.callbacks["floating"]()
@@ -157,7 +157,7 @@ class WindowApiTest(unittest.TestCase):
             self.callbacks["docked"]()
             self.window.reset_mock()
             with self.assertRaises(RuntimeError):
-                layout.restore_docking_layout(snapshot)
+                layout.restoreDockingLayout(snapshot)
             self.assertFalse(any(call[1].get("edit") for call in self.window.call_args_list))
 
     def test_layout_restore_failure_restores_lock(self):
@@ -169,9 +169,9 @@ class WindowApiTest(unittest.TestCase):
                 raise RuntimeError("restore failed")
             return True
         self.window.side_effect = window
-        with patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "get_locked", return_value=True), patch.object(WorkspaceLayout, "set_locked") as lock:
+        with patch("hlib.ui.workspaceLayout.MainWindow.name", return_value="MayaWindow"), patch.object(WorkspaceLayout, "getLocked", return_value=True), patch.object(WorkspaceLayout, "setLocked") as lock:
             with self.assertRaisesRegex(RuntimeError, "restore failed"):
-                layout.restore_docking_layout(snapshot)
+                layout.restoreDockingLayout(snapshot)
             self.assertEqual([call[0] for call in lock.call_args_list], [(False,), (True,)])
 
 
@@ -223,14 +223,14 @@ class WindowGuiTest(unittest.TestCase):
             cmds.columnLayout(parent=name)
             window = Window(name)
             window.show()
-            window.set_resizable(False)
-            self.assertFalse(window.get_resizable())
+            window.setResizable(False)
+            self.assertFalse(window.getResizable())
             snapshot = window.capture()
             window.hide()
-            window.set_resizable(True)
+            window.setResizable(True)
             window.restore(snapshot)
-            self.assertTrue(window.get_visible())
-            self.assertFalse(window.get_resizable())
+            self.assertTrue(window.getVisible())
+            self.assertFalse(window.getResizable())
             window.setPosition(200, 180)
             self.assertEqual(window.getPosition(), (200, 180))
         finally:
@@ -258,20 +258,20 @@ class WindowGuiTest(unittest.TestCase):
         name = "hlibWindowTest" + uuid.uuid4().hex[:8]
         layout_name = "hlibLayoutTest" + uuid.uuid4().hex[:8]
         original = WorkspaceLayout.current()
-        locked = WorkspaceLayout.get_locked()
+        locked = WorkspaceLayout.getLocked()
         tool = cmds.workspaceControl(name, uiScript="", retain=False, floating=True)
         try:
             control = WorkspaceControl(tool)
             WorkspaceLayout.unlock()
             control.dock("right")
-            self.assertFalse(control.get_floating())
-            snapshot = original.capture_docking_layout()
+            self.assertFalse(control.getFloating())
+            snapshot = original.captureDockingLayout()
             control.undock()
-            self.assertTrue(control.get_floating())
-            original.restore_docking_layout(snapshot)
-            self.assertFalse(control.get_floating())
+            self.assertTrue(control.getFloating())
+            original.restoreDockingLayout(snapshot)
+            self.assertFalse(control.getFloating())
             WorkspaceLayout.lock()
-            self.assertTrue(WorkspaceLayout.get_locked())
+            self.assertTrue(WorkspaceLayout.getLocked())
             WorkspaceLayout.unlock()
             saved = original.saveAs(layout_name)
             self.assertTrue(saved.isCurrent())
@@ -283,7 +283,7 @@ class WindowGuiTest(unittest.TestCase):
             if layout_name in (cmds.workspaceLayoutManager(listLayouts=True) or []):
                 original.activate()
                 cmds.workspaceLayoutManager(delete=layout_name)
-            WorkspaceLayout.set_locked(locked)
+            WorkspaceLayout.setLocked(locked)
 
 
 if __name__ == "__main__":

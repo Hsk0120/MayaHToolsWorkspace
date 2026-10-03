@@ -8,7 +8,7 @@ import math
 import hlib
 
 from hlib import getPlug as to_plug
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class PoseRbf:
@@ -82,7 +82,7 @@ class PoseRbf:
         return node
 
     @classmethod
-    @undo_transaction("hrig.PoseRbf.create")
+    @undoTransaction("hrig.PoseRbf.create")
     def create(cls, drivers, poses, values, scales, name="poseRbf"):
         """ポーズデータを標準演算ノードへ展開する。
 
@@ -109,7 +109,7 @@ class PoseRbf:
             kind = hlib.getAttr(plug.fullName(), type=True)
             if (
                 kind not in ("double", "float", "long", "short", "doubleAngle")
-                or plug.mplug().isArray
+                or plug.isArray()
             ):
                 raise ValueError("Use scalar numeric/angle drivers")
         graph = cls(hlib.nodes.Container.create(name=name))
@@ -130,7 +130,7 @@ class PoseRbf:
         graph._build(poses, values, scales, coefficients)
         return graph
 
-    @undo_transaction("hrig.PoseRbf.set_values")
+    @undoTransaction("hrig.PoseRbf.set_values")
     def set_values(self, values):
         """登録入力を維持して、ポーズの出力値を編集する。
 
@@ -205,7 +205,7 @@ class PoseRbf:
         for j, total in enumerate(totals):
             total.plug("output1D").connect(owner.plug("outputs[{}]".format(j)))
 
-    @undo_transaction("hrig.PoseRbf.set_data")
+    @undoTransaction("hrig.PoseRbf.set_data")
     def set_data(self, poses, values, scales):
         """外部接続を維持して登録の追加・削除・編集を反映する。
 

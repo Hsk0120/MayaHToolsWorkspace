@@ -3,11 +3,11 @@
 from maya import cmds
 from .._core.flags import flag_aliases
 from .._core.commandResult import CommandResult
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("curve")
-@undo_chunk("hlib.cmds.createCurve")
+@undoChunk("hlib.cmds.createCurve")
 def createCurve(*args, **kwargs):
     """指定したCV・ノットからカーブを生成する。
 

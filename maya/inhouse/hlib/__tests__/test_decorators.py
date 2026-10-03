@@ -1,4 +1,4 @@
-"""hlib.decorators (undo_chunk/preserved_selection/preserved_skin_shape) を検証するMaya内テスト。"""
+"""hlib.decorators (undoChunk/preservedSelection/preservedSkinShape) を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,12 +7,12 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.decorators import preserved_selection, preserved_skin_shape, undo_chunk, undo_transaction
+from hlib.decorators import preservedSelection, preservedSkinShape, undoChunk, undoTransaction
 from hlib.nodes.joint import Joint
 
 
 class UndoDecoratorsTest(unittest.TestCase):
-    """undo_chunk のwith構文とデコレータ が単一Undoチャンクとして機能することを検証する。"""
+    """undoChunk のwith構文とデコレータ が単一Undoチャンクとして機能することを検証する。"""
 
     def tearDown(self):
         for name in ("hlibUndoChunkNode", "hlibUndoableNode"):
@@ -20,10 +20,10 @@ class UndoDecoratorsTest(unittest.TestCase):
                 cmds.delete(name)
 
     def test_decorator_repeated_calls_and_nested_chunks(self):
-        @undo_chunk("outer")
+        @undoChunk("outer")
         def create_and_move():
             """Nested chunk example."""
-            with undo_chunk("inner"):
+            with undoChunk("inner"):
                 node = cmds.createNode("transform", name="hlibUndoChunkNode")
                 cmds.setAttr(node + ".translateX", 7)
             return node
@@ -39,7 +39,7 @@ class UndoDecoratorsTest(unittest.TestCase):
             cmds.undo()
 
     def test_undo_chunk_groups_multiple_operations(self):
-        with undo_chunk("hlibTestChunk"):
+        with undoChunk("hlibTestChunk"):
             cmds.createNode("transform", name="hlibUndoChunkNode")
             cmds.setAttr("hlibUndoChunkNode.translateX", 5.0)
 
@@ -60,7 +60,7 @@ class UndoDecoratorsTest(unittest.TestCase):
         self.assertFalse(cmds.getAttr("hlibUndoChunkNode.visibility"))
 
     def test_tool_groups_public_operations_and_queries_add_no_step(self):
-        @undo_chunk("createControlTool")
+        @undoChunk("createControlTool")
         def create_control():
             node = hlib.createNode("transform", name="hlibUndoChunkNode")
             node.plug("visibility").set(False)
@@ -76,7 +76,7 @@ class UndoDecoratorsTest(unittest.TestCase):
         self.assertFalse(cmds.getAttr("hlibUndoChunkNode.visibility"))
 
     def test_undo_chunk_wraps_function_in_single_chunk(self):
-        @undo_chunk("hlibTestUndoable")
+        @undoChunk("hlibTestUndoable")
         def create_and_move():
             cmds.createNode("transform", name="hlibUndoableNode")
             cmds.setAttr("hlibUndoableNode.translateX", 3.0)
@@ -88,7 +88,7 @@ class UndoDecoratorsTest(unittest.TestCase):
 
     def test_undo_chunk_propagates_exception_and_still_closes_chunk(self):
         with self.assertRaises(RuntimeError):
-            with undo_chunk("hlibTestChunkError"):
+            with undoChunk("hlibTestChunkError"):
                 cmds.createNode("transform", name="hlibUndoChunkNode")
                 raise RuntimeError("boom")
         # 例外前の操作はロールバックされない(自動ロールバックしない設計)。
@@ -96,23 +96,23 @@ class UndoDecoratorsTest(unittest.TestCase):
 
         # チャンクが finally で正しく閉じられていれば、直後に別のチャンクを
         # 問題なく開始できる。
-        with undo_chunk("hlibTestChunkAfterError"):
+        with undoChunk("hlibTestChunkAfterError"):
             cmds.setAttr("hlibUndoChunkNode.translateX", 9.0)
         self.assertEqual(cmds.getAttr("hlibUndoChunkNode.translateX"), 9.0)
 
     def test_undo_chunk_propagates_exception_without_rollback(self):
-        @undo_chunk("hlibTestUndoableError")
+        @undoChunk("hlibTestUndoableError")
         def create_then_fail():
             cmds.createNode("transform", name="hlibUndoableNode")
             raise ValueError("boom")
 
         with self.assertRaises(ValueError):
             create_then_fail()
-        # undo_chunk は完了済み操作を自動ロールバックしない。
+        # undoChunk は完了済み操作を自動ロールバックしない。
         self.assertTrue(cmds.objExists("hlibUndoableNode"))
 
     def test_undo_chunk_preserves_function_metadata_and_return_value(self):
-        @undo_chunk()
+        @undoChunk()
         def sample_function():
             """docstring for sample_function."""
             return 42
@@ -122,7 +122,7 @@ class UndoDecoratorsTest(unittest.TestCase):
 
 
 class UndoTransactionTest(unittest.TestCase):
-    """undo_transaction が例外時のみ自動ロールバックすることを検証する。"""
+    """undoTransaction が例外時のみ自動ロールバックすることを検証する。"""
 
     def tearDown(self):
         for name in ("hlibUndoTxnBefore", "hlibUndoTxnNode", "hlibUndoTxnA", "hlibUndoTxnB"):
@@ -130,18 +130,18 @@ class UndoTransactionTest(unittest.TestCase):
                 cmds.delete(name)
 
     def test_commits_normally_when_no_exception(self):
-        with undo_transaction("hlibUndoTxnCommit"):
+        with undoTransaction("hlibUndoTxnCommit"):
             cmds.createNode("transform", name="hlibUndoTxnNode")
             cmds.setAttr("hlibUndoTxnNode.translateX", 5.0)
 
         self.assertTrue(cmds.objExists("hlibUndoTxnNode"))
-        # 正常終了時はロールバックせず、undo_chunk と同様に1回のUndoにまとまる。
+        # 正常終了時はロールバックせず、undoChunk と同様に1回のUndoにまとまる。
         cmds.undo()
         self.assertFalse(cmds.objExists("hlibUndoTxnNode"))
 
     def test_rolls_back_all_operations_on_exception(self):
         with self.assertRaises(RuntimeError):
-            with undo_transaction("hlibUndoTxnRollback"):
+            with undoTransaction("hlibUndoTxnRollback"):
                 cmds.createNode("transform", name="hlibUndoTxnA")
                 cmds.createNode("transform", name="hlibUndoTxnB")
                 raise RuntimeError("boom")
@@ -151,7 +151,7 @@ class UndoTransactionTest(unittest.TestCase):
 
     def test_exception_type_and_message_are_preserved(self):
         with self.assertRaises(ValueError) as context:
-            with undo_transaction("hlibUndoTxnMessage"):
+            with undoTransaction("hlibUndoTxnMessage"):
                 cmds.createNode("transform", name="hlibUndoTxnNode")
                 raise ValueError("specific message")
         self.assertEqual(str(context.exception), "specific message")
@@ -164,13 +164,13 @@ class UndoTransactionTest(unittest.TestCase):
         self.assertTrue(cmds.objExists("hlibUndoTxnBefore"))
 
         with self.assertRaises(RuntimeError):
-            with undo_transaction("hlibUndoTxnEmptyBody"):
+            with undoTransaction("hlibUndoTxnEmptyBody"):
                 raise RuntimeError("boom before any Maya operation")
 
         self.assertTrue(cmds.objExists("hlibUndoTxnBefore"))
 
     def test_decorator_usage_rolls_back_on_exception(self):
-        @undo_transaction("hlibUndoTxnDecorator")
+        @undoTransaction("hlibUndoTxnDecorator")
         def create_then_fail():
             cmds.createNode("transform", name="hlibUndoTxnNode")
             raise ValueError("boom")
@@ -180,7 +180,7 @@ class UndoTransactionTest(unittest.TestCase):
         self.assertFalse(cmds.objExists("hlibUndoTxnNode"))
 
     def test_decorator_usage_commits_on_success(self):
-        @undo_transaction("hlibUndoTxnDecoratorOk")
+        @undoTransaction("hlibUndoTxnDecoratorOk")
         def create():
             cmds.createNode("transform", name="hlibUndoTxnNode")
             return 42
@@ -190,7 +190,7 @@ class UndoTransactionTest(unittest.TestCase):
 
 
 class PreservedSelectionTest(unittest.TestCase):
-    """preserved_selection が選択状態を保存・復元することを検証する。"""
+    """preservedSelection が選択状態を保存・復元することを検証する。"""
 
     def setUp(self):
         self.nodes = [
@@ -208,7 +208,7 @@ class PreservedSelectionTest(unittest.TestCase):
     def test_restores_original_selection_after_block(self):
         cmds.select(self.nodes[0], replace=True)
 
-        with preserved_selection():
+        with preservedSelection():
             cmds.select(self.nodes[1], replace=True)
             self.assertEqual(cmds.ls(sl=True, long=True), cmds.ls(self.nodes[1], long=True))
 
@@ -217,7 +217,7 @@ class PreservedSelectionTest(unittest.TestCase):
     def test_restores_empty_selection_when_nothing_was_selected(self):
         cmds.select(clear=True)
 
-        with preserved_selection():
+        with preservedSelection():
             cmds.select(self.nodes[2], replace=True)
 
         self.assertEqual(cmds.ls(sl=True), [])
@@ -226,7 +226,7 @@ class PreservedSelectionTest(unittest.TestCase):
         cmds.select(self.nodes[0], replace=True)
 
         with self.assertRaises(RuntimeError):
-            with preserved_selection():
+            with preservedSelection():
                 cmds.select(self.nodes[1], replace=True)
                 raise RuntimeError("boom")
 
@@ -234,7 +234,7 @@ class PreservedSelectionTest(unittest.TestCase):
 
 
 class PreservedSkinShapeTest(unittest.TestCase):
-    """preserved_skin_shape がjoint姿勢の変更中もスキン変形を保つことを検証する。"""
+    """preservedSkinShape がjoint姿勢の変更中もスキン変形を保つことを検証する。"""
 
     def setUp(self):
         self.joint = cmds.createNode("joint", name="hlibPreservedSkinShapeJoint")
@@ -257,7 +257,7 @@ class PreservedSkinShapeTest(unittest.TestCase):
         before = self._vertex_positions()
         before_world_matrix = cmds.xform(self.joint, query=True, worldSpace=True, matrix=True)
 
-        with preserved_skin_shape([Joint(self.joint)]) as skins:
+        with preservedSkinShape([Joint(self.joint)]) as skins:
             self.assertEqual([skin.fullName() for skin in skins], [self.skin_name])
             cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
 
@@ -271,7 +271,7 @@ class PreservedSkinShapeTest(unittest.TestCase):
         # cmds.skinCluster(query=True, moveJointsMode=True) は常にNoneを返す既知のMaya挙動
         # のため、フラグ値ではなく「ブロックを抜けた後は通常通りjointの回転がメッシュへ
         # 反映される(=moveJointsModeが元に戻っている)」という観測可能な挙動で検証する。
-        with preserved_skin_shape([Joint(self.joint)]):
+        with preservedSkinShape([Joint(self.joint)]):
             cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
 
         before = self._vertex_positions()
@@ -281,7 +281,7 @@ class PreservedSkinShapeTest(unittest.TestCase):
 
     def test_normal_deformation_resumes_even_when_block_raises(self):
         with self.assertRaises(RuntimeError):
-            with preserved_skin_shape([Joint(self.joint)]):
+            with preservedSkinShape([Joint(self.joint)]):
                 raise RuntimeError("boom")
 
         before = self._vertex_positions()
@@ -293,7 +293,7 @@ class PreservedSkinShapeTest(unittest.TestCase):
         before = self._vertex_positions()
         original_orient = cmds.getAttr(self.joint + ".jointOrientZ")
 
-        with preserved_skin_shape([Joint(self.joint)]):
+        with preservedSkinShape([Joint(self.joint)]):
             cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
 
         cmds.undo()
@@ -306,7 +306,7 @@ class PreservedSkinShapeTest(unittest.TestCase):
     def test_ignores_joints_without_a_skin_cluster(self):
         lone_joint = cmds.createNode("joint", name="hlibPreservedSkinShapeLoneJoint")
         try:
-            with preserved_skin_shape([Joint(lone_joint)]) as skins:
+            with preservedSkinShape([Joint(lone_joint)]) as skins:
                 self.assertEqual(list(skins), [])
                 cmds.setAttr(lone_joint + ".jointOrientZ", 45.0)
             self.assertAlmostEqual(cmds.getAttr(lone_joint + ".jointOrientZ"), 45.0, places=6)

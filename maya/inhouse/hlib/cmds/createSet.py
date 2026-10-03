@@ -2,11 +2,11 @@
 
 from maya import cmds
 from .._core.flags import flag_aliases
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 
 @flag_aliases("sets")
-@undo_chunk("hlib.cmds.createSet")
+@undoChunk("hlib.cmds.createSet")
 def createSet(*members, **kwargs):
     """メンバーを含む新規セットを生成する。
 

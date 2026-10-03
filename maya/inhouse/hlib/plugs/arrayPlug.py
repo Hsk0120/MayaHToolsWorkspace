@@ -6,7 +6,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.attributeType import is_internal_data_type
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .plug import Plug, _instance_count
 
 
@@ -73,6 +73,32 @@ class ArrayPlug(Plug):
         """
         raise TypeError("Set an array element instead of the array plug")
 
+    @staticmethod
+    def _validate_index(index):
+        """Mayaの論理番号を検証する。範囲外はIndexError、型不正はTypeError。"""
+        from .plug import MAX_LOGICAL_INDEX
+        if isinstance(index, bool) or not isinstance(index, int):
+            raise TypeError("Logical index must be an integer")
+        if not 0 <= index <= MAX_LOGICAL_INDEX:
+            raise IndexError("Logical index must be in 0..2147483647")
+        return index
+
+    def _element_reference(self, index):
+        """書込み・接続用の参照のみを取得し、欠番の要素を作成しない。
+
+        Args:
+            index (int): 論理番号。
+
+        Returns:
+            Plug: 型付き参照。危険な内部データ型の未作成要素は拒否する。
+        """
+        self._require_valid()
+        index = self._validate_index(index)
+        mplug = self._mplug.elementByLogicalIndex(index)
+        if is_internal_data_type(mplug) and index not in self._mplug.getExistingArrayAttributeIndices():
+            raise RuntimeError("Cannot create an internal data element: " + self.fullName())
+        return Plug(self._node, mplug)
+
     def element(self, index, create=False):
         """論理インデックスの要素プラグを取得する。
 
@@ -92,6 +118,7 @@ class ArrayPlug(Plug):
             Plug: 要素プラグ。
 
         Raises:
+            TypeError: indexがboolまたは整数以外の場合。
             IndexError: create が ``False`` で要素が存在しない場合。index が 0〜2147483647
                 (``MPlug.logicalIndex()`` の範囲)の外の場合(``elementByLogicalIndex()`` は
                 範囲外の番号を別の番号へ変換し、maya.cmds は 2147483647 に切り詰めるため、
@@ -101,12 +128,8 @@ class ArrayPlug(Plug):
                 など。:func:`hlib._core.attributeType.is_internal_data_type`)の配列の場合
                 (要素を問い合わせると Maya が異常終了する場合があるため作成しない)。
         """
-        from hlib.plugs.plug import MAX_LOGICAL_INDEX
         self._require_valid()
-        if not 0 <= index <= MAX_LOGICAL_INDEX:
-            raise IndexError(
-                f"論理インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {index} ({self.fullName()})"
-            )
+        index = self._validate_index(index)
         mplug = self._mplug.elementByLogicalIndex(index)
         if index not in self._mplug.getExistingArrayAttributeIndices():
             if create:
@@ -163,20 +186,23 @@ class ArrayPlug(Plug):
             index += 1
         return index
 
-    @undo_chunk("hlibArrayPlugAddElement")
+    @undoChunk("hlibArrayPlugAddElement")
     def addElement(self):
-        """次の空きインデックス(nextAvailableIndex())へ要素を作成して返す。
+        """次の空きインデックス(nextAvailableIndex())へ要素への参照を返す。
+
+        通常は element(create=True) で実体化する。fast 更新の内部では値の書き込みまで
+        実体化を遅延する。
 
         ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できないため
         (:meth:`element` 参照)、返した要素へ接続するまでは、呼び出すたびに同じ
         インデックスの要素プラグを返す。
 
         Returns:
-            Plug: 作成した要素プラグ。
+            Plug: 要素プラグ。
         """
         return self.element(self.nextAvailableIndex(), create=True)
 
-    @undo_chunk("hlibArrayPlugRemoveElement")
+    @undoChunk("hlibArrayPlugRemoveElement")
     def removeElement(self, index):
         """指定した論理インデックスの要素を削除する。
 
@@ -227,7 +253,7 @@ class ArrayPlug(Plug):
                 result[element.mplug().logicalIndex()] = source.node
         return result
 
-    @undo_chunk("hlib.ArrayPlug.appendMessage")
+    @undoChunk("hlib.ArrayPlug.appendMessage")
     def appendMessage(self, node):
         """message配列の最大インデックスの次へノード参照を追加する。
 
@@ -245,5 +271,5 @@ class ArrayPlug(Plug):
         index = max(self._existing_indices(), default=-1) + 1
         if index > MAX_LOGICAL_INDEX:
             raise IndexError("Message array index limit reached")
-        Node(node).plug("message").connect(self.element(index, create=True))
+        Node(node).plug("message").connect(self._element_reference(index))
         return index

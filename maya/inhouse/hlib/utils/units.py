@@ -2,7 +2,7 @@
 import maya.api.OpenMaya as om2
 
 
-def distance_to_ui(centimeters):
+def distanceToUi(centimeters):
     """内部距離を現在の表示単位へ変換する。
 
     Args:
@@ -44,7 +44,7 @@ def _distance_unit(unit):
     return names[unit]
 
 
-def convert_distance(value, from_unit=None, to_unit=None):
+def convertDistance(value, from_unit=None, to_unit=None):
     """シーン設定を変更せず距離を変換する。
 
     Args:
@@ -63,7 +63,7 @@ def convert_distance(value, from_unit=None, to_unit=None):
     return om2.MDistance(value, source).asUnits(target)
 
 
-def distance_from_ui(value):
+def distanceFromUi(value):
     """現在の表示距離を内部単位へ変換する。
 
     Args:
@@ -75,7 +75,7 @@ def distance_from_ui(value):
     return om2.MDistance(value, om2.MDistance.uiUnit()).asCentimeters()
 
 
-def angle_to_ui(radians):
+def angleToUi(radians):
     """内部角度を現在の表示単位へ変換する。
 
     Args:
@@ -87,7 +87,7 @@ def angle_to_ui(radians):
     return om2.MAngle(radians).asUnits(om2.MAngle.uiUnit())
 
 
-def angle_from_ui(value):
+def angleFromUi(value):
     """現在の表示角度を内部単位へ変換する。
 
     Args:
@@ -99,10 +99,15 @@ def angle_from_ui(value):
     return om2.MAngle(value, om2.MAngle.uiUnit()).asRadians()
 
 
-def seconds_per_frame():
+def secondsPerFrame():
     """現在の時間単位の1フレームの秒数を取得する。
 
     Returns:
         float: 1フレームの秒数。
     """
     return om2.MTime(1, om2.MTime.uiUnit()).asUnits(om2.MTime.kSeconds)
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('angle_from_ui', 'angle_to_ui', 'convert_distance', 'distance_from_ui', 'distance_to_ui', 'seconds_per_frame'):
+    globals().pop(_obsolete_name, None)

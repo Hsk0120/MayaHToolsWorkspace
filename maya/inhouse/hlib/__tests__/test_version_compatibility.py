@@ -39,34 +39,34 @@ class VersionCompatibilityTest(unittest.TestCase):
 
     def test_range_reload_undo_and_redo(self):
         slider = hlib.getTimeSlider()
-        playback, animation = slider.get_playback_range(), slider.get_animation_range()
+        playback, animation = slider.getPlaybackRange(), slider.getAnimationRange()
         try:
             if str(cmds.about(version=True)).startswith("2022"):
                 before = cmds.undoInfo(query=True, undoName=True)
-                slider.set_playback_range(-12, 103)
+                slider.setPlaybackRange(-12, 103)
                 hlib.reload()
-                self.assertEqual(slider.get_playback_range(), (-12, 103))
+                self.assertEqual(slider.getPlaybackRange(), (-12, 103))
                 self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
-                slider.set_animation_range(-24, 206)
-                self.assertEqual(slider.get_animation_range(), (-24, 206))
+                slider.setAnimationRange(-24, 206)
+                self.assertEqual(slider.getAnimationRange(), (-24, 206))
                 self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
                 return  # Maya 2022では履歴を作らない。直前の別操作をUndoしない。
-            slider.set_playback_range(-12, 103)
+            slider.setPlaybackRange(-12, 103)
             hlib.reload()
             cmds.undo()
-            self.assertEqual(slider.get_playback_range(), playback)
-            self.assertEqual(slider.get_animation_range(), animation)
+            self.assertEqual(slider.getPlaybackRange(), playback)
+            self.assertEqual(slider.getAnimationRange(), animation)
             cmds.redo()
-            self.assertEqual(slider.get_playback_range(), (-12, 103))
-            before_animation_edit = slider.get_animation_range()
-            slider.set_animation_range(-24, 206)
+            self.assertEqual(slider.getPlaybackRange(), (-12, 103))
+            before_animation_edit = slider.getAnimationRange()
+            slider.setAnimationRange(-24, 206)
             cmds.undo()
-            self.assertEqual(slider.get_animation_range(), before_animation_edit)
+            self.assertEqual(slider.getAnimationRange(), before_animation_edit)
             cmds.redo()
-            self.assertEqual(slider.get_animation_range(), (-24, 206))
+            self.assertEqual(slider.getAnimationRange(), (-24, 206))
         finally:
-            slider.set_animation_range(*animation)
-            slider.set_playback_range(*playback)
+            slider.setAnimationRange(*animation)
+            slider.setPlaybackRange(*playback)
 
 
 if __name__ == "__main__":

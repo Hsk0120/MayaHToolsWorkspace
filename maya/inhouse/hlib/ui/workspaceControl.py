@@ -18,7 +18,7 @@ class WorkspaceControl(_WindowReference):
         """非表示・最小化・折り畳みを解除し、タブをアクティブにする。"""
         cmds.workspaceControl(self.name(), edit=True, restore=True)
 
-    def get_floating(self):
+    def getFloating(self):
         """bool: 浮動状態か取得する。"""
         return bool(cmds.workspaceControl(self.name(), query=True, floating=True))
 
@@ -31,7 +31,7 @@ class WorkspaceControl(_WindowReference):
     def _require_unlocked():
         """ユーザーが有効にしたドッキングロックを迂回しない。"""
         from hlib.ui.workspaceLayout import WorkspaceLayout
-        if WorkspaceLayout.get_locked():
+        if WorkspaceLayout.getLocked():
             raise RuntimeError("Unlock the workspace layout before changing docking")
 
     def dock(self, side="right", target=None):
@@ -52,7 +52,7 @@ class WorkspaceControl(_WindowReference):
         else:
             cmds.workspaceControl(self.name(), edit=True, dockToControl=(target_name, side))
 
-    def tab_to(self, target, index=-1):
+    def tabTo(self, target, index=-1):
         """他のドックとタブをまとめる。
 
         Args:
@@ -67,12 +67,12 @@ class WorkspaceControl(_WindowReference):
         self._require_unlocked()
         cmds.workspaceControl(self.name(), edit=True, tabToControl=(target.name(), index))
 
-    def get_size(self):
+    def getSize(self):
         """tuple[int, int]: 現在の幅・高さを取得する。"""
         return (cmds.workspaceControl(self.name(), query=True, width=True),
                 cmds.workspaceControl(self.name(), query=True, height=True))
 
-    def set_size(self, width, height):
+    def setSize(self, width, height):
         """浮動状態の幅・高さを変更する。ドッキング中は拒否する。
 
         Args:
@@ -80,15 +80,15 @@ class WorkspaceControl(_WindowReference):
             height (int): 正の高さ。
         """
         width, height = self._pair(width, height, positive=True)
-        if not self.get_floating():
+        if not self.getFloating():
             raise RuntimeError("Resize requires a floating workspace control")
         cmds.workspaceControl(self.name(), edit=True, resizeWidth=width, resizeHeight=height)
 
-    def get_collapsed(self):
+    def getCollapsed(self):
         """bool: タブの親が折り畳まれているか取得する。"""
         return bool(cmds.workspaceControl(self.name(), query=True, collapse=True))
 
-    def set_collapsed(self, collapsed):
+    def setCollapsed(self, collapsed):
         """タブの親を折り畳む。同じグループの他タブにも影響する。
 
         Args:
@@ -105,7 +105,7 @@ class WorkspaceControl(_WindowReference):
         """
         return self._capture({
                 "state": cmds.workspaceControl(self.name(), query=True, stateString=True),
-                "visible": self.get_visible(), "collapsed": self.get_collapsed()})
+                "visible": self.getVisible(), "collapsed": self.getCollapsed()})
 
     def restore(self, snapshot):
         """同じUIへ退避状態を戻す。失われたUIは再生成しない。

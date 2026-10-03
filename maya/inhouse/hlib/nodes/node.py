@@ -15,7 +15,7 @@ from ..decorators._fast import fast_edit
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..utils import raise_with_notify
 
 
@@ -489,7 +489,7 @@ class Node(Object):
         return result
 
     @classmethod
-    @undo_chunk("hlib.nodes.node.create")
+    @undoChunk("hlib.nodes.node.create")
     def create(cls, type, **kwargs):
         """ノードを作成し、対応する hlib wrapper として返す。
 
@@ -516,7 +516,7 @@ class Node(Object):
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
         from hlib.environment import Plugin
-        Plugin.ensure_node_plugin(type)
+        Plugin.ensureNodePlugin(type)
         for key in ("parent", "p"):
             if kwargs.get(key) is not None:
                 kwargs[key] = Node._input_name(kwargs[key])
@@ -654,12 +654,26 @@ class Node(Object):
         return self._mobject == other._mobject
 
     def sameNode(self, other):
-        """別インスタンスも含め、同じ生存中のMayaノードを指すか返す。"""
+        """別インスタンスも含め、同じ生存中のMayaノードを指すか返す。
+
+        Args:
+            other (object): 比較対象。Node 以外は False。
+
+        Returns:
+            bool: 両者が生存し、同じ Maya ノードを指す場合は True。
+        """
         return (isinstance(other, Node) and self.isAlive() and other.isAlive()
                 and self._mobject == other._mobject)
 
     def sameInstance(self, other):
-        """同じ生存中のDAGインスタンスか返す。非DAGノードはFalse。"""
+        """同じ生存中のDAGインスタンスか返す。非DAGノードはFalse。
+
+        Args:
+            other (object): 比較対象。Node 以外は False。
+
+        Returns:
+            bool: 同じ生存中の DAG インスタンスの場合は True。非 DAG は False。
+        """
         return (isinstance(other, Node) and self._dag_path is not None
                 and other._dag_path is not None and self == other)
 
@@ -904,7 +918,7 @@ class Node(Object):
             return Namespace(":")
         return Namespace(nodeName.rsplit(":", 1)[0])
 
-    @undo_chunk("hlibNodeDelete")
+    @undoChunk("hlibNodeDelete")
     def delete(self):
         """自身をMaya標準の規則で削除する。
 
@@ -921,7 +935,7 @@ class Node(Object):
             raise RuntimeError("Cannot delete an invalid node")
         cmds.delete(self.fullName())
 
-    @undo_chunk("hlibNodeRename")
+    @undoChunk("hlibNodeRename")
     def rename(self, name, ignore_shape=False):
         """ノード名を変更し、変更後の名前を返す。
 
@@ -937,7 +951,7 @@ class Node(Object):
         """
         return cmds.rename(self.name(), name, ignoreShape=ignore_shape)
 
-    @undo_chunk("hlibNodeSetNamespace")
+    @undoChunk("hlibNodeSetNamespace")
     def setNamespace(self, namespace):
         """ノードを指定したネームスペースへ移動する。
 
@@ -1073,7 +1087,7 @@ class Node(Object):
                 result.append(node)
         return result
 
-    @undo_chunk("hlibNodeResetAttrs")
+    @undoChunk("hlibNodeResetAttrs")
     def resetAttributes(self, attributes=None):
         """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。
 
@@ -1103,7 +1117,7 @@ class Node(Object):
         return plugs
 
     @fast_edit
-    @undo_chunk("hlibNodeSetAttrFlags")
+    @undoChunk("hlibNodeSetAttrFlags")
     def setAttributeFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
         """指定したアトリビュートのロック・キー設定可否・Channel Box表示をまとめて変更する。
 
@@ -1178,7 +1192,7 @@ class Node(Object):
         # 配列・複合パスの解決はplug()へ集約し、Mayaコマンドと名前再解決を避ける。
         return [(alias, self.plug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
-    @undo_chunk("hlibNodeAddAttr")
+    @undoChunk("hlibNodeAddAttr")
     def addAttribute(
         self,
         longName,
@@ -1344,7 +1358,7 @@ class Node(Object):
             raise RuntimeError("無効なノードのアトリビュートは列挙できません")
         return [om2.MFnAttribute(attribute).name for attribute in self._user_attributes()]
 
-    @undo_chunk("hlibNodeMoveAttribute")
+    @undoChunk("hlibNodeMoveAttribute")
     def moveAttributeOrder(self, name, offset):
         """ユーザー定義アトリビュートを Channel Box 上で前後に移動する。
 
@@ -1660,7 +1674,7 @@ class Nodes:
         """各要素へ異なる引数を渡す。メソッド名は単体の公開インスタンスメソッドのみ。
 
         Args:
-            method (str): set_translate等。create・特殊メソッドは不可。
+            method (str): setTranslation等。create・特殊メソッドは不可。
             arguments (Iterable[tuple]): 要素数と同じ数の位置引数タプル。
             keyword_arguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空。
         Returns:
@@ -1680,7 +1694,7 @@ class Nodes:
     def _execute_calls(self, method, functions, args, kwargs):
         """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。"""
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
-        context = undo_chunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
+        context = undoChunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
         result = [] if self._bulk_returns[method] != "self" else None
         with context:
             for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):
@@ -1693,7 +1707,7 @@ class Nodes:
         return self if result is None else result
 
     def _dispatch_shared(self, method, args, kwargs):
-        """単体APIの転送先を決める。独自call_eachのoverrideを維持する。"""
+        """単体APIの転送先を決める。独自callEachのoverrideを維持する。"""
         if type(self).callEach is not Nodes.callEach:
             return self.callEach(method, [args] * len(self), [kwargs] * len(self))
         return self._call_shared(method, args, kwargs)
@@ -1827,7 +1841,7 @@ class Nodes:
         """str: 具象コレクション名と保持参照を表示する。"""
         return f"{type(self).__name__}({self._items!r})"
 
-    @undo_chunk("hlibNodesDelete")
+    @undoChunk("hlibNodesDelete")
     def delete(self):
         """各ノードの専用deleteを呼び、親削除で消えた後続対象はスキップする。
 

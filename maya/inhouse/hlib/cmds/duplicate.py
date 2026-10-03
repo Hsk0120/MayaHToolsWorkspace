@@ -62,7 +62,7 @@ Examples
     copy = hlib.duplicate(node, name="exampleCopy")
 """
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 
 from .._core.flags import flag_aliases
 
@@ -70,7 +70,7 @@ import maya.cmds as cmds
 
 
 @flag_aliases("duplicate")
-@undo_chunk("hlib.cmds.duplicate.duplicate")
+@undoChunk("hlib.cmds.duplicate.duplicate")
 def duplicate(node, **kwargs):
     """指定したノードを複製し、対応する hlib wrapper として返す。
 

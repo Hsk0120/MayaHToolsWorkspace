@@ -5,7 +5,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from hlib._core.attributeType import attributeType
-from hlib.decorators.undo import undo_chunk
+from hlib.decorators.undo import undoChunk
 from hlib.nodes.node import Node
 from hlib.plugs.plug import Plug
 
@@ -30,7 +30,7 @@ _NUMERIC_SCALAR_TYPES = frozenset(
 def _plug(value):
     """Plug・MPlug・アトリビュート名を、数値スカラーのPlugとして検証する。
 
-    文字列は ``to_plug`` で解決するため、``str(plug)`` が返す形式(``grp1|dup.tx``、
+    文字列は Plug の入力解決を使うため、``str(plug)`` が返す形式(``grp1|dup.tx``、
     ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。
     アトリビュートが見つからない、または名前が一意でない場合は RuntimeError、アトリビュートを指さない
     文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため
@@ -158,7 +158,7 @@ class DrivenKey:
         """bool: 対応するカーブ接続が存在するか。キーが空でもTrue。"""
         return bool(self.curves())
 
-    @undo_chunk("hlibDrivenKeySetKey")
+    @undoChunk("hlibDrivenKeySetKey")
     def setKey(self, driver_value, value, inTangentType="linear", outTangentType="linear"):
         """指定値でキーを追加・更新する。ドライバーの現在値は変更しない。
 

@@ -51,7 +51,7 @@ class InternalRefactoringTest(unittest.TestCase):
         node = hlib.createNode("transform")
         node.plug("tx").set(3)
         saved = hlib.json.capture([node], kind="attributes", attributes=["translateX"])
-        data = saved.to_data()
+        data = saved.toData()
         self.assertEqual(set(data), {"kind", "records", "units", "version"})
         self.assertEqual(data["version"], 1)
         self.assertEqual(data["records"][0]["attributes"],
@@ -62,7 +62,7 @@ class InternalRefactoringTest(unittest.TestCase):
         self.assertEqual(node.plug("tx").get(), 3)
         cmds.undo()
         self.assertEqual(node.plug("tx").get(), 7)
-        self.assertEqual(hlib.json.loads(hlib.json.dumps(saved)).to_data(), data)
+        self.assertEqual(hlib.json.loads(hlib.json.dumps(saved)).toData(), data)
 
     def test_snapshot_partial_failure_and_undo(self):
         """全件検証後の実行失敗は先行変更を残し、一回のUndoで戻せる。"""

@@ -1,12 +1,12 @@
 """DAG シェイプの共通操作を提供する。"""
 from maya.api.OpenMaya import MSpace
 from .._core.space import world_space
-from .._core import fastGeometry
+from .._core import geometryEdit
 from ..decorators._fast import fast_edit, is_fast
 
 from .dagNode import DagNode
 from .transform import Transform
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 import math
 import operator
 import numbers
@@ -18,7 +18,7 @@ class Shape(DagNode):
     """Maya DAG shape ノードの共通ラッパー。"""
 
     @fast_edit
-    @undo_chunk("hlibShapeScaleGeometry")
+    @undoChunk("hlibShapeScaleGeometry")
     def scaleGeometry(self, scale, space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """メッシュ頂点・NURBSカーブ/サーフェスのCVを指定中心で拡縮する。
 
@@ -87,9 +87,7 @@ class Shape(DagNode):
                 if any(v < 0 or v >= count for v, count in zip(row, counts)):
                     raise IndexError("Component index out of range")
                 if path.node().hasFn(om2.MFn.kNurbsCurve):
-                    fn = om2.MFnNurbsCurve(path)
-                    if fn.form == om2.MFnNurbsCurve.kPeriodic:
-                        row = (row[0] % (fn.numCVs - fn.degree),)
+                    row = (geometryEdit.command_indices(self, row)[0],)
                 elif path.node().hasFn(om2.MFn.kNurbsSurface):
                     fn = om2.MFnNurbsSurface(path)
                     row = tuple(
@@ -114,22 +112,12 @@ class Shape(DagNode):
                 raise ValueError("Cannot scale in world space with a near-singular transform")
         if len(counts) == 1:
             # 全座標を先にAPIで読む。周期CVも独立番号にまとめ、二重に拡縮しない。
-            positions = fastGeometry.positions(self, selected, ws)
+            positions = geometryEdit.positions(self, selected, ws)
             values = [tuple(center[i] + (point[i] - center[i]) * factors[i] for i in range(3))
                       for point in positions]
             if not all(math.isfinite(v) for row in values for v in row):
                 raise ValueError("Scaled positions must be finite")
-            if is_fast():
-                fastGeometry.setPositions(self, selected, values, ws)
-            else:
-                name = self.fullName()
-                if ws and token == "cv":
-                    values = fastGeometry.object_positions(self, selected, values)
-                    ws = False
-                for index, row in zip(selected, values):
-                    ui_values = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in row]
-                    cmds.xform("{}.{}[{}]".format(name, token, index), translation=ui_values,
-                               worldSpace=ws, objectSpace=not ws)
+            geometryEdit.setPositions(self, selected, values, ws)
             return self
         center = tuple(om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in center)
         # scaleコマンドのpivot解釈に依存せず、同じ空間で読んだ座標を変換する。

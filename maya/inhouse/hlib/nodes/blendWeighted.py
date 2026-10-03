@@ -1,12 +1,11 @@
 """重み付き加算ノード。ウェイトの正規化はしない。"""
 
-from ..decorators._fast import fast_edit, is_fast
-from .._core.fastWrite import set_attr, set_plug
+from ..decorators._fast import fast_edit
 
 import math
 import maya.cmds as cmds
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .node import Node
 
 
@@ -19,7 +18,8 @@ class BlendWeighted(Node):
         """非負の整数を検証する。不正値はValueError。"""
         if isinstance(index, bool) or not isinstance(index, int) or index < 0:
             raise ValueError("Expected a non-negative integer index")
-        return index
+        from ..plugs.arrayPlug import ArrayPlug
+        return ArrayPlug._validate_index(index)
 
     def inputIndices(self):
         """list[int]: 存在するinputの論理番号。疎な配列を保持する。"""
@@ -38,10 +38,7 @@ class BlendWeighted(Node):
         index, value = self._index(index), float(value)
         if not math.isfinite(value):
             raise ValueError("Expected a finite value")
-        if is_fast():
-            set_plug(self.plug(attr).element(index, create=True).mplug(), value)
-        else:
-            set_attr(f"{self.fullName()}.{attr}[{index}]", value)
+        self.plug(attr)._element_reference(index).set(value)
         return self
 
     def inputPlug(self, index):
@@ -86,7 +83,7 @@ class BlendWeighted(Node):
         return weights.element(index).get()
 
     @fast_edit
-    @undo_chunk("hlibBlendWeightedInput")
+    @undoChunk("hlibBlendWeightedInput")
     def setInput(self, index, value, *, fast=False):
         """定数入力を設定する。既存接続は切断しない。
 
@@ -103,7 +100,7 @@ class BlendWeighted(Node):
         return self._set("input", index, value)
 
     @fast_edit
-    @undo_chunk("hlibBlendWeightedWeight")
+    @undoChunk("hlibBlendWeightedWeight")
     def setWeight(self, index, value, *, fast=False):
         """ウェイトを設定する。負値も使用可能。
 
@@ -119,7 +116,7 @@ class BlendWeighted(Node):
         """
         return self._set("weight", index, value)
 
-    @undo_chunk("hlibBlendWeightedConnect")
+    @undoChunk("hlibBlendWeightedConnect")
     def connectInput(self, index, source, force=False):
         """入力を接続する。
 
@@ -134,7 +131,7 @@ class BlendWeighted(Node):
         target = f"{self.fullName()}.input[{index}]"
         if index in self.inputIndices() and not cmds.listConnections(target, source=True, destination=False):
             # connectAttrのUndoだけでは配列要素の定数値が失われるため履歴に記録する。
-            set_attr(target, cmds.getAttr(target))
+            self.plug("input").element(index).set(self.plug("input").element(index).get())
         cmds.connectAttr(source.fullName(), target, force=force)
         return self
 

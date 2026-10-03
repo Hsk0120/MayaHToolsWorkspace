@@ -10,7 +10,7 @@ import maya.api.OpenMaya as om2
 import math
 
 import hlib
-from hlib.decorators import preserved_skin_shape
+from hlib.decorators import preservedSkinShape
 
 hlib.reload()
 
@@ -615,8 +615,8 @@ def _compute_debug_log_joint_orient_order_hypothesis(joint_name, orient_degrees,
 
     best = None
     xyz = None
-    for order_index, order_enum in _ROTATE_ORDER_ENUMS.items():
-        order_label = _ROTATE_ORDER_LABELS[order_index]
+    for orderIndex, order_enum in _ROTATE_ORDER_ENUMS.items():
+        order_label = _ROTATE_ORDER_LABELS[orderIndex]
         mat = om2.MEulerRotation(rx, ry, rz, order_enum).asMatrix()
 
         x_a = _compute_axis_world_vector_from_matrix(mat, "x")
@@ -1161,12 +1161,12 @@ def _apply_orient_from_ui(*_):
         cmds.warning(str(e))
         return
 
-    # 変形破綻を避けるため、影響する skinCluster を hlib.utils.preserved_skin_shape
+    # 変形破綻を避けるため、影響する skinCluster を hlib.utils.preservedSkinShape
     # (skinCluster -moveJointsMode / -recacheBindMatrices) で保護する。
     target_joints = _compute_target_joints(joints, include_children=True)
     next_children_debug = _compute_is_next_children_debug_enabled(primary_space, up_space)
 
-    with preserved_skin_shape(target_joints):
+    with preservedSkinShape(target_joints):
         for j in joints:
             if next_children_debug:
                 _compute_debug_log_next_children_inputs(

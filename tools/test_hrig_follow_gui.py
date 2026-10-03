@@ -55,7 +55,7 @@ def main(output_dir=None, finished=None):
             editor.layer_type.setCurrentIndex(editor.layer_type.findData(kind))
             editor.ratio.setValue(50)
             editor.axis.setCurrentText("x")
-            QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+            QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
             yield
             check(not editor.status.text().startswith("操作できません"), "Create " + kind)
         check(len(rig.follow_joints()) == 3 and follow_row().childCount() == 3, "Three follow rows")
@@ -113,8 +113,8 @@ def main(output_dir=None, finished=None):
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("followTwist"))
         editor.axis.setCurrentText("y")
         editor.ratio.setValue(25)
-        check(editor.add_button.isEnabled(), "Skirt supports follow sample")
-        QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+        check(editor.addButton.isEnabled(), "Skirt supports follow sample")
+        QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         check(len(rig.follow_joints()) == 1, "Skirt follow created")
         check(rig.follow_settings("followTwist1").plug("ratio").get() == 0.25, "UI ratio forwarded")

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import hlib
 from hlib.maths import Matrix
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class MatrixFollow:
@@ -53,7 +53,7 @@ class MatrixFollow:
                     pending.append(hlib.getPlug(upstream).node)
 
     @staticmethod
-    @undo_transaction("hrig.MatrixFollow.create")
+    @undoTransaction("hrig.MatrixFollow.create")
     def create(source, target, maintain_offset=True, name=None, backend="standard"):
         """バッファへワールド行列を親空間に変換して接続する。
 
@@ -160,7 +160,7 @@ class MatrixFollow:
                     / version
                     / "hrigNodes.mll"
                 )
-                hlib.environment.Plugin(str(plugin)).ensure_loaded()
+                hlib.environment.Plugin(str(plugin)).ensureLoaded()
                 graph = hlib.createNode("hrigMatrixFollow", name=name, skipSelect=True)
             else:
                 from .bifrostMatrixFollow import BifrostMatrixFollow

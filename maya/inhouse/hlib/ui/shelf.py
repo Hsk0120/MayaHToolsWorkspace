@@ -92,7 +92,7 @@ class Shelf:
                 result.append(ShelfButton(path))
         return result
 
-    def add_button(self, label, command, language="python", icon="commandButton.png", annotation=""):
+    def addButton(self, label, command, language="python", icon="commandButton.png", annotation=""):
         """保存可能な文字列コマンドのボタンを追加する。
 
         Args:

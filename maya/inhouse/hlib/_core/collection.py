@@ -9,7 +9,7 @@ def bulk_api(item_class, undo=True, per_item_only=(), *, reads=(), writes=(), pr
     Args:
         item_class (type): 単体クラス。派生での同名overrideにも追従する。
         undo (bool): 一括呼出をUndoチャンクにまとめるか。
-        per_item_only (Iterable[str]): call_eachによる要素別指定だけを許可する名前。
+        per_item_only (Iterable[str]): callEachによる要素別指定だけを許可する名前。
         reads (Iterable[str]): 各戻り値のリストを返す操作。生成など結果が必要な更新も含む。
         writes (Iterable[str]): 更新後にコレクション自身を返す操作。
         properties (Iterable[str]): 保持値をリストとして公開する読取プロパティ。
@@ -84,5 +84,5 @@ class _PerItemOnly:
         self._name = name
 
     def __get__(self, instance, owner=None):
-        """直接取得を拒否する。call_eachは単体から関数を取得するため利用可能。"""
+        """直接取得を拒否する。callEachは単体から関数を取得するため利用可能。"""
         raise AttributeError(f"{self._name} requires callEach with per-item arguments")

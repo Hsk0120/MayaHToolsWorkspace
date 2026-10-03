@@ -56,8 +56,8 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.setAttr(self.c + ".tx", 5)
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 15)
         self.assertIsInstance(found, list)
-        from hlib.decorators.undo import undo_chunk
-        with undo_chunk("testDrivenKeys"):
+        from hlib.decorators.undo import undoChunk
+        with undoChunk("testDrivenKeys"):
             for relation in found:
                 relation.setKey(10, 30)
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 30)

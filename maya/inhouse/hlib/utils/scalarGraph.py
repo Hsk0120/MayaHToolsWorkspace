@@ -2,7 +2,7 @@
 
 from hlib.nodes.container import Container
 from hlib.plugs.plug import Plug
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class ScalarGraph:
@@ -43,7 +43,7 @@ class ScalarGraph:
         else:
             _InputPlug._resolve_input(destination).set(value)
 
-    @undo_transaction("hlib.ScalarGraph.sum")
+    @undoTransaction("hlib.ScalarGraph.sum")
     def sum(self, role, left, right, subtract=False):
         """加減算を構築する。
 
@@ -63,7 +63,7 @@ class ScalarGraph:
         self._feed(right, node + ".input1D[1]")
         return _InputPlug._resolve_input(node + ".output1D")
 
-    @undo_transaction("hlib.ScalarGraph.multiply")
+    @undoTransaction("hlib.ScalarGraph.multiply")
     def multiply(self, role, left, right, operation=1):
         """乗除算・累乗を構築する。
 
@@ -83,7 +83,7 @@ class ScalarGraph:
         self._feed(right, node + ".input2X")
         return _InputPlug._resolve_input(node + ".outputX")
 
-    @undo_transaction("hlib.ScalarGraph.condition")
+    @undoTransaction("hlib.ScalarGraph.condition")
     def condition(self, role, left, right, yes, no):
         """大小比較によって値を選択する。
 

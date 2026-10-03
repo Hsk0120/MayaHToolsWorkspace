@@ -1,7 +1,7 @@
 """Bifrostの定数・接続・基本数値演算を組み立てる。"""
 
 from hlib_bifrost.plugs.port import Port
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class MathBuilder:
@@ -28,7 +28,7 @@ class MathBuilder:
         else:
             port.set_default(value)
 
-    @undo_transaction("hlib_bifrost.MathBuilder.operation")
+    @undoTransaction("hlib_bifrost.MathBuilder.operation")
     def operation(self, kind, values, output="output"):
         """同型の可変数入力演算を追加する。
 
@@ -46,7 +46,7 @@ class MathBuilder:
             self.feed(value, node.add_port("v" + str(index), "float"))
         return node.port(output)
 
-    @undo_transaction("hlib_bifrost.MathBuilder.clamp")
+    @undoTransaction("hlib_bifrost.MathBuilder.clamp")
     def clamp(self, value, low, high):
         """既存clamp Compoundへ固定ポートで接続する。
 
@@ -64,7 +64,7 @@ class MathBuilder:
             self.feed(val, node.port(key))
         return node.port("clamped")
 
-    @undo_transaction("hlib_bifrost.MathBuilder.matrix_multiply")
+    @undoTransaction("hlib_bifrost.MathBuilder.matrix_multiply")
     def matrix_multiply(self, values):
         """列ベクトル規約の順序で倍精度行列を乗算する。
 

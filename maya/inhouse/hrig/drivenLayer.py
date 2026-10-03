@@ -9,7 +9,7 @@ import hlib
 
 from hrig.setups.swingTwist import SwingTwist
 from hlib.scene.drivenKey import DrivenKey
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class DrivenLayer:
@@ -37,7 +37,7 @@ class DrivenLayer:
             for node in root.plug("drivenGraphs").sourceNodes().values()
         }
 
-    @undo_transaction("hrig.DrivenLayer.add")
+    @undoTransaction("hrig.DrivenLayer.add")
     def add(self, identifier, joint, driven, component="twist", axis="x", keys=None):
         """未接続の単一属性を、分解角とSDKで駆動する。
 
@@ -122,9 +122,9 @@ class DrivenLayer:
         relation = DrivenKey(owner.plug(component), driven)
         for x, y in pairs:
             if kind == "doubleAngle":
-                y = hlib.utils.units.angle_from_ui(y)
+                y = hlib.utils.units.angleFromUi(y)
             elif kind == "doubleLinear":
-                y = hlib.utils.units.distance_from_ui(y)
+                y = hlib.utils.units.distanceFromUi(y)
             relation.setKey(x, y)
         curve = relation.curves()[0]
         output = driven.source()

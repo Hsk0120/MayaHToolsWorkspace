@@ -1,6 +1,6 @@
 """内積・外積・行列による点/ベクトル変換。"""
 from .._core.registry import node_wrapper
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import Matrix, Vector
 from ._calculation import _Calculation
@@ -32,7 +32,7 @@ class VectorProduct(ShadingDependNode):
         return self.inputPlug(index).get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -49,7 +49,7 @@ class VectorProduct(ShadingDependNode):
         _Calculation.set_value(value, _Calculation.vector, self.inputPlug, index)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectInput(self, index, source, force=False):
         """入力へ接続する。
 
@@ -61,7 +61,7 @@ class VectorProduct(ShadingDependNode):
             VectorProduct: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.inputPlug, index, force=force)
         return self
@@ -74,7 +74,7 @@ class VectorProduct(ShadingDependNode):
         return _Calculation.enumName(self.plug("operation"), ('none', 'dot', 'cross', 'vector_matrix', 'point_matrix'))
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setOperation(self, mode, *, fast=False):
         """モードを設定する。
 
@@ -106,7 +106,7 @@ class VectorProduct(ShadingDependNode):
         return self.matrixPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setMatrix(self, value, *, fast=False):
         """変換行列へ定数値を設定する。
 
@@ -122,7 +122,7 @@ class VectorProduct(ShadingDependNode):
         _Calculation.set_value(value, Matrix, self.matrixPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectMatrix(self, source, force=False):
         """変換行列へ接続する。
 
@@ -133,7 +133,7 @@ class VectorProduct(ShadingDependNode):
             VectorProduct: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.matrixPlug, force=force)
         return self
@@ -153,7 +153,7 @@ class VectorProduct(ShadingDependNode):
         return self.normalizeOutputPlug().get()
 
     @fast_edit
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def setNormalizeOutput(self, value, *, fast=False):
         """出力正規化へ定数値を設定する。
 
@@ -169,7 +169,7 @@ class VectorProduct(ShadingDependNode):
         _Calculation.set_value(value, _Calculation.boolean, self.normalizeOutputPlug)
         return self
 
-    @undo_chunk("hlibCalculationEdit")
+    @undoChunk("hlibCalculationEdit")
     def connectNormalizeOutput(self, source, force=False):
         """出力正規化へ接続する。
 
@@ -180,7 +180,7 @@ class VectorProduct(ShadingDependNode):
             VectorProduct: 自身。
 
         Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         _Calculation.connect(source, self.normalizeOutputPlug, force=force)
         return self

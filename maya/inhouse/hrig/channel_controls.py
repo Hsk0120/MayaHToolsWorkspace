@@ -9,7 +9,7 @@ from maya import cmds
 from functools import partial
 import hlib
 
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 # reload時に旧コールバックを残さない。hlibの再読込では所有参照を維持する。
 for _owner in globals().get("_jobs", {}).values():
@@ -159,7 +159,7 @@ def sync_display(rig):
             hlib.getPlug(node + ".outlinerColor").set((*color,))
 
 
-@undo_transaction("hrig.channel_controls.attach")
+@undoTransaction("hrig.channel_controls.attach")
 def attach(rig):
     """構成表示階層を追加する。既存リグにも明示的に追加できる。
 
@@ -246,7 +246,7 @@ def apply(rig):
     ):
         return
     try:
-        with undo_transaction("hrig.channel_controls.apply"):
+        with undoTransaction("hrig.channel_controls.apply"):
             for role, label in spaces.items():
                 if rig.space_switch(role).current() != label:
                     rig.set_space(role, label)

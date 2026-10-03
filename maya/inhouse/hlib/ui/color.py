@@ -114,7 +114,7 @@ class Color:
         return min(range(1, 32), key=lambda i: sum((a - b) ** 2 for a, b in zip(rgb, palette[i])))
 
     @property
-    def palette_source(self):
+    def paletteSource(self):
         """str: GUIから取得したmaya、またはバッチ用標準値のdefault。"""
         return self._palette_source
 
@@ -130,7 +130,11 @@ class Color:
 
     @index.setter
     def index(self, value):
-        """番号を設定し、保持パレットのRGBへ同期する。"""
+        """番号を設定し、保持パレットのRGBへ同期する。
+
+        Args:
+            value (int): 保持パレットの色番号。
+        """
         index = self._validate_index(value)
         self._index, self._rgb, self._mode = index, self._palette[index], "index"
 
@@ -141,7 +145,11 @@ class Color:
 
     @rgb.setter
     def rgb(self, value):
-        """指定RGBを保持して近似番号を更新する。RGB自体は丸めない。"""
+        """指定RGBを保持して近似番号を更新する。RGB自体は丸めない。
+
+        Args:
+            value (Iterable[float]): 0〜1 の RGB 3 成分。
+        """
         rgb = self._validate_rgb(value)
         self._index, self._rgb, self._mode = self._nearest(rgb, self._palette), rgb, "rgb"
 
@@ -152,7 +160,7 @@ class Color:
         result._mode, result._index, result._rgb = "disabled", None, None
         return result
 
-    def refresh_palette(self):
+    def refreshPalette(self):
         """Mayaのパレットを再取得し、指定形式を保って対応値を再計算する。
 
         Returns:
@@ -174,7 +182,7 @@ class Color:
         """Color: Mayaに照会せず、同じ保持値を持つ独立したコピーを返す。"""
         result = object.__new__(type(self))
         result._palette, result._index, result._rgb, result._mode = self._palette, self.index, self.rgb, self.mode
-        result._palette_source = self.palette_source
+        result._palette_source = self.paletteSource
         return result
 
     @classmethod

@@ -3,11 +3,39 @@
 今後のAPI追加・変更では、**Mayaへ問い合わせる操作はメソッド、保持する値はプロパティ**を基本とする。
 実装・docstring・使用例を同じ基準に揃える。
 
+## 確定したコーディングルール
+
+公開APIの表記は**camelCaseに統一**する。UI・環境・イベント・JSON・utils・decoratorsも同じ規則とする。
+
+| 対象 | 規則 | 例 |
+| --- | --- | --- |
+| クラス | PascalCase | `SkinCluster`、`EulerRotation` |
+| 公開関数・メソッド | lowerCamelCase | `getMatrix()`、`getSettings()`、`undoChunk()` |
+| プロパティ | lowerCamelCase | `orderName`、`minimumVersion`、`paletteSource` |
+| Mayaコマンド・アトリビュート・nodeType | Maya標準の原名 | `createNode`、`offsetParentMatrix`、`skinCluster` |
+| 一般Pythonファイル | lowerCamelCase | `channelBox.py`、`eulerRotation.py` |
+| 内部関数・引数・ローカル変数 | snake_case可 | `_resolve_input`、`namespace_map` |
+| 定数 | UPPER_SNAKE_CASE | `LOAD_FAILED` |
+
+- `get`/`set`は値の取得・設定、`is`/`has`は判定、`create`/`add`/`remove`は作成・追加・除外に使う。
+  `name()`、`source()`、`children()`など、意味の明確な照会に一律で`get`を追加しない。
+- メソッド名の表記と、処理の意味は別に確認する。同名のMaya APIと意味が異なる複合操作は説明を明記し、必要なら専用名に分ける。
+- Mayaのコマンドフラグは標準表記を使う。今回の表記統一で既存の独自キーワード引数を一律変更しない。
+- om2から継承・オーバーライドする名前、`__init__`等のPython特殊メソッド、`dump`/`loads`等の標準APIは維持する。
+  ログの`get_logger`・`raise_with_notify`は既存の通知契約として例外にする。
+- JSONの保存キー・データクラスの保存フィールド・外部形式・パッケージ名・テスト探索名は、公開メソッドの改名に巻き込まない。
+- 旧名の互換別名は残さない。内製使用側・テスト・ドキュメントを同時に更新し、`hlib.reload()`後も廃止名を公開しない。
+- Maya照会はメソッド、保持値はプロパティ。シーン編集は明示的なメソッドにする。
+- オブジェクト・数学層はcm/rad/秒とOpenMayaの概念、コマンド層はmaya.cmdsの単位・フラグを基準にする。
+- 通常更新はcmdsによるUndo対応、対応する`fast=True`はom2によるUndoなし更新。同じ入力の意味・検証を維持する。
+- 日本語Google形式docstringで引数・戻り値・副作用を説明する。Mayaのattributeは「アトリビュート」と表記する。
+- hlibにQt依存・独自Mayaプラグインを追加せず、ノード・Plug・Componentの共通処理は各基底へ集約する。
+
 ## コマンド層とオブジェクト・数学層
 
 - `hlib.cmds` はMayaコマンドの名前・長短フラグ・単位解釈を基準にする。
   Node/Plug参照や数学型への戻り値のラップは各コマンドに明記する。
-- `nodes`・`plugs`・`components`・`maths`・`scene` の公開メソッドはlowerCamelCase。
+- 全パッケージの公開関数・メソッド・プロパティは上記の例外を除きlowerCamelCase。
   直接対応する名前はOpenMayaに揃える（`numVertices`・`numCVs`・`cvPositions`等）。
   hlib独自の複合操作は独自名と仕様を明記し、MFnと同一の処理だと扱わない。
 - オブジェクトの数値は距離cm・角度rad・時間秒。`Plug.get/set`と数学型で同じ値を渡せる。
@@ -69,7 +97,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 内部でキャッシュしていても、「現在のシーン状態を取得する」という契約ならメソッドにする。キャッシュ方式の変更で公開形式を変えない。
 - 保存時点のデータは現在のシーン状態と区別する。例えば `Node.uuid()` は現在のノードを照会し、`NodeRef.uuid` はJSON用に保持したUUIDを参照する。
 - 保持値を返すプロパティのgetterで、Mayaへの問い合わせ・ノード作成・シーン更新を暗黙に行わない。
-- 保持値だけから得られる軽い派生値はプロパティにできる。ただし行列の逆行列計算や形式変換など、明示的な計算・変換は従来どおり `inverse()` / `to_data()` 等のメソッドにする。シーンへ問い合わせない処理をすべてプロパティへ変える規則ではない。
+- 保持値だけから得られる軽い派生値はプロパティにできる。ただし行列の逆行列計算や形式変換など、明示的な計算・変換は従来どおり `inverse()` / `toData()` 等のメソッドにする。シーンへ問い合わせない処理をすべてプロパティへ変える規則ではない。
 - シーン編集用のproperty setterは追加しない。`hlib.maths` の数学型はom2の型を継承した可変の値型なので、ローカル値を更新するsetter(`vector.x = 1.0`、`matrix.translate = (...)` など)を使用できる。これは値の更新で、シーンは変更しない。
 - データクラスの保存フィールドは、そのまま公開してよい。保存フィールドを無意味なgetterで包む必要はない。
 
@@ -172,7 +200,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - メソッドのオーバーライドで対象を切り替えない。`Reference.associatedNamespace` は参照内容、継承した `namespace/setNamespace` はreferenceノード自身を扱う。
 - 接続用参照は `*_plug`、文字列のみの一覧は `*_names` / `*_aliases` などで返却対象を明示する。
 - 未存在の配列入力を取得するgetterは要素を作らずIndexErrorとする。作成はsetter等へ限定する。
-- `PluginPackage.try_load` は状態文字列を返し、`Plugin.ensure_loaded` は失敗時に例外を送出する。成功保証の違いを隠さない。
+- `PluginPackage.tryLoad` は状態文字列を返し、`Plugin.ensureLoaded` は失敗時に例外を送出する。成功保証の違いを隠さない。
 - `getVisibility/setVisibility` は自身のvisibilityアトリビュートだけを扱い、階層や表示レイヤーを含む最終可視性と区別する。
 
 ## 参照と入力の固定規則
@@ -200,7 +228,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - bulk_apiはreads/writes/propertiesを明示宣言する。単数APIの自動全公開はしない。readsは保持順の結果リスト、writesは自身。callEachも同じ規則。既存の専用集約結果やdeleteのNoneはdocstringへ明示する。
 - Preferencesの単位setterはsaveを受け付けない。シーン保存で保持する。その他のsave=Trueは一般ユーザー設定全体の保存を意味し、batchでは更新前に拒否する。
 - Window/WorkspaceControlはMaya標準MUiMessageの削除通知で寿命を追跡し、同名再生成へ乗り換えない。UiSnapshotは同一セッション限定の変更不可値で、復元前に対象の寿命を検証する。
-- WorkspaceLayoutはcapture_docking_layout/restore_docking_layout/temporary_docking_layoutでメインウィンドウのドッキングとロックだけを退避する。浮動ウィンドウ・エディタ内容・UI再生成は範囲外。
+- WorkspaceLayoutはcapture_docking_layout/restoreDockingLayout/temporary_docking_layoutでメインウィンドウのドッキングとロックだけを退避する。浮動ウィンドウ・エディタ内容・UI再生成は範囲外。
 
 - hlibはQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/mel/OpenMayaUIの通知APIで扱い、MQtUtilによるポインター取得やQtへの変換は利用側のUIパッケージへ置く。MainWindowはUI名だけを返す。
 
@@ -226,3 +254,13 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 拡張の__init__.pyは宣言を先に完了し、hlibやラッパーを先行importしない。公開サブパッケージは必要時に読み込む。
 - hlib.reload()は宣言済み拡張の一括解除、本体の再読み込み、拡張の再検出・登録の順で処理する。外部SDKとMayaプラグインは再ロードしない。
 - リロード後は利用側の拡張パッケージ・クラス・インスタンス参照を取得し直す。初期化中のリロードは拒否する。
+
+
+## 対象を所有するクラスへの委譲
+
+- 具象Nodeは対象Plug・値の意味・更新順を決め、値設定はPlugへ委譲する。通常/fastの型付き書込みと単位境界をノードごとに再実装しない。
+- 複数Plugの更新可否を先に調べる処理は、Plugの内部検証を使う。事前検証と自動ロールバックは別の契約であり、fastの実行途中の失敗を自動で戻す保証はしない。
+- ArrayPlugは論理番号と要素の参照・存在を管理する。内部の書込み・接続経路は参照だけを取得し、更新前のgetAttrによる要素作成を避ける。公開element(create=True)の明示作成は従来の契約を維持する。
+- Mesh/Curveの単数・複数コンポーネントとShapeの座標書込みは、非公開のgeometryEditを共有する。通常cmds/fast om2、CVの番号変換・重み・単位変換をこの境界へ集約する。Shapeは変形する座標列を決める。
+- JSONの保存形式は公開Plug値とは別の契約。型の低水準読取・単位変換は共有し、保存時の単位・配列形・未初期化値はJSON側で維持する。
+- Transform姿勢とJoint固有の変換、SkinClusterの一括ウェイト処理は、それぞれの意味と効率を持つため単純なPlugの反復へ置き換えない。

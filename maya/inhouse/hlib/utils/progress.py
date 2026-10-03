@@ -57,6 +57,15 @@ class _ProgressLine(object):
     """
 
     def __init__(self, label, total, width, stream, notify):
+        """進捗の保持値を初期化する。ここでは出力しない。
+
+        Args:
+            label (str): 末尾の空白を除去して保持する表示名。
+            total (int | None): 全体の処理数。不明な場合は None。
+            width (int): 進捗バーの表示幅。
+            stream (object): 書き込み先。
+            notify (callable | None): 描画した文字列を渡す通知先。
+        """
         self.label = label.rstrip()
         self.total = total
         self.width = width
@@ -163,7 +172,7 @@ def _track(iterable, line):
         line.finish()
 
 
-def progress_bar(iterable, *, label="", total=None, width=30, stream=None, notify=None):
+def progressBar(iterable, *, label="", total=None, width=30, stream=None, notify=None):
     """要素をそのまま返しつつ、処理の進み具合を1行で表示するイテレーターを作る。
 
     ``for`` 文の対象を包むだけで使える。表示は「処理済みの件数」を基準にし、
@@ -211,7 +220,7 @@ def progress_bar(iterable, *, label="", total=None, width=30, stream=None, notif
     Examples:
         >>> import io
         >>> buffer = io.StringIO()
-        >>> list(progress_bar("ab", label="demo", width=4, stream=buffer))
+        >>> list(progressBar("ab", label="demo", width=4, stream=buffer))
         ['a', 'b']
         >>> buffer.getvalue().split("\\r")[-1]
         'demo |====| 100% 2/2\\n'
@@ -239,3 +248,8 @@ def progress_bar(iterable, *, label="", total=None, width=30, stream=None, notif
 
     line = _ProgressLine(label, total, width, stream, notify)
     return _track(iterable, line)
+
+
+# reload時にも廃止した公開名を残さない。
+for _obsolete_name in ('progress_bar',):
+    globals().pop(_obsolete_name, None)

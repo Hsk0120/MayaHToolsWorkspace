@@ -9,7 +9,7 @@ import hlib
 
 from hrig.setups import TwistDistribution
 from hlib.maths import Matrix
-from hlib.decorators.undo import undo_transaction
+from hlib.decorators.undo import undoTransaction
 
 
 class TwistLayer:
@@ -80,7 +80,7 @@ class TwistLayer:
         if members:
             self.rig._layer_members("twistSet", members)
 
-    @undo_transaction("hrig.TwistLayer.add")
+    @undoTransaction("hrig.TwistLayer.add")
     def add(self, segment, start, end, count=3, axis="x"):
         """両端を含まないN本の補助骨をi/(N+1)で配置する。
 
@@ -165,7 +165,7 @@ class TwistLayer:
         sync_display(self.rig)
         return tuple(joints)
 
-    @undo_transaction("hrig.TwistLayer.set_count")
+    @undoTransaction("hrig.TwistLayer.set_count")
     def set_count(self, segment, count):
         """未使用の区間を指定本数で再生成する。0なら区間を削除する。
 

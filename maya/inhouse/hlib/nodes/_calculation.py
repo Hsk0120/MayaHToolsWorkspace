@@ -11,7 +11,7 @@ class _Calculation:
 
         Args:
             value (object): 入力値。
-            validator (callable): 値の検証・型変換。例外はそのまま返す。
+            validator (callable): 値の検証・型変換。例外はそのまま伝播する。
             target (callable): ノード固有のPlug取得メソッド。
             *indices: Plug取得に渡す番号。
 
@@ -52,8 +52,11 @@ class _Calculation:
         Raises:
             ValueError: bool・範囲外・非整数の場合。
         """
-        if type(value) is not int or not 0 <= value <= 2147483647:
-            raise ValueError("Expected an integer index in 0..2147483647")
+        from ..plugs.arrayPlug import ArrayPlug
+        try:
+            ArrayPlug._validate_index(value)
+        except (TypeError, IndexError):
+            raise ValueError("Expected an integer index in 0..2147483647") from None
         if allowed is not None and value not in allowed:
             raise ValueError("Index is outside the allowed values")
         return value
@@ -160,6 +163,6 @@ class _Calculation:
         if not node.isType(node_type):
             raise TypeError("Expected a " + node_type)
         if world_space:
-            # 接続作成操作の内部だけで呼ぶ。未評価worldSpace要素の作成を明示する。
-            return node.plug("worldSpace").element(node.dagPath().instanceNumber(), create=True)
+            # 接続時に実体化する。参照の取得では未評価worldSpace要素を作成しない。
+            return node.plug("worldSpace")._element_reference(node.dagPath().instanceNumber())
         return node.plug("local")

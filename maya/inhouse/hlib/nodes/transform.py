@@ -7,11 +7,12 @@ from ..decorators._fast import fast_edit, is_fast
 from .._core.fastWrite import set_attr, set_plug
 
 import math
+import numbers
 
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 
-from ..decorators.undo import undo_chunk
+from ..decorators.undo import undoChunk
 from .._core.registry import node_wrapper
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
 from ..maths.vector import _vector_of
@@ -116,7 +117,7 @@ class Transform(DagNode):
     """
 
     @flag_aliases(typ="type", mo="maintainOffset")
-    @undo_chunk("hlibTransformAddConstraint")
+    @undoChunk("hlibTransformAddConstraint")
     def addConstraint(self, sources, type="parent", maintainOffset=False, **kwargs):
         """自身を拘束するコンストレイントを作成する。
 
@@ -216,7 +217,7 @@ class Transform(DagNode):
         result = getattr(cmds, command_name)(*names, self.fullName(), **command_kwargs)
         return Node(result[0])
 
-    @undo_chunk("hlibTransformDeleteConstraints")
+    @undoChunk("hlibTransformDeleteConstraints")
     def deleteConstraints(self):
         """自身を拘束するconstraintと、経由するpairBlendを削除する。
 
@@ -290,7 +291,7 @@ class Transform(DagNode):
         return om2.MFnTransform(self.dagPath())
 
     @fast_edit
-    @undo_chunk("hlibTransformReset")
+    @undoChunk("hlibTransformReset")
     def reset(self, attributes=None, *, fast=False):
         """指定アトリビュートを定義上の既定値へ戻す。
 
@@ -323,7 +324,7 @@ class Transform(DagNode):
             plug.reset()
         return self
 
-    @undo_chunk("hlibTransformResetPivot")
+    @undoChunk("hlibTransformResetPivot")
     def resetPivot(self, space=MSpace.kWorld, *, kind="both"):
         """現在の姿勢を保ち、ピボットだけを指定空間の原点へ移動する。
 
@@ -347,7 +348,7 @@ class Transform(DagNode):
         return self.setPivot((0, 0, 0), space=MSpace.kWorld if ws else MSpace.kObject, kind=kind, preserve=True)
 
     @fast_edit
-    @undo_chunk("hlibTransformScaleGeometry")
+    @undoChunk("hlibTransformScaleGeometry")
     def scaleGeometry(self, scale, space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下の全Shapeの頂点・CVを拡縮する。Transformの行列は変更しない。
 
@@ -372,6 +373,8 @@ class Transform(DagNode):
         """
         ws = world_space(space)
         indices = None if indices is None else tuple(indices)
+        scale = scale if isinstance(scale, numbers.Real) else tuple(scale)
+        pivot = tuple(pivot)
         for shape in self.shapes():
             shape.scaleGeometry(scale, space=MSpace.kWorld if ws else MSpace.kObject, pivot=pivot, indices=indices)
         return self
@@ -399,7 +402,7 @@ class Transform(DagNode):
                             objectSpace=not ws, **{flag: True})
         return Translation(*(om2.MDistance(v, om2.MDistance.uiUnit()).asCentimeters() for v in values))
 
-    @undo_chunk("hlibTransformSetPivot")
+    @undoChunk("hlibTransformSetPivot")
     def setPivot(self, value, space=MSpace.kObject, *, kind="rotate", preserve=True):
         """指定した種類のピボットを変更する。既定ではノードの姿勢を保つ。
 
@@ -436,7 +439,7 @@ class Transform(DagNode):
                    preserve=preserve, **{flag: coordinates})
         return self
 
-    @undo_chunk("hlibTransformCenterPivot")
+    @undoChunk("hlibTransformCenterPivot")
     def centerPivot(self):
         """Maya標準のバウンディングボックス中心へ両ピボットを移動する。
 
@@ -503,7 +506,7 @@ class Transform(DagNode):
         return node
 
     def childNodes(self):
-        """直接の子ノードを汎用 Node のリストとして取得する。
+        """直接の子ノードを登録された型の Node のリストとして取得する。
 
         Returns:
             list[Node]: 直接の子ノード。
@@ -609,7 +612,7 @@ class Transform(DagNode):
         return shapes
 
     @fast_edit
-    @undo_chunk("hlibTransformMirrorGeometry")
+    @undoChunk("hlibTransformMirrorGeometry")
     def mirrorGeometry(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下のすべてのShapeのジオメトリをミラーする。
 
@@ -674,7 +677,7 @@ class Transform(DagNode):
         """
         return self
 
-    @undo_chunk("hlibTransformSetParent")
+    @undoChunk("hlibTransformSetParent")
     def setParent(self, parent=None, relative=False, add=False):
         """Transformの親を変更する。
 
@@ -705,7 +708,7 @@ class Transform(DagNode):
             cmds.parent(self.name(), parent_name, relative=relative, add=add)
         return self
 
-    @undo_chunk("hlibTransformMatch")
+    @undoChunk("hlibTransformMatch")
     def matchTransform(self, target, position=True, rotation=True, scale=True, pivots=False):
         """自身の変換を指定Transformへ合わせる。選択状態は使用しない。
 
@@ -740,7 +743,7 @@ class Transform(DagNode):
         return self
 
     @fast_edit
-    @undo_chunk("hlibTransformMirrorTransform")
+    @undoChunk("hlibTransformMirrorTransform")
     def mirrorTransform(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), *, fast=False):
         """位置と向きを指定空間でビヘイビアミラーする。
 
@@ -759,18 +762,18 @@ class Transform(DagNode):
             Transform: 自身。Transforms/Jointsからの一括呼出も可能。
 
         Raises:
-            TypeError: wsまたはfastがboolでない場合。
+            TypeError: fast が bool でない場合。
             ValueError: 入力不正、特異な親行列、未対応のピボット/rotateAxisの場合。
             RuntimeError: ロックや入力接続で更新できない場合。
 
-        既存set_matrixと同じ制約があり、非ゼロのピボット・
+        setMatrix() と同じ制約があり、非ゼロのピボット・
         TransformのrotateAxisは更新前に拒否する。
         """
         ws = world_space(space)
-        from ..utils.mirror import mirror_arguments
+        from ..utils.mirror import mirrorArguments
         if not isinstance(ws, bool):
             raise TypeError("ws must be a bool")
-        _, center = mirror_arguments(axis, pivot)
+        _, center = mirrorArguments(axis, pivot)
         name = self.fullName()
         parentNode = self.parentNode()
         parent = Matrix()
@@ -812,7 +815,7 @@ class Transform(DagNode):
         return self.plug("offsetParentMatrix").get()
 
     @fast_edit
-    @undo_chunk("hlibTransformSetOffsetParentMatrix")
+    @undoChunk("hlibTransformSetOffsetParentMatrix")
     def setOffsetParentMatrix(self, value, *, fast=False):
         """offsetParentMatrixへ行列値を設定する。
 
@@ -1151,7 +1154,7 @@ class Transform(DagNode):
         set_attr(f"{name}.shear", *shear)
 
     @fast_edit
-    @undo_chunk("hlibTransformSetMatrix")
+    @undoChunk("hlibTransformSetMatrix")
     def setMatrix(self, matrix, space=MSpace.kObject, *, fast=False):
         """行列をローカルまたはワールド空間で設定する。
 
@@ -1205,7 +1208,7 @@ class Transform(DagNode):
         return self
 
     @fast_edit
-    @undo_chunk("hlibTransformSetTranslate")
+    @undoChunk("hlibTransformSetTranslate")
     def setTranslation(self, value, space=MSpace.kObject, *, fast=False):
         """平行移動をローカルまたはワールド空間で設定する。
 
@@ -1233,7 +1236,7 @@ class Transform(DagNode):
         return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
 
     @fast_edit
-    @undo_chunk("hlibTransformSetRotate")
+    @undoChunk("hlibTransformSetRotate")
     def setRotation(self, value, unit="rad", space=MSpace.kObject, *, fast=False):
         """Euler回転を設定する。
 
@@ -1283,7 +1286,7 @@ class Transform(DagNode):
         return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
 
     @fast_edit
-    @undo_chunk("hlibTransformSetScale")
+    @undoChunk("hlibTransformSetScale")
     def setScale(self, value, space=MSpace.kObject, *, fast=False):
         """スケールをローカルまたはワールド空間で設定する。
 
@@ -1317,7 +1320,7 @@ class Transform(DagNode):
         return self._set_matrix(matrix, ws, scale_reference=value)
 
     @fast_edit
-    @undo_chunk("hlibTransformSetShear")
+    @undoChunk("hlibTransformSetShear")
     def setShear(self, value, space=MSpace.kObject, *, fast=False):
         """Shearをローカルまたはワールド空間で設定する。
 
@@ -1343,7 +1346,7 @@ class Transform(DagNode):
         return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
 
     @flag_aliases("makeIdentity")
-    @undo_chunk("hlibTransformFreeze")
+    @undoChunk("hlibTransformFreeze")
     def freeze(self, **kwargs):
         """MayaのmakeIdentity(apply=True)で形状の位置を保ってフリーズする。
 
@@ -1361,13 +1364,13 @@ class Transform(DagNode):
             RuntimeError: Mayaがフリーズを拒否した場合。
 
         子階層への適用、Jointの移動保持、スキニング済み対象や接続への制約も
-        Maya標準に従う。resetやJoint.freeze_rotationの姿勢移送とは異なる。
+        Maya標準に従う。resetやJoint.freezeRotationの姿勢移送とは異なる。
         """
         if kwargs.pop("apply", True) is not True:
             raise ValueError("freeze requires apply=True")
         return self.makeIdentity(apply=True, **kwargs)
 
-    @undo_chunk("hlibTransformMakeIdentity")
+    @undoChunk("hlibTransformMakeIdentity")
     def makeIdentity(self, **kwargs):
         """cmds.makeIdentity のシンプルなラッパー。
 
@@ -1386,7 +1389,7 @@ class Transform(DagNode):
         cmds.makeIdentity(self.fullName(), **kwargs)
         return self
 
-    @undo_chunk("hlibTransformReleaseSRT")
+    @undoChunk("hlibTransformReleaseSRT")
     def unlockAndDisconnectTransformChannels(self):
         """translate/rotate/scale/shear とその子チャンネルを一括でアンロック・切断する。
 
@@ -1447,7 +1450,7 @@ class Transform(DagNode):
                 best_axis = name
         return best_axis
 
-    @undo_chunk("hlibTransformCreateOffsetGroups")
+    @undoChunk("hlibTransformCreateOffsetGroups")
     def createOffsetGroups(self, *names):
         """自身を現在のワールド行列に一致させたオフセット(ゼロ)グループで包む。
 

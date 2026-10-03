@@ -60,8 +60,8 @@ def main(output_dir=None, finished=None):
             cmds.setKeyframe(source.fullName(), attribute="rx", time=time, value=value)
         cmds.currentTime(8)
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("spring"))
-        check(editor.add_button.isEnabled(), "Spring sample available")
-        QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+        check(editor.addButton.isEnabled(), "Spring sample available")
+        QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         group = SecondaryLayer(rig).groups()[0]
         check(group.plug("baked").get(), "UI creates baked spring")
@@ -83,7 +83,7 @@ def main(output_dir=None, finished=None):
         yield
         check(rig.layer_enabled("spring"), "Spring Undo")
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("pose"))
-        QtTest.QTest.mouseClick(editor.add_button, QtCore.Qt.LeftButton)
+        QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         graph = group.plug("poseGraph").source().node
         check(abs(graph.plug("outputs[2]").get() - 20) < 0.001, "Pose registered value")
