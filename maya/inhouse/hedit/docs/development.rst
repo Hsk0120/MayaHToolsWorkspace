@@ -278,6 +278,10 @@ C++ から MEL を呼ぶときの注意
 ``outputMode``\ ・\ ``editorSplitter``\ ・\ ``scriptToolbar``\ ・\ ``analysisProblems``\ ・\ ``languageMode``\ ・\ ``completionStatus``\ ・
 ``explorerDock``\ ・\ ``explorerTree``\ ・\ ``toggleExplorer``\ ・\ ``option_<設定名>``\ ・\ ``lineJump``\ ・
 ``hoverPopup``\ ・\ ``hoverText``\ (ホバーの小窓と本文。コード欄の子)。
+0.4.0 で足した名前: ``signatureHelp``\ ・\ ``completionDetail``\ ・\ ``peekDefinition``\ ・\ ``problemPopup``\ (コード欄の子の小窓)・
+``stickyScroll``\ (見出しの固定表示)・\ ``markerScrollBar``\ ・\ ``quickPick``\ ・\ ``quickPickInput``\ ・\ ``quickPickList``\ ・
+``outlineDock``\ ・\ ``outline``\ ・\ ``toggleOutline``\ ・\ ``goToSymbol``\ ・\ ``quickOpen``\ ・\ ``recentMenu``\ ・
+``compareWithSavedAction``\ ・\ ``compareWithSaved``\ ・\ ``diffView``\ ・\ ``revertFile``\ 。
 検索バーは ``findBar``\ ・\ ``findField``\ ・\ ``findText``\ ・\ ``replaceField``\ ・\ ``replaceText``\ ・\ ``toggleReplace``\ ・
 ``searchCase``\ ・\ ``searchWord``\ ・\ ``searchRegex``\ ・\ ``preserveCase``\ ・\ ``searchCount``\ ・\ ``findPrevious``\ ・\ ``findNextMatch``\ ・
 ``findInSelection``\ ・\ ``closeFind``\ ・\ ``replaceOne``\ ・\ ``replaceAll``\ ・\ ``findError``\ (不正な正規表現の吹き出し。タブ欄の子)です。
@@ -365,7 +369,9 @@ Visual Studio のプロジェクトだけを作る
        プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、保存先の決定(``test_session_path.py``)、
        C++ の宣言の抽出と Python の ``ast`` の突き合わせ(``test_declarations_parity.py``\ 。hlib・hrig・HTools・標準ライブラリの約 400 ファイル)、
        同じ C++ ウィジェットの offscreen 描画と、Maya 非依存の C++ 部分(履歴の整形・import の行の補完・
-       ``sys.path`` の走査・字句解析・宣言の抽出・補完エンジン・検索置換・tabs.json・行編集・ファイルの読み書き)の
+       ``sys.path`` の走査・字句解析・宣言の抽出・補完エンジン・定義の場所・構成と折りたたみの範囲・行の差分・
+       引数のヒントの解析・括弧と選択範囲の拡大・検索置換・tabs.json・行編集・ファイルの読み書き)と、コード欄の
+       括弧の自動で閉じる・同じ名前の強調・折りたたみ・見出しの固定表示・記号へ移動などの
        テスト(``hedit_ui_smoke.exe``)を実行する
    * - ``run_startup.py``
      - 同じ専用設定で 3 回起動する(``startup_smoke.py``)。プラグインのロードだけで Window メニューの項目と
@@ -376,7 +382,10 @@ Visual Studio のプロジェクトだけを作る
    * - ``run_gui.py``
      - 専用の空シーン・専用設定の Maya GUI で、``userSetup.py`` による自動ロード、表示・ドッキング・実行・出力・補完・
        検索・ショートカットなどを確認(``--suite`` で ``gui_smoke.py`` / ``completion_output_smoke.py`` /
-       ``formatting_spelling_smoke.py`` / ``output_format_smoke.py`` / ``output_fallback_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
+       ``formatting_spelling_smoke.py`` / ``output_format_smoke.py`` / ``output_fallback_smoke.py`` /
+       ``vscode_features_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
+       ``vscode_features_smoke.py`` は 0.4.0 で足した機能(差分の印・問題の波線と F8・折りたたみ・見出しの固定表示・
+       記号へ移動・アウトライン・定義へ移動・保存前との差分・ファイル名で開く・引数のヒント・補完の説明)を操作して画面を撮る。
        ``output_fallback_smoke.py`` は、Maya の非表示 reporter が見つからない場合の代わりの出力の取り込みを確かめる)
    * - ``run_session.py``
      - 2 回起動し、未保存タブの自動保存と、次の起動での本文・パス・選択位置・未保存状態の復元を確認(``session_smoke.py``)
@@ -407,6 +416,10 @@ Visual Studio のプロジェクトだけを作る
   すぐ閉じ、また ``activateWindow()`` による前面化は非同期です。補完の候補一覧を確かめる GUI テストは、前面化を待ってから
   Ctrl+Space を送り、表示されるまでやり直してください(``completion_output_smoke.py`` の ``show_popup``)。候補の中身だけを
   確かめる場合は、ポップアップの表示有無に左右されない ``completionModel()`` を見ます。
+* ``QTest.keyClicks`` に改行文字(``\n``\ )を含めないでください。QtTest が扱えずに Maya ごと異常終了します。
+  改行は ``QTest.keyClick(widget, Qt.Key_Return)`` で送ります。
+* Maya 2027(Qt 6.8 以降)では、\ ``Q_OBJECT`` の無い独自のクラスを ``findChild<T>`` に渡せません(コンパイルエラー)。
+  基底のQtのクラス(``QFrame`` など)で探してから変換します。
 * Maya 2024 は起動直後に Arnold(mtoa)の遅延登録が GUI スレッドを約 5 秒止めます。GUI テストで待機する場合は、
   壁時計ではなくイベントループが回った回数で数えてください(``session_smoke.py`` 参照)。
 

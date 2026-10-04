@@ -143,7 +143,63 @@ QString docHtml(const QString& doc, const QString& codeFamily) {
     return lines.join('\n');
 }
 
+/** @brief 1行のコードを、エディターと同じ色で塗ったHTMLにする(引数のヒント・コードの抜粋)。
+ * @param line 1行。
+ * @return HTMLの断片。
+ */
+QString codeLineHtml(const QString& line) {
+    return signatureHtml(line);
+}
+
 }  // namespace
+
+QString HoverPopup::problemsHtml(const QStringList& problems) {
+    QStringList lines;
+    for (const QString& problem : problems) {
+        lines.append(colored(problem, theme::kDiagnosticWarning));
+    }
+    return "<div style=\"white-space:pre-wrap\">" + lines.join("<br/>") + "</div>";
+}
+
+QString HoverPopup::signatureHelpHtml(const SignatureParts& parts, int active, const QString& doc,
+                                      const QString& codeFamily) {
+    QString html = QString("<div style=\"font-family:'%1';white-space:pre-wrap\">").arg(codeFamily);
+    html += codeLineHtml(parts.head);
+    for (int i = 0; i < parts.parameters.size(); ++i) {
+        if (i > 0) {
+            html += escaped(", ");
+        }
+        if (i == active) {
+            html += QString("<b><u><span style=\"color:%1\">%2</span></u></b>")
+                        .arg(QString(theme::kSignatureActive), escaped(parts.parameters[i]));
+        } else {
+            html += codeLineHtml(parts.parameters[i]);
+        }
+    }
+    html += codeLineHtml(parts.tail) + "</div>";
+    if (!doc.isEmpty()) {
+        html += QString("<hr style=\"background:%1\"/>").arg(QString(theme::kPopupBorder));
+        html += "<div style=\"white-space:pre-wrap\">" + docHtml(doc, codeFamily) + "</div>";
+    }
+    return html;
+}
+
+QString HoverPopup::snippetHtml(const QString& title, const QStringList& lines, int firstLine, int highlight,
+                                const QString& codeFamily) {
+    QString html = QString("<div style=\"color:%1\">%2</div>").arg(QString(theme::kLineNumber), escaped(title));
+    html += QString("<hr style=\"background:%1\"/>").arg(QString(theme::kPopupBorder));
+    // 1行ずつ、右寄せの行番号とコードを並べる(表にすると行番号の列が狭くなり、数字が折り返す)。
+    const int digits = QString::number(firstLine + qMax(0, int(lines.size()) - 1)).size();
+    html += QString("<div style=\"font-family:'%1'\">").arg(codeFamily);
+    for (int i = 0; i < lines.size(); ++i) {
+        const int number = firstLine + i;
+        const QString background = number == highlight ? QString("background:%1;").arg(theme::kCurrentLine) : QString();
+        html += QString("<div style=\"white-space:pre;%1\"><span style=\"color:%2\">%3  </span>%4</div>")
+                    .arg(background, QString(theme::kLineNumber),
+                         QString::number(number).rightJustified(digits, ' '), codeLineHtml(lines[i]));
+    }
+    return html + "</div>";
+}
 
 HoverPopup::HoverPopup(QWidget* parent) : QFrame(parent, Qt::ToolTip | Qt::FramelessWindowHint) {
     setObjectName("hoverPopup");
@@ -188,14 +244,29 @@ QString HoverPopup::toHtml(const HoverInfo& info, const QString& codeFamily) {
     return html;
 }
 
-void HoverPopup::showInfo(const HoverInfo& info, const QRect& anchor, const QFont& codeFont) {
+void HoverPopup::showInfo(const HoverInfo& info, const QRect& anchor, const QFont& codeFont,
+                          const QStringList& problems) {
+    QString html;
+    if (!problems.isEmpty()) {
+        html = problemsHtml(problems);
+        if (!info.isEmpty()) {
+            html += QString("<hr style=\"background:%1\"/>").arg(QString(theme::kPopupBorder));
+        }
+    }
+    if (!info.isEmpty()) {
+        html += toHtml(info, codeFont.family());
+    }
+    showHtml(html, anchor, codeFont);
+}
+
+void HoverPopup::showHtml(const QString& html, const QRect& anchor, const QFont& codeFont, Placement placement,
+                          int maximumWidthOption, int maximumHeightOption) {
     hideTimer_.stop();
     anchor_ = anchor;
     // docstringは読みやすいUIのフォント、見出しとコードはエディターのフォント(VS Codeと同じ)。
     const int pixels = codeFont.pixelSize() > 0 ? codeFont.pixelSize() : scaled(14);
     QFont textFont("Segoe UI");
     textFont.setPixelSize(qMax(1, pixels - 1));
-    const QString html = toHtml(info, codeFont.family());
     view_->document()->setDefaultFont(textFont);
     view_->setHtml(html);
 
@@ -205,8 +276,8 @@ void HoverPopup::showInfo(const HoverInfo& info, const QRect& anchor, const QFon
     measure.setDefaultFont(textFont);
     measure.setDocumentMargin(view_->document()->documentMargin());
     measure.setHtml(html);
-    const int maximumWidth = scaled(kMaximumWidth);
-    const int maximumHeight = scaled(kMaximumHeight);
+    const int maximumWidth = scaled(maximumWidthOption > 0 ? maximumWidthOption : kMaximumWidth);
+    const int maximumHeight = scaled(maximumHeightOption > 0 ? maximumHeightOption : kMaximumHeight);
     measure.setTextWidth(maximumWidth);
     const int width = qMin(maximumWidth, int(std::ceil(measure.idealWidth())) + scaled(8));
     measure.setTextWidth(width);
@@ -223,14 +294,29 @@ void HoverPopup::showInfo(const HoverInfo& info, const QRect& anchor, const QFon
         resize(this->width(), qMin(maximumHeight, shownHeight) + border);
     }
 
-    // 位置: 名前の上。上に入らなければ下。画面の右端からはみ出さない。
+    // 位置: 名前の上(Belowなら下、Rightなら右)。入らなければ反対側。画面の端からはみ出さない。
     QScreen* screen = QGuiApplication::screenAt(anchor.center());
     const QRect area = screen ? screen->availableGeometry() : QRect(0, 0, 100000, 100000);
-    int y = anchor.top() - this->height() - scaled(2);
-    if (y < area.top()) {
+    int x = anchor.left();
+    int y = 0;
+    if (placement == Placement::Right) {
+        x = anchor.right() + scaled(2);
+        if (x + this->width() > area.right()) {
+            x = anchor.left() - this->width() - scaled(2);
+        }
+        y = qMax(area.top(), qMin(anchor.top(), area.bottom() - this->height()));
+    } else if (placement == Placement::Below) {
         y = anchor.bottom() + scaled(2);
+        if (y + this->height() > area.bottom()) {
+            y = anchor.top() - this->height() - scaled(2);
+        }
+    } else {
+        y = anchor.top() - this->height() - scaled(2);
+        if (y < area.top()) {
+            y = anchor.bottom() + scaled(2);
+        }
     }
-    const int x = qMax(area.left(), qMin(anchor.left(), area.right() - this->width()));
+    x = qMax(area.left(), qMin(x, area.right() - this->width()));
     move(x, y);
     view_->verticalScrollBar()->setValue(0);
     show();

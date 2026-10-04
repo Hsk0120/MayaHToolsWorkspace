@@ -253,6 +253,13 @@ HoverInfo describe(const QString& text, int end) {
     return engine().describe(text, end);
 }
 
+DefinitionLocation definition(const QString& text, int end) {
+    if (!bridge().environmentLoaded) {
+        refreshCompletion();
+    }
+    return engine().definition(text, end);
+}
+
 QByteArray declarationsJson(const QString& source) {
     return QJsonDocument(symbolTableToJson(extractPythonDeclarations(source).symbols)).toJson(QJsonDocument::Compact);
 }

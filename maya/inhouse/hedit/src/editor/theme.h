@@ -44,6 +44,34 @@ constexpr const char* kPopupBorder = "#454545";
 constexpr const char* kPopupSelection = "#094771";
 constexpr const char* kPopupSelectedText = "#ffffff";
 constexpr const char* kHoverInlineCode = "#d7ba7d";  ///< ホバーの説明の中の``code``の文字(VS Codeと同じ)。
+constexpr const char* kSignatureActive = "#4fc1ff";  ///< 引数のヒントの、今の引数の文字。
+constexpr const char* kCompletionDetail = "#8b8b8b";  ///< 補完の一覧の、名前の右の説明の文字。
+
+// ---- 補完の一覧の種類のアイコン(VS Codeの記号の色) ----
+constexpr const char* kSymbolFunction = "#b180d7";  ///< 関数・メソッド。
+constexpr const char* kSymbolClass = "#ee9d28";     ///< クラス。
+constexpr const char* kSymbolModule = "#cccccc";    ///< モジュール。
+constexpr const char* kSymbolVariable = "#75beff";  ///< 変数。
+constexpr const char* kSymbolKeyword = "#cccccc";   ///< 予約語・組み込みの名前。
+
+// ---- コード欄の補助の表示 ----
+constexpr const char* kIndentGuide = "#404040";        ///< インデントの縦線。
+constexpr const char* kIndentGuideActive = "#707070";  ///< カーソルのあるブロックのインデントの縦線。
+constexpr const char* kWordHighlight = "#3d3d3d";      ///< カーソルの名前と同じ名前の背景。
+constexpr const char* kWordHighlightStrong = "#4a4a4a";  ///< 同じ名前のうち、代入している箇所の背景。
+constexpr const char* kBracketMatch = "#3c4a3c";       ///< 対応する括弧の背景。
+constexpr const char* kBracketMatchBorder = "#888888"; ///< 対応する括弧の枠線。
+constexpr const char* kProblemError = "#f14c4c";       ///< エラーの波線とスクロールバーの印。
+constexpr const char* kProblemWarning = "#cca700";     ///< 警告の波線とスクロールバーの印。
+constexpr const char* kChangeAdded = "#487e02";        ///< 保存後に追加した行の印。
+constexpr const char* kChangeModified = "#1b81a8";     ///< 保存後に変更した行の印。
+constexpr const char* kChangeDeleted = "#f14c4c";      ///< 保存後に削除した行の印。
+constexpr const char* kScrollMarkerSearch = "#d18616"; ///< スクロールバーの、検索の一致の印。
+constexpr const char* kScrollMarkerWord = "#a0a0a0";   ///< スクロールバーの、同じ名前の印。
+constexpr const char* kScrollMarkerCursor = "#d4d4d4"; ///< スクロールバーの、カーソルの行の印。
+constexpr const char* kFoldMarker = "#c5c5c5";         ///< 折りたたみの矢印。
+constexpr const char* kFoldedBackground = "#3a3d41";   ///< 畳んだ見出しの後ろの「⋯」の背景。
+constexpr const char* kStickyShadow = "#000000";       ///< 見出しの固定表示の下の影。
 
 // ---- 検索バー(VS Codeの検索ウィジェットに合わせた色) ----
 constexpr const char* kFindBarBackground = "#252526";     ///< バーの背景。

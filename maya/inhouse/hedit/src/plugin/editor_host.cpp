@@ -45,6 +45,7 @@ EditorServices mayaServices() {
     services.refreshCompletion = python::refreshCompletion;
     services.complete = python::complete;
     services.describe = python::describe;
+    services.definition = python::definition;
     services.analyze = python::analyze;
     services.takeOutput = [] { return outputCapture().take(); };
     services.sessionPath = sessionFilePath();

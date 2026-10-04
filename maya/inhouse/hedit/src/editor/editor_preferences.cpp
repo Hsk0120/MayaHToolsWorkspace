@@ -4,6 +4,7 @@
 #include "editor/editor_preferences.h"
 #include "core/json_file.h"
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QSettings>
 #include <QtGlobal>
@@ -26,6 +27,8 @@ const QList<OptionDefinition>& optionDefinitions() {
         {option::kWhitespace, "Show spaces and tabs", false},
         {option::kTrimWhitespace, "Trim trailing spaces on file save", false, true},
         {option::kFinalNewline, "Ensure final newline on file save", false},
+        {option::kAutoClosing, "Auto-close brackets and quotes", true, true},
+        {option::kStickyScroll, "Sticky scroll (class / def headers)", true},
     };
     return options;
 }
@@ -34,6 +37,13 @@ namespace {
 
 /// 文字サイズの保存名。
 constexpr const char* kFontPixelsKey = "fontPixels";
+
+/// 最近開いたファイルの保存名と、残す件数。
+constexpr const char* kRecentFilesKey = "recentFiles";
+constexpr int kMaximumRecentFiles = 20;
+
+/// メニューに無い表示の状態をまとめて保存する名前(``{"outlineVisible": true}``)。
+constexpr const char* kFlagsKey = "viewState";
 
 /** @brief 0.2.xのpreferences.iniの値を読む(移行用)。
  * @param iniPath preferences.iniのパス。
@@ -71,6 +81,45 @@ EditorPreferences::EditorPreferences(const QString& path) : path_(path) {
         values_.insert(definition.key, saved.value(definition.key).toBool(definition.defaultValue));
     }
     fontPixels_ = qBound(10, saved.value(kFontPixelsKey).toInt(kDefaultFontPixels), 28);
+    for (const QJsonValue& value : saved.value(kRecentFilesKey).toArray()) {
+        if (value.isString() && !recentFiles_.contains(value.toString())) {
+            recentFiles_.append(value.toString());
+        }
+    }
+    const QJsonObject flags = saved.value(kFlagsKey).toObject();
+    for (auto it = flags.begin(); it != flags.end(); ++it) {
+        flags_.insert(it.key(), it.value().toBool());
+    }
+}
+
+void EditorPreferences::addRecentFile(const QString& path) {
+    recentFiles_.removeAll(path);
+    recentFiles_.prepend(path);
+    while (recentFiles_.size() > kMaximumRecentFiles) {
+        recentFiles_.removeLast();
+    }
+    if (!path_.isEmpty()) {
+        updateJsonFile(path_, kRecentFilesKey, QJsonArray::fromStringList(recentFiles_));
+    }
+}
+
+void EditorPreferences::clearRecentFiles() {
+    recentFiles_.clear();
+    if (!path_.isEmpty()) {
+        updateJsonFile(path_, kRecentFilesKey, QJsonArray());
+    }
+}
+
+void EditorPreferences::setFlag(const QString& key, bool value) {
+    flags_.insert(key, value);
+    if (path_.isEmpty()) {
+        return;
+    }
+    QJsonObject flags;
+    for (auto it = flags_.begin(); it != flags_.end(); ++it) {
+        flags.insert(it.key(), it.value());
+    }
+    updateJsonFile(path_, kFlagsKey, flags);
 }
 
 bool EditorPreferences::option(const QString& key) const {

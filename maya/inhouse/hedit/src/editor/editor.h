@@ -28,6 +28,8 @@ struct EditorServices {
     std::function<CompletionResult(const QString& source)> complete;
     /// マウスを重ねた名前の説明(本文全体, 名前の終わりの位置)。importも実行もしない。
     std::function<HoverInfo(const QString& text, int end)> describe;
+    /// 名前の定義の場所(本文全体, 名前の終わりの位置)。編集中の本文の中ならpathが空。importも実行もしない。
+    std::function<DefinitionLocation(const QString& text, int end)> definition;
     /// Pythonの本文を構文チェックする。実行はしない。
     std::function<AnalysisResult(const QString& source)> analyze;
     /// Mayaの出力のうち、まだ画面へ渡していないものを取り出す(1回取り出したものは消える)。

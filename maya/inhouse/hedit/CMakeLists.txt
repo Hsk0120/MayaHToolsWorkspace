@@ -94,17 +94,20 @@ add_custom_command(
 # plugin/ : Maya APIを使う部分(コマンド・出力の購読・ドック・メニュー)
 set(HEDIT_CORE_SOURCES
     src/core/output_message.h
+    src/core/code_outline.cpp src/core/code_outline.h
     src/core/completion_types.cpp src/core/completion_types.h
     src/core/completion_engine.cpp src/core/completion_engine.h
     src/core/docstrings.cpp src/core/docstrings.h
     src/core/history_text.cpp src/core/history_text.h
     src/core/json_file.cpp src/core/json_file.h
+    src/core/line_diff.cpp src/core/line_diff.h
     src/core/module_scanner.cpp src/core/module_scanner.h
     src/core/python_declarations.cpp src/core/python_declarations.h
     src/core/python_literal.cpp src/core/python_literal.h
     src/core/script_file.cpp src/core/script_file.h
     src/core/script_lexer.cpp src/core/script_lexer.h
     src/core/session_data.cpp src/core/session_data.h
+    src/core/signature_help.cpp src/core/signature_help.h
     src/core/symbols.cpp src/core/symbols.h
     src/core/text_search.cpp src/core/text_search.h
 )
@@ -112,7 +115,9 @@ set(HEDIT_EDITOR_SOURCES
     src/editor/editor.cpp src/editor/editor.h
     src/editor/main_window.cpp src/editor/main_window_menus.cpp src/editor/main_window.h
     src/editor/code_assist.cpp src/editor/code_assist.h
-    src/editor/code_editor.cpp src/editor/code_editor.h
+    src/editor/code_editor.cpp src/editor/code_editor_view.cpp src/editor/code_editor.h
+    src/editor/code_navigation.cpp src/editor/code_navigation.h
+    src/editor/diff_dialog.cpp src/editor/diff_dialog.h
     src/editor/edit_commands.cpp src/editor/edit_commands.h
     src/editor/editor_preferences.cpp src/editor/editor_preferences.h
     src/editor/editor_tabs.cpp src/editor/editor_tabs.h
@@ -120,9 +125,12 @@ set(HEDIT_EDITOR_SOURCES
     src/editor/find_bar.cpp src/editor/find_bar.h
     src/editor/find_icons.cpp src/editor/find_icons.h
     src/editor/hover_popup.cpp src/editor/hover_popup.h
+    src/editor/marker_scroll_bar.cpp src/editor/marker_scroll_bar.h
     src/editor/numbered_text_edit.cpp src/editor/numbered_text_edit.h
+    src/editor/outline_panel.cpp src/editor/outline_panel.h
     src/editor/output_panel.cpp src/editor/output_panel.h
     src/editor/problems_panel.cpp src/editor/problems_panel.h
+    src/editor/quick_pick.cpp src/editor/quick_pick.h
     src/editor/session_store.cpp src/editor/session_store.h
     src/editor/spelling.cpp src/editor/spelling.h
     src/editor/syntax_highlighter.cpp src/editor/syntax_highlighter.h

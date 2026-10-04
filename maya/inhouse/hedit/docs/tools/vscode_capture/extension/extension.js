@@ -2,7 +2,7 @@
 // 環境変数 HEDIT_VSCODE_SCRIPT が指す JSON の手順を、VS Code の起動後に上から順に実行する。
 //   {"file": 開くファイル, "selection": [行, 列, 行, 列], "done": 完了の印を書くファイル,
 //    "steps": [
-//      {"command": コマンドID, "args": 引数},   // VS Code のコマンドを実行する
+//      {"command": コマンドID, "args": 引数},   // VS Code のコマンドを実行する("noWait": true で完了を待たない)
 //      {"wait": ミリ秒},                         // 待つ
 //      {"select": [行, 列, 行, 列]},             // 選択範囲を変える(行・列は0始まり)
 //      {"capture": 名前, "settle": ミリ秒}       // 撮影の合図を出し、capture.py が撮り終わるまで待つ
@@ -54,7 +54,14 @@ async function activate() {
                 continue;
             }
             try {
-                await vscode.commands.executeCommand(step.command, ...(step.args === undefined ? [] : [step.args]));
+                const running = vscode.commands.executeCommand(step.command, ...(step.args === undefined ? [] : [step.args]));
+                if (step.noWait) {
+                    // 名前の変更・クイックフィックスなど、入力が終わるまで完了しないコマンドは待たない。
+                    running.then(undefined, error => log.push({ command: step.command, ok: false, error: String(error) }));
+                    await sleep(step.noWait === true ? 300 : step.noWait);
+                } else {
+                    await running;
+                }
                 log.push({ command: step.command, ok: true });
             } catch (error) {
                 log.push({ command: step.command, ok: false, error: String(error) });

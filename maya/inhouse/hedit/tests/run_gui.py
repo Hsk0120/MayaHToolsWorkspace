@@ -15,7 +15,7 @@ if __name__ == '__main__':
     parser.add_argument('version', nargs='?', default='2027', choices=['2022', '2023', '2024', '2025', '2026', '2027'])
     parser.add_argument('--timeout', type=int, default=120)
     parser.add_argument('--shutdown-timeout', type=int, default=30)
-    parser.add_argument('--suite', choices=['gui_smoke.py', 'completion_output_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py'], default='gui_smoke.py')
+    parser.add_argument('--suite', choices=['gui_smoke.py', 'completion_output_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py', 'vscode_features_smoke.py'], default='gui_smoke.py')
     args = parser.parse_args()
     if args.timeout <= 0 or args.shutdown_timeout <= 0:
         parser.error('timeouts must be positive')

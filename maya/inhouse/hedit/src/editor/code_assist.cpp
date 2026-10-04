@@ -2,8 +2,10 @@
  * @brief CodeAssistの実装。
  */
 #include "editor/code_assist.h"
+#include "core/signature_help.h"
 #include "editor/code_editor.h"
 #include "editor/editor_preferences.h"
+#include "editor/hover_popup.h"
 #include "editor/problems_panel.h"
 #include <QLabel>
 #include <QTextBlock>
@@ -46,6 +48,21 @@ CodeAssist::CodeAssist(const EditorServices& services, const EditorPreferences& 
     analysisTimer_.setInterval(800);
     connect(&analysisTimer_, &QTimer::timeout, this, [this] { runAnalysis(); });
 
+    signatureTimer_.setSingleShot(true);
+    signatureTimer_.setInterval(60);
+    connect(&signatureTimer_, &QTimer::timeout, this, [this] {
+        if (signatureEditor_) {
+            updateSignatureHelp(signatureEditor_);
+        }
+    });
+    detailTimer_.setSingleShot(true);
+    detailTimer_.setInterval(120);
+    connect(&detailTimer_, &QTimer::timeout, this, [this] {
+        if (detailEditor_) {
+            updateCompletionDetail(detailEditor_);
+        }
+    });
+
     spellingTimer_.setSingleShot(true);
     spellingTimer_.setInterval(450);
     connect(&spellingTimer_, &QTimer::timeout, this, [this] {
@@ -64,6 +81,77 @@ void CodeAssist::attach(CodeEditor* editor) {
     editor->onCompletionRequested = [this] { requestCompletion(true); };
     // 接続先のeditorはタブと一緒に破棄されるが、関数はeditorが持つので、破棄後に呼ばれることはない。
     editor->onHoverRequested = [this, editor](int end) { return describe(editor, end); };
+    editor->onSignatureHelpRequested = [this, editor](bool explicitRequest) {
+        signatureEditor_ = editor;
+        if (explicitRequest) {
+            updateSignatureHelp(editor);
+        } else {
+            signatureTimer_.start();
+        }
+    };
+    editor->onCompletionSelectionChanged = [this, editor] {
+        detailEditor_ = editor;
+        detailTimer_.start();
+    };
+}
+
+void CodeAssist::updateSignatureHelp(CodeEditor* editor) {
+    if (!services_.describe || editor != context_.currentEditor() || editor->isMel() || !editor->hasFocus()) {
+        editor->hideSignatureHelp();
+        return;
+    }
+    QTextCursor cursor = editor->textCursor();
+    if (cursor.hasSelection() || cursor.position() > kDocumentLimit) {
+        editor->hideSignatureHelp();
+        return;
+    }
+    cursor.setPosition(0, QTextCursor::KeepAnchor);
+    const CallContext call = findCallContext(normalizeSelectedText(cursor.selectedText()));
+    if (call.nameEnd < 0) {
+        editor->hideSignatureHelp();
+        return;
+    }
+    HoverInfo info = describe(editor, call.nameEnd);
+    SignatureParts parts = splitSignature(info.signature);
+    if (info.signature.startsWith("class ")) {
+        // クラスの呼出しは __init__ の引数を出す(self を除く)。
+        const QString text = normalizeSelectedText(editor->toPlainText()).left(call.nameEnd) + ".__init__";
+        const HoverInfo init = services_.describe(text, text.size());
+        parts = splitSignature(init.signature);
+        dropBoundParameter(&parts);
+        if (info.doc.isEmpty()) {
+            info.doc = init.doc;
+        }
+    } else if (call.attribute) {
+        dropBoundParameter(&parts);  // obj.method( では self を渡さない。
+    }
+    const QString family = editor->font().family();
+    if (parts.valid) {
+        const int active = activeParameterIndex(parts.parameters, call.argumentIndex, call.keyword);
+        editor->showSignatureHelp(HoverPopup::signatureHelpHtml(parts, active, info.doc, family));
+    } else if (!info.isEmpty()) {
+        editor->showSignatureHelp(HoverPopup::toHtml(info, family));
+    } else {
+        editor->hideSignatureHelp();
+    }
+}
+
+void CodeAssist::updateCompletionDetail(CodeEditor* editor) {
+    const QString name = editor->currentCompletion();
+    if (!services_.describe || name.isEmpty() || editor->isMel()) {
+        editor->hideCompletionDetail();
+        return;
+    }
+    QTextCursor cursor = editor->textCursor();
+    if (cursor.position() > kDocumentLimit) {
+        return;
+    }
+    // 入力途中の名前を、選んでいる候補に置き換えた本文で説明を求める(本文は変更しない)。
+    cursor.setPosition(0, QTextCursor::KeepAnchor);
+    QString before = normalizeSelectedText(cursor.selectedText());
+    before.chop(editor->completionPrefix().size());
+    const QString text = before + name;
+    editor->showCompletionDetail(services_.describe(text, text.size()));
 }
 
 void CodeAssist::onTextChanged(CodeEditor* editor) {
@@ -178,6 +266,13 @@ void CodeAssist::scheduleAnalysis() {
     CodeEditor* editor = context_.currentEditor();
     const bool enabled = preferences_.option(option::kStaticAnalysis) && editor && !editor->isMel();
     problems_->setVisible(enabled);
+    if (!preferences_.option(option::kStaticAnalysis)) {
+        for (CodeEditor* each : context_.editors()) {
+            each->setDiagnostics({});  // 構文チェックをオフにしたら波線も消す。
+        }
+    } else if (editor && editor->isMel()) {
+        editor->setDiagnostics({});
+    }
     if (enabled) {
         problems_->showWaiting();
         analysisTimer_.start();
@@ -189,7 +284,9 @@ void CodeAssist::runAnalysis() {
     if (!preferences_.option(option::kStaticAnalysis) || !services_.analyze || !editor || editor->isMel()) {
         return;
     }
-    problems_->showResult(services_.analyze(editor->toPlainText()));
+    const AnalysisResult result = services_.analyze(editor->toPlainText());
+    problems_->showResult(result);
+    editor->setDiagnostics(result.diagnostics);  // 本文にも波線を引く(説明はホバーとF8)。
 }
 
 void CodeAssist::scheduleSpelling() {

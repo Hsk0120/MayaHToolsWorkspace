@@ -9,6 +9,10 @@
 手順の中の ``{"capture": 名前}`` ごとに ``<出力フォルダ>/vscode_<名前>.png`` を書く。
 既定の出力先は ``.maya-output/vscode-capture/<日時>/``(Git 対象外)。
 
+手順の ``files``(相対パス→本文)で、開くフォルダに別のファイルも置ける(複数ファイルの検索などの撮影用)。
+手順の ``extensions``(フォルダ名の先頭の一覧。例: ``["ms-python.python-", "ms-python.vscode-pylance-"]``)は、
+``%USERPROFILE%/.vscode/extensions`` の該当する拡張機能を一時フォルダへ **コピー** して読み込む(元は書き換えない)。
+
 ユーザーの VS Code・設定・拡張機能には触れない。一時フォルダに専用の ``--user-data-dir`` と
 ``--extensions-dir`` を作り、撮影用の拡張機能(``extension/``)だけを ``--extensionDevelopmentPath`` で読み込む。
 撮影は Windows の PrintWindow を使うので、VS Code の窓がほかの窓の後ろにあっても撮れる。
@@ -148,6 +152,26 @@ def capture(hwnd, path):
     return width, height
 
 
+def copy_extensions(prefixes, destination):
+    """ユーザーの拡張機能のうち、指定の名前で始まるものを一時フォルダへコピーする。
+
+    Args:
+        prefixes (list[str]): 拡張機能のフォルダ名の先頭(``ms-python.python-`` など)。
+        destination (Path): 隔離した VS Code の ``--extensions-dir``。
+
+    Raises:
+        FileNotFoundError: 指定の拡張機能が見つからない場合。
+    """
+    source = Path(os.environ.get("USERPROFILE", "")) / ".vscode/extensions"
+    destination.mkdir(parents=True, exist_ok=True)
+    for prefix in prefixes:
+        matches = sorted(path for path in source.glob(prefix + "*") if path.is_dir())
+        if not matches:
+            raise FileNotFoundError("extension not found: " + prefix)
+        # 同じ拡張機能の版が複数あれば、名前の順で最後(新しい版)を使う。
+        shutil.copytree(matches[-1], destination / matches[-1].name)
+
+
 def run(script, output, code=None):
     """隔離した VS Code で手順を実行し、撮影する。
 
@@ -182,6 +206,11 @@ def run(script, output, code=None):
     folder.mkdir()
     sample = folder / script.get("fileName", "sample.py")
     sample.write_text(script.get("text", ""), encoding="utf-8")
+    for relative, text in script.get("files", {}).items():
+        extra = folder / relative
+        extra.parent.mkdir(parents=True, exist_ok=True)
+        extra.write_text(text, encoding="utf-8")
+    copy_extensions(script.get("extensions", []), work / "ext")
     done = work / "done.json"
     runtime_path = work / "script.json"
     runtime_path.write_text(json.dumps(dict(script, file=str(sample), done=str(done))), encoding="utf-8")

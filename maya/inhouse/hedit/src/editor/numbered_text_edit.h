@@ -4,6 +4,8 @@
 #pragma once
 #include <QPlainTextEdit>
 
+class QPainter;
+
 namespace hedit {
 
 class LineNumberArea;
@@ -24,8 +26,14 @@ public:
      */
     void setLineNumbersVisible(bool visible);
 
-    /** @brief 行番号の欄の幅。 @return ピクセル数。非表示なら0。 */
+    /** @brief 行番号の欄の幅(行番号の右の追加の欄を含む)。 @return ピクセル数。非表示なら0。 */
     int gutterWidth() const { return gutterWidth_; }
+
+    /** @brief 行番号の数字を描く部分の幅。 @return ピクセル数。これより右がextraGutterWidth()の欄。 */
+    int numberWidth() const { return numberWidth_; }
+
+    /** @brief 行番号の部品(テストと、追加の欄の描き直しに使う)。 @return 部品。所有者はこの欄。 */
+    QWidget* gutter() const;
 
     /** @brief 行番号を描く(LineNumberAreaのpaintEventから呼ばれる)。
      * @param event 描き直す範囲。
@@ -42,9 +50,30 @@ protected:
     /** @brief 大きさが変わったら、行番号の部品の大きさも合わせる。 @param event 大きさの変化。 */
     void resizeEvent(QResizeEvent* event) override;
 
-private:
+    /** @brief 行番号の右に足す欄の幅(コード欄の折りたたみの矢印など)。 @return ピクセル数。既定は0。 */
+    virtual int extraGutterWidth() const { return 0; }
+
+    /** @brief 1行分の、行番号の欄の追加の描画(変更の印・折りたたみの矢印)。既定は何もしない。
+     * @param painter 行番号の部品の描画。
+     * @param block 行。
+     * @param rect その行の、行番号の部品の中での範囲。
+     */
+    virtual void paintGutterBlock(QPainter& painter, const QTextBlock& block, const QRectF& rect);
+
+    /** @brief 全ての行を描いた後の、行番号の欄の上に重ねる描画(見出しの固定表示の行番号)。既定は何もしない。
+     * @param painter 行番号の部品の描画。
+     * @param rect 描き直す範囲。
+     */
+    virtual void paintGutterOverlay(QPainter& painter, const QRect& rect);
+
+    /** @brief 行番号の欄がクリックされた(折りたたみの矢印など)。既定は何もしない。 @param position 部品の中の位置。 */
+    virtual void gutterPressed(const QPoint& position);
+
     /** @brief 桁数とフォントから行番号の欄の幅を計算し、左の余白に反映する。 */
     void updateGutter();
+
+private:
+    friend class LineNumberArea;
 
     /** @brief 本文の描き直しに合わせて、行番号の必要な範囲だけを描き直す。
      * @param rect 描き直す本文の範囲。
@@ -54,6 +83,7 @@ private:
 
     LineNumberArea* lineNumberArea_;  ///< 行番号の部品。所有者はこの欄。
     int gutterWidth_ = 54;            ///< 行番号の欄の幅(ピクセル)。非表示なら0。
+    int numberWidth_ = 54;            ///< 行番号の数字を描く部分の幅(ピクセル)。
     bool showLineNumbers_ = true;     ///< 行番号を表示するか。
 };
 

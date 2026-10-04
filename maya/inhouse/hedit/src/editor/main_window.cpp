@@ -11,11 +11,15 @@
 #include "core/script_file.h"
 #include "editor/code_assist.h"
 #include "editor/code_editor.h"
+#include "editor/diff_dialog.h"
 #include "editor/editor_tabs.h"
 #include "editor/explorer.h"
 #include "editor/find_bar.h"
+#include "editor/hover_popup.h"
+#include "editor/outline_panel.h"
 #include "editor/output_panel.h"
 #include "editor/problems_panel.h"
+#include "editor/quick_pick.h"
 #include "editor/theme.h"
 #include "editor/ui_scale.h"
 #include <QAbstractItemView>
@@ -23,6 +27,9 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QCompleter>
+#include <QDir>
+#include <QDirIterator>
+#include <QPointer>
 #include <QDockWidget>
 #include <QFile>
 #include <QFileDialog>
@@ -30,6 +37,7 @@
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
 #include <QScrollBar>
 #include <QShortcut>
@@ -48,6 +56,12 @@ constexpr const char* kSessionIdProperty = "sessionId";
 /// コード欄の動的プロパティ: 最後に本文のファイルへ書いたときの文書の版(QTextDocument::revision)。
 /// 今の版と同じなら本文は変わっていないので、自動保存で本文のファイルを書き直さない。-1は未保存。
 constexpr const char* kSavedRevisionProperty = "sessionSavedRevision";
+
+/// アウトラインの表示の状態を保存する名前(EditorPreferences::flag)。
+constexpr const char* kOutlineVisibleFlag = "outlineVisible";
+
+/// ファイル名で開く(Ctrl+P)で、フォルダーから集めるファイルの上限。
+constexpr int kMaximumPickerFiles = 5000;
 
 /// 新しいタブ(復元するものが無いとき)の最初の本文。
 constexpr const char* kWelcomeText =
@@ -144,6 +158,7 @@ void MainWindow::buildLayout() {
             assist_->onCurrentChanged();
         }
         findBar_->scheduleRefresh();  // 検索バーを開いていれば、新しいタブで件数と強調を出し直す。
+        outlineTimer_.start();
     });
     // ドラッグでタブを並べ替えたら、その順番も自動保存する。
     connect(tabs_->tabBar(), &QTabBar::tabMoved, this, [this] { markSessionDirty(); });
@@ -192,6 +207,28 @@ void MainWindow::buildLayout() {
     addDockWidget(Qt::LeftDockWidgetArea, explorerDock_);
     explorerDock_->hide();
     connect(explorerDock_, &QDockWidget::visibilityChanged, this, [this] { markSessionDirty(); });
+
+    // ---- 左のドック: アウトライン(Explorerの下。表示の状態はpreferences.jsonに保存) ----
+    outlineDock_ = new QDockWidget("OUTLINE", this);
+    outlineDock_->setObjectName("outlineDock");
+    outline_ = new OutlinePanel(outlineDock_);
+    outline_->onActivated = [this](int line, int column) {
+        if (CodeEditor* editor = currentEditor()) {
+            moveCursorTo(editor, line, column);
+        }
+    };
+    outlineDock_->setWidget(outline_);
+    outlineDock_->setMinimumWidth(scaled(240));
+    addDockWidget(Qt::LeftDockWidgetArea, outlineDock_);
+    splitDockWidget(explorerDock_, outlineDock_, Qt::Vertical);
+    outlineDock_->setVisible(preferences_.flag(kOutlineVisibleFlag, false));
+    connect(outlineDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (visible) {
+            refreshOutline();
+        }
+    });
+
+    quickPick_ = new QuickPick(this);
 }
 
 void MainWindow::buildStatusBar() {
@@ -214,6 +251,9 @@ void MainWindow::buildStatusBar() {
 }
 
 void MainWindow::setUpTimers() {
+    outlineTimer_.setSingleShot(true);
+    outlineTimer_.setInterval(400);
+    connect(&outlineTimer_, &QTimer::timeout, this, [this] { refreshOutline(); });
     // 入力中に全タブをJSONにしてディスクへ書かないよう、最後の入力から1.5秒以上経ってから保存する。
     // 変化が無ければsaveSession()は何もしない(全タブをJSONにする処理も省く)。
     sessionTimer_.setInterval(1000);
@@ -247,6 +287,7 @@ CodeEditor* MainWindow::newTab(ScriptLanguage language) {
 
     assist_->attach(editor);  // Ctrl+Spaceとホバーの問い合わせ先。
     editor->onRunRequested = [this] { runCode(false); };
+    editor->onDefinitionRequested = [this, editor](int end, bool peek) { goToDefinition(editor, end, peek); };
     // キー入力の処理の途中でタブ(=キーを受け取った部品自身)を削除しないよう、処理の後へ予約する。
     // 予約の持ち主をeditorにしておけば、先にeditorが破棄された場合は予約も取り消される。
     editor->onCloseRequested = [this, editor] {
@@ -264,7 +305,14 @@ CodeEditor* MainWindow::newTab(ScriptLanguage language) {
         markSessionDirty();  // カーソルと選択の位置も復元するので保存する。
         editor->hideCompletions();
         const QTextCursor cursor = editor->textCursor();
-        showStatus(QString("Ln %1, Col %2  |  UTF-8").arg(cursor.blockNumber() + 1).arg(cursor.positionInBlock() + 1));
+        QString status = QString("Ln %1, Col %2").arg(cursor.blockNumber() + 1).arg(cursor.positionInBlock() + 1);
+        if (cursor.hasSelection()) {
+            status += QString(" (%1 selected)").arg(cursor.selectionEnd() - cursor.selectionStart());
+        }
+        showStatus(status + "  |  UTF-8");
+        if (editor == currentEditor() && outlineDock_->isVisible()) {
+            outline_->selectLine(cursor.blockNumber());
+        }
     });
     return editor;
 }
@@ -276,6 +324,7 @@ void MainWindow::onTextChanged(CodeEditor* editor) {
     tabs_->updateTitle(editor);
     if (editor == currentEditor()) {
         findBar_->scheduleRefresh();  // 本文が変わったので、検索の件数と強調を出し直す。
+        outlineTimer_.start();
     }
 }
 
@@ -341,7 +390,9 @@ void MainWindow::openFile(const QString& path) {
     CodeEditor* editor = newTab(languageForPath(path));
     editor->setPlainText(text);
     editor->setFilePath(absolute);
+    editor->setSavedText(text);
     editor->document()->setModified(false);
+    preferences_.addRecentFile(absolute);
     tabs_->updateTitle(editor);
     explorer_->addFolder(QFileInfo(absolute).absolutePath());
     updateExplorer();
@@ -375,7 +426,9 @@ bool MainWindow::saveFile(CodeEditor* editor, bool saveAs) {
         editor->setTextCursor(cursor);
     }
     editor->setFilePath(path);
+    editor->setSavedText(text);
     editor->document()->setModified(false);
+    preferences_.addRecentFile(QFileInfo(path).absoluteFilePath());
     tabs_->updateTitle(editor);
     markSessionDirty();
     explorer_->addFolder(QFileInfo(path).absolutePath());
@@ -429,8 +482,12 @@ void MainWindow::restoreSession() {
         bool differsFromFile = false;
         if (!tab.path.isEmpty()) {
             QFile original(tab.path);
-            differsFromFile = !original.open(QIODevice::ReadOnly)
-                              || QString::fromUtf8(original.readAll()) != editor->toPlainText();
+            const bool readable = original.open(QIODevice::ReadOnly);
+            const QString originalText = readable ? QString::fromUtf8(original.readAll()) : QString();
+            differsFromFile = !readable || originalText != editor->toPlainText();
+            if (readable) {
+                editor->setSavedText(originalText);  // 行番号の横の変更の印は、ファイルの内容と比べる。
+            }
         }
         editor->document()->setModified(tab.modified || differsFromFile);
         tabs_->updateTitle(editor);
@@ -621,6 +678,207 @@ void MainWindow::showStatus(const QString& text, int timeout) {
     statusBar()->showMessage(text, timeout);
 }
 
+// ===========================================================================
+// 移動(Goメニュー)・アウトライン・差分
+// ===========================================================================
+
+void MainWindow::moveCursorTo(CodeEditor* editor, int line, int column, bool focus) {
+    const QTextBlock block = editor->document()->findBlockByNumber(qMax(0, line));
+    if (!block.isValid()) {
+        return;
+    }
+    QTextCursor cursor(block);
+    cursor.setPosition(block.position() + qBound(0, column, block.length() - 1));
+    editor->setTextCursor(cursor);
+    editor->centerCursor();
+    if (focus) {
+        editor->setFocus(Qt::OtherFocusReason);
+    }
+}
+
+void MainWindow::goToDefinition(CodeEditor* editor, int end, bool peek) {
+    if (!editor || editor->isMel() || !services_.definition) {
+        return;
+    }
+    if (end < 0) {
+        showStatus("No name at the cursor", 3000);
+        return;
+    }
+    const DefinitionLocation location = services_.definition(normalizeSelectedText(editor->toPlainText()), end);
+    if (!location.found()) {
+        showStatus("No definition found (names without Python source, such as maya.cmds, cannot be followed)", 4000);
+        return;
+    }
+    if (peek) {
+        QString text = editor->toPlainText();
+        QString title = editor->displayName();
+        if (!location.path.isEmpty()) {
+            QString error;
+            if (!readScriptFile(location.path, &text, &error)) {
+                showStatus(error, 4000);
+                return;
+            }
+            title = QFileInfo(location.path).fileName();
+        }
+        const QStringList lines = text.split('\n');
+        const int first = qMax(0, location.line - 2);
+        const QString html = HoverPopup::snippetHtml(QString("%1:%2").arg(title).arg(location.line + 1),
+                                                     lines.mid(first, 16), first + 1, location.line + 1,
+                                                     editor->font().family());
+        editor->showPeek(html, end);
+        return;
+    }
+    CodeEditor* target = editor;
+    if (!location.path.isEmpty()) {
+        const QString absolute = QFileInfo(location.path).absoluteFilePath();
+        openFile(absolute);
+        target = currentEditor();
+        if (!target || QFileInfo(target->filePath()).absoluteFilePath() != absolute) {
+            return;
+        }
+    }
+    moveCursorTo(target, location.line, location.column);
+}
+
+void MainWindow::showSymbolPicker() {
+    CodeEditor* editor = currentEditor();
+    if (!editor) {
+        return;
+    }
+    const QList<OutlineEntry> entries = editor->outline();
+    QList<QuickPickItem> items;
+    for (const OutlineEntry& entry : entries) {
+        QString container;
+        for (int parent = entry.parent; parent >= 0; parent = entries[parent].parent) {
+            container = container.isEmpty() ? entries[parent].name : entries[parent].name + "." + container;
+        }
+        items.append({entry.name, container.isEmpty() ? entry.kind : container, entry.kind,
+                      QVariant::fromValue(QPoint(entry.column, entry.line))});
+    }
+    if (items.isEmpty()) {
+        showStatus("No symbols in this tab", 3000);
+        return;
+    }
+    // 一覧で選んでいる間は、その行を下見として表示する。Escで元の位置に戻す。
+    const QTextCursor original = editor->textCursor();
+    const int originalScroll = editor->verticalScrollBar()->value();
+    QPointer<CodeEditor> guard(editor);
+    quickPick_->onPreview = [this, guard](const QVariant& data) {
+        if (guard) {
+            const QPoint point = data.toPoint();
+            moveCursorTo(guard, point.y(), point.x(), false);
+        }
+    };
+    quickPick_->onAccepted = [this, guard](const QVariant& data) {
+        if (guard) {
+            const QPoint point = data.toPoint();
+            moveCursorTo(guard, point.y(), point.x());
+        }
+    };
+    quickPick_->onCanceled = [guard, original, originalScroll] {
+        if (guard) {
+            guard->setTextCursor(original);
+            guard->verticalScrollBar()->setValue(originalScroll);
+            guard->setFocus(Qt::OtherFocusReason);
+        }
+    };
+    quickPick_->open("Go to symbol in this tab", items,
+                     enclosingOutlineEntry(entries, editor->textCursor().blockNumber()));
+}
+
+void MainWindow::showFilePicker() {
+    QList<QuickPickItem> items;
+    QStringList seen;
+    auto add = [&items, &seen](const QString& path, const QString& note) {
+        const QString absolute = QFileInfo(path).absoluteFilePath();
+        if (seen.contains(absolute, Qt::CaseInsensitive) || !QFileInfo(absolute).isFile()) {
+            return;
+        }
+        seen.append(absolute);
+        items.append({QFileInfo(absolute).fileName(), note.isEmpty() ? QFileInfo(absolute).absolutePath() : note,
+                      "file", absolute});
+    };
+    for (const QString& path : preferences_.recentFiles()) {
+        add(path, "recently opened  " + QFileInfo(path).absolutePath());
+    }
+    for (const QString& root : explorer_->roots()) {
+        QDirIterator files(root, {"*.py", "*.mel"}, QDir::Files, QDirIterator::Subdirectories);
+        while (files.hasNext() && items.size() < kMaximumPickerFiles) {
+            const QString path = files.next();
+            // 隠しフォルダー(.git など)と __pycache__ は飛ばす。
+            const QString relative = QDir(root).relativeFilePath(path);
+            if (relative.startsWith('.') || relative.contains("/.") || relative.contains("__pycache__")) {
+                continue;
+            }
+            add(path, QString());
+        }
+    }
+    if (items.isEmpty()) {
+        showStatus("No files: open a folder in the Explorer or open a file first", 4000);
+        return;
+    }
+    quickPick_->onPreview = nullptr;
+    quickPick_->onAccepted = [this](const QVariant& data) {
+        openFile(data.toString());
+        if (CodeEditor* editor = currentEditor()) {
+            editor->setFocus(Qt::OtherFocusReason);
+        }
+    };
+    quickPick_->onCanceled = [this] {
+        if (CodeEditor* editor = currentEditor()) {
+            editor->setFocus(Qt::OtherFocusReason);
+        }
+    };
+    quickPick_->open("Search files by name (recently opened and Explorer folders)", items);
+}
+
+void MainWindow::compareWithSaved() {
+    CodeEditor* editor = currentEditor();
+    if (!editor) {
+        return;
+    }
+    if (!editor->hasSavedText()) {
+        showStatus("This tab has no saved file to compare with (save it first)", 4000);
+        return;
+    }
+    DiffDialog dialog(this, editor->displayName(), editor->savedText(), editor->toPlainText());
+    if (dialog.exec() == 2) {
+        // 保存した内容へ戻す(1回のUndoで取り消せる)。
+        QTextCursor cursor = editor->textCursor();
+        cursor.beginEditBlock();
+        cursor.select(QTextCursor::Document);
+        cursor.insertText(editor->savedText());
+        cursor.endEditBlock();
+    }
+}
+
+void MainWindow::refreshOutline() {
+    if (!outlineDock_ || !outlineDock_->isVisible()) {
+        return;
+    }
+    CodeEditor* editor = currentEditor();
+    outline_->setOutline(editor ? editor->outline() : QList<OutlineEntry>());
+    if (editor) {
+        outline_->selectLine(editor->textCursor().blockNumber());
+    }
+}
+
+void MainWindow::rebuildRecentMenu() {
+    recentMenu_->clear();
+    const QStringList recent = preferences_.recentFiles();
+    for (const QString& path : recent) {
+        QAction* action = recentMenu_->addAction(QFileInfo(path).fileName() + "    " + QFileInfo(path).absolutePath());
+        action->setEnabled(QFileInfo(path).isFile());
+        connect(action, &QAction::triggered, this, [this, path] { openFile(path); });
+    }
+    if (recent.isEmpty()) {
+        recentMenu_->addAction("(no recent files)")->setEnabled(false);
+        return;
+    }
+    recentMenu_->addSeparator();
+    recentMenu_->addAction("Clear recently opened", this, [this] { preferences_.clearRecentFiles(); });
+}
+
 void MainWindow::refreshOutputNow() {
     output_->refreshNow();
 }
@@ -630,6 +888,8 @@ void MainWindow::refreshOutputNow() {
 // ===========================================================================
 
 void MainWindow::applyPreferences(CodeEditor* editor) {
+    editor->setAutoClosing(preferences_.option(option::kAutoClosing));
+    editor->setStickyScroll(preferences_.option(option::kStickyScroll));
     editor->setSmartIndent(preferences_.option(option::kSmartIndent));
     editor->setBackspaceToIndentStop(preferences_.option(option::kBackspaceIndent));
     editor->setWhitespaceVisible(preferences_.option(option::kWhitespace));

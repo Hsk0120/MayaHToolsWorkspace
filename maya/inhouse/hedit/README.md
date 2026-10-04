@@ -106,7 +106,7 @@ hedit.show(floating=False)
 
 View → Zoom in / Zoom out / Reset zoom、またはCtrl+=（Ctrl++）／Ctrl+-／Ctrl+0でコード欄と出力欄の文字サイズを変更できます。コード欄は10〜28px（標準14px）、Outputは2px小さい8〜26px（標準12px）で、設定は次回起動に引き継ぎます。Maya標準のメニュー等のサイズは変更しません。
 
-既存の実行操作を保つため、**Ctrl+Enterはスクリプト実行のまま**です。VS Codeの「下に行を挿入」とは異なります。F5もheditでは全体実行です。マルチカーソル（Ctrl+Dなど）、コード整形、定義ジャンプ、VS Code全機能のキー互換は未対応です。
+既存の実行操作を保つため、**Ctrl+Enterはスクリプト実行のまま**です。VS Codeの「下に行を挿入」とは異なります。F5もheditでは全体実行です。マルチカーソル（Ctrl+Dなど）、コード整形、画面の分割、コマンドパレット、VS Code全機能のキー互換は未対応です。定義へ移動（F12）・記号へ移動（Ctrl+Shift+O）・折りたたみなどは0.4.0で対応しました（docs/shortcuts.rst）。
 
 キーの参考: [VS Code Windows公式ショートカット](https://code.visualstudio.com/shortcuts/keyboard-shortcuts-windows.pdf)。
 

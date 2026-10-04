@@ -47,6 +47,13 @@ CompletionResult complete(const QString& source);
  */
 HoverInfo describe(const QString& text, int end);
 
+/** @brief 名前の定義の場所を返す(定義へ移動)。補完と同じく、import も実行もしない。
+ * @param text 本文全体。
+ * @param end 名前の終わりの位置。
+ * @return 場所。編集中の本文の中ならpathが空。見つからなければlineが-1。
+ */
+DefinitionLocation definition(const QString& text, int end);
+
 /** @brief 本文の宣言をJSONで返す(テスト用の``hedit -declarations``。Pythonのastとの突き合わせに使う)。
  * @param source 本文。
  * @return ``{"名前": {...}}``の形のJSON。

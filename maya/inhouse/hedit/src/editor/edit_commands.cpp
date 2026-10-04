@@ -296,6 +296,8 @@ EditCommand editCommandForKey(const QKeyEvent* event, bool hasSelection) {
     if (modifiers == (Qt::AltModifier | Qt::ShiftModifier)) {
         if (key == Qt::Key_Up) return EditCommand::CopyUp;
         if (key == Qt::Key_Down) return EditCommand::CopyDown;
+        if (key == Qt::Key_Right) return EditCommand::ExpandSelection;
+        if (key == Qt::Key_Left) return EditCommand::ShrinkSelection;
     }
     // Shift+TabはQtではKey_Backtabとして届くことがある。
     if ((key == Qt::Key_Backtab || key == Qt::Key_Tab) && modifiers == Qt::ShiftModifier) return EditCommand::Outdent;

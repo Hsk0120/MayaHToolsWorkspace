@@ -421,6 +421,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-05 | maya/inhouse/hedit(src・tests・docs・release/*.mll)・maya/modules/hedit.mod | hedit 0.4.0: VS Code比較メモのおすすめ1〜10を実装(同じ名前・括弧の強調、括弧の自動で閉じる、引数のヒント、縦線、スクロールバーの印、補完の種類と説明、記号へ移動・アウトライン、定義へ移動・その場で見る、選択範囲の拡大、未定義の名前と波線・F8、最近開いたもの・Ctrl+P、折りたたみ、見出しの固定表示、保存前との差分)。2022〜2027でビルド(警告0)と単体テスト合格、新GUIテスト(vscode_features_smoke)は2022/2024/2026/2027、既存GUIテストは2024/2027、session・startupも合格。未コミット。 |
 | Claude Code | 2026-10-05 | maya/inhouse/hedit/docs/tools/vscode_capture(capture.py・extension.js)・docs/research/hedit-ux-20261005(ローカル) | VS Codeの操作を25場面撮影し、heditとのUI/UXの差と優先順をローカルメモにまとめた。撮影ツールに拡張機能のコピー(files/extensions)と完了を待たないコマンド(noWait)を追加。hedit本体は未変更。未コミット。 |
 | Claude Code | 2026-10-04 | maya/inhouse/hedit(src/editor/code_editor.*・main_window.cpp・code_assist.cpp・tests/ui_smoke.cpp・docs/changelog.rst・release/*.mll) | Shift+Enter・貼り付けで入るU+2028(行区切り)を普通の改行にし、実行・補完へ渡す文字列でも改行へ変換。2022〜2027でビルドと単体テスト合格。 |
 | Claude Code | 2026-10-04 | maya/inhouse/hedit(src/editor/code_editor.cpp・src/core/completion_engine.*・src/core/symbols.*・src/core/python_declarations.cpp・src/python/hedit/bridge.py・tests・docs・release/*.mll) | 補完のEnter確定でフォーカスがアウトライナ等へ飛ぶ問題を修正。代入(x = pkg.Class(...))・変数/引数の型ヒントからの型推論を追加し、親クラスのメンバーも補完・ホバー。2022〜2027でビルドと単体テスト合格、補完GUIテスト(新しいEnter確認を含む)は2027で合格。 |

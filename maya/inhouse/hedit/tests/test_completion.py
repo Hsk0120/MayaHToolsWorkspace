@@ -270,6 +270,43 @@ class CompletionTests(unittest.TestCase):
             self.assertEqual(diagnostics, [])
         self.assertEqual(json.loads(analyze('value = 1 == 2'))['diagnostics'], [])
 
+    def test_analysis_reports_undefined_names(self):
+        """未定義の名前を警告にする。組み込み・定義済み・関数の中の変数・内包表記の変数は報告しない。"""
+        source = ('import maya.cmds as cmds\nLIMIT = 1\n\ndef build(count):\n    total = count + LIMIT\n'
+                  '    return [i for i in range(total)] + missing_name\n\nprint(cmds, build, undefined_top)\n')
+        diagnostics = json.loads(analyze(source))['diagnostics']
+        found = [(item['line'], item['message'], item['column'], item['length']) for item in diagnostics]
+        self.assertEqual(found, [(6, '"missing_name" is not defined', 40, 12),
+                                 (8, '"undefined_top" is not defined', 20, 13)])
+        for item in diagnostics:
+            self.assertEqual(item['severity'], 'warning')
+
+    def test_analysis_skips_names_from_main_and_star_import(self):
+        """Mayaで前に実行して __main__ にある名前と、``from X import *`` があるときは報告しない(誤検知を避ける)。"""
+        import __main__
+        with mock.patch.object(__main__, 'hedit_main_probe', 1, create=True):
+            self.assertEqual(json.loads(analyze('print(hedit_main_probe)'))['diagnostics'], [])
+        self.assertEqual(json.loads(analyze('from os import *\nprint(path_unknown)'))['diagnostics'], [])
+        # 関数の中で global と宣言して代入した名前は定義済み。
+        source = 'def setup():\n    global CONFIG\n    CONFIG = 1\n\ndef use():\n    return CONFIG\n'
+        self.assertEqual(json.loads(analyze(source))['diagnostics'], [])
+
+    def test_definition_of_source_file_and_local_names(self):
+        """定義へ移動: まだ読み込んでいない .py の中のメソッド・関数の引数。実行・importはしない。"""
+        method = json.loads(cmds.heditTest(definition='import sample\nsample.Example.get_value'))
+        self.assertTrue(method['path'].endswith('sample.py'), method)
+        self.assertEqual(method['line'], 6)
+        local = json.loads(cmds.heditTest(definition='def make(size):\n    return size'))
+        self.assertEqual((local['path'], local['line'], local['column']), ('', 0, 9))
+        self.assertNotIn('sample', sys.modules)
+
+    def test_definition_of_hlib_class(self):
+        """hlib.nodes.Joints の定義は hlib/nodes/joint.py の class Joints。"""
+        location = json.loads(cmds.heditTest(definition='import hlib\nhlib.nodes.Joints'))
+        self.assertTrue(location['path'].replace('\\', '/').endswith('hlib/nodes/joint.py'), location)
+        line = Path(location['path']).read_text(encoding='utf-8').split('\n')[location['line']]
+        self.assertTrue(line.startswith('class Joints'), line)
+
     def test_analysis_limits_and_null(self):
         self.assertIn('skipped', json.loads(analyze(' ' * 1_000_001)))
         self.assertIn('skipped', json.loads(analyze('\n' * 20_000)))

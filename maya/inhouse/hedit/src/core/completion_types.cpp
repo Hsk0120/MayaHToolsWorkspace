@@ -41,7 +41,8 @@ AnalysisResult analysisResultFromJson(const QByteArray& json) {
     }
     for (const QJsonValue& value : root["diagnostics"].toArray()) {
         const QJsonObject entry = value.toObject();
-        result.diagnostics.append({entry["severity"].toString(), entry["line"].toInt(1), entry["message"].toString()});
+        result.diagnostics.append({entry["severity"].toString(), entry["line"].toInt(1), entry["message"].toString(),
+                                   entry["column"].toInt(0), entry["length"].toInt(0)});
     }
     return result;
 }

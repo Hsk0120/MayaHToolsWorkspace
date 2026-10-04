@@ -28,6 +28,8 @@ enum class EditCommand {
     Redo,           ///< Ctrl+Shift+Z : テキストのやり直し。
     ToggleWrap,     ///< Alt+Z : 折り返し表示の切り替え。
     CloseTab,       ///< Ctrl+W / Ctrl+F4 : 現在のタブを閉じる。
+    ExpandSelection,  ///< Shift+Alt+→ : 選択範囲を意味のまとまりへ広げる(CodeEditorが扱う)。
+    ShrinkSelection,  ///< Shift+Alt+← : 広げる前の選択範囲へ戻す(CodeEditorが扱う)。
 };
 
 /** @brief キー入力から編集操作を選ぶ。

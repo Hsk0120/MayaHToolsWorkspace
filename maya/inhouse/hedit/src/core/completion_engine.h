@@ -71,6 +71,16 @@ public:
      */
     HoverInfo describe(const QString& text, int end);
 
+    /** @brief 名前の定義の場所を求める(定義へ移動・定義をその場で見る)。
+     * @param text 本文全体。
+     * @param end 名前の終わりの位置。
+     * @return 場所。編集中の本文の中ならpathが空。見つからなければlineが-1。
+     * @details ホバーと同じ手順で名前をたどり、定義のあるファイル(sys.pathの``.py``、読み込み済みなら``__file__``)の
+     * 構成(core/code_outline.h)から行を探す。関数の中の変数・引数は、カーソルより前の代入などを探す。
+     * importも実行もしない。``maya.cmds``のようにソースの無い名前は見つからない。
+     */
+    DefinitionLocation definition(const QString& text, int end);
+
     /** @brief 編集中の本文の宣言を返す。同じ本文なら前回の結果を使う。
      * @param text 本文(カーソルの行を除いた部分)。
      * @return 宣言。
@@ -178,6 +188,13 @@ private:
      * @return docstring。
      */
     QString moduleDocstring(Request& request, const QString& name, bool* found);
+
+    /** @brief モジュールのソースファイルを返す(sys.pathの``.py``、無ければ読み込み済みのモジュールの``__file__``)。
+     * @param request 今の問い合わせ。
+     * @param name モジュール名。
+     * @return ``.py``の絶対パス。無ければ空。
+     */
+    QString moduleFile(Request& request, const QString& name);
 
     /** @brief sys.pathを返す。1回の問い合わせの中では、最初に受け取ったものを使い回す。
      * @param request 今の問い合わせ。

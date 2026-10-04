@@ -25,6 +25,12 @@
 #include <QToolBar>
 
 namespace hedit {
+namespace {
+
+/// アウトラインの表示の状態を保存する名前(main_window.cppのkOutlineVisibleFlagと同じ)。
+constexpr const char* kOutlineVisibleFlagName = "outlineVisible";
+
+}  // namespace
 
 void MainWindow::buildMenusAndToolbar() {
     // ---- File ----
@@ -34,6 +40,11 @@ void MainWindow::buildMenusAndToolbar() {
     QAction* openAction = file->addAction("Open…", this, [this] {
         openFile(QFileDialog::getOpenFileName(this, "Open script", {}, "Scripts (*.py *.mel);;All files (*)"));
     }, QKeySequence::Open);
+    recentMenu_ = file->addMenu("Open recent");
+    recentMenu_->setObjectName("recentMenu");
+    connect(recentMenu_, &QMenu::aboutToShow, this, [this] { rebuildRecentMenu(); });
+    QAction* quickOpen = file->addAction("Quick open…", this, [this] { showFilePicker(); }, QKeySequence("Ctrl+P"));
+    quickOpen->setObjectName("quickOpen");
     file->addAction("Open folder…", this, [this] {
         const QString path = QFileDialog::getExistingDirectory(this, "Open folder");
         if (!path.isEmpty()) {
@@ -50,6 +61,9 @@ void MainWindow::buildMenusAndToolbar() {
     });
     QAction* saveAction = file->addAction("Save", this, [this] { saveFile(currentEditor()); }, QKeySequence::Save);
     file->addAction("Save as…", this, [this] { saveFile(currentEditor(), true); }, QKeySequence("Ctrl+Shift+S"));
+    QAction* compare = file->addAction("Compare with saved", this, [this] { compareWithSaved(); },
+                                       QKeySequence("Ctrl+K, D"));
+    compare->setObjectName("compareWithSavedAction");
     QAction* closeAction = file->addAction("Close tab", this, [this] { closeTab(tabs_->currentIndex()); });
     closeAction->setShortcuts({QKeySequence("Ctrl+W"), QKeySequence("Ctrl+F4")});
 
@@ -67,6 +81,18 @@ void MainWindow::buildMenusAndToolbar() {
             editor->showHoverAtCursor();
         }
     }, QKeySequence("Ctrl+K, Ctrl+I"));
+    edit->addSeparator();
+    edit->addAction("Expand selection", this, [this] {
+        if (CodeEditor* editor = currentEditor()) {
+            editor->expandSelection();
+        }
+    }, QKeySequence("Shift+Alt+Right"));
+    edit->addAction("Shrink selection", this, [this] {
+        if (CodeEditor* editor = currentEditor()) {
+            editor->shrinkSelection();
+        }
+    }, QKeySequence("Shift+Alt+Left"));
+    edit->addSeparator();
     QAction* clearInputAction = edit->addAction("Clear input", this, [this] { clearInput(); });
     QAction* clearBothAction = edit->addAction("Clear input and output", this, [this] {
         clearInput();
@@ -81,6 +107,29 @@ void MainWindow::buildMenusAndToolbar() {
     explorerAction->setObjectName("toggleExplorer");
     explorerAction->setShortcut(QKeySequence("Ctrl+B"));
     view->addAction(explorerAction);
+    QAction* outlineAction = outlineDock_->toggleViewAction();
+    outlineAction->setText("Outline");
+    outlineAction->setObjectName("toggleOutline");
+    view->addAction(outlineAction);
+    // 利用者が切り替えたときだけ保存する(ウィンドウを閉じるときの非表示は保存しない)。
+    connect(outlineAction, &QAction::triggered, this, [this](bool visible) {
+        preferences_.setFlag(kOutlineVisibleFlagName, visible);
+    });
+    view->addSeparator();
+    auto editorAction = [this](void (CodeEditor::*method)()) {
+        return [this, method] {
+            if (CodeEditor* editor = currentEditor()) {
+                (editor->*method)();
+            }
+        };
+    };
+    QAction* fold = view->addAction("Fold", this, editorAction(&CodeEditor::foldAtCursor));
+    fold->setShortcuts({QKeySequence("Ctrl+Shift+["), QKeySequence("Ctrl+{")});
+    QAction* unfold = view->addAction("Unfold", this, editorAction(&CodeEditor::unfoldAtCursor));
+    unfold->setShortcuts({QKeySequence("Ctrl+Shift+]"), QKeySequence("Ctrl+}")});
+    view->addAction("Fold all", this, editorAction(&CodeEditor::foldAll), QKeySequence("Ctrl+K, Ctrl+0"));
+    view->addAction("Unfold all", this, editorAction(&CodeEditor::unfoldAll), QKeySequence("Ctrl+K, Ctrl+J"));
+    view->addSeparator();
     QAction* zoomIn = view->addAction("Zoom in", this, [this] { setZoom(preferences_.fontPixels() + 1); });
     zoomIn->setObjectName("zoomIn");
     zoomIn->setShortcuts({QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")});
@@ -94,6 +143,42 @@ void MainWindow::buildMenusAndToolbar() {
     QAction* showOutputAction = view->addAction("Show output only", this, [this] { showPanels(true, false); });
     QAction* showInputAction = view->addAction("Show input only", this, [this] { showPanels(false, true); });
     QAction* showBothAction = view->addAction("Show input and output", this, [this] { showPanels(true, true); });
+
+    // ---- Go ----
+    QMenu* go = menuBar()->addMenu("Go");
+    QAction* symbol = go->addAction("Go to symbol…", this, [this] { showSymbolPicker(); }, QKeySequence("Ctrl+Shift+O"));
+    symbol->setObjectName("goToSymbol");
+    go->addAction("Go to definition", this, [this] {
+        if (CodeEditor* editor = currentEditor()) {
+            goToDefinition(editor, editor->nameEndAtCursor(), false);
+        }
+    }, QKeySequence("F12"));
+    go->addAction("Peek definition", this, [this] {
+        if (CodeEditor* editor = currentEditor()) {
+            goToDefinition(editor, editor->nameEndAtCursor(), true);
+        }
+    }, QKeySequence("Alt+F12"));
+    go->addSeparator();
+    go->addAction("Next problem", this, [this] {
+        CodeEditor* editor = currentEditor();
+        if (editor && !editor->goToProblem(1)) {
+            showStatus("No problems (turn on Edit > Preferences > Static analysis)", 3000);
+        }
+    }, QKeySequence("F8"));
+    go->addAction("Previous problem", this, [this] {
+        CodeEditor* editor = currentEditor();
+        if (editor && !editor->goToProblem(-1)) {
+            showStatus("No problems (turn on Edit > Preferences > Static analysis)", 3000);
+        }
+    }, QKeySequence("Shift+F8"));
+    go->addSeparator();
+    go->addAction("Trigger parameter hints", this, [this] {
+        CodeEditor* editor = currentEditor();
+        if (editor && editor->onSignatureHelpRequested) {
+            editor->onSignatureHelpRequested(true);
+        }
+    }, QKeySequence("Ctrl+Shift+Space"));
+    go->addAction("Go to line…", this, [this] { showGoToLine(); });
 
     // ---- Tabs ----
     QMenu* tabMenu = menuBar()->addMenu("Tabs");

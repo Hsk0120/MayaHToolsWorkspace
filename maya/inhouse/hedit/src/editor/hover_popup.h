@@ -6,7 +6,9 @@
  */
 #pragma once
 #include "core/completion_types.h"
+#include "core/signature_help.h"
 #include <QFrame>
+#include <QStringList>
 #include <QRect>
 #include <QTimer>
 
@@ -23,12 +25,32 @@ public:
     /** @brief 小窓を作る。作成直後は非表示。 @param parent 所有者(コード欄)。 */
     explicit HoverPopup(QWidget* parent);
 
+    /** @brief 表示する位置。 */
+    enum class Placement {
+        Above,  ///< 対象の上(入らなければ下)。ホバー・引数のヒント。
+        Below,  ///< 対象の下(入らなければ上)。問題の説明・定義をその場で見る。
+        Right,  ///< 対象の右(入らなければ左)。補完の一覧の横の説明。
+    };
+
     /** @brief 説明を表示する。
      * @param info 見出しとdocstring。
      * @param anchor 説明の対象の名前の範囲(画面全体の座標)。この上に出し、上に入らなければ下に出す。
      * @param codeFont 見出しとコードに使うフォント(エディターと同じもの)。
+     * @param problems 同じ位置の問題(構文チェック)の説明。見出しより上に出す。
      */
-    void showInfo(const HoverInfo& info, const QRect& anchor, const QFont& codeFont);
+    void showInfo(const HoverInfo& info, const QRect& anchor, const QFont& codeFont,
+                  const QStringList& problems = QStringList());
+
+    /** @brief 作ったHTMLを表示する(引数のヒント・定義をその場で見る・補完の説明)。
+     * @param html 表示するHTML。
+     * @param anchor 対象の範囲(画面全体の座標)。
+     * @param codeFont エディターのフォント。docstringの文字の大きさもこれに合わせる。
+     * @param placement 表示する位置。
+     * @param maximumWidth 最大の幅(拡大率100%のピクセル数)。0なら既定(560)。
+     * @param maximumHeight 最大の高さ(拡大率100%のピクセル数)。0なら既定(320)。
+     */
+    void showHtml(const QString& html, const QRect& anchor, const QFont& codeFont, Placement placement = Placement::Above,
+                  int maximumWidth = 0, int maximumHeight = 0);
 
     /** @brief 名前の範囲(画面全体の座標)を返す。 @return 表示中の説明の対象。非表示なら空。 */
     QRect anchor() const { return isVisible() ? anchor_ : QRect(); }
@@ -45,6 +67,30 @@ public:
      * @return QTextDocumentで表示できるHTML。
      */
     static QString toHtml(const HoverInfo& info, const QString& codeFamily);
+
+    /** @brief 問題の説明をHTMLにする。 @param problems 説明。 @return HTMLの断片。 */
+    static QString problemsHtml(const QStringList& problems);
+
+    /** @brief 引数のヒントをHTMLにする(今の引数を太字と下線で示す)。
+     * @param parts 引数ごとに分けた見出し。
+     * @param active 今の引数の番号。-1なら強調しない。
+     * @param doc docstring。空なら出さない。
+     * @param codeFamily コードのフォント名。
+     * @return HTML。
+     */
+    static QString signatureHelpHtml(const SignatureParts& parts, int active, const QString& doc,
+                                     const QString& codeFamily);
+
+    /** @brief 定義の周りのコードをHTMLにする(定義をその場で見る)。
+     * @param title 見出し(``rig.py:13``)。
+     * @param lines 表示する行。
+     * @param firstLine linesの最初の行番号(1始まり)。
+     * @param highlight 強調する行の番号(1始まり)。
+     * @param codeFamily コードのフォント名。
+     * @return HTML。
+     */
+    static QString snippetHtml(const QString& title, const QStringList& lines, int firstLine, int highlight,
+                               const QString& codeFamily);
 
 protected:
     /** @brief マウスが小窓へ入ったら閉じる予約を取り消し、出たら閉じる予約をする。

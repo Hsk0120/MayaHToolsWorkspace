@@ -3,6 +3,7 @@
  */
 #include "editor/code_editor.h"
 #include "core/script_lexer.h"
+#include "editor/code_navigation.h"
 #include "editor/edit_commands.h"
 #include "editor/hover_popup.h"
 #include "editor/spelling.h"
@@ -12,6 +13,9 @@
 #include <QAbstractItemView>
 #include <QCompleter>
 #include <QElapsedTimer>
+#include <QHash>
+#include <QIcon>
+#include <QPixmap>
 #include <QHelpEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
@@ -19,10 +23,99 @@
 #include <QKeyEvent>
 #include <QMimeData>
 #include <QRegularExpression>
+#include <QPainter>
 #include <QStandardItemModel>
+#include <QStyledItemDelegate>
 #include <QTextBlock>
+#include <QTimer>
 
 namespace hedit {
+namespace {
+
+/// 補完の候補の、名前の右に出す説明(関数の引数など)を入れる役割。
+constexpr int kDetailRole = Qt::UserRole + 1;
+
+/** @brief 補完の種類のアイコン(色付きの文字)を作る。同じ種類は作り直さない。
+ * @param category CompletionItem::category。
+ * @return アイコン。
+ */
+QIcon categoryIcon(const QString& category) {
+    static QHash<QString, QIcon> cache;
+    const auto cached = cache.constFind(category);
+    if (cached != cache.constEnd()) {
+        return *cached;
+    }
+    QString letter = "v";
+    const char* color = theme::kSymbolVariable;
+    if (category == "function") {
+        letter = "f";
+        color = theme::kSymbolFunction;
+    } else if (category == "class") {
+        letter = "C";
+        color = theme::kSymbolClass;
+    } else if (category == "module") {
+        letter = "M";
+        color = theme::kSymbolModule;
+    } else if (category == "keyword") {
+        letter = "k";
+        color = theme::kSymbolKeyword;
+    } else if (category == "builtin") {
+        letter = "b";
+        color = theme::kSymbolFunction;
+    } else if (category == "import") {
+        letter = "i";
+        color = theme::kSymbolModule;
+    }
+    const int size = scaled(16);
+    QPixmap pixmap(size, size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(QColor(color), qMax(1, scaled(1))));
+    painter.drawRoundedRect(QRectF(1.5, 1.5, size - 3, size - 3), scaled(3), scaled(3));
+    QFont font("Consolas");
+    font.setPixelSize(scaled(11));
+    font.setBold(true);
+    painter.setFont(font);
+    painter.drawText(QRect(0, 0, size, size), Qt::AlignCenter, letter);
+    painter.end();
+    const QIcon icon(pixmap);
+    cache.insert(category, icon);
+    return icon;
+}
+
+/** @brief 補完の一覧の1行の描画。名前の右に、薄い色で説明(関数の引数など)を出す。 */
+class CompletionDelegate : public QStyledItemDelegate {
+public:
+    /** @brief 描画を作る。 @param parent 所有者(一覧)。 */
+    explicit CompletionDelegate(QObject* parent) : QStyledItemDelegate(parent) {}
+
+    /** @brief 名前(とアイコン)を描いてから、説明を右寄せで描く。
+     * @param painter 描画。 @param option 行の状態。 @param index 行。
+     */
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+        QStyledItemDelegate::paint(painter, option, index);
+        const QString detail = index.data(kDetailRole).toString();
+        const QString name = index.data(Qt::DisplayRole).toString();
+        if (detail.isEmpty() || detail == name) {
+            return;
+        }
+        const QFontMetrics metrics(option.font);
+        const int iconWidth = option.decorationSize.width() + scaled(8);
+        const int nameRight = option.rect.left() + iconWidth + metrics.horizontalAdvance(name) + scaled(16);
+        const QRect area(nameRight, option.rect.top(), option.rect.right() - scaled(6) - nameRight, option.rect.height());
+        if (area.width() < scaled(30)) {
+            return;
+        }
+        painter->save();
+        painter->setPen(QColor(theme::kCompletionDetail));
+        painter->setFont(option.font);
+        painter->drawText(area, Qt::AlignRight | Qt::AlignVCenter, metrics.elidedText(detail, Qt::ElideRight, area.width()));
+        painter->restore();
+    }
+};
+
+}  // namespace
 
 CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
     setObjectName("codeEditor");
@@ -56,11 +149,18 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
             .arg(QString(theme::kPopupSelection))
             .arg(QString(theme::kPopupSelectedText))
             .arg(scaled(3)));
+    completer_->popup()->setItemDelegate(new CompletionDelegate(completer_->popup()));
+    completer_->popup()->setIconSize(QSize(scaled(16), scaled(16)));
     // 一覧で候補が選ばれたら本文へ入れる。
     connect(completer_, QOverload<const QString&>::of(&QCompleter::activated), this,
             [this](const QString& value) { insertCompletion(value); });
 
-    connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this] { updateDecorations(); });
+    // 印を描くスクロールバーに置き換えるので、スクロールバーへの接続はこの後で行う。
+    setUpView();
+    connect(this, &QPlainTextEdit::cursorPositionChanged, this, [this] {
+        onCursorMoved();
+        updateDecorations();
+    });
 
     // 名前の説明(ホバー): マウスの移動を受け取り、名前から離れたら閉じる。スクロールでも閉じる。
     viewport()->setMouseTracking(true);
@@ -94,7 +194,8 @@ bool CodeEditor::nameAt(int position, int* start, int* end) const {
 
 void CodeEditor::showHover(int start, int end) {
     const HoverInfo info = onHoverRequested ? onHoverRequested(end) : HoverInfo();
-    if (info.isEmpty()) {
+    const QStringList problems = problemsAt(start);
+    if (info.isEmpty() && problems.isEmpty()) {
         hideHover();
         return;
     }
@@ -109,7 +210,16 @@ void CodeEditor::showHover(int start, int end) {
     const QRect last = cursorRect(cursor);
     const QRect local(first.topLeft(), QPoint(last.right(), qMax(first.bottom(), last.bottom())));
     const QRect anchor(viewport()->mapToGlobal(local.topLeft()), local.size());
-    hover_->showInfo(info, anchor, font());
+    hover_->showInfo(info, anchor, font(), problems);
+}
+
+int CodeEditor::nameEndAtCursor() const {
+    int start = 0;
+    int end = 0;
+    if (isMel() || !nameAt(textCursor().position(), &start, &end)) {
+        return -1;
+    }
+    return end;
 }
 
 void CodeEditor::showHoverAtCursor() {
@@ -128,6 +238,35 @@ void CodeEditor::hideHover() {
 }
 
 bool CodeEditor::viewportEvent(QEvent* event) {
+    // Ctrl+クリック: 名前の定義へ移動する(VS Codeと同じ)。
+    if (event->type() == QEvent::MouseButtonPress && !isMel() && onDefinitionRequested) {
+        auto mouse = static_cast<QMouseEvent*>(event);
+        if (mouse->button() == Qt::LeftButton && mouse->modifiers() == Qt::ControlModifier) {
+            const QTextCursor cursor = cursorForPosition(mouse->pos());
+            int start = 0;
+            int end = 0;
+            if (nameAt(cursor.position(), &start, &end)) {
+                setTextCursor(cursor);
+                hideHover();
+                onDefinitionRequested(end, false);
+                return true;
+            }
+        }
+    }
+    if (event->type() == QEvent::ToolTip && !diagnostics_.isEmpty() && (isMel() || !onHoverRequested)) {
+        // MELのタブなど名前の説明が無い場合も、問題の説明は出す。
+        auto help = static_cast<QHelpEvent*>(event);
+        const QTextCursor cursor = cursorForPosition(help->pos());
+        const QStringList problems = problemsAt(cursor.position());
+        if (!problems.isEmpty()) {
+            if (!hover_) {
+                hover_ = new HoverPopup(this);
+            }
+            const QRect rect = cursorRect(cursor);
+            hover_->showInfo(HoverInfo(), QRect(viewport()->mapToGlobal(rect.topLeft()), rect.size()), font(), problems);
+        }
+        return true;
+    }
     if (event->type() == QEvent::ToolTip && !isMel() && onHoverRequested) {
         // マウスが少し止まった: その位置が名前の上なら説明を出す。
         auto help = static_cast<QHelpEvent*>(event);
@@ -144,6 +283,14 @@ bool CodeEditor::viewportEvent(QEvent* event) {
             if (!hover_ || !hover_->anchor().contains(global)) {
                 showHover(start, end);
             }
+        } else if (onText && !problemsAt(cursor.position()).isEmpty()) {
+            // 名前でない位置(記号・文字列など)の問題の説明。
+            if (!hover_) {
+                hover_ = new HoverPopup(this);
+            }
+            const QRect rect = cursorRect(cursor);
+            hover_->showInfo(HoverInfo(), QRect(viewport()->mapToGlobal(rect.topLeft()), rect.size()), font(),
+                             problemsAt(cursor.position()));
         } else {
             hideHover();
         }
@@ -165,12 +312,16 @@ bool CodeEditor::viewportEvent(QEvent* event) {
             hideHover();
         }
     }
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::Wheel) {
+        hidePeek();
+    }
     return NumberedTextEdit::viewportEvent(event);
 }
 
 void CodeEditor::focusOutEvent(QFocusEvent* event) {
     // 小窓自体はフォーカスを取らないので、別の部品へ移ったときだけ閉じる。
     hideHover();
+    hideSignatureHelp();
     NumberedTextEdit::focusOutEvent(event);
 }
 
@@ -181,6 +332,8 @@ void CodeEditor::setLanguage(ScriptLanguage language) {
     highlighter_->setMel(isMel());
     highlighter_->rehighlight();
     hideCompletions();
+    outlineRevision_ = -1;  // 構成の読み方(Python/MEL)が変わる。
+    updateSticky();
 }
 
 void CodeEditor::setFilePath(const QString& path) {
@@ -217,8 +370,9 @@ void CodeEditor::showCompletions(const QList<CompletionItem>& items) {
     model->clear();
     for (const CompletionItem& item : items) {
         // appendRowに渡した項目は、モデルが所有する。
-        auto row = new QStandardItem(item.name);
+        auto row = new QStandardItem(categoryIcon(item.category.isEmpty() ? item.kind : item.category), item.name);
         row->setToolTip(item.detail);
+        row->setData(item.detail, kDetailRole);
         model->appendRow(row);
     }
     if (model->rowCount() == 0) {
@@ -227,14 +381,18 @@ void CodeEditor::showCompletions(const QList<CompletionItem>& items) {
     }
     completer_->setCompletionPrefix(completionPrefix());
     completer_->popup()->setCurrentIndex(completer_->completionModel()->index(0, 0));
-    // カーソルの位置に、幅380px(100%時)の一覧を出す。
+    // カーソルの位置に、幅480px(100%時)の一覧を出す(名前の右に説明を出すため、以前の380pxより広い)。
     QRect rect = cursorRect();
-    rect.setWidth(scaled(380));
+    rect.setWidth(scaled(480));
     completer_->complete(rect);
+    if (onCompletionSelectionChanged) {
+        onCompletionSelectionChanged();
+    }
 }
 
 void CodeEditor::hideCompletions() {
     completer_->popup()->hide();
+    hideCompletionDetail();
 }
 
 void CodeEditor::insertCompletion(const QString& value) {
@@ -290,6 +448,7 @@ void CodeEditor::clearSpelling() {
 
 void CodeEditor::setSearchHighlights(const QList<TextMatch>& matches) {
     searchMarks_.clear();
+    markerTimer_.start();
     for (const TextMatch& match : matches) {
         QTextEdit::ExtraSelection mark;
         mark.cursor = QTextCursor(document());
@@ -306,6 +465,7 @@ void CodeEditor::clearSearchHighlights() {
         return;
     }
     searchMarks_.clear();
+    markerTimer_.start();
     updateDecorations();
 }
 
@@ -316,10 +476,13 @@ void CodeEditor::updateDecorations() {
     currentLine.format.setProperty(QTextFormat::FullWidthSelection, true);
     currentLine.cursor = textCursor();
     currentLine.cursor.clearSelection();
-    // 後ろのものほど上に重なる: カーソル行 → 検索の一致 → スペルの波線。
+    // 後ろのものほど上に重なる: カーソル行 → 同じ名前 → 括弧 → 検索の一致 → 問題の波線 → スペルの波線。
     QList<QTextEdit::ExtraSelection> selections;
     selections.append(currentLine);
+    selections.append(wordMarks_);
+    selections.append(bracketMarks_);
     selections.append(searchMarks_);
+    selections.append(diagnosticMarks_);
     selections.append(spellingMarks_);
     setExtraSelections(selections);
 }
@@ -349,13 +512,32 @@ bool CodeEditor::event(QEvent* event) {
 }
 
 void CodeEditor::keyPressEvent(QKeyEvent* event) {
-    // 0. 名前の説明を出している間のキー入力: Escは閉じるだけ、それ以外は閉じてから通常どおり処理する。
-    if (hover_ && hover_->isVisible()) {
+    // 0. 名前の説明・定義をその場で見る表示を出している間のキー入力: Escは閉じるだけ、
+    //    それ以外は閉じてから通常どおり処理する。
+    const bool escape = event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier;
+    const bool popupOpen = (hover_ && hover_->isVisible()) || (peek_ && peek_->isVisible())
+                           || (problemPopup_ && problemPopup_->isVisible());
+    if (popupOpen) {
         hideHover();
-        if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier) {
+        hidePeek();
+        if (escape) {
             event->accept();
             return;
         }
+    }
+    // 引数のヒントはEscで閉じる(補完の一覧が開いていれば、先に一覧を閉じる)。
+    if (escape && isSignatureHelpVisible() && !completer_->popup()->isVisible()) {
+        hideSignatureHelp();
+        event->accept();
+        return;
+    }
+    // ( と , の入力の後に、引数のヒントを求める(入力の処理が終わった後に予約する)。
+    if ((event->text() == "(" || event->text() == ",") && onSignatureHelpRequested && !isMel()) {
+        QTimer::singleShot(0, this, [this] {
+            if (onSignatureHelpRequested) {
+                onSignatureHelpRequested(false);
+            }
+        });
     }
 
     // 1. 実行キー(Ctrl+Enter)。
@@ -416,23 +598,49 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
         event->accept();
         return;
     }
+    if (command == EditCommand::ExpandSelection || command == EditCommand::ShrinkSelection) {
+        if (command == EditCommand::ExpandSelection) {
+            expandSelection();
+        } else {
+            shrinkSelection();
+        }
+        event->accept();
+        return;
+    }
     if (command != EditCommand::None) {
+        // 行の移動・削除などは、畳んだ範囲を開いてから行う(隠れた行を誤って動かさないため)。
+        if (command != EditCommand::SelectLine && command != EditCommand::CopyLine) {
+            unfoldAll();
+        }
         applyLineCommand(this, command, isMel() ? "//" : "#");
         event->accept();
         return;
     }
 
-    // 4. Ctrl+Spaceで補完を求める。
+    // 4. Ctrl+Spaceで補完を、Ctrl+Shift+Spaceで引数のヒントを求める。
     if (event->key() == Qt::Key_Space && event->modifiers() == Qt::ControlModifier) {
         if (onCompletionRequested) {
             onCompletionRequested();
         }
         return;
     }
+    if (event->key() == Qt::Key_Space && event->modifiers() == (Qt::ControlModifier | Qt::ShiftModifier)) {
+        if (onSignatureHelpRequested && !isMel()) {
+            onSignatureHelpRequested(true);
+        }
+        event->accept();
+        return;
+    }
 
     // 5. 選択なしのTabは空白4文字。
     if (event->key() == Qt::Key_Tab && event->modifiers() == Qt::NoModifier) {
         insertPlainText("    ");
+        return;
+    }
+
+    // 5b. 括弧と引用符(自動で閉じる・閉じ括弧の上書き・選択を囲む・空の対をまとめて消す)。
+    if (handleAutoClosing(event)) {
+        event->accept();
         return;
     }
 
@@ -465,6 +673,102 @@ void CodeEditor::insertFromMimeData(const QMimeData* source) {
     text.replace(QChar(QChar::ParagraphSeparator), '\n');
     textCursor().insertText(text);
     ensureCursorVisible();
+}
+
+bool CodeEditor::handleAutoClosing(QKeyEvent* event) {
+    if (!autoClosing_ || (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+        return false;
+    }
+    static const QString openers = "([{";
+    static const QString closers = ")]}";
+    QTextCursor cursor = textCursor();
+    const QString line = cursor.block().text();
+    const int column = cursor.positionInBlock();
+    const QChar before = column > 0 ? line[column - 1] : QChar();
+    const QChar after = column < line.size() ? line[column] : QChar();
+    // 空の対 () "" の間でのBackspaceは、両方を消す。
+    if (event->key() == Qt::Key_Backspace) {
+        if (cursor.hasSelection() || before.isNull() || after.isNull()) {
+            return false;
+        }
+        const int opener = openers.indexOf(before);
+        const bool pair = (opener >= 0 && closers[opener] == after) || ((before == '"' || before == '\'') && after == before);
+        if (!pair) {
+            return false;
+        }
+        cursor.beginEditBlock();
+        cursor.deletePreviousChar();
+        cursor.deleteChar();
+        cursor.endEditBlock();
+        setTextCursor(cursor);
+        return true;
+    }
+    const QString typed = event->text();
+    if (typed.size() != 1) {
+        return false;
+    }
+    const QChar character = typed[0];
+    const bool quote = character == '"' || character == '\'';
+    const int opener = openers.indexOf(character);
+    if (opener < 0 && !quote && !closers.contains(character)) {
+        return false;
+    }
+    // 選択中に開き括弧・引用符を打つと、選択を囲む。
+    if (cursor.hasSelection() && (opener >= 0 || quote)) {
+        const QChar closing = quote ? character : closers[opener];
+        const int start = cursor.selectionStart();
+        const int end = cursor.selectionEnd();
+        cursor.beginEditBlock();
+        QTextCursor edit(document());
+        edit.setPosition(end);
+        edit.insertText(QString(closing));
+        edit.setPosition(start);
+        edit.insertText(QString(character));
+        cursor.endEditBlock();
+        QTextCursor selected(document());
+        selected.setPosition(start + 1);
+        selected.setPosition(end + 1, QTextCursor::KeepAnchor);
+        setTextCursor(selected);
+        return true;
+    }
+    if (cursor.hasSelection()) {
+        return false;
+    }
+    const bool insideText = isInsideStringOrComment(document(), language_, cursor.position());
+    // 閉じ括弧・閉じ引用符の上書き: 直後に同じ文字があれば、入れずにカーソルだけ進める。
+    if (after == character && (closers.contains(character) || (quote && insideText))) {
+        cursor.movePosition(QTextCursor::NextCharacter);
+        setTextCursor(cursor);
+        return true;
+    }
+    if (insideText || closers.contains(character)) {
+        return false;  // 文字列・コメントの中では閉じない。
+    }
+    const bool roomAfter = after.isNull() || after.isSpace() || closers.contains(after) || QString(",:;").contains(after);
+    if (!roomAfter) {
+        return false;
+    }
+    if (quote) {
+        if (before == character) {
+            return false;  // 三重引用符を打っている途中("" の次の ")。
+        }
+        if (isNamePart(before)) {
+            // 直前が名前なら、文字列の接頭辞(r・b・f・u・rb など)のときだけ閉じる。
+            int start = column;
+            while (start > 0 && isNamePart(line[start - 1])) {
+                --start;
+            }
+            static const QRegularExpression prefix("^(?:[rRbBfFuU]|[rR][bBfF]|[bBfF][rR])$");
+            if (!prefix.match(line.mid(start, column - start)).hasMatch()) {
+                return false;
+            }
+        }
+    }
+    const QChar closing = quote ? character : closers[opener];
+    cursor.insertText(QString(character) + closing);
+    cursor.movePosition(QTextCursor::PreviousCharacter);
+    setTextCursor(cursor);
+    return true;
 }
 
 bool CodeEditor::deleteToIndentStop() {

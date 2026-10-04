@@ -9,6 +9,7 @@
 #include <QHash>
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 namespace hedit {
 
@@ -29,6 +30,8 @@ constexpr const char* kBackspaceIndent = "backspaceIndent";       ///< Backspace
 constexpr const char* kWhitespace = "whitespace";                 ///< 空白とタブを記号で表示する。
 constexpr const char* kTrimWhitespace = "trimWhitespace";         ///< 保存時に行末の空白を消す。
 constexpr const char* kFinalNewline = "finalNewline";             ///< 保存時に末尾の改行を補う。
+constexpr const char* kAutoClosing = "autoClosing";               ///< 括弧と引用符を自動で閉じる。
+constexpr const char* kStickyScroll = "stickyScroll";             ///< クラス・関数の見出しを上端に残す。
 }  // namespace option
 
 /** @brief 1つのオン・オフ設定の定義。 */
@@ -70,6 +73,25 @@ public:
     /** @brief 文字サイズを変えて保存する。 @param pixels 10〜28の範囲に丸める。 */
     void setFontPixels(int pixels);
 
+    /** @brief 最近開いたファイル(新しい順、最大20件)。 @return 絶対パスの一覧。 */
+    QStringList recentFiles() const { return recentFiles_; }
+
+    /** @brief 最近開いたファイルの先頭に加えて保存する。 @param path 絶対パス。既にあれば先頭へ移す。 */
+    void addRecentFile(const QString& path);
+
+    /** @brief 最近開いたファイルの一覧を空にして保存する。 */
+    void clearRecentFiles();
+
+    /** @brief メニューに無い表示の状態(アウトラインの表示など)を返す。
+     * @param key 保存名。
+     * @param defaultValue 保存が無いときの値。
+     * @return 値。
+     */
+    bool flag(const QString& key, bool defaultValue) const { return flags_.value(key, defaultValue); }
+
+    /** @brief メニューに無い表示の状態を変えて保存する。 @param key 保存名。 @param value 値。 */
+    void setFlag(const QString& key, bool value);
+
     /** @brief 全ての設定と文字サイズを初期値に戻す。
      * @return 保存できた(または保存先が無い)ならtrue。書き込みに失敗したらfalse。
      * @details preferences.jsonからheditの項目を消す(値が無い項目は初期値として扱われる)。
@@ -81,6 +103,8 @@ private:
     QString path_;                         ///< 保存先(preferences.json)。保存しない場合は空。
     QHash<QString, bool> values_;          ///< 設定の現在の値。
     int fontPixels_ = kDefaultFontPixels;  ///< 文字サイズ。
+    QStringList recentFiles_;              ///< 最近開いたファイル(新しい順)。
+    QHash<QString, bool> flags_;           ///< メニューに無い表示の状態(``outlineVisible``など)。
 };
 
 }  // namespace hedit

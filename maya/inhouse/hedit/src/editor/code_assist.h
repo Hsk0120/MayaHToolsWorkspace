@@ -66,6 +66,14 @@ public:
     /** @brief 現在の位置の補完候補を求めて表示する。 @param force Ctrl+Spaceからならtrue(自動補完の設定を無視する)。 */
     void requestCompletion(bool force);
 
+    /** @brief カーソルが関数の呼出しの中なら、引数のヒントを出す。中でなければ閉じる。
+     * @param editor コード欄。
+     */
+    void updateSignatureHelp(CodeEditor* editor);
+
+    /** @brief 補完の一覧で選んでいる候補の説明を、一覧の横に出す。 @param editor コード欄。 */
+    void updateCompletionDetail(CodeEditor* editor);
+
 private:
     /** @brief 名前の説明を求める。同じ本文・同じ位置なら前回の結果を使う(Pythonへ問い合わせ直さない)。
      * @param editor コード欄。
@@ -89,6 +97,10 @@ private:
     QTimer completionTimer_;                ///< 入力が止まって250ms後に自動補完する。
     QTimer analysisTimer_;                  ///< 入力が止まって800ms後に構文チェックする。
     QTimer spellingTimer_;                  ///< 入力が止まって450ms後にスペルチェックする。
+    QTimer signatureTimer_;                 ///< 入力・カーソル移動が止まって60ms後に引数のヒントを出し直す。
+    QTimer detailTimer_;                    ///< 候補の選択が止まって120ms後に候補の説明を出す。
+    QPointer<CodeEditor> signatureEditor_;  ///< 引数のヒントを求めたコード欄。
+    QPointer<CodeEditor> detailEditor_;     ///< 候補の説明を求めたコード欄。
 
     /** @brief 前回のホバーの結果(同じ名前の上で何度もQEvent::ToolTipが来ても問い合わせ直さない)。 */
     struct HoverCache {

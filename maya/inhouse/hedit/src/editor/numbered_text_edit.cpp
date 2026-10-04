@@ -4,6 +4,7 @@
 #include "editor/numbered_text_edit.h"
 #include "editor/theme.h"
 #include "editor/ui_scale.h"
+#include <QMouseEvent>
 #include <QPainter>
 #include <QTextBlock>
 
@@ -24,6 +25,9 @@ protected:
     /** @brief 行番号を描く。 @param event 描き直す範囲。 */
     void paintEvent(QPaintEvent* event) override { editor_->paintLineNumbers(event); }
 
+    /** @brief クリックを欄の持ち主へ知らせる(折りたたみの矢印)。 @param event マウスの操作。 */
+    void mousePressEvent(QMouseEvent* event) override { editor_->gutterPressed(event->pos()); }
+
 private:
     NumberedTextEdit* editor_;  ///< 親の欄。
 };
@@ -37,6 +41,16 @@ NumberedTextEdit::NumberedTextEdit(QWidget* parent) : QPlainTextEdit(parent) {
     connect(this, &QPlainTextEdit::updateRequest, this, [this](const QRect& rect, int dy) { onUpdateRequest(rect, dy); });
     updateGutter();
 }
+
+QWidget* NumberedTextEdit::gutter() const {
+    return lineNumberArea_;
+}
+
+void NumberedTextEdit::paintGutterBlock(QPainter&, const QTextBlock&, const QRectF&) {}
+
+void NumberedTextEdit::paintGutterOverlay(QPainter&, const QRect&) {}
+
+void NumberedTextEdit::gutterPressed(const QPoint&) {}
 
 void NumberedTextEdit::setLineNumbersVisible(bool visible) {
     showLineNumbers_ = visible;
@@ -64,8 +78,10 @@ void NumberedTextEdit::updateGutter() {
     if (showLineNumbers_) {
         const int digits = QString::number(qMax(1, blockCount())).size();
         const int textWidth = fontMetrics().horizontalAdvance('9') * digits + scaled(20);
-        gutterWidth_ = qMax(scaled(44), textWidth);
+        numberWidth_ = qMax(scaled(44), textWidth);
+        gutterWidth_ = numberWidth_ + extraGutterWidth();
     } else {
+        numberWidth_ = 0;
         gutterWidth_ = 0;
     }
     setViewportMargins(gutterWidth_, 0, 0, 0);
@@ -99,11 +115,14 @@ void NumberedTextEdit::paintLineNumbers(QPaintEvent* event) {
             break;  // 描き直す範囲より下は描かない。
         }
         if (block.isVisible() && rect.bottom() >= event->rect().top()) {
-            const QRectF numberArea(0, rect.top(), gutterWidth_ - scaled(10), fontMetrics().height());
+            const QRectF numberArea(0, rect.top(), numberWidth_ - scaled(10), fontMetrics().height());
+            painter.setPen(QColor(theme::kLineNumber));
             painter.drawText(numberArea, Qt::AlignRight, QString::number(block.blockNumber() + 1));
+            paintGutterBlock(painter, block, QRectF(0, rect.top(), gutterWidth_, rect.height()));
         }
         block = block.next();
     }
+    paintGutterOverlay(painter, event->rect());
 }
 
 }  // namespace hedit

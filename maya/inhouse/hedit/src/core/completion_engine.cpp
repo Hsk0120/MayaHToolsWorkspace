@@ -2,7 +2,9 @@
  * @brief CompletionEngineの実装。
  */
 #include "core/completion_engine.h"
+#include "core/code_outline.h"
 #include "core/module_scanner.h"
+#include "core/script_file.h"
 #include "core/python_declarations.h"
 #include "core/script_lexer.h"
 #include <QDir>
@@ -46,7 +48,7 @@ QList<CompletionItem> itemsFor(const SymbolTable& symbols, const QString& prefix
         if (!it.key().startsWith(prefix) || (!wantsPrivate && it.key().startsWith('_'))) {
             continue;
         }
-        items.append({it.key(), it.value().detail, it.value().kindName()});
+        items.append({it.key(), it.value().detail, it.value().kindName(), it.value().categoryName()});
     }
     return items;
 }
@@ -335,6 +337,7 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     const auto local = scope.find(name);
     if (local != scope.end() && local.value().type != SymbolType::Value) {
         located.item = local.value();
+        located.path = QStringList{name};  // 本文の中での位置(定義へ移動で使う。moduleが空なら本文の中)。
         return located;
     }
     // 変数なら、代入・型ヒントからクラスを推論する(インスタンスはクラスの中身で補完する)。
@@ -349,6 +352,7 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     }
     if (local != scope.end()) {
         located.item = local.value();
+        located.path = QStringList{name};
     } else if (environment_.builtins.contains(name)) {
         located.item = Symbol::category(SymbolType::Builtin);
         located.module = "builtins";
@@ -463,6 +467,101 @@ HoverInfo CompletionEngine::describe(const QString& text, int end) {
         }
     }
     return info;
+}
+
+QString CompletionEngine::moduleFile(Request& request, const QString& name) {
+    for (const ModuleLocation& location : locateModule(request, name)) {
+        if (!location.file.isEmpty()) {
+            return location.file;
+        }
+    }
+    LoadedModule loaded;
+    if (source_.loadedModule && source_.loadedModule(name, &loaded) && loaded.file.endsWith(".py")) {
+        return loaded.file;
+    }
+    return QString();
+}
+
+DefinitionLocation CompletionEngine::definition(const QString& text, int end) {
+    DefinitionLocation location;
+    if (text.size() > kMaximumSourceLength || end < 0 || end > text.size()) {
+        return location;
+    }
+    Request request;
+    const QString token = trailingDottedName(text.left(end));
+    if (token.isEmpty() || token.endsWith('.')) {
+        return location;
+    }
+    const QStringList parts = token.split('.');
+    if (parts.size() == 1 && environment_.keywords.contains(parts.first())) {
+        return location;
+    }
+    const int cursorLine = text.left(end).count('\n');
+    // 本文の中で、構成(クラス・関数・トップレベルの変数)から位置を探す。無ければ関数の中の変数・引数を探す。
+    auto findInText = [](const QString& source, const QStringList& path, int beforeLine, DefinitionLocation* found) {
+        const QList<OutlineEntry> outline = buildOutline(source, ScriptLanguage::Python);
+        int index = findOutlinePath(outline, path);
+        if (index < 0 && !path.isEmpty()) {
+            // 親クラスから受け継いだメソッドなど: 同じ名前の定義を探す。
+            for (int i = 0; i < outline.size() && index < 0; ++i) {
+                if (outline[i].name == path.last() && outline[i].kind != "variable") {
+                    index = i;
+                }
+            }
+        }
+        if (index >= 0) {
+            found->line = outline[index].line;
+            found->column = outline[index].column;
+            return;
+        }
+        if (path.size() == 1 && beforeLine >= 0) {
+            int column = 0;
+            found->line = localDefinitionLine(source, path.first(), beforeLine + 1, &column);
+            found->column = column;
+        }
+    };
+    const SymbolTable locals = localDeclarations(text);
+    if (parts.size() == 1) {
+        // 変数(関数の中の変数・引数・for の変数・型を推論した変数)は、クラスではなく変数自身の定義
+        // (カーソルより前の代入など)へ移る。def・class・importの名前は、下でたどる。
+        const auto local = locals.find(parts.first());
+        if (local == locals.end() || local.value().type == SymbolType::Value) {
+            int column = 0;
+            location.line = localDefinitionLine(text, parts.first(), cursorLine + 1, &column);
+            location.column = column;
+            if (location.found()) {
+                return location;
+            }
+        }
+    }
+    const Located located = walk(request, locals, text.left(end), parts, 0);
+    if (!located.found) {
+        return location;
+    }
+    const Symbol& item = located.item;
+    if (item.type == SymbolType::Module) {
+        location.path = moduleFile(request, item.target);
+        location.line = location.path.isEmpty() ? -1 : 0;
+        return location;
+    }
+    if (located.module.isEmpty()) {
+        findInText(text, located.path, parts.size() == 1 ? cursorLine : -1, &location);
+        return location;
+    }
+    if (located.module == "builtins") {
+        return location;
+    }
+    const QString file = moduleFile(request, located.module);
+    QString source;
+    QString error;
+    if (file.isEmpty() || !readScriptFile(file, &source, &error)) {
+        return location;
+    }
+    findInText(source, located.path, -1, &location);
+    if (location.found()) {
+        location.path = file;
+    }
+    return location;
 }
 
 CompletionResult CompletionEngine::complete(const QString& source) {

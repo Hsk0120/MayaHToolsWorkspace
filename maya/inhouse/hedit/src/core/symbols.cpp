@@ -36,6 +36,25 @@ QString Symbol::kindName() const {
     return QString();
 }
 
+QString Symbol::categoryName() const {
+    switch (type) {
+    case SymbolType::Function:
+        return QStringLiteral("function");
+    case SymbolType::Class:
+        return QStringLiteral("class");
+    case SymbolType::Module:
+        return QStringLiteral("module");
+    case SymbolType::Import:
+        return QStringLiteral("import");
+    case SymbolType::Builtin:
+        return QStringLiteral("builtin");
+    case SymbolType::Keyword:
+        return QStringLiteral("keyword");
+    default:
+        return QStringLiteral("variable");
+    }
+}
+
 bool Symbol::operator==(const Symbol& other) const {
     if (type != other.type || detail != other.detail || target != other.target || fromModule != other.fromModule
         || fromName != other.fromName || signature != other.signature || doc != other.doc || bases != other.bases) {

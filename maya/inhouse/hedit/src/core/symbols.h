@@ -60,6 +60,11 @@ struct Symbol {
     /** @brief 補完候補の種類の名前(Preferencesの絞り込みとJSONに使う)。 @return ``builtin``・``keyword``、または空。 */
     QString kindName() const;
 
+    /** @brief 補完の一覧のアイコンの種類。
+     * @return ``function``・``class``・``module``・``variable``・``import``・``builtin``・``keyword``。
+     */
+    QString categoryName() const;
+
     /** @brief 内容が同じか(membersは中身で比べる)。 @param other 比べる相手。 @return 同じならtrue。 */
     bool operator==(const Symbol& other) const;
     /** @brief 内容が違うか。 @param other 比べる相手。 @return 違うならtrue。 */

@@ -30,8 +30,10 @@ class CodeEditor;
 class EditorTabs;
 class Explorer;
 class FindBar;
+class OutlinePanel;
 class OutputPanel;
 class ProblemsPanel;
+class QuickPick;
 
 /** @brief 編集画面(objectNameは``hedit``)。
  * @details 画面の配置(上から):
@@ -131,6 +133,29 @@ private:
     bool saveFile(CodeEditor* editor, bool saveAs = false);
     /** @brief 保存先を持つタブを、ExplorerのOPEN EDITORSへ反映する。 */
     void updateExplorer();
+    /** @brief File > Open recent の項目を作り直す(メニューを開く直前に呼ぶ)。 */
+    void rebuildRecentMenu();
+
+    // ---- 移動(Goメニュー) ----
+
+    /** @brief 名前の定義へ移動する、またはその場で見る(F12・Alt+F12・Ctrl+クリック)。
+     * @param editor 名前のあるタブ。
+     * @param end 名前の終わりの位置。-1なら「名前の上にない」と知らせる。
+     * @param peek trueなら移動せず、定義の周りのコードを名前の下に出す。
+     */
+    void goToDefinition(CodeEditor* editor, int end, bool peek);
+    /** @brief タブの行・桁へカーソルを移し、画面の中央に出す。
+     * @param editor タブ。 @param line 行(0始まり)。 @param column 桁(0始まり)。 @param focus フォーカスを移すか。
+     */
+    void moveCursorTo(CodeEditor* editor, int line, int column, bool focus = true);
+    /** @brief 選択中のタブのクラス・関数・変数を一覧から選んで移動する(Ctrl+Shift+O)。 */
+    void showSymbolPicker();
+    /** @brief 最近開いたファイルとExplorerのフォルダーのファイルを、名前で選んで開く(Ctrl+P)。 */
+    void showFilePicker();
+    /** @brief 保存した内容と今の本文の違いを表示する(File > Compare with saved)。 */
+    void compareWithSaved();
+    /** @brief アウトラインを、選択中のタブの構成で表示し直す。 */
+    void refreshOutline();
 
     // ---- 未保存タブの自動復元 ----
 
@@ -188,11 +213,16 @@ private:
     ProblemsPanel* problems_ = nullptr;      ///< 構文チェックの一覧。
     Explorer* explorer_ = nullptr;           ///< ファイルツリー。
     QDockWidget* explorerDock_ = nullptr;    ///< Explorerを入れる左のドック。
+    OutlinePanel* outline_ = nullptr;        ///< アウトライン。
+    QDockWidget* outlineDock_ = nullptr;     ///< アウトラインを入れる左のドック(Explorerの下)。
+    QuickPick* quickPick_ = nullptr;         ///< 記号へ移動・ファイル名で開くの小窓。
+    QMenu* recentMenu_ = nullptr;            ///< File > Open recent。
     QComboBox* languageSelector_ = nullptr;  ///< ステータスバーの言語(Python/MEL)。
     QLabel* completionStatus_ = nullptr;     ///< ステータスバーの補完の状態。
     QHash<QString, QAction*> optionActions_; ///< Preferencesのチェック項目(保存名 → メニュー項目)。
 
     QTimer sessionTimer_;     ///< 1秒ごとに、入力が止まっていて変化があればタブを自動保存する。
+    QTimer outlineTimer_;     ///< 入力が止まって0.4秒後にアウトラインを作り直す。
     QElapsedTimer lastEdit_;  ///< 最後に本文が変わってからの時間。
 };
 

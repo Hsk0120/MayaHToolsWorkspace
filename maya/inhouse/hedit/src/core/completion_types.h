@@ -14,6 +14,8 @@ struct CompletionItem {
     QString name;    ///< 挿入する名前。
     QString detail;  ///< マウスを重ねたときの説明(関数の引数など)。
     QString kind;    ///< ``builtin``・``keyword``、または空。Preferencesでの絞り込みに使う。
+    /// 一覧のアイコンの種類: ``function``・``class``・``module``・``variable``・``import``・``builtin``・``keyword``。
+    QString category;
 };
 
 /** @brief 補完の結果。 */
@@ -30,6 +32,16 @@ struct HoverInfo {
 
     /** @brief 表示するものがあるか。 @return 見出しかdocstringがあればtrue。 */
     bool isEmpty() const { return signature.isEmpty() && doc.isEmpty(); }
+};
+
+/** @brief 定義の場所(定義へ移動・定義をその場で見る)。 */
+struct DefinitionLocation {
+    QString path;     ///< 定義のあるファイル。編集中の本文の中なら空。
+    int line = -1;    ///< 行(0始まり)。見つからなければ-1。
+    int column = 0;   ///< 行の中の位置(0始まり)。
+
+    /** @brief 見つかったか。 @return 行があればtrue。 */
+    bool found() const { return line >= 0; }
 };
 
 /** @brief ホバーの説明をJSONにする(テスト用の``hedit -describe``の戻り値)。
@@ -49,6 +61,8 @@ struct Diagnostic {
     QString severity;  ///< ``error``か``warning``。
     int line = 1;      ///< 1始まりの行番号。
     QString message;   ///< 内容。
+    int column = 0;    ///< 1始まりの桁。0なら行全体に波線を引く。
+    int length = 0;    ///< 波線を引く文字数。0なら行の終わりまで。
 };
 
 /** @brief 構文チェックの結果。 */

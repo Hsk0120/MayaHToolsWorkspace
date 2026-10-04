@@ -8,4 +8,4 @@
  * @note 版を上げるときは、この値と、親リポジトリの``maya/modules/hedit.mod``・``docs/changelog.rst``を更新する。
  */
 #pragma once
-#define HEDIT_VERSION "0.3.0"
+#define HEDIT_VERSION "0.4.0"

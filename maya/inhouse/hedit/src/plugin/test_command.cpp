@@ -7,6 +7,8 @@
 #include "plugin/mel.h"
 #include "plugin/python_bridge.h"
 #include <maya/MArgDatabase.h>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMainWindow>
 
 namespace hedit {
@@ -25,6 +27,7 @@ MSyntax HeditTestCommand::newSyntax() {
     syntax.addFlag("-cp", "-complete", MSyntax::kString);
     syntax.addFlag("-dc", "-declarations", MSyntax::kString);
     syntax.addFlag("-ds", "-describe", MSyntax::kString);
+    syntax.addFlag("-df", "-definition", MSyntax::kString);
     return syntax;
 }
 
@@ -52,6 +55,15 @@ MStatus HeditTestCommand::doIt(const MArgList& args) {
         setResult(toMString(QString::fromUtf8(hoverInfoToJson(python::describe(text, text.size())))));
         return MS::kSuccess;
     }
+    if (flags.isFlagSet("-df")) {
+        // 本文の末尾の名前の定義の場所を、{"path": ..., "line": ..., "column": ...}で返す。
+        flags.getFlagArgument("-df", 0, source);
+        const QString text = fromMString(source);
+        const DefinitionLocation location = python::definition(text, text.size());
+        const QJsonObject result{{"path", location.path}, {"line", location.line}, {"column", location.column}};
+        setResult(toMString(QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact))));
+        return MS::kSuccess;
+    }
     if (flags.isFlagSet("-ed")) {
         // 画面のアドレスを文字列で返す(テストがPySideで画面を取り出すのに使う)。
         QMainWindow* editor = host::editor(true);
@@ -61,7 +73,7 @@ MStatus HeditTestCommand::doIt(const MArgList& args) {
         setResult(MString(QString::number(reinterpret_cast<quintptr>(editor)).toLatin1().constData()));
         return MS::kSuccess;
     }
-    displayError("heditTest: specify -editor, -complete, -declarations or -describe.");
+    displayError("heditTest: specify -editor, -complete, -declarations, -describe or -definition.");
     return MS::kFailure;
 }
 

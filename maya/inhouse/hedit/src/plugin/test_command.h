@@ -8,6 +8,7 @@
  * | ``-complete``(``-cp``) 本文 | 補完の結果をJSONで返す(画面は作らない) |
  * | ``-declarations``(``-dc``) 本文 | 本文から取り出した宣言をJSONで返す |
  * | ``-describe``(``-ds``) 本文 | 本文の末尾の名前のホバーの説明をJSONで返す |
+ * | ``-definition``(``-df``) 本文 | 本文の末尾の名前の定義の場所をJSONで返す |
  */
 #pragma once
 #include <maya/MPxCommand.h>

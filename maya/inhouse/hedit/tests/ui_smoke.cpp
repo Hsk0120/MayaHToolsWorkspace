@@ -1,5 +1,8 @@
 // 本番と同じQtウィジェットをoffscreenで検証する。Maya GUIの検証とは区別する。
+#include "core/code_outline.h"
 #include "core/completion_engine.h"
+#include "core/line_diff.h"
+#include "core/signature_help.h"
 #include "core/docstrings.h"
 #include "core/history_text.h"
 #include "core/python_declarations.h"
@@ -14,7 +17,18 @@
 #include "core/text_search.h"
 #include "editor/edit_commands.h"
 #include "editor/editor.h"
+#include "editor/code_editor.h"
+#include "editor/code_navigation.h"
+#include "editor/diff_dialog.h"
 #include "editor/hover_popup.h"
+#include "editor/marker_scroll_bar.h"
+#include "editor/outline_panel.h"
+#include "editor/quick_pick.h"
+#include <QListWidget>
+#include <QLineEdit>
+#include <QScrollBar>
+#include <QTextDocument>
+#include <QTreeWidget>
 #include "editor/ui_scale.h"
 #include <QApplication>
 #include <functional>
@@ -519,6 +533,34 @@ bool completionEnginePasses(const QByteArray& config) {
     if (method.signature != "def run(self)" || method.doc != "Run it.") {
         qWarning() << "describe inferred" << method.signature; return false;
     }
+    // 定義の場所: 本文の中のクラス・推論した変数のメソッド・関数の引数と変数・ファイルの中・モジュール。
+    {
+        const QString text = classes + "def g(p):\n    o = B()\n    o.walk()\n    return p\n";
+        auto at = [&](const QString& source, const QString& needle) {
+            return engine.definition(source, source.indexOf(needle) + needle.size());
+        };
+        const auto classB = at(text, "o = B");
+        const auto walk = at(text, "o.walk");
+        const auto parameter = at(text, "return p");
+        const auto variable = engine.definition(text, text.indexOf("o.walk") + 1);
+        const QString methodText = "import docsample\nt = docsample.Thing()\nt.run";
+        const auto method = engine.definition(methodText, methodText.size());
+        const auto module = engine.definition("import docsample", 16);
+        const auto noSource = engine.definition("import maya.cmds as cmds\ncmds.ls", 32);
+        if (classB.line != 2 || !classB.path.isEmpty() || walk.line != 3 || walk.column != 8 || parameter.line != 4
+            || parameter.column != 6 || variable.line != 5 || !method.path.endsWith("docsample.py") || method.line != 6
+            || !module.path.endsWith("docsample.py") || module.line != 0 || noSource.found()) {
+            qWarning() << "definition" << classB.line << walk.line << walk.column << parameter.line << variable.line
+                       << method.path << method.line << module.line << noSource.line;
+            return false;
+        }
+        // 補完の一覧のアイコンの種類。
+        QStringList categories;
+        for (const auto& item : engine.complete("import docsample\ndocsample.").items) categories.append(item.name + ":" + item.category);
+        if (categories != QStringList{"Thing:class", "make:function"}) {
+            qWarning() << "categories" << categories; return false;
+        }
+    }
     // 末尾の名前の判定(Pythonの正規表現 [A-Za-z_][\w.]*$ と同じ)。
     if (hedit::trailingDottedName("x = 1abc.de") != "abc.de" || hedit::trailingDottedName("cmds.") != "cmds."
         || hedit::trailingDottedName("f(") != "") {
@@ -552,6 +594,17 @@ bool preferencesPasses() {
     if (!hedit::readJsonFile(json, &saved) || !saved.value("whitespace").toBool() || !saved.value("outputWrap").toBool()
         || saved.value("spellCheck").toBool(true)) {
         qWarning() << "preferences merge" << saved; return false;
+    }
+    // 最近開いたファイル(新しい順・重複なし)と、メニューに無い表示の状態は、作り直しても残る。
+    first.addRecentFile("C:/a.py");
+    first.addRecentFile("C:/b.py");
+    first.addRecentFile("C:/a.py");
+    first.setFlag("outlineVisible", true);
+    hedit::EditorPreferences reloaded(json);
+    if (reloaded.recentFiles() != QStringList{"C:/a.py", "C:/b.py"} || !reloaded.flag("outlineVisible", false)
+        || reloaded.flag("missing", true) != true || !reloaded.option(hedit::option::kAutoClosing)
+        || !reloaded.option(hedit::option::kStickyScroll)) {
+        qWarning() << "recent files" << reloaded.recentFiles(); return false;
     }
     // 初期値に戻すとheditの項目を消し、知らない項目は残す。
     hedit::updateJsonFile(json, "futureOption", 1);
@@ -657,6 +710,167 @@ int runCases(const QList<TestCase>& cases) {
     return failed;
 }
 
+
+/** @brief 本文の構成・折りたたみの範囲・関数の中の定義の位置(core/code_outline.cpp)。 @return 期待どおりならtrue。 */
+bool codeOutlinePasses() {
+    const QString text =
+        "import maya.cmds as cmds\n"            // 0
+        "LIMIT = 3\n"                           // 1
+        "class Builder(object):\n"              // 2
+        "    count = 1\n"                       // 3
+        "    def build(self, radius=1.0):\n"    // 4
+        "        \"\"\"Doc\n"                   // 5
+        "def fake(): inside string\n"           // 6
+        "        \"\"\"\n"                      // 7
+        "        value = (1,\n"                 // 8
+        "    2)\n"                              // 9
+        "        return value\n"                // 10
+        "\n"                                    // 11
+        "async def run(job):\n"                 // 12
+        "    for item in job:\n"                // 13
+        "        print(item)\n";                // 14
+    const QList<hedit::OutlineEntry> outline = hedit::buildOutline(text, hedit::ScriptLanguage::Python);
+    QStringList summary;
+    for (const auto& entry : outline) {
+        summary.append(QString("%1:%2:%3-%4:%5").arg(entry.name, entry.kind).arg(entry.line).arg(entry.endLine).arg(entry.parent));
+    }
+    const QStringList expected{"LIMIT:variable:1-1:-1", "Builder:class:2-10:-1", "count:variable:3-3:1",
+                               "build:method:4-10:1", "run:function:12-14:-1"};
+    if (summary != expected) {
+        qWarning() << "outline" << summary; return false;
+    }
+    if (hedit::findOutlinePath(outline, {"Builder", "build"}) != 3 || hedit::findOutlinePath(outline, {"build"}) != -1
+        || hedit::enclosingOutlineEntry(outline, 9) != 3 || hedit::enclosingOutlineEntry(outline, 13) != 4
+        || hedit::enclosingOutlineEntry(outline, 0) != -1) {
+        qWarning() << "outline lookup"; return false;
+    }
+    // MELのproc。
+    const auto mel = hedit::buildOutline("global proc string helper(string $a)\n{\n    return $a;\n}\nproc local() {}\n",
+                                         hedit::ScriptLanguage::Mel);
+    if (mel.size() != 2 || mel[0].name != "helper" || mel[0].endLine != 3 || mel[1].name != "local" || mel[1].line != 4) {
+        qWarning() << "mel outline" << mel.size(); return false;
+    }
+    // 折りたたみ: インデントで決め、範囲の最後の空行は含めない。
+    const auto ranges = hedit::indentationFoldRanges(QString("a:\n    b\n\n    c:\n        d\n\ne\n").split('\n'));
+    if (ranges.size() != 2 || ranges[0].start != 0 || ranges[0].end != 4 || ranges[1].start != 3 || ranges[1].end != 4) {
+        qWarning() << "fold ranges" << ranges.size(); return false;
+    }
+    // 関数の中の変数・引数・for の変数の定義の位置。
+    const QString body = "def f(alpha, beta=2):\n    gamma = alpha\n    for delta, eps in []:\n        print(gamma, beta, delta)\n";
+    int column = -1;
+    if (hedit::localDefinitionLine(body, "gamma", 4, &column) != 1 || column != 4
+        || hedit::localDefinitionLine(body, "beta", 4, &column) != 0 || column != 13
+        || hedit::localDefinitionLine(body, "alpha", 1, &column) != 0 || column != 6
+        || hedit::localDefinitionLine(body, "delta", 4) != 2 || hedit::localDefinitionLine(body, "eps", 4) != 2
+        || hedit::localDefinitionLine(body, "pha", 4) != -1) {
+        qWarning() << "local definition"; return false;
+    }
+    return true;
+}
+
+/** @brief 行単位の差分(core/line_diff.cpp)。 @return 期待どおりならtrue。 */
+bool lineDiffPasses() {
+    auto kinds = [](const QStringList& before, const QStringList& after) {
+        QStringList result;
+        for (const auto& change : hedit::diffLines(before, after)) {
+            result.append(QString("%1@%2+%3/%4").arg(change.kind()).arg(change.afterStart).arg(change.afterCount).arg(change.beforeCount));
+        }
+        return result;
+    };
+    const QStringList base{"a", "b", "c", "d"};
+    if (!kinds(base, base).isEmpty()
+        || kinds(base, {"a", "b", "x", "c", "d"}) != QStringList{"added@2+1/0"}
+        || kinds(base, {"a", "c", "d"}) != QStringList{"deleted@1+0/1"}
+        || kinds(base, {"a", "B", "c", "D"}) != QStringList{"modified@1+1/1", "modified@3+1/1"}
+        || kinds({}, {"new"}) != QStringList{"added@0+1/0"}) {
+        qWarning() << "diff" << kinds(base, {"a", "B", "c", "D"}); return false;
+    }
+    // 差分の画面の行: 削除は -、追加は +、前後の行は空白で始まる。
+    const QStringList lines = hedit::DiffDialog::diffLinesText("a\nb\nc\n", "a\nB\nc\n", 1);
+    if (lines != QStringList{"@@ -1 +1 @@", " a", "-b", "+B", " c"}) {
+        qWarning() << "diff text" << lines; return false;
+    }
+    return true;
+}
+
+/** @brief 引数のヒントの解析(core/signature_help.cpp)。 @return 期待どおりならtrue。 */
+bool signatureHelpPasses() {
+    auto context = [](const QString& before) { return hedit::findCallContext(before); };
+    const auto simple = context("builder.build(1, ");
+    if (simple.nameEnd != 13 || simple.argumentIndex != 1 || !simple.attribute || !simple.keyword.isEmpty()) {
+        qWarning() << "call simple" << simple.nameEnd << simple.argumentIndex; return false;
+    }
+    const auto keyword = context("cmds.joint(name='a,b', radius=");
+    const auto nested = context("f(a, [1, 2, 3], g(x), ");
+    const auto inList = context("f(a, [1, ");
+    if (keyword.keyword != "radius" || keyword.argumentIndex != 1 || nested.argumentIndex != 3
+        || nested.nameEnd != 1 || inList.nameEnd != 1 || inList.argumentIndex != 1
+        || context("if (a").nameEnd != -1 || context("x = (1, ").nameEnd != -1 || context("f(a)").nameEnd != -1
+        || context("make(\n    1,\n    ").argumentIndex != 1) {
+        qWarning() << "call context" << keyword.keyword << nested.argumentIndex << inList.argumentIndex; return false;
+    }
+    hedit::SignatureParts parts = hedit::splitSignature("def build(self, radius: float = 1.0, *args, flag=(1, 2), **kw) -> list");
+    if (!parts.valid || parts.head != "def build(" || parts.tail != ") -> list"
+        || parts.parameters != QStringList{"self", "radius: float = 1.0", "*args", "flag=(1, 2)", "**kw"}) {
+        qWarning() << "split" << parts.parameters; return false;
+    }
+    hedit::dropBoundParameter(&parts);
+    if (parts.parameters.first() != "radius: float = 1.0" || hedit::splitSignature("module x").valid
+        || !hedit::splitSignature("def f()").parameters.isEmpty()) {
+        qWarning() << "drop self"; return false;
+    }
+    const QStringList p{"a", "b=1", "*args", "c=2", "**kw"};
+    if (hedit::activeParameterIndex(p, 0, {}) != 0 || hedit::activeParameterIndex(p, 1, {}) != 1
+        || hedit::activeParameterIndex(p, 5, {}) != 2 || hedit::activeParameterIndex(p, 0, "c") != 3
+        || hedit::activeParameterIndex(p, 0, "zzz") != 4 || hedit::activeParameterIndex({"x", "/", "y"}, 1, {}) != 2
+        || hedit::activeParameterIndex({"x"}, 3, {}) != -1) {
+        qWarning() << "active parameter"; return false;
+    }
+    return true;
+}
+
+/** @brief 括弧の対応・同じ名前・選択範囲の拡大(editor/code_navigation.cpp)。 @return 期待どおりならtrue。 */
+bool navigationPasses() {
+    QTextDocument document;
+    document.setPlainText("value = foo(bar.baz, [1, ')'])  # (x)\nprint(value, 'value')\n");
+    const auto py = hedit::ScriptLanguage::Python;
+    int first = -1;
+    int second = -1;
+    // foo( の ( は 29 文字目の ) と対応する(文字列の中の ')' とコメントの中は数えない)。
+    if (!hedit::findMatchingBracket(&document, py, 11, &first, &second) || first != 11 || second != 29
+        || !hedit::findMatchingBracket(&document, py, 30, &first, &second) || first != 29 || second != 11
+        || hedit::findMatchingBracket(&document, py, 34, &first, &second)) {
+        qWarning() << "brackets" << first << second; return false;
+    }
+    const QList<int> occurrences = hedit::nameOccurrences(&document, py, "value", 100);
+    if (occurrences != QList<int>{0, 44}) {
+        qWarning() << "occurrences" << occurrences; return false;
+    }
+    if (!hedit::isInsideStringOrComment(&document, py, 26) || hedit::isInsideStringOrComment(&document, py, 12)
+        || !hedit::isInsideStringOrComment(&document, py, 36)) {
+        qWarning() << "inside string"; return false;
+    }
+    // 選択範囲の拡大: baz → bar.baz → 括弧の中身 → 括弧を含む → 行の中身(この行は字下げが無いので行全体)。
+    QList<QPair<int, int>> steps;
+    int start = 17;
+    int end = 17;
+    for (int i = 0; i < 5; ++i) {
+        int s = 0;
+        int e = 0;
+        if (!hedit::expandedSelection(&document, py, start, end, &s, &e)) {
+            break;
+        }
+        steps.append({s, e});
+        start = s;
+        end = e;
+    }
+    const QList<QPair<int, int>> expected{{16, 19}, {12, 19}, {12, 29}, {11, 30}, {0, 37}};
+    if (steps != expected) {
+        qWarning() << "expand" << steps; return false;
+    }
+    return true;
+}
+
 /** @brief 画面の拡大率(4K等のInterface Scaling)が、文字・アイコンの固定寸法に掛かるか。 @return 期待どおりならtrue。 */
 bool uiScalePasses() {
     hedit::setUiScale(2.0);
@@ -706,6 +920,10 @@ int main(int argc, char** argv) {
         {"preferences", preferencesPasses},
         {"uiScale", uiScalePasses},
         {"completionEngine", [&config] { return completionEnginePasses(config); }},
+        {"codeOutline", codeOutlinePasses},
+        {"lineDiff", lineDiffPasses},
+        {"signatureHelp", signatureHelpPasses},
+        {"navigation", navigationPasses},
     });
     if (failed > 0) {
         return 10;
@@ -725,6 +943,16 @@ int main(int argc, char** argv) {
         hedit::CompletionResult result;
         result.items.append({"createNode", "UI fixture", QString()});
         return result;
+    };
+    int definitionCalls = 0;
+    services.definition = [&definitionCalls](const QString& text, int end) {
+        ++definitionCalls;
+        hedit::DefinitionLocation location;
+        if (text.left(end).endsWith("target")) {
+            location.line = 0;
+            location.column = 4;
+        }
+        return location;
     };
     services.describe = [](const QString& text, int end) {
         hedit::HoverInfo info;
@@ -761,6 +989,158 @@ int main(int argc, char** argv) {
         QApplication::sendEvent(code, &escape);
         if (popup->isVisible() || code->toPlainText() != "import maya.cmds as cmds\ncmds.ls(selection=True)") {
             qWarning() << "hover escape"; return 24;
+        }
+    }
+
+    {
+        // コード欄の新しい機能(offscreen)。キー入力は実際のキーイベントで確かめる。
+        auto editor = static_cast<hedit::CodeEditor*>(code);
+        auto type = [editor](int key, const QString& text, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+            QKeyEvent press(QEvent::KeyPress, key, modifiers, text);
+            QApplication::sendEvent(editor, &press);
+        };
+        // 括弧の自動で閉じる・閉じ括弧の上書き・空の対の削除・選択を囲む・引用符。
+        editor->setPlainText("");
+        type(Qt::Key_ParenLeft, "(");
+        if (editor->toPlainText() != "()" || editor->textCursor().position() != 1) { qWarning() << "auto close" << editor->toPlainText(); return 30; }
+        type(Qt::Key_ParenRight, ")");
+        if (editor->toPlainText() != "()" || editor->textCursor().position() != 2) { qWarning() << "overtype"; return 31; }
+        editor->moveCursor(QTextCursor::Left);
+        type(Qt::Key_Backspace, QString());
+        if (!editor->toPlainText().isEmpty()) { qWarning() << "pair delete" << editor->toPlainText(); return 32; }
+        editor->setPlainText("name");
+        editor->selectAll();
+        type(Qt::Key_QuoteDbl, "\"");
+        if (editor->toPlainText() != "\"name\"" || editor->textCursor().selectedText() != "name") { qWarning() << "surround"; return 33; }
+        editor->setPlainText("x = f");
+        editor->moveCursor(QTextCursor::End);
+        type(Qt::Key_QuoteDbl, "\"");
+        if (editor->toPlainText() != "x = f\"\"") { qWarning() << "string prefix" << editor->toPlainText(); return 34; }
+        editor->setPlainText("value");
+        editor->moveCursor(QTextCursor::End);
+        type(Qt::Key_QuoteDbl, "\"");
+        if (editor->toPlainText() != "value\"") { qWarning() << "no pair after name" << editor->toPlainText(); return 35; }
+
+        // 同じ名前の強調と、対応する括弧の強調。
+        editor->setPlainText("alpha = 1\nbeta = alpha + alpha\nprint(beta)\n");
+        QTextCursor cursor(editor->document());
+        cursor.setPosition(2);
+        editor->setTextCursor(cursor);
+        editor->updateWordHighlights();
+        if (editor->wordHighlights() != QList<int>{0, 17, 25}) { qWarning() << "word highlight" << editor->wordHighlights(); return 36; }
+        cursor.setPosition(36);
+        editor->setTextCursor(cursor);
+        if (editor->bracketHighlights() != QList<int>{36, 41}) { qWarning() << "bracket highlight" << editor->bracketHighlights(); return 37; }
+
+        // 折りたたみ: 畳むと中身の行が隠れ、カーソルが中にあれば見出しへ移る。
+        editor->setPlainText("def f():\n    a = 1\n    b = 2\nx = 3\ny = 4\n");
+        cursor.setPosition(15);
+        editor->setTextCursor(cursor);
+        editor->foldAtCursor();
+        const QTextBlock hiddenBlock = editor->document()->findBlockByNumber(1);
+        if (!editor->isFolded(0) || hiddenBlock.isVisible() || editor->textCursor().blockNumber() != 0) {
+            qWarning() << "fold" << editor->isFolded(0) << hiddenBlock.isVisible(); return 38;
+        }
+        editor->moveCursor(QTextCursor::Down);  // 畳んだ範囲を飛び越える。
+        if (editor->textCursor().blockNumber() != 3 || !editor->isFolded(0)) { qWarning() << "skip fold" << editor->textCursor().blockNumber(); return 39; }
+        editor->setTextCursor(QTextCursor(editor->document()->findBlockByNumber(4)));
+        cursor = QTextCursor(editor->document()->findBlockByNumber(2));
+        editor->setTextCursor(cursor);  // 検索などで隠れた行へ(隣の行以外から)移ると開く。
+        if (editor->isFolded(0) || !editor->document()->findBlockByNumber(2).isVisible()) { qWarning() << "reveal"; return 40; }
+        editor->foldAll();
+        editor->unfoldAll();
+        if (editor->isFolded(0)) { qWarning() << "unfold all"; return 41; }
+
+        // 見出しの固定表示: クラスのメソッドの中までスクロールすると、クラスとメソッドの見出しが上端に残る。
+        QString longText = "class Long:\n    def method(self):\n";
+        for (int i = 0; i < 200; ++i) longText += QString("        value_%1 = %1\n").arg(i);
+        editor->setPlainText(longText);
+        editor->resize(600, 300);
+        QApplication::processEvents();
+        editor->verticalScrollBar()->setValue(50);
+        QApplication::processEvents();
+        if (editor->stickyLines() != QList<int>{0, 1}) { qWarning() << "sticky" << editor->stickyLines(); return 42; }
+        editor->setStickyScroll(false);
+        if (!editor->stickyLines().isEmpty()) { qWarning() << "sticky off"; return 43; }
+        editor->setStickyScroll(true);
+
+        // 保存前との差分の印と、スクロールバーの印。
+        editor->setPlainText("a\nB\nc\nd\n");
+        editor->setSavedText("a\nb\nc\n");
+        editor->updateLineChanges();
+        if (editor->lineChanges().size() != 2 || editor->lineChanges()[0].kind() != "modified" || editor->lineChanges()[1].kind() != "added") {
+            qWarning() << "line changes" << editor->lineChanges().size(); return 44;
+        }
+        // 問題の波線と F8(次の問題へ移動して説明を出す)。
+        editor->setDiagnostics({{"warning", 3, "\"c\" is not defined", 1, 1}});
+        editor->moveCursor(QTextCursor::Start);
+        if (!editor->goToProblem(1) || editor->textCursor().blockNumber() != 2) { qWarning() << "next problem"; return 45; }
+        editor->updateScrollMarkers();
+        bool problemMarker = false;
+        for (const auto& marker : editor->markerScrollBar()->markers()) problemMarker = problemMarker || marker.lane == 2;
+        if (!problemMarker) { qWarning() << "scroll markers"; return 46; }
+        editor->setDiagnostics({});
+        editor->clearSavedText();
+        editor->hideHover();
+
+        // 選択範囲の拡大と、元に戻す。
+        editor->setPlainText("result = foo(bar.baz, 1)\n");
+        cursor = QTextCursor(editor->document());
+        cursor.setPosition(18);
+        editor->setTextCursor(cursor);
+        type(Qt::Key_Right, QString(), Qt::ShiftModifier | Qt::AltModifier);
+        if (editor->textCursor().selectedText() != "baz") { qWarning() << "expand 1" << editor->textCursor().selectedText(); return 47; }
+        type(Qt::Key_Right, QString(), Qt::ShiftModifier | Qt::AltModifier);
+        if (editor->textCursor().selectedText() != "bar.baz") { qWarning() << "expand 2"; return 48; }
+        type(Qt::Key_Right, QString(), Qt::ShiftModifier | Qt::AltModifier);
+        if (editor->textCursor().selectedText() != "bar.baz, 1") { qWarning() << "expand 3"; return 49; }
+        type(Qt::Key_Left, QString(), Qt::ShiftModifier | Qt::AltModifier);
+        if (editor->textCursor().selectedText() != "bar.baz") { qWarning() << "shrink"; return 50; }
+
+        // 記号へ移動(Ctrl+Shift+O): 一覧で絞り込んで Enter でその行へ移る。
+        editor->setPlainText("class Alpha:\n    def first(self):\n        pass\n\ndef second():\n    pass\n");
+        for (auto action : window->findChildren<QAction*>()) if (action->objectName() == "goToSymbol") action->trigger();
+        // Q_OBJECTの無いクラスはfindChildに渡せない(Qt 6.8以降)ので、基底クラスで探してから変換する。
+        auto pick = static_cast<hedit::QuickPick*>(window->findChild<QFrame*>("quickPick"));
+        if (!pick || !pick->isVisible() || pick->list()->count() != 3) { qWarning() << "symbol picker" << (pick ? pick->list()->count() : -1); return 51; }
+        pick->input()->setText("sec");
+        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+        QApplication::sendEvent(pick->input(), &enter);
+        if (pick->isVisible() || editor->textCursor().blockNumber() != 4) { qWarning() << "symbol accept" << editor->textCursor().blockNumber(); return 52; }
+        if (hedit::QuickPick::matchScore("second", "sec") <= hedit::QuickPick::matchScore("my_second", "sec")
+            || hedit::QuickPick::matchScore("abc", "xyz") != -1 || hedit::QuickPick::matchScore("build_chain", "bch") < 0) {
+            qWarning() << "match score"; return 53;
+        }
+
+        // アウトライン: 表示すると構成の木ができ、項目のクリックでその行へ移る。
+        for (auto action : window->findChildren<QAction*>()) if (action->objectName() == "toggleOutline") action->trigger();
+        QApplication::processEvents();
+        auto outlineTree = window->findChild<QTreeWidget*>("outline");
+        if (!outlineTree || outlineTree->topLevelItemCount() != 2 || outlineTree->topLevelItem(0)->childCount() != 1) {
+            qWarning() << "outline panel" << (outlineTree ? outlineTree->topLevelItemCount() : -1); return 54;
+        }
+        for (auto action : window->findChildren<QAction*>()) if (action->objectName() == "toggleOutline") action->trigger();
+
+        // 定義へ移動(F12): 本文の中の定義なら、その行へ移る。
+        definitionCalls = 0;
+        editor->setPlainText("def target():\n    pass\n\ntarget()\n");
+        cursor = QTextCursor(editor->document());
+        cursor.setPosition(26);
+        editor->setTextCursor(cursor);
+        for (auto action : window->findChildren<QAction*>()) if (action->text() == "Go to definition") action->trigger();
+        if (definitionCalls != 1 || editor->textCursor().blockNumber() != 0 || editor->textCursor().positionInBlock() != 4) {
+            qWarning() << "go to definition" << definitionCalls << editor->textCursor().blockNumber(); return 55;
+        }
+        // 引数のヒント: 呼出しの中で、今の引数を強調した説明を出す。
+        editor->setPlainText("import maya.cmds as cmds\ncmds.ls(1, ");
+        editor->moveCursor(QTextCursor::End);
+        QApplication::setActiveWindow(window);
+        editor->setFocus(Qt::OtherFocusReason);
+        if (editor->hasFocus() && editor->onSignatureHelpRequested) {
+            editor->onSignatureHelpRequested(true);
+            auto help = editor->findChild<QFrame*>("signatureHelp");
+            if (!help || !help->isVisible()) { qWarning() << "signature help"; return 56; }
+            editor->hideSignatureHelp();
         }
     }
     {

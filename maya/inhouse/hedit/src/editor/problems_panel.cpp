@@ -43,7 +43,7 @@ void ProblemsPanel::showResult(const AnalysisResult& result) {
         item->setForeground(QColor(diagnostic.severity == "error" ? theme::kDiagnosticError : theme::kDiagnosticWarning));
     }
     if (count() == 0) {
-        addItem("No syntax problems found (type checking is not performed)");
+        addItem("No problems found (syntax and undefined names only; type checking is not performed)");
     }
 }
 
