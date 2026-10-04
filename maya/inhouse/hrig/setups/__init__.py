@@ -1,5 +1,6 @@
 """hlibの標準APIを組み合わせるリグセットアップ。"""
 
+from .aimAxisConversion import AimAxisConversion
 from .bendCorrection import BendCorrection
 from .controlShape import ControlShape
 from .lengthCompensation import LengthCompensation
@@ -14,6 +15,7 @@ from .swingTwist import SwingTwist
 from .twistDistribution import TwistDistribution
 
 __all__ = [
+    "AimAxisConversion",
     "BendCorrection",
     "ControlShape",
     "LengthCompensation",

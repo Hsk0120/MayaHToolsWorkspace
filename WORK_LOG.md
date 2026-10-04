@@ -83,6 +83,18 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-04): Aim軸変換・元Aim構造/設定の復元・サイクル調査ツールと関連テスト/説明を公開対象に確定。最終2027のAim15テスト・GUI6項目、サイクル5テスト・GUI成功記録を確認。調査メモと.maya-outputは除外し、差分確認後にコミット・プッシュする。Sphinxビルドは未実施。
+
+- Codex (2026-10-04): ユーザー訂正に従い、Aimの補正付き復元を撤回。restore()は元Aimの直接接続・保存値を復元し、変換/補正ノードとcontainerを全削除。元Aimの未接続設定（Offset/Rest Rotate/Aim/Up/World Up/ウェイト等）を記録・復元し、旧形式の未記録値は推測せず保持。旧mode=restの補正も除去可能。UIを「元のAim構造・設定へ戻す」へ変更、README・hrig説明更新。2027で15テストと専用GUI6項目成功（ノード集合の完全復元・設定値・直接接続・旧補正削除を含む）。起動中Mayaへの再読込はport7002の接続拒否で未実施。ユーザーシーンへの復元操作も未実施。他バージョン・Sphinxは今回未検証。未コミット。
+
+- Codex (2026-10-04): Aim軸変換の復元を、元Aim直結から初期Rest Rotate近傍の等価XYZを選ぶ補正付き追従へ変更（ユーザー回答に基づく）。初回Rest Rotateのスナップショットを方式切替で維持し、旧保存形式は元AimのRest Rotateから取得。内部切替用restore(stabilize=False)は従来の厳密な接続復元を保持。復元後も補正containerを残し、UI表示・README・hrig説明を更新。2027で15テストと専用GUI6項目成功（90度通過の追従、360度基準、旧形式、Undo等）。起動中シーンを読み取り確認後、実装・UIのみ再読込。ユーザーシーンへの復元操作・他バージョン・Sphinxビルドは未実施。未コミット。
+
+- Codex (2026-10-04): hrig.setups.AimAxisConversionとHTools/rigging/convertAimAxesを追加。選択した既存AimをEuler等価解・1/2軸方向・軸別Twistの3方式で変換し、元接続復元と切替、Undo/Redo、message参照による改名・保存読込に対応。hlibのNode/Plug/Container/ScalarGraphを使用。参照・ロック・他入力・間接接続を拒否、validで範囲曖昧/特異点/回転順変更を診断。2027/2026各13テスト、2025先行11テスト成功。専用2027 GUIで3方式・設定再読込・復元・不正方向の6項目成功、スクリーンショットを目視確認（.maya-output/aim-axis-gui/20261004_222750）。起動中Mayaには画面のみ表示し、ユーザーシーンは未変換。README/hrig利用説明更新、構文・差分確認済み。Sphinxは利用可能pythonにモジュールがなくビルド未実施。2022〜2024・ユーザー実リグ・大規模性能は未検証。DAG込みcycleCheckは標準Aim自体も拘束対象の子にあるだけで候補を返すことを隔離検証で確認。元の循環接続の修復は本機能の対象外。未コミット。
+
+- Codex (2026-10-04): Aimの1〜2軸出力ツールの方式を検討。共有会話本文・Autodesk仕様・hrig SwingTwist/ScalarGraph等を確認。Euler別解式をMaya2027 APIで6回転順×1000例検証し行列誤差1.79e-15未満。方法1はXYZ一組の別解選択後に軸抽出、方法2はヒンジ/首振り/Twistの動作定義が必要と整理。docs/research/aimAxisDecomposition.txtとProbe.py/jsonへローカル保存。方式・軸・可動域はユーザーへ質問中で製品実装は未着手、現在のMayaシーン変更なし。
+
+- Codex (2026-10-04): HTools/rigging/inspectCycles.pyへサイクル原因調査UIを追加。Maya cycleCheckで全体・選択・名前指定を検索し、hlibのNode/Plugでノード型・直接接続を照会。DAG親子関係、経路別表示、ノード選択、UTF-8レポート保存に対応。READMEへ使用方法と検出制限を記載。Maya2027 standaloneで実DG/DAG循環・複数経路・循環なし・入力拒否の5テスト成功。起動中2027 GUIで生成・空結果・失敗復帰・保存を確認、画面画像を目視確認（.maya-output/cycle-inspector.png）。他バージョン・大規模実シーン・手動操作は未検証。2027でhlib.ObjectのDGノード名解決がnull MPlugを扱う問題を確認したため、本ツールはNode/getPlugを明示使用（hlib本体は未変更）。未コミット。
+
 - Claude Code (2026-10-04): `WorkspaceLayout.captureDockingLayout/restoreDockingLayout/temporaryDockingLayout`を削除(ユーザー指示)。専用GUIでの調査で、cmds/melからworkspaceControlのドッキング先を照会する手段が無いことを確認(`workspaceControl -q -dockToMainWindow`はNone、`workspaceLayoutManager -parentWorkspaceControl`は空、`window -dockingLayout`/`-state`に含まれず復元しても戻らない、`saveAs`のJSONは現在の配置名を切り替えretain=Falseのドックを含まない、`floating=False`でも戻らない)。Qtを使えばできるがhlibはQt禁止のため不可。テストはモック2件を削除し、GUIテストをdock→undock→dockに変更、削除APIが無いことの確認を追加。docs(window_layouts.rst・hlib-api-design.md)とUiSnapshotのdocstringを更新。専用GUI unit 2022〜2027全passed(各99ファイル/941テスト、WindowGuiTest実行)、mayapy 2022〜2027全passed。未コミット。
 
 - Claude Code (2026-10-04): 起動中Maya 2027でGUIテスト(visual 15件passed、GUI内run_all_tests 99ファイル)。GUI内でのみ失敗した3件を修正(test_cmds_interopのMEL `$tmp`がGUIでは文字列のグローバル変数、test_extensionsがGUIでは`sys.executable`=maya.exeを起動、test_hrig_bifrost_startupのバッチ判定未モック)。Maya未起動でもGUIテストできるよう`run_hlib_gui_versions.py`に`--suite all|unit|visual`(既定all)を追加し、新規`run_hlib_unit_gui_tests.py`で使い捨てGUI内にrun_all_tests一式(GUI専用ケース・test_scene_ui・test_window_layout含む)を実行。専用GUIは信頼済みプラグインの場所が未登録で警告ダイアログに止まるため、test_posedriverconnect_extensionはGUIで未登録ならskip(登録はしない)。2022〜2027でvisual全passed、unitは942テスト中`test_window_layout` 1件のみ失敗: `WorkspaceLayout.restoreDockingLayout()`が使う`window -dockingLayout`にworkspaceControlのドッキングが含まれず、浮動にしたウィンドウが戻らない(hlib本体の既存の問題。未修正)。mayapy 2022〜2027全passed。未コミット。

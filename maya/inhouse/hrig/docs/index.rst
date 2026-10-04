@@ -23,6 +23,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    bend_correction
    swing_twist
    rotation_follow
+   aim_axis_conversion
    radial_weights
    secondary_motion
    spline_ik
