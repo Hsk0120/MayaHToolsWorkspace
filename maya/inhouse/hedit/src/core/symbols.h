@@ -4,7 +4,7 @@
  * | type | 使う欄 |
  * |---|---|
  * | Function | detail(``name(arg1, arg2)``)・signature・doc |
- * | Class | members(クラスの中の名前の表)・detail(``class Name``)・signature・doc |
+ * | Class | members(クラスの中の名前の表)・bases(親クラスの式)・detail(``class Name``)・signature・doc |
  * | Module(``import a.b``など) | target(モジュール名) |
  * | Import(``from X import Y``) | fromModule(X)・fromName(Y) |
  * | Builtin・Keyword | なし(組み込みの名前・予約語。Preferencesでの絞り込みに使う) |
@@ -18,6 +18,7 @@
 #include <QJsonObject>
 #include <QMap>
 #include <QString>
+#include <QStringList>
 #include <memory>
 
 namespace hedit {
@@ -45,6 +46,7 @@ struct Symbol {
     QString fromModule;                    ///< Import: ``from X import Y``のX。
     QString fromName;                      ///< Import: ``from X import Y``のY。
     std::shared_ptr<SymbolTable> members;  ///< Class: クラスの中の名前。それ以外はnullptr。
+    QStringList bases;                     ///< Class: 親クラスの式(``class B(pkg.A)``なら``pkg.A``)。ソースから読んだときだけ。
     QString signature;                     ///< ホバーに出す定義(``def name(a, b=1) -> int``)。無ければ空。
     QString doc;                           ///< docstring(字下げを整えたもの)。無ければ空。
 

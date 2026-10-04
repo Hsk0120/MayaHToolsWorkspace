@@ -38,6 +38,26 @@ def _search_paths():
     return [os.path.abspath(path or os.curdir) for path in sys.path if isinstance(path, str)]
 
 
+def _class_namespace(cls):
+    """クラスの名前を、親クラスから受け継いだものも含めて集める(``dir()`` と同じ順の優先度)。
+
+    ``vars()`` を親クラスから順に重ねるだけで、属性を取得しない(property などは実行しない)。
+    ``object`` 自身の名前は含めない。
+
+    Args:
+        cls (type): クラス。
+
+    Returns:
+        dict: 名前 → 値。子クラスの名前を優先する。
+    """
+    namespace = {}
+    for klass in reversed(getattr(cls, '__mro__', (cls,))):
+        if klass is object:
+            continue
+        namespace.update(vars(klass))
+    return namespace
+
+
 def _members(mapping, depth=0):
     """モジュールやクラスの公開名を、補完用の辞書にする。
 
@@ -55,7 +75,7 @@ def _members(mapping, depth=0):
         if isinstance(value, types.ModuleType):
             result[key] = {'target': vars(value).get('__name__', '')}
         elif isinstance(value, type) and depth < 1:
-            result[key] = {'members': _members(vars(value), depth + 1), 'detail': 'class ' + key}
+            result[key] = {'members': _members(_class_namespace(value), depth + 1), 'detail': 'class ' + key}
         else:
             result[key] = {}
     return result
@@ -145,9 +165,12 @@ def describe(module_name, path):
     if not isinstance(value, types.ModuleType):
         return json.dumps({'found': False})
     for part in path:
-        if not isinstance(value, (types.ModuleType, type)) or part not in vars(value):
+        # クラスは親クラスから受け継いだ名前もたどる(推論した変数のメソッドが、親クラスにある場合)。
+        namespace = _class_namespace(value) if isinstance(value, type) else (
+            vars(value) if isinstance(value, types.ModuleType) else {})
+        if part not in namespace:
             return json.dumps({'found': False})
-        value = vars(value)[part]
+        value = namespace[part]
     name = path[-1] if path else module_name
     if isinstance(value, (staticmethod, classmethod)):
         value = value.__func__

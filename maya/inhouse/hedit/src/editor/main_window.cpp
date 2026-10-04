@@ -66,10 +66,11 @@ QString preferencesPath(const QString& sessionPath) {
 
 /** @brief QTextCursorの選択文字列を、普通の改行の文字列にする(実行する選択範囲に使う)。
  * @param text selectedText()の戻り値。行の区切りがU+2029(段落区切り)になっている。
+ *        Shift+Enterや以前の貼り付けで入ったU+2028(行区切り)も含みうる。
  * @return 改行を``\n``にした文字列。
  */
 QString normalizeSelectedText(QString text) {
-    return text.replace(QChar(0x2029), '\n');
+    return text.replace(QChar(0x2029), '\n').replace(QChar(0x2028), '\n');
 }
 
 }  // namespace
@@ -510,7 +511,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 
 void MainWindow::runCode(bool all) {
     CodeEditor* editor = currentEditor();
-    QString source = editor->toPlainText();
+    // 全体の実行でも、残っているU+2028(行区切り)を改行にする(Pythonでは構文エラーになるため)。
+    QString source = normalizeSelectedText(editor->toPlainText());
     if (!all && editor->textCursor().hasSelection()) {
         source = normalizeSelectedText(editor->textCursor().selectedText());
     }

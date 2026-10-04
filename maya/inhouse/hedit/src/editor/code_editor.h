@@ -128,6 +128,13 @@ protected:
     /** @brief フォーカスを失ったら、名前の説明を閉じる。 @param event イベント。 */
     void focusOutEvent(QFocusEvent* event) override;
 
+    /** @brief 貼り付け・ドロップの文字列を、行の区切りを``\n``にそろえて挿入する。
+     * @param source 貼り付ける内容。
+     * @note Webページなどからコピーした文字列にはU+2028(行区切り)が混ざることがある。そのまま入れると
+     *       Pythonの実行で「invalid non-printable character U+2028」のSyntaxErrorになる。
+     */
+    void insertFromMimeData(const QMimeData* source) override;
+
 private:
     /** @brief 位置にある名前の範囲を求める。文字列・コメント・予約語の上なら名前として扱わない。
      * @param position 文書の中の位置。

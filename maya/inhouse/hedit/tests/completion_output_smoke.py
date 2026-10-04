@@ -65,13 +65,18 @@ def main(output_dir, finished):
                     return True
             return False
 
-        window.activateWindow(); code.setFocus()
         code.setPlainText('import hlib'); code.moveCursor(QtGui.QTextCursor.End)
+        # テスト用のMayaはすぐには前面に出られないことがある(Windowsの前面化の制限)。フォーカスが来るまで待つ。
+        for attempt in range(100):
+            window.activateWindow(); window.raise_(); code.setFocus()
+            wait(100)
+            if code.hasFocus():
+                break
         QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier)
         wait(250)
         # 最初のCtrl+Spaceだけで、未読込のパッケージ(hlib)が候補に入る。sys.pathの走査は
         # C++のスレッドで編集画面の作成時に始めている(ポップアップの表示有無とは別に確かめる)。
-        assert 'hlib' in names(), names()
+        assert 'hlib' in names(), (names(), 'code_has_focus=%s' % code.hasFocus())
         result['checks'].append('first_ctrl_space_lists_unloaded_package')
         assert show_popup(), 'No completion popup'
         model = completer.completionModel()
@@ -86,6 +91,28 @@ def main(output_dir, finished):
         assert code.toPlainText() == 'import hlib\n', repr(code.toPlainText())
         assert not completer.popup().isVisible()
         result['checks'].append('accept_hlib_then_enter_newline')
+        # 一覧が開いたまま、Enterがコード欄へ直接届いた場合(Mayaのドックの中で起きる)も、ここで確定して
+        # 親(Mayaのウィンドウ)へ回さない。アウトライナでノードを選択していても、フォーカスはコード欄に残る。
+        probe = cmds.createNode('transform', name='hedit_focus_probe')
+        outliner_window = cmds.window(title='hedit outliner probe')
+        cmds.frameLayout(labelVisible=False)
+        cmds.outlinerEditor()
+        cmds.showWindow(outliner_window)
+        cmds.select(probe)
+        wait(200)
+        code.setPlainText('import hlib\nhlib.'); code.moveCursor(QtGui.QTextCursor.End)
+        assert show_popup(), 'No completion popup for hlib.'
+        first = completer.popup().currentIndex().data()
+        QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
+        wait(250)
+        assert code.toPlainText() == 'import hlib\nhlib.' + first, repr(code.toPlainText())
+        assert code.hasFocus(), 'Focus left the code editor after accepting a completion'
+        QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
+        wait(200)
+        assert code.toPlainText() == 'import hlib\nhlib.' + first + '\n', repr(code.toPlainText())
+        cmds.deleteUI(outliner_window)
+        cmds.delete(probe)
+        result['checks'].append('enter_on_code_accepts_without_leaving_editor')
         # 確定後も次の入力と手動補完は使用できる。
         code.setPlainText('import maya.cmds as cmds\ncmds.')
         code.moveCursor(QtGui.QTextCursor.End)

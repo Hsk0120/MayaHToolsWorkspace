@@ -39,6 +39,7 @@
 #include <QFontDatabase>
 #include <QThread>
 #include <QTextBlock>
+#include <QClipboard>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -486,6 +487,38 @@ bool completionEnginePasses(const QByteArray& config) {
     if (!describe("return").isEmpty() || !describe("value = 1\nvalue.unknown").isEmpty() || !describe("unknown_name").isEmpty()) {
         qWarning() << "describe empty" << describe("unknown_name").signature; return false;
     }
+    // 変数の型の推論: 呼出しの代入・型ヒント・引数の型ヒント・関数の中。親クラスのメンバーも出す。
+    const QString classes = "class A:\n    def run(self): pass\nclass B(A):\n    def walk(self): pass\n";
+    const QList<QPair<QString, QStringList>> inferred{
+        {classes + "obj = B()\nobj.", {"run", "walk"}},
+        {classes + "obj: A = make()\nobj.", {"run"}},
+        {classes + "obj: \"B\"\nobj.", {"run", "walk"}},
+        {classes + "def f(o: B, n: int):\n    o.", {"run", "walk"}},
+        {classes + "def g():\n    o = A(1, (2, 3))\n    o.", {"run"}},
+        {"import docsample\nt = docsample.Thing()\nt.", {"run"}},
+        {"from docsample import Thing\nt = Thing()\nt.", {"run"}},
+    };
+    for (const auto& probe : inferred) {
+        const QStringList found = names(probe.first);
+        for (const QString& expected : probe.second) {
+            if (!found.contains(expected)) { qWarning() << "inferred" << probe.first << found; return false; }
+        }
+    }
+    // 推論できない代入が後にあれば、古い型は使わない。呼出しの結果にさらに続く形も推論しない。
+    if (!names(classes + "o = A()\no = 1\no.").isEmpty() || !names(classes + "o = A().run\no.").isEmpty()) {
+        qWarning() << "stale inference" << names(classes + "o = A()\no = 1\no."); return false;
+    }
+    if (hedit::inferredTypeExpression("x = 1\nx: pkg.A\n", "x") != "pkg.A"
+        || hedit::inferredTypeExpression("def f(a, x: 'pkg.B' = None):\n", "x") != "pkg.B"
+        || hedit::inferredTypeExpression("x = make()  # comment\n", "x") != "make"
+        || !hedit::inferredTypeExpression("x: list[A]\n", "x").isEmpty()) {
+        qWarning() << "inferredTypeExpression"; return false;
+    }
+    // ホバーも推論した型で説明を出す。
+    const hedit::HoverInfo method = describe("import docsample\nt = docsample.Thing()\nt.run");
+    if (method.signature != "def run(self)" || method.doc != "Run it.") {
+        qWarning() << "describe inferred" << method.signature; return false;
+    }
     // 末尾の名前の判定(Pythonの正規表現 [A-Za-z_][\w.]*$ と同じ)。
     if (hedit::trailingDottedName("x = 1abc.de") != "abc.de" || hedit::trailingDottedName("cmds.") != "cmds."
         || hedit::trailingDottedName("f(") != "") {
@@ -680,7 +713,8 @@ int main(int argc, char** argv) {
     bool outputSent=false;
     // Mayaの代わりに、決まった値を返す偽の関数を渡す。
     hedit::EditorServices services;
-    services.runPython = [](const QString& code, const QString&) { return "executed: " + code; };
+    QString lastRun;
+    services.runPython = [&lastRun](const QString& code, const QString&) { lastRun = code; return "executed: " + code; };
 
     services.takeOutput = [&outputSent] {
         if (outputSent) return QList<hedit::OutputMessage>();
@@ -728,6 +762,33 @@ int main(int argc, char** argv) {
         if (popup->isVisible() || code->toPlainText() != "import maya.cmds as cmds\ncmds.ls(selection=True)") {
             qWarning() << "hover escape"; return 24;
         }
+    }
+    {
+        // U+2028(行区切り)はPythonの構文エラーになる。Shift+Enter・貼り付け・実行のどれでも普通の改行にする。
+        code->setPlainText("a = 1");
+        code->moveCursor(QTextCursor::End);
+        QKeyEvent shiftEnter(QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier);
+        QApplication::sendEvent(code, &shiftEnter);
+        if (code->blockCount() != 2 || code->document()->toRawText().contains(QChar::LineSeparator)) {
+            qWarning() << "shift+enter inserted a line separator"; return 25;
+        }
+        code->clear();
+        QApplication::clipboard()->setText(QString("x = 1") + QChar(0x2028) +"y = 2\r\nz = 3");
+        code->paste();
+        if (code->blockCount() != 3 || code->document()->toRawText().contains(QChar::LineSeparator)
+            || code->toPlainText() != "x = 1\ny = 2\nz = 3") {
+            qWarning() << "paste kept a line separator" << code->toPlainText(); return 26;
+        }
+        // 以前の版で入ってしまった行区切りが残っていても、実行する文字列では改行にする。
+        code->setPlainText("x = 1");
+        code->moveCursor(QTextCursor::End);
+        code->textCursor().insertText(QString(QChar(0x2028)) + "y = 2");
+        code->selectAll();
+        for (auto action : window->findChildren<QAction*>()) if (action->text() == "Run all") action->trigger();
+        if (lastRun != "x = 1\ny = 2") { qWarning() << "run all" << lastRun; return 27; }
+        lastRun.clear();
+        for (auto action : window->findChildren<QAction*>()) if (action->text() == "Run selection / script") action->trigger();
+        if (lastRun != "x = 1\ny = 2") { qWarning() << "run selection" << lastRun; return 28; }
     }
     code->setPlainText("import maya.cmds as cmds\n\ncmds.cre");
     auto cursor = code->textCursor(); cursor.movePosition(QTextCursor::End); code->setTextCursor(cursor); code->setFocus();

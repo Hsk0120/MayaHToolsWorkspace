@@ -51,7 +51,60 @@ QList<CompletionItem> itemsFor(const SymbolTable& symbols, const QString& prefix
     return items;
 }
 
+/// 型の推論で、たどる深さの上限(x = A() の A がまた推論…と循環しないように)。
+constexpr int kMaximumInferDepth = 4;
+
 }  // namespace
+
+QString inferredTypeExpression(const QString& text, const QString& name) {
+    if (!isIdentifier(name)) {
+        return QString();
+    }
+    const QString escaped = QRegularExpression::escape(name);
+    // 1. 型ヒント付きの変数(x: pkg.A / x: "pkg.A" = ...)。引用符で囲んだ前方参照も読む。
+    const QRegularExpression annotation("^\\s*" + escaped + "\\s*:\\s*(['\"]?)([A-Za-z_][\\w.]*)\\1(?![\\w.\\[])");
+    // 2. 呼出しの結果の代入(x = pkg.A(...))。呼出しの後ろに続きがある(x = A().b)ものは対象外。
+    const QRegularExpression call("^\\s*" + escaped + "\\s*=\\s*([A-Za-z_][\\w.]*)\\s*\\(");
+    // 3. 関数の引数の型ヒント(def f(x: pkg.A) / 複数行の引数の , x: pkg.A)。
+    const QRegularExpression parameter("[(,]\\s*" + escaped + "\\s*:\\s*(['\"]?)([A-Za-z_][\\w.]*)\\1(?![\\w.\\[])");
+    const QStringList lines = text.split('\n');
+    // カーソルに近い(後ろの)行の宣言を優先する。
+    for (int i = lines.size() - 1; i >= 0; --i) {
+        const QString& line = lines[i];
+        QRegularExpressionMatch match = annotation.match(line);
+        if (match.hasMatch()) {
+            return match.captured(2);
+        }
+        match = call.match(line);
+        if (match.hasMatch()) {
+            // 呼出しが行の最後まで(括弧が閉じて終わる)かを確かめる。
+            const QString rest = line.mid(match.capturedEnd() - 1).trimmed();
+            int depth = 0;
+            int closing = -1;
+            for (int c = 0; c < rest.size(); ++c) {
+                if (rest[c] == '(') {
+                    ++depth;
+                } else if (rest[c] == ')' && --depth == 0) {
+                    closing = c;
+                    break;
+                }
+            }
+            const QString after = closing >= 0 ? rest.mid(closing + 1).trimmed() : QString();
+            if (closing < 0 || after.isEmpty() || after.startsWith('#')) {
+                return match.captured(1);
+            }
+            return QString();  // x = A().b など。最後の代入が推論できない形なら、それより前は見ない。
+        }
+        if (QRegularExpression("^\\s*" + escaped + "\\s*(=|\\+=)").match(line).hasMatch()) {
+            return QString();  // 推論できない代入(x = 1 など)。それより前の宣言は使わない。
+        }
+        match = parameter.match(line);
+        if (match.hasMatch()) {
+            return match.captured(2);
+        }
+    }
+    return QString();
+}
 
 QString trailingDottedName(const QString& source) {
     int start = source.size();
@@ -168,7 +221,20 @@ SymbolTable CompletionEngine::moduleMembers(Request& request, const QString& nam
             const QString moduleName = QFileInfo(loaded.file).fileName() == "__init__.py" ? name + ".__init__" : name;
             const SymbolTable declared = fileDeclarations(loaded.file, moduleName);
             for (auto it = declared.begin(); it != declared.end(); ++it) {
-                result.insert(it.key(), it.value());
+                const auto existing = result.find(it.key());
+                if (existing != result.end() && existing->members && it.value().members) {
+                    // クラス: Pythonから受け取った中身(親クラスから受け継いだ名前を含む)に、
+                    // ファイルの宣言(引数・docstring)を重ねる。
+                    Symbol merged = it.value();
+                    auto members = std::make_shared<SymbolTable>(*existing->members);
+                    for (auto member = merged.members->begin(); member != merged.members->end(); ++member) {
+                        members->insert(member.key(), member.value());
+                    }
+                    merged.members = members;
+                    result.insert(it.key(), merged);
+                } else {
+                    result.insert(it.key(), it.value());
+                }
             }
         }
         request.modules.insert(name, result);
@@ -263,6 +329,95 @@ void CompletionEngine::followImports(Request& request, Symbol* item, QString* mo
     }
 }
 
+CompletionEngine::Located CompletionEngine::resolveName(Request& request, const SymbolTable& scope,
+                                                       const QString& text, const QString& name, int depth) {
+    Located located;
+    const auto local = scope.find(name);
+    if (local != scope.end() && local.value().type != SymbolType::Value) {
+        located.item = local.value();
+        return located;
+    }
+    // 変数なら、代入・型ヒントからクラスを推論する(インスタンスはクラスの中身で補完する)。
+    if (depth < kMaximumInferDepth) {
+        const QString expression = inferredTypeExpression(text, name);
+        if (!expression.isEmpty() && expression != name) {
+            const Located type = walk(request, scope, text, expression.split('.'), depth + 1);
+            if (type.found && type.item.type == SymbolType::Class) {
+                return type;
+            }
+        }
+    }
+    if (local != scope.end()) {
+        located.item = local.value();
+    } else if (environment_.builtins.contains(name)) {
+        located.item = Symbol::category(SymbolType::Builtin);
+        located.module = "builtins";
+        located.path = QStringList{name};
+    } else {
+        located.item = Symbol::module(name);
+    }
+    return located;
+}
+
+CompletionEngine::Located CompletionEngine::walk(Request& request, const SymbolTable& scope, const QString& text,
+                                                const QStringList& parts, int depth) {
+    Located located = resolveName(request, scope, text, parts.first(), depth);
+    followImports(request, &located.item, &located.module, &located.path);
+    for (int i = 1; i < parts.size(); ++i) {
+        const SymbolTable members = membersOf(request, located, scope, depth);
+        const auto found = members.find(parts[i]);
+        if (found == members.end()) {
+            located.found = false;
+            return located;
+        }
+        if (located.item.type == SymbolType::Module) {
+            located.module = located.item.target;
+            located.path = QStringList{parts[i]};
+        } else {
+            located.path.append(parts[i]);
+        }
+        located.item = found.value();
+        followImports(request, &located.item, &located.module, &located.path);
+    }
+    return located;
+}
+
+SymbolTable CompletionEngine::membersOf(Request& request, const Located& located, const SymbolTable& scope,
+                                        int depth) {
+    if (located.item.type == SymbolType::Class) {
+        // クラスが見つかった場所(本文の中か、どのモジュールか)で、親クラスの名前を探す。
+        const SymbolTable home = located.module.isEmpty() ? scope : moduleMembers(request, located.module);
+        return classMembers(request, located.item, home, located.module, depth);
+    }
+    return resolve(request, located.item);
+}
+
+SymbolTable CompletionEngine::classMembers(Request& request, const Symbol& item, const SymbolTable& home,
+                                           const QString& module, int depth) {
+    SymbolTable members = item.members ? *item.members : SymbolTable();
+    if (depth >= kMaximumInferDepth) {
+        return members;
+    }
+    // 親クラスから受け継いだ名前を足す(Pythonと同じく、先に書いた親・子クラス自身の名前を優先する)。
+    for (const QString& base : item.bases) {
+        Located parent = walk(request, home, QString(), base.split('.'), depth + 1);
+        if (!parent.found || parent.item.type != SymbolType::Class) {
+            continue;
+        }
+        if (parent.module.isEmpty()) {
+            parent.module = module;  // 同じ場所で見つかった親クラス。
+        }
+        const SymbolTable parentHome = parent.module.isEmpty() ? home : moduleMembers(request, parent.module);
+        const SymbolTable inherited = classMembers(request, parent.item, parentHome, parent.module, depth + 1);
+        for (auto it = inherited.begin(); it != inherited.end(); ++it) {
+            if (!members.contains(it.key())) {
+                members.insert(it.key(), it.value());
+            }
+        }
+    }
+    return members;
+}
+
 HoverInfo CompletionEngine::describe(const QString& text, int end) {
     HoverInfo info;
     if (text.size() > kMaximumSourceLength || end < 0 || end > text.size()) {
@@ -275,51 +430,17 @@ HoverInfo CompletionEngine::describe(const QString& text, int end) {
         return info;
     }
     const QStringList parts = token.split('.');
-    const SymbolTable locals = localDeclarations(text);
-
-    // 1. 最初の名前: この本文の宣言 → 組み込みの名前 → モジュール名。
-    Symbol item;
-    QString module;    // itemがあるモジュール(本文の中なら空)。
-    QStringList path;  // モジュールの中でのitemの位置。
-    const auto local = locals.find(parts.first());
-    if (local != locals.end()) {
-        item = local.value();
-    } else if (environment_.keywords.contains(parts.first())) {
+    if (parts.size() == 1 && environment_.keywords.contains(parts.first())) {
         return info;
-    } else if (environment_.builtins.contains(parts.first())) {
-        item = Symbol::category(SymbolType::Builtin);
-        module = "builtins";
-        path = QStringList{parts.first()};
-    } else {
-        item = Symbol::module(parts.first());
     }
-    followImports(request, &item, &module, &path);
-
-    // 2. 点の後ろの名前を順にたどる。
-    for (int i = 1; i < parts.size(); ++i) {
-        if (item.type == SymbolType::Module) {
-            module = item.target;
-            const SymbolTable members = moduleMembers(request, module);
-            const auto found = members.find(parts[i]);
-            if (found == members.end()) {
-                return info;
-            }
-            item = found.value();
-            path = QStringList{parts[i]};
-        } else if (item.members) {
-            const auto found = item.members->find(parts[i]);
-            if (found == item.members->end()) {
-                return info;
-            }
-            item = found.value();
-            path.append(parts[i]);
-        } else {
-            return info;  // 変数の型は推論しないので、その先はたどれない。
-        }
-        followImports(request, &item, &module, &path);
+    const SymbolTable locals = localDeclarations(text);
+    // 名前をたどる(変数は代入・型ヒントからクラスを推論する)。推論はカーソルより前の本文で行う。
+    const Located located = walk(request, locals, text.left(end), parts, 0);
+    if (!located.found) {
+        return info;
     }
-
-    // 3. モジュールなら、モジュールのdocstring。
+    const Symbol& item = located.item;
+    // モジュールなら、モジュールのdocstring。
     if (item.type == SymbolType::Module) {
         bool found = false;
         info.doc = moduleDocstring(request, item.target, &found);
@@ -328,13 +449,13 @@ HoverInfo CompletionEngine::describe(const QString& text, int end) {
         }
         return info;
     }
-    // 4. 関数・クラス。ソースから読めなかった説明は、読み込み済みのモジュールならPythonに問い合わせる。
+    // 関数・クラス。ソースから読めなかった説明は、読み込み済みのモジュールならPythonに問い合わせる。
     info.signature = item.signature;
     info.doc = item.doc;
-    if (info.doc.isEmpty() && !module.isEmpty() && source_.describe) {
+    if (info.doc.isEmpty() && !located.module.isEmpty() && source_.describe) {
         QString signature;
         QString doc;
-        if (source_.describe(module, path, &signature, &doc)) {
+        if (source_.describe(located.module, located.path, &signature, &doc)) {
             info.doc = doc;
             if (info.signature.isEmpty()) {
                 info.signature = signature;
@@ -384,18 +505,12 @@ CompletionResult CompletionEngine::complete(const QString& source) {
         symbols = moduleMembers(request, fromMatch.captured(1));
         prefix = fromMatch.captured(2);
     } else if (token.contains('.')) {
-        // a.b.c → aの中のbの中の、cで始まる名前。
+        // a.b.c → aの中のbの中の、cで始まる名前。変数(x = pkg.A() / x: pkg.A)はクラスを推論する。
         const QStringList parts = token.split('.');
-        Symbol item = Symbol::module(parts.first());
-        const auto local = locals.find(parts.first());
-        if (local != locals.end()) {
-            item = local.value();
+        const Located located = walk(request, locals, source, parts.mid(0, parts.size() - 1), 0);
+        if (located.found) {
+            symbols = membersOf(request, located, locals, 0);
         }
-        for (int i = 1; i + 1 < parts.size(); ++i) {
-            const SymbolTable members = resolve(request, item);
-            item = members.value(parts[i]);
-        }
-        symbols = resolve(request, item);
         prefix = parts.last();
     } else {
         // 名前だけ: 組み込みの名前・予約語・この本文の宣言(同じ名前なら後のものが優先)。

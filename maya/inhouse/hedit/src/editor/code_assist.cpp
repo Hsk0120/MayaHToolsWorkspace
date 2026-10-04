@@ -20,10 +20,11 @@ constexpr const char* kReady = "Completion: ready (in Maya)";
 
 /** @brief QTextCursorの選択文字列を、普通の改行の文字列にする。
  * @param text selectedText()の戻り値。行の区切りがU+2029(段落区切り)になっている。
+ *        Shift+Enterや以前の貼り付けで入ったU+2028(行区切り)も含みうる。
  * @return 改行を``\n``にした文字列。
  */
 QString normalizeSelectedText(QString text) {
-    return text.replace(QChar(0x2029), '\n');
+    return text.replace(QChar(0x2029), '\n').replace(QChar(0x2028), '\n');
 }
 
 }  // namespace

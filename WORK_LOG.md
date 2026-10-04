@@ -389,6 +389,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-04 | maya/inhouse/hedit(src/editor/code_editor.*・main_window.cpp・code_assist.cpp・tests/ui_smoke.cpp・docs/changelog.rst・release/*.mll) | Shift+Enter・貼り付けで入るU+2028(行区切り)を普通の改行にし、実行・補完へ渡す文字列でも改行へ変換。2022〜2027でビルドと単体テスト合格。 |
+| Claude Code | 2026-10-04 | maya/inhouse/hedit(src/editor/code_editor.cpp・src/core/completion_engine.*・src/core/symbols.*・src/core/python_declarations.cpp・src/python/hedit/bridge.py・tests・docs・release/*.mll) | 補完のEnter確定でフォーカスがアウトライナ等へ飛ぶ問題を修正。代入(x = pkg.Class(...))・変数/引数の型ヒントからの型推論を追加し、親クラスのメンバーも補完・ホバー。2022〜2027でビルドと単体テスト合格、補完GUIテスト(新しいEnter確認を含む)は2027で合格。 |
 | Codex | 2026-10-03 | docs/research/localLlmBenchmark* | ユーザー許可により3モデルをダウンロードし、同一問題の回答・速度・メモリを逐次比較。 |
 
 

@@ -87,6 +87,44 @@ private:
         QHash<QString, SymbolTable> modules;      ///< モジュール名 → 求めた中身。
     };
 
+    /** @brief 名前をたどった結果。 */
+    struct Located {
+        Symbol item;         ///< 行き着いた名前の情報。変数からクラスを推論した場合は、そのクラス。
+        QString module;      ///< itemがあるモジュール(本文の中なら空)。
+        QStringList path;    ///< モジュールの中でのitemの位置(``Class.method``なら``[Class, method]``)。
+        bool found = true;   ///< 最後までたどれたか。
+    };
+
+    /** @brief 最初の名前を探す: 本文の宣言 → 変数ならクラスの推論 → 組み込みの名前 → モジュール名。
+     * @param request 今の問い合わせ。
+     * @param scope 名前を探す表(本文の宣言、またはモジュールの中身)。
+     * @param text 型を推論する本文(カーソルより前)。空なら推論しない。
+     * @param name 名前。
+     * @param depth 推論の深さ(循環を止める)。
+     * @return たどった結果。
+     */
+    Located resolveName(Request& request, const SymbolTable& scope, const QString& text, const QString& name, int depth);
+
+    /** @brief ``a.b.c``をたどる(補完とホバーで共通)。 @param request 今の問い合わせ。 @param scope 最初の名前を探す表。
+     * @param text 型を推論する本文。 @param parts 名前を点で分けたもの。 @param depth 推論の深さ。
+     * @return たどった結果。途中で見つからなければfoundがfalse。
+     */
+    Located walk(Request& request, const SymbolTable& scope, const QString& text, const QStringList& parts, int depth);
+
+    /** @brief たどった名前の中身(モジュールの公開名・クラスのメンバー)を返す。
+     * @param request 今の問い合わせ。 @param located たどった結果。 @param scope 本文の宣言。 @param depth 推論の深さ。
+     * @return 名前の表。クラスなら、親クラスから受け継いだ名前も含む。
+     */
+    SymbolTable membersOf(Request& request, const Located& located, const SymbolTable& scope, int depth);
+
+    /** @brief クラスのメンバーを、親クラス(Symbol::bases)から受け継いだものも含めて返す。
+     * @param request 今の問い合わせ。 @param item クラス。 @param home クラスが定義された場所の名前の表。
+     * @param module クラスが定義されたモジュール(本文の中なら空)。 @param depth たどる深さ。
+     * @return メンバーの表。同じ名前は、子クラス・先に書いた親クラスを優先する。
+     */
+    SymbolTable classMembers(Request& request, const Symbol& item, const SymbolTable& home, const QString& module,
+                             int depth);
+
     /** @brief sys.pathの中で見つかったモジュールの場所。 */
     struct ModuleLocation {
         QString packageFolder;  ///< パッケージ(フォルダー)なら、そのフォルダー。
@@ -161,6 +199,15 @@ private:
     QString localsText_;                 ///< 前回の編集中の本文。
     SymbolTable localsSymbols_;          ///< 前回の編集中の本文の宣言。
 };
+
+/** @brief 本文から、変数の型(クラスの式)を推論する。実行はしない。
+ * @param text カーソルより前の本文。
+ * @param name 変数名。
+ * @return 次のうち、カーソルに近い(後ろの)ものの式。``x: pkg.A``(型ヒント。``"pkg.A"``も可)・
+ * ``x = pkg.A(...)``(呼出しの結果)・``def f(x: pkg.A)``(引数の型ヒント)。推論できなければ空。
+ * 推論できない代入(``x = 1``・``x = A().b``)の方が近ければ空を返す(古い型を使わない)。
+ */
+QString inferredTypeExpression(const QString& text, const QString& name);
 
 /** @brief 本文の末尾の``a.b.c``の形の名前を返す(補完する位置の判定)。
  * @param source カーソルまでの本文。

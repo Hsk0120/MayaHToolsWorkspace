@@ -119,6 +119,36 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(describe('len')['signature'], 'def len(obj, /)')
         self.assertEqual(describe('return'), {'signature': '', 'doc': ''})
 
+    def test_inferred_instance_includes_inherited_members(self):
+        """代入からクラスを推論し、親クラスから受け継いだメソッドも候補に出す(読み込み済みのクラス)。"""
+        module = types.ModuleType('inherit_probe')
+
+        class Base:
+            def base_method(self):
+                """From the base class."""
+
+        class Child(Base):
+            def child_method(self):
+                pass
+
+        module.Base = Base
+        module.Child = Child
+        with mock.patch.dict(sys.modules, {'inherit_probe': module}):
+            found = names('import inherit_probe\nc = inherit_probe.Child()\nc.')
+            self.assertIn('base_method', found)
+            self.assertIn('child_method', found)
+            info = describe('import inherit_probe\nc: inherit_probe.Child\nc.base_method')
+            self.assertEqual(info['doc'], 'From the base class.')
+
+    def test_hlib_collection_variable(self):
+        """hlib.nodes.Joints(...) を代入した変数で、Joints と親クラス(DagNodes など)のメソッドが出る。"""
+        source = 'import hlib\njnt = hlib.nodes.Joints("spine_IK_jnt")\njnt.'
+        found = names(source)
+        self.assertIn('jointOrientToRotate', found)
+        self.assertIn('getOverrideColor', found)
+        typed = names('import hlib\ndef f(jnt: hlib.nodes.Joint):\n    jnt.')
+        self.assertIn('getJointOrient', typed)
+
     def test_python_errors_are_reported_not_raised(self):
         """hedit.bridgeの例外はPython側で受け止め、補完の結果のerrorとしてC++へ返る。"""
         module = types.ModuleType('broken_info')

@@ -28,6 +28,16 @@
 * ``from package import Class``
 * モジュールの公開名、ソース上のクラスの直接定義メソッド、トップレベルのローカル関数
 * ``hlib.ls`` のように、読み込み済みの動的な公開名
+* 変数の型を、次の書き方から推論したときのメンバー(カーソルに近い宣言を使う):
+
+  .. code-block:: python
+
+     jnt = hlib.nodes.Joints("spine_IK_jnt")   # クラスの呼出しの結果を代入
+     jnt: hlib.nodes.Joint = something()        # 変数の型ヒント("hlib.nodes.Joint" のような文字列も可)
+     def build(jnt: hlib.nodes.Joint): ...      # 引数の型ヒント
+
+  ``jnt.`` で、そのクラスのメソッドと、親クラスから受け継いだメソッドを出します(関数の中の変数も対象)。
+  推論できない代入(``jnt = 1``\ ・\ ``jnt = hlib.ls(...)[0]`` など)の方がカーソルに近い場合は推論しません。
 * 関数の引数名(候補のツールチップに表示)
 
 更新への追従

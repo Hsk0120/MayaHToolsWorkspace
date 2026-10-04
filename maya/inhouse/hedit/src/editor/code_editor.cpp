@@ -17,6 +17,7 @@
 #include <QScrollBar>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QMimeData>
 #include <QRegularExpression>
 #include <QStandardItemModel>
 #include <QTextBlock>
@@ -245,6 +246,8 @@ void CodeEditor::insertCompletion(const QString& value) {
     setTextCursor(cursor);
     insertingCompletion_ = false;
     hideCompletions();
+    // 一覧(別のウィンドウ)が閉じた後も、入力を続けられるようにコード欄へフォーカスを戻す。
+    setFocus(Qt::OtherFocusReason);
 }
 
 void CodeEditor::checkSpelling(Spelling& spelling) {
@@ -365,15 +368,29 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    // 2. 補完の一覧が開いているときのEnter・Tab・Escは、一覧(QCompleter)に任せる。
-    //    ignore()すると、キーは一覧の側で処理される。
+    // 2. 補完の一覧が開いているときのEnter・Tab・Escは、ここで処理して、親の部品へは回さない。
+    //    以前はignore()して一覧に任せていたが、ignoreしたキーはQtの決まりで親へ順に回り、
+    //    ドックの外のMayaのウィンドウまで届く。Mayaはそれを選択中のアウトライナなどへ渡し、
+    //    フォーカスがコード欄から外れてしまっていた(確定後に改行などができなくなる)。
     if (completer_->popup()->isVisible()) {
         switch (event->key()) {
         case Qt::Key_Enter:
         case Qt::Key_Return:
+        case Qt::Key_Tab: {
+            const QModelIndex current = completer_->popup()->currentIndex();
+            if (current.isValid()) {
+                insertCompletion(current.data().toString());
+            } else {
+                hideCompletions();
+            }
+            setFocus(Qt::OtherFocusReason);
+            event->accept();
+            return;
+        }
         case Qt::Key_Escape:
-        case Qt::Key_Tab:
-            event->ignore();
+            hideCompletions();
+            setFocus(Qt::OtherFocusReason);
+            event->accept();
             return;
         default:
             break;
@@ -424,14 +441,30 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    // 7. Enterでインデントを引き継ぐ。
-    if (event->key() == Qt::Key_Return && event->modifiers() == Qt::NoModifier) {
+    // 7. Enterでインデントを引き継ぐ。Shift+EnterもQt標準ではU+2028(行区切り)を入れてしまい、
+    //    見た目は改行でもPythonの構文エラーになるので、普通の改行として扱う(VS Codeと同じ)。
+    if (event->key() == Qt::Key_Return
+        && (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
         insertNewlineWithIndent();
         return;
     }
 
     // 8. それ以外は普通の文字入力。
     QPlainTextEdit::keyPressEvent(event);
+}
+
+void CodeEditor::insertFromMimeData(const QMimeData* source) {
+    if (!source->hasText()) {
+        QPlainTextEdit::insertFromMimeData(source);
+        return;
+    }
+    QString text = source->text();
+    text.replace("\r\n", "\n");
+    text.replace('\r', '\n');
+    text.replace(QChar(QChar::LineSeparator), '\n');
+    text.replace(QChar(QChar::ParagraphSeparator), '\n');
+    textCursor().insertText(text);
+    ensureCursorVisible();
 }
 
 bool CodeEditor::deleteToIndentStop() {

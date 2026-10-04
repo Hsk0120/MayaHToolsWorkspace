@@ -255,6 +255,35 @@ QString bodyDocstring(const Words& inlineBody, const QVector<LogicalLine>& lines
     return QString();
 }
 
+/** @brief ``class Name(A, pkg.B, metaclass=M):``の見出しから、親クラスの式を取り出す。
+ * @param words ``class``から``:``の前までの字句。
+ * @return 親クラスの式(``A``・``pkg.B``)。キーワード引数(``metaclass=``など)は含めない。
+ */
+QStringList classBases(const Words& words) {
+    QStringList bases;
+    if (words.size() < 4 || !isOperator(words[2], "(")) {
+        return bases;
+    }
+    Words inside = words.mid(3);
+    if (!inside.isEmpty() && isOperator(inside.last(), ")")) {
+        inside.removeLast();
+    }
+    for (const Words& part : splitTopLevel(inside, ",")) {
+        QString dotted;
+        bool plain = !part.isEmpty();
+        for (int i = 0; i < part.size() && plain; ++i) {
+            const bool name = i % 2 == 0 && part[i].type == TokenType::Name;
+            const bool dot = i % 2 == 1 && isOperator(part[i], ".");
+            plain = name || dot;
+            dotted += part[i].text;
+        }
+        if (plain && !dotted.endsWith('.')) {
+            bases.append(dotted);
+        }
+    }
+    return bases;
+}
+
 /** @brief ``a.b.c``の形の名前を読む。
  * @param words 字句。
  * @param index 読み始める位置。読み終えた次の位置に進める。
@@ -544,6 +573,7 @@ SymbolTable readBlock(const QVector<LogicalLine>& lines, int* index, int indent,
             symbol.type = SymbolType::Class;
             symbol.detail = "class " + words[1].text;
             symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
+            symbol.bases = classBases(colon >= 0 ? words.mid(0, colon) : words);
             symbol.doc = bodyDocstring(inlineBody, lines, *index, indent);
             symbol.members = std::make_shared<SymbolTable>(readBody(inlineBody, lines, index, indent, moduleName));
             table.insert(words[1].text, symbol);
