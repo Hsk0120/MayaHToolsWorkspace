@@ -61,6 +61,20 @@ def main(output_dir=None, finished=None):
         assert cmds.optionMenuGrp(ui.mode, query=True, select=True) == 3
         assert cmds.optionMenuGrp(ui.axes, query=True, value=True) == "XY"
         result["checks"].append("reload_settings")
+        cmds.checkBox(ui.useContainer, edit=True, value=False)
+        ui.convert()
+        graph = AimAxisConversion.find(constraint)
+        assert graph.container.type() == "network"
+        assert not cmds.ls(type="container")
+        cmds.select(graph.container.fullName())
+        cmds.checkBox(ui.useContainer, edit=True, value=True)
+        ui.loadSelection()
+        assert not cmds.checkBox(ui.useContainer, query=True, value=True)
+        result["checks"].append("direct_connection_reload")
+        cmds.checkBox(ui.useContainer, edit=True, value=True)
+        ui.convert()
+        assert AimAxisConversion.find(constraint).container.type() == "container"
+        result["checks"].append("container_switch")
         ui.restore()
         assert AimAxisConversion.find(constraint) is None
         result["checks"].append("restore")

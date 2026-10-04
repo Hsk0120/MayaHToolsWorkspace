@@ -1,4 +1,4 @@
-"""所有containerへ標準scalar演算を構築する。"""
+"""指定の生成先へ標準scalar演算を構築する。"""
 
 from ..decorators.undo import undoTransaction
 from ..nodes.container import Container
@@ -8,13 +8,19 @@ from ..plugs.plug import Plug
 class ScalarGraph:
     """定数とPlugを組み合わせる単位なし数値グラフのビルダー。"""
 
-    def __init__(self, container):
-        """既存containerを保持する。
+    def __init__(self, container=None, *, create_node=None):
+        """containerまたは生成関数のどちらか一方を保持する。
 
         Args:
-            container (str | Container): 演算ノードの所有先。
+            container (str | Container | None): 演算ノードの所有先。
+            create_node (Callable | None): (node_type, name=...)を受け取りNodeを返す生成関数。
         """
-        self.container = Container(container)
+        if (container is None) == (create_node is None):
+            raise ValueError("containerかcreate_nodeのどちらか一方を指定してください。")
+        if create_node is not None and not callable(create_node):
+            raise TypeError("create_nodeは呼出可能な生成関数を指定してください。")
+        self.container = Container(container) if container is not None else None
+        self._createNode = self.container.createNode if self.container is not None else create_node
 
     @undoTransaction("hlib.ScalarGraph.sum")
     def sum(self, role, left, right, subtract=False):
@@ -29,12 +35,11 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
-        from ..plugs.plug import Plug as _InputPlug
         node = self._node("plusMinusAverage", role)
-        _InputPlug._resolve_input(node + ".operation").set(2 if subtract else 1)
-        self._feed(left, node + ".input1D[0]")
-        self._feed(right, node + ".input1D[1]")
-        return _InputPlug._resolve_input(node + ".output1D")
+        node.plug("operation").set(2 if subtract else 1)
+        self._feed(left, node.plug("input1D[0]"))
+        self._feed(right, node.plug("input1D[1]"))
+        return node.plug("output1D")
 
     @undoTransaction("hlib.ScalarGraph.multiply")
     def multiply(self, role, left, right, operation=1):
@@ -49,12 +54,11 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
-        from ..plugs.plug import Plug as _InputPlug
         node = self._node("multiplyDivide", role)
-        _InputPlug._resolve_input(node + ".operation").set(operation)
-        self._feed(left, node + ".input1X")
-        self._feed(right, node + ".input2X")
-        return _InputPlug._resolve_input(node + ".outputX")
+        node.plug("operation").set(operation)
+        self._feed(left, node.plug("input1X"))
+        self._feed(right, node.plug("input2X"))
+        return node.plug("outputX")
 
     @undoTransaction("hlib.ScalarGraph.condition")
     def condition(self, role, left, right, yes, no):
@@ -70,30 +74,29 @@ class ScalarGraph:
         Returns:
             Plug: 改名に追従する出力プラグ。
         """
-        from ..plugs.plug import Plug as _InputPlug
         node = self._node("condition", role)
-        _InputPlug._resolve_input(node + ".operation").set(2)
+        node.plug("operation").set(2)
         for value, attr in (
             (left, "firstTerm"),
             (right, "secondTerm"),
             (yes, "colorIfTrueR"),
             (no, "colorIfFalseR"),
         ):
-            self._feed(value, node + "." + attr)
-        return _InputPlug._resolve_input(node + ".outColorR")
+            self._feed(value, node.plug(attr))
+        return node.plug("outColorR")
 
     def _node(self, kind, role):
-        """演算ノードを作成し、削除・保存用のcontainerへ登録する。
+        """設定した生成先へ演算ノードを作成する。
 
         Args:
             kind (str): 標準ノード型。
             role (str): 演算の識別名。
 
         Returns:
-            str: 作成したノード名。
+            Node: 作成したノード。
         """
-        node = self.container.createNode(kind, name=self.container.name() + "_" + role).fullName()
-        return node
+        prefix = self.container.name() + "_" if self.container is not None else ""
+        return self._createNode(kind, name=prefix + role)
 
     @staticmethod
     def _feed(value, destination):
@@ -101,10 +104,10 @@ class ScalarGraph:
 
         Args:
             value (float | str | Plug): 定数または入力プラグ名。
-            destination (str): 接続先プラグ名。
+            destination (Plug | str): 接続先アトリビュート。
         """
-        from ..plugs.plug import Plug as _InputPlug
+        destination = Plug._resolve_input(destination)
         if isinstance(value, (str, Plug)):
-            _InputPlug._resolve_input(value).connect(destination)
+            Plug._resolve_input(value).connect(destination)
         else:
-            _InputPlug._resolve_input(destination).set(value)
+            destination.set(value)

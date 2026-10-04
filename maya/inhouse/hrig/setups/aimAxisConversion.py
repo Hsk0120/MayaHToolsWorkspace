@@ -2,8 +2,6 @@
 
 import math
 
-import maya.cmds as cmds
-
 import hlib
 from hlib.decorators.undo import undoTransaction
 from hlib.json import JsonText
@@ -17,22 +15,22 @@ _TAG = "hrigAimAxisConversion"
 
 
 class AimAxisConversion:
-    """標準DGだけで動く変換。containerが生成ノードと復元情報を所有する。
+    """標準DGだけで動く変換。管理ノードが生成ノードと復元情報を保持する。
 
     sourceの全Euler出力から同じ回転行列を再構成するため、部分Eulerの別解切替を
     そのまま採用しない。元の循環接続やWorld Upの特異点を修復するものではない。
     """
 
     def __init__(self, container):
-        """保存済みcontainerを参照する。
+        """保存済み管理ノードを参照する。
 
         Args:
-            container (str | Container): 本ツールで作成した所有ノード。
+            container (str | Node): 本ツールで作成したcontainerまたはnetwork。
         """
-        self.container = Container(container)
+        self.container = Node(container)
         if not self.container.hasAttribute(_TAG):
-            raise ValueError("Aim軸変換のcontainerではありません。")
-        self._graph = ScalarGraph(self.container)
+            raise ValueError("Aim軸変換の管理ノードではありません。")
+        self._graph = ScalarGraph(create_node=self._createNode)
         self._serial = 0
 
     @classmethod
@@ -47,7 +45,7 @@ class AimAxisConversion:
         """
         source = Node(constraint)
         for plug in source.plug("message").destinations():
-            if plug.node.type() == "container" and plug.node.hasAttribute(_TAG):
+            if plug.node.type() in ("container", "network") and plug.node.hasAttribute(_TAG):
                 return cls(plug.node)
         return None
 
@@ -55,7 +53,7 @@ class AimAxisConversion:
     @undoTransaction("hrig.AimAxisConversion.convert")
     def create(cls, constraint, axes="x", mode="euler", direction="x",
                reference=(0.0, 0.0, 0.0), half_range=math.radians(85),
-               preserve_pose=True):
+               preserve_pose=True, use_container=True):
         """Aimと回転の間に変換を挿入する。既存変換は復元して切り替える。
 
         Args:
@@ -67,6 +65,7 @@ class AimAxisConversion:
             reference (Sequence[float]): euler方式のXYZ基準角。ラジアン。
             half_range (float): 基準角からの許容半幅。ラジアン、0より大きくpi未満。
             preserve_pose (bool): direction/twistの出力に定数を加え作成時の角度を維持。
+            use_container (bool): Falseなら演算ノードから直接接続し、復元情報をnetworkに保存。
 
         Returns:
             AimAxisConversion: 復元可能な変換。outputX/Y/Zは角度Plug、validは診断値。
@@ -112,9 +111,11 @@ class AimAxisConversion:
         values = [target.plug("rotate" + a.upper()).get() for a in "xyz"]
         rest_values = (original_state.get("restValues") if original_state else None)
         if rest_values is None:
-            rest_values = [source.plug("restRotate" + a).get() for a in "XYZ"]
+            rest_values = source.getRestRotation()
         constraint_settings = cls._captureSettings(source)
-        owner = Container.create(name=source.name().split("|")[-1] + "_axisConversion")
+        name = source.name().split("|")[-1] + "_axisConversion"
+        owner = (Container.create(name=name) if use_container else
+                 Node.create("network", name=name, skipSelect=True))
         owner.addAttribute(longName=_TAG, attributeType="bool", defaultValue=True)
         for attr, node in (("sourceConstraint", source), ("drivenNode", target)):
             owner.addAttribute(longName=attr, attributeType="message")
@@ -123,10 +124,12 @@ class AimAxisConversion:
         owner.plug("settings").set(JsonText.dumps(dict(
             version=1, axes=axes, mode=mode, direction=direction, order=order,
             reference=reference, halfRange=half_range, preservePose=bool(preserve_pose),
-            restValues=rest_values,
+            restValues=rest_values, useContainer=bool(use_container),
             constraintSettings=constraint_settings,
             original=original, compound=compound, values=values)))
         graph = cls(owner)
+        if not use_container:
+            owner.addAttribute(longName="generatedNodes", attributeType="message", multi=True)
         compose = graph._node("composeMatrix", "aimRotation")
         source.plug("constraintRotate").connect(compose.plug("inputRotate"))
         source.plug("constraintRotateOrder").connect(compose.plug("inputRotateOrder"))
@@ -173,7 +176,8 @@ class AimAxisConversion:
         for i, axis in enumerate("xyz"):
             destination = target.plug("rotate" + axis.upper())
             if axis in axes:
-                owner.plug("output" + axis.upper()).connect(destination)
+                output = owner.plug("output" + axis.upper())
+                (output if use_container else output.source()).connect(destination)
             elif axis in original:
                 destination.set(values[i])
         return graph
@@ -212,6 +216,8 @@ class AimAxisConversion:
         for axis in touched:
             dest = target.plug("rotate" + axis.upper())
             expected = owner.plug("output" + axis.upper()) if axis in data["axes"] else None
+            if expected is not None and owner.type() == "network":
+                expected = expected.source()
             if (dest.isLocked() or target.plug("rotate").isLocked() or target.isLocked()
                     or target.isReferenced() or dest.source() != expected):
                 raise ValueError("変換後の接続・ロックが変更されています。復元対象: " + dest.fullName())
@@ -227,6 +233,10 @@ class AimAxisConversion:
         else:
             for axis, attr in data["original"].items():
                 source.plug(attr).connect(target.plug("rotate" + axis.upper()))
+        if owner.type() == "network":
+            members = list(owner.plug("generatedNodes").sourceNodes().values())
+            if members:
+                hlib.delete(members)
         owner.delete()
 
     @staticmethod
@@ -239,27 +249,21 @@ class AimAxisConversion:
         Returns:
             dict: アトリビュートパスと値。入力で駆動された設定は記録しない。
         """
-        attrs = [prefix + axis for prefix in (
-            "restRotate", "offset", "aimVector", "upVector", "worldUpVector") for axis in "XYZ"]
-        attrs.extend(("worldUpType", "enableRestPosition", "useOldOffsetCalculation"))
-        attrs.extend(plug.fullName().split(".", 1)[1] for plug in source.weightPlugs())
         settings = {}
-        for attr in attrs:
-            plug = source.plug(attr)
+        for plug in source.settingPlugs() + source.weightPlugs():
             parent = plug.parent() if plug.isChild() else None
             if plug.source() is None and (parent is None or parent.source() is None):
-                settings[attr] = plug.get()
+                settings[plug.fullName().split(".", 1)[1]] = plug.get()
         return settings
 
     @staticmethod
     def _inspect(source, axes):
         """直接の回転出力先を検証し、復元する接続を記録する。"""
         targets = {}
-        for attr in ("constraintRotate", "constraintRotateX", "constraintRotateY", "constraintRotateZ"):
-            for dest in source.plug(attr).destinations():
-                if isinstance(dest.node, Transform) and dest.attributeName() in (
-                        "rotate", "rotateX", "rotateY", "rotateZ"):
-                    targets[dest.node.uuid()] = dest.node
+        for _, dest in source.rotationConnections():
+            if isinstance(dest.node, Transform) and dest.attributeName() in (
+                    "rotate", "rotateX", "rotateY", "rotateZ"):
+                targets[dest.node.uuid()] = dest.node
         if len(targets) != 1:
             raise ValueError("回転へ直接接続された対象が1つのAimに対応します。間接接続・複数対象は未対応です。")
         target = next(iter(targets.values()))
@@ -282,7 +286,24 @@ class AimAxisConversion:
     def _node(self, kind, role):
         """用途名を付けた標準ノードを所有containerへ作る。"""
         self._serial += 1
-        return self.container.createNode(kind, name="{}_{}{}".format(self.container.name(), role, self._serial))
+        return self._createNode(kind, name="{}{}".format(role, self._serial))
+
+    def _createNode(self, kind, name=None):
+        """生成物をcontainerまたはmessage配列へ登録する。
+
+        Args:
+            kind (str): 標準ノード型。
+            name (str | None): 用途名。
+
+        Returns:
+            Node: 登録済みの生成ノード。
+        """
+        name = self.container.name() + "_" + (name or kind)
+        if isinstance(self.container, Container):
+            return self.container.createNode(kind, name=name)
+        node = Node.create(kind, name=name, skipSelect=True)
+        self.container.plug("generatedNodes").appendMessage(node)
+        return node
 
     @staticmethod
     def _feed(value, destination):

@@ -1,6 +1,8 @@
 """選択2ノード間で入力接続を複製するユーティリティ。"""
 
 import maya.cmds as cmds
+import hlib
+
 
 def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=False):
     """1つ目ノードの入力接続を2つ目ノードへ複製します。
@@ -60,7 +62,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
             if cmds.isConnected(input_src, dst_plug):
                 continue
 
-            cmds.connectAttr(input_src, dst_plug, force=force)
+            hlib.getPlug(input_src).connect(dst_plug, force=force, unlock=False)
             copied.append((input_src, dst_plug))
 
         except Exception as e:

@@ -34,7 +34,8 @@ class CycleInspectorTest(unittest.TestCase):
 
     def test_dg_cycle_and_state(self):
         """実サイクルの接続方向・選択・評価時チェック設定が維持される。"""
-        from HTools.rigging.inspectCycles import inspectCycles, formatReport
+        from HTools.rigging.inspectCycles import formatReport
+        from HTools.rigging.inspectCycles import inspectCycles
         a, b = self.createNode("multiplyDivide"), self.createNode("multiplyDivide")
         self.cmds.connectAttr(a + ".outputX", b + ".input1X")
         self.cmds.connectAttr(b + ".outputX", a + ".input1X")
@@ -73,7 +74,7 @@ class CycleInspectorTest(unittest.TestCase):
     def test_invalid_input_does_not_scan(self):
         """空選択や不正時間が全体検索へ流れない。"""
         from HTools.rigging.inspectCycles import inspectCycles
-        with mock.patch("HTools.rigging.inspectCycles.cmds.cycleCheck") as scan:
+        with mock.patch("hlib.scene.cycle.cmds.cycleCheck") as scan:
             for targets, seconds in [([], 10), (None, 0), (None, float("nan"))]:
                 with self.assertRaises(ValueError):
                     inspectCycles(targets, seconds=seconds)
@@ -89,6 +90,43 @@ class CycleInspectorTest(unittest.TestCase):
         detected = {name for group in result["groups"] for name in group["nodes"]}
         self.assertEqual(set(nodes), detected)
         self.assertGreaterEqual(len(result["groups"]), 2)
+
+    def test_cycle_wrappers_and_live_connections(self):
+        """経路は型と順序を保持し、照会は接続変更と改名に追従する。"""
+        from hlib.scene import Cycle
+        from hlib.plugs import Plug
+        from hlib.nodes import Node
+        a, b = self.createNode("multiplyDivide"), self.createNode("multiplyDivide")
+        self.cmds.connectAttr(a + ".outputX", b + ".input1X")
+        self.cmds.connectAttr(b + ".outputX", a + ".input1X")
+        cycles = Cycle.find(Node(a))
+        self.assertTrue(cycles)
+        self.assertTrue(all(isinstance(c, Cycle) for c in cycles))
+        cycle = Cycle([a + ".outputX", b + ".input1X"])
+        self.assertIsInstance(cycle.plugs, tuple)
+        self.assertTrue(all(isinstance(p, Plug) for p in cycle.plugs))
+        self.assertEqual([p.fullName() for p in cycle.plugs], [a + ".outputX", b + ".input1X"])
+        self.assertEqual(len(cycle.getConnections()), 1)
+        self.cmds.disconnectAttr(a + ".outputX", b + ".input1X")
+        self.assertEqual(cycle.getConnections(), [])
+        renamed = self.cmds.rename(a, "renamedCycleTest#")
+        self.nodes[0] = renamed
+        self.assertEqual(cycle.plugs[0].fullName(), renamed + ".outputX")
+        self.assertTrue(Cycle.find(cycle.plugs[0]) == [])
+
+    def test_live_parent_wrappers(self):
+        """親子関係をNodeで返し、付け替え後は現在の関係を返す。"""
+        from hlib.scene import Cycle
+        from hlib.nodes import DagNode
+        parent, child = self.createNode("transform"), self.createNode("transform")
+        self.cmds.parent(child, parent)
+        cycle = Cycle([child + ".translateX"])
+        pairs = cycle.getParents()
+        self.assertEqual(len(pairs), 1)
+        self.assertTrue(all(isinstance(n, DagNode) for n in pairs[0]))
+        self.assertEqual(pairs[0][0].name(), parent)
+        self.cmds.parent(child, world=True)
+        self.assertEqual(cycle.getParents(), [])
 
 
 def runTests():

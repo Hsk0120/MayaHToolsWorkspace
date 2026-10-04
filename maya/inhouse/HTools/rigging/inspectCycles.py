@@ -1,17 +1,16 @@
 """Mayaのサイクル候補と実接続を読み取り、原因調査用の画面を表示する。"""
 
-import math
 import time
 
 import maya.cmds as cmds
 
 import hlib
-from hlib.nodes import DagNode, Node
+from hlib.nodes import Node
+from hlib.scene import Cycle
 from hlib.plugs import Plug
 from hlib.utils import logger
 
 
-_SEPARATOR = "__HTOOLS_CYCLE_SEPARATOR__"
 _WINDOW = "HToolsInspectCycles"
 _LIMITATION = (
     "検出順は実接続だけでなくノード内部の依存を含み、部分経路の場合もあります。\n"
@@ -21,88 +20,49 @@ _LIMITATION = (
 )
 
 
+
 def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False):
-    """シーンを変更せず、サイクルの検出結果を文字列のスナップショットで返す。
+    """Cycleの照会結果を画面・保存用の文字列スナップショットへ変換する。
 
     Args:
-        targets (Iterable[str | Node | Plug] | None): Noneはシーン全体。
-            空リストは誤って全体検索しないよう拒否する。
-        include_dag (bool): 親子関係を検出に含める。
-        seconds (float): Mayaに渡す検索時間上限（秒）。
+        targets (Iterable[str | Node | Plug] | None): 調査対象。Noneで全体。
+        include_dag (bool): DAGを含める。
+        seconds (float): 検索上限秒数。
         first_only (bool): 最初の完全なサイクルだけを要求する。
 
     Returns:
-        dict: 検索条件、経過時間、経路と読み取り失敗を含む結果。
-
-    Raises:
-        ValueError: 対象が空、または時間上限が不正な場合。
-        TypeError: ノード・アトリビュート以外が渡された場合。
-        RuntimeError: 対象の解決またはMayaの検索に失敗した場合。
+        dict: 検索条件・経過時間・経路・読み取り失敗。
     """
-    seconds = float(seconds)
-    if not math.isfinite(seconds) or seconds <= 0:
-        raise ValueError("検索時間は0より大きい有限の秒数を指定してください。")
-    names = []
     if targets is not None:
-        if isinstance(targets, (str, Node, Plug)):
-            targets = [targets]
-        for target in targets:
-            if isinstance(target, (Node, Plug)):
-                obj = target
-            elif isinstance(target, str):
-                obj = hlib.getPlug(target) if "." in target else Node(target)
-            else:
-                raise TypeError("ノードまたはアトリビュートを指定してください。")
-            if not isinstance(obj, (Node, Plug)):
-                raise TypeError("ノードまたはアトリビュートを指定してください。")
-            names.append(obj.fullName() if isinstance(obj, Plug) else obj.name())
-        if not names:
-            raise ValueError("調査するノードを選択してください。")
+        targets = [targets] if isinstance(targets, (str, Node, Plug)) else list(targets)
     started = time.monotonic()
-    options = dict(list=True, dag=include_dag, secondary=True,
-                   timeLimit="{}sec".format(seconds), listSeparator=_SEPARATOR,
-                   firstCycleOnly=first_only)
-    if targets is None:
-        options["all"] = True
-    raw = cmds.cycleCheck(*names, **options) or []
+    cycles = Cycle.find(targets, include_dag, seconds, first_only)
     elapsed = time.monotonic() - started
-    paths = []
-    current = []
-    for name in raw:
-        if name == _SEPARATOR:
-            if current:
-                paths.append(current)
-                current = []
-        else:
-            current.append(name)
-    if current:
-        paths.append(current)
     groups = []
-    for path in paths:
+    for cycle in cycles:
         nodes, connections, parents, errors = {}, set(), set(), []
-        for name in dict.fromkeys(path):
+        names = []
+        for plug in cycle.plugs:
             try:
-                plug = hlib.getPlug(name)
-                if not isinstance(plug, Plug):
-                    raise TypeError("検出結果をアトリビュートとして解決できません。")
+                names.append(plug.fullName())
                 node = plug.node
-                node_name = node.name()
-                nodes[node_name] = node.type()
-                source = plug.source()
-                if source is not None:
-                    connections.add((source.fullName(), plug.fullName()))
-                for destination in plug.destinations():
-                    connections.add((plug.fullName(), destination.fullName()))
-                # インスタンスの全親を含めるため、親関係はMaya標準コマンドで照会する。
-                if isinstance(node, DagNode):
-                    for parent in cmds.listRelatives(node_name, allParents=True, fullPath=True) or []:
-                        parents.add((parent, node_name))
+                nodes[node.name()] = node.type()
+                part = Cycle([plug])
+                connections.update((a.fullName(), b.fullName()) for a, b in part.getConnections())
+                parents.update((a.fullName(), b.name()) for a, b in part.getParents())
             except (RuntimeError, ValueError, TypeError) as error:
-                errors.append("{}: {}".format(name, error))
-        groups.append(dict(plugs=path, nodes=nodes, connections=sorted(connections),
+                errors.append(str(error))
+        groups.append(dict(plugs=names, nodes=nodes, connections=sorted(connections),
                            parents=sorted(parents), errors=errors))
-    return dict(targets=names if targets is not None else None, includeDag=include_dag,
-                seconds=seconds, elapsed=elapsed, firstOnly=first_only, groups=groups)
+    names = None
+    if targets is not None:
+        names = []
+        for target in targets:
+            if isinstance(target, str):
+                target = hlib.getPlug(target) if "." in target else Node(target)
+            names.append(target.fullName() if isinstance(target, Plug) else target.name())
+    return dict(targets=names, includeDag=include_dag, seconds=float(seconds),
+                elapsed=elapsed, firstOnly=first_only, groups=groups)
 
 
 def formatReport(result, indices=None):

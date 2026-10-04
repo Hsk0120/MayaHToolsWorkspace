@@ -439,6 +439,59 @@ referenceノード自身の名前空間を扱います。参照内容の名前�
 weight未設定時は要素を作らず1を返します。
 ``Constraint.getWeight(target)`` は指定ターゲットの値を返します。
 
+``Plug.connect(target, force=True, unlock=False)`` は既存入力を置換しますが、
+接続先のロックは解除しません。Maya標準 ``connectAttr(force=True)`` から
+挙動を保って移行するときに使います。既定の ``unlock=True`` は従来どおり
+force時に一時アンロックし、接続後に元のロックを戻します。
+
+``hlib.scene.Cycle.find(targets=None, include_dag=True, seconds=10.0, first_only=False)``
+は循環候補を ``list[Cycle]`` で返します。Noneはシーン全体で、空の対象リストは拒否します。
+``cycle.plugs`` は検出順の ``tuple[Plug, ...]`` です。名前変更には追従しますが、
+接続変更後は再検索が必要です。手動で ``Cycle(plugs)`` を作る場合は循環の成立を検証しません。
+``getConnections()`` は現在の実接続を ``(sourcePlug, destinationPlug)`` で返し、
+経路外への接続も含みます。``getParents()`` は現在のDAG親子関係を
+``(parentNode, childNode)`` で返します。削除済み対象などの照会失敗は例外になります。
+時間制限で未完了の場合や検出対象外の依存があり、結果0件は無循環の保証ではありません。
+検索時間の計測・結果の文字列保存・レポート整形・画面表示はHToolsが担当します。
+
+``Container.removeMembers(*nodes, force=False)`` は所属だけを解除します。
+ネスト時は親containerへ所属が移り、``force=True`` は全containerから外します。
+``removeContainer()`` はメンバーを先に外してから箱を除去します。
+通常の ``delete()`` と異なり、未接続の演算ノードも残します。
+ただし箱自身のアトリビュートや出力接続は残らず、迂回接続も行いません。
+
+``publishName(name)`` は未Bindの公開名を作り、``bindAttribute(name, plug)`` が
+所属ノードの内部アトリビュートと対応付けます。``publishAndBind(name, plug)`` は一括操作です。
+``publishedAttributes()`` は公開名をキー、内部Plug（未BindならNone）を値とする辞書を返します。
+``unbindAttribute(name)`` は公開名を残し、``unpublishName(name)`` は未Bind名を削除します。
+これらはUndo可能です。ロックを自動解除せず、外部ノードを自動で所属させません。
+ノードの親子アンカー公開はこのAPIの対象外です。
+
+``hlib.nodes.DagContainer.create(name="dagContainer")`` はDAGコンテナを作ります。
+``Transform`` と ``Container`` の派生型で、移動・回転、所属管理、公開操作を利用できます。
+既存のdagContainerも ``Node`` で包むと自動的にこの型になります。
+DAGの子はMaya標準の所属管理に従います。``removeMembers`` / ``removeContainer``
+で階層を解除すると子のローカル値が維持されるため、ワールド姿勢は変化する場合があります。
+Undoでは元の階層へ戻ります。
+
+``ScalarGraph(container)`` は従来どおりcontainer内に演算を作ります。
+``ScalarGraph(create_node=factory)`` は ``factory(node_type, name=...) -> Node`` を使います。
+どちらか一方を指定します。生成関数側が生成物の記録と管理を担当し、
+ScalarGraphは計算と接続を担当します。既存の生成物を読み取るだけではノードを作成しません。
+
+``AimConstraint.rotationConnections()`` は回転出力の直接接続を
+``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、
+演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。
+``settingPlugs()`` はRest Rotate、Offset、Aim/Up/World Up VectorのXYZ、
+World Up Type、enableRestPosition、useOldOffsetCalculationを返します。
+接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``weightPlugs()`` で取得します。
+``getRestRotation()`` / ``getOffset()`` はラジアンのXYZタプル、
+対応する ``setRestRotation(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。
+setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。
+Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定はMaintain Offsetを再計算しません。
+``getOutputRotation()`` は ``constraintRotateOrder`` を持つ ``EulerRotation`` を返します。
+継承した ``getRotation()`` が扱う自身のTransform回転とは異なります。
+
 ``DecomposeMatrix.getInput()`` / ``inputPlug()`` は単一行列入力を扱い、
 ``getRotateOrder()`` はMayaの回転順序番号0〜5を返します。
 ``Transform.getVisibility()`` は自身のアトリビュート値を返します。

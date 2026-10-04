@@ -1,6 +1,8 @@
 """選択シェーダーからプレビュー用 blinn を生成するツール。"""
 
 import maya.cmds as cmds
+import hlib
+from hlib.nodes import Node
 
 
 def main():
@@ -28,7 +30,7 @@ def main():
 
 		shader = selection[0]
 		shader_types = set(cmds.listNodeTypes("shader") or [])
-		if cmds.nodeType(shader) not in shader_types:
+		if Node(shader).type() not in shader_types:
 			cmds.error("選択ノードはシェーダーではありません。")
 
 		return shader
@@ -38,8 +40,8 @@ def main():
 		preview_name = "prv_{0}".format(shader)
 		if cmds.objExists(preview_name):
 			cmds.error("同名ノードが既に存在します: {0}".format(preview_name))
-		preview_shader = cmds.shadingNode("blinn", asShader=True, name=preview_name)
-		cmds.setAttr("{0}.eccentricity".format(preview_shader), 0)
+		preview_shader = hlib.createShader("blinn", name=preview_name).name()
+		Node(preview_shader).plug("eccentricity").set(0)
 		return preview_shader
 
 	def transfer_input_connections(source_shader, target_shader):
@@ -63,7 +65,7 @@ def main():
 				continue
 
 			input_plug = source_inputs[0]
-			cmds.connectAttr(input_plug, target_plug, force=True)
+			hlib.getPlug(input_plug).connect(target_plug, force=True, unlock=False)
 			transferred_count += 1
 
 			if len(source_inputs) > 1:
@@ -107,7 +109,7 @@ def main():
 			)
 			return transferred_count
 
-		if not cmds.attributeQuery("outTransparency", node=color_input_node, exists=True):
+		if not Node(color_input_node).hasAttribute("outTransparency"):
 			cmds.warning(
 				"{0}.outTransparency が無いため transparency は接続しませんでした。".format(
 					color_input_node
@@ -115,10 +117,9 @@ def main():
 			)
 			return transferred_count
 
-		cmds.connectAttr(
-			"{0}.outTransparency".format(color_input_node),
+		Node(color_input_node).plug("outTransparency").connect(
 			"{0}.transparency".format(target_shader),
-			force=True,
+			force=True, unlock=False,
 		)
 		transferred_count += 1
 

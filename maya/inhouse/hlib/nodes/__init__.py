@@ -84,6 +84,7 @@ if TYPE_CHECKING:
     from .cluster import Cluster
     from .constraint import Constraint
     from .container import Container
+    from .dagContainer import DagContainer
     from .dagPose import DagPose
     from .decomposeMatrix import DecomposeMatrix
     from .displayLayer import DisplayLayer

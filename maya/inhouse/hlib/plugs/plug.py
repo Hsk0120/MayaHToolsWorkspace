@@ -1220,12 +1220,12 @@ class Plug(Object):
         )
 
     @undoChunk("hlibPlugConnect")
-    def connect(self, target, force=False):
+    def connect(self, target, force=False, *, unlock=True):
         """このプラグを別のプラグへ接続する。
 
         target がロックされている場合、``cmds.connectAttr(force=True)`` は
         既存の入力接続を置き換えられても、ロック自体は解除しないため失敗する。
-        force=True 指定時は、target がロックされていれば接続の前後で
+        force=Trueかつunlock=Trueでは、targetがロックされていれば接続の前後で
         一時的にアンロック・再ロックする(ロックされていなければ何もしない)。
         一連の操作は一回の Undo にまとまる。
 
@@ -1234,6 +1234,8 @@ class Plug(Object):
                 ``"node.attribute"`` 形式のアトリビュート名。
             force (bool): 既存入力接続を強制的に置き換えるか。ロックされた
                 target への接続もこの場合のみ一時アンロックして許可する。
+            unlock (bool): force時の一時アンロックを許可する。Falseなら
+                Maya標準connectAttrと同じくロックされた接続先への接続は失敗する。
 
         Returns:
             Plug: 接続先プラグ(MPlug・文字列を渡した場合は変換した Plug)。
@@ -1248,7 +1250,7 @@ class Plug(Object):
         """
         self._require_valid()
         target = Plug._resolve_input(target)
-        should_unlock = force and target.isLocked()
+        should_unlock = force and unlock and target.isLocked()
         if should_unlock:
             target.setFlags(locked=False)
         try:

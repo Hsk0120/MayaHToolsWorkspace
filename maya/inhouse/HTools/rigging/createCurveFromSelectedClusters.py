@@ -1,7 +1,9 @@
 """選択した clusterHandle 位置からカーブを生成するツール。"""
 
 import maya.cmds as cmds
-import cymel.core as cm
+import hlib
+from hlib.nodes import Node
+from hlib.maths import MSpace
 
 def _resolve_cluster_handle_transform(node):
     """cluster 関連ノードを clusterHandle の Transform へ解決します。
@@ -12,7 +14,7 @@ def _resolve_cluster_handle_transform(node):
     Returns:
         str | None: clusterHandle Transform。解決できない場合は None。
     """
-    node_type = cmds.nodeType(node)
+    node_type = Node(node).type()
 
     if node_type == "clusterHandle":
         # clusterHandle は shape なので、位置取得に使う親 Transform へ変換する。
@@ -29,7 +31,7 @@ def _resolve_cluster_handle_transform(node):
     if node_type == "transform":
         shapes = cmds.listRelatives(node, shapes=True, fullPath=True) or []
         for shape in shapes:
-            if cmds.nodeType(shape) == "clusterHandle":
+            if Node(shape).type() == "clusterHandle":
                 return node
 
     return None
@@ -70,15 +72,16 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
 
     points = []
     for handle in cluster_handles:
-        sel = cm.CyObject(handle)
-        pos = sel.getTranslation(ws=True)
+        sel = Node(handle)
+        # 従来のcymel.getTranslation(ws=True)は回転ピボット位置を返す。
+        pos = sel.getPivot(space=MSpace.kWorld, kind="rotate")
         points.append((pos[0], pos[1], pos[2]))
 
     # degree が point数以上だと作れないので調整
     degree = min(degree, len(points) - 1)
 
     print("points:", points)
-    curve = cmds.curve(p=points, d=degree, name="clusterPath_crv")
+    curve = hlib.createCurve(p=points, d=degree, name="clusterPath_crv").name()
     cmds.select(curve)
     return curve
 

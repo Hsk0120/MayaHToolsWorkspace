@@ -40,8 +40,11 @@ def set_layer_enabled(self, layer, enabled):
 
 ## 共通処理の配置
 
-- 所有DGは`hlib.nodes.Container`の`create`・`createNode`・`add`・`members`を使う。
+- 所有DGは`hlib.nodes.Container`の`create`・`createNode`・`addMembers`・`members`を使う。
   レイヤー固有のノード名、所有グラフの選択と有効状態判断はhrigで決める。
+  所属だけの解除は`removeMembers`、メンバーを残す箱の解除は`removeContainer`を使う。
+  公開名の操作は`publishName`・`bindAttribute`・`publishAndBind`・`publishedAttributes`を使う。
+  箱自身の入出力アトリビュートを介する接続の移送は利用側が担当する。
 - 保存用message配列は`ArrayPlug.sourceNodes()`と`appendMessage()`を使う。
   前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
 - 操作シェイプは`hrig.setups.ControlShape`、単位境界は`hlib.utils.units`を使う。
@@ -51,6 +54,8 @@ def set_layer_enabled(self, layer, enabled):
 - バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copyWeightsTo`を使う。
   どの骨をLODへ含めるか、どのメッシュを表示するかはhrigの責務とする。
 - 単位なし標準DG演算は`hlib.utils.scalarGraph.ScalarGraph`、Soft IKは`hrig.setups.SoftIK`。
+  コンテナを使わない場合は`ScalarGraph(create_node=...)`へNodeを返す生成関数を渡し、
+  生成物を`ArrayPlug.appendMessage`等で記録する。一時コンテナを作る必要はない。
   Bifrostの演算構築は`hlib_bifrost.utils.MathBuilder`、Soft IKは`hrig.setups.bifrostSoftIK.SoftIK`へ置く。
 - 共通APIへ依存方向を逆転させない。hlib/hlib_bifrostからhrigをimportしない。
   移動時は使用側を新しいAPIへ更新し、旧import用アダプターは残さない。

@@ -1,6 +1,8 @@
 """現在シーンのフルパスをクリップボードへコピーするユーティリティ。"""
 
 import maya.cmds as cmds
+from hlib.scene import Scene
+
 
 try:
     from PySide2.QtWidgets import QApplication
@@ -10,7 +12,8 @@ except ImportError:
 
 def copy_current_scene_path():
     """現在シーンパスを取得してクリップボードへコピーします。"""
-    scene_path = cmds.file(q=True, sn=True)
+    scene = Scene()
+    scene_path = scene.path.as_posix() if scene.path is not None else ''
     if not scene_path:
         cmds.warning("シーンが未保存のため、パスがありません。")
         return

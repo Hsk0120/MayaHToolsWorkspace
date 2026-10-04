@@ -83,6 +83,26 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-05): ユーザー依頼のプッシュ対象を整理。HToolsのhlib移行、Aim/Container/DagContainer/CycleのAPIと関連テスト・説明をコミット対象として確認。heditの並行変更・調査資料・実行ログは除外。ステージ済み差分チェック成功。
+
+- Codex (2026-10-05): Cycleの他バージョン検証。Maya2022〜2026それぞれstandaloneの7テスト成功（計35件）、専用GUIの空結果表示・保存・エラー復帰とシーンパス検証も各版成功、全プロセスexit 0。既存2027結果と合わせ2022〜2027で検証済み。コード修正なし、ユーザーシーン変更なし。証跡: .maya-output/cycle-versions/20261005_004108/summary.json、standalone各版ログ。
+
+- Codex (2026-10-05): CycleCheckを廃止しhlib.scene.Cycleへ置換。findはlist[Cycle]、plugsはtuple[Plug]、getConnections/getParentsは現在の関係をhlib型で照会。HToolsが計測・文字列レポートを担当。旧入口なし。Maya2027 standaloneの7テストと専用GUIの表示/保存/エラー復帰を含む3項目が成功。差分確認済み。他バージョン未検証。
+
+- Codex (2026-10-05): hlib.nodes.DagContainerを追加。TransformとContainerの操作を継承し、自動型解決・型公開・仕様を整備。Maya2027 standaloneで新規3件とContainer/型公開の計11テスト成功。所属解除時はMaya標準のローカル値保持（ワールド姿勢は変わり得る）を維持し、Undoによる階層/姿勢復元も確認。差分チェック成功。他バージョン・GUI未検証。
+
+- Codex (2026-10-05): HTools移行第1段階として11ツールのノード/Plug操作・拘束・スキン照会・シェーダー/カーブ生成・シーンパスをhlibへ置換。サイクル照会をhlib.scene.CycleCheck.inspectへ移動（旧関数入口なし）。Plug.connectにunlock=Falseを追加しMaya標準のロック保持を維持。cymel依存をgetPivotで置換し従来の回転ピボット位置を保持。Maya2027で変更前スナップショットとの12ケース比較、サイクル5テスト、接続ロック1テスト、専用GUI3項目成功。構文/差分確認済み。大型ツールの未移行範囲とhlib/hrig候補をdocs/research/htoolsMigration.txtへ保存（Git対象外）。他バージョン・全HToolsの移行・全状況の同一性は未検証。既存変更と並行作業のhedit変更は保持。
+
+- Codex (2026-10-05): ContainerへremoveMembers/removeContainer・公開名/Bind/解除/一覧APIを追加。removeContainer単独で未接続DGが消える2027の挙動を確認し、先に所属を外して保持。ScalarGraphへ生成関数注入を追加してNode/Plug操作へ整理。Aimの一時Containerを廃止しArrayPlugのmessage APIで記録/復元。Container5テスト（SoftIK含む）、Aim17テスト、専用GUI8項目が2027で成功。公開済みContainerをnamespace一括削除するとMayaが異常終了するテスト後片付けは、Containerの標準削除後にnamespaceを除去する手順へ修正。差分確認済み。他バージョン・Sphinx未検証。Black Box/ロック専用API・dagContainer・汎用NodeGraphは未追加。
+
+- Codex (2026-10-04): AimConstraintにrotationConnections/settingPlugs/getOutputRotationとRest Rotate・Offsetのgetter/setterを追加。直接接続・設定列挙・角度照会をAim軸変換とUIから移譲し、保存形式・hrigの検証/復元責務を維持。setterは有限値・入力・ロック・参照を事前検証。Maya2027でhlib新規4テスト、Aim回帰17テスト、専用GUI8項目成功。差分チェック成功。他バージョン・Sphinx未検証、ユーザーシーン変更なし。
+
+- Codex (2026-10-04): AimConstraint/Constraint実装を確認し、直接出力接続・標準設定Plug・Rest Rotate/Offset・評価出力の照会編集をAimConstraintへ移譲する案をcontainerDesign.txtへ追記。変換可否・保存方針・復元とグラフ構築はhrigに保持。実装変更・Maya実行なし。
+
+- Codex (2026-10-04): 共有会話・Autodesk仕様・既存Container/ScalarGraph/ArrayPlug/Snapshot/hrig利用先を調査。Containerの所属解除・Publish/Bind拡充、ScalarGraphの生成関数注入、既存message API再利用を優先する設計案をdocs/research/containerDesign.txtへ保存（Git対象外）。生成物管理・単位境界・サイクル照会の候補とhrigに残す責務、移行・検証計画を整理。製品実装・Mayaシーン変更・新規実行テストなし。
+
+- Codex (2026-10-04): Aim軸変換に「生成ノードをコンテナ化する」を追加。オフでは演算ノードから直接接続し、networkのmessage接続で復元情報と生成物を管理。構成切替・復元・Undo/Redo・改名・保存読込を含むMaya 2027の17テストと専用GUIの8項目が成功。GUI初回はライセンス初期化失敗、実行制限外で再実行して成功。他のMayaバージョンは未検証。
+
 - Codex (2026-10-04): Aim軸変換・元Aim構造/設定の復元・サイクル調査ツールと関連テスト/説明を公開対象に確定。最終2027のAim15テスト・GUI6項目、サイクル5テスト・GUI成功記録を確認。調査メモと.maya-outputは除外し、差分確認後にコミット・プッシュする。Sphinxビルドは未実施。
 
 - Codex (2026-10-04): ユーザー訂正に従い、Aimの補正付き復元を撤回。restore()は元Aimの直接接続・保存値を復元し、変換/補正ノードとcontainerを全削除。元Aimの未接続設定（Offset/Rest Rotate/Aim/Up/World Up/ウェイト等）を記録・復元し、旧形式の未記録値は推測せず保持。旧mode=restの補正も除去可能。UIを「元のAim構造・設定へ戻す」へ変更、README・hrig説明更新。2027で15テストと専用GUI6項目成功（ノード集合の完全復元・設定値・直接接続・旧補正削除を含む）。起動中Mayaへの再読込はport7002の接続拒否で未実施。ユーザーシーンへの復元操作も未実施。他バージョン・Sphinxは今回未検証。未コミット。
@@ -401,6 +421,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-05 | maya/inhouse/hedit/docs/tools/vscode_capture(capture.py・extension.js)・docs/research/hedit-ux-20261005(ローカル) | VS Codeの操作を25場面撮影し、heditとのUI/UXの差と優先順をローカルメモにまとめた。撮影ツールに拡張機能のコピー(files/extensions)と完了を待たないコマンド(noWait)を追加。hedit本体は未変更。未コミット。 |
 | Claude Code | 2026-10-04 | maya/inhouse/hedit(src/editor/code_editor.*・main_window.cpp・code_assist.cpp・tests/ui_smoke.cpp・docs/changelog.rst・release/*.mll) | Shift+Enter・貼り付けで入るU+2028(行区切り)を普通の改行にし、実行・補完へ渡す文字列でも改行へ変換。2022〜2027でビルドと単体テスト合格。 |
 | Claude Code | 2026-10-04 | maya/inhouse/hedit(src/editor/code_editor.cpp・src/core/completion_engine.*・src/core/symbols.*・src/core/python_declarations.cpp・src/python/hedit/bridge.py・tests・docs・release/*.mll) | 補完のEnter確定でフォーカスがアウトライナ等へ飛ぶ問題を修正。代入(x = pkg.Class(...))・変数/引数の型ヒントからの型推論を追加し、親クラスのメンバーも補完・ホバー。2022〜2027でビルドと単体テスト合格、補完GUIテスト(新しいEnter確認を含む)は2027で合格。 |
 | Codex | 2026-10-03 | docs/research/localLlmBenchmark* | ユーザー許可により3モデルをダウンロードし、同一問題の回答・速度・メモリを逐次比較。 |

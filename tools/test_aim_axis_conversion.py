@@ -259,6 +259,45 @@ class AimAxisConversionTest(unittest.TestCase):
             self.assertTrue(self.cmds.isConnected(self.source + ".constraintRotate" + axis,
                                                  self.driven + ".rotate" + axis))
 
+    def test_direct_graph_modes_restore_and_switch(self):
+        """全方式で直接接続の数値、コンテナ切替、復元時の全削除を確認する。"""
+        baseline = set(self.cmds.ls())
+        self.pose((20, 30, 15))
+        for mode in ("euler", "direction", "twist"):
+            with self.subTest(mode=mode):
+                contained = self.cls.create(self.source, axes="xy", mode=mode, direction="z")
+                expected = self.cmds.getAttr(self.driven + ".rotate")[0]
+                graph = self.cls.create(self.source, axes="xy", mode=mode, direction="z", use_container=False)
+                self.assertEqual(graph.container.type(), "network")
+                self.assertFalse(self.cmds.ls(type="container"))
+                for axis, value in zip("XYZ", expected):
+                    self.assertAlmostEqual(self.cmds.getAttr(self.driven + ".rotate" + axis), value, places=5)
+                for axis in "XY":
+                    plug = graph.container.plug("output" + axis).source()
+                    self.assertTrue(self.cmds.isConnected(plug.fullName(), self.driven + ".rotate" + axis))
+                graph.restore()
+                self.assertEqual(set(self.cmds.ls()), baseline)
+
+    def test_direct_graph_save_rename_undo(self):
+        """直接接続の管理情報がUndo・改名・保存読込後も使える。"""
+        graph = self.cls.create(self.source, axes="x", mode="twist", use_container=False)
+        self.cmds.undo()
+        self.assertIsNone(self.cls.find(self.source))
+        self.cmds.redo()
+        self.source = self.cmds.rename(self.source, "renamedAim")
+        path = ROOT / ".maya-output/aim-direct-test.ma"
+        path.parent.mkdir(exist_ok=True)
+        self.cmds.file(rename=str(path))
+        self.cmds.file(save=True, type="mayaAscii")
+        self.cmds.file(str(path), open=True, force=True)
+        graph = self.cls.find(self.source)
+        self.assertEqual(graph.container.type(), "network")
+        graph = self.cls.create(self.source, mode="twist", use_container=True)
+        self.assertEqual(graph.container.type(), "container")
+        graph.restore()
+        self.assertFalse(self.cmds.ls(type="container"))
+        self.assertFalse(self.cmds.ls("*_axisConversion*"))
+
     def test_restore_legacy_correction_removes_all_nodes(self):
         """旧版の補正付き復元の保存情報からも元Aimだけへ戻せる。"""
         from hlib.json import JsonText

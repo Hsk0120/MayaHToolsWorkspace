@@ -1,6 +1,8 @@
 """選択2ノード間で入力接続を複製する簡易ツール。"""
 
 import maya.cmds as cmds
+import hlib
+
 
 def duplicate_all_inputs_from_first_to_second(source=None, target=None):
     """
@@ -44,7 +46,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
         print("dst_plug:", dst_plug)
 
 
-        cmds.connectAttr(src_plug, dst_plug, force=False)
+        hlib.getPlug(src_plug).connect(dst_plug, force=False)
         connected += 1
 
     cmds.inViewMessage(

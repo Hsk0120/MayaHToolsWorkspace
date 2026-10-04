@@ -54,6 +54,8 @@ class AimAxisConversionWindow:
                                             value1=0, value2=0, value3=0, precision=3)
         self.width = cmds.floatFieldGrp(numberOfFields=1, label="方式1: 許容半幅（度）", value1=85)
         self.preserve = cmds.checkBox(label="方式2・3: 変換時の角度を維持（固定角を加算）", value=True)
+        self.useContainer = cmds.checkBox(label="生成ノードをコンテナ化する", value=True,
+                                         annotation="オフでは演算ノードから直接接続し、networkノードに復元情報を保存します。")
         cmds.button(label="変換／方式を切替（1回のUndoで戻せます）", command=self.convert)
         cmds.rowLayout(numberOfColumns=2, adjustableColumn=1)
         cmds.button(label="元のAim構造・設定へ戻す", command=self.restore)
@@ -65,13 +67,13 @@ class AimAxisConversionWindow:
         self.loadSelection()
 
     def loadSelection(self, *_):
-        """選択中の単一Aimを保持する。変換containerの選択も受け付ける。"""
+        """選択中の単一Aimを保持する。変換の管理ノードの選択も受け付ける。"""
         try:
             selected = hlib.ls(selection=True)
             if len(selected) != 1:
                 raise ValueError("aimConstraintノードを1つ選択して読み込んでください。")
             node = selected[0]
-            if node.type() == "container" and node.hasAttribute("hrigAimAxisConversion"):
+            if node.type() in ("container", "network") and node.hasAttribute("hrigAimAxisConversion"):
                 link = node.plug("sourceConstraint").source()
                 node = link.node if link is not None else node
             if node.type() != "aimConstraint":
@@ -90,6 +92,7 @@ class AimAxisConversionWindow:
                 cmds.floatFieldGrp(self.reference, edit=True, value1=angles[0], value2=angles[1], value3=angles[2])
                 cmds.floatFieldGrp(self.width, edit=True, value1=math.degrees(data["halfRange"]))
                 cmds.checkBox(self.preserve, edit=True, value=data["preservePose"])
+                cmds.checkBox(self.useContainer, edit=True, value=data.get("useContainer", True))
             self.refresh()
         except (RuntimeError, ValueError, TypeError, AttributeError) as error:
             self.constraint = None
@@ -108,7 +111,8 @@ class AimAxisConversionWindow:
                 direction=cmds.optionMenuGrp(self.direction, query=True, value=True).lower(),
                 reference=tuple(math.radians(v) for v in values),
                 half_range=math.radians(cmds.floatFieldGrp(self.width, query=True, value1=True)),
-                preserve_pose=cmds.checkBox(self.preserve, query=True, value=True))
+                preserve_pose=cmds.checkBox(self.preserve, query=True, value=True),
+                use_container=cmds.checkBox(self.useContainer, query=True, value=True))
             self.refresh()
         except (RuntimeError, ValueError, TypeError) as error:
             self._error(error)
@@ -130,7 +134,7 @@ class AimAxisConversionWindow:
         try:
             self._requireSource()
             graph = AimAxisConversion.find(self.constraint)
-            angles = [math.degrees(self.constraint.plug("constraintRotate" + a).get()) for a in "XYZ"]
+            angles = [math.degrees(value) for value in self.constraint.getOutputRotation()]
             lines = ["Aim XYZ（度）: {:.3f}, {:.3f}, {:.3f}".format(*angles)]
             if graph is None:
                 lines.append("元のAim接続です。")
@@ -142,6 +146,7 @@ class AimAxisConversionWindow:
                 converted = [math.degrees(owner.plug("output" + a).get()) for a in "XYZ"]
                 lines.append("出力 XYZ（度）: {:.3f}, {:.3f}, {:.3f}".format(*converted))
                 lines.append("所有ノード: " + owner.fullName())
+                lines.append("構成: " + ("コンテナ" if owner.type() == "container" else "直接接続（networkに復元情報）"))
                 valid = owner.plug("valid").get() > 0.5
                 lines.append("診断: " + ("有効" if valid else "要確認（範囲の曖昧さ・特異点・Rotate Order変更）"))
             lines.append("タイムラインやターゲットを動かした後は『結果を再確認』を押してください。")

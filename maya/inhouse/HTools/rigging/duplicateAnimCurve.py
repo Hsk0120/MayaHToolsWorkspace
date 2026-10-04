@@ -1,6 +1,9 @@
 """選択ノードの直結 animCurve を複製して再配線するツール。"""
 
 import maya.cmds as cmds
+import hlib
+from hlib.nodes import Node
+
 
 def _safe_name(base):
     """衝突しないノード名を返します。"""
@@ -21,7 +24,7 @@ def _incoming_plugs(dest_plug):
 def _is_animcurve(node):
     """ノードが animCurve 系か判定します。"""
     try:
-        nt = cmds.nodeType(node)
+        nt = Node(node).type()
     except Exception:
         return False
     return bool(nt and nt.startswith("animCurve"))
@@ -66,7 +69,7 @@ def _list_keyable_scalar_plugs(node):
 
         # lock / multi は安全のため除外。
         try:
-            if cmds.getAttr(p, lock=True):
+            if hlib.getPlug(p).isLocked():
                 continue
         except Exception:
             continue
@@ -96,9 +99,9 @@ def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
         return None
 
     try:
-        src_type = cmds.nodeType(src_anim)  # 例: animCurveTL / animCurveTA / animCurveTU ...
-        dst_anim = cmds.createNode(src_type)
-        dst_anim = cmds.rename(dst_anim, _safe_name(f"{src_anim}{suffix}"))
+        src_type = Node(src_anim).type()  # 例: animCurveTL / animCurveTA / animCurveTU ...
+        dst_anim = hlib.createNode(src_type).name()
+        dst_anim = Node(dst_anim).rename(_safe_name(f"{src_anim}{suffix}"))
     except Exception:
         return None
 
@@ -106,7 +109,7 @@ def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
     for attr in ("preInfinity", "postInfinity", "useWeightedTangents"):
         try:
             if cmds.attributeQuery(attr, node=src_anim, exists=True) and cmds.attributeQuery(attr, node=dst_anim, exists=True):
-                cmds.setAttr(f"{dst_anim}.{attr}", cmds.getAttr(f"{src_anim}.{attr}"))
+                Node(dst_anim).plug(attr).set(Node(src_anim).plug(attr).get())
         except Exception:
             pass
 
@@ -154,7 +157,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
     for n in sels:
         # shape 選択時は親 Transform を実処理対象にする。
         try:
-            if cmds.nodeType(n) != "transform":
+            if Node(n).type() != "transform":
                 parents = cmds.listRelatives(n, parent=True, fullPath=True) or []
                 if parents:
                     n = parents[0]
@@ -183,13 +186,13 @@ def duplicate_anim_only_and_rewire_selected_v2(
             # 旧カーブの切断（想定: src_anim.output -> dest_plug）。
             if disconnect_old:
                 try:
-                    cmds.disconnectAttr(f"{src_anim}.output", dest_plug)
+                    Node(src_anim).plug('output').disconnect(dest_plug)
                 except Exception:
                     pass
 
             # 新カーブを同じ属性へ接続して差し替える。
             try:
-                cmds.connectAttr(f"{dst_anim}.output", dest_plug, f=True)
+                Node(dst_anim).plug('output').connect(dest_plug, force=True, unlock=False)
                 rewired += 1
             except Exception:
                 skipped += 1
