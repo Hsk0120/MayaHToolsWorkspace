@@ -5,7 +5,8 @@ import math
 import maya.cmds as cmds
 
 from ..cmds.getPlug import getPlug
-from ..nodes import DagNode, Node
+from ..nodes import Node
+from ..nodes.dagNode import DagNode
 from ..plugs import Plug
 
 
