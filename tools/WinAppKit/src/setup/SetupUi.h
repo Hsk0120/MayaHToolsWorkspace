@@ -22,8 +22,8 @@ struct DialogSpec {
     std::wstring instruction;  ///< 大きく出す見出し。
     std::wstring content;      ///< 本文。<a href="...">…</a> でリンクを書ける。
     std::vector<std::pair<int, std::wstring>> buttons;  ///< 自分で用意するボタン(番号と文字)。
-    bool cancelButton = false;     ///< 「キャンセル」(IDCANCEL)を出すか。
-    bool closeButton = false;      ///< 「閉じる」(IDCLOSE)を出すか。
+    bool cancelButton = false;     ///< 「Cancel」(IDCANCEL)を出すか。
+    bool closeButton = false;      ///< 「Close」(IDCLOSE)を出すか。
     int defaultButton = 0;         ///< 最初に選ばれているボタン(0なら最初のボタン)。
     std::wstring verification;     ///< 下のチェックボックスの文字(空なら出さない)。
     bool verificationChecked = false;  ///< チェックボックスの最初の状態。

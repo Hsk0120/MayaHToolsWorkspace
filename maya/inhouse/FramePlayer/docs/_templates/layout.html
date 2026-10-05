@@ -1,0 +1,14 @@
+{#- 言語の切り替え(日本語 / English)。上の帯(relbar)の右端に出す。
+    日本語版は <ドキュメント>/、英語版は <ドキュメント>/en/ に公開する(CI の hlib-docs.yml)。 -#}
+{%- extends "!layout.html" %}
+{%- set _up = '../' * pagename.count('/') %}
+{%- block relbaritems %}
+{{ super() }}
+<li class="right language-switch">
+{%- if language == 'en' %}
+  <a href="{{ _up }}../{{ pagename }}.html" hreflang="ja" lang="ja">日本語</a> | <strong>English</strong>
+{%- else %}
+  <strong>日本語</strong> | <a href="{{ _up }}en/{{ pagename }}.html" hreflang="en" lang="en">English</a>
+{%- endif %}
+</li>
+{%- endblock %}

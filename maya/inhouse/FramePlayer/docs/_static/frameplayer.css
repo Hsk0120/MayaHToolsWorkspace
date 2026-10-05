@@ -1,0 +1,49 @@
+/*
+ * FramePlayer 固有の見た目。
+ *
+ * 段組みと部品の形は hedit・hlib と共通の custom.css をそのまま使い、色(先頭の変数)だけを
+ * FramePlayer の画面に合わせる(地は黒と #141414、強調色はキャッシュの帯・比較中のボタンと同じオレンジ #FF8232)。
+ */
+
+:root {
+    /* 面: 外側ほど暗い(FramePlayer の映像の周りの黒と、操作部の #141414) */
+    --hd-canvas: #000000;
+    --hd-surface: #141414;
+    --hd-code: #1e1e1e;
+    --hd-raised: #202020;
+    --hd-band: #262626;
+
+    /* 文字(操作部の白と、控えめな文字 #B0B0B0) */
+    --hd-text: #e2e2e2;
+    --hd-text-soft: #9c9c9c;
+    --hd-text-bright: #ffffff;
+    --hd-heading: #d2d2d2;
+    --hd-accent: #ff8232;
+    --hd-accent-dim: #a4521f;
+    --hd-literal: #ffbd8a;
+    --hd-type: #ffa66b;
+    --hd-permalink: #ff8232;
+
+    /* リンク(強調色と、マウスが乗ったときの明るいオレンジ #FF9D5E) */
+    --hd-link: #ff9d5e;
+    --hd-link-hover: #ffc29b;
+    --hd-link-visited: #e0956a;
+
+    /* 罫線(操作部の枠 #333333・#545454) */
+    --hd-rule: #333333;
+    --hd-rule-strong: #545454;
+
+    /* 注意・強調の状態 */
+    --hd-alert-rule: #7a3a3a;
+    --hd-alert-band: #8a3a3a;
+    --hd-target: #4a2e17;
+    --hd-selection: #7a3e18;
+}
+
+/* 表は上揃え(説明が複数行になる表が多いため)。 */
+table.docutils td, table.docutils th { vertical-align: top; }
+
+/* 画面の画像は、地との境が分かるよう細い枠を付ける。 */
+div.body figure img, div.body img.framed {
+    border: 1px solid var(--hd-rule);
+}

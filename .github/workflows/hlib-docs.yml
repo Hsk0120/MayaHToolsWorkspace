@@ -7,6 +7,8 @@ on:
       - 'maya/inhouse/hlib/**'
       - 'maya/inhouse/hedit/docs/**'
       - 'maya/inhouse/hrig/docs/**'
+      - 'maya/inhouse/FramePlayer/docs/**'
+      - 'maya/inhouse/FramePlayer/src/app/FramePlayer.rc'
       - '.github/workflows/hlib-docs.yml'
       - 'tools/check_hlib_docs.py'
       - 'tools/docs-browser-requirements.txt'
@@ -64,6 +66,12 @@ jobs:
           python -m pip install -r maya/inhouse/hrig/docs/requirements.txt
           python -m sphinx -E -a -b html -W --keep-going maya/inhouse/hrig/docs maya/inhouse/hlib/docs/_build/html/hrig
           python -m sphinx -E -a -b html -W --keep-going -D language=en maya/inhouse/hrig/docs maya/inhouse/hlib/docs/_build/html/hrig/en
+      - name: Build FramePlayer documentation into the published site
+        run: |
+          python -m pip install -r maya/inhouse/FramePlayer/docs/requirements.txt
+          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/FramePlayer/docs maya/inhouse/hlib/docs/_build/html/frameplayer
+          # 英語版(locale/en の .po の英訳。英訳は手元で tools/translate_docs.py が作る)。
+          python -m sphinx -E -a -b html -W --keep-going -D language=en maya/inhouse/FramePlayer/docs maya/inhouse/hlib/docs/_build/html/frameplayer/en
       - uses: actions/upload-pages-artifact@v3
         with:
           path: maya/inhouse/hlib/docs/_build/html

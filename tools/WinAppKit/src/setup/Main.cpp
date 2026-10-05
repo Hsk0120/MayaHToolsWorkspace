@@ -589,6 +589,11 @@ int runUninstall(const Arguments& args, const std::wstring& fallbackId) {
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     (void)instance;
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    // 画面の文字は英語なので、Windowsが出す標準のボタン(Cancel・Close)とフォルダ選択の画面も英語にする
+    // (英語の表示用データが無いWindowsでは、Windowsの言語のまま出る)。
+    const wchar_t languages[] = L"en-US\0";
+    SetProcessPreferredUILanguages(MUI_LANGUAGE_NAME, languages, nullptr);
+    SetThreadPreferredUILanguages(MUI_LANGUAGE_NAME, languages, nullptr);
     const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     const INITCOMMONCONTROLSEX controls{sizeof(INITCOMMONCONTROLSEX), ICC_WIN95_CLASSES};
     InitCommonControlsEx(&controls);

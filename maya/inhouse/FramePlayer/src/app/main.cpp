@@ -26,6 +26,11 @@
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // 高DPIのモニターでぼやけないよう、モニターごとの拡大率に対応する。
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    // 画面の文字は英語なので、Windowsが出すファイル選択の画面とメッセージのボタンも英語にする
+    // (英語の表示用データが無いWindowsでは、Windowsの言語のまま出る)。
+    const wchar_t languages[] = L"en-US\0";
+    SetProcessPreferredUILanguages(MUI_LANGUAGE_NAME, languages, nullptr);
+    SetThreadPreferredUILanguages(MUI_LANGUAGE_NAME, languages, nullptr);
 
     const INITCOMMONCONTROLSEX controls{sizeof(INITCOMMONCONTROLSEX), ICC_WIN95_CLASSES};
     InitCommonControlsEx(&controls);  // ツールチップを使うため。

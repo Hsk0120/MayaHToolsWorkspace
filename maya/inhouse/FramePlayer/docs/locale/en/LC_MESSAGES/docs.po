@@ -1,0 +1,1464 @@
+# English translations for FramePlayer.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the FramePlayer project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: FramePlayer VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-06 08:29+0900\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "変更履歴"
+msgstr "Change Log"
+
+msgid "1.0.0"
+msgstr ""
+
+msgid "最初の版です。"
+msgstr "This is the first version."
+
+msgid "動画のコマ送り・再生。全コマの目次を作り、コマ番号を正確に決めます。可変フレームレートの動画にも対応します。"
+msgstr "Frame-by-frame playback and review of video files. Creates a table of contents for all frames and accurately determines frame numbers. Supports videos with variable frame rates."
+
+msgid "Maya と同じ形のタイムスライダー・レンジスライダーとキー操作。"
+msgstr "Same shape Time Slider and Range Slider as Maya, with the same key operations."
+
+msgid "GPU でのデコードと縮小、上限付きのキャッシュと先読み。Maya と同時に使うための省メモリ・省電力の動き。"
+msgstr "GPU-based decoding and scaling, with cached frames and prefetching. Memory- and power-efficient playback for use with Maya."
+
+msgid "2本の比較(同じコマ番号で左右に並べる、右だけをずらす)。"
+msgstr "2-way comparison (side-by-side view with same frame number, offset only the right one)."
+
+msgid "色の情報を読んだニュートラルな表示(HDR・10bit・色域の変換・手動の指定)。"
+msgstr "Neutral display that reads color information (HDR, 10bit, color primaries conversion, manual specification)."
+
+msgid "Windows のすべての動画のデコーダーと入れ物の組み合わせを確認。"
+msgstr "Check all video decoder and container combinations on Windows."
+
+msgid "連番画像(png・jpg・tif・bmp・gif・webp・heif・avif・jxl・jxr・exr)。OpenEXR は自前で読みます。"
+msgstr "Image sequence (png, jpg, tif, bmp, gif, webp, heif, avif, jxl, jxr, exr). OpenEXR is read internally."
+
+msgid "Maya のタイムスライダーとの双方向の連携(相互認証付き)。FramePlayer だけを入れた人向けの連携スクリプト。"
+msgstr "Bidirectional integration (with mutual authentication) with Maya's Time Slider. Integration script for users who have installed FramePlayer only."
+
+msgid "セットアップ(ユーザー単位のインストール、拡張機能を確かめたうえでのファイルの関連付け)。"
+msgstr "Setup (user-level installation, with file association confirmed after extension check)."
+
+msgid "画面の文字は英語。"
+msgstr "The text in the screen is in English."
+
+msgid "色の扱い"
+msgstr "Color Handling"
+
+msgid "FramePlayer は、動画に記録された色の情報を読み、味付けをせずに規格どおりの色で表示します(ニュートラル)。 ニュートラルとは、**エンコードする前の画像と同じ値が画面に出る**\\ ことです。Maya のプレイブラストなら、 Maya のビューポートと同じ色になります。"
+msgstr "FramePlayer reads the color information recorded in videos and displays it with standard, unaltered colors (neutral). Neutral means that **the same values as in the image before encoding appear on screen**. If you use Maya's playblast, it will have the same colors as Maya's viewport."
+
+msgid "変換の式は規格(ITU-R BT.601・709・2020・2100・BT.2390・BT.2408、ITU-T H.273、IEC 61966-2-1、SMPTE RP 177)から作りました。"
+msgstr "The conversion formula was created from standards (ITU-R BT.601, 709, 2020, 2100, BT.2390, BT.2408, ITU-T H.273, IEC 61966-2-1, SMPTE RP 177)."
+
+msgid "色の情報の表示"
+msgstr "Display of color information"
+
+msgid "右クリックのメニューの「Show Color Info」で、映像の左上に、使っている色の解釈と出し方を表示します。"
+msgstr "The \"Show Color Info\" menu item in the right-click context menu displays the color interpretation and transfer function used in the video at the top-left corner of the display."
+
+msgid "映像の左上に色の情報が表示されている画面"
+msgstr "Screen showing color information in the upper left corner of the video"
+
+msgid "色の情報の表示。推定した項目には「(guessed)」、手動で指定した項目には「(manual)」と付きます。"
+msgstr "Display of color information. Items with estimated values are marked with \"(guessed)\", and items manually specified are marked with \"(manual)\"."
+
+msgid "読み取る色の情報"
+msgstr "Color information to read"
+
+msgid "項目"
+msgstr "Items"
+
+msgid "内容"
+msgstr "Contents"
+
+msgid "YUV の行列"
+msgstr "YUV matrix"
+
+msgid "BT.601・BT.709・BT.2020・SMPTE 240M・FCC"
+msgstr "BT.601, BT.709, BT.2020, SMPTE 240M, FCC"
+
+msgid "範囲"
+msgstr "Range"
+
+msgid "映像用(8bit なら 16〜235)・全範囲(0〜255)"
+msgstr "For video (16-235 for 8-bit) / Full range (0-255)"
+
+msgid "色域"
+msgstr "Color primaries"
+
+msgid "BT.709(sRGB)・BT.601 の 525本 / 625本・BT.2020・Display P3・DCI-P3(EXR は ACES も)"
+msgstr "BT.709(sRGB), BT.601 525-line / 625-line, BT.2020, Display P3, DCI-P3 (EXR also supports ACES)"
+
+msgid "伝達関数"
+msgstr "Transfer function"
+
+msgid "SDR(BT.709・sRGB・ガンマなど)・リニア・HDR の PQ・HLG"
+msgstr "SDR (BT.709, sRGB, gamma, etc.), linear, HDR with PQ and HLG"
+
+msgid "その他"
+msgstr "Other"
+
+msgid "ビット数(8・10)、色の画素の位置、HDR の最大の明るさ(MaxCLL・マスタリング)"
+msgstr "Bit depth (8-bit, 10-bit), position of color pixels, maximum brightness of HDR (MaxCLL, mastering)"
+
+msgid "動画に色の指定が無いときは、一般的なプレイヤーと同じ決まりで推定します。HD 以上(幅 1024 超か高さ 576 超)は BT.709、 それ未満は BT.601 です。範囲は映像用、伝達関数は SDR とします。"
+msgstr "When no color information is specified in the video, it is estimated according to standard rules used by general players. HD resolution (width over 1024 or height over 576) uses BT.709, and lower resolutions use BT.601. The range is set for video use, and the transfer function is set to SDR."
+
+msgid "表示の仕方"
+msgstr "How to Display"
+
+msgid "**SDR・BT.709 の 8bit の動画**: YUV から RGB へ戻した値を、そのまま 8bit で画面へ出します(値が1段も変わりません)。"
+msgstr "**SDR, BT.709 8-bit video**: The values returned from YUV to RGB conversion are displayed directly on the screen as 8-bit values (the values do not change at all)."
+
+msgid "**色域が違う SDR の動画**\\ (BT.2020・P3・SD の BT.601): BT.709 の同じ色へ変換して出します。"
+msgstr "**Videos with different color primaries**\\ (BT.2020, P3, SD BT.601): Converts to the same colors as BT.709."
+
+msgid "**10bit の動画**: 10bit のまま変換し、8bit に落とさずに画面へ出します。"
+msgstr "**10bit video**: Converts while keeping it at 10bit, and outputs to the screen without downgrading to 8bit."
+
+msgid "**HDR の動画を HDR の画面で**: 明るさ(cd/m²)をそのまま出します。"
+msgstr "**HDR video on HDR display**: Outputs brightness (cd/m²) as-is."
+
+msgid "**HDR の動画を SDR の画面で**: BT.2390 の曲線で、動画の最大の明るさを基準の白(203cd/m²、BT.2408)までに収めます。"
+msgstr "**Displaying HDR video on SDR monitors**: Using the BT.2390 transfer function, we scale the maximum brightness of the video down to the reference white level of 203 cd/m² (BT.2408)."
+
+msgid "拡大は双三次補間(等倍なら元の値のまま)、縮小はミップマップを使います。"
+msgstr "Zoom in uses bicubic interpolation (unchanged original values at 1:1 magnification), and zoom out uses mipmapping."
+
+msgid "Windows の映像処理と、GPU のドライバーの映像の補正(コントラストの強調など)は通しません。"
+msgstr "Windows video processing and video correction (such as contrast enhancement) performed by GPU drivers are not supported."
+
+msgid "色の解釈を手動で直す"
+msgstr "Manually fix the color interpretation"
+
+msgid "動画の色の情報が誤っている(または付いていない)ときは、右クリックのメニューの「Color Interpretation」で直します。"
+msgstr "When the video's color information is incorrect (or missing), fix it using the \"Color Interpretation\" option in the right-click menu."
+
+msgid "「YUV Matrix」「Range」「Primaries」「Transfer Function」を、それぞれ「Auto」(動画の指定・推定のまま)か手動の値にします。"
+msgstr "Set \"YUV Matrix\", \"Range\", \"Primaries\", and \"Transfer Function\" to either \"Auto\" (leave video specification/estimation as is) or manual values."
+
+msgid "「Reset All Overrides」で、すべて自動に戻します。"
+msgstr "\"Reset All Overrides\" returns everything to automatic."
+
+msgid "比較中は、1本目と2本目を別々に指定できます。"
+msgstr "During comparison, you can specify the first and second files separately."
+
+msgid "手動の指定は、開いている間だけ有効です(開き直すと自動に戻ります)。"
+msgstr "Manual specification is effective only while open (it will automatically revert upon reopening)."
+
+msgid "使わないもの"
+msgstr "Unused items"
+
+msgid "ICC プロファイル・OCIO・LUT は使いません。広い色域の画面では、Windows の自動の色管理に任せます。"
+msgstr "We do not use ICC profiles, OCIO, or LUTs. On wide color gamut displays, we leave color management to Windows automatic color management."
+
+msgid "読み込みを待つ間の仮の縮小画像は、色の精度を落として持っています(正式なコマが届けば置き換わります)。"
+msgstr "While waiting to load, the placeholder thumbnail is stored at a lower color depth (and will be replaced when the actual frame arrives)."
+
+msgid "2本の比較"
+msgstr "2-way comparison"
+
+msgid "2本の動画を左右に並べ、同じコマ番号で表示します。テイク違いやバージョン違いの見比べに使います。"
+msgstr "Displays two videos side by side at the same frame number. Used for comparing different takes or versions."
+
+msgid "2本の動画を左右に並べて比較している画面"
+msgstr "A screen showing two videos side by side for comparison"
+
+msgid "2本の比較。各表示枠の下に、ファイル名・コマ番号・右のずらし(offset)を表示します。"
+msgstr "Two-column comparison. Each view frame displays the filename, frame number, and offset on the right."
+
+msgid "2本目を開く"
+msgstr "Open the second one"
+
+msgid "次のどれかで開きます。"
+msgstr "Opens with one of the following."
+
+msgid "1本目を開いた状態で、映像の右半分へドラッグ&ドロップする(左半分なら1本目の差し替え)。"
+msgstr "With the first video open, drag and drop to the right half of the video (dragging to the left half replaces the first video)."
+
+msgid "2つのファイルをまとめてドロップする(1つ目が左、2つ目が右)。"
+msgstr "Drop two files together (the first one on the left, the second one on the right)."
+
+msgid "操作部の「Compare」ボタン、または Ctrl+Shift+O でファイルを選ぶ。"
+msgstr "Click the \"Compare\" button in the action bar, or press Ctrl+Shift+O to select a file."
+
+msgid "コマンドラインで ``FramePlayer.exe 左.mp4 右.mp4`` と指定する。"
+msgstr "Specify ``FramePlayer.exe 左.mp4 右.mp4`` on the command line."
+
+msgid "比較中は「Compare」ボタンが「Compare ×」(オレンジ)になります。押すと比較をやめます。"
+msgstr "While comparing, the \"Compare\" button becomes \"Compare ×\" (orange). Pressing it stops the comparison."
+
+msgid "見比べ方"
+msgstr "How to Compare"
+
+msgid "2本は同じコマ番号で表示します。フレームレートが違っても、番号で合わせます。"
+msgstr "Both display the same frame number. Even if the frame rates are different, they are synchronized by frame number."
+
+msgid "スライダー・再生・コマ送りは左の動画で操作し、右はそれに従います。再生中は、左右両方のコマがそろってから進めます。"
+msgstr "Slider playback and frame stepping are controlled on the left video, and the right one follows. During playback, both frames advance together only after they are aligned."
+
+msgid "右だけをずらすには、[ / ] を押します(Shift と一緒なら10コマずつ)。右の映像の上の中ボタンドラッグでもずらせます。"
+msgstr "To offset only the right side, press [ / ]. If you hold Shift while pressing it, it will offset by 10 frames. You can also drag the middle mouse button over the right video to offset it."
+
+msgid "左の映像の上の中ボタンドラッグでは、左だけを動かします(右の表示はそのまま)。"
+msgstr "Dragging the middle mouse button on the left video moves only the left one (the right view remains unchanged)."
+
+msgid "ずらした結果が右の動画の外になるときは、「Out of range」と表示します。"
+msgstr "When the offset result falls outside the range of the video on the right, \"Out of range\" is displayed."
+
+msgid "比較中は音声を鳴らしません。読み込みのキャッシュは2本で半分ずつ使います。"
+msgstr "During comparison, no sound will be played. The loading cache uses two threads, each handling half of the data."
+
+msgid "色の解釈の指定(:doc:`color`)は、右クリックのメニューで1本目と2本目を別々に指定できます。"
+msgstr "The color interpretation can be specified for the first and second channels separately via the right-click menu. :doc:`color`"
+
+msgid "開発"
+msgstr "Development"
+
+msgid "ソースは ``maya/inhouse/FramePlayer`` にあります。このフォルダーだけで完結し、MayaHTools の共通ライブラリ(hlib など)には依存しません。"
+msgstr "The source is at ``maya/inhouse/FramePlayer``. This folder is self-contained and does not depend on common libraries for MayaHTools (such as hlib)."
+
+msgid "ビルド"
+msgstr "Build"
+
+msgid "Visual Studio 2022(C++ によるデスクトップ開発)と、それに付属する CMake を使います。"
+msgstr "We use Visual Studio 2022 (C++ desktop development) and the CMake that comes with it."
+
+msgid "映像のシェーダー(HLSL)は、Windows SDK の ``fxc.exe`` でビルドのときにバイトコードにして埋め込みます。"
+msgstr "The video shader (HLSL) is compiled into bytecode and embedded during the build process using the Windows SDK ``fxc.exe``."
+
+msgid "ランタイムを静的にリンクしているので、exe 1つで動きます。"
+msgstr "Because it links to the runtime library statically, it runs with a single exe file."
+
+msgid "セットアップ"
+msgstr "Setup"
+
+msgid "``tools/WinAppKit`` の汎用のインストーラー(WinAppSetup)で作ります。設定は ``installer/FramePlayer.wak.ini`` です。 版は ``src/app/FramePlayer.rc`` の ``FP_VERSION_*`` から読みます。"
+msgstr "The setup is created with the generic installer (WinAppSetup) for ``tools/WinAppKit``. The settings are as specified in ``installer/FramePlayer.wak.ini``. The version reads from ``src/app/FramePlayer.rc`` ``FP_VERSION_*``."
+
+msgid "フォルダーの構成"
+msgstr "Folder Structure"
+
+msgid "確認用のツール"
+msgstr "Verification tools"
+
+msgid "``tests`` のツールで、プレイヤーと同じ読み込みの処理を使って正確さを確かめます(詳しくは FramePlayer の ``README.md``)。"
+msgstr "With the tools in ``tests``, we verify accuracy using the same loading process as the player (see FramePlayer for details, ``README.md``)."
+
+msgid "``FramePlayerVerify.exe``: 各コマに描いたコマ番号を読み、順・逆・飛び飛びに取り出したコマがずれていないかを確かめます。"
+msgstr "``FramePlayerVerify.exe``: Read the frame numbers drawn on each frame and verify that frames extracted in sequence, reverse order, or jump-cut fashion are properly aligned."
+
+msgid "``FramePlayerColorCheck.exe``: 色のパッチの値を、規格から計算した期待値と比べます(SDR と HDR の画面)。"
+msgstr "``FramePlayerColorCheck.exe``: Compares the color patch values with the expected values calculated from the standard (SDR and HDR displays)."
+
+msgid "``run_codec_check.py``: Windows のすべてのデコーダー・入れ物の組み合わせをまとめて確かめます。"
+msgstr "``run_codec_check.py``: Verifies all combinations of decoder containers on Windows."
+
+msgid "``run_sequence_check.py``・``run_exr_check.py``: 連番画像と OpenEXR の読み込みを確かめます。"
+msgstr "``run_sequence_check.py`` and ``run_exr_check.py``: Verify loading of image sequences and OpenEXR files."
+
+msgid "ドキュメント"
+msgstr "Documentation"
+
+msgid "このドキュメントは ``docs`` フォルダーの Sphinx で作ります。日本語が元で、英語版は ``locale/en`` の翻訳から作ります。"
+msgstr "This document is created in the ``docs`` folder using Sphinx. The original language is Japanese, and the English version is created from the translation of ``locale/en``."
+
+msgid "画面の画像は ``docs/tools/capture_docs.py`` で撮り直せます。FramePlayer とセットアップを起動して、その窓だけを撮ります。"
+msgstr "The screen image can be captured again with ``docs/tools/capture_docs.py``. Launch the setup and capture only its window."
+
+msgid "英訳は、リポジトリの直下で ``python tools/translate_docs.py FramePlayer`` を実行します(ローカルの LLM で、訳の無い文だけを英訳します)。"
+msgstr "The translation is performed by executing ``python tools/translate_docs.py FramePlayer`` at the root of the repository (locally with an LLM, translating only the untranslated parts)."
+
+msgid "GitHub Pages には、main へプッシュすると日本語版と英語版が載ります。"
+msgstr "On GitHub Pages, both the Japanese and English versions are published when pushing to main."
+
+msgid "対応形式"
+msgstr "Supported formats"
+
+msgid "動画は Windows の Media Foundation で読みます(デコードは Windows に任せ、外部のライブラリは使いません)。 Windows に入っている映像のデコーダーは、すべてコマ番号(順・逆・飛び飛び)と色を確かめてあります。 連番画像の形式は :doc:`sequences` を見てください。"
+msgstr "The video is loaded using Windows Media Foundation (decompression is handled by Windows, and no external libraries are used). The video decoders included with Windows have all been verified to check frame numbers (forward, backward, and discontinuous) and color. See :doc:`sequences` for the image sequence format."
+
+msgid "動画"
+msgstr "Video"
+
+msgid "コーデック"
+msgstr "Codec"
+
+msgid "確かめた入れ物"
+msgstr "Confirmed container"
+
+msgid "必要なもの"
+msgstr "Requirements"
+
+msgid "H.264"
+msgstr ""
+
+msgid "mp4・mov・mkv・ts・m2ts・avi・3gp"
+msgstr "mp4, mov, mkv, ts, m2ts, avi, 3gp"
+
+msgid "Windows 標準(N エディションはメディア機能パック)"
+msgstr "Windows standard (N edition requires Media Feature Pack)"
+
+msgid "HEVC(H.265、8bit・10bit・HDR)"
+msgstr "HEVC (H.265, 8bit/10bit/HDR)"
+
+msgid "mp4・mkv・ts"
+msgstr "mp4, mkv, ts"
+
+msgid "HEVC Video Extensions"
+msgstr ""
+
+msgid "AV1(8bit・10bit)"
+msgstr "AV1 (8bit and 10bit)"
+
+msgid "mp4・mkv・webm"
+msgstr "mp4, mkv, webm"
+
+msgid "AV1 Video Extension"
+msgstr ""
+
+msgid "VP9(8bit・10bit・HDR)"
+msgstr "VP9 (8bit, 10bit, HDR)"
+
+msgid "mp4・webm・mkv"
+msgstr "mp4, webm, mkv"
+
+msgid "VP9 Video Extensions"
+msgstr ""
+
+msgid "VP8"
+msgstr ""
+
+msgid "webm・mkv"
+msgstr "webm, mkv"
+
+msgid "VP9 Video Extensions(VP8 も含みます)"
+msgstr "VP9 Video Extensions (includes VP8)"
+
+msgid "MPEG-2"
+msgstr ""
+
+msgid "mpg・ts・vob"
+msgstr "mpg, ts, vob"
+
+msgid "MPEG-2 Video Extension"
+msgstr ""
+
+msgid "MPEG-1"
+msgstr ""
+
+msgid "mpg"
+msgstr ""
+
+msgid "Windows 標準"
+msgstr "Windows standard"
+
+msgid "MPEG-4 Part 2(Simple Profile)・H.263"
+msgstr "MPEG-4 Part 2 (Simple Profile), H.263"
+
+msgid "mp4・mov・avi・3gp"
+msgstr "mp4, mov, avi, 3gp"
+
+msgid "MS-MPEG4 v2・v3"
+msgstr "MS-MPEG4 v2, v3"
+
+msgid "avi"
+msgstr ""
+
+msgid "WMV7・WMV8"
+msgstr "WMV7, WMV8"
+
+msgid "wmv"
+msgstr ""
+
+msgid "MJPEG"
+msgstr ""
+
+msgid "avi・mov"
+msgstr "avi, mov"
+
+msgid "DV(NTSC)"
+msgstr ""
+
+msgid "Theora"
+msgstr ""
+
+msgid "mkv"
+msgstr ""
+
+msgid "Web Media Extensions"
+msgstr ""
+
+msgid "拡張機能"
+msgstr "Extension"
+
+msgid "「必要なもの」の拡張機能は、Microsoft Store から無料で入れられます。入っていなくても FramePlayer は使えますが、 その形式だけが開けません(「Cannot set the output format」と表示します)。"
+msgstr "The \"required\" extension can be installed for free from the Microsoft Store. FramePlayer will work even without it, but it will not be able to open that format (it displays \"Cannot set the output format\")."
+
+msgid "入っているかは、PowerShell で ``Get-AppxPackage *VP9*``(HEVC なら ``*HEVC*``)のように確かめられます。 セットアップは、拡張機能が入っていない形式を関連付けません(:doc:`install`)。"
+msgstr "Whether or not it is installed can be confirmed with PowerShell as ``Get-AppxPackage *VP9*`` (for HEVC, ``*HEVC*``). Setup does not associate file formats without the extension (:doc:`install`)."
+
+msgid "読めないもの"
+msgstr "Cannot read it."
+
+msgid "ProRes(Windows にデコーダーがありません)。"
+msgstr "ProRes (No decoder for Windows)."
+
+msgid "MPEG-4 Part 2 の B フレーム(XviD・DivX の多くの設定)。Windows のデコーダーが対応していません。"
+msgstr "B-frame (XviD and DivX settings) in MPEG-4 Part 2. The Windows decoder does not support this."
+
+msgid "mov に入った DV、ogg・ogv(Theora は mkv なら読めます)。"
+msgstr "DV files that entered mov, ogg and ogv (Theora can read mkv)."
+
+msgid "映像だけの短い(数秒の)mpg・vob。Windows が開けません(音声があるか、長ければ開けます)。"
+msgstr "Short mpg or vob files containing only video (a few seconds). Windows cannot open them (they can be opened if they contain audio or are longer)."
+
+msgid "開くときの時間"
+msgstr "Time on open"
+
+msgid "mp4・mov は、ファイルの中の目次を直接読むので、長い動画でもすぐ開きます(4K 60fps・1時間で約1秒)。"
+msgstr "mp4 and mov files can read the file's index directly, so even long videos open quickly (approximately 1 second for 4K 60fps video lasting 1 hour)."
+
+msgid "ほかの形式は、圧縮されたままのコマを最後まで読んで目次を作ります。"
+msgstr "For other formats, the table of contents is created by reading compressed frames until the end."
+
+msgid "MPEG-1・MPEG-2(mpg・ts・vob)は、コマの時刻が一部にしか無いため、全体をデコードして目次を作ります(開くのに時間がかかります)。"
+msgstr "MPEG-1, MPEG-2 (mpg, ts, vob) do not have frame timecodes for all frames, so the entire file is decoded to create a table of contents (opening may take time)."
+
+msgid "はじめに"
+msgstr "Introduction"
+
+msgid "機能"
+msgstr "Features"
+
+msgid "リファレンス"
+msgstr "References"
+
+msgid "開発・その他"
+msgstr "Development and Other"
+
+msgid "FramePlayer ドキュメント"
+msgstr "FramePlayer Documentation"
+
+msgid "FramePlayer は、コマ送りと2本並べての比較に特化した Windows 用の動画プレイヤーです。 アニメーションのチェックに使うことを考えて作っており、Maya のタイムスライダーと双方向に連携できます。"
+msgstr "FramePlayer is a Windows video player specialized in frame stepping and side-by-side comparison. It was designed for checking animations and can synchronize bidirectionally with Maya's Time Slider."
+
+msgid "FramePlayer の画面。上が映像、下がタイムスライダーとレンジスライダー"
+msgstr "FramePlayer window. Top is video, bottom is Time Slider and Range Slider."
+
+msgid "FramePlayer の画面。映像の下に、Maya と同じ並びのタイムスライダー(上段)とレンジスライダー(下段)があります。"
+msgstr "FramePlayer window. Below the video, there is a Time Slider (top row) and a Range Slider (bottom row) with the same layout as in Maya."
+
+msgid "対応 OS"
+msgstr "Supported OS"
+
+msgid "Windows 10・11(64bit)"
+msgstr "Windows 10, 11 (64bit)"
+
+msgid "開けるもの"
+msgstr "Openable items"
+
+msgid "動画(mp4・mov・mkv・avi・webm など)と連番画像(png・jpg・tif・exr など)"
+msgstr "Video (mp4, mov, mkv, avi, webm, etc.) and image sequences (png, jpg, tif, exr, etc.)"
+
+msgid "Maya との連携"
+msgstr "Integration with Maya"
+
+msgid "Maya 2022〜2027。タイムスライダーの現在のフレーム・再生範囲・再生を合わせます"
+msgstr "Maya 2022〜2027. Synchronize the current frame, playback range, and playback with the Time Slider."
+
+msgid "本体の exe だけ(Windows の標準の機能だけを使い、追加のライブラリは要りません)"
+msgstr "The main exe file only (using only Windows standard features, no additional libraries required)"
+
+msgid "現在の版"
+msgstr "Current version"
+
+msgid "|release|"
+msgstr ""
+
+msgid "特長"
+msgstr "Features"
+
+msgid "**コマ番号が正確**: 開いたときに全コマの目次を作り、どこから読んでもコマ番号がずれません。 可変フレームレートの動画も、本来の時刻のまま扱います。"
+msgstr "**Frame numbers are accurate**: Creates a complete table of contents for all frames when opened, so frame numbers will not be skewed no matter where you start reading. Variable frame rate videos are handled with their original timing intact."
+
+msgid "**軽くて速い**: デコードと縮小は GPU で行い、先のコマを裏で読んでおきます。Maya や Unreal Engine と同時に 使っても邪魔にならないよう、メモリと CPU の使用を抑えています。"
+msgstr "**Lightweight and fast**: Decoding and scaling are performed on the GPU, and subsequent frames are pre-fetched in the background. Memory and CPU usage are kept low so it does not interfere with Maya or Unreal Engine when used simultaneously."
+
+msgid "**Maya と同じ操作**: タイムスライダー・レンジスライダーの形とキー操作(←→・Alt+V・I/O など)が Maya と同じです。"
+msgstr "**Same operations as Maya**: The appearance and keyboard shortcuts (such as ←→, Alt+V, I/O, etc.) for the Time Slider and Range Slider are the same as in Maya."
+
+msgid "**2本の比較**: 2本を左右に並べ、同じコマ番号で表示します。片方だけずらすこともできます。"
+msgstr "**2-up comparison**: Display two frames side by side at the same frame number. You can also offset one of them."
+
+msgid "**ニュートラルな色**: 動画に記録された色の情報を読み、味付けをせずに規格どおりの色で表示します。HDR と 10bit にも対応します。"
+msgstr "**Neutral color**: Reads the color information recorded in the video and displays it with standard color representation, without any grading. Supports HDR and 10bit."
+
+msgid "**連番画像**: 1枚を開くと連番を探して、動画と同じように扱います。OpenEXR も読めます。"
+msgstr "**Image sequence**: Opening a single frame will search for the sequence and treat it like a video. OpenEXR files are also supported."
+
+msgid "読む順番の目安"
+msgstr "Guidelines for Reading Order"
+
+msgid "はじめて使う: :doc:`install` → :doc:`usage` → :doc:`shortcuts`"
+msgstr "First time using: :doc:`install` → :doc:`usage` → :doc:`shortcuts`"
+
+msgid "2本を見比べたい: :doc:`compare`"
+msgstr "I want to compare two files: :doc:`compare`"
+
+msgid "連番画像・EXR を見たい: :doc:`sequences`"
+msgstr "Want to view image sequences or EXR files: :doc:`sequences`"
+
+msgid "Maya のタイムスライダーと合わせたい: :doc:`maya`"
+msgstr "I want to synchronize with Maya's Time Slider: :doc:`maya`"
+
+msgid "開けない形式がある: :doc:`formats`"
+msgstr "There is an unsupported format: :doc:`formats`"
+
+msgid "色が他のソフトと違って見える: :doc:`color`"
+msgstr "Colors appear different from other software: :doc:`color`"
+
+msgid "インストール"
+msgstr "Installation"
+
+msgid "FramePlayer は、セットアップ(``FramePlayerSetup.exe``)で入れるか、本体の ``FramePlayer.exe`` をそのまま使います。 どちらも管理者の権限は要りません。"
+msgstr "FramePlayer can be installed via the setup(``FramePlayerSetup.exe``), or you can use the main ``FramePlayer.exe`` directly. Neither requires administrator privileges."
+
+msgid "セットアップで入れる"
+msgstr "``hlib``, ``hedit``, ``hrig``, and ``FramePlayer`` are Autodesk Maya tools that can be installed through the setup process. The ``hlib`` library provides core API functionalities, while ``hedit`` offers a Python/MEL script editor with features like syntax checking, auto-completion, and debugging support. The ``hrig`` module contains rigging tools for creating and managing character rigs. ``FramePlayer`` is a Windows video player designed for frame-by-frame review, synchronizing with Maya's timeline. These tools can be installed via the standard setup procedure."
+
+msgid "``FramePlayerSetup.exe`` を実行し、「Install」を押します。"
+msgstr "Execute ``FramePlayerSetup.exe`` and click \"Install\"."
+
+msgid "セットアップの最初の画面。Install・Change the install folder・Change file associations の3つの選択肢"
+msgstr "The first screen of the setup. Three options: Install, Change the install folder, and Change file associations."
+
+msgid "セットアップの最初の画面。そのまま「Install」を押せば入ります。"
+msgstr "The first screen of the setup. Simply press \"Install\" to proceed with the installation."
+
+msgid "インストール先は ``%LOCALAPPDATA%\\Programs\\FramePlayer`` です(このユーザーだけに入れます)。 「Change the install folder」で変えられます。"
+msgstr "The installation destination is ``%LOCALAPPDATA%\\Programs\\FramePlayer`` (this installs for this user only). This can be changed with \"Change the install folder\"."
+
+msgid "スタートメニューに追加し、設定の「アプリ」の一覧に載ります。アンインストールもそこから行えます。"
+msgstr "Adds to the Start menu and appears in the list of applications in Settings. Uninstallation can also be performed from there."
+
+msgid "Maya との連携に使うスクリプトも一緒に入ります(:doc:`maya`)。"
+msgstr "Script files for use with Maya are included as well (:doc:`maya`)."
+
+msgid "同じセットアップをもう一度実行すると、入れ直し(または更新)になります。前回の関連付けの選択は引き継ぎます。"
+msgstr "Running the same setup again will result in a reinstallation (or update). The previous file association settings will be carried over."
+
+msgid "ファイルの関連付け"
+msgstr "File association"
+
+msgid "「Change file associations」で、FramePlayer で開くファイルの種類を選べます(既定はすべて)。"
+msgstr "With \"Change file associations\", you can select the types of files to open in FramePlayer (the default is all)."
+
+msgid "関連付ける拡張子のチェックボックスの一覧"
+msgstr "List of check boxes for file associations"
+
+msgid "関連付ける拡張子の選択。右クリックのメニューに「Open with FramePlayer」を出すかも選べます。"
+msgstr "Selection of file extensions to associate. Choose whether to show \"Open with FramePlayer\" in the right-click menu."
+
+msgid "選んだ種類は、ファイルを右クリックしたときの「プログラムから開く」の候補に FramePlayer が出るようになります。"
+msgstr "The selected type will make FramePlayer appear as a candidate in the \"Open with\" list when you right-click on a file."
+
+msgid "開くのに Windows の拡張機能が要る種類(webm・webp・heic・avif・jxl)は、その拡張機能が入っているときだけ選べます。 入っていない種類は灰色になり、関連付けません(:doc:`formats`)。拡張機能を入れた後にセットアップを入れ直すと選べます。"
+msgstr "Types that require Windows extensions to open (webm, webp, heic, avif, jxl) can only be selected when those extensions are installed. The uninstalled types will appear grayed out and will not be associated (:doc:`formats`). After installing the extensions, you must redo the setup to make them selectable."
+
+msgid "いつも FramePlayer で開くには"
+msgstr "To always open with FramePlayer"
+
+msgid "Windows の決まりで、アプリが自分を「既定のアプリ」にすることはできません。ファイルを右クリックして 「プログラムから開く」→「別のプログラムを選択」で FramePlayer を選び、「常に使う」を押してください(拡張子ごと)。"
+msgstr "Due to Windows restrictions, applications cannot set themselves as the default program. Right-click on a file, choose \"Open with\" → \"Choose another app\", select FramePlayer, and click \"Always use this app\" (per file extension)."
+
+msgid "アンインストール"
+msgstr "Uninstall"
+
+msgid "設定の「アプリ」から FramePlayer をアンインストールします。「Also delete settings and other data」を選ぶと、 音量や最近使ったファイルなどの設定と、Maya との連携の鍵も消します。"
+msgstr "From the \"Apps\" settings, uninstall FramePlayer. Selecting \"Also delete settings and other data\" will remove settings such as volume and recently used files, as well as the key for Maya integration."
+
+msgid "画面を出さずに入れる"
+msgstr "Do not display the screen when entering."
+
+msgid "まとめて配るときは、画面を出さずに入れられます。"
+msgstr "When distributing together, you can include it without displaying the screen."
+
+msgid "``FramePlayerSetup.exe --check-file-types`` は、拡張子ごとに必要な拡張機能が入っているかを調べて書き出すだけで、何も変えません。"
+msgstr "``FramePlayerSetup.exe --check-file-types`` simply checks whether the required extensions for each file extension are present and outputs the results, without making any changes."
+
+msgid "exe をそのまま使う"
+msgstr "Use the exe file as-is."
+
+msgid "``FramePlayer.exe`` は1つのファイルで動きます。好きな場所に置いて実行してください。 設定は ``HKEY_CURRENT_USER\\Software\\FramePlayer`` に保存します(:doc:`settings`)。"
+msgstr "``FramePlayer.exe`` runs as a single file. Put it anywhere and run it. Settings are saved in ``HKEY_CURRENT_USER\\Software\\FramePlayer`` (:doc:`settings`)."
+
+msgid "Maya と連携するときは、``FramePlayer.exe`` と同じフォルダーに ``maya`` と ``python`` のフォルダーも置いてください (配布用のフォルダーの並びのまま使います。:doc:`maya`)。"
+msgstr "When integrating with Maya, place the ``maya`` and ``python`` folders in the same directory as ``FramePlayer.exe`` (use the folder structure as distributed. :doc:`maya`)."
+
+msgid "制限"
+msgstr "Limitations"
+
+msgid "Windows 専用です(Windows 10・11 の 64bit)。"
+msgstr "This is Windows-only (64-bit for Windows 10 and 11)."
+
+msgid "逆再生・再生速度の変更・J/K/L の操作は、まだありません。"
+msgstr "Reverse playback, changing playback speed, and J/K/L key operations are not yet implemented."
+
+msgid "キャッシュの上限を変える画面は、まだありません(レジストリで変えます。:doc:`settings`)。"
+msgstr "There is currently no screen to change the cache limit (you must change it in the registry. :doc:`settings`)."
+
+msgid "ProRes など、Windows にデコーダーが無い形式は開けません(:doc:`formats`)。"
+msgstr "Formats such as ProRes that do not have a decoder on Windows cannot be opened (:doc:`formats`)."
+
+msgid "表示は画面の書き換えに合わせるので、画面の書き換えの回数(多くの画面で 60Hz)より多いコマは表示できません。"
+msgstr "Because the display is synchronized with screen refreshes, frames cannot be displayed at a rate higher than the screen refresh rate (typically 60 Hz in most displays)."
+
+msgid "画面が消えている(省電力・ロック中)と、再生の表示も進みません。"
+msgstr "The screen is turned off (power saving or locked), and the playback display does not advance."
+
+msgid "OpenEXR の深いデータ(deep)と、層の切り替えは未対応です(:doc:`sequences`)。"
+msgstr "OpenEXR deep data and layer switching are not supported (:doc:`sequences`)."
+
+msgid "ICC プロファイル・OCIO・LUT は使いません(:doc:`color`)。"
+msgstr "Do not use ICC profiles, OCIO, or LUTs (:doc:`color`)."
+
+msgid "Windows 11 の新しい右クリックメニューの最初の段には「Open with FramePlayer」は出ません(「その他のオプションを確認」の中に出ます)。"
+msgstr "The \"Open with FramePlayer\" option does not appear in the first tier of the Windows 11 right-click menu (it appears in \"Check other options\")."
+
+msgid "セットアップには署名がありません。インターネットからダウンロードすると、SmartScreen の警告が出ることがあります。"
+msgstr "The setup is not signed. When downloading from the Internet, a SmartScreen warning may appear."
+
+msgid "FramePlayer は、Maya のタイムスライダーと双方向に連携できます。"
+msgstr "FramePlayer can synchronize bidirectionally with Maya's Time Slider."
+
+msgid "Maya で時間を動かす(スクラブ・再生・キー操作)と、FramePlayer が同じフレームを表示します。"
+msgstr "Moving time in Maya (scrubbing, playback, key operations) causes FramePlayer to display the same frame."
+
+msgid "FramePlayer でコマ送り・スライダー操作・再生をすると、Maya の時間が追従します。 Maya のシーンが重くても、最新のフレームだけを反映するので遅れは積み重なりません。"
+msgstr "When you perform frame stepping, slider manipulation, or playback in FramePlayer, the Maya time will follow along. Even if the Maya scene is slow, only the latest frame is reflected, so delays do not accumulate."
+
+msgid "再生範囲も合わせられます。"
+msgstr "The playback range can also be adjusted."
+
+msgid "フレーム番号の対応は「FramePlayer の番号 = Maya の番号 × 倍率 + オフセット」です。"
+msgstr "The frame number correspondence is \"FramePlayer frame number = Maya frame number × scale + offset\"."
+
+msgid "Maya 側の準備"
+msgstr "Maya-side setup"
+
+msgid "Maya 側では、FramePlayer に付いている連携パネルを使います。Maya の設定(``Maya.env`` やモジュール)を変える必要はありません。"
+msgstr "On the Maya side, use the sync panel that comes with FramePlayer. It is not necessary to change Maya's configuration (``Maya.env`` or modules)."
+
+msgid "FramePlayer だけを入れた場合"
+msgstr "When installing only FramePlayer"
+
+msgid "インストール先(またはダウンロードした FramePlayer のフォルダー)の ``maya\\FramePlayerMayaSync.py`` を、Maya のビューへ ドラッグ&ドロップします。"
+msgstr "Drag and drop the ``maya\\FramePlayerMayaSync.py`` from the installation destination (or the downloaded FramePlayer folder) to the Maya view."
+
+msgid "連携パネルが開き、今のシェルフに「FramePlayer」のボタンが追加されます。次からはこのボタンで開けます。"
+msgstr "The sync panel opens, and a \"FramePlayer\" button is added to the current shelf. You can open it from this button in the future."
+
+msgid "スクリプトエディターの File > Source Script でこのファイルを実行しても開けます(シェルフのボタンは追加しません)。"
+msgstr "You can also open this file by executing it in the Script Editor using File > Source Script (this will not add a button to the shelf)."
+
+msgid "インストール先の既定は ``%LOCALAPPDATA%\\Programs\\FramePlayer`` です。"
+msgstr "The default installation destination is ``%LOCALAPPDATA%\\Programs\\FramePlayer``."
+
+msgid "このスクリプトは、同じフォルダーの並びにある ``python\\frameplayer``(連携パネルの本体)を読み込みます。 フォルダーの並びを変えた場合は、環境変数 ``FRAMEPLAYER_HOME`` に FramePlayer のフォルダーを指定してください。"
+msgstr "This script loads ``python\\frameplayer`` (the main sync panel) located in the same folder. If you have changed the folder arrangement, please specify the FramePlayer folder in the environment variable ``FRAMEPLAYER_HOME``."
+
+msgid "MayaHTools を使っている場合"
+msgstr "When using MayaHTools"
+
+msgid "HTools メニューの animation > framePlayerSync を選びます。スクリプトからは ``import frameplayer; frameplayer.show()`` で開けます。"
+msgstr "Select animation > framePlayerSync from the HTools menu. It can be opened from a script using ``import frameplayer; frameplayer.show()``."
+
+msgid "連携の始め方"
+msgstr "How to Start Synchronization"
+
+msgid "連携パネルの「Launch FramePlayer」を押します。FramePlayer が連携モードで起動し、自動でつながります。"
+msgstr "Press the \"Launch FramePlayer\" button in the sync panel. FramePlayer launches in sync mode and connects automatically."
+
+msgid "FramePlayer をすでに開いている場合は、FramePlayer の操作部の「Maya Sync」ボタンを押してから、パネルの「Connect」を押します。"
+msgstr "If FramePlayer is already open, click the \"Maya Sync\" button in the FramePlayer control area, and then click \"Connect\" on the panel."
+
+msgid "つながると、パネルの上の表示が「Connected」になり、FramePlayer のボタンが「Synced」になります。"
+msgstr "When connected, the panel's display changes to \"Connected,\" and the FramePlayer button becomes \"Synced.\""
+
+msgid "連携モードの FramePlayer の操作部。Maya Sync ボタンが Waiting(オレンジ)になっている"
+msgstr "FramePlayer control panel in sync mode. The Maya Sync button is in Waiting state (orange)."
+
+msgid "連携モードの FramePlayer。Maya からの接続を待っている間は「Waiting」、つながると「Synced」と表示します。"
+msgstr "FramePlayer in sync mode. While waiting for connection from Maya, it displays \"Waiting\"; when connected, it shows \"Synced\"."
+
+msgid "FramePlayer の「Maya Sync」ボタン"
+msgstr "\"Maya Sync\" button of FramePlayer"
+
+msgid "表示"
+msgstr "Display"
+
+msgid "状態"
+msgstr "Status"
+
+msgid "Maya Sync"
+msgstr ""
+
+msgid "通常のモード。ポートを開いていません"
+msgstr "Normal mode. Port is not open."
+
+msgid "Waiting(オレンジ)"
+msgstr "Waiting (orange)"
+
+msgid "連携モード。この PC の中からの接続を待っています"
+msgstr "Synchronization mode. Waiting for connections from this computer."
+
+msgid "Synced(オレンジ)"
+msgstr "Synced (orange)"
+
+msgid "連携モード。Maya とつながっています(ウィンドウのタイトルにも「Synced」と出ます)"
+msgstr "Synchronized mode. It is connected to Maya (the window title also shows \"Synced\")."
+
+msgid "もう一度押すと、接続を切って通常のモードに戻ります。連携モードは保存せず、起動したときはいつも通常のモードです (Maya の「Launch FramePlayer」から起動したときだけ連携モードで始まります)。"
+msgstr "Pressing again will disconnect and return to normal mode. Synchronized mode is not saved, and it always starts in normal mode when launched (only when started from Maya's \"Launch FramePlayer\" will it begin in synchronized mode)."
+
+msgid "連携パネルの項目"
+msgstr "Sync panel items"
+
+msgid "Connect / Disconnect"
+msgstr ""
+
+msgid "FramePlayer につなぐ / 切る"
+msgstr "Connect to / Disconnect from FramePlayer"
+
+msgid "Launch FramePlayer"
+msgstr ""
+
+msgid "FramePlayer を連携モードで起動して、つなぐ"
+msgstr "Launch FramePlayer in sync mode and connect it."
+
+msgid "Port"
+msgstr ""
+
+msgid "接続先のポートの番号(既定は 7010。FramePlayer の設定 ``SyncPort`` と合わせます)"
+msgstr "The port number of the destination (default is 7010. Matches FramePlayer's setting ``SyncPort``)."
+
+msgid "Offset [f] (FramePlayer - Maya)"
+msgstr ""
+
+msgid "FramePlayer のフレーム番号から Maya のフレーム番号を引いた差"
+msgstr "The difference between the frame number from FramePlayer and the frame number from Maya"
+
+msgid "Rate (FramePlayer / Maya)"
+msgstr ""
+
+msgid "フレームレートの比(Maya が 24fps で動画が 48fps なら 2)"
+msgstr "Frame rate ratio (for example, if Maya is set to 24fps and the video is 48fps, the ratio is 2)"
+
+msgid "Maya → FramePlayer / FramePlayer → Maya"
+msgstr ""
+
+msgid "それぞれの向きに時間を伝えるか"
+msgstr "Does each direction convey time?"
+
+msgid "Sync the playback range"
+msgstr ""
+
+msgid "再生範囲も合わせるか"
+msgstr "Should the playback range be adjusted as well?"
+
+msgid "Play in FramePlayer / Stop"
+msgstr ""
+
+msgid "FramePlayer の再生を Maya から操作する"
+msgstr "Controlling FramePlayer playback from Maya"
+
+msgid "設定は Maya の設定(optionVar)に保存され、次回も使います。"
+msgstr "The settings are saved to Maya's optionVar and will be used in the future."
+
+msgid "スクリプトから使う"
+msgstr "Used from script"
+
+msgid "Maya から起動する ``FramePlayer.exe`` は、環境変数 ``FRAMEPLAYER_EXE`` → パッケージの中の ``FramePlayer.exe`` → インストーラーで入れた FramePlayer の順に探します。"
+msgstr "The ``FramePlayer.exe`` launched from Maya searches in the following order: environment variable ``FRAMEPLAYER_EXE`` → ``FramePlayer.exe`` within the package → FramePlayer installed by the installer."
+
+msgid "安全のための仕組み"
+msgstr "Safety mechanisms"
+
+msgid "**ふだんはポートを開きません**: 連携モードのときだけ、この PC の中(127.0.0.1)からだけ接続できる口を開きます。 ほかの PC からはつなげません。Maya 側でポート(commandPort)を開く必要もありません。"
+msgstr "**Normally, the port is not opened**: The port is only opened for connections from this PC (127.0.0.1) when in sync mode. Connections from other PCs are not allowed. It is not necessary to open the port (commandPort) in Maya."
+
+msgid "**互いに確かめます**: ユーザーごとの秘密の鍵(``%LOCALAPPDATA%\\FramePlayer\\sync.key``)を使い、接続のたびに 相手が同じ鍵を持っているかを確かめます(HMAC-SHA256)。鍵そのものは通信に流しません。正しく応えない相手の命令は受け付けません。"
+msgstr "**Mutual authentication**: Uses a user-specific secret key (``%LOCALAPPDATA%\\FramePlayer\\sync.key``) to verify that the other party possesses the same key during each connection (HMAC-SHA256). The key itself is not transmitted. Commands from parties that do not respond correctly are not accepted."
+
+msgid "**できることは限られています**: 連携でできるのは、フレーム・再生範囲・再生/停止だけです。ファイルを開いたり、 プログラムを動かしたりする命令はありません。"
+msgstr "**The capabilities are limited**: Through synchronization, only frame stepping, playback range, and play/pause commands are possible. There are no commands to open files or run programs."
+
+msgid "同期の遅れの目安"
+msgstr "Guideline for synchronization delay"
+
+msgid "通信そのものは 0.1ms 前後です。遅れのほとんどは Maya のシーンの計算と、読み込み済みでないコマのデコードです。"
+msgstr "The communication itself takes around 0.1ms. The bulk of the delay comes from Maya's scene calculations and decoding frames that have not yet been loaded."
+
+msgid "空のシーン・24fps"
+msgstr "Empty scene, 24fps"
+
+msgid "重いシーン・24fps"
+msgstr "Heavy scene, 24fps"
+
+msgid "重いシーン・60fps"
+msgstr "Heavy scene · 60fps"
+
+msgid "Maya でコマ送り → FramePlayer の表示"
+msgstr "Displaying FramePlayer for frame stepping in Maya"
+
+msgid "1.5ms"
+msgstr ""
+
+msgid "1.4ms"
+msgstr ""
+
+msgid "FramePlayer でコマ送り → Maya の反映"
+msgstr "FramePlayer frame stepping → Maya synchronization"
+
+msgid "5.9ms"
+msgstr ""
+
+msgid "26ms"
+msgstr ""
+
+msgid "35ms"
+msgstr ""
+
+msgid "FramePlayer の再生 → Maya の追従"
+msgstr "FramePlayer playback → Follow Maya"
+
+msgid "遅れ 0f"
+msgstr "Lag 0f"
+
+msgid "遅れ最大 2f"
+msgstr "Maximum delay 2f"
+
+msgid "測定環境: Core i7-12700KF、GeForce RTX 3090 Ti、Maya 2026、720p の動画。重いシーンは約173万面の球30個を毎フレーム変形させたものです。"
+msgstr "Test environment: Core i7-12700KF, GeForce RTX 3090 Ti, Maya 2026, 720p video. The heavy scene consists of 30 spheres with approximately 1.73 million faces deforming every frame."
+
+msgid "連番画像"
+msgstr "Image sequence"
+
+msgid "連番画像(``shot.1001.exr``〜``shot.1048.exr`` のように、番号の部分だけが違う画像)を、動画と同じように コマ送り・再生・比較できます。"
+msgstr "You can step through, play back, and compare image sequences (images such as ``shot.1001.exr`` through ``shot.1048.exr``, where only the number part differs) just like videos."
+
+msgid "欠けのある連番を開いた画面。欠けたコマに Missing frame と表示されている"
+msgstr "Screen showing an image sequence with missing frames. The missing frames are labeled \"Missing frame\"."
+
+msgid "連番画像。欠けたコマ(この例では 1010〜1012)では直前の画像を出し、「Missing frame」と表示します。 タイムスライダーの下端の帯も、欠けた所で途切れます。"
+msgstr "Image sequence. For missing frames (in this example, 1010-1012), the previous image is displayed and \"Missing frame\" is shown. The strip at the bottom of the Time Slider also breaks at the missing sections."
+
+msgid "開き方"
+msgstr "How to Open"
+
+msgid "連番の中のどれか1枚をドラッグ&ドロップするか、「File」→「Open...」で選びます。同じフォルダーから同じ名前の並びを探して、 まとめて開きます。"
+msgstr "Drag and drop one frame from the image sequence, or select it via \"File\" → \"Open...\". The system will search for other frames with the same name in the same folder and open them all at once."
+
+msgid "番号は、拡張子の直前にある最後の数字の並び(9桁まで)です。``0001`` のような桁の揃えの有無は問いません。 大文字・小文字の違いは同じ名前として扱います。"
+msgstr "The number is the sequence of digits (up to 9 digits) immediately before the file extension. The presence or absence of digit alignment, such as in ``0001``, is not considered. Differences in uppercase and lowercase are treated as the same name."
+
+msgid "番号の無い画像は、1枚だけの連番として開きます。"
+msgstr "Images without frame numbers are opened as a single-frame sequence."
+
+msgid "タイムラインの開始は、最初のファイルの番号になります(連番を開いている間だけ。動画の Clip start の設定は変えません)。"
+msgstr "The timeline starts at the first frame number of the image sequence (only while an image sequence is open. This does not change the Clip start setting of the video)."
+
+msgid "番号の抜け(欠け)は詰めずに、そのコマを空けておきます。"
+msgstr "Missing frame numbers are left as gaps, without filling them in."
+
+msgid "フレームレート"
+msgstr "Frame rate"
+
+msgid "画像にはフレームレートが書かれていないので、既定は 60fps です。連番を開いているときに操作部のフレームレートの欄 (「60 fps」の所)をクリックすると、値を入力して変えられます(1〜1000)。変えた値は次の連番にも使います。"
+msgstr "Since the image does not specify a frame rate, the default is 60fps. When you click on the frame rate field (the \"60 fps\" area) in the control panel while an image sequence is open, you can change the value (from 1 to 1000). The changed value will be used for subsequent image sequences."
+
+msgid "形式"
+msgstr "Format"
+
+msgid "読み方"
+msgstr "How to read"
+
+msgid "PNG・JPEG・TIFF・BMP・GIF・JPEG XR(jxr・wdp)"
+msgstr "PNG, JPEG, TIFF, BMP, GIF, JPEG XR (jxr, wdp)"
+
+msgid "Windows の画像の機能(WIC)"
+msgstr "Windows Image Codec (WIC)"
+
+msgid "WebP"
+msgstr ""
+
+msgid "WIC"
+msgstr ""
+
+msgid "Webp Image Extensions(多くの PC に最初から入っています)"
+msgstr "Webp Image Extensions (comes pre-installed on many PCs)"
+
+msgid "HEIF(heic・heif・hif)"
+msgstr "HEIF (heic, heif, hif)"
+
+msgid "HEIF Image Extensions と HEVC Video Extensions"
+msgstr "HEIF Image Extensions and HEVC Video Extensions"
+
+msgid "AVIF"
+msgstr ""
+
+msgid "AV1 Video Extension(と HEIF Image Extensions)"
+msgstr "AV1 Video Extension (and HEIF Image Extensions)"
+
+msgid "JPEG XL"
+msgstr ""
+
+msgid "JPEG XL Image Extension"
+msgstr ""
+
+msgid "OpenEXR"
+msgstr ""
+
+msgid "FramePlayer が自分で読む"
+msgstr "FramePlayer reads files by itself"
+
+msgid "なし"
+msgstr "None"
+
+msgid "拡張機能は Microsoft Store から無料で入れられます。"
+msgstr "Extensions can be installed for free from the Microsoft Store."
+
+msgid "8bit の画像は 8bit のまま、16bit の PNG・TIFF は 16bit のまま、浮動小数点の画像(EXR など)は半精度のまま扱い、 表示のときに色を変換します。"
+msgstr "8bit images are handled as 8bit, 16bit PNG/TIFF images are handled as 16bit, and floating-point images (such as EXR) are handled as half precision. Color conversion is performed only at display time."
+
+msgid "EXR と浮動小数点の画像はリニア(1.0 が SDR の白)、それ以外は sRGB として扱います。1 を超える値は、HDR の画面では そのまま、SDR の画面では切って表示します。"
+msgstr "EXR and floating-point images are treated as linear (where 1.0 represents white in SDR), while other formats are treated as sRGB. Values exceeding 1.0 are displayed as-is on HDR monitors and clipped on SDR monitors."
+
+msgid "音声はありません。"
+msgstr "There is no audio."
+
+msgid "OpenEXR は、外部のライブラリを使わず FramePlayer が自分で読みます(OpenEXR のファイル形式の仕様から作りました)。"
+msgstr "OpenEXR files are read directly by FramePlayer without using external libraries (it was developed based on the OpenEXR file format specification)."
+
+msgid "圧縮"
+msgstr "Compression"
+
+msgid "NONE・RLE・ZIPS・ZIP・PIZ・PXR24・B44・B44A・DWAA・DWAB(すべて)"
+msgstr "NONE, RLE, ZIPS, ZIP, PIZ, PXR24, B44, B44A, DWAA, DWAB (All)"
+
+msgid "画素の型"
+msgstr "Pixel type"
+
+msgid "half・float・uint"
+msgstr "half, float, uint"
+
+msgid "形"
+msgstr "Shape"
+
+msgid "走査線とタイル(いちばん細かい段)、マルチパート(最初の部分)"
+msgstr "Scanlines and tiles (the finest segments), multiparts (the initial portion)"
+
+msgid "チャンネル"
+msgstr "Channel"
+
+msgid "R・G・B・A。無ければ最初の層の「層の名前.R」など、それも無ければ Y(灰色で表示)"
+msgstr "R, G, B, A. If not present, try \"layer name.R\" of the first layer, and if that is also not present, use Y (displayed in grayscale)."
+
+msgid "``chromaticities`` から BT.709・BT.2020・Display P3・DCI-P3・ACES(AP0)・ACEScg(AP1)を見分け、 画面の色域に変換して表示します。書かれていなければ BT.709 として扱います"
+msgstr "``chromaticities`` distinguishes between BT.709, BT.2020, Display P3, DCI-P3, ACES(AP0), and ACEScg(AP1), and displays them converted to the display's color primaries. If unspecified, it treats the input as BT.709."
+
+msgid "画素の縦横比(``pixelAspectRatio``)、表示の範囲(displayWindow)とデータの範囲(dataWindow)"
+msgstr "Pixel aspect ratio (``pixelAspectRatio``), display window, and data window"
+
+msgid "読めないもの: 深いデータ(deep)、縦横に間引いたチャンネル、2つ目以降の部分や層の切り替え。"
+msgstr "Cannot read: deep data, sparsely sampled channels, second or subsequent partial layers or switching between them."
+
+msgid "読み込みの速さの目安(4K・半精度の RGB): 1枚あたり約 60ms。1枚の中も並行して読むので、CPU のコアが多いほど速くなります。 一度読んだコマはキャッシュから即座に出ます。"
+msgstr "Approximate loading speed (4K, half precision RGB): approximately 60 ms per frame. Since frames are read in parallel, the more CPU cores available, the faster the loading. Once a frame has been loaded, it is immediately retrieved from the cache."
+
+msgid "読み込みの仕組み"
+msgstr "How loading works"
+
+msgid "画像は裏で、先のコマまで並行して読みます(CPU のコア数の半分まで、最大8枚)。"
+msgstr "Images are pre-fetched in the background, loading up to the next frame (up to half the number of CPU cores, maximum 8 frames)."
+
+msgid "遠くへ飛んだ直後は、表示するコマを先に仕上げ、順に進むにつれて先読みを増やします。"
+msgstr "Immediately after jumping far away, the player prefetches frames in advance and gradually increases the prefetch size as it progresses forward."
+
+msgid "設定と軽さ"
+msgstr "Settings and Performance"
+
+msgid "設定の保存先"
+msgstr "Location to save settings"
+
+msgid "設定は ``HKEY_CURRENT_USER\\Software\\FramePlayer`` に保存します。画面から変えられる設定は自動で保存します。 画面に無い設定は、レジストリに DWORD で書きます(次に起動したときから効きます)。"
+msgstr "Settings are saved to ``HKEY_CURRENT_USER\\Software\\FramePlayer``. Settings that can be changed from the UI are automatically saved. Settings not visible on the screen are written as DWORDs in the registry (they take effect from the next startup)."
+
+msgid "名前"
+msgstr "Name"
+
+msgid "既定値"
+msgstr "Default value"
+
+msgid "``CacheMB``"
+msgstr ""
+
+msgid "1024"
+msgstr ""
+
+msgid "読み込み済みのコマを持っておく量の上限(MB。64〜65536)"
+msgstr "Maximum amount of loaded frames to keep in memory (MB, 64-65536)"
+
+msgid "``CacheSeconds``"
+msgstr ""
+
+msgid "30"
+msgstr ""
+
+msgid "読み込み済みのコマを持っておく長さの上限(秒)"
+msgstr "Maximum length (in seconds) of loaded frames to keep in memory"
+
+msgid "``SyncPort``"
+msgstr ""
+
+msgid "7010"
+msgstr ""
+
+msgid "Maya との連携に使うポートの番号(:doc:`maya`)"
+msgstr "The port number used for Maya integration (:doc:`maya`)"
+
+msgid "``StartFrame``"
+msgstr ""
+
+msgid "1"
+msgstr ""
+
+msgid "動画の Clip start(画面から変えられます)"
+msgstr "Video Clip start (can be changed from the screen)"
+
+msgid "``SequenceFps``"
+msgstr ""
+
+msgid "60000"
+msgstr ""
+
+msgid "連番画像のフレームレート ×1000(画面から変えられます)"
+msgstr "Frame rate of image sequence ×1000 (can be changed from the screen)"
+
+msgid "``AutoPlay``"
+msgstr ""
+
+msgid "開いたら再生するか(画面から変えられます)"
+msgstr "Play on open (can be changed from the screen)"
+
+msgid "``ShowColorInfo``"
+msgstr ""
+
+msgid "0"
+msgstr ""
+
+msgid "色の情報を表示するか(画面から変えられます)"
+msgstr "Whether to display color information (can be changed from the screen)"
+
+msgid "``Volume`` ・ ``Muted``"
+msgstr "``Volume`` , ``Muted``"
+
+msgid "80 ・ 0"
+msgstr "80 , 0"
+
+msgid "音量と消音(画面から変えられます)"
+msgstr "Volume and Mute (can be changed from the screen)"
+
+msgid "Maya と同時に使うための軽さ"
+msgstr "Lightweight for use with Maya"
+
+msgid "Maya や Unreal Engine と同時に動かしても邪魔にならないよう、GPU のメモリ・CPU・デコーダーの使用を抑えています。"
+msgstr "It minimizes GPU memory, CPU, and decoder usage so it does not interfere with Maya or Unreal Engine when running simultaneously."
+
+msgid "読み込み済みのコマは、幅 1280 ピクセルに縮めて GPU のメモリに持ちます(動画本来の YUV の形のまま)。"
+msgstr "Loaded frames are scaled to a width of 1280 pixels and loaded into GPU memory in their original YUV format."
+
+msgid "持っておく量は、上の ``CacheMB``・``CacheSeconds`` と、Windows が示す GPU のメモリの予算の 1/4 の、いちばん小さいものです。 ほかのアプリが GPU のメモリを使うほど、自動で減らします。"
+msgstr "The amount to keep is the smaller of the above ``CacheMB`` and ``CacheSeconds``, and one fourth of the GPU memory budget indicated by Windows. It will automatically decrease as other applications use the GPU memory."
+
+msgid "FramePlayer が背面にあるときは先読みを減らし、裏の作業を省電力で動かします。最小化して 30 秒(背面で 5 分)たつと、 読み込み済みのコマとデコーダーを片付けて、メモリを返します。前面に戻すと読み直します。"
+msgstr "When FramePlayer is behind, it reduces prefetching and performs background tasks with low power consumption. After minimizing for 30 seconds (5 minutes in background), it cleans up loaded frames and decoders, returning memory. Upon returning to the foreground, it reloads."
+
+msgid "状態ごとの動き"
+msgstr "Motion by State"
+
+msgid "先読み"
+msgstr "Prefetch"
+
+msgid "裏の作業"
+msgstr "Behind the scenes work"
+
+msgid "再生中"
+msgstr "During playback"
+
+msgid "再生の先を上限まで"
+msgstr "Advance playback to end of range"
+
+msgid "通常"
+msgstr "Normal"
+
+msgid "止めていて前面"
+msgstr "Stop and bring to front"
+
+msgid "上限まで"
+msgstr "Up to the limit"
+
+msgid "止めていて背面・最小化"
+msgstr "Stop and Backface Culling Minimization"
+
+msgid "今の位置の前後 2 秒だけ"
+msgstr "Only the previous and next 2 seconds from the current position"
+
+msgid "省電力"
+msgstr "Power saving"
+
+msgid "休止(最小化して 30 秒、背面で 5 分)"
+msgstr "Idle (minimized for 30 seconds, behind back for 5 minutes)"
+
+msgid "表示中の 1 コマだけ"
+msgstr "Display only the current frame"
+
+msgid "速さの目安"
+msgstr "Speed reference"
+
+msgid "測定環境: Core i7-12700KF、GeForce RTX 3090 Ti。H.264(4K 60fps、80Mbps)。"
+msgstr "Measurement environment: Core i7-12700KF, GeForce RTX 3090 Ti. H.264 (4K 60fps, 80Mbps)."
+
+msgid "結果"
+msgstr "Results"
+
+msgid "開く(1時間・21万6千コマ・36GB)"
+msgstr "Open (1 hour · 216,000 frames · 36 GB)"
+
+msgid "約 1 秒"
+msgstr "About 1 second"
+
+msgid "デコード(順方向)"
+msgstr "Decode (forward)"
+
+msgid "約 200 コマ/秒(60fps の再生の約 3 倍)"
+msgstr "Approximately 200 frames per second (about 3 times faster than 60fps playback)"
+
+msgid "読み込み済みでない位置への移動"
+msgstr "Jump to unloaded position"
+
+msgid "約 0.3 秒(待つ間は縮小画像を仮に表示)"
+msgstr "Approximately 0.3 seconds (shows a placeholder image while waiting)"
+
+msgid "再生中の CPU"
+msgstr "CPU usage during playback"
+
+msgid "全体の約 0.4%"
+msgstr "About 0.4% of the total"
+
+msgid "表示は画面の書き換えに合わせるので、画面の書き換えの回数より多いコマは表示できません。リモートデスクトップでは 画面が約 30Hz になるため、60fps の動画は約半分のコマが表示されません。正確な確認は PC に直接つないだ画面で行ってください。"
+msgstr "Because display is synchronized with screen refreshes, frames cannot be displayed more than the number of screen refreshes. On remote desktops, where the screen refresh rate is approximately 30 Hz, videos at 60 fps will not display about half of the frames. For accurate verification, please use a display directly connected to the PC."
+
+msgid "キー操作"
+msgstr "Keyboard shortcuts"
+
+msgid "Maya と同じキーは、Maya と同じ動きをします。"
+msgstr "Maya keys behave the same as in Maya."
+
+msgid "コマ送りと再生"
+msgstr "Frame stepping and playback"
+
+msgid "キー"
+msgstr "Key"
+
+msgid "動作"
+msgstr "Operation"
+
+msgid "→ / ←(Alt + . / Alt + , も同じ)"
+msgstr "→ / ← (Alt + . / Alt + , as well)"
+
+msgid "1コマ進む / 戻る。再生範囲の端では反対の端へ回り込む"
+msgstr "Frame forward / backward. At the end of the playback range, it wraps around to the opposite end."
+
+msgid "Shift + → / ←"
+msgstr ""
+
+msgid "10コマ進む / 戻る"
+msgstr "Step Forward 10 Frames / Step Backward 10 Frames"
+
+msgid "Home / End"
+msgstr ""
+
+msgid "再生範囲の最初 / 最後へ(Alt + Shift + V でも最初へ)"
+msgstr "Go to first / last of playback range (Alt + Shift + V also goes to first)"
+
+msgid "Space / Alt + V"
+msgstr ""
+
+msgid "再生 / 停止"
+msgstr "Play / Stop"
+
+msgid "Esc"
+msgstr ""
+
+msgid "再生を止める。フルスクリーン中は元のウィンドウに戻す(再生は続く)"
+msgstr "Stop playback. If in fullscreen mode, return to the original window (playback continues)."
+
+msgid "I / O"
+msgstr ""
+
+msgid "再生範囲の最初 / 最後を、今のフレームにする"
+msgstr "Set the start / end of the playback range to the current frame"
+
+msgid "K を押しながら映像の上を左ドラッグ"
+msgstr "Hold K and left-drag over the video"
+
+msgid "フレームを動かす(左右に 8 ピクセルごとに 1 コマ)。再生中はドラッグの間だけ止まる"
+msgstr "Move frames (1 frame every 8 pixels left or right). During playback, it pauses only while dragging."
+
+msgid "映像の上で中ボタンドラッグ"
+msgstr "Middle-button drag on the video"
+
+msgid "フレームを動かす。比較中は、右の映像の上なら右のずらしを、左の映像の上なら左だけを動かす"
+msgstr "Move frames. When comparing, if the mouse is over the right video, move only the right offset; if over the left video, move only the left offset."
+
+msgid "Ctrl + F / 映像のダブルクリック"
+msgstr "Ctrl + F / Double-click on video"
+
+msgid "フルスクリーンの切り替え(操作部はそのまま出る)"
+msgstr "Toggle fullscreen (operation panel remains visible)"
+
+msgid "映像の上で右クリック"
+msgstr "Right-click on the video"
+
+msgid "メニュー(再生/停止・フルスクリーン・色の情報・色の解釈)"
+msgstr "Menu (Play/Stop, Full Screen, Color Information, Color Interpretation)"
+
+msgid "ファイルと比較"
+msgstr "Compare with File"
+
+msgid "Ctrl + O"
+msgstr ""
+
+msgid "動画を開く"
+msgstr "Open Video"
+
+msgid "Ctrl + Shift + O"
+msgstr ""
+
+msgid "比較する2本目を開く"
+msgstr "Open the second file to compare with"
+
+msgid "[ / ]"
+msgstr ""
+
+msgid "比較中、右のずらしを 1 コマ減らす / 増やす(Shift と一緒なら 10 コマ)"
+msgstr "While comparing, decrease/increase the right offset by 1 frame (or 10 frames if Shift is pressed together)"
+
+msgid "音声"
+msgstr "Audio"
+
+msgid "M"
+msgstr ""
+
+msgid "消音の切り替え"
+msgstr "Toggle mute"
+
+msgid "↑ / ↓"
+msgstr ""
+
+msgid "音量を 5% 上げる / 下げる(消音中なら消音も解除する)"
+msgstr "Increase / decrease volume by 5% (if muted, unmute as well)"
+
+msgid "数字の欄"
+msgstr "Number field"
+
+msgid "フレーム番号や範囲の欄は、押すと番号を入力できます。Enter で確定、Esc で取り消します。ほかの所を押しても確定します。"
+msgstr "The frame number and range fields allow you to input numbers by clicking on them. Press Enter to confirm or Esc to cancel. Clicking elsewhere also confirms the input."
+
+msgid "使い方"
+msgstr "How To Use"
+
+msgid "開く"
+msgstr "Open"
+
+msgid "動画(または連番画像の1枚)をウィンドウへドラッグ&ドロップする。"
+msgstr "Drag and drop a video (or a single frame of an image sequence) onto the window."
+
+msgid "操作部の「File」ボタン →「Open...」(Ctrl+O)で選ぶ。"
+msgstr "Click the \"File\" button in the action bar, then select \"Open...\" (Ctrl+O)."
+
+msgid "関連付けた種類のファイルをダブルクリックする(:doc:`install`)。"
+msgstr "Double-click the file type you want to associate (:doc:`install`)."
+
+msgid "コマンドラインで ``FramePlayer.exe <動画>`` と指定する。"
+msgstr "Specify ``FramePlayer.exe <動画>`` on the command line."
+
+msgid "開くとすぐに再生します(「File」→「Play Automatically on Open」で切り替えられます)。"
+msgstr "Plays automatically upon opening (\"File\" → \"Play Automatically on Open\" to toggle)."
+
+msgid "File ボタンのメニュー"
+msgstr "``File`` button menu"
+
+msgid "「File」ボタンのメニュー。最近開いたファイル(最大8つ)もここから開けます。"
+msgstr "Menu of the \"File\" button. You can also open recently opened files (up to 8) from here."
+
+msgid "「File」ボタンのメニュー"
+msgstr "``File`` button menu"
+
+msgid "Open... (Ctrl+O)"
+msgstr ""
+
+msgid "ファイル選択画面で動画(または連番の1枚)を選んで開く"
+msgstr "Open a video (or a single frame of an image sequence) by selecting it in the file dialog."
+
+msgid "Open for Comparison... (Ctrl+Shift+O)"
+msgstr ""
+
+msgid "2本目の動画を選び、右に並べて比較する(:doc:`compare`)"
+msgstr "Select the second video and compare it side by side (:doc:`compare`)."
+
+msgid "Close Comparison"
+msgstr ""
+
+msgid "比較をやめて1本だけ表示する"
+msgstr "Stop comparing and show only one view."
+
+msgid "Recent Files"
+msgstr ""
+
+msgid "最近開いたファイル。選ぶと開きます。「Clear List」で一覧を消せます"
+msgstr "Recently opened files. Select to open. Use \"Clear List\" to clear the list."
+
+msgid "Play Automatically on Open"
+msgstr ""
+
+msgid "開いたらそのまま再生するか(既定はオン)"
+msgstr "Whether to start playback immediately upon opening (default is on)"
+
+msgid "Exit"
+msgstr ""
+
+msgid "FramePlayer を閉じる"
+msgstr "Close FramePlayer"
+
+msgid "画面の見方"
+msgstr "How to View the Screen"
+
+msgid "映像の下は、Maya と同じく「タイムスライダー」と「レンジスライダー」の2段です。"
+msgstr "Below the video, there are two sliders: \"Time Slider\" and \"Range Slider\", just like in Maya."
+
+msgid "操作部。上段がタイムスライダー、下段がレンジスライダーとボタン"
+msgstr "Operation panel. The upper section contains the Time Slider, and the lower section contains the Range Slider and buttons."
+
+msgid "操作部。上段がタイムスライダー、下段がレンジスライダーとボタンです。"
+msgstr "Control panel. The upper section contains the Time Slider, and the lower section contains the Range Slider and buttons."
+
+msgid "タイムスライダー(上段)"
+msgstr "Time Slider (top section)"
+
+msgid "再生範囲を目盛りで表示します。どこをクリック・ドラッグしても、そのフレームへ移動します。"
+msgstr "Displays the playback range as tick marks. Clicking or dragging anywhere will move to that frame."
+
+msgid "現在のフレームは、明るい区画と番号の箱で示します。下端のオレンジの帯は、読み込み済み(キャッシュ済み)のコマです。"
+msgstr "The current frame is indicated by the bright section and the number box. The orange strip at the bottom shows the loaded (cached) frames."
+
+msgid "右側は、現在のフレームの欄(押すと番号を入力できます)と、範囲の最初へ・1コマ戻る・再生/停止・1コマ進む・範囲の最後へのボタンです。"
+msgstr "On the right are the current frame number field (click to enter a number), and buttons for going to the beginning of the range, stepping back one frame, play/pause, step forward one frame, and go to the end of the range."
+
+msgid "レンジスライダー(下段)"
+msgstr "Range Slider (bottom section)"
+
+msgid "左から「全体範囲の最初」「再生範囲の最初」、バー、「再生範囲の最後」「全体範囲の最後」の欄です。 4つとも押すと番号を入力できます(Enter で確定、Esc で取り消し)。"
+msgstr "From left to right, the fields are \"Start of Animation Range\", \"Start of Playback Range\", the bar, \"End of Playback Range\", and \"End of Animation Range\". Pressing any of the four buttons allows you to input a frame number (press Enter to confirm, Esc to cancel)."
+
+msgid "バーの全体が全体範囲で、明るい部分が再生範囲です。両端のつまみで範囲の端を、中をドラッグすると長さを保ったまま範囲を動かせます。 ダブルクリックで、全体範囲と直前の再生範囲を切り替えます(Maya と同じ)。"
+msgstr "The entire bar represents the full range, and the bright portion represents the playback range. You can adjust the ends of the range using the handles at both ends, and drag the middle part to move the range while keeping its length unchanged. A double-click toggles between the full range and the previous playback range (same as Maya)."
+
+msgid "右側は、「Clip start」の欄、フレームレート、「Maya Sync」「File」「Compare」のボタン、消音のボタンと音量です。"
+msgstr "On the right are the \"Clip start\" field, frame rate, \"Maya Sync\", \"File\", and \"Compare\" buttons, mute button, and volume control."
+
+msgid "操作部の部品にマウスを乗せると、説明とショートカットキーが出ます。"
+msgstr "Hovering the mouse over controls displays descriptions and shortcut keys."
+
+msgid "←/→ で1コマ、Shift+←/→ で10コマ動きます。再生範囲の端では反対の端へ回り込みます(Maya と同じ)。"
+msgstr "You can move one frame at a time with ←/→, and ten frames at a time with Shift+←/→. At the ends of the playback range, it wraps around to the opposite end (same as Maya)."
+
+msgid "Space(または Alt+V)で再生/停止します。再生は再生範囲の中で繰り返します。"
+msgstr "Press Space (or Alt+V) to play/pause. Playback loops within the playback range."
+
+msgid "K を押しながら映像の上を左ドラッグすると、フレームを動かせます(Maya と同じ)。映像の上の中ボタンドラッグでも動かせます。"
+msgstr "While holding the K key, left-drag on the video to move frames (same as in Maya). You can also move frames with middle-button drag on the video."
+
+msgid "再生は時間どおりに進めることを優先します。読み込みが間に合わないときは、今のコマを表示したまま待ちます。"
+msgstr "Playback prioritizes advancing through time correctly. If loading falls behind, it waits while keeping the current frame displayed."
+
+msgid "読み込み済みでない位置へ飛ぶと、近いキーフレームの縮小画像に「Loading…」と重ねて仮に表示し、届いたら置き換えます。"
+msgstr "When jumping to an unloaded position, a \"Loading…\" placeholder is temporarily displayed on top of the scaled-down keyframe thumbnail, and is replaced when the data arrives."
+
+msgid "キー操作の一覧は :doc:`shortcuts` を見てください。"
+msgstr "For a list of keyboard shortcuts, see :doc:`shortcuts`."
+
+msgid "フレーム番号とタイムライン"
+msgstr "Frame Number and Timeline"
+
+msgid "フレーム番号の考え方は Maya と同じです。タイムラインは動画の長さに縛られず、範囲や現在のフレームを自由に決められます。"
+msgstr "The concept of frame numbers is the same as in Maya. The timeline is not bound by the length of the video, and the range and current frame can be set freely."
+
+msgid "**Clip start**: 動画の1コマ目を置くフレーム番号です(既定は1)。たとえば 1001 にすると、動画の1コマ目が 1001 になります。 タイムラインの範囲はそのままで、動画だけが動きます。次回も同じ値を使います。"
+msgstr "**Clip start**: Frame number to place the first frame of the video (default is 1). For example, setting it to 1001 will place the first frame of the video at frame 1001. The timeline range remains unchanged, only the video moves. The same value will be used again next time."
+
+msgid "動画の外のフレームでは、映像の代わりに「Out of range」と、動画のある範囲(例: Video: 1001-1096)を表示します。"
+msgstr "For frames outside the video range, the player displays \"Out of range\" instead of the video, showing the video's range (e.g., Video: 1001-1096)."
+
+msgid "動画を開くと、全体範囲と再生範囲は動画のある所になります。"
+msgstr "When you open a video, the animation range and playback range will be set to the video's duration."
+
+msgid "連番画像では、最初のファイルの番号が自動で開始になります(:doc:`sequences`)。"
+msgstr "For image sequences, the frame number of the first file becomes the automatic start (:doc:`sequences`)."
+
+msgid "右クリックのメニュー"
+msgstr "Right-click menu"
+
+msgid "映像の上で右クリックすると、再生/停止・フルスクリーン・色の情報の表示・色の解釈の指定のメニューが出ます。"
+msgstr "Right-clicking on the video displays a menu with options for play/pause, full-screen, showing color information, and specifying color interpretation."
+
+msgid "映像の上の右クリックのメニュー"
+msgstr "Right-click menu on the video"
+
+msgid "映像の上の右クリックのメニュー。"
+msgstr "Right-click menu on the video."
+
+msgid "**Full Screen**\\ (Ctrl+F・映像のダブルクリック): モニター全体に広げます。Esc で戻ります。"
+msgstr "**Full Screen**\\ (Ctrl+F, double-click video): Expands to fill the entire monitor. Press Esc to return."
+
+msgid "**Show Color Info**: 映像の左上に、使っている色の解釈を表示します(:doc:`color`)。"
+msgstr "**Show Color Info**: Displays the color interpretation being used in the upper-left corner of the video (:doc:`color`)."
+
+msgid "**Color Interpretation**: 動画の色の情報が誤っているときに、手動で直します(:doc:`color`)。"
+msgstr "**Color Interpretation**: Manually correct video color information when the color data is incorrect (:doc:`color`)."
+
+msgid "通常の再生中だけ音声を鳴らします。コマ送りやスライダーの操作では鳴らしません。2本の比較中も鳴らしません。"
+msgstr "Plays audio only during normal playback. Does not play during frame stepping or slider manipulation. Does not play during double-frame comparison."
+
+msgid "操作部の右のスピーカーのボタン(または M)で消音、三角形のスライダー(または ↑/↓)で音量を変えます。"
+msgstr "On the right side of the control panel, press the speaker button (or M) to mute, and use the triangular slider (or ↑/↓ keys) to adjust the volume."
+

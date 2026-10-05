@@ -19,6 +19,11 @@ heditの使い方と Preferences 各項目の説明を閲覧できます。
 hrigの機能仕様・テスト方法・テストシーン・計測結果を掲載します（本変更の公開後に利用可能）。
 [ソースと目次](maya/inhouse/hrig/docs/index.rst)／[ビルド手順](maya/inhouse/hrig/docs/testing.rst)
 
+[FramePlayer Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/frameplayer/)
+
+コマ送り・2本の比較・連番画像に対応した動画プレイヤー FramePlayer の使い方と、Mayaとの連携の手順を画像付きで説明します。
+[ビルド手順](maya/inhouse/FramePlayer/docs/README.md)
+
 ## ▼カスタム内容
 
 - `maya_core.bat`で各種ツールパスを設定し、起動バッチで環境を切り替えています。

@@ -1,0 +1,54 @@
+/* VS Code Dark+ palette mapped to Pygments tokens.
+ * Reference: microsoft/vscode extensions/theme-defaults/themes/dark_plus.json
+ * and dark_vs.json. Pygments does not provide VS Code's semantic highlighting.
+ * Keep these overrides scoped to code blocks; leave the site theme unchanged.
+ */
+.highlight,
+.highlight pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+}
+
+/* Reset the base Pygments theme, including its red names and bold functions. */
+.highlight span {
+    color: inherit;
+    font-weight: normal;
+    font-style: normal;
+}
+
+.highlight .n, .highlight .na, .highlight .nv,
+.highlight .vc, .highlight .vg, .highlight .vi, .highlight .vm {
+    color: #9cdcfe;
+}
+.highlight .nn { color: #d4d4d4; }
+.highlight .nf, .highlight .fm, .highlight .nb, .highlight .nd {
+    color: #dcdcaa;
+}
+.highlight .nc, .highlight .ne { color: #4ec9b0; }
+.highlight .k, .highlight .kd, .highlight .kn,
+.highlight .kr, .highlight .ow { color: #c586c0; }
+.highlight .kc, .highlight .kt, .highlight .kp,
+.highlight .bp, .highlight .nt { color: #569cd6; }
+.highlight .no { color: #4fc1ff; }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sa,
+.highlight .sb, .highlight .sc, .highlight .sd, .highlight .sh,
+.highlight .sr, .highlight .ss, .highlight .sx, .highlight .dl {
+    color: #ce9178;
+}
+.highlight .se { color: #d7ba7d; }
+.highlight .si { color: #9cdcfe; }
+.highlight .m, .highlight .mb, .highlight .mf, .highlight .mh,
+.highlight .mi, .highlight .il, .highlight .mo { color: #b5cea8; }
+.highlight .c, .highlight .c1, .highlight .cm, .highlight .ch,
+.highlight .cp, .highlight .cpf, .highlight .cs { color: #6a9955; }
+.highlight .o, .highlight .p, .highlight .w { color: #d4d4d4; }
+.highlight .err, .highlight .gr, .highlight .gt {
+    color: #f44747;
+    background: transparent;
+    border: 0;
+}
+.highlight .gd { color: #f48771; }
+.highlight .gi { color: #b5cea8; }
+.highlight .ge { font-style: italic; }
+.highlight .gs { font-weight: bold; }
+.highlight .hll { background-color: #264f78; }

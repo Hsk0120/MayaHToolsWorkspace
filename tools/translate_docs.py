@@ -48,12 +48,19 @@ GLOSSARY = {
     '保存前との差分': 'compare with saved', '同じ名前の強調': 'word highlight', 'スクロールバーの印': 'scroll bar markers',
     'アウトライン': 'Outline', 'ドック': 'dock', '自動保存': 'autosave', '復元': 'restore',
     'プラグイン': 'plug-in', 'ロード': 'load', 'アンロード': 'unload', '信頼済みの場所': 'trusted locations',
+    # FramePlayer
+    'コマ送り': 'frame stepping', 'コマ番号': 'frame number', 'コマ': 'frame', '連番画像': 'image sequence',
+    '欠け': 'missing frame', 'タイムスライダー': 'Time Slider', 'レンジスライダー': 'Range Slider',
+    '再生範囲': 'playback range', '全体範囲': 'animation range', 'ずらし': 'offset', '関連付け': 'file association',
+    '拡張機能': 'extension', 'セットアップ': 'setup', '連携パネル': 'sync panel', '先読み': 'prefetch',
+    '色域': 'color primaries', '伝達関数': 'transfer function', '色の解釈': 'color interpretation',
 }
 
 SYSTEM_PROMPT = (
     'You translate Japanese technical documentation into natural, concise English. '
     'The text is a fragment of a Sphinx reStructuredText document about Autodesk Maya tools '
-    '(the "hlib" Maya API library, the "hedit" Python/MEL script editor, and the "hrig" rigging library).\n'
+    '(the "hlib" Maya API library, the "hedit" Python/MEL script editor, the "hrig" rigging library, '
+    'and "FramePlayer", a Windows video player for frame-by-frame review that syncs with Maya).\n'
     'Rules:\n'
     '1. Output only the English translation of the given fragment. No explanations, no quotes, no code fences.\n'
     '2. Keep every reStructuredText construct exactly as it is: ``inline literals``, :role:`targets` '
@@ -344,7 +351,7 @@ def build_english(docs, directory):
 def main():
     """コマンドラインの入口。"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('names', nargs='+', help='maya/inhouse の下のドキュメント名(hedit・hrig など)')
+    parser.add_argument('names', nargs='+', help='maya/inhouse の下のドキュメント名(hedit・hrig・FramePlayer など)')
     parser.add_argument('--model', default=DEFAULT_MODEL)
     parser.add_argument('--limit', type=int, default=0, help='英訳する最大の件数(0なら全部)')
     parser.add_argument('--check', action='store_true', help='英訳せず、未訳の件数とビルドだけ確かめる')

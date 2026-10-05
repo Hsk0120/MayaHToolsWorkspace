@@ -2,6 +2,9 @@
 
 コマ送りと2本並べての比較に特化した、Windows専用の動画プレイヤー。Mayaのタイムスライダーと双方向に連携できる。
 
+利用者向けの説明(画像付き・日本語/英語)は [FramePlayer ドキュメント(GitHub Pages)](https://hsk0120.github.io/MayaHToolsWorkspace/frameplayer/)。
+元の文書は `docs/`(Sphinx。ビルドと画像の撮り方は [docs/README.md](docs/README.md))。このREADMEは開発者向けの詳細。
+
 - Windows標準機能(Media Foundation / Win32 / GDI)だけを使い、外部ライブラリには依存しない。
 - 開いたときに「コマ番号の目次」(全コマの表示時刻とキーフレーム)を作る。mp4/movはファイル内の目次
   (サンプルテーブル)を直接読むので、映像データを読まずに済む(4K60fps・1時間・36GBで約1秒)。
@@ -583,6 +586,7 @@ Mayaと連携するときだけ、下段の「Maya Sync」ボタンを押して�
 ### 使い方
 
 1. Mayaで HTools > animation > framePlayerSync を選ぶ(または `import frameplayer; frameplayer.show()`)。
+   FramePlayerだけを入れた人は、`maya/FramePlayerMayaSync.py` をMayaのビューへドラッグ&ドロップする(下記)。
 2. 「Launch FramePlayer」で、連携モードで起動して自動で接続する。起動済みなら、FramePlayerの「Maya Sync」を
    押してから「Connect」。
 3. オフセット・倍率・連携の向き・再生範囲を合わせるかを設定する(Mayaの設定に保存され、次回も使う)。
@@ -680,7 +684,9 @@ FramePlayer/
 ├ FramePlayer.exe     プレイヤー本体(配布用。Git管理対象)
 ├ FramePlayerSetup.exe インストーラー(配布用。Git管理対象。中にFramePlayer.exeを含む)
 ├ FramePlayer.mod     このフォルダを単体で使うときのMayaモジュール定義
+├ maya/               FramePlayerだけを入れた人向けの連携の入口(FramePlayerMayaSync.py)
 ├ python/frameplayer/ Maya側の連携パッケージ(sync.py=接続、ui.py=画面)
+├ docs/               利用者向けのSphinxドキュメント(画像は docs/tools/capture_docs.py で撮る)
 ├ resources/icon/     アイコンの元のSVGと、exeに埋め込む .ico
 ├ installer/          インストーラーの設定(tools/WinAppKit の WinAppSetup で読む)
 ├ src/                プレイヤーのC++ソース
@@ -692,6 +698,11 @@ FramePlayer/
   HToolsのメニュー項目(`HTools/animation/framePlayerSync.py`)は、`frameplayer.show()` を呼ぶだけの入口。
 - 単体で使うとき(別のリポジトリとして配布するときなど)は、このフォルダを `MAYA_MODULE_PATH` に加えると
   同梱の `FramePlayer.mod` で読み込まれる。
+- FramePlayerだけを入れた人(セットアップ・exeの単体配布)向けに、`maya/FramePlayerMayaSync.py` を置いている。
+  Mayaのビューへドラッグ&ドロップすると、同じ並びの `python/frameplayer` を `sys.path` に足して連携パネルを開き、
+  今のシェルフにボタンを足す(次からはボタンで開ける)。スクリプトエディターの File > Source Script でも開ける。
+  見つからないときは環境変数 `FRAMEPLAYER_HOME`(FramePlayerのフォルダ)とインストール先(App Paths)も探す。
+  セットアップはこのスクリプトと `python/frameplayer` もインストール先へ入れる(`<インストール先>\maya`・`\python`)。
 - Mayaから起動するexeは、環境変数 `FRAMEPLAYER_EXE` → パッケージ直下の `FramePlayer.exe` → インストーラーで入れた
   FramePlayer(Windowsの App Paths に登録された場所)の順に探す。
 
