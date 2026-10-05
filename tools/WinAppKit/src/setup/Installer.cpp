@@ -290,7 +290,7 @@ void undo(const Action& action) {
     case Action::Type::File:
         SetFileAttributesW(action.path.c_str(), FILE_ATTRIBUTE_NORMAL);
         if (!DeleteFileW(action.path.c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND) {
-            logLine(L"消せないファイル: %ls  %ls", action.path.c_str(), errorText(GetLastError()).c_str());
+            logLine(L"Cannot delete the file: %ls  %ls", action.path.c_str(), errorText(GetLastError()).c_str());
         }
         break;
     case Action::Type::Dir:
@@ -407,7 +407,7 @@ public:
     bool placeFile(const std::wstring& path, const void* data, std::size_t size, const std::wstring& backupDir,
                    std::wstring& error) {
         if (!ensureDirectory(parentPath(path))) {
-            error = L"フォルダを作れません: " + parentPath(path) + L"\n" + errorText(GetLastError());
+            error = L"Cannot create the folder: " + parentPath(path) + L"\n" + errorText(GetLastError());
             return false;
         }
         const bool existed = fileExists(path);
@@ -415,13 +415,13 @@ public:
             const std::wstring backup = joinPath(backupDir, std::to_wstring(backups.size()));
             SetFileAttributesW(path.c_str(), FILE_ATTRIBUTE_NORMAL);
             if (!MoveFileExW(path.c_str(), backup.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-                error = L"ファイルを置き換えられません(使用中かもしれません): " + path + L"\n" + errorText(GetLastError());
+                error = L"Cannot replace the file (it may be in use): " + path + L"\n" + errorText(GetLastError());
                 return false;
             }
             backups.emplace_back(path, backup);
         }
         if (!writeFile(path, data, size)) {
-            error = L"ファイルを書けません: " + path + L"\n" + errorText(GetLastError());
+            error = L"Cannot write the file: " + path + L"\n" + errorText(GetLastError());
             if (existed) {
                 MoveFileExW(backups.back().second.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING);
                 backups.pop_back();
@@ -553,7 +553,7 @@ ExistingInstall findExistingInstall(const std::wstring& id) {
 
 bool checkInstallDir(const std::wstring& dir, std::wstring& error) {
     if (dir.size() < 4 || dir[1] != L':' || dir[2] != L'\\') {
-        error = L"インストール先は「C:\\…」のような、ドライブから始まるフォルダを指定してください: " + dir;
+        error = L"Specify an install folder that starts with a drive, such as \"C:\\...\": " + dir;
         return false;
     }
     // Windowsやユーザーの大事なフォルダそのもの・その親には入れない(中のファイルを上書きしないように)。
@@ -564,12 +564,12 @@ bool checkInstallDir(const std::wstring& dir, std::wstring& error) {
     for (const GUID* id : folders) {
         const std::wstring special = fullPath(knownFolder(*id));
         if (!special.empty() && isInside(special, dir)) {
-            error = L"このフォルダにはインストールできません(Windowsやユーザーの大事なフォルダです): " + dir;
+            error = L"Cannot install into this folder (it is an important Windows or user folder): " + dir;
             return false;
         }
     }
     if (isInside(dir, fullPath(knownFolder(FOLDERID_Windows)))) {
-        error = L"Windowsのフォルダの中にはインストールできません: " + dir;
+        error = L"Cannot install inside the Windows folder: " + dir;
         return false;
     }
     // 既にあるフォルダは、空か、このインストーラーで入れたもの(記録がある)だけ。
@@ -585,8 +585,8 @@ bool checkInstallDir(const std::wstring& dir, std::wstring& error) {
             FindClose(find);
         }
         if (!empty) {
-            error = L"ほかのファイルが入っているフォルダにはインストールできません(空のフォルダか、新しいフォルダを"
-                    L"指定してください): " + dir;
+            error = L"Cannot install into a folder that contains other files (specify an empty folder or "
+                    L"a new folder): " + dir;
             return false;
         }
     }
@@ -678,14 +678,14 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
     Record previous;
     const bool upgrading = loadRecord(recordPath, previous);
     if (upgrading && !equalsIgnoreCase(previous.id, manifest.id)) {
-        error = L"このフォルダには別のアプリ(" + previous.name + L")が入っています: " + dir;
+        error = L"This folder already contains another application (" + previous.name + L"): " + dir;
         return false;
     }
 
     Session session;
-    report(0, L"ファイルを置いています");
+    report(0, L"Copying files");
     if (!session.ensureDirectory(dir)) {
-        error = L"インストール先を作れません: " + dir + L"\n" + errorText(GetLastError());
+        error = L"Cannot create the install folder: " + dir + L"\n" + errorText(GetLastError());
         return false;
     }
     const std::wstring backupDir = joinPath(dir, kBackupName);
@@ -720,7 +720,7 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
         } else if (!readFile(self, selfData) ||
                    !session.placeFile(uninstaller, selfData.data(), selfData.size(), backupDir, error)) {
             if (error.empty()) {
-                error = L"アンインストール用のファイルを置けません";
+                error = L"Cannot copy the uninstaller";
             }
             ok = false;
         }
@@ -728,7 +728,7 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
 
     // レジストリ: 「アプリ」一覧への登録。
     if (ok) {
-        report(75, L"Windowsに登録しています");
+        report(75, L"Registering with Windows");
         const std::wstring key = std::wstring(kUninstallRoot) + manifest.id;
         std::size_t bytes = totalBytes;
         ok = session.ownKey(key) && setString(key, L"DisplayName", manifest.name) &&
@@ -751,13 +751,13 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
         ok = ok && session.ownKey(appPath) && setString(appPath, L"", exePath) &&
              setString(appPath, L"Path", parentPath(exePath));
         if (!ok && error.empty()) {
-            error = L"レジストリに書けません";
+            error = L"Cannot write to the registry";
         }
     }
 
     // レジストリ: 関連付け(右クリック・「プログラムから開く」・既定のアプリの候補)。
     if (ok && !options.extensions.empty() && !manifest.progId.empty()) {
-        report(85, L"ファイルの種類を登録しています");
+        report(85, L"Registering file types");
         const std::wstring classes = L"Software\\Classes\\";
         const std::wstring command = L"\"" + exePath + L"\" \"%1\"";
         const std::wstring icon = exePath + L",0";
@@ -793,24 +793,24 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
         }
         ok = ok && session.addValue(L"Software\\RegisteredApplications", manifest.id, capabilities);
         if (!ok && error.empty()) {
-            error = L"ファイルの種類を登録できません";
+            error = L"Cannot register file types";
         }
     }
 
     // スタートメニュー。
     if (ok && manifest.startMenuShortcut) {
-        report(92, L"スタートメニューに追加しています");
+        report(92, L"Adding to the Start menu");
         const std::wstring link = joinPath(knownFolder(FOLDERID_Programs), manifest.name + L".lnk");
         const bool existed = fileExists(link);
         if (createShortcut(link, exePath, manifest.description.empty() ? manifest.name : manifest.description)) {
             session.actions.push_back({Action::Type::File, link, L"", existed});
         } else {
-            logLine(L"スタートメニューのショートカットを作れません(続けます): %ls", link.c_str());
+            logLine(L"Cannot create the Start menu shortcut (continuing): %ls", link.c_str());
         }
     }
 
     if (!ok) {
-        logLine(L"失敗したので巻き戻します: %ls", error.c_str());
+        logLine(L"Failed; rolling back: %ls", error.c_str());
         session.rollback();
         deleteFolderTree(backupDir);
         RemoveDirectoryW(dir.c_str());
@@ -840,7 +840,7 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
     }
     record.actions.insert(record.actions.end(), session.actions.begin(), session.actions.end());
     if (!saveRecord(recordPath, record)) {
-        error = L"記録を書けません: " + recordPath;
+        error = L"Cannot write the install record: " + recordPath;
         session.rollback();
         return false;
     }
@@ -852,7 +852,7 @@ bool install(const Manifest& manifest, const std::vector<PackageFile>& files, co
     }
     deleteFolderTree(backupDir);
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);  // エクスプローラーに関連付けの変更を知らせる。
-    report(100, upgrading ? L"更新しました" : L"インストールしました");
+    report(100, upgrading ? L"Updated" : L"Installed");
     return true;
 }
 
@@ -888,10 +888,10 @@ bool uninstall(const std::wstring& installDir, bool removeUserData, std::wstring
     const std::wstring recordPath = joinPath(installDir, kRecordName);
     Record record;
     if (!loadRecord(recordPath, record)) {
-        error = L"インストールの記録が見つかりません: " + recordPath;
+        error = L"The install record was not found: " + recordPath;
         return false;
     }
-    logLine(L"アンインストール: %ls %ls (%ls)", record.name.c_str(), record.version.c_str(), installDir.c_str());
+    logLine(L"Uninstall: %ls %ls (%ls)", record.name.c_str(), record.version.c_str(), installDir.c_str());
     for (auto it = record.actions.rbegin(); it != record.actions.rend(); ++it) {
         // インストール先の外のファイル(スタートメニューのショートカットなど)も、記録にあるものだけを消す。
         undo(*it);
@@ -900,19 +900,19 @@ bool uninstall(const std::wstring& installDir, bool removeUserData, std::wstring
         for (const std::wstring& key : record.userDataRegistry) {
             std::wstring subKey;
             if (safeUserDataKey(key, record.id, subKey)) {
-                logLine(L"データを削除: %ls", key.c_str());
+                logLine(L"Deleting data: %ls", key.c_str());
                 deleteKeyTree(subKey);
             } else {
-                logLine(L"安全でないので消しません: %ls", key.c_str());
+                logLine(L"Not deleted because it is not safe: %ls", key.c_str());
             }
         }
         for (const std::wstring& folder : record.userDataFolders) {
             const std::wstring full = fullPath(folder);
             if (safeUserDataFolder(full, record.id)) {
-                logLine(L"データを削除: %ls", full.c_str());
+                logLine(L"Deleting data: %ls", full.c_str());
                 deleteFolderTree(full);
             } else {
-                logLine(L"安全でないので消しません: %ls", full.c_str());
+                logLine(L"Not deleted because it is not safe: %ls", full.c_str());
             }
         }
     }

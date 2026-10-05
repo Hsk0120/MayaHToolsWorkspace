@@ -63,6 +63,8 @@ enum MenuCommand : UINT {
 bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     instance_ = instance;
     settings_.load();
+    videoStartFrame_ = settings_.startFrame;
+    setImageSequenceFrameRate(settings_.sequenceFrameRate);
     editBrush_ = CreateSolidBrush(ui::kControlFace);
     // 主メモリが足りなくなるとWindowsが合図するので、タイマーで確かめてキャッシュを減らす。
     lowMemory_ = CreateMemoryResourceNotification(LowMemoryResourceNotification);
@@ -122,9 +124,11 @@ void PlayerWindow::openClip(const std::wstring& path) {
         return;
     }
     const LONGLONG clipLoaded = nowTicks();
-    // 音声は無くても動画は再生できる(音声なしとして扱う)。
+    // 音声は無くても動画は再生できる(音声なしとして扱う)。画像には音声が無いので開かない。
     auto audio = std::make_shared<AudioPlayer>();
-    audio->open(path);
+    if (!isImageFile(path)) {
+        audio->open(path);
+    }
     traceLog("open clip %.1f ms audio %.1f ms", (clipLoaded - openStart) * 1000.0 / ticksPerSecond(),
             (nowTicks() - clipLoaded) * 1000.0 / ticksPerSecond());
     audio->setVolume(settings_.volume);
@@ -133,6 +137,10 @@ void PlayerWindow::openClip(const std::wstring& path) {
     clip_ = std::move(clip);
     audio_ = std::move(audio);
     settings_.addRecentFile(path);
+    // 連番画像は、最初のファイルの番号をタイムラインの開始にする(保存はしない)。動画は設定の値に戻す。
+    const std::optional<int> firstNumber = clip_->firstFrameNumber();
+    settings_.startFrame = firstNumber ? *firstNumber : videoStartFrame_;
+    view_.setFrameNumberStart(settings_.startFrame);
     current_ = 0;
     cacheRuns_.clear();
     cacheRunsTrack_ = RECT{};
@@ -455,9 +463,9 @@ void PlayerWindow::onDropFiles(HDROP drop) {
 void PlayerWindow::showFileMenu() {
     HMENU menu = CreatePopupMenu();
     HMENU recent = CreatePopupMenu();
-    AppendMenuW(menu, MF_STRING, kMenuOpen, L"動画を開く...\tCtrl+O");
-    AppendMenuW(menu, MF_STRING | (clip_ ? 0 : MF_GRAYED), kMenuOpenCompare, L"比較する動画を開く...\tCtrl+Shift+O");
-    AppendMenuW(menu, MF_STRING | (compareClip_ ? 0 : MF_GRAYED), kMenuCloseCompare, L"比較を終了");
+    AppendMenuW(menu, MF_STRING, kMenuOpen, L"Open...\tCtrl+O");
+    AppendMenuW(menu, MF_STRING | (clip_ ? 0 : MF_GRAYED), kMenuOpenCompare, L"Open for Comparison...\tCtrl+Shift+O");
+    AppendMenuW(menu, MF_STRING | (compareClip_ ? 0 : MF_GRAYED), kMenuCloseCompare, L"Close Comparison");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     // 最近使ったファイル。左にファイル名、右(タブの後ろ)にフォルダーを出す。
     for (std::size_t i = 0; i < settings_.recentFiles.size(); ++i) {
@@ -479,12 +487,12 @@ void PlayerWindow::showFileMenu() {
     if (!settings_.recentFiles.empty()) {
         AppendMenuW(recent, MF_SEPARATOR, 0, nullptr);
     }
-    AppendMenuW(recent, MF_STRING | (settings_.recentFiles.empty() ? MF_GRAYED : 0), kMenuClearRecent, L"一覧を消去");
-    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(recent), L"最近使ったファイル");
+    AppendMenuW(recent, MF_STRING | (settings_.recentFiles.empty() ? MF_GRAYED : 0), kMenuClearRecent, L"Clear List");
+    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(recent), L"Recent Files");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING | (settings_.autoPlay ? MF_CHECKED : 0), kMenuAutoPlay, L"開いたら自動で再生");
+    AppendMenuW(menu, MF_STRING | (settings_.autoPlay ? MF_CHECKED : 0), kMenuAutoPlay, L"Play Automatically on Open");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, kMenuExit, L"終了");
+    AppendMenuW(menu, MF_STRING, kMenuExit, L"Exit");
 
     // 操作部は画面の下にあるので、ボタンの上端から上向きに開く。選ぶか閉じるまで戻らない。
     const RECT b = computeLayout().fileButton;
@@ -496,14 +504,14 @@ void PlayerWindow::showFileMenu() {
 
     switch (command) {
     case kMenuOpen: {
-        const std::wstring path = chooseVideoFile(L"動画を選択");
+        const std::wstring path = chooseVideoFile(L"Select a Video or Image Sequence");
         if (!path.empty()) {
             openClip(path);
         }
         break;
     }
     case kMenuOpenCompare: {
-        const std::wstring path = chooseVideoFile(L"比較する動画を選択");
+        const std::wstring path = chooseVideoFile(L"Select a Video to Compare");
         if (!path.empty()) {
             openCompare(path);
         }
@@ -541,7 +549,7 @@ HMENU PlayerWindow::createColorMenu(const Clip& clip, int clipIndex) const {
                         std::initializer_list<std::pair<int, const wchar_t*>> choices) {
         HMENU sub = CreatePopupMenu();
         const UINT base = kMenuColorFirst + static_cast<UINT>(clipIndex * 100 + field * 10);
-        const std::wstring autoLabel = std::wstring(L"自動(") + automatic + L")";
+        const std::wstring autoLabel = std::wstring(L"Auto (") + automatic + L")";
         AppendMenuW(sub, MF_STRING | (selected < 0 ? MF_CHECKED : 0), base, autoLabel.c_str());
         AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
         for (const auto& [value, label] : choices) {
@@ -550,28 +558,28 @@ HMENU PlayerWindow::createColorMenu(const Clip& clip, int clipIndex) const {
         AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(sub), title);
     };
     auto value = [](auto v) { return static_cast<int>(v); };
-    addField(0, L"YUVの行列", current.matrix, colorName(detected.matrix),
+    addField(0, L"YUV Matrix", current.matrix, colorName(detected.matrix),
              {{value(ColorMatrix::Bt601), colorName(ColorMatrix::Bt601)},
               {value(ColorMatrix::Bt709), colorName(ColorMatrix::Bt709)},
               {value(ColorMatrix::Bt2020), colorName(ColorMatrix::Bt2020)}});
-    addField(1, L"範囲", current.range, colorName(detected.range),
+    addField(1, L"Range", current.range, colorName(detected.range),
              {{value(ColorRange::Limited), colorName(ColorRange::Limited)},
               {value(ColorRange::Full), colorName(ColorRange::Full)}});
-    addField(2, L"色域", current.primaries, colorName(detected.primaries),
+    addField(2, L"Primaries", current.primaries, colorName(detected.primaries),
              {{value(ColorPrimaries::Bt709), colorName(ColorPrimaries::Bt709)},
               {value(ColorPrimaries::Bt601_525), colorName(ColorPrimaries::Bt601_525)},
               {value(ColorPrimaries::Bt601_625), colorName(ColorPrimaries::Bt601_625)},
               {value(ColorPrimaries::Bt2020), colorName(ColorPrimaries::Bt2020)},
               {value(ColorPrimaries::DisplayP3), colorName(ColorPrimaries::DisplayP3)},
               {value(ColorPrimaries::DciP3), colorName(ColorPrimaries::DciP3)}});
-    addField(3, L"伝達関数", current.transfer, colorName(detected.transfer),
+    addField(3, L"Transfer Function", current.transfer, colorName(detected.transfer),
              {{value(TransferFunction::Sdr), colorName(TransferFunction::Sdr)},
               {value(TransferFunction::Pq), colorName(TransferFunction::Pq)},
               {value(TransferFunction::Hlg), colorName(TransferFunction::Hlg)},
               {value(TransferFunction::Linear), colorName(TransferFunction::Linear)}});
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING | (current.any() ? 0 : MF_GRAYED),
-                kMenuColorFirst + static_cast<UINT>(clipIndex * 100 + 40), L"手動の指定をすべて解除");
+                kMenuColorFirst + static_cast<UINT>(clipIndex * 100 + 40), L"Reset All Overrides");
     return menu;
 }
 
@@ -612,19 +620,19 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
     }
     HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING | (clip_ ? 0 : MF_GRAYED), kMenuTogglePlayback,
-                view_.isPlaying() ? L"停止\tSpace" : L"再生\tSpace");
+                view_.isPlaying() ? L"Stop\tSpace" : L"Play\tSpace");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING | (fullscreen_ ? MF_CHECKED : 0), kMenuFullscreen, L"フルスクリーン\tCtrl+F");
+    AppendMenuW(menu, MF_STRING | (fullscreen_ ? MF_CHECKED : 0), kMenuFullscreen, L"Full Screen\tCtrl+F");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING | (settings_.showColorInfo ? MF_CHECKED : 0), kMenuColorInfo, L"色の情報を表示");
+    AppendMenuW(menu, MF_STRING | (settings_.showColorInfo ? MF_CHECKED : 0), kMenuColorInfo, L"Show Color Info");
     // 色の解釈の手動の指定(動画の指定が誤っているときに直す)。比較中は動画ごとに分ける。
     if (clip_ && compareClip_) {
-        const std::wstring first = L"色の解釈: 1本目(" + fileNameOf(clip_->path()) + L")";
-        const std::wstring second = L"色の解釈: 2本目(" + fileNameOf(compareClip_->path()) + L")";
+        const std::wstring first = L"Color Interpretation: 1st (" + fileNameOf(clip_->path()) + L")";
+        const std::wstring second = L"Color Interpretation: 2nd (" + fileNameOf(compareClip_->path()) + L")";
         AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*clip_, 0)), first.c_str());
         AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*compareClip_, 1)), second.c_str());
     } else if (clip_) {
-        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*clip_, 0)), L"色の解釈");
+        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*clip_, 0)), L"Color Interpretation");
     }
     const UINT command = static_cast<UINT>(TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
                                                           screenPoint.x, screenPoint.y, 0, hwnd_, nullptr));
@@ -683,8 +691,11 @@ std::wstring PlayerWindow::chooseVideoFile(const wchar_t* title) {
         return std::wstring();
     }
     const COMDLG_FILTERSPEC types[] = {
-        {L"動画ファイル", L"*.mp4;*.mov;*.m4v;*.avi;*.wmv;*.mkv;*.mts;*.m2ts"},
-        {L"すべてのファイル", L"*.*"},
+        {L"Videos and Image Sequences", L"*.mp4;*.mov;*.m4v;*.avi;*.wmv;*.mkv;*.webm;*.mts;*.m2ts;*.ts;*.mpg;*.mpeg;*.vob;*.3gp;"
+                         L"*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.gif;*.webp;*.heic;*.heif;*.avif;*.jxl;*.jxr;*.exr"},
+        {L"Video Files", L"*.mp4;*.mov;*.m4v;*.avi;*.wmv;*.mkv;*.webm;*.mts;*.m2ts;*.ts;*.mpg;*.mpeg;*.vob;*.3gp"},
+        {L"Image Sequences", L"*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.gif;*.webp;*.heic;*.heif;*.avif;*.jxl;*.jxr;*.exr"},
+        {L"All Files", L"*.*"},
     };
     dialog->SetFileTypes(static_cast<UINT>(std::size(types)), types);
     dialog->SetTitle(title);
@@ -869,7 +880,11 @@ void PlayerWindow::setClipStart(int frame) {
         return;
     }
     settings_.startFrame = frame;
-    settings_.saveStartFrame();
+    if (!clip_ || !clip_->firstFrameNumber()) {
+        // 動画の開始は保存する。連番画像の開始(最初のファイルの番号)は、開いている間だけ変える。
+        videoStartFrame_ = frame;
+        settings_.saveStartFrame();
+    }
     view_.setFrameNumberStart(frame);
     if (clip_) {
         // コマ番号は動画の1コマ目からの数なので、動画を後ろへ動かした分だけ引くと、フレーム番号は変わらない。
@@ -962,8 +977,8 @@ void PlayerWindow::setSyncEnabled(bool enabled) {
         if (!server->start(hwnd_, kSyncMessage, settings_.syncPort)) {
             wchar_t message[512];
             std::swprintf(message, 512,
-                          L"Maya連携を始められません。\n\n"
-                          L"ポート %u を他のアプリ(別のFramePlayerなど)が使っているか、連携の鍵を用意できません。",
+                          L"Cannot start Maya sync.\n\n"
+                          L"Port %u is in use by another application (such as another FramePlayer), or the sync key could not be prepared.",
                           static_cast<unsigned>(settings_.syncPort));
             MessageBoxW(hwnd_, message, kAppName, MB_OK | MB_ICONWARNING);
             return;
@@ -1134,6 +1149,24 @@ void PlayerWindow::onFrameReady() {
     }
 }
 
+void PlayerWindow::setSequenceFrameRate(double rate) {
+    settings_.sequenceFrameRate = rate;
+    settings_.saveSequenceFrameRate();
+    setImageSequenceFrameRate(rate);
+    if (!clip_ || !clip_->firstFrameNumber()) {
+        return;
+    }
+    // コマの時刻はフレームレートから決まるので、開き直して目次を作り直す。表示中のフレームは保つ。
+    const int frame = currentSceneFrame();
+    const std::wstring path = clip_->path();
+    const bool playing = view_.isPlaying();
+    openClip(path);
+    goToSceneFrame(frame);
+    if (playing) {
+        resumePlayback();
+    }
+}
+
 void PlayerWindow::updateTitle() {
     const LONGLONG titleStart = nowTicks();
     lastTitleTicks_ = titleStart;
@@ -1153,7 +1186,7 @@ void PlayerWindow::updateTitle() {
     // [現在のフレーム / 再生範囲]
     std::swprintf(title, 1024, L"%ls - %ls [%d / %d-%d]%ls", names.c_str(), kAppName, currentSceneFrame(),
                   settings_.startFrame + playFirst_, settings_.startFrame + playLast_,
-                  (syncServer_ && syncServer_->connected()) ? L" - 連携中" : L"");
+                  (syncServer_ && syncServer_->connected()) ? L" - Synced" : L"");
     SetWindowTextW(hwnd_, title);
 }
 

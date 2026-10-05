@@ -50,6 +50,9 @@ rem 関連付け: --extensions で拡張子を選ぶ(省くと前回の選択、
 rem --no-context-menu で右クリックに出さない
 AppSetup.exe [/S] [--dir <フォルダ>] [--extensions .mp4;.mov] [--no-file-types] [--no-context-menu]
 
+rem 関連付けの前提条件(Require)を調べ、拡張子ごとの結果(OK / NG と足りないもの)を標準出力に書くだけ(何も変えない)
+AppSetup.exe --check-file-types
+
 rem アンインストール(設定の「アプリ」から呼ばれる)。/S で画面を出さない。--remove-data で設定などのデータも消す
 <インストール先>\Uninstall.exe --uninstall [/S] [--remove-data]
 ```
@@ -153,12 +156,29 @@ Extensions=.mp4;.mov
 ContextMenu=FramePlayerで開く
 ; インストールの画面で、関連付けをしないことも選べる
 Optional=yes
+; 拡張子ごとの前提条件(省略可)。満たさない拡張子は関連付けない(画面では灰色で選べない)
+Require.heic=wic+mfvideo:HEVC
+; 満たさないときに画面に出す、足りないものの説明(省くと条件の式をそのまま出す)
+RequireNote.heic=HEIF画像拡張機能とHEVCビデオ拡張機能
 
 [UserData]
 ; アンインストールで「データも削除」を選んだときだけ消す
 Registry=HKCU\Software\FramePlayer
 Folder={LocalAppData}\FramePlayer
 ```
+
+関連付けの前提条件(`Require.<拡張子>`): その拡張子を開くのにWindowsの拡張機能(Microsoft Store)が要るとき、入っているPCでだけ
+関連付ける(開けないファイルがアプリで開くようにならないように)。判定はインストールのときに行い、入っていない拡張子は
+画面で灰色になり、説明(`RequireNote.<拡張子>`)を画面の下に出す。画面なし・`--extensions` で指定しても関連付けない。
+更新のときに前提を満たさなくなった拡張子は、前回の選択にあっても外す(記録に従って登録を消す)。
+
+| 条件 | 意味 |
+| --- | --- |
+| `wic` | その拡張子を読めるWindowsの画像コーデック(WIC)がある(WebP・HEIF・JPEG XLなどの画像拡張機能で増える) |
+| `wic:.ext` | 指定した拡張子を読めるWICのコーデックがある |
+| `mfvideo:FOURCC` | その形式(`HEVC`・`AV01`・`VP90` など)のMedia Foundationの動画デコーダーがある(ハードウェア・拡張機能を含む) |
+
+`+` は「すべて満たす」、`|` は「どれかを満たす」(`|` の方が強く結び付く)。例: `Require.webm=mfvideo:VP90|mfvideo:AV01`。
 
 置き換え文字: `{LocalAppData}`(`%LOCALAPPDATA%`)、`{AppData}`(`%APPDATA%`)、`{LocalPrograms}`(`%LOCALAPPDATA%\Programs`)、
 `{InstallDir}`(インストール先)。
@@ -179,9 +199,13 @@ Folder={LocalAppData}\FramePlayer
   記録して残す。ユーザーのフォルダそのもの・ほかのファイルが入ったフォルダへのインストールは拒否する。
 - 画面(確認・完了・アンインストールの確認・完了)を出して操作できる。
 - Windowsのパッケージ一覧(`Get-Package -ProviderName Programs`)に「FramePlayer 1.0.0」として出る。
+- 関連付けの前提条件(2026-10-06): 存在しない条件(`mfvideo:ZZZZ`・`wic:.zzz`)を付けた拡張子は、画面で灰色になり説明が出て、
+  画面なしのインストールでも登録されない(ほかの拡張子は登録される)。アンインストールで登録が残らない。拡張機能が入ったPCでは
+  HEIF・AVIF・WebP・JPEG XL・WebMとも条件を満たす。
 
 ### 未対応・制限
 
+- 関連付けの前提条件は、インストールのときだけ調べる。後から拡張機能を入れた・消したときは、セットアップを入れ直すと反映される。
 - PC全体(`Program Files`・全ユーザー)へのインストールは未対応(管理者権限が要る。今はユーザー単位だけ)。
 - コード署名は未対応。署名していないセットアップをインターネットから落とすと、SmartScreenの警告が出る
   (社内の共有フォルダから配るなら、通常は出ない)。

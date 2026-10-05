@@ -180,19 +180,19 @@ class FramePlayerSync(object):
             return True
         key = load_key()
         if key is None:
-            self.last_error = "連携の鍵がありません。FramePlayerを一度起動してください(%s)。" % key_path()
+            self.last_error = "The sync key was not found. Start FramePlayer once (%s)." % key_path()
             return False
         try:
             sock = socket.create_connection((self.host, self.port), timeout=timeout)
         except OSError:
-            self.last_error = ("FramePlayerに接続できません。FramePlayerを起動し、下段の「Maya連携」ボタンを押して"
-                               "連携モードにしてください(ポート %d)。" % self.port)
+            self.last_error = ("Cannot connect to FramePlayer. Start FramePlayer and click the 'Maya Sync' button "
+                               "at the bottom to enter sync mode (port %d)." % self.port)
             return False
         try:
             leftover = self._authenticate(sock, key)
         except (OSError, ValueError) as error:
             sock.close()
-            self.last_error = "相手がFramePlayerであることを確かめられません(%s)。" % error
+            self.last_error = "Could not verify that the peer is FramePlayer (%s)." % error
             return False
         self.last_error = ""
         self._attach(sock, leftover)
@@ -220,23 +220,23 @@ class FramePlayerSync(object):
             nonlocal buffer
             while b"\n" not in buffer:
                 if len(buffer) > 512:
-                    raise ValueError("応答が長すぎます")
+                    raise ValueError("The response is too long")
                 data = sock.recv(512)
                 if not data:
-                    raise ValueError("相手が接続を切りました")
+                    raise ValueError("The peer closed the connection")
                 buffer += data
             line, buffer = buffer.split(b"\n", 1)
             return line.decode("ascii", "replace").strip().split()
 
         challenge = read_line()
         if len(challenge) != 2 or challenge[0] != "challenge" or not _is_hex(challenge[1], 32, 64):
-            raise ValueError("チャレンジがありません")
+            raise ValueError("No challenge was received")
         nonce = secrets.token_hex(16)
         sock.sendall(("auth %s %s\n" % (_mac(key, "maya-to-player:" + challenge[1]), nonce)).encode("ascii"))
         reply = read_line()
         expected = _mac(key, "player-to-maya:" + nonce)
         if len(reply) != 2 or reply[0] != "auth" or not hmac.compare_digest(reply[1], expected):
-            raise ValueError("応答が正しくありません")
+            raise ValueError("Invalid response")
         return buffer
 
     def disconnect(self):

@@ -12,6 +12,7 @@
  * キャッシュの上限を小さくすると、捨てたコマの読み直しやシークも確かめられる。
  *
  * 使い方: FramePlayerVerify.exe <動画> [期待するコマ数] [--bits 縦縞の本数] [--cache-mb 上限MB] [--max-width 幅]
+ *         [--missing 番号,番号...](連番画像で欠けているはずのファイルの番号)
  *         [--limit N](先頭からN・末尾からN・ランダムNだけ確かめる) [--cpu](GPUを使わない) [--no-check](番号を確かめず速さだけ測る)
  * YUVのコマ(GPUのメモリ・主メモリ)は、主メモリへ読み出し、色の解釈に従ってBGRAにしてから縞を読む。
  * 終了コード: 0=全コマ一致、1=不一致あり、2=読み込み失敗や引数の誤り。
@@ -31,6 +32,7 @@
 #include <vector>
 
 #include "core/Clip.h"
+#include "core/ImageSequenceSource.h"
 #include "core/ColorInfo.h"
 #include "core/GpuDevice.h"
 
@@ -108,6 +110,7 @@ bool readPlane(const frameplayer::GpuDevice& gpu, ID3D11Texture2D* texture, std:
 bool toBgra(const frameplayer::GpuDevice* gpu, const frameplayer::Frame& frame, frameplayer::Frame& out) {
     if (!frame.isYuv()) {
         out = frame;
+        frameplayer::convertToBgra8(out);  // 16bit・半精度のRGBAならBGRAにする(それ以外はそのまま)。
         return true;
     }
     const bool p010 = frame.layout == frameplayer::PixelLayout::P010;
@@ -172,6 +175,9 @@ int runOrder(frameplayer::Clip& clip, const frameplayer::GpuDevice* gpu, const s
     const auto start = std::chrono::steady_clock::now();
     int mismatches = 0;
     for (int index : order) {
+        if (clip.isMissing(index)) {
+            continue;  // 連番の欠けは、別に番号の一覧で確かめる。
+        }
         const auto frame = clip.waitForFrame(index, direction, 20000);
         int found = -2;
         if (frame && !check) {
@@ -206,11 +212,12 @@ int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
         std::fwprintf(stderr,
                       L"usage: FramePlayerVerify.exe <video> [expectedFrames] [--bits N] [--cache-mb MB] "
-                      L"[--max-width W] [--limit N] [--cpu] [--no-check] [--thumbnails]\n");
+                      L"[--max-width W] [--limit N] [--cpu] [--no-check] [--thumbnails] [--missing N,N...]\n");
         return 2;
     }
     int expected = -1;
     int bits = 12;
+    std::wstring missingText;  // 欠けているはずの番号(カンマ区切り)。
     long long cacheMb = 4096;
     int maxWidth = 1280;
     int limit = -1;
@@ -226,6 +233,8 @@ int wmain(int argc, wchar_t** argv) {
             maxWidth = _wtoi(argv[++i]);
         } else if (std::wcscmp(argv[i], L"--limit") == 0 && i + 1 < argc) {
             limit = _wtoi(argv[++i]);
+        } else if (std::wcscmp(argv[i], L"--missing") == 0 && i + 1 < argc) {
+            missingText = argv[++i];
         } else if (std::wcscmp(argv[i], L"--cpu") == 0) {
             useGpu = false;
         } else if (std::wcscmp(argv[i], L"--no-check") == 0) {
@@ -261,6 +270,19 @@ int wmain(int argc, wchar_t** argv) {
                          clip.description().c_str());
             if (expected >= 0 && count != expected) {
                 std::wprintf(L"frame count differs: expected %d\n", expected);
+                result = 1;
+            }
+            // 連番の欠け: 欠けと扱われたコマのファイルの番号が、指定した一覧と同じかを確かめる。
+            std::wstring missingFound;
+            for (int i = 0; i < count; ++i) {
+                if (clip.isMissing(i)) {
+                    missingFound += (missingFound.empty() ? L"" : L",") +
+                                    std::to_wstring(clip.firstFrameNumber().value_or(0) + i);
+                }
+            }
+            if (missingFound != missingText) {
+                std::wprintf(L"missing frames differ: found [%ls] expected [%ls]\n", missingFound.c_str(),
+                             missingText.c_str());
                 result = 1;
             }
 

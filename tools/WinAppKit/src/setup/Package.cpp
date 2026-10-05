@@ -149,7 +149,7 @@ bool writePackage(const Manifest& manifest, const std::vector<PackageFile>& file
 
 bool readPackage(const std::uint8_t* data, std::size_t size, Manifest& manifest, std::vector<PackageFile>& files,
                  std::wstring& error) {
-    error = L"インストールする中身が壊れています(セットアップのファイルを取り直してください)";
+    error = L"The setup contents are corrupt (download the setup file again).";
     if (size < sizeof(kMagic) || std::memcmp(data, kMagic, sizeof(kMagic)) != 0) {
         return false;
     }
@@ -162,7 +162,7 @@ bool readPackage(const std::uint8_t* data, std::size_t size, Manifest& manifest,
     std::wstring parseError;
     if (!Manifest::parse(fromUtf8(std::string(reinterpret_cast<const char*>(bytes), static_cast<std::size_t>(length))),
                          manifest, parseError)) {
-        error = L"インストールするアプリの説明が読めません: " + parseError;
+        error = L"Cannot read the application description: " + parseError;
         return false;
     }
     std::uint64_t count = 0;

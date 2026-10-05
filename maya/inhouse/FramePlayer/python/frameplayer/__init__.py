@@ -85,7 +85,7 @@ def launch(*paths, sync=True):
     """
     executable = player_executable()
     if not os.path.isfile(executable):
-        raise RuntimeError("FramePlayer.exe が見つかりません: %s" % executable)
+        raise RuntimeError("FramePlayer.exe was not found: %s" % executable)
     arguments = [executable] + [str(path) for path in paths]
     if sync:
         arguments.append("--sync")

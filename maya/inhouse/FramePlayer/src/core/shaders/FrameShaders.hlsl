@@ -55,7 +55,7 @@ cbuffer ConvertParams : register(b0) {
     float4 gRow2;
     float2 gChromaOffset;  // 色の画素の位置(明るさの画素の単位。左寄せなら(0, 0.5))
     float2 gChromaSize;    // 色の面の大きさ(画素)
-    int gIsRgb;            // 0=NV12・P010、1=RGBのコマ(そのまま写す)、2=YUY2(1テクセルに「Y0 U Y1 V」)
+    int gIsRgb;            // 0=NV12・P010、1=RGBのコマ(そのまま写す)、2=YUY2(1テクセルに「Y0 U Y1 V」)、3=半精度のRGB
     int3 gPad0;
 };
 
@@ -63,6 +63,9 @@ float4 PSConvert(VSOut input) : SV_Target {
     int2 p = int2(input.pos.xy);
     if (gIsRgb == 1) {
         return float4(saturate(gPlane0.Load(int3(p, 0)).rgb), 1);
+    }
+    if (gIsRgb == 3) {
+        return float4(gPlane0.Load(int3(p, 0)).rgb, 1);  // リニアな値は1を超えても切らない(HDRの画面で出す)。
     }
     if (gIsRgb == 2) {
         // YUY2(4:2:2): 横2画素で色を1組持つ。色の画素iは明るさの単位で2i+offsetの位置にあるので、
@@ -192,12 +195,14 @@ float3 sampleCubic(float2 source) {
             sum += gImage.Load(int3(p, 0)).rgb * (weights[i].x * weights[j].y);
         }
     }
-    return saturate(sum);
+    return sum;
 }
 
 float4 PSPresent(VSOut input) : SV_Target {
     float2 source = (input.pos.xy - gDestOrigin) * gStep;
     float3 v = gUpscale != 0 ? sampleCubic(source) : gImage.SampleLevel(gLinear, source / gImageSize, gLod).rgb;
+    // リニアな画像(EXR)は1を超える値も残す。それ以外は信号の範囲(0〜1)に切る(双三次補間の行き過ぎも含む)。
+    v = gTransfer == 1 ? v : saturate(v);
     if (gOutput == 0) {
         return float4(quantize8(v, input.pos.xy), 1);  // SDR・BT.709: 値をそのまま出す。
     }

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "core/Frame.h"
@@ -84,6 +85,22 @@ public:
     virtual void releaseDecoder() {}
 
     /**
+     * @brief 連番画像なら、最初のファイルの番号を返す(タイムラインの開始に使う)。
+     * @return 番号。動画なら空。
+     */
+    virtual std::optional<int> firstFrameNumber() const { return std::nullopt; }
+
+    /**
+     * @brief コマのファイルが無い(連番の欠け)かを返す。
+     * @param index 0始まりのコマ番号。
+     * @return 欠けていればtrue。動画では常にfalse。
+     */
+    virtual bool isMissing(int index) const {
+        (void)index;
+        return false;
+    }
+
+    /**
      * @brief 直近の失敗の説明を返す。
      * @return 失敗していなければ空文字列。
      */
@@ -109,5 +126,19 @@ public:
  */
 std::unique_ptr<FrameSource> openFrameSource(const std::wstring& path, int maxWidth, std::shared_ptr<GpuDevice> gpu,
                                              std::wstring& error, SourcePurpose purpose = SourcePurpose::Playback);
+
+/**
+ * @brief 画像のファイルか(拡張子で判断する)を返す。画像は連番画像として開く。
+ * @param path パス。
+ * @return 画像ならtrue。
+ */
+bool isImageFile(const std::wstring& path);
+
+/**
+ * @brief 連番画像のフレームレート(画像には記録されていないので、この値を使う)を設定する。
+ * @param rate 1秒あたりのコマ数(0以下なら既定の60)。
+ * @note 次に開く連番画像から使う。どのスレッドから呼んでもよい。
+ */
+void setImageSequenceFrameRate(double rate);
 
 }  // namespace frameplayer

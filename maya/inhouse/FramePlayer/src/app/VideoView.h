@@ -217,6 +217,7 @@ private:
         int imageIndex = -1;                 ///< frameが実際に表すコマ番号(仮表示の画像なら近くのキーフレーム)。
         bool loading = false;                ///< 「読み込み中」を重ねるか。
         bool broken = false;                 ///< 「デコードできません」を重ねるか。
+        bool missing = false;                ///< 連番の欠けたコマか(「画像がありません」を重ねる)。
         bool outOfRange = false;             ///< 表示すべきコマが動画の外か(画像を描かずに知らせる)。
 
         /**
@@ -226,7 +227,7 @@ private:
          */
         bool same(const PaneState& other) const {
             return clip == other.clip && frame == other.frame && index == other.index && loading == other.loading &&
-                   broken == other.broken && outOfRange == other.outOfRange;
+                   broken == other.broken && missing == other.missing && outOfRange == other.outOfRange;
         }
     };
 

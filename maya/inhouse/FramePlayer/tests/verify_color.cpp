@@ -111,6 +111,10 @@ const char* nameOf(ColorPrimaries value) {
         return "displayp3";
     case ColorPrimaries::DciP3:
         return "dcip3";
+    case ColorPrimaries::AcesAp0:
+        return "acesap0";
+    case ColorPrimaries::AcesAp1:
+        return "acesap1";
     default:
         return "bt709";
     }

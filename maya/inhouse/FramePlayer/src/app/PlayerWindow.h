@@ -198,6 +198,7 @@ private:
         PlayEnd,    ///< 再生範囲の最後。
         AnimEnd,    ///< 全体範囲の最後。
         ClipStart,  ///< 動画の開始(動画の1コマ目を置くフレーム番号)。
+        Fps,        ///< 連番画像のフレームレート。
     };
 
     /**
@@ -499,6 +500,12 @@ private:
     void showFileMenu();
 
     /**
+     * @brief 連番画像のフレームレートを変え、開いている連番画像を開き直す(表示中のフレームは保つ)。
+     * @param rate 1秒あたりのコマ数。
+     */
+    void setSequenceFrameRate(double rate);
+
+    /**
      * @brief 色の解釈の手動の指定のメニューを作る。
      * @param clip 対象の動画。
      * @param clipIndex 1本目なら0、2本目なら1(メニューの番号に入れる)。
@@ -745,6 +752,7 @@ private:
     RulerKey rulerKey_;              ///< 目盛りの作り置きを作ったときの条件。
     LONGLONG lastTitleTicks_ = 0;    ///< 最後にタイトルバーを書き換えた時刻。
     int current_ = 0;             ///< 操作部に表示しているコマ番号(VideoViewの表示に追従する)。
+    int videoStartFrame_ = 1;     ///< 動画の開始(設定の値)。連番画像を開いている間も覚えておき、動画を開いたら戻す。
     int animFirst_ = 0;           ///< 全体範囲の最初のコマ番号(動画の1コマ目が0。動画の外でもよい)。
     int animLast_ = 0;            ///< 全体範囲の最後のコマ番号。
     int playFirst_ = 0;           ///< 再生範囲の最初のコマ番号(全体範囲の中)。

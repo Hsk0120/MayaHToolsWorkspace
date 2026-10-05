@@ -24,7 +24,8 @@ add_executable(WinAppSetup WIN32
     src/setup/Builder.cpp
     src/setup/Installer.cpp
     src/setup/SetupUi.cpp
+    src/setup/Requirements.cpp
 )
 target_include_directories(WinAppSetup PRIVATE src)
 target_compile_definitions(WinAppSetup PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(WinAppSetup PRIVATE comctl32 shell32 ole32 advapi32 version cabinet rstrtmgr)
+target_link_libraries(WinAppSetup PRIVATE comctl32 shell32 ole32 advapi32 version cabinet rstrtmgr windowscodecs mfplat mfuuid)

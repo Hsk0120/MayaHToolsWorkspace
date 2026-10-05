@@ -125,13 +125,13 @@ int buildSetup(const std::wstring& manifestPath, const std::wstring& outputPath)
     const std::wstring baseDir = parentPath(manifestFull);
     std::vector<std::uint8_t> raw;
     if (!readFile(manifestFull, raw)) {
-        logLine(L"設定ファイルを読めません: %ls", manifestFull.c_str());
+        logLine(L"Cannot read the settings file: %ls", manifestFull.c_str());
         return 2;
     }
     Manifest manifest;
     std::wstring error;
     if (!Manifest::parse(fromUtf8(std::string(raw.begin(), raw.end())), manifest, error)) {
-        logLine(L"設定ファイルの誤り: %ls", error.c_str());
+        logLine(L"Error in the settings file: %ls", error.c_str());
         return 2;
     }
 
@@ -142,7 +142,7 @@ int buildSetup(const std::wstring& manifestPath, const std::wstring& outputPath)
         file.target = entry.target;
         const std::wstring source = resolvePath(baseDir, entry.source);
         if (!readFile(source, file.data)) {
-            logLine(L"ファイルを読めません: %ls", source.c_str());
+            logLine(L"Cannot read the file: %ls", source.c_str());
             return 2;
         }
         logLine(L"  %ls  (%zu bytes)", entry.target.c_str(), file.data.size());
@@ -152,13 +152,13 @@ int buildSetup(const std::wstring& manifestPath, const std::wstring& outputPath)
         files.push_back(std::move(file));
     }
     if (manifest.version.empty()) {
-        logLine(L"バージョンが分かりません。[App] Version を書くか、本体のexeにバージョン情報を入れてください");
+        logLine(L"Unknown version. Write [App] Version, or add version information to the main exe.");
         return 2;
     }
 
     std::vector<std::uint8_t> package;
     if (!writePackage(manifest, files, package, error)) {
-        logLine(L"中身をまとめられません: %ls", error.c_str());
+        logLine(L"Cannot pack the contents: %ls", error.c_str());
         return 2;
     }
 
@@ -168,7 +168,7 @@ int buildSetup(const std::wstring& manifestPath, const std::wstring& outputPath)
     const std::wstring output = fullPath(outputPath);
     createDirectories(parentPath(output), nullptr);
     if (!CopyFileW(self, output.c_str(), FALSE)) {
-        logLine(L"書き出せません: %ls  %ls", output.c_str(), errorText(GetLastError()).c_str());
+        logLine(L"Cannot write: %ls  %ls", output.c_str(), errorText(GetLastError()).c_str());
         return 2;
     }
     HANDLE update = BeginUpdateResourceW(output.c_str(), FALSE);
@@ -181,7 +181,7 @@ int buildSetup(const std::wstring& manifestPath, const std::wstring& outputPath)
         std::vector<std::uint8_t> ico;
         const std::wstring iconPath = resolvePath(baseDir, manifest.setupIcon);
         if (!readFile(iconPath, ico) || !addIcon(update, ico)) {
-            logLine(L"アイコンを入れられません: %ls", iconPath.c_str());
+            logLine(L"Cannot embed the icon: %ls", iconPath.c_str());
             ok = false;
         }
     }
@@ -189,11 +189,11 @@ int buildSetup(const std::wstring& manifestPath, const std::wstring& outputPath)
         ok = false;
     }
     if (!ok) {
-        logLine(L"セットアップのexeを作れません: %ls", errorText(GetLastError()).c_str());
+        logLine(L"Cannot create the setup exe: %ls", errorText(GetLastError()).c_str());
         DeleteFileW(output.c_str());
         return 2;
     }
-    logLine(L"作りました: %ls  (%ls %ls, 中身 %zu bytes)", output.c_str(), manifest.name.c_str(),
+    logLine(L"Created: %ls  (%ls %ls, contents %zu bytes)", output.c_str(), manifest.name.c_str(),
             manifest.version.c_str(), package.size());
     return 0;
 }

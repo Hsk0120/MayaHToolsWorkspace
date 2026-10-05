@@ -84,6 +84,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-06): FramePlayerに連番画像を追加(1枚から連番を検出・欠けの表示・既定60fpsで操作部から変更・最初の番号を開始に)。png/jpg/tif/bmp/gif/jxr(標準)とwebp/heif/avif/jxl(拡張機能)はWIC、OpenEXRは自前(走査線/タイル/multipart、half/float/uint、NONE〜DWAA/DWABの全圧縮、zlib展開も自前、色域ACES含む)。28種の連番でコマ番号(GPU/CPU)、色14枚、EXR40通りでoiiotoolの読み込みと一致(DWAは0.1%の画素で半精度1段)。4K EXRはチャンク並列・縮小並列で1枚約60ms。WinAppKitに関連付けの前提条件(Require.<拡張子>=wic/mfvideo:FOURCC)を追加し、拡張機能が無い形式は関連付けない。FramePlayer・Maya側パネル・インストーラーの画面の文字を英語に統一(ユーザー指示)。確認用スクリプト(make_sequence_testdata.py・run_sequence_check.py・run_exr_check.py・FramePlayerImageConvert)を追加。全コーデックの回帰確認も一致。未コミット。
+
 - Claude Code (2026-10-06): FramePlayerでMedia Foundationの全コーデックを確認。公式拡張機能を全部導入(Web Media・WebP・JPEG XLを追加)。H.264/HEVC/AV1/VP9/VP8/MPEG-1/2/MPEG-4 Part2/H.263/MS-MPEG4/WMV7/8/MJPEG/DV/Theoraの37通り(mp4・mov・mkv・webm・avi・ts・m2ts・mpg・vob・3gp・wmv)でコマ番号(GPU/CPU)、19本で色が一致。修正: aviは出た順番で番号、ts/m2tsはシーク先を確かめて戻る、MPEG-1/2は時刻欠けのためデコードで目次を作り基準を決めて順番で番号(CPUでデコード)、DVはYUY2のまま受け取り画素の縦横比を表示に反映、MJPEGはBT.601、YUY2のシェーダーの誤り、読み込みが止まったときの作り直し(非同期で10秒)。確認用スクリプト(make_codec_testdata.py・run_codec_check.py)を追加。Windows側の制限(MPEG-4のBフレーム・movのDV・ogg・短い映像だけのmpg)はREADMEに記載。mainへpush。
 
 - Codex 2026-10-05: 記載整理のプッシュ指示を受け、文書・関連テストの改名と参照更新、日英ビルド結果、差分を最終確認。FramePlayerの変更を除外してコミット対象を確定。

@@ -69,7 +69,7 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
                     std::max(left + margin + 1, static_cast<int>(layout.currentField.left) - gap), rangeTop - ui::scaled(2, dpi)};
 
     // レンジスライダーの段(Mayaと同じ並び): 左から全体範囲の最初・再生範囲の最初の欄、バー、再生範囲の最後・
-    // 全体範囲の最後の欄。その右に「動画の開始」の欄、fps、「Maya連携」「ファイル」「比較」、音量。
+    // 全体範囲の最後の欄。その右に「Clip start」の欄、fps、「Maya Sync」「File」「Compare」、音量。
     const int rangeFieldTop = rangeTop + (rangeHeight - fieldHeight) / 2;
     auto fieldAt = [&](int fieldLeft) {
         return RECT{fieldLeft, rangeFieldTop, fieldLeft + fieldWidth, rangeFieldTop + fieldHeight};
@@ -87,9 +87,9 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
     const int textButtonHeight = fieldHeight;
     const int textButtonTop = rangeTop + (rangeHeight - textButtonHeight) / 2;
     const int compareRight = static_cast<int>(layout.volumeButton.left) - groupGap;
-    layout.compareButton = {compareRight - ui::scaled(56, dpi), textButtonTop, compareRight, textButtonTop + textButtonHeight};
+    layout.compareButton = {compareRight - ui::scaled(76, dpi), textButtonTop, compareRight, textButtonTop + textButtonHeight};
     const int fileRight = static_cast<int>(layout.compareButton.left) - gap;
-    layout.fileButton = {fileRight - ui::scaled(72, dpi), textButtonTop, fileRight, textButtonTop + textButtonHeight};
+    layout.fileButton = {fileRight - ui::scaled(56, dpi), textButtonTop, fileRight, textButtonTop + textButtonHeight};
     const int syncRight = static_cast<int>(layout.fileButton.left) - gap;
     layout.syncButton = {syncRight - ui::scaled(80, dpi), textButtonTop, syncRight, textButtonTop + textButtonHeight};
     const int rateRight = static_cast<int>(layout.syncButton.left) - groupGap;
@@ -183,14 +183,14 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi, const RE
     HGDIOBJ oldFont = SelectObject(dc, fonts_.get(ui::kTextPoints, dpi));
     SetTextColor(dc, clip_ ? ui::kSecondaryText : ui::kDisabled);
     RECT clipLabel = layout.clipStartLabel;
-    DrawTextW(dc, L"動画の開始", -1, &clipLabel, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    DrawTextW(dc, L"Clip start", -1, &clipLabel, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
     SetTextColor(dc, clip_ ? ui::kSecondaryText : ui::kDisabled);
     wchar_t rateText[32];
-    std::swprintf(rateText, 32, L"%.4g fps", playbackRate());  // 書体は「動画の開始」と同じ(kTextPoints)。
+    std::swprintf(rateText, 32, L"%.4g fps", playbackRate());  // 書体は「Clip start」と同じ(kTextPoints)。
     RECT rateRect = layout.rateLabel;
     DrawTextW(dc, rateText, -1, &rateRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
-    // 文字のボタン(「ファイル」「比較」)。角を丸めた薄い地と枠。比較中の「比較」は強調色の地に黒い文字にして、
+    // 文字のボタン(「File」「Compare」)。角を丸めた薄い地と枠。比較中の「Compare ×」は強調色の地に黒い文字にして、
     // 押すと比較をやめることを示す(メディア プレーヤーの「ファイルを開く」と同じ)。マウスが乗ったら明るくする。
     const int radius = ui::scaled(8, dpi);
     auto textButton = [&](Part part, const RECT& rect, bool accent, const wchar_t* text) {
@@ -203,11 +203,11 @@ void PlayerWindow::paintControls(HDC dc, const Layout& layout, int dpi, const RE
                                 hover ? ui::kControlBorderHover : ui::kControlBorder, ui::kText, text, radius);
         }
     };
-    textButton(Part::FileButton, layout.fileButton, false, L"ファイル ▾");
-    // 「Maya連携」: 通常モードは薄い地。連携モードは強調色の地で、つながるまでは「連携待ち」、つながったら「連携中」。
+    textButton(Part::FileButton, layout.fileButton, false, L"File ▾");
+    // 「Maya Sync」: 通常モードは薄い地。連携モードは強調色の地で、つながるまでは「Waiting」、つながったら「Synced」。
     textButton(Part::SyncButton, layout.syncButton, syncServer_ != nullptr,
-               !syncServer_ ? L"Maya連携" : syncServer_->connected() ? L"連携中" : L"連携待ち");
-    textButton(Part::CompareButton, layout.compareButton, compareClip_ != nullptr, compareClip_ ? L"比較 ×" : L"比較");
+               !syncServer_ ? L"Maya Sync" : syncServer_->connected() ? L"Synced" : L"Waiting");
+    textButton(Part::CompareButton, layout.compareButton, compareClip_ != nullptr, compareClip_ ? L"Compare ×" : L"Compare");
     SelectObject(dc, oldFont);
     paintVolume(dc, layout, dpi);
 }
@@ -539,7 +539,7 @@ void PlayerWindow::paintVolume(HDC dc, const Layout& layout, int dpi) {
     HGDIOBJ oldFont = SelectObject(dc, fonts_.get(ui::kSmallPoints - 1, dpi));
     SetTextColor(dc, ui::kText);
     wchar_t percent[16];
-    std::swprintf(percent, 16, settings_.muted ? L"消音" : L"%d%%", static_cast<int>(settings_.volume * 100.0f + 0.5f));
+    std::swprintf(percent, 16, settings_.muted ? L"Mute" : L"%d%%", static_cast<int>(settings_.volume * 100.0f + 0.5f));
     RECT percentRect{s.left, s.top - ui::scaled(2, dpi), s.left + width * 2 / 3, s.top + height / 2};
     DrawTextW(dc, percent, -1, &percentRect, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOCLIP);
     SelectObject(dc, oldFont);
@@ -549,7 +549,7 @@ void PlayerWindow::onKeyDown(WPARAM key) {
     const bool shift = GetKeyState(VK_SHIFT) < 0;
     // Ctrl+O: 1本目をファイル選択画面で開く。Ctrl+Shift+O: 2本目(比較)を開く。
     if (key == 'O' && GetKeyState(VK_CONTROL) < 0) {
-        const std::wstring path = chooseVideoFile(shift ? L"比較する動画を選択" : L"動画を選択");
+        const std::wstring path = chooseVideoFile(shift ? L"Select a Video to Compare" : L"Select a Video or Image Sequence");
         if (!path.empty()) {
             if (shift) {
                 openCompare(path);
@@ -683,7 +683,7 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
         if (compareClip_) {
             closeCompare();
         } else {
-            const std::wstring path = chooseVideoFile(L"比較する動画を選択");
+            const std::wstring path = chooseVideoFile(L"Select a Video to Compare");
             if (!path.empty()) {
                 openCompare(path);
             }
@@ -713,6 +713,10 @@ void PlayerWindow::onLeftButtonDown(int x, int y) {
             beginEdit(field);
             return;
         }
+    }
+    if (clip_->firstFrameNumber() && PtInRect(&layout.rateLabel, point)) {
+        beginEdit(EditField::Fps);  // 連番画像はフレームレートを持たないので、ここで決められる。
+        return;
     }
     if (PtInRect(&layout.button, point)) {
         togglePlayback();
@@ -945,45 +949,45 @@ PlayerWindow::Part PlayerWindow::hitTestPart(const Layout& layout, POINT point) 
 const wchar_t* PlayerWindow::tooltipText(Part part) const {
     switch (part) {
     case Part::Ruler:
-        return L"タイムスライダー(クリック・ドラッグでフレームを移動)";
+        return L"Time slider (click or drag to change the frame)";
     case Part::CurrentField:
-        return L"現在のフレーム(押して番号を入力)";
+        return L"Current frame (click to type a frame number)";
     case Part::StartButton:
-        return L"再生範囲の最初へ (Home / Alt+Shift+V)";
+        return L"Go to playback start (Home / Alt+Shift+V)";
     case Part::PrevButton:
-        return L"1フレーム戻る (← / Alt+,)";
+        return L"Step back one frame (← / Alt+,)";
     case Part::PlayButton:
-        return L"再生 / 停止 (Space / Alt+V)";
+        return L"Play / Stop (Space / Alt+V)";
     case Part::NextButton:
-        return L"1フレーム進む (→ / Alt+.)";
+        return L"Step forward one frame (→ / Alt+.)";
     case Part::EndButton:
-        return L"再生範囲の最後へ (End)";
+        return L"Go to playback end (End)";
     case Part::AnimStartField:
-        return L"全体範囲の最初";
+        return L"Animation start";
     case Part::PlayStartField:
-        return L"再生範囲の最初 (I で今のフレームにする)";
+        return L"Playback start (I sets it to the current frame)";
     case Part::RangeBar:
-        return L"再生範囲(つまみで端を、中をドラッグで範囲を動かす。ダブルクリックで全体範囲と切り替え)";
+        return L"Playback range (drag the handles to change the ends, drag the middle to move it; double-click to toggle with the full range)";
     case Part::PlayEndField:
-        return L"再生範囲の最後 (O で今のフレームにする)";
+        return L"Playback end (O sets it to the current frame)";
     case Part::AnimEndField:
-        return L"全体範囲の最後";
+        return L"Animation end";
     case Part::ClipStartField:
-        return L"動画の開始(動画の1コマ目を置くフレーム番号)";
+        return L"Clip start (the frame number of the first frame of the video)";
     case Part::SyncButton:
         if (!syncServer_) {
-            return L"Mayaと連携する(押すと連携モード)";
+            return L"Sync with Maya (click to start sync mode)";
         }
-        return syncServer_->connected() ? L"Mayaと連携中(押すと連携を終える)"
-                                        : L"Mayaからの接続を待っています(押すと連携を終える)";
+        return syncServer_->connected() ? L"Synced with Maya (click to stop syncing)"
+                                        : L"Waiting for Maya to connect (click to stop syncing)";
     case Part::FileButton:
-        return L"動画を開く・最近使ったファイル (Ctrl+O)";
+        return L"Open a video or a recent file (Ctrl+O)";
     case Part::CompareButton:
-        return compareClip_ ? L"比較を終える" : L"2本目の動画を開いて並べて比べる (Ctrl+Shift+O)";
+        return compareClip_ ? L"Close the comparison" : L"Open a second video to compare side by side (Ctrl+Shift+O)";
     case Part::VolumeButton:
-        return L"消音の切り替え (M)";
+        return L"Toggle mute (M)";
     case Part::VolumeSlider:
-        return L"音量 (↑ / ↓)";
+        return L"Volume (↑ / ↓)";
     default:
         return L"";
     }
@@ -1209,15 +1213,24 @@ void PlayerWindow::beginEdit(EditField field) {
         r = layout.clipStartField;
         value = start;
         break;
+    case EditField::Fps:
+        r = layout.rateLabel;
+        break;
     default:
         break;
+    }
+    wchar_t initial[32];
+    if (field == EditField::Fps) {
+        std::swprintf(initial, 32, L"%.4g", playbackRate());
+    } else {
+        std::swprintf(initial, 32, L"%d", value);
     }
     // 欄の上に、同じ大きさの入力用の子ウィンドウを重ねる。文字の高さに合わせて上下の中央に置く。
     HFONT font = fonts_.get(9, dpi);
     const int textHeight = ui::scaled(16, dpi);
     const int top = r.top + (r.bottom - r.top - textHeight) / 2;
     editField_ = field;
-    editControl_ = CreateWindowExW(0, L"EDIT", std::to_wstring(value).c_str(),
+    editControl_ = CreateWindowExW(0, L"EDIT", initial,
                                    WS_CHILD | WS_VISIBLE | ES_CENTER | ES_AUTOHSCROLL, r.left + 2, top,
                                    r.right - r.left - 4, textHeight, hwnd_, nullptr, instance_, nullptr);
     if (!editControl_) {
@@ -1246,6 +1259,17 @@ void PlayerWindow::commitEdit() {
     DestroyWindow(edit);
 
     wchar_t* end = nullptr;
+    if (field == EditField::Fps) {
+        const double rate = std::wcstod(text, &end);
+        while (end && *end == L' ') {
+            ++end;
+        }
+        if (end != text && end && *end == L'\0' && rate >= 1.0 && rate <= 1000.0) {
+            setSequenceFrameRate(rate);
+        }
+        invalidateBar();
+        return;
+    }
     const long value = std::wcstol(text, &end, 10);
     while (end && *end == L' ') {
         ++end;

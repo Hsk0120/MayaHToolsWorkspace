@@ -41,7 +41,10 @@ endforeach()
 add_library(frameplayer_core STATIC
     ${FRAMEPLAYER_SHADER_HEADERS}
     src/core/ColorInfo.cpp
+    src/core/ExrReader.cpp
     src/core/FrameRenderer.cpp
+    src/core/ImageSequenceSource.cpp
+    src/core/Inflate.cpp
     src/core/Clip.cpp
     src/core/FrameSource.cpp
     src/core/MediaFoundationSource.cpp
@@ -53,7 +56,7 @@ add_library(frameplayer_core STATIC
 target_include_directories(frameplayer_core PUBLIC src PRIVATE "${FRAMEPLAYER_SHADER_DIR}")
 target_compile_definitions(frameplayer_core PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_compile_options(frameplayer_core PUBLIC /utf-8 /W4 /permissive-)
-target_link_libraries(frameplayer_core PUBLIC mfplat mfreadwrite mfuuid ole32 d3d11 dxgi propsys)
+target_link_libraries(frameplayer_core PUBLIC mfplat mfreadwrite mfuuid ole32 d3d11 dxgi propsys windowscodecs)
 
 add_executable(FramePlayer WIN32
     src/app/main.cpp
@@ -79,3 +82,9 @@ target_link_libraries(FramePlayerVerify PRIVATE frameplayer_core)
 # 色の正確さを確かめる確認用ツール(配布対象外)。tests/make_color_testdata.py で作った動画と期待値を使う。
 add_executable(FramePlayerColorCheck tests/verify_color.cpp)
 target_link_libraries(FramePlayerColorCheck PRIVATE frameplayer_core)
+
+# 確認用の画像をWICで別の形式(HEIF・JPEG XL・JPEG XR)に書き直す道具(配布対象外)。
+add_executable(FramePlayerImageConvert tests/image_convert.cpp)
+target_compile_definitions(FramePlayerImageConvert PRIVATE UNICODE _UNICODE)
+target_compile_options(FramePlayerImageConvert PRIVATE /utf-8)
+target_link_libraries(FramePlayerImageConvert PRIVATE frameplayer_core ole32 oleaut32 windowscodecs)

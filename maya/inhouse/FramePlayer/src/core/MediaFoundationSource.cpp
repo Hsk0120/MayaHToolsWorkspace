@@ -387,7 +387,7 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     // MFStartupは参照カウント式なので、読み込み元ごとに開始・終了してよい。
     HRESULT hr = MFStartup(MF_VERSION, MFSTARTUP_LITE);
     if (FAILED(hr)) {
-        source->setError(L"Media Foundationを開始できません", hr);
+        source->setError(L"Cannot start Media Foundation", hr);
         error = source->error_;
         return nullptr;
     }
@@ -458,7 +458,7 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
         bool created = source->createReader(path, maxWidth, mode);
         const LONGLONG readerEnd = nowTicks();
         if (!waitForIndex()) {
-            error = source->error_.empty() ? L"目次を作れません" : source->error_;
+            error = source->error_.empty() ? L"Cannot build the frame index" : source->error_;
             return nullptr;
         }
         if (source->timestampsUnreliable_ && mode != Mode::Cpu) {
@@ -495,7 +495,7 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
         source->stagingPool_.clear();
         source->reader_.Reset();
     }
-    error = source->error_.empty() ? L"動画をデコードできません" : source->error_;
+    error = source->error_.empty() ? L"Cannot decode the video" : source->error_;
     return nullptr;
 }
 
@@ -516,14 +516,14 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
     ComPtr<IMFAttributes> attributes;
     HRESULT hr = MFCreateAttributes(&attributes, 4);
     if (FAILED(hr)) {
-        setError(L"属性を作成できません", hr);
+        setError(L"Cannot create attributes", hr);
         return false;
     }
     // 読み込みは非同期で頼み、時間の上限まで待つ(止まったら作り直せるように。readSampleWithTimeout())。
     // 読み込み本体ごとに新しい窓口を使い、見捨てた本体から遅れて届く結果が混ざらないようにする。
     callback_ = Microsoft::WRL::Make<detail::ReadCallback>();
     if (!callback_) {
-        setError(L"読み込みの窓口を作成できません", E_OUTOFMEMORY);
+        setError(L"Cannot create the source reader", E_OUTOFMEMORY);
         return false;
     }
     attributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, callback_.Get());
@@ -538,7 +538,7 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
             hr = attributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE);
         }
         if (FAILED(hr)) {
-            setError(L"GPUを使う準備ができません", hr);
+            setError(L"Cannot prepare the GPU", hr);
             return false;
         }
     }
@@ -548,7 +548,7 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         hr = selectVideoOnly(reader_.Get());
     }
     if (FAILED(hr)) {
-        setError(L"動画ファイルを開けません", hr);
+        setError(L"Cannot open the video file", hr);
         return false;
     }
     // 動画の形式(圧縮されたまま)に付いている色の情報を覚えておく。
@@ -585,7 +585,7 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         return result;
     };
     if (wantP010 && mode == Mode::GpuTexture && !gpu_->supportsP010()) {
-        setError(L"GPUのメモリに10bitのコマを置けません", E_FAIL);
+        setError(L"Cannot keep 10-bit frames in GPU memory", E_FAIL);
         return false;  // 次の方式(主メモリへ写す)で読む。
     }
     hr = E_FAIL;
@@ -608,7 +608,7 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         }
     }
     if (FAILED(hr)) {
-        setError(L"出力形式を設定できません", hr);
+        setError(L"Cannot set the output format", hr);
         return false;
     }
     disableFrameRateConversion(reader_.Get());
@@ -643,7 +643,7 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
         hr = selectVideoOnly(indexReader.Get());
     }
     if (FAILED(hr)) {
-        setError(L"動画ファイルを開けません(Windowsが対応していない形式の可能性があります)", hr);
+        setError(L"Cannot open the video file (Windows may not support this format)", hr);
         return false;
     }
 
@@ -678,7 +678,7 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
             ComPtr<IMFSample> sample;
             hr = indexReader->ReadSample(kVideoStream, 0, nullptr, &flags, &timestamp, &sample);
             if (FAILED(hr)) {
-                setError(L"目次の作成中に読み込みに失敗しました", hr);
+                setError(L"Reading failed while building the frame index", hr);
                 return false;
             }
             if (flags & MF_SOURCE_READERF_ENDOFSTREAM) {
@@ -715,7 +715,7 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
             for (std::size_t i = 0; i < all.size(); ++i) {
                 all[i] = {table.presentationTimes[i] + offset, table.isKeyFrame[i] != 0};
             }
-            indexMethod_ = L"mp4/movの目次";
+            indexMethod_ = L"mp4/mov sample table";
             return setIndex(std::move(all), true);
         }
     }
@@ -733,7 +733,7 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
     for (std::uint8_t flag : hasKeyFlag) {
         anyKeyFlag = anyKeyFlag || flag != 0;
     }
-    indexMethod_ = L"全体を読んで作成";
+    indexMethod_ = L"scanned the whole file";
     return setIndex(std::move(samples), anyKeyFlag);
 }
 
@@ -760,7 +760,7 @@ bool MediaFoundationSource::buildIndexByDecoding(const std::wstring& path) {
         hr = reader->SetCurrentMediaType(kVideoStream, nullptr, type.Get());
     }
     if (FAILED(hr)) {
-        setError(L"目次を作るためのデコーダーを用意できません", hr);
+        setError(L"Cannot prepare a decoder to build the frame index", hr);
         return false;
     }
     std::vector<std::pair<LONGLONG, bool>> samples;
@@ -770,7 +770,7 @@ bool MediaFoundationSource::buildIndexByDecoding(const std::wstring& path) {
         ComPtr<IMFSample> sample;
         hr = reader->ReadSample(kVideoStream, 0, nullptr, &flags, &timestamp, &sample);
         if (FAILED(hr)) {
-            setError(L"目次の作成中にデコードに失敗しました", hr);
+            setError(L"Decoding failed while building the frame index", hr);
             return false;
         }
         if (flags & MF_SOURCE_READERF_ENDOFSTREAM) {
@@ -780,7 +780,7 @@ bool MediaFoundationSource::buildIndexByDecoding(const std::wstring& path) {
             samples.emplace_back(timestamp, true);
         }
     }
-    indexMethod_ = L"デコードして作成";
+    indexMethod_ = L"decoded the whole file";
     // デコードしたコマには、どれがキーフレームかの印が無い。全コマをキーフレーム候補にして、
     // シークのときに実際に読めた位置を確かめる(keyFramesUncertain_)。
     if (!setIndex(std::move(samples), true)) {
@@ -793,7 +793,7 @@ bool MediaFoundationSource::buildIndexByDecoding(const std::wstring& path) {
 
 bool MediaFoundationSource::setIndex(std::vector<std::pair<LONGLONG, bool>> samples, bool anyKeyFlag) {
     if (samples.empty()) {
-        setError(L"コマが1つもありません", E_FAIL);
+        setError(L"The video has no frames", E_FAIL);
         return false;
     }
     // 表示時刻の順に並べたものがコマ番号順になる。
@@ -834,10 +834,10 @@ bool MediaFoundationSource::setIndex(std::vector<std::pair<LONGLONG, bool>> samp
 }
 
 std::wstring MediaFoundationSource::description() const {
-    const wchar_t* decode = mode_ == Mode::GpuTexture    ? L"デコード: GPU(キャッシュもGPU)"
-                            : mode_ == Mode::GpuReadback ? L"デコード: GPU"
-                                                         : L"デコード: CPU";
-    return std::wstring(decode) + L" / 目次: " + indexMethod_ + L" / 色: " + describeColor(color_);
+    const wchar_t* decode = mode_ == Mode::GpuTexture    ? L"Decode: GPU (cache on GPU)"
+                            : mode_ == Mode::GpuReadback ? L"Decode: GPU"
+                                                         : L"Decode: CPU";
+    return std::wstring(decode) + L" / Index: " + indexMethod_ + L" / Color: " + describeColor(color_);
 }
 
 int MediaFoundationSource::keyFrameAtOrBefore(int index) const {
@@ -914,7 +914,7 @@ bool MediaFoundationSource::seekToKeyFrame(int keyIndex) {
     if (!keyFramesUncertain_) {
         const HRESULT hr = seekTo(keyIndex);
         if (FAILED(hr)) {
-            setError(L"読み込み位置を移動できません", hr);
+            setError(L"Cannot seek", hr);
             return false;
         }
         minimumIndex_ = keyIndex;
@@ -959,7 +959,7 @@ bool MediaFoundationSource::seekToKeyFrame(int keyIndex) {
             // 読み込み本体が使えなくなった(最後まで読んだ後のtsなど)。作り直す。作り直した本体は先頭から読む。
             if (++recreations > 3 || !createReader(path_, maxWidth_, mode_)) {
                 if (FAILED(hr)) {
-                    setError(L"読み込み位置を移動できません", hr);
+                    setError(L"Cannot seek", hr);
                 }
                 return false;
             }
@@ -990,7 +990,7 @@ bool MediaFoundationSource::updateFormat() {
         hr = MFGetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, &bufferWidth_, &bufferHeight_);
     }
     if (FAILED(hr) || bufferWidth_ == 0 || bufferHeight_ == 0) {
-        setError(L"映像の大きさを取得できません", FAILED(hr) ? hr : E_FAIL);
+        setError(L"Cannot get the video size", FAILED(hr) ? hr : E_FAIL);
         return false;
     }
     // デコーダーは途中で形式を変えることがある(10bitのVP9はNV12を求めても最初のコマからP010になる)。
@@ -998,7 +998,7 @@ bool MediaFoundationSource::updateFormat() {
     type->GetGUID(MF_MT_SUBTYPE, &subtype);
     if (subtype == MFVideoFormat_P010) {
         if (mode_ == Mode::GpuTexture && !gpu_->supportsP010()) {
-            setError(L"GPUのメモリに10bitのコマを置けません", E_FAIL);
+            setError(L"Cannot keep 10-bit frames in GPU memory", E_FAIL);
             return false;
         }
         layout_ = PixelLayout::P010;
@@ -1007,7 +1007,7 @@ bool MediaFoundationSource::updateFormat() {
     } else if (subtype == MFVideoFormat_YUY2) {
         layout_ = PixelLayout::Yuy2;
     } else {
-        setError(L"デコーダーの出力の形式に対応していません", MF_E_INVALIDMEDIATYPE);
+        setError(L"Unsupported decoder output format", MF_E_INVALIDMEDIATYPE);
         return false;
     }
 
@@ -1047,7 +1047,7 @@ bool MediaFoundationSource::updateFormat() {
     visible.right = visible.left + ((visible.right - visible.left) & ~1L);
     visible.bottom = visible.top + ((visible.bottom - visible.top) & ~1L);
     if (visible.right <= visible.left || visible.bottom <= visible.top) {
-        setError(L"映像が小さすぎます", E_FAIL);
+        setError(L"The video is too small", E_FAIL);
         return false;
     }
     visible_ = visible;
@@ -1125,7 +1125,7 @@ int MediaFoundationSource::readDecodedSample(ComPtr<IMFSample>& sample, int& ind
             continue;
         }
         if (FAILED(hr)) {
-            setError(L"コマの読み込みに失敗しました", hr);
+            setError(L"Failed to read a frame", hr);
             return -1;
         }
         if (flags & MF_SOURCE_READERF_ENDOFSTREAM) {
@@ -1207,7 +1207,7 @@ HRESULT MediaFoundationSource::readSampleWithTimeout(DWORD& flags, LONGLONG& tim
 bool MediaFoundationSource::recoverFromStall() {
     traceLog("decoder stalled (last=%d minimum=%d) recover %d", lastDelivered_, minimumIndex_, stallRecoveries_ + 1);
     if (++stallRecoveries_ > kMaxStallRecoveries) {
-        setError(L"デコーダーが応答しません", E_FAIL);
+        setError(L"The decoder is not responding", E_FAIL);
         return false;
     }
     // 止まった本体は解放せずに置き場へ移し(解放の中でも止まることがあるため)、新しく作って続きの位置へ移る。
@@ -1292,7 +1292,7 @@ bool MediaFoundationSource::copyFromStaging(PendingFrame& pending, Frame& out) {
     // 写し終わっていなければ、ここで完了を待つ。先読みしている分だけ待ち時間は短くなる。
     const HRESULT hr = context_->Map(pending.staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
     if (FAILED(hr)) {
-        setError(L"GPUからコマを読み出せません", hr);
+        setError(L"Cannot read the frame back from the GPU", hr);
         return false;
     }
     // NV12・P010のステージングは、明るさの面(テクスチャの高さ分の行)の直後に色の面が続く。
@@ -1311,7 +1311,7 @@ bool MediaFoundationSource::copyFromSample(IMFSample* sample, const RECT& visibl
     ComPtr<IMFMediaBuffer> buffer;
     HRESULT hr = sample->ConvertToContiguousBuffer(&buffer);
     if (FAILED(hr)) {
-        setError(L"コマのデータを取り出せません", hr);
+        setError(L"Cannot access the frame data", hr);
         return false;
     }
 
@@ -1327,14 +1327,14 @@ bool MediaFoundationSource::copyFromSample(IMFSample* sample, const RECT& visibl
         DWORD currentLength = 0;
         hr = buffer->Lock(&raw, &maxLength, &currentLength);
         if (FAILED(hr)) {
-            setError(L"コマのデータを読めません", hr);
+            setError(L"Cannot read the frame data", hr);
             return false;
         }
         scan0 = raw;
         pitch = defaultStride_;
     }
     if (pitch <= 0) {
-        setError(L"コマのデータの並びに対応していません", E_FAIL);
+        setError(L"Unsupported frame data layout", E_FAIL);
     } else {
         copyPlanes(scan0, scan0 + static_cast<std::size_t>(pitch) * bufferHeight_, pitch, visible, out);
     }
@@ -1401,7 +1401,7 @@ bool MediaFoundationSource::readNextFrame(Frame& out, int& index) {
         return true;
     }
     if (!reader_) {
-        error_ = L"デコーダーを閉じています(先に読み込み位置を移す必要があります)";
+        error_ = L"The decoder is closed (seek first)";
         return false;
     }
     if (mode_ == Mode::GpuTexture) {
@@ -1472,14 +1472,14 @@ bool MediaFoundationSource::copyToTexture(IMFSample* sample, Frame& out) {
         hr = dxgiBuffer->GetSubresourceIndex(&subresource);
     }
     if (FAILED(hr)) {
-        setError(L"GPU上のコマを取り出せません", hr);
+        setError(L"Cannot access the frame on the GPU", hr);
         return false;
     }
     D3D11_TEXTURE2D_DESC sourceDesc{};
     texture->GetDesc(&sourceDesc);
     const DXGI_FORMAT format = layout_ == PixelLayout::P010 ? DXGI_FORMAT_P010 : DXGI_FORMAT_NV12;
     if (sourceDesc.Format != format) {
-        setError(L"GPU上のコマがNV12・P010ではありません", E_FAIL);
+        setError(L"The GPU frame is not NV12 or P010", E_FAIL);
         return false;
     }
 
@@ -1508,7 +1508,7 @@ bool MediaFoundationSource::copyToTexture(IMFSample* sample, Frame& out) {
         desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         hr = gpu_->device()->CreateTexture2D(&desc, nullptr, &copy);
         if (FAILED(hr)) {
-            setError(L"GPUのメモリにコマを置けません", hr);
+            setError(L"Cannot keep the frame in GPU memory", hr);
             return false;
         }
         if (shrink) {
@@ -1535,7 +1535,7 @@ bool MediaFoundationSource::copyToTexture(IMFSample* sample, Frame& out) {
         const int targetHeight = std::max(2, static_cast<int>((static_cast<long long>(height) * targetWidth / width + 1) & ~1LL));
         if (!scaler_ || !scaler_->downscale(context_.Get(), copy.Get(), layout_, static_cast<int>(width),
                                             static_cast<int>(height), color_.siting, targetWidth, targetHeight, out)) {
-            setError(L"コマを縮小できません", E_FAIL);
+            setError(L"Cannot shrink the frame", E_FAIL);
             return false;
         }
         return true;

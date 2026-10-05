@@ -82,6 +82,10 @@ Chromaticities chromaticitiesOf(ColorPrimaries primaries) {
         return {0.680, 0.320, 0.265, 0.690, 0.150, 0.060, kD65x, kD65y};
     case ColorPrimaries::DciP3:
         return {0.680, 0.320, 0.265, 0.690, 0.150, 0.060, 0.314, 0.351};
+    case ColorPrimaries::AcesAp0:
+        return {0.7347, 0.2653, 0.0, 1.0, 0.0001, -0.077, 0.32168, 0.33767};
+    case ColorPrimaries::AcesAp1:
+        return {0.713, 0.293, 0.165, 0.830, 0.128, 0.044, 0.32168, 0.33767};
     case ColorPrimaries::Bt709:
     default:
         return {0.640, 0.330, 0.300, 0.600, 0.150, 0.060, kD65x, kD65y};
@@ -199,9 +203,9 @@ void lumaWeights(ColorMatrix matrix, double& kr, double& kb) {
 std::wstring marked(const wchar_t* name, ColorSource source) {
     std::wstring text = name;
     if (source == ColorSource::Guess) {
-        text += L"(推定)";
+        text += L" (guessed)";
     } else if (source == ColorSource::Manual) {
-        text += L"(手動)";
+        text += L" (manual)";
     }
     return text;
 }
@@ -342,21 +346,25 @@ const wchar_t* colorName(ColorMatrix value) {
 }
 
 const wchar_t* colorName(ColorRange value) {
-    return value == ColorRange::Full ? L"全範囲(0-255)" : L"映像用(16-235)";
+    return value == ColorRange::Full ? L"Full (0-255)" : L"Limited (16-235)";
 }
 
 const wchar_t* colorName(ColorPrimaries value) {
     switch (value) {
     case ColorPrimaries::Bt601_525:
-        return L"BT.601(525本)";
+        return L"BT.601 (525-line)";
     case ColorPrimaries::Bt601_625:
-        return L"BT.601(625本)";
+        return L"BT.601 (625-line)";
     case ColorPrimaries::Bt2020:
         return L"BT.2020";
     case ColorPrimaries::DisplayP3:
         return L"Display P3";
     case ColorPrimaries::DciP3:
         return L"DCI-P3";
+    case ColorPrimaries::AcesAp0:
+        return L"ACES(AP0)";
+    case ColorPrimaries::AcesAp1:
+        return L"ACEScg(AP1)";
     case ColorPrimaries::Bt709:
     default:
         return L"BT.709";
@@ -366,7 +374,7 @@ const wchar_t* colorName(ColorPrimaries value) {
 const wchar_t* colorName(TransferFunction value) {
     switch (value) {
     case TransferFunction::Linear:
-        return L"リニア";
+        return L"Linear";
     case TransferFunction::Pq:
         return L"HDR(PQ)";
     case TransferFunction::Hlg:
@@ -378,13 +386,18 @@ const wchar_t* colorName(TransferFunction value) {
 }
 
 std::wstring describeColor(const ColorInfo& info) {
-    std::wstring text = L"行列 " + marked(colorName(info.matrix), info.matrixSource);
-    text += L" / " + marked(colorName(info.range), info.rangeSource);
-    text += L" / 色域 " + marked(colorName(info.primaries), info.primariesSource);
+    std::wstring text;
+    if (info.rgb) {
+        text = L"RGB";  // 画像はRGBのままなので、YUVの行列・範囲は無い。
+    } else {
+        text = L"Matrix " + marked(colorName(info.matrix), info.matrixSource);
+        text += L" / " + marked(colorName(info.range), info.rangeSource);
+    }
+    text += L" / Primaries " + marked(colorName(info.primaries), info.primariesSource);
     text += L" / " + marked(colorName(info.transfer), info.transferSource);
     text += L" / " + std::to_wstring(info.bitDepth) + L"bit";
     if (info.isHdr() && info.maxContentNits > 0.0f) {
-        text += L" / 最大 " + std::to_wstring(static_cast<int>(info.maxContentNits + 0.5f)) + L"cd/m²";
+        text += L" / Peak " + std::to_wstring(static_cast<int>(info.maxContentNits + 0.5f)) + L"cd/m²";
     }
     return text;
 }

@@ -58,6 +58,9 @@ void Settings::load() {
     if (readDword(L"SyncPort", value) && value > 0 && value < 65536) {
         syncPort = static_cast<unsigned short>(value);
     }
+    if (readDword(L"SequenceFps", value) && value >= 1000 && value <= 1000000) {
+        sequenceFrameRate = value / 1000.0;
+    }
     if (readDword(L"ShowColorInfo", value)) {
         showColorInfo = value != 0;
     }
@@ -90,6 +93,10 @@ void Settings::saveAudio() const {
 
 void Settings::saveStartFrame() const {
     writeDword(L"StartFrame", static_cast<DWORD>(startFrame));
+}
+
+void Settings::saveSequenceFrameRate() const {
+    writeDword(L"SequenceFps", static_cast<DWORD>(sequenceFrameRate * 1000.0 + 0.5));
 }
 
 void Settings::saveShowColorInfo() const {

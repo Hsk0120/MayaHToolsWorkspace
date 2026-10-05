@@ -283,6 +283,17 @@ bool FrameRenderer::prepare(ID3D11DeviceContext* context, const std::shared_ptr<
             !createView(device_.Get(), texture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM, plane0)) {
             return false;
         }
+    } else if (frame->isRgba64()) {
+        // 16bit整数・半精度のRGBAは、そのままの形式のテクスチャにする(8bitに落とさない)。
+        const DXGI_FORMAT format =
+            frame->layout == PixelLayout::RgbaHalf ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R16G16B16A16_UNORM;
+        ComPtr<ID3D11Texture2D> texture;
+        if (frame->planes.size() < static_cast<std::size_t>(frame->width) * frame->height * 8 ||
+            !createPlane(device_.Get(), frame->width, frame->height, format, frame->planes.data(),
+                         static_cast<UINT>(frame->width) * 8, texture) ||
+            !createView(device_.Get(), texture.Get(), format, plane0)) {
+            return false;
+        }
     } else if (!frame->isYuv()) {
         ComPtr<ID3D11Texture2D> texture;
         if (frame->pixels.size() < static_cast<std::size_t>(frame->width) * frame->height ||
@@ -352,7 +363,11 @@ bool FrameRenderer::prepare(ID3D11DeviceContext* context, const std::shared_ptr<
     chromaOffset(color.siting, constants.chromaOffset[0], constants.chromaOffset[1]);
     constants.chromaSize[0] = static_cast<float>(frame->width / 2);
     constants.chromaSize[1] = static_cast<float>(frame->layout == PixelLayout::Yuy2 ? frame->height : frame->height / 2);
-    constants.isRgb = frame->layout == PixelLayout::Yuy2 ? 2 : frame->isYuv() ? 0 : 1;
+    // 0=NV12・P010、1=RGB(0〜1に切る)、2=YUY2、3=半精度のRGB(リニアなので1を超える値も残す)。
+    constants.isRgb = frame->layout == PixelLayout::Yuy2       ? 2
+                      : frame->layout == PixelLayout::RgbaHalf ? 3
+                      : frame->isYuv()                         ? 0
+                                                               : 1;
     writeConstants(context, &constants, sizeof(constants));
     ID3D11ShaderResourceView* views[] = {plane0.Get(), plane1.Get()};
     context->PSSetShaderResources(0, 2, views);

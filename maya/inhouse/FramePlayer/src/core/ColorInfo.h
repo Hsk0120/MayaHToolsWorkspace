@@ -21,6 +21,8 @@ enum class PixelLayout : std::uint8_t {
     Nv12,   ///< YUV 4:2:0の8bit(明るさの面と、縦横半分の色の面(UVの交互))。
     P010,   ///< YUV 4:2:0の10bit(NV12と同じ並びで、各値を16bitの上位10bitに持つ)。
     Yuy2,   ///< YUV 4:2:2の8bit(1行に「Y0 U Y1 V」が並ぶ。DVのデコーダーなどが出す)。
+    Rgba16,    ///< RGBAの各16bit整数(16bitの画像)。値は画像のまま(sRGBなど)。
+    RgbaHalf,  ///< RGBAの各16bit浮動小数点(EXRなど)。値はリニア。
 };
 
 /** @brief YUVからRGBへ戻す行列の種類。 */
@@ -46,6 +48,8 @@ enum class ColorPrimaries : std::uint8_t {
     Bt2020,     ///< BT.2020(UHD・HDR)。
     DisplayP3,  ///< P3の色域でD65の白(SMPTE EG 432-1)。
     DciP3,      ///< P3の色域でDCIの白(SMPTE RP 431-2。映画館)。
+    AcesAp0,    ///< ACES 2065-1(AP0。白はACESの白≒D60)。
+    AcesAp1,    ///< ACEScg・ACEScct(AP1。白はACESの白≒D60)。
 };
 
 /** @brief 伝達関数(信号と明るさの関係)。SDRの曲線どうしは表示で区別しないので1つにまとめる。 */
@@ -79,6 +83,7 @@ struct ColorInfo {
     ChromaSiting siting = ChromaSiting::Left;
     int bitDepth = 8;            ///< デコードした値のビット数(8または10)。
     float maxContentNits = 0.0f; ///< HDRの最大の明るさ(MaxCLL、無ければマスタリングの最大)。0なら不明。
+    bool rgb = false;            ///< RGBの画像(連番画像など)か。trueなら行列・範囲は使わない。
     ColorSource matrixSource = ColorSource::Guess;
     ColorSource rangeSource = ColorSource::Guess;
     ColorSource primariesSource = ColorSource::Guess;

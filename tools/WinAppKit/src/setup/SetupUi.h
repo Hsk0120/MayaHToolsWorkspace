@@ -36,6 +36,9 @@ struct DialogSpec {
 struct AssociationChoice {
     std::vector<std::wstring> extensions;  ///< 候補の拡張子。
     std::vector<bool> selected;            ///< 拡張子ごとに、関連付けるか(extensionsと同じ数)。
+    /// 拡張子ごとに、関連付けられるか(前提の拡張機能が入っているか。extensionsと同じ数。空ならすべて選べる)。
+    std::vector<bool> available;
+    std::wstring unavailableNote;          ///< 選べない拡張子があるときに、画面の下に出す説明。
     bool hasContextMenu = false;           ///< 右クリックの項目を出せるアプリか(出せなければ選択肢を出さない)。
     bool contextMenu = true;               ///< 右クリックに項目を出すか。
 };

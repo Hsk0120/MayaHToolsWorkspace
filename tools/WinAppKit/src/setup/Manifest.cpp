@@ -5,6 +5,7 @@
 #include "setup/Manifest.h"
 
 #include "setup/Common.h"
+#include "setup/Requirements.h"
 
 #include <shlobj.h>
 
@@ -14,6 +15,18 @@
 namespace wak {
 
 namespace {
+
+/**
+ * @brief 文字列を小文字にする(拡張子の比較用)。
+ * @param text 文字列。
+ * @return 小文字にした文字列。
+ */
+std::wstring toLowerText(std::wstring text) {
+    for (wchar_t& c : text) {
+        c = static_cast<wchar_t>(std::towlower(c));
+    }
+    return text;
+}
 
 /**
  * @brief 「yes/no」「1/0」「true/false」を読む。
@@ -128,7 +141,7 @@ bool Manifest::parse(const std::wstring& text, Manifest& manifest, std::wstring&
         }
         const std::size_t equal = line.find(L'=');
         if (equal == std::wstring::npos) {
-            error = L"" + std::to_wstring(lineNumber) + L"行目: 「名前=値」の形ではありません";
+            error = L"Line " + std::to_wstring(lineNumber) + L": not in the \"name=value\" form";
             return false;
         }
         const std::wstring key = trim(line.substr(0, equal));
@@ -159,6 +172,11 @@ bool Manifest::parse(const std::wstring& text, Manifest& manifest, std::wstring&
             else if (equalsIgnoreCase(key, L"Extensions")) manifest.extensions = split(value, L';');
             else if (equalsIgnoreCase(key, L"ContextMenu")) manifest.contextMenu = value;
             else if (equalsIgnoreCase(key, L"Optional")) manifest.fileTypesOptional = parseBool(value, true);
+            else if (key.size() > 8 && equalsIgnoreCase(key.substr(0, 8), L"Require.")) {
+                manifest.requirements[toLowerText(L"." + key.substr(8))] = value;
+            } else if (key.size() > 12 && equalsIgnoreCase(key.substr(0, 12), L"RequireNote.")) {
+                manifest.requirementNotes[toLowerText(L"." + key.substr(12))] = value;
+            }
         } else if (equalsIgnoreCase(section, L"UserData")) {
             if (equalsIgnoreCase(key, L"Registry")) manifest.userDataRegistry.push_back(value);
             else if (equalsIgnoreCase(key, L"Folder")) manifest.userDataFolders.push_back(backslashes(value));
@@ -167,7 +185,7 @@ bool Manifest::parse(const std::wstring& text, Manifest& manifest, std::wstring&
 
     // 必要な項目と、形の確認。
     if (!isIdentifier(manifest.id)) {
-        error = L"[App] Id は英数字と . _ - で書いてください(64文字まで)";
+        error = L"[App] Id must use letters, digits, and . _ - (up to 64 characters)";
         return false;
     }
     if (manifest.name.empty()) {
@@ -177,29 +195,43 @@ bool Manifest::parse(const std::wstring& text, Manifest& manifest, std::wstring&
         manifest.installDir = L"{LocalPrograms}\\" + manifest.id;
     }
     if (manifest.files.empty()) {
-        error = L"[Files] にインストールするファイルがありません";
+        error = L"[Files] lists no files to install";
         return false;
     }
     bool hasExecutable = false;
     for (const FileEntry& file : manifest.files) {
         if (!isSafeRelativePath(file.target)) {
-            error = L"[Files] の行き先は、インストール先からの相対パスで書いてください(.. は使えません): " + file.target;
+            error = L"[Files] targets must be relative to the install folder (.. is not allowed): " + file.target;
             return false;
         }
         hasExecutable = hasExecutable || equalsIgnoreCase(file.target, manifest.executable);
     }
     if (!hasExecutable) {
-        error = L"[App] Executable が [Files] の行き先にありません: " + manifest.executable;
+        error = L"[App] Executable is not one of the [Files] targets: " + manifest.executable;
         return false;
     }
     if (!manifest.progId.empty()) {
         if (!isIdentifier(manifest.progId) || manifest.extensions.empty()) {
-            error = L"[FileTypes] ProgId(英数字と . _ -)と Extensions(.mp4;.mov の形)を書いてください";
+            error = L"[FileTypes] needs ProgId (letters, digits, and . _ -) and Extensions (like .mp4;.mov)";
             return false;
         }
         for (const std::wstring& extension : manifest.extensions) {
             if (extension.size() < 2 || extension[0] != L'.' || !isIdentifier(extension.substr(1))) {
-                error = L"[FileTypes] Extensions は「.mp4;.mov」の形で書いてください: " + extension;
+                error = L"[FileTypes] Extensions must look like \".mp4;.mov\": " + extension;
+                return false;
+            }
+        }
+        for (const auto& [extension, expression] : manifest.requirements) {
+            bool listed = false;
+            for (const std::wstring& candidate : manifest.extensions) {
+                listed = listed || equalsIgnoreCase(candidate, extension);
+            }
+            if (!listed) {
+                error = L"[FileTypes] Require names an extension that is not in Extensions: " + extension;
+                return false;
+            }
+            if (!isValidRequirement(expression)) {
+                error = L"[FileTypes] Require" + extension + L" is not valid: " + expression;
                 return false;
             }
         }
@@ -239,6 +271,12 @@ std::wstring Manifest::serialize() const {
         put(L"Extensions", joined);
         put(L"ContextMenu", contextMenu);
         put(L"Optional", fileTypesOptional ? L"yes" : L"no");
+        for (const auto& [extension, expression] : requirements) {
+            put((L"Require" + extension).c_str(), expression);
+        }
+        for (const auto& [extension, note] : requirementNotes) {
+            put((L"RequireNote" + extension).c_str(), note);
+        }
     }
     text += L"[UserData]\r\n";
     for (const std::wstring& key : userDataRegistry) {

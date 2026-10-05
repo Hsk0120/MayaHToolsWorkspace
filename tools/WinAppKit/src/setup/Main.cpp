@@ -25,6 +25,7 @@
 #include "setup/Common.h"
 #include "setup/Installer.h"
 #include "setup/Package.h"
+#include "setup/Requirements.h"
 #include "setup/SetupUi.h"
 
 // コモンコントロールの新しい版(6)を使う。タスクダイアログはこの版にしか無い。
@@ -48,6 +49,7 @@ struct Arguments {
     bool noFileTypes = false;    ///< --no-file-types: 関連付けをしない。
     std::wstring extensions;     ///< --extensions: 関連付ける拡張子(「.mp4;.mov」の形)。省くと前回の選択かすべて。
     bool noContextMenu = false;  ///< --no-context-menu: 右クリックに項目を出さない。
+    bool checkFileTypes = false; ///< --check-file-types: 関連付けの前提条件を調べて標準出力へ書くだけ(確認用)。
     bool removeData = false;     ///< --remove-data: アンインストールでデータも消す。
     bool tempCopy = false;       ///< --temp-copy: 一時フォルダへ写した自分として動いている(アンインストール)。
     DWORD waitPid = 0;           ///< --wait-pid: このプロセスが終わるのを待ってから始める。
@@ -91,6 +93,40 @@ private:
 };
 
 /**
+ * @brief 拡張子を小文字にする(前提条件の表を引くため)。
+ * @param extension 拡張子。
+ * @return 小文字にした拡張子。
+ */
+std::wstring toLowerExtension(std::wstring extension) {
+    for (wchar_t& c : extension) {
+        c = static_cast<wchar_t>(towlower(c));
+    }
+    return extension;
+}
+
+/**
+ * @brief 関連付けの前提条件を調べ、拡張子ごとの結果を標準出力へUTF-8で書く(確認用の --check-file-types)。
+ * @param manifest アプリの説明。
+ * @return 終了コード(常に0)。
+ */
+int checkFileTypes(const wak::Manifest& manifest) {
+    std::string text;
+    for (const std::wstring& extension : manifest.extensions) {
+        const auto rule = manifest.requirements.find(toLowerExtension(extension));
+        std::wstring missing;
+        const bool ok = rule == manifest.requirements.end() || wak::meetsRequirement(extension, rule->second, missing);
+        std::wstring line = extension + (ok ? L"\tOK" : L"\tNG\t" + missing) + L"\n";
+        const int size = WideCharToMultiByte(CP_UTF8, 0, line.c_str(), static_cast<int>(line.size()), nullptr, 0, nullptr, nullptr);
+        std::string utf8(static_cast<std::size_t>(size), '\0');
+        WideCharToMultiByte(CP_UTF8, 0, line.c_str(), static_cast<int>(line.size()), utf8.data(), size, nullptr, nullptr);
+        text += utf8;
+    }
+    DWORD written = 0;
+    WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
+    return 0;
+}
+
+/**
  * @brief コマンドラインを読む。
  * @param args 読んだ指定の格納先。
  * @return 正しく読めたらtrue。
@@ -117,6 +153,7 @@ bool parseArguments(Arguments& args) {
         else if (arg == L"--no-file-types") args.noFileTypes = true;
         else if (arg == L"--extensions") next(args.extensions);
         else if (arg == L"--no-context-menu") args.noContextMenu = true;
+        else if (arg == L"--check-file-types") args.checkFileTypes = true;
         else if (arg == L"--remove-data") args.removeData = true;
         else if (arg == L"--temp-copy") args.tempCopy = true;
         else if (arg == L"--wait-pid") {
@@ -167,14 +204,14 @@ bool loadEmbeddedPackage(wak::Manifest& manifest, std::vector<wak::PackageFile>&
  * @param silent 画面を出さないか。
  */
 void showError(const std::wstring& title, const std::wstring& message, bool silent) {
-    wak::logLine(L"エラー: %ls", message.c_str());
+    wak::logLine(L"Error: %ls", message.c_str());
     if (silent) {
         return;
     }
     wak::DialogSpec spec;
     spec.title = title;
-    spec.instruction = L"うまくいきませんでした";
-    spec.content = message + L"\n\n詳しい記録: " + wak::logPath();
+    spec.instruction = L"Something went wrong";
+    spec.content = message + L"\n\nLog: " + wak::logPath();
     spec.closeButton = true;
     spec.icon = wak::DialogIcon::Error;
     wak::showDialog(spec);
@@ -194,15 +231,15 @@ bool ensureAppsClosed(const std::vector<std::wstring>& files, const std::wstring
     }
     std::wstring names;
     for (const std::wstring& name : running) {
-        names += L"・" + name + L"\n";
+        names += L"- " + name + L"\n";
     }
-    wak::logLine(L"起動中のアプリ: %ls", names.c_str());
+    wak::logLine(L"Running applications: %ls", names.c_str());
     if (!silent) {
         wak::DialogSpec spec;
         spec.title = title;
-        spec.instruction = L"使用中のアプリを閉じてから続けます";
-        spec.content = names + L"\n「閉じて続ける」を押すと、このアプリを閉じます。";
-        spec.buttons = {{kCloseAppsButton, L"閉じて続ける"}};
+        spec.instruction = L"Close the running application to continue";
+        spec.content = names + L"\nClick \"Close and continue\" to close it.";
+        spec.buttons = {{kCloseAppsButton, L"Close and continue"}};
         spec.cancelButton = true;
         spec.icon = wak::DialogIcon::Warning;
         if (wak::showDialog(spec).button != kCloseAppsButton) {
@@ -210,7 +247,7 @@ bool ensureAppsClosed(const std::vector<std::wstring>& files, const std::wstring
         }
     }
     if (!wak::closeRunningApps(files)) {
-        showError(title, L"アプリを閉じられませんでした。手動で閉じてから、もう一度実行してください。", silent);
+        showError(title, L"The application could not be closed. Close it manually and run setup again.", silent);
         return false;
     }
     return true;
@@ -224,13 +261,13 @@ bool ensureAppsClosed(const std::vector<std::wstring>& files, const std::wstring
  * @return 終了コード。
  */
 int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::vector<wak::PackageFile>& files) {
-    const std::wstring title = manifest.name + L" セットアップ";
+    const std::wstring title = manifest.name + L" Setup";
     const wak::ExistingInstall existing = wak::findExistingInstall(manifest.id);
     std::wstring dir = !args.dir.empty() ? wak::fullPath(args.dir)
                        : existing.found  ? wak::fullPath(existing.dir)
                                          : wak::defaultInstallDir(manifest);
-    wak::logLine(L"%ls %ls  インストール先: %ls%ls", manifest.name.c_str(), manifest.version.c_str(), dir.c_str(),
-                 existing.found ? (L"  (更新。今の版 " + existing.version + L")").c_str() : L"");
+    wak::logLine(L"%ls %ls  install folder: %ls%ls", manifest.name.c_str(), manifest.version.c_str(), dir.c_str(),
+                 existing.found ? (L"  (update; installed version " + existing.version + L")").c_str() : L"");
 
     // 関連付けの初期値: 新しく入れるときはすべて。更新のときは前回の選択(記録から読む)。コマンドラインの指定が優先。
     const bool hasFileTypes = !manifest.progId.empty();
@@ -261,6 +298,28 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
     if (args.noFileTypes || !hasFileTypes) {
         choice.selected.assign(choice.extensions.size(), false);
     }
+    // 前提の拡張機能が入っていない拡張子は関連付けない(開けないファイルが FramePlayer で開くようにならないように)。
+    std::wstring unavailable;
+    for (std::size_t i = 0; i < choice.extensions.size(); ++i) {
+        bool available = true;
+        std::wstring missing;
+        const auto rule = manifest.requirements.find(toLowerExtension(choice.extensions[i]));
+        if (hasFileTypes && rule != manifest.requirements.end()) {
+            available = wak::meetsRequirement(choice.extensions[i], rule->second, missing);
+        }
+        choice.available.push_back(available);
+        if (!available) {
+            choice.selected[i] = false;
+            const auto note = manifest.requirementNotes.find(toLowerExtension(choice.extensions[i]));
+            const std::wstring need = note != manifest.requirementNotes.end() ? note->second : missing;
+            unavailable += L"\n" + choice.extensions[i] + L": " + need;
+            wak::logLine(L"Not associating %ls (requirement not met: %ls)", choice.extensions[i].c_str(), missing.c_str());
+        }
+    }
+    if (!unavailable.empty()) {
+        choice.unavailableNote = L"Grayed-out types need a Windows extension (available from the Microsoft Store) that is not installed. "
+                                 L"Install it and run setup again to select them." + unavailable;
+    }
     if (args.noContextMenu) {
         choice.contextMenu = false;
     }
@@ -277,13 +336,13 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
             }
         }
         if (count == 0) {
-            return std::wstring(L"関連付けしない");
+            return std::wstring(L"No file associations");
         }
         if (count > 4) {
-            text += L" ほか" + std::to_wstring(count - 4) + L"種類";
+            text += L" and " + std::to_wstring(count - 4) + L" more";
         }
         if (choice.hasContextMenu) {
-            text += choice.contextMenu ? L"(右クリックあり)" : L"(右クリックなし)";
+            text += choice.contextMenu ? L" (with right-click menu)" : L" (without right-click menu)";
         }
         return text;
     };
@@ -294,30 +353,30 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
             wak::DialogSpec spec;
             spec.title = title;
             if (!existing.found) {
-                spec.instruction = manifest.name + L" " + manifest.version + L" をインストールします";
+                spec.instruction = manifest.name + L" " + manifest.version + L" will be installed";
             } else if (existing.version == manifest.version) {
-                spec.instruction = manifest.name + L" " + manifest.version + L" を入れ直します";  // 同じ版の上書き(修復)。
+                spec.instruction = manifest.name + L" " + manifest.version + L" will be reinstalled";  // 同じ版の上書き(修復)。
             } else {
                 spec.instruction =
-                    manifest.name + L" を " + existing.version + L" から " + manifest.version + L" に更新します";
+                    manifest.name + L" will be updated from " + existing.version + L" to " + manifest.version;
             }
-            spec.content = L"このユーザーだけにインストールします(管理者の権限は要りません)。"
-                           L"設定の「アプリ」から、いつでもアンインストールできます。";
+            spec.content = L"Installs for the current user only (no administrator rights needed). "
+                           L"You can uninstall it at any time from Settings > Apps.";
             spec.commandLinks = true;
-            const wchar_t* action = !existing.found                         ? L"インストールする\n"
-                                    : existing.version == manifest.version ? L"入れ直す\n"
-                                                                            : L"更新する\n";
+            const wchar_t* action = !existing.found                         ? L"Install\n"
+                                    : existing.version == manifest.version ? L"Reinstall\n"
+                                                                            : L"Update\n";
             spec.buttons = {{kInstallButton, action + dir}};
             if (!existing.found) {
-                spec.buttons.push_back({kChangeDirButton, L"インストール先を変更する\nフォルダを選んで、その中に入れます"});
+                spec.buttons.push_back({kChangeDirButton, L"Change the install folder\nChoose a folder to install into"});
             }
             if (hasFileTypes && manifest.fileTypesOptional) {
-                spec.buttons.push_back({kAssociationsButton, L"ファイルの関連付けを変更する\n" + summary()});
+                spec.buttons.push_back({kAssociationsButton, L"Change file associations\n" + summary()});
             }
             spec.cancelButton = true;
             const wak::DialogResult result = wak::showDialog(spec);
             if (result.button == kChangeDirButton) {
-                const std::wstring chosen = wak::chooseFolder(L"インストール先のフォルダを選択", wak::parentPath(dir));
+                const std::wstring chosen = wak::chooseFolder(L"Select the Install Folder", wak::parentPath(dir));
                 if (!chosen.empty()) {
                     // 選んだフォルダの中に、アプリの名前のフォルダを作って入れる(選んだフォルダの中身を散らかさない)。
                     const std::wstring full = wak::fullPath(chosen);
@@ -331,7 +390,7 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
                 continue;
             }
             if (result.button != kInstallButton) {
-                wak::logLine(L"取り消されました");
+                wak::logLine(L"Canceled");
                 return 1;
             }
             break;
@@ -355,7 +414,7 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
         }
     }
     options.contextMenu = choice.contextMenu;
-    wak::logLine(L"関連付け: %ls", summary().c_str());
+    wak::logLine(L"File associations: %ls", summary().c_str());
     bool ok = false;
     auto work = [&](const std::function<void(int, const std::wstring&)>& progress) {
         ok = wak::install(manifest, files, options, progress, error);
@@ -363,7 +422,7 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
     if (args.silent) {
         work(nullptr);
     } else {
-        wak::runWithProgress(title, manifest.name + L" をインストールしています", work);
+        wak::runWithProgress(title, L"Installing " + manifest.name, work);
     }
     if (!ok) {
         showError(title, error, args.silent);
@@ -375,16 +434,16 @@ int runInstall(const Arguments& args, const wak::Manifest& manifest, const std::
         const std::wstring exePath = wak::joinPath(dir, manifest.executable);
         wak::DialogSpec spec;
         spec.title = title;
-        spec.instruction = existing.found ? L"更新しました" : L"インストールしました";
-        spec.content = L"スタートメニューの「" + manifest.name + L"」から起動できます。";
+        spec.instruction = existing.found ? L"Updated" : L"Installed";
+        spec.content = L"Start it from \"" + manifest.name + L"\" in the Start menu.";
         if (associated) {
             // 既定のアプリはWindowsの決まりで本人が選ぶ(アプリからは設定できない)ので、選び方を案内する。
-            spec.content += L"\n\nファイルをいつも " + manifest.name + L" で開くには、ファイルを右クリックして"
-                            L"「プログラムから開く」→「別のプログラムを選択」で " + manifest.name +
-                            L" を選び、「常に使う」を押してください。";
+            spec.content += L"\n\nTo always open files with " + manifest.name +
+                            L", right-click a file, choose \"Open with\" > \"Choose another app\", select " +
+                            manifest.name + L", and click \"Always\".";
         }
         spec.closeButton = true;
-        spec.verification = manifest.name + L" を起動する";
+        spec.verification = L"Launch " + manifest.name;
         spec.verificationChecked = false;  // 起動は本人が選んだときだけ(既定はオフ)。
         if (wak::showDialog(spec).verification) {
             ShellExecuteW(nullptr, L"open", exePath.c_str(), nullptr, wak::parentPath(exePath).c_str(), SW_SHOWNORMAL);
@@ -454,15 +513,15 @@ int runUninstall(const Arguments& args, const std::wstring& fallbackId) {
     const std::wstring installDir = wak::fullPath(args.dir.empty() ? wak::parentPath(selfPath()) : args.dir);
     wak::RecordInfo info;
     if (!wak::readRecordInfo(installDir, info)) {
-        showError(fallbackId + L" のアンインストール", L"インストールの記録が見つかりません: " + installDir, args.silent);
+        showError(fallbackId + L" Uninstall", L"The install record was not found: " + installDir, args.silent);
         return 2;
     }
-    const std::wstring title = info.name + L" のアンインストール";
+    const std::wstring title = info.name + L" Uninstall";
 
     // インストール先の中から動いているときは、一時フォルダへ写した自分に任せて終わる。
     if (!args.tempCopy) {
         if (!relaunchFromTemp(args, installDir, info.id)) {
-            showError(title, L"アンインストールを始められません: " + wak::errorText(GetLastError()), args.silent);
+            showError(title, L"Cannot start uninstalling: " + wak::errorText(GetLastError()), args.silent);
             return 2;
         }
         return 0;
@@ -478,17 +537,17 @@ int runUninstall(const Arguments& args, const std::wstring& fallbackId) {
     if (!args.silent) {
         wak::DialogSpec spec;
         spec.title = title;
-        spec.instruction = info.name + L" " + info.version + L" をアンインストールしますか?";
-        spec.content = L"インストール先:\n" + installDir;
-        spec.buttons = {{kUninstallButton, L"アンインストール"}};
+        spec.instruction = L"Uninstall " + info.name + L" " + info.version + L"?";
+        spec.content = L"Install folder:\n" + installDir;
+        spec.buttons = {{kUninstallButton, L"Uninstall"}};
         spec.cancelButton = true;
         if (info.hasUserData) {
-            spec.verification = L"設定などのデータも削除する";
+            spec.verification = L"Also delete settings and other data";
             spec.verificationChecked = removeData;
         }
         const wak::DialogResult result = wak::showDialog(spec);
         if (result.button != kUninstallButton) {
-            wak::logLine(L"取り消されました");
+            wak::logLine(L"Canceled");
             scheduleSelfDelete();
             return 1;
         }
@@ -510,8 +569,8 @@ int runUninstall(const Arguments& args, const std::wstring& fallbackId) {
     } else if (!args.silent) {
         wak::DialogSpec spec;
         spec.title = title;
-        spec.instruction = L"アンインストールしました";
-        spec.content = removeData ? L"設定などのデータも削除しました。" : L"設定などのデータは残してあります。";
+        spec.instruction = L"Uninstalled";
+        spec.content = removeData ? L"Settings and other data were also deleted." : L"Settings and other data were kept.";
         spec.closeButton = true;
         spec.icon = wak::DialogIcon::Information;
         wak::showDialog(spec);
@@ -537,7 +596,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     int result = 2;
     Arguments args;
     if (!parseArguments(args)) {
-        wak::logLine(L"使い方: WinAppSetup --build <アプリ.ini> --out <Setup.exe> / Setup.exe [/S] [--dir <フォルダ>] "
+        wak::logLine(L"Usage: WinAppSetup --build <app.ini> --out <Setup.exe> / Setup.exe [/S] [--dir <folder>] "
                      L"[--extensions .mp4;.mov] [--no-file-types] [--no-context-menu] / Uninstall.exe --uninstall [/S] [--remove-data]");
         result = 2;
     } else if (!args.buildManifest.empty()) {
@@ -554,17 +613,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         // 同じアプリのインストールとアンインストールが同時に動かないようにする(互いのファイルや登録を消し合わないため)。
         // アンインストールは、インストール先から一時フォルダへ写した方だけが作業するので、そちらで取る。
         AppLock lock;
-        const bool needsLock = !args.uninstall || args.tempCopy;
-        if (needsLock && !lock.acquire(id)) {
-            showError(id, L"同じアプリのセットアップかアンインストールが動いています。終わってから、もう一度実行してください。",
+        const bool needsLock = (!args.uninstall || args.tempCopy) && !args.checkFileTypes;
+        if (embedded && args.checkFileTypes) {
+            result = checkFileTypes(manifest);
+        } else if (needsLock && !lock.acquire(id)) {
+            showError(id, L"Setup or uninstall of the same application is already running. Try again after it finishes.",
                       args.silent);
             result = 2;
         } else if (args.uninstall) {
             result = runUninstall(args, id);
         } else if (!embedded) {
             showError(L"WinAppSetup",
-                      error.empty() ? L"これはセットアップを作るための本体です。\n"
-                                      L"WinAppSetup.exe --build <アプリ.ini> --out <Setup.exe> で、アプリのセットアップを作ってください。"
+                      error.empty() ? L"This is the tool for building setup programs.\n"
+                                      L"Use WinAppSetup.exe --build <app.ini> --out <Setup.exe> to build a setup for your application."
                                     : error,
                       args.silent);
             result = 2;

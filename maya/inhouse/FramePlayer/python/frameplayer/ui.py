@@ -109,14 +109,14 @@ def _update_status():
         return
     sync = frameplayer.current()
     if sync is not None and sync.connected:
-        text = "接続中 (ポート %d)%s" % (sync.port, "  FramePlayer再生中" if sync.player_playing else "")
+        text = "Connected (port %d)%s" % (sync.port, "  FramePlayer is playing" if sync.player_playing else "")
         color = (0.35, 0.6, 0.35)
     else:
-        text = "未接続"
+        text = "Not connected"
         color = (0.35, 0.35, 0.35)
     cmds.text(_controls["status"], edit=True, label=text, backgroundColor=color)
     connected = sync is not None and sync.connected
-    cmds.button(_controls["connect"], edit=True, label="切断" if connected else "接続")
+    cmds.button(_controls["connect"], edit=True, label="Disconnect" if connected else "Connect")
     cmds.button(_controls["play"], edit=True, enable=connected)
     cmds.button(_controls["stop"], edit=True, enable=connected)
 
@@ -201,26 +201,26 @@ def show():
             return WINDOW
         # このモジュールを読み込み直した(部品の一覧が空になった)ので、画面を作り直す。
         cmds.deleteUI(WINDOW)
-    cmds.window(WINDOW, title="FramePlayer連携", widthHeight=(320, 300), sizeable=True)
+    cmds.window(WINDOW, title="FramePlayer Sync", widthHeight=(320, 300), sizeable=True)
     cmds.columnLayout(adjustableColumn=True, rowSpacing=6, columnAttach=("both", 8))
-    _controls["status"] = cmds.text(label="未接続", height=24, backgroundColor=(0.35, 0.35, 0.35))
+    _controls["status"] = cmds.text(label="Not connected", height=24, backgroundColor=(0.35, 0.35, 0.35))
     cmds.rowLayout(numberOfColumns=2, adjustableColumn=1, columnAttach2=("both", "both"))
-    _controls["connect"] = cmds.button(label="接続", command=_toggle_connect)
-    cmds.button(label="FramePlayerを起動", command=_launch)
+    _controls["connect"] = cmds.button(label="Connect", command=_toggle_connect)
+    cmds.button(label="Launch FramePlayer", command=_launch)
     cmds.setParent("..")
 
     cmds.separator(style="in")
     cmds.rowLayout(numberOfColumns=2, columnWidth2=(150, 140))
-    cmds.text(label="ポート", align="left")
+    cmds.text(label="Port", align="left")
     _controls["port"] = cmds.intField(value=int(_load("port")), minValue=1, maxValue=65535,
                                       changeCommand=_apply_options)
     cmds.setParent("..")
     cmds.rowLayout(numberOfColumns=2, columnWidth2=(150, 140))
-    cmds.text(label="オフセット [f] (FramePlayer - Maya)", align="left")
+    cmds.text(label="Offset [f] (FramePlayer - Maya)", align="left")
     _controls["offset"] = cmds.intField(value=int(_load("offset")), changeCommand=_apply_options)
     cmds.setParent("..")
     cmds.rowLayout(numberOfColumns=2, columnWidth2=(150, 140))
-    cmds.text(label="倍率 (FramePlayer / Maya)", align="left")
+    cmds.text(label="Rate (FramePlayer / Maya)", align="left")
     _controls["multiplier"] = cmds.floatField(value=float(_load("multiplier")), minValue=0.001, precision=3,
                                               changeCommand=_apply_options)
     cmds.setParent("..")
@@ -228,13 +228,13 @@ def show():
                                               changeCommand=_apply_options)
     _controls["playerToMaya"] = cmds.checkBox(label="FramePlayer → Maya", value=bool(_load("playerToMaya")),
                                               changeCommand=_apply_options)
-    _controls["syncRange"] = cmds.checkBox(label="再生範囲も合わせる", value=bool(_load("syncRange")),
+    _controls["syncRange"] = cmds.checkBox(label="Sync the playback range", value=bool(_load("syncRange")),
                                            changeCommand=_apply_options)
 
     cmds.separator(style="in")
     cmds.rowLayout(numberOfColumns=2, adjustableColumn=1, columnAttach2=("both", "both"))
-    _controls["play"] = cmds.button(label="FramePlayerで再生", command=_play)
-    _controls["stop"] = cmds.button(label="停止", command=_stop)
+    _controls["play"] = cmds.button(label="Play in FramePlayer", command=_play)
+    _controls["stop"] = cmds.button(label="Stop", command=_stop)
     cmds.setParent("..")
     cmds.showWindow(WINDOW)
     _update_status()

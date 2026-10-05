@@ -4,10 +4,13 @@
  */
 #include "setup/SetupUi.h"
 
+#include "setup/Common.h"
+
 #include <commctrl.h>
 #include <shobjidl.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <thread>
@@ -263,6 +266,10 @@ INT_PTR CALLBACK associationProc(HWND dialog, UINT message, WPARAM wParam, LPARA
         choice = reinterpret_cast<AssociationChoice*>(lParam);
         for (std::size_t i = 0; i < choice->extensions.size(); ++i) {
             CheckDlgButton(dialog, kFirstExtensionId + static_cast<int>(i), choice->selected[i] ? BST_CHECKED : BST_UNCHECKED);
+            if (!choice->available.empty() && !choice->available[i]) {
+                // 前提の拡張機能が入っていない拡張子は、選べないようにする(灰色)。
+                EnableWindow(GetDlgItem(dialog, kFirstExtensionId + static_cast<int>(i)), FALSE);
+            }
         }
         CheckDlgButton(dialog, kContextMenuId, choice->contextMenu ? BST_CHECKED : BST_UNCHECKED);
         updateAssociationControls(dialog, *choice);
@@ -271,8 +278,9 @@ INT_PTR CALLBACK associationProc(HWND dialog, UINT message, WPARAM wParam, LPARA
         const int id = LOWORD(wParam);
         if (id == kSelectAllId || id == kSelectNoneId) {
             for (std::size_t i = 0; i < choice->extensions.size(); ++i) {
+                const bool available = choice->available.empty() || choice->available[i];
                 CheckDlgButton(dialog, kFirstExtensionId + static_cast<int>(i),
-                               id == kSelectAllId ? BST_CHECKED : BST_UNCHECKED);
+                               id == kSelectAllId && available ? BST_CHECKED : BST_UNCHECKED);
             }
             updateAssociationControls(dialog, *choice);
             return TRUE;
@@ -313,12 +321,25 @@ bool chooseAssociations(const std::wstring& title, const std::wstring& appName, 
     short y = 8;
     const short gridTop = 34;
     const short afterGrid = static_cast<short>(gridTop + rows * 13 + 4);
-    const short contextTop = static_cast<short>(afterGrid + 20);
+    // 選べない拡張子の説明(あるときだけ)。行ごとに、半角を1・全角を2として幅を数え、折り返した行数を見積もる
+    // (ダイアログの単位で、半角1文字はおよそ4。幅254に半角で約60文字。余裕を見て56で折り返すとする)。
+    const bool hasNote = !choice.unavailableNote.empty();
+    int noteLines = 0;
+    for (const std::wstring& line : split(choice.unavailableNote, L'\n')) {
+        int units = 0;
+        for (wchar_t c : line) {
+            units += c < 0x0100 ? 1 : 2;
+        }
+        noteLines += std::max(1, (units + 55) / 56);
+    }
+    const short noteTop = static_cast<short>(afterGrid + 20);
+    const short noteHeight = hasNote ? static_cast<short>(noteLines * 9 + 2) : 0;
+    const short contextTop = static_cast<short>(noteTop + (hasNote ? noteHeight + 6 : 0));
     const short buttonsTop = static_cast<short>(contextTop + (choice.hasContextMenu ? 20 : 0));
     builder.begin(title, kWidth, static_cast<short>(buttonsTop + 22));
     builder.item(SS_LEFT, kMargin, y, kWidth - 2 * kMargin, 24, static_cast<WORD>(-1), kStatic,
-                 appName + L" で開くファイルの種類を選んでください。選んだ種類は「プログラムから開く」に " + appName +
-                     L" が出て、そこから既定のアプリにもできます。");
+                 L"Choose the file types to open with " + appName +
+                     L". They are added to \"Open with\", where you can also make it the default app.");
     for (std::size_t i = 0; i < choice.extensions.size(); ++i) {
         const short column = static_cast<short>(i % kExtensionColumns);
         const short row = static_cast<short>(i / kExtensionColumns);
@@ -326,14 +347,18 @@ bool chooseAssociations(const std::wstring& title, const std::wstring& appName, 
                      static_cast<short>(gridTop + row * 13), 58, 11, static_cast<WORD>(kFirstExtensionId + i), kButton,
                      choice.extensions[i]);
     }
-    builder.item(BS_PUSHBUTTON | WS_TABSTOP, kMargin + 4, afterGrid, 58, 14, kSelectAllId, kButton, L"すべて選択");
-    builder.item(BS_PUSHBUTTON | WS_TABSTOP, kMargin + 66, afterGrid, 58, 14, kSelectNoneId, kButton, L"すべて解除");
+    builder.item(BS_PUSHBUTTON | WS_TABSTOP, kMargin + 4, afterGrid, 58, 14, kSelectAllId, kButton, L"Select All");
+    builder.item(BS_PUSHBUTTON | WS_TABSTOP, kMargin + 66, afterGrid, 58, 14, kSelectNoneId, kButton, L"Clear All");
+    if (hasNote) {
+        builder.item(SS_LEFT, kMargin, noteTop, kWidth - 2 * kMargin, noteHeight, static_cast<WORD>(-1), kStatic,
+                     choice.unavailableNote);
+    }
     if (choice.hasContextMenu) {
         builder.item(BS_AUTOCHECKBOX | WS_TABSTOP, kMargin, contextTop, kWidth - 2 * kMargin, 11, kContextMenuId, kButton,
-                     L"右クリックに「" + appName + L"で開く」を追加する");
+                     L"Add \"Open with " + appName + L"\" to the right-click menu");
     }
-    builder.item(BS_DEFPUSHBUTTON | WS_TABSTOP, kWidth - kMargin - 50 - 4 - 50, buttonsTop, 50, 14, IDOK, kButton, L"決定");
-    builder.item(BS_PUSHBUTTON | WS_TABSTOP, kWidth - kMargin - 50, buttonsTop, 50, 14, IDCANCEL, kButton, L"キャンセル");
+    builder.item(BS_DEFPUSHBUTTON | WS_TABSTOP, kWidth - kMargin - 50 - 4 - 50, buttonsTop, 50, 14, IDOK, kButton, L"OK");
+    builder.item(BS_PUSHBUTTON | WS_TABSTOP, kWidth - kMargin - 50, buttonsTop, 50, 14, IDCANCEL, kButton, L"Cancel");
     AssociationChoice edited = choice;
     const INT_PTR result = DialogBoxIndirectParamW(GetModuleHandleW(nullptr), builder.get(), GetActiveWindow(),
                                                    &associationProc, reinterpret_cast<LPARAM>(&edited));

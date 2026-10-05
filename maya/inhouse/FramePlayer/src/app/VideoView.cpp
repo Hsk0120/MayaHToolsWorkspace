@@ -602,28 +602,28 @@ D2D1_COLOR_F VideoView::uiColor(const D2D1_COLOR_F& color) const {
 }
 
 std::wstring VideoView::colorInfoText(const ColorInfo& color, FrameRenderer::Output output) const {
-    std::wstring text = L"色: " + describeColor(color) + L"\n出力: ";
+    std::wstring text = L"Color: " + describeColor(color) + L"\nOutput: ";
     wchar_t buffer[160];
     switch (output) {
     case FrameRenderer::Output::Direct8:
-        text += L"値をそのまま(8bit)";
+        text += L"Values as-is (8-bit)";
         break;
     case FrameRenderer::Output::Encoded8:
-        text += L"画面に合わせて変換(8bit)";
+        text += L"Converted for the display (8-bit)";
         break;
     case FrameRenderer::Output::ScRgb:
     default:
         if (color.isHdr() && display_.hdr) {
-            text += L"HDRの画面へ明るさそのまま(scRGB)";
+            text += L"Absolute luminance to the HDR display (scRGB)";
         } else if (color.isHdr()) {
             const float peak = color.maxContentNits > 0.0f ? color.maxContentNits : 1000.0f;
-            std::swprintf(buffer, 160, L"SDRの画面に収める(最大%.0fcd/m²→基準の白203cd/m²、BT.2390)", peak);
+            std::swprintf(buffer, 160, L"Tone-mapped for SDR (peak %.0f cd/m² → reference white 203 cd/m², BT.2390)", peak);
             text += buffer;
         } else if (display_.hdr) {
-            std::swprintf(buffer, 160, L"HDRの画面のSDRの白(%.0fcd/m²)で(scRGB)", display_.sdrWhiteNits);
+            std::swprintf(buffer, 160, L"At the HDR display's SDR white (%.0f cd/m²) (scRGB)", display_.sdrWhiteNits);
             text += buffer;
         } else {
-            text += color.isPassThrough() ? L"値をそのまま(scRGB)" : L"色域をBT.709へ変換(scRGB)";
+            text += color.isPassThrough() ? L"Values as-is (scRGB)" : L"Primaries converted to BT.709 (scRGB)";
         }
         break;
     }
@@ -706,7 +706,7 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
     if (!panes[0].clip && textFormat_) {
         ComPtr<ID2D1SolidColorBrush> textBrush;
         context_->CreateSolidColorBrush(uiColor(kText), &textBrush);
-        static const wchar_t message[] = L"動画ファイルをドロップしてください";
+        static const wchar_t message[] = L"Drop a video or an image from a sequence here";
         context_->DrawText(message, static_cast<UINT32>(std::size(message) - 1), textFormat_.Get(), area,
                            textBrush.Get());
     } else {
@@ -718,15 +718,15 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
                 const std::wstring name = pane.clip ? fileNameOf(pane.clip->path()) : std::wstring();
                 const int count = pane.clip ? pane.clip->frameCount() : 0;
                 if (i == 0 && pane.outOfRange) {
-                    std::swprintf(text, 512, L"%ls   範囲外 / %d", name.c_str(), count - 1 + frameNumberStart_);
+                    std::swprintf(text, 512, L"%ls   out of range / %d", name.c_str(), count - 1 + frameNumberStart_);
                 } else if (i == 0) {
                     std::swprintf(text, 512, L"%ls   %d / %d", name.c_str(), pane.index + frameNumberStart_,
                                   count - 1 + frameNumberStart_);
                 } else if (pane.outOfRange) {
-                    std::swprintf(text, 512, L"%ls   範囲外 / %d   (オフセット %+df)", name.c_str(),
+                    std::swprintf(text, 512, L"%ls   out of range / %d   (offset %+df)", name.c_str(),
                                   count - 1 + frameNumberStart_, compareOffset);
                 } else {
-                    std::swprintf(text, 512, L"%ls   %d / %d   (オフセット %+df)", name.c_str(),
+                    std::swprintf(text, 512, L"%ls   %d / %d   (offset %+df)", name.c_str(),
                                   pane.index + frameNumberStart_, count - 1 + frameNumberStart_, compareOffset);
                 }
                 label = text;
@@ -772,7 +772,7 @@ std::wstring VideoView::outOfRangeDetail(const PaneState& pane, int shift) const
     }
     const long long first = static_cast<long long>(frameNumberStart_) + shift;
     wchar_t text[96];
-    std::swprintf(text, 96, L"動画は %lld〜%lld", first, first + pane.clip->frameCount() - 1);
+    std::swprintf(text, 96, L"Video: %lld-%lld", first, first + pane.clip->frameCount() - 1);
     return text;
 }
 
@@ -799,9 +799,10 @@ void VideoView::drawPaneText(const PaneState& pane, const D2D1_RECT_F& area, con
     ComPtr<ID2D1SolidColorBrush> boxBrush;
     context_->CreateSolidColorBrush(uiColor(kBox), &boxBrush);
     // 表示中のコマが無いときは、直前の画像の上に知らせを重ねる(別のコマをそのコマとして見せないため)。
-    const wchar_t* notice = pane.outOfRange ? L"範囲外"
-                            : pane.broken   ? L"このコマはデコードできません"
-                            : pane.loading  ? L"読み込み中…"
+    const wchar_t* notice = pane.outOfRange ? L"Out of range"
+                            : pane.missing  ? L"Missing frame (no image for this frame in the sequence)"
+                            : pane.broken   ? L"This frame cannot be decoded"
+                            : pane.loading  ? L"Loading…"
                                             : nullptr;
     if (notice && textFormat_) {
         const float cx = (area.left + area.right) / 2;
@@ -925,6 +926,7 @@ void VideoView::renderLoop() {
             pane.imageIndex = index;
             pane.loading = !pane.frame;
             pane.broken = pane.loading && compare->isBroken(index);
+            pane.missing = pane.broken && compare->isMissing(index);
             if (!pane.frame) {
                 choosePlaceholder(pane, compare, previous);
             }
@@ -989,6 +991,7 @@ void VideoView::renderLoop() {
                 panes[0].imageIndex = requested;
                 panes[0].loading = !panes[0].frame;
                 panes[0].broken = panes[0].loading && clip->isBroken(requested);
+                panes[0].missing = panes[0].broken && clip->isMissing(requested);
                 if (!panes[0].frame) {
                     choosePlaceholder(panes[0], clip.get(), drawn[0]);
                 }
@@ -1099,12 +1102,14 @@ void VideoView::renderLoop() {
         // 比較中は左右両方のコマがそろってから進める(片方だけ進んでずれて見えないように)。
         // 動画の外のコマは、待たずに「範囲外」として進める。
         const std::shared_ptr<const Frame> frame = targetInClip ? clip->frame(target) : nullptr;
-        const bool primaryReady = !targetInClip || frame;
+        // 読めないコマ(連番の欠けなど)は待たずに進め、直前の画像に知らせを重ねる。
+        const bool primaryBroken = targetInClip && !frame && clip->isBroken(target);
+        const bool primaryReady = !targetInClip || frame || primaryBroken;
         PaneState comparePaneState;
         bool compareReady = true;
         if (compare) {
             comparePaneState = comparePane(compare.get(), target, offset, drawn[1]);
-            compareReady = comparePaneState.outOfRange || !comparePaneState.loading;
+            compareReady = comparePaneState.outOfRange || !comparePaneState.loading || comparePaneState.broken;
         }
         const bool advance = primaryReady && compareReady && (target != shown || clip.get() != shownClip);
         if (advance) {
@@ -1118,12 +1123,20 @@ void VideoView::renderLoop() {
             shown = target;
             shownValid = true;
             shownClip = clip.get();
+            const PaneState previous = drawn[0];
             drawn[0] = PaneState{};
             drawn[0].clip = clip.get();
             drawn[0].frame = frame;
             drawn[0].index = target;
             drawn[0].imageIndex = targetInClip ? target : -1;
             drawn[0].outOfRange = !targetInClip;
+            if (primaryBroken) {
+                drawn[0].frame = previous.clip == clip.get() ? previous.frame : nullptr;
+                drawn[0].imageIndex = previous.imageIndex;
+                drawn[0].loading = true;
+                drawn[0].broken = true;
+                drawn[0].missing = clip->isMissing(target);
+            }
             drawn[1] = compare ? comparePaneState : PaneState{};
             current_ = target;
             notifyParent();

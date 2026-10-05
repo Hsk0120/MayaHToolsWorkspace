@@ -19,8 +19,10 @@
  * [FileTypes]
  * ProgId=FramePlayer.Video
  * Description=動画 (FramePlayer)
- * Extensions=.mp4;.mov
+ * Extensions=.mp4;.mov;.heic
  * ContextMenu=FramePlayerで開く
+ * Require.heic=wic+mfvideo:HEVC
+ * RequireNote.heic=HEIF画像拡張機能とHEVCビデオ拡張機能
  *
  * [UserData]
  * Registry=HKCU\Software\FramePlayer
@@ -29,6 +31,7 @@
  */
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -60,6 +63,10 @@ struct Manifest {
     std::vector<std::wstring> extensions;  ///< 拡張子(「.mp4」の形)。
     std::wstring contextMenu;              ///< 右クリックに出す文字(空なら右クリックには出さない)。
     bool fileTypesOptional = true;         ///< インストール時に関連付けをしないことも選べるか。
+    /// 拡張子(小文字の「.heic」の形)ごとの前提条件の式(Requirements.h)。満たさない拡張子は関連付けない。
+    std::map<std::wstring, std::wstring> requirements;
+    /// 前提条件を満たさないときに画面に出す、足りないものの説明(拡張機能の名前など)。
+    std::map<std::wstring, std::wstring> requirementNotes;
 
     std::vector<std::wstring> userDataRegistry;  ///< アンインストールで「データも削除」を選んだときに消すレジストリ。
     std::vector<std::wstring> userDataFolders;   ///< 同じく消すフォルダ(置き換え文字を含む)。

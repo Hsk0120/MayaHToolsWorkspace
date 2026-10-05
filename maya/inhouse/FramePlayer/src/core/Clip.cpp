@@ -42,7 +42,7 @@ std::size_t bytesOf(const Frame& frame) {
  */
 std::shared_ptr<const Frame> makeCached(Frame&& decoded, int maxWidth) {
     // GPUのコマはGPUで縮小済み、主メモリのYUVのコマは縮小しない(描画のときにRGBへ戻す)ので、そのまま持つ。
-    if (decoded.onGpu() || decoded.isYuv() || maxWidth <= 0 || decoded.width <= maxWidth) {
+    if (decoded.onGpu() || decoded.isYuv() || decoded.isRgba64() || maxWidth <= 0 || decoded.width <= maxWidth) {
         return std::make_shared<const Frame>(std::move(decoded));
     }
     return std::make_shared<const Frame>(shrinkToWidth(decoded, maxWidth));
@@ -84,13 +84,19 @@ bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cpuCacheByte
     notify_ = std::move(notify);
     frames_.assign(static_cast<std::size_t>(frameCount_), nullptr);
     broken_.assign(static_cast<std::size_t>(frameCount_), 0);
+    // 連番の欠けたコマは、読もうとしない(読めないコマとして扱う)。
+    for (int i = 0; i < frameCount_; ++i) {
+        if (source_->isMissing(i)) {
+            broken_[static_cast<std::size_t>(i)] = 1;
+        }
+    }
 
     // 先頭のコマをここで読み、1コマの大きさ(キャッシュに入るコマ数の計算に使う)を確定する。
     Frame decoded;
     int index = -1;
     try {
         if (!source_->readNext(decoded, index)) {
-            error = source_->error().empty() ? L"コマを読み込めません" : source_->error();
+            error = source_->error().empty() ? L"Cannot read the frame" : source_->error();
             return false;
         }
         std::shared_ptr<const Frame> first = makeCached(std::move(decoded), maxWidth_);
@@ -106,7 +112,7 @@ bool Clip::open(const std::wstring& path, int maxWidth, std::size_t cpuCacheByte
         std::lock_guard<std::mutex> lock(mutex_);
         storeLocked(index, std::move(first), released);
     } catch (const std::bad_alloc&) {
-        error = L"メモリが足りません";
+        error = L"Out of memory";
         return false;
     }
     firstDecodedNext_ = index + 1;
@@ -515,7 +521,7 @@ void Clip::workerLoop() {
                 color_ = cached->color;  // デコーダーが途中で色の情報を変えたときのため、最後のコマの解釈を覚える。
             } catch (const std::bad_alloc&) {
                 std::lock_guard<std::mutex> lock(mutex_);
-                error_ = L"メモリが足りません。キャッシュの上限を小さくしてください";
+                error_ = L"Out of memory. Please lower the cache limit.";
                 broken_[static_cast<std::size_t>(target)] = 1;
                 break;
             }

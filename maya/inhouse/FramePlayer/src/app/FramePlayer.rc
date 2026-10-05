@@ -27,7 +27,7 @@ BEGIN
         BEGIN
             VALUE "ProductName", "FramePlayer"
             VALUE "FileDescription", "FramePlayer"
-            VALUE "Comments", "コマ送りと2本の比較に特化した動画プレイヤー"
+            VALUE "Comments", "Video player for frame-by-frame review and side-by-side comparison"
             VALUE "FileVersion", FP_VERSION_TEXT
             VALUE "ProductVersion", FP_VERSION_TEXT
             VALUE "InternalName", "FramePlayer"

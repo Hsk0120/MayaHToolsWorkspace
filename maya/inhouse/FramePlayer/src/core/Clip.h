@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -206,6 +207,19 @@ public:
      * @return 例: 「デコード: GPU / 目次: mp4/movの目次」。
      */
     std::wstring description() const;
+
+    /**
+     * @brief 連番画像なら、最初のファイルの番号を返す(タイムラインの開始に使う)。
+     * @return 番号。動画なら空。
+     */
+    std::optional<int> firstFrameNumber() const { return source_ ? source_->firstFrameNumber() : std::nullopt; }
+
+    /**
+     * @brief コマのファイルが無い(連番の欠け)かを返す。描画スレッドからも呼べる。
+     * @param index コマ番号。
+     * @return 欠けていればtrue。
+     */
+    bool isMissing(int index) const { return source_ && source_->isMissing(index); }
 
     /**
      * @brief 動画の色の解釈(動画の指定・推定。手動の指定は含まない)を返す。

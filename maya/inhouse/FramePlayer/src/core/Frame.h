@@ -24,6 +24,7 @@ namespace frameplayer {
  *       - pixels: 主メモリのBGRA(Bgra8)。上の行から順に並び、行の間に余白はない。
  *       - planes: 主メモリのYUV(Nv12・P010)。明るさの面(幅×高さ)の後に色の面(幅×高さ/2)が続き、余白はない。
  *         Yuy2は1行に「Y0 U Y1 V」の4バイトが幅/2組並び、余白はない。
+ *         Rgba16・RgbaHalfは1画素にR・G・B・Aの16bitが4つ並び、余白はない。
  *       - texture: GPUのNV12・P010のテクスチャ(chromaがnullptrのとき)。
  *       - texture + chroma: GPUの明るさの面(R8・R16)と色の面(R8G8・R16G16)の別々のテクスチャ(縮小したコマ)。
  */
@@ -48,7 +49,15 @@ struct Frame {
      * @brief YUVのコマかを返す。
      * @return NV12・P010・YUY2ならtrue。
      */
-    bool isYuv() const { return layout != PixelLayout::Bgra8; }
+    bool isYuv() const {
+        return layout == PixelLayout::Nv12 || layout == PixelLayout::P010 || layout == PixelLayout::Yuy2;
+    }
+
+    /**
+     * @brief 1画素64bitのRGBAのコマかを返す。
+     * @return Rgba16・RgbaHalfならtrue(planesにRGBAの順で入る)。
+     */
+    bool isRgba64() const { return layout == PixelLayout::Rgba16 || layout == PixelLayout::RgbaHalf; }
 
     /**
      * @brief このコマが使うメモリのバイト数を返す(キャッシュの上限の計算に使う)。
@@ -63,6 +72,9 @@ struct Frame {
             return area * 3;
         case PixelLayout::Yuy2:
             return area * 2;
+        case PixelLayout::Rgba16:
+        case PixelLayout::RgbaHalf:
+            return area * 8;
         case PixelLayout::Bgra8:
         default:
             return area * 4;

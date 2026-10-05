@@ -33,7 +33,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     // Media FoundationはCOMを使うため、このスレッドでCOMを初期化しておく。
     const HRESULT comResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     if (FAILED(comResult)) {
-        MessageBoxW(nullptr, L"COMを初期化できません", L"FramePlayer", MB_OK | MB_ICONERROR);
+        MessageBoxW(nullptr, L"Cannot initialize COM.", L"FramePlayer", MB_OK | MB_ICONERROR);
         return 1;
     }
 
@@ -41,7 +41,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
     {
         frameplayer::PlayerWindow window;
         if (!window.create(instance, showCommand)) {
-            MessageBoxW(nullptr, L"ウィンドウを作成できません", L"FramePlayer", MB_OK | MB_ICONERROR);
+            MessageBoxW(nullptr, L"Cannot create the window.", L"FramePlayer", MB_OK | MB_ICONERROR);
             exitCode = 1;
         } else {
             // 引数: [動画] [比較する動画] [--sync]。--syncがあれば連携モードで始める(Mayaから起動したとき)。
