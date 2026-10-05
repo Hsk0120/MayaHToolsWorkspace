@@ -29,7 +29,7 @@ hrigの機能仕様・テスト方法・テストシーン・計測結果を掲�
 ### サイクル原因の調査
 
 `HTools > rigging > inspectCycles` から調査画面を開きます。全体・選択ノード・名前指定
-（例: `rig:joint1.translateX`、複数は空白区切り）を対象に「調査」を押します。
+（例: `rig:joint1.translateX`、複数は空白区切り）を対象に **Inspect** を押します。
 起動済みのMayaでメニューへ未反映の場合は、Script EditorのPythonで実行できます。
 
 ```python
@@ -38,13 +38,13 @@ inspectCycles.run()
 ```
 
 一覧の経路を選ぶと、Mayaの検出順、ノード型、検出アトリビュートの直接接続
-（接続元 → 接続先）、親子関係を表示します。「選択した経路のノードを選択」で
+（接続元 → 接続先）、親子関係を表示します。**Select Nodes in Selected Path** で
 Node Editor等の調査につなげられます。全結果はUTF-8テキストへ保存できます。
 調査は接続・値・評価時のサイクルチェック設定を変更しません。
 
 検出にはMayaの`cycleCheck`、対象解決・接続照会・ノード選択にはhlibを使用します。
 DAGを含む検索は既定で有効、検索上限は10秒です。大きいシーンは対象を絞るか
-「最初の完全なサイクルのみ」を使ってください。検出順は内部依存や部分経路も含み、
+**First complete cycle only** を使ってください。検出順は内部依存や部分経路も含み、
 表示した直接接続には経路外の接続も含まれます。結果は原因候補であり、自動修復はしません。
 検索上限で打ち切られたかを確実に判別できないため、0件でも問題なしとは断定できません。
 expressionの実行時依存やIK付きインスタンスには未検出・誤検出の制約があります。
@@ -53,8 +53,8 @@ expressionの実行時依存やIK付きインスタンスには未検出・誤�
 ### Aimの1〜2軸変換
 
 既存のaimConstraintノードを1つ選択し、`HTools > rigging > convertAimAxes`を開きます。
-「Eulerの等価解」「ヒンジ／2軸方向」「軸別Twist」の3方式を、X/Y/Z/XY/XZ/YZで比較できます。
-「変換／方式を切替」で適用し、「元のAim構造・設定へ戻す」で復元します。Undo/Redoにも対応します。
+Equivalent Euler solution・Hinge / 2-axis direction・Per-axis twist の3方式を、X/Y/Z/XY/XZ/YZで比較できます。
+**Convert / Switch Method** で適用し、**Restore Original Aim and Settings** で復元します。Undo/Redoにも対応します。
 復元時は変換・補正ノードを全て削除し、元Aimの設定値と直接接続へ戻します。
 未選択軸のAim接続は変換時の値へ固定します。元の接続サイクルを解消する機能ではありません。
 方式2の狙う方向は回転軸以外を指定してください（例：XY回転ならZ方向）。

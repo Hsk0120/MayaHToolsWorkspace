@@ -461,7 +461,7 @@ def _shortest_route(links, source, targets):
             if neighbor not in previous:
                 previous[neighbor] = current
                 queue.append(neighbor)
-    raise ValueError("形状の線分がつながっていません。")
+    raise ValueError("The shape segments are not connected.")
 
 
 def _trace_strokes(strokes, precision=6):
@@ -503,7 +503,7 @@ def _trace_strokes(strokes, precision=6):
                 segments.append(key)
     if not segments:
         if not vertices:
-            raise ValueError("形状に点がありません。")
+            raise ValueError("The shape has no points.")
         return [vertices[0], vertices[0]]
 
     links = [[] for _ in vertices]
@@ -545,7 +545,7 @@ def _trace_strokes(strokes, precision=6):
         stack.append(neighbor)
 
     if not all(used):
-        raise ValueError("形状の線分がつながっていません。")
+        raise ValueError("The shape segments are not connected.")
     walk.reverse()
     return [vertices[i] for i in walk]
 
@@ -1269,4 +1269,4 @@ def find_shape(name):
         for shape_name, func in get_shape_functions(section_class):
             if shape_name == name:
                 return func
-    raise KeyError(f"形状が見つかりません: {name}")
+    raise KeyError(f"Shape not found: {name}")

@@ -29,7 +29,7 @@ def main():
         ui.scan()
         assert ui.result is None
         assert cmds.button(ui.scan_button, query=True, enable=True)
-        assert cmds.text(ui.status, query=True, label=True) == "調査失敗"
+        assert cmds.text(ui.status, query=True, label=True) == "Inspection failed"
     # QtはHTools側の検証でだけ使用し、hlibには持ち込まない。
     import maya.OpenMayaUI as omui
     try:

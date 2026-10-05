@@ -57,10 +57,10 @@ def get_or_create_shading_engine(material):
         elif Node(mat_node).hasAttr('outValue'):
             getPlug(mat_node + '.outValue').connectTo(getPlug(sg + '.surfaceShader'), force=True, unlock=False)
         else:
-            cmds.warning(u'Info: {} に接続可能な出力属性が見つかりません。'.format(mat_short))
+            cmds.warning(u'Info: no connectable output attribute found on {}.'.format(mat_short))
             return None
     except Exception:
-        cmds.warning(u'Info: {} の shadingEngine 作成に失敗しました。'.format(mat_short))
+        cmds.warning(u'Info: failed to create a shadingEngine for {}.'.format(mat_short))
         return None
 
     return sg
@@ -81,7 +81,7 @@ def build_shape_mapping(src_mesh, dup_mesh):
 
     if len(src_shapes) != len(dup_shapes):
         cmds.warning(
-            u'Info: shape 数が一致しません。 {} -> {} ({} -> {})'.format(
+            u'Info: the number of shapes does not match. {} -> {} ({} -> {})'.format(
                 src_mesh,
                 dup_mesh,
                 len(src_shapes),
@@ -154,12 +154,12 @@ def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
             if not cmds.objExists(target_mat):
                 if target_mat not in warned_missing:
                     warned_missing.add(target_mat)
-                    cmds.warning(u'Info: {} が存在しないため割り当てを維持します。'.format(target_mat))
+                    cmds.warning(u'Info: {} does not exist, so the assignment is kept.'.format(target_mat))
                 continue
 
             target_sg = get_or_create_shading_engine(target_mat)
             if not target_sg:
-                cmds.warning(u'Info: {} の shadingEngine が見つかりません。'.format(target_mat))
+                cmds.warning(u'Info: shadingEngine for {} not found.'.format(target_mat))
                 continue
 
             members = cmds.sets(sg, q=True) or []
@@ -178,7 +178,7 @@ def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
                 try:
                     cmds.sets(dup_member, e=True, forceElement=target_sg)
                 except Exception:
-                    cmds.warning(u'Info: マテリアル適用に失敗しました。 {} -> {}'.format(dup_member, target_sg))
+                    cmds.warning(u'Info: failed to assign the material. {} -> {}'.format(dup_member, target_sg))
 
 
 def connect_visibility_attr(src_mesh, dup_mesh):
@@ -199,7 +199,7 @@ def connect_visibility_attr(src_mesh, dup_mesh):
     try:
         getPlug(src_attr).connectTo(getPlug(dup_attr), force=True, unlock=False)
     except Exception:
-        cmds.warning(u'Info: visibility の接続に失敗しました。 {} -> {}'.format(src_mesh, dup_mesh))
+        cmds.warning(u'Info: failed to connect visibility. {} -> {}'.format(src_mesh, dup_mesh))
 
 
 def get_selected_mesh_transforms():
@@ -219,7 +219,7 @@ def get_selected_mesh_transforms():
 
         shapes = cmds.listRelatives(mesh, shapes=True, noIntermediate=True, fullPath=True) or []
         if not shapes or Node(shapes[0]).type() != 'mesh':
-            cmds.warning(u'Skip: {} はメッシュではありません。'.format(mesh))
+            cmds.warning(u'Skip: {} is not a mesh.'.format(mesh))
             continue
 
         if mesh in seen:
@@ -239,7 +239,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
     """
     meshes = get_selected_mesh_transforms()
     if not meshes:
-        cmds.error(u'スキニング済みメッシュを選択してください。')
+        cmds.error(u'Select skinned meshes.')
 
     results = []
 
@@ -247,13 +247,13 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
 
         src_skin = get_skin_cluster(mesh)
         if not src_skin:
-            cmds.warning(u'Skip: {} はスキニングされていません。'.format(mesh))
+            cmds.warning(u'Skip: {} is not skinned.'.format(mesh))
             continue
 
         # 元 skinCluster から influence を取得
         influences = [node.name() for node in Node(src_skin).influences()]
         if not influences:
-            cmds.warning(u'Skip: {} の influence が取得できません。'.format(mesh))
+            cmds.warning(u'Skip: could not get the influences of {}.'.format(mesh))
             continue
 
         # 複製名は接頭辞付きで生成する。
@@ -269,7 +269,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
             try:
                 dup = Node(dup).rename(target_name)
             except Exception:
-                cmds.warning(u'Info: {} の末尾 1 を除去できませんでした。'.format(dup_short_name))
+                cmds.warning(u'Info: could not remove the trailing 1 from {}.'.format(dup_short_name))
 
         # 複製元の visibility を複製先へ接続
         connect_visibility_attr(mesh, dup)
@@ -321,7 +321,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         cmds.select(results, r=True)
         print(u'Created: {}'.format(results))
     else:
-        cmds.warning(u'処理対象がありませんでした。')
+        cmds.warning(u'Nothing to process.')
 
 
 # 実行

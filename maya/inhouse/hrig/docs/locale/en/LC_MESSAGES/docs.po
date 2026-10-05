@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: hrig VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-05 08:38+0900\n"
+"POT-Creation-Date: 2026-10-05 09:24+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -31,23 +31,23 @@ msgstr "Operations"
 msgid "ジョイントではなく **aimConstraintノードを1つ選択** します。"
 msgstr "Select **one aimConstraint node**, not a joint."
 
-msgid "ツールを起動し、必要なら「選択したaimConstraintを読み込む」を押します。"
-msgstr "Launch the tool, and press \"Load Selected aimConstraint\" if necessary."
+msgid "ツールを起動し、必要なら\\ **Load Selected aimConstraint**\\ を押します。"
+msgstr "Launch the tool, and press **Load Selected aimConstraint** if necessary."
 
-msgid "方式1/2/3と出力軸（X・Y・Z・XY・XZ・YZ）を選び、「生成ノードをコンテナ化する」を設定します。"
-msgstr "Choose the method (1/2/3) and output axis (X, Y, Z, XY, XZ, YZ), and set \"Wrap generated nodes in a container\"."
+msgid "方式1/2/3と出力軸（X・Y・Z・XY・XZ・YZ）を選び、\\ **Put generated nodes in a container** を設定します。"
+msgstr "Choose the method (1/2/3) and output axis (X, Y, Z, XY, XZ, YZ), and set **Put generated nodes in a container**."
 
-msgid "「変換／方式を切替」を押します。対象が動くので、ターゲットを動かして比較します。"
-msgstr "Press \"Convert/Change Mode\". The target will move, so move the target and compare."
+msgid "**Convert / Switch Method** を押します。対象が動くので、ターゲットを動かして比較します。"
+msgstr "Press the **Convert / Switch Method** button. Since the target moves, move the target and compare."
 
 msgid "別方式を選んで同じボタンを押すと、元の接続へ戻してから新しい方式を構築します。"
 msgstr "If you select a different method and press the same button, it will restore the original connection and then build the new method."
 
-msgid "「元のAim構造・設定へ戻す」で、変換と補正の所有ノードを全て削除し、 元のaimConstraintからの直接接続と設定値を復元します。"
-msgstr "\"Revert to Original Aim Structure/Settings\" removes all nodes owned by the conversion and correction, and restores the direct connection and setting values from the original aimConstraint."
+msgid "**Restore Original Aim and Settings** で、変換と補正の所有ノードを全て削除し、 元のaimConstraintからの直接接続と設定値を復元します。"
+msgstr "**Restore Original Aim and Settings** removes all conversion and correction nodes, and restores the direct connection and settings from the original aimConstraint."
 
-msgid "変換・切替・復元はそれぞれ1回のUndo/Redoに対応します。 画面は自動更新しません。「結果を再確認」で現在フレームの値と診断を表示します。 メニューに未反映のセッションでは、Pythonで開けます。"
-msgstr "Each conversion, switching, and restoration corresponds to a single Undo/Redo operation. The screen will not update automatically. \"Review Results\" displays the current frame's values and diagnostics. In sessions where menu changes are not yet reflected, you can open them with Python."
+msgid "変換・切替・復元はそれぞれ1回のUndo/Redoに対応します。 画面は自動更新しません。\\ **Refresh Result** で現在フレームの値と診断を表示します。 メニューに未反映のセッションでは、Pythonで開けます。"
+msgstr "Each conversion, switching, and restoration corresponds to a single Undo/Redo operation. The screen will not update automatically. Use **Refresh Result** to display the current frame's value and diagnostics. In menus where changes have not yet been applied, you can open them with Python."
 
 msgid "方式の違い"
 msgstr "Differences in approaches"
@@ -106,8 +106,8 @@ msgstr "During restore, the original Aim's driven axes are reconnected directly,
 msgid "選択軸には変換出力を接続します。未選択軸の元Aim接続は外し、変換時の値に固定します。 未選択軸にある他の入力は維持します。選択軸に別の入力がある場合は変換を拒否します。 ロック・参照ノード、複数の直接出力対象、pairBlendやunitConversionを介する間接接続は未対応です。"
 msgstr "For the selected axes, connect the transformation outputs. Remove the original Aim connections of unselected axes and fix their values at the transformation time. Other inputs on unselected axes are preserved. If another input exists on a selected axis, the transformation is denied. Lock reference nodes, multiple direct output targets, and indirect connections via pairBlend or unitConversion are not supported."
 
-msgid "「生成ノードをコンテナ化する」は初期状態でオンです。 オンでは生成物を専用containerが所有し、元Aimと対象は所有下へ入れません。 オフではcontainerを残さず、演算ノードから対象の回転へ直接接続します。 ScalarGraphへ生成関数を渡すため、構築途中にも一時containerを作りません。 復元情報と生成ノードのmessage接続は専用networkノードに保存します。 どちらも再読込・方式切替・元Aimへの復元に対応し、チェックを変更して再変換すると構成を切り替えられます。 Pythonでは ``AimAxisConversion.create(..., use_container=False)`` で直接接続を選択できます。 message接続で参照するため改名・シーン保存読込後も復元できます。 変換後に対象への入力接続を手編集した場合、別の接続を壊さないよう復元を拒否します。 生成ノード・管理ノードの設定は手編集せず、画面から方式を切り替えてください。"
-msgstr "\"Encapsulate Generated Nodes into a Container\" is enabled by default. When enabled, the generated nodes are owned by a dedicated container, and neither the source Aim nor the target will be placed under ownership. When disabled, no container is retained, and the computation nodes are directly connected to the target's rotation. Since the generation function is passed to ScalarGraph, no temporary containers are created during construction. The restore information and message connections of the generated nodes are saved in a dedicated network node. Both methods support reloading, switching modes, and restoration to the original Aim; changing the check and re-converting allows switching the configuration. In Python, ``AimAxisConversion.create(..., use_container=False)`` can be used to directly select connection. Since it uses message connections, restoration is possible even after renaming or saving/loading the scene. If the input connection to the target is manually edited after conversion, restoration will be denied to avoid breaking other connections. Do not manually edit the settings of generated nodes or management nodes; instead, switch modes from the interface."
+msgid "**Put generated nodes in a container** は初期状態でオンです。 オンでは生成物を専用containerが所有し、元Aimと対象は所有下へ入れません。 オフではcontainerを残さず、演算ノードから対象の回転へ直接接続します。 ScalarGraphへ生成関数を渡すため、構築途中にも一時containerを作りません。 復元情報と生成ノードのmessage接続は専用networkノードに保存します。 どちらも再読込・方式切替・元Aimへの復元に対応し、チェックを変更して再変換すると構成を切り替えられます。 Pythonでは ``AimAxisConversion.create(..., use_container=False)`` で直接接続を選択できます。 message接続で参照するため改名・シーン保存読込後も復元できます。 変換後に対象への入力接続を手編集した場合、別の接続を壊さないよう復元を拒否します。 生成ノード・管理ノードの設定は手編集せず、画面から方式を切り替えてください。"
+msgstr "**Put generated nodes in a container** is enabled by default. When enabled, the generated objects are owned by a dedicated container, and the original Aim and target are not placed under ownership. When disabled, no container is retained, and the calculation nodes are directly connected to the target's rotation. Since the generation function is passed to ScalarGraph, no temporary container is created during construction. The restore information and message connections of the generated nodes are saved in a dedicated network node. Both methods support reloading, switching modes, and restoration to the original Aim; changing the check and re-converting allows switching the configuration. In Python, ``AimAxisConversion.create(..., use_container=False)`` can be used to select direct connection. Since references are made via message connections, restoration is possible even after renaming or saving and reloading the scene. If the input connection to the target is manually edited after conversion, restoration will be rejected to avoid breaking other connections. Do not manually edit the settings of generated nodes or management nodes; instead, switch modes from the interface."
 
 msgid "元の循環接続やWorld Upの特異点は解消しません。前フレームの記憶・多回転の蓄積・ ±180度をまたぐアンラップも行いません。方式2・3の特異点では計算角を0にして ``valid=0`` とします。姿勢維持を指定した場合はその固定加算値が残ります。 Rotate Order変更時も ``valid=0`` になるため、再変換してください。"
 msgstr "The original cyclic connections and World Up singularities are not resolved. It does not store the previous frame, accumulate multiple rotations, or unwrap across ±180 degrees. In cases of singularities in methods 2 and 3, the calculated angle is set to 0 as ``valid=0``. If posture maintenance is specified, the fixed additive value remains. The same applies when changing Rotate Order, resulting in ``valid=0``, so please reconvert."

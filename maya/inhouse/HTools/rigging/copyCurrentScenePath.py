@@ -15,12 +15,12 @@ def copy_current_scene_path():
     scene = Scene()
     scene_path = scene.path.as_posix() if scene.path is not None else ''
     if not scene_path:
-        cmds.warning("シーンが未保存のため、パスがありません。")
+        cmds.warning("The scene has not been saved, so it has no path.")
         return
 
     app = QApplication.instance()
     if app is None:
-        cmds.warning("QApplication が取得できません。")
+        cmds.warning("Could not get the QApplication.")
         return
 
     # Maya から取得した絶対パスをそのままコピーする。

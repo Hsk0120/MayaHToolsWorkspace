@@ -56,7 +56,7 @@ def get_max_influences_from_selection(verbose=True):
     """
     sel = cmds.ls(sl=True, long=True) or []
     if not sel:
-        cmds.warning("オブジェクトが選択されていません。")
+        cmds.warning("No object is selected.")
         return {}
 
     results = {}  # {shape: {skinCluster: maxInf}}
@@ -65,14 +65,14 @@ def get_max_influences_from_selection(verbose=True):
         shapes = _get_renderable_mesh_shapes(dag)
         if not shapes:
             if verbose:
-                cmds.warning(f"メッシュ shape が見つかりません: {raw}")
+                cmds.warning(f"Mesh shape not found: {raw}")
             continue
 
         for shape in shapes:
             skins = _find_skin_clusters_from_shape(shape)
             if not skins:
                 if verbose:
-                    cmds.warning(f"skinCluster が見つかりません: {shape}")
+                    cmds.warning(f"skinCluster not found: {shape}")
                 continue
 
             # 1 shape に複数 skinCluster があるケースも全件収集する。
@@ -81,7 +81,7 @@ def get_max_influences_from_selection(verbose=True):
                     max_inf = Node(skin).plug('maxInfluences').get()
                 except Exception as e:
                     if verbose:
-                        cmds.warning(f"取得失敗: {skin}.maxInfluences ({e})")
+                        cmds.warning(f"Failed to get {skin}.maxInfluences ({e})")
                     continue
 
                 results.setdefault(shape, {})[skin] = max_inf

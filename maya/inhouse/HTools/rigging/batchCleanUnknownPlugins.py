@@ -80,11 +80,11 @@ def batch_clean_unknown_plugins(
     current_scene = cmds.file(q=True, sn=True)
     start_scene = root_scene_path or current_scene
     if not start_scene:
-        raise RuntimeError("root_scene_path が未指定で、現在シーンも未保存です。")
+        raise RuntimeError("root_scene_path is not specified and the current scene has not been saved.")
 
     start_scene = os.path.abspath(start_scene)
     if not os.path.exists(start_scene):
-        raise RuntimeError("開始シーンが見つかりません: {0}".format(start_scene))
+        raise RuntimeError("Start scene not found: {0}".format(start_scene))
 
     queue = deque([start_scene])
     visited = set()

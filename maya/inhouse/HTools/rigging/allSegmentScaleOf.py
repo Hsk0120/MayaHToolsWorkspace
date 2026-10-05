@@ -12,7 +12,7 @@ def main():
         if Node(j).hasAttr('segmentScaleCompensate'):
             Node(j).plug('segmentScaleCompensate').set(0)
 
-    print(u'{} 個のjointの segmentScaleCompensate をOFFにしました。'.format(len(joints)))
+    print(u'Turned off segmentScaleCompensate on {} joints.'.format(len(joints)))
 
 if __name__ == '__main__':
     main()

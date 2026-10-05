@@ -16,7 +16,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
     """
     sel = cmds.ls(sl=True, long=True) or []
     if len(sel) < 2:
-        raise RuntimeError('ノードを2つ選択してください。1つ目=元、2つ目=複製先')
+        raise RuntimeError('Select two nodes: first = source, second = destination.')
 
     src_node = sel[0]
     dst_node = sel[1]

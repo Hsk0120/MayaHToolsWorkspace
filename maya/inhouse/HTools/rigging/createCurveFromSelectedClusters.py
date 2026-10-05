@@ -51,7 +51,7 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
     # 選択順をそのままカーブ通過順として使う。
     selection = cmds.ls(sl=True, long=True) or []
     if not selection:
-        cmds.warning("クラスターを選択してください。")
+        cmds.warning("Select clusters.")
         return None
 
     cluster_handles = []
@@ -61,13 +61,13 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
         if handle_transform:
             cluster_handles.append(handle_transform)
         else:
-            cmds.warning(u"クラスターではないノードをスキップしました: {0}".format(node))
+            cmds.warning(u"Skipped a node that is not a cluster: {0}".format(node))
 
     # 選択順を維持したまま重複ハンドルだけを除去する。
     cluster_handles = list(dict.fromkeys(cluster_handles))
 
     if len(cluster_handles) < 2:
-        cmds.warning("2つ以上のクラスターが必要です。")
+        cmds.warning("Two or more clusters are required.")
         return None
 
     points = []

@@ -61,19 +61,19 @@ def run():
     """未登録の場所を確認して表示する。GUIでは Preferences を開くボタンも出す。"""
     pending = untrusted(workspace_plugin_locations())
     if not pending:
-        print("# ワークスペース内のプラグインの場所は、全て信頼済みに登録されています。")
+        print("# All plug-in locations in the workspace are registered as trusted.")
         return []
-    message = ("次のプラグインの場所は、まだ信頼済みに登録されていません。\n"
-               "初回ロード時に警告ダイアログが出て、Mayaが止まります。\n\n"
+    message = ("The following plug-in locations are not registered as trusted yet.\n"
+               "Maya shows a warning dialog and stops the first time they are loaded.\n\n"
                + "\n".join(pending)
-               + "\n\nPreferences > Security > Plug-ins の「My trusted plugin locations」へ追加するか、\n"
-               "警告ダイアログで「Apply to all plugins in this location」にチェックして Allow してください。")
+               + "\n\nAdd them to 'My trusted plugin locations' in Preferences > Security > Plug-ins,\n"
+               "or check 'Apply to all plugins in this location' in the warning dialog and click Allow.")
     print("# " + message.replace("\n", "\n# "))
     if not cmds.about(batch=True):
-        answer = cmds.confirmDialog(title="信頼済みプラグインの場所", message=message,
-                                    button=["Preferencesを開く", "閉じる"], defaultButton="閉じる",
-                                    cancelButton="閉じる", dismissString="閉じる")
-        if answer == "Preferencesを開く":
+        answer = cmds.confirmDialog(title="Trusted Plug-in Locations", message=message,
+                                    button=["Open Preferences", "Close"], defaultButton="Close",
+                                    cancelButton="Close", dismissString="Close")
+        if answer == "Open Preferences":
             import maya.mel as mel
             mel.eval("PreferencesWindow")
     return pending

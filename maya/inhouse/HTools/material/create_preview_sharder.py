@@ -26,12 +26,12 @@ def main():
 		"""選択ノードからシェーダーを1件取得します。"""
 		selection = cmds.ls(selection=True, long=False) or []
 		if not selection:
-			cmds.error("シェーダーを1つ選択してください。")
+			cmds.error("Select one shader.")
 
 		shader = selection[0]
 		shader_types = set(cmds.listNodeTypes("shader") or [])
 		if Node(shader).type() not in shader_types:
-			cmds.error("選択ノードはシェーダーではありません。")
+			cmds.error("The selected node is not a shader.")
 
 		return shader
 
@@ -39,7 +39,7 @@ def main():
 		"""`prv_` プレフィックス付き blinn を作成します。"""
 		preview_name = "prv_{0}".format(shader)
 		if cmds.objExists(preview_name):
-			cmds.error("同名ノードが既に存在します: {0}".format(preview_name))
+			cmds.error("A node with the same name already exists: {0}".format(preview_name))
 		preview_shader = hlib.createShader("blinn", name=preview_name).name()
 		Node(preview_shader).plug("eccentricity").set(0)
 		return preview_shader
@@ -70,7 +70,7 @@ def main():
 
 			if len(source_inputs) > 1:
 				cmds.warning(
-					"{0} には複数入力があります。先頭のみ接続しました。".format(
+					"{0} has multiple inputs. Only the first one was connected.".format(
 						source_plug
 					)
 				)
@@ -87,7 +87,7 @@ def main():
 
 		if not color_inputs:
 			cmds.warning(
-				"{0} に入力がないため transparency は接続しませんでした。".format(
+				"transparency was not connected because {0} has no input.".format(
 					color_plug
 				)
 			)
@@ -95,7 +95,7 @@ def main():
 
 		if len(color_inputs) > 1:
 			cmds.warning(
-				"{0} には複数入力があります。先頭のみ transparency に使用しました。".format(
+				"{0} has multiple inputs. Only the first one was used for transparency.".format(
 					color_plug
 				)
 			)
@@ -103,7 +103,7 @@ def main():
 		color_input_node = color_inputs[0].split(".", 1)[0]
 		if not cmds.objExists(color_input_node):
 			cmds.warning(
-				"{0} が存在しないため transparency は接続しませんでした。".format(
+				"transparency was not connected because {0} does not exist.".format(
 					color_input_node
 				)
 			)
@@ -111,7 +111,7 @@ def main():
 
 		if not Node(color_input_node).hasAttr("outTransparency"):
 			cmds.warning(
-				"{0}.outTransparency が無いため transparency は接続しませんでした。".format(
+				"transparency was not connected because {0}.outTransparency does not exist.".format(
 					color_input_node
 				)
 			)
@@ -131,7 +131,7 @@ def main():
 	transferred_count = transfer_input_connections(source_shader, preview_shader)
 
 	print(
-		"作成完了: {0} / 接続移植: {1}".format(
+		"Created: {0} / connections transferred: {1}".format(
 			preview_shader,
 			transferred_count,
 		)

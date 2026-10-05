@@ -88,7 +88,7 @@ def _restore_joint_liw(jnt, prev):
     if prev is None:
         return
     if not _set_joint_liw_safe(jnt, prev):
-        cmds.warning("liw 復元に失敗: %s" % jnt)
+        cmds.warning("Failed to restore liw: %s" % jnt)
 
 def _list_geo_vertices(geo):
     """ポリゴン頂点コンポーネント一覧を返します。"""
@@ -179,7 +179,7 @@ def lod_like_collapse_selected_joints(
     """
     sel = cmds.ls(sl=True, type='joint', long=True) or []
     if not sel:
-        cmds.warning("joint を選択してください。")
+        cmds.warning("Select joints.")
         return
 
     # 処理順は子→親が安全。
@@ -203,7 +203,7 @@ def lod_like_collapse_selected_joints(
 
         parent = _get_parent_joint(child)
         if not parent:
-            cmds.warning("親ジョイントが見つからないためスキップ: %s" % child)
+            cmds.warning("Skipped because the parent joint was not found: %s" % child)
             continue
 
         # child が入っている skinCluster を列挙
@@ -211,7 +211,7 @@ def lod_like_collapse_selected_joints(
         if not skinclusters:
             # スキンに使われていないジョイントは、指定要件的には “削除だけ” でも良いはずだが
             # 事故防止で警告してから削除
-            cmds.warning("skinCluster が見つからない（スキン未使用の可能性）: %s" % child)
+            cmds.warning("skinCluster not found (the joint may not be used for skinning): %s" % child)
             if reparent_children_to_parent:
                 _reparent_children(child, parent)
             if delete_joint:
@@ -243,7 +243,7 @@ def lod_like_collapse_selected_joints(
             try:
                 cmds.delete(child)
             except RuntimeError:
-                cmds.warning("削除に失敗: %s" % child)
+                cmds.warning("Failed to delete: %s" % child)
 
 
 # 実行例：

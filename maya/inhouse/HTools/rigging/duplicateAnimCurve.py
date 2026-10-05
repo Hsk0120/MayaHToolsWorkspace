@@ -150,7 +150,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
     """
     sels = cmds.ls(sl=True, long=True) or []
     if not sels:
-        cmds.warning("対象が選択されていません。")
+        cmds.warning("Nothing is selected.")
         return []
 
     results = []
@@ -163,7 +163,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
                     n = parents[0]
         except Exception:
             if verbose:
-                cmds.warning(f"スキップ: ノード解決失敗 -> {n}")
+                cmds.warning(f"Skip: could not resolve node -> {n}")
             continue
 
         rewired = 0
@@ -180,7 +180,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
             if not dst_anim:
                 skipped += 1
                 if verbose:
-                    cmds.warning(f"複製失敗（キー複製方式でもNG）: {src_anim} -> {dest_plug}")
+                    cmds.warning(f"Duplicate failed (also with the key copy method): {src_anim} -> {dest_plug}")
                 continue
 
             # 旧カーブの切断（想定: src_anim.output -> dest_plug）。
@@ -197,7 +197,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
             except Exception:
                 skipped += 1
                 if verbose:
-                    cmds.warning(f"接続失敗: {dst_anim}.output -> {dest_plug}（新規カーブ削除）")
+                    cmds.warning(f"Connection failed: {dst_anim}.output -> {dest_plug} (new curve deleted)")
                 try:
                     cmds.delete(dst_anim)
                 except Exception:

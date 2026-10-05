@@ -52,11 +52,11 @@ def _get_selected_face_and_curve():
     """
     sel = cmds.ls(sl=True, long=True) or []
     if not sel:
-        cmds.error("1つのフェースと1つのカーブを選択してください。")
+        cmds.error("Select one face and one curve.")
 
     faces = cmds.filterExpand(sel, sm=34) or []
     if not faces:
-        cmds.error("フェースが選択されていません。")
+        cmds.error("No face is selected.")
 
     curve_transform = None
     # 選択ノードまたはその shape から nurbsCurve を探索する。
@@ -77,7 +77,7 @@ def _get_selected_face_and_curve():
                 break
 
     if curve_transform is None:
-        cmds.error("カーブが選択されていません。")
+        cmds.error("No curve is selected.")
 
     return faces[0], curve_transform
 

@@ -13,10 +13,10 @@ from hlib.utils import logger
 
 _WINDOW = "HToolsInspectCycles"
 _LIMITATION = (
-    "検出順は実接続だけでなくノード内部の依存を含み、部分経路の場合もあります。\n"
-    "直接接続は切断候補の参考情報です。原因や安全な切断箇所を断定するものではありません。\n"
-    "時間制限時の結果は未完了の可能性があります。0件でもサイクルなしとは断定できません。\n"
-    "expressionの実行時依存は検出できない場合があり、IK付きインスタンスは誤検出の場合があります。"
+    "The detection order includes dependencies inside nodes, not only real connections, and may be a partial path.\n"
+    "Direct connections are only hints for where to cut. They do not identify the cause or a safe place to cut.\n"
+    "Results may be incomplete when the time limit is reached. Zero results do not prove there is no cycle.\n"
+    "Runtime dependencies of expressions may be missed, and instances with IK may be reported falsely."
 )
 
 
@@ -75,24 +75,24 @@ def formatReport(result, indices=None):
     Returns:
         str: コピー・保存できる調査レポート。
     """
-    lines = ["Maya サイクル調査", "対象: " + (", ".join(result["targets"]) if result["targets"] else "シーン全体"),
-             "DAG: {} / 上限: {}秒 / 検索: {:.3f}秒 / 最初のみ: {}".format(
+    lines = ["Maya cycle inspection", "Targets: " + (", ".join(result["targets"]) if result["targets"] else "entire scene"),
+             "DAG: {} / limit: {} s / search: {:.3f} s / first only: {}".format(
                  result["includeDag"], result["seconds"], result["elapsed"], result["firstOnly"]),
-             "検出経路: {}件".format(len(result["groups"])), "", _LIMITATION]
+             "Detected paths: {}".format(len(result["groups"])), "", _LIMITATION]
     if indices is None:
         indices = range(len(result["groups"]))
     for index in indices:
         group = result["groups"][index]
-        lines.extend(["", "=== 経路 {}（完全・部分経路） ===".format(index + 1), "検出順:"])
+        lines.extend(["", "=== Path {} (complete or partial) ===".format(index + 1), "Detection order:"])
         lines.extend("  {}. {}".format(i + 1, name) for i, name in enumerate(group["plugs"]))
-        lines.append("ノードと型:")
+        lines.append("Nodes and types:")
         lines.extend("  {} ({})".format(name, kind) for name, kind in group["nodes"].items())
-        lines.append("検出アトリビュートの直接接続（経路外への接続も含む）:")
+        lines.append("Direct connections of the detected attributes (including connections outside the path):")
         lines.extend("  {} -> {}".format(*pair) for pair in group["connections"])
-        lines.append("親子関係（親 -> 子。依存の成立は別途確認）:")
+        lines.append("Parent-child relationships (parent -> child; verify the dependency separately):")
         lines.extend("  {} -> {}".format(*pair) for pair in group["parents"])
         if group["errors"]:
-            lines.append("読み取り失敗（再調査してください）:")
+            lines.append("Read failures (inspect again):")
             lines.extend("  " + error for error in group["errors"])
     return "\n".join(lines)
 
@@ -105,23 +105,23 @@ class CycleInspector:
         self.result = None
         if cmds.window(_WINDOW, exists=True):
             cmds.deleteUI(_WINDOW)
-        self.window = cmds.window(_WINDOW, title="サイクル原因調査", widthHeight=(820, 760))
+        self.window = cmds.window(_WINDOW, title="Cycle Inspector", widthHeight=(820, 760))
         cmds.columnLayout(adjustableColumn=True, rowSpacing=6)
-        cmds.text(label="接続・親子関係を調査します。結果は調査時点の情報です。", align="left")
-        self.scope = cmds.radioButtonGrp(numberOfRadioButtons=3, label="対象",
-                                        labelArray3=["全体", "選択", "名前指定"], select=1)
-        self.target = cmds.textFieldGrp(label="ノード / アトリビュート", placeholderText="例: rig:joint1.translateX")
-        self.dag = cmds.checkBox(label="DAGの親子関係を含める", value=True)
-        self.first = cmds.checkBox(label="最初の完全なサイクルのみ", value=False)
-        self.seconds = cmds.floatFieldGrp(numberOfFields=1, label="検索上限（秒）", value1=10.0)
-        self.scan_button = cmds.button(label="調査", command=self.scan)
-        self.status = cmds.text(label="未調査", align="left")
+        cmds.text(label="Inspects connections and parent-child relationships. Results reflect the scene at inspection time.", align="left")
+        self.scope = cmds.radioButtonGrp(numberOfRadioButtons=3, label="Target",
+                                        labelArray3=["Scene", "Selection", "By name"], select=1)
+        self.target = cmds.textFieldGrp(label="Node / attribute", placeholderText="e.g. rig:joint1.translateX")
+        self.dag = cmds.checkBox(label="Include DAG parent-child relationships", value=True)
+        self.first = cmds.checkBox(label="First complete cycle only", value=False)
+        self.seconds = cmds.floatFieldGrp(numberOfFields=1, label="Search limit (s)", value1=10.0)
+        self.scan_button = cmds.button(label="Inspect", command=self.scan)
+        self.status = cmds.text(label="Not inspected", align="left")
         self.paths = cmds.textScrollList(height=130, allowMultiSelection=True,
                                         selectCommand=self.showDetails)
         cmds.rowLayout(numberOfColumns=3, adjustableColumn=1)
-        cmds.button(label="選択した経路のノードを選択", command=self.selectNodes)
-        cmds.button(label="全結果を表示", command=self.showAll)
-        cmds.button(label="全結果を保存…", command=self.saveReport)
+        cmds.button(label="Select Nodes in Selected Path", command=self.selectNodes)
+        cmds.button(label="Show All Results", command=self.showAll)
+        cmds.button(label="Save All Results…", command=self.saveReport)
         cmds.setParent("..")
         self.details = cmds.scrollField(editable=False, wordWrap=False, height=340, text=_LIMITATION)
         cmds.showWindow(self.window)
@@ -130,8 +130,8 @@ class CycleInspector:
         """UIの条件で調査し、古い結果を消してから新しい結果を表示する。"""
         self.result = None
         cmds.textScrollList(self.paths, edit=True, removeAll=True)
-        cmds.scrollField(self.details, edit=True, text="調査中…")
-        cmds.text(self.status, edit=True, label="調査中…")
+        cmds.scrollField(self.details, edit=True, text="Inspecting…")
+        cmds.text(self.status, edit=True, label="Inspecting…")
         cmds.button(self.scan_button, edit=True, enable=False)
         try:
             scope = cmds.radioButtonGrp(self.scope, query=True, select=True)
@@ -145,13 +145,13 @@ class CycleInspector:
                 cmds.floatFieldGrp(self.seconds, query=True, value1=True),
                 cmds.checkBox(self.first, query=True, value=True))
             for index, group in enumerate(self.result["groups"]):
-                cmds.textScrollList(self.paths, edit=True, append="{}: {} ノード / {}".format(
+                cmds.textScrollList(self.paths, edit=True, append="{}: {} nodes / {}".format(
                     index + 1, len(group["nodes"]), group["plugs"][0]))
-            cmds.text(self.status, edit=True, label="{} 経路を検出（時間制限あり・完全性は保証されません）".format(
+            cmds.text(self.status, edit=True, label="{} paths detected (time-limited; completeness is not guaranteed)".format(
                 len(self.result["groups"])))
             self.showAll()
         except (RuntimeError, ValueError, TypeError) as error:
-            cmds.text(self.status, edit=True, label="調査失敗")
+            cmds.text(self.status, edit=True, label="Inspection failed")
             cmds.scrollField(self.details, edit=True, text=str(error))
             logger.warning(str(error))
         finally:
@@ -172,7 +172,7 @@ class CycleInspector:
         """選択経路の現存ノードをhlibで解決して選択する。"""
         indices = cmds.textScrollList(self.paths, query=True, selectIndexedItem=True) or []
         if self.result is None or not indices:
-            logger.warning("一覧から調査する経路を選択してください。")
+            logger.warning("Select a path in the list.")
             return
         names = dict.fromkeys(name for i in indices for name in self.result["groups"][i - 1]["nodes"])
         nodes = []
@@ -180,23 +180,23 @@ class CycleInspector:
             try:
                 nodes.append(Node(name))
             except (RuntimeError, ValueError):
-                logger.warning("ノードが見つかりません。再調査してください: {}".format(name))
+                logger.warning("Node not found. Inspect again: {}".format(name))
         if nodes:
             hlib.select(nodes, replace=True)
 
     def saveReport(self, *_):
         """保存先を選び、全結果をUTF-8のテキストとして保存する。"""
         if self.result is None:
-            logger.warning("先に調査を実行してください。")
+            logger.warning("Run the inspection first.")
             return
-        paths = cmds.fileDialog2(fileMode=0, caption="サイクル調査レポートを保存", fileFilter="Text (*.txt)")
+        paths = cmds.fileDialog2(fileMode=0, caption="Save Cycle Inspection Report", fileFilter="Text (*.txt)")
         if paths:
             try:
                 with open(paths[0], "w", encoding="utf-8") as stream:
                     stream.write(formatReport(self.result))
-                logger.info("レポートを保存しました: {}".format(paths[0]))
+                logger.info("Saved the report: {}".format(paths[0]))
             except OSError as error:
-                logger.warning("保存できませんでした: {}".format(error))
+                logger.warning("Could not save: {}".format(error))
 
 
 def run():

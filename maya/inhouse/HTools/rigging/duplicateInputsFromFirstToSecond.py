@@ -15,7 +15,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
     sel = cmds.ls(sl=True, long=True) or []
     if source is None or target is None:
         if len(sel) < 2:
-            raise RuntimeError("ノードを2つ選択してください（1つ目=元、2つ目=先）。")
+            raise RuntimeError("Select two nodes (first = source, second = destination).")
         source, target = sel[0], sel[1]
 
     # source の「入力」コネクションを (srcPlug, dstPlug) ペアで取得
@@ -28,7 +28,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
     ) or []
 
     if not pairs:
-        cmds.warning("元ノードに入力コネクションが見つかりません。")
+        cmds.warning("No incoming connections found on the source node.")
         return
 
     connected = 0
@@ -50,8 +50,8 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
         connected += 1
 
     cmds.inViewMessage(
-        amg=f"入力複製 完了 : 接続 <hl>{connected}</hl> / "
-            f"スキップ <hl>{skipped}</hl> / 失敗 <hl>{failed}</hl>",
+        amg=f"Inputs duplicated: connected <hl>{connected}</hl> / "
+            f"skipped <hl>{skipped}</hl> / failed <hl>{failed}</hl>",
         pos="topCenter",
         fade=True
     )

@@ -119,7 +119,7 @@ def _bake_pbd_overlap_for_chain(
 ):
 	"""単一チェーンへ KawaiiPhysics コア相当の回転オーバーラップをベイクする。"""
 	if len(chain) < 2:
-		cmds.warning("{0}: 子が無いためスキップします。".format(chain[0]))
+		cmds.warning("{0}: skipped because it has no children.".format(chain[0]))
 		return 0
 
 	# root は入力アニメを維持し、子のみオーバーラップを焼き込む。
@@ -269,7 +269,7 @@ def create_pbd_overlap_rotation_bake(
 	"""
 	chain = _selected_chain_nodes()
 	if len(chain) < 2:
-		cmds.warning("transform/joint を2つ以上、根本→先端の順で選択してください。")
+		cmds.warning("Select two or more transforms/joints in order from root to tip.")
 		return {"processed_roots": 0, "baked_nodes": 0}
 
 	if start_frame is None:
@@ -278,7 +278,7 @@ def create_pbd_overlap_rotation_bake(
 		end_frame = int(cmds.playbackOptions(q=True, maxTime=True))
 
 	if end_frame < start_frame:
-		cmds.warning("終了フレームが開始フレームより前です。")
+		cmds.warning("The end frame is before the start frame.")
 		return {"processed_roots": 0, "baked_nodes": 0}
 
 	substeps = max(1, int(substeps))
@@ -297,7 +297,7 @@ def create_pbd_overlap_rotation_bake(
 	processed = 1
 
 	print(
-		"Kawaii-core overlap rotation bake 完了: roots={0}, bakedNodes={1}, range={2}-{3}, substeps={4}".format(
+		"Kawaii-core overlap rotation bake finished: roots={0}, bakedNodes={1}, range={2}-{3}, substeps={4}".format(
 			processed,
 			total_baked,
 			start_frame,
