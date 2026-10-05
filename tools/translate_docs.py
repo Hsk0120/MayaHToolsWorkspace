@@ -132,6 +132,35 @@ def fix_boundaries(text):
     return ''.join(result)
 
 
+#: 単語の末尾の _ のうち、後ろが空白・句読点・文末のもの(reStructuredText ではリンクの参照になる)。
+_TRAILING_UNDERSCORE = re.compile(r'(?<=[A-Za-z0-9])_(?=[\s.,;:!?)]|$)')
+
+
+def escape_references(source, translation):
+    """訳文で新しく参照の記法になってしまう ``word_`` の ``_`` を ``\\_`` にする。
+
+    日本語の原文では ``shelf_名前`` のように _ の後ろに文字が続くので参照にならないが、英訳で
+    ``shelf_ name`` となると参照になり、英語版のビルドがエラーになる。インラインのコードの中は変えない。
+
+    Args:
+        source (str): 原文。
+        translation (str): 訳文。
+
+    Returns:
+        str: 直した訳文。原文にも同じ参照がある場合は変えない。
+    """
+    if _TRAILING_UNDERSCORE.search(_PROTECTED.sub('', source)):
+        return translation  # 原文に参照がある(意図した参照)。
+    result = []
+    position = 0
+    for match in _PROTECTED.finditer(translation):
+        result.append(_TRAILING_UNDERSCORE.sub(r'\\_', translation[position:match.start()]))
+        result.append(match.group(0))
+        position = match.end()
+    result.append(_TRAILING_UNDERSCORE.sub(r'\\_', translation[position:]))
+    return ''.join(result)
+
+
 def valid(source, translation):
     """訳文が使えるか(記法が保たれ、日本語が残っていないか)。
 
@@ -228,7 +257,7 @@ def translate(model, source):
                                   ('「', '"'), ('」', '"'), ('　', ' ')):
             answer = answer.replace(japanese, english)
         answer = re.sub(r' {2,}', ' ', answer).strip()
-        translation = fix_boundaries(restore(answer, parts))
+        translation = escape_references(source, fix_boundaries(restore(answer, parts)))
         problem = valid(source, translation) if translation else 'placeholders changed'
         translation_for_retry = answer
         if not problem:
@@ -276,6 +305,8 @@ def load_catalog(path, template):
         if message.id and isinstance(message.string, str) and '\n' in message.string:
             # 段落の中の改行は空白にまとめる(改行の後の記号がリスト・見出しの記法に見えないように)。
             message.string = re.sub(r'\s*\n\s*', ' ', message.string)
+        if message.id and isinstance(message.string, str) and message.string:
+            message.string = escape_references(message.id, message.string)
     return catalog
 
 

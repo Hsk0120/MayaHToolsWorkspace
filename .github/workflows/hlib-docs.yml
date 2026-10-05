@@ -33,7 +33,10 @@ jobs:
       - name: Install documentation dependencies
         run: python -m pip install -r maya/inhouse/hlib/docs/requirements.txt
       - name: Build Sphinx documentation
-        run: python -m sphinx -E -a -b html -W --keep-going maya/inhouse/hlib/docs maya/inhouse/hlib/docs/_build/html
+        run: |
+          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/hlib/docs maya/inhouse/hlib/docs/_build/html
+          # 英語版(locale/en の .po の英訳。英訳は手元で tools/translate_docs.py が作る)。
+          python -m sphinx -E -a -b html -W --keep-going -D language=en maya/inhouse/hlib/docs maya/inhouse/hlib/docs/_build/html/en
       - name: Check pinned Mermaid in built HTML
         run: python tools/check_hlib_docs.py --check-directory maya/inhouse/hlib/docs/_build/html
       - name: Stamp build revision

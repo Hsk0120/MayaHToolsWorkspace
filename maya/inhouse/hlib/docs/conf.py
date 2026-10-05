@@ -64,7 +64,7 @@ autoapi_keep_files = False
 exclude_patterns = [
     "_build", "_templates", ".venv", "README.md", "_generated",
     "research", "*_research.rst", "*_survey.rst", "*_inventory.json",
-    "concept_classes.rst",
+    "concept_classes.rst", "locale",
 ]
 html_theme = "sphinxdoc"
 pygments_style = "one-dark"
@@ -84,6 +84,16 @@ html_js_files = [
     ("mermaid-init.js", {"defer": "defer"}),
 ]
 html_title = f"{_PACKAGE_NAME} ドキュメント"
+
+# ---- 英語版(gettext) ----
+# 本文と AutoAPI が docstring から作る文を locale/en/LC_MESSAGES/docs.po に取り出し、英訳して保存する
+# (英訳はユーザーが指示したときだけ tools/translate_docs.py で行う)。英語版は ``-D language=en`` でビルドし、
+# 公開サイトでは en/ に置く。訳の無い文は日本語のまま出る。
+locale_dirs = ["locale/"]
+gettext_compact = "docs"  # 全ページの文を1つの docs.po にまとめる。
+gettext_location = False  # 行番号を書かない(本文の行がずれても .po が変わらないように)。
+gettext_uuid = False
+templates_path = ["_templates"]  # 言語の切り替え(_templates/layout.html)。
 
 # hlib配下のクラス継承関係をast静的解析のみで集計する(hlib・Mayaをimportしない)。
 # 各クラスページの継承図(_templates/autoapi/python/class.rst)と、
@@ -210,7 +220,14 @@ def _adapt_package_name(app, docname, source):
     source[0] = "\n".join(after) + "\n"
 
 
+def _english_title(app, config):
+    """英語版のときだけ、ページの題名を英語にする(conf.py の値は .po の翻訳の対象外のため)。"""
+    if config.language == "en":
+        config.html_title = f"{_PACKAGE_NAME} documentation"
+
+
 def setup(app):
+    app.connect("config-inited", _english_title)
     app.connect("source-read", _adapt_package_name)
     app.connect("autoapi-skip-member", _include_constructors)
     app.connect("builder-inited", _write_generated_docs)
