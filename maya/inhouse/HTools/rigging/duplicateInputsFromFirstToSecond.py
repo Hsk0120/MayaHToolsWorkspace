@@ -46,7 +46,7 @@ def duplicate_all_inputs_from_first_to_second(source=None, target=None):
         print("dst_plug:", dst_plug)
 
 
-        hlib.getPlug(src_plug).connect(dst_plug, force=False)
+        hlib.getPlug(src_plug).connectTo(dst_plug, force=False)
         connected += 1
 
     cmds.inViewMessage(

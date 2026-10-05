@@ -103,10 +103,10 @@ class PerformanceContractsTest(unittest.TestCase):
 
     def assert_matrix(self, node):
         """対象インスタンスのworldMatrixとローカルmatrixの一致を確認する。"""
-        path = node.dagPath()
+        path = node.mpath()
         for ws, attr in ((True, "worldMatrix[%d]" % path.instanceNumber()), (False, "matrix")):
             expected = cmds.getAttr(path.fullPathName() + "." + attr)
-            for a, b in zip(node.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), expected):
+            for a, b in zip(node.getMatrix(ws=ws), expected):
                 self.assertAlmostEqual(a, b, places=8)
 
     def test_matrix_joint_and_transform_evaluation(self):
@@ -149,7 +149,7 @@ class PerformanceContractsTest(unittest.TestCase):
         first, second = hlib.getNode("|a|child"), hlib.getNode("|b|child")
         self.assert_matrix(first)
         self.assert_matrix(second)
-        self.assertNotEqual(list(first.getMatrix(space=MSpace.kWorld)), list(second.getMatrix(space=MSpace.kWorld)))
+        self.assertNotEqual(list(first.getMatrix(ws=True)), list(second.getMatrix(ws=True)))
         n = cmds.createNode("transform", name="single")
         node = hlib.getNode(n)
         n = cmds.rename(n, "renamed")
@@ -157,7 +157,7 @@ class PerformanceContractsTest(unittest.TestCase):
         self.assert_matrix(node)
         cmds.delete(node.fullName())
         with self.assertRaises(RuntimeError):
-            node.getMatrix(space=MSpace.kWorld)
+            node.getMatrix(ws=True)
         cmds.undo()
         self.assert_matrix(node)
 

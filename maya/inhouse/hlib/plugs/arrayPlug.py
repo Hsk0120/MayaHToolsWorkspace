@@ -4,6 +4,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.attributeType import is_internal_data_type
+from ..decorators._safe import safe_edit
 from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
 from .plug import Plug, _instance_count
@@ -50,10 +51,12 @@ class ArrayPlug(Plug):
         return {plug.mplug().logicalIndex(): plug.get() for plug in self.elements()}
 
     @fast_edit
-    def set(self, value, *, fast=False):
+    @safe_edit
+    def set(self, value, safe=False, *, fast=False):
         """array プラグへの直接の値設定を禁止する。
 
         Args:
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             fast (bool): Plug共通インターフェースの引数。値にかかわらず配列全体への設定を拒否する。
             value (object): 設定要求値。内容に関係なく拒否する。
 
@@ -154,22 +157,6 @@ class ArrayPlug(Plug):
             index += 1
         return index
 
-    @undoChunk("hlibArrayPlugAddElement")
-    def addElement(self):
-        """次の空きインデックス(nextAvailableIndex())へ要素への参照を返す。
-
-        通常は element(create=True) で実体化する。fast 更新の内部では値の書き込みまで
-        実体化を遅延する。
-
-        ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できないため
-        (:meth:`element` 参照)、返した要素へ接続するまでは、呼び出すたびに同じ
-        インデックスの要素プラグを返す。
-
-        Returns:
-            Plug: 要素プラグ。
-        """
-        return self.element(self.nextAvailableIndex(), create=True)
-
     @undoChunk("hlibArrayPlugRemoveElement")
     def removeElement(self, index):
         """指定した論理インデックスの要素を削除する。
@@ -198,9 +185,9 @@ class ArrayPlug(Plug):
         """
         result = {}
         for element in self.elements():
-            source = element.source()
+            source = element.sourceWithConversion()
             if source is not None:
-                result[element.mplug().logicalIndex()] = source.node
+                result[element.mplug().logicalIndex()] = source.node()
         return result
 
     @undoChunk("hlib.ArrayPlug.appendMessage")
@@ -221,7 +208,7 @@ class ArrayPlug(Plug):
         index = max(self._existing_indices(), default=-1) + 1
         if index > MAX_LOGICAL_INDEX:
             raise IndexError("Message array index limit reached")
-        Node(node).plug("message").connect(self._element_reference(index))
+        Node(node).plug("message").connectTo(self._element_reference(index))
         return index
 
     def _existing_indices(self):

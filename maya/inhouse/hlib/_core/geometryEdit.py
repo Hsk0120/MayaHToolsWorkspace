@@ -22,7 +22,7 @@ def geometry(shape, indices, edit=False):
         NotImplementedError: edit=True で周期カーブや入力履歴がある場合。
         RuntimeError: edit=True で対象がロックされている場合。
     """
-    path = shape.dagPath()
+    path = shape.mpath()
     mesh = path.node().hasFn(om.MFn.kMesh)
     fn = om.MFnMesh(path) if mesh else om.MFnNurbsCurve(path)
     if edit:

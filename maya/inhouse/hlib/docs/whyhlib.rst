@@ -14,13 +14,12 @@ hlibはPyMELに依存せず、独自のAPIを提供します。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    control = hlib.getNode("control")
    control.setTranslation((1, 2, 3))
    control.plug("visibility").set(True)
-   matrix = control.getMatrix(space=MSpace.kWorld)
+   matrix = control.getMatrix(ws=True)
 
 この例の ``control`` は既存のTransform名です。以下の作成例はMaya内で実行できます。
 hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリです。
@@ -196,7 +195,7 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
 単数クラスは1対象、複数形クラスは複数対象を扱います。
 
 **Mayaへの問い合わせはメソッド、保持する値はプロパティを基本とします。**
-例えば ``node.name()`` は現在の名前を問い合わせ、``plug.node`` は保持する所有ノード参照です。
+例えば ``node.name()`` は現在の名前を問い合わせ、``plug.node()`` は保持する所有ノード参照です。
 ``matrix`` や ``quaternion`` の成分を変更しても、取得元ノードへ自動反映されません。
 反映には ``setMatrix()`` や ``setRotation()`` を明示的に呼びます。
 
@@ -208,16 +207,15 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    source = hlib.createNode("transform", name="hlibDemo_source")
    target = hlib.createNode("transform", name="hlibDemo_target")
 
    source.setTranslation((1, 2, 3))
-   source.setScale((2, 2, 2))
+   source.setScaling((2, 2, 2))
    source.setOutlinerColor((0.3, 0.7, 1.0))
-   target.setMatrix(source.getMatrix(space=MSpace.kWorld), space=MSpace.kWorld)
+   target.setMatrix(source.getMatrix(ws=True), ws=True)
 
 .. list-table:: 便利な操作の例
    :header-rows: 1
@@ -245,10 +243,9 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    transforms = hlib.nodes.Transforms([source, target])
    transforms.setTranslation((0, 5, 0))
-   matrices = transforms.getMatrix(space=MSpace.kWorld)
+   matrices = transforms.getMatrix(ws=True)
 
 一括操作の戻り値と事前検証の範囲は各メソッドの仕様に従います。
 詳しくは :doc:`guide_nodes` と :doc:`modules` を参照してください。
@@ -261,14 +258,13 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    # 上の作成例で用意したsourceとtargetを使用
    translate_x = source.plug("tx")
    translate_x.set(10)
    value = translate_x.get()
 
-   source.plug("tx").connect(target.plug("tx"))
-   source.plug("tx").disconnect(target.plug("tx"))
+   source.plug("tx").connectTo(target.plug("tx"))
+   target.plug("tx").disconnect(source.plug("tx"))
 
    target.plug("visibility").set(False)
    target.plug("visibility").setFlags(locked=True)
@@ -296,7 +292,6 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    reference = hlib.createNode("transform", name="hlibDemo_reference")
@@ -304,12 +299,12 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
    reference.setTranslation((10, 0, 0))
    driven.setTranslation((12, 3, 0))
 
-   reference_world = reference.getMatrix(space=MSpace.kWorld)
-   driven_world = driven.getMatrix(space=MSpace.kWorld)
+   reference_world = reference.getMatrix(ws=True)
+   driven_world = driven.getMatrix(ws=True)
    relative = driven_world * reference_world.inverse()
 
    restored_world = relative * reference_world
-   driven.setMatrix(restored_world, space=MSpace.kWorld)
+   driven.setMatrix(restored_world, ws=True)
 
 ``*`` で行列積、``inverse()`` で逆行列を扱えます。
 逆行列を求める例では、ゼロスケールなどの特異な行列を避けてください。
@@ -322,7 +317,6 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    start = hlib.createNode("transform", name="hlibDemo_start")
@@ -330,10 +324,10 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
    result = hlib.createNode("transform", name="hlibDemo_result")
    end.setRotation((0, 90, 0), unit="deg")
 
-   q_start = start.getQuaternion(space=MSpace.kWorld)
-   q_end = end.getQuaternion(space=MSpace.kWorld)
+   q_start = start.getQuaternion(ws=True)
+   q_end = end.getQuaternion(ws=True)
    q_middle = q_start.slerp(q_end, 0.5)
-   result.setRotation(q_middle, space=MSpace.kWorld)
+   result.setRotation(q_middle, ws=True)
 
    rotation_matrix = q_middle.toMatrix()
 

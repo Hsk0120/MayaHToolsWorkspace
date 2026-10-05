@@ -21,7 +21,7 @@ class ControlRig:
             root (str | Node): モジュールルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.hasAttribute("hrigControlDefinition"):
+        if not self.root.hasAttr("hrigControlDefinition"):
             raise ValueError("Not a control module")
 
     @classmethod
@@ -40,23 +40,23 @@ class ControlRig:
         ]:
             raise ValueError("Use a unique module name")
         root = hlib.createNode("transform", name=name, skipSelect=True)
-        root.addAttribute(longName="hrigControlDefinition", dataType="string").set(
+        root.addAttr(longName="hrigControlDefinition", dataType="string").set(
             hlib.json.JsonText.dumps(dict(kind=kind))
         )
-        root.addAttribute(longName="lod", attributeType="enum", enumName="Low:Full", defaultValue=1)
-        root.addAttribute(longName="enabled", attributeType="bool", defaultValue=True)
+        root.addAttr(longName="lod", attributeType="enum", enumName="Low:Full", defaultValue=1)
+        root.addAttr(longName="enabled", attributeType="bool", defaultValue=True)
         root.setAttributeFlags(["lod", "enabled"], channelBox=True)
-        root.addAttribute(longName="angles", attributeType="doubleAngle", multi=True)
+        root.addAttr(longName="angles", attributeType="doubleAngle", multi=True)
         for attr in ("controls", "deform", "sources", "targets"):
-            root.addAttribute(longName=attr, attributeType="message", multi=True)
+            root.addAttr(longName=attr, attributeType="message", multi=True)
         for role in ("control", "deform", "layer"):
             node = hlib.createNode(
                 "transform", name=name + "_" + role + "_grp", parent=root, skipSelect=True
             )
-            root.addAttribute(longName=role + "Group", attributeType="message")
-            node.plug("message").connect(root.plug(role + "Group"))
-        root.addAttribute(longName="graph", attributeType="message")
-        hlib.nodes.Container.create(name=name + "_graph").plug("message").connect(
+            root.addAttr(longName=role + "Group", attributeType="message")
+            node.plug("message").connectTo(root.plug(role + "Group"))
+        root.addAttr(longName="graph", attributeType="message")
+        hlib.nodes.Container.create(name=name + "_graph").plug("message").connectTo(
             root.plug("graph")
         )
         return cls(root)
@@ -78,7 +78,7 @@ class ControlRig:
         Returns:
             Node: グループ。
         """
-        return self.root.plug(role + "Group").source().node
+        return self.root.plug(role + "Group").sourceWithConversion().node()
 
     def register(self, attr, node):
         """配列の末尾へ参照を保存する。
@@ -106,7 +106,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        hlib.nodes.Container(self.root.plug("graph").source().node).addMembers(node)
+        hlib.nodes.Container(self.root.plug("graph").sourceWithConversion().node()).addMembers(node)
 
     def joints(self):
         """変形骨とTweak骨を取得する。
@@ -177,11 +177,11 @@ class ControlRig:
                     else source.plug("constraintRotate" + axis)
                 )
                 destination = target.plug("rotate" + axis)
-                previous = destination.source()
+                previous = destination.sourceWithConversion()
                 if active and previous is None:
-                    output.connect(destination)
+                    output.connectTo(destination)
                 elif not active and previous is not None:
-                    previous.disconnect(destination)
+                    destination.disconnect(previous)
                     destination.set(0)
             source.plug("nodeState").setIfChanged(0 if active else 2)
         from .tweakLayer import TweakLayer
@@ -226,7 +226,7 @@ class ControlRig:
         if names:
             rig = cls(names[0])
             active = rig.lod() == 1 and rig.layer_enabled(rig.kind())
-            if any(bool(n.plug("rotateX").source()) != active for n in rig.members("targets")):
+            if any(bool(n.plug("rotateX").sourceWithConversion()) != active for n in rig.members("targets")):
                 rig.update()
 
     @undoTransaction("hrig.ControlRig.delete")
@@ -234,5 +234,5 @@ class ControlRig:
         """スキン未使用のモジュールを所有DGとともに削除する。"""
         if any(hlib.getNode(j).connections(type="skinCluster") for j in self.joints()):
             raise ValueError("Unbind before deleting")
-        hlib.delete(self.root.plug("graph").source().node)
+        hlib.delete(self.root.plug("graph").sourceWithConversion().node())
         hlib.delete(self.root)

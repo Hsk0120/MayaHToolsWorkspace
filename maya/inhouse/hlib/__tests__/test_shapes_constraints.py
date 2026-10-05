@@ -100,7 +100,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertEqual((mesh.numVertices(), mesh.numEdges(), mesh.numPolygons()), (8, 12, 6))
         local_x = mesh.getPoints()[0].x
         cmds.setAttr(cube.fullName() + '.translateX', 5)
-        self.assertAlmostEqual(mesh.getPoints(space=MSpace.kWorld)[0].x, local_x + 5)
+        self.assertAlmostEqual(mesh.getPoints(ws=True)[0].x, local_x + 5)
 
         curve = hlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0), (3, 4, 0)]))
         shape = curve.shape()
@@ -110,7 +110,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         cmds.setAttr(curve.fullName() + '.scaleX', 2)
         self.assertAlmostEqual(shape.length(), 7)
         cmds.setAttr(curve.fullName() + '.translateY', 2)
-        self.assertAlmostEqual(shape.cvPositions(space=MSpace.kWorld)[0].y, 2)
+        self.assertAlmostEqual(shape.cvPositions(ws=True)[0].y, 2)
         self.assertAlmostEqual(shape.cvPositions()[0].y, 0)
         with self.assertRaises(ValueError):
             shape.length(0)
@@ -125,7 +125,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.assertAlmostEqual(sum(c * c for c in (normal.x, normal.y, normal.z)) ** 0.5, 1.0, places=5)
 
         cmds.setAttr(cube.fullName() + '.rotateY', 90)
-        world_normals = mesh.getNormals(space=MSpace.kWorld)
+        world_normals = mesh.getNormals(ws=True)
         self.assertEqual(len(world_normals), mesh.numVertices())
         self.assertFalse(
             all(
@@ -306,7 +306,7 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def positions(self, shape, ws=False):
         """API の内部距離単位で形状の全位置を返す。"""
-        points = shape.getPoints(MSpace.kWorld if ws else MSpace.kObject) if isinstance(shape, hlib.nodes.Mesh) else shape.cvPositions(MSpace.kWorld if ws else MSpace.kObject)
+        points = shape.getPoints(ws) if isinstance(shape, hlib.nodes.Mesh) else shape.cvPositions(ws)
         return [tuple(point)[:3] for point in points]
 
     def assert_positions(self, actual, expected):
@@ -323,11 +323,11 @@ class ShapesConstraintsTest(unittest.TestCase):
                 for shape in self.mirror_shapes():
                     with self.subTest(shape=shape.type(), ws=ws, axes=axes):
                         before = self.positions(shape, ws)
-                        parent = shape.parentNode()
+                        parent = shape.parent()
                         matrix = cmds.xform(parent.fullName(), query=True, matrix=True, worldSpace=True)
                         selected = {'xyz'.index(a) for a in axes.lower()}
                         expected = [tuple(-v if i in selected else v for i, v in enumerate(p)) for p in before]
-                        self.assertIs(shape.mirror(axes, space=MSpace.kWorld if ws else MSpace.kObject), shape)
+                        self.assertIs(shape.mirror(axes, ws=ws), shape)
                         self.assert_positions(self.positions(shape, ws), expected)
                         self.assertEqual(cmds.xform(parent.fullName(), query=True, matrix=True, worldSpace=True), matrix)
 
@@ -340,7 +340,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         before = {shape.fullName(): self.positions(shape, True) for shape in shapes}
         matrix = cmds.xform(parent.fullName(), query=True, matrix=True, worldSpace=True)
 
-        self.assertIs(parent.mirrorGeometry(axis='x', space=MSpace.kWorld), parent)
+        self.assertIs(parent.mirrorGeometry(axis='x', ws=True), parent)
 
         mirrored_shapes = parent.shapes()
         self.assertEqual({shape.fullName() for shape in mirrored_shapes}, set(before))
@@ -362,7 +362,7 @@ class ShapesConstraintsTest(unittest.TestCase):
                     internal = pivot
                     expected = list(before)
                     expected[0] = (2 * internal[0] - before[0][0], before[0][1], 2 * internal[2] - before[0][2])
-                    shape.mirror('xz', space=MSpace.kWorld if ws else MSpace.kObject, pivot=pivot, indices=[0, 0])
+                    shape.mirror('xz', ws=ws, pivot=pivot, indices=[0, 0])
                     self.assert_positions(self.positions(shape, ws), expected)
         finally:
             cmds.currentUnit(linear=previous)
@@ -372,7 +372,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.skipTest('Undo is disabled in this Maya session')
         for shape in self.mirror_shapes():
             before = self.positions(shape, True)
-            shape.mirror('x', space=MSpace.kWorld)
+            shape.mirror('x', ws=True)
             after = self.positions(shape, True)
             cmds.undo()
             self.assert_positions(self.positions(shape, True), before)
@@ -383,7 +383,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         for shape in self.mirror_shapes():
             before = self.positions(shape)
             for kwargs, error in [({'axis': ''}, ValueError), ({'axis': 'xx'}, ValueError),
-                                  ({'axis': 'a'}, ValueError), ({'space': 'world'}, ValueError),
+                                  ({'axis': 'a'}, ValueError), ({'ws': 'world'}, ValueError),
                                   ({'pivot': (0, 1)}, ValueError), ({'pivot': (0, float('nan'), 0)}, ValueError),
                                   ({'indices': [0, -1]}, IndexError), ({'indices': [0, 10000]}, IndexError),
                                   ({'indices': [0, 1.2]}, TypeError)]:
@@ -392,9 +392,9 @@ class ShapesConstraintsTest(unittest.TestCase):
                 self.assert_positions(self.positions(shape), before)
             self.assertIs(shape.mirror(indices=[]), shape)
             self.assert_positions(self.positions(shape), before)
-            cmds.setAttr(shape.parentNode().fullName() + '.scaleX', 0)
+            cmds.setAttr(shape.parent().fullName() + '.scaleX', 0)
             with self.assertRaises(ValueError):
-                shape.mirror(space=MSpace.kWorld)
+                shape.mirror(ws=True)
 
     def test_mirror_periodic_curve(self):
         curve = hlib.nodes.Node(cmds.circle(constructionHistory=False)[0])
@@ -460,8 +460,8 @@ class ShapesConstraintsTest(unittest.TestCase):
                 self.assertAlmostEqual(getattr(item, "get" + axis.upper())(), 2.75)
                 cmds.undo()
                 self.assert_positions([item.getPosition()], [before])
-            item.setPosition((3, 4, 5), space=MSpace.kWorld)
-            self.assert_positions([item.getPosition(space=MSpace.kWorld)], [(3, 4, 5)])
+            item.setPosition((3, 4, 5), ws=True)
+            self.assert_positions([item.getPosition(ws=True)], [(3, 4, 5)])
             cmds.undo()
             with self.assertRaises(ValueError):
                 item.setPosition((1, float('nan'), 3))

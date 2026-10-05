@@ -61,7 +61,7 @@ def main(output_dir=None, finished=None):
         check(len(rig.follow_joints()) == 3 and follow_row().childCount() == 3, "Three follow rows")
         cmds.setAttr(rig.controls()["fk1"] + ".rx", 60)
         settings = rig.follow_settings("followHalf1")
-        graph = settings.plug("graph").source().node
+        graph = settings.plug("graph").sourceWithConversion().node()
         original = graph.plug("matrix").get()
         settings.plug("ratio").set(0)
         yield
@@ -71,7 +71,7 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(channel + ".enabled", False)
         yield
         for _ in range(20):
-            if hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is None:
+            if hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None:
                 break
             yield
         (output / "channel-state.json").write_text(
@@ -90,14 +90,14 @@ def main(output_dir=None, finished=None):
             encoding="utf-8",
         )
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
             "Limb Channel disabled",
         )
         cmds.undo()
         yield
         check(
             rig.layer_enabled("follow")
-            and hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is not None,
+            and hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is not None,
             "Limb Channel Undo",
         )
         cmds.redo()
@@ -126,7 +126,7 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(rig.root.fullName() + ".hrigEnabled_follow", False)
         yield
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
             "Skirt Channel disabled",
         )
         cmds.undo()
@@ -139,7 +139,7 @@ def main(output_dir=None, finished=None):
         rig.root.plug("lod").set(0)
         yield
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
             "Skirt LOD disconnects follow",
         )
         rig.set_lod(1)
@@ -152,7 +152,7 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(rig.root.fullName() + ".hrigEnabled_follow", False)
         yield
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").source() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
             "Save reload restores jobs",
         )
         rig.set_layer_enabled("follow", True)

@@ -28,7 +28,7 @@ class AimAxisConversion:
             container (str | Node): 本ツールで作成したcontainerまたはnetwork。
         """
         self.container = Node(container)
-        if not self.container.hasAttribute(_TAG):
+        if not self.container.hasAttr(_TAG):
             raise ValueError("Aim軸変換の管理ノードではありません。")
         self._graph = ScalarGraph(create_node=self._createNode)
         self._serial = 0
@@ -44,9 +44,9 @@ class AimAxisConversion:
             AimAxisConversion | None: 既存の変換。
         """
         source = Node(constraint)
-        for plug in source.plug("message").destinations():
-            if plug.node.type() in ("container", "network") and plug.node.hasAttribute(_TAG):
-                return cls(plug.node)
+        for plug in source.plug("message").destinationsWithConversions():
+            if plug.node().type() in ("container", "network") and plug.node().hasAttr(_TAG):
+                return cls(plug.node())
         return None
 
     @classmethod
@@ -116,11 +116,11 @@ class AimAxisConversion:
         name = source.name().split("|")[-1] + "_axisConversion"
         owner = (Container.create(name=name) if use_container else
                  Node.create("network", name=name, skipSelect=True))
-        owner.addAttribute(longName=_TAG, attributeType="bool", defaultValue=True)
+        owner.addAttr(longName=_TAG, attributeType="bool", defaultValue=True)
         for attr, node in (("sourceConstraint", source), ("drivenNode", target)):
-            owner.addAttribute(longName=attr, attributeType="message")
-            node.plug("message").connect(owner.plug(attr))
-        owner.addAttribute(longName="settings", dataType="string")
+            owner.addAttr(longName=attr, attributeType="message")
+            node.plug("message").connectTo(owner.plug(attr))
+        owner.addAttr(longName="settings", dataType="string")
         owner.plug("settings").set(JsonText.dumps(dict(
             version=1, axes=axes, mode=mode, direction=direction, order=order,
             reference=reference, halfRange=half_range, preservePose=bool(preserve_pose),
@@ -129,13 +129,13 @@ class AimAxisConversion:
             original=original, compound=compound, values=values)))
         graph = cls(owner)
         if not use_container:
-            owner.addAttribute(longName="generatedNodes", attributeType="message", multi=True)
+            owner.addAttr(longName="generatedNodes", attributeType="message", multi=True)
         compose = graph._node("composeMatrix", "aimRotation")
-        source.plug("constraintRotate").connect(compose.plug("inputRotate"))
-        source.plug("constraintRotateOrder").connect(compose.plug("inputRotateOrder"))
+        source.plug("constraintRotate").connectTo(compose.plug("inputRotate"))
+        source.plug("constraintRotateOrder").connectTo(compose.plug("inputRotateOrder"))
         decompose = graph._node("decomposeMatrix", "rotation")
-        compose.plug("outputMatrix").connect(decompose.plug("inputMatrix"))
-        source.plug("constraintRotateOrder").connect(decompose.plug("inputRotateOrder"))
+        compose.plug("outputMatrix").connectTo(decompose.plug("inputMatrix"))
+        source.plug("constraintRotateOrder").connectTo(decompose.plug("inputRotateOrder"))
         if mode == "euler":
             outputs, valid = graph._euler(decompose, axes, reference, half_range, order)
         elif mode == "direction":
@@ -144,40 +144,40 @@ class AimAxisConversion:
             outputs, valid = graph._twist(decompose, axes)
         # ノードの組み方は生成時のRotate Orderに依存する。変更後は再変換を促す。
         order_valid = graph._node("condition", "orderValid")
-        source.plug("constraintRotateOrder").connect(order_valid.plug("firstTerm"))
+        source.plug("constraintRotateOrder").connectTo(order_valid.plug("firstTerm"))
         order_valid.plug("secondTerm").set(order)
         graph._feed(valid, order_valid.plug("colorIfTrueR"))
         order_valid.plug("colorIfFalseR").set(0)
         target_order_valid = graph._node("condition", "targetOrderValid")
-        target.plug("rotateOrder").connect(target_order_valid.plug("firstTerm"))
+        target.plug("rotateOrder").connectTo(target_order_valid.plug("firstTerm"))
         target_order_valid.plug("secondTerm").set(order)
-        order_valid.plug("outColorR").connect(target_order_valid.plug("colorIfTrueR"))
+        order_valid.plug("outColorR").connectTo(target_order_valid.plug("colorIfTrueR"))
         target_order_valid.plug("colorIfFalseR").set(0)
-        owner.addAttribute(longName="valid", attributeType="double", keyable=False)
-        target_order_valid.plug("outColorR").connect(owner.plug("valid"))
+        owner.addAttr(longName="valid", attributeType="double", keyable=False)
+        target_order_valid.plug("outColorR").connectTo(owner.plug("valid"))
         owner.plug("valid").setFlags(channelBox=True)
         for i, axis in enumerate("xyz"):
-            owner.addAttribute(longName="output" + axis.upper(), attributeType="doubleAngle")
+            owner.addAttr(longName="output" + axis.upper(), attributeType="doubleAngle")
             if axis not in axes:
                 owner.plug("output" + axis.upper()).set(values[i])
                 continue
             output = outputs[axis]
             if preserve_pose and mode != "euler":
                 output = graph._sum(output, values[i] - output.get())
-            graph._angle(output).connect(owner.plug("output" + axis.upper()))
+            graph._angle(output).connectTo(owner.plug("output" + axis.upper()))
         # 結果値を評価してから元接続を外す。基準値に対象回転のライブ接続は作らない。
         for axis in axes:
             owner.plug("output" + axis.upper()).get()
         if compound:
-            source.plug("constraintRotate").disconnect(target.plug("rotate"))
+            target.plug("rotate").disconnect(source.plug("constraintRotate"))
         else:
             for axis in original:
-                source.plug(original[axis]).disconnect(target.plug("rotate" + axis.upper()))
+                target.plug("rotate" + axis.upper()).disconnect(source.plug(original[axis]))
         for i, axis in enumerate("xyz"):
             destination = target.plug("rotate" + axis.upper())
             if axis in axes:
                 output = owner.plug("output" + axis.upper())
-                (output if use_container else output.source()).connect(destination)
+                (output if use_container else output.sourceWithConversion()).connectTo(destination)
             elif axis in original:
                 destination.set(values[i])
         return graph
@@ -192,10 +192,10 @@ class AimAxisConversion:
             ValueError: 対象の削除、接続の手編集、設定の新しい入力やロックがある場合。
         """
         owner = self.container
-        links = [owner.plug(attr).source() for attr in ("sourceConstraint", "drivenNode")]
+        links = [owner.plug(attr).sourceWithConversion() for attr in ("sourceConstraint", "drivenNode")]
         if any(link is None for link in links):
             raise ValueError("元のAimまたは対象が削除されているため復元できません。")
-        source, target = [link.node for link in links]
+        source, target = [link.node() for link in links]
         data = JsonText.loads(owner.plug("settings").get())
         settings = data.get("constraintSettings", {})
         if not settings and "restValues" in data:
@@ -207,9 +207,9 @@ class AimAxisConversion:
             if plug.get() == value:
                 continue
             parent = plug.parent() if plug.isChild() else None
-            if (source.isLocked() or source.isReferenced() or plug.isLocked()
-                    or plug.source() is not None
-                    or (parent is not None and (parent.isLocked() or parent.source() is not None))):
+            if (source.isLocked() or source.isFromReferencedFile() or plug.isLocked()
+                    or plug.sourceWithConversion() is not None
+                    or (parent is not None and (parent.isLocked() or parent.sourceWithConversion() is not None))):
                 raise ValueError("元Aimの設定に入力またはロックがあるため復元できません: " + plug.fullName())
             updates.append((plug, value))
         touched = set(data["axes"]) | set(data["original"])
@@ -217,9 +217,9 @@ class AimAxisConversion:
             dest = target.plug("rotate" + axis.upper())
             expected = owner.plug("output" + axis.upper()) if axis in data["axes"] else None
             if expected is not None and owner.type() == "network":
-                expected = expected.source()
+                expected = expected.sourceWithConversion()
             if (dest.isLocked() or target.plug("rotate").isLocked() or target.isLocked()
-                    or target.isReferenced() or dest.source() != expected):
+                    or target.isFromReferencedFile() or dest.sourceWithConversion() != expected):
                 raise ValueError("変換後の接続・ロックが変更されています。復元対象: " + dest.fullName())
         for axis in data["axes"]:
             target.plug("rotate" + axis.upper()).disconnectInput()
@@ -229,10 +229,10 @@ class AimAxisConversion:
             if axis in touched:
                 target.plug("rotate" + axis.upper()).set(data["values"][i])
         if data["compound"]:
-            source.plug("constraintRotate").connect(target.plug("rotate"))
+            source.plug("constraintRotate").connectTo(target.plug("rotate"))
         else:
             for axis, attr in data["original"].items():
-                source.plug(attr).connect(target.plug("rotate" + axis.upper()))
+                source.plug(attr).connectTo(target.plug("rotate" + axis.upper()))
         if owner.type() == "network":
             members = list(owner.plug("generatedNodes").sourceNodes().values())
             if members:
@@ -252,7 +252,7 @@ class AimAxisConversion:
         settings = {}
         for plug in source.settingPlugs() + source.weightPlugs():
             parent = plug.parent() if plug.isChild() else None
-            if plug.source() is None and (parent is None or parent.source() is None):
+            if plug.sourceWithConversion() is None and (parent is None or parent.sourceWithConversion() is None):
                 settings[plug.fullName().split(".", 1)[1]] = plug.get()
         return settings
 
@@ -261,19 +261,19 @@ class AimAxisConversion:
         """直接の回転出力先を検証し、復元する接続を記録する。"""
         targets = {}
         for _, dest in source.rotationConnections():
-            if isinstance(dest.node, Transform) and dest.attributeName() in (
+            if isinstance(dest.node(), Transform) and dest.longName() in (
                     "rotate", "rotateX", "rotateY", "rotateZ"):
-                targets[dest.node.uuid()] = dest.node
+                targets[dest.node().uuid()] = dest.node()
         if len(targets) != 1:
             raise ValueError("回転へ直接接続された対象が1つのAimに対応します。間接接続・複数対象は未対応です。")
         target = next(iter(targets.values()))
-        if target.isReferenced() or target.isLocked() or source.isReferenced() or source.isLocked():
+        if target.isFromReferencedFile() or target.isLocked() or source.isFromReferencedFile() or source.isLocked():
             raise ValueError("参照・ロックされたAimまたは対象は変換できません。")
-        compound = target.plug("rotate").source() == source.plug("constraintRotate")
+        compound = target.plug("rotate").sourceWithConversion() == source.plug("constraintRotate")
         original = {}
         for axis in "xyz":
             dest = target.plug("rotate" + axis.upper())
-            incoming = dest.source()
+            incoming = dest.sourceWithConversion()
             own = source.plug("constraintRotate" + axis.upper())
             if compound or incoming == own:
                 original[axis] = "constraintRotate" + axis.upper()
@@ -309,7 +309,7 @@ class AimAxisConversion:
     def _feed(value, destination):
         """単位なしの数値またはPlugを入力する。"""
         if isinstance(value, Plug):
-            value.connect(destination)
+            value.connectTo(destination)
         else:
             destination.set(value)
 
@@ -328,7 +328,7 @@ class AimAxisConversion:
     def _scalar(self, angle):
         """角度をUI単位に依存しないラジアンの数値へ変換する。"""
         node = self._node("unitConversion", "radians")
-        angle.connect(node.plug("input"))
+        angle.connectTo(node.plug("input"))
         node.plug("conversionFactor").set(1)
         return node.plug("output")
 
@@ -381,8 +381,8 @@ class AimAxisConversion:
         angle = self._node("angleBetween", "signedAngle")
         angle.plug("vector1").set((1, 0, 0))
         angle.plug("vector2").set((0, 0, 0))
-        self._choose(valid, 0.5, x, 1).connect(angle.plug("vector2X"))
-        self._choose(valid, 0.5, y, 0).connect(angle.plug("vector2Y"))
+        self._choose(valid, 0.5, x, 1).connectTo(angle.plug("vector2X"))
+        self._choose(valid, 0.5, y, 0).connectTo(angle.plug("vector2Y"))
         radians = self._scalar(angle.plug("angle"))
         return self._choose(0, y, self._mul(radians, -1), radians), valid
 
@@ -393,7 +393,7 @@ class AimAxisConversion:
         vector = self._node("vectorProduct", "aimDirection")
         vector.plug("operation").set(3)
         vector.plug("input1" + aim.upper()).set(sign)
-        compose.plug("outputMatrix").connect(vector.plug("matrix"))
+        compose.plug("outputMatrix").connectTo(vector.plug("matrix"))
         ordered = [axis for axis in _ORDERS[order] if axis in axes]
         values = {a: vector.plug("output" + a.upper()) for a in "xyz"}
 
@@ -410,11 +410,11 @@ class AimAxisConversion:
         first, second = ordered
         outer, valid = solve(second, values)
         inverse = self._node("composeMatrix", "outerInverse")
-        self._angle(self._mul(outer, -1)).connect(inverse.plug("inputRotate" + second.upper()))
+        self._angle(self._mul(outer, -1)).connectTo(inverse.plug("inputRotate" + second.upper()))
         residual = self._node("vectorProduct", "residualDirection")
         residual.plug("operation").set(3)
-        vector.plug("output").connect(residual.plug("input1"))
-        inverse.plug("outputMatrix").connect(residual.plug("matrix"))
+        vector.plug("output").connectTo(residual.plug("input1"))
+        inverse.plug("outputMatrix").connectTo(residual.plug("matrix"))
         inner, inner_valid = solve(first, {a: residual.plug("output" + a.upper()) for a in "xyz"})
         return {first: inner, second: outer}, self._mul(valid, inner_valid)
 

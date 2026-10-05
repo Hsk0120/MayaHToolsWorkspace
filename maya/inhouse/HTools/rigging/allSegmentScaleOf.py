@@ -9,7 +9,7 @@ def main():
     joints = cmds.ls(type='joint') or []
 
     for j in joints:
-        if Node(j).hasAttribute('segmentScaleCompensate'):
+        if Node(j).hasAttr('segmentScaleCompensate'):
             Node(j).plug('segmentScaleCompensate').set(0)
 
     print(u'{} 個のjointの segmentScaleCompensate をOFFにしました。'.format(len(joints)))

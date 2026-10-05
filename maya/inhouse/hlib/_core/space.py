@@ -1,20 +1,18 @@
-"""オブジェクトAPIのMSpace指定を検証する。"""
-
-from maya.api.OpenMaya import MSpace
+"""オブジェクトAPIのワールド空間指定を検証する。"""
 
 
-def world_space(space):
-    """対応する空間を検証し、ワールド空間かを返す。
+def world_space(value):
+    """boolの空間指定を検証する。
 
     Args:
-        space (int): MSpace.kObject/kTransform/kWorld。
+        value (bool): Trueはワールド空間、Falseはローカル空間。
 
     Returns:
-        bool: kWorldならTrue。kObject/kTransformはローカル空間。
+        bool: 検証済みの指定。
 
     Raises:
-        ValueError: boolまたは対応外の空間の場合。
+        ValueError: bool以外を指定した場合。
     """
-    if type(space) is not int or space not in (MSpace.kObject, MSpace.kTransform, MSpace.kWorld):
-        raise ValueError("space must be MSpace.kObject, kTransform, or kWorld")
-    return space == MSpace.kWorld
+    if type(value) is not bool:
+        raise ValueError("worldSpace (ws) must be a bool")
+    return value

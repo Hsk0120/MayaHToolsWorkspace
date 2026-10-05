@@ -43,13 +43,13 @@ class RotationFollow(SwingTwist):
         base = SwingTwist.create(joint, name=name, axis=axis)
         graph = cls(base.container)
         owner = graph.container
-        owner.addAttribute(
+        owner.addAttr(
             longName="followMode",
             attributeType="enum",
             enumName="Full:Twist:Swing",
             defaultValue=("full", "twist", "swing").index(mode),
         )
-        owner.addAttribute(
+        owner.addAttr(
             longName="ratio",
             attributeType="double",
             defaultValue=ratio,
@@ -58,38 +58,38 @@ class RotationFollow(SwingTwist):
             keyable=True,
         )
         for attr in ("matrix", "restMatrix"):
-            owner.addAttribute(longName=attr, dataType="matrix")
+            owner.addAttr(longName=attr, dataType="matrix")
         # restDeltaより手前の実ローカル行列から位置を取得する。
         relative = graph._node("multMatrix", "sourceLocal")
-        joint.plug("matrix").connect(relative.plug("matrixIn[0]"))
-        joint.plug("offsetParentMatrix").connect(relative.plug("matrixIn[1]"))
+        joint.plug("matrix").connectTo(relative.plug("matrixIn[0]"))
+        joint.plug("offsetParentMatrix").connectTo(relative.plug("matrixIn[1]"))
         position = graph._node("decomposeMatrix", "sourcePosition")
-        relative.plug("matrixSum").connect(position.plug("inputMatrix"))
+        relative.plug("matrixSum").connectTo(position.plug("inputMatrix"))
         full = graph._node("multMatrix", "fullRotation")
-        owner.plug("twistMatrix").connect(full.plug("matrixIn[0]"))
-        owner.plug("swingMatrix").connect(full.plug("matrixIn[1]"))
+        owner.plug("twistMatrix").connectTo(full.plug("matrixIn[0]"))
+        owner.plug("swingMatrix").connectTo(full.plug("matrixIn[1]"))
         choice = graph._node("choice", "component")
         for index, source in enumerate(
             (full.plug("matrixSum"), owner.plug("twistMatrix"), owner.plug("swingMatrix"))
         ):
-            source.connect(choice.plug("input[{}]".format(index)))
-        owner.plug("followMode").connect(choice.plug("selector"))
+            source.connectTo(choice.plug("input[{}]".format(index)))
+        owner.plug("followMode").connectTo(choice.plug("selector"))
         limits = graph._node("clamp", "ratioLimit")
         limits.plug("maxR").set(1)
-        owner.plug("ratio").connect(limits.plug("inputR"))
+        owner.plug("ratio").connectTo(limits.plug("inputR"))
         blend = graph._node("blendMatrix", "rotationRatio")
-        choice.plug("output").connect(blend.plug("target[0].targetMatrix"))
-        limits.plug("outputR").connect(blend.plug("target[0].weight"))
+        choice.plug("output").connectTo(blend.plug("target[0].targetMatrix"))
+        limits.plug("outputR").connectTo(blend.plug("target[0].weight"))
         orient = graph._node("multMatrix", "restoreOrientation")
-        blend.plug("outputMatrix").connect(orient.plug("matrixIn[0]"))
+        blend.plug("outputMatrix").connectTo(orient.plug("matrixIn[0]"))
         orient.plug("matrixIn[1]").set(rest_rotation)
         rotation = graph._node("decomposeMatrix", "resultRotation")
-        orient.plug("matrixSum").connect(rotation.plug("inputMatrix"))
+        orient.plug("matrixSum").connectTo(rotation.plug("inputMatrix"))
         result = graph._node("composeMatrix", "result")
         result.plug("useEulerRotation").set(False)
-        rotation.plug("outputQuat").connect(result.plug("inputQuat"))
-        position.plug("outputTranslate").connect(result.plug("inputTranslate"))
-        result.plug("outputMatrix").connect(owner.plug("matrix"))
+        rotation.plug("outputQuat").connectTo(result.plug("inputQuat"))
+        position.plug("outputTranslate").connectTo(result.plug("inputTranslate"))
+        result.plug("outputMatrix").connectTo(owner.plug("matrix"))
         rest_output = Matrix.compose(translate=rest.translate, rotate=rest.quaternion)
         owner.plug("restMatrix").set(rest_output)
         return graph

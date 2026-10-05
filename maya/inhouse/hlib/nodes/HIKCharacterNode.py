@@ -117,6 +117,6 @@ class HIKCharacterNode(Node):
             raise RuntimeError('Both character definitions must be validated and locked')
         mel.eval('hikSetCharacterInput({}, {});'.format(
             _quote(self.fullName()), _quote(source.fullName())))
-        actual = self.source()
+        actual = self.sourceWithConversion()
         if actual is None or actual.fullName() != source.fullName():
             raise RuntimeError('HumanIK did not connect the requested source')

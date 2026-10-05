@@ -28,7 +28,7 @@ class BendLayer:
             dict[str, Node]: IDと設定グループ。
         """
         root = self.rig.root
-        if not root.hasAttribute("bendGroups"):
+        if not root.hasAttr("bendGroups"):
             return {}
         return {
             node.plug("bendId").get(): node
@@ -47,7 +47,7 @@ class BendLayer:
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
         return tuple(
-            group.plug(role).source().node.fullName()
+            group.plug(role).sourceWithConversion().node().fullName()
             for group in selected
             for role in ("half", "inner", "outer")
         )
@@ -103,19 +103,19 @@ class BendLayer:
             raise ValueError("Bend node names already exist")
         root = self.rig.root
         owned = []
-        if not root.hasAttribute("bendSet"):
+        if not root.hasAttr("bendSet"):
             selection = hlib.createSet(empty=True, name=self.rig.nodeName("bendSet")).fullName()
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            root.addAttribute(longName="bendGroups", attributeType="message", multi=True)
+            root.addAttr(longName="bendGroups", attributeType="message", multi=True)
             owned.append(hlib.getNode(selection))
         group = hlib.createNode("transform", name=names[0], parent=parent, skipSelect=True)
-        group.addAttribute(longName="bendId", dataType="string").set(identifier)
-        group.addAttribute(longName="pushAxis", dataType="string").set(push_axis)
+        group.addAttr(longName="bendId", dataType="string").set(identifier)
+        group.addAttr(longName="pushAxis", dataType="string").set(push_axis)
         graph = BendCorrection.create(parent, joint, names[1], bend_axis)
         owner = graph.container
-        group.addAttribute(longName="graph", attributeType="message")
-        owner.plug("message").connect(group.plug("graph"))
+        group.addAttr(longName="graph", attributeType="message")
+        owner.plug("message").connectTo(group.plug("graph"))
         for attr in (
             "rotationRatio",
             "referenceAngle",
@@ -130,7 +130,7 @@ class BendLayer:
                 bounds = {"minValue": 0.001}
             if attr == "bendSign":
                 bounds = {"minValue": -1, "maxValue": 1}
-            group.addAttribute(
+            group.addAttr(
                 longName=attr,
                 attributeType="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
                 defaultValue=owner.plug(attr).get(),
@@ -138,7 +138,7 @@ class BendLayer:
             )
             group.plug(attr).set(owner.plug(attr).get())
             group.setAttributeFlags([attr], keyable=False, channelBox=True)
-            group.plug(attr).connect(owner.plug(attr))
+            group.plug(attr).connectTo(owner.plug(attr))
         joints = []
         for role, name in zip(("half", "inner", "outer"), names[2:]):
             bone = hlib.createNode(
@@ -146,8 +146,8 @@ class BendLayer:
             )
             bone.plug("segmentScaleCompensate").set(False)
             bone.plug("radius").set(0.35 if role == "half" else 0.25)
-            group.addAttribute(longName=role, attributeType="message")
-            bone.plug("message").connect(group.plug(role))
+            group.addAttr(longName=role, attributeType="message")
+            bone.plug("message").connectTo(group.plug(role))
             joints.append(bone)
         root.plug("bendGroups").appendMessage(group)
         owned.extend([group, owner])
@@ -169,23 +169,23 @@ class BendLayer:
         """無効時に出力を切断して基準姿勢へ戻し、親だけを継承する。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("bend")
         for group in self.groups().values():
-            owner = group.plug("graph").source().node
+            owner = group.plug("graph").sourceWithConversion().node()
             owner.plug("nodeState").set(0 if active else 2)
             group.plug("visibility").set(active)
             for role in ("half", "inner", "outer"):
-                bone = group.plug(role).source().node
+                bone = group.plug(role).sourceWithConversion().node()
                 attr = (
                     "offsetParentMatrix"
                     if role == "half"
                     else "translate" + group.plug("pushAxis").get().upper()
                 )
                 destination = bone.plug(attr)
-                source = destination.source()
+                source = destination.sourceWithConversion()
                 if active and source is None:
-                    owner.plug("matrix" if role == "half" else role).connect(destination)
+                    owner.plug("matrix" if role == "half" else role).connectTo(destination)
                 elif not active:
                     if source is not None:
-                        source.disconnect(destination)
+                        destination.disconnect(source)
                     if role == "half":
                         destination.set(owner.plug("restMatrix").get())
                     else:

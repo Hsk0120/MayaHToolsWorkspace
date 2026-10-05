@@ -19,7 +19,7 @@ class ShadingEngine(ObjectSet):
         Returns:
             Plug | None: 接続元の出力Plug。未接続ならNone。
         """
-        return self.plug(self._shader_attribute(kind)).source()
+        return self.plug(self._shader_attribute(kind)).sourceWithConversion()
 
     def getShader(self, kind="surface"):
         """接続元のシェーダーノードを取得する。
@@ -30,7 +30,7 @@ class ShadingEngine(ObjectSet):
             Node | None: 型付きノード。未接続ならNone。
         """
         plug = self.getShaderPlug(kind)
-        return None if plug is None else plug.node
+        return None if plug is None else plug.node()
 
     @undoChunk("hlibShadingEngineSetShader")
     def setShader(self, shader, kind="surface", output=None):
@@ -54,7 +54,7 @@ class ShadingEngine(ObjectSet):
             source = _InputPlug._resolve_input(shader)
         else:
             source = _InputNode._resolve_input(shader).plug(output or ("displacement" if kind == "displacement" else "outColor"))
-        source.connect(target, force=True)
+        source.connectTo(target, force=True)
         return self
 
     @undoChunk("hlibShadingEngineAssign")

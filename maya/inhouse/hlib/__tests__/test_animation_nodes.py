@@ -110,7 +110,7 @@ class AnimationNodesTest(unittest.TestCase):
         curve = self.create("animCurveUU").setKey(0, 7)
         blend.connectInput(0, curve.outputPlug())
         self.assertAlmostEqual(blend.result(), 12)
-        self.assertEqual(curve.drivenPlugs()[0].node.fullName(), blend.fullName())
+        self.assertEqual(curve.drivenPlugs()[0].node().fullName(), blend.fullName())
         cmds.undo()
         self.assertAlmostEqual(blend.result(), 8)
         cmds.redo()

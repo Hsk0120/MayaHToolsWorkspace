@@ -19,6 +19,8 @@ Contents
    whyhlib
    getting_started
    usage
+   cymel_arguments
+   cymel_methods
    modules
 
 Indices and tables

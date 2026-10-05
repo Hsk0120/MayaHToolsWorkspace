@@ -127,11 +127,11 @@ class CoerceObjectInputTest(unittest.TestCase):
         self.assertNotEqual(plug.mplug().name(), expected)
         self.assertEqual(len(cmds.ls(_InputObject._input_name(plug.mplug()))), 1)
         self.assertEqual(_InputPlug._plug_path(plug.mplug()), "translateX")
-        self.assertEqual(_InputNode._unique_node_name(self.node.mobject()), self.node.name())
+        self.assertEqual(_InputNode._unique_node_name(self.node.mnode()), self.node.name())
 
     def test_array_plug_is_not_expanded(self):
         from hlib.object import Object as _InputObject
-        self.network.addAttribute("values", attributeType="double", multi=True)
+        self.network.addAttr("values", attributeType="double", multi=True)
         array_plug = self.network.plug("values")
         array_plug.element(0, create=True).set(1.0)
         self.assertIsInstance(array_plug, ArrayPlug)
@@ -173,9 +173,9 @@ class CoerceObjectInputTest(unittest.TestCase):
 
     def test_api_objects(self):
         from hlib.object import Object as _InputObject
-        self.assertEqual(_InputObject._input_name(self.node.mobject()), self.node.fullName())
-        self.assertEqual(_InputObject._input_name(self.network.mobject()), self.network.name())
-        self.assertEqual(_InputObject._input_name(self.node.dagPath()), self.node.fullName())
+        self.assertEqual(_InputObject._input_name(self.node.mnode()), self.node.fullName())
+        self.assertEqual(_InputObject._input_name(self.network.mnode()), self.network.name())
+        self.assertEqual(_InputObject._input_name(self.node.mpath()), self.node.fullName())
         with self.assertRaises(TypeError):
             _InputObject._input_name(self.node.plug("tx").mplug().attribute())
         with self.assertRaises(ValueError):
@@ -196,7 +196,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         from hlib.object import Object as _InputObject
         vertex = Vertex(self.mesh, 0)
         selection = Selection([self.twin, vertex])
-        names = _InputObject._input_names([self.node, [self.twin.mobject(), (item for item in [vertex])], selection])
+        names = _InputObject._input_names([self.node, [self.twin.mnode(), (item for item in [vertex])], selection])
         self.assertEqual(names, [
             self.node.fullName(), self.twin.fullName(), vertex.fullName(),
             self.twin.fullName(), vertex.fullName(),
@@ -205,8 +205,8 @@ class CoerceObjectInputTest(unittest.TestCase):
     def test_invalid_objects_raise_value_error(self):
         from hlib.object import Object as _InputObject
         plug = self.twin.plug("tx")
-        mobject = self.twin.mobject()
-        path = self.twin.dagPath()
+        mobject = self.twin.mnode()
+        path = self.twin.mpath()
         mplug = plug.mplug()
         vertex = Vertex(self.mesh, 0)
         cmds.delete(self.twin.fullName(), self.cube)
@@ -220,8 +220,8 @@ class CoerceObjectInputTest(unittest.TestCase):
         plug = self.node.plug("tx")
         self.assertIs(_InputNode._resolve_input(plug), self.node)
         self.assertEqual(_InputNode._resolve_input(plug.mplug()).fullName(), self.node.fullName())
-        self.assertEqual(_InputNode._resolve_input(self.node.mobject()).fullName(), self.node.fullName())
-        self.assertEqual(_InputNode._resolve_input(self.node.dagPath()).fullName(), self.node.fullName())
+        self.assertEqual(_InputNode._resolve_input(self.node.mnode()).fullName(), self.node.fullName())
+        self.assertEqual(_InputNode._resolve_input(self.node.mpath()).fullName(), self.node.fullName())
         self.assertIs(_InputNode._resolve_input(Vertex(self.mesh, 0)), self.mesh)
         self.assertIs(_InputNode._resolve_input(Vertices(self.mesh, [0, 1])), self.mesh)
         with self.assertRaises(TypeError):
@@ -232,7 +232,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         from hlib.object import Object as _InputObject
         from hlib.plugs.plug import DeletedAttributeError
 
-        plug = self.network.addAttribute("doomed", attributeType="double")
+        plug = self.network.addAttr("doomed", attributeType="double")
         mplug = om2.MPlug(plug.mplug())
         self.assertIs(_InputNode._resolve_input(plug), self.network)
         self.assertEqual(_InputNode._resolve_input(mplug).fullName(), self.network.fullName())
@@ -260,7 +260,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         self.assertEqual(_InputNode._input_name(plug.mplug()), self.node.fullName())
         self.assertEqual(_InputNode._input_name(plug.fullName()), self.node.fullName())
         self.assertEqual(_InputNode._input_name(Vertex(self.mesh, 0)), self.mesh.fullName())
-        self.assertEqual(_InputNode._input_name(self.network.mobject()), self.network.name())
+        self.assertEqual(_InputNode._input_name(self.network.mnode()), self.network.name())
         with self.assertRaises(TypeError):
             _InputNode._input_name(Vertices(self.mesh, [0, 1]))
         with self.assertRaises(RuntimeError):
@@ -305,7 +305,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         from hlib.plugs.plug import Plug as _InputPlug
 
         average = Node(cmds.createNode("plusMinusAverage", name="pma"))
-        mobject = average.mobject()
+        mobject = average.mnode()
         cases = {
             "input1D[3]": "input1D[3]",
             "input3D[2].input3Dx": "input3D[2].input3Dx",

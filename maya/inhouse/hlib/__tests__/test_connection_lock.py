@@ -17,18 +17,18 @@ class ConnectionLockTest(unittest.TestCase):
         output = original.plug("outputX")
         destination = target.plug("input1X")
         try:
-            output.connect(destination)
+            output.connectTo(destination)
             destination.setFlags(locked=True)
             with self.assertRaises(RuntimeError):
-                replacement.plug("outputX").connect(destination, force=True, unlock=False)
-            self.assertEqual(destination.source(), output)
+                replacement.plug("outputX").connectTo(destination, force=True, unlock=False)
+            self.assertEqual(destination.sourceWithConversion(), output)
             self.assertTrue(destination.isLocked())
             # 既定値は従来どおり一時解除して接続し、ロックを戻す。
-            replacement.plug("outputX").connect(destination, force=True)
-            self.assertEqual(destination.source(), replacement.plug("outputX"))
+            replacement.plug("outputX").connectTo(destination, force=True)
+            self.assertEqual(destination.sourceWithConversion(), replacement.plug("outputX"))
             self.assertTrue(destination.isLocked())
             cmds.undo()
-            self.assertEqual(destination.source(), output)
+            self.assertEqual(destination.sourceWithConversion(), output)
             self.assertTrue(destination.isLocked())
         finally:
             cmds.delete([node.fullName() for node in nodes if node.isValid()])

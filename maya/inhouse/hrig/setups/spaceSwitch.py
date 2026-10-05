@@ -25,7 +25,7 @@ class SpaceSwitch:
             buffer (str | Node): createで初期化したtransform。
         """
         self.buffer = hlib.nodes.Node(buffer)
-        if not self.buffer.hasAttribute("spaceChoice"):
+        if not self.buffer.hasAttr("spaceChoice"):
             raise ValueError("Not a space-switch buffer")
 
     @classmethod
@@ -40,18 +40,18 @@ class SpaceSwitch:
             SpaceSwitch: 空間登録前の切替オブジェクト。
         """
         buffer = hlib.nodes.Node(buffer)
-        if buffer.type() != "transform" or buffer.hasAttribute("spaceChoice"):
+        if buffer.type() != "transform" or buffer.hasAttr("spaceChoice"):
             raise ValueError("Expected an unused transform")
-        if buffer.plug("offsetParentMatrix").source() is not None:
+        if buffer.plug("offsetParentMatrix").sourceWithConversion() is not None:
             raise ValueError("offsetParentMatrix is already connected")
         identity = Matrix()
         if any(abs(a - b) > 1e-8 for a, b in zip(buffer.plug("matrix").get(), identity)):
             raise ValueError("Space buffer must have identity local channels")
-        buffer.addAttribute(longName="spaceChoice", attributeType="message")
-        buffer.addAttribute(longName="spaceLabels", dataType="string")
+        buffer.addAttr(longName="spaceChoice", attributeType="message")
+        buffer.addAttr(longName="spaceLabels", dataType="string")
         buffer.plug("spaceLabels").set("[]")
         choice = hlib.nodes.Node.create("choice", name=buffer.name() + "_choice", skipSelect=True)
-        choice.plug("message").connect(buffer.plug("spaceChoice"))
+        choice.plug("message").connectTo(buffer.plug("spaceChoice"))
         return cls(buffer)
 
     def _choice(self):
@@ -60,7 +60,7 @@ class SpaceSwitch:
         Returns:
             Node: choiceノード。
         """
-        return self.buffer.plug("spaceChoice").source().node
+        return self.buffer.plug("spaceChoice").sourceWithConversion().node()
 
     def labels(self):
         """登録された空間名を順序付きで取得する。
@@ -86,7 +86,7 @@ class SpaceSwitch:
         """
         choice = self._choice()
         return (self.buffer, choice) + tuple(
-            choice.plug("input[{}]".format(i)).source().node for i in range(len(self.labels()))
+            choice.plug("input[{}]".format(i)).sourceWithConversion().node() for i in range(len(self.labels()))
         )
 
     def _validate_target(self, target):
@@ -107,7 +107,7 @@ class SpaceSwitch:
             if key in visited:
                 continue
             visited.add(key)
-            if item.mobject() == self.buffer.mobject():
+            if item.mnode() == self.buffer.mnode():
                 raise ValueError("Space target depends on the driven buffer")
             # DAG親子とDG入力の両方を辿る。所有参照のmessage接続は計算依存ではない。
             if isinstance(item, (hlib.nodes.Transform, hlib.nodes.Shape)):
@@ -133,7 +133,7 @@ class SpaceSwitch:
             ] or []
             for destination, source in zip(pairs[::2], pairs[1::2]):
                 if hlib.getAttr(destination, type=True) != "message":
-                    pending.append(source.node)
+                    pending.append(source.node())
 
     @staticmethod
     def _inverse(matrix):
@@ -177,7 +177,7 @@ class SpaceSwitch:
         )
         matrix.plug("matrixIn[0]").set(offset)
         if target is not None:
-            target.plug("worldMatrix[0]").connect(matrix.plug("matrixIn[1]"))
+            target.plug("worldMatrix[0]").connectTo(matrix.plug("matrixIn[1]"))
         else:
             matrix.plug("matrixIn[1]").set(Matrix())
         # buffer.parentInverseMatrixは自身のOPMを含むので使わず、実親を参照する。
@@ -188,16 +188,16 @@ class SpaceSwitch:
             )
         ] or []
         if parent:
-            hlib.nodes.Node(parent[0]).plug("worldInverseMatrix[0]").connect(
+            hlib.nodes.Node(parent[0]).plug("worldInverseMatrix[0]").connectTo(
                 matrix.plug("matrixIn[2]")
             )
         else:
             matrix.plug("matrixIn[2]").set(Matrix())
         choice = self._choice()
-        matrix.plug("matrixSum").connect(choice.plug("input[{}]".format(len(labels))))
+        matrix.plug("matrixSum").connectTo(choice.plug("input[{}]".format(len(labels))))
         self.buffer.plug("spaceLabels").set(json.dumps(labels + (label,)))
         if not labels:
-            choice.plug("output").connect(self.buffer.plug("offsetParentMatrix"))
+            choice.plug("output").connectTo(self.buffer.plug("offsetParentMatrix"))
         return len(labels)
 
     @undoTransaction("hrig.SpaceSwitch.switch")
@@ -211,10 +211,10 @@ class SpaceSwitch:
         choice = self._choice()
         if choice.plug("selector").get() == index:
             return
-        matrix = choice.plug("input[{}]".format(index)).source().node
-        source = matrix.plug("matrixIn[1]").source()
+        matrix = choice.plug("input[{}]".format(index)).sourceWithConversion().node()
+        source = matrix.plug("matrixIn[1]").sourceWithConversion()
         if source is not None:
-            self._validate_target(source.node)
+            self._validate_target(source.node())
         reference = Matrix(matrix.plug("matrixIn[1]").get())
         offset = Matrix(self.buffer.plug("worldMatrix[0]").get()) * self._inverse(reference)
         matrix.plug("matrixIn[0]").set(offset)

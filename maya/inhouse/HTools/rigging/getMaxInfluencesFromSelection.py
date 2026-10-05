@@ -86,7 +86,7 @@ def get_max_influences_from_selection(verbose=True):
 
                 results.setdefault(shape, {})[skin] = max_inf
                 if verbose:
-                    ref = Node(shape).isReferenced()
+                    ref = Node(shape).isFromReferencedFile()
                     print(f"[{ 'REF' if ref else 'LOCAL' }] {shape}  |  {skin}.maxInfluences = {max_inf}")
 
     return results

@@ -61,10 +61,10 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         spline, _ = editor.current()
-        check(spline.root.hasAttribute("stretchGroup"), "UI adds spline layer")
+        check(spline.root.hasAttr("stretchGroup"), "UI adds spline layer")
         editor.tree.setCurrentItem(row("stretch"))
         editor.select_node()
-        settings = spline.root.plug("stretchGroup").source().node
+        settings = spline.root.plug("stretchGroup").sourceWithConversion().node()
         check(
             cmds.ls(selection=True, long=True) == [settings.fullName()],
             "Spline settings selection",
@@ -81,7 +81,7 @@ def main(output_dir=None, finished=None):
         )
         row("stretch").setCheckState(0, QtCore.Qt.Unchecked)
         yield
-        check(spline.members("ik")[1].plug("tx").source() is None, "Spline layer stops calculation")
+        check(spline.members("ik")[1].plug("tx").sourceWithConversion() is None, "Spline layer stops calculation")
         cmds.undo()
         yield
         check(spline.layer_enabled("stretch"), "Spline layer Undo")
@@ -96,7 +96,7 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         limb, _ = editor.current()
-        check(isinstance(limb, LimbRig) and limb.root.hasAttribute("stretchGroup"), "UI adds arm layer")
+        check(isinstance(limb, LimbRig) and limb.root.hasAttr("stretchGroup"), "UI adds arm layer")
         limb.set_mode("ik")
         limb.set_layer_enabled("soft", False)
         cmds.setAttr(limb.controls()["target"] + ".tx", 7)
@@ -105,7 +105,7 @@ def main(output_dir=None, finished=None):
             abs(cmds.xform(limb.joints()[2], q=True, ws=True, t=True)[0] - 15) < 0.001,
             "Arm reaches stretched endpoint",
         )
-        settings = limb.root.plug("stretchGroup").source().node
+        settings = limb.root.plug("stretchGroup").sourceWithConversion().node()
         cmds.setAttr(settings.fullName() + ".enabled", False)
         for _ in range(20):
             yield
@@ -133,7 +133,7 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "stretch.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         limb = LimbRig("stretchArm")
-        settings = limb.root.plug("stretchGroup").source().node
+        settings = limb.root.plug("stretchGroup").sourceWithConversion().node()
         cmds.setAttr(settings.fullName() + ".enabled", False)
         for _ in range(20):
             yield

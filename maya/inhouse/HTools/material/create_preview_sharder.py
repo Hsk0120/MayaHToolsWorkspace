@@ -65,7 +65,7 @@ def main():
 				continue
 
 			input_plug = source_inputs[0]
-			hlib.getPlug(input_plug).connect(target_plug, force=True, unlock=False)
+			hlib.getPlug(input_plug).connectTo(target_plug, force=True, unlock=False)
 			transferred_count += 1
 
 			if len(source_inputs) > 1:
@@ -109,7 +109,7 @@ def main():
 			)
 			return transferred_count
 
-		if not Node(color_input_node).hasAttribute("outTransparency"):
+		if not Node(color_input_node).hasAttr("outTransparency"):
 			cmds.warning(
 				"{0}.outTransparency が無いため transparency は接続しませんでした。".format(
 					color_input_node
@@ -117,7 +117,7 @@ def main():
 			)
 			return transferred_count
 
-		Node(color_input_node).plug("outTransparency").connect(
+		Node(color_input_node).plug("outTransparency").connectTo(
 			"{0}.transparency".format(target_shader),
 			force=True, unlock=False,
 		)

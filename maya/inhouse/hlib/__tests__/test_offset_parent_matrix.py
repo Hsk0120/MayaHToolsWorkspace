@@ -21,9 +21,9 @@ class OffsetParentMatrixTest(unittest.TestCase):
         cmds.delete(self.root.fullName())
 
     def test_matrix_type_copy_undo_and_fast(self):
-        self.source.setTranslation((2, 3, 4))
+        self.source.setTranslation((2, 3, 4), at=4)
         self.source.setRotation((.2, .3, .4))
-        self.source.setScale((2, 3, 4))
+        self.source.setScaling((2, 3, 4))
         value = self.source.getMatrix()
         plug = self.target.plug("offsetParentMatrix")
         self.assertIsInstance(value, Matrix)
@@ -32,7 +32,7 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertIsInstance(plug.get(), Matrix)
         self.assertTrue(plug.get().isEquivalent(value, 1e-9))
         self.assertTrue(self.target.getMatrix().isEquivalent(Matrix(), 1e-9))
-        self.assertTrue(self.target.getMatrix(space=MSpace.kWorld).isEquivalent(value, 1e-9))
+        self.assertTrue(self.target.getMatrix(ws=True).isEquivalent(value, 1e-9))
         cmds.undo()
         self.assertTrue(plug.get().isEquivalent(Matrix(), 1e-9))
         cmds.redo()
@@ -43,18 +43,18 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertTrue(plug.get().isEquivalent(value, 1e-9))
 
     def test_world_alignment_preserves_channels(self):
-        self.root.setTranslation((10, 20, 30))
+        self.root.setTranslation((10, 20, 30), at=4)
         self.root.setRotation((.1, .2, .3))
-        self.root.setScale((2, 3, 4))
-        self.source.setTranslation((4, 5, 6))
-        self.target.setTranslation((1, 2, 3))
+        self.root.setScaling((2, 3, 4))
+        self.source.setTranslation((4, 5, 6), at=4)
+        self.target.setTranslation((1, 2, 3), at=4)
         self.target.setRotation((.4, .5, .6))
         local = self.target.getMatrix()
-        world = self.source.getMatrix(space=MSpace.kWorld)
-        offset = local.inverse() * world * self.root.getMatrix(space=MSpace.kWorld).inverse()
+        world = self.source.getMatrix(ws=True)
+        offset = local.inverse() * world * self.root.getMatrix(ws=True).inverse()
         self.target.plug("offsetParentMatrix").set(offset)
         self.assertTrue(self.target.getMatrix().isEquivalent(local, 1e-9))
-        self.assertTrue(self.target.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-8))
+        self.assertTrue(self.target.getMatrix(ws=True).isEquivalent(world, 1e-8))
 
     def test_transform_methods_and_collection(self):
         from hlib.nodes import Transforms

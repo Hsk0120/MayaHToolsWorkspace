@@ -23,8 +23,8 @@ ShapeがTransformの子に置かれることと、クラスの継承関係は別
          ├─ Mesh
          └─ NurbsCurve
 
-``dagPath()``・``dagFn()``・``parentPath()``・``parentNode()`` は
-``DagNode`` に共通実装があります。Shapeの ``parentNode()`` は
+``mpath()``・``dagFn()``・``parentPath()``・``parent()`` は
+``DagNode`` に共通実装があります。Shapeの ``parent()`` は
 親がTransformの場合だけ返します。
 ``hlib.getNode()`` は引き続きノード型に対応する具象クラスを返します。
 保持していたインスタンスのパスが無効になった場合、別インスタンスへ切り替えません。
@@ -34,16 +34,15 @@ Transform のピボット
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    transform = hlib.getNode("pCube1")
    print(transform.getPivot())              # 既定は (0, 0, 0)
    transform.setPivot((1.0, 2.0, 3.0), kind="both")  # 回転・スケールピボットをまとめて設定
-   print(transform.getPivot(space=MSpace.kWorld))       # ワールド空間での現在位置
+   print(transform.getPivot(ws=True))       # ワールド空間での現在位置
 
 ``getPivot`` / ``setPivot`` は ``kind="rotate"`` が既定です。
 ``kind="scale"`` でスケールピボットだけを扱えます。設定時の ``kind="both"`` は
 両方を同じ位置へ変更します。値・戻り値は Maya API の内部距離単位（cm）です。
-``space=MSpace.kWorld`` はワールド空間、既定Falseは ``cmds.xform`` のオブジェクト空間です。
+``ws=True`` はワールド空間、既定Falseは ``cmds.xform`` のオブジェクト空間です。
 
 設定時は ``preserve=True`` が既定で、変換行列を維持します。
 補償を行わずピボットを動かす場合は ``preserve=False`` を指定します。
@@ -55,15 +54,14 @@ Jointは独立したピボットの変更をサポートしないため、``setP
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    mesh_transform = hlib.getNode("pCube1")
    print(mesh_transform.boundingBox())          # 自身の変換は含むが親の変換は含まない
-   print(mesh_transform.boundingBox(space=MSpace.kWorld))    # 親の変換も含めたワールド空間
+   print(mesh_transform.boundingBox(ws=True))    # 親の変換も含めたワールド空間
 
 ``boundingBox`` は ``MFnDagNode.boundingBox`` をそのまま使うため、
-``space=MSpace.kObject``（既定）でも自身の translate/rotate/scale は反映されます。
+``ws=False``（既定）でも自身の translate/rotate/scale は反映されます。
 ``cmds.xform(node, query=True, boundingBox=True)`` と同じ考え方で、
-親から継承した変換だけを含まない座標系です。``space=MSpace.kWorld`` で親のワールド行列も
+親から継承した変換だけを含まない座標系です。``ws=True`` で親のワールド行列も
 適用した真のワールド空間の境界ボックスになります。戻り値は
 ``om2.MBoundingBox`` で、``.min``/``.max`` から座標を取得できます。
 
@@ -72,7 +70,6 @@ Jointは独立したピボットの変更をサポートしないため、``setP
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    grandparent = hlib.createNode("transform", name="grandparent")
    parent = hlib.createNode("transform", name="parent")
    child = hlib.createNode("transform", name="child")
@@ -80,7 +77,7 @@ Jointは独立したピボットの変更をサポートしないため、``setP
    child.setParent(parent)
 
    print(child.isLocked())                        # False
-   print(child.isReferenced())                     # False（参照シーンなら True）
+   print(child.isFromReferencedFile())                     # False（参照シーンなら True）
    print(child.isType("transform"))               # True
    print(child.isType("dagNode"))                 # True（継承チェーンも判定）
    print(grandparent.isAncestorOf(child))         # True
@@ -116,7 +113,6 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    joint = hlib.createNode("joint", name="nameExampleJoint")
    print(hlib.getNode(joint.plug("tx")))        # nameExampleJoint（Joint）
    print(hlib.getNode(joint.name() + ".tx"))    # アトリビュート名の文字列も所有ノードになる
@@ -129,7 +125,6 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node = hlib.createNode("transform", name="classifyExample")
    print(node.typeId())                 # int（セッション内でのみ有効な内部ID）
    print(node.classification())        # ["drawdb/geometry/transform"]
@@ -140,7 +135,7 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
    branch.setParent(root)
    leaf.setParent(branch)
 
-   print(root.childTransforms())   # [Transform('branch')]（Shape子は含まない）
+   print(root.children())   # [Transform('branch')]（Shape子は含まない）
    print(root.leaves())             # [Transform('leaf')]（子を持たない末端）
    print(branch.siblings())         # 親が同じ他の Transform（自身は含まない）
 
@@ -156,7 +151,6 @@ Maya 組み込みのノード型では空文字列になります。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    grandparent = hlib.createNode("transform", name="grandparent2")
    parent = hlib.createNode("transform", name="parent2")
    child = hlib.createNode("transform", name="child2")
@@ -171,17 +165,17 @@ Maya 組み込みのノード型では空文字列になります。
 
    import maya.cmds as cmds
    cmds.addAttr(child.name(), longName="temp", attributeType="double")
-   child.plug("temp").deleteAttribute()          # 動的アトリビュートを削除
+   child.plug("temp").delete()          # 動的アトリビュートを削除
 
    cmds.addAttr(child.name(), longName="lockedTemp", attributeType="double")
    locked_plug = child.plug("lockedTemp")
    locked_plug.setFlags(locked=True)
-   # locked_plug.deleteAttribute()             # ロック中は RuntimeError
-   locked_plug.deleteAttribute(force=True)     # 一時的に解除してから削除
+   # locked_plug.delete()             # ロック中は RuntimeError
+   locked_plug.delete(force=True)     # 一時的に解除してから削除
 
 ``isParentOf``/``isChildOf`` は直接の親子関係のみを判定します。
 祖先・子孫すべてを対象にする場合は ``isAncestorOf`` を使ってください。
-``deleteAttribute`` は addAttr で追加した動的アトリビュートにのみ使用でき、
+``delete`` は addAttr で追加した動的アトリビュートにのみ使用でき、
 ``translateX`` のような静的アトリビュートを削除しようとすると Maya が拒否します。
 ロックされているアトリビュートは既定では削除できず ``RuntimeError`` になりますが、
 ``force=True`` を指定すると一時的にロックを解除してから削除します。
@@ -195,7 +189,6 @@ Maya 組み込みのノード型では空文字列になります。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    transform = hlib.createNode("transform", name="rigControl")
 
    transform.setVisibility(False)
@@ -207,18 +200,18 @@ Maya 組み込みのノード型では空文字列になります。
    print(transform.getTranslation())             # Translation(0.0, 0.0, 0.0)
 
    driver = hlib.createNode("transform", name="rigDriver")
-   driver.plug("translateX").connect(transform.plug("translateX"))
+   driver.plug("translateX").connectTo(transform.plug("translateX"))
    transform.plug("translate").setFlags(locked=True)
    transform.unlockAndDisconnectTransformChannels()
    print(transform.plug("translate").isLocked())      # False
-   print(transform.plug("translateX").source())       # None（接続も解除される）
+   print(transform.plug("translateX").sourceWithConversion())       # None（接続も解除される）
 
    from hlib.maths import Vector
    print(transform.closestAxisToVector(Vector(0, -1, 0)))   # "-y"
 
    zero, offset = transform.createOffsetGroups("rigControl_zero", "rigControl_offset")
-   print(transform.parentNode().name())   # rigControl_offset
-   print(offset.parentNode().name())      # rigControl_zero
+   print(transform.parent().name())   # rigControl_offset
+   print(offset.parent().name())      # rigControl_zero
 
 ``show``/``hide`` は ``visibility`` の単純なオン・オフです。``makeIdentity`` は
 ``cmds.makeIdentity`` のラッパーで、キーワード引数をそのまま渡します。
@@ -239,7 +232,6 @@ Maya 組み込みのノード型では空文字列になります。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    driven = hlib.getNode("rigControl")
@@ -289,7 +281,6 @@ inverseScaleの接続やバインド情報は変更しないため、切り替�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    from hlib.nodes import Nodes, Transforms, Joints
 
    targets = Transforms(hlib.ls(type="transform"))
@@ -332,12 +323,11 @@ Transformのリセットとピボット
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node.reset()                       # 移動0・回転0・スケール1・シアー0
    node.reset(["tx", "rotate", "sz"])  # 指定したアトリビュートだけ
    node.reset("customValue")           # 独自の数値アトリビュートの既定値
    node.resetPivot()                  # 姿勢を維持して両ピボットをワールド原点へ
-   node.resetPivot(space=MSpace.kObject)          # オブジェクト空間の原点へ
+   node.resetPivot(ws=False)          # オブジェクト空間の原点へ
    node.resetPivot(kind="rotate")     # 回転ピボットのみ
 
 ``reset()`` はアトリビュートの定義上の既定値へ戻します。フリーズではないため姿勢は変わります。
@@ -352,7 +342,6 @@ Jointのスケール接続と表示半径
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    joint.connectInverseScale()                 # 親のscale → 自身のinverseScale
    joint.connectInverseScale(parent, force=True) # 指定Transformから接続を置換
    joint.disconnectInverseScale()              # inverseScaleへの入力だけ切断
@@ -378,7 +367,6 @@ Maya標準のフリーズ
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node.freeze()                         # makeIdentity(apply=True)と同じ
    node.freeze(t=False, r=True, s=True)   # 回転とスケールだけ
    transforms.freeze()                   # 一括操作・一回のUndo
@@ -393,7 +381,6 @@ Maya標準のフリーズ
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    skin = hlib.bindSkin(mesh, joints, toSelectedBones=True,
@@ -419,7 +406,6 @@ bindMethod=3のジオデシックボクセルバインドは、標準コマン�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node.setOutlinerVisibility(False)  # 非表示
    node.setOutlinerVisibility(True)   # 表示
    visible = node.getOutlinerVisibility()
@@ -429,7 +415,6 @@ bindMethod=3のジオデシックボクセルバインドは、標準コマン�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node.setVisibility(False)
    node.setVisibility(True)
    visible = node.getVisibility()
@@ -448,22 +433,22 @@ hiddenInOutlinerを操作します。ビューポートのvisibilityは変更し
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
-   weight = node.addAttribute("weight", attributeType="double", defaultValue=1,
+   weight = node.addAttr("weight", attributeType="double", defaultValue=1,
                                minValue=0, maxValue=1, keyable=True)
-   mode = node.addAttribute("mode", at="enum", enumName="off:on", keyable=True)
-   text = node.addAttribute("memo", dataType="string")
+   mode = node.addAttr("mode", at="enum", enumName="off:on", keyable=True)
+   text = node.addAttr("memo", dataType="string")
    text.set("コントローラ")
-   vector = node.addAttribute("offset", attributeType="double3")
+   vector = node.addAttr("offset", attributeType="double3")
    vector.set((1, 2, 3))
    extras = node.getExtraAttributes()  # トップレベルのPlug一覧
    all_extras = node.getExtraAttributes(include_children=True)
    same_plug = node.plug("weight")       # 個別に取得
 
-既存のaddAttributeで追加できます。Mayaの長名・短名フラグを受け付け、重複指定は拒否します。
-数値のdefaultValueはMayaの定義上の既定値です。文字列の初期値は追加後にsetで設定します。
+既存のaddAttrで追加できます。Mayaの長名・短名フラグを受け付け、重複指定は拒否します。
+数値のdefaultValueはMayaの定義上の既定値です。文字列にもdefaultValueで初期値を指定できます。
+既定で追加したPlugを返します。``getPlug=False`` を明示した場合のみNoneを返します。
 attributeTypeがdouble2/double3/float2/float3の場合、X/Y/Zの子も自動で追加します。
-一般的なcompoundを任意構成で作る場合はMaya標準のaddAttrで子まで定義してからplugで取得します。
+compoundも ``childNames`` と ``subType`` で共通型の子を自動作成できます。
 
 列挙結果は非表示・非keyableのユーザー定義アトリビュートも含みます。
 Mayaの標準アトリビュートは含みません。multiはArrayPlug、複合型はCompoundPlugまたは専用型です。
@@ -508,7 +493,6 @@ LambertとStandardSurfaceの中間型PaintableShadingDependNodeは、起動中�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    material = hlib.createShader("lambert", name="bodyMaterial")
@@ -532,12 +516,11 @@ TransformのshadingEnginesは直下の非中間シェイプを対象とします
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    texture = hlib.createNode("file", name="bodyTexture")
    texture.setFilePath("C:/textures/body.<UDIM>.exr")
    placement = hlib.createNode("place2dTexture")
    placement.connectTexture(texture)
-   texture.plug("outColor").connect(material.plug("color"))
+   texture.plug("outColor").connectTo(material.plug("color"))
    current_placement = texture.getPlacement()
    current_space = texture.getColorSpace()
 
@@ -555,7 +538,7 @@ ShadingEngineのgetShader/setShaderはkindにsurface、volume、displacementを�
 ------------------------------------
 
 通常の更新（setTranslation・freeze・setVisibilityなど）はコレクション自身を返します。
-照会は保持順の結果リスト、addAttribute等の生成結果が必要な操作も結果リストです。
+照会は保持順の結果リスト、addAttr等の生成結果が必要な操作も結果リストです。
 callEachも同じ戻り値規則に従います。空のコレクションでもこの規則は変わりません。
 色の照会はlist[Color]、Joints.skinClustersはSkinClustersという専用の集約結果を返します。
 明示実装のdeleteはNoneを返し、削除済み参照の連鎖操作には使用しません。

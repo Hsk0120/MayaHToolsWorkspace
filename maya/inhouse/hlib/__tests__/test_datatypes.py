@@ -60,7 +60,7 @@ def test_vector_neg_truediv_and_length_squared():
     assert type(-v) is Vector
     assert tuple(Vector(2.0, 4.0, 6.0) / 2.0) == (1.0, 2.0, 3.0)
     assert type(Vector(2.0, 4.0, 6.0) / 2.0) is Vector
-    assert Vector(3.0, 4.0, 0.0).lengthSquared() == 25.0
+    assert Vector(3.0, 4.0, 0.0).lengthSq() == 25.0
 
 
 def test_vector_distance_to_and_angle_to():

@@ -74,7 +74,7 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
     for handle in cluster_handles:
         sel = Node(handle)
         # 従来のcymel.getTranslation(ws=True)は回転ピボット位置を返す。
-        pos = sel.getPivot(space=MSpace.kWorld, kind="rotate")
+        pos = sel.getPivot(ws=True, kind="rotate")
         points.append((pos[0], pos[1], pos[2]))
 
     # degree が point数以上だと作れないので調整

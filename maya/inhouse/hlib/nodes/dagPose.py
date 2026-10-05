@@ -1,5 +1,7 @@
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
 
+from .._core.flags import flag_aliases
+
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
@@ -110,18 +112,19 @@ class DagPose(Node):
                 return index
         raise ValueError(f"Not a member of {self._pose_name()}: {member}")
 
-    def getMatrix(self, member, space=MSpace.kObject):
+    @flag_aliases(ws="worldSpace")
+    def getMatrix(self, member, worldSpace=False):
         """現在のノード行列ではなく、保存時の行列を取得する。
 
         Args:
             member (Node | str): 保存対象のノード。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
         Returns:
             Matrix: 保存行列のコピー。
         Raises:
             ValueError: メンバーでない場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         index = self.memberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
         return Matrix(self.plug(attribute).element(index).get())
@@ -142,18 +145,19 @@ class DagPose(Node):
         names = [plug.rsplit(".", 1)[0] for plug in plugs if plug.endswith(".bindPose")]
         return [Node(name) for name in dict.fromkeys(names)]
 
+    @flag_aliases(ws="worldSpace")
     @undoChunk("hlibDagPoseRestore")
-    def restore(self, space=MSpace.kObject):
+    def restore(self, worldSpace=False):
         """保存した姿勢へ戻す。接続やロックの解除は行わない。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
         Returns:
             DagPose: 自身。
         Raises:
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         cmds.dagPose(self._pose_name(), restore=True, g=ws)
         return self
 

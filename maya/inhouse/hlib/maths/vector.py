@@ -921,7 +921,7 @@ class Vector(om2.MVector):
         _MVector.__iadd__(result, _MVector.__xor__(self, _as_mvector(other)))
         return result
 
-    def lengthSquared(self):
+    def lengthSq(self):
         """長さの2乗(自身との内積)を返す。
 
         平方根を計算しないため、長さの比較だけが目的なら length() より速い。

@@ -39,7 +39,7 @@ class UnifiedConstraintTest(unittest.TestCase):
         )
         self.assertEqual(result.type(), "aimConstraint")
         self.assertEqual(
-            result.plug("worldUpMatrix").source().node.uuid(), self.up.uuid()
+            result.plug("worldUpMatrix").sourceWithConversion().node().uuid(), self.up.uuid()
         )
         self.assertEqual(
             result.targets()[0].uuid(), self.source.uuid()

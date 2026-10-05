@@ -80,7 +80,7 @@ class MultMatrix(Node):
         index = self._index(index)
         from ..plugs.plug import Plug
         source = Plug._resolve_input(source)
-        source.connect(self.plug("matrixIn")._element_reference(index), force=force)
+        source.connectTo(self.plug("matrixIn")._element_reference(index), force=force)
         return self
 
     def outputPlug(self):

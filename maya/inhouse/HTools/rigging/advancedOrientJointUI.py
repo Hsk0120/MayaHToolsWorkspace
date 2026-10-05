@@ -6,6 +6,9 @@ skinCluster 状態の退避/復元、および UI から Orient Joint を適用�
 """
 
 import maya.cmds as cmds
+
+from hlib.nodes import Node
+from hlib.utils import units
 import maya.api.OpenMaya as om2
 import math
 
@@ -555,7 +558,7 @@ def _compute_debug_log_euler_rebuild(joint_name, euler_rotation, target_matrix):
     Returns:
         dict[str, maya.api.OpenMaya.MMatrix | str]: 再構築行列情報。
     """
-    rotate_order_index = int(cmds.getAttr("{}.rotateOrder".format(joint_name)))
+    rotate_order_index = int(Node(joint_name).plug("rotateOrder").get())
     rotate_order_enum = _ROTATE_ORDER_ENUMS.get(rotate_order_index, om2.MEulerRotation.kXYZ)
     rotate_order_label = _ROTATE_ORDER_LABELS.get(rotate_order_index, "xyz")
 
@@ -674,9 +677,9 @@ def _compute_debug_log_post_apply_attr_state(joint_name, expected_orient_degrees
         joint_name (str): 対象ジョイント名。
         expected_orient_degrees (list[float]): 期待する orient 角度（度）。
     """
-    actual_orient = cmds.getAttr("{}.jointOrient".format(joint_name))[0]
-    actual_rotate = cmds.getAttr("{}.rotate".format(joint_name))[0]
-    rotate_order_index = int(cmds.getAttr("{}.rotateOrder".format(joint_name)))
+    actual_orient = tuple(units.angleToUi(v) for v in Node(joint_name).plug("jointOrient").get())
+    actual_rotate = tuple(units.angleToUi(v) for v in Node(joint_name).plug("rotate").get())
+    rotate_order_index = int(Node(joint_name).plug("rotateOrder").get())
     rotate_order_label = _ROTATE_ORDER_LABELS.get(rotate_order_index, "xyz")
 
     delta_orient = [
@@ -849,9 +852,9 @@ def _compute_rotate_axis_matrix(joint_name):
     Returns:
         maya.api.OpenMaya.MMatrix: rotateAxis 由来の回転行列。
     """
-    rx = math.radians(cmds.getAttr("{}.rotateAxisX".format(joint_name)))
-    ry = math.radians(cmds.getAttr("{}.rotateAxisY".format(joint_name)))
-    rz = math.radians(cmds.getAttr("{}.rotateAxisZ".format(joint_name)))
+    rx = math.radians(units.angleToUi(Node(joint_name).plug("rotateAxisX").get()))
+    ry = math.radians(units.angleToUi(Node(joint_name).plug("rotateAxisY").get()))
+    rz = math.radians(units.angleToUi(Node(joint_name).plug("rotateAxisZ").get()))
     return om2.MEulerRotation(rx, ry, rz).asMatrix()
 
 def _compute_has_non_zero_rotate_axis(joint_name):
@@ -864,9 +867,9 @@ def _compute_has_non_zero_rotate_axis(joint_name):
         bool: いずれかの軸が閾値より大きい場合は ``True``。
     """
     vals = [
-        cmds.getAttr("{}.rotateAxisX".format(joint_name)),
-        cmds.getAttr("{}.rotateAxisY".format(joint_name)),
-        cmds.getAttr("{}.rotateAxisZ".format(joint_name)),
+        units.angleToUi(Node(joint_name).plug("rotateAxisX").get()),
+        units.angleToUi(Node(joint_name).plug("rotateAxisY").get()),
+        units.angleToUi(Node(joint_name).plug("rotateAxisZ").get()),
     ]
     return any(abs(v) > 1e-6 for v in vals)
 
@@ -1213,12 +1216,9 @@ def _apply_orient_from_ui(*_):
             child_world_matrices = _compute_descendant_world_matrices(j)
 
             # orient 値を書き込み、rotate をゼロに戻して回転を jointOrient 側へ集約する。
-            cmds.setAttr(
-                "{}.jointOrient".format(j),
-                orient_degrees[0], orient_degrees[1], orient_degrees[2],
-                type="double3"
-            )
-            cmds.setAttr("{}.rotate".format(j), 0.0, 0.0, 0.0, type="double3")
+            joint = Node(j)
+            joint.plug("jointOrient").set(tuple(units.angleFromUi(v) for v in orient_degrees))
+            joint.plug("rotate").set((0.0, 0.0, 0.0))
 
             # 親の向き更新で子のワールド姿勢が変わらないよう、退避行列を復元する。
             if child_world_matrices:
@@ -1278,9 +1278,9 @@ def _apply_orient_from_ui(*_):
                     om2.MGlobal.displayInfo(
                         "[OrientDebug] {}: rotateAxis=({:.6f}, {:.6f}, {:.6f})deg".format(
                             j,
-                            cmds.getAttr("{}.rotateAxisX".format(j)),
-                            cmds.getAttr("{}.rotateAxisY".format(j)),
-                            cmds.getAttr("{}.rotateAxisZ".format(j)),
+                            units.angleToUi(Node(j).plug("rotateAxisX").get()),
+                            units.angleToUi(Node(j).plug("rotateAxisY").get()),
+                            units.angleToUi(Node(j).plug("rotateAxisZ").get()),
                         )
                     )
                 _compute_debug_log_joint_axis_alignment(j)

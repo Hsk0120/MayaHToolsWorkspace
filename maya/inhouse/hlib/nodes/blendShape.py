@@ -49,7 +49,7 @@ class BlendShape(Node):
         Returns:
             list[Node]: 変形対象の shape。無ければ空リスト。
         """
-        return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mobject()).getOutputGeometry()]
+        return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]
 
     @undoChunk("hlibBlendShapeAddTarget")
     def addTarget(self, target, base=None, weight_index=None, full_weight=1.0):

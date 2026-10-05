@@ -9,7 +9,6 @@
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    pose = hlib.getNode("bindPose1")
@@ -24,7 +23,6 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    skin = hlib.getNode("skinCluster1")
    pose = skin.bindPose()
    if pose is not None:
@@ -46,10 +44,9 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    pose = hlib.nodes.DagPose.create("root_joint", name="rigPose")
    pose.restore()                 # 保存時のローカル姿勢へ復元
-   pose.restore(space=MSpace.kWorld)          # Mayaのglobalオプションで復元
+   pose.restore(ws=True)          # Mayaのglobalオプションで復元
 
 ``create()`` は現在の選択に依存しません。既定では指定対象の階層を保存し、
 ``hierarchy=False`` なら指定したメンバーのみを保存します。
@@ -62,9 +59,8 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    local_matrix = pose.getMatrix("root_joint")
-   world_matrix = pose.getMatrix("root_joint", space=MSpace.kWorld)
+   world_matrix = pose.getMatrix("root_joint", ws=True)
    indices = pose.memberIndices()
    index = pose.memberIndex("root_joint")
 

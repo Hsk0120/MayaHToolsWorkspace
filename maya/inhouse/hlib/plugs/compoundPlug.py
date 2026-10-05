@@ -2,6 +2,7 @@
 
 import maya.api.OpenMaya as om2
 
+from ..decorators._safe import safe_edit
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
 from .plug import Plug
@@ -45,7 +46,8 @@ class CompoundPlug(Plug):
 
     @fast_edit
     @undoChunk("hlibCompoundPlugSet")
-    def set(self, value, *, fast=False):
+    @safe_edit
+    def set(self, value, safe=False, *, fast=False):
         """子数と同数のシーケンスを各子プラグへ設定する。
 
         子の変更を一回のUndoにまとめる。要素数は先に検査する。
@@ -53,11 +55,12 @@ class CompoundPlug(Plug):
         その他の複合型は子ごとの設定を使う。途中の失敗時に完了済みの値は自動で戻さない。
 
         Args:
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[object]): 子プラグと同じ数の値。先頭から順に設定する。
 
         Returns:
-            CompoundPlug: 自身。
+            CompoundPlug | int: 自身。safe=Trueでは失敗した成分数。
 
         Raises:
             ValueError: 要素数が子数と一致しない場合。

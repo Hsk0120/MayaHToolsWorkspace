@@ -28,7 +28,7 @@ class TweakLayer:
             dict[str, Node]: IDとグループ。
         """
         root = self.rig.root
-        if not root.hasAttribute("tweakGroups"):
+        if not root.hasAttr("tweakGroups"):
             return {}
         return {
             node.plug("tweakId").get(): node
@@ -41,7 +41,7 @@ class TweakLayer:
         Returns:
             tuple[str]: 完全名。
         """
-        return tuple(g.plug("joint").source().node.fullName() for g in self.groups().values())
+        return tuple(g.plug("joint").sourceWithConversion().node().fullName() for g in self.groups().values())
 
     @undoTransaction("hrig.TweakLayer.add")
     def add(self, identifier, joint):
@@ -62,8 +62,8 @@ class TweakLayer:
             raise ValueError("Select a joint inside the module")
         stem = root.name() + "_tweak_" + identifier
         group = hlib.createNode("transform", name=stem + "_grp", parent=joint, skipSelect=True)
-        group.addAttribute(longName="tweakId", dataType="string").set(identifier)
-        group.addAttribute(longName="enabled", attributeType="bool", defaultValue=True)
+        group.addAttr(longName="tweakId", dataType="string").set(identifier)
+        group.addAttr(longName="enabled", attributeType="bool", defaultValue=True)
         group.setAttributeFlags(["enabled"], channelBox=True)
         control = hlib.createNode("transform", name=stem + "_ctrl", parent=group, skipSelect=True)
         bone = hlib.createNode("joint", name=stem + "_jnt", parent=group, skipSelect=True)
@@ -73,10 +73,10 @@ class TweakLayer:
 
         ControlShape.circle(control, 0.35, (1, 0, 0), 13)
         for attr, node in (("control", control), ("joint", bone)):
-            group.addAttribute(longName=attr, attributeType="message")
-            node.plug("message").connect(group.plug(attr))
-        if not root.hasAttribute("tweakGroups"):
-            root.addAttribute(longName="tweakGroups", attributeType="message", multi=True)
+            group.addAttr(longName=attr, attributeType="message")
+            node.plug("message").connectTo(group.plug(attr))
+        if not root.hasAttr("tweakGroups"):
+            root.addAttr(longName="tweakGroups", attributeType="message", multi=True)
         root.plug("tweakGroups").appendMessage(group)
         group.setAttributeFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
         self.update()
@@ -90,13 +90,13 @@ class TweakLayer:
         """Enabled/LODに応じて局所行列の入力を切り替える。"""
         for group in self.groups().values():
             active = bool(group.plug("enabled").get()) and self.rig.lod() == 1
-            control = group.plug("control").source().node
-            destination = group.plug("joint").source().node.plug("offsetParentMatrix")
-            previous = destination.source()
+            control = group.plug("control").sourceWithConversion().node()
+            destination = group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix")
+            previous = destination.sourceWithConversion()
             if active and previous is None:
-                control.plug("matrix").connect(destination)
+                control.plug("matrix").connectTo(destination)
             elif not active and previous is not None:
-                previous.disconnect(destination)
+                destination.disconnect(previous)
                 destination.set(hlib.maths.Matrix())
             control.plug("visibility").setIfChanged(active)
 
@@ -120,7 +120,7 @@ class TweakLayer:
                 jobs = hlib.events.ScriptJobs()
                 for plug in (
                     group.plug("enabled"),
-                    rig.root.plug("hrigLod" if rig.root.hasAttribute("hrigLod") else "lod"),
+                    rig.root.plug("hrigLod" if rig.root.hasAttr("hrigLod") else "lod"),
                 ):
                     jobs.add(
                         plug.fullName(),
@@ -147,7 +147,7 @@ class TweakLayer:
         for group in layer.groups().values():
             active = bool(group.plug("enabled").get()) and layer.rig.lod() == 1
             if (
-                bool(group.plug("joint").source().node.plug("offsetParentMatrix").source())
+                bool(group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion())
                 != active
             ):
                 layer.update()

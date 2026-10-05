@@ -57,7 +57,7 @@ class StretchTest(unittest.TestCase):
         self.assertAlmostEqual(rig.members("deform")[2].plug("scaleY").get(), 1)
         rig.set_layer_enabled("stretch", False)
         self.assertAlmostEqual(rig.members("ik")[1].plug("tx").get(), 10 / 6)
-        self.assertIsNone(group.plug("measurement").source().node.plug("inputCurve").source())
+        self.assertIsNone(group.plug("measurement").sourceWithConversion().node().plug("inputCurve").sourceWithConversion())
 
     def test_spline_match_lod_units(self):
         """伸縮済み姿勢のFK合わせと単位・親scale・保存復元を確認する。"""
@@ -76,17 +76,17 @@ class StretchTest(unittest.TestCase):
         for axis in "XYZ":
             rig.root.plug("scale" + axis).set(2)
         self.assertAlmostEqual(
-            group.plug("graph").source().node.plug("lengthScale").get(), 1.5, delta=0.03
+            group.plug("graph").sourceWithConversion().node().plug("lengthScale").get(), 1.5, delta=0.03
         )
         rig.set_lod(0)
-        self.assertIsNone(rig.members("ik")[1].plug("tx").source())
+        self.assertIsNone(rig.members("ik")[1].plug("tx").sourceWithConversion())
         rig.set_lod(1)
         path = os.path.join(tempfile.gettempdir(), "hrig_stretch_spline.ma")
         cmds.file(rename=path)
         cmds.file(save=True, type="mayaAscii", force=True)
         cmds.file(path, open=True, force=True, executeScriptNodes=False)
         rig = SplineRig("spine01")
-        self.assertIsNotNone(rig.members("ik")[1].plug("tx").source())
+        self.assertIsNotNone(rig.members("ik")[1].plug("tx").sourceWithConversion())
         rig.delete()
         self.assertFalse(cmds.ls("spine01*"))
 
@@ -140,7 +140,7 @@ class StretchTest(unittest.TestCase):
             self.same(self.matrix(joint), matrix)
         rig.set_mode("ik")
         rig.set_lod(0)
-        self.assertIsNone(hlib.getPlug(rig._member("ik1") + ".tx").source())
+        self.assertIsNone(hlib.getPlug(rig._member("ik1") + ".tx").sourceWithConversion())
         rig.set_lod(1)
         path = os.path.join(tempfile.gettempdir(), "hrig_stretch_limb.ma")
         root = rig.root.name()
@@ -148,7 +148,7 @@ class StretchTest(unittest.TestCase):
         cmds.file(save=True, type="mayaAscii", force=True)
         cmds.file(path, open=True, force=True, executeScriptNodes=False)
         rig = LimbRig(root)
-        self.assertIsNotNone(hlib.getPlug(rig._member("ik1") + ".tx").source())
+        self.assertIsNotNone(hlib.getPlug(rig._member("ik1") + ".tx").sourceWithConversion())
         rig.delete()
         self.assertFalse(cmds.objExists(root + "_stretchGraph"))
 
@@ -157,9 +157,9 @@ class StretchTest(unittest.TestCase):
         rig = build_spline()
         rig.add_stretch()
         cmds.undo()
-        self.assertFalse(rig.root.hasAttribute("stretchGroup"))
+        self.assertFalse(rig.root.hasAttr("stretchGroup"))
         cmds.redo()
-        self.assertTrue(rig.root.hasAttribute("stretchGroup"))
+        self.assertTrue(rig.root.hasAttr("stretchGroup"))
         other = build_spline("bound")
         mesh = cmds.polyCube()[0]
         cmds.skinCluster(other.joints(), mesh, toSelectedBones=True)
@@ -191,8 +191,8 @@ class StretchTest(unittest.TestCase):
                 self.same(self.matrix(rig.joints()[2]), expected[time])
         cmds.evaluationManager(mode="off")
         before = self.position(rig.joints()[2])
-        ratio = group.plug("graph").source().node.plug("lengthScale").get()
+        ratio = group.plug("graph").sourceWithConversion().node().plug("lengthScale").get()
         for axis in "XYZ":
             rig.root.plug("scale" + axis).set(2)
         self.same(self.position(rig.joints()[2]), [v * 2 for v in before])
-        self.assertAlmostEqual(group.plug("graph").source().node.plug("lengthScale").get(), ratio)
+        self.assertAlmostEqual(group.plug("graph").sourceWithConversion().node().plug("lengthScale").get(), ratio)

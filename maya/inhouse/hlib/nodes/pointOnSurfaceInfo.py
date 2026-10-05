@@ -1,5 +1,7 @@
 """接続したsurfaceの形状情報をMayaで評価する。"""
 
+from .._core.flags import flag_aliases
+
 from .._core.registry import node_wrapper
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -35,13 +37,14 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
+    @flag_aliases(ws="worldSpace")
     @undoChunk("hlibCalculationEdit")
-    def connectSurface(self, surface, world_space=True, force=False):
+    def connectSurface(self, surface, worldSpace=True, force=False):
         """形状またはTransformを解決して接続する。
 
         Args:
             surface (Node | str | MObject | MDagPath): 対象形状。
-            world_space (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
             force (bool): 接続を置き換えるか。
         Returns:
             PointOnSurfaceInfo: 自身。
@@ -49,8 +52,8 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = _Calculation.geometryOutput(surface, "nurbsSurface", world_space)
-        source.connect(self.inputPlug(), force=force)
+        source = _Calculation.geometryOutput(surface, "nurbsSurface", worldSpace)
+        source.connectTo(self.inputPlug(), force=force)
         return self
 
     def getParameters(self):

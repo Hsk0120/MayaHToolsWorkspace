@@ -54,8 +54,8 @@ class Om2BackendsTest(unittest.TestCase):
                     raw = fn.getPoints(space) if shape.type() == 'mesh' else fn.cvPositions(space)
                     expected = [(raw[i].x, raw[i].y, raw[i].z) for i in items.indices]
                     with self.forbidden('xform', 'getAttr'):
-                        self.assert_points(items.getPosition(MSpace.kWorld if ws else MSpace.kObject), expected)
-                        self.assert_points([items[0].getPosition(MSpace.kWorld if ws else MSpace.kObject)], expected[:1])
+                        self.assert_points(items.getPosition(ws), expected)
+                        self.assert_points([items[0].getPosition(ws)], expected[:1])
                 cmds.currentUnit(linear='cm')
         deleted = items
         cmds.delete(curve, instance)
@@ -103,7 +103,7 @@ class Om2BackendsTest(unittest.TestCase):
                   ('stringArray', ['a', 'b']), ('vectorArray', [(1, 2, 3), (4, 5, 6)]),
                   ('pointArray', [(1, 2, 3, 1), (4, 5, 6, 2)])]
         for kind, rows in arrays:
-            plug = node.addAttribute(kind, dataType=kind)
+            plug = node.addAttr(kind, dataType=kind)
             states = [None, [], rows[:1], rows]
             for values in states:
                 if values is not None:
@@ -118,9 +118,9 @@ class Om2BackendsTest(unittest.TestCase):
         from hlib.json.references import NodeRef
         from hlib.json.snapshots import _attribute
         node = hlib.createNode('transform')
-        node.setTranslation((3, 4, 5))
+        node.setTranslation((3, 4, 5), at=4)
         node.setRotation((10, 20, 30), unit='deg')
-        node.addAttribute('text', dataType='string')
+        node.addAttr('text', dataType='string')
         for angular, linear in [('deg', 'cm'), ('rad', 'm')]:
             cmds.currentUnit(angle=angular, linear=linear)
             for name in ('tx', 'rx', 'translate', 'rotate', 'offsetParentMatrix', 'text'):
@@ -153,8 +153,8 @@ class Om2BackendsTest(unittest.TestCase):
         node = hlib.createNode('network')
         for flag in ('q', 'e', 'query', 'edit'):
             with self.assertRaises(ValueError):
-                node.addAttribute('bad', attributeType='double3', **{flag: True})
-            self.assertFalse(node.hasAttribute('bad'))
+                node.addAttr('bad', attributeType='double3', **{flag: True})
+            self.assertFalse(node.hasAttr('bad'))
 
     def test_scale_geometry_bulk_read_and_fast_units(self):
         """拡縮の取得をAPIへ寄せ、通常Undoとfastの値・単位・インスタンスを比較する。"""
@@ -174,25 +174,25 @@ class Om2BackendsTest(unittest.TestCase):
             for unit in ('cm', 'm'):
                 cmds.currentUnit(linear=unit)
                 for space in (MSpace.kObject, MSpace.kWorld):
-                    before = points.getPosition(space)
+                    before = points.getPosition(ws=(space == MSpace.kWorld))
                     factors, pivot = (2, .5, -1), (1, 2, 3)
                     expected = [tuple(pivot[i] + (p[i] - pivot[i]) * factors[i] for i in range(3))
                                 if index in (0, 2) else p for index, p in enumerate(before)]
                     with patch.object(cmds, 'xform', wraps=cmds.xform) as xform:
-                        node.scaleGeometry(factors, space=space, pivot=pivot, indices=[2, 0, 2])
+                        node.scaleGeometry(factors, ws=(space == MSpace.kWorld), pivot=pivot, indices=[2, 0, 2])
                     self.assertEqual(len(xform.call_args_list), 2)
                     self.assertTrue(all(not call[1].get('query') for call in xform.call_args_list))
-                    self.assert_points(points.getPosition(space), expected)
+                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
                     cmds.undo()
-                    self.assert_points(points.getPosition(space), before)
+                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), before)
                     cmds.redo()
-                    self.assert_points(points.getPosition(space), expected)
+                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
                     cmds.undo()
                     queue = cmds.undoInfo(query=True, undoName=True)
                     weights = None if shape.type() == 'mesh' else [p.w for p in shape.curveFn().cvPositions()]
                     with self.forbidden('xform', 'ls', 'getAttr', 'setAttr', 'undoInfo'):
-                        node.scaleGeometry(factors, space=space, pivot=pivot, indices=[2, 0, 2], fast=True)
-                    self.assert_points(points.getPosition(space), expected)
+                        node.scaleGeometry(factors, ws=(space == MSpace.kWorld), pivot=pivot, indices=[2, 0, 2], fast=True)
+                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
                     self.assertEqual(cmds.undoInfo(query=True, undoName=True), queue)
                     if weights is not None:
                         self.assertEqual([p.w for p in shape.curveFn().cvPositions()], weights)
@@ -235,22 +235,22 @@ class Om2BackendsTest(unittest.TestCase):
     def test_rational_cv_world_position_roundtrip(self):
         """重み付きCVはAPIワールドXYZの取得と通常・fast設定で往復する。"""
         node = hlib.getNode(cmds.curve(d=1, pw=[(1, 2, 3, 2), (3, 4, 5, .5)]))
-        node.setTranslation((10, 20, 30))
-        node.setScale((-2, 3, .5))
+        node.setTranslation((10, 20, 30), at=4)
+        node.setScaling((-2, 3, .5))
         cvs = node.shape().cvs()
         cmds.currentUnit(linear='m')
         try:
-            before = cvs.getPosition(MSpace.kWorld)
-            cvs.setPositions(before, space=MSpace.kWorld)
-            self.assert_points(cvs.getPosition(MSpace.kWorld), before)
+            before = cvs.getPosition(True)
+            cvs.setPositions(before, ws=True)
+            self.assert_points(cvs.getPosition(True), before)
             changed = [tuple(v + 1 for v in point) for point in before]
-            cvs.setPositions(changed, space=MSpace.kWorld)
-            self.assert_points(cvs.getPosition(MSpace.kWorld), changed)
+            cvs.setPositions(changed, ws=True)
+            self.assert_points(cvs.getPosition(True), changed)
             cmds.undo()
-            self.assert_points(cvs.getPosition(MSpace.kWorld), before)
+            self.assert_points(cvs.getPosition(True), before)
             with self.forbidden('xform', 'setAttr', 'undoInfo'):
-                cvs.setPositions(changed, space=MSpace.kWorld, fast=True)
-            self.assert_points(cvs.getPosition(MSpace.kWorld), changed)
+                cvs.setPositions(changed, ws=True, fast=True)
+            self.assert_points(cvs.getPosition(True), changed)
         finally:
             cmds.currentUnit(linear='cm')
 

@@ -71,7 +71,7 @@ class BlendColors(Node):
         Returns:
             BlendColors: 自身。
         """
-        source.connect(self.colorPlug(index), force=force)
+        source.connectTo(self.colorPlug(index), force=force)
         return self
 
     def blenderPlug(self):
@@ -119,7 +119,7 @@ class BlendColors(Node):
         Returns:
             BlendColors: 自身。
         """
-        source.connect(self.blenderPlug(), force=force)
+        source.connectTo(self.blenderPlug(), force=force)
         return self
 
     def outputPlug(self):

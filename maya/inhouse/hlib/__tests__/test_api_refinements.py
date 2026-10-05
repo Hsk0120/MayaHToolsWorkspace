@@ -67,26 +67,26 @@ class ApiRefinementsTest(unittest.TestCase):
     def test_pivot_kinds_preserve_matrix_and_units(self):
         """別々のピボット、親・負scale・Joint・単位変換とUndoを確認する。"""
         parent = self.create("transform")
-        parent.setTranslation((4, 6, 8))
-        parent.setScale((-2, 3, 1))
+        parent.setTranslation((4, 6, 8), at=4)
+        parent.setScaling((-2, 3, 1))
         for type in ("transform", "joint"):
             node = self.create(type)
             node.setParent(parent)
             node.setRotation((.3, .4, .5))
-            node.setScale((1.2, .7, 2))
+            node.setScaling((1.2, .7, 2))
             if type == "joint":
-                before = node.getMatrix(space=MSpace.kWorld)
+                before = node.getMatrix(ws=True)
                 for kind in ("rotate", "scale", "both"):
                     with self.assertRaises(TypeError):
                         node.setPivot((1, 2, 3), kind=kind)
-                    self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before))
+                    self.assertTrue(node.getMatrix(ws=True).isEquivalent(before))
                 continue
             if type == "joint":
-                before = node.getMatrix(space=MSpace.kWorld)
+                before = node.getMatrix(ws=True)
                 for kind in ("rotate", "scale", "both"):
                     with self.assertRaises(TypeError):
                         node.setPivot((1, 2, 3), kind=kind)
-                    self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before))
+                    self.assertTrue(node.getMatrix(ws=True).isEquivalent(before))
                 continue
             node.setPivot((1, 2, 3), kind="rotate")
             node.setPivot((-2, 1, 4), kind="scale")
@@ -94,20 +94,20 @@ class ApiRefinementsTest(unittest.TestCase):
                 cmds.currentUnit(linear=unit)
                 for ws in (False, True):
                     for kind in ("rotate", "scale", "both"):
-                        before = node.getMatrix(space=MSpace.kWorld)
-                        old = {k: tuple(node.getPivot(space=MSpace.kWorld if ws else MSpace.kObject, kind=k)) for k in ("rotate", "scale")}
-                        node.setPivot((12, 15, 18), space=MSpace.kWorld if ws else MSpace.kObject, kind=kind)
-                        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before, 1e-8))
+                        before = node.getMatrix(ws=True)
+                        old = {k: tuple(node.getPivot(ws=ws, kind=k)) for k in ("rotate", "scale")}
+                        node.setPivot((12, 15, 18), ws=ws, kind=kind)
+                        self.assertTrue(node.getMatrix(ws=True).isEquivalent(before, 1e-8))
                         for k in ("rotate", "scale"):
                             expected = (12, 15, 18) if kind in (k, "both") else old[k]
-                            for a, b in zip(node.getPivot(space=MSpace.kWorld if ws else MSpace.kObject, kind=k), expected):
+                            for a, b in zip(node.getPivot(ws=ws, kind=k), expected):
                                 self.assertAlmostEqual(a, b, places=7, msg=(type, unit, ws, kind, k))
                         cmds.undo()
                         for k in old:
-                            for a, b in zip(node.getPivot(space=MSpace.kWorld if ws else MSpace.kObject, kind=k), old[k]):
+                            for a, b in zip(node.getPivot(ws=ws, kind=k), old[k]):
                                 self.assertAlmostEqual(a, b, places=7, msg=(type, unit, ws, kind, k))
                         cmds.redo()
-                        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(before, 1e-8))
+                        self.assertTrue(node.getMatrix(ws=True).isEquivalent(before, 1e-8))
                         cmds.undo()
 
     def test_pivot_validation_and_default_target(self):
@@ -175,7 +175,7 @@ class ApiRefinementsTest(unittest.TestCase):
             cmds.undoInfo(closeChunk=True)
         expected = list(skin.getWeights(joints))
         cmds.undo()
-        skin.transferWeights(pair for pair in ((joints[0].mobject(), joints[1]), (joints[1], joints[2].dagPath())))
+        skin.transferWeights(pair for pair in ((joints[0].mnode(), joints[1]), (joints[1], joints[2].mpath())))
         values = list(skin.getWeights(joints))
         for a, b in zip(values, expected):
             self.assertAlmostEqual(a, b)

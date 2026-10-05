@@ -33,7 +33,7 @@ class DagPoseTest(unittest.TestCase):
 
         self.assertEqual(pose.memberIndices(), [0, 1])
         self.assertEqual(list(pose.getMatrix(self.child)), cmds.getAttr(self.child + ".matrix"))
-        self.assertEqual(list(pose.getMatrix(self.child, space=MSpace.kWorld)), cmds.getAttr(self.child + ".worldMatrix[0]"))
+        self.assertEqual(list(pose.getMatrix(self.child, ws=True)), cmds.getAttr(self.child + ".worldMatrix[0]"))
         self.assertTrue(pose.isAtPose())
         cmds.setAttr(self.child + ".ty", 4)
         self.assertEqual([x.fullName() for x in pose.notAtPose()], [hlib.getNode(self.child).fullName()])
@@ -59,7 +59,7 @@ class DagPoseTest(unittest.TestCase):
         cmds.redo()
         self.assertTrue(pose.isAtPose())
         cmds.setAttr(self.root + ".tx", 20)
-        pose.restore(space=MSpace.kWorld)
+        pose.restore(ws=True)
         self.assertAlmostEqual(cmds.getAttr(self.root + ".tx"), 10)
 
     def test_reset_undo_redo(self):
@@ -138,7 +138,7 @@ class DagPoseTest(unittest.TestCase):
         skins = hlib.nodes.SkinClusters([skin])
         self.assertEqual(skins.bindPose()[0].fullName(), pose.fullName())
         cmds.setAttr(self.child + ".ty", 7)
-        self.assertEqual(len(skins.restoreBindPose(space=MSpace.kObject)), 1)
+        self.assertEqual(len(skins.restoreBindPose(ws=False)), 1)
         self.assertAlmostEqual(cmds.getAttr(self.child + ".ty"), 0)
         cmds.undo()
         self.assertAlmostEqual(cmds.getAttr(self.child + ".ty"), 7)

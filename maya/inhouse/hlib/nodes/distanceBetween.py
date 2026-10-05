@@ -63,8 +63,8 @@ class DistanceBetween(Node):
             raise TypeError("Both inputs must be transforms")
         self.setPoints((0, 0, 0), (0, 0, 0))
         for number, node in enumerate(nodes, 1):
-            index = node.dagPath().instanceNumber()
-            node.plug("worldMatrix").element(index, create=True).connect(
+            index = node.mpath().instanceNumber()
+            node.plug("worldMatrix").element(index, create=True).connectTo(
                 self.plug(f"inMatrix{number}"), force=force)
         return self
 

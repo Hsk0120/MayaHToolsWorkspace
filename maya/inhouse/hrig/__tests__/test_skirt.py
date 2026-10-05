@@ -68,7 +68,7 @@ class SkirtTest(unittest.TestCase):
         rig.root.plug("blend").set(1)
         rig.set_layer_enabled("radial", False)
         for joint in rig._members("followers"):
-            self.assertIsNone(joint.plug("rotateX").source())
+            self.assertIsNone(joint.plug("rotateX").sourceWithConversion())
             self.assertEqual(joint.plug("rotateX").get(), 0)
         cmds.undo()
         self.assertTrue(rig.layer_enabled())
@@ -78,7 +78,7 @@ class SkirtTest(unittest.TestCase):
         self.assertFalse(rig.layer_enabled())
         rig.set_layer_enabled("radial", True)
         rig.set_lod(0)
-        self.assertIsNone(followers[0][0].plug("rotateX").source())
+        self.assertIsNone(followers[0][0].plug("rotateX").sourceWithConversion())
         rig.set_lod(1)
         self.assertAlmostEqual(followers[0][0].plug("rotateX").get(), math.radians(50), places=4)
 

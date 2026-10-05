@@ -14,7 +14,6 @@ API の引数や戻り値の詳細は、各メソッドのリンク先を参照�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import math
    import hlib
    from hlib.maths import Matrix
@@ -26,12 +25,12 @@ API の引数や戻り値の詳細は、各メソッドのリンク先を参照�
    child.setTranslation((2, 3, 0))
 
    local = child.getMatrix()
-   world = child.getMatrix(space=MSpace.kWorld)
+   world = child.getMatrix(ws=True)
    print(tuple(local.translate))    # (2.0, 3.0, 0.0)
    print(tuple(world.translate))    # (12.0, 3.0, 0.0)
 
 :meth:`~hlib.nodes.transform.Transform.getMatrix` は、既定でローカル行列、
-``space=MSpace.kWorld`` でワールド行列を返します。戻り値は数値リストではなく ``Matrix`` です。
+``ws=True`` でワールド行列を返します。戻り値は数値リストではなく ``Matrix`` です。
 ``Matrix`` は OpenMaya API 2.0 の ``om2.MMatrix`` を継承しているため、
 ``om2.MTransformationMatrix(local)`` のように om2 の関数へそのまま渡せます。
 既存ノードの場合も、``child = hlib.getNode("ノード名")`` で取得して同じ操作ができます。
@@ -49,7 +48,6 @@ API の引数や戻り値の詳細は、各メソッドのリンク先を参照�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    source = hlib.getNode("source_transform")
    target = hlib.getNode("target_transform")
    target.plug("offsetParentMatrix").set(source.getMatrix())
@@ -58,7 +56,6 @@ Transformの専用メソッドでも同じ操作ができます。Transforms・J
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    target.setOffsetParentMatrix(source.getMatrix())
    offset = target.getOffsetParentMatrix()
    transforms.setOffsetParentMatrix(Matrix())  # 各対象を単位行列へ
@@ -79,10 +76,9 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
-   parent = target.parentNode()
-   parent_world = parent.getMatrix(space=MSpace.kWorld) if parent is not None else Matrix()
-   desired_world = source.getMatrix(space=MSpace.kWorld)
+   parent = target.parent()
+   parent_world = parent.getMatrix(ws=True) if parent is not None else Matrix()
+   desired_world = source.getMatrix(ws=True)
    offset = target.getMatrix().inverse() * desired_world * parent_world.inverse()
    target.plug("offsetParentMatrix").set(offset)
 
@@ -95,16 +91,15 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    local_from_plug = child.plug("matrix").get()
    world_from_plug = child.plug("worldMatrix").element(0, create=True).get()
    print(local.isEquivalent(local_from_plug))    # True
    print(world.isEquivalent(world_from_plug))    # True
 
-``getMatrix(space=MSpace.kWorld)`` は、ラッパーの ``dagPath()`` が示す DAG インスタンスの
+``getMatrix(ws=True)`` は、ラッパーの ``mpath()`` が示す DAG インスタンスの
 ``worldMatrix`` の要素(``worldMatrix[<インスタンス番号>]``)を参照します。
 プラグから別のインスタンスの行列を取得する場合は、その経路のインスタンス番号
-(``dagPath().instanceNumber()``)を要素に指定してください。
+(``mpath().instanceNumber()``)を要素に指定してください。
 
 行列を作成し、成分を読む
 ------------------------
@@ -115,7 +110,6 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    identity = Matrix()
    matrix = Matrix.compose(
        translate=(4, 5, 6),
@@ -138,7 +132,7 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 ``matrix[3, 0]`` のように (行, 列) でも要素を読み書きできます。
 
 ``Matrix.decompose()`` は成分辞書を返します。
-ノードの行列は ``node.getMatrix(space=MSpace.kWorld)`` で取得してから分解します。
+ノードの行列は ``node.getMatrix(ws=True)`` で取得してから分解します。
 分解は ``om2.MTransformationMatrix`` と同じ規約です。回転の分解結果(``euler`` は XYZ 順序)は
 元のオイラー角の数値と必ずしも一致せず、中間軸が 90 度を超える等価な角度になることがあります。
 行列式が負(奇数個の負スケール)の行列は、Z スケールを負にし、回転側で 180 度を補って
@@ -148,7 +142,6 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    from hlib.maths import EulerRotation
 
    zyx = EulerRotation.fromDegrees(30, 45, 60, "zyx")
@@ -163,7 +156,6 @@ hlib は Maya と同じ行ベクトル規約です。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    move = Matrix(translate=(2, 0, 0))
    turn = Matrix(rotate=(0, 0, math.radians(90)))
    moved_then_turned = (move * turn).transformPoint((0, 0, 0))
@@ -189,8 +181,7 @@ hlib は Maya と同じ行ベクトル規約です。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
-   parent_world = parent.getMatrix(space=MSpace.kWorld)
+   parent_world = parent.getMatrix(ws=True)
    calculated_world = local * parent_world
    calculated_local = world * parent_world.inverse()
    print(calculated_world.isEquivalent(world))    # True
@@ -208,7 +199,6 @@ hlib は Maya と同じ行ベクトル規約です。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    point = matrix.transformPoint((1, 0, 0))
    direction = matrix.transformVector((1, 0, 0))
    print(tuple(round(v, 6) for v in point))       # (4.0, 7.0, 6.0)
@@ -231,7 +221,6 @@ om2 と同じ列ベクトルとしての積(転置行列での変換)で、``tra
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import maya.api.OpenMaya as om2
    from hlib.maths import Vector
 
@@ -253,17 +242,16 @@ om2 と同じ列ベクトルとしての積(転置行列での変換)で、``tra
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    target = hlib.createNode("transform", name="matrixGuideTarget")
    target.setParent(parent, relative=True)
    edited = Matrix(world)
    edited.translate = (20, 4, 0)
-   target.setMatrix(edited, space=MSpace.kWorld)
-   print(tuple(target.getTranslation(space=MSpace.kWorld)))   # (20.0, 4.0, 0.0)
-   print(tuple(target.getTranslation()))          # (10.0, 4.0, 0.0)
+   target.setMatrix(edited, ws=True)
+   print(tuple(target.getTranslation(ws=True, at=4)))   # (20.0, 4.0, 0.0)
+   print(tuple(target.getTranslation(at=4)))          # (10.0, 4.0, 0.0)
    print(tuple(world.translate))                 # (12.0, 3.0, 0.0) コピー元は不変
 
-``setMatrix()`` は既定ではローカル空間、``space=MSpace.kWorld`` ではワールド空間への適用です。
+``setMatrix()`` は既定ではローカル空間、``ws=True`` ではワールド空間への適用です。
 処理内で Undo チャンクをまとめています。通常の呼び出しを外側から囲む必要はありません。
 また、これは値のコピーであり、ノード間の接続や追従関係を作る操作ではありません。
 
@@ -275,7 +263,7 @@ translate・rotate・scale・shear に書き込みます。ただし同じ行列
   (2軸の符号の反転を、残りの軸まわりの 180 度回転で補います)。scale が (-1, 1, 1) の
   ミラーのノードは、``setTranslation`` や ``setMatrix(node.getMatrix())`` の後も
   (-1, 1, 1) のままで、rotate も変わりません。
-* ``setScale(value)`` (``plug("scale").set(value)`` も同じ)では、要求した value の符号を
+* ``setScaling(value)`` (``plug("scale").set(value)`` も同じ)では、要求した value の符号を
   最優先します。ローカル空間では value がそのまま scale に入り、rotate は変わりません
   (``cmds.setAttr`` で scale だけを書いた場合と同じ)。
 * 回転はノードの rotateOrder で表し、等価な解のうち現在の rotate チャンネル値に最も近いもの
@@ -284,11 +272,13 @@ translate・rotate・scale・shear に書き込みます。ただし同じ行列
 現在の scale チャンネルの符号と行列式の符号が合わない場合は、om2 の規約(Z スケールが負)で
 書き込みます。例えば scale が (1, 1, 1) のノードへ ``setMatrix(Matrix(scale=(-1, 1, 1)))`` を
 適用すると、scale は (1, 1, -1)、rotate は (0, 180, 0) になります(行列は同じ)。
-特定の軸を負にしたい場合は ``setScale`` を使ってください。
+特定の軸を負にしたい場合は ``setScaling`` を使ってください。
 ``cmds.xform(matrix=...)`` は常に om2 の規約(Z スケールが負)で書き込むため、負スケールの
 ノードや Euler の別解では、結果の行列は同じでもチャンネル値が異なることがあります。
-``getScale`` / ``getShear`` / ``getQuaternion`` / ``getRotation`` も同じ規約で分解するため、
-``node.setScale(node.getScale())`` のような往復でチャンネル値は変わりません
+``getScaling`` / ``getShearing`` はローカルではアトリビュート値、ワールドでは
+OpenMaya規約の分解値です。``getQuaternion`` は既定でrotateAxisを除外し、
+``ra=True`` で含めます。行列全体のEuler回転は ``getRotation`` を使います。
+
 (``Matrix`` の ``scale`` などは常に om2 の規約です)。
 ``getRotation`` / ``setRotation`` の3成分は ``cmds.xform(rotation=...)`` と同じく
 ノードの rotateOrder の値で、戻り値の ``EulerRotation`` の order もノードの回転順序です。
@@ -298,7 +288,7 @@ joint は jointOrient と rotateAxis を保ったまま rotate を求め、segme
 有効な場合は inverseScale による補正を除いてから分解します。
 適用例は、ピボットと rotateAxis(transform の場合)が既定値、offsetParentMatrix が単位行列、
 inheritsTransform が有効な通常の transform を想定しています。
-特殊なピボットや transform の rotateAxis の補正は行いません。
+ピボット・rotateAxis・jointOrientを保つよう設定値を計算します。
 取得できた行列を、あらゆるノードへそのまま再現できるわけではありません。
 
 Maya API の行列と相互変換する
@@ -309,7 +299,6 @@ om2 の関数が返した ``om2.MMatrix`` は ``Matrix.fromMMatrix()`` で ``Mat
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    transformation = om2.MTransformationMatrix(matrix)   # そのまま渡せる
    copied = Matrix.fromMMatrix(transformation.asMatrix())
    print(copied.isEquivalent(matrix))    # True

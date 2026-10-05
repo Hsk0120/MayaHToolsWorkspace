@@ -26,7 +26,7 @@ class RigFoundationsTest(unittest.TestCase):
         owner = hlib.nodes.Container.create("owned")
         self.assertIsInstance(hlib.getNode(owner.fullName()), hlib.nodes.Container)
         source = hlib.createNode("transform", name="external")
-        source.addAttribute(longName="value", attributeType="double", defaultValue=3)
+        source.addAttr(longName="value", attributeType="double", defaultValue=3)
         graph = ScalarGraph(owner)
         total = graph.sum("sum", source.plug("value"), 2)
         product = graph.multiply("product", total, 4)
@@ -45,11 +45,11 @@ class RigFoundationsTest(unittest.TestCase):
     def test_sparse_messages(self):
         """穴のあるmessage配列を読み、末尾へ追加してUndoする。"""
         owner = hlib.createNode("network", name="refs")
-        array = owner.addAttribute(longName="items", attributeType="message", multi=True)
+        array = owner.addAttr(longName="items", attributeType="message", multi=True)
         first = hlib.createNode("transform", name="first")
         second = hlib.createNode("transform", name="second")
-        first.plug("message").connect(owner.plug("items[3]"))
-        second.plug("message").connect(owner.plug("items[7]"))
+        first.plug("message").connectTo(owner.plug("items[3]"))
+        second.plug("message").connectTo(owner.plug("items[7]"))
         self.assertEqual(list(array.sourceNodes()), [3, 7])
         index = array.appendMessage(second)
         self.assertEqual(index, 8)
@@ -58,7 +58,7 @@ class RigFoundationsTest(unittest.TestCase):
         cmds.undo()
         cmds.undo()
         self.assertEqual(list(array.sourceNodes()), [3, 7])
-        invalid = owner.addAttribute(longName="values", attributeType="double", multi=True)
+        invalid = owner.addAttr(longName="values", attributeType="double", multi=True)
         with self.assertRaises(TypeError):
             invalid.appendMessage(first)
 
@@ -134,14 +134,14 @@ class RigFoundationsTest(unittest.TestCase):
         """属性検索と表示単位は型付きPlugの取得規則と区別して維持する。"""
 
         node = hlib.createNode("transform", name="rawUnits")
-        node.addAttribute(longName="marker", attributeType="message")
+        node.addAttr(longName="marker", attributeType="message")
         cmds.setAttr(node.fullName() + ".tx", 200)
         cmds.setAttr(node.fullName() + ".rz", 90)
         cmds.currentUnit(linear="m", angle="rad")
         self.assertAlmostEqual(hlib.getAttr(node.fullName() + ".tx"), 2)
         self.assertAlmostEqual(hlib.getAttr(node.fullName() + ".rz"), math.pi / 2)
         self.assertEqual(
-            [p.node.uuid() for p in hlib.ls("*.marker", recursive=True)], [node.uuid()]
+            [p.node().uuid() for p in hlib.ls("*.marker", recursive=True)], [node.uuid()]
         )
         self.assertEqual([n.uuid() for n in hlib.ls(node.uuid(), long=True)], [node.uuid()])
         self.assertTrue(hlib.getAttr(node.fullName() + ".tx", settable=True))
@@ -276,7 +276,7 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertEqual(len(pairs), 2)
         self.assertTrue(all(isinstance(p, hlib.plugs.Plug) for p in pairs))
         mesh.rename("renamedTypedMesh")
-        self.assertEqual(marker.node.name(), "renamedTypedMesh")
+        self.assertEqual(marker.node().name(), "renamedTypedMesh")
         self.assertEqual(
             [hlib.getNode(value) for value in (cmds.listRelatives(shape, parent=True) or [])][
                 0

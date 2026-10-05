@@ -17,6 +17,7 @@ from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
 from ..maths.vector import _vector_of
+from ..plugs.plug import Plug
 from .dagNode import DagNode, DagNodes
 from .node import Node
 
@@ -63,7 +64,7 @@ def _match_scale_signs(quaternion, scale, shear, references):
         scale (Iterable[float]): 分解したスケール。
         shear (Iterable[float]): 分解したシアー(XY、XZ、YZ)。
         references (Iterable[Iterable[float]]): 符号を合わせる基準のスケールの候補。
-            優先する順に並べる(setScale で要求した値、現在の scale チャンネル値など)。
+            優先する順に並べる(setScaling で要求した値、現在の scale チャンネル値など)。
 
     Returns:
         tuple: (quaternion, scale, shear)。scale と shear は3要素の tuple。
@@ -190,7 +191,7 @@ class Transform(DagNode):
             source = _InputNode._resolve_input(source)
             if not source.isValid():
                 raise RuntimeError("Constraint target is invalid")
-            if requires_transform and not source.mobject().hasFn(om2.MFn.kTransform):
+            if requires_transform and not source.mnode().hasFn(om2.MFn.kTransform):
                 raise TypeError(
                     f"{command_name} の拘束元には Transform(joint・IkHandle を含む)を指定してください"
                     f"(シェイプ・Component・DG ノードは不可): {source.__class__.__name__} {source.name()!r}"
@@ -287,7 +288,7 @@ class Transform(DagNode):
         Returns:
             om2.MFnTransform: この Transform の function set。
         """
-        return om2.MFnTransform(self.dagPath())
+        return om2.MFnTransform(self.mpath())
 
     @fast_edit
     @undoChunk("hlibTransformReset")
@@ -323,37 +324,39 @@ class Transform(DagNode):
             plug.reset()
         return self
 
+    @flag_aliases(ws="worldSpace")
     @undoChunk("hlibTransformResetPivot")
-    def resetPivot(self, space=MSpace.kWorld, *, kind="both"):
+    def resetPivot(self, worldSpace=True, *, kind="both"):
         """現在の姿勢を保ち、ピボットだけを指定空間の原点へ移動する。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             kind (str): bothは両方、rotateは回転、scaleはスケールピボット。
 
         Returns:
             Transform: 自身。一回のUndoで元へ戻せる。
 
         Raises:
-            TypeError: spaceが対応するMSpace定数でない、または対象がJointの場合。
-            ValueError: kindが不正な場合。
+            TypeError: 対象がJointの場合。
+            ValueError: worldSpaceがboolでない、またはkindが不正な場合。
             RuntimeError: Mayaが更新を拒否した場合。
 
         ピボット補償値を調整して行列を維持する。translateのリセットではない。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         if not isinstance(ws, bool):
             raise TypeError("ws must be a bool")
-        return self.setPivot((0, 0, 0), space=MSpace.kWorld if ws else MSpace.kObject, kind=kind, preserve=True)
+        return self.setPivot((0, 0, 0), ws=ws, kind=kind, preserve=True)
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformScaleGeometry")
-    def scaleGeometry(self, scale, space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下の全Shapeの頂点・CVを拡縮する。Transformの行列は変更しない。
 
         Args:
             scale (float | Iterable[float]): 一様倍率、またはXYZの倍率。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 指定空間の拡縮中心。内部距離単位cm。
             indices (Iterable[int | tuple[int, int]] | None): 各Shapeの対象番号。
                 Noneは全要素。サーフェスは(U, V)の組。
@@ -370,19 +373,20 @@ class Transform(DagNode):
         中間Shapeは対象外。インスタンスは共有形状全体に影響する。
         途中で失敗した場合は停止し、完了済みの変更は自動で戻さない。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         indices = None if indices is None else tuple(indices)
         scale = scale if isinstance(scale, numbers.Real) else tuple(scale)
         pivot = tuple(pivot)
         for shape in self.shapes():
-            shape.scaleGeometry(scale, space=MSpace.kWorld if ws else MSpace.kObject, pivot=pivot, indices=indices)
+            shape.scaleGeometry(scale, ws=ws, pivot=pivot, indices=indices)
         return self
 
-    def getPivot(self, space=MSpace.kObject, *, kind="rotate"):
+    @flag_aliases(ws="worldSpace")
+    def getPivot(self, worldSpace=False, *, kind="rotate"):
         """指定した種類のピボットを取得する。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             kind (str): rotateは回転、scaleはスケールピボット。
 
         Returns:
@@ -391,7 +395,7 @@ class Transform(DagNode):
         Raises:
             ValueError: kindがrotate/scaleでない場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         if kind not in ("rotate", "scale"):
             raise ValueError("kind must be 'rotate' or 'scale'")
         # 設定と同じxform空間を使う。MFnTransformのkTransformとxformの
@@ -401,13 +405,14 @@ class Transform(DagNode):
                             objectSpace=not ws, **{flag: True})
         return Translation(*(om2.MDistance(v, om2.MDistance.uiUnit()).asCentimeters() for v in values))
 
+    @flag_aliases(ws="worldSpace")
     @undoChunk("hlibTransformSetPivot")
-    def setPivot(self, value, space=MSpace.kObject, *, kind="rotate", preserve=True):
+    def setPivot(self, value, worldSpace=False, *, kind="rotate", preserve=True):
         """指定した種類のピボットを変更する。既定ではノードの姿勢を保つ。
 
         Args:
             value (Iterable[float]): 新しいピボット位置。Maya API の内部距離単位。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             kind (str): rotate/scale/both。bothは両方を同じ位置へ設定する。
             preserve (bool): Trueはピボット補償値を調整して変換行列を保つ。
                 Falseは補償せず、姿勢が変わる場合がある。
@@ -422,7 +427,7 @@ class Transform(DagNode):
 
         Jointは独立したピボットの変更をサポートしないため、更新前に拒否する。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         if kind not in ("rotate", "scale", "both"):
             raise ValueError("kind must be 'rotate', 'scale' or 'both'")
         if not isinstance(preserve, bool):
@@ -455,16 +460,17 @@ class Transform(DagNode):
         cmds.xform(self.fullName(), centerPivots=True, preserve=True)
         return self
 
-    def boundingBox(self, space=MSpace.kObject):
+    @flag_aliases(ws="worldSpace")
+    def boundingBox(self, worldSpace=False):
         """直下の Shape 階層を含むバウンディングボックスを取得する。
 
         MFnDagNode.boundingBox は自身の translate/rotate/scale は含むが、
         親から継承した変換は含まない（``cmds.xform(-boundingBox)`` と同じ）。
-        ``space=MSpace.kWorld`` はそこへ親のワールド行列をさらに適用し、真のワールド空間の
+        ``ws=True`` はそこへ親のワールド行列をさらに適用し、真のワールド空間の
         バウンディングボックスを返す。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
                 （親の変換は含まない）。
 
         Returns:
@@ -474,7 +480,7 @@ class Transform(DagNode):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         if not self.isValid():
             raise RuntimeError("Cannot compute the bounding box of an invalid transform")
         box = self.dagFn().boundingBox
@@ -498,10 +504,10 @@ class Transform(DagNode):
             Transform: ワールド直下の祖先ノード。自身がワールド直下ならその自身を返す。
         """
         node = self
-        parent = node.parentNode()
+        parent = node.parent()
         while parent is not None:
             node = parent
-            parent = node.parentNode()
+            parent = node.parent()
         return node
 
     def childNodes(self):
@@ -512,7 +518,7 @@ class Transform(DagNode):
         """
         if not self.isValid():
             return []
-        dagPath = self.dagPath()
+        dagPath = self.mpath()
         dagFn = self.dagFn()
         children = []
         for index in range(dagFn.childCount()):
@@ -521,13 +527,15 @@ class Transform(DagNode):
             children.append(Node(child_path))
         return children
 
-    def childTransforms(self):
+    def children(self, shapes=False, intermediates=False):
         """直接の子 Transform のみを取得する（Shape 子は含まない）。
 
         Returns:
             list[Transform]: 直接の子 Transform。
         """
-        return [child for child in self.childNodes() if isinstance(child, Transform)]
+        return [child for child in self.childNodes()
+                if (shapes or isinstance(child, Transform))
+                and (intermediates or not child.dagFn().isIntermediateObject)]
 
     def leaves(self):
         """Transform 階層下の葉ノード（子 Transform を持たないもの）をすべて取得する。
@@ -537,7 +545,7 @@ class Transform(DagNode):
         Returns:
             list[Transform]: 葉ノードのリスト。子 Transform が無い場合は自身のみを含む。
         """
-        children = self.childTransforms()
+        children = self.children()
         if not children:
             return [self]
         result = []
@@ -555,9 +563,9 @@ class Transform(DagNode):
         """
         if not self.isValid():
             return []
-        parent = self.parentNode()
+        parent = self.parent()
         if parent is not None:
-            candidates = parent.childTransforms()
+            candidates = parent.children()
         else:
             candidates = self._world_assemblies()
         self_uuid = self.uuid()
@@ -580,7 +588,7 @@ class Transform(DagNode):
         if not self.isValid():
             return []
         shapes = []
-        dagPath = self.dagPath()
+        dagPath = self.mpath()
         dagFn = self.dagFn()
         for index in range(dagFn.childCount()):
             child = dagFn.child(index)
@@ -594,9 +602,10 @@ class Transform(DagNode):
             shapes.append(Shape(child_path))
         return shapes
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformMirrorGeometry")
-    def mirrorGeometry(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def mirrorGeometry(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下のすべてのShapeのジオメトリをミラーする。
 
         直下の各Shape（Mesh、NurbsCurveなど mirror を実装するもの）へ同じ引数で
@@ -607,7 +616,7 @@ class Transform(DagNode):
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 指定空間での反転中心。既定はその空間の原点。
                 単位は 内部距離単位cm。Transform のピボットとは独立する。
             indices (Iterable[int] | None): 各Shapeへそのまま渡す要素番号。
@@ -628,29 +637,26 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         for shape in self.shapes():
-            shape.mirror(axis=axis, space=MSpace.kWorld if ws else MSpace.kObject, pivot=pivot, indices=indices)
+            shape.mirror(axis=axis, ws=ws, pivot=pivot, indices=indices)
         return self
 
-    def shape(self, index=0, intermediates=False):
+    def shape(self, idx=0, intermediates=False):
         """指定位置のShapeを取得する。
 
         Args:
-            index (int): Shapeのインデックス。
+            idx (int): Shapeのインデックス。
             intermediates (bool): ``True`` の場合は中間Shapeも含める。
 
         Returns:
-            Shape: 指定位置のShape。
-
-        Raises:
-            IndexError: 指定したインデックスにShapeがない場合。
+            Shape | None: 指定位置のShape。範囲外ではNone。
         """
         shapes = self.shapes(intermediates=intermediates)
         try:
-            return shapes[index]
-        except IndexError as original_error:
-            raise IndexError(f"Shape index out of range: {index}") from original_error
+            return shapes[idx]
+        except IndexError:
+            return None
 
     def transform(self):
         """Transform自身を返す。
@@ -676,7 +682,7 @@ class Transform(DagNode):
         if not self.isValid():
             raise RuntimeError("Cannot parent an invalid transform")
         if parent is None:
-            if self.parentPath() is None and not self.dagPath().isInstanced():
+            if self.parentPath() is None and not self.mpath().isInstanced():
                 return self
             cmds.parent(self.name(), world=True, relative=relative)
         else:
@@ -685,7 +691,7 @@ class Transform(DagNode):
             # 古いMayaでは同じ親への再parentがエラーになる。
             # add=Trueはインスタンス操作なのでMayaの判定に委ねる。
             current = self.parentPath()
-            if (not add and not self.dagPath().isInstanced() and current is not None
+            if (not add and not self.mpath().isInstanced() and current is not None
                     and current.fullPathName() == parent_name):
                 return self
             cmds.parent(self.name(), parent_name, relative=relative, add=add)
@@ -725,9 +731,10 @@ class Transform(DagNode):
                                 rotation=rotation, scale=scale, pivots=pivots)
         return self
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformMirrorTransform")
-    def mirrorTransform(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), *, fast=False):
+    def mirrorTransform(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), *, fast=False):
         """位置と向きを指定空間でビヘイビアミラーする。
 
         Matrix.mirroredと同じ回転規約で、負スケールによる形状反転ではない。
@@ -737,7 +744,7 @@ class Transform(DagNode):
 
         Args:
             axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。xはYZ平面。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 指定空間の中心。内部距離単位cm。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。
 
@@ -752,17 +759,17 @@ class Transform(DagNode):
         setMatrix() と同じ制約があり、非ゼロのピボット・
         TransformのrotateAxisは更新前に拒否する。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         from ..utils.mirror import mirrorArguments
         if not isinstance(ws, bool):
             raise TypeError("ws must be a bool")
         _, center = mirrorArguments(axis, pivot)
         name = self.fullName()
-        parentNode = self.parentNode()
+        parent_node = self.parent()
         parent = Matrix()
-        if parentNode is not None and self.plug("inheritsTransform").get():
+        if parent_node is not None and self.plug("inheritsTransform").get():
             # 親のチャンネル変更直後も評価済み値を取得する。
-            parent = parentNode.plug("worldMatrix").element(parentNode.dagPath().instanceNumber()).get()
+            parent = parent_node.plug("worldMatrix").element(parent_node.mpath().instanceNumber()).get()
         offset = self.plug("offsetParentMatrix").get()
         effective_parent = offset * parent
         magnitude = max(1.0, *(sum(abs(effective_parent[row, col]) for col in range(3))
@@ -770,11 +777,11 @@ class Transform(DagNode):
         if abs(effective_parent.det4x4()) <= 1e-12 * magnitude ** 3:
             raise ValueError("Cannot mirror with a singular parent or offsetParentMatrix")
         attributes = ["rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate"]
-        if not self.mobject().hasFn(om2.MFn.kJoint):
+        if not self.mnode().hasFn(om2.MFn.kJoint):
             attributes.append("rotateAxis")
         if any(any(self.plug(attr).get()) for attr in attributes):
             raise ValueError("mirrorTransform does not support nonzero pivots or transform rotateAxis")
-        world = self.getMatrix(space=MSpace.kWorld)
+        world = self.getMatrix(ws=True)
         source = world if ws else world * parent.inverse()
         target = source.mirrored(axis, center)
         target_world = target if ws else target * parent
@@ -820,7 +827,8 @@ class Transform(DagNode):
         self.plug("offsetParentMatrix").set(value)
         return self
 
-    def getMatrix(self, space=MSpace.kObject):
+    @flag_aliases(ws="worldSpace")
+    def getMatrix(self, worldSpace=False, p=False, inv=False):
         """変換行列を取得する。
 
         ワールド空間は保持する DAG パスの inclusiveMatrix から取得する。
@@ -828,10 +836,13 @@ class Transform(DagNode):
         どちらも行列値を保持し続けず、呼出し時点の Maya の評価結果を返す。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
                 ローカル空間（``matrix``）の値を取得する。ワールド空間では、
                 :meth:`dagPath` が示す DAG インスタンスの要素
                 (``worldMatrix[<インスタンス番号>]``)を使う。
+
+            p (bool): 親行列を取得する。
+            inv (bool): 逆行列を返す。
 
         Returns:
             Matrix: 指定空間の評価済み行列の複製(om2.MMatrix の派生)。
@@ -839,18 +850,24 @@ class Transform(DagNode):
         Raises:
             RuntimeError: ノードが無効(削除済み)の場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         if not self.isValid():
             raise RuntimeError("無効なノードの行列は取得できません")
+        path = self.mpath()
         if ws:
-            return Matrix._wrap(self.dagPath().inclusiveMatrix())
-        # 名前による findPlug より速い、アトリビュートの MObject からの MPlug 生成を使う。
-        plug = om2.MPlug(self.mobject(), _transform_attribute("matrix"))
-        return Matrix._wrap(om2.MFnMatrixData(plug.asMObject()).matrix())
+            matrix = path.exclusiveMatrix() if p else path.inclusiveMatrix()
+        elif p:
+            parent = om2.MDagPath(path).pop()
+            matrix = parent.inclusiveMatrix() * parent.exclusiveMatrixInverse()
+        else:
+            plug = om2.MPlug(self.mnode(), _transform_attribute("matrix"))
+            matrix = om2.MFnMatrixData(plug.asMObject()).matrix()
+        return Matrix._wrap(matrix.inverse() if inv else matrix)
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformSetMatrix")
-    def setMatrix(self, matrix, space=MSpace.kObject, *, fast=False):
+    def setMatrix(self, matrix, worldSpace=False, safe=False, get=False, *, fast=False):
         """行列をローカルまたはワールド空間で設定する。
 
         行列を分解して translate・rotate・scale・shear に書き込む。スケールの符号と
@@ -862,10 +879,13 @@ class Transform(DagNode):
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             matrix (Matrix | sequence): 適用する変換行列。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
+            safe (bool): 書けない成分を無視する。
+            get (bool): 書き込まずtranslate/rotate/scale/shearの辞書を返す。
 
         Returns:
-            Transform: 自身。
+            Transform | dict: 通常は自身、get=Trueは内部単位の設定値。
 
         Raises:
             RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
@@ -874,50 +894,89 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
+        if safe or get:
+            matrix = Matrix(matrix)
+            if ws:
+                matrix *= Matrix._wrap(self.mpath().exclusiveMatrixInverse())
+            values = self._matrix_channel_values(matrix)
+            if get:
+                return values
+            for name, value in values.items():
+                self._set_channel_value(name, value, safe=True)
+            return self
         return self._set_matrix(matrix, ws)
 
-    def getTranslation(self, space=MSpace.kObject):
-        """Translation を取得する。
+    @flag_aliases(ws="worldSpace")
+    def getTranslation(self, worldSpace=False, at=2):
+        """基準位置を取得する。既定はcymelと同じ回転ピボット位置。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
+            worldSpace (bool): ワールド指定。短縮名ws。
+            at (int): 0=親原点、1=translate、2=回転ピボット、3=スケールピボット、4以上=行列原点。
         Returns:
-            Translation: 評価済みの位置。
+            Translation: cm単位の位置。
         """
-        ws = world_space(space)
-        return self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject).translate
+        ws = world_space(worldSpace)
+        if at >= 3:
+            matrix = self.getMatrix(ws=ws)
+            if at >= 4:
+                return matrix.translate
+            point = om2.MPoint(tuple(self.plug("scalePivot").get())) * matrix
+        elif at < 1:
+            point = om2.MPoint()
+            if ws:
+                point *= self.mpath().exclusiveMatrix()
+        else:
+            value = om2.MVector(tuple(self.plug("translate").get()))
+            if at >= 2:
+                offset = om2.MVector(tuple(self.plug("rotatePivot").get()))
+                offset += om2.MVector(tuple(self.plug("rotatePivotTranslate").get()))
+                inv_scale = self._inverse_scale_values()
+                value += om2.MVector(*(offset[i] / inv_scale[i] for i in range(3)))
+            point = om2.MPoint(value)
+            if ws:
+                point *= self.mpath().exclusiveMatrix()
+        return Translation(point.x, point.y, point.z)
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformSetTranslate")
-    def setTranslation(self, value, space=MSpace.kObject, *, fast=False):
-        """平行移動をローカルまたはワールド空間で設定する。
-
-        rotate・scale・shear のチャンネル値は(浮動小数点の誤差を除いて)変えない
-        (transform の rotateAxis は 0 を前提とする。joint は jointOrient / rotateAxis を保つ)。
+    def setTranslation(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
+        """指定基準の位置へ移動する。ピボットや回転は変更しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Translation | sequence): 新しい平行移動値。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
+            value (Iterable[float]): cm単位の位置。
+            worldSpace (bool): ワールド指定。短縮名ws。
+            at (int): getTranslationと同じ基準。既定2。
+            safe (bool): 書けない成分を無視する。
+            get (bool): 書き込まずtranslateの計算値だけを返す。
+            fast (bool): Undoなしの直接更新。
         Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            Transform | list[float]: 自身。get=Trueはtranslateの計算値。
         """
-        ws = world_space(space)
-        matrix = self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject)
-        matrix.translate = value
-        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
+        ws = world_space(worldSpace)
+        point = om2.MPoint(tuple(value))
+        if ws:
+            point *= self.mpath().exclusiveMatrixInverse()
+        current = om2.MVector(tuple(self.plug("translate").get()))
+        if at < 1:
+            result = om2.MVector(point) - current
+        else:
+            result = current + (om2.MVector(point) - om2.MVector(tuple(self.getTranslation(at=at))))
+        if get:
+            return list(result)
+        self._set_channel_value("translate", result, safe=safe)
+        return self
 
-    def getRotation(self, space=MSpace.kObject):
+    def _inverse_scale_values(self):
+        """jointの有効なinverseScaleを返す。それ以外は単位スケール。"""
+        if self.mnode().hasFn(om2.MFn.kJoint) and self.plug("segmentScaleCompensate").get():
+            return tuple(self.plug("inverseScale").get())
+        return (1.0, 1.0, 1.0)
+
+    @flag_aliases(ws="worldSpace")
+    def getRotation(self, worldSpace=False):
         """Euler 回転値を、ノードの rotateOrder で取得する。
 
         ``cmds.xform(query=True, rotation=True)`` と同じく、値はノードの rotateOrder で
@@ -925,10 +984,10 @@ class Transform(DagNode):
         transform では現在の rotate チャンネル値に最も近いものを返すため、ローカル空間の
         transform(rotateAxis が 0)ではチャンネル値と一致する(浮動小数点の誤差を除く)。
         joint の値は jointOrient と rotateAxis を含む行列全体の回転で、解は 0 回転に
-        最も近いものを選ぶ。スケールの符号の扱いは :meth:`getScale` と同じ。
+        最も近いものを選ぶ。スケールの符号は現在のチャンネルを基準とする。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
             EulerRotation: 評価済みの回転値（radian、ノードの回転順序）。
@@ -936,13 +995,14 @@ class Transform(DagNode):
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
-        ws = world_space(space)
-        _, quaternion, _, _, reference = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
+        ws = world_space(worldSpace)
+        _, quaternion, _, _, reference = self._decompose_like_channels(self.getMatrix(ws=ws))
         return EulerRotation._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformSetRotate")
-    def setRotation(self, value, unit="rad", space=MSpace.kObject, *, fast=False):
+    def setRotation(self, value, worldSpace=False, safe=False, get=False, *, unit="rad", fast=False):
         """Euler回転を設定する。
 
         3成分の値は ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値として
@@ -960,10 +1020,13 @@ class Transform(DagNode):
                 ノードへは rotateOrder に並べ替えて書き込む。
             unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
                 値にだけ使える。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
+            safe (bool): 書けない成分を無視する。
+            get (bool): 書き込まずrotateチャンネル値を返す。
 
         Returns:
-            Transform: 自身。
+            Transform | list[float]: 通常は自身、get=Trueはrad単位の計算値。
 
         Raises:
             ValueError: unit が rad/deg 以外、deg を EulerRotation / Quaternion と指定、
@@ -973,7 +1036,7 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         if unit not in ("rad", "deg"):
             raise ValueError("unit must be 'rad' or 'deg'")
         if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
@@ -987,137 +1050,206 @@ class Transform(DagNode):
                 x, y, z = math.radians(x), math.radians(y), math.radians(z)
             # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
             value = EulerRotation(x, y, z, self._rotate_order())
-        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), rotate=value)
-        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
+        matrix = self._replace_components(self.getMatrix(ws=ws), rotate=value)
+        result = self.setMatrix(matrix, ws=ws, safe=safe, get=get)
+        return list(result["rotate"]) if get else self
 
-    def getScale(self, space=MSpace.kObject):
-        """Scale を取得する。
-
-        行列を om2.MTransformationMatrix と同じ規約で分解してから、スケールの符号の
-        組み合わせを現在の scale チャンネル値へ揃える(2軸の符号の反転を、残りの軸まわりの
-        180 度回転で補償する)。例えば scale が (-1, 1, 1) のノードは (-1, 1, 1) を返す。
-        行列式の符号と合わない組み合わせ(ワールド空間で親が奇数個の負スケールを持つ
-        場合など)は om2 の規約(行列式が負なら Z が負)のまま返す。
-        :class:`~hlib.maths.matrix.Matrix` の ``scale`` は常に om2 の規約。
+    @flag_aliases(ws="worldSpace")
+    def getScaling(self, worldSpace=False):
+        """cymelと同じスケール値を取得する。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
+            worldSpace (bool): ワールド指定。短縮名ws。Falseはscaleチャンネル。
         Returns:
-            Scale: 評価済みのスケール値。
-
-        Raises:
-            ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
+            Scale: ローカルではSSCを除く値、ワールドではAPI規約の分解値。
         """
-        ws = world_space(space)
-        _, _, scale, _, _ = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
-        return Scale(*scale)
+        if world_space(worldSpace):
+            return Scale(*om2.MTransformationMatrix(self.getMatrix(ws=True)).scale(MSpace.kTransform))
+        return self.plug("scale").get()
 
+    @flag_aliases(ws="worldSpace")
+    def getShearing(self, worldSpace=False):
+        """cymelと同じシアー値を取得する。
+
+        Args:
+            worldSpace (bool): ワールド指定。短縮名ws。Falseはshearチャンネル。
+        Returns:
+            Shear: 指定空間のシアー。
+        """
+        if world_space(worldSpace):
+            return Shear(*om2.MTransformationMatrix(self.getMatrix(ws=True)).shear(MSpace.kTransform))
+        return self.plug("shear").get()
+
+    def _scaling_channel_value(self, value, ws, shear=False):
+        """ワールドのscale/shear要求を、SSCを除いたチャンネル値へ変換する。"""
+        values = tuple(value)
+        if len(values) != 3 or not all(math.isfinite(v) for v in values):
+            raise ValueError("Expected three finite components")
+        if ws:
+            transform = om2.MTransformationMatrix(self.getMatrix(ws=True))
+            if shear:
+                transform.setShear(values, MSpace.kTransform)
+            else:
+                transform.setScale(values, MSpace.kTransform)
+            matrix = transform.asMatrix() * self.mpath().exclusiveMatrixInverse()
+            matrix *= Matrix(scale=self._inverse_scale_values())
+            transform = om2.MTransformationMatrix(matrix)
+            values = transform.shear(MSpace.kTransform) if shear else transform.scale(MSpace.kTransform)
+        return list(values)
+
+    @flag_aliases(ws="worldSpace")
     @fast_edit
-    @undoChunk("hlibTransformSetScale")
-    def setScale(self, value, space=MSpace.kObject, *, fast=False):
-        """スケールをローカルまたはワールド空間で設定する。
-
-        回転・シアー・平行移動は保つ(回転とシアーは :meth:`getScale` と同じ規約で
-        分解した値)。書き込むスケールの符号は、行列式の符号が許す限り value の符号の
-        とおりにする(ローカル空間の transform では常にそのまま入る)。例えば rotate が
-        (10, 20, 30)、scale が (1, 1, 1) の transform へ (-1, 1, 1) を設定すると scale は
-        (-1, 1, 1)、rotate は (10, 20, 30) のまま(``cmds.setAttr`` で scale だけを書いた
-        場合と同じ)。ワールド空間で親の行列式が負の場合など、value の符号の組み合わせを
-        取れないときは現在の scale チャンネル値、それも合わなければ om2 の規約(Z が負)に
-        揃える。
+    def setScaling(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
+        """scaleチャンネルだけを設定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Scale | sequence): 新しいスケール値。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
+            value (Iterable[float]): スケール3成分。
+            worldSpace (bool): ワールド指定。短縮名ws。
+            safe (bool): 書けない成分を無視する。
+            get (bool): 書き込まずチャンネル値を返す。
+            fast (bool): Undoなしの直接更新。
         Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            Transform | list[float]: 自身。get=Trueは計算値。
         """
-        ws = world_space(space)
-        value = tuple(value)
-        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), scale=value)
-        return self._set_matrix(matrix, ws, scale_reference=value)
+        values = self._scaling_channel_value(value, world_space(worldSpace))
+        if get:
+            return values
+        self._set_channel_value("scale", values, safe=safe)
+        return self
 
-    def getShear(self, space=MSpace.kObject):
-        """Shear を取得する。
-
-        スケールの符号の扱いは :meth:`getScale` と同じ(符号を揃えた軸に合わせて
-        シアーの符号も変わる)。
-
-        Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
-        Returns:
-            Shear: 評価済みの shear 値。
-
-        Raises:
-            ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
-        """
-        ws = world_space(space)
-        _, _, _, shear, _ = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
-        return Shear(*shear)
-
+    @flag_aliases(ws="worldSpace")
     @fast_edit
-    @undoChunk("hlibTransformSetShear")
-    def setShear(self, value, space=MSpace.kObject, *, fast=False):
-        """Shearをローカルまたはワールド空間で設定する。
-
-        値は :meth:`getShear` と同じ規約で解釈し、回転・スケール・平行移動は保つ。
+    def setShearing(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
+        """shearチャンネルだけを設定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Shear | sequence): 新しいShear値。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
+            value (Iterable[float]): シアー3成分。
+            worldSpace (bool): ワールド指定。短縮名ws。
+            safe (bool): 書けない成分を無視する。
+            get (bool): 書き込まずチャンネル値を返す。
+            fast (bool): Undoなしの直接更新。
         Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: 現在の行列を分解できない、または必要な親行列を反転できない場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            Transform | list[float]: 自身。get=Trueは計算値。
         """
-        ws = world_space(space)
-        matrix = self._replace_components(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject), shear=value)
-        return self.setMatrix(matrix, space=MSpace.kWorld if ws else MSpace.kObject)
+        values = self._scaling_channel_value(value, world_space(worldSpace), shear=True)
+        if get:
+            return values
+        self._set_channel_value("shear", values, safe=safe)
+        return self
 
-    def getQuaternion(self, space=MSpace.kObject):
-        """Quaternion を取得する。
-
-        スケールの符号の扱いは :meth:`getScale` と同じ。
+    @flag_aliases(ws="worldSpace")
+    def getQuaternion(self, worldSpace=False, ra=False, r=True, jo=True):
+        """回転成分を選んで取得する。既定ではrotateAxisを含めない。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
-
+            worldSpace (bool): ワールド指定。短縮名ws。
+            ra (bool): rotateAxisを含める。
+            r (bool): rotateを含める。
+            jo (bool): jointOrientを含める。
         Returns:
-            Quaternion: 評価済みの回転値。
-
+            Quaternion: 指定成分の合成回転。
         Raises:
-            ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
+            ValueError: cymelと同じ未対応の組合せの場合。
         """
-        ws = world_space(space)
-        _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
-        return Quaternion._wrap(quaternion)
+        ws = world_space(worldSpace)
+        joint = self.mnode().hasFn(om2.MFn.kJoint)
+        if ws:
+            if (ra and not (r and jo)) or (not ra and r and not jo):
+                raise ValueError("Unsupported rotation component combination")
+            matrix = self.getMatrix(ws=True, p=not (ra or r or (jo and joint)))
+            q = om2.MQuaternion().setValue(om2.MMatrix(matrix).homogenize())
+            if not ra and (r or (jo and joint)):
+                q = self._component_quaternion("rotateAxis").inverse() * q
+                if not r:
+                    q = self._component_quaternion("rotate").inverse() * q
+        else:
+            if ra and not r and jo:
+                raise ValueError("Unsupported rotation component combination")
+            q = om2.MQuaternion()
+            for enabled, name in ((ra, "rotateAxis"), (r, "rotate"), (jo and joint, "jointOrient")):
+                if enabled:
+                    q *= self._component_quaternion(name)
+        return Quaternion._wrap(q)
 
-    def getEuler(self, space=MSpace.kObject):
+    def _component_quaternion(self, name):
+        """回転アトリビュートを自身の回転順序でQuaternionへ変換する。"""
+        value = self.plug(name).get()
+        order = self._rotate_order() if name == "rotate" else om2.MEulerRotation.kXYZ
+        return om2.MEulerRotation(*tuple(value), order).asQuaternion()
+
+    @flag_aliases(ws="worldSpace")
+    @fast_edit
+    @undoChunk("hlibTransformSetQuaternion")
+    def setQuaternion(self, value, worldSpace=False, ra=False, r=True, jo=True,
+                      safe=False, get=False, *, fast=False):
+        """cymelと同じ回転成分の指定でrotate・jointOrient・rotateAxisを設定する。
+
+        Args:
+            value (Quaternion | om2.MQuaternion | Iterable[float]): xyzwの回転。
+            worldSpace (bool): ワールド指定。短縮名ws。
+            ra (bool): 入力にrotateAxisを含む。
+            r (bool): rotateを更新する。FalseはjointOrientまたはrotateAxis。
+            jo (bool): jointOrientを含む。
+            safe (bool): 書けない成分を無視する。
+            get (bool): 書き込まず計算したEuler成分を返す。
+            fast (bool): Undoなしの直接更新。
+        Returns:
+            Transform | list[float]: 自身。get=Trueはrad単位の計算値。
+        """
+        ws = world_space(worldSpace)
+        q = om2.MQuaternion(value) if isinstance(value, om2.MQuaternion) else om2.MQuaternion(*value)
+        joint = self.mnode().hasFn(om2.MFn.kJoint)
+        undo_ra = undo_r = None
+        if ws:
+            if not jo or (not r and (ra or not joint)):
+                raise ValueError("Unsupported rotation component combination")
+            jo = joint
+            matrix = None
+            if self.mpath().length() > 1:
+                if not r:
+                    undo_r = self._component_quaternion("rotate")
+                    q = undo_r * q
+                if not ra:
+                    undo_ra = self._component_quaternion("rotateAxis")
+                    q = undo_ra * q
+                matrix = q.asMatrix() * self.mpath().exclusiveMatrixInverse()
+            inv_scale = self._inverse_scale_values()
+            if jo and inv_scale != (1.0, 1.0, 1.0):
+                matrix = (q.asMatrix() if matrix is None else matrix) * Matrix(scale=inv_scale)
+            if matrix is not None:
+                q = om2.MQuaternion().setValue(om2.MMatrix(matrix).homogenize())
+        else:
+            jo = jo and joint
+            if ra and not r and jo:
+                raise ValueError("Unsupported rotation component combination")
+        if undo_ra is not None:
+            q = undo_ra.inverse() * q
+        if undo_r is not None:
+            q = undo_r.inverse() * q
+        if r:
+            if ra:
+                q = self._component_quaternion("rotateAxis").inverse() * q
+            if jo:
+                q *= self._component_quaternion("jointOrient").inverse()
+            name = "rotate"
+            rotation = q.asEulerRotation().reorder(self._rotate_order())
+        else:
+            name = "jointOrient" if jo else "rotateAxis"
+            rotation = q.asEulerRotation()
+        if get:
+            return list(rotation)
+        self._set_channel_value(name, rotation, safe=safe)
+        return self
+
+    @flag_aliases(ws="worldSpace")
+    def getEuler(self, worldSpace=False):
         """回転を XYZ 順序の EulerRotation として取得する。
 
-        :meth:`getQuaternion` と同じ回転を ``om2.MQuaternion.asEulerRotation()`` の解
-        (XYZ 順序)で返す。ノードの rotateOrder で表した値は :meth:`getRotation` を使う。
+        行列から分解した回転をXYZ順序で返す。getQuaternionのra/r/joによる
+        合成対象の選択は行わない。ノードのrotateOrderで表す場合はgetRotationを使う。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
             EulerRotation: 評価済みの回転値（radian、XYZ 順序）。
@@ -1125,8 +1257,8 @@ class Transform(DagNode):
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
-        ws = world_space(space)
-        _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(space=MSpace.kWorld if ws else MSpace.kObject))
+        ws = world_space(worldSpace)
+        _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(ws=ws))
         return EulerRotation._wrap(quaternion.asEulerRotation())
 
     @flag_aliases("makeIdentity")
@@ -1191,10 +1323,10 @@ class Transform(DagNode):
         for channel in ("translate", "rotate", "scale", "shear"):
             plug = self.plug(channel)
             plug.setFlags(locked=False)
-            plug.disconnect()
+            plug.disconnectAll()
             for child in plug.children():
                 child.setFlags(locked=False)
-                child.disconnect()
+                child.disconnectAll()
         return self
 
     def closestAxisToVector(self, ref_vector, include_negative=True):
@@ -1220,7 +1352,7 @@ class Transform(DagNode):
         if not isinstance(ref_vector, Vector):
             ref_vector = Vector(*ref_vector)
         ref_vector = ref_vector.normalized()
-        matrix = self.getMatrix(space=MSpace.kWorld)
+        matrix = self.getMatrix(ws=True)
         axes = {"x": Vector(1.0, 0.0, 0.0), "y": Vector(0.0, 1.0, 0.0), "z": Vector(0.0, 0.0, 1.0)}
         if include_negative:
             axes.update({f"-{name}": axis * -1.0 for name, axis in axes.items()})
@@ -1257,15 +1389,15 @@ class Transform(DagNode):
             raise RuntimeError("Cannot create offset groups for an invalid transform")
         if not names:
             names = (f"{self.name()}_offset",)
-        matrix = self.getMatrix(space=MSpace.kWorld)
-        parent = self.parentNode()
+        matrix = self.getMatrix(ws=True)
+        parent = self.parent()
         groups = []
         for name in names:
             kwargs = {}
             if parent is not None:
                 kwargs["parent"] = parent.fullName()
             group = Transform(cmds.group(empty=True, name=name, **kwargs))
-            group.setMatrix(matrix, space=MSpace.kWorld)
+            group.setMatrix(matrix, ws=True)
             groups.append(group)
             parent = group
         self.setParent(groups[-1])
@@ -1293,10 +1425,10 @@ class Transform(DagNode):
         Returns:
             Matrix: 親のワールド行列。親がない、または親に getMatrix がなければ単位行列。
         """
-        parent = self.parentNode()
+        parent = self.parent()
         if parent is None or not hasattr(parent, "getMatrix"):
             return Matrix()
-        return parent.getMatrix(space=MSpace.kWorld)
+        return parent.getMatrix(ws=True)
 
     def _rotate_order(self):
         """ノードの rotateOrder を om2 の回転順序の番号として取得する。
@@ -1304,7 +1436,7 @@ class Transform(DagNode):
         Returns:
             int: 0(xyz)〜5(zyx)。om2.MEulerRotation.kXYZ〜kZYX と同じ番号。
         """
-        return om2.MFnTransform(self.mobject()).rotation(om2.MSpace.kTransform).order
+        return om2.MFnTransform(self.mnode()).rotation(om2.MSpace.kTransform).order
 
     def _channel_state(self):
         """現在の scale チャンネル値と rotate チャンネル値を内部単位で取得する。
@@ -1320,7 +1452,7 @@ class Transform(DagNode):
             return (1.0, 1.0, 1.0), om2.MEulerRotation()
         # MFnTransform の scale() / rotation() は scale・rotate アトリビュートそのもの(joint でも
         # jointOrient を含まない)を返す。名前による findPlug より大幅に速い。
-        fn = om2.MFnTransform(self.mobject())
+        fn = om2.MFnTransform(self.mnode())
         return tuple(fn.scale()), fn.rotation(om2.MSpace.kTransform)
 
     def _decompose_like_channels(self, matrix, scale_reference=None):
@@ -1330,12 +1462,12 @@ class Transform(DagNode):
         :func:`_match_scale_signs` で符号を揃える。基準は scale_reference (指定時)、
         次に現在の scale チャンネル値の順に、行列式の符号と合う最初のもの。これにより
         scale が (-1, 1, 1) のようなミラーのノードでも、取得・設定の往復でチャンネル値の
-        符号と回転が保たれ、``setScale`` では要求した符号がそのまま入る。
+        符号と回転が保たれ、``setScaling`` では要求した符号がそのまま入る。
 
         Args:
             matrix (Matrix): 分解する行列。
             scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
-                (``setScale`` で要求した値)。None なら現在の scale チャンネル値だけ。
+                (``setScaling`` で要求した値)。None なら現在の scale チャンネル値だけ。
 
         Returns:
             tuple: (translate(Translation), quaternion(om2.MQuaternion),
@@ -1404,7 +1536,7 @@ class Transform(DagNode):
     def _channel_rotation(self, quaternion, reference):
         """ローカル行列の回転を、rotate チャンネルへ書き込む値へ変換する。
 
-        transform では行列の回転をそのまま rotate とみなす(rotateAxis は未対応)。
+        transformではrotateAxisを除いてrotateチャンネルの回転を求める。
 
         Args:
             quaternion (om2.MQuaternion): ローカル行列の回転。
@@ -1413,7 +1545,7 @@ class Transform(DagNode):
         Returns:
             om2.MEulerRotation: ノードの rotateOrder で表した、reference に最も近い解。
         """
-        return _closest_euler(quaternion, reference)
+        return _closest_euler(self._component_quaternion("rotateAxis").inverse() * quaternion, reference)
 
     def _apply_local_matrix(self, matrix, scale_reference=None):
         """ローカル行列の各成分をMayaアトリビュートへ適用する。
@@ -1422,15 +1554,14 @@ class Transform(DagNode):
         分解は om2.MTransformationMatrix の規約に、次の2点の選択を加えたもの。
 
         * スケールの符号の組み合わせは、行列式の符号が許す限り scale_reference
-          (``setScale`` で要求した値)、次に現在の scale チャンネルに揃える
+          (``setScaling`` で要求した値)、次に現在の scale チャンネルに揃える
           (:meth:`_decompose_like_channels`)。
         * 回転はノードの rotateOrder で表し、等価な解のうち現在の rotate チャンネル値に
           最も近いものを選ぶ(``om2.MEulerRotation.closestSolution``)。
 
         このため ``setMatrix(getMatrix())`` や ``setTranslation`` はチャンネル値を
         (浮動小数点の誤差を除いて)変えない。回転は現在のMaya角度単位へ変換して書き込む。
-        ピボットや rotateAxis の補正は行わない
-        (非ゼロの場合は未対応)。
+        ピボット・rotateAxis・jointOrient・SSCの補正を含める。
 
         Args:
             matrix (Matrix): ローカル空間の変換行列。
@@ -1444,22 +1575,41 @@ class Transform(DagNode):
             ValueError: 行列を分解できない場合。
             RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
-        translate, quaternion, scale, shear, reference = self._decompose_like_channels(matrix, scale_reference)
-        rotation = self._channel_rotation(quaternion, reference)
-        angle_unit = om2.MAngle.uiUnit()
-        rotation_values = tuple(om2.MAngle(component).asUnits(angle_unit) for component in rotation)
-        if is_fast():
-            # 保持するノードから直接プラグを構成する。名前の再解決を省いても
-            # 書込順・ロック/接続/範囲検査・UI単位は通常のfast経路と同じ。
-            for attribute, values in (("translate", translate), ("rotate", tuple(rotation)),
-                                      ("scale", scale), ("shear", shear)):
-                set_plug(om2.MPlug(self.mobject(), _transform_attribute(attribute)), values)
-            return
-        name = self.fullName()
-        set_attr(f"{name}.translate", *(om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in translate))
-        set_attr(f"{name}.rotate", *rotation_values)
-        set_attr(f"{name}.scale", *scale)
-        set_attr(f"{name}.shear", *shear)
+        values = self._matrix_channel_values(matrix, scale_reference)
+        for name, value in values.items():
+            self._set_channel_value(name, value)
+
+    def _set_channel_value(self, name, value, safe=False):
+        """変換チャンネルを内部単位で設定する。通常更新はMayaのアニメーション編集に従う。
+
+        数値がすでにノードの回転順序なので、Double3の回転変換や接続の事前拒否を
+        再実行しない。fastでは共通バックエンドが入力接続への直接書込みを拒否する。
+        """
+        return Plug.set(self.plug(name), tuple(value), safe=safe)
+
+    def _matrix_channel_values(self, matrix, scale_reference=None):
+        """行列からtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。"""
+        source = Matrix(matrix)
+        inv_scale = self._inverse_scale_values()
+        corrected = source * Matrix(scale=inv_scale)
+        corrected.translate = source.translate
+        _, q, scale, shear, reference = self._decompose_like_channels(corrected, scale_reference)
+        rotation = self._channel_rotation(q, reference)
+        sp = tuple(self.plug("scalePivot").get())
+        rp = tuple(self.plug("rotatePivot").get())
+        spt = tuple(self.plug("scalePivotTranslate").get())
+        rpt = tuple(self.plug("rotatePivotTranslate").get())
+        orient = self._component_quaternion("rotateAxis") * rotation.asQuaternion()
+        if self.mnode().hasFn(om2.MFn.kJoint):
+            orient *= self._component_quaternion("jointOrient")
+        base = (Matrix(translate=tuple(-v for v in sp)) * Matrix(scale=scale, shear=shear)
+                * Matrix(translate=sp) * Matrix(translate=spt)
+                * Matrix(translate=tuple(-v for v in rp)) * Matrix(rotate=orient)
+                * Matrix(translate=rp) * Matrix(translate=rpt)
+                * Matrix(scale=tuple(1.0 / v for v in inv_scale)))
+        translate = source.translate - base.translate
+        return {"translate": Translation(*translate), "rotate": EulerRotation._wrap(rotation),
+                "scale": Scale(*scale), "shear": Shear(*shear)}
 
     def _set_matrix(self, matrix, ws=False, scale_reference=None):
         """:meth:`setMatrix` の本体。Undo チャンクと fast の扱いは呼び出し元に任せる。
@@ -1468,7 +1618,7 @@ class Transform(DagNode):
             matrix (Matrix | sequence): 適用する変換行列。
             ws (bool): ``True`` でワールド空間、``False`` でローカル空間に設定する。
             scale_reference (Iterable[float] | None): 分解したスケールの符号を最優先で
-                合わせる値(:meth:`setScale` で要求した値)。None なら現在の scale
+                合わせる値(:meth:`setScaling` で要求した値)。None なら現在の scale
                 チャンネル値に合わせる。
 
         Returns:
@@ -1482,9 +1632,32 @@ class Transform(DagNode):
             matrix = Matrix(matrix)
         if not self.isValid():
             raise RuntimeError("Cannot set an invalid transform")
-        local_matrix = matrix if not ws else matrix * self._parent_world_matrix().inverse()
+        local_matrix = matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
         self._apply_local_matrix(local_matrix, scale_reference)
         return self
+
+
+    # cymelの正式な短縮メソッド。旧hlib名の互換入口ではない。
+    getT = getTranslation
+    setT = setTranslation
+    getQ = getQuaternion
+    setQ = setQuaternion
+    getS = getScaling
+    setS = setScaling
+    getSh = getShearing
+    setSh = setShearing
+    getM = getMatrix
+    setM = setMatrix
+
+    def getJOQ(self, ws=False):
+        """jointOrientまでのクォータニオンを取得する。
+
+        Args:
+            ws (bool): ワールド空間を使う。
+        Returns:
+            Quaternion: rotateを除いた姿勢。
+        """
+        return self.getQuaternion(ws=ws, r=False)
 
 
 @collection_export()
@@ -1498,7 +1671,7 @@ class Transform(DagNode):
         'boundingBox',
         'root',
         'childNodes',
-        'childTransforms',
+        'children',
         'leaves',
         'siblings',
         'shapes',
@@ -1506,10 +1679,11 @@ class Transform(DagNode):
         'shadingEngines',
         'getOffsetParentMatrix',
         'getMatrix',
+        'getT', 'getQ', 'getS', 'getSh', 'getM', 'getJOQ',
         'getTranslation',
         'getRotation',
-        'getScale',
-        'getShear',
+        'getScaling',
+        'getShearing',
         'getQuaternion',
         'getEuler',
         'closestAxisToVector',
@@ -1529,10 +1703,12 @@ class Transform(DagNode):
         'mirrorTransform',
         'setOffsetParentMatrix',
         'setMatrix',
+        'setT', 'setQ', 'setS', 'setSh', 'setM',
         'setTranslation',
         'setRotation',
-        'setScale',
-        'setShear',
+        'setScaling',
+        'setShearing',
+        'setQuaternion',
         'makeIdentity',
         'unlockAndDisconnectTransformChannels',
     ),

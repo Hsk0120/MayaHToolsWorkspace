@@ -5,6 +5,8 @@
 
 ## 確定したコーディングルール
 
+- 作成・更新APIは既定で作成したオブジェクトや操作対象を返す。cymelとの引数統一だけを理由に既定戻り値をNoneへ変更しない。`Node.addAttr()` は既定でPlugを返す。
+
 公開APIの表記は**camelCaseに統一**する。UI・環境・イベント・JSON・utils・decoratorsも同じ規則とする。
 
 | 対象 | 規則 | 例 |
@@ -73,8 +75,10 @@ hlib・`hlib_*` のPythonファイルはPEP8の並びを基準にする。並び
 - オブジェクトの数値は距離cm・角度rad・時間秒。`Plug.get/set`と数学型で同じ値を渡せる。
   `getTranslation/setTranslation`等は行列・姿勢の操作、`plug("translate").get/set`は
   アトリビュートの操作として区別する。前者をMFnTransform.translationの単なる別名にはしない。
-- 空間指定は`space=MSpace.kObject/kTransform/kWorld`。hlibの姿勢・コンポーネント操作では
-  kObject/kTransformをローカル、kWorldをワールドとして扱う。その他の空間は拒否する。
+- 空間指定は`worldSpace=True/False`、短縮名は`ws`。使用例は原則`ws=True`とする。
+  Trueはワールド、Falseはローカル。bool以外・長短名の同時指定・旧`space=`は拒否する。
+  既定値は各メソッドの仕様を維持する（resetPivot/restoreBindPose等はTrue）。
+  OpenMaya標準APIのMSpace引数は変更しない。
 - 数学型はOpenMaya API 2.0の継承を維持する。独自の正規化・分解補助は`toMatrix`等の
   独自名を用い、継承した`asMatrix`等の演算とは区別する。
 - 型付きデータ配列の対応getterは常にlist。空は`[]`、未初期化は`None`。
@@ -97,7 +101,7 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 | Mayaの現在の状態・名前・アトリビュート情報を問い合わせる | メソッド | `node.fullName()`、`node.isLocked()`、`plug.name()` |
 | Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.getPosition()`、`vertex.getX()`、`mesh.numVertices()` |
 | Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`vertex.setX(value)`、`node.rename(name)` |
-| オブジェクトが保持している参照・番号を返す | プロパティ | `plug.node`、`component.shape`、`component.index`、`components.indices` |
+| オブジェクトが保持している参照・番号を返す | プロパティ | `component.shape`、`component.index`、`components.indices` |
 | 数学値(`hlib.maths`)・保存済みデータを参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate`、`node_ref.uuid` |
 
 ```python
@@ -108,7 +112,7 @@ plug = node.plug("translateX")
 
 print(node.fullName())    # 現在のMayaノード名を取得
 print(plug.isLocked())   # 現在のロック状態を照会
-print(plug.node)          # 保持している所有Nodeへの参照
+print(plug.node())        # cymelに合わせた所有Node取得メソッド
 plug.set(10)             # Mayaの値を変更
 
 from hlib.maths import Vector
@@ -228,7 +232,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 参照対象と取得契約
 
-- 独自のアトリビュート操作名は `attribute` に統一する（`addAttribute` / `setAttributeFlags`）。Mayaコマンド `addAttr` 等は標準名を維持する。
+- 独自のアトリビュート操作名は `attribute` に統一する（`addAttr` / `setAttributeFlags`）。Mayaコマンド `addAttr` 等は標準名を維持する。
 - メソッドのオーバーライドで対象を切り替えない。`Reference.associatedNamespace` は参照内容、継承した `namespace/setNamespace` はreferenceノード自身を扱う。
 - 接続用参照は `*_plug`、文字列のみの一覧は `*_names` / `*_aliases` などで返却対象を明示する。
 - 未存在の配列入力を取得するgetterは要素を作らずIndexErrorとする。作成はsetter等へ限定する。
@@ -296,3 +300,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - Mesh/Curveの単数・複数コンポーネントとShapeの座標書込みは、非公開のgeometryEditを共有する。通常cmds/fast om2、CVの番号変換・重み・単位変換をこの境界へ集約する。Shapeは変形する座標列を決める。
 - JSONの保存形式は公開Plug値とは別の契約。型の低水準読取・単位変換は共有し、保存時の単位・配列形・未初期化値はJSON側で維持する。
 - Transform姿勢とJoint固有の変換、SkinClusterの一括ウェイト処理は、それぞれの意味と効率を持つため単純なPlugの反復へ置き換えない。
+
+### cymelメソッド名の確定仕様（2026-10-05）
+
+ユーザーの明示指示により、所有Plugの`node()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、cymelの短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`fullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/docs/cymel_methods.rst`を参照する。

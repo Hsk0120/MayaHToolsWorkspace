@@ -65,3 +65,32 @@ class ControlShape:
         target.plug("overrideEnabled").set(True)
         target.plug("overrideColor").set(color)
         return tuple(shapes)
+
+    @staticmethod
+    @undoTransaction("hrig.ControlShape.replaceCurves")
+    def replaceCurves(target, points, knots, degree=1, name="ctrlCurve"):
+        """transformを保持し、その配下のNURBSカーブを指定点列へ差し替える。
+
+        Args:
+            target (str | Transform): 差し替えるtransform。
+            points (Sequence[Sequence[float]]): 現在の距離単位によるCV座標。
+            knots (Sequence[float]): Maya標準のノット列。
+            degree (int): カーブ次数。
+            name (str): 一時カーブの名前の接頭辞。
+
+        Returns:
+            Transform: 形状を差し替えた既存transform。他種のシェイプは保持する。
+        """
+        target = hlib.nodes.Transform(target)
+        old_shapes = [hlib.nodes.Node(shape) for shape in
+                      (cmds.listRelatives(target.fullName(), shapes=True, fullPath=True) or [])]
+        old_shapes = [shape for shape in old_shapes if shape.type() == "nurbsCurve"]
+        temporary = hlib.createCurve(degree=degree, point=points, knot=knots, name=name + "__tmp")
+        new_shapes = [hlib.nodes.Node(shape) for shape in
+                      (cmds.listRelatives(temporary.fullName(), shapes=True, fullPath=True) or [])]
+        for shape in old_shapes:
+            shape.delete()
+        for shape in new_shapes:
+            cmds.parent(shape.fullName(), target.fullName(), shape=True, relative=True)
+        temporary.delete()
+        return target

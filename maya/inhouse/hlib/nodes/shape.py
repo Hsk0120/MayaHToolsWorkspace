@@ -1,5 +1,7 @@
 """DAG シェイプの共通操作を提供する。"""
 
+from .._core.flags import flag_aliases
+
 import math
 import numbers
 import operator
@@ -19,14 +21,15 @@ from .transform import Transform
 class Shape(DagNode):
     """Maya DAG shape ノードの共通ラッパー。"""
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibShapeScaleGeometry")
-    def scaleGeometry(self, scale, space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """メッシュ頂点・NURBSカーブ/サーフェスのCVを指定中心で拡縮する。
 
         Args:
             scale (float | Iterable[float]): 一様倍率、またはXYZの倍率。負数・0も可。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 指定空間の中心。内部距離単位cm。
                 既定は原点。Transformのピボットは使わない。
             indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。
@@ -46,7 +49,7 @@ class Shape(DagNode):
         通常モードはMaya標準コマンドを使いUndoできる。周期CVはMayaの連動規則に従う。
         負の倍率でも面の頂点順は変えない。共有形状は全インスタンスに影響する。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         try:
             factors = (float(scale),) * 3 if isinstance(scale, numbers.Real) else tuple(float(v) for v in scale)
             center = tuple(float(v) for v in pivot)
@@ -54,7 +57,7 @@ class Shape(DagNode):
             raise ValueError("scale and pivot must contain finite numbers") from None
         if len(factors) != 3 or len(center) != 3 or not all(math.isfinite(v) for v in factors + center):
             raise ValueError("scale and pivot must contain three finite numbers")
-        path = self.dagPath()
+        path = self.mpath()
         if path.node().hasFn(om2.MFn.kMesh):
             counts = (om2.MFnMesh(path).numVertices,)
             token = "vtx"
@@ -132,14 +135,16 @@ class Shape(DagNode):
             cmds.xform(component, translation=values, worldSpace=ws, objectSpace=not ws)
         return self
 
-    def parentNode(self):
-        """親 Transform を取得する。
+    def parent(self, step=1):
+        """指定階層の親DAGノードを取得する。
+
+        Args:
+            step (int): 遡る階層数。
 
         Returns:
-            Transform | None: 親 Transform。存在しない場合は ``None``。
+            DagNode | None: 親。存在しない場合は ``None``。
         """
-        parent = super().parentNode()
-        return parent if isinstance(parent, Transform) else None
+        return super().parent(step)
 
     def transform(self):
         """このShapeの親Transformを返す。
@@ -147,7 +152,7 @@ class Shape(DagNode):
         Returns:
             Transform | None: 親Transform。存在しない場合は ``None``。
         """
-        return self.parentNode()
+        return self.parent()
 
     def isIntermediateObject(self):
         """中間オブジェクト（履歴用の非表示Shape）か判定する。

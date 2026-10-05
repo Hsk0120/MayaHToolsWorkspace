@@ -144,7 +144,7 @@ class Container(Node):
         if name not in published or published[name] is not None:
             raise ValueError("未Bindの公開名を指定してください: " + name)
         plug = Plug._resolve_input(plug)
-        if plug.node not in self.members():
+        if plug.node() not in self.members():
             raise ValueError("所属ノードのアトリビュートを指定してください。")
         cmds.container(self.fullName(), edit=True, bindAttr=(plug.fullName(), name))
         return plug
@@ -163,7 +163,7 @@ class Container(Node):
         if name in self.publishedAttributes():
             raise ValueError("既に公開されている名前です: " + name)
         plug = Plug._resolve_input(plug)
-        if plug.node not in self.members():
+        if plug.node() not in self.members():
             raise ValueError("所属ノードのアトリビュートを指定してください。")
         cmds.container(self.fullName(), edit=True, publishAndBind=(plug.fullName(), name))
         return plug

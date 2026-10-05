@@ -273,7 +273,7 @@ class AimAxisConversionTest(unittest.TestCase):
                 for axis, value in zip("XYZ", expected):
                     self.assertAlmostEqual(self.cmds.getAttr(self.driven + ".rotate" + axis), value, places=5)
                 for axis in "XY":
-                    plug = graph.container.plug("output" + axis).source()
+                    plug = graph.container.plug("output" + axis).sourceWithConversion()
                     self.assertTrue(self.cmds.isConnected(plug.fullName(), self.driven + ".rotate" + axis))
                 graph.restore()
                 self.assertEqual(set(self.cmds.ls()), baseline)
@@ -306,7 +306,7 @@ class AimAxisConversionTest(unittest.TestCase):
         state = JsonText.loads(graph.container.plug("settings").get())
         state["mode"] = "rest"
         state["axes"] = "xyz"
-        graph.container.plug("outputZ").connect(self.driven + ".rotateZ")
+        graph.container.plug("outputZ").connectTo(self.driven + ".rotateZ")
         state.pop("constraintSettings")
         graph.container.plug("settings").set(JsonText.dumps(state))
         graph.restore()

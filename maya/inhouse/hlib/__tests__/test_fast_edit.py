@@ -49,13 +49,13 @@ class FastEditTest(unittest.TestCase):
     def test_transform_and_joint(self):
         for kind in ('transform', 'joint'):
             node = hlib.getNode(cmds.createNode(kind))
-            node.setTranslation((2, 3, 4))
+            node.setTranslation((2, 3, 4), at=4)
             node.setRotation((15, 20, 30), unit='deg')
             expected = list(node.getMatrix())
-            node.setTranslation((0, 0, 0))
+            node.setTranslation((0, 0, 0), at=4)
             node.setRotation((0, 0, 0))
             with self.api_only():
-                node.setTranslation((2, 3, 4), fast=True)
+                node.setTranslation((2, 3, 4), fast=True, at=4)
                 node.setRotation((15, 20, 30), unit='deg', fast=True)
                 if kind == 'joint':
                     node.freezeRotation(fast=True)
@@ -121,7 +121,7 @@ class FastEditTest(unittest.TestCase):
         joints = [cmds.createNode('joint') for _ in range(2)]
         collection = hlib.ls(joints, type='joint')
         with self.api_only():
-            collection.setTranslation((1, 2, 3), fast=True)
+            collection.setTranslation((1, 2, 3), fast=True, at=4)
             node.setOutlinerColor((.1, .2, .3), fast=True)
             node.setOverrideColor(6, fast=True)
             node.setAttributeFlags(['tx'], locked=True, keyable=False, channelBox=True, fast=True)
@@ -186,8 +186,8 @@ class FastEditTest(unittest.TestCase):
                 cmds.currentUnit(linear=unit)
                 rows = [(1, 2, 3), (2, 4, 6), (3, 6, 9)]
                 with self.api_only():
-                    points.setPositions(rows, space=MSpace.kWorld, fast=True)
-                for actual, expected in zip(points.getPosition(space=MSpace.kWorld), rows):
+                    points.setPositions(rows, ws=True, fast=True)
+                for actual, expected in zip(points.getPosition(ws=True), rows):
                     for a, b in zip(actual, expected):
                         # Mesh内部のfloat座標を非一様スケールで変換した丸め誤差。
                         self.assertAlmostEqual(a, b, delta=1e-5)

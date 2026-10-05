@@ -5,6 +5,8 @@ import math
 import maya.api.OpenMaya as om2
 
 from .._core.registry import plug_wrapper
+from ..decorators._safe import safe_edit
+from ..decorators.undo import undoChunk
 from ..decorators._fast import fast_edit
 from ..maths import EulerRotation, Scale, Shear, Translation, Vector
 from .compoundPlug import CompoundPlug
@@ -32,19 +34,22 @@ class Double3Plug(CompoundPlug):
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
-        value_type = self._value_types.get(self.attributeName(), Vector)
+        value_type = self._value_types.get(self.longName(), Vector)
         if value_type is EulerRotation:
-            order = int(self.node.plug("ro").get())
+            order = int(self.node().plug("ro").get())
             # UIの角度単位に依存せず、値型はラジアンで構築する。
             values = [self._child_at(index).mplug().asMAngle().asRadians() for index in range(3)]
             return EulerRotation(*values, order=order)
         return value_type(*(self._child_at(index).get() for index in range(3)))
 
     @fast_edit
-    def set(self, value, unit="rad", *, fast=False):
+    @undoChunk("hlibDouble3PlugSet")
+    @safe_edit
+    def set(self, value, safe=False, *, unit="rad", fast=False):
         """対象アトリビュートの3成分を書き込む。ほかの変換チャンネルは変更しない。
 
         Args:
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             value (Iterable[float] | EulerRotation | Quaternion): 3成分の値。
                 rotateではEuler/Quaternionも受け入れ、ノードのrotateOrderへ変換する。
                 数値3成分は現在のrotateOrderのチャンネル値として解釈する。
@@ -52,7 +57,7 @@ class Double3Plug(CompoundPlug):
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
-            Double3Plug: 自身。
+            Double3Plug | int: 自身。safe=Trueでは失敗した成分数。
 
         Raises:
             ValueError: 要素数・有限値・角度単位が不正、または型付き回転にdegを指定した場合。
@@ -62,10 +67,16 @@ class Double3Plug(CompoundPlug):
         通常モードは1回のUndoで戻せる。Mayaの実行時エラーを自動ロールバックはしない。
         """
         self._require_valid()
-        if self._value_types.get(self.attributeName()) is EulerRotation:
+        values = self._set_components(value, unit)
+        self._require_writable()
+        return super().set(values)
+
+    def _set_components(self, value, unit="rad"):
+        """入力の角度単位と回転順序を子へ設定する内部単位へ揃える。"""
+        if self._value_types.get(self.longName()) is EulerRotation:
             if unit not in ("rad", "deg"):
                 raise ValueError("unit must be 'rad' or 'deg'")
-            order = int(self.node.plug("ro").get())
+            order = int(self.node().plug("ro").get())
             if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
                 if unit != "rad":
                     raise ValueError("unit='deg' requires three plain components")
@@ -81,5 +92,4 @@ class Double3Plug(CompoundPlug):
             values = tuple(value)
             if len(values) != 3 or not all(math.isfinite(v) for v in values):
                 raise ValueError("Expected three finite components")
-        self._require_writable()
-        return super().set(values)
+        return values

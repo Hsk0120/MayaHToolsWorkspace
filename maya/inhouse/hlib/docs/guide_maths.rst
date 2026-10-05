@@ -79,7 +79,7 @@ hlib独自の補助メソッド(``normalized``、``toMatrix`` など)を使っ�
    Vector(2, 4, 6) / 2        # Vector(1.0, 2.0, 3.0)(0 で割ると ZeroDivisionError)
    a * b                     # 0.0(om2 と同じく Vector 同士の * は内積)
    a ^ b                     # Vector(0.0, 0.0, 1.0)(外積)
-   a.lengthSquared()        # 1.0（sqrt を省ける length() の2乗版）
+   a.lengthSq()        # 1.0（sqrt を省ける length() の2乗版）
    a.distanceTo(b)          # 1.4142...（2点間のユークリッド距離）
    a.angleTo(b)             # 1.5707...（ラジアン。0〜piの範囲）
    a.isEquivalent(Vector(1 + 1e-12, 0, 0))  # True（距離が許容誤差以内か）

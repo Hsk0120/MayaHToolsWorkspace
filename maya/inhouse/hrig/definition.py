@@ -1,5 +1,7 @@
 """シーンから独立した、JSON保存可能なリグ定義。距離はシーン単位。"""
 
+from __future__ import annotations
+
 import math
 import re
 from dataclasses import asdict, dataclass

@@ -3,9 +3,12 @@
 
 import maya.cmds as cmds
 
+from hlib.nodes import Node
+from hlib.cmds import getPlug
+
 def _is_joint(node):
     """ノードが joint かどうかを判定します。"""
-    return cmds.objExists(node) and cmds.nodeType(node) == 'joint'
+    return cmds.objExists(node) and Node(node).type() == 'joint'
 
 def _get_parent_joint(jnt):
     """親ジョイントを取得します。"""
@@ -28,7 +31,7 @@ def _find_skinclusters_using_influence(inf):
 
 def _get_influences(sc):
     """skinCluster の influence 一覧を返します。"""
-    return cmds.skinCluster(sc, q=True, inf=True) or []
+    return [node.name() for node in Node(sc).influences()]
 
 def _get_uuid(node):
     """ノード UUID を1件だけ返します。"""
@@ -57,7 +60,7 @@ def _get_joint_liw(jnt):
     if not cmds.objExists(attr):
         return None
     try:
-        return bool(cmds.getAttr(attr))
+        return bool(getPlug(attr).get())
     except RuntimeError:
         return None
 
@@ -67,7 +70,7 @@ def _set_joint_liw_safe(jnt, value):
     if not cmds.objExists(attr):
         return False
     try:
-        cmds.setAttr(attr, int(bool(value)))
+        getPlug(attr).set(int(bool(value)))
         return True
     except RuntimeError:
         return False

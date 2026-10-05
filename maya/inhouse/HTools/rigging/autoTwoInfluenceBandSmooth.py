@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 import maya.cmds as cmds
+
+from hlib.nodes import Node, Mesh
+from hlib.maths import MSpace
+from hlib.utils.units import distanceToUi
 import maya.mel as mel
 import heapq
 
@@ -11,12 +15,12 @@ def _to_shape(mesh):
     if not cmds.objExists(mesh):
         raise RuntimeError(u'Object does not exist: {}'.format(mesh))
 
-    if cmds.nodeType(mesh) == 'mesh':
+    if Node(mesh).type() == 'mesh':
         return mesh
 
     shapes = cmds.listRelatives(mesh, shapes=True, fullPath=True, noIntermediate=True) or []
     for s in shapes:
-        if cmds.nodeType(s) == 'mesh':
+        if Node(s).type() == 'mesh':
             return s
 
     raise RuntimeError(u'Mesh shape not found under: {}'.format(mesh))
@@ -100,7 +104,7 @@ def _pick_top_bottom_influences(skin_cluster, axis='y'):
     可能なら joint のみを対象にする
     """
     axis_index = _get_axis_index(axis)
-    influences = cmds.skinCluster(skin_cluster, q=True, influence=True) or []
+    influences = [node.name() for node in Node(skin_cluster).influences()]
 
     if len(influences) < 2:
         raise RuntimeError(u'Not enough influences in {}.'.format(skin_cluster))
@@ -110,7 +114,7 @@ def _pick_top_bottom_influences(skin_cluster, axis='y'):
         for inf in nodes:
             if not cmds.objExists(inf):
                 continue
-            if joints_only and cmds.nodeType(inf) != 'joint':
+            if joints_only and Node(inf).type() != 'joint':
                 continue
             try:
                 pos = cmds.xform(inf, q=True, ws=True, t=True)
@@ -156,12 +160,12 @@ def _vertices_center(vertices):
 
 def _collect_influence_positions(skin_cluster, joints_only=True):
     """influence のワールド座標一覧を収集します。"""
-    influences = cmds.skinCluster(skin_cluster, q=True, influence=True) or []
+    influences = [node.name() for node in Node(skin_cluster).influences()]
     pairs = []
     for inf in influences:
         if not cmds.objExists(inf):
             continue
-        if joints_only and cmds.nodeType(inf) != 'joint':
+        if joints_only and Node(inf).type() != 'joint':
             continue
         try:
             pos = cmds.xform(inf, q=True, ws=True, t=True)
@@ -439,36 +443,10 @@ def _build_vertex_graph(mesh):
     if not vertices:
         raise RuntimeError(u'No vertices found: {}'.format(mesh))
 
-    positions = [cmds.pointPosition(vtx, world=True) for vtx in vertices]
-    vtx_to_idx = {vtx: i for i, vtx in enumerate(vertices)}
-
-    shape = _to_shape(mesh)
-    edges = cmds.ls('{}.e[*]'.format(shape), fl=True) or []
-    adjacency = [[] for _ in vertices]
-
-    # エッジ長を重みとして無向グラフを作る。
-    for edge in edges:
-        edge_vertices = cmds.ls(
-            cmds.polyListComponentConversion(edge, fromEdge=True, toVertex=True),
-            fl=True,
-        ) or []
-        if len(edge_vertices) < 2:
-            continue
-        v0, v1 = edge_vertices[0], edge_vertices[1]
-        if v0 not in vtx_to_idx or v1 not in vtx_to_idx:
-            continue
-
-        i0 = vtx_to_idx[v0]
-        i1 = vtx_to_idx[v1]
-        p0 = positions[i0]
-        p1 = positions[i1]
-        dx = p0[0] - p1[0]
-        dy = p0[1] - p1[1]
-        dz = p0[2] - p1[2]
-        w = (dx * dx + dy * dy + dz * dz) ** 0.5
-
-        adjacency[i0].append((i1, w))
-        adjacency[i1].append((i0, w))
+    shape = Mesh(_to_shape(mesh))
+    positions = [[distanceToUi(value) for value in (point.x, point.y, point.z)] for point in shape.getPoints(ws=True)]
+    adjacency = [[(index, distanceToUi(length)) for index, length in neighbors]
+                 for neighbors in shape.getVertexAdjacency(ws=True)]
 
     return vertices, positions, adjacency
 
@@ -787,9 +765,9 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
     obey_max_influences: obeyMaxInfluences (omi)
     """
     mmi = None
-    has_mmi = cmds.attributeQuery('maintainMaxInfluences', node=skin_cluster, exists=True)
+    has_mmi = Node(skin_cluster).hasAttr('maintainMaxInfluences')
     if preserve_maintain_max_influences and has_mmi:
-        mmi = cmds.getAttr(skin_cluster + '.maintainMaxInfluences')
+        mmi = Node(skin_cluster).plug('maintainMaxInfluences').get()
 
     try:
         cmds.skinCluster(
@@ -803,7 +781,7 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
             cmds.skinCluster(skin_cluster, edit=True, fnw=True)
     finally:
         if preserve_maintain_max_influences and has_mmi and mmi is not None:
-            cmds.setAttr(skin_cluster + '.maintainMaxInfluences', mmi)
+            Node(skin_cluster).plug('maintainMaxInfluences').set(mmi)
 
 
 def open_paint_skin_weights_tool():
@@ -969,7 +947,7 @@ def auto_two_influence_band_smooth(
         if not cmds.objExists(target_top_influence):
             raise RuntimeError(u'Top influence does not exist: {}'.format(target_top_influence))
 
-        influences = cmds.skinCluster(target_skin_cluster, q=True, influence=True) or []
+        influences = [node.name() for node in Node(target_skin_cluster).influences()]
         if target_bottom_influence not in influences:
             raise RuntimeError(u'{} is not connected to {}'.format(target_bottom_influence, target_skin_cluster))
         if target_top_influence not in influences:

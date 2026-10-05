@@ -69,7 +69,7 @@ def main(output_dir=None, finished=None):
             encoding="utf-8",
         )
         check(
-            rig.chains()[0][0].plug("rotateX").source() is None, "Channel Box disabled disconnects"
+            rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None, "Channel Box disabled disconnects"
         )
         cmds.undo()
         yield
@@ -77,7 +77,7 @@ def main(output_dir=None, finished=None):
             json.dumps(
                 {
                     "enabled": rig.layer_enabled(),
-                    "source": str(rig.chains()[0][0].plug("rotateX").source()),
+                    "source": str(rig.chains()[0][0].plug("rotateX").sourceWithConversion()),
                     "undo": cmds.undoInfo(query=True, undoName=True),
                     "redo": cmds.undoInfo(query=True, redoName=True),
                 }
@@ -85,13 +85,13 @@ def main(output_dir=None, finished=None):
             encoding="utf-8",
         )
         check(
-            rig.layer_enabled() and rig.chains()[0][0].plug("rotateX").source() is not None,
+            rig.layer_enabled() and rig.chains()[0][0].plug("rotateX").sourceWithConversion() is not None,
             "Channel Undo restores output",
         )
         cmds.redo()
         yield
         check(
-            not rig.layer_enabled() and rig.chains()[0][0].plug("rotateX").source() is None,
+            not rig.layer_enabled() and rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None,
             "Channel Redo restores disabled state",
         )
         rig.set_layer_enabled("radial", True)
@@ -105,7 +105,7 @@ def main(output_dir=None, finished=None):
         rig.set_layer_enabled("radial", True)
         cmds.setAttr(rig.root.fullName() + ".lod", 0)
         yield
-        check(rig.chains()[0][0].plug("rotateX").source() is None, "Channel LOD stops output")
+        check(rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None, "Channel LOD stops output")
         rig.set_lod(1)
         rig.root.rename("renamedSkirt")
         yield
@@ -116,7 +116,7 @@ def main(output_dir=None, finished=None):
         rig = SkirtRig("renamedSkirt")
         cmds.setAttr(rig.root.fullName() + ".enabled", False)
         yield
-        check(rig.chains()[0][0].plug("rotateX").source() is None, "Reload restores attribute jobs")
+        check(rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None, "Reload restores attribute jobs")
         rig.set_layer_enabled("radial", True)
         editor.module_type.setCurrentIndex(3)
         editor.module_name.setText("skirtEight")

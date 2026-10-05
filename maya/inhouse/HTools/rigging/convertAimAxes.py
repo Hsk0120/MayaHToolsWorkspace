@@ -73,9 +73,9 @@ class AimAxisConversionWindow:
             if len(selected) != 1:
                 raise ValueError("aimConstraintノードを1つ選択して読み込んでください。")
             node = selected[0]
-            if node.type() in ("container", "network") and node.hasAttribute("hrigAimAxisConversion"):
-                link = node.plug("sourceConstraint").source()
-                node = link.node if link is not None else node
+            if node.type() in ("container", "network") and node.hasAttr("hrigAimAxisConversion"):
+                link = node.plug("sourceConstraint").sourceWithConversion()
+                node = link.node() if link is not None else node
             if node.type() != "aimConstraint":
                 raise ValueError("ジョイントではなくaimConstraintノードを選択してください。")
             self.constraint = node

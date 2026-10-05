@@ -36,13 +36,13 @@ class CurveLengthTest(unittest.TestCase):
         self.assertAlmostEqual(curve.length(1e-6), math.sqrt(2))
         end = cmds.pointPosition(curve.fullName() + ".cv[1]", world=True)
         expected = math.sqrt(sum(v*v for v in end))
-        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), expected)
-        self.assertAlmostEqual(instance.shape().length(space=MSpace.kWorld), math.sqrt(2))
+        self.assertAlmostEqual(curve.length(ws=True), expected)
+        self.assertAlmostEqual(instance.shape().length(ws=True), math.sqrt(2))
         self.assertEqual(set(cmds.ls()), before)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_before)
         cmds.currentUnit(linear="m")
-        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), expected)
-        self.assertAlmostEqual(curve.length(space=MSpace.kWorld, unit="cm"), expected)
+        self.assertAlmostEqual(curve.length(ws=True), expected)
+        self.assertAlmostEqual(curve.length(ws=True, unit="cm"), expected)
         self.assertAlmostEqual(curve.length(unit="mm"), math.sqrt(2) * 10)
         self.assertAlmostEqual(curve.length(unit="meter"), math.sqrt(2) / 100)
         self.assertEqual(cmds.currentUnit(query=True, linear=True), "m")
@@ -69,10 +69,10 @@ class CurveLengthTest(unittest.TestCase):
         cmds.setAttr(transform + ".scale", 2, 3, 1)
         info = cmds.createNode("curveInfo")
         cmds.connectAttr(curve.fullName() + ".worldSpace[0]", info + ".inputCurve")
-        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), cmds.getAttr(info + ".arcLength"), places=4)
-        original = curve.length(space=MSpace.kWorld)
+        self.assertAlmostEqual(curve.length(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
+        original = curve.length(ws=True)
         cmds.setAttr(history + ".radius", 4)
-        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), original * 2, places=4)
+        self.assertAlmostEqual(curve.length(ws=True), original * 2, places=4)
 
     def test_validation(self):
         """不正な許容誤差と空間フラグを拒否する。"""
@@ -81,7 +81,7 @@ class CurveLengthTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 curve.length(tolerance)
         with self.assertRaises(ValueError):
-            curve.length(space=True)
+            curve.length(ws=1)
         with self.assertRaises(TypeError):
             curve.length(unit=1)
         with self.assertRaises(ValueError):
@@ -96,7 +96,7 @@ class CurveLengthTest(unittest.TestCase):
         curve = hlib.getNode(transform).shape()
         info = cmds.createNode("curveInfo")
         cmds.connectAttr(curve.fullName() + ".worldSpace[0]", info + ".inputCurve")
-        self.assertAlmostEqual(curve.length(space=MSpace.kWorld), cmds.getAttr(info + ".arcLength"), places=4)
+        self.assertAlmostEqual(curve.length(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
 
 
 if __name__ == "__main__":

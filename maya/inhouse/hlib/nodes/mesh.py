@@ -1,5 +1,7 @@
 """Maya のメッシュシェイプを扱う。"""
 
+from .._core.flags import flag_aliases
+
 import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
@@ -17,15 +19,16 @@ from .shape import Shape
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
-    def mirror(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """頂点位置をミラーし、自身を更新する。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 指定空間での反転中心。既定はその空間の原点。
                 単位は 内部距離単位cm。Transform のピボットとは独立する。
             indices (Iterable[int] | None): 頂点番号。None は全頂点、空列は変更なし。
@@ -49,8 +52,8 @@ class Mesh(Shape):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
-        ws = world_space(space)
-        self.vertices(indices).mirror(axis=axis, space=MSpace.kWorld if ws else MSpace.kObject, pivot=pivot)
+        ws = world_space(worldSpace)
+        self.vertices(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self
 
     def vertex(self, index):
@@ -85,7 +88,7 @@ class Mesh(Shape):
             list[ShadingEngine]: 使用中のセット。未割り当ては除外する。
         """
         from .shadingEngine import ShadingEngine
-        groups, indices = self.meshFn().getConnectedShaders(self.dagPath().instanceNumber())
+        groups, indices = self.meshFn().getConnectedShaders(self.mpath().instanceNumber())
         return [ShadingEngine(groups[i]) for i in sorted(set(indices)) if i >= 0]
 
     def faceShadingEngines(self):
@@ -95,7 +98,7 @@ class Mesh(Shape):
             list[ShadingEngine | None]: 全フェースの割り当て。未割り当てはNone。
         """
         from .shadingEngine import ShadingEngine
-        groups, indices = self.meshFn().getConnectedShaders(self.dagPath().instanceNumber())
+        groups, indices = self.meshFn().getConnectedShaders(self.mpath().instanceNumber())
         wrapped = [ShadingEngine(group) for group in groups]
         return [wrapped[i] if i >= 0 else None for i in indices]
 
@@ -105,7 +108,7 @@ class Mesh(Shape):
         Returns:
             om2.MFnMesh: この mesh の function set。
         """
-        return om2.MFnMesh(self.dagPath())
+        return om2.MFnMesh(self.mpath())
 
     def numVertices(self):
         """頂点数を取得する。
@@ -131,33 +134,58 @@ class Mesh(Shape):
         """
         return self.meshFn().numEdges
 
-    def getPoints(self, space=MSpace.kObject):
+    @flag_aliases(ws="worldSpace")
+    def getPoints(self, worldSpace=False):
         """全頂点の位置を取得する。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
             om2.MPointArray: 頂点番号順の位置。距離は Maya API の内部単位。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.meshFn().getPoints(space)
 
-    def getNormals(self, space=MSpace.kObject, angle_weighted=False):
+    @flag_aliases(ws="worldSpace")
+    def getNormals(self, worldSpace=False, angle_weighted=False):
         """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             angle_weighted (bool): True の場合は隣接面の角度で重み付けした法線を取得する。
 
         Returns:
             om2.MFloatVectorArray: 頂点番号順の平均法線。angle_weighted=False では
                 角度による重み付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.meshFn().getVertexNormals(angle_weighted, space)
+
+    @flag_aliases(ws="worldSpace")
+    def getVertexAdjacency(self, worldSpace=False):
+        """頂点IDごとの隣接頂点とエッジ長を照会する。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
+        Returns:
+            list[list[tuple[int, float]]]: 頂点ID順の隣接リスト。
+            各要素は隣接頂点IDとcm単位の距離で、エッジID順に格納する。
+            孤立頂点は空リスト、重複エッジは別々に保持する。
+        """
+        points = self.getPoints(ws=worldSpace)
+        adjacency = [[] for _ in points]
+        mesh_fn = self.meshFn()
+        for index in range(mesh_fn.numEdges):
+            first, second = mesh_fn.getEdgeVertices(index)
+            delta = points[first] - points[second]
+            length = (delta.x * delta.x + delta.y * delta.y + delta.z * delta.z) ** 0.5
+            adjacency[first].append((second, length))
+            adjacency[second].append((first, length))
+        return adjacency
 
     def edge(self, index):
         """番号から Edge を取得する。

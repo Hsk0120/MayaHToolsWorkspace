@@ -119,7 +119,7 @@ RemapValueはrampPointsで番号ごとのposition/value/interpolationを取得�
    compose = hlib.createNode("composeMatrix")
    compose.setTranslation((10, 0, 0))
    compose.setRotation((0, 45, 0))
-   compose.setScale((1, 1, 1))
+   compose.setScaling((1, 1, 1))
 
    blend = hlib.createNode("blendMatrix")
    blend.connectTarget(0, compose.outputPlug(), weight=0.5)
@@ -149,7 +149,7 @@ hlibは自動ロードしないため、未ロードなら明示的に読み込�
 
    curve = hlib.getNode("pathCurve")  # 既存のTransformまたはNurbsCurve
    info = hlib.createNode("curveInfo")
-   info.connectCurve(curve, world_space=True)
+   info.connectCurve(curve, ws=True)
    print(info.arcLength())
 
    point = hlib.createNode("pointOnCurveInfo")
@@ -159,7 +159,7 @@ hlibは自動ロードしないため、未ロードなら明示的に読み込�
    print(point.getTangent())
 
 connectCurve/connectSurfaceは既定でworldSpaceを接続し、インスタンス番号を保持します。
-world_space=Falseはlocalを接続します。Transformに対応シェイプが複数ある場合は、
+ws=Falseはlocalを接続します。Transformに対応シェイプが複数ある場合は、
 対象シェイプを明示してください。評価結果は接続されたデータの空間に従います。
 PointOnSurfaceInfoはsetParameters(u, v, percentage=True)でUV位置を指定できます。
 

@@ -15,7 +15,7 @@ class DagNode(Node):
 
     __hlib_public__ = True
 
-    def dagPath(self):
+    def mpath(self):
         """保持するインスタンスのDAGパスを取得する。
 
         Returns:
@@ -35,7 +35,7 @@ class DagNode(Node):
         Raises:
             RuntimeError: 保持していたパスが無効な場合。
         """
-        return om2.MFnDagNode(self.dagPath())
+        return om2.MFnDagNode(self.mpath())
 
     def parentPath(self):
         """保持するインスタンスの親パスを取得する。
@@ -48,21 +48,70 @@ class DagNode(Node):
         """
         if not self.isValid():
             return None
-        path = self.dagPath()
+        path = self.mpath()
         if path.length() <= 1:
             return None
         parent = om2.MDagPath(path)
         parent.pop()
         return parent
 
-    def parentNode(self):
+    def parent(self, step=1):
         """親ノードを登録された型の Node として取得する。
 
+        Args:
+            step (int): 遡る階層数。0以下またはルートを越える場合はNone。
         Returns:
             Node | None: 親ノード。親がない場合は ``None``。
         """
-        parentPath = self.parentPath()
-        return Node(parentPath) if parentPath is not None else None
+        if step <= 0:
+            return None
+        path = om2.MDagPath(self.mpath())
+        if step >= path.length():
+            return None
+        path.pop(step)
+        return Node(path)
+
+    def fullPath(self):
+        """str: 保持するDAGインスタンスの完全パス。"""
+        return self.mpath().fullPathName()
+
+    def children(self, shapes=False, intermediates=False):
+        """非TransformのDAGノードでは空の子リストを返す。
+
+        Args:
+            shapes (bool): Transform側のShape取得指定。
+            intermediates (bool): Transform側の中間ノード取得指定。
+        Returns:
+            list: 空リスト。Transformではオーバーライドする。
+        """
+        return []
+
+    def shape(self, idx=0, intermediates=False):
+        """Shape自身を返す。Transformでは指定Shapeを取得する。
+
+        Args:
+            idx (int): Shape自身では無視する。
+            intermediates (bool): Shape自身では無視する。
+        Returns:
+            DagNode | None: Shapeなら自身、それ以外はNone。
+        """
+        return self if self.mnode().hasFn(om2.MFn.kShape) else None
+
+    def partialPath(self):
+        """str: 保持するDAGインスタンスの最短一意パス。"""
+        return self.mpath().partialPathName()
+
+    def isVisible(self):
+        """bool: 親階層を含むDAGの表示状態。"""
+        return self.mpath().isVisible()
+
+    def show(self):
+        """DagNode: visibilityを有効にして自身を返す。"""
+        return self.setVisibility(True)
+
+    def hide(self):
+        """DagNode: visibilityを無効にして自身を返す。"""
+        return self.setVisibility(False)
 
     def getVisibility(self):
         """bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。"""
@@ -204,7 +253,7 @@ class DagNode(Node):
         """全アトリビュートの存在・書込み可否を検証してPlugと値の計画を返す。"""
         if not self.isValid():
             raise RuntimeError("Cannot color an invalid node")
-        if om2.MFnDependencyNode(self.mobject()).isLocked:
+        if om2.MFnDependencyNode(self.mnode()).isLocked:
             raise RuntimeError("Cannot color a locked node: " + self.fullName())
         if any(not cmds.objExists(self.fullName() + "." + name) for name, _ in updates):
             raise RuntimeError("Node does not have the requested display color attributes")
@@ -228,16 +277,19 @@ class DagNode(Node):
 @bulk_api(
     DagNode,
     reads=(
-        'dagPath',
+        'mpath',
         'dagFn',
         'parentPath',
-        'parentNode',
+        'parent',
+        'children', 'shape',
+        'fullPath', 'partialPath', 'isVisible',
         'getVisibility',
         'getOutlinerVisibility',
         'getOutlinerColor',
         'getOverrideColor',
     ),
     writes=(
+        'show', 'hide',
         'setVisibility',
         'setOutlinerVisibility',
         'setOutlinerColor',

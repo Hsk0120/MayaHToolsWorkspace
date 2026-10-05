@@ -18,7 +18,7 @@ class Reference(Node):
         Returns:
             om2.MFnReference: この reference ノードの function set。
         """
-        return om2.MFnReference(self.mobject())
+        return om2.MFnReference(self.mnode())
 
     def filename(self, resolved=True, with_copy_number=False):
         """参照ファイルのパスを取得する。

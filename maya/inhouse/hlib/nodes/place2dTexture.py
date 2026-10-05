@@ -32,9 +32,9 @@ class Place2dTexture(ShadingDependNode):
                  "noiseUV", "vertexUvOne", "vertexUvTwo", "vertexUvThree", "vertexCameraOne")
         pairs = [(name, name) for name in names] + [("outUV", "uvCoord"), ("outUvFilterSize", "uvFilterSize")]
         for origin, target in pairs:
-            if texture.hasAttribute(target):
+            if texture.hasAttr(target):
                 source = self.plug(origin)
                 destination = texture.plug(target)
-                if destination.source() != source:
-                    source.connect(destination, force=force)
+                if destination.sourceWithConversion() != source:
+                    source.connectTo(destination, force=force)
         return self

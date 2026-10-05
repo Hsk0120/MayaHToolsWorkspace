@@ -37,7 +37,7 @@ class FingerRig(ControlRig):
         rig = cls._create(name, "finger")
         settings = rig.group("layer")
         for attr in ("curl", "spread"):
-            settings.addAttribute(longName=attr, attributeType="doubleAngle", keyable=True)
+            settings.addAttr(longName=attr, attributeType="doubleAngle", keyable=True)
         for f in range(finger_count):
             for attr, default in (
                 ("curl{}".format(f + 1), 0),
@@ -46,7 +46,7 @@ class FingerRig(ControlRig):
                     0 if finger_count == 1 else 2 * f / (finger_count - 1) - 1,
                 ),
             ):
-                settings.addAttribute(
+                settings.addAttr(
                     longName=attr,
                     attributeType="doubleAngle" if attr.startswith("curl") else "double",
                     defaultValue=default,
@@ -71,16 +71,16 @@ class FingerRig(ControlRig):
                 )
                 bone.plug("segmentScaleCompensate").set(False)
                 matrix = hlib.createNode("multMatrix", name=stem + "_matrix", skipSelect=True)
-                control.plug("matrix").connect(matrix.plug("matrixIn[0]"))
-                layer.plug("matrix").connect(matrix.plug("matrixIn[1]"))
-                matrix.plug("matrixSum").connect(bone.plug("offsetParentMatrix"))
+                control.plug("matrix").connectTo(matrix.plug("matrixIn[0]"))
+                layer.plug("matrix").connectTo(matrix.plug("matrixIn[1]"))
+                matrix.plug("matrixSum").connectTo(bone.plug("offsetParentMatrix"))
                 rig.own(matrix)
                 rig.register("deform", bone)
                 if j < joint_count:
                     ControlShape.circle(control, spacing * 0.25, (1, 0, 0), 17)
                     rig.register("controls", control)
                     weight_attr = "curlWeight{}_{}".format(f + 1, j + 1)
-                    settings.addAttribute(
+                    settings.addAttr(
                         longName=weight_attr,
                         attributeType="double",
                         defaultValue=1,
@@ -89,22 +89,22 @@ class FingerRig(ControlRig):
                     total = hlib.createNode(
                         "plusMinusAverage", name=stem + "_curl", skipSelect=True
                     )
-                    settings.plug("curl").connect(total.plug("input1D[0]"))
-                    settings.plug("curl{}".format(f + 1)).connect(total.plug("input1D[1]"))
+                    settings.plug("curl").connectTo(total.plug("input1D[0]"))
+                    settings.plug("curl{}".format(f + 1)).connectTo(total.plug("input1D[1]"))
                     multiply = hlib.createNode(
                         "multiplyDivide", name=stem + "_weights", skipSelect=True
                     )
-                    total.plug("output1D").connect(multiply.plug("input1Z"))
-                    settings.plug(weight_attr).connect(multiply.plug("input2Z"))
+                    total.plug("output1D").connectTo(multiply.plug("input1Z"))
+                    settings.plug(weight_attr).connectTo(multiply.plug("input2Z"))
                     if j == 0:
-                        settings.plug("spread").connect(multiply.plug("input1Y"))
-                        settings.plug("spreadWeight{}".format(f + 1)).connect(
+                        settings.plug("spread").connectTo(multiply.plug("input1Y"))
+                        settings.plug("spreadWeight{}".format(f + 1)).connectTo(
                             multiply.plug("input2Y")
                         )
                     rig.own(total)
                     rig.own(multiply)
                     for axis_index, axis in enumerate("XYZ"):
-                        multiply.plug("output" + axis).connect(
+                        multiply.plug("output" + axis).connectTo(
                             rig.root.plug(
                                 "angles[{}]".format((f * joint_count + j) * 3 + axis_index)
                             )

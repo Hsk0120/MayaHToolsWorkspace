@@ -208,7 +208,7 @@ class AnimCurve(Node):
 
     def driverPlug(self):
         """Plug | None: inputの直接接続元。時間型では通常timeノード。"""
-        return self.plug("input").source()
+        return self.plug("input").sourceWithConversion()
 
     def outputPlug(self):
         """Plug: 出力プラグ。"""
@@ -216,7 +216,7 @@ class AnimCurve(Node):
 
     def drivenPlugs(self):
         """list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。"""
-        return self.outputPlug().destinations()
+        return self.outputPlug().destinationsWithConversions()
 
     def _unit_value(self, value, output=False, to_ui=True):
         """入出力の単位型に従いコマンド境界で値を変換する。"""

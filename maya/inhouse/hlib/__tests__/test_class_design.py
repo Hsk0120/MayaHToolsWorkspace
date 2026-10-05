@@ -29,7 +29,7 @@ class ClassDesignTest(unittest.TestCase):
             self.assertIn("transform", cmds.nodeType(name, inherited=True))
             node = Node(name)
             self.assertIsInstance(node, Transform)
-            self.assertEqual(DagNode(name).dagPath().fullPathName(), node.fullName())
+            self.assertEqual(DagNode(name).mpath().fullPathName(), node.fullName())
             self.assertEqual(Transform(name), node)
             nodes = Transforms([node])
             self.assertIs(nodes.setVisibility(False), nodes)
@@ -57,16 +57,16 @@ class ClassDesignTest(unittest.TestCase):
         from hlib.nodes import Transforms
         names = [cmds.createNode("transform", name=self.ns + ":t" + str(i)) for i in range(2)]
         nodes = Transforms(names)
-        self.assertIs(nodes.setTranslation((1, 2, 3)), nodes)
-        self.assertEqual([tuple(v) for v in nodes.getTranslation()], [(1, 2, 3)] * 2)
+        self.assertIs(nodes.setTranslation((1, 2, 3), at=4), nodes)
+        self.assertEqual([tuple(v) for v in nodes.getTranslation(at=4)], [(1, 2, 3)] * 2)
         cmds.undo()
-        self.assertEqual([tuple(v) for v in nodes.getTranslation()], [(0, 0, 0)] * 2)
+        self.assertEqual([tuple(v) for v in nodes.getTranslation(at=4)], [(0, 0, 0)] * 2)
         self.assertIs(nodes.callEach("setTranslation", [((4, 0, 0),), ((5, 0, 0),)]), nodes)
-        self.assertEqual([tuple(v) for v in nodes.getTranslation()], [(4, 0, 0), (5, 0, 0)])
-        self.assertEqual(len(nodes.addAttribute("custom", attributeType="double")), 2)
+        self.assertEqual([tuple(v) for v in nodes.getTranslation(at=4)], [(4, 0, 0), (5, 0, 0)])
+        self.assertEqual(len(nodes.addAttr("custom", attributeType="double")), 2)
         empty = Transforms()
-        self.assertIs(empty.setTranslation((0, 0, 0)), empty)
-        self.assertEqual(empty.getTranslation(), [])
+        self.assertIs(empty.setTranslation((0, 0, 0), at=4), empty)
+        self.assertEqual(empty.getTranslation(at=4), [])
         self.assertIs(nodes.freeze(), nodes)
 
     def test_bulk_requires_declaration(self):

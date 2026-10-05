@@ -72,7 +72,7 @@ def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
     if enum:
         args["enumName"] = enum
     reference = hlib.getNode(node)
-    reference.addAttribute(**args)
+    reference.addAttr(**args)
     reference.setAttributeFlags([name], keyable=False, channelBox=True, locked=readonly)
 
 
@@ -87,7 +87,7 @@ def _exists(rig):
         bool: 表示用モジュールの参照があればTrue。
     """
     return (
-        rig.root.hasAttribute("channelModule") and rig.root.plug("channelModule").source() is not None
+        rig.root.hasAttr("channelModule") and rig.root.plug("channelModule").sourceWithConversion() is not None
     )
 
 
@@ -111,23 +111,23 @@ def _states(rig):
         "foot": ik
         and detail
         and rig.layer_enabled("foot")
-        and hlib.getNode(rig.root.fullName()).hasAttribute("footMatrix"),
+        and hlib.getNode(rig.root.fullName()).hasAttr("footMatrix"),
     }
-    if rig.root.hasAttribute("targetSpace"):
+    if rig.root.hasAttr("targetSpace"):
         states["space"] = True
-    if rig.root.hasAttribute("channel_twist"):
+    if rig.root.hasAttr("channel_twist"):
         states["twist"] = detail and rig.layer_enabled("twist") and bool(rig.twist_joints())
-    if rig.root.hasAttribute("channel_bend"):
+    if rig.root.hasAttr("channel_bend"):
         states["bend"] = detail and rig.layer_enabled("bend") and bool(rig.bend_joints())
-    if rig.root.hasAttribute("channel_driven"):
+    if rig.root.hasAttr("channel_driven"):
         from .drivenLayer import DrivenLayer
 
         states["driven"] = (
             detail and rig.layer_enabled("driven") and bool(DrivenLayer(rig).graphs())
         )
-    if rig.root.hasAttribute("channel_follow"):
+    if rig.root.hasAttr("channel_follow"):
         states["follow"] = detail and rig.layer_enabled("follow") and bool(rig.follow_joints())
-    if rig.root.hasAttribute("channel_stretch"):
+    if rig.root.hasAttr("channel_stretch"):
         from .limbStretchLayer import LimbStretchLayer
 
         states["stretch"] = LimbStretchLayer(rig).active()
@@ -142,7 +142,7 @@ def sync_display(rig):
     """
     if not _exists(rig):
         return
-    if rig.root.hasAttribute("targetSpace"):
+    if rig.root.hasAttr("targetSpace"):
         from .spaceLayer import SpaceLayer
 
         SpaceLayer(rig).sync()
@@ -190,8 +190,8 @@ def attach(rig):
     module = hlib.createNode("transform", name=stem, parent=group, skipSelect=True).fullName()
     nodes.extend((group, module))
     rig._bind("channelModule", module)
-    hlib.getNode(module).addAttribute(longName="hrigChannelRoot", attributeType="message")
-    hlib.getPlug(root + ".message").connect(module + ".hrigChannelRoot")
+    hlib.getNode(module).addAttr(longName="hrigChannelRoot", attributeType="message")
+    hlib.getPlug(root + ".message").connectTo(module + ".hrigChannelRoot")
     _attribute(module, "mode", "enum", int(rig.mode() == "ik"), "FK:IK")
     _attribute(module, "lod", "enum", rig.lod(), "Low:Full")
     _attribute(module, "matchOnSwitch", default=True)
@@ -201,8 +201,8 @@ def attach(rig):
         rig._bind("channel_" + layer, node)
         if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             attr = "hrigEnabled_" + layer
-            if not hlib.getNode(root).hasAttribute(attr):
-                hlib.getNode(root).addAttribute(longName=attr, attributeType="bool", defaultValue=True)
+            if not hlib.getNode(root).hasAttr(attr):
+                hlib.getNode(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
             _attribute(node, "enabled", default=rig.layer_enabled(layer))
         _attribute(node, "active", readonly=True)
         hlib.getPlug(node + ".useOutlinerColor").set(True)
@@ -230,10 +230,10 @@ def apply(rig):
     enabled = {
         layer: bool(hlib.getPlug(rig._member("channel_" + layer) + ".enabled").get())
         for layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch")
-        if rig.root.hasAttribute("channel_" + layer)
+        if rig.root.hasAttr("channel_" + layer)
     }
     spaces = {}
-    if rig.root.hasAttribute("targetSpace"):
+    if rig.root.hasAttr("targetSpace"):
         for role in ("target", "pole"):
             switch = rig.space_switch(role)
             requested = hlib.getPlug(rig._member(role) + ".space").get()
@@ -304,10 +304,10 @@ def refresh_jobs():
             del _jobs[key]
     for plug in [item.fullName() for item in hlib.ls("*.hrigChannelRoot", recursive=True)] or []:
         module = plug.rsplit(".", 1)[0]
-        source = hlib.getPlug(plug).source()
+        source = hlib.getPlug(plug).sourceWithConversion()
         if source is None:
             continue
-        root = source.node
+        root = source.node()
         key = root.uuid()
         if key in _jobs:
             continue
@@ -316,9 +316,9 @@ def refresh_jobs():
         attrs += [
             rig._member("channel_" + layer) + ".enabled"
             for layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch")
-            if rig.root.hasAttribute("channel_" + layer)
+            if rig.root.hasAttr("channel_" + layer)
         ]
-        if rig.root.hasAttribute("targetSpace"):
+        if rig.root.hasAttr("targetSpace"):
             attrs += [rig._member(role) + ".space" for role in ("target", "pole")]
         jobs = hlib.events.ScriptJobs()
         try:

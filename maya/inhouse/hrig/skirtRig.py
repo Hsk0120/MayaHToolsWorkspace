@@ -25,7 +25,7 @@ class SkirtRig:
             root (str | Node): スカートルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.hasAttribute("hrigSkirtDefinition"):
+        if not self.root.hasAttr("hrigSkirtDefinition"):
             raise ValueError("Not an hrig skirt module")
 
     @classmethod
@@ -80,7 +80,7 @@ class SkirtRig:
         if not all(math.isfinite(v) and v > 0 for v in (radius, length)):
             raise ValueError("radius and length must be positive finite values")
         root = hlib.createNode("transform", name=name, skipSelect=True)
-        root.addAttribute(longName="hrigSkirtDefinition", dataType="string")
+        root.addAttr(longName="hrigSkirtDefinition", dataType="string")
         root.plug("hrigSkirtDefinition").set(
             hlib.json.JsonText.dumps(
                 dict(
@@ -95,11 +95,11 @@ class SkirtRig:
         )
         root.setAttributeFlags(["hrigSkirtDefinition"], locked=True)
         for attr in ("drivers", "followers", "constraints", "graphs"):
-            root.addAttribute(longName=attr, attributeType="message", multi=True)
+            root.addAttr(longName=attr, attributeType="message", multi=True)
         for attr in ("driverGroup", "followerGroup", "restGroup"):
-            root.addAttribute(longName=attr, attributeType="message")
+            root.addAttr(longName=attr, attributeType="message")
         for attr, value, low, high in (("blend", 1, 0, 1), ("falloff", 1, 0.1, 8)):
-            root.addAttribute(
+            root.addAttr(
                 longName=attr,
                 attributeType="double",
                 defaultValue=value,
@@ -107,8 +107,8 @@ class SkirtRig:
                 maxValue=high,
                 keyable=True,
             )
-        root.addAttribute(longName="enabled", attributeType="bool", defaultValue=True, keyable=False)
-        root.addAttribute(
+        root.addAttr(longName="enabled", attributeType="bool", defaultValue=True, keyable=False)
+        root.addAttr(
             longName="lod",
             attributeType="enum",
             enumName="Low:Full",
@@ -122,7 +122,7 @@ class SkirtRig:
             group = hlib.createNode(
                 "transform", name=name + "_" + role + "_grp", parent=root, skipSelect=True
             )
-            group.plug("message").connect(root.plug(role + "Group"))
+            group.plug("message").connectTo(root.plug(role + "Group"))
             groups[role] = group
         groups["rest"].plug("visibility").set(False)
         radius = hlib.utils.units.distanceFromUi(radius)
@@ -152,7 +152,7 @@ class SkirtRig:
                     joint.plug("translateY").set(-spacing if depth else 0)
                     joint.plug("segmentScaleCompensate").set(False)
                     joint.plug("radius").set(0.18 if role == "follower" else 0.35)
-                    joint.plug("message").connect(
+                    joint.plug("message").connectTo(
                         root.plug("{}[{}]".format(registry, column * joints_per_chain + depth))
                     )
                     if role == "driver":
@@ -170,9 +170,9 @@ class SkirtRig:
             graph = RadialWeights.create(
                 angle, driver_count, "{}_weights{:02d}".format(name, column + 1)
             )
-            graph.container.plug("message").connect(root.plug("graphs[{}]".format(column)))
+            graph.container.plug("message").connectTo(root.plug("graphs[{}]".format(column)))
             for attr in ("blend", "falloff"):
-                root.plug(attr).connect(graph.container.plug(attr))
+                root.plug(attr).connectTo(graph.container.plug(attr))
             for depth, joint in enumerate(chain):
                 rest = hlib.createNode(
                     "transform", name=joint.name() + "_rest", parent=groups["rest"], skipSelect=True
@@ -191,10 +191,10 @@ class SkirtRig:
                 constraint.plug("interpType").set(2)  # 最短経路。履歴依存のNo Flipは使わない。
                 aliases = constraint.weightPlugs()
                 for output, alias in zip(("restWeight", "weightA", "weightB"), aliases):
-                    graph.container.plug(output).connect(alias)
-                constraint.addAttribute(longName="hrigDriven", attributeType="message")
-                joint.plug("message").connect(constraint.plug("hrigDriven"))
-                constraint.plug("message").connect(
+                    graph.container.plug(output).connectTo(alias)
+                constraint.addAttr(longName="hrigDriven", attributeType="message")
+                joint.plug("message").connectTo(constraint.plug("hrigDriven"))
+                constraint.plug("message").connectTo(
                     root.plug("constraints[{}]".format(column * joints_per_chain + depth))
                 )
         from .channel_controls import install
@@ -368,7 +368,7 @@ class SkirtRig:
         if layer in ("follow", "spring", "pose"):
             return (
                 bool(self.root.plug("hrigEnabled_" + layer).get())
-                if self.root.hasAttribute("hrigEnabled_" + layer)
+                if self.root.hasAttr("hrigEnabled_" + layer)
                 else True
             )
         if layer != "radial":
@@ -385,8 +385,8 @@ class SkirtRig:
         """
         self.layer_enabled(layer)
         attr = "enabled" if layer == "radial" else "hrigEnabled_" + layer
-        if not self.root.hasAttribute(attr):
-            self.root.addAttribute(longName=attr, attributeType="bool", defaultValue=True)
+        if not self.root.hasAttr(attr):
+            self.root.addAttr(longName=attr, attributeType="bool", defaultValue=True)
             self.root.setAttributeFlags([attr], channelBox=True)
         self.root.plug(attr).set(bool(enabled))
         self.update()
@@ -408,17 +408,17 @@ class SkirtRig:
         """無効時は出力を切断し、変形骨を作成時の姿勢へ戻す。"""
         active = self.layer_enabled() and self.lod() == 1
         for constraint in self._members("constraints"):
-            joint = constraint.plug("hrigDriven").source().node
+            joint = constraint.plug("hrigDriven").sourceWithConversion().node()
             for axis in "XYZ":
                 source = constraint.plug("constraintRotate" + axis)
                 target = joint.plug("rotate" + axis)
-                connected = target.source()
+                connected = target.sourceWithConversion()
                 if connected is not None and connected.mplug() != source.mplug():
                     raise ValueError("Skirt output was replaced: " + target.name())
                 if active and connected is None:
-                    source.connect(target)
+                    source.connectTo(target)
                 elif not active and connected is not None:
-                    source.disconnect(target)
+                    target.disconnect(source)
                     target.set(0)
             state = 0 if active else 2
             if constraint.plug("nodeState").get() != state:
@@ -452,7 +452,7 @@ class SkirtRig:
             jobs = hlib.events.ScriptJobs()
             attrs = ["enabled", "lod"]
             for kind in ("follow", "spring", "pose"):
-                if rig.root.hasAttribute("hrigEnabled_" + kind):
+                if rig.root.hasAttr("hrigEnabled_" + kind):
                     attrs.append("hrigEnabled_" + kind)
             for name in attrs:
                 jobs.add(
@@ -481,9 +481,9 @@ class SkirtRig:
             # 新しい編集として記録するとRedo履歴を失うため、問い合わせだけで終える。
             active = rig.layer_enabled() and rig.lod() == 1
             for constraint in rig._members("constraints"):
-                joint = constraint.plug("hrigDriven").source().node
+                joint = constraint.plug("hrigDriven").sourceWithConversion().node()
                 if constraint.plug("nodeState").get() != (0 if active else 2) or any(
-                    (joint.plug("rotate" + axis).source() is not None) != active for axis in "XYZ"
+                    (joint.plug("rotate" + axis).sourceWithConversion() is not None) != active for axis in "XYZ"
                 ):
                     rig.update()
                     break
@@ -492,8 +492,8 @@ class SkirtRig:
 
                 active = rig.layer_enabled("follow") and rig.lod() == 1
                 for group in FollowLayer(rig).groups().values():
-                    bone = group.plug("joint").source().node
-                    if (bone.plug("offsetParentMatrix").source() is not None) != active:
+                    bone = group.plug("joint").sourceWithConversion().node()
+                    if (bone.plug("offsetParentMatrix").sourceWithConversion() is not None) != active:
                         rig.update()
                         break
                 from .secondaryLayer import SecondaryLayer
@@ -511,7 +511,7 @@ class SkirtRig:
                 raise ValueError("Unbind the skirt before deleting its module")
         for graph in self._members("graphs"):
             hlib.delete(graph)
-        if self.root.hasAttribute("hrigOwned"):
+        if self.root.hasAttr("hrigOwned"):
             for node in self._members("hrigOwned"):
                 if cmds.objExists(node.fullName()):
                     hlib.delete(node)

@@ -1,5 +1,7 @@
 """Maya の NURBS カーブシェイプを扱う。"""
 
+from .._core.flags import flag_aliases
+
 import math
 
 import maya.api.OpenMaya as om2
@@ -16,15 +18,16 @@ from .shape import Shape
 class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。"""
 
+    @flag_aliases(ws="worldSpace")
     @fast_edit
-    def mirror(self, axis="x", space=MSpace.kObject, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """CV の位置をミラーし、自身を更新する。
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 指定空間での反転中心。既定はその空間の原点。
                 単位は 内部距離単位cm。Transform のピボットとは独立する。
             indices (Iterable[int] | None): CV 番号。None は全 CV、空列は変更なし。
@@ -48,8 +51,8 @@ class NurbsCurve(Shape):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
-        ws = world_space(space)
-        self.cvs(indices).mirror(axis=axis, space=MSpace.kWorld if ws else MSpace.kObject, pivot=pivot)
+        ws = world_space(worldSpace)
+        self.cvs(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self
 
     def cv(self, index):
@@ -83,7 +86,7 @@ class NurbsCurve(Shape):
         Returns:
             om2.MFnNurbsCurve: 保持する DAG パスの関数セット。
         """
-        return om2.MFnNurbsCurve(self.dagPath())
+        return om2.MFnNurbsCurve(self.mpath())
 
     def numCVs(self):
         """CV 数を取得する。
@@ -117,25 +120,26 @@ class NurbsCurve(Shape):
         """
         return self.curveFn().form
 
-    def length(self, tolerance=1e-6, *, space=MSpace.kObject, unit="cm"):
+    @flag_aliases(ws="worldSpace")
+    def length(self, tolerance=1e-6, *, worldSpace=False, unit="cm"):
         """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
 
         Args:
             tolerance (float): 弧長計算の許容誤差。内部距離単位で正の有限値。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             unit (str | None): 出力単位。既定はcm。Noneは現在の距離UI単位。
                 mm/cm/m/km/in/ft/yd/mi、またはMayaの長名。
 
         Returns:
             float: 指定単位での弧長。単位省略時はcm。
-                space=MSpace.kWorldは親の非均等スケール・シアーとインスタンスの変換を含む。
+                ws=Trueは親の非均等スケール・シアーとインスタンスの変換を含む。
 
         Raises:
-            ValueError: toleranceが正の有限値でない、または単位名が未対応の場合。
-            TypeError: spaceが対応するMSpace定数でない、または単位の型が不正な場合。
+            ValueError: toleranceが正の有限値でない、worldSpaceがboolでない、または単位名が未対応の場合。
+            TypeError: 単位の型が不正な場合。
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         from ..utils import units
         # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
         factor = units.convertDistance(1.0, from_unit="cm", to_unit=unit)
@@ -157,20 +161,22 @@ class NurbsCurve(Shape):
         curve.updateCurve()
         return curve.length(tolerance) * factor
 
-    def cvPositions(self, space=MSpace.kObject):
+    @flag_aliases(ws="worldSpace")
+    def cvPositions(self, worldSpace=False):
         """CV の位置を取得する。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
             om2.MPointArray: CV 順の位置。距離は Maya API の内部単位。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.curveFn().cvPositions(space)
 
-    def getCollocatedCVGroups(self, tolerance=1e-6, space=MSpace.kObject):
+    @flag_aliases(ws="worldSpace")
+    def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=False):
         """ほぼ同じ位置にある CV をグループ化して取得する。
 
         周期カーブの重複 CV や、クリーンアップ前のカーブの検証などに使う。
@@ -178,7 +184,7 @@ class NurbsCurve(Shape):
         Args:
             tolerance (float): 同一位置とみなす距離の許容誤差（Maya API の
                 内部距離単位）。正の値を指定する。
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
             list[list[int]]: 2個以上の CV が重なっているグループのみを、
@@ -188,10 +194,10 @@ class NurbsCurve(Shape):
         Raises:
             ValueError: tolerance が正の値でない場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         if not tolerance > 0:
             raise ValueError("tolerance must be positive")
-        positions = self.cvPositions(space=MSpace.kWorld if ws else MSpace.kObject)
+        positions = self.cvPositions(ws=ws)
         assigned = [False] * len(positions)
         groups = []
         for i in range(len(positions)):

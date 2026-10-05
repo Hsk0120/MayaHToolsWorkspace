@@ -27,11 +27,11 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     if any(len(point) != 3 or not all(math.isfinite(v) for v in point) for point in pivots):
         raise ValueError("Expected finite three-component pivots")
     root = rig.root.fullName()
-    if hlib.getNode(root).hasAttribute("footMatrix"):
+    if hlib.getNode(root).hasAttr("footMatrix"):
         raise ValueError("A reverse-foot layer already exists")
     target = rig.controls()["target"]
     for attr in ("heelRoll", "toeRoll", "ballRoll"):
-        if hlib.getNode(target).hasAttribute(attr):
+        if hlib.getNode(target).hasAttr(attr):
             raise ValueError("Target attribute already exists: " + attr)
     group = hlib.createNode(
         "transform", name=rig.nodeName("footGroup"), parent=target, skipSelect=True
@@ -50,10 +50,10 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
         created.append(node)
         result[role] = node
         hlib.getPlug(node + ".rotatePivot").set((*pivot,))
-        hlib.getNode(target).addAttribute(
+        hlib.getNode(target).addAttr(
             longName=role + "Roll", attributeType="doubleAngle", keyable=True
         )
-        hlib.getPlug(target + "." + role + "Roll").connect(node + ".rotateZ")
+        hlib.getPlug(target + "." + role + "Roll").connectTo(node + ".rotateZ")
         parent = node
     matrix = hlib.createNode(
         "multMatrix", name=rig.nodeName("footMatrix"), skipSelect=True
@@ -63,16 +63,16 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     ).fullName()
     created.extend((matrix, decompose))
     for index, node in enumerate((result["ball"], result["toe"], result["heel"])):
-        hlib.getPlug(node + ".matrix").connect(matrix + ".matrixIn[{}]".format(index))
-    hlib.getPlug(rig._local_matrix("target")).connect(matrix + ".matrixIn[3]")
-    hlib.getPlug(matrix + ".matrixSum").connect(decompose + ".inputMatrix")
+        hlib.getPlug(node + ".matrix").connectTo(matrix + ".matrixIn[{}]".format(index))
+    hlib.getPlug(rig._local_matrix("target")).connectTo(matrix + ".matrixIn[3]")
+    hlib.getPlug(matrix + ".matrixSum").connectTo(decompose + ".inputMatrix")
     rig._bind("footMatrix", matrix)
     rig._bind("footDecompose", decompose)
     layer = hlib.createSet(created, name=rig.nodeName("footSet")).fullName()
     created.append(layer)
     rig._bind("footSet", layer)
     rig._layer_members("moduleSet", [layer])
-    hlib.getNode(root).addAttribute(longName="hrigFootSettings", dataType="string")
+    hlib.getNode(root).addAttr(longName="hrigFootSettings", dataType="string")
     hlib.getPlug(root + ".hrigFootSettings").set(
         hlib.json.JsonText.dumps(dict(zip(("heel", "toe", "ball"), pivots)))
     )

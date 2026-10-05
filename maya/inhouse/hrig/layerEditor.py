@@ -390,7 +390,7 @@ class LayerEditor(QtWidgets.QDialog):
                     continue
                 states = _states(rig)
                 for role, label in self.LABELS.items():
-                    if not rig.root.hasAttribute("channel_" + role):
+                    if not rig.root.hasAttr("channel_" + role):
                         continue
                     node = hlib.getNode(rig._member("channel_" + role))
                     item = self._row(
@@ -427,7 +427,7 @@ class LayerEditor(QtWidgets.QDialog):
                 for name in ("hrigMode", "hrigLod") + tuple(
                     "hrigEnabled_" + role for role in self.OPTIONAL
                 ):
-                    if rig.root.hasAttribute(name):
+                    if rig.root.hasAttr(name):
                         self._attributes.add(
                             (uuid, name),
                             attribute=rig.root.plug(name),
@@ -466,7 +466,7 @@ class LayerEditor(QtWidgets.QDialog):
         fk = self._row(
             root_item,
             "FK骨列",
-            {"root": uuid, "role": "fk", "target": rig.root.plug("fkGroup").source().node.uuid()},
+            {"root": uuid, "role": "fk", "target": rig.root.plug("fkGroup").sourceWithConversion().node().uuid()},
             not rig.active(),
         )
         for i, bone in enumerate(rig.members("fk")):
@@ -489,7 +489,7 @@ class LayerEditor(QtWidgets.QDialog):
                 "カーブ {:02d}".format(i + 1),
                 {"root": uuid, "role": "spline:" + str(i), "target": control.uuid()},
             )
-        group = rig.root.plug("deformGroup").source().node
+        group = rig.root.plug("deformGroup").sourceWithConversion().node()
         self._row(
             root_item,
             "変形骨（{}本）".format(len(rig.joints())),
@@ -511,7 +511,7 @@ class LayerEditor(QtWidgets.QDialog):
                 0, QtCore.Qt.Checked if rig.layer_enabled("stretch") else QtCore.Qt.Unchecked
             )
         attrs = ["mode", "lod", "enabled"]
-        if rig.root.hasAttribute("hrigEnabled_stretch"):
+        if rig.root.hasAttr("hrigEnabled_stretch"):
             attrs.append("hrigEnabled_stretch")
         for name in attrs:
             self._attributes.add(
@@ -543,7 +543,7 @@ class LayerEditor(QtWidgets.QDialog):
                 "ドライバー {:02d}".format(index + 1),
                 {"root": uuid, "role": "driver:" + str(index), "target": chain[0].uuid()},
             )
-        group = rig.root.plug("followerGroup").source().node
+        group = rig.root.plug("followerGroup").sourceWithConversion().node()
         self._row(
             root_item,
             "変形骨（{}列）".format(len(rig.chains())),
@@ -575,7 +575,7 @@ class LayerEditor(QtWidgets.QDialog):
             members = {
                 i: g
                 for i, g in groups.items()
-                if kind == "spring" or g.plug("poseGraph").source() is not None
+                if kind == "spring" or g.plug("poseGraph").sourceWithConversion() is not None
             }
             active = rig.layer_enabled(kind) and rig.lod() == 1 and bool(members)
             if kind == "spring":
@@ -594,7 +594,7 @@ class LayerEditor(QtWidgets.QDialog):
                     {"root": uuid, "role": kind + ":" + str(index), "target": group.uuid()},
                 )
         for kind in ("follow", "spring", "pose"):
-            if rig.root.hasAttribute("hrigEnabled_" + kind):
+            if rig.root.hasAttr("hrigEnabled_" + kind):
                 attrs.append("hrigEnabled_" + kind)
         for name in attrs:
             self._attributes.add(
@@ -629,7 +629,7 @@ class LayerEditor(QtWidgets.QDialog):
                 dict(
                     root=rig.root.uuid(),
                     role="tweakControl:" + identifier,
-                    target=group.plug("control").source().node.uuid(),
+                    target=group.plug("control").sourceWithConversion().node().uuid(),
                 ),
             )
             self._attributes.add(
@@ -910,9 +910,9 @@ class LayerEditor(QtWidgets.QDialog):
         node = hlib.getNode(
             ([item.fullName() for item in hlib.ls(data["target"], long=True)] or [""])[0]
         )
-        if not node.hasAttribute("curve"):
+        if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
-        hlib.select(node.plug("curve").source().node, replace=True)
+        hlib.select(node.plug("curve").sourceWithConversion().node(), replace=True)
         GraphEditor.show()
 
     def closeEvent(self, event):

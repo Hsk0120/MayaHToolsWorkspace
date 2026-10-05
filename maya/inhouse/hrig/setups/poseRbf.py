@@ -115,18 +115,18 @@ class PoseRbf:
         graph = cls(hlib.nodes.Container.create(name=name))
         owner = graph.container
         for attr in ("inputs", "outputs", "coefficients"):
-            owner.addAttribute(longName=attr, attributeType="double", multi=True)
-        owner.addAttribute(longName="data", dataType="string")
+            owner.addAttr(longName=attr, attributeType="double", multi=True)
+        owner.addAttr(longName="data", dataType="string")
         owner.plug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
         for index, source in enumerate(drivers):
             destination = owner.plug("inputs[{}]".format(index))
             if hlib.getAttr(source.fullName(), type=True) == "doubleAngle":
                 convert = graph._node("unitConversion", "degrees{}".format(index))
-                source.connect(convert.plug("input"))
+                source.connectTo(convert.plug("input"))
                 convert.plug("conversionFactor").set(180 / math.pi)
-                convert.plug("output").connect(destination)
+                convert.plug("output").connectTo(destination)
             else:
-                source.connect(destination)
+                source.connectTo(destination)
         graph._build(poses, values, scales, coefficients)
         return graph
 
@@ -182,28 +182,28 @@ class PoseRbf:
             for j, (center, scale) in enumerate(zip(pose, scales)):
                 delta = self._node("plusMinusAverage", "delta{}_{}".format(i, j))
                 delta.plug("operation").set(2)
-                owner.plug("inputs[{}]".format(j)).connect(delta.plug("input1D[0]"))
+                owner.plug("inputs[{}]".format(j)).connectTo(delta.plug("input1D[0]"))
                 delta.plug("input1D[1]").set(center)
                 square = self._node("multiplyDivide", "square{}_{}".format(i, j))
-                delta.plug("output1D").connect(square.plug("input1X"))
-                delta.plug("output1D").connect(square.plug("input2X"))
+                delta.plug("output1D").connectTo(square.plug("input1X"))
+                delta.plug("output1D").connectTo(square.plug("input2X"))
                 normalized = self._node("multiplyDivide", "scale{}_{}".format(i, j))
-                square.plug("outputX").connect(normalized.plug("input1X"))
+                square.plug("outputX").connectTo(normalized.plug("input1X"))
                 normalized.plug("input2X").set(-1 / scale**2)
-                normalized.plug("outputX").connect(distance.plug("input1D[{}]".format(j)))
+                normalized.plug("outputX").connectTo(distance.plug("input1D[{}]".format(j)))
             kernel = self._node("multiplyDivide", "kernel{}".format(i))
             kernel.plug("operation").set(3)
             kernel.plug("input1X").set(math.e)
-            distance.plug("output1D").connect(kernel.plug("input2X"))
+            distance.plug("output1D").connectTo(kernel.plug("input2X"))
             for j, total in enumerate(totals):
                 coefficient = owner.plug("coefficients[{}]".format(i * len(totals) + j))
                 coefficient.set(coefficients[i][j])
                 weight = self._node("multiplyDivide", "weight{}_{}".format(i, j))
-                kernel.plug("outputX").connect(weight.plug("input1X"))
-                coefficient.connect(weight.plug("input2X"))
-                weight.plug("outputX").connect(total.plug("input1D[{}]".format(i)))
+                kernel.plug("outputX").connectTo(weight.plug("input1X"))
+                coefficient.connectTo(weight.plug("input2X"))
+                weight.plug("outputX").connectTo(total.plug("input1D[{}]".format(i)))
         for j, total in enumerate(totals):
-            total.plug("output1D").connect(owner.plug("outputs[{}]".format(j)))
+            total.plug("output1D").connectTo(owner.plug("outputs[{}]".format(j)))
 
     @undoTransaction("hrig.PoseRbf.set_data")
     def set_data(self, poses, values, scales):
@@ -225,9 +225,9 @@ class PoseRbf:
         # 入力の角度変換ノードは残し、安定したcontainer入出力を保つ。
         keep = set()
         for i in range(len(scales)):
-            source = self.container.plug("inputs[{}]".format(i)).source()
+            source = self.container.plug("inputs[{}]".format(i)).sourceWithConversion()
             if source is not None:
-                keep.add(source.node.uuid())
+                keep.add(source.node().uuid())
         owned = self.container.members()
         remove = [n for n in owned if hlib.nodes.Node(n).uuid() not in keep]
         if remove:

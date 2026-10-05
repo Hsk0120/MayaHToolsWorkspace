@@ -25,8 +25,8 @@ class MethodContractTest(unittest.TestCase):
 
     def test_matrix_attribute_never_redirects_to_transform(self):
         """Transform上の行列アトリビュートでもTRSを変えず、Undoでアトリビュート値を戻す。"""
-        self.node.setTranslation((2, 3, 4))
-        plug = self.node.addAttribute(longName='storedMatrix', dataType='matrix')
+        self.node.setTranslation((2, 3, 4), at=4)
+        plug = self.node.addAttr(longName='storedMatrix', dataType='matrix')
         identity = hlib.maths.Matrix()
         plug.set(identity)
         value = hlib.maths.Matrix(translate=(8, 9, 10))
@@ -80,14 +80,14 @@ class MethodContractTest(unittest.TestCase):
         from hlib.nodes.joint import Joints
         from hlib.plugs.matrixPlug import MatrixPlug
         for cls, names in ((Node, ('attr', 'partial_path', 'full_path')),
-                           (Transform, ('decompose', 'show', 'hide')),
+                           (Transform, ('decompose',)),
                            (SkinCluster, ('transfer_weight', 'transfer_weights_batch')),
                            (SkinClusters, ('remove_joints',)),
                            (MatrixPlug, ('set_value',))):
             for name in names:
                 self.assertFalse(hasattr(cls, name), (cls, name))
         self.assertIn('setVisibility', Joints._bulk_methods)
-        self.assertNotIn('hide', Joints._bulk_methods)
+        self.assertIn('hide', Joints._bulk_methods)
 
 
     def test_joint_channels_round_trip_in_both_backends_and_units(self):
@@ -106,12 +106,12 @@ class MethodContractTest(unittest.TestCase):
                     joint.plug('rotate').set((17, 23, 31), unit='deg')
                     joint.plug('scale').set((1.2, 1.3, 1.4))
                     for fast in (False, True):
-                        before = joint.getMatrix(space=MSpace.kWorld)
+                        before = joint.getMatrix(ws=True)
                         rotation = joint.plug('rotate').get()
                         scale = joint.plug('scale').get()
                         joint.plug('rotate').set(rotation, fast=fast)
                         joint.plug('scale').set(scale, fast=fast)
-                        self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(before, 1e-9))
+                        self.assertTrue(joint.getMatrix(ws=True).isEquivalent(before, 1e-9))
                         self.assertTrue(joint.plug('rotate').get().isEquivalent(rotation, 1e-9))
         finally:
             cmds.currentUnit(angle=old_unit)

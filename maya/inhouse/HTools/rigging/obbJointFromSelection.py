@@ -1,6 +1,8 @@
 """選択メッシュから OBB ベースのジョイントを作成して再バインドするツール。"""
 
 import maya.cmds as cmds
+
+from hlib.nodes import Node
 import maya.api.OpenMaya as om
 
 import HTools.rigging.simpleCollisionFromSelection as simple_collision
@@ -155,7 +157,7 @@ def create_obb_joint_and_bind_from_selection(
 			center = obb_data["center"]
 			axis_x, axis_y, axis_z = obb_data["axes"]
 
-			joint = cmds.createNode("joint", name=joint_name_i)
+			joint = Node.create("joint", name=joint_name_i, skipSelect=False).name()
 			selection = om.MSelectionList()
 			selection.add(joint)
 			joint_dag = selection.getDagPath(0)

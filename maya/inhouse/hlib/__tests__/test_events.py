@@ -28,7 +28,7 @@ class CommonRigApiTest(unittest.TestCase):
 
     def test_changed_value_and_lock(self):
         """無変更は更新せず、ロック付き更新を一度のUndoで戻せる。"""
-        plug = self.node.addAttribute("setting", attributeType="long", defaultValue=0)
+        plug = self.node.addAttr("setting", attributeType="long", defaultValue=0)
         plug.setFlags(locked=True)
         self.assertFalse(plug.setIfChanged(0, unlock=True))
         self.assertTrue(plug.setIfChanged(2, unlock=True))
@@ -43,7 +43,7 @@ class CommonRigApiTest(unittest.TestCase):
     def test_failed_write_restores_lock(self):
         """接続先への書込みを拒否した場合もロックを復元する。"""
         plug = self.node.plug("tx")
-        self.driver.plug("tx").connect(plug)
+        self.driver.plug("tx").connectTo(plug)
         plug.setFlags(locked=True)
         with self.assertRaises(RuntimeError):
             plug.setIfChanged(5.0, unlock=True)
@@ -55,9 +55,9 @@ class CommonRigApiTest(unittest.TestCase):
         try:
             cmds.currentUnit(angle="rad")
             cmds.setAttr(self.driver.fullName() + ".rotate", 0.2, 0.4, -0.3)
-            matrix = self.driver.getMatrix(space=MSpace.kWorld)
-            self.node.setMatrix(matrix, space=MSpace.kWorld)
-            self.assertTrue(matrix.isEquivalent(self.node.getMatrix(space=MSpace.kWorld), 1e-8))
+            matrix = self.driver.getMatrix(ws=True)
+            self.node.setMatrix(matrix, ws=True)
+            self.assertTrue(matrix.isEquivalent(self.node.getMatrix(ws=True), 1e-8))
         finally:
             cmds.currentUnit(angle=previous)
 

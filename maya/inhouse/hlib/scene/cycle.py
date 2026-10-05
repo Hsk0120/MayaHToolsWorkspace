@@ -96,9 +96,9 @@ class Cycle:
         """
         pairs = {}
         for plug in self.plugs:
-            source = plug.source()
+            source = plug.sourceWithConversion()
             edges = [(source, plug)] if source is not None else []
-            edges.extend((plug, destination) for destination in plug.destinations())
+            edges.extend((plug, destination) for destination in plug.destinationsWithConversions())
             for source, destination in edges:
                 pairs[(source.fullName(), destination.fullName())] = (source, destination)
         return [pairs[key] for key in sorted(pairs)]
@@ -114,7 +114,7 @@ class Cycle:
         """
         pairs = {}
         for plug in self.plugs:
-            node = plug.node
+            node = plug.node()
             if isinstance(node, DagNode):
                 for name in cmds.listRelatives(node.fullName(), allParents=True, fullPath=True) or []:
                     parent = Node(name)

@@ -82,7 +82,7 @@ class DecomposeMatrix(Node):
         Raises:
             RuntimeError: 型不一致などでMayaが接続を拒否した場合。
         """
-        source.connect(self.plug("inputMatrix"), force=force)
+        source.connectTo(self.plug("inputMatrix"), force=force)
         return self
 
     def outputPlugs(self):

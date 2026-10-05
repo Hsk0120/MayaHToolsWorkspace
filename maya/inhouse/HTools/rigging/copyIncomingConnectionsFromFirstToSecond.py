@@ -62,7 +62,7 @@ def copy_incoming_connections_from_first_to_second(force=False, skip_conversion=
             if cmds.isConnected(input_src, dst_plug):
                 continue
 
-            hlib.getPlug(input_src).connect(dst_plug, force=force, unlock=False)
+            hlib.getPlug(input_src).connectTo(dst_plug, force=force, unlock=False)
             copied.append((input_src, dst_plug))
 
         except Exception as e:

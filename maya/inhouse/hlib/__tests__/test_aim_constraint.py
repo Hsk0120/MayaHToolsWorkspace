@@ -40,7 +40,7 @@ class AimConstraintTest(unittest.TestCase):
         cmds.connectAttr(self.aim.fullName() + ".constraintRotateX", extra + ".inputRotateX")
         pairs = self.aim.rotationConnections()
         self.assertEqual(len(pairs), 2)
-        self.assertEqual({destination.node.type() for _, destination in pairs}, {"transform", "composeMatrix"})
+        self.assertEqual({destination.node().type() for _, destination in pairs}, {"transform", "composeMatrix"})
 
     def test_settings_and_units(self):
         """設定値はUI単位に依存せず、接続付き設定も列挙される。"""

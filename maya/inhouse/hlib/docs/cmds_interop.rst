@@ -37,7 +37,6 @@ maya.cmds へそのまま渡せるもの
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import maya.cmds as cmds
    import hlib
    from maya import cmds
@@ -72,7 +71,7 @@ maya.cmds へそのまま渡せるもの
   なります(``Plug.isValid()`` が ``False``。``plug.name()`` も空文字列)。これらの Plug の
   ``get()``/``set()`` は削除前の古い値を返したり Maya を異常終了させたりせず
   ``RuntimeError`` になります。アトリビュートの情報(``attribute()``・``isLocked()``・``default()``
-  など)と接続(``source()``・``connect()`` など)の問い合わせも ``RuntimeError`` です
+  など)と接続(``source()``・``connectTo()`` など)の問い合わせも ``RuntimeError`` です
   (Undo の対象から外れた削除済みノードの MPlug は、名前の問い合わせでも Maya を
   異常終了させるためです)。構造の判定(``isArray()``・``isCompound()``・
   ``isElement()``・``isChild()``)だけは例外になりません。
@@ -84,7 +83,7 @@ maya.cmds へそのまま渡せるもの
   パスを使う操作はRuntimeErrorになります。別インスタンスへは切り替えません。
 - インスタンスごとのアトリビュート(``worldMatrix`` など)は、インスタンス化された祖先による
   間接インスタンスも含め、インスタンス番号の要素を評価前から存在する要素として扱います
-  (``elements()``・``get()``・``array_plug[1]``)。``Transform.getMatrix(space=MSpace.kWorld)`` は
+  (``elements()``・``get()``・``array_plug[1]``)。``Transform.getMatrix(ws=True)`` は
   ラッパーが保持するインスタンスの要素(``worldMatrix[<インスタンス番号>]``)を使います。
 - ``om2.MDagPath`` の ``str()`` も最短一意パスなので渡せます。
 - Plug を作る・取得する操作(``node.plug()``、``node.plugs()``、``Plug._resolve_input()``、
@@ -120,7 +119,7 @@ maya.cmds へそのまま渡せるもの
     ``choice.input[0]`` の接続元が ``unitConversion.output`` なら ``unitConversion`` を評価します)。
   - 入力接続が無ければ、Plug の作成時に値を読みます。ノードが計算する出力
     (``choice.output`` など)では ``cmds.getAttr(type=True)`` と同じく評価(compute)が
-    起こります(``node.plugs()`` や ``plug.destinations()`` の結果に含まれる場合も同じです)。
+    起こります(``node.plugs()`` や ``plug.destinationsWithConversions()`` の結果に含まれる場合も同じです)。
 
   ``double3`` などの数値の組を保持する場合は基底の ``Plug`` で、``get()`` は tuple です
   (generic アトリビュートは子を持たないため ``Double3Plug`` では扱えません)。型は Plug の作成時に
@@ -169,11 +168,11 @@ maya.cmds へそのまま渡せるもの
      - ``hlib.getNode(mobject)`` の戻り値、または hlib のコマンド
    * - ``om2.MPlug``
      - ``str()`` が ``MPlug.name()`` で、短いノード名しか含まない。同じ短い名前のノードがあると曖昧になる
-     - hlib の Plug(``Plug._resolve_input`` 相当の変換は hlib のコマンドと ``Plug.connect()`` が行う)
+     - hlib の Plug(``Plug._resolve_input`` 相当の変換は hlib のコマンドと ``Plug.connectTo()`` が行う)
 
 生の ``om2.MPlug`` は、削除操作をまたいで保持しないでください。hlib のコマンドと
 ノードが必要な引数(``hlib.getNode``、``hlib.addConstraint`` の拘束元・拘束先など)は
-``deleteAttr`` で削除されたアトリビュートの MPlug を ``ValueError`` にします(``Plug.connect()`` などのアトリビュートが必要な引数は ``RuntimeError``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
+``deleteAttr`` で削除されたアトリビュートの MPlug を ``ValueError`` にします(``Plug.connectTo()`` などのアトリビュートが必要な引数は ``RuntimeError``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
 状態での削除、``file(new=True)`` など)の MPlug は、``MPlug.node()`` の時点で Maya が
 異常終了し、API では検出できません。保持する場合は hlib の Plug(ノードの削除を検出できる)を
 使ってください。また MPlug はインスタンスの情報を持たないため、インスタンス化されたノードの
@@ -187,9 +186,8 @@ maya.cmds・``Plug._resolve_input()``・``hlib.getNode()`` では配列ではな
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    network = hlib.createNode("network", name="valuesNode")
-   values = network.addAttribute("values", attributeType="double", multi=True)
+   values = network.addAttr("values", attributeType="double", multi=True)
    values.element(0, create=True).set(1.0)
 
    # cmds.getAttr(values, size=True)       # TypeError: ArrayPlug はそのまま渡せない
@@ -252,12 +250,11 @@ hlib のコマンドが受け付ける入力
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import maya.api.OpenMaya as om2
    from hlib.components import Vertices
    from hlib.scene.selection import Selection
 
-   hlib.select([dup1.plug("tx"), dup2.mobject(), Vertices(cube.shape(), [0, 1])])
+   hlib.select([dup1.plug("tx"), dup2.mnode(), Vertices(cube.shape(), [0, 1])])
    print(cmds.objExists(dup1.plug("tx").name()))   # True
    cmds.setKeyframe([dup1.plug("tx"), dup2.plug("ty")], time=1)
    hlib.select(Selection([dup1, vertex]))
@@ -305,11 +302,10 @@ Plug は1つのアトリビュートを表すためです。シェイプの名�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    print(hlib.getNode(dup1.plug("tx")))    # grp1|dup
    print(hlib.getNode(vertex))              # cubeShape（所有シェイプ）
-   hlib.addConstraint(dup1.plug("tx"), dup2.mobject(), type="orient")  # 拘束元は dup1
-   dup1.plug("sx").connect(dup2.plug("sx").mplug())
+   hlib.addConstraint(dup1.plug("tx"), dup2.mnode(), type="orient")  # 拘束元は dup1
+   dup1.plug("sx").connectTo(dup2.plug("sx").mplug())
 
 その他の規則です。
 
@@ -355,9 +351,9 @@ Plug・Component を受け付けるコマンドは一意な名前へ変換して
    * - ``hlib.delete``
      - Plug(``ArrayPlug`` を含む)・``om2.MPlug`` は ``TypeError`` です(列や ``Selection`` の
        要素に含まれる場合も、何も削除しません)。``maya.cmds.delete`` はアトリビュート名を渡しても
-       エラーを表示するだけで何もしないためです。動的アトリビュートの削除は ``plug.deleteAttribute()``、
+       エラーを表示するだけで何もしないためです。動的アトリビュートの削除は ``plug.delete()``、
        配列要素の削除は ``array_plug.removeElement(i)``、接続の解除は ``plug.disconnect()``、
-       所有ノードの削除は ``hlib.delete(plug.node)`` を使います。Component は面の削除などに使えます。
+       所有ノードの削除は ``hlib.delete(plug.node())`` を使います。Component は面の削除などに使えます。
    * - ``hlib.ls``
      - 結果はノードとしてラップするため、Plug は所有ノード、Component は所有シェイプに
        なります(``hlib.ls(plug)`` は ``[<所有ノード>]``。``cmds.ls`` はプラグ名を返します)。
@@ -405,7 +401,6 @@ om2 オブジェクトを渡した場合は ``RuntimeError`` になります。�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    # 以前: 最初の一致を返していた。現在は RuntimeError。
    # node = hlib.getNode("bulk*")
    nodes = hlib.ls("bulk*")       # 一致するすべてのノード

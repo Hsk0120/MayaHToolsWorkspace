@@ -204,7 +204,7 @@ class CalculationNodesTest(unittest.TestCase):
         curve = hlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (10, 0, 0)]))
         curve.plug("scale").set((2, 2, 2))
         info = hlib.createNode("curveInfo")
-        info.connectCurve(curve, world_space=False)
+        info.connectCurve(curve, ws=False)
         self.assertAlmostEqual(info.arcLength(), 10)
         info.connectCurve(curve, force=True)
         self.assertAlmostEqual(info.arcLength(), 20)

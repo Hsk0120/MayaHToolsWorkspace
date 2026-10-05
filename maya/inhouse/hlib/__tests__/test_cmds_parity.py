@@ -84,11 +84,11 @@ class NodeAliasesParityTest(unittest.TestCase):
         cmds.aliasAttr("hlibParityAliasTy", self.node.plug("translateY").fullName())
 
         # cmds.aliasAttr(query=True) はフラットな [alias1, longName1, alias2, longName2, ...]
-        # を返す。longName は Plug.attributeName(ロング名)と直接比較できる。
+        # を返す。longName は Plug.longName(ロング名)と直接比較できる。
         raw = cmds.aliasAttr(self.node.name(), query=True) or []
         expected = {(raw[index], raw[index + 1]) for index in range(0, len(raw), 2)}
 
-        actual = {(alias, plug.attributeName()) for alias, plug in self.node.aliases()}
+        actual = {(alias, plug.longName()) for alias, plug in self.node.aliases()}
         self.assertEqual(actual, expected)
 
     def test_aliases_empty_matches_cmds_when_no_alias_set(self):
@@ -115,7 +115,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
     def test_inputs_matches_cmds_listConnections_source_side(self):
         source = self.create_transform("hlibParityConnSource")
         target = self.create_transform("hlibParityConnTarget")
-        source.plug("translateX").connect(target.plug("translateX"))
+        source.plug("translateX").connectTo(target.plug("translateX"))
 
         expected = set(cmds.listConnections(target.name(), source=True, destination=False, plugs=True) or [])
         actual = {plug.fullName() for plug in target.inputs()}
@@ -124,7 +124,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
     def test_outputs_matches_cmds_listConnections_destination_side(self):
         source = self.create_transform("hlibParityConnSource2")
         target = self.create_transform("hlibParityConnTarget2")
-        source.plug("translateX").connect(target.plug("translateX"))
+        source.plug("translateX").connectTo(target.plug("translateX"))
 
         expected = set(cmds.listConnections(source.name(), source=False, destination=True, plugs=True) or [])
         actual = {plug.fullName() for plug in source.outputs()}
@@ -135,7 +135,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
         target = self.create_transform("hlibParityConnTarget3")
         mesh_target = cmds.polyCube(name="hlibParityConnMeshTarget", constructionHistory=False)[0]
         self.created.append(mesh_target)
-        source.plug("translateX").connect(target.plug("translateX"))
+        source.plug("translateX").connectTo(target.plug("translateX"))
 
         expected_transform = set(
             cmds.listConnections(source.name(), source=False, destination=True, plugs=True, type="transform") or []
@@ -160,8 +160,8 @@ class NodeConnectionsParityTest(unittest.TestCase):
         ]
         source = self.create_transform("hlibParityDupSource")
         for duplicate in duplicates:
-            source.plug("translateX").connect(duplicate.plug("translateX"))
-            source.plug("translateY").connect(duplicate.plug("translateZ"))
+            source.plug("translateX").connectTo(duplicate.plug("translateX"))
+            source.plug("translateY").connectTo(duplicate.plug("translateZ"))
 
         expected = set(cmds.listConnections(source.name(), source=False, destination=True, plugs=True) or [])
         actual = {plug.fullName() for plug in source.outputs()}
@@ -270,11 +270,11 @@ class TransformMatrixParityTest(unittest.TestCase):
     def test_get_matrix_matches_cmds_getAttr_and_xform(self):
         node = Node(self.child)
         self.assertEqual(list(node.getMatrix()), cmds.getAttr(self.child + ".matrix"))
-        self.assertEqual(list(node.getMatrix(space=MSpace.kWorld)), cmds.getAttr(self.child + ".worldMatrix[0]"))
+        self.assertEqual(list(node.getMatrix(ws=True)), cmds.getAttr(self.child + ".worldMatrix[0]"))
         self.assert_sequence_almost_equal(
-            list(node.getMatrix(space=MSpace.kWorld)), cmds.xform(self.child, query=True, worldSpace=True, matrix=True))
+            list(node.getMatrix(ws=True)), cmds.xform(self.child, query=True, worldSpace=True, matrix=True))
         self.assert_sequence_almost_equal(
-            tuple(node.getTranslation(space=MSpace.kWorld)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
+            tuple(node.getTranslation(ws=True, at=4)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
 
     def test_world_matrix_follows_the_dag_instance(self):
         # getMatrix(ws=True) はラッパーの DAG パスのインスタンス番号の worldMatrix 要素を読む。
@@ -291,7 +291,7 @@ class TransformMatrixParityTest(unittest.TestCase):
         for path in paths:
             node = Node(path)
             self.assert_sequence_almost_equal(
-                list(node.getMatrix(space=MSpace.kWorld)), cmds.xform(path, query=True, worldSpace=True, matrix=True))
+                list(node.getMatrix(ws=True)), cmds.xform(path, query=True, worldSpace=True, matrix=True))
 
     def test_negative_determinant_decomposition_matches_xform_and_decompose_matrix(self):
         om2 = self.om2
@@ -339,13 +339,13 @@ class TransformMatrixParityTest(unittest.TestCase):
             self.assertEqual(local.order, order)
             self.assert_sequence_almost_equal(local.asDegrees(), cmds.xform(self.child, query=True, rotation=True))
 
-            world = node.getRotation(space=MSpace.kWorld)
+            world = node.getRotation(ws=True)
             self.assertEqual(world.order, order)
             queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
             expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
             self.assertTrue(world.asMatrix().isEquivalent(expected.asMatrix(), 1e-9), order)
 
-            node.setRotation((10.0, -20.0, 30.0), unit="deg", space=MSpace.kWorld)
+            node.setRotation((10.0, -20.0, 30.0), unit="deg", ws=True)
             queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
             expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
             wanted = om2.MEulerRotation(math.radians(10.0), math.radians(-20.0), math.radians(30.0), order)
@@ -423,7 +423,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
 
     def plugs_of(self, node):
         """ノードの全アトリビュートから、存在する配列要素と複合アトリビュートの子まで含めたプラグを列挙する。"""
-        fn = om2.MFnDependencyNode(node.mobject())
+        fn = om2.MFnDependencyNode(node.mnode())
         result = []
 
         def visit(mplug, depth):
@@ -532,7 +532,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                 plugs.extend(plug.children())
             for item in plugs:
                 with self.subTest(plug=item.fullName()):
-                    checked[item.name()] = self.assert_matches_cmds(item)
+                    checked[item.attrName()[1:]] = self.assert_matches_cmds(item)
         # 代表的な型名(登録ラッパーのキーを含む)が cmds と同じであること。
         expected = {
             "at_double": "double", "at_long": "long", "at_bool": "bool", "at_enum": "enum",
@@ -719,7 +719,7 @@ class NameResolutionParityTest(unittest.TestCase):
             with self.subTest(plug=text):
                 cmds.connectAttr(str(source_plug), text)
                 resolved = _InputPlug._resolve_input(text)
-                self.assertEqual(resolved.source().mplug(), source_plug.mplug())
+                self.assertEqual(resolved.sourceWithConversion().mplug(), source_plug.mplug())
                 self.assertIn(resolved.mplug(), list(source_plug.mplug().connectedTo(False, True)))
                 self.assertEqual(cmds.getAttr(str(resolved), type=True), cmds.getAttr(text, type=True))
 
@@ -739,7 +739,7 @@ class NameResolutionParityTest(unittest.TestCase):
             with self.subTest(path=path):
                 node = Node(path)
                 expected = cmds.xform(path, query=True, matrix=True, worldSpace=True)
-                actual = list(node.getMatrix(space=MSpace.kWorld))
+                actual = list(node.getMatrix(ws=True))
                 for value, reference in zip(actual, expected):
                     self.assertAlmostEqual(value, reference)
 

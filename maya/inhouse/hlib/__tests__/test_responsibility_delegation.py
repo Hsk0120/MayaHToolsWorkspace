@@ -20,15 +20,15 @@ class ResponsibilityTest(unittest.TestCase):
     def test_disconnect_input_preserves_outputs_and_undo(self):
         """入力だけ解除し、未接続・Undo/Redo・変換ノードを維持する。"""
         a, b, c = [hlib.createNode('transform') for _ in range(3)]
-        a.plug('tx').connect(b.plug('rx'))
-        b.plug('rx').connect(c.plug('rx'))
-        source = b.plug('rx').source()
-        self.assertIs(b.plug('rx').disconnectInput().node, b)
-        self.assertIsNone(b.plug('rx').source())
+        a.plug('tx').connectTo(b.plug('rx'))
+        b.plug('rx').connectTo(c.plug('rx'))
+        source = b.plug('rx').sourceWithConversion()
+        self.assertIs(b.plug('rx').disconnectInput().node(), b)
+        self.assertIsNone(b.plug('rx').sourceWithConversion())
         self.assertTrue(b.plug('rx').isConnectedTo(c.plug('rx')))
-        self.assertTrue(source.node.isValid())
+        self.assertTrue(source.node().isValid())
         cmds.undo()
-        self.assertEqual(b.plug('rx').source(), source)
+        self.assertEqual(b.plug('rx').sourceWithConversion(), source)
         cmds.redo()
         before = cmds.undoInfo(query=True, undoName=True)
         b.plug('rx').disconnectInput()
@@ -37,13 +37,13 @@ class ResponsibilityTest(unittest.TestCase):
     def test_disconnect_compound_input_keeps_outputs(self):
         """親の複合接続は親で解除し、子の出力を保持する。"""
         a, b, c = [hlib.createNode('transform') for _ in range(3)]
-        a.plug('translate').connect(b.plug('translate'))
-        b.plug('tx').connect(c.plug('tx'))
+        a.plug('translate').connectTo(b.plug('translate'))
+        b.plug('tx').connectTo(c.plug('tx'))
         b.plug('translate').disconnectInput()
-        self.assertIsNone(b.plug('translate').source())
+        self.assertIsNone(b.plug('translate').sourceWithConversion())
         self.assertTrue(b.plug('tx').isConnectedTo(c.plug('tx')))
         cmds.undo()
-        self.assertEqual(b.plug('translate').source(), a.plug('translate'))
+        self.assertEqual(b.plug('translate').sourceWithConversion(), a.plug('translate'))
 
     def test_array_failed_edit_does_not_create_elements(self):
         """不正値・入力元・ロックの失敗前に配列の穴を実体化しない。"""
@@ -105,7 +105,7 @@ class ResponsibilityTest(unittest.TestCase):
         rows = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
         try:
             with patch.object(PointComponent, 'setPosition', side_effect=AssertionError('single edit')):
-                points.setPositions(iter(rows), space=MSpace.kObject)
+                points.setPositions(iter(rows), ws=False)
             self.assertEqual(points.getPosition(), rows)
             cmds.undo()
             self.assertEqual(points.getPosition(), original)
@@ -119,7 +119,7 @@ class ResponsibilityTest(unittest.TestCase):
         before = node.fullName()
         self.assertEqual(_signature(node)['vertices'], 8)
         self.assertEqual(node.fullName(), before)
-        self.assertEqual(node.dagPath().node(), node.mobject())
+        self.assertEqual(node.mpath().node(), node.mnode())
 
 
 if __name__ == '__main__':

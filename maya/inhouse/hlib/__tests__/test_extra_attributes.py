@@ -22,48 +22,48 @@ class ExtraAttributesTest(unittest.TestCase):
                  ("bool", "BoolPlug", True), ("doubleAngle", "DoubleAnglePlug", 35),
                  ("doubleLinear", "DoubleLinearPlug", 7), ("time", "TimePlug", 10)]
         for index, (kind, class_name, value) in enumerate(cases):
-            plug = self.node.addAttribute("extra%d" % index, at=kind, keyable=True)
+            plug = self.node.addAttr("extra%d" % index, at=kind, keyable=True)
             self.assertEqual(type(plug).__name__, class_name)
             plug.set(value)
             self.assertAlmostEqual(plug.get(), value)
-        string = self.node.addAttribute("textValue", dataType="string")
+        string = self.node.addAttr("textValue", dataType="string")
         self.assertIsInstance(string, hlib.plugs.StringPlug)
         string.set("日本語")
         self.assertEqual(string.get(), "日本語")
-        enum = self.node.addAttribute("mode", attributeType="enum", enumName="off:on", defaultValue=1)
+        enum = self.node.addAttr("mode", attributeType="enum", enumName="off:on", defaultValue=1)
         self.assertIsInstance(enum, hlib.plugs.EnumPlug)
-        self.assertEqual(enum.enumName(), "on")
+        self.assertEqual(enum.getEnumName(), "on")
         self.assertEqual(enum.enumValue("off"), 0)
-        message = self.node.addAttribute("link", attributeType="message")
+        message = self.node.addAttr("link", attributeType="message")
         self.assertIsInstance(message, hlib.plugs.MessagePlug)
-        self.node.plug("message").connect(message)
-        self.assertEqual(message.source(), self.node.plug("message"))
+        self.node.plug("message").connectTo(message)
+        self.assertEqual(message.sourceWithConversion(), self.node.plug("message"))
         self.assertEqual(len(self.node.getExtraAttributes()), len(cases) + 3)
         self.assertNotIn(self.node.plug("translate"), self.node.getExtraAttributes())
 
     def test_compound_array_and_undo(self):
-        compound = self.node.addAttribute("vectorValue", attributeType="double3")
+        compound = self.node.addAttr("vectorValue", attributeType="double3")
         self.assertIsInstance(compound, hlib.plugs.Double3Plug)
         self.assertEqual(len(self.node.getExtraAttributes()), 1)
         self.assertEqual(len(self.node.getExtraAttributes(include_children=True)), 4)
-        array = self.node.addAttribute("weights", attributeType="double", multi=True)
+        array = self.node.addAttr("weights", attributeType="double", multi=True)
         self.assertIsInstance(array, hlib.plugs.ArrayPlug)
         self.assertIsInstance(array.element(0, create=True), hlib.plugs.DoublePlug)
-        self.node.addAttribute("undoValue", attributeType="long")
+        self.node.addAttr("undoValue", attributeType="long")
         cmds.undo()
-        self.assertFalse(self.node.hasAttribute("undoValue"))
+        self.assertFalse(self.node.hasAttr("undoValue"))
         with self.assertRaises(TypeError):
-            self.node.addAttribute("duplicateFlags", attributeType="double", at="double")
+            self.node.addAttr("duplicateFlags", attributeType="double", at="double")
 
     def test_api_order_children_and_live_changes(self):
         """定義順・子・改名・削除Undoをcmds照会なしで反映する。"""
-        self.node.addAttribute("first", at="double", hidden=True)
-        self.node.addAttribute("vector", at="double3")
-        self.node.addAttribute("last", dt="string")
+        self.node.addAttr("first", at="double", hidden=True)
+        self.node.addAttr("vector", at="double3")
+        self.node.addAttr("last", dt="string")
         expected = cmds.listAttr(self.node.fullName(), userDefined=True)
         with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):
             self.assertEqual(self.node.userAttributeNames(), ["first", "vector", "last"])
-            self.assertEqual([p.attributeName() for p in self.node.getExtraAttributes(True)], expected)
+            self.assertEqual([p.longName() for p in self.node.getExtraAttributes(True)], expected)
         cmds.renameAttr(self.node.fullName() + ".first", "renamed")
         cmds.deleteAttr(self.node.fullName() + ".vector")
         self.assertEqual(self.node.userAttributeNames(), ["renamed", "last"])
@@ -71,7 +71,7 @@ class ExtraAttributesTest(unittest.TestCase):
         # Mayaは削除Undoで定義を末尾へ再追加する。元の順序を仮定せず標準照会と比較する。
         restored = cmds.listAttr(self.node.fullName(), userDefined=True)
         self.assertEqual(self.node.userAttributeNames(), [p for p in restored if p in {"renamed", "vector", "last"}])
-        self.assertEqual([p.attributeName() for p in self.node.getExtraAttributes(True)], restored)
+        self.assertEqual([p.longName() for p in self.node.getExtraAttributes(True)], restored)
         cmds.redo()
         self.assertEqual(self.node.userAttributeNames(), ["renamed", "last"])
 
@@ -80,7 +80,7 @@ class ExtraAttributesTest(unittest.TestCase):
         name = self.node.fullName()
         cmds.addAttr(name, longName="items", attributeType="compound", numberOfChildren=1, multi=True)
         cmds.addAttr(name, longName="amount", attributeType="double", parent="items")
-        self.node.addAttribute("empty", at="double", multi=True)
+        self.node.addAttr("empty", at="double", multi=True)
         cmds.setAttr(name + ".items[7].amount", 2)
         undo_name = cmds.undoInfo(query=True, undoName=True)
         with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):

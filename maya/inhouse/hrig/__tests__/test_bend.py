@@ -98,7 +98,7 @@ class BendTest(unittest.TestCase):
         cmds.file(new=True, force=True)
         demo = build_demo()
         self.assertEqual(len(demo["rig"].bend_joints()), 3)
-        owner = demo["rig"].bend_settings().plug("graph").source().node
+        owner = demo["rig"].bend_settings().plug("graph").sourceWithConversion().node()
         self.assertGreater(owner.plug("response").get(), 0.5)
         self.assertEqual(len(cmds.skinCluster(demo["high_skin"], q=True, influence=True)), 13)
         self.assertEqual(len(cmds.skinCluster(demo["proxy_skin"], q=True, influence=True)), 3)

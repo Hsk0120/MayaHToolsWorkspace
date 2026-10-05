@@ -1,5 +1,7 @@
 """接続したcurveの形状情報をMayaで評価する。"""
 
+from .._core.flags import flag_aliases
+
 from .._core.registry import node_wrapper
 from ..decorators.undo import undoChunk
 from ._calculation import _Calculation
@@ -33,13 +35,14 @@ class CurveInfo(AbstractBaseCreate):
         _Calculation.connect(source, self.inputPlug, force=force)
         return self
 
+    @flag_aliases(ws="worldSpace")
     @undoChunk("hlibCalculationEdit")
-    def connectCurve(self, curve, world_space=True, force=False):
+    def connectCurve(self, curve, worldSpace=True, force=False):
         """形状またはTransformを解決して接続する。
 
         Args:
             curve (Node | str | MObject | MDagPath): 対象形状。
-            world_space (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
             force (bool): 接続を置き換えるか。
         Returns:
             CurveInfo: 自身。
@@ -47,8 +50,8 @@ class CurveInfo(AbstractBaseCreate):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = _Calculation.geometryOutput(curve, "nurbsCurve", world_space)
-        source.connect(self.inputPlug(), force=force)
+        source = _Calculation.geometryOutput(curve, "nurbsCurve", worldSpace)
+        source.connectTo(self.inputPlug(), force=force)
         return self
 
     def outputPlug(self):

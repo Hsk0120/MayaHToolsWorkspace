@@ -2,6 +2,9 @@
 
 import maya.cmds as cmds
 
+from hlib.nodes import Node
+from hlib.cmds import getPlug
+
 
 def get_skin_cluster(mesh_transform):
     """メッシュに接続されている skinCluster を返す"""
@@ -49,10 +52,10 @@ def get_or_create_shading_engine(material):
         sg = cmds.sets(renderable=True, noSurfaceShader=True, empty=True)
 
     try:
-        if cmds.attributeQuery('outColor', node=mat_node, exists=True):
-            cmds.connectAttr(mat_node + '.outColor', sg + '.surfaceShader', force=True)
-        elif cmds.attributeQuery('outValue', node=mat_node, exists=True):
-            cmds.connectAttr(mat_node + '.outValue', sg + '.surfaceShader', force=True)
+        if Node(mat_node).hasAttr('outColor'):
+            getPlug(mat_node + '.outColor').connectTo(getPlug(sg + '.surfaceShader'), force=True, unlock=False)
+        elif Node(mat_node).hasAttr('outValue'):
+            getPlug(mat_node + '.outValue').connectTo(getPlug(sg + '.surfaceShader'), force=True, unlock=False)
         else:
             cmds.warning(u'Info: {} に接続可能な出力属性が見つかりません。'.format(mat_short))
             return None
@@ -194,7 +197,7 @@ def connect_visibility_attr(src_mesh, dup_mesh):
             pass
 
     try:
-        cmds.connectAttr(src_attr, dup_attr, force=True)
+        getPlug(src_attr).connectTo(getPlug(dup_attr), force=True, unlock=False)
     except Exception:
         cmds.warning(u'Info: visibility の接続に失敗しました。 {} -> {}'.format(src_mesh, dup_mesh))
 
@@ -206,7 +209,7 @@ def get_selected_mesh_transforms():
     seen = set()
 
     for sel in sels:
-        if cmds.nodeType(sel) == 'mesh':
+        if Node(sel).type() == 'mesh':
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
             if not parents:
                 continue
@@ -215,7 +218,7 @@ def get_selected_mesh_transforms():
             mesh = sel
 
         shapes = cmds.listRelatives(mesh, shapes=True, noIntermediate=True, fullPath=True) or []
-        if not shapes or cmds.nodeType(shapes[0]) != 'mesh':
+        if not shapes or Node(shapes[0]).type() != 'mesh':
             cmds.warning(u'Skip: {} はメッシュではありません。'.format(mesh))
             continue
 
@@ -248,7 +251,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
             continue
 
         # 元 skinCluster から influence を取得
-        influences = cmds.skinCluster(src_skin, q=True, influence=True) or []
+        influences = [node.name() for node in Node(src_skin).influences()]
         if not influences:
             cmds.warning(u'Skip: {} の influence が取得できません。'.format(mesh))
             continue
@@ -264,7 +267,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         if dup_short_name.endswith('1') and len(dup_short_name) > 1:
             target_name = dup_short_name[:-1]
             try:
-                dup = cmds.rename(dup, target_name)
+                dup = Node(dup).rename(target_name)
             except Exception:
                 cmds.warning(u'Info: {} の末尾 1 を除去できませんでした。'.format(dup_short_name))
 
@@ -284,8 +287,8 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
 
         # 元 skinCluster の主要パラメータを複製側にも反映する。
         max_influences = cmds.skinCluster(src_skin, q=True, maximumInfluences=True)
-        maintain_max_influences = cmds.getAttr(src_skin + '.maintainMaxInfluences')
-        normalize_weights = cmds.getAttr(src_skin + '.normalizeWeights')
+        maintain_max_influences = Node(src_skin).plug('maintainMaxInfluences').get()
+        normalize_weights = Node(src_skin).plug('normalizeWeights').get()
 
         # 複製メッシュを同じ joint で bind
         dup_skin = cmds.skinCluster(
@@ -299,8 +302,8 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         )[0]
 
         # ノード属性も明示的に合わせておく
-        cmds.setAttr(dup_skin + '.maxInfluences', max_influences)
-        cmds.setAttr(dup_skin + '.maintainMaxInfluences', maintain_max_influences)
+        Node(dup_skin).plug('maxInfluences').set(max_influences)
+        Node(dup_skin).plug('maintainMaxInfluences').set(maintain_max_influences)
 
         # コピー時は名前一致を優先し、補助として closestJoint/oneToOne を使う。
         cmds.copySkinWeights(

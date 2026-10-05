@@ -19,11 +19,11 @@ class AimConstraint(Constraint):
             list[tuple[Plug, Plug]]: 接続元と接続先。複合接続は親のペアのみ。
         """
         root = self.plug("constraintRotate")
-        destinations = root.destinations()
+        destinations = root.destinationsWithConversions()
         result = [(root, destination) for destination in destinations]
         for axis in "XYZ":
             source = self.plug("constraintRotate" + axis)
-            for destination in source.destinations():
+            for destination in source.destinationsWithConversions():
                 if destination.isChild() and destination.parent() in destinations:
                     continue
                 result.append((source, destination))
@@ -110,8 +110,8 @@ class AimConstraint(Constraint):
             raise ValueError("角度は有限のラジアン3値を指定してください。")
         parent = self.plug(attribute)
         children = [self.plug(attribute + axis) for axis in "XYZ"]
-        if (self.isLocked() or self.isReferenced()
-                or any(plug.isLocked() or plug.source() is not None for plug in [parent] + children)):
+        if (self.isLocked() or self.isFromReferencedFile()
+                or any(plug.isLocked() or plug.sourceWithConversion() is not None for plug in [parent] + children)):
             raise ValueError("参照・ロック・入力接続のある設定は変更できません: " + parent.fullName())
         for plug, component in zip(children, values):
             plug.set(component)

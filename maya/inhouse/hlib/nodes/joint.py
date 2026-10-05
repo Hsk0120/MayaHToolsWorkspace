@@ -141,7 +141,7 @@ class Joint(Transform):
             raise TypeError("force must be a bool")
         if not self.isValid():
             raise RuntimeError("Cannot connect inverseScale on an invalid joint")
-        source = self.parentNode() if source is None else _InputNode._resolve_input(source)
+        source = self.parent() if source is None else _InputNode._resolve_input(source)
         if source is None:
             return self
         if not isinstance(source, Transform):
@@ -151,7 +151,7 @@ class Joint(Transform):
         origin = source.plug("scale")
         target = self.plug("inverseScale")
         if not cmds.isConnected(origin.fullName(), target.fullName()):
-            origin.connect(target, force=force)
+            origin.connectTo(target, force=force)
         return self
 
     @undoChunk("hlibJointDisconnectInverseScale")
@@ -169,9 +169,9 @@ class Joint(Transform):
         """
         for name in ("inverseScale", "inverseScaleX", "inverseScaleY", "inverseScaleZ"):
             target = self.plug(name)
-            origin = target.source()
+            origin = target.sourceWithConversion()
             if origin is not None:
-                origin.disconnect(target)
+                target.disconnect(origin)
         return self
 
     def getRadius(self):
@@ -224,10 +224,10 @@ class Joint(Transform):
         """
         if not self.isValid():
             return None
-        parent = self.parentNode()
+        parent = self.parent()
         if parent is None or not parent.isValid():
             return None
-        if not parent.mobject().hasFn(om2.MFn.kJoint):
+        if not parent.mnode().hasFn(om2.MFn.kJoint):
             return None
         return parent.name()
 
@@ -242,7 +242,7 @@ class Joint(Transform):
         return [
             child.name()
             for child in self.childNodes()
-            if child.mobject().hasFn(om2.MFn.kJoint)
+            if child.mnode().hasFn(om2.MFn.kJoint)
         ]
 
     def depth(self):
@@ -264,7 +264,7 @@ class Joint(Transform):
         Returns:
             bool: 有効な joint の場合は ``True``。
         """
-        return self.isValid() and self.mobject().hasFn(om2.MFn.kJoint)
+        return self.isValid() and self.mnode().hasFn(om2.MFn.kJoint)
 
     def delete(self):
         """祖先influenceへウェイトを移送し、このjointを削除する。
@@ -299,11 +299,11 @@ class Joint(Transform):
         seen = set()
         result = []
         for plug in self.connections(type="skinCluster"):
-            node = plug.node
+            node = plug.node()
             if node.uuid() in seen:
                 continue
             seen.add(node.uuid())
-            result.append(SkinCluster(node.mobject()))
+            result.append(SkinCluster(node.mnode()))
         return result
 
     @undoChunk("hlibJointRemoveInfluence")
@@ -428,11 +428,11 @@ class Joint(Transform):
         seen = set()
         result = []
         for plug in self.connections(type="ikHandle"):
-            node = plug.node
+            node = plug.node()
             if node.uuid() in seen:
                 continue
             seen.add(node.uuid())
-            result.append(IkHandle(node.mobject()))
+            result.append(IkHandle(node.mnode()))
         return result
 
     def _rotation_order(self):
@@ -584,7 +584,7 @@ class Joint(Transform):
             ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
             RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
-        super()._apply_local_matrix(self._remove_segment_scale_compensation(matrix), scale_reference)
+        super()._apply_local_matrix(matrix, scale_reference)
 
     def _compound_values(self, attribute, angle=False):
         """compound アトリビュートを 3 要素の tuple として取得する。

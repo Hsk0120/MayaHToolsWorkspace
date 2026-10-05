@@ -125,7 +125,7 @@ class NodeCollectionsTest(unittest.TestCase):
         paths = cmds.ls(leaf, long=True, allPaths=True)
         nodes = Transforms(paths + paths)
         self.assertEqual(len(nodes), 2)
-        self.assertNotEqual(list(nodes.getMatrix(space=MSpace.kWorld)[0]), list(nodes.getMatrix(space=MSpace.kWorld)[1]))
+        self.assertNotEqual(list(nodes.getMatrix(ws=True)[0]), list(nodes.getMatrix(ws=True)[1]))
         nodes.setOverrideColors([6, 6])
         with self.assertRaises(ValueError):
             nodes.setOverrideColors([13, 17])

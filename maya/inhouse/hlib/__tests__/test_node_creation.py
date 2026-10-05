@@ -73,7 +73,7 @@ class NodeCreationTest(unittest.TestCase):
         self.assertIs(hlib.getNode, hlib_cmds.getNode)
         wrapped = hlib.getNode(name)
         self.assertIsInstance(wrapped, Joint)
-        for value in (wrapped.mobject(), wrapped.dagPath()):
+        for value in (wrapped.mnode(), wrapped.mpath()):
             self.assertIsInstance(hlib.getNode(value), Joint)
         self.assertEqual(cmds.ls(long=True), before)
         self.assertEqual(cmds.ls(sl=True, long=True), selection)

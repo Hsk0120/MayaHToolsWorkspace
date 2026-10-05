@@ -186,13 +186,13 @@ def duplicate_anim_only_and_rewire_selected_v2(
             # 旧カーブの切断（想定: src_anim.output -> dest_plug）。
             if disconnect_old:
                 try:
-                    Node(src_anim).plug('output').disconnect(dest_plug)
+                    dest_plug.disconnect(Node(src_anim).plug('output'))
                 except Exception:
                     pass
 
             # 新カーブを同じ属性へ接続して差し替える。
             try:
-                Node(dst_anim).plug('output').connect(dest_plug, force=True, unlock=False)
+                Node(dst_anim).plug('output').connectTo(dest_plug, force=True, unlock=False)
                 rewired += 1
             except Exception:
                 skipped += 1

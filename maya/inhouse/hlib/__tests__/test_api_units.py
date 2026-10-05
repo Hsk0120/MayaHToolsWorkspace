@@ -25,7 +25,7 @@ class ApiUnitsTest(unittest.TestCase):
     def test_scalar_compound_roundtrip_and_undo(self):
         """単位型のスカラー・複合値はrad/cm/秒で往復する。"""
         node = hlib.createNode("transform")
-        time = node.addAttribute("sampleTime", attributeType="time")
+        time = node.addAttr("sampleTime", attributeType="time")
         for linear, angle, frame in (("cm", "deg", "film"), ("m", "rad", "ntsc")):
             cmds.currentUnit(linear=linear, angle=angle, time=frame)
             for fast in (False, True):
@@ -49,7 +49,7 @@ class ApiUnitsTest(unittest.TestCase):
         """生成と範囲は内部単位。addAttr固有のcmds仕様も維持する。"""
         cmds.currentUnit(linear="m", angle="deg")
         node = hlib.createNode("network")
-        angle = node.addAttribute("angle", attributeType="doubleAngle", defaultValue=.5, minValue=0, maxValue=1)
+        angle = node.addAttr("angle", attributeType="doubleAngle", defaultValue=.5, minValue=0, maxValue=1)
         command = hlib.addAttr(node, longName="commandAngle", attributeType="doubleAngle", defaultValue=90)
         self.assertAlmostEqual(angle.get(), .5)
         self.assertAlmostEqual(command.get(), 90)
@@ -68,12 +68,12 @@ class ApiUnitsTest(unittest.TestCase):
             item = shape.vertex(0) if shape.type() == "mesh" else shape.cv(0)
             cmds.currentUnit(linear="m")
             for fast in (False, True):
-                node.setTranslation((25, 50, 75), fast=fast)
-                self.assertEqual(tuple(node.getTranslation()), (25, 50, 75))
+                node.setTranslation((25, 50, 75), fast=fast, at=4)
+                self.assertEqual(tuple(node.getTranslation(at=4)), (25, 50, 75))
                 self.assertEqual(tuple(node.plug("translate").get()), (25, 50, 75))
                 item.setPosition((1, 2, 3), fast=fast)
                 self.assertEqual(item.getPosition(), (1, 2, 3))
-                self.assertEqual(item.getPosition(space=MSpace.kWorld), (26, 52, 78))
+                self.assertEqual(item.getPosition(ws=True), (26, 52, 78))
             item.setPosition((4, 5, 6))
             cmds.undo()
             self.assertEqual(item.getPosition(), (1, 2, 3))
@@ -107,7 +107,7 @@ class ApiUnitsTest(unittest.TestCase):
             with self.subTest(suffix=suffix):
                 curve = hlib.createNode("animCurve" + suffix)
                 curve.setKey(0, 0).setKey(2, .5)
-                fn = oma2.MFnAnimCurve(curve.mobject())
+                fn = oma2.MFnAnimCurve(curve.mnode())
                 input = fn.input(1)
                 if isinstance(input, om2.MTime):
                     input = input.asUnits(om2.MTime.kSeconds)

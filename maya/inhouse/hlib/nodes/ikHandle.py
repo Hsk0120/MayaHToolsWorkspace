@@ -22,13 +22,13 @@ class IkHandle(Transform):
         """
         from .joint import Joint
 
-        effector_plug = self.plug("endEffector").source()
+        effector_plug = self.plug("endEffector").sourceWithConversion()
         if effector_plug is None:
             return None
-        source = effector_plug.node.plug("translateX").source()
+        source = effector_plug.node().plug("translateX").sourceWithConversion()
         if source is None:
             return None
-        return Joint(source.node.fullName())
+        return Joint(source.node().fullName())
 
     def joints(self, include_tip=False):
         """IK チェーンを構成する joint を start joint から順に取得する。

@@ -32,7 +32,7 @@ class ApiNamingTest(unittest.TestCase):
         cmds.addAttr(driver.fullName(), longName='driver', attributeType='double')
         source = driver.plug('driver')
         curve = hlib.createNode('animCurveUU')
-        source.connect(curve.plug('input'))
+        source.connectTo(curve.plug('input'))
         curve.setKey(0, 2)
         curve.setKey(3, 5)
         blend = hlib.createNode('blendWeighted')
@@ -41,7 +41,7 @@ class ApiNamingTest(unittest.TestCase):
             self.assertEqual([p.fullName() for p in node.inputs(type='transform')], [source.fullName()])
             self.assertEqual(node.inputs(type='mesh'), [])
         self.assertEqual(curve.keyInputs(), [0, 3])
-        self.assertEqual(blend.inputPlugs()[0].node, blend)
+        self.assertEqual(blend.inputPlugs()[0].node(), blend)
 
     def test_live_queries_and_stored_properties(self):
         node = hlib.createNode('joint')

@@ -39,7 +39,7 @@ class _Calculation:
         """
         from ..plugs.plug import Plug as _InputPlug
         source = _InputPlug._resolve_input(source)
-        source.connect(target(*indices), force=force)
+        source.connectTo(target(*indices), force=force)
 
     @staticmethod
     def index(value, allowed=None):
@@ -165,5 +165,5 @@ class _Calculation:
             raise TypeError("Expected a " + node_type)
         if world_space:
             # 接続時に実体化する。参照の取得では未評価worldSpace要素を作成しない。
-            return node.plug("worldSpace")._element_reference(node.dagPath().instanceNumber())
+            return node.plug("worldSpace")._element_reference(node.mpath().instanceNumber())
         return node.plug("local")

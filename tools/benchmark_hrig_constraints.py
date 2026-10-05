@@ -77,7 +77,7 @@ def build_scene(cmds, backend, count, maintain_offset, chain=False, validate=Tru
                 MatrixFollow._build(
                     source_node,
                     target_node,
-                    target_node.parentNode(),
+                    target_node.parent(),
                     offset,
                     target + "_followMatrix",
                     selected,

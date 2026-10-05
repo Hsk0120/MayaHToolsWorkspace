@@ -29,7 +29,7 @@ class SecondaryLayer:
             dict[int, Node]: 列番号と設定グループ。
         """
         root = self.rig.root
-        if not root.hasAttribute("secondaryGroups"):
+        if not root.hasAttr("secondaryGroups"):
             return {}
         return root.plug("secondaryGroups").sourceNodes()
 
@@ -91,11 +91,11 @@ class SecondaryLayer:
         ][0]
         group = hlib.createNode("transform", name=stem + "_grp", parent=parent, skipSelect=True)
         owner = hlib.nodes.Container.create(name=stem + "_graph")
-        group.addAttribute(longName="graph", attributeType="message")
-        owner.plug("message").connect(group.plug("graph"))
-        group.addAttribute(longName="baked", attributeType="bool", defaultValue=False)
-        group.addAttribute(longName="bakeInfo", dataType="string").set("{}")
-        group.addAttribute(longName="poseGraph", attributeType="message")
+        group.addAttr(longName="graph", attributeType="message")
+        owner.plug("message").connectTo(group.plug("graph"))
+        group.addAttr(longName="baked", attributeType="bool", defaultValue=False)
+        group.addAttr(longName="bakeInfo", dataType="string").set("{}")
+        group.addAttr(longName="poseGraph", attributeType="message")
         for name, value, low, high in (
             ("intensity", 1, 0, 1),
             ("frequency", 3, 0.01, 30),
@@ -103,7 +103,7 @@ class SecondaryLayer:
             ("angleLimit", 45, 0.01, 170),
             ("poseIntensity", 1, 0, 1),
         ):
-            group.addAttribute(
+            group.addAttr(
                 longName=name,
                 attributeType="double",
                 defaultValue=value,
@@ -113,7 +113,7 @@ class SecondaryLayer:
             )
             group.setAttributeFlags([name], channelBox=True)
         for attr in ("sources", "targets", "blends", "poses", "curves", "poseWeights"):
-            group.addAttribute(longName=attr, attributeType="message", multi=True)
+            group.addAttr(longName=attr, attributeType="message", multi=True)
         target_parent = group
         for index, source in enumerate(sources):
             target = hlib.createNode(
@@ -125,45 +125,45 @@ class SecondaryLayer:
             target.plug("segmentScaleCompensate").set(False)
             target.plug("radius").set(0.25)
             for attr in ("translate", "jointOrient", "rotateAxis", "rotateOrder"):
-                source.plug(attr).connect(target.plug(attr))
+                source.plug(attr).connectTo(target.plug(attr))
             blend = self._node(owner, "pairBlend", "blend{}".format(index))
             blend.plug("rotInterpolation").set(1)
-            source.plug("rotate").connect(blend.plug("inRotate1"))
+            source.plug("rotate").connectTo(blend.plug("inRotate1"))
             base = self._node(owner, "composeMatrix", "base{}".format(index))
-            blend.plug("outRotate").connect(base.plug("inputRotate"))
-            source.plug("rotateOrder").connect(base.plug("inputRotateOrder"))
+            blend.plug("outRotate").connectTo(base.plug("inputRotate"))
+            source.plug("rotateOrder").connectTo(base.plug("inputRotateOrder"))
             pose = self._node(owner, "composeMatrix", "pose{}".format(index))
             combine = self._node(owner, "multMatrix", "combine{}".format(index))
-            pose.plug("outputMatrix").connect(combine.plug("matrixIn[0]"))
-            base.plug("outputMatrix").connect(combine.plug("matrixIn[1]"))
+            pose.plug("outputMatrix").connectTo(combine.plug("matrixIn[0]"))
+            base.plug("outputMatrix").connectTo(combine.plug("matrixIn[1]"))
             decompose = self._node(owner, "decomposeMatrix", "rotation{}".format(index))
-            combine.plug("matrixSum").connect(decompose.plug("inputMatrix"))
-            source.plug("rotateOrder").connect(decompose.plug("inputRotateOrder"))
-            decompose.plug("outputRotate").connect(target.plug("rotate"))
+            combine.plug("matrixSum").connectTo(decompose.plug("inputMatrix"))
+            source.plug("rotateOrder").connectTo(decompose.plug("inputRotateOrder"))
+            decompose.plug("outputRotate").connectTo(target.plug("rotate"))
             for attr, node in (
                 ("sources", source),
                 ("targets", target),
                 ("blends", blend),
                 ("poses", pose),
             ):
-                node.plug("message").connect(group.plug("{}[{}]".format(attr, index)))
+                node.plug("message").connectTo(group.plug("{}[{}]".format(attr, index)))
             for axis_index, axis in enumerate("XYZ"):
                 curve = self._node(owner, "animCurveTA", "cache{}_{}".format(index, axis))
-                hlib.getPlug("time1.outTime").connect(curve.plug("input"))
-                curve.plug("message").connect(
+                hlib.getPlug("time1.outTime").connectTo(curve.plug("input"))
+                curve.plug("message").connectTo(
                     group.plug("curves[{}]".format(index * 3 + axis_index))
                 )
             target_parent = target
         for attr in ("secondaryGroups", "hrigOwned"):
-            if not root.hasAttribute(attr):
-                root.addAttribute(longName=attr, attributeType="message", multi=True)
-        group.plug("message").connect(root.plug("secondaryGroups[{}]".format(driver_index)))
+            if not root.hasAttr(attr):
+                root.addAttr(longName=attr, attributeType="message", multi=True)
+        group.plug("message").connectTo(root.plug("secondaryGroups[{}]".format(driver_index)))
         for node in (group, owner):
             root.plug("hrigOwned").appendMessage(node)
         for kind in ("spring", "pose"):
             attr = "hrigEnabled_" + kind
-            if not root.hasAttribute(attr):
-                root.addAttribute(longName=attr, attributeType="bool", defaultValue=True)
+            if not root.hasAttr(attr):
+                root.addAttr(longName=attr, attributeType="bool", defaultValue=True)
             root.setAttributeFlags([attr], channelBox=True)
         self.update()
         from .skirtRig import SkirtRig
@@ -263,7 +263,7 @@ class SecondaryLayer:
             PoseRbf: 出力値を編集できる計算オブジェクト。
         """
         group = self.add(driver_index)
-        if group.plug("poseGraph").source() is not None:
+        if group.plug("poseGraph").sourceWithConversion() is not None:
             raise ValueError("Pose graph already exists; edit its set_values instead")
         count = len(self._members(group, "sources")) * 3
         if not values or any(len(row) != count for row in values):
@@ -272,21 +272,21 @@ class SecondaryLayer:
         allowed = {node.uuid() for chain in self.rig.driver_chains() for node in chain}
         for driver in drivers:
             plug = hlib.getPlug(driver)
-            if plug.node.uuid() not in allowed or plug.attributeName() not in ("rotateX", "rotateY", "rotateZ"):
+            if plug.node().uuid() not in allowed or plug.longName() not in ("rotateX", "rotateY", "rotateZ"):
                 raise ValueError("Use original driver joint rotation attributes")
         graph = PoseRbf.create(drivers, poses, values, scales, name=group.name() + "_poses")
-        graph.container.plug("message").connect(group.plug("poseGraph"))
+        graph.container.plug("message").connectTo(group.plug("poseGraph"))
         root = self.rig.root
         root.plug("hrigOwned").appendMessage(graph.container)
-        owner = group.plug("graph").source().node
+        owner = group.plug("graph").sourceWithConversion().node()
         for index in range(count):
             weight = self._node(owner, "multDoubleLinear", "poseWeight{}".format(index))
-            graph.container.plug("outputs[{}]".format(index)).connect(weight.plug("input1"))
-            group.plug("poseIntensity").connect(weight.plug("input2"))
+            graph.container.plug("outputs[{}]".format(index)).connectTo(weight.plug("input1"))
+            group.plug("poseIntensity").connectTo(weight.plug("input2"))
             convert = self._node(owner, "unitConversion", "poseRadians{}".format(index))
-            weight.plug("output").connect(convert.plug("input"))
+            weight.plug("output").connectTo(convert.plug("input"))
             convert.plug("conversionFactor").set(math.pi / 180)
-            convert.plug("message").connect(group.plug("poseWeights[{}]".format(index)))
+            convert.plug("message").connectTo(group.plug("poseWeights[{}]".format(index)))
         self.update()
         return graph
 
@@ -317,9 +317,9 @@ class SecondaryLayer:
                 )
             ] or []
             for destination, source in zip(connections[::2], connections[1::2]):
-                if source.node.uuid() in mapping:
-                    source.disconnect(destination)
-                    mapping[source.node.uuid()].plug(source.name()).connect(destination)
+                if source.node().uuid() in mapping:
+                    destination.disconnect(source)
+                    mapping[source.node().uuid()].plug(source.attrName()[1:]).connectTo(destination)
 
     def update(self):
         """停止レイヤーの入力を切断し、両方停止なら元の骨へ接続を戻す。"""
@@ -332,33 +332,33 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.plug("poseGraph").source() is not None
+                and group.plug("poseGraph").sourceWithConversion() is not None
             )
             curves = self._members(group, "curves")
             for index, blend in enumerate(self._members(group, "blends")):
                 weight = blend.plug("weight")
-                if weight.source() is not None:
-                    weight.source().disconnect(weight)
+                if weight.sourceWithConversion() is not None:
+                    weight.disconnect(weight.sourceWithConversion())
                 if spring:
-                    group.plug("intensity").connect(weight)
+                    group.plug("intensity").connectTo(weight)
                 else:
                     weight.set(0)
                 for axis_index, axis in enumerate("XYZ"):
                     target = blend.plug("inRotate" + axis + "2")
-                    if target.source() is not None:
-                        target.source().disconnect(target)
+                    if target.sourceWithConversion() is not None:
+                        target.disconnect(target.sourceWithConversion())
                     curve = curves[index * 3 + axis_index]
                     curve.plug("nodeState").set(0 if spring else 2)
                     if spring:
-                        curve.plug("output").connect(target)
+                        curve.plug("output").connectTo(target)
             weights = self._members(group, "poseWeights")
             for index, compose in enumerate(self._members(group, "poses")):
                 for axis_index, axis in enumerate("XYZ"):
                     target = compose.plug("inputRotate" + axis)
-                    if target.source() is not None:
-                        target.source().disconnect(target)
+                    if target.sourceWithConversion() is not None:
+                        target.disconnect(target.sourceWithConversion())
                     if pose:
-                        weights[index * 3 + axis_index].plug("output").connect(target)
+                        weights[index * 3 + axis_index].plug("output").connectTo(target)
                     else:
                         target.set(0)
             self._route(group, spring or pose)
@@ -379,13 +379,13 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.plug("poseGraph").source() is not None
+                and group.plug("poseGraph").sourceWithConversion() is not None
             )
-            if (self._members(group, "blends")[0].plug("weight").source() is not None) != bool(
+            if (self._members(group, "blends")[0].plug("weight").sourceWithConversion() is not None) != bool(
                 spring
             ):
                 return True
-            if (self._members(group, "poses")[0].plug("inputRotateX").source() is not None) != bool(
+            if (self._members(group, "poses")[0].plug("inputRotateX").sourceWithConversion() is not None) != bool(
                 pose
             ):
                 return True

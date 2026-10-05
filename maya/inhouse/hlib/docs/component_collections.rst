@@ -6,13 +6,12 @@ Vertices・CVs・UVsでも単体と同じ名前で座標を取得・設定でき
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    mesh = hlib.getNode("pCubeShape1")
    vertices = mesh.vertices([2, 0, 5])
-   points = vertices.getPosition(space=MSpace.kWorld)
-   vertices.setPositions([(1, 2, 3), (4, 5, 6), (7, 8, 9)], space=MSpace.kWorld)
+   points = vertices.getPosition(ws=True)
+   vertices.setPositions([(1, 2, 3), (4, 5, 6), (7, 8, 9)], ws=True)
 
    vertices.setX(0)                 # 全頂点のXだけを0にする
    vertices.setY([1, 2, 3])         # 保持順の頂点ごとに設定

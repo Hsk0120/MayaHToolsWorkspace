@@ -63,21 +63,21 @@ class JointTest(unittest.TestCase):
         child = self.create_joint("connectChild", parent)
         joints = Joints([parent, child])
         joints.disconnectInverseScale()
-        self.assertIsNone(child.plug("inverseScale").source())
+        self.assertIsNone(child.plug("inverseScale").sourceWithConversion())
         joints.connectInverseScale()
-        self.assertEqual(child.plug("inverseScale").source(), parent.plug("scale"))
+        self.assertEqual(child.plug("inverseScale").sourceWithConversion(), parent.plug("scale"))
         cmds.undo()
-        self.assertIsNone(child.plug("inverseScale").source())
+        self.assertIsNone(child.plug("inverseScale").sourceWithConversion())
         child.connectInverseScale(parent.fullName())
         child.connectInverseScale()  # 同じ接続はそのまま
         child.disconnectInverseScale()
-        parent.plug("sx").connect(child.plug("inverseScaleX"))
-        parent.plug("sy").connect(child.plug("inverseScaleY"))
-        child.plug("inverseScaleZ").connect(parent.plug("radius"))
+        parent.plug("sx").connectTo(child.plug("inverseScaleX"))
+        parent.plug("sy").connectTo(child.plug("inverseScaleY"))
+        child.plug("inverseScaleZ").connectTo(parent.plug("radius"))
         child.disconnectInverseScale()
-        self.assertIsNone(child.plug("inverseScaleX").source())
-        self.assertIsNone(child.plug("inverseScaleY").source())
-        self.assertEqual(parent.plug("radius").source(), child.plug("inverseScaleZ"))
+        self.assertIsNone(child.plug("inverseScaleX").sourceWithConversion())
+        self.assertIsNone(child.plug("inverseScaleY").sourceWithConversion())
+        self.assertEqual(parent.plug("radius").sourceWithConversion(), child.plug("inverseScaleZ"))
         with self.assertRaises(ValueError):
             child.connectInverseScale(child)
 
@@ -156,12 +156,12 @@ class JointTest(unittest.TestCase):
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
         cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
         cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
-        world = joint.getMatrix(space=MSpace.kWorld)
+        world = joint.getMatrix(ws=True)
 
         joint.setMatrix(joint.getMatrix())
-        self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9))
-        joint.setMatrix(world, space=MSpace.kWorld)
-        self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9))
+        self.assertTrue(joint.getMatrix(ws=True).isEquivalent(world, 1e-9))
+        joint.setMatrix(world, ws=True)
+        self.assertTrue(joint.getMatrix(ws=True).isEquivalent(world, 1e-9))
         self.assertAlmostEqual(cmds.getAttr(name + ".jointOrientZ"), 30.0, places=6)
 
     def test_segment_scale_compensate_round_trip_under_scaled_parent(self):
@@ -177,15 +177,15 @@ class JointTest(unittest.TestCase):
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
         cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
         cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
-        world = joint.getMatrix(space=MSpace.kWorld)
+        world = joint.getMatrix(ws=True)
         for operation in (
             lambda: joint.setMatrix(joint.getMatrix()),
-            lambda: joint.setMatrix(world, space=MSpace.kWorld),
-            lambda: joint.setTranslation(joint.getTranslation()),
-            lambda: joint.setScale(joint.getScale()),
+            lambda: joint.setMatrix(world, ws=True),
+            lambda: joint.setTranslation(joint.getTranslation(at=4), at=4),
+            lambda: joint.setScaling(joint.getScaling()),
         ):
             operation()
-            self.assertTrue(joint.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9))
+            self.assertTrue(joint.getMatrix(ws=True).isEquivalent(world, 1e-9))
             for actual, expected in zip(cmds.getAttr(name + ".translate")[0], (1.0, 2.0, 3.0)):
                 self.assertAlmostEqual(actual, expected, places=9)
             for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], (40.0, -50.0, 60.0)):

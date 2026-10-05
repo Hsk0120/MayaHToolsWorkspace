@@ -10,5 +10,5 @@ class Texture2d(ShadingDependNode):
 
     def getPlacement(self):
         """Node | None: uvCoordへの入力元ノード。通常はPlace2dTexture。"""
-        source = self.plug("uvCoord").source()
-        return None if source is None else source.node
+        source = self.plug("uvCoord").sourceWithConversion()
+        return None if source is None else source.node()

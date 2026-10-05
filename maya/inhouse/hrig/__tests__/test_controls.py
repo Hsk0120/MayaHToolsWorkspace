@@ -46,10 +46,10 @@ class ControlsTest(unittest.TestCase):
             self.assertAlmostEqual(targets[0].plug("rz").get(), math.radians(40), places=4)
         self.assertEqual(len(cmds.ls()), node_count)
         rig.set_lod(0)
-        self.assertIsNone(targets[0].plug("rx").source())
+        self.assertIsNone(targets[0].plug("rx").sourceWithConversion())
         cmds.undo()
         self.assertEqual(rig.lod(), 1)
-        self.assertIsNotNone(targets[0].plug("rx").source())
+        self.assertIsNotNone(targets[0].plug("rx").sourceWithConversion())
         self.assertIsInstance(ModuleRegistry.get(rig.root), FingerRig)
 
     def test_aim(self):
@@ -80,12 +80,12 @@ class ControlsTest(unittest.TestCase):
             self.assertIn(joint.fullName(), rig.joints())
             self.assertAlmostEqual(joint.plug("offsetParentMatrix").get()[13], 2)
             rig.set_lod(0)
-            self.assertIsNone(joint.plug("offsetParentMatrix").source())
+            self.assertIsNone(joint.plug("offsetParentMatrix").sourceWithConversion())
             rig.set_lod(1)
-            self.assertIsNotNone(joint.plug("offsetParentMatrix").source())
+            self.assertIsNotNone(joint.plug("offsetParentMatrix").sourceWithConversion())
             layer.groups()["local1"].plug("enabled").set(False)
             layer.update()
-            self.assertIsNone(joint.plug("offsetParentMatrix").source())
+            self.assertIsNone(joint.plug("offsetParentMatrix").sourceWithConversion())
             self.assertAlmostEqual(control.plug("ty").get(), 2)
 
     def test_spline_match(self):

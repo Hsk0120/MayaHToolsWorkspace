@@ -26,7 +26,7 @@ class MatrixFollow:
             source (Node): 入力Transform。
             target (Node): 出力バッファ。
         """
-        pending, visited = [source, target.parentNode()], set()
+        pending, visited = [source, target.parent()], set()
         # target自体のインスタンスも確認する。親のインスタンスは探索で検出する。
         if len(cmds.listRelatives(target.fullName(), allParents=True) or []) > 1:
             raise ValueError("Instanced targets are not supported")
@@ -50,7 +50,7 @@ class MatrixFollow:
             )
             for destination, upstream in zip(pairs[::2], pairs[1::2]):
                 if hlib.getAttr(destination, type=True) != "message":
-                    pending.append(hlib.getPlug(upstream).node)
+                    pending.append(hlib.getPlug(upstream).node())
 
     @staticmethod
     @undoTransaction("hrig.MatrixFollow.create")
@@ -98,20 +98,20 @@ class MatrixFollow:
             expected = (1, 1, 1) if attr == "scale" else (0, 0, 0)
             if any(abs(a - b) > 1e-9 for a, b in zip(plug.get(), expected)):
                 raise ValueError("Target channels/pivots must be at their defaults")
-            if plug.source() is not None or any(
-                child.source() is not None for child in plug.children()
+            if plug.sourceWithConversion() is not None or any(
+                child.sourceWithConversion() is not None for child in plug.children()
             ):
                 raise ValueError("Target channels must have no incoming connections")
-        if target.plug("offsetParentMatrix").source() is not None:
+        if target.plug("offsetParentMatrix").sourceWithConversion() is not None:
             raise ValueError("Target offsetParentMatrix is already connected")
         if target.isLocked() or target.plug("offsetParentMatrix").isLocked():
             raise ValueError("Target offsetParentMatrix must be writable")
         if (
             not target.plug("inheritsTransform").get()
-            or target.plug("inheritsTransform").source() is not None
+            or target.plug("inheritsTransform").sourceWithConversion() is not None
         ):
             raise ValueError("Target must inherit its parent transform")
-        parent = target.parentNode()
+        parent = target.parent()
         if parent is not None:
             parent_matrix = Matrix(parent.plug("worldMatrix[0]").get())
             if parent_matrix.isSingular() or any(
@@ -167,9 +167,9 @@ class MatrixFollow:
 
                 graph = BifrostMatrixFollow.create(name).node
         graph.plug(inputs[0]).set(offset)
-        source.plug("worldMatrix[0]").connect(graph.plug(inputs[1]))
+        source.plug("worldMatrix[0]").connectTo(graph.plug(inputs[1]))
         graph.plug(inputs[2]).set(identity)
         if parent is not None:
-            parent.plug("worldInverseMatrix[0]").connect(graph.plug(inputs[2]))
-        graph.plug(output).connect(target.plug("offsetParentMatrix"))
+            parent.plug("worldInverseMatrix[0]").connectTo(graph.plug(inputs[2]))
+        graph.plug(output).connectTo(target.plug("offsetParentMatrix"))
         return graph

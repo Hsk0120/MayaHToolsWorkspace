@@ -112,8 +112,8 @@ class DuplicateShortNameTest(_InteropCase):
     def test_connections_between_duplicates(self):
         dup1, dup2 = self.duplicates()
         source = self.create("transform", "source")
-        source.plug("tx").connect(dup1.plug("tx"))
-        source.plug("tx").connect(dup2.plug("tx"))
+        source.plug("tx").connectTo(dup1.plug("tx"))
+        source.plug("tx").connectTo(dup2.plug("tx"))
         # 以前は MPlug.name() による重複判定で2件目が失われていた。
         self.assertEqual(
             sorted(plug.fullName() for plug in source.outputs()),
@@ -121,12 +121,12 @@ class DuplicateShortNameTest(_InteropCase):
         )
         self.assertTrue(cmds.isConnected(source.plug("tx"), dup2.plug("tx")))
         self.assertTrue(dup1.plug("tx").isConnectedTo(source.plug("tx")))
-        dup2.plug("tx").disconnect()
+        dup2.plug("tx").disconnectAll()
         self.assertFalse(cmds.isConnected(str(source.plug("tx")), str(dup2.plug("tx"))))
-        self.assertEqual(dup1.plug("tx").source().fullName(), source.name() + ".translateX")
+        self.assertEqual(dup1.plug("tx").sourceWithConversion().fullName(), source.name() + ".translateX")
         # 接続先に MPlug や一意なアトリビュート名も指定できる。
-        source.plug("ty").connect(dup2.plug("ty").mplug())
-        source.plug("tz").connect(dup2.plug("tz").fullName())
+        source.plug("ty").connectTo(dup2.plug("ty").mplug())
+        source.plug("tz").connectTo(dup2.plug("tz").fullName())
         self.assertTrue(cmds.isConnected(source.plug("ty"), dup2.plug("ty")))
         self.assertTrue(cmds.isConnected(source.plug("tz"), dup2.plug("tz")))
 
@@ -162,7 +162,7 @@ class DuplicateShortNameTest(_InteropCase):
             with self.subTest(name=name):
                 with self.assertRaises(RuntimeError):
                     mesh.plug(name)
-                self.assertFalse(mesh.hasAttribute(name))
+                self.assertFalse(mesh.hasAttr(name))
         self.assertEqual(
             mesh.plug("instObjGroups[0].objectGroups").fullName(),
             mesh.name() + ".instObjGroups[0].objectGroups",
@@ -208,7 +208,7 @@ class NamingSpecTest(_InteropCase):
         self.assertEqual(str(node), self.ns("nsNode"))
         self.assertEqual(str(node.plug("tx")), self.ns("nsNode.translateX"))
         network = self.create("network", "net")
-        network.addAttribute("values", attributeType="double", multi=True)
+        network.addAttr("values", attributeType="double", multi=True)
         element = network.plug("values").element(3, create=True)
         self.assertEqual(str(element), self.ns("net.values[3]"))
         cmds.setAttr(element, 1.5)
@@ -334,7 +334,7 @@ class PassToMayaCmdsTest(_InteropCase):
         cmds.select(Selection([child, vertex]))
         self.assertEqual(len(cmds.ls(selection=True, flatten=True)), 2)
         cmds.xform(vertex, worldSpace=True, translation=(0.0, 5.0, 0.0))
-        self.assertAlmostEqual(vertex.getPosition(space=MSpace.kWorld)[1], 5.0)
+        self.assertAlmostEqual(vertex.getPosition(ws=True)[1], 5.0)
 
         joints = Joints(
             [cmds.createNode("joint", name="jointA"), cmds.createNode("joint", name="jointB")]
@@ -344,7 +344,7 @@ class PassToMayaCmdsTest(_InteropCase):
 
     def test_objects_that_cannot_be_passed_directly(self):
         network = self.create("network", "net")
-        network.addAttribute("values", attributeType="double", multi=True)
+        network.addAttr("values", attributeType="double", multi=True)
         array_plug = network.plug("values")
         array_plug.element(0, create=True).set(1.0)
         array_plug.element(2, create=True).set(3.0)
@@ -355,10 +355,10 @@ class PassToMayaCmdsTest(_InteropCase):
         self.assertEqual(cmds.getAttr(array_plug.fullName(), size=True), 2)
         # om2.MObject の str() は repr のため名前として解決できない。
         with self.assertRaises((TypeError, ValueError, RuntimeError)):
-            cmds.select(network.mobject())
+            cmds.select(network.mnode())
         # hlib のコマンドはどちらも受け付ける。
         self.assertTrue(cmds.objExists(str(array_plug)))
-        hlib.select(network.mobject())
+        hlib.select(network.mnode())
         self.assertEqual(cmds.ls(selection=True), [network.name()])
 
     def test_maths_values(self):
@@ -384,8 +384,8 @@ class HlibCommandInputTest(_InteropCase):
         cases = [
             (dup1.plug("tx"), [dup1.plug("tx").fullName()]),
             (dup1.plug("tx").mplug(), [dup1.plug("tx").fullName()]),
-            (dup1.mobject(), [dup1.name()]),
-            (dup2.dagPath(), [dup2.name()]),
+            (dup1.mnode(), [dup1.name()]),
+            (dup2.mpath(), [dup2.name()]),
         ]
         for value, expected in cases:
             with self.subTest(value=type(value).__name__):
@@ -397,7 +397,7 @@ class HlibCommandInputTest(_InteropCase):
         self.assertEqual(len(cmds.ls(selection=True, flatten=True)), 2)
         hlib.select(Selection([dup1, vertex]))
         self.assertEqual(len(cmds.ls(selection=True, flatten=True)), 2)
-        hlib.select([dup1, [dup2.mobject(), (item for item in [vertex])], vertices])
+        hlib.select([dup1, [dup2.mnode(), (item for item in [vertex])], vertices])
         self.assertEqual(len(cmds.ls(selection=True, flatten=True)), 5)
         hlib.select([])
         self.assertEqual(cmds.ls(selection=True), [])
@@ -413,7 +413,7 @@ class HlibCommandInputTest(_InteropCase):
         a = self.create("transform", "a")
         b = self.create("transform", "b")
         c = self.create("transform", "c")
-        hlib.delete([a.mobject(), b.dagPath()])
+        hlib.delete([a.mnode(), b.mpath()])
         hlib.delete(c.plug("tx").mplug().node())
         for node in (a, b, c):
             self.assertFalse(node.isValid())
@@ -421,7 +421,7 @@ class HlibCommandInputTest(_InteropCase):
             hlib.delete([])
         # maya.cmds.delete はアトリビュート名を渡してもエラーを表示するだけで何もしないため、Plug は拒否する。
         d = self.create("transform", "d")
-        d.addAttribute("values", attributeType="double", multi=True)
+        d.addAttr("values", attributeType="double", multi=True)
         for value in (
             d.plug("tx"),
             d.plug("tx").mplug(),
@@ -433,7 +433,7 @@ class HlibCommandInputTest(_InteropCase):
                 with self.assertRaises(TypeError):
                     hlib.delete(value)
                 self.assertTrue(d.isValid())
-        hlib.delete(d.plug("tx").node)
+        hlib.delete(d.plug("tx").node())
         self.assertFalse(d.isValid())
 
     def test_blend_shape_add_target_resolves_owner_nodes(self):
@@ -453,20 +453,20 @@ class HlibCommandInputTest(_InteropCase):
     def test_ls_group_duplicate_and_createNode(self):
         a = self.create("transform", "a")
         b = self.create("transform", "b")
-        result = hlib.ls(a.mobject(), [b.dagPath()])
+        result = hlib.ls(a.mnode(), [b.mpath()])
         self.assertEqual([node.fullName() for node in result], [a.fullName(), b.fullName()])
         self.assertEqual(hlib.ls([]), [])
         self.assertEqual(len(hlib.ls([], type="joint")), 0)
         self.assertEqual([node.fullName() for node in hlib.ls(self.ns("a"))], [a.fullName()])
 
-        child = hlib.createNode("transform", name="child", parent=a.mobject())
-        self.assertEqual(child.parentNode().fullName(), a.fullName())
-        child2 = hlib.createNode("transform", name="child2", p=b.dagPath())
-        self.assertEqual(child2.parentNode().fullName(), b.fullName())
-        group = hlib.createGroup([child.mobject(), child2], name="grp", parent=a)
-        self.assertEqual(group.parentNode().fullName(), a.fullName())
-        self.assertEqual(child2.parentNode().fullName(), group.fullName())
-        copy = hlib.duplicate(b.dagPath(), name="bCopy")
+        child = hlib.createNode("transform", name="child", parent=a.mnode())
+        self.assertEqual(child.parent().fullName(), a.fullName())
+        child2 = hlib.createNode("transform", name="child2", p=b.mpath())
+        self.assertEqual(child2.parent().fullName(), b.fullName())
+        group = hlib.createGroup([child.mnode(), child2], name="grp", parent=a)
+        self.assertEqual(group.parent().fullName(), a.fullName())
+        self.assertEqual(child2.parent().fullName(), group.fullName())
+        copy = hlib.duplicate(b.mpath(), name="bCopy")
         self.assertTrue(copy.isValid())
         self.assertNotEqual(copy.fullName(), b.fullName())
 
@@ -490,7 +490,7 @@ class HlibCommandInputTest(_InteropCase):
     def test_constraint_resolves_owner_nodes(self):
         source = self.create("transform", "source")
         target = self.create("transform", "target")
-        constraint = hlib.addConstraint(source.plug("tx"), target.mobject(), type="point")
+        constraint = hlib.addConstraint(source.plug("tx"), target.mnode(), type="point")
         self.assertEqual(
             [
                 Node(name).fullName()
@@ -499,7 +499,7 @@ class HlibCommandInputTest(_InteropCase):
             [source.fullName()],
         )
         other = self.create("transform", "other")
-        target.addConstraint([other.dagPath()], "orient")
+        target.addConstraint([other.mpath()], "orient")
         self.assertTrue(target.plug("rx").isDestination())
 
     def test_node_constructor_accepts_wrappers(self):
@@ -544,9 +544,9 @@ class NodeArgumentRulesTest(_InteropCase):
         ):
             with self.subTest(parent=type(parent).__name__):
                 created = hlib.createNode("transform", name="k%d" % index, parent=parent)
-                self.assertEqual(created.parentNode().fullName(), expected_parent)
+                self.assertEqual(created.parent().fullName(), expected_parent)
         child = Node.create("transform", name="viaCreate", p=group.plug("ty"))
-        self.assertEqual(child.parentNode().fullName(), expected_parent)
+        self.assertEqual(child.parent().fullName(), expected_parent)
         # Component は所有シェイプを親にする(シェイプを直接指定した場合と同じ配置)。
         _, mesh = self.cube()
         by_shape = hlib.createNode("transform", name="byShape", parent=mesh)
@@ -565,7 +565,7 @@ class NodeArgumentRulesTest(_InteropCase):
         group = hlib.createNode("transform", name="g")
         item = hlib.createNode("transform", name="item")
         result = hlib.createGroup([item], name="G", parent=group.plug("tx"))
-        self.assertEqual(result.parentNode().fullName(), group.fullName())
+        self.assertEqual(result.parent().fullName(), group.fullName())
         # 空の列で maya.cmds.group が現在の選択をグループ化しないこと。
         selected = hlib.createNode("transform", name="selected")
         cmds.select(selected.fullName())
@@ -575,7 +575,7 @@ class NodeArgumentRulesTest(_InteropCase):
                 with self.assertRaises(ValueError):
                     hlib.createGroup(empty, name="shouldNotExist")
         self.assertEqual(set(cmds.ls(type="transform", long=True)), before)
-        self.assertEqual(selected.parentNode(), None)
+        self.assertEqual(selected.parent(), None)
         created = hlib.createGroup([], name="emptyGroup", empty=True)
         self.assertIsNone(cmds.listRelatives(created.fullName(), children=True))
 
@@ -705,7 +705,7 @@ class NodeArgumentRulesTest(_InteropCase):
         with self.assertRaises(RuntimeError):
             hlib.getNode(om2.MDagPath())
         doomed = self.create("transform", "doomed")
-        handle_object, path = doomed.mobject(), doomed.dagPath()
+        handle_object, path = doomed.mnode(), doomed.mpath()
         cmds.delete(doomed)
         for value in (handle_object, path):
             with self.subTest(value=type(value).__name__):
@@ -762,18 +762,18 @@ class InstanceSpecificWrapperTest(_InteropCase):
         plug = second.plug("castsShadows")
         self.assertEqual(hlib.getNode(str(plug)).fullName(), second.fullName())
         self.assertEqual(hlib.getNode(plug.fullName()).fullName(), second.fullName())
-        self.assertEqual(_InputPlug._resolve_input(str(plug)).node.fullName(), second.fullName())
+        self.assertEqual(_InputPlug._resolve_input(str(plug)).node().fullName(), second.fullName())
         self.assertEqual(hlib.getNode(str(first.plug("castsShadows"))).fullName(), first.fullName())
         self.assertEqual(Node(str(Vertex(second, 0))).fullName(), second.fullName())
         self.assertEqual(
-            [item.node.fullName() for item in Selection([str(plug)]).plugs()], [second.fullName()]
+            [item.node().fullName() for item in Selection([str(plug)]).plugs()], [second.fullName()]
         )
         # 現在の選択(MSelectionList)はアトリビュートのインスタンスを保持しないが、インスタンスごとの
         # アトリビュート(worldMatrix[1])は要素番号のインスタンスとして取得できる。
         world = second.plug("worldMatrix").element(1)
         cmds.select(str(world))
         captured = Selection.capture()
-        self.assertEqual([item.node.fullName() for item in captured.plugs()], [second.fullName()])
+        self.assertEqual([item.node().fullName() for item in captured.plugs()], [second.fullName()])
         self.assertEqual([item.fullName() for item in captured.plugs()], [world.fullName()])
 
     def test_transform_name_keeps_the_instance_of_shape_attributes(self):
@@ -784,13 +784,13 @@ class InstanceSpecificWrapperTest(_InteropCase):
         # transform の名前でシェイプのアトリビュートを指す場合も、名前が指すインスタンスのシェイプになる。
         for text in (instance + ".castsShadows", self.ns("box1.castsShadows")):
             with self.subTest(text=text):
-                self.assertEqual(_InputPlug._resolve_input(text).node.fullName(), shape)
+                self.assertEqual(_InputPlug._resolve_input(text).node().fullName(), shape)
                 self.assertEqual(hlib.getNode(text).fullName(), shape)
                 self.assertEqual(
-                    [item.node.fullName() for item in Selection([text]).plugs()], [shape]
+                    [item.node().fullName() for item in Selection([text]).plugs()], [shape]
                 )
         self.assertEqual(
-            _InputPlug._resolve_input(box.fullName() + ".castsShadows").node.fullName(),
+            _InputPlug._resolve_input(box.fullName() + ".castsShadows").node().fullName(),
             box.fullName() + "|" + self.ns("boxShape"),
         )
 
@@ -801,7 +801,7 @@ class InstanceSpecificWrapperTest(_InteropCase):
         instance = cmds.ls(cmds.instance(group.fullName(), name="gi")[0], long=True)[0]
         cmds.setAttr(instance + ".translateX", 10)
         second = Node(instance + "|" + self.ns("child") + "|" + self.ns("grandchild"))
-        self.assertEqual(second.dagPath().instanceNumber(), 1)
+        self.assertEqual(second.mpath().instanceNumber(), 1)
         # 祖先のインスタンス化による間接インスタンスも、評価前から要素として扱う。
         world = second.plug("worldMatrix")
         self.assertEqual(
@@ -811,11 +811,11 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertEqual(sorted(world.get()), [0, 1])
         self.assertEqual(world[1].fullName(), world.fullName() + "[1]")
         # getMatrix(ws=True) はラッパーが保持するインスタンスの worldMatrix を使う。
-        self.assertEqual(list(second.getMatrix(space=MSpace.kWorld)), cmds.getAttr(world.fullName() + "[1]"))
-        self.assertAlmostEqual(list(second.getTranslation(space=MSpace.kWorld))[0], 10.0)
-        self.assertAlmostEqual(list(first.getTranslation(space=MSpace.kWorld))[0], 0.0)
+        self.assertEqual(list(second.getMatrix(ws=True)), cmds.getAttr(world.fullName() + "[1]"))
+        self.assertAlmostEqual(list(second.getTranslation(ws=True, at=4))[0], 10.0)
+        self.assertAlmostEqual(list(first.getTranslation(ws=True, at=4))[0], 0.0)
         self.assertEqual(
-            list(first.getMatrix(space=MSpace.kWorld)), cmds.getAttr(first.fullName() + ".worldMatrix[0]")
+            list(first.getMatrix(ws=True)), cmds.getAttr(first.fullName() + ".worldMatrix[0]")
         )
 
 
@@ -834,7 +834,7 @@ class ComponentNamedAttributeTest(_InteropCase):
         )
         self.assertEqual(_InputPlug._resolve_input(transform.name() + ".pnts[3]").fullName(), point.fullName())
         source = self.create("transform", "src")
-        source.plug("translate").connect(str(point))
+        source.plug("translate").connectTo(str(point))
         self.assertTrue(cmds.isConnected(source.plug("translate"), point))
         self.assertTrue(point.isConnectedTo(str(source.plug("translate"))))
         curve = Node(cmds.curve(degree=1, point=[(0, 0, 0), (1, 0, 0)], name="crv")).shape()
@@ -891,7 +891,7 @@ class PlugCreationSideEffectTest(_InteropCase):
             self.assertEqual(self.existing(mesh.plug("pnts")), [])
         # 動的アトリビュートも要素を作らない。
         network = self.create("network", "net")
-        network.addAttribute("values", attributeType="double", multi=True)
+        network.addAttr("values", attributeType="double", multi=True)
         _InputPlug._resolve_input(network.name() + ".values[4]")
         network.plug("values").element(2, create=True)
         self.assertEqual(self.existing(network.plug("values")), [2])
@@ -960,7 +960,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         self.assertTrue(is_internal_data_type(patch.mplug()))
         for call in (
             lambda: patch.element(7, create=True),
-            patch.addElement,
+            lambda: patch.addElement(7),
             lambda: surface.plug("patchUVIds[3]").get(),
         ):
             with self.assertRaises(RuntimeError):
@@ -1027,7 +1027,7 @@ class PlugCreationSideEffectTest(_InteropCase):
 
         cmds.setAttr(source.plug("tx"), 5.0)
         before = count()
-        destinations = middle.plug("rx").destinations()
+        destinations = middle.plug("rx").destinationsWithConversions()
         element = choice.plug("input[0]")
         self.assertEqual(count(), before)
         self.assertEqual(type(element).__name__, "MatrixPlug")
@@ -1112,13 +1112,13 @@ class PlugCreationSideEffectTest(_InteropCase):
 
     def test_plugs_of_deleted_nodes_do_not_touch_nodes_with_the_same_name(self):
         network = self.create("network", "net")
-        network.addAttribute("values", attributeType="double", multi=True)
+        network.addAttr("values", attributeType="double", multi=True)
         network.plug("values").element(2, create=True).set(1.0)
         array_plug = network.plug("values")
         name = network.name()
         cmds.delete(network.fullName())
         replacement = self.create("network", "net")
-        replacement.addAttribute("values", attributeType="double", multi=True)
+        replacement.addAttr("values", attributeType="double", multi=True)
         self.assertEqual(replacement.name(), name)
         # 削除済みノードの名前で問い合わせると、同じ名前の新しいノードに要素ができてしまう。
         calls = {
@@ -1139,16 +1139,16 @@ class PlugCreationSideEffectTest(_InteropCase):
 
     def test_message_array_elements_exist_once_connected(self):
         network = self.create("network", "net")
-        network.addAttribute("links", attributeType="message", multi=True)
+        network.addAttr("links", attributeType="message", multi=True)
         array_plug = network.plug("links")
-        first = array_plug.addElement()
+        first = array_plug.nextAvailable(start=0, asPlug=True)
         self.assertEqual(first.fullName(), network.name() + ".links[0]")
         # message 型の要素は値を持たないため作成できず、接続するまでは同じ番号を返す。
         self.assertEqual(array_plug.elements(), [])
-        self.assertEqual(array_plug.addElement().fullName(), first.fullName())
-        self.create("network", "src").plug("message").connect(first)
+        self.assertEqual(array_plug.nextAvailable(start=0, asPlug=True).fullName(), first.fullName())
+        self.create("network", "src").plug("message").connectTo(first)
         self.assertEqual([plug.fullName() for plug in array_plug.elements()], [first.fullName()])
-        self.assertEqual(array_plug.addElement().fullName(), network.name() + ".links[1]")
+        self.assertEqual(array_plug.nextAvailable(start=0, asPlug=True).fullName(), network.name() + ".links[1]")
 
 
 class PlugValidityTest(_InteropCase):
@@ -1156,8 +1156,8 @@ class PlugValidityTest(_InteropCase):
 
     def test_deleted_dynamic_attribute(self):
         node = self.create("transform", "t")
-        plug = node.addAttribute("foo", attributeType="double")
-        array_plug = node.addAttribute("arr", attributeType="double", multi=True)
+        plug = node.addAttr("foo", attributeType="double")
+        array_plug = node.addAttr("arr", attributeType="double", multi=True)
         array_plug.element(2, create=True).set(3.0)
         cmds.addAttr(node.name(), longName="cmp", attributeType="double3")
         for axis in "XYZ":
@@ -1192,7 +1192,7 @@ class PlugValidityTest(_InteropCase):
         with self.assertRaises(ValueError):
             hlib.select(plug)
         # 同じ名前で追加し直しても、古い Plug は別のアトリビュートとして無効のまま。
-        node.addAttribute("foo", attributeType="double")
+        node.addAttr("foo", attributeType="double")
         self.assertFalse(plug.isValid())
         with self.assertRaises(RuntimeError):
             plug.get()
@@ -1211,7 +1211,7 @@ class PlugValidityTest(_InteropCase):
             for label in ("undoable", "without undo"):
                 with self.subTest(delete=label):
                     node = self.create("transform", "t")
-                    mplug = om2.MPlug(node.addAttribute("foo", attributeType="double").mplug())
+                    mplug = om2.MPlug(node.addAttr("foo", attributeType="double").mplug())
                     self.assertTrue(_InputPlug._mplug_attribute_exists(mplug))
                     self.assertEqual(_InputObject._input_name(mplug), node.name() + ".foo")
                     if label == "undoable":
@@ -1249,8 +1249,8 @@ class PlugValidityTest(_InteropCase):
         child = self.create("transform", "child", parent)
         target = self.create("transform", "target")
         plugs = {
-            "parent": parent.addAttribute("foo", attributeType="double"),
-            "child": child.addAttribute("foo", attributeType="double"),
+            "parent": parent.addAttr("foo", attributeType="double"),
+            "child": child.addAttr("foo", attributeType="double"),
         }
         mplugs = {key: om2.MPlug(plug.mplug()) for key, plug in plugs.items()}
         self.assertEqual(hlib.getNode(mplugs["child"]).fullName(), child.fullName())
@@ -1304,8 +1304,8 @@ class PlugValidityTest(_InteropCase):
         values = (
             child,
             child.plug("tx"),
-            child.mobject(),
-            child.dagPath(),
+            child.mnode(),
+            child.mpath(),
             om2.MPlug(child.plug("tx").mplug()),
         )
         for value in values:
@@ -1326,7 +1326,7 @@ class PlugValidityTest(_InteropCase):
 
     def test_renamed_attribute_and_undo(self):
         node = self.create("transform", "t")
-        plug = node.addAttribute("foo", attributeType="double")
+        plug = node.addAttr("foo", attributeType="double")
         plug.set(2.0)
         cmds.renameAttr(node.name() + ".foo", "bar")
         # 名前を変更したアトリビュートは同じアトリビュートのまま有効。
@@ -1363,7 +1363,7 @@ class PlugValidityTest(_InteropCase):
         # Undo の対象から外れた削除(Undo 無効時の削除や flushUndo)では、削除済みノードの MPlug の
         # 名前・アトリビュートの問い合わせで Maya が異常終了するため、名前は空文字列、問い合わせは RuntimeError。
         node = self.create("transform", "t")
-        node.addAttribute("arr", attributeType="double", multi=True).element(0, create=True).set(1.0)
+        node.addAttr("arr", attributeType="double", multi=True).element(0, create=True).set(1.0)
         cmds.addAttr(node.name(), longName="cmp", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(node.name(), longName="cmp" + axis, attributeType="double", parent="cmp")
@@ -1389,7 +1389,7 @@ class PlugValidityTest(_InteropCase):
                 self.assertEqual(repr(plug), "<Plug invalid>")
                 self.assertFalse(cmds.objExists(str(plug)))
                 calls = [
-                    plug.attributeName,
+                    plug.longName,
                     plug.niceName,
                     plug.isLocked,
                     plug.isKeyable,
@@ -1401,7 +1401,7 @@ class PlugValidityTest(_InteropCase):
                     plug.source,
                     plug.destinations,
                     plug.get,
-                    lambda: plug.connect(self.create("transform", "x").plug("tx")),
+                    lambda: plug.connectTo(self.create("transform", "x").plug("tx")),
                 ]
                 if not isinstance(plug, ArrayPlug):
                     calls.append(lambda: plug.set(1.0))  # 配列全体の set() は常に TypeError
@@ -1459,7 +1459,7 @@ class NodePlugPathTest(_InteropCase):
                 plug = node.plug(path)
                 self.assertEqual(type(plug).__name__, class_name)
                 self.assertEqual(_InputPlug._resolve_input(plug.fullName()).mplug(), plug.mplug())
-                self.assertTrue(node.hasAttribute(path))
+                self.assertTrue(node.hasAttr(path))
         self.assertEqual(blend.plug("weight[0]").mplug(), blend.plug("target").mplug())
         self.assertEqual(list(blend.plug(group).mplug().getExistingArrayAttributeIndices()), before)
         self.assertEqual(
@@ -1475,17 +1475,17 @@ class NodePlugPathTest(_InteropCase):
             with self.subTest(path=path):
                 with self.assertRaises(AttributeError):
                     average.plug(path)
-                self.assertFalse(average.hasAttribute(path))
+                self.assertFalse(average.hasAttr(path))
         # 配列要素の番号を含まない配列複合アトリビュートの子は maya.cmds で解決できないため拒否する
         # (子が配列の場合も同じ。inputTarget[-1].inputTargetGroup の ArrayPlug は作らない)。
         with self.assertRaises(RuntimeError):
             average.plug("input3Dx")
-        self.assertFalse(average.hasAttribute("input3Dx"))
+        self.assertFalse(average.hasAttr("input3Dx"))
         for path in ("inputTargetGroup", "inputTargetItem", "inputComponentsTarget"):
             with self.subTest(path=path):
                 with self.assertRaises(RuntimeError):
                     blend.plug(path)
-                self.assertFalse(blend.hasAttribute(path))
+                self.assertFalse(blend.hasAttr(path))
         self.assertEqual(type(blend.plug(group)).__name__, "ArrayPlug")
         # Python のアトリビュートアクセスでは hasattr/getattr の既定値が使えるよう AttributeError にする。
         for node, name in (
@@ -1502,7 +1502,7 @@ class NodePlugPathTest(_InteropCase):
         # "親.子" の名前は findPlug の解決(Maya のバージョンで異なる)に従うが、いずれも拒否する。
         with self.assertRaises((RuntimeError, AttributeError)):
             average.plug("input3D.input3Dx")
-        self.assertFalse(average.hasAttribute("input3D.input3Dx"))
+        self.assertFalse(average.hasAttr("input3D.input3Dx"))
 
 
 class NodeConstructionTest(_InteropCase):
@@ -1529,7 +1529,7 @@ class NodeConstructionTest(_InteropCase):
                 (Node, transform, Transform),
                 (Node, network, Node),
                 (Transform, joint, Joint),
-                (Node, Node(joint).mobject(), Joint),
+                (Node, Node(joint).mnode(), Joint),
                 (hlib.getNode, joint, Joint),
             ]
             for factory, value, expected in cases:
@@ -1580,7 +1580,7 @@ class CommandEdgeCaseTest(_InteropCase):
         self.assertEqual(len(found), 1)
         self.assertEqual(len(hlib.scene.DrivenKey.find(self.ns("bs.weight[0]"))), 1)
         network = self.create("network", "net")
-        network.addAttribute("vals", attributeType="double", multi=True)
+        network.addAttr("vals", attributeType="double", multi=True)
         network.plug("vals").element(2, create=True)
         dup1, dup2 = self.duplicates()
         for driven in (self.ns("net.vals[2]"), str(dup2.plug("ty")), self.ns("bs.weight[0]")):

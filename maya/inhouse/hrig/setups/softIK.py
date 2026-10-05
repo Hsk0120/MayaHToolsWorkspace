@@ -30,7 +30,7 @@ class SoftIK:
         builder = ScalarGraph(owner)
         try:
             for attr, value in (("distance", 0.0), ("softness", 0.0), ("ratio", 1.0)):
-                hlib.nodes.Node(owner).addAttribute(
+                hlib.nodes.Node(owner).addAttr(
                     longName=attr, attributeType="double", defaultValue=value
                 )
             distance = builder.condition("distance", owner + ".distance", 0, owner + ".distance", 0)
@@ -51,7 +51,7 @@ class SoftIK:
             hard = builder.condition("hard", distance, length, length, distance)
             result = builder.condition("result", soft, 0, limited, hard)
             ratio = builder.multiply("ratio", result, safe_distance, operation=2)
-            to_plug(ratio).connect(owner + ".ratio")
+            to_plug(ratio).connectTo(owner + ".ratio")
             return owner
         except Exception:
             hlib.delete(owner)

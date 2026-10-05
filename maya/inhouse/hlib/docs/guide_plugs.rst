@@ -14,12 +14,11 @@
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import maya.cmds as cmds
 
    source = hlib.createNode("transform", name="connSource")
    target = hlib.createNode("transform", name="connTarget")
-   source.plug("translateX").connect(target.plug("translateX"))
+   source.plug("translateX").connectTo(target.plug("translateX"))
 
    print(len(target.inputs()))                    # 1
    print(target.inputs(type="transform"))          # 同じ1件（接続元が transform）
@@ -27,7 +26,7 @@
    print(len(source.connections(type="transform")))  # 1
 
    plugs = target.plugs(keyable=True)              # cmds.listAttr(keyable=True) 相当
-   print(any(plug.attributeName() == "translateX" for plug in plugs))   # True
+   print(any(plug.longName() == "translateX" for plug in plugs))   # True
 
    cmds.aliasAttr("myAlias", target.plug("translateY").fullName())
    for alias_name, plug in target.aliases():
@@ -58,11 +57,11 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 名前変更・親子付け替えにも追従します。所有ノードが削除済み、または動的アトリビュートが
 ``deleteAttr`` で削除済みなら空文字列です(``plug.isValid()`` が ``False``。
 このとき ``get()``/``set()`` と、アトリビュートの情報・接続の問い合わせは ``RuntimeError`` になります)。
-``plug.name()`` はノード名を含まない短いアトリビュート名(``tx`` など。無効な Plug では空文字列)を返します。
+``plug.name()`` はノード名を含む短いPlug名を返します。短名のみは ``shortName()``、
+長名のみは ``longName()``、要素番号や階層を含む先頭ドット付きパスは ``attrName()`` です。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import maya.cmds as cmds
 
    grp1 = hlib.createNode("transform", name="plugNameGrp1")
@@ -72,7 +71,7 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 
    plug = dup.plug("tx")
    print(plug)               # plugNameGrp1|plugNameDup.translateX
-   print(plug.name())        # tx
+   print(plug.name())        # plugNameGrp1|plugNameDup.tx
    cmds.setAttr(plug, 2.0)   # 同名ノードがあっても一意に解決できる
 
 受け付ける入力と ``maya.cmds`` へ渡せないオブジェクトは :doc:`cmds_interop` を参照してください。
@@ -82,7 +81,6 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import maya.cmds as cmds
 
    node = hlib.createNode("transform", name="attrMetaExample")
@@ -99,7 +97,7 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
    print(plug.default())             # 5.0
 
    mode_plug = node.plug("mode")
-   print(mode_plug.enumName())    # "Low"（既定値 1 に対応する名前）
+   print(mode_plug.getEnumName())    # "Low"（既定値 1 に対応する名前）
 
 ``min``/``max``/``default`` は数値アトリビュートでは ``float`` をそのまま返しますが、
 ``rotateX`` のような角度・距離・時間アトリビュートでは Maya API 2.0 の単位付きオブジェクト
@@ -113,7 +111,7 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 ロックや入力接続を含む現在の編集可否を判定するものではありません。
 ``hasSoftMin``/``softMin``/``hasSoftMax``/``softMax`` で UI スライダーの
 ソフトレンジ（値の入力自体は制限しない）を取得できます。
-``enumValue(name)`` は ``enumName()`` の逆引きで、フィールド名から enum 値を
+``enumValue(name)`` は ``enumName(val)`` の逆引きで、フィールド名から enum 値を
 取得します（一致しなければ ``ValueError``）。``niceName()`` は Attribute Editor
 などで使われる表示名を返します（``translateX`` → ``"Translate X"``）。
 
@@ -122,7 +120,6 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node = hlib.createNode("transform", name="channelBoxExample")
    plug = node.plug("translateX")
 
@@ -130,7 +127,7 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
    plug.setFlags(channelBox=True)       # キー不可のままチャンネルボックスにのみ表示
 
    other = hlib.createNode("transform", name="channelBoxOther")
-   plug.connect(other.plug("translateX"))
+   plug.connectTo(other.plug("translateX"))
    print(plug.isConnectedTo(other.plug("translateX")))   # True
    print(other.plug("translateX").isConnectedTo(plug))   # True（向き不問）
 
@@ -143,7 +140,6 @@ animCurve とミュート
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node = hlib.createNode("transform", name="animExample")
    plug = node.plug("translateX")
    print(plug.animCurve())   # None（まだキーが無い）
@@ -169,30 +165,25 @@ animCurve とミュート
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    node = hlib.createNode("network", name="arrayPlugExample")
-   node.addAttribute("values", attributeType="double", multi=True)
+   node.addAttr("values", attributeType="double", multi=True)
    array_plug = node.plug("values")
 
    print(array_plug.nextAvailableIndex())   # 0（既存要素が無ければ）
 
-   element = array_plug.addElement()   # 空きインデックスへ要素を作成
+   element = array_plug.addElement(0)[0]   # 指定要素を実体化し、新規要素リストを返す
    print(element.fullName())             # arrayPlugExample.values[0]
 
    element.set(1.0)                    # 要素に値を設定
    array_plug.removeElement(0)         # 要素を削除
 
-``nextAvailableIndex`` は ``getExistingArrayAttributeIndices()`` に含まれない
-最初のインデックスを返す単純な実装です。cymel の同名メソッドと異なり、
-ロック状態や子要素の再帰チェックは行いません。``addElement`` は
-``nextAvailableIndex()`` の位置の要素Plugを返し、``removeElement`` は
-指定インデックスの要素を削除します（存在しなければ ``IndexError``）。
-``element(index, create=True)`` は要素が無ければ Maya 上に作成してから返します
-(``cmds.getAttr`` の問い合わせで作成するため Undo の対象外です)。
-fast更新の内部では参照だけを取得し、値の書き込みまで実体化を遅延します。
-ただし ``message`` 型の
-ように値を持たないアトリビュートの配列では要素を作成できません。返した要素 Plug へ接続した時点で
-要素ができるため、``addElement()`` は接続するまで同じ番号の要素 Plug を返します。
+``nextAvailable(start=0, asPlug=True)`` は入力接続とロックを避けた要素参照を返します。
+``nextAvailableIndex()`` はhlib独自の「まだ存在しない番号」を探す操作で、判定条件が異なります。
+``addElement(idx)`` は指定要素と必要な上位要素を実体化し、新規要素を下位から返します。
+既存なら空リストです。追加自体のUndoとmessage要素の実体化には対応しません。
+message配列では ``nextAvailable(asPlug=True)`` で取得した参照へ接続してください。
+``element(create=True)`` も評価による実体化なのでUndo対象外です。
+
 Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.input1D[10]")`` や
 ``Selection([...])`` など)は、存在しない要素の Plug でも要素を作りません。
 ``worldMatrix`` などのインスタンスごとのアトリビュートは、評価前でもインスタンス番号の要素
@@ -218,18 +209,17 @@ UI単位を変更しても ``set(get())`` は同じ値を維持します。
 アトリビュートの値とノードの姿勢
 ------------------------------------
 
-``Plug.get()`` / ``set()`` は対象アトリビュートの値だけを扱い、空間指定 ``space`` は受け付けません。
-ワールド空間の値にはTransformの ``getTranslation(space=MSpace.kWorld)`` / ``setRotation(..., space=MSpace.kWorld)``
+``Plug.get()`` / ``set()`` は対象アトリビュートの値だけを扱い、空間指定 ``ws`` / ``worldSpace`` は受け付けません。
+ワールド空間の値にはTransformの ``getTranslation(ws=True)`` / ``setRotation(..., ws=True)``
 などを使います。
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    joint = hlib.getNode("joint1")
    rotation = joint.plug("rotate").get()
    joint.plug("rotate").set(rotation)  # チャンネル値をそのまま戻す
    joint.plug("rotate").set((10, 20, 30), unit="deg")
-   joint.setRotation((0, 0, 0), space=MSpace.kWorld) # jointOrient等を含む姿勢の操作
+   joint.setRotation((0, 0, 0), ws=True) # jointOrient等を含む姿勢の操作
 
 ``rotate`` の値はラジアン・ノードのrotateOrderを持つ ``EulerRotation`` です。
 設定時は数値3成分のrad/deg、またはEulerRotation/Quaternionを使えます。
@@ -243,7 +233,7 @@ UI単位を変更しても ``set(get())`` は同じ値を維持します。
 ``destination.disconnectInput()`` は直接の入力だけを解除し、自身を返します。
 出力接続・子の独立接続・unitConversionノードは保持します。未接続なら何もしません。
 親の複合接続を解除するときは親Plugへ呼び出します。通常のUndo/Redoに対応します。
-``disconnect()`` の引数省略による入出力両方の解除とは用途を区別してください。
+``disconnectAll()`` による入出力両方の解除とは用途を区別してください。
 
 配列の編集は番号・値・参照を検証してから書込みまたは接続します。
 内部処理は要素を事前に実体化しません。公開 ``element(index, create=True)`` の

@@ -30,7 +30,7 @@ class DrivenLayer:
             dict[str, Node]: 識別子とcontainer。
         """
         root = self.rig.root
-        if not root.hasAttribute("drivenGraphs"):
+        if not root.hasAttr("drivenGraphs"):
             return {}
         return {
             node.plug("drivenId").get(): node
@@ -74,7 +74,7 @@ class DrivenLayer:
         kind = driven.dataType()
         if (
             kind not in ("double", "float", "doubleAngle", "doubleLinear", "long")
-            or driven.source()
+            or driven.sourceWithConversion()
             or driven.isLocked()
         ):
             raise ValueError("Driven must be an unlocked, unconnected numeric scalar")
@@ -112,7 +112,7 @@ class DrivenLayer:
         # IK内部の暗黙依存を含む部位の主制御を駆動先にしない。
         upstream.update(self.rig.controls().values())
         upstream.update(self.rig.joints()[:3])
-        if driven.node.fullName() in upstream:
+        if driven.node().fullName() in upstream:
             raise ValueError("Driven target must not feed the source joint or its controls")
         before = set([item.name() for item in hlib.ls()])
         stem = self.rig.nodeName("drivenSet").removesuffix("_set") + "_" + identifier
@@ -127,32 +127,32 @@ class DrivenLayer:
                 y = hlib.utils.units.distanceFromUi(y)
             relation.setKey(x, y)
         curve = relation.curves()[0]
-        output = driven.source()
-        output.disconnect(driven)
-        owner.addAttribute(longName="drivenOutput", attributeType=kind)
-        output.connect(owner.plug("drivenOutput"))
-        owner.addAttribute(longName="restValue", attributeType=kind).set(rest_value)
+        output = driven.sourceWithConversion()
+        driven.disconnect(output)
+        owner.addAttr(longName="drivenOutput", attributeType=kind)
+        output.connectTo(owner.plug("drivenOutput"))
+        owner.addAttr(longName="restValue", attributeType=kind).set(rest_value)
         for attr, value in (
             ("drivenId", identifier),
             ("drivenAttribute", driven.fullName().split(".", 1)[1]),
             ("component", component),
         ):
-            owner.addAttribute(longName=attr, dataType="string").set(value)
-        for attr, node in (("drivenNode", driven.node), ("curve", curve)):
-            owner.addAttribute(longName=attr, attributeType="message")
-            node.plug("message").connect(owner.plug(attr))
+            owner.addAttr(longName=attr, dataType="string").set(value)
+        for attr, node in (("drivenNode", driven.node()), ("curve", curve)):
+            owner.addAttr(longName=attr, attributeType="message")
+            node.plug("message").connectTo(owner.plug(attr))
         members = {n.name() for n in hlib.nodes.Container(owner).members()}
         extra = set([item.name() for item in hlib.ls()]) - before - members - {owner.name()}
         if extra:
             hlib.nodes.Container(owner).addMembers(*extra)
         root = self.rig.root
         owned = [owner]
-        if not root.hasAttribute("drivenSet"):
+        if not root.hasAttr("drivenSet"):
             selection = hlib.createSet(empty=True, name=self.rig.nodeName("drivenSet")).fullName()
             self.rig._bind("drivenSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             owned.append(hlib.getNode(selection))
-            root.addAttribute(longName="drivenGraphs", attributeType="message", multi=True)
+            root.addAttr(longName="drivenGraphs", attributeType="message", multi=True)
         root.plug("drivenGraphs").appendMessage(owner)
         for node in owned:
             root.plug("hrigOwned").appendMessage(node)
@@ -167,18 +167,18 @@ class DrivenLayer:
         """無効時は駆動先を基準値へ戻して計算需要を切断する。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("driven")
         for owner in self.graphs().values():
-            reference = owner.plug("drivenNode").source()
+            reference = owner.plug("drivenNode").sourceWithConversion()
             if reference is None:
                 continue
-            destination = reference.node.plug(owner.plug("drivenAttribute").get())
-            source = destination.source()
+            destination = reference.node().plug(owner.plug("drivenAttribute").get())
+            source = destination.sourceWithConversion()
             output = owner.plug("drivenOutput")
             if source is not None and source.mplug() != output.mplug():
                 raise RuntimeError("Driven connection was replaced externally")
             if active and source is None:
-                output.connect(destination)
+                output.connectTo(destination)
             elif not active:
                 if source is not None:
-                    source.disconnect(destination)
+                    destination.disconnect(source)
                 destination.set(owner.plug("restValue").get())
             owner.plug("nodeState").set(0 if active else 2)

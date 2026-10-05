@@ -21,31 +21,31 @@ class BulkCollectionsTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_common_and_per_item_transform_undo(self):
-        self.joints.setTranslation((1, 2, 3))
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(1, 2, 3)] * 2)
+        self.joints.setTranslation((1, 2, 3), at=4)
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(1, 2, 3)] * 2)
         cmds.undo()
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(0, 0, 0)] * 2)
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(0, 0, 0)] * 2)
         cmds.redo()
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(1, 2, 3)] * 2)
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(1, 2, 3)] * 2)
         self.joints.callEach("setTranslation", [((4, 5, 6),), ((7, 8, 9),)])
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(4, 5, 6), (7, 8, 9)])
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(4, 5, 6), (7, 8, 9)])
         self.assertEqual(self.joints.isJoint(), [True, True])
         self.assertEqual(self.joints.fullName(), [item.fullName() for item in self.joints])
         self.assertEqual(self.joints[:1].names(), self.names[:1])
         self.assertEqual(len(self.joints), 2)
         self.assertFalse(hasattr(self.joints, "create"))
-        self.assertEqual(hlib.nodes.Joints().getTranslation(), [])
+        self.assertEqual(hlib.nodes.Joints().getTranslation(at=4), [])
 
     def test_argument_validation_and_failure_context(self):
         with self.assertRaises(ValueError):
             self.joints.callEach("setTranslation", [((1, 2, 3),)])
         with self.assertRaises(TypeError):
             self.joints.callEach("setTranslation", [((1, 2, 3),), ()])
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation()], [(0, 0, 0)] * 2)
+        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(0, 0, 0)] * 2)
         cmds.setAttr(self.names[1] + ".translateX", lock=True)
         try:
             with self.assertRaisesRegex(RuntimeError, "setTranslation failed at item 1"):
-                self.joints.setTranslation((5, 0, 0))
+                self.joints.setTranslation((5, 0, 0), at=4)
             self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 5)
             cmds.undo()
             self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 0)

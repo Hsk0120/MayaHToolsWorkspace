@@ -74,6 +74,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
 ## hlib 修正予定（2026-10-02 追加レビュー）
 
 - [x] Component._resolve_input: 単数解決で範囲を全ラッパーへ展開する前に要素数を検証する。Maya2027で441頂点生成後の拒否を再現。
@@ -82,6 +83,22 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex 2026-10-05: cymelに合わせhasAttr/parent/children/longName/delete/mnode/mpath等へ改名、Plug.node()・名前/enum・変換ノードを省略する接続照会・短縮Transformメソッド・フラグ操作を実装。利用側は直結探索を明示して挙動を維持。配列addElementは指定番号・リスト返却に統一（実体化Undoとmessageは未対応）。API設計・AGENTS参照先・ドキュメントを更新。Maya2027で530件、2022〜2026各6件、HTools変更前比較55件、Sphinx警告なし。GUI未実行。
+
+- Codex 2026-10-05: hlib/cymelのNode・DAG・Transform・Plug中心にメソッド名/意味を比較。5項目をMaya2027 standaloneで実測し、docs/research/cymelMethodDifferences-2026-10-05.mdへ保存（Git対象外）。API変更なし。
+
+- Codex 2026-10-05: AGENTS.mdへhlibの確定済み引数・既定値・単位・戻り値の変更禁止を追記。対象仕様へのユーザーの明示指示がある場合のみ変更可能とし、addAttrの既定Plug返却も明記。参照先と差分を確認（文書のみ）。
+
+- Codex 2026-10-05: Node.addAttrの既定戻り値をPlugへ変更。利用側のgetPlug=Trueを整理し、複合アトリビュート内部は明示Falseで構築。仕様・例・テストを更新。Maya standalone 2027で78件、2022で7件成功、Sphinx警告なし。GUI未実行。
+
+- Codex (2026-10-05): 調査したcymel差分をhlibへ反映。Plug.connectを入力元指定へ変更しconnectTo追加、disconnectは入力のみ、disconnectAllを明示化。force/f・lock/l・nextAvailable/na、safe、getu/setuを追加。Transformのat既定2、Quaternionのra/r/jo、getMatrixのp/inv、setterのget/safe、getScaling/setScaling/getShearing/setShearing、Node.addAttr(type/subType/子名/proxy/getPlug)・rename(ignoreShape)へ統一。既存呼出側はconnectTo・at=4・getPlug=True等へ移行し、Qt/Bifrostの別APIは保持。型・通常setterのself戻り値・行列の近いEuler解はhlib規則を維持し、setMatrix(get=True)は設定値dict。配列接続のロック探索・切断後のMPlug再解決とアニメーション付き行列更新も修正。Maya2027の54スイート406テスト、2022〜2026の各7テスト（計35）、HTools旧実装との55ケース比較が成功。Sphinx警告エラー扱いビルド・169コード例の構文・差分チェック成功。旧sceneコマンド廃止のテストは正式sceneパッケージと区別して修正。GUIは今回未実行。証跡.maya-output/cymel-alignment-summary.json。既存の未コミット変更とClaudeのhedit/hrig翻訳作業を保持。未コミット。
+
+- Codex (2026-10-05): 同梱cymelと作業ツリーのhlibを利用者視点で比較。接続/切断方向、位置・回転の基準、safe/get/fast、単位・位置引数・短縮フラグの差を実装から確認。docs/research/cymelArgumentComparison.txtへ調査保存（Git対象外）。実装変更・Maya実行なし。
+
+- Codex (2026-10-05): hlibのTransform/Shape/Mesh/NurbsCurve/PointComponent/DagPose/SkinClusterの空間引数をworldSpaceへ変更し、既存flag_aliasesでws対応。形状情報ノードのconnectCurve/connectSurfaceも統一。旧space/world_spaceキーワードの互換入口は残さず、HTools/hrig/テスト・設計書・RST例をws表記へ更新。resetPivot/restoreBindPose/形状接続のワールド既定は維持、OpenMaya直接APIのMSpaceは維持。Maya2027で29ファイル316テスト成功（各ファイルを独立プロセスで実行しreloadの干渉を回避）、HTools大型55ケース比較成功、Maya2022〜2026でも新規4テストずつ成功。RST Python例・変更Python構文・差分チェック成功。今回GUI/Sphinxビルドは未実行。既存大型ツール変更と途中で観測したscene/cycle.pyのimport変更を保持。証跡.maya-output/space-summary.jsonほか。未コミット。
+
+- Codex (2026-10-05): HTools大型8モジュール（OBB2本・ジョイント方向・コントローラ形状・2影響帯スムージング・スキン複製・ウェイト統合・PBDベイク）のノード/Plug操作をhlibへ移行。OBB計算をutils.orientedBounds、隣接グラフをMesh.getVertexAdjacency、カーブ差し替えをhrig.ControlShape.replaceCurvesへ共通化。行列分解・skinPercent・コピー関連付け・時間/キー操作の既存挙動を維持。hrig.definitionの型注釈遅延で2022/2023 import対応。旧OBBのMPointArray解放後参照を点コピーで修正（baseline比較も所有権のみ補正）。Maya2022〜2027で各55ケース比較（21形状の新規/差し替え含む）と共有API検証成功、2022/2027専用GUIで度/radのJoint Orient・スキン保持・画面生成比較成功。definition4テストと構文/対象差分チェック成功。GUIの2023〜2026は未実行。全条件の同一性は未保証、cmds全面廃止ではない。証跡.maya-output/htools-large-*.txt・htools-large-gui/20261005_071155。調査メモとbaselineはGit対象外。heditの並行作業は変更せず保持。
 
 - Codex (2026-10-05): ユーザー依頼のプッシュ対象を整理。HToolsのhlib移行、Aim/Container/DagContainer/CycleのAPIと関連テスト・説明をコミット対象として確認。heditの並行変更・調査資料・実行ログは除外。ステージ済み差分チェック成功。
 

@@ -63,7 +63,7 @@ class BlendShapeTest(unittest.TestCase):
 
         weightPlug = self.bs.addTarget(target3, weight_index=5)
         self.assertEqual(weightPlug.fullName(), self.bs.fullName() + "." + target3)
-        self.assertEqual(weightPlug.attributeName(), "weight")
+        self.assertEqual(weightPlug.longName(), "weight")
 
 
 if __name__ == "__main__":

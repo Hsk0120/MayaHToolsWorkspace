@@ -75,8 +75,8 @@ class PoseEditor(QtWidgets.QDialog):
             PoseRbf | None: 未登録ならNone。
         """
         group = SecondaryLayer(self.rig).groups().get(self.index)
-        source = group.plug("poseGraph").source() if group is not None else None
-        return PoseRbf(source.node) if source is not None else None
+        source = group.plug("poseGraph").sourceWithConversion() if group is not None else None
+        return PoseRbf(source.node()) if source is not None else None
 
     def _choose(self, index):
         """列選択を変更し、編集表を再読込する。
@@ -95,9 +95,9 @@ class PoseEditor(QtWidgets.QDialog):
         if graph:
             names = []
             for i in range(len(data["scales"])):
-                source = graph.container.plug("inputs[{}]".format(i)).source()
-                if source is not None and source.node.type() == "unitConversion":
-                    source = source.node.plug("input").source()
+                source = graph.container.plug("inputs[{}]".format(i)).sourceWithConversion()
+                if source is not None and source.node().type() == "unitConversion":
+                    source = source.node().plug("input").sourceWithConversion()
                 names.append(source.fullName() if source is not None else "未接続")
         else:
             node = self.rig.driver_chains()[self.index][0]

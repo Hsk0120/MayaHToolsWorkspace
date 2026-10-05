@@ -64,8 +64,8 @@ class _JointDeletion:
                     skin.removeInfluence(joint.fullName(), transfer_to_parent=False)
                     stage = "transfer weights"
                 stage = "reparent children"
-                parent = joint.parentNode()
-                for child in joint.childTransforms():
+                parent = joint.parent()
+                for child in joint.children():
                     if parent is None:
                         cmds.parent(child.fullName(), world=True)
                     else:

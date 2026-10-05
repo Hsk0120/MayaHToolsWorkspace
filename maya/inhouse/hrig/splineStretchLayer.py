@@ -26,8 +26,8 @@ class SplineStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.plug("stretchGroup").source() if root.hasAttribute("stretchGroup") else None
-        return source.node if source is not None else None
+        source = root.plug("stretchGroup").sourceWithConversion() if root.hasAttr("stretchGroup") else None
+        return source.node() if source is not None else None
 
     @staticmethod
     def _node(owner, kind, role):
@@ -70,16 +70,16 @@ class SplineStretchLayer:
         group.setAttributeFlags(
             ["translate", "rotate", "scale", "visibility"], locked=True, keyable=False
         )
-        group.addAttribute(longName="graph", attributeType="message")
-        owner.plug("message").connect(group.plug("graph"))
-        group.addAttribute(longName="restLengths", dataType="string").set(
+        group.addAttr(longName="graph", attributeType="message")
+        owner.plug("message").connectTo(group.plug("graph"))
+        group.addAttr(longName="restLengths", dataType="string").set(
             hlib.json.JsonText.dumps(lengths)
         )
-        group.addAttribute(longName="outputs", attributeType="message", multi=True)
-        group.addAttribute(longName="measurement", attributeType="message")
-        root.addAttribute(longName="stretchGroup", attributeType="message")
-        group.plug("message").connect(root.plug("stretchGroup"))
-        root.addAttribute(longName="hrigEnabled_stretch", attributeType="bool", defaultValue=True)
+        group.addAttr(longName="outputs", attributeType="message", multi=True)
+        group.addAttr(longName="measurement", attributeType="message")
+        root.addAttr(longName="stretchGroup", attributeType="message")
+        group.plug("message").connectTo(root.plug("stretchGroup"))
+        root.addAttr(longName="hrigEnabled_stretch", attributeType="bool", defaultValue=True)
         root.setAttributeFlags(["hrigEnabled_stretch"], channelBox=True)
         for attr, value, low, high in (
             ("stretch", 1, 0, 1),
@@ -88,7 +88,7 @@ class SplineStretchLayer:
             ("minSquash", 0.1, 0.01, 1),
             ("maxStretch", 2, 1, 100),
         ):
-            group.addAttribute(
+            group.addAttr(
                 longName=attr,
                 attributeType="double",
                 defaultValue=value,
@@ -96,7 +96,7 @@ class SplineStretchLayer:
                 maxValue=high,
                 keyable=True,
             )
-            group.plug(attr).connect(owner.plug(attr))
+            group.plug(attr).connectTo(owner.plug(attr))
         curve = rig.graph().member("curve")
         shape = hlib.getNode(
             [
@@ -111,27 +111,27 @@ class SplineStretchLayer:
         )
         measure = self._node(owner, "curveInfo", "localLength")
         # localカーブならモジュールの正の均等scaleは長さ比へ混入しない。
-        shape.plug("local").connect(measure.plug("inputCurve"))
+        shape.plug("local").connectTo(measure.plug("inputCurve"))
         curve_units = self._node(owner, "unitConversion", "curveLengthCm")
-        measure.plug("arcLength").connect(curve_units.plug("input"))
+        measure.plug("arcLength").connectTo(curve_units.plug("input"))
         curve_units.plug("conversionFactor").set(1)
-        curve_units.plug("output").connect(owner.plug("inputLength"))
-        measure.plug("message").connect(group.plug("measurement"))
+        curve_units.plug("output").connectTo(owner.plug("inputLength"))
+        measure.plug("message").connectTo(group.plug("measurement"))
         for i, length in enumerate(lengths):
             multiply = self._node(owner, "multiplyDivide", "boneLength" + str(i))
             multiply.plug("input1X").set(length)
-            owner.plug("lengthScale").connect(multiply.plug("input2X"))
+            owner.plug("lengthScale").connectTo(multiply.plug("input2X"))
             units = self._node(owner, "unitConversion", "lengthUnits" + str(i))
-            multiply.plug("outputX").connect(units.plug("input"))
+            multiply.plug("outputX").connectTo(units.plug("input"))
             units.plug("conversionFactor").set(1)
-            units.plug("message").connect(group.plug("outputs[{}]".format(i)))
+            units.plug("message").connectTo(group.plug("outputs[{}]".format(i)))
         # 親の断面scaleを子が累積しないよう、Maya標準のSSCとinverseScaleを使う。
         for role in ("fk", "deform"):
             bones = rig.members(role)
             for i, bone in enumerate(bones):
                 bone.plug("segmentScaleCompensate").set(True)
                 if i:
-                    bones[i - 1].plug("scale").connect(bone.plug("inverseScale"), force=True)
+                    bones[i - 1].plug("scale").connectTo(bone.plug("inverseScale"), force=True)
         rig.update()
         jobs = rig._jobs.pop(root.uuid(), None)
         if jobs is not None:
@@ -155,11 +155,11 @@ class SplineStretchLayer:
         if group is None:
             return
         active = self.active()
-        owner = group.plug("graph").source().node
-        measure = group.plug("measurement").source().node
+        owner = group.plug("graph").sourceWithConversion().node()
+        measure = group.plug("measurement").sourceWithConversion().node()
         curve = self.rig.graph().member("curve")
         target = measure.plug("inputCurve")
-        if active and target.source() is None:
+        if active and target.sourceWithConversion() is None:
             shape = hlib.getNode(
                 [
                     item.fullName()
@@ -171,17 +171,17 @@ class SplineStretchLayer:
                     ]
                 ][0]
             )
-            shape.plug("local").connect(target)
-        elif not active and target.source() is not None:
-            target.source().disconnect(target)
+            shape.plug("local").connectTo(target)
+        elif not active and target.sourceWithConversion() is not None:
+            target.disconnect(target.sourceWithConversion())
         measure.plug("nodeState").set(0 if active else 2)
         lengths = hlib.json.JsonText.loads(group.plug("restLengths").get())
         for i, (joint, length) in enumerate(zip(self.rig.members("ik")[1:], lengths)):
             target = joint.plug("translateX")
-            if target.source() is not None:
-                target.source().disconnect(target)
+            if target.sourceWithConversion() is not None:
+                target.disconnect(target.sourceWithConversion())
             if active:
-                group.plug("outputs[{}]".format(i)).source().node.plug("output").connect(target)
+                group.plug("outputs[{}]".format(i)).sourceWithConversion().node().plug("output").connectTo(target)
             else:
                 target.set(length)
         for source, joint in zip(
@@ -189,14 +189,14 @@ class SplineStretchLayer:
         ):
             for axis in "XYZ":
                 target = joint.plug("scale" + axis)
-                if target.source() is not None:
-                    target.source().disconnect(target)
+                if target.sourceWithConversion() is not None:
+                    target.disconnect(target.sourceWithConversion())
                 output = (
                     owner.plug("volumeScale")
                     if active and axis != "X"
                     else source.plug("scale" + axis)
                 )
-                output.connect(target)
+                output.connectTo(target)
 
     def needs_update(self):
         """監視で空のUndo編集を発生させないよう接続差を調べる。
@@ -207,5 +207,5 @@ class SplineStretchLayer:
         group = self.settings()
         return (
             group is not None
-            and (self.rig.members("ik")[1].plug("translateX").source() is not None) != self.active()
+            and (self.rig.members("ik")[1].plug("translateX").sourceWithConversion() is not None) != self.active()
         )

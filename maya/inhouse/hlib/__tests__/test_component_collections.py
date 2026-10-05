@@ -55,8 +55,8 @@ class ComponentCollectionsTest(unittest.TestCase):
     def test_world_space_and_invalid_input_is_not_partial(self):
         cmds.setAttr(self.mesh_transform + ".translateX", 10)
         items = self.mesh.vertices([0, 1])
-        items.setPositions([(1, 2, 3), (4, 5, 6)], space=MSpace.kWorld)
-        self.assert_points(items.getPosition(space=MSpace.kWorld), [(1, 2, 3), (4, 5, 6)])
+        items.setPositions([(1, 2, 3), (4, 5, 6)], ws=True)
+        self.assert_points(items.getPosition(ws=True), [(1, 2, 3), (4, 5, 6)])
         before = items.getPosition()
         for values in ([(0, 0, 0)], [(0, 0, 0), (float("nan"), 0, 0)]):
             with self.assertRaises(ValueError):
@@ -69,7 +69,7 @@ class ComponentCollectionsTest(unittest.TestCase):
         self.assertIs(empty.setPositions([]), empty)
         self.assertEqual(empty.getPosition(), [])
         with self.assertRaises(ValueError):
-            empty.setPositions([], space=True)
+            empty.setPositions([], ws=1)
 
     def test_uv_bulk_axes_and_undo(self):
         items = self.mesh.uvs([2, 0])

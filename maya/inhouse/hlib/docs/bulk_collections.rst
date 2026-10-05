@@ -7,13 +7,12 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    import hlib
 
    joints = hlib.nodes.Joints(["joint1", "joint2"])
-   positions = joints.getTranslation(space=MSpace.kWorld)
-   joints.setTranslation((1, 2, 3), space=MSpace.kWorld)
-   matrices = joints.getMatrix(space=MSpace.kWorld)
+   positions = joints.getTranslation(ws=True)
+   joints.setTranslation((1, 2, 3), ws=True)
+   matrices = joints.getMatrix(ws=True)
    joint_orients = joints.getJointOrient()
    joints.setAttributeFlags(["visibility"], keyable=False)
 
@@ -32,11 +31,10 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    joints.callEach(
        "setTranslation",
        [((1, 2, 3),), ((4, 5, 6),)],
-       [{"space": MSpace.kWorld}, {"space": MSpace.kWorld}],
+       [{"ws": True}, {"ws": True}],
    )
    joints.callEach("rename", [("arm_joint",), ("leg_joint",)])
 
@@ -64,7 +62,6 @@ SkinClusters
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    skins = joints.skinClusters()
    influences_by_skin = skins.influences()
    flags = skins.hasInfluence("joint1")
@@ -95,7 +92,6 @@ Selectionは異種対象の取得時点の集合で、単一の単体型に対�
 
 .. code-block:: python
 
-   from maya.api.OpenMaya import MSpace
    joints = hlib.ls(selection=True, type="joint")
    skins = joints.skinClusters()
    skins.removeInfluences(joints)  # jointノード・親子関係は残す

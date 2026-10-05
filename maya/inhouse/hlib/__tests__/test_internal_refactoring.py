@@ -25,7 +25,7 @@ class InternalRefactoringTest(unittest.TestCase):
         deferred_module = importlib.import_module("hlib.cmds.executeDeferred")
         node = hlib.createNode("transform")
         with patch.object(add_module, "addAttr", side_effect=AssertionError("reverse dependency")):
-            plug = node.addAttribute("referenceCheck", attributeType="double", defaultValue=3)
+            plug = node.addAttr("referenceCheck", attributeType="double", defaultValue=3)
         self.assertEqual(plug.get(), 3)
         cmds.undo()
         self.assertFalse(cmds.attributeQuery("referenceCheck", node=node.fullName(), exists=True))

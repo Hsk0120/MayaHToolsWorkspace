@@ -69,12 +69,12 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(Namespace(missing_namespace).exists())
         self.assertEqual(transform.namespace(), Namespace(missing_namespace))
 
-        plug = transform.addAttribute(
+        plug = transform.addAttr(
             "hlibNodeApiValue",
             attributeType="double",
             defaultValue=1.5,
         )
-        self.assertEqual(plug.name(), "hlibNodeApiValue")
+        self.assertEqual(plug.longName(), "hlibNodeApiValue")
         self.assertEqual(plug.get(), 1.5)
 
     def test_parent_and_connections(self):
@@ -84,11 +84,11 @@ class NodeApiTest(unittest.TestCase):
         target = self.create_transform("hlibNodeApiTarget")
 
         child.setParent(parent)
-        self.assertEqual(child.parentNode().name(), parent.name())
+        self.assertEqual(child.parent().name(), parent.name())
         child.setParent()
-        self.assertIsNone(child.parentNode())
+        self.assertIsNone(child.parent())
 
-        source.plug("translateX").connect(target.plug("translateX"))
+        source.plug("translateX").connectTo(target.plug("translateX"))
         self.assertEqual([plug.fullName() for plug in target.inputs()], [source.plug("translateX").fullName()])
         self.assertEqual([plug.fullName() for plug in source.outputs()], [target.plug("translateX").fullName()])
         self.assertEqual(len(source.connections()), 1)
@@ -104,15 +104,15 @@ class NodeApiTest(unittest.TestCase):
     def test_transform_matrix_round_trip_uses_om2_maths_values(self):
         transform = self.create_transform("hlibNodeApiMatrix")
 
-        transform.setTranslation((1.0, 2.0, 3.0))
+        transform.setTranslation((1.0, 2.0, 3.0), at=4)
         transform.setRotation((0.0, math.radians(90.0), 0.0))
-        transform.setScale((2.0, 1.0, 1.0))
+        transform.setScaling((2.0, 1.0, 1.0))
 
-        translate = transform.getTranslation()
+        translate = transform.getTranslation(at=4)
         self.assertIsInstance(translate, Translation)
         self.assertEqual(translate, Translation(1.0, 2.0, 3.0))
 
-        scale = transform.getScale()
+        scale = transform.getScaling()
         self.assertIsInstance(scale, Scale)
         self.assertAlmostEqual(scale.x, 2.0, places=6)
 
@@ -140,18 +140,18 @@ class NodeApiTest(unittest.TestCase):
         cmds.redo()
         self.assertEqual(transform.getPivot(), Translation(1.0, 2.0, 3.0))
 
-        transform.setTranslation((10.0, 0.0, 0.0))
-        self.assertEqual(transform.getPivot(space=MSpace.kWorld), Translation(11.0, 2.0, 3.0))
+        transform.setTranslation((10.0, 0.0, 0.0), at=4)
+        self.assertEqual(transform.getPivot(ws=True), Translation(11.0, 2.0, 3.0))
 
         previous_unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
-            transform.setPivot((25.0, 50.0, 75.0), space=MSpace.kWorld, kind="both", preserve=False)
-            self.assertEqual(transform.getPivot(space=MSpace.kWorld), Translation(25.0, 50.0, 75.0))
+            transform.setPivot((25.0, 50.0, 75.0), ws=True, kind="both", preserve=False)
+            self.assertEqual(transform.getPivot(ws=True), Translation(25.0, 50.0, 75.0))
             cmds.undo()
-            self.assertEqual(transform.getPivot(space=MSpace.kWorld), Translation(11.0, 2.0, 3.0))
+            self.assertEqual(transform.getPivot(ws=True), Translation(11.0, 2.0, 3.0))
             cmds.redo()
-            self.assertEqual(transform.getPivot(space=MSpace.kWorld), Translation(25.0, 50.0, 75.0))
+            self.assertEqual(transform.getPivot(ws=True), Translation(25.0, 50.0, 75.0))
         finally:
             cmds.currentUnit(linear=previous_unit)
 
@@ -165,19 +165,19 @@ class NodeApiTest(unittest.TestCase):
         self.assertAlmostEqual(box.max.x, 0.5, places=5)
 
         # boundingBox() は自身の translate は含むが、親の変換はまだ無いので world と一致する。
-        transform.setTranslation((10.0, 0.0, 0.0))
+        transform.setTranslation((10.0, 0.0, 0.0), at=4)
         self.assertAlmostEqual(transform.boundingBox().min.x, 9.5, places=5)
-        self.assertAlmostEqual(transform.boundingBox(space=MSpace.kWorld).min.x, 9.5, places=5)
+        self.assertAlmostEqual(transform.boundingBox(ws=True).min.x, 9.5, places=5)
 
         parent = self.create_transform("hlibNodeApiBoundingBoxParent")
-        parent.setTranslation((100.0, 0.0, 0.0))
+        parent.setTranslation((100.0, 0.0, 0.0), at=4)
         # relative=True で子のローカル translate を変えずに親子付けする
         # （既定はワールド位置維持のためローカル値が自動調整されてしまう）。
         cmds.parent(mesh_transform_name, parent.name(), relative=True)
 
         # ws=False は親の translate を含まない。ws=True は含む。
         self.assertAlmostEqual(transform.boundingBox().min.x, 9.5, places=5)
-        world_box = transform.boundingBox(space=MSpace.kWorld)
+        world_box = transform.boundingBox(ws=True)
         self.assertAlmostEqual(world_box.min.x, 109.5, places=5)
         self.assertAlmostEqual(world_box.max.x, 110.5, places=5)
 
@@ -189,7 +189,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(transform.isLocked())
         cmds.lockNode(transform.name(), lock=False)
 
-        self.assertFalse(transform.isReferenced())
+        self.assertFalse(transform.isFromReferencedFile())
 
         self.assertTrue(transform.isType("transform"))
         self.assertTrue(transform.isType("dagNode"))
@@ -263,12 +263,12 @@ class NodeApiTest(unittest.TestCase):
 
         enum_plug = transform.plug("hlibTestEnum")
         self.assertEqual(enum_plug.default(), 1)
-        self.assertEqual(enum_plug.enumName(), "B")
+        self.assertEqual(enum_plug.getEnumName(), "B")
 
         # 静的（ノード組み込み）アトリビュートは動的アトリビュートではない。
         self.assertFalse(transform.plug("translateX").isDynamic())
         with self.assertRaises(TypeError):
-            transform.plug("translateX").enumName()
+            transform.plug("translateX").getEnumName()
 
     def test_plug_readable_writable_storable_and_soft_limits(self):
         transform = self.create_transform("hlibNodeApiPlugFlags")
@@ -308,7 +308,7 @@ class NodeApiTest(unittest.TestCase):
         leaf_a1.setParent(branch_a)
 
         self.assertEqual(
-            sorted(node.name() for node in root.childTransforms()),
+            sorted(node.name() for node in root.children()),
             ["hlibNodeApiLeavesA", "hlibNodeApiLeavesB"],
         )
 
@@ -346,7 +346,7 @@ class NodeApiTest(unittest.TestCase):
 
         # 非 animCurve 接続では animCurve() は None を返す。
         other = self.create_transform("hlibNodeApiAnimCurveOther")
-        other.plug("translateX").connect(transform.plug("translateY"))
+        other.plug("translateX").connectTo(transform.plug("translateY"))
         self.assertIsNone(transform.plug("translateY").animCurve())
 
     def test_direct_parent_child_relationship_and_attribute_count(self):
@@ -371,11 +371,11 @@ class NodeApiTest(unittest.TestCase):
         plug = transform.plug("hlibDeleteMe")
 
         self.assertTrue(cmds.attributeQuery("hlibDeleteMe", node=transform.name(), exists=True))
-        plug.deleteAttribute()
+        plug.delete()
         self.assertFalse(cmds.attributeQuery("hlibDeleteMe", node=transform.name(), exists=True))
 
         with self.assertRaises(RuntimeError):
-            transform.plug("translateX").deleteAttribute()
+            transform.plug("translateX").delete()
 
     def test_plug_delete_attr_force_unlocks_before_deleting(self):
         transform = self.create_transform("hlibNodeApiDeleteAttrForce")
@@ -384,17 +384,17 @@ class NodeApiTest(unittest.TestCase):
         plug.setFlags(locked=True)
 
         with self.assertRaises(RuntimeError):
-            plug.deleteAttribute()
+            plug.delete()
         self.assertTrue(cmds.attributeQuery("hlibLockedDelete", node=transform.name(), exists=True))
 
-        plug.deleteAttribute(force=True)
+        plug.delete(force=True)
         self.assertFalse(cmds.attributeQuery("hlibLockedDelete", node=transform.name(), exists=True))
 
     def test_node_plugs_enumerates_attributes_as_plug_objects(self):
         transform = self.create_transform("hlibNodeApiPlugs")
 
         plugs = transform.plugs()
-        self.assertIn("translateX", {plug.attributeName() for plug in plugs})
+        self.assertIn("translateX", {plug.longName() for plug in plugs})
         self.assertTrue(all(hasattr(plug, "get") for plug in plugs))
         # listAttr が報告する名前の一部（未確保の要素を持つ配列複合アトリビュートの子など）は
         # 実際には評価できず黙ってスキップされるため、件数は必ずしも一致しない。
@@ -402,7 +402,7 @@ class NodeApiTest(unittest.TestCase):
 
         keyable_names = set(cmds.listAttr(transform.name(), keyable=True) or [])
         keyable_plugs = transform.plugs(keyable=True)
-        self.assertEqual({plug.attributeName() for plug in keyable_plugs}, keyable_names)
+        self.assertEqual({plug.longName() for plug in keyable_plugs}, keyable_names)
 
     def test_node_aliases_returns_alias_plug_pairs(self):
         transform = self.create_transform("hlibNodeApiAliases")
@@ -440,7 +440,7 @@ class NodeApiTest(unittest.TestCase):
         targetPlug = target.plug("translateX")
         self.assertFalse(source_plug.isConnectedTo(targetPlug))
 
-        source_plug.connect(targetPlug)
+        source_plug.connectTo(targetPlug)
         self.assertTrue(source_plug.isConnectedTo(targetPlug))
         self.assertTrue(targetPlug.isConnectedTo(source_plug))
         self.assertFalse(source_plug.isConnectedTo(source.plug("translateY")))
@@ -452,7 +452,7 @@ class NodeApiTest(unittest.TestCase):
         plug = transform.plug("hlibEnumValueAttr")
 
         self.assertEqual(plug.enumValue("B"), 1)
-        self.assertEqual(plug.enumValue(plug.enumName()), 0)
+        self.assertEqual(plug.enumValue(plug.getEnumName()), 0)
         with self.assertRaises(ValueError):
             plug.enumValue("NotAField")
         with self.assertRaises(TypeError):
@@ -534,8 +534,8 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(array_plug.nextAvailableIndex(), 1)
         self.assertEqual(array_plug.nextAvailableIndex(start=5), 5)
 
-        element = array_plug.addElement()
-        self.assertEqual(element.attributeName(), "worldMatrix")
+        element = array_plug.addElement(1)[0]
+        self.assertEqual(element.longName(), "worldMatrix")
         self.assertTrue(element.fullName().endswith("[1]"))
 
         array_plug.removeElement(1)
@@ -556,16 +556,16 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_make_identity_freezes_transform(self):
         transform = self.create_transform("hlibNodeApiFreeze")
-        transform.setTranslation((1.0, 2.0, 3.0))
+        transform.setTranslation((1.0, 2.0, 3.0), at=4)
 
         result = transform.makeIdentity(apply=True, translate=True)
         self.assertIs(result, transform)
-        self.assertEqual(transform.getTranslation(), Translation(0.0, 0.0, 0.0))
+        self.assertEqual(transform.getTranslation(at=4), Translation(0.0, 0.0, 0.0))
 
     def test_transform_unlock_and_disconnect_transform_channels_unlocks_and_disconnects(self):
         driver = self.create_transform("hlibNodeApiReleaseDriver")
         transform = self.create_transform("hlibNodeApiRelease")
-        driver.plug("translateX").connect(transform.plug("translateX"))
+        driver.plug("translateX").connectTo(transform.plug("translateX"))
         transform.plug("translate").setFlags(locked=True)
         transform.plug("rotateY").setFlags(locked=True)
 
@@ -574,7 +574,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertFalse(transform.plug("translate").isLocked())
         self.assertFalse(transform.plug("translateX").isLocked())
         self.assertFalse(transform.plug("rotateY").isLocked())
-        self.assertIsNone(transform.plug("translateX").source())
+        self.assertIsNone(transform.plug("translateX").sourceWithConversion())
 
     def test_transform_closest_axis_to_vector(self):
         transform = self.create_transform("hlibNodeApiClosestAxis")
@@ -588,29 +588,29 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_create_offset_groups_preserves_world_position(self):
         parent = self.create_transform("hlibNodeApiOffsetParent")
-        parent.setTranslation((5.0, 0.0, 0.0))
+        parent.setTranslation((5.0, 0.0, 0.0), at=4)
         transform = self.create_transform("hlibNodeApiOffsetChild")
         transform.setParent(parent)
-        transform.setTranslation((1.0, 2.0, 3.0))
-        world_translate = transform.getTranslation(space=MSpace.kWorld)
+        transform.setTranslation((1.0, 2.0, 3.0), at=4)
+        world_translate = transform.getTranslation(ws=True, at=4)
 
         zero, offset = transform.createOffsetGroups("hlibNodeApiZero", "hlibNodeApiOffset")
         self.created.extend([zero.name(), offset.name()])
 
-        self.assertEqual(zero.parentNode().name(), parent.name())
-        self.assertEqual(offset.parentNode().name(), zero.name())
-        self.assertEqual(transform.parentNode().name(), offset.name())
-        self.assertEqual(zero.getTranslation(space=MSpace.kWorld), world_translate)
-        self.assertEqual(offset.getTranslation(space=MSpace.kWorld), world_translate)
-        self.assertEqual(transform.getTranslation(space=MSpace.kWorld), world_translate)
-        self.assertEqual(transform.getTranslation(), Translation(0.0, 0.0, 0.0))
+        self.assertEqual(zero.parent().name(), parent.name())
+        self.assertEqual(offset.parent().name(), zero.name())
+        self.assertEqual(transform.parent().name(), offset.name())
+        self.assertEqual(zero.getTranslation(ws=True, at=4), world_translate)
+        self.assertEqual(offset.getTranslation(ws=True, at=4), world_translate)
+        self.assertEqual(transform.getTranslation(ws=True, at=4), world_translate)
+        self.assertEqual(transform.getTranslation(at=4), Translation(0.0, 0.0, 0.0))
 
     def test_node_is_valid_is_alive_and_has_attr(self):
         transform = self.create_transform("hlibNodeApiValidity")
         self.assertTrue(transform.isValid())
         self.assertTrue(transform.isAlive())
-        self.assertTrue(transform.hasAttribute("translateX"))
-        self.assertFalse(transform.hasAttribute("hlibNoSuchAttr"))
+        self.assertTrue(transform.hasAttr("translateX"))
+        self.assertFalse(transform.hasAttr("hlibNoSuchAttr"))
 
         cmds.delete(transform.name())
         self.assertFalse(transform.isValid())
@@ -618,9 +618,9 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_shear_quaternion_euler_and_decompose(self):
         transform = self.create_transform("hlibNodeApiShearQuat")
-        result = transform.setShear((0.1, 0.2, 0.3))
+        result = transform.setShearing((0.1, 0.2, 0.3))
         self.assertIs(result, transform)
-        shear = transform.getShear()
+        shear = transform.getShearing()
         self.assertIsInstance(shear, Shear)
         self.assertAlmostEqual(shear.x, 0.1, places=6)
         self.assertAlmostEqual(shear.y, 0.2, places=6)
@@ -633,20 +633,20 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsInstance(euler, EulerRotation)
         self.assertAlmostEqual(euler.y, math.radians(90.0), places=6)
 
-        matrix = transform.getMatrix(space=MSpace.kWorld)
+        matrix = transform.getMatrix(ws=True)
         self.assertIsInstance(matrix, Matrix)
-        self.assertEqual(matrix, transform.getMatrix(space=MSpace.kWorld))
+        self.assertEqual(matrix, transform.getMatrix(ws=True))
 
     def test_transform_set_matrix_round_trips_matrix_and_rejects_non_matrix(self):
         source = self.create_transform("hlibNodeApiComposeSource")
-        source.setTranslation((1.0, 2.0, 3.0))
+        source.setTranslation((1.0, 2.0, 3.0), at=4)
         source.setRotation((0.0, math.radians(45.0), 0.0))
-        matrix = source.getMatrix(space=MSpace.kWorld)
+        matrix = source.getMatrix(ws=True)
 
         target = self.create_transform("hlibNodeApiComposeTarget")
-        result = target.setMatrix(matrix, space=MSpace.kWorld)
+        result = target.setMatrix(matrix, ws=True)
         self.assertIs(result, target)
-        self.assertTrue(target.getMatrix(space=MSpace.kWorld).isEquivalent(matrix, tolerance=1e-6))
+        self.assertTrue(target.getMatrix(ws=True).isEquivalent(matrix, tolerance=1e-6))
 
         with self.assertRaises(ValueError):
             target.setMatrix((1, 2, 3))
@@ -656,7 +656,7 @@ class NodeApiTest(unittest.TestCase):
         matrix = Matrix(translate=(1.0, 2.0, 3.0))
         result = transform.setMatrix(matrix)
         self.assertIs(result, transform)
-        self.assertEqual(transform.getTranslation(), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(transform.getTranslation(at=4), Translation(1.0, 2.0, 3.0))
 
         # Matrix以外の16要素入力も内部でMatrixへ変換して受け付ける。
         transform.setMatrix((
@@ -665,7 +665,7 @@ class NodeApiTest(unittest.TestCase):
             0.0, 0.0, 1.0, 0.0,
             5.0, 6.0, 7.0, 1.0,
         ))
-        self.assertEqual(transform.getTranslation(), Translation(5.0, 6.0, 7.0))
+        self.assertEqual(transform.getTranslation(at=4), Translation(5.0, 6.0, 7.0))
 
         cmds.delete(transform.name())
         with self.assertRaises(RuntimeError):
@@ -684,14 +684,14 @@ class NodeApiTest(unittest.TestCase):
             cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
             cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
             cmds.setAttr(name + ".scale", 1.0, 2.0, 3.0)
-            world = node.getMatrix(space=MSpace.kWorld)
+            world = node.getMatrix(ws=True)
 
             node.setMatrix(node.getMatrix())
-            self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9), order)
-            node.setMatrix(world, space=MSpace.kWorld)
-            self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9), order)
-            node.setTranslation((4.0, 5.0, 6.0))
-            self.assertTrue(node.getQuaternion(space=MSpace.kWorld).isEquivalent(world.quaternion, 1e-9), order)
+            self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
+            node.setMatrix(world, ws=True)
+            self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
+            node.setTranslation((4.0, 5.0, 6.0), at=4)
+            self.assertTrue(node.getQuaternion(ws=True).isEquivalent(world.quaternion, 1e-9), order)
 
             before = node.getMatrix()
             rotate = node.plug("rotate").get()
@@ -722,20 +722,20 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(matrix.scale.isEquivalent(Vector(*transformation.scale(om2.MSpace.kTransform)), 1e-12))
         self.assertLess(matrix.scale.z, 0.0)
 
-        scale = node.getScale()
+        scale = node.getScaling()
         self.assertIsInstance(scale, Scale)
         self.assertTrue(scale.isEquivalent(Scale(-1.0, 2.0, 3.0), 1e-12))
         rotate = node.getRotation()
         self.assertTrue(rotate.isEquivalent(EulerRotation.fromDegrees(10.0, 20.0, 30.0), 1e-12))
         self.assertTrue(Matrix(rotate=node.getQuaternion(), scale=scale).isEquivalent(matrix, 1e-12))
 
-        world = node.getMatrix(space=MSpace.kWorld)
+        world = node.getMatrix(ws=True)
         for operation in (
             lambda: node.setMatrix(matrix),
-            lambda: node.setMatrix(world, space=MSpace.kWorld),
-            lambda: node.setTranslation((0.0, 0.0, 0.0)),
-            lambda: node.setScale(node.getScale()),
-            lambda: node.setShear(node.getShear()),
+            lambda: node.setMatrix(world, ws=True),
+            lambda: node.setTranslation((0.0, 0.0, 0.0), at=4),
+            lambda: node.setScaling(node.getScaling()),
+            lambda: node.setShearing(node.getShearing()),
             lambda: node.setRotation((10.0, 20.0, 30.0), unit="deg"),
             lambda: node.plug("rotate").set(tuple(node.plug("rotate").get())),
         ):
@@ -744,7 +744,7 @@ class NodeApiTest(unittest.TestCase):
             self.assert_channels(name, (10.0, 20.0, 30.0), (-1.0, 2.0, 3.0))
 
         # スケールだけを変えても rotate は変わらない(ミラーを解除しても姿勢が 180 度回らない)。
-        node.setScale((1.0, 2.0, 3.0))
+        node.setScaling((1.0, 2.0, 3.0))
         self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 2.0, 3.0))
 
     def test_set_scale_writes_the_requested_signs(self):
@@ -771,13 +771,13 @@ class NodeApiTest(unittest.TestCase):
                         if use_plug:
                             node.plug("scale").set(requested)
                         else:
-                            node.setScale(requested)
+                            node.setScaling(requested)
                         label = (kind, use_plug, order, start, requested)
                         for actual, expected in zip(cmds.getAttr(name + ".scale")[0], requested):
                             self.assertAlmostEqual(actual, expected, places=9, msg=label)
                         for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], (10.0, 20.0, 30.0)):
                             self.assertAlmostEqual(actual, expected, places=9, msg=label)
-                        self.assertTrue(node.getScale().isEquivalent(Scale(*requested), 1e-9), label)
+                        self.assertTrue(node.getScaling().isEquivalent(Scale(*requested), 1e-9), label)
                         cmds.delete(name)
 
         # ワールド空間でも、親の行列式が正なら要求した符号の組み合わせになる。
@@ -787,9 +787,9 @@ class NodeApiTest(unittest.TestCase):
         child = self.create_transform("hlibNodeApiScaleSignChild")
         child.setParent(parent)
         cmds.setAttr(child.fullName() + ".rotate", 10.0, 20.0, 30.0)
-        child.setScale((-1.0, 1.0, 1.0), space=MSpace.kWorld)
-        self.assert_channels(child.fullName(), (10.0, 20.0, 30.0), (-0.5, 0.5, 0.5))
-        self.assertTrue(child.getScale(space=MSpace.kWorld).isEquivalent(Scale(-1.0, 1.0, 1.0), 1e-9))
+        child.setScaling((-1.0, 1.0, 1.0), ws=True)
+        self.assert_channels(child.fullName(), (10.0, 20.0, 30.0), (0.5, 0.5, -0.5))
+        self.assertTrue(child.getScaling(ws=True).isEquivalent(Scale(1.0, 1.0, -1.0), 1e-9))
 
         # setMatrix は現在のチャンネルの符号に揃え、合わなければ om2 の規約(Z が負)で書く。
         target = self.create_transform("hlibNodeApiScaleSignMatrix")
@@ -802,7 +802,7 @@ class NodeApiTest(unittest.TestCase):
         name = node.fullName()
         cmds.setAttr(name + ".rotate", 370.0, -20.0, 190.0)
         node.setMatrix(node.getMatrix())
-        node.setTranslation((1.0, 2.0, 3.0))
+        node.setTranslation((1.0, 2.0, 3.0), at=4)
         self.assert_channels(name, (370.0, -20.0, 190.0), (1.0, 1.0, 1.0))
         # 等価な別解 (180+10, 180-(-20), 180+190) を渡しても、現在値に近い解で書く。
         node.setRotation(EulerRotation.fromDegrees(190.0, 200.0, 370.0))
@@ -820,7 +820,7 @@ class NodeApiTest(unittest.TestCase):
             cmds.setAttr(name + ".rotateOrder", order)
             cmds.setAttr(name + ".rotate", 10.0, 20.0, 30.0)
             local = node.getMatrix()
-            world = node.getMatrix(space=MSpace.kWorld)
+            world = node.getMatrix(ws=True)
 
             rotate = node.getRotation()
             self.assertEqual(rotate.order, order)
@@ -830,9 +830,9 @@ class NodeApiTest(unittest.TestCase):
             plug.set(tuple(plug.get()))
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
             node.setRotation(tuple(node.getRotation()))
-            node.setRotation(tuple(node.getRotation(space=MSpace.kWorld)), space=MSpace.kWorld)
-            self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-9), order)
-            node.setRotation(tuple(node.getRotation(space=MSpace.kWorld)), space=MSpace.kWorld)
+            node.setRotation(tuple(node.getRotation(ws=True)), ws=True)
+            self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
+            node.setRotation(tuple(node.getRotation(ws=True)), ws=True)
             self.assertTrue(node.getMatrix().isEquivalent(local, 1e-9), order)
 
             cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
@@ -844,9 +844,9 @@ class NodeApiTest(unittest.TestCase):
 
     def test_om2_function_sets_accept_hlib_maths_values(self):
         node = self.create_transform("hlibNodeApiOm2Values")
-        transformFn = om2.MFnTransform(node.dagPath())
+        transformFn = om2.MFnTransform(node.mpath())
         transformFn.setTranslation(Translation(1.0, 2.0, 3.0), om2.MSpace.kTransform)
-        self.assertEqual(node.getTranslation(), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(node.getTranslation(at=4), Translation(1.0, 2.0, 3.0))
 
         euler = EulerRotation(0.3, -0.2, 0.1, "zyx")
         transformFn.setRotation(euler, om2.MSpace.kTransform)
@@ -855,7 +855,7 @@ class NodeApiTest(unittest.TestCase):
         transformFn.setRotation(quaternion, om2.MSpace.kTransform)
         self.assertTrue(node.getQuaternion().isEquivalent(quaternion, 1e-9))
         transformFn.setScale(Scale(2.0, 3.0, 4.0))
-        self.assertTrue(node.getScale().isEquivalent(Scale(2.0, 3.0, 4.0), 1e-9))
+        self.assertTrue(node.getScaling().isEquivalent(Scale(2.0, 3.0, 4.0), 1e-9))
 
         matrix = Matrix(translate=(5.0, 6.0, 7.0), rotate=EulerRotation(0.1, 0.2, 0.3, "yzx"))
         transformFn.setTransformation(om2.MTransformationMatrix(matrix))
@@ -864,11 +864,11 @@ class NodeApiTest(unittest.TestCase):
         selection = om2.MSelectionList()
         selection.add(node.fullName())
         world = selection.getDagPath(0).inclusiveMatrix()
-        self.assertTrue(node.getMatrix(space=MSpace.kWorld).isEquivalent(world, 1e-12))
-        self.assertTrue((om2.MPoint(1.0, 0.0, 0.0) * node.getMatrix(space=MSpace.kWorld)).isEquivalent(
-            om2.MPoint(node.getMatrix(space=MSpace.kWorld).transformPoint((1.0, 0.0, 0.0))), 1e-12))
+        self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-12))
+        self.assertTrue((om2.MPoint(1.0, 0.0, 0.0) * node.getMatrix(ws=True)).isEquivalent(
+            om2.MPoint(node.getMatrix(ws=True).transformPoint((1.0, 0.0, 0.0))), 1e-12))
 
-        plug = om2.MFnDependencyNode(node.mobject()).findPlug("offsetParentMatrix", False)
+        plug = om2.MFnDependencyNode(node.mnode()).findPlug("offsetParentMatrix", False)
         plug.setMObject(om2.MFnMatrixData().create(Matrix(translate=(10.0, 0.0, 0.0))))
         self.assertEqual(node.plug("offsetParentMatrix").get(), Matrix(translate=(10.0, 0.0, 0.0)))
 
@@ -904,7 +904,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertFalse(source_plug.isSource())
         self.assertFalse(targetPlug.isDestination())
 
-        source_plug.connect(targetPlug)
+        source_plug.connectTo(targetPlug)
         self.assertTrue(source_plug.isConnected())
         self.assertTrue(source_plug.isSource())
         self.assertFalse(source_plug.isDestination())
@@ -912,14 +912,14 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(targetPlug.isDestination())
         self.assertFalse(targetPlug.isSource())
 
-        destinations = source_plug.destinations()
+        destinations = source_plug.destinationsWithConversions()
         self.assertEqual([plug.fullName() for plug in destinations], [targetPlug.fullName()])
 
-        result = source_plug.disconnect()
+        result = source_plug.disconnectAll()
         self.assertIs(result, source_plug)
         self.assertFalse(source_plug.isConnected())
         self.assertFalse(targetPlug.isConnected())
-        self.assertEqual(source_plug.destinations(), [])
+        self.assertEqual(source_plug.destinationsWithConversions(), [])
 
     def test_array_plug_elements_returns_all_existing(self):
         target = self.create_transform("hlibNodeApiArrayElements")
@@ -944,25 +944,25 @@ class NodeApiTest(unittest.TestCase):
 
     def test_user_attribute_names_excludes_compound_children(self):
         node = self.create_transform("hlibNodeApiUserAttrNames")
-        node.addAttribute("attrA", attributeType="double", defaultValue=0.0)
+        node.addAttr("attrA", attributeType="double", defaultValue=0.0)
         cmds.addAttr(node.fullName(), longName="attrCompound", attributeType="double3")
         cmds.addAttr(node.fullName(), longName="attrCompoundX", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.fullName(), longName="attrCompoundY", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.fullName(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
-        node.addAttribute("attrB", attributeType="double", defaultValue=0.0)
+        node.addAttr("attrB", attributeType="double", defaultValue=0.0)
 
         self.assertEqual(node.userAttributeNames(), ["attrA", "attrCompound", "attrB"])
 
     def test_move_attribute_reorders_and_preserves_state_and_connections(self):
         node = self.create_transform("hlibNodeApiMoveAttrNode")
         source = self.create_transform("hlibNodeApiMoveAttrSource")
-        node.addAttribute("attrA", attributeType="double", defaultValue=1.0, keyable=True)
-        node.addAttribute("attrB", attributeType="double", defaultValue=2.0, keyable=True)
-        node.addAttribute("attrC", attributeType="double", defaultValue=3.0, keyable=True)
+        node.addAttr("attrA", attributeType="double", defaultValue=1.0, keyable=True)
+        node.addAttr("attrB", attributeType="double", defaultValue=2.0, keyable=True)
+        node.addAttr("attrC", attributeType="double", defaultValue=3.0, keyable=True)
         node.plug("attrB").set(5.0)
         node.plug("attrB").setFlags(locked=True)
         source.plug("translateX").set(7.0)
-        source.plug("translateX").connect(node.plug("attrC"))
+        source.plug("translateX").connectTo(node.plug("attrC"))
         self.assertEqual(node.userAttributeNames(), ["attrA", "attrB", "attrC"])
 
         result = node.moveAttributeOrder("attrC", -2)
@@ -974,15 +974,15 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(node.plug("attrB").isLocked())
         # attrC は接続で駆動されているため、再作成後も接続元の値がそのまま反映される。
         self.assertEqual(node.plug("attrC").get(), 7.0)
-        reconnected_source = node.plug("attrC").source()
+        reconnected_source = node.plug("attrC").sourceWithConversion()
         self.assertIsNotNone(reconnected_source)
         self.assertEqual(reconnected_source.fullName(), source.plug("translateX").fullName())
 
     def test_move_attribute_supports_enum_and_string_attributes(self):
         node = self.create_transform("hlibNodeApiMoveAttrEnumString")
-        node.addAttribute("attrA", attributeType="double", defaultValue=0.0)
-        node.addAttribute("attrMode", attributeType="enum", enumName="Off:On:Auto", defaultValue=1)
-        node.addAttribute("attrLabel", dataType="string")
+        node.addAttr("attrA", attributeType="double", defaultValue=0.0)
+        node.addAttr("attrMode", attributeType="enum", enumName="Off:On:Auto", defaultValue=1)
+        node.addAttr("attrLabel", dataType="string")
         node.plug("attrMode").set(2)
         node.plug("attrLabel").set("hello world")
 
@@ -990,13 +990,13 @@ class NodeApiTest(unittest.TestCase):
 
         self.assertEqual(node.userAttributeNames(), ["attrA", "attrLabel", "attrMode"])
         self.assertEqual(node.plug("attrMode").get(), 2)
-        self.assertEqual(node.plug("attrMode").enumName(), "Auto")
+        self.assertEqual(node.plug("attrMode").getEnumName(), "Auto")
         self.assertEqual(node.plug("attrLabel").get(), "hello world")
 
     def test_move_attribute_offset_clamps_and_is_a_noop_within_bounds(self):
         node = self.create_transform("hlibNodeApiMoveAttrClamp")
-        node.addAttribute("attrA", attributeType="double", defaultValue=0.0)
-        node.addAttribute("attrB", attributeType="double", defaultValue=0.0)
+        node.addAttr("attrA", attributeType="double", defaultValue=0.0)
+        node.addAttr("attrB", attributeType="double", defaultValue=0.0)
 
         result = node.moveAttributeOrder("attrA", 0)
         self.assertIs(result, node)
@@ -1010,12 +1010,12 @@ class NodeApiTest(unittest.TestCase):
 
     def test_move_attribute_raises_for_unknown_name_and_unsupported_type(self):
         node = self.create_transform("hlibNodeApiMoveAttrErrors")
-        node.addAttribute("attrA", attributeType="double", defaultValue=0.0)
+        node.addAttr("attrA", attributeType="double", defaultValue=0.0)
         cmds.addAttr(node.fullName(), longName="attrCompound", attributeType="double3")
         cmds.addAttr(node.fullName(), longName="attrCompoundX", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.fullName(), longName="attrCompoundY", attributeType="double", parent="attrCompound")
         cmds.addAttr(node.fullName(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
-        node.addAttribute("attrB", attributeType="double", defaultValue=0.0)
+        node.addAttr("attrB", attributeType="double", defaultValue=0.0)
 
         with self.assertRaises(ValueError):
             node.moveAttributeOrder("doesNotExist", 1)
@@ -1047,7 +1047,7 @@ class NodeApiTest(unittest.TestCase):
                 with self.assertRaises(AttributeError) as context:
                     average.plug(path)
                 self.assertIn(str(maximum), str(context.exception))
-                self.assertFalse(average.hasAttribute(path))
+                self.assertFalse(average.hasAttr(path))
         array_plug = average.plug("input1D")
         for index in (-1, maximum + 1, 4294967296):
             with self.subTest(index=index):
@@ -1068,7 +1068,7 @@ class NodeApiTest(unittest.TestCase):
 
         first = self.create_transform("hlibNodeApiPlugOwnerA")
         second = self.create_transform("hlibNodeApiPlugOwnerB")
-        first.addAttribute("hlibDynamic", attributeType="double")
+        first.addAttr("hlibDynamic", attributeType="double")
         for name in ("translateX", "hlibDynamic", "worldMatrix"):
             with self.subTest(attribute=name):
                 mplug = first.plug(name).mplug()

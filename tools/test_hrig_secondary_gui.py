@@ -85,7 +85,7 @@ def main(output_dir=None, finished=None):
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("pose"))
         QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
-        graph = group.plug("poseGraph").source().node
+        graph = group.plug("poseGraph").sourceWithConversion().node()
         check(abs(graph.plug("outputs[2]").get() - 20) < 0.001, "Pose registered value")
         source.plug("rz").set(60)
         yield
@@ -93,11 +93,11 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(rig.root.fullName() + ".hrigEnabled_pose", False)
         yield
         for _ in range(20):
-            if SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").source() is None:
+            if SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").sourceWithConversion() is None:
                 break
             yield
         check(
-            SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").source() is None,
+            SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").sourceWithConversion() is None,
             "Pose Channel disable",
         )
         cmds.undo()
@@ -110,11 +110,11 @@ def main(output_dir=None, finished=None):
         rig.set_lod(0)
         yield
         check(
-            SecondaryLayer._members(group, "blends")[0].plug("inRotateX2").source() is None,
+            SecondaryLayer._members(group, "blends")[0].plug("inRotateX2").sourceWithConversion() is None,
             "LOD drops spring input",
         )
         check(
-            SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").source() is None,
+            SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").sourceWithConversion() is None,
             "LOD drops pose input",
         )
         rig.set_lod(1)
@@ -125,13 +125,13 @@ def main(output_dir=None, finished=None):
         rig = SkirtRig("secondaryDemo")
         group = SecondaryLayer(rig).groups()[0]
         check(
-            group.plug("baked").get() and group.plug("poseGraph").source() is not None,
+            group.plug("baked").get() and group.plug("poseGraph").sourceWithConversion() is not None,
             "Reload cache and pose data",
         )
         cmds.setAttr(rig.root.fullName() + ".hrigEnabled_spring", False)
         yield
         check(
-            SecondaryLayer._members(group, "blends")[0].plug("inRotateX2").source() is None,
+            SecondaryLayer._members(group, "blends")[0].plug("inRotateX2").sourceWithConversion() is None,
             "Reload watchers",
         )
         rig.set_layer_enabled("spring", True)

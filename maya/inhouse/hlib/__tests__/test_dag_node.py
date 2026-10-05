@@ -35,11 +35,11 @@ class DagNodeTest(unittest.TestCase):
         mesh = cmds.createNode("mesh", parent=child)
         root, transform, shape = map(DagNode, (parent, child, mesh))
         self.assertIsNone(root.parentPath())
-        self.assertEqual(transform.parentNode(), root)
-        self.assertEqual(shape.parentNode(), transform)
+        self.assertEqual(transform.parent(), root)
+        self.assertEqual(shape.parent(), transform)
         self.assertEqual(shape.transform(), transform)
         self.assertEqual(transform.transform(), transform)
-        self.assertEqual(shape.dagFn().object(), shape.mobject())
+        self.assertEqual(shape.dagFn().object(), shape.mnode())
 
 
 if __name__ == "__main__":

@@ -76,7 +76,7 @@ class SplineTest(unittest.TestCase):
         before = self.position(rig.joints()[3])
         rig.set_mode("fk")
         handle = rig.graph().member("handle")
-        self.assertIsNone(handle.plug("inCurve").source())
+        self.assertIsNone(handle.plug("inCurve").sourceWithConversion())
         self.assertEqual(handle.plug("nodeState").get(), 2)
         rig.members("fk")[1].plug("rz").set(math.radians(25))
         self.same(self.position(rig.joints()[3]), self.position(rig.members("fk")[3]))
@@ -87,11 +87,11 @@ class SplineTest(unittest.TestCase):
         cmds.redo()
         self.assertEqual(rig.mode(), "ik")
         rig.set_lod(0)
-        self.assertIsNone(handle.plug("inCurve").source())
+        self.assertIsNone(handle.plug("inCurve").sourceWithConversion())
         rig.set_lod(1)
         self.same(self.position(rig.joints()[3]), before)
         rig.set_layer_enabled("spline", False)
-        self.assertIsNone(handle.plug("inCurve").source())
+        self.assertIsNone(handle.plug("inCurve").sourceWithConversion())
 
     def test_transform_units(self):
         """ルートの移動回転・均等scale・単位差を確認する。"""

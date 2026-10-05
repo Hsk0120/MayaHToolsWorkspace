@@ -17,7 +17,12 @@ class CommandNamesTest(unittest.TestCase):
                      timeSlider="getTimeSlider", viewport="getViewport", drivenKey="getDrivenKey")
         hlib.reload()
         for old, new in names.items():
-            self.assertFalse(hasattr(hlib, old), old)
+            if old == "scene":
+                # 旧sceneコマンドは廃止しても、正式なsceneパッケージは公開する。
+                self.assertFalse(callable(hlib.scene))
+                self.assertEqual(hlib.scene.__name__, "hlib.scene")
+            else:
+                self.assertFalse(hasattr(hlib, old), old)
             self.assertFalse(hasattr(hlib.cmds, old), old)
             self.assertFalse((Path(hlib.__file__).parent / 'cmds' / (old + '.py')).exists())
             self.assertIs(getattr(hlib, new), getattr(hlib.cmds, new))

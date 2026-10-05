@@ -1,5 +1,7 @@
 """skinCluster のウェイト操作と joint 削除を支援する。"""
 
+from .._core.flags import flag_aliases
+
 import json
 import math
 from decimal import Decimal, localcontext, ROUND_FLOOR
@@ -46,7 +48,7 @@ class SkinCluster(Node):
         super().__init__(skin_cluster)
         self.mesh = self._mesh()
         self.mesh_path = self._get_dag_path(self.mesh)
-        self.fn = oma2.MFnSkinCluster(self.mobject())
+        self.fn = oma2.MFnSkinCluster(self.mnode())
 
     @classmethod
     @undoChunk("hlib.SkinCluster.bind")
@@ -152,15 +154,16 @@ class SkinCluster(Node):
 
         return DagPose.fromSkinCluster(self)
 
+    @flag_aliases(ws="worldSpace")
     @undoChunk("hlibSkinClusterRestoreBindPose")
-    def restoreBindPose(self, space=MSpace.kWorld):
+    def restoreBindPose(self, worldSpace=True):
         """接続されたポーズの全メンバーを保存姿勢へ復元する。
 
         ポーズを共有する別のskinClusterや、influence以外のメンバーにも影響する。
         ロックや入力接続は解除しない。
 
         Args:
-            space (int): MSpace.kObject/kTransformはローカル、kWorldはワールド空間。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
             SkinCluster: 自身。
@@ -168,11 +171,11 @@ class SkinCluster(Node):
         Raises:
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
-        ws = world_space(space)
+        ws = world_space(worldSpace)
         pose = self.bindPose()
         if pose is None:
             raise RuntimeError(f"No bind pose connected to {self.fullName()}")
-        pose.restore(space=MSpace.kWorld if ws else MSpace.kObject)
+        pose.restore(ws=ws)
         return self
 
     @undoChunk("hlibSkinClusterResetBindPose")
@@ -299,7 +302,7 @@ class SkinCluster(Node):
         # 削除済み influence による配列の穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
         logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
         if is_fast():
-            weights_plug = om2.MFnDependencyNode(self.mobject()).findPlug("weightList", False)
+            weights_plug = om2.MFnDependencyNode(self.mnode()).findPlug("weightList", False)
             edits = []
             for vertex in range(numVertices):
                 row = weights_plug.elementByLogicalIndex(vertex).child(0)
@@ -570,7 +573,7 @@ class SkinCluster(Node):
         settings = [self.plug(attr) for attr in ("maxInfluences", "maintainMaxInfluences")]
         for plug in settings:
             if plug.mplug().isFreeToChange() != om2.MPlug.kFreeToChange:
-                attr = plug.attributeName()
+                attr = plug.longName()
                 raise RuntimeError("Setting is locked or connected: " + attr)
         computed = self._normalized_weights(limit=count) if prune else None
         settings[0].set(count)
@@ -603,7 +606,7 @@ class SkinCluster(Node):
             om2.MDagPath: Transform なら shape へ展開した DAG パス。
         """
         # 名前とインスタンスパスの解決は既存Node/DagNodeの経路を共有する。
-        path = Node(name).dagPath()
+        path = Node(name).mpath()
         if path.node().hasFn(om2.MFn.kTransform):
             path.extendToShape()
         return path
@@ -617,7 +620,7 @@ class SkinCluster(Node):
         Raises:
             IndexError: geometry がない場合。
         """
-        geometries = oma2.MFnGeometryFilter(self.mobject()).getOutputGeometry()
+        geometries = oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()
         if not geometries:
             raise IndexError("This skinCluster has no output geometry")
         return om2.MFnDagNode(geometries[0]).fullPathName()
@@ -733,7 +736,7 @@ class SkinCluster(Node):
         if not names:
             raise ValueError("No influences")
         for node in influences:
-            if node.hasAttribute("lockInfluenceWeights") and node.plug("lockInfluenceWeights").get():
+            if node.hasAttr("lockInfluenceWeights") and node.plug("lockInfluenceWeights").get():
                 raise RuntimeError("Influence is locked: " + node.name())
         path = self.fullName() + ".weightList"
         weight_list = self.plug("weightList").mplug()

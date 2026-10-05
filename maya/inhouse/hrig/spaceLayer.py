@@ -60,7 +60,7 @@ class SpaceLayer:
     @undoTransaction("hrig.SpaceLayer.attach")
     def attach(self):
         """IK Local/World、Pole Local/World/Footの空間切替を追加する。"""
-        if self.rig.root.hasAttribute("targetSpace"):
+        if self.rig.root.hasAttr("targetSpace"):
             return
         layer_set = hlib.createSet(empty=True, name=self.rig.nodeName("spaceSet")).fullName()
         self.rig._bind("spaceSet", layer_set)
@@ -68,7 +68,7 @@ class SpaceLayer:
         self._own([hlib.getNode(layer_set)])
         for role in ("target", "pole"):
             offset = hlib.getNode(self.rig._member(role + "Offset"))
-            parent = offset.parentNode()
+            parent = offset.parent()
             buffer = hlib.createNode(
                 "transform", name=self.rig.nodeName(role + "Space"), parent=parent, skipSelect=True
             )
@@ -81,7 +81,7 @@ class SpaceLayer:
             self.rig._bind(role + "Space", buffer.fullName())
             self._own(switch.nodes())
             control = hlib.getNode(self.rig._member(role))
-            control.addAttribute(
+            control.addAttr(
                 longName="space", attributeType="enum", enumName=":".join(switch.labels())
             )
             control.setAttributeFlags(["space"], keyable=False, channelBox=True)
@@ -90,7 +90,7 @@ class SpaceLayer:
             _lock_group(buffer)
         # 既存のtargetローカル合成へ空間レイヤー分だけ追加する。
         # worldMatrixへ置換せず、リバースフットやSoft IKへ部位空間で渡す。
-        hlib.getPlug(self.rig._member("targetSpace") + ".offsetParentMatrix").connect(
+        hlib.getPlug(self.rig._member("targetSpace") + ".offsetParentMatrix").connectTo(
             self.rig._member("targetMatrix") + ".matrixIn[2]"
         )
 
@@ -126,7 +126,7 @@ class SpaceLayer:
             label (str): 登録済み空間名。
         """
         node = hlib.getNode(self.rig._member(self._role(control)))
-        if node.plug("space").source() is not None:
+        if node.plug("space").sourceWithConversion() is not None:
             raise ValueError("Space is a configuration attribute; remove keys or connections")
         switch = self.switcher(control)
         switch.switch(label)

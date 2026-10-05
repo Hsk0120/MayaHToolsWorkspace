@@ -99,3 +99,12 @@ Maya標準の概念・操作はhlibへ、リグの構成・追従・補正・コ
 - Nodeを保持している場合は `node.plug("translateX").get()` を使い、名前を組み立ててgetPlugで再解決しない。Plugの距離はcmのため、取得後のUI単位からの再変換は不要。
 - 入力だけを解除する場合は `destination.disconnectInput()` を使う。出力接続を維持し、未接続なら何もしない。親の複合接続は親Plugに対して解除する。
 - 許可する接続元、リグの所有範囲、レイヤーの有効判定はhrigで決める。検証や切断のためだけにMPlugへ降りず、既存の公開Plug APIを使用する。
+
+
+## コントローラ形状の差し替え
+
+`ControlShape.replaceCurves(target, points, knots, degree=1, name="ctrlCurve")` は
+既存Transformを維持して直下のNURBSカーブを差し替え、Transformを返す。
+点列はMayaの現在の距離単位で指定する。既存のTRSとカーブ以外のシェイプを保持し、
+一連の変更は1回のUndoで戻せる。旧カーブのアトリビュートや接続は移送しない。
+プリセットの寸法・カテゴリ・UIでの選択判断はHTools側に置き、作成処理を共用する。

@@ -43,7 +43,7 @@ def _items(value):
 def _signature(shape):
     """位置に依存しないトポロジー情報。頂点番号対応を検証する。"""
     from maya.api import OpenMaya as om
-    path = om.MDagPath(_node(shape).dagPath())
+    path = om.MDagPath(_node(shape).mpath())
     if path.node().hasFn(om.MFn.kTransform):
         path.extendToShape()
     if path.node().hasFn(om.MFn.kMesh):

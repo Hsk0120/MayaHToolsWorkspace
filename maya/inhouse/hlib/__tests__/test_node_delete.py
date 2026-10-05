@@ -52,7 +52,7 @@ class NodeDeleteTest(unittest.TestCase):
         self.assertTrue(child.isValid())
         cmds.undo()
         self.assertTrue(joint.isValid())
-        self.assertEqual(child.parentNode().uuid(), joint.uuid())
+        self.assertEqual(child.parent().uuid(), joint.uuid())
 
     def test_components_mixed_with_node_and_wildcard(self):
         mesh = hlib.createPolygon(ch=False)

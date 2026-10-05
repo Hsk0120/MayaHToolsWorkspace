@@ -28,7 +28,7 @@ class FollowLayer:
             dict[str, Node]: IDと設定グループ。
         """
         root = self.rig.root
-        if not root.hasAttribute("followGroups"):
+        if not root.hasAttr("followGroups"):
             return {}
         return {
             node.plug("followId").get(): node
@@ -46,7 +46,7 @@ class FollowLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple(group.plug("joint").source().node.fullName() for group in selected)
+        return tuple(group.plug("joint").sourceWithConversion().node().fullName() for group in selected)
 
     @undoTransaction("hrig.FollowLayer.add")
     def add(self, identifier, joint, mode="full", axis="x", ratio=0.5):
@@ -92,9 +92,9 @@ class FollowLayer:
             joint, name=stem + "_graph", mode=mode, axis=axis, ratio=ratio
         )
         group = hlib.createNode("transform", name=stem + "_grp", parent=parent, skipSelect=True)
-        group.addAttribute(longName="followId", dataType="string").set(identifier)
-        group.addAttribute(longName="axis", dataType="string").set(axis)
-        group.addAttribute(
+        group.addAttr(longName="followId", dataType="string").set(identifier)
+        group.addAttr(longName="axis", dataType="string").set(axis)
+        group.addAttr(
             longName="ratio",
             attributeType="double",
             defaultValue=ratio,
@@ -102,7 +102,7 @@ class FollowLayer:
             maxValue=1,
             keyable=True,
         )
-        group.addAttribute(
+        group.addAttr(
             longName="followMode",
             attributeType="enum",
             enumName="Full:Twist:Swing",
@@ -110,7 +110,7 @@ class FollowLayer:
         )
         group.setAttributeFlags(["followMode"], channelBox=True)
         for attr in ("ratio", "followMode"):
-            group.plug(attr).connect(graph.container.plug(attr))
+            group.plug(attr).connectTo(graph.container.plug(attr))
         group.setAttributeFlags(["followId", "axis"], locked=True)
         bone = hlib.createNode("joint", name=stem + "_jnt", parent=group, skipSelect=True)
         bone.plug("segmentScaleCompensate").set(False)
@@ -118,14 +118,14 @@ class FollowLayer:
         bone.plug("overrideEnabled").set(True)
         bone.plug("overrideColor").set(13)
         for attr, node in (("joint", bone), ("graph", graph.container), ("sourceJoint", joint)):
-            group.addAttribute(longName=attr, attributeType="message")
-            node.plug("message").connect(group.plug(attr))
+            group.addAttr(longName=attr, attributeType="message")
+            node.plug("message").connectTo(group.plug(attr))
         root = self.rig.root
         for attr in ("followGroups", "hrigOwned"):
-            if not root.hasAttribute(attr):
-                root.addAttribute(longName=attr, attributeType="message", multi=True)
-        if not root.hasAttribute("hrigEnabled_follow"):
-            root.addAttribute(longName="hrigEnabled_follow", attributeType="bool", defaultValue=True)
+            if not root.hasAttr(attr):
+                root.addAttr(longName=attr, attributeType="message", multi=True)
+        if not root.hasAttr("hrigEnabled_follow"):
+            root.addAttr(longName="hrigEnabled_follow", attributeType="bool", defaultValue=True)
         for attr, nodes in (("followGroups", (group,)), ("hrigOwned", (group, graph.container))):
             for node in nodes:
                 root.plug(attr).appendMessage(node)
@@ -150,17 +150,17 @@ class FollowLayer:
         """Enabled/LODに応じて出力を切断し、基準姿勢へ戻す。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("follow")
         for group in self.groups().values():
-            graph = group.plug("graph").source().node
-            target = group.plug("joint").source().node.plug("offsetParentMatrix")
-            source = target.source()
+            graph = group.plug("graph").sourceWithConversion().node()
+            target = group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix")
+            source = target.sourceWithConversion()
             output = graph.plug("matrix")
             if source is not None and source.mplug() != output.mplug():
                 raise ValueError("Follow output was replaced")
             if active and source is None:
-                output.connect(target)
+                output.connectTo(target)
             elif not active:
                 if source is not None:
-                    source.disconnect(target)
+                    target.disconnect(source)
                 target.set(graph.plug("restMatrix").get())
             graph.plug("nodeState").set(0 if active else 2)
             group.plug("visibility").set(active)

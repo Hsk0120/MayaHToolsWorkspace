@@ -45,7 +45,7 @@ def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False
         for plug in cycle.plugs:
             try:
                 names.append(plug.fullName())
-                node = plug.node
+                node = plug.node()
                 nodes[node.name()] = node.type()
                 part = Cycle([plug])
                 connections.update((a.fullName(), b.fullName()) for a, b in part.getConnections())

@@ -135,7 +135,7 @@ class Selection:
                 node = (
                     item
                     if isinstance(item, Node)
-                    else item.shape if isinstance(item, Component) else item.node
+                    else item.shape if isinstance(item, Component) else item.node()
                 )
                 result.setdefault(node.fullName(), node)
         return list(result.values())

@@ -54,7 +54,7 @@ def main(output_dir=None, finished=None):
         common_owner = hlib.events.ScriptJobs()
         external_owner = hlib.events.ScriptJobs()
         probe = hlib.createNode('transform', name='eventProbe', skipSelect=True)
-        probe.addAttribute('setting', attributeType='long', defaultValue=0)
+        probe.addAttr('setting', attributeType='long', defaultValue=0)
         observed = []
         external = external_owner.add('external', event='SelectionChanged', callback=lambda: None)
         try:

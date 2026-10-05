@@ -16,7 +16,7 @@ class Camera(Shape):
         Returns:
             om2.MFnCamera: この camera の function set。
         """
-        return om2.MFnCamera(self.dagPath())
+        return om2.MFnCamera(self.mpath())
 
     def getFocalLength(self):
         """焦点距離を取得する。

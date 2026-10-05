@@ -79,13 +79,13 @@ def main(output_dir=None, finished=None):
         after = cmds.xform(rig.joints()[3], query=True, worldSpace=True, translation=True)
         check(max(abs(a - b) for a, b in zip(before, after)) < 0.001, "IK to FK match")
         check(
-            rig.graph().member("handle").plug("inCurve").source() is None, "FK disconnects solver"
+            rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None, "FK disconnects solver"
         )
         cmds.undo()
         yield
         check(
             rig.mode() == "ik"
-            and rig.graph().member("handle").plug("inCurve").source() is not None,
+            and rig.graph().member("handle").plug("inCurve").sourceWithConversion() is not None,
             "Mode Undo",
         )
         cmds.redo()
@@ -97,7 +97,7 @@ def main(output_dir=None, finished=None):
         yield
         check(
             not rig.layer_enabled()
-            and rig.graph().member("handle").plug("inCurve").source() is None,
+            and rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None,
             "Layer checkbox",
         )
         cmds.undo()
@@ -106,10 +106,10 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(rig.root.fullName() + ".lod", 0)
         for _ in range(20):
             yield
-            if rig.graph().member("handle").plug("inCurve").source() is None:
+            if rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None:
                 break
         check(
-            rig.graph().member("handle").plug("inCurve").source() is None,
+            rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None,
             "Channel LOD disables solver",
         )
         cmds.undo()
@@ -123,10 +123,10 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(rig.root.fullName() + ".mode", 0)
         for _ in range(20):
             yield
-            if rig.graph().member("handle").plug("inCurve").source() is None:
+            if rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None:
                 break
         check(
-            rig.graph().member("handle").plug("inCurve").source() is None,
+            rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None,
             "Reload restores watchers",
         )
         rig.set_mode("ik")

@@ -108,6 +108,6 @@ class ScalarGraph:
         """
         destination = Plug._resolve_input(destination)
         if isinstance(value, (str, Plug)):
-            Plug._resolve_input(value).connect(destination)
+            Plug._resolve_input(value).connectTo(destination)
         else:
             destination.set(value)

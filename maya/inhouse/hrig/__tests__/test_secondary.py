@@ -74,7 +74,7 @@ class SecondaryTest(unittest.TestCase):
             cmds.keyframe(self.source.fullName(), attribute="rx", query=True, valueChange=True),
         )
         self.rig.set_lod(0)
-        self.assertIsNone(layer._members(group, "blends")[0].plug("inRotateX2").source())
+        self.assertIsNone(layer._members(group, "blends")[0].plug("inRotateX2").sourceWithConversion())
         self.rig.set_lod(1)
         self.same(self.matrix(target), self.matrix(self.rig.chains()[0][0]))
         cmds.evaluationManager(mode="off")
@@ -85,7 +85,7 @@ class SecondaryTest(unittest.TestCase):
         SampleBuilder.layer(self.rig, "pose")
         layer = SecondaryLayer(self.rig)
         group = layer.groups()[0]
-        graph = group.plug("poseGraph").source().node
+        graph = group.plug("poseGraph").sourceWithConversion().node()
         cmds.currentTime(24)
         self.assertAlmostEqual(graph.plug("outputs[2]").get(), 20, places=4)
         self.source.plug("rz").set(math.radians(60))

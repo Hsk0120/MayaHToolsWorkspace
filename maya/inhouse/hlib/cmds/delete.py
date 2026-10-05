@@ -12,7 +12,7 @@ Synopsis
 
 Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya.cmds.delete`` へ
 アトリビュート名を渡してもエラーを表示するだけで何も削除しないためです。動的アトリビュートの削除は
-``plug.deleteAttribute()``、配列要素の削除は ``array_plug.removeElement(i)``、接続の解除は
+``plug.delete()``、配列要素の削除は ``array_plug.removeElement(i)``、接続の解除は
 ``plug.disconnect()``、アトリビュートの所有ノードの削除は ``hlib.delete(plug.node)`` を使ってください。
 文字列は解決せずにそのまま渡すため、``"node.attribute"`` 形式の文字列は ``maya.cmds.delete`` と
 同じ扱いです。

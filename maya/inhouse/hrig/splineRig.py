@@ -27,7 +27,7 @@ class SplineRig:
             root (str | Node): モジュールルート。
         """
         self.root = hlib.getNode(root)
-        if not self.root.hasAttribute("hrigSplineDefinition"):
+        if not self.root.hasAttr("hrigSplineDefinition"):
             raise ValueError("Not an hrig spline module")
 
     @classmethod
@@ -58,7 +58,7 @@ class SplineRig:
         if axis not in ("x", "y", "z") or not math.isfinite(length) or length <= 0:
             raise ValueError("Use axis x/y/z and a positive finite length")
         root = hlib.createNode("transform", name=name, skipSelect=True)
-        root.addAttribute(longName="hrigSplineDefinition", dataType="string").set(
+        root.addAttr(longName="hrigSplineDefinition", dataType="string").set(
             hlib.json.JsonText.dumps(
                 dict(
                     version=1,
@@ -71,21 +71,21 @@ class SplineRig:
         )
         root.setAttributeFlags(["hrigSplineDefinition"], locked=True)
         for attr in ("fk", "ik", "deform", "controls"):
-            root.addAttribute(longName=attr, attributeType="message", multi=True)
+            root.addAttr(longName=attr, attributeType="message", multi=True)
         for attr in ("graph", "fkGroup", "ikGroup", "deformGroup", "controlGroup", "setupGroup"):
-            root.addAttribute(longName=attr, attributeType="message")
+            root.addAttr(longName=attr, attributeType="message")
         for attr, labels, value in (("mode", "FK:SplineIK", 1), ("lod", "Low:Full", 1)):
-            root.addAttribute(
+            root.addAttr(
                 longName=attr, attributeType="enum", enumName=labels, defaultValue=value
             )
-        root.addAttribute(longName="enabled", attributeType="bool", defaultValue=True)
+        root.addAttr(longName="enabled", attributeType="bool", defaultValue=True)
         root.setAttributeFlags(["mode", "lod", "enabled"], channelBox=True)
         groups = {}
         for role in ("fk", "ik", "deform", "control", "setup"):
             group = hlib.createNode(
                 "transform", name=name + "_" + role + "_grp", parent=root, skipSelect=True
             )
-            group.plug("message").connect(root.plug(role + "Group"))
+            group.plug("message").connectTo(root.plug(role + "Group"))
             group.setAttributeFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
             groups[role] = group
         groups["ik"].plug("visibility").set(False)
@@ -106,7 +106,7 @@ class SplineRig:
                 joint.plug("jointOrient").set(orient if i == 0 else (0, 0, 0))
                 joint.plug("segmentScaleCompensate").set(False)
                 joint.plug("radius").set(0.2)
-                joint.plug("message").connect(root.plug("{}[{}]".format(role, i)))
+                joint.plug("message").connectTo(root.plug("{}[{}]".format(role, i)))
                 if role == "fk":
                     cls._shape(joint, length * 0.035, (1, 0, 0), 17)
                     joint.setAttributeFlags(["scale", "visibility"], locked=True, keyable=False)
@@ -135,7 +135,7 @@ class SplineRig:
             if i not in (0, control_count - 1):
                 control.setAttributeFlags(["rotate"], locked=True, keyable=False)
             offset.setAttributeFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
-            control.plug("message").connect(root.plug("controls[{}]".format(i)))
+            control.plug("message").connectTo(root.plug("controls[{}]".format(i)))
         graph = SplineIK.create(
             rig.members("ik"),
             rig.controls(),
@@ -143,7 +143,7 @@ class SplineRig:
             name + "_splineGraph",
             "y" if axis == "z" else "z",
         )
-        graph.container.plug("message").connect(root.plug("graph"))
+        graph.container.plug("message").connectTo(root.plug("graph"))
         rig.update()
         from .channel_controls import install
 
@@ -199,7 +199,7 @@ class SplineRig:
         Returns:
             SplineIK: 保存済みグラフ。
         """
-        return SplineIK(self.root.plug("graph").source().node)
+        return SplineIK(self.root.plug("graph").sourceWithConversion().node())
 
     def mode(self):
         """選択モードを取得する。
@@ -227,7 +227,7 @@ class SplineRig:
             bool: 使用設定。
         """
         if layer == "stretch":
-            return self.root.hasAttribute("hrigEnabled_stretch") and bool(
+            return self.root.hasAttr("hrigEnabled_stretch") and bool(
                 self.root.plug("hrigEnabled_stretch").get()
             )
         if layer != "spline":
@@ -313,7 +313,7 @@ class SplineRig:
         if self.lod() != 1 or not self.layer_enabled():
             raise ValueError("Enable Spline and Full LOD before matching")
         joints = self.members("deform")
-        matrices = [Matrix(n.getMatrix(space=MSpace.kWorld)) for n in joints]
+        matrices = [Matrix(n.getMatrix(ws=True)) for n in joints]
         points = [[m[12], m[13], m[14]] for m in matrices]
         controls = self.controls()
         cvs = CurveFit.fit(points, len(controls))
@@ -334,7 +334,7 @@ class SplineRig:
                     ]
                 ][0]
             )
-            parent_inverse = Matrix(parent.getMatrix(space=MSpace.kWorld)).inverse()
+            parent_inverse = Matrix(parent.getMatrix(ws=True)).inverse()
             local = parent_inverse.transformPoint(point)
             for a, value in zip("XYZ", (local.x, local.y, local.z)):
                 control.plug("translate" + a).set(value)
@@ -350,7 +350,7 @@ class SplineRig:
             self.set_mode("ik")
             errors = []
             for target, joint in zip(points, joints):
-                matrix = joint.getMatrix(space=MSpace.kWorld)
+                matrix = joint.getMatrix(ws=True)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
             error = hlib.utils.units.distanceToUi(max(errors))
         finally:
@@ -382,7 +382,7 @@ class SplineRig:
             enabled (bool): 使用設定。
         """
         self.layer_enabled(layer)
-        if layer == "stretch" and not self.root.hasAttribute("hrigEnabled_stretch"):
+        if layer == "stretch" and not self.root.hasAttr("hrigEnabled_stretch"):
             raise ValueError("Add the stretch layer first")
         self.root.plug("hrigEnabled_stretch" if layer == "stretch" else "enabled").set(
             bool(enabled)
@@ -398,11 +398,11 @@ class SplineRig:
         for source, joint in zip(sources, self.members("deform")):
             for attr in ("translate", "rotate"):
                 target = joint.plug(attr)
-                if target.source() is not None:
-                    target.source().disconnect(target)
-                source.plug(attr).connect(target)
-        self.root.plug("fkGroup").source().node.plug("visibility").set(not active)
-        self.root.plug("controlGroup").source().node.plug("visibility").set(active)
+                if target.sourceWithConversion() is not None:
+                    target.disconnect(target.sourceWithConversion())
+                source.plug(attr).connectTo(target)
+        self.root.plug("fkGroup").sourceWithConversion().node().plug("visibility").set(not active)
+        self.root.plug("controlGroup").sourceWithConversion().node().plug("visibility").set(active)
         from .splineStretchLayer import SplineStretchLayer
 
         SplineStretchLayer(self).update()
@@ -428,7 +428,7 @@ class SplineRig:
                 continue
             jobs = hlib.events.ScriptJobs()
             attrs = ["mode", "lod", "enabled"]
-            if rig.root.hasAttribute("hrigEnabled_stretch"):
+            if rig.root.hasAttr("hrigEnabled_stretch"):
                 attrs.append("hrigEnabled_stretch")
             for name in attrs:
                 jobs.add(
@@ -454,7 +454,7 @@ class SplineRig:
         try:
             rig = cls(roots[0])
             expected = rig.members("ik" if rig.active() else "fk")[0].plug("rotate")
-            actual = rig.members("deform")[0].plug("rotate").source()
+            actual = rig.members("deform")[0].plug("rotate").sourceWithConversion()
             from .splineStretchLayer import SplineStretchLayer
 
             if (
@@ -475,6 +475,6 @@ class SplineRig:
 
         settings = SplineStretchLayer(self).settings()
         if settings is not None:
-            hlib.delete(settings.plug("graph").source().node)
+            hlib.delete(settings.plug("graph").sourceWithConversion().node())
         hlib.delete(self.graph().container)
         hlib.delete(self.root)

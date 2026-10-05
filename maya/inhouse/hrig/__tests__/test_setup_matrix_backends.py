@@ -39,7 +39,7 @@ class BifrostMatrixFollowTest(shared.MatrixFollowTest):
         cmds.undoInfo(state=True)
         with self.assertRaisesRegex(RuntimeError, "Undo disabled"):
             MatrixFollow.create(self.source, self.target)
-        self.assertIsNone(self.target.plug("offsetParentMatrix").source())
+        self.assertIsNone(self.target.plug("offsetParentMatrix").sourceWithConversion())
 
     def test_reject_gui(self):
         """Undoを無効にしていても通常GUIからの構築を拒否する。"""

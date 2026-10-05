@@ -30,4 +30,4 @@ class Cluster(Node):
         Returns:
             list[Node]: 変形対象の shape。無ければ空リスト。
         """
-        return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mobject()).getOutputGeometry()]
+        return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]

@@ -42,7 +42,7 @@ class InfluencesColorsTest(unittest.TestCase):
                     cmds.setAttr(name + ".maintainMaxInfluences", obey)
                     cmds.setAttr(name + ".maxInfluences", 2)
                     before = [[cmds.skinPercent(name, v, query=True, transform=j.fullName()) for j in joints[:2]] for v in vertices]
-                    indices = [skin.fn.indexForInfluenceObject(j.dagPath()) for j in joints[:2]]
+                    indices = [skin.fn.indexForInfluenceObject(j.mpath()) for j in joints[:2]]
                     raw = [[cmds.getAttr(f"{name}.weightList[{v}].weights[{i}]") for i in indices] for v in range(len(vertices))]
                     skin.addInfluences([joints[2], joints[3], joints[2], joints[0]])
                     for i, v in enumerate(vertices):

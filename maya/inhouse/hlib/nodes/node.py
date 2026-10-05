@@ -2,6 +2,7 @@
 
 import contextlib
 import inspect
+import re
 from typing import Any
 
 import maya.api.OpenMaya as om2
@@ -109,7 +110,7 @@ def _resolve_node(node):
         error = _InputPlug._deleted_attribute_error(node)
         if error is not None:
             raise error
-        return _resolve_node(node.node)
+        return _resolve_node(node.node())
     if isinstance(node, (Component, Components)):
         return _resolve_node(node.shape)
     raise TypeError(
@@ -180,7 +181,7 @@ def _dump_movable_attr(plug):
         plug (Plug): ダンプ対象の動的アトリビュートプラグ。
 
     Returns:
-        dict: addAttribute() での再作成と値・状態の復元に必要な情報。
+        dict: addAttr() での再作成と値・状態の復元に必要な情報。
 
     Raises:
         TypeError: 複合・配列アトリビュート、または対応しないアトリビュート型の場合。
@@ -189,15 +190,15 @@ def _dump_movable_attr(plug):
         raise TypeError(f"Cannot reorder compound or array attributes: {plug.fullName()}")
     attr = plug.mplug().attribute()
     info = {
-        "longName": plug.attributeName(),
+        "longName": plug.longName(),
         "niceName": plug.niceName(),
         "hidden": plug.isHidden(),
         "keyable": plug.isKeyable(),
         "channelBox": bool(cmds.getAttr(plug.fullName(), channelBox=True)),
         "locked": plug.isLocked(),
         "value": plug.get(),
-        "source": plug.source(),
-        "destinations": plug.destinations(),
+        "source": plug.sourceWithConversion(),
+        "destinations": plug.destinationsWithConversions(),
     }
     if attr.hasFn(om2.MFn.kNumericAttribute):
         numeric_type = om2.MFnNumericAttribute(attr).numericType()
@@ -212,7 +213,7 @@ def _dump_movable_attr(plug):
         info["defaultValue"] = plug.default()
     elif attr.hasFn(om2.MFn.kEnumAttribute):
         info["attributeType"] = "enum"
-        info["enumName"] = cmds.attributeQuery(plug.attributeName(), node=plug.node.fullName(), listEnum=True)[0]
+        info["enumName"] = cmds.attributeQuery(plug.longName(), node=plug.node().fullName(), listEnum=True)[0]
         info["defaultValue"] = plug.default()
     elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
         info["dataType"] = "string"
@@ -240,7 +241,7 @@ def _create_movable_attr(node, info):
         kwargs["maxValue"] = info["max"]
     if "enumName" in info:
         kwargs["enumName"] = info["enumName"]
-    plug = node.addAttribute(
+    plug = node.addAttr(
         info["longName"],
         attributeType=info.get("attributeType"),
         dataType=info.get("dataType"),
@@ -252,9 +253,9 @@ def _create_movable_attr(node, info):
     if not info["keyable"]:
         plug.setFlags(channelBox=info["channelBox"])
     if info["source"] is not None:
-        info["source"].connect(plug)
+        info["source"].connectTo(plug)
     for destination in info["destinations"]:
-        plug.connect(destination)
+        plug.connectTo(destination)
     if info["locked"]:
         plug.setFlags(locked=True)
     return plug
@@ -530,7 +531,7 @@ class Node(Object):
         handle = self._handle
         return handle is not None and handle.isAlive()
 
-    def mobject(self):
+    def mnode(self):
         """保持している Maya API 2.0 MObject を返す。
 
         Returns:
@@ -605,7 +606,7 @@ class Node(Object):
         """
         return om2.MFnDependencyNode(self._mobject).isLocked
 
-    def isReferenced(self):
+    def isFromReferencedFile(self):
         """ノードが参照ファイルから読み込まれたものか判定する。
 
         Returns:
@@ -805,12 +806,12 @@ class Node(Object):
         cmds.delete(self.fullName())
 
     @undoChunk("hlibNodeRename")
-    def rename(self, name, ignore_shape=False):
+    def rename(self, name, ignoreShape=False):
         """ノード名を変更し、変更後の名前を返す。
 
         Args:
             name (str): 新しいノード名。
-            ignore_shape (bool): ``True`` の場合はShapeの名前変更を抑制する。
+            ignoreShape (bool): ``True`` の場合はShapeの名前変更を抑制する。
 
         Returns:
             str: Mayaが確定した変更後のノード名。
@@ -818,51 +819,52 @@ class Node(Object):
         Raises:
             RuntimeError: ノード名を変更できない場合。
         """
-        return cmds.rename(self.name(), name, ignoreShape=ignore_shape)
+        return cmds.rename(self.name(), name, ignoreShape=ignoreShape)
 
-    def inputs(self, type=None):
-        """このノードへ入力する接続元Plugを返す。
+    def inputs(self, **kwargs):
+        """list: 入力側の接続を返す。引数はconnectionsと共通。"""
+        return self.connections(True, False, **kwargs)
 
-        Args:
-            type (str | None): 指定した場合、接続元ノードの nodeType で絞り込む
-                (継承チェーンも判定。例: ``type="animCurve"``)。
+    def outputs(self, **kwargs):
+        """list: 出力側の接続を返す。引数はconnectionsと共通。"""
+        return self.connections(False, True, **kwargs)
 
-        Returns:
-            list[Plug]: 入力元の外部プラグ。同じノードの同じアトリビュートは1件にまとめる。接続がなければ空リスト。
-        """
-        return self._connected_plugs(True, False, type=type)
-
-    def outputs(self, type=None):
-        """このノードから出力する接続先Plugを返す。
-
-        Args:
-            type (str | None): 指定した場合、接続先ノードの nodeType で絞り込む
-                (継承チェーンも判定)。
-
-        Returns:
-            list[Plug]: 出力先の外部プラグ。同じノードの同じアトリビュートは1件にまとめる。接続がなければ空リスト。
-        """
-        return self._connected_plugs(False, True, type=type)
-
-    def connections(self, type=None):
-        """このノードに接続された外部Plugを返す。
+    def connections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
+                    source=True, destination=True, connections=False,
+                    type=None, exactType=False, skipConversionNodes=False,
+                    asPair=False, asNode=False, index=None, pcls=None):
+        """接続をPlug・Node・ペアとして照会する。
 
         Args:
-            type (str | None): 指定した場合、接続先ノードの nodeType で絞り込む
-                (継承チェーンも判定)。
-
+            s (bool): 入力を含める。sourceとANDする。
+            d (bool): 出力を含める。destinationとANDする。
+            c (bool): ペア指定の短縮名。
+            t (str | None): typeの短縮名。
+            et (bool): exactTypeの短縮名。
+            scn (bool): skipConversionNodesの短縮名。
+            source (bool): 入力を含める。
+            destination (bool): 出力を含める。
+            connections (bool): 自身側と相手側のペアを返す。
+            type (str | None): 接続先ノード型。
+            exactType (bool): 型名の完全一致で絞る。
+            skipConversionNodes (bool): unitConversion系を飛ばす。
+            asPair (bool): 自身側Plugと相手側のペアを返す。
+            asNode (bool): 相手側をNodeで返す。
+            index (int | None): 結果の一件。範囲外はNone。
+            pcls (type | None): 返すPlugクラス。
         Returns:
-            list[Plug]: 入力元と出力先の外部プラグ。一意なプラグ名(``fullName()``)で
-                重複を除外する。接続がなければ空リスト。
+            list | Plug | Node | tuple | None: 条件に合う結果。
         """
-        plugs = []
-        seen = set()
-        for plug in self.inputs(type=type) + self.outputs(type=type):
-            if plug.fullName() in seen:
-                continue
-            seen.add(plug.fullName())
-            plugs.append(plug)
-        return plugs
+        from ..plugs.plug import Plug
+        pairs = []
+        for mp in self._dependency_fn().getConnections():
+            local = Plug(self, mp)
+            pairs.extend(local.connections(s, d, source=source, destination=destination,
+                         scn=scn or skipConversionNodes, asPair=True,
+                         checkChildren=False, checkElements=False))
+        return Plug._connection_results(pairs, type or t, exactType or et,
+                                       asPair or c or connections, asNode, index, pcls)
+
 
     def history(self, type=None, future=False):
         """構築履歴を検索し、対応するノードラッパーを返す。
@@ -994,82 +996,119 @@ class Node(Object):
         return [(alias, self.plug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
     @undoChunk("hlibNodeAddAttr")
-    def addAttribute(
-        self,
-        longName,
-        attributeType=None,
-        dataType=None,
-        defaultValue=None,
-        **kwargs,
-    ):
-        """アトリビュートを追加し、追加したPlugを返す。
-
-        attributeTypeがdouble2/double3/float2/float3ならXYZの子も自動作成する。
-        任意構成のcompoundはMaya標準addAttrで子まで定義してからplugで取得する。
+    def addAttr(self, longName="", type=None, subType=None, channelBox=False,
+                childNames=None, childShortNames=None, childSuffixes=None,
+                proxy=None, getPlug=True, **kwargs):
+        """cymel形式の引数でアトリビュートを追加する。
 
         Args:
-            longName (str): 追加するアトリビュートのロング名。
-            attributeType (str | None): addAttr の attributeType。dataType と少なくとも一方が必要。
-            dataType (str | None): addAttr の dataType。
-            defaultValue (object | None): 初期値。単位型はcm/rad/秒またはAPIの単位型。
-                Noneなら指定しない。timeのdefaultValueはMayaのaddAttrの制限に従う。
-            **kwargs (object): addAttrへ渡す長名・短名フラグ。重複指定は拒否する。
-                minValue/maxValue/softMinValue/softMaxValueも内部単位で受け取る。
-
+            longName (str): ロング名。lnまたはsnだけの指定も可能。
+            type (str | None): 型名。at:/dt:接頭辞も可。省略時double。
+            subType (str | None): 自動生成する子の共通型。
+            channelBox (bool): チャンネルボックス表示。cbでも指定可能。
+            childNames (Sequence[str] | None): 子のロング名。
+            childShortNames (Sequence[str] | None): 子のショート名。
+            childSuffixes (Sequence[str] | None): 親名へ付加する子の接尾辞。
+            proxy (Plug | str | None): プロキシの元アトリビュート。
+            getPlug (bool): 既定はTrueで追加したPlugを返す。FalseならNone。
+            **kwargs: Mayaの長名・短名フラグ。値・制限は内部単位。
         Returns:
-            Plug: 追加したアトリビュートの型に対応するプラグ。
-
-        Raises:
-            ValueError: longName が空または文字列以外、あるいはアトリビュート型の指定がない場合。
-            RuntimeError: Maya がアトリビュート追加を拒否した場合。
+            Plug | None: 追加したPlug。getPlug=Falseを明示した場合のみNone。
         """
-        if not isinstance(longName, str) or not longName:
-            raise ValueError("longName must be a non-empty string")
         from .._core.flags import normalize_flags
-        add_kwargs = normalize_flags("addAttr", kwargs)
-        if add_kwargs.get("query") or add_kwargs.get("edit"):
+        from ..plugs.plug import Plug
+        flags = {key: value for key, value in normalize_flags("addAttr", kwargs).items()
+                 if value is not None}
+        if flags.get("query") or flags.get("edit"):
             raise ValueError("addAttr supports creation only")
-        if "longName" in add_kwargs:
-            raise TypeError("longName and ln cannot be specified together")
-        add_kwargs["longName"] = longName
-        if attributeType is not None:
-            if "attributeType" in add_kwargs:
-                raise TypeError("Specify attributeType or at, not both")
-            add_kwargs["attributeType"] = attributeType
-        if dataType is not None:
-            if "dataType" in add_kwargs:
-                raise TypeError("Specify dataType or dt, not both")
-            add_kwargs["dataType"] = dataType
-        if defaultValue is not None:
-            if "defaultValue" in add_kwargs:
-                raise TypeError("Specify defaultValue or dv, not both")
-            add_kwargs["defaultValue"] = defaultValue
-        if not (add_kwargs.get("attributeType") or add_kwargs.get("dataType")):
-            raise ValueError("attributeType or dataType is required")
-        unit_type = {
-            "doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
-            "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
-            "time": (om2.MTime, om2.MTime.kSeconds),
-        }.get(add_kwargs.get("attributeType"))
-        if unit_type:
-            cls, internal = unit_type
+        if longName:
+            if "longName" in flags:
+                raise TypeError("Specify longName or ln, not both")
+            flags["longName"] = longName
+        name = flags.get("longName") or flags.get("shortName")
+        if not isinstance(name, str) or not name:
+            raise ValueError("Specify longName or shortName")
+        show = channelBox or flags.pop("channelBox", False)
+        proxy = proxy or flags.pop("proxy", None)
+        if proxy is not None:
+            proxy = Plug._resolve_input(proxy)
+            type = proxy.dataType()
+            flags["usedAsProxy"] = True
+        if type is not None:
+            flags.pop("attributeType", None)
+            flags.pop("dataType", None)
+            prefix, separator, kind = type.partition(":")
+            if separator:
+                if prefix not in ("at", "dt"):
+                    raise ValueError("Expected at: or dt: type prefix")
+                key = "attributeType" if prefix == "at" else "dataType"
+            else:
+                kind = type
+                key = "dataType" if kind in {
+                    "string", "matrix", "stringArray", "doubleArray", "floatArray", "Int32Array",
+                    "Int64Array", "vectorArray", "floatVectorArray", "pointArray", "matrixArray",
+                    "mesh", "nurbsCurve", "nurbsSurface", "lattice", "componentList", "polyFaces",
+                    "reflectanceRGB", "spectrumRGB",
+                } else "attributeType"
+            flags[key] = kind
+        elif not (flags.get("attributeType") or flags.get("dataType")):
+            flags["attributeType"] = "double"
+        if flags.get("attributeType") and flags.get("dataType"):
+            raise ValueError("Cannot specify both attributeType and dataType")
+        kind = flags.get("attributeType")
+        numeric = re.fullmatch(r"(double|float|long|short)([234])", kind or "")
+        count = int(numeric.group(2)) if numeric else 0
+        if kind == "compound" and (childNames or childShortNames or childSuffixes):
+            count = flags.get("numberOfChildren") or len(childNames or childShortNames or childSuffixes)
+            flags["numberOfChildren"] = count
+        if numeric:
+            # 固定子数型へncを渡すMayaエラーを事前検出する。
+            if "numberOfChildren" in flags and flags.pop("numberOfChildren") != count:
+                raise ValueError("Vector child count does not match its type")
+        deferred = None
+        if count or flags.get("dataType"):
+            deferred = flags.pop("defaultValue", None)
+        unit = {"doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
+                "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
+                "time": (om2.MTime, om2.MTime.kSeconds)}.get(kind)
+        if unit:
+            cls, internal = unit
             for flag in ("defaultValue", "minValue", "maxValue", "softMinValue", "softMaxValue"):
-                if flag in add_kwargs:
-                    value = add_kwargs[flag]
+                if flag in flags:
+                    value = flags[flag]
                     quantity = value if isinstance(value, cls) else cls(value, internal)
-                    add_kwargs[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
-        vector_type = add_kwargs.get("attributeType")
-        if vector_type in ("double2", "double3", "float2", "float3"):
-            # Mayaは子が揃うまで複合Plugを公開しないため、XYZの子も同時に作る。
-            if "numberOfChildren" in add_kwargs:
-                raise ValueError("Vector child count is determined by attributeType")
-            cmds.addAttr(self.fullName(), **add_kwargs)
-            for axis in "XYZ"[:int(vector_type[-1])]:
-                cmds.addAttr(self.fullName(), longName=longName + axis,
-                             attributeType=vector_type[:-1], parent=longName,
-                             keyable=bool(add_kwargs.get("keyable", False)))
-            return self.plug(longName)
-        return self._add_attribute(self, **add_kwargs)
+                    flags[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
+        if count:
+            suffixes = childSuffixes or ("RGBA" if flags.get("usedAsColor") else "XYZW")[:count]
+            names = list(childNames or [name + suffix for suffix in suffixes])
+            short_names = list(childShortNames or [])
+            if len(names) != count or (short_names and len(short_names) != count):
+                raise ValueError("Child name count does not match its type")
+            # 子の範囲・既定値は子へ指定し、親には渡さない。
+            limits = {k: flags.pop(k) for k in ("minValue", "maxValue", "softMinValue", "softMaxValue") if k in flags}
+            cmds.addAttr(self.fullName(), **flags)
+            for index, child_name in enumerate(names):
+                child_flags = dict(parent=name, keyable=bool(flags.get("keyable", False)))
+                if short_names:
+                    child_flags["shortName"] = short_names[index]
+                for key, value in limits.items():
+                    child_flags[key] = value[index] if isinstance(value, (tuple, list)) else value
+                if deferred is not None:
+                    child_flags["defaultValue"] = deferred[index] if isinstance(deferred, (tuple, list)) else deferred
+                self.addAttr(child_name, subType or (numeric.group(1) if numeric else "double"),
+                             getPlug=False, **child_flags)
+        else:
+            cmds.addAttr(self.fullName(), **flags)
+        if not getPlug and (deferred is None or count) and not show and proxy is None:
+            return None
+        plug = self.plug(name)
+        if deferred is not None and not count:
+            plug.set(deferred)
+        if show:
+            plug.setFlags(channelBox=True)
+        if proxy is not None:
+            proxy.connectTo(plug)
+        return plug if getPlug else None
 
     def getExtraAttributes(self, include_children=False):
         """ユーザー追加のエクストラアトリビュートを型付きPlugで取得する。
@@ -1149,7 +1188,7 @@ class Node(Object):
 
         infos = [_dump_movable_attr(self.plug(attr_name)) for attr_name in to_recreate]
         for attr_name in to_recreate:
-            self.plug(attr_name).deleteAttribute(force=True)
+            self.plug(attr_name).delete(force=True)
         for info in infos:
             _create_movable_attr(self, info)
         return self
@@ -1211,7 +1250,7 @@ class Node(Object):
             raise AttributeError(f"アトリビュートが見つかりません: {self.name()}.{name}")
         return Plug(self, mplug)
 
-    def hasAttribute(self, name):
+    def hasAttr(self, name):
         """アトリビュートパスを解決できるか判定する。
 
         Args:
@@ -1397,7 +1436,7 @@ class Node(Object):
             error = _InputPlug._deleted_attribute_error(value)
             if error is not None:
                 raise error
-            return value.node
+            return value.node()
         if isinstance(value, (component_class, components_class)):
             return value.shape
         if isinstance(value, (str, om2.MObject, om2.MDagPath, om2.MPlug)):
@@ -1573,14 +1612,14 @@ class Node(Object):
         'sameInstance',
         'isValid',
         'isAlive',
-        'mobject',
+        'mnode',
         'type',
         'typeId',
         'pluginName',
         'classification',
         'isType',
         'isLocked',
-        'isReferenced',
+        'isFromReferencedFile',
         'isAncestorOf',
         'isParentOf',
         'isChildOf',
@@ -1597,11 +1636,11 @@ class Node(Object):
         'resetAttributes',
         'plugs',
         'aliases',
-        'addAttribute',
+        'addAttr',
         'getExtraAttributes',
         'userAttributeNames',
         'plug',
-        'hasAttribute',
+        'hasAttr',
         'uuid',
         'name',
         'fullName',
@@ -1765,7 +1804,11 @@ class Nodes:
         """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。"""
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
         context = undoChunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
-        result = [] if self._bulk_returns[method] != "self" else None
+        calculating = False
+        if method in {"setTranslation", "setRotation", "setQuaternion", "setScaling", "setShearing", "setMatrix"}:
+            calculating = any(inspect.signature(fn).bind(*row, **flags).arguments.get("get", False)
+                              for fn, row, flags in zip(functions, args, kwargs))
+        result = [] if calculating or self._bulk_returns[method] != "self" else None
         with context:
             for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):
                 try:

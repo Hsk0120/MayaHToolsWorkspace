@@ -142,7 +142,7 @@ class BlendMatrix(Node):
         index = _Calculation.index(index)
         source, weight = _InputPlug._resolve_input(source), _Calculation.scalar(weight)
         target = self.plug("target")._element_reference(index)
-        source.connect(target.child("targetMatrix"), force=force)
+        source.connectTo(target.child("targetMatrix"), force=force)
         target.child("weight").set(weight)
         return self
 

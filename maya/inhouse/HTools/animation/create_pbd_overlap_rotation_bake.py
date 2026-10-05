@@ -2,6 +2,9 @@
 
 import maya.cmds as cmds
 
+from hlib.nodes import Node
+from hlib.utils import units
+
 
 def _selected_chain_nodes():
 	"""選択順を保った transform/joint 一覧を返す。"""
@@ -10,7 +13,7 @@ def _selected_chain_nodes():
 		selection = cmds.ls(sl=True, l=True) or []
 	chain = []
 	for node in selection:
-		node_type = cmds.nodeType(node)
+		node_type = Node(node).type()
 		if node_type not in ("transform", "joint"):
 			continue
 		if node in chain:
@@ -32,9 +35,9 @@ def _as_world_rotate_vector(node):
 def _as_local_rotate_vector(node):
 	"""ノードの local rotate を [x, y, z] で返す。"""
 	return [
-		cmds.getAttr("{0}.rotateX".format(node)),
-		cmds.getAttr("{0}.rotateY".format(node)),
-		cmds.getAttr("{0}.rotateZ".format(node)),
+		units.angleToUi(Node(node).plug("rotateX").get()),
+		units.angleToUi(Node(node).plug("rotateY").get()),
+		units.angleToUi(Node(node).plug("rotateZ").get()),
 	]
 
 
@@ -212,9 +215,9 @@ def _bake_pbd_overlap_for_chain(
 				sim_vec = _v_sub(sim_pos[node], sim_pos[parent])
 			if _v_len(pose_vec) <= 1e-8 or _v_len(sim_vec) <= 1e-8:
 				rx, ry, rz = base_local_rot[frame][node]
-				cmds.setAttr("{0}.rotateX".format(node), rx)
-				cmds.setAttr("{0}.rotateY".format(node), ry)
-				cmds.setAttr("{0}.rotateZ".format(node), rz)
+				Node(node).plug("rotateX").set(units.angleFromUi(rx))
+				Node(node).plug("rotateY").set(units.angleFromUi(ry))
+				Node(node).plug("rotateZ").set(units.angleFromUi(rz))
 				cmds.setKeyframe(node, at=["rotateX", "rotateY", "rotateZ"], t=(frame,))
 				continue
 

@@ -22,12 +22,12 @@ class TransformResetScaleTest(unittest.TestCase):
             cmds.setAttr(node.fullName() + ".scale", 2, 3, 4)
         nodes.reset(["tx", "scale"])
         for node in nodes:
-            self.assertEqual(tuple(node.getTranslation()), (0, 2, 3))
-            self.assertEqual(tuple(node.getScale()), (1, 1, 1))
+            self.assertEqual(tuple(node.getTranslation(at=4)), (0, 2, 3))
+            self.assertEqual(tuple(node.getScaling()), (1, 1, 1))
         cmds.undo()
-        self.assertEqual(tuple(nodes[0].getTranslation()), (1, 2, 3))
+        self.assertEqual(tuple(nodes[0].getTranslation(at=4)), (1, 2, 3))
         nodes[0].reset(fast=True)
-        self.assertEqual(tuple(nodes[0].getTranslation()), (0, 0, 0))
+        self.assertEqual(tuple(nodes[0].getTranslation(at=4)), (0, 0, 0))
         cmds.addAttr(nodes[0].fullName(), longName="customValue", attributeType="double", defaultValue=7)
         nodes[0].plug("customValue").set(12)
         nodes[0].reset("customValue")
@@ -39,15 +39,15 @@ class TransformResetScaleTest(unittest.TestCase):
         cmds.setAttr(node.fullName() + ".translate", 3, 4, 5)
         cmds.setAttr(node.fullName() + ".rotate", 10, 25, 35)
         cmds.setAttr(node.fullName() + ".scale", 2, 3, 4)
-        before = node.getMatrix(space=MSpace.kWorld)
+        before = node.getMatrix(ws=True)
         for ws in (True, False):
-            node.resetPivot(space=MSpace.kWorld if ws else MSpace.kObject)
-            self.assertTrue(before.isEquivalent(node.getMatrix(space=MSpace.kWorld), 1e-8))
+            node.resetPivot(ws=ws)
+            self.assertTrue(before.isEquivalent(node.getMatrix(ws=True), 1e-8))
             for kind in ("rotate", "scale"):
-                for value in node.getPivot(space=MSpace.kWorld if ws else MSpace.kObject, kind=kind):
+                for value in node.getPivot(ws=ws, kind=kind):
                     self.assertAlmostEqual(value, 0)
             cmds.undo()
-            self.assertTrue(before.isEquivalent(node.getMatrix(space=MSpace.kWorld), 1e-8))
+            self.assertTrue(before.isEquivalent(node.getMatrix(ws=True), 1e-8))
 
     def test_scale_shapes_in_each_space(self):
         factories = (
@@ -66,13 +66,13 @@ class TransformResetScaleTest(unittest.TestCase):
             components = cmds.ls(shape.fullName() + token, flatten=True)
             for ws in (False, True):
                 before = [cmds.xform(c, query=True, translation=True, worldSpace=ws, objectSpace=not ws) for c in components]
-                matrix = node.getMatrix(space=MSpace.kWorld)
-                node.scaleGeometry((2, .5, -1), space=MSpace.kWorld if ws else MSpace.kObject, pivot=(1, 2, 3))
+                matrix = node.getMatrix(ws=True)
+                node.scaleGeometry((2, .5, -1), ws=ws, pivot=(1, 2, 3))
                 after = [cmds.xform(c, query=True, translation=True, worldSpace=ws, objectSpace=not ws) for c in components]
                 for src, dst in zip(before, after):
                     for i, factor in enumerate((2, .5, -1)):
                         self.assertAlmostEqual(dst[i], (i + 1) + (src[i] - (i + 1)) * factor, places=5)
-                self.assertTrue(matrix.isEquivalent(node.getMatrix(space=MSpace.kWorld), 1e-8))
+                self.assertTrue(matrix.isEquivalent(node.getMatrix(ws=True), 1e-8))
                 cmds.undo()
                 restored = cmds.xform(components[0], query=True, translation=True, worldSpace=ws, objectSpace=not ws)
                 for a, b in zip(before[0], restored):

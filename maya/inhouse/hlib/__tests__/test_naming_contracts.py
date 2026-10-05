@@ -26,8 +26,8 @@ class NamingContractsTest(unittest.TestCase):
         try:
             node.setBlender(.25)
             self.assertAlmostEqual(node.getBlender(), .25)
-            self.assertEqual(node.blenderPlug().attributeName(), 'blender')
-            self.assertEqual(node.outputPlug().attributeName(), 'output')
+            self.assertEqual(node.blenderPlug().longName(), 'blender')
+            self.assertEqual(node.outputPlug().longName(), 'output')
         finally:
             cmds.delete(node.fullName())
 

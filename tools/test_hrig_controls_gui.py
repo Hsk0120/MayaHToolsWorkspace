@@ -107,7 +107,7 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(finger.root.fullName() + ".enabled", True)
         for _ in range(20):
             yield
-            if finger.members("targets")[0].plug("rx").source() is not None:
+            if finger.members("targets")[0].plug("rx").sourceWithConversion() is not None:
                 break
         check(
             abs(finger.members("targets")[0].plug("rz").get() - 35) < 1e-4,
@@ -119,18 +119,18 @@ def main(output_dir=None, finished=None):
         tweaks = TweakLayer(finger)
         check(len(tweaks.groups()) == 1, "Tweak added through UI")
         group = next(iter(tweaks.groups().values()))
-        control = group.plug("control").source().node
+        control = group.plug("control").sourceWithConversion().node()
         control.plug("ty").set(0.5)
         row("tweak:" + group.plug("tweakId").get()).setCheckState(0, QtCore.Qt.Unchecked)
         yield
         check(
-            group.plug("joint").source().node.plug("offsetParentMatrix").source() is None,
+            group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is None,
             "Tweak checkbox stops input",
         )
         cmds.undo()
         yield
         check(
-            group.plug("joint").source().node.plug("offsetParentMatrix").source() is not None,
+            group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is not None,
             "Tweak Undo restores input",
         )
         Menu.run("aim")
@@ -200,20 +200,20 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(finger.root.fullName() + ".enabled", False)
         for _ in range(20):
             yield
-            if finger.members("targets")[0].plug("rx").source() is None:
+            if finger.members("targets")[0].plug("rx").sourceWithConversion() is None:
                 break
         check(
-            finger.members("targets")[0].plug("rx").source() is None,
+            finger.members("targets")[0].plug("rx").sourceWithConversion() is None,
             "Reload restores finger watcher",
         )
         group = next(iter(TweakLayer(finger).groups().values()))
         cmds.setAttr(group.fullName() + ".enabled", False)
         for _ in range(20):
             yield
-            if group.plug("joint").source().node.plug("offsetParentMatrix").source() is None:
+            if group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is None:
                 break
         check(
-            group.plug("joint").source().node.plug("offsetParentMatrix").source() is None,
+            group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is None,
             "Reload restores Tweak watcher",
         )
         editor.grab().save(str(output / "layers.png"))

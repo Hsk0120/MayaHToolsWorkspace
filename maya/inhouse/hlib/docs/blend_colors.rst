@@ -32,7 +32,7 @@ Plugの接続
 
    blend.connectColor(1, source.outputPlug())
    blend.connectBlender(control.plug("blendWeight"))
-   blend.outputPlug().connect(material.plug("color"))
+   blend.outputPlug().connectTo(material.plug("color"))
 
 ``colorPlug()``・``blenderPlug()``・``outputPlug()`` はPlugを返します。
 ``result()`` は評価済みのRGBタプルを返します。

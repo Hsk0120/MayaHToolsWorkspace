@@ -4,6 +4,7 @@ import maya.api.OpenMaya as om2
 
 from .._core.fastWrite import set_attr, set_plug
 from .._core.registry import plug_wrapper
+from ..decorators._safe import safe_edit
 from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
 from ..maths import Matrix
@@ -28,15 +29,17 @@ class MatrixPlug(Plug):
 
     @fast_edit
     @undoChunk("hlibMatrixPlugSet")
-    def set(self, value, *, fast=False):
+    @safe_edit
+    def set(self, value, safe=False, *, fast=False):
         """対象の行列アトリビュートへ直接書き込む。所有ノードのTRSへ委譲しない。
 
         Args:
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             value (Matrix | Iterable[float]): 設定する4x4行列。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
-            MatrixPlug: 自身。
+            MatrixPlug | int: 自身。safe=Trueでは失敗した成分数。
 
         Raises:
             TypeError: worldMatrixなどの書込み不可アトリビュートを指定した場合。
@@ -45,7 +48,7 @@ class MatrixPlug(Plug):
         ノード自体の変換にはTransform.setMatrixを使う。
         """
         self._require_valid()
-        if self.attributeName() in ("worldMatrix", "wm"):
+        if self.longName() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
         matrix = Matrix(value)
         if is_fast():

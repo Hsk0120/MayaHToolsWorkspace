@@ -18,15 +18,15 @@ APIの命名と移行
    * - 旧名・旧指定
      - 新名・新指定
    * - full_name() / is_valid() / add_attribute()
-     - fullName() / isValid() / addAttribute()
+     - fullName() / isValid() / addAttr()
    * - vertex_count() / cv_count() / get_cv_positions()
      - numVertices() / numCVs() / cvPositions()
    * - get_translate() / set_translate() / set_rotate()
      - getTranslation() / setTranslation() / setRotation()
    * - get_position() / set_positions()
      - getPosition() / setPositions()
-   * - ws=True / ws=False
-     - space=MSpace.kWorld / space=MSpace.kObject
+   * - space=MSpace.kWorld / space=MSpace.kObject
+     - ws=True / ws=False
    * - long_name / attribute_type / data_type
      - longName / attributeType / dataType
    * - from_degrees() / as_degrees() / is_equivalent()
@@ -40,12 +40,11 @@ APIの命名と移行
 
    import math
    import hlib
-   from hlib.maths import MSpace
 
    node = hlib.createNode("transform")
    node.plug("rotateX").set(math.pi / 2)  # rad。通常はUndo可能
    node.plug("translateX").set(100, fast=True)  # cm。Undoなし
-   node.setTranslation((100, 0, 0), space=MSpace.kWorld)
+   node.setTranslation((100, 0, 0), ws=True)
    value = node.plug("rotateX").get()
    node.plug("rotateX").set(value)  # UI単位によらず同じ角度
    print(hlib.getAttr(node.plug("rotateX")))  # コマンドのUI単位
@@ -156,8 +155,8 @@ snake_caseを使用できます。保存キー・保存フィールドは変更�
   (度として扱えるのは3成分の値だけ)。以前は EulerRotation の成分を度として読み、回転順序を無視して
   XYZ として扱っていた。EulerRotation / Quaternion はラジアンのまま ``unit="rad"`` (既定)で渡すと
   回転順序も反映される。度からは ``EulerRotation.fromDegrees(x, y, z, order)`` で作る。
-* joint の ``setMatrix`` と、それを使う ``setTranslation`` / ``setRotation`` / ``setScale`` /
-  ``setShear`` などは、jointOrient と rotateAxis を rotateOrder にかかわらず XYZ 順序の回転として
+* joint の ``setMatrix`` と、それを使う ``setTranslation`` / ``setRotation`` / ``setScaling`` /
+  ``setShearing`` などは、jointOrient と rotateAxis を rotateOrder にかかわらず XYZ 順序の回転として
   扱う(Maya の joint の評価と同じ。不具合の修正)。以前は rotateOrder の順序で解釈していたため、
   rotateOrder が xyz 以外で、jointOrient または rotateAxis の2軸以上が 0 でない joint では、
   書き込んだ rotate による行列が要求した行列と一致しなかった。
@@ -191,7 +190,7 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 
 次の照会は名前を維持し、呼び出しに ``()`` を付けます。
 
-* Node: ``fullName``、``uuid``、``typeId``、``pluginName``、``isLocked``、``isReferenced``。
+* Node: ``fullName``、``uuid``、``typeId``、``pluginName``、``isLocked``、``isFromReferencedFile``。
 * Plug: ``name``、``fullName``、``attribute``、``parent``、各 ``is_*``、
   ``hasMin`` / ``hasMax`` / ``hasSoftMin`` / ``hasSoftMax``、
   ``min`` / ``max`` / ``softMin`` / ``softMax`` / ``default``。
@@ -204,17 +203,16 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 
 .. code-block:: python
 
-   from hlib.maths import MSpace
    import hlib
 
    node = hlib.createNode("transform")
    print(node.name(), node.fullName(), node.isLocked())
    plug = node.plug("translateX")
-   print(plug.name(), plug.attributeName(), plug.isLocked())
-   print(plug.node)  # 保持している所有Node。プロパティのまま。
+   print(plug.name(), plug.longName(), plug.isLocked())
+   print(plug.node())  # 所有Nodeを返すメソッド。
 
-``Component.shape`` / ``index``、``Components.shape`` / ``indices``、
-``Plug.node`` は保持した参照・番号なのでプロパティを維持します。
+``Component.shape`` / ``index``、``Components.shape`` / ``indices`` はプロパティを維持します。
+``Plug.node()`` はcymelと同じ所有ノード取得メソッドです。
 ``Vector.x`` などの数学値と、``NodeRef.uuid`` などJSONの保存済みデータも維持します。
 
 モジュールの移動
@@ -245,8 +243,8 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 メソッド整理後の入口
 ----------------------------------------------------------------------
 
-* ノードの行列取得は ``getMatrix(space=MSpace.kObject)``。旧 ``decompose()`` の引数省略は
-  ワールド空間だったため、移行時は ``getMatrix(space=MSpace.kWorld)`` とします。
+* ノードの行列取得は ``getMatrix(ws=False)``。旧 ``decompose()`` の引数省略は
+  ワールド空間だったため、移行時は ``getMatrix(ws=True)`` とします。
 * DAGパスは ``path(full=False)`` / ``path(full=True)``。DGにも対応する
   ``name()`` / ``fullName()`` は別の用途として維持します。
 * アトリビュート取得は ``plug()`` に統一しました。
@@ -262,7 +260,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 * 頂点等の個数は ``numVertices`` / ``numEdges`` / ``numPolygons`` /
   ``numUVs`` / ``numCVs`` / ``numSpans`` に統一しました。
 * IKハンドルのジョイント取得は ``joints()`` / ``endJoint()``。
-  Shapeの親取得は ``parentNode()``、Namespaceの切替は ``setCurrent()`` です。
+  Shapeの親取得は ``parent()``、Namespaceの切替は ``setCurrent()`` です。
 * 複数コンポーネントの座標取得も ``getPosition()``。
   同一座標への設定 ``setPosition()`` と要素別設定 ``setPositions()`` は区別します。
 * ウェイト移送は ``SkinCluster.transferWeights([(source, target), ...])``。
@@ -304,8 +302,8 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   両方をリセットする場合は ``pre="constant", post="constant"`` を明示します。
   位置引数は使わず、両側の値を検証してから更新します。
 * ``Transform.pivot()`` は ``getPivot()`` へ改名しました。
-  ``getPivot(space=MSpace.kObject, kind="rotate")`` と
-  ``setPivot(value, space=MSpace.kObject, kind="rotate", preserve=True)`` は
+  ``getPivot(ws=False, kind="rotate")`` と
+  ``setPivot(value, ws=False, kind="rotate", preserve=True)`` は
   回転ピボットが既定です。取得・設定とも ``kind="scale"`` が使え、
   設定時は ``kind="both"`` も使えます。
   以前の設定動作を指定するには ``kind="both", preserve=False`` を渡します。
@@ -374,7 +372,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 * AnimCurve / BlendColors / BlendWeighted / MultMatrix / DistanceBetween:
   出力Plugは ``outputPlug()``。
 * Shape / Transform: Maya APIの関数セット取得は ``dagFn()``。
-* Plug: アトリビュート名の文字列は ``attributeName()``。
+* Plug: アトリビュート名の文字列は ``longName()``。
 * Namespace / UiElement: 保持する名前は ``name`` プロパティ。
   Mayaへ照会する ``Node.name()`` やUIを解決する ``TimeSlider.name()`` はメソッドです。
 
@@ -407,11 +405,11 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
    * - ``PluginPackage.ensureLoaded()``
      - ``tryLoad()`` （状態文字列を返す）
    * - ``Node.add_attr()`` / ``has_attr()``
-     - ``addAttribute()`` / ``hasAttribute()``
+     - ``addAttr()`` / ``hasAttr()``
    * - ``Node.reset_attrs()`` / ``set_attr_flags()``
      - ``resetAttributes()`` / ``setAttributeFlags()``
    * - ``Plug.delete_attr()``
-     - ``deleteAttribute()``
+     - ``delete()``
    * - ``Node.move_attribute()``
      - ``moveAttributeOrder()`` （Channel Boxの並び順変更）
    * - ``Transform.set_visible()``
@@ -439,7 +437,7 @@ referenceノード自身の名前空間を扱います。参照内容の名前�
 weight未設定時は要素を作らず1を返します。
 ``Constraint.getWeight(target)`` は指定ターゲットの値を返します。
 
-``Plug.connect(target, force=True, unlock=False)`` は既存入力を置換しますが、
+``Plug.connectTo(target, force=True, unlock=False)`` は既存入力を置換しますが、
 接続先のロックは解除しません。Maya標準 ``connectAttr(force=True)`` から
 挙動を保って移行するときに使います。既定の ``unlock=True`` は従来どおり
 force時に一時アンロックし、接続後に元のロックを戻します。
@@ -450,7 +448,7 @@ force時に一時アンロックし、接続後に元のロックを戻します
 接続変更後は再検索が必要です。手動で ``Cycle(plugs)`` を作る場合は循環の成立を検証しません。
 ``getConnections()`` は現在の実接続を ``(sourcePlug, destinationPlug)`` で返し、
 経路外への接続も含みます。``getParents()`` は現在のDAG親子関係を
-``(parentNode, childNode)`` で返します。削除済み対象などの照会失敗は例外になります。
+``(parent, childNode)`` で返します。削除済み対象などの照会失敗は例外になります。
 時間制限で未完了の場合や検出対象外の依存があり、結果0件は無循環の保証ではありません。
 検索時間の計測・結果の文字列保存・レポート整形・画面表示はHToolsが担当します。
 
@@ -500,10 +498,10 @@ Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定は
 成分別編集とメンバー入力
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-頂点・CVの ``getX/getY/getZ`` と ``setX/setY/setZ`` は ``space=MSpace.kObject`` / ``MSpace.kWorld`` を受け取り、
+頂点・CVの ``getX/getY/getZ`` と ``setX/setY/setZ`` は ``ws=False`` / ``ws=True`` を受け取り、
 軸setterは ``fast`` にも対応して自身を返します。複数形ではスカラーを全要素へ、
 数値列を保持順の各要素へ設定します。UVの ``setU/setV`` も ``fast`` と自身返却に対応しますが、
-UVへ空間指定 ``space`` は追加しません。通常更新はUndo可能、``fast=True`` はUndo不要の明示指定です。
+UVへ空間指定 ``ws`` / ``worldSpace`` は追加しません。通常更新はUndo可能、``fast=True`` はUndo不要の明示指定です。
 
 ``Container`` / ``DagPose`` のメンバー追加と、DagPoseの除外は可変長入力とリスト入力に対応します。
 例えば ``pose.addMembers(a, b)`` と ``pose.addMembers([a, b])`` は同じです。
@@ -544,7 +542,6 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
 
 .. code-block:: python
 
-    from hlib.maths import MSpace
     skin.addInfluences(["joint1", "joint2"])
     skin.addInfluences([hlib.getNode("joint1"), hlib.getNode("joint2")])
     # 名前とNodeを同じ対象列に混ぜない
@@ -685,7 +682,7 @@ fastを指定できるメソッド
    * - ``SkinCluster``
      - ``setWeights``, ``loadWeights``, ``normalizeWeights``, ``setMaxInfluences``
    * - ``Transform``
-     - ``mirror``, ``setMatrix``, ``setTranslation``, ``setRotation``, ``setScale``, ``setShear``, ``setVisibility``
+     - ``mirror``, ``setMatrix``, ``setTranslation``, ``setRotation``, ``setScaling``, ``setShearing``, ``setVisibility``
    * - ``UV``
      - ``setPosition``, ``setU``, ``setV``
    * - ``UVs``
@@ -699,3 +696,30 @@ fastを指定できるメソッド
 * ``Matrix._wrap_copy`` は廃止。内部実装は ``_wrap`` を使います。
 * ``Matrix.to_mmatrix()`` は廃止。OpenMayaへはそのまま渡せます。基底型の複製が必要なら ``om2.MMatrix(matrix)`` を使います。
 * ``SkinCluster.redistributeWeights()`` の曲線名は ``sine``。旧 ``sinusoidal`` はValueErrorになります。
+
+大型ツールから共通化した操作
+----------------------------------------
+
+``hlib.utils.orientedBounds.computeOrientedBounds(points)`` は点群の共分散と
+局所探索からOBBを推定します。戻り値は ``center`` (Vector)、``axes``
+(3本のVector)、``size`` (3成分tuple) の辞書です。入力と同じ空間・単位を使い、
+3点未満や非有限座標を拒否します。最小サイズは1e-6で、厳密な最小体積は保証しません。
+同モジュールの ``sampleExtremePoints(points, direction_count=64)`` は
+方向サンプルの極値点を抽出します。厳密な凸包ではありません。
+
+``Mesh.getVertexAdjacency(ws=False)`` は頂点ID順に
+``list[list[tuple[int, float]]]`` を返します。各ペアは隣接頂点IDとcm単位の
+エッジ長です。ワールド指定は保持するDAGインスタンスを使用し、シーンを変更しません。
+エッジID順を保ち、孤立頂点は空リスト、重複エッジは別々に返します。
+
+空間指定の短縮フラグ
+------------------------------
+
+hlibの姿勢・形状・コンポーネントの空間指定は ``ws=True`` （ワールド）または
+``ws=False`` （ローカル）です。長名 ``worldSpace`` も同じ意味で使用できます。
+両方指定すると値が同じでもTypeErrorになります。bool以外はValueError
+（形状情報ノードの接続APIではTypeError）、
+旧 ``space=`` はTypeErrorです。距離cm・角度radという値の単位は変更しません。
+通常の取得・設定はローカルが既定ですが、``resetPivot`` / ``restoreBindPose`` と
+形状情報ノードの ``connectCurve`` / ``connectSurface`` は従来どおりワールドが既定です。
+数学型の継承先を含むOpenMaya標準APIでは、引き続きMSpace定数を使用します。

@@ -34,6 +34,10 @@ from importlib import reload
 
 import maya.cmds as cmds
 
+import hlib
+from hlib.nodes import Node
+from hrig.setups import ControlShape
+
 import hlib.decorators.undo as undo
 reload(undo)
 
@@ -130,7 +134,7 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
 
     shapes = cmds.listRelatives(curve_transform, shapes=True, fullPath=True) or []
     for shape in shapes:
-        if cmds.nodeType(shape) != "nurbsCurve":
+        if Node(shape).type() != "nurbsCurve":
             continue
         cvs = cmds.ls(f"{shape}.cv[*]", flatten=True) or []
         for cv in cvs:
@@ -181,47 +185,27 @@ def _curve(
     selected = cmds.ls(selection=True, long=True)
     if selected:
         sel = selected[0]
-        sel_type = cmds.nodeType(sel)
+        sel_type = Node(sel).type()
         if sel_type == "transform":
             target_transform = sel
         elif sel_type == "nurbsCurve":
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
-            if parents and cmds.nodeType(parents[0]) == "transform":
+            if parents and Node(parents[0]).type() == "transform":
                 target_transform = parents[0]
 
     if target_transform and cmds.objExists(target_transform):
         existing_curve_shapes = [
             shape
             for shape in (cmds.listRelatives(target_transform, shapes=True, fullPath=True) or [])
-            if cmds.nodeType(shape) == "nurbsCurve"
+            if Node(shape).type() == "nurbsCurve"
         ]
 
         if existing_curve_shapes:
-            # 一時カーブを作り、そのシェイプを選択中の transform の下へ移す。
-            temp_curve_transform = cmds.curve(degree=degree, point=points, knot=knots, name=f"{name}__tmp")
-            temp_shapes = [
-                s
-                for s in (cmds.listRelatives(temp_curve_transform, shapes=True, fullPath=True) or [])
-                if cmds.nodeType(s) == "nurbsCurve"
-            ]
-
-            for old_shape in existing_curve_shapes:
-                if cmds.objExists(old_shape):
-                    cmds.delete(old_shape)
-
-            for new_shape in temp_shapes:
-                if cmds.objExists(new_shape):
-                    cmds.parent(new_shape, target_transform, shape=True, relative=True)
-
-            if cmds.objExists(temp_curve_transform):
-                try:
-                    cmds.delete(temp_curve_transform)
-                except Exception:
-                    pass
+            ControlShape.replaceCurves(target_transform, points, knots, degree=degree, name=name)
 
             return target_transform
 
-    return cmds.curve(degree=degree, point=points, knot=knots, name=name)
+    return hlib.createCurve(degree=degree, point=points, knot=knots, name=name).name()
 
 
 # ---------------------------------------------------------------------------

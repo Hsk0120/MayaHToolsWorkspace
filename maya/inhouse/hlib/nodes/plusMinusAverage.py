@@ -106,7 +106,7 @@ class PlusMinusAverage(ShadingDependNode):
         from ..plugs.plug import Plug as _InputPlug
         source = _InputPlug._resolve_input(source)
         target = self._input_array(dimension)._element_reference(_Calculation.index(index))
-        source.connect(target, force=force)
+        source.connectTo(target, force=force)
         return self
 
     @undoChunk("hlibCalculationEdit")

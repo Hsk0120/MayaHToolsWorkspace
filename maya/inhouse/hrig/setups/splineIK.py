@@ -28,7 +28,7 @@ class SplineIK:
         Returns:
             Node: 参照先。
         """
-        return self.container.plug(name).source().node
+        return self.container.plug(name).sourceWithConversion().node()
 
     @classmethod
     @undoTransaction("hrig.SplineIK.create")
@@ -75,11 +75,11 @@ class SplineIK:
                 ]
             ] != [joints[i - 1].uuid()]:
                 raise ValueError("Expected a continuous joint chain")
-            if any(joint.plug("rotate" + a).source() is not None for a in "XYZ"):
+            if any(joint.plug("rotate" + a).sourceWithConversion() is not None for a in "XYZ"):
                 raise ValueError("Joint rotation already has an input")
         graph = cls(hlib.nodes.Container.create(name=name))
         points = [
-            tuple(hlib.utils.units.distanceToUi(v) for v in c.getTranslation(space=MSpace.kWorld))
+            tuple(hlib.utils.units.distanceToUi(v) for v in c.getTranslation(ws=True, at=4))
             for c in controls
         ]
         curve = hlib.nodes.Node(hlib.createCurve(degree=3, point=points, name=name + "_curve"))
@@ -102,10 +102,10 @@ class SplineIK:
             position = hlib.nodes.Node.create(
                 "decomposeMatrix", name=name + "_cv{}Position".format(index), skipSelect=True
             )
-            control.plug("worldMatrix[0]").connect(matrix.plug("matrixIn[0]"))
-            curve.plug("worldInverseMatrix[0]").connect(matrix.plug("matrixIn[1]"))
-            matrix.plug("matrixSum").connect(position.plug("inputMatrix"))
-            position.plug("outputTranslate").connect(shape.plug("controlPoints[{}]".format(index)))
+            control.plug("worldMatrix[0]").connectTo(matrix.plug("matrixIn[0]"))
+            curve.plug("worldInverseMatrix[0]").connectTo(matrix.plug("matrixIn[1]"))
+            matrix.plug("matrixSum").connectTo(position.plug("inputMatrix"))
+            position.plug("outputTranslate").connectTo(shape.plug("controlPoints[{}]".format(index)))
             graph.container.addMembers(matrix, position)
         handle_name, effector_name = hlib.createIkHandle(
             startJoint=joints[0].fullName(),
@@ -127,11 +127,11 @@ class SplineIK:
         vector = (0, 1, 0) if up_axis == "y" else (0, 0, 1)
         for attr in ("dWorldUpVector", "dWorldUpVectorEnd"):
             handle.plug(attr).set(vector)
-        controls[0].plug("worldMatrix[0]").connect(handle.plug("dWorldUpMatrix"))
-        controls[-1].plug("worldMatrix[0]").connect(handle.plug("dWorldUpMatrixEnd"))
+        controls[0].plug("worldMatrix[0]").connectTo(handle.plug("dWorldUpMatrix"))
+        controls[-1].plug("worldMatrix[0]").connectTo(handle.plug("dWorldUpMatrixEnd"))
         for role, node in (("handle", handle), ("curve", curve), ("effector", effector)):
-            graph.container.addAttribute(longName=role, attributeType="message")
-            node.plug("message").connect(graph.container.plug(role))
+            graph.container.addAttr(longName=role, attributeType="message")
+            node.plug("message").connectTo(graph.container.plug(role))
             graph.container.addMembers(node)
         curve.plug("visibility").set(False)
         handle.plug("visibility").set(False)
@@ -147,7 +147,7 @@ class SplineIK:
         handle = self.member("handle")
         target = handle.plug("inCurve")
         if enabled:
-            if target.source() is None:
+            if target.sourceWithConversion() is None:
                 shape = hlib.nodes.Node(
                     [
                         hlib.getNode(value)
@@ -159,11 +159,11 @@ class SplineIK:
                         )
                     ][0]
                 )
-                shape.plug("worldSpace[0]").connect(target)
+                shape.plug("worldSpace[0]").connectTo(target)
             handle.plug("nodeState").set(0)
             handle.plug("ikBlend").set(1)
         else:
             handle.plug("ikBlend").set(0)
-            if target.source() is not None:
-                target.source().disconnect(target)
+            if target.sourceWithConversion() is not None:
+                target.disconnect(target.sourceWithConversion())
             handle.plug("nodeState").set(2)

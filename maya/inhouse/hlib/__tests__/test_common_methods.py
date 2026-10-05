@@ -95,7 +95,7 @@ class CommonMethodsTest(unittest.TestCase):
         node, source = self.create("control"), self.create("driver")
         node.plug("translate").set((2, 3, 4))
         node.plug("translateX").setFlags(locked=True)
-        source.plug("translateY").connect(node.plug("translateY"))
+        source.plug("translateY").connectTo(node.plug("translateY"))
         changed = node.resetAttributes()
         names = [plug.fullName() for plug in changed]
         self.assertNotIn(node.plug("translateX").fullName(), names)
