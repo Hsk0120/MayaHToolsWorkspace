@@ -16,13 +16,6 @@
 
 namespace frameplayer {
 
-/** @brief 画像の画素の並び。 */
-enum class PixelLayout : std::uint8_t {
-    Bgra8,  ///< BGRAの各8bit(縮小画像など)。値は動画の色域・伝達関数のままのRGB。
-    Nv12,   ///< YUV 4:2:0の8bit(明るさの面と、縦横半分の色の面(UVの交互))。
-    P010,   ///< YUV 4:2:0の10bit(NV12と同じ並びで、各値を16bitの上位10bitに持つ)。
-};
-
 /**
  * @brief 1コマ分の画像。主メモリかGPUのメモリのどちらかに持つ。
  * @note YUVのコマはデコードした値のまま持ち、描画のときに色の解釈(color)に従ってRGBへ戻す
@@ -30,6 +23,7 @@ enum class PixelLayout : std::uint8_t {
  *       置き場所は次のどれか1つ:
  *       - pixels: 主メモリのBGRA(Bgra8)。上の行から順に並び、行の間に余白はない。
  *       - planes: 主メモリのYUV(Nv12・P010)。明るさの面(幅×高さ)の後に色の面(幅×高さ/2)が続き、余白はない。
+ *         Yuy2は1行に「Y0 U Y1 V」の4バイトが幅/2組並び、余白はない。
  *       - texture: GPUのNV12・P010のテクスチャ(chromaがnullptrのとき)。
  *       - texture + chroma: GPUの明るさの面(R8・R16)と色の面(R8G8・R16G16)の別々のテクスチャ(縮小したコマ)。
  */
@@ -42,6 +36,7 @@ struct Frame {
     Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;  ///< GPUのYUV(1枚)、または明るさの面。
     Microsoft::WRL::ComPtr<ID3D11Texture2D> chroma;   ///< GPUの色の面(明るさと別のテクスチャのとき)。
     ColorInfo color;  ///< 色の解釈(動画の指定・推定。手動の指定は描画のときに当てはめる)。
+    float pixelAspect = 1.0f;  ///< 1画素の横÷縦(DVなどの横長・縦長の画素。表示の縦横比に使う)。
 
     /**
      * @brief GPUのメモリ上のコマかを返す。
@@ -51,7 +46,7 @@ struct Frame {
 
     /**
      * @brief YUVのコマかを返す。
-     * @return NV12・P010ならtrue。
+     * @return NV12・P010・YUY2ならtrue。
      */
     bool isYuv() const { return layout != PixelLayout::Bgra8; }
 
@@ -66,6 +61,8 @@ struct Frame {
             return area * 3 / 2;
         case PixelLayout::P010:
             return area * 3;
+        case PixelLayout::Yuy2:
+            return area * 2;
         case PixelLayout::Bgra8:
         default:
             return area * 4;

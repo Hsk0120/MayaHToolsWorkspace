@@ -13,6 +13,7 @@
 
 #include <array>
 #include <deque>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -24,6 +25,10 @@
 #include "core/GpuDevice.h"
 
 namespace frameplayer {
+
+namespace detail {
+class ReadCallback;  // 非同期の読み込みの結果を受け取る窓口(MediaFoundationSource.cppで定義)。
+}
 
 /**
  * @brief Media FoundationのSource Readerで動画を読む。
@@ -105,6 +110,15 @@ private:
     bool setIndex(std::vector<std::pair<LONGLONG, bool>> samples, bool anyKeyFlag);
 
     /**
+     * @brief 全コマをデコードして、デコードしたコマの表示時刻で目次を作る。
+     * @param path 動画ファイルのパス。
+     * @return 作れた場合true。失敗時はerror_を設定してfalse。
+     * @note 圧縮されたコマの一部に時刻が無い形式(MPEG-2のtsなど)のためのもの。時間がかかる。
+     *       キーフレームは分からないので、全コマを候補にしてシークのときに確かめる。
+     */
+    bool buildIndexByDecoding(const std::wstring& path);
+
+    /**
      * @brief デコード用の読み込み本体を作る。
      * @param path 動画ファイルのパス。
      * @param maxWidth GPUのときに縮小する最大幅。
@@ -146,6 +160,31 @@ private:
      * @note 照合できないコマとシーク位置より前のコマは読み飛ばす。
      */
     int readDecodedSample(Microsoft::WRL::ComPtr<IMFSample>& sample, int& index);
+
+    /**
+     * @brief 1つ読む(非同期で頼み、時間の上限まで待つ)。
+     * @param flags 状態の印の格納先。
+     * @param timestamp 時刻の格納先。
+     * @param sample コマの格納先。
+     * @param stalled 時間切れ(Windowsの読み込みが止まった)ならtrueを入れる。
+     * @return 読み込みの結果。
+     */
+    HRESULT readSampleWithTimeout(DWORD& flags, LONGLONG& timestamp, Microsoft::WRL::ComPtr<IMFSample>& sample,
+                                  bool& stalled);
+
+    /**
+     * @brief 止まった読み込み本体を見捨てて作り直し、最後に返したコマの続きから読めるようにする。
+     * @return 作り直せたらtrue。回数の上限を超えた・作り直せない場合はerror_を設定してfalse。
+     */
+    bool recoverFromStall();
+
+    /**
+     * @brief readNext()の本体。
+     * @param out 格納先。
+     * @param index コマ番号の格納先。
+     * @return 読めた場合true。
+     */
+    bool readNextFrame(Frame& out, int& index);
 
     /**
      * @brief GPU上のコマを主メモリから読めるテクスチャへ写す命令を出し、先読みの列に加える。完了は待たない。
@@ -209,6 +248,9 @@ private:
     std::shared_ptr<GpuDevice> gpu_;                       ///< 共有のGPUデバイス。無ければnullptr。
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;  ///< GPU上での写しに使う。
     Microsoft::WRL::ComPtr<IMFSourceReader> reader_;  ///< デコード用の読み込み本体。所有する。
+    Microsoft::WRL::ComPtr<detail::ReadCallback> callback_;  ///< reader_の非同期の読み込みの結果を受け取る窓口。
+    int lastDelivered_ = -1;                          ///< 最後にreadNext()で返したコマ番号(止まったときの再開位置)。
+    int stallRecoveries_ = 0;                         ///< 今のreadNext()の中で作り直した回数。
     Frame heldFrame_;                                 ///< 開いたときに試しに読んだ先頭のコマ(最初のreadNext()で返す)。
     int heldIndex_ = -1;                              ///< heldFrame_のコマ番号。
     bool hasHeldFrame_ = false;                       ///< heldFrame_を持っているか。
@@ -223,6 +265,18 @@ private:
     bool colorChecked_ = false;                       ///< 最初のコマの後で色の情報を読み直したか。
     GUID codec_ = GUID_NULL;                          ///< 動画の圧縮形式(MJPEGの色の位置の判断に使う)。
     std::array<int, 4> mp4Color_{-1, -1, -1, -1};     ///< mp4/movのcolr(色域・伝達関数・行列・全範囲)。無ければ負。
+    int sourceBitDepth_ = 0;                          ///< mp4/movの設定ボックスから分かったビット数。不明なら0。
+    float pixelAspect_ = 1.0f;                        ///< 1画素の横÷縦(返すコマに付ける)。
+    bool orderBased_ = false;                         ///< 表示時刻が無い入れ物(avi)なので、出た順番でコマ番号を決めるか。
+    int nextOrderIndex_ = 0;                          ///< orderBased_のとき、次に出るコマの番号。
+    bool keyFramesUncertain_ = false;                 ///< キーフレームの印が当てにならない(シークのときに確かめる)か。
+    std::map<int, int> seekStarts_;                   ///< 確かめたシーク位置(最初に出るコマ → シークしたコマ)。
+    /// 先に読んで取っておいたコマと番号(シークを確かめたとき・番号の基準を決めたときに読んだもの。次から順に返す)。
+    std::deque<std::pair<Microsoft::WRL::ComPtr<IMFSample>, int>> queued_;
+    bool timestampsUnreliable_ = false;               ///< シーク直後のデコーダーの時刻が当てにならない(MPEG-1/2)か。
+    bool anchored_ = false;                           ///< timestampsUnreliable_のとき、番号の基準が決まったか。
+    Microsoft::WRL::ComPtr<IMFSample> anchorCandidate_;  ///< 基準の候補(直前に読んだコマ)。
+    int anchorCandidateIndex_ = -1;                   ///< anchorCandidate_の時刻から求めたコマ番号。
     Microsoft::WRL::ComPtr<ID3D11Texture2D> copyTexture_;  ///< 縮小する前に写す先(使い回す)。
     std::unique_ptr<FrameRenderer> scaler_;           ///< GPUのメモリに置くコマを縮小するシェーダー。
     std::wstring indexMethod_;                        ///< 目次の作り方(説明表示用)。

@@ -784,7 +784,9 @@ void VideoView::drawPaneImage(const PaneState& pane, const ColorInfo& color, Pan
     }
     // コマが変わったとき(または色の解釈を変えたとき)だけRGBへ戻し直す。拡大縮小と画面への合わせ込みは毎回行う。
     if (renderer_.prepare(d3dContext_.Get(), frame, color, cache.image)) {
-        renderer_.present(d3dContext_.Get(), backBuffer_.Get(), fitPixels(area, frame->width, frame->height),
+        // 横長・縦長の画素(DVなど)は、表示の縦横比になるよう横の大きさを画素の比で直して収める。
+        const int displayWidth = std::max(1, static_cast<int>(std::lround(frame->width * frame->pixelAspect)));
+        renderer_.present(d3dContext_.Get(), backBuffer_.Get(), fitPixels(area, displayWidth, frame->height),
                           cache.image, FrameRenderer::chooseOutput(color, display_, scRgb_), display_);
     }
 }

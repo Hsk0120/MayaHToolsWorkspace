@@ -10,6 +10,7 @@
  *                                    > stss  キーフレームの番号(無ければ全コマがキーフレーム)
  *                                    > stsz  コマ数の確認用
  *                                    > stsd > (avc1など) > colr  色の情報(H.273の番号)
+ *                                                       > hvcC・vpcC・av1C  ビット数(VP9は色の情報も)
  * 数値はすべてビッグエンディアン。
  */
 #include "core/Mp4SampleTable.h"
@@ -154,13 +155,14 @@ bool readMoov(const std::wstring& path, std::vector<std::uint8_t>& moov) {
 }
 
 /**
- * @brief 映像の形式の説明(stsd)の最初の項目にあるcolrボックスから、色の情報を読む。
+ * @brief 映像の形式の説明(stsd)の最初の項目から、色の情報(colr)と1つの値のビット数を読む。
  * @param stbl stblボックスの中身。
- * @param table 格納先。読めなければ変えない。
- * @note 'nclx'(ISO/IEC 14496-12)は範囲の印まで、'nclc'(QuickTime)は3つの番号だけを持つ。
- *       'prof'(ICCプロファイル)は扱わない。
+ * @param table 格納先。読めなかった項目は変えない。
+ * @note colrの'nclx'(ISO/IEC 14496-12)は範囲の印まで、'nclc'(QuickTime)は3つの番号だけを持つ。
+ *       'prof'(ICCプロファイル)は扱わない。ビット数は圧縮形式ごとの設定ボックスから読む
+ *       (HEVCのhvcC、VP9のvpcC、AV1のav1C)。VP9のvpcCは色の情報も持つので、colrが無いときに使う。
  */
-void readColor(Range stbl, Mp4SampleTable& table) {
+void readVideoFormat(Range stbl, Mp4SampleTable& table) {
     const Range stsd = findChild(stbl, "stsd");
     // stsdの中身: 版とフラグ(4)、項目数(4)、その後に項目(ボックス)が並ぶ。
     if (!stsd.valid() || stsd.end - stsd.begin < 16) {
@@ -173,20 +175,48 @@ void readColor(Range stbl, Mp4SampleTable& table) {
     if (entrySize < kVisualHeader || entrySize > static_cast<std::uint64_t>(stsd.end - entry)) {
         return;
     }
-    const Range colr = findChild(Range{entry + kVisualHeader, entry + entrySize}, "colr");
-    if (!colr.valid() || colr.end - colr.begin < 10) {
-        return;
+    const Range children{entry + kVisualHeader, entry + entrySize};
+
+    // HEVC(ISO/IEC 14496-15): 21バイト目の下位3bitが「明るさのビット数 - 8」。
+    const Range hvcC = findChild(children, "hvcC");
+    if (hvcC.valid() && hvcC.end - hvcC.begin >= 22) {
+        table.bitDepth = (hvcC.begin[21] & 0x07) + 8;
     }
-    const bool nclx = isType(colr.begin, "nclx");
-    if (!nclx && !isType(colr.begin, "nclc")) {
-        return;
+    // AV1(AV1 Codec ISO Media File Format): 3バイト目のhigh_bitdepth・twelve_bitの印。
+    const Range av1C = findChild(children, "av1C");
+    if (av1C.valid() && av1C.end - av1C.begin >= 3) {
+        const bool high = (av1C.begin[2] & 0x40) != 0;
+        const bool twelve = (av1C.begin[2] & 0x20) != 0;
+        table.bitDepth = twelve ? 12 : high ? 10 : 8;
     }
-    auto readU16 = [](const std::uint8_t* p) { return (p[0] << 8) | p[1]; };
-    table.colorPrimaries = readU16(colr.begin + 4);
-    table.transferCharacteristics = readU16(colr.begin + 6);
-    table.matrixCoefficients = readU16(colr.begin + 8);
-    if (nclx && colr.end - colr.begin >= 11) {
-        table.fullRange = (colr.begin[10] & 0x80) ? 1 : 0;
+    // VP9(VP Codec ISO Media File Format): 版とフラグ(4)、profile(1)、level(1)の後に、
+    // ビット数(上位4bit)・色の間引き(3bit)・全範囲(1bit)、色域・伝達関数・行列(各1バイト)。
+    const Range vpcC = findChild(children, "vpcC");
+    int vpcColor[4] = {-1, -1, -1, -1};
+    if (vpcC.valid() && vpcC.end - vpcC.begin >= 10) {
+        table.bitDepth = vpcC.begin[6] >> 4;
+        vpcColor[0] = vpcC.begin[7];
+        vpcColor[1] = vpcC.begin[8];
+        vpcColor[2] = vpcC.begin[9];
+        vpcColor[3] = vpcC.begin[6] & 0x01;
+    }
+
+    const Range colr = findChild(children, "colr");
+    const bool nclx = colr.valid() && colr.end - colr.begin >= 10 && isType(colr.begin, "nclx");
+    const bool nclc = colr.valid() && colr.end - colr.begin >= 10 && isType(colr.begin, "nclc");
+    if (nclx || nclc) {
+        auto readU16 = [](const std::uint8_t* p) { return (p[0] << 8) | p[1]; };
+        table.colorPrimaries = readU16(colr.begin + 4);
+        table.transferCharacteristics = readU16(colr.begin + 6);
+        table.matrixCoefficients = readU16(colr.begin + 8);
+        if (nclx && colr.end - colr.begin >= 11) {
+            table.fullRange = (colr.begin[10] & 0x80) ? 1 : 0;
+        }
+    } else if (vpcC.valid()) {
+        table.colorPrimaries = vpcColor[0];
+        table.transferCharacteristics = vpcColor[1];
+        table.matrixCoefficients = vpcColor[2];
+        table.fullRange = vpcColor[3];
     }
 }
 
@@ -233,7 +263,7 @@ bool readMp4SampleTable(const std::wstring& path, Mp4SampleTable& table) {
     if (!stbl.valid() || timescale == 0) {
         return false;
     }
-    readColor(stbl, table);
+    readVideoFormat(stbl, table);
 
     // stts: デコード時刻の間隔を「コマ数×間隔」の並びで持つ。
     const Range stts = findChild(stbl, "stts");

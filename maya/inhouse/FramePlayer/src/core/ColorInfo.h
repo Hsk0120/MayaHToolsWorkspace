@@ -15,6 +15,14 @@
 
 namespace frameplayer {
 
+/** @brief 画像の画素の並び。 */
+enum class PixelLayout : std::uint8_t {
+    Bgra8,  ///< BGRAの各8bit(縮小画像など)。値は動画の色域・伝達関数のままのRGB。
+    Nv12,   ///< YUV 4:2:0の8bit(明るさの面と、縦横半分の色の面(UVの交互))。
+    P010,   ///< YUV 4:2:0の10bit(NV12と同じ並びで、各値を16bitの上位10bitに持つ)。
+    Yuy2,   ///< YUV 4:2:2の8bit(1行に「Y0 U Y1 V」が並ぶ。DVのデコーダーなどが出す)。
+};
+
 /** @brief YUVからRGBへ戻す行列の種類。 */
 enum class ColorMatrix : std::uint8_t {
     Bt601,      ///< ITU-R BT.601(SDの動画)。
@@ -188,17 +196,18 @@ void yuvToRgbMatrix(const ColorInfo& info, bool p010, float out[12]);
 void gamutToBt709(ColorPrimaries primaries, float out[9]);
 
 /**
- * @brief 主メモリのYUVのコマ(NV12・P010)を、主メモリのBGRAの画像にする(縮小画像・確認用)。
- * @param planes 明るさの面(幅×高さ)の後に、色の面(幅×高さ/2、UVの交互)が続くデータ。
+ * @brief 主メモリのYUVのコマ(NV12・P010・YUY2)を、主メモリのBGRAの画像にする(縮小画像・確認用)。
+ * @param planes NV12・P010は明るさの面(幅×高さ)の後に色の面(幅×高さ/2、UVの交互)が続くデータ。
+ *               YUY2は1行に「Y0 U Y1 V」が並ぶデータ。
  * @param width 幅(偶数)。
  * @param height 高さ(偶数)。
- * @param p010 1つの値が16bitならtrue、8bitならfalse。
+ * @param layout 並び(Nv12・P010・Yuy2)。
  * @param info 色の解釈(行列・範囲・色の位置を使う)。
  * @param outWidth 作る画像の幅。widthと同じなら全画素を変換し、小さければ近い画素を選んで縮める。
  * @param outHeight 作る画像の高さ。
  * @param out BGRAの画素(outWidth×outHeight個)の格納先。値は動画の色域・伝達関数のままのRGB。
  */
-void convertPlanesToBgra(const std::uint8_t* planes, int width, int height, bool p010, const ColorInfo& info,
+void convertPlanesToBgra(const std::uint8_t* planes, int width, int height, PixelLayout layout, const ColorInfo& info,
                          int outWidth, int outHeight, std::uint32_t* out);
 
 }  // namespace frameplayer

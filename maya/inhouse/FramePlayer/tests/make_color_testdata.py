@@ -52,6 +52,7 @@ PRIMARIES = {
     "bt709": ((0.640, 0.330), (0.300, 0.600), (0.150, 0.060)),
     "bt2020": ((0.708, 0.292), (0.170, 0.797), (0.131, 0.046)),
     "smpte170m": ((0.630, 0.340), (0.310, 0.595), (0.155, 0.070)),
+    "bt470bg": ((0.640, 0.330), (0.290, 0.600), (0.150, 0.060)),
 }
 D65 = (0.3127, 0.3290)
 
@@ -204,22 +205,27 @@ def raw_frame(width, height, values, bits16):
     return b"".join(rows)
 
 
-def encode(ffmpeg, out, width, height, frame, bits16, matrix, range_, codec, tags, x265_params=""):
+def encode(ffmpeg, out, width, height, frame, bits16, matrix, range_, codec, tags, x265_params="", write_colr=True):
     """1コマの RGB を、指定の行列・範囲で YUV にして1秒の動画にする。"""
     pix_in = "rgb48le" if bits16 else "rgb24"
-    pix_out = "yuv420p10le" if codec == "hevc10" else "yuv420p"
+    pix_out = "yuv420p10le" if codec in ("hevc10", "vp9_10") else "yuv420p"
     vf = (f"loop=loop=23:size=1:start=0,scale=in_range=pc:out_color_matrix={matrix}:out_range={range_}"
           f":flags=accurate_rnd+full_chroma_int,format={pix_out}")
     cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", pix_in,
            "-s", f"{width}x{height}", "-r", "24", "-i", "-", "-vf", vf]
     if codec == "h264":
         cmd += ["-c:v", "libx264", "-qp", "2", "-preset", "medium", "-profile:v", "high"]
+    elif codec in ("vp9", "vp9_10"):
+        # VP9は可逆で圧縮する(YUVの値がそのまま残る)。mp4ではvpcCボックスに色の情報が入る。
+        cmd += ["-c:v", "libvpx-vp9", "-lossless", "1", "-row-mt", "1"]
+        if codec == "vp9_10":
+            cmd += ["-profile:v", "2"]
     else:
         params = "qp=2" + (":" + x265_params if x265_params else "")
         cmd += ["-c:v", "libx265", "-x265-params", params, "-profile:v", "main10", "-tag:v", "hvc1"]
     for key, value in tags.items():
         cmd += [f"-{key}", value]
-    if out.endswith(".mp4") and tags:
+    if out.endswith(".mp4") and tags and write_colr:
         cmd += ["-movflags", "+write_colr"]
     cmd.append(out)
     subprocess.run(cmd, input=frame, check=True)
@@ -281,6 +287,16 @@ def main():
     add("sdr10_709_tv_hevc.mp4", *hd, {"matrix": "bt709", "range": "limited", "primaries": "bt709", "transfer": "sdr", "bits": 10},
         sdr_expected(SDR_PATCHES), frame=raw_frame(*hd, SDR_PATCHES, True), bits16=True, matrix="bt709", range_="tv",
         codec="hevc10", tags={**tags709, "color_range": "tv"})
+    # VP9(8bit)。色の情報は colr と vpcC の両方に入る。
+    add("vp9_8_709_tv.mp4", *hd, {"matrix": "bt709", "range": "limited", "primaries": "bt709", "transfer": "sdr", "bits": 8},
+        sdr_expected(SDR_PATCHES), frame=sdr_frame, bits16=False, matrix="bt709", range_="tv", codec="vp9",
+        tags={**tags709, "color_range": "tv"})
+    # VP9(8bit)で、色の情報が vpcC にだけある(colr が無い)。HD でも BT.601 と読めることを確かめる。
+    add("vp9_8_601_vpcc_only.mp4", *hd,
+        {"matrix": "bt601", "range": "limited", "primaries": "smpte170m", "transfer": "sdr", "bits": 8},
+        sdr_expected(SDR_PATCHES, "smpte170m"), frame=sdr_frame, bits16=False, matrix="bt601", range_="tv",
+        codec="vp9", tags={"colorspace": "smpte170m", "color_primaries": "smpte170m", "color_trc": "smpte170m",
+                           "color_range": "tv"}, write_colr=False)
     # BT.2020 の色域の SDR。709 の色を 2020 で表した値を入れ、表示では元の 709 の色に戻ることを確かめる。
     to2020 = conversion("bt709", "bt2020")
     values2020 = [tuple(srgb_oetf(c) for c in mat_mul(to2020, tuple(srgb_eotf(c) for c in v))) for v in SDR_PATCHES]
@@ -303,6 +319,11 @@ def main():
         tags={"colorspace": "bt2020nc", "color_primaries": "bt2020", "color_trc": "smpte2084", "color_range": "tv"},
         x265_params="hdr10=1:max-cll=1000,400:master-display=G(13250,34500)B(7500,3000)R(34000,16000)"
                     "WP(15635,16450)L(10000000,1)")
+    # VP9(10bit)の HDR(PQ)。最大の明るさの指定は無いので、既定の1000cd/m2として収める(期待値も1000)。
+    add("vp9_10_pq.mp4", *hd,
+        {"matrix": "bt2020", "range": "limited", "primaries": "bt2020", "transfer": "pq", "bits": 10},
+        hdr_expected, frame=raw_frame(*hd, pq_values, True), bits16=True, matrix="bt2020", range_="tv", codec="vp9_10",
+        tags={"colorspace": "bt2020nc", "color_primaries": "bt2020", "color_trc": "smpte2084", "color_range": "tv"})
     # HDR(HLG)。表示の明るさが HDR_PATCHES になるようにシーンの値を逆算して入れる。
     hlg_values = [tuple(hlg_oetf(c) for c in hlg_scene_from_nits(v)) for v in HDR_PATCHES]
     add("hdr10_hlg_hevc.mp4", *hd,

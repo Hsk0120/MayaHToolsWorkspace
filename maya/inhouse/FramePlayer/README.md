@@ -45,11 +45,54 @@
 
 ## 対応形式
 
-Windowsが標準で読める形式。確認済み: H.264(mp4/mov、Bフレームあり・長いGOPを含む)、MJPEG(avi)、
-HEVC(8bit・10bit・HDRのPQ/HLG。拡張機能が必要)。
+WindowsのMedia Foundationが読める形式(デコードはWindowsに任せ、外部のライブラリは使わない)。
+Windowsに入っている映像のデコーダーのうち、ffmpegで確認用動画を作れるものはすべて、コマ番号(順・逆・ランダム)と
+色を確かめた(下記「全コーデックの確認」)。
 
+| コーデック | 確認した入れ物 | 必要なもの |
+| --- | --- | --- |
+| H.264 | mp4・mov・mkv・ts・m2ts・avi・3gp | Windows標準(「N」エディションはメディア機能パック) |
+| HEVC(H.265、8bit・10bit・HDR) | mp4・mkv・ts | 拡張機能「HEVC Video Extensions」 |
+| AV1(8bit・10bit) | mp4・mkv・webm | 拡張機能「AV1 Video Extension」 |
+| VP9(8bit・10bit・HDR) | mp4・webm・mkv | 拡張機能「VP9 Video Extensions」 |
+| VP8 | webm・mkv | 拡張機能「VP9 Video Extensions」(VP8も含む) |
+| MPEG-2 | mpg・ts・vob | 拡張機能「MPEG-2 Video Extension」 |
+| MPEG-1 | mpg | Windows標準 |
+| MPEG-4 Part 2(Simple Profile)・H.263 | mp4・mov・avi・3gp | Windows標準 |
+| MS-MPEG4 v2・v3(DivX 3) | avi | Windows標準 |
+| WMV7・WMV8 | wmv | Windows標準(WMV9・VC-1も読めるはずだが、確認用動画を作れないので未確認) |
+| MJPEG | avi・mov | Windows標準 |
+| DV(NTSC) | avi | Windows標準 |
+| Theora | mkv | 拡張機能「Web Media Extensions」 |
+
+- 拡張機能はMicrosoft Storeで無料で入る。入っていないと、その形式だけが「出力形式を設定できません
+  (HRESULT 0xC00D5212)」(対応するデコーダーが無い)で開けない(プレイヤー自体は使える)。入っているかは
+  PowerShell の `Get-AppxPackage *VP9*`(HEVCなら `*HEVC*` など)で確かめられる。
 - ProResは読めない(将来、`FrameSource` の派生クラスを追加して対応できる設計)。
-- HEVC(H.265)はMicrosoft Storeの拡張機能が必要。Windowsの「N」エディションではH.264にもメディア機能パックが必要。
+- Windows側の制限で読めないもの・正しく読めないもの:
+  - MPEG-4 Part 2のBフレーム(Advanced Simple Profile。XviD・DivXの多くの設定)。Windowsのデコーダーは
+    Simple Profileだけで、Bフレームは正しい絵にならない。
+  - movに入ったDV、ogg・ogv(Theoraはmkvなら読める)。Windowsが開けない。
+  - 映像だけの短い(数秒の)mpg・vob。Windowsが開けない(音声があるか、長ければ開ける)。
+- 入れ物・コーデックごとの扱い(コマ番号を正しく決めるため):
+  - 10bitの動画は、mp4/movの設定ボックス(HEVCのhvcC・VP9のvpcC・AV1のav1C)から分かるビット数で見分け、
+    10bitのときだけP010で受け取る(デコーダーによっては8bitの動画でもP010を受け付けてしまい、読むと失敗・停止
+    するため。VP9で確認)。デコーダーが途中で形式を変えた場合(10bitのVP9)は、それに合わせる。
+  - aviには表示時刻が無く、Bフレームがあるとデコーダーが出すコマの時刻と絵の順番が食い違う。aviでは、
+    キーフレームから数えた順番でコマ番号を決める(デコーダーは表示の順に出す)。
+  - ts・m2tsは全コマにキーフレームの印が付き、Windowsのシークも大まか(指定より後のキーフレームから出る・終わり
+    近くでは失敗する)。シークしたら最初に出たコマを確かめ、目的より後なら手前からやり直す。確かめた位置は覚えておく。
+  - MPEG-1/2(mpg・ts・vob)は圧縮されたコマの一部にしか時刻が無いので、全体をデコードして目次を作る(開くのに
+    時間がかかる)。シークの直後はデコーダーが付ける時刻が絵と食い違う(古いコマも混じる)ので、時刻が目次と続けて
+    2つ合ったところを基準にし、そこからは出た順番で番号を決める。GPUでデコードするとシークが長く止まる・作り直した
+    デコーダーでシークできなくなることを確認したので、MPEG-1/2はCPUでデコードする(デコードが軽い形式)。
+  - Windowsの読み込みは、まれに1コマを読む処理が返らなくなる(aviのDVなどで確認)。読み込みは非同期で頼み、
+    10秒待っても届かなければ、その読み込み本体を見捨てて作り直し、最後に返したコマの続きから読む。
+    非同期では、結果を受け取った直後はまだ前の要求が終わっていない扱いになることがあるので、シーク・読み込みが
+    `MF_E_INVALIDREQUEST` で断られたら少し待ってやり直す。
+  - DVはデコーダーがYUY2(4:2:2)を出すので、Windowsの映像処理を通さずYUY2のまま受け取る(映像処理を通すと、
+    大きさが変わり、GPUではコマが1つずれた)。横長・縦長の画素(DVの10:11など)は、表示のときに縦横比を直す。
+  - MJPEGは、JPEG(JFIF)の決まりで大きさによらずBT.601・全範囲として色を戻す。
 
 ## 操作
 
@@ -338,7 +381,7 @@ OpenRVなど他のソフトのコードは使っていない(調べるときの�
    範囲は映像用、伝達関数はSDR。一般的なプレイヤーと同じ決まり。
 2. デコーダーが動画の中(H.264・HEVCのVUI)から読んだ値(行列・色域・伝達関数のどれかが分かったときだけ)。
 3. 動画の形式の情報(Media Foundationが報告する値)。
-4. mp4/movの `colr` ボックス(自前で読む。Display P3はここでしか分からない)。
+4. mp4/movの `colr` ボックス(自前で読む。Display P3はここでしか分からない)。無ければVP9の `vpcC` ボックス。
 
 ### 表示の仕方
 
@@ -389,11 +432,24 @@ build\Release\FramePlayerColorCheck.exe build\testdata\color --max-width 640
 ```
 
 確認用動画: H.264の8bit(BT.709の映像用・全範囲、mov、BT.601と指定したHD、色の情報なしのHD・SD)、
-HEVCの10bit(BT.709、BT.2020のSDR、HDRのPQ・HLG)。各動画で、読み取った色の解釈が期待どおりかも確かめる。
+HEVCの10bit(BT.709、BT.2020のSDR、HDRのPQ・HLG)、VP9(8bitのBT.709、色の情報が `vpcC` にだけあるBT.601、
+10bitのHDRのPQ)。各動画で、読み取った色の解釈が期待どおりかも確かめる。
 許す差は、SDRの値で8bitの2.5段、HDRの明るさでPQの10bitの4段(圧縮・4:2:0・丸めの分)。
 
-確認結果(GPU・CPU・縮小(幅640)のどれも、10本すべて一致): SDRの値の差は最大2.05段(8bit)、
-HDRの明るさの差は最大3.54段(PQの10bit)。色の解釈は10本とも期待どおり。
+確認結果(GPU・CPU・縮小(幅640)のどれも、13本すべて一致): SDRの値の差は最大2.05段(8bit)、
+HDRの明るさの差は最大3.54段(PQの10bit)。色の解釈は13本とも期待どおり。
+
+## 全コーデックの確認
+
+`tests/make_codec_testdata.py` で、Windowsのデコーダーごと・入れ物ごとの確認用動画(コマ番号の縞の動画と、
+色のパッチの動画)を作り、`tests/run_codec_check.py` で `FramePlayerVerify.exe`(コマ番号。GPUとCPU、キャッシュを
+小さくしてシークも)と `FramePlayerColorCheck.exe`(色。GPUとCPU)をまとめて実行する。1本ごとに時間の上限があり、
+止まった場合も失敗として数える。
+
+```bat
+python tests\make_codec_testdata.py --ffmpeg C:\path\to\ffmpeg.exe --out build\testdata\codecs
+python tests\run_codec_check.py --data build\testdata\codecs --bin build\Release
+```
 
 ## コマ送りの正確さの確認
 
@@ -583,3 +639,4 @@ FramePlayer/
 - `python/frameplayer/` Maya側の連携パッケージ(`sync.py` 接続とMayaの時間の受け渡し、`ui.py` 画面)
 - `tests/verify_frame_index.cpp` コマ送りの正確さの確認用ツール
 - `tests/verify_color.cpp`・`tests/make_color_testdata.py` 色の正確さの確認用ツールと、確認用動画・期待値の作成
+- `tests/make_codec_testdata.py`・`tests/run_codec_check.py` 全コーデック・入れ物の確認用動画の作成と、まとめての確認

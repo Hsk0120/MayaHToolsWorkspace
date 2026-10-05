@@ -130,7 +130,7 @@ bool toBgra(const frameplayer::GpuDevice* gpu, const frameplayer::Frame& frame, 
     out.height = frame.height;
     out.color = frame.color;
     out.pixels.resize(static_cast<std::size_t>(frame.width) * frame.height);
-    frameplayer::convertPlanesToBgra(source.data(), frame.width, frame.height, p010, frame.color, frame.width,
+    frameplayer::convertPlanesToBgra(source.data(), frame.width, frame.height, frame.layout, frame.color, frame.width,
                                      frame.height, out.pixels.data());
     return true;
 }

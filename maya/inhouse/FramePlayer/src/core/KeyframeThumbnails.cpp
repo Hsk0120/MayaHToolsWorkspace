@@ -133,6 +133,7 @@ std::shared_ptr<const Frame> KeyframeThumbnails::nearest(int index, int* imageIn
     frame->width = imageWidth_;
     frame->height = imageHeight_;
     frame->color = imageColor_;  // 値は動画の色域・伝達関数のままなので、描画で画面に合わせるために付ける。
+    frame->pixelAspect = imageAspect_;
     const std::vector<std::uint16_t>& image = images_[static_cast<std::size_t>(chosen)];
     frame->pixels.resize(image.size());
     std::transform(image.begin(), image.end(), frame->pixels.begin(), fromRgb565);
@@ -189,9 +190,10 @@ void KeyframeThumbnails::run(std::wstring path, std::shared_ptr<GpuDevice> gpu) 
                 rgb.width = std::min(decoded.width, width_ * 2);
                 rgb.height = std::max(1, static_cast<int>(static_cast<long long>(decoded.height) * rgb.width / decoded.width));
                 rgb.color = decoded.color;
+                rgb.pixelAspect = decoded.pixelAspect;
                 rgb.pixels.resize(static_cast<std::size_t>(rgb.width) * rgb.height);
-                convertPlanesToBgra(decoded.planes.data(), decoded.width, decoded.height,
-                                    decoded.layout == PixelLayout::P010, decoded.color, rgb.width, rgb.height,
+                convertPlanesToBgra(decoded.planes.data(), decoded.width, decoded.height, decoded.layout,
+                                    decoded.color, rgb.width, rgb.height,
                                     rgb.pixels.data());
                 decoded = std::move(rgb);
             }
@@ -258,6 +260,7 @@ void KeyframeThumbnails::run(std::wstring path, std::shared_ptr<GpuDevice> gpu) 
                 imageWidth_ = first.width;
                 imageHeight_ = first.height;
                 imageColor_ = first.color;
+                imageAspect_ = first.pixelAspect;
                 images_[0] = pack(first);
                 bytes_ = images_[0].size() * sizeof(std::uint16_t);
             }

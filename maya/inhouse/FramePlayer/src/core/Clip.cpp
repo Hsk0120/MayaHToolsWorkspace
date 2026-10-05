@@ -557,6 +557,7 @@ Frame shrinkToWidth(const Frame& source, int maxWidth) {
 
     Frame result;
     result.color = source.color;
+    result.pixelAspect = source.pixelAspect;
     result.width = maxWidth;
     result.height = std::max(1, static_cast<int>(static_cast<long long>(source.height) * maxWidth / source.width));
     result.pixels.resize(static_cast<size_t>(result.width) * result.height);

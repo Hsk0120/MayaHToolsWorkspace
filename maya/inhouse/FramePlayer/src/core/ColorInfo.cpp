@@ -444,15 +444,18 @@ void gamutToBt709(ColorPrimaries primaries, float out[9]) {
     }
 }
 
-void convertPlanesToBgra(const std::uint8_t* planes, int width, int height, bool p010, const ColorInfo& info,
+void convertPlanesToBgra(const std::uint8_t* planes, int width, int height, PixelLayout layout, const ColorInfo& info,
                          int outWidth, int outHeight, std::uint32_t* out) {
+    const bool p010 = layout == PixelLayout::P010;
+    const bool packed = layout == PixelLayout::Yuy2;
     float m[12];
     yuvToRgbMatrix(info, p010, m);
     const int bytesPerValue = p010 ? 2 : 1;
-    const std::size_t lumaRow = static_cast<std::size_t>(width) * bytesPerValue;
-    const std::uint8_t* chroma = planes + lumaRow * height;
+    // YUY2は1行が幅×2バイトで、明るさは偶数バイト目、色は4バイトごとの1・3バイト目(U・V)にある。
+    const std::size_t lumaRow = static_cast<std::size_t>(width) * (packed ? 2 : bytesPerValue);
+    const std::uint8_t* chroma = packed ? planes : planes + lumaRow * height;
     const int chromaWidth = width / 2;
-    const int chromaHeight = height / 2;
+    const int chromaHeight = packed ? height : height / 2;
     // テクスチャと同じ0〜1の値として読む。
     auto value = [&](const std::uint8_t* p) {
         return p010 ? (p[0] | (p[1] << 8)) / 65535.0f : p[0] / 255.0f;
@@ -460,6 +463,9 @@ void convertPlanesToBgra(const std::uint8_t* planes, int width, int height, bool
     auto chromaAt = [&](int cx, int cy, int component) {
         cx = std::clamp(cx, 0, chromaWidth - 1);
         cy = std::clamp(cy, 0, chromaHeight - 1);
+        if (packed) {
+            return value(chroma + lumaRow * cy + static_cast<std::size_t>(cx) * 4 + 1 + component * 2);
+        }
         return value(chroma + lumaRow * cy + (static_cast<std::size_t>(cx) * 2 + component) * bytesPerValue);
     };
     // 色の画素の位置(明るさの画素の単位)。描画のシェーダーと同じ決まり。
@@ -468,7 +474,8 @@ void convertPlanesToBgra(const std::uint8_t* planes, int width, int height, bool
     for (int outY = 0; outY < outHeight; ++outY) {
         // 縮めるときは、作る画素の中心に最も近い元の画素を使う。
         const int y = std::min(height - 1, static_cast<int>((outY + 0.5) * height / outHeight));
-        const float cyf = (y - offsetY) / 2.0f;
+        // YUY2(4:2:2)は色の画素が縦には間引かれていない。
+        const float cyf = packed ? static_cast<float>(y) : (y - offsetY) / 2.0f;
         const int cy0 = static_cast<int>(std::floor(cyf));
         const float fy = cyf - cy0;
         for (int outX = 0; outX < outWidth; ++outX) {
@@ -482,7 +489,7 @@ void convertPlanesToBgra(const std::uint8_t* planes, int width, int height, bool
                 const float bottom = chromaAt(cx0, cy0 + 1, c) * (1 - fx) + chromaAt(cx0 + 1, cy0 + 1, c) * fx;
                 uv[c] = top * (1 - fy) + bottom * fy;
             }
-            const float luma = value(planes + lumaRow * y + static_cast<std::size_t>(x) * bytesPerValue);
+            const float luma = value(planes + lumaRow * y + static_cast<std::size_t>(x) * (packed ? 2 : bytesPerValue));
             std::uint32_t pixel = 0xFF000000u;
             for (int i = 0; i < 3; ++i) {
                 const float v = m[i * 4] * luma + m[i * 4 + 1] * uv[0] + m[i * 4 + 2] * uv[1] + m[i * 4 + 3];

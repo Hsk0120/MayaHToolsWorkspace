@@ -55,14 +55,28 @@ cbuffer ConvertParams : register(b0) {
     float4 gRow2;
     float2 gChromaOffset;  // 色の画素の位置(明るさの画素の単位。左寄せなら(0, 0.5))
     float2 gChromaSize;    // 色の面の大きさ(画素)
-    int gIsRgb;            // RGBのコマなら1(そのまま写す)
+    int gIsRgb;            // 0=NV12・P010、1=RGBのコマ(そのまま写す)、2=YUY2(1テクセルに「Y0 U Y1 V」)
     int3 gPad0;
 };
 
 float4 PSConvert(VSOut input) : SV_Target {
     int2 p = int2(input.pos.xy);
-    if (gIsRgb != 0) {
+    if (gIsRgb == 1) {
         return float4(saturate(gPlane0.Load(int3(p, 0)).rgb), 1);
+    }
+    if (gIsRgb == 2) {
+        // YUY2(4:2:2): 横2画素で色を1組持つ。色の画素iは明るさの単位で2i+offsetの位置にあるので、
+        // 左右の組を線形に補間する(縦は間引かれていない)。
+        float4 pair = gPlane0.Load(int3(p.x >> 1, p.y, 0));
+        float luma = (p.x & 1) != 0 ? pair.b : pair.r;
+        float position = (p.x - gChromaOffset.x) * 0.5;
+        int left = (int)floor(position);
+        float t = position - left;
+        int last = (int)gChromaSize.x - 1;
+        float2 a = gPlane0.Load(int3(clamp(left, 0, last), p.y, 0)).ga;
+        float2 b = gPlane0.Load(int3(clamp(left + 1, 0, last), p.y, 0)).ga;
+        float4 packedYuv = float4(luma, lerp(a, b, t), 1);
+        return float4(saturate(float3(dot(gRow0, packedYuv), dot(gRow1, packedYuv), dot(gRow2, packedYuv))), 1);
     }
     float y = gPlane0.Load(int3(p, 0)).r;
     // 明るさの画素n(中心はn+0.5)に対応する色の面の位置。色の画素iは明るさの単位で2i+offsetにある。

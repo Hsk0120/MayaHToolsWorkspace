@@ -7,17 +7,24 @@
 #include "core/TraceLog.h"
 #include "core/Util.h"
 
+#include <codecapi.h>
 #include <d3d11.h>
 #include <mfapi.h>
 #include <mferror.h>
 #include <propvarutil.h>
 
+#include <wrl/implements.h>
+
 #include <algorithm>
+#include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstring>
 #include <future>
+#include <cwctype>
 #include <iterator>
 #include <limits>
+#include <mutex>
 #include <utility>
 
 #include "core/Mp4SampleTable.h"
@@ -26,7 +33,123 @@ using Microsoft::WRL::ComPtr;
 
 namespace frameplayer {
 
+namespace detail {
+
+/**
+ * @brief Source Readerの非同期の読み込みの結果を受け取り、待てるようにする窓口。
+ * @note Windowsの読み込み(aviのDVなど)は、まれにReadSampleが返らなくなることを確認した。同期の呼び出しでは
+ *       止まったまま戻れないので、非同期で頼んで時間の上限まで待つ。Source Readerが別のスレッドから
+ *       OnReadSampleを呼ぶので、結果は鍵で守る。参照カウントで寿命を管理するので、見捨てた読み込み本体から
+ *       遅れて結果が届いても安全(誰も待っていなければ捨てられる)。
+ */
+class ReadCallback
+    : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
+                                          IMFSourceReaderCallback> {
+public:
+    /**
+     * @brief 読み込みの結果を受け取る(Source Readerの作業スレッドから呼ばれる)。
+     * @param status 結果。
+     * @param streamIndex ストリームの番号(使わない)。
+     * @param flags 状態の印(終端など)。
+     * @param timestamp 時刻(100ns単位)。
+     * @param sample コマ。無いこともある。
+     * @return 常にS_OK。
+     */
+    STDMETHODIMP OnReadSample(HRESULT status, DWORD streamIndex, DWORD flags, LONGLONG timestamp,
+                              IMFSample* sample) override {
+        (void)streamIndex;
+        std::lock_guard<std::mutex> lock(mutex_);
+        status_ = status;
+        flags_ = flags;
+        timestamp_ = timestamp;
+        sample_ = sample;
+        done_ = true;
+        ready_.notify_all();
+        return S_OK;
+    }
+
+    /**
+     * @brief 捨てる操作の完了の知らせ(使わない)。
+     * @param streamIndex ストリームの番号。
+     * @return 常にS_OK。
+     */
+    STDMETHODIMP OnFlush(DWORD streamIndex) override {
+        (void)streamIndex;
+        return S_OK;
+    }
+
+    /**
+     * @brief その他の知らせ(使わない)。
+     * @param streamIndex ストリームの番号。
+     * @param event 知らせ。
+     * @return 常にS_OK。
+     */
+    STDMETHODIMP OnEvent(DWORD streamIndex, IMFMediaEvent* event) override {
+        (void)streamIndex;
+        (void)event;
+        return S_OK;
+    }
+
+    /** @brief 次の読み込みを頼む前に、前の結果を消す。 */
+    void reset() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        done_ = false;
+        sample_.Reset();
+    }
+
+    /**
+     * @brief 結果が届くまで待つ。
+     * @param timeout 待つ時間の上限。
+     * @param status 結果の格納先。
+     * @param flags 状態の印の格納先。
+     * @param timestamp 時刻の格納先。
+     * @param sample コマの格納先。
+     * @return 届いたらtrue、時間切れならfalse。
+     */
+    bool wait(std::chrono::milliseconds timeout, HRESULT& status, DWORD& flags, LONGLONG& timestamp,
+              Microsoft::WRL::ComPtr<IMFSample>& sample) {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!ready_.wait_for(lock, timeout, [this] { return done_; })) {
+            return false;
+        }
+        status = status_;
+        flags = flags_;
+        timestamp = timestamp_;
+        sample = std::move(sample_);
+        return true;
+    }
+
+private:
+    std::mutex mutex_;
+    std::condition_variable ready_;
+    bool done_ = false;
+    HRESULT status_ = S_OK;
+    DWORD flags_ = 0;
+    LONGLONG timestamp_ = 0;
+    Microsoft::WRL::ComPtr<IMFSample> sample_;
+};
+
+}  // namespace detail
+
 namespace {
+
+/// 1コマを読むのを待つ時間の上限。これを超えたらWindowsの読み込みが止まったとみなし、作り直す。
+constexpr std::chrono::milliseconds kReadTimeout{10000};
+/// 前の非同期の要求の後始末を待つために、やり直す回数の上限(1msずつ)。
+constexpr int kBusyRetries = 200;
+/// 1回の読み込みで、止まったときに作り直す回数の上限。
+constexpr int kMaxStallRecoveries = 3;
+
+/**
+ * @brief 止まった読み込み本体を、解放せずに持ち続ける置き場を返す。
+ * @return 置き場(アプリの終了まで残す)。
+ * @note 読み込みの途中で止まった本体は、解放すると解放の中でも止まることがあるので、わざと持ち続ける
+ *       (まれにしか起きないので、メモリはアプリの終了で返す)。
+ */
+std::vector<ComPtr<IUnknown>>& stalledReaders() {
+    static auto* readers = new std::vector<ComPtr<IUnknown>>();  // 終了時にも解放しない(止まらないように)。
+    return *readers;
+}
 
 /// 読む対象のストリーム(最初の映像ストリーム)。
 constexpr DWORD kVideoStream = static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM);
@@ -92,6 +215,37 @@ bool hasVideoProcessor(IMFSourceReader* reader) {
         if (category == MFT_CATEGORY_VIDEO_PROCESSOR) {
             return true;
         }
+    }
+}
+
+/**
+ * @brief デコーダー(Source Readerが最初に挟んだ、映像処理以外の変換)が、指定の形式をそのまま出せるかを返す。
+ * @param reader 出力形式を設定し終えたSource Reader。
+ * @param subtype 調べる形式。
+ * @return 出力の候補にあればtrue。
+ */
+bool decoderOffers(IMFSourceReader* reader, const GUID& subtype) {
+    ComPtr<IMFSourceReaderEx> readerEx;
+    if (FAILED(reader->QueryInterface(IID_PPV_ARGS(&readerEx)))) {
+        return false;
+    }
+    for (DWORD i = 0;; ++i) {
+        GUID category{};
+        ComPtr<IMFTransform> transform;
+        if (FAILED(readerEx->GetTransformForStream(kVideoStream, i, &category, &transform))) {
+            return false;
+        }
+        if (category == MFT_CATEGORY_VIDEO_PROCESSOR) {
+            continue;
+        }
+        ComPtr<IMFMediaType> type;
+        for (DWORD k = 0; SUCCEEDED(transform->GetOutputAvailableType(0, k, type.ReleaseAndGetAddressOf())); ++k) {
+            GUID offered = GUID_NULL;
+            if (SUCCEEDED(type->GetGUID(MF_MT_SUBTYPE, &offered)) && offered == subtype) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -241,6 +395,12 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     source->gpu_ = std::move(gpu);
     source->path_ = path;
     source->maxWidth_ = maxWidth;
+    // aviには表示時刻が無く、Bフレームがあるとデコーダーが出すコマの時刻と絵の順番が食い違う。
+    // デコーダーは表示の順にコマを出すので、aviではキーフレームから数えた順番でコマ番号を決める。
+    const std::size_t dot = path.find_last_of(L'.');
+    std::wstring extension = dot == std::wstring::npos ? std::wstring() : path.substr(dot);
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+    source->orderBased_ = extension == L".avi" || extension == L".divx";
     // 縮小画像はキーフレームを1つずつ読むので、先の数コマまで命令しておくと無駄なデコードになる。
     source->pipelineDepth_ = purpose == SourcePurpose::Thumbnails ? 1 : kGpuPipelineDepth;
 
@@ -271,6 +431,9 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
             source->frameRate_ = indexer->frameRate_;
             source->indexMethod_ = std::move(indexer->indexMethod_);
             source->mp4Color_ = indexer->mp4Color_;
+            source->sourceBitDepth_ = indexer->sourceBitDepth_;
+            source->keyFramesUncertain_ = indexer->keyFramesUncertain_;
+            source->timestampsUnreliable_ = indexer->timestampsUnreliable_;
             traceLog("open index %.1f ms frames=%d", (nowTicks() - indexStart) * 1000.0 / ticksPerSecond(),
                      source->frameCount());
         }
@@ -292,11 +455,24 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
     modes.push_back(Mode::Cpu);
     for (Mode mode : modes) {
         const LONGLONG readerStart = nowTicks();
-        const bool created = source->createReader(path, maxWidth, mode);
+        bool created = source->createReader(path, maxWidth, mode);
         const LONGLONG readerEnd = nowTicks();
         if (!waitForIndex()) {
             error = source->error_.empty() ? L"目次を作れません" : source->error_;
             return nullptr;
+        }
+        if (source->timestampsUnreliable_ && mode != Mode::Cpu) {
+            // 時刻が一部のコマにしか無いMPEG-1/2は、GPUでデコードするとシークが長く止まったり、作り直した
+            // デコーダーでシークできなくなったりすることを確認した(CPUでは起きない)。デコードが軽い形式なので、
+            // CPUでデコードする。
+            source->clearPending();
+            source->stagingPool_.clear();
+            source->reader_.Reset();
+            continue;
+        }
+        if (created && source->sourceBitDepth_ > 8 && source->layout_ == PixelLayout::Nv12) {
+            // 目次と並行して作ったので、目次と一緒に分かった10bitに合わせて作り直す(P010で受け取る)。
+            created = source->createReader(path, maxWidth, mode);
         }
         if (created) {
             // 試しに先頭のコマを読み、読めた方式を採用する。読んだコマは捨てずに持っておき、最初のreadNext()で返す
@@ -325,18 +501,32 @@ std::unique_ptr<MediaFoundationSource> MediaFoundationSource::open(const std::ws
 
 bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth, Mode mode) {
     (void)maxWidth;  // 縮小はデコードの後に自前で行う(Windowsの映像処理を通さないため)。
+    traceLog("create reader mode=%d", static_cast<int>(mode));
     error_.clear();
     reader_.Reset();
     mode_ = Mode::Cpu;
     colorChecked_ = false;
+    nextOrderIndex_ = 0;
+    queued_.clear();
+    anchored_ = false;
+    lastDelivered_ = -1;
+    anchorCandidate_.Reset();
     const bool useGpu = mode != Mode::Cpu;
 
     ComPtr<IMFAttributes> attributes;
-    HRESULT hr = MFCreateAttributes(&attributes, 3);
+    HRESULT hr = MFCreateAttributes(&attributes, 4);
     if (FAILED(hr)) {
         setError(L"属性を作成できません", hr);
         return false;
     }
+    // 読み込みは非同期で頼み、時間の上限まで待つ(止まったら作り直せるように。readSampleWithTimeout())。
+    // 読み込み本体ごとに新しい窓口を使い、見捨てた本体から遅れて届く結果が混ざらないようにする。
+    callback_ = Microsoft::WRL::Make<detail::ReadCallback>();
+    if (!callback_) {
+        setError(L"読み込みの窓口を作成できません", E_OUTOFMEMORY);
+        return false;
+    }
+    attributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, callback_.Get());
     // デコーダーがNV12・P010を出さない形式(MJPEGのYUY2など)だけ、Windowsの映像処理でNV12へ並べ替える。
     // デコーダーがそのまま出せるときは映像処理は挟まらない(色の変換・縮小はさせない)。
     attributes->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, TRUE);
@@ -366,14 +556,20 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
     nativeDescribed_ = false;
     codec_ = GUID_NULL;
     ComPtr<IMFMediaType> nativeType;
+    UINT32 profile = 0;
     if (SUCCEEDED(reader_->GetNativeMediaType(kVideoStream, 0, &nativeType))) {
         nativeDescribed_ = applyMediaTypeColor(nativeType.Get(), nativeColor_);
         nativeType->GetGUID(MF_MT_SUBTYPE, &codec_);
+        profile = MFGetAttributeUINT32(nativeType.Get(), MF_MT_VIDEO_PROFILE, 0);
     }
 
-    // 10bitの動画はP010のまま受け取りたいが、8bitの動画でP010を求めるとWindowsの映像処理が挟まって変換される。
-    // そこでまずP010を求め、映像処理が挟まらなければ(デコーダーがP010を出せる=10bitの動画)P010を使い、
-    // 挟まったらNV12に戻す。GPUのメモリにP010を置けない場合はNV12にしない(10bitを8bitに落とさないため)。
+    // 10bitの動画だけP010で受け取る。ビット数はmp4/movの設定ボックス(目次と一緒に読む)から分かる。
+    // 分からなければ、HEVCのMain10だけを10bitとみなし、それ以外はNV12にする。
+    // デコーダーによっては8bitの動画でもP010を受け付けてしまい、読むと失敗・停止する(VP9で確認)ので、
+    // 試しにP010を求めて決めることはしない。10bitの動画をNV12で受け取ってデコーダーが途中でP010に
+    // 切り替えた場合は、updateFormat()で並びを合わせる。
+    const bool hevcMain10 = codec_ == MFVideoFormat_HEVC && profile == eAVEncH265VProfile_Main_420_10;
+    const bool wantP010 = sourceBitDepth_ > 8 || (sourceBitDepth_ == 0 && hevcMain10);
     auto setOutput = [&](const GUID& subtype) {
         ComPtr<IMFMediaType> outputType;
         HRESULT result = MFCreateMediaType(&outputType);
@@ -388,14 +584,28 @@ bool MediaFoundationSource::createReader(const std::wstring& path, int maxWidth,
         }
         return result;
     };
-    layout_ = PixelLayout::P010;
-    hr = setOutput(MFVideoFormat_P010);
-    if (FAILED(hr) || hasVideoProcessor(reader_.Get())) {
-        layout_ = PixelLayout::Nv12;
-        hr = setOutput(MFVideoFormat_NV12);
-    } else if (mode == Mode::GpuTexture && !gpu_->supportsP010()) {
+    if (wantP010 && mode == Mode::GpuTexture && !gpu_->supportsP010()) {
         setError(L"GPUのメモリに10bitのコマを置けません", E_FAIL);
         return false;  // 次の方式(主メモリへ写す)で読む。
+    }
+    hr = E_FAIL;
+    if (wantP010) {
+        // P010をそのまま出せないデコーダーなら(映像処理が挟まる)、NV12で受け取る。
+        hr = setOutput(MFVideoFormat_P010);
+        if (SUCCEEDED(hr) && hasVideoProcessor(reader_.Get())) {
+            hr = E_FAIL;
+        }
+    }
+    if (FAILED(hr)) {
+        hr = setOutput(MFVideoFormat_NV12);
+    }
+    if (SUCCEEDED(hr) && hasVideoProcessor(reader_.Get()) && decoderOffers(reader_.Get(), MFVideoFormat_YUY2)) {
+        // デコーダーがNV12を出せずYUY2(4:2:2)を出す形式(DVなど)は、映像処理を挟まずYUY2のまま受け取る
+        // (映像処理は大きさを画素の縦横比で変えたり、GPUではコマが1つずれたりすることを確認した)。
+        const HRESULT yuy2 = setOutput(MFVideoFormat_YUY2);
+        if (FAILED(yuy2) || hasVideoProcessor(reader_.Get())) {
+            hr = setOutput(MFVideoFormat_NV12);
+        }
     }
     if (FAILED(hr)) {
         setError(L"出力形式を設定できません", hr);
@@ -417,6 +627,7 @@ MediaFoundationSource::~MediaFoundationSource() {
     copyTexture_.Reset();
     scaler_.reset();
     reader_.Reset();
+    callback_.Reset();
     context_.Reset();
     gpu_.reset();
     if (started_) {
@@ -452,12 +663,14 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
     const bool haveTable = readMp4SampleTable(path, table);
     // 色の情報(colr)は、目次として使えない場合でも読めていれば使う。
     mp4Color_ = {table.colorPrimaries, table.transferCharacteristics, table.matrixCoefficients, table.fullRange};
+    sourceBitDepth_ = table.bitDepth;
     const std::size_t probeCount = haveTable ? std::min<std::size_t>(table.presentationTimes.size(), 240) : 0;
 
     // 圧縮されたコマはデコード順に届く。表示時刻と「キーフレームか」を集める。
     std::vector<std::pair<LONGLONG, bool>> samples;
     std::vector<std::uint8_t> hasKeyFlag;
     bool reachedEnd = false;
+    bool missingTime = false;  // 時刻の付いていない圧縮されたコマがあったか(MPEG-2のtsなど)。
     auto readSamples = [&](std::size_t limit) {
         while (samples.size() < limit) {
             DWORD flags = 0;
@@ -475,6 +688,8 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
             if (!sample) {
                 continue;
             }
+            LONGLONG sampleTime = 0;
+            missingTime = missingTime || FAILED(sample->GetSampleTime(&sampleTime));
             UINT32 cleanPoint = 0;
             const bool hasFlag = SUCCEEDED(sample->GetUINT32(MFSampleExtension_CleanPoint, &cleanPoint));
             samples.emplace_back(timestamp, hasFlag && cleanPoint != 0);
@@ -509,12 +724,71 @@ bool MediaFoundationSource::buildIndex(const std::wstring& path) {
     if (!reachedEnd && !readSamples(std::numeric_limits<std::size_t>::max())) {
         return false;
     }
+    if (missingTime) {
+        // 圧縮されたコマの一部に時刻が無いと、表示時刻の目次を作れない。デコーダーは全コマに時刻を
+        // 付けて出すので、一度デコードして目次を作る(時間はかかるが、番号を正しく決めるため)。
+        return buildIndexByDecoding(path);
+    }
     bool anyKeyFlag = false;
     for (std::uint8_t flag : hasKeyFlag) {
         anyKeyFlag = anyKeyFlag || flag != 0;
     }
     indexMethod_ = L"全体を読んで作成";
     return setIndex(std::move(samples), anyKeyFlag);
+}
+
+bool MediaFoundationSource::buildIndexByDecoding(const std::wstring& path) {
+    ComPtr<IMFAttributes> attributes;
+    HRESULT hr = MFCreateAttributes(&attributes, 1);
+    if (SUCCEEDED(hr)) {
+        hr = attributes->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, TRUE);
+    }
+    ComPtr<IMFSourceReader> reader;
+    if (SUCCEEDED(hr)) {
+        hr = MFCreateSourceReaderFromURL(path.c_str(), attributes.Get(), &reader);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = selectVideoOnly(reader.Get());
+    }
+    ComPtr<IMFMediaType> type;
+    if (SUCCEEDED(hr)) {
+        hr = MFCreateMediaType(&type);
+    }
+    if (SUCCEEDED(hr)) {
+        type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+        hr = reader->SetCurrentMediaType(kVideoStream, nullptr, type.Get());
+    }
+    if (FAILED(hr)) {
+        setError(L"目次を作るためのデコーダーを用意できません", hr);
+        return false;
+    }
+    std::vector<std::pair<LONGLONG, bool>> samples;
+    for (;;) {
+        DWORD flags = 0;
+        LONGLONG timestamp = 0;
+        ComPtr<IMFSample> sample;
+        hr = reader->ReadSample(kVideoStream, 0, nullptr, &flags, &timestamp, &sample);
+        if (FAILED(hr)) {
+            setError(L"目次の作成中にデコードに失敗しました", hr);
+            return false;
+        }
+        if (flags & MF_SOURCE_READERF_ENDOFSTREAM) {
+            break;
+        }
+        if (sample) {
+            samples.emplace_back(timestamp, true);
+        }
+    }
+    indexMethod_ = L"デコードして作成";
+    // デコードしたコマには、どれがキーフレームかの印が無い。全コマをキーフレーム候補にして、
+    // シークのときに実際に読めた位置を確かめる(keyFramesUncertain_)。
+    if (!setIndex(std::move(samples), true)) {
+        return false;
+    }
+    keyFramesUncertain_ = true;
+    timestampsUnreliable_ = true;
+    return true;
 }
 
 bool MediaFoundationSource::setIndex(std::vector<std::pair<LONGLONG, bool>> samples, bool anyKeyFlag) {
@@ -536,6 +810,9 @@ bool MediaFoundationSource::setIndex(std::vector<std::pair<LONGLONG, bool>> samp
         }
         timestamps_.push_back(timestamp);
     }
+    // 全コマにキーフレームの印がある形式は、印が当てにならないことがある(tsは全コマに印が付き、
+    // その位置へシークすると次の本当のキーフレームまで進んでしまう)。シークのときに確かめる。
+    keyFramesUncertain_ = timestamps_.size() > 1 && keyFrames_.size() == timestamps_.size();
     // キーフレームの情報が無い形式では、安全のため常に先頭から読む。
     if (!anyKeyFlag || keyFrames_.empty() || keyFrames_.front() != 0) {
         keyFrames_.insert(keyFrames_.begin(), 0);
@@ -611,19 +888,99 @@ bool MediaFoundationSource::seekToKeyFrame(int keyIndex) {
         }
     }
     keyIndex = std::clamp(keyIndex, 0, frameCount() - 1);
-    PROPVARIANT position;
-    InitPropVariantFromInt64(timestamps_[static_cast<size_t>(keyIndex)], &position);
     // Media Foundationの呼び出し(シーク・デコード)は鍵で囲まない。GPUのデコーダーは別のスレッドでも
     // GPUを使うことがあり、ここで鍵を持ったまま待つと互いに待ち合って止まる(デッドロック)ため。
-    const HRESULT hr = reader_->SetCurrentPosition(GUID_NULL, position);
-    PropVariantClear(&position);
-    if (FAILED(hr)) {
-        setError(L"読み込み位置を移動できません", hr);
-        return false;
+    auto seekTo = [this](int index) {
+        // 先頭へ戻すときは時刻0を指定する(tsはキーフレームの時刻ちょうどを指定すると、次のキーフレームまで進む)。
+        PROPVARIANT position;
+        InitPropVariantFromInt64(index == 0 && keyFramesUncertain_ ? 0 : timestamps_[static_cast<size_t>(index)],
+                                 &position);
+        // 非同期の読み込みでは、結果を受け取った直後はまだ前の要求が終わっていない扱いで、
+        // MF_E_INVALIDREQUESTになることがある(結果を渡す関数から戻るまで)。少し待ってやり直す。
+        HRESULT result = reader_->SetCurrentPosition(GUID_NULL, position);
+        for (int retry = 0; result == MF_E_INVALIDREQUEST && retry < kBusyRetries; ++retry) {
+            Sleep(1);
+            result = reader_->SetCurrentPosition(GUID_NULL, position);
+        }
+        PropVariantClear(&position);
+        clearPending();  // 移動前に先読みしていたコマは捨てる。
+        queued_.clear();
+        nextOrderIndex_ = index;
+        anchored_ = false;
+        anchorCandidate_.Reset();
+        lastDelivered_ = index - 1;
+        return result;
+    };
+    if (!keyFramesUncertain_) {
+        const HRESULT hr = seekTo(keyIndex);
+        if (FAILED(hr)) {
+            setError(L"読み込み位置を移動できません", hr);
+            return false;
+        }
+        minimumIndex_ = keyIndex;
+        return true;
     }
-    minimumIndex_ = keyIndex;
-    clearPending();  // 移動前に先読みしていたコマは捨てる。
-    return true;
+
+    // キーフレームの印が当てにならない形式: シークして最初に出たコマが目的より後なら、手前からやり直す。
+    // 一度確かめた「この位置へシークすると、このコマから出る」を覚えておき、次からはそこから始める。
+    int start = keyIndex;
+    const auto known = seekStarts_.upper_bound(keyIndex);
+    if (known != seekStarts_.begin()) {
+        start = std::prev(known)->second;
+    }
+    // tsのシークは大まかで、指定した位置より後のキーフレームから出たり、終わり近くでは失敗したりする。
+    // 失敗・終端・行き過ぎのどれでも手前へ戻ってやり直す(戻る幅は倍々に広げる)。
+    int step = 1;
+    int recreations = 0;
+    auto accept = [&](ComPtr<IMFSample> sample, int index, int from) {
+        // 目的のコマ以前から出た。読んだコマは次のreadNext()でそのまま使う(目的より前なら捨てられる)。
+        seekStarts_[index] = from;
+        queued_.emplace_front(std::move(sample), index);
+        minimumIndex_ = keyIndex;
+    };
+    for (;;) {
+        const HRESULT hr = seekTo(start);
+        ComPtr<IMFSample> sample;
+        int index = -1;
+        int status = -1;
+        if (SUCCEEDED(hr)) {
+            minimumIndex_ = 0;
+            status = readDecodedSample(sample, index);
+        }
+        traceLog("verified seek key=%d start=%d hr=0x%08lX status=%d first=%d", keyIndex, start,
+                 static_cast<unsigned long>(hr), status, index);
+        if (status > 0 && index <= keyIndex) {
+            accept(std::move(sample), index, start);
+            return true;
+        }
+        const bool readBroken = SUCCEEDED(hr) && status < 0;
+        if (readBroken || start == 0) {
+            // 先頭へのシークでも行き過ぎることがある(m2tsで確認)。作り直した読み込み本体は確実に先頭から読む。
+            // 読み込み本体が使えなくなった(最後まで読んだ後のtsなど)。作り直す。作り直した本体は先頭から読む。
+            if (++recreations > 3 || !createReader(path_, maxWidth_, mode_)) {
+                if (FAILED(hr)) {
+                    setError(L"読み込み位置を移動できません", hr);
+                }
+                return false;
+            }
+            if (start != 0) {
+                continue;  // 同じ位置からやり直す。
+            }
+            minimumIndex_ = 0;
+            status = readDecodedSample(sample, index);
+            if (status < 0) {
+                return false;
+            }
+            if (status > 0) {
+                accept(std::move(sample), index, 0);
+            } else {
+                minimumIndex_ = keyIndex;  // コマが無い(終端)。
+            }
+            return true;
+        }
+        start = std::max(0, start - step);
+        step *= 2;
+    }
 }
 
 bool MediaFoundationSource::updateFormat() {
@@ -636,17 +993,42 @@ bool MediaFoundationSource::updateFormat() {
         setError(L"映像の大きさを取得できません", FAILED(hr) ? hr : E_FAIL);
         return false;
     }
+    // デコーダーは途中で形式を変えることがある(10bitのVP9はNV12を求めても最初のコマからP010になる)。
+    GUID subtype = GUID_NULL;
+    type->GetGUID(MF_MT_SUBTYPE, &subtype);
+    if (subtype == MFVideoFormat_P010) {
+        if (mode_ == Mode::GpuTexture && !gpu_->supportsP010()) {
+            setError(L"GPUのメモリに10bitのコマを置けません", E_FAIL);
+            return false;
+        }
+        layout_ = PixelLayout::P010;
+    } else if (subtype == MFVideoFormat_NV12) {
+        layout_ = PixelLayout::Nv12;
+    } else if (subtype == MFVideoFormat_YUY2) {
+        layout_ = PixelLayout::Yuy2;
+    } else {
+        setError(L"デコーダーの出力の形式に対応していません", MF_E_INVALIDMEDIATYPE);
+        return false;
+    }
 
     // 明るさの面の1行のバイト数。属性が無ければ幅から求める(NV12・P010は上の行から並ぶ)。
     UINT32 stride = 0;
     if (SUCCEEDED(type->GetUINT32(MF_MT_DEFAULT_STRIDE, &stride))) {
         defaultStride_ = static_cast<LONG>(stride);
     } else {
-        defaultStride_ = static_cast<LONG>(bufferWidth_ * (layout_ == PixelLayout::P010 ? 2 : 1));
+        defaultStride_ = static_cast<LONG>(bufferWidth_ * (layout_ == PixelLayout::Nv12 ? 1 : 2));
+    }
+    // 1画素の横÷縦(DVの10:11など)。表示のときに縦横比を直す。
+    UINT32 aspectX = 1;
+    UINT32 aspectY = 1;
+    pixelAspect_ = 1.0f;
+    if (SUCCEEDED(MFGetAttributeRatio(type.Get(), MF_MT_PIXEL_ASPECT_RATIO, &aspectX, &aspectY)) && aspectX > 0 &&
+        aspectY > 0) {
+        pixelAspect_ = static_cast<float>(aspectX) / static_cast<float>(aspectY);
     }
 
     // H.264の1080pは1088行で届くことがあるため、表示範囲の指定があれば切り出す。
-    // YUV 4:2:0は色の画素が2×2に1つなので、位置と大きさを偶数に揃える。
+    // YUV 4:2:0は色の画素が2×2に1つ(4:2:2は横2つに1つ)なので、位置と大きさを偶数に揃える。
     RECT visible{0, 0, static_cast<LONG>(bufferWidth_), static_cast<LONG>(bufferHeight_)};
     MFVideoArea area{};
     UINT32 blobSize = 0;
@@ -676,10 +1058,12 @@ bool MediaFoundationSource::updateFormat() {
 void MediaFoundationSource::updateColor(IMFMediaType* outputType) {
     // 優先順(後のものほど優先): 大きさからの推定 → デコーダーの出力の形式 → 動画の形式 → mp4/movのcolr。
     ColorInfo color = guessColorInfo(visible_.right - visible_.left, visible_.bottom - visible_.top);
-    // MJPEG(JPEG)は色の画素が中間にある。H.264・HEVCなどは左寄せが既定。
+    // MJPEG(JPEG)は、JFIFの決まりで大きさによらずBT.601・全範囲で、色の画素は中間にある。
+    // H.264・HEVCなどは左寄せが既定。
     if (codec_ == MFVideoFormat_MJPG) {
+        color.matrix = ColorMatrix::Bt601;
         color.siting = ChromaSiting::Center;
-        color.range = ColorRange::Full;  // JPEGは全範囲。
+        color.range = ColorRange::Full;
     }
     if (outputType) {
         ColorInfo decoded = color;
@@ -719,11 +1103,27 @@ void MediaFoundationSource::updateColor(IMFMediaType* outputType) {
 }
 
 int MediaFoundationSource::readDecodedSample(ComPtr<IMFSample>& sample, int& index) {
+    while (!queued_.empty()) {
+        // 先に読んで取っておいたコマ(シークを確かめたとき・番号の基準を決めたとき)。目的より前なら捨てる。
+        sample = std::move(queued_.front().first);
+        index = queued_.front().second;
+        queued_.pop_front();
+        if (index >= minimumIndex_) {
+            return 1;
+        }
+    }
     for (;;) {
         DWORD flags = 0;
         LONGLONG timestamp = 0;
         sample.Reset();
-        const HRESULT hr = reader_->ReadSample(kVideoStream, 0, nullptr, &flags, &timestamp, &sample);
+        bool stalled = false;
+        const HRESULT hr = readSampleWithTimeout(flags, timestamp, sample, stalled);
+        if (stalled) {
+            if (!recoverFromStall()) {
+                return -1;
+            }
+            continue;
+        }
         if (FAILED(hr)) {
             setError(L"コマの読み込みに失敗しました", hr);
             return -1;
@@ -747,7 +1147,33 @@ int MediaFoundationSource::readDecodedSample(ComPtr<IMFSample>& sample, int& ind
             }
         }
         // 目次と照合して番号を決める。照合できないコマや、シーク位置より前のコマは返さない。
-        index = indexOfTimestamp(timestamp);
+        // aviは表示時刻が無いので、キーフレームから数えた順番で決める(デコーダーは表示の順に出す)。
+        if (orderBased_) {
+            index = nextOrderIndex_ < frameCount() ? nextOrderIndex_++ : -1;
+        } else if (timestampsUnreliable_) {
+            // MPEG-1/2(時刻が一部のコマにしか無い)は、シークの直後にデコーダーが付ける時刻が絵と食い違い、
+            // シーク前の古いコマが混じることもある。絵は表示の順に正しく出るので、時刻が目次と続けて2つ
+            // 合ったところを基準にし、そこからは出た順番で番号を決める。基準より前のコマは使わない。
+            if (anchored_) {
+                index = nextOrderIndex_ < frameCount() ? nextOrderIndex_++ : -1;
+            } else {
+                const int matched = indexOfTimestamp(timestamp);
+                if (matched > 0 && anchorCandidate_ && matched == anchorCandidateIndex_ + 1) {
+                    // 1つ前のコマ(基準)を先に返し、このコマは次に返す。
+                    anchored_ = true;
+                    nextOrderIndex_ = matched + 1;
+                    queued_.emplace_front(std::move(sample), matched);
+                    sample = std::move(anchorCandidate_);
+                    index = matched - 1;
+                } else {
+                    anchorCandidate_ = std::move(sample);
+                    anchorCandidateIndex_ = matched;
+                    continue;
+                }
+            }
+        } else {
+            index = indexOfTimestamp(timestamp);
+        }
         if (index >= minimumIndex_) {
             return 1;
         }
@@ -757,6 +1183,50 @@ int MediaFoundationSource::readDecodedSample(ComPtr<IMFSample>& sample, int& ind
                      static_cast<long long>(tolerance_));
         }
     }
+}
+
+HRESULT MediaFoundationSource::readSampleWithTimeout(DWORD& flags, LONGLONG& timestamp, ComPtr<IMFSample>& sample,
+                                                    bool& stalled) {
+    stalled = false;
+    callback_->reset();
+    HRESULT hr = reader_->ReadSample(kVideoStream, 0, nullptr, nullptr, nullptr, nullptr);
+    for (int retry = 0; hr == MF_E_INVALIDREQUEST && retry < kBusyRetries; ++retry) {
+        Sleep(1);  // 前の要求の後始末が終わるのを待つ(SetCurrentPositionと同じ理由)。
+        hr = reader_->ReadSample(kVideoStream, 0, nullptr, nullptr, nullptr, nullptr);
+    }
+    if (FAILED(hr)) {
+        return hr;
+    }
+    if (!callback_->wait(kReadTimeout, hr, flags, timestamp, sample)) {
+        stalled = true;
+        return E_PENDING;
+    }
+    return hr;
+}
+
+bool MediaFoundationSource::recoverFromStall() {
+    traceLog("decoder stalled (last=%d minimum=%d) recover %d", lastDelivered_, minimumIndex_, stallRecoveries_ + 1);
+    if (++stallRecoveries_ > kMaxStallRecoveries) {
+        setError(L"デコーダーが応答しません", E_FAIL);
+        return false;
+    }
+    // 止まった本体は解放せずに置き場へ移し(解放の中でも止まることがあるため)、新しく作って続きの位置へ移る。
+    stalledReaders().push_back(reader_);
+    stalledReaders().push_back(callback_);
+    reader_.Reset();
+    callback_.Reset();
+    const int resume = lastDelivered_ + 1;
+    const int minimum = std::max(minimumIndex_, resume);
+    clearPending();
+    if (!createReader(path_, maxWidth_, mode_)) {
+        return false;
+    }
+    if (resume > 0 && !seekToKeyFrame(keyFrameAtOrBefore(std::min(resume, frameCount() - 1)))) {
+        return false;
+    }
+    minimumIndex_ = minimum;
+    lastDelivered_ = resume - 1;
+    return true;
 }
 
 bool MediaFoundationSource::enqueueGpuCopy(IMFSample* sample, int index) {
@@ -774,7 +1244,7 @@ bool MediaFoundationSource::enqueueGpuCopy(IMFSample* sample, int index) {
     }
     D3D11_TEXTURE2D_DESC desc{};
     texture->GetDesc(&desc);
-    if (desc.Format != DXGI_FORMAT_NV12 && desc.Format != DXGI_FORMAT_P010) {
+    if (desc.Format != DXGI_FORMAT_NV12 && desc.Format != DXGI_FORMAT_P010 && desc.Format != DXGI_FORMAT_YUY2) {
         return false;
     }
 
@@ -883,9 +1353,20 @@ void MediaFoundationSource::copyPlanes(const BYTE* luma, const BYTE* chroma, LON
     out.height = visible.bottom - visible.top;
     out.layout = layout_;
     out.color = color_;
+    out.pixelAspect = pixelAspect_;
     out.pixels.clear();
     out.texture.Reset();
     out.chroma.Reset();
+    if (layout_ == PixelLayout::Yuy2) {
+        // YUY2は1つの面に「Y0 U Y1 V」が並ぶ(1画素2バイト)。
+        const std::size_t packedRow = static_cast<std::size_t>(out.width) * 2;
+        out.planes.resize(packedRow * out.height);
+        for (int y = 0; y < out.height; ++y) {
+            std::memcpy(out.planes.data() + packedRow * y,
+                        luma + static_cast<std::size_t>(pitch) * (visible.top + y) + visible.left * 2, packedRow);
+        }
+        return;
+    }
     const std::size_t row = static_cast<std::size_t>(out.width) * valueBytes;
     out.planes.resize(row * out.height * 3 / 2);
     // 明るさの面は1画素1つ、色の面は横2画素で1組(U,V)なので、行のバイト数はどちらも幅×値のバイト数。
@@ -901,6 +1382,15 @@ void MediaFoundationSource::copyPlanes(const BYTE* luma, const BYTE* chroma, LON
 }
 
 bool MediaFoundationSource::readNext(Frame& out, int& index) {
+    stallRecoveries_ = 0;
+    const bool ok = readNextFrame(out, index);
+    if (ok) {
+        lastDelivered_ = index;
+    }
+    return ok;
+}
+
+bool MediaFoundationSource::readNextFrame(Frame& out, int& index) {
     error_.clear();
     if (hasHeldFrame_) {
         // 開いたときに試しに読んだ先頭のコマ(デコーダーはその次から読める位置にある)。
@@ -1030,6 +1520,7 @@ bool MediaFoundationSource::copyToTexture(IMFSample* sample, Frame& out) {
     context_->CopySubresourceRegion(copy.Get(), 0, 0, 0, 0, texture.Get(), subresource, &box);
 
     out.color = color_;
+    out.pixelAspect = pixelAspect_;
     out.pixels.clear();
     out.planes.clear();
     if (shrink) {

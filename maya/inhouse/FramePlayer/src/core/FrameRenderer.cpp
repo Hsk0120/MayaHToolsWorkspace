@@ -274,7 +274,16 @@ bool FrameRenderer::prepare(ID3D11DeviceContext* context, const std::shared_ptr<
     const DXGI_FORMAT chromaFormat = p010 ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
     ComPtr<ID3D11ShaderResourceView> plane0;
     ComPtr<ID3D11ShaderResourceView> plane1;
-    if (!frame->isYuv()) {
+    if (frame->layout == PixelLayout::Yuy2) {
+        // YUY2は「Y0 U Y1 V」の4バイトを1テクセル(RGBA)として、幅/2のテクスチャに置く。
+        ComPtr<ID3D11Texture2D> texture;
+        if (frame->onGpu() || frame->planes.size() < static_cast<std::size_t>(frame->width) * frame->height * 2 ||
+            !createPlane(device_.Get(), frame->width / 2, frame->height, DXGI_FORMAT_R8G8B8A8_UNORM,
+                         frame->planes.data(), static_cast<UINT>(frame->width) * 2, texture) ||
+            !createView(device_.Get(), texture.Get(), DXGI_FORMAT_R8G8B8A8_UNORM, plane0)) {
+            return false;
+        }
+    } else if (!frame->isYuv()) {
         ComPtr<ID3D11Texture2D> texture;
         if (frame->pixels.size() < static_cast<std::size_t>(frame->width) * frame->height ||
             !createPlane(device_.Get(), frame->width, frame->height, DXGI_FORMAT_B8G8R8A8_UNORM, frame->pixels.data(),
@@ -342,8 +351,8 @@ bool FrameRenderer::prepare(ID3D11DeviceContext* context, const std::shared_ptr<
     }
     chromaOffset(color.siting, constants.chromaOffset[0], constants.chromaOffset[1]);
     constants.chromaSize[0] = static_cast<float>(frame->width / 2);
-    constants.chromaSize[1] = static_cast<float>(frame->height / 2);
-    constants.isRgb = frame->isYuv() ? 0 : 1;
+    constants.chromaSize[1] = static_cast<float>(frame->layout == PixelLayout::Yuy2 ? frame->height : frame->height / 2);
+    constants.isRgb = frame->layout == PixelLayout::Yuy2 ? 2 : frame->isYuv() ? 0 : 1;
     writeConstants(context, &constants, sizeof(constants));
     ID3D11ShaderResourceView* views[] = {plane0.Get(), plane1.Get()};
     context->PSSetShaderResources(0, 2, views);

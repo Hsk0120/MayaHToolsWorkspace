@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Claude Code | 2026-10-05 | maya/inhouse/FramePlayer/ | Media Foundationで再生できる全コーデックの再生確認 |
 
 
 
@@ -85,6 +84,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-06): FramePlayerでMedia Foundationの全コーデックを確認。公式拡張機能を全部導入(Web Media・WebP・JPEG XLを追加)。H.264/HEVC/AV1/VP9/VP8/MPEG-1/2/MPEG-4 Part2/H.263/MS-MPEG4/WMV7/8/MJPEG/DV/Theoraの37通り(mp4・mov・mkv・webm・avi・ts・m2ts・mpg・vob・3gp・wmv)でコマ番号(GPU/CPU)、19本で色が一致。修正: aviは出た順番で番号、ts/m2tsはシーク先を確かめて戻る、MPEG-1/2は時刻欠けのためデコードで目次を作り基準を決めて順番で番号(CPUでデコード)、DVはYUY2のまま受け取り画素の縦横比を表示に反映、MJPEGはBT.601、YUY2のシェーダーの誤り、読み込みが止まったときの作り直し(非同期で10秒)。確認用スクリプト(make_codec_testdata.py・run_codec_check.py)を追加。Windows側の制限(MPEG-4のBフレーム・movのDV・ogg・短い映像だけのmpg)はREADMEに記載。mainへpush。
+
 - Codex 2026-10-05: 記載整理のプッシュ指示を受け、文書・関連テストの改名と参照更新、日英ビルド結果、差分を最終確認。FramePlayerの変更を除外してコミット対象を確定。
 
 - Codex 2026-10-05: ユーザー指示で公開APIの比較表現をhlib自身の仕様説明へ変更。引数・メソッド文書と関連テストをapi_arguments/api_methods/api_convenienceへ改名し、参照・英語カタログも更新。外部ライブラリの実体・登録設定・比較テストのimport・過去の作業履歴は保持。製品コードのdocstring除外AST一致、差分チェック、英訳未訳0件、日英Sphinx警告なしを確認。日本語ビルドは自動生成ファイルの並行処理競合後に単独再実行で成功。Mayaテストは未再実行。未コミット・未プッシュ。
@@ -105,7 +106,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 - Codex 2026-10-05: Plug.setAlias/setKey/animLayers、DAG.instances/parents/幅優先・深さ優先走査を追加。Matrix.toTransformationはhlib値型返却に変更しMatrix/MatrixPlugへの入力も対応。配列[index]は未作成要素を非実体化で参照し反復は既存要素のみ。複合の子はcmds直接渡しを維持するためchildのまま。Maya2022〜2027各7件、2027既存関連236件が成功。Sphinx・構文・差分確認済み、GUI未実行。
 
-- Claude Code (2026-10-05): VP9 Video Extensionsを入れて検証。VP9デコーダーは8bitでもP010を受け付け、読むとGPUでE_OUTOFMEMORY・CPUで停止したので、P010はmp4の設定ボックス(hvcC/vpcC/av1C)のビット数で10bitと分かったときだけ求めるよう修正。途中の形式変更(10bitのVP9)にも追従。vpcCの色情報も読む。VP9 3本を色の確認に追加し13本×GPU/CPU/縮小がすべて一致、コマ番号の確認も一致。未コミット。
+- Claude Code (2026-10-05): VP9 Video Extensionsを入れて検証。VP9デコーダーは8bitでもP010を受け付け、読むとGPUでE_OUTOFMEMORY・CPUで停止したので、P010はmp4の設定ボックス(hvcC/vpcC/av1C)のビット数で10bitと分かったときだけ求めるよう修正。途中の形式変更(10bitのVP9)にも追従。vpcCの色情報も読む。VP9 3本を色の確認に追加し13本×GPU/CPU/縮小がすべて一致、コマ番号の確認も一致。mainへpush。
 
 - Codex 2026-10-05: Transformation追加後のhlib/cymel利用者視点の残存差分を調査。配列番号・未作成要素・get戻り値・addAttr・Vectorの7操作をMaya2027 standaloneで比較。作成入口/未対応APIもソース確認しdocs/researchへ記録。実装変更なし、GUI未操作。
 

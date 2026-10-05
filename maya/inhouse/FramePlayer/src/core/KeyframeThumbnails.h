@@ -112,6 +112,7 @@ private:
     int imageWidth_ = 0;                               ///< 縮小画像の幅(最初の1枚で決まる)。
     int imageHeight_ = 0;                              ///< 縮小画像の高さ(最初の1枚で決まる)。
     ColorInfo imageColor_;                             ///< 縮小画像の色の解釈(最初の1枚で決まる)。
+    float imageAspect_ = 1.0f;                         ///< 縮小画像の1画素の横÷縦(最初の1枚で決まる)。
     std::size_t bytes_ = 0;                            ///< 作った縮小画像の合計バイト数。
     mutable int lastPosition_ = -1;                    ///< 最後にnearest()で返した画像の位置(positions_の添字)。
     mutable std::shared_ptr<const Frame> lastFrame_;   ///< 最後にnearest()で返した画像。
