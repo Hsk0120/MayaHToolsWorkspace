@@ -4,14 +4,13 @@ import maya.cmds as cmds
 
 
 def get_guide(is_reference=False):
-    """
-    シーン内のガイドを取得する関数
+    """isGearGuideを名前に含むアトリビュートを持つTransformを取得する。
 
-    args:
-        is_reference(bool) : リファレンスしているノードも取得するかどうか
+    Args:
+        is_reference (bool): Trueならリファレンス由来のノードも含める。
 
-    return:
-        guide_list(list[str, str]) : ガイドをリストで取得する
+    Returns:
+        list[str]: 該当するガイドのノード名。
     """
     node_list = cmds.ls(exactType="transform")
     
@@ -28,7 +27,11 @@ def get_guide(is_reference=False):
 
 
 def update_guide():
-    """Update mGear guides, requiring mGear only when invoked."""
+    """mGearを呼び出してガイドを更新する。
+
+    Raises:
+        RuntimeError: mGearをimportできない場合。
+    """
     try:
         from mgear.shifter import guide_template
     except ImportError as error:

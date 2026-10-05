@@ -121,7 +121,10 @@ class BlendMatrix(Node):
         Returns:
             CompoundPlug: ターゲット。
         """
-        return self.plug("target").element(_Calculation.index(index))
+        plug = self.plug("target")[_Calculation.index(index)]
+        if index not in self.targetIndices():
+            raise IndexError(f"No target at logical index {index}")
+        return plug
 
     @undoChunk("hlibCalculationEdit")
     def connectTarget(self, index, source, weight=1.0, force=False):
@@ -141,9 +144,9 @@ class BlendMatrix(Node):
         from ..plugs.plug import Plug as _InputPlug
         index = _Calculation.index(index)
         source, weight = _InputPlug._resolve_input(source), _Calculation.scalar(weight)
-        target = self.plug("target")._element_reference(index)
-        source.connectTo(target.child("targetMatrix"), force=force)
-        target.child("weight").set(weight)
+        target = self.plug("target")[index]
+        source.connectTo(target["targetMatrix"], force=force)
+        target["weight"].set(weight)
         return self
 
     @undoChunk("hlibCalculationEdit")
@@ -170,7 +173,7 @@ class BlendMatrix(Node):
             dict: matrix/weight。
         """
         target = self.targetPlug(index)
-        return {"matrix": Matrix(target.child("targetMatrix").get()), "weight": target.child("weight").get()}
+        return {"matrix": Matrix(target["targetMatrix"].get()), "weight": target["weight"].get()}
 
     @undoChunk("hlibCalculationEdit")
     def setTarget(self, index, matrix, weight=1.0):
@@ -188,9 +191,9 @@ class BlendMatrix(Node):
         """
         index = _Calculation.index(index)
         matrix, weight = Matrix(matrix), _Calculation.scalar(weight)
-        target = self.plug("target")._element_reference(index)
-        target.child("targetMatrix").set(matrix)
-        target.child("weight").set(weight)
+        target = self.plug("target")[index]
+        target["targetMatrix"].set(matrix)
+        target["weight"].set(weight)
         return self
 
     def outputPlug(self):

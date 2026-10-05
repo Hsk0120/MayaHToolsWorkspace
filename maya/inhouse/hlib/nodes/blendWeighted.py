@@ -15,15 +15,27 @@ class BlendWeighted(Node):
     """input[i] * weight[i]を合計する。weightの既定値は1。"""
 
     def inputIndices(self):
-        """list[int]: 存在するinputの論理番号。疎な配列を保持する。"""
+        """存在するinputの論理番号。疎な配列を保持する。
+
+        Returns:
+            list[int]: 存在するinputの論理番号。疎な配列を保持する。
+        """
         return list(self.plug("input").mplug().getExistingArrayAttributeIndices())
 
     def inputPlugs(self):
-        """dict[int, Plug]: 既存入力の番号とPlug。"""
-        return {i: self.plug("input").element(i) for i in self.inputIndices()}
+        """既存入力の番号とPlug。
+
+        Returns:
+            dict[int, Plug]: 既存入力の番号とPlug。
+        """
+        return {i: self.plug("input")[i] for i in self.inputIndices()}
 
     def getWeights(self):
-        """dict[int, float]: 既存inputに対応するウェイト。未設定要素は1。"""
+        """既存inputに対応するウェイト。未設定要素は1。
+
+        Returns:
+            dict[int, float]: 既存inputに対応するウェイト。未設定要素は1。
+        """
         return {i: self.getWeight(i) for i in self.inputIndices()}
 
     def inputPlug(self, index):
@@ -37,7 +49,10 @@ class BlendWeighted(Node):
             ValueError: indexが非負整数でない場合。
             IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。
         """
-        return self.plug("input").element(self._index(index))
+        plug = self.plug("input")[self._index(index)]
+        if index not in self.inputIndices():
+            raise IndexError(f"No input at logical index {index}")
+        return plug
 
     def getInput(self, index):
         """既存入力の評価値を取得する。接続済みなら接続元を評価する。
@@ -82,7 +97,7 @@ class BlendWeighted(Node):
         weights = self.plug("weight")
         if index not in weights.mplug().getExistingArrayAttributeIndices():
             return 1.0
-        return weights.element(index).get()
+        return weights[index].get()
 
     @fast_edit
     @undoChunk("hlibBlendWeightedWeight")
@@ -116,30 +131,48 @@ class BlendWeighted(Node):
         target = f"{self.fullName()}.input[{index}]"
         if index in self.inputIndices() and not cmds.listConnections(target, source=True, destination=False):
             # connectAttrのUndoだけでは配列要素の定数値が失われるため履歴に記録する。
-            self.plug("input").element(index).set(self.plug("input").element(index).get())
+            self.plug("input")[index].set(self.plug("input")[index].get())
         cmds.connectAttr(source.fullName(), target, force=force)
         return self
 
     def outputPlug(self):
-        """Plug: 出力プラグ。"""
+        """出力プラグ。
+
+        Returns:
+            Plug: 出力プラグ。
+        """
         return self.plug("output")
 
     def result(self):
-        """float: 現在の重み付き合計。"""
+        """現在の重み付き合計。
+
+        Returns:
+            float: 現在の重み付き合計。
+        """
         return self.outputPlug().get()
 
     @staticmethod
     def _index(index):
-        """非負の整数を検証する。不正値はValueError。"""
+        """非負の整数を検証する。不正値はValueError。
+
+        Args:
+            index: 対象要素の番号または探索開始番号。
+        """
         if isinstance(index, bool) or not isinstance(index, int) or index < 0:
             raise ValueError("Expected a non-negative integer index")
         from ..plugs.arrayPlug import ArrayPlug
         return ArrayPlug._validate_index(index)
 
     def _set(self, attr, index, value):
-        """有限値を設定する。通常はcmds、fastは保持するMPlugへ書く。"""
+        """有限値を設定する。通常はcmds、fastは保持するMPlugへ書く。
+
+        Args:
+            attr: 対象のアトリビュート名または保存情報。
+            index: 対象要素の番号または探索開始番号。
+            value: 変換・設定する入力値。
+        """
         index, value = self._index(index), float(value)
         if not math.isfinite(value):
             raise ValueError("Expected a finite value")
-        self.plug(attr)._element_reference(index).set(value)
+        self.plug(attr)[index].set(value)
         return self

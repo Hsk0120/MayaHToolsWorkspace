@@ -106,7 +106,7 @@ class SplineRig:
                 joint.plug("jointOrient").set(orient if i == 0 else (0, 0, 0))
                 joint.plug("segmentScaleCompensate").set(False)
                 joint.plug("radius").set(0.2)
-                joint.plug("message").connectTo(root.plug("{}[{}]".format(role, i)))
+                joint.plug("message").connectTo(root.plug(role)[i])
                 if role == "fk":
                     cls._shape(joint, length * 0.035, (1, 0, 0), 17)
                     joint.setAttributeFlags(["scale", "visibility"], locked=True, keyable=False)
@@ -135,7 +135,7 @@ class SplineRig:
             if i not in (0, control_count - 1):
                 control.setAttributeFlags(["rotate"], locked=True, keyable=False)
             offset.setAttributeFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
-            control.plug("message").connectTo(root.plug("controls[{}]".format(i)))
+            control.plug("message").connectTo(root.plug("controls")[i])
         graph = SplineIK.create(
             rig.members("ik"),
             rig.controls(),

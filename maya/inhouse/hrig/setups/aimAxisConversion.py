@@ -258,7 +258,12 @@ class AimAxisConversion:
 
     @staticmethod
     def _inspect(source, axes):
-        """直接の回転出力先を検証し、復元する接続を記録する。"""
+        """直接の回転出力先を検証し、復元する接続を記録する。
+
+        Args:
+            source: 接続・変換・探索の元または先となる対象。
+            axes: 処理対象の回転軸。
+        """
         targets = {}
         for _, dest in source.rotationConnections():
             if isinstance(dest.node(), Transform) and dest.longName() in (
@@ -284,7 +289,12 @@ class AimAxisConversion:
         return target, original, compound
 
     def _node(self, kind, role):
-        """用途名を付けた標準ノードを所有containerへ作る。"""
+        """用途名を付けた標準ノードを所有containerへ作る。
+
+        Args:
+            kind: 処理方式または作成するノード型。
+            role: 生成ノード名に付ける用途識別子。
+        """
         self._serial += 1
         return self._createNode(kind, name="{}{}".format(role, self._serial))
 
@@ -307,45 +317,88 @@ class AimAxisConversion:
 
     @staticmethod
     def _feed(value, destination):
-        """単位なしの数値またはPlugを入力する。"""
+        """単位なしの数値またはPlugを入力する。
+
+        Args:
+            value: 変換・設定する入力値。
+            destination: 接続・変換・探索の元または先となる対象。
+        """
         if isinstance(value, Plug):
             value.connectTo(destination)
         else:
             destination.set(value)
 
     def _sum(self, a, b, subtract=False):
-        """単位なしの加減算を作る。"""
+        """単位なしの加減算を作る。
+
+        Args:
+            a: 計算する左辺または右辺の値。
+            b: 計算する左辺または右辺の値。
+            subtract: Trueは減算、Falseは加算。
+        """
         return self._graph.sum("sum", a, b, subtract=subtract)
 
     def _mul(self, a, b):
-        """単位なしの乗算を作る。"""
+        """単位なしの乗算を作る。
+
+        Args:
+            a: 計算する左辺または右辺の値。
+            b: 計算する左辺または右辺の値。
+        """
         return self._graph.multiply("product", a, b)
 
     def _choose(self, a, b, yes, no):
-        """a > bで値を選ぶ。"""
+        """a > bで値を選ぶ。
+
+        Args:
+            a: 計算する左辺または右辺の値。
+            b: 計算する左辺または右辺の値。
+            yes: 条件が成立する場合または成立しない場合に選ぶ値。
+            no: 条件が成立する場合または成立しない場合に選ぶ値。
+        """
         return self._graph.condition("choose", a, b, yes, no)
 
     def _scalar(self, angle):
-        """角度をUI単位に依存しないラジアンの数値へ変換する。"""
+        """角度をUI単位に依存しないラジアンの数値へ変換する。
+
+        Args:
+            angle: 回転・配置の角度。radians指定はラジアン。
+        """
         node = self._node("unitConversion", "radians")
         angle.connectTo(node.plug("input"))
         node.plug("conversionFactor").set(1)
         return node.plug("output")
 
     def _angle(self, scalar):
-        """ラジアンの数値を角度入力へ渡す明示的な単位変換を作る。"""
+        """ラジアンの数値を角度入力へ渡す明示的な単位変換を作る。
+
+        Args:
+            scalar: 単位なしの数値または数値を出力するPlug。
+        """
         node = self._node("unitConversion", "angle")
         self._feed(scalar, node.plug("input"))
         node.plug("conversionFactor").set(1)
         return node.plug("output")
 
     def _wrap(self, value):
-        """既知の±3pi以内の値を±piへ折り返す。"""
+        """既知の±3pi以内の値を±piへ折り返す。
+
+        Args:
+            value: 変換・設定する入力値。
+        """
         high = self._choose(value, math.pi, self._sum(value, -2 * math.pi), value)
         return self._choose(-math.pi, high, self._sum(high, 2 * math.pi), high)
 
     def _euler(self, decompose, axes, reference, width, order):
-        """2組の等価解を選択軸の基準距離と範囲で評価する。"""
+        """2組の等価解を選択軸の基準距離と範囲で評価する。
+
+        Args:
+            decompose: 姿勢を合成または分解するノード。
+            axes: 処理対象の回転軸。
+            reference: 比較・復元の基準となる値または参照。
+            width: 基準解から許可する角度範囲。
+            order: Euler回転順序。
+        """
         candidates, scores, in_ranges = [], [], []
         middle = _ORDERS[order][1]
         for alternate in (False, True):
@@ -375,7 +428,12 @@ class AimAxisConversion:
         return outputs, valid
 
     def _atan(self, y, x):
-        """angleBetween.angleと符号判定でatan2を作る。原点は0角・無効。"""
+        """angleBetween.angleと符号判定でatan2を作る。原点は0角・無効。
+
+        Args:
+            y: 座標成分またはatan2の入力成分。
+            x: 座標成分またはatan2の入力成分。
+        """
         length = self._sum(self._mul(x, x), self._mul(y, y))
         valid = self._choose(length, 1e-12, 1, 0)
         angle = self._node("angleBetween", "signedAngle")
@@ -387,7 +445,14 @@ class AimAxisConversion:
         return self._choose(0, y, self._mul(radians, -1), radians), valid
 
     def _direction(self, compose, axes, direction, order):
-        """全Aim姿勢の指定方向を、回転順に沿うヒンジまたは2軸角へ再解する。"""
+        """全Aim姿勢の指定方向を、回転順に沿うヒンジまたは2軸角へ再解する。
+
+        Args:
+            compose: 姿勢を合成または分解するノード。
+            axes: 処理対象の回転軸。
+            direction: 姿勢から取り出す方向ベクトル。
+            order: Euler回転順序。
+        """
         aim = direction[-1]
         sign = -1 if direction.startswith("-") else 1
         vector = self._node("vectorProduct", "aimDirection")
@@ -419,7 +484,12 @@ class AimAxisConversion:
         return {first: inner, second: outer}, self._mul(valid, inner_valid)
 
     def _twist(self, decompose, axes):
-        """各選択軸へのQuaternion射影からTwist主値を独立に取り出す。"""
+        """各選択軸へのQuaternion射影からTwist主値を独立に取り出す。
+
+        Args:
+            decompose: 姿勢を合成または分解するノード。
+            axes: 処理対象の回転軸。
+        """
         w = decompose.plug("outputQuatW")
         ww = self._mul(w, w)
         outputs, valid = {}, 1.0

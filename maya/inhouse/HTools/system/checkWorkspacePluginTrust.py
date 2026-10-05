@@ -21,12 +21,21 @@ SCAN_ROOT = WORKSPACE_ROOT / "maya" / "inhouse"
 
 
 def _normalize(path):
-    """str: 比較用の正規化(スラッシュ統一・大文字小文字無視)。"""
+    """str: 比較用の正規化(スラッシュ統一・大文字小文字無視)。
+
+    Args:
+        path: 処理対象のファイルまたはディレクトリのパス。
+    """
     return os.path.normpath(str(path)).replace("\\", "/").rstrip("/").lower()
 
 
 def workspace_plugin_locations(plug_in_path=None, root=SCAN_ROOT):
-    """list[str]: root 配下にあり、.mll を含む MAYA_PLUG_IN_PATH のフォルダ(Mayaの表記に合わせたスラッシュ区切り)。"""
+    """list[str]: root 配下にあり、.mll を含む MAYA_PLUG_IN_PATH のフォルダ(Mayaの表記に合わせたスラッシュ区切り)。
+
+    Args:
+        plug_in_path: 探索対象のMAYA_PLUG_IN_PATH文字列。
+        root: 探索または構築の起点となるパス・ノード。
+    """
     if plug_in_path is None:
         plug_in_path = os.environ.get("MAYA_PLUG_IN_PATH", "")
     root_key = _normalize(root)
@@ -44,7 +53,11 @@ def workspace_plugin_locations(plug_in_path=None, root=SCAN_ROOT):
 
 
 def trusted_locations(option_var=TRUSTED_OPTION_VAR):
-    """list[str]: 現在登録済みの信頼済みプラグインの場所。"""
+    """list[str]: 現在登録済みの信頼済みプラグインの場所。
+
+    Args:
+        option_var: Mayaの信頼済みパスを照会するoptionVar名。
+    """
     if not cmds.optionVar(exists=option_var):
         return []
     value = cmds.optionVar(query=option_var)
@@ -52,7 +65,12 @@ def trusted_locations(option_var=TRUSTED_OPTION_VAR):
 
 
 def untrusted(locations, option_var=TRUSTED_OPTION_VAR):
-    """list[str]: locations のうち、まだ登録されていないもの。"""
+    """list[str]: locations のうち、まだ登録されていないもの。
+
+    Args:
+        locations: 照合するプラグイン配置ディレクトリの列。
+        option_var: Mayaの信頼済みパスを照会するoptionVar名。
+    """
     registered = {_normalize(p) for p in trusted_locations(option_var)}
     return [p for p in locations if _normalize(p) not in registered]
 

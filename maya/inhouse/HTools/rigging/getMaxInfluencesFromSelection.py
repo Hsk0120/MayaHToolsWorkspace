@@ -5,14 +5,22 @@ from hlib.nodes import Node
 
 
 def _to_dag_object(node):
-    """コンポーネント選択を transform / shape に寄せる"""
+    """コンポーネント選択を transform / shape に寄せる
+
+    Args:
+        node: 処理対象のノード参照。
+    """
     if not node:
         return None
     # vtx 等のコンポーネントは 'pSphere1.vtx[0]' のような形式
     return node.split('.', 1)[0]
 
 def _get_renderable_mesh_shapes(dag):
-    """transform/shape から、intermediate ではない mesh shape を返す"""
+    """transform/shape から、intermediate ではない mesh shape を返す
+
+    Args:
+        dag: DAG経路による依存も調査するか。
+    """
     dag = _to_dag_object(dag)
     if not dag or not cmds.objExists(dag):
         return []
@@ -34,7 +42,11 @@ def _get_renderable_mesh_shapes(dag):
     return out
 
 def _find_skin_clusters_from_shape(shape):
-    """shape から skinCluster を探索（deformableShape->inMesh 経由優先）"""
+    """shape から skinCluster を探索（deformableShape->inMesh 経由優先）
+
+    Args:
+        shape: 処理対象のShape。
+    """
     # まず「deformableShape」由来の接続で拾う（参照でも比較的安定）
     skins = cmds.ls(cmds.listConnections(shape, type="skinCluster") or [], type="skinCluster")
     if skins:

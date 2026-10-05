@@ -64,14 +64,22 @@ class DistanceBetween(Node):
         self.setPoints((0, 0, 0), (0, 0, 0))
         for number, node in enumerate(nodes, 1):
             index = node.mpath().instanceNumber()
-            node.plug("worldMatrix").element(index, create=True).connectTo(
+            node.plug("worldMatrix")[index].connectTo(
                 self.plug(f"inMatrix{number}"), force=force)
         return self
 
     def outputPlug(self):
-        """Plug: distance出力。別アトリビュートへの接続に使用する。"""
+        """distance出力。別アトリビュートへの接続に使用する。
+
+        Returns:
+            Plug: distance出力。別アトリビュートへの接続に使用する。
+        """
         return self.plug("distance")
 
     def distance(self):
-        """float: 評価済み距離。内部距離単位cm。"""
+        """評価済み距離。内部距離単位cm。
+
+        Returns:
+            float: 評価済み距離。内部距離単位cm。
+        """
         return self.outputPlug().get()

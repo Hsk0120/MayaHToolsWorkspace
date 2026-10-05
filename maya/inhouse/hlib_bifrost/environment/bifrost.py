@@ -12,7 +12,11 @@ class Bifrost:
 
     @classmethod
     def is_available(cls):
-        """bool: Maya 2025以降で対応Bifrostがロード済みならTrue。"""
+        """Maya 2025以降で対応Bifrostがロード済みならTrue。
+
+        Returns:
+            bool: Maya 2025以降で対応Bifrostがロード済みならTrue。
+        """
         Plugin = coreModule('environment').Plugin
 
         if cmds.about(apiVersion=True) < 20250000:

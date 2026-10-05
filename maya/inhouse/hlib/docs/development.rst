@@ -257,7 +257,8 @@ Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・`
 
 そのため Plug の生成は、値によって型が変わるアトリビュートで値を読む場合(上記の評価と、評価による
 ワールド空間の出力の要素の作成)を除き、シーンを変更しません。要素の作成が必要な処理は
-``ArrayPlug.element(index, create=True)`` のように明示します。所有ノードが削除済み、
+``array[index].set(value)`` または接続で明示します。値設定なしで実体化だけが必要な場合は
+``array.element(index, create=True)`` を使います。所有ノードが削除済み、
 または動的アトリビュートが ``deleteAttr`` で削除済みの場合は、Plug の生成を ``RuntimeError`` にし、
 既存の Plug も無効(``Plug.isValid()`` が ``False``。``str()``・``name()`` は空文字列、
 値の取得・設定と、アトリビュートの情報・接続の問い合わせは ``RuntimeError``)として扱います。

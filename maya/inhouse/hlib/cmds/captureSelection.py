@@ -10,7 +10,11 @@ Examples
 
 
 def captureSelection():
-    """Selection: 現在の選択を保持する。Channel Boxの選択アトリビュートは含めない。"""
+    """現在の選択を保持する。Channel Boxの選択アトリビュートは含めない。
+
+    Returns:
+        Selection: 現在の選択を保持する。Channel Boxの選択アトリビュートは含めない。
+    """
     from ..scene.selection import Selection
 
     return Selection.capture()

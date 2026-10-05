@@ -388,14 +388,22 @@ class OptionVar:
         return removed
 
     def _resolve(self, key):
-        """保存済みの値、無ければデフォルト値を返す。どちらも無ければ _MISSING。"""
+        """保存済みの値、無ければデフォルト値を返す。どちらも無ければ _MISSING。
+
+        Args:
+            key: 値を照会する保存キー。
+        """
         value = self._read_stored(key)
         if value is _MISSING and key in self._default_texts:
             value = json.loads(self._default_texts[key])
         return value
 
     def _read_stored(self, key):
-        """キーの optionVar を読んで JSON を解釈する。無い・読めない場合は _MISSING。"""
+        """キーの optionVar を読んで JSON を解釈する。無い・読めない場合は _MISSING。
+
+        Args:
+            key: 値を照会する保存キー。
+        """
         name = self.fullName(key)
         if not cmds.optionVar(exists=name):
             return _MISSING
@@ -510,7 +518,11 @@ def _to_json(value):
 
 
 def _reject_non_finite(token):
-    """JSON 拡張の ``NaN``/``Infinity``/``-Infinity`` を読み込み時に拒否する。"""
+    """JSON 拡張の ``NaN``/``Infinity``/``-Infinity`` を読み込み時に拒否する。
+
+    Args:
+        token: JSONの数値リテラル。
+    """
     raise ValueError("non-finite number {} is not accepted".format(token))
 
 
@@ -519,6 +531,9 @@ def _parse_finite_float(token):
 
     ``1e400`` のような表記は ``float()`` で無限大になるため、``parse_constant`` だけでは
     防げない。書き込み側(``allow_nan=False``)と同じく有限値だけを受け付ける。
+
+    Args:
+        token: JSONの数値リテラル。
     """
     number = float(token)
     if not math.isfinite(number):

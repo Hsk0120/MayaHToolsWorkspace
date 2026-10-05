@@ -4,7 +4,11 @@ HLIB_EXTENSION_API = 1
 
 
 def is_available():
-    """bool: PoseDriverConnectのv2モデルAPIをimportできればTrue。"""
+    """PoseDriverConnectのv2モデルAPIをimportできればTrue。
+
+    Returns:
+        bool: PoseDriverConnectのv2モデルAPIをimportできればTrue。
+    """
     try:
         import epic_pose_wrangler
     except ModuleNotFoundError as exc:

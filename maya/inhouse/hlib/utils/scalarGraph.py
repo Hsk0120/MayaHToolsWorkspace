@@ -37,8 +37,8 @@ class ScalarGraph:
         """
         node = self._node("plusMinusAverage", role)
         node.plug("operation").set(2 if subtract else 1)
-        self._feed(left, node.plug("input1D[0]"))
-        self._feed(right, node.plug("input1D[1]"))
+        self._feed(left, node.plug("input1D")[0])
+        self._feed(right, node.plug("input1D")[1])
         return node.plug("output1D")
 
     @undoTransaction("hlib.ScalarGraph.multiply")

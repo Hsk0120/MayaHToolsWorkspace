@@ -26,23 +26,39 @@ class WorkspaceLayout:
         self.name()
 
     def __str__(self):
-        """str: 保持した配置名。"""
+        """保持した配置名。
+
+        Returns:
+            str: 保持した配置名。
+        """
         return self._name
 
     @classmethod
     def list(cls):
-        """list[WorkspaceLayout]: Mayaに登録済みの配置を取得する。"""
+        """Mayaに登録済みの配置を取得する。
+
+        Returns:
+            list[WorkspaceLayout]: Mayaに登録済みの配置を取得する。
+        """
         _WindowReference._require_gui()
         return [cls(name) for name in cmds.workspaceLayoutManager(listLayouts=True) or []]
 
     @classmethod
     def current(cls):
-        """WorkspaceLayout: 現在の配置への新しい参照。"""
+        """現在の配置への新しい参照。
+
+        Returns:
+            WorkspaceLayout: 現在の配置への新しい参照。
+        """
         return cls()
 
     @staticmethod
     def getLocked():
-        """bool: Maya全体のドッキングロック状態を取得する。"""
+        """Maya全体のドッキングロック状態を取得する。
+
+        Returns:
+            bool: Maya全体のドッキングロック状態を取得する。
+        """
         _WindowReference._require_gui()
         return bool(cmds.optionVar(query="workspacesLockDocking"))
 
@@ -69,18 +85,30 @@ class WorkspaceLayout:
         WorkspaceLayout.setLocked(False)
 
     def exists(self):
-        """bool: 登録済みの配置か取得する。"""
+        """登録済みの配置か取得する。
+
+        Returns:
+            bool: 登録済みの配置か取得する。
+        """
         _WindowReference._require_gui()
         return self._name in (cmds.workspaceLayoutManager(listLayouts=True) or [])
 
     def name(self):
-        """str: 存在を確認した配置名。"""
+        """存在を確認した配置名。
+
+        Returns:
+            str: 存在を確認した配置名。
+        """
         if not self.exists():
             raise RuntimeError("Workspace layout is unavailable: " + str(self._name))
         return self._name
 
     def isCurrent(self):
-        """bool: 現在使用中の配置か取得する。"""
+        """現在使用中の配置か取得する。
+
+        Returns:
+            bool: 現在使用中の配置か取得する。
+        """
         return self.name() == cmds.workspaceLayoutManager(query=True, current=True)
 
     def activate(self):

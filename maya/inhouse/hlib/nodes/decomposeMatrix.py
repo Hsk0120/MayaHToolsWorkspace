@@ -13,11 +13,19 @@ class DecomposeMatrix(Node):
     """Mayaの行列分解ノード。接続先の親空間やjointOrientの補正は行わない。"""
 
     def inputPlug(self):
-        """MatrixPlug: inputMatrixの参照。"""
+        """inputMatrixの参照。
+
+        Returns:
+            MatrixPlug: inputMatrixの参照。
+        """
         return self.plug("inputMatrix")
 
     def getInput(self):
-        """Matrix: 現在の入力行列。接続済みなら接続元を評価する。"""
+        """現在の入力行列。接続済みなら接続元を評価する。
+
+        Returns:
+            Matrix: 現在の入力行列。接続済みなら接続元を評価する。
+        """
         return self.inputPlug().get()
 
     @fast_edit
@@ -42,7 +50,11 @@ class DecomposeMatrix(Node):
         return self
 
     def getRotateOrder(self):
-        """int: 入力回転順序。MayaのrotateOrderと同じ番号0〜5。"""
+        """入力回転順序。MayaのrotateOrderと同じ番号0〜5。
+
+        Returns:
+            int: 入力回転順序。MayaのrotateOrderと同じ番号0〜5。
+        """
         return self.plug("inputRotateOrder").get()
 
     @fast_edit

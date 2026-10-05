@@ -86,7 +86,7 @@ class SpaceSwitch:
         """
         choice = self._choice()
         return (self.buffer, choice) + tuple(
-            choice.plug("input[{}]".format(i)).sourceWithConversion().node() for i in range(len(self.labels()))
+            choice.plug("input")[i].sourceWithConversion().node() for i in range(len(self.labels()))
         )
 
     def _validate_target(self, target):
@@ -168,18 +168,18 @@ class SpaceSwitch:
         target = hlib.nodes.Node(target) if target is not None else None
         if target is not None:
             self._validate_target(target)
-        world = self.buffer.plug("worldMatrix[0]").get()
-        reference = target.plug("worldMatrix[0]").get() if target else Matrix()
+        world = self.buffer.plug("worldMatrix")[0].get()
+        reference = target.plug("worldMatrix")[0].get() if target else Matrix()
         reference = Matrix(reference)
         offset = Matrix(world) * self._inverse(reference)
         matrix = hlib.nodes.Node.create(
             "multMatrix", name=self.buffer.name() + "_" + label + "_multMatrix", skipSelect=True
         )
-        matrix.plug("matrixIn[0]").set(offset)
+        matrix.plug("matrixIn")[0].set(offset)
         if target is not None:
-            target.plug("worldMatrix[0]").connectTo(matrix.plug("matrixIn[1]"))
+            target.plug("worldMatrix")[0].connectTo(matrix.plug("matrixIn")[1])
         else:
-            matrix.plug("matrixIn[1]").set(Matrix())
+            matrix.plug("matrixIn")[1].set(Matrix())
         # buffer.parentInverseMatrixは自身のOPMを含むので使わず、実親を参照する。
         parent = [
             hlib.getNode(value)
@@ -188,13 +188,13 @@ class SpaceSwitch:
             )
         ] or []
         if parent:
-            hlib.nodes.Node(parent[0]).plug("worldInverseMatrix[0]").connectTo(
-                matrix.plug("matrixIn[2]")
+            hlib.nodes.Node(parent[0]).plug("worldInverseMatrix")[0].connectTo(
+                matrix.plug("matrixIn")[2]
             )
         else:
-            matrix.plug("matrixIn[2]").set(Matrix())
+            matrix.plug("matrixIn")[2].set(Matrix())
         choice = self._choice()
-        matrix.plug("matrixSum").connectTo(choice.plug("input[{}]".format(len(labels))))
+        matrix.plug("matrixSum").connectTo(choice.plug("input")[len(labels)])
         self.buffer.plug("spaceLabels").set(json.dumps(labels + (label,)))
         if not labels:
             choice.plug("output").connectTo(self.buffer.plug("offsetParentMatrix"))
@@ -211,11 +211,11 @@ class SpaceSwitch:
         choice = self._choice()
         if choice.plug("selector").get() == index:
             return
-        matrix = choice.plug("input[{}]".format(index)).sourceWithConversion().node()
-        source = matrix.plug("matrixIn[1]").sourceWithConversion()
+        matrix = choice.plug("input")[index].sourceWithConversion().node()
+        source = matrix.plug("matrixIn")[1].sourceWithConversion()
         if source is not None:
             self._validate_target(source.node())
-        reference = Matrix(matrix.plug("matrixIn[1]").get())
-        offset = Matrix(self.buffer.plug("worldMatrix[0]").get()) * self._inverse(reference)
-        matrix.plug("matrixIn[0]").set(offset)
+        reference = Matrix(matrix.plug("matrixIn")[1].get())
+        offset = Matrix(self.buffer.plug("worldMatrix")[0].get()) * self._inverse(reference)
+        matrix.plug("matrixIn")[0].set(offset)
         choice.plug("selector").set(index)

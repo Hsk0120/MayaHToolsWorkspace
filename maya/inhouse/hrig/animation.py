@@ -78,7 +78,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
             cmds.currentTime(frame)
             matrices = [list(hlib.getNode(node).getMatrix(ws=True)) for node in sources]
             if mode == "ik":
-                inverse = Matrix(hlib.getPlug(root + ".worldInverseMatrix[0]").get())
+                inverse = Matrix(hlib.getNode(root).plug("worldInverseMatrix")[0].get())
                 points = [inverse.transformPoint(matrix[12:15]) for matrix in matrices]
                 if Vector(points[0]).length() > 1e-4:
                     raise ValueError(

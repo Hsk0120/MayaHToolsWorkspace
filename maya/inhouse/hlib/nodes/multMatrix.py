@@ -22,7 +22,10 @@ class MultMatrix(Node):
             ValueError: indexが非負整数でない場合。
             IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。
         """
-        return self.plug("matrixIn").element(self._index(index))
+        plug = self.plug("matrixIn")[self._index(index)]
+        if index not in self.plug("matrixIn").mplug().getExistingArrayAttributeIndices():
+            raise IndexError(f"No input at logical index {index}")
+        return plug
 
     def getInput(self, index):
         """既存入力の評価値を取得する。接続済みなら接続元を評価する。
@@ -58,7 +61,7 @@ class MultMatrix(Node):
         """
         index = self._index(index)
         value = Matrix(value)
-        self.plug("matrixIn")._element_reference(index).set(value)
+        self.plug("matrixIn")[index].set(value)
         return self
 
     @undoChunk("hlibMultMatrixConnectInput")
@@ -80,20 +83,32 @@ class MultMatrix(Node):
         index = self._index(index)
         from ..plugs.plug import Plug
         source = Plug._resolve_input(source)
-        source.connectTo(self.plug("matrixIn")._element_reference(index), force=force)
+        source.connectTo(self.plug("matrixIn")[index], force=force)
         return self
 
     def outputPlug(self):
-        """MatrixPlug: matrixSum出力。別ノードへの接続に使用する。"""
+        """matrixSum出力。別ノードへの接続に使用する。
+
+        Returns:
+            MatrixPlug: matrixSum出力。別ノードへの接続に使用する。
+        """
         return self.plug("matrixSum")
 
     def result(self):
-        """Matrix: 現在の入力を乗算した評価済み行列。"""
+        """現在の入力を乗算した評価済み行列。
+
+        Returns:
+            Matrix: 現在の入力を乗算した評価済み行列。
+        """
         return self.outputPlug().get()
 
     @staticmethod
     def _index(index):
-        """非負の整数インデックスを検証する。不正値はValueError。"""
+        """非負の整数インデックスを検証する。不正値はValueError。
+
+        Args:
+            index: 対象要素の番号または探索開始番号。
+        """
         if isinstance(index, bool) or not isinstance(index, int) or index < 0:
             raise ValueError("Matrix index must be a non-negative integer")
         from ..plugs.arrayPlug import ArrayPlug

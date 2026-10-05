@@ -8,7 +8,11 @@ _active = ContextVar("hlib_fast_edit", default=False)
 
 
 def is_fast():
-    """bool: 現在の呼出しがOpenMaya直接編集を要求しているか。"""
+    """現在の呼出しがOpenMaya直接編集を要求しているか。
+
+    Returns:
+        bool: 現在の呼出しがOpenMaya直接編集を要求しているか。
+    """
     return _active.get()
 
 

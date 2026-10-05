@@ -540,7 +540,11 @@ class SkinCluster(Node):
         return self
 
     def getMaxInfluences(self):
-        """int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。"""
+        """skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。
+
+        Returns:
+            int: skinClusterのmaxInfluences設定値。実際の非ゼロ数ではない。
+        """
         return self.plug("maxInfluences").get()
 
     @fast_edit
@@ -714,7 +718,12 @@ class SkinCluster(Node):
             cmds.skinPercent(self.name(), transformMoveWeights=[source_joint, target_joint])
 
     def _influence_removal_target(self, joint, transfer_to_parent=True):
-        """削除可否と祖先移送先を変更前に確認する。"""
+        """削除可否と祖先移送先を変更前に確認する。
+
+        Args:
+            joint: 処理対象のジョイント。
+            transfer_to_parent: 削除前にウェイトを親インフルエンスへ移すか。
+        """
         if not isinstance(transfer_to_parent, bool):
             raise TypeError("transfer_to_parent must be a bool")
         self._raise_if_layers()
@@ -768,7 +777,12 @@ class SkinCluster(Node):
                 SkinCluster._validate_weight_locks(plug.child(index))
 
     def _normalized_weights(self, decimals=None, limit=None):
-        """正規化結果をメモリ上で計算する。丸めは最大剰余法で合計を維持する。"""
+        """正規化結果をメモリ上で計算する。丸めは最大剰余法で合計を維持する。
+
+        Args:
+            decimals: 丸める小数点以下の桁数。
+            limit: 残すインフルエンス数の上限。
+        """
         if decimals is not None and (type(decimals) is not int or not 0 <= decimals <= 15):
             raise ValueError("decimals must be an integer between 0 and 15")
         names, weights = self._editable_weights()

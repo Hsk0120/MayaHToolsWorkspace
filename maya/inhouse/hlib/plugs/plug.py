@@ -200,9 +200,9 @@ class Plug(Object):
     ``<ノードの最短一意名>.<アトリビュートパス>`` を返すため、Plug はそのまま
     ``cmds.getAttr(plug)``/``cmds.connectAttr(a, b)`` などへ渡せる。
     短い名前が重複するノード(``grp1|dup`` と ``grp2|dup``)でも一意で、
-    名前変更・親子付け替えにも追従する。ただし ``ArrayPlug`` は ``[]`` で要素を
+    名前変更・親子付け替えにも追従する。ただし ``ArrayPlug`` と複合Plugは ``[]`` で要素を
     取得できるため maya.cmds がシーケンスとして展開しようとして失敗する。
-    配列アトリビュート全体を渡す場合は ``str(plug)`` か ``plug.fullName()`` を渡す。
+    配列・複合アトリビュートを渡す場合は ``str(plug)`` か ``plug.fullName()`` を渡す。
 
     所有ノードが削除された、または動的アトリビュートが ``deleteAttr`` で削除された Plug は
     無効になり(:meth:`isValid`)、``str()``・:meth:`fullName`・:meth:`name` は空文字列、
@@ -309,7 +309,11 @@ class Plug(Object):
         self._static_attribute = static
 
     def __eq__(self, other):
-        """生存中の同じアトリビュート参照を比較する。削除済みのAPIへ照会しない。"""
+        """生存中の同じアトリビュート参照を比較する。削除済みのAPIへ照会しない。
+
+        Args:
+            other: 比較・演算の相手。
+        """
         if not isinstance(other, Plug):
             return NotImplemented
         if not (self._node.isAlive() and other._node.isAlive()
@@ -387,7 +391,11 @@ class Plug(Object):
         )
 
     def shortName(self):
-        """str: 要素番号や階層を含まないアトリビュートの短名。"""
+        """要素番号や階層を含まないアトリビュートの短名。
+
+        Returns:
+            str: 要素番号や階層を含まないアトリビュートの短名。
+        """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).shortName
 
@@ -587,7 +595,12 @@ class Plug(Object):
         return self
 
     def _set_flags(self, leaf, **flags):
-        """指定階層の末端または自身へフラグを適用する。"""
+        """指定階層の末端または自身へフラグを適用する。
+
+        Args:
+            leaf: 複合アトリビュートの末端へ適用するか。
+            **flags: 呼出し先へ渡すキーワード引数。
+        """
         if leaf and self.isCompound():
             for child in self.children():
                 child._set_flags(True, **flags)
@@ -639,7 +652,11 @@ class Plug(Object):
         return self._set_flags(leaf, channelBox=val)
 
     def isChannelBox(self):
-        """bool: Channel Boxフラグ（keyableによる表示を含まない）。"""
+        """Channel Boxフラグ（keyableによる表示を含まない）。
+
+        Returns:
+            bool: Channel Boxフラグ（keyableによる表示を含まない）。
+        """
         self._require_valid()
         return self.mplug().isChannelBox
 
@@ -681,11 +698,19 @@ class Plug(Object):
         return result
 
     def mute(self):
-        """Plug: ミュートを有効にして自身を返す。"""
+        """ミュートを有効にして自身を返す。
+
+        Returns:
+            Plug: ミュートを有効にして自身を返す。
+        """
         return self.setMuted(True)
 
     def unmute(self):
-        """Plug: ミュートを解除して自身を返す。"""
+        """ミュートを解除して自身を返す。
+
+        Returns:
+            Plug: ミュートを解除して自身を返す。
+        """
         return self.setMuted(False)
 
     def nextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True):
@@ -1058,6 +1083,88 @@ class Plug(Object):
             return om2.MFnEnumAttribute(attr).default
         return None
 
+    @undoChunk("hlibPlugSetAlias")
+    def setAlias(self, name=None):
+        """別名を設定または解除する。
+
+        Args:
+            name (str | None): 別名。Noneまたは空文字で解除。
+        Returns:
+            Plug: 自身。
+        """
+        self._require_valid()
+        if name:
+            cmds.aliasAttr(name, self.fullName())
+        elif cmds.aliasAttr(self.fullName(), query=True):
+            cmds.aliasAttr(self.fullName(), remove=True)
+        return self
+
+    @undoChunk("hlibPlugSetKey")
+    def setKey(self, **kwargs):
+        """対象アトリビュートへキーを設定する。
+
+        Args:
+            **kwargs: Maya setKeyframeのフラグ。値・時間はMayaのUI単位。
+        Returns:
+            Plug: 自身。
+        """
+        self._require_valid()
+        cmds.setKeyframe(self.fullName(), **kwargs)
+        return self
+
+    def animLayers(self, selected=False, exact=False):
+        """入力チェーンのアニメーションレイヤー名を上位から取得する。
+
+        Args:
+            selected (bool): 選択レイヤーに限定する。
+            exact (bool): selected時にベースレイヤーも選択状態で絞る。
+        Returns:
+            list[str]: レイヤー名。最後に条件に合うベースレイヤーを含む。
+        """
+        self._require_valid()
+        current = self
+        visited = set()
+        result = []
+        while om2.MFnAttribute(current.mplug().attribute()).isProxyAttribute:
+            name = current.fullName()
+            if name in visited:
+                return []
+            visited.add(name)
+            current = current.source()
+            if current is None:
+                return []
+        axis = current.shortName()[-1].upper()
+        visited.clear()
+        while True:
+            source = current.source()
+            if source is None or source.fullName() in visited:
+                break
+            visited.add(source.fullName())
+            node = source.node()
+            kind = cmds.nodeType(str(node))
+            if kind == "mute":
+                current = node.plug("input")
+                continue
+            if kind == "pairBlend":
+                suffix = source.shortName()[-2:]
+                mode = node.plug("rm" if suffix.startswith("r") else suffix + "m").get()
+                driver = mode if mode in (1, 2) else node.plug("currentDriver").get()
+                current = node.plug("i" + suffix + ("2" if driver == 2 else "1"))
+                continue
+            layers = cmds.listConnections(str(node) + ".message", s=False, d=True,
+                                          type="animLayer") or []
+            if not layers or not node.hasAttr("inputA"):
+                break
+            layer = layers[0]
+            if layer not in result and (not selected or cmds.animLayer(layer, q=True, selected=True)):
+                result.append(layer)
+            suffix = axis if kind == "animBlendNodeAdditiveRotation" else ""
+            current = node.plug("inputA" + suffix)
+        base = cmds.animLayer(q=True, root=True)
+        if base and base not in result and (not (selected and exact) or cmds.animLayer(base, q=True, selected=True)):
+            result.append(base)
+        return result
+
     def getEnumName(self):
         """enum アトリビュートの現在値に対応するフィールド名を取得する。
 
@@ -1418,11 +1525,25 @@ class Plug(Object):
         return self.connections(False, True, **kwargs)
 
     def inputs(self, **kwargs):
-        """list: 指定条件の入力接続。引数はconnectionsと共通。"""
+        """入力側の接続を指定条件で照会する。
+
+        Args:
+            **kwargs: connectionsの絞込み・返却形式指定。方向のs/dは指定しない。
+
+        Returns:
+            list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
+        """
         return self.connections(True, False, **kwargs)
 
     def outputs(self, **kwargs):
-        """list: 指定条件の出力接続。引数はconnectionsと共通。"""
+        """出力側の接続を指定条件で照会する。
+
+        Args:
+            **kwargs: connectionsの絞込み・返却形式指定。方向のs/dは指定しない。
+
+        Returns:
+            list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
+        """
         return self.connections(False, True, **kwargs)
 
     def connections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
@@ -1483,7 +1604,17 @@ class Plug(Object):
 
     @staticmethod
     def _connection_results(pairs, node_type, exact, as_pair, as_node, index, pcls):
-        """Node/Plug共通の接続フィルタと戻り値変換。"""
+        """Node/Plug共通の接続フィルタと戻り値変換。
+
+        Args:
+            pairs: 接続の両端を組にした列。
+            node_type: 絞り込みまたは作成に使うMayaノード型。
+            exact: 型や対象を完全一致で絞り込むか。
+            as_pair: Trueは接続の両端を組として返す。
+            as_node: Trueは接続先をノードとして返す。
+            index: 対象要素の番号または探索開始番号。
+            pcls: 結果に使うPlugクラス。
+        """
         result, seen = [], set()
         for local, remote in pairs:
             node = remote.node()
@@ -1504,13 +1635,19 @@ class Plug(Object):
         return result
 
     def sourceWithConversion(self, **kwargs):
-        """入力接続元の Plug を取得する。
+        """変換ノードを省略せず、直接の入力接続元を取得する。
+
+        Args:
+            **kwargs: connectionsの絞込み・返却形式指定。
+                checkChildren/checkElementsはFalse、indexは0に固定する。
+                scn等を明示した場合はconnections側の指定に従う。
 
         Returns:
-            Plug | None: 接続元。入力接続がない場合は ``None``。
+            Plug | Node | tuple | None: 既定は接続元Plug。未接続はNone。
+                asNode/asPairで返却形式が変わる。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         self._require_valid()
         if kwargs:
@@ -1541,13 +1678,19 @@ class Plug(Object):
         return self._node_from_mplug(sources[0])
 
     def destinationsWithConversions(self, **kwargs):
-        """出力接続先の Plug をすべて取得する。
+        """変換ノードを省略せず、直接の出力接続先を取得する。
+
+        Args:
+            **kwargs: connectionsの絞込み・返却形式指定。
+                checkChildren/checkElementsはFalseに固定する。
+                scn等を明示した場合はconnections側の指定に従う。
 
         Returns:
-            list[Plug]: 接続先プラグ。
+            list | Plug | Node | tuple | None: 既定は接続先Plugのリスト。未接続は空リスト。
+                asNode/asPair/indexで返却形式が変わる。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         self._require_valid()
         if kwargs:

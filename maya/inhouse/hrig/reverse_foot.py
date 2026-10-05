@@ -63,8 +63,8 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     ).fullName()
     created.extend((matrix, decompose))
     for index, node in enumerate((result["ball"], result["toe"], result["heel"])):
-        hlib.getPlug(node + ".matrix").connectTo(matrix + ".matrixIn[{}]".format(index))
-    hlib.getPlug(rig._local_matrix("target")).connectTo(matrix + ".matrixIn[3]")
+        hlib.getPlug(node + ".matrix").connectTo(hlib.getNode(matrix).plug("matrixIn")[index])
+    hlib.getPlug(rig._local_matrix("target")).connectTo(hlib.getNode(matrix).plug("matrixIn")[3])
     hlib.getPlug(matrix + ".matrixSum").connectTo(decompose + ".inputMatrix")
     rig._bind("footMatrix", matrix)
     rig._bind("footDecompose", decompose)

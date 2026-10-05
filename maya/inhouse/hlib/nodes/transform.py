@@ -15,7 +15,7 @@ from .._core.registry import collection_export
 from .._core.space import world_space
 from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
-from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
+from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector, Transformation
 from ..maths.vector import _vector_of
 from ..plugs.plug import Plug
 from .dagNode import DagNode, DagNodes
@@ -528,10 +528,14 @@ class Transform(DagNode):
         return children
 
     def children(self, shapes=False, intermediates=False):
-        """直接の子 Transform のみを取得する（Shape 子は含まない）。
+        """指定条件に合う直接の子ノードを取得する。
+
+        Args:
+            shapes (bool): TrueはShapeも含める。既定FalseはTransformのみ。
+            intermediates (bool): Trueは中間オブジェクトも含める。
 
         Returns:
-            list[Transform]: 直接の子 Transform。
+            list[DagNode]: DAGの子順に並んだノード。該当なしは空リスト。
         """
         return [child for child in self.childNodes()
                 if (shapes or isinstance(child, Transform))
@@ -769,7 +773,7 @@ class Transform(DagNode):
         parent = Matrix()
         if parent_node is not None and self.plug("inheritsTransform").get():
             # 親のチャンネル変更直後も評価済み値を取得する。
-            parent = parent_node.plug("worldMatrix").element(parent_node.mpath().instanceNumber()).get()
+            parent = parent_node.plug("worldMatrix")[parent_node.mpath().instanceNumber()].get()
         offset = self.plug("offsetParentMatrix").get()
         effective_parent = offset * parent
         magnitude = max(1.0, *(sum(abs(effective_parent[row, col]) for col in range(3))
@@ -790,7 +794,11 @@ class Transform(DagNode):
         return self
 
     def shadingEngines(self):
-        """list[ShadingEngine]: 直下の非中間Shapeで使用中のセット。インスタンス経路を保持。"""
+        """直下の非中間Shapeで使用中のセット。インスタンス経路を保持。
+
+        Returns:
+            list[ShadingEngine]: 直下の非中間Shapeで使用中のセット。インスタンス経路を保持。
+        """
         return list(dict.fromkeys(group for shape in self.shapes() for group in shape.shadingEngines()))
 
     def getOffsetParentMatrix(self):
@@ -826,6 +834,114 @@ class Transform(DagNode):
         """
         self.plug("offsetParentMatrix").set(value)
         return self
+
+    @flag_aliases(ws="worldSpace")
+    def getTransformation(self, worldSpace=False):
+        """チャンネルと補助成分を独立した値として取得する。
+
+        Args:
+            worldSpace (bool): ワールド空間へ変換する。短縮名ws。
+        Returns:
+            Transformation: Euler回転順序・ピボット・補助回転・SSCを含む値。
+                offsetParentMatrixと親行列はワールド指定時の合成に含める。
+        """
+        ws = world_space(worldSpace)
+        values = {name: self.plug(name).get() for name in (
+            "translate", "rotate", "scale", "shear", "rotateOrder", "rotateAxis",
+            "rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate")}
+        values["rotate"] = EulerRotation(values["rotate"], order=values["rotateOrder"])
+        values["rotateAxis"] = EulerRotation(values["rotateAxis"])
+        if self.mnode().hasFn(om2.MFn.kJoint):
+            values.update(jointOrient=EulerRotation(self.plug("jointOrient").get()),
+                          inverseScale=self.plug("inverseScale").get(),
+                          segmentScaleCompensate=bool(self.plug("segmentScaleCompensate").get()))
+            # Mayaのjoint行列はピボットを使わない。
+            for key in ("rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"):
+                values[key] = (0, 0, 0)
+        else:
+            values["segmentScaleCompensate"] = False
+        result = Transformation(**values)
+        if ws:
+            result *= Matrix(self.mpath().exclusiveMatrix())
+            if result.ssc and tuple(result.inverseScale) != (1, 1, 1):
+                matrix = result.matrix
+                result.inverseScale = (1, 1, 1)
+                result.matrix = matrix
+            else:
+                result.inverseScale = (1, 1, 1)
+        return result
+
+    @flag_aliases(ws="worldSpace")
+    @undoChunk("hlibTransformSetTransformation")
+    def setTransformation(self, value, worldSpace=False, safe=False, get=False):
+        """補助成分を含む変換を適用する。入力の値は変更しない。
+
+        Args:
+            value (Transformation): 適用する変換情報。
+            worldSpace (bool): ワールド空間として適用する。短縮名ws。
+            safe (bool): 書けない成分を残して、書ける成分で行列を合わせる。
+            get (bool): シーンを更新せず、対象ノード用に補正した値を返す。
+        Returns:
+            Transform | Transformation: 通常は自身。get=Trueは設定予定値。
+        Note:
+            inverseScaleの接続は保持する。jointとtransformを相互コピーする場合は
+            対象で使えない補助成分を除き、行列を維持するようにTRSを補正する。
+        """
+        if not isinstance(value, Transformation):
+            raise TypeError("value must be a Transformation")
+        ws = world_space(worldSpace)
+        if ws:
+            parent = Matrix(self.mpath().exclusiveMatrix())
+            magnitude = max(1.0, *(sum(abs(parent[row, col]) for col in range(3)) for row in range(3)))
+            if abs(parent.det4x4()) <= 1e-12 * magnitude ** 3:
+                raise ValueError("Cannot apply a world transformation with a singular parent matrix")
+            fitted = value * parent.inverse()
+        else:
+            fitted = value.copy()
+        matrix = fitted.matrix
+        is_joint = self.mnode().hasFn(om2.MFn.kJoint)
+        if is_joint:
+            for name in ("rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"):
+                setattr(fitted, name, (0, 0, 0))
+            fitted.inverseScale = self.plug("inverseScale").get()
+        else:
+            fitted.jointOrient = Quaternion()
+            fitted.segmentScaleCompensate = False
+            fitted.inverseScale = (1, 1, 1)
+        if not fitted.matrix.isEquivalent(matrix):
+            fitted.matrix = matrix
+        if get:
+            return fitted
+        modifiers = ["rotateOrder", "rotateAxis"]
+        if is_joint:
+            modifiers += ["jointOrient", "segmentScaleCompensate"]
+        else:
+            modifiers += ["rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"]
+        for name in modifiers:
+            current = getattr(fitted, name)
+            if name in ("rotateAxis", "jointOrient"):
+                # 等価なクォータニオンでもチャンネルの数値を不用意に反転しない。
+                reference = EulerRotation(self.plug(name).get())
+                current = current.asEulerRotation().closestSolution(reference)
+            if name in ("rotateOrder", "segmentScaleCompensate"):
+                self.plug(name).set(current, safe=safe)
+            else:
+                self._set_channel_value(name, current, safe=safe)
+        if safe:
+            # 書込みできなかった補助成分を実際の状態へ戻してからTRSを計算する。
+            actual = self.getTransformation()
+            reference = EulerRotation(fitted.rotate)
+            reference.reorderIt(actual.rotateOrder)
+            actual.rotate = reference
+            actual.scale = fitted.scale
+            actual.matrix = matrix
+            fitted = actual
+        for name in ("translate", "rotate", "scale", "shear"):
+            self._set_channel_value(name, getattr(fitted, name), safe=safe)
+        return self
+
+    getX = getTransformation
+    setX = setTransformation
 
     @flag_aliases(ws="worldSpace")
     def getMatrix(self, worldSpace=False, p=False, inv=False):
@@ -1081,7 +1197,13 @@ class Transform(DagNode):
         return self.plug("shear").get()
 
     def _scaling_channel_value(self, value, ws, shear=False):
-        """ワールドのscale/shear要求を、SSCを除いたチャンネル値へ変換する。"""
+        """ワールドのscale/shear要求を、SSCを除いたチャンネル値へ変換する。
+
+        Args:
+            value: 変換・設定する入力値。
+            ws: Trueはワールド空間、Falseはローカル空間。
+            shear: XY/XZ/YZのシアー成分。
+        """
         values = tuple(value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Expected three finite components")
@@ -1172,7 +1294,11 @@ class Transform(DagNode):
         return Quaternion._wrap(q)
 
     def _component_quaternion(self, name):
-        """回転アトリビュートを自身の回転順序でQuaternionへ変換する。"""
+        """回転アトリビュートを自身の回転順序でQuaternionへ変換する。
+
+        Args:
+            name: 参照・作成・照会する対象の名前。
+        """
         value = self.plug(name).get()
         order = self._rotate_order() if name == "rotate" else om2.MEulerRotation.kXYZ
         return om2.MEulerRotation(*tuple(value), order).asQuaternion()
@@ -1584,11 +1710,21 @@ class Transform(DagNode):
 
         数値がすでにノードの回転順序なので、Double3の回転変換や接続の事前拒否を
         再実行しない。fastでは共通バックエンドが入力接続への直接書込みを拒否する。
+
+        Args:
+            name: 参照・作成・照会する対象の名前。
+            value: 変換・設定する入力値。
+            safe: 書込みできない成分を飛ばして処理するか。
         """
         return Plug.set(self.plug(name), tuple(value), safe=safe)
 
     def _matrix_channel_values(self, matrix, scale_reference=None):
-        """行列からtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。"""
+        """行列からtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。
+
+        Args:
+            matrix: 変換または数値計算に使う行列。
+            scale_reference: スケール補正の基準となるノードまたは値。
+        """
         source = Matrix(matrix)
         inv_scale = self._inverse_scale_values()
         corrected = source * Matrix(scale=inv_scale)
@@ -1680,6 +1816,7 @@ class Transform(DagNode):
         'getOffsetParentMatrix',
         'getMatrix',
         'getT', 'getQ', 'getS', 'getSh', 'getM', 'getJOQ',
+        'getTransformation', 'getX',
         'getTranslation',
         'getRotation',
         'getScaling',
@@ -1704,6 +1841,7 @@ class Transform(DagNode):
         'setOffsetParentMatrix',
         'setMatrix',
         'setT', 'setQ', 'setS', 'setSh', 'setM',
+        'setTransformation', 'setX',
         'setTranslation',
         'setRotation',
         'setScaling',

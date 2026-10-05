@@ -36,6 +36,9 @@ def _plug(value):
     アトリビュートが見つからない、または名前が一意でない場合は RuntimeError、アトリビュートを指さない
     文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため
     (:func:`hlib._core.attributeType.attributeType`)、検証でシーンは変更しない。
+
+    Args:
+        value: 変換・設定する入力値。
     """
     from ..plugs.plug import Plug as _InputPlug
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
@@ -68,7 +71,11 @@ def _contains_plug(plugs, mplug):
 
 
 def _sources(plug):
-    """単位変換ノードを透過して入力元のPlug名を返す。"""
+    """単位変換ノードを透過して入力元のPlug名を返す。
+
+    Args:
+        plug: 照会または更新するアトリビュート参照。
+    """
     return (
         cmds.listConnections(
             plug, source=True, destination=False, plugs=True, skipConversionNodes=True
@@ -78,7 +85,12 @@ def _sources(plug):
 
 
 def _curves(driven, strict=False):
-    """駆動先からblendWeightedの入力を遡り、単位なし入力カーブを集める。"""
+    """駆動先からblendWeightedの入力を遡り、単位なし入力カーブを集める。
+
+    Args:
+        driven: ドリブンキーの出力先。
+        strict: 未対応の構造を例外として扱うか。
+    """
     found, visited = [], set()
 
     def visit(destination):
@@ -126,7 +138,11 @@ class DrivenKey:
             raise ValueError("Driver and driven must be different plugs")
 
     def __repr__(self):
-        """str: ドライバーと駆動先のアトリビュート名を含む表示。"""
+        """ドライバーと駆動先のアトリビュート名を含む表示。
+
+        Returns:
+            str: ドライバーと駆動先のアトリビュート名を含む表示。
+        """
         return f"DrivenKey({self.driverPlug().fullName()!r}, {self.drivenPlug().fullName()!r})"
 
     @classmethod
@@ -158,11 +174,19 @@ class DrivenKey:
         return items
 
     def driverPlug(self):
-        """Plug: ドライバー。削除済みの場合は例外。"""
+        """ドライバー。削除済みの場合は例外。
+
+        Returns:
+            Plug: ドライバー。削除済みの場合は例外。
+        """
         return _plug(self._driver)
 
     def drivenPlug(self):
-        """Plug: 駆動先。削除済みの場合は例外。"""
+        """駆動先。削除済みの場合は例外。
+
+        Returns:
+            Plug: 駆動先。削除済みの場合は例外。
+        """
         return _plug(self._driven)
 
     def curves(self):
@@ -184,7 +208,11 @@ class DrivenKey:
         ]
 
     def exists(self):
-        """bool: 対応するカーブ接続が存在するか。キーが空でもTrue。"""
+        """対応するカーブ接続が存在するか。キーが空でもTrue。
+
+        Returns:
+            bool: 対応するカーブ接続が存在するか。キーが空でもTrue。
+        """
         return bool(self.curves())
 
     @undoChunk("hlibDrivenKeySetKey")

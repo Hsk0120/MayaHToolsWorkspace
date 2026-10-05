@@ -153,7 +153,7 @@ class SkirtRig:
                     joint.plug("segmentScaleCompensate").set(False)
                     joint.plug("radius").set(0.18 if role == "follower" else 0.35)
                     joint.plug("message").connectTo(
-                        root.plug("{}[{}]".format(registry, column * joints_per_chain + depth))
+                        root.plug(registry)[column * joints_per_chain + depth]
                     )
                     if role == "driver":
                         from hrig.setups import ControlShape
@@ -170,7 +170,7 @@ class SkirtRig:
             graph = RadialWeights.create(
                 angle, driver_count, "{}_weights{:02d}".format(name, column + 1)
             )
-            graph.container.plug("message").connectTo(root.plug("graphs[{}]".format(column)))
+            graph.container.plug("message").connectTo(root.plug("graphs")[column])
             for attr in ("blend", "falloff"):
                 root.plug(attr).connectTo(graph.container.plug(attr))
             for depth, joint in enumerate(chain):
@@ -195,7 +195,7 @@ class SkirtRig:
                 constraint.addAttr(longName="hrigDriven", attributeType="message")
                 joint.plug("message").connectTo(constraint.plug("hrigDriven"))
                 constraint.plug("message").connectTo(
-                    root.plug("constraints[{}]".format(column * joints_per_chain + depth))
+                    root.plug("constraints")[column * joints_per_chain + depth]
                 )
         from .channel_controls import install
 

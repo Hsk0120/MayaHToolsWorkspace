@@ -72,7 +72,12 @@ class Double3Plug(CompoundPlug):
         return super().set(values)
 
     def _set_components(self, value, unit="rad"):
-        """入力の角度単位と回転順序を子へ設定する内部単位へ揃える。"""
+        """入力の角度単位と回転順序を子へ設定する内部単位へ揃える。
+
+        Args:
+            value: 変換・設定する入力値。
+            unit: 値の単位を指定する識別子。
+        """
         if self._value_types.get(self.longName()) is EulerRotation:
             if unit not in ("rad", "deg"):
                 raise ValueError("unit must be 'rad' or 'deg'")

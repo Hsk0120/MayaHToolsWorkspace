@@ -10,7 +10,11 @@ class File(Texture2d):
     """Mayaの継承型に対応するFile。値と接続はPlugで操作する。"""
 
     def getFilePath(self):
-        """str: ファイルパス。UDIM等のトークンは展開せず返す。"""
+        """ファイルパス。UDIM等のトークンは展開せず返す。
+
+        Returns:
+            str: ファイルパス。UDIM等のトークンは展開せず返す。
+        """
         return self.plug("fileTextureName").get()
 
     @undoChunk("hlibFileSetPath")
@@ -28,7 +32,11 @@ class File(Texture2d):
         return self
 
     def getColorSpace(self):
-        """str: 現在の入力色空間名。"""
+        """現在の入力色空間名。
+
+        Returns:
+            str: 現在の入力色空間名。
+        """
         return self.plug("colorSpace").get()
 
     @undoChunk("hlibFileSetColorSpace")

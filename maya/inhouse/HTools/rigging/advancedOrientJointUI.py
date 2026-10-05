@@ -728,7 +728,15 @@ def _compute_debug_log_next_children_inputs(
     up_direction,
     up_space,
 ):
-    """Next/Children 利用時の入力ベクトル由来を詳細ログ出力します。"""
+    """Next/Children 利用時の入力ベクトル由来を詳細ログ出力します。
+
+    Args:
+        joint_name: 処理対象のジョイント。
+        primary_space: 方向ベクトルを解釈する座標空間。
+        primary_direction: 姿勢計算に使用する主方向または上方向ベクトル。
+        up_direction: 姿勢計算に使用する主方向または上方向ベクトル。
+        up_space: 方向ベクトルを解釈する座標空間。
+    """
     primary_vec_for_secondary = None
     up_vec_for_secondary = None
 
@@ -921,7 +929,19 @@ def _compute_debug_log_secondary_up_alignment(
     up_direction,
     up_space,
 ):
-    """Secondary / Up の整合性をログ出力します。"""
+    """Secondary / Up の整合性をログ出力します。
+
+    Args:
+        joint_name: 処理対象のジョイント。
+        primary_axis: 姿勢計算に使用する主軸・副軸・上方向の軸指定。
+        primary_space: 方向ベクトルを解釈する座標空間。
+        primary_ref_axis: 姿勢計算に使用する主軸・副軸・上方向の軸指定。
+        primary_direction: 姿勢計算に使用する主方向または上方向ベクトル。
+        secondary_axis: 姿勢計算に使用する主軸・副軸・上方向の軸指定。
+        up_axis: 姿勢計算に使用する主軸・副軸・上方向の軸指定。
+        up_direction: 姿勢計算に使用する主方向または上方向ベクトル。
+        up_space: 方向ベクトルを解釈する座標空間。
+    """
     primary_vec = _compute_primary_vector_from_mode(
         joint_name,
         primary_axis,

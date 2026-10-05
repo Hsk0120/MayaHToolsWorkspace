@@ -24,7 +24,11 @@ class TimeSlider:
         self._control = control
 
     def name(self):
-        """str: 実在するtimeControl名。GUIがなければ RuntimeError。"""
+        """実在するtimeControl名。GUIがなければ RuntimeError。
+
+        Returns:
+            str: 実在するtimeControl名。GUIがなければ RuntimeError。
+        """
         if cmds.about(batch=True):
             raise RuntimeError("Time slider selection requires Maya GUI")
         control = self._control or mel.eval(
@@ -34,7 +38,11 @@ class TimeSlider:
         return control
 
     def getCurrentTime(self):
-        """float: 現在の時刻を返す。"""
+        """現在の時刻を返す。
+
+        Returns:
+            float: 現在の時刻を返す。
+        """
         return float(cmds.currentTime(query=True))
 
     def setCurrentTime(self, value, update=True):
@@ -50,7 +58,11 @@ class TimeSlider:
         cmds.currentTime(self._time(value), edit=True, update=update)
 
     def getPlaybackRange(self):
-        """tuple[float, float]: 再生の開始・終了時刻。両端を含む。"""
+        """再生の開始・終了時刻。両端を含む。
+
+        Returns:
+            tuple[float, float]: 再生の開始・終了時刻。両端を含む。
+        """
         return (float(cmds.playbackOptions(query=True, minTime=True)),
                 float(cmds.playbackOptions(query=True, maxTime=True)))
 
@@ -71,7 +83,11 @@ class TimeSlider:
         self._set_range(start, end, "minTime", "maxTime")
 
     def getAnimationRange(self):
-        """tuple[float, float]: アニメーション全体の開始・終了時刻。両端を含む。"""
+        """アニメーション全体の開始・終了時刻。両端を含む。
+
+        Returns:
+            tuple[float, float]: アニメーション全体の開始・終了時刻。両端を含む。
+        """
         return (float(cmds.playbackOptions(query=True, animationStartTime=True)),
                 float(cmds.playbackOptions(query=True, animationEndTime=True)))
 
@@ -105,7 +121,11 @@ class TimeSlider:
         return tuple(float(x) for x in cmds.timeControl(control, query=True, rangeArray=True))
 
     def isPlaying(self):
-        """bool: 再生中か返す。"""
+        """再生中か返す。
+
+        Returns:
+            bool: 再生中か返す。
+        """
         return bool(cmds.play(query=True, state=True))
 
     def play(self, forward=True):
@@ -138,7 +158,11 @@ class TimeSlider:
 
     @staticmethod
     def _time(value):
-        """有限の数値時刻へ変換する。不正値は ValueError/TypeError。"""
+        """有限の数値時刻へ変換する。不正値は ValueError/TypeError。
+
+        Args:
+            value: 変換・設定する入力値。
+        """
         value = float(value)
         if not math.isfinite(value):
             raise ValueError("Time must be finite")
@@ -151,6 +175,12 @@ class TimeSlider:
         バージョンではこのメソッド(および ``setPlaybackRange``/
         ``setAnimationRange``)による変更はUndo/Redoできない
         (Mayaネイティブの既知の制限で、hlibは独自プラグインでは補わない方針)。
+
+        Args:
+            start: 処理区間の開始位置または終了位置。
+            end: 処理区間の開始位置または終了位置。
+            start_flag: 区間端の指定に使うMayaコマンドフラグ名。
+            end_flag: 区間端の指定に使うMayaコマンドフラグ名。
         """
         start, end = self._time(start), self._time(end)
         if start > end:

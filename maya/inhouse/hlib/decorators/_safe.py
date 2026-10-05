@@ -38,7 +38,7 @@ def safe_edit(function):
                 values = tuple(values)
                 if len(values) != self.mplug().numChildren():
                     return 1
-                return sum(getattr(self.child(i), function.__name__)(v, safe=True)
+                return sum(getattr(self[i], function.__name__)(v, safe=True)
                            for i, v in enumerate(values))
             except (RuntimeError, TypeError, ValueError):
                 return 1

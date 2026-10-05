@@ -18,21 +18,37 @@ class ShelfButton:
         self.name()
 
     def __str__(self):
-        """str: 保持したUI名を返す。"""
+        """保持したUI名を返す。
+
+        Returns:
+            str: 保持したUI名を返す。
+        """
         return self._name
 
     def exists(self):
-        """bool: ボタンが存在するか取得する。"""
+        """ボタンが存在するか取得する。
+
+        Returns:
+            bool: ボタンが存在するか取得する。
+        """
         return bool(cmds.shelfButton(self._name, exists=True))
 
     def name(self):
-        """str: 存在を確認したUI名。削除済みはRuntimeError。"""
+        """存在を確認したUI名。削除済みはRuntimeError。
+
+        Returns:
+            str: 存在を確認したUI名。削除済みはRuntimeError。
+        """
         if not self.exists():
             raise RuntimeError("Shelf button is unavailable: " + self._name)
         return self._name
 
     def getLabel(self):
-        """str: ボタンのラベルを取得する。"""
+        """ボタンのラベルを取得する。
+
+        Returns:
+            str: ボタンのラベルを取得する。
+        """
         return cmds.shelfButton(self.name(), query=True, label=True)
 
     def setLabel(self, label):
@@ -44,7 +60,11 @@ class ShelfButton:
         cmds.shelfButton(self.name(), edit=True, label=label)
 
     def getAnnotation(self):
-        """str: ツールチップを取得する。"""
+        """ツールチップを取得する。
+
+        Returns:
+            str: ツールチップを取得する。
+        """
         return cmds.shelfButton(self.name(), query=True, annotation=True)
 
     def setAnnotation(self, text):
@@ -56,7 +76,11 @@ class ShelfButton:
         cmds.shelfButton(self.name(), edit=True, annotation=text)
 
     def getIcon(self):
-        """str: アイコン名またはパスを取得する。"""
+        """アイコン名またはパスを取得する。
+
+        Returns:
+            str: アイコン名またはパスを取得する。
+        """
         return cmds.shelfButton(self.name(), query=True, image1=True)
 
     def setIcon(self, image):
@@ -68,7 +92,11 @@ class ShelfButton:
         cmds.shelfButton(self.name(), edit=True, image1=str(image))
 
     def getCommand(self):
-        """str: 登録済みコマンドを取得する。実行はしない。"""
+        """登録済みコマンドを取得する。実行はしない。
+
+        Returns:
+            str: 登録済みコマンドを取得する。実行はしない。
+        """
         return cmds.shelfButton(self.name(), query=True, command=True)
 
     def setCommand(self, command, language="python"):
@@ -82,7 +110,11 @@ class ShelfButton:
         cmds.shelfButton(self.name(), edit=True, command=command, sourceType=language)
 
     def getLanguage(self):
-        """str: pythonまたはmelを取得する。"""
+        """pythonまたはmelを取得する。
+
+        Returns:
+            str: pythonまたはmelを取得する。
+        """
         return cmds.shelfButton(self.name(), query=True, sourceType=True)
 
     def delete(self):

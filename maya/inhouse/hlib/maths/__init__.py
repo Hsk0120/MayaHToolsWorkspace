@@ -15,6 +15,7 @@ from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
 from .translation import Translation
+from .transformation import Transformation
 from .vector import Vector
 
 # importlib.reloadは辞書を保持するため、廃止した公開名を明示的に除く。
@@ -29,6 +30,7 @@ __all__ = [
     "Scale",
     "Shear",
     "Translation",
+    "Transformation",
     "Vector",
     "easing",
 ]

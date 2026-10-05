@@ -1,4 +1,4 @@
-"""Independent Maya command-port startup; no HTools dependencies."""
+"""HToolsに依存せずMayaのコマンドポートを初期化する。"""
 import maya.cmds as cmds
 import maya.utils as maya_utils
 
@@ -7,7 +7,8 @@ _scheduled = False
 
 
 def open_ports():
-    """Open missing ports, preserving the existing HTools configuration."""
+    """未開設のMEL 7001・Python 7002ポートを開く。失敗したポートは警告する。
+    """
     for port_name, source_type in PORT_SETTINGS:
         try:
             if cmds.commandPort(port_name, q=True):
@@ -21,6 +22,8 @@ def open_ports():
 
 
 def _open_deferred():
+    """遅延実行でポートを開き、成功・失敗にかかわらず予約状態を解除する。
+    """
     global _scheduled
     try:
         open_ports()
@@ -29,7 +32,8 @@ def _open_deferred():
 
 
 def initialize():
-    """Schedule once while pending; skip batch/standalone sessions."""
+    """GUIセッションでポート開設を遅延予約する。予約中とバッチ実行時は何もしない。
+    """
     global _scheduled
     if _scheduled or cmds.about(batch=True):
         return

@@ -7,17 +7,27 @@ from hlib.nodes import Node
 from hlib.cmds import getPlug
 
 def _is_joint(node):
-    """ノードが joint かどうかを判定します。"""
+    """ノードが joint かどうかを判定します。
+
+    Args:
+        node: 処理対象のノード参照。
+    """
     return cmds.objExists(node) and Node(node).type() == 'joint'
 
 def _get_parent_joint(jnt):
-    """親ジョイントを取得します。"""
+    """親ジョイントを取得します。
+
+    Args:
+        jnt: 処理対象のジョイント。
+    """
     parents = cmds.listRelatives(jnt, parent=True, type='joint', fullPath=True) or []
     return parents[0] if parents else None
 
 def _find_skinclusters_using_influence(inf):
-    """
-    influence(inf) が接続されている skinCluster を列挙
+    """influence(inf) が接続されている skinCluster を列挙
+
+    Args:
+        inf: ウェイトを割り当てる、または移管するインフルエンス。
     """
     scs = cmds.listConnections(inf, type='skinCluster') or []
     # 重複排除しつつ順序維持
@@ -30,16 +40,29 @@ def _find_skinclusters_using_influence(inf):
     return out
 
 def _get_influences(sc):
-    """skinCluster の influence 一覧を返します。"""
+    """skinCluster の influence 一覧を返します。
+
+    Args:
+        sc: ウェイトを照会・編集するskinCluster。
+    """
     return [node.name() for node in Node(sc).influences()]
 
 def _get_uuid(node):
-    """ノード UUID を1件だけ返します。"""
+    """ノード UUID を1件だけ返します。
+
+    Args:
+        node: 処理対象のノード参照。
+    """
     uuids = cmds.ls(node, uuid=True) or []
     return uuids[0] if len(uuids) == 1 else None
 
 def _is_influence_in_skincluster(sc, inf):
-    """指定 influence が skinCluster に登録済みか判定します。"""
+    """指定 influence が skinCluster に登録済みか判定します。
+
+    Args:
+        sc: ウェイトを照会・編集するskinCluster。
+        inf: ウェイトを割り当てる、または移管するインフルエンス。
+    """
     target_uuid = _get_uuid(inf)
     if not target_uuid:
         return False
@@ -51,11 +74,23 @@ def _is_influence_in_skincluster(sc, inf):
 
 def _get_geometries(sc):
     # skinCluster に紐づく shape / transform を拾う
+    """skinClusterに関連付けられたジオメトリ名を取得する。
+
+    Args:
+        sc: ウェイトを照会・編集するskinCluster。
+
+    Returns:
+        list[str]: 対象ジオメトリ名。
+    """
     geos = cmds.skinCluster(sc, q=True, g=True) or []
     return geos
 
 def _get_joint_liw(jnt):
-    """ジョイントの lockInfluenceWeights 状態を取得します。"""
+    """ジョイントの lockInfluenceWeights 状態を取得します。
+
+    Args:
+        jnt: 処理対象のジョイント。
+    """
     attr = jnt + ".liw"
     if not cmds.objExists(attr):
         return None
@@ -65,7 +100,12 @@ def _get_joint_liw(jnt):
         return None
 
 def _set_joint_liw_safe(jnt, value):
-    """lockInfluenceWeights を安全に設定します。"""
+    """lockInfluenceWeights を安全に設定します。
+
+    Args:
+        jnt: 処理対象のジョイント。
+        value: 変換・設定する入力値。
+    """
     attr = jnt + ".liw"
     if not cmds.objExists(attr):
         return False
@@ -76,7 +116,11 @@ def _set_joint_liw_safe(jnt, value):
         return False
 
 def _unlock_joint_liw_temporarily(jnt):
-    """liw を一時解除し、元状態を返します。"""
+    """liw を一時解除し、元状態を返します。
+
+    Args:
+        jnt: 処理対象のジョイント。
+    """
     prev = _get_joint_liw(jnt)
     if prev is None:
         return None
@@ -84,14 +128,23 @@ def _unlock_joint_liw_temporarily(jnt):
     return prev
 
 def _restore_joint_liw(jnt, prev):
-    """liw を元の状態へ復元します。"""
+    """liw を元の状態へ復元します。
+
+    Args:
+        jnt: 処理対象のジョイント。
+        prev: 操作前に保存した状態。
+    """
     if prev is None:
         return
     if not _set_joint_liw_safe(jnt, prev):
         cmds.warning("Failed to restore liw: %s" % jnt)
 
 def _list_geo_vertices(geo):
-    """ポリゴン頂点コンポーネント一覧を返します。"""
+    """ポリゴン頂点コンポーネント一覧を返します。
+
+    Args:
+        geo: 処理対象のメッシュまたはそのTransform。
+    """
     try:
         vtx_count = cmds.polyEvaluate(geo, v=True)
     except RuntimeError:
@@ -101,7 +154,13 @@ def _list_geo_vertices(geo):
     return ["%s.vtx[%d]" % (geo, i) for i in range(vtx_count)]
 
 def _ensure_influence(sc, inf, weight=0.0):
-    """influence 未登録時のみ addInfluence します。"""
+    """influence 未登録時のみ addInfluence します。
+
+    Args:
+        sc: ウェイトを照会・編集するskinCluster。
+        inf: ウェイトを割り当てる、または移管するインフルエンス。
+        weight: 設定するウェイト値。
+    """
     if _is_influence_in_skincluster(sc, inf):
         return
     prev_liw = _unlock_joint_liw_temporarily(inf)
@@ -111,9 +170,15 @@ def _ensure_influence(sc, inf, weight=0.0):
         _restore_joint_liw(inf, prev_liw)
 
 def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
-    """
-    単一ジオメトリ(geo)上で child のウェイトを parent へ移管
+    """単一ジオメトリ(geo)上で child のウェイトを parent へ移管
     child が影響するコンポーネントだけを走査
+
+    Args:
+        child: ウェイトの移管元インフルエンス。
+        sc: ウェイトを照会・編集するskinCluster。
+        geo: 処理対象のメッシュまたはそのTransform。
+        parent: 親ウィジェット。Noneは親を指定しない。
+        eps: ゼロ判定・収束判定の許容誤差。
     """
     # コンポーネント列挙
     # q=True 時の skinCluster.geometry は bool フラグのため、文字列 geo は渡せない
@@ -146,7 +211,12 @@ def _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=1e-8):
         cmds.skinPercent(sc, comp, tv=[(child, 0.0)], normalize=True)
 
 def _remove_influence_safe(sc, inf):
-    """influence を安全に削除します。"""
+    """influence を安全に削除します。
+
+    Args:
+        sc: ウェイトを照会・編集するskinCluster。
+        inf: ウェイトを割り当てる、または移管するインフルエンス。
+    """
     if not _is_influence_in_skincluster(sc, inf):
         return
     prev_liw = _unlock_joint_liw_temporarily(inf)
@@ -158,8 +228,11 @@ def _remove_influence_safe(sc, inf):
         _restore_joint_liw(inf, prev_liw)
 
 def _reparent_children(child_jnt, new_parent_jnt):
-    """
-    child_jnt の子ジョイントを new_parent_jnt に付け替え
+    """child_jnt の子ジョイントを new_parent_jnt に付け替え
+
+    Args:
+        child_jnt: 子ノードを付け替える対象ジョイント。
+        new_parent_jnt: 付け替え先の親ジョイント。
     """
     kids = cmds.listRelatives(child_jnt, children=True, type='joint') or []
     for k in kids:
@@ -173,9 +246,13 @@ def lod_like_collapse_selected_joints(
         reparent_children_to_parent=True,
         eps=1e-8
     ):
-    """
-    選択ジョイントのウェイトを親ジョイントに移管し、選択ジョイントを削除する。
+    """選択ジョイントのウェイトを親ジョイントに移管し、選択ジョイントを削除する。
     親が skinCluster に未登録なら addInfluence してから移管する。
+
+    Args:
+        delete_joint: 処理後に対象ジョイントを削除するか。
+        reparent_children_to_parent: 子ジョイントを対象の親へ付け替えるか。
+        eps: ゼロ判定・収束判定の許容誤差。
     """
     sel = cmds.ls(sl=True, type='joint', long=True) or []
     if not sel:

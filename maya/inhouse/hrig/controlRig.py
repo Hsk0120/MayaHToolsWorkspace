@@ -172,7 +172,7 @@ class ControlRig:
         ):
             for axis_index, axis in enumerate("XYZ"):
                 output = (
-                    self.root.plug("angles[{}]".format(index * 3 + axis_index))
+                    self.root.plug("angles")[index * 3 + axis_index]
                     if self.kind() == "finger"
                     else source.plug("constraintRotate" + axis)
                 )

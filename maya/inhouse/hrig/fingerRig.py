@@ -71,8 +71,8 @@ class FingerRig(ControlRig):
                 )
                 bone.plug("segmentScaleCompensate").set(False)
                 matrix = hlib.createNode("multMatrix", name=stem + "_matrix", skipSelect=True)
-                control.plug("matrix").connectTo(matrix.plug("matrixIn[0]"))
-                layer.plug("matrix").connectTo(matrix.plug("matrixIn[1]"))
+                control.plug("matrix").connectTo(matrix.plug("matrixIn")[0])
+                layer.plug("matrix").connectTo(matrix.plug("matrixIn")[1])
                 matrix.plug("matrixSum").connectTo(bone.plug("offsetParentMatrix"))
                 rig.own(matrix)
                 rig.register("deform", bone)
@@ -89,8 +89,8 @@ class FingerRig(ControlRig):
                     total = hlib.createNode(
                         "plusMinusAverage", name=stem + "_curl", skipSelect=True
                     )
-                    settings.plug("curl").connectTo(total.plug("input1D[0]"))
-                    settings.plug("curl{}".format(f + 1)).connectTo(total.plug("input1D[1]"))
+                    settings.plug("curl").connectTo(total.plug("input1D")[0])
+                    settings.plug("curl{}".format(f + 1)).connectTo(total.plug("input1D")[1])
                     multiply = hlib.createNode(
                         "multiplyDivide", name=stem + "_weights", skipSelect=True
                     )
@@ -105,9 +105,7 @@ class FingerRig(ControlRig):
                     rig.own(multiply)
                     for axis_index, axis in enumerate("XYZ"):
                         multiply.plug("output" + axis).connectTo(
-                            rig.root.plug(
-                                "angles[{}]".format((f * joint_count + j) * 3 + axis_index)
-                            )
+                            rig.root.plug("angles")[(f * joint_count + j) * 3 + axis_index]
                         )
                     rig.register("sources", multiply)
                     rig.register("targets", layer)

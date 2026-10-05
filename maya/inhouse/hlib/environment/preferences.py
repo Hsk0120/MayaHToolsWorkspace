@@ -419,7 +419,11 @@ class Preferences:
 
     @staticmethod
     def _validate_save(save):
-        """保存要求を変更前に検証する。batchでの部分更新を防ぐ。"""
+        """保存要求を変更前に検証する。batchでの部分更新を防ぐ。
+
+        Args:
+            save: 設定をディスクへ保存するか。
+        """
         Preferences._boolean(save)
         if save and cmds.about(batch=True):
             raise RuntimeError("Preferences.save requires Maya GUI (savePrefs)")

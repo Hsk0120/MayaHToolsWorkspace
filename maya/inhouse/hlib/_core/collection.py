@@ -55,7 +55,14 @@ def bulk_api(item_class, undo=True, per_item_only=(), *, reads=(), writes=(), pr
 
 
 def _method(name, original, collection, result_kind):
-    """同一引数で単体メソッドを呼ぶ公開メソッドを生成する。"""
+    """同一引数で単体メソッドを呼ぶ公開メソッドを生成する。
+
+    Args:
+        name: 参照・作成・照会する対象の名前。
+        original: 転送元の単体メソッド。
+        collection: 処理対象のコレクションクラスまたはインスタンス。
+        result_kind: 一括操作の返却形式を指定する分類。
+    """
     def method(self, *args, **kwargs):
         return self._dispatch_shared(name, args, kwargs)
     method._bulk_generated = True
@@ -71,7 +78,11 @@ def _method(name, original, collection, result_kind):
 
 
 def _property(name):
-    """単体の読取プロパティを保持順のリストとして公開する。"""
+    """単体の読取プロパティを保持順のリストとして公開する。
+
+    Args:
+        name: 参照・作成・照会する対象の名前。
+    """
     return property(lambda self: [getattr(item, name) for item in self._items],
                     doc=f"list: 保持順の{name}。個別の値を返し、集約しない。")
 
@@ -80,9 +91,18 @@ class _PerItemOnly:
     """基底クラスの一括入口も隠し、要素別指定だけを許可する記述子。"""
 
     def __init__(self, name):
-        """禁止するメソッド名を保持する。"""
+        """一括呼出しを禁止するメソッド名を保持する。
+
+        Args:
+            name (str): 要素別の引数を必要とするメソッド名。
+        """
         self._name = name
 
     def __get__(self, instance, owner=None):
-        """直接取得を拒否する。callEachは単体から関数を取得するため利用可能。"""
+        """直接取得を拒否する。callEachは単体から関数を取得するため利用可能。
+
+        Args:
+            instance: ディスクリプタを取得するインスタンスまたは所有クラス。
+            owner: ディスクリプタを取得するインスタンスまたは所有クラス。
+        """
         raise AttributeError(f"{self._name} requires callEach with per-item arguments")

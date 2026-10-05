@@ -113,18 +113,18 @@ class MatrixFollow:
             raise ValueError("Target must inherit its parent transform")
         parent = target.parent()
         if parent is not None:
-            parent_matrix = Matrix(parent.plug("worldMatrix[0]").get())
+            parent_matrix = Matrix(parent.plug("worldMatrix")[0].get())
             if parent_matrix.isSingular() or any(
                 sum(parent_matrix[i + j] ** 2 for j in range(3)) <= 1e-20 for i in (0, 4, 8)
             ):
                 raise ValueError("Parent matrix must be invertible")
-        source_matrix = Matrix(source.plug("worldMatrix[0]").get())
+        source_matrix = Matrix(source.plug("worldMatrix")[0].get())
         if source_matrix.isSingular() or any(
             sum(source_matrix[i + j] ** 2 for j in range(3)) <= 1e-20 for i in (0, 4, 8)
         ):
             raise ValueError("Source matrix must be invertible")
         offset = (
-            Matrix(target.plug("worldMatrix[0]").get()) * source_matrix.inverse()
+            Matrix(target.plug("worldMatrix")[0].get()) * source_matrix.inverse()
             if maintain_offset
             else identity
         )
@@ -149,7 +149,7 @@ class MatrixFollow:
         identity = Matrix()
         if backend == "standard":
             graph = hlib.createNode("multMatrix", name=name, skipSelect=True)
-            inputs, output = ("matrixIn[0]", "matrixIn[1]", "matrixIn[2]"), "matrixSum"
+            inputs, output = tuple(graph.plug("matrixIn")[i] for i in range(3)), "matrixSum"
         else:
             inputs, output = ("offset", "sourceWorld", "parentInverse"), "outputMatrix"
             if backend == "cpp":
@@ -166,10 +166,11 @@ class MatrixFollow:
                 from .bifrostMatrixFollow import BifrostMatrixFollow
 
                 graph = BifrostMatrixFollow.create(name).node
-        graph.plug(inputs[0]).set(offset)
-        source.plug("worldMatrix[0]").connectTo(graph.plug(inputs[1]))
-        graph.plug(inputs[2]).set(identity)
+            inputs = tuple(graph.plug(name) for name in inputs)
+        inputs[0].set(offset)
+        source.plug("worldMatrix")[0].connectTo(inputs[1])
+        inputs[2].set(identity)
         if parent is not None:
-            parent.plug("worldInverseMatrix[0]").connectTo(graph.plug(inputs[2]))
+            parent.plug("worldInverseMatrix")[0].connectTo(inputs[2])
         graph.plug(output).connectTo(target.plug("offsetParentMatrix"))
         return graph

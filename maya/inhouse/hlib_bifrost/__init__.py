@@ -8,7 +8,11 @@ __all__ = ["nodes", "plugs", "utils", "environment", "is_available"]
 
 
 def is_available():
-    """bool: hlib拡張検出プロトコルから対応プラグインの状態を照会する。"""
+    """hlib拡張検出プロトコルから対応プラグインの状態を照会する。
+
+    Returns:
+        bool: hlib拡張検出プロトコルから対応プラグインの状態を照会する。
+    """
     from .environment import Bifrost
     return Bifrost.is_available()
 

@@ -9,8 +9,10 @@ import heapq
 
 
 def _to_shape(mesh):
-    """
-    transform / shape どちらが来ても mesh shape を返す
+    """transform / shape どちらが来ても mesh shape を返す
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
     """
     if not cmds.objExists(mesh):
         raise RuntimeError(u'Object does not exist: {}'.format(mesh))
@@ -27,8 +29,10 @@ def _to_shape(mesh):
 
 
 def _get_skin_cluster(mesh):
-    """
-    mesh から関連 skinCluster を取得
+    """mesh から関連 skinCluster を取得
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
     """
     shape = _to_shape(mesh)
     history = cmds.listHistory(shape, pruneDagObjects=True) or []
@@ -39,7 +43,11 @@ def _get_skin_cluster(mesh):
 
 
 def _get_axis_index(axis):
-    """軸文字を座標インデックスへ変換します。"""
+    """軸文字を座標インデックスへ変換します。
+
+    Args:
+        axis: 基準軸。x・y・zのいずれか。
+    """
     axis = axis.lower()
     table = {'x': 0, 'y': 1, 'z': 2}
     if axis not in table:
@@ -48,7 +56,11 @@ def _get_axis_index(axis):
 
 
 def _all_vertices(mesh):
-    """メッシュの全頂点コンポーネントを返します。"""
+    """メッシュの全頂点コンポーネントを返します。
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
+    """
     shape = _to_shape(mesh)
     return cmds.ls('{}.vtx[*]'.format(shape), fl=True) or []
 
@@ -99,9 +111,12 @@ def _get_selected_meshes():
 
 
 def _pick_top_bottom_influences(skin_cluster, axis='y'):
-    """
-    skinCluster の influence から軸方向の最下端/最上端を返す
+    """skinCluster の influence から軸方向の最下端/最上端を返す
     可能なら joint のみを対象にする
+
+    Args:
+        skin_cluster: ウェイトを照会・編集するskinCluster。
+        axis: 基準軸。x・y・zのいずれか。
     """
     axis_index = _get_axis_index(axis)
     influences = [node.name() for node in Node(skin_cluster).influences()]
@@ -140,8 +155,10 @@ def _pick_top_bottom_influences(skin_cluster, axis='y'):
 
 
 def _vertices_center(vertices):
-    """
-    頂点群のワールド座標中心を返す
+    """頂点群のワールド座標中心を返す
+
+    Args:
+        vertices: 処理対象の頂点コンポーネント列。
     """
     if not vertices:
         raise RuntimeError(u'No vertices to compute center.')
@@ -159,7 +176,12 @@ def _vertices_center(vertices):
 
 
 def _collect_influence_positions(skin_cluster, joints_only=True):
-    """influence のワールド座標一覧を収集します。"""
+    """influence のワールド座標一覧を収集します。
+
+    Args:
+        skin_cluster: ウェイトを照会・編集するskinCluster。
+        joints_only: Trueはジョイントのインフルエンスだけを対象にする。
+    """
     influences = [node.name() for node in Node(skin_cluster).influences()]
     pairs = []
     for inf in influences:
@@ -180,7 +202,13 @@ def _collect_influence_positions(skin_cluster, joints_only=True):
 
 
 def _nearest_influence(influence_positions, target_pos, exclude=None):
-    """目標座標に最も近い influence を返します。"""
+    """目標座標に最も近い influence を返します。
+
+    Args:
+        influence_positions: インフルエンスごとのワールド座標。
+        target_pos: 最近傍を探索するワールド座標。
+        exclude: 候補から除外する対象。
+    """
     exclude = set(exclude or [])
     best_name = None
     best_dist = None
@@ -198,8 +226,13 @@ def _nearest_influence(influence_positions, target_pos, exclude=None):
 
 
 def _pick_top_bottom_influences_from_end_rings(skin_cluster, top_vertices, bottom_vertices, axis='y'):
-    """
-    上端/下端リングの中心に最も近い influence を選ぶ
+    """上端/下端リングの中心に最も近い influence を選ぶ
+
+    Args:
+        skin_cluster: ウェイトを照会・編集するskinCluster。
+        top_vertices: 処理対象の頂点コンポーネント列。
+        bottom_vertices: 処理対象の頂点コンポーネント列。
+        axis: 基準軸。x・y・zのいずれか。
     """
     influence_positions = _collect_influence_positions(skin_cluster, joints_only=True)
     if len(influence_positions) < 2:
@@ -226,8 +259,13 @@ def _pick_top_bottom_influences_from_end_rings(skin_cluster, top_vertices, botto
 
 
 def get_vertices_by_world_band(mesh, axis='y', top_range=1.0, bottom_range=1.0):
-    """
-    ワールド座標の高さ帯で上端・下端・中間頂点を返す
+    """ワールド座標の高さ帯で上端・下端・中間頂点を返す
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
+        axis: 基準軸。x・y・zのいずれか。
+        top_range: 最上点から上端帯に含めるワールド空間の距離。
+        bottom_range: 最下点から下端帯に含めるワールド空間の距離。
     """
     axis_index = _get_axis_index(axis)
     vtx_list = _all_vertices(mesh)
@@ -271,9 +309,13 @@ def get_vertices_by_world_band(mesh, axis='y', top_range=1.0, bottom_range=1.0):
 
 
 def get_vertices_by_axis_equal_count(mesh, axis='y', segment_count=3):
-    """
-    軸方向に頂点を並べ、上端/中間/下端を頂点数ベースで均等分割する
+    """軸方向に頂点を並べ、上端/中間/下端を頂点数ベースで均等分割する
     例: 12頂点 -> 下4 / 中4 / 上4
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
+        axis: 基準軸。x・y・zのいずれか。
+        segment_count: 頂点を分割する区分数。
     """
     if int(segment_count) < 3:
         raise RuntimeError(u'segment_count must be >= 3.')
@@ -315,8 +357,10 @@ def get_vertices_by_axis_equal_count(mesh, axis='y', segment_count=3):
 
 
 def _get_strict_border_edges(mesh):
-    """
-    face数1の厳密な境界エッジを返す
+    """face数1の厳密な境界エッジを返す
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
     """
     shape = _to_shape(mesh)
     all_edges = cmds.ls('{}.e[*]'.format(shape), fl=True) or []
@@ -344,8 +388,10 @@ def _get_strict_border_edges(mesh):
 
 
 def _get_border_vertex_groups(mesh):
-    """
-    境界頂点の連結グループを返す
+    """境界頂点の連結グループを返す
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
     """
     all_vertices = _all_vertices(mesh)
     all_vertex_set = set(all_vertices)
@@ -387,9 +433,13 @@ def _get_border_vertex_groups(mesh):
 
 
 def get_vertices_by_axis_apex(mesh, axis='y', expected_top_count=1):
-    """
-    軸方向の極値から、先端(top)が少数(通常1)の形状を優先抽出する
+    """軸方向の極値から、先端(top)が少数(通常1)の形状を優先抽出する
     例: コーン形状で top=1 を強制
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
+        axis: 基準軸。x・y・zのいずれか。
+        expected_top_count: 先端側で優先する頂点数。
     """
     axis_index = _get_axis_index(axis)
     all_vertices = _all_vertices(mesh)
@@ -438,7 +488,11 @@ def get_vertices_by_axis_apex(mesh, axis='y', expected_top_count=1):
 
 
 def _build_vertex_graph(mesh):
-    """メッシュ頂点の隣接グラフを構築します。"""
+    """メッシュ頂点の隣接グラフを構築します。
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
+    """
     vertices = _all_vertices(mesh)
     if not vertices:
         raise RuntimeError(u'No vertices found: {}'.format(mesh))
@@ -452,7 +506,12 @@ def _build_vertex_graph(mesh):
 
 
 def _dijkstra_distances(adjacency, start_index):
-    """始点からの最短距離配列を Dijkstra で計算します。"""
+    """始点からの最短距離配列を Dijkstra で計算します。
+
+    Args:
+        adjacency: 隣接頂点と接続情報を保持するグラフ。
+        start_index: 対象要素の番号または探索開始番号。
+    """
     inf = float('inf')
     dist = [inf] * len(adjacency)
     dist[start_index] = 0.0
@@ -472,7 +531,11 @@ def _dijkstra_distances(adjacency, start_index):
 
 
 def _argmax_finite(values):
-    """有限値のみ対象に最大値インデックスを返します。"""
+    """有限値のみ対象に最大値インデックスを返します。
+
+    Args:
+        values: 計算対象の数値列。
+    """
     best_idx = None
     best_val = None
     for i, v in enumerate(values):
@@ -485,9 +548,13 @@ def _argmax_finite(values):
 
 
 def get_vertices_by_geodesic_band(mesh, axis='y', endpoint_count_priority=True):
-    """
-    ジオデシック距離で top/middle/bottom を分割
+    """ジオデシック距離で top/middle/bottom を分割
     endpoint_count_priority=True の場合は top/bottom 同数を優先
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
+        axis: 基準軸。x・y・zのいずれか。
+        endpoint_count_priority: 端点の数による優先順位を考慮するか。
     """
     axis_index = _get_axis_index(axis)
     vertices, positions, adjacency = _build_vertex_graph(mesh)
@@ -561,9 +628,12 @@ def get_vertices_by_geodesic_band(mesh, axis='y', endpoint_count_priority=True):
 
 
 def get_vertices_by_end_rings(mesh, axis='y'):
-    """
-    開口境界リングから上端・下端・中間頂点を返す
+    """開口境界リングから上端・下端・中間頂点を返す
     上端/下端は同頂点数を想定
+
+    Args:
+        mesh: 処理対象のメッシュまたはそのTransform。
+        axis: 基準軸。x・y・zのいずれか。
     """
     axis_index = _get_axis_index(axis)
     shape = _to_shape(mesh)
@@ -737,8 +807,16 @@ def get_vertices_by_end_rings(mesh, axis='y'):
 
 def set_two_influence_weights(skin_cluster, vertices, bottom_influence, top_influence,
                               bottom_weight, top_weight, normalize=True):
-    """
-    2インフルエンス分のウェイトを明示設定
+    """2インフルエンス分のウェイトを明示設定
+
+    Args:
+        skin_cluster: ウェイトを照会・編集するskinCluster。
+        vertices: 処理対象の頂点コンポーネント列。
+        bottom_influence: ウェイトを割り当てる、または移管するインフルエンス。
+        top_influence: ウェイトを割り当てる、または移管するインフルエンス。
+        bottom_weight: 設定するウェイト値。
+        top_weight: 設定するウェイト値。
+        normalize: 変更後にウェイトを正規化するか。
     """
     if not vertices:
         return
@@ -758,11 +836,15 @@ def set_two_influence_weights(skin_cluster, vertices, bottom_influence, top_infl
 def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=5,
                                obey_max_influences=2, normalize_after_change=True,
                                preserve_maintain_max_influences=True):
-    """
-    SIWeightEditor と同系統の skinCluster 平滑化を実行
-    smooth_weights: weightChangeTolerance (sw)
-    max_iterations: numIterations (swi)
-    obey_max_influences: obeyMaxInfluences (omi)
+    """skinClusterの標準コマンドでウェイトを平滑化する。
+
+    Args:
+        skin_cluster: 編集するskinCluster。
+        smooth_weights (float): skinClusterのswへ渡す平滑化の許容値。
+        max_iterations (int): skinClusterのswiへ渡す最大反復数。
+        obey_max_influences (int): skinClusterのomiへ渡す値。
+        normalize_after_change (bool): 平滑化後にウェイトを正規化するか。
+        preserve_maintain_max_influences (bool): maintainMaxInfluencesの値を保存・復元するか。
     """
     mmi = None
     has_mmi = Node(skin_cluster).hasAttr('maintainMaxInfluences')
@@ -812,39 +894,31 @@ def auto_two_influence_band_smooth(
         smooth_passes=1,
         reselect_middle=True,
         verbose=True):
-    """
-    2インフルエンス前提:
-      1) ワールド座標で上端帯・下端帯を抽出
-      2) 下端=bottom 100%, 上端=top 100% を設定
-      3) skinCluster の標準 smooth を実行
-      4) 最後に上下端を再固定
+    """上下端を2つのインフルエンスへ固定し、中間のウェイトを平滑化する。
 
-    Parameters
-    ----------
-    mesh : str or list[str]
-        メッシュ transform または shape。None なら選択から自動取得
-    bottom_influence : str
-        下端側インフルエンス。None なら skinCluster から自動推定
-    top_influence : str
-        上端側インフルエンス。None なら skinCluster から自動推定
-    skin_cluster : str or None
-        指定しなければ mesh から自動取得
-    axis : str
-        'x' / 'y' / 'z'
-    bottom_range : float
-        最下点からこの距離以内を下端帯にする
-    top_range : float
-        最上点からこの距離以内を上端帯にする
-    smooth_weights : float
-        skinCluster -sw (weightChangeTolerance) 値
-    smooth_iterations : int
-        skinCluster -swi (numIterations) 値
-    smooth_passes : int
-        上記 smooth を何回回すか
-    reselect_middle : bool
-        終了時に middle 頂点を選択し直す
-    verbose : bool
-        ログ出力
+    境界や頂点数に応じて端部の抽出方法を選ぶ。ワールド座標の帯を使う場合は
+    bottom_rangeとtop_rangeを用いる。平滑化後に両端を再固定する。
+
+    Args:
+        mesh (str | list[str] | None): メッシュのTransformまたはShape。省略時は選択から取得。
+        bottom_influence (str | None): 下端側のインフルエンス。省略時は自動推定。
+        top_influence (str | None): 上端側のインフルエンス。省略時は自動推定。
+        skin_cluster (str | None): 編集するskinCluster。省略時はメッシュから取得。
+        axis (str): 基準軸。x・y・zのいずれか。
+        bottom_range (float): ワールド座標の最下点から下端帯に含める距離。
+        top_range (float): ワールド座標の最上点から上端帯に含める距離。
+        smooth_weights (float): skinClusterのswへ渡す平滑化の許容値。
+        smooth_iterations (int): 1回の平滑化での最大反復数。
+        smooth_passes (int): 平滑化の実行回数。1未満も1回として扱う。
+        reselect_middle (bool): 完了時に中間頂点を選択するか。
+        verbose (bool): 処理結果をログへ出力するか。
+
+    Returns:
+        dict | list[dict]: メッシュ・インフルエンス・頂点帯・抽出方式などの処理結果。
+            結果が1件なら辞書、それ以外は辞書のリスト。
+
+    Raises:
+        RuntimeError: 複数メッシュにskin_clusterを指定した場合や端部を解決できない場合。
     """
     if mesh is None:
         mesh_list = _get_selected_meshes()

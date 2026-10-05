@@ -304,3 +304,9 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 ### cymelメソッド名の確定仕様（2026-10-05）
 
 ユーザーの明示指示により、所有Plugの`node()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、cymelの短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`fullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/docs/cymel_methods.rst`を参照する。
+
+### Transformationの追加仕様
+
+`hlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`（`getX`/`setX`）に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.toTransformation()`はhlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成行列を受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/hlib/docs/transformation.rst`を参照する。
+
+配列要素参照の標準表記は`array[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。配列反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存の明示的な`element(index, create=False)`の仕様は維持する。複合の子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。複合の整数番号は0以上の定義順、反復は子の定義順。配列・複合Plugをmaya.cmdsへ渡す時はstrまたはfullNameで文字列化する。hlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、hlib.cmdsの同名ラッパーは作らない。

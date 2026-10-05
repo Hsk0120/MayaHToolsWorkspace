@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: hedit VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-05 10:24+0900\n"
+"POT-Creation-Date: 2026-10-05 22:30+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -62,7 +62,7 @@ msgid "**選択範囲の拡大・縮小**\\ (Shift+Alt+→ / ←)。"
 msgstr "**Expand / Shrink selection** (Shift+Alt+→ / ←)."
 
 msgid "静的解析で\\ **未定義の名前**\\ も警告し(Maya の ``__main__`` にある名前は除く)、本文に\\ **波線**\\ を引く。 マウスを重ねるか **F8 / Shift+F8** で説明を出す。"
-msgstr ""
+msgstr "Static analysis should also warn about **Undefined name** (excluding names in Maya's ``__main__``), and reference **Wave line** in the text. Hover the mouse over or **F8 / Shift+F8** to display the description."
 
 msgid "**最近開いたもの**\\ (File → Open recent)と\\ **ファイル名で開く**\\ (File → Quick open…、Ctrl+P)。"
 msgstr "**Recently opened files** (File → Open recent) and **Open by file name** (File → Quick open..., Ctrl+P)."
@@ -558,7 +558,7 @@ msgid "画面の大きさ(4K など)"
 msgstr "Screen size (4K, etc.)"
 
 msgid "``editor/ui_scale.cpp`` の ``setUiScale`` / ``scaled`` / ``setIconProvider``\\ 。\\ ``plugin/editor_host.cpp`` が画面の作成前に ``MQtUtil::dpiScale(1.0f)`` を ``setUiScale`` へ渡し、文字の px・余白・幅・アイコンの大きさはすべて ``scaled(100% のときの px)`` で決める(Maya は Qt の高 DPI 拡大を止めて自前で拡大するため)。 アイコンは ``MQtUtil::createIcon`` で拡大率に合った画像を受け取る(``QIcon(\":/name.png\")`` は常に 20 px)。 Zoom の文字サイズは 100% 基準で保存する。Maya 無しの ``tests/ui_smoke.cpp`` では 2 倍を与えて検証する。"
-msgstr ""
+msgstr "``editor/ui_scale.cpp`` of ``setUiScale`` / ``scaled`` / ``setIconProvider``. ``plugin/editor_host.cpp`` passes ``MQtUtil::dpiScale(1.0f)`` to ``setUiScale`` before the screen is created, and the size of the text, padding, width, and icon size are all determined by ``scaled(100% のときの px)`` (Maya stops Qt's high DPI scaling and scales on its own). Icons receive images appropriate to the scaling factor from ``MQtUtil::createIcon`` (``QIcon(\":/name.png\")`` is always 20 px). The font size for Zoom is saved with a 100% base. In ``tests/ui_smoke.cpp`` without Maya, it is verified by providing double the size."
 
 msgid "起動時の出力履歴・出力の購読"
 msgstr "Output History on Startup and Output Subscription"
@@ -582,7 +582,7 @@ msgid "``import xxx`` / ``from xxx`` のトップレベル名の補完"
 msgstr "Completion of top-level names for ``import xxx`` and ``from xxx``"
 
 msgid "``core/module_scanner.cpp`` の ``ModuleScanner``\\ 。\\ ``sys.path`` の各フォルダーを C++ のスレッド(GIL 不要)で走査する。 編集画面の作成時に走査を始め、初回は最大 0.5 秒待つ。以後の再走査は 5 秒間隔で裏で行う。 Python からは ``sys.path`` と組み込み・読み込み済みの名前(``hedit.bridge.module_names``)だけを受け取る (``plugin/python_bridge.cpp``)。Maya に依存しないため ``tests/ui_smoke.cpp`` で検証する。"
-msgstr ""
+msgstr "``core/module_scanner.cpp`` of ``ModuleScanner``. Scans each folder of ``sys.path`` using C++ threads (GIL not required). Begins scanning when the edit screen is created, waiting up to 0.5 seconds initially. Subsequent rescans are performed in the background every 5 seconds. From Python, only receives ``sys.path`` and built-in, preloaded names (``hedit.bridge.module_names``) (``plugin/python_bridge.cpp``). Since it does not depend on Maya, it is verified with ``tests/ui_smoke.cpp``."
 
 msgid "それ以外の補完"
 msgstr "Other completions"
@@ -752,7 +752,7 @@ msgstr "The check boxes in the Preferences can be added by appending a line to t
 
 #, python-brace-format
 msgid "``{\"myOption\", \"My option\", false},`` を、メニューに並べたい位置へ追加する(前に区切り線を入れるなら 4 番目に ``true``)。 メニュー項目・保存(``preferences.json``)は、この表から自動で作られます。"
-msgstr ""
+msgstr "``{\"myOption\", \"My option\", false},`` to the desired position in the menu (if you want to insert a separator before it, make it the 4th item ``true``). The menu item Save (``preferences.json``) will be automatically created from this table."
 
 msgid "動作を実装する場所で ``preferences_.option(\"myOption\")`` を読む(``MainWindow`` の中)。"
 msgstr "Read ``preferences_.option(\"myOption\")`` in the place where the behavior is implemented (in ``MainWindow``)."
@@ -800,7 +800,7 @@ msgid "版を上げるときは、次の箇所をそろえて更新します(こ
 msgstr "When updating the version, the following sections must be synchronized and updated (this document's version automatically reads the value 1)."
 
 msgid "``src/version.h`` の ``HEDIT_VERSION``\\ 。プラグインの版・ドックのタイトル・Python の ``hedit.__version__``\\ ・ ``hedit.mll`` のファイル情報は、すべてこの値を使います"
-msgstr ""
+msgstr "``src/version.h`` of ``HEDIT_VERSION``. The plugin version, dock title, Python ``hedit.__version__``, and ``hedit.mll`` file information all use this value."
 
 msgid "親リポジトリの ``maya/modules/hedit.mod`` の各バージョンの版(``MAYA_PLUG_IN_PATH`` は版を含まないので変えない)"
 msgstr "Each version of the parent repository ``maya/modules/hedit.mod``, where ``MAYA_PLUG_IN_PATH`` does not contain versions (so do not change it)"
@@ -827,7 +827,7 @@ msgid "``run_tests.py``"
 msgstr ""
 
 msgid "版ごとに、補完・静的解析の単体テスト(``test_completion.py``)、Maya standalone での ``.mod`` の解決・ プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、保存先の決定(``test_session_path.py``)、 C++ の宣言の抽出と Python の ``ast`` の突き合わせ(``test_declarations_parity.py``\\ 。hlib・hrig・HTools・標準ライブラリの約 400 ファイル)、 同じ C++ ウィジェットの offscreen 描画と、Maya 非依存の C++ 部分(履歴の整形・import の行の補完・ ``sys.path`` の走査・字句解析・宣言の抽出・補完エンジン・定義の場所・構成と折りたたみの範囲・行の差分・ 引数のヒントの解析・括弧と選択範囲の拡大・検索置換・tabs.json・行編集・ファイルの読み書き)と、コード欄の 括弧の自動で閉じる・同じ名前の強調・折りたたみ・見出しの固定表示・記号へ移動などの テスト(``hedit_ui_smoke.exe``)を実行する"
-msgstr ""
+msgstr "For each version, run unit tests for completion and static analysis (``test_completion.py``), resolution of ``.mod`` in Maya standalone, loading/unloading of plug-ins, and existence of completion candidates (``maya_smoke.py``), determination of save location (``test_session_path.py``), extraction of C++ declarations and matching with Python's ``ast`` (``test_declarations_parity.py``). This includes approximately 400 files in hlib, hrig, HTools, and the standard library. Also, offscreen drawing of the same C++ widgets, and testing of the Maya-independent C++ parts (formatting history, completion of import lines, ``sys.path`` scanning, lexical analysis, extraction of declarations, completion engine, location of definitions, structure and range of folding, line differences, parsing of parameter hints, expansion of brackets and selection ranges, search and replace, tabs.json, line editing, file reading and writing). Additionally, run tests for the code editor, including automatic closing of brackets, highlighting of the same name, folding, sticky scroll, and navigation to symbols (``hedit_ui_smoke.exe``)."
 
 msgid "``run_startup.py``"
 msgstr ""
@@ -926,7 +926,7 @@ msgid "隔離した VS Code を起動し、手順の JSON(例: ``find_replace.js
 msgstr "Launch an isolated VS Code, execute the commands in the order of the JSON (e.g., ``find_replace.json``), and take screenshots of the windows. Refer to the beginning of ``vscode_capture/extension/extension.js`` for the procedure writing method."
 
 msgid "VS Code の撮影は、専用の ``--user-data-dir`` と ``--extensions-dir`` を一時フォルダーに作り、撮影用の拡張機能 (``vscode_capture/extension/``\\ 。配布はしない)だけを読み込みます。普段の VS Code・設定・拡張機能には触れず、 終了時は自分が起動した VS Code だけを閉じます。\\ ``Code.exe`` は既定のインストール先から探します (別の場所なら環境変数 ``HEDIT_VSCODE_EXE``\\ )。"
-msgstr ""
+msgstr "VS Code's capture creates a dedicated ``--user-data-dir`` and ``--extensions-dir`` in a temporary folder and loads only the capture extension (``vscode_capture/extension/``). It does not touch the usual VS Code settings or extensions, and closes only the VS Code instance it launched. ``Code.exe`` is searched for in the default installation location (or a different location specified by the environment variable ``HEDIT_VSCODE_EXE``)."
 
 msgid "撮影は Windows の ``PrintWindow`` を使うので、VS Code の窓がほかの窓の後ろにあっても撮れます。"
 msgstr "Since rendering uses Windows ``PrintWindow``, you can capture the screen even if the VS Code window is behind other windows."
@@ -1196,7 +1196,7 @@ msgid "``scripts/hedit/*.py`` を使っていた旧版から更新した場合�
 msgstr "Even when updating from a previous version that used ``scripts/hedit/*.py``, switching occurs with just a Maya restart. Even if only ``__pycache__`` remains in ``scripts/hedit``, the included ``hedit`` will be given priority, so there is no impact (it is safe to delete it)."
 
 msgid "フォルダー名・パッケージ名・プラグイン名は小文字の ``hedit`` です。旧名 ``heditor`` の保存先・ドック・ ``heditor.restore()`` の互換処理は削除しました。旧名 ``heditor`` の版から直接更新した場合、 旧名の保存先の未保存タブ・設定は引き継がれません(旧データは残っているので、必要なら手でコピーできます)。"
-msgstr ""
+msgstr "Folder names, package names, and plugin names are in lowercase ``hedit``. Compatibility handling for the old name ``heditor``'s save location, dock, and ``heditor.restore()`` has been removed. If you update directly from a version with the old name ``heditor``, unsaved tabs and settings in the old name's save location will not be carried over (the old data remains, so you can manually copy it if needed)."
 
 msgid "配置していないバージョンでは"
 msgstr "In the unplaced version"
@@ -2027,7 +2027,7 @@ msgid "Backspace(選択なし・修飾キーなし)"
 msgstr "Backspace (no selection, no modifier keys)"
 
 msgid "行の先頭からカーソルまでが **空白だけ\\ ** のとき、Backspace で空白を **1 文字ではなく、 直前の 4 文字の区切りまで** まとめて削除します。"
-msgstr ""
+msgstr "When the cursor is at the beginning of a line and the line consists of **only spaces\\ **, pressing Backspace will delete **not just 1 character, but up to the previous 4-character boundary**."
 
 msgid "**例**"
 msgstr "**Example**"
@@ -2096,7 +2096,7 @@ msgid "保存時の整形"
 msgstr "Formatting on save"
 
 msgid "以下の 2 つは **明示的なファイル保存(Ctrl+S / Ctrl+Shift+S / File → Save・Save as)のときだけ** 働きます。 Maya 再起動用のタブの自動保存(:doc:`session`)には適用しません(そのため、未保存の本文が勝手に整形されることはありません)。"
-msgstr ""
+msgstr "The following two features work **only when explicitly saving a file (Ctrl+S / Ctrl+Shift+S / File → Save, Save as)**. They do not apply to the autosave of the Maya restart tab (:doc:`session`), so the unsaved content will not be automatically formatted."
 
 msgid "Trim trailing spaces on file save(``trimWhitespace``)"
 msgstr ""
@@ -2921,7 +2921,7 @@ msgid "File → Open folder…"
 msgstr ""
 
 msgid "Explorer のルートを **置き換える**"
-msgstr ""
+msgstr "Explorer root to **replace**"
 
 msgid "File → Add folder…"
 msgstr ""

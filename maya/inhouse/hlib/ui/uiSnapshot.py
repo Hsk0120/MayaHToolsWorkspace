@@ -24,7 +24,11 @@ class UiSnapshot:
         object.__setattr__(self, "_targets", tuple(self._targets))
 
     def __getitem__(self, name):
-        """保持する状態値を取得する。Mayaへの照会は行わない。"""
+        """保持する状態値を取得する。Mayaへの照会は行わない。
+
+        Args:
+            name: 参照・作成・照会する対象の名前。
+        """
         return self.data[name]
 
     def validate(self):

@@ -45,7 +45,11 @@ class Viewport(_Editor):
 
     @staticmethod
     def isEnabled():
-        """bool: メインペインのmanage状態。描画エンジンの状態ではない。"""
+        """メインペインのmanage状態。描画エンジンの状態ではない。
+
+        Returns:
+            bool: メインペインのmanage状態。描画エンジンの状態ではない。
+        """
         return bool(cmds.paneLayout(Viewport._main_pane(), query=True, manage=True))
 
     @staticmethod
@@ -87,7 +91,11 @@ class Viewport(_Editor):
         return self._panel
 
     def camera(self):
-        """str: 現在表示しているカメラ名を返す。"""
+        """現在表示しているカメラ名を返す。
+
+        Returns:
+            str: 現在表示しているカメラ名を返す。
+        """
         self._require_exists()
         return cmds.modelEditor(self._name, query=True, camera=True)
 
@@ -105,7 +113,11 @@ class Viewport(_Editor):
 
     @staticmethod
     def _main_pane():
-        """str: Mayaのメインペインを取得する。GUIがなければ RuntimeError。"""
+        """Mayaのメインペインを取得する。GUIがなければ RuntimeError。
+
+        Returns:
+            str: Mayaのメインペインを取得する。GUIがなければ RuntimeError。
+        """
         if cmds.about(batch=True):
             raise RuntimeError("Viewport suspension requires Maya GUI")
         pane = mel.eval('global string $gMainPane; $hlibMainPane = $gMainPane;')

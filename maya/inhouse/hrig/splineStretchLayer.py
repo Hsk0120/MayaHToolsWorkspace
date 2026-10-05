@@ -124,7 +124,7 @@ class SplineStretchLayer:
             units = self._node(owner, "unitConversion", "lengthUnits" + str(i))
             multiply.plug("outputX").connectTo(units.plug("input"))
             units.plug("conversionFactor").set(1)
-            units.plug("message").connectTo(group.plug("outputs[{}]".format(i)))
+            units.plug("message").connectTo(group.plug("outputs")[i])
         # 親の断面scaleを子が累積しないよう、Maya標準のSSCとinverseScaleを使う。
         for role in ("fk", "deform"):
             bones = rig.members(role)
@@ -181,7 +181,7 @@ class SplineStretchLayer:
             if target.sourceWithConversion() is not None:
                 target.disconnect(target.sourceWithConversion())
             if active:
-                group.plug("outputs[{}]".format(i)).sourceWithConversion().node().plug("output").connectTo(target)
+                group.plug("outputs")[i].sourceWithConversion().node().plug("output").connectTo(target)
             else:
                 target.set(length)
         for source, joint in zip(

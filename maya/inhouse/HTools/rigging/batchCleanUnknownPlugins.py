@@ -17,19 +17,46 @@ DEFAULT_TARGET_PLUGINS = (
 
 
 def _normalize_path(path):
+    """パスの区切りと大文字小文字をOSの比較規則に合わせる。
+
+    Args:
+        path: 処理対象のファイルまたはディレクトリのパス。
+
+    Returns:
+        str: 比較用の正規化パス。
+    """
     return os.path.normcase(os.path.normpath(path))
 
 
 def _list_unknown_plugins():
+    """現在シーンのunknownPlugin名を列挙する。
+
+    Returns:
+        list[str]: 登録名。該当なしは空リスト。
+    """
     return cmds.unknownPlugin(q=True, l=True) or []
 
 
 def _list_reference_paths():
+    """現在シーンの参照パスをコピー番号なしで取得する。
+
+    Returns:
+        list[str]: 空文字を除いた参照パス。
+    """
     refs = cmds.file(q=True, r=True, withoutCopyNumber=True) or []
     return [ref for ref in refs if isinstance(ref, str) and ref]
 
 
 def _remove_target_unknown_plugins(target_plugins, remove_all_unknown=False):
+    """対象のunknownPluginを削除し、成功・失敗・処理前の一覧を返す。
+
+    Args:
+        target_plugins: 除去対象とするunknownPlugin名の列。
+        remove_all_unknown: Trueは名前の指定にかかわらず全unknownPluginを対象にする。
+
+    Returns:
+        tuple: 削除名、失敗名とエラーの組、処理前のunknownPlugin名の順。
+    """
     unknown_plugins = _list_unknown_plugins()
     if remove_all_unknown:
         to_remove = unknown_plugins
@@ -50,6 +77,14 @@ def _remove_target_unknown_plugins(target_plugins, remove_all_unknown=False):
 
 
 def _remove_unknown_nodes_if_needed(remove_unknown_nodes=False):
+    """指定が有効な場合だけunknown型ノードを削除する。
+
+    Args:
+        remove_unknown_nodes: Trueはunknown型ノードも削除する。
+
+    Returns:
+        list[str]: 削除したノード名。無効指定なら空リスト。
+    """
     if not remove_unknown_nodes:
         return []
 
@@ -60,6 +95,12 @@ def _remove_unknown_nodes_if_needed(remove_unknown_nodes=False):
 
 
 def _open_scene(scene_path, force=True):
+    """確認ダイアログを抑制して指定シーンを開く。現在シーンを置き換える。
+
+    Args:
+        scene_path: 処理対象のファイルまたはディレクトリのパス。
+        force: Mayaコマンドの強制実行指定。未保存変更を破棄する場合がある。
+    """
     cmds.file(scene_path, o=True, f=force, prompt=False, ignoreVersion=True)
 
 
@@ -73,7 +114,18 @@ def batch_clean_unknown_plugins(
     force=True,
     reopen_root_scene=True,
 ):
-    """現在シーン(または指定シーン)から参照を巡回して unknownPlugin を除去する。"""
+    """現在シーン(または指定シーン)から参照を巡回して unknownPlugin を除去する。
+
+    Args:
+        root_scene_path: 処理対象のファイルまたはディレクトリのパス。
+        include_references: 参照ファイルも巡回対象へ追加するか。
+        target_plugins: 除去対象とするunknownPlugin名の列。
+        remove_all_unknown: Trueは名前の指定にかかわらず全unknownPluginを対象にする。
+        remove_unknown_nodes: Trueはunknown型ノードも削除する。
+        save_scene: 変更したシーンを保存するか。
+        force: Mayaコマンドの強制実行指定。未保存変更を破棄する場合がある。
+        reopen_root_scene: 処理後に開始シーンを開き直すか。
+    """
     if target_plugins is None:
         target_plugins = DEFAULT_TARGET_PLUGINS
 

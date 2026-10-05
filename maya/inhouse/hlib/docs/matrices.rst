@@ -92,7 +92,7 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 .. code-block:: python
 
    local_from_plug = child.plug("matrix").get()
-   world_from_plug = child.plug("worldMatrix").element(0, create=True).get()
+   world_from_plug = child.plug("worldMatrix")[0].get()
    print(local.isEquivalent(local_from_plug))    # True
    print(world.isEquivalent(world_from_plug))    # True
 
@@ -304,8 +304,9 @@ om2 の関数が返した ``om2.MMatrix`` は ``Matrix.fromMMatrix()`` で ``Mat
    print(copied.isEquivalent(matrix))    # True
    api_matrix = om2.MMatrix(matrix)       # 素の om2.MMatrix として複製
 
-``toTransformation()`` / ``fromTransformation()`` で
-Maya API 2.0 の ``MTransformationMatrix`` とも相互変換できます。
+``toTransformation()`` はhlibの ``Transformation`` を返します。
+``fromTransformation()`` はhlibの値型とMaya API 2.0の ``MTransformationMatrix`` を受け付けます。
+OpenMaya型が必要な場合は ``om2.MTransformationMatrix(matrix)`` を使います。
 これらは値の変換であり、シーンの変更は行いません。
 om2 名のメソッド(``adjoint()``、``homogenize()`` など)の戻り値は ``om2.MMatrix`` です。
 

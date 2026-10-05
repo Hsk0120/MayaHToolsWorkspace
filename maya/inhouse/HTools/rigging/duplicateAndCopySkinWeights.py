@@ -7,14 +7,22 @@ from hlib.cmds import getPlug
 
 
 def get_skin_cluster(mesh_transform):
-    """メッシュに接続されている skinCluster を返す"""
+    """メッシュに接続されている skinCluster を返す
+
+    Args:
+        mesh_transform: 処理対象のメッシュまたはそのTransform。
+    """
     history = cmds.listHistory(mesh_transform, pruneDagObjects=True) or []
     skins = cmds.ls(history, type='skinCluster') or []
     return skins[0] if skins else None
 
 
 def get_assigned_materials(mesh_transform):
-    """メッシュに割り当てられているマテリアル一覧を返す"""
+    """メッシュに割り当てられているマテリアル一覧を返す
+
+    Args:
+        mesh_transform: 処理対象のメッシュまたはそのTransform。
+    """
     materials = []
     shapes = cmds.listRelatives(mesh_transform, shapes=True, noIntermediate=True, fullPath=True) or []
     for shape in shapes:
@@ -30,7 +38,11 @@ def get_assigned_materials(mesh_transform):
 
 
 def get_or_create_shading_engine(material):
-    """マテリアルに接続された shadingEngine を返す。無ければ作成する。"""
+    """マテリアルに接続された shadingEngine を返す。無ければ作成する。
+
+    Args:
+        material: 割り当てるマテリアルのノード名。
+    """
     if not cmds.objExists(material):
         return None
 
@@ -67,12 +79,21 @@ def get_or_create_shading_engine(material):
 
 
 def get_mesh_shapes(mesh_transform):
-    """メッシュ transform から表示用 shape 一覧を返す"""
+    """メッシュ transform から表示用 shape 一覧を返す
+
+    Args:
+        mesh_transform: 処理対象のメッシュまたはそのTransform。
+    """
     return cmds.listRelatives(mesh_transform, shapes=True, noIntermediate=True, fullPath=True) or []
 
 
 def build_shape_mapping(src_mesh, dup_mesh):
-    """複製元 shape と複製先 shape の対応表を返す"""
+    """複製元 shape と複製先 shape の対応表を返す
+
+    Args:
+        src_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+        dup_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+    """
     src_shapes = get_mesh_shapes(src_mesh)
     dup_shapes = get_mesh_shapes(dup_mesh)
 
@@ -97,7 +118,13 @@ def build_shape_mapping(src_mesh, dup_mesh):
 
 
 def member_belongs_to_source(member, src_shape, src_mesh):
-    """set member が src_shape または src_mesh に属するか判定する"""
+    """set member が src_shape または src_mesh に属するか判定する
+
+    Args:
+        member: 所属または保存対象として扱うノード・コンポーネント。
+        src_shape: 対応付ける複製元または複製先のShape名。
+        src_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+    """
     src_shape_short = src_shape.split('|')[-1]
     src_mesh_short = src_mesh.split('|')[-1]
 
@@ -109,7 +136,15 @@ def member_belongs_to_source(member, src_shape, src_mesh):
 
 
 def remap_member_to_duplicate(member, src_shape, dup_shape, src_mesh, dup_mesh):
-    """src 側 member 文字列を dup 側 member 文字列へ変換する"""
+    """src 側 member 文字列を dup 側 member 文字列へ変換する
+
+    Args:
+        member: 所属または保存対象として扱うノード・コンポーネント。
+        src_shape: 対応付ける複製元または複製先のShape名。
+        dup_shape: 対応付ける複製元または複製先のShape名。
+        src_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+        dup_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+    """
     pairs = [
         (src_shape, dup_shape),
         (src_shape.split('|')[-1], dup_shape.split('|')[-1]),
@@ -127,7 +162,13 @@ def remap_member_to_duplicate(member, src_shape, dup_shape, src_mesh, dup_mesh):
 
 
 def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
-    """複製元のコンポーネント割り当てを維持したまま prefix 材質へ置換する"""
+    """複製元のコンポーネント割り当てを維持したまま prefix 材質へ置換する
+
+    Args:
+        src_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+        dup_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+        prefix: 複製先で検索するマテリアル名の接頭辞。
+    """
     shape_map = build_shape_mapping(src_mesh, dup_mesh)
     if not shape_map:
         return
@@ -182,7 +223,12 @@ def assign_prefixed_shader_if_exists(src_mesh, dup_mesh, prefix='prv_'):
 
 
 def connect_visibility_attr(src_mesh, dup_mesh):
-    """複製元の visibility を複製先へ接続する"""
+    """複製元の visibility を複製先へ接続する
+
+    Args:
+        src_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+        dup_mesh: 複製元または複製先のメッシュTransform。引数名のsrc/dupで区別する。
+    """
     src_attr = src_mesh + '.visibility'
     dup_attr = dup_mesh + '.visibility'
 

@@ -79,18 +79,30 @@ class DagPose(Node):
         return pose
 
     def isBindPose(self):
-        """bool: バインドポーズとして保存されたノードならTrue。"""
+        """バインドポーズとして保存されたノードならTrue。
+
+        Returns:
+            bool: バインドポーズとして保存されたノードならTrue。
+        """
         self._pose_name()
         return bool(self.plug("bindPose").get())
 
     def memberIndices(self):
-        """list[int]: 現在もメンバーが接続されている論理番号。欠番は保持する。"""
+        """現在もメンバーが接続されている論理番号。欠番は保持する。
+
+        Returns:
+            list[int]: 現在もメンバーが接続されている論理番号。欠番は保持する。
+        """
         name = self._pose_name()
         return [i for i in self.plug("members").mplug().getExistingArrayAttributeIndices()
                 if cmds.listConnections(f"{name}.members[{i}]", source=True, destination=False)]
 
     def members(self):
-        """list[Node]: 保存対象をmembers配列の論理番号順に返す。"""
+        """保存対象をmembers配列の論理番号順に返す。
+
+        Returns:
+            list[Node]: 保存対象をmembers配列の論理番号順に返す。
+        """
         name = self._pose_name()
         return [Node(cmds.listConnections(f"{name}.members[{i}]", source=True,
                                           destination=False)[0]) for i in self.memberIndices()]
@@ -127,19 +139,31 @@ class DagPose(Node):
         ws = world_space(worldSpace)
         index = self.memberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
-        return Matrix(self.plug(attribute).element(index).get())
+        return Matrix(self.plug(attribute)[index].get())
 
     def notAtPose(self):
-        """list[Node]: MayaのatPose照会で保存姿勢と異なると判定されたメンバー。"""
+        """MayaのatPose照会で保存姿勢と異なると判定されたメンバー。
+
+        Returns:
+            list[Node]: MayaのatPose照会で保存姿勢と異なると判定されたメンバー。
+        """
         return [Node(name) for name in
                 (cmds.dagPose(self._pose_name(), query=True, atPose=True) or [])]
 
     def isAtPose(self):
-        """bool: MayaのatPose照会で差異がない場合はTrue。"""
+        """MayaのatPose照会で差異がない場合はTrue。
+
+        Returns:
+            bool: MayaのatPose照会で差異がない場合はTrue。
+        """
         return not self.notAtPose()
 
     def skinClusters(self):
-        """list[SkinCluster]: このポーズをbindPoseとして参照するskinCluster。"""
+        """このポーズをbindPoseとして参照するskinCluster。
+
+        Returns:
+            list[SkinCluster]: このポーズをbindPoseとして参照するskinCluster。
+        """
         plugs = cmds.listConnections(self._pose_name() + ".message", source=False,
                                      destination=True, type="skinCluster", plugs=True) or []
         names = [plug.rsplit(".", 1)[0] for plug in plugs if plug.endswith(".bindPose")]
@@ -218,7 +242,11 @@ class DagPose(Node):
 
     @staticmethod
     def _transform_names(members):
-        """対象を有効なTransformの完全パスに揃える。空入力はValueError。"""
+        """対象を有効なTransformの完全パスに揃える。空入力はValueError。
+
+        Args:
+            members: 所属または保存対象として扱うノード・コンポーネント。
+        """
         from ..object import Object as _InputObject
         names = []
         for name in _InputObject._input_names(members):

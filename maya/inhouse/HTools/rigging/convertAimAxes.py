@@ -73,7 +73,11 @@ class AimAxisConversionWindow:
         self.loadSelection()
 
     def loadSelection(self, *_):
-        """選択中の単一Aimを保持する。変換の管理ノードの選択も受け付ける。"""
+        """選択中の単一Aimを保持する。変換の管理ノードの選択も受け付ける。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         try:
             selected = hlib.ls(selection=True)
             if len(selected) != 1:
@@ -106,7 +110,11 @@ class AimAxisConversionWindow:
             self._error(error)
 
     def convert(self, *_):
-        """指定方式で接続を変換する。失敗は表示し、シーンはトランザクションで戻す。"""
+        """指定方式で接続を変換する。失敗は表示し、シーンはトランザクションで戻す。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         try:
             self._requireSource()
             values = cmds.floatFieldGrp(self.reference, query=True, value=True)
@@ -124,7 +132,11 @@ class AimAxisConversionWindow:
             self._error(error)
 
     def restore(self, *_):
-        """変換ノードを除去し、元Aimの構造と設定値を復元する。"""
+        """変換ノードを除去し、元Aimの構造と設定値を復元する。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         try:
             self._requireSource()
             graph = AimAxisConversion.find(self.constraint)
@@ -136,7 +148,11 @@ class AimAxisConversionWindow:
             self._error(error)
 
     def refresh(self, *_):
-        """元Aimと変換出力を度表示で比較し、現在フレームの診断を示す。"""
+        """元Aimと変換出力を度表示で比較し、現在フレームの診断を示す。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         try:
             self._requireSource()
             graph = AimAxisConversion.find(self.constraint)
@@ -166,7 +182,11 @@ class AimAxisConversionWindow:
             raise ValueError("Load the selected aimConstraint first.")
 
     def _syncDirection(self, *_):
-        """軸選択を変えた際、方式2で使える未選択軸を初期設定にする。"""
+        """軸選択を変えた際、方式2で使える未選択軸を初期設定にする。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         axes = cmds.optionMenuGrp(self.axes, query=True, value=True)
         direction = cmds.optionMenuGrp(self.direction, query=True, value=True)
         if direction[-1] in axes:
@@ -174,7 +194,11 @@ class AimAxisConversionWindow:
             cmds.optionMenuGrp(self.direction, edit=True, value=remaining)
 
     def _error(self, error):
-        """エラーを画面と共通通知へ表示する。"""
+        """エラーを画面と共通通知へ表示する。
+
+        Args:
+            error: 表示・通知する例外またはエラー内容。
+        """
         cmds.scrollField(self.status, edit=True, text=str(error))
         logger.warning(str(error))
 

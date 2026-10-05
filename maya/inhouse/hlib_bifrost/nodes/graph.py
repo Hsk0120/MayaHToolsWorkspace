@@ -27,7 +27,17 @@ class Graph:
     @classmethod
     @undoTransaction("hlib_bifrost.Graph.create")
     def create(cls, name="bifrostGraphShape"):
-        """必要なプラグインをロードしてグラフを生成する。"""
+        """必要なプラグインをロードして親Transformとグラフを生成する。
+
+        Args:
+            name (str): グラフShapeの希望名。親名にはTransformを付加する。
+
+        Returns:
+            Graph: 作成したグラフへの参照。
+
+        Note:
+            Shapeの作成に失敗した場合は、この処理で作成した親を削除する。
+        """
         MayaNode = coreModule('nodes').Node
         from ..environment.bifrost import Bifrost
 
@@ -47,7 +57,11 @@ class Graph:
         return Compound(self, "/")
 
     def name(self):
-        """str: 現在のDG完全名を取得する。"""
+        """現在のDG完全名を取得する。
+
+        Returns:
+            str: 現在のDG完全名を取得する。
+        """
         return self.node.fullName()
 
     def parent(self):

@@ -95,7 +95,7 @@ class PoseEditor(QtWidgets.QDialog):
         if graph:
             names = []
             for i in range(len(data["scales"])):
-                source = graph.container.plug("inputs[{}]".format(i)).sourceWithConversion()
+                source = graph.container.plug("inputs")[i].sourceWithConversion()
                 if source is not None and source.node().type() == "unitConversion":
                     source = source.node().plug("input").sourceWithConversion()
                 names.append(source.fullName() if source is not None else "未接続")

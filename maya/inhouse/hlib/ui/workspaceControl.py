@@ -12,7 +12,11 @@ class WorkspaceControl(_WindowReference):
 
     @classmethod
     def list(cls):
-        """list[WorkspaceControl]: 登録済みのドッキングUIを取得する。"""
+        """登録済みのドッキングUIを取得する。
+
+        Returns:
+            list[WorkspaceControl]: 登録済みのドッキングUIを取得する。
+        """
         cls._require_gui()
         return [cls(name) for name in cmds.lsUI(type="workspaceControl") or []]
 
@@ -21,7 +25,11 @@ class WorkspaceControl(_WindowReference):
         cmds.workspaceControl(self.name(), edit=True, restore=True)
 
     def getFloating(self):
-        """bool: 浮動状態か取得する。"""
+        """浮動状態か取得する。
+
+        Returns:
+            bool: 浮動状態か取得する。
+        """
         return bool(cmds.workspaceControl(self.name(), query=True, floating=True))
 
     def undock(self):
@@ -63,7 +71,11 @@ class WorkspaceControl(_WindowReference):
         cmds.workspaceControl(self.name(), edit=True, tabToControl=(target.name(), index))
 
     def getSize(self):
-        """tuple[int, int]: 現在の幅・高さを取得する。"""
+        """現在の幅・高さを取得する。
+
+        Returns:
+            tuple[int, int]: 現在の幅・高さを取得する。
+        """
         return (cmds.workspaceControl(self.name(), query=True, width=True),
                 cmds.workspaceControl(self.name(), query=True, height=True))
 
@@ -80,7 +92,11 @@ class WorkspaceControl(_WindowReference):
         cmds.workspaceControl(self.name(), edit=True, resizeWidth=width, resizeHeight=height)
 
     def getCollapsed(self):
-        """bool: タブの親が折り畳まれているか取得する。"""
+        """タブの親が折り畳まれているか取得する。
+
+        Returns:
+            bool: タブの親が折り畳まれているか取得する。
+        """
         return bool(cmds.workspaceControl(self.name(), query=True, collapse=True))
 
     def setCollapsed(self, collapsed):

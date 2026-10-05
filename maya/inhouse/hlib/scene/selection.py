@@ -80,16 +80,28 @@ class Selection:
         return len(self._items)
 
     def __iter__(self):
-        """Iterator: 保持順に参照を返す。"""
+        """保持順に参照を返す。
+
+        Returns:
+            Iterator: 保持順に参照を返す。
+        """
         return iter(self._items)
 
     def __getitem__(self, index):
-        """単体参照、またはsliceに対応する参照のtupleを返す。"""
+        """単体参照、またはsliceに対応する参照のtupleを返す。
+
+        Args:
+            index: 対象要素の番号または探索開始番号。
+        """
         return self._items[index]
 
     @classmethod
     def capture(cls):
-        """Selection: Mayaの現在選択を保持する。Channel Boxのアトリビュート選択は含めない。"""
+        """Mayaの現在選択を保持する。Channel Boxのアトリビュート選択は含めない。
+
+        Returns:
+            Selection: Mayaの現在選択を保持する。Channel Boxのアトリビュート選択は含めない。
+        """
         return cls(cls._resolve(om2.MGlobal.getActiveSelectionList()))
 
     @property
@@ -114,11 +126,19 @@ class Selection:
         ]
 
     def plugs(self):
-        """list[Plug]: 有効なアトリビュート参照。Channel Box選択は自動取得しない。"""
+        """有効なアトリビュート参照。Channel Box選択は自動取得しない。
+
+        Returns:
+            list[Plug]: 有効なアトリビュート参照。Channel Box選択は自動取得しない。
+        """
         return [item for item in self._items if isinstance(item, Plug) and self._valid(item)]
 
     def components(self):
-        """list[Components]: 有効な要素をshapeのDAGパス・種類ごとにまとめる。"""
+        """有効な要素をshapeのDAGパス・種類ごとにまとめる。
+
+        Returns:
+            list[Components]: 有効な要素をshapeのDAGパス・種類ごとにまとめる。
+        """
         groups = {}
         classes = {Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs}
         for item in self._items:
@@ -128,7 +148,11 @@ class Selection:
         return [classes[kind](shape, indices) for (_, kind), (shape, indices) in groups.items()]
 
     def owners(self):
-        """list[Node]: 有効な対象の所有ノード。DAGパス別に重複を除く。"""
+        """有効な対象の所有ノード。DAGパス別に重複を除く。
+
+        Returns:
+            list[Node]: 有効な対象の所有ノード。DAGパス別に重複を除く。
+        """
         result = {}
         for item in self._items:
             if self._valid(item):
@@ -192,6 +216,10 @@ class Selection:
 
         name は要素を追加したときの文字列で、1要素の場合にインスタンス化された
         ノードのアトリビュートの所有インスタンスを求めるために使う(selection_owner 参照)。
+
+        Args:
+            selection: 変換元のom2.MSelectionList。
+            name: 参照・作成・照会する対象の名前。
         """
         from ..nodes.node import Node as _InputNode
         result = []
@@ -218,7 +246,11 @@ class Selection:
         return result
 
     def _valid(self, item):
-        """削除されたノード・アトリビュート・範囲外要素を検出する。"""
+        """削除されたノード・アトリビュート・範囲外要素を検出する。
+
+        Args:
+            item: UIの表示設定または操作対象の項目。
+        """
         try:
             if isinstance(item, Node):
                 return item.isValid()
@@ -230,7 +262,11 @@ class Selection:
             return False
 
     def _names(self, missing):
-        """変更前に有効な名前を解決する。missing不正はValueError、欠落はRuntimeError。"""
+        """変更前に有効な名前を解決する。missing不正はValueError、欠落はRuntimeError。
+
+        Args:
+            missing: 欠落した参照に対する処理方針。
+        """
         if missing not in ("skip", "error"):
             raise ValueError("missing must be 'skip' or 'error'")
         names = []

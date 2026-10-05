@@ -2,6 +2,7 @@
 ============================================================
 
 Vector・Quaternion・EulerRotationなどの値を使った計算を説明します。
+ピボットやjointOrientを含む保存・復元には :doc:`transformation` を使います。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
 最初に ``import hlib`` を実行してください。
@@ -9,7 +10,7 @@ Vector・Quaternion・EulerRotationなどの値を使った計算を説明しま
 OpenMaya の型を継承した値
 -------------------------
 
-``hlib.maths`` の型は、OpenMaya API 2.0(``maya.api.OpenMaya``、以下 om2)の型を
+以下の ``hlib.maths`` の型は、OpenMaya API 2.0(``maya.api.OpenMaya``、以下 om2)の型を
 継承しています。hlib の値をそのまま om2 の関数やコンストラクタへ渡せ、計算は om2 の
 C++ 実装で行われます。
 

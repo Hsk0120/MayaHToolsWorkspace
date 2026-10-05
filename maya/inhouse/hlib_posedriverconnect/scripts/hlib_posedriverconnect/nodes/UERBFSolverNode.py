@@ -14,19 +14,35 @@ class UERBFSolverNode(Node):
     """PoseDriverConnect v2のRBFソルバー。"""
 
     def native_api(self):
-        """RBFNode: 現在名から外部APIラッパーを取得する。直接編集のUndoは外部仕様。"""
+        """現在名から外部APIラッパーを取得する。直接編集のUndoは外部仕様。
+
+        Returns:
+            RBFNode: 現在名から外部APIラッパーを取得する。直接編集のUndoは外部仕様。
+        """
         return RBFNode(self.fullName())
 
     def drivers(self):
-        """list[Node]: 接続されたドライバーを外部APIの順序で取得する。"""
+        """接続されたドライバーを外部APIの順序で取得する。
+
+        Returns:
+            list[Node]: 接続されたドライバーを外部APIの順序で取得する。
+        """
         return [Node(name) for name in self.native_api().drivers()]
 
     def num_poses(self):
-        """int: 登録されているポーズ数を取得する。"""
+        """登録されているポーズ数を取得する。
+
+        Returns:
+            int: 登録されているポーズ数を取得する。
+        """
         return self.native_api().num_poses()
 
     def radius(self):
-        """float: 外部APIの半径設定値を取得する。"""
+        """外部APIの半径設定値を取得する。
+
+        Returns:
+            float: 外部APIの半径設定値を取得する。
+        """
         return self.native_api().radius()
 
     @undoChunk("hlibPoseDriverConnectSetRadius")

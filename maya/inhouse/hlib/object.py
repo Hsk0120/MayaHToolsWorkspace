@@ -7,7 +7,12 @@ class _ObjectType(type):
     """Objectへの入力だけを振り分け、派生クラスの構築は通常通り行う。"""
 
     def __call__(cls, *args, **kwargs):
-        """解決済み参照への二重初期化を避けて適切な型を返す。"""
+        """解決済み参照への二重初期化を避けて適切な型を返す。
+
+        Args:
+            *args: 呼出し先またはUIシグナルから渡される位置引数。
+            **kwargs: 呼出し先へ渡すキーワード引数。
+        """
         if cls is Object:
             return cls._resolve_input(*args, **kwargs)
         return super().__call__(*args, **kwargs)

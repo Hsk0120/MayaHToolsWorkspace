@@ -16,7 +16,11 @@ class UiElement:
         self._name, self._kind = str(name), kind
 
     def __str__(self):
-        """str: Maya UI名を返す。"""
+        """Maya UI名を返す。
+
+        Returns:
+            str: Maya UI名を返す。
+        """
         return self._name
 
     @property
@@ -25,7 +29,11 @@ class UiElement:
         return self._name
 
     def exists(self):
-        """bool: Maya上にUIが存在するか照会する。"""
+        """Maya上にUIが存在するか照会する。
+
+        Returns:
+            bool: Maya上にUIが存在するか照会する。
+        """
         from maya import cmds
 
         return bool(getattr(cmds, self._kind)(self._name, exists=True))

@@ -98,8 +98,8 @@ class RemapValue(Node):
         array = self._ramp_array(kind)
         result = {}
         for index in array.mplug().getExistingArrayAttributeIndices():
-            point = array.element(index)
-            result[index] = {"position": point.child(0).get(), "value": point.child(1).get(), "interpolation": point.child(2).get()}
+            point = array[index]
+            result[index] = {"position": point[0].get(), "value": point[1].get(), "interpolation": point[2].get()}
         return result
 
     @undoChunk("hlibCalculationEdit")
@@ -125,10 +125,10 @@ class RemapValue(Node):
             raise ValueError("position must be in 0..1")
         value = _Calculation.scalar(value) if kind == "value" else _Calculation.vector(value)
         mode = _Calculation.enumValue(interpolation, ("none", "linear", "smooth", "spline"))
-        point = array.element(index, create=True)
-        point.child(0).set(position)
-        point.child(1).set(value)
-        point.child(2).set(mode)
+        point = array[index]
+        point[0].set(position)
+        point[1].set(value)
+        point[2].set(mode)
         return self
 
     @undoChunk("hlibCalculationEdit")

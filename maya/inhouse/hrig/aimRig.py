@@ -80,7 +80,7 @@ class AimRig(ControlRig):
             bone.plug("segmentScaleCompensate").set(False)
             matrix = hlib.createNode("multMatrix", name=stem + "_matrix", skipSelect=True)
             for i, node in enumerate((control, layer, offset)):
-                node.plug("matrix").connectTo(matrix.plug("matrixIn[{}]".format(i)))
+                node.plug("matrix").connectTo(matrix.plug("matrixIn")[i])
             matrix.plug("matrixSum").connectTo(bone.plug("offsetParentMatrix"))
             rig.own(matrix)
             rig.register("sources", constraint)

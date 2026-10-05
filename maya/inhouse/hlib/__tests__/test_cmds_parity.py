@@ -490,7 +490,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         point = mesh.plug("controlPoints[0]")
         self.assertEqual(self.assert_matches_cmds(point), "float3")
         self.assertEqual(type(point).__name__, "CompoundPlug")
-        self.assertEqual(self.assert_matches_cmds(point.child("xValue")), "doubleLinear")
+        self.assertEqual(self.assert_matches_cmds(point["xValue"]), "doubleLinear")
         curve = Node(cmds.curve(name="cpCurve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).shape()
         self.assertEqual(type(curve.plug("controlPoints[0]")).__name__, "Double3Plug")
 
@@ -527,7 +527,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         top_level = [attribute for attribute in cmds.listAttr(name, userDefined=True) or []
                      if not network.plug(attribute).isChild()]
         for plug in [network.plug(attribute) for attribute in top_level]:
-            plugs = [plug.element(0)] if plug.isArray() else [plug]
+            plugs = [plug[0]] if plug.isArray() else [plug]
             if plug.isCompound():
                 plugs.extend(plug.children())
             for item in plugs:

@@ -83,7 +83,12 @@ def _get_selected_face_and_curve():
 
 
 def extrude_selected_face_along_curve_even(divisions=3, curve_spans=20):
-    """現在選択を使って押し出し処理を実行します。"""
+    """現在選択を使って押し出し処理を実行します。
+
+    Args:
+        divisions: 押し出し分割数またはガイドカーブのスパン数。
+        curve_spans: 押し出し分割数またはガイドカーブのスパン数。
+    """
     face, curve = _get_selected_face_and_curve()
     return extrude_face_along_curve_even(
         face,
@@ -107,7 +112,11 @@ class ExtrudeFaceAlongCurveEvenUI(QtWidgets.QDialog):
     WINDOW_OBJECT_NAME = "extrudeFaceAlongCurveEvenUI"
 
     def __init__(self, parent=_maya_main_window()):
-        """UI を初期化します。"""
+        """UI を初期化します。
+
+        Args:
+            parent: 親ウィジェット。Noneは親を指定しない。
+        """
         super().__init__(parent)
         self.setWindowTitle(self.WINDOW_TITLE)
         self.setObjectName(self.WINDOW_OBJECT_NAME)

@@ -55,6 +55,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-05 | maya/inhouse/FramePlayer/ | Media Foundationで再生できる全コーデックの再生確認 |
 
 
 
@@ -83,6 +84,28 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex 2026-10-05: ユーザーのプッシュ指示により、このスレッドのTransformation・便利API・角括弧アクセス・docstring・Sphinx英訳をコミット対象として確認。差分チェックと3サイトの英語版ビルド成功を確認済み。FramePlayerの並行作業は対象外として保持。
+
+- Codex 2026-10-05: ユーザー指定のローカルLLMでhlib/hrig/heditのSphinx英語カタログを更新。qwen3-coder:30bのCUDAエラー後はqwen2.5-coder:32bへ切替え、未訳を分割再翻訳。日本語原文7,352件の未訳・記法検査エラー0件、再抽出後も3サイト未訳0件、英語版-Wビルドすべて成功。cymel_methodsの見出し前空行を補正。翻訳スクリプトに生成上限・打切り応答の拒否・10件ごとの保存を追加し、制限と記法検査を検証。モデル解放済み。日本語docstring・APIの挙動変更なし、コミット・プッシュ未実施。
+
+- Codex 2026-10-05: HTools・連携・MayaCommandPortsを含む内製Pythonへdocstring整備を拡張。254関数の不足説明を補い、Slack/mGear・ウェイト処理の旧形式を日本語Google形式へ整理。534ファイルの構文とdocstring除外ASTの一致、差分チェック、Sphinxビルドを確認。実行コード・引数仕様は変更なし。Maya動作テスト・外部送信は未実行。テストへの定型docstring一括追加は行わず、外部submoduleと他エージェント作業中のFramePlayerは対象外（FramePlayerはユーザー回答待ち）。
+
+- Codex 2026-10-05: hlib/hlib_*/hrigの本番316ファイルをdocstring監査。143メソッドの短縮戻り値説明をGoogle形式へ整理し、公開引数説明の不足・Shape取得条件・接続照会の返却型・Bifrostの生成/接続説明を修正。プロパティの型付き短文とMaya/Qt APIは維持。docstring除外ASTが全316ファイルで一致、公開引数説明の静的不足0件、差分・Sphinx警告なし。実行コード変更なしのためMaya動作テストは未実行。HToolsは今回対象外。
+
+- Codex 2026-10-05: 角括弧統一後を再監査。hlib複合Plugの旧child利用は残存なし。ArrayPlug.elementの公開入口・実体化/存在検査テスト、およびhlib_bifrost Compound.child（内部ノード参照）は残存。Maya API/Qt childと区別して報告。実装変更なし、静的確認のみ。
+
+- Codex 2026-10-05: ユーザー指示によりCompoundPlug.childを角括弧へ統一。番号・長短名・反復に対応し、hlib/hrig・safe処理・テスト・公開文書を移行。maya.cmdsへ複合Plugを渡す際はstr/fullNameを明示。Maya2022〜2027各8件、関連23スイート229件成功。478ファイル構文・差分・Sphinx確認済み。GUI未実行。Maya API/Qt/Bifrostノードのchildは別APIのため維持。
+
+- Codex 2026-10-05: hlib/hrig/HTools本番335ファイルの配列アクセスを監査。element・内部参照メソッド・文字列内番号による通常アクセスを角括弧へ統一し、欠番の例外を維持。テスト例・公開ドキュメントも更新。低レベルAPI/明示実体化の契約テスト/複合childは維持。Maya2027で23スイート229件成功、最終変更の該当再検証・構文・差分・Sphinx成功。GUI/他バージョンは今回未実行。
+
+- Codex 2026-10-05: Plug.setAlias/setKey/animLayers、DAG.instances/parents/幅優先・深さ優先走査を追加。Matrix.toTransformationはhlib値型返却に変更しMatrix/MatrixPlugへの入力も対応。配列[index]は未作成要素を非実体化で参照し反復は既存要素のみ。複合の子はcmds直接渡しを維持するためchildのまま。Maya2022〜2027各7件、2027既存関連236件が成功。Sphinx・構文・差分確認済み、GUI未実行。
+
+- Claude Code (2026-10-05): VP9 Video Extensionsを入れて検証。VP9デコーダーは8bitでもP010を受け付け、読むとGPUでE_OUTOFMEMORY・CPUで停止したので、P010はmp4の設定ボックス(hvcC/vpcC/av1C)のビット数で10bitと分かったときだけ求めるよう修正。途中の形式変更(10bitのVP9)にも追従。vpcCの色情報も読む。VP9 3本を色の確認に追加し13本×GPU/CPU/縮小がすべて一致、コマ番号の確認も一致。未コミット。
+
+- Codex 2026-10-05: Transformation追加後のhlib/cymel利用者視点の残存差分を調査。配列番号・未作成要素・get戻り値・addAttr・Vectorの7操作をMaya2027 standaloneで比較。作成入口/未対応APIもソース確認しdocs/researchへ記録。実装変更なし、GUI未操作。
+
+- Codex 2026-10-05: hlib.maths.TransformationとTransformのgetTransformation/setTransformation（getX/setX）を追加。TRS・補助回転・ピボット・SSCの保持、ws指定、Undo、safe/getとコレクションに対応。既存Matrix APIは維持。Maya2022〜2027で新規各11件、2027で既存105件が成功。構文・差分・Sphinx警告なしを確認。GUI未実行。
 
 - Codex 2026-10-05: cymelに合わせhasAttr/parent/children/longName/delete/mnode/mpath等へ改名、Plug.node()・名前/enum・変換ノードを省略する接続照会・短縮Transformメソッド・フラグ操作を実装。利用側は直結探索を明示して挙動を維持。配列addElementは指定番号・リスト返却に統一（実体化Undoとmessageは未対応）。API設計・AGENTS参照先・ドキュメントを更新。Maya2027で530件、2022〜2026各6件、HTools変更前比較55件、Sphinx警告なし。GUI未実行。
 

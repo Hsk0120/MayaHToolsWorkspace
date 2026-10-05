@@ -5,11 +5,14 @@ import hlib
 
 
 def duplicate_all_inputs_from_first_to_second(source=None, target=None):
-    """
-    選択ノード [source, target]
+    """選択ノード [source, target]
     source に入っている全入力コネクション(srcPlug -> source.attr) を
     target の同名 attr にも接続する。
     source 側の接続は保持、target 側は force しない。
+
+    Args:
+        source: 接続・変換・探索の元または先となる対象。
+        target: 接続・変換・探索の元または先となる対象。
     """
 
     sel = cmds.ls(sl=True, long=True) or []

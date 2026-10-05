@@ -41,7 +41,11 @@ def _items(value):
 
 
 def _signature(shape):
-    """位置に依存しないトポロジー情報。頂点番号対応を検証する。"""
+    """位置に依存しないトポロジー情報。頂点番号対応を検証する。
+
+    Args:
+        shape: 処理対象のShape。
+    """
     from maya.api import OpenMaya as om
     path = om.MDagPath(_node(shape).mpath())
     if path.node().hasFn(om.MFn.kTransform):
@@ -56,7 +60,12 @@ def _signature(shape):
 
 
 def _attribute(node, name):
-    """保存形式とUI単位を保ち、保持参照からアトリビュートを取得する。"""
+    """保存形式とUI単位を保ち、保持参照からアトリビュートを取得する。
+
+    Args:
+        node: 処理対象のノード参照。
+        name: 参照・作成・照会する対象の名前。
+    """
     plug = _node(node).plug(name)
     kind = plug.dataType()
     supported = {"bool", "byte", "char", "short", "long", "enum", "float", "double", "doubleAngle", "doubleLinear", "time", "string", "matrix", "double2", "double3", "float2", "float3", "long2", "long3", "short2", "short3"}
@@ -121,7 +130,11 @@ def _set_attribute(node, attr):
 
 
 def _check_attribute_value(attr):
-    """編集されたJSONも、値の形と数値を変更前に検証する。"""
+    """編集されたJSONも、値の形と数値を変更前に検証する。
+
+    Args:
+        attr: 対象のアトリビュート名または保存情報。
+    """
     kind, value = attr["type"], attr["value"]
     if kind == "string":
         if value is not None and not isinstance(value, str):
@@ -757,7 +770,11 @@ def capture(targets=None, kind="pose", attributes=None):
 
 
 def _sdk_nodes(nodes):
-    """AnimCurve・blendWeighted・unitConversionを上流に辿る。"""
+    """AnimCurve・blendWeighted・unitConversionを上流に辿る。
+
+    Args:
+        nodes: 処理順に並べたノード参照。
+    """
     from maya import cmds
     result, visited = [], set()
     pending = [n.fullName() for n in nodes]

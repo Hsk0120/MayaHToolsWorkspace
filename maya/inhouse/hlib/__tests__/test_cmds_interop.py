@@ -87,7 +87,7 @@ class DuplicateShortNameTest(_InteropCase):
                 self.assertEqual(len(cmds.ls(str(plug))), 1)
         world = dup1.plug("worldMatrix")
         self.assertIsInstance(world, ArrayPlug)
-        element = world.element(0)
+        element = world[0]
         self.assertEqual(type(element).__name__, "MatrixPlug")
         self.assertEqual(str(element), dup1.name() + ".worldMatrix[0]")
         self.assertEqual(world[0].fullName(), element.fullName())
@@ -98,16 +98,16 @@ class DuplicateShortNameTest(_InteropCase):
         # 一意な名前のため、単一の値が返る(複数一致のリストやエラーにならない)。
         self.assertEqual(cmds.getAttr(dup1.plug("tx")), 3.0)
         self.assertEqual(cmds.getAttr(dup2.plug("tx")), 0.0)
-        cmds.setAttr(dup2.plug("t"), *Translation(1.0, 2.0, 3.0))
-        self.assertEqual(cmds.getAttr(dup2.plug("t")), [(1.0, 2.0, 3.0)])
+        cmds.setAttr(str(dup2.plug("t")), *Translation(1.0, 2.0, 3.0))
+        self.assertEqual(cmds.getAttr(str(dup2.plug("t"))), [(1.0, 2.0, 3.0)])
         self.assertEqual(dup1.plug("tx").get(), 3.0)
         dup2.plug("v").set(False)
         self.assertFalse(cmds.getAttr(str(dup2.plug("v"))))
         self.assertTrue(cmds.getAttr(str(dup1.plug("v"))))
-        matrix = cmds.getAttr(dup1.plug("worldMatrix").element(0))
+        matrix = cmds.getAttr(dup1.plug("worldMatrix")[0])
         self.assertEqual(len(matrix), 16)
         self.assertAlmostEqual(matrix[12], 3.0)
-        self.assertAlmostEqual(cmds.getAttr(dup2.plug("worldMatrix").element(0))[13], 2.0)
+        self.assertAlmostEqual(cmds.getAttr(dup2.plug("worldMatrix")[0])[13], 2.0)
 
     def test_connections_between_duplicates(self):
         dup1, dup2 = self.duplicates()
@@ -219,12 +219,12 @@ class NamingSpecTest(_InteropCase):
         _, mesh = self.cube()
         element = mesh.plug("pnts").element(2, create=True)
         self.assertIsInstance(element, CompoundPlug)
-        child = element.child("pntx")
+        child = element["pntx"]
         self.assertEqual(str(child), mesh.name() + ".pnts[2].pntx")
         cmds.setAttr(child, 0.25)
         self.assertAlmostEqual(cmds.getAttr(child), 0.25)
         self.assertAlmostEqual(child.get(), 0.25)
-        self.assertAlmostEqual(cmds.getAttr(element)[0][0], 0.25)
+        self.assertAlmostEqual(cmds.getAttr(str(element))[0][0], 0.25)
 
     def test_instanced_shape(self):
         transform, _ = self.cube()
@@ -346,8 +346,8 @@ class PassToMayaCmdsTest(_InteropCase):
         network = self.create("network", "net")
         network.addAttr("values", attributeType="double", multi=True)
         array_plug = network.plug("values")
-        array_plug.element(0, create=True).set(1.0)
-        array_plug.element(2, create=True).set(3.0)
+        array_plug[0].set(1.0)
+        array_plug[2].set(3.0)
         # ArrayPlug は [] で要素を返すため maya.cmds がシーケンスとして扱い失敗する。
         with self.assertRaises((TypeError, ValueError, RuntimeError)):
             cmds.getAttr(array_plug, size=True)
@@ -369,8 +369,8 @@ class PassToMayaCmdsTest(_InteropCase):
         self.assertAlmostEqual(cmds.getAttr(node.plug("rx")), 10.0)
         self.assertAlmostEqual(cmds.getAttr(node.plug("rz")), 30.0)
         # double3 の setAttr は成分を * で展開する。
-        cmds.setAttr(node.plug("t"), *Translation(1.0, 2.0, 3.0))
-        self.assertEqual(cmds.getAttr(node.plug("t")), [(1.0, 2.0, 3.0)])
+        cmds.setAttr(str(node.plug("t")), *Translation(1.0, 2.0, 3.0))
+        self.assertEqual(cmds.getAttr(str(node.plug("t"))), [(1.0, 2.0, 3.0)])
 
 
 class HlibCommandInputTest(_InteropCase):
@@ -539,7 +539,7 @@ class NodeArgumentRulesTest(_InteropCase):
                 group.plug("tx").mplug(),
                 group.plug("worldMatrix"),
                 group.name() + ".translateX",
-                group.plug("worldMatrix").element(0),
+                group.plug("worldMatrix")[0],
             ]
         ):
             with self.subTest(parent=type(parent).__name__):
@@ -770,7 +770,7 @@ class InstanceSpecificWrapperTest(_InteropCase):
         )
         # 現在の選択(MSelectionList)はアトリビュートのインスタンスを保持しないが、インスタンスごとの
         # アトリビュート(worldMatrix[1])は要素番号のインスタンスとして取得できる。
-        world = second.plug("worldMatrix").element(1)
+        world = second.plug("worldMatrix")[1]
         cmds.select(str(world))
         captured = Selection.capture()
         self.assertEqual([item.node().fullName() for item in captured.plugs()], [second.fullName()])
@@ -835,10 +835,10 @@ class ComponentNamedAttributeTest(_InteropCase):
         self.assertEqual(_InputPlug._resolve_input(transform.name() + ".pnts[3]").fullName(), point.fullName())
         source = self.create("transform", "src")
         source.plug("translate").connectTo(str(point))
-        self.assertTrue(cmds.isConnected(source.plug("translate"), point))
+        self.assertTrue(cmds.isConnected(str(source.plug("translate")), str(point)))
         self.assertTrue(point.isConnectedTo(str(source.plug("translate"))))
         curve = Node(cmds.curve(degree=1, point=[(0, 0, 0), (1, 0, 0)], name="crv")).shape()
-        control_point = curve.plug("controlPoints").element(1)
+        control_point = curve.plug("controlPoints")[1]
         self.assertEqual(_InputPlug._resolve_input(str(control_point)).fullName(), control_point.fullName())
         # ノードを求める場合は、コンポーネントと同じく所有シェイプになる。
         self.assertEqual(hlib.getNode(str(point)).fullName(), mesh.fullName())
@@ -1113,7 +1113,7 @@ class PlugCreationSideEffectTest(_InteropCase):
     def test_plugs_of_deleted_nodes_do_not_touch_nodes_with_the_same_name(self):
         network = self.create("network", "net")
         network.addAttr("values", attributeType="double", multi=True)
-        network.plug("values").element(2, create=True).set(1.0)
+        network.plug("values")[2].set(1.0)
         array_plug = network.plug("values")
         name = network.name()
         cmds.delete(network.fullName())
@@ -1158,12 +1158,12 @@ class PlugValidityTest(_InteropCase):
         node = self.create("transform", "t")
         plug = node.addAttr("foo", attributeType="double")
         array_plug = node.addAttr("arr", attributeType="double", multi=True)
-        array_plug.element(2, create=True).set(3.0)
+        array_plug[2].set(3.0)
         cmds.addAttr(node.name(), longName="cmp", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(node.name(), longName="cmp" + axis, attributeType="double", parent="cmp")
         compound = node.plug("cmp")
-        child = compound.child(0)
+        child = compound[0]
         self.assertTrue(plug.isValid())
         for name in ("foo", "arr", "cmp"):
             cmds.deleteAttr(node.name() + "." + name)
@@ -1183,7 +1183,7 @@ class PlugValidityTest(_InteropCase):
             array_plug.elements,
             lambda: array_plug[2],
             array_plug.nextAvailableIndex,
-            lambda: compound.child(0),
+            lambda: compound[0],
             plug.reset,
             child.parent,
         ):
@@ -1363,7 +1363,7 @@ class PlugValidityTest(_InteropCase):
         # Undo の対象から外れた削除(Undo 無効時の削除や flushUndo)では、削除済みノードの MPlug の
         # 名前・アトリビュートの問い合わせで Maya が異常終了するため、名前は空文字列、問い合わせは RuntimeError。
         node = self.create("transform", "t")
-        node.addAttr("arr", attributeType="double", multi=True).element(0, create=True).set(1.0)
+        node.addAttr("arr", attributeType="double", multi=True)[0].set(1.0)
         cmds.addAttr(node.name(), longName="cmp", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(node.name(), longName="cmp" + axis, attributeType="double", parent="cmp")

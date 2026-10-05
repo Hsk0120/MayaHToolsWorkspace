@@ -127,7 +127,11 @@ class CycleInspector:
         cmds.showWindow(self.window)
 
     def scan(self, *_):
-        """UIの条件で調査し、古い結果を消してから新しい結果を表示する。"""
+        """UIの条件で調査し、古い結果を消してから新しい結果を表示する。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         self.result = None
         cmds.textScrollList(self.paths, edit=True, removeAll=True)
         cmds.scrollField(self.details, edit=True, text="Inspecting…")
@@ -158,18 +162,30 @@ class CycleInspector:
             cmds.button(self.scan_button, edit=True, enable=True)
 
     def showDetails(self, *_):
-        """一覧で選択された経路だけを詳細表示する。"""
+        """一覧で選択された経路だけを詳細表示する。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         if self.result is not None:
             indices = cmds.textScrollList(self.paths, query=True, selectIndexedItem=True) or []
             cmds.scrollField(self.details, edit=True, text=formatReport(self.result, [i - 1 for i in indices]))
 
     def showAll(self, *_):
-        """全経路のレポートを表示する。"""
+        """全経路のレポートを表示する。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         if self.result is not None:
             cmds.scrollField(self.details, edit=True, text=formatReport(self.result))
 
     def selectNodes(self, *_):
-        """選択経路の現存ノードをhlibで解決して選択する。"""
+        """選択経路の現存ノードをhlibで解決して選択する。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         indices = cmds.textScrollList(self.paths, query=True, selectIndexedItem=True) or []
         if self.result is None or not indices:
             logger.warning("Select a path in the list.")
@@ -185,7 +201,11 @@ class CycleInspector:
             hlib.select(nodes, replace=True)
 
     def saveReport(self, *_):
-        """保存先を選び、全結果をUTF-8のテキストとして保存する。"""
+        """保存先を選び、全結果をUTF-8のテキストとして保存する。
+
+        Args:
+            *_: Maya UIコールバックから渡される未使用の引数。
+        """
         if self.result is None:
             logger.warning("Run the inspection first.")
             return

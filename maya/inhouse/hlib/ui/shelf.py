@@ -25,12 +25,20 @@ class Shelf:
         self.name()
 
     def __str__(self):
-        """str: 保持したUI名を返す。"""
+        """保持したUI名を返す。
+
+        Returns:
+            str: 保持したUI名を返す。
+        """
         return self._name
 
     @classmethod
     def list(cls):
-        """list[Shelf]: Maya標準シェルフのタブを表示順で取得する。"""
+        """Maya標準シェルフのタブを表示順で取得する。
+
+        Returns:
+            list[Shelf]: Maya標準シェルフのタブを表示順で取得する。
+        """
         return [cls(name) for name in cmds.shelfTabLayout(cls._top(), query=True, childArray=True) or []]
 
     @classmethod
@@ -55,11 +63,19 @@ class Shelf:
         return cls(result)
 
     def exists(self):
-        """bool: 参照先のシェルフが存在するか取得する。"""
+        """参照先のシェルフが存在するか取得する。
+
+        Returns:
+            bool: 参照先のシェルフが存在するか取得する。
+        """
         return bool(self._name and cmds.shelfLayout(self._name, exists=True))
 
     def name(self):
-        """str: 存在を確認したUI名。削除済みはRuntimeError。"""
+        """存在を確認したUI名。削除済みはRuntimeError。
+
+        Returns:
+            str: 存在を確認したUI名。削除済みはRuntimeError。
+        """
         if not self.exists():
             raise RuntimeError("Shelf is unavailable: " + str(self._name))
         return self._name
@@ -70,7 +86,11 @@ class Shelf:
         self._load()
 
     def buttons(self):
-        """list[ShelfButton]: ボタンを表示順で取得する。区切り線等は除外する。"""
+        """ボタンを表示順で取得する。区切り線等は除外する。
+
+        Returns:
+            list[ShelfButton]: ボタンを表示順で取得する。区切り線等は除外する。
+        """
         self._load()
         parent = self.name()
         result = []
@@ -130,7 +150,11 @@ class Shelf:
 
     @staticmethod
     def _top():
-        """str: Maya標準のシェルフタブ親。GUIなしはRuntimeError。"""
+        """Maya標準のシェルフタブ親。GUIなしはRuntimeError。
+
+        Returns:
+            str: Maya標準のシェルフタブ親。GUIなしはRuntimeError。
+        """
         if cmds.about(batch=True):
             raise RuntimeError("Shelf requires Maya GUI")
         top = mel.eval('global string $gShelfTopLevel; $gShelfTopLevel;')

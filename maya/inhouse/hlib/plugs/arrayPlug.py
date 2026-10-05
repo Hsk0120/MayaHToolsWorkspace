@@ -23,9 +23,8 @@ class ArrayPlug(Plug):
     def __getitem__(self, index):
         """論理インデックスの要素プラグを取得する。
 
-        ``__len__``/``__iter__`` は持たない。``for`` 文は Python の旧来の
-        シーケンス規約で 0 から順に取得し、最初の欠番で止まるため、既存要素の
-        列挙には :meth:`elements` を使う。
+        未作成の番号も参照できる。取得だけでは要素を実体化せず、set/connect時に作成する。
+        反復は既存要素だけを論理番号順に返す。
 
         Args:
             index (int): 論理インデックス。
@@ -34,9 +33,19 @@ class ArrayPlug(Plug):
             Plug: 対応する要素プラグ。
 
         Raises:
-            IndexError: 指定した論理インデックスが存在しない場合(0〜2147483647 の範囲外を含む)。
+            IndexError: 論理インデックスが0〜2147483647の範囲外の場合。
         """
-        return self.element(index)
+        self._require_valid()
+        index = self._validate_index(index)
+        return Plug(self._node, self._mplug.elementByLogicalIndex(index))
+
+    def __iter__(self):
+        """既存要素を論理番号順で反復する。
+
+        Returns:
+            Iterator[Plug]: 未作成の番号へ進まない既存要素の反復子。
+        """
+        return iter(self.elements())
 
     def get(self):
         """既存インデックスをキーにした要素値の dict を返す。
@@ -236,7 +245,11 @@ class ArrayPlug(Plug):
 
     @staticmethod
     def _validate_index(index):
-        """Mayaの論理番号を検証する。範囲外はIndexError、型不正はTypeError。"""
+        """Mayaの論理番号を検証する。範囲外はIndexError、型不正はTypeError。
+
+        Args:
+            index: 対象要素の番号または探索開始番号。
+        """
         from .plug import MAX_LOGICAL_INDEX
         if isinstance(index, bool) or not isinstance(index, int):
             raise TypeError("Logical index must be an integer")

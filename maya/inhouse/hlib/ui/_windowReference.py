@@ -29,23 +29,39 @@ class _WindowReference:
         self.name()
 
     def __str__(self):
-        """str: 保持したUI名。"""
+        """保持したUI名。
+
+        Returns:
+            str: 保持したUI名。
+        """
         return self._name
 
     def exists(self):
-        """bool: 保持したUIが存在するか照会する。"""
+        """保持したUIが存在するか照会する。
+
+        Returns:
+            bool: 保持したUIが存在するか照会する。
+        """
         self._require_gui()
         return (self._lifetime.alive
                 and bool(getattr(cmds, self._command)(self._name, exists=True)))
 
     def name(self):
-        """str: 存在を確認したUI名。削除済みはRuntimeError。"""
+        """存在を確認したUI名。削除済みはRuntimeError。
+
+        Returns:
+            str: 存在を確認したUI名。削除済みはRuntimeError。
+        """
         if not self.exists():
             raise RuntimeError("UI no longer exists: " + self._name)
         return self._name
 
     def getVisible(self):
-        """bool: 現在の表示設定を照会する。"""
+        """現在の表示設定を照会する。
+
+        Returns:
+            bool: 現在の表示設定を照会する。
+        """
         return bool(getattr(cmds, self._command)(self.name(), query=True, visible=True))
 
     def hide(self):
@@ -108,7 +124,11 @@ class _WindowReference:
         return first, second
 
     def _capture(self, data):
-        """参照寿命付きの変更不可スナップショットを作る。"""
+        """参照寿命付きの変更不可スナップショットを作る。
+
+        Args:
+            data: 処理対象の状態・保存データ。
+        """
         return UiSnapshot(self._command, self.name(), data, (self,))
 
     def _validate_snapshot(self, snapshot, fields):

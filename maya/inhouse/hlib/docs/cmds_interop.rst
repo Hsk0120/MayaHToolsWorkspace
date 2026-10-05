@@ -2,7 +2,8 @@ maya.cmds との受け渡し
 ============================================================
 
 hlib のオブジェクトと ``maya.cmds`` を組み合わせて使うときの正式な仕様です。
-hlib のオブジェクトは ``maya.cmds`` へそのまま渡せます。また hlib のコマンドは、
+hlib のNodeや単一値Plugは ``maya.cmds`` へそのまま渡せます。配列・複合Plugは
+``str(plug)`` または ``plug.fullName()`` を渡してください。また hlib のコマンドは、
 文字列の名前に加えて hlib と Maya API 2.0(``om2``)のオブジェクトを受け付けます。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
@@ -25,7 +26,7 @@ maya.cmds へそのまま渡せるもの
    * - ``Node``
      - 最短一意名(``Node.name()``)。同じ短い名前のノードがあればパスを含む
      - ``grp1|dup``、``ns:ctrl``
-   * - ``Plug``
+   * - ``Plug`` （配列・複合を除く）
      - ``<ノードの最短一意名>.<アトリビュートパス>`` (``Plug.fullName()``)
      - ``grp1|dup.translateX``、``cubeShape.pnts[2].pntx``
    * - ``Component`` (``Vertex`` など単体)
@@ -99,7 +100,7 @@ maya.cmds へそのまま渡せるもの
   blendShape の ``weight[5]`` の Plug を作っても ``parentDirectory[5]`` などは作られません)。
   maya.cmds では例外や異常終了になる mesh の内部アトリビュート(``edge[1]`` など)や nurbsSurface の
   ``patchUVIds`` の要素も、Plug として扱えます。要素を作るには
-  ``array_plug.element(10, create=True)`` を使うか、値を設定・接続します。
+  ``array_plug[10].set(value)`` のように値を設定するか、その参照へ接続します。
   ただし ``patchUVIds`` のような Maya 内部のデータ型の配列では、存在しない要素の
   ``get()`` と ``element(i, create=True)``/``addElement()`` は ``RuntimeError`` です
   (maya.cmds でも MPlug でも、値を読むと Maya が異常終了する場合があるためです)。
@@ -160,9 +161,9 @@ maya.cmds へそのまま渡せるもの
    * - オブジェクト
      - 理由
      - 代わりに渡すもの
-   * - ``ArrayPlug`` 自体
+   * - ``ArrayPlug``・``CompoundPlug`` 自体（Double3Plug等を含む）
      - ``array_plug[0]`` で要素を取得できるため、maya.cmds がシーケンスとして展開しようとして失敗する
-     - ``str(array_plug)`` または ``array_plug.fullName()``。要素 Plug(``array_plug[0]``)はそのまま渡せる
+     - ``str(plug)`` または ``plug.fullName()``。取得した要素・子も配列または複合なら文字列化する
    * - ``om2.MObject``
      - ``str()`` がオブジェクトの表現(``<OpenMaya.MObject ...>``)になる
      - ``hlib.getNode(mobject)`` の戻り値、または hlib のコマンド
@@ -188,7 +189,7 @@ maya.cmds・``Plug._resolve_input()``・``hlib.getNode()`` では配列ではな
 
    network = hlib.createNode("network", name="valuesNode")
    values = network.addAttr("values", attributeType="double", multi=True)
-   values.element(0, create=True).set(1.0)
+   values[0].set(1.0)
 
    # cmds.getAttr(values, size=True)       # TypeError: ArrayPlug はそのまま渡せない
    print(cmds.getAttr(str(values), size=True))    # 1

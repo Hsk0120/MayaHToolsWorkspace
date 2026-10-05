@@ -9,7 +9,11 @@ from .plug import Plug
 
 
 class CompoundPlug(Plug):
-    """compound アトリビュート用の Plug。"""
+    """番号・子名の角括弧アクセスに対応する複合Plug。
+
+    maya.cmdsへ渡す場合はstrまたはfullNameで文字列化する。
+    hlibのコマンドにはそのまま渡せる。
+    """
 
     def __getattr__(self, name):
         """子を Python アトリビュート形式で取得する。
@@ -28,7 +32,7 @@ class CompoundPlug(Plug):
         if name.startswith("_"):
             raise AttributeError(name)
         try:
-            return self.child(name)
+            return self[name]
         except (AttributeError, TypeError, RuntimeError) as error:
             raise AttributeError(f"No plug member named {name!r}") from error
 
@@ -81,10 +85,10 @@ class CompoundPlug(Plug):
                 self._child_at(index).set(child_value)
         return self
 
-    def child(self, name_or_index):
+    def __getitem__(self, name_or_index):
         """子 Plug を取得する。
 
-        整数の場合は MPlug.child に直接渡す。範囲外の添字による例外は Maya API から伝播する。
+        整数は定義順の子番号。負数・範囲外はIndexError。
 
         Args:
             name_or_index (str | int): 子のロング名、ショート名、または子インデックス。
@@ -94,10 +98,16 @@ class CompoundPlug(Plug):
 
         Raises:
             AttributeError: 名前に一致する子アトリビュートがない場合。
+            IndexError: 整数番号が子の範囲外の場合。
+            TypeError: 整数または文字列以外を指定した場合。boolも拒否する。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
+        if isinstance(name_or_index, bool) or not isinstance(name_or_index, (int, str)):
+            raise TypeError("Child index must be an integer or attribute name")
         if isinstance(name_or_index, int):
+            if not 0 <= name_or_index < self._mplug.numChildren():
+                raise IndexError("Child index out of range")
             return self._child_at(name_or_index)
         for index in range(self._mplug.numChildren()):
             child = self._mplug.child(index)
@@ -105,6 +115,14 @@ class CompoundPlug(Plug):
             if name_or_index in (attribute.name, attribute.shortName):
                 return Plug(self._node, child)
         raise AttributeError(f"No child named {name_or_index!r} on {self.fullName()}")
+
+    def __iter__(self):
+        """子を定義順で反復する。
+
+        Returns:
+            Iterator[Plug]: 子を定義順で反復する。
+        """
+        return iter(self.children())
 
     def children(self):
         """直接の子 Plug をすべて取得する。

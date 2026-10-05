@@ -23,17 +23,29 @@ def _selected_chain_nodes():
 
 
 def _as_world_translate_vector(node):
-	"""ノードの world translate を [x, y, z] で返す。"""
+	"""ノードの world translate を [x, y, z] で返す。
+
+	Args:
+	    node: 処理対象のノード参照。
+	"""
 	return list(cmds.xform(node, q=True, ws=True, t=True))
 
 
 def _as_world_rotate_vector(node):
-	"""ノードの world rotate を [x, y, z] で返す。"""
+	"""ノードの world rotate を [x, y, z] で返す。
+
+	Args:
+	    node: 処理対象のノード参照。
+	"""
 	return list(cmds.xform(node, q=True, ws=True, rotation=True))
 
 
 def _as_local_rotate_vector(node):
-	"""ノードの local rotate を [x, y, z] で返す。"""
+	"""ノードの local rotate を [x, y, z] で返す。
+
+	Args:
+	    node: 処理対象のノード参照。
+	"""
 	return [
 		units.angleToUi(Node(node).plug("rotateX").get()),
 		units.angleToUi(Node(node).plug("rotateY").get()),
@@ -42,7 +54,13 @@ def _as_local_rotate_vector(node):
 
 
 def _set_world_rotation_with_delta(node, base_world_rotate, delta_world_euler):
-	"""base の world 回転へ world 相対の回転差を合成して適用する。"""
+	"""base の world 回転へ world 相対の回転差を合成して適用する。
+
+	Args:
+	    node: 処理対象のノード参照。
+	    base_world_rotate: 基準のワールドEuler回転または追加する回転差。Mayaの角度単位を使う。
+	    delta_world_euler: 基準のワールドEuler回転または追加する回転差。Mayaの角度単位を使う。
+	"""
 	cmds.xform(node, ws=True, rotation=base_world_rotate)
 	cmds.rotate(
 		delta_world_euler[0],
@@ -86,22 +104,65 @@ def _scene_fps():
 
 
 def _v_add(a, b):
+	"""XYZベクトルを成分ごとに加算する。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+	    b: 計算する左辺または右辺の値。
+
+	Returns:
+	    list[float]: 加算後のXYZ。
+	"""
 	return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 
 
 def _v_sub(a, b):
+	"""XYZベクトルを成分ごとに減算する。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+	    b: 計算する左辺または右辺の値。
+
+	Returns:
+	    list[float]: 減算後のXYZ。
+	"""
 	return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 
 
 def _v_mul(a, s):
+	"""XYZベクトルを係数倍する。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+	    s: ベクトルに乗算する係数。
+
+	Returns:
+	    list[float]: 係数倍したXYZ。
+	"""
 	return [a[0] * s, a[1] * s, a[2] * s]
 
 
 def _v_len(a):
+	"""XYZベクトルの長さを求める。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+
+	Returns:
+	    float: ベクトルの長さ。
+	"""
 	return (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) ** 0.5
 
 
 def _v_safe_normalize(a):
+	"""XYZベクトルを正規化する。長さが1e-8以下ならゼロベクトルを返す。
+
+	Args:
+	    a: 計算する左辺または右辺の値。
+
+	Returns:
+	    list[float]: 単位ベクトルまたはゼロベクトル。
+	"""
 	length = _v_len(a)
 	if length <= 1e-8:
 		return [0.0, 0.0, 0.0]
@@ -117,7 +178,17 @@ def _bake_pbd_overlap_for_chain(
 	follow,
 	substeps,
 ):
-	"""単一チェーンへ KawaiiPhysics コア相当の回転オーバーラップをベイクする。"""
+	"""単一チェーンへ KawaiiPhysics コア相当の回転オーバーラップをベイクする。
+
+	Args:
+	    chain: 根元から先端へ並べたジョイント列。
+	    start_frame: ベイク範囲の開始または終了フレーム。
+	    end_frame: ベイク範囲の開始または終了フレーム。
+	    stiffness: シミュレーションの復元剛性。
+	    damping: シミュレーションの減衰係数。
+	    follow: 元のアニメーションに追従する割合。
+	    substeps: 1フレームを分割する計算回数。
+	"""
 	if len(chain) < 2:
 		cmds.warning("{0}: skipped because it has no children.".format(chain[0]))
 		return 0

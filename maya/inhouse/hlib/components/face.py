@@ -12,12 +12,20 @@ class Face(Component):
     count_attribute = "numPolygons"
 
     def shadingEngine(self):
-        """ShadingEngine | None: このインスタンスのフェースに割り当てられたセット。"""
+        """このインスタンスのフェースに割り当てられたセット。
+
+        Returns:
+            ShadingEngine | None: このインスタンスのフェースに割り当てられたセット。
+        """
         self._validate()
         return self.shape.faceShadingEngines()[self.index]
 
     def material(self):
-        """Node | None: 割り当てられたサーフェスシェーダー。"""
+        """割り当てられたサーフェスシェーダー。
+
+        Returns:
+            Node | None: 割り当てられたサーフェスシェーダー。
+        """
         group = self.shadingEngine()
         return group.getShader() if group is not None else None
 
@@ -37,7 +45,11 @@ class Faces(Components):
     component_class = Face
 
     def shadingEngines(self):
-        """list[ShadingEngine]: 対象フェースの割り当てを重複なしで返す。"""
+        """対象フェースの割り当てを重複なしで返す。
+
+        Returns:
+            list[ShadingEngine]: 対象フェースの割り当てを重複なしで返す。
+        """
         result = []
         assignments = self.shape.faceShadingEngines()
         for face in self:
@@ -48,7 +60,11 @@ class Faces(Components):
         return result
 
     def materials(self):
-        """list[Node]: 対象フェースのマテリアルを重複なしで返す。"""
+        """対象フェースのマテリアルを重複なしで返す。
+
+        Returns:
+            list[Node]: 対象フェースのマテリアルを重複なしで返す。
+        """
         result = []
         for group in self.shadingEngines():
             material = group.getShader()

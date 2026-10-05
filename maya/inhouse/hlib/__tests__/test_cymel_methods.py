@@ -118,7 +118,7 @@ class CymelMethodsTest(unittest.TestCase):
         ca = cy.Node(node.name()).plug("values")
         self.assertEqual(array.nextAvailable(), ca.nextAvailable())
         src = Node(cmds.createNode("network")).addAttr("value")
-        src.connectTo(array.element(3))
+        src.connectTo(array[3])
         array.element(1, create=True).setLocked(True)
         for start in (-1, 0, 1, 4):
             self.assertEqual(array.nextAvailable(start), ca.nextAvailable(start))

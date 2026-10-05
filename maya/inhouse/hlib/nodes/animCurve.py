@@ -17,20 +17,36 @@ class AnimCurve(Node):
     """8種類のカーブの基底クラス。数値は内部単位(cm/rad/秒)を使う。"""
 
     def isTimeInput(self):
-        """bool: 横軸が時間ならTrue、単位なしならFalse。"""
+        """横軸が時間ならTrue、単位なしならFalse。
+
+        Returns:
+            bool: 横軸が時間ならTrue、単位なしならFalse。
+        """
         return self.type()[9] == "T"
 
     def keyCount(self):
-        """int: キー数。"""
+        """キー数。
+
+        Returns:
+            int: キー数。
+        """
         return cmds.keyframe(self.fullName(), query=True, keyframeCount=True) or 0
 
     def keyInputs(self):
-        """list[float]: キー順の入力。時間型は秒、それ以外は単位なし。"""
+        """キー順の入力。時間型は秒、それ以外は単位なし。
+
+        Returns:
+            list[float]: キー順の入力。時間型は秒、それ以外は単位なし。
+        """
         flag = "timeChange" if self.isTimeInput() else "floatChange"
         return [self._unit_value(v, to_ui=False) for v in (cmds.keyframe(self.fullName(), query=True, **{flag: True}) or [])]
 
     def keyValues(self):
-        """list[float]: キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。"""
+        """キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。
+
+        Returns:
+            list[float]: キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。
+        """
         return [self._unit_value(v, output=True, to_ui=False) for v in (cmds.keyframe(self.fullName(), query=True, valueChange=True) or [])]
 
     def evaluate(self, input):
@@ -118,7 +134,11 @@ class AnimCurve(Node):
         return self
 
     def getInfinity(self):
-        """dict: pre/postをキーとした外挿方法名。"""
+        """pre/postをキーとした外挿方法名。
+
+        Returns:
+            dict: pre/postをキーとした外挿方法名。
+        """
         names = {0: "constant", 1: "linear", 3: "cycle", 4: "cycleRelative", 5: "oscillate"}
         return {key: names[self.plug(key + "Infinity").get()]
                 for key in ("pre", "post")}
@@ -207,31 +227,57 @@ class AnimCurve(Node):
         return self.scaleKeys(-1 if input else 1, -1 if value else 1, input_pivot, value_pivot)
 
     def driverPlug(self):
-        """Plug | None: inputの直接接続元。時間型では通常timeノード。"""
+        """inputの直接接続元。時間型では通常timeノード。
+
+        Returns:
+            Plug | None: inputの直接接続元。時間型では通常timeノード。
+        """
         return self.plug("input").sourceWithConversion()
 
     def outputPlug(self):
-        """Plug: 出力プラグ。"""
+        """出力プラグ。
+
+        Returns:
+            Plug: 出力プラグ。
+        """
         return self.plug("output")
 
     def drivenPlugs(self):
-        """list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。"""
+        """直接の出力接続先。変換・合成ノード越しの探索はしない。
+
+        Returns:
+            list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。
+        """
         return self.outputPlug().destinationsWithConversions()
 
     def _unit_value(self, value, output=False, to_ui=True):
-        """入出力の単位型に従いコマンド境界で値を変換する。"""
+        """入出力の単位型に従いコマンド境界で値を変換する。
+
+        Args:
+            value: 変換・設定する入力値。
+            output: Trueは出力側、Falseは入力側を扱う。
+            to_ui: Trueは内部単位からUI単位、Falseは逆方向へ変換する。
+        """
         return convert(self.plug("output" if output else "input").mplug(), value, to_ui)
 
     @staticmethod
     def _finite(value):
-        """有限の数値へ変換する。不正値はValueError。"""
+        """有限の数値へ変換する。不正値はValueError。
+
+        Args:
+            value: 変換・設定する入力値。
+        """
         value = float(value)
         if not math.isfinite(value):
             raise ValueError("Expected a finite value")
         return value
 
     def _index(self, index):
-        """存在するキー番号を検証する。不正値はIndexError。"""
+        """存在するキー番号を検証する。不正値はIndexError。
+
+        Args:
+            index: 対象要素の番号または探索開始番号。
+        """
         if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < self.keyCount():
             raise IndexError("Key index is out of range")
         return (index, index)

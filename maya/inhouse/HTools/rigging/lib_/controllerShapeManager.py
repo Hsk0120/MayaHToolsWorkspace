@@ -212,12 +212,22 @@ def _curve(
 # 幾何ヘルパー
 # ---------------------------------------------------------------------------
 def _on_xz(radius, angle, y=0.0):
-    """XZ 平面上で、原点から距離 radius・角度 angle(ラジアン)の位置を返します。"""
+    """XZ 平面上で、原点から距離 radius・角度 angle(ラジアン)の位置を返します。
+
+    Args:
+        radius: 形状の半径。
+        angle: 回転・配置の角度。radians指定はラジアン。
+        y: 座標成分またはatan2の入力成分。
+    """
     return (radius * math.cos(angle), y, radius * math.sin(angle))
 
 
 def _closed(points):
-    """始点を末尾に加えて閉じた点列を返します。"""
+    """始点を末尾に加えて閉じた点列を返します。
+
+    Args:
+        points: 計算対象の座標列。
+    """
     points = list(points)
     return points + [points[0]]
 
@@ -251,7 +261,12 @@ def _arc(radius, start, end, max_step=_ARC_STEP, y=0.0):
 
 
 def _subdivide(points, max_length):
-    """各区間の長さが max_length 以下になるよう、線分の途中へ点を補います。"""
+    """各区間の長さが max_length 以下になるよう、線分の途中へ点を補います。
+
+    Args:
+        points: 計算対象の座標列。
+        max_length: 補間後に許可する線分の最大長。
+    """
     result = [tuple(points[0])]
     for a, b in zip(points, points[1:]):
         length = math.sqrt(sum((q - p) ** 2 for p, q in zip(a, b)))
@@ -382,7 +397,12 @@ def _arrow_strokes(arms, length, head_length, head_width, start_angle=_TOWARD_MI
 
 
 def _shift_z(points, offset):
-    """点列を Z 方向へ offset だけ移動します。"""
+    """点列を Z 方向へ offset だけ移動します。
+
+    Args:
+        points: 計算対象の座標列。
+        offset: 適用する移動量または相対変換。
+    """
     return [(x, y, z + offset) for x, y, z in points]
 
 
@@ -446,7 +466,13 @@ def _bipyramid_strokes(radius, height, sides):
 
 
 def _shortest_route(links, source, targets):
-    """幅優先探索で source から targets のいずれかへ至る最短の頂点列を返します。"""
+    """幅優先探索で source から targets のいずれかへ至る最短の頂点列を返します。
+
+    Args:
+        links: 隣接頂点と接続情報を保持するグラフ。
+        source: 接続・変換・探索の元または先となる対象。
+        targets: 接続・変換・探索の元または先となる対象。
+    """
     previous = {source: None}
     queue = deque([source])
     while queue:
@@ -587,6 +613,17 @@ class Planar(Shape):
 
         Args:
             diameter (float): 直径。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
+
 
         Returns:
             list[str]: ``cmds.circle`` の戻り値(先頭が transform 名)。
@@ -615,6 +652,16 @@ class Planar(Shape):
 
         Args:
             side_length (float): 一辺の長さ。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         corners = _polygon(side_length / math.sqrt(2.0), 4, math.radians(45.0))
         return _curve(_closed(corners), name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
@@ -637,6 +684,16 @@ class Planar(Shape):
 
         Args:
             side_length (float): 一辺の長さ。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         corners = _polygon(side_length / math.sqrt(3.0), 3, _TOWARD_MINUS_Z)
         return _curve(_closed(corners), name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
@@ -661,6 +718,16 @@ class Planar(Shape):
         Args:
             axis_length (float): 腕の端から反対側の端までの長さ。
             line_width_ratio (float): 腕の幅の axis_length に対する比率。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         half_length = axis_length * 0.5
         half_width = axis_length * line_width_ratio * 0.5
@@ -692,6 +759,16 @@ class Solids(Shape):
 
         Args:
             side_length (float): 一辺の長さ。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         half = side_length * 0.5
         signs = list(itertools.product((-1.0, 1.0), repeat=3))
@@ -722,6 +799,16 @@ class Solids(Shape):
 
         Args:
             diameter (float): 直径。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         ring = _arc(diameter * 0.5, 0.0, 2.0 * math.pi, max_step=_SPHERE_RING_STEP)
         strokes = [
@@ -752,6 +839,16 @@ class Solids(Shape):
         Args:
             base_side_length (float): 底面の一辺の長さ。
             apex_height (float): 頂点の高さ。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         base = _polygon(base_side_length / math.sqrt(2.0), 4, math.radians(45.0))
         apex = (0.0, apex_height, 0.0)
@@ -781,6 +878,16 @@ class Solids(Shape):
             diameter (float): 底面の外接円の直径。
             height (float): 頂点の高さ。
             sides (int): 底面の頂点数(3未満は3として扱う)。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         base = _polygon(diameter * 0.5, max(3, int(sides)))
         apex = (0.0, height, 0.0)
@@ -810,6 +917,16 @@ class Solids(Shape):
             diameter (float): 断面の外接円の直径。
             length (float): 全長。
             sides (int): 断面の頂点数(3未満は3として扱う)。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         sides = max(3, int(sides))
         top = _polygon(diameter * 0.5, sides, y=length * 0.5)
@@ -838,6 +955,16 @@ class Solids(Shape):
 
         Args:
             edge_length (float): 辺の長さ。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         # 各軸上の頂点までの距離。隣り合う2頂点の間隔が edge_length になる。
         reach = edge_length / math.sqrt(2.0)
@@ -866,6 +993,16 @@ class Solids(Shape):
             radius (float): 中央の多角形の外接円の半径。
             height (float): 原点から上下それぞれの頂点までの距離。
             sides (int): 中央の多角形の頂点数(3未満は3として扱う)。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         points = _trace_strokes(_bipyramid_strokes(radius, height, max(3, int(sides))))
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
@@ -902,6 +1039,16 @@ class Arrows(Shape):
             length (float): 後端から先端までの長さ。
             head_length (float): 矢じりの長さ。
             head_width (float): 矢じりの幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         strokes = [_shift_z(stroke, length * 0.5) for stroke in _arrow_strokes(1, length, head_length, head_width)]
         points = _trace_strokes(strokes)
@@ -931,6 +1078,16 @@ class Arrows(Shape):
             head_length (float): 矢じりの長さ。
             head_width (float): 矢じりの幅。
             shaft_width (float): 軸の幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         profile = _arrow_profile(length, head_length, head_width, shaft_width)
         points = _shift_z(_radial_outline(1, profile, shaft_width * 0.5), length * 0.5)
@@ -958,6 +1115,16 @@ class Arrows(Shape):
             length (float): 先端から反対側の先端までの長さ。
             head_length (float): 矢じりの長さ。
             head_width (float): 矢じりの幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         points = _trace_strokes(_arrow_strokes(2, length * 0.5, head_length, head_width))
         return _curve(points, name, tx=tx, ty=ty, tz=tz, rx=rx, ry=ry, rz=rz, sx=sx, sy=sy, sz=sz)
@@ -986,6 +1153,16 @@ class Arrows(Shape):
             head_length (float): 矢じりの長さ。
             head_width (float): 矢じりの幅。
             shaft_width (float): 軸の幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         profile = _arrow_profile(length * 0.5, head_length, head_width, shaft_width)
         points = _radial_outline(2, profile, shaft_width * 0.5)
@@ -1016,6 +1193,16 @@ class Arrows(Shape):
                 矢印の幅を自動で狭める。
             head_length (float): 矢じりの長さ。
             head_width (float): 矢じりの幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         strokes = _arrow_strokes(max(1, int(arms)), length, head_length, head_width)
         points = _trace_strokes(strokes)
@@ -1048,6 +1235,16 @@ class Arrows(Shape):
             head_length (float): 矢じりの長さ。
             head_width (float): 矢じりの幅。
             shaft_width (float): 軸の幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         profile = _arrow_profile(length, head_length, head_width, shaft_width)
         points = _radial_outline(max(1, int(arms)), profile, shaft_width * 0.5)
@@ -1083,6 +1280,16 @@ class Arcs(Shape):
             sweep (int): 円弧の角度(度、1〜360)。
             head_length (float): 矢じりの長さ(円弧に沿った長さ)。
             head_width (float): 矢じりの幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         start, end, head_angle = _arc_span(radius, sweep, head_length)
         half_head = min(head_width * 0.5, radius * 0.95)
@@ -1122,6 +1329,16 @@ class Arcs(Shape):
             head_length (float): 矢じりの長さ(中心線に沿った長さ)。
             head_width (float): 矢じりの幅。
             band_width (float): 円弧の帯の幅。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         start, end, head_angle = _arc_span(radius, sweep, head_length)
         half_head = min(head_width * 0.5, radius * 0.95)
@@ -1170,6 +1387,16 @@ class Markers(Shape):
             diameter (float): 巻き付ける球の直径。
             arms (int): 矢印の本数(1未満は1として扱う)。本数が多く隣の矢印と重なる場合は、
                 矢印の幅を自動で狭める。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         # 矢の長さを1とした平面上の輪郭(比率は Arrows の既定値と同じ)。区間を細かく分けてから
         # 巻き付け、球面に沿わせる。
@@ -1200,6 +1427,16 @@ class Markers(Shape):
             length (float): 各軸の線の全長。
             head_length (float): 矢じりの長さ。
             head_width (float): 矢じりの底面の対角線の長さ。
+            name: 参照・作成・照会する対象の名前。
+            tx: 形状の各軸の移動量。
+            ty: 形状の各軸の移動量。
+            tz: 形状の各軸の移動量。
+            rx: 形状の各軸の回転角。単位は度。
+            ry: 形状の各軸の回転角。単位は度。
+            rz: 形状の各軸の回転角。単位は度。
+            sx: 形状の各軸のスケール倍率。
+            sy: 形状の各軸のスケール倍率。
+            sz: 形状の各軸のスケール倍率。
         """
         half = length * 0.5
         origin = (0.0, 0.0, 0.0)

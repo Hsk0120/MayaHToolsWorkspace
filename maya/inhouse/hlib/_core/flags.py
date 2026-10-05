@@ -9,7 +9,11 @@ import maya.cmds as cmds
 
 @lru_cache(maxsize=None)
 def _maya_aliases(command):
-    """実行中のMayaが公開するフラグ一覧を取得する。初回呼び出し時のみ照会。"""
+    """実行中のMayaが公開するフラグ一覧を取得する。初回呼び出し時のみ照会。
+
+    Args:
+        command: フラグを照会するMayaコマンド名。
+    """
     help_text = cmds.help(command)
     aliases = dict(re.findall(r"^\s+-(\w+)\s+-(\w+)\b", help_text, re.MULTILINE))
     if not aliases:

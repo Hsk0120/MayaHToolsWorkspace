@@ -409,7 +409,7 @@ def test_matrix_mmatrix_and_transformation_bridge():
     assert round_tripped == matrix
 
     transformation = matrix.toTransformation()
-    assert isinstance(transformation, om2.MTransformationMatrix)
+    assert isinstance(transformation, module.Transformation)
 
     fromTransformation = Matrix.fromTransformation(transformation)
     assert fromTransformation.isEquivalent(matrix, tolerance=1e-9)

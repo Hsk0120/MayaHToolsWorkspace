@@ -22,7 +22,12 @@ class Port:
         return self.node.path + "." + self.name
 
     def set_default(self, value):
-        """既定値を設定する。複合型はVNN形式の文字列または文字列列で渡す。"""
+        """VNNポートの既定値を設定する。
+
+        Args:
+            value (object): VNN形式へ文字列化する値。複合型は文字列または文字列列。
+                boolは小文字のtrue/falseへ変換する。
+        """
         if isinstance(value, (tuple, list)):
             value = [str(item) for item in value]
         else:
@@ -38,16 +43,34 @@ class Port:
         )
 
     def connect(self, target):
-        """この出力から同じグラフ内の入力へ接続する。"""
+        """この出力から同じグラフ内の入力へ接続する。
+
+        Args:
+            target (Port): 接続先の入力ポート。
+
+        Raises:
+            ValueError: Port以外、または異なるグラフのポートを指定した場合。
+        """
         self._check_graph(target)
         cmds.vnnConnect(self.node.graph.name(), self.path, target.path)
 
     def disconnect(self, target):
-        """指定した接続を切断する。"""
+        """このポートと指定ポートの接続を切断する。
+
+        Args:
+            target (Port): 切断する接続先。
+
+        Raises:
+            ValueError: Port以外、または異なるグラフのポートを指定した場合。
+        """
         self._check_graph(target)
         cmds.vnnConnect(self.node.graph.name(), self.path, target.path, disconnect=True)
 
     def _check_graph(self, target):
-        """別グラフ間の誤った接続を拒否する。"""
+        """別グラフ間の誤った接続を拒否する。
+
+        Args:
+            target: 接続・変換・探索の元または先となる対象。
+        """
         if not isinstance(target, Port) or self.node.graph.name() != target.node.graph.name():
             raise ValueError("Ports must belong to the same graph")

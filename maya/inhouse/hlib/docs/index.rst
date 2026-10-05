@@ -21,6 +21,7 @@ Contents
    usage
    cymel_arguments
    cymel_methods
+   transformation
    modules
 
 Indices and tables

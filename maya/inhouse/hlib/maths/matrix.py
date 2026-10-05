@@ -338,8 +338,8 @@ class Matrix(om2.MMatrix):
         入力をすべて検証してから書き込むため、例外時に値は変わらない。
 
         Args:
-            values (om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None):
-                16要素または4行4列の行列。指定時は他の変換引数をすべて無視する。
+            values (Transformation | om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None):
+                変換情報、16要素または4行4列の行列。指定時は他の変換引数をすべて無視する。
             translate (Iterable[float] | None): XYZ の平行移動成分。None は 0。
             rotate (Iterable[float] | EulerRotation | Quaternion | None): XYZ 順の
                 ラジアン3成分、回転順序を反映する EulerRotation(om2.MEulerRotation)、
@@ -356,6 +356,9 @@ class Matrix(om2.MMatrix):
                 または回転四元数がゼロの場合。
         """
         if values is not None:
+            from .transformation import Transformation
+            if isinstance(values, Transformation):
+                values = values.matrix
             kind = values.__class__
             if kind is not list and kind is not tuple:
                 if isinstance(values, _MMatrix):
@@ -771,15 +774,17 @@ class Matrix(om2.MMatrix):
 
     @classmethod
     def fromTransformation(cls, transformation):
-        """Maya API 2.0 の変換行列から hlib の行列を生成する。
+        """hlibまたはMaya API 2.0の変換情報から行列を生成する。
 
         Args:
-            transformation (om2.MTransformationMatrix): asMatrix() で値を取得する変換行列。
+            transformation (Transformation | om2.MTransformationMatrix): 合成する変換情報。
 
         Returns:
             Matrix: 呼び出したクラスの新しい行列。
         """
-        return cls._wrap(transformation.asMatrix())
+        from .transformation import Transformation
+        return cls._wrap(transformation.matrix if isinstance(transformation, Transformation)
+                         else transformation.asMatrix())
 
     @property
     def values(self):
@@ -929,12 +934,13 @@ class Matrix(om2.MMatrix):
         self._recompose(rotate=value)
 
     def toTransformation(self):
-        """om2.MTransformationMatrix へ変換する。
+        """hlibのTransformationへ変換する。
 
         Returns:
-            om2.MTransformationMatrix: 現在の成分から作った新しいオブジェクト。
+            Transformation: 行列を分解した独立した値。元のピボット情報は復元しない。
         """
-        return _MTransformationMatrix(self)
+        from .transformation import Transformation
+        return Transformation(self)
 
     def decompose(self):
         """行列を意味付きの変換成分へ分解する。

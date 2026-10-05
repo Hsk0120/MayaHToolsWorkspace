@@ -17,7 +17,11 @@ class _Editor:
         return self._name
 
     def exists(self):
-        """bool: エディターが現在存在するか返す。"""
+        """エディターが現在存在するか返す。
+
+        Returns:
+            bool: エディターが現在存在するか返す。
+        """
         return bool(getattr(cmds, self._command)(self._name, exists=True))
 
     def getSettings(self, *flags):
@@ -85,7 +89,11 @@ class _Editor:
             raise RuntimeError(f"Editor no longer exists: {self._name}")
 
     def _validate_flags(self, flags):
-        """未対応のフラグがある場合は変更前に ValueError を送出する。"""
+        """未対応のフラグがある場合は変更前に ValueError を送出する。
+
+        Args:
+            flags: 処理先へ渡すキーワード引数の辞書。
+        """
         unknown = set(flags) - set(self._flags)
         if unknown:
             raise ValueError(f"Unsupported display flags: {sorted(unknown)}")

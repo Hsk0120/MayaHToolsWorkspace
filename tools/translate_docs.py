@@ -11,7 +11,7 @@
 1. ``sphinx-build -b gettext`` で本文の文を取り出す(``maya/inhouse/<名前>/docs``)。
 2. ``docs/locale/en/LC_MESSAGES/docs.po`` を、取り出した文に合わせて更新する(消えた文は削除、新しい文は未訳で追加)。
 3. 未訳の文を Ollama の ``qwen3-coder:30b`` で英訳する。reStructuredText の記法(````code````・``:ref:`` など)が
-   崩れた訳は使わず、未訳のまま残す(英語版では日本語のまま出る)。50件ごとに保存するので、途中で止めても続きから再開できる。
+   崩れた訳は使わず、未訳のまま残す(英語版では日本語のまま出る)。10件ごとに保存するので、途中で止めても続きから再開できる。
 4. 英語版を ``-W`` でビルドして、警告が無いことを確かめる。
 5. 最後にモデルを GPU から下ろす(Maya と GPU を取り合わないように)。
 
@@ -53,7 +53,7 @@ GLOSSARY = {
 SYSTEM_PROMPT = (
     'You translate Japanese technical documentation into natural, concise English. '
     'The text is a fragment of a Sphinx reStructuredText document about Autodesk Maya tools '
-    '(a Python/MEL script editor "hedit" and a rigging library "hrig").\n'
+    '(the "hlib" Maya API library, the "hedit" Python/MEL script editor, and the "hrig" rigging library).\n'
     'Rules:\n'
     '1. Output only the English translation of the given fragment. No explanations, no quotes, no code fences.\n'
     '2. Keep every reStructuredText construct exactly as it is: ``inline literals``, :role:`targets` '
@@ -233,7 +233,7 @@ def restore(text, parts):
 
 
 def translate(model, source):
-    """1つの文を英訳する。記法が崩れたら1回だけ言い直させる。
+    """1つの文を英訳する。記法が崩れたら最大3回言い直させる。
 
     Args:
         model (str): Ollama のモデル名。
@@ -247,7 +247,9 @@ def translate(model, source):
     problem = ''
     for attempt in range(4):
         # 最初は毎回同じ訳になるよう temperature 0。言い直しでは少し揺らぎを足す。
-        options = {'temperature': 0 if attempt == 0 else 0.4, 'seed': 42 + attempt, 'num_ctx': 8192}
+        # 長文の反復生成でGPUを占有し続けないよう、1応答の長さを制限する。
+        options = {'temperature': 0 if attempt == 0 else 0.4, 'seed': 42 + attempt,
+                   'num_ctx': 8192, 'num_predict': 2048}
         reply = ollama('chat', {'model': model, 'messages': messages, 'stream': False, 'keep_alive': '15m',
                                 'options': options})
         # 段落の中の改行は意味を持たないので空白にまとめる(改行の後の字下げや記号が、リスト・見出しの記法に見えないように)。
@@ -258,7 +260,8 @@ def translate(model, source):
             answer = answer.replace(japanese, english)
         answer = re.sub(r' {2,}', ' ', answer).strip()
         translation = escape_references(source, fix_boundaries(restore(answer, parts)))
-        problem = valid(source, translation) if translation else 'placeholders changed'
+        problem = ('output limit reached' if reply.get('done_reason') == 'length'
+                   else valid(source, translation) if translation else 'placeholders changed')
         translation_for_retry = answer
         if not problem:
             return translation, ''
@@ -371,7 +374,7 @@ def main():
                         message.flags.discard('fuzzy')
                     else:
                         skipped.append((message.id, problem))
-                    if index % 50 == 0 or index == len(pending):
+                    if index % 10 == 0 or index == len(pending):
                         save_catalog(po_path, catalog)
                         print('  {}/{} ({:.0f}s)'.format(index, len(pending), time.perf_counter() - start), flush=True)
             save_catalog(po_path, catalog)

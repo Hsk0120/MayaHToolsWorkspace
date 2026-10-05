@@ -102,10 +102,10 @@ class SplineIK:
             position = hlib.nodes.Node.create(
                 "decomposeMatrix", name=name + "_cv{}Position".format(index), skipSelect=True
             )
-            control.plug("worldMatrix[0]").connectTo(matrix.plug("matrixIn[0]"))
-            curve.plug("worldInverseMatrix[0]").connectTo(matrix.plug("matrixIn[1]"))
+            control.plug("worldMatrix")[0].connectTo(matrix.plug("matrixIn")[0])
+            curve.plug("worldInverseMatrix")[0].connectTo(matrix.plug("matrixIn")[1])
             matrix.plug("matrixSum").connectTo(position.plug("inputMatrix"))
-            position.plug("outputTranslate").connectTo(shape.plug("controlPoints[{}]".format(index)))
+            position.plug("outputTranslate").connectTo(shape.plug("controlPoints")[index])
             graph.container.addMembers(matrix, position)
         handle_name, effector_name = hlib.createIkHandle(
             startJoint=joints[0].fullName(),
@@ -127,8 +127,8 @@ class SplineIK:
         vector = (0, 1, 0) if up_axis == "y" else (0, 0, 1)
         for attr in ("dWorldUpVector", "dWorldUpVectorEnd"):
             handle.plug(attr).set(vector)
-        controls[0].plug("worldMatrix[0]").connectTo(handle.plug("dWorldUpMatrix"))
-        controls[-1].plug("worldMatrix[0]").connectTo(handle.plug("dWorldUpMatrixEnd"))
+        controls[0].plug("worldMatrix")[0].connectTo(handle.plug("dWorldUpMatrix"))
+        controls[-1].plug("worldMatrix")[0].connectTo(handle.plug("dWorldUpMatrixEnd"))
         for role, node in (("handle", handle), ("curve", curve), ("effector", effector)):
             graph.container.addAttr(longName=role, attributeType="message")
             node.plug("message").connectTo(graph.container.plug(role))
@@ -159,7 +159,7 @@ class SplineIK:
                         )
                     ][0]
                 )
-                shape.plug("worldSpace[0]").connectTo(target)
+                shape.plug("worldSpace")[0].connectTo(target)
             handle.plug("nodeState").set(0)
             handle.plug("ikBlend").set(1)
         else:

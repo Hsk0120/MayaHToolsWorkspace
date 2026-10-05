@@ -125,7 +125,7 @@ class LimbStretchLayer:
             convert = self._node(owner, "unitConversion", "lengthUnits" + str(i))
             multiply.plug("outputX").connectTo(convert.plug("input"))
             convert.plug("conversionFactor").set(1)
-            convert.plug("message").connectTo(group.plug("outputs[{}]".format(i)))
+            convert.plug("message").connectTo(group.plug("outputs")[i])
         shape = self._node(owner, "composeMatrix", "crossSection")
         inverse = self._node(owner, "multiplyDivide", "inverseVolume")
         inverse.plug("operation").set(2)
@@ -138,11 +138,11 @@ class LimbStretchLayer:
         for i in range(3):
             matrix = self._node(owner, "multMatrix", "deform" + str(i))
             # 親の断面scaleを打ち消し、子の位置や回転に歪みが累積しないようにする。
-            shape.plug("outputMatrix").connectTo(matrix.plug("matrixIn[0]"))
-            hlib.getPlug(rig._local_matrix("ik" + str(i))).connectTo(matrix.plug("matrixIn[1]"))
+            shape.plug("outputMatrix").connectTo(matrix.plug("matrixIn")[0])
+            hlib.getPlug(rig._local_matrix("ik" + str(i))).connectTo(matrix.plug("matrixIn")[1])
             if i:
-                unshape.plug("outputMatrix").connectTo(matrix.plug("matrixIn[2]"))
-            matrix.plug("message").connectTo(group.plug("matrices[{}]".format(i)))
+                unshape.plug("outputMatrix").connectTo(matrix.plug("matrixIn")[2])
+            matrix.plug("message").connectTo(group.plug("matrices")[i])
         for node in (group, owner):
             root.plug("hrigOwned").appendMessage(node)
         rig._update_evaluation()
@@ -231,7 +231,7 @@ class LimbStretchLayer:
             if target.sourceWithConversion() is not None:
                 target.disconnect(target.sourceWithConversion())
             if active:
-                group.plug("outputs[{}]".format(i)).sourceWithConversion().node().plug("output").connectTo(target)
+                group.plug("outputs")[i].sourceWithConversion().node().plug("output").connectTo(target)
             else:
                 target.set(length)
         soft = hlib.getPlug(rig._member("softGraph") + ".distance")
@@ -248,7 +248,7 @@ class LimbStretchLayer:
             if target.sourceWithConversion() is not None:
                 target.disconnect(target.sourceWithConversion())
             source = (
-                group.plug("matrices[{}]".format(i)).sourceWithConversion().node().plug("matrixSum")
+                group.plug("matrices")[i].sourceWithConversion().node().plug("matrixSum")
                 if active
                 else hlib.getPlug(rig._local_matrix(("ik" if rig.mode() == "ik" else "fk") + str(i)))
             )

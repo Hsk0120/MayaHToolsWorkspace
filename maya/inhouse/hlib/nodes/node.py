@@ -354,7 +354,11 @@ class Node(Object):
         self._identity_hash = self._handle.hashCode()
 
     def __eq__(self, other):
-        """生存中の同じ対象を比較する。DAGはインスタンスのパスも区別する。"""
+        """生存中の同じ対象を比較する。DAGはインスタンスのパスも区別する。
+
+        Args:
+            other: 比較・演算の相手。
+        """
         if not isinstance(other, Node):
             return NotImplemented
         if not self.isAlive() or not other.isAlive():
@@ -822,11 +826,25 @@ class Node(Object):
         return cmds.rename(self.name(), name, ignoreShape=ignoreShape)
 
     def inputs(self, **kwargs):
-        """list: 入力側の接続を返す。引数はconnectionsと共通。"""
+        """入力側の接続を指定条件で照会する。
+
+        Args:
+            **kwargs: connectionsの絞込み・返却形式指定。方向のs/dは指定しない。
+
+        Returns:
+            list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
+        """
         return self.connections(True, False, **kwargs)
 
     def outputs(self, **kwargs):
-        """list: 出力側の接続を返す。引数はconnectionsと共通。"""
+        """出力側の接続を指定条件で照会する。
+
+        Args:
+            **kwargs: connectionsの絞込み・返却形式指定。方向のs/dは指定しない。
+
+        Returns:
+            list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
+        """
         return self.connections(False, True, **kwargs)
 
     def connections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
@@ -1703,13 +1721,20 @@ class Nodes:
         return iter(self._items)
 
     def __len__(self):
-        """int: 保持要素数。"""
+        """保持要素数。
+
+        Returns:
+            int: 保持要素数。
+        """
         return len(self._items)
 
     def __getitem__(self, index):
         """Node | Nodes: 単体参照または同じ具象型のスライスを返す。
 
         構築後に削除された参照も保持し、要素数を暗黙に変更しない。
+
+        Args:
+            index: 対象要素の番号または探索開始番号。
         """
         if not isinstance(index, slice):
             return self._items[index]
@@ -1718,7 +1743,11 @@ class Nodes:
         return result
 
     def __repr__(self):
-        """str: 具象コレクション名と保持参照を表示する。"""
+        """具象コレクション名と保持参照を表示する。
+
+        Returns:
+            str: 具象コレクション名と保持参照を表示する。
+        """
         return f"{type(self).__name__}({self._items!r})"
 
     def callEach(self, method, arguments, keyword_arguments=None):
@@ -1743,14 +1772,22 @@ class Nodes:
         return self._execute_calls(method, functions, args, kwargs)
 
     def copy(self):
-        """Nodes: 同じ参照を共有する、同じ具象型の独立した容器を返す。"""
+        """同じ参照を共有する、同じ具象型の独立した容器を返す。
+
+        Returns:
+            Nodes: 同じ参照を共有する、同じ具象型の独立した容器を返す。
+        """
         result = object.__new__(type(self))
         result.__dict__.update(self.__dict__)
         result._items = list(self._items)
         return result
 
     def names(self):
-        """list[str]: 保持順の現在のノード名。"""
+        """保持順の現在のノード名。
+
+        Returns:
+            list[str]: 保持順の現在のノード名。
+        """
         return [node.name() for node in self]
 
     @undoChunk("hlibNodesDelete")
@@ -1801,11 +1838,18 @@ class Nodes:
             raise TypeError("Names and Node objects cannot be mixed in the same target collection")
 
     def _execute_calls(self, method, functions, args, kwargs):
-        """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。"""
+        """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。
+
+        Args:
+            method: 一括実行するメソッド名。
+            functions: 要素ごとに解決済みの呼出し先関数。
+            args: 処理先へ渡す位置引数の列。
+            kwargs: 処理先へ渡すキーワード引数の辞書。
+        """
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
         context = undoChunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
         calculating = False
-        if method in {"setTranslation", "setRotation", "setQuaternion", "setScaling", "setShearing", "setMatrix"}:
+        if method in {"setTranslation", "setRotation", "setQuaternion", "setScaling", "setShearing", "setMatrix", "setTransformation", "setX"}:
             calculating = any(inspect.signature(fn).bind(*row, **flags).arguments.get("get", False)
                               for fn, row, flags in zip(functions, args, kwargs))
         result = [] if calculating or self._bulk_returns[method] != "self" else None
@@ -1820,7 +1864,13 @@ class Nodes:
         return self if result is None else result
 
     def _dispatch_shared(self, method, args, kwargs):
-        """単体APIの転送先を決める。独自callEachのoverrideを維持する。"""
+        """単体APIの転送先を決める。独自callEachのoverrideを維持する。
+
+        Args:
+            method: 一括実行するメソッド名。
+            args: 処理先へ渡す位置引数の列。
+            kwargs: 処理先へ渡すキーワード引数の辞書。
+        """
         if type(self).callEach is not Nodes.callEach:
             return self.callEach(method, [args] * len(self), [kwargs] * len(self))
         return self._call_shared(method, args, kwargs)
@@ -1830,6 +1880,11 @@ class Nodes:
 
         共有はこの呼出し内だけに限定する。派生overrideと個体callableは別に
         検証し、クラス差替え・reload後の古いメソッドを保持しない。
+
+        Args:
+            method: 一括実行するメソッド名。
+            args: 処理先へ渡す位置引数の列。
+            kwargs: 処理先へ渡すキーワード引数の辞書。
         """
         functions = [getattr(item, method) for item in self._items]
         shared = {}

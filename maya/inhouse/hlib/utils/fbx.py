@@ -9,7 +9,12 @@ from ..environment import Plugin
 
 
 def _path(value, existing=False):
-    """FBXパスを検証し、絶対パスへ正規化する。"""
+    """FBXパスを検証し、絶対パスへ正規化する。
+
+    Args:
+        value: 変換・設定する入力値。
+        existing: 対象ファイルが存在することを要求するか。
+    """
     result = Path(value).expanduser().resolve()
     if result.suffix.lower() != '.fbx':
         raise ValueError('Expected an .fbx path')

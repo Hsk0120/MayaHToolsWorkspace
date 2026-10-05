@@ -50,7 +50,11 @@ class _UiLifetime:
 
     @staticmethod
     def _remove_callback(callback_id):
-        """参照解放時に監視を解除する。Maya側で解除済みなら何もしない。"""
+        """参照解放時に監視を解除する。Maya側で解除済みなら何もしない。
+
+        Args:
+            callback_id: 解除するMayaコールバックの登録ID。
+        """
         from maya.api import OpenMaya
         try:
             OpenMaya.MMessage.removeCallback(callback_id)

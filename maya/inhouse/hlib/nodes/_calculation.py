@@ -165,5 +165,5 @@ class _Calculation:
             raise TypeError("Expected a " + node_type)
         if world_space:
             # 接続時に実体化する。参照の取得では未評価worldSpace要素を作成しない。
-            return node.plug("worldSpace")._element_reference(node.mpath().instanceNumber())
+            return node.plug("worldSpace")[node.mpath().instanceNumber()]
         return node.plug("local")

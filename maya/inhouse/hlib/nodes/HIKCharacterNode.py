@@ -24,7 +24,11 @@ def _prepare():
 
 
 def _quote(value):
-    """日本語名を保ったままMELの文字列リテラルへ変換する。"""
+    """日本語名を保ったままMELの文字列リテラルへ変換する。
+
+    Args:
+        value: 変換・設定する入力値。
+    """
     return json.dumps(value, ensure_ascii=False)
 
 
@@ -48,7 +52,11 @@ class HIKCharacterNode(Node):
         return cls(mel.eval('hikCreateCharacter({});'.format(_quote(name))))
 
     def isDefinitionLocked(self):
-        """bool: キャラクタライズがロック済みか照会する。"""
+        """キャラクタライズがロック済みか照会する。
+
+        Returns:
+            bool: キャラクタライズがロック済みか照会する。
+        """
         return bool(cmds.getAttr(self.fullName() + '.InputCharacterizationLock'))
 
     def joint(self, role):
@@ -96,7 +104,11 @@ class HIKCharacterNode(Node):
             raise RuntimeError('HumanIK did not assign the joint')
 
     def source(self):
-        """HIKCharacterNode | None: 現在のリターゲット入力を取得する。"""
+        """現在のリターゲット入力を取得する。
+
+        Returns:
+            HIKCharacterNode | None: 現在のリターゲット入力を取得する。
+        """
         _prepare()
         value = mel.eval('hikGetRetargetCharacterInput({});'.format(_quote(self.fullName())))
         return HIKCharacterNode(value) if value else None

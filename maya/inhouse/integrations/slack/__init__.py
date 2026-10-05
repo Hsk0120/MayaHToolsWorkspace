@@ -4,13 +4,18 @@ import os
 
 
 def post_message(text, channel="random", thread_ts=None):
-    """
-    slackにメッセージを送るための関数
+    """Slackへメッセージを投稿し、投稿のタイムスタンプを返す。
 
-    args:
-        text : str 送りたいメッセージ
-        channel : 送りたいチャンネル デフォルトはrandomチャンネル
-        thread_ts : 送りたいスレッドid, デフォルトNoneの場合メッセージになる
+    Args:
+        text (str): 投稿する本文。
+        channel (str): 投稿先チャンネル。既定はrandom。
+        thread_ts (str | None): 返信先のタイムスタンプ。省略時は新規投稿。
+
+    Returns:
+        str: 投稿したメッセージのタイムスタンプ。
+
+    Raises:
+        RuntimeError: SDK・環境変数SLACK_API_BOT_TOKENがない、またはSlack APIが失敗した場合。
     """
     try:
         from slack_sdk import WebClient

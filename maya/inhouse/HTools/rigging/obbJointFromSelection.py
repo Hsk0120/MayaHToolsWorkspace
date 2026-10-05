@@ -99,7 +99,13 @@ def _bind_mesh_to_single_joint(mesh_transform, joint):
 
 
 def _indexed_name(base_name, index, total_count):
-	"""複数処理時に連番付き名前を生成します。"""
+	"""複数処理時に連番付き名前を生成します。
+
+	Args:
+	    base_name: 重複回避や連番付加に使う元の名前。
+	    index: 対象要素の番号または探索開始番号。
+	    total_count: 作成または処理する対象の総数。
+	"""
 	if total_count <= 1:
 		return base_name
 	return "{0}_{1:02d}".format(base_name, index + 1)

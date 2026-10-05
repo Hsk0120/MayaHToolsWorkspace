@@ -55,7 +55,10 @@ class PlusMinusAverage(ShadingDependNode):
         Returns:
             Plug: 未作成要素はIndexError。
         """
-        return self._input_array(dimension).element(_Calculation.index(index))
+        plug = self._input_array(dimension)[_Calculation.index(index)]
+        if index not in self.inputIndices(dimension):
+            raise IndexError(f"No input at logical index {index}")
+        return plug
 
     def getInput(self, index, dimension=1):
         """入力の評価値を取得する。
@@ -85,7 +88,7 @@ class PlusMinusAverage(ShadingDependNode):
         index = _Calculation.index(index)
         array = self._input_array(dimension)
         value = _Calculation.scalar(value) if dimension == 1 else _Calculation.vector(value, dimension)
-        array._element_reference(index).set(value)
+        array[index].set(value)
         return self
 
     @undoChunk("hlibCalculationEdit")
@@ -105,7 +108,7 @@ class PlusMinusAverage(ShadingDependNode):
         """
         from ..plugs.plug import Plug as _InputPlug
         source = _InputPlug._resolve_input(source)
-        target = self._input_array(dimension)._element_reference(_Calculation.index(index))
+        target = self._input_array(dimension)[_Calculation.index(index)]
         source.connectTo(target, force=force)
         return self
 

@@ -585,7 +585,7 @@ class LimbRig:
             raise ValueError("Choose a pole direction before matching a straight chain")
         pole_position = tuple(b + offset.normal() * axis.length())
         # 逆算は部位空間で行うため、ルートの一様スケールにも追従する。
-        inverse = Matrix(self.root.plug("worldInverseMatrix[0]").get())
+        inverse = Matrix(self.root.plug("worldInverseMatrix")[0].get())
         local_end = inverse.transformPoint(c)
         distance = Vector(local_end).length()
         length = self.root.plug("hrigLength").get()
@@ -611,7 +611,7 @@ class LimbRig:
         matrix[12:15] = tuple(world_position)[:3]
         _set_world_matrix(target, matrix)
         # PoleがFoot空間の場合はIK目標の移動後の親空間へ変換する。
-        pole_local = Matrix(hlib.getPlug(pole + ".parentInverseMatrix[0]").get()).transformPoint(
+        pole_local = Matrix(hlib.getNode(pole).plug("parentInverseMatrix")[0].get()).transformPoint(
             pole_position
         )
         for axis, value in zip("XYZ", tuple(pole_local)[:3]):
@@ -737,8 +737,8 @@ def build_limb(definition=None, backend="standard"):
                 if chain == "fk":
                     matrix = create("multMatrix", "fkMatrix" + str(index))
                     rig._bind("fkMatrix" + str(index), matrix)
-                    hlib.getPlug(node + ".matrix").connectTo(matrix + ".matrixIn[0]")
-                    hlib.getPlug(offset + ".matrix").connectTo(matrix + ".matrixIn[1]")
+                    hlib.getPlug(node + ".matrix").connectTo(hlib.getNode(matrix).plug("matrixIn")[0])
+                    hlib.getPlug(offset + ".matrix").connectTo(hlib.getNode(matrix).plug("matrixIn")[1])
                 if chain != "fk":
                     hlib.getPlug(node + ".segmentScaleCompensate").set(False)
                 if chain == "ik":
@@ -755,8 +755,8 @@ def build_limb(definition=None, backend="standard"):
         target, pole = rig._member("target"), rig._member("pole")
         matrix = create("multMatrix", "targetMatrix")
         rig._bind("targetMatrix", matrix)
-        hlib.getPlug(target + ".matrix").connectTo(matrix + ".matrixIn[0]")
-        hlib.getPlug(rig._member("targetOffset") + ".matrix").connectTo(matrix + ".matrixIn[1]")
+        hlib.getPlug(target + ".matrix").connectTo(hlib.getNode(matrix).plug("matrixIn")[0])
+        hlib.getPlug(rig._member("targetOffset") + ".matrix").connectTo(hlib.getNode(matrix).plug("matrixIn")[1])
         target_decompose = create("decomposeMatrix", "targetDecompose")
         rig._bind("targetDecompose", target_decompose)
         hlib.getPlug(matrix + ".matrixSum").connectTo(target_decompose + ".inputMatrix")
@@ -873,7 +873,7 @@ def build_limb(definition=None, backend="standard"):
         hlib.getNode(root).addAttr(longName="hrigOwned", attributeType="message", multi=True)
         for index, node in enumerate(created):
             if node != root and cmds.objExists(node):
-                hlib.getNode(node).plug("message").connectTo(root + ".hrigOwned[{}]".format(index))
+                hlib.getNode(node).plug("message").connectTo(hlib.getNode(root).plug("hrigOwned")[index])
         from .spaceLayer import SpaceLayer
 
         SpaceLayer(rig).attach()

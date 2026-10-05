@@ -35,11 +35,22 @@ class Node:
         return value
 
     def ports(self):
-        """tuple[str]: VNNが返すポート名を照会する。"""
+        """VNNが返すポート名を照会する。
+
+        Returns:
+            tuple[str]: VNNが返すポート名を照会する。
+        """
         return tuple(cmds.vnnNode(self.graph.name(), self.path, listPorts=True) or ())
 
     def port(self, name):
-        """Port: 指定ポートを参照する。存在確認や作成は行わない。"""
+        """指定ポートを参照する。存在確認や作成は行わない。
+
+        Args:
+            name (str): 内部ノードのポート名。
+
+        Returns:
+            Port: 指定名のポート参照。
+        """
         from ..plugs.port import Port
 
         return Port(self, self.identifier(name))

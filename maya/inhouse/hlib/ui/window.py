@@ -12,7 +12,11 @@ class Window(_WindowReference):
 
     @classmethod
     def list(cls):
-        """list[Window]: Mayaに登録されたwindowを取得する。"""
+        """Mayaに登録されたwindowを取得する。
+
+        Returns:
+            list[Window]: Mayaに登録されたwindowを取得する。
+        """
         cls._require_gui()
         return [cls(name) for name in cmds.lsUI(windows=True) or []]
 
@@ -21,7 +25,11 @@ class Window(_WindowReference):
         cmds.showWindow(self.name())
 
     def getSize(self):
-        """tuple[int, int]: 枠を除く幅・高さをピクセルで取得する。"""
+        """枠を除く幅・高さをピクセルで取得する。
+
+        Returns:
+            tuple[int, int]: 枠を除く幅・高さをピクセルで取得する。
+        """
         return tuple(cmds.window(self.name(), query=True, widthHeight=True))
 
     def setSize(self, width, height):
@@ -35,7 +43,11 @@ class Window(_WindowReference):
         cmds.window(self.name(), edit=True, widthHeight=size)
 
     def getPosition(self):
-        """tuple[int, int]: 左・上の位置(x, y)を取得する。"""
+        """左・上の位置(x, y)を取得する。
+
+        Returns:
+            tuple[int, int]: 左・上の位置(x, y)を取得する。
+        """
         top, left = cmds.window(self.name(), query=True, topLeftCorner=True)
         return left, top
 
@@ -50,7 +62,11 @@ class Window(_WindowReference):
         cmds.window(self.name(), edit=True, topLeftCorner=(y, x))
 
     def getResizable(self):
-        """bool: ユーザーがサイズを変更できるか取得する。"""
+        """ユーザーがサイズを変更できるか取得する。
+
+        Returns:
+            bool: ユーザーがサイズを変更できるか取得する。
+        """
         return bool(cmds.window(self.name(), query=True, sizeable=True))
 
     def setResizable(self, enabled):

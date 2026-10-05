@@ -1,4 +1,4 @@
-﻿"""Controller Shape Manager の Maya UI 実装。"""
+"""Controller Shape Manager の Maya UI 実装。"""
 
 import inspect
 from importlib import reload
@@ -34,16 +34,27 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
     @staticmethod
     def _clamp_0_255(value):
+        """値を整数化し0〜255へ切り詰める。
+
+        Args:
+            value: 変換・設定する入力値。
+
+        Returns:
+            int: 切り詰めた成分値。
+        """
         return max(0, min(int(value), 255))
 
     @classmethod
     def _blend_colors(cls, color_a, color_b, t):
-        """Blend two QColor values.
+        """2色のRGB成分を線形補間する。
 
         Args:
-            color_a (QColor)
-            color_b (QColor)
-            t (float): 0..1 (0 -> a, 1 -> b)
+            color_a (QColor): 補間の始点色。
+            color_b (QColor): 補間の終点色。
+            t (float): 補間率。0〜1へ制限し、0なら始点、1なら終点。
+
+        Returns:
+            QColor: 補間した不透明色。
         """
         t = max(0.0, min(float(t), 1.0))
         return QtGui.QColor(
@@ -54,16 +65,37 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
     @staticmethod
     def _qss_rgb(color):
+        """QSSへ埋め込むRGB成分の文字列を作る。
+
+        Args:
+            color: 色計算またはスタイル生成に使うQColor。
+
+        Returns:
+            str: カンマ区切りのRGB成分。
+        """
         return f"{color.red()}, {color.green()}, {color.blue()}"
 
     @staticmethod
     def _qss_rgba(color, alpha_0_255):
+        """QSSへ埋め込むRGBA表現を作る。
+
+        Args:
+            color: 色計算またはスタイル生成に使うQColor。
+            alpha_0_255: 0〜255の不透明度。範囲外は切り詰める。
+
+        Returns:
+            str: rgba形式の色指定。
+        """
         a = max(0, min(int(alpha_0_255), 255))
         return f"rgba({color.red()}, {color.green()}, {color.blue()}, {a})"
 
     @staticmethod
     def _relative_luminance(color):
-        """Return relative luminance (0..1) for sRGB color."""
+        """sRGB色の相対輝度を0〜1で返す。
+
+        Args:
+            color: 色計算またはスタイル生成に使うQColor。
+        """
         def _to_linear(c):
             c = float(c) / 255.0
             return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -75,12 +107,20 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
     @classmethod
     def _choose_contrast_text(cls, background_color):
-        """Pick white/black text for legibility on the given background."""
+        """背景の相対輝度から白または暗いグレーの文字色を選ぶ。
+
+        Args:
+            background_color: 色計算またはスタイル生成に使うQColor。
+        """
         # Simple threshold works well for UI chips/buttons
         return QtGui.QColor(255, 255, 255) if cls._relative_luminance(background_color) < 0.45 else QtGui.QColor(20, 20, 20)
     
     def __init__(self, parent=None):
-        """UI 状態を初期化してウィジェットを構築します。"""
+        """UI 状態を初期化してウィジェットを構築します。
+
+        Args:
+            parent: 親ウィジェット。Noneは親を指定しない。
+        """
         super(ControllerShapeManagerUI, self).__init__(parent)
         
         # 現在選択されているシェイプの情報
@@ -243,12 +283,24 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         }
 
     def _on_shape_button_clicked(self, section_key, func_name, params, label, section_color):
-        """形状ボタン押下時にパラメータ更新と再生成を実行します。"""
+        """形状ボタン押下時にパラメータ更新と再生成を実行します。
+
+        Args:
+            section_key: 形状カテゴリの識別子または表示順の番号。
+            func_name: 説明の取得または実行対象となる形状関数・関数名。
+            params: 形状関数へ渡す引数の辞書。
+            label: UIに表示するラベル。
+            section_color: 形状カテゴリに使う表示色。
+        """
         self.update_parameter_area(section_key, func_name, params, label, section_color)
         self.generate_shape()
 
     def _on_global_scale_changed(self, value):
-        """全体スケール変更時の自動再生成ハンドラ。"""
+        """全体スケール変更時の自動再生成ハンドラ。
+
+        Args:
+            value: 変換・設定する入力値。
+        """
         if getattr(self, "_suspend_auto_regenerate", False):
             return
         if not self.current_shape["func_name"]:
@@ -258,7 +310,12 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.generate_shape()
 
     def _on_parameters_changed(self, *args, **kwargs):
-        """個別パラメータ変更時の自動再生成ハンドラ。"""
+        """個別パラメータ変更時の自動再生成ハンドラ。
+
+        Args:
+            *args: 呼出し先またはUIシグナルから渡される位置引数。
+            **kwargs: 呼出し先へ渡すキーワード引数。
+        """
         if getattr(self, "_suspend_auto_regenerate", False):
             return
         if not self.current_shape["func_name"]:
@@ -296,7 +353,12 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         QtCore.QTimer.singleShot(0, _do_resize)
 
     def eventFilter(self, watched, event):
-        """Shapes タブのリサイズ時にボタン配置を再計算します。"""
+        """Shapes タブのリサイズ時にボタン配置を再計算します。
+
+        Args:
+            watched: イベントの監視対象オブジェクト。
+            event: Qtから渡されるイベント。
+        """
         if event.type() == QtCore.QEvent.Resize and watched in self._shape_viewports:
             self._reflow_shape_buttons()
         return super().eventFilter(watched, event)
@@ -304,6 +366,14 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
     def _calculate_shape_columns(self, viewport_width):
         # ボタン最小幅 + グリッド間隔から列数を推定
         # ここはUI都合の値なので、極端に小さくしない。
+        """表示幅に収まるボタン列数を1〜10の範囲で求める。幅未確定なら4列。
+
+        Args:
+            viewport_width: 表示領域の幅。単位はピクセル。
+
+        Returns:
+            int: 形状ボタンの列数。
+        """
         min_button_width = self.SHAPE_BUTTON_MIN_WIDTH
         spacing = 8
         if viewport_width <= 0:
@@ -339,11 +409,23 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
     
     @staticmethod
     def _is_float_value(value):
+        """値がfloatのインスタンスか判定する。
+
+        Args:
+            value: 変換・設定する入力値。
+
+        Returns:
+            bool: floatならTrue。
+        """
         return isinstance(value, float)
     
     @staticmethod
     def _build_shape_tooltip(func):
-        """形状ボタンのツールチップとして、形状関数の説明の1行目を返します。"""
+        """形状ボタンのツールチップとして、形状関数の説明の1行目を返します。
+
+        Args:
+            func: 説明の取得または実行対象となる形状関数・関数名。
+        """
         doc = inspect.getdoc(func)
         return doc.splitlines()[0] if doc else ""
 
@@ -441,7 +523,12 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         return palette
 
     def _get_section_style(self, section_key, section_index=0):
-        """セクション情報をテーマ色に合わせて生成"""
+        """セクション情報をテーマ色に合わせて生成
+
+        Args:
+            section_key: 形状カテゴリの識別子または表示順の番号。
+            section_index: 形状カテゴリの識別子または表示順の番号。
+        """
         if not hasattr(self, "_section_color_palette") or self._section_color_palette is None:
             self._section_color_palette = self._build_section_color_palette()
 
@@ -651,11 +738,21 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         QtCore.QTimer.singleShot(0, lambda: self._apply_shapes_min_height(shapes_group, rows=2))
 
     def resizeEvent(self, event):
+        """Qtのリサイズ処理後に形状ボタンの配置を更新する。
+
+        Args:
+            event: Qtから渡されるイベント。
+        """
         super().resizeEvent(event)
         self._reflow_shape_buttons()
 
     def _apply_shapes_min_height(self, shapes_group, rows=2):
-        """Shapesエリアの最小高さをボタン指定行数ぶん確保する（高さは可変）。"""
+        """Shapesエリアの最小高さをボタン指定行数ぶん確保する（高さは可変）。
+
+        Args:
+            shapes_group: 最小高さを設定する形状ボタンのグループ。
+            rows: 表示領域に確保する行数。
+        """
         try:
             tab_bar_h = self.shape_tab_widget.tabBar().sizeHint().height()
             button_h = 36
@@ -680,7 +777,15 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.param_widgets.clear()
     
     def build_param_row(self, param_name, default_value, description, min_val, max_val):
-        """パラメータ行を構築"""
+        """パラメータ行を構築
+
+        Args:
+            param_name: 編集する形状関数の引数名。
+            default_value: UIまたは設定の初期値。
+            description: UIに表示する説明文。
+            min_val: 数値入力で許可する下限または上限。
+            max_val: 数値入力で許可する下限または上限。
+        """
         row_widget = QtWidgets.QWidget()
         row_layout = QtWidgets.QGridLayout(row_widget)
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -773,7 +878,7 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
     
     def update_parameter_area(self, section_key, func_name, params, label, section_color):
         """パラメータエリアを更新
-        
+
         Args:
             section_key: セクション名
             func_name: 関数名
@@ -860,7 +965,11 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self._ensure_parameters_visible()
     
     def generate_shape(self, checked=False):
-        """現在選択されているシェイプを生成"""
+        """現在選択されているシェイプを生成
+
+        Args:
+            checked: ボタンやアクションから渡されるチェック状態。
+        """
         if not self.current_shape["func_name"]:
             cmds.warning("No shape selected")
             return

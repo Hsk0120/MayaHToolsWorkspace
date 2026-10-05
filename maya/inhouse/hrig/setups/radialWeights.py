@@ -125,7 +125,7 @@ class RadialWeights:
         for i, axis in enumerate(("X", "Y")):
             power.plug("input1" + axis).set(values[i])
             limits.plug("outputR").connectTo(power.plug("input2" + axis))
-            power.plug("output" + axis).connectTo(total.plug("input1D[{}]".format(i)))
+            power.plug("output" + axis).connectTo(total.plug("input1D")[i])
             power.plug("output" + axis).connectTo(normalized.plug("input1" + axis))
             total.plug("output1D").connectTo(normalized.plug("input2" + axis))
             normalized.plug("output" + axis).connectTo(blended.plug("input1" + axis))

@@ -134,8 +134,8 @@ class SecondaryLayer:
             source.plug("rotateOrder").connectTo(base.plug("inputRotateOrder"))
             pose = self._node(owner, "composeMatrix", "pose{}".format(index))
             combine = self._node(owner, "multMatrix", "combine{}".format(index))
-            pose.plug("outputMatrix").connectTo(combine.plug("matrixIn[0]"))
-            base.plug("outputMatrix").connectTo(combine.plug("matrixIn[1]"))
+            pose.plug("outputMatrix").connectTo(combine.plug("matrixIn")[0])
+            base.plug("outputMatrix").connectTo(combine.plug("matrixIn")[1])
             decompose = self._node(owner, "decomposeMatrix", "rotation{}".format(index))
             combine.plug("matrixSum").connectTo(decompose.plug("inputMatrix"))
             source.plug("rotateOrder").connectTo(decompose.plug("inputRotateOrder"))
@@ -146,18 +146,18 @@ class SecondaryLayer:
                 ("blends", blend),
                 ("poses", pose),
             ):
-                node.plug("message").connectTo(group.plug("{}[{}]".format(attr, index)))
+                node.plug("message").connectTo(group.plug(attr)[index])
             for axis_index, axis in enumerate("XYZ"):
                 curve = self._node(owner, "animCurveTA", "cache{}_{}".format(index, axis))
                 hlib.getPlug("time1.outTime").connectTo(curve.plug("input"))
                 curve.plug("message").connectTo(
-                    group.plug("curves[{}]".format(index * 3 + axis_index))
+                    group.plug("curves")[index * 3 + axis_index]
                 )
             target_parent = target
         for attr in ("secondaryGroups", "hrigOwned"):
             if not root.hasAttr(attr):
                 root.addAttr(longName=attr, attributeType="message", multi=True)
-        group.plug("message").connectTo(root.plug("secondaryGroups[{}]".format(driver_index)))
+        group.plug("message").connectTo(root.plug("secondaryGroups")[driver_index])
         for node in (group, owner):
             root.plug("hrigOwned").appendMessage(node)
         for kind in ("spring", "pose"):
@@ -281,12 +281,12 @@ class SecondaryLayer:
         owner = group.plug("graph").sourceWithConversion().node()
         for index in range(count):
             weight = self._node(owner, "multDoubleLinear", "poseWeight{}".format(index))
-            graph.container.plug("outputs[{}]".format(index)).connectTo(weight.plug("input1"))
+            graph.container.plug("outputs")[index].connectTo(weight.plug("input1"))
             group.plug("poseIntensity").connectTo(weight.plug("input2"))
             convert = self._node(owner, "unitConversion", "poseRadians{}".format(index))
             weight.plug("output").connectTo(convert.plug("input"))
             convert.plug("conversionFactor").set(math.pi / 180)
-            convert.plug("message").connectTo(group.plug("poseWeights[{}]".format(index)))
+            convert.plug("message").connectTo(group.plug("poseWeights")[index])
         self.update()
         return graph
 

@@ -18,18 +18,33 @@ class ChannelBox:
                  "output": ("outputObjectList", "selectedOutputAttributes")}
 
     def __init__(self, control=None):
-        """既存UIを参照する。control省略時はMaya標準Channel Box。GUIなしはRuntimeError。"""
+        """既存のChannel Boxを参照する。
+
+        Args:
+            control (str | None): UI名。省略時はMaya標準Channel Box。
+
+        Raises:
+            RuntimeError: GUIを利用できない場合。
+        """
         if cmds.about(batch=True):
             raise RuntimeError("Channel Box requires Maya GUI")
         self._name = control or mel.eval('global string $gChannelBoxName; $gChannelBoxName;')
         self.name()
 
     def exists(self):
-        """bool: 保持したUIが存在するか。"""
+        """保持したUIが存在するか。
+
+        Returns:
+            bool: 保持したUIが存在するか。
+        """
         return bool(self._name and cmds.channelBox(self._name, exists=True))
 
     def name(self):
-        """str: UI名。削除済みの場合はRuntimeError。"""
+        """UI名。削除済みの場合はRuntimeError。
+
+        Returns:
+            str: UI名。削除済みの場合はRuntimeError。
+        """
         if not self.exists():
             raise RuntimeError(f"Channel Box is unavailable: {self._name}")
         return self._name
@@ -98,7 +113,11 @@ class ChannelBox:
         cmds.channelBox(self.name(), edit=True, select="")
 
     def _section_names(self, section):
-        """sectionを検証する。未対応の名前はValueError。"""
+        """sectionを検証する。未対応の名前はValueError。
+
+        Args:
+            section: UIの表示設定または操作対象の項目。
+        """
         if section == "all":
             return tuple(self._sections)
         if section not in self._sections:

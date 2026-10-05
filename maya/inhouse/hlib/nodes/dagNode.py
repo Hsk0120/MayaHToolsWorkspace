@@ -26,6 +26,103 @@ class DagNode(Node):
         """
         return self._current_dag_path()
 
+    def instances(self, noSelf=False):
+        """同じDAGノードの各インスタンスを取得する。
+
+        Args:
+            noSelf (bool): 現在のパスを除外する。
+        Returns:
+            list[DagNode]: 間接インスタンスを含むパスごとのノード参照。
+        """
+        original = self.mpath().fullPathName()
+        return [self if path.fullPathName() == original else Node(om2.MDagPath(path))
+                for path in om2.MDagPath.getAllPathsTo(self.mnode())
+                if not noSelf or path.fullPathName() != original]
+
+    def parents(self, indirect=False):
+        """直接の親をインスタンスごとに取得する。
+
+        Args:
+            indirect (bool): 間接インスタンスを含む全ての親パスを返す。
+        Returns:
+            list[DagNode]: 直接の親。ルートでは空リスト。
+        """
+        parent = self.parent()
+        if parent is None:
+            return []
+        if indirect:
+            return [instance.parent() for instance in self.instances() if instance.parent() is not None]
+        fn = self.dagFn()
+        return [parent if fn.parent(index) == parent.mnode()
+                else Node(om2.MDagPath.getAPathTo(fn.parent(index)))
+                for index in range(fn.parentCount())
+                if not fn.parent(index).hasFn(om2.MFn.kWorld)]
+
+    def iterBreadthFirst(self, shapes=False, intermediates=False, underWorld=False):
+        """自身からDAGを幅優先で反復する。
+
+        Args:
+            shapes (bool): Shapeを含める。
+            intermediates (bool): 中間オブジェクトを含める。
+            underWorld (bool): Shape下のアンダーワールドを探索する。
+        Yields:
+            DagNode: インスタンスのパスを保持したノード。
+        """
+        from collections import deque
+        queue = deque([self])
+        while queue:
+            node = queue.popleft()
+            is_shape = node.mnode().hasFn(om2.MFn.kShape)
+            if shapes or not is_shape:
+                yield node
+            queue.extend(node._traversal_children(shapes, intermediates, underWorld))
+
+    def iterDepthFirst(self, shapes=False, intermediates=False, underWorld=False):
+        """自身からDAGを深さ優先で反復する。
+
+        Args:
+            shapes (bool): Shapeを含める。
+            intermediates (bool): 中間オブジェクトを含める。
+            underWorld (bool): アンダーワールドを探索する。
+        Yields:
+            DagNode: パスを保持したノード。
+        """
+        stack = [self]
+        while stack:
+            node = stack.pop()
+            if shapes or not node.mnode().hasFn(om2.MFn.kShape):
+                yield node
+            stack.extend(reversed(node._traversal_children(shapes, intermediates, underWorld)))
+
+    def _traversal_children(self, shapes, intermediates, under_world):
+        """指定条件で探索を続ける子パスを取得する。
+
+        Args:
+            shapes: TrueはShapeも取得対象へ含める。
+            intermediates: Trueは中間オブジェクトも含める。
+            under_world: TrueはShape下のアンダーワールドも探索する。
+        """
+        result = []
+        is_shape = self.mnode().hasFn(om2.MFn.kShape)
+        if under_world and (is_shape or not shapes):
+            shape = self if is_shape else self.shape()
+            if shape is not None:
+                iterator = om2.MItDag()
+                iterator.reset(shape.mpath())
+                iterator.traverseUnderWorld = True
+                iterator.next()
+                if not iterator.isDone():
+                    root = iterator.getPath()
+                    # アンダーワールドの非表示ルート自体は公開せず、その子を探索する。
+                    if not om2.MFnDagNode(root).inModel:
+                        for index in range(root.childCount()):
+                            path = om2.MDagPath(root)
+                            path.push(root.child(index))
+                            if intermediates or not om2.MFnDagNode(path).isIntermediateObject:
+                                result.append(Node(path))
+        result.extend(self.children(shapes=shapes, intermediates=intermediates))
+        return result
+
     def dagFn(self):
         """保持するDAGパスに対応するfunction setを取得する。
 
@@ -72,7 +169,11 @@ class DagNode(Node):
         return Node(path)
 
     def fullPath(self):
-        """str: 保持するDAGインスタンスの完全パス。"""
+        """保持するDAGインスタンスの完全パス。
+
+        Returns:
+            str: 保持するDAGインスタンスの完全パス。
+        """
         return self.mpath().fullPathName()
 
     def children(self, shapes=False, intermediates=False):
@@ -98,23 +199,43 @@ class DagNode(Node):
         return self if self.mnode().hasFn(om2.MFn.kShape) else None
 
     def partialPath(self):
-        """str: 保持するDAGインスタンスの最短一意パス。"""
+        """保持するDAGインスタンスの最短一意パス。
+
+        Returns:
+            str: 保持するDAGインスタンスの最短一意パス。
+        """
         return self.mpath().partialPathName()
 
     def isVisible(self):
-        """bool: 親階層を含むDAGの表示状態。"""
+        """親階層を含むDAGの表示状態。
+
+        Returns:
+            bool: 親階層を含むDAGの表示状態。
+        """
         return self.mpath().isVisible()
 
     def show(self):
-        """DagNode: visibilityを有効にして自身を返す。"""
+        """visibilityを有効にして自身を返す。
+
+        Returns:
+            DagNode: visibilityを有効にして自身を返す。
+        """
         return self.setVisibility(True)
 
     def hide(self):
-        """DagNode: visibilityを無効にして自身を返す。"""
+        """visibilityを無効にして自身を返す。
+
+        Returns:
+            DagNode: visibilityを無効にして自身を返す。
+        """
         return self.setVisibility(False)
 
     def getVisibility(self):
-        """bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。"""
+        """自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。
+
+        Returns:
+            bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。
+        """
         return bool(self.plug("visibility").get())
 
     @fast_edit
@@ -177,7 +298,11 @@ class DagNode(Node):
         return self
 
     def getOutlinerColor(self):
-        """Color: このノードのOutliner色。無効時はdisabledモード。"""
+        """このノードのOutliner色。無効時はdisabledモード。
+
+        Returns:
+            Color: このノードのOutliner色。無効時はdisabledモード。
+        """
         from ..ui.color import Color
         if not self.plug("useOutlinerColor").get():
             return Color.disabled()
@@ -238,7 +363,12 @@ class DagNode(Node):
 
     @staticmethod
     def _display_color_updates(value, outliner=False):
-        """正規化済みColorから対象アトリビュートと値の更新計画を作る。"""
+        """正規化済みColorから対象アトリビュートと値の更新計画を作る。
+
+        Args:
+            value: 変換・設定する入力値。
+            outliner: TrueはOutliner色、FalseはDrawing Overridesを扱う。
+        """
         if outliner:
             updates = [] if value.mode == "disabled" else [("outlinerColor", value.rgb)]
             return updates + [("useOutlinerColor", value.mode != "disabled")]
@@ -250,7 +380,11 @@ class DagNode(Node):
         return updates + [("overrideEnabled", value.mode != "disabled")]
 
     def _prepare_display_color(self, updates):
-        """全アトリビュートの存在・書込み可否を検証してPlugと値の計画を返す。"""
+        """全アトリビュートの存在・書込み可否を検証してPlugと値の計画を返す。
+
+        Args:
+            updates: アトリビュートと設定値の更新計画。
+        """
         if not self.isValid():
             raise RuntimeError("Cannot color an invalid node")
         if om2.MFnDependencyNode(self.mnode()).isLocked:
@@ -264,12 +398,20 @@ class DagNode(Node):
 
     @staticmethod
     def _apply_display_color(plugs):
-        """検証済みの計画を現在のfastモードで適用する。実行時失敗は伝播する。"""
+        """検証済みの計画を現在のfastモードで適用する。実行時失敗は伝播する。
+
+        Args:
+            plugs: 照会または更新するアトリビュート参照。
+        """
         for plug, value in plugs:
             plug.set(value)
 
     def _set_display_color(self, updates):
-        """単体の表示色を全アトリビュート検証後に反映する。"""
+        """単体の表示色を全アトリビュート検証後に反映する。
+
+        Args:
+            updates: アトリビュートと設定値の更新計画。
+        """
         self._apply_display_color(self._prepare_display_color(updates))
 
 
@@ -281,6 +423,8 @@ class DagNode(Node):
         'dagFn',
         'parentPath',
         'parent',
+        'parents', 'instances',
+        'iterBreadthFirst', 'iterDepthFirst',
         'children', 'shape',
         'fullPath', 'partialPath', 'isVisible',
         'getVisibility',
@@ -302,7 +446,11 @@ class DagNodes(Nodes):
     item_class = DagNode
 
     def getOverrideColor(self):
-        """list[Color]: 各対象のDrawing Overrides色。無効状態も保持順で返す。"""
+        """各対象のDrawing Overrides色。無効状態も保持順で返す。
+
+        Returns:
+            list[Color]: 各対象のDrawing Overrides色。無効状態も保持順で返す。
+        """
         return [node.getOverrideColor() for node in self]
 
     @fast_edit
@@ -324,7 +472,11 @@ class DagNodes(Nodes):
         return self._set_colors([value] * len(self), outliner=False)
 
     def getOutlinerColor(self):
-        """list[Color]: 各対象のOutliner色。無効状態も保持順で返す。"""
+        """各対象のOutliner色。無効状態も保持順で返す。
+
+        Returns:
+            list[Color]: 各対象のOutliner色。無効状態も保持順で返す。
+        """
         return [node.getOutlinerColor() for node in self]
 
     @fast_edit
@@ -374,7 +526,12 @@ class DagNodes(Nodes):
         return self._set_colors([Color.coerce(color) for color in colors], outliner=True)
 
     def _set_colors(self, colors, *, outliner):
-        """全色・対象を検証し、共有アトリビュートの競合を除いて更新計画を実行する。"""
+        """全色・対象を検証し、共有アトリビュートの競合を除いて更新計画を実行する。
+
+        Args:
+            colors: 適用する色の成分または対象ごとの色の列。
+            outliner: TrueはOutliner色、FalseはDrawing Overridesを扱う。
+        """
         if len(colors) != len(self):
             raise ValueError("Color count must match node count")
         plans, seen = [], {}

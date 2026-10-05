@@ -6,7 +6,11 @@ from hlib.nodes import Node
 
 
 def _safe_name(base):
-    """衝突しないノード名を返します。"""
+    """衝突しないノード名を返します。
+
+    Args:
+        base: 重複回避や連番付加に使う元の名前。
+    """
     if not cmds.objExists(base):
         return base
     i = 1
@@ -15,14 +19,22 @@ def _safe_name(base):
     return f"{base}{i}"
 
 def _incoming_plugs(dest_plug):
-    """指定プラグへの入力接続プラグ一覧を取得します。"""
+    """指定プラグへの入力接続プラグ一覧を取得します。
+
+    Args:
+        dest_plug: 照会または更新するアトリビュート参照。
+    """
     try:
         return cmds.listConnections(dest_plug, s=True, d=False, p=True) or []
     except Exception:
         return []
 
 def _is_animcurve(node):
-    """ノードが animCurve 系か判定します。"""
+    """ノードが animCurve 系か判定します。
+
+    Args:
+        node: 処理対象のノード参照。
+    """
     try:
         nt = Node(node).type()
     except Exception:
@@ -30,7 +42,11 @@ def _is_animcurve(node):
     return bool(nt and nt.startswith("animCurve"))
 
 def _find_direct_animcurve(dest_plug):
-    """dest_plug の入力に直結している animCurve ノードを返す（なければ None）"""
+    """dest_plug の入力に直結している animCurve ノードを返す（なければ None）
+
+    Args:
+        dest_plug: 照会または更新するアトリビュート参照。
+    """
     for src_plug in _incoming_plugs(dest_plug):
         src_node = src_plug.split(".", 1)[0]
         if _is_animcurve(src_node):

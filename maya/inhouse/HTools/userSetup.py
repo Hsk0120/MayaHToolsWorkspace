@@ -48,7 +48,12 @@ def _inhouse_get_trace_session():
 
 
 def _inhouse_trace_event(phase, detail=""):
-    """trace 有効時に userSetup イベントを標準出力とファイルへ記録します。"""
+    """trace 有効時に userSetup イベントを標準出力とファイルへ記録します。
+
+    Args:
+        phase: 起動トレースに記録する処理段階または詳細。
+        detail: 起動トレースに記録する処理段階または詳細。
+    """
     if os.environ.get("MAYA_USERSETUP_TRACE") != "1":
         return
 
@@ -67,7 +72,7 @@ def _inhouse_trace_event(phase, detail=""):
 
 def _inhouse_get_maya_main_window():
     """Get Maya main window as a QWidget.
-    
+
     Returns:
         QtWidgets.QWidget: Maya main window widget.
     """
@@ -103,7 +108,12 @@ def _inhouse_get_searchable_menu_class():
 
 
 def _inhouse_ensure_hotbox_menu_proxy(menu_name, menu_label):
-    """Hotbox(MEL)照会用の不可視プロキシ menu を保証する。"""
+    """Hotbox(MEL)照会用の不可視プロキシ menu を保証する。
+
+    Args:
+        menu_name: MayaメニューのUI名。
+        menu_label: UIに表示するラベル。
+    """
     try:
         if cmds.menu(menu_name, exists=True):
             try:
@@ -132,7 +142,11 @@ def _inhouse_ensure_hotbox_menu_proxy(menu_name, menu_label):
 
 
 def _inhouse_move_menu_before_help(menu_name):
-    """指定メニューを Help メニュー直前へ移動します。"""
+    """指定メニューを Help メニュー直前へ移動します。
+
+    Args:
+        menu_name: MayaメニューのUI名。
+    """
     maya_window = _inhouse_get_maya_main_window()
     menu_bar = maya_window.findChild(QtWidgets.QMenuBar)
     if menu_bar is None:
@@ -354,7 +368,12 @@ def _inhouse_install_optional_external_tools():
 
 
 def _inhouse_eval_deferred_low_priority(callback, trace_detail):
-    """lowestPriority の evalDeferred でコールバックを登録します。"""
+    """lowestPriority の evalDeferred でコールバックを登録します。
+
+    Args:
+        callback: 遅延実行またはイベント処理で呼び出す関数。
+        trace_detail: 起動トレースに記録する処理段階または詳細。
+    """
     _inhouse_trace_event("register", f"evalDeferred(lowestPriority):{trace_detail}")
     try:
         cmds.evalDeferred(callback, lowestPriority=True)

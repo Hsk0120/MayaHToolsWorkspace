@@ -35,7 +35,7 @@ class MatrixPlug(Plug):
 
         Args:
             safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
-            value (Matrix | Iterable[float]): 設定する4x4行列。
+            value (Matrix | Transformation | Iterable[float]): 設定する4x4行列または変換情報。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:

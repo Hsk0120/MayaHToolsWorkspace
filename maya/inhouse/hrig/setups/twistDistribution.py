@@ -72,11 +72,11 @@ class TwistDistribution:
         ] or []
         if [node.uuid() for node in parents] == [start.uuid()]:
             # 隣接骨ならワールド行列を介さず、OPMを含む実ローカル行列を使う。
-            end.plug("matrix").connectTo(relative.plug("matrixIn[0]"))
-            end.plug("offsetParentMatrix").connectTo(relative.plug("matrixIn[1]"))
+            end.plug("matrix").connectTo(relative.plug("matrixIn")[0])
+            end.plug("offsetParentMatrix").connectTo(relative.plug("matrixIn")[1])
         else:
-            end.plug("worldMatrix[0]").connectTo(relative.plug("matrixIn[0]"))
-            start.plug("worldInverseMatrix[0]").connectTo(relative.plug("matrixIn[1]"))
+            end.plug("worldMatrix")[0].connectTo(relative.plug("matrixIn")[0])
+            start.plug("worldInverseMatrix")[0].connectTo(relative.plug("matrixIn")[1])
         decompose = graph._node("decomposeMatrix", "decompose")
         relative.plug("matrixSum").connectTo(decompose.plug("inputMatrix"))
         decompose.plug("message").connectTo(owner.plug("relativeDecompose"))
@@ -127,8 +127,8 @@ class TwistDistribution:
         if not 0 <= fraction <= 1:
             raise ValueError("fraction must be between zero and one")
         blend = self._node("blendMatrix", name + "_rotation")
-        self.container.plug("twistMatrix").connectTo(blend.plug("target[0].targetMatrix"))
-        blend.plug("target[0].weight").set(fraction)
+        self.container.plug("twistMatrix").connectTo(blend.plug("target")[0]["targetMatrix"])
+        blend.plug("target")[0]["weight"].set(fraction)
         # Maya 2022はbool、2025以降は連続ウェイトで成分を選択する。
         attrs = (
             ("translateWeight", "scaleWeight", "shearWeight")
@@ -136,7 +136,7 @@ class TwistDistribution:
             else ("useTranslate", "useScale", "useShear")
         )
         for attr in attrs:
-            blend.plug("target[0]." + attr).set(0)
+            blend.plug("target")[0][attr].set(0)
         position = self._node("multiplyDivide", name + "_position")
         decompose = self.container.plug("relativeDecompose").sourceWithConversion().node()
         decompose.plug("outputTranslate").connectTo(position.plug("input1"))
@@ -144,6 +144,6 @@ class TwistDistribution:
         translate = self._node("composeMatrix", name + "_translate")
         position.plug("output").connectTo(translate.plug("inputTranslate"))
         result = self._node("multMatrix", name + "_matrix")
-        blend.plug("outputMatrix").connectTo(result.plug("matrixIn[0]"))
-        translate.plug("outputMatrix").connectTo(result.plug("matrixIn[1]"))
+        blend.plug("outputMatrix").connectTo(result.plug("matrixIn")[0])
+        translate.plug("outputMatrix").connectTo(result.plug("matrixIn")[1])
         return result.plug("matrixSum")

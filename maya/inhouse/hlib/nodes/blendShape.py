@@ -92,4 +92,4 @@ class BlendShape(Node):
             self.name(), edit=True,
             target=(base_name, weight_index, target_name, full_weight),
         )
-        return self.plug("weight").element(weight_index)
+        return self.plug("weight")[weight_index]

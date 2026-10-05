@@ -39,7 +39,11 @@ class Component(Object):
         self._validate()
 
     def __eq__(self, other):
-        """同じシェイプのインスタンス・種類・番号を指すか比較する。"""
+        """同じシェイプのインスタンス・種類・番号を指すか比較する。
+
+        Args:
+            other: 比較・演算の相手。
+        """
         if not isinstance(other, Component):
             return NotImplemented
         return (self._shape == other._shape and self.component_type == other.component_type
@@ -158,11 +162,22 @@ class Component(Object):
         return items[0]
 
     def _get_coordinate(self, axis, **space):
-        """指定軸の現在座標を返す。axisは派生クラスが検証済みの整数。"""
+        """指定軸の現在座標を返す。axisは派生クラスが検証済みの整数。
+
+        Args:
+            axis: 座標成分の番号。0=X、1=Y、2=Z。
+            **space: 座標空間の指定。ws=Trueでワールド空間。
+        """
         return self.getPosition(**space)[axis]
 
     def _set_coordinate(self, axis, value, **space):
-        """指定軸だけを置換し、派生クラスの座標更新へ委譲する。"""
+        """指定軸だけを置換し、派生クラスの座標更新へ委譲する。
+
+        Args:
+            axis: 座標成分の番号。0=X、1=Y、2=Z。
+            value: 指定軸へ設定する座標値。
+            **space: 座標空間の指定。ws=Trueでワールド空間。
+        """
         position = list(self.getPosition(**space))
         position[axis] = value
         return self.setPosition(position, **space)
@@ -404,11 +419,22 @@ class Components:
         return rows
 
     def _get_coordinate(self, axis, **space):
-        """保持順の指定軸の値を返す。axisは派生クラスが選択する。"""
+        """保持順の指定軸の値を返す。axisは派生クラスが選択する。
+
+        Args:
+            axis: 座標成分の番号。0=X、1=Y、2=Z。
+            **space: 座標空間の指定。ws=Trueでワールド空間。
+        """
         return [point[axis] for point in self.getPosition(**space)]
 
     def _set_coordinate(self, axis, value, **space):
-        """全要素の指定軸を置換し、座標列の検証・更新へ委譲する。"""
+        """全要素の指定軸を置換し、座標列の検証・更新へ委譲する。
+
+        Args:
+            axis: 座標成分の番号。0=X、1=Y、2=Z。
+            value: 指定軸へ設定する座標値。
+            **space: 座標空間の指定。ws=Trueでワールド空間。
+        """
         return self.setPositions(self._axis_rows(self.getPosition(**space), axis, value), **space)
 
     def _axis_rows(self, positions, axis, value):

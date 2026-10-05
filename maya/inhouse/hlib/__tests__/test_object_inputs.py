@@ -133,7 +133,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         from hlib.object import Object as _InputObject
         self.network.addAttr("values", attributeType="double", multi=True)
         array_plug = self.network.plug("values")
-        array_plug.element(0, create=True).set(1.0)
+        array_plug[0].set(1.0)
         self.assertIsInstance(array_plug, ArrayPlug)
         self.assertEqual(_InputObject._input_name(array_plug), self.network.name() + ".values")
         self.assertEqual(_InputObject._input_names(array_plug), [self.network.name() + ".values"])

@@ -102,7 +102,15 @@ def sampleExtremePoints(points, direction_count=64):
 
 
 def _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180):
-    """主軸固定で YZ 面回転を走査し断面面積最小の副軸を選びます。"""
+    """主軸固定で YZ 面回転を走査し断面面積最小の副軸を選びます。
+
+    Args:
+        points: 計算対象の座標列。
+        axis_x: 対象座標系の各基底ベクトル。
+        axis_y: 対象座標系の各基底ベクトル。
+        axis_z: 対象座標系の各基底ベクトル。
+        steps: 角度探索を分割する試行数。
+    """
     best_axis_y = axis_y
     best_axis_z = axis_z
     best_area = float("inf")
@@ -146,7 +154,14 @@ def _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180):
 
 
 def _project_extents(points, axis_x, axis_y, axis_z):
-    """指定基底へ投影した各軸の最小最大値を返します。"""
+    """指定基底へ投影した各軸の最小最大値を返します。
+
+    Args:
+        points: 計算対象の座標列。
+        axis_x: 対象座標系の各基底ベクトル。
+        axis_y: 対象座標系の各基底ベクトル。
+        axis_z: 対象座標系の各基底ベクトル。
+    """
     min_x = float("inf")
     min_y = float("inf")
     min_z = float("inf")
@@ -171,7 +186,14 @@ def _project_extents(points, axis_x, axis_y, axis_z):
 
 
 def _obb_volume(points, axis_x, axis_y, axis_z):
-    """基底に対する OBB 体積を計算します。"""
+    """基底に対する OBB 体積を計算します。
+
+    Args:
+        points: 計算対象の座標列。
+        axis_x: 対象座標系の各基底ベクトル。
+        axis_y: 対象座標系の各基底ベクトル。
+        axis_z: 対象座標系の各基底ベクトル。
+    """
     min_x, max_x, min_y, max_y, min_z, max_z = _project_extents(points, axis_x, axis_y, axis_z)
     extent_x = max(max_x - min_x, 1e-6)
     extent_y = max(max_y - min_y, 1e-6)
@@ -180,7 +202,15 @@ def _obb_volume(points, axis_x, axis_y, axis_z):
 
 
 def _rotate_basis(axis_x, axis_y, axis_z, rot_axis, angle_radians):
-    """基底を任意軸回転し、再直交化した基底を返します。"""
+    """基底を任意軸回転し、再直交化した基底を返します。
+
+    Args:
+        axis_x: 対象座標系の各基底ベクトル。
+        axis_y: 対象座標系の各基底ベクトル。
+        axis_z: 対象座標系の各基底ベクトル。
+        rot_axis: 基底を回転させる軸ベクトル。
+        angle_radians: 回転・配置の角度。radians指定はラジアン。
+    """
     quat = om.MQuaternion(angle_radians, rot_axis)
     new_x = _safe_normalize(axis_x.rotateBy(quat), axis_x)
     new_y = _safe_normalize(axis_y.rotateBy(quat), axis_y)
@@ -191,7 +221,17 @@ def _rotate_basis(axis_x, axis_y, axis_z, rot_axis, angle_radians):
 
 
 def _refine_axes_by_volume_local_search(points, axis_x, axis_y, axis_z, initial_deg=10.0, min_deg=0.05, decay=0.5):
-    """局所探索で OBB 体積が小さくなる軸向きを探索します。"""
+    """局所探索で OBB 体積が小さくなる軸向きを探索します。
+
+    Args:
+        points: 計算対象の座標列。
+        axis_x: 対象座標系の各基底ベクトル。
+        axis_y: 対象座標系の各基底ベクトル。
+        axis_z: 対象座標系の各基底ベクトル。
+        initial_deg: 局所探索の初期角度刻みまたは最小刻み。単位は度。
+        min_deg: 局所探索の初期角度刻みまたは最小刻み。単位は度。
+        decay: 反復ごとに探索刻みを縮小する係数。
+    """
     current_x = axis_x
     current_y = axis_y
     current_z = axis_z
@@ -225,7 +265,11 @@ def _refine_axes_by_volume_local_search(points, axis_x, axis_y, axis_z, initial_
 
 
 def _covariance_matrix(points):
-    """ポイント群の共分散行列を計算します。"""
+    """ポイント群の共分散行列を計算します。
+
+    Args:
+        points: 計算対象の座標列。
+    """
     count = float(len(points))
     centroid = om.MVector()
     for point in points:
@@ -263,7 +307,13 @@ def _covariance_matrix(points):
 
 
 def _jacobi_eigen_decomposition_3x3(matrix, max_iter=32, epsilon=1e-10):
-    """3x3 対称行列の固有値/固有ベクトルを Jacobi 法で求めます。"""
+    """3x3 対称行列の固有値/固有ベクトルを Jacobi 法で求めます。
+
+    Args:
+        matrix: 変換または数値計算に使う行列。
+        max_iter: 反復計算の最大回数。
+        epsilon: ゼロ判定・収束判定の許容誤差。
+    """
     a = [row[:] for row in matrix]
     v = [[1.0, 0.0, 0.0],
          [0.0, 1.0, 0.0],

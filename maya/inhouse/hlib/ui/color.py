@@ -78,21 +78,33 @@ class Color:
             self.rgb = rgb
 
     def __eq__(self, other):
-        """形式と指定値を比較する。画面上の見た目や近似一致は比較しない。"""
+        """形式と指定値を比較する。画面上の見た目や近似一致は比較しない。
+
+        Args:
+            other: 比較・演算の相手。
+        """
         if not isinstance(other, Color):
             return NotImplemented
         return self.mode == other.mode and (
             self.index == other.index if self.mode == "index" else self.rgb == other.rgb)
 
     def __repr__(self):
-        """str: 指定形式と値を表示する。"""
+        """指定形式と値を表示する。
+
+        Returns:
+            str: 指定形式と値を表示する。
+        """
         if self.mode == "disabled":
             return "Color.disabled()"
         return f"Color({self.mode}={getattr(self, self.mode)!r})"
 
     @classmethod
     def disabled(cls):
-        """Color: 無効状態を作成する。"""
+        """無効状態を作成する。
+
+        Returns:
+            Color: 無効状態を作成する。
+        """
         result = cls()
         result._mode, result._index, result._rgb = "disabled", None, None
         return result
@@ -173,7 +185,11 @@ class Color:
         return self
 
     def copy(self):
-        """Color: Mayaに照会せず、同じ保持値を持つ独立したコピーを返す。"""
+        """Mayaに照会せず、同じ保持値を持つ独立したコピーを返す。
+
+        Returns:
+            Color: Mayaに照会せず、同じ保持値を持つ独立したコピーを返す。
+        """
         result = object.__new__(type(self))
         result._palette, result._index, result._rgb, result._mode = self._palette, self.index, self.rgb, self.mode
         result._palette_source = self.paletteSource
@@ -181,14 +197,22 @@ class Color:
 
     @staticmethod
     def _validate_index(value):
-        """0～31の整数を検証する。boolや範囲外はValueError。"""
+        """0～31の整数を検証する。boolや範囲外はValueError。
+
+        Args:
+            value: 変換・設定する入力値。
+        """
         if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 31:
             raise ValueError("Color index must be an integer from 0 to 31")
         return value
 
     @staticmethod
     def _validate_rgb(value):
-        """有限なRGB三要素へ変換する。不正値はValueError。"""
+        """有限なRGB三要素へ変換する。不正値はValueError。
+
+        Args:
+            value: 変換・設定する入力値。
+        """
         try:
             if isinstance(value, (str, bytes)):
                 raise ValueError("RGB must be three numbers")
@@ -214,7 +238,12 @@ class Color:
 
     @staticmethod
     def _nearest(rgb, palette):
-        """RGBから通常色1～31の最近傍番号を求める。"""
+        """RGBから通常色1～31の最近傍番号を求める。
+
+        Args:
+            rgb: 適用する色の成分または対象ごとの色の列。
+            palette: UIの表示設定または操作対象の項目。
+        """
         return min(range(1, 32), key=lambda i: sum((a - b) ** 2 for a, b in zip(rgb, palette[i])))
 
 

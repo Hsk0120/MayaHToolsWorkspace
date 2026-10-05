@@ -24,7 +24,11 @@ _attempted = globals().get("_attempted", set())
 
 
 def status():
-    """dict: 拡張名ごとの状態と理由をコピーして返す。"""
+    """拡張名ごとの状態と理由をコピーして返す。
+
+    Returns:
+        dict: 拡張名ごとの状態と理由をコピーして返す。
+    """
     return {name: dict(state) for name, state in _states.items()}
 
 

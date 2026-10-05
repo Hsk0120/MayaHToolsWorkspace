@@ -75,7 +75,11 @@ class BlendColors(Node):
         return self
 
     def blenderPlug(self):
-        """Plug: 補間係数。0ならcolor2、1ならcolor1。"""
+        """補間係数。0ならcolor2、1ならcolor1。
+
+        Returns:
+            Plug: 補間係数。0ならcolor2、1ならcolor1。
+        """
         return self.plug("blender")
 
     def getBlender(self):
@@ -123,16 +127,28 @@ class BlendColors(Node):
         return self
 
     def outputPlug(self):
-        """CompoundPlug: RGB出力。別アトリビュートへの接続に使用する。"""
+        """RGB出力。別アトリビュートへの接続に使用する。
+
+        Returns:
+            CompoundPlug: RGB出力。別アトリビュートへの接続に使用する。
+        """
         return self.plug("output")
 
     def result(self):
-        """tuple[float, float, float]: 評価済みRGB値。"""
+        """評価済みRGB値。
+
+        Returns:
+            tuple[float, float, float]: 評価済みRGB値。
+        """
         return tuple(self.outputPlug().get())
 
     @staticmethod
     def _index(index):
-        """入力番号1または2を検証する。不正値はValueError。"""
+        """入力番号1または2を検証する。不正値はValueError。
+
+        Args:
+            index: 対象要素の番号または探索開始番号。
+        """
         if isinstance(index, bool) or not isinstance(index, int) or index not in (1, 2):
             raise ValueError("Color index must be 1 or 2")
         return index
