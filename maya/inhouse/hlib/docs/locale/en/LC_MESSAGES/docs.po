@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: hlib VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-05 22:29+0900\n"
+"POT-Creation-Date: 2026-10-05 23:21+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -60,6 +60,111 @@ msgstr "The description of Undo on this page assumes the normal mode (``fast=Fal
 
 msgid "``setInfinity(pre=\"cycle\")`` はpre側だけ変更し、post側を維持します。 両側を戻す場合は ``setInfinity(pre=\"constant\", post=\"constant\")`` を使います。 ``getInfinity()`` はOpenMaya経由で取得します。 ``setInfinity(pre=\"cycle\", fast=True)`` はUndo不要の直接更新です。 fast時は指定した両側のロック・入力接続を更新前に検証します。 キーや接線の編集は従来どおりMayaコマンドでUndoに対応します。"
 msgstr "``setInfinity(pre=\"cycle\")`` modifies only the pre side and keeps the post side unchanged. To revert both sides, use ``setInfinity(pre=\"constant\", post=\"constant\")``. ``getInfinity()`` is obtained via OpenMaya. ``setInfinity(pre=\"cycle\", fast=True)`` is a direct update that does not require Undo. During fast mode, it validates the lock and input connections on both specified sides before updating. Editing keys and tangents continues to work with Maya commands that support Undo as before."
+
+msgid "引数仕様"
+msgstr "Argument specification"
+
+msgid "接続と切断"
+msgstr "Connecting and Disconnecting"
+
+msgid "``connect`` は接続先から呼びます。接続元からは ``connectTo`` を使います。 ``force/f``、``lock/l``、``nextAvailable/na`` の長短名はORで評価します。"
+msgstr "``connect`` is called from the destination. ``connectTo`` is used from the source. The long and short names of ``force/f``, ``lock/l``, and ``nextAvailable/na`` are evaluated with OR logic."
+
+msgid "``force=True`` は一時的にロックを解除して接続します。 hlib拡張の ``unlock=False`` を併用するとロック解除を禁止できます。"
+msgstr "``force=True`` temporarily unlocks and connects. When used together with the ``unlock=False`` of the hlib extension, it can prevent unlocking."
+
+msgid "位置・回転・行列"
+msgstr "Position, rotation, matrix"
+
+msgid "空間は ``ws=True`` を基本表記とし、``worldSpace=True`` も使えます。 長短名の同時指定は拒否します。"
+msgstr "Namespaces use ``ws=True`` as the basic notation, and ``worldSpace=True`` is also acceptable. Simultaneous specification of long and short names is not allowed."
+
+msgid "``getTranslation`` / ``setTranslation`` の ``at`` は 0=親原点、1=translate、2=回転ピボット、3=スケールピボット、4以上=行列原点です。 既定値は2です。以前のhlibの行列原点指定は ``at=4`` へ移行してください。 ``setTranslation`` はtranslateだけを書き込み、ピボット自体は動かしません。"
+msgstr "The ``at`` of ``getTranslation`` / ``setTranslation`` is 0=parent origin, 1=translate, 2=rotation pivot, 3=scale pivot, 4 or more=matrix origin. The default value is 2. For the previous hlib matrix origin specification, please migrate to ``at=4``. ``setTranslation`` writes only the translate and does not move the pivot itself."
+
+msgid "``getQuaternion`` / ``setQuaternion`` は ``ra`` (rotateAxis)、``r`` (rotate)、 ``jo`` (jointOrient)で合成対象を選びます。既定は ``ra=False, r=True, jo=True`` です。 ワールド指定などで未対応の組合せはValueErrorになります。"
+msgstr "``getQuaternion`` / ``setQuaternion`` selects the synthesis target with ``ra`` (rotateAxis), ``r`` (rotate), and ``jo`` (jointOrient). The default is ``ra=False, r=True, jo=True``. Unsupported combinations, such as those involving world-space specifications, result in a ValueError."
+
+msgid "``getScaling`` / ``setScaling``、``getShearing`` / ``setShearing`` は ローカル指定でscale/shearチャンネルそのものを扱い、jointのinverseScaleを含めません。 ワールド指定はOpenMayaの分解規約を使います。負スケールの符号は行列から一意に 決まらないため、ワールドの指定値と取得値の符号が一致しない場合があります。 以前の ``getScale/setScale/getShear/setShear`` は廃止しました。"
+msgstr "``getScaling`` / ``setScaling``, ``getShearing`` / ``setShearing`` handle the scale/shear channels themselves with local specification, and do not include the joint's inverseScale. World specification uses OpenMaya's decomposition convention. Since the sign of negative scaling cannot be uniquely determined from the matrix, the signs of the specified values and retrieved values for world specification may not match. Previous ``getScale/setScale/getShear/setShear`` has been deprecated."
+
+msgid "``get=True`` は書き込まず設定すべき値を返します。 位置・回転・スケール・シアーは数値リスト、``setMatrix`` は ``translate/rotate/scale/shear`` をキーとする辞書を返します。 後者の辞書にはhlibの値型を格納します。 コレクションの ``get=True`` も各対象の計算結果のリストを返します。"
+msgstr "``get=True`` returns values that should be set, not written. Position, rotation, scale, and shear are returned as numeric lists, and ``setMatrix`` returns a dictionary with ``translate/rotate/scale/shear`` as keys. The dictionary stores hlib value types. ``get=True`` of the collection also returns a list of calculation results for each target."
+
+msgid "単位とsafe"
+msgstr "Units and safe"
+
+msgid "Plugの ``get/set`` は内部単位(cm/rad/秒)、``getu/setu`` は現在のUI単位です。 ``safe=True`` は書込み失敗を抑制し、複合値では書ける子だけを書き込みます。 Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身を返します。 ``fast=True`` はhlib固有のUndoなし直接更新であり、safeとは別の指定です。"
+msgstr "The plug's ``get/set`` is in internal units (cm/rad/sec), and ``getu/setu`` is the current UI unit. ``safe=True`` suppresses write failures, writing only writable children for compound values. The plug's safe specification returns the number of failures. The transform's safe specification returns itself. ``fast=True`` is a hlib-specific direct update without Undo, which is a separate specification from safe."
+
+msgid "``setRotation`` の第2位置引数は空間になりました。``unit`` は名前付きで指定します。 回転double3の ``set`` も第2位置引数はsafe、unitは名前付きです。 通常のsetterが自身を返すhlibの規則と、om2派生の数学型は維持します。 引数・戻り値の対応範囲は、このページに記載した仕様に従います。"
+msgstr "The second positional argument of ``setRotation`` is now a space. ``unit`` is specified by name. The rotation double3 ``set`` also has the second positional argument as safe, and unit is name-based. The rule that regular setters return themselves and math types derived from om2 are maintained. The supported arguments and return values follow the specification on this page."
+
+msgid "アトリビュートの追加"
+msgstr "Adding attributes"
+
+msgid "正式名を ``addAttr`` に変更しました。旧 ``addAttribute`` は残していません。 typeを省略するとdoubleです。``at:/dt:`` 接頭辞やMayaの ``at/dt`` も使えます。 ``childNames/childShortNames/childSuffixes/subType`` で子を自動生成できます。 hlibでは既定で追加したPlugを返します。``getPlug=False`` を明示した場合のみNoneを返します。"
+msgstr "The official name has been changed to ``addAttr``. The old ``addAttribute`` is no longer available. If the type is omitted, it defaults to double. ``at:/dt:`` prefixes and Maya's ``at/dt`` can also be used. ``childNames/childShortNames/childSuffixes/subType`` automatically generates children. In hlib, the added Plug is returned by default. None is returned only when ``getPlug=False`` is explicitly specified."
+
+msgid "``rename`` の旧 ``ignore_shape`` 引数も ``ignoreShape`` へ移行しました。"
+msgstr "The old ``ignore_shape`` argument of ``rename`` has been migrated to ``ignoreShape``."
+
+msgid "ここでの ``addAttr`` はNodeのメソッドです。``hlib.addAttr(node, ...)`` は Mayaコマンド用の入口で、従来どおり常にPlugを返し、getPlug引数は受け取りません。"
+msgstr "In this context, ``addAttr`` is a Node method. ``hlib.addAttr(node, ...)`` is the entry point for Maya commands, and as before, it always returns a Plug without accepting a getPlug argument."
+
+msgid "メソッド仕様"
+msgstr "Method specification"
+
+msgid "所有ノード・名前・階層"
+msgstr "Owned nodes, names, hierarchy"
+
+msgid "``hasAttr``、``parent``、``children``、``isFromReferencedFile``、``mnode``、``mpath``、 ``Plug.longName``、``Plug.delete``、``Vector.lengthSq`` を正式名とします。 旧 ``hasAttribute/parentNode/childTransforms/isReferenced/mobject/dagPath/attributeName/deleteAttribute/lengthSquared`` の互換別名はありません。所有ノードは ``plug.node()`` で取得します。"
+msgstr "Let ``hasAttr``, ``parent``, ``children``, ``isFromReferencedFile``, ``mnode``, ``mpath``, ``Plug.longName``, ``Plug.delete``, and ``Vector.lengthSq`` be the formal names. There is no backward compatibility alias for the old ``hasAttribute/parentNode/childTransforms/isReferenced/mobject/dagPath/attributeName/deleteAttribute/lengthSquared``. The owning node is retrieved by ``plug.node()``."
+
+msgid "``children()`` はShapeと中間ノードを除きます。``shapes=True``、``intermediates=True`` で含められます。従来の全子取得 ``childNodes()`` も使用できます。 ``parent(step=1)`` は親階層を遡り、ルートを越えるとNoneです。 ``shape(idx=0)`` は対象がなければNoneです。 ``isVisible()`` は親を含むDAGの表示判定、``getVisibility()`` は自身のvisibility値です。"
+msgstr "``children()`` excludes Shape and intermediate nodes. ``shapes=True`` and ``intermediates=True`` are included. The traditional full child retrieval ``childNodes()`` is also available. ``parent(step=1)`` traverses up the parent hierarchy and returns None beyond the root. ``shape(idx=0)`` returns None if the target does not exist. ``isVisible()`` checks the display status of the DAG including the parent, while ``getVisibility()`` checks the visibility value of the node itself."
+
+msgid "接続照会"
+msgstr "Connection Query"
+
+msgid "``source()`` と ``destinations()`` はunitConversion系を飛ばします。 直結先が必要な場合は ``sourceWithConversion()`` と ``destinationsWithConversions()`` を使います。 既存の内製ツールは直結探索へ移行し、処理対象を維持しています。 NodeとPlugの ``connections/inputs/outputs`` は ``asNode/asPair/index/type/t/et/scn`` 等を扱います。"
+msgstr "``source()`` and ``destinations()`` skip unitConversion nodes. When direct connection is required, use ``sourceWithConversion()`` and ``destinationsWithConversions()``. Existing internal tools have been migrated to direct connection search while maintaining the processing targets. Node and Plug's ``connections/inputs/outputs`` handles ``asNode/asPair/index/type/t/et/scn``, etc."
+
+msgid "フラグ・enum・変換"
+msgstr "Flag, enum, conversion"
+
+msgid "``setLocked/setKeyable/setChannelBox`` は ``leaf=True`` で複合アトリビュートの末端へ適用できます。 ``unlock(below=True)`` は上位と下位のロックを解除し、変更したPlugのリストを返します。 ``mute/unmute`` と ``show/hide`` も利用できます。通常のsetterは自身を返します。 ``getEnumName()`` は現在値、``enumName(val)`` は指定値の名前を返します。"
+msgstr "``setLocked/setKeyable/setChannelBox`` can be applied to the end of a compound attribute in ``leaf=True``. ``unlock(below=True)`` unlocks the parent and children, and returns a list of modified plugs. ``mute/unmute`` and ``show/hide`` are also available. Regular setters return themselves. ``getEnumName()`` returns the name of the current value, and ``enumName(val)`` returns the name of the specified value."
+
+msgid "Transformには ``getT/setT``、``getQ/setQ``、``getS/setS``、``getSh/setSh``、``getM/setM`` を用意しています。``getJOQ(ws=False)`` は ``getQuaternion(ws=False, r=False)`` に相当します。 ``getRotation/getEuler`` は既存のhlib独自の行列由来Euler取得を維持します。"
+msgstr "The Transform module provides ``getT/setT``, ``getQ/setQ``, ``getS/setS``, ``getSh/setSh``, and ``getM/setM``. ``getJOQ(ws=False)`` corresponds to ``getQuaternion(ws=False, r=False)``. ``getRotation/getEuler`` maintains the existing Euler extraction from matrix within hlib."
+
+msgid "配列と対応範囲"
+msgstr "Arrays and Range Correspondence"
+
+msgid "``nextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True)`` は 入力接続・ロックを避けた空き番号を返します。startが負の場合は最後の接続の次から探します。 startより小さい既存要素がある場合も、接続済み番号を避けます。配列親がロックされている場合は探索を続けず例外を返します。"
+msgstr "``nextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True)`` returns an available slot number that avoids input connections and locks. If start is negative, it searches starting from the next position after the last connection. Connected indices are skipped even when existing elements have indices smaller than start. If the array parent is locked, the search will not proceed and an exception will be returned."
+
+msgid "``addElement(idx=None)`` は指定要素と必要な上位要素を実体化し、新規要素を下位からリストで返します。 既存要素は空リストです。要素自身に呼ぶ場合はidxを省略できます。 Maya標準の評価を利用するため、追加自体のUndoは未対応です。 messageやMaya内部型の実体化はNotImplementedErrorで拒否します。 独自Undoプラグインは追加しません。message配列は取得した参照へ接続してください。"
+msgstr "``addElement(idx=None)`` instantiates the specified element and required parent elements, and returns new child elements as a list. Existing elements result in an empty list. When calling on the element itself, you can omit idx. Since this uses Maya's standard evaluation, undo for the addition itself is not supported. Instantiation of message or Maya internal types is rejected with NotImplementedError. No custom undo plug-in is added. Connect to the referenced message array."
+
+msgid "``element(index, create=False)`` は従来の論理インデックス指定を維持しています。 要素の格納順を表す物理インデックスではありません。 Transformation値型とgetX/setXは :doc:`transformation` を参照してください。"
+msgstr "``element(index, create=False)`` maintains traditional logical index specification. This is not a physical index indicating storage order. For Transformation value types and getX/setX, refer to :doc:`transformation`."
+
+msgid "便利メソッドと角括弧アクセス"
+msgstr "Convenient methods and bracket access"
+
+msgid "``plug.setAlias(\"alias\")`` は別名を設定し、``setAlias()`` は解除します。 ``plug.setKey(t=1, v=10)`` はmaya.cmds.setKeyframeを呼び、値と時間はUI単位です。 どちらも自身を返し、Undoできます。 ``plug.animLayers(selected=False, exact=False)`` は入力チェーンのレイヤー名を 上位から返し、末尾にベースレイヤーを含めます。selected=Trueで選択レイヤーに限定し、 exact=Trueも指定するとベースも選択状態で絞ります。proxy・mute・pairBlendを経由して調べます。"
+msgstr "``plug.setAlias(\"alias\")`` sets an alias, and ``setAlias()`` removes it. ``plug.setKey(t=1, v=10)`` calls maya.cmds.setKeyframe, with values and times in UI units. Both return themselves and are undoable. ``plug.animLayers(selected=False, exact=False)`` returns layer names in the input chain from top to bottom, including the base layer. With selected=True, it limits to selected layers, and with exact=True, it further filters to only those that are selected, including the base. It investigates through proxy, mute, and pairBlend."
+
+msgid "``node.instances(noSelf=False)`` は各DAGパスのNodeリスト、 ``parents(indirect=False)`` は直接の親リストを返します。 ``iterBreadthFirst()`` と ``iterDepthFirst()`` は自身から幅優先・深さ優先で反復します。 ``shapes/intermediates/underWorld`` で探索範囲を指定します。"
+msgstr "``node.instances(noSelf=False)`` returns a list of nodes for each DAG path, and ``parents(indirect=False)`` returns a list of direct parents. ``iterBreadthFirst()`` and ``iterDepthFirst()`` iterate in breadth-first and depth-first order, respectively. ``shapes/intermediates/underWorld`` specifies the scope of the search."
+
+msgid "配列要素の取得は ``array[3]`` を使います。 未作成の配列要素も参照でき、取得だけでは実体化しません。 値設定・接続で要素を作成します。``for element in array`` は既存要素だけを論理番号順に返します。 ``array.get()`` は論理番号をキーにした辞書のままです。 既存の ``element(index, create=False)`` の明示的な存在検査・実体化機能は維持します。"
+msgstr "Retrieving array elements uses ``array[3]``. You can reference uncreated array elements, but they will not be instantiated by retrieval alone. Elements are created during value setting or connection. ``for element in array`` returns only existing elements in logical order. ``array.get()`` remains a dictionary keyed by logical numbers. The explicit existence check and instantiation functionality of existing ``element(index, create=False)`` is maintained."
+
+msgid "全API互換は対象外です。 複合アトリビュートの子も ``compound[0]``、``compound[\"translateX\"]`` で取得します。 旧 ``child()`` は使用しません。``node.target[0][\"weight\"]`` のように連続指定できます。 複合PlugとArrayPlugをmaya.cmdsへ渡す場合は ``str(plug)`` または ``plug.fullName()`` を使います。 hlibのコマンドにはそのまま渡せます。 ``addAttr()`` の既定Plug返却・既存数学型のOpenMaya継承・内部単位も維持しています。"
+msgstr "Full API compatibility is not targeted. Children of compound attributes are also retrieved using ``compound[0]``, ``compound[\"translateX\"]``. The old ``child()`` is not used. Continuous specification can be done as in ``node.target[0][\"weight\"]``. When passing compound Plugs and ArrayPlugs to maya.cmds, use ``str(plug)`` or ``plug.fullName()``. Commands in hlib can be passed as is. ``addAttr()`` maintains the default Plug return, inheritance of existing mathematical types in OpenMaya, and internal units."
 
 msgid "APIの命名と移行"
 msgstr "API Naming and Migration"
@@ -346,8 +451,8 @@ msgstr ""
 msgid "Component / Components: ``fullName`` / ``fullNames``。"
 msgstr ""
 
-msgid "``Component.shape`` / ``index``、``Components.shape`` / ``indices`` はプロパティを維持します。 ``Plug.node()`` はcymelと同じ所有ノード取得メソッドです。 ``Vector.x`` などの数学値と、``NodeRef.uuid`` などJSONの保存済みデータも維持します。"
-msgstr "``Component.shape`` / ``index``, ``Components.shape`` / ``indices`` preserve properties. ``Plug.node()`` is the same as cymel's owned node acquisition method. Mathematical values such as ``Vector.x``, and JSON saved data such as ``NodeRef.uuid`` are also preserved."
+msgid "``Component.shape`` / ``index``、``Components.shape`` / ``indices`` はプロパティを維持します。 ``Plug.node()`` は所有ノードを取得するメソッドです。 ``Vector.x`` などの数学値と、``NodeRef.uuid`` などJSONの保存済みデータも維持します。"
+msgstr "``Component.shape`` / ``index``, ``Components.shape`` / ``indices`` preserve properties. ``Plug.node()`` retrieves the owning node. Mathematical values such as ``Vector.x``, and JSON saved data such as ``NodeRef.uuid`` are also preserved."
 
 msgid "モジュールの移動"
 msgstr "Moving modules"
@@ -13193,8 +13298,8 @@ msgstr "List the definitions of dynamic attributes in the order they were added.
 msgid ":py:obj:`addAttr <hlib.nodes.node.Node.addAttr>`\\ \\(\\[longName\\, type\\, subType\\, channelBox\\, ...\\]\\)"
 msgstr ""
 
-msgid "cymel形式の引数でアトリビュートを追加する。"
-msgstr "Add attributes using cymel format arguments."
+msgid "型・既定値・フラグを指定してアトリビュートを追加する。"
+msgstr "Add an attribute with the specified type, default value, and flags."
 
 msgid ":py:obj:`aliases <hlib.nodes.node.Node.aliases>`\\ \\(\\)"
 msgstr ""
@@ -16542,8 +16647,8 @@ msgstr ""
 msgid "Maya transform ノードを matrix-first API で扱うラッパー。"
 msgstr "Wrapper for handling Maya transform nodes in matrix-first API."
 
-msgid "評価済み値を取得する ``get_*`` 系メソッドは cymel の ``getMatrix(ws=...)`` に 倣い、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。"
-msgstr "The ``get_*`` methods for retrieving evaluated values follow cymel's ``getMatrix(ws=...)``, returning local space values by default (``ws=False``), and world space values when ``ws=True``."
+msgid "評価済み値を取得するメソッドは、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。"
+msgstr "Methods that retrieve evaluated values return local space values by default (``ws=False``), and world space values when ``ws=True``."
 
 msgid ":py:obj:`_apply_local_matrix <hlib.nodes.transform.Transform._apply_local_matrix>`\\ \\(matrix\\[\\, scale\\_reference\\]\\)"
 msgstr ""
@@ -16731,14 +16836,14 @@ msgstr "Get Euler rotation values using the node's rotateOrder."
 msgid ":py:obj:`getScaling <hlib.nodes.transform.Transform.getScaling>`\\ \\(\\[worldSpace\\]\\)"
 msgstr ""
 
-msgid "cymelと同じスケール値を取得する。"
-msgstr "Get the same scale value as cymel."
+msgid "指定空間のスケール値を取得する。"
+msgstr "Get the scale in the specified space."
 
 msgid ":py:obj:`getShearing <hlib.nodes.transform.Transform.getShearing>`\\ \\(\\[worldSpace\\]\\)"
 msgstr ""
 
-msgid "cymelと同じシアー値を取得する。"
-msgstr "Get the same shear values as cymel."
+msgid "指定空間のシアー値を取得する。"
+msgstr "Get the shear in the specified space."
 
 msgid ":py:obj:`getTransformation <hlib.nodes.transform.Transform.getTransformation>`\\ \\(\\[worldSpace\\]\\)"
 msgstr ""
@@ -16749,8 +16854,8 @@ msgstr "Retrieve channels and auxiliary components as independent values."
 msgid ":py:obj:`getTranslation <hlib.nodes.transform.Transform.getTranslation>`\\ \\(\\[worldSpace\\, at\\]\\)"
 msgstr ""
 
-msgid "基準位置を取得する。既定はcymelと同じ回転ピボット位置。"
-msgstr "Get the default position. The default is the same as the rotation pivot position used by cymel."
+msgid "基準位置を取得する。既定は回転ピボット位置。"
+msgstr "Get the reference position. The rotation pivot is used by default."
 
 msgid ":py:obj:`leaves <hlib.nodes.transform.Transform.leaves>`\\ \\(\\)"
 msgstr ""
@@ -16833,8 +16938,8 @@ msgstr "Change the pivot of the specified type. By default, preserve the node's 
 msgid ":py:obj:`setQuaternion <hlib.nodes.transform.Transform.setQuaternion>`\\ \\(value\\[\\, worldSpace\\, ra\\, r\\, jo\\, safe\\, ...\\]\\)"
 msgstr ""
 
-msgid "cymelと同じ回転成分の指定でrotate・jointOrient・rotateAxisを設定する。"
-msgstr "Set rotate, jointOrient, and rotateAxis with the same rotation component specification as cymel."
+msgid "回転成分の指定に従いrotate・jointOrient・rotateAxisを設定する。"
+msgstr "Set rotate, jointOrient, and rotateAxis according to the selected rotation components."
 
 msgid ":py:obj:`setRotation <hlib.nodes.transform.Transform.setRotation>`\\ \\(value\\[\\, worldSpace\\, safe\\, get\\, unit\\, fast\\]\\)"
 msgstr ""
@@ -17202,8 +17307,8 @@ msgstr "Include jointOrient."
 msgid "指定成分の合成回転。"
 msgstr "Composite rotation of specified components."
 
-msgid "cymelと同じ未対応の組合せの場合。"
-msgstr "In the same unsupported combination as cymel."
+msgid "回転成分と空間指定が未対応の組合せの場合。"
+msgstr "If the rotation components and coordinate space form an unsupported combination."
 
 msgid "``cmds.xform(query=True, rotation=True)`` と同じく、値はノードの rotateOrder で 表す(戻り値の order もノードの回転順序)。行列を分解した回転の等価な解のうち、 transform では現在の rotate チャンネル値に最も近いものを返すため、ローカル空間の transform(rotateAxis が 0)ではチャンネル値と一致する(浮動小数点の誤差を除く)。 joint の値は jointOrient と rotateAxis を含む行列全体の回転で、解は 0 回転に 最も近いものを選ぶ。スケールの符号は現在のチャンネルを基準とする。"
 msgstr "Just like ``cmds.xform(query=True, rotation=True)``, the value is expressed by the node's rotateOrder (the returned order is also the node's rotation order). Among the equivalent solutions for rotation decomposed from a matrix, it returns the one closest to the current rotate channel values in the transform, so for local space transforms (where rotateAxis is 0), it will match the channel values (excluding floating-point errors). For joints, the value is determined by the full rotation of the matrix including jointOrient and rotateAxis, and the solution chosen is the one closest to zero rotation. The sign of the scale is based on the current channel values."
@@ -18138,8 +18243,8 @@ msgstr "Element values keyed by logical index. World space attributes"
 msgid "インスタンス番号の要素も含む。"
 msgstr "Instance number elements are also included."
 
-msgid "cymel の同名メソッドとは異なり、ロック状態や子要素の再帰チェックは行わない 単純な実装で、``getExistingArrayAttributeIndices()`` に含まれない 最初のインデックスを返す。"
-msgstr "Unlike cymel's method with the same name, this implementation does not check lock states or recursively check children. It simply returns the first index in ``getExistingArrayAttributeIndices()`` that is not contained within it."
+msgid "ロック状態や子要素の再帰チェックは行わない 単純な実装で、``getExistingArrayAttributeIndices()`` に含まれない 最初のインデックスを返す。"
+msgstr "This implementation does not check lock states or recursively check children. It simply returns the first index in ``getExistingArrayAttributeIndices()`` that is not contained within it."
 
 msgid "探索を開始する論理インデックス。"
 msgstr "Logical index to start the search."
@@ -18714,8 +18819,8 @@ msgstr "Returns a short attribute path including the leading dot and the require
 msgid ":py:obj:`connect <hlib.plugs.plug.Plug.connect>`\\ \\(src\\[\\, force\\, f\\, lock\\, l\\, nextAvailable\\, na\\, ...\\]\\)"
 msgstr ""
 
-msgid "srcから自身へ接続する。cymelと同じ接続先からの呼出し。"
-msgstr "Connect from src to self. Same as cymel's call from the connection destination."
+msgid "srcから自身へ接続する。接続先のPlugから呼び出す。"
+msgstr "Connect src to this plug. Call this method on the destination plug."
 
 msgid ":py:obj:`connectTo <hlib.plugs.plug.Plug.connectTo>`\\ \\(dst\\, \\*\\*kwargs\\)"
 msgstr ""
@@ -19335,8 +19440,8 @@ msgstr "Logical index of the array. The element itself is optional."
 msgid "新たに実体化した要素。既存の場合は空リスト。"
 msgstr "Newly instantiated element. Empty list if existing."
 
-msgid "Maya標準の評価で実体化するため、追加自体はUndo対象外。 独自Undoプラグインを使うcymelのUndo保証には対応しない。"
-msgstr "Because Maya's standard evaluation is used, the addition itself is not subject to Undo. It does not support cymel's Undo guarantee that uses a custom Undo plug-in."
+msgid "Maya標準の評価で実体化するため、追加自体はUndo対象外。 実体化だけを取り消すUndoには対応しない。"
+msgstr "Because Maya's standard evaluation is used, the addition itself is not subject to Undo. Materialization alone cannot be undone."
 
 msgid "pairBlend やアニメーションレイヤーを介した間接的な animCurve は解決しない （直接の入力接続だけを対象とする）。"
 msgstr "Indirect animCurves via pairBlend or animation layers are not resolved (only direct input connections are targeted)."
@@ -24766,111 +24871,6 @@ msgstr "The axis setting method accepts either a scalar or a numeric array with 
 msgid "一括編集は1回のUndoにまとまります。件数・非有限座標・コンポーネント番号を 書き込み前に検証します。空コレクションには空の座標列を渡せます。 Mayaが途中の書き込みを拒否した場合は例外を返し、完了済み変更の自動ロールバックはしません。 共有shapeや周期カーブのCVの連動、トポロジー変更後の番号の扱いはMayaの規則に従います。"
 msgstr "Bulk editing is grouped into a single undo operation. It validates the number of items, non-finite coordinates, and component indices before writing. An empty coordinate list can be passed for empty collections. If Maya rejects writing in the middle, it returns an exception and does not automatically roll back completed changes. How to handle numbers after topology changes, linkage of CVs in shared shapes or periodic curves follows Maya's rules."
 
-msgid "cymelに合わせた引数"
-msgstr "Arguments aligned with cymel"
-
-msgid "接続と切断"
-msgstr "Connecting and Disconnecting"
-
-msgid "``connect`` は接続先から呼びます。接続元からは ``connectTo`` を使います。 ``force/f``、``lock/l``、``nextAvailable/na`` の長短名はORで評価します。"
-msgstr "``connect`` is called from the destination. ``connectTo`` is used from the source. The long and short names of ``force/f``, ``lock/l``, and ``nextAvailable/na`` are evaluated with OR logic."
-
-msgid "``force=True`` は一時的にロックを解除して接続します。 hlib拡張の ``unlock=False`` を併用するとロック解除を禁止できます。"
-msgstr "``force=True`` temporarily unlocks and connects. When used together with the ``unlock=False`` of the hlib extension, it can prevent unlocking."
-
-msgid "位置・回転・行列"
-msgstr "Position, rotation, matrix"
-
-msgid "空間は ``ws=True`` を基本表記とし、``worldSpace=True`` も使えます。 長短名の同時指定は拒否します。"
-msgstr "Namespaces use ``ws=True`` as the basic notation, and ``worldSpace=True`` is also acceptable. Simultaneous specification of long and short names is not allowed."
-
-msgid "``getTranslation`` / ``setTranslation`` の ``at`` は 0=親原点、1=translate、2=回転ピボット、3=スケールピボット、4以上=行列原点です。 既定値は2です。以前のhlibの行列原点指定は ``at=4`` へ移行してください。 ``setTranslation`` はtranslateだけを書き込み、ピボット自体は動かしません。"
-msgstr "The ``at`` of ``getTranslation`` / ``setTranslation`` is 0=parent origin, 1=translate, 2=rotation pivot, 3=scale pivot, 4 or more=matrix origin. The default value is 2. For the previous hlib matrix origin specification, please migrate to ``at=4``. ``setTranslation`` writes only the translate and does not move the pivot itself."
-
-msgid "``getQuaternion`` / ``setQuaternion`` は ``ra`` (rotateAxis)、``r`` (rotate)、 ``jo`` (jointOrient)で合成対象を選びます。既定は ``ra=False, r=True, jo=True`` です。 cymelと同じく、ワールド指定などで未対応の組合せはValueErrorになります。"
-msgstr "``getQuaternion`` / ``setQuaternion`` selects the synthesis target with ``ra`` (rotateAxis), ``r`` (rotate), and ``jo`` (jointOrient). The default is ``ra=False, r=True, jo=True``. As with cymel, unsupported combinations, such as those involving world-space specifications, result in a ValueError."
-
-msgid "``getScaling`` / ``setScaling``、``getShearing`` / ``setShearing`` は ローカル指定でscale/shearチャンネルそのものを扱い、jointのinverseScaleを含めません。 ワールド指定はOpenMayaの分解規約を使います。負スケールの符号は行列から一意に 決まらないため、ワールドの指定値と取得値の符号が一致しない場合があります。 以前の ``getScale/setScale/getShear/setShear`` は廃止しました。"
-msgstr "``getScaling`` / ``setScaling``, ``getShearing`` / ``setShearing`` handle the scale/shear channels themselves with local specification, and do not include the joint's inverseScale. World specification uses OpenMaya's decomposition convention. Since the sign of negative scaling cannot be uniquely determined from the matrix, the signs of the specified values and retrieved values for world specification may not match. Previous ``getScale/setScale/getShear/setShear`` has been deprecated."
-
-msgid "``get=True`` は書き込まず設定すべき値を返します。 位置・回転・スケール・シアーは数値リスト、``setMatrix`` は ``translate/rotate/scale/shear`` をキーとする辞書を返します。 後者はcymelのTransformation型ではなくhlibの値型を格納します。 コレクションの ``get=True`` も各対象の計算結果のリストを返します。"
-msgstr "``get=True`` returns values that should be set, not written. Position, rotation, scale, and shear are returned as numeric lists, and ``setMatrix`` returns a dictionary with ``translate/rotate/scale/shear`` as keys. The latter stores hlib value types rather than cymel's Transformation type. ``get=True`` of the collection also returns a list of calculation results for each target."
-
-msgid "単位とsafe"
-msgstr "Units and safe"
-
-msgid "Plugの ``get/set`` は内部単位(cm/rad/秒)、``getu/setu`` は現在のUI単位です。 ``safe=True`` は書込み失敗を抑制し、複合値では書ける子だけを書き込みます。 Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身を返します。 ``fast=True`` はhlib固有のUndoなし直接更新であり、safeとは別の指定です。"
-msgstr "The plug's ``get/set`` is in internal units (cm/rad/sec), and ``getu/setu`` is the current UI unit. ``safe=True`` suppresses write failures, writing only writable children for compound values. The plug's safe specification returns the number of failures. The transform's safe specification returns itself. ``fast=True`` is a hlib-specific direct update without Undo, which is a separate specification from safe."
-
-msgid "``setRotation`` の第2位置引数は空間になりました。``unit`` は名前付きで指定します。 回転double3の ``set`` も第2位置引数はsafe、unitは名前付きです。 通常のsetterが自身を返すhlibの規則と、om2派生の数学型は維持します。 今回の統一は引数と操作の意味が対象で、cymel全APIの互換層ではありません。"
-msgstr "The second positional argument of ``setRotation`` is now a space. ``unit`` is specified by name. The rotation double3 ``set`` also has the second positional argument as safe, and unit is name-based. The rule that regular setters return themselves and math types derived from om2 are maintained. This unification targets the arguments and their meanings, and is not a compatibility layer for the entire cymel API."
-
-msgid "アトリビュートの追加"
-msgstr "Adding attributes"
-
-msgid "正式名を ``addAttr`` に変更しました。旧 ``addAttribute`` は残していません。 typeを省略するとdoubleです。``at:/dt:`` 接頭辞やMayaの ``at/dt`` も使えます。 ``childNames/childShortNames/childSuffixes/subType`` で子を自動生成できます。 hlibでは既定で追加したPlugを返します。``getPlug=False`` を明示した場合のみNoneを返します。"
-msgstr "The official name has been changed to ``addAttr``. The old ``addAttribute`` is no longer available. If the type is omitted, it defaults to double. ``at:/dt:`` prefixes and Maya's ``at/dt`` can also be used. ``childNames/childShortNames/childSuffixes/subType`` automatically generates children. In hlib, the added Plug is returned by default. None is returned only when ``getPlug=False`` is explicitly specified."
-
-msgid "``rename`` の旧 ``ignore_shape`` 引数も ``ignoreShape`` へ移行しました。"
-msgstr "The old ``ignore_shape`` argument of ``rename`` has been migrated to ``ignoreShape``."
-
-msgid "ここでの ``addAttr`` はNodeのメソッドです。``hlib.addAttr(node, ...)`` は Mayaコマンド用の入口で、従来どおり常にPlugを返し、getPlug引数は受け取りません。"
-msgstr "In this context, ``addAttr`` is a Node method. ``hlib.addAttr(node, ...)`` is the entry point for Maya commands, and as before, it always returns a Plug without accepting a getPlug argument."
-
-msgid "cymelに合わせたメソッド"
-msgstr "Methods aligned with Cymel"
-
-msgid "所有ノード・名前・階層"
-msgstr "Owned nodes, names, hierarchy"
-
-msgid "``hasAttr``、``parent``、``children``、``isFromReferencedFile``、``mnode``、``mpath``、 ``Plug.longName``、``Plug.delete``、``Vector.lengthSq`` を正式名とします。 旧 ``hasAttribute/parentNode/childTransforms/isReferenced/mobject/dagPath/attributeName/deleteAttribute/lengthSquared`` の互換別名はありません。所有ノードは ``plug.node()`` で取得します。"
-msgstr "Let ``hasAttr``, ``parent``, ``children``, ``isFromReferencedFile``, ``mnode``, ``mpath``, ``Plug.longName``, ``Plug.delete``, and ``Vector.lengthSq`` be the formal names. There is no backward compatibility alias for the old ``hasAttribute/parentNode/childTransforms/isReferenced/mobject/dagPath/attributeName/deleteAttribute/lengthSquared``. The owning node is retrieved by ``plug.node()``."
-
-msgid "``children()`` はShapeと中間ノードを除きます。``shapes=True``、``intermediates=True`` で含められます。従来の全子取得 ``childNodes()`` も使用できます。 ``parent(step=1)`` は親階層を遡り、ルートを越えるとNoneです。 ``shape(idx=0)`` は対象がなければNoneです。 ``isVisible()`` は親を含むDAGの表示判定、``getVisibility()`` は自身のvisibility値です。"
-msgstr "``children()`` excludes Shape and intermediate nodes. ``shapes=True`` and ``intermediates=True`` are included. The traditional full child retrieval ``childNodes()`` is also available. ``parent(step=1)`` traverses up the parent hierarchy and returns None beyond the root. ``shape(idx=0)`` returns None if the target does not exist. ``isVisible()`` checks the display status of the DAG including the parent, while ``getVisibility()`` checks the visibility value of the node itself."
-
-msgid "接続照会"
-msgstr "Connection Query"
-
-msgid "``source()`` と ``destinations()`` はunitConversion系を飛ばします。 直結先が必要な場合は ``sourceWithConversion()`` と ``destinationsWithConversions()`` を使います。 既存の内製ツールは直結探索へ移行し、処理対象を維持しています。 NodeとPlugの ``connections/inputs/outputs`` は ``asNode/asPair/index/type/t/et/scn`` 等を扱います。"
-msgstr "``source()`` and ``destinations()`` skip unitConversion nodes. When direct connection is required, use ``sourceWithConversion()`` and ``destinationsWithConversions()``. Existing internal tools have been migrated to direct connection search while maintaining the processing targets. Node and Plug's ``connections/inputs/outputs`` handles ``asNode/asPair/index/type/t/et/scn``, etc."
-
-msgid "フラグ・enum・変換"
-msgstr "Flag, enum, conversion"
-
-msgid "``setLocked/setKeyable/setChannelBox`` は ``leaf=True`` で複合アトリビュートの末端へ適用できます。 ``unlock(below=True)`` は上位と下位のロックを解除し、変更したPlugのリストを返します。 ``mute/unmute`` と ``show/hide`` も利用できます。通常のsetterは自身を返します。 ``getEnumName()`` は現在値、``enumName(val)`` は指定値の名前を返します。"
-msgstr "``setLocked/setKeyable/setChannelBox`` can be applied to the end of a compound attribute in ``leaf=True``. ``unlock(below=True)`` unlocks the parent and children, and returns a list of modified plugs. ``mute/unmute`` and ``show/hide`` are also available. Regular setters return themselves. ``getEnumName()`` returns the name of the current value, and ``enumName(val)`` returns the name of the specified value."
-
-msgid "Transformには ``getT/setT``、``getQ/setQ``、``getS/setS``、``getSh/setSh``、``getM/setM`` を用意しています。``getJOQ(ws=False)`` は ``getQuaternion(ws=False, r=False)`` に相当します。 ``getRotation/getEuler`` は既存のhlib独自の行列由来Euler取得を維持します。"
-msgstr "The Transform module provides ``getT/setT``, ``getQ/setQ``, ``getS/setS``, ``getSh/setSh``, and ``getM/setM``. ``getJOQ(ws=False)`` corresponds to ``getQuaternion(ws=False, r=False)``. ``getRotation/getEuler`` maintains the existing Euler extraction from matrix within hlib."
-
-msgid "配列と対応範囲"
-msgstr "Arrays and Range Correspondence"
-
-msgid "``nextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True)`` は 入力接続・ロックを避けた空き番号を返します。startが負の場合は最後の接続の次から探します。 同梱cymelには、startより小さい既存要素があると接続済み番号を返すケースがありますが、 hlibはその番号も避けます。配列親がロックされている場合は探索を続けず例外を返します。"
-msgstr "``nextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True)`` returns an available slot number that avoids input connections and locks. If start is negative, it searches starting from the next position after the last connection. While the bundled cymel may return connected slot numbers for existing elements smaller than start, hlib avoids those numbers as well. If the array parent is locked, the search will not proceed and an exception will be returned."
-
-msgid "``addElement(idx=None)`` は指定要素と必要な上位要素を実体化し、新規要素を下位からリストで返します。 既存要素は空リストです。要素自身に呼ぶ場合はidxを省略できます。 Maya標準の評価を利用するため、追加自体のUndoは未対応です。 messageやMaya内部型の実体化はNotImplementedErrorで拒否します。 独自Undoプラグインは追加しません。message配列は取得した参照へ接続してください。"
-msgstr "``addElement(idx=None)`` instantiates the specified element and required parent elements, and returns new child elements as a list. Existing elements result in an empty list. When calling on the element itself, you can omit idx. Since this uses Maya's standard evaluation, undo for the addition itself is not supported. Instantiation of message or Maya internal types is rejected with NotImplementedError. No custom undo plug-in is added. Connect to the referenced message array."
-
-msgid "``element(index, create=False)`` は従来の論理インデックス指定を維持しています。 cymelの物理インデックス指定 ``element(idx)`` とは異なります。 Transformation値型とgetX/setXは :doc:`transformation` を参照してください。"
-msgstr "``element(index, create=False)`` maintains traditional logical index specification. This is different from cymel's physical index specification ``element(idx)``. For Transformation value types and getX/setX, refer to :doc:`transformation`."
-
-msgid "便利メソッドと角括弧アクセス"
-msgstr "Convenient methods and bracket access"
-
-msgid "``plug.setAlias(\"alias\")`` は別名を設定し、``setAlias()`` は解除します。 ``plug.setKey(t=1, v=10)`` はmaya.cmds.setKeyframeを呼び、値と時間はUI単位です。 どちらも自身を返し、Undoできます。 ``plug.animLayers(selected=False, exact=False)`` は入力チェーンのレイヤー名を 上位から返し、末尾にベースレイヤーを含めます。selected=Trueで選択レイヤーに限定し、 exact=Trueも指定するとベースも選択状態で絞ります。proxy・mute・pairBlendを経由して調べます。"
-msgstr "``plug.setAlias(\"alias\")`` sets an alias, and ``setAlias()`` removes it. ``plug.setKey(t=1, v=10)`` calls maya.cmds.setKeyframe, with values and times in UI units. Both return themselves and are undoable. ``plug.animLayers(selected=False, exact=False)`` returns layer names in the input chain from top to bottom, including the base layer. With selected=True, it limits to selected layers, and with exact=True, it further filters to only those that are selected, including the base. It investigates through proxy, mute, and pairBlend."
-
-msgid "``node.instances(noSelf=False)`` は各DAGパスのNodeリスト、 ``parents(indirect=False)`` は直接の親リストを返します。 ``iterBreadthFirst()`` と ``iterDepthFirst()`` は自身から幅優先・深さ優先で反復します。 ``shapes/intermediates/underWorld`` で探索範囲を指定します。"
-msgstr "``node.instances(noSelf=False)`` returns a list of nodes for each DAG path, and ``parents(indirect=False)`` returns a list of direct parents. ``iterBreadthFirst()`` and ``iterDepthFirst()`` iterate in breadth-first and depth-first order, respectively. ``shapes/intermediates/underWorld`` specifies the scope of the search."
-
-msgid "配列要素の取得は ``array[3]`` を使います。 未作成の配列要素も参照でき、取得だけでは実体化しません。 値設定・接続で要素を作成します。``for element in array`` は既存要素だけを論理番号順に返します。 ``array.get()`` は論理番号をキーにした辞書のままです。 既存の ``element(index, create=False)`` の明示的な存在検査・実体化機能は維持します。"
-msgstr "Retrieving array elements uses ``array[3]``. You can reference uncreated array elements, but they will not be instantiated by retrieval alone. Elements are created during value setting or connection. ``for element in array`` returns only existing elements in logical order. ``array.get()`` remains a dictionary keyed by logical numbers. The explicit existence check and instantiation functionality of existing ``element(index, create=False)`` is maintained."
-
-msgid "全API互換は対象外です。 複合アトリビュートの子も ``compound[0]``、``compound[\"translateX\"]`` で取得します。 旧 ``child()`` は使用しません。``node.target[0][\"weight\"]`` のように連続指定できます。 複合PlugとArrayPlugをmaya.cmdsへ渡す場合は ``str(plug)`` または ``plug.fullName()`` を使います。 hlibのコマンドにはそのまま渡せます。 ``addAttr()`` の既定Plug返却・既存数学型のOpenMaya継承・内部単位も維持しています。"
-msgstr "Full API compatibility is not targeted. Children of compound attributes are also retrieved using ``compound[0]``, ``compound[\"translateX\"]``. The old ``child()`` is not used. Continuous specification can be done as in ``node.target[0][\"weight\"]``. When passing compound Plugs and ArrayPlugs to maya.cmds, use ``str(plug)`` or ``plug.fullName()``. Commands in hlib can be passed as is. ``addAttr()`` maintains the default Plug return, inheritance of existing mathematical types in OpenMaya, and internal units."
-
 msgid "保存姿勢とバインドポーズ"
 msgstr "Saved Pose and Bind Pose"
 
@@ -26941,9 +26941,6 @@ msgstr ":class:`~hlib.maths.matrix.Matrix` — Composition, Decomposition, Produ
 msgid ":class:`~hlib.nodes.transform.Transform` — ノードからの取得と適用"
 msgstr ":class:`~hlib.nodes.transform.Transform` — Retrieval and Application from Nodes"
 
-msgid "`cymel入門のMatrix解説 <https://ryusas.github.io/cymel/ja/gettingstarted.html#matrix>`_ — 説明構成の参考。上記の使用例は hlib の実装に合わせています。"
-msgstr "`Matrix explanation in the cymel introduction <https://ryusas.github.io/cymel/ja/gettingstarted.html#matrix>`_ — Reference for the explanation structure. The usage examples above follow the implementation in hlib."
-
 msgid "モジュールリファレンスマニュアル"
 msgstr "Module Reference Manual"
 
@@ -27461,8 +27458,8 @@ msgstr "Assigning a matrix to the existing value of ``m`` recalculates TRS and s
 msgid "ワールド空間と対象ノードへの適合"
 msgstr "World space and fit to target node"
 
-msgid "``ws/worldSpace`` に対応します。親行列とoffsetParentMatrixを考慮し、参照している DAGインスタンスのパスに従います。offsetParentMatrixそのものは書き換えません。 ``value * matrix`` は変換を後乗算した新しい値を返し、translateと回転ピボット位置も変換します。 ワールド変換では行列分解が必要なので、元のローカルEuler値の完全な数値一致は保証しません。 負スケールとピボットがある場合も、元のtranslate位置を変換先へ移します。 この場合、同梱cymelが行列の分解から選ぶチャンネル値とは異なることがあります。"
-msgstr "``ws/worldSpace`` corresponds. It considers the parent matrix and offsetParentMatrix and follows the path of the referenced DAG instance. offsetParentMatrix itself is not modified. ``value * matrix`` returns a new value with the transformation post-multiplied and also transforms the translate and rotation pivot positions. Since world transformation requires matrix decomposition, complete numerical consistency with the original local Euler values is not guaranteed. In cases with negative scale and pivot, the original translate position is moved to the destination. In such cases, the channel values chosen by the bundled cymel from matrix decomposition may differ."
+msgid "``ws/worldSpace`` に対応します。親行列とoffsetParentMatrixを考慮し、参照している DAGインスタンスのパスに従います。offsetParentMatrixそのものは書き換えません。 ``value * matrix`` は変換を後乗算した新しい値を返し、translateと回転ピボット位置も変換します。 ワールド変換では行列分解が必要なので、元のローカルEuler値の完全な数値一致は保証しません。 負スケールとピボットがある場合も、元のtranslate位置を変換先へ移します。 行列だけではチャンネル値が一意に決まらないため、等価な姿勢でも値が異なることがあります。"
+msgstr "``ws/worldSpace`` corresponds. It considers the parent matrix and offsetParentMatrix and follows the path of the referenced DAG instance. offsetParentMatrix itself is not modified. ``value * matrix`` returns a new value with the transformation post-multiplied and also transforms the translate and rotation pivot positions. Since world transformation requires matrix decomposition, complete numerical consistency with the original local Euler values is not guaranteed. In cases with negative scale and pivot, the original translate position is moved to the destination. A matrix does not uniquely determine channel values, so equivalent poses can have different values."
 
 msgid "ジョイントへの適用では、対象のinverseScaleとその接続を保持し、ピボット系成分を除いた 条件で行列を合わせます。Transformへの適用ではjointOrient・SSCを除いて合わせます。 したがって、異なる種類のノードや異なる親へ適用した場合は、各チャンネル値が変わることがあります。 ``get=True`` の結果はその適合後のローカルTransformationです。"
 msgstr "When applying to a joint, it maintains the target's inverseScale and its connections, and aligns the matrix without the pivot system components. When applying to a Transform, it aligns without jointOrient and SSC. Therefore, if applied to different types of nodes or different parents, the channel values may change. The result of ``get=True`` is the local Transformation after alignment."

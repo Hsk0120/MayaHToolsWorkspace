@@ -16,7 +16,7 @@ from hlib.maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translat
 
 
 class NodeApiTest(unittest.TestCase):
-    """cymel相当の基本Node/DAG APIを検証する。"""
+    """基本Node/DAG APIを検証する。"""
 
     namespace = ":hlibNodeApiTest"
 

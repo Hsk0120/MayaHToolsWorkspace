@@ -143,7 +143,7 @@ class ArrayPlug(Plug):
     def nextAvailableIndex(self, start=0):
         """接続・データを持つ要素が存在しない論理インデックスを探す。
 
-        cymel の同名メソッドとは異なり、ロック状態や子要素の再帰チェックは行わない
+        ロック状態や子要素の再帰チェックは行わない
         単純な実装で、``getExistingArrayAttributeIndices()`` に含まれない
         最初のインデックスを返す。
 

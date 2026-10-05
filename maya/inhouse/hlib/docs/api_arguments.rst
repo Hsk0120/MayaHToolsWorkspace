@@ -1,4 +1,4 @@
-cymelに合わせた引数
+引数仕様
 ====================
 
 接続と切断
@@ -41,7 +41,7 @@ hlib拡張の ``unlock=False`` を併用するとロック解除を禁止でき�
 
 ``getQuaternion`` / ``setQuaternion`` は ``ra`` (rotateAxis)、``r`` (rotate)、
 ``jo`` (jointOrient)で合成対象を選びます。既定は ``ra=False, r=True, jo=True`` です。
-cymelと同じく、ワールド指定などで未対応の組合せはValueErrorになります。
+ワールド指定などで未対応の組合せはValueErrorになります。
 
 ``getScaling`` / ``setScaling``、``getShearing`` / ``setShearing`` は
 ローカル指定でscale/shearチャンネルそのものを扱い、jointのinverseScaleを含めません。
@@ -52,7 +52,7 @@ cymelと同じく、ワールド指定などで未対応の組合せはValueErro
 ``get=True`` は書き込まず設定すべき値を返します。
 位置・回転・スケール・シアーは数値リスト、``setMatrix`` は
 ``translate/rotate/scale/shear`` をキーとする辞書を返します。
-後者はcymelのTransformation型ではなくhlibの値型を格納します。
+後者の辞書にはhlibの値型を格納します。
 コレクションの ``get=True`` も各対象の計算結果のリストを返します。
 
 単位とsafe
@@ -72,7 +72,7 @@ Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身�
 ``setRotation`` の第2位置引数は空間になりました。``unit`` は名前付きで指定します。
 回転double3の ``set`` も第2位置引数はsafe、unitは名前付きです。
 通常のsetterが自身を返すhlibの規則と、om2派生の数学型は維持します。
-今回の統一は引数と操作の意味が対象で、cymel全APIの互換層ではありません。
+引数・戻り値の対応範囲は、このページに記載した仕様に従います。
 
 アトリビュートの追加
 --------------------

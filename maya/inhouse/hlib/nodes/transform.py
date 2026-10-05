@@ -112,8 +112,7 @@ def _closest_euler(quaternion, reference):
 class Transform(DagNode):
     """Maya transform ノードを matrix-first API で扱うラッパー。
 
-    評価済み値を取得する ``get_*`` 系メソッドは cymel の ``getMatrix(ws=...)`` に
-    倣い、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
+    評価済み値を取得するメソッドは、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
     """
 
     @flag_aliases(typ="type", mo="maintainOffset")
@@ -1025,7 +1024,7 @@ class Transform(DagNode):
 
     @flag_aliases(ws="worldSpace")
     def getTranslation(self, worldSpace=False, at=2):
-        """基準位置を取得する。既定はcymelと同じ回転ピボット位置。
+        """基準位置を取得する。既定は回転ピボット位置。
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。
@@ -1172,7 +1171,7 @@ class Transform(DagNode):
 
     @flag_aliases(ws="worldSpace")
     def getScaling(self, worldSpace=False):
-        """cymelと同じスケール値を取得する。
+        """指定空間のスケール値を取得する。
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。Falseはscaleチャンネル。
@@ -1185,7 +1184,7 @@ class Transform(DagNode):
 
     @flag_aliases(ws="worldSpace")
     def getShearing(self, worldSpace=False):
-        """cymelと同じシアー値を取得する。
+        """指定空間のシアー値を取得する。
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。Falseはshearチャンネル。
@@ -1271,7 +1270,7 @@ class Transform(DagNode):
         Returns:
             Quaternion: 指定成分の合成回転。
         Raises:
-            ValueError: cymelと同じ未対応の組合せの場合。
+            ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
         ws = world_space(worldSpace)
         joint = self.mnode().hasFn(om2.MFn.kJoint)
@@ -1308,7 +1307,7 @@ class Transform(DagNode):
     @undoChunk("hlibTransformSetQuaternion")
     def setQuaternion(self, value, worldSpace=False, ra=False, r=True, jo=True,
                       safe=False, get=False, *, fast=False):
-        """cymelと同じ回転成分の指定でrotate・jointOrient・rotateAxisを設定する。
+        """回転成分の指定に従いrotate・jointOrient・rotateAxisを設定する。
 
         Args:
             value (Quaternion | om2.MQuaternion | Iterable[float]): xyzwの回転。
@@ -1773,7 +1772,7 @@ class Transform(DagNode):
         return self
 
 
-    # cymelの正式な短縮メソッド。旧hlib名の互換入口ではない。
+    # 公開APIの短縮メソッド。旧hlib名の互換入口ではない。
     getT = getTranslation
     setT = setTranslation
     getQ = getQuaternion

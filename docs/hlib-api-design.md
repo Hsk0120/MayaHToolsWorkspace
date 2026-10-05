@@ -5,7 +5,7 @@
 
 ## 確定したコーディングルール
 
-- 作成・更新APIは既定で作成したオブジェクトや操作対象を返す。cymelとの引数統一だけを理由に既定戻り値をNoneへ変更しない。`Node.addAttr()` は既定でPlugを返す。
+- 作成・更新APIは既定で作成したオブジェクトや操作対象を返す。他ライブラリとの引数統一だけを理由に既定戻り値をNoneへ変更しない。`Node.addAttr()` は既定でPlugを返す。
 
 公開APIの表記は**camelCaseに統一**する。UI・環境・イベント・JSON・utils・decoratorsも同じ規則とする。
 
@@ -112,7 +112,7 @@ plug = node.plug("translateX")
 
 print(node.fullName())    # 現在のMayaノード名を取得
 print(plug.isLocked())   # 現在のロック状態を照会
-print(plug.node())        # cymelに合わせた所有Node取得メソッド
+print(plug.node())        # 所有Node取得メソッド
 plug.set(10)             # Mayaの値を変更
 
 from hlib.maths import Vector
@@ -301,9 +301,9 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - JSONの保存形式は公開Plug値とは別の契約。型の低水準読取・単位変換は共有し、保存時の単位・配列形・未初期化値はJSON側で維持する。
 - Transform姿勢とJoint固有の変換、SkinClusterの一括ウェイト処理は、それぞれの意味と効率を持つため単純なPlugの反復へ置き換えない。
 
-### cymelメソッド名の確定仕様（2026-10-05）
+### 公開メソッド名の確定仕様（2026-10-05）
 
-ユーザーの明示指示により、所有Plugの`node()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、cymelの短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`fullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/docs/cymel_methods.rst`を参照する。
+ユーザーの明示指示により、所有Plugの`node()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`fullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/docs/api_methods.rst`を参照する。
 
 ### Transformationの追加仕様
 

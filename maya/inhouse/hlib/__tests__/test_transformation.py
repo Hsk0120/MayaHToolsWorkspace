@@ -66,7 +66,7 @@ class TransformationTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             hash(x)
 
-    def test_local_matrix_and_cymel(self):
+    def test_local_matrix_against_reference(self):
         """全回転順序・SSCの有無で合成行列をMayaと比較する。"""
         for joint in (False, True):
             node = self.node(joint)

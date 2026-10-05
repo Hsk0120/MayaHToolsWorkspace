@@ -1,4 +1,4 @@
-"""cymelとhlibの共通メソッドを独立シーンで比較する。"""
+"""公開メソッドを独立シーンで参照実装と比較する。"""
 import sys
 import unittest
 from pathlib import Path
@@ -10,7 +10,7 @@ from hlib.nodes import Node
 from hlib.maths import Vector
 
 
-class CymelMethodsTest(unittest.TestCase):
+class ApiMethodsTest(unittest.TestCase):
     """名前だけでなく返す対象・階層・Undoを確認する。"""
 
     def setUp(self):
@@ -122,7 +122,7 @@ class CymelMethodsTest(unittest.TestCase):
         array.element(1, create=True).setLocked(True)
         for start in (-1, 0, 1, 4):
             self.assertEqual(array.nextAvailable(start), ca.nextAvailable(start))
-        # 同梱cymelは開始番号より小さい要素があると接続済み番号を返すため、そこは再現しない。
+        # 開始番号より小さい既存要素があっても、接続済み番号を避ける仕様を検証する。
         self.assertEqual(array.nextAvailable(3), 4)
         self.assertEqual(array.nextAvailable(0, asPlug=True).name(), ca.nextAvailable(0, asPlug=True).name())
         messages = node.addAttr("links", at="message", multi=True)

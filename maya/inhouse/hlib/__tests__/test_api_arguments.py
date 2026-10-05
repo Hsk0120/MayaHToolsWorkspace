@@ -1,4 +1,4 @@
-"""同梱cymelを基準に公開引数の意味を比較する。専用Mayaで実行する。"""
+"""公開引数の意味を参照実装と比較する。専用Mayaで実行する。"""
 
 import math
 from pathlib import Path
@@ -14,7 +14,7 @@ from hlib.nodes import Node
 from hlib.maths import Quaternion, Matrix
 
 
-class CymelArgumentsTest(unittest.TestCase):
+class ApiArgumentsTest(unittest.TestCase):
     """型の同一性ではなく、引数の解釈・値・シーン更新を比較する。"""
 
     def setUp(self):
@@ -56,7 +56,7 @@ class CymelArgumentsTest(unittest.TestCase):
                         self.assertValues(tuple(node.getTranslation(ws=ws, at=at)), tuple(ref.getTranslation(ws=ws, at=at)))
                         values = (6, -2, 8)
                         before = cmds.getAttr(node.fullName() + ".translate")[0]
-                        expected = ref.setTranslation(values, ws=ws, at=at, get=True)[:3]  # cymelのMPoint由来w成分は座標比較から除外。
+                        expected = ref.setTranslation(values, ws=ws, at=at, get=True)[:3]  # 参照値のMPoint由来w成分は座標比較から除外。
                         self.assertValues(node.setTranslation(values, ws=ws, at=at, get=True), expected)
                         self.assertEqual(cmds.getAttr(node.fullName() + ".translate")[0], before)
                         node.setTranslation(values, ws=ws, at=at)
@@ -64,7 +64,7 @@ class CymelArgumentsTest(unittest.TestCase):
                         cmds.undo()
 
     def test_rotation_components(self):
-        """回転合成と計算だけのsetterをcymelと比較する。"""
+        """回転合成と計算だけのsetterを参照実装と比較する。"""
         for joint in (False, True):
             node, ref = self.pair(joint)
             for ws in (False, True):

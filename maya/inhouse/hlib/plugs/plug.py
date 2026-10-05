@@ -761,7 +761,7 @@ class Plug(Object):
             list[Plug]: 新たに実体化した要素。既存の場合は空リスト。
         Note:
             Maya標準の評価で実体化するため、追加自体はUndo対象外。
-            独自Undoプラグインを使うcymelのUndo保証には対応しない。
+            実体化だけを取り消すUndoには対応しない。
         """
         self._require_valid()
         mp = self.mplug()
@@ -1728,7 +1728,7 @@ class Plug(Object):
     @undoChunk("hlibPlugConnect")
     def connect(self, src, force=False, f=False, lock=False, l=False,
                 nextAvailable=False, na=False, *, unlock=True):
-        """srcから自身へ接続する。cymelと同じ接続先からの呼出し。
+        """srcから自身へ接続する。接続先のPlugから呼び出す。
 
         Args:
             src (Plug | om2.MPlug | str): 接続元。

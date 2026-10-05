@@ -1,4 +1,4 @@
-cymelに合わせたメソッド
+メソッド仕様
 ==========================
 
 所有ノード・名前・階層
@@ -59,8 +59,7 @@ Transformには ``getT/setT``、``getQ/setQ``、``getS/setS``、``getSh/setSh``�
 
 ``nextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True)`` は
 入力接続・ロックを避けた空き番号を返します。startが負の場合は最後の接続の次から探します。
-同梱cymelには、startより小さい既存要素があると接続済み番号を返すケースがありますが、
-hlibはその番号も避けます。配列親がロックされている場合は探索を続けず例外を返します。
+startより小さい既存要素がある場合も、接続済み番号を避けます。配列親がロックされている場合は探索を続けず例外を返します。
 
 ``addElement(idx=None)`` は指定要素と必要な上位要素を実体化し、新規要素を下位からリストで返します。
 既存要素は空リストです。要素自身に呼ぶ場合はidxを省略できます。
@@ -69,7 +68,7 @@ messageやMaya内部型の実体化はNotImplementedErrorで拒否します。
 独自Undoプラグインは追加しません。message配列は取得した参照へ接続してください。
 
 ``element(index, create=False)`` は従来の論理インデックス指定を維持しています。
-cymelの物理インデックス指定 ``element(idx)`` とは異なります。
+要素の格納順を表す物理インデックスではありません。
 Transformation値型とgetX/setXは :doc:`transformation` を参照してください。
 
 便利メソッドと角括弧アクセス

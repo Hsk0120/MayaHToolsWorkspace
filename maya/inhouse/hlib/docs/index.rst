@@ -19,8 +19,8 @@ Contents
    whyhlib
    getting_started
    usage
-   cymel_arguments
-   cymel_methods
+   api_arguments
+   api_methods
    transformation
    modules
 

@@ -1017,7 +1017,7 @@ class Node(Object):
     def addAttr(self, longName="", type=None, subType=None, channelBox=False,
                 childNames=None, childShortNames=None, childSuffixes=None,
                 proxy=None, getPlug=True, **kwargs):
-        """cymel形式の引数でアトリビュートを追加する。
+        """型・既定値・フラグを指定してアトリビュートを追加する。
 
         Args:
             longName (str): ロング名。lnまたはsnだけの指定も可能。

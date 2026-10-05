@@ -1,4 +1,4 @@
-"""cymelの便利メソッドと要素参照の統合検証。"""
+"""便利メソッドと要素参照の統合検証。"""
 import unittest
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2

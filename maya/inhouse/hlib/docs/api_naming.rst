@@ -212,7 +212,7 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
    print(plug.node())  # 所有Nodeを返すメソッド。
 
 ``Component.shape`` / ``index``、``Components.shape`` / ``indices`` はプロパティを維持します。
-``Plug.node()`` はcymelと同じ所有ノード取得メソッドです。
+``Plug.node()`` は所有ノードを取得するメソッドです。
 ``Vector.x`` などの数学値と、``NodeRef.uuid`` などJSONの保存済みデータも維持します。
 
 モジュールの移動
