@@ -275,3 +275,6 @@ desktop.ini
 .mayaSwatches/
 *.swatches
 incrementalSave/
+
+# Sphinx が .po から自動で作るコンパイル済みの訳(ビルドのたびに作り直す)
+maya/inhouse/*/docs/locale/**/*.mo

@@ -1,0 +1,747 @@
+# English translations for hrig.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the hrig project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: hrig VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-05 08:38+0900\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid "Aimの1〜2軸変換"
+msgstr "Aim 1-2 axis conversion"
+
+msgid "``HTools > rigging > convertAimAxes`` で、選択した既存のaimConstraintの 回転出力を1軸または2軸へ変換します。既存Aimを計算元として残し、その後ろへ 標準DGノードを挿入する構成です。hlibのNode・Plug・Container・ScalarGraphを使います。 Aimの直接接続・標準設定・出力回転の照会はhlibのAimConstraintを使用します。 変換可否の検証、保存対象の選別、接続の復元はAimAxisConversionが担当します。"
+msgstr "``HTools > rigging > convertAimAxes`` converts the rotational output of a selected existing aimConstraint to one or two axes. It retains the existing Aim as the calculation source and inserts standard DG nodes behind it. This implementation uses hlib's Node, Plug, Container, and ScalarGraph. The direct connection of Aim, standard settings, and retrieval of output rotation are handled by hlib's AimConstraint. Validation of conversion feasibility, selection of save targets, and restoration of connections are managed by AimAxisConversion."
+
+msgid "操作"
+msgstr "Operations"
+
+msgid "ジョイントではなく **aimConstraintノードを1つ選択** します。"
+msgstr "Select **one aimConstraint node**, not a joint."
+
+msgid "ツールを起動し、必要なら「選択したaimConstraintを読み込む」を押します。"
+msgstr "Launch the tool, and press \"Load Selected aimConstraint\" if necessary."
+
+msgid "方式1/2/3と出力軸（X・Y・Z・XY・XZ・YZ）を選び、「生成ノードをコンテナ化する」を設定します。"
+msgstr "Choose the method (1/2/3) and output axis (X, Y, Z, XY, XZ, YZ), and set \"Wrap generated nodes in a container\"."
+
+msgid "「変換／方式を切替」を押します。対象が動くので、ターゲットを動かして比較します。"
+msgstr "Press \"Convert/Change Mode\". The target will move, so move the target and compare."
+
+msgid "別方式を選んで同じボタンを押すと、元の接続へ戻してから新しい方式を構築します。"
+msgstr "If you select a different method and press the same button, it will restore the original connection and then build the new method."
+
+msgid "「元のAim構造・設定へ戻す」で、変換と補正の所有ノードを全て削除し、 元のaimConstraintからの直接接続と設定値を復元します。"
+msgstr "\"Revert to Original Aim Structure/Settings\" removes all nodes owned by the conversion and correction, and restores the direct connection and setting values from the original aimConstraint."
+
+msgid "変換・切替・復元はそれぞれ1回のUndo/Redoに対応します。 画面は自動更新しません。「結果を再確認」で現在フレームの値と診断を表示します。 メニューに未反映のセッションでは、Pythonで開けます。"
+msgstr "Each conversion, switching, and restoration corresponds to a single Undo/Redo operation. The screen will not update automatically. \"Review Results\" displays the current frame's values and diagnostics. In sessions where menu changes are not yet reflected, you can open them with Python."
+
+msgid "方式の違い"
+msgstr "Differences in approaches"
+
+msgid "方式"
+msgstr "Method"
+
+msgid "計算"
+msgstr "computation"
+
+msgid "設定と注意"
+msgstr "Settings and Notes"
+
+msgid "1: Eulerの等価解"
+msgstr "1: Euler Equivalent Solutions"
+
+msgid "元の全回転と等価なXYZ一組を2候補作り、指定軸の範囲に合う組を選ぶ。"
+msgstr "Create two candidates for an XYZ set equivalent to the original full rotation, and select the candidate that fits within the specified axis range."
+
+msgid "基準XYZと許容半幅は度。既定0度・±85度。"
+msgstr "The standard XYZ and tolerance half-width are in degrees. Default is 0 degrees and ±85 degrees."
+
+msgid "2: ヒンジ／2軸方向"
+msgstr "2: Hinge / 2-axis direction"
+
+msgid "元の全回転で指定した方向を変換し、1軸なら平面投影角、2軸なら順序付きの角を求める。"
+msgstr "Convert the specified direction based on the original full rotation, and compute the planar projection angle for one axis or ordered angles for two axes."
+
+msgid "回転Xなら狙う軸Y/Z。回転XYなら狙う軸Z。符号も指定可能。"
+msgstr "If Rotate X is specified, target axis Y/Z. If Rotate XY is specified, target axis Z. Sign can also be specified."
+
+msgid "3: 軸別Twist"
+msgstr "3: Axis-Specific Twist"
+
+msgid "元のQuaternionを各選択軸へ独立に射影してねじり角を得る。"
+msgstr "Project the original Quaternion onto each selected axis independently to obtain the twist angle."
+
+msgid "2軸は独立したTwist角。Swingの2成分でも元Eulerの2成分でもない。"
+msgstr "2-axis is independent Twist angle. Neither the 2 components of Swing nor the 2 components of the original Euler."
+
+msgid "方式1は各軸を独立に180度補正せず、XYZ一組の等価解を選んでから必要軸を使います。 範囲内の候補が1つならそれを採用し、0個または2個なら基準への二乗距離が小さい組を採用しつつ ``valid=0`` を返します。これらの場合は正しい枝を一意に決められていません。 境界をまたぐ範囲・ジンバル特異点・本当に必要な大きい回転を自動で連続化する機能ではありません。"
+msgstr "Method 1 does not independently correct each axis by 180 degrees; instead, it selects an equivalent solution for the XYZ set and then uses the necessary axes. If there is only one candidate within the range, it adopts that one. If there are zero or two candidates, it adopts the set with the smallest squared distance to the reference, and returns ``valid=0``. In these cases, a unique correct branch cannot be determined. This method does not automatically continuousize across boundaries, gimbal singularities, or large rotations that are actually required."
+
+msgid "方式2の基準は、選択軸以外を0とした回転です。未選択軸へ残した固定回転や 「変換時の角度を維持」の加算がある場合、最終姿勢の方向と元Aimの方向の完全一致は保証しません。 2軸の適用順は対象のRotate Orderから未選択軸を除いた順です。 先に適用する角を±90度に収め、後の角を±180度で求めます。極では後の角が不定になります。 元AimのjointOrient・Offset等を補正した ``constraintRotate`` を入力にしており、 生のターゲット位置から新しいaimConstraintを作り直す機能ではありません。"
+msgstr "The criterion for Method 2 is rotation with all axes except the selected axis set to zero. If there are fixed rotations retained on unselected axes or if there is an additive \"Maintain Transform Angle,\" the final pose direction and the original Aim direction will not necessarily match perfectly. The application order for the two axes is determined by the Rotate Order of the target, excluding the unselected axis. The first angle should be kept within ±90 degrees, and the second angle is calculated within ±180 degrees. At the poles, the second angle becomes undefined. The input uses a corrected ``constraintRotate`` that accounts for the jointOrient and Offset of the original Aim, and does not recreate a new aimConstraint from the raw target position."
+
+msgid "方式2・3の「変換時の角度を維持」は、計算角へ一定の角度を加える機能です。 MayaのMaintain Offsetと同じ行列計算ではありません。チェックを外すと各方式の生の値を比較できます。 方式1ではこのチェックを使用しません。"
+msgstr "In modes 2 and 3, \"Maintain Angle During Conversion\" is a feature that adds a constant angle to the calculated angle. This is not the same matrix calculation as Maya's Maintain Offset. When unchecked, you can compare the raw values of each mode. This check is not used in Mode 1."
+
+msgid "接続と復元"
+msgstr "Connecting and Restoring"
+
+msgid "復元時は元Aimが駆動していた軸へ直接再接続し、元々未接続だった軸は保存値へ戻します。 変換ノード・補正ノード・管理ノード（containerまたはnetwork）は全て削除します。 元Aimの未接続設定（Rest Rotate、Offset、Aim/Up Vector、World Up、ターゲットウェイト等）を 変換時に記録し、設定値も復元します。入力接続で駆動される設定はその入力を維持します。 保存した値を戻す際に新しい入力やロックがある場合は、変更を壊さないよう復元を拒否します。 旧版の補正付き復元からも、同じボタンで元Aimだけの構造へ戻せます。 旧形式で未記録だった設定は推測して変更せず、元Aimに残っている値を使用します。 復元後の接続された回転は元Aimが現在のターゲットから計算します。追加のEuler補正は行いません。"
+msgstr "During restore, the original Aim's driven axes are reconnected directly, and previously unconnected axes are reset to their saved values. Conversion nodes, correction nodes, and management nodes (container or network) are all deleted. The unconnected settings of the original Aim (Rest Rotate, Offset, Aim/Up Vector, World Up, target weights, etc.) are recorded during conversion and restored. Settings driven by input connections maintain those inputs. If new inputs or locks exist when restoring saved values, restoration is denied to avoid breaking changes. The same button can also revert from the old version's corrected restore back to the original Aim-only structure. Unrecorded settings in the old format are guessed without modification, using the current values remaining in the original Aim. The connected rotations after restoration are calculated by the original Aim from the current target. No additional Euler correction is performed."
+
+msgid "選択軸には変換出力を接続します。未選択軸の元Aim接続は外し、変換時の値に固定します。 未選択軸にある他の入力は維持します。選択軸に別の入力がある場合は変換を拒否します。 ロック・参照ノード、複数の直接出力対象、pairBlendやunitConversionを介する間接接続は未対応です。"
+msgstr "For the selected axes, connect the transformation outputs. Remove the original Aim connections of unselected axes and fix their values at the transformation time. Other inputs on unselected axes are preserved. If another input exists on a selected axis, the transformation is denied. Lock reference nodes, multiple direct output targets, and indirect connections via pairBlend or unitConversion are not supported."
+
+msgid "「生成ノードをコンテナ化する」は初期状態でオンです。 オンでは生成物を専用containerが所有し、元Aimと対象は所有下へ入れません。 オフではcontainerを残さず、演算ノードから対象の回転へ直接接続します。 ScalarGraphへ生成関数を渡すため、構築途中にも一時containerを作りません。 復元情報と生成ノードのmessage接続は専用networkノードに保存します。 どちらも再読込・方式切替・元Aimへの復元に対応し、チェックを変更して再変換すると構成を切り替えられます。 Pythonでは ``AimAxisConversion.create(..., use_container=False)`` で直接接続を選択できます。 message接続で参照するため改名・シーン保存読込後も復元できます。 変換後に対象への入力接続を手編集した場合、別の接続を壊さないよう復元を拒否します。 生成ノード・管理ノードの設定は手編集せず、画面から方式を切り替えてください。"
+msgstr "\"Encapsulate Generated Nodes into a Container\" is enabled by default. When enabled, the generated nodes are owned by a dedicated container, and neither the source Aim nor the target will be placed under ownership. When disabled, no container is retained, and the computation nodes are directly connected to the target's rotation. Since the generation function is passed to ScalarGraph, no temporary containers are created during construction. The restore information and message connections of the generated nodes are saved in a dedicated network node. Both methods support reloading, switching modes, and restoration to the original Aim; changing the check and re-converting allows switching the configuration. In Python, ``AimAxisConversion.create(..., use_container=False)`` can be used to directly select connection. Since it uses message connections, restoration is possible even after renaming or saving/loading the scene. If the input connection to the target is manually edited after conversion, restoration will be denied to avoid breaking other connections. Do not manually edit the settings of generated nodes or management nodes; instead, switch modes from the interface."
+
+msgid "元の循環接続やWorld Upの特異点は解消しません。前フレームの記憶・多回転の蓄積・ ±180度をまたぐアンラップも行いません。方式2・3の特異点では計算角を0にして ``valid=0`` とします。姿勢維持を指定した場合はその固定加算値が残ります。 Rotate Order変更時も ``valid=0`` になるため、再変換してください。"
+msgstr "The original cyclic connections and World Up singularities are not resolved. It does not store the previous frame, accumulate multiple rotations, or unwrap across ±180 degrees. In cases of singularities in methods 2 and 3, the calculated angle is set to 0 as ``valid=0``. If posture maintenance is specified, the fixed additive value remains. The same applies when changing Rotate Order, resulting in ``valid=0``, so please reconvert."
+
+msgid "Python API"
+msgstr ""
+
+msgid "``restore()`` は元の設定値と直接接続を復元し、生成物を削除します。戻り値はありません。"
+msgstr "``restore()`` directly restores the original connection settings and deletes the generated output. It returns no value."
+
+msgid "APIの角度引数と ``outputX/Y/Z.get()`` はラジアンです。 ``valid`` は現在フレームの範囲・特異点・回転順序の診断で、リグ全体の正しさや サイクルの有無を保証するフラグではありません。"
+msgstr "The API's angle arguments and ``outputX/Y/Z.get()`` are in radians. ``valid`` does not guarantee the correctness of the entire rig or the absence of cycles; it only diagnoses the current frame's range, singularities, and rotation order."
+
+msgid "検証"
+msgstr "Validation"
+
+msgid "``tools/test_aim_axis_conversion.py`` は使い捨てmayapyでのみ実行してください。 テストごとにシーンを新規作成します。GUI内の既存シーンへ送信してはいけません。 ``tools/test_aim_axis_conversion_gui.py`` は専用の隔離GUIランナーです。 6回転順の数値・3方式・Undo/Redo・復元・単位・保存読込・GUI操作を検証します。"
+msgstr "``tools/test_aim_axis_conversion.py`` should only be executed in a disposable mayapy. A new scene is created for each test. Do not send to an existing scene within the GUI. ``tools/test_aim_axis_conversion_gui.py`` is a dedicated isolated GUI runner. It verifies 6-axis rotation values, 3 modes, Undo/Redo, restore, units, load/save, and GUI operations."
+
+msgid "ヒンジ関節の曲げ補正"
+msgstr "Hinge Joint Bending Correction"
+
+msgid "``hrig.setups.BendCorrection`` は、直接の親子transformから 回転を補間した親空間行列と、曲げに応じた二つの距離を生成します。 標準ノードだけで計算し、単位変換ノードも含めてcontainerで所有します。 ジョイント生成・スキン・LODは呼び出し側が管理します。"
+msgstr "``hrig.setups.BendCorrection`` generates a parent space matrix interpolated from rotation directly from the parent-child transform, and two distances according to bending. It calculates using only standard nodes, and is owned by a container including unit conversion nodes. Joint creation, skinning, and LOD are managed by the caller."
+
+msgid "``matrix`` 出力は、生成時の基準回転から現在の回転へ指定割合で補間します。 位置は現在の関節位置へ100%追従します。直接の親子なので、ワールド行列を介さず ``matrix * offsetParentMatrix`` を使用します。``restMatrix`` に基準姿勢を保存します。 Maya 2022と2025以降のblendMatrixの属性差に対応します。"
+msgstr "``matrix`` The output interpolates the rotation from the initial rest rotation to the current rotation by the specified ratio. The position fully follows the current joint position. Since this is a direct parent-child relationship, it uses ``matrix * offsetParentMatrix`` without going through the world matrix. ``restMatrix`` saves the rest pose. This accounts for differences in the blendMatrix attributes between Maya 2022 and 2025 or later."
+
+msgid "``axis`` に直交する方向ベクトルとQuaternionの符号から、ヒンジの曲げ角を取得します。 XYZの各軸で90度を超える曲げも扱います。``bendSign`` を-1にすると負方向を曲げとします。 ``response = clamp(曲げ角度 * bendSign / referenceAngle, 0, 1)`` です。 ``referenceAngle`` は度指定で、シーンの角度単位を変更しても意味は変わりません。"
+msgstr "Obtains the hinge bending angle from the direction vector orthogonal to ``axis``, and the sign of the Quaternion. Handles bending angles that exceed 90 degrees on each of the XYZ axes. Setting ``bendSign`` to -1 designates the negative direction as bending. This is ``response = clamp(曲げ角度 * bendSign / referenceAngle, 0, 1)``. The ``referenceAngle`` is specified in degrees, and its meaning remains unchanged even if the scene's angular unit is modified."
+
+msgid "二つの距離出力は ``innerRest + innerPush * response`` と ``outerRest + outerPush * response`` です。距離パラメータは現在のシーン距離単位です。 生成後に距離単位を変更しても既存の実寸を保持します。符号で移動方向を選択できます。"
+msgstr "The two distance outputs are ``innerRest + innerPush * response`` and ``outerRest + outerPush * response``. The distance parameters are in the current scene's distance units. Changing the distance units after generation will preserve existing real-world values. You can select the moving direction with the sign."
+
+msgid "ヒンジ関節の単一軸曲げ向けです。複合回転の解剖学的な曲げ抽出、180度を越える 連続回転、複数回転、負スケール・シアーを含む参照姿勢は対象外です。 生成後に参照ノードを再親子付けしないでください。 補正先を入力関節やその上流へ接続すると循環するため、独立した出力先を使ってください。"
+msgstr "For hinge joints with single-axis bending. It does not cover anatomical bending extraction with compound rotation, continuous rotation exceeding 180 degrees, multiple rotations, or reference poses involving negative scale or shear. Do not reparent the reference nodes after generation. Connecting the correction target to input joints or upstream nodes will cause cycles; use an independent output destination instead."
+
+msgid "``hlib.delete(graph.container)`` で所有する計算ノードを削除できます。 参照した親子transformは削除されません。"
+msgstr "You can delete calculation nodes owned by ``hlib.delete(graph.container)``. The parent-child transforms that are referenced are not deleted."
+
+msgid "行列追従と拘束評価の計測"
+msgstr "Measuring matrix following and constraint evaluation"
+
+msgid "単一入力の軽量な追従"
+msgstr "Lightweight single-input follower"
+
+msgid "``hrig.setups.MatrixFollow`` は、専用Transformバッファへ ``multMatrix -> offsetParentMatrix`` で全成分を渡します。 ``decomposeMatrix`` とEuler角への変換を挟みません。 既定のstandard構成ではノード生成・属性・接続・行列計算にhlibを使用し、追加プラグインは不要です。"
+msgstr ""
+
+msgid "戻り値は所有・削除管理用のmultMatrixラッパーです。構築は1回のUndoにまとまります。 生成後の評価は標準ノードだけで動作し、保存・再読込にPythonコールバックを必要としません。"
+msgstr "The return value is a multMatrix wrapper for ownership and deletion management. Construction is grouped into a single Undo operation. Post-creation evaluation operates using standard nodes and does not require Python callbacks for save and reload."
+
+msgid "C++とBifrostの明示選択"
+msgstr "C++ and Bifrost explicit selection"
+
+msgid "``backend=\"cpp\"`` は ``hrigMatrixFollow`` を1拘束につき1ノード生成します。 ``backend=\"bifrost\"`` は1拘束につき1つのbifrostGraphShapeとその親Transformを生成します。 既定値は ``standard`` で、既存リグの自動置換は行いません。"
+msgstr ""
+
+msgid "両方とも ``offset * sourceWorld * parentInverse`` を倍精度で計算し、 outputMatrixを専用バッファのOPMへ接続します。単一入力の剛体追従が比較対象で、 parentConstraintの複数入力・軸スキップ・jointOrient等を再実装したものではありません。 scale/shear付きでは全成分追従という独自仕様になります。"
+msgstr "Both compute ``offset * sourceWorld * parentInverse`` in double precision and connect the outputMatrix to the dedicated buffer OPM. The single-input rigid following is the comparison target, and this does not reimplement multiple inputs, axis skipping, jointOrient, etc. of parentConstraint. With scale/shear, it follows all components, which is a unique specification."
+
+msgid "C++版は入力以外の状態を持たないMPxNodeで、parallel schedulingを指定しています。 Mayaの版ごとにビルドし、明示選択時のみhrigNodesをロードします。 開発用IDは ``0x0007F102`` です。既存hrigNodesをロード中なら、新バイナリを使うには Mayaを再起動してください。セキュリティ設定は変更しません。"
+msgstr "The C++ version uses an MPxNode that holds no state other than input, and specifies parallel scheduling. It is built for each version of Maya, and hrigNodes are loaded only when explicitly selected. The development ID is ``0x0007F102``. If existing hrigNodes are being loaded, you must restart Maya to use the new binary. Security settings are not changed."
+
+msgid "Bifrost版は ``hlib_bifrost`` を使用し、MathBuilderのmatrix_multiplyを組み合わせます。 列ベクトル規約に合わせて乗算順を逆転し、Maya境界の自動転置を利用します。 Bifrost版の戻り値はhlibのgraphShape参照です。その親Transformも生成物として管理してください。"
+msgstr "The Bifrost version uses ``hlib_bifrost`` and combines it with MathBuilder's matrix_multiply. It reverses the multiplication order to match the column vector convention, and makes use of Maya's automatic transposition within bounds. The return value of the Bifrost version is a graphShape reference from hlib. Please also manage its parent Transform as part of the generated output."
+
+msgid "**Bifrost版は検証用です。** 現環境ではグラフ構築のUndo/RedoでMayaが終了したため、 Undoが有効な状態での構築を拒否します。Undo無効の専用mayapyだけで使用し、 通常作業中のMayaのUndo設定をこの機能のために変更しないでください。 保存・再読込と通常評価を検証しても、編集用の安定性を保証するものではありません。 自動でUndo履歴を消去する処理はありません。"
+msgstr "**The Bifrost version is for verification only.** Due to Maya crashing on Undo/Redo during graph construction in the current environment, it refuses to build with enabled Undo. Use it exclusively with a dedicated mayapy that has Undo disabled, and do not change the Undo settings of your working Maya instance for this feature. Verification of save/reload and normal evaluation does not guarantee stability for editing. There is no automatic clearing of the Undo history."
+
+msgid "適用条件"
+msgstr "Applicable conditions"
+
+msgid "targetは恒等TRS/OPM、ゼロpivot/rotateAxis、入力接続なしのTransformに限定します。"
+msgstr "The target is limited to identity TRS/OPM, zero pivot/rotateAxis, and Transform with no input connections."
+
+msgid "scale/shearも追従します。位置と回転だけを渡すparentConstraintとは仕様が異なります。"
+msgstr "Scale and shear also follow. This differs from parentConstraint, which only passes position and rotation."
+
+msgid "jointOrient、複数入力のウェイト補間、軸スキップには対応しません。"
+msgstr "jointOrient, multiple input weight interpolation, and axis skipping are not supported."
+
+msgid "再親付け・インスタンス化・bufferのローカル操作は構築後も行わないでください。"
+msgstr "Do not perform re-parenting, instancing, or local operations on buffers after construction."
+
+msgid "入力や親のゼロスケール、評価時の特異行列には対応しません。"
+msgstr "It does not handle input or parent zero scale, and does not account for singular matrices during evaluation."
+
+msgid "DAG/DGの自己依存を構築前に検査します。構築後に循環する接続を追加しないでください。"
+msgstr "Checks for self-dependencies in the DAG/DG before construction. Do not add circular connections after construction."
+
+msgid "親空間の変換には実親のworldInverseMatrixを使用します。 target自身のparentInverseMatrixをOPMへ戻す構成は使用しません。 既存のSpaceSwitchはすでに行列をOPMへ接続しています。 既存リグや保存済みシーンをこのセットアップへ自動変換する処理はありません。"
+msgstr "For parent space transformation, we use the worldInverseMatrix of the actual parent. We do not use the configuration that converts target's own parentInverseMatrix back to OPM. The existing SpaceSwitch is already connecting matrices to OPM. There is no process for automatically converting existing rigs or saved scenes to this setup."
+
+msgid "専用プロセスでの再計測"
+msgstr "Re-measurement in a dedicated process"
+
+msgid "リポジトリ直下でPowerShellから実行します。GUI内へ送信しないでください。 この計測専用のPowerShellを使い、終了後に閉じて環境変数を通常作業へ持ち越さないでください。 ツールはMaya standaloneを初期化してから新規シーンを作成するため、 初期化済みのMaya GUIでは処理を開始しません。"
+msgstr "Execute from the root of the repository using PowerShell. Do not send to the GUI. Use this measurement-only PowerShell script, and close it after execution without carrying over environment variables to normal work. The tool initializes Maya standalone and then creates a new scene, so it will not start processing in an already initialized Maya GUI."
+
+msgid "C++をビルド済みで対応Bifrostが導入されている場合は、同じ隔離環境で5構成を比較できます。"
+msgstr "If Bifrost with pre-built C++ is installed, you can compare the 5 configurations within the same isolated environment."
+
+msgid "Serial・Parallelだけを比較する場合は ``--modes serial parallel`` を指定します。 省略時は従来どおりDG（off）も含めます。SerialはMayaの評価グラフの直列評価であり、 Bifrost内部を含めた全処理をCPU 1スレッドに制限する指定ではありません。"
+msgstr "When comparing only Serial and Parallel, specify ``--modes serial parallel``. When omitted, the default is to include DG (off) as before. Serial refers to Maya's evaluation graph serial evaluation and does not limit all processing, including within Bifrost, to a single CPU thread."
+
+msgid "Cached Playbackは起動後に無効化し、ウォームアップ・各反復の直前にも無効状態を照会します。 有効なら例外で中断し、その計測は採用しません。JSONの ``cached_playback`` は実際の照会値で、 各計測行にも記録します。アニメーションキャッシュの生成・再利用は行いません。 通常のDGの値保持やBifrostのコンパイル済みグラフの再利用は、この設定とは別です。"
+msgstr "Cached Playback is disabled after startup, and its disabled state is checked before warmup and before each iteration. If it is enabled, the measurement is aborted with an exception and not adopted. The JSON ``cached_playback`` uses the actual queried values, which are also recorded in each measurement row. Animation cache generation and reuse are not performed. Normal DG value holding or reuse of compiled Bifrost graphs are separate from this setting."
+
+msgid "計測方法"
+msgstr "Measurement method"
+
+msgid "parentConstraint、multMatrix＋decomposeMatrix、MatrixFollowの3構成を比較します。"
+msgstr "This document compares three configurations: parentConstraint, multMatrix + decomposeMatrix, and MatrixFollow."
+
+msgid "DG（off）・Serial・Parallel、独立出力・階層出力の18条件を固定seedで並べ替えます。"
+msgstr "The 18 conditions of DG (off) / Serial / Parallel, Independent Output / Hierarchical Output are sorted with a fixed seed."
+
+msgid "``--plugins`` を付けるとC++/Bifrostを追加した5構成・30計測条件・60姿勢条件になります。 Bifrostのロード版もJSONへ記録します。全構成を同じ実行で測り直してください。"
+msgstr "Adding ``--plugins`` results in a 5-configuration, 30-measurement condition, and 60-posture condition setup with C++/Bifrost. The Bifrost loaded version also records to JSON. Please re-measure all configurations in the same execution."
+
+msgid "Bifrostは1拘束1グラフです。1グラフ内で配列を一括処理する設計の速度は測っていません。"
+msgstr "Bifrost uses one constraint per graph. The speed of the design that processes arrays in bulk within a single graph has not been measured."
+
+msgid "まず小規模シーンで各評価モード・初期オフセットの有無・階層の有無を組み合わせ、 全出力のワールド行列をparentConstraintと比較します。誤差1e-6超過は失敗です。"
+msgstr "First, combine each evaluation mode, presence or absence of initial offset, and presence or absence of hierarchy in a small scene, and compare all output world matrices with parentConstraint. A deviation exceeding 1e-6 is considered a failure."
+
+msgid "比較シーンは回転・移動のみで、スケール、シアー、jointOrient、pivot、 複数入力ウェイトを含みません。これらを含むリグへの完全互換性を示す試験ではありません。"
+msgstr "The test scene contains only rotation and translation, and does not include scale, shear, jointOrient, pivot, or multiple input weights. This is not a test for full compatibility with rigs that contain these elements."
+
+msgid "Cached Playbackを無効にし、120フレームのウォームアップ後に反復します。"
+msgstr "Disable Cached Playback and then iterate after a 120-frame warm-up."
+
+msgid "時刻変更と全出力へのdgeval要求を含む経過時間を測定します。 Python呼出しを含み、描画・スキニング・UIの時間を含まないため、FPSとは異なります。"
+msgstr "Measures elapsed time including time changes and dgeval requests to all outputs. Does not include Python calls, rendering, skinning, or UI times, thus differs from FPS."
+
+msgid "JSONへMaya/API版・OS・CPU・スレッド数・評価モード・fallback・生測定値・ 中央値・最小最大値・全シーンノード数を保存します。"
+msgstr "Saves Maya/API version, OS, CPU, number of threads, evaluation mode, fallback, raw measurement values, median, min/max values, and total number of scene nodes to JSON."
+
+msgid "構築時間も保存しますが、各構成で入力検証や実装経路が異なるため公平な構築速度比較ではありません。"
+msgstr "We also save the build time, but since the input validation and implementation paths differ across each configuration, this does not provide a fair comparison of build speeds."
+
+msgid "小規模の姿勢試験は公開createを使用します。性能シーンは同じ内部ビルダーで接続し、 各ノード作成時の依存探索を繰り返しません。比較用に決められたトポロジーのみが対象です。 通常のリグ作成で内部ビルダーを直接呼び出さないでください。"
+msgstr "For small-scale pose tests, use the public ``create`` method. For performance scenes, connect using the same internal builder, and do not repeat dependency searches for each node creation. Only the predetermined topology for comparison is targeted. Do not directly call the internal builder during normal rig creation."
+
+msgid "300段の階層は依存経路の差を見るストレス試験です。通常の腕・脚全体が同率で速くなる という意味ではありません。他のMaya・重い処理を止め、各バージョンを順番に計測してください。 同一マシンでもバックグラウンド処理・電力制御による変動があります。 比率だけでなく、各反復の時間と差の大きさを確認してください。"
+msgstr "A 300-level hierarchy is a stress test that examines the difference in dependency paths. This does not mean that the entire arm and leg are equally fast. Stop other Maya or heavy processes, and measure each version sequentially. Even on the same machine, there may be variations due to background processing or power control. Please check both the ratios and the magnitude of differences between each iteration."
+
+msgid "既存スカートの候補検証"
+msgstr "Validation of existing skirt candidates"
+
+msgid "``--skirt`` はSkirtRigを作成し、回転だけを使用するparentConstraintを orientConstraintへ置換した候補と比較します。``--count`` を3で割った列数 （最低8列、各3骨）で作成します。 複数軸回転、root移動、blend/falloffのアニメーションを評価します。 姿勢不一致の場合はJSONへ失敗を保存し、終了コード1で停止します。 これは候補の検証用であり、SkirtRigの既定実装を変更するオプションではありません。"
+msgstr "``--skirt`` creates a SkirtRig and compares it with a candidate that replaces the parentConstraint, which uses only rotation, with an orientConstraint. ``--count`` is created with a number of columns equal to the result of dividing by 3 (minimum 8 columns, with 3 bones each). It evaluates animations involving multi-axis rotation, root movement, and blend/falloff. If pose mismatch occurs, it saves failure information to JSON and exits with code 1. This is for validating candidates and does not modify the default implementation of SkirtRig."
+
+msgid "測定値・比較結果は環境依存のため、Git対象外の ``.maya-output`` や ``docs/research`` へ保存します。"
+msgstr "Measurement and comparison results are environment-dependent, so they are saved to ``.maya-output`` and ``docs/research`` outside the Git repository."
+
+msgid "テストと計測"
+msgstr "Testing and Measurement"
+
+msgid "実装済みセットアップ"
+msgstr "Implemented Setup"
+
+msgid "hrig ドキュメント"
+msgstr "hrig Documentation"
+
+msgid "Maya 2025以降向けのレイヤードリグ検証パッケージです。 標準ノードを既定とし、hlibを基礎ライブラリとして利用します。 C++・Bifrostは明示選択する比較検証用バックエンドです。"
+msgstr "This is a layered rig validation package for Maya 2025 and later. It uses standard nodes by default and utilizes hlib as the base library. C++ and Bifrost are explicitly selected backend options for comparative validation."
+
+msgid "伸縮と体積補正"
+msgstr "Stretch and Volume Correction"
+
+msgid "``hrig.setups.LengthCompensation`` は、基準長と入力長から長さ倍率と 横断面の倍率を計算する標準ノードのグラフです。"
+msgstr "``hrig.setups.LengthCompensation`` is the standard node graph that calculates the length multiplier and cross-sectional multiplier from the reference length and input length."
+
+msgid "入力長を基準長で割り、minSquash〜maxStretchに制限します。 1より大きい側をstretch、小さい側をsquashで元の長さとブレンドします。 stretch/squash/volumeは0〜1、minSquashは0.01〜1、maxStretchは1〜100です。 既定はそれぞれ1/1/1/0.1/2です。基準長は正の有限値を渡してください。"
+msgstr "Divide the input length by the rest length and clamp it to the range minSquash to maxStretch. Blend the original length with stretch if the value is greater than 1, or with squash if it is less than 1. The stretch/squash/volume values range from 0 to 1, minSquash ranges from 0.01 to 1, and maxStretch ranges from 1 to 100. The defaults are 1/1/1/0.1/2 respectively. Pass a positive finite value as the rest length."
+
+msgid "lengthScaleが ``s`` のとき、体積補正は ``s ** -0.5`` です。 volume=0なら横倍率1、volume=1なら逆平方根、途中は線形補間します。 長手方向にs、断面の2軸に同じ横倍率を適用する棒状の近似です。 スキンのウェイト・関節曲げを含めた実メッシュ体積を保証しません。"
+msgstr "When lengthScale is ``s``, the volume correction is ``s ** -0.5``. When volume=0, the lateral scale is 1; when volume=1, it's inverse square root; intermediate values are linearly interpolated. This is an approximation of a rod-like shape applying the same lateral scale to both axes of the cross-section in the longitudinal direction. It does not guarantee the actual mesh volume including skin weights and joint bending."
+
+msgid "距離の単位は呼出側で揃えます。inputLength/restLengthは単位なしの数値なので、 MDistance等との接続では明示的な単位変換が必要です。 グラフは骨やメッシュを編集せず、containerが演算ノードを所有します。 生成はUndoに対応し、再生時にPythonや独自プラグインは使用しません。"
+msgstr "The unit of distance is aligned on the caller side. Since inputLength/restLength are unitless numeric values, explicit unit conversion is required when connecting to MDistance or similar. The graph does not edit bones or meshes directly; instead, the container owns the computational nodes. Generation supports Undo, and does not use Python or custom plug-ins during playback."
+
+msgid "円周方向のウェイト"
+msgstr "Circular weight"
+
+msgid "``hrig.setups.RadialWeights`` は、等間隔の方向のうち入力方向を挟む二方向を選び、 方向ベクトルの比率を計算します。hrigに依存せず、Maya標準DGで調整値を評価します。"
+msgstr "``hrig.setups.RadialWeights`` selects two directions from among the equally spaced input directions, with the input direction in between, and calculates the ratio of the directional vectors. It operates without dependency on hrig, evaluating the adjustment values using standard Maya DG."
+
+msgid "方向の間隔を ``s`` 、方向Aから入力までの角度を ``t`` とすると、 比率は ``sin(s-t) : sin(t)`` です。Falloff=1では、混合した方向ベクトルが 入力方向と平行になります。円周の最後と最初も隣接として扱います。"
+msgstr "Let the direction interval be ``s``, and the angle from direction A to the input be ``t``, then the ratio is ``sin(s-t) : sin(t)``. When Falloff=1, the mixed direction vector becomes parallel to the input direction. The end and the beginning of the circle are also treated as adjacent."
+
+msgid "``directionA`` / ``directionB``: 0始まりの方向番号。作成時に固定。"
+msgstr "``directionA`` / ``directionB``: 0-based directional index. Fixed at the time of creation."
+
+msgid "``falloff``: 比率をべき乗してから再正規化する指数。0.1〜8、既定1。 大きいほど近い方向の影響が強く、小さいほど二方向が均等に混ざります。"
+msgstr "``falloff``: Exponent that first raises the ratio to a power and then normalizes it. 0.1 to 8, default 1. The larger the value, the stronger the influence of nearby directions; the smaller the value, the more evenly the two directions are mixed."
+
+msgid "``blend``: 全体の影響量。0〜1、既定1。"
+msgstr "``blend``: Overall influence amount. 0 to 1, default 1."
+
+msgid "``weightA`` / ``weightB``: 正規化比率にBlendを掛けた出力。"
+msgstr "``weightA`` / ``weightB``: Output multiplied by Blend with normalized ratio."
+
+msgid "``restWeight``: ``1 - blend`` 。三出力の合計は1です。"
+msgstr "``restWeight``: ``1 - blend`` . The sum of the three outputs is 1."
+
+msgid "角度はラジアン、方向数は3以上の整数です。方向は作成後に切り替えず、 Falloff/BlendだけをDGで評価します。入力値はDG内でも範囲を制限します。 このクラスはウェイト計算だけを所有し、constraintや骨を作成しません。"
+msgstr "The angle is in radians, and the number of directions is an integer greater than or equal to 3. The direction cannot be switched after creation, only the Falloff/Blend are evaluated in the DG. Input values are also restricted to a range within the DG. This class owns only the weight calculation and does not create constraints or bones."
+
+msgid "回転成分の割合追従"
+msgstr "Rotation Component Follow"
+
+msgid "``hrig.setups.RotationFollow`` は、入力jointのローカル回転を生成時の姿勢から分解し、 全回転・Twist・Swingのいずれかを指定割合で出力します。Maya標準ノードのみを使います。"
+msgstr "``hrig.setups.RotationFollow`` decomposes the local rotation of the input joint from its bind pose and outputs full rotation, Twist, or Swing components in specified proportions. Uses only standard Maya nodes."
+
+msgid "``mode`` は ``full`` / ``twist`` / ``swing`` 。Twist軸は生成時に指定した ``axis`` です。 ``ratio`` は0〜1で、0.5は **入力からの回転差分の半分** を意味します。 180度の回転や、現在値のEuler成分を単純に半分にする処理ではありません。 補間にはQuaternionを用います。全成分は既存 ``SwingTwist`` の分解結果を再構成します。"
+msgstr "``mode`` is ``full`` / ``twist`` / ``swing``. The Twist axis is the ``axis`` specified at generation. ``ratio`` is 0 to 1, where 0.5 means **half of the rotational difference from the input**. This is not a 180-degree rotation or simply halving the current Euler components. Quaternions are used for interpolation. All components reconstruct the decomposition result of the existing ``SwingTwist``."
+
+msgid "出力は親空間の行列です。入力jointの ``matrix * offsetParentMatrix`` を使用し、 ワールド行列を経由しません。JointOrientと生成時の回転を基準姿勢として保持します。 回転だけを割合追従し、位置は入力の現在位置を完全に追従します。scaleとshearは出力しません。 別の親空間へ直接接続したり、非identityのTRSへ重ねたりすると二重変換になります。"
+msgstr "The output is the parent space matrix. It uses the input joint's ``matrix * offsetParentMatrix`` and does not go through the world matrix. It maintains the joint orient and initial rotation as the rest pose. It follows the rotation proportionally, but the position fully follows the current position of the input. It does not output scale and shear. Connecting directly to another parent space or layering on non-identity TRS will result in double transformation."
+
+msgid "``matrix``: 基準回転に割合追従を適用し、入力の現在位置を合成した行列。"
+msgstr "``matrix``: A matrix that applies proportional follow to the standard rotation and composes it with the current position of the input."
+
+msgid "``restMatrix``: 作成時の位置と回転。追従停止時の復帰用。"
+msgstr "``restMatrix``: Position and rotation at creation time. Used for returning to the stop-following state."
+
+msgid "``ratio``: 追従割合。DG内でも0〜1へ制限。アニメーション可。"
+msgstr "``ratio``: Follow ratio. Constrained between 0 and 1 within the DG. Animatable."
+
+msgid "``followMode``: 0=Full、1=Twist、2=Swing。成分選択用。"
+msgstr "``followMode``: 0=Full, 1=Twist, 2=Swing. For component selection."
+
+msgid "上流の親の動きは、出力先の親階層から通常どおり継承します。 「Twistのみ」は入力jointの親に対する回転差分に適用され、親のSwingまで除去する意味ではありません。 生成後の入力親変更、負・非一様scale、shear、多回転、180度境界の連続性は対象外です。 独自プラグインやフレームごとのPythonコールバックは使用しません。"
+msgstr "The upstream parent's motion is inherited from the output parent hierarchy as usual. \"Twist only\" is applied to the rotational difference relative to the input joint's parent, and does not mean that the parent's Swing should be removed. Post-generation input parent changes, negative or non-uniform scaling, shear, multi-rotation, and continuity at 180-degree boundaries are out of scope. Custom plug-ins or per-frame Python callbacks are not used."
+
+msgid "揺れ計算とポーズ補間"
+msgstr "Shake Calculation and Pose Interpolation"
+
+msgid "``hlib.utils.DampedSpring`` は等間隔の数値列を減衰ばねで処理します。 Mayaノードを生成せず、Python標準ライブラリだけで計算します。"
+msgstr "``hlib.utils.DampedSpring`` processes evenly spaced numeric sequences with a damped spring. It performs calculations using only the Python standard library, without generating any Maya nodes."
+
+msgid "frequencyは固有振動数Hz、dampingは減衰比、limitは入力からの差の上限です。 初期位置は最初の入力、初速は0です。内部で時間を分割し、サンプル間の入力を 線形補間します。角度の周期処理は呼出側で行ってください。 ライブ評価、衝突、重力、布シミュレーションは提供しません。"
+msgstr "frequency is the natural frequency in Hz, damping is the damping ratio, and limit is the upper bound of the difference from the input. The initial position is the first input, and the initial velocity is 0. Internally, time is divided into segments, and inputs between samples are linearly interpolated. Periodic handling of angles must be performed by the caller. Live evaluation, collision, gravity, and cloth simulation are not provided."
+
+msgid "複数入力のポーズ補正"
+msgstr "Multiple Input Pose Correction"
+
+msgid "``PoseRbf.create(drivers, poses, values, scales, name=\"poseRbf\")`` は 複数の数値属性から複数の補正値を生成します。戻り値の ``container`` に ``outputs[0]`` 以降の出力と、再編集用データを保持します。"
+msgstr "``PoseRbf.create(drivers, poses, values, scales, name=\"poseRbf\")`` generates multiple correction values from multiple numeric attributes. The return value ``container`` holds ``outputs[0]`` and subsequent outputs, as well as data for re-editing."
+
+msgid "drivers: 入力Plugまたは属性名の配列。"
+msgstr "drivers: Array of input plugs or attribute names."
+
+msgid "poses: 登録入力値の配列。2〜64ポーズで、各行は入力数と同じ長さ。"
+msgstr "poses: Array of registered input values. 2 to 64 poses, where each row has the same length as the number of inputs."
+
+msgid "values: 各ポーズの出力値。各行の出力数を揃える。"
+msgstr "values: Output values for each pose. Align the number of outputs per row."
+
+msgid "scales: 入力軸ごとの距離尺度。正の有限値。"
+msgstr "scales: Distance scale for each input axis. Positive finite values."
+
+msgid "ガウス関数 ``exp(-sum(((input - pose) / scale)**2))`` の組合せを使い、 登録ポーズで指定値に一致する係数をPythonで解きます。再生時は multiplyDivide等のMaya標準ノードだけで評価し、Pythonコールバックは不要です。 角度属性の入力はMayaの表示単位にかかわらず度として扱います。 出力は単位なしの数値で、角度属性へ接続する場合は単位変換が必要です。"
+msgstr "We solve for coefficients that match the specified values in the registered poses using a combination of Gaussian functions ``exp(-sum(((input - pose) / scale)**2))``. During playback, evaluation is performed using only standard Maya nodes such as multiplyDivide, so Python callbacks are unnecessary. Input angle attributes are treated in degrees regardless of Maya's display unit settings. The output is a unitless numeric value, so unit conversion is required when connecting to angle attributes."
+
+msgid "登録点から十分離れると出力は0へ近づきます。正規化したブレンドウェイトではなく、 中間で負値や登録値を超える値になる場合があります。重複・近接しすぎた入力で 係数が安定して解けない場合は生成を拒否します。"
+msgstr "When far from the registration points, the output approaches zero. The values may become negative or exceed the registration values, unlike normalized blend weights. If coefficients cannot be stably solved due to duplicate or excessively close inputs, generation is rejected."
+
+msgid "``PoseRbf(container).set_values(values)`` で出力値を再設定できます。 このメソッドではポーズ数・入力・出力の次元は変更できません。 ``set_data(poses, values, scales)`` は2〜64登録の追加・削除・入力編集とscalesの変更に対応します。 入出力の次元は固定ですが、containerの識別子と外部接続を保持します。 内部ノードは再構築するため、内部計算ノードへの独自接続は保持しません。 変更前に重複・数値不正を検証し、生成・編集はUndo対象です。 ``data()`` で保存済み辞書のコピー、``capture()`` で現在入力（角度は度）を取得できます。 Maya Pose Editorのデータ形式との互換はありません。"
+msgstr "You can reset the output values with ``PoseRbf(container).set_values(values)``. This method does not allow changes to the number of poses, input dimensions, or output dimensions. ``set_data(poses, values, scales)`` supports adding, deleting, and editing input registrations from 2 to 64, as well as changing scales. While input and output dimensions are fixed, the container identifier and external connections are preserved. Since internal nodes are rebuilt, custom connections to internal computation nodes will not be retained. Before making changes, duplicates and invalid values are verified, and creation and editing are undoable. ``data()`` creates a copy of the saved dictionary, and ``capture()`` retrieves the current input (angles in degrees). It is not compatible with the data format of Maya Pose Editor."
+
+msgid "参照空間の切替"
+msgstr "Switching Reference Spaces"
+
+msgid "``hrig.setups.SpaceSwitch`` は専用transformを参照ノードまたはワールドへ 追従させる共通ライブラリです。標準の ``choice`` と ``multMatrix`` を使用し、 プラグインや実行スクリプトをシーンへ埋め込みません。"
+msgstr "``hrig.setups.SpaceSwitch`` is a common library that makes dedicated transforms follow reference nodes or the world. It uses standard ``choice`` and ``multMatrix`` without embedding plug-ins or executable scripts into the scene."
+
+msgid "``create`` にはローカルTRSが恒等値で、offsetParentMatrixが未接続の専用transformを 渡します。初期オフセットと参照先ワールド行列、実親の逆行列から offsetParentMatrixを計算します。親の付け替えやbufferのTRS編集は対象外です。 ``switch`` は切替先のオフセットを更新し、bufferのワールド姿勢と子の ローカルチャンネルを保持します。通常の移動追従はDGだけで評価されます。"
+msgstr "``create`` takes a dedicated transform with local TRS as identity and an unconnected offsetParentMatrix. It calculates the offsetParentMatrix from the initial offset, reference world matrix, and the inverse of the actual parent. Parent switching orTRS editing of the buffer are not covered. ``switch`` updates the offset of the switch target, and maintains the world pose of the buffer and the local channels of its children. Conventional movement following is evaluated with DG only."
+
+msgid "保存後は ``SpaceSwitch(buffer)`` で再取得できます。名前の変更は接続から追跡します。 ``nodes()`` は所有ノードを返し、外部の参照先は含めません。削除は利用側が管理します。 空間名は英字で始まる英数字・アンダースコアとし、重複名は拒否します。"
+msgstr "After saving, you can retrieve it again with ``SpaceSwitch(buffer)``. Name changes are tracked from connections. ``nodes()`` returns the owned nodes and does not include external references. Deletion is managed by the user. Namespace names must begin with an English letter and consist of alphanumeric characters and underscores, and duplicate names are rejected."
+
+msgid "制限"
+msgstr "Limitations"
+
+msgid "これは停止中に行う構成操作です。選択先のオフセットを編集するため、アニメーション中の 切替キーや過去フレームの姿勢保持は実装していません。時系列の切替には別途ベイクや キー付きオフセットの設計が必要です。"
+msgstr "This is a configuration operation performed while stopped. Since it edits the selected offset, animation switching keys and pose retention on past frames are not implemented. Separate baking or key-driven offset design is required for timeline switching."
+
+msgid "自己・子孫・通常のDG/DAG依存による循環は登録時に拒否します。IKソルバーなど 暗黙の内部依存まで汎用的に検出するものではありません。リグ側でも変形結果を 自身の操作空間へ入力しない制約を設けてください。参照先の削除・bufferの再親子付け・ インスタンス階層の利用はサポート対象外です。"
+msgstr "Cycles caused by self, descendants, and normal DG/DAG dependencies are rejected at registration time. It does not generally detect implicit internal dependencies such as those from IK solvers. Please set constraints on the rig side that do not input deformation results into their own local coordinate space. Deletion of references, re-parenting of buffers, and use of instance hierarchies are not supported."
+
+msgid "Spline IK"
+msgstr ""
+
+msgid "``hrig.setups.SplineIK`` は既存の骨列とコントロールを使い、 Maya標準の ``ikSplineSolver`` と3次NURBSカーブを生成します。 独自プラグイン、Bifrost、毎フレームのPython実行は不要です。"
+msgstr "``hrig.setups.SplineIK`` generates Maya's standard ``ikSplineSolver`` and 3rd degree NURBS curves using existing bone chains and controls. It does not require custom plug-ins, Bifrost, or per-frame Python execution."
+
+msgid "``joints`` は根元から末端までの連続した3本以上のjointです。 ローカルXが長手方向となる、回転入力やキーのない骨を渡してください。 ``controls`` は4〜32個の異なるtransformで、順番にカーブのCVを駆動します。 内部CVは通過点ではなく制御点です。コントロールの移動量と骨の移動量は一致しません。 ``parent`` はカーブとhandleの親です。parentとcontrolsを計算対象骨列の子に置くと 循環するため拒否します。下流ノードを経由した循環をすべて自動判定するものではありません。"
+msgstr "``joints`` is a continuous chain of three or more joints from root to tip. Pass in bones with local X aligned along the longitudinal direction, and no rotation inputs or keys. ``controls`` consists of 4 to 32 different transforms that drive the curve CVs in sequence. The internal CVs are control points, not passing points. The movement amount of the controls will not match the movement amount of the bones. ``parent`` is the parent of the curve and handle. It rejects cases where parent and controls are placed as children of the target bone chain to avoid cycles. It does not automatically detect all cycles via downstream nodes."
+
+msgid "各controlのworldMatrixをカーブの親空間へ変換してCVへ接続します。 Spline IKソルバーへのカーブ入力はworldSpaceであり、完全なローカル空間評価ではありません。 骨長は入力骨のまま維持し、ストレッチは行いません。 両端controlのworldMatrixをAdvanced Twistへ渡します。 ``up_axis`` はyまたはzで、骨とcontrolの同軸を上方向として扱います。 接線と上方向が平行な姿勢や多回転での連続性は保証しません。"
+msgstr "Converts the worldMatrix of each control to the parent space of the curve and connects it to the CVs. Spline IK solver requires curve input in worldSpace, not full local space evaluation. Bone lengths are maintained as input bones, and stretching is not applied. The worldMatrix of the end controls is passed to Advanced Twist, where ``up_axis`` handles alignment along y or z axis, treating bone and control alignment as upward direction. Continuity in poses where tangent and up direction are parallel or in multi-rotation scenarios is not guaranteed."
+
+msgid "``set_enabled(False)`` はinCurveを切断し、ikBlendを0、nodeStateをBlockingにします。 既存骨をFK姿勢へ戻す機能ではありません。呼出側で出力経路や基準姿勢を管理してください。 この状態は構成切替用で、連続ブレンドではありません。"
+msgstr "``set_enabled(False)`` breaks the inCurve, sets ikBlend to 0, and nodeState to Blocking. It does not return existing joints to FK pose. The calling side should manage the output path and reference pose. This state is for configuration switching, not continuous blending."
+
+msgid "``container`` が生成したカーブ、handle、effector、CV変換ノードを所有します。 入力の骨、control、parentは所有しません。生成と有効状態の変更はUndo対象です。 生成物削除後も入力骨は保持されますが、IKで得た最終姿勢が残る場合があります。"
+msgstr "``container`` owns the curves, handles, effectors, and CV conversion nodes it creates. It does not own the input joints, controls, or parents. Generation and changes to the active state are undoable. Input joints are retained after deletion of the generated objects, although the final pose obtained from IK may remain."
+
+msgid "Mayaのソルバー仕様は `Autodesk ikHandle command <https://help.autodesk.com/cloudhelp/2025/ENU/Maya-Tech-Docs/CommandsPython/ikHandle.html>`_ を参照してください。"
+msgstr "For Maya's solver specifications, see the `Autodesk ikHandle command <https://help.autodesk.com/cloudhelp/2025/ENU/Maya-Tech-Docs/CommandsPython/ikHandle.html>`_."
+
+msgid "カーブの近似"
+msgstr "Curve Approximation"
+
+msgid "``hlib.utils.CurveFit.fit(points, count)`` は、2点以上の3次元点列から 4〜32個のCVを返します。点列の弦長を正規化し、3次clamped均等knotの 最小二乗問題を解きます。NumPy等の外部ライブラリは使用しません。 入出力は同じ空間・単位で、端点を固定し、サンプルが少ない場合は直線配置へ 弱く正則化します。``basis(count, parameter)`` は0〜1パラメータでのCV重みです。"
+msgstr "``hlib.utils.CurveFit.fit(points, count)`` returns 4 to 32 CVs from a sequence of 3D points with more than two points. It solves a least-squares problem with the chord length of the point sequence normalized, using a cubic clamped uniform knot. It does not use external libraries such as NumPy. Input and output are in the same space and unit. End points are fixed, and if the number of samples is small, it applies weak regularization toward linear arrangement. ``basis(count, parameter)`` are CV weights with parameters from 0 to 1."
+
+msgid "折れ線の長さ、鋭い角、骨回転を完全に復元するものではありません。 Mayaシーンを操作せず、ソルバー評価後の誤差検証と姿勢の採用判断は呼出側で行います。"
+msgstr "This does not fully restore the polyline length, sharp angles, or bone rotations. The error validation after solver evaluation and the decision on pose adoption are performed by the caller."
+
+msgid "Swing / Twistとドリブンキー"
+msgstr "Swing / Twist and Driven Keys"
+
+msgid "``hrig.setups.SwingTwist`` は親transformを持つjointのローカル回転を分解します。 ``matrix * offsetParentMatrix`` を使用し、生成時の姿勢をゼロ基準とします。 標準ノードのみを使い、生成した計算ノードと単位変換ノードをcontainerで所有します。"
+msgstr "``hrig.setups.SwingTwist`` decomposes the local rotation of a joint that has a parent transform. Using ``matrix * offsetParentMatrix``, the initial pose is set as the zero reference. Only standard nodes are used, and the generated calculation nodes and unit conversion nodes are owned by a container."
+
+msgid "``axis`` はTwistの長手軸です。 ``rest=False`` なら生成時の姿勢を差し引かずに扱います。 出力は以下です。"
+msgstr "``axis`` is the twist axis along the length. If ``rest=False`` is used, the initial pose is handled without subtracting the pose at generation time. The output is as follows."
+
+msgid "``twist``: 指定軸まわりの符号付き角度。"
+msgstr "``twist``: Signed angle around the specified axis."
+
+msgid "``swingX`` / ``swingY`` / ``swingZ``: Twistを除いたSwingをXYZ Euler角へ変換した成分。"
+msgstr "``swingX`` / ``swingY`` / ``swingZ``: Components converted to XYZ Euler angles, excluding twist from swing."
+
+msgid "``twistMatrix`` / ``swingMatrix``: 純粋な回転行列。"
+msgstr "``twistMatrix`` / ``swingMatrix``: Pure rotation matrix."
+
+msgid "角度スカラーはすべて **度単位のdouble** で、シーンの角度単位に依存しません。 DrivenKeyの入力キーも度で指定し、出力キーは駆動先の現在のUI単位で指定します。 Mayaの行ベクトル規約で ``twistMatrix * swingMatrix`` が基準からの回転になります。 SwingのXYZ成分は独立した解剖学的な曲げ角ではなく、Euler表現の特異点があります。"
+msgstr "All angular scalars are **doubles in degrees**, and are independent of the scene's angular unit. DrivenKey input keys are specified in degrees, and output keys are specified in the current UI unit of the driven object. In Maya's row-vector convention, ``twistMatrix * swingMatrix`` represents rotations from the base. The XYZ components of Swing are not independent anatomical bending angles, but suffer from singularities of Euler representation."
+
+msgid "TwistはQuaternionを指定軸へ射影して抽出します。指定軸に直交する180度のSwingでは Twistが不定となるため、Twistを恒等回転とします。180度境界を越える連続回転・多回転・ 負スケール・シアーは対象外です。構築後に参照jointの親を変更しないでください。"
+msgstr "Twist extracts the quaternion projection onto the specified axis. Since Twist is undefined when the swing is orthogonal to the specified axis by 180 degrees, Twist is set to an identity rotation. Continuous rotations, multi-rotations, negative scaling, and shearing that exceed the 180-degree boundary are outside the scope of this tool. Do not change the parent of the reference joint after construction."
+
+msgid "駆動先から分解元へ依存が戻らない構成にしてください。hlibの分解オブジェクト自体は 駆動先やLODを管理しません。hrigのレイヤー登録を使う場合は ``LimbRig.add_driven`` を利用します。 上記のhlib単体例で作成したSDKカーブは分解containerの所有物ではありません。"
+msgstr "Configure the dependency to flow from the driven object to the driver object. The hlib decomposition object itself does not manage driven objects or LODs. When using hrig layer registration, use ``LimbRig.add_driven``. The SDK curve created with the above hlib standalone example is not owned by the decomposition container."
+
+msgid "テスト結果"
+msgstr "Test results"
+
+msgid "2026年9月29日の実装済み拘束バックエンドの検証記録です。 このページはその時点の結果であり、将来の変更に対する自動更新・速度保証ではありません。"
+msgstr "Implementation record of constraint backend validation as of September 29, 2026. This page reflects the results at that time and does not automatically update or guarantee performance for future changes."
+
+msgid "Serial / Parallelの実測"
+msgstr "Actual measurement of Serial / Parallel"
+
+msgid "Maya 2027、Windows 11、Intel64 Family 6 Model 151 Stepping 2、論理CPU20、Mayaスレッド設定20。 Bifrostは ``3.0.0.0-202602040323-9df3db7`` です。 300拘束、120フレーム×5回の中央値を示します。単位はms/frameで、小さいほど高速です。 詳しいシーンと測定範囲は :doc:`test_scenes` を参照してください。"
+msgstr "Maya 2027, Windows 11, Intel64 Family 6 Model 151 Stepping 2, 20 logical CPUs, Maya thread setting 20. Bifrost is ``3.0.0.0-202602040323-9df3db7``. Shows median of 300 constraints over 120 frames × 5 runs. Units are ms/frame, lower is faster. See :doc:`test_scenes` for detailed scene and measurement scope."
+
+msgid "評価時間（ms/frame）"
+msgstr "Evaluation time (ms/frame)"
+
+msgid "構成"
+msgstr "Configuration"
+
+msgid "独立 Serial"
+msgstr "Independent Serial"
+
+msgid "独立 Parallel"
+msgstr "Independent Parallel"
+
+msgid "階層 Serial"
+msgstr "Hierarchical Serial"
+
+msgid "階層 Parallel"
+msgstr "Hierarchical Parallel"
+
+msgid "parentConstraint"
+msgstr ""
+
+msgid "8.813"
+msgstr ""
+
+msgid "2.393"
+msgstr ""
+
+msgid "9.441"
+msgstr ""
+
+msgid "9.782"
+msgstr ""
+
+msgid "行列＋decompose"
+msgstr "Matrix + decompose"
+
+msgid "6.532"
+msgstr ""
+
+msgid "2.193"
+msgstr ""
+
+msgid "7.086"
+msgstr ""
+
+msgid "6.601"
+msgstr ""
+
+msgid "行列→OPM"
+msgstr "matrix → OPM"
+
+msgid "4.685"
+msgstr ""
+
+msgid "1.909"
+msgstr ""
+
+msgid "4.682"
+msgstr ""
+
+msgid "2.791"
+msgstr ""
+
+msgid "C++"
+msgstr ""
+
+msgid "4.731"
+msgstr ""
+
+msgid "1.962"
+msgstr ""
+
+msgid "4.763"
+msgstr ""
+
+msgid "2.931"
+msgstr ""
+
+msgid "Bifrost"
+msgstr ""
+
+msgid "26.301"
+msgstr ""
+
+msgid "18.228"
+msgstr ""
+
+msgid "26.555"
+msgstr ""
+
+msgid "25.577"
+msgstr ""
+
+msgid "全20計測条件でCached Playback無効、要求した評価モードとの一致、fallbackなしを確認しました。 小規模の40姿勢条件も誤差1e-6以内で一致し、専用mayapyは終了コード0でした。 生データはローカルの ``.maya-output/constraint-benchmark/serial-parallel/results.json`` にあります。 生ログ・研究メモは公開サイトやGitへ含めません。"
+msgstr "All 20 measurement conditions were verified with Cached Playback disabled, matching the requested evaluation mode, and no fallback was required. Even the small-scale 40 pose conditions matched within an error of 1e-6, and the dedicated mayapy exited with code 0. The raw data is located locally at ``.maya-output/constraint-benchmark/serial-parallel/results.json``. Raw logs and research notes are not included in the public site or Git."
+
+msgid "今回の単純な行列追従では標準OPMが最速でした。Bifrostは独立配置では並列評価で短縮しましたが、 1拘束1GraphShapeという構成では標準OPMより長い時間を要しました。 グラフ境界の固定費は候補であり、内部プロファイルで原因を確定した結果ではありません。 Boardや配列一括処理へ変更した場合の性能は未測定です。"
+msgstr "In this simple matrix following case, the standard OPM was the fastest. Although Bifrost shortened the time with parallel evaluation in independent placement, it took longer than the standard OPM in a configuration of 1 constraint and 1 GraphShape. The fixed cost at the graph boundary is a candidate and not the confirmed cause determined by internal profiling. The performance when changing to Board or array batch processing has not been measured."
+
+msgid "機能テストの記録"
+msgstr "Recording of functional tests"
+
+msgid "同日のC++/Bifrost追加時に、Maya 2025・2027の両版で以下の結果を確認しています。 今回のドキュメント整備でこれらのMayaテストを再実行したものではありません。"
+msgstr "In the same C++/Bifrost addition on the same day, we have confirmed the following results in both Maya 2025 and 2027 versions. These Maya tests were not re-executed in this documentation preparation."
+
+msgid "既存実行ログによる検証記録"
+msgstr "Verification record based on existing execution logs"
+
+msgid "スイート"
+msgstr "Suite"
+
+msgid "Maya 2025"
+msgstr ""
+
+msgid "Maya 2027"
+msgstr ""
+
+msgid "setups"
+msgstr ""
+
+msgid "47件成功"
+msgstr "47 succeeded"
+
+msgid "matrix-plugins"
+msgstr ""
+
+msgid "17件成功"
+msgstr "17 succeeded"
+
+msgid "native"
+msgstr ""
+
+msgid "7件成功"
+msgstr "7 items succeeded"
+
+msgid "証跡はローカルの ``.maya-output/constraint-benchmark/final2025-*.log`` と ``final2027-*.log`` です。2025の大規模5構成性能比較は未実施です。"
+msgstr "The traces are local to ``.maya-output/constraint-benchmark/final2025-*.log`` and ``final2027-*.log``. The large-scale 5-component performance comparison for 2025 has not been implemented yet."
+
+msgid "既知の制限"
+msgstr "Known Issues"
+
+msgid "Bifrostグラフ構築のUndo/Redoで専用Mayaが異常終了したため、現在はGUIまたはUndo有効時の構築を拒否します。 テスト成功にはこの拒否の確認が含まれ、BifrostのUndo/Redoが動作することを示しません。"
+msgstr "Due to abnormal termination of the dedicated Maya instance during Bifrost graph construction with Undo/Redo, GUI-based or construction with Undo enabled is currently denied. The test success includes this denial, but does not indicate that Bifrost Undo/Redo is functioning properly."
+
+msgid "単一入力の剛体追従の検証です。複数入力、軸スキップ、jointOrientなどのparentConstraint全機能は対象外です。"
+msgstr "This is a test for single-input rigid following. Multiple inputs, axis skipping, parentConstraint full features such as jointOrient are out of scope."
+
+msgid "キャラクター全体、描画、スキニング、CPU 1スレッド固定、Bifrost内部の時間内訳は未測定です。"
+msgstr "Character-wide, draw, skinning, CPU with 1 thread fixed, time breakdown within Bifrost is not measured."
+
+msgid "環境負荷やMaya・Bifrostの版によって数値は変わります。比較時は同じ実行内で全構成を再計測してください。"
+msgstr "The values vary depending on the environmental load and the version of Maya or Bifrost. When performing comparisons, re-measure all configurations within the same execution."
+
+msgid "テストシーン"
+msgstr "Test scene"
+
+msgid "シーンの生成"
+msgstr "Creating a scene"
+
+msgid "計測シーンは ``tools/benchmark_hrig_constraints.py`` の ``build_scene`` で毎回生成します。 固定の.maファイルは同梱していません。前ページのコマンドで同じ構造を再生成できます。 各条件で新規シーンへ切り替え、構築時間を評価時間から除外します。"
+msgstr "Measurement scenes are generated with ``tools/benchmark_hrig_constraints.py`` ``build_scene`` each time. Fixed .ma files are not included. The same structure can be regenerated with the command on the previous page. Switch to a new scene for each condition and exclude construction time from evaluation time."
+
+msgid "独立配置"
+msgstr "Standalone placement"
+
+msgid "``sourceRoot`` 配下に300個の入力Transform、``targetRoot`` 配下に300個の出力Transformを置き、 入力と出力を1対1で拘束します。各出力を独立に評価できる配置です。"
+msgstr "Under ``sourceRoot``, place 300 input Transforms, and under ``targetRoot``, place 300 output Transforms. Constrain each input to its corresponding output on a one-to-one basis. This arrangement allows independent evaluation of each output."
+
+msgid "階層配置"
+msgstr "Hierarchical layout"
+
+msgid "入力側は独立配置と同じですが、出力側は前の出力の子に次の出力を置く300段の階層です。 親空間の依存による影響を見る負荷試験で、通常の腕・脚の階層の長さを代表するものではありません。"
+msgstr "The input side is the same as independent placement, but the output side consists of a 300-level hierarchy where each next output is placed as a child of the previous output. This is not representative of typical arm and leg hierarchy lengths, but rather a load test designed to observe the impact of parent-space dependencies."
+
+msgid "入力アニメーションと比較対象"
+msgstr "Input animation and comparison target"
+
+msgid "入力のtranslateX/Y・rotateY/Z、targetRootのtranslateX・rotateYに1〜120フレームのキーを設定します。 単位はcm・deg・filmです。スケール・shear・jointOrient・複数ターゲットのブレンドは比較対象外です。"
+msgstr "Set keys for translateX/Y and rotateY/Z of the input, and translateX and rotateY of targetRoot, from 1 to 120 frames. Units are cm, deg, and film. Scale, shear, jointOrient, and blend with multiple targets are not included in the comparison."
+
+msgid "parentConstraint（単一入力）"
+msgstr "parentConstraint (single input)"
+
+msgid "multMatrix + decomposeMatrix（translate/rotate出力）"
+msgstr "multMatrix + decomposeMatrix (translate/rotate output)"
+
+msgid "multMatrix → offsetParentMatrix"
+msgstr ""
+
+msgid "hrigMatrixFollow（C++）→ offsetParentMatrix"
+msgstr "hrigMatrixFollow (C++) → offsetParentMatrix"
+
+msgid "Bifrost GraphShape（1拘束1グラフ、倍精度の行列積2回）→ offsetParentMatrix"
+msgstr "Bifrost GraphShape (1 constraint 1 graph, 2 double precision matrix multiplications) → offsetParentMatrix"
+
+msgid "性能シーンは初期オフセット有効です。全出力のworldMatrixを要求し、currentTimeとdgevalの 経過時間を計測します。120フレームのウォームアップ後、120フレームを5回計測します。 Cached Playback、描画、スキニングは使用しません。通常のDG値保持やコンパイル済みグラフは利用します。"
+msgstr "Performance scene has initial offset enabled. Requesting worldMatrix for all outputs, and measuring elapsed time for currentTime and dgeval. After 120-frame warmup, measure 120 frames for 5 times. Cached Playback, rendering, and skinning are not used. Normal DG value holding and compiled graphs are used."
+
+msgid "姿勢検証"
+msgstr "Pose Verification"
+
+msgid "拘束8個の小規模シーンで、Serial/Parallel・初期オフセット有無・階層有無・5構成の 40条件を比較します。時刻1・8・31・67・120・15のワールド行列を標準拘束と比較し、 要素の最大絶対誤差1e-6超過で失敗します。逆方向の時刻移動も含みます。"
+msgstr "In a small scene with 8 constraints, we compare 40 conditions consisting of Serial/Parallel, initial offset on/off, hierarchy on/off, and 5 configurations. We compare world matrices at time steps 1, 8, 31, 67, 120, and 15 against standard constraints, and the test fails if the maximum absolute error of any element exceeds 1e-6. This includes backward time movement."
+
+msgid "このシーンは拘束の評価専用です。レイヤー切替、GUI操作、スキン済みキャラクター全体の 性能や、Bifrostの配列一括処理の速度は別途検証が必要です。"
+msgstr "This scene is for constraint evaluation only. Layer switching, GUI operations, overall performance of skinned characters, and the speed of Bifrost array batch processing require separate verification."
+
+msgid "テスト方法"
+msgstr "Testing methods"
+
+msgid "実行環境"
+msgstr "Execution Environment"
+
+msgid "テストは専用mayapyプロセスで実行します。新規シーンに切り替えるため、 作業中のMaya GUIへテストファイルを送信しないでください。 C++比較には対象Maya用のhrigNodes、Bifrost比較にはhlib_bifrostと対応Bifrostが必要です。 ビルド方法・BifrostのUndo制限は :doc:`constraint_performance` を参照してください。"
+msgstr "Tests are executed in a dedicated mayapy process. Do not send test files to the working Maya GUI, as this will switch to a new scene. For C++ comparisons, hrigNodes for the target Maya is required; for Bifrost comparisons, hlib_bifrost and the corresponding Bifrost are needed. Refer to :doc:`constraint_performance` for build instructions and Bifrost Undo limitations."
+
+msgid "リポジトリ直下の専用PowerShellで以下を実行し、終了後はそのPowerShellを閉じます。"
+msgstr "Execute the following in a dedicated PowerShell at the root of the repository, then close that PowerShell."
+
+msgid "各コマンドの終了コード0と最終のOKを確認します。2025を検証する場合はmayapyのパスと テスト用ディレクトリを2025用に変更します。既存GUIのプラグイン再ロードは行いません。"
+msgstr "Check the exit code 0 and final OK for each command. If you are validating against 2025, change the mayapy path and test directory to the 2025 version. Existing GUI plug-in reloads are not performed."
+
+msgid "スイートの範囲"
+msgstr "Suite scope"
+
+msgid "``setups``: 行列追従、空間切替、補助骨、回転分解、揺れ物、Spline、伸縮、ポーズ編集など。"
+msgstr "``setups``: Matrix follow, space switching, auxiliary bones, rotation decomposition, pendulums, Spline, stretchiness, pose editing, and so on."
+
+msgid "``matrix-plugins``: C++・Bifrost行列追従。BifrostのUndo/GUI拒否も含みます。"
+msgstr "``matrix-plugins``: C++/Bifrost matrix following. This includes Bifrost's Undo/GUI rejection."
+
+msgid "``native``: リグ定義とC++バックエンド。"
+msgstr "``native``: Rig definitions and C++ backend."
+
+msgid "``standard``: 標準ノードのリグ・レイヤー統合テスト。"
+msgstr "``standard``: Standard node rig layer integration test."
+
+msgid "``bifrost``: Bifrostグラフとリムのテスト。"
+msgstr "``bifrost``: Testing Bifrost graphs and rim."
+
+msgid "全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。 最新のテストファイル構成は ``tools/test_rig_packages.py`` が実体です。"
+msgstr "Running all suites requires multiple dependencies. Please select according to the scope of changes. The latest test file structure is embodied in ``tools/test_rig_packages.py``."
+
+msgid "性能比較"
+msgstr "Performance Comparison"
+
+msgid "Cached Playbackは無効化し、各反復直前にも照会します。有効なら中断します。 既定のモードはDG・Serial・Parallelです。Serialは評価グラフの直列評価で、 Bifrost内部も含めたCPU 1スレッド固定ではありません。 JSONに実際のモード・キャッシュ状態・fallback・各反復の秒数・中央値を記録します。"
+msgstr "Cached Playback is disabled, and will be checked before each iteration. If enabled, it will abort. The default modes are DG, Serial, and Parallel. Serial refers to serial evaluation of the dependency graph, and does not fix the CPU to a single thread, even within Bifrost. Records the actual mode, cache state, fallback, seconds per iteration, and median in JSON."
+
+msgid "ドキュメントのビルド"
+msgstr "Building the documentation"
+
+msgid "Maya不要のPython環境で、リポジトリ直下から実行します。"
+msgstr "Execute directly from the repository root in a Maya-free Python environment."
+
+msgid "出力の ``index.html`` を開きます。hlibのsphinxdocテーマとCSSを共有するため、 ワークスペース内のhlib/docsも必要です。外部ツール調査メモや生ログはサイトへ取り込みません。"
+msgstr "Opens the output ``index.html``. For sharing the sphinxdoc theme and CSS of hlib, hlib/docs within the workspace is also required. External tool investigation memos and raw logs are not imported into the site."
+
+msgid "ツイストの分配"
+msgstr "Twist Distribution"
+
+msgid "``hrig.setups.TwistDistribution`` は二つのtransformの相対Quaternionから 指定軸のツイストだけを抽出し、位置と回転を同じ割合で補間します。 標準ノードのみを使い、生成ノードは ``container`` が所有します。 ジョイントの生成・LOD・スキニングは呼び出し側の責務です。"
+msgstr "``hrig.setups.TwistDistribution`` extracts only the twist along the specified axis from the relative Quaternion of two transforms, and interpolates position and rotation with the same ratio. It uses only standard nodes, and the generated nodes are owned by ``container``. Joint creation, LOD, and skinning are the responsibility of the caller."
+
+msgid "``axis`` は始点のローカル長手軸 ``x`` / ``y`` / ``z`` です。 相対回転の軸成分とW成分を正規化し、純粋なツイスト行列を ``blendMatrix`` で補間します。 位置は両端間の線形補間です。始点と終点が直接の親子ならローカル行列と offsetParentMatrixを使い、別階層ならワールド行列から始点空間へ変換します。 参照先の再親子付けは構築後に行わないでください。"
+msgstr "``axis`` is the local tangent axis ``x`` / ``y`` / ``z`` at the start point. Normalize the rotational axis components and W component, then interpolate to obtain the pure twist matrix ``blendMatrix``. The position is linearly interpolated between the endpoints. If the start and end points are directly parent-child, use the local matrix and offsetParentMatrix; otherwise, convert from the world matrix to the start point's space. Do not reparent the reference after construction."
+
+msgid "回転は最短経路で、180度境界をまたぐ連続回転や複数回転の蓄積には対応しません。 長手軸に直交する180度の曲げではツイストの分解が不定となるため、恒等回転にします。 骨の曲げ方向へ自動で軸を向け直す機能や、ボリューム補正は含みません。 Maya 2022のblendMatrix成分選択boolと、2025以降の成分ウェイトの差を吸収します。"
+msgstr "Rotation does not account for shortest path, nor does it handle continuous rotation across 180-degree boundaries or accumulation of multiple rotations. For bending along an axis orthogonal to the bone's long axis, where twist decomposition becomes ambiguous, it defaults to an identity rotation. It does not include automatic axis orientation toward the bone's bend direction or volume correction. It absorbs differences in Maya 2022's blendMatrix component selection bool and component weight handling from 2025 onwards."
+
+msgid "所有する計算ノードは ``hlib.delete(graph.container)`` で削除できます。 両端のtransformは削除対象に含めません。補間先を始点・終点やその上流へ接続して 循環を作らないようにしてください。"
+msgstr "You can delete the owned calculation nodes with ``hlib.delete(graph.container)``. Do not include the end transforms in the deletion target. Do not connect the interpolation target to the start/end points or their upstream nodes to avoid creating cycles."
+

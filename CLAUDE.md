@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。
 
 - Aiderへの実装委譲は行わない。Maya開発時のGPU・メモリ競合を避けるため、ローカルOllamaも作業のために自動起動・モデルロードしない。実装・レビュー・検証は担当エージェントが直接行う。ユーザーが明示的に再開を指示するまで、この方針を維持する。
+  - 例外(2026-10-05 ユーザー許可): ドキュメントの英訳(`tools/translate_docs.py`)に限り、Ollama の `qwen3-coder:30b` を読み込んで使ってよい。GPUメモリを約18GB使うため、Mayaを使っていないときに実行する。英訳は時間がかかるため、**ユーザーが英訳を指示したときだけ** 実行する(ドキュメントを編集しても自動では英訳しない。未訳の文は英語版に日本語のまま出る)。実装・レビュー・検証への利用は引き続き行わない。
 
 - C++の内製コードは日本語のDoxygen形式（`@brief`・`@param`・`@return`、必要時`@note`）でファイル・クラス・全ての名前付き関数を説明する。初心者が追えるよう、所有権・Qtシグナル/スロット・非同期処理・Maya呼出の理由もコメントする。引数や戻り値がないタグは省略し、自明な各行の逐語説明は避ける。PythonはGoogle形式docstringを使用する。詳細は `docs/cpp-documentation.md` を参照する。外部submoduleへ一括適用しない。
 

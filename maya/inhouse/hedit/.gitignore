@@ -1,2 +1,5 @@
 # 0.2.x までの版ごとの出力フォルダー(release/plug-ins/windows/<年>/<版>/)。今は<年>/hedit.mll に出力する。
 release/plug-ins/windows/*/*/
+
+# Sphinx が .po から自動で作るコンパイル済みの訳
+docs/locale/**/*.mo
