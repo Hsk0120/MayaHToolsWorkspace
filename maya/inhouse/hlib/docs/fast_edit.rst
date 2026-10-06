@@ -29,8 +29,14 @@ Undo不要の値更新
 * NodeのOutliner色・override色・アトリビュート表示フラグ。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
 * Shape / Transformの ``scaleGeometry``。履歴なしメッシュ・非周期カーブに対応。
+* Meshの ``reorderVertices``。UV対応で頂点番号を変更します。
+  対応条件とUndoモードのtweak制限は :doc:`guide_geometry` を参照してください。
 * SkinClusterの ``setWeights`` / ``loadWeights`` / ``normalizeWeights`` /
   ``setMaxInfluences``。
+* BlendShapeの ``setTargetWeights`` / ``setTargetDeltas`` / ``resetTargetVertices`` / ``replaceTarget`` /
+  ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets``。照会は通常時もOpenMayaを使います。
+  追加・削除・ミラーはMaya標準cmds/MEL処理を維持するためfast非対応です。
+  詳細と保存形式の制限は :doc:`guide_deformers` を参照してください。
 * Locator、BlendColors、BlendWeighted、MultMatrix、DecomposeMatrix、
   DistanceBetween、Constraintの値設定メソッド。
 
@@ -42,8 +48,10 @@ Mesh・NURBSカーブの座標取得は通常時もOpenMayaを使います。
 距離はcm、空間はws=True/Falseで指定し、履歴付き形状も読み取れます。
 周期カーブもAPIのCV番号を使います。通常更新とcmdsへ渡す名前では末尾の重複CVを
 対応する独立CVへ写します。fastの周期カーブ更新は未対応です。
-ノード作成・削除・接続変更、アニメーションキー編集、ファイル・UI操作などには
-このフラグを追加していません。個々のAPIリファレンスのシグネチャで確認してください。
+汎用のノード作成・削除・接続変更、アニメーションキー編集、UI操作などには
+このフラグを追加していません。BlendShapeの置換・デルタ設定に伴う入力接続変更は
+対応範囲に含み、MDGModifierで更新します。JSON読込のfastはファイルI/Oの変更ではなく、
+シーンへの復元をOpenMayaへ切り替えます。個々のAPIリファレンスで確認してください。
 
 動作と制限
 ----------

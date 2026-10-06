@@ -32,6 +32,7 @@ for _info in sorted(_pkgutil.iter_modules(__path__), key=lambda item: item.name)
 # 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
 # 公開名の一覧との一致は test_typing_exports.py が検証する。
 if TYPE_CHECKING:
+    from .createBlendShape import createBlendShape
     from .getWindow import getWindow
     from .getWorkspaceControl import getWorkspaceControl
     from .getWorkspaceLayout import getWorkspaceLayout

@@ -88,6 +88,24 @@ cluster と locator
 ``getPosition``/``setPosition`` は ``localPosition`` アトリビュートを ``Translation`` として
 扱います。
 
+blendShape の作成
+------------------------
+
+``createBlendShape(base, targets=None, **kwargs)`` はベースへ接続したBlendShapeを返します。
+ベースは明示し、選択には依存しません。通常のUndoに対応します。
+
+.. code-block:: python
+
+   bs = hlib.createBlendShape("faceMesh", name="faceBlendShape")
+   bs.addTarget("smileMesh")
+
+   # 初期ターゲットは単体またはリスト。Nodeオブジェクトも指定できる。
+   bs = hlib.createBlendShape("otherFace", targets=["smileMesh", "blinkMesh"])
+   bs.getTargetPlug(0).set(1.0)
+
+``targets=None`` または空列はターゲットなしです。``name/n``・``origin/o``・
+``frontOfChain/foc`` 等はMaya標準フラグとして渡せます。照会・編集は各メソッドを使います。
+
 blendShape のターゲット操作
 ------------------------------
 
@@ -116,6 +134,250 @@ weight配列の論理インデックスで並べ替えません。weight以外�
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
 設定されるため、戻り値のプラグの ``fullName`` は ``weight[N]`` ではなく
 ターゲット名を含む表記になります（``getLongName()`` では実際のアトリビュート名を取得できます）。
+
+ターゲット編集モード
+--------------------------
+
+``targetEdit`` はMaya標準のsculptTargetで編集モードを切り替えます。
+開始時は番号またはエイリアスを指定し、終了時はターゲットを省略できます。
+通常のUndoに対応し、戻り値は自身です。fastフラグはありません。
+
+.. code-block:: python
+
+   bs.targetEdit("smile", True)
+   bs.targetEdit("smile", True, full_weight=0.5)  # 既存in-between
+   bs.targetEdit("smile", False)
+   bs.targetEdit(state=False)  # 対象を指定せず終了
+
+``state`` はbool限定です。開始時のターゲットと項目は存在を検証します。
+終了時はtargetとfull_weightを使用しません。複数ベースではノード全体に適用します。
+
+blendShape の編集・保存
+-----------------------
+
+既存の ``getTargetAliases/getWeightPlugs/getWeights`` の仕様は変えていません。
+実際のターゲットだけを列挙する場合は ``getTargetIndices()``、番号またはweightの
+エイリアスから操作する場合は ``getTargetPlug()`` を使います。空のweight要素や
+weight以外の別名は新しい一覧には含みません。番号は疎でも保持されます。
+
+.. code-block:: python
+
+   import maya.cmds as cmds
+   import hlib
+
+   bs = hlib.getNode("faceBlendShape")
+   indices = bs.getTargetIndices()
+   bs.getTargetPlug("smile").set(0.5)
+   bs.replaceTarget("smile", "smileNew")  # 番号・別名・現在値・weight接続を維持
+
+   # 現在の形状をベイクし、in-betweenと頂点ウェイトを複製。新しいweight値は0。
+   copied = bs.duplicateTarget("smile", weight_index=5, alias="smileRight")
+   bs.flipTarget("smileRight", axis="X")  # 左右を交換
+
+   # 片側を反対側へ写す。directionはMaya標準値で0=負方向、1=正方向。
+   bs.mirrorTarget("smileRight", axis="X", direction=1)
+   bs.removeTarget("smileRight")  # 全ベースのターゲットとそのin-betweenを削除
+
+追加した形状編集APIはポリゴンメッシュ用です。置換するメッシュは頂点数だけでなく
+面の頂点接続順も一致する必要があります。ミラーはMaya標準のオブジェクト空間の
+対称対応を使用するため、対称なベースメッシュを前提とします。
+接続中の入力があるターゲットへのミラーは拒否します。複製でベイクしてから操作してください。
+``removeTarget`` はMaya標準のShape Editor削除処理を呼び、関連する表示情報も削除します。
+入力メッシュは削除しませんが、weightの接続元がcombinationShapeの場合は
+Maya標準の削除処理によりそのノードも削除されます。
+
+in-between
+~~~~~~~~~~
+
+.. code-block:: python
+
+   bs.addInBetween("smile", "smileHalf", weight=0.5)
+   weights = bs.getInBetweenWeights("smile")    # [0.5]
+   bs.replaceTarget("smile", "smileHalfNew", full_weight=0.5)
+   bs.removeInBetween("smile", weight=0.5)
+
+``addInBetween(relative=True)`` はMayaの相対in-betweenとして追加します。
+指定ウェイトは0と1以外、-5以上の0.001刻みです。既存ウェイトへの追加は拒否します。
+``getInBetweenWeights`` は1.0以外の項目を返します。
+``base`` を受け取るメソッドは省略時に最小のベース論理番号を使います。
+``removeInBetween`` はShape Editorと同様、全ベースの同じウェイト項目を削除します。
+``removeTarget/duplicateTarget`` も全ベースが対象です。
+
+頂点ウェイトとデルタ
+~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   weights = bs.getTargetWeights("smile")      # 頂点番号順の全値。既定値1。
+   bs.setTargetWeights("smile", {0: 0.25, 1: 0.75})  # 部分更新
+   bs.setTargetWeights("smile", weights)       # 全頂点更新
+
+   deltas = bs.getTargetDeltas("smile")        # dict[int, hlib.Vector]
+   bs.setTargetDeltas("smile", deltas, disconnect=True)
+   bs.setTargetDeltas("smile", {0: (0.0, 2.0, 0.0)})
+
+デルタは通常ターゲットではオブジェクト空間cmです。
+``getTargetDeltas`` はMayaの ``inputPointsTarget`` を読み、接続中の形状も現在値を取得します。
+``setTargetDeltas`` は同項目の絶対デルタ全体を置換し、省略頂点はゼロにします。
+相対補助デルタはクリアし、他のin-betweenのデルタは更新しません。
+接続中の形状を変更する場合は ``disconnect=True`` が必要です。
+``full_weight`` で中間項目も指定できます。
+不正な頂点番号・非有限数・頂点数不一致は書き込み前に拒否します。
+
+デルタ単体の保存と対象頂点
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``getTargetDeltas`` の辞書だけをJSONへ書けば、名前やウェイトを含まない
+「頂点番号とxyz変位」だけのファイルになります。JSONの辞書キーは文字列に
+なるので、読み込み時に整数へ戻します。
+
+.. code-block:: python
+
+   import json
+   import hlib
+
+   bs = hlib.getNode("faceBlendShape")
+   deltas = bs.getTargetDeltas("smile")
+   with open("smile_delta.json", "w", encoding="utf-8") as stream:
+       json.dump({str(i): list(delta) for i, delta in deltas.items()}, stream, indent=2)
+
+   with open("smile_delta.json", encoding="utf-8") as stream:
+       deltas = {int(i): xyz for i, xyz in json.load(stream).items()}
+
+   # 復元先の既存ターゲットを置換。接続中のターゲット入力は明示的に切断。
+   restored = hlib.getNode("restoredBlendShape")
+   restored.setTargetDeltas("smile", deltas, disconnect=True)
+   restored.getTargetPlug("smile").set(1.0)
+
+まだ復元先のターゲットがない場合は、変形前のベースと同じ形状を一時ターゲットとして
+登録してからデルタを書き込みます。
+
+.. code-block:: python
+
+   import maya.cmds as cmds
+
+   base = "newFace"  # 保存元と頂点順・トポロジー・変形前の座標が同じメッシュ
+   neutral = cmds.duplicate(base, returnRootsOnly=True)[0]
+   restored = hlib.getNode(cmds.blendShape(neutral, base, name="restoredBlendShape")[0])
+   cmds.delete(neutral)
+   restored.getTargetPlug(0).setAlias("smile")
+   restored.setTargetDeltas(0, deltas)
+   restored.getTargetPlug(0).set(1.0)
+
+デルタ単体のJSONにはトポロジー情報や頂点マスクは入りません。
+同じ形状を再現するには、対応する頂点順と変形前の座標、envelope・頂点ウェイトなどの
+条件も揃える必要があります。通常のオブジェクト空間ターゲットでは変位の単位はcmです。
+``setTargetDeltas`` は既存項目のデルタ全体を置換します。Undo不要なら ``fast=True`` を指定できます。
+in-betweenを扱う場合は取得・設定の両方に同じ ``full_weight`` を指定してください。
+
+.. code-block:: python
+
+   vertices = bs.getTargetVertices("smile")  # ベースメッシュ上のVertices
+   indices = vertices.indices              # 昇順のtuple[int, ...]
+   cmds.select(vertices.getFullNames(), replace=True)
+
+   # 変位長が0.0001cmを超える頂点だけ。full_weightでin-betweenも選べる。
+   vertices = bs.getTargetVertices("smile", tolerance=0.0001)
+   half_vertices = bs.getTargetVertices("smile", full_weight=0.5)
+
+対象頂点は ``getTargetDeltas`` の絶対デルタで判定し、明示的に格納されたゼロ変位は
+除外します。現在のweightが0でも、頂点マスクが0でも、デルタがあれば対象です。
+``tolerance`` は非負の有限数で、その値と等しい変位も除外します。
+複数ベースでは ``base`` を指定でき、対象がない場合は空のVerticesを返します。
+
+指定頂点だけデルタから除外するには ``resetTargetVertices`` を使用します。
+頂点番号・番号のリスト・ベースメッシュの ``Vertex`` / ``Vertices`` を渡せます。
+未接続時は残りの絶対デルタと相対補助デルタ、頂点ウェイト、別の項目を保持します。
+
+.. code-block:: python
+
+   bs.resetTargetVertices("smile", [10, 20, 30])  # 通常はUndo対応
+   bs.resetTargetVertices("smile", 10, full_weight=0.5)  # in-between
+   bs.resetTargetVertices("smile", vertices, fast=True)  # OpenMaya、Undoなし
+
+   # ベースメッシュで選択した頂点を直接渡す。
+   bs.resetTargetVertices("smile", hlib.ls(sl=True, type="vertex"))
+
+ターゲットメッシュが接続中なら、そのメッシュの指定頂点を中立位置へ戻し、接続を維持します。
+現在の絶対デルタを差し引くので、変形後のベース表示位置や現在のweightには依存しません。
+同じターゲット形状を共有する他の項目にも編集が反映されます。
+明示的な ``disconnect=True`` は、従来どおり切断して保存デルタだけを編集します。
+接続中の編集は通常ポリゴンのlocal/world originに対応します。post-deformation・
+ユーザー定義origin・メッシュ以外の接続元は未対応で、変更前に例外とします。
+``fast=True`` で入力履歴付きターゲット形状を編集することも未対応です。
+接続中のデルタ配列はMayaが再計算するため、配列の疎な格納状態はMayaに従います。
+座標変換による微小誤差が残る場合は、頂点照会の ``tolerance`` を指定してください。
+空入力やデルタのない頂点だけの指定は何も変更せず、入力接続も保持します。
+
+デルタの長さでまとめて除外するには ``reduceTargetDeltas`` を使用します。
+格納済みの絶対デルタのXYZベクトル長が ``tolerance`` 以下（境界値を含む）の頂点を除外します。
+通常ターゲットの単位はcmで、既定0はゼロデルタだけを除外します。
+現在のweight・envelope・頂点マスクは判定に使用しません。
+未接続時は該当頂点の相対補助デルタも除外し、残りのデータを保持します。
+
+.. code-block:: python
+
+   bs.reduceTargetDeltas("smile")  # ゼロデルタのみ、Undo対応
+   bs.reduceTargetDeltas("smile", 0.001)  # 変位長0.001cm以下
+   bs.reduceTargetDeltas("smile", 0.001, full_weight=0.5, fast=True)
+
+接続中は ``resetTargetVertices`` と同じくターゲット形状を自動編集して接続を維持します。
+除外対象がない場合は接続もデータも変更しません。
+
+一式のJSON保存・復元
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   bs.dumpTargets("C:/tmp/faceTargets.json")
+   # 同じトポロジーのベースに空のblendShapeを作成して復元。
+   restored = hlib.getNode(cmds.blendShape("newFace", name="restoredFace")[0])
+   restored.loadTargets("C:/tmp/faceTargets.json")
+
+保存対象は全ベースのトポロジー、各ターゲットの絶対・相対デルタ、in-betweenの名前・
+種類・補間曲線、頂点ウェイト、ベース頂点マスク、エイリアス、weight現在値、envelope、origin、
+負ウェイトの許可設定です。接続中のデータは現在値にベイクします。
+ファイルは検証後に一時ファイルから置き換えます。
+
+復元先にはターゲットもweight要素もないことが必要です。ベースは論理番号で対応させ、
+頂点数と面の頂点接続順を全件検証してから変更します。名前が違うベースへも復元できます。
+MayaのUndoが有効であることが必要で、読み込み失敗時はUndoトランザクションで巻き戻します。
+全体を1回でUndo/Redoできます。Maya標準の挙動により、Undo後に内容のない内部配列が
+残ることがありますが、ターゲット一覧には含みません。
+
+JSON保存と複製は通常のポリゴンターゲット用で、post-deformationの接線／変換空間や
+正規化グループは拒否します。JSONはuser-defined originも拒否します。
+外部ドライバ・アニメーション接続・Shape Editorのフォルダ配置・デフォーマ順序は保存しません。
+シーン全体のリグ保存形式ではありません。
+
+OpenMaya照会とfast更新
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ターゲット・頂点ウェイト・デルタ・保存用データの照会はOpenMaya API 2.0で行います。
+未初期化データは共通の型付きデータ読取処理で判定し、評価エラーを空値として扱いません。
+
+``setTargetWeights``、``setTargetDeltas``、``resetTargetVertices``、``replaceTarget``、``duplicateTarget``、
+``reduceTargetDeltas``、``loadTargets`` はキーワード専用の ``fast=False`` を受け付けます。
+既定値ではcmds/MELによるUndo対応の更新、``fast=True`` ではMPlug・MFnデータ・
+MDGModifierによる直接更新を行います。高速経路ではcmds/MELを呼び出さず、
+Undoの有効／無効設定や既存のUndo履歴も変更しません。
+
+.. code-block:: python
+
+   bs.setTargetWeights("smile", {0: 0.5})  # Undo対応
+   bs.setTargetWeights("smile", {0: 0.5}, fast=True)  # Undoなし
+   bs.setTargetDeltas("smile", deltas, disconnect=True, fast=True)
+   bs.replaceTarget("smile", "smileNew", fast=True)
+   bs.duplicateTarget("smile", alias="smileCopy", fast=True)
+   restored.loadTargets("C:/tmp/faceTargets.json", fast=True)
+
+入力の検証、頂点番号、単位、戻り値は両経路で共通です。``fast`` にbool以外を
+渡した場合はTypeErrorです。``loadTargets(fast=True)`` はUndoが無効でも使用できますが、
+失敗時に更新済みのデータを自動ロールバックしません。
+
+``addTarget/addInBetween/removeTarget/removeInBetween/mirrorTarget/flipTarget`` は
+OpenMaya API 2.0に同等の標準操作がないため、Mayaの標準コマンド／Shape Editorの
+MEL処理を維持し、fast引数を提供しません。独自のMayaプラグインやUndo設定の切替は使いません。
 
 skinCluster ウェイトのバックアップ・復元
 ------------------------------------------

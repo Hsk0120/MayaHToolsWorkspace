@@ -1,8 +1,13 @@
 """Maya のメッシュシェイプを扱う。"""
 
+import math
+from collections import Counter, defaultdict
+
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
+from .._core.fastWrite import writable
 from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from .._core.space import world_space
@@ -10,7 +15,8 @@ from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
-from ..decorators._fast import fast_edit
+from ..decorators._fast import fast_edit, is_fast
+from ..decorators.undo import undoTransaction
 from ..maths.vector import Vector
 from .shape import Shape
 
@@ -18,6 +24,105 @@ from .shape import Shape
 @node_wrapper("mesh")
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
+
+    @flag_aliases(ws="worldSpace")
+    @fast_edit
+    def reorderVertices(self, reference, uv_set="map1", tolerance=1e-6, *, fast=False,
+                        match="uv", worldSpace=False):
+        """UVまたは頂点位置の対応から自身の頂点番号を基準メッシュに合わせる。
+
+        Args:
+            reference (Mesh | Node | str): 基準のメッシュまたは単一メッシュTransform。
+            uv_set (str): UV照合のセット名。位置照合では使用しない。
+            tolerance (float): 非負の有限誤差。UV照合は各成分の差、位置照合は距離(cm)。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定はcmds経由でUndo可能。
+            match (str): uv（既定）またはposition。照合方法だけを切り替える。
+            worldSpace (bool): 位置照合をワールド空間で行う。既定Falseは各形状のローカル空間。
+                短縮名ws。UV照合では使用しない。
+
+        Returns:
+            Mesh: 自身。頂点位置・面の順序と向き・UV・法線・面マテリアルを維持する。
+
+        Raises:
+            ValueError: 頂点対応が曖昧、不完全、またはトポロジーが一致しない場合。
+            NotImplementedError: 入出力履歴・インスタンス・色セット・クリース等の非対応形状。
+            RuntimeError: ロック、または通常モードでUndoが無効の場合。
+
+        スキン等の番号依存データは移し替えない。対象は履歴なしの独立メッシュに限定する。
+        既存のComponent参照は古い番号を保持するため、処理後に取り直すこと。
+        通常モードは非ゼロの頂点tweakに未対応。fastでは現在位置へベイクして番号を変更する。
+        エッジ番号は再構築により変わる場合がある。
+        UVシームは各頂点の面頂点UV群で照合する。重なりで候補が複数ある場合は変更しない。
+        """
+        from .node import Node
+        if match not in ("uv", "position"):
+            raise ValueError("match must be uv or position")
+        if type(worldSpace) is not bool:
+            raise TypeError("worldSpace must be bool")
+        if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or tolerance < 0:
+            raise ValueError("tolerance must be finite and nonnegative")
+        if match == "uv" and (not isinstance(uv_set, str) or not uv_set):
+            raise ValueError("uv_set must be a nonempty name")
+        reference = Node(Node._input_name(reference))
+        if reference.mnode().hasFn(om2.MFn.kTransform):
+            shapes = reference.getShapes()
+            if len(shapes) != 1:
+                raise ValueError("Reference transform must have exactly one shape")
+            reference = shapes[0]
+        if not isinstance(reference, Mesh):
+            raise TypeError("reference must be a mesh")
+        source, target = reference.meshFn(), self.meshFn()
+        if source.numVertices != target.numVertices or source.numPolygons != target.numPolygons:
+            raise ValueError("Meshes must have equal vertex and face counts")
+        if not target.numPolygons:
+            raise ValueError("Meshes must have polygon faces")
+        mapping = (self._uv_vertex_mapping(source, target, uv_set, tolerance) if match == "uv"
+                   else self._position_vertex_mapping(source, target, tolerance, worldSpace))
+        counts, connects = target.getVertices()
+        remapped = [mapping[v] for v in connects]
+        if self._face_cycles(*source.getVertices()) != self._face_cycles(counts, remapped):
+            raise ValueError("Vertex correspondence does not preserve face topology and winding")
+        if all(old == new for old, new in enumerate(mapping)):
+            return self
+        self._check_reorder_supported(target)
+        data = self._reordered_mesh_data(target, counts, connects, remapped, mapping)
+        materials = self.getFaceShadingEngines()
+        current_uv = target.currentUVSetName()
+        if is_fast():
+            points = self.getPlug("pnts").mplug()
+            for i in points.getExistingArrayAttributeIndices():
+                point = points.elementByLogicalIndex(i)
+                for j in range(point.numChildren()):
+                    point.child(j).setFloat(0)
+            target.copyInPlace(data)
+        else:
+            if not cmds.undoInfo(query=True, state=True):
+                raise RuntimeError("reorderVertices requires Undo enabled, or fast=True")
+            with undoTransaction("hlibMeshReorderVertices"):
+                # APIで作るのは一時形状のみ。対象への反映と履歴のベイクは標準コマンドでUndoに記録する。
+                temporary = cmds.createNode("mesh", skipSelect=True)
+                temp_node = Node(temporary)
+                parent = cmds.listRelatives(temporary, parent=True, fullPath=True)[0]
+                uv_names = om2.MFnMesh(data).getUVSetNames()
+                for i, uv_set_name in enumerate(uv_names):
+                    cmds.setAttr(temp_node.getFullName() + ".uvSet[{}].uvSetName".format(i), uv_set_name, type="string")
+                temp_node.getPlug("cachedInMesh").mplug().setMObject(data)
+                # 元のキャッシュをsetAttrのUndoへ保存する。接続のUndoだけではデータは復元されない。
+                cmds.setAttr(self.getFullName() + ".outMesh", "v", 0, "vn", 0, "e", 0, type="mesh")
+                for uv_set_name in uv_names:
+                    if uv_set_name not in (cmds.polyUVSet(self.getFullName(), query=True, allUVSets=True) or []):
+                        cmds.polyUVSet(self.getFullName(), create=True, uvSet=uv_set_name)
+                cmds.connectAttr(temp_node.getFullName() + ".outMesh", self.getFullName() + ".inMesh")
+                cmds.delete(self.getFullName(), constructionHistory=True)
+                cmds.delete(parent)
+                cmds.polyUVSet(self.getFullName(), currentUVSet=True, uvSet=current_uv)
+                groups = defaultdict(list)
+                for face, material in enumerate(materials):
+                    if material is not None:
+                        groups[material.getFullName()].append("{}.f[{}]".format(self.getFullName(), face))
+                for material, faces in groups.items():
+                    cmds.sets(faces, edit=True, forceElement=material)
+        return self
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -264,3 +369,179 @@ class Mesh(Shape):
             int: UV 数。
         """
         return self.meshFn().numUVs()
+
+    @staticmethod
+    def _position_vertex_mapping(source, target, tolerance, world_space):
+        """指定空間で許容距離内の一意な頂点対応を空間セルから求める。"""
+        space = om2.MSpace.kWorld if world_space else om2.MSpace.kObject
+        source_points, target_points = source.getPoints(space), target.getPoints(space)
+        buckets = defaultdict(list)
+
+        def key(point):
+            values = (point.x, point.y, point.z)
+            if not all(math.isfinite(v) for v in values):
+                raise ValueError("Vertex positions must be finite")
+            return tuple(math.floor(v / tolerance) for v in values) if tolerance else values
+
+        for index, point in enumerate(source_points):
+            buckets[key(point)].append(index)
+        mapping = []
+        for point in target_points:
+            cell = key(point)
+            cells = [(cell[0] + x, cell[1] + y, cell[2] + z)
+                     for x in (-1, 0, 1) for y in (-1, 0, 1) for z in (-1, 0, 1)] if tolerance else [cell]
+            candidates = [index for neighbor in cells for index in buckets.get(neighbor, ())
+                          if (point - source_points[index]).length() <= tolerance]
+            if len(candidates) != 1:
+                raise ValueError("Position correspondence is missing or ambiguous within tolerance")
+            mapping.append(candidates[0])
+        if len(set(mapping)) != len(mapping):
+            raise ValueError("Position correspondence is not one-to-one")
+        return mapping
+
+    @staticmethod
+    def _uv_vertex_mapping(source, target, uv_set, tolerance):
+        """面頂点UV群が一意に一致する旧対象番号→基準番号を求める。"""
+        def signatures(fn):
+            if uv_set not in fn.getUVSetNames():
+                raise ValueError("UV set does not exist: " + uv_set)
+            counts, connects = fn.getVertices()
+            uv_counts, uv_ids = fn.getAssignedUVs(uv_set)
+            if list(counts) != list(uv_counts):
+                raise ValueError("Every face vertex must have a UV")
+            u, v = fn.getUVs(uv_set)
+            values = [[] for _ in range(fn.numVertices)]
+            for vertex, uv in zip(connects, uv_ids):
+                value = (u[uv], v[uv])
+                if not all(math.isfinite(x) for x in value):
+                    raise ValueError("UV coordinates must be finite")
+                values[vertex].append(value)
+            if any(not row for row in values):
+                raise ValueError("Isolated vertices cannot be matched by UV")
+            return [sorted(row) for row in values]
+
+        source_rows, target_rows = signatures(source), signatures(target)
+        buckets = defaultdict(list)
+        def key(value):
+            return tuple(math.floor(x / tolerance) for x in value) if tolerance else value
+        for i, row in enumerate(source_rows):
+            buckets[(len(row), key(row[0]))].append(i)
+        mapping = []
+        for row in target_rows:
+            anchor = key(row[0])
+            keys = [(anchor[0] + x, anchor[1] + y) for x in (-1, 0, 1) for y in (-1, 0, 1)] if tolerance else [anchor]
+            candidates = [i for cell in keys for i in buckets.get((len(row), cell), ())
+                          if all(abs(a - b) <= tolerance for pair, other in zip(row, source_rows[i])
+                                 for a, b in zip(pair, other))]
+            if len(candidates) != 1:
+                raise ValueError("UV vertex correspondence is missing or ambiguous")
+            mapping.append(candidates[0])
+        if len(set(mapping)) != len(mapping):
+            raise ValueError("UV correspondence is not one-to-one")
+        return mapping
+
+    @staticmethod
+    def _face_cycles(counts, connects):
+        """面の開始頂点に依存せず、面の向きと頂点接続を比較する。"""
+        result, offset = [], 0
+        for count in counts:
+            row = list(connects[offset:offset + count])
+            pivot = row.index(min(row))
+            result.append(tuple(row[pivot:] + row[:pivot]))
+            offset += count
+        return Counter(result)
+
+    def _check_reorder_supported(self, fn):
+        """番号依存の外部接続や未対応のメッシュデータを変更前に拒否する。"""
+        if self.mpath().isInstanced() or om2.MFnDependencyNode(self.mnode()).isFromReferencedFile:
+            raise NotImplementedError("Instanced or referenced targets are not supported")
+        if om2.MFnDependencyNode(self.mnode()).isLocked:
+            raise RuntimeError("Mesh is locked")
+        if self.getPlug("outMesh").mplug().isLocked:
+            raise RuntimeError("Mesh output is locked")
+        sets, members = fn.getConnectedSetsAndMembers(self.mpath().instanceNumber(), False)
+        if any(not member.isNull() and not group.hasFn(om2.MFn.kShadingEngine)
+               for group, member in zip(sets, members)):
+            raise NotImplementedError("Component sets other than shading assignments are not supported")
+        if self.getPlug("inMesh").mplug().isDestination:
+            raise NotImplementedError("Target must have no input history")
+        for name in ("outMesh", "worldMesh"):
+            plug = self.getPlug(name).mplug()
+            plugs = [plug.elementByLogicalIndex(i) for i in plug.getExistingArrayAttributeIndices()] if plug.isArray else [plug]
+            if any(p.isSource for p in plugs):
+                raise NotImplementedError("Target must not drive downstream geometry")
+        creased = False
+        for getter in (fn.getCreaseEdges, fn.getCreaseVertices):
+            try:
+                creased = creased or bool(getter()[0])
+            except RuntimeError:
+                # クリースデータ自体がない通常メッシュではMayaがkFailureを返す。
+                pass
+        if fn.getColorSetNames() or creased or fn.getHoles():
+            raise NotImplementedError("Color sets, creases and polygon holes are not supported")
+        if any(fn.hasBlindData(kind) for kind in (om2.MFn.kMeshVertComponent,
+                                                  om2.MFn.kMeshEdgeComponent,
+                                                  om2.MFn.kMeshPolygonComponent)):
+            raise NotImplementedError("Mesh blind data is not supported")
+        for name in ("inMesh", "cachedInMesh", "pnts"):
+            plug = self.getPlug(name).mplug()
+            writable(plug)
+            if plug.isArray:
+                for i in plug.getExistingArrayAttributeIndices():
+                    item = plug.elementByLogicalIndex(i)
+                    writable(item)
+                    for j in range(item.numChildren()):
+                        writable(item.child(j))
+                        if not is_fast() and item.child(j).asFloat() != 0:
+                            raise NotImplementedError("Normal reorder does not support vertex tweaks; use fast=True on a copy")
+
+    @staticmethod
+    def _reordered_mesh_data(fn, counts, connects, remapped, mapping):
+        """シーン外のメッシュデータを作り、面順・UVと法線を移す。"""
+        points = fn.getPoints()
+        reordered = om2.MPointArray(points)
+        for old, new in enumerate(mapping):
+            reordered[new] = points[old]
+        data = om2.MFnMeshData().create()
+        rebuilt = om2.MFnMesh()
+        rebuilt.create(reordered, counts, remapped, parent=data)
+        # UVセットの追加はmesh dataではなくmeshノードに対してのみ使用できる。
+        # 一時ノードで全セットを構築し、コピー後に必ず破棄する。Undo履歴には残さない。
+        modifier = om2.MDagModifier()
+        parent = modifier.createNode("transform")
+        temporary = modifier.createNode("mesh", parent)
+        modifier.doIt()
+        try:
+            om2.MFnDependencyNode(temporary).findPlug("cachedInMesh", False).setMObject(data)
+            rebuilt = om2.MFnMesh(temporary)
+            Mesh._copy_reorder_details(fn, rebuilt, counts, remapped, mapping)
+            result = om2.MFnMeshData().create()
+            om2.MFnMesh().copy(temporary, result)
+            return result
+        finally:
+            modifier.undoIt()
+
+    @staticmethod
+    def _copy_reorder_details(fn, rebuilt, counts, remapped, mapping):
+        """一時メッシュへ全UVセット・エッジの硬軟・固定法線を移す。"""
+        if "map1" not in fn.getUVSetNames():
+            rebuilt.renameUVSet("map1", fn.getUVSetNames()[0])
+        for uv_set in fn.getUVSetNames():
+            if uv_set not in rebuilt.getUVSetNames():
+                rebuilt.createUVSet(uv_set)
+            rebuilt.setUVs(*fn.getUVs(uv_set), uvSet=uv_set)
+            rebuilt.assignUVs(*fn.getAssignedUVs(uv_set), uvSet=uv_set)
+        rebuilt.setCurrentUVSetName(fn.currentUVSetName())
+        smooth = {tuple(sorted(mapping[v] for v in fn.getEdgeVertices(i))): fn.isEdgeSmooth(i)
+                  for i in range(fn.numEdges)}
+        for i in range(rebuilt.numEdges):
+            rebuilt.setEdgeSmoothing(i, smooth[tuple(sorted(rebuilt.getEdgeVertices(i)))])
+        rebuilt.cleanupEdgeSmoothing()
+        normals = fn.getNormals()
+        _, normal_ids = fn.getNormalIds()
+        faces = [i for i, count in enumerate(counts) for _ in range(count)]
+        locked = [i for i, normal in enumerate(normal_ids) if fn.isNormalLocked(normal)]
+        if locked:
+            rebuilt.setFaceVertexNormals([om2.MVector(normals[normal_ids[i]]) for i in locked],
+                                         [faces[i] for i in locked], [remapped[i] for i in locked])
+            rebuilt.lockFaceVertexNormals([faces[i] for i in locked], [remapped[i] for i in locked])

@@ -84,6 +84,36 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-07): 今回のBlendShape編集・createBlendShape・lsコンポーネント対応・Mesh頂点順序合わせと関連テスト/資料をコミット対象に集約。origin/mainとの同期・差分検査を確認。既記載のMaya2022/2027テストとSphinx検証結果を維持し、ユーザー指示により本コミットをpushする。
+
+- Codex (2026-10-07): Mesh.reorderVerticesにkeyword-only match="uv"/"position"とworldSpace=False（ws別名）を追加。既存引数維持、位置照合は許容距離cm内の一意対応を空間セル検索で検証。対象UV・割り当ては維持。位置/空間/許容誤差/曖昧対応/Undo・fastの4テスト追加、Maya2022/2027各16件成功、Sphinx -W・layout・差分確認成功。履歴・tweak等の既存制限維持。GUI・大規模性能未検証、未コミット。
+
+- Codex (2026-10-07): Mesh.reorderVertices(reference, uv_set="map1", tolerance=1e-6, *, fast=False)を追加。面頂点UV群の一意対応と面接続/向きを検証し、対象の形状・面順・複数UV・硬軟/固定法線・面マテリアルを保持。通常cmds Undo/Redoと失敗時ロールバック、fast OpenMaya更新。通常の非ゼロtweakはUndo復元制約で変更前拒否（fastのみ対応）。履歴・下流形状接続・インスタンス・色/クリース等は未対応として拒否。Maya2022/2027各12テスト成功、Sphinx -W・layout・差分検査成功。GUI・大規模性能未検証、未コミット。
+
+- Codex (2026-10-07): BlendShape.targetEdit(target=None, state=True, full_weight=1.0)を追加。番号/エイリアスとboolで開始終了、既存in-between指定、標準sculptTargetによるUndo/Redo、自身を返す。関連2テスト追加、Maya2022/2027各52テスト成功。Sphinx -W・layout・差分検査成功。Shape Editor GUI表示は未検証、未コミット。
+
+- Codex (2026-10-07): createBlendShape(base, targets=None, **kwargs)を追加。単一ベースへの空/初期ターゲット付き作成、Node入力、標準長短フラグ、通常Undo対応、BlendShapeを返す。ルート/cmds静的宣言・ガイド更新。新規4テストと公開宣言検査を含むMaya2022/2027各112テスト成功、Sphinx -W・layout・差分検査成功。GUI未実施、未コミット。
+
+- Codex (2026-10-06): ユーザー指示によりremoveTargetDeltasをresetTargetVerticesへ改名。引数・動作は維持、reduceTargetDeltasからの呼出・Undo名・テスト・ドキュメントを更新し旧名の別名なし。Maya2027関連105テスト・Sphinx -W・layout・差分検査成功。GUIと他バージョンの今回再実行なし、未コミット。
+
+- Codex (2026-10-06): ユーザー指示によりremoveTargetDeltas/reduceTargetDeltasの既定disconnect=Falseを接続維持のターゲット形状自動編集へ変更。絶対デルタを接続元座標へ変換して差し引き、未接続時・明示disconnect=True・setTargetDeltasは従来動作維持。local/world origin、通常Undo/Redo、履歴なしfast、接続中in-betweenを検証。post-deformation等の制限と浮動小数点誤差を文書化。Maya2022/2027各105テスト成功、layout・差分・Sphinx -W成功。GUI未実施、未コミット。
+
+- Codex (2026-10-06): ユーザー指定によりlsのtype/typへvertex/edge/face/uv/controlVertexを統合。component引数は追加せず、選択・範囲・複数メッシュを単体Componentリストで返す。既存Node/Plug（ArrayPlugを含む）と専用コレクションを維持。4テスト追加、Maya2022/2027各101件成功。最初の一括discoverでリロードにより旧クラス参照が混在したため、ファイル単位の検証に修正して成功。Sphinx -W・layout・差分検査成功。GUI未実施、未コミット。
+
+- Codex (2026-10-06): 選択頂点取得の設計検討。既存captureSelection().filter(type="vtx")はSelectionとしてremoveTargetDeltasへ直接渡せる。lsは現状CommandResult経由でNode/Plugのみ解決。新規component名前空間よりlsへのコンポーネント対応とcomponent絞り込み追加を提案。製品コード変更・Maya実行なし。
+
+- Codex (2026-10-06): BlendShape.reduceTargetDeltasを追加。絶対デルタ長がtolerance以下の格納済み頂点を除外（既定0）、通常Undo/Redo・fast OpenMaya・in-between・接続切断指定に対応。関連3テスト追加、Maya2022/2027 standalone各46件成功。layout・差分検査・Sphinx -W成功。GUI未実施、未コミット。
+
+- Codex (2026-10-06): BlendShape.removeTargetDeltasを追加。頂点番号/Vertex/Verticesで絶対・相対補助デルタから指定頂点のみ除外し、通常cmds Undo/Redo・fast OpenMaya更新に対応。残りのデルタ・マスク・他項目を保持。関連テスト5件追加、Maya2022/2027 standalone各43件成功。layout・差分検査とSphinx -W成功。GUI未実施、未コミット。
+
+- Codex 2026-10-06: BlendShape.getTargetVertices(target, base=None, full_weight=1.0, *, tolerance=0.0)を追加。非ゼロ絶対デルタのベースVerticesを昇順で返し、微小値除外・in-between・複数ベースへ対応。デルタ単体JSONの保存/整数キー復元/新規ターゲットへの再現例を文書化。Maya2022/2027の各38テスト成功、OpenMaya照会・ゼロ/マスク/接続入力・JSON形状再現を検証。日本語Sphinx警告なし、レイアウト・差分確認成功。GUIと中間4版の今回再実行なし。
+
+- Codex 2026-10-06: BlendShapeの照会をOpenMayaへ統一し、replaceTarget/setTargetWeights/setTargetDeltas/duplicateTarget/loadTargetsへkeyword-only fast=Falseを追加。通常cmds/MELのUndoを維持し、fastはMPlug・MFnデータ・MDGModifierで更新。API2に同等操作のない追加/削除/ミラーはfast非対応として明記。Maya2022〜2027の関連33テスト成功（cmds/MEL禁止下の読取/fast、通常との変形一致、Undo履歴不変、ロック保持を含む）。日本語Sphinx警告なし、レイアウト・差分確認成功。GUI・今回の全体回帰再実行なし。
+
+- Codex 2026-10-06: BlendShapeへターゲット削除・置換・複製・ミラー/反転、in-between、頂点ウェイト、デルタ、JSON保存復元の16 APIを追加。既存5メソッドのAST同一を確認。追加22件を含む関連26テストとMaya2022〜2027の各109ファイル/991テスト成功（2025〜2027のBifrostログ書込は制限外で再検証）。日本語Sphinx警告なし、レイアウト・差分確認成功。GUI専用項目は未実行。保存/複製は通常ポリゴン用でpost-deformation・正規化グループ等の制限を文書化。
+
+- Codex 2026-10-06: hlib BlendShape・Plug実装と既存テストを参照し、現在の制御APIと専用API未対応範囲を整理。製品コード変更なし、Maya実行なし。
+
 - Codex 2026-10-06: Ollama利用方針の3ファイルを差分確認し、プッシュ対象として確定。FramePlayerの既存変更は対象外として保持。文書のみの変更のためMaya検証は不要。
 
 - Codex 2026-10-06: ユーザーのOllama利用再開許可をAGENTS.md・CLAUDE.mdへ反映。トークン削減に有効な翻訳・要約等へ使用し、Mayaとの競合回避・終了後のモデル解放・担当エージェントによる検証を維持。ルール変更のみでOllama起動・モデルロードなし。

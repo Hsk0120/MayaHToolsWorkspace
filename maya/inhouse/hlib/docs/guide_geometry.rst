@@ -3,6 +3,49 @@
 
 Mesh・NurbsCurveの形状情報、ミラー、頂点やCVなどの操作を説明します。
 
+UVまたは頂点位置を基準に頂点番号を合わせる
+------------------------------------------------------------
+
+``Mesh.reorderVertices(reference, uv_set="map1", tolerance=1e-6, *, fast=False, match="uv", worldSpace=False)`` は、
+対象の形状を保ったまま基準メッシュの頂点番号へ並べ替え、自身を返します。
+基準メッシュは変更しません。
+
+.. code-block:: python
+
+   reference = hlib.getNode("referenceMesh").getShape()
+   target = hlib.getNode("targetMesh").getShape()
+   target.reorderVertices(reference, uv_set="map1")
+
+   # 頂点位置で対応付ける。UV形状・割り当ては対象のものを維持する。
+   target.reorderVertices(reference, match="position", tolerance=0.001)
+   target.reorderVertices(reference, match="position", ws=True, tolerance=0.001)
+
+   # Undo不要の場合。現在の頂点tweakも座標へベイクして扱える。
+   target.reorderVertices(reference, uv_set="map1", fast=True)
+
+``match="uv"``（既定）は従来のUV照合です。``match="position"`` は頂点位置で照合し、
+UVセット名を照合に使用しません。``worldSpace=False`` は各メッシュのローカル座標、
+``worldSpace=True``（短縮名 ``ws=True``）はワールド座標を比較します。
+位置照合での ``tolerance`` はユークリッド距離の上限(cm)です。
+最近傍へ強制対応させる方式ではなく、許容距離内に候補が1頂点だけあることを要求します。
+異なる形状や重複位置等で対応が見つからない・曖昧な場合は変更しません。
+
+頂点数・面数・面のつながりと向きが一致し、全頂点を一対一に対応付けられることが条件です。
+UVシームは頂点に属する全ての面頂点UVを照合します。重なり等で候補が複数ある場合、
+UV未割り当て、孤立頂点、対応不足、トポロジー不一致は変更前に例外とします。
+UV照合時の ``tolerance`` はUV座標の各成分の許容誤差で、距離単位ではありません。
+面順・面の向き・全UVセット・エッジの硬軟・固定法線・面マテリアルを保持します。
+エッジ番号は再構築により変わる場合があります。既存Component参照は取得し直してください。
+
+通常モードは標準コマンドで1回のUndo/Redoに対応し、Undo有効が必要です。
+非ゼロの頂点tweak（直接編集オフセット）がある場合は通常モードでは変更前に拒否します。
+その場合は作業用の複製で ``fast=True`` を使用できますが、Undoには記録されません。
+
+スキン等のウェイト移し替えは行いません。対象の入力履歴、下流メッシュへの接続、
+インスタンス、参照ファイル、カラーセット、クリース、穴付きポリゴン、blind data、
+マテリアル以外のコンポーネントセットは未対応です。自動で履歴を削除しません。
+基準側は読み取りだけなので履歴付きでも照合できます。
+
 Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）は、シェイプを構成する要素です。
 メッシュ全体を扱う ``Mesh`` に対して、``Vertex`` はその頂点1個を参照します。
 

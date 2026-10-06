@@ -8,13 +8,13 @@ Synopsis
 
 名前や条件で Maya ノードを検索し、検索結果を hlib ラッパーへ変換します。
 
-シーンの検索操作です。戻り値はノードとしてラップするため、型名やコンポーネントなどノード名以外を返すフラグの組み合わせには対応しません。
+コンポーネント範囲は単体の参照へ展開します。型名などシーン参照以外を返すフラグには対応しません。
 
 Return value
 ------------
 
-``list[Node | Plug] | Joints | SkinClusters``
-    type="joint" は Joints、type="skinCluster" は SkinClusters。それ以外は Node のリスト。検索結果がない場合は空のリストまたは空の専用コレクション。
+``list[Node | Plug | Component] | Joints | SkinClusters``
+    コンポーネント型指定時は該当する単体コンポーネントのリスト。ノード型のtype="joint" は Joints、type="skinCluster" は SkinClusters。それ以外は参照のリスト。未検出時は空。
 
 Related commands
 ----------------
@@ -44,11 +44,11 @@ Mayaの長名・短名を受け付けます。同じフラグの長名と短名�
    * - ``type (typ)``
      - ``str``
      - 省略可
-     - Maya のノード型で絞り込み。type / typ のどちらも同じ専用コレクションへ変換します。
+     - Mayaのノード型、またはvertex / edge / face / uv / controlVertex。コンポーネントは単一の正式名称で指定し、vtx/e/f/map/cv等の別名は追加しません。種類の変換は行いません。
    * - ``selection (sl)``
      - ``bool``
      - False
-     - 選択中のノードを取得。
+     - 選択中のノード・アトリビュート・コンポーネントを取得。
    * - ``long (l)``
      - ``bool``
      - False
@@ -68,6 +68,8 @@ Examples
     nodes = hlib.ls(type="transform")
     joints = hlib.ls(type="joint")
     selected = hlib.ls(selection=True)
+    vertices = hlib.ls(sl=True, type="vertex")
+    faces = hlib.ls(sl=True, type="face")
 """
 
 import maya.cmds as cmds
@@ -77,7 +79,7 @@ from .._core.flags import flag_aliases
 
 @flag_aliases("ls")
 def ls(*args, **kwargs):
-    """Mayaノードを検索し、対応するラッパーとして返す。
+    """Mayaの参照を検索し、対応するラッパーとして返す。
 
     Args:
         *args (object): maya.cmds.lsへ渡す名前・名前列・パターン。文字列はそのまま渡し、
@@ -85,19 +87,31 @@ def ls(*args, **kwargs):
             空の列だけを渡した場合は maya.cmds.ls([]) と同じく空の結果を返す。None は
             maya.cmds.ls(None) と同じく空の列として扱う(``cmds.listRelatives`` などが
             結果なしのときに返す None をそのまま渡せる)。
-        **kwargs (object): maya.cmds.lsへ渡す検索フラグ。
+        **kwargs (object): type/typはノード型またはvertex/edge/face/uv/controlVertex。
+            省略時は全種類。範囲はflatten指定によらず単体へ展開する。
+            複数シェイプもリストで返す。オブジェクトや他種類からの変換は行わない。
+            その他はmaya.cmds.lsへ渡す検索フラグ。
     Returns:
-        list[Node | Plug] | Joints | SkinClusters: アトリビュートはPlug。typeまたはtypがjoint/skinClusterの場合は専用コレクション。それ以外はリスト。
+        list[Node | Plug | Component] | Joints | SkinClusters: コンポーネント型指定時は単体要素のリスト。
+            ノード型のtypeまたはtypがjoint/skinClusterの場合は従来の専用コレクション。
     Raises:
         TypeError: 位置引数に対応しない型が含まれる場合。
         ValueError: 位置引数に削除済みの対象が含まれる場合。
         RuntimeError: 検索結果をノードとして解決できない場合。
 
-    ノード・アトリビュート名を返す検索用（アトリビュートはPlug）。コンポーネント・型名等を返すMayaフラグは
-    ラッパー化できない場合がある。検索結果が空なら空コレクションまたは空リスト。"""
+    型名等を返すMayaフラグは非対応。検索結果が空なら空コレクションまたは空リスト。"""
     from ..nodes.node import Nodes as _InputNodes
     from ..object import Object as _InputObject
-    from ..nodes import Joints, Node, SkinClusters
+    from ..nodes import Joints, SkinClusters
+    from ..components import Vertex, Edge, Face, UV, CV
+    from ..scene.selection import Selection
+
+    component_types = {"vertex": Vertex, "edge": Edge, "face": Face,
+                       "uv": UV, "controlVertex": CV}
+    node_type = kwargs.get("type")
+    component = node_type if isinstance(node_type, str) and node_type in component_types else None
+    if component is not None:
+        kwargs.pop("type")
 
     targets = []
     for arg in _InputNodes._resolve_inputs([arg for arg in args if arg is not None]):
@@ -110,9 +124,26 @@ def ls(*args, **kwargs):
     # 空の列だけを渡した場合に maya.cmds.ls() の全ノード検索へ変わらないようにする。
     names = (cmds.ls(*targets, **kwargs) or []) if targets or not args else []
     node_type = kwargs.get("type")
-    if node_type == "joint":
+    if component is None and node_type == "joint":
         return Joints(names)
-    if node_type == "skinCluster":
+    if component is None and node_type == "skinCluster":
         return SkinClusters(names)
+    # Mayaの検索・並び順を維持し、解決だけを既存のOpenMaya経路へ任せる。
+    # 全件を単一Selectionにすると重複が除かれるため、結果ごとに解決する。
     from .._core.commandResult import CommandResult
-    return CommandResult.references(names)
+    from ..components import Component
+
+    result = []
+    for name in names:
+        if "." not in name:
+            if component is None:
+                result.append(CommandResult.reference(name))
+            continue
+        resolved = Selection(name).items
+        if resolved and isinstance(resolved[0], Component):
+            result.extend(resolved)
+        elif component is None:
+            result.append(CommandResult.reference(name))
+    if component is not None:
+        return [item for item in result if isinstance(item, component_types[component])]
+    return result

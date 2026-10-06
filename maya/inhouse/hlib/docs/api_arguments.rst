@@ -1,6 +1,83 @@
 引数仕様
 ====================
 
+lsのコンポーネント取得
+----------------------------------------
+
+
+``hlib.ls(sl=True, type="vertex")`` は選択頂点を ``list[Vertex]`` で返します。
+``type`` / ``typ`` に指定できるコンポーネント名は ``vertex``・``edge``・``face``・
+``uv``・``controlVertex`` です。単一の正式名称を指定し、別種類からの変換は行いません。
+型未指定ではNode・Plug・Componentの混合リストです。範囲はflatten指定によらず単体へ展開し、
+複数シェイプも同じリストで返します。対象がなければ空リストです。
+既存のノード型指定・joint/skinCluster専用コレクションは維持します。
+``component=`` は追加していません。
+
+BlendShapeの追加編集API
+-----------------------
+
+``hlib.createBlendShape(base, targets=None, **kwargs)`` は新規BlendShapeを返します。
+単一のベースを先頭に明示し、targetsは単体または列、None/空列なら空ターゲットで作成します。
+作成フラグの長短名と通常Undoに対応し、照会・編集・fastは受け付けません。
+
+従来の ``addTarget(target, base=None, weight_index=None, full_weight=1.0)`` と
+``getTargetAliases/getWeightPlugs/getWeights/getGeometry`` は引数・戻り値とも維持します。
+以下の ``target`` は既存ターゲットの整数番号またはweightのエイリアスです。
+
+.. list-table:: 追加した引数と戻り値
+   :header-rows: 1
+   :widths: 75 25
+
+   * - 呼び出し
+     - 戻り値
+   * - ``getTargetIndices(base=None)``
+     - 昇順の番号リスト
+   * - ``getTargetPlug(target)``
+     - weightのPlug
+   * - ``removeTarget(target)``
+     - 自身
+   * - ``replaceTarget(target, geometry, base=None, full_weight=1.0, *, fast=False)``
+     - 既存weightのPlug
+   * - ``duplicateTarget(target, weight_index=None, alias=None, *, fast=False)``
+     - 新規weightのPlug
+   * - ``mirrorTarget(target, axis="X", direction=1, base=None)``
+     - 自身
+   * - ``flipTarget(target, axis="X", base=None)``
+     - 自身
+   * - ``addInBetween(target, geometry, weight, base=None, relative=False)``
+     - 親weightのPlug
+   * - ``removeInBetween(target, weight)``
+     - 自身
+   * - ``targetEdit(target=None, state=True, full_weight=1.0)``
+     - 自身。Trueで開始、Falseで終了
+   * - ``getInBetweenWeights(target, base=None)``
+     - ウェイトのリスト
+   * - ``getTargetWeights(target, base=None)``
+     - 全頂点ウェイトのリスト
+   * - ``setTargetWeights(target, weights, base=None, *, fast=False)``
+     - 自身
+   * - ``getTargetDeltas(target, base=None, full_weight=1.0)``
+     - 頂点番号とVectorの辞書
+   * - ``getTargetVertices(target, base=None, full_weight=1.0, *, tolerance=0.0)``
+     - 非ゼロデルタのベース頂点群(Vertices)
+   * - ``setTargetDeltas(target, deltas, base=None, full_weight=1.0, disconnect=False, *, fast=False)``
+     - 自身
+   * - ``resetTargetVertices(target, vertices, base=None, full_weight=1.0, disconnect=False, *, fast=False)``
+     - 自身
+   * - ``reduceTargetDeltas(target, tolerance=0.0, base=None, full_weight=1.0, disconnect=False, *, fast=False)``
+     - 自身
+   * - ``dumpTargets(path)`` / ``loadTargets(path, *, fast=False)``
+     - 自身
+
+複数ベースの範囲、頂点ウェイトとデルタの更新方式、保存形式の制限は
+:doc:`guide_deformers` の「blendShapeの編集・保存」を参照してください。
+``resetTargetVertices`` / ``reduceTargetDeltas`` は既定で接続中のターゲット形状を
+自動編集し接続を保持します。明示的な ``disconnect=True`` だけが切断してベイクします。
+``setTargetDeltas`` の接続ガードは従来どおりです。
+``fast`` はキーワード専用のboolです。既定FalseはUndo対応のコマンド更新、
+TrueはUndoなしのOpenMaya更新です。入力と戻り値・単位は同じです。
+``loadTargets(fast=True)`` は失敗時の自動ロールバックも行いません。
+
 接続と切断
 ----------
 
