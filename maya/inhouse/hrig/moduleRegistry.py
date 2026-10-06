@@ -47,6 +47,6 @@ class ModuleRegistry:
                 "hrigControlDefinition",
             )
             for attr in (
-                [item.fullName() for item in hlib.ls("*." + marker, recursive=True)] or []
+                [item.getFullName() for item in hlib.ls("*." + marker, recursive=True)] or []
             )
         ]

@@ -29,8 +29,8 @@ def preservedSkinShape(joints):
     """
     from ..nodes.joint import Joints
 
-    skins = Joints(joints).skinClusters()
-    skin_names = [skin.fullName() for skin in skins]
+    skins = Joints(joints).getSkinClusters()
+    skin_names = [skin.getFullName() for skin in skins]
     previous_modes = {}
 
     with undoChunk("hlibPreservedSkinShape"):

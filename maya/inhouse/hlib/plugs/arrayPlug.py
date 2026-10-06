@@ -4,8 +4,9 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.attributeType import is_internal_data_type
-from ..decorators._safe import safe_edit
+from .._core.flags import flag_aliases
 from ..decorators._fast import fast_edit, is_fast
+from ..decorators._safe import safe_edit
 from ..decorators.undo import undoChunk
 from .plug import Plug, _instance_count
 
@@ -17,7 +18,7 @@ class ArrayPlug(Plug):
     ``__getitem__`` があるため、maya.cmds は ArrayPlug オブジェクト自体を
     シーケンスとして展開しようとして失敗する(``cmds.getAttr(array_plug)`` は不可)。
     配列アトリビュート全体を maya.cmds へ渡す場合は ``str(array_plug)`` または
-    ``array_plug.fullName()`` を渡す。要素 Plug(``array_plug[0]``)と、
+    ``array_plug.getFullName()`` を渡す。要素 Plug(``array_plug[0]``)と、
     hlib のコマンド(``hlib.select`` など)は ArrayPlug をそのまま受け付ける。"""
 
     def __getitem__(self, index):
@@ -45,7 +46,7 @@ class ArrayPlug(Plug):
         Returns:
             Iterator[Plug]: 未作成の番号へ進まない既存要素の反復子。
         """
-        return iter(self.elements())
+        return iter(self.getElements())
 
     def get(self):
         """既存インデックスをキーにした要素値の dict を返す。
@@ -57,7 +58,7 @@ class ArrayPlug(Plug):
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        return {plug.mplug().logicalIndex(): plug.get() for plug in self.elements()}
+        return {plug.mplug().logicalIndex(): plug.get() for plug in self.getElements()}
 
     @fast_edit
     @safe_edit
@@ -79,20 +80,21 @@ class ArrayPlug(Plug):
         """
         raise TypeError("Set an array element instead of the array plug")
 
-    def element(self, index, create=False):
+    @flag_aliases(idx="index")
+    def getElement(self, index, create=False):
         """論理インデックスの要素プラグを取得する。
 
         ``worldMatrix`` などのワールド空間アトリビュートは、所有 DAG ノードのインスタンス番号の
         要素を評価前でも取得できる(作成直後のノードの ``worldMatrix[0]`` など)。
 
         Args:
-            index (int): 論理インデックス。
+            index (int): 論理インデックス。 別名 ``idx`` も使用可能。
             create (bool): True の場合、データを持つ要素が無ければ Maya 上に要素を
                 作成してから返す(``cmds.getAttr`` の問い合わせで作成するため Undo 対象外)。
                 fast更新の内部では参照だけを取得し、値の書込み時に要素を作成する。
                 ただし ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できない。
                 この場合も要素プラグは返すため接続先・接続元に使え、要素は接続した時点で
-                存在するようになる(それまで ``elements()`` や ``nextAvailableIndex()`` には現れない)。
+                存在するようになる(それまで ``getElements()`` や ``getNextAvailableIndex()`` には現れない)。
 
         Returns:
             Plug: 要素プラグ。
@@ -115,19 +117,19 @@ class ArrayPlug(Plug):
             if create:
                 if is_internal_data_type(mplug):
                     raise RuntimeError(
-                        f"Maya 内部のデータ型の配列には要素を作成できません: {self.fullName()}"
+                        f"Maya 内部のデータ型の配列には要素を作成できません: {self.getFullName()}"
                     )
                 # maya.cmds は存在しない要素を問い合わせると要素を作成する。Plug の生成
                 # (アトリビュート型の判定)は maya.cmds へ問い合わせず要素を作らないため、ここで作成する。
                 # fast更新はこの参照へ値を書く時に要素を実体化する。
                 # 型照会のためのコマンド評価・名前の再解決を挟まない。
                 if not is_fast():
-                    cmds.getAttr(f"{self.fullName()}[{index}]", type=True)
+                    cmds.getAttr(f"{self.getFullName()}[{index}]", type=True)
             elif index not in self._existing_indices():
-                raise IndexError(f"No element at logical index {index} on {self.fullName()}")
+                raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
         return Plug(self._node, mplug)
 
-    def elements(self):
+    def getElements(self):
         """存在する要素プラグをすべて取得する。
 
         Returns:
@@ -140,7 +142,7 @@ class ArrayPlug(Plug):
         return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
                 for index in self._existing_indices()]
 
-    def nextAvailableIndex(self, start=0):
+    def getNextAvailableIndex(self, start=0):
         """接続・データを持つ要素が存在しない論理インデックスを探す。
 
         ロック状態や子要素の再帰チェックは行わない
@@ -166,12 +168,13 @@ class ArrayPlug(Plug):
             index += 1
         return index
 
+    @flag_aliases(idx="index")
     @undoChunk("hlibArrayPlugRemoveElement")
     def removeElement(self, index):
         """指定した論理インデックスの要素を削除する。
 
         Args:
-            index (int): 削除する論理インデックス。
+            index (int): 削除する論理インデックス。 別名 ``idx`` も使用可能。
 
         Returns:
             ArrayPlug: 自身。
@@ -182,21 +185,21 @@ class ArrayPlug(Plug):
         """
         self._require_valid()
         if index not in self._mplug.getExistingArrayAttributeIndices():
-            raise IndexError(f"No element at logical index {index} on {self.fullName()}")
-        cmds.removeMultiInstance(f"{self.fullName()}[{index}]", b=True)
+            raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
+        cmds.removeMultiInstance(f"{self.getFullName()}[{index}]", b=True)
         return self
 
-    def sourceNodes(self):
+    def getSourceNodes(self):
         """配列要素への接続元ノードを論理インデックス順に取得する。
 
         Returns:
             dict[int, Node]: 接続のある要素のみ。未接続の穴を維持して返す。
         """
         result = {}
-        for element in self.elements():
-            source = element.sourceWithConversion()
+        for element in self.getElements():
+            source = element.getSourceWithConversion()
             if source is not None:
-                result[element.mplug().logicalIndex()] = source.node()
+                result[element.mplug().logicalIndex()] = source.getNode()
         return result
 
     @undoChunk("hlib.ArrayPlug.appendMessage")
@@ -217,7 +220,7 @@ class ArrayPlug(Plug):
         index = max(self._existing_indices(), default=-1) + 1
         if index > MAX_LOGICAL_INDEX:
             raise IndexError("Message array index limit reached")
-        Node(node).plug("message").connectTo(self._element_reference(index))
+        Node(node).getPlug("message").connectTo(self._element_reference(index))
         return index
 
     def _existing_indices(self):
@@ -270,5 +273,5 @@ class ArrayPlug(Plug):
         index = self._validate_index(index)
         mplug = self._mplug.elementByLogicalIndex(index)
         if is_internal_data_type(mplug) and index not in self._mplug.getExistingArrayAttributeIndices():
-            raise RuntimeError("Cannot create an internal data element: " + self.fullName())
+            raise RuntimeError("Cannot create an internal data element: " + self.getFullName())
         return Plug(self._node, mplug)

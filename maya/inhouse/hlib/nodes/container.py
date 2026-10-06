@@ -2,6 +2,7 @@
 
 import maya.cmds as cmds
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from ..decorators.undo import undoTransaction
 from ..plugs.plug import Plug
@@ -25,14 +26,14 @@ class Container(Node):
         """
         return cls(cmds.container(name=name))
 
-    def members(self):
+    def getMembers(self):
         """直接所属するノードを取得する。
 
         Returns:
             list[Node]: メンバー。入出力の接続先は自動で含めない。
         """
         return [
-            Node(n) for n in (cmds.container(self.fullName(), query=True, nodeList=True) or [])
+            Node(n) for n in (cmds.container(self.getFullName(), query=True, nodeList=True) or [])
         ]
 
     @undoTransaction("hlib.Container.add")
@@ -48,8 +49,29 @@ class Container(Node):
         nodes = Nodes._resolve_inputs(members)
         if nodes:
             cmds.container(
-                self.fullName(), edit=True, addNode=[Node(n).fullName() for n in nodes]
+                self.getFullName(), edit=True, addNode=[Node(n).getFullName() for n in nodes]
             )
+        return self
+
+    @flag_aliases(f="force")
+    @undoTransaction("hlib.Container.removeMembers")
+    def removeMembers(self, *members, force=False):
+        """所属だけを解除する。ネスト時は通常、親containerの所属へ移る。
+
+        Args:
+            *members (Node | str | Iterable[Node]): 解除するメンバー。
+            force (bool): Trueなら全containerから解除する。ロック解除ではない。 別名 ``f`` も使用可能。
+
+        Returns:
+            Container: 自身。
+        """
+        nodes = [Node(node) for node in Nodes._resolve_inputs(members)]
+        current = self.getMembers()
+        if any(node not in current for node in nodes):
+            raise ValueError("このcontainerに所属していないノードが含まれています。")
+        if nodes:
+            cmds.container(self.getFullName(), edit=True,
+                           removeNode=[node.getFullName() for node in nodes], force=force)
         return self
 
     @undoTransaction("hlib.Container.createNode")
@@ -63,29 +85,9 @@ class Container(Node):
         Returns:
             Node: 作成したノード。
         """
-        node = Node.create(type, name=name or self.name() + "_" + type, skipSelect=True)
+        node = Node.create(type, name=name or self.getName() + "_" + type, skipSelect=True)
         self.addMembers(node)
         return node
-
-    @undoTransaction("hlib.Container.removeMembers")
-    def removeMembers(self, *members, force=False):
-        """所属だけを解除する。ネスト時は通常、親containerの所属へ移る。
-
-        Args:
-            *members (Node | str | Iterable[Node]): 解除するメンバー。
-            force (bool): Trueなら全containerから解除する。ロック解除ではない。
-
-        Returns:
-            Container: 自身。
-        """
-        nodes = [Node(node) for node in Nodes._resolve_inputs(members)]
-        current = self.members()
-        if any(node not in current for node in nodes):
-            raise ValueError("このcontainerに所属していないノードが含まれています。")
-        if nodes:
-            cmds.container(self.fullName(), edit=True,
-                           removeNode=[node.fullName() for node in nodes], force=force)
-        return self
 
     @undoTransaction("hlib.Container.removeContainer")
     def removeContainer(self):
@@ -95,11 +97,11 @@ class Container(Node):
         """
         # removeContainer単独では未接続のDGメンバーも削除される版がある。
         # 所属を先に外し、メンバーの生存を保証してから空の箱を除去する。
-        members = self.members()
+        members = self.getMembers()
         if members:
-            cmds.container(self.fullName(), edit=True,
-                           removeNode=[node.fullName() for node in members])
-        cmds.container(self.fullName(), edit=True, removeContainer=True)
+            cmds.container(self.getFullName(), edit=True,
+                           removeNode=[node.getFullName() for node in members])
+        cmds.container(self.getFullName(), edit=True, removeContainer=True)
 
     @undoTransaction("hlib.Container.publishName")
     def publishName(self, name):
@@ -111,26 +113,26 @@ class Container(Node):
         Returns:
             str: 作成した公開名。
         """
-        if name in self.publishedAttributes():
+        if name in self.getPublishedAttrs():
             raise ValueError("既に公開されている名前です: " + name)
-        result = cmds.container(self.fullName(), edit=True, publishName=name)
+        result = cmds.container(self.getFullName(), edit=True, publishName=name)
         return result[0] if isinstance(result, (list, tuple)) else result
 
-    def publishedAttributes(self):
+    def getPublishedAttrs(self):
         """公開名と対応する内部アトリビュートを取得する。
 
         Returns:
             dict[str, Plug | None]: 未Bind名はNone。公開ノードのアンカーは対象外。
         """
-        names = cmds.container(self.fullName(), query=True, publishName=True) or []
+        names = cmds.container(self.getFullName(), query=True, publishName=True) or []
         result = dict.fromkeys(names)
-        pairs = cmds.container(self.fullName(), query=True, bindAttr=True) or []
+        pairs = cmds.container(self.getFullName(), query=True, bindAttr=True) or []
         for attribute, name in zip(pairs[::2], pairs[1::2]):
             result[name] = Plug._resolve_input(attribute)
         return result
 
     @undoTransaction("hlib.Container.bindAttribute")
-    def bindAttribute(self, name, plug):
+    def bindAttr(self, name, plug):
         """未Bindの公開名を内部アトリビュートへ対応付ける。
 
         Args:
@@ -140,13 +142,13 @@ class Container(Node):
         Returns:
             Plug: 対応付けた内部アトリビュート。
         """
-        published = self.publishedAttributes()
+        published = self.getPublishedAttrs()
         if name not in published or published[name] is not None:
             raise ValueError("未Bindの公開名を指定してください: " + name)
         plug = Plug._resolve_input(plug)
-        if plug.node() not in self.members():
+        if plug.getNode() not in self.getMembers():
             raise ValueError("所属ノードのアトリビュートを指定してください。")
-        cmds.container(self.fullName(), edit=True, bindAttr=(plug.fullName(), name))
+        cmds.container(self.getFullName(), edit=True, bindAttr=(plug.getFullName(), name))
         return plug
 
     @undoTransaction("hlib.Container.publishAndBind")
@@ -160,25 +162,25 @@ class Container(Node):
         Returns:
             Plug: 対応付けた内部アトリビュート。
         """
-        if name in self.publishedAttributes():
+        if name in self.getPublishedAttrs():
             raise ValueError("既に公開されている名前です: " + name)
         plug = Plug._resolve_input(plug)
-        if plug.node() not in self.members():
+        if plug.getNode() not in self.getMembers():
             raise ValueError("所属ノードのアトリビュートを指定してください。")
-        cmds.container(self.fullName(), edit=True, publishAndBind=(plug.fullName(), name))
+        cmds.container(self.getFullName(), edit=True, publishAndBind=(plug.getFullName(), name))
         return plug
 
     @undoTransaction("hlib.Container.unbindAttribute")
-    def unbindAttribute(self, name):
+    def unbindAttr(self, name):
         """対応付けだけを解除し、公開名を残す。
 
         Args:
             name (str): Bind済みの公開名。
         """
-        plug = self.publishedAttributes().get(name)
+        plug = self.getPublishedAttrs().get(name)
         if plug is None:
             raise ValueError("Bind済みの公開名を指定してください: " + name)
-        cmds.container(self.fullName(), edit=True, unbindAttr=(plug.fullName(), name))
+        cmds.container(self.getFullName(), edit=True, unbindAttr=(plug.getFullName(), name))
 
     @undoTransaction("hlib.Container.unpublishName")
     def unpublishName(self, name):
@@ -187,7 +189,7 @@ class Container(Node):
         Args:
             name (str): 未Bindの公開名。
         """
-        published = self.publishedAttributes()
+        published = self.getPublishedAttrs()
         if name not in published or published[name] is not None:
             raise ValueError("未Bindの公開名を指定してください: " + name)
-        cmds.container(self.fullName(), edit=True, unpublishName=name)
+        cmds.container(self.getFullName(), edit=True, unpublishName=name)

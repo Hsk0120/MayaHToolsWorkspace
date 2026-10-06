@@ -97,26 +97,26 @@ class BulkPerformanceContractsTest(unittest.TestCase):
     def test_plug_lookup_follows_alias_rename_delete_undo(self):
         """function set再利用後もノードや動的アトリビュートの変化に追従する。"""
         node = hlib.getNode(cmds.createNode("transform"))
-        cmds.addAttr(node.fullName(), ln="amount", at="double")
-        node.plug("amount").set(3)
-        cmds.aliasAttr("aliasAmount", node.fullName() + ".amount")
-        self.assertEqual(node.plug("aliasAmount").get(), 3)
-        cmds.rename(node.fullName(), "renamed")
-        cmds.deleteAttr(node.fullName() + ".amount")
+        cmds.addAttr(node.getFullName(), ln="amount", at="double")
+        node.getPlug("amount").set(3)
+        cmds.aliasAttr("aliasAmount", node.getFullName() + ".amount")
+        self.assertEqual(node.getPlug("aliasAmount").get(), 3)
+        cmds.rename(node.getFullName(), "renamed")
+        cmds.deleteAttr(node.getFullName() + ".amount")
         with self.assertRaises(AttributeError):
-            node.plug("amount")
+            node.getPlug("amount")
         cmds.undo()
-        self.assertEqual(node.plug("amount").get(), 3)
-        cmds.deleteAttr(node.fullName() + ".amount")
-        cmds.addAttr(node.fullName(), ln="amount", at="long", dv=7)
-        self.assertEqual(node.plug("amount").get(), 7)
+        self.assertEqual(node.getPlug("amount").get(), 3)
+        cmds.deleteAttr(node.getFullName() + ".amount")
+        cmds.addAttr(node.getFullName(), ln="amount", at="long", dv=7)
+        self.assertEqual(node.getPlug("amount").get(), 7)
 
     def test_fast_matrix_matches_normal_with_units_and_joint(self):
         """直接MPlug更新でも単位とJoint補正を通常経路に合わせる。"""
         for kind in ("transform", "joint"):
             node = hlib.getNode(cmds.createNode(kind))
             if kind == "joint":
-                cmds.setAttr(node.fullName() + ".jointOrient", 11, 23, 7)
+                cmds.setAttr(node.getFullName() + ".jointOrient", 11, 23, 7)
             for linear, angle in (("cm", "deg"), ("m", "rad")):
                 cmds.currentUnit(linear=linear, angle=angle)
                 target = hlib.maths.Matrix(translate=(2, 3, 4))
@@ -132,14 +132,14 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         joints = [cmds.createNode("joint") for _ in range(4)]
         mesh = cmds.polyCube(ch=False)[0]
         skin = hlib.getNode(cmds.skinCluster(joints, mesh, tsb=True)[0])
-        cmds.skinCluster(skin.fullName(), e=True, ri=joints[1])
+        cmds.skinCluster(skin.getFullName(), e=True, ri=joints[1])
         skin.setWeights([joints[3], joints[0]], [.2, .3])
         values = list(skin.getWeights([joints[0], joints[3]]))
         self.assertAlmostEqual(values[0], .3)
         self.assertAlmostEqual(values[1], .2)
         with self.assertRaises(ValueError):
             skin.setWeights([joints[0], cmds.ls(joints[0], long=True)[0]], [.1, .2])
-        prefix = skin.fullName() + ".weightList[0].weights"
+        prefix = skin.getFullName() + ".weightList[0].weights"
         before = cmds.getAttr(prefix + "[0]")
         protected = cmds.getAttr(prefix + "[2]")
         cmds.setAttr(prefix + "[2]", lock=True)

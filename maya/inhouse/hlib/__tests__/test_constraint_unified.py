@@ -19,8 +19,8 @@ class UnifiedConstraintTest(unittest.TestCase):
         self.source = hlib.createNode("transform", name="source", skipSelect=True)
         self.target = hlib.createNode("transform", name="target", skipSelect=True)
         self.up = hlib.createNode("transform", name="up", skipSelect=True)
-        self.source.plug("translateZ").set(5)
-        self.up.plug("translateY").set(5)
+        self.source.getPlug("translateZ").set(5)
+        self.up.getPlug("translateY").set(5)
 
     def tearDown(self):
         cmds.namespace(set=self.previous)
@@ -37,19 +37,19 @@ class UnifiedConstraintTest(unittest.TestCase):
             wut="object",
             wuo=self.up,
         )
-        self.assertEqual(result.type(), "aimConstraint")
+        self.assertEqual(result.getType(), "aimConstraint")
         self.assertEqual(
-            result.plug("worldUpMatrix").sourceWithConversion().node().uuid(), self.up.uuid()
+            result.getPlug("worldUpMatrix").getSourceWithConversion().getNode().getUuid(), self.up.getUuid()
         )
         self.assertEqual(
-            result.targets()[0].uuid(), self.source.uuid()
+            result.getTargets()[0].getUuid(), self.source.getUuid()
         )
-        weight = result.weightPlugs()[0]
+        weight = result.getWeightPlugs()[0]
         result.setWeight(0.25)
         self.assertAlmostEqual(weight.get(), 0.25)
         cmds.undo()
         self.assertAlmostEqual(weight.get(), 1.0)
-        name = result.fullName()
+        name = result.getFullName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
         cmds.redo()
@@ -59,9 +59,9 @@ class UnifiedConstraintTest(unittest.TestCase):
         for kind in ("parent", "orient"):
             with self.subTest(kind=kind):
                 result = self.target.addConstraint(self.source, type=kind, weight=0.3)
-                self.assertEqual(result.type(), kind + "Constraint")
+                self.assertEqual(result.getType(), kind + "Constraint")
                 self.assertAlmostEqual(result.getWeights()[0], 0.3)
-                cmds.delete(result.fullName())
+                cmds.delete(result.getFullName())
 
     def test_conflicting_flags_and_modes_do_not_create_nodes(self):
         before = set(cmds.ls())

@@ -11,20 +11,20 @@ from .node import Node
 class Cluster(Node):
     """Maya の cluster デフォーマラッパー。"""
 
-    def weightedNode(self):
+    def getWeightedNode(self):
         """このクラスタに対応するハンドル transform を取得する。
 
         Returns:
             Node | None: cluster ハンドルの transform。見つからない場合は ``None``。
         """
-        result = cmds.cluster(self.name(), query=True, weightedNode=True)
+        result = cmds.cluster(self.getName(), query=True, weightedNode=True)
         if not result:
             return None
         if isinstance(result, (list, tuple)):
             result = result[0]
         return Node(result)
 
-    def geometry(self):
+    def getGeometry(self):
         """このクラスタが変形するジオメトリ shape を取得する。
 
         Returns:

@@ -16,57 +16,57 @@ class InfluencesColorsTest(unittest.TestCase):
     def tearDown(self):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
-    def node(self, kind):
+    def getNode(self, kind):
         return hlib.createNode(kind, name=self.ns + ":" + kind)
 
     def test_add_zero_influences_and_undo(self):
-        joints = [self.node("joint") for _ in range(4)]
+        joints = [self.getNode("joint") for _ in range(4)]
         mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
-        name = cmds.skinCluster([j.fullName() for j in joints[:2]], mesh, name=self.ns + ":skin")[0]
+        name = cmds.skinCluster([j.getFullName() for j in joints[:2]], mesh, name=self.ns + ":skin")[0]
         skin = hlib.getNode(name)
-        pose = skin.bindPose()
+        pose = skin.getBindPose()
         if pose:
-            cmds.rename(pose.fullName(), self.ns + ":pose")
+            cmds.rename(pose.getFullName(), self.ns + ":pose")
         vertices = cmds.ls(mesh + ".vtx[*]", flatten=True)
         for v in vertices:
-            cmds.skinPercent(name, v, transformValue=[(joints[0].fullName(), 0.25), (joints[1].fullName(), 0.75)])
+            cmds.skinPercent(name, v, transformValue=[(joints[0].getFullName(), 0.25), (joints[1].getFullName(), 0.75)])
         # 合計1でない保存ウェイトも再正規化されないことを確認する。
         cmds.setAttr(name + ".normalizeWeights", 0)
         cmds.skinPercent(name, vertices[0], normalize=False,
-                         transformValue=[(joints[0].fullName(), 0.2), (joints[1].fullName(), 0.3)])
-        joints[0].plug("lockInfluenceWeights").set(True)
+                         transformValue=[(joints[0].getFullName(), 0.2), (joints[1].getFullName(), 0.3)])
+        joints[0].getPlug("lockInfluenceWeights").set(True)
         for normalization in (0, 1, 2):
             for obey in (False, True):
                 with self.subTest(normalization=normalization, obey=obey):
                     cmds.setAttr(name + ".normalizeWeights", normalization)
                     cmds.setAttr(name + ".maintainMaxInfluences", obey)
                     cmds.setAttr(name + ".maxInfluences", 2)
-                    before = [[cmds.skinPercent(name, v, query=True, transform=j.fullName()) for j in joints[:2]] for v in vertices]
+                    before = [[cmds.skinPercent(name, v, query=True, transform=j.getFullName()) for j in joints[:2]] for v in vertices]
                     indices = [skin.fn.indexForInfluenceObject(j.mpath()) for j in joints[:2]]
                     raw = [[cmds.getAttr(f"{name}.weightList[{v}].weights[{i}]") for i in indices] for v in range(len(vertices))]
                     skin.addInfluences([joints[2], joints[3], joints[2], joints[0]])
                     for i, v in enumerate(vertices):
-                        after = [cmds.skinPercent(name, v, query=True, transform=j.fullName()) for j in joints]
+                        after = [cmds.skinPercent(name, v, query=True, transform=j.getFullName()) for j in joints]
                         self.assertEqual(after[:2], before[i])
                         self.assertEqual(after[2:], [0, 0])
                         self.assertEqual([cmds.getAttr(f"{name}.weightList[{i}].weights[{k}]") for k in indices], raw[i])
-                    self.assertTrue(joints[0].plug("lockInfluenceWeights").get())
+                    self.assertTrue(joints[0].getPlug("lockInfluenceWeights").get())
                     cmds.undo()
-                    self.assertEqual(len(skin.influences()), 2)
+                    self.assertEqual(len(skin.getInfluences()), 2)
                     cmds.redo()
-                    self.assertEqual(len(skin.influences()), 4)
+                    self.assertEqual(len(skin.getInfluences()), 4)
                     cmds.undo()
-        other = self.node("transform")
+        other = self.getNode("transform")
         with self.assertRaises(ValueError):
             skin.addInfluences([joints[2], other])
-        self.assertEqual(len(skin.influences()), 2)
+        self.assertEqual(len(skin.getInfluences()), 2)
         skin.addInfluences([])
         skin.addInfluences(joints[0])
-        self.assertEqual(len(skin.influences()), 2)
+        self.assertEqual(len(skin.getInfluences()), 2)
 
     def test_colors_and_undo(self):
-        transform = self.node("transform")
-        shape_name = cmds.createNode("nurbsCurve", name=self.ns + ":curveShape", parent=transform.fullName())
+        transform = self.getNode("transform")
+        shape_name = cmds.createNode("nurbsCurve", name=self.ns + ":curveShape", parent=transform.getFullName())
         shape = hlib.getNode(shape_name)
         self.assertIsNone(transform.getOutlinerColor().rgb)
         transform.setOutlinerColor((1, 0.5, 0))
@@ -94,7 +94,7 @@ class InfluencesColorsTest(unittest.TestCase):
                 shape.setOverrideColor(value)
         self.assertEqual(shape.getOverrideColor().rgb, (0, 0.5, 1))
         with self.assertRaises(AttributeError):
-            self.node("network").setOverrideColor(13)
+            self.getNode("network").setOverrideColor(13)
 
 
 if __name__ == "__main__":

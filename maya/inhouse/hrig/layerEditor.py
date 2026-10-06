@@ -275,7 +275,7 @@ class LayerEditor(QtWidgets.QDialog):
         """
         if cls._instance is None or not isValid(cls._instance):
             # Qtの親取得はUI実装側で行い、基礎ライブラリhlibへ依存を持ち込まない。
-            name = MainWindow.name()
+            name = MainWindow.getName()
             parent = next((window for window in QtWidgets.QApplication.topLevelWidgets()
                            if window.objectName() == name), None)
             cls._instance = cls(parent)
@@ -311,7 +311,7 @@ class LayerEditor(QtWidgets.QDialog):
         if not self._closed:
             self.refresh()
 
-    def current(self):
+    def getCurrent(self):
         """現在行の部位と選択先を解決する。
 
         Returns:
@@ -321,7 +321,7 @@ class LayerEditor(QtWidgets.QDialog):
         data = item.data(0, QtCore.Qt.UserRole) if item else None
         if not data:
             raise ValueError("モジュールまたはレイヤーを選択してください")
-        roots = [item.fullName() for item in hlib.ls(data["root"], long=True)] or []
+        roots = [item.getFullName() for item in hlib.ls(data["root"], long=True)] or []
         if not roots:
             raise ValueError("モジュールが削除されています")
         return ModuleRegistry.get(roots[0]), data
@@ -373,9 +373,9 @@ class LayerEditor(QtWidgets.QDialog):
         try:
             for root in ModuleRegistry.roots():
                 rig = ModuleRegistry.get(root)
-                uuid = rig.root.uuid()
+                uuid = rig.root.getUuid()
                 data = {"root": uuid, "role": "module", "target": uuid}
-                root_item = self._row(self.tree, rig.root.name(), data)
+                root_item = self._row(self.tree, rig.root.getName(), data)
                 root_item.setIcon(1, self.style().standardIcon(QtWidgets.QStyle.SP_DirIcon))
                 root_item.setExpanded(True)
                 self._tweak_rows(rig, root_item)
@@ -396,7 +396,7 @@ class LayerEditor(QtWidgets.QDialog):
                     item = self._row(
                         root_item,
                         label,
-                        {"root": uuid, "role": role, "target": node.uuid()},
+                        {"root": uuid, "role": role, "target": node.getUuid()},
                         states.get(role, False),
                     )
                     if role in self.OPTIONAL:
@@ -421,7 +421,7 @@ class LayerEditor(QtWidgets.QDialog):
                         self._row(
                             item,
                             identifier,
-                            {"root": uuid, "role": role + ":" + identifier, "target": group.uuid()},
+                            {"root": uuid, "role": role + ":" + identifier, "target": group.getUuid()},
                         )
                     item.setExpanded(True)
                 for name in ("hrigMode", "hrigLod") + tuple(
@@ -430,7 +430,7 @@ class LayerEditor(QtWidgets.QDialog):
                     if rig.root.hasAttr(name):
                         self._attributes.add(
                             (uuid, name),
-                            attribute=rig.root.plug(name),
+                            attribute=rig.root.getPlug(name),
                             callback=self.schedule_refresh,
                             kill_with_scene=True,
                         )
@@ -462,18 +462,18 @@ class LayerEditor(QtWidgets.QDialog):
             rig (SplineRig): 対象モジュール。
             root_item (QTreeWidgetItem): モジュール行。
         """
-        uuid = rig.root.uuid()
+        uuid = rig.root.getUuid()
         fk = self._row(
             root_item,
             "FK骨列",
-            {"root": uuid, "role": "fk", "target": rig.root.plug("fkGroup").sourceWithConversion().node().uuid()},
+            {"root": uuid, "role": "fk", "target": rig.root.getPlug("fkGroup").getSourceWithConversion().getNode().getUuid()},
             not rig.active(),
         )
-        for i, bone in enumerate(rig.members("fk")):
+        for i, bone in enumerate(rig.getMembers("fk")):
             self._row(
                 fk,
                 "FK {:02d}".format(i + 1),
-                {"root": uuid, "role": "fk:" + str(i), "target": bone.uuid()},
+                {"root": uuid, "role": "fk:" + str(i), "target": bone.getUuid()},
             )
         item = self._row(
             root_item,
@@ -487,13 +487,13 @@ class LayerEditor(QtWidgets.QDialog):
             self._row(
                 item,
                 "カーブ {:02d}".format(i + 1),
-                {"root": uuid, "role": "spline:" + str(i), "target": control.uuid()},
+                {"root": uuid, "role": "spline:" + str(i), "target": control.getUuid()},
             )
-        group = rig.root.plug("deformGroup").sourceWithConversion().node()
+        group = rig.root.getPlug("deformGroup").getSourceWithConversion().getNode()
         self._row(
             root_item,
-            "変形骨（{}本）".format(len(rig.joints())),
-            {"root": uuid, "role": "deform", "target": group.uuid()},
+            "変形骨（{}本）".format(len(rig.getJoints())),
+            {"root": uuid, "role": "deform", "target": group.getUuid()},
         )
         from .splineStretchLayer import SplineStretchLayer
 
@@ -503,7 +503,7 @@ class LayerEditor(QtWidgets.QDialog):
             item = self._row(
                 root_item,
                 self.LABELS["stretch"],
-                {"root": uuid, "role": "stretch", "target": settings.uuid()},
+                {"root": uuid, "role": "stretch", "target": settings.getUuid()},
                 stretch.active(),
             )
             item.setFlags(item.flags() | QtCore.Qt.ItemIsUserCheckable)
@@ -516,7 +516,7 @@ class LayerEditor(QtWidgets.QDialog):
         for name in attrs:
             self._attributes.add(
                 (uuid, name),
-                attribute=rig.root.plug(name),
+                attribute=rig.root.getPlug(name),
                 callback=self.schedule_refresh,
                 kill_with_scene=True,
             )
@@ -528,7 +528,7 @@ class LayerEditor(QtWidgets.QDialog):
             rig (SkirtRig): 対象モジュール。
             root_item (QTreeWidgetItem): モジュール行。
         """
-        uuid = rig.root.uuid()
+        uuid = rig.root.getUuid()
         item = self._row(
             root_item,
             "方向ブレンド · 設定（Blend / Falloff）",
@@ -541,13 +541,13 @@ class LayerEditor(QtWidgets.QDialog):
             self._row(
                 item,
                 "ドライバー {:02d}".format(index + 1),
-                {"root": uuid, "role": "driver:" + str(index), "target": chain[0].uuid()},
+                {"root": uuid, "role": "driver:" + str(index), "target": chain[0].getUuid()},
             )
-        group = rig.root.plug("followerGroup").sourceWithConversion().node()
+        group = rig.root.getPlug("followerGroup").getSourceWithConversion().getNode()
         self._row(
             root_item,
             "変形骨（{}列）".format(len(rig.chains())),
-            {"root": uuid, "role": "followers", "target": group.uuid()},
+            {"root": uuid, "role": "followers", "target": group.getUuid()},
         )
         from .followLayer import FollowLayer
 
@@ -565,7 +565,7 @@ class LayerEditor(QtWidgets.QDialog):
             self._row(
                 follow,
                 identifier,
-                {"root": uuid, "role": "follow:" + identifier, "target": group.uuid()},
+                {"root": uuid, "role": "follow:" + identifier, "target": group.getUuid()},
             )
         attrs = ["enabled", "lod"]
         from .secondaryLayer import SecondaryLayer
@@ -575,11 +575,11 @@ class LayerEditor(QtWidgets.QDialog):
             members = {
                 i: g
                 for i, g in groups.items()
-                if kind == "spring" or g.plug("poseGraph").sourceWithConversion() is not None
+                if kind == "spring" or g.getPlug("poseGraph").getSourceWithConversion() is not None
             }
             active = rig.layer_enabled(kind) and rig.lod() == 1 and bool(members)
             if kind == "spring":
-                active = active and any(g.plug("baked").get() for g in members.values())
+                active = active and any(g.getPlug("baked").get() for g in members.values())
             layer = self._row(
                 root_item, self.LABELS[kind], {"root": uuid, "role": kind, "target": uuid}, active
             )
@@ -591,7 +591,7 @@ class LayerEditor(QtWidgets.QDialog):
                 self._row(
                     layer,
                     "ドライバー {:02d}".format(index + 1),
-                    {"root": uuid, "role": kind + ":" + str(index), "target": group.uuid()},
+                    {"root": uuid, "role": kind + ":" + str(index), "target": group.getUuid()},
                 )
         for kind in ("follow", "spring", "pose"):
             if rig.root.hasAttr("hrigEnabled_" + kind):
@@ -599,7 +599,7 @@ class LayerEditor(QtWidgets.QDialog):
         for name in attrs:
             self._attributes.add(
                 (uuid, name),
-                attribute=rig.root.plug(name),
+                attribute=rig.root.getPlug(name),
                 callback=self.schedule_refresh,
                 kill_with_scene=True,
             )
@@ -612,29 +612,29 @@ class LayerEditor(QtWidgets.QDialog):
             parent (QTreeWidgetItem): モジュール行。
         """
         for identifier, group in TweakLayer(rig).groups().items():
-            active = rig.lod() == 1 and bool(group.plug("enabled").get())
+            active = rig.lod() == 1 and bool(group.getPlug("enabled").get())
             row = self._row(
                 parent,
                 "Tweak · " + identifier,
-                dict(root=rig.root.uuid(), role="tweak:" + identifier, target=group.uuid()),
+                dict(root=rig.root.getUuid(), role="tweak:" + identifier, target=group.getUuid()),
                 active,
             )
             row.setFlags(row.flags() | QtCore.Qt.ItemIsUserCheckable)
             row.setCheckState(
-                0, QtCore.Qt.Checked if group.plug("enabled").get() else QtCore.Qt.Unchecked
+                0, QtCore.Qt.Checked if group.getPlug("enabled").get() else QtCore.Qt.Unchecked
             )
             self._row(
                 row,
                 "操作コントロール",
                 dict(
-                    root=rig.root.uuid(),
+                    root=rig.root.getUuid(),
                     role="tweakControl:" + identifier,
-                    target=group.plug("control").sourceWithConversion().node().uuid(),
+                    target=group.getPlug("control").getSourceWithConversion().getNode().getUuid(),
                 ),
             )
             self._attributes.add(
-                group.uuid(),
-                attribute=group.plug("enabled"),
+                group.getUuid(),
+                attribute=group.getPlug("enabled"),
                 callback=self.schedule_refresh,
                 kill_with_scene=True,
             )
@@ -650,21 +650,21 @@ class LayerEditor(QtWidgets.QDialog):
         row = self._row(
             parent,
             self.LABELS[kind],
-            dict(root=rig.root.uuid(), role=kind, target=rig.group("layer").uuid()),
+            dict(root=rig.root.getUuid(), role=kind, target=rig.group("layer").getUuid()),
             rig.lod() == 1 and rig.layer_enabled(kind),
         )
         row.setFlags(row.flags() | QtCore.Qt.ItemIsUserCheckable)
         row.setCheckState(0, QtCore.Qt.Checked if rig.layer_enabled(kind) else QtCore.Qt.Unchecked)
-        for node in rig.members("controls"):
+        for node in rig.getMembers("controls"):
             self._row(
                 row,
-                node.name(),
-                dict(root=rig.root.uuid(), role="control:" + node.uuid(), target=node.uuid()),
+                node.getName(),
+                dict(root=rig.root.getUuid(), role="control:" + node.getUuid(), target=node.getUuid()),
             )
         for attr in ("enabled", "lod"):
             self._attributes.add(
-                (rig.root.uuid(), attr),
-                attribute=rig.root.plug(attr),
+                (rig.root.getUuid(), attr),
+                attribute=rig.root.getPlug(attr),
                 callback=self.schedule_refresh,
                 kill_with_scene=True,
             )
@@ -673,7 +673,7 @@ class LayerEditor(QtWidgets.QDialog):
         """選択したスカート列の登録・編集パネルを開く。"""
         from .poseEditor import PoseEditor
 
-        rig, data = self.current()
+        rig, data = self.getCurrent()
         if not isinstance(rig, SkirtRig):
             raise ValueError("スカートを選択してください")
         role = data["role"]
@@ -700,7 +700,7 @@ class LayerEditor(QtWidgets.QDialog):
         if self._busy:
             return
         try:
-            rig, _ = self.current()
+            rig, _ = self.getCurrent()
             control = isinstance(rig, ControlRig)
             skirt = isinstance(rig, SkirtRig)
             spline = isinstance(rig, SplineRig)
@@ -745,11 +745,11 @@ class LayerEditor(QtWidgets.QDialog):
             return
         data = item.data(0, QtCore.Qt.UserRole)
         enabled = item.checkState(0) == QtCore.Qt.Checked
-        roots = [item.fullName() for item in hlib.ls(data["root"], long=True)] or []
+        roots = [item.getFullName() for item in hlib.ls(data["root"], long=True)] or []
         if roots and data["role"].startswith("tweak:"):
-            group = hlib.getNode([item.fullName() for item in hlib.ls(data["target"], long=True)][0])
+            group = hlib.getNode([item.getFullName() for item in hlib.ls(data["target"], long=True)][0])
             with undoTransaction("hrig.Tweak.enabled"):
-                group.plug("enabled").set(enabled)
+                group.getPlug("enabled").set(enabled)
                 TweakLayer(ModuleRegistry.get(roots[0])).update()
             self.schedule_refresh()
         elif roots and data["role"] in self.OPTIONAL:
@@ -822,7 +822,7 @@ class LayerEditor(QtWidgets.QDialog):
         self.refresh()
         for index in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(index)
-            if item.data(0, QtCore.Qt.UserRole)["root"] == rig.root.uuid():
+            if item.data(0, QtCore.Qt.UserRole)["root"] == rig.root.getUuid():
                 self.tree.setCurrentItem(item)
         prefix = (
             ("spine" if self.module_type.currentIndex() == 4 else "tail")
@@ -831,25 +831,25 @@ class LayerEditor(QtWidgets.QDialog):
         )
         prefix = {6: "hand", 7: "look"}.get(self.module_type.currentIndex(), prefix)
         self.module_name.setText(
-            SampleBuilder.next_id(set([item.name() for item in hlib.ls()]), prefix)
+            SampleBuilder.next_id(set([item.getName() for item in hlib.ls()]), prefix)
         )
 
     def add_layer(self):
         """選択モジュールにサンプルを追加する。"""
-        rig, _ = self.current()
+        rig, _ = self.getCurrent()
         if self.layer_type.currentData() == "tweak":
             selected = [
                 n
                 for n in (
-                    [item.fullName() for item in hlib.ls(selection=True, type="joint", long=True)]
+                    [item.getFullName() for item in hlib.ls(selection=True, type="joint", long=True)]
                     or []
                 )
-                if n.startswith(rig.root.fullName() + "|")
+                if n.startswith(rig.root.getFullName() + "|")
             ]
             layer = TweakLayer(rig)
             layer.add(
                 SampleBuilder.next_id(set(layer.groups()), "tweak"),
-                selected[0] if selected else rig.joints()[0],
+                selected[0] if selected else rig.getJoints()[0],
             )
             return
         SampleBuilder.layer(
@@ -864,7 +864,7 @@ class LayerEditor(QtWidgets.QDialog):
     @undoTransaction("hrig.LayerEditor.mode")
     def change_mode(self):
         """姿勢を合わせてFK/IKを切り替える。"""
-        rig, _ = self.current()
+        rig, _ = self.getCurrent()
         mode = ("fk", "ik")[self.mode.currentIndex()]
         message = None
         if mode != rig.mode():
@@ -881,11 +881,11 @@ class LayerEditor(QtWidgets.QDialog):
 
     def change_lod(self):
         """選択部位のLODを変更する。"""
-        self.current()[0].set_lod(self.lod.currentIndex())
+        self.getCurrent()[0].set_lod(self.lod.currentIndex())
 
     def bake_spring(self):
         """選択した揺れ列を再生範囲で再計算する。"""
-        rig, data = self.current()
+        rig, data = self.getCurrent()
         if not isinstance(rig, SkirtRig):
             raise ValueError("Select a skirt module")
         role = data["role"]
@@ -894,8 +894,8 @@ class LayerEditor(QtWidgets.QDialog):
 
     def select_node(self):
         """現在行の設定ノードをMayaで選択する。"""
-        _, data = self.current()
-        names = [item.fullName() for item in hlib.ls(data["target"], long=True)] or []
+        _, data = self.getCurrent()
+        names = [item.getFullName() for item in hlib.ls(data["target"], long=True)] or []
         if names:
             hlib.select(names, replace=True)
 
@@ -906,13 +906,13 @@ class LayerEditor(QtWidgets.QDialog):
 
     def open_curve(self):
         """SDKの詳細行を選択して、標準グラフエディターでカーブを編集する。"""
-        _, data = self.current()
+        _, data = self.getCurrent()
         node = hlib.getNode(
-            ([item.fullName() for item in hlib.ls(data["target"], long=True)] or [""])[0]
+            ([item.getFullName() for item in hlib.ls(data["target"], long=True)] or [""])[0]
         )
         if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
-        hlib.select(node.plug("curve").sourceWithConversion().node(), replace=True)
+        hlib.select(node.getPlug("curve").getSourceWithConversion().getNode(), replace=True)
         GraphEditor.show()
 
     def closeEvent(self, event):

@@ -11,7 +11,7 @@ from .node import Node
 class DisplayLayer(Node):
     """Maya の displayLayer ラッパー。メンバー管理とカレントレイヤー操作を提供する。"""
 
-    def members(self):
+    def getMembers(self):
         """レイヤーのメンバーを取得する。
 
         Returns:
@@ -19,7 +19,7 @@ class DisplayLayer(Node):
         """
         # 既定の問い合わせは葉の名前だけを返し、短い名前が重複するノードを解決できないため
         # 完全パスで受け取る。
-        names = cmds.editDisplayLayerMembers(self.name(), query=True, fullNames=True) or []
+        names = cmds.editDisplayLayerMembers(self.getName(), query=True, fullNames=True) or []
         return [Node(name) for name in names]
 
     @undoChunk("hlibDisplayLayerAddMembers")
@@ -37,7 +37,7 @@ class DisplayLayer(Node):
         """
         from ..object import Object as _InputObject
         if members:
-            cmds.editDisplayLayerMembers(self.name(), _InputObject._input_names(members))
+            cmds.editDisplayLayerMembers(self.getName(), _InputObject._input_names(members))
         return self
 
     @undoChunk("hlibDisplayLayerRemoveMembers")
@@ -65,5 +65,5 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        cmds.editDisplayLayerGlobals(currentDisplayLayer=self.name())
+        cmds.editDisplayLayerGlobals(currentDisplayLayer=self.getName())
         return self

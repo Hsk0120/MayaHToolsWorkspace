@@ -8,9 +8,10 @@ import maya.cmds as cmds
 from .._core.attributeType import attributeType, is_internal_data_type, value_reader
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import set_plug
+from .._core.flags import flag_aliases
 from .._core.unitValue import convert
-from ..decorators._safe import safe_edit
 from ..decorators._fast import fast_edit, is_fast
+from ..decorators._safe import safe_edit
 from ..decorators.undo import undoChunk
 from ..object import Object
 
@@ -196,13 +197,13 @@ class Plug(Object):
     専用クラスを選択する。基底クラスの書き込み・接続・ロック操作は
     Undo チャンクで囲まれる。派生クラス独自の経路は各メソッドを参照する。
 
-    ``str(plug)`` と ``fullName()`` は maya.cmds で一意に解決できる
+    ``str(plug)`` と ``getFullName()`` は maya.cmds で一意に解決できる
     ``<ノードの最短一意名>.<アトリビュートパス>`` を返すため、Plug はそのまま
     ``cmds.getAttr(plug)``/``cmds.connectAttr(a, b)`` などへ渡せる。
     短い名前が重複するノード(``grp1|dup`` と ``grp2|dup``)でも一意で、
     名前変更・親子付け替えにも追従する。ただし ``ArrayPlug`` と複合Plugは ``[]`` で要素を
     取得できるため maya.cmds がシーケンスとして展開しようとして失敗する。
-    配列・複合アトリビュートを渡す場合は ``str(plug)`` か ``plug.fullName()`` を渡す。
+    配列・複合アトリビュートを渡す場合は ``str(plug)`` か ``plug.getFullName()`` を渡す。
 
     所有ノードが削除された、または動的アトリビュートが ``deleteAttr`` で削除された Plug は
     無効になり(:meth:`isValid`)、``str()``・:meth:`fullName`・:meth:`name` は空文字列、
@@ -235,7 +236,7 @@ class Plug(Object):
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。削除済みの
-                Plug から要素・子・親の Plug を取得した場合も含む(``Node.plug()`` と同じ規則)。
+                Plug から要素・子・親の Plug を取得した場合も含む(``Node.getPlug()`` と同じ規則)。
                 プラグが未確定(-1)の配列インデックスを経由する場合(``cmp[-1].child`` や
                 ``inputTarget[-1].inputTargetGroup`` のような maya.cmds で解決できないプラグ)。
                 MPlug の所有ノードが node と異なる場合(静的アトリビュート・動的アトリビュートとも。所有ノードでは
@@ -332,12 +333,12 @@ class Plug(Object):
             str: Plug と完全修飾プラグ名を含む文字列表現。所有ノードが無効、またはアトリビュートが削除済みなら
                 ``<Plug invalid>``。
         """
-        name = self.fullName()
+        name = self.getFullName()
         if not name:
             return "<Plug invalid>"
         return f"Plug({name!r})"
 
-    def node(self):
+    def getNode(self):
         """この Plug を所有する hlib ノードを取得する。
 
         Returns:
@@ -365,7 +366,7 @@ class Plug(Object):
         """
         return self._mplug
 
-    def name(self):
+    def getName(self):
         """最短一意ノード名と短いアトリビュート名を含むPlug名を取得する。
 
         Returns:
@@ -374,9 +375,9 @@ class Plug(Object):
         """
         if not self.isValid():
             return ""
-        return self.node().name() + self.attrName()
+        return self.getNode().getName() + self.getAttrName()
 
-    def attrName(self):
+    def getAttrName(self):
         """先頭ドットと必要な要素番号を含む短いアトリビュートパスを返す。
 
         Returns:
@@ -390,7 +391,7 @@ class Plug(Object):
             useLongNames=False,
         )
 
-    def shortName(self):
+    def getShortName(self):
         """要素番号や階層を含まないアトリビュートの短名。
 
         Returns:
@@ -399,7 +400,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).shortName
 
-    def plugName(self, short=False, fullAttrPath=False):
+    def getPlugName(self, short=False, fullAttrPath=False):
         """ノード名を含むPlug名を取得する。
 
         Args:
@@ -409,14 +410,14 @@ class Plug(Object):
             str: Plug名。
         """
         self._require_valid()
-        return self.node().name() + "." + self._mplug.partialName(
+        return self.getNode().getName() + "." + self._mplug.partialName(
             includeNonMandatoryIndices=True, includeInstancedIndices=True,
             useFullAttributePath=fullAttrPath, useLongNames=not short)
 
-    def fullName(self):
+    def getFullName(self):
         """maya.cmds で一意に解決できる、ノード名を含む完全修飾プラグ名を取得する。
 
-        ``<ノードの最短一意名>.<アトリビュートパス>`` の形式。ノード名は ``Node.name()``
+        ``<ノードの最短一意名>.<アトリビュートパス>`` の形式。ノード名は ``Node.getName()``
         (``str(node)``)と同じで、呼び出すたびに再計算するため名前変更や
         親子付け替えに追従する。短い名前が重複するノードでも ``grp1|dup.translateX``
         のように一意になる。アトリビュートパスはロング名で、必要な配列インデックス
@@ -453,14 +454,14 @@ class Plug(Object):
         if dagPath.isValid() and not dagPath.isInstanced() and dagPath.pathCount() == 1 and fn.hasUniqueName():
             return self._mplug.name()
         # plug_path() と同じ引数。頻繁に呼ばれるため関数呼び出しを省いて直接問い合わせる。
-        return node.name() + "." + self._mplug.partialName(False, True, True, True, False, True)
+        return node.getName() + "." + self._mplug.partialName(False, True, True, True, False, True)
 
     #: ``str(plug)`` は :meth:`fullName` と同じ(maya.cmds は文字列以外の引数に ``str()`` を
     #: 適用するため、Plug をそのまま ``cmds.getAttr(plug)`` のように渡せる)。頻繁に呼ばれるため、
     #: 呼び出しを1段省けるよう同じ関数を割り当てる。
-    __str__ = fullName
+    __str__ = getFullName
 
-    def longName(self):
+    def getLongName(self):
         """基になる Maya アトリビュートのロング名を取得する。
 
         Returns:
@@ -472,7 +473,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).name
 
-    def niceName(self):
+    def getNiceName(self):
         """UI 表示用のニース名を取得する。
 
         Returns:
@@ -483,9 +484,9 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return cmds.attributeName(self.fullName(), nice=True)
+        return cmds.attributeName(self.getFullName(), nice=True)
 
-    def type(self):
+    def getType(self):
         """このプラグを表す現在の hlib クラスを返す。
 
         Returns:
@@ -493,7 +494,7 @@ class Plug(Object):
         """
         return type(self)
 
-    def dataType(self):
+    def getDataType(self):
         """アトリビュート定義からMayaのデータ型名を取得する。値の評価は行わない。
 
         Returns:
@@ -540,7 +541,7 @@ class Plug(Object):
         """
         return self._mplug.isChild
 
-    def parent(self):
+    def getParent(self):
         """compound アトリビュートの子プラグであれば、その親プラグを取得する。
 
         Returns:
@@ -570,6 +571,18 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isKeyable
 
+    @undoChunk("hlibPlugSetKeyable")
+    def setKeyable(self, val=True, leaf=False):
+        """キー設定可否を設定する。
+
+        Args:
+            val (bool): キー設定可否。
+            leaf (bool): コンパウンドの末端だけを設定する。
+        Returns:
+            Plug: 自身。
+        """
+        return self._set_flags(leaf, keyable=val)
+
     @fast_edit
     @undoChunk("hlibPlugSetFlags")
     def setFlags(self, *, locked=None, keyable=None, channelBox=None, fast=False):
@@ -591,53 +604,17 @@ class Plug(Object):
         flags = self._validated_flags(locked, keyable, channelBox)
         self._require_valid()
         if flags:
-            set_attr(self.fullName(), **flags)
+            set_attr(self.getFullName(), **flags)
         return self
 
-    def _set_flags(self, leaf, **flags):
-        """指定階層の末端または自身へフラグを適用する。
+    def isChannelBox(self):
+        """Channel Boxフラグ（keyableによる表示を含まない）。
 
-        Args:
-            leaf: 複合アトリビュートの末端へ適用するか。
-            **flags: 呼出し先へ渡すキーワード引数。
-        """
-        if leaf and self.isCompound():
-            for child in self.children():
-                child._set_flags(True, **flags)
-        else:
-            # Mayaのkeyable/channelBoxのUndo順序を保つ。
-            if flags.get("keyable") and self.isChannelBox():
-                self.setFlags(channelBox=False)
-            if flags.get("channelBox"):
-                flags["keyable"] = False
-            self.setFlags(**flags)
-        return self
-
-    @undoChunk("hlibPlugSetLocked")
-    def setLocked(self, val=True, leaf=False):
-        """ロックを設定する。
-
-        Args:
-            val (bool): ロック状態。
-            leaf (bool): コンパウンドでは末端だけを設定する。
         Returns:
-            Plug: 自身。
+            bool: Channel Boxフラグ（keyableによる表示を含まない）。
         """
-        return self._set_flags(leaf, locked=val)
-
-    lock = setLocked
-
-    @undoChunk("hlibPlugSetKeyable")
-    def setKeyable(self, val=True, leaf=False):
-        """キー設定可否を設定する。
-
-        Args:
-            val (bool): キー設定可否。
-            leaf (bool): コンパウンドの末端だけを設定する。
-        Returns:
-            Plug: 自身。
-        """
-        return self._set_flags(leaf, keyable=val)
+        self._require_valid()
+        return self.mplug().isChannelBox
 
     @undoChunk("hlibPlugSetChannelBox")
     def setChannelBox(self, val=True, leaf=False):
@@ -650,15 +627,6 @@ class Plug(Object):
             Plug: 自身。
         """
         return self._set_flags(leaf, channelBox=val)
-
-    def isChannelBox(self):
-        """Channel Boxフラグ（keyableによる表示を含まない）。
-
-        Returns:
-            bool: Channel Boxフラグ（keyableによる表示を含まない）。
-        """
-        self._require_valid()
-        return self.mplug().isChannelBox
 
     @undoChunk("hlibPlugUnlock")
     def unlock(self, below=False, undoable=True):
@@ -673,7 +641,7 @@ class Plug(Object):
         self._require_valid()
         queue, mp = [], self.mplug()
         while True:
-            queue.append(Plug(self.node(), mp))
+            queue.append(Plug(self.getNode(), mp))
             if mp.isChild:
                 mp = mp.parent()
             elif mp.isElement:
@@ -690,7 +658,7 @@ class Plug(Object):
             unlock_one(plug)
         def visit(plug):
             """下位階層を親から順に解除する。"""
-            for child in plug.elements() if plug.isArray() else plug.children() if plug.isCompound() else []:
+            for child in plug.getElements() if plug.isArray() else plug.getChildren() if plug.isCompound() else []:
                 unlock_one(child)
                 visit(child)
         if below:
@@ -713,7 +681,7 @@ class Plug(Object):
         """
         return self.setMuted(False)
 
-    def nextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True):
+    def getNextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True):
         """入力接続できる次の配列要素を探す。
 
         Args:
@@ -729,7 +697,7 @@ class Plug(Object):
         if not mp.isArray:
             raise TypeError("Expected an array plug")
         if checkLocked and self.isLocked():
-            raise RuntimeError("Array is locked: " + self.fullName())
+            raise RuntimeError("Array is locked: " + self.getFullName())
         if start < 0:
             count = mp.numConnectedElements()
             start = mp.connectionByPhysicalIndex(count - 1).logicalIndex() + 1 if count else 0
@@ -747,16 +715,17 @@ class Plug(Object):
         while index <= MAX_LOGICAL_INDEX:
             candidate = mp.elementByLogicalIndex(index)
             if not occupied(candidate):
-                return Plug(self.node(), candidate) if asPlug else index
+                return Plug(self.getNode(), candidate) if asPlug else index
             index += 1
         raise IndexError("No available array index")
 
+    @flag_aliases(index="idx")
     @undoChunk("hlibPlugAddElement")
     def addElement(self, idx=None):
         """指定要素と必要な上位要素を実体化し、下位から順に返す。
 
         Args:
-            idx (int | None): 配列の論理番号。要素自身では省略可能。
+            idx (int | None): 配列の論理番号。要素自身では省略可能。 別名 ``index`` も使用可能。
         Returns:
             list[Plug]: 新たに実体化した要素。既存の場合は空リスト。
         Note:
@@ -774,7 +743,7 @@ class Plug(Object):
             if mp.isElement:
                 parent = mp.array()
                 if mp.logicalIndex() not in parent.getExistingArrayAttributeIndices():
-                    queue.append(Plug(self.node(), mp))
+                    queue.append(Plug(self.getNode(), mp))
                 mp = parent
             elif mp.isChild:
                 mp = mp.parent()
@@ -785,11 +754,11 @@ class Plug(Object):
             if is_internal_data_type(plug.mplug()) or plug.mplug().attribute().hasFn(om2.MFn.kMessageAttribute):
                 raise NotImplementedError("Element materialization is unsupported for this attribute type")
         for plug in reversed(queue):
-            cmds.getAttr(plug.fullName(), type=True)
+            cmds.getAttr(plug.getFullName(), type=True)
         for plug in queue:
             mp = plug.mplug()
             if mp.logicalIndex() not in mp.array().getExistingArrayAttributeIndices():
-                raise RuntimeError("Maya did not materialize the array element: " + plug.fullName())
+                raise RuntimeError("Maya did not materialize the array element: " + plug.getFullName())
         return queue
 
     def isConnected(self):
@@ -930,7 +899,7 @@ class Plug(Object):
             return om2.MFnUnitAttribute(attr).hasMax()
         return False
 
-    def min(self):
+    def getMin(self):
         """設定されている最小値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -954,7 +923,7 @@ class Plug(Object):
             return fn.getMin() if fn.hasMin() else None
         return None
 
-    def max(self):
+    def getMax(self):
         """設定されている最大値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -1015,7 +984,7 @@ class Plug(Object):
             return om2.MFnUnitAttribute(attr).hasSoftMax()
         return False
 
-    def softMin(self):
+    def getSoftMin(self):
         """設定されているソフト最小値（UIスライダーの下限）を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -1038,7 +1007,7 @@ class Plug(Object):
             return fn.getSoftMin() if fn.hasSoftMin() else None
         return None
 
-    def softMax(self):
+    def getSoftMax(self):
         """設定されているソフト最大値（UIスライダーの上限）を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -1061,7 +1030,7 @@ class Plug(Object):
             return fn.getSoftMax() if fn.hasSoftMax() else None
         return None
 
-    def default(self):
+    def getDefault(self):
         """アトリビュートの既定値を取得する。
 
         数値アトリビュートは ``float``/``bool``、角度・距離・時間アトリビュートは対応する Maya API 2.0
@@ -1094,9 +1063,9 @@ class Plug(Object):
         """
         self._require_valid()
         if name:
-            cmds.aliasAttr(name, self.fullName())
-        elif cmds.aliasAttr(self.fullName(), query=True):
-            cmds.aliasAttr(self.fullName(), remove=True)
+            cmds.aliasAttr(name, self.getFullName())
+        elif cmds.aliasAttr(self.getFullName(), query=True):
+            cmds.aliasAttr(self.getFullName(), remove=True)
         return self
 
     @undoChunk("hlibPlugSetKey")
@@ -1109,10 +1078,10 @@ class Plug(Object):
             Plug: 自身。
         """
         self._require_valid()
-        cmds.setKeyframe(self.fullName(), **kwargs)
+        cmds.setKeyframe(self.getFullName(), **kwargs)
         return self
 
-    def animLayers(self, selected=False, exact=False):
+    def getAnimLayers(self, selected=False, exact=False):
         """入力チェーンのアニメーションレイヤー名を上位から取得する。
 
         Args:
@@ -1126,30 +1095,30 @@ class Plug(Object):
         visited = set()
         result = []
         while om2.MFnAttribute(current.mplug().attribute()).isProxyAttribute:
-            name = current.fullName()
+            name = current.getFullName()
             if name in visited:
                 return []
             visited.add(name)
-            current = current.source()
+            current = current.getSource()
             if current is None:
                 return []
-        axis = current.shortName()[-1].upper()
+        axis = current.getShortName()[-1].upper()
         visited.clear()
         while True:
-            source = current.source()
-            if source is None or source.fullName() in visited:
+            source = current.getSource()
+            if source is None or source.getFullName() in visited:
                 break
-            visited.add(source.fullName())
-            node = source.node()
+            visited.add(source.getFullName())
+            node = source.getNode()
             kind = cmds.nodeType(str(node))
             if kind == "mute":
-                current = node.plug("input")
+                current = node.getPlug("input")
                 continue
             if kind == "pairBlend":
-                suffix = source.shortName()[-2:]
-                mode = node.plug("rm" if suffix.startswith("r") else suffix + "m").get()
-                driver = mode if mode in (1, 2) else node.plug("currentDriver").get()
-                current = node.plug("i" + suffix + ("2" if driver == 2 else "1"))
+                suffix = source.getShortName()[-2:]
+                mode = node.getPlug("rm" if suffix.startswith("r") else suffix + "m").get()
+                driver = mode if mode in (1, 2) else node.getPlug("currentDriver").get()
+                current = node.getPlug("i" + suffix + ("2" if driver == 2 else "1"))
                 continue
             layers = cmds.listConnections(str(node) + ".message", s=False, d=True,
                                           type="animLayer") or []
@@ -1159,7 +1128,7 @@ class Plug(Object):
             if layer not in result and (not selected or cmds.animLayer(layer, q=True, selected=True)):
                 result.append(layer)
             suffix = axis if kind == "animBlendNodeAdditiveRotation" else ""
-            current = node.plug("inputA" + suffix)
+            current = node.getPlug("inputA" + suffix)
         base = cmds.animLayer(q=True, root=True)
         if base and base not in result and (not (selected and exact) or cmds.animLayer(base, q=True, selected=True)):
             result.append(base)
@@ -1206,10 +1175,10 @@ class Plug(Object):
             raise TypeError("enum names must be strings")
         if not names or any(not name or ":" in name or "=" in name for name in names):
             raise ValueError("enum names must be non-empty and contain no ':' or '='")
-        cmds.addAttr(self.fullName(), edit=True, enumName=":".join(names))
+        cmds.addAttr(self.getFullName(), edit=True, enumName=":".join(names))
         return self
 
-    def enumValue(self, name):
+    def getEnumValue(self, name):
         """enum アトリビュートのフィールド名に対応する値を取得する(enumName の逆引き)。
 
         Args:
@@ -1248,6 +1217,20 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isLocked
 
+    @undoChunk("hlibPlugSetLocked")
+    def setLocked(self, val=True, leaf=False):
+        """ロックを設定する。
+
+        Args:
+            val (bool): ロック状態。
+            leaf (bool): コンパウンドでは末端だけを設定する。
+        Returns:
+            Plug: 自身。
+        """
+        return self._set_flags(leaf, locked=val)
+
+    lock = setLocked
+
     def isMuted(self):
         """アトリビュートがミュートされているか判定する。
 
@@ -1258,7 +1241,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return bool(cmds.mute(self.fullName(), query=True))
+        return bool(cmds.mute(self.getFullName(), query=True))
 
     @undoChunk("hlibPlugSetMuted")
     def setMuted(self, state):
@@ -1278,11 +1261,12 @@ class Plug(Object):
         if not isinstance(state, bool):
             raise TypeError("state must be a bool")
         if state:
-            cmds.mute(self.fullName())
+            cmds.mute(self.getFullName())
         else:
-            cmds.mute(self.fullName(), disable=True, force=True)
+            cmds.mute(self.getFullName(), disable=True, force=True)
         return self
 
+    @flag_aliases(f="force")
     @undoChunk("hlibPlugDeleteAttr")
     def delete(self, force=False):
         """このアトリビュートをノードから削除する。
@@ -1294,7 +1278,7 @@ class Plug(Object):
         Args:
             force (bool): True の場合、ロックされていれば一時的に解除してから
                 削除する。False でロックされているアトリビュートを削除しようとすると
-                RuntimeError になる。
+                RuntimeError になる。 別名 ``f`` も使用可能。
 
         Returns:
             None: 値を返さない。
@@ -1306,8 +1290,8 @@ class Plug(Object):
         """
         self._require_valid()
         if force and self.isLocked():
-            set_attr(self.fullName(), lock=False)
-        cmds.deleteAttr(self.fullName())
+            set_attr(self.getFullName(), lock=False)
+        cmds.deleteAttr(self.getFullName())
 
     def get(self):
         """評価済みの Maya アトリビュート値を取得する。
@@ -1340,37 +1324,12 @@ class Plug(Object):
 
         if is_internal_data_type(self._mplug) and not _plug_exists(self._mplug):
             raise RuntimeError(
-                f"Maya 内部のデータ型の存在しない要素の値は読めません: {self.fullName()}"
+                f"Maya 内部のデータ型の存在しない要素の値は読めません: {self.getFullName()}"
             )
-        value = cmds.getAttr(self.fullName())
+        value = cmds.getAttr(self.getFullName())
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
             return tuple(value[0])
         return value
-
-    def getu(self):
-        """UI単位で値を取得する。角度・距離・時間は現在のシーン設定に従う。
-
-        Returns:
-            object: UI単位の値。複合値はtuple、配列はインデックス別dict。
-        """
-        if self.isArray():
-            return {p.mplug().logicalIndex(): p.getu() for p in self.elements()}
-        return convert(self.mplug(), self.get())
-
-    @fast_edit
-    @undoChunk("hlibPlugSetUi")
-    @safe_edit
-    def setu(self, value, safe=False, *, fast=False):
-        """UI単位の値を設定する。
-
-        Args:
-            value (object): 現在のシーン単位の値。
-            safe (bool): 失敗を抑制し失敗した成分数を返す。
-            fast (bool): Undoなしの直接更新。
-        Returns:
-            Plug | int: 自身。safe=Trueでは失敗数。
-        """
-        return self.set(convert(self.mplug(), value, to_ui=False), safe=safe)
 
     @fast_edit
     @undoChunk("hlibPlugSet")
@@ -1407,19 +1366,44 @@ class Plug(Object):
             return self
         value = convert(self._mplug, value)
         if isinstance(value, str):
-            set_attr(self.fullName(), value, type="string")
+            set_attr(self.getFullName(), value, type="string")
             return self
         if isinstance(value, (tuple, list)):
             attr_type = attributeType(self._mplug)
             if attr_type in _SCALAR_ARRAY_TYPES:
-                set_attr(self.fullName(), value, type=attr_type)
+                set_attr(self.getFullName(), value, type=attr_type)
             elif attr_type in _LENGTH_PREFIXED_ARRAY_TYPES:
-                set_attr(self.fullName(), len(value), *value, type=attr_type)
+                set_attr(self.getFullName(), len(value), *value, type=attr_type)
             else:
-                set_attr(self.fullName(), *value)
+                set_attr(self.getFullName(), *value)
             return self
-        set_attr(self.fullName(), value)
+        set_attr(self.getFullName(), value)
         return self
+
+    def getu(self):
+        """UI単位で値を取得する。角度・距離・時間は現在のシーン設定に従う。
+
+        Returns:
+            object: UI単位の値。複合値はtuple、配列はインデックス別dict。
+        """
+        if self.isArray():
+            return {p.mplug().logicalIndex(): p.getu() for p in self.getElements()}
+        return convert(self.mplug(), self.get())
+
+    @fast_edit
+    @undoChunk("hlibPlugSetUi")
+    @safe_edit
+    def setu(self, value, safe=False, *, fast=False):
+        """UI単位の値を設定する。
+
+        Args:
+            value (object): 現在のシーン単位の値。
+            safe (bool): 失敗を抑制し失敗した成分数を返す。
+            fast (bool): Undoなしの直接更新。
+        Returns:
+            Plug | int: 自身。safe=Trueでは失敗数。
+        """
+        return self.set(convert(self.mplug(), value, to_ui=False), safe=safe)
 
     @undoChunk("hlibPlugSetIfChanged")
     def setIfChanged(self, value, *, unlock=False):
@@ -1478,9 +1462,9 @@ class Plug(Object):
             for index in range(self._mplug.numChildren()):
                 Plug(self._node, self._mplug.child(index)).reset()
             return self
-        value = self.default()
+        value = self.getDefault()
         if value is None:
-            raise TypeError(f"No supported default value for {self.fullName()}")
+            raise TypeError(f"No supported default value for {self.getFullName()}")
         if isinstance(value, om2.MAngle):
             value = value.asRadians()
         elif isinstance(value, om2.MDistance):
@@ -1490,7 +1474,7 @@ class Plug(Object):
         self.set(value)
         return self
 
-    def enumName(self, val):
+    def getEnumFieldName(self, val):
         """指定値のenumフィールド名を返す。
 
         Args:
@@ -1501,7 +1485,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnEnumAttribute(self.mplug().attribute()).fieldName(val)
 
-    def source(self, **kwargs):
+    def getSource(self, **kwargs):
         """unitConversionを飛ばして入力元を返す。
 
         Args:
@@ -1511,9 +1495,9 @@ class Plug(Object):
         """
         kwargs.update(skipConversionNodes=True, checkChildren=False,
                       checkElements=False, index=0)
-        return self.connections(True, False, **kwargs)
+        return self.getConnections(True, False, **kwargs)
 
-    def destinations(self, **kwargs):
+    def getDestinations(self, **kwargs):
         """unitConversionを飛ばして出力先を返す。
 
         Args:
@@ -1522,9 +1506,9 @@ class Plug(Object):
             list: 出力先。
         """
         kwargs.update(skipConversionNodes=True, checkChildren=False, checkElements=False)
-        return self.connections(False, True, **kwargs)
+        return self.getConnections(False, True, **kwargs)
 
-    def inputs(self, **kwargs):
+    def getInputs(self, **kwargs):
         """入力側の接続を指定条件で照会する。
 
         Args:
@@ -1533,9 +1517,9 @@ class Plug(Object):
         Returns:
             list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
         """
-        return self.connections(True, False, **kwargs)
+        return self.getConnections(True, False, **kwargs)
 
-    def outputs(self, **kwargs):
+    def getOutputs(self, **kwargs):
         """出力側の接続を指定条件で照会する。
 
         Args:
@@ -1544,9 +1528,10 @@ class Plug(Object):
         Returns:
             list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
         """
-        return self.connections(False, True, **kwargs)
+        return self.getConnections(False, True, **kwargs)
 
-    def connections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
+    @flag_aliases(idx="index")
+    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
                     source=True, destination=True, connections=False,
                     type=None, exactType=False, skipConversionNodes=False,
                     asPair=False, asNode=False, checkChildren=True,
@@ -1570,7 +1555,7 @@ class Plug(Object):
             asNode (bool): 接続先をNodeで返す。
             checkChildren (bool): 子アトリビュートも調べる。
             checkElements (bool): 配列要素も調べる。
-            index (int | None): 結果の一件を指定する。範囲外はNone。
+            index (int | None): 結果の一件を指定する。範囲外はNone。 別名 ``idx`` も使用可能。
             pcls (type | None): 結果のPlugクラス。
         Returns:
             list | Plug | Node | tuple | None: 条件に合う結果。
@@ -1593,48 +1578,16 @@ class Plug(Object):
                     targets = mp.connectedTo(incoming, not incoming)
                 pairs.extend((plug, Plug(self._node_from_mplug(p), p)) for p in targets)
             if mp.isArray and checkElements:
-                for element in plug.elements():
+                for element in plug.getElements():
                     visit(element)
             elif mp.isCompound and checkChildren:
-                for child in plug.children():
+                for child in plug.getChildren():
                     visit(child)
         visit(self)
         return self._connection_results(pairs, type or t, exactType or et,
                                         asPair or c or connections, asNode, index, pcls)
 
-    @staticmethod
-    def _connection_results(pairs, node_type, exact, as_pair, as_node, index, pcls):
-        """Node/Plug共通の接続フィルタと戻り値変換。
-
-        Args:
-            pairs: 接続の両端を組にした列。
-            node_type: 絞り込みまたは作成に使うMayaノード型。
-            exact: 型や対象を完全一致で絞り込むか。
-            as_pair: Trueは接続の両端を組として返す。
-            as_node: Trueは接続先をノードとして返す。
-            index: 対象要素の番号または探索開始番号。
-            pcls: 結果に使うPlugクラス。
-        """
-        result, seen = [], set()
-        for local, remote in pairs:
-            node = remote.node()
-            if node_type and not (node.type() == node_type if exact else node.isType(node_type)):
-                continue
-            key = (local.fullName() if as_pair else None,
-                   node.fullName() if as_node else remote.fullName())
-            if key in seen:
-                continue
-            seen.add(key)
-            target = node if as_node else pcls(remote.node(), remote.mplug()) if pcls else remote
-            result.append((pcls(local.node(), local.mplug()) if pcls else local, target) if as_pair else target)
-        if index is not None:
-            try:
-                return result[index]
-            except IndexError:
-                return None
-        return result
-
-    def sourceWithConversion(self, **kwargs):
+    def getSourceWithConversion(self, **kwargs):
         """変換ノードを省略せず、直接の入力接続元を取得する。
 
         Args:
@@ -1652,11 +1605,11 @@ class Plug(Object):
         self._require_valid()
         if kwargs:
             kwargs.update(checkChildren=False, checkElements=False, index=0)
-            return self.connections(True, False, **kwargs)
+            return self.getConnections(True, False, **kwargs)
         sources = self._mplug.connectedTo(True, False)
         return Plug(self._node_from_mplug(sources[0]), sources[0]) if sources else None
 
-    def animCurve(self):
+    def getAnimCurve(self):
         """このプラグに直接接続された animCurve ノードを取得する。
 
         pairBlend やアニメーションレイヤーを介した間接的な animCurve は解決しない
@@ -1677,7 +1630,7 @@ class Plug(Object):
             return None
         return self._node_from_mplug(sources[0])
 
-    def destinationsWithConversions(self, **kwargs):
+    def getDestinationsWithConversions(self, **kwargs):
         """変換ノードを省略せず、直接の出力接続先を取得する。
 
         Args:
@@ -1695,7 +1648,7 @@ class Plug(Object):
         self._require_valid()
         if kwargs:
             kwargs.update(checkChildren=False, checkElements=False)
-            return self.connections(False, True, **kwargs)
+            return self.getConnections(False, True, **kwargs)
         return [Plug(self._node_from_mplug(plug), plug) for plug in self._mplug.connectedTo(False, True)]
 
     def isConnectedTo(self, other):
@@ -1725,13 +1678,14 @@ class Plug(Object):
             for connected in self._mplug.connectedTo(True, True)
         )
 
+    @flag_aliases(source="src")
     @undoChunk("hlibPlugConnect")
     def connect(self, src, force=False, f=False, lock=False, l=False,
                 nextAvailable=False, na=False, *, unlock=True):
         """srcから自身へ接続する。接続先のPlugから呼び出す。
 
         Args:
-            src (Plug | om2.MPlug | str): 接続元。
+            src (Plug | om2.MPlug | str): 接続元。 別名 ``source`` も使用可能。
             force (bool): 既存接続を置換し、一時アンロックする。
             f (bool): forceの短縮名。長名とORする。
             lock (bool): 接続後に接続先をロックする。
@@ -1746,7 +1700,7 @@ class Plug(Object):
         src = Plug._resolve_input(src)
         force, lock = force or f, lock or l
         if self.isLocked() and not (force and unlock):
-            raise RuntimeError("Attribute is locked: " + self.fullName())
+            raise RuntimeError("Attribute is locked: " + self.getFullName())
         # 配列親を先に解除する。親がロックされたまま空き番号を探すと
         # 全要素がロック扱いになり、探索が終わらなくなる。
         unlocked = self._unlock_connection_path() if force and unlock else []
@@ -1755,22 +1709,22 @@ class Plug(Object):
             if self.isArray() and (nextAvailable or na):
                 def occupied(plug):
                     """自身または子に入力接続・ロックがある要素を避ける。"""
-                    if plug.isLocked() or plug.sourceWithConversion() is not None:
+                    if plug.isLocked() or plug.getSourceWithConversion() is not None:
                         return True
-                    return plug.mplug().isCompound and any(occupied(p) for p in plug.children())
+                    return plug.mplug().isCompound and any(occupied(p) for p in plug.getChildren())
                 index = 0
                 while True:
-                    candidate = Plug(self.node(), self.mplug().elementByLogicalIndex(index))
+                    candidate = Plug(self.getNode(), self.mplug().elementByLogicalIndex(index))
                     if not occupied(candidate):
                         target = candidate
                         break
                     index += 1
-            current = target.sourceWithConversion()
-            if current is not None and current.fullName() == src.fullName():
-                raise RuntimeError("Already connected: " + src.fullName() + " -> " + target.fullName())
-            target_name = target.fullName()
+            current = target.getSourceWithConversion()
+            if current is not None and current.getFullName() == src.getFullName():
+                raise RuntimeError("Already connected: " + src.getFullName() + " -> " + target.getFullName())
+            target_name = target.getFullName()
             keep_self = target is self and not self.mplug().isNetworked
-            cmds.connectAttr(src.fullName(), target_name, force=force)
+            cmds.connectAttr(src.getFullName(), target_name, force=force)
             if lock:
                 cmds.setAttr(target_name, lock=True)
         finally:
@@ -1778,22 +1732,130 @@ class Plug(Object):
                 plug.setFlags(locked=True)
         return self if keep_self else Plug._resolve_input(target_name)
 
+    @undoChunk("hlibPlugDisconnectInput")
+    def disconnectInput(self):
+        """直接の入力だけを解除する。未接続なら何もせず自身を返す。"""
+        source = self.getSourceWithConversion()
+        if source is not None:
+            self.disconnect(source)
+        return self
+
+    @flag_aliases(source="src")
+    @undoChunk("hlibPlugDisconnect")
+    def disconnect(self, src=None, force=False, f=False, nextAvailable=False, na=False):
+        """自身への入力を切断する。出力接続は保持する。
+
+        Args:
+            src (Plug | om2.MPlug | str | None): 入力元。省略時は現在の入力。 別名 ``source`` も使用可能。
+            force (bool): 接続先のロックを一時解除する。
+            f (bool): forceの短縮名。
+            nextAvailable (bool): 配列内でsrcに接続している要素を全て切断する。
+            na (bool): nextAvailableの短縮名。
+        Returns:
+            Plug | list[Plug]: 入力元。配列検索時は切断した接続先のリスト。
+        Raises:
+            RuntimeError: 指定された入力接続が存在しない場合。
+        """
+        self._require_valid()
+        if src is not None:
+            src = Plug._resolve_input(src)
+        if self.isArray() and (nextAvailable or na) and src is not None:
+            targets = [p for p in self.getElements() if p.getSourceWithConversion() == src]
+            if not targets:
+                raise RuntimeError("Input connection not found: " + self.getFullName())
+            names = [target.getFullName() for target in targets]
+            for target in targets:
+                target.disconnect(src, force=force or f)
+            return [Plug._resolve_input(name) for name in names]
+        if src is None:
+            src = self.getSourceWithConversion()
+        if src is None:
+            raise RuntimeError("Input connection not found: " + self.getFullName())
+        source_name = src.getFullName()
+        unlocked = self._unlock_connection_path() if force or f else []
+        try:
+            cmds.disconnectAttr(src.getFullName(), self.getFullName())
+        finally:
+            for plug in reversed(unlocked):
+                plug.setFlags(locked=True)
+        return Plug._resolve_input(source_name)
+
+    @undoChunk("hlibPlugDisconnectAll")
+    def disconnectAll(self):
+        """入力と全出力を明示的に切断し、自身を返す。"""
+        self.disconnectInput()
+        for destination in self.getDestinationsWithConversions():
+            destination.disconnect(self)
+        return self
+
+    @flag_aliases(destination="dst")
     def connectTo(self, dst, **kwargs):
         """自身からdstへ接続し、接続先Plugを返す。
 
         Args:
-            dst (Plug | om2.MPlug | str): 接続先。
+            dst (Plug | om2.MPlug | str): 接続先。 別名 ``destination`` も使用可能。
             **kwargs: connectのforce/f・lock/l・nextAvailable/na・unlock。
         Returns:
             Plug: 実際の接続先。
         """
         return Plug._resolve_input(dst).connect(self, **kwargs)
 
+    def _set_flags(self, leaf, **flags):
+        """指定階層の末端または自身へフラグを適用する。
+
+        Args:
+            leaf: 複合アトリビュートの末端へ適用するか。
+            **flags: 呼出し先へ渡すキーワード引数。
+        """
+        if leaf and self.isCompound():
+            for child in self.getChildren():
+                child._set_flags(True, **flags)
+        else:
+            # Mayaのkeyable/channelBoxのUndo順序を保つ。
+            if flags.get("keyable") and self.isChannelBox():
+                self.setFlags(channelBox=False)
+            if flags.get("channelBox"):
+                flags["keyable"] = False
+            self.setFlags(**flags)
+        return self
+
+    @staticmethod
+    def _connection_results(pairs, node_type, exact, as_pair, as_node, index, pcls):
+        """Node/Plug共通の接続フィルタと戻り値変換。
+
+        Args:
+            pairs: 接続の両端を組にした列。
+            node_type: 絞り込みまたは作成に使うMayaノード型。
+            exact: 型や対象を完全一致で絞り込むか。
+            as_pair: Trueは接続の両端を組として返す。
+            as_node: Trueは接続先をノードとして返す。
+            index: 対象要素の番号または探索開始番号。
+            pcls: 結果に使うPlugクラス。
+        """
+        result, seen = [], set()
+        for local, remote in pairs:
+            node = remote.getNode()
+            if node_type and not (node.type() == node_type if exact else node.isType(node_type)):
+                continue
+            key = (local.getFullName() if as_pair else None,
+                   node.getFullName() if as_node else remote.getFullName())
+            if key in seen:
+                continue
+            seen.add(key)
+            target = node if as_node else pcls(remote.getNode(), remote.mplug()) if pcls else remote
+            result.append((pcls(local.getNode(), local.mplug()) if pcls else local, target) if as_pair else target)
+        if index is not None:
+            try:
+                return result[index]
+            except IndexError:
+                return None
+        return result
+
     def _unlock_connection_path(self):
         """自身と上位のロックを一時解除し、復元対象を返す。"""
         chain, plug = [], self.mplug()
         while True:
-            chain.append(Plug(self.node(), plug))
+            chain.append(Plug(self.getNode(), plug))
             if plug.isChild:
                 plug = plug.parent()
             elif plug.isElement:
@@ -1811,61 +1873,6 @@ class Plug(Object):
                 item.setFlags(locked=True)
             raise
         return unlocked
-
-    @undoChunk("hlibPlugDisconnectInput")
-    def disconnectInput(self):
-        """直接の入力だけを解除する。未接続なら何もせず自身を返す。"""
-        source = self.sourceWithConversion()
-        if source is not None:
-            self.disconnect(source)
-        return self
-
-    @undoChunk("hlibPlugDisconnect")
-    def disconnect(self, src=None, force=False, f=False, nextAvailable=False, na=False):
-        """自身への入力を切断する。出力接続は保持する。
-
-        Args:
-            src (Plug | om2.MPlug | str | None): 入力元。省略時は現在の入力。
-            force (bool): 接続先のロックを一時解除する。
-            f (bool): forceの短縮名。
-            nextAvailable (bool): 配列内でsrcに接続している要素を全て切断する。
-            na (bool): nextAvailableの短縮名。
-        Returns:
-            Plug | list[Plug]: 入力元。配列検索時は切断した接続先のリスト。
-        Raises:
-            RuntimeError: 指定された入力接続が存在しない場合。
-        """
-        self._require_valid()
-        if src is not None:
-            src = Plug._resolve_input(src)
-        if self.isArray() and (nextAvailable or na) and src is not None:
-            targets = [p for p in self.elements() if p.sourceWithConversion() == src]
-            if not targets:
-                raise RuntimeError("Input connection not found: " + self.fullName())
-            names = [target.fullName() for target in targets]
-            for target in targets:
-                target.disconnect(src, force=force or f)
-            return [Plug._resolve_input(name) for name in names]
-        if src is None:
-            src = self.sourceWithConversion()
-        if src is None:
-            raise RuntimeError("Input connection not found: " + self.fullName())
-        source_name = src.fullName()
-        unlocked = self._unlock_connection_path() if force or f else []
-        try:
-            cmds.disconnectAttr(src.fullName(), self.fullName())
-        finally:
-            for plug in reversed(unlocked):
-                plug.setFlags(locked=True)
-        return Plug._resolve_input(source_name)
-
-    @undoChunk("hlibPlugDisconnectAll")
-    def disconnectAll(self):
-        """入力と全出力を明示的に切断し、自身を返す。"""
-        self.disconnectInput()
-        for destination in self.destinationsWithConversions():
-            destination.disconnect(self)
-        return self
 
     @staticmethod
     def _plug_path(mplug):
@@ -1911,7 +1918,7 @@ class Plug(Object):
 
     @staticmethod
     def _mplug_name(mplug):
-        """MPlug を ``Plug.fullName()`` と同じ形式の一意なプラグ名へ変換する。
+        """MPlug を ``Plug.getFullName()`` と同じ形式の一意なプラグ名へ変換する。
 
         所有ノードが Undo の対象から外れて削除された(``flushUndo`` 後・Undo 無効・シーンの
         切り替え)MPlug は、``MPlug.node()`` の時点で Maya が異常終了し、API では検出できない。
@@ -1947,7 +1954,7 @@ class Plug(Object):
             DeletedAttributeError | None: アトリビュートが ``deleteAttr`` で削除済みなら送出する例外。
                 所有ノードが削除済みの場合(無効な所有ノードとして扱う)と、有効な Plug は None。
         """
-        if plug.node().isValid() and not plug.isValid():
+        if plug.getNode().isValid() and not plug.isValid():
             return DeletedAttributeError("削除済みのアトリビュートの Plug からノードは解決できません")
         return None
 
@@ -2120,7 +2127,7 @@ class Plug(Object):
     def _resolve_input(value):
         """対象を hlib の Plug インスタンスへ変換する。
 
-        文字列は ``str(plug)``・``plug.fullName()`` が返す形式(``grp1|dup.translateX``、
+        文字列は ``str(plug)``・``plug.getFullName()`` が返す形式(``grp1|dup.translateX``、
         ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[2].pntx`` など)を含め、
         maya.cmds と同じ規則で解決する。インスタンス化された DAG ノードのアトリビュートは、
         名前が指すインスタンスのノードを所有ノードにする。コンポーネント名としても

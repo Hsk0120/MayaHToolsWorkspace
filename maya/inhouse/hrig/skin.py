@@ -17,8 +17,8 @@ def bind_mesh(rig, mesh, helpers=True):
     Returns:
         str: 作成したskinCluster。
     """
-    joints = rig.joints() if helpers else rig.joints()[:3]
-    return hlib.nodes.SkinCluster.bind(mesh, joints, max_influences=4).fullName()
+    joints = rig.getJoints() if helpers else rig.getJoints()[:3]
+    return hlib.nodes.SkinCluster.bind(mesh, joints, max_influences=4).getFullName()
 
 
 @undoChunk("hrig.create_skin_lod")
@@ -38,12 +38,12 @@ def create_skin_lod(rig, source, proxy, source_skin):
         closestPoint/closestJointによる近似転送。自動メッシュ削減や
         異なる姿勢のモデルの補正は行わない。基準姿勢で実行する。
     """
-    if hlib.getNode(source_skin).type() != "skinCluster":
+    if hlib.getNode(source_skin).getType() != "skinCluster":
         raise TypeError("Expected a skinCluster")
     if not hlib.nodes.SkinCluster(source_skin).deforms(source):
         raise ValueError("source_skin does not deform source")
-    if [item.fullName() for item in hlib.ls(source, long=True)] == [
-        item.fullName() for item in hlib.ls(proxy, long=True)
+    if [item.getFullName() for item in hlib.ls(source, long=True)] == [
+        item.getFullName() for item in hlib.ls(proxy, long=True)
     ]:
         raise ValueError("Source and proxy must be different")
     target_skin = bind_mesh(rig, proxy, helpers=False)
@@ -72,7 +72,7 @@ def set_mesh_lod(high_mesh, high_skin, proxy_mesh, proxy_skin, proxy=False):
     """
     pairs = ((high_mesh, high_skin, not proxy), (proxy_mesh, proxy_skin, proxy))
     for mesh, skin, active in pairs:
-        if hlib.getNode(skin).type() != "skinCluster":
+        if hlib.getNode(skin).getType() != "skinCluster":
             raise TypeError("Expected a skinCluster")
         for attr in (mesh + ".visibility", skin + ".envelope", skin + ".nodeState"):
             if not hlib.getAttr(attr, settable=True):

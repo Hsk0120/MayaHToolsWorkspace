@@ -28,7 +28,7 @@ class ComponentCollectionsTest(unittest.TestCase):
                 self.assertAlmostEqual(x, y, places=5)
 
     def test_vertex_cv_positions_order_and_undo(self):
-        for items in (self.mesh.vertices([2, 0]), self.curve.cvs([2, 0])):
+        for items in (self.mesh.getVertices([2, 0]), self.curve.cvs([2, 0])):
             before = items.getPosition()
             result = [(9, 8, 7), (-1, -2, -3)]
             self.assertIs(items.setPositions(iter(result)), items)
@@ -39,22 +39,22 @@ class ComponentCollectionsTest(unittest.TestCase):
             self.assert_points(items.getPosition(), before)
             cmds.redo()
             self.assert_points(items.getPosition(), result)
-            items.setX([20, 30])
-            self.assertEqual(items.getX(), [20, 30])
-            self.assertEqual(items.getY(), [8, -2])
+            items.setPositionX([20, 30])
+            self.assertEqual(items.getPositionX(), [20, 30])
+            self.assertEqual(items.getPositionY(), [8, -2])
             cmds.undo()
             self.assert_points(items.getPosition(), result)
-            items.setY(5)
-            self.assertEqual(items.getY(), [5, 5])
-            items.setZ(6)
-            self.assertEqual(items.getZ(), [6, 6])
+            items.setPositionY(5)
+            self.assertEqual(items.getPositionY(), [5, 5])
+            items.setPositionZ(6)
+            self.assertEqual(items.getPositionZ(), [6, 6])
             items.setPosition((1, 2, 3))
             self.assert_points(items.getPosition(), [(1, 2, 3)] * 2)
-            self.assertEqual(items.fullNames(), [item.fullName() for item in items])
+            self.assertEqual(items.getFullNames(), [item.getFullName() for item in items])
 
     def test_world_space_and_invalid_input_is_not_partial(self):
         cmds.setAttr(self.mesh_transform + ".translateX", 10)
-        items = self.mesh.vertices([0, 1])
+        items = self.mesh.getVertices([0, 1])
         items.setPositions([(1, 2, 3), (4, 5, 6)], ws=True)
         self.assert_points(items.getPosition(ws=True), [(1, 2, 3), (4, 5, 6)])
         before = items.getPosition()
@@ -63,9 +63,9 @@ class ComponentCollectionsTest(unittest.TestCase):
                 items.setPositions(values)
             self.assert_points(items.getPosition(), before)
         with self.assertRaises(ValueError):
-            items.setX([1])
+            items.setPositionX([1])
         self.assert_points(items.getPosition(), before)
-        empty = self.mesh.vertices([])
+        empty = self.mesh.getVertices([])
         self.assertIs(empty.setPositions([]), empty)
         self.assertEqual(empty.getPosition(), [])
         with self.assertRaises(ValueError):
@@ -93,11 +93,11 @@ class ComponentCollectionsTest(unittest.TestCase):
 
     def test_edges_and_faces_keep_vertex_collection_operations(self):
         for items in (self.mesh.edges([0, 1]), self.mesh.faces([0, 1])):
-            vertices = items.vertices()
+            vertices = items.getVertices()
             self.assertEqual(len(vertices.indices), len(set(vertices.indices)))
             before = vertices.getPosition()
-            vertices.setZ(10)
-            self.assertEqual(vertices.getZ(), [10] * len(vertices))
+            vertices.setPositionZ(10)
+            self.assertEqual(vertices.getPositionZ(), [10] * len(vertices))
             cmds.undo()
             self.assert_points(vertices.getPosition(), before)
 

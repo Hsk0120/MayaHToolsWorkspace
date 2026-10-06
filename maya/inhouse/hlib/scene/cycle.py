@@ -24,11 +24,6 @@ class Cycle:
         """
         self._plugs = tuple(getPlug(plug) for plug in plugs)
 
-    @property
-    def plugs(self):
-        """tuple[Plug, ...]: 検出時の順序を保持する経路。名前変更には追従する。"""
-        return self._plugs
-
     @classmethod
     def find(cls, targets=None, include_dag=True, seconds=10.0, first_only=False):
         """シーンを変更せず循環候補を検出する。
@@ -63,7 +58,7 @@ class Cycle:
                     raise TypeError("ノードまたはアトリビュートを指定してください。")
                 if not isinstance(obj, (Node, Plug)):
                     raise TypeError("ノードまたはアトリビュートを指定してください。")
-                names.append(obj.fullName() if isinstance(obj, Plug) else obj.name())
+                names.append(obj.getFullName() if isinstance(obj, Plug) else obj.getName())
             if not names:
                 raise ValueError("調査するノードを選択してください。")
         options = dict(list=True, dag=include_dag, secondary=True,
@@ -85,6 +80,11 @@ class Cycle:
             paths.append(current)
         return [cls(path) for path in paths]
 
+    @property
+    def plugs(self):
+        """tuple[Plug, ...]: 検出時の順序を保持する経路。名前変更には追従する。"""
+        return self._plugs
+
     def getConnections(self):
         """経路上のアトリビュートに関係する現在の実接続を照会する。
 
@@ -96,11 +96,11 @@ class Cycle:
         """
         pairs = {}
         for plug in self.plugs:
-            source = plug.sourceWithConversion()
+            source = plug.getSourceWithConversion()
             edges = [(source, plug)] if source is not None else []
-            edges.extend((plug, destination) for destination in plug.destinationsWithConversions())
+            edges.extend((plug, destination) for destination in plug.getDestinationsWithConversions())
             for source, destination in edges:
-                pairs[(source.fullName(), destination.fullName())] = (source, destination)
+                pairs[(source.getFullName(), destination.getFullName())] = (source, destination)
         return [pairs[key] for key in sorted(pairs)]
 
     def getParents(self):
@@ -114,9 +114,9 @@ class Cycle:
         """
         pairs = {}
         for plug in self.plugs:
-            node = plug.node()
+            node = plug.getNode()
             if isinstance(node, DagNode):
-                for name in cmds.listRelatives(node.fullName(), allParents=True, fullPath=True) or []:
+                for name in cmds.listRelatives(node.getFullName(), allParents=True, fullPath=True) or []:
                     parent = Node(name)
-                    pairs[(parent.fullName(), node.fullName())] = (parent, node)
+                    pairs[(parent.getFullName(), node.getFullName())] = (parent, node)
         return [pairs[key] for key in sorted(pairs)]

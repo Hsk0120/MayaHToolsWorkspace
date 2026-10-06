@@ -14,24 +14,24 @@ class ConnectionLockTest(unittest.TestCase):
         """unlock=Falseは既存入力とロックを保持して失敗する。"""
         nodes = [Node.create("multiplyDivide") for _ in range(3)]
         original, replacement, target = nodes
-        output = original.plug("outputX")
-        destination = target.plug("input1X")
+        output = original.getPlug("outputX")
+        destination = target.getPlug("input1X")
         try:
             output.connectTo(destination)
             destination.setFlags(locked=True)
             with self.assertRaises(RuntimeError):
-                replacement.plug("outputX").connectTo(destination, force=True, unlock=False)
-            self.assertEqual(destination.sourceWithConversion(), output)
+                replacement.getPlug("outputX").connectTo(destination, force=True, unlock=False)
+            self.assertEqual(destination.getSourceWithConversion(), output)
             self.assertTrue(destination.isLocked())
             # 既定値は従来どおり一時解除して接続し、ロックを戻す。
-            replacement.plug("outputX").connectTo(destination, force=True)
-            self.assertEqual(destination.sourceWithConversion(), replacement.plug("outputX"))
+            replacement.getPlug("outputX").connectTo(destination, force=True)
+            self.assertEqual(destination.getSourceWithConversion(), replacement.getPlug("outputX"))
             self.assertTrue(destination.isLocked())
             cmds.undo()
-            self.assertEqual(destination.sourceWithConversion(), output)
+            self.assertEqual(destination.getSourceWithConversion(), output)
             self.assertTrue(destination.isLocked())
         finally:
-            cmds.delete([node.fullName() for node in nodes if node.isValid()])
+            cmds.delete([node.getFullName() for node in nodes if node.isValid()])
 
 
 if __name__ == "__main__":

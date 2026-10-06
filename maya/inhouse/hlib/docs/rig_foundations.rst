@@ -19,7 +19,7 @@ Maya標準ノードを使用し、独自プラグインを作成・ロードし�
    print(result.get())
 
 ``Container.createNode(kind, name=None)`` は作成と所有登録を一つのUndoへまとめます。
-``add(*nodes)`` は既存ノードを追加し、``members()`` は直接所属するノードを取得します。
+``add(*nodes)`` は既存ノードを追加し、``getMembers()`` は直接所属するノードを取得します。
 削除には既存の ``hlib.delete(owner)`` を使用します。Mayaの削除規則に従うため、
 接続が失われた上流network等の自動削除を抑止する機能ではありません。
 
@@ -34,15 +34,15 @@ Soft IKなどのリグセットアップは ``hrig.setups`` がこれらの基�
 保存参照とアトリビュート型
 ------------------------------
 
-``node.plug("members").sourceNodes()`` は配列の接続元を
+``node.getPlug("members").getSourceNodes()`` は配列の接続元を
 ``{論理インデックス: Node}`` として返します。未接続の要素は含めません。
 message配列の ``appendMessage(node)`` は既存の最大インデックスの次へ追加し、
 その番号を返します。途中の穴を再利用せず、追加操作はUndo対象です。
 Mayaが削除した末尾の要素の過去の番号までは記憶しません。
 
-``Plug.dataType()`` はアトリビュート定義からdoubleLinear等のMaya型名を読み、
+``Plug.getDataType()`` はアトリビュート定義からdoubleLinear等のMaya型名を読み、
 値や未作成配列要素を評価しません。型が値に依存するgeneric等はNoneです。
-``Plug.type()`` は従来どおりPythonのラッパークラスを返します。
+``Plug.getType()`` は従来どおりPythonのラッパークラスを返します。
 
 操作形状と単位
 --------------
@@ -79,10 +79,10 @@ Mayaが削除した末尾の要素の過去の番号までは記憶しません�
    mesh = hlib.createPolygon(type="cube", name="sample")
    attribute = hlib.addAttr(mesh, longName="amount", attributeType="double")
    attributes = hlib.ls("*.amount", recursive=True)  # list[Plug]
-   transform = mesh.transform()                  # Transform
+   transform = mesh.getTransform()                  # Transform
 
 ``createSet`` はObjectSet、``createIkHandle`` はNode列、
-``createPolygon`` は単一のMesh、``addConstraint`` は単一のConstraintを返します。照会には ``weightPlugs()`` / ``targets()`` を使います。
+``createPolygon`` は単一のMesh、``addConstraint`` は単一のConstraintを返します。照会には ``getWeightPlugs()`` / ``getTargets()`` を使います。
 検索・親子付け・時刻/キー・メニュー操作は ``maya.cmds`` を直接使用します。
 ``cmds.listConnections(connections=True)`` は文字列の平坦なペア列を返します。
 必要なNode/Plug変換は使用側で行います。

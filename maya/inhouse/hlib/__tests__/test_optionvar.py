@@ -74,10 +74,10 @@ class StorageFormatTest(OptionVarTestBase):
         self.assertIsInstance(raw, str)
         self.assertTrue(all(ord(char) < 128 for char in raw), raw)
         self.assertEqual(json.loads(raw), {"name": "日本", "items": [1, 2]})
-        self.assertEqual(self.store.fullName("data"), self.base + ".data")
+        self.assertEqual(self.store.getFullName("data"), self.base + ".data")
 
     def test_value_is_overwritten_even_when_previous_optionvar_was_array(self):
-        name = self.store.fullName("list")
+        name = self.store.getFullName("list")
         cmds.optionVar(intValueAppend=(name, 1))
         cmds.optionVar(intValueAppend=(name, 2))
         self.store["list"] = {"now": "dict"}
@@ -219,7 +219,7 @@ class ModificationTest(OptionVarTestBase):
         self.assertFalse(self.exists("first"))
 
         self.store.update({"first": 1, "second": [2]})
-        self.assertEqual(self.store.toDict(), {"first": 1, "second": [2]})
+        self.assertEqual(self.store.asDict(), {"first": 1, "second": [2]})
 
     def test_reset_all_removes_only_direct_members(self):
         child = OptionVar(self.base + ".child")
@@ -230,7 +230,7 @@ class ModificationTest(OptionVarTestBase):
         sibling["a"] = "sibling"
 
         self.assertEqual(store.resetAll(), ["a", "b"])
-        self.assertEqual(store.storedKeys(), [])
+        self.assertEqual(store.getStoredKeys(), [])
         self.assertEqual(store["a"], 0)
         self.assertEqual(child["a"], "child")
         self.assertEqual(sibling["a"], "sibling")
@@ -244,11 +244,11 @@ class ListingTest(OptionVarTestBase):
         store["b"] = 2
         store["a"] = 5
 
-        self.assertEqual(store.storedKeys(), ["a", "b"])
+        self.assertEqual(store.getStoredKeys(), ["a", "b"])
         self.assertEqual(store.keys(), ["a", "b", "c"])
         self.assertEqual(store.values(), [5, 2, 3])
         self.assertEqual(store.items(), [("a", 5), ("b", 2), ("c", 3)])
-        self.assertEqual(store.toDict(), {"a": 5, "b": 2, "c": 3})
+        self.assertEqual(store.asDict(), {"a": 5, "b": 2, "c": 3})
         self.assertEqual(list(store), ["a", "b", "c"])
         self.assertEqual(len(store), 3)
 
@@ -265,7 +265,7 @@ class ListingTest(OptionVarTestBase):
         self.assertEqual(self.store["k"], "parent")
         self.assertEqual(child["k"], "child")
         self.assertEqual(sibling["k"], "sibling")
-        self.assertEqual(child.fullName("k"), self.base + ".child.k")
+        self.assertEqual(child.getFullName("k"), self.base + ".child.k")
 
 
 class LegacyValueTest(OptionVarTestBase):
@@ -274,14 +274,14 @@ class LegacyValueTest(OptionVarTestBase):
     def setUp(self):
         super().setUp()
         self.store = OptionVar(self.base, defaults={"count": 10})
-        cmds.optionVar(intValue=(self.store.fullName("count"), 99))
-        cmds.optionVar(stringValue=(self.store.fullName("text"), "plain text"))
-        cmds.optionVar(stringValue=(self.store.fullName("nan"), "NaN"))
-        cmds.optionVar(floatValue=(self.store.fullName("real"), 1.5))
-        cmds.optionVar(stringValueAppend=(self.store.fullName("array"), "a"))
+        cmds.optionVar(intValue=(self.store.getFullName("count"), 99))
+        cmds.optionVar(stringValue=(self.store.getFullName("text"), "plain text"))
+        cmds.optionVar(stringValue=(self.store.getFullName("nan"), "NaN"))
+        cmds.optionVar(floatValue=(self.store.getFullName("real"), 1.5))
+        cmds.optionVar(stringValueAppend=(self.store.getFullName("array"), "a"))
         # float の範囲を超える数値は json.loads だけだと無限大になってしまう。
-        cmds.optionVar(stringValue=(self.store.fullName("huge"), "1e400"))
-        cmds.optionVar(stringValue=(self.store.fullName("nested_huge"), '{"a":[-1E400]}'))
+        cmds.optionVar(stringValue=(self.store.getFullName("huge"), "1e400"))
+        cmds.optionVar(stringValue=(self.store.getFullName("nested_huge"), '{"a":[-1E400]}'))
 
     def test_unreadable_values_are_treated_as_not_stored(self):
         self.assertEqual(self.store["count"], 10)
@@ -293,9 +293,9 @@ class LegacyValueTest(OptionVarTestBase):
                 self.assertEqual(self.store.get(key, "fallback"), "fallback")
                 with self.assertRaises(KeyError):
                     del self.store[key]
-        self.assertEqual(self.store.storedKeys(), [])
+        self.assertEqual(self.store.getStoredKeys(), [])
         self.assertEqual(self.store.keys(), ["count"])
-        self.assertEqual(self.store.toDict(), {"count": 10})
+        self.assertEqual(self.store.asDict(), {"count": 10})
 
     def test_unreadable_values_can_be_overwritten_and_removed(self):
         self.store["array"] = ["now", "json"]
@@ -312,12 +312,12 @@ class LegacyValueTest(OptionVarTestBase):
     def test_too_deeply_nested_json_text_is_treated_as_not_stored(self):
         # json.loads が RecursionError を送出する深さの配列を、クラスを通さずに書き込む。
         depth = 100000
-        cmds.optionVar(stringValue=(self.store.fullName("deep"), "[" * depth + "]" * depth))
+        cmds.optionVar(stringValue=(self.store.getFullName("deep"), "[" * depth + "]" * depth))
         self.assertFalse(self.store.isStored("deep"))
         self.assertNotIn("deep", self.store)
         self.assertEqual(self.store.get("deep", "fallback"), "fallback")
-        self.assertEqual(self.store.storedKeys(), [])
-        self.assertEqual(self.store.toDict(), {"count": 10})
+        self.assertEqual(self.store.getStoredKeys(), [])
+        self.assertEqual(self.store.asDict(), {"count": 10})
         self.assertTrue(self.store.reset("deep"))
         self.assertFalse(self.exists("deep"))
 
@@ -330,7 +330,7 @@ class LegacyValueTest(OptionVarTestBase):
             "quoted": ('"text"', "text"),
         }
         for key, (text, _) in raw_texts.items():
-            cmds.optionVar(stringValue=(self.store.fullName(key), text))
+            cmds.optionVar(stringValue=(self.store.getFullName(key), text))
         for key, (_, expected) in raw_texts.items():
             with self.subTest(key=key):
                 self.assertTrue(self.store.isStored(key))
@@ -343,7 +343,7 @@ class LegacyValueTest(OptionVarTestBase):
         # (後始末は tearDown が接頭辞で直接行う)。
         for suffix in ("bad-key", "space key"):
             cmds.optionVar(stringValue=(self.base + "." + suffix, "1"))
-        self.assertEqual(self.store.storedKeys(), [])
+        self.assertEqual(self.store.getStoredKeys(), [])
         self.assertEqual(
             self.store.resetAll(), ["array", "count", "huge", "nan", "nested_huge", "real", "text"]
         )
@@ -389,7 +389,7 @@ class ValidationTest(OptionVarTestBase):
                 with self.assertRaises(ValueError):
                     OptionVar(self.base, defaults={key: 1})
                 with self.assertRaises(ValueError):
-                    self.store.fullName(key)
+                    self.store.getFullName(key)
                 self.assertNotIn(key, self.store)
         self.assertEqual(
             [name for name in cmds.optionVar(list=True) or [] if name.startswith(self.base)], []
@@ -399,14 +399,14 @@ class ValidationTest(OptionVarTestBase):
         store = OptionVar(self.base + "._Tool_2")
         store["2nd_Key"] = "ok"
         self.assertEqual(store["2nd_Key"], "ok")
-        self.assertEqual(store.fullName("2nd_Key"), self.base + "._Tool_2.2nd_Key")
-        self.assertEqual(store.storedKeys(), ["2nd_Key"])
+        self.assertEqual(store.getFullName("2nd_Key"), self.base + "._Tool_2.2nd_Key")
+        self.assertEqual(store.getStoredKeys(), ["2nd_Key"])
 
     def test_prefix_property_and_repr(self):
         store = OptionVar("studio.tool")
         self.assertEqual(store.prefix, "studio.tool")
         self.assertEqual(repr(store), "OptionVar('studio.tool')")
-        self.assertEqual(store.fullName("size"), "studio.tool.size")
+        self.assertEqual(store.getFullName("size"), "studio.tool.size")
 
 
 if __name__ == "__main__":

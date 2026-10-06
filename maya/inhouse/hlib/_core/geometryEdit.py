@@ -103,7 +103,7 @@ def setPositions(shape, indices, values, ws=False):
         values = object_positions(shape, indices, values)
         ws = False
     numbers = command_indices(shape, indices)
-    name, token = shape.fullName(), "vtx" if mesh else "cv"
+    name, token = shape.getFullName(), "vtx" if mesh else "cv"
     unit = om.MDistance.uiUnit()
     for index, value in zip(numbers, values):
         coordinates = [om.MDistance(v).asUnits(unit) for v in value]

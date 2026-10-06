@@ -21,7 +21,7 @@ class StandardPluginsTest(unittest.TestCase):
         self.assertIsInstance(character, HIKCharacterNode)
         joint = cmds.createNode('joint',name='testHips')
         character.setJoint('Hips',joint)
-        self.assertEqual(character.joint('Hips').fullName(), '|testHips')
+        self.assertEqual(character.joint('Hips').getFullName(), '|testHips')
         self.assertIsNone(character.joint('LeftHand'))
         with self.assertRaises(ValueError):
             character.setJoint('not_a_role',joint)

@@ -41,9 +41,9 @@ class SceneUiTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.view.setSettings(grid=False, notAFlag=True)
         self.assertEqual(self.view.getSettings(), before)
-        camera = self.view.camera()
+        camera = self.view.getCamera()
         self.view.setCamera(camera)
-        self.assertEqual(self.view.camera(), camera)
+        self.assertEqual(self.view.getCamera(), camera)
 
     def test_main_pane_suspend_exception_nested_and_already_disabled(self):
         view = hlib.ui.Viewport
@@ -135,10 +135,10 @@ class SceneUiTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     slider.setPlaybackRange(start, end)
             self.assertEqual(slider.getPlaybackRange(), (1, 20))
-            self.assertTrue(cmds.timeControl(slider.name(), exists=True))
+            self.assertTrue(cmds.timeControl(slider.getName(), exists=True))
             selected = slider.getSelectedRange()
-            if cmds.timeControl(slider.name(), query=True, rangeVisible=True):
-                self.assertEqual(selected, tuple(cmds.timeControl(slider.name(), query=True, rangeArray=True)))
+            if cmds.timeControl(slider.getName(), query=True, rangeVisible=True):
+                self.assertEqual(selected, tuple(cmds.timeControl(slider.getName(), query=True, rangeArray=True)))
             else:
                 self.assertIsNone(selected)
         finally:

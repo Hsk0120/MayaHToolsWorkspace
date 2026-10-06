@@ -41,18 +41,18 @@ class SecondaryMathTest(unittest.TestCase):
             cmds.setAttr(source + ".rz", pose[1])
             for index, expected in enumerate(value):
                 self.assertAlmostEqual(
-                    graph.plug("outputs[{}]".format(index)).get(), expected, places=4
+                    graph.getPlug("outputs[{}]".format(index)).get(), expected, places=4
                 )
         updated = [[v * 2 for v in row] for row in values]
         PoseRbf(graph).set_values(updated)
-        self.assertAlmostEqual(graph.plug("outputs[0]").get(), 60, places=4)
+        self.assertAlmostEqual(graph.getPlug("outputs[0]").get(), 60, places=4)
         cmds.undo()
-        self.assertAlmostEqual(graph.plug("outputs[0]").get(), 30, places=4)
+        self.assertAlmostEqual(graph.getPlug("outputs[0]").get(), 30, places=4)
         cmds.currentUnit(angle="rad")
-        self.assertAlmostEqual(graph.plug("outputs[0]").get(), 30, places=4)
+        self.assertAlmostEqual(graph.getPlug("outputs[0]").get(), 30, places=4)
         cmds.currentUnit(angle="deg")
         cmds.setAttr(source + ".rx", 1000)
-        self.assertAlmostEqual(graph.plug("outputs[0]").get(), 0, places=4)
+        self.assertAlmostEqual(graph.getPlug("outputs[0]").get(), 0, places=4)
 
     def test_rejection(self):
         """重複ポーズと不正データを拒否する。"""

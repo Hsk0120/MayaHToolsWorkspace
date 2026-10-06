@@ -1,7 +1,7 @@
 """拘束元から対象へコンストレイントを追加する。
 
 ``hlib.addConstraint(sources, target, type="parent", maintainOffset=False)``
-で単一のConstraintを返す。照会はConstraint.targets()/weightPlugs()、
+で単一のConstraintを返す。照会はConstraint.getTargets()/getWeightPlugs()、
 ウェイト編集はsetWeight()、他のアトリビュートはPlugで操作する。query/editは受け付けない。
 種類はparent、point、orient、scale、aim、poleVector、geometry、normal、tangent、
 pointOnPoly。Constraint接尾辞付きの型名も指定できる。

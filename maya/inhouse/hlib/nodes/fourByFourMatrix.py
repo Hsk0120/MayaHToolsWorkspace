@@ -16,7 +16,7 @@ class FourByFourMatrix(Node):
         Returns:
             Matrix: 入力値。
         """
-        return Matrix([self.plug("in%d%d" % (r, c)).get() for r in range(4) for c in range(4)])
+        return Matrix([self.getPlug("in%d%d" % (r, c)).get() for r in range(4) for c in range(4)])
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
@@ -35,19 +35,19 @@ class FourByFourMatrix(Node):
         value = Matrix(value)
         for r in range(4):
             for c in range(4):
-                self.plug("in%d%d" % (r, c)).set(value[r * 4 + c])
+                self.getPlug("in%d%d" % (r, c)).set(value[r * 4 + c])
         return self
 
-    def outputPlug(self):
+    def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
         """
-        return self.plug("output")
+        return self.getPlug("output")
 
-    def result(self):
+    def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
         Returns:
             Matrix: 計算結果。
         """
-        return Matrix(self.outputPlug().get())
+        return Matrix(self.getOutputPlug().get())

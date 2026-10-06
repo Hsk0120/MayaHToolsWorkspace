@@ -23,7 +23,7 @@ class NodeDeleteTest(unittest.TestCase):
     def test_command_delegates_and_batch_undo(self):
         root = hlib.createNode('transform', skipSelect=True)
         child = hlib.createNode('transform', parent=root, skipSelect=True)
-        names = [root.fullName(), child.fullName()]
+        names = [root.getFullName(), child.getFullName()]
         original = hlib.nodes.Node.delete
         with patch.object(hlib.nodes.Node, 'delete', autospec=True, side_effect=original) as method:
             hlib.delete([root, child, root])
@@ -46,17 +46,17 @@ class NodeDeleteTest(unittest.TestCase):
         child = hlib.createNode('joint', parent=joint, skipSelect=True)
         original = hlib.nodes.Joint.delete
         with patch.object(hlib.nodes.Joint, 'delete', autospec=True, side_effect=original) as method:
-            hlib.delete(joint.fullName())
+            hlib.delete(joint.getFullName())
             self.assertEqual(method.call_count, 1)
         self.assertFalse(joint.isValid())
         self.assertTrue(child.isValid())
         cmds.undo()
         self.assertTrue(joint.isValid())
-        self.assertEqual(child.parent().uuid(), joint.uuid())
+        self.assertEqual(child.getParent().getUuid(), joint.getUuid())
 
     def test_components_mixed_with_node_and_wildcard(self):
         mesh = hlib.createPolygon(ch=False)
-        hlib.delete([mesh.transform(), mesh.fullName() + '.f[0]'])
+        hlib.delete([mesh.getTransform(), mesh.getFullName() + '.f[0]'])
         self.assertFalse(mesh.isValid())
         for name in ('matchA','matchB'):
             hlib.createNode('transform', name=name, skipSelect=True)

@@ -44,15 +44,15 @@ class NamespaceApiTest(unittest.TestCase):
         child = Namespace.create(f"{self.root_name}:child")
         self.assertTrue(self.root.exists())
         self.assertEqual(str(child), self.root_name + ":child")
-        self.assertEqual(child.parent(), self.root)
-        self.assertIn(child, self.root.children())
+        self.assertEqual(child.getParent(), self.root)
+        self.assertIn(child, self.root.getChildren())
 
     def test_nodes_and_node_namespace(self):
         node = Node.create(type="transform", name="namespaceNode")
         node.setNamespace(self.root)
-        self.assertEqual(node.namespace(), self.root)
-        self.assertIn(node.name(), [item.name() for item in self.root.nodes()])
-        cmds.delete(node.name())
+        self.assertEqual(node.getNamespace(), self.root)
+        self.assertIn(node.getName(), [item.getName() for item in self.root.getNodes()])
+        cmds.delete(node.getName())
 
     def test_nodes_recurse_includes_child_namespace_nodes(self):
         child = Namespace.create(f"{self.root_name}:child")
@@ -61,43 +61,43 @@ class NamespaceApiTest(unittest.TestCase):
         child_node = Node.create(type="transform", name="hlibNamespaceRecurseChild")
         child_node.setNamespace(child)
 
-        direct_names = [item.name() for item in self.root.nodes()]
-        self.assertIn(top_node.name(), direct_names)
-        self.assertNotIn(child_node.name(), direct_names)
+        direct_names = [item.getName() for item in self.root.getNodes()]
+        self.assertIn(top_node.getName(), direct_names)
+        self.assertNotIn(child_node.getName(), direct_names)
 
-        recursive_names = [item.name() for item in self.root.nodes(recurse=True)]
-        self.assertIn(top_node.name(), recursive_names)
-        self.assertIn(child_node.name(), recursive_names)
+        recursive_names = [item.getName() for item in self.root.getNodes(recurse=True)]
+        self.assertIn(top_node.getName(), recursive_names)
+        self.assertIn(child_node.getName(), recursive_names)
 
-        cmds.delete(top_node.name(), child_node.name())
+        cmds.delete(top_node.getName(), child_node.getName())
 
     def test_children_returns_only_direct_child_namespaces(self):
         child = Namespace.create(f"{self.root_name}:child")
         Namespace.create(f"{self.root_name}:child:grandchild")
 
-        children = self.root.children()
+        children = self.root.getChildren()
         self.assertEqual(children, [child])
 
     def test_exists_is_false_for_unknown_namespace(self):
         self.assertFalse(Namespace(":hlibNamespaceDoesNotExist").exists())
 
     def test_current_set_as_current_and_as_current_context(self):
-        root_current = Namespace.current()
+        root_current = Namespace.getCurrent()
         try:
             self.root.setCurrent()
-            self.assertEqual(Namespace.current(), self.root)
+            self.assertEqual(Namespace.getCurrent(), self.root)
 
             child = Namespace.create(f"{self.root_name}:child")
             with child.asCurrent():
-                self.assertEqual(Namespace.current(), child)
-            self.assertEqual(Namespace.current(), self.root)
+                self.assertEqual(Namespace.getCurrent(), child)
+            self.assertEqual(Namespace.getCurrent(), self.root)
 
             try:
                 with child.asCurrent():
                     raise RuntimeError("boom")
             except RuntimeError:
                 pass
-            self.assertEqual(Namespace.current(), self.root)
+            self.assertEqual(Namespace.getCurrent(), self.root)
         finally:
             if root_current.exists():
                 root_current.setCurrent()

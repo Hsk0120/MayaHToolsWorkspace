@@ -10,7 +10,7 @@ def main():
 
     for j in joints:
         if Node(j).hasAttr('segmentScaleCompensate'):
-            Node(j).plug('segmentScaleCompensate').set(0)
+            Node(j).getPlug('segmentScaleCompensate').set(0)
 
     print(u'Turned off segmentScaleCompensate on {} joints.'.format(len(joints)))
 

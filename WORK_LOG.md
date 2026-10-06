@@ -84,9 +84,20 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex 2026-10-06: hlibのget/set・Attr/Attrs・Extra・as命名、短縮アクセサー廃止、数学値のコピー/It更新とhlib戻り型、引数長短別名を実装。HTools/hrig/hlib拡張・テスト・使用例を移行し、AGENTSとAPI仕様を更新。日本語docstring/Sphinxを修正し、このLLMで英訳120件を作成（Ollama未起動）、hlib/hrig未訳0・日英Sphinx警告なし。Maya2022～2027の各108ファイル/969テスト、hrig/Bifrost180テスト、HTools大型55ケースと通常ツール、Aim17/Cycle7テスト成功。レイアウト違反0、変更Python構文・差分検査成功。GUI専用テストは未実行。
+
+
+- Codex 2026-10-06: ローカル仕様案へExtra・Attr/Attrs・get/set・as統一、短縮アクセサー双方とdeterminant削除方針を反映。コピー廃止案を撤回し、コピー/It付き自身更新を併存、OpenMaya標準例外を維持する指定を記録。仕様整理のみ、実装変更・Maya再実行なし。
+
 - Claude Code (2026-10-06): FramePlayerのSphinxドキュメント(maya/inhouse/FramePlayer/docs、13ページ・画像10枚、heditと同じ作りで色だけFramePlayerの黒と#FF8232)を追加。画像はdocs/tools/capture_docs.pyでFramePlayerとセットアップの窓だけを撮る(設定は撮影後に戻す)。英語版はtools/translate_docs.py(qwen3-coder:30b)で481文を英訳(1件は手で補訂、見出しの大文字化)。GitHub Pagesの/frameplayer/へ載るようhlib-docs.ymlに追加し、README.mdにリンク。FramePlayer単体の利用者向けにmaya/FramePlayerMayaSync.py(Mayaへドラッグ&ドロップで連携パネルとシェルフのボタン)を追加しセットアップに同梱。セットアップとFramePlayerのWindows標準の部品(Cancel・ファイル選択など)も英語で出るようにした。未コミット。
 
+- Codex 2026-10-06: 戻り型をhlibへ統一するユーザー方針をローカル調査資料へ反映。継承メソッド・複合結果・自身を返す処理・生API取得入口の扱いと検証項目を整理。指定どおり仕様整理のみで、製品コードの変更・Maya実行なし。
+
+- Codex 2026-10-06: ユーザー指定で実装せず、引数長短名の両対応方針とメソッド名/OpenMaya比較をdocs/researchへ保存（Git対象外）。250ファイルの定義・別名・動的転送宣言を一覧化し、Maya2027の実OpenMayaと数学パッケージでMRO・継承元・戻り型・ゼロ値処理を確認。Mesh.getNormalsの意味差、Attr/Attribute・Extra/User、as/to・in-place命名を分類。hlib変更なし、シーン操作・旧Maya版検証は未実施。
+
 - Claude Code (2026-10-06): FramePlayerに連番画像を追加(1枚から連番を検出・欠けの表示・既定60fpsで操作部から変更・最初の番号を開始に)。png/jpg/tif/bmp/gif/jxr(標準)とwebp/heif/avif/jxl(拡張機能)はWIC、OpenEXRは自前(走査線/タイル/multipart、half/float/uint、NONE〜DWAA/DWABの全圧縮、zlib展開も自前、色域ACES含む)。28種の連番でコマ番号(GPU/CPU)、色14枚、EXR40通りでoiiotoolの読み込みと一致(DWAは0.1%の画素で半精度1段)。4K EXRはチャンク並列・縮小並列で1枚約60ms。WinAppKitに関連付けの前提条件(Require.<拡張子>=wic/mfvideo:FOURCC)を追加し、拡張機能が無い形式は関連付けない。FramePlayer・Maya側パネル・インストーラーの画面の文字を英語に統一(ユーザー指示)。確認用スクリプト(make_sequence_testdata.py・run_sequence_check.py・run_exr_check.py・FramePlayerImageConvert)を追加。全コーデックの回帰確認も一致。未コミット。
+
+- Codex 2026-10-06: hlib本番250ファイル・1,746定義を静的走査し、命名・引数・内部ロジックの改善候補をdocs/research/hlib-consistency-audit-2026-10-06.mdへローカル保存（Git対象外）。配列番号の検証抜けをMaya境界のスタブによる分離検証で確認。接続/Undo経路差・探索重複・検証/版比較/マテリアル収集の共通化候補と、維持すべき仕様差を区別。hlib実装変更なし。Maya内の実動作は未検証。
 
 - Claude Code (2026-10-06): FramePlayerでMedia Foundationの全コーデックを確認。公式拡張機能を全部導入(Web Media・WebP・JPEG XLを追加)。H.264/HEVC/AV1/VP9/VP8/MPEG-1/2/MPEG-4 Part2/H.263/MS-MPEG4/WMV7/8/MJPEG/DV/Theoraの37通り(mp4・mov・mkv・webm・avi・ts・m2ts・mpg・vob・3gp・wmv)でコマ番号(GPU/CPU)、19本で色が一致。修正: aviは出た順番で番号、ts/m2tsはシーク先を確かめて戻る、MPEG-1/2は時刻欠けのためデコードで目次を作り基準を決めて順番で番号(CPUでデコード)、DVはYUY2のまま受け取り画素の縦横比を表示に反映、MJPEGはBT.601、YUY2のシェーダーの誤り、読み込みが止まったときの作り直し(非同期で10秒)。確認用スクリプト(make_codec_testdata.py・run_codec_check.py)を追加。Windows側の制限(MPEG-4のBフレーム・movのDV・ogg・短い映像だけのmpg)はREADMEに記載。mainへpush。
 

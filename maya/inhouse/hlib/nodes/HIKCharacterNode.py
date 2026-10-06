@@ -5,6 +5,7 @@ import json
 import maya.cmds as cmds
 import maya.mel as mel
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from ..decorators.undo import undoChunk
 from ..environment import Plugin
@@ -57,7 +58,7 @@ class HIKCharacterNode(Node):
         Returns:
             bool: キャラクタライズがロック済みか照会する。
         """
-        return bool(cmds.getAttr(self.fullName() + '.InputCharacterizationLock'))
+        return bool(cmds.getAttr(self.getFullName() + '.InputCharacterizationLock'))
 
     def joint(self, role):
         """Node | None: 指定役割に割り当てられた骨を取得する。
@@ -72,7 +73,7 @@ class HIKCharacterNode(Node):
         index = cmds.hikGetNodeIdFromName(role)
         if index < 0 or cmds.GetHIKNodeName(index) != role:
             raise ValueError('Unknown HumanIK role: ' + role)
-        values = cmds.listConnections(self.fullName() + '.' + role,
+        values = cmds.listConnections(self.getFullName() + '.' + role,
                                       source=True, destination=False) or []
         return Node(values[0]) if values else None
 
@@ -99,27 +100,28 @@ class HIKCharacterNode(Node):
         if index < 0 or cmds.GetHIKNodeName(index) != role:
             raise ValueError('Unknown HumanIK role: ' + role)
         mel.eval('hikSetCharacterObject({}, {}, {}, 0);'.format(
-            _quote(name), _quote(self.fullName()), index))
-        if not self.joint(role) or self.joint(role).fullName() != name:
+            _quote(name), _quote(self.getFullName()), index))
+        if not self.joint(role) or self.joint(role).getFullName() != name:
             raise RuntimeError('HumanIK did not assign the joint')
 
-    def source(self):
+    def getSource(self):
         """現在のリターゲット入力を取得する。
 
         Returns:
             HIKCharacterNode | None: 現在のリターゲット入力を取得する。
         """
         _prepare()
-        value = mel.eval('hikGetRetargetCharacterInput({});'.format(_quote(self.fullName())))
+        value = mel.eval('hikGetRetargetCharacterInput({});'.format(_quote(self.getFullName())))
         return HIKCharacterNode(value) if value else None
 
+    @flag_aliases(src="source")
     @undoChunk('hlib.HIKCharacterNode.setSource')
     def setSource(self, source):
         """検証・ロック済みの別キャラクターをリターゲット入力にする。
 
         Args:
             source (HIKCharacterNode | str): 自分以外のソースキャラクタ。
-                両キャラクタの定義がロック済みであること。
+                両キャラクタの定義がロック済みであること。 別名 ``src`` も使用可能。
         """
         _prepare()
         source = Node(source)
@@ -128,7 +130,7 @@ class HIKCharacterNode(Node):
         if not self.isDefinitionLocked() or not source.isDefinitionLocked():
             raise RuntimeError('Both character definitions must be validated and locked')
         mel.eval('hikSetCharacterInput({}, {});'.format(
-            _quote(self.fullName()), _quote(source.fullName())))
-        actual = self.sourceWithConversion()
-        if actual is None or actual.fullName() != source.fullName():
+            _quote(self.getFullName()), _quote(source.getFullName())))
+        actual = self.getSourceWithConversion()
+        if actual is None or actual.getFullName() != source.getFullName():
             raise RuntimeError('HumanIK did not connect the requested source')

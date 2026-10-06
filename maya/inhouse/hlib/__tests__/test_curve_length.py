@@ -27,24 +27,24 @@ class CurveLengthTest(unittest.TestCase):
     def test_world_space_instances_and_no_edits(self):
         """非均等スケールとシアー、別インスタンスを正しく評価する。"""
         transform = hlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (1, 1, 0)]))
-        instance = hlib.getNode(cmds.instance(transform.fullName())[0])
-        transform.plug("scale").set((2, 3, 1))
-        transform.plug("shearXY").set(.5)
-        curve = transform.shape()
+        instance = hlib.getNode(cmds.instance(transform.getFullName())[0])
+        transform.getPlug("scale").set((2, 3, 1))
+        transform.getPlug("shearXY").set(.5)
+        curve = transform.getShape()
         before = set(cmds.ls())
         undo_before = cmds.undoInfo(query=True, undoName=True)
-        self.assertAlmostEqual(curve.length(1e-6), math.sqrt(2))
-        end = cmds.pointPosition(curve.fullName() + ".cv[1]", world=True)
+        self.assertAlmostEqual(curve.getLength(1e-6), math.sqrt(2))
+        end = cmds.pointPosition(curve.getFullName() + ".cv[1]", world=True)
         expected = math.sqrt(sum(v*v for v in end))
-        self.assertAlmostEqual(curve.length(ws=True), expected)
-        self.assertAlmostEqual(instance.shape().length(ws=True), math.sqrt(2))
+        self.assertAlmostEqual(curve.getLength(ws=True), expected)
+        self.assertAlmostEqual(instance.getShape().getLength(ws=True), math.sqrt(2))
         self.assertEqual(set(cmds.ls()), before)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_before)
         cmds.currentUnit(linear="m")
-        self.assertAlmostEqual(curve.length(ws=True), expected)
-        self.assertAlmostEqual(curve.length(ws=True, unit="cm"), expected)
-        self.assertAlmostEqual(curve.length(unit="mm"), math.sqrt(2) * 10)
-        self.assertAlmostEqual(curve.length(unit="meter"), math.sqrt(2) / 100)
+        self.assertAlmostEqual(curve.getLength(ws=True), expected)
+        self.assertAlmostEqual(curve.getLength(ws=True, unit="cm"), expected)
+        self.assertAlmostEqual(curve.getLength(unit="mm"), math.sqrt(2) * 10)
+        self.assertAlmostEqual(curve.getLength(unit="meter"), math.sqrt(2) / 100)
         self.assertEqual(cmds.currentUnit(query=True, linear=True), "m")
 
     def test_units_conversion(self):
@@ -65,27 +65,27 @@ class CurveLengthTest(unittest.TestCase):
     def test_curved_history_and_updates(self):
         """曲線の弧長と履歴・親の変更を評価する。"""
         transform, history = cmds.circle(radius=2, constructionHistory=True)
-        curve = hlib.getNode(transform).shape()
+        curve = hlib.getNode(transform).getShape()
         cmds.setAttr(transform + ".scale", 2, 3, 1)
         info = cmds.createNode("curveInfo")
-        cmds.connectAttr(curve.fullName() + ".worldSpace[0]", info + ".inputCurve")
-        self.assertAlmostEqual(curve.length(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
-        original = curve.length(ws=True)
+        cmds.connectAttr(curve.getFullName() + ".worldSpace[0]", info + ".inputCurve")
+        self.assertAlmostEqual(curve.getLength(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
+        original = curve.getLength(ws=True)
         cmds.setAttr(history + ".radius", 4)
-        self.assertAlmostEqual(curve.length(ws=True), original * 2, places=4)
+        self.assertAlmostEqual(curve.getLength(ws=True), original * 2, places=4)
 
     def test_validation(self):
         """不正な許容誤差と空間フラグを拒否する。"""
-        curve = hlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (1, 0, 0)])).shape()
+        curve = hlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (1, 0, 0)])).getShape()
         for tolerance in (0, -1, float("nan"), float("inf")):
             with self.assertRaises(ValueError):
-                curve.length(tolerance)
+                curve.getLength(tolerance)
         with self.assertRaises(ValueError):
-            curve.length(ws=1)
+            curve.getLength(ws=1)
         with self.assertRaises(TypeError):
-            curve.length(unit=1)
+            curve.getLength(unit=1)
         with self.assertRaises(ValueError):
-            curve.length(unit="invalid")
+            curve.getLength(unit="invalid")
 
     def test_rational_curve(self):
         """ウェイト付きCVを持つ曲線も標準curveInfoの評価と一致する。"""
@@ -93,10 +93,10 @@ class CurveLengthTest(unittest.TestCase):
                                        (1, 1, 0, math.sqrt(.5)), (0, 1, 0, 1)],
                                k=[0, 0, 1, 1])
         cmds.setAttr(transform + ".scale", 2, 3, 1)
-        curve = hlib.getNode(transform).shape()
+        curve = hlib.getNode(transform).getShape()
         info = cmds.createNode("curveInfo")
-        cmds.connectAttr(curve.fullName() + ".worldSpace[0]", info + ".inputCurve")
-        self.assertAlmostEqual(curve.length(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
+        cmds.connectAttr(curve.getFullName() + ".worldSpace[0]", info + ".inputCurve")
+        self.assertAlmostEqual(curve.getLength(ws=True), cmds.getAttr(info + ".arcLength"), places=4)
 
 
 if __name__ == "__main__":

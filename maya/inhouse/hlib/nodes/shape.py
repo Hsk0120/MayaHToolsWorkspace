@@ -1,7 +1,5 @@
 """DAG シェイプの共通操作を提供する。"""
 
-from .._core.flags import flag_aliases
-
 import math
 import numbers
 import operator
@@ -11,6 +9,7 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from .._core import geometryEdit
+from .._core.flags import flag_aliases
 from .._core.space import world_space
 from ..decorators._fast import fast_edit, is_fast
 from ..decorators.undo import undoChunk
@@ -75,7 +74,7 @@ class Shape(DagNode):
             raise NotImplementedError("fast scaling of NURBS surfaces is not supported")
         selected = []
         if indices is None:
-            components = [self.fullName() + "." + token + "[*]" * len(counts)]
+            components = [self.getFullName() + "." + token + "[*]" * len(counts)]
             if len(counts) == 1:
                 count = counts[0]
                 if token == "cv" and fn.form == om2.MFnNurbsCurve.kPeriodic:
@@ -107,7 +106,7 @@ class Shape(DagNode):
                 if len(counts) == 1:
                     selected.append(row[0])
                 else:
-                    components.append(self.fullName() + "." + token + "".join("[{}]".format(v) for v in row))
+                    components.append(self.getFullName() + "." + token + "".join("[{}]".format(v) for v in row))
         if not selected and (len(counts) == 1 or not components):
             return self
         if ws:
@@ -135,7 +134,7 @@ class Shape(DagNode):
             cmds.xform(component, translation=values, worldSpace=ws, objectSpace=not ws)
         return self
 
-    def parent(self, step=1):
+    def getParent(self, step=1):
         """指定階層の親DAGノードを取得する。
 
         Args:
@@ -144,15 +143,15 @@ class Shape(DagNode):
         Returns:
             DagNode | None: 親。存在しない場合は ``None``。
         """
-        return super().parent(step)
+        return super().getParent(step)
 
-    def transform(self):
+    def getTransform(self):
         """このShapeの親Transformを返す。
 
         Returns:
             Transform | None: 親Transform。存在しない場合は ``None``。
         """
-        return self.parent()
+        return self.getParent()
 
     def isIntermediateObject(self):
         """中間オブジェクト（履歴用の非表示Shape）か判定する。

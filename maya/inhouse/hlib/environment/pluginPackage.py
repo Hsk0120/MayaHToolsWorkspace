@@ -155,7 +155,7 @@ class PluginPackage:
         """
         return self._minimum_maya is None or self._maya_year() >= self._minimum_maya
 
-    def installedVersion(self):
+    def getInstalledVersion(self):
         """Maya に登録されている製品の版を取得する。
 
         モジュールが登録されていればその版、無ければ版を調べるプラグインの版を使う。
@@ -163,12 +163,12 @@ class PluginPackage:
         Returns:
             Version | None: 版。未導入・版が取れない場合は None。
         """
-        version = self._module.version() if self._module is not None else None
+        version = self._module.getVersion() if self._module is not None else None
         if version is None and self._version_plugin is not None:
-            version = self._version_plugin.version()
+            version = self._version_plugin.getVersion()
         return version
 
-    def loadedVersion(self):
+    def getLoadedVersion(self):
         """ロード済みの、版を調べるプラグインの版を取得する。
 
         Returns:
@@ -177,7 +177,7 @@ class PluginPackage:
         plugin = self._version_plugin
         if plugin is None or not plugin.isLoaded():
             return None
-        return plugin.version()
+        return plugin.getVersion()
 
     def isInstalled(self):
         """必要な版が導入されているか判定する。
@@ -189,7 +189,7 @@ class PluginPackage:
             bool: ``minimum_version`` 以上が導入されていれば True。``minimum_version`` を指定していない
             場合は、版が取れるか、モジュールまたはプラグインが 1 つでも登録されていれば True。
         """
-        version = self.installedVersion()
+        version = self.getInstalledVersion()
         if self._minimum_version is not None:
             return version is not None and version >= self._minimum_version
         if version is not None:
@@ -198,7 +198,7 @@ class PluginPackage:
             return True
         return any(plugin.isRegistered() for plugin in self._plugins)
 
-    def message(self, found=None):
+    def getMessage(self, found=None):
         """導入が必要なときの警告文を作る。
 
         Args:
@@ -208,7 +208,7 @@ class PluginPackage:
             str: 日本語と英語の警告文。
         """
         if found is None:
-            found = self.installedVersion()
+            found = self.getInstalledVersion()
         wanted = "{} {}".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし")) if self._minimum_version \
             else self._name
         year = self._maya_year()
@@ -257,17 +257,17 @@ class PluginPackage:
         show = (lambda text: self.showDialog(text, title)) if dialog is True else (dialog or None)
         installed = self.isInstalled()
         if not installed and self._minimum_version is not None:
-            self._report(show, warn, self.message(self.installedVersion()))
+            self._report(show, warn, self.getMessage(self.getInstalledVersion()))
             return MISSING
         failed = self.loadPlugins()
         if not installed and self._plugins and len(failed) == len(self._plugins):
             # 版を指定しない製品は、ロードできるかどうかで導入の有無を判断する。
-            self._report(show, warn, self.message())
+            self._report(show, warn, self.getMessage())
             return MISSING
-        running = self.loadedVersion()
+        running = self.getLoadedVersion()
         if self._minimum_version is not None and running is not None \
                 and running < self._minimum_version:
-            self._report(show, warn, self.message(running))
+            self._report(show, warn, self.getMessage(running))
             return OUTDATED
         return LOAD_FAILED if failed else LOADED
 

@@ -7,7 +7,7 @@ Synopsis
 
     mesh = hlib.createPolygon(type="cube", width=2, constructionHistory=False)
     sphere = hlib.createPolygon(type="sphere", radius=3)
-    mesh.transform().plug("translateX").set(5)
+    mesh.getTransform().getPlug("translateX").set(5)
 
 ``type`` (短名 ``typ``) は cube、sphere、cylinder、cone、plane、torus、
 pipe、pyramid、prism、helix、platonicSolid。対応するMayaコマンド名
@@ -15,7 +15,7 @@ pipe、pyramid、prism、helix、platonicSolid。対応するMayaコマンド名
 
 寸法・分割数・名前・履歴などは各Mayaコマンドの長名と短名を使用できます。
 ``name`` は親Transformの名前です。戻り値は履歴設定に関係なく単一のMeshです。
-親は ``mesh.transform()``、履歴は ``maya.cmds.listHistory(mesh)`` で取得できます。
+親は ``mesh.getTransform()``、履歴は ``maya.cmds.listHistory(mesh)`` で取得できます。
 作成は1回のUndoで戻せます。query/editとobject=Falseは受け付けません。
 押し出し・結合など既存メッシュを編集するpolyコマンドは対象外です。
 """
@@ -72,7 +72,7 @@ def createPolygon(type="cube", **kwargs):
     if not options.get("object", True):
         raise ValueError("createPolygon requires object=True to return a Mesh")
     result = getattr(cmds, command)(**options)
-    mesh = Node(result[0]).shape()
+    mesh = Node(result[0]).getShape()
     if not isinstance(mesh, Mesh):
         raise RuntimeError("Polygon primitive did not produce a Mesh: " + command)
     return mesh

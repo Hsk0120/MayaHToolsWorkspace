@@ -67,32 +67,32 @@ class PluginVersionValueTest(unittest.TestCase):
         """各問い合わせは新しいスナップショットを返す。"""
         for cls in (Plugin, Module):
             with self.subTest(cls=cls), patch.object(
-                cls, "versionText", side_effect=["3.0.0.0-build", "3.1.0.0-next"]
+                cls, "getVersionText", side_effect=["3.0.0.0-build", "3.1.0.0-next"]
             ) as query:
                 reference = cls("example")
-                first = reference.version()
+                first = reference.getVersion()
                 self.assertIsInstance(first, Version)
                 self.assertEqual(first.replace(major=4).major, 4)
                 self.assertEqual(query.call_count, 1)
-                second = reference.version()
+                second = reference.getVersion()
                 self.assertEqual(first.minor, 0)
                 self.assertEqual(second.minor, 1)
 
     def test_unparseable_version_keeps_raw_text(self):
         """数値版がない場合も生文字列を照会できる。"""
-        with patch.object(Plugin, "versionText", return_value="development"):
+        with patch.object(Plugin, "getVersionText", return_value="development"):
             plugin = Plugin("example")
-            self.assertIsNone(plugin.version())
-            self.assertEqual(plugin.versionText(), "development")
+            self.assertIsNone(plugin.getVersion())
+            self.assertEqual(plugin.getVersionText(), "development")
             self.assertFalse(plugin.isVersionAtLeast("1"))
 
     def test_package_uses_values(self):
         """最低版・導入版・ロード版に共通の値型を使う。"""
         package = PluginPackage("Example", plugins=("example",), minimum_version=Version("3"))
         self.assertIsInstance(package.minimumVersion, Version)
-        with patch.object(Plugin, "versionText", return_value="3.1-build"), patch.object(
+        with patch.object(Plugin, "getVersionText", return_value="3.1-build"), patch.object(
             Plugin, "isLoaded", return_value=True
         ):
-            self.assertEqual(package.installedVersion(), Version("3.1"))
-            self.assertIsInstance(package.loadedVersion(), Version)
+            self.assertEqual(package.getInstalledVersion(), Version("3.1"))
+            self.assertIsInstance(package.getLoadedVersion(), Version)
             self.assertTrue(package.isInstalled())

@@ -558,7 +558,7 @@ def _compute_debug_log_euler_rebuild(joint_name, euler_rotation, target_matrix):
     Returns:
         dict[str, maya.api.OpenMaya.MMatrix | str]: 再構築行列情報。
     """
-    rotate_order_index = int(Node(joint_name).plug("rotateOrder").get())
+    rotate_order_index = int(Node(joint_name).getPlug("rotateOrder").get())
     rotate_order_enum = _ROTATE_ORDER_ENUMS.get(rotate_order_index, om2.MEulerRotation.kXYZ)
     rotate_order_label = _ROTATE_ORDER_LABELS.get(rotate_order_index, "xyz")
 
@@ -677,9 +677,9 @@ def _compute_debug_log_post_apply_attr_state(joint_name, expected_orient_degrees
         joint_name (str): 対象ジョイント名。
         expected_orient_degrees (list[float]): 期待する orient 角度（度）。
     """
-    actual_orient = tuple(units.angleToUi(v) for v in Node(joint_name).plug("jointOrient").get())
-    actual_rotate = tuple(units.angleToUi(v) for v in Node(joint_name).plug("rotate").get())
-    rotate_order_index = int(Node(joint_name).plug("rotateOrder").get())
+    actual_orient = tuple(units.angleToUi(v) for v in Node(joint_name).getPlug("jointOrient").get())
+    actual_rotate = tuple(units.angleToUi(v) for v in Node(joint_name).getPlug("rotate").get())
+    rotate_order_index = int(Node(joint_name).getPlug("rotateOrder").get())
     rotate_order_label = _ROTATE_ORDER_LABELS.get(rotate_order_index, "xyz")
 
     delta_orient = [
@@ -860,9 +860,9 @@ def _compute_rotate_axis_matrix(joint_name):
     Returns:
         maya.api.OpenMaya.MMatrix: rotateAxis 由来の回転行列。
     """
-    rx = math.radians(units.angleToUi(Node(joint_name).plug("rotateAxisX").get()))
-    ry = math.radians(units.angleToUi(Node(joint_name).plug("rotateAxisY").get()))
-    rz = math.radians(units.angleToUi(Node(joint_name).plug("rotateAxisZ").get()))
+    rx = math.radians(units.angleToUi(Node(joint_name).getPlug("rotateAxisX").get()))
+    ry = math.radians(units.angleToUi(Node(joint_name).getPlug("rotateAxisY").get()))
+    rz = math.radians(units.angleToUi(Node(joint_name).getPlug("rotateAxisZ").get()))
     return om2.MEulerRotation(rx, ry, rz).asMatrix()
 
 def _compute_has_non_zero_rotate_axis(joint_name):
@@ -875,9 +875,9 @@ def _compute_has_non_zero_rotate_axis(joint_name):
         bool: いずれかの軸が閾値より大きい場合は ``True``。
     """
     vals = [
-        units.angleToUi(Node(joint_name).plug("rotateAxisX").get()),
-        units.angleToUi(Node(joint_name).plug("rotateAxisY").get()),
-        units.angleToUi(Node(joint_name).plug("rotateAxisZ").get()),
+        units.angleToUi(Node(joint_name).getPlug("rotateAxisX").get()),
+        units.angleToUi(Node(joint_name).getPlug("rotateAxisY").get()),
+        units.angleToUi(Node(joint_name).getPlug("rotateAxisZ").get()),
     ]
     return any(abs(v) > 1e-6 for v in vals)
 
@@ -1237,8 +1237,8 @@ def _apply_orient_from_ui(*_):
 
             # orient 値を書き込み、rotate をゼロに戻して回転を jointOrient 側へ集約する。
             joint = Node(j)
-            joint.plug("jointOrient").set(tuple(units.angleFromUi(v) for v in orient_degrees))
-            joint.plug("rotate").set((0.0, 0.0, 0.0))
+            joint.getPlug("jointOrient").set(tuple(units.angleFromUi(v) for v in orient_degrees))
+            joint.getPlug("rotate").set((0.0, 0.0, 0.0))
 
             # 親の向き更新で子のワールド姿勢が変わらないよう、退避行列を復元する。
             if child_world_matrices:
@@ -1298,9 +1298,9 @@ def _apply_orient_from_ui(*_):
                     om2.MGlobal.displayInfo(
                         "[OrientDebug] {}: rotateAxis=({:.6f}, {:.6f}, {:.6f})deg".format(
                             j,
-                            units.angleToUi(Node(j).plug("rotateAxisX").get()),
-                            units.angleToUi(Node(j).plug("rotateAxisY").get()),
-                            units.angleToUi(Node(j).plug("rotateAxisZ").get()),
+                            units.angleToUi(Node(j).getPlug("rotateAxisX").get()),
+                            units.angleToUi(Node(j).getPlug("rotateAxisY").get()),
+                            units.angleToUi(Node(j).getPlug("rotateAxisZ").get()),
                         )
                     )
                 _compute_debug_log_joint_axis_alignment(j)

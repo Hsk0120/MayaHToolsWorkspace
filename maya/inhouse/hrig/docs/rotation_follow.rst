@@ -12,8 +12,8 @@
        "elbow_jnt", name="elbowFollow", mode="full", axis="x", ratio=0.5,
    )
    # 入力と同じ親空間、TRSとjointOrientがidentityの補助骨へ接続する
-   graph.container.plug("matrix").connect("half_jnt.offsetParentMatrix")
-   graph.container.plug("ratio").set(0.25)
+   graph.container.getPlug("matrix").connect("half_jnt.offsetParentMatrix")
+   graph.container.getPlug("ratio").set(0.25)
 
 ``mode`` は ``full`` / ``twist`` / ``swing`` 。Twist軸は生成時に指定した ``axis`` です。
 ``ratio`` は0〜1で、0.5は **入力からの回転差分の半分** を意味します。

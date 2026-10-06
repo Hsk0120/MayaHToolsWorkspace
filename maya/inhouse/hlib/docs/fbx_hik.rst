@@ -39,7 +39,7 @@ HumanIKノード
 定義の妥当性確認とロックはHumanIK UIで行ってください。
 ロック済みの既存キャラクター間では ``target.setSource(source)`` が標準MELへ
 リターゲット接続を依頼します。未ロックや自己接続は拒否します。
-``target.sourceWithConversion()`` で現在の入力を取得できます。
+``target.getSourceWithConversion()`` で現在の入力を取得できます。
 
 四足や任意骨格の自動キャラクタライズ、UIなしでの定義ロック、自動ベイクはこのAPIに含みません。
 Maya 2022でFBXの骨アニメーション往復、HumanIKの生成・割当・型登録を検証しています。

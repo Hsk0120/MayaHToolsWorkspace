@@ -23,7 +23,7 @@ class TimeSlider:
         """
         self._control = control
 
-    def name(self):
+    def getName(self):
         """実在するtimeControl名。GUIがなければ RuntimeError。
 
         Returns:
@@ -115,7 +115,7 @@ class TimeSlider:
             終端を含まない範囲（例: 1〜10フレームの選択は (1, 11)）。
             ハイライトがない場合は None。再生範囲とは終端の意味が異なる。
         """
-        control = self.name()
+        control = self.getName()
         if not cmds.timeControl(control, query=True, rangeVisible=True):
             return None
         return tuple(float(x) for x in cmds.timeControl(control, query=True, rangeArray=True))

@@ -38,13 +38,16 @@ C++ 実装で行われます。
    data = om2.MFnMatrixData().create(matrix)
    point = om2.MPoint(Translation(1, 2, 3))
 
-演算子と om2 名(``normal``、``asMatrix``、``rotateBy`` などの camelCase)のメソッドは
-om2 と同じ意味です。演算子の結果は hlib の型で返ります(例外は :ref:`maths-result-types`)が、
-継承した値型を返すメソッドは om2 の基底型(``om2.MVector`` など)を返します。
-``isEquivalent()`` はbool、``length()`` はfloatです。
-``Matrix.inverse()`` / ``transpose()``、``Quaternion.conjugate()`` / ``inverse()`` など、
-hlibで上書きしたメソッドはhlibの型を返します。hlib の型が必要なときは、
-hlib独自の補助メソッド(``normalized``、``toMatrix`` など)を使ってください。
+演算子と継承メソッドが返す数学値は、対応するhlib型へ統一しています。
+``normal()``、``asMatrix()``、``rotateBy()``、``adjoint()`` もhlib型を返します。
+数値・真偽値やクラス定数は変更しません。コピー操作と自身の更新は区別します。
+``inverse()`` は新しい値を返し、``invertIt()`` は自身を更新します。
+OpenMaya標準の例外として、``Vector.normalize()`` はItなしでも自身を更新します。
+厳密な正規化は ``unit()`` / ``unitIt()`` を使用し、ゼロ値は拒否します。
+Quaternionの正規化付き行列変換は ``asUnitMatrix()``、角度を0〜piへ整える変換は
+``asCanonicalAxisAngle()``、順序を指定する行列分解は ``asDecomposedEulerRotation()`` です。
+これらはOpenMaya標準の ``asMatrix()`` / ``asAxisAngle()`` / ``asEulerRotation()`` と
+計算条件が異なるため、別の名前で提供します。
 ``hlib.maths`` の import には Maya(mayapy または Maya 本体)が必要です。
 ``hlib.maths.easing`` だけは標準ライブラリの ``math`` のみを使う関数群です。
 
@@ -63,12 +66,12 @@ hlib独自の補助メソッド(``normalized``、``toMatrix`` など)を使っ�
    x.dot(y)                  # 0.0(x * y と同じ内積)
    tuple(x.cross(y))         # (0.0, 0.0, 1.0)(x ^ y と同じ外積)
    Vector(3, 4, 0).length()  # 5.0
-   tuple(Vector(0, 0, 5).normalized())  # (0.0, 0.0, 1.0)
+   tuple(Vector(0, 0, 5).unit())  # (0.0, 0.0, 1.0)
 
-``dot``/``cross``/``length``/``normalized`` は ``Translation``/``Scale``/``Shear``
-など ``Vector`` を継承する型で使用できます。``cross``/``normalized`` や演算子の戻り値は
+``dot``/``cross``/``length``/``unit`` は ``Translation``/``Scale``/``Shear``
+など ``Vector`` を継承する型で使用できます。``cross``/``unit`` や演算子の戻り値は
 派生クラスの型を保持せず常に ``Vector`` になります。
-``normalized()`` はゼロベクトルに対して ``ValueError`` を送出します
+``unit()`` はゼロベクトルに対して ``ValueError`` を送出します
 (om2 の ``normal()`` はゼロベクトルでも例外にせず ``om2.MVector`` を返します)。
 
 .. code-block:: python
@@ -226,7 +229,7 @@ om2 名のメソッドの戻り値は冒頭の説明を参照してください�
    from hlib.maths import Quaternion, EulerRotation
 
    rotation = EulerRotation.fromDegrees(0, 90, 0)   # asDegrees() の逆
-   q = rotation.toQuaternion()
+   q = rotation.asQuaternion()
 
    q.conjugate()              # XYZ の符号を反転
    q.inverse()                # 逆四元数（単位四元数なら conjugate と同じ）
@@ -238,25 +241,25 @@ om2 名のメソッドの戻り値は冒頭の説明を参照してください�
    identity = Quaternion()
    halfway = identity.slerp(q, 0.5)    # 球面線形補間（最短経路で補間）
 
-   axis, angle = q.toAxisAngle()     # (Vector, float) へ分解。角度は 0〜pi
+   axis, angle = q.asCanonicalAxisAngle()     # (Vector, float) へ分解。角度は 0〜pi
    Quaternion.fromAxisAngle(axis, angle)  # 軸・角度から逆生成
    Quaternion(angle, axis)                  # om2 の軸角コンストラクタ(axis は Vector)
 
 ``rotateVector``/``slerp``/``angleTo`` は正規化した回転として扱います。
 ``inverse`` は共役を長さの二乗で割った逆四元数を返し、長さを1には揃えません。
-ゼロ四元数では ``normalized``/``inverse`` が ``ValueError`` を送出します。
+ゼロ四元数では ``unit``/``inverse`` が ``ValueError`` を送出します。
 
 積 ``q1 * q2`` は om2 と同じ順序で、**q1 を先に適用してから q2** を適用する回転です
-(``q1.toMatrix() * q2.toMatrix()`` と同じ回転。Hamilton 積では ``q2 ⊗ q1``)。
-``toSwingTwist(axis)`` が返す ``(swing, twist)`` は、``twist * swing`` で元の回転に
+(``q1.asMatrix() * q2.asMatrix()`` と同じ回転。Hamilton 積では ``q2 ⊗ q1``)。
+``asSwingTwist(axis)`` が返す ``(swing, twist)`` は、``twist * swing`` で元の回転に
 戻ります。``2 * q`` は om2 と同じく4成分のスカラー倍(正規化しない)で、om2 と同じく
 ``q * 2`` と ``q / 2`` には対応しません。
 
-``toEuler(order)`` と ``Matrix`` の ``euler`` / ``rotation`` / ``decompose()`` は om2
+``asDecomposedEulerRotation(order)`` と ``Matrix`` の ``euler`` / ``rotation`` / ``decompose()`` は om2
 (``MEulerRotation.decompose`` / ``MTransformationMatrix``)の解を返します。等価な解のうち
 中間軸が 90 度を超える側になることがあります(``cmds.xform(matrix=...)`` で書き込まれる
-チャンネル値と同じ解)。値そのものではなく回転を比べる場合は、``toQuaternion()`` や
-``toMatrix()`` の ``isEquivalent`` を使ってください。
+チャンネル値と同じ解)。値そのものではなく回転を比べる場合は、``asQuaternion()`` や
+``asMatrix()`` の ``isEquivalent`` を使ってください。
 
 オイラー回転
 ------------
@@ -272,8 +275,8 @@ om2 と同じ整数(``kXYZ``\ =0、``kYZX``\ =1、``kZXY``\ =2、``kXZY``\ =3、
    euler.order          # 5
    euler.orderName     # 'zyx'
    euler.orderName = "xyz"   # 成分は並べ替えない(並べ替えは om2 の reorder())
-   euler.toQuaternion()      # 回転順序を反映した Quaternion
-   euler.toMatrix()          # 回転順序を反映した Matrix
+   euler.asQuaternion()      # 回転順序を反映した Quaternion
+   euler.asMatrix()          # 回転順序を反映した Matrix
 
 ``order`` は整数なので ``euler.order == "xyz"`` は常に ``False`` です(例外にもなりません)。
 名前で比べる場合は ``euler.orderName == "xyz"``、番号で比べる場合は
@@ -282,7 +285,7 @@ om2 と同じ整数(``kXYZ``\ =0、``kYZX``\ =1、``kZXY``\ =2、``kXZY``\ =3、
 ``==`` は回転順序を含めた成分の比較です。``+`` / ``-`` / ``*`` は om2 の Euler の演算
 (順序の違う値は左辺の順序へ変換して計算、``*`` は数値ならスケール、回転なら合成)です。
 om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は保つ)も使えます。
-``Vector`` の派生ではないため、``dot`` / ``cross`` / ``length`` / ``normalized`` /
+``Vector`` の派生ではないため、``dot`` / ``cross`` / ``length`` / ``unit`` /
 ``distanceTo`` / ``angleTo`` / ``lerp`` はありません。
 
 行列
@@ -294,7 +297,7 @@ om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は
 
    Matrix.identity()          # Matrix() と同じ単位行列
    m = Matrix(translate=(1, 2, 3), scale=(2, 3, 4))
-   m.determinant()            # 24.0（スケールの体積比。平行移動は影響しない）
+   m.det4x4()            # 24.0（スケールの体積比。平行移動は影響しない）
    m.isEquivalent(m)         # True（許容誤差付き等価判定。__eq__ は完全一致のみ）
    m @ Matrix(scale=(2, 2, 2))  # m * Matrix(...) と同じ行列積(@ は行列同士だけ)
 
@@ -313,16 +316,16 @@ om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は
 数学型のミラー
 --------------
 
-``mirrored()`` は同型の複製、``mirror()`` は自身を変更して自身を返します。
+``mirror()`` は同型の複製、``mirror()`` は自身を変更して自身を返します。
 
 .. code-block:: python
 
    point = Translation(1, 2, 3)
-   mirrored_point = point.mirrored(axis="x", pivot=(10, 0, 0))
+   mirrored_point = point.mirror(axis="x", pivot=(10, 0, 0))
    matrix = Matrix(translate=(1, 2, 3), rotate=EulerRotation(.1, .2, .3))
-   mirrored_matrix = matrix.mirrored(axis="z")
-   rotation = matrix.quaternion.mirrored(axis="z")
-   matrix.mirror(axis="xy")
+   mirrored_matrix = matrix.mirror(axis="z")
+   rotation = matrix.quaternion.mirror(axis="z")
+   matrix.mirrorIt(axis="xy")
 
 Vector・Translationは指定軸の数値を中心から反転します。
 Scale・Shearにも継承されますが、同じ3成分の数値反転です。

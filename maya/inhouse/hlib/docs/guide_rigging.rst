@@ -17,9 +17,9 @@
    driver = hlib.createNode("transform", name="hlibDriver")
    driven = hlib.createNode("transform", name="hlibDriven")
    constraint = driven.addConstraint(driver, "parent", maintainOffset=True)
-   print(constraint.targets())
-   print(constraint.weightAliases(), constraint.getWeights())
-   constraint.weightPlugs()[0].set(0.5)
+   print(constraint.getTargets())
+   print(constraint.getWeightAliases(), constraint.getWeights())
+   constraint.getWeightPlugs()[0].set(0.5)
 
    constraint.setWeight(1.0)             # 全ターゲットに一括設定
    constraint.setWeight(0.2, driver)      # 特定ターゲットのみ（Node/str/複数指定可）
@@ -35,7 +35,7 @@ Geometry／Normal／PointOnPoly は各 Maya コマンドに適した形状を指
 IK ハンドルは ``hlib.getNode(handle_name)`` から ``IkHandle`` として取得でき、
 ``handle.addConstraint(driver, "poleVector")`` を使用できます。
 ``setWeight`` はターゲットを省略すると全ターゲット、指定すると該当ターゲットのみ
-ウェイトを設定します。``targets()`` に含まれないターゲットを指定すると ``ValueError``
+ウェイトを設定します。``getTargets()`` に含まれないターゲットを指定すると ``ValueError``
 になります。
 
 追加のキーワード引数は対応する Maya コマンドへ渡します。
@@ -101,19 +101,19 @@ rotateが既に0の対象は何もしません。それ以外でrotate／jointOr
    mid = Joint(cmds.joint(position=(2, 0, 0)))
    tip = Joint(cmds.joint(position=(4, 0, 0)))
 
-   print(root.chainFromHere())        # [root, mid, tip]（子が1つの間だけ辿る）
-   print(root.chainFromHere(tip))     # 同上。tip まで明示的に辿る
+   print(root.getChainFromHere())        # [root, mid, tip]（子が1つの間だけ辿る）
+   print(root.getChainFromHere(tip))     # 同上。tip まで明示的に辿る
 
-   handle_name = cmds.ikHandle(startJoint=root.name(), endEffector=tip.name(),
+   handle_name = cmds.ikHandle(startJoint=root.getName(), endEffector=tip.getName(),
                                 solver="ikRPsolver")[0]
    handle = hlib.getNode(handle_name)
 
-   print(root.ikHandles())             # [IkHandle(...)]（自身が start joint の場合のみ）
-   print(mid.ikHandles())              # []（途中の joint は対象外）
+   print(root.getIkHandles())             # [IkHandle(...)]（自身が start joint の場合のみ）
+   print(mid.getIkHandles())              # []（途中の joint は対象外）
 
-   print(handle.endJoint())            # tip
-   print(handle.joints())            # [root, mid]（末端 joint は含まない）
-   print(handle.joints(include_tip=True))  # [root, mid, tip]
+   print(handle.getEndJoint())            # tip
+   print(handle.getJoints())            # [root, mid]（末端 joint は含まない）
+   print(handle.getJoints(include_tip=True))  # [root, mid, tip]
 
 ``chainFromHere`` は ``to`` を省略すると、子 joint がちょうど1つの間だけ辿り、
 分岐（子が0または2つ以上）に達したところで止まります。``to`` を指定した場合は

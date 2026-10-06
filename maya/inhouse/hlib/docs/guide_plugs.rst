@@ -1,8 +1,8 @@
 アトリビュートとPlug
 ============================================================
 
-アトリビュートの取得には ``node.plug()`` を使います。接続・メタ情報・配列要素の操作を説明します。
-``node.plug()`` はアトリビュート名(ロング名・ショート名・エイリアス)のほか、``input1D[3]``・
+アトリビュートの取得には ``node.getPlug()`` を使います。接続・メタ情報・配列要素の操作を説明します。
+``node.getPlug()`` はアトリビュート名(ロング名・ショート名・エイリアス)のほか、``input1D[3]``・
 ``worldMatrix[0]``・``pnts[2].pntx`` のような配列要素と子アトリビュートを含むアトリビュートパス
 (``str(plug)`` の ``.`` 以降と同じ表記)も受け付けます。
 
@@ -18,19 +18,19 @@
 
    source = hlib.createNode("transform", name="connSource")
    target = hlib.createNode("transform", name="connTarget")
-   source.plug("translateX").connectTo(target.plug("translateX"))
+   source.getPlug("translateX").connectTo(target.getPlug("translateX"))
 
-   print(len(target.inputs()))                    # 1
-   print(target.inputs(type="transform"))          # 同じ1件（接続元が transform）
-   print(target.inputs(type="mesh"))               # []（一致なし）
-   print(len(source.connections(type="transform")))  # 1
+   print(len(target.getInputs()))                    # 1
+   print(target.getInputs(type="transform"))          # 同じ1件（接続元が transform）
+   print(target.getInputs(type="mesh"))               # []（一致なし）
+   print(len(source.getConnections(type="transform")))  # 1
 
-   plugs = target.plugs(keyable=True)              # cmds.listAttr(keyable=True) 相当
-   print(any(plug.longName() == "translateX" for plug in plugs))   # True
+   plugs = target.getPlugs(keyable=True)              # cmds.listAttr(keyable=True) 相当
+   print(any(plug.getLongName() == "translateX" for plug in plugs))   # True
 
-   cmds.aliasAttr("myAlias", target.plug("translateY").fullName())
-   for alias_name, plug in target.aliases():
-       print(alias_name, plug.fullName())           # myAlias connTarget.myAlias
+   cmds.aliasAttr("myAlias", target.getPlug("translateY").getFullName())
+   for alias_name, plug in target.getAliases():
+       print(alias_name, plug.getFullName())           # myAlias connTarget.myAlias
 
 ``inputs``/``outputs``/``connections`` の ``type`` 引数は接続先ノードの nodeType を
 ``isType`` と同じ継承チェーンで絞り込みます（例: ``type="animCurve"``）。
@@ -39,8 +39,8 @@
 ``publishedNodeInfo`` のような組み込みアトリビュートでよく見られます）は実際には評価できず
 黙ってスキップされるため、件数は listAttr の結果と必ずしも一致しません。
 ``aliases`` は OpenMaya で取得したエイリアスを ``(エイリアス名, Plug)`` の
-タプル列として返します。``Plug.fullName()`` はアトリビュートにエイリアスがあればエイリアス名を
-使う(``MPlug.name()`` と同じ表記)ため、戻り値の Plug の ``fullName()`` も
+タプル列として返します。``Plug.getFullName()`` はアトリビュートにエイリアスがあればエイリアス名を
+使う(``MPlug.name()`` と同じ表記)ため、戻り値の Plug の ``getFullName()`` も
 ロング名(``translateY``)ではなくエイリアス名(``myAlias``)を含む表記になります。
 ``cmds.listConnections(plugs=True)`` の表記はアトリビュートによって異なり、配列要素のエイリアス
 (blendShape の ``weight[0]`` の ``smile`` など)はエイリアス名、配列でないアトリビュートの
@@ -50,15 +50,15 @@
 プラグ名
 --------
 
-``str(plug)`` と ``plug.fullName()`` は、maya.cmds で一意に解決できる
+``str(plug)`` と ``plug.getFullName()`` は、maya.cmds で一意に解決できる
 ``<ノードの最短一意名>.<アトリビュートパス>`` を返します。同じ短い名前のノードが複数あっても
 ``grp1|dup.translateX`` のようにパスを含むため、``cmds.getAttr(plug)`` のように
 Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに求め直すため、
 名前変更・親子付け替えにも追従します。所有ノードが削除済み、または動的アトリビュートが
 ``deleteAttr`` で削除済みなら空文字列です(``plug.isValid()`` が ``False``。
 このとき ``get()``/``set()`` と、アトリビュートの情報・接続の問い合わせは ``RuntimeError`` になります)。
-``plug.name()`` はノード名を含む短いPlug名を返します。短名のみは ``shortName()``、
-長名のみは ``longName()``、要素番号や階層を含む先頭ドット付きパスは ``attrName()`` です。
+``plug.getName()`` はノード名を含む短いPlug名を返します。短名のみは ``getShortName()``、
+長名のみは ``getLongName()``、要素番号や階層を含む先頭ドット付きパスは ``getAttrName()`` です。
 
 .. code-block:: python
 
@@ -69,9 +69,9 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
    dup = hlib.createNode("transform", name="plugNameDup", parent=grp1)
    hlib.createNode("transform", name="plugNameDup", parent=grp2)
 
-   plug = dup.plug("tx")
+   plug = dup.getPlug("tx")
    print(plug)               # plugNameGrp1|plugNameDup.translateX
-   print(plug.name())        # plugNameGrp1|plugNameDup.tx
+   print(plug.getName())        # plugNameGrp1|plugNameDup.tx
    cmds.setAttr(plug, 2.0)   # 同名ノードがあっても一意に解決できる
 
 受け付ける入力と ``maya.cmds`` へ渡せないオブジェクトは :doc:`cmds_interop` を参照してください。
@@ -84,19 +84,19 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
    import maya.cmds as cmds
 
    node = hlib.createNode("transform", name="attrMetaExample")
-   cmds.addAttr(node.name(), longName="strength", attributeType="double",
+   cmds.addAttr(node.getName(), longName="strength", attributeType="double",
                 min=0, max=10, defaultValue=5, hidden=True)
-   cmds.addAttr(node.name(), longName="mode", attributeType="enum",
+   cmds.addAttr(node.getName(), longName="mode", attributeType="enum",
                 enumName="Off:Low:High", defaultValue=1)
 
-   plug = node.plug("strength")
+   plug = node.getPlug("strength")
    print(plug.isDynamic())   # True（addAttr で追加したカスタムアトリビュート）
    print(plug.isHidden())    # True
-   print(plug.hasMin(), plug.min())   # True 0.0
-   print(plug.hasMax(), plug.max())   # True 10.0
-   print(plug.default())             # 5.0
+   print(plug.hasMin(), plug.getMin())   # True 0.0
+   print(plug.hasMax(), plug.getMax())   # True 10.0
+   print(plug.getDefault())             # 5.0
 
-   mode_plug = node.plug("mode")
+   mode_plug = node.getPlug("mode")
    print(mode_plug.getEnumName())    # "Low"（既定値 1 に対応する名前）
 
 ``min``/``max``/``default`` は数値アトリビュートでは ``float`` をそのまま返しますが、
@@ -111,8 +111,8 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 ロックや入力接続を含む現在の編集可否を判定するものではありません。
 ``hasSoftMin``/``softMin``/``hasSoftMax``/``softMax`` で UI スライダーの
 ソフトレンジ（値の入力自体は制限しない）を取得できます。
-``enumValue(name)`` は ``enumName(val)`` の逆引きで、フィールド名から enum 値を
-取得します（一致しなければ ``ValueError``）。``niceName()`` は Attribute Editor
+``getEnumValue(name)`` は ``getEnumFieldName(val)`` の逆引きで、フィールド名から enum 値を
+取得します（一致しなければ ``ValueError``）。``getNiceName()`` は Attribute Editor
 などで使われる表示名を返します（``translateX`` → ``"Translate X"``）。
 
 チャンネルボックス表示とプラグ接続の判定
@@ -121,15 +121,15 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 .. code-block:: python
 
    node = hlib.createNode("transform", name="channelBoxExample")
-   plug = node.plug("translateX")
+   plug = node.getPlug("translateX")
 
    plug.setFlags(keyable=False)          # キー不可（チャンネルボックスからも隠れる）
    plug.setFlags(channelBox=True)       # キー不可のままチャンネルボックスにのみ表示
 
    other = hlib.createNode("transform", name="channelBoxOther")
-   plug.connectTo(other.plug("translateX"))
-   print(plug.isConnectedTo(other.plug("translateX")))   # True
-   print(other.plug("translateX").isConnectedTo(plug))   # True（向き不問）
+   plug.connectTo(other.getPlug("translateX"))
+   print(plug.isConnectedTo(other.getPlug("translateX")))   # True
+   print(other.getPlug("translateX").isConnectedTo(plug))   # True（向き不問）
 
 ``setFlags(locked=..., keyable=..., channelBox=...)`` はアトリビュートの状態をまとめて設定します。
 省略したフラグは変更せず、bool以外の状態は更新前に拒否します。``isConnectedTo`` は入力・出力
@@ -141,13 +141,13 @@ animCurve とミュート
 .. code-block:: python
 
    node = hlib.createNode("transform", name="animExample")
-   plug = node.plug("translateX")
-   print(plug.animCurve())   # None（まだキーが無い）
+   plug = node.getPlug("translateX")
+   print(plug.getAnimCurve())   # None（まだキーが無い）
 
    import maya.cmds as cmds
-   cmds.setKeyframe(plug.fullName(), time=1, value=0.0)
-   cmds.setKeyframe(plug.fullName(), time=24, value=10.0)
-   print(plug.animCurve())   # animExample_translateX（接続された animCurve ノード）
+   cmds.setKeyframe(plug.getFullName(), time=1, value=0.0)
+   cmds.setKeyframe(plug.getFullName(), time=24, value=10.0)
+   print(plug.getAnimCurve())   # animExample_translateX（接続された animCurve ノード）
 
    print(plug.isMuted())   # False
    plug.setMuted(True)
@@ -167,33 +167,33 @@ animCurve とミュート
 
    node = hlib.createNode("network", name="arrayPlugExample")
    node.addAttr("values", attributeType="double", multi=True)
-   array_plug = node.plug("values")
+   array_plug = node.getPlug("values")
 
-   print(array_plug.nextAvailableIndex())   # 0（既存要素が無ければ）
+   print(array_plug.getNextAvailableIndex())   # 0（既存要素が無ければ）
 
    element = array_plug.addElement(0)[0]   # 指定要素を実体化し、新規要素リストを返す
-   print(element.fullName())             # arrayPlugExample.values[0]
+   print(element.getFullName())             # arrayPlugExample.values[0]
 
    element.set(1.0)                    # 要素に値を設定
    array_plug.removeElement(0)         # 要素を削除
 
-``nextAvailable(start=0, asPlug=True)`` は入力接続とロックを避けた要素参照を返します。
-``nextAvailableIndex()`` はhlib独自の「まだ存在しない番号」を探す操作で、判定条件が異なります。
+``getNextAvailable(start=0, asPlug=True)`` は入力接続とロックを避けた要素参照を返します。
+``getNextAvailableIndex()`` はhlib独自の「まだ存在しない番号」を探す操作で、判定条件が異なります。
 ``addElement(idx)`` は指定要素と必要な上位要素を実体化し、新規要素を下位から返します。
 既存なら空リストです。追加自体のUndoとmessage要素の実体化には対応しません。
-message配列では ``nextAvailable(asPlug=True)`` で取得した参照へ接続してください。
-``element(create=True)`` も評価による実体化なのでUndo対象外です。
+message配列では ``getNextAvailable(asPlug=True)`` で取得した参照へ接続してください。
+``getElement(create=True)`` も評価による実体化なのでUndo対象外です。
 
 Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.input1D[10]")`` や
 ``Selection([...])`` など)は、存在しない要素の Plug でも要素を作りません。
 ``worldMatrix`` などのインスタンスごとのアトリビュートは、評価前でもインスタンス番号の要素
-(作成直後のノードの ``worldMatrix[0]`` など)を ``element()``/``elements()`` で取得できます。
+(作成直後のノードの ``worldMatrix[0]`` など)を ``getElement()``/``getElements()`` で取得できます。
 インスタンス番号には、インスタンス化された祖先による間接インスタンスも含みます。
 削除済みノード・削除済みの動的アトリビュートの配列 Plug の要素は取得できません(``RuntimeError``)。
 
-``array_plug[0]`` は ``element(0)`` と同じです。この ``[]`` があるため、
+``array_plug[0]`` は ``getElement(0)`` と同じです。この ``[]`` があるため、
 ArrayPlug オブジェクト自体を ``maya.cmds`` へ渡すとシーケンスとして展開されて失敗します。
-配列アトリビュート全体を渡す場合は ``str(array_plug)`` か ``array_plug.fullName()`` を渡してください。
+配列アトリビュート全体を渡す場合は ``str(array_plug)`` か ``array_plug.getFullName()`` を渡してください。
 要素の Plug と hlib のコマンド(``hlib.select`` など)は、そのまま渡せます。
 
 アニメーションカーブそのものの操作は :doc:`animation_nodes` を参照してください。
@@ -216,9 +216,9 @@ UI単位を変更しても ``set(get())`` は同じ値を維持します。
 .. code-block:: python
 
    joint = hlib.getNode("joint1")
-   rotation = joint.plug("rotate").get()
-   joint.plug("rotate").set(rotation)  # チャンネル値をそのまま戻す
-   joint.plug("rotate").set((10, 20, 30), unit="deg")
+   rotation = joint.getPlug("rotate").get()
+   joint.getPlug("rotate").set(rotation)  # チャンネル値をそのまま戻す
+   joint.getPlug("rotate").set((10, 20, 30), unit="deg")
    joint.setRotation((0, 0, 0), ws=True) # jointOrient等を含む姿勢の操作
 
 ``rotate`` の値はラジアン・ノードのrotateOrderを持つ ``EulerRotation`` です。
@@ -236,6 +236,6 @@ UI単位を変更しても ``set(get())`` は同じ値を維持します。
 ``disconnectAll()`` による入出力両方の解除とは用途を区別してください。
 
 配列の編集は番号・値・参照を検証してから書込みまたは接続します。
-内部処理は要素を事前に実体化しません。公開 ``element(index, create=True)`` の
+内部処理は要素を事前に実体化しません。公開 ``getElement(index, create=True)`` の
 明示作成は維持します。論理番号はboolを除く整数で、範囲は0〜2147483647です。
 型不正はTypeError、範囲外はIndexErrorになります。

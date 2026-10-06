@@ -17,12 +17,12 @@ def _to_shape(mesh):
     if not cmds.objExists(mesh):
         raise RuntimeError(u'Object does not exist: {}'.format(mesh))
 
-    if Node(mesh).type() == 'mesh':
+    if Node(mesh).getType() == 'mesh':
         return mesh
 
     shapes = cmds.listRelatives(mesh, shapes=True, fullPath=True, noIntermediate=True) or []
     for s in shapes:
-        if Node(s).type() == 'mesh':
+        if Node(s).getType() == 'mesh':
             return s
 
     raise RuntimeError(u'Mesh shape not found under: {}'.format(mesh))
@@ -119,7 +119,7 @@ def _pick_top_bottom_influences(skin_cluster, axis='y'):
         axis: 基準軸。x・y・zのいずれか。
     """
     axis_index = _get_axis_index(axis)
-    influences = [node.name() for node in Node(skin_cluster).influences()]
+    influences = [node.getName() for node in Node(skin_cluster).getInfluences()]
 
     if len(influences) < 2:
         raise RuntimeError(u'Not enough influences in {}.'.format(skin_cluster))
@@ -129,7 +129,7 @@ def _pick_top_bottom_influences(skin_cluster, axis='y'):
         for inf in nodes:
             if not cmds.objExists(inf):
                 continue
-            if joints_only and Node(inf).type() != 'joint':
+            if joints_only and Node(inf).getType() != 'joint':
                 continue
             try:
                 pos = cmds.xform(inf, q=True, ws=True, t=True)
@@ -182,12 +182,12 @@ def _collect_influence_positions(skin_cluster, joints_only=True):
         skin_cluster: ウェイトを照会・編集するskinCluster。
         joints_only: Trueはジョイントのインフルエンスだけを対象にする。
     """
-    influences = [node.name() for node in Node(skin_cluster).influences()]
+    influences = [node.getName() for node in Node(skin_cluster).getInfluences()]
     pairs = []
     for inf in influences:
         if not cmds.objExists(inf):
             continue
-        if joints_only and Node(inf).type() != 'joint':
+        if joints_only and Node(inf).getType() != 'joint':
             continue
         try:
             pos = cmds.xform(inf, q=True, ws=True, t=True)
@@ -849,7 +849,7 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
     mmi = None
     has_mmi = Node(skin_cluster).hasAttr('maintainMaxInfluences')
     if preserve_maintain_max_influences and has_mmi:
-        mmi = Node(skin_cluster).plug('maintainMaxInfluences').get()
+        mmi = Node(skin_cluster).getPlug('maintainMaxInfluences').get()
 
     try:
         cmds.skinCluster(
@@ -863,7 +863,7 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
             cmds.skinCluster(skin_cluster, edit=True, fnw=True)
     finally:
         if preserve_maintain_max_influences and has_mmi and mmi is not None:
-            Node(skin_cluster).plug('maintainMaxInfluences').set(mmi)
+            Node(skin_cluster).getPlug('maintainMaxInfluences').set(mmi)
 
 
 def open_paint_skin_weights_tool():
@@ -1021,7 +1021,7 @@ def auto_two_influence_band_smooth(
         if not cmds.objExists(target_top_influence):
             raise RuntimeError(u'Top influence does not exist: {}'.format(target_top_influence))
 
-        influences = [node.name() for node in Node(target_skin_cluster).influences()]
+        influences = [node.getName() for node in Node(target_skin_cluster).getInfluences()]
         if target_bottom_influence not in influences:
             raise RuntimeError(u'{} is not connected to {}'.format(target_bottom_influence, target_skin_cluster))
         if target_top_influence not in influences:

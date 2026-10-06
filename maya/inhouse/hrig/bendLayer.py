@@ -31,11 +31,11 @@ class BendLayer:
         if not root.hasAttr("bendGroups"):
             return {}
         return {
-            node.plug("bendId").get(): node
-            for node in root.plug("bendGroups").sourceNodes().values()
+            node.getPlug("bendId").get(): node
+            for node in root.getPlug("bendGroups").getSourceNodes().values()
         }
 
-    def joints(self, identifier=None):
+    def getJoints(self, identifier=None):
         """補間・内側・外側の順に骨を取得する。
 
         Args:
@@ -47,7 +47,7 @@ class BendLayer:
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
         return tuple(
-            group.plug(role).sourceWithConversion().node().fullName()
+            group.getPlug(role).getSourceWithConversion().getNode().getFullName()
             for group in selected
             for role in ("half", "inner", "outer")
         )
@@ -84,18 +84,18 @@ class BendLayer:
             raise ValueError("Choose two different axes from x, y, z")
         joint = hlib.getNode(joint)
         parents = [
-            item.fullName()
+            item.getFullName()
             for item in [
                 hlib.getNode(value)
                 for value in (
-                    cmds.listRelatives(joint.fullName(), parent=True, fullPath=True) or []
+                    cmds.listRelatives(joint.getFullName(), parent=True, fullPath=True) or []
                 )
             ]
         ] or []
-        if joint.type() != "joint" or not parents or hlib.getNode(parents[0]).type() != "joint":
+        if joint.getType() != "joint" or not parents or hlib.getNode(parents[0]).getType() != "joint":
             raise ValueError("Expected a joint with a parent joint")
         parent = hlib.getNode(parents[0])
-        stem = self.rig.nodeName("bendSet").removesuffix("_set") + "_" + identifier
+        stem = self.rig.getNodeName("bendSet").removesuffix("_set") + "_" + identifier
         names = [
             stem + suffix for suffix in ("_grp", "_graph", "_half_jnt", "_inner_jnt", "_outer_jnt")
         ]
@@ -104,7 +104,7 @@ class BendLayer:
         root = self.rig.root
         owned = []
         if not root.hasAttr("bendSet"):
-            selection = hlib.createSet(empty=True, name=self.rig.nodeName("bendSet")).fullName()
+            selection = hlib.createSet(empty=True, name=self.rig.getNodeName("bendSet")).getFullName()
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             root.addAttr(longName="bendGroups", attributeType="message", multi=True)
@@ -115,7 +115,7 @@ class BendLayer:
         graph = BendCorrection.create(parent, joint, names[1], bend_axis)
         owner = graph.container
         group.addAttr(longName="graph", attributeType="message")
-        owner.plug("message").connectTo(group.plug("graph"))
+        owner.getPlug("message").connectTo(group.getPlug("graph"))
         for attr in (
             "rotationRatio",
             "referenceAngle",
@@ -133,28 +133,28 @@ class BendLayer:
             group.addAttr(
                 longName=attr,
                 attributeType="doubleLinear" if attr.endswith(("Rest", "Push")) else "double",
-                defaultValue=owner.plug(attr).get(),
+                defaultValue=owner.getPlug(attr).get(),
                 **bounds
             )
-            group.plug(attr).set(owner.plug(attr).get())
-            group.setAttributeFlags([attr], keyable=False, channelBox=True)
-            group.plug(attr).connectTo(owner.plug(attr))
+            group.getPlug(attr).set(owner.getPlug(attr).get())
+            group.setAttrFlags([attr], keyable=False, channelBox=True)
+            group.getPlug(attr).connectTo(owner.getPlug(attr))
         joints = []
         for role, name in zip(("half", "inner", "outer"), names[2:]):
             bone = hlib.createNode(
                 "joint", name=name, parent=group if role == "half" else joints[0], skipSelect=True
             )
-            bone.plug("segmentScaleCompensate").set(False)
-            bone.plug("radius").set(0.35 if role == "half" else 0.25)
+            bone.getPlug("segmentScaleCompensate").set(False)
+            bone.getPlug("radius").set(0.35 if role == "half" else 0.25)
             group.addAttr(longName=role, attributeType="message")
-            bone.plug("message").connectTo(group.plug(role))
+            bone.getPlug("message").connectTo(group.getPlug(role))
             joints.append(bone)
-        root.plug("bendGroups").appendMessage(group)
+        root.getPlug("bendGroups").appendMessage(group)
         owned.extend([group, owner])
         for node in owned:
-            root.plug("hrigOwned").appendMessage(node)
+            root.getPlug("hrigOwned").appendMessage(node)
         self.rig._layer_members(
-            "bendSet", [group.fullName(), owner.fullName()] + [n.fullName() for n in joints]
+            "bendSet", [group.getFullName(), owner.getFullName()] + [n.getFullName() for n in joints]
         )
         from .limb import _lock_group
 
@@ -163,30 +163,30 @@ class BendLayer:
         from .channel_controls import sync_display
 
         sync_display(self.rig)
-        return tuple(n.fullName() for n in joints)
+        return tuple(n.getFullName() for n in joints)
 
     def update(self):
         """無効時に出力を切断して基準姿勢へ戻し、親だけを継承する。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("bend")
         for group in self.groups().values():
-            owner = group.plug("graph").sourceWithConversion().node()
-            owner.plug("nodeState").set(0 if active else 2)
-            group.plug("visibility").set(active)
+            owner = group.getPlug("graph").getSourceWithConversion().getNode()
+            owner.getPlug("nodeState").set(0 if active else 2)
+            group.getPlug("visibility").set(active)
             for role in ("half", "inner", "outer"):
-                bone = group.plug(role).sourceWithConversion().node()
+                bone = group.getPlug(role).getSourceWithConversion().getNode()
                 attr = (
                     "offsetParentMatrix"
                     if role == "half"
-                    else "translate" + group.plug("pushAxis").get().upper()
+                    else "translate" + group.getPlug("pushAxis").get().upper()
                 )
-                destination = bone.plug(attr)
-                source = destination.sourceWithConversion()
+                destination = bone.getPlug(attr)
+                source = destination.getSourceWithConversion()
                 if active and source is None:
-                    owner.plug("matrix" if role == "half" else role).connectTo(destination)
+                    owner.getPlug("matrix" if role == "half" else role).connectTo(destination)
                 elif not active:
                     if source is not None:
                         destination.disconnect(source)
                     if role == "half":
-                        destination.set(owner.plug("restMatrix").get())
+                        destination.set(owner.getPlug("restMatrix").get())
                     else:
-                        destination.set(group.plug(role + "Rest").get())
+                        destination.set(group.getPlug(role + "Rest").get())

@@ -1,10 +1,9 @@
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
 
-from .._core.flags import flag_aliases
-
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from .._core.space import world_space
 from ..decorators.undo import undoChunk
@@ -69,7 +68,7 @@ class DagPose(Node):
             raise RuntimeError("Cannot access an invalid skinCluster")
         if not skin.isType("skinCluster"):
             raise ValueError("Expected a skinCluster")
-        names = cmds.listConnections(skin.fullName() + ".bindPose", source=True,
+        names = cmds.listConnections(skin.getFullName() + ".bindPose", source=True,
                                      destination=False) or []
         if not names:
             return None
@@ -85,19 +84,19 @@ class DagPose(Node):
             bool: バインドポーズとして保存されたノードならTrue。
         """
         self._pose_name()
-        return bool(self.plug("bindPose").get())
+        return bool(self.getPlug("bindPose").get())
 
-    def memberIndices(self):
+    def getMemberIndices(self):
         """現在もメンバーが接続されている論理番号。欠番は保持する。
 
         Returns:
             list[int]: 現在もメンバーが接続されている論理番号。欠番は保持する。
         """
         name = self._pose_name()
-        return [i for i in self.plug("members").mplug().getExistingArrayAttributeIndices()
+        return [i for i in self.getPlug("members").mplug().getExistingArrayAttributeIndices()
                 if cmds.listConnections(f"{name}.members[{i}]", source=True, destination=False)]
 
-    def members(self):
+    def getMembers(self):
         """保存対象をmembers配列の論理番号順に返す。
 
         Returns:
@@ -105,9 +104,9 @@ class DagPose(Node):
         """
         name = self._pose_name()
         return [Node(cmds.listConnections(f"{name}.members[{i}]", source=True,
-                                          destination=False)[0]) for i in self.memberIndices()]
+                                          destination=False)[0]) for i in self.getMemberIndices()]
 
-    def memberIndex(self, member):
+    def getMemberIndex(self, member):
         """指定メンバーの論理番号を返す。
 
         Args:
@@ -119,8 +118,8 @@ class DagPose(Node):
         """
         from ..nodes.node import Node as _InputNode
         node = _InputNode._resolve_input(member)
-        for index, item in zip(self.memberIndices(), self.members()):
-            if item.fullName() == node.fullName():
+        for index, item in zip(self.getMemberIndices(), self.getMembers()):
+            if item.getFullName() == node.getFullName():
                 return index
         raise ValueError(f"Not a member of {self._pose_name()}: {member}")
 
@@ -137,11 +136,11 @@ class DagPose(Node):
             ValueError: メンバーでない場合。
         """
         ws = world_space(worldSpace)
-        index = self.memberIndex(member)
+        index = self.getMemberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
-        return Matrix(self.plug(attribute)[index].get())
+        return Matrix(self.getPlug(attribute)[index].get())
 
-    def notAtPose(self):
+    def getNotAtPose(self):
         """MayaのatPose照会で保存姿勢と異なると判定されたメンバー。
 
         Returns:
@@ -156,9 +155,9 @@ class DagPose(Node):
         Returns:
             bool: MayaのatPose照会で差異がない場合はTrue。
         """
-        return not self.notAtPose()
+        return not self.getNotAtPose()
 
-    def skinClusters(self):
+    def getSkinClusters(self):
         """このポーズをbindPoseとして参照するskinCluster。
 
         Returns:
@@ -200,12 +199,12 @@ class DagPose(Node):
             RuntimeError: Mayaが更新を拒否した場合。
         """
         name = self._pose_name()
-        targets = self.members() if members is None else members
+        targets = self.getMembers() if members is None else members
         if members is None and not targets:
             return self
         names = self._transform_names(targets)
         for target in names:
-            self.memberIndex(target)
+            self.getMemberIndex(target)
         cmds.dagPose(names, reset=True, name=name)
         return self
 
@@ -236,7 +235,7 @@ class DagPose(Node):
         """
         names = self._transform_names(members)
         for target in names:
-            self.memberIndex(target)
+            self.getMemberIndex(target)
         cmds.dagPose(names, remove=True, name=self._pose_name())
         return self
 
@@ -253,8 +252,8 @@ class DagPose(Node):
             node = Node(name)
             if not node.isValid() or not node.isType("transform"):
                 raise ValueError(f"Expected a valid transform or joint: {name}")
-            if node.fullName() not in names:
-                names.append(node.fullName())
+            if node.getFullName() not in names:
+                names.append(node.getFullName())
         if not names:
             raise ValueError("At least one transform or joint is required")
         return names
@@ -263,4 +262,4 @@ class DagPose(Node):
         """有効なdagPoseの名前を返す。削除済みならRuntimeError。"""
         if not self.isValid():
             raise RuntimeError("Cannot access an invalid dagPose")
-        return self.fullName()
+        return self.getFullName()

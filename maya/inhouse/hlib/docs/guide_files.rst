@@ -59,14 +59,14 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
    from hlib.utils.references import listReferences
 
    for reference in listReferences():
-       print(reference.filename(), reference.associatedNamespace(), reference.isLoaded())
+       print(reference.getFilename(), reference.getAssociatedNamespace(), reference.isLoaded())
 
    top_level = listReferences(top_level_only=True)  # ネストした参照を除外
 
    reference = listReferences()[0]
    reference.unload()
    reference.load()
-   print(reference.nodes())  # 参照内のノードをラッパーで取得(アンロード中はRuntimeError)
+   print(reference.getNodes())  # 参照内のノードをラッパーで取得(アンロード中はRuntimeError)
 
 参照ノード自体は ``hlib.nodes.Reference`` として自動解決されます
 (``hlib.getNode("参照ノード名")`` でも取得可能)。``filename``/``namespace``/

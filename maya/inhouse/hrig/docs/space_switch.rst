@@ -17,7 +17,7 @@
    switch.add("local", root)
    switch.add("world")
    switch.switch("world")
-   print(switch.labels(), switch.current())
+   print(switch.labels(), switch.getCurrent())
 
 ``create`` にはローカルTRSが恒等値で、offsetParentMatrixが未接続の専用transformを
 渡します。初期オフセットと参照先ワールド行列、実親の逆行列から
@@ -26,7 +26,7 @@ offsetParentMatrixを計算します。親の付け替えやbufferのTRS編集�
 ローカルチャンネルを保持します。通常の移動追従はDGだけで評価されます。
 
 保存後は ``SpaceSwitch(buffer)`` で再取得できます。名前の変更は接続から追跡します。
-``nodes()`` は所有ノードを返し、外部の参照先は含めません。削除は利用側が管理します。
+``getNodes()`` は所有ノードを返し、外部の参照先は含めません。削除は利用側が管理します。
 空間名は英字で始まる英数字・アンダースコアとし、重複名は拒否します。
 
 制限

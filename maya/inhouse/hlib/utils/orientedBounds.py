@@ -426,4 +426,3 @@ def computeOrientedBounds(points):
         "axes": (Vector(axis_x), Vector(axis_y), Vector(axis_z)),
         "size": (size_x, size_y, size_z),
     }
-

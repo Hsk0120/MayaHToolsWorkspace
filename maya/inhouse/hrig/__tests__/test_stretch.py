@@ -41,52 +41,52 @@ class StretchTest(unittest.TestCase):
         """直線の伸縮・断面の非累積・上下限・固定長復帰を確認する。"""
         rig = build_spline()
         group = rig.add_stretch()
-        rig.controls()[-1].plug("ty").set(10)
-        self.same(self.position(rig.joints()[-1]), (0, 20, 0))
-        for joint in rig.members("deform"):
-            self.assertAlmostEqual(joint.plug("scaleY").get(), 1 / math.sqrt(2), places=5)
+        rig.controls()[-1].getPlug("ty").set(10)
+        self.same(self.position(rig.getJoints()[-1]), (0, 20, 0))
+        for joint in rig.getMembers("deform"):
+            self.assertAlmostEqual(joint.getPlug("scaleY").get(), 1 / math.sqrt(2), places=5)
             self.assertAlmostEqual(
                 sum(v * v for v in self.matrix(joint)[8:11]) ** 0.5, 1 / math.sqrt(2), places=5
             )
-        group.plug("maxStretch").set(1.5)
-        self.same(self.position(rig.joints()[-1]), (0, 15, 0))
+        group.getPlug("maxStretch").set(1.5)
+        self.same(self.position(rig.getJoints()[-1]), (0, 15, 0))
         for i, control in enumerate(rig.controls()):
-            control.plug("ty").set(-10 * i / (len(rig.controls()) - 1) * 0.5)
-        self.same(self.position(rig.joints()[-1]), (0, 5, 0))
-        group.plug("volume").set(0)
-        self.assertAlmostEqual(rig.members("deform")[2].plug("scaleY").get(), 1)
+            control.getPlug("ty").set(-10 * i / (len(rig.controls()) - 1) * 0.5)
+        self.same(self.position(rig.getJoints()[-1]), (0, 5, 0))
+        group.getPlug("volume").set(0)
+        self.assertAlmostEqual(rig.getMembers("deform")[2].getPlug("scaleY").get(), 1)
         rig.set_layer_enabled("stretch", False)
-        self.assertAlmostEqual(rig.members("ik")[1].plug("tx").get(), 10 / 6)
-        self.assertIsNone(group.plug("measurement").sourceWithConversion().node().plug("inputCurve").sourceWithConversion())
+        self.assertAlmostEqual(rig.getMembers("ik")[1].getPlug("tx").get(), 10 / 6)
+        self.assertIsNone(group.getPlug("measurement").getSourceWithConversion().getNode().getPlug("inputCurve").getSourceWithConversion())
 
     def test_spline_match_lod_units(self):
         """伸縮済み姿勢のFK合わせと単位・親scale・保存復元を確認する。"""
         cmds.currentUnit(linear="m")
         rig = build_spline(length=2, axis="z")
         group = rig.add_stretch()
-        rig.controls()[-1].plug("tz").set(100)
-        self.same(self.position(rig.joints()[-1]), (0, 0, 3))
-        rig.controls()[1].plug("ty").set(20)
-        before = [self.matrix(j) for j in rig.joints()]
+        rig.controls()[-1].getPlug("tz").set(100)
+        self.same(self.position(rig.getJoints()[-1]), (0, 0, 3))
+        rig.controls()[1].getPlug("ty").set(20)
+        before = [self.matrix(j) for j in rig.getJoints()]
         rig.match_fk()
         rig.set_mode("fk")
-        for joint, matrix in zip(rig.joints(), before):
+        for joint, matrix in zip(rig.getJoints(), before):
             self.same(self.matrix(joint), matrix)
         rig.set_mode("ik")
         for axis in "XYZ":
-            rig.root.plug("scale" + axis).set(2)
+            rig.root.getPlug("scale" + axis).set(2)
         self.assertAlmostEqual(
-            group.plug("graph").sourceWithConversion().node().plug("lengthScale").get(), 1.5, delta=0.03
+            group.getPlug("graph").getSourceWithConversion().getNode().getPlug("lengthScale").get(), 1.5, delta=0.03
         )
         rig.set_lod(0)
-        self.assertIsNone(rig.members("ik")[1].plug("tx").sourceWithConversion())
+        self.assertIsNone(rig.getMembers("ik")[1].getPlug("tx").getSourceWithConversion())
         rig.set_lod(1)
         path = os.path.join(tempfile.gettempdir(), "hrig_stretch_spline.ma")
         cmds.file(rename=path)
         cmds.file(save=True, type="mayaAscii", force=True)
         cmds.file(path, open=True, force=True, executeScriptNodes=False)
         rig = SplineRig("spine01")
-        self.assertIsNotNone(rig.members("ik")[1].plug("tx").sourceWithConversion())
+        self.assertIsNotNone(rig.getMembers("ik")[1].getPlug("tx").getSourceWithConversion())
         rig.delete()
         self.assertFalse(cmds.ls("spine01*"))
 
@@ -97,27 +97,27 @@ class StretchTest(unittest.TestCase):
         rig.set_mode("ik")
         rig.set_layer_enabled("soft", False)
         hlib.getPlug(rig.controls()["target"] + ".tx").set(7)
-        self.same(self.position(rig.joints()[2]), (15, 0, 0))
+        self.same(self.position(rig.getJoints()[2]), (15, 0, 0))
         self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 7.5)
         for i in range(3):
-            self.same(self.position(rig.joints()[i]), self.position(rig._member("ik" + str(i))))
+            self.same(self.position(rig.getJoints()[i]), self.position(rig._member("ik" + str(i))))
             self.assertAlmostEqual(
-                sum(v * v for v in self.matrix(rig.joints()[i])[8:11]) ** 0.5,
+                sum(v * v for v in self.matrix(rig.getJoints()[i])[8:11]) ** 0.5,
                 (1.5) ** -0.5,
                 places=4,
             )
         rig.set_layer_enabled("soft", True)
-        self.assertTrue(14 < self.position(rig.joints()[2])[0] < 15)
-        before = [self.matrix(j) for j in rig.joints()[:3]]
+        self.assertTrue(14 < self.position(rig.getJoints()[2])[0] < 15)
+        before = [self.matrix(j) for j in rig.getJoints()[:3]]
         rig.match_fk()
         rig.set_mode("fk")
         rig.match_ik()
         rig.set_mode("ik")
-        for joint, matrix in zip(rig.joints()[:3], before):
+        for joint, matrix in zip(rig.getJoints()[:3], before):
             self.same(self.matrix(joint), matrix)
         rig.set_layer_enabled("soft", False)
-        group.plug("maxStretch").set(1.2)
-        self.assertAlmostEqual(self.position(rig.joints()[2])[0], 12, places=4)
+        group.getPlug("maxStretch").set(1.2)
+        self.assertAlmostEqual(self.position(rig.getJoints()[2])[0], 12, places=4)
         rig.set_layer_enabled("stretch", False)
         self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 5)
         cmds.undo()
@@ -131,24 +131,24 @@ class StretchTest(unittest.TestCase):
         rig.set_layer_enabled("soft", False)
         # 初期目標距離8ではsquash=0なので通常の肘曲げを維持する。
         self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 5)
-        group.plug("squash").set(0.5)
+        group.getPlug("squash").set(0.5)
         self.assertAlmostEqual(hlib.getPlug(rig._member("ik1") + ".tx").get(), 4.5)
-        before = [self.matrix(j) for j in rig.joints()[:3]]
+        before = [self.matrix(j) for j in rig.getJoints()[:3]]
         rig.match_fk()
         rig.set_mode("fk")
-        for joint, matrix in zip(rig.joints()[:3], before):
+        for joint, matrix in zip(rig.getJoints()[:3], before):
             self.same(self.matrix(joint), matrix)
         rig.set_mode("ik")
         rig.set_lod(0)
-        self.assertIsNone(hlib.getPlug(rig._member("ik1") + ".tx").sourceWithConversion())
+        self.assertIsNone(hlib.getPlug(rig._member("ik1") + ".tx").getSourceWithConversion())
         rig.set_lod(1)
         path = os.path.join(tempfile.gettempdir(), "hrig_stretch_limb.ma")
-        root = rig.root.name()
+        root = rig.root.getName()
         cmds.file(rename=path)
         cmds.file(save=True, type="mayaAscii", force=True)
         cmds.file(path, open=True, force=True, executeScriptNodes=False)
         rig = LimbRig(root)
-        self.assertIsNotNone(hlib.getPlug(rig._member("ik1") + ".tx").sourceWithConversion())
+        self.assertIsNotNone(hlib.getPlug(rig._member("ik1") + ".tx").getSourceWithConversion())
         rig.delete()
         self.assertFalse(cmds.objExists(root + "_stretchGraph"))
 
@@ -162,7 +162,7 @@ class StretchTest(unittest.TestCase):
         self.assertTrue(rig.root.hasAttr("stretchGroup"))
         other = build_spline("bound")
         mesh = cmds.polyCube()[0]
-        cmds.skinCluster(other.joints(), mesh, toSelectedBones=True)
+        cmds.skinCluster(other.getJoints(), mesh, toSelectedBones=True)
         with self.assertRaises(ValueError):
             other.add_stretch()
 
@@ -183,16 +183,16 @@ class StretchTest(unittest.TestCase):
         expected = {}
         for time in (1, 10, 20):
             cmds.currentTime(time)
-            expected[time] = self.matrix(rig.joints()[2])
+            expected[time] = self.matrix(rig.getJoints()[2])
         for mode in ("off", "serial", "parallel"):
             cmds.evaluationManager(mode=mode)
             for time in (20, 1, 10, 1):
                 cmds.currentTime(time)
-                self.same(self.matrix(rig.joints()[2]), expected[time])
+                self.same(self.matrix(rig.getJoints()[2]), expected[time])
         cmds.evaluationManager(mode="off")
-        before = self.position(rig.joints()[2])
-        ratio = group.plug("graph").sourceWithConversion().node().plug("lengthScale").get()
+        before = self.position(rig.getJoints()[2])
+        ratio = group.getPlug("graph").getSourceWithConversion().getNode().getPlug("lengthScale").get()
         for axis in "XYZ":
-            rig.root.plug("scale" + axis).set(2)
-        self.same(self.position(rig.joints()[2]), [v * 2 for v in before])
-        self.assertAlmostEqual(group.plug("graph").sourceWithConversion().node().plug("lengthScale").get(), ratio)
+            rig.root.getPlug("scale" + axis).set(2)
+        self.same(self.position(rig.getJoints()[2]), [v * 2 for v in before])
+        self.assertAlmostEqual(group.getPlug("graph").getSourceWithConversion().getNode().getPlug("lengthScale").get(), ratio)

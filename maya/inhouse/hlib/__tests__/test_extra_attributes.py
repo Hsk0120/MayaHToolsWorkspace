@@ -14,7 +14,7 @@ class ExtraAttributesTest(unittest.TestCase):
         self.node = hlib.createNode("transform")
 
     def tearDown(self):
-        cmds.delete(self.node.fullName())
+        cmds.delete(self.node.getFullName())
 
     def test_types_values_and_list(self):
         cases = [("double", "DoublePlug", 1.5), ("float", "FloatPlug", 2.5),
@@ -33,22 +33,22 @@ class ExtraAttributesTest(unittest.TestCase):
         enum = self.node.addAttr("mode", attributeType="enum", enumName="off:on", defaultValue=1)
         self.assertIsInstance(enum, hlib.plugs.EnumPlug)
         self.assertEqual(enum.getEnumName(), "on")
-        self.assertEqual(enum.enumValue("off"), 0)
+        self.assertEqual(enum.getEnumValue("off"), 0)
         message = self.node.addAttr("link", attributeType="message")
         self.assertIsInstance(message, hlib.plugs.MessagePlug)
-        self.node.plug("message").connectTo(message)
-        self.assertEqual(message.sourceWithConversion(), self.node.plug("message"))
-        self.assertEqual(len(self.node.getExtraAttributes()), len(cases) + 3)
-        self.assertNotIn(self.node.plug("translate"), self.node.getExtraAttributes())
+        self.node.getPlug("message").connectTo(message)
+        self.assertEqual(message.getSourceWithConversion(), self.node.getPlug("message"))
+        self.assertEqual(len(self.node.getExtraAttrs()), len(cases) + 3)
+        self.assertNotIn(self.node.getPlug("translate"), self.node.getExtraAttrs())
 
     def test_compound_array_and_undo(self):
         compound = self.node.addAttr("vectorValue", attributeType="double3")
         self.assertIsInstance(compound, hlib.plugs.Double3Plug)
-        self.assertEqual(len(self.node.getExtraAttributes()), 1)
-        self.assertEqual(len(self.node.getExtraAttributes(include_children=True)), 4)
+        self.assertEqual(len(self.node.getExtraAttrs()), 1)
+        self.assertEqual(len(self.node.getExtraAttrs(include_children=True)), 4)
         array = self.node.addAttr("weights", attributeType="double", multi=True)
         self.assertIsInstance(array, hlib.plugs.ArrayPlug)
-        self.assertIsInstance(array.element(0, create=True), hlib.plugs.DoublePlug)
+        self.assertIsInstance(array.getElement(0, create=True), hlib.plugs.DoublePlug)
         self.node.addAttr("undoValue", attributeType="long")
         cmds.undo()
         self.assertFalse(self.node.hasAttr("undoValue"))
@@ -60,59 +60,59 @@ class ExtraAttributesTest(unittest.TestCase):
         self.node.addAttr("first", at="double", hidden=True)
         self.node.addAttr("vector", at="double3")
         self.node.addAttr("last", dt="string")
-        expected = cmds.listAttr(self.node.fullName(), userDefined=True)
+        expected = cmds.listAttr(self.node.getFullName(), userDefined=True)
         with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):
-            self.assertEqual(self.node.userAttributeNames(), ["first", "vector", "last"])
-            self.assertEqual([p.longName() for p in self.node.getExtraAttributes(True)], expected)
-        cmds.renameAttr(self.node.fullName() + ".first", "renamed")
-        cmds.deleteAttr(self.node.fullName() + ".vector")
-        self.assertEqual(self.node.userAttributeNames(), ["renamed", "last"])
+            self.assertEqual(self.node.getExtraAttrNames(), ["first", "vector", "last"])
+            self.assertEqual([p.getLongName() for p in self.node.getExtraAttrs(True)], expected)
+        cmds.renameAttr(self.node.getFullName() + ".first", "renamed")
+        cmds.deleteAttr(self.node.getFullName() + ".vector")
+        self.assertEqual(self.node.getExtraAttrNames(), ["renamed", "last"])
         cmds.undo()
         # Mayaは削除Undoで定義を末尾へ再追加する。元の順序を仮定せず標準照会と比較する。
-        restored = cmds.listAttr(self.node.fullName(), userDefined=True)
-        self.assertEqual(self.node.userAttributeNames(), [p for p in restored if p in {"renamed", "vector", "last"}])
-        self.assertEqual([p.longName() for p in self.node.getExtraAttributes(True)], restored)
+        restored = cmds.listAttr(self.node.getFullName(), userDefined=True)
+        self.assertEqual(self.node.getExtraAttrNames(), [p for p in restored if p in {"renamed", "vector", "last"}])
+        self.assertEqual([p.getLongName() for p in self.node.getExtraAttrs(True)], restored)
         cmds.redo()
-        self.assertEqual(self.node.userAttributeNames(), ["renamed", "last"])
+        self.assertEqual(self.node.getExtraAttrNames(), ["renamed", "last"])
 
     def test_sparse_compound_array_roots_do_not_expand(self):
         """複合配列の子を解決せず、空配列・疎な配列を維持する。"""
-        name = self.node.fullName()
+        name = self.node.getFullName()
         cmds.addAttr(name, longName="items", attributeType="compound", numberOfChildren=1, multi=True)
         cmds.addAttr(name, longName="amount", attributeType="double", parent="items")
         self.node.addAttr("empty", at="double", multi=True)
         cmds.setAttr(name + ".items[7].amount", 2)
         undo_name = cmds.undoInfo(query=True, undoName=True)
         with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):
-            self.assertEqual(self.node.userAttributeNames(), ["items", "empty"])
-            roots = self.node.getExtraAttributes()
+            self.assertEqual(self.node.getExtraAttrNames(), ["items", "empty"])
+            roots = self.node.getExtraAttrs()
             self.assertTrue(all(isinstance(p, hlib.plugs.ArrayPlug) for p in roots))
             # 番号なしの複合配列の子は、通常のNode.plugと同じく公開Plugにできない。
             with self.assertRaises(RuntimeError):
-                self.node.getExtraAttributes(include_children=True)
+                self.node.getExtraAttrs(include_children=True)
         self.assertEqual(cmds.getAttr(name + ".items", multiIndices=True), [7])
         self.assertIsNone(cmds.getAttr(name + ".empty", multiIndices=True))
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
 
     def test_nested_compound_order(self):
         """入れ子の複合定義でもMayaの列挙順と型を保持する。"""
-        name = self.node.fullName()
+        name = self.node.getFullName()
         cmds.addAttr(name, longName="outer", attributeType="compound", numberOfChildren=2)
         cmds.addAttr(name, longName="inner", attributeType="double3", parent="outer")
         for axis in "XYZ":
             cmds.addAttr(name, longName="inner" + axis, attributeType="double", parent="inner")
         cmds.addAttr(name, longName="enabled", attributeType="bool", parent="outer")
-        expected = [self.node.plug(p) for p in cmds.listAttr(name, userDefined=True)]
-        self.assertEqual(self.node.getExtraAttributes(True), expected)
-        self.assertEqual(self.node.userAttributeNames(), ["outer"])
+        expected = [self.node.getPlug(p) for p in cmds.listAttr(name, userDefined=True)]
+        self.assertEqual(self.node.getExtraAttrs(True), expected)
+        self.assertEqual(self.node.getExtraAttrNames(), ["outer"])
 
     def test_invalid_node_and_include_children(self):
         """無効入力をAPIに渡す前に拒否する。"""
         with self.assertRaises(TypeError):
-            self.node.getExtraAttributes(include_children=1)
+            self.node.getExtraAttrs(include_children=1)
         deleted = hlib.createNode("network")
-        cmds.delete(deleted.fullName())
-        for method in (deleted.userAttributeNames, deleted.getExtraAttributes):
+        cmds.delete(deleted.getFullName())
+        for method in (deleted.getExtraAttrNames, deleted.getExtraAttrs):
             with self.assertRaises(RuntimeError):
                 method()
 

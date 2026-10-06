@@ -5,7 +5,7 @@ class MainWindow:
     """Maya標準UIの名前を照会する。ウィジェットへの変換は利用側で行う。"""
 
     @staticmethod
-    def name():
+    def getName():
         """Mayaメニューの親に指定するメインウィンドウ名を取得する。
 
         Returns:

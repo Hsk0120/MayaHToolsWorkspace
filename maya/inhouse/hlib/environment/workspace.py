@@ -13,7 +13,7 @@ class Workspace:
     """
 
     @staticmethod
-    def root():
+    def getRoot():
         """現在のワークスペースのルートディレクトリを取得する。
 
         Returns:
@@ -69,7 +69,7 @@ class Workspace:
         cmds.workspace(fileRule=(name, str(path)))
 
     @staticmethod
-    def ruleNames():
+    def getRuleNames():
         """定義済みのファイルルール名の一覧を取得する。
 
         Returns:
@@ -96,7 +96,7 @@ class Workspace:
         return Path(cmds.workspace(expandName=name))
 
     @staticmethod
-    def pathFor(rule_name, filename=""):
+    def getPathFor(rule_name, filename=""):
         """指定したファイルルールのディレクトリを絶対パスで取得する。
 
         Args:
@@ -107,5 +107,5 @@ class Workspace:
             Path: 絶対パス。
         """
         relative = Workspace.getRule(rule_name)
-        base = Workspace.root() / relative if relative else Workspace.root()
+        base = Workspace.getRoot() / relative if relative else Workspace.getRoot()
         return base / filename if filename else base

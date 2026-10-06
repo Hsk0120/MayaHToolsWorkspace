@@ -4,6 +4,7 @@ import math
 
 import maya.cmds as cmds
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -14,27 +15,30 @@ from .node import Node
 class BlendColors(Node):
     """color1 * blender + color2 * (1 - blender)を評価するノード。"""
 
-    def colorPlug(self, index):
+    @flag_aliases(idx="index")
+    def getColorPlug(self, index):
         """入力色のPlugを取得する。
 
         Args:
-            index (int): Mayaアトリビュート名に対応する1または2。
+            index (int): Mayaアトリビュート名に対応する1または2。 別名 ``idx`` も使用可能。
         Returns:
             CompoundPlug: RGB入力。get()で値を取得できる。
         """
-        return self.plug(f"color{self._index(index)}")
+        return self.getPlug(f"color{self._index(index)}")
 
+    @flag_aliases(idx="index")
     def getColor(self, index):
         """指定した入力の RGB 値を取得する。
 
         Args:
-            index (int): 入力番号。colorPlug() の番号規約に従う。
+            index (int): 入力番号。getColorPlug() の番号規約に従う。 別名 ``idx`` も使用可能。
 
         Returns:
             tuple[float, float, float]: 計算用 RGB。表示色 Color へは変換しない。
         """
-        return tuple(self.colorPlug(index).get())
+        return tuple(self.getColorPlug(index).get())
 
+    @flag_aliases(idx="index")
     @fast_edit
     @undoChunk("hlibBlendColorsSetColor")
     def setColor(self, index, value, *, fast=False):
@@ -42,7 +46,7 @@ class BlendColors(Node):
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            index (int): 1または2。
+            index (int): 1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): RGB順の有限な3要素。0～1には制限しない。
         Returns:
             BlendColors: 自身。
@@ -53,34 +57,35 @@ class BlendColors(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        target = self.colorPlug(index)
+        target = self.getColorPlug(index)
         values = tuple(float(v) for v in value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Color must contain three finite values")
         target.set(values)
         return self
 
+    @flag_aliases(idx="index", src="source", f="force")
     @undoChunk("hlibBlendColorsConnectColor")
     def connectColor(self, index, source, force=False):
         """入力色へ接続する。互換性はMayaが判定する。
 
         Args:
-            index (int): 1または2。
-            source (Plug): 接続元の3要素Plug。
-            force (bool): 既存接続を置換するか。
+            index (int): 1または2。 別名 ``idx`` も使用可能。
+            source (Plug): 接続元の3要素Plug。 別名 ``src`` も使用可能。
+            force (bool): 既存接続を置換するか。 別名 ``f`` も使用可能。
         Returns:
             BlendColors: 自身。
         """
-        source.connectTo(self.colorPlug(index), force=force)
+        source.connectTo(self.getColorPlug(index), force=force)
         return self
 
-    def blenderPlug(self):
+    def getBlenderPlug(self):
         """補間係数。0ならcolor2、1ならcolor1。
 
         Returns:
             Plug: 補間係数。0ならcolor2、1ならcolor1。
         """
-        return self.plug("blender")
+        return self.getPlug("blender")
 
     def getBlender(self):
         """補間係数の評価値を取得する。
@@ -88,7 +93,7 @@ class BlendColors(Node):
         Returns:
             float: color2からcolor1への補間係数。
         """
-        return self.blenderPlug().get()
+        return self.getBlenderPlug().get()
 
     @fast_edit
     @undoChunk("hlibBlendColorsSetBlender")
@@ -110,37 +115,38 @@ class BlendColors(Node):
         value = float(value)
         if not math.isfinite(value) or not 0 <= value <= 1:
             raise ValueError("Blender must be a finite value between 0 and 1")
-        self.blenderPlug().set(value)
+        self.getBlenderPlug().set(value)
         return self
 
+    @flag_aliases(src="source", f="force")
     @undoChunk("hlibBlendColorsConnectBlender")
     def connectBlender(self, source, force=False):
         """補間係数に接続する。接続元の値は制限しない。
 
         Args:
-            source (Plug): 接続元の数値Plug。
-            force (bool): 既存接続を置換するか。
+            source (Plug): 接続元の数値Plug。 別名 ``src`` も使用可能。
+            force (bool): 既存接続を置換するか。 別名 ``f`` も使用可能。
         Returns:
             BlendColors: 自身。
         """
-        source.connectTo(self.blenderPlug(), force=force)
+        source.connectTo(self.getBlenderPlug(), force=force)
         return self
 
-    def outputPlug(self):
+    def getOutputPlug(self):
         """RGB出力。別アトリビュートへの接続に使用する。
 
         Returns:
             CompoundPlug: RGB出力。別アトリビュートへの接続に使用する。
         """
-        return self.plug("output")
+        return self.getPlug("output")
 
-    def result(self):
+    def getResult(self):
         """評価済みRGB値。
 
         Returns:
             tuple[float, float, float]: 評価済みRGB値。
         """
-        return tuple(self.outputPlug().get())
+        return tuple(self.getOutputPlug().get())
 
     @staticmethod
     def _index(index):

@@ -41,7 +41,7 @@ def main(output_dir=None, finished=None):
 
     def pose(rig):
         """関節のワールド行列を取得する。"""
-        return [cmds.xform(j, q=True, ws=True, matrix=True) for j in rig.joints()[:3]]
+        return [cmds.xform(j, q=True, ws=True, matrix=True) for j in rig.getJoints()[:3]]
 
     def same(a, b):
         """数値誤差を許容して姿勢を比較する。"""
@@ -58,25 +58,25 @@ def main(output_dir=None, finished=None):
         observed = []
         external = external_owner.add('external', event='SelectionChanged', callback=lambda: None)
         try:
-            first = common_owner.add('setting', attribute=probe.plug('setting'),
+            first = common_owner.add('setting', attribute=probe.getPlug('setting'),
                                      callback=lambda: observed.append(1), kill_with_scene=True)
-            check(first is common_owner.add('setting', attribute=probe.plug('setting'),
+            check(first is common_owner.add('setting', attribute=probe.getPlug('setting'),
                                             callback=lambda: None), 'Common jobs deduplicate by key')
-            probe.plug('setting').set(1)
+            probe.getPlug('setting').set(1)
             yield
             check(len(observed) == 1, 'Common attribute job executes on GUI idle')
             probe.rename('renamedEventProbe')
-            probe.plug('setting').set(2)
+            probe.getPlug('setting').set(2)
             yield
             check(len(observed) == 2, 'Common attribute job survives rename')
             import importlib
             importlib.reload(hlib.ui)
             check(first.exists(), 'Common job ownership survives library reload')
             common_owner.stop()
-            probe.plug('setting').set(3)
+            probe.getPlug('setting').set(3)
             yield
             check(len(observed) == 2 and external.exists(), 'Stopping owner preserves unrelated jobs')
-            common_owner.add('setting', attribute=probe.plug('setting'),
+            common_owner.add('setting', attribute=probe.getPlug('setting'),
                              callback=lambda: None, kill_with_scene=True)
             cmds.file(new=True, force=True)
             yield
@@ -99,17 +99,17 @@ def main(output_dir=None, finished=None):
         cmds.flushUndo()
         cmds.setAttr(target+'.space', 1)
         yield
-        check(rig.space_switch('ik').current() == 'world', 'IK channel switches to World')
+        check(rig.space_switch('ik').getCurrent() == 'world', 'IK channel switches to World')
         check(same([target_pose], [cmds.xform(target,q=True,ws=True,matrix=True)]), 'World switch preserves pose')
         cmds.undo()
         yield
-        check(rig.space_switch('ik').current() == 'local' and cmds.getAttr(target+'.space') == 0, 'Space switch single Undo')
+        check(rig.space_switch('ik').getCurrent() == 'local' and cmds.getAttr(target+'.space') == 0, 'Space switch single Undo')
         cmds.redo()
         yield
-        check(rig.space_switch('ik').current() == 'world' and cmds.getAttr(target+'.space') == 1, 'Space switch single Redo')
+        check(rig.space_switch('ik').getCurrent() == 'world' and cmds.getAttr(target+'.space') == 1, 'Space switch single Redo')
         cmds.setAttr(pole+'.space', 2)
         yield
-        check(rig.space_switch('pole').current() == 'foot', 'Pole channel switches to Foot')
+        check(rig.space_switch('pole').getCurrent() == 'foot', 'Pole channel switches to Foot')
         pole_before = cmds.xform(pole,q=True,ws=True,t=True)
         cmds.setAttr(target+'.ty', 1)
         yield
@@ -182,10 +182,10 @@ def main(output_dir=None, finished=None):
         check(not rig.layer_enabled('helper'), 'Saved layer preference restored')
         check(len(rig.bend_joints()) == 3 and cmds.getAttr(rig._member('channel_bend')+'.active'), 'Bend survives scene reload')
         check(len(rig.twist_joints()) == 6 and cmds.getAttr(rig._member('channel_twist')+'.active'), 'Twist survives scene reload')
-        check(rig.space_switch('ik').current() == 'world' and rig.space_switch('pole').current() == 'foot', 'Saved spaces restored')
+        check(rig.space_switch('ik').getCurrent() == 'world' and rig.space_switch('pole').getCurrent() == 'foot', 'Saved spaces restored')
         cmds.setAttr(rig.controls()['target']+'.space',0)
         yield
-        check(rig.space_switch('ik').current() == 'local','Saved scene reattaches space jobs')
+        check(rig.space_switch('ik').getCurrent() == 'local','Saved scene reattaches space jobs')
         cmds.setAttr(module+'.mode',0)
         yield
         check(rig.mode() == 'fk', 'Saved scene automatically reattaches jobs')
@@ -210,7 +210,7 @@ def main(output_dir=None, finished=None):
         check(rig.mode() == 'ik','Explicit switch without matching')
         editors = [cmds.outlinerPanel(panel,q=True,outlinerEditor=True)
                    for panel in cmds.getPanel(type='outlinerPanel')]
-        cmds.select(rig.root.fullName())
+        cmds.select(rig.root.getFullName())
         yield
         for editor in editors:
             cmds.outlinerEditor(editor,e=True,expandAllSelectedItems=True)

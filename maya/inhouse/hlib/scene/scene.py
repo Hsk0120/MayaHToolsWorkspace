@@ -4,6 +4,8 @@ from pathlib import Path
 
 import maya.cmds as cmds
 
+from .._core.flags import flag_aliases
+
 
 class Scene:
     """取得時のシーンパスを保持するオブジェクト。生成だけではシーンを開かない。"""
@@ -79,7 +81,7 @@ class Scene:
         self._require_current()
         return bool(cmds.file(query=True, modified=True))
 
-    def fileType(self):
+    def getFileType(self):
         """現在のシーンは Maya に照会し、それ以外は保持パスの拡張子から形式を返す。
 
         Returns:
@@ -90,11 +92,12 @@ class Scene:
         file_types = cmds.file(query=True, type=True) or []
         return file_types[0] if file_types else None
 
+    @flag_aliases(f="force")
     def new(self, force=False, prompt=True):
         """新規シーンを作成する。
 
         Args:
-            force (bool): ``True`` の場合は未保存変更を破棄する。
+            force (bool): ``True`` の場合は未保存変更を破棄する。 別名 ``f`` も使用可能。
             prompt (bool): ``True`` の場合はMayaの確認を許可する。
 
         Returns:
@@ -104,12 +107,13 @@ class Scene:
         self._path = self._current_path()
         return self
 
+    @flag_aliases(f="force")
     def open(self, path=None, force=False, prompt=True, ignore_version=False):
         """指定したMayaシーンを開く。
 
         Args:
             path (str | Path | None): 開くパス。省略時は保持しているパス。
-            force (bool): ``True`` の場合は未保存変更を破棄する。
+            force (bool): ``True`` の場合は未保存変更を破棄する。 別名 ``f`` も使用可能。
             prompt (bool): ``True`` の場合はMayaの確認を許可する。
             ignore_version (bool): ``True`` の場合はMayaバージョン確認を無視する。
 
@@ -131,11 +135,12 @@ class Scene:
         self._path = self._current_path()
         return self
 
+    @flag_aliases(f="force")
     def save(self, force=False, fileType=None):
         """現在のシーンを保存する。
 
         Args:
-            force (bool): ``True`` の場合は既存ファイルを上書きする。
+            force (bool): ``True`` の場合は既存ファイルを上書きする。 別名 ``f`` も使用可能。
             fileType (str | None): Mayaのファイル形式。省略時は現在の形式を使う。
 
         Returns:
@@ -153,6 +158,7 @@ class Scene:
         cmds.file(**kwargs)
         return self
 
+    @flag_aliases(f="force")
     def saveAs(self, path, force=False, fileType=None):
         """指定したパスへ現在のシーンを保存する。
 
@@ -160,7 +166,7 @@ class Scene:
 
         Args:
             path (str | Path): 保存先のシーンファイルパス。
-            force (bool): ``True`` の場合は既存ファイルを上書きする。
+            force (bool): ``True`` の場合は既存ファイルを上書きする。 別名 ``f`` も使用可能。
             fileType (str | None): Mayaのファイル形式。省略時は拡張子から推測する。
 
         Returns:

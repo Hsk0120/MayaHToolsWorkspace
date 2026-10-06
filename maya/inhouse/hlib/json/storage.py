@@ -21,7 +21,7 @@ def dumps(data, metadata=None, indent=2):
         TypeError: 未対応型・文字列以外の辞書キー等の場合。
         ValueError: 非有限値等の場合。"""
     document = data if isinstance(data, JsonDocument) else JsonDocument(data, metadata or {})
-    return _json.dumps(document.toData(), ensure_ascii=False, allow_nan=False, indent=indent)
+    return _json.dumps(document.asData(), ensure_ascii=False, allow_nan=False, indent=indent)
 
 
 def _pairs(pairs):

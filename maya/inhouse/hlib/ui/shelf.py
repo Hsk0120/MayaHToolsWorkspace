@@ -22,7 +22,7 @@ class Shelf:
         if cmds.about(batch=True):
             raise RuntimeError("Shelf requires Maya GUI")
         self._name = name or cmds.shelfTabLayout(self._top(), query=True, selectTab=True)
-        self.name()
+        self.getName()
 
     def __str__(self):
         """保持したUI名を返す。
@@ -70,7 +70,7 @@ class Shelf:
         """
         return bool(self._name and cmds.shelfLayout(self._name, exists=True))
 
-    def name(self):
+    def getName(self):
         """存在を確認したUI名。削除済みはRuntimeError。
 
         Returns:
@@ -82,17 +82,17 @@ class Shelf:
 
     def select(self):
         """自身のタブを選択し、標準シェルフの内容をロードする。"""
-        cmds.shelfTabLayout(self._top(), edit=True, selectTab=self.name())
+        cmds.shelfTabLayout(self._top(), edit=True, selectTab=self.getName())
         self._load()
 
-    def buttons(self):
+    def getButtons(self):
         """ボタンを表示順で取得する。区切り線等は除外する。
 
         Returns:
             list[ShelfButton]: ボタンを表示順で取得する。区切り線等は除外する。
         """
         self._load()
-        parent = self.name()
+        parent = self.getName()
         result = []
         for child in cmds.shelfLayout(parent, query=True, childArray=True) or []:
             path = child if "|" in child else parent + "|" + child
@@ -115,13 +115,13 @@ class Shelf:
         """
         ShelfButton._validate_command(command, language)
         self._load()
-        return ShelfButton(cmds.shelfButton(parent=self.name(), label=label,
+        return ShelfButton(cmds.shelfButton(parent=self.getName(), label=label,
                            command=command, sourceType=language, image1=str(icon), annotation=annotation))
 
     def clear(self):
         """内容をロード後、ボタンや区切り線をすべて削除する。タブは残す。Undo対象外。"""
         self._load()
-        parent = self.name()
+        parent = self.getName()
         for child in cmds.shelfLayout(parent, query=True, childArray=True) or []:
             cmds.deleteUI(child if "|" in child else parent + "|" + child)
 
@@ -139,12 +139,12 @@ class Shelf:
             RuntimeError: Mayaが保存に失敗した場合。
         """
         self._load()
-        target = Path(path) if path is not None else Path(cmds.internalVar(userShelfDir=True)) / ("shelf_" + self.name().split("|")[-1] + ".mel")
+        target = Path(path) if path is not None else Path(cmds.internalVar(userShelfDir=True)) / ("shelf_" + self.getName().split("|")[-1] + ".mel")
         target = target.expanduser().resolve()
         if target.suffix.lower() != ".mel" or not target.parent.is_dir():
             raise ValueError("Expected a .mel path in an existing directory")
         # saveShelfは拡張子なしの保存名を受け付け、.melを付けて書き出す。
-        if not cmds.saveShelf(self.name(), str(target.with_suffix("")).replace("\\", "/")):
+        if not cmds.saveShelf(self.getName(), str(target.with_suffix("")).replace("\\", "/")):
             raise RuntimeError("Failed to save shelf: " + str(target))
         return target
 
@@ -164,7 +164,7 @@ class Shelf:
 
     def _load(self):
         """標準タブの遅延ロードを完了させ、未ロード内容の上書きを防ぐ。"""
-        name = self.name().split("|")[-1]
+        name = self.getName().split("|")[-1]
         old_parent = cmds.setParent(query=True)
         try:
             mel.eval('loadNamedShelf(' + json.dumps(name) + ');')

@@ -13,10 +13,10 @@
 
    pose = hlib.getNode("bindPose1")
    print(pose.isBindPose())
-   print(pose.members())          # 保存されているTransform・Joint
-   print(pose.skinClusters())    # bindPoseとして参照するSkinCluster
+   print(pose.getMembers())          # 保存されているTransform・Joint
+   print(pose.getSkinClusters())    # bindPoseとして参照するSkinCluster
    print(pose.isAtPose())
-   print(pose.notAtPose())      # 保存姿勢と異なるメンバー
+   print(pose.getNotAtPose())      # 保存姿勢と異なるメンバー
 
 skinClusterから接続先を取得する場合は、次のように指定します。
 未接続なら ``None`` を返します。
@@ -24,7 +24,7 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 .. code-block:: python
 
    skin = hlib.getNode("skinCluster1")
-   pose = skin.bindPose()
+   pose = skin.getBindPose()
    if pose is not None:
        skin.restoreBindPose()   # 既定ではワールド姿勢を復元
 
@@ -61,8 +61,8 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
    local_matrix = pose.getMatrix("root_joint")
    world_matrix = pose.getMatrix("root_joint", ws=True)
-   indices = pose.memberIndices()
-   index = pose.memberIndex("root_joint")
+   indices = pose.getMemberIndices()
+   index = pose.getMemberIndex("root_joint")
 
    pose.addMembers("extra_joint")        # 現在の姿勢で追加
    pose.reset("extra_joint")      # このメンバーの保存姿勢を現在の姿勢に更新
@@ -71,7 +71,7 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
 ``getMatrix()`` が返すのは保存時の :class:`~hlib.maths.matrix.Matrix` の複製です
 (om2.MMatrix の派生で、変更してもポーズには反映されません)。
-配列の論理番号は欠番を含むため、``members()`` のリスト位置とは区別してください。
+配列の論理番号は欠番を含むため、``getMembers()`` のリスト位置とは区別してください。
 ``remove()`` で指定したノードが残るメンバーの親として必要な場合は、Mayaが保持することがあります。
 
 ``restore()`` はノードを保存姿勢へ戻し、``reset()`` は保存内容を更新します。

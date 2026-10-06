@@ -11,10 +11,10 @@
    from hrig.setups import BendCorrection
 
    graph = BendCorrection.create("upper_jnt", "elbow_jnt", axis="z")
-   graph.container.plug("rotationRatio").set(0.5)
-   graph.container.plug("referenceAngle").set(90)  # 常に度
-   graph.container.plug("innerPush").set(-0.2)
-   graph.container.plug("outerPush").set(-0.3)
+   graph.container.getPlug("rotationRatio").set(0.5)
+   graph.container.getPlug("referenceAngle").set(90)  # 常に度
+   graph.container.getPlug("innerPush").set(-0.2)
+   graph.container.getPlug("outerPush").set(-0.3)
 
 ``matrix`` 出力は、生成時の基準回転から現在の回転へ指定割合で補間します。
 位置は現在の関節位置へ100%追従します。直接の親子なので、ワールド行列を介さず

@@ -19,7 +19,7 @@ class ShadingEngine(ObjectSet):
         Returns:
             Plug | None: 接続元の出力Plug。未接続ならNone。
         """
-        return self.plug(self._shader_attribute(kind)).sourceWithConversion()
+        return self.getPlug(self._shader_attribute(kind)).getSourceWithConversion()
 
     def getShader(self, kind="surface"):
         """接続元のシェーダーノードを取得する。
@@ -30,7 +30,7 @@ class ShadingEngine(ObjectSet):
             Node | None: 型付きノード。未接続ならNone。
         """
         plug = self.getShaderPlug(kind)
-        return None if plug is None else plug.node()
+        return None if plug is None else plug.getNode()
 
     @undoChunk("hlibShadingEngineSetShader")
     def setShader(self, shader, kind="surface", output=None):
@@ -49,11 +49,11 @@ class ShadingEngine(ObjectSet):
         from ..nodes.node import Node as _InputNode
         from ..plugs.plug import Plug as _InputPlug
         from ..plugs import Plug
-        target = self.plug(self._shader_attribute(kind))
+        target = self.getPlug(self._shader_attribute(kind))
         if isinstance(shader, Plug) or isinstance(shader, str) and "." in shader:
             source = _InputPlug._resolve_input(shader)
         else:
-            source = _InputNode._resolve_input(shader).plug(output or ("displacement" if kind == "displacement" else "outColor"))
+            source = _InputNode._resolve_input(shader).getPlug(output or ("displacement" if kind == "displacement" else "outColor"))
         source.connectTo(target, force=True)
         return self
 
@@ -71,24 +71,24 @@ class ShadingEngine(ObjectSet):
         from ..object import Object as _InputObject
         names = _InputObject._input_names(targets)
         if names:
-            cmds.sets(names, edit=True, forceElement=self.fullName())
+            cmds.sets(names, edit=True, forceElement=self.getFullName())
         return self
 
-    def members(self):
+    def getMembers(self):
         """割り当て先を型付き参照で取得する。
 
         Returns:
             list[Node | Face]: オブジェクトまたは単体フェース。インスタンスパスを保持する。
         """
         from .node import Node
-        names = cmds.sets(self.fullName(), query=True) or []
+        names = cmds.sets(self.getFullName(), query=True) or []
         result = []
         for name in cmds.ls(names, long=True, flatten=True) or []:
             if ".f[" in name:
                 path, index = name.rsplit(".f[", 1)
                 mesh = Node(path)
                 if not mesh.isType("mesh"):
-                    mesh = mesh.shape()
+                    mesh = mesh.getShape()
                 result.append(mesh.face(int(index[:-1])))
             else:
                 result.append(Node(name))

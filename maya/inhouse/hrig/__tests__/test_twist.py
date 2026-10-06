@@ -24,7 +24,7 @@ class TwistTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.rig = build_limb()
-        self.start, self.end = self.rig.joints()[:2]
+        self.start, self.end = self.rig.getJoints()[:2]
 
     def relative(self, node, parent):
         """親空間の実評価行列を取得する。
@@ -64,7 +64,7 @@ class TwistTest(unittest.TestCase):
                 matrix = self.relative(joint, self.start)
                 self.assertAlmostEqual(matrix[12], 5 * fraction, places=5)
                 self.assertAlmostEqual(self.angle(matrix), angle * fraction, delta=0.002)
-        self.assertEqual(len(self.rig.joints()), 7)
+        self.assertEqual(len(self.rig.getJoints()), 7)
 
     def test_swing_is_not_distributed_as_twist(self):
         """複合回転から軸成分だけを抽出し、曲げを補助骨へ混ぜない。"""
@@ -97,7 +97,7 @@ class TwistTest(unittest.TestCase):
             cmds.file(save=True, type="mayaAscii")
             cmds.file(file, open=True, force=True)
         rig = LimbRig("limb")
-        cmds.rename(rig.joints()[1], "renamedEnd")
+        cmds.rename(rig.getJoints()[1], "renamedEnd")
         rig.set_twist_count("upper", 2)
         self.assertEqual(len(rig.twist_joints()), 2)
         rig.set_twist_count("upper", 0)

@@ -27,10 +27,10 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
    import hlib
 
    node = hlib.createNode("transform", name="hlibExample")
-   node.plug("visibility").set(False)
+   node.getPlug("visibility").set(False)
 
-   print(node.name())
-   print(node.plug("visibility").get())
+   print(node.getName())
+   print(node.getPlug("visibility").get())
    print(hlib.ls(type="transform"))
 
 この例では、アトリビュート変更とノード作成は別々のUndoになります。
@@ -43,10 +43,10 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 ``type="joint"`` と ``type="skinCluster"`` は、それぞれ ``Joints`` と
 ``SkinClusters`` コレクションを返します。
 
-ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.plug` で取得した
+ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.getPlug` で取得した
 :class:`~hlib.plugs.plug.Plug` オブジェクトを通して操作します。
-本ドキュメントの使用例は ``plug()`` に統一しています。
-アトリビュート取得は ``plug()`` に統一しています。
+本ドキュメントの使用例は ``getPlug()`` に統一しています。
+アトリビュート取得は ``getPlug()`` に統一しています。
 
 対象の種類を判別して取得する
 ----------------------------
@@ -68,7 +68,7 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 数学型、複数形コレクション、UI、保存データは継承しません。
 要素範囲は ``Object`` ではなく ``hlib.scene.Selection("pCube1.vtx[0:3]")`` で取得します。
 アトリビュートとコンポーネントの名前が重なる場合はMayaの選択解決に従います。
-アトリビュートとして明示する場合は ``node.plug()`` または ``hlib.getPlug()`` を使います。
+アトリビュートとして明示する場合は ``node.getPlug()`` または ``hlib.getPlug()`` を使います。
 対象の種類が決まっている既存コードでは ``hlib.getNode()``・``hlib.getPlug()`` をそのまま使えます。
 
 クラスを直接importして使う

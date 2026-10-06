@@ -45,7 +45,7 @@ def _plug(value):
         result = _InputPlug._resolve_input(value)
     else:
         raise TypeError("Expected a Plug, MPlug or node.attribute string")
-    if not result.isValid() or not cmds.objExists(result.fullName()):
+    if not result.isValid() or not cmds.objExists(result.getFullName()):
         raise RuntimeError("Cannot access an invalid plug")
     if result.mplug().isArray or result.mplug().isCompound:
         raise ValueError("Expected a scalar plug, not an array or compound")
@@ -58,7 +58,7 @@ def _contains_plug(plugs, mplug):
     """同じプラグ(所有ノード・アトリビュート・配列インデックスが一致)が含まれるか判定する。
 
     インスタンス化されたシェイプのアトリビュートは、どのインスタンスのパスから取得しても同じ
-    プラグになる。名前(インスタンスのパスを含む ``fullName()``)では比較しない。
+    プラグになる。名前(インスタンスのパスを含む ``getFullName()``)では比較しない。
 
     Args:
         plugs (Iterable[om2.MPlug]): 比較対象のプラグ。
@@ -111,7 +111,7 @@ def _curves(driven, strict=False):
             elif strict:
                 raise RuntimeError(f"Unsupported driven-key connection: {source}")
 
-    visit(driven.fullName())
+    visit(driven.getFullName())
     return found
 
 
@@ -143,7 +143,7 @@ class DrivenKey:
         Returns:
             str: ドライバーと駆動先のアトリビュート名を含む表示。
         """
-        return f"DrivenKey({self.driverPlug().fullName()!r}, {self.drivenPlug().fullName()!r})"
+        return f"DrivenKey({self.getDriverPlug().getFullName()!r}, {self.getDrivenPlug().getFullName()!r})"
 
     @classmethod
     def find(cls, driven):
@@ -163,7 +163,7 @@ class DrivenKey:
         target = _plug(driven)
         items, seen = [], []
         for curve in _curves(target):
-            for source in _sources(curve.fullName() + ".input"):
+            for source in _sources(curve.getFullName() + ".input"):
                 try:
                     driver = _plug(source)
                 except ValueError:
@@ -173,7 +173,7 @@ class DrivenKey:
                     items.append(cls(driver, target))
         return items
 
-    def driverPlug(self):
+    def getDriverPlug(self):
         """ドライバー。削除済みの場合は例外。
 
         Returns:
@@ -181,7 +181,7 @@ class DrivenKey:
         """
         return _plug(self._driver)
 
-    def drivenPlug(self):
+    def getDrivenPlug(self):
         """駆動先。削除済みの場合は例外。
 
         Returns:
@@ -189,7 +189,7 @@ class DrivenKey:
         """
         return _plug(self._driven)
 
-    def curves(self):
+    def getCurves(self):
         """list[AnimCurve]: この組に対応するカーブ。未作成・対象外の構成なら空。
 
         接続を毎回照会し、他ドライバーのカーブやblendWeightedのweight入力は含めない。
@@ -197,12 +197,12 @@ class DrivenKey:
         アトリビュートをどのインスタンスのパスから指定しても同じ関係として扱う。
         """
         from ..plugs.plug import Plug as _InputPlug
-        driver = self.driverPlug().mplug()
+        driver = self.getDriverPlug().mplug()
         return [
             curve
-            for curve in _curves(self.drivenPlug())
+            for curve in _curves(self.getDrivenPlug())
             if _contains_plug(
-                (_InputPlug._resolve_input(source).mplug() for source in _sources(curve.fullName() + ".input")),
+                (_InputPlug._resolve_input(source).mplug() for source in _sources(curve.getFullName() + ".input")),
                 driver,
             )
         ]
@@ -213,7 +213,7 @@ class DrivenKey:
         Returns:
             bool: 対応するカーブ接続が存在するか。キーが空でもTrue。
         """
-        return bool(self.curves())
+        return bool(self.getCurves())
 
     @undoChunk("hlibDrivenKeySetKey")
     def setKey(self, driver_value, value, inTangentType="linear", outTangentType="linear"):
@@ -237,13 +237,13 @@ class DrivenKey:
         x, y = float(driver_value), float(value)
         if not math.isfinite(x) or not math.isfinite(y):
             raise ValueError("Expected finite key values")
-        driver, driven = self.driverPlug(), self.drivenPlug()
+        driver, driven = self.getDriverPlug(), self.getDrivenPlug()
         _curves(driven, strict=True)
-        if len(self.curves()) > 1:
+        if len(self.getCurves()) > 1:
             raise RuntimeError("Multiple curves match this driver/driven pair")
         count = cmds.setDrivenKeyframe(
-            driven.fullName(),
-            currentDriver=driver.fullName(),
+            driven.getFullName(),
+            currentDriver=driver.getFullName(),
             driverValue=convert(driver.mplug(), x),
             value=convert(driven.mplug(), y),
             inTangentType=inTangentType,
@@ -253,5 +253,5 @@ class DrivenKey:
         if not count:
             raise RuntimeError("Maya did not set a driven key")
         # 現在値と異なる位置のキー更新後も、駆動先が古い評価値を保持しないようにする。
-        cmds.dgdirty([curve.fullName() for curve in self.curves()])
+        cmds.dgdirty([curve.getFullName() for curve in self.getCurves()])
         return self

@@ -2,8 +2,8 @@
 
 import maya.api.OpenMaya as om2
 
-from ..decorators._safe import safe_edit
 from ..decorators._fast import fast_edit
+from ..decorators._safe import safe_edit
 from ..decorators.undo import undoChunk
 from .plug import Plug
 
@@ -35,6 +35,45 @@ class CompoundPlug(Plug):
             return self[name]
         except (AttributeError, TypeError, RuntimeError) as error:
             raise AttributeError(f"No plug member named {name!r}") from error
+
+    def __getitem__(self, name_or_index):
+        """子 Plug を取得する。
+
+        整数は定義順の子番号。負数・範囲外はIndexError。
+
+        Args:
+            name_or_index (str | int): 子のロング名、ショート名、または子インデックス。
+
+        Returns:
+            Plug: 子プラグ。
+
+        Raises:
+            AttributeError: 名前に一致する子アトリビュートがない場合。
+            IndexError: 整数番号が子の範囲外の場合。
+            TypeError: 整数または文字列以外を指定した場合。boolも拒否する。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        if isinstance(name_or_index, bool) or not isinstance(name_or_index, (int, str)):
+            raise TypeError("Child index must be an integer or attribute name")
+        if isinstance(name_or_index, int):
+            if not 0 <= name_or_index < self._mplug.numChildren():
+                raise IndexError("Child index out of range")
+            return self._child_at(name_or_index)
+        for index in range(self._mplug.numChildren()):
+            child = self._mplug.child(index)
+            attribute = om2.MFnAttribute(child.attribute())
+            if name_or_index in (attribute.name, attribute.shortName):
+                return Plug(self._node, child)
+        raise AttributeError(f"No child named {name_or_index!r} on {self.getFullName()}")
+
+    def __iter__(self):
+        """子を定義順で反復する。
+
+        Returns:
+            Iterator[Plug]: 子を定義順で反復する。
+        """
+        return iter(self.getChildren())
 
     def get(self):
         """子プラグの値を集めた tuple を返す。
@@ -77,7 +116,7 @@ class CompoundPlug(Plug):
         values = tuple(value)
         if len(values) != self._mplug.numChildren():
             raise ValueError("Compound plug value length does not match its child count")
-        if self.dataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
+        if self.getDataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
             self._require_writable()
             Plug.set(self, values)
         else:
@@ -85,46 +124,7 @@ class CompoundPlug(Plug):
                 self._child_at(index).set(child_value)
         return self
 
-    def __getitem__(self, name_or_index):
-        """子 Plug を取得する。
-
-        整数は定義順の子番号。負数・範囲外はIndexError。
-
-        Args:
-            name_or_index (str | int): 子のロング名、ショート名、または子インデックス。
-
-        Returns:
-            Plug: 子プラグ。
-
-        Raises:
-            AttributeError: 名前に一致する子アトリビュートがない場合。
-            IndexError: 整数番号が子の範囲外の場合。
-            TypeError: 整数または文字列以外を指定した場合。boolも拒否する。
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
-        """
-        self._require_valid()
-        if isinstance(name_or_index, bool) or not isinstance(name_or_index, (int, str)):
-            raise TypeError("Child index must be an integer or attribute name")
-        if isinstance(name_or_index, int):
-            if not 0 <= name_or_index < self._mplug.numChildren():
-                raise IndexError("Child index out of range")
-            return self._child_at(name_or_index)
-        for index in range(self._mplug.numChildren()):
-            child = self._mplug.child(index)
-            attribute = om2.MFnAttribute(child.attribute())
-            if name_or_index in (attribute.name, attribute.shortName):
-                return Plug(self._node, child)
-        raise AttributeError(f"No child named {name_or_index!r} on {self.fullName()}")
-
-    def __iter__(self):
-        """子を定義順で反復する。
-
-        Returns:
-            Iterator[Plug]: 子を定義順で反復する。
-        """
-        return iter(self.children())
-
-    def children(self):
+    def getChildren(self):
         """直接の子 Plug をすべて取得する。
 
         Returns:

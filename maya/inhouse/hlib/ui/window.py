@@ -22,7 +22,7 @@ class Window(_WindowReference):
 
     def show(self):
         """ウィンドウを表示する。"""
-        cmds.showWindow(self.name())
+        cmds.showWindow(self.getName())
 
     def getSize(self):
         """枠を除く幅・高さをピクセルで取得する。
@@ -30,7 +30,7 @@ class Window(_WindowReference):
         Returns:
             tuple[int, int]: 枠を除く幅・高さをピクセルで取得する。
         """
-        return tuple(cmds.window(self.name(), query=True, widthHeight=True))
+        return tuple(cmds.window(self.getName(), query=True, widthHeight=True))
 
     def setSize(self, width, height):
         """ウィンドウの幅・高さを変更する。
@@ -40,7 +40,7 @@ class Window(_WindowReference):
             height (int): 高さ。正数。
         """
         size = self._pair(width, height, positive=True)
-        cmds.window(self.name(), edit=True, widthHeight=size)
+        cmds.window(self.getName(), edit=True, widthHeight=size)
 
     def getPosition(self):
         """左・上の位置(x, y)を取得する。
@@ -48,7 +48,7 @@ class Window(_WindowReference):
         Returns:
             tuple[int, int]: 左・上の位置(x, y)を取得する。
         """
-        top, left = cmds.window(self.name(), query=True, topLeftCorner=True)
+        top, left = cmds.window(self.getName(), query=True, topLeftCorner=True)
         return left, top
 
     def setPosition(self, x, y):
@@ -59,7 +59,7 @@ class Window(_WindowReference):
             y (int): 上端。
         """
         x, y = self._pair(x, y)
-        cmds.window(self.name(), edit=True, topLeftCorner=(y, x))
+        cmds.window(self.getName(), edit=True, topLeftCorner=(y, x))
 
     def getResizable(self):
         """ユーザーがサイズを変更できるか取得する。
@@ -67,7 +67,7 @@ class Window(_WindowReference):
         Returns:
             bool: ユーザーがサイズを変更できるか取得する。
         """
-        return bool(cmds.window(self.name(), query=True, sizeable=True))
+        return bool(cmds.window(self.getName(), query=True, sizeable=True))
 
     def setResizable(self, enabled):
         """サイズ変更を許可する。移動禁止やドッキングロックではない。
@@ -76,7 +76,7 @@ class Window(_WindowReference):
             enabled (bool): サイズ変更を許可するか。
         """
         enabled = self._boolean(enabled)
-        cmds.window(self.name(), edit=True, sizeable=enabled)
+        cmds.window(self.getName(), edit=True, sizeable=enabled)
 
     def capture(self):
         """UiSnapshot: ネイティブwindow状態と表示・サイズ変更許可をメモリへ退避する。
@@ -84,7 +84,7 @@ class Window(_WindowReference):
         同一セッション・同一UIへのrestore用。内容や実行コードは保存しない。
         """
         return self._capture({
-                "state": cmds.window(self.name(), query=True, state=True),
+                "state": cmds.window(self.getName(), query=True, state=True),
                 "visible": self.getVisible(), "resizable": self.getResizable()})
 
     def restore(self, snapshot):
@@ -94,6 +94,6 @@ class Window(_WindowReference):
             snapshot (UiSnapshot): captureの返り値。
         """
         self._validate_snapshot(snapshot, {"state": str, "visible": bool, "resizable": bool})
-        cmds.window(self.name(), edit=True, state=snapshot["state"])
+        cmds.window(self.getName(), edit=True, state=snapshot["state"])
         self.setResizable(snapshot["resizable"])
-        cmds.window(self.name(), edit=True, visible=snapshot["visible"])
+        cmds.window(self.getName(), edit=True, visible=snapshot["visible"])

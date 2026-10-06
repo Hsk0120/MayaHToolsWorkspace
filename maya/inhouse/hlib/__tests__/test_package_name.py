@@ -56,17 +56,17 @@ try:
         cmds.undoInfo(state=True)
         node = core.createNode("transform")
         assert isinstance(node, core.nodes.Node)
-        node.plug("tx").set(3)
+        node.getPlug("tx").set(3)
         cmds.undo()
-        assert node.plug("tx").get() == 0
-        node.plug("translate").set((1, 2, 3), fast=True)
+        assert node.getPlug("tx").get() == 0
+        node.getPlug("translate").set((1, 2, 3), fast=True)
         assert tuple(node.getTranslation()) == (1, 2, 3)
         mesh = core.createPolygon(constructionHistory=False)
         mesh.vertex(0).setPosition((2, 3, 4))
         assert tuple(mesh.vertex(0).getPosition()) == (2, 3, 4)
-        assert isinstance(core.Object(node.fullName()), core.nodes.Node)
+        assert isinstance(core.Object(node.getFullName()), core.nodes.Node)
         saved = core.json.capture(node, kind="pose")
-        document = core.json.JsonDocument(saved).toData()
+        document = core.json.JsonDocument(saved).asData()
         assert document["format"] == "hlib.json"
         assert core.json.JsonDocument.fromData(document).data.plan().errors == []
         old_node_type = core.nodes.Node
@@ -76,7 +76,7 @@ try:
         assert sys.modules[name + "_posedriverconnect"] is not old_extension
         assert issubclass(core.nodes.Node._registry.lookup("UERBFSolverNode"), core.nodes.Node)
         assert core.extensions.status()[name + "_fixture_bad"]["state"] == "error"
-        assert isinstance(core.getNode(node.fullName()), core.nodes.Node)
+        assert isinstance(core.getNode(node.getFullName()), core.nodes.Node)
     assert not any(key == "hlib" or key.startswith(("hlib.", "hlib_")) for key in sys.modules)
     print("RENAMED_PACKAGE_OK")
 finally:

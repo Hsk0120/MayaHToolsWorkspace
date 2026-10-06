@@ -55,12 +55,12 @@ class ApiArgumentsTest(unittest.TestCase):
                     with self.subTest(joint=joint, ws=ws, at=at):
                         self.assertValues(tuple(node.getTranslation(ws=ws, at=at)), tuple(ref.getTranslation(ws=ws, at=at)))
                         values = (6, -2, 8)
-                        before = cmds.getAttr(node.fullName() + ".translate")[0]
+                        before = cmds.getAttr(node.getFullName() + ".translate")[0]
                         expected = ref.setTranslation(values, ws=ws, at=at, get=True)[:3]  # 参照値のMPoint由来w成分は座標比較から除外。
                         self.assertValues(node.setTranslation(values, ws=ws, at=at, get=True), expected)
-                        self.assertEqual(cmds.getAttr(node.fullName() + ".translate")[0], before)
+                        self.assertEqual(cmds.getAttr(node.getFullName() + ".translate")[0], before)
                         node.setTranslation(values, ws=ws, at=at)
-                        self.assertValues(tuple(node.plug("translate").get()), expected)
+                        self.assertValues(tuple(node.getPlug("translate").get()), expected)
                         cmds.undo()
 
     def test_rotation_components(self):
@@ -109,7 +109,7 @@ class ApiArgumentsTest(unittest.TestCase):
     def test_connections(self):
         """接続方向・短縮指定・ロック・配列・Undoを確認する。"""
         a, b, c = [Node(cmds.createNode("transform")) for _ in range(3)]
-        src, dst, out = a.plug("tx"), b.plug("tx"), c.plug("tx")
+        src, dst, out = a.getPlug("tx"), b.getPlug("tx"), c.getPlug("tx")
         self.assertEqual(dst.connect(src, f=True, force=False, l=True), dst)
         self.assertTrue(dst.isLocked())
         with self.assertRaises(RuntimeError):
@@ -118,9 +118,9 @@ class ApiArgumentsTest(unittest.TestCase):
         dst.setFlags(locked=False)
         dst.connectTo(out)
         self.assertEqual(dst.disconnect(), src)
-        self.assertEqual(out.sourceWithConversion(), dst)
+        self.assertEqual(out.getSourceWithConversion(), dst)
         cmds.undo()
-        self.assertEqual(dst.sourceWithConversion(), src)
+        self.assertEqual(dst.getSourceWithConversion(), src)
         multi = b.addAttr("inputs", attributeType="double", multi=True)
         first = multi.connect(src, na=True)
         second = multi.connect(src, nextAvailable=True)
@@ -139,36 +139,36 @@ class ApiArgumentsTest(unittest.TestCase):
         for linear, angle in (("cm", "deg"), ("m", "rad")):
             cmds.currentUnit(linear=linear, angle=angle)
             for name in ("translate", "rotate", "tx", "ry"):
-                self.assertValues(tuple(node.plug(name).getu()) if name in ("translate", "rotate") else (node.plug(name).getu(),),
+                self.assertValues(tuple(node.getPlug(name).getu()) if name in ("translate", "rotate") else (node.getPlug(name).getu(),),
                                   tuple(ref.plug_(name).getu()) if name in ("translate", "rotate") else (ref.plug_(name).getu(),))
-            node.plug("rotate").setu((.1, .2, .3))
-            self.assertValues(node.plug("rotate").getu(), (.1, .2, .3))
-        node.plug("tx").setFlags(locked=True)
-        old = node.plug("tx").get()
-        self.assertEqual(node.plug("translate").set((20, 30, 40), safe=True), 1)
-        self.assertValues(tuple(node.plug("translate").get()), (old, 30, 40))
-        self.assertEqual(node.plug("tx").set(8, True), 1)
-        self.assertEqual(node.plug("ty").set(8, True), 0)
+            node.getPlug("rotate").setu((.1, .2, .3))
+            self.assertValues(node.getPlug("rotate").getu(), (.1, .2, .3))
+        node.getPlug("tx").setFlags(locked=True)
+        old = node.getPlug("tx").get()
+        self.assertEqual(node.getPlug("translate").set((20, 30, 40), safe=True), 1)
+        self.assertValues(tuple(node.getPlug("translate").get()), (old, 30, 40))
+        self.assertEqual(node.getPlug("tx").set(8, True), 1)
+        self.assertEqual(node.getPlug("ty").set(8, True), 0)
 
     def test_attribute_arguments(self):
         """型の自動選択・子名・既定値・戻り値・プロキシを確認する。"""
         node = Node(cmds.createNode("transform"))
         weight = node.addAttr("weight", dv=.5)
-        self.assertEqual(weight, node.plug("weight"))
+        self.assertEqual(weight, node.getPlug("weight"))
         self.assertEqual(weight.get(), .5)
         self.assertIsNone(node.addAttr("noReturn", getPlug=False))
-        self.assertEqual(node.plug("weight").get(), .5)
+        self.assertEqual(node.getPlug("weight").get(), .5)
         text = node.addAttr("label", "string", dv="control")
         self.assertEqual(text.get(), "control")
         vector = node.addAttr("offset", "double3", subType="doubleLinear",
                               childNames=("offsetA", "offsetB", "offsetC"),
                               dv=(1, 2, 3))
         self.assertValues(tuple(vector.get()), (1, 2, 3))
-        self.assertEqual([p.longName() for p in vector.children()], ["offsetA", "offsetB", "offsetC"])
+        self.assertEqual([p.getLongName() for p in vector.getChildren()], ["offsetA", "offsetB", "offsetC"])
         angle = node.addAttr(ln="angle", type="doubleAngle", dv=math.pi / 2)
         self.assertAlmostEqual(angle.getu(), 90)
         proxy = node.addAttr("angleProxy", proxy=angle)
-        self.assertEqual(proxy.sourceWithConversion(), angle)
+        self.assertEqual(proxy.getSourceWithConversion(), angle)
         self.assertAlmostEqual(proxy.get(), angle.get())
         cmds.undo()
         self.assertFalse(node.hasAttr("angleProxy"))
@@ -177,14 +177,14 @@ class ApiArgumentsTest(unittest.TestCase):
         """部分更新も一回のUndoで戻し、get指定はコレクションでも計算値を返す。"""
         from hlib.nodes import Transforms
         node = Node(cmds.createNode("transform"))
-        node.plug("ty").setFlags(locked=True)
-        before = tuple(node.plug("translate").get())
-        self.assertEqual(node.plug("translate").set((1, 2, 3), safe=True), 1)
+        node.getPlug("ty").setFlags(locked=True)
+        before = tuple(node.getPlug("translate").get())
+        self.assertEqual(node.getPlug("translate").set((1, 2, 3), safe=True), 1)
         cmds.undo()
-        self.assertEqual(tuple(node.plug("translate").get()), before)
+        self.assertEqual(tuple(node.getPlug("translate").get()), before)
         values = Transforms([node]).setTranslation((4, 5, 6), False, 1, False, True)
         self.assertEqual(values, [[4, 5, 6]])
-        self.assertEqual(tuple(node.plug("translate").get()), before)
+        self.assertEqual(tuple(node.getPlug("translate").get()), before)
 
 
 if __name__ == "__main__":

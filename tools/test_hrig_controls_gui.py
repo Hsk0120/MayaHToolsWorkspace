@@ -39,7 +39,7 @@ def main(output_dir=None, finished=None):
 
     def row(role):
         """選択モジュールの行を返す。"""
-        uuid = editor.current()[0].root.uuid()
+        uuid = editor.getCurrent()[0].root.getUuid()
         return next(
             i
             for i in editor.rows()
@@ -64,7 +64,7 @@ def main(output_dir=None, finished=None):
         yield
         check(called == ["deferred"], "Deferred callback via hlib")
         item = cmds.menu(
-            "typedCommandTestMenu", label="Typed test", parent=hlib.ui.MainWindow.name()
+            "typedCommandTestMenu", label="Typed test", parent=hlib.ui.MainWindow.getName()
         )
         check(isinstance(item, str) and cmds.menu(item, exists=True), "Native menu reference")
         child = cmds.menuItem(label="Test", parent=item)
@@ -87,15 +87,15 @@ def main(output_dir=None, finished=None):
         editor.module_name.setText("uiHand")
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        finger = editor.current()[0]
+        finger = editor.getCurrent()[0]
         check(isinstance(finger, FingerRig), "Create finger UI")
-        finger.group("layer").plug("curl").set(35)
+        finger.group("layer").getPlug("curl").set(35)
         yield
-        check(abs(finger.members("targets")[0].plug("rz").get() - 35) < 1e-4, "Curl live")
+        check(abs(finger.getMembers("targets")[0].getPlug("rz").get() - 35) < 1e-4, "Curl live")
         row("finger").setCheckState(0, QtCore.Qt.Unchecked)
         yield
         check(
-            abs(finger.members("targets")[0].plug("rz").get()) < 1e-4,
+            abs(finger.getMembers("targets")[0].getPlug("rz").get()) < 1e-4,
             "Layer checkbox disables curl",
         )
         cmds.undo()
@@ -104,13 +104,13 @@ def main(output_dir=None, finished=None):
         cmds.redo()
         yield
         check(not finger.layer_enabled("finger"), "Finger Redo")
-        cmds.setAttr(finger.root.fullName() + ".enabled", True)
+        cmds.setAttr(finger.root.getFullName() + ".enabled", True)
         for _ in range(20):
             yield
-            if finger.members("targets")[0].plug("rx").sourceWithConversion() is not None:
+            if finger.getMembers("targets")[0].getPlug("rx").getSourceWithConversion() is not None:
                 break
         check(
-            abs(finger.members("targets")[0].plug("rz").get() - 35) < 1e-4,
+            abs(finger.getMembers("targets")[0].getPlug("rz").get() - 35) < 1e-4,
             "Channel Box restores curl",
         )
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("tweak"))
@@ -119,34 +119,34 @@ def main(output_dir=None, finished=None):
         tweaks = TweakLayer(finger)
         check(len(tweaks.groups()) == 1, "Tweak added through UI")
         group = next(iter(tweaks.groups().values()))
-        control = group.plug("control").sourceWithConversion().node()
-        control.plug("ty").set(0.5)
-        row("tweak:" + group.plug("tweakId").get()).setCheckState(0, QtCore.Qt.Unchecked)
+        control = group.getPlug("control").getSourceWithConversion().getNode()
+        control.getPlug("ty").set(0.5)
+        row("tweak:" + group.getPlug("tweakId").get()).setCheckState(0, QtCore.Qt.Unchecked)
         yield
         check(
-            group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is None,
+            group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is None,
             "Tweak checkbox stops input",
         )
         cmds.undo()
         yield
         check(
-            group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is not None,
+            group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is not None,
             "Tweak Undo restores input",
         )
         Menu.run("aim")
         yield
-        aim = editor.current()[0]
+        aim = editor.getCurrent()[0]
         check(isinstance(aim, AimRig), "Create Aim UI")
-        aim.members("controls")[1].plug("tx").set(4)
-        check(abs(aim.members("targets")[0].plug("ry").get()) > 20, "Aim target follows")
+        aim.getMembers("controls")[1].getPlug("tx").set(4)
+        check(abs(aim.getMembers("targets")[0].getPlug("ry").get()) > 20, "Aim target follows")
         editor.module_type.setCurrentIndex(4)
         editor.module_name.setText("uiSpine")
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        spline = editor.current()[0]
+        spline = editor.getCurrent()[0]
         editor.mode.setCurrentIndex(0)
         editor._run(editor.change_mode)
-        spline.members("fk")[2].plug("rz").set(10)
+        spline.getMembers("fk")[2].getPlug("rz").set(10)
         editor.mode.setCurrentIndex(1)
         editor._run(editor.change_mode)
         yield
@@ -158,22 +158,22 @@ def main(output_dir=None, finished=None):
         editor.module_name.setText("uiSkirt")
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        skirt = editor.current()[0]
+        skirt = editor.getCurrent()[0]
         QtTest.QTest.mouseClick(editor.pose_button, QtCore.Qt.LeftButton)
         yield
         pose = editor._pose_editor
         check(isinstance(pose, PoseEditor), "Open pose registration UI")
         pose.capture()
-        skirt.driver_chains()[0][0].plug("rx").set(30)
+        skirt.driver_chains()[0][0].getPlug("rx").set(30)
         pose.capture()
         pose.table.setItem(1, 4, QtWidgets.QTableWidgetItem("15"))
         pose.apply()
         yield
         check(
-            abs(pose.graph().container.plug("outputs[2]").get() - 15) < 1e-3,
+            abs(pose.graph().container.getPlug("outputs[2]").get() - 15) < 1e-3,
             "Register poses and correction",
         )
-        skirt.driver_chains()[0][0].plug("rx").set(60)
+        skirt.driver_chains()[0][0].getPlug("rx").set(60)
         pose.capture()
         pose.table.setItem(2, 4, QtWidgets.QTableWidgetItem("25"))
         pose.apply()
@@ -181,7 +181,7 @@ def main(output_dir=None, finished=None):
         check(len(pose.graph().data()["poses"]) == 3, "Add registration preserves graph")
         pose.table.setItem(2, 4, QtWidgets.QTableWidgetItem("28"))
         pose.apply()
-        check(abs(pose.graph().container.plug("outputs[2]").get() - 28) < 1e-3, "Edit pose output")
+        check(abs(pose.graph().container.getPlug("outputs[2]").get() - 28) < 1e-3, "Edit pose output")
         pose.table.selectRow(2)
         pose.remove()
         pose.apply()
@@ -197,23 +197,23 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "controls.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         finger = ModuleRegistry.get("uiHand")
-        cmds.setAttr(finger.root.fullName() + ".enabled", False)
+        cmds.setAttr(finger.root.getFullName() + ".enabled", False)
         for _ in range(20):
             yield
-            if finger.members("targets")[0].plug("rx").sourceWithConversion() is None:
+            if finger.getMembers("targets")[0].getPlug("rx").getSourceWithConversion() is None:
                 break
         check(
-            finger.members("targets")[0].plug("rx").sourceWithConversion() is None,
+            finger.getMembers("targets")[0].getPlug("rx").getSourceWithConversion() is None,
             "Reload restores finger watcher",
         )
         group = next(iter(TweakLayer(finger).groups().values()))
-        cmds.setAttr(group.fullName() + ".enabled", False)
+        cmds.setAttr(group.getFullName() + ".enabled", False)
         for _ in range(20):
             yield
-            if group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is None:
+            if group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is None:
                 break
         check(
-            group.plug("joint").sourceWithConversion().node().plug("offsetParentMatrix").sourceWithConversion() is None,
+            group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is None,
             "Reload restores Tweak watcher",
         )
         editor.grab().save(str(output / "layers.png"))
@@ -229,7 +229,7 @@ def main(output_dir=None, finished=None):
         from hlib.ui import NodeEditor
         from hlib.ui import GraphEditor
 
-        check(cmds.window(MainWindow.name(), exists=True), "Main window name")
+        check(cmds.window(MainWindow.getName(), exists=True), "Main window name")
         NodeEditor.show()
         yield
         check(bool(cmds.getPanel(scriptType="nodeEditorPanel")), "Open standard Node Editor")

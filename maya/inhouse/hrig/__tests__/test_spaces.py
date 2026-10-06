@@ -48,7 +48,7 @@ class SpaceTest(unittest.TestCase):
         cmds.setAttr("rig.rotate", 10, 20, 30)
         target, pole = rig.controls()["target"], rig.controls()["pole"]
         cmds.setAttr(target + ".translate", -1, 1, 0)
-        before = {node: self.matrix(node) for node in (target, pole) + rig.joints()[:3]}
+        before = {node: self.matrix(node) for node in (target, pole) + rig.getJoints()[:3]}
         channels = cmds.getAttr(target + ".translate")
         for role in ("ik", "pole"):
             rig.set_space(role, "world")
@@ -102,23 +102,23 @@ class SpaceTest(unittest.TestCase):
         before = self.matrix(target)
         cmds.setAttr(target + ".space", 1)
         apply(rig)
-        self.assertEqual(rig.space_switch("ik").current(), "world")
+        self.assertEqual(rig.space_switch("ik").getCurrent(), "world")
         self.assertMatrix(self.matrix(target), before)
         rig.set_space("pole", "foot")
         cmds.undo()
-        self.assertEqual(rig.space_switch("pole").current(), "local")
+        self.assertEqual(rig.space_switch("pole").getCurrent(), "local")
         cmds.redo()
-        self.assertEqual(rig.space_switch("pole").current(), "foot")
+        self.assertEqual(rig.space_switch("pole").getCurrent(), "foot")
         # 動いたルートの下でもtargetMatrixへ空間分が伝わり、往復マッチが成立する。
         cmds.setAttr("rig.tx", 1)
-        expected = [self.matrix(j) for j in rig.joints()[:3]]
+        expected = [self.matrix(j) for j in rig.getJoints()[:3]]
         rig.match_fk()
         rig.set_mode("fk")
         cmds.setAttr(rig.controls()["fk0"] + ".rz", 15)
-        expected = [self.matrix(j) for j in rig.joints()[:3]]
+        expected = [self.matrix(j) for j in rig.getJoints()[:3]]
         rig.match_ik()
         rig.set_mode("ik")
-        for joint, matrix in zip(rig.joints(), expected):
+        for joint, matrix in zip(rig.getJoints(), expected):
             self.assertMatrix(self.matrix(joint), matrix)
         with tempfile.TemporaryDirectory() as directory:
             file = str(Path(directory) / "spaces.ma")
@@ -126,14 +126,14 @@ class SpaceTest(unittest.TestCase):
             cmds.file(save=True, type="mayaAscii")
             cmds.file(file, open=True, force=True)
         rig = LimbRig("rig")
-        self.assertEqual(rig.space_switch("ik").current(), "world")
+        self.assertEqual(rig.space_switch("ik").getCurrent(), "world")
         rig.set_space("ik", "local")
-        self.assertEqual(rig.space_switch("ik").current(), "local")
+        self.assertEqual(rig.space_switch("ik").getCurrent(), "local")
 
     def test_reject_cycles_and_invalid_labels(self):
         """子孫・IKの結果骨・相互依存・重複名はシーンを変えず拒否する。"""
         rig = self.rig
-        for target in (rig.controls()["target"], rig.joints()[1], rig.controls()["pole"]):
+        for target in (rig.controls()["target"], rig.getJoints()[1], rig.controls()["pole"]):
             before = set(cmds.ls())
             with self.assertRaises(ValueError, msg=target):
                 rig.add_space("ik", "bad", target)
@@ -152,5 +152,5 @@ class SpaceTest(unittest.TestCase):
         rig.set_lod(0)
         rig.set_mode("fk")
         self.assertMatrix(self.matrix(target), before)
-        self.assertEqual(rig.space_switch("pole").current(), "foot")
+        self.assertEqual(rig.space_switch("pole").getCurrent(), "foot")
         self.assertTrue(cmds.getAttr(rig._member("channel_space") + ".active"))

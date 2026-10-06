@@ -40,11 +40,11 @@ class ConvenienceTests(unittest.TestCase):
         message = node.addAttr('links', at='message', multi=True)
         other = hlib.createNode('transform')
         cmds.connectAttr(str(other.message), str(message[4]))
-        self.assertEqual(message[4].source().node(), other)
+        self.assertEqual(message[4].getSource().getNode(), other)
 
     def test_matrix_interop(self):
         matrix = Matrix(translate=(2,3,4), scale=(2,3,4))
-        value = matrix.toTransformation()
+        value = matrix.asTransformation()
         self.assertIsInstance(value, Transformation)
         self.assertTrue(Matrix(value).isEquivalent(matrix))
         self.assertTrue(Matrix.fromTransformation(value).isEquivalent(matrix))
@@ -92,27 +92,27 @@ class ConvenienceTests(unittest.TestCase):
         shape.intermediateObject.set(True)
         self.assertEqual(len(list(root.iterBreadthFirst(shapes=True))), 4)
         cmds.parent(str(c), str(b), add=True)
-        self.assertEqual(len(c.instances()), 2)
-        self.assertEqual(len(c.instances(noSelf=True)), 1)
-        self.assertEqual(len(c.parents()), 2)
-        self.assertEqual(len(c.parents(indirect=True)), 2)
+        self.assertEqual(len(c.getInstances()), 2)
+        self.assertEqual(len(c.getInstances(noSelf=True)), 1)
+        self.assertEqual(len(c.getParents()), 2)
+        self.assertEqual(len(c.getParents(indirect=True)), 2)
         self.assertEqual(len(list(root.iterBreadthFirst())), 5)
-        self.assertNotEqual(c.instances()[0].fullPath(), c.instances()[1].fullPath())
+        self.assertNotEqual(c.getInstances()[0].getFullPath(), c.getInstances()[1].getFullPath())
 
     def test_animation_layers(self):
         node = hlib.createNode('transform')
-        self.assertEqual(node.tx.animLayers(), [])
+        self.assertEqual(node.tx.getAnimLayers(), [])
         first = cmds.animLayer('first', attribute=str(node.tx))
         second = cmds.animLayer('second', attribute=str(node.tx))
         base = cmds.animLayer(q=True, root=True)
-        self.assertEqual(node.tx.animLayers(), [second, first, base])
+        self.assertEqual(node.tx.getAnimLayers(), [second, first, base])
         for layer in (first, second, base):
             cmds.animLayer(layer, e=True, selected=False)
         cmds.animLayer(first, e=True, selected=True)
-        self.assertEqual(node.tx.animLayers(selected=True), [first, base])
-        self.assertEqual(node.tx.animLayers(selected=True, exact=True), [first])
+        self.assertEqual(node.tx.getAnimLayers(selected=True), [first, base])
+        self.assertEqual(node.tx.getAnimLayers(selected=True, exact=True), [first])
         cmds.animLayer(first, e=True, attribute=str(node.ry))
-        self.assertEqual(node.ry.animLayers(), [first, base])
+        self.assertEqual(node.ry.getAnimLayers(), [first, base])
 
     def test_underworld_traversal(self):
         surface = cmds.nurbsPlane(ch=False)[0]
@@ -122,7 +122,7 @@ class ConvenienceTests(unittest.TestCase):
         self.assertEqual(len(list(node.iterBreadthFirst())), 1)
         for traversal in (node.iterBreadthFirst, node.iterDepthFirst):
             self.assertEqual(len(list(traversal(underWorld=True))), 2)
-            paths = [n.fullPath() for n in traversal(shapes=True, underWorld=True)]
+            paths = [n.getFullPath() for n in traversal(shapes=True, underWorld=True)]
             self.assertEqual(len(paths), 4)
             self.assertIn('->', paths[-1])
 
@@ -132,18 +132,18 @@ class ConvenienceTests(unittest.TestCase):
         base = cmds.animLayer(q=True, root=True)
         proxy_node = hlib.createNode('transform')
         cmds.addAttr(str(proxy_node), ln='proxyValue', proxy=str(node.tx))
-        self.assertEqual(proxy_node.proxyValue.animLayers(), [layer, base])
+        self.assertEqual(proxy_node.proxyValue.getAnimLayers(), [layer, base])
         cmds.mute(str(node.tx))
-        self.assertEqual(node.tx.animLayers(), [layer, base])
+        self.assertEqual(node.tx.getAnimLayers(), [layer, base])
         cmds.mute(str(node.tx), disable=True, force=True)
-        source = node.tx.sourceWithConversion()
+        source = node.tx.getSourceWithConversion()
         blend = hlib.createNode('pairBlend')
         cmds.disconnectAttr(str(source), str(node.tx))
         cmds.connectAttr(str(source), str(blend.inTranslateX1))
         cmds.connectAttr(str(blend.outTranslateX), str(node.tx))
-        self.assertEqual(node.tx.animLayers(), [layer, base])
+        self.assertEqual(node.tx.getAnimLayers(), [layer, base])
         blend.translateXMode.set(2)
-        self.assertEqual(node.tx.animLayers(), [base])
+        self.assertEqual(node.tx.getAnimLayers(), [base])
 
 
 if __name__ == '__main__':

@@ -27,24 +27,24 @@ class FastEditTest(unittest.TestCase):
         cmds.setAttr(sentinel + '.tx', 5)
         undo_name = cmds.undoInfo(query=True, undoName=True)
         with self.api_only():
-            node.plug('tx').set(12, fast=True)
-            node.plug('visibility').set(False, fast=True)
+            node.getPlug('tx').set(12, fast=True)
+            node.getPlug('visibility').set(False, fast=True)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
         cmds.undo()
         self.assertEqual(cmds.getAttr(sentinel + '.tx'), 0)
-        self.assertEqual(cmds.getAttr(node.fullName() + '.tx'), 12)
-        node.plug('tx').set(24)
+        self.assertEqual(cmds.getAttr(node.getFullName() + '.tx'), 12)
+        node.getPlug('tx').set(24)
         cmds.undo()
-        self.assertEqual(node.plug('tx').get(), 12)
+        self.assertEqual(node.getPlug('tx').get(), 12)
         with self.assertRaises(TypeError):
-            node.plug('tx').set(0, fast=1)
-        cmds.setAttr(node.fullName() + '.tx', lock=True)
+            node.getPlug('tx').set(0, fast=1)
+        cmds.setAttr(node.getFullName() + '.tx', lock=True)
         with self.assertRaises(RuntimeError):
-            node.plug('tx').set(0, fast=True)
-        cmds.setAttr(node.fullName() + '.tx', lock=False)
-        node.plug('tx').set(33)
+            node.getPlug('tx').set(0, fast=True)
+        cmds.setAttr(node.getFullName() + '.tx', lock=False)
+        node.getPlug('tx').set(33)
         cmds.undo()
-        self.assertEqual(node.plug('tx').get(), 12)
+        self.assertEqual(node.getPlug('tx').get(), 12)
 
     def test_transform_and_joint(self):
         for kind in ('transform', 'joint'):
@@ -66,7 +66,7 @@ class FastEditTest(unittest.TestCase):
     def test_geometry(self):
         mesh = hlib.getNode(cmds.listRelatives(cmds.polyCube(ch=False)[0], shapes=True)[0])
         curve = hlib.getNode(cmds.listRelatives(cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3), (4, 2, 1)]), shapes=True)[0])
-        for points in (mesh.vertices(), curve.cvs()):
+        for points in (mesh.getVertices(), curve.cvs()):
             before = points.getPosition()
             rows = [(x + .2, y * 2, z - .3) for x, y, z in before]
             points.setPositions(rows)
@@ -85,7 +85,7 @@ class FastEditTest(unittest.TestCase):
                 self.assertAlmostEqual(a, b, places=6)
         history = hlib.getNode(cmds.listRelatives(cmds.polyCube()[0], shapes=True)[0])
         with self.assertRaises(NotImplementedError):
-            history.vertices().setPosition((1, 2, 3), fast=True)
+            history.getVertices().setPosition((1, 2, 3), fast=True)
         periodic = hlib.getNode(cmds.listRelatives(cmds.circle(ch=False)[0], shapes=True)[0])
         with self.assertRaises(NotImplementedError):
             periodic.cvs().mirror(fast=True)
@@ -95,7 +95,7 @@ class FastEditTest(unittest.TestCase):
         joints = [cmds.createNode('joint') for _ in range(3)]
         skin = hlib.getNode(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
         for normalize in (0, 1, 2):
-            cmds.setAttr(skin.fullName() + '.normalizeWeights', normalize)
+            cmds.setAttr(skin.getFullName() + '.normalizeWeights', normalize)
             skin.setWeights(joints, [.2, .3, .5])
             expected = list(skin.getWeights(joints))
             skin.setWeights(joints, [1, 0, 0])
@@ -112,10 +112,10 @@ class FastEditTest(unittest.TestCase):
                 for linear in ('cm', 'm'):
                     cmds.currentUnit(angle=angle, linear=linear)
                     with self.api_only():
-                        node.plug('rx').set(.4, fast=True)
-                        node.plug('tx').set(.6, fast=True)
-                    self.assertAlmostEqual(node.plug('rx').mplug().asMAngle().asRadians(), .4)
-                    self.assertAlmostEqual(node.plug('tx').mplug().asMDistance().asCentimeters(), .6)
+                        node.getPlug('rx').set(.4, fast=True)
+                        node.getPlug('tx').set(.6, fast=True)
+                    self.assertAlmostEqual(node.getPlug('rx').mplug().asMAngle().asRadians(), .4)
+                    self.assertAlmostEqual(node.getPlug('tx').mplug().asMDistance().asCentimeters(), .6)
         finally:
             cmds.currentUnit(angle=old_angle, linear=old_linear)
         joints = [cmds.createNode('joint') for _ in range(2)]
@@ -124,8 +124,8 @@ class FastEditTest(unittest.TestCase):
             collection.setTranslation((1, 2, 3), fast=True, at=4)
             node.setOutlinerColor((.1, .2, .3), fast=True)
             node.setOverrideColor(6, fast=True)
-            node.setAttributeFlags(['tx'], locked=True, keyable=False, channelBox=True, fast=True)
-        self.assertTrue(cmds.getAttr(node.fullName() + '.tx', lock=True))
+            node.setAttrFlags(['tx'], locked=True, keyable=False, channelBox=True, fast=True)
+        self.assertTrue(cmds.getAttr(node.getFullName() + '.tx', lock=True))
         for joint in joints:
             self.assertEqual(cmds.getAttr(joint + '.translate')[0], (1, 2, 3))
 
@@ -133,11 +133,11 @@ class FastEditTest(unittest.TestCase):
         mesh = cmds.polyPlane(ch=False, sx=1, sy=1)[0]
         joints = [cmds.createNode('joint') for _ in range(4)]
         skin = hlib.getNode(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
-        cmds.skinCluster(skin.fullName(), edit=True, removeInfluence=joints[1])
+        cmds.skinCluster(skin.getFullName(), edit=True, removeInfluence=joints[1])
         joints.pop(1)
         for maintain in (False, True):
-            cmds.setAttr(skin.fullName() + '.maxInfluences', 1)
-            cmds.setAttr(skin.fullName() + '.maintainMaxInfluences', maintain)
+            cmds.setAttr(skin.getFullName() + '.maxInfluences', 1)
+            cmds.setAttr(skin.getFullName() + '.maintainMaxInfluences', maintain)
             cmds.setAttr(joints[2] + '.liw', True)
             skin.setWeights(joints, [.2, .3, .5])
             skin.setWeights([joints[2]], [.4, .3, .2, .1])
@@ -150,28 +150,28 @@ class FastEditTest(unittest.TestCase):
     def test_data_types_and_connections(self):
         node = hlib.getNode(cmds.createNode('network'))
         for name, kind in [('text', 'string'), ('numbers', 'doubleArray'), ('matrixValue', 'matrix')]:
-            cmds.addAttr(node.fullName(), longName=name, dataType=kind)
-        cmds.addAttr(node.fullName(), longName='timeValue', attributeType='time')
-        cmds.addAttr(node.fullName(), longName='choice', attributeType='enum', enumName='a:b:c')
-        cmds.addAttr(node.fullName(), longName='limited', attributeType='double', minValue=0, maxValue=1)
+            cmds.addAttr(node.getFullName(), longName=name, dataType=kind)
+        cmds.addAttr(node.getFullName(), longName='timeValue', attributeType='time')
+        cmds.addAttr(node.getFullName(), longName='choice', attributeType='enum', enumName='a:b:c')
+        cmds.addAttr(node.getFullName(), longName='limited', attributeType='double', minValue=0, maxValue=1)
         for value in (-1, 2):
             with self.assertRaises(RuntimeError):
-                node.plug('limited').set(value, fast=True)
-        self.assertEqual(cmds.getAttr(node.fullName() + '.limited'), 0)
+                node.getPlug('limited').set(value, fast=True)
+        self.assertEqual(cmds.getAttr(node.getFullName() + '.limited'), 0)
         with self.api_only():
-            node.plug('text').set('hello', fast=True)
-            node.plug('numbers').set([1., 2., 3.], fast=True)
-            node.plug('matrixValue').set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1], fast=True)
-            node.plug('timeValue').set(12, fast=True)
-            node.plug('choice').set(2, fast=True)
-        self.assertEqual(cmds.getAttr(node.fullName() + '.text'), 'hello')
-        self.assertEqual(list(cmds.getAttr(node.fullName() + '.numbers')), [1, 2, 3])
-        self.assertEqual(node.plug('timeValue').mplug().asMTime().asUnits(__import__('maya.api.OpenMaya', fromlist=['MTime']).MTime.kSeconds), 12)
-        self.assertEqual(cmds.getAttr(node.fullName() + '.choice'), 2)
+            node.getPlug('text').set('hello', fast=True)
+            node.getPlug('numbers').set([1., 2., 3.], fast=True)
+            node.getPlug('matrixValue').set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1], fast=True)
+            node.getPlug('timeValue').set(12, fast=True)
+            node.getPlug('choice').set(2, fast=True)
+        self.assertEqual(cmds.getAttr(node.getFullName() + '.text'), 'hello')
+        self.assertEqual(list(cmds.getAttr(node.getFullName() + '.numbers')), [1, 2, 3])
+        self.assertEqual(node.getPlug('timeValue').mplug().asMTime().asUnits(__import__('maya.api.OpenMaya', fromlist=['MTime']).MTime.kSeconds), 12)
+        self.assertEqual(cmds.getAttr(node.getFullName() + '.choice'), 2)
         a, b = [cmds.createNode('transform') for _ in range(2)]
         cmds.connectAttr(a + '.tx', b + '.tx')
         with self.assertRaises(RuntimeError):
-            hlib.getNode(b).plug('tx').set(10, fast=True)
+            hlib.getNode(b).getPlug('tx').set(10, fast=True)
 
     def test_geometry_world_space_and_units(self):
         transform = cmds.polyCube(ch=False)[0]
@@ -179,7 +179,7 @@ class FastEditTest(unittest.TestCase):
         cmds.setAttr(transform + '.rotate', 20, 30, 40)
         cmds.setAttr(transform + '.scale', 2, 3, 4)
         shape = hlib.getNode(cmds.listRelatives(transform, shapes=True)[0])
-        points = shape.vertices([1, 3, 5])
+        points = shape.getVertices([1, 3, 5])
         old = cmds.currentUnit(query=True, linear=True)
         try:
             for unit in ('cm', 'm'):

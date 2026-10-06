@@ -13,10 +13,10 @@
    relation.setKey(driver_value=0, value=0)
    relation.setKey(driver_value=math.pi / 2, value=math.pi / 4)
 
-   print(relation.driverPlug())
-   print(relation.drivenPlug())
+   print(relation.getDriverPlug())
+   print(relation.getDrivenPlug())
    print(relation.exists())
-   print(relation.curves())
+   print(relation.getCurves())
 
 ``hlib.getDrivenKey()`` は既存のアトリビュートを保持し、取得だけではシーンを変更しません。
 ``setKey()`` でMayaのsetDrivenKeyframeを実行し、キーを作成・更新します。
@@ -28,8 +28,8 @@
 
 .. code-block:: python
 
-   for curve in relation.curves():
-       print(curve.keyInputs(), curve.keyValues())
+   for curve in relation.getCurves():
+       print(curve.getKeyInputs(), curve.getKeyValues())
        curve.setTangent(0, outTangentType="flat")
 
 カーブ単体の補間やキー削除は :doc:`animation_nodes` のAnimCurveメソッドで行います。
@@ -44,8 +44,8 @@
    from hlib.scene import DrivenKey
 
    relations = DrivenKey.find("joint.rotateZ")
-   print([relation.driverPlug() for relation in relations])      # ドライバーPlugのリスト
-   print([relation.curves() for relation in relations])      # 関係ごとのカーブリスト
+   print([relation.getDriverPlug() for relation in relations])      # ドライバーPlugのリスト
+   print([relation.getCurves() for relation in relations])      # 関係ごとのカーブリスト
    for relation in relations:
        relation.setKey(0, 0)
 

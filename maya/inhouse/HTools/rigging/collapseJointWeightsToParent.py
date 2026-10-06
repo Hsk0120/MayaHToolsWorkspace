@@ -12,7 +12,7 @@ def _is_joint(node):
     Args:
         node: 処理対象のノード参照。
     """
-    return cmds.objExists(node) and Node(node).type() == 'joint'
+    return cmds.objExists(node) and Node(node).getType() == 'joint'
 
 def _get_parent_joint(jnt):
     """親ジョイントを取得します。
@@ -45,7 +45,7 @@ def _get_influences(sc):
     Args:
         sc: ウェイトを照会・編集するskinCluster。
     """
-    return [node.name() for node in Node(sc).influences()]
+    return [node.getName() for node in Node(sc).getInfluences()]
 
 def _get_uuid(node):
     """ノード UUID を1件だけ返します。

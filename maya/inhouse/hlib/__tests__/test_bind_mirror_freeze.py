@@ -48,7 +48,7 @@ class BindMirrorFreezeTest(unittest.TestCase):
         multiple = hlib.cmds.bindSkin(meshes[1:], [joint], toSelectedBones=True, maximumInfluences=1)
         self.assertIsInstance(multiple, SkinClusters)
         self.assertEqual(len(multiple), 2)
-        names = [skin.fullName() for skin in multiple]
+        names = [skin.getFullName() for skin in multiple]
         self.assertTrue(all(skin.deforms(mesh) for skin, mesh in zip(multiple, meshes[1:])))
         cmds.undo()
         self.assertFalse(any(cmds.objExists(name) for name in names))
@@ -63,15 +63,15 @@ class BindMirrorFreezeTest(unittest.TestCase):
 
     def test_mirror_result_types_and_flags(self):
         root = Joint(cmds.createNode("joint", name="left_root"))
-        cmds.setAttr(root.fullName() + ".translate", 2, 1, 0)
+        cmds.setAttr(root.getFullName() + ".translate", 2, 1, 0)
         mirrored = hlib.mirrorJoint(root, myz=True, mb=True, sr=("left", "right"))
         self.assertIsInstance(mirrored, Joint)
         self.assertAlmostEqual(mirrored.getTranslation(ws=True, at=4).x, -2)
-        cmds.createNode("joint", name="left_tip", parent=root.fullName())
+        cmds.createNode("joint", name="left_tip", parent=root.getFullName())
         result = hlib.mirrorJoint(root, mirrorYZ=True, searchReplace=("left", "other"))
         self.assertIsInstance(result, Joints)
         self.assertEqual(len(result), 2)
-        names = [node.fullName() for node in result]
+        names = [node.getFullName() for node in result]
         cmds.undo()
         self.assertFalse(any(cmds.objExists(name) for name in names))
 

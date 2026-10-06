@@ -134,7 +134,7 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
 
     shapes = cmds.listRelatives(curve_transform, shapes=True, fullPath=True) or []
     for shape in shapes:
-        if Node(shape).type() != "nurbsCurve":
+        if Node(shape).getType() != "nurbsCurve":
             continue
         cvs = cmds.ls(f"{shape}.cv[*]", flatten=True) or []
         for cv in cvs:
@@ -163,7 +163,7 @@ def _curve(
 ):
     """点列からカーブを作成します。
 
-    transform(またはその配下の nurbsCurve シェイプ)を選択していて、その transform が
+    getTransform(またはその配下の nurbsCurve シェイプ)を選択していて、その transform が
     nurbsCurve シェイプを持つ場合は、transform を残したまま nurbsCurve シェイプだけを
     新しい形状へ差し替えます。
 
@@ -185,19 +185,19 @@ def _curve(
     selected = cmds.ls(selection=True, long=True)
     if selected:
         sel = selected[0]
-        sel_type = Node(sel).type()
+        sel_type = Node(sel).getType()
         if sel_type == "transform":
             target_transform = sel
         elif sel_type == "nurbsCurve":
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
-            if parents and Node(parents[0]).type() == "transform":
+            if parents and Node(parents[0]).getType() == "transform":
                 target_transform = parents[0]
 
     if target_transform and cmds.objExists(target_transform):
         existing_curve_shapes = [
             shape
             for shape in (cmds.listRelatives(target_transform, shapes=True, fullPath=True) or [])
-            if Node(shape).type() == "nurbsCurve"
+            if Node(shape).getType() == "nurbsCurve"
         ]
 
         if existing_curve_shapes:
@@ -205,7 +205,7 @@ def _curve(
 
             return target_transform
 
-    return hlib.createCurve(degree=degree, point=points, knot=knots, name=name).name()
+    return hlib.createCurve(degree=degree, point=points, knot=knots, name=name).getName()
 
 
 # ---------------------------------------------------------------------------

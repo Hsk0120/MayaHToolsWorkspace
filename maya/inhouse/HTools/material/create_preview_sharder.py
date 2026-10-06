@@ -30,7 +30,7 @@ def main():
 
 		shader = selection[0]
 		shader_types = set(cmds.listNodeTypes("shader") or [])
-		if Node(shader).type() not in shader_types:
+		if Node(shader).getType() not in shader_types:
 			cmds.error("The selected node is not a shader.")
 
 		return shader
@@ -40,8 +40,8 @@ def main():
 		preview_name = "prv_{0}".format(shader)
 		if cmds.objExists(preview_name):
 			cmds.error("A node with the same name already exists: {0}".format(preview_name))
-		preview_shader = hlib.createShader("blinn", name=preview_name).name()
-		Node(preview_shader).plug("eccentricity").set(0)
+		preview_shader = hlib.createShader("blinn", name=preview_name).getName()
+		Node(preview_shader).getPlug("eccentricity").set(0)
 		return preview_shader
 
 	def transfer_input_connections(source_shader, target_shader):
@@ -117,7 +117,7 @@ def main():
 			)
 			return transferred_count
 
-		Node(color_input_node).plug("outTransparency").connectTo(
+		Node(color_input_node).getPlug("outTransparency").connectTo(
 			"{0}.transparency".format(target_shader),
 			force=True, unlock=False,
 		)

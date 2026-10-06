@@ -33,7 +33,7 @@ def main(output_dir=None, finished=None):
 
     def follow_row():
         """現在モジュールの追従レイヤー行を返す。"""
-        uuid = editor.current()[0].root.uuid()
+        uuid = editor.getCurrent()[0].root.getUuid()
         return next(
             item
             for item in editor.rows()
@@ -50,7 +50,7 @@ def main(output_dir=None, finished=None):
         yield
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        rig, _ = editor.current()
+        rig, _ = editor.getCurrent()
         for kind in ("followTwist", "followSwing", "followHalf"):
             editor.layer_type.setCurrentIndex(editor.layer_type.findData(kind))
             editor.ratio.setValue(50)
@@ -61,17 +61,17 @@ def main(output_dir=None, finished=None):
         check(len(rig.follow_joints()) == 3 and follow_row().childCount() == 3, "Three follow rows")
         cmds.setAttr(rig.controls()["fk1"] + ".rx", 60)
         settings = rig.follow_settings("followHalf1")
-        graph = settings.plug("graph").sourceWithConversion().node()
-        original = graph.plug("matrix").get()
-        settings.plug("ratio").set(0)
+        graph = settings.getPlug("graph").getSourceWithConversion().getNode()
+        original = graph.getPlug("matrix").get()
+        settings.getPlug("ratio").set(0)
         yield
-        check(graph.plug("matrix").get() != original, "Ratio live DG control")
-        settings.plug("ratio").set(0.5)
+        check(graph.getPlug("matrix").get() != original, "Ratio live DG control")
+        settings.getPlug("ratio").set(0.5)
         channel = rig._member("channel_follow")
         cmds.setAttr(channel + ".enabled", False)
         yield
         for _ in range(20):
-            if hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None:
+            if hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None:
                 break
             yield
         (output / "channel-state.json").write_text(
@@ -90,14 +90,14 @@ def main(output_dir=None, finished=None):
             encoding="utf-8",
         )
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
             "Limb Channel disabled",
         )
         cmds.undo()
         yield
         check(
             rig.layer_enabled("follow")
-            and hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is not None,
+            and hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is not None,
             "Limb Channel Undo",
         )
         cmds.redo()
@@ -109,7 +109,7 @@ def main(output_dir=None, finished=None):
         editor.skirt_count.setValue(8)
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        rig, _ = editor.current()
+        rig, _ = editor.getCurrent()
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("followTwist"))
         editor.axis.setCurrentText("y")
         editor.ratio.setValue(25)
@@ -117,16 +117,16 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         check(len(rig.follow_joints()) == 1, "Skirt follow created")
-        check(rig.follow_settings("followTwist1").plug("ratio").get() == 0.25, "UI ratio forwarded")
+        check(rig.follow_settings("followTwist1").getPlug("ratio").get() == 0.25, "UI ratio forwarded")
         follow_row().setCheckState(0, QtCore.Qt.Unchecked)
         yield
         check(not rig.layer_enabled("follow"), "Skirt follow checkbox")
         rig.set_layer_enabled("follow", True)
         yield
-        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_follow", False)
+        cmds.setAttr(rig.root.getFullName() + ".hrigEnabled_follow", False)
         yield
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
             "Skirt Channel disabled",
         )
         cmds.undo()
@@ -136,10 +136,10 @@ def main(output_dir=None, finished=None):
         yield
         check(not rig.layer_enabled("follow"), "Skirt Channel Redo")
         rig.set_layer_enabled("follow", True)
-        rig.root.plug("lod").set(0)
+        rig.root.getPlug("lod").set(0)
         yield
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
             "Skirt LOD disconnects follow",
         )
         rig.set_lod(1)
@@ -149,15 +149,15 @@ def main(output_dir=None, finished=None):
         yield
         rig = SkirtRig("skirtFollow")
         check(len(rig.follow_joints()) == 1, "Save reload keeps follow references")
-        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_follow", False)
+        cmds.setAttr(rig.root.getFullName() + ".hrigEnabled_follow", False)
         yield
         check(
-            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").sourceWithConversion() is None,
+            hlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
             "Save reload restores jobs",
         )
         rig.set_layer_enabled("follow", True)
         for item in editor.rows():
-            if item.data(0, QtCore.Qt.UserRole)["root"] == rig.root.uuid():
+            if item.data(0, QtCore.Qt.UserRole)["root"] == rig.root.getUuid():
                 editor.tree.setCurrentItem(item)
                 break
         yield

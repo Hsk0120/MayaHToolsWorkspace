@@ -19,6 +19,7 @@ Contents
    whyhlib
    getting_started
    usage
+   api_consistency
    api_arguments
    api_methods
    transformation

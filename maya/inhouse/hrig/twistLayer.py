@@ -33,11 +33,11 @@ class TwistLayer:
         if not root.hasAttr("twistSegments"):
             return {}
         return {
-            node.plug("segmentId").get(): node
-            for node in root.plug("twistSegments").sourceNodes().values()
+            node.getPlug("segmentId").get(): node
+            for node in root.getPlug("twistSegments").getSourceNodes().values()
         }
 
-    def joints(self, segment=None):
+    def getJoints(self, segment=None):
         """区間内の骨を始点からの割合順に取得する。
 
         Args:
@@ -51,12 +51,12 @@ class TwistLayer:
         result = []
         for group in selected:
             children = [
-                item.fullName()
+                item.getFullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (
                         cmds.listRelatives(
-                            group.fullName(), children=True, type="joint", fullPath=True
+                            group.getFullName(), children=True, type="joint", fullPath=True
                         )
                         or []
                     )
@@ -75,8 +75,8 @@ class TwistLayer:
         """
         root = self.rig.root
         for node in nodes:
-            root.plug("hrigOwned").appendMessage(node)
-        members = [n.fullName() for n in nodes if n.fullName() != self.rig._member("twistSet")]
+            root.getPlug("hrigOwned").appendMessage(node)
+        members = [n.getFullName() for n in nodes if n.getFullName() != self.rig._member("twistSet")]
         if members:
             self.rig._layer_members("twistSet", members)
 
@@ -103,7 +103,7 @@ class TwistLayer:
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
         start, end = hlib.getNode(start), hlib.getNode(end)
-        if start.type() != "joint" or end.type() != "joint" or start == end:
+        if start.getType() != "joint" or end.getType() != "joint" or start == end:
             raise ValueError("Expected two different joints")
         relative = end.getMatrix(ws=True) * start.getMatrix(ws=True).inverse()
         position = tuple(relative)[12:15]
@@ -112,14 +112,14 @@ class TwistLayer:
         if any(abs(position[i]) > 1e-5 for i in range(3) if i != "xyz".index(axis)):
             raise ValueError("Endpoints must align with the chosen start-local axis at creation")
         root = self.rig.root
-        stem = self.rig.nodeName("twistSet").removesuffix("_set") + "_" + segment
+        stem = self.rig.getNodeName("twistSet").removesuffix("_set") + "_" + segment
         for name in [stem + "_grp", stem + "_graph"] + [
             stem + "_{:02d}_jnt".format(i + 1) for i in range(count)
         ]:
             if cmds.objExists(name):
                 raise ValueError("Twist node already exists: " + name)
         if not root.hasAttr("twistSet"):
-            selection = hlib.createSet(empty=True, name=self.rig.nodeName("twistSet")).fullName()
+            selection = hlib.createSet(empty=True, name=self.rig.getNodeName("twistSet")).getFullName()
             self.rig._bind("twistSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             self._own([hlib.getNode(selection)])
@@ -128,32 +128,32 @@ class TwistLayer:
         for attr, value in (("segmentId", segment), ("twistAxis", axis)):
             group.addAttr(longName=attr, dataType="string").set(value)
         group.addAttr(longName="count", attributeType="long", defaultValue=count)
-        group.setAttributeFlags(["count"], locked=True, keyable=False, channelBox=True)
+        group.setAttrFlags(["count"], locked=True, keyable=False, channelBox=True)
         graph = TwistDistribution.create(start, end, stem + "_graph", axis)
         for attr, node in (("start", start), ("end", end), ("graph", graph.container)):
             group.addAttr(longName=attr, attributeType="message")
-            node.plug("message").connectTo(group.plug(attr))
-        root.plug("twistSegments").appendMessage(group)
+            node.getPlug("message").connectTo(group.getPlug(attr))
+        root.getPlug("twistSegments").appendMessage(group)
         joints = []
         for index in range(count):
             fraction = (index + 1) / (count + 1)
             joint = hlib.createNode(
                 "joint", name=stem + "_{:02d}_jnt".format(index + 1), parent=group, skipSelect=True
             )
-            joint.plug("segmentScaleCompensate").set(False)
-            joint.plug("radius").set(0.3)
+            joint.getPlug("segmentScaleCompensate").set(False)
+            joint.getPlug("radius").set(0.3)
             joint.addAttr(
                 longName="twistFraction", attributeType="double", defaultValue=fraction
             )
             joint.addAttr(longName="twistOutput", attributeType="message")
             output = graph.sample(fraction, "sample{:02d}".format(index + 1))
-            output.node().plug("message").connectTo(joint.plug("twistOutput"))
+            output.getNode().getPlug("message").connectTo(joint.getPlug("twistOutput"))
             rest = Matrix()
             for i in range(3):
                 rest[12 + i] = position[i] * fraction
             joint.addAttr(longName="twistRest", dataType="matrix").set(rest)
-            output.connectTo(joint.plug("offsetParentMatrix"))
-            joints.append(joint.fullName())
+            output.connectTo(joint.getPlug("offsetParentMatrix"))
+            joints.append(joint.getFullName())
         self._own([group, graph.container])
         self.rig._layer_members("twistSet", joints)
         from .limb import _lock_group
@@ -182,11 +182,11 @@ class TwistLayer:
         if type(count) is not int or count < 0:
             raise ValueError("count must be a non-negative integer")
         group = self.segments()[segment]
-        if count == group.plug("count").get():
-            return self.joints(segment)
-        for joint in self.joints(segment):
+        if count == group.getPlug("count").get():
+            return self.getJoints(segment)
+        for joint in self.getJoints(segment):
             downstream = [
-                item.fullName()
+                item.getFullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (
@@ -198,18 +198,18 @@ class TwistLayer:
                 ]
             ] or []
             other = [
-                item.fullName()
+                item.getFullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (cmds.listConnections(joint, source=False, destination=True) or [])
                 ]
             ] or []
             if downstream or any(
-                hlib.getNode(n).type() not in ("objectSet", "dagPose") for n in other
+                hlib.getNode(n).getType() not in ("objectSet", "dagPose") for n in other
             ):
                 raise ValueError("Twist joints are in use; choose the count before binding")
             if [
-                item.fullName()
+                item.getFullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (
@@ -221,13 +221,13 @@ class TwistLayer:
                 ]
             ]:
                 raise ValueError("Animated twist joints cannot be rebuilt")
-        start = group.plug("start").sourceWithConversion().node()
-        end = group.plug("end").sourceWithConversion().node()
-        axis = group.plug("twistAxis").get()
-        graph = group.plug("graph").sourceWithConversion().node()
+        start = group.getPlug("start").getSourceWithConversion().getNode()
+        end = group.getPlug("end").getSourceWithConversion().getNode()
+        axis = group.getPlug("twistAxis").get()
+        graph = group.getPlug("graph").getSourceWithConversion().getNode()
         # container削除が空になった関連セットまで削除しないよう、先に所属を外す。
         hlib.getNode(self.rig._member("twistSet")).removeMembers(
-            [group.fullName(), graph.fullName()] + list(self.joints(segment))
+            [group.getFullName(), graph.getFullName()] + list(self.getJoints(segment))
         )
         hlib.delete([group, graph])
         if count:
@@ -241,17 +241,17 @@ class TwistLayer:
         """LOD/Enabledに応じて出力を接続し、無効時は基準位置で始点へ追従させる。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("twist")
         for group in self.segments().values():
-            graph = group.plug("graph").sourceWithConversion().node()
-            graph.plug("nodeState").set(0 if active else 2)
-            group.plug("visibility").set(active)
-        for name in self.joints():
+            graph = group.getPlug("graph").getSourceWithConversion().getNode()
+            graph.getPlug("nodeState").set(0 if active else 2)
+            group.getPlug("visibility").set(active)
+        for name in self.getJoints():
             joint = hlib.getNode(name)
-            destination = joint.plug("offsetParentMatrix")
-            source = destination.sourceWithConversion()
+            destination = joint.getPlug("offsetParentMatrix")
+            source = destination.getSourceWithConversion()
             if active:
-                output = joint.plug("twistOutput").sourceWithConversion().node().plug("matrixSum")
+                output = joint.getPlug("twistOutput").getSourceWithConversion().getNode().getPlug("matrixSum")
                 if source is None:
                     output.connectTo(destination)
             elif source is not None:
                 destination.disconnect(source)
-                destination.set(joint.plug("twistRest").get())
+                destination.set(joint.getPlug("twistRest").get())

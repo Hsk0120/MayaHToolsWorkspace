@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
 
-from .matrix import Matrix
 from .eulerRotation import EulerRotation
+from .matrix import Matrix
 from .quaternion import Quaternion
-from .translation import Translation
 from .scale import Scale
 from .shear import Shear
+from .translation import Translation
 
 
 class Transformation:

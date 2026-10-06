@@ -71,11 +71,11 @@ class SampleBuilder:
         if kind == "stretch":
             group = rig.add_stretch()
             rig.set_layer_enabled("stretch", True)
-            return group.fullName()
+            return group.getFullName()
         if kind == "spring":
             group = rig.bake_spring(0)
             rig.set_layer_enabled("spring", True)
-            return group.fullName()
+            return group.getFullName()
         if kind == "pose":
             joint = rig.driver_chains()[0][0]
             size = len(rig.driver_chains()[0]) * 3
@@ -84,13 +84,13 @@ class SampleBuilder:
             values[3][0], values[3][2] = -20, 25
             graph = rig.add_pose_correction(
                 0,
-                [joint.plug("rx"), joint.plug("rz")],
+                [joint.getPlug("rx"), joint.getPlug("rz")],
                 [[0, 0], [60, 0], [0, 60], [60, 60]],
                 values,
                 [60, 60],
             )
             rig.set_layer_enabled("pose", True)
-            return graph.container.fullName()
+            return graph.container.getFullName()
         if kind in ("followTwist", "followSwing", "followHalf"):
             from .followLayer import FollowLayer
 
@@ -98,46 +98,46 @@ class SampleBuilder:
             mode = {"followTwist": "twist", "followSwing": "swing", "followHalf": "full"}[kind]
             rig.add_follow(identifier, mode=mode, axis=axis, ratio=ratio)
             rig.set_layer_enabled("follow", True)
-            return rig.follow_settings(identifier).fullName()
+            return rig.follow_settings(identifier).getFullName()
         if kind == "twist":
             from .twistLayer import TwistLayer
 
             identifier = SampleBuilder.next_id(TwistLayer(rig).segments(), "upper")
-            rig.add_twist(identifier, *rig.joints()[:2], count=count)
-            target = TwistLayer(rig).segments()[identifier].fullName()
+            rig.add_twist(identifier, *rig.getJoints()[:2], count=count)
+            target = TwistLayer(rig).segments()[identifier].getFullName()
         elif kind == "bend":
             from .bendLayer import BendLayer
 
             identifier = SampleBuilder.next_id(BendLayer(rig).groups(), "bend")
             rig.add_bend(identifier)
-            target = rig.bend_settings(identifier).fullName()
+            target = rig.bend_settings(identifier).getFullName()
         elif kind == "driven":
             from .drivenLayer import DrivenLayer
 
             identifier = SampleBuilder.next_id(DrivenLayer(rig).graphs(), "sdk")
-            group_name = rig.nodeName("drivenSet").removesuffix("_set") + "_" + identifier + "_grp"
+            group_name = rig.getNodeName("drivenSet").removesuffix("_set") + "_" + identifier + "_grp"
             if cmds.objExists(group_name) or cmds.objExists(
                 group_name.removesuffix("_grp") + "_jnt"
             ):
                 raise ValueError("SDK sample names already exist")
             group = hlib.createNode(
-                "transform", name=group_name, parent=rig.joints()[0], skipSelect=True
+                "transform", name=group_name, parent=rig.getJoints()[0], skipSelect=True
             )
-            group.plug("translateX").set(5)
+            group.getPlug("translateX").set(5)
             bone = hlib.createNode(
                 "joint",
                 name=group_name.removesuffix("_grp") + "_jnt",
                 parent=group,
                 skipSelect=True,
             )
-            bone.plug("radius").set(0.45)
-            bone.plug("segmentScaleCompensate").set(False)
+            bone.getPlug("radius").set(0.45)
+            bone.getPlug("segmentScaleCompensate").set(False)
             graph = rig.add_driven(
-                identifier, rig.joints()[1], bone.plug("translateY"), component, axis
+                identifier, rig.getJoints()[1], bone.getPlug("translateY"), component, axis
             )
-            rig.root.plug("hrigOwned").appendMessage(group)
-            rig._layer_members("drivenSet", [group.fullName()])
-            target = graph.fullName()
+            rig.root.getPlug("hrigOwned").appendMessage(group)
+            rig._layer_members("drivenSet", [group.getFullName()])
+            target = graph.getFullName()
         elif kind == "foot":
             from .reverse_foot import add_reverse_foot
 

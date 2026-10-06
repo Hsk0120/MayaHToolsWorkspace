@@ -15,7 +15,7 @@ class File(Texture2d):
         Returns:
             str: ファイルパス。UDIM等のトークンは展開せず返す。
         """
-        return self.plug("fileTextureName").get()
+        return self.getPlug("fileTextureName").get()
 
     @undoChunk("hlibFileSetPath")
     def setFilePath(self, path):
@@ -28,7 +28,7 @@ class File(Texture2d):
         """
         if not isinstance(path, str):
             raise TypeError("path must be a string")
-        self.plug("fileTextureName").set(path)
+        self.getPlug("fileTextureName").set(path)
         return self
 
     def getColorSpace(self):
@@ -37,7 +37,7 @@ class File(Texture2d):
         Returns:
             str: 現在の入力色空間名。
         """
-        return self.plug("colorSpace").get()
+        return self.getPlug("colorSpace").get()
 
     @undoChunk("hlibFileSetColorSpace")
     def setColorSpace(self, name):
@@ -48,5 +48,5 @@ class File(Texture2d):
         Returns:
             File: 自身。パス変更時の自動ルール設定は変更しない。
         """
-        self.plug("colorSpace").set(name)
+        self.getPlug("colorSpace").set(name)
         return self

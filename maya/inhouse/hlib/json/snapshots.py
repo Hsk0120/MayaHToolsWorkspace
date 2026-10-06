@@ -35,7 +35,7 @@ def _items(value):
     Returns:
         list: 入力の列。
     """
-    if isinstance(value, str) or hasattr(value, "fullName"):
+    if isinstance(value, str) or hasattr(value, "getFullName"):
         return [value]
     return list(value)
 
@@ -66,11 +66,11 @@ def _attribute(node, name):
         node: 処理対象のノード参照。
         name: 参照・作成・照会する対象の名前。
     """
-    plug = _node(node).plug(name)
-    kind = plug.dataType()
+    plug = _node(node).getPlug(name)
+    kind = plug.getDataType()
     supported = {"bool", "byte", "char", "short", "long", "enum", "float", "double", "doubleAngle", "doubleLinear", "time", "string", "matrix", "double2", "double3", "float2", "float3", "long2", "long3", "short2", "short3"}
     if kind not in supported or plug.mplug().isArray:
-        raise ValueError("Unsupported attribute type: " + plug.fullName())
+        raise ValueError("Unsupported attribute type: " + plug.getFullName())
     return {"name": name, "type": kind, "value": _attribute_value(plug.mplug())}
 
 
@@ -209,7 +209,7 @@ class Snapshot:
             return EditorSnapshot(**data)
         return _KINDS[data["kind"]](**data)
 
-    def toData(self):
+    def asData(self):
         """保存用データを返す。"""
         return {"kind": self.kind, "records": self.records, "units": self.units, "version": self.version}
 
@@ -238,11 +238,11 @@ class Snapshot:
         for record in self.records:
             try:
                 if self.kind == "selection":
-                    names = [ref.resolve(**options).fullName() for ref in record["items"]]
+                    names = [ref.resolve(**options).getFullName() for ref in record["items"]]
                     plan.changes.append({"target": "selection", "before": cmds.ls(selection=True, long=True) or [], "after": names})
                     continue
                 node = record["node"].resolve(**options)
-                name = node.fullName()
+                name = node.getFullName()
                 if name in seen:
                     raise ValueError("Multiple records map to the same target: " + name)
                 seen.add(name)
@@ -288,7 +288,7 @@ class Snapshot:
         with undoChunk("hlibJsonApply"):
             for record in self.records:
                 if self.kind == "selection":
-                    names = [ref.resolve(**options).fullName() for ref in record["items"]]
+                    names = [ref.resolve(**options).getFullName() for ref in record["items"]]
                     cmds.select(names, replace=True) if names else cmds.select(clear=True)
                 else:
                     _KINDS[self.kind]._apply_record(record["node"].resolve(**options), record, options)
@@ -307,7 +307,7 @@ class Snapshot:
             dict: 変更前の値。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         before = {}
         for attr in record.get("attributes", []):
             _check_attribute_value(attr)
@@ -337,7 +337,7 @@ class Snapshot:
             options (dict): 対象名と名前空間の解決設定。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         for attr in record.get("attributes", []):
             _set_attribute(name, attr)
         cls._apply_geometry(node, record, options)
@@ -408,14 +408,14 @@ class PoseSnapshot(Snapshot):
             dict: 保存用のレコード。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         if not cmds.objectType(name, isAType="transform"):
             raise ValueError("Pose requires Transform")
         attrs = [p + axis for p in ("translate", "rotate", "scale", "rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate", "rotateAxis") for axis in "XYZ"]
         attrs = ["rotateOrder"] + attrs + ["shearXY", "shearXZ", "shearYZ"]
         if cmds.objExists(name + ".offsetParentMatrix"):
             attrs.append("offsetParentMatrix")
-        if node.type() == "joint":
+        if node.getType() == "joint":
             attrs += ["jointOrient" + a for a in "XYZ"] + ["segmentScaleCompensate"]
         return AttributesSnapshot._capture_record(node, attrs)
 
@@ -439,9 +439,9 @@ class NurbsCurveSnapshot(Snapshot):
         """
         from maya import cmds
         record = {"node": NodeRef.capture(node)}
-        name = node.fullName()
+        name = node.getFullName()
         record["topology"] = _signature(node)
-        record["positions"] = [cmds.xform(cv.fullName(), query=True, translation=True, objectSpace=True) for cv in node.cvs()]
+        record["positions"] = [cmds.xform(cv.getFullName(), query=True, translation=True, objectSpace=True) for cv in node.cvs()]
         record["attributes"] = [_attribute(node, attr) for attr in ("overrideEnabled", "overrideRGBColors", "overrideColor", "overrideColorRGB", "lineWidth")]
         return record
 
@@ -456,7 +456,7 @@ class NurbsCurveSnapshot(Snapshot):
             before (dict): 変更前の値を追記する辞書。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         shape = name
         if _signature(shape) != record["topology"]:
             raise ValueError("Topology differs: " + shape)
@@ -469,7 +469,7 @@ class NurbsCurveSnapshot(Snapshot):
         for i in range(len(record["positions"])):
             if not cmds.getAttr(name + ".controlPoints[{}]".format(i), settable=True):
                 raise ValueError("CV is locked or connected")
-        before["positions"] = [cmds.xform(cv.fullName(), query=True, translation=True, objectSpace=True) for cv in node.cvs()]
+        before["positions"] = [cmds.xform(cv.getFullName(), query=True, translation=True, objectSpace=True) for cv in node.cvs()]
 
     @staticmethod
     def _apply_geometry(node, record, options):
@@ -481,7 +481,7 @@ class NurbsCurveSnapshot(Snapshot):
             options (dict): 対象名と名前空間の解決設定。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         for i, pos in enumerate(record["positions"]):
             cmds.xform(name + ".cv[{}]".format(i), objectSpace=True, translation=pos)
 
@@ -503,10 +503,10 @@ class SkinWeightsSnapshot(Snapshot):
         from maya import cmds
         from maya import cmds
         record = {"node": NodeRef.capture(node)}
-        name = node.fullName()
-        if node.type() != "skinCluster":
+        name = node.getFullName()
+        if node.getType() != "skinCluster":
             raise ValueError("Expected skinCluster")
-        influences = node.influences()
+        influences = node.getInfluences()
         weights = list(node.getWeights(influences))
         record.update(geometry=NodeRef.capture(node.mesh_path.fullPathName()), topology=_signature(node.mesh_path.fullPathName()),
                       influences=[NodeRef.capture(x) for x in influences], weights=[[i, v] for i, v in enumerate(weights) if v != 0.0])
@@ -526,15 +526,15 @@ class SkinWeightsSnapshot(Snapshot):
             before (dict): 変更前の値を追記する辞書。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         shape = node.mesh_path.fullPathName()
         if _signature(shape) != record["topology"]:
             raise ValueError("Topology differs: " + shape)
-        geometry = record["geometry"].resolve(**options).fullName()
+        geometry = record["geometry"].resolve(**options).getFullName()
         if geometry != node.mesh_path.fullPathName():
             raise ValueError("Skin geometry mapping differs")
-        names = [r.resolve(**options).fullName() for r in record["influences"]]
-        current = [NodeRef.capture(x).resolve().fullName() for x in node.influences()]
+        names = [r.resolve(**options).getFullName() for r in record["influences"]]
+        current = [NodeRef.capture(x).resolve().getFullName() for x in node.getInfluences()]
         if len(names) != len(set(names)) or set(names) != set(current):
             raise ValueError("Influence membership differs")
         size = record["topology"]["vertices"] * len(names)
@@ -571,8 +571,8 @@ class SkinWeightsSnapshot(Snapshot):
             options (dict): 対象名と名前空間の解決設定。
         """
         from maya import cmds
-        name = node.fullName()
-        names = [r.resolve(**options).fullName() for r in record["influences"]]
+        name = node.getFullName()
+        names = [r.resolve(**options).getFullName() for r in record["influences"]]
         weights = [0.0] * (record["topology"]["vertices"] * len(names))
         for index, value in record["weights"]:
             weights[index] = value
@@ -596,15 +596,15 @@ class AnimationSnapshot(Snapshot):
             dict: 保存用のレコード。
         """
         record = {"node": NodeRef.capture(node)}
-        if not node.type().startswith("animCurve"):
+        if not node.getType().startswith("animCurve"):
             raise ValueError("Expected animation curve")
         from ..utils.units import angleToUi
-        tangents = [node.getTangent(i) for i in range(node.keyCount())]
+        tangents = [node.getTangent(i) for i in range(node.getKeyCount())]
         for tangent in tangents:
             for flag in ("inAngle", "outAngle"):
                 tangent[flag] = angleToUi(tangent[flag])
-        record.update(inputs=[node._unit_value(v) for v in node.keyInputs()],
-                      values=[node._unit_value(v, output=True) for v in node.keyValues()],
+        record.update(inputs=[node._unit_value(v) for v in node.getKeyInputs()],
+                      values=[node._unit_value(v, output=True) for v in node.getKeyValues()],
                       tangents=tangents, infinity=node.getInfinity())
         return record
 
@@ -618,10 +618,10 @@ class AnimationSnapshot(Snapshot):
             before (dict): 変更前の値を追記する辞書。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         if any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in record["inputs"] + record["values"]):
             raise ValueError("Animation keys must be finite numbers")
-        if not record["inputs"] and node.keyCount():
+        if not record["inputs"] and node.getKeyCount():
             raise ValueError("Cannot clear the last animation key while preserving the existing node")
         if len(record["inputs"]) != len(record["values"]) or len(record["inputs"]) != len(record["tangents"]):
             raise ValueError("Invalid key counts")
@@ -630,8 +630,8 @@ class AnimationSnapshot(Snapshot):
         for attr in ("ktv", "preInfinity", "postInfinity"):
             if cmds.getAttr(name + "." + attr, lock=True):
                 raise ValueError("Animation attribute locked: " + attr)
-        before.update(inputs=[node._unit_value(v) for v in node.keyInputs()],
-                      values=[node._unit_value(v, output=True) for v in node.keyValues()])
+        before.update(inputs=[node._unit_value(v) for v in node.getKeyInputs()],
+                      values=[node._unit_value(v, output=True) for v in node.getKeyValues()])
 
     @staticmethod
     def _apply_keys(node, record):
@@ -642,12 +642,12 @@ class AnimationSnapshot(Snapshot):
             record (dict): 保存した一件分のデータ。
         """
         from maya import cmds
-        name = node.fullName()
+        name = node.getFullName()
         # 全キーの先行削除はカーブ本体も消すため、保存キーを先に設定する。
         for x, y in zip(record["inputs"], record["values"]):
             node.setKey(node._unit_value(x, to_ui=False), node._unit_value(y, output=True, to_ui=False))
         wanted = set(node._unit_value(v, to_ui=False) for v in record["inputs"])
-        for i, x in reversed(list(enumerate(node.keyInputs()))):
+        for i, x in reversed(list(enumerate(node.getKeyInputs()))):
             if x not in wanted:
                 cmds.cutKey(name, clear=True, animation="objects", index=(i, i))
         for i, tangent in enumerate(record["tangents"]):
@@ -686,12 +686,12 @@ class DrivenKeysSnapshot(Snapshot):
             dict: 保存用のレコード。
         """
         from maya import cmds
-        name = node.fullName()
-        if node.type().startswith("animCurve"):
+        name = node.getFullName()
+        if node.getType().startswith("animCurve"):
             record = AnimationSnapshot._capture_record(node, attributes)
-        elif node.type() in ("blendWeighted", "unitConversion"):
+        elif node.getType() in ("blendWeighted", "unitConversion"):
             record = {"node": NodeRef.capture(node)}
-            attrs = ["conversionFactor"] if node.type() == "unitConversion" else ["weight[{}]".format(i) for i in cmds.getAttr(name + ".weight", multiIndices=True) or []]
+            attrs = ["conversionFactor"] if node.getType() == "unitConversion" else ["weight[{}]".format(i) for i in cmds.getAttr(name + ".weight", multiIndices=True) or []]
             record["attributes"] = [_attribute(node, attr) for attr in attrs]
         else:
             raise ValueError("Expected animation curve")
@@ -707,9 +707,9 @@ class DrivenKeysSnapshot(Snapshot):
             record (dict): 保存した一件分のデータ。
             options (dict): 対象名と名前空間の解決設定。
         """
-        name = node.fullName()
-        expected = {tuple(p.resolve(**options).fullName() for p in pair) for pair in record["connections"]}
-        actual = {tuple(p.resolve().fullName() for p in pair) for pair in _connections(name)}
+        name = node.getFullName()
+        expected = {tuple(p.resolve(**options).getFullName() for p in pair) for pair in record["connections"]}
+        actual = {tuple(p.resolve().getFullName() for p in pair) for pair in _connections(name)}
         if expected != actual:
             raise ValueError("Driven-key connections differ: " + name)
 
@@ -748,17 +748,17 @@ def capture(targets=None, kind="pose", attributes=None):
     if kind == "curve":
         shapes = []
         for node in nodes:
-            if node.type() == "nurbsCurve":
+            if node.getType() == "nurbsCurve":
                 shapes.append(node)
             else:
-                children = cmds.listRelatives(node.fullName(), shapes=True, noIntermediate=True, fullPath=True, type="nurbsCurve") or []
+                children = cmds.listRelatives(node.getFullName(), shapes=True, noIntermediate=True, fullPath=True, type="nurbsCurve") or []
                 if not children:
-                    raise ValueError("Target has no nurbsCurve shapes: " + node.fullName())
+                    raise ValueError("Target has no nurbsCurve shapes: " + node.getFullName())
                 shapes.extend(_node(x) for x in children)
         nodes = shapes
     if kind == "driven_keys":
         nodes = _sdk_nodes(nodes)
-    unique = {n.fullName(): n for n in nodes}
+    unique = {n.getFullName(): n for n in nodes}
     records = [_KINDS[kind]._capture_record(node, attributes) for node in unique.values()]
     if not records:
         raise ValueError("No supported targets")
@@ -777,7 +777,7 @@ def _sdk_nodes(nodes):
     """
     from maya import cmds
     result, visited = [], set()
-    pending = [n.fullName() for n in nodes]
+    pending = [n.getFullName() for n in nodes]
     while pending:
         name = pending.pop()
         if name in visited:

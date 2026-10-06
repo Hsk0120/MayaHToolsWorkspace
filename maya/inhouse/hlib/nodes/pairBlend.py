@@ -1,5 +1,6 @@
 """移動・回転をブレンドする。Euler/Quaternion補間を選択できる。"""
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -11,19 +12,19 @@ from .node import Node
 class PairBlend(Node):
     """移動・回転をブレンドする。Euler/Quaternion補間を選択できる。"""
 
-    def weightPlug(self):
+    def getWeightPlug(self):
         """ブレンドウェイトのPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.plug("weight")
+        return self.getPlug("weight")
 
     def getWeight(self):
         """ブレンドウェイトの評価値を取得する。
         Returns:
             float: 現在の値。
         """
-        return self.weightPlug().get()
+        return self.getWeightPlug().get()
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
@@ -39,23 +40,24 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.scalar, self.weightPlug)
+        _Calculation.set_value(value, _Calculation.scalar, self.getWeightPlug)
         return self
 
+    @flag_aliases(src="source", f="force")
     @undoChunk("hlibCalculationEdit")
     def connectWeight(self, source, force=False):
         """ブレンドウェイトへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。
-            force (bool): 既存接続を置き換えるか。
+            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
         Returns:
             PairBlend: 自身。
 
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.weightPlug, force=force)
+        _Calculation.connect(source, self.getWeightPlug, force=force)
         return self
 
     def getRotationInterpolation(self):
@@ -63,7 +65,7 @@ class PairBlend(Node):
         Returns:
             str: euler, quaternion。
         """
-        return _Calculation.enumName(self.plug("rotInterpolation"), ('euler', 'quaternion'))
+        return _Calculation.enumName(self.getPlug("rotInterpolation"), ('euler', 'quaternion'))
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
@@ -80,7 +82,7 @@ class PairBlend(Node):
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         value = _Calculation.enumValue(mode, ('euler', 'quaternion'))
-        self.plug("rotInterpolation").set(value)
+        self.getPlug("rotInterpolation").set(value)
         return self
 
     def getRotateOrder(self):
@@ -88,7 +90,7 @@ class PairBlend(Node):
         Returns:
             str: xyz, yzx, zxy, xzy, yxz, zyx。
         """
-        return _Calculation.enumName(self.plug("rotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
+        return _Calculation.enumName(self.getPlug("rotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
@@ -105,36 +107,39 @@ class PairBlend(Node):
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         value = _Calculation.enumValue(mode, ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
-        self.plug("rotateOrder").set(value)
+        self.getPlug("rotateOrder").set(value)
         return self
 
-    def translatePlug(self, index):
+    @flag_aliases(idx="index")
+    def getTranslatePlug(self, index):
         """translate入力（cm）のPlugを取得する。
 
         Args:
-            index (int): 入力番号1または2。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.plug(f"inTranslate{_Calculation.index(index, (1, 2))}")
+        return self.getPlug(f"inTranslate{_Calculation.index(index, (1, 2))}")
 
+    @flag_aliases(idx="index")
     def getTranslation(self, index):
         """translate入力（cm）の評価値を取得する。
 
         Args:
-            index (int): 入力番号1または2。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.translatePlug(index).get()
+        return self.getTranslatePlug(index).get()
 
+    @flag_aliases(idx="index")
     @fast_edit
     @undoChunk("hlibCalculationEdit")
     def setTranslation(self, index, value, *, fast=False):
         """translate入力（cm）へ定数値を設定する。
 
         Args:
-            index (int): 入力番号1または2。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
         Returns:
@@ -143,53 +148,57 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.translatePlug, index)
+        _Calculation.set_value(value, _Calculation.vector, self.getTranslatePlug, index)
         return self
 
+    @flag_aliases(idx="index", src="source", f="force")
     @undoChunk("hlibCalculationEdit")
     def connectTranslate(self, index, source, force=False):
         """translate入力（cm）へ接続する。
 
         Args:
-            index (int): 入力番号1または2。
-            source (Plug | str | MPlug): 接続元。
-            force (bool): 既存接続を置き換えるか。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
         Returns:
             PairBlend: 自身。
 
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.translatePlug, index, force=force)
+        _Calculation.connect(source, self.getTranslatePlug, index, force=force)
         return self
 
-    def rotatePlug(self, index):
+    @flag_aliases(idx="index")
+    def getRotatePlug(self, index):
         """rotate入力（rad）のPlugを取得する。
 
         Args:
-            index (int): 入力番号1または2。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.plug(f"inRotate{_Calculation.index(index, (1, 2))}")
+        return self.getPlug(f"inRotate{_Calculation.index(index, (1, 2))}")
 
+    @flag_aliases(idx="index")
     def getRotation(self, index):
         """rotate入力（rad）の評価値を取得する。
 
         Args:
-            index (int): 入力番号1または2。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.rotatePlug(index).get()
+        return self.getRotatePlug(index).get()
 
+    @flag_aliases(idx="index")
     @fast_edit
     @undoChunk("hlibCalculationEdit")
     def setRotation(self, index, value, *, fast=False):
         """rotate入力（rad）へ定数値を設定する。
 
         Args:
-            index (int): 入力番号1または2。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
         Returns:
@@ -198,27 +207,28 @@ class PairBlend(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.rotatePlug, index)
+        _Calculation.set_value(value, _Calculation.vector, self.getRotatePlug, index)
         return self
 
+    @flag_aliases(idx="index", src="source", f="force")
     @undoChunk("hlibCalculationEdit")
     def connectRotate(self, index, source, force=False):
         """rotate入力（rad）へ接続する。
 
         Args:
-            index (int): 入力番号1または2。
-            source (Plug | str | MPlug): 接続元。
-            force (bool): 既存接続を置き換えるか。
+            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
         Returns:
             PairBlend: 自身。
 
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.rotatePlug, index, force=force)
+        _Calculation.connect(source, self.getRotatePlug, index, force=force)
         return self
 
-    def outputPlug(self, kind="translate"):
+    def getOutputPlug(self, kind="translate"):
         """移動または回転の出力を取得する。
 
         Args:
@@ -228,9 +238,9 @@ class PairBlend(Node):
         """
         if kind not in ("translate", "rotate"):
             raise ValueError("kind must be translate or rotate")
-        return self.plug("out" + kind.title())
+        return self.getPlug("out" + kind.title())
 
-    def result(self, kind="translate"):
+    def getResult(self, kind="translate"):
         """移動または回転の評価値を取得する。
 
         Args:
@@ -238,4 +248,4 @@ class PairBlend(Node):
         Returns:
             tuple[float, float, float]: 移動はcm、回転はrad。
         """
-        return tuple(self.outputPlug(kind).get())
+        return tuple(self.getOutputPlug(kind).get())

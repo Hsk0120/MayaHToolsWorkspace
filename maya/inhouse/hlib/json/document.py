@@ -28,7 +28,7 @@ class JsonDocument:
             raise ValueError("Metadata must be a dictionary")
         return cls(decode(value["data"]), metadata)
 
-    def toData(self):
+    def asData(self):
         """形式バージョン1のJSON基本値を返す。"""
         from .codec import encode
         return {"format": "hlib.json", "version": 1, "metadata": encode(self.metadata), "data": encode(self.data)}

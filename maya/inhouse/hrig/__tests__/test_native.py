@@ -23,7 +23,7 @@ class NativeTest(unittest.TestCase):
             cmds.setAttr(target+'.softness',softness)
             for distance in (0,2,8,9.5,10,12):
                 cmds.setAttr(target+'.tx',distance-8)
-                output=cmds.xform(self.rig.joints()[2],q=True,ws=True,t=True)
+                output=cmds.xform(self.rig.getJoints()[2],q=True,ws=True,t=True)
                 self.assertAlmostEqual(math.dist(output,(0,0,0)),
                                        SoftIK.distance(distance,10,softness),delta=0.002)
         self.rig.set_mode('fk')
@@ -58,7 +58,7 @@ class NativeTest(unittest.TestCase):
         from hlib.decorators.undo import undoChunk
         rig = self.rig
         rig.set_mode('ik')
-        expected = [cmds.xform(j,q=True,ws=True,matrix=True) for j in rig.joints()[:3]]
+        expected = [cmds.xform(j,q=True,ws=True,matrix=True) for j in rig.getJoints()[:3]]
         with undoChunk('match_and_switch'):
             rig.match_fk()
             rig.set_mode('fk')
@@ -66,7 +66,7 @@ class NativeTest(unittest.TestCase):
         self.assertEqual(rig.mode(),'ik')
         cmds.redo()
         self.assertEqual(rig.mode(),'fk')
-        for joint, matrix in zip(rig.joints(),expected):
+        for joint, matrix in zip(rig.getJoints(),expected):
             for actual,value in zip(cmds.xform(joint,q=True,ws=True,matrix=True),matrix):
                 self.assertAlmostEqual(actual,value,delta=0.003)
 

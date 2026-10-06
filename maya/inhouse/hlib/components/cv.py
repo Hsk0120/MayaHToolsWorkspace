@@ -9,9 +9,9 @@ class CV(PointComponent):
 
     shape_type = "nurbsCurve"
     component_type = "cv"
-    count_attribute = "numCVs"
+    count_attribute = "getNumCVs"
 
-    def fullName(self):
+    def getFullName(self):
         """cmds用のCV名を返す。周期末尾の重複CVは先頭の対応番号へ写す。
 
         Returns:
@@ -19,7 +19,7 @@ class CV(PointComponent):
         """
         self._validate()
         index = command_indices(self.shape, [self.index])[0]
-        return "{}.cv[{}]".format(self.shape.fullName(), index)
+        return "{}.cv[{}]".format(self.shape.getFullName(), index)
 
 
 class CVs(PointComponents):
@@ -27,13 +27,13 @@ class CVs(PointComponents):
 
     component_class = CV
 
-    def fullNames(self):
+    def getFullNames(self):
         """保持順のcmds用CV名を返す。周期末尾は対応する独立CVの名前となる。"""
         self._validate()
-        name = self.shape.fullName()
+        name = self.shape.getFullName()
         return ["{}.cv[{}]".format(name, index)
                 for index in command_indices(self.shape, self.indices)]
 
-    def compactNames(self):
+    def getCompactNames(self):
         """cmds用CV名を返す。周期CVの対応を保つため範囲へ圧縮しない。"""
-        return self.fullNames()
+        return self.getFullNames()

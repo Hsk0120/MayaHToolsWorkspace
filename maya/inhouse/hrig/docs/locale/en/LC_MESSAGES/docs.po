@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: hrig VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-05 22:30+0900\n"
+"POT-Creation-Date: 2026-10-06 09:02+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -113,7 +113,7 @@ msgid "元の循環接続やWorld Upの特異点は解消しません。前フ�
 msgstr "The original cyclic connections and World Up singularities are not resolved. It does not store the previous frame, accumulate multiple rotations, or unwrap across ±180 degrees. In cases of singularities in methods 2 and 3, the calculated angle is set to 0 as ``valid=0``. If posture maintenance is specified, the fixed additive value remains. The same applies when changing Rotate Order, resulting in ``valid=0``, so please reconvert."
 
 msgid "Python API"
-msgstr ""
+msgstr "Python API"
 
 msgid "``restore()`` は元の設定値と直接接続を復元し、生成物を削除します。戻り値はありません。"
 msgstr "``restore()`` directly restores the original connection settings and deletes the generated output. It returns no value."
@@ -391,8 +391,8 @@ msgstr "``hrig.setups.SpaceSwitch`` is a common library that makes dedicated tra
 msgid "``create`` にはローカルTRSが恒等値で、offsetParentMatrixが未接続の専用transformを 渡します。初期オフセットと参照先ワールド行列、実親の逆行列から offsetParentMatrixを計算します。親の付け替えやbufferのTRS編集は対象外です。 ``switch`` は切替先のオフセットを更新し、bufferのワールド姿勢と子の ローカルチャンネルを保持します。通常の移動追従はDGだけで評価されます。"
 msgstr "``create`` takes a dedicated transform with local TRS as identity and an unconnected offsetParentMatrix. It calculates the offsetParentMatrix from the initial offset, reference world matrix, and the inverse of the actual parent. Parent switching orTRS editing of the buffer are not covered. ``switch`` updates the offset of the switch target, and maintains the world pose of the buffer and the local channels of its children. Conventional movement following is evaluated with DG only."
 
-msgid "保存後は ``SpaceSwitch(buffer)`` で再取得できます。名前の変更は接続から追跡します。 ``nodes()`` は所有ノードを返し、外部の参照先は含めません。削除は利用側が管理します。 空間名は英字で始まる英数字・アンダースコアとし、重複名は拒否します。"
-msgstr "After saving, you can retrieve it again with ``SpaceSwitch(buffer)``. Name changes are tracked from connections. ``nodes()`` returns the owned nodes and does not include external references. Deletion is managed by the user. Namespace names must begin with an English letter and consist of alphanumeric characters and underscores, and duplicate names are rejected."
+msgid "保存後は ``SpaceSwitch(buffer)`` で再取得できます。名前の変更は接続から追跡します。 ``getNodes()`` は所有ノードを返し、外部の参照先は含めません。削除は利用側が管理します。 空間名は英字で始まる英数字・アンダースコアとし、重複名は拒否します。"
+msgstr "After saving, you can retrieve it again with ``SpaceSwitch(buffer)``. Name changes are tracked from connections. ``getNodes()`` returns the owned nodes and does not include external references. Deletion is managed by the user. Namespace names must begin with an English letter and consist of alphanumeric characters and underscores, and duplicate names are rejected."
 
 msgid "制限"
 msgstr "Limitations"
@@ -404,7 +404,7 @@ msgid "自己・子孫・通常のDG/DAG依存による循環は登録時に拒�
 msgstr "Cycles caused by self, descendants, and normal DG/DAG dependencies are rejected at registration time. It does not generally detect implicit internal dependencies such as those from IK solvers. Please set constraints on the rig side that do not input deformation results into their own local coordinate space. Deletion of references, re-parenting of buffers, and use of instance hierarchies are not supported."
 
 msgid "Spline IK"
-msgstr ""
+msgstr "Spline IK"
 
 msgid "``hrig.setups.SplineIK`` は既存の骨列とコントロールを使い、 Maya標準の ``ikSplineSolver`` と3次NURBSカーブを生成します。 独自プラグイン、Bifrost、毎フレームのPython実行は不要です。"
 msgstr "``hrig.setups.SplineIK`` generates Maya's standard ``ikSplineSolver`` and 3rd degree NURBS curves using existing bone chains and controls. It does not require custom plug-ins, Bifrost, or per-frame Python execution."
@@ -491,79 +491,79 @@ msgid "階層 Parallel"
 msgstr "Hierarchical Parallel"
 
 msgid "parentConstraint"
-msgstr ""
+msgstr "parentConstraint"
 
 msgid "8.813"
-msgstr ""
+msgstr "8.813"
 
 msgid "2.393"
-msgstr ""
+msgstr "2.393"
 
 msgid "9.441"
-msgstr ""
+msgstr "9.441"
 
 msgid "9.782"
-msgstr ""
+msgstr "9.782"
 
 msgid "行列＋decompose"
 msgstr "Matrix + decompose"
 
 msgid "6.532"
-msgstr ""
+msgstr "6.532"
 
 msgid "2.193"
-msgstr ""
+msgstr "2.193"
 
 msgid "7.086"
-msgstr ""
+msgstr "7.086"
 
 msgid "6.601"
-msgstr ""
+msgstr "6.601"
 
 msgid "行列→OPM"
 msgstr "matrix → OPM"
 
 msgid "4.685"
-msgstr ""
+msgstr "4.685"
 
 msgid "1.909"
-msgstr ""
+msgstr "1.909"
 
 msgid "4.682"
-msgstr ""
+msgstr "4.682"
 
 msgid "2.791"
-msgstr ""
+msgstr "2.791"
 
 msgid "C++"
-msgstr ""
+msgstr "C++"
 
 msgid "4.731"
-msgstr ""
+msgstr "4.731"
 
 msgid "1.962"
-msgstr ""
+msgstr "1.962"
 
 msgid "4.763"
-msgstr ""
+msgstr "4.763"
 
 msgid "2.931"
-msgstr ""
+msgstr "2.931"
 
 msgid "Bifrost"
-msgstr ""
+msgstr "Bifrost"
 
 msgid "26.301"
-msgstr ""
+msgstr "26.301"
 
 msgid "18.228"
-msgstr ""
+msgstr "18.228"
 
 msgid "26.555"
-msgstr ""
+msgstr "26.555"
 
 msgid "25.577"
-msgstr ""
+msgstr "25.577"
 
 msgid "全20計測条件でCached Playback無効、要求した評価モードとの一致、fallbackなしを確認しました。 小規模の40姿勢条件も誤差1e-6以内で一致し、専用mayapyは終了コード0でした。 生データはローカルの ``.maya-output/constraint-benchmark/serial-parallel/results.json`` にあります。 生ログ・研究メモは公開サイトやGitへ含めません。"
 msgstr "All 20 measurement conditions were verified with Cached Playback disabled, matching the requested evaluation mode, and no fallback was required. Even the small-scale 40 pose conditions matched within an error of 1e-6, and the dedicated mayapy exited with code 0. The raw data is located locally at ``.maya-output/constraint-benchmark/serial-parallel/results.json``. Raw logs and research notes are not included in the public site or Git."
@@ -584,25 +584,25 @@ msgid "スイート"
 msgstr "Suite"
 
 msgid "Maya 2025"
-msgstr ""
+msgstr "Maya 2025"
 
 msgid "Maya 2027"
-msgstr ""
+msgstr "Maya 2027"
 
 msgid "setups"
-msgstr ""
+msgstr "setups"
 
 msgid "47件成功"
 msgstr "47 succeeded"
 
 msgid "matrix-plugins"
-msgstr ""
+msgstr "matrix-plugins"
 
 msgid "17件成功"
 msgstr "17 succeeded"
 
 msgid "native"
-msgstr ""
+msgstr "native"
 
 msgid "7件成功"
 msgstr "7 items succeeded"
@@ -659,7 +659,7 @@ msgid "multMatrix + decomposeMatrix（translate/rotate出力）"
 msgstr "multMatrix + decomposeMatrix (translate/rotate output)"
 
 msgid "multMatrix → offsetParentMatrix"
-msgstr ""
+msgstr "multMatrix → offsetParentMatrix"
 
 msgid "hrigMatrixFollow（C++）→ offsetParentMatrix"
 msgstr "hrigMatrixFollow (C++) → offsetParentMatrix"

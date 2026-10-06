@@ -1,10 +1,9 @@
 """Maya のメッシュシェイプを扱う。"""
 
-from .._core.flags import flag_aliases
-
 import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from .._core.space import world_space
 from ..components.edge import Edge, Edges
@@ -12,6 +11,7 @@ from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..decorators._fast import fast_edit
+from ..maths.vector import Vector
 from .shape import Shape
 
 
@@ -53,14 +53,15 @@ class Mesh(Shape):
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         ws = world_space(worldSpace)
-        self.vertices(indices).mirror(axis=axis, ws=ws, pivot=pivot)
+        self.getVertices(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self
 
+    @flag_aliases(idx="index")
     def vertex(self, index):
         """頂点番号から単体ラッパーを取得する。
 
         Args:
-            index (int): ゼロ始まりの頂点番号。
+            index (int): ゼロ始まりの頂点番号。 別名 ``idx`` も使用可能。
 
         Returns:
             Vertex: シーン上の頂点を参照するラッパー。
@@ -70,7 +71,7 @@ class Mesh(Shape):
         """
         return Vertex(self, index)
 
-    def vertices(self, indices=None):
+    def getVertices(self, indices=None):
         """指定した頂点群を取得する。
 
         Args:
@@ -81,7 +82,7 @@ class Mesh(Shape):
         """
         return Vertices(self, indices)
 
-    def shadingEngines(self):
+    def getShadingEngines(self):
         """このDAGインスタンスのフェースへ割り当てられたShadingEngineを返す。
 
         Returns:
@@ -91,7 +92,7 @@ class Mesh(Shape):
         groups, indices = self.meshFn().getConnectedShaders(self.mpath().instanceNumber())
         return [ShadingEngine(groups[i]) for i in sorted(set(indices)) if i >= 0]
 
-    def faceShadingEngines(self):
+    def getFaceShadingEngines(self):
         """面番号順の割り当てを取得する。
 
         Returns:
@@ -110,7 +111,7 @@ class Mesh(Shape):
         """
         return om2.MFnMesh(self.mpath())
 
-    def numVertices(self):
+    def getNumVertices(self):
         """頂点数を取得する。
 
         Returns:
@@ -118,7 +119,7 @@ class Mesh(Shape):
         """
         return self.meshFn().numVertices
 
-    def numPolygons(self):
+    def getNumPolygons(self):
         """ポリゴン数を取得する。
 
         Returns:
@@ -126,7 +127,7 @@ class Mesh(Shape):
         """
         return self.meshFn().numPolygons
 
-    def numEdges(self):
+    def getNumEdges(self):
         """エッジ数を取得する。
 
         Returns:
@@ -149,7 +150,7 @@ class Mesh(Shape):
         return self.meshFn().getPoints(space)
 
     @flag_aliases(ws="worldSpace")
-    def getNormals(self, worldSpace=False, angle_weighted=False):
+    def getVertexNormals(self, worldSpace=False, angle_weighted=False):
         """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
         Args:
@@ -157,12 +158,12 @@ class Mesh(Shape):
             angle_weighted (bool): True の場合は隣接面の角度で重み付けした法線を取得する。
 
         Returns:
-            om2.MFloatVectorArray: 頂点番号順の平均法線。angle_weighted=False では
+            list[Vector]: 頂点番号順の平均法線。angle_weighted=False では
                 角度による重み付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
         ws = world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
-        return self.meshFn().getVertexNormals(angle_weighted, space)
+        return [Vector(value) for value in self.meshFn().getVertexNormals(angle_weighted, space)]
 
     @flag_aliases(ws="worldSpace")
     def getVertexAdjacency(self, worldSpace=False):
@@ -187,11 +188,12 @@ class Mesh(Shape):
             adjacency[second].append((first, length))
         return adjacency
 
+    @flag_aliases(idx="index")
     def edge(self, index):
         """番号から Edge を取得する。
 
         Args:
-            index (int): ゼロ始まりの番号。
+            index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
 
         Returns:
             Edge: シーンを参照する単体ラッパー。
@@ -209,11 +211,12 @@ class Mesh(Shape):
         """
         return Edges(self, indices)
 
+    @flag_aliases(idx="index")
     def face(self, index):
         """番号から Face を取得する。
 
         Args:
-            index (int): ゼロ始まりの番号。
+            index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
 
         Returns:
             Face: シーンを参照する単体ラッパー。
@@ -231,11 +234,12 @@ class Mesh(Shape):
         """
         return Faces(self, indices)
 
+    @flag_aliases(idx="index")
     def uv(self, index):
         """番号から UV を取得する。
 
         Args:
-            index (int): ゼロ始まりの番号。
+            index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
 
         Returns:
             UV: シーンを参照する単体ラッパー。
@@ -253,7 +257,7 @@ class Mesh(Shape):
         """
         return UVs(self, indices)
 
-    def numUVs(self):
+    def getNumUVs(self):
         """現在の UV セットの要素数。
 
         Returns:

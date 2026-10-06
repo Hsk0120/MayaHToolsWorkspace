@@ -35,9 +35,9 @@ class NoQtDependencyTest(unittest.TestCase):
         """メインウィンドウは名前を返し、Qtオブジェクトを取得しない。"""
         import maya.cmds as cmds
         with patch.object(cmds, "about", return_value=True):
-            self.assertIsNone(MainWindow.name())
+            self.assertIsNone(MainWindow.getName())
         with patch.object(cmds, "about", return_value=False), patch("maya.mel.eval", return_value="MayaWindow"):
-            self.assertEqual(MainWindow.name(), "MayaWindow")
+            self.assertEqual(MainWindow.getName(), "MayaWindow")
         self.assertFalse(hasattr(MainWindow, "widget"))
 
 

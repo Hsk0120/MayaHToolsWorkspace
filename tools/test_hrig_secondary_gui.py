@@ -33,7 +33,7 @@ def main(output_dir=None, finished=None):
 
     def row(kind):
         """選択モジュールの指定行を返す。"""
-        uuid = editor.current()[0].root.uuid()
+        uuid = editor.getCurrent()[0].root.getUuid()
         return next(
             item
             for item in editor.rows()
@@ -54,30 +54,30 @@ def main(output_dir=None, finished=None):
         editor.skirt_count.setValue(8)
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        rig, _ = editor.current()
+        rig, _ = editor.getCurrent()
         source = rig.driver_chains()[0][0]
         for time, value in ((1, 0), (8, 60), (24, 60)):
-            cmds.setKeyframe(source.fullName(), attribute="rx", time=time, value=value)
+            cmds.setKeyframe(source.getFullName(), attribute="rx", time=time, value=value)
         cmds.currentTime(8)
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("spring"))
         check(editor.addButton.isEnabled(), "Spring sample available")
         QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
         group = SecondaryLayer(rig).groups()[0]
-        check(group.plug("baked").get(), "UI creates baked spring")
+        check(group.getPlug("baked").get(), "UI creates baked spring")
         check(cmds.currentTime(query=True) == 8, "Bake restores current frame")
         target = SecondaryLayer._members(group, "targets")[0]
-        check(abs(target.plug("rx").get() - 60) > 1, "Spring lag visible")
-        group.plug("frequency").set(6)
-        old = target.plug("rx").get()
+        check(abs(target.getPlug("rx").get() - 60) > 1, "Spring lag visible")
+        group.getPlug("frequency").set(6)
+        old = target.getPlug("rx").get()
         QtTest.QTest.mouseClick(editor.bake_button, QtCore.Qt.LeftButton)
         yield
-        check(abs(target.plug("rx").get() - old) > 0.1, "Rebake uses settings")
+        check(abs(target.getPlug("rx").get() - old) > 0.1, "Rebake uses settings")
         row("spring").setCheckState(0, QtCore.Qt.Unchecked)
         yield
         check(not rig.layer_enabled("spring"), "Spring checkbox")
         check(
-            abs(rig.chains()[0][0].plug("rx").get() - 60) < 0.001, "Disabled routes original driver"
+            abs(rig.chains()[0][0].getPlug("rx").get() - 60) < 0.001, "Disabled routes original driver"
         )
         cmds.undo()
         yield
@@ -85,19 +85,19 @@ def main(output_dir=None, finished=None):
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("pose"))
         QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
-        graph = group.plug("poseGraph").sourceWithConversion().node()
-        check(abs(graph.plug("outputs[2]").get() - 20) < 0.001, "Pose registered value")
-        source.plug("rz").set(60)
+        graph = group.getPlug("poseGraph").getSourceWithConversion().getNode()
+        check(abs(graph.getPlug("outputs[2]").get() - 20) < 0.001, "Pose registered value")
+        source.getPlug("rz").set(60)
         yield
-        check(abs(graph.plug("outputs[0]").get() + 20) < 0.001, "Two-input pose combination")
-        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_pose", False)
+        check(abs(graph.getPlug("outputs[0]").get() + 20) < 0.001, "Two-input pose combination")
+        cmds.setAttr(rig.root.getFullName() + ".hrigEnabled_pose", False)
         yield
         for _ in range(20):
-            if SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").sourceWithConversion() is None:
+            if SecondaryLayer._members(group, "poses")[0].getPlug("inputRotateX").getSourceWithConversion() is None:
                 break
             yield
         check(
-            SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").sourceWithConversion() is None,
+            SecondaryLayer._members(group, "poses")[0].getPlug("inputRotateX").getSourceWithConversion() is None,
             "Pose Channel disable",
         )
         cmds.undo()
@@ -110,11 +110,11 @@ def main(output_dir=None, finished=None):
         rig.set_lod(0)
         yield
         check(
-            SecondaryLayer._members(group, "blends")[0].plug("inRotateX2").sourceWithConversion() is None,
+            SecondaryLayer._members(group, "blends")[0].getPlug("inRotateX2").getSourceWithConversion() is None,
             "LOD drops spring input",
         )
         check(
-            SecondaryLayer._members(group, "poses")[0].plug("inputRotateX").sourceWithConversion() is None,
+            SecondaryLayer._members(group, "poses")[0].getPlug("inputRotateX").getSourceWithConversion() is None,
             "LOD drops pose input",
         )
         rig.set_lod(1)
@@ -125,13 +125,13 @@ def main(output_dir=None, finished=None):
         rig = SkirtRig("secondaryDemo")
         group = SecondaryLayer(rig).groups()[0]
         check(
-            group.plug("baked").get() and group.plug("poseGraph").sourceWithConversion() is not None,
+            group.getPlug("baked").get() and group.getPlug("poseGraph").getSourceWithConversion() is not None,
             "Reload cache and pose data",
         )
-        cmds.setAttr(rig.root.fullName() + ".hrigEnabled_spring", False)
+        cmds.setAttr(rig.root.getFullName() + ".hrigEnabled_spring", False)
         yield
         check(
-            SecondaryLayer._members(group, "blends")[0].plug("inRotateX2").sourceWithConversion() is None,
+            SecondaryLayer._members(group, "blends")[0].getPlug("inRotateX2").getSourceWithConversion() is None,
             "Reload watchers",
         )
         rig.set_layer_enabled("spring", True)

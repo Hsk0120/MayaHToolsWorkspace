@@ -13,7 +13,7 @@ def _selected_chain_nodes():
 		selection = cmds.ls(sl=True, l=True) or []
 	chain = []
 	for node in selection:
-		node_type = Node(node).type()
+		node_type = Node(node).getType()
 		if node_type not in ("transform", "joint"):
 			continue
 		if node in chain:
@@ -47,9 +47,9 @@ def _as_local_rotate_vector(node):
 	    node: 処理対象のノード参照。
 	"""
 	return [
-		units.angleToUi(Node(node).plug("rotateX").get()),
-		units.angleToUi(Node(node).plug("rotateY").get()),
-		units.angleToUi(Node(node).plug("rotateZ").get()),
+		units.angleToUi(Node(node).getPlug("rotateX").get()),
+		units.angleToUi(Node(node).getPlug("rotateY").get()),
+		units.angleToUi(Node(node).getPlug("rotateZ").get()),
 	]
 
 
@@ -286,9 +286,9 @@ def _bake_pbd_overlap_for_chain(
 				sim_vec = _v_sub(sim_pos[node], sim_pos[parent])
 			if _v_len(pose_vec) <= 1e-8 or _v_len(sim_vec) <= 1e-8:
 				rx, ry, rz = base_local_rot[frame][node]
-				Node(node).plug("rotateX").set(units.angleFromUi(rx))
-				Node(node).plug("rotateY").set(units.angleFromUi(ry))
-				Node(node).plug("rotateZ").set(units.angleFromUi(rz))
+				Node(node).getPlug("rotateX").set(units.angleFromUi(rx))
+				Node(node).getPlug("rotateY").set(units.angleFromUi(ry))
+				Node(node).getPlug("rotateZ").set(units.angleFromUi(rz))
 				cmds.setKeyframe(node, at=["rotateX", "rotateY", "rotateZ"], t=(frame,))
 				continue
 

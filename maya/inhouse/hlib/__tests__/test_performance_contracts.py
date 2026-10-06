@@ -60,16 +60,16 @@ class PerformanceContractsTest(unittest.TestCase):
         original = cmds.undoInfo
         with patch.object(cmds, "undoInfo", wraps=original) as calls:
             with undoChunk("outer"):
-                node.plug("tx").set(3)
+                node.getPlug("tx").set(3)
                 with undoChunk("inner"):
-                    node.plug("ty").set(7)
+                    node.getPlug("ty").set(7)
         self.assertEqual(sum(bool(c[1].get("openChunk")) for c in calls.call_args_list), 1)
         self.assertEqual(sum(bool(c[1].get("closeChunk")) for c in calls.call_args_list), 1)
         self.assertEqual(cmds.undoInfo(q=True, undoName=True), "outer")
         cmds.undo()
-        self.assertEqual(tuple(node.plug("translate").get()), (0, 0, 0))
+        self.assertEqual(tuple(node.getPlug("translate").get()), (0, 0, 0))
         cmds.redo()
-        self.assertEqual(tuple(node.plug("translate").get()), (3, 7, 0))
+        self.assertEqual(tuple(node.getPlug("translate").get()), (3, 7, 0))
 
     def test_chunk_state_after_open_failure_and_body_exception(self):
         """開閉の失敗や本体の例外で後続操作のチャンクを省略しない。"""
@@ -81,9 +81,9 @@ class PerformanceContractsTest(unittest.TestCase):
             with undoChunk("body failed"):
                 raise ValueError("body")
         node = hlib.getNode(cmds.createNode("transform"))
-        node.plug("tx").set(8)
+        node.getPlug("tx").set(8)
         cmds.undo()
-        self.assertEqual(node.plug("tx").get(), 0)
+        self.assertEqual(node.getPlug("tx").get(), 0)
 
     def test_transaction_is_not_suppressed(self):
         """トランザクション自体の独立チャンクは通常チャンク内でも維持する。"""
@@ -97,9 +97,9 @@ class PerformanceContractsTest(unittest.TestCase):
         node = hlib.getNode(cmds.createNode("transform"))
         with self.assertRaises(ValueError):
             with undoTransaction("rollback"):
-                node.plug("tx").set(9)
+                node.getPlug("tx").set(9)
                 raise ValueError("rollback")
-        self.assertEqual(node.plug("tx").get(), 0)
+        self.assertEqual(node.getPlug("tx").get(), 0)
 
     def assert_matrix(self, node):
         """対象インスタンスのworldMatrixとローカルmatrixの一致を確認する。"""
@@ -155,7 +155,7 @@ class PerformanceContractsTest(unittest.TestCase):
         n = cmds.rename(n, "renamed")
         cmds.parent(n, a)
         self.assert_matrix(node)
-        cmds.delete(node.fullName())
+        cmds.delete(node.getFullName())
         with self.assertRaises(RuntimeError):
             node.getMatrix(ws=True)
         cmds.undo()
@@ -166,7 +166,7 @@ class PerformanceContractsTest(unittest.TestCase):
         name = cmds.createNode("transform")
         node = hlib.getNode(name)
         cmds.addAttr(name, ln="bounded", at="double", min=0, max=10)
-        plug = node.plug("bounded")
+        plug = node.getPlug("bounded")
         plug.set(8, fast=True)
         cmds.addAttr(name + ".bounded", e=True, max=5)
         with self.assertRaises(RuntimeError):
@@ -186,8 +186,8 @@ class PerformanceContractsTest(unittest.TestCase):
         plug.set(2, fast=True)
         for unit in ("cm", "m"):
             cmds.currentUnit(linear=unit)
-            node.plug("tx").set(3, fast=True)
-            self.assertAlmostEqual(node.plug("tx").mplug().asMDistance().asCentimeters(), 3)
+            node.getPlug("tx").set(3, fast=True)
+            self.assertAlmostEqual(node.getPlug("tx").mplug().asMDistance().asCentimeters(), 3)
 
 
 if __name__ == "__main__":

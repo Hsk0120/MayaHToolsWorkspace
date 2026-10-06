@@ -32,17 +32,17 @@ class BendCorrectionTest(unittest.TestCase):
             cmds.setAttr(joint + ".r" + axis, 65)
             cmds.setAttr(joint + ".tx", 8)
             owner = graph.container
-            self.assertAlmostEqual(owner.plug("response").get(), 0.5, places=5)
-            matrix = om.MMatrix(owner.plug("matrix").get())
+            self.assertAlmostEqual(owner.getPlug("response").get(), 0.5, places=5)
+            matrix = om.MMatrix(owner.getPlug("matrix").get())
             self.assertAlmostEqual(matrix[12], 8, places=5)
             rotation = om.MTransformationMatrix(matrix).rotation()
             self.assertAlmostEqual(math.degrees(getattr(rotation, axis)), 42.5, places=4)
-            self.assertAlmostEqual(owner.plug("inner").get(), 0.4, places=5)
+            self.assertAlmostEqual(owner.getPlug("inner").get(), 0.4, places=5)
             cmds.currentUnit(angle="rad")
-            self.assertAlmostEqual(owner.plug("response").get(), 0.5, places=5)
+            self.assertAlmostEqual(owner.getPlug("response").get(), 0.5, places=5)
             cmds.currentUnit(angle="deg")
-            owner.plug("rotationRatio").set(0)
-            matrix = om.MMatrix(owner.plug("matrix").get())
+            owner.getPlug("rotationRatio").set(0)
+            matrix = om.MMatrix(owner.getPlug("matrix").get())
             self.assertAlmostEqual(
                 math.degrees(getattr(om.MTransformationMatrix(matrix).rotation(), axis)),
                 20,
@@ -50,7 +50,7 @@ class BendCorrectionTest(unittest.TestCase):
             )
             for delta, expected in ((120, 1), (-120, 0), (90, 1)):
                 cmds.setAttr(joint + ".r" + axis, 20 + delta)
-                self.assertAlmostEqual(owner.plug("response").get(), expected, places=5)
+                self.assertAlmostEqual(owner.getPlug("response").get(), expected, places=5)
 
     def test_meter_scene_and_ownership(self):
         """メートル設定で距離を維持し、変換ノードをcontainerで所有する。"""
@@ -60,13 +60,13 @@ class BendCorrectionTest(unittest.TestCase):
         before = set(cmds.ls())
         graph = BendCorrection.create(parent, joint)
         cmds.setAttr(joint + ".rz", 90)
-        self.assertAlmostEqual(graph.container.plug("inner").get(), 30, places=5)
+        self.assertAlmostEqual(graph.container.getPlug("inner").get(), 30, places=5)
         cmds.currentUnit(linear="cm")
-        self.assertAlmostEqual(graph.container.plug("inner").get(), 30, places=4)
-        graph.container.plug("innerPush").set(-10)
-        self.assertAlmostEqual(graph.container.plug("inner").get(), 40, places=4)
+        self.assertAlmostEqual(graph.container.getPlug("inner").get(), 30, places=4)
+        graph.container.getPlug("innerPush").set(-10)
+        self.assertAlmostEqual(graph.container.getPlug("inner").get(), 40, places=4)
         created = set(cmds.ls()) - before
-        cmds.delete(graph.container.fullName())
+        cmds.delete(graph.container.getFullName())
         self.assertFalse(created.intersection(cmds.ls()))
 
     def test_bad_parent_does_not_edit_scene(self):

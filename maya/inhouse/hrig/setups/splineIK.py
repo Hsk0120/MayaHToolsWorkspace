@@ -28,7 +28,7 @@ class SplineIK:
         Returns:
             Node: 参照先。
         """
-        return self.container.plug(name).sourceWithConversion().node()
+        return self.container.getPlug(name).getSourceWithConversion().getNode()
 
     @classmethod
     @undoTransaction("hrig.SplineIK.create")
@@ -58,24 +58,24 @@ class SplineIK:
             raise ValueError("Use 3+ joints, 4..32 controls and up_axis y/z")
         if cmds.objExists(name):
             raise ValueError("Graph name already exists")
-        if len({n.uuid() for n in controls}) != len(controls):
+        if len({n.getUuid() for n in controls}) != len(controls):
             raise ValueError("Use distinct controls")
         for node in controls + [parent]:
-            if node.type() != "transform" or any(
-                node.fullName().startswith(j.fullName() + "|") for j in joints
+            if node.getType() != "transform" or any(
+                node.getFullName().startswith(j.getFullName() + "|") for j in joints
             ):
                 raise ValueError("Controls and parent must be transforms outside the IK chain")
         for i, joint in enumerate(joints):
-            if joint.type() != "joint":
+            if joint.getType() != "joint":
                 raise ValueError("Expected joints")
             if i and [
-                node.uuid()
+                node.getUuid()
                 for node in [
                     hlib.getNode(value) for value in (cmds.listRelatives(joint, parent=True) or [])
                 ]
-            ] != [joints[i - 1].uuid()]:
+            ] != [joints[i - 1].getUuid()]:
                 raise ValueError("Expected a continuous joint chain")
-            if any(joint.plug("rotate" + a).sourceWithConversion() is not None for a in "XYZ"):
+            if any(joint.getPlug("rotate" + a).getSourceWithConversion() is not None for a in "XYZ"):
                 raise ValueError("Joint rotation already has an input")
         graph = cls(hlib.nodes.Container.create(name=name))
         points = [
@@ -85,13 +85,13 @@ class SplineIK:
         curve = hlib.nodes.Node(hlib.createCurve(degree=3, point=points, name=name + "_curve"))
         [
             hlib.getNode(value)
-            for value in (cmds.parent(curve.fullName(), parent.fullName(), relative=True) or [])
+            for value in (cmds.parent(curve.getFullName(), parent.getFullName(), relative=True) or [])
         ]
         shape = hlib.nodes.Node(
             [
                 hlib.getNode(value)
                 for value in (
-                    cmds.listRelatives(curve.fullName(), shapes=True, fullPath=True) or []
+                    cmds.listRelatives(curve.getFullName(), shapes=True, fullPath=True) or []
                 )
             ][0]
         )
@@ -102,16 +102,16 @@ class SplineIK:
             position = hlib.nodes.Node.create(
                 "decomposeMatrix", name=name + "_cv{}Position".format(index), skipSelect=True
             )
-            control.plug("worldMatrix")[0].connectTo(matrix.plug("matrixIn")[0])
-            curve.plug("worldInverseMatrix")[0].connectTo(matrix.plug("matrixIn")[1])
-            matrix.plug("matrixSum").connectTo(position.plug("inputMatrix"))
-            position.plug("outputTranslate").connectTo(shape.plug("controlPoints")[index])
+            control.getPlug("worldMatrix")[0].connectTo(matrix.getPlug("matrixIn")[0])
+            curve.getPlug("worldInverseMatrix")[0].connectTo(matrix.getPlug("matrixIn")[1])
+            matrix.getPlug("matrixSum").connectTo(position.getPlug("inputMatrix"))
+            position.getPlug("outputTranslate").connectTo(shape.getPlug("controlPoints")[index])
             graph.container.addMembers(matrix, position)
         handle_name, effector_name = hlib.createIkHandle(
-            startJoint=joints[0].fullName(),
-            endEffector=joints[-1].fullName(),
+            startJoint=joints[0].getFullName(),
+            endEffector=joints[-1].getFullName(),
             solver="ikSplineSolver",
-            curve=curve.fullName(),
+            curve=curve.getFullName(),
             createCurve=False,
             parentCurve=False,
             rootOnCurve=True,
@@ -119,22 +119,22 @@ class SplineIK:
         )[:2]
         handle, effector = hlib.nodes.Node(handle_name), hlib.nodes.Node(effector_name)
         effector.rename(name + "_effector")
-        [hlib.getNode(value) for value in (cmds.parent(handle.fullName(), parent.fullName()) or [])]
-        handle.plug("dTwistControlEnable").set(True)
-        handle.plug("dWorldUpType").set(4)
-        handle.plug("dForwardAxis").set(0)
-        handle.plug("dWorldUpAxis").set(0 if up_axis == "y" else 3)
+        [hlib.getNode(value) for value in (cmds.parent(handle.getFullName(), parent.getFullName()) or [])]
+        handle.getPlug("dTwistControlEnable").set(True)
+        handle.getPlug("dWorldUpType").set(4)
+        handle.getPlug("dForwardAxis").set(0)
+        handle.getPlug("dWorldUpAxis").set(0 if up_axis == "y" else 3)
         vector = (0, 1, 0) if up_axis == "y" else (0, 0, 1)
         for attr in ("dWorldUpVector", "dWorldUpVectorEnd"):
-            handle.plug(attr).set(vector)
-        controls[0].plug("worldMatrix")[0].connectTo(handle.plug("dWorldUpMatrix"))
-        controls[-1].plug("worldMatrix")[0].connectTo(handle.plug("dWorldUpMatrixEnd"))
+            handle.getPlug(attr).set(vector)
+        controls[0].getPlug("worldMatrix")[0].connectTo(handle.getPlug("dWorldUpMatrix"))
+        controls[-1].getPlug("worldMatrix")[0].connectTo(handle.getPlug("dWorldUpMatrixEnd"))
         for role, node in (("handle", handle), ("curve", curve), ("effector", effector)):
             graph.container.addAttr(longName=role, attributeType="message")
-            node.plug("message").connectTo(graph.container.plug(role))
+            node.getPlug("message").connectTo(graph.container.getPlug(role))
             graph.container.addMembers(node)
-        curve.plug("visibility").set(False)
-        handle.plug("visibility").set(False)
+        curve.getPlug("visibility").set(False)
+        handle.getPlug("visibility").set(False)
         return graph
 
     @undoTransaction("hrig.SplineIK.set_enabled")
@@ -145,25 +145,25 @@ class SplineIK:
             enabled (bool): 計算するか。
         """
         handle = self.member("handle")
-        target = handle.plug("inCurve")
+        target = handle.getPlug("inCurve")
         if enabled:
-            if target.sourceWithConversion() is None:
+            if target.getSourceWithConversion() is None:
                 shape = hlib.nodes.Node(
                     [
                         hlib.getNode(value)
                         for value in (
                             cmds.listRelatives(
-                                self.member("curve").fullName(), shapes=True, fullPath=True
+                                self.member("curve").getFullName(), shapes=True, fullPath=True
                             )
                             or []
                         )
                     ][0]
                 )
-                shape.plug("worldSpace")[0].connectTo(target)
-            handle.plug("nodeState").set(0)
-            handle.plug("ikBlend").set(1)
+                shape.getPlug("worldSpace")[0].connectTo(target)
+            handle.getPlug("nodeState").set(0)
+            handle.getPlug("ikBlend").set(1)
         else:
-            handle.plug("ikBlend").set(0)
-            if target.sourceWithConversion() is not None:
-                target.disconnect(target.sourceWithConversion())
-            handle.plug("nodeState").set(2)
+            handle.getPlug("ikBlend").set(0)
+            if target.getSourceWithConversion() is not None:
+                target.disconnect(target.getSourceWithConversion())
+            handle.getPlug("nodeState").set(2)

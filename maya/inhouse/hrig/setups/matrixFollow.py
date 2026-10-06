@@ -26,31 +26,31 @@ class MatrixFollow:
             source (Node): 入力Transform。
             target (Node): 出力バッファ。
         """
-        pending, visited = [source, target.parent()], set()
+        pending, visited = [source, target.getParent()], set()
         # target自体のインスタンスも確認する。親のインスタンスは探索で検出する。
-        if len(cmds.listRelatives(target.fullName(), allParents=True) or []) > 1:
+        if len(cmds.listRelatives(target.getFullName(), allParents=True) or []) > 1:
             raise ValueError("Instanced targets are not supported")
         while pending:
             item = pending.pop()
-            if item is None or item.uuid() in visited:
+            if item is None or item.getUuid() in visited:
                 continue
-            visited.add(item.uuid())
-            if item.uuid() == target.uuid():
+            visited.add(item.getUuid())
+            if item.getUuid() == target.getUuid():
                 raise ValueError("Source or parent depends on target")
             if isinstance(item, (hlib.nodes.Transform, hlib.nodes.Shape)):
-                parents = cmds.listRelatives(item.fullName(), allParents=True, fullPath=True) or []
+                parents = cmds.listRelatives(item.getFullName(), allParents=True, fullPath=True) or []
                 if len(parents) > 1:
                     raise ValueError("Instanced hierarchy is not supported")
                 pending.extend(hlib.getNode(parent) for parent in parents)
             pairs = (
                 cmds.listConnections(
-                    item.fullName(), source=True, destination=False, plugs=True, connections=True
+                    item.getFullName(), source=True, destination=False, plugs=True, connections=True
                 )
                 or []
             )
             for destination, upstream in zip(pairs[::2], pairs[1::2]):
                 if hlib.getAttr(destination, type=True) != "message":
-                    pending.append(hlib.getPlug(upstream).node())
+                    pending.append(hlib.getPlug(upstream).getNode())
 
     @staticmethod
     @undoTransaction("hrig.MatrixFollow.create")
@@ -74,14 +74,14 @@ class MatrixFollow:
         if backend not in ("standard", "cpp", "bifrost"):
             raise ValueError("Unknown matrix backend: " + backend)
         source, target = hlib.getNode(source), hlib.getNode(target)
-        if source.type() != "transform" or target.type() != "transform":
+        if source.getType() != "transform" or target.getType() != "transform":
             raise ValueError("MatrixFollow requires transform buffers, not joints")
-        if source.uuid() == target.uuid() or target.isAncestorOf(source):
+        if source.getUuid() == target.getUuid() or target.isAncestorOf(source):
             raise ValueError("Source must not depend on the target hierarchy")
         MatrixFollow._validate_dependencies(source, target)
         identity = Matrix()
         for attr in ("matrix", "offsetParentMatrix"):
-            if any(abs(a - b) > 1e-9 for a, b in zip(target.plug(attr).get(), identity)):
+            if any(abs(a - b) > 1e-9 for a, b in zip(target.getPlug(attr).get(), identity)):
                 raise ValueError("Target must have identity local/offset matrices")
         for attr in (
             "translate",
@@ -94,41 +94,41 @@ class MatrixFollow:
             "rotatePivotTranslate",
             "scalePivotTranslate",
         ):
-            plug = target.plug(attr)
+            plug = target.getPlug(attr)
             expected = (1, 1, 1) if attr == "scale" else (0, 0, 0)
             if any(abs(a - b) > 1e-9 for a, b in zip(plug.get(), expected)):
                 raise ValueError("Target channels/pivots must be at their defaults")
-            if plug.sourceWithConversion() is not None or any(
-                child.sourceWithConversion() is not None for child in plug.children()
+            if plug.getSourceWithConversion() is not None or any(
+                child.getSourceWithConversion() is not None for child in plug.getChildren()
             ):
                 raise ValueError("Target channels must have no incoming connections")
-        if target.plug("offsetParentMatrix").sourceWithConversion() is not None:
+        if target.getPlug("offsetParentMatrix").getSourceWithConversion() is not None:
             raise ValueError("Target offsetParentMatrix is already connected")
-        if target.isLocked() or target.plug("offsetParentMatrix").isLocked():
+        if target.isLocked() or target.getPlug("offsetParentMatrix").isLocked():
             raise ValueError("Target offsetParentMatrix must be writable")
         if (
-            not target.plug("inheritsTransform").get()
-            or target.plug("inheritsTransform").sourceWithConversion() is not None
+            not target.getPlug("inheritsTransform").get()
+            or target.getPlug("inheritsTransform").getSourceWithConversion() is not None
         ):
             raise ValueError("Target must inherit its parent transform")
-        parent = target.parent()
+        parent = target.getParent()
         if parent is not None:
-            parent_matrix = Matrix(parent.plug("worldMatrix")[0].get())
+            parent_matrix = Matrix(parent.getPlug("worldMatrix")[0].get())
             if parent_matrix.isSingular() or any(
                 sum(parent_matrix[i + j] ** 2 for j in range(3)) <= 1e-20 for i in (0, 4, 8)
             ):
                 raise ValueError("Parent matrix must be invertible")
-        source_matrix = Matrix(source.plug("worldMatrix")[0].get())
+        source_matrix = Matrix(source.getPlug("worldMatrix")[0].get())
         if source_matrix.isSingular() or any(
             sum(source_matrix[i + j] ** 2 for j in range(3)) <= 1e-20 for i in (0, 4, 8)
         ):
             raise ValueError("Source matrix must be invertible")
         offset = (
-            Matrix(target.plug("worldMatrix")[0].get()) * source_matrix.inverse()
+            Matrix(target.getPlug("worldMatrix")[0].get()) * source_matrix.inverse()
             if maintain_offset
             else identity
         )
-        name = name or target.name() + "_followMatrix"
+        name = name or target.getName() + "_followMatrix"
         return MatrixFollow._build(source, target, parent, offset, name, backend)
 
     @staticmethod
@@ -149,7 +149,7 @@ class MatrixFollow:
         identity = Matrix()
         if backend == "standard":
             graph = hlib.createNode("multMatrix", name=name, skipSelect=True)
-            inputs, output = tuple(graph.plug("matrixIn")[i] for i in range(3)), "matrixSum"
+            inputs, output = tuple(graph.getPlug("matrixIn")[i] for i in range(3)), "matrixSum"
         else:
             inputs, output = ("offset", "sourceWorld", "parentInverse"), "outputMatrix"
             if backend == "cpp":
@@ -166,11 +166,11 @@ class MatrixFollow:
                 from .bifrostMatrixFollow import BifrostMatrixFollow
 
                 graph = BifrostMatrixFollow.create(name).node
-            inputs = tuple(graph.plug(name) for name in inputs)
+            inputs = tuple(graph.getPlug(name) for name in inputs)
         inputs[0].set(offset)
-        source.plug("worldMatrix")[0].connectTo(inputs[1])
+        source.getPlug("worldMatrix")[0].connectTo(inputs[1])
         inputs[2].set(identity)
         if parent is not None:
-            parent.plug("worldInverseMatrix")[0].connectTo(inputs[2])
-        graph.plug(output).connectTo(target.plug("offsetParentMatrix"))
+            parent.getPlug("worldInverseMatrix")[0].connectTo(inputs[2])
+        graph.getPlug(output).connectTo(target.getPlug("offsetParentMatrix"))
         return graph

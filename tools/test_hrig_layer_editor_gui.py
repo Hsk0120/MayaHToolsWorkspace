@@ -47,10 +47,10 @@ def main(output_dir=None, finished=None):
 
     def row(role):
         """選択部位の指定レイヤー行を取得する。"""
-        rig, _ = editor.current()
+        rig, _ = editor.getCurrent()
         for item in editor.rows():
             data = item.data(0, QtCore.Qt.UserRole)
-            if data["root"] == rig.root.uuid() and data["role"] == role:
+            if data["root"] == rig.root.getUuid() and data["role"] == role:
                 return item
         raise AssertionError("Row missing: " + role)
 
@@ -65,7 +65,7 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
         check(editor.tree.topLevelItemCount() == 1, "Create module button")
-        rig, _ = editor.current()
+        rig, _ = editor.getCurrent()
         check(rig.mode() == "fk", "Base module starts in FK")
         for kind in ("twist", "bend", "driven", "foot", "soft", "helper"):
             editor.layer_type.setCurrentIndex(editor.layer_type.findData(kind))
@@ -74,15 +74,15 @@ def main(output_dir=None, finished=None):
             check(not editor.status.text().startswith("操作できません"), "Add sample " + kind)
         check(len(rig.twist_joints()) == 3 and len(rig.bend_joints()) == 3, "Sample joints created")
         graph = list(DrivenLayer(rig).graphs().values())[0]
-        bone = graph.plug("drivenNode").sourceWithConversion().node()
+        bone = graph.getPlug("drivenNode").getSourceWithConversion().getNode()
         cmds.setAttr(rig.controls()["fk1"] + ".rz", 45)
         yield
-        check(abs(bone.plug("ty").get() - 0.5) < 0.001, "SDK responds to FK rotation")
+        check(abs(bone.getPlug("ty").get() - 0.5) < 0.001, "SDK responds to FK rotation")
         item = row("driven")
         item.setCheckState(0, QtCore.Qt.Unchecked)
         yield
         check(
-            not rig.layer_enabled("driven") and bone.plug("ty").sourceWithConversion() is None,
+            not rig.layer_enabled("driven") and bone.getPlug("ty").getSourceWithConversion() is None,
             "Layer checkbox disconnects SDK",
         )
         cmds.undo()
@@ -150,7 +150,7 @@ def main(output_dir=None, finished=None):
             encoding="utf-8",
         )
         check(
-            editor.tree.topLevelItemCount() == 2 and editor.current()[0].root.name() == "second",
+            editor.tree.topLevelItemCount() == 2 and editor.getCurrent()[0].root.getName() == "second",
             "Second module selected",
         )
         jobs = editor._jobs

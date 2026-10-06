@@ -9,8 +9,8 @@
    from hrig.setups import LengthCompensation
 
    graph = LengthCompensation.create(10.0)
-   graph.container.plug("inputLength").set(15.0)
-   graph.container.plug("lengthScale").get()  # 1.5
+   graph.container.getPlug("inputLength").set(15.0)
+   graph.container.getPlug("lengthScale").get()  # 1.5
 
 入力長を基準長で割り、minSquash〜maxStretchに制限します。
 1より大きい側をstretch、小さい側をsquashで元の長さとブレンドします。

@@ -36,10 +36,10 @@ class ScalarGraph:
             Plug: 改名に追従する出力プラグ。
         """
         node = self._node("plusMinusAverage", role)
-        node.plug("operation").set(2 if subtract else 1)
-        self._feed(left, node.plug("input1D")[0])
-        self._feed(right, node.plug("input1D")[1])
-        return node.plug("output1D")
+        node.getPlug("operation").set(2 if subtract else 1)
+        self._feed(left, node.getPlug("input1D")[0])
+        self._feed(right, node.getPlug("input1D")[1])
+        return node.getPlug("output1D")
 
     @undoTransaction("hlib.ScalarGraph.multiply")
     def multiply(self, role, left, right, operation=1):
@@ -55,10 +55,10 @@ class ScalarGraph:
             Plug: 改名に追従する出力プラグ。
         """
         node = self._node("multiplyDivide", role)
-        node.plug("operation").set(operation)
-        self._feed(left, node.plug("input1X"))
-        self._feed(right, node.plug("input2X"))
-        return node.plug("outputX")
+        node.getPlug("operation").set(operation)
+        self._feed(left, node.getPlug("input1X"))
+        self._feed(right, node.getPlug("input2X"))
+        return node.getPlug("outputX")
 
     @undoTransaction("hlib.ScalarGraph.condition")
     def condition(self, role, left, right, yes, no):
@@ -75,15 +75,15 @@ class ScalarGraph:
             Plug: 改名に追従する出力プラグ。
         """
         node = self._node("condition", role)
-        node.plug("operation").set(2)
+        node.getPlug("operation").set(2)
         for value, attr in (
             (left, "firstTerm"),
             (right, "secondTerm"),
             (yes, "colorIfTrueR"),
             (no, "colorIfFalseR"),
         ):
-            self._feed(value, node.plug(attr))
-        return node.plug("outColorR")
+            self._feed(value, node.getPlug(attr))
+        return node.getPlug("outColorR")
 
     def _node(self, kind, role):
         """設定した生成先へ演算ノードを作成する。
@@ -95,7 +95,7 @@ class ScalarGraph:
         Returns:
             Node: 作成したノード。
         """
-        prefix = self.container.name() + "_" if self.container is not None else ""
+        prefix = self.container.getName() + "_" if self.container is not None else ""
         return self._createNode(kind, name=prefix + role)
 
     @staticmethod

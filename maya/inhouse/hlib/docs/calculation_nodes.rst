@@ -55,7 +55,7 @@ Python内で計算する :doc:`guide_maths` の値型とは用途が異なりま
      - サーフェス上の位置・法線・U/V接線。
 
 既存のMultMatrix、DecomposeMatrix、DistanceBetween、BlendWeighted、BlendColorsも利用できます。
-専用メソッドのないアトリビュートは共通の ``plug()`` で操作できます。
+専用メソッドのないアトリビュートは共通の ``getPlug()`` で操作できます。
 
 入力・接続・結果
 ------------------------------------------------------------
@@ -63,7 +63,7 @@ Python内で計算する :doc:`guide_maths` の値型とは用途が異なりま
 ``setInput`` は定数を設定し、``connectInput`` はPlugを接続します。
 値設定で既存接続を暗黙に切断しません。接続を置換する場合は ``force=True`` を指定します。
 接続元はPlug、アトリビュート名、Maya API 2.0のMPlugを受け付けます。
-結果の値は ``result()``、接続に使う出力は ``outputPlug()`` で取得します。
+結果の値は ``getResult()``、接続に使う出力は ``getOutputPlug()`` で取得します。
 
 .. code-block:: python
 
@@ -73,14 +73,14 @@ Python内で計算する :doc:`guide_maths` の値型とは用途が異なりま
    multiply.setOperation("multiply")
    multiply.setInput(1, (2, 3, 4))
    multiply.setInput(2, (10, 10, 10))
-   print(multiply.result())  # Vector(20, 30, 40)
+   print(multiply.getResult())  # Vector(20, 30, 40)
 
    reverse = hlib.createNode("reverse")
-   reverse.connectInput(multiply.outputPlug())
+   reverse.connectInput(multiply.getOutputPlug())
 
 setOperationは名前またはMayaの列挙番号を受け付けます。モード名は各APIページに記載しています。
 MultiplyDivideのmultiplyとVectorProductのdot/crossは異なる演算です。
-AngleBetween.result()と回転入力・出力の数値はradです。
+AngleBetween.getResult()と回転入力・出力の数値はradです。
 AddDoubleLinear/MultDoubleLinear、PairBlendの移動はcmで扱います。
 入力値の計算自体はMayaが行い、ゼロ除算などをhlib独自の計算結果に置き換えません。
 
@@ -93,10 +93,10 @@ AddDoubleLinear/MultDoubleLinear、PairBlendの移動はcmで扱います。
    total.setOperation("sum")
    total.setInput(2, 10)
    total.setInput(8, 20)
-   print(total.inputIndices())  # [2, 8]
-   print(total.result())         # 30
+   print(total.getInputIndices())  # [2, 8]
+   print(total.getResult())         # 30
    total.setInput(0, (1, 2, 3), dimension=3)
-   print(total.result(dimension=3))
+   print(total.getResult(dimension=3))
 
    ramp = hlib.createNode("remapValue")
    ramp.setRange(0, 10, 0, 1)
@@ -104,7 +104,7 @@ AddDoubleLinear/MultDoubleLinear、PairBlendの移動はcmで扱います。
    ramp.setRampPoint(1, 1.0, 1.0)
    ramp.setRampPoint(4, 0.5, 0.8, interpolation="smooth")
    ramp.setInput(5)
-   print(ramp.result())
+   print(ramp.getResult())
 
 PlusMinusAverage.inputPlugは既存要素のみを参照し、未作成要素はIndexErrorです。
 setInput/connectInputで要素を明示的に作成し、removeInputで接続を含めて削除します。
@@ -122,8 +122,8 @@ RemapValueはrampPointsで番号ごとのposition/value/interpolationを取得�
    compose.setScaling((1, 1, 1))
 
    blend = hlib.createNode("blendMatrix")
-   blend.connectTarget(0, compose.outputPlug(), weight=0.5)
-   matrix = blend.result()  # hlib.maths.Matrix
+   blend.connectTarget(0, compose.getOutputPlug(), weight=0.5)
+   matrix = blend.getResult()  # hlib.maths.Matrix
 
 ComposeMatrixのQuaternion入力はXYZW順です。setQuaternionの後に
 setUseEulerRotation(False)を指定してQuaternion入力へ切り替えます。
@@ -140,7 +140,7 @@ hlibは自動ロードしないため、未ロードなら明示的に読み込�
 
    cmds.loadPlugin("matrixNodes", quiet=True)
    inverse = hlib.createNode("inverseMatrix")
-   inverse.connectInput(compose.outputPlug())
+   inverse.connectInput(compose.getOutputPlug())
 
 カーブ・サーフェス
 ------------------------------------------------------------
@@ -150,7 +150,7 @@ hlibは自動ロードしないため、未ロードなら明示的に読み込�
    curve = hlib.getNode("pathCurve")  # 既存のTransformまたはNurbsCurve
    info = hlib.createNode("curveInfo")
    info.connectCurve(curve, ws=True)
-   print(info.arcLength())
+   print(info.getArcLength())
 
    point = hlib.createNode("pointOnCurveInfo")
    point.connectCurve(curve)

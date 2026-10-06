@@ -14,12 +14,12 @@
    import hlib
 
    joint = hlib.getNode("neck_IK_jnt")
-   saved = joint.getTransformation()  # getX()でも同じ
+   saved = joint.getTransformation()
 
    # 必要な編集の後、補助回転・回転順序も含めて復元する。
-   joint.setTransformation(saved)    # setX(saved)でも同じ。戻り値はjoint自身。
+   joint.setTransformation(saved)    # 戻り値はjoint自身。
 
-``getX()`` はチャンネル値を直接取得します。Euler回転の375度などの周期や
+``getTransformation()`` はチャンネル値を直接取得します。Euler回転の375度などの周期や
 スケールの符号も、行列への分解を挟まずに保持します。
 ``rotateAxis`` と ``jointOrient`` はQuaternionで保持するため、それらのEuler表現の
 周期は保持しません。適用時は現在のチャンネル値に近いEuler解を使います。
@@ -99,9 +99,9 @@ Transformノードから取得する場合、SSCはFalseになります。
 
 .. code-block:: python
 
-   world = source.getX(ws=True)
-   planned = target.setX(world, ws=True, get=True)  # シーンを更新せず設定予定値を返す
-   target.setX(world, ws=True)
+   world = source.getTransformation(ws=True)
+   planned = target.setTransformation(world, ws=True, get=True)  # シーンを更新せず設定予定値を返す
+   target.setTransformation(world, ws=True)
 
 ``ws/worldSpace`` に対応します。親行列とoffsetParentMatrixを考慮し、参照している
 DAGインスタンスのパスに従います。offsetParentMatrixそのものは書き換えません。
@@ -126,11 +126,11 @@ TRS自体にもロックや入力接続がある場合、目的の行列との�
   チャンネルへ適用する場合、その入力接続の処理は別途必要です。
 - 行列分解できないゼロスケールや、特異・極端に縮小された親行列へのワールド適用は拒否します。
   値としてのゼロスケールの保持とローカル合成は可能です。
-- ``Matrix.toTransformation()`` は ``hlib.maths.Transformation`` を返します。
+- ``Matrix.asTransformation()`` は ``hlib.maths.Transformation`` を返します。
   ``Transformation(matrix)`` でも変換できます。OpenMaya型が必要な場合は
   ``om2.MTransformationMatrix(matrix)`` を使います。
 - ``setMatrix(get=True)`` の辞書返却は変わりません。
   ``Matrix(value)``、``Matrix.fromTransformation(value)``、``MatrixPlug.set(value)`` は
   Transformationを受け取り、合成行列を使います。ピボット等の成分情報は行列には保存されません。
-- ``Transforms`` / ``Joints`` でもgetX/setXを利用できます。get=Trueの一括適用は
+- ``Transforms`` / ``Joints`` でもgetTransformation/setTransformationを利用できます。get=Trueの一括適用は
   対象ごとの設定予定Transformationのリストを返します。

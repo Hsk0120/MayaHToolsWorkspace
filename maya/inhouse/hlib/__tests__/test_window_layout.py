@@ -124,7 +124,7 @@ class WindowApiTest(unittest.TestCase):
         other = WorkspaceLayout("Other")
         with self.assertRaises(RuntimeError):
             other.save()
-        current = WorkspaceLayout.current()
+        current = WorkspaceLayout.getCurrent()
         with self.assertRaises(ValueError):
             current.saveAs("Other")
         with self.assertRaises(ValueError):
@@ -227,7 +227,7 @@ class WindowGuiTest(unittest.TestCase):
         import uuid
         name = "hlibWindowTest" + uuid.uuid4().hex[:8]
         layout_name = "hlibLayoutTest" + uuid.uuid4().hex[:8]
-        original = WorkspaceLayout.current()
+        original = WorkspaceLayout.getCurrent()
         locked = WorkspaceLayout.getLocked()
         tool = cmds.workspaceControl(name, uiScript="", retain=False, floating=True)
         try:

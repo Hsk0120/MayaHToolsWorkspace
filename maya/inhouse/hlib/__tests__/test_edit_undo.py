@@ -22,7 +22,7 @@ class EditUndoTest(unittest.TestCase):
         cmds.addAttr(self.node, longName="pair", attributeType="compound", numberOfChildren=2)
         for name in ("first", "second"):
             cmds.addAttr(self.node, longName=name, attributeType="double", parent="pair")
-        plug = hlib.getNode(self.node).plug("pair")
+        plug = hlib.getNode(self.node).getPlug("pair")
         plug.set((3, 7))
         self.assertEqual(plug.get(), (3, 7))
         cmds.undo()
@@ -35,7 +35,7 @@ class EditUndoTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             with preservedSelection():
                 cmds.select(clear=True)
-                hlib.getNode(self.node).plug("visibility").set(False)
+                hlib.getNode(self.node).getPlug("visibility").set(False)
                 raise ValueError("test")
         self.assertEqual(cmds.ls(selection=True), [self.node])
         cmds.undo()
@@ -63,7 +63,7 @@ class EditUndoTest(unittest.TestCase):
             before = cmds.ls(selection=True, flatten=True, long=True)
             with preservedSelection():
                 cmds.select(self.node, replace=True)
-                hlib.getNode(self.node).plug("visibility").set(False)
+                hlib.getNode(self.node).getPlug("visibility").set(False)
             self.assertEqual(cmds.ls(selection=True, flatten=True, long=True), before)
             cmds.undo()
             self.assertEqual(cmds.ls(selection=True, flatten=True, long=True), before)

@@ -18,7 +18,7 @@ class ObjectSetTest(unittest.TestCase):
         self.created = []
         self.a = Node.create(type="transform", name="hlibObjectSetA")
         self.b = Node.create(type="transform", name="hlibObjectSetB")
-        self.created.extend([self.a.name(), self.b.name()])
+        self.created.extend([self.a.getName(), self.b.getName()])
         set_name = cmds.sets(name="hlibObjectSetTestSet", empty=True)
         self.created.append(set_name)
         self.set = Node(set_name)
@@ -32,26 +32,26 @@ class ObjectSetTest(unittest.TestCase):
         self.assertIsInstance(self.set, ObjectSet)
 
     def test_members_empty_by_default(self):
-        self.assertEqual(self.set.members(), [])
+        self.assertEqual(self.set.getMembers(), [])
 
     def test_add_and_members_returns_node_wrappers(self):
         result = self.set.addMembers(self.a, self.b)
         self.assertIs(result, self.set)
-        members = self.set.members()
-        self.assertEqual({member.name() for member in members}, {self.a.name(), self.b.name()})
+        members = self.set.getMembers()
+        self.assertEqual({member.getName() for member in members}, {self.a.getName(), self.b.getName()})
         self.assertTrue(all(isinstance(member, Node) for member in members))
 
     def test_remove_drops_a_member(self):
         self.set.addMembers(self.a, self.b)
         result = self.set.removeMembers(self.a)
         self.assertIs(result, self.set)
-        self.assertEqual([member.name() for member in self.set.members()], [self.b.name()])
+        self.assertEqual([member.getName() for member in self.set.getMembers()], [self.b.getName()])
 
     def test_is_member(self):
         self.assertFalse(self.set.isMember(self.a))
         self.set.addMembers(self.a)
         self.assertTrue(self.set.isMember(self.a))
-        self.assertTrue(self.set.isMember(self.a.fullName()))
+        self.assertTrue(self.set.isMember(self.a.getFullName()))
         self.assertFalse(self.set.isMember(self.b))
 
     def test_add_accepts_component_strings(self):
@@ -60,7 +60,7 @@ class ObjectSetTest(unittest.TestCase):
         component = cube_transform + ".vtx[0:2]"
 
         self.set.addMembers(component)
-        members = self.set.members()
+        members = self.set.getMembers()
         self.assertIn(component, members)
         self.assertTrue(self.set.isMember(component))
 

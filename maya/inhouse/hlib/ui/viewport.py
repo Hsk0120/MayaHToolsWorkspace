@@ -90,7 +90,7 @@ class Viewport(_Editor):
         """str: 保持しているmodelPanel名を返す。"""
         return self._panel
 
-    def camera(self):
+    def getCamera(self):
         """現在表示しているカメラ名を返す。
 
         Returns:

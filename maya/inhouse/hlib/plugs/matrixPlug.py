@@ -4,8 +4,8 @@ import maya.api.OpenMaya as om2
 
 from .._core.fastWrite import set_attr, set_plug
 from .._core.registry import plug_wrapper
-from ..decorators._safe import safe_edit
 from ..decorators._fast import fast_edit, is_fast
+from ..decorators._safe import safe_edit
 from ..decorators.undo import undoChunk
 from ..maths import Matrix
 from .plug import Plug
@@ -48,11 +48,11 @@ class MatrixPlug(Plug):
         ノード自体の変換にはTransform.setMatrixを使う。
         """
         self._require_valid()
-        if self.longName() in ("worldMatrix", "wm"):
+        if self.getLongName() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
         matrix = Matrix(value)
         if is_fast():
             set_plug(self._mplug, matrix)
         else:
-            set_attr(self.fullName(), *tuple(matrix), type="matrix")
+            set_attr(self.getFullName(), *tuple(matrix), type="matrix")
         return self

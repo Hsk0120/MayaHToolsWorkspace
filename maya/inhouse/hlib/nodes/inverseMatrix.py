@@ -1,5 +1,6 @@
 """逆行列を計算する。Maya付属matrixNodesの明示的なロードが必要。"""
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -11,19 +12,19 @@ from .THdependNode import THDependNode
 class InverseMatrix(THDependNode):
     """逆行列を計算する。Maya付属matrixNodesの明示的なロードが必要。"""
 
-    def inputPlug(self):
+    def getInputPlug(self):
         """入力のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.plug("inputMatrix")
+        return self.getPlug("inputMatrix")
 
     def getInput(self):
         """入力の評価値を取得する。
         Returns:
             Matrix: 現在の値。
         """
-        return self.inputPlug().get()
+        return self.getInputPlug().get()
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
@@ -40,16 +41,17 @@ class InverseMatrix(THDependNode):
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         value = Matrix(value)
-        self.inputPlug().set(value)
+        self.getInputPlug().set(value)
         return self
 
+    @flag_aliases(src="source", f="force")
     @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。
-            force (bool): 既存接続を置き換えるか。
+            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
         Returns:
             InverseMatrix: 自身。
 
@@ -57,19 +59,19 @@ class InverseMatrix(THDependNode):
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         from ..plugs.plug import Plug as _InputPlug
-        _InputPlug._resolve_input(source).connectTo(self.inputPlug(), force=force)
+        _InputPlug._resolve_input(source).connectTo(self.getInputPlug(), force=force)
         return self
 
-    def outputPlug(self):
+    def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
         """
-        return self.plug("outputMatrix")
+        return self.getPlug("outputMatrix")
 
-    def result(self):
+    def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
         Returns:
             Matrix: 計算結果。
         """
-        return Matrix(self.outputPlug().get())
+        return Matrix(self.getOutputPlug().get())

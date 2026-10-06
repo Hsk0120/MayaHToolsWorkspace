@@ -14,7 +14,7 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
    joints.setTranslation((1, 2, 3), ws=True)
    matrices = joints.getMatrix(ws=True)
    joint_orients = joints.getJointOrient()
-   joints.setAttributeFlags(["visibility"], keyable=False)
+   joints.setAttrFlags(["visibility"], keyable=False)
 
 引数は単体メソッドと同じで、全要素へ同じ引数を渡します。
 同じ実装のメソッドには引数の形の検証を共有しますが、派生クラスで異なる
@@ -24,7 +24,7 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
 通常の更新ではコレクション自身を返します。callEachも同じ規則です。
 照会結果がリストなら二重リストを保持し、Noneも除外しません。
 空コレクションでも照会は空リスト、更新は自身です。
-アトリビュート名の暗黙アクセスは転送しません。アトリビュート取得には ``joints.plug("translateX")`` を使います。
+アトリビュート名の暗黙アクセスは転送しません。アトリビュート取得には ``joints.getPlug("translateX")`` を使います。
 
 要素別の引数
 ------------------------------------------------------------
@@ -48,7 +48,7 @@ callEachのargumentsは、各要素への位置引数タプルを並べた列で
 
 * Joints.delete: ウェイト移送と子の退避を行う既存の削除処理。
 * Joints.skinClusters: 重複を除いたSkinClustersを返す。
-* Joints.names()、sortedByDepth(): 名前の一覧・階層順のコレクションを返す。
+* Joints.getNames()、sortedByDepth(): 名前の一覧・階層順のコレクションを返す。
 * Joints.jointOrientToRotate、freezeRotation: 全対象を事前検証し、Joints自身を返す。
 * SkinClusters.removeInfluences: 保持するskinClusterのinfluence解除。戻り値は自身です。joint削除はJoints.deleteを使います。
 
@@ -62,8 +62,8 @@ SkinClusters
 
 .. code-block:: python
 
-   skins = joints.skinClusters()
-   influences_by_skin = skins.influences()
+   skins = joints.getSkinClusters()
+   influences_by_skin = skins.getInfluences()
    flags = skins.hasInfluence("joint1")
    skins.callEach("dumpWeights", [("C:/data/skinA.json",), ("C:/data/skinB.json",)])
 
@@ -93,7 +93,7 @@ Selectionは異種対象の取得時点の集合で、単一の単体型に対�
 .. code-block:: python
 
    joints = hlib.ls(selection=True, type="joint")
-   skins = joints.skinClusters()
+   skins = joints.getSkinClusters()
    skins.removeInfluences(joints)  # jointノード・親子関係は残す
 
 ``removeInfluences(joints)`` と同じ処理です。保持するskinClusterだけを対象にし、

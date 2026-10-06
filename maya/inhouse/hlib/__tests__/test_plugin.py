@@ -51,16 +51,16 @@ class PluginTest(unittest.TestCase):
         plugin = Plugin("hlibDoesNotExistPlugin123")
         self.assertFalse(plugin.isRegistered())
         self.assertFalse(plugin.isLoaded())
-        self.assertIsNone(plugin.path())
-        self.assertIsNone(plugin.version())
+        self.assertIsNone(plugin.getPath())
+        self.assertIsNone(plugin.getVersion())
 
     def test_path_and_version_for_known_plugin(self):
         plugin = Plugin(self.pluginName)
-        path = plugin.path()
+        path = plugin.getPath()
         self.assertIsInstance(path, str)
         self.assertTrue(path.lower().endswith((".mll", ".py", ".so", ".bundle")))
-        self.assertIsInstance(plugin.version(), Version)
-        self.assertIsInstance(plugin.versionText(), str)
+        self.assertIsInstance(plugin.getVersion(), Version)
+        self.assertIsInstance(plugin.getVersionText(), str)
 
     def test_unload_load_and_ensure_loaded_round_trip(self):
         plugin = Plugin(self.pluginName)

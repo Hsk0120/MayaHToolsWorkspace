@@ -20,12 +20,12 @@ AnimCurve
    curve = hlib.createNode("animCurveUU")
    curve.setKey(0, 0).setKey(1, 10)
    print(curve.evaluate(0.5))  # 5.0
-   print(curve.keyInputs(), curve.keyValues())
+   print(curve.getKeyInputs(), curve.getKeyValues())
    curve.setTangent(0, outTangentType="flat")
    curve.setInfinity(pre="constant", post="linear")
    curve.mirror(input=True, value=False)
 
-``keyCount()``、``removeKey(index)``、``getTangent(index)``、``getInfinity()``、
+``getKeyCount()``、``removeKey(index)``、``getTangent(index)``、``getInfinity()``、
 ``shiftKeys()``、``scaleKeys()`` も利用できます。
 時間は秒、角度はrad、距離はcmです。接線角度もradです。
 setKeyの既定接線はlinear。既存キーを指定した場合は値を更新します。
@@ -33,8 +33,8 @@ setKeyの既定接線はlinear。既存キーを指定した場合は値を更�
 mirrorはキーの入力・出力値の反転であり、ワールド座標のミラーではありません。
 接線の反転はMayaのscaleKeyの規則に従います。
 
-``driverPlug()`` はinputの直接接続元、``outputPlug()`` は出力Plug、
-``drivenPlugs()`` は直接の接続先を返します。
+``getDriverPlug()`` はinputの直接接続元、``getOutputPlug()`` は出力Plug、
+``getDrivenPlugs()`` は直接の接続先を返します。
 変換・合成ノードやアニメーションレイヤー越しの探索はまだ行いません。
 
 BlendWeighted
@@ -48,12 +48,12 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
    blend = hlib.createNode("blendWeighted")
    blend.setInput(0, 3).setInput(5, 10)
    blend.setWeight(5, 0.5)
-   print(blend.result())  # 8.0
-   print(blend.inputIndices())  # [0, 5]
-   blend.connectInput(0, curve.outputPlug())
+   print(blend.getResult())  # 8.0
+   print(blend.getInputIndices())  # [0, 5]
+   blend.connectInput(0, curve.getOutputPlug())
 
-``inputs()`` は番号からPlug、``getWeights()`` は入力番号から倍率のdictです。
-``outputPlug()`` を別のアトリビュートへ接続できます。
+``getInputs()`` は番号からPlug、``getWeights()`` は入力番号から倍率のdictです。
+``getOutputPlug()`` を別のアトリビュートへ接続できます。
 接続の上書きには ``connectInput(..., force=True)`` を明示します。
 編集メソッドは内部でUndoチャンクにまとめるため、通常は外側にundo_chunkは不要です。
 

@@ -48,11 +48,11 @@ class GraphTest(unittest.TestCase):
         a.set_default(2)
         b.set_default(3)
         node.port("output").connect(root.io_port("result", output=True))
-        self.assertEqual(cmds.getAttr(self.graph.name() + ".result"), 6)
+        self.assertEqual(cmds.getAttr(self.graph.getName() + ".result"), 6)
         a.set_default(5)
-        self.assertEqual(cmds.getAttr(self.graph.name() + ".result"), 15)
+        self.assertEqual(cmds.getAttr(self.graph.getName() + ".result"), 15)
         cmds.undo()
-        self.assertEqual(cmds.getAttr(self.graph.name() + ".result"), 6)
+        self.assertEqual(cmds.getAttr(self.graph.getName() + ".result"), 6)
         with self.assertRaises(ValueError):
             node.add_port("a", "float")
 
@@ -71,13 +71,13 @@ class GraphTest(unittest.TestCase):
         builder = MathBuilder(root)
         total = builder.operation("add", (2, 3))
         builder.clamp(total, 0, 4).connect(root.io_port("result", output=True))
-        self.assertAlmostEqual(cmds.getAttr(self.graph.name() + ".result"), 4)
-        self.graph.parent().rename("renamedParent")
-        self.assertIn("renamedParent", self.graph.name())
+        self.assertAlmostEqual(cmds.getAttr(self.graph.getName() + ".result"), 4)
+        self.graph.getParent().rename("renamedParent")
+        self.assertIn("renamedParent", self.graph.getName())
         self.graph.delete()
         self.assertFalse(cmds.objExists("renamedParent"))
         cmds.undo()
-        self.assertAlmostEqual(cmds.getAttr(self.graph.name() + ".result"), 4)
+        self.assertAlmostEqual(cmds.getAttr(self.graph.getName() + ".result"), 4)
 
     def test_soft_ik_library(self):
         """Bifrost版をhlibの参照値と比較し、新配置のAPIで構築する。"""
@@ -87,10 +87,10 @@ class GraphTest(unittest.TestCase):
         graph = SoftIK.create("soft", 8)
         for softness in (0, 1, 4):
             for distance in (2, 7, 8, 12):
-                cmds.setAttr(graph.name() + ".distance", distance)
-                cmds.setAttr(graph.name() + ".softness", softness)
+                cmds.setAttr(graph.getName() + ".distance", distance)
+                cmds.setAttr(graph.getName() + ".softness", softness)
                 self.assertAlmostEqual(
-                    cmds.getAttr(graph.name() + ".ratio") * distance,
+                    cmds.getAttr(graph.getName() + ".ratio") * distance,
                     Reference.distance(distance, 8, softness),
                     places=4,
                 )

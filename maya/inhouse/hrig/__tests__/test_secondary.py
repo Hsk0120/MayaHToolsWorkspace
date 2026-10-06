@@ -29,11 +29,11 @@ class SecondaryTest(unittest.TestCase):
         self.rig = build_skirt(chain_count=4)
         self.source = self.rig.driver_chains()[0][0]
         for time, value in ((1, 0), (8, 60), (24, 60)):
-            cmds.setKeyframe(self.source.fullName(), attribute="rx", time=time, value=value)
+            cmds.setKeyframe(self.source.getFullName(), attribute="rx", time=time, value=value)
 
     def matrix(self, node):
         """現在ワールド行列を取得する。"""
-        return cmds.xform(node.fullName(), query=True, worldSpace=True, matrix=True)
+        return cmds.xform(node.getFullName(), query=True, worldSpace=True, matrix=True)
 
     def same(self, a, b):
         """行列を誤差付きで比較する。"""
@@ -43,7 +43,7 @@ class SecondaryTest(unittest.TestCase):
     def test_bake_lod_and_reproducibility(self):
         """元キー保持、ベイク再現性、逆順評価、停止を確認する。"""
         before = cmds.keyframe(
-            self.source.fullName(), attribute="rx", query=True, valueChange=True
+            self.source.getFullName(), attribute="rx", query=True, valueChange=True
         )
         cmds.currentTime(5)
         group = self.rig.bake_spring(start=1, end=24)
@@ -51,7 +51,7 @@ class SecondaryTest(unittest.TestCase):
         layer = SecondaryLayer(self.rig)
         target = layer._members(group, "targets")[0]
         cmds.currentTime(8)
-        self.assertNotAlmostEqual(target.plug("rx").get(), 60, places=2)
+        self.assertNotAlmostEqual(target.getPlug("rx").get(), 60, places=2)
         self.same(self.matrix(target), self.matrix(self.rig.chains()[0][0]))
         poses = {}
         for time in (3, 8, 15, 24):
@@ -71,10 +71,10 @@ class SecondaryTest(unittest.TestCase):
         self.same(self.matrix(target), poses[8])
         self.assertEqual(
             before,
-            cmds.keyframe(self.source.fullName(), attribute="rx", query=True, valueChange=True),
+            cmds.keyframe(self.source.getFullName(), attribute="rx", query=True, valueChange=True),
         )
         self.rig.set_lod(0)
-        self.assertIsNone(layer._members(group, "blends")[0].plug("inRotateX2").sourceWithConversion())
+        self.assertIsNone(layer._members(group, "blends")[0].getPlug("inRotateX2").getSourceWithConversion())
         self.rig.set_lod(1)
         self.same(self.matrix(target), self.matrix(self.rig.chains()[0][0]))
         cmds.evaluationManager(mode="off")
@@ -85,12 +85,12 @@ class SecondaryTest(unittest.TestCase):
         SampleBuilder.layer(self.rig, "pose")
         layer = SecondaryLayer(self.rig)
         group = layer.groups()[0]
-        graph = group.plug("poseGraph").sourceWithConversion().node()
+        graph = group.getPlug("poseGraph").getSourceWithConversion().getNode()
         cmds.currentTime(24)
-        self.assertAlmostEqual(graph.plug("outputs[2]").get(), 20, places=4)
-        self.source.plug("rz").set(math.radians(60))
-        self.assertAlmostEqual(graph.plug("outputs[0]").get(), -20, places=4)
-        self.assertAlmostEqual(graph.plug("outputs[2]").get(), 25, places=4)
+        self.assertAlmostEqual(graph.getPlug("outputs[2]").get(), 20, places=4)
+        self.source.getPlug("rz").set(math.radians(60))
+        self.assertAlmostEqual(graph.getPlug("outputs[0]").get(), -20, places=4)
+        self.assertAlmostEqual(graph.getPlug("outputs[2]").get(), 25, places=4)
         target = layer._members(group, "targets")[0]
         corrected = self.matrix(target)
         self.same(corrected, self.matrix(self.rig.chains()[0][0]))
@@ -126,5 +126,5 @@ class SecondaryTest(unittest.TestCase):
         ]
         with self.assertRaises(ValueError):
             self.rig.add_pose_correction(
-                0, [target.plug("rx")], [[0], [60]], [[0] * 9, [1] * 9], [60]
+                0, [target.getPlug("rx")], [[0], [60]], [[0] * 9, [1] * 9], [60]
             )

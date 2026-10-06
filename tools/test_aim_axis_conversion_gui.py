@@ -40,7 +40,7 @@ def main(output_dir=None, finished=None):
         constraint = cmds.aimConstraint(target, driven, worldUpType="vector")[0]
         cmds.select(constraint)
         ui = run()
-        assert ui.constraint.name() == constraint
+        assert ui.constraint.getName() == constraint
         cmds.optionMenuGrp(ui.axes, edit=True, value="XY")
         cmds.optionMenuGrp(ui.direction, edit=True, value="Z")
         cmds.checkBox(ui.preserve, edit=True, value=False)
@@ -49,7 +49,7 @@ def main(output_dir=None, finished=None):
             ui.convert()
             graph = AimAxisConversion.find(constraint)
             assert graph is not None, cmds.scrollField(ui.status, query=True, text=True)
-            assert json.loads(graph.container.plug("settings").get())["mode"] == ("euler", "direction", "twist")[mode - 1]
+            assert json.loads(graph.container.getPlug("settings").get())["mode"] == ("euler", "direction", "twist")[mode - 1]
             result["outputs"][str(mode)] = cmds.getAttr(driven + ".rotate")[0]
             result["checks"].append("mode{}".format(mode))
             ui.refresh()
@@ -64,16 +64,16 @@ def main(output_dir=None, finished=None):
         cmds.checkBox(ui.useContainer, edit=True, value=False)
         ui.convert()
         graph = AimAxisConversion.find(constraint)
-        assert graph.container.type() == "network"
+        assert graph.container.getType() == "network"
         assert not cmds.ls(type="container")
-        cmds.select(graph.container.fullName())
+        cmds.select(graph.container.getFullName())
         cmds.checkBox(ui.useContainer, edit=True, value=True)
         ui.loadSelection()
         assert not cmds.checkBox(ui.useContainer, query=True, value=True)
         result["checks"].append("direct_connection_reload")
         cmds.checkBox(ui.useContainer, edit=True, value=True)
         ui.convert()
-        assert AimAxisConversion.find(constraint).container.type() == "container"
+        assert AimAxisConversion.find(constraint).container.getType() == "container"
         result["checks"].append("container_switch")
         ui.restore()
         assert AimAxisConversion.find(constraint) is None

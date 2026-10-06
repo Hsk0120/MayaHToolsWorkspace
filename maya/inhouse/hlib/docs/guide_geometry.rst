@@ -30,7 +30,7 @@ platonicSolidを使用できます。``polyCube`` 等のMayaコマンド名で�
 
    mesh = hlib.createPolygon(type="cube", name="body", width=2, constructionHistory=False)
    sphere = hlib.createPolygon(typ="sphere", r=3, sx=24, sy=16)
-   mesh.transform().plug("translateX").set(5)
+   mesh.getTransform().getPlug("translateX").set(5)
    history = cmds.listHistory(sphere)
 
 ``name`` は親Transformの名前です。履歴を有効にしても戻り値はMeshです。
@@ -50,10 +50,10 @@ plane、torusを選択します。寸法や分割数、履歴は各Mayaコマン
    sphere = hlib.createNurbs(type="sphere", radius=3)  # NurbsSurface
    faces = hlib.createNurbs(type="cube")  # list[NurbsSurface]（6枚）
    edges = hlib.createNurbs(type="square")  # list[NurbsCurve]（4本）
-   circle.transform().plug("translateX").set(5)
+   circle.getTransform().getPlug("translateX").set(5)
 
 戻り値はシェイプです。Cube・Squareは複数シェイプのリストで、
-それぞれの ``transform()`` は構成パーツの親Transformです。
+それぞれの ``getTransform()`` は構成パーツの親Transformです。
 ``name`` は最上位Transformの名前を指定します。
 履歴の有無で戻り値は変わらず、生成全体を1回のUndoで戻せます。
 query/edit、object=False、polygonによる非NURBS出力は受け付けません。
@@ -62,27 +62,27 @@ NurbsSurfaceはShape共通のアトリビュート・親Transform操作を提供
 形状情報
 --------
 
-Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
+Transform の ``getShape()`` は実際のシェイプ型に応じて ``Mesh`` や
 ``NurbsCurve`` を返します。以下は既存ノード名を指定する例です。
 
 .. code-block:: python
 
-   mesh = hlib.getNode("pCube1").shape()
-   print(mesh.numVertices(), mesh.numEdges(), mesh.numPolygons())
+   mesh = hlib.getNode("pCube1").getShape()
+   print(mesh.getNumVertices(), mesh.getNumEdges(), mesh.getNumPolygons())
    points = mesh.getPoints(ws=True)
-   normals = mesh.getNormals(ws=True, angle_weighted=True)
+   normals = mesh.getVertexNormals(ws=True, angle_weighted=True)
 
-   curve = hlib.getNode("curve1").shape()
-   print(curve.degree(), curve.numCVs(), curve.numSpans())
-   print(curve.length())         # オブジェクト空間のカーブ長
-   print(curve.length(ws=True))  # 親のスケール等を含むワールド空間のカーブ長
-   print(curve.length(ws=True, unit="m"))  # メートルで取得
+   curve = hlib.getNode("curve1").getShape()
+   print(curve.getDegree(), curve.getNumCVs(), curve.getNumSpans())
+   print(curve.getLength())         # オブジェクト空間のカーブ長
+   print(curve.getLength(ws=True))  # 親のスケール等を含むワールド空間のカーブ長
+   print(curve.getLength(ws=True, unit="m"))  # メートルで取得
 
-   cvs = curve.cvPositions(ws=True)
+   cvs = curve.getCvPositions(ws=True)
 
    print(curve.getCollocatedCVGroups())  # 重なった CV のグループ（無ければ []）
 
-``length()`` は計算ノードを追加せず、現在のカーブ長を取得します。
+``getLength()`` は計算ノードを追加せず、現在のカーブ長を取得します。
 戻り値は既定でcmです。``unit=None`` の場合だけ現在の距離UI単位を使います。
 unitにはmm/cm/m/km/in/ft/yd/mi、
 またはMayaの長名を指定できます。シーン設定は変更しません。
@@ -99,7 +99,7 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
 
 位置配列は Maya API 2.0 の ``MPointArray``、法線配列は ``MFloatVectorArray`` です。
 距離は Maya API の内部単位を使い、``ws=False`` はオブジェクト空間です。
-``getNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を
+``getVertexNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を
 頂点ごとに平均して、頂点番号順に返します。``angle_weighted=True`` は角度で重み付けし、
 Falseは角度による重み付けをしません。面ごとの法線配列や最初の面法線ではありません。
 ``getCollocatedCVGroups`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの
@@ -152,7 +152,7 @@ Transform・Jointで使用でき、Transforms・Jointsからも一括実行で�
 ``pivot`` はcm単位です。``ws=False`` は形状ミラーの
 オブジェクト空間と異なり、親Transformの座標空間です。
 
-向きは ``Matrix.mirrored()`` と同じビヘイビアミラーです。
+向きは ``Matrix.mirror()`` と同じビヘイビアミラーです。
 例えば単位行列をX軸でミラーするとX軸回り180度の向きになります。
 負スケールで形状を裏返す処理ではなく、頂点・CVは変更しません。
 子孫は親変換に追従し、スキニング済みのJointは通常の姿勢変更として変形に影響します。
@@ -166,31 +166,31 @@ Transform・Jointで使用でき、Transforms・Jointsからも一括実行で�
 コンポーネントと座標
 --------------------
 
-Vertex / CV はシーンを参照する単体ラッパーです。``getX()`` / ``getY()`` /
-``getZ()`` は既定でオブジェクト空間の座標を、cm単位で返します。
+Vertex / CV はシーンを参照する単体ラッパーです。``getPositionX()`` / ``getPositionY()`` /
+``getPositionZ()`` は既定でオブジェクト空間の座標を、cm単位で返します。
 ``ws=True`` でワールド空間を指定できます。
-``setX(value)`` などのメソッドでシーンを更新し、Undoできます。座標のスナップショットが
+``setPositionX(value)`` などのメソッドでシーンを更新し、Undoできます。座標のスナップショットが
 必要な場合は ``getPosition()`` が返すタプルを保持してください。
 
 .. code-block:: python
 
     mesh = hlib.nodes.Mesh("pCubeShape1")
     vertex = mesh.vertex(0)
-    print(vertex.getX(), vertex.getY(), vertex.getZ())
-    vertex.setX(2.0)
+    print(vertex.getPositionX(), vertex.getPositionY(), vertex.getPositionZ())
+    vertex.setPositionX(2.0)
     vertex.setPosition((1, 2, 3), ws=True)
     print(vertex.getPosition(ws=True))
 
     curve = hlib.nodes.NurbsCurve("curveShape1")
     cv = curve.cv(0)
-    cv.setZ(-cv.getZ())
+    cv.setPositionZ(-cv.getPositionZ())
     curve.cvs().mirror(axis="z", ws=False)
-    mesh.vertices([0, 1, 2]).mirror(axis="x", ws=True)
+    mesh.getVertices([0, 1, 2]).mirror(axis="x", ws=True)
 
     edge = mesh.edge(0)       # Edge
     face = mesh.face(0)       # Face
-    mesh.edges([0, 1]).vertices().mirror(axis="x")
-    vertices = mesh.faces([0, 1]).vertices()
+    mesh.edges([0, 1]).getVertices().mirror(axis="x")
+    vertices = mesh.faces([0, 1]).getVertices()
     uv = mesh.uv(0)           # UV
     uv.setU(0.25)
     uv.setV(0.75)

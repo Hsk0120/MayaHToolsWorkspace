@@ -306,9 +306,8 @@ class Matrix(om2.MMatrix):
     同じく例外にしない。成分を取得するプロパティ(``translate`` など)は複製を返すため、
     戻り値を書き換えても行列は変わらない。
 
-    行列や変換成分を返す独自メソッドとプロパティは hlib の型を返す。om2 から継承した
-    camelCase のメソッド(``adjoint``、``homogenize`` など)は
-    om2 の基底型を返し、同名の ``inverse()`` / ``transpose()`` は hlib 版で上書きする。
+    数学値を返す継承メソッドも対応するhlib型を返す。コピー操作は新しい値を
+    返し、It付きの更新操作は自身を書き換える。OpenMaya標準の演算と引数を維持する。
     """
 
     __slots__ = ()
@@ -933,7 +932,7 @@ class Matrix(om2.MMatrix):
         """
         self._recompose(rotate=value)
 
-    def toTransformation(self):
+    def asTransformation(self):
         """hlibのTransformationへ変換する。
 
         Returns:
@@ -964,14 +963,6 @@ class Matrix(om2.MMatrix):
             "scale": _vector_of(Scale, tm.scale(_K_TRANSFORM)),
             "shear": _vector_of(Shear, tm.shear(_K_TRANSFORM)),
         }
-
-    def determinant(self):
-        """4x4 の行列式を返す。
-
-        Returns:
-            float: 行列式(om2 の ``det4x4()``)。
-        """
-        return self.det4x4()
 
     def isEquivalent(self, other, tolerance=1e-10):
         """許容誤差付きでほぼ等しいか判定する。
@@ -1062,7 +1053,7 @@ class Matrix(om2.MMatrix):
         _MVector.__imul__(result, self)
         return result
 
-    def mirrored(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
         """行列が表す座標空間の軸に対する「ビヘイビア」ミラー行列を返す。
 
         平行移動はpivotを中心にaxis成分を反転し、3x3部分の各行はaxis以外の
@@ -1094,20 +1085,46 @@ class Matrix(om2.MMatrix):
             _SET(result, 12 + axis, 2 * center[axis] - _GET(result, 12 + axis))
         return result
 
-    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+    def mirrorIt(self, axis="x", pivot=(0.0, 0.0, 0.0)):
         """自身をビヘイビアミラーする。
 
         Args:
-            axis (str | int): mirroredと同じ反転軸。
+            axis (str | int): mirrorと同じ反転軸。
             pivot (Iterable[float]): 平行移動と同じ単位・空間の中心。
 
         Returns:
             Matrix: 更新した自身。
         """
-        result = self.mirrored(axis, pivot)
+        result = self.mirror(axis, pivot)
         for index in range(16):
             _SET(self, index, _GET(result, index))
         return self
+
+    def adjoint(self, *args):
+        """OpenMayaと同じ演算でMatrixの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Matrix: 演算結果を保持する新しいhlib値。
+        """
+        return Matrix._wrap(_MMatrix.adjoint(self, *args))
+
+    def homogenize(self, *args):
+        """OpenMayaと同じ演算でMatrixの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Matrix: 演算結果を保持する新しいhlib値。
+        """
+        return Matrix._wrap(_MMatrix.homogenize(self, *args))
 
     @classmethod
     def _wrap(cls, value):

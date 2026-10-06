@@ -18,7 +18,7 @@ hlibはPyMELに依存せず、独自のAPIを提供します。
 
    control = hlib.getNode("control")
    control.setTranslation((1, 2, 3))
-   control.plug("visibility").set(True)
+   control.getPlug("visibility").set(True)
    matrix = control.getMatrix(ws=True)
 
 この例の ``control`` は既存のTransform名です。以下の作成例はMaya内で実行できます。
@@ -195,7 +195,7 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
 単数クラスは1対象、複数形クラスは複数対象を扱います。
 
 **Mayaへの問い合わせはメソッド、保持する値はプロパティを基本とします。**
-例えば ``node.name()`` は現在の名前を問い合わせ、``plug.node()`` は保持する所有ノード参照です。
+例えば ``node.getName()`` は現在の名前を問い合わせ、``plug.getNode()`` は保持する所有ノード参照です。
 ``matrix`` や ``quaternion`` の成分を変更しても、取得元ノードへ自動反映されません。
 反映には ``setMatrix()`` や ``setRotation()`` を明示的に呼びます。
 
@@ -254,26 +254,26 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 ----------------------------------------------------------------------
 
 アトリビュートは ``Plug`` オブジェクトとして扱います。ノード名とアトリビュート名を毎回連結する代わりに、
-取得したアトリビュートから読み書きや接続を行えます。説明と使用例は ``plug()`` に統一しています。
+取得したアトリビュートから読み書きや接続を行えます。説明と使用例は ``getPlug()`` に統一しています。
 
 .. code-block:: python
 
    # 上の作成例で用意したsourceとtargetを使用
-   translate_x = source.plug("tx")
+   translate_x = source.getPlug("tx")
    translate_x.set(10)
    value = translate_x.get()
 
-   source.plug("tx").connectTo(target.plug("tx"))
-   target.plug("tx").disconnect(source.plug("tx"))
+   source.getPlug("tx").connectTo(target.getPlug("tx"))
+   target.getPlug("tx").disconnect(source.getPlug("tx"))
 
-   target.plug("visibility").set(False)
-   target.plug("visibility").setFlags(locked=True)
+   target.getPlug("visibility").set(False)
+   target.getPlug("visibility").setFlags(locked=True)
 
 ``tx`` と ``translateX`` は同じアトリビュートを指します。
 ``translate`` のような3成分アトリビュートは ``Double3Plug``、配列アトリビュートは ``ArrayPlug`` など、
 アトリビュートの構造に合ったラッパーが選ばれます。
 
-ノードの ``setRotation()`` は姿勢を扱い、``plug("rotate").set()`` はrotateアトリビュートの値を扱います。
+ノードの ``setRotation()`` は姿勢を扱い、``getPlug("rotate").set()`` はrotateアトリビュートの値を扱います。
 JointのjointOrientなどがある場合、この2つは同じ操作とは限りません。
 詳しい受付対象は :doc:`cmds_interop` を参照してください。
 
@@ -329,7 +329,7 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
    q_middle = q_start.slerp(q_end, 0.5)
    result.setRotation(q_middle, ws=True)
 
-   rotation_matrix = q_middle.toMatrix()
+   rotation_matrix = q_middle.asMatrix()
 
 ``0.5`` は2つの回転の中間です。Quaternionには角度単位を別途指定しません。
 数値で回転を渡す場合は既定がラジアンで、上の例では ``unit="deg"`` を明示しています。

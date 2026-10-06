@@ -25,8 +25,8 @@ class LimbStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.plug("stretchGroup").sourceWithConversion() if root.hasAttr("stretchGroup") else None
-        return source.node() if source is not None else None
+        source = root.getPlug("stretchGroup").getSourceWithConversion() if root.hasAttr("stretchGroup") else None
+        return source.getNode() if source is not None else None
 
     @staticmethod
     def _node(owner, kind, role):
@@ -40,7 +40,7 @@ class LimbStretchLayer:
         Returns:
             Node: 新規ノード。
         """
-        return hlib.nodes.Container(owner).createNode(kind, name=owner.name() + "_" + role)
+        return hlib.nodes.Container(owner).createNode(kind, name=owner.getName() + "_" + role)
 
     @undoTransaction("hrig.LimbStretchLayer.add")
     def add(self):
@@ -58,26 +58,26 @@ class LimbStretchLayer:
             )
             for i in (1, 2)
         ]
-        owner = LengthCompensation.create(sum(lengths), root.name() + "_stretchGraph").container
+        owner = LengthCompensation.create(sum(lengths), root.getName() + "_stretchGraph").container
         if root.hasAttr("channel_stretch"):
             group = hlib.getNode(rig._member("channel_stretch"))
         else:
             parent = (
-                rig._member("channelModule") if root.hasAttr("channelModule") else root.fullName()
+                rig._member("channelModule") if root.hasAttr("channelModule") else root.getFullName()
             )
             group = hlib.createNode(
-                "transform", name=root.name() + "_stretch_layer", parent=parent, skipSelect=True
+                "transform", name=root.getName() + "_stretch_layer", parent=parent, skipSelect=True
             )
-            rig._bind("channel_stretch", group.fullName())
+            rig._bind("channel_stretch", group.getFullName())
             group.addAttr(longName="enabled", attributeType="bool", defaultValue=True)
             group.addAttr(longName="active", attributeType="bool", defaultValue=False)
-            group.setAttributeFlags(["enabled", "active"], channelBox=True)
-            group.setAttributeFlags(["active"], locked=True)
-            group.plug("useOutlinerColor").set(True)
-        group.setAttributeFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
+            group.setAttrFlags(["enabled", "active"], channelBox=True)
+            group.setAttrFlags(["active"], locked=True)
+            group.getPlug("useOutlinerColor").set(True)
+        group.setAttrFlags(["translate", "rotate", "scale"], locked=True, keyable=False)
         group.addAttr(longName="graph", attributeType="message")
-        owner.plug("message").connectTo(group.plug("graph"))
-        rig._bind("stretchGroup", group.fullName())
+        owner.getPlug("message").connectTo(group.getPlug("graph"))
+        rig._bind("stretchGroup", group.getFullName())
         if not root.hasAttr("hrigEnabled_stretch"):
             root.addAttr(
                 longName="hrigEnabled_stretch", attributeType="bool", defaultValue=True
@@ -105,50 +105,50 @@ class LimbStretchLayer:
                 maxValue=high,
                 keyable=True,
             )
-            group.plug(attr).connectTo(owner.plug(attr))
+            group.getPlug(attr).connectTo(owner.getPlug(attr))
         distance = hlib.getPlug(rig._member("distance") + ".distance")
         units = self._node(owner, "unitConversion", "distanceCm")
-        distance.connectTo(units.plug("input"))
-        units.plug("conversionFactor").set(1)
-        units.plug("output").connectTo(group.plug("inputLength"))
+        distance.connectTo(units.getPlug("input"))
+        units.getPlug("conversionFactor").set(1)
+        units.getPlug("output").connectTo(group.getPlug("inputLength"))
         soft_input = hlib.getPlug(rig._member("softGraph") + ".distance")
-        soft_input.sourceWithConversion().connectTo(group.plug("softDistance"))
+        soft_input.getSourceWithConversion().connectTo(group.getPlug("softDistance"))
         normalize = self._node(owner, "multiplyDivide", "normalizedSoftDistance")
-        normalize.plug("operation").set(2)
-        group.plug("softDistance").connectTo(normalize.plug("input1X"))
-        owner.plug("lengthScale").connectTo(normalize.plug("input2X"))
-        normalize.plug("message").connectTo(group.plug("softNormalize"))
+        normalize.getPlug("operation").set(2)
+        group.getPlug("softDistance").connectTo(normalize.getPlug("input1X"))
+        owner.getPlug("lengthScale").connectTo(normalize.getPlug("input2X"))
+        normalize.getPlug("message").connectTo(group.getPlug("softNormalize"))
         for i, length in enumerate(lengths):
             multiply = self._node(owner, "multiplyDivide", "boneLength" + str(i))
-            multiply.plug("input1X").set(length)
-            owner.plug("lengthScale").connectTo(multiply.plug("input2X"))
+            multiply.getPlug("input1X").set(length)
+            owner.getPlug("lengthScale").connectTo(multiply.getPlug("input2X"))
             convert = self._node(owner, "unitConversion", "lengthUnits" + str(i))
-            multiply.plug("outputX").connectTo(convert.plug("input"))
-            convert.plug("conversionFactor").set(1)
-            convert.plug("message").connectTo(group.plug("outputs")[i])
+            multiply.getPlug("outputX").connectTo(convert.getPlug("input"))
+            convert.getPlug("conversionFactor").set(1)
+            convert.getPlug("message").connectTo(group.getPlug("outputs")[i])
         shape = self._node(owner, "composeMatrix", "crossSection")
         inverse = self._node(owner, "multiplyDivide", "inverseVolume")
-        inverse.plug("operation").set(2)
-        inverse.plug("input1X").set(1)
-        owner.plug("volumeScale").connectTo(inverse.plug("input2X"))
+        inverse.getPlug("operation").set(2)
+        inverse.getPlug("input1X").set(1)
+        owner.getPlug("volumeScale").connectTo(inverse.getPlug("input2X"))
         unshape = self._node(owner, "composeMatrix", "parentCompensation")
         for axis in "YZ":
-            owner.plug("volumeScale").connectTo(shape.plug("inputScale" + axis))
-            inverse.plug("outputX").connectTo(unshape.plug("inputScale" + axis))
+            owner.getPlug("volumeScale").connectTo(shape.getPlug("inputScale" + axis))
+            inverse.getPlug("outputX").connectTo(unshape.getPlug("inputScale" + axis))
         for i in range(3):
             matrix = self._node(owner, "multMatrix", "deform" + str(i))
             # 親の断面scaleを打ち消し、子の位置や回転に歪みが累積しないようにする。
-            shape.plug("outputMatrix").connectTo(matrix.plug("matrixIn")[0])
-            hlib.getPlug(rig._local_matrix("ik" + str(i))).connectTo(matrix.plug("matrixIn")[1])
+            shape.getPlug("outputMatrix").connectTo(matrix.getPlug("matrixIn")[0])
+            hlib.getPlug(rig._local_matrix("ik" + str(i))).connectTo(matrix.getPlug("matrixIn")[1])
             if i:
-                unshape.plug("outputMatrix").connectTo(matrix.plug("matrixIn")[2])
-            matrix.plug("message").connectTo(group.plug("matrices")[i])
+                unshape.getPlug("outputMatrix").connectTo(matrix.getPlug("matrixIn")[2])
+            matrix.getPlug("message").connectTo(group.getPlug("matrices")[i])
         for node in (group, owner):
-            root.plug("hrigOwned").appendMessage(node)
+            root.getPlug("hrigOwned").appendMessage(node)
         rig._update_evaluation()
         from . import channel_controls
 
-        jobs = channel_controls._jobs.pop(root.uuid(), None)
+        jobs = channel_controls._jobs.pop(root.getUuid(), None)
         if jobs is not None:
             jobs.stop()
         channel_controls.install()
@@ -182,9 +182,9 @@ class LimbStretchLayer:
             ValueError: 設定の上限を超えて到達できない姿勢。
         """
         group = self.settings()
-        rest = sum(hlib.json.JsonText.loads(group.plug("restLengths").get()))
+        rest = sum(hlib.json.JsonText.loads(group.getPlug("restLengths").get()))
         settings = {
-            a: group.plug(a).get() for a in ("stretch", "squash", "minSquash", "maxStretch")
+            a: group.getPlug(a).get() for a in ("stretch", "squash", "minSquash", "maxStretch")
         }
         lo, hi = 0.0, max(rest, distance, 1) * 1e6
         for iteration in range(82):
@@ -218,37 +218,37 @@ class LimbStretchLayer:
         if group is None:
             return
         rig, active = self.rig, self.active()
-        owner = group.plug("graph").sourceWithConversion().node()
-        target = owner.plug("inputLength")
-        if target.sourceWithConversion() is not None:
-            target.disconnect(target.sourceWithConversion())
+        owner = group.getPlug("graph").getSourceWithConversion().getNode()
+        target = owner.getPlug("inputLength")
+        if target.getSourceWithConversion() is not None:
+            target.disconnect(target.getSourceWithConversion())
         if active:
-            group.plug("inputLength").connectTo(target)
+            group.getPlug("inputLength").connectTo(target)
         else:
-            target.set(owner.plug("restLength").get())
-        for i, length in enumerate(hlib.json.JsonText.loads(group.plug("restLengths").get())):
+            target.set(owner.getPlug("restLength").get())
+        for i, length in enumerate(hlib.json.JsonText.loads(group.getPlug("restLengths").get())):
             target = hlib.getPlug(rig._member("ik" + str(i + 1)) + ".translateX")
-            if target.sourceWithConversion() is not None:
-                target.disconnect(target.sourceWithConversion())
+            if target.getSourceWithConversion() is not None:
+                target.disconnect(target.getSourceWithConversion())
             if active:
-                group.plug("outputs")[i].sourceWithConversion().node().plug("output").connectTo(target)
+                group.getPlug("outputs")[i].getSourceWithConversion().getNode().getPlug("output").connectTo(target)
             else:
                 target.set(length)
         soft = hlib.getPlug(rig._member("softGraph") + ".distance")
-        if soft.sourceWithConversion() is not None:
-            soft.disconnect(soft.sourceWithConversion())
+        if soft.getSourceWithConversion() is not None:
+            soft.disconnect(soft.getSourceWithConversion())
         source = (
-            group.plug("softNormalize").sourceWithConversion().node().plug("outputX")
+            group.getPlug("softNormalize").getSourceWithConversion().getNode().getPlug("outputX")
             if active
-            else group.plug("softDistance")
+            else group.getPlug("softDistance")
         )
         source.connectTo(soft)
         for i in range(3):
             target = hlib.getPlug(rig._member("joint" + str(i)) + ".offsetParentMatrix")
-            if target.sourceWithConversion() is not None:
-                target.disconnect(target.sourceWithConversion())
+            if target.getSourceWithConversion() is not None:
+                target.disconnect(target.getSourceWithConversion())
             source = (
-                group.plug("matrices")[i].sourceWithConversion().node().plug("matrixSum")
+                group.getPlug("matrices")[i].getSourceWithConversion().getNode().getPlug("matrixSum")
                 if active
                 else hlib.getPlug(rig._local_matrix(("ik" if rig.mode() == "ik" else "fk") + str(i)))
             )

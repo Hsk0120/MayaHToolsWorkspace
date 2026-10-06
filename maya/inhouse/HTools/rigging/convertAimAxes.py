@@ -83,16 +83,16 @@ class AimAxisConversionWindow:
             if len(selected) != 1:
                 raise ValueError("Select one aimConstraint node and load it.")
             node = selected[0]
-            if node.type() in ("container", "network") and node.hasAttr("hrigAimAxisConversion"):
-                link = node.plug("sourceConstraint").sourceWithConversion()
-                node = link.node() if link is not None else node
-            if node.type() != "aimConstraint":
+            if node.getType() in ("container", "network") and node.hasAttr("hrigAimAxisConversion"):
+                link = node.getPlug("sourceConstraint").getSourceWithConversion()
+                node = link.getNode() if link is not None else node
+            if node.getType() != "aimConstraint":
                 raise ValueError("Select the aimConstraint node, not the joint.")
             self.constraint = node
-            cmds.text(self.source, edit=True, label=node.fullName())
+            cmds.text(self.source, edit=True, label=node.getFullName())
             graph = AimAxisConversion.find(node)
             if graph is not None:
-                data = JsonText.loads(graph.container.plug("settings").get())
+                data = JsonText.loads(graph.container.getPlug("settings").get())
                 cmds.optionMenuGrp(self.mode, edit=True, select=(
                     _MODES.index(data["mode"]) + 1 if data["mode"] in _MODES else 1))
                 if data["axes"] in ("x", "y", "z", "xy", "xz", "yz"):
@@ -162,14 +162,14 @@ class AimAxisConversionWindow:
                 lines.append("Original Aim connections.")
             else:
                 owner = graph.container
-                data = JsonText.loads(owner.plug("settings").get())
+                data = JsonText.loads(owner.getPlug("settings").get())
                 if data["mode"] == "rest":
                     lines.append("This is a corrected restore from an older version. Remove it with 'Restore Original Aim and Settings'.")
-                converted = [math.degrees(owner.plug("output" + a).get()) for a in "XYZ"]
+                converted = [math.degrees(owner.getPlug("output" + a).get()) for a in "XYZ"]
                 lines.append("Output XYZ (deg): {:.3f}, {:.3f}, {:.3f}".format(*converted))
-                lines.append("Owner node: " + owner.fullName())
-                lines.append("Layout: " + ("container" if owner.type() == "container" else "direct connections (restore data on a network node)"))
-                valid = owner.plug("valid").get() > 0.5
+                lines.append("Owner node: " + owner.getFullName())
+                lines.append("Layout: " + ("container" if owner.getType() == "container" else "direct connections (restore data on a network node)"))
+                valid = owner.getPlug("valid").get() > 0.5
                 lines.append("Diagnosis: " + ("valid" if valid else "check needed (ambiguous range, singularity or Rotate Order change)"))
             lines.append("Press 'Refresh Result' after moving the timeline or the targets.")
             cmds.scrollField(self.status, edit=True, text="\n".join(lines))

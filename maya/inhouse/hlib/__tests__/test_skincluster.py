@@ -51,8 +51,8 @@ class SkinClusterTransferWeightsBatchTest(unittest.TestCase):
         # transferWeights はウェイト移送のみを行い influence の削除はしない。
         self.skin.transferWeights([(self.child, self.root)])
 
-        self.assertIn(self.child, [node.name() for node in self.skin.influences()])
-        self.assertIn(self.root, [node.name() for node in self.skin.influences()])
+        self.assertIn(self.child, [node.getName() for node in self.skin.getInfluences()])
+        self.assertIn(self.root, [node.getName() for node in self.skin.getInfluences()])
 
 
 class SkinClusterInfluenceTest(unittest.TestCase):
@@ -88,12 +88,12 @@ class SkinClusterInfluenceTest(unittest.TestCase):
         self.assertEqual(list(self.skin.getWeights([self.root])), [1.0] * 8)
         self.assertEqual(list(self.skin.getWeights([self.mid])), [0.0] * 8)
         # transferWeights はウェイト移送のみで influence の削除はしない。
-        self.assertIn(self.mid, [node.name() for node in self.skin.influences()])
+        self.assertIn(self.mid, [node.getName() for node in self.skin.getInfluences()])
 
     def test_remove_influence_drops_influence_from_skin_cluster(self):
-        self.assertIn(self.mid, [node.name() for node in self.skin.influences()])
+        self.assertIn(self.mid, [node.getName() for node in self.skin.getInfluences()])
         self.skin.removeInfluence(self.mid)
-        self.assertNotIn(self.mid, [node.name() for node in self.skin.influences()])
+        self.assertNotIn(self.mid, [node.getName() for node in self.skin.getInfluences()])
         self.assertFalse(self.skin.hasInfluence(self.mid))
 
 
@@ -119,22 +119,22 @@ class SkinClustersBatchTest(unittest.TestCase):
 
     def test_transfer_target_finds_nearest_influence_ancestor(self):
         mid_joint = Joint(self.mid)
-        self.assertEqual(mid_joint.transferTarget(self.skin), self.root)
+        self.assertEqual(mid_joint.getTransferTarget(self.skin), self.root)
 
         leaf_joint = Joint(self.leaf)
-        self.assertEqual(leaf_joint.transferTarget(self.skin), self.mid)
+        self.assertEqual(leaf_joint.getTransferTarget(self.skin), self.mid)
 
     def test_sorted_by_depth_orders_deepest_first(self):
         joints = Joints([self.root, self.mid, self.leaf])
-        ordered = [joint.name() for joint in joints.sortedByDepth()]
+        ordered = [joint.getName() for joint in joints.sortedByDepth()]
         self.assertEqual(ordered, [self.leaf, self.mid, self.root])
 
     def test_delete_joints_transfers_weight_reparents_children_and_deletes_joint(self):
         self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
 
         mid_joints = Joints([self.mid])
-        skinClusters = mid_joints.skinClusters()
-        self.assertEqual([skin.name() for skin in skinClusters], [self.skin.name()])
+        skinClusters = mid_joints.getSkinClusters()
+        self.assertEqual([skin.getName() for skin in skinClusters], [self.skin.getName()])
 
         mid_joints.delete()
 
@@ -148,7 +148,7 @@ class SkinClustersBatchTest(unittest.TestCase):
         self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
 
         mid_joints = Joints([self.mid])
-        mid_joints.skinClusters().removeInfluences(mid_joints)
+        mid_joints.getSkinClusters().removeInfluences(mid_joints)
 
         self.assertTrue(cmds.objExists(self.mid))
         self.assertFalse(self.skin.hasInfluence(self.mid))
@@ -210,7 +210,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
         before = list(self.skin.getWeights(joints))
         with undoChunk("weightTool"):
             self.skin.setWeights([self.child], [0.125])
-            hlib.getNode(self.mesh_transform).plug("visibility").set(False)
+            hlib.getNode(self.mesh_transform).getPlug("visibility").set(False)
         after = list(self.skin.getWeights(joints))
         self.assertEqual(after[0::2], before[0::2])
         self.assertEqual(after[1::2], [0.125] * 8)
@@ -223,8 +223,8 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
 
     def test_sparse_influence_indices(self):
         extra = cmds.createNode("joint", parent=self.root)
-        cmds.skinCluster(self.skin.name(), edit=True, addInfluence=extra, weight=0)
-        cmds.skinCluster(self.skin.name(), edit=True, removeInfluence=self.child)
+        cmds.skinCluster(self.skin.getName(), edit=True, addInfluence=extra, weight=0)
+        cmds.skinCluster(self.skin.getName(), edit=True, removeInfluence=self.child)
         before = list(self.skin.getWeights([self.root, extra]))
         self.skin.setWeights([extra, self.root], [0.25, 0.75])
         self.assertEqual(list(self.skin.getWeights([self.root, extra])), [0.75, 0.25] * 8)
@@ -241,7 +241,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
 
     def test_load_raises_when_influence_missing(self):
         self.skin.dumpWeights(self.path)
-        cmds.skinCluster(self.skin.name(), edit=True, removeInfluence=self.child)
+        cmds.skinCluster(self.skin.getName(), edit=True, removeInfluence=self.child)
 
         with self.assertRaises(ValueError):
             self.skin.loadWeights(self.path)

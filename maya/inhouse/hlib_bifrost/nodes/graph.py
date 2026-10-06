@@ -21,7 +21,7 @@ class Graph:
         MayaNode = coreModule('nodes').Node
 
         self.node = MayaNode(node)
-        if self.node.type() != "bifrostGraphShape":
+        if self.node.getType() != "bifrostGraphShape":
             raise TypeError("Expected bifrostGraphShape")
 
     @classmethod
@@ -48,7 +48,7 @@ class Graph:
                 MayaNode.create("bifrostGraphShape", name=name, parent=parent, skipSelect=True)
             )
         except Exception:
-            cmds.delete(parent.fullName())
+            cmds.delete(parent.getFullName())
             raise
 
     @property
@@ -56,15 +56,15 @@ class Graph:
         """Compound: ルートへの参照。照会やシーン変更は行わない。"""
         return Compound(self, "/")
 
-    def name(self):
+    def getName(self):
         """現在のDG完全名を取得する。
 
         Returns:
             str: 現在のDG完全名を取得する。
         """
-        return self.node.fullName()
+        return self.node.getFullName()
 
-    def parent(self):
+    def getParent(self):
         """所有するDAG親を取得する。
 
         Returns:
@@ -72,7 +72,7 @@ class Graph:
         """
         MayaNode = coreModule('nodes').Node
 
-        names = cmds.listRelatives(self.name(), parent=True, fullPath=True) or []
+        names = cmds.listRelatives(self.getName(), parent=True, fullPath=True) or []
         if not names:
             raise ValueError("Graph has no DAG parent")
         return MayaNode(names[0])
@@ -82,8 +82,8 @@ class Graph:
         """グラフと現在のDAG親を削除する。親に他の子があれば拒否する。"""
         core = coreModule()
 
-        parent = self.parent()
-        children = cmds.listRelatives(parent.fullName(), children=True, fullPath=True) or []
-        if children != [self.name()]:
+        parent = self.getParent()
+        children = cmds.listRelatives(parent.getFullName(), children=True, fullPath=True) or []
+        if children != [self.getName()]:
             raise ValueError("Parent contains other children; delete the graph shape explicitly")
         core.delete(parent)

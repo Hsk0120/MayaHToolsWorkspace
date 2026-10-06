@@ -1,5 +1,6 @@
 """二点間、またはTransformの原点間の距離を扱う。"""
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -37,9 +38,10 @@ class DistanceBetween(Node):
         if any(len(point) != 3 or not all(math.isfinite(v) for v in point) for point in points):
             raise ValueError("Points must contain three finite coordinates")
         for name, point in zip(("point1", "point2"), points):
-            self.plug(name).set(point)
+            self.getPlug(name).set(point)
         return self
 
+    @flag_aliases(f="force")
     @undoChunk("hlibDistanceBetweenConnectTransforms")
     def connectTransforms(self, first, second, force=False):
         """二つのTransform原点のワールド距離を測る接続を設定する。
@@ -47,7 +49,7 @@ class DistanceBetween(Node):
         Args:
             first (Transform | str): 第一のTransform。ラッパーが解決したDAGパスを使う。
             second (Transform | str): 第二のTransform。
-            force (bool): 既存の行列入力接続を置き換えるか。
+            force (bool): 既存の行列入力接続を置き換えるか。 別名 ``f`` も使用可能。
 
         Returns:
             DistanceBetween: 自身。point1/2は原点にリセットする。
@@ -64,22 +66,22 @@ class DistanceBetween(Node):
         self.setPoints((0, 0, 0), (0, 0, 0))
         for number, node in enumerate(nodes, 1):
             index = node.mpath().instanceNumber()
-            node.plug("worldMatrix")[index].connectTo(
-                self.plug(f"inMatrix{number}"), force=force)
+            node.getPlug("worldMatrix")[index].connectTo(
+                self.getPlug(f"inMatrix{number}"), force=force)
         return self
 
-    def outputPlug(self):
+    def getOutputPlug(self):
         """distance出力。別アトリビュートへの接続に使用する。
 
         Returns:
             Plug: distance出力。別アトリビュートへの接続に使用する。
         """
-        return self.plug("distance")
+        return self.getPlug("distance")
 
-    def distance(self):
+    def getDistance(self):
         """評価済み距離。内部距離単位cm。
 
         Returns:
             float: 評価済み距離。内部距離単位cm。
         """
-        return self.outputPlug().get()
+        return self.getOutputPlug().get()

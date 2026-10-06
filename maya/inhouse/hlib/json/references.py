@@ -23,11 +23,11 @@ class NodeRef:
         """
         import maya.api.OpenMaya as om2
         from ..nodes.node import Node
-        name = (node.fullName() if hasattr(node, "fullName") else node)
+        name = (node.getFullName() if hasattr(node, "getFullName") else node)
         if isinstance(node, Node):
             if not node.isValid():
                 raise ValueError("Expected one node: {}".format(name))
-            return cls(node.uuid(), name, node.type())
+            return cls(node.getUuid(), name, node.getType())
         selection = om2.MSelectionList()
         try:
             selection.add(name)
@@ -40,7 +40,7 @@ class NodeRef:
         except (RuntimeError, TypeError):
             value = selection.getDependNode(0)
         node = Node(value)
-        return cls(node.uuid(), node.fullName(), node.type())
+        return cls(node.getUuid(), node.getFullName(), node.getType())
 
     def resolve(self, mapping=None, namespace_map=None):
         """保存参照を現在のシーンのノードへ解決する。
@@ -65,7 +65,7 @@ class NodeRef:
         mapping, namespace_map = mapping or {}, namespace_map or {}
         explicit = self.path in mapping
         name = mapping.get(self.path, self.path)
-        name = (name.fullName() if hasattr(name, "fullName") else name)
+        name = (name.getFullName() if hasattr(name, "getFullName") else name)
         if not explicit and namespace_map:
             parts = name.split("|")
             for i, part in enumerate(parts):
@@ -89,7 +89,7 @@ class NodeRef:
         if len(candidates) != 1:
             raise ValueError("Node missing or ambiguous: {}".format(name))
         node = Node(candidates[0])
-        if node.type() != self.node_type:
+        if node.getType() != self.node_type:
             raise ValueError("Node type mismatch: {}".format(name))
         return node
 
@@ -112,7 +112,7 @@ class PlugRef:
             PlugRef: ノード参照とアトリビュートパス。ここではノードを検証し、
                 アトリビュートの存在検証は resolve() に委ねる。
         """
-        name = (plug.fullName() if hasattr(plug, "fullName") else plug)
+        name = (plug.getFullName() if hasattr(plug, "getFullName") else plug)
         node, attr = name.split(".", 1)
         return cls(NodeRef.capture(node), attr)
 
@@ -130,10 +130,10 @@ class PlugRef:
         key = self.node.path + "." + self.attribute
         if key in mapping:
             from ..nodes.node import Node
-            name = (mapping[key].fullName() if hasattr(mapping[key], "fullName") else mapping[key])
+            name = (mapping[key].getFullName() if hasattr(mapping[key], "getFullName") else mapping[key])
             node, attr = name.split(".", 1)
-            return NodeRef.capture(node).resolve().plug(attr)
-        return self.node.resolve(**kwargs).plug(self.attribute)
+            return NodeRef.capture(node).resolve().getPlug(attr)
+        return self.node.resolve(**kwargs).getPlug(self.attribute)
 
 
 @dataclass(frozen=True)
@@ -155,7 +155,7 @@ class ComponentRef:
         Returns:
             ComponentRef: 形状参照、種類、API の番号。UV は現在の UV セット名も保持する。
         """
-        name = component.fullName()
+        name = component.getFullName()
         kind = name.rsplit(".", 1)[1].split("[")[0]
         uv = component.shape.meshFn().currentUVSetName() if kind == "map" else ""
         return cls(NodeRef.capture(component.shape), kind, component.index, uv)

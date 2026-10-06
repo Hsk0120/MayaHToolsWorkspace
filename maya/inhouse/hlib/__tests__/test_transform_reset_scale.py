@@ -18,8 +18,8 @@ class TransformResetScaleTest(unittest.TestCase):
     def test_reset_and_bulk(self):
         nodes = Transforms([Node(cmds.createNode("transform", parent=self.root)) for _ in range(2)])
         for node in nodes:
-            cmds.setAttr(node.fullName() + ".translate", 1, 2, 3)
-            cmds.setAttr(node.fullName() + ".scale", 2, 3, 4)
+            cmds.setAttr(node.getFullName() + ".translate", 1, 2, 3)
+            cmds.setAttr(node.getFullName() + ".scale", 2, 3, 4)
         nodes.reset(["tx", "scale"])
         for node in nodes:
             self.assertEqual(tuple(node.getTranslation(at=4)), (0, 2, 3))
@@ -28,17 +28,17 @@ class TransformResetScaleTest(unittest.TestCase):
         self.assertEqual(tuple(nodes[0].getTranslation(at=4)), (1, 2, 3))
         nodes[0].reset(fast=True)
         self.assertEqual(tuple(nodes[0].getTranslation(at=4)), (0, 0, 0))
-        cmds.addAttr(nodes[0].fullName(), longName="customValue", attributeType="double", defaultValue=7)
-        nodes[0].plug("customValue").set(12)
+        cmds.addAttr(nodes[0].getFullName(), longName="customValue", attributeType="double", defaultValue=7)
+        nodes[0].getPlug("customValue").set(12)
         nodes[0].reset("customValue")
-        self.assertEqual(nodes[0].plug("customValue").get(), 7)
+        self.assertEqual(nodes[0].getPlug("customValue").get(), 7)
 
     def test_reset_pivot_preserves_matrix(self):
         node = Node(cmds.createNode("transform", parent=self.root))
         cmds.setAttr(self.root + ".rotate", 20, 30, 40)
-        cmds.setAttr(node.fullName() + ".translate", 3, 4, 5)
-        cmds.setAttr(node.fullName() + ".rotate", 10, 25, 35)
-        cmds.setAttr(node.fullName() + ".scale", 2, 3, 4)
+        cmds.setAttr(node.getFullName() + ".translate", 3, 4, 5)
+        cmds.setAttr(node.getFullName() + ".rotate", 10, 25, 35)
+        cmds.setAttr(node.getFullName() + ".scale", 2, 3, 4)
         before = node.getMatrix(ws=True)
         for ws in (True, False):
             node.resetPivot(ws=ws)
@@ -58,12 +58,12 @@ class TransformResetScaleTest(unittest.TestCase):
         for factory in factories:
             transform = cmds.parent(factory(), self.root)[0]
             node = Node(transform)
-            shape = node.shape()
+            shape = node.getShape()
             cmds.setAttr(transform + ".translate", 2, 3, 4)
             cmds.setAttr(transform + ".rotate", 20, 30, 40)
             cmds.setAttr(transform + ".scale", 2, 3, 4)
             token = ".vtx[*]" if shape.isType("mesh") else ".cv[*][*]" if shape.isType("nurbsSurface") else ".cv[*]"
-            components = cmds.ls(shape.fullName() + token, flatten=True)
+            components = cmds.ls(shape.getFullName() + token, flatten=True)
             for ws in (False, True):
                 before = [cmds.xform(c, query=True, translation=True, worldSpace=ws, objectSpace=not ws) for c in components]
                 matrix = node.getMatrix(ws=True)
@@ -85,7 +85,7 @@ class TransformResetScaleTest(unittest.TestCase):
 
     def test_periodic_curve_and_unit_scale(self):
         transform = cmds.parent(cmds.circle(constructionHistory=False)[0], self.root)[0]
-        shape = Node(transform).shape()
+        shape = Node(transform).getShape()
         unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")

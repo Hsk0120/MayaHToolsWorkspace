@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from .._core.flags import flag_aliases
 from ..decorators.undo import undoChunk
 
 
@@ -69,7 +70,7 @@ class Namespace:
         return hash(self._name)
 
     @classmethod
-    def current(cls):
+    def getCurrent(cls):
         """カレントNamespaceを返す。
 
         Returns:
@@ -98,7 +99,7 @@ class Namespace:
         namespace = cls(name)
         parent_namespace = cls(parent)
         if ":" in namespace.name.strip(":"):
-            parent_namespace = namespace.parent()
+            parent_namespace = namespace.getParent()
         if namespace.exists():
             return namespace
         if parent_namespace is None:
@@ -126,7 +127,7 @@ class Namespace:
         """
         return bool(om2.MNamespace.namespaceExists(self._name))
 
-    def parent(self):
+    def getParent(self):
         """親Namespaceを返す。root namespaceの親は ``None``。
 
         Returns:
@@ -137,7 +138,7 @@ class Namespace:
         parent_name = self._name.rsplit(":", 1)[0] or ":"
         return Namespace(parent_name)
 
-    def children(self):
+    def getChildren(self):
         """直下の子Namespaceを返す。
 
         Returns:
@@ -151,11 +152,11 @@ class Namespace:
         for name in names:
             absolute_name = name if name.startswith(":") else prefix + name
             child = Namespace(absolute_name)
-            if child.parent() == self:
+            if child.getParent() == self:
                 children.append(child)
         return children
 
-    def nodes(self, recurse=False):
+    def getNodes(self, recurse=False):
         """Namespace内のNodeをhlib wrapperとして返す。
 
         Args:
@@ -201,7 +202,7 @@ class Namespace:
         Raises:
             RuntimeError: 自身が存在しない場合。
         """
-        previous = Namespace.current()
+        previous = Namespace.getCurrent()
         self.setCurrent()
         try:
             yield self
@@ -226,7 +227,7 @@ class Namespace:
         if self._name == ":":
             raise ValueError("root namespace cannot be renamed")
         target = Namespace(name)
-        parent = self.parent()
+        parent = self.getParent()
         target = Namespace(f"{parent.name}:{target.name.rsplit(':', 1)[-1]}")
         self._move_contents(target)
         self._name = target.name
@@ -257,12 +258,13 @@ class Namespace:
         self._name = target.name
         return self
 
+    @flag_aliases(dst="destination")
     @undoChunk("hlibNamespaceRemove")
     def remove(self, destination=":"):
         """内容を移動してNamespaceを削除する。
 
         Args:
-            destination (str | Namespace): 内容を移動する既存の名前空間。既定はルート。
+            destination (str | Namespace): 内容を移動する既存の名前空間。既定はルート。 別名 ``dst`` も使用可能。
 
         Returns:
             Namespace: 内容を受け取った移動先。自身の保持名は削除前のまま。
@@ -312,7 +314,7 @@ class Namespace:
         """
         if target.exists():
             raise RuntimeError(f"Namespace already exists: {target.name}")
-        target_parent = target.parent()
+        target_parent = target.getParent()
         if target_parent is None or not target_parent.exists():
             raise RuntimeError(f"Namespace does not exist: {target_parent}")
         cmds.namespace(add=target.name.rsplit(":", 1)[-1], parent=target_parent.name)

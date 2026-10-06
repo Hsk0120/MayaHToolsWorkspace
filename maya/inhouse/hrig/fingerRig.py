@@ -59,8 +59,8 @@ class FingerRig(ControlRig):
                 layer = hlib.createNode(
                     "transform", name=stem + "_layer_grp", parent=parent, skipSelect=True
                 )
-                layer.plug("translateX").set(length / joint_count if j else 0)
-                layer.plug("translateZ").set(
+                layer.getPlug("translateX").set(length / joint_count if j else 0)
+                layer.getPlug("translateZ").set(
                     (f - (finger_count - 1) / 2) * spacing if j == 0 else 0
                 )
                 control = hlib.createNode(
@@ -69,11 +69,11 @@ class FingerRig(ControlRig):
                 bone = hlib.createNode(
                     "joint", name=stem + "_jnt", parent=bone_parent, skipSelect=True
                 )
-                bone.plug("segmentScaleCompensate").set(False)
+                bone.getPlug("segmentScaleCompensate").set(False)
                 matrix = hlib.createNode("multMatrix", name=stem + "_matrix", skipSelect=True)
-                control.plug("matrix").connectTo(matrix.plug("matrixIn")[0])
-                layer.plug("matrix").connectTo(matrix.plug("matrixIn")[1])
-                matrix.plug("matrixSum").connectTo(bone.plug("offsetParentMatrix"))
+                control.getPlug("matrix").connectTo(matrix.getPlug("matrixIn")[0])
+                layer.getPlug("matrix").connectTo(matrix.getPlug("matrixIn")[1])
+                matrix.getPlug("matrixSum").connectTo(bone.getPlug("offsetParentMatrix"))
                 rig.own(matrix)
                 rig.register("deform", bone)
                 if j < joint_count:
@@ -89,27 +89,27 @@ class FingerRig(ControlRig):
                     total = hlib.createNode(
                         "plusMinusAverage", name=stem + "_curl", skipSelect=True
                     )
-                    settings.plug("curl").connectTo(total.plug("input1D")[0])
-                    settings.plug("curl{}".format(f + 1)).connectTo(total.plug("input1D")[1])
+                    settings.getPlug("curl").connectTo(total.getPlug("input1D")[0])
+                    settings.getPlug("curl{}".format(f + 1)).connectTo(total.getPlug("input1D")[1])
                     multiply = hlib.createNode(
                         "multiplyDivide", name=stem + "_weights", skipSelect=True
                     )
-                    total.plug("output1D").connectTo(multiply.plug("input1Z"))
-                    settings.plug(weight_attr).connectTo(multiply.plug("input2Z"))
+                    total.getPlug("output1D").connectTo(multiply.getPlug("input1Z"))
+                    settings.getPlug(weight_attr).connectTo(multiply.getPlug("input2Z"))
                     if j == 0:
-                        settings.plug("spread").connectTo(multiply.plug("input1Y"))
-                        settings.plug("spreadWeight{}".format(f + 1)).connectTo(
-                            multiply.plug("input2Y")
+                        settings.getPlug("spread").connectTo(multiply.getPlug("input1Y"))
+                        settings.getPlug("spreadWeight{}".format(f + 1)).connectTo(
+                            multiply.getPlug("input2Y")
                         )
                     rig.own(total)
                     rig.own(multiply)
                     for axis_index, axis in enumerate("XYZ"):
-                        multiply.plug("output" + axis).connectTo(
-                            rig.root.plug("angles")[(f * joint_count + j) * 3 + axis_index]
+                        multiply.getPlug("output" + axis).connectTo(
+                            rig.root.getPlug("angles")[(f * joint_count + j) * 3 + axis_index]
                         )
                     rig.register("sources", multiply)
                     rig.register("targets", layer)
-                control.setAttributeFlags(
+                control.setAttrFlags(
                     ["translate", "scale", "visibility"], locked=True, keyable=False
                 )
                 parent, bone_parent = control, bone

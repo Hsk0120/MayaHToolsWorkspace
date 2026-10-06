@@ -20,7 +20,7 @@ class Reference(Node):
         """
         return om2.MFnReference(self.mnode())
 
-    def filename(self, resolved=True, with_copy_number=False):
+    def getFilename(self, resolved=True, with_copy_number=False):
         """参照ファイルのパスを取得する。
 
         Args:
@@ -34,7 +34,7 @@ class Reference(Node):
         """
         return self.referenceFn().fileName(resolved, with_copy_number, False)
 
-    def associatedNamespace(self):
+    def getAssociatedNamespace(self):
         """参照内容が読み込まれている Namespace を取得する。
 
         Returns:
@@ -54,7 +54,7 @@ class Reference(Node):
         """
         return self.referenceFn().isLoaded()
 
-    def nodes(self):
+    def getNodes(self):
         """この参照が持ち込んだノードを取得する。
 
         Returns:
@@ -67,7 +67,7 @@ class Reference(Node):
             raise RuntimeError("Cannot enumerate nodes of an unloaded reference")
         return [Node(mobject) for mobject in self.referenceFn().nodes()]
 
-    def parentReference(self):
+    def getParentReference(self):
         """親の Reference を取得する(ネストした参照の場合)。
 
         Returns:
@@ -78,7 +78,7 @@ class Reference(Node):
             return None
         return Reference(parent)
 
-    def children(self):
+    def getChildren(self):
         """自身を親に持つ、直下にネストした子 Reference を取得する。
 
         Returns:
@@ -86,25 +86,25 @@ class Reference(Node):
         """
         from ..utils.references import listReferences
 
-        own_name = self.fullName()
+        own_name = self.getFullName()
         children = []
         for reference in listReferences():
-            parent = reference.parentReference()
-            if parent is not None and parent.fullName() == own_name:
+            parent = reference.getParentReference()
+            if parent is not None and parent.getFullName() == own_name:
                 children.append(reference)
         return children
 
-    def root(self):
+    def getRoot(self):
         """ネストの最上位(トップレベル)の Reference を取得する。
 
         Returns:
             Reference: トップレベルの参照。自身がトップレベルならそのまま自身。
         """
         reference = self
-        parent = reference.parentReference()
+        parent = reference.getParentReference()
         while parent is not None:
             reference = parent
-            parent = reference.parentReference()
+            parent = reference.getParentReference()
         return reference
 
     def isTopLevel(self):
@@ -113,9 +113,9 @@ class Reference(Node):
         Returns:
             bool: 親参照が無ければ True。
         """
-        return self.parentReference() is None
+        return self.getParentReference() is None
 
-    def editStrings(self, successful=True, failed=False):
+    def getEditStrings(self, successful=True, failed=False):
         """このReferenceに対するEdit(MELコマンド文字列)一覧を取得する。
 
         Args:
@@ -126,11 +126,11 @@ class Reference(Node):
             list[str]: Editを表すMELコマンド文字列。無ければ空リスト。
         """
         return cmds.referenceQuery(
-            self.name(), editStrings=True,
+            self.getName(), editStrings=True,
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
-    def editNodeNames(self, successful=True, failed=False):
+    def getEditNodeNames(self, successful=True, failed=False):
         """Editの影響を受けたノードのフルパス名一覧を取得する。
 
         Args:
@@ -141,16 +141,16 @@ class Reference(Node):
             list[str]: Editが加えられたノードのフルパス名(重複あり得る)。無ければ空リスト。
         """
         return cmds.referenceQuery(
-            self.name(), editNodes=True,
+            self.getName(), editNodes=True,
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
-    def editAttributeNames(self, successful=True, failed=False):
+    def getEditAttrNames(self, successful=True, failed=False):
         """Editの影響を受けたアトリビュートの短縮名一覧を取得する。
 
         Maya の ``referenceQuery -editAttrs`` 自体がノード名を含まないアトリビュート名の
         みを返す(コンパウンドアトリビュートの子を編集した場合は親の短縮名になる)。
-        どのノードのアトリビュートかは ``editNodeNames()`` や ``editStrings()`` と合わせて判断する。
+        どのノードのアトリビュートかは ``getEditNodeNames()`` や ``getEditStrings()`` と合わせて判断する。
 
         Args:
             successful (bool): 実際に適用された(成功した)Editを含めるか。
@@ -160,7 +160,7 @@ class Reference(Node):
             list[str]: Edit対象のアトリビュートの短縮名(重複あり得る)。無ければ空リスト。
         """
         return cmds.referenceQuery(
-            self.name(), editAttrs=True,
+            self.getName(), editAttrs=True,
             successfulEdits=successful, failedEdits=failed,
         ) or []
 
@@ -174,7 +174,7 @@ class Reference(Node):
         Raises:
             RuntimeError: Maya がロードを拒否した場合。
         """
-        cmds.file(loadReference=self.name())
+        cmds.file(loadReference=self.getName())
         return self
 
     @undoChunk("hlibReferenceUnload")
@@ -187,7 +187,7 @@ class Reference(Node):
         Raises:
             RuntimeError: Maya がアンロードを拒否した場合。
         """
-        cmds.file(unloadReference=self.name())
+        cmds.file(unloadReference=self.getName())
         return self
 
     @undoChunk("hlibReferenceRemove")
@@ -202,4 +202,4 @@ class Reference(Node):
         Raises:
             RuntimeError: Maya が削除を拒否した場合。
         """
-        cmds.file(removeReference=True, referenceNode=self.name())
+        cmds.file(removeReference=True, referenceNode=self.getName())

@@ -227,7 +227,7 @@ def is_internal_data_type(mplug):
     nurbsSurface の ``patchUVIds`` (``nurbsPatchUVIds``)のような内部のデータ型は、
     存在しない配列要素の値や型を maya.cmds・MPlug で読むと Maya が異常終了する場合がある。
     hlib はこれらの存在しない要素の値を読まず、要素も作らない(``Plug.get()``・
-    ``ArrayPlug.element(create=True)`` が RuntimeError にする)。任意のデータを受け付ける
+    ``ArrayPlug.getElement(create=True)`` が RuntimeError にする)。任意のデータを受け付ける
     型付きアトリビュート(値によって型が変わるアトリビュート)は対象外。
 
     Args:

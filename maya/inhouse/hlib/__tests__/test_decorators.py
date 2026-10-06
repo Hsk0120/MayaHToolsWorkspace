@@ -49,7 +49,7 @@ class UndoDecoratorsTest(unittest.TestCase):
 
     def test_public_operations_have_separate_undo_steps(self):
         node = hlib.createNode("transform", name="hlibUndoChunkNode")
-        node.plug("visibility").set(False)
+        node.getPlug("visibility").set(False)
         cmds.undo()
         self.assertTrue(cmds.objExists("hlibUndoChunkNode"))
         self.assertTrue(cmds.getAttr("hlibUndoChunkNode.visibility"))
@@ -63,12 +63,12 @@ class UndoDecoratorsTest(unittest.TestCase):
         @undoChunk("createControlTool")
         def create_control():
             node = hlib.createNode("transform", name="hlibUndoChunkNode")
-            node.plug("visibility").set(False)
+            node.getPlug("visibility").set(False)
             return node
 
         node = create_control()
         hlib.ls(type="transform")
-        hlib.getNode(node.name())
+        hlib.getNode(node.getName())
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), "createControlTool")
         cmds.undo()
         self.assertFalse(cmds.objExists("hlibUndoChunkNode"))
@@ -258,7 +258,7 @@ class PreservedSkinShapeTest(unittest.TestCase):
         before_world_matrix = cmds.xform(self.joint, query=True, worldSpace=True, matrix=True)
 
         with preservedSkinShape([Joint(self.joint)]) as skins:
-            self.assertEqual([skin.fullName() for skin in skins], [self.skin_name])
+            self.assertEqual([skin.getFullName() for skin in skins], [self.skin_name])
             cmds.setAttr(self.joint + ".jointOrientZ", 45.0)
 
         after_world_matrix = cmds.xform(self.joint, query=True, worldSpace=True, matrix=True)

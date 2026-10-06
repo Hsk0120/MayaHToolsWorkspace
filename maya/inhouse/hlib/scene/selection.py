@@ -71,7 +71,7 @@ class Selection:
                 raise TypeError("Unsupported selection item")
         unique = {}
         for item in resolved:
-            unique.setdefault(item.fullName(), item)
+            unique.setdefault(item.getFullName(), item)
         self._items = tuple(unique.values())
 
     def __len__(self):
@@ -110,7 +110,7 @@ class Selection:
         fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
         return list(self._items)
 
-    def nodes(self, type=None):
+    def getNodes(self, type=None):
         """ノードとして選ばれた対象を取得する。
 
         Args:
@@ -125,7 +125,7 @@ class Selection:
             if isinstance(item, Node) and item.isValid() and (type is None or item.isType(type))
         ]
 
-    def plugs(self):
+    def getPlugs(self):
         """有効なアトリビュート参照。Channel Box選択は自動取得しない。
 
         Returns:
@@ -133,7 +133,7 @@ class Selection:
         """
         return [item for item in self._items if isinstance(item, Plug) and self._valid(item)]
 
-    def components(self):
+    def getComponents(self):
         """有効な要素をshapeのDAGパス・種類ごとにまとめる。
 
         Returns:
@@ -143,11 +143,11 @@ class Selection:
         classes = {Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs}
         for item in self._items:
             if isinstance(item, Component) and self._valid(item):
-                key = (item.shape.fullName(), item.__class__)
+                key = (item.shape.getFullName(), item.__class__)
                 groups.setdefault(key, (item.shape, []))[1].append(item.index)
         return [classes[kind](shape, indices) for (_, kind), (shape, indices) in groups.items()]
 
-    def owners(self):
+    def getOwners(self):
         """有効な対象の所有ノード。DAGパス別に重複を除く。
 
         Returns:
@@ -159,9 +159,9 @@ class Selection:
                 node = (
                     item
                     if isinstance(item, Node)
-                    else item.shape if isinstance(item, Component) else item.node()
+                    else item.shape if isinstance(item, Component) else item.getNode()
                 )
-                result.setdefault(node.fullName(), node)
+                result.setdefault(node.getFullName(), node)
         return list(result.values())
 
     def filter(self, type):
@@ -257,7 +257,7 @@ class Selection:
             if isinstance(item, Plug) and not item.isValid():
                 # 所有ノードの削除に加え、deleteAttr で削除された動的アトリビュートも無効として扱う。
                 return False
-            return bool(cmds.objExists(item.fullName()))
+            return bool(cmds.objExists(item.getFullName()))
         except (RuntimeError, ValueError, IndexError):
             return False
 
@@ -272,7 +272,7 @@ class Selection:
         names = []
         for item in self._items:
             if self._valid(item):
-                names.append(item.fullName())
+                names.append(item.getFullName())
             elif missing == "error":
                 raise RuntimeError("Selection contains a missing item")
         return names

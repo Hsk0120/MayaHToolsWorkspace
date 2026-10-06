@@ -65,8 +65,8 @@ Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身�
 
 .. code-block:: python
 
-   node.plug("ry").setu(90)  # UIがdegの場合90度
-   failed = node.plug("translate").set((1, 2, 3), safe=True)
+   node.getPlug("ry").setu(90)  # UIがdegの場合90度
+   failed = node.getPlug("translate").set((1, 2, 3), safe=True)
    node.setRotation((0, 90, 0), ws=True, unit="deg")
 
 ``setRotation`` の第2位置引数は空間になりました。``unit`` は名前付きで指定します。

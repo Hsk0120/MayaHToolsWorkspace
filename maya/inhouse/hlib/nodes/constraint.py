@@ -16,38 +16,38 @@ class Constraint(Transform):
 
     __hlib_public__ = True
 
-    def targets(self):
+    def getTargets(self):
         """ターゲットを Maya の問い合わせ順に取得する。
 
         Returns:
             list[Node]: ターゲットのラッパー。登録がなければ空リスト。
         """
-        names = getattr(cmds, self.type())(self.fullName(), query=True, targetList=True) or []
+        names = getattr(cmds, self.getType())(self.getFullName(), query=True, targetList=True) or []
         return [Node(name) for name in names]
 
-    def weightAliases(self):
+    def getWeightAliases(self):
         """各ターゲットのウェイトアトリビュートの別名を取得する。
 
         Returns:
-            list[str]: targets() と同じ順序のアトリビュート別名。
+            list[str]: getTargets() と同じ順序のアトリビュート別名。
         """
-        return getattr(cmds, self.type())(self.fullName(), query=True, weightAliasList=True) or []
+        return getattr(cmds, self.getType())(self.getFullName(), query=True, weightAliasList=True) or []
 
-    def weightPlugs(self):
+    def getWeightPlugs(self):
         """ターゲットのウェイトプラグを取得する。
 
         Returns:
-            list[Plug]: targets() と同じ順序のプラグ。set() で値を変更できる。
+            list[Plug]: getTargets() と同じ順序のプラグ。set() で値を変更できる。
         """
-        return [self.plug(alias) for alias in self.weightAliases()]
+        return [self.getPlug(alias) for alias in self.getWeightAliases()]
 
     def getWeights(self):
         """ターゲットの現在のウェイトを取得する。
 
         Returns:
-            list[float]: targets() と同じ順序の値。正規化は行わない。
+            list[float]: getTargets() と同じ順序の値。正規化は行わない。
         """
-        return [plug.get() for plug in self.weightPlugs()]
+        return [plug.get() for plug in self.getWeightPlugs()]
 
     def getWeight(self, target):
         """指定ターゲットの現在のウェイトを取得する。
@@ -60,9 +60,9 @@ class Constraint(Transform):
             ValueError: ターゲットが登録されていない場合。
         """
         from ..nodes.node import Node as _InputNode
-        requested = _InputNode._resolve_input(target).fullName()
-        for node, plug in zip(self.targets(), self.weightPlugs()):
-            if node.fullName() == requested:
+        requested = _InputNode._resolve_input(target).getFullName()
+        for node, plug in zip(self.getTargets(), self.getWeightPlugs()):
+            if node.getFullName() == requested:
                 return plug.get()
         raise ValueError(f"Target not found on this constraint: {requested}")
 
@@ -87,13 +87,13 @@ class Constraint(Transform):
         """
         from ..nodes.node import Node as _InputNode
         from ..nodes.node import Nodes as _InputNodes
-        weightPlugs = self.weightPlugs()
+        weightPlugs = self.getWeightPlugs()
         if not targets:
             for plug in weightPlugs:
                 plug.set(weight)
             return self
-        requested = {_InputNode._resolve_input(target).fullName() for target in _InputNodes._resolve_inputs(targets)}
-        available = {node.fullName(): plug for node, plug in zip(self.targets(), weightPlugs)}
+        requested = {_InputNode._resolve_input(target).getFullName() for target in _InputNodes._resolve_inputs(targets)}
+        available = {node.getFullName(): plug for node, plug in zip(self.getTargets(), weightPlugs)}
         missing = requested - available.keys()
         if missing:
             raise ValueError(f"Targets not found on this constraint: {sorted(missing)}")

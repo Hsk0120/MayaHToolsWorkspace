@@ -43,7 +43,7 @@ class AimRig(ControlRig):
                 parent=neck_control or rig.group("control"),
                 skipSelect=True,
             )
-            offset.plug("translate").set(position)
+            offset.getPlug("translate").set(position)
             layer = hlib.createNode(
                 "transform", name=stem + "_aim_grp", parent=offset, skipSelect=True
             )
@@ -54,11 +54,11 @@ class AimRig(ControlRig):
             target = hlib.createNode(
                 "transform", name=stem + "_target_ctrl", parent=rig.group("layer"), skipSelect=True
             )
-            target.plug("translate").set((position[0], position[1], size * 3))
+            target.getPlug("translate").set((position[0], position[1], size * 3))
             up = hlib.createNode(
                 "transform", name=stem + "_up_ctrl", parent=rig.group("layer"), skipSelect=True
             )
-            up.plug("translate").set((position[0], position[1] + size * 2, 0))
+            up.getPlug("translate").set((position[0], position[1] + size * 2, 0))
             for node in (target, up):
                 ControlShape.circle(node, size * 0.12, (0, 0, 1), 18)
             constraint = hlib.addConstraint(
@@ -77,11 +77,11 @@ class AimRig(ControlRig):
                 parent=neck_bone or rig.group("deform"),
                 skipSelect=True,
             )
-            bone.plug("segmentScaleCompensate").set(False)
+            bone.getPlug("segmentScaleCompensate").set(False)
             matrix = hlib.createNode("multMatrix", name=stem + "_matrix", skipSelect=True)
             for i, node in enumerate((control, layer, offset)):
-                node.plug("matrix").connectTo(matrix.plug("matrixIn")[i])
-            matrix.plug("matrixSum").connectTo(bone.plug("offsetParentMatrix"))
+                node.getPlug("matrix").connectTo(matrix.getPlug("matrixIn")[i])
+            matrix.getPlug("matrixSum").connectTo(bone.getPlug("offsetParentMatrix"))
             rig.own(matrix)
             rig.register("sources", constraint)
             rig.register("targets", layer)

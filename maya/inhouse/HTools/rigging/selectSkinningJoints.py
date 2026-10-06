@@ -28,7 +28,7 @@ def select_skinning_joints_from_selection():
     skin = skin_clusters[0]
 
     # influence joint を取得して選択
-    joints = [node.fullName() for node in Node(skin).influences()]
+    joints = [node.getFullName() for node in Node(skin).getInfluences()]
     cmds.select(joints, replace=True)
 
 

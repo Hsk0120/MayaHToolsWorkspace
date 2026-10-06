@@ -23,7 +23,7 @@ class ShelfValidationTest(unittest.TestCase):
         shelf._name = "TestShelf"
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "shelf_TestShelf.mel"
-            with patch.object(Shelf, "_load"), patch.object(Shelf, "name", return_value="TestShelf"), patch.object(cmds, "saveShelf", create=True, return_value=True) as save:
+            with patch.object(Shelf, "_load"), patch.object(Shelf, "getName", return_value="TestShelf"), patch.object(cmds, "saveShelf", create=True, return_value=True) as save:
                 self.assertEqual(shelf.save(path), path.resolve())
                 save.assert_called_once_with("TestShelf", str(path.resolve().with_suffix("")).replace("\\", "/"))
                 with self.assertRaises(ValueError):
@@ -36,8 +36,8 @@ class ShelfValidationTest(unittest.TestCase):
         """区切り線を除外し、ボタン参照の順序を維持する。"""
         shelf = object.__new__(Shelf)
         shelf._name = "tab"
-        with patch.object(Shelf, "_load"), patch.object(Shelf, "name", return_value="tab"), patch.object(cmds, "about", return_value=False), patch.object(cmds, "shelfLayout", create=True, return_value=["first", "separator", "second"]), patch.object(cmds, "shelfButton", create=True, side_effect=lambda name, **kw: not name.endswith("separator")):
-            self.assertEqual([str(b) for b in shelf.buttons()], ["tab|first", "tab|second"])
+        with patch.object(Shelf, "_load"), patch.object(Shelf, "getName", return_value="tab"), patch.object(cmds, "about", return_value=False), patch.object(cmds, "shelfLayout", create=True, return_value=["first", "separator", "second"]), patch.object(cmds, "shelfButton", create=True, side_effect=lambda name, **kw: not name.endswith("separator")):
+            self.assertEqual([str(b) for b in shelf.getButtons()], ["tab|first", "tab|second"])
 
     def test_batch_guard(self):
         """GUIなしを明示的に拒否する。"""
@@ -65,7 +65,7 @@ class ShelfGuiTest(unittest.TestCase):
             button.setIcon("commandButton.png")
             button.setCommand('print "test";', language="mel")
             self.assertEqual(button.getLanguage(), "mel")
-            self.assertEqual(len(shelf.buttons()), 1)
+            self.assertEqual(len(shelf.getButtons()), 1)
             with tempfile.TemporaryDirectory() as folder:
                 path = shelf.save(Path(folder) / "shelf_hlibTest.mel")
                 self.assertTrue(path.is_file())
@@ -74,7 +74,7 @@ class ShelfGuiTest(unittest.TestCase):
             self.assertFalse(button.exists())
             shelf.addButton("Clear", "pass")
             shelf.clear()
-            self.assertEqual(shelf.buttons(), [])
+            self.assertEqual(shelf.getButtons(), [])
         finally:
             cmds.deleteUI(window, window=True)
 

@@ -13,13 +13,13 @@ from .node import Node
 class Compound(Node):
     """内部ノードの追加とインターフェース定義を行うCompound参照。"""
 
-    def nodes(self):
+    def getNodes(self):
         """直下のノード名を照会する。
 
         Returns:
             tuple[str]: 直下のノード名を照会する。
         """
-        return tuple(cmds.vnnCompound(self.graph.name(), self.path, ls=True) or ())
+        return tuple(cmds.vnnCompound(self.graph.getName(), self.path, ls=True) or ())
 
     def child(self, name):
         """直下のノードを参照する。
@@ -41,7 +41,7 @@ class Compound(Node):
         Returns:
             Node: 作成された内部ノード。
         """
-        result = cmds.vnnCompound(self.graph.name(), self.path, addNode=type_name)
+        result = cmds.vnnCompound(self.graph.getName(), self.path, addNode=type_name)
         return self.child(result[0])
 
     def create_compound(self, name):
@@ -57,9 +57,9 @@ class Compound(Node):
             ValueError: 名前が不正、または同名ノードが存在する場合。
         """
         name = self.identifier(name)
-        if name in self.nodes():
+        if name in self.getNodes():
             raise ValueError("Node already exists: " + name)
-        cmds.vnnCompound(self.graph.name(), self.path, create=name)
+        cmds.vnnCompound(self.graph.getName(), self.path, create=name)
         return Compound(self.graph, self.child(name).path)
 
     def add_port(self, name, dataType, output=False):
@@ -80,7 +80,7 @@ class Compound(Node):
         if name in [p.rsplit(".", 1)[-1] for p in self.ports()]:
             raise ValueError("Port already exists: " + name)
         flag = "createOutputPort" if output else "createInputPort"
-        cmds.vnnCompound(self.graph.name(), self.path, **{flag: (name, dataType)})
+        cmds.vnnCompound(self.graph.getName(), self.path, **{flag: (name, dataType)})
         return self.port(name)
 
     def io_port(self, name, output=False):
@@ -101,4 +101,4 @@ class Compound(Node):
         Args:
             name (str): 削除する内部ノード名。
         """
-        cmds.vnnCompound(self.graph.name(), self.path, removeNode=self.identifier(name))
+        cmds.vnnCompound(self.graph.getName(), self.path, removeNode=self.identifier(name))

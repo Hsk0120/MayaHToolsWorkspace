@@ -40,7 +40,7 @@ class Node:
         Returns:
             tuple[str]: VNNが返すポート名を照会する。
         """
-        return tuple(cmds.vnnNode(self.graph.name(), self.path, listPorts=True) or ())
+        return tuple(cmds.vnnNode(self.graph.getName(), self.path, listPorts=True) or ())
 
     def port(self, name):
         """指定ポートを参照する。存在確認や作成は行わない。
@@ -69,5 +69,5 @@ class Node:
         if name in [p.rsplit(".", 1)[-1] for p in self.ports()]:
             raise ValueError("Port already exists: " + name)
         flag = "createOutputPort" if output else "createInputPort"
-        cmds.vnnNode(self.graph.name(), self.path, **{flag: (name, dataType)})
+        cmds.vnnNode(self.graph.getName(), self.path, **{flag: (name, dataType)})
         return self.port(name)

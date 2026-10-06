@@ -42,19 +42,19 @@ def main(output_dir=None, finished=None):
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
         check(editor.tree.topLevelItemCount() == 1, "Create four-direction module")
-        rig, _ = editor.current()
-        check(isinstance(rig, SkirtRig) and len(rig.joints()) == 48, "Sixteen chains created")
+        rig, _ = editor.getCurrent()
+        check(isinstance(rig, SkirtRig) and len(rig.getJoints()) == 48, "Sixteen chains created")
         check(
             not editor.mode.isEnabled() and not editor.addButton.isEnabled(),
             "Limb-only controls disabled",
         )
-        rig.driver_chains()[0][0].plug("rotateX").set(50)
+        rig.driver_chains()[0][0].getPlug("rotateX").set(50)
         yield
-        check(abs(rig.chains()[0][0].plug("rotateX").get() - 50) < 0.001, "Driver moves follower")
-        rig.root.plug("blend").set(0.5)
+        check(abs(rig.chains()[0][0].getPlug("rotateX").get() - 50) < 0.001, "Driver moves follower")
+        rig.root.getPlug("blend").set(0.5)
         yield
-        check(0 < rig.chains()[0][0].plug("rotateX").get() < 50, "Blend adjusts pose")
-        cmds.setAttr(rig.root.fullName() + ".enabled", False)
+        check(0 < rig.chains()[0][0].getPlug("rotateX").get() < 50, "Blend adjusts pose")
+        cmds.setAttr(rig.root.getFullName() + ".enabled", False)
         yield
         (output / "jobs-state.json").write_text(
             json.dumps(
@@ -69,7 +69,7 @@ def main(output_dir=None, finished=None):
             encoding="utf-8",
         )
         check(
-            rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None, "Channel Box disabled disconnects"
+            rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None, "Channel Box disabled disconnects"
         )
         cmds.undo()
         yield
@@ -77,7 +77,7 @@ def main(output_dir=None, finished=None):
             json.dumps(
                 {
                     "enabled": rig.layer_enabled(),
-                    "source": str(rig.chains()[0][0].plug("rotateX").sourceWithConversion()),
+                    "source": str(rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion()),
                     "undo": cmds.undoInfo(query=True, undoName=True),
                     "redo": cmds.undoInfo(query=True, redoName=True),
                 }
@@ -85,13 +85,13 @@ def main(output_dir=None, finished=None):
             encoding="utf-8",
         )
         check(
-            rig.layer_enabled() and rig.chains()[0][0].plug("rotateX").sourceWithConversion() is not None,
+            rig.layer_enabled() and rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is not None,
             "Channel Undo restores output",
         )
         cmds.redo()
         yield
         check(
-            not rig.layer_enabled() and rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None,
+            not rig.layer_enabled() and rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None,
             "Channel Redo restores disabled state",
         )
         rig.set_layer_enabled("radial", True)
@@ -103,9 +103,9 @@ def main(output_dir=None, finished=None):
         yield
         check(not rig.layer_enabled(), "Layer checkbox changes enabled")
         rig.set_layer_enabled("radial", True)
-        cmds.setAttr(rig.root.fullName() + ".lod", 0)
+        cmds.setAttr(rig.root.getFullName() + ".lod", 0)
         yield
-        check(rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None, "Channel LOD stops output")
+        check(rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None, "Channel LOD stops output")
         rig.set_lod(1)
         rig.root.rename("renamedSkirt")
         yield
@@ -114,15 +114,15 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "skirt.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         rig = SkirtRig("renamedSkirt")
-        cmds.setAttr(rig.root.fullName() + ".enabled", False)
+        cmds.setAttr(rig.root.getFullName() + ".enabled", False)
         yield
-        check(rig.chains()[0][0].plug("rotateX").sourceWithConversion() is None, "Reload restores attribute jobs")
+        check(rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None, "Reload restores attribute jobs")
         rig.set_layer_enabled("radial", True)
         editor.module_type.setCurrentIndex(3)
         editor.module_name.setText("skirtEight")
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        check(len(editor.current()[0].driver_chains()) == 8, "Eight-direction UI sample")
+        check(len(editor.getCurrent()[0].driver_chains()) == 8, "Eight-direction UI sample")
         editor.module_type.setCurrentIndex(0)
         editor.module_name.setText("limbSample")
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)

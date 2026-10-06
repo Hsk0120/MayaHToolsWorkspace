@@ -17,17 +17,17 @@ class LengthCompensationTest(unittest.TestCase):
         """伸長、圧縮、上下限、体積近似を確認する。"""
         graph = LengthCompensation.create(10).container
         for distance, expected in ((10, 1), (15, 1.5), (5, 0.5), (100, 2), (0, 0.1)):
-            graph.plug("inputLength").set(distance)
-            self.assertAlmostEqual(graph.plug("lengthScale").get(), expected, places=5)
-            self.assertAlmostEqual(graph.plug("volumeScale").get(), expected**-0.5, places=5)
-        graph.plug("inputLength").set(5)
-        graph.plug("squash").set(0)
-        self.assertAlmostEqual(graph.plug("lengthScale").get(), 1)
-        graph.plug("inputLength").set(15)
-        graph.plug("stretch").set(0.5)
-        self.assertAlmostEqual(graph.plug("lengthScale").get(), 1.25)
-        graph.plug("volume").set(0)
-        self.assertAlmostEqual(graph.plug("volumeScale").get(), 1)
+            graph.getPlug("inputLength").set(distance)
+            self.assertAlmostEqual(graph.getPlug("lengthScale").get(), expected, places=5)
+            self.assertAlmostEqual(graph.getPlug("volumeScale").get(), expected**-0.5, places=5)
+        graph.getPlug("inputLength").set(5)
+        graph.getPlug("squash").set(0)
+        self.assertAlmostEqual(graph.getPlug("lengthScale").get(), 1)
+        graph.getPlug("inputLength").set(15)
+        graph.getPlug("stretch").set(0.5)
+        self.assertAlmostEqual(graph.getPlug("lengthScale").get(), 1.25)
+        graph.getPlug("volume").set(0)
+        self.assertAlmostEqual(graph.getPlug("volumeScale").get(), 1)
 
     def test_validation_and_undo(self):
         """不正基準長拒否と生成Undoを確認する。"""
@@ -35,6 +35,6 @@ class LengthCompensationTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 LengthCompensation.create(value)
         graph = LengthCompensation.create(10)
-        name = graph.container.name()
+        name = graph.container.getName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))

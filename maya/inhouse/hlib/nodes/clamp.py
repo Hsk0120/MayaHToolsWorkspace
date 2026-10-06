@@ -1,5 +1,6 @@
 """RGB各成分を指定範囲に制限する。"""
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -12,19 +13,19 @@ from .node import Node
 class Clamp(Node):
     """RGB各成分を指定範囲に制限する。"""
 
-    def inputPlug(self):
+    def getInputPlug(self):
         """入力のPlugを取得する。
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.plug('input')
+        return self.getPlug('input')
 
     def getInput(self):
         """入力の評価値を取得する。
         Returns:
             Iterable[float]: 現在の値。
         """
-        return self.inputPlug().get()
+        return self.getInputPlug().get()
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
@@ -40,23 +41,24 @@ class Clamp(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.inputPlug)
+        _Calculation.set_value(value, _Calculation.vector, self.getInputPlug)
         return self
 
+    @flag_aliases(src="source", f="force")
     @undoChunk("hlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。
-            force (bool): 既存接続を置き換えるか。
+            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
         Returns:
             Clamp: 自身。
 
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.inputPlug, force=force)
+        _Calculation.connect(source, self.getInputPlug, force=force)
         return self
 
     def getRange(self):
@@ -64,7 +66,7 @@ class Clamp(Node):
         Returns:
             dict[str, tuple]: 各成分の上下限。
         """
-        return {key: tuple(self.plug(attr).get()) for key, attr in (('min', 'min'), ('max', 'max'))}
+        return {key: tuple(self.getPlug(attr).get()) for key, attr in (('min', 'min'), ('max', 'max'))}
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
@@ -83,19 +85,19 @@ class Clamp(Node):
         """
         values = [_Calculation.vector(value) for value in (min, max)]
         for attr, value in zip(('min', 'max'), values):
-            self.plug(attr).set(value)
+            self.getPlug(attr).set(value)
         return self
 
-    def outputPlug(self):
+    def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
         Returns:
             Plug: 出力参照。
         """
-        return self.plug("output")
+        return self.getPlug("output")
 
-    def result(self):
+    def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
         Returns:
             Vector: 計算結果。
         """
-        return Vector(self.outputPlug().get())
+        return Vector(self.getOutputPlug().get())

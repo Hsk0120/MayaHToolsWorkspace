@@ -59,7 +59,7 @@ class Component(Object):
         Returns:
             str: 現在の完全パス付きコンポーネント名。
         """
-        return self.fullName()
+        return self.getFullName()
 
     @property
     def shape(self):
@@ -79,14 +79,14 @@ class Component(Object):
         """
         return self._index
 
-    def fullName(self):
+    def getFullName(self):
         """現在の DAG パスを使ってコンポーネント名を取得する。
 
         Returns:
             str: シェイプの完全パスとコンポーネントの種類・番号を含む名前。
         """
         self._validate()
-        return f"{self._shape.fullName()}.{self.component_type}[{self._index}]"
+        return f"{self._shape.getFullName()}.{self.component_type}[{self._index}]"
 
     @staticmethod
     def _from_api(path, component):
@@ -197,7 +197,7 @@ class Component(Object):
             raise TypeError("shape must be an hlib shape wrapper")
         if not self._shape.isValid():
             raise RuntimeError("Component shape is invalid")
-        if self._shape.type() != self.shape_type:
+        if self._shape.getType() != self.shape_type:
             raise TypeError(f"Expected a {self.shape_type} shape")
         if not 0 <= self._index < getattr(self._shape, self.count_attribute)():
             raise IndexError(f"Component index out of range: {self._index}")
@@ -253,7 +253,7 @@ class Components:
             raise TypeError("shape must be an hlib shape wrapper")
         if not shape.isValid():
             raise RuntimeError("Component shape is invalid")
-        if shape.type() != self.component_class.shape_type:
+        if shape.getType() != self.component_class.shape_type:
             raise TypeError(f"Expected a {self.component_class.shape_type} shape")
         selected = range(getattr(shape, self.component_class.count_attribute)()) if indices is None else indices
         self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
@@ -309,7 +309,7 @@ class Components:
         """
         return self._indices
 
-    def fullNames(self):
+    def getFullNames(self):
         """保持順の完全コンポーネント名を取得する。
 
         全番号の再検証はまとめて1回だけ行う。
@@ -325,7 +325,7 @@ class Components:
         prefix = self._name_prefix()
         return [f"{prefix}[{index}]" for index in self._indices]
 
-    def compactNames(self):
+    def getCompactNames(self):
         """保持順で連続する番号を範囲指定にまとめた名前を取得する。
 
         ``maya.cmds`` へ多数の要素を渡す用途向け(``hlib.select`` などが使う)。
@@ -366,7 +366,7 @@ class Components:
             RuntimeError: シェイプが無効な場合。
         """
         self._validate()
-        return f"{self._shape.fullName()}.{self.component_class.component_type}"
+        return f"{self._shape.getFullName()}.{self.component_class.component_type}"
 
     def _validate(self):
         """シェイプと保持番号を一括検証し、名前や単数ラッパーは生成しない。
@@ -379,7 +379,7 @@ class Components:
         component_class = self.component_class
         if not self._shape.isValid():
             raise RuntimeError("Component shape is invalid")
-        if self._shape.type() != component_class.shape_type:
+        if self._shape.getType() != component_class.shape_type:
             raise TypeError(f"Expected a {component_class.shape_type} shape")
         if self._indices:
             largest = max(self._indices)

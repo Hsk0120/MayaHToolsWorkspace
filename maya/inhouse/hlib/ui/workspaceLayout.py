@@ -23,7 +23,7 @@ class WorkspaceLayout:
         if name is not None and (not isinstance(name, str) or not name):
             raise TypeError("Expected a non-empty workspace layout name")
         self._name = name if name is not None else cmds.workspaceLayoutManager(query=True, current=True)
-        self.name()
+        self.getName()
 
     def __str__(self):
         """保持した配置名。
@@ -44,7 +44,7 @@ class WorkspaceLayout:
         return [cls(name) for name in cmds.workspaceLayoutManager(listLayouts=True) or []]
 
     @classmethod
-    def current(cls):
+    def getCurrent(cls):
         """現在の配置への新しい参照。
 
         Returns:
@@ -93,7 +93,7 @@ class WorkspaceLayout:
         _WindowReference._require_gui()
         return self._name in (cmds.workspaceLayoutManager(listLayouts=True) or [])
 
-    def name(self):
+    def getName(self):
         """存在を確認した配置名。
 
         Returns:
@@ -109,7 +109,7 @@ class WorkspaceLayout:
         Returns:
             bool: 現在使用中の配置か取得する。
         """
-        return self.name() == cmds.workspaceLayoutManager(query=True, current=True)
+        return self.getName() == cmds.workspaceLayoutManager(query=True, current=True)
 
     def activate(self):
         """配置名で切り替える。Mayaの自動保存設定に従う副作用がある。
@@ -117,7 +117,7 @@ class WorkspaceLayout:
         切り替え時に現在の配置が自動保存される場合がある。UIのuiScriptや
         必要プラグインに依存し、任意のQtウィンドウは再生成できない。
         """
-        cmds.workspaceLayoutManager(setCurrent=self.name())
+        cmds.workspaceLayoutManager(setCurrent=self.getName())
 
     def reset(self):
         """現在の配置を保存済み状態へ戻す。未保存の配置変更は失われる。"""

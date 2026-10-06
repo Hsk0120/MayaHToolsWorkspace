@@ -30,7 +30,7 @@ def main(output_dir=None, finished=None):
 
     def row(role):
         """選択モジュールの行を返す。"""
-        uuid = editor.current()[0].root.uuid()
+        uuid = editor.getCurrent()[0].root.getUuid()
         return next(
             item
             for item in editor.rows()
@@ -54,38 +54,38 @@ def main(output_dir=None, finished=None):
         )
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        rig, _ = editor.current()
+        rig, _ = editor.getCurrent()
         check(
-            isinstance(rig, SplineRig) and len(rig.joints()) == 9 and len(rig.controls()) == 5,
+            isinstance(rig, SplineRig) and len(rig.getJoints()) == 9 and len(rig.controls()) == 5,
             "UI spine creation",
         )
         check(
             not editor.addButton.isEnabled() and not editor.bake_button.isEnabled(),
             "Unsupported sample actions disabled",
         )
-        rig.controls()[1].plug("tx").set(3)
+        rig.controls()[1].getPlug("tx").set(3)
         yield
-        before = cmds.xform(rig.joints()[3], query=True, worldSpace=True, translation=True)
+        before = cmds.xform(rig.getJoints()[3], query=True, worldSpace=True, translation=True)
         check(abs(before[0]) > 0.2, "Curve control bends chain")
         editor.tree.setCurrentItem(row("spline:1"))
         editor.select_node()
         check(
-            cmds.ls(selection=True, long=True) == [rig.controls()[1].fullName()],
+            cmds.ls(selection=True, long=True) == [rig.controls()[1].getFullName()],
             "Control selection",
         )
         editor.mode.setCurrentIndex(0)
         editor._run(editor.change_mode)
         yield
-        after = cmds.xform(rig.joints()[3], query=True, worldSpace=True, translation=True)
+        after = cmds.xform(rig.getJoints()[3], query=True, worldSpace=True, translation=True)
         check(max(abs(a - b) for a, b in zip(before, after)) < 0.001, "IK to FK match")
         check(
-            rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None, "FK disconnects solver"
+            rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None, "FK disconnects solver"
         )
         cmds.undo()
         yield
         check(
             rig.mode() == "ik"
-            and rig.graph().member("handle").plug("inCurve").sourceWithConversion() is not None,
+            and rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is not None,
             "Mode Undo",
         )
         cmds.redo()
@@ -97,19 +97,19 @@ def main(output_dir=None, finished=None):
         yield
         check(
             not rig.layer_enabled()
-            and rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None,
+            and rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None,
             "Layer checkbox",
         )
         cmds.undo()
         yield
         check(rig.layer_enabled(), "Layer Undo")
-        cmds.setAttr(rig.root.fullName() + ".lod", 0)
+        cmds.setAttr(rig.root.getFullName() + ".lod", 0)
         for _ in range(20):
             yield
-            if rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None:
+            if rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None:
                 break
         check(
-            rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None,
+            rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None,
             "Channel LOD disables solver",
         )
         cmds.undo()
@@ -120,13 +120,13 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "spline.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         rig = SplineRig("spineDemo")
-        cmds.setAttr(rig.root.fullName() + ".mode", 0)
+        cmds.setAttr(rig.root.getFullName() + ".mode", 0)
         for _ in range(20):
             yield
-            if rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None:
+            if rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None:
                 break
         check(
-            rig.graph().member("handle").plug("inCurve").sourceWithConversion() is None,
+            rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None,
             "Reload restores watchers",
         )
         rig.set_mode("ik")
@@ -134,11 +134,11 @@ def main(output_dir=None, finished=None):
         editor.module_name.setText("tailDemo")
         QtTest.QTest.mouseClick(editor.create_button, QtCore.Qt.LeftButton)
         yield
-        tail, _ = editor.current()
+        tail, _ = editor.getCurrent()
         check(
             isinstance(tail, SplineRig)
             and abs(
-                cmds.xform(tail.joints()[-1], query=True, worldSpace=True, translation=True)[2] - 10
+                cmds.xform(tail.getJoints()[-1], query=True, worldSpace=True, translation=True)[2] - 10
             )
             < 0.001,
             "UI tail creation",

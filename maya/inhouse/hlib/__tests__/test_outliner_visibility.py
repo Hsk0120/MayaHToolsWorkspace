@@ -17,8 +17,8 @@ class OutlinerVisibilityTest(unittest.TestCase):
             nodes.setOutlinerVisibility(False)
             self.assertEqual(nodes.getOutlinerVisibility(), [False, False])
             for node in nodes:
-                self.assertTrue(cmds.getAttr(node.fullName() + ".hiddenInOutliner"))
-                self.assertTrue(cmds.getAttr(node.fullName() + ".visibility"))
+                self.assertTrue(cmds.getAttr(node.getFullName() + ".hiddenInOutliner"))
+                self.assertTrue(cmds.getAttr(node.getFullName() + ".visibility"))
             cmds.undo()
             self.assertEqual(nodes.getOutlinerVisibility(), [True, True])
             cmds.redo()
@@ -38,7 +38,7 @@ class OutlinerVisibilityTest(unittest.TestCase):
             with self.assertRaises(TypeError):
                 nodes[0].setOutlinerVisibility(1)
         finally:
-            cmds.delete([node.fullName() for node in nodes])
+            cmds.delete([node.getFullName() for node in nodes])
 
 
 if __name__ == "__main__":

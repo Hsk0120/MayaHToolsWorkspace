@@ -49,10 +49,10 @@ class CommandNamesTest(unittest.TestCase):
                     operation()
             self.assertEqual(set(cmds.ls(long=True)), before)
             enum.setEnumNames(['local', 'world', 'foot'])
-            self.assertEqual(enum.enumValue('foot'), 2)
+            self.assertEqual(enum.getEnumValue('foot'), 2)
             cmds.undo()
-            self.assertEqual(enum.enumValue('two'), 1)
+            self.assertEqual(enum.getEnumValue('two'), 1)
             cmds.redo()
-            self.assertEqual(enum.enumValue('world'), 1)
+            self.assertEqual(enum.getEnumValue('world'), 1)
         finally:
             node.delete()

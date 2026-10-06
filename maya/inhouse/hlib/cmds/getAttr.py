@@ -26,7 +26,7 @@ def getAttr(target, **kwargs):
     from ..maths import Matrix, Vector
 
     plug = _InputPlug._resolve_input(target)
-    value = cmds.getAttr(plug.fullName(), **kwargs)
+    value = cmds.getAttr(plug.getFullName(), **kwargs)
     if any(
         kwargs.get(k)
         for k in (
@@ -42,7 +42,7 @@ def getAttr(target, **kwargs):
         )
     ):
         return value
-    kind = plug.dataType()
+    kind = plug.getDataType()
     if kind == "matrix":
         return Matrix(value)
     if kind in ("double3", "float3", "long3", "short3"):

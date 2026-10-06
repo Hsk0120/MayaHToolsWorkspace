@@ -11,7 +11,7 @@ from .node import Node
 class ObjectSet(Node):
     """Maya の objectSet ラッパー。コントロールセット・表示セット等の基本操作を提供する。"""
 
-    def members(self):
+    def getMembers(self):
         """セットのメンバーを取得する。
 
         コンポーネント(例: ``mesh1.vtx[0:2]``)を含む場合、そのメンバーは
@@ -21,7 +21,7 @@ class ObjectSet(Node):
             list[Node | str]: メンバー。ノードは Node ラッパー、コンポーネントは
                 文字列。メンバーが無ければ空リスト。
         """
-        names = cmds.sets(self.name(), query=True) or []
+        names = cmds.sets(self.getName(), query=True) or []
         return [name if "." in name else Node(name) for name in names]
 
     @undoChunk("hlibObjectSetAdd")
@@ -37,7 +37,7 @@ class ObjectSet(Node):
         """
         from ..object import Object as _InputObject
         if members:
-            cmds.sets(_InputObject._input_names(members), add=self.name())
+            cmds.sets(_InputObject._input_names(members), add=self.getName())
         return self
 
     @undoChunk("hlibObjectSetRemove")
@@ -52,7 +52,7 @@ class ObjectSet(Node):
         """
         from ..object import Object as _InputObject
         if members:
-            cmds.sets(_InputObject._input_names(members), remove=self.name())
+            cmds.sets(_InputObject._input_names(members), remove=self.getName())
         return self
 
     def isMember(self, member):
@@ -65,4 +65,4 @@ class ObjectSet(Node):
             bool: メンバーの場合は True。
         """
         from ..object import Object as _InputObject
-        return bool(cmds.sets(_InputObject._input_name(member), isMember=self.name()))
+        return bool(cmds.sets(_InputObject._input_name(member), isMember=self.getName()))

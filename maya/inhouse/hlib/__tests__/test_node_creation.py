@@ -32,8 +32,8 @@ class NodeCreationTest(unittest.TestCase):
         joint = hlib_cmds.createNode(type="joint", name="hlibCreateJoint")
 
         self.assertIsInstance(joint, Joint)
-        self.assertEqual(joint.name(), "hlibCreateJoint")
-        self.assertEqual(joint.type(), "joint")
+        self.assertEqual(joint.getName(), "hlibCreateJoint")
+        self.assertEqual(joint.getType(), "joint")
 
     def test_cmds_package_reexports_node_commands(self):
         self.assertTrue(callable(hlib_cmds.createNode))
@@ -43,14 +43,14 @@ class NodeCreationTest(unittest.TestCase):
         transform = hlib_cmds.createNode(type="transform", name="hlibCreateTransform")
 
         self.assertIsInstance(transform, Node)
-        self.assertEqual(transform.name(), "hlibCreateTransform")
+        self.assertEqual(transform.getName(), "hlibCreateTransform")
 
     def test_node_create_forwards_create_node_flags(self):
         transform = Node.create(type="transform", name="hlibCreateTransform")
 
         self.assertIsInstance(transform, Node)
-        self.assertEqual(transform.name(), "hlibCreateTransform")
-        self.assertEqual(transform.type(), "transform")
+        self.assertEqual(transform.getName(), "hlibCreateTransform")
+        self.assertEqual(transform.getType(), "transform")
 
     def test_create_node_rejects_invalid_node_type(self):
         with self.assertRaises(ValueError):
@@ -99,7 +99,7 @@ class SceneEditingCommandsTest(unittest.TestCase):
 
     def create_transform(self, name):
         node = hlib_cmds.createNode("transform", name=name)
-        self.created.append(node.name())
+        self.created.append(node.getName())
         return node
 
     def test_ls_returns_wrapped_nodes_and_type_specific_collections(self):
@@ -109,19 +109,19 @@ class SceneEditingCommandsTest(unittest.TestCase):
         result = hlib_cmds.ls(type="transform")
         self.assertIsInstance(result, list)
         self.assertTrue(all(isinstance(item, Node) for item in result))
-        self.assertIn(a.name(), [item.name() for item in result])
-        self.assertIn(b.name(), [item.name() for item in result])
+        self.assertIn(a.getName(), [item.getName() for item in result])
+        self.assertIn(b.getName(), [item.getName() for item in result])
 
-        cmds.select([a.name(), b.name()], replace=True)
+        cmds.select([a.getName(), b.getName()], replace=True)
         selected = hlib_cmds.ls(selection=True)
-        self.assertEqual({item.name() for item in selected}, {a.name(), b.name()})
+        self.assertEqual({item.getName() for item in selected}, {a.getName(), b.getName()})
         cmds.select(clear=True)
 
         joint_name = cmds.createNode("joint", name="hlibLsJoint")
         self.created.append(joint_name)
         joints_result = hlib_cmds.ls(type="joint")
         self.assertIsInstance(joints_result, Joints)
-        self.assertIn(joint_name, [item.name() for item in joints_result])
+        self.assertIn(joint_name, [item.getName() for item in joints_result])
 
         mesh_transform = cmds.polyCube(name="hlibLsSkinMesh", constructionHistory=False)[0]
         self.created.append(mesh_transform)
@@ -129,21 +129,21 @@ class SceneEditingCommandsTest(unittest.TestCase):
         self.created.append(skin_name)
         skin_result = hlib_cmds.ls(type="skinCluster")
         self.assertIsInstance(skin_result, SkinClusters)
-        self.assertIn(skin_name, [item.name() for item in skin_result])
+        self.assertIn(skin_name, [item.getName() for item in skin_result])
 
     def test_obj_exists_reflects_scene_state(self):
         self.assertTrue(cmds.objExists("persp"))
         self.assertFalse(cmds.objExists("hlibObjExistsMissing"))
         node = self.create_transform("hlibObjExistsPresent")
         self.assertTrue(cmds.objExists(node))
-        self.assertTrue(cmds.objExists(node.name()))
+        self.assertTrue(cmds.objExists(node.getName()))
 
     def test_delete_removes_single_and_multiple_nodes(self):
         a = self.create_transform("hlibDeleteA")
         b = self.create_transform("hlibDeleteB")
         hlib_cmds.delete(a)
         self.assertFalse(cmds.objExists("hlibDeleteA"))
-        hlib_cmds.delete([b.name()])
+        hlib_cmds.delete([b.getName()])
         self.assertFalse(cmds.objExists("hlibDeleteB"))
         with self.assertRaises(ValueError):
             hlib_cmds.delete([])
@@ -151,26 +151,26 @@ class SceneEditingCommandsTest(unittest.TestCase):
     def test_duplicate_returns_wrapped_copy(self):
         original = self.create_transform("hlibDuplicateSource")
         copy = hlib_cmds.duplicate(original, name="hlibDuplicateCopy")
-        self.created.append(copy.name())
+        self.created.append(copy.getName())
 
         self.assertIsInstance(copy, Node)
-        self.assertNotEqual(copy.fullName(), original.fullName())
+        self.assertNotEqual(copy.getFullName(), original.getFullName())
         self.assertTrue(cmds.objExists("hlibDuplicateCopy"))
 
     def test_group_wraps_given_nodes_and_supports_empty_group(self):
         a = self.create_transform("hlibGroupA")
         b = self.create_transform("hlibGroupB")
         grp = hlib_cmds.createGroup([a, b], name="hlibGroupParent", world=True)
-        self.created.append(grp.name())
+        self.created.append(grp.getName())
 
         self.assertIsInstance(grp, Node)
         self.assertEqual(
-            cmds.listRelatives(grp.name(), children=True), ["hlibGroupA", "hlibGroupB"]
+            cmds.listRelatives(grp.getName(), children=True), ["hlibGroupA", "hlibGroupB"]
         )
 
         empty = hlib_cmds.createGroup(name="hlibGroupEmpty", world=True, empty=True)
-        self.created.append(empty.name())
-        self.assertEqual(cmds.listRelatives(empty.name(), children=True), None)
+        self.created.append(empty.getName())
+        self.assertEqual(cmds.listRelatives(empty.getName(), children=True), None)
 
         cmds.select(clear=True)
         with self.assertRaises(RuntimeError):
@@ -196,7 +196,7 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
 
     def create_transform(self, name):
         node = hlib_cmds.createNode("transform", name=name)
-        self.created.append(node.name())
+        self.created.append(node.getName())
         return node
 
     def test_select_sets_and_clears_selection(self):
@@ -206,7 +206,7 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
         hlib_cmds.select([a, b])
         self.assertEqual(set(cmds.ls(sl=True)), {"hlibSelectA", "hlibSelectB"})
 
-        hlib_cmds.select(a.name())
+        hlib_cmds.select(a.getName())
         self.assertEqual(cmds.ls(sl=True), ["hlibSelectA"])
 
         hlib_cmds.select(clear=True)
@@ -221,23 +221,23 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
         node = self.create_transform("hlibSetKeyframe")
 
         cmds.currentTime(1)
-        cmds.setKeyframe(node.plug("translateX"), value=0.0)
+        cmds.setKeyframe(node.getPlug("translateX"), value=0.0)
         cmds.currentTime(24)
-        cmds.setKeyframe(node.plug("translateX"), value=10.0)
+        cmds.setKeyframe(node.getPlug("translateX"), value=10.0)
 
-        times = cmds.keyframe(node.fullName(), attribute="translateX", query=True, timeChange=True)
+        times = cmds.keyframe(node.getFullName(), attribute="translateX", query=True, timeChange=True)
         self.assertEqual(sorted(times), [1.0, 24.0])
 
     def test_bake_results_creates_keys_across_range(self):
         node = self.create_transform("hlibBakeResults")
         cmds.currentTime(1)
-        cmds.setKeyframe(node.plug("translateX"), value=0.0)
+        cmds.setKeyframe(node.getPlug("translateX"), value=0.0)
         cmds.currentTime(10)
-        cmds.setKeyframe(node.plug("translateX"), value=9.0)
+        cmds.setKeyframe(node.getPlug("translateX"), value=9.0)
 
         hlib_cmds.bakeResults(node, time=(1, 10), attribute=["translateX"], simulation=True)
 
-        times = cmds.keyframe(node.fullName(), attribute="translateX", query=True, timeChange=True)
+        times = cmds.keyframe(node.getFullName(), attribute="translateX", query=True, timeChange=True)
         self.assertEqual(len(times), 10)
         self.assertEqual(sorted(times), [float(t) for t in range(1, 11)])
 

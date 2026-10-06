@@ -4,6 +4,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.collection import bulk_api
+from .._core.flags import flag_aliases
 from .._core.registry import collection_export
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -26,7 +27,7 @@ class DagNode(Node):
         """
         return self._current_dag_path()
 
-    def instances(self, noSelf=False):
+    def getInstances(self, noSelf=False):
         """同じDAGノードの各インスタンスを取得する。
 
         Args:
@@ -39,7 +40,7 @@ class DagNode(Node):
                 for path in om2.MDagPath.getAllPathsTo(self.mnode())
                 if not noSelf or path.fullPathName() != original]
 
-    def parents(self, indirect=False):
+    def getParents(self, indirect=False):
         """直接の親をインスタンスごとに取得する。
 
         Args:
@@ -47,11 +48,11 @@ class DagNode(Node):
         Returns:
             list[DagNode]: 直接の親。ルートでは空リスト。
         """
-        parent = self.parent()
+        parent = self.getParent()
         if parent is None:
             return []
         if indirect:
-            return [instance.parent() for instance in self.instances() if instance.parent() is not None]
+            return [instance.getParent() for instance in self.getInstances() if instance.getParent() is not None]
         fn = self.dagFn()
         return [parent if fn.parent(index) == parent.mnode()
                 else Node(om2.MDagPath.getAPathTo(fn.parent(index)))
@@ -94,35 +95,6 @@ class DagNode(Node):
                 yield node
             stack.extend(reversed(node._traversal_children(shapes, intermediates, underWorld)))
 
-    def _traversal_children(self, shapes, intermediates, under_world):
-        """指定条件で探索を続ける子パスを取得する。
-
-        Args:
-            shapes: TrueはShapeも取得対象へ含める。
-            intermediates: Trueは中間オブジェクトも含める。
-            under_world: TrueはShape下のアンダーワールドも探索する。
-        """
-        result = []
-        is_shape = self.mnode().hasFn(om2.MFn.kShape)
-        if under_world and (is_shape or not shapes):
-            shape = self if is_shape else self.shape()
-            if shape is not None:
-                iterator = om2.MItDag()
-                iterator.reset(shape.mpath())
-                iterator.traverseUnderWorld = True
-                iterator.next()
-                if not iterator.isDone():
-                    root = iterator.getPath()
-                    # アンダーワールドの非表示ルート自体は公開せず、その子を探索する。
-                    if not om2.MFnDagNode(root).inModel:
-                        for index in range(root.childCount()):
-                            path = om2.MDagPath(root)
-                            path.push(root.child(index))
-                            if intermediates or not om2.MFnDagNode(path).isIntermediateObject:
-                                result.append(Node(path))
-        result.extend(self.children(shapes=shapes, intermediates=intermediates))
-        return result
-
     def dagFn(self):
         """保持するDAGパスに対応するfunction setを取得する。
 
@@ -134,7 +106,7 @@ class DagNode(Node):
         """
         return om2.MFnDagNode(self.mpath())
 
-    def parentPath(self):
+    def getParentPath(self):
         """保持するインスタンスの親パスを取得する。
 
         Returns:
@@ -152,7 +124,7 @@ class DagNode(Node):
         parent.pop()
         return parent
 
-    def parent(self, step=1):
+    def getParent(self, step=1):
         """親ノードを登録された型の Node として取得する。
 
         Args:
@@ -168,7 +140,7 @@ class DagNode(Node):
         path.pop(step)
         return Node(path)
 
-    def fullPath(self):
+    def getFullPath(self):
         """保持するDAGインスタンスの完全パス。
 
         Returns:
@@ -176,7 +148,7 @@ class DagNode(Node):
         """
         return self.mpath().fullPathName()
 
-    def children(self, shapes=False, intermediates=False):
+    def getChildren(self, shapes=False, intermediates=False):
         """非TransformのDAGノードでは空の子リストを返す。
 
         Args:
@@ -187,18 +159,19 @@ class DagNode(Node):
         """
         return []
 
-    def shape(self, idx=0, intermediates=False):
+    @flag_aliases(index="idx")
+    def getShape(self, idx=0, intermediates=False):
         """Shape自身を返す。Transformでは指定Shapeを取得する。
 
         Args:
-            idx (int): Shape自身では無視する。
+            idx (int): Shape自身では無視する。 別名 ``index`` も使用可能。
             intermediates (bool): Shape自身では無視する。
         Returns:
             DagNode | None: Shapeなら自身、それ以外はNone。
         """
         return self if self.mnode().hasFn(om2.MFn.kShape) else None
 
-    def partialPath(self):
+    def getPartialPath(self):
         """保持するDAGインスタンスの最短一意パス。
 
         Returns:
@@ -236,7 +209,7 @@ class DagNode(Node):
         Returns:
             bool: 自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。
         """
-        return bool(self.plug("visibility").get())
+        return bool(self.getPlug("visibility").get())
 
     @fast_edit
     @undoChunk("hlibNodeSetVisible")
@@ -255,7 +228,7 @@ class DagNode(Node):
         """
         if not isinstance(state, bool):
             raise TypeError("state must be a bool")
-        self.plug("visibility").set(state)
+        self.getPlug("visibility").set(state)
         return self
 
     def getOutlinerVisibility(self):
@@ -270,7 +243,7 @@ class DagNode(Node):
 
         エディターのフィルター・親の折り畳み・非表示ノード表示設定は判定しない。
         """
-        return not bool(self.plug("hiddenInOutliner").get())
+        return not bool(self.getPlug("hiddenInOutliner").get())
 
     @fast_edit
     @undoChunk("hlibNodeSetOutlinerVisibility")
@@ -294,7 +267,7 @@ class DagNode(Node):
         """
         if not isinstance(state, bool):
             raise TypeError("state must be a bool")
-        self.plug("hiddenInOutliner").set(not state)
+        self.getPlug("hiddenInOutliner").set(not state)
         return self
 
     def getOutlinerColor(self):
@@ -304,9 +277,9 @@ class DagNode(Node):
             Color: このノードのOutliner色。無効時はdisabledモード。
         """
         from ..ui.color import Color
-        if not self.plug("useOutlinerColor").get():
+        if not self.getPlug("useOutlinerColor").get():
             return Color.disabled()
-        return Color(rgb=self.plug("outlinerColor").get())
+        return Color(rgb=self.getPlug("outlinerColor").get())
 
     @fast_edit
     @undoChunk("hlibNodeOutlinerColor")
@@ -334,11 +307,11 @@ class DagNode(Node):
         アトリビュートがない場合はRuntimeError。無効時はdisabledモードを返す。
         """
         from ..ui.color import Color
-        if not self.plug("overrideEnabled").get():
+        if not self.getPlug("overrideEnabled").get():
             return Color.disabled()
-        if self.plug("overrideRGBColors").get():
-            return Color(rgb=self.plug("overrideColorRGB").get())
-        return Color(index=self.plug("overrideColor").get())
+        if self.getPlug("overrideRGBColors").get():
+            return Color(rgb=self.getPlug("overrideColorRGB").get())
+        return Color(index=self.getPlug("overrideColor").get())
 
     @fast_edit
     @undoChunk("hlibNodeOverrideColor")
@@ -360,6 +333,35 @@ class DagNode(Node):
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value))
         return self
+
+    def _traversal_children(self, shapes, intermediates, under_world):
+        """指定条件で探索を続ける子パスを取得する。
+
+        Args:
+            shapes: TrueはShapeも取得対象へ含める。
+            intermediates: Trueは中間オブジェクトも含める。
+            under_world: TrueはShape下のアンダーワールドも探索する。
+        """
+        result = []
+        is_shape = self.mnode().hasFn(om2.MFn.kShape)
+        if under_world and (is_shape or not shapes):
+            shape = self if is_shape else self.getShape()
+            if shape is not None:
+                iterator = om2.MItDag()
+                iterator.reset(shape.mpath())
+                iterator.traverseUnderWorld = True
+                iterator.next()
+                if not iterator.isDone():
+                    root = iterator.getPath()
+                    # アンダーワールドの非表示ルート自体は公開せず、その子を探索する。
+                    if not om2.MFnDagNode(root).inModel:
+                        for index in range(root.childCount()):
+                            path = om2.MDagPath(root)
+                            path.push(root.child(index))
+                            if intermediates or not om2.MFnDagNode(path).isIntermediateObject:
+                                result.append(Node(path))
+        result.extend(self.getChildren(shapes=shapes, intermediates=intermediates))
+        return result
 
     @staticmethod
     def _display_color_updates(value, outliner=False):
@@ -388,10 +390,10 @@ class DagNode(Node):
         if not self.isValid():
             raise RuntimeError("Cannot color an invalid node")
         if om2.MFnDependencyNode(self.mnode()).isLocked:
-            raise RuntimeError("Cannot color a locked node: " + self.fullName())
-        if any(not cmds.objExists(self.fullName() + "." + name) for name, _ in updates):
+            raise RuntimeError("Cannot color a locked node: " + self.getFullName())
+        if any(not cmds.objExists(self.getFullName() + "." + name) for name, _ in updates):
             raise RuntimeError("Node does not have the requested display color attributes")
-        plugs = [(self.plug(name), value) for name, value in updates]
+        plugs = [(self.getPlug(name), value) for name, value in updates]
         for plug, value in plugs:
             plug._require_writable()
         return plugs
@@ -418,27 +420,8 @@ class DagNode(Node):
 @collection_export()
 @bulk_api(
     DagNode,
-    reads=(
-        'mpath',
-        'dagFn',
-        'parentPath',
-        'parent',
-        'parents', 'instances',
-        'iterBreadthFirst', 'iterDepthFirst',
-        'children', 'shape',
-        'fullPath', 'partialPath', 'isVisible',
-        'getVisibility',
-        'getOutlinerVisibility',
-        'getOutlinerColor',
-        'getOverrideColor',
-    ),
-    writes=(
-        'show', 'hide',
-        'setVisibility',
-        'setOutlinerVisibility',
-        'setOutlinerColor',
-        'setOverrideColor',
-    ),
+    reads=('mpath', 'dagFn', 'getParentPath', 'getParent', 'getParents', 'getInstances', 'iterBreadthFirst', 'iterDepthFirst', 'getChildren', 'getShape', 'getFullPath', 'getPartialPath', 'isVisible', 'getVisibility', 'getOutlinerVisibility', 'getOutlinerColor', 'getOverrideColor'),
+    writes=('show', 'hide', 'setVisibility', 'setOutlinerVisibility', 'setOutlinerColor', 'setOverrideColor'),
 )
 class DagNodes(Nodes):
     """DAG参照の集合。表示操作と階層照会を共有する。"""
@@ -539,7 +522,7 @@ class DagNodes(Nodes):
             try:
                 updates = node._display_color_updates(color, outliner=outliner)
                 plugs = node._prepare_display_color(updates)
-                key = node.uuid()
+                key = node.getUuid()
                 if key in seen:
                     if seen[key] != updates:
                         raise ValueError("Conflicting colors for shared instance attributes")

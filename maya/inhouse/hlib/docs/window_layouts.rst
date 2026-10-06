@@ -16,7 +16,7 @@
    from hlib.ui import WorkspaceLayout
 
    layout = hlib.getWorkspaceLayout()  # 現在の配置への参照
-   print([item.name() for item in WorkspaceLayout.list()])
+   print([item.getName() for item in WorkspaceLayout.list()])
    layout.lock()                       # Maya右上の鍵と同じ
    layout.unlock()
    print(layout.getLocked())
@@ -43,12 +43,12 @@
 
    from hlib.ui import MainWindow, Window
 
-   window = hlib.getWindow(MainWindow.name())
+   window = hlib.getWindow(MainWindow.getName())
    print(window.getSize())             # (width, height)
    print(window.getPosition())         # (x, y)、Mayaのtop/left順を変換
    window.setResizable(False)          # サイズ変更のみ禁止
    window.setResizable(True)
-   print([item.name() for item in Window.list()])
+   print([item.getName() for item in Window.list()])
 
 ``setPosition(x, y)``、``setSize(width, height)``、``show()``、``hide()`` も使用できます。
 ``hide`` は削除ではありません。メインウィンドウを非表示にする必要は通常ありません。
@@ -64,7 +64,7 @@ UIの所有者はMayaであり、このAPIはメインウィンドウの削除�
    controls = WorkspaceControl.list()
    # 実在する名前を選んで取得する
    if controls:
-       control = hlib.getWorkspaceControl(controls[0].name())
+       control = hlib.getWorkspaceControl(controls[0].getName())
        print(control.getFloating(), control.getSize())
        control.show()
        # WorkspaceLayout.unlock()後に明示的に配置を変更する

@@ -46,10 +46,10 @@ class FlagAliasesTest(unittest.TestCase):
         node = hlib.createNode("transform")
         node.tx.set(3.5)
         self.assertEqual(node.translateX.get(), 3.5)
-        node.plug("translateX").set(7)
-        self.assertEqual(node.plug("tx").get(), 7)
+        node.getPlug("translateX").set(7)
+        self.assertEqual(node.getPlug("tx").get(), 7)
         cmds.addAttr(
-            node.fullName(), longName="customAmount", shortName="ca", attributeType="double"
+            node.getFullName(), longName="customAmount", shortName="ca", attributeType="double"
         )
         node.ca.set(2)
         self.assertEqual(node.customAmount.get(), 2)
@@ -58,7 +58,7 @@ class FlagAliasesTest(unittest.TestCase):
         source = hlib.createNode("transform")
         joint = hlib.createNode("joint")
         result = hlib.addConstraint(source, joint, typ="point", mo=True)
-        self.assertEqual(cmds.nodeType(result.fullName()), "pointConstraint")
+        self.assertEqual(cmds.nodeType(result.getFullName()), "pointConstraint")
         hlib.delete(result)
         joints = hlib.nodes.Joints([joint])
         results = joints.addConstraint(source, typ="point", mo=True)
@@ -71,12 +71,12 @@ class FlagAliasesTest(unittest.TestCase):
 
     def test_native_command_specific_flags(self):
         parent = hlib.createGroup(em=True, n="parent")
-        node = hlib.createNode("transform", n="child", p=parent.fullName())
+        node = hlib.createNode("transform", n="child", p=parent.getFullName())
         copy = hlib.duplicate(node, n="copy")
-        self.assertTrue(cmds.objExists(copy.fullName()))
+        self.assertTrue(cmds.objExists(copy.getFullName()))
         # setKeyframeのtはtime。lsのtypeに対する短縮名ではない。
         cmds.setKeyframe(node, at="tx", t=1, v=4)
-        self.assertEqual(cmds.keyframe(node.fullName(), q=True, at="tx", vc=True), [4])
+        self.assertEqual(cmds.keyframe(node.getFullName(), q=True, at="tx", vc=True), [4])
         hlib.select(cl=True)
         self.assertEqual(hlib.ls(sl=True), [])
 

@@ -9,27 +9,27 @@ class Face(Component):
 
     shape_type = "mesh"
     component_type = "f"
-    count_attribute = "numPolygons"
+    count_attribute = "getNumPolygons"
 
-    def shadingEngine(self):
+    def getShadingEngine(self):
         """このインスタンスのフェースに割り当てられたセット。
 
         Returns:
             ShadingEngine | None: このインスタンスのフェースに割り当てられたセット。
         """
         self._validate()
-        return self.shape.faceShadingEngines()[self.index]
+        return self.shape.getFaceShadingEngines()[self.index]
 
-    def material(self):
+    def getMaterial(self):
         """割り当てられたサーフェスシェーダー。
 
         Returns:
             Node | None: 割り当てられたサーフェスシェーダー。
         """
-        group = self.shadingEngine()
+        group = self.getShadingEngine()
         return group.getShader() if group is not None else None
 
-    def vertices(self):
+    def getVertices(self):
         """接続する頂点群を取得する。
 
         Returns:
@@ -44,14 +44,14 @@ class Faces(Components):
 
     component_class = Face
 
-    def shadingEngines(self):
+    def getShadingEngines(self):
         """対象フェースの割り当てを重複なしで返す。
 
         Returns:
             list[ShadingEngine]: 対象フェースの割り当てを重複なしで返す。
         """
         result = []
-        assignments = self.shape.faceShadingEngines()
+        assignments = self.shape.getFaceShadingEngines()
         for face in self:
             face._validate()
             group = assignments[face.index]
@@ -59,23 +59,23 @@ class Faces(Components):
                 result.append(group)
         return result
 
-    def materials(self):
+    def getMaterials(self):
         """対象フェースのマテリアルを重複なしで返す。
 
         Returns:
             list[Node]: 対象フェースのマテリアルを重複なしで返す。
         """
         result = []
-        for group in self.shadingEngines():
+        for group in self.getShadingEngines():
             material = group.getShader()
             if material is not None and material not in result:
                 result.append(material)
         return result
 
-    def vertices(self):
+    def getVertices(self):
         """接続する頂点群を取得する。
 
         Returns:
             Vertices: 保持順に集め、重複を除いた頂点群。
         """
-        return Vertices(self.shape, (v.index for item in self for v in item.vertices()))
+        return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))

@@ -26,7 +26,7 @@ class _WindowReference:
         if not getattr(cmds, self._command)(name, exists=True):
             raise RuntimeError("UI does not exist: " + name)
         self._lifetime = _UiLifetime.acquire(self._command, name)
-        self.name()
+        self.getName()
 
     def __str__(self):
         """保持したUI名。
@@ -46,7 +46,7 @@ class _WindowReference:
         return (self._lifetime.alive
                 and bool(getattr(cmds, self._command)(self._name, exists=True)))
 
-    def name(self):
+    def getName(self):
         """存在を確認したUI名。削除済みはRuntimeError。
 
         Returns:
@@ -62,11 +62,11 @@ class _WindowReference:
         Returns:
             bool: 現在の表示設定を照会する。
         """
-        return bool(getattr(cmds, self._command)(self.name(), query=True, visible=True))
+        return bool(getattr(cmds, self._command)(self.getName(), query=True, visible=True))
 
     def hide(self):
         """UIを削除せず非表示にする。保存は行わない。"""
-        getattr(cmds, self._command)(self.name(), edit=True, visible=False)
+        getattr(cmds, self._command)(self.getName(), edit=True, visible=False)
 
     @contextmanager
     def temporaryState(self):
@@ -129,7 +129,7 @@ class _WindowReference:
         Args:
             data: 処理対象の状態・保存データ。
         """
-        return UiSnapshot(self._command, self.name(), data, (self,))
+        return UiSnapshot(self._command, self.getName(), data, (self,))
 
     def _validate_snapshot(self, snapshot, fields):
         """復元対象とデータ型を更新前に検証する。
@@ -138,8 +138,8 @@ class _WindowReference:
             snapshot (UiSnapshot): captureの返り値。
             fields (dict): キーと型。
         """
-        self.name()
-        if not isinstance(snapshot, UiSnapshot) or snapshot.scope != self._command or snapshot.name != self.name():
+        self.getName()
+        if not isinstance(snapshot, UiSnapshot) or snapshot.scope != self._command or snapshot.name != self.getName():
             raise ValueError("Snapshot belongs to another UI or type")
         snapshot.validate()
         if len(snapshot._targets) != 1 or snapshot._targets[0]._lifetime is not self._lifetime:

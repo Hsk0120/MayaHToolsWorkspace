@@ -36,7 +36,7 @@ def _is_animcurve(node):
         node: 処理対象のノード参照。
     """
     try:
-        nt = Node(node).type()
+        nt = Node(node).getType()
     except Exception:
         return False
     return bool(nt and nt.startswith("animCurve"))
@@ -115,8 +115,8 @@ def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
         return None
 
     try:
-        src_type = Node(src_anim).type()  # 例: animCurveTL / animCurveTA / animCurveTU ...
-        dst_anim = hlib.createNode(src_type).name()
+        src_type = Node(src_anim).getType()  # 例: animCurveTL / animCurveTA / animCurveTU ...
+        dst_anim = hlib.createNode(src_type).getName()
         dst_anim = Node(dst_anim).rename(_safe_name(f"{src_anim}{suffix}"))
     except Exception:
         return None
@@ -125,7 +125,7 @@ def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
     for attr in ("preInfinity", "postInfinity", "useWeightedTangents"):
         try:
             if cmds.attributeQuery(attr, node=src_anim, exists=True) and cmds.attributeQuery(attr, node=dst_anim, exists=True):
-                Node(dst_anim).plug(attr).set(Node(src_anim).plug(attr).get())
+                Node(dst_anim).getPlug(attr).set(Node(src_anim).getPlug(attr).get())
         except Exception:
             pass
 
@@ -173,7 +173,7 @@ def duplicate_anim_only_and_rewire_selected_v2(
     for n in sels:
         # shape 選択時は親 Transform を実処理対象にする。
         try:
-            if Node(n).type() != "transform":
+            if Node(n).getType() != "transform":
                 parents = cmds.listRelatives(n, parent=True, fullPath=True) or []
                 if parents:
                     n = parents[0]
@@ -202,13 +202,13 @@ def duplicate_anim_only_and_rewire_selected_v2(
             # 旧カーブの切断（想定: src_anim.output -> dest_plug）。
             if disconnect_old:
                 try:
-                    dest_plug.disconnect(Node(src_anim).plug('output'))
+                    dest_plug.disconnect(Node(src_anim).getPlug('output'))
                 except Exception:
                     pass
 
             # 新カーブを同じ属性へ接続して差し替える。
             try:
-                Node(dst_anim).plug('output').connectTo(dest_plug, force=True, unlock=False)
+                Node(dst_anim).getPlug('output').connectTo(dest_plug, force=True, unlock=False)
                 rewired += 1
             except Exception:
                 skipped += 1

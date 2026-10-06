@@ -33,13 +33,13 @@ class Port:
         else:
             value = str(value).lower() if isinstance(value, bool) else str(value)
         cmds.vnnNode(
-            self.node.graph.name(), self.node.path, setPortDefaultValues=(self.name, value)
+            self.node.graph.getName(), self.node.path, setPortDefaultValues=(self.name, value)
         )
 
     def get_default(self):
         """VNNが返す既定値を照会する。"""
         return cmds.vnnNode(
-            self.node.graph.name(), self.node.path, queryPortDefaultValues=self.name
+            self.node.graph.getName(), self.node.path, queryPortDefaultValues=self.name
         )
 
     def connect(self, target):
@@ -52,7 +52,7 @@ class Port:
             ValueError: Port以外、または異なるグラフのポートを指定した場合。
         """
         self._check_graph(target)
-        cmds.vnnConnect(self.node.graph.name(), self.path, target.path)
+        cmds.vnnConnect(self.node.graph.getName(), self.path, target.path)
 
     def disconnect(self, target):
         """このポートと指定ポートの接続を切断する。
@@ -64,7 +64,7 @@ class Port:
             ValueError: Port以外、または異なるグラフのポートを指定した場合。
         """
         self._check_graph(target)
-        cmds.vnnConnect(self.node.graph.name(), self.path, target.path, disconnect=True)
+        cmds.vnnConnect(self.node.graph.getName(), self.path, target.path, disconnect=True)
 
     def _check_graph(self, target):
         """別グラフ間の誤った接続を拒否する。
@@ -72,5 +72,5 @@ class Port:
         Args:
             target: 接続・変換・探索の元または先となる対象。
         """
-        if not isinstance(target, Port) or self.node.graph.name() != target.node.graph.name():
+        if not isinstance(target, Port) or self.node.graph.getName() != target.node.graph.getName():
             raise ValueError("Ports must belong to the same graph")

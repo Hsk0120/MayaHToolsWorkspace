@@ -37,12 +37,12 @@ class MatrixFollowTest(unittest.TestCase):
             self.source.setTranslation((3, -2, 7), at=4)
             self.source.setRotation((17, 31, -49))
             self.source.setScaling((2, 3, 1.5))
-            self.source.plug("shear").set((0.2, 0.1, -0.3))
+            self.source.getPlug("shear").set((0.2, 0.1, -0.3))
             self.parent.setTranslation((8, -3, 2), at=4)
             self.parent.setRotation((-31, 12, 50))
             self.parent.setScaling((1.5, 0.8, 2))
             self.assertMatrix(
-                self.target.plug("worldMatrix[0]").get(), self.source.plug("worldMatrix[0]").get()
+                self.target.getPlug("worldMatrix[0]").get(), self.source.getPlug("worldMatrix[0]").get()
             )
 
     def test_offset_save_and_reload(self):
@@ -52,8 +52,8 @@ class MatrixFollowTest(unittest.TestCase):
         MatrixFollow.create(self.source, self.target)
         self.assertAlmostEqual(self.target.getTranslation(ws=True, at=4)[0], 0)
         self.source.setTranslation((6, 0, 0), at=4)
-        expected = tuple(self.target.plug("worldMatrix[0]").get())
-        source_name, target_name = self.source.fullName(), self.target.fullName()
+        expected = tuple(self.target.getPlug("worldMatrix[0]").get())
+        source_name, target_name = self.source.getFullName(), self.target.getFullName()
         self.assertAlmostEqual(expected[12], 2)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "matrix_follow.ma"
@@ -61,22 +61,22 @@ class MatrixFollowTest(unittest.TestCase):
             cmds.file(save=True, type="mayaAscii", force=True)
             cmds.file(new=True, force=True)
             cmds.file(str(path), open=True, force=True)
-            self.assertMatrix(hlib.getNode(target_name).plug("worldMatrix[0]").get(), expected)
+            self.assertMatrix(hlib.getNode(target_name).getPlug("worldMatrix[0]").get(), expected)
             hlib.getNode(source_name).setTranslation((7, 0, 0), at=4)
             self.assertAlmostEqual(hlib.getNode(target_name).getTranslation(ws=True, at=4)[0], 3)
 
     def test_undo_redo(self):
         """構築を1回のUndo/Redoで元へ戻せる。"""
         graph = MatrixFollow.create(self.source, self.target)
-        name = graph.name()
+        name = graph.getName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
-        self.assertIsNone(self.target.plug("offsetParentMatrix").sourceWithConversion())
+        self.assertIsNone(self.target.getPlug("offsetParentMatrix").getSourceWithConversion())
         cmds.redo()
         self.assertTrue(cmds.objExists(name))
         self.source.setTranslation((2, 1, 3), at=4)
         self.assertMatrix(
-            self.source.plug("worldMatrix[0]").get(), self.target.plug("worldMatrix[0]").get()
+            self.source.getPlug("worldMatrix[0]").get(), self.target.getPlug("worldMatrix[0]").get()
         )
 
     def test_reject_invalid_buffers(self):
@@ -88,19 +88,19 @@ class MatrixFollowTest(unittest.TestCase):
             ("inheritsTransform", False, True),
         ):
             with self.subTest(attr=attr):
-                self.target.plug(attr).set(value)
+                self.target.getPlug(attr).set(value)
                 before = set(cmds.ls())
                 with self.assertRaises(ValueError):
                     MatrixFollow.create(self.source, self.target)
                 self.assertEqual(set(cmds.ls()), before)
-                self.target.plug(attr).set(reset)
-        self.target.plug("offsetParentMatrix").setFlags(locked=True)
+                self.target.getPlug(attr).set(reset)
+        self.target.getPlug("offsetParentMatrix").setFlags(locked=True)
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
 
     def test_reject_connected_channels(self):
         """ゼロ値でも接続された出力チャンネルを上書きしない。"""
-        self.source.plug("translateX").connectTo(self.target.plug("translateX"))
+        self.source.getPlug("translateX").connectTo(self.target.getPlug("translateX"))
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
         self.assertEqual(len(cmds.ls(type="multMatrix")), 0)
@@ -110,16 +110,16 @@ class MatrixFollowTest(unittest.TestCase):
         child = hlib.createNode("transform", parent=self.target, skipSelect=True)
         with self.assertRaises(ValueError):
             MatrixFollow.create(child, self.target)
-        self.target.plug("translateX").connectTo(self.source.plug("translateX"))
+        self.target.getPlug("translateX").connectTo(self.source.getPlug("translateX"))
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
         cmds.disconnectAttr(
-            self.target.fullName() + ".translateX", self.source.fullName() + ".translateX"
+            self.target.getFullName() + ".translateX", self.source.getFullName() + ".translateX"
         )
         first = cmds.createNode("transform", name="first")
-        cmds.parent(self.parent.fullName(), first)
+        cmds.parent(self.parent.getFullName(), first)
         other = cmds.createNode("transform", name="other")
-        cmds.parent(self.parent.fullName(), other, addObject=True)
+        cmds.parent(self.parent.getFullName(), other, addObject=True)
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
         self.assertEqual(len(cmds.ls(type="multMatrix")), 0)
@@ -129,24 +129,24 @@ class MatrixFollowTest(unittest.TestCase):
         joint = hlib.createNode("joint", skipSelect=True)
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, joint)
-        self.source.plug("scaleX").set(0)
+        self.source.getPlug("scaleX").set(0)
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
-        self.source.plug("scaleX").set(1)
-        self.parent.plug("scaleX").set(0)
+        self.source.getPlug("scaleX").set(1)
+        self.parent.getPlug("scaleX").set(0)
         with self.assertRaises(ValueError):
             MatrixFollow.create(self.source, self.target)
 
     def test_world_buffer_and_message_reference(self):
         """親なしのバッファと評価依存しないmessage参照を使用できる。"""
-        cmds.parent(self.target.fullName(), world=True)
+        cmds.parent(self.target.getFullName(), world=True)
         self.source.addAttr(longName="owner", attributeType="message")
-        self.target.plug("message").connectTo(self.source.plug("owner"))
+        self.target.getPlug("message").connectTo(self.source.getPlug("owner"))
         MatrixFollow.create(self.source, self.target, maintain_offset=False)
         self.source.setRotation((20, -30, 65))
         self.source.setScaling((-2, 1, 3))
         self.assertMatrix(
-            self.source.plug("worldMatrix[0]").get(), self.target.plug("worldMatrix[0]").get()
+            self.source.getPlug("worldMatrix[0]").get(), self.target.getPlug("worldMatrix[0]").get()
         )
 
 

@@ -5,9 +5,9 @@ import math
 import maya.api.OpenMaya as om2
 
 from .._core.registry import plug_wrapper
+from ..decorators._fast import fast_edit
 from ..decorators._safe import safe_edit
 from ..decorators.undo import undoChunk
-from ..decorators._fast import fast_edit
 from ..maths import EulerRotation, Scale, Shear, Translation, Vector
 from .compoundPlug import CompoundPlug
 
@@ -34,9 +34,9 @@ class Double3Plug(CompoundPlug):
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
-        value_type = self._value_types.get(self.longName(), Vector)
+        value_type = self._value_types.get(self.getLongName(), Vector)
         if value_type is EulerRotation:
-            order = int(self.node().plug("ro").get())
+            order = int(self.getNode().getPlug("ro").get())
             # UIの角度単位に依存せず、値型はラジアンで構築する。
             values = [self._child_at(index).mplug().asMAngle().asRadians() for index in range(3)]
             return EulerRotation(*values, order=order)
@@ -78,10 +78,10 @@ class Double3Plug(CompoundPlug):
             value: 変換・設定する入力値。
             unit: 値の単位を指定する識別子。
         """
-        if self._value_types.get(self.longName()) is EulerRotation:
+        if self._value_types.get(self.getLongName()) is EulerRotation:
             if unit not in ("rad", "deg"):
                 raise ValueError("unit must be 'rad' or 'deg'")
-            order = int(self.node().plug("ro").get())
+            order = int(self.getNode().getPlug("ro").get())
             if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
                 if unit != "rad":
                     raise ValueError("unit='deg' requires three plain components")

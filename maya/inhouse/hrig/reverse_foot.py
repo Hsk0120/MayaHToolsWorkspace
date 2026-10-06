@@ -26,7 +26,7 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     pivots = [tuple(float(v) for v in point) for point in (heel, toe, ball)]
     if any(len(point) != 3 or not all(math.isfinite(v) for v in point) for point in pivots):
         raise ValueError("Expected finite three-component pivots")
-    root = rig.root.fullName()
+    root = rig.root.getFullName()
     if hlib.getNode(root).hasAttr("footMatrix"):
         raise ValueError("A reverse-foot layer already exists")
     target = rig.controls()["target"]
@@ -34,8 +34,8 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
         if hlib.getNode(target).hasAttr(attr):
             raise ValueError("Target attribute already exists: " + attr)
     group = hlib.createNode(
-        "transform", name=rig.nodeName("footGroup"), parent=target, skipSelect=True
-    ).fullName()
+        "transform", name=rig.getNodeName("footGroup"), parent=target, skipSelect=True
+    ).getFullName()
     from .limb import _lock_group
 
     _lock_group(group)
@@ -45,8 +45,8 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     result = {}
     for role, pivot in zip(("heel", "toe", "ball"), pivots):
         node = hlib.createNode(
-            "transform", name=rig.nodeName(role), parent=parent, skipSelect=True
-        ).fullName()
+            "transform", name=rig.getNodeName(role), parent=parent, skipSelect=True
+        ).getFullName()
         created.append(node)
         result[role] = node
         hlib.getPlug(node + ".rotatePivot").set((*pivot,))
@@ -56,19 +56,19 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
         hlib.getPlug(target + "." + role + "Roll").connectTo(node + ".rotateZ")
         parent = node
     matrix = hlib.createNode(
-        "multMatrix", name=rig.nodeName("footMatrix"), skipSelect=True
-    ).fullName()
+        "multMatrix", name=rig.getNodeName("footMatrix"), skipSelect=True
+    ).getFullName()
     decompose = hlib.createNode(
-        "decomposeMatrix", name=rig.nodeName("footDecompose"), skipSelect=True
-    ).fullName()
+        "decomposeMatrix", name=rig.getNodeName("footDecompose"), skipSelect=True
+    ).getFullName()
     created.extend((matrix, decompose))
     for index, node in enumerate((result["ball"], result["toe"], result["heel"])):
-        hlib.getPlug(node + ".matrix").connectTo(hlib.getNode(matrix).plug("matrixIn")[index])
-    hlib.getPlug(rig._local_matrix("target")).connectTo(hlib.getNode(matrix).plug("matrixIn")[3])
+        hlib.getPlug(node + ".matrix").connectTo(hlib.getNode(matrix).getPlug("matrixIn")[index])
+    hlib.getPlug(rig._local_matrix("target")).connectTo(hlib.getNode(matrix).getPlug("matrixIn")[3])
     hlib.getPlug(matrix + ".matrixSum").connectTo(decompose + ".inputMatrix")
     rig._bind("footMatrix", matrix)
     rig._bind("footDecompose", decompose)
-    layer = hlib.createSet(created, name=rig.nodeName("footSet")).fullName()
+    layer = hlib.createSet(created, name=rig.getNodeName("footSet")).getFullName()
     created.append(layer)
     rig._bind("footSet", layer)
     rig._layer_members("moduleSet", [layer])
@@ -77,6 +77,6 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
         hlib.json.JsonText.dumps(dict(zip(("heel", "toe", "ball"), pivots)))
     )
     for node in created:
-        hlib.getNode(root).plug("hrigOwned").appendMessage(node)
+        hlib.getNode(root).getPlug("hrigOwned").appendMessage(node)
     rig._update_evaluation()
     return result

@@ -80,7 +80,7 @@ class OptionVar:
 
     Examples:
         >>> settings = OptionVar("myTool", defaults={"size": 1.0, "axes": ["x"]})
-        >>> settings.fullName("size")
+        >>> settings.getFullName("size")
         'myTool.size'
         >>> settings["size"]
         1.0
@@ -173,7 +173,7 @@ class OptionVar:
         """
         if not self.isStored(key):
             raise KeyError(key)
-        cmds.optionVar(remove=self.fullName(key))
+        cmds.optionVar(remove=self.getFullName(key))
 
     def __contains__(self, key):
         """``key in store`` で値を取得できるキーか判定する。
@@ -219,7 +219,7 @@ class OptionVar:
         """dict[str, object]: キーごとのデフォルト値。参照するたびに新しい辞書を返す。"""
         return {key: json.loads(text) for key, text in self._default_texts.items()}
 
-    def fullName(self, key):
+    def getFullName(self, key):
         """キーに対応する optionVar 名を組み立てる。Maya への問い合わせは行わない。
 
         Args:
@@ -267,7 +267,7 @@ class OptionVar:
             ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
                 value に NaN・無限大・循環参照を含む場合や、入れ子が深すぎる場合。
         """
-        name = self.fullName(key)
+        name = self.getFullName(key)
         cmds.optionVar(stringValue=(name, _to_json(value)))
 
     def isStored(self, key):
@@ -288,7 +288,7 @@ class OptionVar:
         """
         return self._read_stored(key) is not _MISSING
 
-    def storedKeys(self):
+    def getStoredKeys(self):
         """読み出せる値が保存されているキーを列挙する。
 
         接頭辞の直下にある optionVar だけが対象で、``<prefix>.<子>.<キー>`` のような
@@ -314,7 +314,7 @@ class OptionVar:
         Returns:
             list[object]: 各キーの現在の値。
         """
-        return list(self.toDict().values())
+        return list(self.asDict().values())
 
     def items(self):
         """:meth:`keys` の順にキーと現在の値の組を列挙する。
@@ -322,9 +322,9 @@ class OptionVar:
         Returns:
             list[tuple[str, object]]: ``(キー, 値)`` のリスト。
         """
-        return list(self.toDict().items())
+        return list(self.asDict().items())
 
-    def toDict(self):
+    def asDict(self):
         """全キーの現在の値を、保存済みの値を優先して辞書にまとめる。
 
         Returns:
@@ -346,7 +346,7 @@ class OptionVar:
             TypeError: :meth:`set` と同じ条件。
             ValueError: :meth:`set` と同じ条件。
         """
-        pending = [(self.fullName(key), _to_json(value)) for key, value in dict(values).items()]
+        pending = [(self.getFullName(key), _to_json(value)) for key, value in dict(values).items()]
         for name, text in pending:
             cmds.optionVar(stringValue=(name, text))
 
@@ -365,7 +365,7 @@ class OptionVar:
             TypeError: key が文字列でない場合。
             ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
         """
-        name = self.fullName(key)
+        name = self.getFullName(key)
         if not cmds.optionVar(exists=name):
             return False
         cmds.optionVar(remove=name)
@@ -404,7 +404,7 @@ class OptionVar:
         Args:
             key: 値を照会する保存キー。
         """
-        name = self.fullName(key)
+        name = self.getFullName(key)
         if not cmds.optionVar(exists=name):
             return _MISSING
         return _from_json(cmds.optionVar(query=name))

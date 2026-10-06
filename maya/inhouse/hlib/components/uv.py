@@ -13,7 +13,7 @@ class UV(Component):
 
     shape_type = "mesh"
     component_type = "map"
-    count_attribute = "numUVs"
+    count_attribute = "getNumUVs"
 
     def getPosition(self):
         """UV 座標を取得する。
@@ -49,7 +49,7 @@ class UV(Component):
             self._validate()
             geometry_edit.set_uvs(self.shape, [self.index], [(u, v)])
             return self
-        cmds.polyEditUV(self.fullName(), relative=False, uValue=u, vValue=v,
+        cmds.polyEditUV(self.getFullName(), relative=False, uValue=u, vValue=v,
                         uvSetName=self.shape.meshFn().currentUVSetName())
         return self
 

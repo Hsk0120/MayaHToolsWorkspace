@@ -29,15 +29,15 @@ class ApiProposalTest(unittest.TestCase):
             node = Node(cmds.createNode(kind))
             node.setInput(4, value)
             attr = 'input' if kind == 'blendWeighted' else 'matrixIn'
-            before = cmds.getAttr(node.fullName()+'.'+attr, multiIndices=True)
+            before = cmds.getAttr(node.getFullName()+'.'+attr, multiIndices=True)
             self.assertIsNotNone(node.getInput(4))
             with self.assertRaises(IndexError):
                 node.getInput(2)
-            self.assertEqual(before, cmds.getAttr(node.fullName()+'.'+attr, multiIndices=True))
+            self.assertEqual(before, cmds.getAttr(node.getFullName()+'.'+attr, multiIndices=True))
             if kind == 'blendWeighted':
-                weight_before = cmds.getAttr(node.fullName()+'.weight', multiIndices=True)
+                weight_before = cmds.getAttr(node.getFullName()+'.weight', multiIndices=True)
                 self.assertEqual(node.getWeight(4), 1.0)
-                self.assertEqual(weight_before, cmds.getAttr(node.fullName()+'.weight', multiIndices=True))
+                self.assertEqual(weight_before, cmds.getAttr(node.getFullName()+'.weight', multiIndices=True))
                 node.setWeight(4, .25)
                 self.assertEqual(node.getWeight(4), .25)
         decompose = Node(cmds.createNode('decomposeMatrix'))
@@ -50,17 +50,17 @@ class ApiProposalTest(unittest.TestCase):
         a, b, c = [Node(cmds.createNode('transform')) for _ in range(3)]
         container = Container.create()
         container.addMembers([a, b])
-        self.assertEqual({n.uuid() for n in container.members()}, {a.uuid(), b.uuid()})
+        self.assertEqual({n.getUuid() for n in container.getMembers()}, {a.getUuid(), b.getUuid()})
         made = container.createNode(type='multiplyDivide')
-        self.assertEqual(made.type(), 'multiplyDivide')
+        self.assertEqual(made.getType(), 'multiplyDivide')
         # 所有containerと他のテスト用関係を分離し、Mayaの一括削除へ二重所有を渡さない。
-        cmds.delete(container.fullName())
+        cmds.delete(container.getFullName())
         a, b, c = [Node(cmds.createNode('transform')) for _ in range(3)]
         pose = DagPose.create([a], hierarchy=False)
         pose.addMembers(b, c)
-        self.assertEqual(len(pose.members()), 3)
+        self.assertEqual(len(pose.getMembers()), 3)
         pose.removeMembers([b, c])
-        self.assertEqual(len(pose.members()), 1)
+        self.assertEqual(len(pose.getMembers()), 1)
         constraint = c.addConstraint([a, b], type='point')
         constraint.setWeight(.25, a)
         self.assertAlmostEqual(constraint.getWeight(a), .25)
@@ -74,21 +74,21 @@ class ApiProposalTest(unittest.TestCase):
         mesh = Node(cmds.listRelatives(transform, shapes=True, fullPath=True)[0])
         vertex = mesh.vertex(0)
         before = vertex.getPosition(ws=True)
-        self.assertIs(vertex.setX(12, ws=True), vertex)
-        self.assertAlmostEqual(vertex.getX(ws=True), 12)
-        self.assertAlmostEqual(vertex.getY(ws=True), before[1])
+        self.assertIs(vertex.setPositionX(12, ws=True), vertex)
+        self.assertAlmostEqual(vertex.getPositionX(ws=True), 12)
+        self.assertAlmostEqual(vertex.getPositionY(ws=True), before[1])
         cmds.undo()
         self.assertEqual(vertex.getPosition(ws=True), before)
-        vertices = mesh.vertices()[:2]
-        self.assertIs(vertices.setX([13,14], ws=True, fast=True), vertices)
-        self.assertEqual(vertices.getX(ws=True), [13,14])
+        vertices = mesh.getVertices()[:2]
+        self.assertIs(vertices.setPositionX([13,14], ws=True, fast=True), vertices)
+        self.assertEqual(vertices.getPositionX(ws=True), [13,14])
         uv = mesh.uv(0)
         self.assertIs(uv.setU(.25), uv)
         uvs = mesh.uvs()[:2]
         self.assertIs(uvs.setV([.2,.3], fast=True), uvs)
         for actual, expected in zip(uvs.getV(), [.2,.3]):
             self.assertAlmostEqual(actual,expected,places=6)
-        transform = mesh.transform()
+        transform = mesh.getTransform()
         transform.setVisibility(False)
         self.assertFalse(transform.getVisibility())
 
@@ -98,15 +98,15 @@ class ApiProposalTest(unittest.TestCase):
         joint = cmds.joint()
         mesh = cmds.polyCube(constructionHistory=False)[0]
         skin = Node(cmds.skinCluster(joint, mesh, toSelectedBones=True)[0])
-        self.assertTrue(all(isinstance(n, Node) for n in skin.influences()))
+        self.assertTrue(all(isinstance(n, Node) for n in skin.getInfluences()))
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory)/'weights.json')
             skin.dumpWeights(path)
             payload = json.loads(Path(path).read_text())
             self.assertTrue(all(isinstance(n,str) for n in payload['influences']))
-            before = list(skin.getWeights(skin.influences()))
+            before = list(skin.getWeights(skin.getInfluences()))
             skin.loadWeights(path)
-            self.assertEqual(list(skin.getWeights(skin.influences())), before)
+            self.assertEqual(list(skin.getWeights(skin.getInfluences())), before)
 
 
 if __name__ == "__main__":

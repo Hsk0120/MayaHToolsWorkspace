@@ -9,12 +9,12 @@ Undo不要の値更新
    import hlib
 
    node = hlib.getNode("pCube1")
-   node.plug("translateX").set(10, fast=True)
+   node.getPlug("translateX").set(10, fast=True)
    node.setTranslation((1, 2, 3), fast=True)
 
    shape = hlib.getNode("pCubeShape1")
-   shape.vertices().setPosition((0, 1, 0), fast=True)
-   shape.vertices().mirror(axis="x", fast=True)
+   shape.getVertices().setPosition((0, 1, 0), fast=True)
+   shape.getVertices().mirror(axis="x", fast=True)
 
    joints = hlib.ls(type="joint")
    joints.freezeRotation(fast=True)

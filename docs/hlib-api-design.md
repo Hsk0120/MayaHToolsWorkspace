@@ -20,7 +20,17 @@
 | 定数 | UPPER_SNAKE_CASE | `LOAD_FAILED` |
 
 - `get`/`set`は値の取得・設定、`is`/`has`は判定、`create`/`add`/`remove`は作成・追加・除外に使う。
-  `name()`、`source()`、`children()`など、意味の明確な照会に一律で`get`を追加しない。
+  独自の取得メソッドは `getName()`、`getSource()`、`getChildren()` のようにgetを付ける。
+  数学演算・判定・保持値のプロパティ・OpenMaya標準名は一律get化しない。
+- メソッド内のアトリビュート表記は `Attr/Attrs`、追加分は `Extra` に統一する。
+  `getT/setT`・`getQ/setQ`・`getX/setX`等の短縮アクセサーは設けず、正式な長名を使う。
+- 型変換は `as` 接頭辞。コピーを返す数学操作は `inverse/normal/mirror`、自身の更新は
+  `invertIt/mirrorIt` の形式とする。OpenMaya標準の `Vector.normalize()` は例外として維持する。
+- 数学値の戻り型は継承メソッドも対応するhlib型へ統一する。数値・真偽値・生API取得入口、
+  対応型のないMPoint/単位値/クラス定数は維持する。ゼロ値などの演算条件は変更しない。
+- 引数の追加別名は `idx/index`・`src/source`・`dst/destination`・`attr/attribute`・
+  `attrs/attributes`・`f/force`。対応APIの使用例はショート優先。既存シグネチャと位置引数は維持し、
+  新規別名の二重指定は同値でも拒否する。既存の接続方向フラグやOR/AND規則は維持する。
 - メソッド名の表記と、処理の意味は別に確認する。同名のMaya APIと意味が異なる複合操作は説明を明記し、必要なら専用名に分ける。
 - Mayaのコマンドフラグは標準表記を使う。今回の表記統一で既存の独自キーワード引数を一律変更しない。
 - om2から継承・オーバーライドする名前、`__init__`等のPython特殊メソッド、`dump`/`loads`等の標準APIは維持する。
@@ -70,17 +80,18 @@ hlib・`hlib_*` のPythonファイルはPEP8の並びを基準にする。並び
 - `hlib.cmds` はMayaコマンドの名前・長短フラグ・単位解釈を基準にする。
   Node/Plug参照や数学型への戻り値のラップは各コマンドに明記する。
 - 全パッケージの公開関数・メソッド・プロパティは上記の例外を除きlowerCamelCase。
-  直接対応する名前はOpenMayaに揃える（`numVertices`・`numCVs`・`cvPositions`等）。
+  シーン照会にはgetを付ける（`getNumVertices`・`getNumCVs`・`getCvPositions`等）。
   hlib独自の複合操作は独自名と仕様を明記し、MFnと同一の処理だと扱わない。
 - オブジェクトの数値は距離cm・角度rad・時間秒。`Plug.get/set`と数学型で同じ値を渡せる。
-  `getTranslation/setTranslation`等は行列・姿勢の操作、`plug("translate").get/set`は
+  `getTranslation/setTranslation`等は行列・姿勢の操作、`getPlug("translate").get/set`は
   アトリビュートの操作として区別する。前者をMFnTransform.translationの単なる別名にはしない。
 - 空間指定は`worldSpace=True/False`、短縮名は`ws`。使用例は原則`ws=True`とする。
   Trueはワールド、Falseはローカル。bool以外・長短名の同時指定・旧`space=`は拒否する。
   既定値は各メソッドの仕様を維持する（resetPivot/restoreBindPose等はTrue）。
   OpenMaya標準APIのMSpace引数は変更しない。
-- 数学型はOpenMaya API 2.0の継承を維持する。独自の正規化・分解補助は`toMatrix`等の
-  独自名を用い、継承した`asMatrix`等の演算とは区別する。
+- 数学型はOpenMaya API 2.0の継承を維持する。独自の正規化・分解補助は`asUnitMatrix`・
+  `asCanonicalAxisAngle`・`asDecomposedEulerRotation`で、標準の`asMatrix`等と区別する。
+  ゼロ値を拒否する正規化は`unit/unitIt`、標準のコピー正規化は`normal`。行列式は`det4x4`。
 - 型付きデータ配列の対応getterは常にlist。空は`[]`、未初期化は`None`。
   点・ベクトルはtupleのlistとし、1要素でも外側のlistを省かない。
 - CVはOpenMayaの番号を保持する。周期末尾の重複CVは通常編集・cmdsへ渡す名前で
@@ -98,9 +109,9 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 
 | 対象 | 公開形式 | 例 |
 | --- | --- | --- |
-| Mayaの現在の状態・名前・アトリビュート情報を問い合わせる | メソッド | `node.fullName()`、`node.isLocked()`、`plug.name()` |
-| Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.getPosition()`、`vertex.getX()`、`mesh.numVertices()` |
-| Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`vertex.setX(value)`、`node.rename(name)` |
+| Mayaの現在の状態・名前・アトリビュート情報を問い合わせる | メソッド | `node.getFullName()`、`node.isLocked()`、`plug.getName()` |
+| Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.getPosition()`、`vertex.getPositionX()`、`mesh.getNumVertices()` |
+| Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`vertex.setPositionX(value)`、`node.rename(name)` |
 | オブジェクトが保持している参照・番号を返す | プロパティ | `component.shape`、`component.index`、`components.indices` |
 | 数学値(`hlib.maths`)・保存済みデータを参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate`、`node_ref.uuid` |
 
@@ -108,11 +119,11 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 import hlib
 
 node = hlib.createNode("transform")
-plug = node.plug("translateX")
+plug = node.getPlug("translateX")
 
-print(node.fullName())    # 現在のMayaノード名を取得
+print(node.getFullName())    # 現在のMayaノード名を取得
 print(plug.isLocked())   # 現在のロック状態を照会
-print(plug.node())        # 所有Node取得メソッド
+print(plug.getNode())        # 所有Node取得メソッド
 plug.set(10)             # Mayaの値を変更
 
 from hlib.maths import Vector
@@ -131,14 +142,14 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 引数がない、処理が軽い、戻り値が単純な数値という理由だけではプロパティにしない。Mayaの現在値を取得するならメソッドにする。
 - `cmds` とOpenMayaのどちらを使うかでは区別しない。MayaのAPIハンドルから現在の名前や状態を読む場合もメソッドにする。
 - 内部でキャッシュしていても、「現在のシーン状態を取得する」という契約ならメソッドにする。キャッシュ方式の変更で公開形式を変えない。
-- 保存時点のデータは現在のシーン状態と区別する。例えば `Node.uuid()` は現在のノードを照会し、`NodeRef.uuid` はJSON用に保持したUUIDを参照する。
+- 保存時点のデータは現在のシーン状態と区別する。例えば `Node.getUuid()` は現在のノードを照会し、`NodeRef.uuid` はJSON用に保持したUUIDを参照する。
 - 保持値を返すプロパティのgetterで、Mayaへの問い合わせ・ノード作成・シーン更新を暗黙に行わない。
-- 保持値だけから得られる軽い派生値はプロパティにできる。ただし行列の逆行列計算や形式変換など、明示的な計算・変換は従来どおり `inverse()` / `toData()` 等のメソッドにする。シーンへ問い合わせない処理をすべてプロパティへ変える規則ではない。
+- 保持値だけから得られる軽い派生値はプロパティにできる。ただし行列の逆行列計算や形式変換など、明示的な計算・変換は従来どおり `inverse()` / `asData()` 等のメソッドにする。シーンへ問い合わせない処理をすべてプロパティへ変える規則ではない。
 - シーン編集用のproperty setterは追加しない。`hlib.maths` の数学型はom2の型を継承した可変の値型なので、ローカル値を更新するsetter(`vector.x = 1.0`、`matrix.translate = (...)` など)を使用できる。これは値の更新で、シーンは変更しない。
 - データクラスの保存フィールドは、そのまま公開してよい。保存フィールドを無意味なgetterで包む必要はない。
 
 `node.tx` はアトリビュート名を解決して `Plug` を取得する既存の省略アクセスであり、Pythonの値プロパティではない。
-正式な取得入口は `node.plug("tx")` とし、値は `.get()` / `.set()` で扱う。
+正式な取得入口は `node.getPlug("tx")` とし、値は `.get()` / `.set()` で扱う。
 `node.tx = 10` をMayaへの書き込みとして実装・案内しない。
 
 ## maya.cmds との受け渡し
@@ -151,7 +162,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 - ノードやアトリビュートを受け取るコマンド・メソッドは、文字列に加えて hlib のオブジェクトと Maya API 2.0 のオブジェクト(`MObject`・`MDagPath`・`MPlug`)を受け付ける。正規化は `Object`・`Node`・`Plug`・`Component` の内部メソッドで行い、各APIで独自に判定しない。
 - ノードが必要な引数(`parent` など)は、Plug を所有ノード、Component を所有シェイプへ解決する。プラグ名を `maya.cmds` へそのまま渡して黙って無視させない。
 - 名前を解決できない場合(存在しない・複数の対象に一致する)は最初の一致を黙って返さず例外にする(`"bulk*"` のようなパターンも同じ。パターンは `hlib.ls` で扱う)。対象を名前へ変換する引数(`to_name`/`to_names`/`to_node_name`)の例外の種類は、対応しない型が `TypeError`、空・削除済みの対象が `ValueError`、解決できない文字列が `RuntimeError` とする。既存の API が削除済みの対象を `RuntimeError` にしている場合(`Node(...)`/`hlib.getNode`、`hlib.addConstraint` の拘束元・拘束先)は、その規則を変えない(`to_node` は削除済みの Node などをそのまま返し、扱いを呼び出し側に任せる)。ただし所有ノードが有効なまま `deleteAttr` でアトリビュートが削除された Plug・MPlug は、所有ノードへ解決すると削除済みの対象を黙って受け付けるため、ノードが必要な引数でも `ValueError` にする(`DeletedAttributeError`。既存の規則を保つため `RuntimeError` の派生でもある)。削除済みの対象の判定メソッド(`isParentOf` など)は `False` を返す。
-- オブジェクトの取得・ラップ(`node.plug()` などによる Plug の生成)はシーンを変更しない。配列要素の作成などシーンの変更は `element(index, create=True)` のように明示的な操作で行う。評価も起こさないことを基本とし、例外は仕様として明記する。現在の例外は値によって型が変わるアトリビュートで、入力接続が無い場合と、接続元も値によって型が変わるアトリビュートの場合(`choice2.input[0]` ← `choice1.output` など)は、`cmds.getAttr(type=True)` と同じく値を読むため上流の評価が起こり、評価でワールド空間の出力の要素が作られる場合もある。
+- オブジェクトの取得・ラップ(`node.getPlug()` などによる Plug の生成)はシーンを変更しない。配列要素の作成などシーンの変更は `getElement(index, create=True)` のように明示的な操作で行う。評価も起こさないことを基本とし、例外は仕様として明記する。現在の例外は値によって型が変わるアトリビュートで、入力接続が無い場合と、接続元も値によって型が変わるアトリビュートの場合(`choice2.input[0]` ← `choice1.output` など)は、`cmds.getAttr(type=True)` と同じく値を読むため上流の評価が起こり、評価でワールド空間の出力の要素が作られる場合もある。
 - 番号を受け取る API は、Maya が範囲外の値を黙って別の値へ変換する場合(`MPlug.elementByLogicalIndex()` は 0〜2147483647 の外の論理インデックスを別の番号へ変換し、`4294967296` は `0` になる)でも、別の対象へ読み替えずに例外にする。
 - 解決したノードの種類を API が扱えない場合(parent/point などの拘束元に解決されたシェイプなど)は、`maya.cmds` のように黙って壊れた結果を作らず `TypeError` にする。
 - 生の `om2.MPlug` などの API オブジェクトは削除を検出できない場合があるため、hlib の内部でも削除操作をまたいで保持せず、ハンドルで有効性を確かめられる hlib のオブジェクトを保持する。
@@ -176,8 +187,8 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 このファイル名規則はhlibとすべての `hlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。内部関数・ローカル変数はsnake_caseを使用できる。nodes/plugs/componentsの公開メソッドはlowerCamelCaseとする。
 
-- 値の取得・設定を対にするAPIは `getPosition()` / `setPosition()` のようにする。名前や判定の照会は `name()` / `isLocked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
-- 子クラスで基底メソッドと同名の別機能を公開しない。`Node.inputs(type=...)` は接続検索を維持し、`AnimCurve.keyInputs()` と `BlendWeighted.inputPlugs()` は専用名を使う。
+- 値の取得・設定を対にするAPIは `getPosition()` / `setPosition()` のようにする。名前や判定の照会は `getName()` / `isLocked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
+- 子クラスで基底メソッドと同名の別機能を公開しない。`Node.getInputs(type=...)` は接続検索を維持し、`AnimCurve.getKeyInputs()` と `BlendWeighted.getInputPlugs()` は専用名を使う。
 - 複数形クラスは単体の同名メソッドを一括実行できるようにする。集約・重複除外・要素別設定などで意味が異なる場合は、戻り値と適用範囲を明示する。
 - 同じ処理の別名を無制限に増やさない。正式な入口を決め、互換性が必要なら目的と移行先を記載する。
 
@@ -196,9 +207,9 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 参照・値の取得はgetを使う。`ls` は一覧取得の慣用名として維持する。
 `delete`・`duplicate`・`select`など既に操作を表す名前は維持する。
 
-`addConstraint`は追加のみで、照会は`Constraint.targets()`/`weightPlugs()`、
+`addConstraint`は追加のみで、照会は`Constraint.getTargets()`/`getWeightPlugs()`、
 編集は`setWeight()`などへ分ける。`createSet`も生成のみで、取得・追加・除外は
-`ObjectSet.members()`/`addMembers()`/`removeMembers()`を使う。
+`ObjectSet.getMembers()`/`addMembers()`/`removeMembers()`を使う。
 `getDrivenKey`は関係を取得するだけで、キー生成は`DrivenKey.setKey()`で行う。
 アトリビュートの列挙名変更は`Plug.setEnumNames()`を使い、`addAttr`はアトリビュート追加に限定する。
 旧名の互換入口は設けず、使用側を更新する。
@@ -303,10 +314,10 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 公開メソッド名の確定仕様（2026-10-05）
 
-ユーザーの明示指示により、所有Plugの`node()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`fullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/docs/api_methods.rst`を参照する。
+ユーザーの明示指示により、所有Plugの`getNode()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`getFullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/docs/api_methods.rst`を参照する。
 
 ### Transformationの追加仕様
 
-`hlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`（`getX`/`setX`）に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.toTransformation()`はhlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成行列を受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/hlib/docs/transformation.rst`を参照する。
+`hlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.asTransformation()`はhlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成行列を受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/hlib/docs/transformation.rst`を参照する。
 
-配列要素参照の標準表記は`array[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。配列反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存の明示的な`element(index, create=False)`の仕様は維持する。複合の子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。複合の整数番号は0以上の定義順、反復は子の定義順。配列・複合Plugをmaya.cmdsへ渡す時はstrまたはfullNameで文字列化する。hlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、hlib.cmdsの同名ラッパーは作らない。
+配列要素参照の標準表記は`array[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。配列反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存の明示的な`getElement(index, create=False)`の仕様は維持する。複合の子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。複合の整数番号は0以上の定義順、反復は子の定義順。配列・複合Plugをmaya.cmdsへ渡す時はstrまたはfullNameで文字列化する。hlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、hlib.cmdsの同名ラッパーは作らない。

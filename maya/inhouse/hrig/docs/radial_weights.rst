@@ -11,8 +11,8 @@
 
    indices, weights = RadialWeights.weights(math.radians(30), 4)
    graph = RadialWeights.create(math.radians(30), 4, name="directionWeights")
-   graph.container.plug("falloff").set(2)
-   graph.container.plug("blend").set(0.75)
+   graph.container.getPlug("falloff").set(2)
+   graph.container.getPlug("blend").set(0.75)
 
 方向の間隔を ``s`` 、方向Aから入力までの角度を ``t`` とすると、
 比率は ``sin(s-t) : sin(t)`` です。Falloff=1では、混合した方向ベクトルが

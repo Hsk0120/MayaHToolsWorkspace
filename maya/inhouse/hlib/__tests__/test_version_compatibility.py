@@ -19,17 +19,17 @@ class VersionCompatibilityTest(unittest.TestCase):
             before = cmds.xform(joint, query=True, worldSpace=True, matrix=True)
             for target in (parent, hlib.getNode(parent)):
                 self.assertIs(node.setParent(target), node)
-                self.assertEqual(cmds.xform(node.fullName(), query=True, worldSpace=True, matrix=True), before)
+                self.assertEqual(cmds.xform(node.getFullName(), query=True, worldSpace=True, matrix=True), before)
             node.setParent(None)
-            self.assertIsNone(node.parentPath())
+            self.assertIsNone(node.getParentPath())
             node.setParent(None)
             cmds.undo()
-            self.assertEqual(node.parentPath().fullPathName(), hlib.getNode(parent).fullName())
+            self.assertEqual(node.getParentPath().fullPathName(), hlib.getNode(parent).getFullName())
             cmds.redo()
-            self.assertIsNone(node.parentPath())
+            self.assertIsNone(node.getParentPath())
             with self.assertRaises(RuntimeError):
                 node.setParent(prefix + "missing")
-            cmds.delete(node.fullName())
+            cmds.delete(node.getFullName())
             with self.assertRaises(RuntimeError):
                 node.setParent(None)
         finally:

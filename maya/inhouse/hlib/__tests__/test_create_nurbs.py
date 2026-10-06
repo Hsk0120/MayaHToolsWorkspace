@@ -47,10 +47,10 @@ class CreateNurbsTest(unittest.TestCase):
                         self.assertIsInstance(
                             shape, hlib.nodes.NurbsCurve if curve else hlib.nodes.NurbsSurface
                         )
-                        self.assertIsInstance(shape.transform(), hlib.nodes.Transform)
+                        self.assertIsInstance(shape.getTransform(), hlib.nodes.Transform)
                         self.assertEqual(
                             bool(
-                                cmds.listConnections(shape.fullName() + ".create", s=True, d=False)
+                                cmds.listConnections(shape.getFullName() + ".create", s=True, d=False)
                             ),
                             history,
                         )
@@ -60,10 +60,10 @@ class CreateNurbsTest(unittest.TestCase):
         history = next(
             n
             for n in [hlib.getNode(value) for value in (cmds.listHistory(shape) or [])]
-            if n.type() == "makeNurbCircle"
+            if n.getType() == "makeNurbCircle"
         )
-        self.assertAlmostEqual(history.plug("radius").get(), 2.5)
-        names = [shape.fullName(), shape.transform().fullName(), history.fullName()]
+        self.assertAlmostEqual(history.getPlug("radius").get(), 2.5)
+        names = [shape.getFullName(), shape.getTransform().getFullName(), history.getFullName()]
         cmds.undo()
         self.assertTrue(all(not cmds.objExists(n) for n in names))
         cmds.redo()

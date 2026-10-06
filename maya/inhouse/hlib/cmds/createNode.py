@@ -62,7 +62,7 @@ Examples
     import hlib
 
     node = hlib.createNode("transform", name="example")
-    print(node.fullName())
+    print(node.getFullName())
 """
 
 from .._core.flags import flag_aliases
@@ -76,7 +76,7 @@ def createNode(type, **kwargs):
 
     Args:
         type (str): Mayaノード型名。
-        **kwargs (object): maya.cmds.createNodeへ渡すフラグ。parent(p)はノードが必要な
+        **kwargs (object): maya.cmds.createNodeへ渡すフラグ。getParent(p)はノードが必要な
             引数として所有ノードの完全パスへ変換する(Plug・MPlug・"node.attribute" は
             所有ノード、Component は所有シェイプ)。
     Returns:

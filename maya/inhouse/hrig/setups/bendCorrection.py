@@ -32,7 +32,7 @@ class BendCorrection:
             Node: 新しい演算ノード。
         """
         node = hlib.nodes.Node.create(
-            kind, name=self.container.name() + "_" + suffix, skipSelect=True
+            kind, name=self.container.getName() + "_" + suffix, skipSelect=True
         )
         self.container.addMembers(node)
         return node
@@ -60,15 +60,15 @@ class BendCorrection:
             raise ValueError("axis must be x, y or z")
         parent, joint = hlib.nodes.Node(parent), hlib.nodes.Node(joint)
         if [
-            node.uuid()
+            node.getUuid()
             for node in [
                 hlib.getNode(value) for value in (cmds.listRelatives(joint, parent=True) or [])
             ]
-        ] != [parent.uuid()]:
+        ] != [parent.getUuid()]:
             raise ValueError("Expected a direct parent-child pair")
         if cmds.objExists(name):
             raise ValueError("Bend container already exists: " + name)
-        conversions = {node.uuid() for node in hlib.ls(type="unitConversion")}
+        conversions = {node.getUuid() for node in hlib.ls(type="unitConversion")}
         graph = cls(hlib.nodes.Container.create(name=name))
         owner = graph.container
         for attr, value, bounds in (
@@ -87,7 +87,7 @@ class BendCorrection:
                 **bounds
             )
             # addAttrの距離defaultは内部cmなので、初期値をUI距離単位で明示設定する。
-            owner.plug(attr).set(
+            owner.getPlug(attr).set(
                 hlib.utils.units.distanceFromUi(value)
                 if attr.endswith(("Rest", "Push")) else value
             )
@@ -98,85 +98,85 @@ class BendCorrection:
                 longName=attr, attributeType="double" if attr == "response" else "doubleLinear"
             )
         relative = graph._node("multMatrix", "relative")
-        joint.plug("matrix").connectTo(relative.plug("matrixIn")[0])
-        joint.plug("offsetParentMatrix").connectTo(relative.plug("matrixIn")[1])
-        rest = Matrix(relative.plug("matrixSum").get())
-        owner.plug("restMatrix").set(rest)
+        joint.getPlug("matrix").connectTo(relative.getPlug("matrixIn")[0])
+        joint.getPlug("offsetParentMatrix").connectTo(relative.getPlug("matrixIn")[1])
+        rest = Matrix(relative.getPlug("matrixSum").get())
+        owner.getPlug("restMatrix").set(rest)
         blend = graph._node("blendMatrix", "halfRotation")
-        blend.plug("inputMatrix").set(rest)
-        relative.plug("matrixSum").connectTo(blend.plug("target")[0]["targetMatrix"])
-        blend.plug("target")[0]["weight"].set(1)
+        blend.getPlug("inputMatrix").set(rest)
+        relative.getPlug("matrixSum").connectTo(blend.getPlug("target")[0]["targetMatrix"])
+        blend.getPlug("target")[0]["weight"].set(1)
         if blend.hasAttr("target[0].rotateWeight"):
-            owner.plug("rotationRatio").connectTo(blend.plug("target")[0]["rotateWeight"])
+            owner.getPlug("rotationRatio").connectTo(blend.getPlug("target")[0]["rotateWeight"])
             for part in ("scale", "shear"):
-                blend.plug("target")[0][part + "Weight"].set(0)
+                blend.getPlug("target")[0][part + "Weight"].set(0)
         else:
             # 2022では成分別weightがないため、回転だけを別途補間する。
-            owner.plug("rotationRatio").connectTo(blend.plug("target")[0]["weight"])
+            owner.getPlug("rotationRatio").connectTo(blend.getPlug("target")[0]["weight"])
             for part in ("Translate", "Scale", "Shear"):
-                blend.plug("target")[0]["use" + part].set(False)
+                blend.getPlug("target")[0]["use" + part].set(False)
             position = graph._node("decomposeMatrix", "position")
-            relative.plug("matrixSum").connectTo(position.plug("inputMatrix"))
+            relative.getPlug("matrixSum").connectTo(position.getPlug("inputMatrix"))
             rotation = graph._node("pickMatrix", "rotation")
-            blend.plug("outputMatrix").connectTo(rotation.plug("inputMatrix"))
-            rotation.plug("useTranslate").set(False)
+            blend.getPlug("outputMatrix").connectTo(rotation.getPlug("inputMatrix"))
+            rotation.getPlug("useTranslate").set(False)
             translation = graph._node("composeMatrix", "translation")
-            position.plug("outputTranslate").connectTo(translation.plug("inputTranslate"))
+            position.getPlug("outputTranslate").connectTo(translation.getPlug("inputTranslate"))
             result = graph._node("multMatrix", "result")
-            rotation.plug("outputMatrix").connectTo(result.plug("matrixIn")[0])
-            translation.plug("outputMatrix").connectTo(result.plug("matrixIn")[1])
-            result.plug("matrixSum").connectTo(owner.plug("matrix"))
-        if owner.plug("matrix").sourceWithConversion() is None:
-            blend.plug("outputMatrix").connectTo(owner.plug("matrix"))
+            rotation.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[0])
+            translation.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[1])
+            result.getPlug("matrixSum").connectTo(owner.getPlug("matrix"))
+        if owner.getPlug("matrix").getSourceWithConversion() is None:
+            blend.getPlug("outputMatrix").connectTo(owner.getPlug("matrix"))
         delta = graph._node("multMatrix", "delta")
-        relative.plug("matrixSum").connectTo(delta.plug("matrixIn")[0])
-        delta.plug("matrixIn")[1].set(rest.inverse())
+        relative.getPlug("matrixSum").connectTo(delta.getPlug("matrixIn")[0])
+        delta.getPlug("matrixIn")[1].set(rest.inverse())
         angles = graph._node("decomposeMatrix", "angles")
-        delta.plug("matrixSum").connectTo(angles.plug("inputMatrix"))
+        delta.getPlug("matrixSum").connectTo(angles.getPlug("inputMatrix"))
         orientation = graph._node("composeMatrix", "orientation")
-        orientation.plug("useEulerRotation").set(False)
-        angles.plug("outputQuat").connectTo(orientation.plug("inputQuat"))
+        orientation.getPlug("useEulerRotation").set(False)
+        angles.getPlug("outputQuat").connectTo(orientation.getPlug("inputQuat"))
         direction = graph._node("vectorProduct", "direction")
-        direction.plug("operation").set(3)
+        direction.getPlug("operation").set(3)
         perpendicular = "yzx"["xyz".index(axis)].upper()
-        direction.plug("input1" + perpendicular).set(1)
-        orientation.plug("outputMatrix").connectTo(direction.plug("matrix"))
+        direction.getPlug("input1" + perpendicular).set(1)
+        orientation.getPlug("outputMatrix").connectTo(direction.getPlug("matrix"))
         angle = graph._node("angleBetween", "bendAngle")
-        angle.plug("vector1").set((0, 0, 0))
-        angle.plug("vector1" + perpendicular).set(1)
-        direction.plug("output").connectTo(angle.plug("vector2"))
+        angle.getPlug("vector1").set((0, 0, 0))
+        angle.getPlug("vector1" + perpendicular).set(1)
+        direction.getPlug("output").connectTo(angle.getPlug("vector2"))
         sign_product = graph._node("multiplyDivide", "quaternionSign")
-        angles.plug("outputQuat" + axis.upper()).connectTo(sign_product.plug("input1X"))
-        angles.plug("outputQuatW").connectTo(sign_product.plug("input2X"))
+        angles.getPlug("outputQuat" + axis.upper()).connectTo(sign_product.getPlug("input1X"))
+        angles.getPlug("outputQuatW").connectTo(sign_product.getPlug("input2X"))
         sign = graph._node("condition", "sign")
-        sign.plug("operation").set(4)
-        sign_product.plug("outputX").connectTo(sign.plug("firstTerm"))
-        sign.plug("colorIfTrueR").set(-1)
-        sign.plug("colorIfFalseR").set(1)
+        sign.getPlug("operation").set(4)
+        sign_product.getPlug("outputX").connectTo(sign.getPlug("firstTerm"))
+        sign.getPlug("colorIfTrueR").set(-1)
+        sign.getPlug("colorIfFalseR").set(1)
         degrees = graph._node("unitConversion", "degrees")
-        angle.plug("angle").connectTo(degrees.plug("input"))
-        degrees.plug("conversionFactor").set(180 / math.pi)
+        angle.getPlug("angle").connectTo(degrees.getPlug("input"))
+        degrees.getPlug("conversionFactor").set(180 / math.pi)
         signed_degrees = graph._node("multiplyDivide", "signedDegrees")
-        degrees.plug("output").connectTo(signed_degrees.plug("input1X"))
-        sign.plug("outColorR").connectTo(signed_degrees.plug("input2X"))
+        degrees.getPlug("output").connectTo(signed_degrees.getPlug("input1X"))
+        sign.getPlug("outColorR").connectTo(signed_degrees.getPlug("input2X"))
         signed = graph._node("multiplyDivide", "signedAngle")
-        signed_degrees.plug("outputX").connectTo(signed.plug("input1X"))
-        owner.plug("bendSign").connectTo(signed.plug("input2X"))
+        signed_degrees.getPlug("outputX").connectTo(signed.getPlug("input1X"))
+        owner.getPlug("bendSign").connectTo(signed.getPlug("input2X"))
         response = graph._node("remapValue", "response")
-        signed.plug("outputX").connectTo(response.plug("inputValue"))
-        owner.plug("referenceAngle").connectTo(response.plug("inputMax"))
-        response.plug("value")[0]["value_Interp"].set(1)
-        response.plug("value")[1]["value_Interp"].set(1)
-        response.plug("outValue").connectTo(owner.plug("response"))
+        signed.getPlug("outputX").connectTo(response.getPlug("inputValue"))
+        owner.getPlug("referenceAngle").connectTo(response.getPlug("inputMax"))
+        response.getPlug("value")[0]["value_Interp"].set(1)
+        response.getPlug("value")[1]["value_Interp"].set(1)
+        response.getPlug("outValue").connectTo(owner.getPlug("response"))
         for side in ("inner", "outer"):
             amount = graph._node("multiplyDivide", side + "Amount")
-            response.plug("outValue").connectTo(amount.plug("input1X"))
-            owner.plug(side + "Push").connectTo(amount.plug("input2X"))
+            response.getPlug("outValue").connectTo(amount.getPlug("input1X"))
+            owner.getPlug(side + "Push").connectTo(amount.getPlug("input2X"))
             offset = graph._node("plusMinusAverage", side + "Offset")
-            owner.plug(side + "Rest").connectTo(offset.plug("input1D")[0])
-            amount.plug("outputX").connectTo(offset.plug("input1D")[1])
-            offset.plug("output1D").connectTo(owner.plug(side))
-        extra = [node for node in hlib.ls(type="unitConversion") if node.uuid() not in conversions]
+            owner.getPlug(side + "Rest").connectTo(offset.getPlug("input1D")[0])
+            amount.getPlug("outputX").connectTo(offset.getPlug("input1D")[1])
+            offset.getPlug("output1D").connectTo(owner.getPlug(side))
+        extra = [node for node in hlib.ls(type="unitConversion") if node.getUuid() not in conversions]
         if extra:
             hlib.nodes.Container(owner).addMembers(*extra)
         return graph

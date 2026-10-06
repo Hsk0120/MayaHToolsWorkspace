@@ -77,12 +77,12 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 .. code-block:: python
 
    node = hlib.createNode("transform")
-   node.plug("translateX").set(10)
-   print(node.plug("tx").get())  # 10
+   node.getPlug("translateX").set(10)
+   print(node.getPlug("tx").get())  # 10
    print(node.translateX.get())  # 10
    print(node.tx.get())          # 10
 
 ``node.tx`` は数値ではなく ``Plug`` です。値の編集は ``node.tx.set(10)`` とします。
 ``node.tx = 10`` はMayaアトリビュートを編集しないため使用しません。
-Python側の既存メソッドやプロパティと名前が重なるアトリビュートは ``node.plug("アトリビュート名")``
+Python側の既存メソッドやプロパティと名前が重なるアトリビュートは ``node.getPlug("アトリビュート名")``
 で明示して取得してください。

@@ -33,25 +33,25 @@ class IdentityContractTest(unittest.TestCase):
     def test_plug_hash(self):
         """同じアトリビュートは短名/長名によらず同じhashを持つ。"""
         n=Node(cmds.createNode('transform'))
-        a,b=n.plug('tx'),n.plug('translateX')
+        a,b=n.getPlug('tx'),n.getPlug('translateX')
         self.assertEqual(a,b)
         self.assertEqual(hash(a),hash(b))
         table={a:1};n.rename('newName')
-        self.assertEqual(table[n.plug('tx')],1)
-        self.assertNotEqual(a,n.plug('ty'))
+        self.assertEqual(table[n.getPlug('tx')],1)
+        self.assertNotEqual(a,n.getPlug('ty'))
 
     def test_deleted_attribute_and_node(self):
         """削除/Undo/完全破棄でもハッシュは一定で別対象を同一視しない。"""
         n=Node(cmds.createNode('transform'))
-        cmds.addAttr(n.name(),longName='sample',attributeType='double')
-        a,b=n.plug('sample'),n.plug('sample')
+        cmds.addAttr(n.getName(),longName='sample',attributeType='double')
+        a,b=n.getPlug('sample'),n.getPlug('sample')
         value=hash(a)
-        cmds.deleteAttr(n.name()+'.sample')
+        cmds.deleteAttr(n.getName()+'.sample')
         self.assertEqual(hash(a),value)
         self.assertEqual(a,b)
         cmds.undo()
-        self.assertEqual(a,n.plug('sample'))
-        cmds.delete(n.name());cmds.flushUndo()
+        self.assertEqual(a,n.getPlug('sample'))
+        cmds.delete(n.getName());cmds.flushUndo()
         self.assertEqual(hash(a),value)
         self.assertFalse(a == b)
         self.assertFalse(n == Node(cmds.createNode('transform')))
@@ -60,20 +60,20 @@ class IdentityContractTest(unittest.TestCase):
         """混在した対象の削除で最初の対象も削除されない。"""
         a=Node(cmds.createNode('transform'));b=Node(cmds.createNode('transform'))
         with self.assertRaises(TypeError):
-            hlib.delete([a,b.name()])
+            hlib.delete([a,b.getName()])
         self.assertTrue(a.isValid());self.assertTrue(b.isValid())
 
     def test_mixed_rejected(self):
         """列全体の形式を変換前に検証する。"""
         from hlib.object import Object as _InputObject
         n=Node(cmds.createNode('joint'))
-        for values in ([n.name(),n],[n,n.name()]):
+        for values in ([n.getName(),n],[n,n.getName()]):
             with self.assertRaises(TypeError):
                 _InputObject._input_names(iter(values))
             with self.assertRaises(TypeError):
                 Nodes(values)
         self.assertEqual(len(Nodes([n,Node(n)])),1)
-        self.assertEqual(_InputObject._input_names([n]),[n.fullName()])
+        self.assertEqual(_InputObject._input_names([n]),[n.getFullName()])
 
     def test_instance_identity(self):
         """同じノードの別インスタンスを比較で区別する。"""
@@ -86,7 +86,7 @@ class IdentityContractTest(unittest.TestCase):
         self.assertEqual(hash(a),hash(b))
         cmds.delete(t)
         with self.assertRaises(RuntimeError):
-            a.fullName()
+            a.getFullName()
         self.assertTrue(b.isValid())
 
 if __name__=='__main__':

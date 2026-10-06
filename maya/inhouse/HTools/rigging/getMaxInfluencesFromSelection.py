@@ -26,17 +26,17 @@ def _get_renderable_mesh_shapes(dag):
         return []
 
     # すでに shape の場合
-    if Node(dag).type() == "mesh":
+    if Node(dag).getType() == "mesh":
         shapes = [dag]
     else:
         shapes = cmds.listRelatives(dag, shapes=True, fullPath=True) or []
 
     out = []
     for s in shapes:
-        if Node(s).type() != "mesh":
+        if Node(s).getType() != "mesh":
             continue
         # intermediateObject を除外
-        if Node(s).plug('intermediateObject').get():
+        if Node(s).getPlug('intermediateObject').get():
             continue
         out.append(s)
     return out
@@ -90,7 +90,7 @@ def get_max_influences_from_selection(verbose=True):
             # 1 shape に複数 skinCluster があるケースも全件収集する。
             for skin in skins:
                 try:
-                    max_inf = Node(skin).plug('maxInfluences').get()
+                    max_inf = Node(skin).getPlug('maxInfluences').get()
                 except Exception as e:
                     if verbose:
                         cmds.warning(f"Failed to get {skin}.maxInfluences ({e})")

@@ -44,12 +44,12 @@ def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False
         names = []
         for plug in cycle.plugs:
             try:
-                names.append(plug.fullName())
-                node = plug.node()
-                nodes[node.name()] = node.type()
+                names.append(plug.getFullName())
+                node = plug.getNode()
+                nodes[node.getName()] = node.getType()
                 part = Cycle([plug])
-                connections.update((a.fullName(), b.fullName()) for a, b in part.getConnections())
-                parents.update((a.fullName(), b.name()) for a, b in part.getParents())
+                connections.update((a.getFullName(), b.getFullName()) for a, b in part.getConnections())
+                parents.update((a.getFullName(), b.getName()) for a, b in part.getParents())
             except (RuntimeError, ValueError, TypeError) as error:
                 errors.append(str(error))
         groups.append(dict(plugs=names, nodes=nodes, connections=sorted(connections),
@@ -60,7 +60,7 @@ def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False
         for target in targets:
             if isinstance(target, str):
                 target = hlib.getPlug(target) if "." in target else Node(target)
-            names.append(target.fullName() if isinstance(target, Plug) else target.name())
+            names.append(target.getFullName() if isinstance(target, Plug) else target.getName())
     return dict(targets=names, includeDag=include_dag, seconds=float(seconds),
                 elapsed=elapsed, firstOnly=first_only, groups=groups)
 

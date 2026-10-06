@@ -98,9 +98,8 @@ class EulerRotation(om2.MEulerRotation):
     MEulerRotation 系以外との比較は :class:`~hlib.maths.vector.Vector` と同じく
     例外にしない。表示は度に変換するが、内部値はラジアン。
 
-    回転値を返す独自メソッドは hlib の型を返す。om2 から継承した camelCase のメソッド
-    (``asQuaternion``、``asMatrix``、``reorder``、``bound``、``closestSolution`` など)は
-    om2 の基底型を返す。
+    数学値を返す継承メソッドも対応するhlib型を返す。コピー操作は新しい値を
+    返し、It付きの更新操作は自身を書き換える。OpenMaya標準の演算と引数を維持する。
     """
 
     __slots__ = ()
@@ -538,6 +537,76 @@ class EulerRotation(om2.MEulerRotation):
         """
         return cls(math.radians(x), math.radians(y), math.radians(z), order)
 
+    @staticmethod
+    def computeAlternateSolution(*args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.computeAlternateSolution(*args))
+
+    @staticmethod
+    def computeBound(*args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.computeBound(*args))
+
+    @staticmethod
+    def computeClosestCut(*args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.computeClosestCut(*args))
+
+    @staticmethod
+    def computeClosestSolution(*args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.computeClosestSolution(*args))
+
+    @staticmethod
+    def decompose(*args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.decompose(*args))
+
     @property
     def orderName(self):
         """回転順序の名前(``"xyz"`` など)を取得または設定する。
@@ -573,7 +642,7 @@ class EulerRotation(om2.MEulerRotation):
         """
         return (math.degrees(self.x), math.degrees(self.y), math.degrees(self.z))
 
-    def toQuaternion(self):
+    def asQuaternion(self):
         """回転順序を反映した Quaternion へ変換する。
 
         Returns:
@@ -581,7 +650,7 @@ class EulerRotation(om2.MEulerRotation):
         """
         return Quaternion._wrap(self)
 
-    def mirrored(self, axis="x"):
+    def mirror(self, axis="x"):
         """Matrixと同じ規約で向きをビヘイビアミラーした複製を返す。
 
         Args:
@@ -590,25 +659,25 @@ class EulerRotation(om2.MEulerRotation):
         Returns:
             EulerRotation: 同型の新しい回転。Eulerの回転順序は維持する。
         """
-        matrix = self.toMatrix().mirrored(axis)
+        matrix = self.asMatrix().mirror(axis)
         rotation = matrix.quaternion.asEulerRotation()
         rotation.reorderIt(self.order)
         result = type(self)._wrap(rotation)
         return result
 
-    def mirror(self, axis="x"):
+    def mirrorIt(self, axis="x"):
         """自身の向きをビヘイビアミラーする。
 
         Args:
-            axis (str | int): mirroredと同じ反転軸。
+            axis (str | int): mirrorと同じ反転軸。
 
         Returns:
             EulerRotation: 更新した自身。
         """
-        self.setValue(self.mirrored(axis))
+        self.setValue(self.mirror(axis))
         return self
 
-    def toMatrix(self):
+    def asMatrix(self):
         """回転順序を反映した回転行列を返す。
 
         Returns:
@@ -616,7 +685,7 @@ class EulerRotation(om2.MEulerRotation):
         """
         from .matrix import Matrix
 
-        return Matrix._wrap(self.asMatrix())
+        return Matrix._wrap(_MEuler.asMatrix(self))
 
     def isEquivalent(self, other, tolerance=1e-10):
         """許容誤差付きでほぼ等しいか判定する。
@@ -635,6 +704,99 @@ class EulerRotation(om2.MEulerRotation):
         if not isinstance(other, _MEuler):
             other = EulerRotation(other)
         return _MEuler.isEquivalent(self, other, tolerance)
+
+    def alternateSolution(self, *args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.alternateSolution(self, *args))
+
+    def bound(self, *args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.bound(self, *args))
+
+    def closestCut(self, *args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.closestCut(self, *args))
+
+    def closestSolution(self, *args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.closestSolution(self, *args))
+
+    def inverse(self, *args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.inverse(self, *args))
+
+    def reorder(self, *args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        return EulerRotation._wrap(_MEuler.reorder(self, *args))
+
+    def asVector(self, *args):
+        """OpenMayaと同じ演算でVectorの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Vector: 演算結果を保持する新しいhlib値。
+        """
+        from .vector import Vector
+
+        return Vector(_MEuler.asVector(self, *args))
 
     @classmethod
     def _wrap(cls, value):

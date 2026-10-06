@@ -60,7 +60,7 @@ class StandardTest(test_limb.LimbTest):
         cmds.file(new=True, force=True)
         demo = build_demo()
         rig = demo["rig"]
-        self.assertEqual(cmds.getAttr(rig.root.fullName() + ".hrigBackend"), "standard")
+        self.assertEqual(cmds.getAttr(rig.root.getFullName() + ".hrigBackend"), "standard")
         self.assertEqual(cmds.nodeType(rig._member("softGraph")), "container")
         self.assertNotIn("bifrostGraphShape", set(cmds.nodeType(n) for n in cmds.ls()))
         self.assertNotIn("hrigSoftIK", set(cmds.nodeType(n) for n in cmds.ls()))

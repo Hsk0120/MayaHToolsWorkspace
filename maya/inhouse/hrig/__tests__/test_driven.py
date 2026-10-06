@@ -28,25 +28,25 @@ class DrivenTest(unittest.TestCase):
         """SwingZ→SDK→移動を評価し、LOD/Enabled/Undoを確認する。"""
         target = SampleBuilder.layer(self.rig, "driven", component="swingZ")
         graph = hlib.getNode(target)
-        bone = graph.plug("drivenNode").sourceWithConversion().node()
+        bone = graph.getPlug("drivenNode").getSourceWithConversion().getNode()
         for angle in (-90, -45, 0, 45, 90):
             cmds.setAttr(self.rig.controls()["fk1"] + ".rz", angle)
-            self.assertAlmostEqual(bone.plug("ty").get(), angle / 90, places=4)
+            self.assertAlmostEqual(bone.getPlug("ty").get(), angle / 90, places=4)
         self.rig.set_layer_enabled("driven", False)
-        self.assertIsNone(bone.plug("ty").sourceWithConversion())
-        self.assertEqual(bone.plug("ty").get(), 0)
+        self.assertIsNone(bone.getPlug("ty").getSourceWithConversion())
+        self.assertEqual(bone.getPlug("ty").get(), 0)
         cmds.undo()
-        self.assertAlmostEqual(bone.plug("ty").get(), 1, places=4)
+        self.assertAlmostEqual(bone.getPlug("ty").get(), 1, places=4)
         self.rig.set_lod(0)
-        self.assertIsNone(bone.plug("ty").sourceWithConversion())
+        self.assertIsNone(bone.getPlug("ty").getSourceWithConversion())
         self.rig.set_lod(1)
-        self.assertAlmostEqual(bone.plug("ty").get(), 1, places=4)
+        self.assertAlmostEqual(bone.getPlug("ty").get(), 1, places=4)
 
     def test_save_and_external_destination(self):
         """外部の回転属性を駆動し、改名・保存後も対象を維持する。"""
         external = cmds.createNode("transform", name="external")
         graph = self.rig.add_driven(
-            "rotate", self.rig.joints()[1], external + ".rz", keys=[(-90, -30), (0, 0), (90, 30)]
+            "rotate", self.rig.getJoints()[1], external + ".rz", keys=[(-90, -30), (0, 0), (90, 30)]
         )
         cmds.setAttr(self.rig.controls()["fk1"] + ".rx", 45)
         self.assertAlmostEqual(cmds.getAttr(external + ".rz"), 15, places=4)
@@ -75,7 +75,7 @@ class DrivenTest(unittest.TestCase):
         cmds.redo()
         self.assertEqual(len(DrivenLayer(self.rig).graphs()), 1)
         with self.assertRaises(ValueError):
-            self.rig.add_driven("bad", self.rig.joints()[1], self.rig.controls()["fk1"] + ".rx")
+            self.rig.add_driven("bad", self.rig.getJoints()[1], self.rig.controls()["fk1"] + ".rx")
 
     def test_multiple_modules_and_layers(self):
         """二つの部位と各サンプルを作成し、部位間の状態を独立に保つ。"""

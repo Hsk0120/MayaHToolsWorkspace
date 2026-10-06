@@ -14,11 +14,11 @@ importだけでは監視を開始しません。バッチでは登録を拒否�
     jobs = hlib.events.ScriptJobs()
 
     def changed():
-        print(control.plug("enabled").get())
+        print(control.getPlug("enabled").get())
 
     job = jobs.add(
         "enabled",
-        attribute=control.plug("enabled"),
+        attribute=control.getPlug("enabled"),
         callback=changed,
         kill_with_scene=True,
         compress_undo=True,

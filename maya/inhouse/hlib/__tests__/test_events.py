@@ -22,9 +22,9 @@ class CommonRigApiTest(unittest.TestCase):
 
     def test_plug_lookup(self):
         """名前・ラッパー・MPlugが同じアトリビュートを解決する。"""
-        plug = self.node.plug("tx")
-        for value in (plug.fullName(), plug, plug.mplug()):
-            self.assertEqual(hlib.getPlug(value).fullName(), plug.fullName())
+        plug = self.node.getPlug("tx")
+        for value in (plug.getFullName(), plug, plug.mplug()):
+            self.assertEqual(hlib.getPlug(value).getFullName(), plug.getFullName())
 
     def test_changed_value_and_lock(self):
         """無変更は更新せず、ロック付き更新を一度のUndoで戻せる。"""
@@ -42,8 +42,8 @@ class CommonRigApiTest(unittest.TestCase):
 
     def test_failed_write_restores_lock(self):
         """接続先への書込みを拒否した場合もロックを復元する。"""
-        plug = self.node.plug("tx")
-        self.driver.plug("tx").connectTo(plug)
+        plug = self.node.getPlug("tx")
+        self.driver.getPlug("tx").connectTo(plug)
         plug.setFlags(locked=True)
         with self.assertRaises(RuntimeError):
             plug.setIfChanged(5.0, unlock=True)
@@ -54,7 +54,7 @@ class CommonRigApiTest(unittest.TestCase):
         previous = cmds.currentUnit(query=True, angle=True)
         try:
             cmds.currentUnit(angle="rad")
-            cmds.setAttr(self.driver.fullName() + ".rotate", 0.2, 0.4, -0.3)
+            cmds.setAttr(self.driver.getFullName() + ".rotate", 0.2, 0.4, -0.3)
             matrix = self.driver.getMatrix(ws=True)
             self.node.setMatrix(matrix, ws=True)
             self.assertTrue(matrix.isEquivalent(self.node.getMatrix(ws=True), 1e-8))

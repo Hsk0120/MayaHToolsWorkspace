@@ -15,7 +15,7 @@ class ShelfButton:
         if cmds.about(batch=True):
             raise RuntimeError("ShelfButton requires Maya GUI")
         self._name = str(name)
-        self.name()
+        self.getName()
 
     def __str__(self):
         """保持したUI名を返す。
@@ -33,7 +33,7 @@ class ShelfButton:
         """
         return bool(cmds.shelfButton(self._name, exists=True))
 
-    def name(self):
+    def getName(self):
         """存在を確認したUI名。削除済みはRuntimeError。
 
         Returns:
@@ -49,7 +49,7 @@ class ShelfButton:
         Returns:
             str: ボタンのラベルを取得する。
         """
-        return cmds.shelfButton(self.name(), query=True, label=True)
+        return cmds.shelfButton(self.getName(), query=True, label=True)
 
     def setLabel(self, label):
         """ラベルを変更する。ディスクへは保存しない。
@@ -57,7 +57,7 @@ class ShelfButton:
         Args:
             label (str): 表示ラベル。
         """
-        cmds.shelfButton(self.name(), edit=True, label=label)
+        cmds.shelfButton(self.getName(), edit=True, label=label)
 
     def getAnnotation(self):
         """ツールチップを取得する。
@@ -65,7 +65,7 @@ class ShelfButton:
         Returns:
             str: ツールチップを取得する。
         """
-        return cmds.shelfButton(self.name(), query=True, annotation=True)
+        return cmds.shelfButton(self.getName(), query=True, annotation=True)
 
     def setAnnotation(self, text):
         """ツールチップを変更する。
@@ -73,7 +73,7 @@ class ShelfButton:
         Args:
             text (str): 説明。
         """
-        cmds.shelfButton(self.name(), edit=True, annotation=text)
+        cmds.shelfButton(self.getName(), edit=True, annotation=text)
 
     def getIcon(self):
         """アイコン名またはパスを取得する。
@@ -81,7 +81,7 @@ class ShelfButton:
         Returns:
             str: アイコン名またはパスを取得する。
         """
-        return cmds.shelfButton(self.name(), query=True, image1=True)
+        return cmds.shelfButton(self.getName(), query=True, image1=True)
 
     def setIcon(self, image):
         """アイコンを変更する。
@@ -89,7 +89,7 @@ class ShelfButton:
         Args:
             image (str): Mayaの画像名またはパス。
         """
-        cmds.shelfButton(self.name(), edit=True, image1=str(image))
+        cmds.shelfButton(self.getName(), edit=True, image1=str(image))
 
     def getCommand(self):
         """登録済みコマンドを取得する。実行はしない。
@@ -97,7 +97,7 @@ class ShelfButton:
         Returns:
             str: 登録済みコマンドを取得する。実行はしない。
         """
-        return cmds.shelfButton(self.name(), query=True, command=True)
+        return cmds.shelfButton(self.getName(), query=True, command=True)
 
     def setCommand(self, command, language="python"):
         """実行コードと言語を変更する。コードは実行しない。
@@ -107,7 +107,7 @@ class ShelfButton:
             language (str): pythonまたはmel。
         """
         self._validate_command(command, language)
-        cmds.shelfButton(self.name(), edit=True, command=command, sourceType=language)
+        cmds.shelfButton(self.getName(), edit=True, command=command, sourceType=language)
 
     def getLanguage(self):
         """pythonまたはmelを取得する。
@@ -115,11 +115,11 @@ class ShelfButton:
         Returns:
             str: pythonまたはmelを取得する。
         """
-        return cmds.shelfButton(self.name(), query=True, sourceType=True)
+        return cmds.shelfButton(self.getName(), query=True, sourceType=True)
 
     def delete(self):
         """ボタンをUIから削除する。保存済みファイルは変更しない。"""
-        cmds.deleteUI(self.name(), control=True)
+        cmds.deleteUI(self.getName(), control=True)
 
     @staticmethod
     def _validate_command(command, language):

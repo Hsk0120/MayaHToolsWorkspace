@@ -75,8 +75,8 @@ class PoseEditor(QtWidgets.QDialog):
             PoseRbf | None: 未登録ならNone。
         """
         group = SecondaryLayer(self.rig).groups().get(self.index)
-        source = group.plug("poseGraph").sourceWithConversion() if group is not None else None
-        return PoseRbf(source.node()) if source is not None else None
+        source = group.getPlug("poseGraph").getSourceWithConversion() if group is not None else None
+        return PoseRbf(source.getNode()) if source is not None else None
 
     def _choose(self, index):
         """列選択を変更し、編集表を再読込する。
@@ -95,13 +95,13 @@ class PoseEditor(QtWidgets.QDialog):
         if graph:
             names = []
             for i in range(len(data["scales"])):
-                source = graph.container.plug("inputs")[i].sourceWithConversion()
-                if source is not None and source.node().type() == "unitConversion":
-                    source = source.node().plug("input").sourceWithConversion()
-                names.append(source.fullName() if source is not None else "未接続")
+                source = graph.container.getPlug("inputs")[i].getSourceWithConversion()
+                if source is not None and source.getNode().getType() == "unitConversion":
+                    source = source.getNode().getPlug("input").getSourceWithConversion()
+                names.append(source.getFullName() if source is not None else "未接続")
         else:
             node = self.rig.driver_chains()[self.index][0]
-            names = [node.name() + ".rotate" + axis for axis in "XZ"]
+            names = [node.getName() + ".rotate" + axis for axis in "XZ"]
         self.inputs_label.setText(
             "入力順: " + " / ".join(names) + "\n列変更・再読込は未適用の編集を破棄します。"
         )
@@ -134,7 +134,7 @@ class PoseEditor(QtWidgets.QDialog):
             self.table.setItem(row, column, QtWidgets.QTableWidgetItem(format(value, ".12g")))
         self.table.selectRow(row)
 
-    def inputs(self):
+    def getInputs(self):
         """現在入力を度で取得する。
 
         Returns:
@@ -145,18 +145,18 @@ class PoseEditor(QtWidgets.QDialog):
             return graph.capture()
         joint = self.rig.driver_chains()[self.index][0]
         # hlibのscalar角度getはシーンの表示単位によらず度を返す。
-        return [joint.plug("rotate" + a).get() for a in "XZ"]
+        return [joint.getPlug("rotate" + a).get() for a in "XZ"]
 
     def capture(self):
         """現在入力とゼロ補正を新しい登録行へ追加する。"""
-        self._append(self.inputs() + [0.0] * self.output_count)
+        self._append(self.getInputs() + [0.0] * self.output_count)
 
     def recapture(self):
         """選択行の出力を保ち、入力のみ現在値へ置き換える。"""
         row = self.table.currentRow()
         if row < 0:
             raise ValueError("登録行を選択してください")
-        for column, value in enumerate(self.inputs()):
+        for column, value in enumerate(self.getInputs()):
             self.table.setItem(row, column, QtWidgets.QTableWidgetItem(format(value, ".12g")))
 
     def remove(self):
@@ -182,7 +182,7 @@ class PoseEditor(QtWidgets.QDialog):
         else:
             joint = self.rig.driver_chains()[self.index][0]
             SecondaryLayer(self.rig).add_pose(
-                self.index, [joint.plug("rotateX"), joint.plug("rotateZ")], poses, values, scales
+                self.index, [joint.getPlug("rotateX"), joint.getPlug("rotateZ")], poses, values, scales
             )
         self.status.setText("{}ポーズを適用しました。".format(len(poses)))
 

@@ -37,7 +37,7 @@ class SpaceSwitchTest(unittest.TestCase):
         self.assertAlmostEqual(self.child.getTranslation(ws=True, at=4)[0], 6)
         cmds.undo()
         cmds.undo()
-        self.assertEqual(SpaceSwitch(self.buffer).current(), "world")
+        self.assertEqual(SpaceSwitch(self.buffer).getCurrent(), "world")
         self.assertAlmostEqual(self.child.getTranslation(ws=True, at=4)[0], 5)
 
     def test_reject_descendant_and_singular(self):
@@ -46,7 +46,7 @@ class SpaceSwitchTest(unittest.TestCase):
             self.switch.add("child", self.child)
         self.assertEqual(self.switch.labels(), ("local", "world"))
         target = hlib.createNode("transform", name="singular", skipSelect=True)
-        target.plug("scaleX").set(0)
+        target.getPlug("scaleX").set(0)
         with self.assertRaises(ValueError):
             self.switch.add("singular", target)
         self.assertEqual(self.switch.labels(), ("local", "world"))
@@ -56,7 +56,7 @@ class SpaceSwitchTest(unittest.TestCase):
         external = hlib.createNode("transform", name="external", skipSelect=True)
         self.switch.add("external", external)
         self.switch.switch("external")
-        self.assertNotIn(external.fullName(), [node.fullName() for node in self.switch.nodes()])
+        self.assertNotIn(external.getFullName(), [node.getFullName() for node in self.switch.getNodes()])
         external.setTranslation((0, 3, 0), at=4)
         self.assertAlmostEqual(self.child.getTranslation(ws=True, at=4)[1], 3)
 

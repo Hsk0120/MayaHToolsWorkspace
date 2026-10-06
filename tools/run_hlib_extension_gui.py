@@ -84,12 +84,12 @@ def main(output_dir=None, finished=None):
             loaded_path = cmds.pluginInfo('MayaUERBFPlugin', query=True, path=True)
             check(Path(loaded_path).resolve() == native_binary.resolve(), 'Expected PoseDriverConnect binary loaded')
             solver = hlib.createNode('UERBFSolverNode', name='hlibExtensionGuiSolver')
-            created.append(solver.fullName())
+            created.append(solver.getFullName())
             blender = hlib.createNode('UEPoseBlenderNode', name='hlibExtensionGuiBlender')
-            created.append(blender.fullName())
+            created.append(blender.getFullName())
             check(type(solver).__module__.startswith('hlib_posedriverconnect.'), 'Solver uses extension wrapper')
             check(type(blender).__module__.startswith('hlib_posedriverconnect.'), 'Blender uses extension wrapper')
-            cmds.select(solver.fullName())
+            cmds.select(solver.getFullName())
             check(type(hlib.ls(selection=True)[0]) is type(solver), 'hlib.ls(selection=True) dispatches extension')
             before_radius = solver.radius()
             solver.setRadius(before_radius + 10)
@@ -99,7 +99,7 @@ def main(output_dir=None, finished=None):
             cmds.redo()
             check(abs(solver.radius() - before_radius - 10) < 1e-6, 'Redo restores edit')
             result['radius'] = {'before': before_radius, 'after_redo': solver.radius()}
-            name = solver.fullName()
+            name = solver.getFullName()
             hlib.reload()
             solver = hlib.getNode(name)
             check(isinstance(solver, hlib.nodes.Node) and hasattr(solver, 'radius'), 'Reload restores extension registration')
@@ -107,7 +107,7 @@ def main(output_dir=None, finished=None):
         else:
             result['skipped'].append('Matching external plugin binary is not installed; node tests skipped')
             node = hlib.createNode('transform', name='hlibExtensionFallback')
-            created.append(node.fullName())
+            created.append(node.getFullName())
             check(node.isValid(), 'Core hlib remains usable')
         result['status'] = 'passed'
     except Exception:

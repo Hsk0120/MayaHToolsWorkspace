@@ -31,10 +31,10 @@ class RadialWeightsTest(unittest.TestCase):
         """DGのFalloff/Blendが数値計算と一致する。"""
         graph = RadialWeights.create(0.3, 4).container
         for falloff in (0.1, 1, 3, 8):
-            graph.plug("falloff").set(falloff)
+            graph.getPlug("falloff").set(falloff)
             _, weights = RadialWeights.weights(0.3, 4, falloff)
             for blend in (0, 0.25, 1):
-                graph.plug("blend").set(blend)
-                self.assertAlmostEqual(graph.plug("weightA").get(), weights[0] * blend, places=5)
-                self.assertAlmostEqual(graph.plug("weightB").get(), weights[1] * blend, places=5)
-                self.assertAlmostEqual(graph.plug("restWeight").get(), 1 - blend, places=5)
+                graph.getPlug("blend").set(blend)
+                self.assertAlmostEqual(graph.getPlug("weightA").get(), weights[0] * blend, places=5)
+                self.assertAlmostEqual(graph.getPlug("weightB").get(), weights[1] * blend, places=5)
+                self.assertAlmostEqual(graph.getPlug("restWeight").get(), 1 - blend, places=5)

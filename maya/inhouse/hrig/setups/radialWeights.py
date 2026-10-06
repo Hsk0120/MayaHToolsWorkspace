@@ -72,7 +72,7 @@ class RadialWeights:
             Node: 新規ノード。
         """
         node = hlib.nodes.Node.create(
-            kind, name=self.container.name() + "_" + suffix, skipSelect=True
+            kind, name=self.container.getName() + "_" + suffix, skipSelect=True
         )
         self.container.addMembers(node)
         return node
@@ -97,7 +97,7 @@ class RadialWeights:
         owner = graph.container
         for attr, value in zip(("directionA", "directionB"), indices):
             owner.addAttr(longName=attr, attributeType="long", defaultValue=value)
-            owner.setAttributeFlags([attr], locked=True)
+            owner.setAttrFlags([attr], locked=True)
         for attr, value, minimum, maximum in (("falloff", 1, 0.1, 8), ("blend", 1, 0, 1)):
             owner.addAttr(
                 longName=attr,
@@ -111,27 +111,27 @@ class RadialWeights:
             owner.addAttr(longName=attr, attributeType="double")
         # 接続入力でも範囲を保証し、ゼロ除算と負のウェイトを避ける。
         limits = graph._node("clamp", "limits")
-        limits.plug("minR").set(0.1)
-        limits.plug("maxR").set(8)
-        limits.plug("maxG").set(1)
-        owner.plug("falloff").connectTo(limits.plug("inputR"))
-        owner.plug("blend").connectTo(limits.plug("inputG"))
+        limits.getPlug("minR").set(0.1)
+        limits.getPlug("maxR").set(8)
+        limits.getPlug("maxG").set(1)
+        owner.getPlug("falloff").connectTo(limits.getPlug("inputR"))
+        owner.getPlug("blend").connectTo(limits.getPlug("inputG"))
         power = graph._node("multiplyDivide", "power")
-        power.plug("operation").set(3)
+        power.getPlug("operation").set(3)
         total = graph._node("plusMinusAverage", "total")
         normalized = graph._node("multiplyDivide", "normalized")
-        normalized.plug("operation").set(2)
+        normalized.getPlug("operation").set(2)
         blended = graph._node("multiplyDivide", "blended")
         for i, axis in enumerate(("X", "Y")):
-            power.plug("input1" + axis).set(values[i])
-            limits.plug("outputR").connectTo(power.plug("input2" + axis))
-            power.plug("output" + axis).connectTo(total.plug("input1D")[i])
-            power.plug("output" + axis).connectTo(normalized.plug("input1" + axis))
-            total.plug("output1D").connectTo(normalized.plug("input2" + axis))
-            normalized.plug("output" + axis).connectTo(blended.plug("input1" + axis))
-            limits.plug("outputG").connectTo(blended.plug("input2" + axis))
-            blended.plug("output" + axis).connectTo(owner.plug(("weightA", "weightB")[i]))
+            power.getPlug("input1" + axis).set(values[i])
+            limits.getPlug("outputR").connectTo(power.getPlug("input2" + axis))
+            power.getPlug("output" + axis).connectTo(total.getPlug("input1D")[i])
+            power.getPlug("output" + axis).connectTo(normalized.getPlug("input1" + axis))
+            total.getPlug("output1D").connectTo(normalized.getPlug("input2" + axis))
+            normalized.getPlug("output" + axis).connectTo(blended.getPlug("input1" + axis))
+            limits.getPlug("outputG").connectTo(blended.getPlug("input2" + axis))
+            blended.getPlug("output" + axis).connectTo(owner.getPlug(("weightA", "weightB")[i]))
         reverse = graph._node("reverse", "rest")
-        limits.plug("outputG").connectTo(reverse.plug("inputX"))
-        reverse.plug("outputX").connectTo(owner.plug("restWeight"))
+        limits.getPlug("outputG").connectTo(reverse.getPlug("inputX"))
+        reverse.getPlug("outputX").connectTo(owner.getPlug("restWeight"))
         return graph

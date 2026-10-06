@@ -30,14 +30,14 @@ class ClusterTest(unittest.TestCase):
         self.assertIsInstance(self.cluster, Cluster)
 
     def test_weighted_node_returns_handle_transform(self):
-        weightedNode = self.cluster.weightedNode()
+        weightedNode = self.cluster.getWeightedNode()
         self.assertIsInstance(weightedNode, Node)
-        self.assertEqual(weightedNode.name(), self.handle_name)
+        self.assertEqual(weightedNode.getName(), self.handle_name)
 
     def test_geometry_returns_affected_shape(self):
-        geometry = self.cluster.geometry()
+        geometry = self.cluster.getGeometry()
         self.assertEqual(len(geometry), 1)
-        self.assertTrue(geometry[0].name().startswith(self.mesh))
+        self.assertTrue(geometry[0].getName().startswith(self.mesh))
 
 
 if __name__ == "__main__":

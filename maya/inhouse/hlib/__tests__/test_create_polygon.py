@@ -45,29 +45,29 @@ class CreatePolygonTest(unittest.TestCase):
                 with self.subTest(kind=kind, history=history):
                     mesh = hlib.createPolygon(type=kind, constructionHistory=history)
                     self.assertIsInstance(mesh, hlib.nodes.Mesh)
-                    self.assertIsInstance(mesh.transform(), hlib.nodes.Transform)
-                    self.assertGreater(cmds.polyEvaluate(mesh.fullName(), vertex=True), 0)
+                    self.assertIsInstance(mesh.getTransform(), hlib.nodes.Transform)
+                    self.assertGreater(cmds.polyEvaluate(mesh.getFullName(), vertex=True), 0)
                     nodes = [hlib.getNode(value) for value in (cmds.listHistory(mesh) or [])]
-                    self.assertEqual(any(node.type() == command for node in nodes), history)
+                    self.assertEqual(any(node.getType() == command for node in nodes), history)
 
     def test_flags_dimensions_and_rename(self):
         mesh = hlib.createPolygon(typ="polyCube", n="box", w=2, h=4, d=6, sx=2, ch=False)
-        self.assertEqual(mesh.transform().name().split(":")[-1], "box")
-        self.assertEqual(cmds.exactWorldBoundingBox(mesh.fullName()), [-1, -2, -3, 1, 2, 3])
-        self.assertEqual(cmds.polyEvaluate(mesh.fullName(), vertex=True), 12)
-        identity = mesh.uuid()
-        mesh.transform().rename("renamedBox")
-        self.assertEqual(mesh.uuid(), identity)
-        self.assertIn("renamedBox", mesh.fullName())
+        self.assertEqual(mesh.getTransform().getName().split(":")[-1], "box")
+        self.assertEqual(cmds.exactWorldBoundingBox(mesh.getFullName()), [-1, -2, -3, 1, 2, 3])
+        self.assertEqual(cmds.polyEvaluate(mesh.getFullName(), vertex=True), 12)
+        identity = mesh.getUuid()
+        mesh.getTransform().rename("renamedBox")
+        self.assertEqual(mesh.getUuid(), identity)
+        self.assertIn("renamedBox", mesh.getFullName())
 
     def test_default_type_and_undo_redo(self):
         mesh = hlib.createPolygon()
-        shape = mesh.fullName()
-        parent = mesh.transform().fullName()
+        shape = mesh.getFullName()
+        parent = mesh.getTransform().getFullName()
         history = [
-            node.fullName()
+            node.getFullName()
             for node in [hlib.getNode(value) for value in (cmds.listHistory(mesh) or [])]
-            if node.type() == "polyCube"
+            if node.getType() == "polyCube"
         ]
         self.assertEqual(len(history), 1)
         cmds.undo()

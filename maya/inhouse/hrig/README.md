@@ -211,7 +211,7 @@ demo = build_demo(twist_count=4)  # 各区間4本。0ならツイスト骨を作
 ```python
 import hrig
 rig = hrig.build_limb()
-root, mid, tip = rig.joints()[:3]
+root, mid, tip = rig.getJoints()[:3]
 rig.add_twist("upper", root, mid, count=3, axis="x")
 rig.add_twist("lower", mid, tip, count=5, axis="x")
 rig.set_twist_count("upper", 4)  # 未使用の骨を再生成。0なら区間を削除
@@ -262,7 +262,7 @@ rig.set_space("pole", "foot")
 rig.add_space("ik", "chest", "chest_ctrl")
 rig.set_space("ik", "chest")
 print(rig.space_switch("ik").labels())
-print(rig.space_switch("ik").current())
+print(rig.space_switch("ik").getCurrent())
 ```
 
 共通実装は`hrig.setups.SpaceSwitch`で、標準`choice`・`multMatrix`を使います。
@@ -358,12 +358,12 @@ from hrig import build_limb
 rig = build_limb()
 half, inner, outer = rig.add_bend("knee", bend_axis="z", push_axis="y")
 settings = rig.bend_settings("knee")
-settings.plug("rotationRatio").set(0.5)
-settings.plug("referenceAngle").set(90)  # 度。ここで補正量100%
-settings.plug("innerRest").set(0.5)
-settings.plug("outerRest").set(-0.5)
-settings.plug("innerPush").set(-0.2)
-settings.plug("outerPush").set(-0.3)
+settings.getPlug("rotationRatio").set(0.5)
+settings.getPlug("referenceAngle").set(90)  # 度。ここで補正量100%
+settings.getPlug("innerRest").set(0.5)
+settings.getPlug("outerRest").set(-0.5)
+settings.getPlug("innerPush").set(-0.2)
+settings.getPlug("outerPush").set(-0.3)
 rig.set_layer_enabled("bend", False)
 ```
 
@@ -434,7 +434,7 @@ rig = build_limb()
 # 入力骨へ依存を戻さない、独立した補正先を用意する
 corrective = hlib.createNode("transform", name="corrective")
 graph = rig.add_driven(
-    "elbowPush", rig.joints()[1], corrective.plug("translateY"),
+    "elbowPush", rig.getJoints()[1], corrective.getPlug("translateY"),
     component="swingZ", axis="x",
     keys=[(-90, -1), (0, 0), (90, 1)],
 )
@@ -472,10 +472,10 @@ rig = build_skirt(
     name="skirt01", driver_count=4, chain_count=16,
     joints_per_chain=3, radius=3, length=5,
 )
-rig.driver_chains()[0][0].plug("rotateX").set(30)
-rig.root.plug("blend").set(0.8)
-rig.root.plug("falloff").set(1.5)
-skin_joints = rig.joints()  # ドライバーを含まない変形骨だけ
+rig.driver_chains()[0][0].getPlug("rotateX").set(30)
+rig.root.getPlug("blend").set(0.8)
+rig.root.getPlug("falloff").set(1.5)
+skin_joints = rig.getJoints()  # ドライバーを含まない変形骨だけ
 ```
 
 Y上向き・XZ円周、骨列は下向きです。方向0は+X、番号順に+Zへ回り、各列の
@@ -524,7 +524,7 @@ rig = build_limb()
 rig.add_follow("twistOnly", mode="twist", axis="x", ratio=1.0)
 rig.add_follow("swingOnly", mode="swing", axis="x", ratio=1.0)
 rig.add_follow("half", mode="full", ratio=0.5)
-rig.follow_settings("half").plug("ratio").set(0.25)
+rig.follow_settings("half").getPlug("ratio").set(0.25)
 rig.set_layer_enabled("follow", False)
 ```
 
@@ -551,7 +551,7 @@ Layer Editorの「サンプルレイヤーを追加」に以下を追加して�
 同じモジュール内の追従骨を1つの使用チェックで管理します。サンプルごとの個別Enabledはありません。
 
 Full LODかつEnabledで評価し、無効時はOPM出力を切断して作成時の位置・回転へ戻します。
-`rig.joints()`は追従骨も含み、`rig.follow_joints()`は追従骨だけを返します。
+`rig.getJoints()`は追従骨も含み、`rig.follow_joints()`は追従骨だけを返します。
 既存スキンには自動追加しません。新しい表示レイヤーを持たない旧腕脚シーンでは、
 新規モジュールでの利用を推奨します（Python APIの追加・制御は可能）。
 180度境界・多回転・負または非一様scale・shearの連続追従は保証しません。
@@ -574,7 +574,7 @@ from hrig import build_skirt
 rig = build_skirt()
 # rig.driver_chains()[0] の骨に回転アニメーションを設定してから実行する
 settings = rig.bake_spring(driver_index=0, start=1, end=120)
-settings.plug("intensity").set(0.5)
+settings.getPlug("intensity").set(0.5)
 rig.set_layer_enabled("spring", False)
 ```
 
@@ -614,8 +614,8 @@ Layer Editorの新規モジュールから「背骨 · Spline IK」「尻尾 · 
 from hrig import build_spline, show_layer_editor
 
 rig = build_spline("tail01", joint_count=12, control_count=5, length=15, axis="z")
-rig.controls()[1].plug("translateX").set(2)
-# スキンに使用するのは rig.joints() の変形骨
+rig.controls()[1].getPlug("translateX").set(2)
+# スキンに使用するのは rig.getJoints() の変形骨
 show_layer_editor()
 ```
 
@@ -655,7 +655,7 @@ Full LODとSpline使用設定が必要で、キーの自動作成は行いませ
 負・非一様scale、shear、接線と上方向が平行になる姿勢、多回転の連続性、
 実制作モデルでの性能は保証していません。初版では正の均等scaleを使用してください。
 
-単位をmにした検証では、既存hlibの`plug("scale").set(...)`がtranslateを
+単位をmにした検証では、既存hlibの`getPlug("scale").set(...)`がtranslateを
 再変換する問題を確認しています（今回のSpline機能とは別の未修正箇所）。
 ルートのスケールはChannel Box、または`scaleX/Y/Z`を個別に設定してください。
 
@@ -668,10 +668,10 @@ Pythonでは両モジュールとも次のAPIを使います。
 
 ```python
 settings = rig.add_stretch()
-settings.plug("stretch").set(1.0)
-settings.plug("squash").set(0.5)
-settings.plug("volume").set(1.0)
-settings.plug("maxStretch").set(2.0)
+settings.getPlug("stretch").set(1.0)
+settings.getPlug("squash").set(0.5)
+settings.getPlug("volume").set(1.0)
+settings.getPlug("maxStretch").set(2.0)
 rig.set_layer_enabled("stretch", False)
 ```
 
@@ -738,7 +738,7 @@ from hrig.tweakLayer import TweakLayer
 
 hand = FingerRig.create("hand01", finger_count=5, joint_count=3, length=3, spacing=1)
 look = AimRig.create("look01", size=2)
-control = TweakLayer(hand).add("tip", hand.joints()[-1])
+control = TweakLayer(hand).add("tip", hand.getJoints()[-1])
 ```
 
 - **指**: 正Xへ伸びる平行な指列。各列は操作関節＋末端骨で構成します。
@@ -754,8 +754,8 @@ control = TweakLayer(hand).add("tip", hand.joints()[-1])
 - **Tweak**: 全モジュールの配下jointへ後付けできる局所TRS操作です。
   Layer Editorで「局所Tweak」を追加すると、選択骨（未選択なら先頭変形骨）を使用します。
   各Tweakグループの`enabled`とモジュールLODでOPM入力を切断し、ゼロ姿勢へ戻します。
-  元のコントロール値は保持し、再有効化で復帰します。`TweakLayer(rig).joints()`と
-  `rig.joints()`に補助骨を含みますが、既存skinClusterへは自動追加しません。
+  元のコントロール値は保持し、再有効化で復帰します。`TweakLayer(rig).getJoints()`と
+  `rig.getJoints()`に補助骨を含みますが、既存skinClusterへは自動追加しません。
   無効化によってskinClusterのinfluence数が減るわけではありません。
   バッチでグループの`enabled`を直接変更した後は`TweakLayer(rig).update()`を呼びます。
 

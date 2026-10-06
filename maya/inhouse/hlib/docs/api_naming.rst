@@ -18,9 +18,9 @@ APIの命名と移行
    * - 旧名・旧指定
      - 新名・新指定
    * - full_name() / is_valid() / add_attribute()
-     - fullName() / isValid() / addAttr()
+     - getFullName() / isValid() / addAttr()
    * - vertex_count() / cv_count() / get_cv_positions()
-     - numVertices() / numCVs() / cvPositions()
+     - getNumVertices() / getNumCVs() / getCvPositions()
    * - get_translate() / set_translate() / set_rotate()
      - getTranslation() / setTranslation() / setRotation()
    * - get_position() / set_positions()
@@ -34,7 +34,7 @@ APIの命名と移行
 
 その他のnodes/plugs/components/math/sceneの公開メソッドもlowerCamelCaseへ統一しています。
 ``getTranslation`` 等の姿勢操作はhlibの複合操作です。MFnTransformの同一名・同一動作の
-薄いラッパーではありません。アトリビュート値には ``plug("translate").get()`` を使います。
+薄いラッパーではありません。アトリビュート値には ``getPlug("translate").get()`` を使います。
 
 .. code-block:: python
 
@@ -42,12 +42,12 @@ APIの命名と移行
    import hlib
 
    node = hlib.createNode("transform")
-   node.plug("rotateX").set(math.pi / 2)  # rad。通常はUndo可能
-   node.plug("translateX").set(100, fast=True)  # cm。Undoなし
+   node.getPlug("rotateX").set(math.pi / 2)  # rad。通常はUndo可能
+   node.getPlug("translateX").set(100, fast=True)  # cm。Undoなし
    node.setTranslation((100, 0, 0), ws=True)
-   value = node.plug("rotateX").get()
-   node.plug("rotateX").set(value)  # UI単位によらず同じ角度
-   print(hlib.getAttr(node.plug("rotateX")))  # コマンドのUI単位
+   value = node.getPlug("rotateX").get()
+   node.getPlug("rotateX").set(value)  # UI単位によらず同じ角度
+   print(hlib.getAttr(node.getPlug("rotateX")))  # コマンドのUI単位
 
 配列型は空でも1要素でもlistを維持します。未初期化データのみNoneです。
 CV番号はAPIと同じで、周期末尾の重複CVをcmdsに渡す場合は先頭の対応番号へ変換します。
@@ -58,7 +58,7 @@ JSONスナップショットは単位情報付きの保存形式を使い、適�
 
 公開関数・メソッド・プロパティは、UI・環境・JSON・utils・decoratorsを含め
 lowerCamelCaseへ統一します。例えば ``get_settings`` は ``getSettings``、
-``undo_chunk`` は ``undoChunk``、``to_data`` は ``toData``、
+``undo_chunk`` は ``undoChunk``、``to_data`` は ``asData``、
 ``minimum_version`` プロパティは ``minimumVersion`` です。
 旧名の別名は残しません。コンストラクター引数の ``minimum_version`` は維持します。
 
@@ -89,12 +89,12 @@ snake_caseを使用できます。保存キー・保存フィールドは変更�
 
    * - 旧API
      - 新API
-   * - AnimCurve.inputs()
-     - keyInputs()。inputs(type=...)は継承元の接続検索。
-   * - BlendWeighted.inputs()
-     - inputPlugs()。inputs(type=...)は継承元の接続検索。
-   * - Joint.parent() / children()
-     - parentJointName() / childJointNames()。戻り値は従来どおり名前。
+   * - AnimCurve.getInputs()
+     - getKeyInputs()。getInputs(type=...)は継承元の接続検索。
+   * - BlendWeighted.getInputs()
+     - getInputPlugs()。getInputs(type=...)は継承元の接続検索。
+   * - Joint.getParent() / getChildren()
+     - getParentJointName() / getChildJointNames()。戻り値は従来どおり名前。
    * - Transform.compose(matrix)
      - setMatrix(matrix)。Matrix.compose()は引き続き行列の生成。
    * - Transform.release_srt()
@@ -102,7 +102,7 @@ snake_caseを使用できます。保存キー・保存フィールドは変更�
    * - Componentのposition() / Componentsのpositions()
      - 単数形・複数形ともに getPosition()。
    * - component.x = value（y/z/u/vも同様）
-     - component.setX(value)。取得はgetX()。
+     - component.setPositionX(value)。取得はgetPositionX()。
    * - maths.Translate
      - maths.Translation。
    * - maths.Rotate
@@ -142,7 +142,7 @@ snake_caseを使用できます。保存キー・保存フィールドは変更�
   ``m * v`` は om2 と同じ列ベクトルとしての積で、以前の ``m * v`` (位置の変換)は
   ``m.transformPoint(v)``。``m @ v`` は TypeError。
 * ``q1 * q2`` は om2 の順序(q1 を先に適用。以前の Hamilton 積 ``q1 ⊗ q2`` とは逆)。
-  ``toSwingTwist`` の結果は ``twist * swing`` で元の回転になる。
+  ``asSwingTwist`` の結果は ``twist * swing`` で元の回転になる。
 * EulerRotation は Vector の派生ではなく(``dot`` などは無い)、``order`` は om2 の番号(int)。
   名前は ``orderName``。``euler.order == "xyz"`` のような名前との比較は例外にならず常に False に
   なるため、``euler.orderName == "xyz"`` (または ``euler.order == om2.MEulerRotation.kXYZ``)に
@@ -188,31 +188,31 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 プロパティからメソッドへの移行
 ----------------------------------------------------------------------
 
-次の照会は名前を維持し、呼び出しに ``()`` を付けます。
+次の照会はメソッドです。取得系の最新名にはgetを付けます。詳細は :doc:`api_consistency` を参照してください。
 
-* Node: ``fullName``、``uuid``、``typeId``、``pluginName``、``isLocked``、``isFromReferencedFile``。
-* Plug: ``name``、``fullName``、``attribute``、``parent``、各 ``is_*``、
+* Node: ``getFullName``、``getUuid``、``getTypeId``、``getPluginName``、``isLocked``、``isFromReferencedFile``。
+* Plug: ``getName``、``getFullName``、``getAttrName``、``getParent``、各 ``is...``、
   ``hasMin`` / ``hasMax`` / ``hasSoftMin`` / ``hasSoftMax``、
-  ``min`` / ``max`` / ``softMin`` / ``softMax`` / ``default``。
+  ``getMin`` / ``getMax`` / ``getSoftMin`` / ``getSoftMax`` / ``getDefault``。
 * Shape: ``isIntermediateObject``。
-* Camera: ``focal_length``。
-* Joint: ``joint_orient``、``orientation``、``inverse_scale``。Joints: ``names``。
-* Mesh: ``numVertices``、``numPolygons``、``numEdges``、``numUVs``。
-* NurbsCurve: ``numCVs``、``numSpans``、``degree``、``form``。
-* Component / Components: ``fullName`` / ``fullNames``。
+* Camera: ``getFocalLength``。
+* Joint: ``getJointOrient``、``getInverseScale``。Joints: ``getNames``。
+* Mesh: ``getNumVertices``、``getNumPolygons``、``getNumEdges``、``getNumUVs``。
+* NurbsCurve: ``getNumCVs``、``getNumSpans``、``getDegree``、``getForm``。
+* Component / Components: ``getFullName`` / ``getFullNames``。
 
 .. code-block:: python
 
    import hlib
 
    node = hlib.createNode("transform")
-   print(node.name(), node.fullName(), node.isLocked())
-   plug = node.plug("translateX")
-   print(plug.name(), plug.longName(), plug.isLocked())
-   print(plug.node())  # 所有Nodeを返すメソッド。
+   print(node.getName(), node.getFullName(), node.isLocked())
+   plug = node.getPlug("translateX")
+   print(plug.getName(), plug.getLongName(), plug.isLocked())
+   print(plug.getNode())  # 所有Nodeを返すメソッド。
 
 ``Component.shape`` / ``index``、``Components.shape`` / ``indices`` はプロパティを維持します。
-``Plug.node()`` は所有ノードを取得するメソッドです。
+``Plug.getNode()`` は所有ノードを取得するメソッドです。
 ``Vector.x`` などの数学値と、``NodeRef.uuid`` などJSONの保存済みデータも維持します。
 
 モジュールの移動
@@ -245,9 +245,9 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 
 * ノードの行列取得は ``getMatrix(ws=False)``。旧 ``decompose()`` の引数省略は
   ワールド空間だったため、移行時は ``getMatrix(ws=True)`` とします。
-* DAGパスは ``path(full=False)`` / ``path(full=True)``。DGにも対応する
-  ``name()`` / ``fullName()`` は別の用途として維持します。
-* アトリビュート取得は ``plug()`` に統一しました。
+* DAGパスは ``getPath(full=False)`` / ``getPath(full=True)``。DGにも対応する
+  ``getName()`` / ``getFullName()`` は別の用途として維持します。
+* アトリビュート取得は ``getPlug()`` に統一しました。
 * ``MatrixPlug.get()`` / ``set(value, fast=False)`` は対象アトリビュートだけを読み書きします。
   所有ノードの変換には ``Transform.getMatrix()`` / ``setMatrix()`` を使います。
   ``MatrixPlug`` の ``ws`` 引数と ``set_value`` は廃止しました。
@@ -259,8 +259,8 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   除外を持つクラスは ``removeMembers`` です。
 * 頂点等の個数は ``numVertices`` / ``numEdges`` / ``numPolygons`` /
   ``numUVs`` / ``numCVs`` / ``numSpans`` に統一しました。
-* IKハンドルのジョイント取得は ``joints()`` / ``endJoint()``。
-  Shapeの親取得は ``parent()``、Namespaceの切替は ``setCurrent()`` です。
+* IKハンドルのジョイント取得は ``getJoints()`` / ``getEndJoint()``。
+  Shapeの親取得は ``getParent()``、Namespaceの切替は ``setCurrent()`` です。
 * 複数コンポーネントの座標取得も ``getPosition()``。
   同一座標への設定 ``setPosition()`` と要素別設定 ``setPositions()`` は区別します。
 * ウェイト移送は ``SkinCluster.transferWeights([(source, target), ...])``。
@@ -286,17 +286,17 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 * ``Joint.removeInfluence(..., transfer_to_parent=False)`` で祖先への移送を無効化できます。
   Jointを残してMaya標準の再配分で登録を外します。既定Trueの動作は変わりません。
 * Plugin/Moduleの ``version_tuple()`` は廃止しました。
-  ``version = plugin.version()`` の結果がNoneでなければ ``version.parts`` を使います。
+  ``version = plugin.getVersion()`` の結果がNoneでなければ ``version.parts`` を使います。
 * ``Constraint.setWeight`` は指定ターゲットを全件検証してから更新します。
   Mayaで更新中に起きたエラーの自動ロールバックは行いません。
 
-コンポーネントの ``getX`` / ``setX`` 等は公開名を維持し、内部の軸操作を共通化しました。
+コンポーネントの軸操作は ``getPositionX`` / ``setPositionX`` 等の明示的な名前に統一しました。
 
 
 部分更新と保持値の整理
 ----------------------------------------------------------------------
 
-* ``AnimCurve.values()`` は ``keyValues()``、``tangent()`` は ``getTangent()``、
+* ``AnimCurve.values()`` は ``getKeyValues()``、``tangent()`` は ``getTangent()``、
   ``infinity()`` は ``getInfinity()`` へ改名しました。旧名は公開しません。
 * ``setInfinity(*, pre=None, post=None)`` は指定した側だけ変更します。
   両方をリセットする場合は ``pre="constant", post="constant"`` を明示します。
@@ -314,8 +314,8 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   ``Plugin.name`` / ``Module.name``、``Selection.items``、
   ``Viewport.name`` / ``Viewport.panel``、``Outliner.name`` です。
   ``Selection.items`` は従来どおりコピーなので、返却リストを変更しても元は変わりません。
-  Mayaに照会する ``Plugin.path()`` / ``Module.path()``、
-  ``ChannelBox.name()`` / ``TimeSlider.name()`` はメソッドのままです。
+  Mayaに照会する ``Plugin.getPath()`` / ``Module.getPath()``、
+  ``ChannelBox.getName()`` / ``TimeSlider.getName()`` はメソッドのままです。
 * ``SkinCluster.transferWeights`` は全組の形とinfluence所属を検証してから、
   指定順で移送します。同じinfluence同士の組は何もしません。
   正規化はMayaの標準処理とskinCluster設定に従い、
@@ -332,7 +332,7 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 ``Node.override_color()`` は ``getOverrideColor()`` に変更しました。
 戻り値は ``hlib.ui.Color`` です。RGBは ``.rgb``、色番号は ``.index``、
 有効形式は ``.mode`` で取得します。詳細は :doc:`node_colors` を参照してください。
-``BlendColors.color()`` は ``colorPlug()`` に変更し、
+``BlendColors.color()`` は ``getColorPlug()`` に変更し、
 数値の取得には ``getColor(index)`` を追加しました。
 
 ノードコレクションの継承と色の戻り値
@@ -361,20 +361,20 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
   ``getAnimationRange()``、``getSelectedRange()``。
 * Preferences: ``getLinearUnit()``、``getAngleUnit()``、``getTimeUnit()``。
 * Viewport / Outliner: ``getSettings()``。
-* Workspace: ``getRule()``、ルール名一覧は ``ruleNames()``。
+* Workspace: ``getRule()``、ルール名一覧は ``getRuleNames()``。
 * SkinCluster: ``getMaxInfluences()``。
 * Joint: ``getJointOrient()``、``getInverseScale()``。
-* Camera: ``getFocalLength()``。Mesh: ``getPoints()``、``getNormals()``。
-  NurbsCurve: ``cvPositions()``。
+* Camera: ``getFocalLength()``。Mesh: ``getPoints()``、``getVertexNormals()``。
+  NurbsCurve: ``getCvPositions()``。
 * Constraint / BlendShape / BlendWeighted: ``getWeights()``。
   既存のリスト・辞書などの戻り値形式は維持します。
-* BlendColors: ``blenderPlug()`` はPlug、``getBlender()`` は係数の値。
+* BlendColors: ``getBlenderPlug()`` はPlug、``getBlender()`` は係数の値。
 * AnimCurve / BlendColors / BlendWeighted / MultMatrix / DistanceBetween:
-  出力Plugは ``outputPlug()``。
+  出力Plugは ``getOutputPlug()``。
 * Shape / Transform: Maya APIの関数セット取得は ``dagFn()``。
-* Plug: アトリビュート名の文字列は ``longName()``。
+* Plug: アトリビュート名の文字列は ``getLongName()``。
 * Namespace / UiElement: 保持する名前は ``name`` プロパティ。
-  Mayaへ照会する ``Node.name()`` やUIを解決する ``TimeSlider.name()`` はメソッドです。
+  Mayaへ照会する ``Node.getName()`` やUIを解決する ``TimeSlider.getName()`` はメソッドです。
 
 
 参照対象と入力契約の整理
@@ -388,18 +388,18 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
 
    * - 旧API
      - 新API
-   * - ``BlendShape.targets()``
-     - ``targetAliases()`` （文字列の一覧）
+   * - ``BlendShape.getTargets()``
+     - ``getTargetAliases()`` （文字列の一覧）
    * - ``ArrayPlug.next_available()``
-     - ``nextAvailableIndex()`` （未存在の論理番号）
+     - ``getNextAvailableIndex()`` （未存在の論理番号）
    * - ``AnimCurve.driver()`` / ``DrivenKey.driver()``
-     - ``driverPlug()``
+     - ``getDriverPlug()``
    * - ``DrivenKey.driven()``
-     - ``drivenPlug()``
+     - ``getDrivenPlug()``
    * - ``Reference.edit_nodes()`` / ``edit_attrs()``
-     - ``editNodeNames()`` / ``editAttributeNames()``
-   * - ``Reference.namespace()`` （参照内容の照会）
-     - ``associatedNamespace()``
+     - ``getEditNodeNames()`` / ``getEditAttrNames()``
+   * - ``Reference.getNamespace()`` （参照内容の照会）
+     - ``getAssociatedNamespace()``
    * - ``Reference.isRoot()`` （参照階層の判定）
      - ``isTopLevel()``
    * - ``PluginPackage.ensureLoaded()``
@@ -407,31 +407,31 @@ EulerRotationの回転順序はJSONでは従来どおり名前で保存し、読
    * - ``Node.add_attr()`` / ``has_attr()``
      - ``addAttr()`` / ``hasAttr()``
    * - ``Node.reset_attrs()`` / ``set_attr_flags()``
-     - ``resetAttributes()`` / ``setAttributeFlags()``
+     - ``resetAttrs()`` / ``setAttrFlags()``
    * - ``Plug.delete_attr()``
      - ``delete()``
    * - ``Node.move_attribute()``
-     - ``moveAttributeOrder()`` （Channel Boxの並び順変更）
+     - ``moveAttrOrder()`` （Channel Boxの並び順変更）
    * - ``Transform.set_visible()``
      - ``setVisibility()`` （自身のvisibilityアトリビュートだけを変更）
    * - ``Container.createNode(kind=...)``
      - ``createNode(type=...)``
 
-``Reference.namespace()`` と ``setNamespace()`` は、継承元Nodeと同じく
+``Reference.getNamespace()`` と ``setNamespace()`` は、継承元Nodeと同じく
 referenceノード自身の名前空間を扱います。参照内容の名前空間を取得する場合は
-``associatedNamespace()`` を使います。Referenceは非DAGノードなので、
+``getAssociatedNamespace()`` を使います。Referenceは非DAGノードなので、
 継承した ``isRoot()`` はRuntimeErrorとなります。
 
-``SkinCluster.influences()`` は文字列ではなく ``list[Node]`` を返します。
-名前が必要な場合は ``[node.name() for node in skin.influences()]`` を使います。
-``unusedInfluences()`` と同じ要素型になり、Joint以外のinfluenceも保持します。
+``SkinCluster.getInfluences()`` は文字列ではなく ``list[Node]`` を返します。
+名前が必要な場合は ``[node.getName() for node in skin.getInfluences()]`` を使います。
+``getUnusedInfluences()`` と同じ要素型になり、Joint以外のinfluenceも保持します。
 ``dumpWeights()`` / ``loadWeights()`` のJSON内の名前は引き続き文字列です。
 
 入力・ウェイトの個別取得
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``MultMatrix.getInput(index)`` / ``BlendWeighted.getInput(index)`` は
-既存入力の評価値を返します。``inputPlug(index)`` は同じ入力のPlugです。
+既存入力の評価値を返します。``getInputPlug(index)`` は同じ入力のPlugです。
 未存在要素の照会はIndexErrorで、要素を作成しません。
 ``BlendWeighted.getWeight(index)`` は既存inputに対応する倍率を返し、
 weight未設定時は要素を作らず1を返します。
@@ -458,10 +458,10 @@ force時に一時アンロックし、接続後に元のロックを戻します
 通常の ``delete()`` と異なり、未接続の演算ノードも残します。
 ただし箱自身のアトリビュートや出力接続は残らず、迂回接続も行いません。
 
-``publishName(name)`` は未Bindの公開名を作り、``bindAttribute(name, plug)`` が
+``publishName(name)`` は未Bindの公開名を作り、``bindAttr(name, plug)`` が
 所属ノードの内部アトリビュートと対応付けます。``publishAndBind(name, plug)`` は一括操作です。
-``publishedAttributes()`` は公開名をキー、内部Plug（未BindならNone）を値とする辞書を返します。
-``unbindAttribute(name)`` は公開名を残し、``unpublishName(name)`` は未Bind名を削除します。
+``getPublishedAttrs()`` は公開名をキー、内部Plug（未BindならNone）を値とする辞書を返します。
+``unbindAttr(name)`` は公開名を残し、``unpublishName(name)`` は未Bind名を削除します。
 これらはUndo可能です。ロックを自動解除せず、外部ノードを自動で所属させません。
 ノードの親子アンカー公開はこのAPIの対象外です。
 
@@ -477,12 +477,12 @@ Undoでは元の階層へ戻ります。
 どちらか一方を指定します。生成関数側が生成物の記録と管理を担当し、
 ScalarGraphは計算と接続を担当します。既存の生成物を読み取るだけではノードを作成しません。
 
-``AimConstraint.rotationConnections()`` は回転出力の直接接続を
+``AimConstraint.getRotationConnections()`` は回転出力の直接接続を
 ``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、
 演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。
 ``settingPlugs()`` はRest Rotate、Offset、Aim/Up/World Up VectorのXYZ、
 World Up Type、enableRestPosition、useOldOffsetCalculationを返します。
-接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``weightPlugs()`` で取得します。
+接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``getWeightPlugs()`` で取得します。
 ``getRestRotation()`` / ``getOffset()`` はラジアンのXYZタプル、
 対応する ``setRestRotation(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。
 setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。
@@ -490,7 +490,7 @@ Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定は
 ``getOutputRotation()`` は ``constraintRotateOrder`` を持つ ``EulerRotation`` を返します。
 継承した ``getRotation()`` が扱う自身のTransform回転とは異なります。
 
-``DecomposeMatrix.getInput()`` / ``inputPlug()`` は単一行列入力を扱い、
+``DecomposeMatrix.getInput()`` / ``getInputPlug()`` は単一行列入力を扱い、
 ``getRotateOrder()`` はMayaの回転順序番号0〜5を返します。
 ``Transform.getVisibility()`` は自身のアトリビュート値を返します。
 親・表示レイヤーを含む最終的な可視性判定ではありません。
@@ -498,7 +498,7 @@ Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定は
 成分別編集とメンバー入力
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-頂点・CVの ``getX/getY/getZ`` と ``setX/setY/setZ`` は ``ws=False`` / ``ws=True`` を受け取り、
+頂点・CVの ``getPositionX/getPositionY/getPositionZ`` と ``setPositionX/setPositionY/setPositionZ`` は ``ws=False`` / ``ws=True`` を受け取り、
 軸setterは ``fast`` にも対応して自身を返します。複数形ではスカラーを全要素へ、
 数値列を保持順の各要素へ設定します。UVの ``setU/setV`` も ``fast`` と自身返却に対応しますが、
 UVへ空間指定 ``ws`` / ``worldSpace`` は追加しません。通常更新はUndo可能、``fast=True`` はUndo不要の明示指定です。
@@ -568,7 +568,7 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
    * - ``hlib.getPlug(value)``
      - アトリビュート名、Plug、MPlug
      - アトリビュート型に対応するPlug。既存Plugはそのまま
-   * - ``node.plug(name)``
+   * - ``node.getPlug(name)``
      - そのノードのアトリビュート名・アトリビュートパス
      - アトリビュート型に対応するPlug
    * - ``Nodes(values)`` と派生コレクション
@@ -676,9 +676,9 @@ fastを指定できるメソッド
    * - ``Plug``
      - ``setFlags``, ``set``, ``reset``
    * - ``PointComponent``
-     - ``setPosition``, ``setX``, ``setY``, ``setZ``
+     - ``setPosition``, ``setPositionX``, ``setPositionY``, ``setPositionZ``
    * - ``PointComponents``
-     - ``setPosition``, ``setPositions``, ``setX``, ``setY``, ``setZ``, ``mirror``
+     - ``setPosition``, ``setPositions``, ``setPositionX``, ``setPositionY``, ``setPositionZ``, ``mirror``
    * - ``SkinCluster``
      - ``setWeights``, ``loadWeights``, ``normalizeWeights``, ``setMaxInfluences``
    * - ``Transform``

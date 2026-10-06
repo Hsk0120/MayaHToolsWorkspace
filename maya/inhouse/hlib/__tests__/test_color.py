@@ -153,13 +153,13 @@ class ColorTest(unittest.TestCase):
             n = self.node
             n.setOverrideColor(6, fast=fast)
             self.assertEqual(n.getOverrideColor().index, 6)
-            n.plug('overrideRGBColors').setFlags(locked=True)
+            n.getPlug('overrideRGBColors').setFlags(locked=True)
             try:
                 with self.assertRaises(RuntimeError):
                     n.setOverrideColor((1, .5, 0), fast=fast)
                 self.assertEqual(n.getOverrideColor().index, 6)
             finally:
-                n.plug('overrideRGBColors').setFlags(locked=False)
+                n.getPlug('overrideRGBColors').setFlags(locked=False)
             n.setOutlinerColor(17, fast=fast)
             self.assertEqual(n.getOutlinerColor().mode, 'rgb')
 
@@ -173,7 +173,7 @@ class ColorTest(unittest.TestCase):
         try:
             blend.setColor(1, (2, -1, 3))
             self.assertEqual(blend.getColor(1), (2, -1, 3))
-            self.assertIsInstance(blend.colorPlug(1), hlib.plugs.Plug)
+            self.assertIsInstance(blend.getColorPlug(1), hlib.plugs.Plug)
         finally:
             cmds.delete(blend)
 

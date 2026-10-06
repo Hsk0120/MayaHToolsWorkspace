@@ -37,10 +37,10 @@ class ApiRefinementsTest(unittest.TestCase):
         cmds.parent(joints[1], joints[0])
         mesh = cmds.polyCube(name=self.ns + ":mesh", constructionHistory=False)[0]
         skin = hlib.nodes.SkinCluster.bind(mesh, joints)
-        pose = skin.bindPose()
+        pose = skin.getBindPose()
         if pose:
             pose.rename(self.ns + ":pose")
-        skin.plug("normalizeWeights").set(0)
+        skin.getPlug("normalizeWeights").set(0)
         skin.setWeights(joints, [.2, .5, .3])
         return skin, joints
 
@@ -157,7 +157,7 @@ class ApiRefinementsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 skin.transferWeights([(joints[0], joints[1]), bad])
             self.assertEqual(list(skin.getWeights(joints)), before)
-            self.assertEqual(cmds.ls(selection=True, long=True), [joints[2].fullName()])
+            self.assertEqual(cmds.ls(selection=True, long=True), [joints[2].getFullName()])
 
     def test_transfer_generator_order_self_pair_and_undo(self):
         """Maya API参照とgeneratorを受け付け、連鎖移送の順序を保つ。"""

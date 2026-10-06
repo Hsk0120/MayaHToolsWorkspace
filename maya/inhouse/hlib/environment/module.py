@@ -83,7 +83,7 @@ class Module:
         """
         return self._name in (cmds.moduleInfo(listModules=True) or [])
 
-    def versionText(self):
+    def getVersionText(self):
         """Mayaが返すモジュールの版文字列をそのまま取得する。
 
         Returns:
@@ -93,14 +93,14 @@ class Module:
             return None
         return cmds.moduleInfo(version=True, moduleName=self._name) or None
 
-    def version(self):
+    def getVersion(self):
         """モジュールの現在の版を値オブジェクトとして取得する。
 
         Returns:
             Version | None: 問い合わせ時点の版。未登録・解釈不能ならNone。
                 取得した値をreplaceしてもMaya側の版は変更されない。
         """
-        return Version.parse(self.versionText())
+        return Version.parse(self.getVersionText())
 
     def isVersionAtLeast(self, minimum):
         """モジュールの版が ``minimum`` 以上か判定する。
@@ -117,10 +117,10 @@ class Module:
         required = Version.parse(minimum)
         if required is None:
             raise ValueError("Invalid minimum version: {!r}".format(minimum))
-        version = self.version()
+        version = self.getVersion()
         return version is not None and version >= required
 
-    def path(self):
+    def getPath(self):
         """モジュールのフォルダーを取得する。
 
         Returns:

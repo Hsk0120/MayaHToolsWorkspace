@@ -365,10 +365,8 @@ class Vector(om2.MVector):
     それ以外は相手の比較に委ね、どちらも判断しなければ False)。ただし om2 の型が
     左辺の比較(``om2.MPoint() == Vector()`` など)は om2 側が TypeError を送出する。
 
-    hlib独自のメソッド(``normalized`` や ``cross`` など)は hlib の型を返す。
-    om2 から継承した camelCase のメソッド(``normal``、``rotateBy``
-    など)と ``kXaxisVector`` などのクラス定数は om2 の基底型 ``om2.MVector`` を
-    返す。クラス定数は om2 の共有オブジェクトなので書き換えないこと。
+    数学値を返す継承メソッドも対応するhlib型を返す。OpenMayaの演算と
+    自身の更新有無を維持する。クラス定数はOpenMayaの共有値なので変更しない。
     """
 
     __slots__ = ()
@@ -863,11 +861,11 @@ class Vector(om2.MVector):
             raise ValueError("{} expects 3 values".format(cls.__name__))
         return cls(values[0], values[1], values[2])
 
-    def mirrored(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
         """指定中心から成分を反転した同型の複製を返す。
 
         Translation・Scale・Shearでも数値反転として使用できる。
-        Scale・Shearの行列としての鏡映にはMatrix.mirroredを使う。
+        Scale・Shearの行列としての鏡映にはMatrix.mirrorを使う。
 
         Args:
             axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
@@ -883,17 +881,17 @@ class Vector(om2.MVector):
             values[index] = 2 * center[index] - values[index]
         return type(self)(values)
 
-    def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
+    def mirrorIt(self, axis="x", pivot=(0.0, 0.0, 0.0)):
         """自身の3成分を反転する。
 
         Args:
-            axis (str | int): mirroredと同じ反転軸。
+            axis (str | int): mirrorと同じ反転軸。
             pivot (Iterable[float]): 値と同じ単位の中心。
 
         Returns:
             Vector: 更新した自身。
         """
-        self.x, self.y, self.z = self.mirrored(axis, pivot)
+        self.x, self.y, self.z = self.mirror(axis, pivot)
         return self
 
     def dot(self, other):
@@ -931,7 +929,74 @@ class Vector(om2.MVector):
         """
         return _MVector.__mul__(self, self)
 
-    def normalized(self):
+    def normal(self, *args):
+        """OpenMayaと同じ演算でVectorの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Vector: 演算結果を保持する新しいhlib値。
+        """
+        return Vector(_MVector.normal(self, *args))
+
+    def rotateBy(self, *args):
+        """OpenMayaと同じ演算でVectorの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Vector: 演算結果を保持する新しいhlib値。
+        """
+        return Vector(_MVector.rotateBy(self, *args))
+
+    def rotateTo(self, *args):
+        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Quaternion: 演算結果を保持する新しいhlib値。
+        """
+        from .quaternion import Quaternion
+
+        return Quaternion._wrap(_MVector.rotateTo(self, *args))
+
+    def transformAsNormal(self, *args):
+        """OpenMayaと同じ演算でVectorの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Vector: 演算結果を保持する新しいhlib値。
+        """
+        return Vector(_MVector.transformAsNormal(self, *args))
+
+    def unitIt(self):
+        """ゼロ値を拒否して自身を正規化する。
+
+        Returns:
+            Vector: 更新した自身。
+
+        Raises:
+            ValueError: ゼロ値の場合。自身は変更しない。
+        """
+        value = self.unit()
+        self.x, self.y, self.z = value
+        return self
+
+    def unit(self):
         """正規化した新しいベクトルを返す。
 
         om2 の ``normal()`` はゼロベクトルでも例外にならず ``om2.MVector`` を返すが、

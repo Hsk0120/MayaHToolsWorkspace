@@ -43,7 +43,7 @@ class ControlShape:
             raise ValueError("Expected nonzero finite normal")
         temporary = hlib.createNurbs(
             type="circle", normal=normal, radius=radius, constructionHistory=False
-        ).transform()
+        ).getTransform()
         shapes = []
         try:
             for shape in [
@@ -54,16 +54,16 @@ class ControlShape:
                     [
                         hlib.getNode(value)
                         for value in (
-                            cmds.parent(shape, target.fullName(), shape=True, relative=True) or []
+                            cmds.parent(shape, target.getFullName(), shape=True, relative=True) or []
                         )
                     ][0]
                 )
-                shape.rename(name or target.name() + "Shape")
+                shape.rename(name or target.getName() + "Shape")
                 shapes.append(shape)
         finally:
             hlib.delete(temporary)
-        target.plug("overrideEnabled").set(True)
-        target.plug("overrideColor").set(color)
+        target.getPlug("overrideEnabled").set(True)
+        target.getPlug("overrideColor").set(color)
         return tuple(shapes)
 
     @staticmethod
@@ -83,14 +83,14 @@ class ControlShape:
         """
         target = hlib.nodes.Transform(target)
         old_shapes = [hlib.nodes.Node(shape) for shape in
-                      (cmds.listRelatives(target.fullName(), shapes=True, fullPath=True) or [])]
-        old_shapes = [shape for shape in old_shapes if shape.type() == "nurbsCurve"]
+                      (cmds.listRelatives(target.getFullName(), shapes=True, fullPath=True) or [])]
+        old_shapes = [shape for shape in old_shapes if shape.getType() == "nurbsCurve"]
         temporary = hlib.createCurve(degree=degree, point=points, knot=knots, name=name + "__tmp")
         new_shapes = [hlib.nodes.Node(shape) for shape in
-                      (cmds.listRelatives(temporary.fullName(), shapes=True, fullPath=True) or [])]
+                      (cmds.listRelatives(temporary.getFullName(), shapes=True, fullPath=True) or [])]
         for shape in old_shapes:
             shape.delete()
         for shape in new_shapes:
-            cmds.parent(shape.fullName(), target.fullName(), shape=True, relative=True)
+            cmds.parent(shape.getFullName(), target.getFullName(), shape=True, relative=True)
         temporary.delete()
         return target

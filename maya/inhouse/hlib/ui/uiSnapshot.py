@@ -36,4 +36,4 @@ class UiSnapshot:
         if self.version != 1:
             raise ValueError("Unsupported UI snapshot version")
         for target in self._targets:
-            target.name()
+            target.getName()

@@ -28,7 +28,7 @@ class InternalRefactoringTest(unittest.TestCase):
             plug = node.addAttr("referenceCheck", attributeType="double", defaultValue=3)
         self.assertEqual(plug.get(), 3)
         cmds.undo()
-        self.assertFalse(cmds.attributeQuery("referenceCheck", node=node.fullName(), exists=True))
+        self.assertFalse(cmds.attributeQuery("referenceCheck", node=node.getFullName(), exists=True))
         callback = lambda: None
         with patch.object(deferred_module, "executeDeferred", side_effect=AssertionError("reverse dependency")), \
                 patch.object(maya.utils, "executeDeferred") as enqueue:
@@ -39,38 +39,38 @@ class InternalRefactoringTest(unittest.TestCase):
         """一度きりの反復入力とPlug列を、Nodesの解決入口へ戻らず名前にする。"""
         from hlib.nodes.node import Nodes
         node = hlib.createNode("transform")
-        plug = node.plug("tx")
+        plug = node.getPlug("tx")
         with patch.object(Nodes, "_resolve_inputs", side_effect=AssertionError("input cycle")):
-            self.assertEqual(hlib.Object._input_names(x for x in [[plug]]), [plug.fullName()])
+            self.assertEqual(hlib.Object._input_names(x for x in [[plug]]), [plug.getFullName()])
             with self.assertRaises(TypeError):
-                hlib.Object._input_names([node, node.fullName()])
+                hlib.Object._input_names([node, node.getFullName()])
 
     def test_snapshot_base_kind_and_serialized_shape(self):
         """基底Snapshotのkindによる適用と既存JSON構造を維持する。"""
         from hlib.json.snapshots import Snapshot
         node = hlib.createNode("transform")
-        node.plug("tx").set(3)
+        node.getPlug("tx").set(3)
         saved = hlib.json.capture([node], kind="attributes", attributes=["translateX"])
-        data = saved.toData()
+        data = saved.asData()
         self.assertEqual(set(data), {"kind", "records", "units", "version"})
         self.assertEqual(data["version"], 1)
         self.assertEqual(data["records"][0]["attributes"],
                          [{"name": "translateX", "type": "doubleLinear", "value": 3.0}])
         generic = Snapshot(**data)
-        node.plug("tx").set(7)
+        node.getPlug("tx").set(7)
         generic.apply()
-        self.assertEqual(node.plug("tx").get(), 3)
+        self.assertEqual(node.getPlug("tx").get(), 3)
         cmds.undo()
-        self.assertEqual(node.plug("tx").get(), 7)
-        self.assertEqual(hlib.json.loads(hlib.json.dumps(saved)).toData(), data)
+        self.assertEqual(node.getPlug("tx").get(), 7)
+        self.assertEqual(hlib.json.loads(hlib.json.dumps(saved)).asData(), data)
 
     def test_snapshot_partial_failure_and_undo(self):
         """全件検証後の実行失敗は先行変更を残し、一回のUndoで戻せる。"""
         from hlib.json import snapshots
         node = hlib.createNode("transform")
         saved = hlib.json.capture([node], kind="attributes", attributes=["translateX", "translateY"])
-        node.plug("tx").set(3)
-        node.plug("ty").set(4)
+        node.getPlug("tx").set(3)
+        node.getPlug("ty").set(4)
         original = snapshots._set_attribute
 
         def fail_second(name, attr):
@@ -82,11 +82,11 @@ class InternalRefactoringTest(unittest.TestCase):
         with patch.object(snapshots, "_set_attribute", side_effect=fail_second):
             with self.assertRaisesRegex(RuntimeError, "second write"):
                 saved.apply()
-        self.assertEqual(node.plug("tx").get(), 0)
-        self.assertEqual(node.plug("ty").get(), 4)
+        self.assertEqual(node.getPlug("tx").get(), 0)
+        self.assertEqual(node.getPlug("ty").get(), 4)
         cmds.undo()
-        self.assertEqual(node.plug("tx").get(), 3)
-        self.assertEqual(node.plug("ty").get(), 4)
+        self.assertEqual(node.getPlug("tx").get(), 3)
+        self.assertEqual(node.getPlug("ty").get(), 4)
 
     def test_influence_single_multiple_and_scene_changes(self):
         """単数・複数検索が改名・除去後にも同じ物理番号を返す。"""
@@ -97,7 +97,7 @@ class InternalRefactoringTest(unittest.TestCase):
         queries = [joints[2], joints[0], joints[2], "notAnInfluence"]
         self.assertEqual([skin._jnt_index(x) for x in queries],
                          skin._influence_indices(queries, skin.fn.influenceObjects()))
-        cmds.skinCluster(skin.fullName(), edit=True, removeInfluence=joints[1])
+        cmds.skinCluster(skin.getFullName(), edit=True, removeInfluence=joints[1])
         self.assertIsNone(skin._jnt_index(joints[1]))
         self.assertEqual(skin._jnt_index(joints[2]), 1)
         cmds.undo()
@@ -109,21 +109,21 @@ class InternalRefactoringTest(unittest.TestCase):
         for kind, value in (("bool", True), ("byte", 12), ("char", 3), ("short", -2),
                             ("long", 53), ("float", 1.25), ("double", 2.5)):
             name = "value_" + kind
-            cmds.addAttr(node.fullName(), longName=name, attributeType=kind)
-            plug = node.plug(name)
+            cmds.addAttr(node.getFullName(), longName=name, attributeType=kind)
+            plug = node.getPlug(name)
             plug.set(value)
             normal = plug.get()
             plug.set(0, fast=True)
             plug.set(value, fast=True)
             self.assertEqual(plug.get(), normal)
-            self.assertEqual(plug.dataType(), kind)
+            self.assertEqual(plug.getDataType(), kind)
         cmds.currentUnit(linear="m", angle="rad")
-        node.plug("tx").set(2, fast=True)
-        self.assertAlmostEqual(node.plug("tx").get(), 2)
+        node.getPlug("tx").set(2, fast=True)
+        self.assertAlmostEqual(node.getPlug("tx").get(), 2)
         # 角度のget/setはUI単位によらずrad。
-        node.plug("rx").set(1, fast=True)
+        node.getPlug("rx").set(1, fast=True)
         import math
-        self.assertAlmostEqual(node.plug("rx").get(), 1.0)
+        self.assertAlmostEqual(node.getPlug("rx").get(), 1.0)
 
     def test_reload_rebuilds_registry_and_caches(self):
         """新しい基底・型登録・型情報で再取得でき、独自登録を残さない。"""
@@ -136,20 +136,20 @@ class InternalRefactoringTest(unittest.TestCase):
             hlib.reload()
             node = hlib.getNode(name)
             self.assertIs(type(node), hlib.nodes.Transform)
-            self.assertIs(type(node.plug("tx")), hlib.plugs.DoubleLinearPlug)
+            self.assertIs(type(node.getPlug("tx")), hlib.plugs.DoubleLinearPlug)
             self.assertIsNot(hlib.nodes.Node._registry, old_registry)
             self.assertIsNone(hlib.nodes.Node._registry.lookup("temporaryRefactorType"))
             from hlib._core import typeHierarchy
             self.assertNotIn("temporaryRefactorType", typeHierarchy._INHERITED_TYPES_CACHE)
-            node.plug("tx").set(9, fast=True)
-            self.assertEqual(node.plug("tx").get(), 9)
+            node.getPlug("tx").set(9, fast=True)
+            self.assertEqual(node.getPlug("tx").get(), 9)
             self.assertIs(hlib.getNode, hlib.cmds.getNode)
 
     def test_calculation_validation_before_target_resolution(self):
         """不正入力で接続先解決や更新を開始しない。"""
         node = hlib.createNode("addDoubleLinear")
         node.setInput(1, 5)
-        with patch.object(type(node), "inputPlug", side_effect=AssertionError("target resolved")):
+        with patch.object(type(node), "getInputPlug", side_effect=AssertionError("target resolved")):
             with self.assertRaises(ValueError):
                 node.setInput(1, float("nan"))
             with self.assertRaises(TypeError):
@@ -170,11 +170,11 @@ class InternalRefactoringTest(unittest.TestCase):
         self.assertIs(node.setInput(1, 9, fast=True), node)
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         self.assertEqual(node.getInput(1), 9)
-        for value in (source.outputPlug(), source.outputPlug().fullName(), source.outputPlug().mplug()):
+        for value in (source.getOutputPlug(), source.getOutputPlug().getFullName(), source.getOutputPlug().mplug()):
             self.assertIs(node.connectInput(1, value), node)
-            self.assertTrue(source.outputPlug().isConnectedTo(node.inputPlug(1)))
+            self.assertTrue(source.getOutputPlug().isConnectedTo(node.getInputPlug(1)))
             cmds.undo()
-            self.assertFalse(source.outputPlug().isConnectedTo(node.inputPlug(1)))
+            self.assertFalse(source.getOutputPlug().isConnectedTo(node.getInputPlug(1)))
 
     def test_deferred_entrypoints_share_validation(self):
         """どちらの入口も同じ引数で一度だけMayaへ予約する。"""

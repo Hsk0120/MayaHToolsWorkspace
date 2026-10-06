@@ -163,7 +163,7 @@ def create_obb_joint_and_bind_from_selection(
 			center = obb_data["center"]
 			axis_x, axis_y, axis_z = obb_data["axes"]
 
-			joint = Node.create("joint", name=joint_name_i, skipSelect=False).name()
+			joint = Node.create("joint", name=joint_name_i, skipSelect=False).getName()
 			selection = om.MSelectionList()
 			selection.add(joint)
 			joint_dag = selection.getDagPath(0)

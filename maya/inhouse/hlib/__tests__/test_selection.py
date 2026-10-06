@@ -25,9 +25,9 @@ class SelectionTest(unittest.TestCase):
         selection = hlib.captureSelection()
         cmds.select(clear=True)
         self.assertEqual(len(selection), 4)
-        self.assertEqual(len(selection.nodes(type="joint")), 1)
-        self.assertEqual(selection.components()[0].indices, (1, 2, 3))
-        self.assertEqual(len(selection.owners()), 2)
+        self.assertEqual(len(selection.getNodes(type="joint")), 1)
+        self.assertEqual(selection.getComponents()[0].indices, (1, 2, 3))
+        self.assertEqual(len(selection.getOwners()), 2)
         self.assertEqual(len(selection.filter(type="vtx")), 3)
         selection.select()
         self.assertEqual(len(cmds.ls(selection=True, flatten=True)), 4)
@@ -54,12 +54,12 @@ class SelectionTest(unittest.TestCase):
     def test_plug_reference_and_delete(self):
         cmds.addAttr(self.joint, longName="amount", attributeType="double")
         selection = Selection([self.joint + ".amount"])
-        self.assertEqual(len(selection.plugs()), 1)
+        self.assertEqual(len(selection.getPlugs()), 1)
         self.assertEqual(len(selection.filter(type="plug")), 1)
         cmds.renameAttr(self.joint + ".amount", "renamed")
-        self.assertTrue(selection.plugs()[0].fullName().endswith(".renamed"))
+        self.assertTrue(selection.getPlugs()[0].getFullName().endswith(".renamed"))
         cmds.deleteAttr(self.joint + ".renamed")
-        self.assertEqual(selection.plugs(), [])
+        self.assertEqual(selection.getPlugs(), [])
         with self.assertRaises(RuntimeError):
             selection.select(missing="error")
 
@@ -83,7 +83,7 @@ class SelectionTest(unittest.TestCase):
         for suffix in ("e[0:1]", "f[0:1]", "map[0:1]"):
             selection = Selection(self.mesh + "." + suffix)
             self.assertEqual(len(selection), 2)
-            self.assertEqual(len(selection.components()), 1)
+            self.assertEqual(len(selection.getComponents()), 1)
         self.assertEqual(len(Selection(curve + ".cv[*]")), 2)
         name = cmds.sets(self.mesh, name=self.ns + ":set")
         Selection(name).select()

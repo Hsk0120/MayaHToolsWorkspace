@@ -69,15 +69,15 @@ def build_scene(cmds, backend, count, maintain_offset, chain=False, validate=Tru
 
                 source_node, target_node = hlib.getNode(source), hlib.getNode(target)
                 offset = (
-                    Matrix(target_node.plug("worldMatrix[0]").get())
-                    * Matrix(source_node.plug("worldMatrix[0]").get()).inverse()
+                    Matrix(target_node.getPlug("worldMatrix[0]").get())
+                    * Matrix(source_node.getPlug("worldMatrix[0]").get()).inverse()
                     if maintain_offset
                     else Matrix()
                 )
                 MatrixFollow._build(
                     source_node,
                     target_node,
-                    target_node.parent(),
+                    target_node.getParent(),
                     offset,
                     target + "_followMatrix",
                     selected,
@@ -166,7 +166,7 @@ def benchmark_skirt(cmds, args):
                             (120, end * (1 + column * 0.1 + depth * 0.2)),
                         ):
                             cmds.setKeyframe(
-                                driver.fullName(),
+                                driver.getFullName(),
                                 attribute="rotate" + axis,
                                 time=frame,
                                 value=value,
@@ -177,9 +177,9 @@ def benchmark_skirt(cmds, args):
                 ("translateX", 0, 12),
                 ("rotateY", 0, 55),
             ):
-                cmds.setKeyframe(rig.root.fullName(), attribute=attr, time=1, value=start)
-                cmds.setKeyframe(rig.root.fullName(), attribute=attr, time=120, value=end)
-            outputs = [joint + ".worldMatrix[0]" for joint in rig.joints()]
+                cmds.setKeyframe(rig.root.getFullName(), attribute=attr, time=1, value=start)
+                cmds.setKeyframe(rig.root.getFullName(), attribute=attr, time=120, value=end)
+            outputs = [joint + ".worldMatrix[0]" for joint in rig.getJoints()]
             cmds.evaluationManager(mode=mode)
             values = []
             for frame in (1, 7, 25, 60, 110, 120, 13):

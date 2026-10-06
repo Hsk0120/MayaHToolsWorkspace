@@ -29,21 +29,21 @@ class ApiUnitsTest(unittest.TestCase):
         for linear, angle, frame in (("cm", "deg", "film"), ("m", "rad", "ntsc")):
             cmds.currentUnit(linear=linear, angle=angle, time=frame)
             for fast in (False, True):
-                node.plug("rx").set(math.pi / 2, fast=fast)
-                node.plug("translate").set((25, 50, 75), fast=fast)
+                node.getPlug("rx").set(math.pi / 2, fast=fast)
+                node.getPlug("translate").set((25, 50, 75), fast=fast)
                 time.set(2, fast=fast)
-                self.assertAlmostEqual(node.plug("rx").get(), math.pi / 2)
-                self.assertEqual(tuple(node.plug("translate").get()), (25, 50, 75))
+                self.assertAlmostEqual(node.getPlug("rx").get(), math.pi / 2)
+                self.assertEqual(tuple(node.getPlug("translate").get()), (25, 50, 75))
                 self.assertEqual(time.get(), 2)
                 self.assertEqual(time.mplug().asMTime().asUnits(om2.MTime.kSeconds), 2)
-                self.assertAlmostEqual(hlib.getAttr(node.plug("rx")), 90 if angle == "deg" else math.pi / 2)
-                self.assertAlmostEqual(hlib.getAttr(node.plug("tx")), 25 if linear == "cm" else .25)
+                self.assertAlmostEqual(hlib.getAttr(node.getPlug("rx")), 90 if angle == "deg" else math.pi / 2)
+                self.assertAlmostEqual(hlib.getAttr(node.getPlug("tx")), 25 if linear == "cm" else .25)
                 self.assertAlmostEqual(hlib.getAttr(time), 48 if frame == "film" else 60)
-            node.plug("rx").set(.1)
+            node.getPlug("rx").set(.1)
             cmds.undo()
-            self.assertAlmostEqual(node.plug("rx").get(), math.pi / 2)
+            self.assertAlmostEqual(node.getPlug("rx").get(), math.pi / 2)
             cmds.redo()
-            self.assertAlmostEqual(node.plug("rx").get(), .1)
+            self.assertAlmostEqual(node.getPlug("rx").get(), .1)
 
     def test_creation_limits_and_reset(self):
         """生成と範囲は内部単位。addAttr固有のcmds仕様も維持する。"""
@@ -64,13 +64,13 @@ class ApiUnitsTest(unittest.TestCase):
         """頂点・CV・行列の位置は表示単位によらずcmで一致する。"""
         for shape_name in (cmds.polyCube(ch=False)[0], cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3)])):
             node = hlib.getNode(shape_name)
-            shape = node.shape()
-            item = shape.vertex(0) if shape.type() == "mesh" else shape.cv(0)
+            shape = node.getShape()
+            item = shape.vertex(0) if shape.getType() == "mesh" else shape.cv(0)
             cmds.currentUnit(linear="m")
             for fast in (False, True):
                 node.setTranslation((25, 50, 75), fast=fast, at=4)
                 self.assertEqual(tuple(node.getTranslation(at=4)), (25, 50, 75))
-                self.assertEqual(tuple(node.plug("translate").get()), (25, 50, 75))
+                self.assertEqual(tuple(node.getPlug("translate").get()), (25, 50, 75))
                 item.setPosition((1, 2, 3), fast=fast)
                 self.assertEqual(item.getPosition(), (1, 2, 3))
                 self.assertEqual(item.getPosition(ws=True), (26, 52, 78))
@@ -81,13 +81,13 @@ class ApiUnitsTest(unittest.TestCase):
 
     def test_periodic_cv_index_and_undo(self):
         """API末尾の重複CVを正しい独立CVへ対応付けてUndoする。"""
-        shape = hlib.getNode(cmds.circle(ch=False)[0]).shape()
+        shape = hlib.getNode(cmds.circle(ch=False)[0]).getShape()
         fn = shape.curveFn()
         index = fn.numCVs - fn.degree
         cv = shape.cv(index)
         before = cv.getPosition()
         self.assertEqual(cv.getPosition(), shape.cv(0).getPosition())
-        self.assertEqual(cv.fullName(), shape.cv(0).fullName())
+        self.assertEqual(cv.getFullName(), shape.cv(0).getFullName())
         cv.setPosition((1, 2, 3))
         self.assertEqual(cv.getPosition(), (1, 2, 3))
         cmds.undo()
@@ -118,12 +118,12 @@ class ApiUnitsTest(unittest.TestCase):
                     if suffix.startswith("T"):
                         cmds.currentTime(om2.MTime(2, om2.MTime.kSeconds).asUnits(om2.MTime.uiUnit()))
                     else:
-                        curve.plug("input").set(2)
-                    evaluated = curve.plug("output").mplug().asMTime()
+                        curve.getPlug("input").set(2)
+                    evaluated = curve.getPlug("output").mplug().asMTime()
                     self.assertAlmostEqual(evaluated.asUnits(om2.MTime.kSeconds), .5)
                 else:
                     self.assertAlmostEqual(fn.value(1), .5)
-                self.assertAlmostEqual(curve.keyValues()[1], .5)
+                self.assertAlmostEqual(curve.getKeyValues()[1], .5)
                 self.assertAlmostEqual(curve.evaluate(1), .25)
 
 

@@ -1,12 +1,11 @@
 """XYZ 座標を持つコンポーネントと要素群の座標操作。"""
 
-from .._core.flags import flag_aliases
-
 import math
 
 from maya.api.OpenMaya import MSpace
 
 from .._core import geometryEdit as geometry_edit
+from .._core.flags import flag_aliases
 from .._core.space import world_space
 from ..decorators._fast import fast_edit
 from ..decorators.undo import undoChunk
@@ -65,7 +64,7 @@ class PointComponent(Component):
         return self
 
     @flag_aliases(ws="worldSpace")
-    def getX(self, worldSpace=False):
+    def getPositionX(self, worldSpace=False):
         """X成分の現在値を取得する。
 
         Args:
@@ -78,7 +77,7 @@ class PointComponent(Component):
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
-    def setX(self, value, worldSpace=False, *, fast=False):
+    def setPositionX(self, value, worldSpace=False, *, fast=False):
         """X成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -97,7 +96,7 @@ class PointComponent(Component):
         return self._set_coordinate(0, value, ws=worldSpace)
 
     @flag_aliases(ws="worldSpace")
-    def getY(self, worldSpace=False):
+    def getPositionY(self, worldSpace=False):
         """Y成分の現在値を取得する。
 
         Args:
@@ -110,7 +109,7 @@ class PointComponent(Component):
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
-    def setY(self, value, worldSpace=False, *, fast=False):
+    def setPositionY(self, value, worldSpace=False, *, fast=False):
         """Y成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -129,7 +128,7 @@ class PointComponent(Component):
         return self._set_coordinate(1, value, ws=worldSpace)
 
     @flag_aliases(ws="worldSpace")
-    def getZ(self, worldSpace=False):
+    def getPositionZ(self, worldSpace=False):
         """Z成分の現在値を取得する。
 
         Args:
@@ -142,7 +141,7 @@ class PointComponent(Component):
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
-    def setZ(self, value, worldSpace=False, *, fast=False):
+    def setPositionZ(self, value, worldSpace=False, *, fast=False):
         """Z成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -195,7 +194,7 @@ class PointComponents(Components):
         return self
 
     @flag_aliases(ws="worldSpace")
-    def getX(self, worldSpace=False):
+    def getPositionX(self, worldSpace=False):
         """X成分の現在値を取得する。
 
         Args:
@@ -208,7 +207,7 @@ class PointComponents(Components):
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
-    def setX(self, value, worldSpace=False, *, fast=False):
+    def setPositionX(self, value, worldSpace=False, *, fast=False):
         """X成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -227,7 +226,7 @@ class PointComponents(Components):
         return self._set_coordinate(0, value, ws=worldSpace)
 
     @flag_aliases(ws="worldSpace")
-    def getY(self, worldSpace=False):
+    def getPositionY(self, worldSpace=False):
         """Y成分の現在値を取得する。
 
         Args:
@@ -240,7 +239,7 @@ class PointComponents(Components):
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
-    def setY(self, value, worldSpace=False, *, fast=False):
+    def setPositionY(self, value, worldSpace=False, *, fast=False):
         """Y成分だけを設定し、他の成分を維持する。
 
         Args:
@@ -259,7 +258,7 @@ class PointComponents(Components):
         return self._set_coordinate(1, value, ws=worldSpace)
 
     @flag_aliases(ws="worldSpace")
-    def getZ(self, worldSpace=False):
+    def getPositionZ(self, worldSpace=False):
         """Z成分の現在値を取得する。
 
         Args:
@@ -272,7 +271,7 @@ class PointComponents(Components):
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
-    def setZ(self, value, worldSpace=False, *, fast=False):
+    def setPositionZ(self, value, worldSpace=False, *, fast=False):
         """Z成分だけを設定し、他の成分を維持する。
 
         Args:

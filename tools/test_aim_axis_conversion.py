@@ -39,7 +39,7 @@ class AimAxisConversionTest(unittest.TestCase):
 
     def angles(self, graph):
         """変換出力を度で取得する。"""
-        return [math.degrees(graph.container.plug("output" + a).get()) for a in "XYZ"]
+        return [math.degrees(graph.container.getPlug("output" + a).get()) for a in "XYZ"]
 
     def test_three_modes_and_restore(self):
         """単軸の純回転は3方式とも一致し、復元で生成物が全て消える。"""
@@ -51,7 +51,7 @@ class AimAxisConversionTest(unittest.TestCase):
         for mode in ("euler", "direction", "twist"):
             graph = self.cls.create(self.source, axes="x", mode=mode, direction="y", preserve_pose=False)
             self.assertAlmostEqual(self.angles(graph)[0], 30, places=4)
-            self.assertGreater(graph.container.plug("valid").get(), 0.5)
+            self.assertGreater(graph.container.getPlug("valid").get(), 0.5)
             self.assertIsNotNone(self.cls.find(self.source))
             self.assertFalse(self.cmds.cycleCheck(all=True, dag=True, list=True))
             graph.restore()
@@ -72,7 +72,7 @@ class AimAxisConversionTest(unittest.TestCase):
                 actual = self.angles(graph)
                 for axis in axes:
                     self.assertAlmostEqual(actual["xyz".index(axis)], 15, places=3)
-                self.assertGreater(graph.container.plug("valid").get(), 0.5)
+                self.assertGreater(graph.container.getPlug("valid").get(), 0.5)
             graph.restore()
 
     def test_direction_two_axes_all_orders(self):
@@ -104,11 +104,11 @@ class AimAxisConversionTest(unittest.TestCase):
         """方式切替・復元がUndo/Redoでまとまり、元ノードを削除しない。"""
         self.pose((20, 10, 5))
         first = self.cls.create(self.source, mode="euler")
-        first_uuid = first.container.uuid()
+        first_uuid = first.container.getUuid()
         second = self.cls.create(self.source, mode="twist")
-        self.assertNotEqual(first_uuid, second.container.uuid())
+        self.assertNotEqual(first_uuid, second.container.getUuid())
         self.cmds.undo()
-        self.assertEqual(first_uuid, self.cls.find(self.source).container.uuid())
+        self.assertEqual(first_uuid, self.cls.find(self.source).container.getUuid())
         self.cmds.redo()
         self.assertIsNotNone(self.cls.find(self.source))
         self.cls.find(self.source).restore()
@@ -132,10 +132,10 @@ class AimAxisConversionTest(unittest.TestCase):
     def test_reject_and_rollback(self):
         """不正な軸・ロック・他接続を壊さず、失敗した切替を巻き戻す。"""
         graph = self.cls.create(self.source, axes="x", mode="twist")
-        owner_uuid = graph.container.uuid()
+        owner_uuid = graph.container.getUuid()
         with self.assertRaises(ValueError):
             self.cls.create(self.source, axes="x", mode="direction", direction="x")
-        self.assertEqual(owner_uuid, self.cls.find(self.source).container.uuid())
+        self.assertEqual(owner_uuid, self.cls.find(self.source).container.getUuid())
         self.cmds.setAttr(self.driven + ".rotateX", lock=True)
         with self.assertRaises(ValueError):
             self.cls.find(self.source).restore()
@@ -164,17 +164,17 @@ class AimAxisConversionTest(unittest.TestCase):
         """範囲外・Twist特異点・Rotate Order変更はvalid=0を返す。"""
         self.pose((120, 0, 0))
         graph = self.cls.create(self.source, axes="x", half_range=math.radians(20))
-        self.assertLess(graph.container.plug("valid").get(), 0.5)
+        self.assertLess(graph.container.getPlug("valid").get(), 0.5)
         graph.restore()
         self.pose((0, 180, 0))
         graph = self.cls.create(self.source, axes="x", mode="twist", preserve_pose=False)
-        self.assertLess(graph.container.plug("valid").get(), 0.5)
+        self.assertLess(graph.container.getPlug("valid").get(), 0.5)
         self.assertAlmostEqual(self.angles(graph)[0], 0, places=4)
         graph.restore()
         self.pose((0, 0, 0))
         graph = self.cls.create(self.source)
         self.cmds.setAttr(self.driven + ".rotateOrder", 2)
-        self.assertLess(graph.container.plug("valid").get(), 0.5)
+        self.assertLess(graph.container.getPlug("valid").get(), 0.5)
 
     def test_compound_and_skipped_axes(self):
         """複合接続と元のskip状態を正確に復元する。"""
@@ -228,7 +228,7 @@ class AimAxisConversionTest(unittest.TestCase):
     def test_restore_rejects_edited_connection(self):
         """変換後に別の入力へ付け替えられた接続を復元で壊さない。"""
         graph = self.cls.create(self.source, axes="x", mode="twist")
-        output = graph.container.plug("outputX").fullName()
+        output = graph.container.getPlug("outputX").getFullName()
         self.cmds.disconnectAttr(output, self.driven + ".rotateX")
         other = self.cmds.createNode("animCurveTA")
         self.cmds.connectAttr(other + ".output", self.driven + ".rotateX")
@@ -268,13 +268,13 @@ class AimAxisConversionTest(unittest.TestCase):
                 contained = self.cls.create(self.source, axes="xy", mode=mode, direction="z")
                 expected = self.cmds.getAttr(self.driven + ".rotate")[0]
                 graph = self.cls.create(self.source, axes="xy", mode=mode, direction="z", use_container=False)
-                self.assertEqual(graph.container.type(), "network")
+                self.assertEqual(graph.container.getType(), "network")
                 self.assertFalse(self.cmds.ls(type="container"))
                 for axis, value in zip("XYZ", expected):
                     self.assertAlmostEqual(self.cmds.getAttr(self.driven + ".rotate" + axis), value, places=5)
                 for axis in "XY":
-                    plug = graph.container.plug("output" + axis).sourceWithConversion()
-                    self.assertTrue(self.cmds.isConnected(plug.fullName(), self.driven + ".rotate" + axis))
+                    plug = graph.container.getPlug("output" + axis).getSourceWithConversion()
+                    self.assertTrue(self.cmds.isConnected(plug.getFullName(), self.driven + ".rotate" + axis))
                 graph.restore()
                 self.assertEqual(set(self.cmds.ls()), baseline)
 
@@ -291,9 +291,9 @@ class AimAxisConversionTest(unittest.TestCase):
         self.cmds.file(save=True, type="mayaAscii")
         self.cmds.file(str(path), open=True, force=True)
         graph = self.cls.find(self.source)
-        self.assertEqual(graph.container.type(), "network")
+        self.assertEqual(graph.container.getType(), "network")
         graph = self.cls.create(self.source, mode="twist", use_container=True)
-        self.assertEqual(graph.container.type(), "container")
+        self.assertEqual(graph.container.getType(), "container")
         graph.restore()
         self.assertFalse(self.cmds.ls(type="container"))
         self.assertFalse(self.cmds.ls("*_axisConversion*"))
@@ -303,12 +303,12 @@ class AimAxisConversionTest(unittest.TestCase):
         from hlib.json import JsonText
         baseline = set(self.cmds.ls())
         graph = self.cls.create(self.source, axes="xy")
-        state = JsonText.loads(graph.container.plug("settings").get())
+        state = JsonText.loads(graph.container.getPlug("settings").get())
         state["mode"] = "rest"
         state["axes"] = "xyz"
-        graph.container.plug("outputZ").connectTo(self.driven + ".rotateZ")
+        graph.container.getPlug("outputZ").connectTo(self.driven + ".rotateZ")
         state.pop("constraintSettings")
-        graph.container.plug("settings").set(JsonText.dumps(state))
+        graph.container.getPlug("settings").set(JsonText.dumps(state))
         graph.restore()
         self.assertEqual(set(self.cmds.ls()), baseline)
 

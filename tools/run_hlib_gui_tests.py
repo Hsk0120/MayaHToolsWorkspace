@@ -87,7 +87,7 @@ def main(output_dir=None, finished=None):
             name = cmds.circle(name=prefix + ":" + label, normal=(0, 0, 1), radius=1.3, constructionHistory=False)[0]
             cmds.setAttr(name + ".tx", x)
             curves.append(hlib.getNode(name))
-        cmds.addAttr(curves[0].fullName(), longName="guiAmount", attributeType="double", keyable=True)
+        cmds.addAttr(curves[0].getFullName(), longName="guiAmount", attributeType="double", keyable=True)
         camera, camera_shape = cmds.camera(name=prefix + ":camera", orthographic=True)
         cmds.setAttr(camera + ".tz", 20)
         cmds.setAttr(camera_shape + ".orthographicWidth", 15)
@@ -95,15 +95,15 @@ def main(output_dir=None, finished=None):
         pane = cmds.paneLayout(configuration="vertical3")
         connection = cmds.selectionConnection()
         for curve in curves:
-            cmds.selectionConnection(connection, edit=True, select=curve.fullName())
+            cmds.selectionConnection(connection, edit=True, select=curve.getFullName())
         editor = cmds.outlinerEditor(parent=pane, mainListConnection=connection,
                                      showDagOnly=True, showShapes=False)
         panel = cmds.modelPanel(parent=pane, camera=camera, menuBarVisible=False)
         channel_connection = cmds.selectionConnection()
-        cmds.selectionConnection(channel_connection, edit=True, select=curves[0].fullName())
+        cmds.selectionConnection(channel_connection, edit=True, select=curves[0].getFullName())
         channel = cmds.channelBox(parent=pane, mainListConnection=channel_connection)
         cmds.modelEditor(panel, edit=True, grid=False, cameras=False, displayAppearance="wireframe")
-        cmds.select([c.fullName() for c in curves], replace=True)
+        cmds.select([c.getFullName() for c in curves], replace=True)
         cmds.isolateSelect(panel, state=True)
         cmds.isolateSelect(panel, loadSelected=True)
         cmds.select(clear=True)
@@ -152,7 +152,7 @@ def main(output_dir=None, finished=None):
                 for node, override, rgb in zip(curves, (13, (0, .75, 1), (1, .4, 0)),
                                                ((1, .15, .15), (0, .75, 1), (1, .4, 0))):
                     node.setOutlinerColor(rgb)
-                    node.shape().setOverrideColor(override)
+                    node.getShape().setOverrideColor(override)
                 outliner_control = cmds.outlinerEditor(editor, query=True, control=True)
                 for label in ("colors", "disabled", "undo", "redo"):
                     if label == "disabled":
@@ -160,12 +160,12 @@ def main(output_dir=None, finished=None):
                         with undoChunk("hlibGuiDisableColors"):
                             for node in curves:
                                 node.setOutlinerColor(None)
-                                node.shape().setOverrideColor(None)
+                                node.getShape().setOverrideColor(None)
                     elif label == "undo":
                         cmds.undo()
                     elif label == "redo":
                         cmds.redo()
-                    self.assertEqual(curves[0].shape().getOverrideColor().index, 13 if label in ("colors", "undo") else None)
+                    self.assertEqual(curves[0].getShape().getOverrideColor().index, 13 if label in ("colors", "undo") else None)
                     capture(label + "_viewport")
                     capture(label + "_outliner", outliner_control)
 
@@ -175,7 +175,7 @@ def main(output_dir=None, finished=None):
                     self.assertFalse(view.getSettings("nurbsCurves")["nurbsCurves"])
                     capture("curves_hidden")
                 capture("curves_restored")
-                cmds.select(curves[0].fullName() + ".cv[0:2]", replace=True)
+                cmds.select(curves[0].getFullName() + ".cv[0:2]", replace=True)
                 saved = hlib.captureSelection()
                 before = cmds.ls(selection=True, flatten=True, long=True)
                 cmds.select(clear=True)
@@ -186,16 +186,16 @@ def main(output_dir=None, finished=None):
 
             def test_channelbox_real_selection_and_display(self):
                 node = curves[0]
-                cmds.select(node.fullName(), replace=True)
+                cmds.select(node.getFullName(), replace=True)
                 cmds.refresh(force=True)
                 box = hlib.getChannelBox(channel)
-                cmds.channelBox(channel, edit=True, select=node.fullName() + ".guiAmount")
+                cmds.channelBox(channel, edit=True, select=node.getFullName() + ".guiAmount")
                 capture("channel_selected", channel)
-                self.assertEqual(len(box.selectedPlugs()), 1,
+                self.assertEqual(len(box.getSelectedPlugs()), 1,
                                  str(cmds.channelBox(channel, query=True, mainObjectList=True)))
-                self.assertEqual(box.selectedPlugs()[0].get(), 0)
+                self.assertEqual(box.getSelectedPlugs()[0].get(), 0)
                 box.clearSelection()
-                self.assertEqual(box.selectedPlugs(), [])
+                self.assertEqual(box.getSelectedPlugs(), [])
                 capture("channel_cleared", channel)
                 cmds.select(clear=True)
 

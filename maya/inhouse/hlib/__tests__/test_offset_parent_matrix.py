@@ -18,14 +18,14 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.target = hlib.createNode("transform", parent=self.root)
 
     def tearDown(self):
-        cmds.delete(self.root.fullName())
+        cmds.delete(self.root.getFullName())
 
     def test_matrix_type_copy_undo_and_fast(self):
         self.source.setTranslation((2, 3, 4), at=4)
         self.source.setRotation((.2, .3, .4))
         self.source.setScaling((2, 3, 4))
         value = self.source.getMatrix()
-        plug = self.target.plug("offsetParentMatrix")
+        plug = self.target.getPlug("offsetParentMatrix")
         self.assertIsInstance(value, Matrix)
         self.assertIsInstance(plug, MatrixPlug)
         self.assertIs(plug.set(value), plug)
@@ -52,7 +52,7 @@ class OffsetParentMatrixTest(unittest.TestCase):
         local = self.target.getMatrix()
         world = self.source.getMatrix(ws=True)
         offset = local.inverse() * world * self.root.getMatrix(ws=True).inverse()
-        self.target.plug("offsetParentMatrix").set(offset)
+        self.target.getPlug("offsetParentMatrix").set(offset)
         self.assertTrue(self.target.getMatrix().isEquivalent(local, 1e-9))
         self.assertTrue(self.target.getMatrix(ws=True).isEquivalent(world, 1e-8))
 
@@ -70,7 +70,7 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.getOffsetParentMatrix()))
         self.target.setOffsetParentMatrix(value, fast=True)
         self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
-        cmds.setAttr(self.target.fullName() + ".offsetParentMatrix", lock=True)
+        cmds.setAttr(self.target.getFullName() + ".offsetParentMatrix", lock=True)
         with self.assertRaises(RuntimeError):
             self.target.setOffsetParentMatrix(Matrix())
 
@@ -88,7 +88,7 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.getOffsetParentMatrix()))
         self.target.setOffsetParentMatrix(value, fast=True)
         self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
-        cmds.setAttr(self.target.fullName() + ".offsetParentMatrix", lock=True)
+        cmds.setAttr(self.target.getFullName() + ".offsetParentMatrix", lock=True)
         with self.assertRaises(RuntimeError):
             self.target.setOffsetParentMatrix(Matrix())
 

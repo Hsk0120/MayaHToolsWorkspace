@@ -13,8 +13,8 @@ graph = Graph.create('exampleShape')
 graph.root.add_port('value', 'float')
 graph.root.add_port('result', 'float', output=True)
 graph.root.io_port('value').connect(graph.root.io_port('result', output=True))
-cmds.setAttr(graph.name() + '.value', 4)
-assert cmds.getAttr(graph.name() + '.result') == 4
+cmds.setAttr(graph.getName() + '.value', 4)
+assert cmds.getAttr(graph.getName() + '.result') == 4
 ```
 
 `Graph`はhlibのDG参照で名前変更に追従します。`Node`、`Compound`、`Port`は
@@ -32,7 +32,7 @@ VNNコマンドのエラーは隠さず呼出側へ返します。MayaのUndoに
 
 `Graph`・`Node`・`Compound`・`Port`はそれぞれのPythonファイルに実装しています。
 クラスはnodes/plugs/utils/environmentの所属パッケージからimportします。
-`Graph.parent()`は現在のDAG親、`Graph.delete()`は親を含む削除です。
+`Graph.getParent()`は現在のDAG親、`Graph.delete()`は親を含む削除です。
 親に別の子がある場合は削除を拒否するため、必要ならshapeだけ明示削除してください。
 
 ```python

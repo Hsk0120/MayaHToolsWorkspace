@@ -18,7 +18,7 @@ class UEPoseBlenderNode(Node):
         Returns:
             NativePoseBlender: 現在名から外部APIラッパーを取得する。
         """
-        return NativePoseBlender(self.fullName())
+        return NativePoseBlender(self.getFullName())
 
     def driven_transform(self):
         """接続された駆動先。未接続ならNone。

@@ -14,7 +14,7 @@ def _resolve_cluster_handle_transform(node):
     Returns:
         str | None: clusterHandle Transform。解決できない場合は None。
     """
-    node_type = Node(node).type()
+    node_type = Node(node).getType()
 
     if node_type == "clusterHandle":
         # clusterHandle は shape なので、位置取得に使う親 Transform へ変換する。
@@ -31,7 +31,7 @@ def _resolve_cluster_handle_transform(node):
     if node_type == "transform":
         shapes = cmds.listRelatives(node, shapes=True, fullPath=True) or []
         for shape in shapes:
-            if Node(shape).type() == "clusterHandle":
+            if Node(shape).getType() == "clusterHandle":
                 return node
 
     return None
@@ -81,7 +81,7 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
     degree = min(degree, len(points) - 1)
 
     print("points:", points)
-    curve = hlib.createCurve(p=points, d=degree, name="clusterPath_crv").name()
+    curve = hlib.createCurve(p=points, d=degree, name="clusterPath_crv").getName()
     cmds.select(curve)
     return curve
 

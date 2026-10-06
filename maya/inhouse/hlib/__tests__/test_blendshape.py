@@ -35,11 +35,11 @@ class BlendShapeTest(unittest.TestCase):
         self.assertIsInstance(self.bs, BlendShape)
 
     def test_targets_and_weights(self):
-        self.assertEqual(self.bs.targetAliases(), [self.target1, self.target2])
+        self.assertEqual(self.bs.getTargetAliases(), [self.target1, self.target2])
         self.assertEqual(self.bs.getWeights(), [0.0, 0.0])
-        self.assertEqual(len(self.bs.weightPlugs()), 2)
+        self.assertEqual(len(self.bs.getWeightPlugs()), 2)
 
-        self.bs.weightPlugs()[0].set(0.5)
+        self.bs.getWeightPlugs()[0].set(0.5)
         self.assertEqual(self.bs.getWeights(), [0.5, 0.0])
 
     def test_add_target_creates_new_weight_element(self):
@@ -50,8 +50,8 @@ class BlendShapeTest(unittest.TestCase):
         weightPlug = self.bs.addTarget(target3)
         # weight[2] は自動的に target3 の名前でエイリアスされるため、
         # fullName はロング名ではなくエイリアス名で表示される。
-        self.assertEqual(weightPlug.fullName(), self.bs.fullName() + "." + target3)
-        self.assertEqual(self.bs.targetAliases(), [self.target1, self.target2, target3])
+        self.assertEqual(weightPlug.getFullName(), self.bs.getFullName() + "." + target3)
+        self.assertEqual(self.bs.getTargetAliases(), [self.target1, self.target2, target3])
 
         weightPlug.set(1.0)
         self.assertEqual(self.bs.getWeights(), [0.0, 0.0, 1.0])
@@ -62,8 +62,8 @@ class BlendShapeTest(unittest.TestCase):
         cmds.move(0, 0, 3, target3 + ".vtx[0]")
 
         weightPlug = self.bs.addTarget(target3, weight_index=5)
-        self.assertEqual(weightPlug.fullName(), self.bs.fullName() + "." + target3)
-        self.assertEqual(weightPlug.longName(), "weight")
+        self.assertEqual(weightPlug.getFullName(), self.bs.getFullName() + "." + target3)
+        self.assertEqual(weightPlug.getLongName(), "weight")
 
 
 if __name__ == "__main__":

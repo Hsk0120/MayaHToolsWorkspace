@@ -1,12 +1,11 @@
 """Maya の NURBS カーブシェイプを扱う。"""
 
-from .._core.flags import flag_aliases
-
 import math
 
 import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from .._core.space import world_space
 from ..components.cv import CV, CVs
@@ -55,11 +54,12 @@ class NurbsCurve(Shape):
         self.cvs(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self
 
+    @flag_aliases(idx="index")
     def cv(self, index):
         """CV 番号から単体ラッパーを取得する。
 
         Args:
-            index (int): ゼロ始まりの CV 番号。
+            index (int): ゼロ始まりの CV 番号。 別名 ``idx`` も使用可能。
 
         Returns:
             CV: シーン上の CV を参照するラッパー。
@@ -88,7 +88,7 @@ class NurbsCurve(Shape):
         """
         return om2.MFnNurbsCurve(self.mpath())
 
-    def numCVs(self):
+    def getNumCVs(self):
         """CV 数を取得する。
 
         Returns:
@@ -96,7 +96,7 @@ class NurbsCurve(Shape):
         """
         return self.curveFn().numCVs
 
-    def numSpans(self):
+    def getNumSpans(self):
         """スパン数を取得する。
 
         Returns:
@@ -104,7 +104,7 @@ class NurbsCurve(Shape):
         """
         return self.curveFn().numSpans
 
-    def degree(self):
+    def getDegree(self):
         """カーブの次数を取得する。
 
         Returns:
@@ -112,7 +112,7 @@ class NurbsCurve(Shape):
         """
         return self.curveFn().degree
 
-    def form(self):
+    def getForm(self):
         """カーブの開閉形式を取得する。
 
         Returns:
@@ -121,7 +121,7 @@ class NurbsCurve(Shape):
         return self.curveFn().form
 
     @flag_aliases(ws="worldSpace")
-    def length(self, tolerance=1e-6, *, worldSpace=False, unit="cm"):
+    def getLength(self, tolerance=1e-6, *, worldSpace=False, unit="cm"):
         """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
 
         Args:
@@ -162,7 +162,7 @@ class NurbsCurve(Shape):
         return curve.length(tolerance) * factor
 
     @flag_aliases(ws="worldSpace")
-    def cvPositions(self, worldSpace=False):
+    def getCvPositions(self, worldSpace=False):
         """CV の位置を取得する。
 
         Args:
@@ -197,7 +197,7 @@ class NurbsCurve(Shape):
         ws = world_space(worldSpace)
         if not tolerance > 0:
             raise ValueError("tolerance must be positive")
-        positions = self.cvPositions(ws=ws)
+        positions = self.getCvPositions(ws=ws)
         assigned = [False] * len(positions)
         groups = []
         for i in range(len(positions)):

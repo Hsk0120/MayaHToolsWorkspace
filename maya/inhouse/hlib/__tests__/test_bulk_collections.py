@@ -30,8 +30,8 @@ class BulkCollectionsTest(unittest.TestCase):
         self.joints.callEach("setTranslation", [((4, 5, 6),), ((7, 8, 9),)])
         self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(4, 5, 6), (7, 8, 9)])
         self.assertEqual(self.joints.isJoint(), [True, True])
-        self.assertEqual(self.joints.fullName(), [item.fullName() for item in self.joints])
-        self.assertEqual(self.joints[:1].names(), self.names[:1])
+        self.assertEqual(self.joints.getFullName(), [item.getFullName() for item in self.joints])
+        self.assertEqual(self.joints[:1].getNames(), self.names[:1])
         self.assertEqual(len(self.joints), 2)
         self.assertFalse(hasattr(self.joints, "create"))
         self.assertEqual(hlib.nodes.Joints().getTranslation(at=4), [])
@@ -55,16 +55,16 @@ class BulkCollectionsTest(unittest.TestCase):
     def test_skin_methods_and_file_operations_are_explicit(self):
         meshes = [cmds.polyCube(name=self.ns + ":mesh")[0] for _ in range(2)]
         skins = hlib.nodes.SkinClusters([cmds.skinCluster(self.names, mesh, toSelectedBones=True)[0] for mesh in meshes])
-        self.assertEqual(len(skins.influences()), 2)
+        self.assertEqual(len(skins.getInfluences()), 2)
         self.assertEqual(skins.hasInfluence(self.names[0]), [True, True])
         for skin, mesh in zip(skins, meshes):
-            cmds.skinPercent(skin.fullName(), mesh, transformValue=[(self.names[0], 0.75), (self.names[1], 0.25)])
+            cmds.skinPercent(skin.getFullName(), mesh, transformValue=[(self.names[0], 0.75), (self.names[1], 0.25)])
         skins.transferWeights([(self.names[0], self.names[1])])
         for skin, mesh in zip(skins, meshes):
-            self.assertAlmostEqual(cmds.skinPercent(skin.fullName(), mesh + ".vtx[0]", query=True, transform=self.names[1]), 1)
+            self.assertAlmostEqual(cmds.skinPercent(skin.getFullName(), mesh + ".vtx[0]", query=True, transform=self.names[1]), 1)
         cmds.undo()
         for skin, mesh in zip(skins, meshes):
-            self.assertAlmostEqual(cmds.skinPercent(skin.fullName(), mesh + ".vtx[0]", query=True, transform=self.names[0]), 0.75)
+            self.assertAlmostEqual(cmds.skinPercent(skin.getFullName(), mesh + ".vtx[0]", query=True, transform=self.names[0]), 0.75)
         self.assertFalse(hasattr(skins, "dumpWeights"))
         self.assertIn("dumpWeights", skins._bulk_methods)
         self.assertEqual(len(skins[:1]), 1)

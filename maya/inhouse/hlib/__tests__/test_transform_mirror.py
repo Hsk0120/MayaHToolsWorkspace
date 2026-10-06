@@ -35,7 +35,7 @@ class TransformMirrorTest(unittest.TestCase):
                         original = node.getMatrix(ws=True)
                         parent = Node(self.parent).getMatrix(ws=True)
                         source = original if ws else original * parent.inverse()
-                        expected = source.mirrored(axis, (4, 5, 6))
+                        expected = source.mirror(axis, (4, 5, 6))
                         if not ws:
                             expected = expected * parent
                         self.assertIs(node.mirrorTransform(axis, ws, (4, 5, 6), fast=fast), node)
@@ -59,7 +59,7 @@ class TransformMirrorTest(unittest.TestCase):
             cmds.currentUnit(linear="m")
             node.mirrorTransform("x", ws=True, pivot=(1, 0, 0))
             self.assertTrue(node.getMatrix(ws=True).isEquivalent(
-                original.mirrored("x", (1, 0, 0)), 1e-7))
+                original.mirror("x", (1, 0, 0)), 1e-7))
         finally:
             cmds.currentUnit(linear=unit)
         cmds.xform(name, pivots=(1, 2, 3))
@@ -74,17 +74,17 @@ class TransformMirrorTest(unittest.TestCase):
 
     def test_invalid_inputs_and_inherits_transform(self):
         node = Node(cmds.createNode("transform", parent=self.parent))
-        node.plug("inheritsTransform").set(False)
+        node.getPlug("inheritsTransform").set(False)
         node.setTranslation((1, 2, 3), at=4)
         original = node.getMatrix(ws=True)
         node.mirrorTransform("x")
-        self.assertTrue(node.getMatrix(ws=True).isEquivalent(original.mirrored("x"), 1e-7))
+        self.assertTrue(node.getMatrix(ws=True).isEquivalent(original.mirror("x"), 1e-7))
         original = node.getMatrix(ws=True)
         for kwargs in ({"axis": "xx"}, {"pivot": (float("nan"), 0, 0)}, {"ws": 1}):
             with self.assertRaises((ValueError, TypeError)):
                 node.mirrorTransform(**kwargs)
             self.assertTrue(node.getMatrix(ws=True).isEquivalent(original, 1e-7))
-        node.plug("inheritsTransform").set(True)
+        node.getPlug("inheritsTransform").set(True)
         cmds.setAttr(self.parent + ".scaleX", 0)
         with self.assertRaises(ValueError):
             node.mirrorTransform(ws=True)

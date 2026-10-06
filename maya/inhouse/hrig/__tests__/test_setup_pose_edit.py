@@ -20,20 +20,20 @@ class PoseEditTest(unittest.TestCase):
     def test_edit_capture_undo(self):
         """追加・削除・編集・capture・Undoと外部出力接続を確認する。"""
         driver = hlib.createNode("transform", name="input")
-        graph = PoseRbf.create([driver.plug("rx")], [[0], [60]], [[0], [30]], [60])
+        graph = PoseRbf.create([driver.getPlug("rx")], [[0], [60]], [[0], [30]], [60])
         target = hlib.createNode("network", name="target")
         target.addAttr(longName="value", attributeType="double")
-        graph.container.plug("outputs[0]").connectTo(target.plug("value"))
-        uuid = graph.container.uuid()
+        graph.container.getPlug("outputs[0]").connectTo(target.getPlug("value"))
+        uuid = graph.container.getUuid()
         graph.set_data([[0], [30], [60]], [[0], [10], [40]], [40])
-        driver.plug("rx").set(math.radians(30))
+        driver.getPlug("rx").set(math.radians(30))
         self.assertAlmostEqual(graph.capture()[0], 30, places=5)
-        self.assertAlmostEqual(target.plug("value").get(), 10, places=4)
+        self.assertAlmostEqual(target.getPlug("value").get(), 10, places=4)
         graph.set_data([[0], [60]], [[0], [20]], [50])
         cmds.undo()
         self.assertEqual(len(graph.data()["poses"]), 3)
-        self.assertAlmostEqual(target.plug("value").get(), 10, places=4)
-        self.assertEqual(graph.container.uuid(), uuid)
+        self.assertAlmostEqual(target.getPlug("value").get(), 10, places=4)
+        self.assertEqual(graph.container.getUuid(), uuid)
         before = graph.data()
         with self.assertRaises(ValueError):
             graph.set_data([[0], [0]], [[0], [2]], [20])
@@ -45,10 +45,10 @@ class PoseEditTest(unittest.TestCase):
 
         cmds.currentUnit(linear="m", angle="rad")
         driver = hlib.createNode("transform", name="input")
-        graph = PoseRbf.create([driver.plug("rx")], [[0], [60]], [[0], [30]], [60])
-        driver.plug("rx").set(math.pi / 3)
+        graph = PoseRbf.create([driver.getPlug("rx")], [[0], [60]], [[0], [30]], [60])
+        driver.getPlug("rx").set(math.pi / 3)
         self.assertAlmostEqual(graph.capture()[0], 60, places=4)
-        self.assertAlmostEqual(graph.container.plug("outputs[0]").get(), 30, places=4)
+        self.assertAlmostEqual(graph.container.getPlug("outputs[0]").get(), 30, places=4)
 
     def test_fit(self):
         """基底の和、端点、直線の復元とゼロ長の拒否を確認する。"""

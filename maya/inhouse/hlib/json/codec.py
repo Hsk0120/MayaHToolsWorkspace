@@ -153,7 +153,7 @@ def encode(value):
     if type(value) in (NodeRef, PlugRef, ComponentRef):
         return {"type": type(value).__name__, "value": {f.name: encode(getattr(value, f.name)) for f in fields(value)}}
     if isinstance(value, Snapshot):
-        return {"type": "snapshot", "value": encode(value.toData())}
+        return {"type": "snapshot", "value": encode(value.asData())}
     raise TypeError("Unsupported JSON value: {}".format(type(value).__name__))
 
 

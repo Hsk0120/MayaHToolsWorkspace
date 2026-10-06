@@ -38,7 +38,7 @@ class _JointDeletion:
         for joint in self._joints.sortedByDepth():
             if not joint.isValid():
                 raise RuntimeError("Cannot delete an invalid joint")
-            key = joint.uuid()
+            key = joint.getUuid()
             if key not in seen:
                 seen.add(key)
                 target_joints.append(joint)
@@ -48,29 +48,29 @@ class _JointDeletion:
             if not joint.isJoint():
                 raise RuntimeError("Cannot delete an invalid joint")
             transfers = []
-            for skin in joint.skinClusters():
-                target = joint.transferTarget(skin)
+            for skin in joint.getSkinClusters():
+                target = joint.getTransferTarget(skin)
                 if target:
                     skin._raise_if_layers()
                     transfers.append((skin, target))
             plans.append((joint, transfers))
         for joint, transfers in plans:
-            name = joint.fullName()
+            name = joint.getFullName()
             stage = "transfer weights"
             try:
                 for skin, target in transfers:
-                    skin.transferWeights([(joint.fullName(), target)])
+                    skin.transferWeights([(joint.getFullName(), target)])
                     stage = "remove influence"
-                    skin.removeInfluence(joint.fullName(), transfer_to_parent=False)
+                    skin.removeInfluence(joint.getFullName(), transfer_to_parent=False)
                     stage = "transfer weights"
                 stage = "reparent children"
-                parent = joint.parent()
-                for child in joint.children():
+                parent = joint.getParent()
+                for child in joint.getChildren():
                     if parent is None:
-                        cmds.parent(child.fullName(), world=True)
+                        cmds.parent(child.getFullName(), world=True)
                     else:
-                        cmds.parent(child.fullName(), parent.fullName())
+                        cmds.parent(child.getFullName(), parent.getFullName())
                 stage = "delete joint"
-                cmds.delete(joint.fullName())
+                cmds.delete(joint.getFullName())
             except Exception as exc:
                 raise RuntimeError(f"Failed to {stage} for {name}: {exc}") from exc

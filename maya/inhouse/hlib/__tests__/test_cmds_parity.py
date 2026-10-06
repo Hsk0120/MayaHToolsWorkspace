@@ -28,9 +28,9 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 
 ## このファイルの突き合わせ
 
-- ``Node.aliases()`` と ``cmds.aliasAttr(query=True)``
+- ``Node.getAliases()`` と ``cmds.aliasAttr(query=True)``
 - ``Node.inputs/outputs/connections`` と ``cmds.listConnections(plugs=True)``
-  (短い名前が重複するノードを含む。``Plug.fullName()`` の一意な名前と一致すること)
+  (短い名前が重複するノードを含む。``Plug.getFullName()`` の一意な名前と一致すること)
 - ``Namespace`` と ``cmds.namespace``/``cmds.namespaceInfo``
 - Plug のアトリビュート型判定(アトリビュート定義から om2 で求める ``hlib._core.attributeType.attributeType``)と
   ``cmds.getAttr(<プラグ名>, type=True)``。transform・mesh・nurbsCurve・blendShape・
@@ -70,34 +70,34 @@ from hlib._core.attributeType import attributeType
 
 
 class NodeAliasesParityTest(unittest.TestCase):
-    """Node.aliases() が cmds.aliasAttr(query=True) と一致し続けることを検証する。"""
+    """Node.getAliases() が cmds.aliasAttr(query=True) と一致し続けることを検証する。"""
 
     def setUp(self):
         self.node = Node.create(type="transform", name="hlibParityAliases")
 
     def tearDown(self):
-        if cmds.objExists(self.node.name()):
-            cmds.delete(self.node.name())
+        if cmds.objExists(self.node.getName()):
+            cmds.delete(self.node.getName())
 
     def test_aliases_matches_cmds_aliasAttr(self):
-        cmds.aliasAttr("hlibParityAliasTx", self.node.plug("translateX").fullName())
-        cmds.aliasAttr("hlibParityAliasTy", self.node.plug("translateY").fullName())
+        cmds.aliasAttr("hlibParityAliasTx", self.node.getPlug("translateX").getFullName())
+        cmds.aliasAttr("hlibParityAliasTy", self.node.getPlug("translateY").getFullName())
 
         # cmds.aliasAttr(query=True) はフラットな [alias1, longName1, alias2, longName2, ...]
-        # を返す。longName は Plug.longName(ロング名)と直接比較できる。
-        raw = cmds.aliasAttr(self.node.name(), query=True) or []
+        # を返す。longName は Plug.getLongName(ロング名)と直接比較できる。
+        raw = cmds.aliasAttr(self.node.getName(), query=True) or []
         expected = {(raw[index], raw[index + 1]) for index in range(0, len(raw), 2)}
 
-        actual = {(alias, plug.longName()) for alias, plug in self.node.aliases()}
+        actual = {(alias, plug.getLongName()) for alias, plug in self.node.getAliases()}
         self.assertEqual(actual, expected)
 
     def test_aliases_empty_matches_cmds_when_no_alias_set(self):
-        self.assertEqual(cmds.aliasAttr(self.node.name(), query=True), None)
-        self.assertEqual(self.node.aliases(), [])
+        self.assertEqual(cmds.aliasAttr(self.node.getName(), query=True), None)
+        self.assertEqual(self.node.getAliases(), [])
 
 
 class NodeConnectionsParityTest(unittest.TestCase):
-    """Node.inputs/outputs/connections(type=) が cmds.listConnections と一致し続けることを検証する。"""
+    """Node.inputs/outputs/getConnections(type=) が cmds.listConnections と一致し続けることを検証する。"""
 
     def setUp(self):
         self.created = []
@@ -109,25 +109,25 @@ class NodeConnectionsParityTest(unittest.TestCase):
 
     def create_transform(self, name):
         node = Node.create(type="transform", name=name)
-        self.created.append(node.name())
+        self.created.append(node.getName())
         return node
 
     def test_inputs_matches_cmds_listConnections_source_side(self):
         source = self.create_transform("hlibParityConnSource")
         target = self.create_transform("hlibParityConnTarget")
-        source.plug("translateX").connectTo(target.plug("translateX"))
+        source.getPlug("translateX").connectTo(target.getPlug("translateX"))
 
-        expected = set(cmds.listConnections(target.name(), source=True, destination=False, plugs=True) or [])
-        actual = {plug.fullName() for plug in target.inputs()}
+        expected = set(cmds.listConnections(target.getName(), source=True, destination=False, plugs=True) or [])
+        actual = {plug.getFullName() for plug in target.getInputs()}
         self.assertEqual(actual, expected)
 
     def test_outputs_matches_cmds_listConnections_destination_side(self):
         source = self.create_transform("hlibParityConnSource2")
         target = self.create_transform("hlibParityConnTarget2")
-        source.plug("translateX").connectTo(target.plug("translateX"))
+        source.getPlug("translateX").connectTo(target.getPlug("translateX"))
 
-        expected = set(cmds.listConnections(source.name(), source=False, destination=True, plugs=True) or [])
-        actual = {plug.fullName() for plug in source.outputs()}
+        expected = set(cmds.listConnections(source.getName(), source=False, destination=True, plugs=True) or [])
+        actual = {plug.getFullName() for plug in source.getOutputs()}
         self.assertEqual(actual, expected)
 
     def test_connections_type_filter_matches_cmds_listConnections_type_filter(self):
@@ -135,18 +135,18 @@ class NodeConnectionsParityTest(unittest.TestCase):
         target = self.create_transform("hlibParityConnTarget3")
         mesh_target = cmds.polyCube(name="hlibParityConnMeshTarget", constructionHistory=False)[0]
         self.created.append(mesh_target)
-        source.plug("translateX").connectTo(target.plug("translateX"))
+        source.getPlug("translateX").connectTo(target.getPlug("translateX"))
 
         expected_transform = set(
-            cmds.listConnections(source.name(), source=False, destination=True, plugs=True, type="transform") or []
+            cmds.listConnections(source.getName(), source=False, destination=True, plugs=True, type="transform") or []
         )
-        actual_transform = {plug.fullName() for plug in source.outputs(type="transform")}
+        actual_transform = {plug.getFullName() for plug in source.getOutputs(type="transform")}
         self.assertEqual(actual_transform, expected_transform)
 
         expected_mesh = set(
-            cmds.listConnections(source.name(), source=False, destination=True, plugs=True, type="mesh") or []
+            cmds.listConnections(source.getName(), source=False, destination=True, plugs=True, type="mesh") or []
         )
-        actual_mesh = {plug.fullName() for plug in source.outputs(type="mesh")}
+        actual_mesh = {plug.getFullName() for plug in source.getOutputs(type="mesh")}
         self.assertEqual(actual_mesh, expected_mesh)
         self.assertEqual(actual_mesh, set())
 
@@ -155,23 +155,23 @@ class NodeConnectionsParityTest(unittest.TestCase):
         # cmds.listConnections の返す名前と一致し、どちらの接続も失われないこと。
         groups = [self.create_transform("hlibParityDupGroup%d" % index) for index in (1, 2)]
         duplicates = [
-            Node(cmds.createNode("transform", name="hlibParityDup", parent=group.fullName()))
+            Node(cmds.createNode("transform", name="hlibParityDup", parent=group.getFullName()))
             for group in groups
         ]
         source = self.create_transform("hlibParityDupSource")
         for duplicate in duplicates:
-            source.plug("translateX").connectTo(duplicate.plug("translateX"))
-            source.plug("translateY").connectTo(duplicate.plug("translateZ"))
+            source.getPlug("translateX").connectTo(duplicate.getPlug("translateX"))
+            source.getPlug("translateY").connectTo(duplicate.getPlug("translateZ"))
 
-        expected = set(cmds.listConnections(source.name(), source=False, destination=True, plugs=True) or [])
-        actual = {plug.fullName() for plug in source.outputs()}
+        expected = set(cmds.listConnections(source.getName(), source=False, destination=True, plugs=True) or [])
+        actual = {plug.getFullName() for plug in source.getOutputs()}
         self.assertEqual(len(actual), 4)
         self.assertEqual(actual, expected)
         for duplicate in duplicates:
             expected_inputs = set(
-                cmds.listConnections(duplicate.name(), source=True, destination=False, plugs=True) or []
+                cmds.listConnections(duplicate.getName(), source=True, destination=False, plugs=True) or []
             )
-            self.assertEqual({plug.fullName() for plug in duplicate.inputs()}, expected_inputs)
+            self.assertEqual({plug.getFullName() for plug in duplicate.getInputs()}, expected_inputs)
 
 
 class NamespaceParityTest(unittest.TestCase):
@@ -203,7 +203,7 @@ class NamespaceParityTest(unittest.TestCase):
         ) or []
         expected = {name if name.startswith(":") else f"{self.root_name}:{name}" for name in expected_raw}
 
-        actual = {child.name for child in Namespace(self.root_name).children()}
+        actual = {child.name for child in Namespace(self.root_name).getChildren()}
         self.assertEqual(actual, expected)
 
     def test_nodes_matches_cmds_namespaceInfo_listOnlyDependencyNodes(self):
@@ -215,7 +215,7 @@ class NamespaceParityTest(unittest.TestCase):
             ) or []
         }
 
-        actual = {node.name() for node in Namespace(self.root_name).nodes()}
+        actual = {node.getName() for node in Namespace(self.root_name).getNodes()}
         self.assertEqual(actual, expected)
 
     def test_nodes_recurse_matches_cmds_namespaceInfo_recurse(self):
@@ -225,7 +225,7 @@ class NamespaceParityTest(unittest.TestCase):
             ) or []
         }
 
-        actual = {node.name() for node in Namespace(self.root_name).nodes(recurse=True)}
+        actual = {node.getName() for node in Namespace(self.root_name).getNodes(recurse=True)}
         self.assertEqual(actual, expected)
 
 
@@ -301,7 +301,7 @@ class TransformMatrixParityTest(unittest.TestCase):
             scale=(-2.0, 3.0, 4.0),
             shear=(0.1, 0.2, -0.3),
         )
-        self.assertLess(source.determinant(), 0.0)
+        self.assertLess(source.det4x4(), 0.0)
         parts = source.decompose()
 
         target = cmds.createNode("transform", name="hlibParityNegativeTarget")
@@ -413,8 +413,8 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
 
     def assert_matches_cmds(self, plug):
         """存在するプラグについて、hlib の型名・ラッパーが cmds の型名と一致することを確かめる。"""
-        self.assertTrue(self.exists(plug.mplug()), plug.fullName())
-        expected = cmds.getAttr(plug.fullName(), type=True)
+        self.assertTrue(self.exists(plug.mplug()), plug.getFullName())
+        expected = cmds.getAttr(plug.getFullName(), type=True)
         self.assertEqual(attributeType(plug.mplug()), expected)
         resolved = Plug._registry.lookup(expected)
         if resolved is not None:
@@ -450,15 +450,15 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
 
     def test_representative_plugs_match_cmds_getAttr_type(self):
         transform = Node(cmds.createNode("transform", name="transform"))
-        mesh = Node(cmds.polyCube(name="cube", constructionHistory=False)[0]).shape()
-        cmds.setAttr(mesh.name() + ".pnts[0].pntx", 0.25)
-        curve = Node(cmds.curve(name="curve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).shape()
+        mesh = Node(cmds.polyCube(name="cube", constructionHistory=False)[0]).getShape()
+        cmds.setAttr(mesh.getName() + ".pnts[0].pntx", 0.25)
+        curve = Node(cmds.curve(name="curve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).getShape()
         target = cmds.polyCube(name="target")[0]
         base = cmds.polyCube(name="base")[0]
         blend = Node(cmds.blendShape(target, base, name="blend")[0])
         average = Node(cmds.createNode("plusMinusAverage", name="average"))
-        cmds.setAttr(average.name() + ".input1D[0]", 1.0)
-        cmds.setAttr(average.name() + ".input3D[0].input3Dx", 1.0)
+        cmds.setAttr(average.getName() + ".input1D[0]", 1.0)
+        cmds.setAttr(average.getName() + ".input3D[0].input3Dx", 1.0)
         multiply = Node(cmds.createNode("multiplyDivide", name="multiply"))
         joint = Node(cmds.createNode("joint", name="joint"))
         cases = [
@@ -477,26 +477,26 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
             (joint, "jointOrient", "double3"), (joint, "jointOrientX", "doubleAngle"),
         ]
         for node, path, expected in cases:
-            with self.subTest(plug=node.name() + "." + path):
-                plug = node.plug(path)
+            with self.subTest(plug=node.getName() + "." + path):
+                plug = node.getPlug(path)
                 self.assertEqual(self.assert_matches_cmds(plug), expected)
 
     def test_mesh_control_points_are_float3_like_cmds(self):
         # controlPoints は mesh と nurbsCurve が共有する double3 のアトリビュート定義だが、getAttr(type=True) は
         # mesh で float3 を返す(Maya が float の頂点座標として扱うため)。hlib も同じ型名になること。
-        mesh = Node(cmds.polyCube(name="cpCube", constructionHistory=False)[0]).shape()
+        mesh = Node(cmds.polyCube(name="cpCube", constructionHistory=False)[0]).getShape()
         # controlPoints[i] の問い合わせで Maya が作る pnts[i] を先に作っておく。
-        cmds.setAttr(mesh.name() + ".pnts[0].pntx", 0.0)
-        point = mesh.plug("controlPoints[0]")
+        cmds.setAttr(mesh.getName() + ".pnts[0].pntx", 0.0)
+        point = mesh.getPlug("controlPoints[0]")
         self.assertEqual(self.assert_matches_cmds(point), "float3")
         self.assertEqual(type(point).__name__, "CompoundPlug")
         self.assertEqual(self.assert_matches_cmds(point["xValue"]), "doubleLinear")
-        curve = Node(cmds.curve(name="cpCurve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).shape()
-        self.assertEqual(type(curve.plug("controlPoints[0]")).__name__, "Double3Plug")
+        curve = Node(cmds.curve(name="cpCurve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).getShape()
+        self.assertEqual(type(curve.getPlug("controlPoints[0]")).__name__, "Double3Plug")
 
     def test_dynamic_attributes_match_cmds_getAttr_type(self):
         network = Node(cmds.createNode("network", name="network"))
-        name = network.name()
+        name = network.getName()
         for attribute_type_name in self.ATTRIBUTE_TYPES:
             kwargs = {"enumName": "a:b"} if attribute_type_name == "enum" else {}
             cmds.addAttr(name, longName="at_" + attribute_type_name, attributeType=attribute_type_name, **kwargs)
@@ -518,21 +518,21 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         for attribute_type_name in self.ATTRIBUTE_TYPES:
             element = "%s.multi_%s[0]" % (name, attribute_type_name)
             if attribute_type_name == "message":
-                cmds.connectAttr(source.name() + ".message", element)
+                cmds.connectAttr(source.getName() + ".message", element)
             elif attribute_type_name in ("matrix", "fltMatrix"):
                 cmds.setAttr(element, *[1.0 if index % 5 == 0 else 0.0 for index in range(16)], type="matrix")
             else:
                 cmds.setAttr(element, 1)
         checked = {}
         top_level = [attribute for attribute in cmds.listAttr(name, userDefined=True) or []
-                     if not network.plug(attribute).isChild()]
-        for plug in [network.plug(attribute) for attribute in top_level]:
+                     if not network.getPlug(attribute).isChild()]
+        for plug in [network.getPlug(attribute) for attribute in top_level]:
             plugs = [plug[0]] if plug.isArray() else [plug]
             if plug.isCompound():
-                plugs.extend(plug.children())
+                plugs.extend(plug.getChildren())
             for item in plugs:
-                with self.subTest(plug=item.fullName()):
-                    checked[item.attrName()[1:]] = self.assert_matches_cmds(item)
+                with self.subTest(plug=item.getFullName()):
+                    checked[item.getAttrName()[1:]] = self.assert_matches_cmds(item)
         # 代表的な型名(登録ラッパーのキーを含む)が cmds と同じであること。
         expected = {
             "at_double": "double", "at_long": "long", "at_bool": "bool", "at_enum": "enum",
@@ -567,7 +567,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         checked = value_dependent = 0
         for node in [Node(name) for name in names]:
             for mplug in self.plugs_of(node):
-                name = node.name() + "." + mplug.partialName(False, True, True, True, False, True)
+                name = node.getName() + "." + mplug.partialName(False, True, True, True, False, True)
                 try:
                     expected = cmds.getAttr(name, type=True)
                 except (RuntimeError, ValueError):
@@ -593,20 +593,20 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         from hlib.plugs.plug import _held_matrix_type
 
         source = Node(cmds.createNode("transform", name="genericSource"))
-        cmds.addAttr(source.name(), longName="dbl", attributeType="double")
-        cmds.addAttr(source.name(), longName="colour", attributeType="float3")
+        cmds.addAttr(source.getName(), longName="dbl", attributeType="double")
+        cmds.addAttr(source.getName(), longName="colour", attributeType="float3")
         for axis in "RGB":
-            cmds.addAttr(source.name(), longName="colour" + axis, attributeType="float", parent="colour")
+            cmds.addAttr(source.getName(), longName="colour" + axis, attributeType="float", parent="colour")
         sources = ("worldMatrix[0]", "matrix", "translate", "colour", "tx", "visibility", "dbl")
         checked = set()
         choices = []
         for index, attribute in enumerate(sources):
             choice = Node(cmds.createNode("choice", name="genericChoice%d" % index))
             choices.append(choice)
-            cmds.connectAttr(source.name() + "." + attribute, choice.name() + ".input[0]")
+            cmds.connectAttr(source.getName() + "." + attribute, choice.getName() + ".input[0]")
             for path in ("output", "input[0]"):
-                plug = choice.plug(path)
-                name = plug.fullName()
+                plug = choice.getPlug(path)
+                name = plug.getFullName()
                 with self.subTest(plug=name, source=attribute):
                     self.assertTrue(self.exists(plug.mplug()))
                     self.assertIsNone(attributeType(plug.mplug()))
@@ -624,35 +624,35 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         self.assertTrue({"matrix", "double3", "float3"} <= checked, checked)
         # 入力接続の無い要素は値を読み、接続元も値によって型が変わるアトリビュートなら接続元を辿る。
         stored = Node(cmds.createNode("choice", name="genericStored"))
-        cmds.setAttr(stored.name() + ".input[2]", 3.0)
+        cmds.setAttr(stored.getName() + ".input[2]", 3.0)
         standalone = Node(cmds.createNode("unitConversion", name="genericStandalone"))
-        cmds.setAttr(standalone.name() + ".input", 3.0)
+        cmds.setAttr(standalone.getName() + ".input", 3.0)
         chained = Node(cmds.createNode("choice", name="genericChained"))
-        cmds.connectAttr(choices[0].name() + ".output", chained.name() + ".input[0]")
+        cmds.connectAttr(choices[0].getName() + ".output", chained.getName() + ".input[0]")
         converted = Node(cmds.createNode("transform", name="genericConverted"))
-        cmds.connectAttr(source.name() + ".rx", converted.name() + ".tx")
-        conversion = Node(cmds.listConnections(converted.name() + ".tx", source=True, destination=False)[0])
-        for plug in (stored.plug("input[2]"), standalone.plug("input"), chained.plug("input[0]"),
-                     chained.plug("output"), conversion.plug("input"), conversion.plug("output")):
-            name = plug.fullName()
+        cmds.connectAttr(source.getName() + ".rx", converted.getName() + ".tx")
+        conversion = Node(cmds.listConnections(converted.getName() + ".tx", source=True, destination=False)[0])
+        for plug in (stored.getPlug("input[2]"), standalone.getPlug("input"), chained.getPlug("input[0]"),
+                     chained.getPlug("output"), conversion.getPlug("input"), conversion.getPlug("output")):
+            name = plug.getFullName()
             with self.subTest(plug=name):
                 expected = cmds.getAttr(name, type=True)
                 self.assertEqual(_held_matrix_type(plug.mplug()), "matrix" if expected == "matrix" else None)
                 self.assertEqual(type(plug).__name__, "MatrixPlug" if expected == "matrix" else "Plug")
-        self.assertEqual(type(chained.plug("input[0]")).__name__, "MatrixPlug")
-        self.assertEqual(standalone.plug("input").get(), 3.0)
+        self.assertEqual(type(chained.getPlug("input[0]")).__name__, "MatrixPlug")
+        self.assertEqual(standalone.getPlug("input").get(), 3.0)
 
     def test_missing_elements_resolve_like_existing_elements_without_changes(self):
         # 存在しない配列要素もアトリビュート定義から同じ型名になり、要素は作られない。cmds へは存在する
         # 要素だけを問い合わせる(存在しない要素の問い合わせは要素を作るため)。
         average = Node(cmds.createNode("plusMinusAverage", name="pma"))
-        cmds.setAttr(average.name() + ".input1D[0]", 1.0)
-        cmds.setAttr(average.name() + ".input3D[0].input3Dx", 1.0)
-        mesh = Node(cmds.polyCube(name="missingCube", constructionHistory=False)[0]).shape()
-        cmds.setAttr(mesh.name() + ".pnts[0].pntx", 0.0)
+        cmds.setAttr(average.getName() + ".input1D[0]", 1.0)
+        cmds.setAttr(average.getName() + ".input3D[0].input3Dx", 1.0)
+        mesh = Node(cmds.polyCube(name="missingCube", constructionHistory=False)[0]).getShape()
+        cmds.setAttr(mesh.getName() + ".pnts[0].pntx", 0.0)
         network = Node(cmds.createNode("network", name="missingNet"))
-        cmds.addAttr(network.name(), longName="vals", attributeType="double", multi=True)
-        cmds.setAttr(network.name() + ".vals[0]", 1.0)
+        cmds.addAttr(network.getName(), longName="vals", attributeType="double", multi=True)
+        cmds.setAttr(network.getName() + ".vals[0]", 1.0)
         base = cmds.polyCube(name="missingBase")[0]
         target = cmds.polyCube(name="missingTarget")[0]
         blend = Node(cmds.blendShape(target, base, name="missingBlend")[0])
@@ -671,11 +671,11 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         ]
         for node, missing, existing, array_path in cases:
             with self.subTest(plug=missing):
-                existing_plug = node.plug(existing)
+                existing_plug = node.getPlug(existing)
                 expected = self.assert_matches_cmds(existing_plug)
-                array = node.plug(array_path)
+                array = node.getPlug(array_path)
                 before = list(array.mplug().getExistingArrayAttributeIndices())
-                missing_plug = node.plug(missing)
+                missing_plug = node.getPlug(missing)
                 self.assertFalse(self.exists(missing_plug.mplug()))
                 self.assertEqual(attributeType(missing_plug.mplug()), expected)
                 self.assertIs(type(missing_plug), type(existing_plug))
@@ -699,8 +699,8 @@ class NameResolutionParityTest(unittest.TestCase):
         from hlib.plugs.plug import Plug as _InputPlug
 
         cube = Node(cmds.polyCube(name="cube", constructionHistory=False)[0])
-        mesh = cube.shape()
-        curve = Node(cmds.curve(name="curve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).shape()
+        mesh = cube.getShape()
+        curve = Node(cmds.curve(name="curve", degree=1, point=[(0, 0, 0), (1, 0, 0)])).getShape()
         cmds.lattice(cmds.polyCube(name="latticed", constructionHistory=False)[0], name="lat")
         lattice = Node(cmds.ls(self.namespace + ":*", type="lattice", long=True)[0])
         source = Node(cmds.createNode("transform", name="source"))
@@ -708,18 +708,18 @@ class NameResolutionParityTest(unittest.TestCase):
         # MSelectionList はこれらを頂点・CV として登録するが、cmds.connectAttr はアトリビュートとして接続する。
         # 単位変換ノードが挟まらないよう、距離・倍率のアトリビュートどうしを接続する。
         cases = [
-            (source.plug("translate"), mesh.name() + ".pnts[3]"),
-            (source.plug("tx"), mesh.name() + ".pnts[4].pntx"),
-            (source.plug("ty"), mesh.name() + ".pt[5].py"),
-            (other.plug("translate"), cube.name() + ".pnts[6]"),
-            (source.plug("scale"), curve.name() + ".controlPoints[1]"),
-            (source.plug("sz"), lattice.name() + ".controlPoints[2].xValue"),
+            (source.getPlug("translate"), mesh.getName() + ".pnts[3]"),
+            (source.getPlug("tx"), mesh.getName() + ".pnts[4].pntx"),
+            (source.getPlug("ty"), mesh.getName() + ".pt[5].py"),
+            (other.getPlug("translate"), cube.getName() + ".pnts[6]"),
+            (source.getPlug("scale"), curve.getName() + ".controlPoints[1]"),
+            (source.getPlug("sz"), lattice.getName() + ".controlPoints[2].xValue"),
         ]
         for source_plug, text in cases:
             with self.subTest(plug=text):
                 cmds.connectAttr(str(source_plug), text)
                 resolved = _InputPlug._resolve_input(text)
-                self.assertEqual(resolved.sourceWithConversion().mplug(), source_plug.mplug())
+                self.assertEqual(resolved.getSourceWithConversion().mplug(), source_plug.mplug())
                 self.assertIn(resolved.mplug(), list(source_plug.mplug().connectedTo(False, True)))
                 self.assertEqual(cmds.getAttr(str(resolved), type=True), cmds.getAttr(text, type=True))
 
@@ -732,7 +732,7 @@ class NameResolutionParityTest(unittest.TestCase):
         leaf = cmds.ls(self.namespace + ":leaf", long=True)[0]
         paths = cmds.ls(leaf, allPaths=True, long=True)
         self.assertEqual(len(paths), 2)
-        world = Node(leaf).plug("worldMatrix")
+        world = Node(leaf).getPlug("worldMatrix")
         # 間接インスタンスを含むインスタンス数は cmds.ls(allPaths=True) の数と一致する。
         self.assertEqual(sorted(world.get()), list(range(len(paths))))
         for path in paths:

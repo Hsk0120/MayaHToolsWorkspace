@@ -4,6 +4,7 @@ import math
 
 import maya.cmds as cmds
 
+from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from .._core.unitValue import convert
 from ..decorators._fast import fast_edit, is_fast
@@ -22,32 +23,32 @@ class AnimCurve(Node):
         Returns:
             bool: 横軸が時間ならTrue、単位なしならFalse。
         """
-        return self.type()[9] == "T"
+        return self.getType()[9] == "T"
 
-    def keyCount(self):
+    def getKeyCount(self):
         """キー数。
 
         Returns:
             int: キー数。
         """
-        return cmds.keyframe(self.fullName(), query=True, keyframeCount=True) or 0
+        return cmds.keyframe(self.getFullName(), query=True, keyframeCount=True) or 0
 
-    def keyInputs(self):
+    def getKeyInputs(self):
         """キー順の入力。時間型は秒、それ以外は単位なし。
 
         Returns:
             list[float]: キー順の入力。時間型は秒、それ以外は単位なし。
         """
         flag = "timeChange" if self.isTimeInput() else "floatChange"
-        return [self._unit_value(v, to_ui=False) for v in (cmds.keyframe(self.fullName(), query=True, **{flag: True}) or [])]
+        return [self._unit_value(v, to_ui=False) for v in (cmds.keyframe(self.getFullName(), query=True, **{flag: True}) or [])]
 
-    def keyValues(self):
+    def getKeyValues(self):
         """キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。
 
         Returns:
             list[float]: キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。
         """
-        return [self._unit_value(v, output=True, to_ui=False) for v in (cmds.keyframe(self.fullName(), query=True, valueChange=True) or [])]
+        return [self._unit_value(v, output=True, to_ui=False) for v in (cmds.keyframe(self.getFullName(), query=True, valueChange=True) or [])]
 
     def evaluate(self, input):
         """指定入力でカーブ単体を評価する。シーン時刻は変更しない。
@@ -59,7 +60,7 @@ class AnimCurve(Node):
         """
         value = self._unit_value(self._finite(input))
         flag = "time" if self.isTimeInput() else "float"
-        result = cmds.keyframe(self.fullName(), query=True, eval=True, **{flag: (value, value)})
+        result = cmds.keyframe(self.getFullName(), query=True, eval=True, **{flag: (value, value)})
         if not result:
             raise RuntimeError("Cannot evaluate an empty curve")
         return self._unit_value(result[0], output=True, to_ui=False)
@@ -79,44 +80,47 @@ class AnimCurve(Node):
         position = self._unit_value(self._finite(input))
         value = self._unit_value(self._finite(value), output=True)
         flag = "time" if self.isTimeInput() else "float"
-        cmds.setKeyframe(self.fullName(), value=value, inTangentType=inTangentType,
+        cmds.setKeyframe(self.getFullName(), value=value, inTangentType=inTangentType,
                         outTangentType=outTangentType, **{flag: position})
         return self
 
+    @flag_aliases(idx="index")
     @undoChunk("hlibAnimCurveRemoveKey")
     def removeKey(self, index):
         """指定番号のキーを削除する。キークリップボードは変更しない。
 
         Args:
-            index (int): 0始まりのキー番号。
+            index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
         Returns:
             AnimCurve: 自身。
         """
-        cmds.cutKey(self.fullName(), index=self._index(index), clear=True, animation="objects")
+        cmds.cutKey(self.getFullName(), index=self._index(index), clear=True, animation="objects")
         return self
 
+    @flag_aliases(idx="index")
     def getTangent(self, index):
         """指定キーの接線情報を取得する。
 
         Args:
-            index (int): 0始まりのキー番号。
+            index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
         Returns:
             dict: Mayaの接線フラグ名をキーとした型・角度・ウェイト・ロック情報。
         """
         span = self._index(index)
-        result = {flag: cmds.keyTangent(self.fullName(), query=True, index=span, **{flag: True})[0]
+        result = {flag: cmds.keyTangent(self.getFullName(), query=True, index=span, **{flag: True})[0]
                 for flag in ("inTangentType", "outTangentType", "inAngle", "outAngle",
                              "inWeight", "outWeight", "lock", "weightLock", "weightedTangents")}
         for flag in ("inAngle", "outAngle"):
             result[flag] = angleFromUi(result[flag])
         return result
 
+    @flag_aliases(idx="index")
     @undoChunk("hlibAnimCurveSetTangent")
     def setTangent(self, index, **kwargs):
         """キーの接線を変更する。Mayaの接線ロック規則に従う。
 
         Args:
-            index (int): 0始まりのキー番号。
+            index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
             **kwargs: getTangent()で返すキーと同名のMayaフラグ。
                 weightedTangentsはカーブ全体に適用される。
         Returns:
@@ -130,7 +134,7 @@ class AnimCurve(Node):
         for flag in ("inAngle", "outAngle"):
             if flag in kwargs:
                 kwargs[flag] = angleToUi(kwargs[flag])
-        cmds.keyTangent(self.fullName(), edit=True, index=self._index(index), animation="objects", **kwargs)
+        cmds.keyTangent(self.getFullName(), edit=True, index=self._index(index), animation="objects", **kwargs)
         return self
 
     def getInfinity(self):
@@ -140,7 +144,7 @@ class AnimCurve(Node):
             dict: pre/postをキーとした外挿方法名。
         """
         names = {0: "constant", 1: "linear", 3: "cycle", 4: "cycleRelative", 5: "oscillate"}
-        return {key: names[self.plug(key + "Infinity").get()]
+        return {key: names[self.getPlug(key + "Infinity").get()]
                 for key in ("pre", "post")}
 
     @fast_edit
@@ -164,7 +168,7 @@ class AnimCurve(Node):
         values = {key: value for key, value in (("pre", pre), ("post", post)) if value is not None}
         if any(not isinstance(value, str) or value not in allowed for value in values.values()):
             raise ValueError("Unsupported infinity type")
-        targets = [(self.plug(key + "Infinity"), allowed[value]) for key, value in values.items()]
+        targets = [(self.getPlug(key + "Infinity"), allowed[value]) for key, value in values.items()]
         if is_fast():
             # 片側を書いた後にもう片側のロック・接続で失敗しないよう先に確認する。
             for plug, value in targets:
@@ -185,9 +189,9 @@ class AnimCurve(Node):
         """
         x = self._unit_value(self._finite(input_offset))
         y = self._unit_value(self._finite(value_offset), output=True)
-        if self.keyCount():
+        if self.getKeyCount():
             flag = "timeChange" if self.isTimeInput() else "floatChange"
-            cmds.keyframe(self.fullName(), edit=True, relative=True, animation="objects",
+            cmds.keyframe(self.getFullName(), edit=True, relative=True, animation="objects",
                           valueChange=y, **{flag: x})
         return self
 
@@ -207,9 +211,9 @@ class AnimCurve(Node):
         px, py = self._unit_value(px), self._unit_value(py, output=True)
         if not x:
             raise ValueError("Input scale cannot be zero")
-        if self.keyCount():
+        if self.getKeyCount():
             prefix = "time" if self.isTimeInput() else "float"
-            cmds.scaleKey(self.fullName(), animation="objects", valueScale=y, valuePivot=py,
+            cmds.scaleKey(self.getFullName(), animation="objects", valueScale=y, valuePivot=py,
                           **{prefix + "Scale": x, prefix + "Pivot": px})
         return self
 
@@ -226,29 +230,29 @@ class AnimCurve(Node):
         """
         return self.scaleKeys(-1 if input else 1, -1 if value else 1, input_pivot, value_pivot)
 
-    def driverPlug(self):
+    def getDriverPlug(self):
         """inputの直接接続元。時間型では通常timeノード。
 
         Returns:
             Plug | None: inputの直接接続元。時間型では通常timeノード。
         """
-        return self.plug("input").sourceWithConversion()
+        return self.getPlug("input").getSourceWithConversion()
 
-    def outputPlug(self):
+    def getOutputPlug(self):
         """出力プラグ。
 
         Returns:
             Plug: 出力プラグ。
         """
-        return self.plug("output")
+        return self.getPlug("output")
 
-    def drivenPlugs(self):
+    def getDrivenPlugs(self):
         """直接の出力接続先。変換・合成ノード越しの探索はしない。
 
         Returns:
             list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。
         """
-        return self.outputPlug().destinationsWithConversions()
+        return self.getOutputPlug().getDestinationsWithConversions()
 
     def _unit_value(self, value, output=False, to_ui=True):
         """入出力の単位型に従いコマンド境界で値を変換する。
@@ -258,7 +262,7 @@ class AnimCurve(Node):
             output: Trueは出力側、Falseは入力側を扱う。
             to_ui: Trueは内部単位からUI単位、Falseは逆方向へ変換する。
         """
-        return convert(self.plug("output" if output else "input").mplug(), value, to_ui)
+        return convert(self.getPlug("output" if output else "input").mplug(), value, to_ui)
 
     @staticmethod
     def _finite(value):
@@ -278,6 +282,6 @@ class AnimCurve(Node):
         Args:
             index: 対象要素の番号または探索開始番号。
         """
-        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < self.keyCount():
+        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < self.getKeyCount():
             raise IndexError("Key index is out of range")
         return (index, index)

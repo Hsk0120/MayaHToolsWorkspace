@@ -30,7 +30,7 @@ class LimbTest(unittest.TestCase):
 
     def position(self):
         """終端のワールド座標を評価する。"""
-        return cmds.xform(self.rig.joints()[2],query=True,worldSpace=True,translation=True)
+        return cmds.xform(self.rig.getJoints()[2],query=True,worldSpace=True,translation=True)
 
     def test_fk_and_soft_ik(self):
         """FK、LOD0のIK、Soft IKの数値を検証する。"""
@@ -47,18 +47,18 @@ class LimbTest(unittest.TestCase):
         """曲がった姿勢のFK/IK往復で終端と中間関節を保持する。"""
         self.rig.set_mode('ik')
         cmds.setAttr(self.rig.controls()['target']+'.translate',0,2,1)
-        expected=[cmds.xform(j,q=True,ws=True,matrix=True) for j in self.rig.joints()[:3]]
+        expected=[cmds.xform(j,q=True,ws=True,matrix=True) for j in self.rig.getJoints()[:3]]
         self.rig.match_fk();self.rig.set_mode('fk')
         self.rig.match_ik();self.rig.set_mode('ik')
-        for joint,matrix in zip(self.rig.joints(),expected):
+        for joint,matrix in zip(self.rig.getJoints(),expected):
             actual=cmds.xform(joint,q=True,ws=True,matrix=True)
             for a,b in zip(actual,matrix):
                 self.assertAlmostEqual(a,b,delta=0.003)
 
     def test_modes_and_parent_transform(self):
         """部位の親変換と明示的な評価ブロックを検証する。"""
-        cmds.setAttr(self.rig.root.fullName()+'.translate',3,4,5)
-        cmds.setAttr(self.rig.root.fullName()+'.rotateZ',90)
+        cmds.setAttr(self.rig.root.getFullName()+'.translate',3,4,5)
+        cmds.setAttr(self.rig.root.getFullName()+'.rotateZ',90)
         for value,expected in zip(self.position(),(3,14,5)):
             self.assertAlmostEqual(value,expected,places=5)
         self.assertEqual(cmds.getAttr(self.rig._member('handle')+'.nodeState'),2)
@@ -77,7 +77,7 @@ class LimbTest(unittest.TestCase):
         cmds.rename('limb','renamedLimb')
         rig=LimbRig('renamedLimb')
         rig.set_mode('ik')
-        self.assertEqual(len(rig.joints()),4)
+        self.assertEqual(len(rig.getJoints()),4)
         rig.delete()
         self.assertFalse(cmds.objExists('renamedLimb'))
         self.assertFalse(cmds.objExists('limb_soft_ik_multiplyDivide'))
@@ -102,10 +102,10 @@ class LimbTest(unittest.TestCase):
         self.rig.set_mode('ik')
         cmds.setAttr(self.rig.controls()['target']+'.translateX',1.5)
         expected=self.position()
-        joints=self.rig.joints()
+        joints=self.rig.getJoints()
         for backend in ('standard','cpp','standard','bifrost','standard'):
             self.rig.set_backend(backend)
-            self.assertEqual(self.rig.joints(),joints)
+            self.assertEqual(self.rig.getJoints(),joints)
             for actual,value in zip(self.position(),expected):
                 self.assertAlmostEqual(actual,value,delta=0.002)
 
@@ -152,7 +152,7 @@ class LimbTest(unittest.TestCase):
         cmds.file(new=True, force=True)
         demo = build_demo()
         rig = demo['rig']
-        self.assertEqual(rig.root.fullName(), '|rig')
+        self.assertEqual(rig.root.getFullName(), '|rig')
         for group in ('geo_grp', 'jnt_grp', 'ctrl_grp', 'setup_grp'):
             self.assertTrue(cmds.objExists('|rig|' + group))
         self.assertTrue(cmds.objExists('|rig|jnt_grp|limb_jnt_grp|root_jnt|mid_jnt|tip_jnt'))
@@ -173,18 +173,18 @@ class LimbTest(unittest.TestCase):
         self.assertTrue(cmds.sets(rig._member('helper'), isMember=rig._member('helperSet')))
         self.assertFalse(cmds.getAttr(rig._member('setupGroup') + '.visibility'))
         rig.set_lod(0)
-        cmds.setAttr(rig.root.fullName() + '.translate', 3, 4, 5)
-        cmds.setAttr(rig.root.fullName() + '.rotateZ', 90)
-        for actual, expected in zip(cmds.xform(rig.joints()[2], q=True, ws=True, t=True), (3, 12, 5)):
+        cmds.setAttr(rig.root.getFullName() + '.translate', 3, 4, 5)
+        cmds.setAttr(rig.root.getFullName() + '.rotateZ', 90)
+        for actual, expected in zip(cmds.xform(rig.getJoints()[2], q=True, ws=True, t=True), (3, 12, 5)):
             self.assertAlmostEqual(actual, expected, delta=0.002)
         rig.match_fk(); rig.set_mode('fk')
         rig.match_ik(); rig.set_mode('ik')
-        for actual, expected in zip(cmds.xform(rig.joints()[2], q=True, ws=True, t=True), (3, 12, 5)):
+        for actual, expected in zip(cmds.xform(rig.getJoints()[2], q=True, ws=True, t=True), (3, 12, 5)):
             self.assertAlmostEqual(actual, expected, delta=0.002)
         # 2体目は明示名を接頭辞にし、自動採番に依存しない。
         second = build_demo('other')
         self.assertTrue(cmds.objExists('|other|other_jnt_grp|other_limb_jnt_grp|other_root_jnt'))
-        self.assertNotEqual(second['rig'].joints(), rig.joints())
+        self.assertNotEqual(second['rig'].getJoints(), rig.getJoints())
         before = set(cmds.ls(long=True))
         with self.assertRaises(ValueError):
             build_demo()

@@ -39,7 +39,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。
 ``delete`` は複数ノードもまとめて受け付けます。Plug(アトリビュート)を渡すと ``TypeError`` です
 (``maya.cmds.delete`` はアトリビュートを削除せず何もしないため)。動的アトリビュートの削除は
-``plug.delete()``、所有ノードの削除は ``hlib.delete(plug.node())`` を使ってください。
+``plug.delete()``、所有ノードの削除は ``hlib.delete(plug.getNode())`` を使ってください。
 
 選択とアニメーション
 --------------------
@@ -57,9 +57,9 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
    hlib.select(clear=True)
 
    cmds.currentTime(1)
-   cmds.setKeyframe(a.plug("translateX"), value=0.0)
+   cmds.setKeyframe(a.getPlug("translateX"), value=0.0)
    cmds.currentTime(24)
-   cmds.setKeyframe(a.plug("translateX"), value=10.0)
+   cmds.setKeyframe(a.getPlug("translateX"), value=10.0)
 
    hlib.bakeResults(a, time=(1, 24), attribute=["translateX"], simulation=True)
 
@@ -72,15 +72,15 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 GUIではベイク中のメインペインを非表示にし、終了時に元の状態へ戻します。
 
 アトリビュートの取得・設定・接続（``getAttr``/``setAttr``/``connectAttr``/``addAttr``）は
-コマンドとしては用意していません。``node.plug("attrName")`` が返す ``Plug`` の
+コマンドとしては用意していません。``node.getPlug("attrName")`` が返す ``Plug`` の
 ``get()``/``set()``/``connectTo()``、および ``node.addAttr()`` を使ってください。
 ``Plug`` は ``maya.cmds.getAttr(plug)`` のように maya.cmds へそのまま渡すこともできます
 （:doc:`cmds_interop`）。
 
-ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.plug` で取得した
+ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.getPlug` で取得した
 :class:`~hlib.plugs.plug.Plug` オブジェクトを通して操作します。
-本ドキュメントの使用例は ``plug()`` に統一しています。
-アトリビュート取得は ``plug()`` に統一しています。
+本ドキュメントの使用例は ``getPlug()`` に統一しています。
+アトリビュート取得は ``getPlug()`` に統一しています。
 
 コマンドの命名と役割
 --------------------
@@ -121,7 +121,7 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
      - ``getDrivenKey``
 
 ``create`` / ``add`` は生成・追加専用です。拘束の照会は
-``constraint.targets()`` / ``constraint.weightPlugs()``、編集は
+``constraint.getTargets()`` / ``constraint.getWeightPlugs()``、編集は
 ``constraint.setWeight()`` を使います。セットは
-``object_set.members()`` / ``add()`` / ``remove()`` を使います。
+``object_set.getMembers()`` / ``add()`` / ``remove()`` を使います。
 ``getDrivenKey`` は関係取得のみで、キーの生成は ``setKey()`` です。

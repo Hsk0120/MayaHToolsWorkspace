@@ -29,7 +29,7 @@ class ClassDesignTest(unittest.TestCase):
             self.assertIn("transform", cmds.nodeType(name, inherited=True))
             node = Node(name)
             self.assertIsInstance(node, Transform)
-            self.assertEqual(DagNode(name).mpath().fullPathName(), node.fullName())
+            self.assertEqual(DagNode(name).mpath().fullPathName(), node.getFullName())
             self.assertEqual(Transform(name), node)
             nodes = Transforms([node])
             self.assertIs(nodes.setVisibility(False), nodes)

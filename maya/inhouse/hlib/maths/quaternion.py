@@ -73,7 +73,7 @@ class Quaternion(om2.MQuaternion):
     不正な引数は om2 と同じく ValueError。生成時や積の計算時に正規化は行わない。
 
     積 ``q1 * q2`` は om2 と同じ順序で、q1 を先に適用してから q2 を適用する回転
-    になる(``(q1 * q2).toMatrix()`` は ``q1.toMatrix() * q2.toMatrix()`` と同じ回転。Hamilton 積の
+    になる(``(q1 * q2).asMatrix()`` は ``q1.asMatrix() * q2.asMatrix()`` と同じ回転。Hamilton 積の
     ``q2 ⊗ q1`` に等しい)。``+``、``-``、単項の ``-`` は om2 の成分ごとの演算。
     ``数値 * q`` は om2 と同じく4成分のスカラー倍(``q * 数値`` と ``/`` は om2 と
     同じく未対応)。演算結果は hlib の :class:`Quaternion` で返す(``om2.MQuaternion`` が
@@ -87,9 +87,8 @@ class Quaternion(om2.MQuaternion):
     完全一致で(``q`` と ``-q`` は同じ回転でも等しくない)、MQuaternion 系以外との
     比較は :class:`~hlib.maths.vector.Vector` と同じく例外にしない。
 
-    四元数を返す独自メソッドと ``conjugate()`` / ``inverse()`` / ``slerp()`` は hlib の
-    型を返す。om2 から継承した camelCase のメソッド(``asMatrix``、
-    ``asEulerRotation``、``normal``、``log`` など)は om2 の基底型を返す。
+    数学値を返す継承メソッドも対応するhlib型を返す。コピー操作は新しい値を
+    返し、It付きの更新操作は自身を書き換える。OpenMaya標準の演算と引数を維持する。
     """
 
     __slots__ = ()
@@ -453,6 +452,34 @@ class Quaternion(om2.MQuaternion):
         result.w = math.cos(half)
         return result
 
+    @staticmethod
+    def squad(*args):
+        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Quaternion: 演算結果を保持する新しいhlib値。
+        """
+        return Quaternion._wrap(_MQuaternion.squad(*args))
+
+    @staticmethod
+    def squadPt(*args):
+        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Quaternion: 演算結果を保持する新しいhlib値。
+        """
+        return Quaternion._wrap(_MQuaternion.squadPt(*args))
+
     def dot(self, other):
         """4成分の内積を返す。
 
@@ -472,7 +499,20 @@ class Quaternion(om2.MQuaternion):
         """
         return math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w)
 
-    def normalized(self):
+    def unitIt(self):
+        """ゼロ値を拒否して自身を正規化する。
+
+        Returns:
+            Quaternion: 更新した自身。
+
+        Raises:
+            ValueError: ゼロ値の場合。自身は変更しない。
+        """
+        value = self.unit()
+        self.setValue(value)
+        return self
+
+    def unit(self):
         """正規化した新しい四元数を返す。
 
         om2 の ``normal()`` はゼロ四元数に単位四元数を返すが、このメソッドは拒否する。
@@ -578,7 +618,7 @@ class Quaternion(om2.MQuaternion):
         """
         return Quaternion._wrap(_MQuaternion.slerp(_unit_copy(self), _unit_copy(other), t, spin))
 
-    def toAxisAngle(self):
+    def asCanonicalAxisAngle(self):
         """軸と角度の組へ分解する。
 
         om2 の ``asAxisAngle`` と異なり、w が負なら符号を反転して角度を 0 から pi の
@@ -605,7 +645,7 @@ class Quaternion(om2.MQuaternion):
         result.z = rotation.z / sine
         return result, angle
 
-    def toSwingTwist(self, axis=(1.0, 0.0, 0.0)):
+    def asSwingTwist(self, axis=(1.0, 0.0, 0.0)):
         """指定軸まわりの捻り(twist)と、それ以外の曲げ(swing)へ分解する。
 
         ``twist`` は axis 周りだけの回転、``swing`` は axis の向きを変える残りの
@@ -647,7 +687,7 @@ class Quaternion(om2.MQuaternion):
         swing = twist.conjugate() * rotation
         return swing, twist
 
-    def toEuler(self, order="xyz"):
+    def asDecomposedEulerRotation(self, order="xyz"):
         """EulerRotation へ変換する。
 
         正規化した回転行列を ``om2.MEulerRotation.decompose`` で分解するため、
@@ -669,7 +709,7 @@ class Quaternion(om2.MQuaternion):
         index = orderIndex(order)
         return EulerRotation._wrap(om2.MEulerRotation.decompose(_unit_copy(self).asMatrix(), index))
 
-    def mirrored(self, axis="x"):
+    def mirror(self, axis="x"):
         """Matrixと同じ規約で向きをビヘイビアミラーした複製を返す。
 
         Args:
@@ -678,23 +718,23 @@ class Quaternion(om2.MQuaternion):
         Returns:
             Quaternion: 同型の新しい回転。Eulerの回転順序は維持する。
         """
-        matrix = self.toMatrix().mirrored(axis)
+        matrix = self.asUnitMatrix().mirror(axis)
         result = type(self)._wrap(matrix.quaternion)
         return result
 
-    def mirror(self, axis="x"):
+    def mirrorIt(self, axis="x"):
         """自身の向きをビヘイビアミラーする。
 
         Args:
-            axis (str | int): mirroredと同じ反転軸。
+            axis (str | int): mirrorと同じ反転軸。
 
         Returns:
             Quaternion: 更新した自身。
         """
-        self.setValue(self.mirrored(axis))
+        self.setValue(self.mirror(axis))
         return self
 
-    def toMatrix(self):
+    def asUnitMatrix(self):
         """正規化した回転を表す Matrix を返す。
 
         Returns:
@@ -705,7 +745,85 @@ class Quaternion(om2.MQuaternion):
         """
         from .matrix import Matrix
 
-        return Matrix._wrap(_unit_copy(self).asMatrix())
+        return Matrix._wrap(_MQuaternion.asMatrix(_unit_copy(self)))
+
+    def normal(self, *args):
+        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Quaternion: 演算結果を保持する新しいhlib値。
+        """
+        return Quaternion._wrap(_MQuaternion.normal(self, *args))
+
+    def exp(self, *args):
+        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Quaternion: 演算結果を保持する新しいhlib値。
+        """
+        return Quaternion._wrap(_MQuaternion.exp(self, *args))
+
+    def log(self, *args):
+        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Quaternion: 演算結果を保持する新しいhlib値。
+        """
+        return Quaternion._wrap(_MQuaternion.log(self, *args))
+
+    def asMatrix(self, *args):
+        """OpenMayaと同じ演算でMatrixの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            Matrix: 演算結果を保持する新しいhlib値。
+        """
+        from .matrix import Matrix
+
+        return Matrix._wrap(_MQuaternion.asMatrix(self, *args))
+
+    def asEulerRotation(self, *args):
+        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+
+        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+
+        Args:
+            *args: OpenMayaの同名メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotation: 演算結果を保持する新しいhlib値。
+        """
+        from .eulerRotation import EulerRotation
+
+        return EulerRotation._wrap(_MQuaternion.asEulerRotation(self, *args))
+
+    def asAxisAngle(self):
+        """OpenMayaの軸角表現をhlibの軸ベクトルで返す。
+
+        Returns:
+            tuple[Vector, float]: 軸とラジアン角度。角度範囲はOpenMayaに従う。
+        """
+        axis, angle = _MQuaternion.asAxisAngle(self)
+        return Vector(axis), angle
 
     @classmethod
     def _wrap(cls, value):

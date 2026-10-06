@@ -34,7 +34,7 @@ class PluginVersionTest(unittest.TestCase):
 
     def test_version_parts_match_version_string(self):
         plugin = Plugin(self.pluginName)
-        self.assertEqual(plugin.version().parts, Version.parse(plugin.versionText()).parts)
+        self.assertEqual(plugin.getVersion().parts, Version.parse(plugin.getVersionText()).parts)
 
     def test_is_version_at_least(self):
         plugin = Plugin(self.pluginName)
@@ -45,7 +45,7 @@ class PluginVersionTest(unittest.TestCase):
 
     def test_unknown_plugin_has_no_version(self):
         plugin = Plugin("hlibDoesNotExistPlugin123")
-        self.assertIsNone(plugin.version())
+        self.assertIsNone(plugin.getVersion())
         self.assertFalse(plugin.isVersionAtLeast("0"))
 
 
@@ -58,8 +58,8 @@ class ModuleTest(unittest.TestCase):
     def test_unknown_module(self):
         module = Module("hlibDoesNotExistModule123")
         self.assertFalse(module.isRegistered())
-        self.assertIsNone(module.version())
-        self.assertIsNone(module.path())
+        self.assertIsNone(module.getVersion())
+        self.assertIsNone(module.getPath())
         self.assertFalse(module.isVersionAtLeast("0"))
 
     def test_registered_module_matches_moduleInfo(self):
@@ -69,9 +69,9 @@ class ModuleTest(unittest.TestCase):
         name = modules[0]
         module = Module(name)
         self.assertTrue(module.isRegistered())
-        self.assertEqual(module.versionText(), cmds.moduleInfo(version=True, moduleName=name) or None)
-        self.assertEqual(module.version(), Version.parse(module.versionText()))
-        self.assertEqual(module.path(), cmds.moduleInfo(path=True, moduleName=name) or None)
+        self.assertEqual(module.getVersionText(), cmds.moduleInfo(version=True, moduleName=name) or None)
+        self.assertEqual(module.getVersion(), Version.parse(module.getVersionText()))
+        self.assertEqual(module.getPath(), cmds.moduleInfo(path=True, moduleName=name) or None)
 
     def test_equality_hash_and_repr(self):
         # 他のテストが hlib.reload() を呼んでも古いクラスを掴まないよう、都度 hlib.environment から取得する。
@@ -123,8 +123,8 @@ class PluginPackageFlowTest(unittest.TestCase):
         return PluginPackage("ProductX", **options)
 
     def run_flow(self, package, installed, loadedVersion=None, failed=()):
-        with mock.patch.object(PluginPackage, "installedVersion", return_value=Version.parse(installed)), \
-                mock.patch.object(PluginPackage, "loadedVersion", return_value=Version.parse(loadedVersion)), \
+        with mock.patch.object(PluginPackage, "getInstalledVersion", return_value=Version.parse(installed)), \
+                mock.patch.object(PluginPackage, "getLoadedVersion", return_value=Version.parse(loadedVersion)), \
                 mock.patch.object(PluginPackage, "loadPlugins", return_value=list(failed)) as loader:
             result = package.tryLoad(dialog=self.shown.append)
         return result, loader
@@ -169,7 +169,7 @@ class PluginPackageFlowTest(unittest.TestCase):
 
     def test_silent_initialization_failure_is_not_loaded(self):
         """Mayaが初期化失敗を例外にしない場合もLOAD_FAILEDを返す。"""
-        with mock.patch.object(PluginPackage, "installedVersion", return_value=Version((3, 0, 0))), \
+        with mock.patch.object(PluginPackage, "getInstalledVersion", return_value=Version((3, 0, 0))), \
                 mock.patch.object(cmds, "loadPlugin", return_value=None), \
                 mock.patch.object(Plugin, "isLoaded", return_value=False):
             result = self.make().tryLoad(dialog=self.shown.append)
@@ -216,7 +216,7 @@ class PluginPackageFlowTest(unittest.TestCase):
 
     def test_dialog_options(self):
         package = self.make()
-        with mock.patch.object(PluginPackage, "installedVersion", return_value=None):
+        with mock.patch.object(PluginPackage, "getInstalledVersion", return_value=None):
             self.assertEqual(package.tryLoad(dialog=False, warn=False), MISSING)
             self.assertEqual(self.fake.dialogs, [])
             self.assertEqual(self.fake.warnings, [])
@@ -228,13 +228,13 @@ class PluginPackageFlowTest(unittest.TestCase):
     def test_dialog_is_skipped_in_batch(self):
         self.fake.batch = True
         package = self.make()
-        with mock.patch.object(PluginPackage, "installedVersion", return_value=None):
+        with mock.patch.object(PluginPackage, "getInstalledVersion", return_value=None):
             self.assertEqual(package.tryLoad(), MISSING)
         self.assertEqual(self.fake.dialogs, [])
 
     def test_custom_install_hint(self):
         package = self.make(install_hint="社内サーバーから入手してください。")
-        self.assertIn("社内サーバー", package.message())
+        self.assertIn("社内サーバー", package.getMessage())
 
 
 class PluginPackageRealTest(unittest.TestCase):
@@ -243,8 +243,8 @@ class PluginPackageRealTest(unittest.TestCase):
     def test_unknown_package_is_not_installed(self):
         package = PluginPackage("Unknown", plugins=("hlibDoesNotExistPlugin123",),
                                 module="hlibDoesNotExistModule123", minimum_version="1.0")
-        self.assertIsNone(package.installedVersion())
-        self.assertIsNone(package.loadedVersion())
+        self.assertIsNone(package.getInstalledVersion())
+        self.assertIsNone(package.getLoadedVersion())
         self.assertFalse(package.isInstalled())
         shown = []
         self.assertEqual(package.tryLoad(dialog=shown.append), MISSING)
@@ -258,7 +258,7 @@ class PluginPackageRealTest(unittest.TestCase):
             self.assertEqual(package.tryLoad(dialog=False), LOADED)
             self.assertTrue(package.isInstalled())
             self.assertTrue(cmds.pluginInfo(name, query=True, loaded=True))
-            self.assertEqual(package.loadedVersion(), Plugin(name).version())
+            self.assertEqual(package.getLoadedVersion(), Plugin(name).getVersion())
         finally:
             if not was_loaded and cmds.pluginInfo(name, query=True, loaded=True):
                 cmds.unloadPlugin(name)
@@ -271,7 +271,7 @@ class PluginPackageRealTest(unittest.TestCase):
 
     def test_installed_version_falls_back_to_plugin_version(self):
         package = PluginPackage("Matrix nodes", plugins=("matrixNodes",), module="hlibDoesNotExistModule123")
-        self.assertEqual(package.installedVersion(), Plugin("matrixNodes").version())
+        self.assertEqual(package.getInstalledVersion(), Plugin("matrixNodes").getVersion())
 
 
 class RequirePluginsCommandTest(unittest.TestCase):
@@ -332,7 +332,7 @@ class BifrostTest(unittest.TestCase):
         self.assertEqual(shown, [])
         for plugin in self.package.plugins:
             self.assertTrue(plugin.isLoaded(), plugin.name)
-        self.assertTrue(self.package.loadedVersion().isAtLeast("3.0.0"))
+        self.assertTrue(self.package.getLoadedVersion().isAtLeast("3.0.0"))
 
     def test_too_new_version_is_reported_missing(self):
         package = PluginPackage("Bifrost", plugins=("bifrostGraph",), module="Bifrost", minimum_version="99.0")

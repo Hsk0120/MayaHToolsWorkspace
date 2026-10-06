@@ -48,11 +48,11 @@ class SpaceLayer:
         Args:
             nodes (Sequence[Node]): 所有する生成物。外部参照先は含めない。
         """
-        root = self.rig.root.fullName()
+        root = self.rig.root.getFullName()
         for node in nodes:
-            hlib.getNode(root).plug("hrigOwned").appendMessage(node)
+            hlib.getNode(root).getPlug("hrigOwned").appendMessage(node)
         members = [
-            node.fullName() for node in nodes if node.fullName() != self.rig._member("spaceSet")
+            node.getFullName() for node in nodes if node.getFullName() != self.rig._member("spaceSet")
         ]
         if members:
             self.rig._layer_members("spaceSet", members)
@@ -62,15 +62,15 @@ class SpaceLayer:
         """IK Local/World、Pole Local/World/Footの空間切替を追加する。"""
         if self.rig.root.hasAttr("targetSpace"):
             return
-        layer_set = hlib.createSet(empty=True, name=self.rig.nodeName("spaceSet")).fullName()
+        layer_set = hlib.createSet(empty=True, name=self.rig.getNodeName("spaceSet")).getFullName()
         self.rig._bind("spaceSet", layer_set)
         self.rig._layer_members("moduleSet", [layer_set])
         self._own([hlib.getNode(layer_set)])
         for role in ("target", "pole"):
             offset = hlib.getNode(self.rig._member(role + "Offset"))
-            parent = offset.parent()
+            parent = offset.getParent()
             buffer = hlib.createNode(
-                "transform", name=self.rig.nodeName(role + "Space"), parent=parent, skipSelect=True
+                "transform", name=self.rig.getNodeName(role + "Space"), parent=parent, skipSelect=True
             )
             offset.setParent(buffer, relative=True)
             switch = SpaceSwitch.create(buffer)
@@ -78,13 +78,13 @@ class SpaceLayer:
             switch.add("world")
             if role == "pole":
                 switch.add("foot", self.rig._member("target"))
-            self.rig._bind(role + "Space", buffer.fullName())
-            self._own(switch.nodes())
+            self.rig._bind(role + "Space", buffer.getFullName())
+            self._own(switch.getNodes())
             control = hlib.getNode(self.rig._member(role))
             control.addAttr(
                 longName="space", attributeType="enum", enumName=":".join(switch.labels())
             )
-            control.setAttributeFlags(["space"], keyable=False, channelBox=True)
+            control.setAttrFlags(["space"], keyable=False, channelBox=True)
             from .limb import _lock_group
 
             _lock_group(buffer)
@@ -105,7 +105,7 @@ class SpaceLayer:
         """
         switch = self.switcher(control)
         if target is not None:
-            path = hlib.getNode(target).fullName()
+            path = hlib.getNode(target).getFullName()
             # IKソルバーの内部依存は通常のDG入力列挙だけでは検出できない。
             # この部位の変形結果と計算用階層を、操作空間の入力には使わない。
             for role in ("moduleJoints", "moduleSetup"):
@@ -113,7 +113,7 @@ class SpaceLayer:
                 if path == parent or path.startswith(parent + "|"):
                     raise ValueError("Rig output cannot drive its own control space")
         switch.add(label, target)
-        self._own([switch.nodes()[-1]])
+        self._own([switch.getNodes()[-1]])
         node = self.rig._member(self._role(control))
         hlib.getPlug(node + ".space").setEnumNames(switch.labels())
 
@@ -126,16 +126,16 @@ class SpaceLayer:
             label (str): 登録済み空間名。
         """
         node = hlib.getNode(self.rig._member(self._role(control)))
-        if node.plug("space").sourceWithConversion() is not None:
+        if node.getPlug("space").getSourceWithConversion() is not None:
             raise ValueError("Space is a configuration attribute; remove keys or connections")
         switch = self.switcher(control)
         switch.switch(label)
-        node.plug("space").setIfChanged(switch.labels().index(switch.current()))
+        node.getPlug("space").setIfChanged(switch.labels().index(switch.getCurrent()))
 
     def sync(self):
         """適用済みの空間をチャンネル表示へ反映する。"""
         for role in ("target", "pole"):
             switch = self.switcher(role)
             hlib.getPlug(self.rig._member(role) + ".space").setIfChanged(
-                switch.labels().index(switch.current())
+                switch.labels().index(switch.getCurrent())
             )

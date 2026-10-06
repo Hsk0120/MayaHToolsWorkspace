@@ -26,7 +26,7 @@ def create_soft_ik(name, length, backend="standard"):
         from hrig.setups.bifrostSoftIK import SoftIK
 
         graph = SoftIK.create(name, length)
-        return graph.name(), graph.parent().fullName()
+        return graph.getName(), graph.getParent().getFullName()
     if backend != "cpp":
         raise ValueError("Unknown backend: " + backend)
     version = str(cmds.about(version=True)).split()[0]
@@ -38,6 +38,6 @@ def create_soft_ik(name, length, backend="standard"):
             raise RuntimeError("Build hrigNodes for Maya " + version)
         # SafeModeの許可リストは変更しない。Mayaが拒否した場合はそのまま失敗する。
         hlib.environment.Plugin(str(plugin)).load(quiet=True)
-    node = hlib.createNode("hrigSoftIK", name=name, skipSelect=True).fullName()
+    node = hlib.createNode("hrigSoftIK", name=name, skipSelect=True).getFullName()
     hlib.getPlug(node + ".length").set(length)
     return node, node

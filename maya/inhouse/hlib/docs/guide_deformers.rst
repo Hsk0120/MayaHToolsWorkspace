@@ -69,11 +69,11 @@ cluster と locator
    from hlib.nodes import Node
 
    mesh = hlib.getNode("pCube1")
-   cluster_name, handle_name = cmds.cluster(mesh.fullName() + ".vtx[0:2]")
+   cluster_name, handle_name = cmds.cluster(mesh.getFullName() + ".vtx[0:2]")
    cluster = Node(cluster_name)
 
-   print(cluster.weightedNode())   # cluster1Handle（ハンドル transform）
-   print(cluster.geometry())        # [Mesh(...)]（変形対象の shape）
+   print(cluster.getWeightedNode())   # cluster1Handle（ハンドル transform）
+   print(cluster.getGeometry())        # [Mesh(...)]（変形対象の shape）
 
    loc_transform = cmds.spaceLocator(name="myLocator")[0]
    loc_shape_name = cmds.listRelatives(loc_transform, shapes=True)[0]
@@ -98,24 +98,24 @@ blendShape のターゲット操作
    base = hlib.getNode("pCube1")
    target = hlib.getNode("pCube2")   # base と同じトポロジーの別メッシュ
 
-   bs = Node(cmds.blendShape(target.fullName(), base.fullName(), name="myBlendShape")[0])
-   print(bs.targetAliases())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
+   bs = Node(cmds.blendShape(target.getFullName(), base.getFullName(), name="myBlendShape")[0])
+   print(bs.getTargetAliases())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
    print(bs.getWeights())            # [0.0]
-   bs.weightPlugs()[0].set(1.0)
+   bs.getWeightPlugs()[0].set(1.0)
 
    new_target = hlib.getNode("pCube3")
    weightPlug = bs.addTarget(new_target)   # 空いている weight インデックスへ追加
    weightPlug.set(0.5)
-   print(bs.targetAliases())            # ['pCube2', 'pCube3']
+   print(bs.getTargetAliases())            # ['pCube2', 'pCube3']
 
-``targetAliases()`` / ``weightPlugs()`` / ``getWeights()`` は ``aliases()`` の順序に従います。
+``getTargetAliases()`` / ``getWeightPlugs()`` / ``getWeights()`` は ``getAliases()`` の順序に従います。
 weight配列の論理インデックスで並べ替えません。weight以外のアトリビュートに
 エイリアスを付けた場合、その名前・Plug・値も含みます。
 ``addTarget`` は ``base`` を省略すると既存の base geometry の先頭を使い、
-``weight_index`` を省略すると ``plug("weight").nextAvailableIndex()`` で空きインデックス
+``weight_index`` を省略すると ``getPlug("weight").getNextAvailableIndex()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
 設定されるため、戻り値のプラグの ``fullName`` は ``weight[N]`` ではなく
-ターゲット名を含む表記になります（``longName()`` では実際のアトリビュート名を取得できます）。
+ターゲット名を含む表記になります（``getLongName()`` では実際のアトリビュート名を取得できます）。
 
 skinCluster ウェイトのバックアップ・復元
 ------------------------------------------
@@ -130,7 +130,7 @@ skinCluster ウェイトのバックアップ・復元
    # ... 別シーンで読み込み直す、または同じシーンで何か変更した後に復元する場合 ...
    skin.loadWeights("C:/tmp/hlibExampleWeights.json")
 
-``dumpWeights``/``loadWeights`` は ``influences()`` と同じ並びの全 influence の
+``dumpWeights``/``loadWeights`` は ``getInfluences()`` と同じ並びの全 influence の
 頂点ウェイトを単純な JSON 形式でファイルへ書き出し・読み込みます。
 ``loadWeights`` は、書き出し時の頂点数が現在の mesh と一致し、記録された
 influence がすべて現在の skinCluster に存在することを要求します。
@@ -149,7 +149,7 @@ influence がすべて現在の skinCluster に存在することを要求しま
    joint = Joint("hlibExampleJoint")
    with preservedSkinShape([joint]):
        # 現在のjoint姿勢をスキニング基準へ反映する。
-       joint.plug("jointOrientZ").set(45.0)
+       joint.getPlug("jointOrientZ").set(45.0)
 
 ``preservedSkinShape`` は Maya標準の ``skinCluster -moveJointsMode`` /
 ``-recacheBindMatrices`` を使い、ブロック内での joint 姿勢変更を

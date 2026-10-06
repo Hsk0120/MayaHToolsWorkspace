@@ -255,7 +255,7 @@ def get_selected_mesh_transforms():
     seen = set()
 
     for sel in sels:
-        if Node(sel).type() == 'mesh':
+        if Node(sel).getType() == 'mesh':
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
             if not parents:
                 continue
@@ -264,7 +264,7 @@ def get_selected_mesh_transforms():
             mesh = sel
 
         shapes = cmds.listRelatives(mesh, shapes=True, noIntermediate=True, fullPath=True) or []
-        if not shapes or Node(shapes[0]).type() != 'mesh':
+        if not shapes or Node(shapes[0]).getType() != 'mesh':
             cmds.warning(u'Skip: {} is not a mesh.'.format(mesh))
             continue
 
@@ -297,7 +297,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
             continue
 
         # 元 skinCluster から influence を取得
-        influences = [node.name() for node in Node(src_skin).influences()]
+        influences = [node.getName() for node in Node(src_skin).getInfluences()]
         if not influences:
             cmds.warning(u'Skip: could not get the influences of {}.'.format(mesh))
             continue
@@ -333,8 +333,8 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
 
         # 元 skinCluster の主要パラメータを複製側にも反映する。
         max_influences = cmds.skinCluster(src_skin, q=True, maximumInfluences=True)
-        maintain_max_influences = Node(src_skin).plug('maintainMaxInfluences').get()
-        normalize_weights = Node(src_skin).plug('normalizeWeights').get()
+        maintain_max_influences = Node(src_skin).getPlug('maintainMaxInfluences').get()
+        normalize_weights = Node(src_skin).getPlug('normalizeWeights').get()
 
         # 複製メッシュを同じ joint で bind
         dup_skin = cmds.skinCluster(
@@ -348,8 +348,8 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         )[0]
 
         # ノード属性も明示的に合わせておく
-        Node(dup_skin).plug('maxInfluences').set(max_influences)
-        Node(dup_skin).plug('maintainMaxInfluences').set(maintain_max_influences)
+        Node(dup_skin).getPlug('maxInfluences').set(max_influences)
+        Node(dup_skin).getPlug('maintainMaxInfluences').set(maintain_max_influences)
 
         # コピー時は名前一致を優先し、補助として closestJoint/oneToOne を使う。
         cmds.copySkinWeights(

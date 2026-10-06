@@ -18,31 +18,31 @@ class SplineIKTest(unittest.TestCase):
         parent = self.parent
         for i in range(5):
             joint = hlib.createNode("joint", name="bone" + str(i), parent=parent)
-            joint.plug("tx").set(2 if i else 0)
+            joint.getPlug("tx").set(2 if i else 0)
             self.joints.append(joint)
             parent = joint
         self.controls = [hlib.createNode("transform", name="control" + str(i)) for i in range(4)]
         for i, control in enumerate(self.controls):
-            control.plug("tx").set(i * 8 / 3)
+            control.getPlug("tx").set(i * 8 / 3)
 
     def test_ownership_enable(self):
         """所有graphの停止・再開・削除で入力骨を保持する。"""
         graph = SplineIK.create(self.joints, self.controls, self.parent)
-        self.controls[1].plug("ty").set(2)
+        self.controls[1].getPlug("ty").set(2)
         self.assertGreater(
             abs(
                 cmds.xform(
-                    self.joints[2].fullName(), query=True, worldSpace=True, translation=True
+                    self.joints[2].getFullName(), query=True, worldSpace=True, translation=True
                 )[1]
             ),
             0.1,
         )
         graph.set_enabled(False)
-        self.assertIsNone(graph.member("handle").plug("inCurve").sourceWithConversion())
+        self.assertIsNone(graph.member("handle").getPlug("inCurve").getSourceWithConversion())
         graph.set_enabled(True)
-        self.assertIsNotNone(graph.member("handle").plug("inCurve").sourceWithConversion())
+        self.assertIsNotNone(graph.member("handle").getPlug("inCurve").getSourceWithConversion())
         hlib.delete(graph.container)
-        self.assertTrue(all(cmds.objExists(n.fullName()) for n in self.joints + self.controls))
+        self.assertTrue(all(cmds.objExists(n.getFullName()) for n in self.joints + self.controls))
         self.assertFalse(cmds.ls("splineGraph*"))
 
     def test_invalid_inputs(self):

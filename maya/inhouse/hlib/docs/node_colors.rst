@@ -39,7 +39,7 @@ Shapeの表示色
 
 .. code-block:: python
 
-   for shape in ctrl.shapes():
+   for shape in ctrl.getShapes():
        shape.setOverrideColor(17)
 
 取得値はノード自身の設定です。親・表示レイヤー・選択ハイライトなどを含めた

@@ -105,13 +105,13 @@ class CycleInspectorTest(unittest.TestCase):
         cycle = Cycle([a + ".outputX", b + ".input1X"])
         self.assertIsInstance(cycle.plugs, tuple)
         self.assertTrue(all(isinstance(p, Plug) for p in cycle.plugs))
-        self.assertEqual([p.fullName() for p in cycle.plugs], [a + ".outputX", b + ".input1X"])
+        self.assertEqual([p.getFullName() for p in cycle.plugs], [a + ".outputX", b + ".input1X"])
         self.assertEqual(len(cycle.getConnections()), 1)
         self.cmds.disconnectAttr(a + ".outputX", b + ".input1X")
         self.assertEqual(cycle.getConnections(), [])
         renamed = self.cmds.rename(a, "renamedCycleTest#")
         self.nodes[0] = renamed
-        self.assertEqual(cycle.plugs[0].fullName(), renamed + ".outputX")
+        self.assertEqual(cycle.plugs[0].getFullName(), renamed + ".outputX")
         self.assertTrue(Cycle.find(cycle.plugs[0]) == [])
 
     def test_live_parent_wrappers(self):
@@ -124,7 +124,7 @@ class CycleInspectorTest(unittest.TestCase):
         pairs = cycle.getParents()
         self.assertEqual(len(pairs), 1)
         self.assertTrue(all(isinstance(n, DagNode) for n in pairs[0]))
-        self.assertEqual(pairs[0][0].name(), parent)
+        self.assertEqual(pairs[0][0].getName(), parent)
         self.cmds.parent(child, world=True)
         self.assertEqual(cycle.getParents(), [])
 

@@ -29,7 +29,7 @@ class ChannelBox:
         if cmds.about(batch=True):
             raise RuntimeError("Channel Box requires Maya GUI")
         self._name = control or mel.eval('global string $gChannelBoxName; $gChannelBoxName;')
-        self.name()
+        self.getName()
 
     def exists(self):
         """保持したUIが存在するか。
@@ -39,7 +39,7 @@ class ChannelBox:
         """
         return bool(self._name and cmds.channelBox(self._name, exists=True))
 
-    def name(self):
+    def getName(self):
         """UI名。削除済みの場合はRuntimeError。
 
         Returns:
@@ -49,7 +49,7 @@ class ChannelBox:
             raise RuntimeError(f"Channel Box is unavailable: {self._name}")
         return self._name
 
-    def displayedNodes(self, section="main"):
+    def getDisplayedNodes(self, section="main"):
         """指定欄の表示対象を返す。
 
         Args:
@@ -61,12 +61,12 @@ class ChannelBox:
         result = {}
         for part in self._section_names(section):
             flag = self._sections[part][0]
-            for name in cmds.channelBox(self.name(), query=True, **{flag: True}) or []:
+            for name in cmds.channelBox(self.getName(), query=True, **{flag: True}) or []:
                 node = Node(name)
-                result.setdefault(node.fullName(), node)
+                result.setdefault(node.getFullName(), node)
         return list(result.values())
 
-    def selectedAttributes(self, section="main"):
+    def getSelectedAttrs(self, section="main"):
         """指定欄の選択アトリビュート名を取得する。
 
         Args:
@@ -78,10 +78,10 @@ class ChannelBox:
         names = []
         for part in self._section_names(section):
             flag = self._sections[part][1]
-            names.extend(cmds.channelBox(self.name(), query=True, **{flag: True}) or [])
+            names.extend(cmds.channelBox(self.getName(), query=True, **{flag: True}) or [])
         return list(dict.fromkeys(names))
 
-    def selectedPlugs(self, section="all"):
+    def getSelectedPlugs(self, section="all"):
         """表示ノードと選択アトリビュートを欄ごとに対応付ける。
 
         Args:
@@ -93,24 +93,24 @@ class ChannelBox:
         """
         result = {}
         for part in self._section_names(section):
-            attrs = self.selectedAttributes(part)
+            attrs = self.getSelectedAttrs(part)
             if not attrs:
                 continue
-            for node in self.displayedNodes(part):
+            for node in self.getDisplayedNodes(part):
                 for attr in attrs:
                     selection = om2.MSelectionList()
                     try:
-                        selection.add(f"{node.fullName()}.{attr}")
+                        selection.add(f"{node.getFullName()}.{attr}")
                         plug = Plug(node, selection.getPlug(0))
                     except (RuntimeError, TypeError):
                         continue
-                    result.setdefault(plug.fullName(), plug)
+                    result.setdefault(plug.getFullName(), plug)
         return list(result.values())
 
     @undoChunk("hlibChannelBoxClearSelection")
     def clearSelection(self):
         """アトリビュートのUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。"""
-        cmds.channelBox(self.name(), edit=True, select="")
+        cmds.channelBox(self.getName(), edit=True, select="")
 
     def _section_names(self, section):
         """sectionを検証する。未対応の名前はValueError。

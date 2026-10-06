@@ -20,16 +20,16 @@ class JointDeleteTest(unittest.TestCase):
     def tearDown(self):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
-    def node(self, name, type="joint", parent=None):
+    def getNode(self, name, type="joint", parent=None):
         args = {"name": self.ns + ":" + name}
         if parent:
             args["parent"] = parent
         return cmds.createNode(type, **args)
 
     def test_unskinned_root_and_transform_children_undo(self):
-        root = self.node("root")
-        leaf = self.node("leaf", parent=root)
-        ctrl = self.node("ctrl", "transform", parent=root)
+        root = self.getNode("root")
+        leaf = self.getNode("leaf", parent=root)
+        ctrl = self.getNode("ctrl", "transform", parent=root)
         cmds.setAttr(root + ".translateX", 3)
         before = cmds.xform(leaf, query=True, worldSpace=True, matrix=True)
         self.delete_joint(root)
@@ -44,10 +44,10 @@ class JointDeleteTest(unittest.TestCase):
         self.assertFalse(cmds.objExists(root))
 
     def test_multiple_unskinned_under_transform(self):
-        group = self.node("group", "transform")
-        root = self.node("root", parent=group)
-        mid = self.node("mid", parent=root)
-        leaf = self.node("leaf", parent=mid)
+        group = self.getNode("group", "transform")
+        root = self.getNode("root", parent=group)
+        mid = self.getNode("mid", parent=root)
+        leaf = self.getNode("leaf", parent=mid)
         hlib.nodes.Joints([root, mid]).delete()
         self.assertEqual(cmds.listRelatives(leaf, parent=True), [group])
         self.assertFalse(cmds.objExists(root))
@@ -64,9 +64,9 @@ class JointDeleteTest(unittest.TestCase):
         for single in (True, False):
             for has_parent in (True, False):
                 with self.subTest(single=single, has_parent=has_parent):
-                    parent = self.node("parent") if has_parent else None
-                    joint = self.node("remove", parent=parent)
-                    influences = [joint] if single else [joint, self.node("other")]
+                    parent = self.getNode("parent") if has_parent else None
+                    joint = self.getNode("remove", parent=parent)
+                    influences = [joint] if single else [joint, self.getNode("other")]
                     mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
                     skin = cmds.skinCluster(influences, mesh, toSelectedBones=True)[0]
                     if not single:
@@ -85,9 +85,9 @@ class JointDeleteTest(unittest.TestCase):
                     self.assertEqual(self.skin_state(skin, mesh), expected)
 
     def test_mixed_skin_clusters_transfer_only_where_parent_is_influence(self):
-        parent = self.node("parent")
-        joint = self.node("remove", parent=parent)
-        other = self.node("other")
+        parent = self.getNode("parent")
+        joint = self.getNode("remove", parent=parent)
+        other = self.getNode("other")
         meshes = [cmds.polyCube(name=self.ns + ":mesh")[0] for _ in range(2)]
         a = cmds.skinCluster([parent, joint], meshes[0], toSelectedBones=True)[0]
         b = cmds.skinCluster([joint, other], meshes[1], toSelectedBones=True)[0]
@@ -102,8 +102,8 @@ class JointDeleteTest(unittest.TestCase):
         self.assertEqual(self.skin_state(b, meshes[1]), expected)
 
     def test_failure_propagates_with_context_and_undo_remains_available(self):
-        root = self.node("root")
-        leaf = self.node("leaf", parent=root)
+        root = self.getNode("root")
+        leaf = self.getNode("leaf", parent=root)
         with patch.object(cmds, "delete", side_effect=RuntimeError("simulated failure")):
             with self.assertRaisesRegex(RuntimeError, "delete joint.*simulated failure"):
                 self.delete_joint(root)
@@ -120,7 +120,7 @@ class SingleJointDeleteTest(JointDeleteTest):
         hlib.getNode(name).delete()
 
     def test_invalid_joint_raises(self):
-        name = self.node("removed")
+        name = self.getNode("removed")
         joint = hlib.getNode(name)
         cmds.delete(name)
         with self.assertRaisesRegex(RuntimeError, "invalid joint"):

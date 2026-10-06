@@ -24,7 +24,7 @@ class Bifrost:
         plugin = Plugin("bifrostGraph")
         if not plugin.isLoaded():
             return False
-        version = plugin.version()
+        version = plugin.getVersion()
         return version is not None and version.isAtLeast(cls.MIN_VERSION)
 
     @classmethod

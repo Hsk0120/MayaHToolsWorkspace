@@ -45,7 +45,7 @@ class NodeCollectionsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             SkinClusters(self.names)
         cmds.rename(self.names[0], self.ns + ':renamed')
-        self.assertTrue(self.joints.names()[0].endswith('renamed'))
+        self.assertTrue(self.joints.getNames()[0].endswith('renamed'))
         self.assertEqual(len(Nodes(self.joints)), 2)
         cmds.delete(self.joints[0])
         self.assertEqual(self.joints.isValid(), [False, True])

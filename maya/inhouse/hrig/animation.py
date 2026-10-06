@@ -34,12 +34,12 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         raise ValueError("mode must be fk or ik")
     if not all(math.isfinite(v) for v in (start, end, step)) or step <= 0 or end < start:
         raise ValueError("Invalid frame range")
-    sources = [hlib.getNode(node).fullName() for node in source_joints]
+    sources = [hlib.getNode(node).getFullName() for node in source_joints]
     if len(sources) != 3 or len(set(sources)) != 3:
         raise ValueError("Expected three different source joints")
-    root = rig.root.fullName()
+    root = rig.root.getFullName()
     for source in sources:
-        if hlib.getNode(source).type() != "joint" or source.startswith(root + "|"):
+        if hlib.getNode(source).getType() != "joint" or source.startswith(root + "|"):
             raise ValueError("Source must be an external joint")
     frames = [start + i * step for i in range(int(math.floor((end - start) / step)) + 1)]
     if frames[-1] < end - 1e-8:
@@ -55,7 +55,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
             if hlib.getPlug(node + "." + attr).isLocked():
                 raise ValueError("Locked control channel: " + node + "." + attr)
             sources_in = [
-                item.fullName()
+                item.getFullName()
                 for item in [
                     hlib.getNode(value)
                     for value in (
@@ -64,7 +64,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
                     )
                 ]
             ] or []
-            if any(not hlib.getNode(item).type().startswith("animCurve") for item in sources_in):
+            if any(not hlib.getNode(item).getType().startswith("animCurve") for item in sources_in):
                 raise ValueError("Control channel is driven by a non-animation node")
     try:
         samples = []
@@ -78,7 +78,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
             cmds.currentTime(frame)
             matrices = [list(hlib.getNode(node).getMatrix(ws=True)) for node in sources]
             if mode == "ik":
-                inverse = Matrix(hlib.getNode(root).plug("worldInverseMatrix")[0].get())
+                inverse = Matrix(hlib.getNode(root).getPlug("worldInverseMatrix")[0].get())
                 points = [inverse.transformPoint(matrix[12:15]) for matrix in matrices]
                 if Vector(points[0]).length() > 1e-4:
                     raise ValueError(

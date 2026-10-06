@@ -16,7 +16,7 @@ class Locator(Shape):
         Returns:
             Translation: localPosition の値。
         """
-        return Translation(*self.plug("localPosition").get())
+        return Translation(*self.getPlug("localPosition").get())
 
     @fast_edit
     def setPosition(self, value, *, fast=False):
@@ -32,5 +32,5 @@ class Locator(Shape):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        self.plug("localPosition").set(tuple(value))
+        self.getPlug("localPosition").set(tuple(value))
         return self

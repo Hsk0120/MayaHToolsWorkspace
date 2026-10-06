@@ -12,8 +12,8 @@ from .node import Node
 class BlendShape(Node):
     """Maya の blendShape ラッパー。ターゲットの追加とウェイト操作を提供する。"""
 
-    def targetAliases(self):
-        """ノードのエイリアス名を aliases() の順序で取得する。
+    def getTargetAliases(self):
+        """ノードのエイリアス名を getAliases() の順序で取得する。
 
         通常はターゲットの weight のエイリアスだが、他のアトリビュートのエイリアスも
         含む。weight の論理インデックスによる並べ替えや絞り込みは行わない。
@@ -22,28 +22,28 @@ class BlendShape(Node):
             list[str]: エイリアス名(既定ではターゲット shape の
                 トランスフォーム名)。
         """
-        return [alias for alias, _ in self.aliases()]
+        return [alias for alias, _ in self.getAliases()]
 
-    def weightPlugs(self):
-        """エイリアスが付いたプラグを targetAliases() と同じ順序で取得する。
+    def getWeightPlugs(self):
+        """エイリアスが付いたプラグを getTargetAliases() と同じ順序で取得する。
 
         weight 以外にエイリアスを設定した場合、そのプラグも含む。
 
         Returns:
-            list[Plug]: targetAliases() と同じ順序のプラグ。set() で値を変更できる。
+            list[Plug]: getTargetAliases() と同じ順序のプラグ。set() で値を変更できる。
         """
-        return [plug for _, plug in self.aliases()]
+        return [plug for _, plug in self.getAliases()]
 
     def getWeights(self):
-        """weightPlugs() が返すプラグの現在値を取得する。
+        """getWeightPlugs() が返すプラグの現在値を取得する。
 
         Returns:
-            list[object]: targetAliases() と同じ順序の値。通常の weight は float。
+            list[object]: getTargetAliases() と同じ順序の値。通常の weight は float。
                 weight 以外のエイリアスがある場合は、そのプラグの値も含む。
         """
-        return [plug.get() for plug in self.weightPlugs()]
+        return [plug.get() for plug in self.getWeightPlugs()]
 
-    def geometry(self):
+    def getGeometry(self):
         """変形対象の base geometry shape を取得する。
 
         Returns:
@@ -61,9 +61,9 @@ class BlendShape(Node):
                 ``"node.attribute"`` は所有ノード、Component は所有シェイプとして扱う。
             base (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug | None):
                 変形対象の base geometry(target と同じ規則で所有ノードへ解決する)。
-                省略時は geometry() の先頭を使う。
+                省略時は getGeometry() の先頭を使う。
             weight_index (int | None): 使用する weight 配列インデックス。省略時は
-                空いている最小のインデックス(``plug("weight").nextAvailableIndex()``)
+                空いている最小のインデックス(``getPlug("weight").getNextAvailableIndex()``)
                 を自動で使う。
             full_weight (float): このターゲットが完全に効いた状態(既定 1.0)の
                 weight 値。
@@ -80,16 +80,16 @@ class BlendShape(Node):
         from ..nodes.node import Node as _InputNode
         target_name = _InputNode._input_name(target)
         if base is None:
-            geometries = self.geometry()
+            geometries = self.getGeometry()
             if not geometries:
                 raise RuntimeError("Cannot determine the base geometry for this blendShape")
-            base_name = geometries[0].fullName()
+            base_name = geometries[0].getFullName()
         else:
             base_name = _InputNode._input_name(base)
         if weight_index is None:
-            weight_index = self.plug("weight").nextAvailableIndex()
+            weight_index = self.getPlug("weight").getNextAvailableIndex()
         cmds.blendShape(
-            self.name(), edit=True,
+            self.getName(), edit=True,
             target=(base_name, weight_index, target_name, full_weight),
         )
-        return self.plug("weight")[weight_index]
+        return self.getPlug("weight")[weight_index]

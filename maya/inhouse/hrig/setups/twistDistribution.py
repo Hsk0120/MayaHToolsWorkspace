@@ -29,7 +29,7 @@ class TwistDistribution:
             Node: 生成ノード。
         """
         node = hlib.nodes.Node.create(
-            kind, name=self.container.name() + "_" + suffix, skipSelect=True
+            kind, name=self.container.getName() + "_" + suffix, skipSelect=True
         )
         self.container.addMembers(node)
         return node
@@ -55,7 +55,7 @@ class TwistDistribution:
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
         start, end = hlib.nodes.Node(start), hlib.nodes.Node(end)
-        if start.uuid() == end.uuid() or any(
+        if start.getUuid() == end.getUuid() or any(
             not isinstance(n, hlib.nodes.Transform) for n in (start, end)
         ):
             raise ValueError("Expected two different transforms")
@@ -68,49 +68,49 @@ class TwistDistribution:
         relative = graph._node("multMatrix", "relative")
         parents = [
             hlib.getNode(value)
-            for value in (cmds.listRelatives(end.fullName(), parent=True, fullPath=True) or [])
+            for value in (cmds.listRelatives(end.getFullName(), parent=True, fullPath=True) or [])
         ] or []
-        if [node.uuid() for node in parents] == [start.uuid()]:
+        if [node.getUuid() for node in parents] == [start.getUuid()]:
             # 隣接骨ならワールド行列を介さず、OPMを含む実ローカル行列を使う。
-            end.plug("matrix").connectTo(relative.plug("matrixIn")[0])
-            end.plug("offsetParentMatrix").connectTo(relative.plug("matrixIn")[1])
+            end.getPlug("matrix").connectTo(relative.getPlug("matrixIn")[0])
+            end.getPlug("offsetParentMatrix").connectTo(relative.getPlug("matrixIn")[1])
         else:
-            end.plug("worldMatrix")[0].connectTo(relative.plug("matrixIn")[0])
-            start.plug("worldInverseMatrix")[0].connectTo(relative.plug("matrixIn")[1])
+            end.getPlug("worldMatrix")[0].connectTo(relative.getPlug("matrixIn")[0])
+            start.getPlug("worldInverseMatrix")[0].connectTo(relative.getPlug("matrixIn")[1])
         decompose = graph._node("decomposeMatrix", "decompose")
-        relative.plug("matrixSum").connectTo(decompose.plug("inputMatrix"))
-        decompose.plug("message").connectTo(owner.plug("relativeDecompose"))
+        relative.getPlug("matrixSum").connectTo(decompose.getPlug("inputMatrix"))
+        decompose.getPlug("message").connectTo(owner.getPlug("relativeDecompose"))
         normalize = graph._node("multiplyDivide", "normalize")
-        normalize.plug("operation").set(2)
+        normalize.getPlug("operation").set(2)
         norm = graph._node("vectorProduct", "norm")
-        norm.plug("operation").set(1)
+        norm.getPlug("operation").set(1)
         for source, dest in (("outputQuat" + axis.upper(), "X"), ("outputQuatW", "Y")):
             for operand in ("input1", "input2"):
-                decompose.plug(source).connectTo(norm.plug(operand + dest))
+                decompose.getPlug(source).connectTo(norm.getPlug(operand + dest))
         safe = graph._node("condition", "safe")
-        safe.plug("operation").set(2)
-        norm.plug("outputX").connectTo(safe.plug("firstTerm"))
-        safe.plug("secondTerm").set(1e-12)
-        decompose.plug("outputQuat" + axis.upper()).connectTo(safe.plug("colorIfTrueR"))
-        decompose.plug("outputQuatW").connectTo(safe.plug("colorIfTrueG"))
-        norm.plug("outputX").connectTo(safe.plug("colorIfTrueB"))
-        safe.plug("colorIfFalseR").set(0)
-        safe.plug("colorIfFalseG").set(1)
-        safe.plug("colorIfFalseB").set(1)
-        safe.plug("outColorR").connectTo(normalize.plug("input1X"))
-        safe.plug("outColorG").connectTo(normalize.plug("input1Y"))
+        safe.getPlug("operation").set(2)
+        norm.getPlug("outputX").connectTo(safe.getPlug("firstTerm"))
+        safe.getPlug("secondTerm").set(1e-12)
+        decompose.getPlug("outputQuat" + axis.upper()).connectTo(safe.getPlug("colorIfTrueR"))
+        decompose.getPlug("outputQuatW").connectTo(safe.getPlug("colorIfTrueG"))
+        norm.getPlug("outputX").connectTo(safe.getPlug("colorIfTrueB"))
+        safe.getPlug("colorIfFalseR").set(0)
+        safe.getPlug("colorIfFalseG").set(1)
+        safe.getPlug("colorIfFalseB").set(1)
+        safe.getPlug("outColorR").connectTo(normalize.getPlug("input1X"))
+        safe.getPlug("outColorG").connectTo(normalize.getPlug("input1Y"))
         magnitude = graph._node("multiplyDivide", "magnitude")
-        magnitude.plug("operation").set(3)
-        magnitude.plug("input1X").set(1)
-        magnitude.plug("input2X").set(0.5)
-        safe.plug("outColorB").connectTo(magnitude.plug("input1X"))
+        magnitude.getPlug("operation").set(3)
+        magnitude.getPlug("input1X").set(1)
+        magnitude.getPlug("input2X").set(0.5)
+        safe.getPlug("outColorB").connectTo(magnitude.getPlug("input1X"))
         for axis_name in ("X", "Y"):
-            magnitude.plug("outputX").connectTo(normalize.plug("input2" + axis_name))
+            magnitude.getPlug("outputX").connectTo(normalize.getPlug("input2" + axis_name))
         compose = graph._node("composeMatrix", "twist")
-        compose.plug("useEulerRotation").set(False)
-        normalize.plug("outputX").connectTo(compose.plug("inputQuat" + axis.upper()))
-        normalize.plug("outputY").connectTo(compose.plug("inputQuatW"))
-        compose.plug("outputMatrix").connectTo(owner.plug("twistMatrix"))
+        compose.getPlug("useEulerRotation").set(False)
+        normalize.getPlug("outputX").connectTo(compose.getPlug("inputQuat" + axis.upper()))
+        normalize.getPlug("outputY").connectTo(compose.getPlug("inputQuatW"))
+        compose.getPlug("outputMatrix").connectTo(owner.getPlug("twistMatrix"))
         return graph
 
     @undoTransaction("hrig.TwistDistribution.sample")
@@ -127,8 +127,8 @@ class TwistDistribution:
         if not 0 <= fraction <= 1:
             raise ValueError("fraction must be between zero and one")
         blend = self._node("blendMatrix", name + "_rotation")
-        self.container.plug("twistMatrix").connectTo(blend.plug("target")[0]["targetMatrix"])
-        blend.plug("target")[0]["weight"].set(fraction)
+        self.container.getPlug("twistMatrix").connectTo(blend.getPlug("target")[0]["targetMatrix"])
+        blend.getPlug("target")[0]["weight"].set(fraction)
         # Maya 2022はbool、2025以降は連続ウェイトで成分を選択する。
         attrs = (
             ("translateWeight", "scaleWeight", "shearWeight")
@@ -136,14 +136,14 @@ class TwistDistribution:
             else ("useTranslate", "useScale", "useShear")
         )
         for attr in attrs:
-            blend.plug("target")[0][attr].set(0)
+            blend.getPlug("target")[0][attr].set(0)
         position = self._node("multiplyDivide", name + "_position")
-        decompose = self.container.plug("relativeDecompose").sourceWithConversion().node()
-        decompose.plug("outputTranslate").connectTo(position.plug("input1"))
-        position.plug("input2").set((fraction, fraction, fraction))
+        decompose = self.container.getPlug("relativeDecompose").getSourceWithConversion().getNode()
+        decompose.getPlug("outputTranslate").connectTo(position.getPlug("input1"))
+        position.getPlug("input2").set((fraction, fraction, fraction))
         translate = self._node("composeMatrix", name + "_translate")
-        position.plug("output").connectTo(translate.plug("inputTranslate"))
+        position.getPlug("output").connectTo(translate.getPlug("inputTranslate"))
         result = self._node("multMatrix", name + "_matrix")
-        blend.plug("outputMatrix").connectTo(result.plug("matrixIn")[0])
-        translate.plug("outputMatrix").connectTo(result.plug("matrixIn")[1])
-        return result.plug("matrixSum")
+        blend.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[0])
+        translate.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[1])
+        return result.getPlug("matrixSum")

@@ -30,17 +30,17 @@ class AimConstraintTest(unittest.TestCase):
 
     def test_connections(self):
         """子接続・複合接続・演算ノード宛ての直接接続を区別する。"""
-        pairs = self.aim.rotationConnections()
+        pairs = self.aim.getRotationConnections()
         self.assertEqual(len(pairs), 3)
         for source, destination in pairs:
-            cmds.disconnectAttr(source.fullName(), destination.fullName())
-        cmds.connectAttr(self.aim.fullName() + ".constraintRotate", self.driven + ".rotate")
-        self.assertEqual(len(self.aim.rotationConnections()), 1)
+            cmds.disconnectAttr(source.getFullName(), destination.getFullName())
+        cmds.connectAttr(self.aim.getFullName() + ".constraintRotate", self.driven + ".rotate")
+        self.assertEqual(len(self.aim.getRotationConnections()), 1)
         extra = cmds.createNode("composeMatrix")
-        cmds.connectAttr(self.aim.fullName() + ".constraintRotateX", extra + ".inputRotateX")
-        pairs = self.aim.rotationConnections()
+        cmds.connectAttr(self.aim.getFullName() + ".constraintRotateX", extra + ".inputRotateX")
+        pairs = self.aim.getRotationConnections()
         self.assertEqual(len(pairs), 2)
-        self.assertEqual({destination.node().type() for _, destination in pairs}, {"transform", "composeMatrix"})
+        self.assertEqual({destination.getNode().getType() for _, destination in pairs}, {"transform", "composeMatrix"})
 
     def test_settings_and_units(self):
         """設定値はUI単位に依存せず、接続付き設定も列挙される。"""
@@ -53,8 +53,8 @@ class AimConstraintTest(unittest.TestCase):
                 for actual, expected in zip(result, values):
                     self.assertAlmostEqual(actual, expected)
         self.assertEqual(len(self.aim.settingPlugs()), 18)
-        cmds.connectAttr(self.target + ".rotateX", self.aim.fullName() + ".offsetX")
-        self.assertIn(self.aim.plug("offsetX"), self.aim.settingPlugs())
+        cmds.connectAttr(self.target + ".rotateX", self.aim.getFullName() + ".offsetX")
+        self.assertIn(self.aim.getPlug("offsetX"), self.aim.settingPlugs())
         with self.assertRaises(ValueError):
             self.aim.setOffset((1, 2, 3))
         self.assertAlmostEqual(self.aim.getOffset()[1], values[1])
@@ -62,13 +62,13 @@ class AimConstraintTest(unittest.TestCase):
     def test_locked_invalid_and_undo(self):
         """後半のロックでも部分更新せず、更新はUndoできる。"""
         self.aim.setRestRotation((0, 0, 0))
-        cmds.setAttr(self.aim.fullName() + ".restRotateZ", lock=True)
+        cmds.setAttr(self.aim.getFullName() + ".restRotateZ", lock=True)
         try:
             with self.assertRaises(ValueError):
                 self.aim.setRestRotation((1, 2, 3))
             self.assertEqual(self.aim.getRestRotation(), (0, 0, 0))
         finally:
-            cmds.setAttr(self.aim.fullName() + ".restRotateZ", lock=False)
+            cmds.setAttr(self.aim.getFullName() + ".restRotateZ", lock=False)
         for invalid in ((1, 2), (0, math.nan, 0)):
             with self.assertRaises(ValueError):
                 self.aim.setRestRotation(invalid)
@@ -83,7 +83,7 @@ class AimConstraintTest(unittest.TestCase):
             cmds.setAttr(self.driven + ".rotateOrder", order)
             rotation = self.aim.getOutputRotation()
             self.assertEqual(rotation.order, order)
-            expected = cmds.getAttr(self.aim.fullName() + ".constraintRotate")[0]
+            expected = cmds.getAttr(self.aim.getFullName() + ".constraintRotate")[0]
             for actual, value in zip(rotation, expected):
                 self.assertAlmostEqual(actual, value)
         self.assertNotEqual(tuple(self.aim.getOutputRotation()), tuple(self.aim.getRotation()))

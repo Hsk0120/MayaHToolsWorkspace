@@ -48,7 +48,7 @@ class SceneApiTest(unittest.TestCase):
         self.assertIs(result, self.scene)
         self.assertEqual(self.scene.path, self.path)
         self.assertEqual(self.scene.name, self.path.name)
-        self.assertEqual(self.scene.fileType(), "mayaAscii")
+        self.assertEqual(self.scene.getFileType(), "mayaAscii")
         self.assertFalse(self.scene.isModified())
 
         self.scene.open(self.path, force=True, prompt=False)
@@ -67,7 +67,7 @@ class SceneApiTest(unittest.TestCase):
         cmds.createNode("transform", name="hlibSceneApiNode")
 
         new_nodes = self.scene.importFile(self.import_path, namespace="hlibImportedNs")
-        imported_names = [node.name() for node in new_nodes]
+        imported_names = [node.getName() for node in new_nodes]
         self.assertTrue(any(name.endswith("hlibImportSourceNode") for name in imported_names))
         self.assertTrue(cmds.objExists("hlibImportedNs:hlibImportSourceNode"))
         self.assertTrue(cmds.objExists("hlibSceneApiNode"))

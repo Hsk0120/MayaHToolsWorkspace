@@ -49,11 +49,11 @@ class MethodContractTest(unittest.TestCase):
     def test_visibility_state_and_undo(self):
         """表示状態変更と入力検証を確認する。"""
         self.node.setVisibility(False)
-        self.assertFalse(self.node.plug('visibility').get())
+        self.assertFalse(self.node.getPlug('visibility').get())
         cmds.undo()
-        self.assertTrue(self.node.plug('visibility').get())
+        self.assertTrue(self.node.getPlug('visibility').get())
         self.node.setVisibility(False, fast=True)
-        self.assertFalse(self.node.plug('visibility').get())
+        self.assertFalse(self.node.getPlug('visibility').get())
         with self.assertRaises(TypeError):
             self.node.setVisibility('false')
 
@@ -103,16 +103,16 @@ class MethodContractTest(unittest.TestCase):
                 cmds.currentUnit(angle=angle_unit)
                 for order in range(6):
                     cmds.setAttr(str(joint) + '.rotateOrder', order)
-                    joint.plug('rotate').set((17, 23, 31), unit='deg')
-                    joint.plug('scale').set((1.2, 1.3, 1.4))
+                    joint.getPlug('rotate').set((17, 23, 31), unit='deg')
+                    joint.getPlug('scale').set((1.2, 1.3, 1.4))
                     for fast in (False, True):
                         before = joint.getMatrix(ws=True)
-                        rotation = joint.plug('rotate').get()
-                        scale = joint.plug('scale').get()
-                        joint.plug('rotate').set(rotation, fast=fast)
-                        joint.plug('scale').set(scale, fast=fast)
+                        rotation = joint.getPlug('rotate').get()
+                        scale = joint.getPlug('scale').get()
+                        joint.getPlug('rotate').set(rotation, fast=fast)
+                        joint.getPlug('scale').set(scale, fast=fast)
                         self.assertTrue(joint.getMatrix(ws=True).isEquivalent(before, 1e-9))
-                        self.assertTrue(joint.plug('rotate').get().isEquivalent(rotation, 1e-9))
+                        self.assertTrue(joint.getPlug('rotate').get().isEquivalent(rotation, 1e-9))
         finally:
             cmds.currentUnit(angle=old_unit)
 
@@ -120,7 +120,7 @@ class MethodContractTest(unittest.TestCase):
         """型付き回転の順序を変換し、通常更新を一回のUndoで戻す。"""
         from hlib.maths import EulerRotation
         cmds.setAttr(str(self.node) + '.rotateOrder', 4)
-        plug = self.node.plug('rotate')
+        plug = self.node.getPlug('rotate')
         original = plug.get()
         value = EulerRotation(.2, .4, .6, 'zyx')
         plug.set(value)
@@ -143,10 +143,10 @@ class MethodContractTest(unittest.TestCase):
 
     def test_flags_validate_before_write_and_preserve_omitted_state(self):
         """省略・不正値・Undo・fastの状態設定契約を確認する。"""
-        plug = self.node.plug('tx')
+        plug = self.node.getPlug('tx')
         plug.setFlags(keyable=False, channelBox=True)
         self.assertFalse(plug.isKeyable())
-        self.assertTrue(cmds.getAttr(plug.fullName(), channelBox=True))
+        self.assertTrue(cmds.getAttr(plug.getFullName(), channelBox=True))
         plug.setFlags(locked=True)
         self.assertTrue(plug.isLocked())
         self.assertFalse(plug.isKeyable())
@@ -155,7 +155,7 @@ class MethodContractTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             plug.setFlags(locked=True, keyable='false')
         self.assertFalse(plug.isLocked())
-        self.node.setAttributeFlags(['tx'], locked=True, fast=True)
+        self.node.setAttrFlags(['tx'], locked=True, fast=True)
         self.assertTrue(plug.isLocked())
         plug.setFlags(locked=False, keyable=True, fast=True)
         self.assertTrue(plug.isKeyable())
@@ -185,7 +185,7 @@ class MethodContractTest(unittest.TestCase):
         from hlib.nodes import Joint
         for name in ('tx', 'translate', 'worldMatrix'):
             with self.assertRaises(TypeError):
-                self.node.plug(name).get(ws=True)
+                self.node.getPlug(name).get(ws=True)
         self.assertFalse(hasattr(Joint, 'orientation'))
         self.assertFalse(hasattr(Plugin, 'version_tuple'))
         self.assertFalse(hasattr(Module, 'version_tuple'))

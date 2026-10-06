@@ -2,6 +2,7 @@
 
 import maya.cmds as cmds
 
+from .._core.flags import flag_aliases
 from ..utils.version import Version
 
 # 旧構成からreloadした場合も、移動したコレクションクラスを残さない。
@@ -122,7 +123,7 @@ class Plugin:
         """
         return bool(cmds.pluginInfo(self._name, query=True, loaded=True))
 
-    def path(self):
+    def getPath(self):
         """プラグインファイルの絶対パスを取得する。
 
         Returns:
@@ -132,7 +133,7 @@ class Plugin:
             return None
         return cmds.pluginInfo(self._name, query=True, path=True) or None
 
-    def versionText(self):
+    def getVersionText(self):
         """Mayaが返すプラグインの版文字列をそのまま取得する。
 
         Returns:
@@ -142,14 +143,14 @@ class Plugin:
             return None
         return cmds.pluginInfo(self._name, query=True, version=True) or None
 
-    def version(self):
+    def getVersion(self):
         """プラグインの現在の版を値オブジェクトとして取得する。
 
         Returns:
             Version | None: 問い合わせ時点の版。未登録・解釈不能ならNone。
                 取得した値をreplaceしてもMaya側の版は変更されない。
         """
-        return Version.parse(self.versionText())
+        return Version.parse(self.getVersionText())
 
     def isVersionAtLeast(self, minimum):
         """プラグインの版が ``minimum`` 以上か判定する。
@@ -166,7 +167,7 @@ class Plugin:
         required = Version.parse(minimum)
         if required is None:
             raise ValueError("Invalid minimum version: {!r}".format(minimum))
-        version = self.version()
+        version = self.getVersion()
         return version is not None and version >= required
 
     def load(self, **kwargs):
@@ -189,11 +190,12 @@ class Plugin:
             raise RuntimeError("Plugin initialization did not complete: " + self._name)
         return self
 
+    @flag_aliases(f="force")
     def unload(self, force=False):
         """プラグインをアンロードする。
 
         Args:
-            force (bool): True の場合、使用中でも強制的にアンロードする。
+            force (bool): True の場合、使用中でも強制的にアンロードする。 別名 ``f`` も使用可能。
 
         Returns:
             Plugin: 自身。

@@ -36,7 +36,7 @@ class JointTest(unittest.TestCase):
         cmds.select(clear=True)
         joint_name = cmds.joint(name=self.namespace + ":" + name)
         if parent is not None:
-            cmds.parent(joint_name, parent.fullName())
+            cmds.parent(joint_name, parent.getFullName())
         self.created.append(joint_name)
         return Joint(joint_name)
 
@@ -63,21 +63,21 @@ class JointTest(unittest.TestCase):
         child = self.create_joint("connectChild", parent)
         joints = Joints([parent, child])
         joints.disconnectInverseScale()
-        self.assertIsNone(child.plug("inverseScale").sourceWithConversion())
+        self.assertIsNone(child.getPlug("inverseScale").getSourceWithConversion())
         joints.connectInverseScale()
-        self.assertEqual(child.plug("inverseScale").sourceWithConversion(), parent.plug("scale"))
+        self.assertEqual(child.getPlug("inverseScale").getSourceWithConversion(), parent.getPlug("scale"))
         cmds.undo()
-        self.assertIsNone(child.plug("inverseScale").sourceWithConversion())
-        child.connectInverseScale(parent.fullName())
+        self.assertIsNone(child.getPlug("inverseScale").getSourceWithConversion())
+        child.connectInverseScale(parent.getFullName())
         child.connectInverseScale()  # 同じ接続はそのまま
         child.disconnectInverseScale()
-        parent.plug("sx").connectTo(child.plug("inverseScaleX"))
-        parent.plug("sy").connectTo(child.plug("inverseScaleY"))
-        child.plug("inverseScaleZ").connectTo(parent.plug("radius"))
+        parent.getPlug("sx").connectTo(child.getPlug("inverseScaleX"))
+        parent.getPlug("sy").connectTo(child.getPlug("inverseScaleY"))
+        child.getPlug("inverseScaleZ").connectTo(parent.getPlug("radius"))
         child.disconnectInverseScale()
-        self.assertIsNone(child.plug("inverseScaleX").sourceWithConversion())
-        self.assertIsNone(child.plug("inverseScaleY").sourceWithConversion())
-        self.assertEqual(parent.plug("radius").sourceWithConversion(), child.plug("inverseScaleZ"))
+        self.assertIsNone(child.getPlug("inverseScaleX").getSourceWithConversion())
+        self.assertIsNone(child.getPlug("inverseScaleY").getSourceWithConversion())
+        self.assertEqual(parent.getPlug("radius").getSourceWithConversion(), child.getPlug("inverseScaleZ"))
         with self.assertRaises(ValueError):
             child.connectInverseScale(child)
 
@@ -100,12 +100,12 @@ class JointTest(unittest.TestCase):
     def test_node_create_resolves_to_joint_wrapper(self):
         joint = self.create_joint("hlibJointBasic")
         self.assertIsInstance(joint, Joint)
-        self.assertIsInstance(Node(joint.fullName()), Joint)
+        self.assertIsInstance(Node(joint.getFullName()), Joint)
 
     def test_joint_orient_returns_degrees_converted_to_radians(self):
         joint = self.create_joint("hlibJointOrient")
-        cmds.setAttr(joint.fullName() + ".jointOrientX", 90.0)
-        cmds.setAttr(joint.fullName() + ".jointOrientY", -45.0)
+        cmds.setAttr(joint.getFullName() + ".jointOrientX", 90.0)
+        cmds.setAttr(joint.getFullName() + ".jointOrientY", -45.0)
 
         orient = joint.getJointOrient()
         self.assertIsInstance(orient, EulerRotation)
@@ -115,12 +115,12 @@ class JointTest(unittest.TestCase):
 
     def test_joint_orient_z_returns_radians(self):
         joint = self.create_joint("hlibJointOrientation")
-        cmds.setAttr(joint.fullName() + ".jointOrientZ", 30.0)
+        cmds.setAttr(joint.getFullName() + ".jointOrientZ", 30.0)
         self.assertAlmostEqual(joint.getJointOrient().z, math.radians(30.0))
 
     def test_inverse_scale_is_not_angle_converted(self):
         joint = self.create_joint("hlibJointInverseScale")
-        cmds.setAttr(joint.fullName() + ".inverseScale", 2.0, 3.0, 4.0)
+        cmds.setAttr(joint.getFullName() + ".inverseScale", 2.0, 3.0, 4.0)
 
         inverse_scale = joint.getInverseScale()
         self.assertIsInstance(inverse_scale, Scale)
@@ -132,13 +132,13 @@ class JointTest(unittest.TestCase):
         # rotateAxis/jointOrient を補正した上で .rotate チャンネルへ書き込むため、
         # .rotate の生値ではなく getRotation() による round-trip で検証する。
         joint = self.create_joint("hlibJointOrientPreserve")
-        cmds.setAttr(joint.fullName() + ".jointOrientX", 90.0)
-        cmds.setAttr(joint.fullName() + ".rotateAxisY", 30.0)
+        cmds.setAttr(joint.getFullName() + ".jointOrientX", 90.0)
+        cmds.setAttr(joint.getFullName() + ".rotateAxisY", 30.0)
 
         joint.setRotation((0.0, math.radians(45.0), 0.0))
 
-        self.assertAlmostEqual(cmds.getAttr(joint.fullName() + ".jointOrientX"), 90.0, places=6)
-        self.assertAlmostEqual(cmds.getAttr(joint.fullName() + ".rotateAxisY"), 30.0, places=6)
+        self.assertAlmostEqual(cmds.getAttr(joint.getFullName() + ".jointOrientX"), 90.0, places=6)
+        self.assertAlmostEqual(cmds.getAttr(joint.getFullName() + ".rotateAxisY"), 30.0, places=6)
 
         rotate = joint.getRotation()
         self.assertAlmostEqual(rotate.x, 0.0, places=6)
@@ -150,8 +150,8 @@ class JointTest(unittest.TestCase):
         # 行列式が負(負スケール)の joint でも setMatrix(getMatrix()) で姿勢が変わらない。
         root = self.create_joint("hlibJointNegativeRoot")
         joint = self.create_joint("hlibJointNegative", parent=root)
-        name = joint.fullName()
-        cmds.setAttr(root.fullName() + ".rotate", 15.0, -25.0, 35.0)
+        name = joint.getFullName()
+        cmds.setAttr(root.getFullName() + ".rotate", 15.0, -25.0, 35.0)
         cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
         cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
@@ -169,9 +169,9 @@ class JointTest(unittest.TestCase):
         # IS を正しく打ち消すため、非一様スケールの親の下でも姿勢とチャンネル値が変わらない。
         root = self.create_joint("hlibJointSscRoot")
         joint = self.create_joint("hlibJointSsc", parent=root)
-        name = joint.fullName()
-        cmds.setAttr(root.fullName() + ".scale", 2.0, 3.0, 0.5)
-        cmds.connectAttr(root.fullName() + ".scale", name + ".inverseScale", force=True)
+        name = joint.getFullName()
+        cmds.setAttr(root.getFullName() + ".scale", 2.0, 3.0, 0.5)
+        cmds.connectAttr(root.getFullName() + ".scale", name + ".inverseScale", force=True)
         cmds.setAttr(name + ".segmentScaleCompensate", True)
         cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
@@ -196,7 +196,7 @@ class JointTest(unittest.TestCase):
     def test_set_matrix_round_trip_for_every_rotate_order_with_orient_and_axis(self):
         for order in range(6):
             joint = self.create_joint("hlibJointOrder%d" % order)
-            name = joint.fullName()
+            name = joint.getFullName()
             cmds.setAttr(name + ".rotateOrder", order)
             cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
             cmds.setAttr(name + ".rotateAxis", 5.0, -15.0, 25.0)
@@ -211,31 +211,31 @@ class JointTest(unittest.TestCase):
         mid = self.create_joint("hlibJointHierarchyMid", parent=root)
         leaf = self.create_joint("hlibJointHierarchyLeaf", parent=mid)
 
-        self.assertIsNone(root.parentJointName())
-        self.assertEqual(mid.parentJointName(), root.name())
-        self.assertEqual(leaf.parentJointName(), mid.name())
+        self.assertIsNone(root.getParentJointName())
+        self.assertEqual(mid.getParentJointName(), root.getName())
+        self.assertEqual(leaf.getParentJointName(), mid.getName())
 
-        self.assertEqual(root.childJointNames(), [mid.name()])
-        self.assertEqual(mid.childJointNames(), [leaf.name()])
-        self.assertEqual(leaf.childJointNames(), [])
+        self.assertEqual(root.getChildJointNames(), [mid.getName()])
+        self.assertEqual(mid.getChildJointNames(), [leaf.getName()])
+        self.assertEqual(leaf.getChildJointNames(), [])
 
-        self.assertEqual(root.depth(), 0)
-        self.assertEqual(mid.depth(), 1)
-        self.assertEqual(leaf.depth(), 2)
+        self.assertEqual(root.getDepth(), 0)
+        self.assertEqual(mid.getDepth(), 1)
+        self.assertEqual(leaf.getDepth(), 2)
 
         self.assertTrue(root.isJoint())
 
         non_joint = Node.create(type="transform", name="hlibJointNonJoint")
-        self.created.append(non_joint.name())
+        self.created.append(non_joint.getName())
         self.assertNotIsInstance(non_joint, Joint)
 
     def test_parent_returns_none_when_parent_is_not_a_joint(self):
         transform_parent = Node.create(type="transform", name="hlibJointTransformParent")
-        self.created.append(transform_parent.name())
+        self.created.append(transform_parent.getName())
         joint = self.create_joint("hlibJointUnderTransform")
-        cmds.parent(joint.name(), transform_parent.name())
+        cmds.parent(joint.getName(), transform_parent.getName())
 
-        self.assertIsNone(joint.parentJointName())
+        self.assertIsNone(joint.getParentJointName())
 
     def test_reparent_children(self):
         root = self.create_joint("hlibJointReparentRoot")
@@ -243,33 +243,33 @@ class JointTest(unittest.TestCase):
         leaf1 = self.create_joint("hlibJointReparentLeaf1", parent=mid)
         leaf2 = self.create_joint("hlibJointReparentLeaf2", parent=mid)
 
-        mid.reparentChildren(root.name())
+        mid.reparentChildren(root.getName())
 
         # mid 自身は root の子のまま残り、mid が持っていた子(leaf1/leaf2)だけが
         # root の直接の子へ移る。
         self.assertEqual(
-            sorted(root.childJointNames()),
-            sorted([mid.name(), leaf1.name(), leaf2.name()]),
+            sorted(root.getChildJointNames()),
+            sorted([mid.getName(), leaf1.getName(), leaf2.getName()]),
         )
-        self.assertEqual(mid.childJointNames(), [])
+        self.assertEqual(mid.getChildJointNames(), [])
 
     def test_chain_from_here_and_ik_handles_dedupe_multiple_plugs(self):
         root = self.create_joint("hlibJointIkRoot")
         mid = self.create_joint("hlibJointIkMid", parent=root)
         tip = self.create_joint("hlibJointIkTip", parent=mid)
 
-        chain = root.chainFromHere()
-        self.assertEqual([joint.fullName() for joint in chain], [root.fullName(), mid.fullName(), tip.fullName()])
+        chain = root.getChainFromHere()
+        self.assertEqual([joint.getFullName() for joint in chain], [root.getFullName(), mid.getFullName(), tip.getFullName()])
 
-        self.assertEqual(root.ikHandles(), [])
-        handle_name = cmds.ikHandle(startJoint=root.fullName(), endEffector=tip.fullName(), solver="ikRPsolver")[0]
+        self.assertEqual(root.getIkHandles(), [])
+        handle_name = cmds.ikHandle(startJoint=root.getFullName(), endEffector=tip.getFullName(), solver="ikRPsolver")[0]
         self.created.append(handle_name)
 
         # startJoint 接続に加え、poleVector 拘束などで同じ joint から同じ
         # ikHandle へ複数の接続が生じても、ノード単位で重複を除いて1件になる。
-        found = root.ikHandles()
+        found = root.getIkHandles()
         self.assertEqual(len(found), 1)
-        self.assertEqual(found[0].name(), handle_name)
+        self.assertEqual(found[0].getName(), handle_name)
 
     def test_skin_clusters_dedupes_multiple_plugs_to_same_node(self):
         # skinCluster は joint の matrix と bindPreMatrix の両方に接続するため、
@@ -277,12 +277,12 @@ class JointTest(unittest.TestCase):
         joint = self.create_joint("hlibJointSkinCluster")
         mesh_transform = cmds.polyCube(name="hlibJointSkinClusterMesh", constructionHistory=False)[0]
         self.created.append(mesh_transform)
-        skin_name = cmds.skinCluster(joint.fullName(), mesh_transform)[0]
+        skin_name = cmds.skinCluster(joint.getFullName(), mesh_transform)[0]
         self.created.append(skin_name)
 
-        found = joint.skinClusters()
+        found = joint.getSkinClusters()
         self.assertEqual(len(found), 1)
-        self.assertEqual(found[0].name(), skin_name)
+        self.assertEqual(found[0].getName(), skin_name)
 
 
 if __name__ == "__main__":

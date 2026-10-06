@@ -157,7 +157,7 @@ class _Calculation:
         _Calculation.boolean(world_space)
         node = _InputNode._resolve_input(value)
         if isinstance(node, Transform):
-            shapes = [s for s in node.shapes() if s.isType(node_type)]
+            shapes = [s for s in node.getShapes() if s.isType(node_type)]
             if len(shapes) != 1:
                 raise ValueError("Expected exactly one matching shape")
             node = shapes[0]
@@ -165,5 +165,5 @@ class _Calculation:
             raise TypeError("Expected a " + node_type)
         if world_space:
             # 接続時に実体化する。参照の取得では未評価worldSpace要素を作成しない。
-            return node.plug("worldSpace")[node.mpath().instanceNumber()]
-        return node.plug("local")
+            return node.getPlug("worldSpace")[node.mpath().instanceNumber()]
+        return node.getPlug("local")

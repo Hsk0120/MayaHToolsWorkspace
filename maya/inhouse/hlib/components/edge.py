@@ -9,9 +9,9 @@ class Edge(Component):
 
     shape_type = "mesh"
     component_type = "e"
-    count_attribute = "numEdges"
+    count_attribute = "getNumEdges"
 
-    def vertices(self):
+    def getVertices(self):
         """接続する頂点群を取得する。
 
         Returns:
@@ -26,10 +26,10 @@ class Edges(Components):
 
     component_class = Edge
 
-    def vertices(self):
+    def getVertices(self):
         """接続する頂点群を取得する。
 
         Returns:
             Vertices: 保持順に集め、重複を除いた頂点群。
         """
-        return Vertices(self.shape, (v.index for item in self for v in item.vertices()))
+        return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))

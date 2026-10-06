@@ -42,23 +42,23 @@ class FollowTest(unittest.TestCase):
         twist, swing, half = rig.follow_joints()
         for bone, expected in ((twist, 30), (swing, 0), (half, 30)):
             self.assertAlmostEqual(self.rotation(bone)[0], expected, places=4)
-        rig.follow_settings("followHalf1").plug("ratio").set(0.25)
+        rig.follow_settings("followHalf1").getPlug("ratio").set(0.25)
         self.assertAlmostEqual(self.rotation(half)[0], 15, places=4)
         rig.set_layer_enabled("follow", False)
-        self.assertIsNone(hlib.getPlug(half + ".offsetParentMatrix").sourceWithConversion())
+        self.assertIsNone(hlib.getPlug(half + ".offsetParentMatrix").getSourceWithConversion())
         cmds.undo()
         self.assertAlmostEqual(self.rotation(half)[0], 15, places=4)
         rig.set_lod(0)
-        self.assertIsNone(hlib.getPlug(half + ".offsetParentMatrix").sourceWithConversion())
+        self.assertIsNone(hlib.getPlug(half + ".offsetParentMatrix").getSourceWithConversion())
         rig.set_lod(1)
         self.assertAlmostEqual(self.rotation(half)[0], 15, places=4)
-        self.assertIn(half, rig.joints())
+        self.assertIn(half, rig.getJoints())
 
     def test_skirt_save_and_delete(self):
         """スカートのドライバー入力と保存後の参照・削除を確認する。"""
         rig = build_skirt(chain_count=4)
         bone = rig.add_follow("driverHalf", ratio=0.5)
-        rig.driver_chains()[0][0].plug("rotateY").set(math.radians(80))
+        rig.driver_chains()[0][0].getPlug("rotateY").set(math.radians(80))
         self.assertAlmostEqual(self.rotation(bone)[1], 40, places=4)
         rig.root.rename("renamed")
         with tempfile.TemporaryDirectory() as directory:
@@ -69,7 +69,7 @@ class FollowTest(unittest.TestCase):
         rig = SkirtRig("renamed")
         bone = rig.follow_joints()[0]
         rig.set_lod(0)
-        self.assertIsNone(hlib.getPlug(bone + ".offsetParentMatrix").sourceWithConversion())
+        self.assertIsNone(hlib.getPlug(bone + ".offsetParentMatrix").getSourceWithConversion())
         rig.set_lod(1)
         self.assertAlmostEqual(self.rotation(bone)[1], 40, places=4)
         rig.delete()

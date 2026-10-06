@@ -74,21 +74,21 @@ Undoの有効・無効、無限、上限の変更はUndoチャンクへまとめ
    from hlib.environment import Plugin
 
    plugin = Plugin("matrixNodes")
-   print(plugin.isLoaded(), plugin.path(), plugin.version())
+   print(plugin.isLoaded(), plugin.getPath(), plugin.getVersion())
    plugin.unload()
    plugin.ensureLoaded()   # 未ロードなら冪等にロードする
 
    for loaded in Plugin.loaded():
-       print(loaded.name())
+       print(loaded.getName())
 
 ``isLoaded``/``isRegistered`` は未知のプラグイン名でも例外にならず ``False``
 を返します。``path``/``version`` も未登録なら ``None`` です。
 ``load()`` は呼出し後のロード状態も確認します。Mayaが初期化失敗をPython例外にせず
 戻った場合も、未ロードなら ``RuntimeError`` になります。``PluginPackage.tryLoad()`` は
 この失敗を ``"load-failed"`` として報告します。
-``version()`` は ``Version`` オブジェクトを返します。数値として解釈できない版も ``None``
-になります。Mayaが返す文字列が必要なら ``versionText()``、数値のタプルが必要なら
-``version()`` がNoneでないことを確認して ``version.parts`` を使います。``isVersionAtLeast("3.0.0")`` でも比較できます。
+``getVersion()`` は ``Version`` オブジェクトを返します。数値として解釈できない版も ``None``
+になります。Mayaが返す文字列が必要なら ``getVersionText()``、数値のタプルが必要なら
+``getVersion()`` がNoneでないことを確認して ``version.parts`` を使います。``isVersionAtLeast("3.0.0")`` でも比較できます。
 
 モジュールと、製品の導入確認
 ------------------------------
@@ -101,7 +101,7 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 
    from hlib.environment import Module, PluginPackage
 
-   print(Module("Bifrost").version())            # Versionの文字列表現(未登録なら None)
+   print(Module("Bifrost").getVersion())            # Versionの文字列表現(未登録なら None)
    print(Module("Bifrost").isVersionAtLeast("3.0.0"))
 
    bifrost = PluginPackage(
@@ -148,7 +148,7 @@ Mayaに依存しない不変の値クラスで、``hlib.utils`` からも取得�
    from hlib.utils import Version
    from hlib.environment import Plugin
 
-   version = Plugin("bifrostGraph").version()
+   version = Plugin("bifrostGraph").getVersion()
    if version is not None:
        print(version.major, version.minor, version.patch, version.build)
        print(version.parts, version.suffix)
@@ -168,13 +168,13 @@ SemVerのプレリリース順序(例えばrc版が正式版より小さいと�
 
 コンストラクターは不正な入力に例外を出します。取得値の検査には
 ``Version.parse(value)`` を使うと、空値・不正値がNoneになります。
-``PluginPackage.minimumVersion()`` / ``installedVersion()`` / ``loadedVersion()``
+``PluginPackage.minimumVersion()`` / ``getInstalledVersion()`` / ``getLoadedVersion()``
 も ``Version | None`` を返します。取得済みの値はスナップショットで、現在の版を得るには
 再びプラグインやモジュールへ問い合わせます。
 
 旧 ``parse_version`` / ``isAtLeast`` / ``format_version`` 関数は廃止しました。
 ``Version.parse(value)`` / ``version.isAtLeast(minimum)`` / ``str(version)`` に移行してください。
-従来の ``version()`` の生文字列が必要なコードは ``versionText()`` に変更してください。
+従来の ``getVersion()`` の生文字列が必要なコードは ``getVersionText()`` に変更してください。
 
 ワークスペース(プロジェクト)
 --------------------------------
@@ -183,9 +183,9 @@ SemVerのプレリリース順序(例えばrc版が正式版より小さいと�
 
    from hlib.environment.workspace import Workspace
 
-   print(Workspace.root())               # 現在のワークスペースのルート
+   print(Workspace.getRoot())               # 現在のワークスペースのルート
    print(Workspace.getRule("scene"))        # 例: "scenes"
-   print(Workspace.pathFor("scene", "myScene.ma"))  # root/scenes/myScene.ma
+   print(Workspace.getPathFor("scene", "myScene.ma"))  # root/scenes/myScene.ma
 
 ``Workspace`` はインスタンスを持たず、常に現在のワークスペース(Mayaのセッションに
 1つだけ存在するグローバルな状態)を対象にします。``expand`` はファイルルール名を

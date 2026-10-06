@@ -50,7 +50,7 @@ API の引数や戻り値の詳細は、各メソッドのリンク先を参照�
 
    source = hlib.getNode("source_transform")
    target = hlib.getNode("target_transform")
-   target.plug("offsetParentMatrix").set(source.getMatrix())
+   target.getPlug("offsetParentMatrix").set(source.getMatrix())
 
 Transformの専用メソッドでも同じ操作ができます。Transforms・Jointsからの一括操作にも対応します。
 
@@ -76,11 +76,11 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   parent = target.parent()
+   parent = target.getParent()
    parent_world = parent.getMatrix(ws=True) if parent is not None else Matrix()
    desired_world = source.getMatrix(ws=True)
    offset = target.getMatrix().inverse() * desired_world * parent_world.inverse()
-   target.plug("offsetParentMatrix").set(offset)
+   target.getPlug("offsetParentMatrix").set(offset)
 
 ``inheritsTransform=False`` の場合はparent_worldを単位行列として扱います。
 ロックや入力接続がある場合は自動解除せずエラーになります。
@@ -91,8 +91,8 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   local_from_plug = child.plug("matrix").get()
-   world_from_plug = child.plug("worldMatrix")[0].get()
+   local_from_plug = child.getPlug("matrix").get()
+   world_from_plug = child.getPlug("worldMatrix")[0].get()
    print(local.isEquivalent(local_from_plug))    # True
    print(world.isEquivalent(world_from_plug))    # True
 
@@ -145,7 +145,7 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
    from hlib.maths import EulerRotation
 
    zyx = EulerRotation.fromDegrees(30, 45, 60, "zyx")
-   print(Matrix(rotate=zyx).isEquivalent(zyx.toMatrix()))    # True
+   print(Matrix(rotate=zyx).isEquivalent(zyx.asMatrix()))    # True
 
 行列の積と逆行列
 ----------------
@@ -207,7 +207,7 @@ hlib は Maya と同じ行ベクトル規約です。
    print(tuple(round(v, 6) for v in restored))    # (1.0, 0.0, 0.0)
 
 戻り値は、それぞれ ``Translation`` と ``Vector`` です。
-方向の長さが不要な場合は ``direction.normalized()`` で単位ベクトルにできます。
+方向の長さが不要な場合は ``direction.unit()`` で単位ベクトルにできます。
 これは法線専用の変換ではありません。非一様スケール下の法線変換とは区別してください。
 
 演算子を使う場合は om2 と同じ規約です。``Vector(1, 0, 0) * matrix`` は
@@ -263,7 +263,7 @@ translate・rotate・scale・shear に書き込みます。ただし同じ行列
   (2軸の符号の反転を、残りの軸まわりの 180 度回転で補います)。scale が (-1, 1, 1) の
   ミラーのノードは、``setTranslation`` や ``setMatrix(node.getMatrix())`` の後も
   (-1, 1, 1) のままで、rotate も変わりません。
-* ``setScaling(value)`` (``plug("scale").set(value)`` も同じ)では、要求した value の符号を
+* ``setScaling(value)`` (``getPlug("scale").set(value)`` も同じ)では、要求した value の符号を
   最優先します。ローカル空間では value がそのまま scale に入り、rotate は変わりません
   (``cmds.setAttr`` で scale だけを書いた場合と同じ)。
 * 回転はノードの rotateOrder で表し、等価な解のうち現在の rotate チャンネル値に最も近いもの
@@ -304,7 +304,7 @@ om2 の関数が返した ``om2.MMatrix`` は ``Matrix.fromMMatrix()`` で ``Mat
    print(copied.isEquivalent(matrix))    # True
    api_matrix = om2.MMatrix(matrix)       # 素の om2.MMatrix として複製
 
-``toTransformation()`` はhlibの ``Transformation`` を返します。
+``asTransformation()`` はhlibの ``Transformation`` を返します。
 ``fromTransformation()`` はhlibの値型とMaya API 2.0の ``MTransformationMatrix`` を受け付けます。
 OpenMaya型が必要な場合は ``om2.MTransformationMatrix(matrix)`` を使います。
 これらは値の変換であり、シーンの変更は行いません。

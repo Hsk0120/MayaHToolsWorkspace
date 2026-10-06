@@ -26,10 +26,10 @@ class NamingContractsTest(unittest.TestCase):
         try:
             node.setBlender(.25)
             self.assertAlmostEqual(node.getBlender(), .25)
-            self.assertEqual(node.blenderPlug().longName(), 'blender')
-            self.assertEqual(node.outputPlug().longName(), 'output')
+            self.assertEqual(node.getBlenderPlug().getLongName(), 'blender')
+            self.assertEqual(node.getOutputPlug().getLongName(), 'output')
         finally:
-            cmds.delete(node.fullName())
+            cmds.delete(node.getFullName())
 
     def test_bulk_getters_are_exposed(self):
         """単数形から新しい取得名が複数形へ展開される。"""

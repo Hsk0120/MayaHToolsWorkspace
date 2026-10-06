@@ -76,7 +76,7 @@ class PoseRbf:
             Node: 新規ノード。
         """
         node = hlib.nodes.Node.create(
-            kind, name=self.container.name() + "_" + suffix, skipSelect=True
+            kind, name=self.container.getName() + "_" + suffix, skipSelect=True
         )
         self.container.addMembers(node)
         return node
@@ -106,7 +106,7 @@ class PoseRbf:
         if len(drivers) != len(scales) or cmds.objExists(name):
             raise ValueError("Driver count mismatch or name exists")
         for plug in drivers:
-            kind = hlib.getAttr(plug.fullName(), type=True)
+            kind = hlib.getAttr(plug.getFullName(), type=True)
             if (
                 kind not in ("double", "float", "long", "short", "doubleAngle")
                 or plug.isArray()
@@ -117,14 +117,14 @@ class PoseRbf:
         for attr in ("inputs", "outputs", "coefficients"):
             owner.addAttr(longName=attr, attributeType="double", multi=True)
         owner.addAttr(longName="data", dataType="string")
-        owner.plug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
+        owner.getPlug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
         for index, source in enumerate(drivers):
-            destination = owner.plug("inputs")[index]
-            if hlib.getAttr(source.fullName(), type=True) == "doubleAngle":
+            destination = owner.getPlug("inputs")[index]
+            if hlib.getAttr(source.getFullName(), type=True) == "doubleAngle":
                 convert = graph._node("unitConversion", "degrees{}".format(index))
-                source.connectTo(convert.plug("input"))
-                convert.plug("conversionFactor").set(180 / math.pi)
-                convert.plug("output").connectTo(destination)
+                source.connectTo(convert.getPlug("input"))
+                convert.getPlug("conversionFactor").set(180 / math.pi)
+                convert.getPlug("output").connectTo(destination)
             else:
                 source.connectTo(destination)
         graph._build(poses, values, scales, coefficients)
@@ -137,15 +137,15 @@ class PoseRbf:
         Args:
             values (Sequence[Sequence[float]]): 元と同じ行数・出力数の新しい値。
         """
-        data = json.loads(self.container.plug("data").get())
+        data = json.loads(self.container.getPlug("data").get())
         coefficients = self.coefficients(data["poses"], values, data["scales"])
         if len(values[0]) != len(data["values"][0]):
             raise ValueError("Output count cannot change")
         for i, row in enumerate(coefficients):
             for j, value in enumerate(row):
-                self.container.plug("coefficients")[i * len(row) + j].set(value)
+                self.container.getPlug("coefficients")[i * len(row) + j].set(value)
         data["values"] = values
-        self.container.plug("data").set(json.dumps(data))
+        self.container.getPlug("data").set(json.dumps(data))
 
     def data(self):
         """保存済みの登録入力・出力・スケールのコピーを取得する。
@@ -153,7 +153,7 @@ class PoseRbf:
         Returns:
             dict: poses/values/scales。角度入力は度。
         """
-        return json.loads(self.container.plug("data").get())
+        return json.loads(self.container.getPlug("data").get())
 
     def capture(self):
         """現在の入力を取得する。角度単位のUI設定によらず度を返す。
@@ -162,7 +162,7 @@ class PoseRbf:
             list[float]: 入力順の値。
         """
         return [
-            self.container.plug("inputs")[i].get()
+            self.container.getPlug("inputs")[i].get()
             for i in range(len(self.data()["scales"]))
         ]
 
@@ -181,29 +181,29 @@ class PoseRbf:
             distance = self._node("plusMinusAverage", "distance{}".format(i))
             for j, (center, scale) in enumerate(zip(pose, scales)):
                 delta = self._node("plusMinusAverage", "delta{}_{}".format(i, j))
-                delta.plug("operation").set(2)
-                owner.plug("inputs")[j].connectTo(delta.plug("input1D")[0])
-                delta.plug("input1D")[1].set(center)
+                delta.getPlug("operation").set(2)
+                owner.getPlug("inputs")[j].connectTo(delta.getPlug("input1D")[0])
+                delta.getPlug("input1D")[1].set(center)
                 square = self._node("multiplyDivide", "square{}_{}".format(i, j))
-                delta.plug("output1D").connectTo(square.plug("input1X"))
-                delta.plug("output1D").connectTo(square.plug("input2X"))
+                delta.getPlug("output1D").connectTo(square.getPlug("input1X"))
+                delta.getPlug("output1D").connectTo(square.getPlug("input2X"))
                 normalized = self._node("multiplyDivide", "scale{}_{}".format(i, j))
-                square.plug("outputX").connectTo(normalized.plug("input1X"))
-                normalized.plug("input2X").set(-1 / scale**2)
-                normalized.plug("outputX").connectTo(distance.plug("input1D")[j])
+                square.getPlug("outputX").connectTo(normalized.getPlug("input1X"))
+                normalized.getPlug("input2X").set(-1 / scale**2)
+                normalized.getPlug("outputX").connectTo(distance.getPlug("input1D")[j])
             kernel = self._node("multiplyDivide", "kernel{}".format(i))
-            kernel.plug("operation").set(3)
-            kernel.plug("input1X").set(math.e)
-            distance.plug("output1D").connectTo(kernel.plug("input2X"))
+            kernel.getPlug("operation").set(3)
+            kernel.getPlug("input1X").set(math.e)
+            distance.getPlug("output1D").connectTo(kernel.getPlug("input2X"))
             for j, total in enumerate(totals):
-                coefficient = owner.plug("coefficients")[i * len(totals) + j]
+                coefficient = owner.getPlug("coefficients")[i * len(totals) + j]
                 coefficient.set(coefficients[i][j])
                 weight = self._node("multiplyDivide", "weight{}_{}".format(i, j))
-                kernel.plug("outputX").connectTo(weight.plug("input1X"))
-                coefficient.connectTo(weight.plug("input2X"))
-                weight.plug("outputX").connectTo(total.plug("input1D")[i])
+                kernel.getPlug("outputX").connectTo(weight.getPlug("input1X"))
+                coefficient.connectTo(weight.getPlug("input2X"))
+                weight.getPlug("outputX").connectTo(total.getPlug("input1D")[i])
         for j, total in enumerate(totals):
-            total.plug("output1D").connectTo(owner.plug("outputs")[j])
+            total.getPlug("output1D").connectTo(owner.getPlug("outputs")[j])
 
     @undoTransaction("hrig.PoseRbf.set_data")
     def set_data(self, poses, values, scales):
@@ -225,12 +225,12 @@ class PoseRbf:
         # 入力の角度変換ノードは残し、安定したcontainer入出力を保つ。
         keep = set()
         for i in range(len(scales)):
-            source = self.container.plug("inputs")[i].sourceWithConversion()
+            source = self.container.getPlug("inputs")[i].getSourceWithConversion()
             if source is not None:
-                keep.add(source.node().uuid())
-        owned = self.container.members()
-        remove = [n for n in owned if hlib.nodes.Node(n).uuid() not in keep]
+                keep.add(source.getNode().getUuid())
+        owned = self.container.getMembers()
+        remove = [n for n in owned if hlib.nodes.Node(n).getUuid() not in keep]
         if remove:
             hlib.delete(remove)
         self._build(poses, values, scales, coefficients)
-        self.container.plug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
+        self.container.getPlug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))

@@ -74,7 +74,7 @@ class PublicCamelCaseTest(unittest.TestCase):
         self.assertEqual(package.minimumMaya, 2025)
         self.assertNotIn('minimum_version', vars(type(package)))
         document = JsonDocument({'minimum_version': 'saved', 'palette_source': 'saved'})
-        restored = JsonDocument.fromData(document.toData())
+        restored = JsonDocument.fromData(document.asData())
         self.assertEqual(restored.data, document.data)
 
 

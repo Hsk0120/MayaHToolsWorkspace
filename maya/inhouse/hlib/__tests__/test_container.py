@@ -31,47 +31,47 @@ class ContainerTest(unittest.TestCase):
         """公開名作成・Bind・編集・改名・解除とUndoを検証する。"""
         node = self.owner.createNode("multiplyDivide")
         self.assertEqual(self.owner.publishName("Gain"), "Gain")
-        self.assertEqual(self.owner.publishedAttributes(), {"Gain": None})
-        plug = self.owner.bindAttribute("Gain", node.plug("input2X"))
-        self.owner.publishedAttributes()["Gain"].set(3)
+        self.assertEqual(self.owner.getPublishedAttrs(), {"Gain": None})
+        plug = self.owner.bindAttr("Gain", node.getPlug("input2X"))
+        self.owner.getPublishedAttrs()["Gain"].set(3)
         self.assertEqual(plug.get(), 3)
         node.rename("renamedMultiply")
-        self.assertEqual(self.owner.publishedAttributes()["Gain"], plug)
+        self.assertEqual(self.owner.getPublishedAttrs()["Gain"], plug)
         with self.assertRaises(ValueError):
             self.owner.unpublishName("Gain")
-        self.owner.unbindAttribute("Gain")
+        self.owner.unbindAttr("Gain")
         self.owner.unpublishName("Gain")
-        self.assertFalse(self.owner.publishedAttributes())
-        self.owner.publishAndBind("Input", node.plug("input1X"))
+        self.assertFalse(self.owner.getPublishedAttrs())
+        self.owner.publishAndBind("Input", node.getPlug("input1X"))
         cmds.undo()
-        self.assertFalse(self.owner.publishedAttributes())
+        self.assertFalse(self.owner.getPublishedAttrs())
 
     def test_publish_failure(self):
         """外部ノードの公開を拒否し、作成途中の公開名を残さない。"""
         foreign = Node.create("multiplyDivide")
         with self.assertRaises(ValueError):
-            self.owner.publishAndBind("External", foreign.plug("input1X"))
-        self.assertFalse(self.owner.publishedAttributes())
+            self.owner.publishAndBind("External", foreign.getPlug("input1X"))
+        self.assertFalse(self.owner.getPublishedAttrs())
         node = self.owner.createNode("multiplyDivide")
-        self.owner.publishAndBind("Gain", node.plug("input2X"))
+        self.owner.publishAndBind("Gain", node.getPlug("input2X"))
         with self.assertRaises(ValueError):
             self.owner.publishName("Gain")
-        self.assertEqual(self.owner.publishedAttributes()["Gain"], node.plug("input2X"))
+        self.assertEqual(self.owner.getPublishedAttrs()["Gain"], node.getPlug("input2X"))
 
     def test_remove_and_delete(self):
         """所属解除・箱だけ解除・通常削除の違いを検証する。"""
         node = self.owner.createNode("multiplyDivide")
         self.owner.removeMembers(node)
         self.assertTrue(node.isValid())
-        self.assertFalse(self.owner.members())
+        self.assertFalse(self.owner.getMembers())
         self.owner.addMembers(node)
-        self.owner.publishAndBind("Gain", node.plug("input2X"))
+        self.owner.publishAndBind("Gain", node.getPlug("input2X"))
         self.owner.removeContainer()
         self.assertTrue(node.isValid())
         cmds.undo()
-        restored = Container(cmds.container(query=True, findContainer=node.fullName()))
-        self.assertIn(node, restored.members())
-        self.assertEqual(restored.publishedAttributes()["Gain"], node.plug("input2X"))
+        restored = Container(cmds.container(query=True, findContainer=node.getFullName()))
+        self.assertIn(node, restored.getMembers())
+        self.assertEqual(restored.getPublishedAttrs()["Gain"], node.getPlug("input2X"))
         restored.delete()
         self.assertFalse(node.isValid())
 
@@ -81,11 +81,11 @@ class ContainerTest(unittest.TestCase):
         self.owner.addMembers(inner)
         node = inner.createNode("multiplyDivide")
         inner.removeMembers(node)
-        self.assertEqual(cmds.container(query=True, findContainer=node.fullName()), self.owner.fullName())
+        self.assertEqual(cmds.container(query=True, findContainer=node.getFullName()), self.owner.getFullName())
         self.owner.removeMembers(node)
         inner.addMembers(node)
         inner.removeMembers(node, force=True)
-        self.assertFalse(cmds.container(query=True, findContainer=node.fullName()))
+        self.assertFalse(cmds.container(query=True, findContainer=node.getFullName()))
 
     def test_factory_and_soft_ik(self):
         """両生成先で同じ計算結果になり、既存SoftIKも構築できる。"""
@@ -104,9 +104,9 @@ class ContainerTest(unittest.TestCase):
         self.assertEqual(len(created), 3)
         from hrig.setups.softIK import SoftIK
         owner = Node(SoftIK.create("soft", 10))
-        owner.plug("distance").set(9)
-        owner.plug("softness").set(2)
-        self.assertAlmostEqual(owner.plug("ratio").get(), SoftIK.distance(9, 10, 2) / 9, places=5)
+        owner.getPlug("distance").set(9)
+        owner.getPlug("softness").set(2)
+        self.assertAlmostEqual(owner.getPlug("ratio").get(), SoftIK.distance(9, 10, 2) / 9, places=5)
 
 
 if __name__ == "__main__":

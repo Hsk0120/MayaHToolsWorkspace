@@ -25,38 +25,38 @@ class SwingTwistTest(unittest.TestCase):
             graph = SwingTwist.create(self.joint, name="decompose" + axis, axis=axis)
             for angle in (-150, -60, 0, 60, 150):
                 cmds.setAttr(self.joint + ".r" + axis, angle)
-                self.assertAlmostEqual(graph.container.plug("twist").get(), angle, delta=0.001)
+                self.assertAlmostEqual(graph.container.getPlug("twist").get(), angle, delta=0.001)
                 for component in "XYZ":
                     self.assertAlmostEqual(
-                        graph.container.plug("swing" + component).get(), 0, places=4
+                        graph.container.getPlug("swing" + component).get(), 0, places=4
                     )
-            cmds.delete(graph.container.fullName())
+            cmds.delete(graph.container.getFullName())
         cmds.setAttr(self.joint + ".rotate", 0, 0, 0)
         graph = SwingTwist.create(self.joint)
         cmds.setAttr(self.joint + ".rz", 50)
-        self.assertAlmostEqual(graph.container.plug("swingZ").get(), 50, places=4)
-        self.assertAlmostEqual(graph.container.plug("twist").get(), 0, places=4)
+        self.assertAlmostEqual(graph.container.getPlug("swingZ").get(), 50, places=4)
+        self.assertAlmostEqual(graph.container.getPlug("twist").get(), 0, places=4)
 
     def test_reconstruct_rest_and_singular(self):
         """複合回転を再構築し、180度の不定Twistを安全に処理する。"""
         cmds.setAttr(self.joint + ".jointOrient", 10, 20, 30)
         graph = SwingTwist.create(self.joint)
         baseline = om.MMatrix(cmds.getAttr(self.joint + ".matrix"))
-        self.assertAlmostEqual(graph.container.plug("twist").get(), 0, places=4)
+        self.assertAlmostEqual(graph.container.getPlug("twist").get(), 0, places=4)
         for rotation in ((40, 30, 20), (-35, 50, -40)):
             cmds.setAttr(self.joint + ".rotate", *rotation)
             matrix = om.MMatrix(cmds.getAttr(self.joint + ".matrix")) * baseline.inverse()
-            twist = om.MMatrix(graph.container.plug("twistMatrix").get())
-            swing = om.MMatrix(graph.container.plug("swingMatrix").get())
+            twist = om.MMatrix(graph.container.getPlug("twistMatrix").get())
+            swing = om.MMatrix(graph.container.getPlug("swingMatrix").get())
             for actual, expected in zip(twist * swing, matrix):
                 self.assertAlmostEqual(actual, expected, places=5)
         cmds.currentUnit(angle="rad")
-        value = graph.container.plug("twist").get()
+        value = graph.container.getPlug("twist").get()
         cmds.currentUnit(angle="deg")
-        self.assertAlmostEqual(graph.container.plug("twist").get(), value, places=5)
-        cmds.delete(graph.container.fullName())
+        self.assertAlmostEqual(graph.container.getPlug("twist").get(), value, places=5)
+        cmds.delete(graph.container.getFullName())
         cmds.setAttr(self.joint + ".jointOrient", 0, 0, 0)
         cmds.setAttr(self.joint + ".rotate", 0, 0, 0)
         graph = SwingTwist.create(self.joint)
         cmds.setAttr(self.joint + ".ry", 180)
-        self.assertAlmostEqual(graph.container.plug("twist").get(), 0, places=4)
+        self.assertAlmostEqual(graph.container.getPlug("twist").get(), 0, places=4)

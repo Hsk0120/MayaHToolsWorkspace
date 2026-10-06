@@ -23,7 +23,7 @@ class Menu:
             return None
         if cmds.menu(cls.NAME, exists=True):
             return cls.NAME
-        parent = MainWindow.name()
+        parent = MainWindow.getName()
         cmds.menu(cls.NAME, label="hrig", parent=parent, tearOff=True)
         cmds.menuItem(
             label="レイヤーエディタを開く", parent=cls.NAME, command=partial(cls.run, "editor")
@@ -62,12 +62,12 @@ class Menu:
         """
         from .moduleRegistry import ModuleRegistry
 
-        selected = [item.fullName() for item in hlib.ls(selection=True, long=True)] or []
+        selected = [item.getFullName() for item in hlib.ls(selection=True, long=True)] or []
         if not selected:
             raise ValueError("hrigのモジュールまたは配下のノードを選択してください")
         for root in ModuleRegistry.roots():
             rig = ModuleRegistry.get(root)
-            path = rig.root.fullName()
+            path = rig.root.getFullName()
             if selected[0] == path or selected[0].startswith(path + "|"):
                 return rig, selected[0]
         raise ValueError("選択ノードはhrigモジュールに所属していません")
@@ -107,7 +107,7 @@ class Menu:
                 rig, joint = cls.selected_rig()
                 layer = TweakLayer(rig)
                 return layer.add(SampleBuilder.next_id(set(layer.groups()), "tweak"), joint)
-            name = SampleBuilder.next_id(set([item.name() for item in hlib.ls()]), action)
+            name = SampleBuilder.next_id(set([item.getName() for item in hlib.ls()]), action)
             if action in ("limb", "demo"):
                 rig = SampleBuilder.module(name, demo=action == "demo")
             elif action in ("spine", "tail"):
@@ -132,7 +132,7 @@ class Menu:
 
             for row in editor.rows():
                 data = row.data(0, QtCore.Qt.UserRole)
-                if data["root"] == rig.root.uuid() and data["role"] == "module":
+                if data["root"] == rig.root.getUuid() and data["role"] == "module":
                     editor.tree.setCurrentItem(row)
                     break
             return rig

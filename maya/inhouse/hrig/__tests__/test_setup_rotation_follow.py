@@ -32,14 +32,14 @@ class RotationFollowTest(unittest.TestCase):
             for degrees in (-120, 80):
                 cmds.setAttr(self.joint + ".r" + axis, degrees)
                 for mode in (0, 1, 2):
-                    graph.plug("followMode").set(mode)
+                    graph.getPlug("followMode").set(mode)
                     for ratio in (0, 0.25, 0.5, 1):
-                        graph.plug("ratio").set(ratio)
+                        graph.getPlug("ratio").set(ratio)
                         angle = math.radians(degrees * ratio) if mode != 2 else 0
                         vector = om.MVector(*[int(a == axis) for a in "xyz"])
                         expected = om.MQuaternion(angle, vector).asMatrix()
-                        self.assertMatrix(graph.plug("matrix").get(), expected)
-            cmds.delete(graph.fullName())
+                        self.assertMatrix(graph.getPlug("matrix").get(), expected)
+            cmds.delete(graph.getFullName())
 
     def test_combined_rotation_and_rest(self):
         """JointOrient/OPM/移動を含む基準姿勢と複合回転を確認する。"""
@@ -49,16 +49,16 @@ class RotationFollowTest(unittest.TestCase):
         cmds.setAttr(self.joint + ".offsetParentMatrix", *opm, type="matrix")
         graph = RotationFollow.create(self.joint, ratio=1).container
         rest = om.MMatrix(cmds.getAttr(self.joint + ".matrix")) * opm
-        self.assertMatrix(graph.plug("matrix").get(), rest)
+        self.assertMatrix(graph.getPlug("matrix").get(), rest)
         rest_rotation = om.MTransformationMatrix(rest).rotation(asQuaternion=True).asMatrix()
         for rotation in ((35, 50, -20), (-70, 10, 45)):
             cmds.setAttr(self.joint + ".rotate", *rotation)
             current = om.MMatrix(cmds.getAttr(self.joint + ".matrix")) * opm
-            self.assertMatrix(graph.plug("matrix").get(), current)
+            self.assertMatrix(graph.getPlug("matrix").get(), current)
             for mode, component in ((1, "twistMatrix"), (2, "swingMatrix")):
-                graph.plug("followMode").set(mode)
-                graph.plug("ratio").set(0.5)
-                q = om.MTransformationMatrix(om.MMatrix(graph.plug(component).get())).rotation(
+                graph.getPlug("followMode").set(mode)
+                graph.getPlug("ratio").set(0.5)
+                q = om.MTransformationMatrix(om.MMatrix(graph.getPlug(component).get())).rotation(
                     asQuaternion=True
                 )
                 expected = om.MTransformationMatrix(
@@ -68,11 +68,11 @@ class RotationFollowTest(unittest.TestCase):
                     om.MTransformationMatrix(current).translation(om.MSpace.kTransform),
                     om.MSpace.kTransform,
                 )
-                self.assertMatrix(graph.plug("matrix").get(), expected.asMatrix())
-            graph.plug("followMode").set(0)
-            graph.plug("ratio").set(1)
+                self.assertMatrix(graph.getPlug("matrix").get(), expected.asMatrix())
+            graph.getPlug("followMode").set(0)
+            graph.getPlug("ratio").set(1)
         cmds.currentUnit(angle="rad", linear="m")
-        self.assertMatrix(graph.plug("matrix").get(), current)
+        self.assertMatrix(graph.getPlug("matrix").get(), current)
         cmds.currentUnit(angle="deg", linear="cm")
 
     def test_invalid_ratio_and_singular(self):
@@ -83,5 +83,5 @@ class RotationFollowTest(unittest.TestCase):
         graph = RotationFollow.create(self.joint).container
         cmds.setAttr(self.joint + ".ry", 180)
         for mode in range(3):
-            graph.plug("followMode").set(mode)
-            self.assertTrue(all(math.isfinite(v) for v in graph.plug("matrix").get()))
+            graph.getPlug("followMode").set(mode)
+            self.assertTrue(all(math.isfinite(v) for v in graph.getPlug("matrix").get()))

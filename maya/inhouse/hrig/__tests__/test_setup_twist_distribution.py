@@ -22,14 +22,14 @@ class TwistDistributionTest(unittest.TestCase):
         from hlib.maths import Matrix
 
         node = hlib.createNode("joint", name="joint", skipSelect=True)
-        node.plug("translateX").set(2)
+        node.getPlug("translateX").set(2)
         plug = node.addAttr(longName="rest", dataType="matrix")
         value = Matrix()
         value[12] = 3
         plug.set(value)
         self.assertAlmostEqual(plug.get()[12], 3)
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
-        node.plug("offsetParentMatrix").set(value)
+        node.getPlug("offsetParentMatrix").set(value)
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
         self.assertAlmostEqual(node.getTranslation(ws=True, at=4)[0], 5)
         cmds.undo()
@@ -43,7 +43,7 @@ class TwistDistributionTest(unittest.TestCase):
         end = hlib.createNode("transform", name="end", skipSelect=True)
         start.setTranslation((1, 0, 0), at=4)
         end.setTranslation((9, 0, 0), at=4)
-        end.plug("rotateX").set(math.radians(120))
+        end.getPlug("rotateX").set(math.radians(120))
         graph = TwistDistribution.create(start, end)
         output = graph.sample(0.25, "quarter")
         matrix = om.MMatrix(output.get())
@@ -52,7 +52,7 @@ class TwistDistributionTest(unittest.TestCase):
         self.assertAlmostEqual(
             math.degrees(2 * math.atan2(quaternion.x, quaternion.w)), 30, places=4
         )
-        owned = cmds.container(graph.container.fullName(), query=True, nodeList=True)
+        owned = cmds.container(graph.container.getFullName(), query=True, nodeList=True)
         hlib.delete(graph.container)
         self.assertTrue(start.isValid() and end.isValid())
         self.assertFalse(any(cmds.objExists(n) for n in owned))

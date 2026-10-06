@@ -73,7 +73,7 @@ def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
         args["enumName"] = enum
     reference = hlib.getNode(node)
     reference.addAttr(**args)
-    reference.setAttributeFlags([name], keyable=False, channelBox=True, locked=readonly)
+    reference.setAttrFlags([name], keyable=False, channelBox=True, locked=readonly)
 
 
 def _exists(rig):
@@ -87,7 +87,7 @@ def _exists(rig):
         bool: 表示用モジュールの参照があればTrue。
     """
     return (
-        rig.root.hasAttr("channelModule") and rig.root.plug("channelModule").sourceWithConversion() is not None
+        rig.root.hasAttr("channelModule") and rig.root.getPlug("channelModule").getSourceWithConversion() is not None
     )
 
 
@@ -111,7 +111,7 @@ def _states(rig):
         "foot": ik
         and detail
         and rig.layer_enabled("foot")
-        and hlib.getNode(rig.root.fullName()).hasAttr("footMatrix"),
+        and hlib.getNode(rig.root.getFullName()).hasAttr("footMatrix"),
     }
     if rig.root.hasAttr("targetSpace"):
         states["space"] = True
@@ -174,8 +174,8 @@ def attach(rig):
         return rig._member("channelModule")
     from .limb import _lock_group
 
-    root = rig.root.fullName()
-    stem = rig.nodeName("moduleSet").removesuffix("_set")
+    root = rig.root.getFullName()
+    stem = rig.getNodeName("moduleSet").removesuffix("_set")
     group_name = (
         "modules_grp"
         if root.rsplit("|", 1)[-1] == "rig"
@@ -185,9 +185,9 @@ def attach(rig):
     if any(cmds.objExists(name) for name in names):
         raise ValueError("Module display names already exist")
     nodes = []
-    group = hlib.createNode("transform", name=group_name, parent=root, skipSelect=True).fullName()
+    group = hlib.createNode("transform", name=group_name, parent=root, skipSelect=True).getFullName()
     hlib.reorder(group, front=True)
-    module = hlib.createNode("transform", name=stem, parent=group, skipSelect=True).fullName()
+    module = hlib.createNode("transform", name=stem, parent=group, skipSelect=True).getFullName()
     nodes.extend((group, module))
     rig._bind("channelModule", module)
     hlib.getNode(module).addAttr(longName="hrigChannelRoot", attributeType="message")
@@ -196,7 +196,7 @@ def attach(rig):
     _attribute(module, "lod", "enum", rig.lod(), "Low:Full")
     _attribute(module, "matchOnSwitch", default=True)
     for layer, name in zip(LAYERS, names[2:]):
-        node = hlib.createNode("transform", name=name, parent=module, skipSelect=True).fullName()
+        node = hlib.createNode("transform", name=name, parent=module, skipSelect=True).getFullName()
         nodes.append(node)
         rig._bind("channel_" + layer, node)
         if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
@@ -208,11 +208,11 @@ def attach(rig):
         hlib.getPlug(node + ".useOutlinerColor").set(True)
     for node in nodes:
         _lock_group(node)
-        hlib.getNode(node).setAttributeFlags(
+        hlib.getNode(node).setAttrFlags(
             ["visibility"], keyable=False, channelBox=False, locked=True
         )
     for node in nodes:
-        hlib.getNode(root).plug("hrigOwned").appendMessage(node)
+        hlib.getNode(root).getPlug("hrigOwned").appendMessage(node)
     sync_display(rig)
     install()
     return module
@@ -239,7 +239,7 @@ def apply(rig):
             requested = hlib.getPlug(rig._member(role) + ".space").get()
             spaces[role] = switch.labels()[requested]
     if (
-        all(rig.space_switch(role).current() == label for role, label in spaces.items())
+        all(rig.space_switch(role).getCurrent() == label for role, label in spaces.items())
         and mode == rig.mode()
         and lod == rig.lod()
         and all(value == rig.layer_enabled(layer) for layer, value in enabled.items())
@@ -248,7 +248,7 @@ def apply(rig):
     try:
         with undoTransaction("hrig.channel_controls.apply"):
             for role, label in spaces.items():
-                if rig.space_switch(role).current() != label:
+                if rig.space_switch(role).getCurrent() != label:
                     rig.set_space(role, label)
             if mode != rig.mode() and hlib.getPlug(module + ".matchOnSwitch").get():
                 # 通常のチャンネルボックス操作は一度に一属性だけ変更する。
@@ -278,7 +278,7 @@ def _changed(root_uuid):
     global _busy
     if _busy:
         return
-    roots = [item.fullName() for item in hlib.ls(root_uuid, long=True)] or []
+    roots = [item.getFullName() for item in hlib.ls(root_uuid, long=True)] or []
     if not roots:
         return
     _busy = True
@@ -302,13 +302,13 @@ def refresh_jobs():
         if not hlib.ls(key) or not jobs.exists():
             jobs.stop()
             del _jobs[key]
-    for plug in [item.fullName() for item in hlib.ls("*.hrigChannelRoot", recursive=True)] or []:
+    for plug in [item.getFullName() for item in hlib.ls("*.hrigChannelRoot", recursive=True)] or []:
         module = plug.rsplit(".", 1)[0]
-        source = hlib.getPlug(plug).sourceWithConversion()
+        source = hlib.getPlug(plug).getSourceWithConversion()
         if source is None:
             continue
-        root = source.node()
-        key = root.uuid()
+        root = source.getNode()
+        key = root.getUuid()
         if key in _jobs:
             continue
         rig = LimbRig(root)
