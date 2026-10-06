@@ -282,19 +282,25 @@ def delete_settings():
 
 
 def make_media(ffmpeg):
-    """見本の動画(2版)と連番画像(欠けあり)を作る。"""
+    """見本の動画(2版)と連番画像(欠けあり)を作る。
+
+    絵は灰色のチェッカー模様の上を四角が左から右へ動くだけの、落ち着いた見本(コマ送りで動きが分かるように)。
+    下に「ショット名・版・フレーム番号」の文字を入れる。2版は四角の色だけが違う。
+    """
     os.makedirs(MEDIA, exist_ok=True)
     font = "C\\:/Windows/Fonts/segoeui.ttf"
-    for name, hue, label in (("sh010_anim_v003.mp4", 0, "v003"), ("sh010_anim_v004.mp4", 35, "v004")):
+    checker = "geq=lum='if(mod(floor(X/120)+floor(Y/120)\\,2)\\,150\\,110)':cb=128:cr=128"
+    for name, color, label in (("sh010_anim_v003.mp4", "0xFF8232", "v003"), ("sh010_anim_v004.mp4", "0x4A90E2", "v004")):
         path = os.path.join(MEDIA, name)
         if os.path.exists(path):
             continue
-        text = ("drawtext=fontfile='{0}':text='sh010  {1}  %{{eif\\:n+1001\\:d}}':x=40:y=h-80:fontsize=40:"
-                "fontcolor=white:box=1:boxcolor=black@0.45:boxborderw=12").format(font, label)
-        subprocess.run([ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
-                        "mandelbrot=size=1920x1080:rate=24:start_scale=2.5:end_scale=0.02:inner=convergence",
-                        "-frames:v", "96", "-vf", "hue=h={0},{1},format=yuv420p".format(hue, text),
-                        "-c:v", "libx264", "-crf", "18", "-g", "24", path], check=True)
+        text = ("drawtext=fontfile='{0}':text='sh010   {1}   %{{eif\\:n+1001\\:d}}':x=(w-text_w)/2:y=h-170:"
+                "fontsize=72:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=20").format(font, label)
+        # 動く四角は色の板を重ねて描く(重ねる位置は時刻 t の式で動かせる)。
+        graph = ("color=c=gray:size=1920x1080:rate=24,{0}[bg];color=c={1}:size=240x240:rate=24[box];"
+                 "[bg][box]overlay=x='150+t*320':y=360:shortest=1,{2},format=yuv420p").format(checker, color, text)
+        subprocess.run([ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-filter_complex", graph,
+                        "-frames:v", "96", "-c:v", "libx264", "-crf", "18", "-g", "24", path], check=True)
     sequence = os.path.join(MEDIA, "sequence")
     if not os.path.isdir(sequence):
         os.makedirs(sequence)
