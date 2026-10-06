@@ -84,6 +84,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex 2026-10-06: Ollama利用方針の3ファイルを差分確認し、プッシュ対象として確定。FramePlayerの既存変更は対象外として保持。文書のみの変更のためMaya検証は不要。
+
+- Codex 2026-10-06: ユーザーのOllama利用再開許可をAGENTS.md・CLAUDE.mdへ反映。トークン削減に有効な翻訳・要約等へ使用し、Mayaとの競合回避・終了後のモデル解放・担当エージェントによる検証を維持。ルール変更のみでOllama起動・モデルロードなし。
+
 - Codex 2026-10-06: hlibのget/set・Attr/Attrs・Extra・as命名、短縮アクセサー廃止、数学値のコピー/It更新とhlib戻り型、引数長短別名を実装。HTools/hrig/hlib拡張・テスト・使用例を移行し、AGENTSとAPI仕様を更新。日本語docstring/Sphinxを修正し、このLLMで英訳120件を作成（Ollama未起動）、hlib/hrig未訳0・日英Sphinx警告なし。Maya2022～2027の各108ファイル/969テスト、hrig/Bifrost180テスト、HTools大型55ケースと通常ツール、Aim17/Cycle7テスト成功。レイアウト違反0、変更Python構文・差分検査成功。GUI専用テストは未実行。
 
 
