@@ -66,6 +66,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 | `maya/maya_core.bat` | 共通の起動環境設定 |
 | `maya/maya_*_en.bat` | バージョン別起動バッチ |
 | `tools/send_to_maya.py` | 保存済みPythonファイルを起動中のMayaへ送信 |
+| `tools/plugin_load_probe/` | `.mll`のロードがWindowsのセキュリティ機能に止められる原因を切り分けるデバッグ用の最小C++プラグイン。自動ロードしない |
 | `MayaHToolsWorkspace.code-workspace` | VS Code設定・送信タスク |
 
 ## 起動と実行

@@ -84,6 +84,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code 2026-10-06: `.mll`のロードがWindowsの組織ポリシーに止められる原因を切り分ける、デバッグ用の最小C++プラグイン `tools/plugin_load_probe/` を追加(OpenMaya/Foundationのみ、自動ロードなし)。CLAUDE.md・AGENTS.mdの構成表に追記。Linux上でスタブのヘッダーによる構文確認のみで、Windowsでのビルド・Mayaでのロードは未確認。
+
 - Codex 2026-10-06: Ollama利用方針の3ファイルを差分確認し、プッシュ対象として確定。FramePlayerの既存変更は対象外として保持。文書のみの変更のためMaya検証は不要。
 
 - Codex 2026-10-06: ユーザーのOllama利用再開許可をAGENTS.md・CLAUDE.mdへ反映。トークン削減に有効な翻訳・要約等へ使用し、Mayaとの競合回避・終了後のモデル解放・担当エージェントによる検証を維持。ルール変更のみでOllama起動・モデルロードなし。
