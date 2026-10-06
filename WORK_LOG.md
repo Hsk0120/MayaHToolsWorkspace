@@ -84,6 +84,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code 2026-10-06: `.mll`のロードがWindowsの組織ポリシーに止められる原因を切り分ける、デバッグ用の最小C++プラグイン `tools/plugin_load_probe/` を追加(OpenMaya/Foundationのみ、自動ロードなし)。CLAUDE.md・AGENTS.mdの構成表に追記。Linux上でスタブのヘッダーによる構文確認のみで、Windowsでのビルド・Mayaでのロードは未確認。
+
 - Codex (2026-10-07): 今回のBlendShape編集・createBlendShape・lsコンポーネント対応・Mesh頂点順序合わせと関連テスト/資料をコミット対象に集約。origin/mainとの同期・差分検査を確認。既記載のMaya2022/2027テストとSphinx検証結果を維持し、ユーザー指示により本コミットをpushする。
 
 - Codex (2026-10-07): Mesh.reorderVerticesにkeyword-only match="uv"/"position"とworldSpace=False（ws別名）を追加。既存引数維持、位置照合は許容距離cm内の一意対応を空間セル検索で検証。対象UV・割り当ては維持。位置/空間/許容誤差/曖昧対応/Undo・fastの4テスト追加、Maya2022/2027各16件成功、Sphinx -W・layout・差分確認成功。履歴・tweak等の既存制限維持。GUI・大規模性能未検証、未コミット。

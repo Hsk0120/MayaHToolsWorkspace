@@ -91,7 +91,8 @@ maya/
 ├ modules_disabled/  上記と同形式だが未登録の .mod ファイル(無効化されたツール/汎用ライブラリ)。有効化するには modules/ へ移動する
 └ maya_*.bat, maya_core.bat  起動バッチ
 tools/
-└ send_to_maya.py  VS Code タスクが実行するMaya送信スクリプト
+├ send_to_maya.py  VS Code タスクが実行するMaya送信スクリプト
+└ plugin_load_probe/  .mllのロードがWindowsのセキュリティ機能に止められる原因を切り分ける、デバッグ用の最小C++プラグイン(自動ロードしない。詳細は同フォルダのREADME)
 ```
 
 ### external ― 外部ツール一覧
