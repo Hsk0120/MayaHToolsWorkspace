@@ -20,6 +20,16 @@ constexpr int kMaximumHistoryCharacters = 1024 * 1024;
 /// 出力を取り出す間隔(ミリ秒)。
 constexpr int kPollInterval = 25;
 
+/// Mayaの処理の途中(ファイルの読み込みなど、タイマーが動かない間)に、その場で描き直す最短の間隔(ミリ秒)。
+/// 描き直しは同期で重いので、出力が続くほど間を空ける(進み具合は見える程度)。
+/// 続いた時間が1秒未満なら100ms、3秒未満なら500ms、それ以上は1秒ごと。
+constexpr int kImmediateRefreshInterval = 100;
+constexpr int kBusyRefreshInterval = 500;
+constexpr int kFloodRefreshInterval = 1000;
+
+/// この時間より間を空けずに出力が来たら、「出力が続いている」とみなす(ミリ秒)。
+constexpr int kBurstGap = 300;
+
 /** @brief 出力の種類に対応する文字色。
  * @param kind 出力の種類。
  * @return theme.hの色。
@@ -119,7 +129,11 @@ OutputPanel::OutputPanel(std::function<QList<OutputMessage>()> takeOutput, QWidg
     connect(view_, &QWidget::customContextMenuRequested, this, [this](const QPoint& point) { showContextMenu(point); });
 
     // タイマーはこの部品のメンバーなので、部品の破棄と一緒に止まる。
-    connect(&pollTimer_, &QTimer::timeout, this, [this] { flush(); });
+    // タイマーが動いた = Mayaの処理が終わってイベントループへ戻った、なので「出力が続いている」状態を終える。
+    connect(&pollTimer_, &QTimer::timeout, this, [this] {
+        lastRequest_.invalidate();
+        flush();
+    });
     if (takeOutput_) {
         pollTimer_.start(kPollInterval);
     }
@@ -146,9 +160,24 @@ void OutputPanel::flush() {
     append(messages);
 }
 
+int OutputPanel::immediateRefreshInterval() {
+    // 前の出力から間が空いていれば、新しく続き始めたとみなす。
+    if (!lastRequest_.isValid() || lastRequest_.elapsed() > kBurstGap) {
+        burst_.restart();
+    }
+    lastRequest_.restart();
+    const qint64 lasting = burst_.elapsed();
+    if (lasting < 1000) {
+        return kImmediateRefreshInterval;
+    }
+    return lasting < 3000 ? kBusyRefreshInterval : kFloodRefreshInterval;
+}
+
 void OutputPanel::refreshNow() {
-    // 描画中に同じ関数が呼ばれた場合と、前回から25ms経っていない場合は描かない。
-    const bool tooSoon = lastRefresh_.isValid() && lastRefresh_.elapsed() < kPollInterval;
+    // 描画中に同じ関数が呼ばれた場合と、前回の描き直しから間隔(出力が続くほど長い)が経っていない場合は描かない
+    // (その間の出力はキューに残り、次の描き直しか25msのタイマーで反映される)。
+    const int interval = immediateRefreshInterval();
+    const bool tooSoon = lastRefresh_.isValid() && lastRefresh_.elapsed() < interval;
     if (refreshing_ || tooSoon) {
         return;
     }
@@ -193,7 +222,54 @@ bool OutputPanel::accepts(OutputKind kind) const {
     }
 }
 
-void OutputPanel::append(const QList<OutputMessage>& messages) {
+QList<OutputMessage> OutputPanel::shownTail(const QList<OutputMessage>& messages, bool* replaces) const {
+    QList<OutputMessage> shown;
+    for (const OutputMessage& message : messages) {
+        if (accepts(message.kind)) {
+            shown.append(message);
+        }
+    }
+    *replaces = false;
+    const int limit = view_->maximumBlockCount();
+    if (limit <= 0) {
+        return shown;
+    }
+    // 後ろから行を数え、表示の上限(5000行)を超える古い行を捨てる。どうせ追記の直後に消える行なので、
+    // 最初から入れない(大量のエラーでは、文書への追記と上限での削除が出力欄の時間の大半を占めるため)。
+    // 末尾の改行の後ろの空の行も1行(ブロック)に数えられるので、入れられる行は上限より1つ少ない。
+    const int capacity = limit - 1;
+    int lines = 0;
+    for (int i = shown.size() - 1; i >= 0; --i) {
+        const QString& text = shown[i].text;
+        const int count = text.count('\n');
+        if (lines + count < capacity) {
+            lines += count;
+            continue;
+        }
+        // この項目の、末尾から(入れられる行数 - 数えた行数)行だけを残す。
+        const int keep = capacity - lines;
+        int found = 0;
+        int cut = 0;
+        for (int position = text.size() - 1; position >= 0; --position) {
+            if (text[position] == '\n' && found++ == keep) {
+                cut = position + 1;
+                break;
+            }
+        }
+        shown[i].text = text.mid(cut);
+        *replaces = true;
+        return shown.mid(i);
+    }
+    return shown;
+}
+
+void OutputPanel::append(const QList<OutputMessage>& input) {
+    // 新しい出力だけで上限の行数を超えるなら、今の表示は全て押し出される。古い行を1行ずつ消す代わりに先に空にする。
+    bool replaces = false;
+    const QList<OutputMessage> messages = shownTail(input, &replaces);
+    if (replaces) {
+        view_->clear();
+    }
     QScrollBar* vertical = view_->verticalScrollBar();
     QScrollBar* horizontal = view_->horizontalScrollBar();
     const int oldVertical = vertical->value();
@@ -213,9 +289,6 @@ void OutputPanel::append(const QList<OutputMessage>& messages) {
     writer.movePosition(QTextCursor::End);
     bool added = false;  // 表示モードで隠す種類だけなら、何も追加されない。
     for (const OutputMessage& message : messages) {
-        if (!accepts(message.kind)) {
-            continue;
-        }
         QTextCharFormat format;
         format.setForeground(colorFor(message.kind));
         writer.insertText(message.text, format);

@@ -32,6 +32,8 @@ struct EditorServices {
     std::function<DefinitionLocation(const QString& text, int end)> definition;
     /// Pythonの本文を構文チェックする。実行はしない。
     std::function<AnalysisResult(const QString& source)> analyze;
+    /// 出力の取り込み方を選ぶ(trueでScript Editorのreporterの整形をそのまま使う。遅い)。Preferencesの切り替えで呼ぶ。
+    std::function<void(bool exact)> setExactOutput;
     /// Mayaの出力のうち、まだ画面へ渡していないものを取り出す(1回取り出したものは消える)。
     std::function<QList<OutputMessage>()> takeOutput;
     /// 未保存タブの復元ファイル(tabs.json)の絶対パス。空なら復元・設定の保存をしない。

@@ -135,18 +135,34 @@ OutputCapture& outputCapture() {
 }
 
 bool OutputCapture::start() {
-    if (reporterDocument_ || fallback_) {
+    if (running_) {
         return true;  // 購読中。
     }
     // 同じメインスレッドで、履歴を一度取り込んでから購読を始める。
     // 既存の履歴と新しい出力の境目を分け、同じ出力を二重に表示しない。
     importHistory();
-    if (!subscribe()) {
-        stop();
-        MGlobal::displayError("hedit: native output reporter unavailable.");
-        return false;
+    // 出力の通知は、どちらの方式でも使う(速い方式は本文、正確な方式は種類)。
+    // reporterより先に登録し、reporterへの追記の直前に種類が分かるようにする。
+    typeCallback_ = MCommandMessage::addCommandOutputCallback(onCommandOutput, this);
+    running_ = true;
+    if (mode_ == Mode::Exact && !subscribeReporter()) {
+        MGlobal::displayWarning("hedit: Maya's output reporter was not found; showing plain command output.");
     }
     return true;
+}
+
+void OutputCapture::setMode(Mode mode) {
+    mode_ = mode;
+    if (!running_ || (mode == Mode::Exact) == bool(reporterDocument_)) {
+        return;  // 購読前(startで反映する)か、既にその方式。
+    }
+    if (mode == Mode::Exact) {
+        if (!subscribeReporter()) {
+            MGlobal::displayWarning("hedit: Maya's output reporter was not found; showing plain command output.");
+        }
+    } else {
+        unsubscribeReporter();
+    }
 }
 
 void OutputCapture::importHistory() {
@@ -163,11 +179,8 @@ void OutputCapture::importHistory() {
     }
 }
 
-bool OutputCapture::subscribe() {
-    // 1. 出力の種類の通知。専用reporterより先に登録し、追記の直前に種類が分かるようにする。
-    typeCallback_ = MCommandMessage::addCommandOutputCallback(onCommandOutput, this);
-
-    // 2. 非表示のreporterを作る。作る途中で変わるMayaの「現在の親レイアウト」は元に戻す
+bool OutputCapture::subscribeReporter() {
+    // 1. 非表示のreporterを作る。作る途中で変わるMayaの「現在の親レイアウト」は元に戻す
     //    (他のツールのUI作成に影響させないため)。
     const QString previousParent = mel("setParent -q");
     reporterWindow_ = mel("window");
@@ -181,20 +194,15 @@ bool OutputCapture::subscribe() {
     reporterDocument_ = forceFallback ? nullptr : findReporterDocument(reporter);
     if (!reporterDocument_) {
         // reporterの部品の作りはMayaの版で変わり得る(内部の構造に頼っているため)。見つからなければ、
-        // 公式の通知(MCommandMessage)の本文を自分で整えて表示する。編集画面は開ける。
-        if (!reporterWindow_.isEmpty() && melBool("window -exists " + melQuote(reporterWindow_))) {
-            mel("deleteUI -window " + melQuote(reporterWindow_));
-        }
-        reporterWindow_.clear();
-        fallback_ = true;
-        MGlobal::displayWarning("hedit: Maya's output reporter was not found; showing plain command output.");
-        return true;
+        // 速い方式(公式の通知の本文を自分で整える)のまま動く。編集画面は開ける。
+        unsubscribeReporter();
+        return false;
     }
     // hedit専用の文書だけ行数を制限する。取り出すのは追記された部分だけなので、多くは要らない
     // (表示用の保持は編集画面の出力欄が持つ)。
     reporterDocument_->setMaximumBlockCount(1000);
 
-    // 3. 文書への追記を購読する。contentsChangeは(位置, 削除した文字数, 追加した文字数)を知らせる。
+    // 2. 文書への追記を購読する。contentsChangeは(位置, 削除した文字数, 追加した文字数)を知らせる。
     reporterConnection_ = QObject::connect(
         reporterDocument_.data(), &QTextDocument::contentsChange, reporterDocument_.data(),
         [this](int position, int removed, int added) {
@@ -214,12 +222,23 @@ bool OutputCapture::subscribe() {
     return true;
 }
 
+void OutputCapture::unsubscribeReporter() {
+    QObject::disconnect(reporterConnection_);
+    reporterDocument_ = nullptr;
+    if (!reporterWindow_.isEmpty() && melBool("window -exists " + melQuote(reporterWindow_))) {
+        mel("deleteUI -window " + melQuote(reporterWindow_));
+    }
+    reporterWindow_.clear();
+}
+
 void OutputCapture::onCommandOutput(const MString& message, MCommandMessage::MessageType type, void* clientData) {
     auto self = static_cast<OutputCapture*>(clientData);
-    if (self->fallback_) {
-        // 代わりの取り込み: 通知の本文を自分で整える(receiveは別スレッドからでも鍵を取って安全に貯める)。
+    if (!self->reporterDocument_) {
+        // 速い方式: 通知の本文を自分で整える(receiveは別スレッドからでも鍵を取って安全に貯める)。
         const OutputKind kind = toOutputKind(type);
-        self->receive(formatCommandOutput(fromMString(message), kind), kind);
+        // Maya 2022のreporterは古い書き方(最後に「 // 」を付ける)なので、それに合わせる。
+        static const bool legacy = MGlobal::apiVersion() < 20230000;
+        self->receive(formatCommandOutput(fromMString(message), kind, legacy), kind);  // receiveの中で鍵を取る。
         return;
     }
     if (onMainThread()) {
@@ -232,8 +251,10 @@ void OutputCapture::receive(QString text, OutputKind kind) {
         return;
     }
     // CRLFをQtの段落として二重に入れない。printの分割通知には改行を足さない。
-    text.replace("\r\n", "\n");
-    text.replace('\r', '\n');
+    if (text.contains('\r')) {
+        text.replace("\r\n", "\n");
+        text.replace('\r', '\n');
+    }
     {
         QMutexLocker lock(&mutex_);
         appendLocked(text, kind);
@@ -294,13 +315,8 @@ void OutputCapture::stopForExit() {
 }
 
 MStatus OutputCapture::stop() {
-    fallback_ = false;
-    QObject::disconnect(reporterConnection_);
-    reporterDocument_ = nullptr;
-    if (!reporterWindow_.isEmpty() && melBool("window -exists " + melQuote(reporterWindow_))) {
-        mel("deleteUI -window " + melQuote(reporterWindow_));
-    }
-    reporterWindow_.clear();
+    running_ = false;
+    unsubscribeReporter();
     if (typeCallback_) {
         const MStatus status = MMessage::removeCallback(typeCallback_);
         if (!status) {

@@ -24,13 +24,21 @@ QString compactHistory(QString text);
  */
 OutputKind classifyHistoryLine(const QString& line);
 
-/** @brief Mayaの出力の通知(MCommandMessage)の本文を、Script Editorに近い形に整える(代わりの取り込み用)。
+/** @brief Mayaの出力の通知(MCommandMessage)の本文を、Script Editorのreporterと同じ形に整える。
  * @param message 通知の本文。
  * @param kind 種類。
- * @return 警告・エラー・結果は``// Warning: ``などを付けて改行で終える。それ以外は本文のまま。
- * @details 普段はMayaの非表示のreporterが整えた文字をそのまま使う。reporterが見つからないMaya
- * (部品の作りが変わった版など)では、この整形で代わりに表示する。
+ * @param legacy Maya 2022の書き方にするならtrue。2022のreporterは、1行目にだけ記号を付け、最後に`` // ``
+ * (Pythonは`` # ``)を付けて改行する(例: ``// Warning: a\nsecond // \n``)。2023以降は下の書き方。
+ * @return Script Editorと同じ形の文字(2023以降):
+ * - 警告・エラー: ``// Warning: 1行目``、2行目以降は``// ``を付ける。改行で終える。
+ * - 情報(displayInfo): 各行に``// ``を付ける(空行は``// ``だけ)。改行で終える。
+ * - 結果: ``// Result: 値``。改行で終える。
+ * - それ以外(printなど): 本文のまま。
+ * @details Pythonの例外(``ValueError: file <maya console> line 1: …``の形を含むエラー。MELのファイルの中で
+ * 起きたものも含む)は、Script Editorと同じく先頭を``# Error: ``にする。
+ * @note Script Editorは、Pythonから呼んだ``cmds.warning``・``cmds.error``の先頭も``#``にするが、通知の本文と状態
+ * からはMELの``warning``と区別できない(どちらもGILを手放した状態で通知される)ため、``//``になる。
  */
-QString formatCommandOutput(const QString& message, OutputKind kind);
+QString formatCommandOutput(const QString& message, OutputKind kind, bool legacy = false);
 
 }  // namespace hedit

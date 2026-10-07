@@ -9,7 +9,7 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     """
     action_type = getattr(QtWidgets, 'QAction', None) or QtGui.QAction
     actions = {a.objectName()[7:]: a for a in window.findChildren(action_type) if a.objectName().startswith('option_')}
-    assert len(actions) == 15
+    assert len(actions) == 16
     original = {key: a.isChecked() for key, a in actions.items()}
     code = window.findChild(QtWidgets.QTabWidget).currentWidget()
     old_path = code.property('path')
@@ -110,11 +110,12 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
         assert saved_preferences().get('finalNewline') is True
 
         # Edit > Preferences > Reset to defaults…: 確認でキャンセルすれば何も変えず、
-        # Resetなら15項目と文字サイズを初期値へ戻し、preferences.jsonから値を消す。
+        # Resetなら16項目と文字サイズを初期値へ戻し、preferences.jsonから値を消す。
         defaults = {'completeLetters': True, 'completeDot': True, 'includeKeywords': True, 'includeBuiltins': True,
                     'staticAnalysis': False, 'outputLineNumbers': False, 'outputWrap': False, 'spellCheck': True,
                     'smartIndent': True, 'backspaceIndent': True, 'whitespace': False,
-                    'trimWhitespace': False, 'finalNewline': False, 'autoClosing': True, 'stickyScroll': True}
+                    'trimWhitespace': False, 'finalNewline': False, 'autoClosing': True, 'stickyScroll': True,
+                    'exactOutput': False}
         assert set(defaults) == set(actions)
         reset = next(a for a in window.findChildren(action_type) if a.objectName() == 'resetPreferences')
 

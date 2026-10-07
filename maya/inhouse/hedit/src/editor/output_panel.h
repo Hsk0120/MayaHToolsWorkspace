@@ -42,7 +42,8 @@ enum class OutputFilter {
 };
 
 /** @brief 出力欄の全体(objectNameは``outputPanel``)。
- * @details Mayaの出力は、コンストラクターで受け取ったtakeOutput関数から25msごとに取り出す。
+ * @details Mayaの出力は、コンストラクターで受け取ったtakeOutput関数から25msごとに取り出す
+ * (Mayaの処理の途中はrefreshNowで、出力が続くほど間隔を広げて取り出す)。
  * 取り出したものは表示モードを切り替えても出し直せるよう、最大1Mi文字まで保持する。
  */
 class OutputPanel : public QWidget {
@@ -64,8 +65,16 @@ public:
     /** @brief 待機中のMayaの出力を取り出し、保持して表示する。 */
     void flush();
 
-    /** @brief 長いMayaの処理の途中でも、最大約40fpsで出力を描き直す。再入はしない。 */
+    /** @brief 長いMayaの処理の途中でも出力を描き直す。再入はしない。
+     * @details 間隔は、出力が続いた時間で広げる(1秒未満は100ms、3秒未満は500ms、それ以上は1秒)。
+     * 描き直しは同期で重く、大量のエラーが続くときに全体を遅くするため。イベントループへ戻ったら100msへ戻す。
+     */
     void refreshNow();
+
+    /** @brief 今のその場での描き直しの間隔を返し、出力が続いている時間を更新する(refreshNowから呼ぶ)。
+     * @return ミリ秒。
+     */
+    int immediateRefreshInterval();
 
     /** @brief heditの表示と保持している出力を消す。Mayaや他のエディタの出力は変えない。 */
     void clear();
@@ -83,9 +92,17 @@ public:
 private:
     /** @brief 表示モードで絞り込んで、文字色を付けて末尾へ追加する。
      * @param messages 追加する出力。
-     * @details 利用者の選択範囲とスクロール位置は保つ。末尾を見ていた場合だけ末尾へ追従する。
+     * @details 利用者の選択範囲は保ち、新しい出力があれば最下部へスクロールする。
+     * 新しい出力だけで表示の上限(5000行)を超える場合は、今の表示を空にしてから末尾の5000行だけを入れる。
      */
     void append(const QList<OutputMessage>& messages);
+
+    /** @brief 表示する出力(表示モードで隠す種類を除く)のうち、表示の上限の行数に入る末尾の部分を返す。
+     * @param messages 出力。
+     * @param replaces 新しい出力だけで上限を超え、今の表示が全て押し出される場合にtrueを入れる。
+     * @return 追加する出力。
+     */
+    QList<OutputMessage> shownTail(const QList<OutputMessage>& messages, bool* replaces) const;
 
     /** @brief 今の表示モードで、その出力を表示するか。
      * @param kind 出力の種類。
@@ -105,6 +122,8 @@ private:
     int historySize_ = 0;             ///< history_の文字数の合計。
     QTimer pollTimer_;                ///< 25msごとにflush()を呼ぶタイマー。
     QElapsedTimer lastRefresh_;       ///< refreshNow()の前回の描画からの時間。
+    QElapsedTimer lastRequest_;       ///< refreshNow()が前回呼ばれてからの時間(出力が続いているかの判断)。
+    QElapsedTimer burst_;             ///< 出力が続き始めてからの時間。
     bool refreshing_ = false;         ///< refreshNow()の実行中か(再入の防止)。
 };
 

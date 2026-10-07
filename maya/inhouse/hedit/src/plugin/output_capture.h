@@ -1,11 +1,13 @@
 /** @file output_capture.h
  * @brief Mayaの出力(print・警告・エラー・結果)を受け取り、編集画面へ渡すまで貯めておく。
- * @details 仕組み:
- * 1. 非表示のcmdScrollFieldReporter(Maya標準のScript Editorの出力欄と同じ部品)をMELで作る。
- *    Mayaはこの部品へ、Script Editorと同じ記号・改行で整形した出力を追記する。
- * 2. その部品の文書(QTextDocument)の追記(contentsChange)を購読して、追記された文字列を受け取る。
- * 3. 出力の種類(警告・エラーなど)は、MCommandMessageのコールバックで直前に通知された種類を使う。
- * 4. 受け取った出力はキューに貯め、編集画面がtake()で取り出す(25msごと、またはすぐ)。
+ * @details 取り込み方は2つある(Preferencesの「Exact Script Editor output format」で選ぶ):
+ * - 速い方式(既定): MCommandMessageの通知の本文を、core/history_text.cppのformatCommandOutputで
+ *   Script Editorと同じ形に整える。Pythonから呼んだcmds.warning・cmds.errorの先頭が``#``ではなく``//``になる
+ *   ことだけが違う。
+ * - 正確な方式: 非表示のcmdScrollFieldReporter(Script Editorの出力欄と同じ部品)をMELで作り、Mayaが整形して
+ *   追記した文字列(QTextDocumentのcontentsChange)を受け取る。種類は直前の通知で知る。見た目はScript Editorと
+ *   同じだが、Mayaはこの部品への追記にScript Editorを1つ開いているのと同じ時間をかける(大量のエラーで遅い)。
+ * 受け取った出力はキューに貯め、編集画面がtake()で取り出す(25msごと、またはすぐ)。
  * 標準のScript Editorの設定・履歴は変更しない。
  */
 #pragma once
@@ -27,10 +29,24 @@ namespace hedit {
  */
 class OutputCapture {
 public:
+    /** @brief 出力の取り込み方。 */
+    enum class Mode {
+        Fast,   ///< 通知の本文を自分で整える(既定)。
+        Exact,  ///< 非表示のreporterがMayaに整形させた文字を受け取る(遅い)。
+    };
+
     /** @brief 起動前からの履歴をキューに入れ、出力の購読を始める。既に始めていれば何もしない。
-     * @return 購読できた(または購読中)ならtrue。reporterを作れなかったらfalse。
+     * @return 購読できた(または購読中)ならtrue。
      */
     bool start();
+
+    /** @brief 取り込み方を変える。購読中なら、履歴を取り込み直さずにその場で切り替える。
+     * @param mode 取り込み方。Exactでreporterが見つからないMayaでは、Fastのまま動く。
+     */
+    void setMode(Mode mode);
+
+    /** @brief 今の取り込み方(テスト用)。 @return reporterを購読していればExact。 */
+    Mode activeMode() const { return reporterDocument_ ? Mode::Exact : Mode::Fast; }
 
     /** @brief 購読をやめ、非表示のreporterを削除する。
      * @return コールバックの解除の結果。
@@ -58,8 +74,13 @@ private:
     /** @brief Mayaが保持している過去の出力(最大512Ki文字)を、行ごとの種類を付けてキューへ入れる。 */
     void importHistory();
 
-    /** @brief 出力の種類の通知と、reporterの文書の追記を購読する。 @return 購読できたらtrue。 */
-    bool subscribe();
+    /** @brief 非表示のreporterを作り、その文書の追記を購読する(正確な方式)。
+     * @return 購読できたらtrue。reporterの文書が見つからなければfalse(作った部品は片付ける)。
+     */
+    bool subscribeReporter();
+
+    /** @brief reporterの文書の購読をやめ、非表示のreporterを削除する。 */
+    void unsubscribeReporter();
 
     /** @brief 受け取った出力をキューへ入れる。メインスレッドなら画面もすぐ描き直す。
      * @param text 出力の文字列。
@@ -73,8 +94,8 @@ private:
      */
     void appendLocked(const QString& text, OutputKind kind);
 
-    /** @brief MCommandMessageのコールバック。直前の出力の種類を覚える(文字列は使わない)。
-     * @param message 出力の文字列(未使用)。
+    /** @brief MCommandMessageのコールバック。速い方式では本文を整えてキューへ入れ、正確な方式では種類だけを覚える。
+     * @param message 出力の文字列。
      * @param type 出力の種類。
      * @param clientData 登録時に渡したthis。
      * @note Mayaのコールバックは普通の関数(static)でなければならないので、clientDataでthisを受け取る。
@@ -85,7 +106,8 @@ private:
     QList<OutputMessage> pending_;          ///< 画面へまだ渡していない出力。
     int pendingSize_ = 0;                   ///< pending_の文字数の合計。
     bool omitted_ = false;                  ///< 上限を超えて古い出力を捨てたか。
-    bool fallback_ = false;                 ///< reporterが見つからず、通知の本文を自分で整えて取り込んでいるか。
+    bool running_ = false;                  ///< 購読中か。
+    Mode mode_ = Mode::Fast;                ///< 選ばれている取り込み方。
 
     MCallbackId typeCallback_ = 0;                       ///< 出力の種類の通知のコールバック。
     MCommandMessage::MessageType lastType_ = MCommandMessage::kDisplay;  ///< 直前に通知された種類。

@@ -144,8 +144,10 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
        アイコンは ``MQtUtil::createIcon`` で拡大率に合った画像を受け取る(``QIcon(":/name.png")`` は常に 20 px)。
        Zoom の文字サイズは 100% 基準で保存する。Maya 無しの ``tests/ui_smoke.cpp`` では 2 倍を与えて検証する。
    * - 起動時の出力履歴・出力の購読
-     - ``plugin/output_capture.cpp`` の ``OutputCapture``\ 。非表示の ``cmdScrollFieldReporter`` を MEL で作り、
-       ``MQtUtil::findControl`` で表示文書を購読する。履歴の整形は ``core/history_text.cpp`` の ``compactHistory``\ 。
+     - ``plugin/output_capture.cpp`` の ``OutputCapture``\ 。既定は ``MCommandMessage`` の本文を ``core/history_text.cpp`` の
+       ``formatCommandOutput`` で Script Editor と同じ形に整える(速い方式)。Preferences の ``exactOutput`` がオンなら、非表示の
+       ``cmdScrollFieldReporter`` を MEL で作り、\ ``MQtUtil::findControl`` で表示文書を購読する(正確な方式。Maya が reporter への
+       追記に時間をかけるため遅い)。起動時の履歴の取り込みはどちらも reporter で行い、整形は ``compactHistory``\ 。
    * - タブ復元先の決定
      - ``plugin/user_paths.cpp`` の ``sessionFilePath``\ (``hedit -sessionPath`` でも取得できる)。Maya への問い合わせは最初の 1 回だけ。
    * - Maya 終了時の出力転送の停止
@@ -245,10 +247,12 @@ import フックを登録し、\ ``import hedit`` などは通常の ``.py`` と
 * **Python 側の例外は、hedit.bridge.safe_call で受け止める。** C++ からの呼出しは全て ``safe_call`` を通し、例外は
   ``{"error": "..."}`` として返る。補完のときはステータスバーに「Completion: Python error: …」と出す
   (Script Editor に毎回トレースバックを流さない)。
-* **出力の取り込みは、Maya の非表示 reporter の部品の作りに頼っている。** Maya の版で作りが変わり、reporter の文書が
-  見つからない場合は、公式の通知(``MCommandMessage``)の本文を ``core/history_text.cpp`` の ``formatCommandOutput`` で
-  整えて表示する(Script Editor と完全には同じ形にならない)。環境変数 ``HEDIT_OUTPUT_FALLBACK=1`` でこの動きを試せる
-  (``tests/output_fallback_smoke.py``)。
+* **出力は、既定では公式の通知(``MCommandMessage``)の本文を自分で整えて取り込む。** 非表示の reporter を使う正確な方式は、
+  Maya が reporter への追記に Script Editor を 1 つ開いているのと同じ時間をかけるため、Preferences で選んだときだけ使う
+  (0.4.1 の計測: エラー 5,000 件の 8 行のトレースバックで 8.5 秒 → 4.7 秒)。正確な方式は reporter の部品の作りに頼っていて、
+  Maya の版で作りが変わって文書が見つからない場合は速い方式で動く。環境変数 ``HEDIT_OUTPUT_FALLBACK=1`` で、正確な方式を
+  選んでも reporter を使わない動きを試せる(``tests/output_fallback_smoke.py``)。両方式の見た目は
+  ``tests/output_format_smoke.py`` が Maya の実物の reporter と突き合わせる。
 * **名前の種類は SymbolType で表す。** 欄の組合せで種類を判断しない。作るときは ``Symbol::module`` などの関数を使う。
 * **補完・ホバーの 1 回の問い合わせの中だけ使う情報は ``CompletionEngine::Request`` に入れる。** メンバー変数に持たない。
 * **文字列を Python のコードへ埋め込むときは ``core/python_literal.h`` を使う。** MEL は ``plugin/mel.h`` の ``melQuote``\ 。

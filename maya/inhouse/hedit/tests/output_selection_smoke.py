@@ -57,7 +57,9 @@ def check(output, QtCore, QtGui, QtWidgets, QtTest):
         om.MGlobal.displayInfo('scroll_to_newest')
         wait()
         assert output.verticalScrollBar().value() == output.verticalScrollBar().maximum()
-        assert output.toPlainText().rstrip().endswith('scroll_to_newest')
+        # Maya 2022 は行末に「 // 」を付け(Script Editor と同じ)、後ろに Maya 自身の履歴(updateRendererUI; など)が
+        # 続くことがあるので、末尾の近くに含まれるかで確かめる。
+        assert 'scroll_to_newest' in output.toPlainText()[-200:], repr(output.toPlainText()[-300:])
         output.moveCursor(QtGui.QTextCursor.End)
         output.verticalScrollBar().setValue(output.verticalScrollBar().maximum())
         om.MGlobal.displayInfo('follow_tail')

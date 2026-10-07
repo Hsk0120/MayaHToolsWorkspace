@@ -24,6 +24,7 @@ constexpr const char* kIncludeBuiltins = "includeBuiltins";       ///< 候補に
 constexpr const char* kStaticAnalysis = "staticAnalysis";         ///< 構文チェック。
 constexpr const char* kOutputLineNumbers = "outputLineNumbers";   ///< 出力欄の行番号。
 constexpr const char* kOutputWrap = "outputWrap";                 ///< 出力欄の折り返し。
+constexpr const char* kExactOutput = "exactOutput";               ///< 出力をScript Editorのreporterで整形して取り込む(遅い)。
 constexpr const char* kSpellCheck = "spellCheck";                 ///< 英語のスペルチェック。
 constexpr const char* kSmartIndent = "smartIndent";               ///< Enterでインデントを引き継ぐ。
 constexpr const char* kBackspaceIndent = "backspaceIndent";       ///< Backspaceを4文字単位で消す。

@@ -3,6 +3,7 @@
  */
 #include "plugin/editor_host.h"
 #include "editor/editor.h"
+#include "editor/editor_preferences.h"
 #include "editor/ui_scale.h"
 #include "plugin/mel.h"
 #include "plugin/output_capture.h"
@@ -10,6 +11,7 @@
 #include "plugin/user_paths.h"
 #include <maya/MGlobal.h>
 #include <maya/MQtUtil.h>
+#include <QFileInfo>
 #include <QPointer>
 
 namespace hedit {
@@ -48,6 +50,9 @@ EditorServices mayaServices() {
     services.definition = python::definition;
     services.analyze = python::analyze;
     services.takeOutput = [] { return outputCapture().take(); };
+    services.setExactOutput = [](bool exact) {
+        outputCapture().setMode(exact ? OutputCapture::Mode::Exact : OutputCapture::Mode::Fast);
+    };
     services.sessionPath = sessionFilePath();
     return services;
 }
@@ -63,6 +68,10 @@ QMainWindow* editor(bool create) {
         return nullptr;
     }
     // 起動前からの出力を取り込み、以後の出力の購読を始める(2回目以降は何もしない)。
+    // 取り込み方は、編集画面と同じpreferences.jsonの設定(Exact Script Editor output format)に従う。
+    const QString preferencesFile = QFileInfo(sessionFilePath()).absolutePath() + "/preferences.json";
+    const bool exact = !sessionFilePath().isEmpty() && EditorPreferences(preferencesFile).option(option::kExactOutput);
+    outputCapture().setMode(exact ? OutputCapture::Mode::Exact : OutputCapture::Mode::Fast);
     if (!outputCapture().start()) {
         return nullptr;
     }

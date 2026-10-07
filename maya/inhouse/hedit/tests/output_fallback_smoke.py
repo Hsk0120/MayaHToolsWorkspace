@@ -49,7 +49,9 @@ def main(output_dir, finished):
                 break
         text = output.toPlainText()
         assert 'fallback_print_probe\n' in text, repr(text[-400:])
-        assert '// Warning: fallback_warning_probe\n' in text, repr(text[-400:])
+        # Maya 2022 は Script Editor と同じく行末に「 // 」を付ける。
+        assert ('// Warning: fallback_warning_probe\n' in text
+                or '// Warning: fallback_warning_probe // \n' in text), repr(text[-400:])
         result['checks'].append('print_and_warning_shown')
         result['status'] = 'passed'
     except Exception:

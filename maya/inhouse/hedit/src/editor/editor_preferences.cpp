@@ -21,6 +21,7 @@ const QList<OptionDefinition>& optionDefinitions() {
         {option::kStaticAnalysis, "Static analysis (syntax / warnings)", false},
         {option::kOutputLineNumbers, "Show output line numbers", false},
         {option::kOutputWrap, "Wrap output lines", false},
+        {option::kExactOutput, "Exact Script Editor output format (slower)", false},
         {option::kSpellCheck, "Spell check (English)", true},
         {option::kSmartIndent, "Smart indentation", true, true},
         {option::kBackspaceIndent, "Backspace to indentation stop", true},

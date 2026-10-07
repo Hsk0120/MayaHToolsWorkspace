@@ -1,7 +1,7 @@
 設定(Preferences)
 ==================
 
-設定は **Edit → Preferences** のサブメニューにあるチェック項目(全部で 15 個)と、
+設定は **Edit → Preferences** のサブメニューにあるチェック項目(全部で 16 個)と、
 **View** メニューの文字サイズ(Zoom)です。チェックを切り替えると、開いているすべてのタブへ
 **その場で反映** し、次回の起動にも引き継ぎます。Maya の再起動は要りません。
 サブメニューの末尾の **Reset to defaults…** で、すべてを初期値に戻せます(:ref:`pref-reset`)。
@@ -53,6 +53,10 @@
      - ``outputLineNumbers``
      - **オフ**
      - 出力欄の左に行番号を出す
+   * - Exact Script Editor output format (slower)
+     - ``exactOutput``
+     - **オフ**
+     - 出力を標準のスクリプトエディターと完全に同じ記号で表示する(大量のエラーで遅い)
    * - Wrap output lines
      - ``outputWrap``
      - **オフ**
@@ -271,6 +275,26 @@ Wrap output lines(``outputWrap``)
 
 **コード欄の折り返しとの違い**
    この設定は **出力欄だけ\ ** です。コード欄の折り返しは **Alt+Z** で切り替えます(タブごとの一時的な切り替えで、保存しません)。
+
+.. _pref-exactOutput:
+
+Exact Script Editor output format (slower)(``exactOutput``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:初期値: **オフ**
+
+**何をするか**
+   オンにすると、Maya の非表示の出力欄(``cmdScrollFieldReporter``\ 。標準のスクリプトエディターの出力欄と同じ部品)が整形した
+   文字をそのまま出力欄に表示します。Python から呼んだ ``cmds.warning``\ ・\ ``cmds.error`` の先頭も、標準と同じ ``#`` になります。
+
+**オフのとき(既定)**
+   Maya の出力の通知を、hedit が標準と同じ形に整えて表示します。違うのは上の ``#`` が ``//`` になることだけです
+   (:ref:`output-capture`)。
+
+**オンにしたときの注意**
+   Maya は非表示の出力欄への追記に、標準のスクリプトエディターを 1 つ開いているのと同じ時間をかけます。
+   存在しないプラグインのロードなどで大量のエラーが出ると、オフのときより遅くなります(hedit を閉じていても、
+   プラグインをロードしている間はかかります)。切り替えはすぐ反映し、それまでの出力は消えません。
 
 スペルチェック
 --------------
@@ -523,7 +547,7 @@ View メニューの操作で、Preferences のチェック項目ではありま
 ~~~~~~~~~~~~~~
 
 JSON 形式です。\ **切り替えたことのある項目** と ``fontPixels``\ (文字サイズ。画面を作るたびに書かれます)が
-記録されます。次の例は、15 項目すべてを一度ずつ切り替えた後の状態です。最近開いたファイル(``recentFiles``\ )と、
+記録されます。次の例は、16 項目すべてを一度ずつ切り替えた後の状態です。最近開いたファイル(``recentFiles``\ )と、
 アウトラインの表示の状態(``viewState``\ )も同じファイルに保存します。
 
 .. code-block:: json
@@ -536,6 +560,7 @@ JSON 形式です。\ **切り替えたことのある項目** と ``fontPixels`
        "staticAnalysis": false,
        "outputLineNumbers": false,
        "outputWrap": false,
+       "exactOutput": false,
        "spellCheck": true,
        "smartIndent": true,
        "backspaceIndent": true,
@@ -559,7 +584,7 @@ JSON 形式です。\ **切り替えたことのある項目** と ``fontPixels`
 初期値に戻す
 ~~~~~~~~~~~~
 
-**Edit → Preferences → Reset to defaults…** を選ぶと、確認のあと、15 個のチェック項目と文字サイズ(Zoom)を
+**Edit → Preferences → Reset to defaults…** を選ぶと、確認のあと、16 個のチェック項目と文字サイズ(Zoom)を
 すべて初期値に戻します。Maya の再起動は要りません。
 
 * 確認ダイアログで **Reset** を押すと戻し、\ **Cancel** なら何も変えません。

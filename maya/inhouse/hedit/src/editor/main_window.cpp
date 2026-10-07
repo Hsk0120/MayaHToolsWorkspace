@@ -910,6 +910,8 @@ void MainWindow::onOptionToggled(const QString& key, bool enabled) {
         output_->view()->setLineNumbersVisible(enabled);
     } else if (key == option::kOutputWrap) {
         output_->setWrap(enabled);
+    } else if (key == option::kExactOutput && services_.setExactOutput) {
+        services_.setExactOutput(enabled);
     } else if (key == option::kSpellCheck) {
         assist_->scheduleSpelling();
     }

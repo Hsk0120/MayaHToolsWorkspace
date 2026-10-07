@@ -142,7 +142,9 @@ def main(output_dir, finished):
         probe_results=[]
         def scene_log_probe(*unused):
             for i in range(3):
-                time.sleep(.04)  # Qtイベント処理は呼ばず、読み込み側を占有する。
+                # Qtイベント処理は呼ばず、読み込み側を占有する。出力欄はその場での描き直しを100msに1回に
+                # 抑えているので、それより長く間を空けて、毎回表示されることを確かめる。
+                time.sleep(.12)
                 previous_paints=paint_probe.count
                 marker='hedit_during_scene_open_%d' % i
                 om.MGlobal.displayInfo(marker)

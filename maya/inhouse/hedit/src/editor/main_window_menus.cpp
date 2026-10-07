@@ -302,6 +302,9 @@ void MainWindow::resetPreferences() {
     }
     output_->view()->setLineNumbersVisible(preferences_.option(option::kOutputLineNumbers));
     output_->setWrap(preferences_.option(option::kOutputWrap));
+    if (services_.setExactOutput) {
+        services_.setExactOutput(preferences_.option(option::kExactOutput));
+    }
     assist_->scheduleAnalysis();
     assist_->scheduleSpelling();
     applyZoom();

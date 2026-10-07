@@ -54,17 +54,39 @@ def main(output_dir, finished):
             ('python_exception',lambda: OpenMaya.MGlobal.executePythonCommand("raise ValueError('probe_exception')",True,False)),
         ]
         wait()
-        for name, emit in cases:
-            cmds.cmdScrollFieldReporter(reporter,edit=True,clear=True); next(a for a in window.findChildren(getattr(QtWidgets, 'QAction', None) or QtGui.QAction) if a.text() == 'Clear output').trigger(); records[:]=[]
-            try: emit()
-            except Exception: pass
-            # 起動プラグインの追加出力も含め、25ms描画キューが追い付くまで有界待機する。
-            for attempt in range(25):
-                wait()
-                if widget.property('plainText') == output.toPlainText():
-                    break
-            result['cases'].append({'name':name,'events':list(records),'native':widget.property('plainText'),'hedit':output.toPlainText()})
-        assert all(case['native'] == case['hedit'] for case in result['cases']), 'Native output mismatch'
+        action_type = getattr(QtWidgets, 'QAction', None) or QtGui.QAction
+
+        def run_cases(mode):
+            for name, emit in cases:
+                cmds.cmdScrollFieldReporter(reporter,edit=True,clear=True); next(a for a in window.findChildren(action_type) if a.text() == 'Clear output').trigger(); records[:]=[]
+                try: emit()
+                except Exception: pass
+                # 起動プラグインの追加出力も含め、25ms描画キューが追い付くまで有界待機する。
+                for attempt in range(25):
+                    wait()
+                    if widget.property('plainText') == output.toPlainText():
+                        break
+                result['cases'].append({'mode':mode,'name':name,'events':list(records),'native':widget.property('plainText'),'hedit':output.toPlainText()})
+
+        # 速い方式(既定): MayaのScript Editorと同じ形に自分で整える。違いはPythonから呼んだcmds.warningの
+        # 先頭の記号(#が//になる)だけ。
+        run_cases('fast')
+        for case in result['cases']:
+            expected = case['native']
+            if case['name'] == 'cmds_warning':
+                # Maya 2022 は最後に「 # 」、2023 以降は付けない。どちらも速い方式では // の形になる。
+                expected = expected.replace('# Warning: probe_cmds_warning # ', '// Warning: probe_cmds_warning // ', 1)
+                expected = expected.replace('# Warning: probe_cmds_warning\n', '// Warning: probe_cmds_warning\n', 1)
+            assert case['hedit'] == expected, ('fast', case['name'], case['native'], case['hedit'])
+        # 正確な方式(Exact Script Editor output format): reporterの整形をそのまま使い、全て同じになる。
+        exact = next(a for a in window.findChildren(action_type) if a.objectName() == 'option_exactOutput')
+        exact.setChecked(True)
+        wait()
+        try:
+            run_cases('exact')
+        finally:
+            exact.setChecked(False)
+        assert all(case['native'] == case['hedit'] for case in result['cases'] if case['mode'] == 'exact'), 'Native output mismatch'
         # 専用reporterとhedit双方の保持上限を超えても末尾が重複・欠落しない。
         next(a for a in window.findChildren(getattr(QtWidgets, 'QAction', None) or QtGui.QAction) if a.text() == 'Clear output').trigger()
         print('\n'.join('retention_%d' % i for i in range(5100)))

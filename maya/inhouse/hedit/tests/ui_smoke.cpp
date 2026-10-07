@@ -23,6 +23,7 @@
 #include "editor/hover_popup.h"
 #include "editor/marker_scroll_bar.h"
 #include "editor/outline_panel.h"
+#include "editor/output_panel.h"
 #include "editor/quick_pick.h"
 #include <QListWidget>
 #include <QLineEdit>
@@ -235,9 +236,26 @@ bool sessionDataPasses() {
         qWarning() << "classifyHistoryLine"; return false;
     }
     // reporterが見つからないMayaでの代わりの取り込み: 通知の本文を整える。
+    // Script Editorのreporterと同じ形(output_format_smoke.pyでMayaの実物と突き合わせた形)。
     if (hedit::formatCommandOutput("x", hedit::OutputKind::Warning) != "// Warning: x\n"
         || hedit::formatCommandOutput("bad\n", hedit::OutputKind::Error) != "// Error: bad\n"
-        || hedit::formatCommandOutput("printed\n", hedit::OutputKind::Normal) != "printed\n") {
+        || hedit::formatCommandOutput("printed\n", hedit::OutputKind::Normal) != "printed\n"
+        || hedit::formatCommandOutput("a\nsecond\n\nlast\n", hedit::OutputKind::Warning) != "// Warning: a\n// second\n// \n// last\n"
+        || hedit::formatCommandOutput("info\nsecond\n\nlast\n", hedit::OutputKind::Info) != "// info\n// second\n// \n// last\n"
+        || hedit::formatCommandOutput("about", hedit::OutputKind::Result) != "// Result: about\n"
+        || hedit::formatCommandOutput("ValueError: file <maya console> line 1: bad", hedit::OutputKind::Error)
+               != "# Error: ValueError: file <maya console> line 1: bad\n"
+        || hedit::formatCommandOutput("file: C:/t.mel line 32: ModuleNotFoundError: file C:/a.py line 14: No module",
+                                      hedit::OutputKind::Error)
+               != "# Error: file: C:/t.mel line 32: ModuleNotFoundError: file C:/a.py line 14: No module\n"
+        || hedit::formatCommandOutput("a\nsecond\n\nlast\n", hedit::OutputKind::Warning, true) != "// Warning: a\nsecond\n\nlast\n // \n"
+        || hedit::formatCommandOutput("bad\nsecond", hedit::OutputKind::Error, true) != "// Error: bad\nsecond // \n"
+        || hedit::formatCommandOutput("2022", hedit::OutputKind::Result, true) != "// Result: 2022 // \n"
+        || hedit::formatCommandOutput("ValueError: file <maya console> line 1: x", hedit::OutputKind::Error, true)
+               != "# Error: ValueError: file <maya console> line 1: x # \n"
+        || hedit::formatCommandOutput("line 1: mel", hedit::OutputKind::Warning) != "// Warning: line 1: mel\n"
+        || hedit::formatCommandOutput("file: C:/a.mel line 12: bad", hedit::OutputKind::Error)
+               != "// Error: file: C:/a.mel line 12: bad\n") {
         qWarning() << "formatCommandOutput"; return false;
     }
     return true;
@@ -871,6 +889,38 @@ bool navigationPasses() {
     return true;
 }
 
+
+/** @brief 出力欄は、表示の上限(5000行)を超える古い行を最初から入れず、末尾を正しく表示する。 @return 期待どおりならtrue。 */
+bool outputPanelPasses() {
+    QList<QList<hedit::OutputMessage>> batches;
+    QString many;
+    for (int i = 0; i < 6000; ++i) many += QString("flood %1\n").arg(i);
+    batches.append({{"before\n", hedit::OutputKind::Normal}});
+    batches.append({{"warn\n", hedit::OutputKind::Warning}, {many, hedit::OutputKind::Error}});
+    batches.append({{"after\n", hedit::OutputKind::Normal}});
+    int next = 0;
+    hedit::OutputPanel panel([&] { return next < batches.size() ? batches[next++] : QList<hedit::OutputMessage>(); });
+    panel.flush();
+    if (panel.view()->toPlainText() != "before\n") { qWarning() << "output first" << panel.view()->toPlainText(); return false; }
+    panel.flush();  // 新しい出力だけで上限を超える: 前の表示は押し出され、末尾の5000行だけが入る。
+    const QString text = panel.view()->toPlainText();
+    if (text.contains("before") || text.contains("warn") || text.contains("flood 1000\n") || !text.startsWith("flood 1001\n")
+        || !text.endsWith("flood 5999\n") || panel.view()->blockCount() > 5001) {
+        qWarning() << "output trim" << panel.view()->blockCount() << text.left(40); return false;
+    }
+    panel.flush();  // 上限内の追記は、そのまま後ろに付く(上限で先頭が1行押し出される)。
+    if (!panel.view()->toPlainText().endsWith("flood 5999\nafter\n") || panel.view()->blockCount() > 5001) {
+        qWarning() << "output append"; return false;
+    }
+    // エラーの色(最後の行の手前)が付いている。
+    QTextCursor cursor(panel.view()->document()->findBlockByNumber(panel.view()->blockCount() - 3));
+    cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+    if (cursor.charFormat().foreground().color() != QColor("#ff0000")) {
+        qWarning() << "output color" << cursor.charFormat().foreground().color().name(); return false;
+    }
+    return true;
+}
+
 /** @brief 画面の拡大率(4K等のInterface Scaling)が、文字・アイコンの固定寸法に掛かるか。 @return 期待どおりならtrue。 */
 bool uiScalePasses() {
     hedit::setUiScale(2.0);
@@ -924,6 +974,7 @@ int main(int argc, char** argv) {
         {"lineDiff", lineDiffPasses},
         {"signatureHelp", signatureHelpPasses},
         {"navigation", navigationPasses},
+        {"outputPanel", outputPanelPasses},
     });
     if (failed > 0) {
         return 10;
