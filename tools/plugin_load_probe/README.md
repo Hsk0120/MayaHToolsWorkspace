@@ -12,7 +12,7 @@
 python tools/build_maya_plugin.py tools/plugin_load_probe --versions 2026
 ```
 
-`tools/plugin_load_probe/release/plug-ins/windows/<Mayaの年>/pluginLoadProbe.mll` ができます(Git対象外)。`maya/modules/` には登録していないので、起動時に自動でロードされることはありません。
+`tools/plugin_load_probe/release/plug-ins/windows/<Mayaの年>/pluginLoadProbe.mll` ができます。Maya 2022〜2027 のビルド済みの `.mll` もこのフォルダーにコミットしてあるので、Visual Studio が無いPCでもビルドせずに使えます。ビルドし直すとコミット済みのファイルが書き換わるので、コミットする意図が無いときは `git checkout -- tools/plugin_load_probe/release/` で戻してください。`maya/modules/` には登録していないので、起動時に自動でロードされることはありません。
 
 ## 使い方
 

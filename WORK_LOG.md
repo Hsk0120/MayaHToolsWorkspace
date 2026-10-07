@@ -84,6 +84,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-07): ユーザー指示でビルド済みpluginLoadProbe.mll(Maya2022〜2027、各版mayapyでロード確認済み)をコミット。tools/plugin_load_probe/.gitignoreを削除し、README・CMakeListsの「Git対象外」記述を更新してpush。
+
 - Codex (2026-10-07): DagPose.mergeとcurrentPose/deleteSources（既定True）の実装・テスト・資料をコミット対象に集約。ログ競合は既に両方の記録を保持して解消済み、origin/main同期・差分検査成功。直前のMaya2022/2027各17テスト成功を確認し、ユーザー指示で本コミットをpushする。
 
 - Claude Code (2026-10-07): origin/mainをpull(pluginLoadProbe追加分)。tools/plugin_load_probeをこのPCでMaya2022〜2027向けに全てビルド成功(警告はMSB8029のみ)。各版のmayapyで%TEMP%配下とリポジトリ内release/の両方からloadPlugin/unloadPlugin成功、ロード時の表示も確認。比較のhedit.mll 0.4.0も全版ロード成功。GUIでのロード(信頼済み場所の警告ダイアログ)は未確認。コード変更なし。

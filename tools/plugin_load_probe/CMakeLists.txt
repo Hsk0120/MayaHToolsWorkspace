@@ -21,7 +21,7 @@ set(LIBRARIES
 
 build_plugin()
 
-# 出力先: release/plug-ins/windows/<Mayaの年>/pluginLoadProbe.mll (Git対象外)
+# 出力先: release/plug-ins/windows/<Mayaの年>/pluginLoadProbe.mll (ビルド済みのものをコミットしている)
 set(PROBE_RELEASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/release/plug-ins/windows/${MAYA_VERSION}")
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_DEBUG          "${PROBE_RELEASE_DIR}"
