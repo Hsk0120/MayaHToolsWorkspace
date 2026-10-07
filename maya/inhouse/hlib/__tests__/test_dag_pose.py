@@ -1,11 +1,13 @@
 """DagPoseの保存・復元・メンバー編集とUndoを実Mayaで検証する。"""
-from maya.api.OpenMaya import MSpace
+
 import sys
 import unittest
 import uuid
+from unittest import mock
 
-import maya.cmds as cmds
 import hlib
+import maya.cmds as cmds
+from maya.api.OpenMaya import MSpace
 
 hlib.reload()
 
@@ -186,6 +188,205 @@ class DagPoseTest(unittest.TestCase):
         self.assertFalse(cmds.objExists(name))
         cmds.redo()
         self.assertTrue(cmds.objExists(name))
+
+    def test_merge_saved_data_skin_and_undo(self):
+        target = self.pose(hierarchy=False)
+        cmds.setAttr(self.child + ".jointOrient", 12, 23, 34)
+        cmds.setAttr(self.child + ".rotatePivot", 1, 2, 3)
+        source = hlib.nodes.DagPose.create([self.root, self.child], hierarchy=False,
+                                         name=self.ns + ":source")
+        saved = source._merge_snapshot()
+        cmds.setAttr(self.child + ".ty", 8)
+        skin = self.make_skin()
+        cmds.connectAttr(source.getFullName() + ".message", skin.getFullName() + ".bindPose", force=True)
+        bind = cmds.getAttr(skin.getFullName() + ".bindPreMatrix[1]")
+        weights = list(skin.getWeights(skin.getInfluences()))
+        self.assertIs(target.merge([source, source, target], deleteSources=False), target)
+        self.assertEqual(len(target.getMembers()), 2)
+        self.assertTrue(target._merge_rows_equal(saved[hlib.getNode(self.child).getFullName()],
+                                                target._merge_snapshot()[hlib.getNode(self.child).getFullName()]))
+        self.assertEqual(skin.getBindPose(), target)
+        self.assertEqual(cmds.getAttr(self.child + ".ty"), 8)
+        self.assertEqual(cmds.getAttr(skin.getFullName() + ".bindPreMatrix[1]"), bind)
+        self.assertEqual(list(skin.getWeights(skin.getInfluences())), weights)
+        cmds.undo()
+        self.assertEqual(len(target.getMembers()), 1)
+        self.assertEqual(skin.getBindPose(), source)
+        cmds.redo()
+        self.assertEqual(len(target.getMembers()), 2)
+        target.restore()
+        self.assertAlmostEqual(cmds.getAttr(self.child + ".ty"), 0)
+        for value, expected in zip(cmds.getAttr(self.child + ".jointOrient")[0], (12, 23, 34)):
+            self.assertAlmostEqual(value, expected)
+
+    def test_merge_conflict_and_current_pose_delete(self):
+        target = self.pose()
+        cmds.setAttr(self.root + ".ty", 4)
+        source = hlib.nodes.DagPose.create(self.root, name=self.ns + ":source")
+        original = target._merge_snapshot()
+        with self.assertRaises(ValueError):
+            target.merge(source, deleteSources=True)
+        self.assertEqual(target._merge_snapshot(), original)
+        cmds.setAttr(self.child + ".ty", 7)
+        source_name = source.getFullName()
+        target.merge(source_name, currentPose=True, deleteSources=True)
+        self.assertTrue(target.isAtPose())
+        self.assertFalse(cmds.objExists(source_name))
+        cmds.undo()
+        self.assertEqual(target._merge_snapshot(), original)
+        self.assertTrue(cmds.objExists(source_name))
+        self.assertEqual(cmds.getAttr(self.child + ".ty"), 7)
+        cmds.redo()
+        self.assertTrue(target.isAtPose())
+        self.assertFalse(cmds.objExists(source_name))
+
+    def test_merge_guards(self):
+        target = self.pose()
+        source = hlib.nodes.DagPose.create(self.root, name=self.ns + ":source")
+        other = cmds.createNode("network", name=self.ns + ":consumer")
+        cmds.addAttr(other, longName="pose", attributeType="message")
+        cmds.connectAttr(source.getFullName() + ".message", other + ".pose")
+        with self.assertRaises(RuntimeError):
+            target.merge(source, deleteSources=True)
+        for kwargs in ({"currentPose": 1}, {"deleteSources": "yes"}):
+            with self.assertRaises(ValueError):
+                target.merge(source, **kwargs)
+        with self.assertRaises(ValueError):
+            target.merge(self.root)
+        with self.assertRaises(ValueError):
+            target.merge([])
+        cmds.setAttr(target.getFullName() + ".xformMatrix", lock=True)
+        with self.assertRaises(RuntimeError):
+            target.merge(source)
+        cmds.setAttr(target.getFullName() + ".xformMatrix", lock=False)
+        target.merge(source, deleteSources=False)
+        self.assertTrue(cmds.isConnected(source.getFullName() + ".message", other + ".pose"))
+
+    def test_merge_bind_poses_delete_and_rollback(self):
+        skin = self.make_skin()
+        target = skin.getBindPose()
+        extra = cmds.createNode("joint", name=self.ns + ":extra")
+        mesh = cmds.polyCube(name=self.ns + ":otherMesh")[0]
+        other_skin = hlib.getNode(cmds.skinCluster(extra, mesh, name=self.ns + ":otherSkin")[0])
+        source = other_skin.getBindPose()
+        cmds.rename(source.getFullName(), self.ns + ":otherPose")
+        source_name = source.getFullName()
+        before_nodes = set(cmds.ls())
+        before_members = target.getMembers()
+        original_connect = cmds.connectAttr
+
+        def fail_skin_connect(src, dst, **kwargs):
+            if dst == other_skin.getFullName() + ".bindPose":
+                raise RuntimeError("Injected connection failure")
+            return original_connect(src, dst, **kwargs)
+
+        with mock.patch("maya.cmds.connectAttr", side_effect=fail_skin_connect):
+            with self.assertRaisesRegex(RuntimeError, "Injected"):
+                target.merge(source, currentPose=True, deleteSources=True)
+        self.assertEqual(set(cmds.ls()), before_nodes)
+        self.assertEqual(target.getMembers(), before_members)
+        self.assertEqual(other_skin.getBindPose(), source)
+        target.merge([source_name, target.getFullName()])
+        self.assertFalse(cmds.objExists(source_name))
+        self.assertEqual(other_skin.getBindPose(), target)
+        self.assertEqual(skin.getBindPose(), target)
+        self.assertIn(hlib.getNode(extra), target.getMembers())
+        cmds.undo()
+        self.assertTrue(cmds.objExists(source_name))
+        self.assertEqual(other_skin.getBindPose().getFullName(), source_name)
+        cmds.redo()
+        self.assertFalse(cmds.objExists(source_name))
+
+    def test_merge_current_hierarchy_and_sparse_indices(self):
+        target = self.pose()
+        extra = cmds.createNode("transform", name=self.ns + ":extra")
+        target.addMembers(extra)
+        target.removeMembers(self.child)
+        extra_index = target.getMemberIndex(extra)
+        source = hlib.nodes.DagPose.create(self.root, name=self.ns + ":source")
+        target.merge(source, deleteSources=False)
+        self.assertEqual(target.getMemberIndex(extra), extra_index)
+        self.assertGreater(target.getMemberIndex(self.child), extra_index)
+        # 同じメンバーの保存済み親だけが異なる場合も通常統合は拒否する。
+        cmds.parent(self.child, extra)
+        source.reset()
+        with self.assertRaises(ValueError):
+            target.merge(source)
+        target.merge(source, currentPose=True)
+        index = target.getMemberIndex(self.child)
+        parent_index = target.getMemberIndex(extra)
+        self.assertTrue(cmds.isConnected(
+            f"{target.getFullName()}.members[{parent_index}]",
+            f"{target.getFullName()}.parents[{index}]"))
+        self.assertTrue(target.isAtPose())
+
+    def test_merge_current_bind_pose_preserves_skinning(self):
+        skin = self.make_skin()
+        target = skin.getBindPose()
+        source = hlib.nodes.DagPose.create(self.root, name=self.ns + ":source")
+        cmds.setAttr(source.getFullName() + ".bindPose", True)
+        before_source = source._merge_snapshot()
+        original_pose = target._merge_snapshot()
+        bind = cmds.getAttr(skin.getFullName() + ".bindPreMatrix[1]")
+        joint_bind = cmds.getAttr(self.child + ".bindPose")
+        weights = list(skin.getWeights(skin.getInfluences()))
+        cmds.setAttr(self.child + ".ty", 4)
+        cmds.setAttr(self.root + ".rz", 35)
+        mesh = cmds.listConnections(skin.getFullName() + ".outputGeometry[0]", shapes=True)[0]
+        points = cmds.xform(mesh + ".vtx[*]", query=True, translation=True, worldSpace=True)
+        target.merge(source, currentPose=True, deleteSources=False)
+        self.assertTrue(target.isAtPose())
+        self.assertEqual(source._merge_snapshot(), before_source)
+        self.assertEqual(cmds.getAttr(skin.getFullName() + ".bindPreMatrix[1]"), bind)
+        self.assertEqual(cmds.getAttr(self.child + ".bindPose"), joint_bind)
+        self.assertEqual(list(skin.getWeights(skin.getInfluences())), weights)
+        self.assertEqual(cmds.xform(mesh + ".vtx[*]", query=True, translation=True, worldSpace=True), points)
+        cmds.undo()
+        self.assertEqual(target._merge_snapshot(), original_pose)
+        self.assertTrue(cmds.isConnected(self.child + ".bindPose",
+                                        f"{target.getFullName()}.worldMatrix[{target.getMemberIndex(self.child)}]"))
+        cmds.redo()
+        self.assertTrue(target.isAtPose())
+
+    def test_merge_equal_matrix_different_xform_conflicts(self):
+        target = self.pose()
+        # 回転がゼロでも回転順の違いは保存データとして保持する。
+        cmds.setAttr(self.child + ".rotateOrder", 5)
+        source = hlib.nodes.DagPose.create(self.root, name=self.ns + ":source")
+        self.assertEqual(list(target.getMatrix(self.child)), list(source.getMatrix(self.child)))
+        before = target._merge_snapshot()
+        with self.assertRaises(ValueError):
+            target.merge(source)
+        self.assertEqual(target._merge_snapshot(), before)
+
+    def test_merge_units_and_full_transform_restore(self):
+        target = self.pose(hierarchy=False)
+        original_linear = cmds.currentUnit(query=True, linear=True)
+        original_angle = cmds.currentUnit(query=True, angle=True)
+        try:
+            cmds.currentUnit(linear="m", angle="rad")
+            cmds.setAttr(self.child + ".rotateOrder", 4)
+            cmds.setAttr(self.child + ".rotate", 0.2, -0.5, 0.8)
+            cmds.setAttr(self.child + ".jointOrient", 0.3, 0.1, 0.4)
+            cmds.setAttr(self.child + ".rotateAxis", 0.1, 0.2, 0.3)
+            cmds.setAttr(self.child + ".rotatePivot", 0.4, 0.5, 0.6)
+            source = hlib.nodes.DagPose.create([self.root, self.child], hierarchy=False,
+                                             name=self.ns + ":source")
+            attrs = ("translate", "rotate", "rotateOrder", "jointOrient", "rotateAxis", "rotatePivot")
+            saved = {a: cmds.getAttr(self.child + "." + a) for a in attrs}
+            cmds.setAttr(self.child + ".ty", 3)
+            cmds.setAttr(self.child + ".rotate", 0, 0, 0)
+            target.merge(source)
+            target.restore()
+            for attr, value in saved.items():
+                current = cmds.getAttr(self.child + "." + attr)
+                if isinstance(value, list):
+                    for a, b in zip(current[0], value[0]):
+                        self.assertAlmostEqual(a, b, places=8, msg=attr)
+                else:
+                    self.assertEqual(current, value)
+        finally:
+            cmds.currentUnit(linear=original_linear, angle=original_angle)
 
 
 if __name__ == "__main__":

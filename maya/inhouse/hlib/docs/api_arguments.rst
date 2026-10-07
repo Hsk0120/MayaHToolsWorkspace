@@ -170,3 +170,13 @@ hlibでは既定で追加したPlugを返します。``getPlug=False`` を明示
 
 ここでの ``addAttr`` はNodeのメソッドです。``hlib.addAttr(node, ...)`` は
 Mayaコマンド用の入口で、従来どおり常にPlugを返し、getPlug引数は受け取りません。
+
+保存ポーズの統合
+----------------
+
+``DagPose.merge(sources, *, currentPose=False, deleteSources=True)`` は自身を返します。
+sourcesは単体/複数の名前またはNodeで、名前とNodeの混在は不可です。
+両フラグはboolのキーワード専用引数で、短縮名とfastはありません。
+currentPoseは統合先を含む全対象の現在姿勢保存、deleteSourcesは元ポーズの削除です。
+既定では保存済み姿勢を保持し、競合した場合は変更前に拒否します。
+接続変更・Undo・対応範囲は :doc:`dag_pose` を参照してください。

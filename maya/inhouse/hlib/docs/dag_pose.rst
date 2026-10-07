@@ -80,3 +80,48 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
 作成・復元・更新・メンバー追加/削除は、それぞれ1回のUndo/Redoに対応します。
 通常の呼び出しで外側に ``undoChunk`` を指定する必要はありません。
+
+複数のポーズを統合する
+------------------------------
+
+``merge(sources, *, currentPose=False, deleteSources=True)`` は、自身を統合先として
+メンバーと保存情報をまとめ、統合元を参照するskinClusterの接続先を自身へ変更します。
+戻り値は自身です。sourcesは単体の名前/Node、またはそれらの同種のリストを受け付けます。
+名前とNodeの混在・空入力は拒否し、自身と重複指定は無視します。
+
+.. code-block:: python
+
+   import hlib
+
+   target = hlib.getNode("bindPose1")
+   target.merge(["bindPose2", "bindPose3"])
+
+   # 現在姿勢で統合し、元のポーズを削除する場合
+   target.merge(
+       ["bindPose4", "bindPose5"],
+       currentPose=True,
+       deleteSources=True,
+   )
+
+既定では **保存済みの姿勢** を引き継ぎます。現在バインド姿勢へ戻す必要はありません。
+ワールド行列だけでなく、ローカルのxform情報（jointOrient・pivot・回転順等）、
+保存時の親関係と復元範囲を保持します。同じメンバーの保存情報が競合した場合は、
+変更前にValueErrorを出します。数値比較の絶対許容誤差は ``1e-10`` です。
+通常ポーズ同士も統合できますが、通常ポーズとバインドポーズの混在は拒否します。
+
+``currentPose=True`` は **統合先の既存メンバーを含む全対象** を現在の姿勢・階層で
+保存します。保存済み姿勢の競合は無視し、復元に必要な親をMaya標準処理で含めます。
+現在のジョイント姿勢、スキンウェイト、skinClusterの ``bindPreMatrix`` は変更しません。
+スキニングのバインド基準を再設定する操作ではありません。
+``joint.bindPose`` からの標準入力は保存行列として読み取り、追加/更新する行は
+独立した値として保存します。joint側の ``bindPose`` アトリビュートは変更しません。
+
+既定の ``deleteSources=True`` はskinClusterの再接続後に元ポーズを削除します。
+``False`` を明示すると元ポーズを残します（skinClusterの参照先は統合先へ変更）。
+``True`` では、メンバー・保存親・joint.bindPoseの標準接続とskinCluster.bindPose以外の
+外部接続がある元ポーズは変更前に拒否します。
+編集対象のポーズ/skinClusterのロック・参照、削除対象のロック・参照、
+インスタンスのメンバーや標準外の保存データ入力は未対応です。
+
+統合全体は1回のUndo/Redoに対応し、途中の編集失敗時はUndoで巻き戻します。
+Undoが有効な状態で使用してください。``fast`` フラグはありません。

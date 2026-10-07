@@ -84,6 +84,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-07): DagPose.mergeとcurrentPose/deleteSources（既定True）の実装・テスト・資料をコミット対象に集約。ログ競合は既に両方の記録を保持して解消済み、origin/main同期・差分検査成功。直前のMaya2022/2027各17テスト成功を確認し、ユーザー指示で本コミットをpushする。
+
+- Claude Code (2026-10-07): origin/mainをpull(pluginLoadProbe追加分)。tools/plugin_load_probeをこのPCでMaya2022〜2027向けに全てビルド成功(警告はMSB8029のみ)。各版のmayapyで%TEMP%配下とリポジトリ内release/の両方からloadPlugin/unloadPlugin成功、ロード時の表示も確認。比較のhedit.mll 0.4.0も全版ロード成功。GUIでのロード(信頼済み場所の警告ダイアログ)は未確認。コード変更なし。
+
+- Codex (2026-10-07): ユーザー指定でDagPose.mergeのdeleteSources既定値をTrueへ変更。元ポーズ保持のテストはFalseを明示し、省略時の削除・skinCluster再接続・Undo/Redoを検証。Maya2022/2027 standalone各17件成功。既存WORK_LOGの競合は保持、GUI未検証・未コミット。
+
+- Codex (2026-10-07): DagPose.merge(sources, *, currentPose=False, deleteSources=False)を追加。保存済みxform内部情報・親関係を保持して統合、currentPoseは既存メンバー含む現在姿勢保存。skinCluster接続統一・任意の元ポーズ削除・事前競合/外部接続検査・Undo/Redo/失敗時巻き戻しに対応。ウェイト・bindPreMatrix・joint.bindPose・現在の変形を維持。Maya2022/2027 standalone各17テスト成功（新規8件）、Sphinx -W・layout・差分検査成功。GUI未検証、未コミット。
+
+- Codex (2026-10-07): DagPose・SkinCluster・Plug接続APIを確認。専用統合APIは未実装。全対象が保存姿勢にある場合のメンバー追加とskinCluster接続統一例、保存姿勢の競合とaddMembersの現在姿勢保存の制限を説明。製品コード変更・Maya実行なし。
+
 - Claude Code 2026-10-06: `.mll`のロードがWindowsの組織ポリシーに止められる原因を切り分ける、デバッグ用の最小C++プラグイン `tools/plugin_load_probe/` を追加(OpenMaya/Foundationのみ、自動ロードなし)。CLAUDE.md・AGENTS.mdの構成表に追記。Linux上でスタブのヘッダーによる構文確認のみで、Windowsでのビルド・Mayaでのロードは未確認。
 
 - Codex (2026-10-07): 今回のBlendShape編集・createBlendShape・lsコンポーネント対応・Mesh頂点順序合わせと関連テスト/資料をコミット対象に集約。origin/mainとの同期・差分検査を確認。既記載のMaya2022/2027テストとSphinx検証結果を維持し、ユーザー指示により本コミットをpushする。

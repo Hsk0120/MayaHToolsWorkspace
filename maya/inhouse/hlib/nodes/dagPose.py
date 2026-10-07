@@ -1,14 +1,18 @@
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
 
+import math
+import shlex
+
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from .._core.flags import flag_aliases
 from .._core.registry import node_wrapper
 from .._core.space import world_space
-from ..decorators.undo import undoChunk
+from ..decorators.undo import undoChunk, undoTransaction
 from ..maths import Matrix
-from .node import Node
+from .node import Node, Nodes
 
 
 @node_wrapper("dagPose")
@@ -168,6 +172,122 @@ class DagPose(Node):
         names = [plug.rsplit(".", 1)[0] for plug in plugs if plug.endswith(".bindPose")]
         return [Node(name) for name in dict.fromkeys(names)]
 
+    def merge(self, sources, *, currentPose=False, deleteSources=True):
+        """他の保存ポーズを自身へ統合し、skinClusterの参照先も揃える。
+
+        保存済みの姿勢・親情報が競合する場合は変更前に拒否する。
+        currentPose=Trueは自身の既存メンバーを含む全対象を現在姿勢で保存する。
+        ジョイントの現在姿勢・ウェイト・bindPreMatrixは変更しない。
+        Maya標準コマンドによる1回のUndoに対応し、失敗時は巻き戻す。
+
+        Args:
+            sources (Node | str | Iterable[Node | str]): 統合元のdagPose。
+                自身と重複指定は無視する。空入力は不可。
+            currentPose (bool): 保存済み姿勢ではなく現在の姿勢・階層を保存する。
+                復元に必要な親もMaya標準処理で含める。
+            deleteSources (bool): 統合後に元ポーズを削除する。既定はTrue。
+                メンバー・親情報とskinCluster.bindPose以外の接続があれば拒否する。
+
+        Returns:
+            DagPose: 自身。
+
+        Raises:
+            ValueError: 型・フラグ・保存情報の競合、通常ポーズとbindPoseの混在。
+            RuntimeError: ロック・参照・インスタンス・不正な保存情報、編集失敗。
+        """
+        if type(currentPose) is not bool or type(deleteSources) is not bool:
+            raise ValueError("currentPose and deleteSources must be bool")
+        name = self._pose_name()
+        nodes = Nodes._resolve_inputs(sources)
+        if not nodes:
+            raise ValueError("At least one source pose is required")
+        poses = {name: self}
+        for value in nodes:
+            node = Node._resolve_input(value)
+            if not node.isType("dagPose"):
+                raise ValueError("Expected a dagPose: " + node.getFullName())
+            poses.setdefault(node.getFullName(), node)
+        sources = [pose for key, pose in poses.items() if key != name]
+        if not sources:
+            return self
+        rows = {}
+        target_rows = None
+        skins = {}
+        for pose in poses.values():
+            if pose.isBindPose() != self.isBindPose():
+                raise ValueError("Cannot mix bind poses and ordinary poses")
+            snapshot = pose._merge_snapshot()
+            if pose is self:
+                target_rows = snapshot
+            for member, row in snapshot.items():
+                if not currentPose and member in rows:
+                    if not self._merge_rows_equal(rows[member], row):
+                        raise ValueError("Conflicting saved pose: " + member)
+                else:
+                    rows[member] = row
+            if pose is not self:
+                for skin in pose.getSkinClusters():
+                    skins[skin.getFullName()] = skin
+                if deleteSources:
+                    pose._merge_check_delete()
+        if not rows:
+            raise ValueError("Cannot merge empty poses")
+        self._merge_check_editable(self)
+        for attr in ("members", "parents", "worldMatrix", "xformMatrix", "global"):
+            plug = self.getPlug(attr).mplug()
+            if plug.isLocked or any(plug.elementByLogicalIndex(i).isLocked
+                                    for i in plug.getExistingArrayAttributeIndices()):
+                raise RuntimeError("Locked pose attribute: " + plug.name())
+        for skin in skins.values():
+            self._merge_check_editable(skin)
+            if skin.getPlug("bindPose").mplug().isLocked:
+                raise RuntimeError("Locked bindPose: " + skin.getFullName())
+
+        with undoTransaction("hlibDagPoseMerge"):
+            if currentPose:
+                # 一時的な通常ポーズなら既存bindPoseを再利用せず、現在姿勢の
+                # xform内部情報（jointOrient等）もMaya自身が正しく保存する。
+                temp = Node(cmds.dagPose(list(rows), save=True, selection=True))
+                rows = temp._merge_snapshot()
+            used = set()
+            for attr in ("members", "parents", "worldMatrix", "xformMatrix", "global"):
+                used.update(self.getPlug(attr).mplug().getExistingArrayAttributeIndices())
+            next_index = max(used, default=-1) + 1
+            indices = {member: row["index"] for member, row in target_rows.items()}
+            for member in rows:
+                if member not in indices:
+                    indices[member] = next_index
+                    next_index += 1
+            for member, row in rows.items():
+                index = indices[member]
+                if member not in target_rows:
+                    cmds.connectAttr(member + ".message", f"{name}.members[{index}]")
+                if currentPose or member not in target_rows:
+                    for attr in ("worldMatrix", "xformMatrix"):
+                        plug = self.getPlug(attr)[index].mplug()
+                        if plug.isDestination:
+                            cmds.disconnectAttr(plug.source().name(), plug.name())
+                        self._merge_set_matrix(f"{name}.{attr}[{index}]", row[attr])
+                    cmds.setAttr(f"{name}.global[{index}]", row["global"])
+                    dest = self.getPlug("parents")[index].mplug()
+                    if dest.isDestination:
+                        cmds.disconnectAttr(dest.source().name(), dest.name())
+                    parent = row["parent"]
+                    if parent is None:
+                        src = name + ".world"
+                    elif row["externalParent"]:
+                        src = parent + ".message"
+                    else:
+                        src = f"{name}.members[{indices[parent]}]"
+                    cmds.connectAttr(src, dest.name())
+            if currentPose:
+                cmds.delete(temp.getFullName())
+            for skin in skins.values():
+                cmds.connectAttr(name + ".message", skin.getFullName() + ".bindPose", force=True)
+            if deleteSources:
+                cmds.delete([pose.getFullName() for pose in sources])
+        return self
+
     @flag_aliases(ws="worldSpace")
     @undoChunk("hlibDagPoseRestore")
     def restore(self, worldSpace=False):
@@ -238,6 +358,138 @@ class DagPose(Node):
             self.getMemberIndex(target)
         cmds.dagPose(names, remove=True, name=self._pose_name())
         return self
+
+    @staticmethod
+    def _merge_set_matrix(destination, values):
+        """完全なxformデータをcmdsの複合引数へ変換してUndo可能に設定する。"""
+        if values[0] == "xform":
+            args = ["xform", values[1:4], values[4:7], values[7]]
+            args.extend(values[i:i + 3] for i in range(8, 26, 3))
+            args.extend((values[26:30], values[30:34], values[34:37], values[37]))
+            cmds.setAttr(destination, *args, type="matrix")
+        else:
+            cmds.setAttr(destination, values, type="matrix")
+
+    @staticmethod
+    def _merge_check_editable(node):
+        """参照とノードロックを変更前に拒否する。"""
+        fn = om2.MFnDependencyNode(node.getPlug("message").mplug().node())
+        if fn.isFromReferencedFile or fn.isLocked:
+            raise RuntimeError("Referenced or locked node: " + node.getFullName())
+
+    @staticmethod
+    def _merge_matrix_payload(plug):
+        """Mayaの保存表現からcmds.setAttr用の完全なmatrixデータを読む。
+
+        16要素の行列へ変換するとjointOrient・pivot等のxform情報が失われる。
+        Maya生成のsetAttrを実行せず、数値・bool・xformマーカーだけを取り出す。
+        """
+        commands = plug.getSetAttrCmds(om2.MPlug.kAll, True)
+        if len(commands) != 1:
+            raise RuntimeError("Unsupported matrix data: " + plug.name())
+        tokens = shlex.split(commands[0].strip().rstrip(";"))
+        start = tokens.index("-type")
+        if tokens[start + 1] != "matrix":
+            raise RuntimeError("Expected matrix data: " + plug.name())
+        values = []
+        for token in tokens[start + 2:]:
+            if token == "xform":
+                values.append(token)
+            elif token in ("yes", "no"):
+                values.append(token == "yes")
+            else:
+                value = float(token)
+                if not math.isfinite(value):
+                    raise ValueError("Non-finite pose data: " + plug.name())
+                values.append(value)
+        if values and values[0] == "xform":
+            # rotationOrderはcmdsが整数を要求する。
+            values[7] = int(values[7])
+        return tuple(values)
+
+    def _merge_snapshot(self):
+        """OMでメンバー・親対応・完全な保存姿勢を取得し不正な接続を拒否する。"""
+        members = self.getPlug("members").mplug()
+        indices = {}
+        for index in members.getExistingArrayAttributeIndices():
+            plug = members.elementByLogicalIndex(index)
+            if not plug.isDestination:
+                continue
+            source = plug.source()
+            node = Node(source.node())
+            if not node.isType("transform") or source.partialName(useLongNames=True) != "message":
+                raise RuntimeError("Unsupported pose member: " + plug.name())
+            if om2.MFnDagNode(source.node()).isInstanced():
+                raise RuntimeError("Instanced pose member: " + node.getFullName())
+            indices[index] = node.getFullName()
+        if len(set(indices.values())) != len(indices):
+            raise RuntimeError("Duplicate pose members: " + self.getFullName())
+        rows = {}
+        for index, member in indices.items():
+            parent_plug = self.getPlug("parents")[index].mplug()
+            if not parent_plug.isDestination:
+                raise RuntimeError("Missing saved parent: " + member)
+            source = parent_plug.source()
+            external_parent = False
+            if source == self.getPlug("world").mplug():
+                parent = None
+            elif source.isElement and source.array() == members and source.logicalIndex() in indices:
+                parent = indices[source.logicalIndex()]
+            elif source.node().hasFn(om2.MFn.kTransform) and source.partialName(useLongNames=True) == "message":
+                parent = Node(source.node()).getFullName()
+                external_parent = True
+            else:
+                raise RuntimeError("Unsupported saved parent: " + member)
+            row = {"index": index, "parent": parent, "externalParent": external_parent}
+            for attr in ("worldMatrix", "xformMatrix", "global"):
+                plug = self.getPlug(attr)[index].mplug()
+                if plug.isDestination:
+                    source = plug.source()
+                    # Maya標準のbindPoseはjoint.bindPoseから保存ワールド行列を受け取る。
+                    expected = Node(member).getPlug("bindPose").mplug() if Node(member).isType("joint") else None
+                    if attr != "worldMatrix" or source != expected or source.isDestination:
+                        raise RuntimeError("Driven pose data: " + plug.name())
+                    plug = source
+                row[attr] = plug.asBool() if attr == "global" else self._merge_matrix_payload(plug)
+            rows[member] = row
+        return rows
+
+    @staticmethod
+    def _merge_rows_equal(left, right):
+        """同じメンバーの親・復元範囲・xform内部情報まで比較する。"""
+        if any(left[key] != right[key] for key in ("parent", "externalParent", "global")):
+            return False
+        for attr in ("worldMatrix", "xformMatrix"):
+            a, b = left[attr], right[attr]
+            if len(a) != len(b):
+                return False
+            for x, y in zip(a, b):
+                if isinstance(x, str) or isinstance(y, str):
+                    if x != y:
+                        return False
+                elif not math.isclose(x, y, rel_tol=0.0, abs_tol=1e-10):
+                    return False
+        return True
+
+    def _merge_check_delete(self):
+        """削除で失われる外部接続とロックを事前に検査する。"""
+        self._merge_check_editable(self)
+        fn = om2.MFnDependencyNode(self.getPlug("message").mplug().node())
+        for plug in fn.getConnections():
+            for other in plug.connectedTo(True, True):
+                if other.node() == fn.object():
+                    continue
+                attr = om2.MFnAttribute(plug.attribute()).name
+                other_attr = om2.MFnAttribute(other.attribute()).name
+                if attr == "members" and plug.isDestination and other_attr == "message":
+                    continue
+                if attr == "parents" and plug.isDestination and other_attr == "message" and other.node().hasFn(om2.MFn.kTransform):
+                    continue
+                if attr == "worldMatrix" and plug.isDestination and other_attr == "bindPose" and other.node().hasFn(om2.MFn.kJoint):
+                    continue
+                if attr == "message" and other_attr == "bindPose" and other.node().hasFn(om2.MFn.kSkinClusterFilter):
+                    continue
+                raise RuntimeError("Source pose has another connection: " + plug.name())
 
     @staticmethod
     def _transform_names(members):
