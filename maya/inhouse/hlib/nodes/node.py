@@ -794,20 +794,30 @@ class Node(Object):
         return cmds.rename(self.getName(), new_name)
 
     @undoChunk("hlibNodeDelete")
-    def delete(self):
+    def delete(self, *, safe=False):
         """自身をMaya標準の規則で削除する。
 
         DAGの子も削除し、一回のUndoで戻せる。
         派生クラスはこのメソッドを上書きして専用の削除処理を実装できる。
 
+        Args:
+            safe (bool): Trueなら自身またはDAG子孫にDG接続がある場合は削除しない。
+                入力・出力・message・Set/マテリアル接続を全て含む。
+                Falseは従来の削除。ロック解除や例外抑制は行わない。
+
         Returns:
             None: 値を返さない。
 
         Raises:
+            TypeError: safeがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが削除を拒否した場合。
         """
+        if type(safe) is not bool:
+            raise TypeError("safe must be bool")
         if not self.isValid():
             raise RuntimeError("Cannot delete an invalid node")
+        if safe and self._has_delete_connections():
+            return
         cmds.delete(self.getFullName())
 
     @undoChunk("hlibNodeRename")
@@ -1328,6 +1338,27 @@ class Node(Object):
             dagPath = self._current_dag_path()
         return dagPath.fullPathName()
 
+    def _has_delete_connections(self):
+        """自身とDAG子孫のDG接続をOMで検査する。
+
+        Returns:
+            bool: 接続が一つでもあればTrue。DAG階層関係自体は接続に数えない。
+        """
+        pending, seen = [self.mnode()], set()
+        while pending:
+            obj = pending.pop()
+            fn = om2.MFnDependencyNode(obj)
+            key = fn.uuid().asString()
+            if key in seen:
+                continue
+            seen.add(key)
+            if len(fn.getConnections()):
+                return True
+            if obj.hasFn(om2.MFn.kDagNode):
+                dag = om2.MFnDagNode(obj)
+                pending.extend(dag.child(i) for i in range(dag.childCount()))
+        return False
+
     @staticmethod
     def _selection_owner(selection, index, name=None):
         """MSelectionList の要素を所有するノードの MObject と DAG パスを返す。
@@ -1749,22 +1780,31 @@ class Nodes:
         return [node.getName() for node in self]
 
     @undoChunk("hlibNodesDelete")
-    def delete(self):
+    def delete(self, *, safe=False):
         """各ノードの専用deleteを呼び、親削除で消えた後続対象はスキップする。
+
+        Args:
+            safe (bool): Trueなら各対象にsafe=Trueを渡し、DG接続を持つ対象を残す。
 
         Returns:
             None: 空なら何もしない。Jointsは専用の階層・ウェイト処理を優先する。
         Raises:
+            TypeError: safeがboolでない場合。
             RuntimeError: 実行前に削除済みの参照がある、または削除失敗。
                 途中までの変更は自動で戻さない。全体は一回のUndoで戻せる。
         """
+        if type(safe) is not bool:
+            raise TypeError("safe must be bool")
         for index, node in enumerate(self):
             if not node.isValid():
                 raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
         for index, node in enumerate(self):
             if node.isValid():
                 try:
-                    node.delete()
+                    if safe:
+                        node.delete(safe=True)
+                    else:
+                        node.delete()
                 except Exception as exc:
                     raise RuntimeError(f"{type(self).__name__}.delete failed at item {index}: {exc}") from exc
 

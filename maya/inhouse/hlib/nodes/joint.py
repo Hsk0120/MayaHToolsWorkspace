@@ -268,7 +268,7 @@ class Joint(Transform):
         """
         return self.isValid() and self.mnode().hasFn(om2.MFn.kJoint)
 
-    def delete(self):
+    def delete(self, *, safe=False):
         """祖先influenceへウェイトを移送し、このjointを削除する。
 
         Joints.delete()と同じ処理を使う。同じskinClusterの最も近い祖先
@@ -278,15 +278,22 @@ class Joint(Transform):
         ワールドへ移す。全体は一回のUndoにまとまり、途中失敗は例外で通知する。
         完了済みの変更は自動ロールバックしない。
 
+        Args:
+            safe (bool): Trueなら自身またはDAG子孫にDG接続がある場合は何もしない。
+                スキニング・message・inverseScale等も保護対象。既定False。
+
         Returns:
             None: 値を返さない。
 
         Raises:
+            TypeError: safeがboolでない場合。
             RuntimeError: 無効なjoint、ウェイト移送・再親付け・削除の失敗。
         """
+        if type(safe) is not bool:
+            raise TypeError("safe must be bool")
         if not self.isJoint():
             raise RuntimeError("Cannot delete an invalid joint")
-        Joints([self]).delete()
+        Joints([self]).delete(safe=safe)
 
     def getSkinClusters(self):
         """この joint に接続する skinCluster を取得する。
@@ -710,7 +717,7 @@ class Joints(Transforms):
                 skinClusters.append(skin)
         return SkinClusters(skinClusters)
 
-    def delete(self):
+    def delete(self, *, safe=False):
         """ウェイト移送後にコレクション内の joint を削除する。
 
         同じjointの複数インスタンスパスはノード単位で一度だけ処理する。
@@ -719,15 +726,30 @@ class Joints(Transforms):
         移送先がない場合のウェイト処理はMaya標準のcmds.deleteに任せる。
         途中の失敗は例外で停止し、完了済み変更は自動ロールバックしない。全体はUndoに対応。
 
+        Args:
+            safe (bool): Trueなら自身またはDAG子孫にDG接続があるjointを事前に除外する。
+                除外したjointのウェイト移送や子の再親付けも行わない。既定False。
+
         Returns:
             None: 値を返さない。
 
         Raises:
+            TypeError: safeがboolでない場合。
             RuntimeError: ウェイト移送・子の再親付け・削除ができない場合。
         """
         from .._core.jointDeletion import _JointDeletion
 
-        _JointDeletion(self).execute()
+        if type(safe) is not bool:
+            raise TypeError("safe must be bool")
+        targets = self
+        if safe:
+            for joint in self:
+                if not joint.isJoint():
+                    raise RuntimeError("Cannot delete an invalid joint")
+            targets = Joints([joint for joint in self if not joint._has_delete_connections()])
+            if not targets:
+                return
+        _JointDeletion(targets).execute()
 
     def _transfer_rotation(self, to_orient=False):
         """全対象の準備成功後に回転移送を適用する。

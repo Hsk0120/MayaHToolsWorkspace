@@ -14,7 +14,7 @@ from .._core.registry import node_wrapper
 from .._core.registry import collection_export
 from .._core.space import world_space
 from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undoChunk
+from ..decorators.undo import undoChunk, undoTransaction
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector, Transformation
 from ..maths.vector import _vector_of
 from ..plugs.plug import Plug
@@ -577,6 +577,73 @@ class Transform(DagNode):
             candidate for candidate in candidates
             if isinstance(candidate, Transform) and candidate.getUuid() != self_uuid
         ]
+
+    def getUnusedIntermediateShapes(self):
+        """直下から削除可能な未使用中間Shapeを取得する。
+
+        shadingEngineへの標準メンバー接続を除き、出力接続がない中間Shapeを対象とする。
+        入力履歴だけが残るShapeも対象。参照・ノードロック・インスタンス・子DAGを持つ
+        Shapeは除外する。子Transform以下は検索せず、シーンは変更しない。
+
+        Returns:
+            list[Shape]: DAGの子順の削除候補。対象なしは空リスト。
+
+        Raises:
+            RuntimeError: 無効なTransform、またはMayaの照会失敗。
+        """
+        fn = om2.MFnDagNode(self.mpath())
+        if fn.isFromReferencedFile or fn.isLocked:
+            return []
+        result = []
+        for shape in self.getShapes(intermediates=True):
+            shape_fn = om2.MFnDagNode(shape.mpath())
+            if (not shape_fn.isIntermediateObject or shape_fn.isFromReferencedFile
+                    or shape_fn.isLocked or shape_fn.childCount()
+                    or len(om2.MDagPath.getAllPathsTo(shape.mnode())) > 1):
+                continue
+            used = False
+            for plug in shape_fn.getConnections():
+                root = plug
+                while root.isChild or root.isElement:
+                    root = root.parent() if root.isChild else root.array()
+                is_membership = om2.MFnAttribute(root.attribute()).name == "instObjGroups"
+                for destination in plug.connectedTo(False, True):
+                    if (is_membership and destination.node().hasFn(om2.MFn.kShadingEngine)
+                            and om2.MFnAttribute(destination.attribute()).name == "dagSetMembers"):
+                        continue
+                    used = True
+                    break
+                if used:
+                    break
+            if not used:
+                result.append(shape)
+        return result
+
+    def deleteUnusedIntermediateShapes(self):
+        """直下の未使用中間Shapeだけを削除し、自身を返す。
+
+        getUnusedIntermediateShapes()と同じ判定で、使用中・参照・ロック・
+        インスタンス等は残す。Transformや上流の履歴ノードは削除しない。
+        Maya標準削除を1回のUndoにまとめ、途中の失敗時は巻き戻す。
+        Undoが有効な状態で使用する。fastフラグはない。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: 無効なTransform、または削除失敗。
+        """
+        shapes = self.getUnusedIntermediateShapes()
+        if shapes:
+            with undoTransaction("hlibDeleteUnusedIntermediateShapes"):
+                # 標準deleteは入力側の生成履歴も削除する場合があるため、
+                # Shapeへの入力だけをUndo可能に外し、上流ノードを保持する。
+                for shape in shapes:
+                    for plug in om2.MFnDependencyNode(shape.mnode()).getConnections():
+                        for source in plug.connectedTo(True, False):
+                            cmds.disconnectAttr(source.name(), plug.name())
+                cmds.delete([shape.getFullName() for shape in shapes])
+        return self
 
     def getShapes(self, intermediates=False):
         """このTransform直下のShapeを取得する。

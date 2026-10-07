@@ -7,6 +7,33 @@
 既存のバインドポーズを取得する
 --------------------------------
 
+Mesh・NURBSカーブ/サーフェス等のShape、またはそのTransformから取得できます。
+
+.. code-block:: python
+
+   import hlib
+
+   geometry = hlib.getNode("pCube1")
+   skins = geometry.getSkinClusters()  # list[SkinCluster]
+   poses = geometry.getBindPoses()     # list[DagPose]
+
+   # 複数形状のポーズをまとめる場合
+   other = hlib.getNode("nurbsSurface1")
+   if poses:
+       sources = other.getBindPoses()
+       if sources:
+           poses[0].merge(sources)
+
+``getSkinClusters()`` は対象Shapeが出力先であるSkinClusterを返します。
+Transformでは直下の非中間Shapeだけを検索し、子Transform以下は検索しません。
+Shape順・各Shapeの上流幅優先順で返し、重複を除きます。
+単なる履歴検索と異なり、BlendShapeターゲット等の別形状側のSkinClusterは除外します。
+Shapeを直接指定した場合は中間ShapeでもそのShape自身を対象にします。
+``getBindPoses()`` は取得したSkinClusterの順にポーズを返し、共有ポーズの重複と未接続を
+除きます。どちらも対象なしは ``[]`` で、選択やUndo履歴を変更しません。
+Jointの既存 ``getSkinClusters()`` はinfluence接続照会のままで、Jointの
+``getBindPoses()`` もその結果を使用します。
+
 .. code-block:: python
 
    import hlib

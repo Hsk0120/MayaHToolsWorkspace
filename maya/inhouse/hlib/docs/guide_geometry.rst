@@ -3,6 +3,28 @@
 
 Mesh・NurbsCurveの形状情報、ミラー、頂点やCVなどの操作を説明します。
 
+未使用の中間Shapeを削除する
+----------------------------------------
+
+Transform直下の不要な中間Shapeは次のように取得・削除できます。
+
+.. code-block:: python
+
+   transform = hlib.getNode("pCube1")
+   candidates = transform.getUnusedIntermediateShapes()  # list[Shape]
+   transform.deleteUnusedIntermediateShapes()            # 自身を返す
+
+対象は ``intermediateObject=True`` で、標準のshadingEngineメンバー接続以外に
+出力接続を持たないShapeです。SkinCluster等へ形状を供給している中間Shapeや、
+message接続・ユーザーのobjectSet等で参照されるShapeは残します。
+通常Shape、参照・ノードロック・インスタンス・子DAGを持つShapeも対象外です。
+Transform自身が参照/ノードロックされている場合も削除しません。
+子Transform以下は検索せず、対象なしは取得が ``[]``、削除は何もしません。
+
+入力履歴だけが残る中間Shapeは削除対象ですが、入力接続を先に外すことで上流の
+履歴ノードと親Transformは保持します。削除と接続解除は1回のUndo/Redoに対応し、
+途中の失敗時は巻き戻します。Undoを有効にして使用してください。fastフラグはありません。
+
 UVまたは頂点位置を基準に頂点番号を合わせる
 ------------------------------------------------------------
 

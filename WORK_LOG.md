@@ -84,6 +84,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-07): スキニング関係照会・未使用中間Shape取得/削除・delete(safe=False)と関連テスト/資料をコミット対象に集約。origin/main同期・差分検査成功、直前のMaya2022/2027各35テストとSphinx検証結果を確認。ユーザー指示により本コミットをpushする。
+
+- Codex (2026-10-07): Node/Nodes・Joint/Jointsにdelete(*, safe=False)を追加。safe=Trueは自身とDAG子孫の入出力/message/Set接続をOMで検査し削除をスキップ、Jointのウェイト移送/再親付けも抑止。既定削除・None戻り値・Undo維持、forceはsafe=Falseと重複するため追加なし。既存削除テストのNode/文字列混在入力を確定済み入力規則に合わせ、混在拒否も検証。先行2機能を含むMaya2022/2027 standalone各35件成功、Sphinx -W・layout・差分検査成功。GUI未検証、未コミット。
+
+- Codex (2026-10-07): Transform.getUnusedIntermediateShapes/deleteUnusedIntermediateShapesを追加。直下の中間Shapeで標準SG所属以外の出力がないものを対象とし、使用中・参照・ロック・直接/間接インスタンス・子DAGは除外。入力接続をcmdsで外してからShapeのみ削除し、上流履歴と親Transformを保持。Undo/Redo・失敗時巻き戻し対応。Maya2022/2027 standalone各6テスト成功、Sphinx -W・layout・差分検査成功。GUI未検証、未コミット。先行のスキニング関係照会API変更も保持。
+
+- Codex (2026-10-07): DagNodeにgetSkinClusters/getBindPosesを追加しShape/Transformへ共通提供。Transform直下の非中間Shapeが出力先であるSkinClusterをOMの上流幅優先検索で取得し、別形状の履歴を除外。DagPoseは重複/未接続を除外、Joint既存influence照会を維持。Mesh・NURBS曲線/面・複数Shape/直列skin・インスタンス・別形状除外・読取無変更の新規6件と既存DagNode/DagPoseをMaya2022/2027 standalone各25件検証成功。Sphinx -W・layout・差分検査成功。GUI未検証、未コミット。
+
+- Codex (2026-10-07): Mesh/NURBS共通の取得経路を実装確認。Node.getHistory(type="skinCluster")とSkinCluster.getBindPoseは既存、Shape/Transformの専用getSkinClusters/getBindPosesは未実装。履歴検索と直接変形関係の違いを説明。製品コード変更・Maya実行なし。
+
 - Claude Code (2026-10-07): ユーザー指示でビルド済みpluginLoadProbe.mll(Maya2022〜2027、各版mayapyでロード確認済み)をコミット。tools/plugin_load_probe/.gitignoreを削除し、README・CMakeListsの「Git対象外」記述を更新してpush。
 
 - Codex (2026-10-07): DagPose.mergeとcurrentPose/deleteSources（既定True）の実装・テスト・資料をコミット対象に集約。ログ競合は既に両方の記録を保持して解消済み、origin/main同期・差分検査成功。直前のMaya2022/2027各17テスト成功を確認し、ユーザー指示で本コミットをpushする。

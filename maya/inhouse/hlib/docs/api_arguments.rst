@@ -171,6 +171,15 @@ hlibでは既定で追加したPlugを返します。``getPlug=False`` を明示
 ここでの ``addAttr`` はNodeのメソッドです。``hlib.addAttr(node, ...)`` は
 Mayaコマンド用の入口で、従来どおり常にPlugを返し、getPlug引数は受け取りません。
 
+ノード削除のsafe
+----------------
+
+``Node.delete(*, safe=False)`` と ``Joint.delete``、``Nodes.delete``、``Joints.delete`` の
+safeはboolのキーワード専用引数です。既定Falseは従来動作を維持します。
+Trueは自身とDAG子孫のDG接続を確認し、接続があればその対象を削除しません。
+戻り値は削除・スキップともNone。safeの短縮名とforceフラグはありません。
+判定対象と専用削除との違いは :doc:`api_methods` を参照してください。
+
 保存ポーズの統合
 ----------------
 

@@ -1,6 +1,41 @@
 メソッド仕様
 ==========================
 
+接続を保護してノードを削除する
+--------------------------------
+
+``Node.delete(*, safe=False)`` は既定で従来どおりMaya標準削除を行います。
+``safe=True`` では自身またはDAG子孫にDG接続が一つでもあれば、削除せずNoneを返します。
+入力・出力の両方とmessage、Set所属、マテリアル接続を含みます。
+DAGの親子関係自体は接続に数えません。無効ノードや削除時のエラーは従来どおり送出し、
+ロック解除や例外の抑制は行いません。
+
+.. code-block:: python
+
+   node = hlib.getNode("multiplyDivide1")
+   node.delete(safe=True)   # 接続がある場合は残す
+   node.delete()           # 既定safe=False。従来の削除
+
+``Joint.delete`` と ``Nodes.delete`` / ``Joints.delete`` も同じフラグを受け付けます。
+コレクションは接続を持つ対象を残し、削除可能な対象だけを処理します。
+JointでスキニングやinverseScale等の接続を検出した場合は、ウェイト移送や子の再親付けも
+行いません。safe=FalseのJoint専用削除は従来の仕様を維持します。戻り値は全てNoneです。
+削除はUndoに対応します。safe=Falseが従来の削除に相当するためforceは追加していません。
+
+このフラグはノードのメソッド用です。``hlib.delete()``、PlugやUIのdeleteには追加していません。
+``deleteUnusedIntermediateShapes()`` は標準のマテリアル所属を許容する専用判定のため、
+このsafeモードとは判定条件が異なります。
+
+形状のスキニング関係
+--------------------
+
+Shape/Transform共通の ``getSkinClusters()`` は、対象Shapeを変形するSkinClusterの
+重複なしリストを返します。Transformでは直下の非中間Shapeを対象にします。
+``getBindPoses()`` はそれらが参照するDagPoseを重複・未接続を除いて返します。
+どちらも引数はなく、対象なしは空リストです。Mesh・NURBS等で共通に使用できます。
+Jointの既存 ``getSkinClusters()`` はinfluence接続照会を維持します。
+具体例・探索範囲は :doc:`dag_pose` を参照してください。
+
 所有ノード・名前・階層
 ------------------------
 

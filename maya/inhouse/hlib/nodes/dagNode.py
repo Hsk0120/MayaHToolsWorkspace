@@ -1,6 +1,7 @@
 """TransformとShapeに共通するDAG階層へのアクセスを提供する。"""
 
 import maya.api.OpenMaya as om2
+import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from .._core.collection import bulk_api
@@ -15,6 +16,72 @@ class DagNode(Node):
     """DAGノードの共通基底。具象ラッパーの型登録は変更しない。"""
 
     __hlib_public__ = True
+
+    def getSkinClusters(self):
+        """自身のジオメトリを変形するSkinClusterを取得する。
+
+        Shapeは自身、Transformは直下の非中間Shapeを対象にする。
+        子Transform以下は検索しない。上流を探索した後、デフォーマの出力Shapeが
+        対象と一致するものだけを返すため、別形状の履歴を混入させない。
+        Mesh・NURBS等の形状に共通で使用でき、シーンやUndo履歴は変更しない。
+        Jointの同名メソッドは従来のinfluence接続照会を維持する。
+
+        Returns:
+            list[SkinCluster]: Shape順、各Shapeの上流幅優先順。重複なし。
+                対象なしは空リスト。
+
+        Raises:
+            RuntimeError: 無効なDAGパス、またはMayaの検索が失敗した場合。
+        """
+        path = self.mpath()
+        obj = path.node()
+        if obj.hasFn(om2.MFn.kTransform):
+            fn = om2.MFnDagNode(path)
+            shapes = [fn.child(i) for i in range(fn.childCount())
+                      if fn.child(i).hasFn(om2.MFn.kShape)
+                      and not om2.MFnDagNode(fn.child(i)).isIntermediateObject]
+        else:
+            shapes = [obj] if obj.hasFn(om2.MFn.kShape) else []
+        result, seen = [], set()
+        for shape in shapes:
+            iterator = om2.MItDependencyGraph(
+                shape, om2.MFn.kSkinClusterFilter,
+                om2.MItDependencyGraph.kUpstream,
+                om2.MItDependencyGraph.kBreadthFirst,
+                om2.MItDependencyGraph.kNodeLevel,
+            )
+            iterator.pruningOnFilter = False
+            while not iterator.isDone():
+                skin = iterator.currentNode()
+                key = om2.MFnDependencyNode(skin).uuid().asString()
+                if key not in seen and any(
+                        output == shape for output in oma2.MFnGeometryFilter(skin).getOutputGeometry()):
+                    seen.add(key)
+                    result.append(Node(skin))
+                iterator.next()
+        return result
+
+    def getBindPoses(self):
+        """getSkinClusters()で得たSkinClusterのバインドポーズを取得する。
+
+        Shape/Transformは変形対象、Jointは既存のinfluence接続照会を使用する。
+        SkinClusterの順を保ち、共有ポーズの重複と未接続を除く。
+
+        Returns:
+            list[DagPose]: 接続されたポーズ。対象なしは空リスト。
+
+        Raises:
+            RuntimeError: 無効な対象、または不正なバインドポーズ接続。
+        """
+        result, seen = [], set()
+        for skin in self.getSkinClusters():
+            pose = skin.getBindPose()
+            if pose is not None:
+                key = pose.getUuid()
+                if key not in seen:
+                    seen.add(key)
+                    result.append(pose)
+        return result
 
     def mpath(self):
         """保持するインスタンスのDAGパスを取得する。

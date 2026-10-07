@@ -1,10 +1,12 @@
 """未スキニング・スキニングjointの削除と失敗時の伝播。"""
+
 import sys
 import unittest
 import uuid
 from unittest.mock import patch
-import maya.cmds as cmds
+
 import hlib
+import maya.cmds as cmds
 
 hlib.reload()
 
@@ -12,6 +14,38 @@ hlib.reload()
 class JointDeleteTest(unittest.TestCase):
     def delete_joint(self, name):
         hlib.nodes.Joints([name]).delete()
+
+    def test_safe_keeps_skin_and_joint_hierarchy(self):
+        root = self.getNode("safeRoot")
+        child = self.getNode("safeChild", parent=root)
+        mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
+        skin = cmds.skinCluster([root, child], mesh, name=self.ns + ":skin")[0]
+        pose = hlib.getNode(skin).getBindPose()
+        cmds.rename(pose.getFullName(), self.ns + ":pose")
+        weights = cmds.skinPercent(skin, mesh + '.vtx[0]', query=True, value=True)
+        hlib.getNode(child).delete(safe=True)
+        self.assertTrue(cmds.objExists(child))
+        isolated = self.getNode("isolated")
+        self.assertIsNone(hlib.nodes.Joints([root, child, isolated]).delete(safe=True))
+        self.assertTrue(cmds.objExists(root) and cmds.objExists(child))
+        self.assertFalse(cmds.objExists(isolated))
+        self.assertEqual(cmds.listRelatives(child, parent=True)[0], root)
+        self.assertEqual(cmds.skinPercent(skin, mesh + '.vtx[0]', query=True, value=True), weights)
+        cmds.undo()
+        self.assertTrue(cmds.objExists(isolated))
+        cmds.redo()
+        self.assertFalse(cmds.objExists(isolated))
+
+    def test_safe_joint_validation_and_inverse_scale_connection(self):
+        root = hlib.getNode(self.getNode("safeRoot"))
+        child = hlib.getNode(self.getNode("safeChild", parent=root.getFullName()))
+        cmds.connectAttr(root.getFullName() + '.scale', child.getFullName() + '.inverseScale')
+        for node in (root, child):
+            node.delete(safe=True)
+            self.assertTrue(node.isValid())
+        for target in (root, hlib.nodes.Joints([root])):
+            with self.assertRaises(TypeError):
+                target.delete(safe=1)
 
     def setUp(self):
         self.ns = "hlibDelete_" + uuid.uuid4().hex
