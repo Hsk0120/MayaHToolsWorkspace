@@ -162,8 +162,15 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
         updateDecorations();
     });
 
-    // 名前の説明(ホバー): マウスの移動を受け取り、名前から離れたら閉じる。スクロールでも閉じる。
+    // 名前の説明(ホバー): マウスの移動を受け取り、止まってから0.5秒後に出す。名前から離れたら閉じる。スクロールでも閉じる。
     viewport()->setMouseTracking(true);
+    hoverTimer_.setSingleShot(true);
+    hoverTimer_.setInterval(500);
+    connect(&hoverTimer_, &QTimer::timeout, this, [this] {
+        if (viewport()->underMouse()) {
+            hoverAt(hoverPoint_);
+        }
+    });
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
     connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
 }
@@ -213,6 +220,36 @@ void CodeEditor::showHover(int start, int end) {
     hover_->showInfo(info, anchor, font(), problems);
 }
 
+void CodeEditor::hoverAt(const QPoint& position) {
+    const QTextCursor cursor = cursorForPosition(position);
+    // cursorForPositionは行末より右や最後の行より下でも近い文字の位置を返すので、文字の上にあるかを確かめる。
+    const QRect rect = cursorRect(cursor);
+    const bool onText = qAbs(position.x() - rect.center().x()) <= fontMetrics().averageCharWidth() * 2
+                        && position.y() >= rect.top() && position.y() <= rect.bottom();
+    int start = 0;
+    int end = 0;
+    if (onText && !isMel() && onHoverRequested && nameAt(cursor.position(), &start, &end)) {
+        // 同じ名前の説明を出している間は、問い合わせ直さない。
+        const QPoint global = viewport()->mapToGlobal(position);
+        if (!hover_ || !hover_->isVisible() || !hover_->anchor().contains(global)) {
+            showHover(start, end);
+        }
+        return;
+    }
+    const QStringList problems = onText ? problemsAt(cursor.position()) : QStringList();
+    if (!problems.isEmpty()) {
+        // 名前でない位置(記号・文字列など)やMELのタブの、問題の説明。
+        if (!hover_) {
+            hover_ = new HoverPopup(this);
+        }
+        hover_->showInfo(HoverInfo(), QRect(viewport()->mapToGlobal(rect.topLeft()), rect.size()), font(), problems);
+        return;
+    }
+    if (hover_ && hover_->isVisible() && !hover_->anchor().contains(viewport()->mapToGlobal(position))) {
+        hover_->scheduleHide();  // 小窓へマウスを移す途中かもしれないので、すぐには閉じない。
+    }
+}
+
 int CodeEditor::nameEndAtCursor() const {
     int start = 0;
     int end = 0;
@@ -253,48 +290,24 @@ bool CodeEditor::viewportEvent(QEvent* event) {
             }
         }
     }
-    if (event->type() == QEvent::ToolTip && !diagnostics_.isEmpty() && (isMel() || !onHoverRequested)) {
-        // MELのタブなど名前の説明が無い場合も、問題の説明は出す。
-        auto help = static_cast<QHelpEvent*>(event);
-        const QTextCursor cursor = cursorForPosition(help->pos());
-        const QStringList problems = problemsAt(cursor.position());
-        if (!problems.isEmpty()) {
-            if (!hover_) {
-                hover_ = new HoverPopup(this);
-            }
-            const QRect rect = cursorRect(cursor);
-            hover_->showInfo(HoverInfo(), QRect(viewport()->mapToGlobal(rect.topLeft()), rect.size()), font(), problems);
-        }
+    if (event->type() == QEvent::ToolTip) {
+        // Qtのツールチップ(マウスが少し止まった合図)。Mayaの「Popup Help」がオフだとMayaがこの合図を止めるので、
+        // 普段は下のMouseMoveの自前のタイマーで出す。届いた場合(テストなど)も同じ処理をする。
+        hoverAt(static_cast<QHelpEvent*>(event)->pos());
         return true;
     }
-    if (event->type() == QEvent::ToolTip && !isMel() && onHoverRequested) {
-        // マウスが少し止まった: その位置が名前の上なら説明を出す。
-        auto help = static_cast<QHelpEvent*>(event);
-        const QTextCursor cursor = cursorForPosition(help->pos());
-        int start = 0;
-        int end = 0;
-        // cursorForPositionは行末より右や最後の行より下でも近い文字の位置を返すので、文字の上にあるかを確かめる。
-        const QRect rect = cursorRect(cursor);
-        const bool onText = qAbs(help->pos().x() - rect.center().x()) <= fontMetrics().averageCharWidth() * 2
-                            && help->pos().y() >= rect.top() && help->pos().y() <= rect.bottom();
-        if (onText && nameAt(cursor.position(), &start, &end)) {
-            // 同じ名前の説明を出している間は、問い合わせ直さない。
-            const QPoint global = viewport()->mapToGlobal(help->pos());
-            if (!hover_ || !hover_->anchor().contains(global)) {
-                showHover(start, end);
-            }
-        } else if (onText && !problemsAt(cursor.position()).isEmpty()) {
-            // 名前でない位置(記号・文字列など)の問題の説明。
-            if (!hover_) {
-                hover_ = new HoverPopup(this);
-            }
-            const QRect rect = cursorRect(cursor);
-            hover_->showInfo(HoverInfo(), QRect(viewport()->mapToGlobal(rect.topLeft()), rect.size()), font(),
-                             problemsAt(cursor.position()));
+    if (event->type() == QEvent::MouseMove) {
+        // ボタンを押していないマウスの移動: 止まってから0.5秒後に、その位置の説明を出す(VS Codeと同じ考え方)。
+        auto mouse = static_cast<QMouseEvent*>(event);
+        if (mouse->buttons() == Qt::NoButton) {
+            hoverPoint_ = mouse->pos();
+            hoverTimer_.start();
         } else {
-            hideHover();
+            hoverTimer_.stop();
         }
-        return true;
+    } else if (event->type() == QEvent::Leave || event->type() == QEvent::MouseButtonPress
+               || event->type() == QEvent::Wheel) {
+        hoverTimer_.stop();
     }
     if (hover_ && hover_->isVisible()) {
         if (event->type() == QEvent::MouseMove) {

@@ -295,6 +295,31 @@ def main(output_dir, finished):
         else:
             result['skipped'].append('signature_help_and_completion (no keyboard focus)')
 
+        # 10. ホバー: Maya の Help → Popup Help がオフでも(Maya が Qt のツールチップを止めても)、マウスを止めると出る。
+        popup_mode = cmds.help(query=True, popupMode=True)
+        cmds.help(popupMode=False)
+        try:
+            code.setPlainText('import json\njson.dumps({})')
+            wait(200)
+            cursor = code.textCursor()
+            cursor.setPosition(len('import json\njson.dum'))
+            point = code.cursorRect(cursor).center()
+            window.activateWindow()
+            QtTest.QTest.mouseMove(code.viewport(), point + QtCore.QPoint(40, 0))
+            wait(100)
+            QtTest.QTest.mouseMove(code.viewport(), point)
+            wait(1500)
+            hover = code.findChild(QtWidgets.QFrame, 'hoverPopup')
+            if QtWidgets.QApplication.activeWindow() is None:
+                result['skipped'].append('hover_without_popup_help (window not active)')
+            else:
+                assert hover is not None and hover.isVisible(), 'hover not shown with Popup Help off'
+                hover.grab().save(str(directory / '10-hover.png'))
+                hover.hide()
+                result['checks'].append('hover_without_popup_help')
+        finally:
+            cmds.help(popupMode=popup_mode)
+
         for tab in window.findChildren(QtWidgets.QPlainTextEdit, 'codeEditor'):
             tab.document().setModified(False)
         if static.isChecked():

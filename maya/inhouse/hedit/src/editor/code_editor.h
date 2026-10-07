@@ -325,6 +325,13 @@ private:
      */
     bool nameAt(int position, int* start, int* end) const;
 
+    /** @brief 表示部分の位置の名前(または問題)の説明を出す。マウスが止まったときに呼ぶ。
+     * @param position 表示部分(viewport)の中の位置。
+     * @details QtのツールチップのイベントはMayaの「Help → Popup Help」がオフだとMayaに止められるため、
+     * マウスの移動から自前のタイマー(0.5秒)で呼ぶ。
+     */
+    void hoverAt(const QPoint& position);
+
     /** @brief 名前の説明を求めて表示する。説明が無ければ閉じる。
      * @param start 名前の先頭の位置。
      * @param end 名前の終わりの位置。
@@ -389,6 +396,8 @@ private:
     HoverPopup* peek_ = nullptr;            ///< 定義をその場で見る表示。所有者はこの欄。
     HoverPopup* problemPopup_ = nullptr;    ///< F8で出す問題の説明(マウスの位置では閉じない)。所有者はこの欄。
     QTimer wordTimer_;                      ///< カーソルが止まって0.15秒後に同じ名前を強調する。
+    QTimer hoverTimer_;                     ///< マウスが止まって0.5秒後に名前の説明を出す。
+    QPoint hoverPoint_;                     ///< 最後にマウスが動いた位置(表示部分の座標)。
     QTimer diffTimer_;                      ///< 入力が止まって0.3秒後に差分を求め直す。
     QTimer markerTimer_;                    ///< スクロールバーの印をまとめて描き直す。
 };

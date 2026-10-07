@@ -539,6 +539,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Claude Code | 2026-10-08 | maya/inhouse/hedit(src/editor/code_editor.*・tests/vscode_features_smoke.py・docs・release/*.mll)・maya/modules/hedit.mod | hedit 0.4.2: MayaのHelp→Popup Helpがオフだとホバーが出ない問題を修正(Mayaが QEvent::ToolTip を止めるため、マウス移動から0.5秒の自前タイマーで出す)。2022〜2027でビルド・単体テスト合格、Popup Helpオフでのホバーを含むGUIテストを2022/2024/2027で合格。未コミット。 |
 | Claude Code | 2026-10-07 | maya/inhouse/hedit(src/editor/output_panel.*・src/plugin/output_capture.cpp・src/core/history_text.cpp・tests/ui_smoke.cpp・docs・release/*.mll) | 出力欄のさらなる高速化(0.4.1に追加): 出力が続くほど描き直しの間隔を広げる、5,000行を超える分は最初から入れない、取り込みの軽量化。2027でエラー5,000件(8行)4.7秒→3.9秒(基準3.4秒)。2022〜2027でビルド・単体テスト合格、出力のGUIテストは2022/2024/2027合格。未コミット。 |
 | Claude Code | 2026-10-07 | maya/inhouse/hedit(src/plugin/output_capture.*・editor_host.cpp・src/core/history_text.*・src/editor/output_panel.cpp・editor_preferences.*・main_window*.cpp・editor.h・tests・docs・release/*.mll)・maya/modules/hedit.mod | hedit 0.4.1: 出力欄の高速化。既定の取り込みを非表示reporterからMCommandMessageの整形に変更(Exact Script Editor output formatで旧方式)、その場の描き直しを100msごとに、Maya 2022の書き方に対応。2027でエラー5,000件(8行)8.5秒→4.7秒(標準SE 7.1秒)。2022〜2027でビルド・単体テスト合格、出力のGUIテストは2022/2024/2027(output_formatは2023/2025/2026も)合格。未コミット。 |
 | Claude Code | 2026-10-07 | docs/research/hedit-output-perf-20261007.md(ローカル)・計測用スクリプトはscratchpad | hedit出力欄と標準Script Editorの速度比較(Maya 2027/2024、displayError 5,000回)。heditは表示時に標準より1〜4割遅く、閉じていても非表示reporterの分の時間がかかる。コード変更なし。 |
