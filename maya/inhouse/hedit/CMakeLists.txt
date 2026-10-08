@@ -17,6 +17,13 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "CMakeTargets")
 # include the project setting file
 include("$ENV{DEVKIT_LOCATION}/cmake/pluginEntry.cmake")
 
+# devkit(cmake/devkit.cmake)は全てのビルドに/Zi(コンパイラーとリンカーで共有する.pdbへデバッグ情報を書く)を付ける。
+# /Ziでは.objがその.pdbを指す識別子を毎回ランダムに作るため、/Brepro(下)を付けても.mllのハッシュが変わる。
+# デバッグ情報を.objへ直接埋め込む/Z7に置き換える(リンカーは今までどおりhedit.pdbを作る)。
+if(MSVC)
+    string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+endif()
+
 # MayaのSDKには未同梱のQtデバッグ用プラグインを参照するCMake情報がある。
 # moc不要の実装なので、使用するReleaseのQtライブラリだけを明示する。
 if(MAYA_VERSION VERSION_GREATER_EQUAL 2025)
@@ -204,8 +211,16 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 if(MSVC)
     # .mllに入るpdbの場所を、作業フォルダーの絶対パスではなくファイル名だけにする(/PDBALTPATH)。
     # 制御フローガード(/guard:cf)で、不正な関数呼出しを防ぐ保護を有効にする。
-    target_compile_options(${PROJECT_NAME} PRIVATE /guard:cf)
-    target_link_options(${PROJECT_NAME} PRIVATE /guard:cf /PDBALTPATH:hedit.pdb)
+    # /Brepro: 同じソースからは同じ.mllを作る(再現可能なビルド)。既定ではリンクした時刻や、デバッグ情報の識別子
+    # (毎回ランダム)がファイルに入るので、中身を変えずにビルドし直してもハッシュが変わる。ウイルス対策ソフトや
+    # Windowsの評判の判定は「初めて見るハッシュ」を疑うため、リリース以外の再ビルドで新しいハッシュを増やさない。
+    target_compile_options(${PROJECT_NAME} PRIVATE /guard:cf /Brepro)
+    target_link_options(${PROJECT_NAME} PRIVATE /guard:cf /PDBALTPATH:hedit.pdb /Brepro)
+    # リンカーは前回のhedit.pdbへ追記するため、.pdbの中身(と、それから求める.mllの識別子)がビルドのたびに変わる。
+    # リンクの直前に消し、毎回新しく作らせる。
+    add_custom_command(TARGET ${PROJECT_NAME} PRE_LINK
+                       COMMAND "${CMAKE_COMMAND}" -E rm -f "$<TARGET_PDB_FILE:${PROJECT_NAME}>"
+                       COMMENT "Removing the previous hedit.pdb for a reproducible link")
 
     # ファイル情報(版・製品名)。src/version.hの版から作る。
     string(REPLACE "." ";" HEDIT_VERSION_PARTS "${HEDIT_VERSION}")

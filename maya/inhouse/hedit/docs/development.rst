@@ -338,6 +338,12 @@ Windows で、Visual Studio と Maya の devkit が必要です。親リポジ�
 ``tools/build_maya_plugin.py`` が Visual Studio・CMake・ツールセットを自動検出し、必要な devkit を
 インストール済みの Maya から生成します。
 
+ビルドは再現可能です(同じソース・同じビルドフォルダーなら、何度ビルドしても ``hedit.mll`` のハッシュが同じ)。
+``CMakeLists.txt`` で、コンパイラーとリンカーに ``/Brepro`` を付け、devkit が付ける ``/Zi`` を ``/Z7`` に置き換え、
+リンクの直前に前回の ``hedit.pdb`` を消しています(どれか1つでも欠けると、ビルドのたびにハッシュが変わります)。
+ウイルス対策ソフトや Windows の評判の判定は「初めて見るハッシュ」を疑うため、リリース以外の再ビルドで新しいハッシュを増やさないためです。
+ビルドフォルダーの場所が違う PC では、デバッグ情報に入るパスが違うので、ハッシュは一致しません。
+
 .. code-block:: powershell
 
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/build_maya_plugin.py maya/inhouse/hedit --versions 2022 2023 2024 2025 2026 2027
