@@ -6,7 +6,7 @@ from functools import partial
 import re
 
 import hlib
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class ControlRig:
@@ -204,7 +204,7 @@ class ControlRig:
             key = rig.root.getUuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.events.ScriptJobs()
+            jobs = hlib.common.ScriptJobs()
             for name in ("lod", "enabled"):
                 jobs.add(
                     name,

@@ -7,7 +7,7 @@ import math
 from hlib.maths import Matrix
 
 from hrig.setups.swingTwist import SwingTwist
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class RotationFollow(SwingTwist):

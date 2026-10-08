@@ -3,15 +3,13 @@
 import maya.api.OpenMaya as om2
 
 from .._core.fastWrite import set_attr, set_plug
-from .._core.registry import plug_wrapper
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators._safe import safe_edit
-from ..decorators.undo import undoChunk
+from ..common._fast import fast_edit, is_fast
+from ..common._safe import safe_edit
+from ..decorator import undoChunk
 from ..maths import Matrix
 from .plug import Plug
 
 
-@plug_wrapper("matrix")
 class MatrixPlug(Plug):
     """matrixアトリビュート用のPlug。対象アトリビュートの値だけを扱う。"""
 

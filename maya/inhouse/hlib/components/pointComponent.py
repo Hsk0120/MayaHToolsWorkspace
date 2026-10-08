@@ -6,9 +6,10 @@ from maya.api.OpenMaya import MSpace
 
 from .._core import geometryEdit as geometry_edit
 from .._core.flags import flag_aliases
+from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from .component import Component, Components
 
 
@@ -158,6 +159,70 @@ class PointComponent(Component):
         """
         ws = world_space(worldSpace)
         return self._set_coordinate(2, value, ws=worldSpace)
+
+    @_getter_alias(getPosition)
+    def position(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPosition(*args, **kwargs)
+
+    @_getter_alias(getPositionX)
+    def positionX(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPositionX(*args, **kwargs)
+
+    @_getter_alias(getPositionY)
+    def positionY(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPositionY(*args, **kwargs)
+
+    @_getter_alias(getPositionZ)
+    def positionZ(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPositionZ(*args, **kwargs)
 
 
 class PointComponents(Components):
@@ -386,3 +451,67 @@ class PointComponents(Components):
         rows = [[2.0 * pivot[i] - value if i in mirrored_axes else value for i, value in enumerate(point)] for point in points]
         self.setPositions(rows, ws=ws)
         return self
+
+    @_getter_alias(getPositionX)
+    def positionX(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPositionX(*args, **kwargs)
+
+    @_getter_alias(getPositionY)
+    def positionY(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPositionY(*args, **kwargs)
+
+    @_getter_alias(getPositionZ)
+    def positionZ(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPositionZ(*args, **kwargs)
+
+    @_getter_alias(getPosition)
+    def position(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPosition(*args, **kwargs)

@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib.ui import Color
+from hlib.common import Color
 
 
 class ColorTest(unittest.TestCase):

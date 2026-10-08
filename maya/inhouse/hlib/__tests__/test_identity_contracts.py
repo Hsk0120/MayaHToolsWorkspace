@@ -65,7 +65,7 @@ class IdentityContractTest(unittest.TestCase):
 
     def test_mixed_rejected(self):
         """列全体の形式を変換前に検証する。"""
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         n=Node(cmds.createNode('joint'))
         for values in ([n.getName(),n],[n,n.getName()]):
             with self.assertRaises(TypeError):

@@ -2,9 +2,9 @@
 
 ## 基本方針
 
-- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`scene`・`ui`・`environment`・`events`・`json`・`utils`・`decorators` を基本とする。シーン内の状態・関係は `scene`、Maya標準UIと表示色は `ui`、作業環境・導入状態は `environment`、通知・遅延実行は `events`、汎用関数は `utils` に置く。個別サービスごとにフォルダを増やさず、`hlib_*` も同じ分類に合わせる。
+- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`json` とする。シーン状態・関係、Maya標準UI・表示色、作業環境・導入状態、イベント・遅延実行、汎用処理は `common` 直下へ置き、領域別のサブフォルダは増やさない。通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py` に置く。内部基盤は `_core`、文書は `_docs` とし、`hlib_*` もこの責務の分類に合わせる。
 
-- `hlib.Object` (`object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。
+- `Object` (`_core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from hlib._core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from hlib._core import extensions` とし、ルート属性や旧モジュールパスは残さない。
 
 - hlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
 
@@ -44,14 +44,16 @@
 ## 実装ルール
 
 - Maya依存コードでは既存の `maya.api.OpenMaya`、ラッパー、共通ヘルパーを優先して再利用する。
-- `hlib` のノード・plug型は、既存の `@node_wrapper` / `@plug_wrapper` と自動発見・登録の仕組みに合わせる。不要な手動登録を追加しない。
-- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
-- シーンを変更する処理は既存のUndo対応に従い、必要なら `hlib.decorators.undo` を使う。
+- `hlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`json`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_hlib_exports.py` で公開漏れを検査する。
+- Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応を分け、登録済み型からのラッパー選択は既存の `_core/registry.py` の規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
+- 複数形クラスの公開メソッドは通常の `def` で明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数APIの自動全公開は行わず、既存の引数・戻り値・専用集約処理を維持する。
+- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
+- シーンを変更する処理は既存のUndo対応に従い、必要なら `hlib.decorator` を使う。
 - HToolsの新規ツールはカテゴリ内の既存パターンと動的メニュー登録の条件に合わせる。
 - UIはPySide6優先、PySide2フォールバックを維持し、対象MayaのQtで利用できるAPIだけを使う。
 - 相対リソースパスは `__file__` を基準にする。ユーザー環境の `Maya.env`、認証情報、トークンを無断で変更・記録しない。
 - Slackなど外部サービスへ実際に送信する処理は、明示的な依頼なしに実行しない。
-- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.environment`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
+- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.common`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
 
 ## MayaとVS Codeの実行
 
@@ -68,7 +70,7 @@
 - Maya依存コードは通常のPython環境でimportできると仮定せず、必要なら構文チェックとMaya内実行を分けて報告する。
 - UI・起動処理の変更では、対象Mayaでの起動、メニュー表示、操作結果を確認する。
 - 静的解析(Pylance/pyright)の設定はリポジトリ直下の `pyrightconfig.json`。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
-- `hlib.createNode` など実行時に動的公開される名前は、`hlib/__init__.py`・`hlib/cmds/__init__.py`・`hlib/nodes/__init__.py` の `if TYPE_CHECKING:` ブロックで静的解析へ宣言している。コマンドやノードラッパーを追加したら同ブロックにも追記する(`test_typing_exports.py` が不一致を検出する)。
+- 静的解析には通常の明示importを公開と補完の共通入口として使う。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_hlib_exports.py` で不一致を検査する。
 - 変更後は可能な限り対象を絞った検証を先に行い、実行できなかった検証項目と理由を明記する。
 
 ## Gitと外部依存

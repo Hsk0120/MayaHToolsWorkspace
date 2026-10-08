@@ -1,12 +1,12 @@
 揺れ計算とポーズ補間
 ====================
 
-``hlib.utils.DampedSpring`` は等間隔の数値列を減衰ばねで処理します。
+``hlib.common.DampedSpring`` は等間隔の数値列を減衰ばねで処理します。
 Mayaノードを生成せず、Python標準ライブラリだけで計算します。
 
 .. code-block:: python
 
-   from hlib.utils import DampedSpring
+   from hlib.common import DampedSpring
 
    result = DampedSpring.solve(
        [(0.0,), (30.0,), (30.0,)],

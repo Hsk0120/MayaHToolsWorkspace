@@ -1,0 +1,561 @@
+構成とドキュメント更新
+======================
+
+.. _tool-undo-chunk:
+
+ツール単位のUndo
+----------------
+
+通常の利用では、hlibの編集コマンドやメソッドをそのまま呼び出します。
+作成・削除・複製・グループ化・選択・キー設定・ベイク・コンストレイント作成は
+各コマンド内で ``undoChunk`` を使い、複数の内部操作を一回のUndoにまとめます。
+アトリビュート・トランスフォーム・コンポーネントの編集や、ウェイト移送とjoint削除の
+複合処理も、対応するメソッド内でチャンクを管理します。
+複合アトリビュートの ``CompoundPlug.set()`` は全子アトリビュートを一回で戻します。
+``preservedSelection()`` は選択の復元もUndo対応のコマンドで行い、
+ブロック内の編集と選択変更をまとめてUndo／Redoします。
+タイムスライダーの範囲変更はMayaのバージョンによりUndo対応が異なります。
+各メソッドの制限を参照してください。
+
+複数の公開操作をまとめたツールを開発するときに限り、外側でもまとめます。
+
+.. code-block:: python
+
+   import hlib
+   from hlib.decorator import undoChunk
+
+   @undoChunk("createControl")
+   def create_control():
+       node = hlib.createNode("transform", name="control")
+       node.getPlug("visibility").set(False)
+       return node
+
+このツールでは作成とアトリビュート変更を一回のUndoで戻せます。内部の通常チャンクは
+外側のチャンクへまとめられ、Undoキューには外側の名前が表示されます。
+``undoTransaction`` のチャンクはロールバックの境界なので、この省略の対象にしません。
+処理ブロックをまとめる場合は ``with undoChunk("処理名"):`` も使用できます。
+デコレータには括弧が必要です。名前の省略時はMayaの既定表示を使います。
+
+照会やラッパー取得はチャンクの対象にしません。時刻変更・UI表示・ファイル操作・
+プラグイン管理など、Maya標準のUndoで戻せない操作をUndo可能にするものではありません。
+``SkinCluster.setWeights()`` と ``loadWeights()`` もUndo／Redoに対応します。
+通常のシーン編集はUndo対応のMayaコマンドを使います。対応メソッドの
+``fast=True`` はOpenMayaへ直接書き込み、Undo対象外です（:doc:`fast_edit`）。
+例外時はチャンクを閉じますが、
+完了済み操作を自動ロールバックしません。
+
+例外時に完了済みの操作も自動でロールバックしたい場合は、``undoChunk`` の代わりに
+``undoTransaction`` を使用します。ブロック内で例外が発生すると、チャンクを閉じたうえで
+``cmds.undo()`` を1回実行してブロック内のUndo対象操作を巻き戻してから、元の例外をそのまま
+再送出します。正常終了時は ``undoChunk`` と同様、通常の1回のUndoにまとまります。
+Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外の変更は復元できません。
+ロールバック自体の失敗は抑制されるため、全変更の復元を保証するものではありません。
+
+.. code-block:: python
+
+   from hlib.decorator import undoTransaction
+
+   with undoTransaction("importRig"):
+       rig_root = hlib.createNode("transform", name="rig")
+       # ここで例外が発生すると rig の作成も含めて全て巻き戻る
+       validate_rig(rig_root)
+
+パッケージ構成
+--------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - パッケージ
+     - 役割
+   * - ``nodes``
+     - Node、Transform、Joint、Mesh、NurbsCurve、IkHandle、各種 Constraint ラッパー
+   * - ``plugs``
+     - アトリビュート型に応じた Plug ラッパー、配列・複合アトリビュート
+   * - ``components``
+     - Vertex/CV/Edge/Face/UV とその複数形。シーンを参照する座標コンポーネント
+   * - ``common``
+     - シーン状態・関係、Maya標準UIと表示色、環境・導入状態、イベント、
+       汎用計算・FBX・参照操作・進捗表示など、基本型以外の共通機能
+   * - ``maths``
+     - OpenMaya API 2.0 の型を継承した可変の値型。Vector・Translation・Scale・Shear は
+       ``MVector``、Quaternion は ``MQuaternion``、EulerRotation は ``MEulerRotation``、
+       Matrix は ``MMatrix`` の派生で、om2 の関数へそのまま渡せ、演算の意味も om2 に従う
+       (ハッシュ不可)。``easing`` だけは標準の ``math`` のみを使う
+   * - ``cmds``
+     - ``maya.cmds`` 相当の手続き的 API（createNode、ls、constraint）
+   * - ``decorator.py``
+     - Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの
+       joint姿勢編集、画面表示の一時停止
+   * - ``json``
+     - JSONの読み書き、型付き状態の保存・復元
+   * - ``logger.py``
+     - ログ・通知・出力の共通入口
+   * - ``_core``
+     - Object共通基底、型登録・選択、拡張管理、初期化、再読み込みの内部基盤
+
+新規ファイルは用途に対応する既存分類へ追加します。
+基本5領域に該当しないMaya操作・参照と汎用処理は ``common`` 直下へ追加します。
+デコレーター・コンテキストマネージャーは直下の ``decorator.py``、
+ログ・通知は直下の ``logger.py`` に置き、どの領域からも同じ入口を使います。
+リグ固有の構築は ``hrig.setups``、Maya標準の関係型は ``common`` に置きます。
+入力の種類判別は ``_core/object.py``、各型への解決は ``Node``・``Plug``・``Component`` が担当し、
+``Object`` の継承関係は維持し、取得入口は ``from hlib._core.object import Object`` です。
+``_core``、``__tests__``、``_docs`` はそれぞれ内部基盤、検証、文書用です。
+旧配置の互換ファイルは置かず、使用側のimportを正式な配置へ更新します。
+
+.. code-block:: python
+
+   from hlib import logger, json
+   from hlib.common import Workspace, Preferences, Plugin, ScriptJob
+   from hlib.decorator import undoChunk
+   from hlib.common.fbx import importFbx
+   from hlib.common.references import listReferences
+
+.. include:: _generated/full_class_diagram.rst
+
+API の生成方針
+--------------
+
+Sphinx AutoAPI が Python ソースと docstring を静的解析します。
+ビルド時に hlib・Maya を import せず、テストスクリプトも実行しません。
+``__tests__`` は生成対象から除外しています。
+
+公開クラスとコマンドは ``__init__.py`` の明示importと ``__all__`` から解析します。
+``common`` の遅延公開名は ``if TYPE_CHECKING:`` のimportでも宣言します。
+各クラスの詳細は、定義元のモジュール（例: ``hlib.nodes.joint``）を参照してください。
+継承したメソッドは基底クラスのページを参照します。
+非公開メソッドと特殊メソッドも掲載し、初期化の引数は ``__init__`` の詳細に記載します。
+
+クラスごとに独立したページを生成します。
+クラスの説明の後は、hlib の API 方針(Maya へ問い合わせる処理やシーンを変える処理は
+メソッド、保持している値はプロパティ)に合わせてメンバーを「メソッド」と
+「プロパティ・アトリビュート」の2つのまとまりに分け、メソッドを先に掲載します。
+各まとまりは、名前・シグネチャ・概要を並べた早見表と、
+アルファベット順の個々の説明で構成します。
+早見表では省略可能な引数を角括弧で、説明では既定値付きで表示します。
+どちらにも当てはまらない種類のメンバーがあれば「その他のメンバー」に掲載します。
+引数・戻り値・戻り値の型は docstring から生成し、API 名は実装に従います。
+表記用テンプレートは ``_templates/autoapi/python/class.rst`` で管理し、
+配色やナビゲーションは Sphinxdoc テーマと ``_static/custom.css`` を使用します。
+``_templates/autoapi/python/module.rst`` は ``hlib.cmds`` のコマンドページだけを
+独自の書式にし、それ以外のモジュールページは sphinx-autoapi 同梱の既定テンプレートで
+生成します。
+クラス継承図の Mermaid は同梱せず、``conf.py`` で版と SRI ハッシュを固定して
+jsDelivr から読み込みます(図の表示にはネットワーク接続が必要です)。
+
+更新方法
+--------
+
+関数・クラスの説明は実装の docstring を更新します。
+既存コードに合わせて Google 形式の ``Args:``、``Returns:``、``Raises:`` を
+使用すると、Napoleon 拡張が整形します。
+引数は ``self`` / ``cls`` を除いて記載し、既定値・単位・省略時の動作を説明します。
+値を返さない処理は ``Returns:`` に ``None``、ジェネレータは ``Yields:``、
+必ず例外を送出する処理は ``NoReturn`` として記載します。
+新しいモジュールは hlib 配下に追加すると次回ビルドで検出されます。
+利用手順はこのディレクトリの ``.rst`` に記述します。
+
+ビルド環境の作成とコマンドは ``maya/inhouse/hlib/_docs/README.md`` を参照してください。
+生成 HTML は ``maya/inhouse/hlib/_docs/_build/html`` に出力し、Git には含めません。
+
+参考: `Sphinx AutoAPI の公式ドキュメント <https://sphinx-autoapi.readthedocs.io/en/latest/>`_
+
+
+maya.cmds と OpenMaya API 2.0 の使い分け
+------------------------------------------
+
+hlib 内部の実装では、``maya.cmds``(``cmds``)は **シーンに変化を与え、かつ
+Undo 対応が必要な操作** に使用します(ノード・アトリビュート・接続の
+作成/削除/設定、親子付け、選択変更、名前空間の作成/移動/削除など)。
+これらは既存の ``@undoChunk`` デコレータ(``hlib/decorator.py``)や
+``cmds.undoInfo`` の Undo チャンクに乗せる前提で cmds を使い続けます。
+
+それ以外の **読み取り専用の照会** は ``maya.api.OpenMaya``(``om2``、
+必要に応じて ``maya.api.OpenMayaAnim`` の ``oma2``)を直接使い、MEL コマンドの
+文字列変換・往復コストを避けます。代表例:
+
+- ``MSelectionList`` によるノード名解決・存在確認(``cmds.objExists`` の代替)
+- ``MPlug`` の ``asDouble``/``asInt``/``asBool``/``asString``/``asMAngle``/
+  ``asMDistance``/``asMTime`` 等によるアトリビュート値の取得
+  (``plugs/plug.py`` の ``Plug.get()`` を参照。角度はrad、距離はcm、時間は秒。
+  UI単位を扱うコマンド層との境界でだけ変換する)
+- ``MFnDependencyNode.getConnections()``/``MPlug.connectedTo()`` による接続の列挙
+- ``MGlobal.getActiveSelectionList()`` による選択状態の取得。
+  復元はUndo対応の ``cmds.select`` で行う（``preservedSelection`` を参照）。
+- ``MNamespace`` による名前空間の存在確認・列挙(``common/namespace.py``)
+- ``MFnGeometryFilter.getOutputGeometry()`` による blendShape/cluster 等の
+  デフォーマの出力ジオメトリ取得
+
+一方で、``cmds.getClassification``、``cmds.aliasAttr``、
+``cmds.editDisplayLayerMembers``、拘束・blendShape・skinCluster の
+編集モード呼び出し(``cmds.blendShape(edit=True, ...)`` 等)のように、
+**Maya API 2.0 に対応する API が存在しない MEL 専用コマンド** は、
+読み取り専用であっても cmds のまま残します。無理に om2 で再実装せず、
+対応する API が無いことを実装コメントか docstring に明記してください。
+
+Mayaコマンド独自の判定をそのまま提供する処理も例外です。
+``Node.getHistory()`` は ``listHistory`` の構築履歴順、
+``SkinCluster.getUnusedInfluences()`` は ``weightedInfluence`` の使用判定、
+``Node.resetAttrs()`` は ``getAttr(settable=True)`` の書き込み可否を使用します。
+APIのグラフ走査や個別フラグから似た判定を再構築して意味を変えないためです。
+
+``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶためのアトリビュート型名は、
+``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列(``PlugRegistry`` のキー)を、
+アトリビュート定義から om2 で求めます(``_core/attributeType.py`` の ``attributeType()``。
+``MFnNumericAttribute.numericType()``、``MFnUnitAttribute``・enum・message・matrix の
+apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデータ型は
+``MFnAttribute.getAddAttrCmd()`` の型指定)。``cmds.getAttr(type=True)`` は使いません。
+存在しない配列要素を問い合わせると要素を作る(blendShape の ``weight[i]`` では
+``parentDirectory[i]`` なども作られる)、nurbsSurface の ``patchUVIds`` の存在しない要素で
+Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・``face[i]`` など)で例外になる、
+といった副作用と失敗を避けるためです。``attributeType()`` は値を読まないため評価も
+起こしません(例外は次の「値によって型が変わるアトリビュート」)。
+
+- mesh の ``controlPoints`` はアトリビュート定義が ``double3`` でも ``cmds.getAttr(type=True)`` が
+  ``float3`` を返すため、このアトリビュートだけ ``float3`` として扱います(nurbsCurve などは ``double3``)。
+- 値によって型が変わるアトリビュート(generic アトリビュート、任意のデータを受け付ける typed アトリビュート、
+  ``geometry`` 型)は、アトリビュート定義だけでは型名が決まらないため ``attributeType()`` は
+  ``None`` を返します。``Plug(node, mplug)`` は、generic アトリビュートと任意のデータを受け付ける
+  typed アトリビュート(``MFnData.kAny``。``choice`` の ``input``/``output`` など)が行列を保持して
+  いれば、``cmds.getAttr(type=True)`` と同じく ``matrix`` として ``MatrixPlug`` を選びます
+  (``choice`` ノードで行列を切り替える構成など。``plugs/plug.py`` の ``_held_matrix_type()``)。
+  保持する値の型は次の順に求め、評価はできるだけ避けます。
+
+  1. 読み取りできないアトリビュート(``MFnAttribute.readable`` が偽。transform 系ノード共通の
+     generic アトリビュート ``geometry`` など)と、存在しない要素は値を読みません。field 系ノードでは
+     ``geometry`` の評価で ``falloffCurve[0]`` などの要素が作られるため、読むと
+     ``Node(field).getPlugs()`` がシーンを変更してしまいます。
+  2. 入力接続があれば、接続元のアトリビュートの型を使います(``choice.input[0]`` の接続元が
+     ``worldMatrix[0]`` なら ``matrix``)。接続元の型がアトリビュート定義で決まる場合は値を読まず、
+     上流の評価を起こしません。接続元も値によって型が変わるアトリビュートなら、接続元に同じ規則を
+     適用して辿ります。辿った先で入力接続の無い接続元は値を読むため、上流の評価が起こります
+     (``choice2.input[0]`` ← ``choice1.output`` では ``choice1`` を、``choice.input[0]`` ←
+     ``unitConversion.output`` では ``unitConversion`` を評価します)。
+  3. 入力接続が無ければ値を読みます。ノードが計算する出力(``choice.output`` など)は
+     ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こります。評価によって
+     ワールド空間の出力の要素が作られる場合もあります(インスタンス化されたシェイプの
+     2つ目のインスタンスを拘束元にした geometryConstraint の ``constraintGeometry`` では、
+     シェイプの ``worldMesh[0]`` が作られます。``cmds.getAttr(type=True)`` でも同じです)。
+
+  ``double3`` などの数値の組を保持する場合は子を持たず ``Double3Plug`` で扱えないため、
+  基底の ``Plug`` のままにします(``get()`` は tuple)。``geometry`` 型の typed アトリビュート
+  (デフォーマの ``inputGeometry`` など)は対象外で、値を読みません。
+- Maya 内部のデータ型(``cmds.addAttr`` で作成できない ``nurbsPatchUVIds``・``polyFaces``
+  など。``is_internal_data_type()``)の存在しない配列要素は、値を読むと Maya が異常終了する
+  場合があるため、``Plug.get()`` と ``ArrayPlug.getElement(create=True)`` が ``RuntimeError`` に
+  します(maya.cmds・MPlug のどちらでも値を読みません)。
+- 既存のプラグについて ``cmds.getAttr(type=True)`` と一致することを
+  ``test_cmds_parity.py`` で検証しています(2022・2027 で全ノード型の既存プラグを
+  突き合わせた確認では、値によって型が変わるアトリビュート以外はすべて一致)。テストでは
+  存在しない配列要素へ ``cmds.getAttr(type=True)`` を使いません(要素が作られ、
+  Maya が異常終了するアトリビュートもあるため)。
+
+そのため Plug の生成は、値によって型が変わるアトリビュートで値を読む場合(上記の評価と、評価による
+ワールド空間の出力の要素の作成)を除き、シーンを変更しません。要素の作成が必要な処理は
+``array[index].set(value)`` または接続で明示します。値設定なしで実体化だけが必要な場合は
+``array.getElement(index, create=True)`` を使います。所有ノードが削除済み、
+または動的アトリビュートが ``deleteAttr`` で削除済みの場合は、Plug の生成を ``RuntimeError`` にし、
+既存の Plug も無効(``Plug.isValid()`` が ``False``。``str()``・``getName()`` は空文字列、
+値の取得・設定と、アトリビュートの情報・接続の問い合わせは ``RuntimeError``)として扱います。
+削除済みのアトリビュートの MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの MPlug は
+古い値を返し、Undo の対象から外れた削除済みノードの MPlug は名前の問い合わせでも
+Maya を異常終了させるためです。動的アトリビュートの削除は Undo のためにアトリビュートの MObject が保持され
+``MObjectHandle.isValid()`` では判定できないため、所有ノードの
+``MFnDependencyNode.attributeClass()`` がそのアトリビュートを ``kInvalidAttr`` (ノードに無いアトリビュート)と
+返すかも確かめます(静的アトリビュートはノードが有効な間は常に存在するため確かめません)。
+生の ``om2.MPlug`` を受け取る変換(``Plug._mplug_name()``)も
+``Plug._mplug_attribute_exists()`` で同じ判定を行い、削除済みのアトリビュートは ``ValueError`` にします。
+MPlug・Plug を所有ノードへ解決する処理(``nodes/node.py`` の ``_resolve_node()`` と
+``Node._resolve_input()``)も、所有ノードが有効でアトリビュートだけが削除されている場合は
+``DeletedAttributeError`` (``ValueError`` と ``RuntimeError`` の両方の派生)にします。
+所有ノードへ解決すると削除済みの対象を黙って受け付けてしまうためで、``RuntimeError`` の
+派生にするのは、解決できない対象をすべて ``RuntimeError`` にする ``Node(...)`` の規則を
+保つためです。
+``Plug(node, mplug)`` は ``MPlug.node()`` と ``node`` の MObject を比べ、所有ノードではない
+``node`` を渡す誤用を静的アトリビュート・動的アトリビュートとも ``RuntimeError`` にします(静的アトリビュートは同じ型の
+別ノードにも存在し、``attributeClass()`` では検出できないため)。
+ただし Undo の対象から外れて削除されたノードの MPlug は ``MPlug.node()`` の時点で
+Maya が異常終了し、API では検出できません。hlib の内部でも MPlug を削除操作をまたいで
+保持せず、Plug(ノードの ``MObjectHandle`` を持つ)を保持してください。
+
+``Node(...)`` は入力の解決(名前の検索など)を ``__new__`` で1回だけ行い、結果を
+``__init__`` へ引き継ぎます。ラッパー型の選択のために解決をやり直さないでください
+(``Node`` の生成はシーン全体の列挙などで大量に呼ばれるため)。
+
+大量に呼ばれる処理の性能について、次を前提にしています(Maya 2022・2027 で transform と
+network を各 2000 個作成した実測。比較の基準は ``maya.cmds`` へ ``cmds.getAttr(type=True)`` で
+型を問い合わせていた以前の実装。倍率は実行ごと・Maya のバージョンごとに変動するため範囲で示します)。
+
+- ``Node(...)``・``node.getPlug()``・``hlib.ls()`` は以前の実装の約 0.3〜0.6 倍の時間です
+  (``Node(...)`` は約 0.3〜0.4 倍、``node.getPlug()`` は transform の ``tx`` で約 0.3〜0.5 倍、
+  DG ノードの動的アトリビュートで約 0.4〜0.6 倍)。``Plug(node, mplug)`` の所有ノードの確認
+  (``MPlug.node()`` との比較)を含みます。例外として、``Node(MPlug)``・``hlib.getNode(MPlug)``・
+  ``Node._resolve_input(MPlug)`` のように生の ``MPlug`` から所有ノードを解決する経路は、削除済みアトリビュートの
+  確認が加わるため以前の約 1.4 倍です(1 回あたり約 +1.4µs)。hlib 内部の頻繁な処理は
+  ``Node(mplug.getNode())`` (MObject)を使うため影響しません。
+- ``Plug.get()`` は読み方(``MPlug.asDouble`` など)をアトリビュート定義から Plug ごとに一度だけ選んで
+  保持するため、以前の約 0.4〜0.65 倍です(transform の ``tx`` は約 0.5〜0.65 倍、DG ノードの
+  動的アトリビュートは約 0.4〜0.5 倍)。値を読むたびに行う有効性の確認(動的アトリビュートは
+  ``attributeClass()``)はこの中に含まれます。
+- ``str(plug)``/``Plug.getFullName()`` は、DAG ノードの Plug で以前の約 2〜2.6 倍
+  (1 回あたり約 +1µs)です。以前は ``MPlug.name()`` をそのまま返していたため、同じ短い
+  名前のノードがあると曖昧な名前になっていました。一意な名前を返すために
+  ``MFnDependencyNode.hasUniqueName()`` を毎回問い合わせる必要があり(名前の一意性は
+  ほかのノードの作成・名前変更で変わるため、結果を保持できません)、この分は削れません。
+  DG ノードは一意性の確認が不要なため、静的アトリビュートで約 1.2 倍、アトリビュートの存在確認
+  (``attributeClass()``)が加わる動的アトリビュートで約 1.2〜1.6 倍です。名前を繰り返し使うループでは、
+  ``str(plug)`` を一度だけ求めて使い回すか、``plug.mplug()`` を直接使ってください。
+  判定の処理(``_require_valid()``・``getFullName()`` のアトリビュートの存在確認)は呼び出しの負荷を
+  避けるため ``_attribute_exists()`` と同じ内容を直接書いています。変更する場合は3か所を
+  そろえてください。
+
+変換の際は必ず ``cmds`` ベースの旧実装と ``om2`` ベースの新実装を
+同一ノードで比較するスクリプトを Maya 上で実行し、値の一致(特に単位変換と、
+周期 NURBS カーブの CV アドレッシングのような cmds 固有の挙動)を確認してから
+置き換えてください。
+
+一度限りの手動確認で終わらせず、将来の Maya バージョン変更やリファクタによる
+回帰を継続的に検知するため、``hlib/__tests__/test_cmds_parity.py`` に
+「hlib の戻り値と ``cmds`` の生の値を同一テスト内で突き合わせる」形の
+テストを追加してください。新しく cmds→om2 の置き換えを行った場合は、
+対応する突き合わせをこのファイルに追加するのが規約です
+(既に他ファイルでカバー済みの突き合わせの一覧は同ファイルの
+docstring を参照)。
+
+
+maya.cmds へ渡す名前と入力の正規化
+----------------------------------
+
+利用者向けの仕様は :doc:`cmds_interop` にまとめています。hlib の実装では次を守ります。
+
+- maya.cmds へ渡すプラグ名は ``Plug.getFullName()``、または ``Plug._plug_path()``/``Node._unique_node_name()``/``Object._input_name()`` で作ります。``MPlug.name()`` と
+  ``MFnDependencyNode.name()`` は短いノード名しか含まず、同じ短い名前のノード
+  (``grp1|dup`` と ``grp2|dup``)があると曖昧になるため、maya.cmds へ渡したり
+  重複判定のキーにしたりしません。例外は ``Plug.getFullName()`` の高速経路で、短い名前が
+  一意なノード(DG ノードと、``hasUniqueName()`` が真でインスタンス化されていない
+  アンダーワールド以外の DAG ノード)に限り ``MPlug.name()`` をそのまま返します(このとき ``MPlug.name()`` は
+  ``<最短一意名>.<アトリビュートパス>`` と一致します。``str(plug)`` は大量に呼ばれるため)。
+- ノード・アトリビュートを受け取るコマンドとメソッドは、``Object._input_name``/``Object._input_names``
+  (名前)、``Node._resolve_input`` (ノード。Plug は所有ノード、Component は所有シェイプ)、
+  ``Node._input_name`` (``parent`` などノードが必要な単一の引数。所有ノードの完全パス)、
+  ``Plug._resolve_input`` (アトリビュート)で入力を正規化します。``Object._input_name``/``Object._input_names`` は文字列を解決せずに
+  そのまま渡します。例外は、対応しない型が ``TypeError``、空・削除済みの対象が
+  ``ValueError``、解決できない(存在しない・一意でない)文字列が ``RuntimeError`` です。
+  ただし ``Node._resolve_input`` は削除済みの Node と、所有ノードが削除済みの Plug・Component を
+  そのまま(無効な所有ノードとして)返し、有効性の扱いは呼び出し側の API に任せます
+  (``Node(...)``/``hlib.getNode`` と ``hlib.addConstraint``/``Transform.addConstraint`` は
+  従来どおり ``RuntimeError``、``Node.isParentOf`` などの判定は ``False``)。所有ノードが
+  有効でアトリビュートだけが削除された Plug・MPlug は、返す Node で削除を表せないため ``Node._resolve_input`` でも
+  ``DeletedAttributeError`` (``ValueError``。``RuntimeError`` の派生でもある)です。
+- ``MSelectionList`` のアトリビュートの要素は ``getDagPath()`` を使えず、インスタンスの情報も
+  持たないため、所有ノードは ``Node._selection_owner()`` で求めます(元の文字列の
+  ノード部分から、名前が指すインスタンスを保持します)。
+- ``Components`` を maya.cmds へ渡すときは ``getCompactNames()`` で連続する番号を範囲指定に
+  まとめ、全番号の検証もコレクションごとに1回だけ行います。
+- Node・Plug など単一の対象を表すクラスに ``__len__``/``__iter__`` を追加しません。
+  maya.cmds がシーケンスとして展開してしまうためです。``__getitem__`` を持つ
+  ``ArrayPlug`` は同じ理由で maya.cmds へそのまま渡せないため、docstring と
+  :doc:`cmds_interop` に明記しています。
+- 仕様の検証は ``__tests__/test_cmds_interop.py`` (maya.cmds との受け渡し)と
+  ``__tests__/test_object_inputs.py`` (正規化の規則)に追加します。
+
+hlib内で独自プラグインを作らない方針
+------------------------------------
+
+hlib は ``MFnPlugin`` によるコマンド登録・ノード登録など、Maya 起動時に
+別途ロードが必要な**独自プラグインを一切同梱しません**。機能追加の際、
+「cmds/om2 だけでは実現できないので専用プラグインを作る」という選択肢は
+取らないでください。
+
+これは実際に、Maya 2022・2023 の ``playbackOptions`` がUndo履歴を作らない制限を
+補うため、``_core/_playback_range_command.py`` に専用の ``MPxCommand``
+(``hlibSetPlaybackRange``)を実装していたことがありましたが、以下の理由で
+撤去し、この方針として明文化しました。
+
+- プラグインは初回ロード時に Maya の「信頼されていない場所からのロード」
+  セキュリティ警告を発生させ、GUI操作(手動でのダイアログ承認)を要求する。
+  VS Code からの送信実行やバッチ処理を止めてしまう。
+- プラグインの登録・解除、``.mod`` や検索パスとの整合性など、hlib 本体とは
+  別種の保守コストが増える。
+- 対象の制限はMayaネイティブの既知の挙動であり、cmds/om2の使い分け方針
+  (前節参照)の範囲内で吸収できないものは、無理に回避せず制限として
+  docstring に明記するに留める(``TimeSlider.setPlaybackRange`` の
+  Maya 2022・2023 に関する記載を参照)。
+
+「Undo対応にしたいが cmds/om2 だけでは足りない」という要求が出た場合も、
+専用プラグインの新規作成ではなく、既存の ``undoChunk``/``undoTransaction``
+(前節参照)で表現できないか、または対象操作自体をMayaの制限として
+受け入れて文書化できないかを先に検討してください。
+
+コンポーネントの構成
+--------------------
+
+``components/component.py`` の ``Component`` / ``Components`` は、
+単体のシェイプ・番号の参照と、同一シェイプの要素群を担当します。
+``components/pointComponent.py`` の ``PointComponent`` / ``PointComponents`` は、
+XYZ 座標の取得・設定と一括ミラーを担当します。
+
+``vertex.py``、``cv.py``、``edge.py``、``face.py``、``uv.py`` には、
+それぞれ単体型と複数形をまとめます。Vertex / CV は PointComponent、
+Vertices / CVs は PointComponents を継承します。
+Edge / Face / UV は Component、Edges / Faces / UVs は Components を継承します。
+基底クラスは ``hlib.components`` から import できます。
+
+
+コマンドの追加
+--------------
+
+``cmds/<コマンド名>.py`` に同名の関数を定義し、``cmds/__init__.py`` の通常のimportと
+``__all__`` に公開名を追記します。ルートで使うコマンドは ``hlib/__init__.py`` にも
+明示importと ``__all__`` を追加します。同じ宣言を実行時の公開と静的解析に使います。
+追加・変更・削除後は ``hlib.reload()`` で反映します。
+非公開名（先頭が ``_``）、サブパッケージ、同名関数を持たないファイル、
+他モジュールから取り込んだ関数は公開対象外です。利用時は ``hlib.<コマンド名>(...)``
+として呼び出します。追記漏れは ``python tools/check_hlib_exports.py`` で検査します。
+モジュールの docstring に Synopsis、Return value、Related commands、Flags、
+Examples を記述すると、コマンド専用テンプレートで個別ページを生成します。
+
+Maya に対応するコマンドの関数名・ファイル名は Maya と同じキャメルケースに
+揃えます。例: ``createNode.py`` の ``createNode()``。公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCaseにします。
+
+
+クラス公開と型対応の追加
+------------------------
+
+``nodes``・``plugs``・``components``・``maths``・``json`` のクラスは、
+所属する ``__init__.py`` の通常のimportと ``__all__`` に明示します。
+``common`` はNode/Plugの初期化中に先行importしないよう、遅延公開の
+``_exports`` と静的解析用の ``if TYPE_CHECKING:`` に追加します。
+内部の ``_core`` や非公開クラスをルートへ展開しません。
+``maths.MSpace`` のような外部クラスの再公開も明示importで維持します。
+既存の内部例外 ``DeletedAttributeError`` はパッケージ公開に追加せず、
+検査ツールの理由付き非公開例外として扱います。
+
+Node/Plugの型対応は公開名と分けて、それぞれの ``__init__.py`` にある
+``_WRAPPER_CLASSES`` 辞書へ型名とクラスを追加します。
+登録済みの型からラッパーを選択する規則は維持するため、
+``Node(...)``・``hlib.getNode(...)``・``hlib.ls(...)`` では対象に応じたクラスが選ばれます。
+クラスの公開や型対応はモジュール走査・デコレーターで追加しません。
+
+追加・削除後は、リポジトリルートで次の検査を実行します。
+ソースを静的解析するため、Maya・hlibをimportせず実行できます。
+
+.. code-block:: powershell
+
+   python tools/check_hlib_exports.py
+
+実行時に宣言漏れを自動で補う処理はありません。
+公開名・型対応・複数形メソッドは、それぞれの正式な定義へ追加してください。
+
+
+nodes のファイル名
+-------------------
+
+``nodes/*.py`` のうち、``_WRAPPER_CLASSES`` で単一の Maya nodeType に
+1:1 対応するファイルは、``cmds/`` と同じ方針でその nodeType 文字列と同じ
+キャメルケースをファイル名に使います。例: 型名 ``nurbsCurve`` に対応する
+``NurbsCurve`` は ``nodes/nurbsCurve.py``。単語が1つの nodeType（``transform``、
+``joint``、``mesh``、``camera`` など）は元々小文字1語なので、ファイル名は
+変わりません。
+
+対応する Maya nodeType が無いファイル（``node.py``、``shape.py`` など、型文字列
+ではなく実行時のノード種別で判定するもの）は一般のlowerCamelCase規則を使います。
+単語が1つの場合は小文字のままです。
+
+``Constraint`` 系は1クラス1ファイルに分割しています。共通基底 ``Constraint``
+（nodeType を持たない）は ``constraint.py`` に残し、``ParentConstraint`` 〜
+``PointOnPolyConstraint`` の10種類はそれぞれ対応する nodeType 名のファイル
+（``parentConstraint.py``、``pointConstraint.py`` など）に1クラスずつ定義します。
+
+plugs のファイル名
+-------------------
+
+``plugs/*.py`` もlowerCamelCaseに統一します。
+``BoolPlug`` は ``boolPlug.py``、``DoubleLinearPlug`` は ``doubleLinearPlug.py``、
+``Double3Plug`` は ``double3Plug.py``、``MatrixPlug`` は ``matrixPlug.py`` に置きます。
+クラス名の単語区切りをファイル名にも反映し、``_plug`` という接尾辞は使いません。
+
+maths のファイル名
+-------------------
+
+``cmds`` はMayaに合わせたcamelCase、``nodes`` はMaya nodeTypeと同名にします。
+それ以外の実装モジュールもlowerCamelCase、クラスはPascalCase、公開メソッドはlowerCamelCaseです。
+例えば ``EulerRotation`` は ``maths/eulerRotation.py``、``ChannelBox`` は
+``common/channelBox.py`` に置きます。移動の値型は ``Translation``、
+回転の値型は回転順序を持つ ``EulerRotation`` に統一しています。
+
+この規則は ``common`` / ``_core`` や ``hlib_*`` 拡張にも適用します。
+例: ``common/scriptJob.py``、``_core/attributeType.py``。
+``__init__.py`` 等の特殊名と、テスト探索用 ``test_*.py`` / テスト用スクリプト、
+内部用の先頭 ``_`` とパッケージ名は維持します。
+
+Mayaの現在値を照会するAPIはメソッド、保持するデータはプロパティまたはフィールドにします。
+詳しい移行先は :doc:`api_naming` を参照してください。
+
+
+公開 API の配置
+---------------
+
+クラスは所属するサブパッケージから利用します。
+``hlib.nodes.Node``、``hlib.plugs.Plug``、``hlib.components.Vertex``、
+``hlib.common.Scene``、``hlib.maths.Matrix`` のように
+所属するパッケージから利用します。``hlib.reload()`` は再読み込みの入口です。
+``hlib.Node`` は利用できません。
+コマンドの実装は ``cmds`` に配置し、``cmds/__init__.py`` と ``hlib/__init__.py`` で明示公開します。
+利用者向けの構文・使用例は ``hlib.createNode()`` や ``hlib.ls()`` に統一します。
+``hlib.ls`` と ``hlib.cmds.ls`` は同じ関数です。追加・変更・削除は
+``hlib.reload()`` で両方に反映されます。既存の公開名（``reload`` や
+サブパッケージ名）と衝突するコマンドは ``hlib.cmds`` 側だけで利用できます。
+
+
+内部実装
+--------
+
+``hlib._core`` はObject共通基底・型登録・選択・拡張管理・初期化・再読み込みを担当する内部パッケージです。
+通常のツールではコマンド、各クラス、``hlib.reload()`` を利用します。
+種類判別や共通基底の判定が必要な場合は ``from hlib._core.object import Object`` を使います。
+登録・管理の取得入口は ``from hlib._core import extensions`` です。ルートには再公開せず、
+旧モジュールパスをimportする互換入口は用意しません。
+拡張の配置・依存確認・自動登録は :doc:`extensions` を参照してください。
+型対応は本体と外部拡張の ``nodes`` / ``plugs`` にある ``_WRAPPER_CLASSES`` で宣言します。
+複数形APIは通常の ``def`` で定義し、``Nodes`` の共通処理へ委譲します。
+旧パス ``hlib.core`` は廃止しました。
+
+内部処理の責務と再初期化
+------------------------
+
+``_core.attributeType`` はアトリビュート定義からの型判定と数値型の読み書き対応を管理します。
+``Plug`` は参照の寿命・公開操作を、``_core.fastWrite`` は更新時のロック・接続・範囲検査を担当します。
+読み取りと書き込みの単位規則はそれぞれの既存仕様に従い、同じ型でも無条件に共通化しません。
+シーンの値、ロック状態、範囲は永続キャッシュに保存しません。
+
+複数形クラスの検証は実際の呼出先メソッドを使います。
+共有引数の入口は ``def method(self, *args, **kwargs)`` として定義し、
+``Nodes._dispatch_shared`` へ渡します。要素別引数は ``callEach`` で渡します。
+各入口の ``__signature__`` は対応する単数メソッドから設定し、
+``inspect.signature`` で取得する既存の引数仕様を維持します。
+公開メソッドの作成や選択を実行時に行う仕組みではありません。
+同一引数では検証結果を実関数ごとに共有し、要素別引数では各入力を検証します。
+この共有は一回の呼出し内に限定し、派生クラスのoverrideやreloadに追従します。
+全件の引数検証後に保持順で実行し、途中失敗時の先行変更は自動で戻しません。
+
+reloadはimportの探索キャッシュを無効化して現在のモジュールを検出します。
+型登録表の再構築は ``_core.bootstrap``、各キャッシュの再生成は所有モジュール、
+標準型の登録後の任意拡張の登録は ``extensions`` が担当します。
+reload後はNode/Plug等のインスタンスを取得し直してください。
+
+JSONは用途別Snapshotが取得・形状検証・適用の固有処理を担当し、
+基底Snapshotが対象解決・全件検証・Undoを管理します。
+保存形式のversionやレコード構造を内部リファクタリングだけで変更しません。
+
+内部処理の参照方向
+------------------
+
+入力列の展開は ``Object._flatten_inputs()``、名前とNodeの混在検査は
+``Nodes._validate_inputs()`` が担当します。検査から展開へ戻る参照は作りません。
+``addAttr`` と ``executeDeferred`` はクラス側の共通処理へ委譲し、
+クラスから公開コマンドを呼び戻しません。
+コレクションの転送生成は ``_core.collection``、実行方針と独自overrideの判定は
+``Nodes._dispatch_shared()`` に分けています。公開APIとUndoの単位は変わりません。

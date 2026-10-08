@@ -2,7 +2,7 @@
 
 import hlib
 
-from hlib.decorators.undo import undoChunk
+from hlib.decorator import undoChunk
 
 
 @undoChunk("hrig.bind_mesh")

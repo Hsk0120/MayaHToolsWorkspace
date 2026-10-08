@@ -9,7 +9,7 @@ import re
 import hlib
 
 from hrig.setups.radialWeights import RadialWeights
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SkirtRig:
@@ -125,8 +125,8 @@ class SkirtRig:
             group.getPlug("message").connectTo(root.getPlug(role + "Group"))
             groups[role] = group
         groups["rest"].getPlug("visibility").set(False)
-        radius = hlib.utils.units.distanceFromUi(radius)
-        spacing = hlib.utils.units.distanceFromUi(length) / (joints_per_chain - 1)
+        radius = hlib.common.units.distanceFromUi(radius)
+        spacing = hlib.common.units.distanceFromUi(length) / (joints_per_chain - 1)
         for role, count, registry in (
             ("driver", driver_count, "drivers"),
             ("follower", chain_count, "followers"),
@@ -449,7 +449,7 @@ class SkirtRig:
             key = rig.root.getUuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.events.ScriptJobs()
+            jobs = hlib.common.ScriptJobs()
             attrs = ["enabled", "lod"]
             for kind in ("follow", "spring", "pose"):
                 if rig.root.hasAttr("hrigEnabled_" + kind):

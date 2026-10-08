@@ -5,7 +5,7 @@ from pathlib import Path
 
 import hlib
 from hlib.maths import Matrix
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class MatrixFollow:
@@ -160,7 +160,7 @@ class MatrixFollow:
                     / version
                     / "hrigNodes.mll"
                 )
-                hlib.environment.Plugin(str(plugin)).ensureLoaded()
+                hlib.common.Plugin(str(plugin)).ensureLoaded()
                 graph = hlib.createNode("hrigMatrixFollow", name=name, skipSelect=True)
             else:
                 from .bifrostMatrixFollow import BifrostMatrixFollow

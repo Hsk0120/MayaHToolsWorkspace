@@ -49,8 +49,8 @@ class CurveLengthTest(unittest.TestCase):
 
     def test_units_conversion(self):
         """UnitsのUI照会と明示変換を検証する。"""
-        from hlib.utils import units
-        from hlib.environment import Preferences
+        from hlib.common import units
+        from hlib.common import Preferences
         self.assertEqual(Preferences.getLinearUnit(), "cm")
         for unit, centimeters in (("mm", .1), ("cm", 1), ("m", 100),
                                   ("km", 100000), ("in", 2.54), ("ft", 30.48),

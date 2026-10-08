@@ -64,7 +64,7 @@ def main(output_dir=None, finished=None):
         yield
         check(called == ["deferred"], "Deferred callback via hlib")
         item = cmds.menu(
-            "typedCommandTestMenu", label="Typed test", parent=hlib.ui.MainWindow.getName()
+            "typedCommandTestMenu", label="Typed test", parent=hlib.common.MainWindow.getName()
         )
         check(isinstance(item, str) and cmds.menu(item, exists=True), "Native menu reference")
         child = cmds.menuItem(label="Test", parent=item)
@@ -225,9 +225,9 @@ def main(output_dir=None, finished=None):
         check(not ControlRig._jobs and not TweakLayer._jobs, "Scene cleanup releases new watchers")
 
         # 標準エディターのidle処理を、シーン読込の監視検証から分離する。
-        from hlib.ui import MainWindow
-        from hlib.ui import NodeEditor
-        from hlib.ui import GraphEditor
+        from hlib.common import MainWindow
+        from hlib.common import NodeEditor
+        from hlib.common import GraphEditor
 
         check(cmds.window(MainWindow.getName(), exists=True), "Main window name")
         NodeEditor.show()

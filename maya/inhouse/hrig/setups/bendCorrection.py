@@ -7,7 +7,7 @@ import math
 import hlib
 
 from hlib.maths.matrix import Matrix
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class BendCorrection:
@@ -88,7 +88,7 @@ class BendCorrection:
             )
             # addAttrの距離defaultは内部cmなので、初期値をUI距離単位で明示設定する。
             owner.getPlug(attr).set(
-                hlib.utils.units.distanceFromUi(value)
+                hlib.common.units.distanceFromUi(value)
                 if attr.endswith(("Rest", "Push")) else value
             )
         owner.addAttr(longName="matrix", dataType="matrix")

@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.scene import Namespace
+from hlib.common import Namespace
 from hlib.nodes import Node
 
 

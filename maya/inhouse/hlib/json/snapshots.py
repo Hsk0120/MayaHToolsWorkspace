@@ -278,7 +278,7 @@ class Snapshot:
             RuntimeError: Undo無効または実行中のMayaエラー。途中変更は一回のUndoで戻せるが自動rollbackはしない。
         """
         from maya import cmds
-        from ..decorators.undo import undoChunk
+        from ..decorator import undoChunk
         plan = self.plan(mapping, namespace_map)
         if plan.errors:
             raise ValueError("\n".join(plan.errors))
@@ -598,7 +598,7 @@ class AnimationSnapshot(Snapshot):
         record = {"node": NodeRef.capture(node)}
         if not node.getType().startswith("animCurve"):
             raise ValueError("Expected animation curve")
-        from ..utils.units import angleToUi
+        from ..common.units import angleToUi
         tangents = [node.getTangent(i) for i in range(node.getKeyCount())]
         for tangent in tangents:
             for flag in ("inAngle", "outAngle"):
@@ -659,7 +659,7 @@ class AnimationSnapshot(Snapshot):
             fixed = {}
             for prefix in ("in", "out"):
                 if tangent[prefix + "TangentType"] == "fixed":
-                    from ..utils.units import angleFromUi
+                    from ..common.units import angleFromUi
                     fixed[prefix + "Angle"] = angleFromUi(tangent[prefix + "Angle"])
                     if tangent["weightedTangents"]:
                         fixed[prefix + "Weight"] = tangent[prefix + "Weight"]
@@ -730,7 +730,7 @@ def capture(targets=None, kind="pose", attributes=None):
         Snapshot: 未解決参照と値を持つ用途別Snapshot。
     """
     from maya import cmds
-    from ..scene.selection import Selection
+    from ..common.selection import Selection
     from ..components import Component
     from ..plugs.plug import Plug
     if kind == "editor":

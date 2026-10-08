@@ -1,15 +1,11 @@
-"""hlib._core.registry の NodeRegistry と登録デコレータを検証するMaya内テスト。
-
-NodeRegistry / node_wrapper / plug_wrapper / collection_export は純粋 Python ロジック
-だが、CLAUDE.md の方針に従い hlib 経由（Maya 内）で実行する。
-"""
+"""明示的なNode/Plug登録と、入力に応じた型選択をMaya内で検証する。"""
 
 import sys
 import unittest
 
 import hlib
 hlib.reload()
-from hlib._core.registry import NodeRegistry, collection_export, node_wrapper, plug_wrapper
+from hlib._core.registry import NodeRegistry
 from hlib._core.typeHierarchy import inherited_node_types
 
 
@@ -24,7 +20,7 @@ class _RegisteredClass:
 
 
 class NodeRegistryTest(unittest.TestCase):
-    """register/get/lookup/wrapper_class/clear/register_discovered の基本動作を検証する。"""
+    """register/get/lookup/wrapper_class/clear/replace の基本動作を検証する。"""
 
     def setUp(self):
         self.registry = NodeRegistry(_FallbackClass)
@@ -51,11 +47,21 @@ class NodeRegistryTest(unittest.TestCase):
         self.registry.clear()
         self.assertIs(self.registry.wrapper_class("myType"), _FallbackClass)
 
-    def test_register_discovered_replaces_existing_registrations(self):
+    def test_replace_replaces_existing_registrations(self):
         self.registry.register("staleType", _RegisteredClass)
-        self.registry.register_discovered({"myType": _RegisteredClass})
+        self.registry.replace({"myType": _RegisteredClass})
         self.assertIs(self.registry.wrapper_class("staleType"), _FallbackClass)
         self.assertIs(self.registry.get("myType"), _RegisteredClass)
+
+    def test_replace_validates_all_entries_before_changing_registry(self):
+        """不正な後続エントリーで、既存登録を失わず部分登録もしない。"""
+        self.registry.register("staleType", _RegisteredClass)
+        for invalid, exception in (({"validType": _FallbackClass, "": _RegisteredClass}, ValueError),
+                                   ({"validType": _FallbackClass, "invalidType": object()}, TypeError)):
+            with self.assertRaises(exception):
+                self.registry.replace(invalid)
+            self.assertIs(self.registry.lookup("staleType"), _RegisteredClass)
+            self.assertIsNone(self.registry.lookup("validType"))
 
 
 class NodeRegistryInheritedTypesTest(unittest.TestCase):
@@ -111,40 +117,29 @@ class NodeTypeHierarchyTest(unittest.TestCase):
         self.assertEqual(first, second)
 
 
-class WrapperDecoratorsTest(unittest.TestCase):
-    """node_wrapper/plug_wrapper/collection_export がメタデータを正しく付与することを検証する。"""
+class ExplicitRegistrationsTest(unittest.TestCase):
+    """公開一覧から独立した明示的な型対応表を検証する。"""
 
-    def test_node_wrapper_sets_metadata(self):
-        @node_wrapper("customNodeType", public=False)
-        class CustomNode:
-            pass
+    def test_node_table_matches_initialized_registry(self):
+        """Nodeの型対応表に書いたクラスを既存の取得入口で選択する。"""
+        registry = hlib.nodes.Node._registry
+        for node_type, wrapper in hlib.nodes._WRAPPER_CLASSES.items():
+            self.assertIs(registry.lookup(node_type), wrapper)
+        self.assertIs(registry.wrapper_class("joint"), hlib.nodes.Joint)
+        self.assertIs(registry.wrapper_class("mesh"), hlib.nodes.Mesh)
 
-        self.assertEqual(CustomNode.__hlib_node_type__, "customNodeType")
-        self.assertFalse(CustomNode.__hlib_public__)
+    def test_plug_table_matches_initialized_registry(self):
+        """Plugの型対応表が公開クラスの登録漏れなく初期化される。"""
+        registry = hlib.plugs.Plug._registry
+        for attr_type, wrapper in hlib.plugs._WRAPPER_CLASSES.items():
+            self.assertIs(registry.lookup(attr_type), wrapper)
+        self.assertIs(registry.lookup("double"), hlib.plugs.DoublePlug)
 
-    def test_node_wrapper_rejects_empty_type(self):
-        with self.assertRaises(ValueError):
-            node_wrapper("")(_RegisteredClass)
-
-    def test_node_wrapper_rejects_non_class(self):
-        with self.assertRaises(TypeError):
-            node_wrapper("customNodeType")(object())
-
-    def test_plug_wrapper_sets_metadata(self):
-        @plug_wrapper("customAttrType")
-        class CustomPlug:
-            pass
-
-        self.assertEqual(CustomPlug.__hlib_plug_type__, "customAttrType")
-        self.assertTrue(CustomPlug.__hlib_public__)
-
-    def test_collection_export_sets_metadata(self):
-        @collection_export(public=False)
-        class CustomCollection:
-            pass
-
-        self.assertTrue(CustomCollection.__hlib_collection__)
-        self.assertFalse(CustomCollection.__hlib_public__)
+    def test_publication_does_not_require_metadata_decorators(self):
+        """公開・登録済みクラスへ旧自動検出用メタデータを要求しない。"""
+        for wrapper in (hlib.nodes.Joint, hlib.nodes.Joints, hlib.plugs.DoublePlug):
+            for name in ("__hlib_node_type__", "__hlib_plug_type__", "__hlib_public__", "__hlib_collection__"):
+                self.assertNotIn(name, wrapper.__dict__)
 
 
 if __name__ == "__main__":

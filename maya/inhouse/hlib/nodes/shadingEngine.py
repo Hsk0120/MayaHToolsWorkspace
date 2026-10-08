@@ -2,12 +2,11 @@
 
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..decorator import undoChunk
 from .objectSet import ObjectSet
 
 
-@node_wrapper("shadingEngine")
 class ShadingEngine(ObjectSet):
     """Mayaのレンダー用セット。表面・ボリューム・変位シェーダーを保持する。"""
 
@@ -46,7 +45,7 @@ class ShadingEngine(ObjectSet):
             ValueError: 種別が不正な場合。
             RuntimeError: Mayaが接続を拒否した場合。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         from ..plugs.plug import Plug as _InputPlug
         from ..plugs import Plug
         target = self.getPlug(self._shader_attribute(kind))
@@ -68,7 +67,7 @@ class ShadingEngine(ObjectSet):
         Raises:
             RuntimeError: Mayaが割り当てを拒否した場合。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         names = _InputObject._input_names(targets)
         if names:
             cmds.sets(names, edit=True, forceElement=self.getFullName())
@@ -93,6 +92,54 @@ class ShadingEngine(ObjectSet):
             else:
                 result.append(Node(name))
         return result
+
+    @_getter_alias(getShaderPlug)
+    def shaderPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShaderPlug(*args, **kwargs)
+
+    @_getter_alias(getShader)
+    def shader(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShader(*args, **kwargs)
+
+    @_getter_alias(getMembers)
+    def members(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMembers(*args, **kwargs)
 
     @staticmethod
     def _shader_attribute(kind):

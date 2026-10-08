@@ -1,12 +1,9 @@
-"""静的解析向けの `if TYPE_CHECKING:` 宣言が、実行時の動的な公開名と一致することを検証する。
-
-hlib.createNode などは実行時にグローバルへ動的に設定されるため、エディターは名前を解決できない。
-各 __init__.py の TYPE_CHECKING ブロックがその代わりになるので、公開名を増減したときの更新漏れを検出する。
-"""
+"""通常importで公開名を補完でき、commonの遅延公開宣言が一致することを検証する。"""
 
 import ast
 from pathlib import Path
 import sys
+from types import ModuleType
 import unittest
 
 import hlib
@@ -26,17 +23,51 @@ def typing_names(relative):
     return names
 
 
+def direct_names(relative):
+    """通常importとトップレベル定義から静的に解決できる名前を返す。"""
+    tree = ast.parse((PACKAGE / relative).read_text(encoding="utf-8-sig"))
+    names = set()
+    for node in tree.body:
+        if isinstance(node, (ast.ImportFrom, ast.Import)):
+            names.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(node.name)
+    return names
+
+
 class TypingExportsTest(unittest.TestCase):
     def test_root_commands(self):
-        self.assertEqual(typing_names("__init__.py"), set(hlib.cmds.__all__))
+        self.assertTrue(set(hlib.__all__).issubset(direct_names("__init__.py")))
+        self.assertEqual(typing_names("__init__.py"), set())
+        tree = ast.parse((PACKAGE / "__init__.py").read_text(encoding="utf-8-sig"))
+        root_functions = {node.name for node in tree.body
+                          if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        for name in hlib.cmds.__all__:
+            root_value = getattr(hlib, name)
+            if name in root_functions or isinstance(root_value, ModuleType):
+                self.assertIsNot(root_value, getattr(hlib.cmds, name))
+            else:
+                self.assertIs(root_value, getattr(hlib.cmds, name))
 
     def test_cmds_package(self):
-        self.assertEqual(typing_names("cmds/__init__.py"), set(hlib.cmds.__all__))
+        self.assertTrue(set(hlib.cmds.__all__).issubset(direct_names("cmds/__init__.py")))
+        self.assertEqual(typing_names("cmds/__init__.py"), set())
 
     def test_nodes_package(self):
-        # Node/Shape/Transform は通常の import で解決される。
-        expected = set(hlib.nodes.__all__) - {"Node", "Shape", "Transform"}
-        self.assertEqual(typing_names("nodes/__init__.py"), expected)
+        self.assertTrue(set(hlib.nodes.__all__).issubset(direct_names("nodes/__init__.py")))
+        self.assertEqual(typing_names("nodes/__init__.py"), set())
+
+    def test_other_class_packages(self):
+        """各クラスパッケージが二重宣言なしに公開名を補完できる。"""
+        for name in ("plugs", "components", "maths", "json"):
+            package = getattr(hlib, name)
+            path = name + "/__init__.py"
+            self.assertTrue(set(package.__all__).issubset(direct_names(path)), name)
+            self.assertEqual(typing_names(path), set(), name)
+
+    def test_common_package(self):
+        """遅延公開するクラス・関数・定数・moduleを静的補完でも取得できる。"""
+        self.assertEqual(typing_names("common/__init__.py"), set(hlib.common.__all__))
 
 
 if __name__ == "__main__":

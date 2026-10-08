@@ -23,13 +23,15 @@ class ApiMethodsTest(unittest.TestCase):
         node = Node(cmds.createNode("transform", name="control"))
         cp = cy.Node(node.getName()).plug("tx")
         hp = node.getPlug("tx")
-        for name in ("name", "getShortName", "getLongName", "getAttrName", "getPlugName"):
-            self.assertEqual(getattr(hp, name)(), getattr(cp, name)())
+        for h_name, c_name in (("getName", "name"), ("getShortName", "shortName"),
+                               ("getLongName", "longName"), ("getAttrName", "attrName"),
+                               ("getPlugName", "plugName")):
+            self.assertEqual(getattr(hp, h_name)(), getattr(cp, c_name)())
         self.assertEqual(hp.getNode(), node)
         enum = node.addAttr("mode", at="enum", en="off:on", dv=1)
         ce = cy.Node(node.getName()).plug("mode")
         self.assertEqual(enum.getEnumName(), ce.getEnumName())
-        self.assertEqual(enum.getEnumFieldName(0), ce.getEnumFieldName(0))
+        self.assertEqual(enum.getEnumFieldName(0), ce.enumName(0))
         self.assertTrue(node.hasAttr("mode"))
         enum.delete()
         self.assertFalse(node.hasAttr("mode"))
@@ -41,19 +43,28 @@ class ApiMethodsTest(unittest.TestCase):
         a = Node(cmds.createNode("transform", name="a"))
         b = Node(cmds.createNode("transform", name="b"))
         conversion = Node(cmds.createNode("unitConversion"))
-        a.tx.connectTo(conversion.input)
+        a.tx.connectTo(conversion.getPlug("input"))
         conversion.output.connectTo(b.tx)
         cb = cy.Node(b.getName())
-        self.assertEqual(b.tx.getSource().getName(), cb.tx.getSource().getName())
+        self.assertEqual(b.tx.getSource().getName(), cb.tx.source().name())
         self.assertEqual(b.tx.getSourceWithConversion().getNode(), conversion)
-        self.assertEqual([p.getName() for p in a.tx.getDestinations()], [p.getName() for p in cy.Node(a.getName()).tx.destinations()])
+        self.assertEqual([p.getName() for p in a.tx.getDestinations()], [p.name() for p in cy.Node(a.getName()).tx.destinations()])
         for kwargs in ({}, {"asNode": True}, {"scn": True}, {"asPair": True},
                        {"t": "unitConversion", "et": True}, {"s": False}):
-            def names(items):
-                """比較対象のラッパー差を除く。"""
-                return [(a.getName(), b.getName()) if isinstance(item, tuple) else item.getName()
-                        for item in items for a, b in ([item] if isinstance(item, tuple) else [(None, None)])]
-            self.assertEqual(names(b.getConnections(**kwargs)), names(cb.getConnections(**kwargs)))
+            def names(items, get_name):
+                """各ライブラリの正式名取得を使い、比較対象のラッパー差を除く。
+
+                Args:
+                    items: 接続照会の戻り値。
+                    get_name: 対象の名前を取得する関数。
+
+                Returns:
+                    list: 対象名または接続ペアの名前列。
+                """
+                return [(get_name(item[0]), get_name(item[1])) if isinstance(item, tuple) else get_name(item)
+                        for item in items]
+            self.assertEqual(names(b.getConnections(**kwargs), lambda item: item.getName()),
+                             names(cb.connections(**kwargs), lambda item: item.name()))
         self.assertEqual(b.getInputs(index=0).getNode(), conversion)
         self.assertIsNone(b.getInputs(index=100))
         from hlib.plugs import Plug
@@ -75,13 +86,13 @@ class ApiMethodsTest(unittest.TestCase):
         cmds.setAttr(hidden + ".intermediateObject", True)
         h, c = Node(name), cy.Transform(name)
         original = h.getFullPath()
-        self.assertEqual(h.getParent().getName(), c.getParent().getName())
+        self.assertEqual(h.getParent().getName(), c.parent().name())
         self.assertEqual(h.getFullPath(), original)
-        self.assertEqual(h.getPartialPath(), c.getPartialPath())
+        self.assertEqual(h.getPartialPath(), c.partialPath())
         for shapes in (False, True):
             for intermediates in (False, True):
                 self.assertEqual([p.getName() for p in h.getChildren(shapes, intermediates)],
-                                 [p.getName() for p in c.getChildren(shapes, intermediates)])
+                                 [p.name() for p in c.children(shapes, intermediates)])
         self.assertIsNone(h.getShape(20))
         mesh = h.getShape()
         self.assertIs(mesh.getShape(), mesh)
@@ -116,15 +127,15 @@ class ApiMethodsTest(unittest.TestCase):
         self.assertEqual([p.getFullName() for p in created], [node.getName() + ".values[3]"])
         self.assertEqual(array.addElement(3), [])
         ca = cy.Node(node.getName()).plug("values")
-        self.assertEqual(array.getNextAvailable(), ca.getNextAvailable())
+        self.assertEqual(array.getNextAvailable(), ca.nextAvailable())
         src = Node(cmds.createNode("network")).addAttr("value")
         src.connectTo(array[3])
         array.getElement(1, create=True).setLocked(True)
         for start in (-1, 0, 1, 4):
-            self.assertEqual(array.getNextAvailable(start), ca.getNextAvailable(start))
+            self.assertEqual(array.getNextAvailable(start), ca.nextAvailable(start))
         # 開始番号より小さい既存要素があっても、接続済み番号を避ける仕様を検証する。
         self.assertEqual(array.getNextAvailable(3), 4)
-        self.assertEqual(array.getNextAvailable(0, asPlug=True).getName(), ca.getNextAvailable(0, asPlug=True).getName())
+        self.assertEqual(array.getNextAvailable(0, asPlug=True).getName(), ca.nextAvailable(0, asPlug=True).name())
         messages = node.addAttr("links", at="message", multi=True)
         with self.assertRaises(NotImplementedError):
             messages.addElement(0)

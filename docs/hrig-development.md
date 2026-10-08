@@ -47,16 +47,16 @@ def set_layer_enabled(self, layer, enabled):
   箱自身の入出力アトリビュートを介する接続の移送は利用側が担当する。
 - 保存用message配列は`ArrayPlug.sourceNodes()`と`appendMessage()`を使う。
   前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
-- 操作シェイプは`hrig.setups.ControlShape`、単位境界は`hlib.utils.units`を使う。
+- 操作シェイプは`hrig.setups.ControlShape`、単位境界は`hlib.common.units`を使う。
   Plugと数学型の距離はcm、角度はrad、時間は秒。UI単位のビルダー入力は境界で変換する。
   空間指定は`hlib.maths.MSpace`の定数を使う。
   型名が必要な場合は`Plug.dataType()`を使用する（`Plug.type()`はPythonクラス）。
 - バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copyWeightsTo`を使う。
   どの骨をLODへ含めるか、どのメッシュを表示するかはhrigの責務とする。
-- 単位なし標準DG演算は`hlib.utils.scalarGraph.ScalarGraph`、Soft IKは`hrig.setups.SoftIK`。
+- 単位なし標準DG演算は`hlib.common.scalarGraph.ScalarGraph`、Soft IKは`hrig.setups.SoftIK`。
   コンテナを使わない場合は`ScalarGraph(create_node=...)`へNodeを返す生成関数を渡し、
   生成物を`ArrayPlug.appendMessage`等で記録する。一時コンテナを作る必要はない。
-  Bifrostの演算構築は`hlib_bifrost.utils.MathBuilder`、Soft IKは`hrig.setups.bifrostSoftIK.SoftIK`へ置く。
+  Bifrostの演算構築は`hlib_bifrost.common.MathBuilder`、Soft IKは`hrig.setups.bifrostSoftIK.SoftIK`へ置く。
 - 共通APIへ依存方向を逆転させない。hlib/hlib_bifrostからhrigをimportしない。
   移動時は使用側を新しいAPIへ更新し、旧import用アダプターは残さない。
 - コマンド入口は `hlib.cmds`（および同一関数の `hlib` 再公開）へ置く。
@@ -80,16 +80,16 @@ def set_layer_enabled(self, layer, enabled):
 
 - `maya.utils` の直接importも行わない。Pythonの遅延呼出しは
   `hlib.executeDeferred(callback, *args, **kwargs)` を使う。文字列コードは受け付けない。
-- 作業環境は `hlib.environment.Workspace` / `Preferences`、シーンの選択は `hlib.scene.Selection` で扱う。
-  実装はscene/ui/environment/eventsの用途別パッケージ配下の原則1クラス1ファイル（単数・対応する複数クラスは同居）。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
+- 作業環境は `hlib.common.Workspace` / `Preferences`、シーンの選択は `hlib.common.Selection` で扱う。
+  基本型以外の共通機能はcommon直下へ置き、原則1クラス1ファイル（単数・対応する複数クラスは同居）とする。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
 
 ## リグセットアップの境界
 
 Maya標準の概念・操作はhlibへ、リグの構成・追従・補正・コントロール設定は `hrig.setups` へ置く。標準ノードだけで構成していてもリグの組み方を決める処理はhrigの責務。Spline IKソルバーの作成は `hlib.createIkHandle`、CVコントロール接続・両端Twist・停止経路を組み合わせる構築は `hrig.setups.SplineIK` とする。
 
-`DrivenKey` は `hlib.scene`、純粋なカーブ近似・減衰ばねは `hlib.utils`。hlibとhlib_bifrostにはhrigへの依存を作らず、セットアップのテスト・文書もhrigに置く。
+`DrivenKey` は `hlib.common`、純粋なカーブ近似・減衰ばねは `hlib.common`。hlibとhlib_bifrostにはhrigへの依存を作らず、セットアップのテスト・文書もhrigに置く。
 
-通知は `hlib.utils.logger.warning/error/info`、通常のPython出力は `logger.print` に集約する。`hlib.warning` / `hlib.cmds.warning` は使用しない。
+通知は `hlib.logger.warning/error/info`、通常のPython出力は `logger.print` に集約する。`hlib.warning` / `hlib.cmds.warning` は使用しない。
 
 指定された標準操作（about/currentTime/cutKey/deleteUI/keyframe/listConnections/listHistory/listRelatives/menu/menuItem/objExists/parent/playbackOptions/setKeyframe）は `maya.cmds` を直接使用する。削除した同名hlibコマンドを再追加しない。名前の戻り値をhlibで扱う場合は使用側でNode/Plugへ変換し、connections=TrueはMayaの平坦なペア列として扱う。
 

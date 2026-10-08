@@ -1,4 +1,4 @@
-"""動詞を用いたコマンド公開と生成専用の契約を検証する。"""
+"""正式コマンド・取得の省略入口と生成専用の契約を検証する。"""
 
 from pathlib import Path
 import unittest
@@ -8,24 +8,25 @@ import hlib
 
 
 class CommandNamesTest(unittest.TestCase):
-    """旧名の除去とオブジェクト側の編集を確認する。"""
+    """生成の旧名は除去し、取得の省略入口とオブジェクト側の編集を確認する。"""
 
     def test_exports_and_files(self):
         names = dict(constraint="addConstraint", curve="createCurve", ikHandle="createIkHandle",
-                     sets="createSet", group="createGroup", node="getNode", plug="getPlug",
-                     scene="getScene", channelBox="getChannelBox", outliner="getOutliner",
-                     timeSlider="getTimeSlider", viewport="getViewport", drivenKey="getDrivenKey")
+                     sets="createSet", group="createGroup")
         hlib.reload()
         for old, new in names.items():
-            if old == "scene":
-                # 旧sceneコマンドは廃止しても、正式なsceneパッケージは公開する。
-                self.assertFalse(callable(hlib.scene))
-                self.assertEqual(hlib.scene.__name__, "hlib.scene")
-            else:
-                self.assertFalse(hasattr(hlib, old), old)
+            self.assertFalse(hasattr(hlib, old), old)
             self.assertFalse(hasattr(hlib.cmds, old), old)
             self.assertFalse((Path(hlib.__file__).parent / 'cmds' / (old + '.py')).exists())
             self.assertIs(getattr(hlib, new), getattr(hlib.cmds, new))
+        for getter in ("getNode", "getPlug", "getScene", "getChannelBox", "getOutliner",
+                       "getTimeSlider", "getViewport", "getDrivenKey"):
+            name = getter[3].lower() + getter[4:]
+            self.assertTrue(callable(getattr(hlib, name)))
+            self.assertIn(name, hlib.__all__)
+            self.assertIn(name, hlib.cmds.__all__)
+            self.assertIs(getattr(hlib, name), getattr(hlib.cmds, name))
+            self.assertIs(getattr(hlib, getter), getattr(hlib.cmds, getter))
         self.assertIs(hlib.ls, hlib.cmds.ls)
         self.assertFalse(hasattr(hlib, 'listNodes'))
 

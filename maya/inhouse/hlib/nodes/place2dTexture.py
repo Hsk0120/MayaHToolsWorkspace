@@ -1,12 +1,10 @@
 """Mayaのplace2dTextureノードを扱う。"""
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 from .shadingDependNode import ShadingDependNode
 
 
-@node_wrapper("place2dTexture")
 class Place2dTexture(ShadingDependNode):
     """Mayaの継承型に対応するPlace2dTexture。値と接続はPlugで操作する。"""
 
@@ -24,7 +22,7 @@ class Place2dTexture(ShadingDependNode):
             TypeError: 対象がTexture2dでない場合。
             RuntimeError: 接続できない場合。完了済み接続は自動で戻さない。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         from .texture2d import Texture2d
         texture = _InputNode._resolve_input(texture)
         if not isinstance(texture, Texture2d):

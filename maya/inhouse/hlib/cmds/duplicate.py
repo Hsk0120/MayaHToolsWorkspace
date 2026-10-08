@@ -65,7 +65,7 @@ Examples
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases("duplicate")
@@ -86,7 +86,7 @@ def duplicate(node, **kwargs):
         ValueError: node が空文字列、または削除済みの対象の場合。
         RuntimeError: Maya が複製を拒否した場合。
     """
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
     from ..nodes import Node
 
     name = _InputObject._input_name(node)

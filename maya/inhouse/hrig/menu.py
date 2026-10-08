@@ -4,7 +4,7 @@ from maya import cmds
 
 from functools import partial
 import hlib
-from hlib.ui import MainWindow
+from hlib.common import MainWindow
 
 
 class Menu:
@@ -137,7 +137,7 @@ class Menu:
                     break
             return rig
         except Exception as error:
-            hlib.utils.logger.warning("hrig: " + str(error))
+            hlib.logger.warning("hrig: " + str(error))
             return None
 
     @classmethod

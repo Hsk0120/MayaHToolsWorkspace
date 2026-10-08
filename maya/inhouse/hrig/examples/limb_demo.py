@@ -4,7 +4,7 @@ from maya import cmds
 
 import hlib
 
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 from hrig import build_limb, limb_definition
 from hrig.reverse_foot import add_reverse_foot
 from hrig.skin import bind_mesh, create_skin_lod, set_mesh_lod

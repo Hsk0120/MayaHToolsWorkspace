@@ -5,7 +5,7 @@ import unittest
 from maya import cmds
 import hlib
 from hrig.setups import PoseRbf
-from hlib.utils import CurveFit
+from hlib.common import CurveFit
 
 
 class PoseEditTest(unittest.TestCase):

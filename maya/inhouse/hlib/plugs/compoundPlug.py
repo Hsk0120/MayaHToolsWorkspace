@@ -2,9 +2,10 @@
 
 import maya.api.OpenMaya as om2
 
-from ..decorators._fast import fast_edit
-from ..decorators._safe import safe_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..common._safe import safe_edit
+from ..decorator import undoChunk
 from .plug import Plug
 
 
@@ -135,6 +136,22 @@ class CompoundPlug(Plug):
         """
         self._require_valid()
         return [self._child_at(index) for index in range(self._mplug.numChildren())]
+
+    @_getter_alias(getChildren)
+    def children(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildren(*args, **kwargs)
 
     def _child_at(self, index):
         """有効性を確かめ済みの前提で、子インデックスの子 Plug を作る。

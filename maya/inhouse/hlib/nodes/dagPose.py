@@ -8,14 +8,13 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
+from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
-from ..decorators.undo import undoChunk, undoTransaction
+from ..decorator import undoChunk, undoTransaction
 from ..maths import Matrix
 from .node import Node, Nodes
 
 
-@node_wrapper("dagPose")
 class DagPose(Node):
     """MayaのdagPose。姿勢の保存・復元と、保存済み行列の照会を提供する。
 
@@ -66,7 +65,7 @@ class DagPose(Node):
             ValueError: skinCluster以外を指定した場合。
             RuntimeError: 無効なノード、またはdagPose以外が接続されている場合。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         skin = _InputNode._resolve_input(skin_cluster)
         if not skin.isValid():
             raise RuntimeError("Cannot access an invalid skinCluster")
@@ -120,7 +119,7 @@ class DagPose(Node):
         Raises:
             ValueError: このポーズのメンバーでない場合。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         node = _InputNode._resolve_input(member)
         for index, item in zip(self.getMemberIndices(), self.getMembers()):
             if item.getFullName() == node.getFullName():
@@ -359,6 +358,102 @@ class DagPose(Node):
         cmds.dagPose(names, remove=True, name=self._pose_name())
         return self
 
+    @_getter_alias(getMemberIndices)
+    def memberIndices(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMemberIndices(*args, **kwargs)
+
+    @_getter_alias(getMembers)
+    def members(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMembers(*args, **kwargs)
+
+    @_getter_alias(getMemberIndex)
+    def memberIndex(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMemberIndex(*args, **kwargs)
+
+    @_getter_alias(getMatrix)
+    def matrix(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMatrix(*args, **kwargs)
+
+    @_getter_alias(getNotAtPose)
+    def notAtPose(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNotAtPose(*args, **kwargs)
+
+    @_getter_alias(getSkinClusters)
+    def skinClusters(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSkinClusters(*args, **kwargs)
+
     @staticmethod
     def _merge_set_matrix(destination, values):
         """完全なxformデータをcmdsの複合引数へ変換してUndo可能に設定する。"""
@@ -498,7 +593,7 @@ class DagPose(Node):
         Args:
             members: 所属または保存対象として扱うノード・コンポーネント。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         names = []
         for name in _InputObject._input_names(members):
             node = Node(name)

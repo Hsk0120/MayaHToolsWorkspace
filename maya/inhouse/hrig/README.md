@@ -321,7 +321,7 @@ GUIへ送信せず、隔離したmayapyプロセスで実行します。テス�
 ```
 
 バックエンド交換テストにはビルド済みC++プラグインが必要です。
-計測用の汎用入口は `hlib.utils.evaluation.measure` です。入力を変更して出力を
+計測用の汎用入口は `hlib.common.evaluation.measure` です。入力を変更して出力を
 評価する操作を渡してください。キャッシュの読み取りだけではリグ評価時間になりません。
 
 ## 開発時の共通ルール
@@ -330,7 +330,7 @@ Pythonの書式・日本語Google形式docstringはhlibに合わせます。
 詳細は [hrig実装ルール](../../../docs/hrig-development.md) を参照してください。
 
 ノード生成・属性・接続・行列の操作にはhlibの公開APIを使用します。
-GUI監視は `hlib.events.ScriptJobs`、変更があるときだけ行う状態表示の更新は
+GUI監視は `hlib.common.ScriptJobs`、変更があるときだけ行う状態表示の更新は
 `Plug.setIfChanged()` を使用します。FK/IKやLODの判断、リグの再探索はhrig側の責務です。
 IKハンドル構築、スキン作成・ウェイト転送、プリミティブ作成などにはMaya専用コマンドを使用します。
 
@@ -424,7 +424,7 @@ Undo/Redo・シーン読込・Mode/LOD/Enabled変更を表示へ反映します�
 ## Swing / Twistドリブンキーレイヤー
 
 ジョイントのローカル回転をSwingとTwistへ分解し、その1成分から単一属性をSDKで駆動します。
-分解は`hrig.setups.SwingTwist`、SDK生成は既存の`hlib.scene.DrivenKey`を使用します。
+分解は`hrig.setups.SwingTwist`、SDK生成は既存の`hlib.common.DrivenKey`を使用します。
 
 ```python
 import hlib
@@ -788,10 +788,10 @@ hrigは構成・命名・レイヤー有効状態・LOD・リグの姿勢合わ�
 | 計算ノードの所有・追加・列挙 | `hlib.nodes.Container` |
 | 保存用message配列 | `hlib.plugs.ArrayPlug.sourceNodes / appendMessage` |
 | 操作カーブ | `hrig.setups.ControlShape` |
-| 表示単位変換 | `hlib.utils.units` |
+| 表示単位変換 | `hlib.common.units` |
 | スキンのバインド・最近傍ウェイト転送 | `hlib.nodes.SkinCluster` |
-| 標準演算とSoft IK | `hlib.utils.scalarGraph.ScalarGraph / SoftIK` |
-| Bifrost基本演算とSoft IK | `hlib_bifrost.utils.MathBuilder` / `hrig.setups.bifrostSoftIK.SoftIK` |
+| 標準演算とSoft IK | `hlib.common.scalarGraph.ScalarGraph / SoftIK` |
+| Bifrost基本演算とSoft IK | `hlib_bifrost.common.MathBuilder` / `hrig.setups.bifrostSoftIK.SoftIK` |
 
 Soft IKは`hrig.setups.SoftIK`、Bifrost版は`hrig.setups.bifrostSoftIK.SoftIK`を使用します。旧互換モジュールは廃止しています。
 標準バックエンドの既定値と生成リグの入出力・レイヤー設定は変更していません。
@@ -803,9 +803,9 @@ Bifrostは明示指定時だけ使用し、hlib側からhrigに依存しませ�
 
 ```python
 from hrig.setups import SoftIK, SpaceSwitch, SplineIK
-from hlib.scene import DrivenKey
-from hlib.environment import DrivenKeys
-from hlib.utils.scalarGraph import ScalarGraph
+from hlib.common import DrivenKey
+from hlib.common import DrivenKeys
+from hlib.common.scalarGraph import ScalarGraph
 ```
 
 セットアップの詳しい仕様:

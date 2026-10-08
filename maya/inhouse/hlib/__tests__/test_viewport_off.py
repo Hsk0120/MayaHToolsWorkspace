@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 import maya.cmds as cmds
 import hlib
-from hlib.decorators import viewportOff
+from hlib.decorator import viewportOff
 
 
 class ViewportOffTest(unittest.TestCase):

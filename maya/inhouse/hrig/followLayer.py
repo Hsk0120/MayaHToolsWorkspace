@@ -7,7 +7,7 @@ import re
 import hlib
 
 from hrig.setups.rotationFollow import RotationFollow
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class FollowLayer:

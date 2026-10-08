@@ -2,7 +2,7 @@
 
 ## この専用ファイルの目的
 
-``hlib/docs/development.rst`` の「maya.cmds と OpenMaya API 2.0 の使い分け」の
+``hlib/_docs/development.rst`` の「maya.cmds と OpenMaya API 2.0 の使い分け」の
 方針により、読み取り専用の照会は ``cmds`` ではなく ``om2``/``oma2`` を直接使う。
 その置き換えが「今この瞬間だけ正しい」で終わらないよう、hlib の戻り値と
 同じ情報を ``cmds`` 側から取得した生の値を**同じテスト内で突き合わせる**ことで、
@@ -64,7 +64,7 @@ import maya.cmds as cmds
 import hlib
 hlib.reload()
 from hlib.nodes import Node
-from hlib.scene import Namespace
+from hlib.common import Namespace
 from hlib.plugs import Plug
 from hlib._core.attributeType import attributeType
 

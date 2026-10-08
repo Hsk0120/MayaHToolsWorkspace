@@ -4,7 +4,7 @@ import math
 import hlib
 
 from hrig.setups import LengthCompensation
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class LimbStretchLayer:
@@ -53,8 +53,8 @@ class LimbStretchLayer:
             return self.settings()
         rig, root = self.rig, self.rig.root
         lengths = [
-            hlib.utils.units.distanceFromUi(
-                hlib.getAttr(rig._member("ik" + str(i)) + ".translateX")
+            hlib.common.units.distanceFromUi(
+                hlib.getAttr(rig._member("ik" + str(i)) + ".translateX").getu()
             )
             for i in (1, 2)
         ]

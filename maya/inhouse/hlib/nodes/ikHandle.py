@@ -2,11 +2,10 @@
 
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
+from .._core.getterAlias import _getter_alias
 from .transform import Transform
 
 
-@node_wrapper("ikHandle")
 class IkHandle(Transform):
     """極ベクトル拘束の作成を含む Transform 操作に対応する IK ハンドル。"""
 
@@ -56,3 +55,35 @@ class IkHandle(Transform):
             if tip is not None:
                 joints.append(tip)
         return joints
+
+    @_getter_alias(getEndJoint)
+    def endJoint(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEndJoint(*args, **kwargs)
+
+    @_getter_alias(getJoints)
+    def joints(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getJoints(*args, **kwargs)

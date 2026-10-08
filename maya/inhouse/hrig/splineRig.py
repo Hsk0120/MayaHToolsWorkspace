@@ -11,7 +11,7 @@ import hlib
 from hlib.maths import Matrix, EulerRotation
 
 from hrig.setups import SplineIK
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SplineRig:
@@ -102,7 +102,7 @@ class SplineRig:
                     parent=parent,
                     skipSelect=True,
                 )
-                joint.getPlug("translateX").set(hlib.utils.units.distanceFromUi(length / (joint_count - 1)) if i else 0)
+                joint.getPlug("translateX").set(hlib.common.units.distanceFromUi(length / (joint_count - 1)) if i else 0)
                 joint.getPlug("jointOrient").set(orient if i == 0 else (0, 0, 0))
                 joint.getPlug("segmentScaleCompensate").set(False)
                 joint.getPlug("radius").set(0.2)
@@ -122,7 +122,7 @@ class SplineRig:
                 skipSelect=True,
             )
             offset.getPlug("translate").set(
-                tuple(hlib.utils.units.distanceFromUi(v * length * i / (control_count - 1)) for v in normal)
+                tuple(hlib.common.units.distanceFromUi(v * length * i / (control_count - 1)) for v in normal)
             )
             control = hlib.createNode(
                 "transform",
@@ -306,7 +306,7 @@ class SplineRig:
             FKの任意の折れ角・中間Twist・断面scaleは完全復元できない。
             キーは生成しない。両端のUp方向を合わせ、内部のひねりは補間する。
         """
-        from hlib.utils.curveFit import CurveFit
+        from hlib.common.curveFit import CurveFit
 
         if tolerance is not None and (not math.isfinite(tolerance) or tolerance < 0):
             raise ValueError("Tolerance must be non-negative finite")
@@ -352,7 +352,7 @@ class SplineRig:
             for target, joint in zip(points, joints):
                 matrix = joint.getMatrix(ws=True)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
-            error = hlib.utils.units.distanceToUi(max(errors))
+            error = hlib.common.units.distanceToUi(max(errors))
         finally:
             self.set_mode(mode)
         if tolerance is not None and error > tolerance:
@@ -426,7 +426,7 @@ class SplineRig:
             key = rig.root.getUuid()
             if key in cls._jobs:
                 continue
-            jobs = hlib.events.ScriptJobs()
+            jobs = hlib.common.ScriptJobs()
             attrs = ["mode", "lod", "enabled"]
             if rig.root.hasAttr("hrigEnabled_stretch"):
                 attrs.append("hrigEnabled_stretch")

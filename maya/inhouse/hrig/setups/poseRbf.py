@@ -8,7 +8,7 @@ import math
 import hlib
 
 from hlib import getPlug as to_plug
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class PoseRbf:

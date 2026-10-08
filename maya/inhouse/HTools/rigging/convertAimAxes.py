@@ -6,7 +6,7 @@ import maya.cmds as cmds
 
 import hlib
 from hlib.json import JsonText
-from hlib.utils import logger
+from hlib import logger
 from hrig.setups.aimAxisConversion import AimAxisConversion
 
 

@@ -2,8 +2,9 @@
 
 import maya.cmds as cmds
 
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from .node import Node
 from .transform import Transform
 
@@ -13,8 +14,6 @@ class Constraint(Transform):
 
     具象クラスは各 nodeType ごとに専用ファイル(parentConstraint.py 等)で定義する。
     """
-
-    __hlib_public__ = True
 
     def getTargets(self):
         """ターゲットを Maya の問い合わせ順に取得する。
@@ -59,7 +58,7 @@ class Constraint(Transform):
         Raises:
             ValueError: ターゲットが登録されていない場合。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         requested = _InputNode._resolve_input(target).getFullName()
         for node, plug in zip(self.getTargets(), self.getWeightPlugs()):
             if node.getFullName() == requested:
@@ -85,8 +84,8 @@ class Constraint(Transform):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        from ..nodes.node import Node as _InputNode
-        from ..nodes.node import Nodes as _InputNodes
+        from .node import Node as _InputNode
+        from .node import Nodes as _InputNodes
         weightPlugs = self.getWeightPlugs()
         if not targets:
             for plug in weightPlugs:
@@ -102,3 +101,83 @@ class Constraint(Transform):
             if name in requested:
                 plug.set(weight)
         return self
+
+    @_getter_alias(getTargets)
+    def targets(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTargets(*args, **kwargs)
+
+    @_getter_alias(getWeightAliases)
+    def weightAliases(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getWeightAliases(*args, **kwargs)
+
+    @_getter_alias(getWeightPlugs)
+    def weightPlugs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getWeightPlugs(*args, **kwargs)
+
+    @_getter_alias(getWeights)
+    def weights(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getWeights(*args, **kwargs)
+
+    @_getter_alias(getWeight)
+    def weight(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getWeight(*args, **kwargs)

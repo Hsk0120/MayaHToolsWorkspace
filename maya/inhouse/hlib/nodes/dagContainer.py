@@ -2,13 +2,11 @@
 
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoTransaction
+from ..decorator import undoTransaction
 from .container import Container
 from .transform import Transform
 
 
-@node_wrapper("dagContainer")
 class DagContainer(Transform, Container):
     """Transform操作とContainerの所属・公開操作を持つコンテナ。
 

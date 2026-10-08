@@ -5,11 +5,9 @@ from epic_pose_wrangler.v2.model.api import RBFNode
 from .._binding import coreModule
 
 Node = coreModule('nodes').Node
-node_wrapper = coreModule('extensions').node_wrapper
-undoChunk = coreModule('decorators').undoChunk
+undoChunk = coreModule('decorator').undoChunk
 
 
-@node_wrapper("UERBFSolverNode")
 class UERBFSolverNode(Node):
     """PoseDriverConnect v2のRBFソルバー。"""
 

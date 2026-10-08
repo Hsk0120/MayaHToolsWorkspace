@@ -874,7 +874,7 @@ class Vector(om2.MVector):
         Returns:
             Vector: 同型の新しい値。
         """
-        from ..utils.mirror import mirrorArguments
+        from ..common.mirror import mirrorArguments
         axes, center = mirrorArguments(axis, pivot)
         values = list(self)
         for index in axes:

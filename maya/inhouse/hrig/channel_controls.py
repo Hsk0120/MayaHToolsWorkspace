@@ -9,7 +9,7 @@ from maya import cmds
 from functools import partial
 import hlib
 
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 # reload時に旧コールバックを残さない。hlibの再読込では所有参照を維持する。
 for _owner in globals().get("_jobs", {}).values():
@@ -17,7 +17,7 @@ for _owner in globals().get("_jobs", {}).values():
 if globals().get("_events") is not None:
     _events.stop()
 _jobs = {}
-_events = hlib.events.ScriptJobs()
+_events = hlib.common.ScriptJobs()
 _busy = False
 LAYERS = (
     "fk",
@@ -287,7 +287,7 @@ def _changed(root_uuid):
 
         apply(LimbRig(roots[0]))
     except Exception as error:
-        hlib.utils.logger.warning("hrig: " + str(error))
+        hlib.logger.warning("hrig: " + str(error))
     finally:
         _busy = False
 
@@ -320,7 +320,7 @@ def refresh_jobs():
         ]
         if rig.root.hasAttr("targetSpace"):
             attrs += [rig._member(role) + ".space" for role in ("target", "pole")]
-        jobs = hlib.events.ScriptJobs()
+        jobs = hlib.common.ScriptJobs()
         try:
             for attr in attrs:
                 jobs.add(

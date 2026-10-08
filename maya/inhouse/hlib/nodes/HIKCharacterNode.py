@@ -6,9 +6,9 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
-from ..environment import Plugin
+from .._core.getterAlias import _getter_alias
+from ..common.plugin import Plugin
+from ..decorator import undoChunk
 from .node import Node
 
 
@@ -33,7 +33,6 @@ def _quote(value):
     return json.dumps(value, ensure_ascii=False)
 
 
-@node_wrapper('HIKCharacterNode')
 class HIKCharacterNode(Node):
     """HumanIKノードの定義割当と既存キャラクター間の接続を扱う。"""
 
@@ -87,7 +86,7 @@ class HIKCharacterNode(Node):
         Note:
             定義の検証・ロックはMayaのHumanIK UIで行う。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         _prepare()
         if self.isDefinitionLocked():
             raise RuntimeError('Unlock the character definition before editing')
@@ -134,3 +133,19 @@ class HIKCharacterNode(Node):
         actual = self.getSourceWithConversion()
         if actual is None or actual.getFullName() != source.getFullName():
             raise RuntimeError('HumanIK did not connect the requested source')
+
+    @_getter_alias(getSource)
+    def source(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSource(*args, **kwargs)

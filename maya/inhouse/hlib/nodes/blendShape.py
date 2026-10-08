@@ -14,15 +14,14 @@ import maya.mel as mel
 
 from .._core.attributeType import typed_data
 from .._core.fastWrite import writable
-from .._core.registry import node_wrapper
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit, is_fast
 from ..components.vertex import Vertex, Vertices
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undoChunk, undoTransaction
+from ..decorator import undoChunk, undoTransaction
 from ..maths.vector import Vector
 from .node import Node
 
 
-@node_wrapper("blendShape")
 class BlendShape(Node):
     """MayaのblendShape。ターゲット編集・頂点ウェイト・デルタ・保存復元を扱う。
 
@@ -97,7 +96,7 @@ class BlendShape(Node):
             TypeError: target・base が対応しない型の場合。
             ValueError: target・base が空文字列、または削除済みの対象の場合。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         target_name = _InputNode._input_name(target)
         if base is None:
             geometries = self.getGeometry()
@@ -627,6 +626,166 @@ class BlendShape(Node):
                 for vertex, weight in enumerate(weights):
                     self.getPlug("inputTarget[{}].baseWeights[{}]".format(bi, vertex)).set(weight)
         return self
+
+    @_getter_alias(getTargetAliases)
+    def targetAliases(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTargetAliases(*args, **kwargs)
+
+    @_getter_alias(getWeightPlugs)
+    def weightPlugs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getWeightPlugs(*args, **kwargs)
+
+    @_getter_alias(getWeights)
+    def weights(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getWeights(*args, **kwargs)
+
+    @_getter_alias(getGeometry)
+    def geometry(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getGeometry(*args, **kwargs)
+
+    @_getter_alias(getTargetIndices)
+    def targetIndices(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTargetIndices(*args, **kwargs)
+
+    @_getter_alias(getTargetPlug)
+    def targetPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTargetPlug(*args, **kwargs)
+
+    @_getter_alias(getInBetweenWeights)
+    def inBetweenWeights(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInBetweenWeights(*args, **kwargs)
+
+    @_getter_alias(getTargetWeights)
+    def targetWeights(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTargetWeights(*args, **kwargs)
+
+    @_getter_alias(getTargetDeltas)
+    def targetDeltas(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTargetDeltas(*args, **kwargs)
+
+    @_getter_alias(getTargetVertices)
+    def targetVertices(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTargetVertices(*args, **kwargs)
 
     def _remove_live_deltas(self, bi, index, indices, data, source):
         """接続を保持し、ターゲット形状から現在の絶対変位を引く。"""

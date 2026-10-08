@@ -1,4 +1,4 @@
-"""maya.cmds との受け渡しの正式仕様(docs/cmds_interop.rst)をMaya内で検証する。
+"""maya.cmds との受け渡しの正式仕様(_docs/cmds_interop.rst)をMaya内で検証する。
 
 - hlib のオブジェクト(Node・Plug・Component・コレクション)は ``str()`` で
   maya.cmds が一意に解決できる名前を返し、maya.cmds へそのまま渡せる。
@@ -26,7 +26,7 @@ from hlib.components import Faces, Vertex, Vertices
 from hlib.maths import EulerRotation, Translation
 from hlib.nodes import Joint, Joints, Mesh, Node
 from hlib.plugs import ArrayPlug, CompoundPlug, Plug
-from hlib.scene.selection import Selection
+from hlib.common.selection import Selection
 
 
 class _InteropCase(unittest.TestCase):
@@ -1202,7 +1202,7 @@ class PlugValidityTest(_InteropCase):
     def test_raw_mplug_of_deleted_dynamic_attribute(self):
         # 生の MPlug も、削除済みのアトリビュートなら名前へ変換せず ValueError にする(以前は "t." や
         # "t.foo" を返し、hlib.select がノードを黙って選択していた)。
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         from hlib.plugs.plug import Plug as _InputPlug
 
         state = cmds.undoInfo(query=True, state=True)
@@ -1576,9 +1576,9 @@ class CommandEdgeCaseTest(_InteropCase):
         relation.setKey(0.0, 0.0)
         relation.setKey(1.0, 1.0)
         self.assertEqual(relation.getDrivenPlug().getFullName(), weight.getFullName())
-        found = hlib.scene.DrivenKey.find(str(weight))
+        found = hlib.common.DrivenKey.find(str(weight))
         self.assertEqual(len(found), 1)
-        self.assertEqual(len(hlib.scene.DrivenKey.find(self.ns("bs.weight[0]"))), 1)
+        self.assertEqual(len(hlib.common.DrivenKey.find(self.ns("bs.weight[0]"))), 1)
         network = self.create("network", "net")
         network.addAttr("vals", attributeType="double", multi=True)
         network.getPlug("vals").getElement(2, create=True)
@@ -1597,7 +1597,7 @@ class LargeComponentCollectionTest(_InteropCase):
     """多数の要素を持つコレクションを範囲指定の名前で受け渡すことを検証する。"""
 
     def test_large_collections_use_range_names(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         plane = Node(
             cmds.polyPlane(
                 name="plane", subdivisionsX=100, subdivisionsY=100, constructionHistory=False

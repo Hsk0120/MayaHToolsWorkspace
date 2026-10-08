@@ -5,9 +5,10 @@ import maya.cmds as cmds
 
 from .._core.attributeType import is_internal_data_type
 from .._core.flags import flag_aliases
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators._safe import safe_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit, is_fast
+from ..common._safe import safe_edit
+from ..decorator import undoChunk
 from .plug import Plug, _instance_count
 
 
@@ -212,7 +213,7 @@ class ArrayPlug(Plug):
         Returns:
             int: 追加した論理インデックス。途中の穴は再利用しない。
         """
-        from ..plugs.plug import MAX_LOGICAL_INDEX
+        from .plug import MAX_LOGICAL_INDEX
         from ..nodes.node import Node
         self._require_valid()
         if not self._mplug.attribute().hasFn(om2.MFn.kMessageAttribute):
@@ -222,6 +223,70 @@ class ArrayPlug(Plug):
             raise IndexError("Message array index limit reached")
         Node(node).getPlug("message").connectTo(self._element_reference(index))
         return index
+
+    @_getter_alias(getElement)
+    def element(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getElement(*args, **kwargs)
+
+    @_getter_alias(getElements)
+    def elements(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getElements(*args, **kwargs)
+
+    @_getter_alias(getNextAvailableIndex)
+    def nextAvailableIndex(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNextAvailableIndex(*args, **kwargs)
+
+    @_getter_alias(getSourceNodes)
+    def sourceNodes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSourceNodes(*args, **kwargs)
 
     def _existing_indices(self):
         """存在する要素の論理インデックスを昇順で返す。

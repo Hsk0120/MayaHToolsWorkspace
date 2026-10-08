@@ -1,9 +1,9 @@
 """BifrostでSoft IKの距離減衰を構成する。"""
 
 import math
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 from hlib_bifrost.nodes.graph import Graph
-from hlib_bifrost.utils.mathBuilder import MathBuilder
+from hlib_bifrost.common.mathBuilder import MathBuilder
 
 
 class SoftIK:

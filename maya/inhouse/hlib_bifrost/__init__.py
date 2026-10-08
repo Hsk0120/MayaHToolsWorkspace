@@ -4,7 +4,7 @@ import importlib as _importlib
 
 HLIB_EXTENSION_API = 1
 
-__all__ = ["nodes", "plugs", "utils", "environment", "is_available"]
+__all__ = ["nodes", "plugs", "common", "is_available"]
 
 
 def is_available():
@@ -13,7 +13,7 @@ def is_available():
     Returns:
         bool: hlib拡張検出プロトコルから対応プラグインの状態を照会する。
     """
-    from .environment import Bifrost
+    from .common import Bifrost
     return Bifrost.is_available()
 
 
@@ -27,7 +27,7 @@ def __getattr__(name):
     Raises:
         AttributeError: 公開対象以外の名前の場合。
     """
-    if name not in {"nodes", "plugs", "utils", "environment"}:
+    if name not in {"nodes", "plugs", "common"}:
         raise AttributeError(name)
     module = _importlib.import_module(__name__ + "." + name)
     globals()[name] = module

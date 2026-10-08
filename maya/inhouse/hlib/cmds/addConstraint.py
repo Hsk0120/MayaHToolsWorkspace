@@ -8,7 +8,7 @@ pointOnPoly。Constraint接尾辞付きの型名も指定できる。
 """
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases(typ="type", mo="maintainOffset")

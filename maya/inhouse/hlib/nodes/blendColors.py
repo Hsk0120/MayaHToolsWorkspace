@@ -5,13 +5,12 @@ import math
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from .node import Node
 
 
-@node_wrapper("blendColors")
 class BlendColors(Node):
     """color1 * blender + color2 * (1 - blender)を評価するノード。"""
 
@@ -147,6 +146,102 @@ class BlendColors(Node):
             tuple[float, float, float]: 評価済みRGB値。
         """
         return tuple(self.getOutputPlug().get())
+
+    @_getter_alias(getColorPlug)
+    def colorPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getColorPlug(*args, **kwargs)
+
+    @_getter_alias(getColor)
+    def color(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getColor(*args, **kwargs)
+
+    @_getter_alias(getBlenderPlug)
+    def blenderPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getBlenderPlug(*args, **kwargs)
+
+    @_getter_alias(getBlender)
+    def blender(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getBlender(*args, **kwargs)
+
+    @_getter_alias(getOutputPlug)
+    def outputPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputPlug(*args, **kwargs)
+
+    @_getter_alias(getResult)
+    def result(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getResult(*args, **kwargs)
 
     @staticmethod
     def _index(index):

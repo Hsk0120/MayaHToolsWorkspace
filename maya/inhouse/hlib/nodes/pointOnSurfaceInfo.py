@@ -1,15 +1,14 @@
 """接続したsurfaceの形状情報をMayaで評価する。"""
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .abstractBaseCreate import AbstractBaseCreate
 
 
-@node_wrapper("pointOnSurfaceInfo")
 class PointOnSurfaceInfo(AbstractBaseCreate):
     """接続したsurfaceの形状情報をMayaで評価する。"""
 
@@ -126,3 +125,99 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
             raise ValueError("direction must be u or v")
         _Calculation.boolean(normalized)
         return Vector(self.getPlug(("normalizedTangent" if normalized else "tangent") + direction.upper()).get())
+
+    @_getter_alias(getInputPlug)
+    def inputPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInputPlug(*args, **kwargs)
+
+    @_getter_alias(getParameters)
+    def parameters(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParameters(*args, **kwargs)
+
+    @_getter_alias(getPercentage)
+    def percentage(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPercentage(*args, **kwargs)
+
+    @_getter_alias(getPosition)
+    def position(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPosition(*args, **kwargs)
+
+    @_getter_alias(getNormal)
+    def normal(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNormal(*args, **kwargs)
+
+    @_getter_alias(getTangent)
+    def tangent(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTangent(*args, **kwargs)

@@ -35,10 +35,11 @@ class CalculationNodesTest(unittest.TestCase):
             with self.subTest(kind=kind):
                 node = hlib.createNode(kind)
                 actual = cmds.nodeType(node.getFullName())
-                self.assertEqual(type(node).__dict__["__hlib_node_type__"], actual)
+                self.assertIs(type(node), hlib.nodes.Node._registry.lookup(actual))
                 native = cmds.nodeType(node.getFullName(), inherited=True)
+                declared = {cls: name for name, cls in hlib.nodes._WRAPPER_CLASSES.items()}
                 for cls in type(node).__mro__:
-                    name = cls.__dict__.get("__hlib_node_type__")
+                    name = declared.get(cls)
                     if name and name != "dependNode":
                         self.assertIn(name, native)
 

@@ -1,7 +1,7 @@
 """アトリビュートを追加する。照会・編集はPlugのメソッドを使用する。"""
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases("addAttr")

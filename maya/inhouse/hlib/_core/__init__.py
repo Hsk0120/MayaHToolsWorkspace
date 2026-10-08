@@ -1,23 +1,17 @@
-"""hlib の型登録・検出・初期化・再読み込み機能を公開する。"""
+"""hlibの型登録・初期化・再読み込み機能を公開する。"""
+
+# 旧構成を読み込み済みでも、廃止した登録入口を残さない。
+for _name in ("collection_export", "discover_node_package", "discover_plug_package",
+              "node_wrapper", "plug_wrapper"):
+    globals().pop(_name, None)
 
 from .bootstrap import initialize_node_api, initialize_plug_api
-from .discovery import discover_node_package, discover_plug_package
-from .registry import (
-	NodeRegistry,
-	collection_export,
-	node_wrapper,
-	plug_wrapper,
-)
+from .registry import NodeRegistry
 from .reload import reload_package
 
 __all__ = [
 	"NodeRegistry",
-	"collection_export",
-	"discover_node_package",
-	"discover_plug_package",
 	"initialize_node_api",
 	"initialize_plug_api",
-	"node_wrapper",
-	"plug_wrapper",
 	"reload_package",
 ]

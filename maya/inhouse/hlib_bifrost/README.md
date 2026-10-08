@@ -2,7 +2,7 @@
 
 Maya 2025以降・Bifrost 3.0.0.0以上向けのVNN操作ライブラリです。
 import時はプラグインをロードしません。`is_available()` はロード済み対応版かを照会し、
-`environment.Bifrost.ensure_available()` と `Graph.create()` は必要時にロードします。
+`common.Bifrost.ensure_available()` と `Graph.create()` は必要時にロードします。
 hlibの拡張検出プロトコルに対応しますが、内部VNNノードをMaya DGノードとして登録しません。
 
 ```python
@@ -31,13 +31,13 @@ VNNコマンドのエラーは隠さず呼出側へ返します。MayaのUndoに
 ## 共通の演算構築
 
 `Graph`・`Node`・`Compound`・`Port`はそれぞれのPythonファイルに実装しています。
-クラスはnodes/plugs/utils/environmentの所属パッケージからimportします。
+クラスはnodes/plugs/commonの所属パッケージからimportします。
 `Graph.getParent()`は現在のDAG親、`Graph.delete()`は親を含む削除です。
 親に別の子がある場合は削除を拒否するため、必要ならshapeだけ明示削除してください。
 
 ```python
 from hlib_bifrost.nodes import Graph
-from hlib_bifrost.utils import MathBuilder
+from hlib_bifrost.common import MathBuilder
 
 graph = Graph.create("sampleGraph")
 graph.root.add_port("result", "float", output=True)
@@ -63,15 +63,14 @@ hrigの標準構成からBifrostをロードすることはありません。
 hlib_bifrost/
   nodes/      # Graph・Node・Compound（1クラス1ファイル）
   plugs/      # Port（Bifrost内部ポート）
-  utils/      # MathBuilder（汎用演算）
-  environment/    # Bifrostの対応版確認・明示ロード
+  common/     # MathBuilder（汎用演算）・Bifrost（対応版確認・明示ロード）
   __tests__/
 ```
 
 hlibと同じ責務の区分を使います。VNN参照をMaya DGのNode/Plugとして登録はしません。
 新規コードは `from hlib_bifrost.nodes import Graph` 等を使用できます。
 旧ルートモジュールとクラス再公開は廃止しています。
-プラグイン判定・ロードは `environment.Bifrost`。ルートの `is_available` はhlib拡張検出専用です。
+プラグイン判定・ロードは `common.Bifrost`。ルートの `is_available` はhlib拡張検出専用です。
 
 Soft IKの構築は `hrig.setups.bifrostSoftIK.SoftIK` へ移動しました。hlib_bifrostは基本グラフ操作・演算構築を提供し、hrigへ依存しません。
 

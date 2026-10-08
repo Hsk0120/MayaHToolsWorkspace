@@ -12,7 +12,7 @@ query/edit、object=False、polygonによる非NURBS出力は受け付けない�
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases, normalize_flags
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 _PRIMITIVES = {
     "circle": "circle",

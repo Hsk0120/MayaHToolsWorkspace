@@ -1,99 +1,160 @@
-"""サブパッケージと再読み込みの入口を提供する。"""
+"""サブパッケージ・公開コマンドと再読み込みの入口を提供する。"""
 
-# 旧構成を読み込み済みのセッションでも、ルートの再公開名を残さない。
+# reloadは辞書を保持するため、前回の公開値を明示importの前に解除する。
 for _name in globals().get("__all__", ()):
-    if _name not in {"cmds", "nodes", "plugs", "components", "scene", "ui", "environment", "events", "Object", "utils", "decorators", "maths", "json", "reload"}:
+    if _name not in {"cmds", "nodes", "plugs", "components", "common", "logger",
+                     "decorator", "maths", "json", "reload"}:
         globals().pop(_name, None)
 for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
               "NODE_REGISTRY", "PLUG_REGISTRY", "initialize_node_api",
-              "initialize_plug_api", "reload_package", "importlib", "core", "scenes", "session", "units", "workspace", "selection",
-              "context", "editors", "files", "namespaces", "plugins", "animation"):
+              "initialize_plug_api", "reload_package", "importlib", "core", "scenes",
+              "session", "units", "workspace", "selection", "context", "editors",
+              "files", "namespaces", "plugins", "animation", "scene", "environment",
+              "ui", "events", "utils", "decorators", "object", "Object", "extensions",
+              "general", "TYPE_CHECKING", "_command_exports"):
     globals().pop(_name, None)
 
 import importlib as _importlib
-from typing import TYPE_CHECKING
 
-from .object import Object
-from . import scene, ui, environment, events, cmds, nodes, plugs, components, utils, decorators, maths, json
-
-globals().pop("general", None)
+from . import logger
+from . import common, decorator, cmds, nodes, plugs, components, maths, json
 from ._core import bootstrap as _bootstrap
 from ._core.reload import reload_package as _reload_package
 
-# importlib.reload(hlib) でも初期化関数の旧シグネチャを残さない。
+# 標準型の対応表を構築してから任意拡張を検出する。
 _importlib.reload(_bootstrap)
 _bootstrap.initialize_node_api(__name__)
 _bootstrap.initialize_plug_api(__name__)
 
-__all__ = ["scene", "ui", "environment", "events", "Object", "cmds", "nodes", "plugs", "components", "utils", "decorators", "maths", "reload"]
-__all__.append("json")
+from .cmds import (
+    addAttr,
+    addConstraint,
+    attr,
+    bakeResults,
+    bindSkin,
+    captureSelection,
+    channelBox,
+    createBlendShape,
+    createCurve,
+    createGroup,
+    createIkHandle,
+    createNode,
+    createNurbs,
+    createPolygon,
+    createSet,
+    createShader,
+    createShadingGroup,
+    createShelf,
+    delete,
+    drivenKey,
+    duplicate,
+    executeDeferred,
+    getAttr,
+    getChannelBox,
+    getDrivenKey,
+    getNode,
+    getOutliner,
+    getPlug,
+    getScene,
+    getShelf,
+    getTimeSlider,
+    getViewport,
+    getWindow,
+    getWorkspaceControl,
+    getWorkspaceLayout,
+    ls,
+    makeIdentity,
+    mirrorJoint,
+    node,
+    outliner,
+    plug,
+    reorder,
+    requirePlugins,
+    scene,
+    select,
+    shelf,
+    timeSlider,
+    viewport,
+    window,
+    workspaceControl,
+    workspaceLayout,
+)
 
-# 静的解析(Pylance/pyright)向けの宣言。実行時には評価されず、上記の動的公開が実体。
-# 公開名の一覧との一致は test_typing_exports.py が検証する。
-if TYPE_CHECKING:
-    from .cmds import (
-        createBlendShape,
-        createShader,
-        createShadingGroup,
-        bindSkin,
-        mirrorJoint,
-        createNurbs,
-        createCurve,
-        addAttr,
-        executeDeferred,
-        getAttr,
-        createIkHandle,
-        makeIdentity,
-        createPolygon,
-        reorder,
-        createSet,
-        bakeResults,
-        captureSelection,
-        getChannelBox,
-        addConstraint,
-        createNode,
-        delete,
-        getDrivenKey,
-        duplicate,
-        createGroup,
-        ls,
-        getNode,
-        getOutliner,
-        getWindow,
-        getWorkspaceControl,
-        getWorkspaceLayout,
-        getShelf,
-        createShelf,
-        getPlug,
-        requirePlugins,
-        getScene,
-        select,
-        getTimeSlider,
-        getViewport,
-    )
+__all__ = [
+    "addAttr",
+    "addConstraint",
+    "attr",
+    "bakeResults",
+    "bindSkin",
+    "captureSelection",
+    "channelBox",
+    "cmds",
+    "common",
+    "components",
+    "createBlendShape",
+    "createCurve",
+    "createGroup",
+    "createIkHandle",
+    "createNode",
+    "createNurbs",
+    "createPolygon",
+    "createSet",
+    "createShader",
+    "createShadingGroup",
+    "createShelf",
+    "decorator",
+    "delete",
+    "drivenKey",
+    "duplicate",
+    "executeDeferred",
+    "getAttr",
+    "getChannelBox",
+    "getDrivenKey",
+    "getNode",
+    "getOutliner",
+    "getPlug",
+    "getScene",
+    "getShelf",
+    "getTimeSlider",
+    "getViewport",
+    "getWindow",
+    "getWorkspaceControl",
+    "getWorkspaceLayout",
+    "json",
+    "logger",
+    "ls",
+    "makeIdentity",
+    "maths",
+    "mirrorJoint",
+    "node",
+    "nodes",
+    "outliner",
+    "plug",
+    "plugs",
+    "reload",
+    "reorder",
+    "requirePlugins",
+    "scene",
+    "select",
+    "shelf",
+    "timeSlider",
+    "viewport",
+    "window",
+    "workspaceControl",
+    "workspaceLayout",
+]
 
 
 def reload():
-    """hlib 配下を依存順に再読み込みする。
+    """hlib配下を依存順に再読み込みする。
 
     Returns:
         tuple[module]: 再読み込みしたモジュール群。
     """
-    extensions._prepare_reload()
-    _prepare = getattr(cmds, "_prepare_reload", None)
-    if _prepare is not None:
-        _prepare()
+    _extensions._prepare_reload()
     return _reload_package(__name__)
 
 
-# コマンドは同じ関数を二つの入口で公開する。既存のパッケージ名や reload は保護する。
-_command_exports = tuple(name for name in cmds.__all__ if name not in globals())
-for _name in _command_exports:
-    globals()[_name] = getattr(cmds, _name)
-__all__ += list(_command_exports)
+from ._core import extensions as _extensions
 
-# 標準APIを利用できる状態にしてから任意拡張を検出する。
-from . import extensions
-
-extensions._initialize()
-__all__.append("extensions")
+_extensions._initialize()

@@ -2,12 +2,11 @@
 
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..decorator import undoChunk
 from .node import Node
 
 
-@node_wrapper("objectSet")
 class ObjectSet(Node):
     """Maya の objectSet ラッパー。コントロールセット・表示セット等の基本操作を提供する。"""
 
@@ -35,7 +34,7 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         if members:
             cmds.sets(_InputObject._input_names(members), add=self.getName())
         return self
@@ -50,7 +49,7 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         if members:
             cmds.sets(_InputObject._input_names(members), remove=self.getName())
         return self
@@ -64,5 +63,21 @@ class ObjectSet(Node):
         Returns:
             bool: メンバーの場合は True。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         return bool(cmds.sets(_InputObject._input_name(member), isMember=self.getName()))
+
+    @_getter_alias(getMembers)
+    def members(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMembers(*args, **kwargs)

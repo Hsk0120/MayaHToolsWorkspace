@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases("reorder")
@@ -24,7 +24,7 @@ def reorder(*args, **kwargs):
 
 
     """
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
     from ..nodes.node import Node
 
     names = _InputObject._input_names(args)

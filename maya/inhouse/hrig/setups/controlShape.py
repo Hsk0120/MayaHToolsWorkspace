@@ -4,7 +4,7 @@ from maya import cmds
 
 import math
 import hlib
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class ControlShape:

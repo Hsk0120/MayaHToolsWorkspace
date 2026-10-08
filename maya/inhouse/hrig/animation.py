@@ -7,7 +7,7 @@ import math
 import hlib
 
 from hlib.maths import Matrix, Vector
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 @undoTransaction("hrig.bake_source")

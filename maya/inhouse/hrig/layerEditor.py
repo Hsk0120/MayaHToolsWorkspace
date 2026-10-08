@@ -3,9 +3,9 @@
 from functools import partial
 
 import hlib
-from hlib.ui import MainWindow
-from hlib.ui import NodeEditor
-from hlib.ui import GraphEditor
+from hlib.common import MainWindow
+from hlib.common import NodeEditor
+from hlib.common import GraphEditor
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
@@ -14,7 +14,7 @@ except ImportError:
     from PySide2 import QtCore, QtGui, QtWidgets
     from shiboken2 import isValid
 
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 from .sampleBuilder import SampleBuilder
 from .moduleRegistry import ModuleRegistry
 from .skirtRig import SkirtRig
@@ -78,8 +78,8 @@ class LayerEditor(QtWidgets.QDialog):
         self._busy = False
         self._pending = False
         self._closed = False
-        self._jobs = hlib.events.ScriptJobs()
-        self._attributes = hlib.events.ScriptJobs()
+        self._jobs = hlib.common.ScriptJobs()
+        self._attributes = hlib.common.ScriptJobs()
         self.setStyleSheet("""
             QDialog { background:#24262c; color:#e3e5ed; }
             QLabel { color:#d5d8e2; } QGroupBox { color:#aeb5c8; border:1px solid #424650;

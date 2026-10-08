@@ -60,4 +60,4 @@ Maya不要のPython環境で、リポジトリ直下から実行します。
    python -m sphinx -W --keep-going -b html maya/inhouse/hrig/docs .maya-output/hrig-docs
 
 出力の ``index.html`` を開きます。hlibのsphinxdocテーマとCSSを共有するため、
-ワークスペース内のhlib/docsも必要です。外部ツール調査メモや生ログはサイトへ取り込みません。
+ワークスペース内のhlib/_docsも必要です。外部ツール調査メモや生ログはサイトへ取り込みません。

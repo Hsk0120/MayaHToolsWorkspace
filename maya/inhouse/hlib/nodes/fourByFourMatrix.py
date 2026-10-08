@@ -1,13 +1,12 @@
 """個別の16要素から行列を構築する。"""
 
-from .._core.registry import node_wrapper
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from ..maths import Matrix
 from .node import Node
 
 
-@node_wrapper("fourByFourMatrix")
 class FourByFourMatrix(Node):
     """個別の16要素から行列を構築する。"""
 
@@ -51,3 +50,51 @@ class FourByFourMatrix(Node):
             Matrix: 計算結果。
         """
         return Matrix(self.getOutputPlug().get())
+
+    @_getter_alias(getMatrix)
+    def matrix(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMatrix(*args, **kwargs)
+
+    @_getter_alias(getOutputPlug)
+    def outputPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputPlug(*args, **kwargs)
+
+    @_getter_alias(getResult)
+    def result(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getResult(*args, **kwargs)

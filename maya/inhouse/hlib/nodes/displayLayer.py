@@ -2,12 +2,11 @@
 
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..decorator import undoChunk
 from .node import Node
 
 
-@node_wrapper("displayLayer")
 class DisplayLayer(Node):
     """Maya の displayLayer ラッパー。メンバー管理とカレントレイヤー操作を提供する。"""
 
@@ -35,7 +34,7 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         if members:
             cmds.editDisplayLayerMembers(self.getName(), _InputObject._input_names(members))
         return self
@@ -53,7 +52,7 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         if members:
             cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
         return self
@@ -67,3 +66,19 @@ class DisplayLayer(Node):
         """
         cmds.editDisplayLayerGlobals(currentDisplayLayer=self.getName())
         return self
+
+    @_getter_alias(getMembers)
+    def members(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMembers(*args, **kwargs)

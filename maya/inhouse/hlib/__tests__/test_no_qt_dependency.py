@@ -5,7 +5,7 @@ import sys
 import unittest
 from unittest.mock import patch
 import hlib
-from hlib.ui import MainWindow
+from hlib.common import MainWindow
 
 
 class NoQtDependencyTest(unittest.TestCase):
@@ -16,7 +16,7 @@ class NoQtDependencyTest(unittest.TestCase):
         forbidden = ("PySide", "PyQt", "shiboken", "qtpy", "Qt")
         violations = []
         for path in Path(hlib.__file__).parent.rglob("*.py"):
-            if any(part in (".venv", "_build", "__pycache__") for part in path.parts):
+            if any(part in (".venv", "_build", "_docs", "__pycache__") for part in path.parts):
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8-sig"))
             for node in ast.walk(tree):

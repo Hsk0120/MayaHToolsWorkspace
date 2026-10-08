@@ -129,7 +129,8 @@ class ApiRefinementsTest(unittest.TestCase):
             self.assertAlmostEqual(a, b)
         node.setPivot((5, 6, 7), preserve=False)
         self.assertFalse(node.getMatrix().isEquivalent(before))
-        self.assertFalse(hasattr(type(node), "pivot"))
+        self.assertTrue(callable(node.pivot))
+        self.assertEqual(node.pivot(), node.getPivot())
 
     def test_removal_flag_validation_across_entries(self):
         """単体・複数・Jointとも文字列のFalseを更新前に拒否する。"""
@@ -186,11 +187,11 @@ class ApiRefinementsTest(unittest.TestCase):
 
     def test_stored_properties_do_not_query_maya(self):
         """保持値の参照はMaya照会をせず、Selectionの返却リストはコピー。"""
-        scene = hlib.scene.Scene(Path("stored.ma"))
-        plugin = hlib.environment.Plugin("example")
-        module = hlib.environment.Module("example")
-        selection = hlib.scene.Selection([self.create("transform")])
-        view = object.__new__(hlib.ui.Viewport)
+        scene = hlib.common.Scene(Path("stored.ma"))
+        plugin = hlib.common.Plugin("example")
+        module = hlib.common.Module("example")
+        selection = hlib.common.Selection([self.create("transform")])
+        view = object.__new__(hlib.common.Viewport)
         view._name, view._panel = "editor", "panel"
         with patch.object(cmds, "file", side_effect=AssertionError("Unexpected query")), patch.object(
             cmds, "pluginInfo", side_effect=AssertionError("Unexpected query")

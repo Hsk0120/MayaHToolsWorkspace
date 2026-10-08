@@ -3,11 +3,11 @@
 import math
 
 import hlib
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 from hlib.json import JsonText
 from hlib.nodes import Container, Node, Transform
 from hlib.plugs import Plug
-from hlib.utils.scalarGraph import ScalarGraph
+from hlib.common.scalarGraph import ScalarGraph
 
 
 _ORDERS = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")

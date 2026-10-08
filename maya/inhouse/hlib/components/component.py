@@ -3,7 +3,8 @@
 import math
 import operator
 
-from ..object import Object
+from .._core.getterAlias import _getter_alias
+from .._core.object import Object
 
 
 class Component(Object):
@@ -87,6 +88,22 @@ class Component(Object):
         """
         self._validate()
         return f"{self._shape.getFullName()}.{self.component_type}[{self._index}]"
+
+    @_getter_alias(getFullName)
+    def fullName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullName(*args, **kwargs)
 
     @staticmethod
     def _from_api(path, component):
@@ -353,6 +370,38 @@ class Components:
         if start is not None:
             names.append(self._range_name(prefix, start, previous))
         return names
+
+    @_getter_alias(getFullNames)
+    def fullNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullNames(*args, **kwargs)
+
+    @_getter_alias(getCompactNames)
+    def compactNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getCompactNames(*args, **kwargs)
 
     def _name_prefix(self):
         """全番号をまとめて再検証し、``<シェイプの完全パス>.<種類>`` を返す。

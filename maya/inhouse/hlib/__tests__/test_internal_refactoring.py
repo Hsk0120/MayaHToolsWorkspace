@@ -20,7 +20,7 @@ class InternalRefactoringTest(unittest.TestCase):
         """公開コマンドを差し替えてもクラスの追加・予約操作を実行できる。"""
         import importlib
         import maya.utils
-        from hlib.events import Deferred
+        from hlib.common import Deferred
         add_module = importlib.import_module("hlib.cmds.addAttr")
         deferred_module = importlib.import_module("hlib.cmds.executeDeferred")
         node = hlib.createNode("transform")
@@ -41,9 +41,9 @@ class InternalRefactoringTest(unittest.TestCase):
         node = hlib.createNode("transform")
         plug = node.getPlug("tx")
         with patch.object(Nodes, "_resolve_inputs", side_effect=AssertionError("input cycle")):
-            self.assertEqual(hlib.Object._input_names(x for x in [[plug]]), [plug.getFullName()])
+            self.assertEqual(hlib._core.object.Object._input_names(x for x in [[plug]]), [plug.getFullName()])
             with self.assertRaises(TypeError):
-                hlib.Object._input_names([node, node.getFullName()])
+                hlib._core.object.Object._input_names([node, node.getFullName()])
 
     def test_snapshot_base_kind_and_serialized_shape(self):
         """基底Snapshotのkindによる適用と既存JSON構造を維持する。"""
@@ -179,7 +179,7 @@ class InternalRefactoringTest(unittest.TestCase):
     def test_deferred_entrypoints_share_validation(self):
         """どちらの入口も同じ引数で一度だけMayaへ予約する。"""
         import maya.utils
-        from hlib.events import Deferred
+        from hlib.common import Deferred
         callback = lambda value: value
         for entry in (hlib.executeDeferred, Deferred.call):
             with patch.object(maya.utils, "executeDeferred") as enqueue:

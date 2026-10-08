@@ -1,14 +1,13 @@
 """距離型の2入力を加算する。"""
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from ._calculation import _Calculation
 from .node import Node
 
 
-@node_wrapper("addDoubleLinear")
 class AddDoubleLinear(Node):
     """距離型の2入力を加算する。"""
 
@@ -84,3 +83,67 @@ class AddDoubleLinear(Node):
             float: 計算結果。
         """
         return self.getOutputPlug().get()
+
+    @_getter_alias(getInputPlug)
+    def inputPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInputPlug(*args, **kwargs)
+
+    @_getter_alias(getInput)
+    def input(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInput(*args, **kwargs)
+
+    @_getter_alias(getOutputPlug)
+    def outputPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputPlug(*args, **kwargs)
+
+    @_getter_alias(getResult)
+    def result(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getResult(*args, **kwargs)

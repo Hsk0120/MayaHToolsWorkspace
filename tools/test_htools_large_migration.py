@@ -166,7 +166,7 @@ def verifySharedApis():
     import maya.cmds as cmds
     from hlib.maths import MSpace
     from hlib.nodes import Mesh
-    from hlib.utils.orientedBounds import computeOrientedBounds
+    from hlib.common.orientedBounds import computeOrientedBounds
     from hrig.setups import ControlShape
     reset()
     for points in ([], [(0, 0, 0)] * 2, [(float("nan"), 0, 0)] * 3):

@@ -1,21 +1,20 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
+import inspect
 import math
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.collection import bulk_api
 from .._core.fastWrite import set_attr
 from .._core.flags import flag_aliases
-from .._core.registry import collection_export, node_wrapper
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from ..maths import EulerRotation, Matrix, Scale
 from .transform import Transform, Transforms, _closest_euler
 
 
-@node_wrapper("joint")
 class Joint(Transform):
     """Maya joint ノード用の Transform ラッパー。
 
@@ -138,7 +137,7 @@ class Joint(Transform):
         segmentScaleCompensateの値は変更しない。接続により姿勢が変わる場合がある。
         Jointsでは省略時に各joint自身の親を使用し、全体を一回のUndoで戻せる。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         if not isinstance(force, bool):
             raise TypeError("force must be a bool")
         if not self.isValid():
@@ -315,17 +314,20 @@ class Joint(Transform):
             result.append(SkinCluster(node.mnode()))
         return result
 
+    @flag_aliases(f="force")
     @undoChunk("hlibJointRemoveInfluence")
-    def removeInfluence(self, skin_cluster=None, *, transfer_to_parent=True):
+    def removeInfluence(self, skin_cluster=None, *, transfer_to_parent=True, force=False):
         """ウェイトの再配分方法を選んでinfluence登録を外す。joint自体は残す。
 
         Args:
             skin_cluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
             transfer_to_parent (bool): Trueは祖先へ移送、FalseはMaya標準の再配分。
+            force (bool): Trueは不正ウェイトを除去してから登録解除する。短縮名f。
+                正規化・ロック解除・レイヤーの回避は行わない。
         Returns:
             Joint: 自身。未スキニングで対象省略の場合は何もしない。
         Raises:
-            TypeError: transfer_to_parentがboolでない場合。
+            TypeError: transfer_to_parent/forceがboolでない場合、またはfとforceの同時指定。
             ValueError: 未登録の対象、または最後の一つのinfluenceの場合。
             RuntimeError: 無効joint、レイヤー、移送・削除失敗。
 
@@ -337,11 +339,13 @@ class Joint(Transform):
             raise RuntimeError("Cannot remove an invalid joint influence")
         if not isinstance(transfer_to_parent, bool):
             raise TypeError("transfer_to_parent must be a bool")
+        if type(force) is not bool:
+            raise TypeError("force must be a bool")
         skins = self.getSkinClusters() if skin_cluster is None else [skin_cluster if isinstance(skin_cluster, SkinCluster) else SkinCluster(skin_cluster)]
         for skin in skins:
-            skin._influence_removal_target(self, transfer_to_parent=transfer_to_parent)
+            skin._influence_removal_target(self, transfer_to_parent=transfer_to_parent, force=force)
         for skin in skins:
-            skin.removeInfluence(self, transfer_to_parent=transfer_to_parent)
+            skin.removeInfluence(self, transfer_to_parent=transfer_to_parent, force=force)
         return self
 
     def getTransferTarget(self, skin):
@@ -443,6 +447,182 @@ class Joint(Transform):
             seen.add(node.getUuid())
             result.append(IkHandle(node.mnode()))
         return result
+
+    @_getter_alias(getSegmentScaleCompensate)
+    def segmentScaleCompensate(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSegmentScaleCompensate(*args, **kwargs)
+
+    @_getter_alias(getJointOrient)
+    def jointOrient(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getJointOrient(*args, **kwargs)
+
+    @_getter_alias(getRadius)
+    def radius(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRadius(*args, **kwargs)
+
+    @_getter_alias(getInverseScale)
+    def inverseScale(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInverseScale(*args, **kwargs)
+
+    @_getter_alias(getParentJointName)
+    def parentJointName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParentJointName(*args, **kwargs)
+
+    @_getter_alias(getChildJointNames)
+    def childJointNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildJointNames(*args, **kwargs)
+
+    @_getter_alias(getDepth)
+    def depth(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDepth(*args, **kwargs)
+
+    @_getter_alias(getSkinClusters)
+    def skinClusters(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSkinClusters(*args, **kwargs)
+
+    @_getter_alias(getTransferTarget)
+    def transferTarget(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTransferTarget(*args, **kwargs)
+
+    @_getter_alias(getChainFromHere)
+    def chainFromHere(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChainFromHere(*args, **kwargs)
+
+    @_getter_alias(getIkHandles)
+    def ikHandles(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getIkHandles(*args, **kwargs)
 
     def _rotation_order(self):
         """Maya の rotateOrder を API の回転順序へ変換する。
@@ -635,16 +815,320 @@ class Joint(Transform):
         return unique_items
 
 
-@collection_export()
-@bulk_api(
-    Joint,
-    reads=('getSegmentScaleCompensate', 'getJointOrient', 'getRadius', 'getInverseScale', 'getParentJointName', 'getChildJointNames', 'getDepth', 'isJoint', 'getSkinClusters', 'getTransferTarget', 'reparentChildren', 'getChainFromHere', 'getIkHandles'),
-    writes=('setSegmentScaleCompensate', 'jointOrientToRotate', 'freezeRotation', 'connectInverseScale', 'disconnectInverseScale', 'setRadius', 'delete', 'removeInfluence'),
-)
 class Joints(Transforms):
     """Joint参照を保持するTransforms派生。型・重複規則はNodesに従う。"""
 
     item_class = Joint
+
+    _bulk_returns = {
+        **Transforms._bulk_returns,
+        "getSegmentScaleCompensate": "list",
+        "segmentScaleCompensate": "list",
+        "getJointOrient": "list",
+        "jointOrient": "list",
+        "getRadius": "list",
+        "radius": "list",
+        "getInverseScale": "list",
+        "inverseScale": "list",
+        "getParentJointName": "list",
+        "parentJointName": "list",
+        "getChildJointNames": "list",
+        "childJointNames": "list",
+        "getDepth": "list",
+        "depth": "list",
+        "isJoint": "list",
+        "getSkinClusters": "list",
+        "skinClusters": "list",
+        "getTransferTarget": "list",
+        "transferTarget": "list",
+        "reparentChildren": "list",
+        "getChainFromHere": "list",
+        "chainFromHere": "list",
+        "getIkHandles": "list",
+        "ikHandles": "list",
+        "setSegmentScaleCompensate": "self",
+        "jointOrientToRotate": "self",
+        "freezeRotation": "self",
+        "connectInverseScale": "self",
+        "disconnectInverseScale": "self",
+        "setRadius": "self",
+        "delete": "self",
+        "removeInfluence": "self",
+    }
+    _bulk_methods = {
+        **Transforms._bulk_methods,
+        "getSegmentScaleCompensate": Joint.getSegmentScaleCompensate,
+        "segmentScaleCompensate": Joint.segmentScaleCompensate,
+        "getJointOrient": Joint.getJointOrient,
+        "jointOrient": Joint.jointOrient,
+        "getRadius": Joint.getRadius,
+        "radius": Joint.radius,
+        "getInverseScale": Joint.getInverseScale,
+        "inverseScale": Joint.inverseScale,
+        "getParentJointName": Joint.getParentJointName,
+        "parentJointName": Joint.parentJointName,
+        "getChildJointNames": Joint.getChildJointNames,
+        "childJointNames": Joint.childJointNames,
+        "getDepth": Joint.getDepth,
+        "depth": Joint.depth,
+        "isJoint": Joint.isJoint,
+        "getSkinClusters": Joint.getSkinClusters,
+        "skinClusters": Joint.skinClusters,
+        "getTransferTarget": Joint.getTransferTarget,
+        "transferTarget": Joint.transferTarget,
+        "reparentChildren": Joint.reparentChildren,
+        "getChainFromHere": Joint.getChainFromHere,
+        "chainFromHere": Joint.chainFromHere,
+        "getIkHandles": Joint.getIkHandles,
+        "ikHandles": Joint.ikHandles,
+        "setSegmentScaleCompensate": Joint.setSegmentScaleCompensate,
+        "jointOrientToRotate": Joint.jointOrientToRotate,
+        "freezeRotation": Joint.freezeRotation,
+        "connectInverseScale": Joint.connectInverseScale,
+        "disconnectInverseScale": Joint.disconnectInverseScale,
+        "setRadius": Joint.setRadius,
+        "delete": Joint.delete,
+        "removeInfluence": Joint.removeInfluence,
+    }
+    _bulk_per_item_only = frozenset()
+
+    def getSegmentScaleCompensate(self, *args, **kwargs):
+        """各要素のgetSegmentScaleCompensateを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getSegmentScaleCompensate", args, kwargs)
+
+    getSegmentScaleCompensate.__signature__ = inspect.signature(Joint.getSegmentScaleCompensate)
+
+    def setSegmentScaleCompensate(self, *args, **kwargs):
+        """各要素のsetSegmentScaleCompensateを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Joints | list: コレクション自身。
+        """
+        return self._dispatch_shared("setSegmentScaleCompensate", args, kwargs)
+
+    setSegmentScaleCompensate.__signature__ = inspect.signature(Joint.setSegmentScaleCompensate)
+
+    def getJointOrient(self, *args, **kwargs):
+        """各要素のgetJointOrientを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getJointOrient", args, kwargs)
+
+    getJointOrient.__signature__ = inspect.signature(Joint.getJointOrient)
+
+    def getRadius(self, *args, **kwargs):
+        """各要素のgetRadiusを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getRadius", args, kwargs)
+
+    getRadius.__signature__ = inspect.signature(Joint.getRadius)
+
+    def setRadius(self, *args, **kwargs):
+        """各要素のsetRadiusを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Joints | list: コレクション自身。
+        """
+        return self._dispatch_shared("setRadius", args, kwargs)
+
+    setRadius.__signature__ = inspect.signature(Joint.setRadius)
+
+    def getInverseScale(self, *args, **kwargs):
+        """各要素のgetInverseScaleを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getInverseScale", args, kwargs)
+
+    getInverseScale.__signature__ = inspect.signature(Joint.getInverseScale)
+
+    def getParentJointName(self, *args, **kwargs):
+        """各要素のgetParentJointNameを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getParentJointName", args, kwargs)
+
+    getParentJointName.__signature__ = inspect.signature(Joint.getParentJointName)
+
+    def getChildJointNames(self, *args, **kwargs):
+        """各要素のgetChildJointNamesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getChildJointNames", args, kwargs)
+
+    getChildJointNames.__signature__ = inspect.signature(Joint.getChildJointNames)
+
+    def getDepth(self, *args, **kwargs):
+        """各要素のgetDepthを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getDepth", args, kwargs)
+
+    getDepth.__signature__ = inspect.signature(Joint.getDepth)
+
+    def isJoint(self, *args, **kwargs):
+        """各要素のisJointを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isJoint", args, kwargs)
+
+    isJoint.__signature__ = inspect.signature(Joint.isJoint)
+
+    def getTransferTarget(self, *args, **kwargs):
+        """各要素のgetTransferTargetを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getTransferTarget", args, kwargs)
+
+    getTransferTarget.__signature__ = inspect.signature(Joint.getTransferTarget)
+
+    def reparentChildren(self, *args, **kwargs):
+        """各要素のreparentChildrenを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("reparentChildren", args, kwargs)
+
+    reparentChildren.__signature__ = inspect.signature(Joint.reparentChildren)
+
+    def getChainFromHere(self, *args, **kwargs):
+        """各要素のgetChainFromHereを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getChainFromHere", args, kwargs)
+
+    getChainFromHere.__signature__ = inspect.signature(Joint.getChainFromHere)
+
+    def getIkHandles(self, *args, **kwargs):
+        """各要素のgetIkHandlesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getIkHandles", args, kwargs)
+
+    getIkHandles.__signature__ = inspect.signature(Joint.getIkHandles)
+
+    def connectInverseScale(self, *args, **kwargs):
+        """各要素のconnectInverseScaleを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Joints | list: コレクション自身。
+        """
+        return self._dispatch_shared("connectInverseScale", args, kwargs)
+
+    connectInverseScale.__signature__ = inspect.signature(Joint.connectInverseScale)
+
+    def disconnectInverseScale(self, *args, **kwargs):
+        """各要素のdisconnectInverseScaleを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Joints | list: コレクション自身。
+        """
+        return self._dispatch_shared("disconnectInverseScale", args, kwargs)
+
+    disconnectInverseScale.__signature__ = inspect.signature(Joint.disconnectInverseScale)
+
+    def removeInfluence(self, *args, **kwargs):
+        """各要素のremoveInfluenceを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Joints | list: コレクション自身。
+        """
+        return self._dispatch_shared("removeInfluence", args, kwargs)
+
+    removeInfluence.__signature__ = inspect.signature(Joint.removeInfluence)
 
     def sortedByDepth(self):
         """深い joint から順に並べた新しいコレクションを返す。
@@ -750,6 +1234,182 @@ class Joints(Transforms):
             if not targets:
                 return
         _JointDeletion(targets).execute()
+
+    @_getter_alias(getSegmentScaleCompensate)
+    def segmentScaleCompensate(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSegmentScaleCompensate(*args, **kwargs)
+
+    @_getter_alias(getJointOrient)
+    def jointOrient(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getJointOrient(*args, **kwargs)
+
+    @_getter_alias(getRadius)
+    def radius(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRadius(*args, **kwargs)
+
+    @_getter_alias(getInverseScale)
+    def inverseScale(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInverseScale(*args, **kwargs)
+
+    @_getter_alias(getParentJointName)
+    def parentJointName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParentJointName(*args, **kwargs)
+
+    @_getter_alias(getChildJointNames)
+    def childJointNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildJointNames(*args, **kwargs)
+
+    @_getter_alias(getDepth)
+    def depth(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDepth(*args, **kwargs)
+
+    @_getter_alias(getTransferTarget)
+    def transferTarget(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTransferTarget(*args, **kwargs)
+
+    @_getter_alias(getChainFromHere)
+    def chainFromHere(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChainFromHere(*args, **kwargs)
+
+    @_getter_alias(getIkHandles)
+    def ikHandles(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getIkHandles(*args, **kwargs)
+
+    @_getter_alias(getSkinClusters)
+    def skinClusters(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSkinClusters(*args, **kwargs)
 
     def _transfer_rotation(self, to_orient=False):
         """全対象の準備成功後に回転移送を適用する。

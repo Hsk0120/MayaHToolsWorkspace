@@ -18,7 +18,7 @@ class PublicCamelCaseTest(unittest.TestCase):
         inherited_bases = {'_Editor', '_WindowReference'}
         for path in root.rglob('*.py'):
             relative = path.relative_to(root)
-            if any(part in ('__tests__', 'docs', '_core') for part in relative.parts):
+            if any(part in ('__tests__', '_docs', '_core') for part in relative.parts):
                 continue
             if path.stem.startswith('_') and path.stem not in ('_editor', '_windowReference'):
                 continue
@@ -45,15 +45,15 @@ class PublicCamelCaseTest(unittest.TestCase):
     def test_reload_discards_old_public_functions(self):
         """旧版を読み込んだセッションを模して廃止名の残留を検出する。"""
         cases = (
-            ('hlib.decorators', 'undo_chunk', 'undoChunk'),
-            ('hlib.decorators.undo', 'undo_transaction', 'undoTransaction'),
-            ('hlib.utils', 'progress_bar', 'progressBar'),
-            ('hlib.utils.units', 'distance_to_ui', 'distanceToUi'),
+            ('hlib.decorator', 'undo_chunk', 'undoChunk'),
+            ('hlib.decorator', 'undo_transaction', 'undoTransaction'),
+            ('hlib.common', 'progress_bar', 'progressBar'),
+            ('hlib.common.units', 'distance_to_ui', 'distanceToUi'),
             ('hlib.json', 'load_document', 'loadDocument'),
             ('hlib.json.storage', 'load_document', 'loadDocument'),
-            ('hlib.environment.module', 'is_at_least', 'Module'),
-            ('hlib.environment.plugin', 'is_at_least', 'Plugin'),
-            ('hlib.environment.pluginPackage', 'is_at_least', 'PluginPackage'),
+            ('hlib.common.module', 'is_at_least', 'Module'),
+            ('hlib.common.plugin', 'is_at_least', 'Plugin'),
+            ('hlib.common.pluginPackage', 'is_at_least', 'PluginPackage'),
         )
         for module_name, old, new in cases:
             module = importlib.import_module(module_name)
@@ -67,7 +67,7 @@ class PublicCamelCaseTest(unittest.TestCase):
 
     def test_properties_and_storage_keep_distinct_contracts(self):
         """保持propertyを改名しても構築引数と保存データは変えない。"""
-        from hlib.environment import PluginPackage
+        from hlib.common import PluginPackage
         from hlib.json.document import JsonDocument
         package = PluginPackage('Example', plugins=('example',), minimum_version='3.0', minimum_maya=2025)
         self.assertEqual(package.minimumVersion.parts, (3, 0))

@@ -3,13 +3,12 @@
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoTransaction
+from .._core.getterAlias import _getter_alias
+from ..decorator import undoTransaction
 from ..plugs.plug import Plug
 from .node import Node, Nodes
 
 
-@node_wrapper("container")
 class Container(Node):
     """削除・保存を一括管理するDGノードの所有単位。"""
 
@@ -193,3 +192,35 @@ class Container(Node):
         if name not in published or published[name] is not None:
             raise ValueError("未Bindの公開名を指定してください: " + name)
         cmds.container(self.getFullName(), edit=True, unpublishName=name)
+
+    @_getter_alias(getMembers)
+    def members(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMembers(*args, **kwargs)
+
+    @_getter_alias(getPublishedAttrs)
+    def publishedAttrs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPublishedAttrs(*args, **kwargs)

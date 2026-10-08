@@ -59,7 +59,7 @@ class MethodContractTest(unittest.TestCase):
 
     def test_selection_empty_modes_and_invalid_mode(self):
         """追加・除外の空入力で現在選択を消さない。"""
-        from hlib.scene.selection import Selection
+        from hlib.common.selection import Selection
         cmds.select(str(self.node))
         for mode in ('add', 'remove'):
             Selection().select(mode=mode)
@@ -180,8 +180,8 @@ class MethodContractTest(unittest.TestCase):
 
     def test_plug_space_argument_and_redundant_methods_are_removed(self):
         """アトリビュートの型にかかわらず空間指定と古い別名を公開しない。"""
-        from hlib.environment import Plugin
-        from hlib.environment import Module
+        from hlib.common import Plugin
+        from hlib.common import Module
         from hlib.nodes import Joint
         for name in ('tx', 'translate', 'worldMatrix'):
             with self.assertRaises(TypeError):

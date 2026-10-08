@@ -55,7 +55,7 @@ class NativeTest(unittest.TestCase):
 
     def test_match_redo_preserves_pose(self):
         """親階層を持つFK合わせをRedoしてもローカル位置を二重変換しない。"""
-        from hlib.decorators.undo import undoChunk
+        from hlib.decorator import undoChunk
         rig = self.rig
         rig.set_mode('ik')
         expected = [cmds.xform(j,q=True,ws=True,matrix=True) for j in rig.getJoints()[:3]]

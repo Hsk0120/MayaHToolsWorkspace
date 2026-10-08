@@ -5,7 +5,7 @@ import unittest
 
 from maya import cmds
 
-from hlib.utils import DampedSpring
+from hlib.common import DampedSpring
 from hrig.setups import PoseRbf
 
 

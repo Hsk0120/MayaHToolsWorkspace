@@ -50,8 +50,8 @@ class ConvenienceTests(unittest.TestCase):
         self.assertTrue(Matrix.fromTransformation(value).isEquivalent(matrix))
         self.assertTrue(Matrix.fromTransformation(om2.MTransformationMatrix(matrix)).isEquivalent(matrix))
         node = hlib.createNode('transform')
-        node.offsetParentMatrix.set(value)
-        self.assertTrue(node.offsetParentMatrix.get().isEquivalent(matrix))
+        node.getPlug('offsetParentMatrix').set(value)
+        self.assertTrue(node.getPlug('offsetParentMatrix').get().isEquivalent(matrix))
 
     def test_compound_brackets_and_cmds_boundary(self):
         node = hlib.createNode('transform')
@@ -70,12 +70,13 @@ class ConvenienceTests(unittest.TestCase):
             compound['missing']
         compound['ty'].set(4)
         self.assertEqual(cmds.getAttr(str(compound)), [(0,4,0)])
-        self.assertEqual(tuple(hlib.getAttr(compound)), (0,4,0))
+        self.assertIs(hlib.getAttr(compound), compound)
+        self.assertEqual(tuple(hlib.getAttr(compound).get()), (0,4,0))
         cmds.undo()
         self.assertEqual(compound[1].get(), 0)
         blend = hlib.createNode('blendMatrix')
-        blend.target[3]['weight'].set(0.25)
-        self.assertEqual(blend.target[3]['weight'].get(), 0.25)
+        blend.getPlug('target')[3]['weight'].set(0.25)
+        self.assertEqual(blend.getPlug('target')[3]['weight'].get(), 0.25)
         node.ty.setLocked(True)
         self.assertEqual(compound.set((1,2,3), safe=True), 1)
         self.assertEqual(tuple(compound.get()), (1,0,3))

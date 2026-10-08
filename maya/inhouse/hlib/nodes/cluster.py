@@ -3,11 +3,10 @@
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
+from .._core.getterAlias import _getter_alias
 from .node import Node
 
 
-@node_wrapper("cluster")
 class Cluster(Node):
     """Maya の cluster デフォーマラッパー。"""
 
@@ -31,3 +30,35 @@ class Cluster(Node):
             list[Node]: 変形対象の shape。無ければ空リスト。
         """
         return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]
+
+    @_getter_alias(getWeightedNode)
+    def weightedNode(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getWeightedNode(*args, **kwargs)
+
+    @_getter_alias(getGeometry)
+    def geometry(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getGeometry(*args, **kwargs)

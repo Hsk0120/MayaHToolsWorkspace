@@ -8,8 +8,8 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib.decorators._fast import fast_edit, is_fast
-from hlib.decorators.undo import undoChunk, undoTransaction
+from hlib.common._fast import fast_edit, is_fast
+from hlib.decorator import undoChunk, undoTransaction
 
 
 class PerformanceContractsTest(unittest.TestCase):

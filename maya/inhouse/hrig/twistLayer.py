@@ -9,7 +9,7 @@ import hlib
 
 from hrig.setups import TwistDistribution
 from hlib.maths import Matrix
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class TwistLayer:

@@ -55,6 +55,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-09 | hlib・関連利用側/ドキュメント/設定のGit公開 | 未コミットのhlib変更を確認してコミット・mainへpush。他ツール作業中のheditを保持。 |
 
 
 
@@ -77,6 +78,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## hlib 修正予定（2026-10-02 追加レビュー）
 
+- [x] 2026-10-08の全体検証で確認した一括API登録漏れをユーザー指示で修正。DagNodesのreadsへgetSkinClusters/getBindPoses、TransformsのreadsへgetUnusedIntermediateShapes、writesへdeleteUnusedIntermediateShapesを追加しJointsへ継承。既存Joints.getSkinClustersの集約を維持。関連テストはMaya2022/2027各18件成功。
+
 - [x] Component._resolve_input: 単数解決で範囲を全ラッパーへ展開する前に要素数を検証する。Maya2027で441頂点生成後の拒否を再現。
 - [x] Node.add_attribute: ベクトル型の分岐前にquery/edit禁止を検証し、通常型と例外の契約を揃える。
 - [x] extensions._initialize: 拡張ごとのsys.modules削除をやめ、再読み込み対象の無効化とimport/登録を別段階にする。拡張AがBを継承すると、Bの再importでAの基底が登録済みBと別クラスになる。Maya2027の一時拡張2個で両方loaded・issubclass=Falseを再現。
@@ -84,9 +87,63 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-09): hedit 0.5.1。/Brepro・/Zi→/Z7・リンク前に前回のpdbを削除の3点でhedit.mllを再現可能にした(全6版で再ビルド・クリーンビルドとも同じハッシュ)。スマートアプリコントロールONでは.mllは止まらずテスト用の未署名exeが止まることを確認。6版の単体テスト、2022/2027のgui_smoke・session・startup合格。未コミット。
+
+- Codex (2026-10-09): ユーザーの一律追加・既存名上書き指定により、独自get[A-Z]全566定義へ通常defの省略入口を追加（class553、cmds/root13）。元getter全件AST不変、呼出時self/cls/getモジュールへ委譲し署名/フラグmetadataを共通補助で保持。static17件は省略側のみclassmethod、class2件と派生override/個体差替えへ追従。bulk短名76件を両管理表へ明示しcallEachの検証は現在の正式getterで実施、空集合/専用集約/既存封鎖/Undoを維持。同名アトリビュートはmethod優先とし既存直接Plug4参照＋conversion.inputと説明例をgetPlug化、旧短名不在テストを更新。Maya2022/2027全119ファイル各1116ケースは118ファイル成功・新規テストのcmds参照元誤りのみ失敗、専用nounモジュール参照へ補正後9ケースが両版成功。変更対象のunittest直接実行でhlib58ケース（比較6件はcymel実在名へテストだけ補正し再実行成功）が両版で成功、hrig22件は2027で成功。日英Sphinx -W警告0、英訳620件更新/対象外10029件保持、公開宣言/構文/差分検査成功。layout219files違反0、クラス内getter参照96クラスの並びはL023で検査スキップを維持。GUI/他版未検証、外部submodule無変更、未コミット。
+
+- Codex (2026-10-08): hlib.getAttr/cmds.getAttrの照会フラグなし呼出しをgetPlugへ委譲し、型付きPlug・既存Plug identityを返すよう変更。target引数と既存照会フラグを維持し、明示kwargs（False/time/silent含む）は従来のUI単位値・状態と数学型を返す。値取得の利用側をget/getuへ移行し、hrigのUI単位変換を保持。全6231 PythonファイルのAST棚卸し、入力/疎配列非実体化/Undo不登録/型/単位/照会別名の新5件とhlib関連計83件がMaya2022/2027で各成功。hrig関連22件は2027で成功、2022は19件成功・腕脚3件は既存Maya2025以降制限で実行不可。日英Sphinx -W警告0、英訳16件更新/対象外10013件保持、構文/公開宣言/対象新規layout/差分検査成功。GUI/他版未検証、未コミット。
+
+- Codex (2026-10-08): 値取得用Plug.getは既存実装で、公開16型すべてから呼べることを確認。数値/bool/文字列・Translation/Matrix・疎配列dict・compound tupleを隔離Maya2027で実行確認。既存get入口・内部単位・返却型を維持し、製品ソース/公開docs/テスト追加なし。GUI/他版は今回未実行。
+
+- Codex (2026-10-08): SkinCluster/Joint.removeInfluence・SkinClusters.removeInfluences・既存removeUnusedInfluencesへキーワード専用forceと短縮fを追加。不正ウェイトを除去してから既存解除を実行し、従来引数/返値/移送を維持。removeInvalidWeights（単数/複数self）を追加し、rawweightListの負値・NaN/±inf・未登録論理番号だけを除去。正規化/0補填/1超切捨て/ロック解除/レイヤー回避なし。通常cmds Undo・fast MDGModifier Undoなし、全対象readonly事前検証、最後/allzero拒否、NURBS単独修復と未対応祖先移送の修復前拒否を確認。Maya2022/2027新12＋既存81の各93件成功、日英Sphinx -W警告0・翻訳57件/非対象保持・構文/公開宣言/layout/差分検査成功。複数geometryの第二形状の既存MayaウェイトAPIは隔離probeで異常終了し今回の独立編集対象外、祖先移送は従来の先頭mesh制限を維持。GUI/他版未検証、未コミット。
+
+- Codex (2026-10-08): Plug.disconnectへsrc/sourceのbool入力指定とキーワード専用dst/destinationのbool出力指定を追加。既定入力のみ・指定入力Plug/MPlug/文字列・既存の位置引数/force/f/naと戻り値を維持し、方向モードは直接の相手Plugリスト・未接続/両Falseは空リスト。全出力・ロック/親/共有配列親の復元・複数切断の単一Undo/Redo・変換/子接続保持・strict不一致/別名競合・配列返却例外を検証。Maya2022/2027で新11件＋既存関連78件（各89件）とAPIメソッド手動assert成功、2027はNode API54件も成功。日英Sphinx -W警告0、公開宣言不一致0・layout違反0・構文/差分検査成功。実行ファイル名の誤指定1件は訂正して別実行成功。GUI/他Maya版は未検証、未コミット。
+
+- Codex (2026-10-08): hlib全240実装ファイル39390行からget[A-Z]566実定義（293名）を棚卸し。nodes420/plugs34/components28/common71/cmds13、maths/json独自get候補0。全件CSV/JSON・領域別の署名/返型/副作用/継承/判断と修正案をdocs/research/hlib-getter-aliases-20261008*へGit対象外で保存。Maya2027の型属性照合77型で43種類/54宣言元の標準アトリビュート衝突を確認、Joint.radiusとCompoundPlug同名子がPlugからmethodへ変わる事例を隔離プロセスで再現。静的Python短名衝突0、型未照合/staticmethod束縛/UI読込/複数形集約を別分類。get本体＋通常def委譲、衝突名原則除外、任意attrの意味2案と検証計画を提案。製品コード/公開docs/利用側変更なし、GUI/他Maya版未検証。
+
 - Claude Code (2026-10-08): hedit 0.5.0。高速化・軽量化レビューの全項目を実装(core・Python・画面全体は別作業コピーで並行し3方向で統合)。1キーの入力16→3ms、self.補完114→0.3ms、構文チェック2万行9→0.7秒、30タブ復元460→66ms、閉じている間の出力の負担≒0など。開発中に見つけたMaya 2022のクラッシュ(QTextDocument::clear中の通知でQTextCursorを解放)を修正。6版ビルド・単体、GUI 9種を2022/2024/2027で合格。未コミット。
 
+- Codex (2026-10-08): hlibのクラス/コマンド公開を明示importと__all__へ移行（commonは明示遅延公開を維持）、Node/Plugと外部拡張の型対応を_WRAPPER_CLASSESへ集約。型の自動選択・既存Undo/reload契約を維持し、登録デコレーター/discoveryとbulk生成を撤去。146一括入口を通常defから共通dispatchへ委譲し、raw引数・空集合・単数署名・要素別指定専用の封鎖を維持。公開漏れ/衝突/参照元/補完/型表のAST検査を追加しCIへ組込。管理表/実入口の整合検査と署名付随のlayout処理を追加。変更前後の公開名・型表・8269署名一致。Maya2022/2027全115ファイル各1076/1077件成功、最終関連40件＋公開/補完7件と独立コマンド検証も各成功。検査fixture16件・製品不一致0・layout違反0・日英Sphinx警告0・各484HTML/Mermaid検査成功。GUI操作/他バージョン未検証、hedit無変更、未コミット。
+
+- Codex (2026-10-08): 公開6フォルダのクラス自動公開案をASTで確認。候補183クラス、同名衝突なし、現行未公開はDeletedAttributeErrorのみ。外部型MSpace・非公開指定・common遅延import・静的補完の扱いを整理し、管理負担への懸念から明示公開と漏れ検査の案もローカル調査メモへ記録。製品コード変更・Maya実行なし。
+
+- Codex (2026-10-08): hlibの公開/型登録/型選択/一括生成を分け、PyMEL1.5.0同梱ソースとcymel同梱版/本家main0.36を比較。PyMELの標準メソッド事前ソース生成、cymelの主要クラス明示登録と必要時の型生成、両者の通常list取得を確認。hlibは公開・複数形メソッドを明示し型選択は維持する案をdocs/research/hlib-auto-registration-20261008.mdへローカル保存。製品コード・外部submodule変更/Maya実行なし。
+
+- Codex (2026-10-08): 一括APIの4宣言漏れを既存bulk_apiへ追加。型/コマンドの自動検出と一括転送の宣言に基づく自動生成の区別を実装確認し、日英の複数形APIガイドへ追記。登録網羅検査をNodes/DagNodes/Transformsにも拡大し、関係照会の対象順・二重リスト・Joints既存集約・複数対象削除の単一Undo/Redoを回帰検証。Maya2022/2027の全体114ファイル実行は各113成功、追加テストの作成順に関する誤った期待のみ失敗したため既存契約に合わせて修正し、関連3ファイル各18件再実行で成功（登録漏れ失敗解消）。日英Sphinx -W警告ゼロ、layout・差分検査成功。今回はGUI未実行、未コミット。
+
+- Codex (2026-10-08): hlibのscene/environment/ui/events/utilsをcommonへ統合、公開6コンテキスト関数をroot decorator.py、通知をroot logger.py、Object/extensions実装を_core、docsを_docsへ移動。追加ユーザー指示でhlib.Object/hlib.extensionsのroot公開も撤去し_core入口へ更新。内製利用側・Bifrost分類・テスト・ガイド・CI・補完設定を追従、旧互換入口なし。common遅延公開、Selection/Cycleのreload参照、旧loggerハンドラ除去に対応。公開1494定義の引数/デコレーター一致。Maya2022/2027各1069テスト・114ファイル実行、各113ファイル成功、既存の上記bulk登録漏れ1件だけ失敗。Maya2027 GUI自動15件、Bifrost5件、hrig19件、command discovery独立実行成功。日英Sphinx警告ゼロ、HTMLリンク・layout・差分検査成功。手動GUI操作/文書ブラウザ描画は未検証。旧cache/初期化ファイルは.maya-outputへ保存、未コミット。
+
 - Claude Code (2026-10-08): hedit全コード(約16,400行)を高速化・軽量化の観点でレビュー。キー入力ごとの全文再構築・非表示時の出力タイマーとカーソル移動での保存・型推論の行ごとの正規表現コンパイル等を確認し、段階別の改善案と計測方法をdocs/research/hedit-refactor-perf-20261008.md(ローカル)へ記録。コード変更なし。
+
+- Codex (2026-10-08): logger直接通知呼出は本体の6ファイルと確認し、Node経由の利用・hrig/HTools利用も整理。decorator.pyと並ぶhlib直下logger.py案を構成資料へ反映。通知/例外契約、初期化順、改名済みセッションのハンドラ重複検証を記録。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): extensions.pyを_coreへ配置する案を構成資料へ反映。探索・登録・reloadの内部責務、外部拡張の公開登録/状態照会入口、__package__由来の接頭辞への影響を確認。正式な公開入口は配置と別に整理する条件を記録。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): ユーザー方針によりObject名称・Node/Plug/単数Componentの共通基底契約を維持。_core/object.pyへの実装配置とhlib.Objectの正式公開入口維持を構成資料へ反映し、撤去/改名候補を不採用として整理。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): Object公開基底/factoryを外し、各基底の型別解決とlsの検索・列挙へ分担する案を検討。単数取得とlsの差、既存Plug/Component構築仕様、cmds向け内部正規化の移管条件を調査資料へ追記。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): Objectのfactory・内部入力正規化と既存テストを読取確認。Node/Plug/単数Componentの契約を維持し、common全体への継承拡張は入力契約が不整合になる点を整理。使用例と判断をローカル調査資料へ保存。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): 最新方針の最終構成案を更新。_core維持、資料は_docs、json/decorator.pyはルート、その他の公開共通機能はcommonに統合する配置を整理。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): _coreの14実装ファイルを登録・検証・変換・更新等に分類。docs→_docsと_core→coreの命名案、公開保証との区別、CI/探索除外/旧core除去処理の更新範囲をローカル資料へ記録。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): ユーザーの検討方針に合わせDecoratorクラス案を撤回し、公開6関数をhlib直下decorator.pyへまとめる案に更新。jsonのルート配置を維持し、直接関数importとモジュール利用を例示。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): Decoratorの静的メソッドから各呼出のcontextmanagerを返す案を検討。jsonはhlib直下の共通保存基盤として維持し、common/decorator.py案を構成資料へ反映。with/@・退避状態・既存契約・Maya依存の説明を確認。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): json/decoratorsの現行実装を確認。JSONはSnapshot派生・保存参照・適用計画など16クラス、decoratorsは独自クラスなし・公開6関数のcontextmanager群。JSONは複数機能のまとまり、decoratorsは関数の目的別分割と整理。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-08): 基本5領域を直下維持し、scene/environment/ui/events/utilsをcommonへ統合、json/decoratorsをcommon配下に残す最終配置案をローカル資料へ保存。現行ファイルとの対応・同名衝突・公開入口・移行範囲を確認。製品ソース変更・Maya実行なし。
+
+- Codex (2026-10-07): hlibの現行フォルダと公開型を確認。Sessionはルートsession.py、取得入口はcmds/getSession.pyとする未実装の配置案を整理。既存の機能別フォルダは維持する案。製品コード変更・Maya実行なし。
+
+- Codex (2026-10-07): 中核4型以外を操作クラスと対象・状態オブジェクトの二層に統一する設計案をローカル調査資料へ記録。static方式と共有インスタンス方式を比較し、対象解決・with・拡張判断・既存API移行条件を整理。実装変更・Maya実行なし。
+
+| Codex | 2026-10-07 | hlibの中核4型以外（読取）・docs/research | 全体操作・対象参照・保存値・登録管理に分類し、TimeSlider/Viewport/Scene等の責務混在と内製利用箇所を調査。ローカル調査資料を保存。実装変更・Maya実行なし。 |
+
+- Codex (2026-10-07): UI/scene/environmentのクラス設計を読取確認。Outliner/ChannelBox/Shelf/Window等は対象参照、GraphEditor/NodeEditor/MainWindowとPreferences/Workspaceは静的な操作窓口、TimeSlider/Viewport/WorkspaceLayoutは個別参照と全体操作を併有。関数化ではなくクラスの操作範囲とインスタンス要否を統一する方針を提案。製品コード変更・Maya実行なし。
 
 - Codex (2026-10-07): スキニング関係照会・未使用中間Shape取得/削除・delete(safe=False)と関連テスト/資料をコミット対象に集約。origin/main同期・差分検査成功、直前のMaya2022/2027各35テストとSphinx検証結果を確認。ユーザー指示により本コミットをpushする。
 

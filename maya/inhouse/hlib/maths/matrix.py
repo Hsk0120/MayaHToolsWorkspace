@@ -1073,7 +1073,7 @@ class Matrix(om2.MMatrix):
         Raises:
             ValueError: axisが不正、またはpivotが有限の3成分でない場合。
         """
-        from ..utils.mirror import mirrorArguments
+        from ..common.mirror import mirrorArguments
         axes, center = mirrorArguments(axis, pivot)
         result = type(self)._wrap(self)
         for axis in axes:

@@ -33,11 +33,11 @@ def create_soft_ik(name, length, backend="standard"):
     if int(version) < 2025:
         raise RuntimeError("hrig requires Maya 2025 or newer")
     plugin = Path(__file__).parent / "release" / "plug-ins" / "windows" / version / "hrigNodes.mll"
-    if not hlib.environment.Plugin("hrigNodes").isLoaded():
+    if not hlib.common.Plugin("hrigNodes").isLoaded():
         if not plugin.is_file():
             raise RuntimeError("Build hrigNodes for Maya " + version)
         # SafeModeの許可リストは変更しない。Mayaが拒否した場合はそのまま失敗する。
-        hlib.environment.Plugin(str(plugin)).load(quiet=True)
+        hlib.common.Plugin(str(plugin)).load(quiet=True)
     node = hlib.createNode("hrigSoftIK", name=name, skipSelect=True).getFullName()
     hlib.getPlug(node + ".length").set(length)
     return node, node

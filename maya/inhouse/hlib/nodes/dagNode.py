@@ -1,21 +1,20 @@
 """TransformとShapeに共通するDAG階層へのアクセスを提供する。"""
 
+import inspect
+
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from .._core.collection import bulk_api
 from .._core.flags import flag_aliases
-from .._core.registry import collection_export
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from .node import Node, Nodes
 
 
 class DagNode(Node):
     """DAGノードの共通基底。具象ラッパーの型登録は変更しない。"""
-
-    __hlib_public__ = True
 
     def getSkinClusters(self):
         """自身のジオメトリを変形するSkinClusterを取得する。
@@ -343,7 +342,7 @@ class DagNode(Node):
         Returns:
             Color: このノードのOutliner色。無効時はdisabledモード。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         if not self.getPlug("useOutlinerColor").get():
             return Color.disabled()
         return Color(rgb=self.getPlug("outlinerColor").get())
@@ -362,7 +361,7 @@ class DagNode(Node):
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value, outliner=True))
         return self
@@ -373,7 +372,7 @@ class DagNode(Node):
         親・表示レイヤー・選択ハイライトは合成しない。
         アトリビュートがない場合はRuntimeError。無効時はdisabledモードを返す。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         if not self.getPlug("overrideEnabled").get():
             return Color.disabled()
         if self.getPlug("overrideRGBColors").get():
@@ -396,10 +395,234 @@ class DagNode(Node):
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value))
         return self
+
+    @_getter_alias(getSkinClusters)
+    def skinClusters(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSkinClusters(*args, **kwargs)
+
+    @_getter_alias(getBindPoses)
+    def bindPoses(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getBindPoses(*args, **kwargs)
+
+    @_getter_alias(getInstances)
+    def instances(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInstances(*args, **kwargs)
+
+    @_getter_alias(getParents)
+    def parents(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParents(*args, **kwargs)
+
+    @_getter_alias(getParentPath)
+    def parentPath(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParentPath(*args, **kwargs)
+
+    @_getter_alias(getParent)
+    def parent(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParent(*args, **kwargs)
+
+    @_getter_alias(getFullPath)
+    def fullPath(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullPath(*args, **kwargs)
+
+    @_getter_alias(getChildren)
+    def children(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildren(*args, **kwargs)
+
+    @_getter_alias(getShape)
+    def shape(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShape(*args, **kwargs)
+
+    @_getter_alias(getPartialPath)
+    def partialPath(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPartialPath(*args, **kwargs)
+
+    @_getter_alias(getVisibility)
+    def visibility(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getVisibility(*args, **kwargs)
+
+    @_getter_alias(getOutlinerVisibility)
+    def outlinerVisibility(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutlinerVisibility(*args, **kwargs)
+
+    @_getter_alias(getOutlinerColor)
+    def outlinerColor(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutlinerColor(*args, **kwargs)
+
+    @_getter_alias(getOverrideColor)
+    def overrideColor(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOverrideColor(*args, **kwargs)
 
     def _traversal_children(self, shapes, intermediates, under_world):
         """指定条件で探索を続ける子パスを取得する。
@@ -484,16 +707,390 @@ class DagNode(Node):
         self._apply_display_color(self._prepare_display_color(updates))
 
 
-@collection_export()
-@bulk_api(
-    DagNode,
-    reads=('mpath', 'dagFn', 'getParentPath', 'getParent', 'getParents', 'getInstances', 'iterBreadthFirst', 'iterDepthFirst', 'getChildren', 'getShape', 'getFullPath', 'getPartialPath', 'isVisible', 'getVisibility', 'getOutlinerVisibility', 'getOutlinerColor', 'getOverrideColor'),
-    writes=('show', 'hide', 'setVisibility', 'setOutlinerVisibility', 'setOutlinerColor', 'setOverrideColor'),
-)
 class DagNodes(Nodes):
     """DAG参照の集合。表示操作と階層照会を共有する。"""
 
     item_class = DagNode
+
+    _bulk_returns = {
+        **Nodes._bulk_returns,
+        "mpath": "list",
+        "dagFn": "list",
+        "getParentPath": "list",
+        "parentPath": "list",
+        "getParent": "list",
+        "parent": "list",
+        "getParents": "list",
+        "parents": "list",
+        "getInstances": "list",
+        "instances": "list",
+        "iterBreadthFirst": "list",
+        "iterDepthFirst": "list",
+        "getChildren": "list",
+        "children": "list",
+        "getShape": "list",
+        "shape": "list",
+        "getFullPath": "list",
+        "fullPath": "list",
+        "getPartialPath": "list",
+        "partialPath": "list",
+        "isVisible": "list",
+        "getVisibility": "list",
+        "visibility": "list",
+        "getOutlinerVisibility": "list",
+        "outlinerVisibility": "list",
+        "getOutlinerColor": "list",
+        "outlinerColor": "list",
+        "getOverrideColor": "list",
+        "overrideColor": "list",
+        "getSkinClusters": "list",
+        "skinClusters": "list",
+        "getBindPoses": "list",
+        "bindPoses": "list",
+        "show": "self",
+        "hide": "self",
+        "setVisibility": "self",
+        "setOutlinerVisibility": "self",
+        "setOutlinerColor": "self",
+        "setOverrideColor": "self",
+    }
+    _bulk_methods = {
+        **Nodes._bulk_methods,
+        "mpath": DagNode.mpath,
+        "dagFn": DagNode.dagFn,
+        "getParentPath": DagNode.getParentPath,
+        "parentPath": DagNode.parentPath,
+        "getParent": DagNode.getParent,
+        "parent": DagNode.parent,
+        "getParents": DagNode.getParents,
+        "parents": DagNode.parents,
+        "getInstances": DagNode.getInstances,
+        "instances": DagNode.instances,
+        "iterBreadthFirst": DagNode.iterBreadthFirst,
+        "iterDepthFirst": DagNode.iterDepthFirst,
+        "getChildren": DagNode.getChildren,
+        "children": DagNode.children,
+        "getShape": DagNode.getShape,
+        "shape": DagNode.shape,
+        "getFullPath": DagNode.getFullPath,
+        "fullPath": DagNode.fullPath,
+        "getPartialPath": DagNode.getPartialPath,
+        "partialPath": DagNode.partialPath,
+        "isVisible": DagNode.isVisible,
+        "getVisibility": DagNode.getVisibility,
+        "visibility": DagNode.visibility,
+        "getOutlinerVisibility": DagNode.getOutlinerVisibility,
+        "outlinerVisibility": DagNode.outlinerVisibility,
+        "getOutlinerColor": DagNode.getOutlinerColor,
+        "outlinerColor": DagNode.outlinerColor,
+        "getOverrideColor": DagNode.getOverrideColor,
+        "overrideColor": DagNode.overrideColor,
+        "getSkinClusters": DagNode.getSkinClusters,
+        "skinClusters": DagNode.skinClusters,
+        "getBindPoses": DagNode.getBindPoses,
+        "bindPoses": DagNode.bindPoses,
+        "show": DagNode.show,
+        "hide": DagNode.hide,
+        "setVisibility": DagNode.setVisibility,
+        "setOutlinerVisibility": DagNode.setOutlinerVisibility,
+        "setOutlinerColor": DagNode.setOutlinerColor,
+        "setOverrideColor": DagNode.setOverrideColor,
+    }
+    _bulk_per_item_only = frozenset()
+
+    def mpath(self, *args, **kwargs):
+        """各要素のmpathを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("mpath", args, kwargs)
+
+    mpath.__signature__ = inspect.signature(DagNode.mpath)
+
+    def dagFn(self, *args, **kwargs):
+        """各要素のdagFnを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("dagFn", args, kwargs)
+
+    dagFn.__signature__ = inspect.signature(DagNode.dagFn)
+
+    def getParentPath(self, *args, **kwargs):
+        """各要素のgetParentPathを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getParentPath", args, kwargs)
+
+    getParentPath.__signature__ = inspect.signature(DagNode.getParentPath)
+
+    def getParent(self, *args, **kwargs):
+        """各要素のgetParentを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getParent", args, kwargs)
+
+    getParent.__signature__ = inspect.signature(DagNode.getParent)
+
+    def getParents(self, *args, **kwargs):
+        """各要素のgetParentsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getParents", args, kwargs)
+
+    getParents.__signature__ = inspect.signature(DagNode.getParents)
+
+    def getInstances(self, *args, **kwargs):
+        """各要素のgetInstancesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getInstances", args, kwargs)
+
+    getInstances.__signature__ = inspect.signature(DagNode.getInstances)
+
+    def iterBreadthFirst(self, *args, **kwargs):
+        """各要素のiterBreadthFirstを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("iterBreadthFirst", args, kwargs)
+
+    iterBreadthFirst.__signature__ = inspect.signature(DagNode.iterBreadthFirst)
+
+    def iterDepthFirst(self, *args, **kwargs):
+        """各要素のiterDepthFirstを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("iterDepthFirst", args, kwargs)
+
+    iterDepthFirst.__signature__ = inspect.signature(DagNode.iterDepthFirst)
+
+    def getChildren(self, *args, **kwargs):
+        """各要素のgetChildrenを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getChildren", args, kwargs)
+
+    getChildren.__signature__ = inspect.signature(DagNode.getChildren)
+
+    def getShape(self, *args, **kwargs):
+        """各要素のgetShapeを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getShape", args, kwargs)
+
+    getShape.__signature__ = inspect.signature(DagNode.getShape)
+
+    def getFullPath(self, *args, **kwargs):
+        """各要素のgetFullPathを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getFullPath", args, kwargs)
+
+    getFullPath.__signature__ = inspect.signature(DagNode.getFullPath)
+
+    def getPartialPath(self, *args, **kwargs):
+        """各要素のgetPartialPathを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getPartialPath", args, kwargs)
+
+    getPartialPath.__signature__ = inspect.signature(DagNode.getPartialPath)
+
+    def isVisible(self, *args, **kwargs):
+        """各要素のisVisibleを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isVisible", args, kwargs)
+
+    isVisible.__signature__ = inspect.signature(DagNode.isVisible)
+
+    def getVisibility(self, *args, **kwargs):
+        """各要素のgetVisibilityを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getVisibility", args, kwargs)
+
+    getVisibility.__signature__ = inspect.signature(DagNode.getVisibility)
+
+    def setVisibility(self, *args, **kwargs):
+        """各要素のsetVisibilityを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            DagNodes | list: コレクション自身。
+        """
+        return self._dispatch_shared("setVisibility", args, kwargs)
+
+    setVisibility.__signature__ = inspect.signature(DagNode.setVisibility)
+
+    def getOutlinerVisibility(self, *args, **kwargs):
+        """各要素のgetOutlinerVisibilityを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getOutlinerVisibility", args, kwargs)
+
+    getOutlinerVisibility.__signature__ = inspect.signature(DagNode.getOutlinerVisibility)
+
+    def setOutlinerVisibility(self, *args, **kwargs):
+        """各要素のsetOutlinerVisibilityを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            DagNodes | list: コレクション自身。
+        """
+        return self._dispatch_shared("setOutlinerVisibility", args, kwargs)
+
+    setOutlinerVisibility.__signature__ = inspect.signature(DagNode.setOutlinerVisibility)
+
+    def getSkinClusters(self, *args, **kwargs):
+        """各要素のgetSkinClustersを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getSkinClusters", args, kwargs)
+
+    getSkinClusters.__signature__ = inspect.signature(DagNode.getSkinClusters)
+
+    def getBindPoses(self, *args, **kwargs):
+        """各要素のgetBindPosesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getBindPoses", args, kwargs)
+
+    getBindPoses.__signature__ = inspect.signature(DagNode.getBindPoses)
+
+    def show(self, *args, **kwargs):
+        """各要素のshowを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            DagNodes | list: コレクション自身。
+        """
+        return self._dispatch_shared("show", args, kwargs)
+
+    show.__signature__ = inspect.signature(DagNode.show)
+
+    def hide(self, *args, **kwargs):
+        """各要素のhideを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            DagNodes | list: コレクション自身。
+        """
+        return self._dispatch_shared("hide", args, kwargs)
+
+    hide.__signature__ = inspect.signature(DagNode.hide)
 
     def getOverrideColor(self):
         """各対象のDrawing Overrides色。無効状態も保持順で返す。
@@ -517,7 +1114,7 @@ class DagNodes(Nodes):
             ValueError: 色の値が不正。
             RuntimeError: 対象が無効、アトリビュートがない、編集不可または更新失敗。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         value = Color.coerce(color)
         return self._set_colors([value] * len(self), outliner=False)
 
@@ -540,7 +1137,7 @@ class DagNodes(Nodes):
         Returns:
             DagNodes: 自身。全対象の事前検証・例外規則はset_override_colorと同じ。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         value = Color.coerce(color)
         return self._set_colors([value] * len(self), outliner=True)
 
@@ -558,7 +1155,7 @@ class DagNodes(Nodes):
             ValueError: 件数不一致、不正な色、共有アトリビュートに異なる値を要求した場合。
             RuntimeError: 事前検証または反映失敗。実行時失敗の自動ロールバックはしない。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         return self._set_colors([Color.coerce(color) for color in colors], outliner=False)
 
     @fast_edit
@@ -572,8 +1169,232 @@ class DagNodes(Nodes):
         Returns:
             DagNodes: 自身。事前検証・例外規則はset_override_colorsと同じ。
         """
-        from ..ui.color import Color
+        from ..common.color import Color
         return self._set_colors([Color.coerce(color) for color in colors], outliner=True)
+
+    @_getter_alias(getParentPath)
+    def parentPath(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParentPath(*args, **kwargs)
+
+    @_getter_alias(getParent)
+    def parent(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParent(*args, **kwargs)
+
+    @_getter_alias(getParents)
+    def parents(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParents(*args, **kwargs)
+
+    @_getter_alias(getInstances)
+    def instances(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInstances(*args, **kwargs)
+
+    @_getter_alias(getChildren)
+    def children(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildren(*args, **kwargs)
+
+    @_getter_alias(getShape)
+    def shape(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShape(*args, **kwargs)
+
+    @_getter_alias(getFullPath)
+    def fullPath(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullPath(*args, **kwargs)
+
+    @_getter_alias(getPartialPath)
+    def partialPath(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPartialPath(*args, **kwargs)
+
+    @_getter_alias(getVisibility)
+    def visibility(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getVisibility(*args, **kwargs)
+
+    @_getter_alias(getOutlinerVisibility)
+    def outlinerVisibility(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutlinerVisibility(*args, **kwargs)
+
+    @_getter_alias(getSkinClusters)
+    def skinClusters(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSkinClusters(*args, **kwargs)
+
+    @_getter_alias(getBindPoses)
+    def bindPoses(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getBindPoses(*args, **kwargs)
+
+    @_getter_alias(getOverrideColor)
+    def overrideColor(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOverrideColor(*args, **kwargs)
+
+    @_getter_alias(getOutlinerColor)
+    def outlinerColor(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutlinerColor(*args, **kwargs)
 
     def _set_colors(self, colors, *, outliner):
         """全色・対象を検証し、共有アトリビュートの競合を除いて更新計画を実行する。

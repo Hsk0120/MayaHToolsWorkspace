@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 
 from hlib.nodes import Node
-from hlib.utils import units
+from hlib.common import units
 
 
 def _selected_chain_nodes():

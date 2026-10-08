@@ -10,6 +10,6 @@ def createShelf(name):
     Returns:
         Shelf: シェルフの操作オブジェクト。
     """
-    from ..ui import Shelf
+    from ..common import Shelf
 
     return Shelf.create(name)

@@ -4,7 +4,7 @@
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
 
-from hlib.utils.orientedBounds import computeOrientedBounds, sampleExtremePoints
+from hlib.common.orientedBounds import computeOrientedBounds, sampleExtremePoints
 from hlib.nodes import Mesh
 
 

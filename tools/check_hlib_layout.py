@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TARGETS = ("maya/inhouse/hlib", "maya/inhouse/hlib_bifrost", "maya/inhouse/hlib_posedriverconnect")
-EXCLUDED_DIRS = {"__tests__", "tests", "docs", "__pycache__", ".logs"}
+EXCLUDED_DIRS = {"__tests__", "tests", "docs", "_docs", "__pycache__", ".logs"}
 MAYA_PACKAGES = {"maya", "maya.api"}
 MAYA_SUBMODULES = {"cmds", "mel", "utils", "standalone", "OpenMaya", "OpenMayaAnim", "OpenMayaUI", "OpenMayaRender"}
 CONSTANT_NAME = re.compile(r"^_?[A-Z][A-Z0-9_]*$")
@@ -329,7 +329,7 @@ class Member:
         self.name = getattr(node, "name", None)
         self.category = ATTRIBUTE
         self.subkey = 0
-        self.attach_to = None  # 付随先の定義名(property setter・別名代入)または Member(属性 docstring)
+        self.attach_to = None  # 付随先の定義名(setter・別名・署名代入)または Member(属性 docstring)
         self.decorators = [decorator_name(d) for d in getattr(node, "decorator_list", [])]
 
 
@@ -380,7 +380,16 @@ def classify_members(cls):
         elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
             targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
             value = stmt.value
-            if (isinstance(value, ast.Name) and value.id in def_names and len(targets) == 1
+            signature_target = targets[0] if len(targets) == 1 else None
+            if (isinstance(signature_target, ast.Attribute) and signature_target.attr == "__signature__"
+                    and isinstance(signature_target.value, ast.Name)
+                    and signature_target.value.id in def_names):
+                name = signature_target.value.id
+                if name not in seen:
+                    raise Unsupported("メソッド {} の署名が定義より先にある".format(name))
+                member.attach_to = name
+                member.name = name + ".__signature__"
+            elif (isinstance(value, ast.Name) and value.id in def_names and len(targets) == 1
                     and isinstance(targets[0], ast.Name)):
                 member.attach_to = value.id
                 member.name = targets[0].id

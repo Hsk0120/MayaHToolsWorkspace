@@ -9,11 +9,12 @@ from .._core.attributeType import attributeType, is_internal_data_type, value_re
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import set_plug
 from .._core.flags import flag_aliases
+from .._core.getterAlias import _getter_alias
+from .._core.object import Object
 from .._core.unitValue import convert
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators._safe import safe_edit
-from ..decorators.undo import undoChunk
-from ..object import Object
+from ..common._fast import fast_edit, is_fast
+from ..common._safe import safe_edit
+from ..decorator import undoChunk
 
 #: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理インデックスの並び。
 _PLUG_PATH_TOKEN = re.compile(r"(\w+)((?:\[\d+\])*)\Z")
@@ -1740,23 +1741,60 @@ class Plug(Object):
             self.disconnect(source)
         return self
 
-    @flag_aliases(source="src")
+    @flag_aliases(source="src", destination="dst")
     @undoChunk("hlibPlugDisconnect")
-    def disconnect(self, src=None, force=False, f=False, nextAvailable=False, na=False):
-        """自身への入力を切断する。出力接続は保持する。
+    def disconnect(self, src=None, force=False, f=False, nextAvailable=False, na=False,
+                   *, dst=False):
+        """入力元の指定またはブール方向指定で直接の接続を切断する。
+
+        ``src=True`` は入力、``dst=True`` は出力を対象とする。
+        出力だけなら ``src=False, dst=True``、両方向なら両方をTrueにする。
+        ブール方向指定は未接続でも何もせず空リストを返す。
+        子や配列要素の独立した接続は展開せず、変換ノードも削除しない。
+        従来の ``disconnect()`` と入力元Plug指定は入力だけを切断する。
 
         Args:
-            src (Plug | om2.MPlug | str | None): 入力元。省略時は現在の入力。 別名 ``source`` も使用可能。
+            src (Plug | om2.MPlug | str | bool | None): 入力元または入力を切断するか。
+                Noneは現在の入力。別名 ``source`` も使用可能。
             force (bool): 接続先のロックを一時解除する。
             f (bool): forceの短縮名。
-            nextAvailable (bool): 配列内でsrcに接続している要素を全て切断する。
+            nextAvailable (bool): 入力元Plugを指定したとき、配列内でsrcに接続している
+                要素を全て切断する。
             na (bool): nextAvailableの短縮名。
+            dst (bool): 全ての直接の出力を切断する。キーワード専用。
+                別名 ``destination`` も使用可能。
         Returns:
-            Plug | list[Plug]: 入力元。配列検索時は切断した接続先のリスト。
+            Plug | list[Plug]: 従来の入力切断は入力元Plug、配列検索は接続先リスト。
+                srcがboolまたはdst=Trueなら、切断した入力元と出力接続先のリスト。
+                入力元Plugを指定した配列検索とdst=Trueの併用時は、従来の入力接続先
+                リストに出力接続先を追加する。
         Raises:
-            RuntimeError: 指定された入力接続が存在しない場合。
+            TypeError: dstがboolでない場合。
+            RuntimeError: 従来の入力切断で接続がない場合、指定入力が未接続の場合、
+                または接続先のロック等により切断できない場合。
         """
         self._require_valid()
+        if not isinstance(dst, bool):
+            raise TypeError("dst must be bool")
+        if isinstance(src, bool) or dst:
+            # 接続の編集後にネットワークMPlugを参照し続けないよう、名前を先に確保する。
+            self_name = self.getFullName()
+            destination_names = [plug.getFullName() for plug in
+                                 self.getDestinationsWithConversions()] if dst else []
+            results = []
+            if not isinstance(src, bool) or src:
+                source = self.getSourceWithConversion() if src is None or isinstance(src, bool) else src
+                if source is not None:
+                    search_array = src is not None and not isinstance(src, bool)
+                    result = self.disconnect(source, force=force, f=f,
+                                             nextAvailable=nextAvailable and search_array,
+                                             na=na and search_array)
+                    results.extend(result if isinstance(result, list) else [result])
+            for name in destination_names:
+                destination = Plug._resolve_input(name)
+                destination.disconnect(self_name, force=force, f=f)
+                results.append(Plug._resolve_input(name))
+            return results
         if src is not None:
             src = Plug._resolve_input(src)
         if self.isArray() and (nextAvailable or na) and src is not None:
@@ -1799,6 +1837,470 @@ class Plug(Object):
             Plug: 実際の接続先。
         """
         return Plug._resolve_input(dst).connect(self, **kwargs)
+
+    @_getter_alias(getNode)
+    def node(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNode(*args, **kwargs)
+
+    @_getter_alias(getName)
+    def name(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getName(*args, **kwargs)
+
+    @_getter_alias(getAttrName)
+    def attrName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAttrName(*args, **kwargs)
+
+    @_getter_alias(getShortName)
+    def shortName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShortName(*args, **kwargs)
+
+    @_getter_alias(getPlugName)
+    def plugName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPlugName(*args, **kwargs)
+
+    @_getter_alias(getFullName)
+    def fullName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullName(*args, **kwargs)
+
+    @_getter_alias(getLongName)
+    def longName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getLongName(*args, **kwargs)
+
+    @_getter_alias(getNiceName)
+    def niceName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNiceName(*args, **kwargs)
+
+    @_getter_alias(getType)
+    def type(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getType(*args, **kwargs)
+
+    @_getter_alias(getDataType)
+    def dataType(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDataType(*args, **kwargs)
+
+    @_getter_alias(getParent)
+    def parent(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParent(*args, **kwargs)
+
+    @_getter_alias(getNextAvailable)
+    def nextAvailable(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNextAvailable(*args, **kwargs)
+
+    @_getter_alias(getMin)
+    def min(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMin(*args, **kwargs)
+
+    @_getter_alias(getMax)
+    def max(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMax(*args, **kwargs)
+
+    @_getter_alias(getSoftMin)
+    def softMin(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSoftMin(*args, **kwargs)
+
+    @_getter_alias(getSoftMax)
+    def softMax(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSoftMax(*args, **kwargs)
+
+    @_getter_alias(getDefault)
+    def default(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDefault(*args, **kwargs)
+
+    @_getter_alias(getAnimLayers)
+    def animLayers(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAnimLayers(*args, **kwargs)
+
+    @_getter_alias(getEnumName)
+    def enumName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEnumName(*args, **kwargs)
+
+    @_getter_alias(getEnumValue)
+    def enumValue(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEnumValue(*args, **kwargs)
+
+    @_getter_alias(getEnumFieldName)
+    def enumFieldName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEnumFieldName(*args, **kwargs)
+
+    @_getter_alias(getSource)
+    def source(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSource(*args, **kwargs)
+
+    @_getter_alias(getDestinations)
+    def destinations(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDestinations(*args, **kwargs)
+
+    @_getter_alias(getInputs)
+    def inputs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInputs(*args, **kwargs)
+
+    @_getter_alias(getOutputs)
+    def outputs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputs(*args, **kwargs)
+
+    @_getter_alias(getConnections)
+    def connections(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getConnections(*args, **kwargs)
+
+    @_getter_alias(getSourceWithConversion)
+    def sourceWithConversion(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSourceWithConversion(*args, **kwargs)
+
+    @_getter_alias(getAnimCurve)
+    def animCurve(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAnimCurve(*args, **kwargs)
+
+    @_getter_alias(getDestinationsWithConversions)
+    def destinationsWithConversions(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDestinationsWithConversions(*args, **kwargs)
 
     def _set_flags(self, leaf, **flags):
         """指定階層の末端または自身へフラグを適用する。
@@ -2150,7 +2652,7 @@ class Plug(Object):
                 ノードの MPlug は検出できず、Maya が異常終了する)。
         """
         from ..nodes.node import Node as _InputNode
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         node_class, plug_class, _, _ = _InputObject._classes()
         if isinstance(value, plug_class):
             return value

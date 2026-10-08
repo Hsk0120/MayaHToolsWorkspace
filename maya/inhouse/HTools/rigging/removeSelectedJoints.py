@@ -1,7 +1,7 @@
 """Menu-compatible entry point for selected joint removal."""
 
 import hlib
-from hlib.decorators import undoChunk
+from hlib.decorator import undoChunk
 
 hlib.reload()
 from hlib import cmds as hlib_cmds

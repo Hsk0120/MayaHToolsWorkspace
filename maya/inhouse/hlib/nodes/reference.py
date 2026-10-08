@@ -3,12 +3,11 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..decorator import undoChunk
 from .node import Node
 
 
-@node_wrapper("reference")
 class Reference(Node):
     """Maya の reference ノードラッパー。参照ファイルの照会・ロード制御を提供する。"""
 
@@ -42,7 +41,7 @@ class Reference(Node):
         """
         # namespaces.namespace が ..nodes を逆方向 import しないため単純な import で足りるが、
         # hlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
-        from ..scene import Namespace
+        from ..common import Namespace
 
         return Namespace(self.referenceFn().associatedNamespace(False))
 
@@ -84,7 +83,7 @@ class Reference(Node):
         Returns:
             list[Reference]: 子参照。無ければ空リスト。孫以下は含めない。
         """
-        from ..utils.references import listReferences
+        from ..common.references import listReferences
 
         own_name = self.getFullName()
         children = []
@@ -203,3 +202,147 @@ class Reference(Node):
             RuntimeError: Maya が削除を拒否した場合。
         """
         cmds.file(removeReference=True, referenceNode=self.getName())
+
+    @_getter_alias(getFilename)
+    def filename(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFilename(*args, **kwargs)
+
+    @_getter_alias(getAssociatedNamespace)
+    def associatedNamespace(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAssociatedNamespace(*args, **kwargs)
+
+    @_getter_alias(getNodes)
+    def nodes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNodes(*args, **kwargs)
+
+    @_getter_alias(getParentReference)
+    def parentReference(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParentReference(*args, **kwargs)
+
+    @_getter_alias(getChildren)
+    def children(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildren(*args, **kwargs)
+
+    @_getter_alias(getRoot)
+    def root(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRoot(*args, **kwargs)
+
+    @_getter_alias(getEditStrings)
+    def editStrings(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEditStrings(*args, **kwargs)
+
+    @_getter_alias(getEditNodeNames)
+    def editNodeNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEditNodeNames(*args, **kwargs)
+
+    @_getter_alias(getEditAttrNames)
+    def editAttrNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEditAttrNames(*args, **kwargs)

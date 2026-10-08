@@ -7,7 +7,7 @@
 
 - 作成・更新APIは既定で作成したオブジェクトや操作対象を返す。他ライブラリとの引数統一だけを理由に既定戻り値をNoneへ変更しない。`Node.addAttr()` は既定でPlugを返す。
 
-公開APIの表記は**camelCaseに統一**する。UI・環境・イベント・JSON・utils・decoratorsも同じ規則とする。
+公開APIの表記は**camelCaseに統一**する。common・JSON・logger・decoratorも同じ規則とする。
 
 | 対象 | 規則 | 例 |
 | --- | --- | --- |
@@ -22,6 +22,13 @@
 - `get`/`set`は値の取得・設定、`is`/`has`は判定、`create`/`add`/`remove`は作成・追加・除外に使う。
   独自の取得メソッドは `getName()`、`getSource()`、`getChildren()` のようにgetを付ける。
   数学演算・判定・保持値のプロパティ・OpenMaya標準名は一律get化しない。
+- 2026-10-08のユーザー指定により、独自の `getX` に `x()` の省略入口を一律追加する。
+  本体と内部利用の基準はget付きに残し、通常defから呼出時のget付きメソッドへ委譲する。
+  引数・別名・戻り値・単位・例外・Undoは正式getterと同じ。実行時にメソッドを生成しない。
+  省略名は同名のMayaアトリビュートや継承propertyより優先する。Plug取得は
+  `getPlug("radius")` 等、複合Plugの同名子は `["node"]` 等で明示する。
+  静的getterの省略入口はclassmethodとしてクラス/インスタンス両方から利用できる。
+  公開コマンドも同名ファイルの省略入口を併用し、動詞+対象の正式名は維持する。
 - メソッド内のアトリビュート表記は `Attr/Attrs`、追加分は `Extra` に統一する。
   `getT/setT`・`getQ/setQ`・`getX/setX`等の短縮アクセサーは設けず、正式な長名を使う。
 - 型変換は `as` 接頭辞。コピーを返す数学操作は `inverse/normal/mirror`、自身の更新は
@@ -68,14 +75,56 @@ hlib・`hlib_*` のPythonファイルはPEP8の並びを基準にする。並び
   並び替えの対象外。空行だけを整える(`--check` は「スキップ」として表示する)。
 - それ以外の `__init__.py` も通常の規則で並べる。import群の途中にあった `globals().pop(...)`・
   `__all__ +=` のような、importの結果に依存しない文はimport群の後へまとめる
-  (`decorators`・`utils`・`json`・`maths`)。`nodes`・`plugs`・`cmds` の登録処理はimport群の後にあり、import群だけが並び替えの対象になる。
+  (`common`・`json`・`maths`)。`nodes`・`plugs`・`cmds` の登録処理はimport群の後にあり、import群だけが並び替えの対象になる。
 - `@dataclass` のフィールド順、`__str__ = __repr__` のような先行定義を参照する代入、
   `item_class = Node` のようなクラス属性は、参照先が先に定義される位置を維持する。
 - `__all__` はPEP8の「import前」ではなく、import群の直後に置く(`__init__.py` の動的な
   `__all__` と位置を揃えるための意図的な逸脱)。
 - 行の長さは規則の対象外。
 
+## 公開名・型対応・複数形APIの宣言
+
+- 公開名は所属パッケージの `__init__.py` へ明示する。`nodes`・`plugs`・`components`・`maths`・`json`・`cmds` とルート関数は通常のimportと `__all__` を使う。`common` は初期化順とreloadに合わせ、遅延公開の `_exports` と静的解析用の `if TYPE_CHECKING:` を維持する。
+- Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書に宣言する。公開するクラス名とは分けて管理し、登録済みのMaya型に基づく最適なラッパー選択と既存のフォールバックは維持する。
+- 外部拡張の検出は `extensions` が担当する。拡張側も `nodes`・`plugs` の明示import・`__all__`・`_WRAPPER_CLASSES` を用い、実行時のクラス注入や登録デコレーターは使わない。
+- 複数形APIの入口は通常の `def` で明示する。共通の引数検証・保持順実行・Undo処理へ委譲し、実行時に単数メソッドから公開メソッドを生成しない。既存の引数仕様・戻り値・専用集約処理を維持する。
+- 追加・削除後はリポジトリルートで `python tools/check_hlib_exports.py` を実行する。Mayaをimportせず、公開対象と明示宣言の不一致を検査する。実行時に漏れを黙って補う処理は追加しない。
+
 ## コマンド層とオブジェクト・数学層
+
+`getAttr(target)` はユーザーの指定により `getPlug` へ委譲し、アトリビュート型に対応する
+Plugを返す。値は `.get()` で内部単位、`.getu()` でUI単位として取得する。
+既存の `getAttr(target, **kwargs)` の照会フラグは維持する。フラグを一つでも明示した
+呼出しは従来どおりMayaの値・状態を返し、time指定・Falseのフラグもこの照会に含める。
+型判定・入力解決の本体は `getPlug` 側に集約し、公開入口の名前や位置引数は維持する。
+
+### Plug.disconnectの方向指定（2026-10-08）
+
+ユーザーの指示により、`Plug.disconnect` は既存の入力元Plug指定に加え、
+`src/source` のboolで入力、キーワード専用の `dst/destination` のboolで出力を指定する。
+既存の `src=None, force=False, f=False, nextAvailable=False, na=False` は維持し、
+`dst=False` を追加する。既定の入力切断・未接続エラー・入力元Plug返却・
+入力元指定時のna配列検索と接続先リスト返却は変更しない。
+`src` がboolまたは `dst=True` なら、切断した入力元と出力接続先をリストで返す。
+入力元Plugを指定したna配列検索との併用時は、従来の入力接続先リストに出力接続先を追加する。
+bool方向指定は未接続でも空リストを返す。入力元Plugの明示指定は未接続エラーを維持する。
+両Falseは何もせず、`dst=True` 単独は両方向。
+子・配列要素の独立接続は展開せず、変換ノードを削除しない。
+出力のforceは各接続先のロックを一時解除して復元し、複数切断も1回のUndoで戻す。
+
+### 単位・フラグ・戻り値
+
+`SkinCluster.removeInfluence`・`Joint.removeInfluence`・`SkinClusters.removeInfluences` と
+`SkinCluster.removeUnusedInfluences` は、キーワード専用の `force=False` と短縮名 `f` を受け付ける。
+`force=True` は不正ウェイトを除去してから既存の移送・登録解除を実行する指定で、
+ロック解除・レイヤー保護の回避・最後のinfluenceの解除を許可する指定ではない。
+新規の `force/f` は同時指定を拒否し、既存の位置引数・戻り値を維持する。
+`removeInvalidWeights(*, fast=False)` は、負値・非有限値・未登録influence論理番号の
+既存ウェイト要素だけを除去し、単数/複数とも自身を返す。
+正規化・合計0の補填・1超の有限値の切捨ては行わない。
+通常はcmdsでUndo対応、fastはOpenMayaのMDGModifierによるUndoなし更新とする。
+未使用influenceの判定は引き続きMayaのweightedInfluenceを使い、微小値を切り捨てない。
+不正ウェイト除去とinfluence登録解除は別の操作とし、jointノード自体は削除しない。
 
 - `hlib.cmds` はMayaコマンドの名前・長短フラグ・単位解釈を基準にする。
   Node/Plug参照や数学型への戻り値のラップは各コマンドに明記する。
@@ -155,7 +204,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 ## maya.cmds との受け渡し
 
 hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕様とする。詳細は
-[maya.cmds との受け渡し](../maya/inhouse/hlib/docs/cmds_interop.rst) を参照する。
+[maya.cmds との受け渡し](../maya/inhouse/hlib/_docs/cmds_interop.rst) を参照する。
 
 - シーンのノード・アトリビュート・コンポーネントを表すクラスの `__str__` は、`maya.cmds` が一意に解決できる名前を返す。`Node` は最短一意名、`Plug` は `<ノードの最短一意名>.<アトリビュートパス>`、`Component` はシェイプの完全パス付きの名前とし、呼び出すたびに現在のシーンから求める(名前変更・親子付け替えに追従する)。
 - 単一の対象を表すクラス(`Node`・`Plug` など)に `__len__`/`__iter__` を追加しない。`maya.cmds` がシーケンスとして展開してしまう。複数の対象を表すコレクションは反復可能にしてよい。
@@ -170,12 +219,12 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 ## 命名と継承
 
 - クラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは同じファイルへまとめる（`joint.py` に `Joint` / `Joints`）。既存の分離済みクラスの移動は必須としない。`__init__.py` は公開用importを基本とする。
-- クラスに関係する処理は、そのクラスのインスタンス／クラス／静的メソッドへ配置する。補助関数だけを置くファイルをクラスのパッケージ内に増やさない。
-- 特定クラスに依存しない汎用関数は `hlib.utils` 配下に用途単位でまとめる。版番号のように保持値と関連操作があるものは `hlib.utils.version.Version` のような値クラスにまとめる。既存のMaya互換コマンド入口 (`cmds`) は、その公開方式を維持する。
+- クラスに関係する処理は、そのクラスのインスタンス／クラス／静的メソッドへ配置する。補助関数だけを置くファイルをnodes/plugs/componentsなど型をまとめるパッケージ内に増やさない。commonでは用途単位の関数モジュールも扱う。
+- 特定クラスに依存しない汎用関数は `hlib.common` 配下に用途単位でまとめる。版番号のように保持値と関連操作があるものは `hlib.common.version.Version` のような値クラスにまとめる。既存のMaya互換コマンド入口 (`cmds`) は、その公開方式を維持する。
 
 | 対象 | 推奨ルール | 例 |
 | --- | --- | --- |
-| パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`scene` |
+| パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`common` |
 | Mayaコマンドとそのファイル | Mayaと同じcamelCase | `createNode.py` / `createNode()` |
 | Mayaノードのファイル | nodeTypeと同じ表記 | `skinCluster.py`、`animCurveTL.py` |
 | その他の実装ファイル | lowerCamelCase | `channelBox.py`、`timeSlider.py`、`eulerRotation.py` |
@@ -183,7 +232,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 | オブジェクト層の公開メソッド | lowerCamelCase | `getMatrix()`、`setWeights()` |
 
 Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優先する。
-例えば `cmds/getChannelBox.py` はコマンド、`ui/channelBox.py` はエディターの実装で、いずれもlowerCamelCaseのファイル名を使う。
+例えば `cmds/getChannelBox.py` はコマンド、`common/channelBox.py` はエディターの実装で、いずれもlowerCamelCaseのファイル名を使う。
 
 このファイル名規則はhlibとすべての `hlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。内部関数・ローカル変数はsnake_caseを使用できる。nodes/plugs/componentsの公開メソッドはlowerCamelCaseとする。
 
@@ -199,7 +248,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - シーン編集は既存のUndo方針に従う。対応APIの `fast=True` はUndo不要の明示指定として区別する。
 - 改名・モジュール移動は `hlib.reload()` でも検証し、廃止した公開名が残らないこと。
 
-既存APIの変更前後の対応表は [APIの命名と移行](../maya/inhouse/hlib/docs/api_naming.rst) を参照する。
+既存APIの変更前後の対応表は [APIの命名と移行](../maya/inhouse/hlib/_docs/api_naming.rst) を参照する。
 
 ## cmdsの動詞と対象
 
@@ -237,7 +286,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 整数アクセスは保持中の参照、スライス/copyは同じ具象コレクションで同じシーン対象を参照する。ノード複製とは別。`Colors` は独立した値コピーである。
 - 照会・結果が必要な生成操作の一括転送は結果リストを保つ。通常の更新はコレクション自身を返す。色getterは明示的に `Colors` を返す。関係検索を一律に平坦化したり、結果の内容からコレクション型を推測したりしない。
 - 単色用 `setOverrideColor` と対象別 `setOverrideColors` のように、同値の一括指定と一対一の列を分ける。色setterは自身を返し、入力・全対象の書込み可否・共有アトリビュートの矛盾を検証してから反映する。
-- `bulk_api` は明示実装を優先し、自動生成された継承メソッドのみ派生型のsignatureへ更新する。`per_item_only` は派生にも継承し、直接の一括入口を公開しない。
+- 複数形メソッドは各クラスの通常の `def` と継承で公開する。派生型で単数メソッドの引数仕様が変わる場合は複数形側も明示する。要素別の入力が必要な操作は派生にも制限を引き継ぎ、直接の同一引数による一括入口を公開しない。
 - `Joints.delete` 等の階層・ウェイトを扱う専用処理は単純な転送へ置き換えない。Undoは自動ロールバックを意味しない。`ls` の返却規則の変更は別途使用側を含む移行として扱う。
 
 
@@ -272,7 +321,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 ### 基底責務・一括公開・UI退避の契約
 
 - ConstraintはMayaの継承に合わせTransform派生とする。表示・Outliner色・Drawing OverridesはDagNode、複数形はDagNodesに置く。Nodesは全DGノード共通の参照・アトリビュート・接続処理を扱う。
-- bulk_apiはreads/writes/propertiesを明示宣言する。単数APIの自動全公開はしない。readsは保持順の結果リスト、writesは自身。callEachも同じ規則。既存の専用集約結果やdeleteのNoneはdocstringへ明示する。
+- 複数形APIは通常のメソッドとして明示し、単数APIの自動全公開はしない。照会・生成結果が必要な操作は保持順の結果リスト、通常の更新は自身を返す。callEachも同じ規則。既存の専用集約結果やdeleteのNoneはdocstringへ明示する。
 - Preferencesの単位setterはsaveを受け付けない。シーン保存で保持する。その他のsave=Trueは一般ユーザー設定全体の保存を意味し、batchでは更新前に拒否する。
 - Window/WorkspaceControlはMaya標準MUiMessageの削除通知で寿命を追跡し、同名再生成へ乗り換えない。UiSnapshotは同一セッション限定の変更不可値で、復元前に対象の寿命を検証する。
 - WorkspaceLayoutは配置の切り替え・保存と全体のドッキングロックを扱い、ドッキング配置のメモリ退避・復元は提供しない。cmds/melからはworkspaceControlのドッキング先を照会できず、`window -dockingLayout`/`-state`にも含まれないため(Qtが必要になるが、hlibはQtをimportしない)。配置全体を戻す場合は保存済み配置をactivate/resetで読み直す。
@@ -281,11 +330,13 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ## 入力解決とパッケージ境界
 
-- `object.py` の `Object` は単数の `Node`・`Plug`・`Component` の共通基底。`Object(value)` は具体的な参照型を返し、既存ラッパーはそのまま返す。比較・ハッシュ・寿命は各参照型が担当する。
+- `_core/object.py` の `Object` は単数の `Node`・`Plug`・`Component` の共通基底。取得は `from hlib._core.object import Object` とし、ルートへ再公開しない。`Object(value)` は具体的な参照型を返し、既存ラッパーはそのまま返す。比較・ハッシュ・寿命は各参照型が担当する。
 - `Node._resolve_input()` はノードを必要とする内部処理、`Plug._resolve_input()` はアトリビュート入力、`Component._resolve_input()` は単一要素入力を解決する。各公開APIで判定処理を複製しない。
 - `Object._input_name()` / `_input_names()` はcmds向けの名前変換。文字列をそのまま渡す既存の規則を維持し、対象解決を必要とする `Object()` と区別する。
 - `Nodes._resolve_inputs()` は複数入力を検証する。名前だけ／Nodeだけを受け付け、同じ対象列の文字列とNodeの混在は拒否する。空集合など各APIの規則は維持する。
-- シーン状態・関係は `scene`、標準UI参照・表示色は `ui`、環境・プラグイン導入状態は `environment`、通知・遅延実行は `events`。汎用関数は `utils`、一時保存は `json` に置く。
+- 公開フォルダは `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`json` とする。シーン状態・関係、標準UI参照・表示色、環境・プラグイン導入状態、イベント・遅延実行、汎用関数は `common` 直下へ統合する。領域別のサブフォルダは作らず、具体的な機能名のファイルから提供する。
+- ログ・通知・出力は `hlib.logger`、デコレーター・コンテキストマネージャーは `hlib.decorator` を正式入口とする。保存基盤は直下の `json`、文書と生成設定は `_docs` に置く。
+- 拡張管理の正式入口は `_core/extensions.py` とし、拡張作者は `from hlib._core import extensions` を使う。ルートへ再公開せず、旧モジュールパスの互換入口も残さない。
 - 数学値・複数形コレクション・UI・保存データは `Object` の派生にしない。既存の便利メソッド・Undo・fastの意味は維持する。
 - 旧 `general` / `_core/coerce.py` の互換ファイルは残さず、内製利用側も正式な配置へ更新する。
 
@@ -314,10 +365,10 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 公開メソッド名の確定仕様（2026-10-05）
 
-ユーザーの明示指示により、所有Plugの`getNode()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`getFullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/docs/api_methods.rst`を参照する。
+ユーザーの明示指示により、所有Plugの`getNode()`は保持参照でもメソッドとする。`hasAttr`・`parent`・`longName`・`delete`・`mnode`・`mpath`等への移行と、短縮メソッドを正式APIとする。旧hlib名の互換別名は残さない。ノードとPlug共通の`getFullName()`、複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/hlib/_docs/api_methods.rst`を参照する。
 
 ### Transformationの追加仕様
 
-`hlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.asTransformation()`はhlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成行列を受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/hlib/docs/transformation.rst`を参照する。
+`hlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.asTransformation()`はhlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成行列を受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/hlib/_docs/transformation.rst`を参照する。
 
 配列要素参照の標準表記は`array[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。配列反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存の明示的な`getElement(index, create=False)`の仕様は維持する。複合の子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。複合の整数番号は0以上の定義順、反復は子の定義順。配列・複合Plugをmaya.cmdsへ渡す時はstrまたはfullNameで文字列化する。hlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、hlib.cmdsの同名ラッパーは作らない。

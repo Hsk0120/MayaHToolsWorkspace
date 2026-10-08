@@ -156,7 +156,7 @@ def main(output_dir=None, finished=None):
                 outliner_control = cmds.outlinerEditor(editor, query=True, control=True)
                 for label in ("colors", "disabled", "undo", "redo"):
                     if label == "disabled":
-                        from hlib.decorators import undoChunk
+                        from hlib.decorator import undoChunk
                         with undoChunk("hlibGuiDisableColors"):
                             for node in curves:
                                 node.setOutlinerColor(None)
@@ -209,7 +209,7 @@ def main(output_dir=None, finished=None):
 
             def test_logger_notification(self):
                 import logging
-                from hlib.utils.logger import MayaHandler
+                from hlib.logger import MayaHandler
                 cmds.setFocus(panel)
                 MayaHandler().emit(logging.LogRecord("hlib.gui.test", logging.WARNING, "", 0,
                                                    "HLIB GUI notification <test>", (), None))

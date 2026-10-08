@@ -74,8 +74,8 @@ Examples
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
-from ..decorators.viewport import viewportOff
+from ..decorator import undoChunk
+from ..decorator import viewportOff
 
 
 @flag_aliases("bakeResults")
@@ -98,7 +98,7 @@ def bakeResults(nodes, **kwargs):
         ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合。
         RuntimeError: Maya がベイクを拒否した場合。
     """
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
 
     names = _InputObject._input_names(nodes)
     if not names:

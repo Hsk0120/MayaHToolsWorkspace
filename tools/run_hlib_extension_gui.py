@@ -68,7 +68,7 @@ def main(output_dir=None, finished=None):
               "Extension module resolves to workspace package")
         before = set(cmds.pluginInfo(query=True, listPlugins=True) or [])
         import hlib
-        state = hlib.extensions.status().get('hlib_posedriverconnect')
+        state = hlib._core.extensions.status().get('hlib_posedriverconnect')
         result["extension_state"] = state
         check(state is not None, "Extension found without explicit extension import")
         check(before == set(cmds.pluginInfo(query=True, listPlugins=True) or []),

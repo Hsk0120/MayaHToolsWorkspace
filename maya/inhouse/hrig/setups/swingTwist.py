@@ -8,7 +8,7 @@ import hlib
 
 from hrig.setups.twistDistribution import TwistDistribution
 from hlib.maths.matrix import Matrix
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SwingTwist(TwistDistribution):

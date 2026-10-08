@@ -1,6 +1,6 @@
 """明示呼び出し時にBifrost 3.0.0以降のプラグインをロードする任意ヘルパー。
 
-確認とロードの本体は ``hlib.environment.PluginPackage``(``hlib.requirePlugins``)で、
+確認とロードの本体は ``hlib.common.PluginPackage``(``hlib.requirePlugins``)で、
 このモジュールは Bifrost 用の設定と起動のタイミングだけを持つ。hrig パッケージ
 (``hrig/__init__.py``)は import しない。``maya/modules/hrig_startup.mod`` が
 ``hrig/startup`` を ``PYTHONPATH`` へ追加し、標準の ``userSetup.py`` はこのヘルパーを呼ばない。
@@ -33,7 +33,7 @@ def minimum_version():
     Returns:
         str: 最小の版。環境変数が空・不正な場合は既定値。
     """
-    from hlib.utils import Version
+    from hlib.common import Version
 
     value = os.environ.get("HRIG_BIFROST_MIN_VERSION")
     return value if Version.parse(value) else DEFAULT_MIN_BIFROST_VERSION
@@ -43,9 +43,9 @@ def package():
     """Bifrost の導入確認とロードを行う PluginPackage を作る。
 
     Returns:
-        hlib.environment.PluginPackage: Bifrost の定義。
+        hlib.common.PluginPackage: Bifrost の定義。
     """
-    from hlib.environment import PluginPackage
+    from hlib.common import PluginPackage
 
     return PluginPackage(
         "Bifrost",
@@ -64,11 +64,11 @@ def run(dialog=True):
         dialog (bool | Callable[[str], None]): 警告ダイアログの扱い。テストで関数に差し替える。
 
     Returns:
-        str: ``hlib.environment`` の ``LOADED``・``SKIPPED``・``MISSING``・``OUTDATED``・``LOAD_FAILED``。
+        str: ``hlib.common`` の ``LOADED``・``SKIPPED``・``MISSING``・``OUTDATED``・``LOAD_FAILED``。
     """
     result = package().tryLoad(dialog=dialog)
     if result == "loaded":
-        from hlib.utils import logger
+        from hlib import logger
 
         logger.info("[hrig] Bifrost をロードしました")
     return result

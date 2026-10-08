@@ -1,4 +1,4 @@
-"""hlib.utils.logger のロギングヘルパーを検証するMaya内テスト。"""
+"""hlib.logger のロギングヘルパーを検証するMaya内テスト。"""
 
 import logging
 import io
@@ -9,8 +9,8 @@ import unittest
 
 import hlib
 hlib.reload()
-from hlib.utils.logger import LOGGER_NAME, MayaHandler, debug, error, get_logger, raise_with_notify, warning
-from hlib.utils import logger as output
+from hlib.logger import LOGGER_NAME, MayaHandler, debug, error, get_logger, raise_with_notify, warning
+from hlib import logger as output
 
 
 class LoggerTest(unittest.TestCase):
@@ -36,7 +36,7 @@ class LoggerTest(unittest.TestCase):
         self.assertFalse((Path(hlib.__file__).parent / "cmds" / "warning.py").exists())
         self.assertFalse(hasattr(hlib.cmds, "warning"))
         self.assertFalse(hasattr(hlib, "warning"))
-        self.assertIs(hlib.utils.warning, output.warning)
+        self.assertIs(hlib.logger.warning, output.warning)
 
     def test_old_handler_is_replaced_without_removing_external_handlers(self):
         logger = get_logger()
@@ -54,6 +54,27 @@ class LoggerTest(unittest.TestCase):
             logger.removeHandler(external)
             external.close()
             logger.removeHandler(old_handler)
+
+    def test_previous_package_handler_is_replaced_after_layout_migration(self):
+        """旧utils配下のハンドラを除去し、外部ハンドラと一つの新ハンドラを保つ。"""
+        logger = get_logger()
+        previous_type = type("MayaHandler", (logging.Handler,),
+                             {"__module__": hlib.__name__ + ".utils.logger"})
+        previous = previous_type()
+        external = logging.NullHandler()
+        logger.addHandler(previous)
+        logger.addHandler(external)
+        try:
+            get_logger()
+            self.assertNotIn(previous, logger.handlers)
+            self.assertIn(external, logger.handlers)
+            self.assertEqual(sum(isinstance(handler, output.MayaHandler)
+                                 for handler in logger.handlers), 1)
+        finally:
+            logger.removeHandler(previous)
+            previous.close()
+            logger.removeHandler(external)
+            external.close()
 
     def test_get_logger_is_idempotent_and_configured(self):
         logger = get_logger()

@@ -6,7 +6,7 @@ from unittest import mock
 import maya.cmds as cmds
 
 from HTools.rigging import inspectCycles
-from hlib.utils import logger
+from hlib import logger
 
 
 def main():

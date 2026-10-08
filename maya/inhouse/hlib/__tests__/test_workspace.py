@@ -1,4 +1,4 @@
-"""hlib.environment.workspace の Workspace を検証するMaya内テスト。"""
+"""hlib.common.workspace の Workspace を検証するMaya内テスト。"""
 
 import sys
 import tempfile
@@ -9,7 +9,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.environment.workspace import Workspace
+from hlib.common.workspace import Workspace
 
 
 class WorkspaceTest(unittest.TestCase):

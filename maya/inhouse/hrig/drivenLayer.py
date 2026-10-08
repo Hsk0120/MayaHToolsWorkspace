@@ -8,8 +8,8 @@ import re
 import hlib
 
 from hrig.setups.swingTwist import SwingTwist
-from hlib.scene.drivenKey import DrivenKey
-from hlib.decorators.undo import undoTransaction
+from hlib.common.drivenKey import DrivenKey
+from hlib.decorator import undoTransaction
 
 
 class DrivenLayer:
@@ -122,9 +122,9 @@ class DrivenLayer:
         relation = DrivenKey(owner.getPlug(component), driven)
         for x, y in pairs:
             if kind == "doubleAngle":
-                y = hlib.utils.units.angleFromUi(y)
+                y = hlib.common.units.angleFromUi(y)
             elif kind == "doubleLinear":
-                y = hlib.utils.units.distanceFromUi(y)
+                y = hlib.common.units.distanceFromUi(y)
             relation.setKey(x, y)
         curve = relation.getCurves()[0]
         output = driven.getSourceWithConversion()

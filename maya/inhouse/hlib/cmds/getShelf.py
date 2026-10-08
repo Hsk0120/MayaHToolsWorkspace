@@ -10,6 +10,6 @@ def getShelf(name=None):
     Returns:
         Shelf: シェルフの操作オブジェクト。
     """
-    from ..ui import Shelf
+    from ..common import Shelf
 
     return Shelf(name)

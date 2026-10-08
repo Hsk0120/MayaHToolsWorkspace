@@ -4,7 +4,7 @@ import maya.cmds as cmds
 
 from .._core.commandResult import CommandResult
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases("ikHandle")
@@ -25,7 +25,7 @@ def createIkHandle(*args, **kwargs):
 
 
     """
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
     if kwargs.get("query") or kwargs.get("edit"):
         raise ValueError("createIkHandle supports creation only")
     options = CommandResult.node_flags(kwargs, ("startJoint", "endEffector", "curve"))

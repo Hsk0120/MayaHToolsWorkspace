@@ -5,7 +5,7 @@ from maya import cmds
 import hlib
 
 from hrig.setups import LengthCompensation
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SplineStretchLayer:

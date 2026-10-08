@@ -8,7 +8,7 @@
 
 流れ:
 
-1. ``sphinx-build -b gettext`` で本文の文を取り出す(``maya/inhouse/<名前>/docs``)。
+1. ``sphinx-build -b gettext`` で本文の文を取り出す(hlibは ``maya/inhouse/hlib/_docs``、他は ``maya/inhouse/<名前>/docs``)。
 2. ``docs/locale/en/LC_MESSAGES/docs.po`` を、取り出した文に合わせて更新する(消えた文は削除、新しい文は未訳で追加)。
 3. 未訳の文を Ollama の ``qwen3-coder:30b`` で英訳する。reStructuredText の記法(````code````・``:ref:`` など)が
    崩れた訳は使わず、未訳のまま残す(英語版では日本語のまま出る)。10件ごとに保存するので、途中で止めても続きから再開できる。
@@ -360,7 +360,7 @@ def main():
     used_model = False
     try:
         for name in args.names:
-            docs = ROOT / 'maya/inhouse' / name / 'docs'
+            docs = ROOT / 'maya/inhouse' / name / ('_docs' if name == 'hlib' else 'docs')
             po_path = docs / 'locale/en/LC_MESSAGES/docs.po'
             with tempfile.TemporaryDirectory() as temporary:
                 catalog = load_catalog(po_path, extract(docs, Path(temporary) / 'gettext'))

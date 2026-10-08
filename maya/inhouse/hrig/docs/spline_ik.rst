@@ -45,7 +45,7 @@ Mayaのソルバー仕様は `Autodesk ikHandle command
 カーブの近似
 ------------
 
-``hlib.utils.CurveFit.fit(points, count)`` は、2点以上の3次元点列から
+``hlib.common.CurveFit.fit(points, count)`` は、2点以上の3次元点列から
 4〜32個のCVを返します。点列の弦長を正規化し、3次clamped均等knotの
 最小二乗問題を解きます。NumPy等の外部ライブラリは使用しません。
 入出力は同じ空間・単位で、端点を固定し、サンプルが少ない場合は直線配置へ

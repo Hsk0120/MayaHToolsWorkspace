@@ -20,6 +20,6 @@ def getTimeSlider(control=None):
     Returns:
         TimeSlider: 現在のタイムラインを操作するオブジェクト。
     """
-    from ..ui import TimeSlider
+    from ..common import TimeSlider
 
     return TimeSlider(control)

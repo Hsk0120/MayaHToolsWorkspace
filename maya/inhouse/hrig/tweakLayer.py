@@ -5,7 +5,7 @@ from maya import cmds
 from functools import partial
 import re
 import hlib
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class TweakLayer:
@@ -117,7 +117,7 @@ class TweakLayer:
                 key = group.getUuid()
                 if key in cls._jobs:
                     continue
-                jobs = hlib.events.ScriptJobs()
+                jobs = hlib.common.ScriptJobs()
                 for plug in (
                     group.getPlug("enabled"),
                     rig.root.getPlug("hrigLod" if rig.root.hasAttr("hrigLod") else "lod"),

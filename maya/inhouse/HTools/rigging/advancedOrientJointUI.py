@@ -8,12 +8,12 @@ skinCluster 状態の退避/復元、および UI から Orient Joint を適用�
 import maya.cmds as cmds
 
 from hlib.nodes import Node
-from hlib.utils import units
+from hlib.common import units
 import maya.api.OpenMaya as om2
 import math
 
 import hlib
-from hlib.decorators import preservedSkinShape
+from hlib.decorator import preservedSkinShape
 
 hlib.reload()
 
@@ -1184,7 +1184,7 @@ def _apply_orient_from_ui(*_):
         cmds.warning(str(e))
         return
 
-    # 変形破綻を避けるため、影響する skinCluster を hlib.utils.preservedSkinShape
+    # 変形破綻を避けるため、影響する skinCluster を hlib.decorator.preservedSkinShape
     # (skinCluster -moveJointsMode / -recacheBindMatrices) で保護する。
     target_joints = _compute_target_joints(joints, include_children=True)
     next_children_debug = _compute_is_next_children_debug_enabled(primary_space, up_space)

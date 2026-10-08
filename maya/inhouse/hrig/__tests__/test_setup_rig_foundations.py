@@ -5,11 +5,11 @@ import unittest
 from maya import cmds
 import hlib
 from hrig.setups import ControlShape, SoftIK
-from hlib.utils.scalarGraph import ScalarGraph
+from hlib.common.scalarGraph import ScalarGraph
 from hlib.nodes import Container
-from hlib.environment import Preferences
-from hlib.utils import units
-from hlib.decorators import nativeUnits
+from hlib.common import Preferences
+from hlib.common import units
+from hlib.decorator import nativeUnits
 
 
 class RigFoundationsTest(unittest.TestCase):
@@ -131,15 +131,21 @@ class RigFoundationsTest(unittest.TestCase):
             skin.copyWeightsTo(skin)
 
     def test_maya_compatible_values(self):
-        """属性検索と表示単位は型付きPlugの取得規則と区別して維持する。"""
+        """アトリビュート参照を取得し、UI単位と固定単位を明示して読み分ける。"""
 
         node = hlib.createNode("transform", name="rawUnits")
         node.addAttr(longName="marker", attributeType="message")
         cmds.setAttr(node.getFullName() + ".tx", 200)
         cmds.setAttr(node.getFullName() + ".rz", 90)
+        rotation = hlib.getAttr(node.getFullName() + ".rz")
+        self.assertIsInstance(rotation, hlib.plugs.Plug)
+        self.assertAlmostEqual(rotation.getu(), 90)
+        self.assertAlmostEqual(rotation.get(), math.pi / 2)
         cmds.currentUnit(linear="m", angle="rad")
-        self.assertAlmostEqual(hlib.getAttr(node.getFullName() + ".tx"), 2)
-        self.assertAlmostEqual(hlib.getAttr(node.getFullName() + ".rz"), math.pi / 2)
+        translation = hlib.getAttr(node.getFullName() + ".tx")
+        self.assertAlmostEqual(translation.getu(), 2)
+        self.assertAlmostEqual(translation.get(), 200)
+        self.assertAlmostEqual(rotation.getu(), math.pi / 2)
         self.assertEqual(
             [p.getNode().getUuid() for p in hlib.ls("*.marker", recursive=True)], [node.getUuid()]
         )
@@ -207,9 +213,9 @@ class RigFoundationsTest(unittest.TestCase):
 
     def test_editor_batch_guards(self):
         """GUIを持たない場合は親を返さず、エディター起動を明示的に拒否する。"""
-        from hlib.ui import MainWindow
-        from hlib.ui import NodeEditor
-        from hlib.ui import GraphEditor
+        from hlib.common import MainWindow
+        from hlib.common import NodeEditor
+        from hlib.common import GraphEditor
 
         if not cmds.about(batch=True):
             self.skipTest("Batch-only contract")
@@ -255,9 +261,9 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertEqual(shape.getType(), "mesh")
         marker = hlib.addAttr(mesh, longName="marker", attributeType="double", defaultValue=2)
         self.assertIsInstance(marker, hlib.plugs.Plug)
-        self.assertEqual(hlib.getAttr(marker), 2)
-        self.assertIsInstance(hlib.getAttr(mesh.getPlug("translate")), hlib.maths.Vector)
-        self.assertIsInstance(hlib.getAttr(mesh.getPlug("worldMatrix[0]")), hlib.maths.Matrix)
+        self.assertEqual(hlib.getAttr(marker).getu(), 2)
+        self.assertIsInstance(hlib.getAttr(mesh.getPlug("translate")).get(), hlib.maths.Vector)
+        self.assertIsInstance(hlib.getAttr(mesh.getPlug("worldMatrix[0]")).get(), hlib.maths.Matrix)
         owner = hlib.createSet(mesh, name="typedSet")
         self.assertIsInstance(owner, hlib.nodes.ObjectSet)
         self.assertEqual(owner.getMembers()[0].getUuid(), mesh.getUuid())
@@ -309,11 +315,11 @@ class RigFoundationsTest(unittest.TestCase):
     def test_package_layout(self):
         """各実装が用途別パッケージに一つだけ存在し、選択入口も新クラスを返す。"""
         from pathlib import Path
-        from hlib.environment import Preferences
-        from hlib.environment import Workspace
-        from hlib.scene import Selection
+        from hlib.common import Preferences
+        from hlib.common import Workspace
+        from hlib.common import Selection
 
         for cls, module in ((Preferences, "preferences"), (Workspace, "workspace"), (Selection, "selection")):
-            self.assertEqual(cls.__module__, "hlib." + ("scene" if module == "selection" else "environment") + "." + module)
+            self.assertEqual(cls.__module__, "hlib.common." + module)
             self.assertFalse((Path(hlib.__file__).parent / (module + ".py")).exists())
         self.assertIsInstance(hlib.captureSelection(), Selection)

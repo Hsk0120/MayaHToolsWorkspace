@@ -12,7 +12,7 @@ hlib.reload()
 from hlib.components import Vertex, Vertices
 from hlib.nodes import Node
 from hlib.plugs import ArrayPlug, Plug
-from hlib.scene.selection import Selection
+from hlib.common.selection import Selection
 
 
 class CoerceTest(unittest.TestCase):
@@ -33,39 +33,39 @@ class CoerceTest(unittest.TestCase):
 
     def test_to_name_passes_through_string_without_resolving(self):
         # 存在しない名前でも解決を試みず、そのまま返す。
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         self.assertEqual(_InputObject._input_name("doesNotExistYet"), "doesNotExistYet")
 
     def test_to_name_uses_full_name_for_node(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         node = self.create_transform("hlibCoerceToName")
         self.assertEqual(_InputObject._input_name(node), node.getFullName())
 
     def test_to_name_rejects_invalid_types_and_empty_string(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         with self.assertRaises(TypeError):
             _InputObject._input_name(123)
         with self.assertRaises(ValueError):
             _InputObject._input_name("")
 
     def test_to_names_wraps_single_node_or_string(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         node = self.create_transform("hlibCoerceToNamesSingle")
         self.assertEqual(_InputObject._input_names(node), [node.getFullName()])
         self.assertEqual(_InputObject._input_names("literalName"), ["literalName"])
 
     def test_to_names_rejects_mixed_iterable(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         node = self.create_transform("hlibCoerceToNamesMixed")
         with self.assertRaises(TypeError):
             _InputObject._input_names([node, "literalName"])
 
     def test_to_names_empty_iterable_returns_empty_list(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         self.assertEqual(_InputObject._input_names([]), [])
 
     def test_to_names_propagates_element_errors(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         with self.assertRaises(TypeError):
             _InputObject._input_names([123])
         with self.assertRaises(ValueError):
@@ -117,7 +117,7 @@ class CoerceObjectInputTest(unittest.TestCase):
 
     def test_plug_and_mplug_become_unique_plug_names(self):
         from hlib.nodes.node import Node as _InputNode
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         from hlib.plugs.plug import Plug as _InputPlug
         plug = self.node.getPlug("tx")
         expected = self.node.getName() + ".translateX"
@@ -130,7 +130,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         self.assertEqual(_InputNode._unique_node_name(self.node.mnode()), self.node.getName())
 
     def test_array_plug_is_not_expanded(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         self.network.addAttr("values", attributeType="double", multi=True)
         array_plug = self.network.getPlug("values")
         array_plug[0].set(1.0)
@@ -141,7 +141,7 @@ class CoerceObjectInputTest(unittest.TestCase):
                          [self.network.getName() + ".values", self.network.getName() + ".values[0]"])
 
     def test_components_are_expanded(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         vertex = Vertex(self.mesh, 1)
         vertices = Vertices(self.mesh, [2, 3])
         prefix = self.mesh.getFullName() + ".vtx"
@@ -154,7 +154,7 @@ class CoerceObjectInputTest(unittest.TestCase):
             _InputObject._input_name(vertices)
 
     def test_compact_names_keep_held_order(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         prefix = self.mesh.getFullName() + ".vtx"
         vertices = Vertices(self.mesh, [0, 1, 2, 5, 3, 4, 7])
         self.assertEqual(vertices.getCompactNames(),
@@ -172,7 +172,7 @@ class CoerceObjectInputTest(unittest.TestCase):
             _InputObject._input_names(vertices)
 
     def test_api_objects(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         self.assertEqual(_InputObject._input_name(self.node.mnode()), self.node.getFullName())
         self.assertEqual(_InputObject._input_name(self.network.mnode()), self.network.getName())
         self.assertEqual(_InputObject._input_name(self.node.mpath()), self.node.getFullName())
@@ -184,7 +184,7 @@ class CoerceObjectInputTest(unittest.TestCase):
             _InputObject._input_name(om2.MPlug())
 
     def test_instanced_dag_path_is_preserved(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         instance = cmds.instance(self.cube, name="cubeInstance")[0]
         selection = om2.MSelectionList()
         selection.add(instance + "|" + self.mesh.getNodeName())
@@ -193,7 +193,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         self.assertEqual(_InputObject._input_name(path), path.fullPathName())
 
     def test_nested_iterables_selection_and_generators(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         vertex = Vertex(self.mesh, 0)
         selection = Selection([self.twin, vertex])
         names = _InputObject._input_names([self.node, [self.twin.mnode(), (item for item in [vertex])], selection])
@@ -203,7 +203,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         ])
 
     def test_invalid_objects_raise_value_error(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         plug = self.twin.getPlug("tx")
         mobject = self.twin.mnode()
         path = self.twin.mpath()
@@ -229,7 +229,7 @@ class CoerceObjectInputTest(unittest.TestCase):
 
     def test_to_node_rejects_plugs_of_deleted_attributes(self):
         from hlib.nodes.node import Node as _InputNode
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         from hlib.plugs.plug import DeletedAttributeError
 
         plug = self.network.addAttr("doomed", attributeType="double")
@@ -290,7 +290,7 @@ class CoerceObjectInputTest(unittest.TestCase):
         self.assertIsInstance(_InputPlug._resolve_input(plug.mplug()), Plug)
 
     def test_to_names_can_reject_plugs(self):
-        from hlib.object import Object as _InputObject
+        from hlib._core.object import Object as _InputObject
         plug = self.node.getPlug("tx")
         names = [self.node.getFullName(), plug.getFullName()]
         self.assertEqual(_InputObject._input_names([self.node, plug]), names)

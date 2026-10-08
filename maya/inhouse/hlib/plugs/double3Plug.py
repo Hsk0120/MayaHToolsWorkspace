@@ -4,15 +4,13 @@ import math
 
 import maya.api.OpenMaya as om2
 
-from .._core.registry import plug_wrapper
-from ..decorators._fast import fast_edit
-from ..decorators._safe import safe_edit
-from ..decorators.undo import undoChunk
+from ..common._fast import fast_edit
+from ..common._safe import safe_edit
+from ..decorator import undoChunk
 from ..maths import EulerRotation, Scale, Shear, Translation, Vector
 from .compoundPlug import CompoundPlug
 
 
-@plug_wrapper("double3")
 class Double3Plug(CompoundPlug):
     """アトリビュートの子成分だけを扱う。ノードの行列変換には委譲しない。"""
 

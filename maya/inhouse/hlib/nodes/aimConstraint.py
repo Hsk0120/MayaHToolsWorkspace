@@ -2,13 +2,12 @@
 
 import math
 
-from .._core.registry import node_wrapper
-from ..decorators.undo import undoTransaction
+from .._core.getterAlias import _getter_alias
+from ..decorator import undoTransaction
 from ..maths import EulerRotation
 from .constraint import Constraint
 
 
-@node_wrapper("aimConstraint")
 class AimConstraint(Constraint):
     """指定ターゲットへ向ける aimConstraint ラッパー。"""
 
@@ -90,6 +89,70 @@ class AimConstraint(Constraint):
         """
         values = [self.getPlug("constraintRotate" + axis).get() for axis in "XYZ"]
         return EulerRotation(*values, order=int(self.getPlug("constraintRotateOrder").get()))
+
+    @_getter_alias(getRotationConnections)
+    def rotationConnections(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRotationConnections(*args, **kwargs)
+
+    @_getter_alias(getRestRotation)
+    def restRotation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRestRotation(*args, **kwargs)
+
+    @_getter_alias(getOffset)
+    def offset(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOffset(*args, **kwargs)
+
+    @_getter_alias(getOutputRotation)
+    def outputRotation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputRotation(*args, **kwargs)
 
     @undoTransaction("hlib.AimConstraint.setAngles")
     def _setAngles(self, attribute, value):

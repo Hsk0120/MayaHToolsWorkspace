@@ -107,7 +107,7 @@ def dump(data, path=None, metadata=None, indent=2):
             if temporary.exists():
                 temporary.unlink()
         except OSError as exc:
-            from ..utils import logger
+            from .. import logger
             logger.warning("Temporary JSON cleanup failed for %s: %s", temporary, exc)
         raise
 

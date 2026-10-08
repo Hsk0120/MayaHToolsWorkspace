@@ -4,10 +4,10 @@ from dataclasses import FrozenInstanceError
 import unittest
 from unittest.mock import patch
 
-from hlib.utils import Version
-from hlib.environment import Module
-from hlib.environment import Plugin
-from hlib.environment import PluginPackage
+from hlib.common import Version
+from hlib.common import Module
+from hlib.common import Plugin
+from hlib.common import PluginPackage
 
 
 class VersionTest(unittest.TestCase):

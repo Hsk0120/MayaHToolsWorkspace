@@ -50,13 +50,13 @@ class DrivenKeyTest(unittest.TestCase):
         self.assertEqual(len(one.getCurves()), 1)
         self.assertEqual(len(two.getCurves()), 1)
         self.assertNotEqual(one.getCurves()[0].getFullName(), two.getCurves()[0].getFullName())
-        found = hlib.scene.DrivenKey.find(self.b + ".ty")
+        found = hlib.common.DrivenKey.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
         cmds.setAttr(self.a + ".tx", 5)
         cmds.setAttr(self.c + ".tx", 5)
         self.assertAlmostEqual(cmds.getAttr(self.b + ".ty"), 15)
         self.assertIsInstance(found, list)
-        from hlib.decorators.undo import undoChunk
+        from hlib.decorator import undoChunk
         with undoChunk("testDrivenKeys"):
             for relation in found:
                 relation.setKey(10, 30)
@@ -74,7 +74,7 @@ class DrivenKeyTest(unittest.TestCase):
         blend = cmds.listConnections(self.b + ".ty", source=True, destination=False,
                                      type="blendWeighted", skipConversionNodes=True)[0]
         cmds.setDrivenKeyframe(blend + ".weight[0]", currentDriver=self.a + ".tz", driverValue=0, value=1)
-        found = hlib.scene.DrivenKey.find(self.b + ".ty")
+        found = hlib.common.DrivenKey.find(self.b + ".ty")
         self.assertEqual(len(found), 2)
         self.assertEqual({p.getFullName() for p in [relation.getDriverPlug() for relation in found]},
                          {hlib.getNode(self.a).getPlug("tx").getFullName(), hlib.getNode(self.c).getPlug("tx").getFullName()})
@@ -104,7 +104,7 @@ class DrivenKeyTest(unittest.TestCase):
             relation.setKey(0, 0)
         self.assertTrue(cmds.isConnected(self.c + ".ty", self.b + ".ty"))
         self.assertFalse(relation.exists())
-        self.assertEqual(len(hlib.scene.DrivenKey.find(self.b + ".ty")), 0)
+        self.assertEqual(len(hlib.common.DrivenKey.find(self.b + ".ty")), 0)
         cmds.delete(self.a)
         with self.assertRaises(RuntimeError):
             relation.setKey(0, 0)
@@ -133,7 +133,7 @@ class DrivenKeyTest(unittest.TestCase):
         same = hlib.getDrivenKey(hlib.getNode(first_shape).getPlug("drv"), self.c + ".tx")
         self.assertEqual([curve.getFullName() for curve in same.getCurves()],
                          [curve.getFullName() for curve in relation.getCurves()])
-        found = hlib.scene.DrivenKey.find(self.c + ".tx")
+        found = hlib.common.DrivenKey.find(self.c + ".tx")
         self.assertEqual(len(found), 1)
         cmds.setAttr(first_shape + ".drv", 1)
         self.assertAlmostEqual(cmds.getAttr(self.c + ".tx"), 10.0)
@@ -152,9 +152,9 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.setKeyframe(curve, float=1.0, value=1.0)
         cmds.connectAttr(choice + ".output", curve + ".input")
         cmds.connectAttr(curve + ".output", self.b + ".tz")
-        self.assertEqual(len(hlib.scene.DrivenKey.find(self.b + ".tz")), 0)
-        self.assertEqual(len(hlib.scene.DrivenKey.find(self.b + ".ty")), 1)
-        self.assertEqual(len(hlib.scene.DrivenKey.find(hlib.getNode(self.b).getPlug("ty").mplug())), 1)
+        self.assertEqual(len(hlib.common.DrivenKey.find(self.b + ".tz")), 0)
+        self.assertEqual(len(hlib.common.DrivenKey.find(self.b + ".ty")), 1)
+        self.assertEqual(len(hlib.common.DrivenKey.find(hlib.getNode(self.b).getPlug("ty").mplug())), 1)
 
 
 if __name__ == "__main__":

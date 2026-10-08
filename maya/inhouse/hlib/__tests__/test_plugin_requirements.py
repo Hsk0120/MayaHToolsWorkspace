@@ -1,4 +1,4 @@
-"""hlib.environment の版比較・Module・PluginPackage と hlib.requirePlugins を検証するMaya内テスト。"""
+"""hlib.common の版比較・Module・PluginPackage と hlib.requirePlugins を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -8,16 +8,16 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.environment import LOAD_FAILED
-from hlib.environment import LOADED
-from hlib.environment import MISSING
-from hlib.environment import OUTDATED
-from hlib.environment import SKIPPED
-from hlib.environment import Module
-from hlib.environment import Plugin
-from hlib.environment import PluginPackage
-from hlib.utils import Version
-import hlib.environment.pluginPackage as package_module
+from hlib.common import LOAD_FAILED
+from hlib.common import LOADED
+from hlib.common import MISSING
+from hlib.common import OUTDATED
+from hlib.common import SKIPPED
+from hlib.common import Module
+from hlib.common import Plugin
+from hlib.common import PluginPackage
+from hlib.common import Version
+import hlib.common.pluginPackage as package_module
 
 
 class PluginVersionTest(unittest.TestCase):
@@ -74,8 +74,8 @@ class ModuleTest(unittest.TestCase):
         self.assertEqual(module.getPath(), cmds.moduleInfo(path=True, moduleName=name) or None)
 
     def test_equality_hash_and_repr(self):
-        # 他のテストが hlib.reload() を呼んでも古いクラスを掴まないよう、都度 hlib.environment から取得する。
-        module_class = hlib.environment.Module
+        # 他のテストが hlib.reload() を呼んでも古いクラスを掴まないよう、都度 hlib.common から取得する。
+        module_class = hlib.common.Module
         self.assertEqual(module_class("a"), module_class("a"))
         self.assertNotEqual(module_class("a"), module_class("b"))
         self.assertNotEqual(module_class("a"), "a")

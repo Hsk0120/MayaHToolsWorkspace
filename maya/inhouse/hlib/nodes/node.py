@@ -8,14 +8,13 @@ from typing import Any
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.collection import bulk_api
 from .._core.flags import flag_aliases
 from .._core.flags import normalize_flags
-from .._core.registry import collection_export
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
-from ..object import Object
-from ..utils import raise_with_notify
+from .._core.getterAlias import _getter_alias
+from .._core.object import Object
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
+from ..logger import raise_with_notify
 
 _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kBoolean: "bool",
@@ -449,7 +448,7 @@ class Node(Object):
 
         if not isinstance(type, str) or not type:
             raise ValueError("type must be a non-empty string")
-        from ..environment import Plugin
+        from ..common import Plugin
         Plugin.ensureNodePlugin(type)
         for key in ("parent", "p"):
             if kwargs.get(key) is not None:
@@ -752,7 +751,7 @@ class Node(Object):
         """
         # namespaces.namespace が ..nodes を逆方向 import するため、
         # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from ..scene import Namespace
+        from ..common import Namespace
 
         nodeName = self.getNodeName()
         if ":" not in nodeName:
@@ -774,7 +773,7 @@ class Node(Object):
             RuntimeError: namespace移動に失敗した場合。
         """
         # namespaces.namespace ⇔ nodes の相互依存を避けるための遅延 import。namespace() と同じ理由。
-        from ..scene import Namespace
+        from ..common import Namespace
 
         if isinstance(namespace, Namespace):
             target_namespace = namespace
@@ -1338,6 +1337,374 @@ class Node(Object):
             dagPath = self._current_dag_path()
         return dagPath.fullPathName()
 
+    @_getter_alias(getShadingEngines)
+    def shadingEngines(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShadingEngines(*args, **kwargs)
+
+    @_getter_alias(getAssignedObjects)
+    def assignedObjects(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAssignedObjects(*args, **kwargs)
+
+    @_getter_alias(getMaterials)
+    def materials(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMaterials(*args, **kwargs)
+
+    @_getter_alias(getType)
+    def type(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getType(*args, **kwargs)
+
+    @_getter_alias(getTypeId)
+    def typeId(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTypeId(*args, **kwargs)
+
+    @_getter_alias(getPluginName)
+    def pluginName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPluginName(*args, **kwargs)
+
+    @_getter_alias(getClassification)
+    def classification(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getClassification(*args, **kwargs)
+
+    @_getter_alias(getAttrCount)
+    def attrCount(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAttrCount(*args, **kwargs)
+
+    @_getter_alias(getPath)
+    def path(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPath(*args, **kwargs)
+
+    @_getter_alias(getNodeName)
+    def nodeName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNodeName(*args, **kwargs)
+
+    @_getter_alias(getNamespace)
+    def namespace(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNamespace(*args, **kwargs)
+
+    @_getter_alias(getInputs)
+    def inputs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInputs(*args, **kwargs)
+
+    @_getter_alias(getOutputs)
+    def outputs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputs(*args, **kwargs)
+
+    @_getter_alias(getConnections)
+    def connections(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getConnections(*args, **kwargs)
+
+    @_getter_alias(getHistory)
+    def history(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getHistory(*args, **kwargs)
+
+    @_getter_alias(getPlugs)
+    def plugs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPlugs(*args, **kwargs)
+
+    @_getter_alias(getAliases)
+    def aliases(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAliases(*args, **kwargs)
+
+    @_getter_alias(getExtraAttrs)
+    def extraAttrs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getExtraAttrs(*args, **kwargs)
+
+    @_getter_alias(getExtraAttrNames)
+    def extraAttrNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getExtraAttrNames(*args, **kwargs)
+
+    @_getter_alias(getPlug)
+    def plug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPlug(*args, **kwargs)
+
+    @_getter_alias(getUuid)
+    def uuid(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getUuid(*args, **kwargs)
+
+    @_getter_alias(getName)
+    def name(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getName(*args, **kwargs)
+
+    @_getter_alias(getFullName)
+    def fullName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullName(*args, **kwargs)
+
     def _has_delete_connections(self):
         """自身とDAG子孫のDG接続をOMで検査する。
 
@@ -1479,7 +1846,7 @@ class Node(Object):
             RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
                 または空・削除済みのノードを指す om2 オブジェクトの場合(``Node(value)`` と同じ)。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         from ..plugs.plug import Plug as _InputPlug
         node_class, plug_class, component_class, components_class = _InputObject._classes()
         if isinstance(value, node_class):
@@ -1515,7 +1882,7 @@ class Node(Object):
                 含む)対象の場合。
             RuntimeError: 文字列を解決できない(存在しない、または複数のノードに一致する)場合。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         # 型と有効性の検査は Object._input_name と同じ規則(TypeError / ValueError)にそろえる。
         _InputObject._input_name(value)
         return Node._resolve_input(value).getFullName()
@@ -1616,7 +1983,7 @@ class Node(Object):
             ValueError: 照会・編集、または名前の指定が不正な場合。
             RuntimeError: Mayaが追加を拒否した場合。
         """
-        from ..object import Object as _InputObject
+        from .._core.object import Object as _InputObject
         from ..plugs.plug import Plug as _InputPlug
 
         if kwargs.get("query") or kwargs.get("edit"):
@@ -1653,12 +2020,30 @@ class Node(Object):
                 yield attribute
 
 
-@collection_export()
-@bulk_api(
-    Node,
-    reads=('getShadingEngines', 'getAssignedObjects', 'getMaterials', 'sameNode', 'sameInstance', 'isValid', 'isAlive', 'mnode', 'getType', 'getTypeId', 'getPluginName', 'getClassification', 'isType', 'isLocked', 'isFromReferencedFile', 'isAncestorOf', 'isParentOf', 'isChildOf', 'getAttrCount', 'getPath', 'isRoot', 'getNodeName', 'getNamespace', 'rename', 'getInputs', 'getOutputs', 'getConnections', 'getHistory', 'resetAttrs', 'getPlugs', 'getAliases', 'addAttr', 'getExtraAttrs', 'getExtraAttrNames', 'getPlug', 'hasAttr', 'getUuid', 'getName', 'getFullName'),
-    writes=('delete', 'setNamespace', 'setAttrFlags', 'moveAttrOrder'),
-)
+class _PerItemOnly:
+    """継承した一括入口も隠し、callEachからの要素別指定だけを許可する。"""
+
+    def __init__(self, name):
+        """直接呼び出しを禁止するメソッド名を保持する。
+
+        Args:
+            name (str): 要素別の引数を必要とする単数メソッド名。
+        """
+        self._name = name
+
+    def __get__(self, instance, owner=None):
+        """クラス・インスタンスのどちらからも直接取得を拒否する。
+
+        Args:
+            instance: 取得元のインスタンス。クラスから取得する場合はNone。
+            owner: 取得元のクラス。
+
+        Raises:
+            AttributeError: 要素別の引数指定が必要な場合。
+        """
+        raise AttributeError(f"{self._name} requires callEach with per-item arguments")
+
+
 class Nodes:
     """型を検証し、入力順のノード参照を保持するコレクション。
 
@@ -1667,6 +2052,145 @@ class Nodes:
     """
 
     item_class = Node
+
+    _bulk_returns = {
+        "getShadingEngines": "list",
+        "shadingEngines": "list",
+        "getAssignedObjects": "list",
+        "assignedObjects": "list",
+        "getMaterials": "list",
+        "materials": "list",
+        "sameNode": "list",
+        "sameInstance": "list",
+        "isValid": "list",
+        "isAlive": "list",
+        "mnode": "list",
+        "getType": "list",
+        "type": "list",
+        "getTypeId": "list",
+        "typeId": "list",
+        "getPluginName": "list",
+        "pluginName": "list",
+        "getClassification": "list",
+        "classification": "list",
+        "isType": "list",
+        "isLocked": "list",
+        "isFromReferencedFile": "list",
+        "isAncestorOf": "list",
+        "isParentOf": "list",
+        "isChildOf": "list",
+        "getAttrCount": "list",
+        "attrCount": "list",
+        "getPath": "list",
+        "path": "list",
+        "isRoot": "list",
+        "getNodeName": "list",
+        "nodeName": "list",
+        "getNamespace": "list",
+        "namespace": "list",
+        "rename": "list",
+        "getInputs": "list",
+        "inputs": "list",
+        "getOutputs": "list",
+        "outputs": "list",
+        "getConnections": "list",
+        "connections": "list",
+        "getHistory": "list",
+        "history": "list",
+        "resetAttrs": "list",
+        "getPlugs": "list",
+        "plugs": "list",
+        "getAliases": "list",
+        "aliases": "list",
+        "addAttr": "list",
+        "getExtraAttrs": "list",
+        "extraAttrs": "list",
+        "getExtraAttrNames": "list",
+        "extraAttrNames": "list",
+        "getPlug": "list",
+        "plug": "list",
+        "hasAttr": "list",
+        "getUuid": "list",
+        "uuid": "list",
+        "getName": "list",
+        "name": "list",
+        "getFullName": "list",
+        "fullName": "list",
+        "delete": "self",
+        "setNamespace": "self",
+        "setAttrFlags": "self",
+        "moveAttrOrder": "self",
+    }
+    _bulk_methods = {
+        "getShadingEngines": Node.getShadingEngines,
+        "shadingEngines": Node.shadingEngines,
+        "getAssignedObjects": Node.getAssignedObjects,
+        "assignedObjects": Node.assignedObjects,
+        "getMaterials": Node.getMaterials,
+        "materials": Node.materials,
+        "sameNode": Node.sameNode,
+        "sameInstance": Node.sameInstance,
+        "isValid": Node.isValid,
+        "isAlive": Node.isAlive,
+        "mnode": Node.mnode,
+        "getType": Node.getType,
+        "type": Node.type,
+        "getTypeId": Node.getTypeId,
+        "typeId": Node.typeId,
+        "getPluginName": Node.getPluginName,
+        "pluginName": Node.pluginName,
+        "getClassification": Node.getClassification,
+        "classification": Node.classification,
+        "isType": Node.isType,
+        "isLocked": Node.isLocked,
+        "isFromReferencedFile": Node.isFromReferencedFile,
+        "isAncestorOf": Node.isAncestorOf,
+        "isParentOf": Node.isParentOf,
+        "isChildOf": Node.isChildOf,
+        "getAttrCount": Node.getAttrCount,
+        "attrCount": Node.attrCount,
+        "getPath": Node.getPath,
+        "path": Node.path,
+        "isRoot": Node.isRoot,
+        "getNodeName": Node.getNodeName,
+        "nodeName": Node.nodeName,
+        "getNamespace": Node.getNamespace,
+        "namespace": Node.namespace,
+        "rename": Node.rename,
+        "getInputs": Node.getInputs,
+        "inputs": Node.inputs,
+        "getOutputs": Node.getOutputs,
+        "outputs": Node.outputs,
+        "getConnections": Node.getConnections,
+        "connections": Node.connections,
+        "getHistory": Node.getHistory,
+        "history": Node.history,
+        "resetAttrs": Node.resetAttrs,
+        "getPlugs": Node.getPlugs,
+        "plugs": Node.plugs,
+        "getAliases": Node.getAliases,
+        "aliases": Node.aliases,
+        "addAttr": Node.addAttr,
+        "getExtraAttrs": Node.getExtraAttrs,
+        "extraAttrs": Node.extraAttrs,
+        "getExtraAttrNames": Node.getExtraAttrNames,
+        "extraAttrNames": Node.extraAttrNames,
+        "getPlug": Node.getPlug,
+        "plug": Node.plug,
+        "hasAttr": Node.hasAttr,
+        "getUuid": Node.getUuid,
+        "uuid": Node.uuid,
+        "getName": Node.getName,
+        "name": Node.name,
+        "getFullName": Node.getFullName,
+        "fullName": Node.fullName,
+        "delete": Node.delete,
+        "setNamespace": Node.setNamespace,
+        "setAttrFlags": Node.setAttrFlags,
+        "moveAttrOrder": Node.moveAttrOrder,
+    }
+    _bulk_per_item_only = frozenset()
+    _bulk_undo = True
 
     def __init__(self, names=()):
         """ノード入力を解決して構築する。検索やシーン変更は行わない。
@@ -1739,6 +2263,594 @@ class Nodes:
         """
         return f"{type(self).__name__}({self._items!r})"
 
+    def getShadingEngines(self, *args, **kwargs):
+        """各要素のgetShadingEnginesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getShadingEngines", args, kwargs)
+
+    getShadingEngines.__signature__ = inspect.signature(Node.getShadingEngines)
+
+    def getAssignedObjects(self, *args, **kwargs):
+        """各要素のgetAssignedObjectsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getAssignedObjects", args, kwargs)
+
+    getAssignedObjects.__signature__ = inspect.signature(Node.getAssignedObjects)
+
+    def getMaterials(self, *args, **kwargs):
+        """各要素のgetMaterialsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getMaterials", args, kwargs)
+
+    getMaterials.__signature__ = inspect.signature(Node.getMaterials)
+
+    def sameNode(self, *args, **kwargs):
+        """各要素のsameNodeを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("sameNode", args, kwargs)
+
+    sameNode.__signature__ = inspect.signature(Node.sameNode)
+
+    def sameInstance(self, *args, **kwargs):
+        """各要素のsameInstanceを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("sameInstance", args, kwargs)
+
+    sameInstance.__signature__ = inspect.signature(Node.sameInstance)
+
+    def isValid(self, *args, **kwargs):
+        """各要素のisValidを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isValid", args, kwargs)
+
+    isValid.__signature__ = inspect.signature(Node.isValid)
+
+    def isAlive(self, *args, **kwargs):
+        """各要素のisAliveを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isAlive", args, kwargs)
+
+    isAlive.__signature__ = inspect.signature(Node.isAlive)
+
+    def mnode(self, *args, **kwargs):
+        """各要素のmnodeを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("mnode", args, kwargs)
+
+    mnode.__signature__ = inspect.signature(Node.mnode)
+
+    def getType(self, *args, **kwargs):
+        """各要素のgetTypeを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getType", args, kwargs)
+
+    getType.__signature__ = inspect.signature(Node.getType)
+
+    def getTypeId(self, *args, **kwargs):
+        """各要素のgetTypeIdを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getTypeId", args, kwargs)
+
+    getTypeId.__signature__ = inspect.signature(Node.getTypeId)
+
+    def getPluginName(self, *args, **kwargs):
+        """各要素のgetPluginNameを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getPluginName", args, kwargs)
+
+    getPluginName.__signature__ = inspect.signature(Node.getPluginName)
+
+    def getClassification(self, *args, **kwargs):
+        """各要素のgetClassificationを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getClassification", args, kwargs)
+
+    getClassification.__signature__ = inspect.signature(Node.getClassification)
+
+    def isType(self, *args, **kwargs):
+        """各要素のisTypeを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isType", args, kwargs)
+
+    isType.__signature__ = inspect.signature(Node.isType)
+
+    def isLocked(self, *args, **kwargs):
+        """各要素のisLockedを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isLocked", args, kwargs)
+
+    isLocked.__signature__ = inspect.signature(Node.isLocked)
+
+    def isFromReferencedFile(self, *args, **kwargs):
+        """各要素のisFromReferencedFileを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isFromReferencedFile", args, kwargs)
+
+    isFromReferencedFile.__signature__ = inspect.signature(Node.isFromReferencedFile)
+
+    def isAncestorOf(self, *args, **kwargs):
+        """各要素のisAncestorOfを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isAncestorOf", args, kwargs)
+
+    isAncestorOf.__signature__ = inspect.signature(Node.isAncestorOf)
+
+    def isParentOf(self, *args, **kwargs):
+        """各要素のisParentOfを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isParentOf", args, kwargs)
+
+    isParentOf.__signature__ = inspect.signature(Node.isParentOf)
+
+    def isChildOf(self, *args, **kwargs):
+        """各要素のisChildOfを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isChildOf", args, kwargs)
+
+    isChildOf.__signature__ = inspect.signature(Node.isChildOf)
+
+    def getAttrCount(self, *args, **kwargs):
+        """各要素のgetAttrCountを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getAttrCount", args, kwargs)
+
+    getAttrCount.__signature__ = inspect.signature(Node.getAttrCount)
+
+    def getPath(self, *args, **kwargs):
+        """各要素のgetPathを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getPath", args, kwargs)
+
+    getPath.__signature__ = inspect.signature(Node.getPath)
+
+    def isRoot(self, *args, **kwargs):
+        """各要素のisRootを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isRoot", args, kwargs)
+
+    isRoot.__signature__ = inspect.signature(Node.isRoot)
+
+    def getNodeName(self, *args, **kwargs):
+        """各要素のgetNodeNameを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getNodeName", args, kwargs)
+
+    getNodeName.__signature__ = inspect.signature(Node.getNodeName)
+
+    def getNamespace(self, *args, **kwargs):
+        """各要素のgetNamespaceを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getNamespace", args, kwargs)
+
+    getNamespace.__signature__ = inspect.signature(Node.getNamespace)
+
+    def setNamespace(self, *args, **kwargs):
+        """各要素のsetNamespaceを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Nodes | list: コレクション自身。
+        """
+        return self._dispatch_shared("setNamespace", args, kwargs)
+
+    setNamespace.__signature__ = inspect.signature(Node.setNamespace)
+
+    def rename(self, *args, **kwargs):
+        """各要素のrenameを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("rename", args, kwargs)
+
+    rename.__signature__ = inspect.signature(Node.rename)
+
+    def getInputs(self, *args, **kwargs):
+        """各要素のgetInputsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getInputs", args, kwargs)
+
+    getInputs.__signature__ = inspect.signature(Node.getInputs)
+
+    def getOutputs(self, *args, **kwargs):
+        """各要素のgetOutputsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getOutputs", args, kwargs)
+
+    getOutputs.__signature__ = inspect.signature(Node.getOutputs)
+
+    def getConnections(self, *args, **kwargs):
+        """各要素のgetConnectionsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getConnections", args, kwargs)
+
+    getConnections.__signature__ = inspect.signature(Node.getConnections)
+
+    def getHistory(self, *args, **kwargs):
+        """各要素のgetHistoryを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getHistory", args, kwargs)
+
+    getHistory.__signature__ = inspect.signature(Node.getHistory)
+
+    def resetAttrs(self, *args, **kwargs):
+        """各要素のresetAttrsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("resetAttrs", args, kwargs)
+
+    resetAttrs.__signature__ = inspect.signature(Node.resetAttrs)
+
+    def getPlugs(self, *args, **kwargs):
+        """各要素のgetPlugsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getPlugs", args, kwargs)
+
+    getPlugs.__signature__ = inspect.signature(Node.getPlugs)
+
+    def getAliases(self, *args, **kwargs):
+        """各要素のgetAliasesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getAliases", args, kwargs)
+
+    getAliases.__signature__ = inspect.signature(Node.getAliases)
+
+    def addAttr(self, *args, **kwargs):
+        """各要素のaddAttrを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("addAttr", args, kwargs)
+
+    addAttr.__signature__ = inspect.signature(Node.addAttr)
+
+    def getExtraAttrs(self, *args, **kwargs):
+        """各要素のgetExtraAttrsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getExtraAttrs", args, kwargs)
+
+    getExtraAttrs.__signature__ = inspect.signature(Node.getExtraAttrs)
+
+    def getExtraAttrNames(self, *args, **kwargs):
+        """各要素のgetExtraAttrNamesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getExtraAttrNames", args, kwargs)
+
+    getExtraAttrNames.__signature__ = inspect.signature(Node.getExtraAttrNames)
+
+    def getPlug(self, *args, **kwargs):
+        """各要素のgetPlugを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getPlug", args, kwargs)
+
+    getPlug.__signature__ = inspect.signature(Node.getPlug)
+
+    def hasAttr(self, *args, **kwargs):
+        """各要素のhasAttrを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("hasAttr", args, kwargs)
+
+    hasAttr.__signature__ = inspect.signature(Node.hasAttr)
+
+    def getUuid(self, *args, **kwargs):
+        """各要素のgetUuidを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getUuid", args, kwargs)
+
+    getUuid.__signature__ = inspect.signature(Node.getUuid)
+
+    def getName(self, *args, **kwargs):
+        """各要素のgetNameを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getName", args, kwargs)
+
+    getName.__signature__ = inspect.signature(Node.getName)
+
+    def getFullName(self, *args, **kwargs):
+        """各要素のgetFullNameを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getFullName", args, kwargs)
+
+    getFullName.__signature__ = inspect.signature(Node.getFullName)
+
+    def setAttrFlags(self, *args, **kwargs):
+        """各要素のsetAttrFlagsを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Nodes | list: コレクション自身。
+        """
+        return self._dispatch_shared("setAttrFlags", args, kwargs)
+
+    setAttrFlags.__signature__ = inspect.signature(Node.setAttrFlags)
+
+    def moveAttrOrder(self, *args, **kwargs):
+        """各要素のmoveAttrOrderを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Nodes | list: コレクション自身。
+        """
+        return self._dispatch_shared("moveAttrOrder", args, kwargs)
+
+    moveAttrOrder.__signature__ = inspect.signature(Node.moveAttrOrder)
+
     def callEach(self, method, arguments, keyword_arguments=None):
         """各要素へ異なる引数を渡す。メソッド名は単体の公開インスタンスメソッドのみ。
 
@@ -1807,6 +2919,390 @@ class Nodes:
                         node.delete()
                 except Exception as exc:
                     raise RuntimeError(f"{type(self).__name__}.delete failed at item {index}: {exc}") from exc
+
+    @_getter_alias(getShadingEngines)
+    def shadingEngines(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShadingEngines(*args, **kwargs)
+
+    @_getter_alias(getAssignedObjects)
+    def assignedObjects(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAssignedObjects(*args, **kwargs)
+
+    @_getter_alias(getMaterials)
+    def materials(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMaterials(*args, **kwargs)
+
+    @_getter_alias(getType)
+    def type(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getType(*args, **kwargs)
+
+    @_getter_alias(getTypeId)
+    def typeId(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTypeId(*args, **kwargs)
+
+    @_getter_alias(getPluginName)
+    def pluginName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPluginName(*args, **kwargs)
+
+    @_getter_alias(getClassification)
+    def classification(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getClassification(*args, **kwargs)
+
+    @_getter_alias(getAttrCount)
+    def attrCount(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAttrCount(*args, **kwargs)
+
+    @_getter_alias(getPath)
+    def path(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPath(*args, **kwargs)
+
+    @_getter_alias(getNodeName)
+    def nodeName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNodeName(*args, **kwargs)
+
+    @_getter_alias(getNamespace)
+    def namespace(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNamespace(*args, **kwargs)
+
+    @_getter_alias(getInputs)
+    def inputs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInputs(*args, **kwargs)
+
+    @_getter_alias(getOutputs)
+    def outputs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputs(*args, **kwargs)
+
+    @_getter_alias(getConnections)
+    def connections(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getConnections(*args, **kwargs)
+
+    @_getter_alias(getHistory)
+    def history(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getHistory(*args, **kwargs)
+
+    @_getter_alias(getPlugs)
+    def plugs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPlugs(*args, **kwargs)
+
+    @_getter_alias(getAliases)
+    def aliases(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getAliases(*args, **kwargs)
+
+    @_getter_alias(getExtraAttrs)
+    def extraAttrs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getExtraAttrs(*args, **kwargs)
+
+    @_getter_alias(getExtraAttrNames)
+    def extraAttrNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getExtraAttrNames(*args, **kwargs)
+
+    @_getter_alias(getPlug)
+    def plug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPlug(*args, **kwargs)
+
+    @_getter_alias(getUuid)
+    def uuid(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getUuid(*args, **kwargs)
+
+    @_getter_alias(getName)
+    def name(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getName(*args, **kwargs)
+
+    @_getter_alias(getFullName)
+    def fullName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullName(*args, **kwargs)
+
+    @_getter_alias(getNames)
+    def names(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNames(*args, **kwargs)
 
     @staticmethod
     def _resolve_inputs(values):
@@ -1884,7 +3380,7 @@ class Nodes:
             args: 処理先へ渡す位置引数の列。
             kwargs: 処理先へ渡すキーワード引数の辞書。
         """
-        functions = [getattr(item, method) for item in self._items]
+        functions = [self._call_target(item, method) for item in self._items]
         shared = {}
         signatures = {}
         keywords = []
@@ -1921,13 +3417,28 @@ class Nodes:
         kwargs = [{} for _ in self._items] if keyword_arguments is None else [dict(row) for row in keyword_arguments]
         if len(args) != len(self) or len(kwargs) != len(self):
             raise ValueError("Argument count must match collection length")
-        functions = [getattr(item, method) for item in self._items]
+        functions = [self._call_target(item, method) for item in self._items]
         kwargs = [normalize_flags(function, flags) for function, flags in zip(functions, kwargs)]
         # この呼出内だけ共有し、reloadやクラスの差替え後に古いsignatureを保持しない。
         signatures = {}
         for function, row, flags in zip(functions, args, kwargs):
             self._signature(function, signatures).bind(*row, **flags)
         return functions, args, kwargs
+
+    @staticmethod
+    def _call_target(item, method):
+        """省略名は呼出時の正式getterへ解決し、実際の署名とフラグを検査する。
+
+        Args:
+            item (Node): 呼出し先の単数参照。
+            method (str): 管理表に登録した公開メソッド名。
+
+        Returns:
+            callable: 派生override・個体差替えを反映した実際の呼出し先。
+        """
+        function = getattr(item, method)
+        getter_name = getattr(function, "__hlib_getter_name__", None)
+        return getattr(item, getter_name) if getter_name is not None else function
 
     @staticmethod
     def _signature(function, signatures):

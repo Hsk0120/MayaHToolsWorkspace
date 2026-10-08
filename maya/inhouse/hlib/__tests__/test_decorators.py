@@ -1,4 +1,4 @@
-"""hlib.decorators (undoChunk/preservedSelection/preservedSkinShape) を検証するMaya内テスト。"""
+"""hlib.decorator (undoChunk/preservedSelection/preservedSkinShape) を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.decorators import preservedSelection, preservedSkinShape, undoChunk, undoTransaction
+from hlib.decorator import preservedSelection, preservedSkinShape, undoChunk, undoTransaction
 from hlib.nodes.joint import Joint
 
 

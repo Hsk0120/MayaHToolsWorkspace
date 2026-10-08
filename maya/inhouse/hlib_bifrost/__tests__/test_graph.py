@@ -3,7 +3,7 @@
 import unittest
 from maya import cmds
 from hlib_bifrost.nodes import Graph
-from hlib_bifrost.environment import Bifrost
+from hlib_bifrost.common import Bifrost
 
 
 class GraphTest(unittest.TestCase):
@@ -28,14 +28,15 @@ class GraphTest(unittest.TestCase):
         for folder, names in (
             ("nodes", ("Graph", "Node", "Compound")),
             ("plugs", ("Port",)),
-            ("environment", ("Bifrost",)),
-            ("utils", ("MathBuilder",)),
+            ("common", ("Bifrost", "MathBuilder")),
         ):
             for name in names:
                 cls = getattr(getattr(package, folder), name)
                 self.assertTrue(cls.__module__.startswith("hlib_bifrost." + folder + "."))
         for name in ("graph", "node", "compound", "port", "mathBuilder", "softIK"):
             self.assertFalse((Path(package.__file__).parent / (name + ".py")).exists())
+        for folder in ("environment", "utils"):
+            self.assertFalse((Path(package.__file__).parent / folder).exists())
         self.assertTrue(Bifrost.is_available())
 
     def test_value_connection_and_undo(self):
@@ -64,7 +65,7 @@ class GraphTest(unittest.TestCase):
 
     def test_math_builder_and_ownership(self):
         """基本演算、clamp、名前変更と親削除を確認する。"""
-        from hlib_bifrost.utils import MathBuilder
+        from hlib_bifrost.common import MathBuilder
 
         root = self.graph.root
         root.add_port("result", "float", output=True)

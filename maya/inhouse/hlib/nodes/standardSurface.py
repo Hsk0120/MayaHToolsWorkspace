@@ -2,7 +2,6 @@
 
 import maya.cmds as cmds
 
-from .._core.registry import node_wrapper
 from .paintableShadingDependNode import PaintableShadingDependNode
 from .shadingDependNode import ShadingDependNode
 
@@ -12,6 +11,5 @@ _SurfaceBase = (PaintableShadingDependNode
                 else ShadingDependNode)
 
 
-@node_wrapper("standardSurface")
 class StandardSurface(_SurfaceBase):
     """Mayaの継承型に対応するStandardSurface。値と接続はPlugで操作する。"""

@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases("sets")
@@ -23,7 +23,7 @@ def createSet(*members, **kwargs):
         TypeError: 入力型または長短フラグの指定が不正な場合。
         RuntimeError: Mayaが生成を拒否した場合。
     """
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
     from ..nodes.objectSet import ObjectSet
 
     operations = ("query", "edit", "addElement", "forceElement", "remove", "isMember",

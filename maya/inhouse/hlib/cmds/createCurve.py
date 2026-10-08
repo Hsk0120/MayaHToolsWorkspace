@@ -4,7 +4,7 @@ import maya.cmds as cmds
 
 from .._core.commandResult import CommandResult
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases("curve")
@@ -19,7 +19,7 @@ def createCurve(*args, **kwargs):
     Returns:
         Transform: 作成したカーブのtransform参照。
     """
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
     if any(kwargs.get(key) for key in ("query", "edit", "replace", "append")):
         raise ValueError("createCurve supports creation only")
     return CommandResult.reference(cmds.curve(*_InputObject._input_names(args), **kwargs))

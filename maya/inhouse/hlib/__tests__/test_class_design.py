@@ -71,7 +71,6 @@ class ClassDesignTest(unittest.TestCase):
 
     def test_bulk_requires_declaration(self):
         """単数クラスへのメソッド追加だけでは公開範囲が広がらない。"""
-        from hlib._core.collection import bulk_api
         class Item(hlib.nodes.Node):
             """公開対象を選択する単体。"""
             def __new__(cls):
@@ -87,9 +86,16 @@ class ClassDesignTest(unittest.TestCase):
             def not_exported(self):
                 """一括公開しない操作。"""
                 raise AssertionError("must not run")
-        @bulk_api(Item, undo=False, reads=("query",))
         class Items(hlib.nodes.Nodes):
             """明示した照会だけを持つ集合。"""
+
+            _bulk_returns = {**hlib.nodes.Nodes._bulk_returns, "query": "list"}
+            _bulk_methods = {**hlib.nodes.Nodes._bulk_methods, "query": Item.query}
+            _bulk_undo = False
+
+            def query(self, *args, **kwargs):
+                """明示した照会を共通処理へ委譲する。"""
+                return self._dispatch_shared("query", args, kwargs)
         values = Items()
         values._items = [Item()]
         self.assertEqual(values.query(), [3])
@@ -99,7 +105,7 @@ class ClassDesignTest(unittest.TestCase):
 
     def test_save_scope_prevalidation(self):
         """単位saveとbatchの保存要求は現在値を変更する前に拒否する。"""
-        from hlib.environment import Preferences
+        from hlib.common import Preferences
         with patch.object(cmds, "currentUnit") as unit:
             for method in (Preferences.setLinearUnit, Preferences.setAngleUnit, Preferences.setTimeUnit):
                 with self.assertRaises(TypeError):

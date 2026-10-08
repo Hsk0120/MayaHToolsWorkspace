@@ -9,7 +9,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-module = importlib.import_module("hlib.ui.channelBox")
+module = importlib.import_module("hlib.common.channelBox")
 
 
 class ChannelBoxTest(unittest.TestCase):

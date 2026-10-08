@@ -38,7 +38,7 @@ import hlib
 from hlib.nodes import Node
 from hrig.setups import ControlShape
 
-import hlib.decorators.undo as undo
+import hlib.decorator as undo
 reload(undo)
 
 

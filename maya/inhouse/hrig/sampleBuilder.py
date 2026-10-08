@@ -3,7 +3,7 @@
 from maya import cmds
 
 import hlib
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SampleBuilder:

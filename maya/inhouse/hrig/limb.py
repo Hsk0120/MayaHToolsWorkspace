@@ -6,8 +6,8 @@ from maya import cmds
 import math
 import hlib
 
-from hlib.decorators.undo import undoChunk
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoChunk
+from hlib.decorator import undoTransaction
 from .definition import limb_definition, RigDefinition
 from .backends import create_soft_ik
 from .naming import limb_names
@@ -659,7 +659,7 @@ def build_limb(definition=None, backend="standard"):
     if backend not in ("standard", "bifrost", "cpp"):
         raise ValueError("Unknown backend: " + backend)
     if backend == "bifrost":
-        from hlib_bifrost.environment import Bifrost
+        from hlib_bifrost.common import Bifrost
 
         Bifrost.ensure_available()
     saved_selection = [item.getFullName() for item in hlib.ls(selection=True, long=True)] or []

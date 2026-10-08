@@ -2,7 +2,7 @@
 
 import math
 import hlib
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 from .controlRig import ControlRig
 from hrig.setups import ControlShape
 

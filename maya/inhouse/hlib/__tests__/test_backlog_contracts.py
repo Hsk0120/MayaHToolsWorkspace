@@ -12,8 +12,8 @@ class BacklogContractsTest(unittest.TestCase):
 
     def test_undo_close_preserves_primary(self):
         """チャンク終了失敗を警告し元の例外を再送出する。"""
-        undo = importlib.import_module('hlib.decorators.undo')
-        logger = importlib.import_module('hlib.utils.logger')
+        undo = importlib.import_module('hlib.decorator')
+        logger = importlib.import_module('hlib.logger')
         error = ValueError('primary')
         with mock.patch.object(undo.cmds, 'undoInfo', side_effect=[None, RuntimeError('close')]), mock.patch.object(logger, 'warning') as warning:
             with self.assertRaises(ValueError) as caught:
@@ -24,8 +24,8 @@ class BacklogContractsTest(unittest.TestCase):
 
     def test_transaction_cleanup_failures(self):
         """ガード・終了・復旧失敗をそれぞれ通知し元の例外を保つ。"""
-        undo = importlib.import_module('hlib.decorators.undo')
-        logger = importlib.import_module('hlib.utils.logger')
+        undo = importlib.import_module('hlib.decorator')
+        logger = importlib.import_module('hlib.logger')
         with mock.patch.object(undo.cmds, 'undoInfo', side_effect=[None, RuntimeError('close')]), mock.patch.object(undo.cmds, 'createNode', side_effect=RuntimeError('guard')), mock.patch.object(undo.cmds, 'undo', side_effect=RuntimeError('rollback')) as rollback, mock.patch.object(logger, 'warning') as warning:
             with self.assertRaisesRegex(ValueError, 'primary'):
                 with undo.undoTransaction():
@@ -35,8 +35,8 @@ class BacklogContractsTest(unittest.TestCase):
 
     def test_transaction_rollback_error(self):
         """安全に閉じた後のundo失敗も元例外を維持する。"""
-        undo = importlib.import_module('hlib.decorators.undo')
-        logger = importlib.import_module('hlib.utils.logger')
+        undo = importlib.import_module('hlib.decorator')
+        logger = importlib.import_module('hlib.logger')
         with mock.patch.object(undo.cmds, 'undoInfo'), mock.patch.object(undo.cmds, 'createNode', return_value='guard'), mock.patch.object(undo.cmds, 'delete'), mock.patch.object(undo.cmds, 'undo', side_effect=RuntimeError('rollback')), mock.patch.object(logger, 'warning') as warning:
             with self.assertRaisesRegex(ValueError, 'primary'):
                 with undo.undoTransaction():
@@ -45,8 +45,8 @@ class BacklogContractsTest(unittest.TestCase):
 
     def test_jobs_continue_and_retry(self):
         """解除失敗後も続行し、失敗分だけ再試行する。"""
-        cls = importlib.import_module('hlib.events.scriptJobs').ScriptJobs
-        logger = importlib.import_module('hlib.utils.logger')
+        cls = importlib.import_module('hlib.common.scriptJobs').ScriptJobs
+        logger = importlib.import_module('hlib.logger')
         group = cls()
         bad, good = mock.Mock(), mock.Mock()
         bad.stop.side_effect = RuntimeError('busy')
@@ -63,7 +63,7 @@ class BacklogContractsTest(unittest.TestCase):
     def test_json_keeps_original_error(self):
         """保存失敗に削除失敗が重なっても保存例外を維持する。"""
         storage = importlib.import_module('hlib.json.storage')
-        logger = importlib.import_module('hlib.utils.logger')
+        logger = importlib.import_module('hlib.logger')
         primary = OSError('replace failed')
         with tempfile.TemporaryDirectory() as folder:
             with mock.patch.object(storage.os, 'replace', side_effect=primary), mock.patch.object(Path, 'unlink', side_effect=OSError('cleanup')), mock.patch.object(logger, 'warning') as warning:
@@ -74,16 +74,28 @@ class BacklogContractsTest(unittest.TestCase):
 
     def test_public_name_collision(self):
         """別モジュールの同名公開クラスは両方の定義元を示して拒否する。"""
-        discovery = importlib.import_module('hlib._core.discovery')
-        package = types.ModuleType('fixture'); package.__path__ = []
-        modules = {'fixture': package}
-        for suffix in ('a', 'b'):
-            module = types.ModuleType('fixture.' + suffix)
-            module.Sample = type('Sample', (), {'__module__': module.__name__, '__hlib_public__': True})
-            modules[module.__name__] = module
-        with mock.patch.object(discovery.pkgutil, 'iter_modules', return_value=[(None, 'a', False), (None, 'b', False)]), mock.patch.object(discovery.importlib, 'import_module', side_effect=modules.__getitem__):
-            with self.assertRaisesRegex(ValueError, 'fixture.a.Sample and fixture.b.Sample'):
-                discovery.discover_node_package('fixture')
+        import sys
+        tools = Path(__file__).resolve().parents[4] / 'tools'
+        sys.path.insert(0, str(tools))
+        try:
+            from check_hlib_exports import CLASS_PACKAGES, check
+        finally:
+            sys.path.remove(str(tools))
+        with tempfile.TemporaryDirectory() as directory:
+            package = Path(directory) / 'fixture'
+            package.mkdir()
+            (package / '__init__.py').write_text('__all__ = []\n', encoding='utf-8')
+            for folder in CLASS_PACKAGES + ('cmds',):
+                (package / folder).mkdir()
+                (package / folder / '__init__.py').write_text('__all__ = []\n', encoding='utf-8')
+            for suffix in ('a', 'b'):
+                (package / 'nodes' / (suffix + '.py')).write_text('class Sample:\n    pass\n', encoding='utf-8')
+            issues = [issue for issue in check(package) if issue.code == 'E011']
+            self.assertEqual(len(issues), 1)
+            diagnostic = str(issues[0])
+            self.assertIn('fixture.nodes.a', diagnostic)
+            self.assertIn('nodes\\b.py', diagnostic.replace('/', '\\'))
+            self.assertIn('Sample', diagnostic)
 
     def test_signature_cache_respects_overrides(self):
         """派生ごとの引数と後からの変更を独立に検証する。"""

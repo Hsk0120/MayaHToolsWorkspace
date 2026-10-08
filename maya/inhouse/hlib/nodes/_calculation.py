@@ -152,7 +152,7 @@ class _Calculation:
             TypeError: シェイプ型が異なる場合。
             ValueError: Transformの対象シェイプが一意でない場合。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         from .transform import Transform
         _Calculation.boolean(world_space)
         node = _InputNode._resolve_input(value)

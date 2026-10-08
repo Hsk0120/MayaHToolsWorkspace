@@ -6,7 +6,7 @@ from .._binding import coreModule
 # ルートCompoundへの参照。DGノードとは独立したVNN参照。
 from .compound import Compound
 
-undoTransaction = coreModule('decorators.undo').undoTransaction
+undoTransaction = coreModule('decorator').undoTransaction
 
 
 class Graph:
@@ -39,7 +39,7 @@ class Graph:
             Shapeの作成に失敗した場合は、この処理で作成した親を削除する。
         """
         MayaNode = coreModule('nodes').Node
-        from ..environment.bifrost import Bifrost
+        from ..common.bifrost import Bifrost
 
         Bifrost.ensure_available()
         parent = MayaNode.create("transform", name=name + "Transform", skipSelect=True)

@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib.decorators import preservedSelection, undoChunk
+from hlib.decorator import preservedSelection, undoChunk
 
 
 class EditUndoTest(unittest.TestCase):

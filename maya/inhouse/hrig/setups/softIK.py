@@ -5,8 +5,8 @@ import math
 import hlib
 
 from hlib import getPlug as to_plug
-from hlib.decorators.undo import undoTransaction
-from hlib.utils.scalarGraph import ScalarGraph
+from hlib.decorator import undoTransaction
+from hlib.common.scalarGraph import ScalarGraph
 
 
 class SoftIK:

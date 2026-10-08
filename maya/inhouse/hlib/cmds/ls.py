@@ -101,10 +101,10 @@ def ls(*args, **kwargs):
 
     型名等を返すMayaフラグは非対応。検索結果が空なら空コレクションまたは空リスト。"""
     from ..nodes.node import Nodes as _InputNodes
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
     from ..nodes import Joints, SkinClusters
     from ..components import Vertex, Edge, Face, UV, CV
-    from ..scene.selection import Selection
+    from ..common.selection import Selection
 
     component_types = {"vertex": Vertex, "edge": Edge, "face": Face,
                        "uv": UV, "controlVertex": CV}

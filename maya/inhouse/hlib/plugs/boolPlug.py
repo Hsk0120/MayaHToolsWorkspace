@@ -1,10 +1,8 @@
 """真偽値アトリビュートと値の反転操作を提供する。"""
 
-from .._core.registry import plug_wrapper
 from .plug import Plug
 
 
-@plug_wrapper("bool")
 class BoolPlug(Plug):
     """bool アトリビュート用の Plug。"""
 

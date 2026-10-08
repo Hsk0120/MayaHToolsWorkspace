@@ -2,8 +2,8 @@
 
 from maya import cmds
 from hlib_bifrost.nodes.graph import Graph
-from hlib_bifrost.utils.mathBuilder import MathBuilder
-from hlib.utils.undo import isEnabled
+from hlib_bifrost.common.mathBuilder import MathBuilder
+from hlib.common.undo import isEnabled
 
 
 class BifrostMatrixFollow:

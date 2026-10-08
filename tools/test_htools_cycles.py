@@ -74,7 +74,7 @@ class CycleInspectorTest(unittest.TestCase):
     def test_invalid_input_does_not_scan(self):
         """空選択や不正時間が全体検索へ流れない。"""
         from HTools.rigging.inspectCycles import inspectCycles
-        with mock.patch("hlib.scene.cycle.cmds.cycleCheck") as scan:
+        with mock.patch("hlib.common.cycle.cmds.cycleCheck") as scan:
             for targets, seconds in [([], 10), (None, 0), (None, float("nan"))]:
                 with self.assertRaises(ValueError):
                     inspectCycles(targets, seconds=seconds)
@@ -93,7 +93,7 @@ class CycleInspectorTest(unittest.TestCase):
 
     def test_cycle_wrappers_and_live_connections(self):
         """経路は型と順序を保持し、照会は接続変更と改名に追従する。"""
-        from hlib.scene import Cycle
+        from hlib.common import Cycle
         from hlib.plugs import Plug
         from hlib.nodes import Node
         a, b = self.createNode("multiplyDivide"), self.createNode("multiplyDivide")
@@ -116,7 +116,7 @@ class CycleInspectorTest(unittest.TestCase):
 
     def test_live_parent_wrappers(self):
         """親子関係をNodeで返し、付け替え後は現在の関係を返す。"""
-        from hlib.scene import Cycle
+        from hlib.common import Cycle
         from hlib.nodes import DagNode
         parent, child = self.createNode("transform"), self.createNode("transform")
         self.cmds.parent(child, parent)

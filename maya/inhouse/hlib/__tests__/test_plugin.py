@@ -1,4 +1,4 @@
-"""hlib.environment.plugin の Plugin を検証するMaya内テスト。"""
+"""hlib.common.plugin の Plugin を検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -8,8 +8,8 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.environment import Plugin
-from hlib.utils import Version
+from hlib.common import Plugin
+from hlib.common import Version
 
 
 class PluginTest(unittest.TestCase):

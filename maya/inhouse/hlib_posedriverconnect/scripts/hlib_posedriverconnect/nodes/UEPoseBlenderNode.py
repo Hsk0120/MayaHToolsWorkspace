@@ -5,10 +5,8 @@ from epic_pose_wrangler.v2.model.pose_blender import UEPoseBlenderNode as Native
 from .._binding import coreModule
 
 Node = coreModule('nodes').Node
-node_wrapper = coreModule('extensions').node_wrapper
 
 
-@node_wrapper("UEPoseBlenderNode")
 class UEPoseBlenderNode(Node):
     """PoseDriverConnect v2のポーズブレンダー。"""
 

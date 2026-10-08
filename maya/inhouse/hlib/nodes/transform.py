@@ -1,5 +1,6 @@
 """変換行列を介して Transform ノードを操作する。"""
 
+import inspect
 import math
 import numbers
 
@@ -7,14 +8,12 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from .._core.collection import bulk_api
 from .._core.fastWrite import set_attr, set_plug
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from .._core.registry import collection_export
+from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undoChunk, undoTransaction
+from ..common._fast import fast_edit, is_fast
+from ..decorator import undoChunk, undoTransaction
 from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector, Transformation
 from ..maths.vector import _vector_of
 from ..plugs.plug import Plug
@@ -108,7 +107,6 @@ def _closest_euler(quaternion, reference):
     return rotation.closestSolution(reference)
 
 
-@node_wrapper("transform")
 class Transform(DagNode):
     """Maya transform ノードを matrix-first API で扱うラッパー。
 
@@ -153,18 +151,17 @@ class Transform(DagNode):
         typeはtyp、maintainOffsetはmoでも指定可能。同時指定はTypeError。
         maintainOffsetはparent/point/orient/scale/aim以外では使用しない。
         """
-        from ..nodes.node import Node as _InputNode
-        from ..nodes.node import Nodes as _InputNodes
+        from .node import Node as _InputNode
+        from .node import Nodes as _InputNodes
         from .constraint import Constraint
 
         if not isinstance(type, str):
             raise TypeError("type must be a string")
         command_name = type if type.endswith("Constraint") else type + "Constraint"
-        # 型登録を重複管理せず、登録メタデータを持つ具象クラスから対象を判定する。
+        # 型登録を重複管理せず、明示登録されたクラスと型名の対応から判定する。
         supported = {
-            cls.__dict__["__hlib_node_type__"]
-            for cls in Constraint.__subclasses__()
-            if "__hlib_node_type__" in cls.__dict__
+            key for key, wrapper in Node._registry._classes.items()
+            if issubclass(wrapper, Constraint)
         }
         if command_name not in supported:
             raise ValueError(f"Unsupported constraint type: {type}")
@@ -793,7 +790,7 @@ class Transform(DagNode):
         maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
         shearの一致や行列全体のコピーは保証しない。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
 
         target = _InputNode._resolve_input(target)
         if not isinstance(target, Transform):
@@ -832,7 +829,7 @@ class Transform(DagNode):
         TransformのrotateAxisは更新前に拒否する。
         """
         ws = world_space(worldSpace)
-        from ..utils.mirror import mirrorArguments
+        from ..common.mirror import mirrorArguments
         if not isinstance(ws, bool):
             raise TypeError("ws must be a bool")
         _, center = mirrorArguments(axis, pivot)
@@ -1567,6 +1564,374 @@ class Transform(DagNode):
         """
         return self.getQuaternion(ws=ws, r=False)
 
+    @_getter_alias(getPivot)
+    def pivot(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPivot(*args, **kwargs)
+
+    @_getter_alias(getBoundingBox)
+    def boundingBox(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getBoundingBox(*args, **kwargs)
+
+    @_getter_alias(getRoot)
+    def root(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRoot(*args, **kwargs)
+
+    @_getter_alias(getChildNodes)
+    def childNodes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildNodes(*args, **kwargs)
+
+    @_getter_alias(getChildren)
+    def children(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildren(*args, **kwargs)
+
+    @_getter_alias(getLeaves)
+    def leaves(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getLeaves(*args, **kwargs)
+
+    @_getter_alias(getSiblings)
+    def siblings(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSiblings(*args, **kwargs)
+
+    @_getter_alias(getUnusedIntermediateShapes)
+    def unusedIntermediateShapes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getUnusedIntermediateShapes(*args, **kwargs)
+
+    @_getter_alias(getShapes)
+    def shapes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShapes(*args, **kwargs)
+
+    @_getter_alias(getShape)
+    def shape(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShape(*args, **kwargs)
+
+    @_getter_alias(getTransform)
+    def transform(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTransform(*args, **kwargs)
+
+    @_getter_alias(getShadingEngines)
+    def shadingEngines(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShadingEngines(*args, **kwargs)
+
+    @_getter_alias(getOffsetParentMatrix)
+    def offsetParentMatrix(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOffsetParentMatrix(*args, **kwargs)
+
+    @_getter_alias(getTransformation)
+    def transformation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTransformation(*args, **kwargs)
+
+    @_getter_alias(getMatrix)
+    def matrix(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMatrix(*args, **kwargs)
+
+    @_getter_alias(getTranslation)
+    def translation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTranslation(*args, **kwargs)
+
+    @_getter_alias(getRotation)
+    def rotation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRotation(*args, **kwargs)
+
+    @_getter_alias(getScaling)
+    def scaling(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getScaling(*args, **kwargs)
+
+    @_getter_alias(getShearing)
+    def shearing(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShearing(*args, **kwargs)
+
+    @_getter_alias(getQuaternion)
+    def quaternion(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getQuaternion(*args, **kwargs)
+
+    @_getter_alias(getEuler)
+    def euler(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEuler(*args, **kwargs)
+
+    @_getter_alias(getClosestAxisToVector)
+    def closestAxisToVector(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getClosestAxisToVector(*args, **kwargs)
+
+    @_getter_alias(getJointOrientQuaternion)
+    def jointOrientQuaternion(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getJointOrientQuaternion(*args, **kwargs)
+
     def _inverse_scale_values(self):
         """jointの有効なinverseScaleを返す。それ以外は単位スケール。"""
         if self.mnode().hasFn(om2.MFn.kJoint) and self.getPlug("segmentScaleCompensate").get():
@@ -1850,12 +2215,6 @@ class Transform(DagNode):
         return self
 
 
-@collection_export()
-@bulk_api(
-    Transform,
-    reads=('addConstraint', 'deleteConstraints', 'transformFn', 'getPivot', 'getBoundingBox', 'getRoot', 'getChildNodes', 'getChildren', 'getLeaves', 'getSiblings', 'getShapes', 'getShape', 'getShadingEngines', 'getOffsetParentMatrix', 'getMatrix', 'getJointOrientQuaternion', 'getTransformation', 'getTranslation', 'getRotation', 'getScaling', 'getShearing', 'getQuaternion', 'getEuler', 'getClosestAxisToVector', 'createOffsetGroups'),
-    writes=('freeze', 'resetPivot', 'reset', 'scaleGeometry', 'setPivot', 'centerPivot', 'mirrorGeometry', 'getTransform', 'setParent', 'matchTransform', 'mirrorTransform', 'setOffsetParentMatrix', 'setMatrix', 'setTransformation', 'setTranslation', 'setRotation', 'setScaling', 'setShearing', 'setQuaternion', 'makeIdentity', 'unlockAndDisconnectTransformChannels'),
-)
 class Transforms(DagNodes):
     """Joint等の派生型を含むTransform参照のコレクション。
 
@@ -1863,3 +2222,1193 @@ class Transforms(DagNodes):
     """
 
     item_class = Transform
+
+    _bulk_returns = {
+        **DagNodes._bulk_returns,
+        "addConstraint": "list",
+        "deleteConstraints": "list",
+        "transformFn": "list",
+        "getPivot": "list",
+        "pivot": "list",
+        "getBoundingBox": "list",
+        "boundingBox": "list",
+        "getRoot": "list",
+        "root": "list",
+        "getChildNodes": "list",
+        "childNodes": "list",
+        "getChildren": "list",
+        "children": "list",
+        "getLeaves": "list",
+        "leaves": "list",
+        "getSiblings": "list",
+        "siblings": "list",
+        "getShapes": "list",
+        "shapes": "list",
+        "getShape": "list",
+        "shape": "list",
+        "getShadingEngines": "list",
+        "shadingEngines": "list",
+        "getOffsetParentMatrix": "list",
+        "offsetParentMatrix": "list",
+        "getMatrix": "list",
+        "matrix": "list",
+        "getJointOrientQuaternion": "list",
+        "jointOrientQuaternion": "list",
+        "getTransformation": "list",
+        "transformation": "list",
+        "getTranslation": "list",
+        "translation": "list",
+        "getRotation": "list",
+        "rotation": "list",
+        "getScaling": "list",
+        "scaling": "list",
+        "getShearing": "list",
+        "shearing": "list",
+        "getQuaternion": "list",
+        "quaternion": "list",
+        "getEuler": "list",
+        "euler": "list",
+        "getClosestAxisToVector": "list",
+        "closestAxisToVector": "list",
+        "createOffsetGroups": "list",
+        "getUnusedIntermediateShapes": "list",
+        "unusedIntermediateShapes": "list",
+        "freeze": "self",
+        "resetPivot": "self",
+        "reset": "self",
+        "scaleGeometry": "self",
+        "setPivot": "self",
+        "centerPivot": "self",
+        "mirrorGeometry": "self",
+        "getTransform": "self",
+        "transform": "self",
+        "setParent": "self",
+        "matchTransform": "self",
+        "mirrorTransform": "self",
+        "setOffsetParentMatrix": "self",
+        "setMatrix": "self",
+        "setTransformation": "self",
+        "setTranslation": "self",
+        "setRotation": "self",
+        "setScaling": "self",
+        "setShearing": "self",
+        "setQuaternion": "self",
+        "makeIdentity": "self",
+        "unlockAndDisconnectTransformChannels": "self",
+        "deleteUnusedIntermediateShapes": "self",
+    }
+    _bulk_methods = {
+        **DagNodes._bulk_methods,
+        "addConstraint": Transform.addConstraint,
+        "deleteConstraints": Transform.deleteConstraints,
+        "transformFn": Transform.transformFn,
+        "getPivot": Transform.getPivot,
+        "pivot": Transform.pivot,
+        "getBoundingBox": Transform.getBoundingBox,
+        "boundingBox": Transform.boundingBox,
+        "getRoot": Transform.getRoot,
+        "root": Transform.root,
+        "getChildNodes": Transform.getChildNodes,
+        "childNodes": Transform.childNodes,
+        "getChildren": Transform.getChildren,
+        "children": Transform.children,
+        "getLeaves": Transform.getLeaves,
+        "leaves": Transform.leaves,
+        "getSiblings": Transform.getSiblings,
+        "siblings": Transform.siblings,
+        "getShapes": Transform.getShapes,
+        "shapes": Transform.shapes,
+        "getShape": Transform.getShape,
+        "shape": Transform.shape,
+        "getShadingEngines": Transform.getShadingEngines,
+        "shadingEngines": Transform.shadingEngines,
+        "getOffsetParentMatrix": Transform.getOffsetParentMatrix,
+        "offsetParentMatrix": Transform.offsetParentMatrix,
+        "getMatrix": Transform.getMatrix,
+        "matrix": Transform.matrix,
+        "getJointOrientQuaternion": Transform.getJointOrientQuaternion,
+        "jointOrientQuaternion": Transform.jointOrientQuaternion,
+        "getTransformation": Transform.getTransformation,
+        "transformation": Transform.transformation,
+        "getTranslation": Transform.getTranslation,
+        "translation": Transform.translation,
+        "getRotation": Transform.getRotation,
+        "rotation": Transform.rotation,
+        "getScaling": Transform.getScaling,
+        "scaling": Transform.scaling,
+        "getShearing": Transform.getShearing,
+        "shearing": Transform.shearing,
+        "getQuaternion": Transform.getQuaternion,
+        "quaternion": Transform.quaternion,
+        "getEuler": Transform.getEuler,
+        "euler": Transform.euler,
+        "getClosestAxisToVector": Transform.getClosestAxisToVector,
+        "closestAxisToVector": Transform.closestAxisToVector,
+        "createOffsetGroups": Transform.createOffsetGroups,
+        "getUnusedIntermediateShapes": Transform.getUnusedIntermediateShapes,
+        "unusedIntermediateShapes": Transform.unusedIntermediateShapes,
+        "freeze": Transform.freeze,
+        "resetPivot": Transform.resetPivot,
+        "reset": Transform.reset,
+        "scaleGeometry": Transform.scaleGeometry,
+        "setPivot": Transform.setPivot,
+        "centerPivot": Transform.centerPivot,
+        "mirrorGeometry": Transform.mirrorGeometry,
+        "getTransform": Transform.getTransform,
+        "transform": Transform.transform,
+        "setParent": Transform.setParent,
+        "matchTransform": Transform.matchTransform,
+        "mirrorTransform": Transform.mirrorTransform,
+        "setOffsetParentMatrix": Transform.setOffsetParentMatrix,
+        "setMatrix": Transform.setMatrix,
+        "setTransformation": Transform.setTransformation,
+        "setTranslation": Transform.setTranslation,
+        "setRotation": Transform.setRotation,
+        "setScaling": Transform.setScaling,
+        "setShearing": Transform.setShearing,
+        "setQuaternion": Transform.setQuaternion,
+        "makeIdentity": Transform.makeIdentity,
+        "unlockAndDisconnectTransformChannels": Transform.unlockAndDisconnectTransformChannels,
+        "deleteUnusedIntermediateShapes": Transform.deleteUnusedIntermediateShapes,
+    }
+    _bulk_per_item_only = frozenset()
+
+    def addConstraint(self, *args, **kwargs):
+        """各要素のaddConstraintを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("addConstraint", args, kwargs)
+
+    addConstraint.__signature__ = inspect.signature(Transform.addConstraint)
+
+    def deleteConstraints(self, *args, **kwargs):
+        """各要素のdeleteConstraintsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("deleteConstraints", args, kwargs)
+
+    deleteConstraints.__signature__ = inspect.signature(Transform.deleteConstraints)
+
+    def transformFn(self, *args, **kwargs):
+        """各要素のtransformFnを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("transformFn", args, kwargs)
+
+    transformFn.__signature__ = inspect.signature(Transform.transformFn)
+
+    def getPivot(self, *args, **kwargs):
+        """各要素のgetPivotを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getPivot", args, kwargs)
+
+    getPivot.__signature__ = inspect.signature(Transform.getPivot)
+
+    def setPivot(self, *args, **kwargs):
+        """各要素のsetPivotを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setPivot", args, kwargs)
+
+    setPivot.__signature__ = inspect.signature(Transform.setPivot)
+
+    def getBoundingBox(self, *args, **kwargs):
+        """各要素のgetBoundingBoxを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getBoundingBox", args, kwargs)
+
+    getBoundingBox.__signature__ = inspect.signature(Transform.getBoundingBox)
+
+    def getRoot(self, *args, **kwargs):
+        """各要素のgetRootを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getRoot", args, kwargs)
+
+    getRoot.__signature__ = inspect.signature(Transform.getRoot)
+
+    def getChildNodes(self, *args, **kwargs):
+        """各要素のgetChildNodesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getChildNodes", args, kwargs)
+
+    getChildNodes.__signature__ = inspect.signature(Transform.getChildNodes)
+
+    def getChildren(self, *args, **kwargs):
+        """各要素のgetChildrenを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getChildren", args, kwargs)
+
+    getChildren.__signature__ = inspect.signature(Transform.getChildren)
+
+    def getLeaves(self, *args, **kwargs):
+        """各要素のgetLeavesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getLeaves", args, kwargs)
+
+    getLeaves.__signature__ = inspect.signature(Transform.getLeaves)
+
+    def getSiblings(self, *args, **kwargs):
+        """各要素のgetSiblingsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getSiblings", args, kwargs)
+
+    getSiblings.__signature__ = inspect.signature(Transform.getSiblings)
+
+    def getShapes(self, *args, **kwargs):
+        """各要素のgetShapesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getShapes", args, kwargs)
+
+    getShapes.__signature__ = inspect.signature(Transform.getShapes)
+
+    def getShape(self, *args, **kwargs):
+        """各要素のgetShapeを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getShape", args, kwargs)
+
+    getShape.__signature__ = inspect.signature(Transform.getShape)
+
+    def getShadingEngines(self, *args, **kwargs):
+        """各要素のgetShadingEnginesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getShadingEngines", args, kwargs)
+
+    getShadingEngines.__signature__ = inspect.signature(Transform.getShadingEngines)
+
+    def getOffsetParentMatrix(self, *args, **kwargs):
+        """各要素のgetOffsetParentMatrixを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getOffsetParentMatrix", args, kwargs)
+
+    getOffsetParentMatrix.__signature__ = inspect.signature(Transform.getOffsetParentMatrix)
+
+    def setOffsetParentMatrix(self, *args, **kwargs):
+        """各要素のsetOffsetParentMatrixを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setOffsetParentMatrix", args, kwargs)
+
+    setOffsetParentMatrix.__signature__ = inspect.signature(Transform.setOffsetParentMatrix)
+
+    def getMatrix(self, *args, **kwargs):
+        """各要素のgetMatrixを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getMatrix", args, kwargs)
+
+    getMatrix.__signature__ = inspect.signature(Transform.getMatrix)
+
+    def setMatrix(self, *args, **kwargs):
+        """各要素のsetMatrixを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setMatrix", args, kwargs)
+
+    setMatrix.__signature__ = inspect.signature(Transform.setMatrix)
+
+    def getJointOrientQuaternion(self, *args, **kwargs):
+        """各要素のgetJointOrientQuaternionを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getJointOrientQuaternion", args, kwargs)
+
+    getJointOrientQuaternion.__signature__ = inspect.signature(Transform.getJointOrientQuaternion)
+
+    def getTransformation(self, *args, **kwargs):
+        """各要素のgetTransformationを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getTransformation", args, kwargs)
+
+    getTransformation.__signature__ = inspect.signature(Transform.getTransformation)
+
+    def setTransformation(self, *args, **kwargs):
+        """各要素のsetTransformationを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setTransformation", args, kwargs)
+
+    setTransformation.__signature__ = inspect.signature(Transform.setTransformation)
+
+    def getTranslation(self, *args, **kwargs):
+        """各要素のgetTranslationを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getTranslation", args, kwargs)
+
+    getTranslation.__signature__ = inspect.signature(Transform.getTranslation)
+
+    def setTranslation(self, *args, **kwargs):
+        """各要素のsetTranslationを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setTranslation", args, kwargs)
+
+    setTranslation.__signature__ = inspect.signature(Transform.setTranslation)
+
+    def getRotation(self, *args, **kwargs):
+        """各要素のgetRotationを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getRotation", args, kwargs)
+
+    getRotation.__signature__ = inspect.signature(Transform.getRotation)
+
+    def setRotation(self, *args, **kwargs):
+        """各要素のsetRotationを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setRotation", args, kwargs)
+
+    setRotation.__signature__ = inspect.signature(Transform.setRotation)
+
+    def getScaling(self, *args, **kwargs):
+        """各要素のgetScalingを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getScaling", args, kwargs)
+
+    getScaling.__signature__ = inspect.signature(Transform.getScaling)
+
+    def setScaling(self, *args, **kwargs):
+        """各要素のsetScalingを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setScaling", args, kwargs)
+
+    setScaling.__signature__ = inspect.signature(Transform.setScaling)
+
+    def getShearing(self, *args, **kwargs):
+        """各要素のgetShearingを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getShearing", args, kwargs)
+
+    getShearing.__signature__ = inspect.signature(Transform.getShearing)
+
+    def setShearing(self, *args, **kwargs):
+        """各要素のsetShearingを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setShearing", args, kwargs)
+
+    setShearing.__signature__ = inspect.signature(Transform.setShearing)
+
+    def getQuaternion(self, *args, **kwargs):
+        """各要素のgetQuaternionを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getQuaternion", args, kwargs)
+
+    getQuaternion.__signature__ = inspect.signature(Transform.getQuaternion)
+
+    def setQuaternion(self, *args, **kwargs):
+        """各要素のsetQuaternionを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setQuaternion", args, kwargs)
+
+    setQuaternion.__signature__ = inspect.signature(Transform.setQuaternion)
+
+    def getEuler(self, *args, **kwargs):
+        """各要素のgetEulerを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getEuler", args, kwargs)
+
+    getEuler.__signature__ = inspect.signature(Transform.getEuler)
+
+    def getClosestAxisToVector(self, *args, **kwargs):
+        """各要素のgetClosestAxisToVectorを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getClosestAxisToVector", args, kwargs)
+
+    getClosestAxisToVector.__signature__ = inspect.signature(Transform.getClosestAxisToVector)
+
+    def createOffsetGroups(self, *args, **kwargs):
+        """各要素のcreateOffsetGroupsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("createOffsetGroups", args, kwargs)
+
+    createOffsetGroups.__signature__ = inspect.signature(Transform.createOffsetGroups)
+
+    def getUnusedIntermediateShapes(self, *args, **kwargs):
+        """各要素のgetUnusedIntermediateShapesを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getUnusedIntermediateShapes", args, kwargs)
+
+    getUnusedIntermediateShapes.__signature__ = inspect.signature(Transform.getUnusedIntermediateShapes)
+
+    def freeze(self, *args, **kwargs):
+        """各要素のfreezeを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("freeze", args, kwargs)
+
+    freeze.__signature__ = inspect.signature(Transform.freeze)
+
+    def resetPivot(self, *args, **kwargs):
+        """各要素のresetPivotを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("resetPivot", args, kwargs)
+
+    resetPivot.__signature__ = inspect.signature(Transform.resetPivot)
+
+    def reset(self, *args, **kwargs):
+        """各要素のresetを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("reset", args, kwargs)
+
+    reset.__signature__ = inspect.signature(Transform.reset)
+
+    def scaleGeometry(self, *args, **kwargs):
+        """各要素のscaleGeometryを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("scaleGeometry", args, kwargs)
+
+    scaleGeometry.__signature__ = inspect.signature(Transform.scaleGeometry)
+
+    def centerPivot(self, *args, **kwargs):
+        """各要素のcenterPivotを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("centerPivot", args, kwargs)
+
+    centerPivot.__signature__ = inspect.signature(Transform.centerPivot)
+
+    def mirrorGeometry(self, *args, **kwargs):
+        """各要素のmirrorGeometryを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("mirrorGeometry", args, kwargs)
+
+    mirrorGeometry.__signature__ = inspect.signature(Transform.mirrorGeometry)
+
+    def getTransform(self, *args, **kwargs):
+        """各要素のgetTransformを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("getTransform", args, kwargs)
+
+    getTransform.__signature__ = inspect.signature(Transform.getTransform)
+
+    def setParent(self, *args, **kwargs):
+        """各要素のsetParentを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("setParent", args, kwargs)
+
+    setParent.__signature__ = inspect.signature(Transform.setParent)
+
+    def matchTransform(self, *args, **kwargs):
+        """各要素のmatchTransformを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("matchTransform", args, kwargs)
+
+    matchTransform.__signature__ = inspect.signature(Transform.matchTransform)
+
+    def mirrorTransform(self, *args, **kwargs):
+        """各要素のmirrorTransformを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("mirrorTransform", args, kwargs)
+
+    mirrorTransform.__signature__ = inspect.signature(Transform.mirrorTransform)
+
+    def makeIdentity(self, *args, **kwargs):
+        """各要素のmakeIdentityを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("makeIdentity", args, kwargs)
+
+    makeIdentity.__signature__ = inspect.signature(Transform.makeIdentity)
+
+    def unlockAndDisconnectTransformChannels(self, *args, **kwargs):
+        """各要素のunlockAndDisconnectTransformChannelsを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("unlockAndDisconnectTransformChannels", args, kwargs)
+
+    unlockAndDisconnectTransformChannels.__signature__ = inspect.signature(Transform.unlockAndDisconnectTransformChannels)
+
+    def deleteUnusedIntermediateShapes(self, *args, **kwargs):
+        """各要素のdeleteUnusedIntermediateShapesを同じ引数で呼び、コレクション自身を返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            Transforms | list: コレクション自身。
+        """
+        return self._dispatch_shared("deleteUnusedIntermediateShapes", args, kwargs)
+
+    deleteUnusedIntermediateShapes.__signature__ = inspect.signature(Transform.deleteUnusedIntermediateShapes)
+
+    @_getter_alias(getPivot)
+    def pivot(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPivot(*args, **kwargs)
+
+    @_getter_alias(getBoundingBox)
+    def boundingBox(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getBoundingBox(*args, **kwargs)
+
+    @_getter_alias(getRoot)
+    def root(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRoot(*args, **kwargs)
+
+    @_getter_alias(getChildNodes)
+    def childNodes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildNodes(*args, **kwargs)
+
+    @_getter_alias(getChildren)
+    def children(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getChildren(*args, **kwargs)
+
+    @_getter_alias(getLeaves)
+    def leaves(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getLeaves(*args, **kwargs)
+
+    @_getter_alias(getSiblings)
+    def siblings(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getSiblings(*args, **kwargs)
+
+    @_getter_alias(getShapes)
+    def shapes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShapes(*args, **kwargs)
+
+    @_getter_alias(getShape)
+    def shape(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShape(*args, **kwargs)
+
+    @_getter_alias(getShadingEngines)
+    def shadingEngines(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShadingEngines(*args, **kwargs)
+
+    @_getter_alias(getOffsetParentMatrix)
+    def offsetParentMatrix(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOffsetParentMatrix(*args, **kwargs)
+
+    @_getter_alias(getMatrix)
+    def matrix(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getMatrix(*args, **kwargs)
+
+    @_getter_alias(getJointOrientQuaternion)
+    def jointOrientQuaternion(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getJointOrientQuaternion(*args, **kwargs)
+
+    @_getter_alias(getTransformation)
+    def transformation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTransformation(*args, **kwargs)
+
+    @_getter_alias(getTranslation)
+    def translation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTranslation(*args, **kwargs)
+
+    @_getter_alias(getRotation)
+    def rotation(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getRotation(*args, **kwargs)
+
+    @_getter_alias(getScaling)
+    def scaling(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getScaling(*args, **kwargs)
+
+    @_getter_alias(getShearing)
+    def shearing(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShearing(*args, **kwargs)
+
+    @_getter_alias(getQuaternion)
+    def quaternion(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getQuaternion(*args, **kwargs)
+
+    @_getter_alias(getEuler)
+    def euler(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getEuler(*args, **kwargs)
+
+    @_getter_alias(getClosestAxisToVector)
+    def closestAxisToVector(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getClosestAxisToVector(*args, **kwargs)
+
+    @_getter_alias(getUnusedIntermediateShapes)
+    def unusedIntermediateShapes(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getUnusedIntermediateShapes(*args, **kwargs)
+
+    @_getter_alias(getTransform)
+    def transform(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTransform(*args, **kwargs)

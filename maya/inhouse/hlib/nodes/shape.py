@@ -10,9 +10,10 @@ from maya.api.OpenMaya import MSpace
 
 from .._core import geometryEdit
 from .._core.flags import flag_aliases
+from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undoChunk
+from ..common._fast import fast_edit, is_fast
+from ..decorator import undoChunk
 from .dagNode import DagNode
 from .transform import Transform
 
@@ -160,3 +161,35 @@ class Shape(DagNode):
             bool: 中間オブジェクトの場合は True。
         """
         return self.dagFn().isIntermediateObject
+
+    @_getter_alias(getParent)
+    def parent(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getParent(*args, **kwargs)
+
+    @_getter_alias(getTransform)
+    def transform(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTransform(*args, **kwargs)

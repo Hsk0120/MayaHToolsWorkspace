@@ -1,6 +1,7 @@
 """NURBS カーブの CV と CV コレクション。"""
 
 from .._core.geometryEdit import command_indices
+from .._core.getterAlias import _getter_alias
 from .pointComponent import PointComponent, PointComponents
 
 
@@ -21,6 +22,22 @@ class CV(PointComponent):
         index = command_indices(self.shape, [self.index])[0]
         return "{}.cv[{}]".format(self.shape.getFullName(), index)
 
+    @_getter_alias(getFullName)
+    def fullName(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullName(*args, **kwargs)
+
 
 class CVs(PointComponents):
     """同一 NurbsCurve の CV 群。座標取得・部分列取得・ミラーに対応する。"""
@@ -37,3 +54,35 @@ class CVs(PointComponents):
     def getCompactNames(self):
         """cmds用CV名を返す。周期CVの対応を保つため範囲へ圧縮しない。"""
         return self.getFullNames()
+
+    @_getter_alias(getFullNames)
+    def fullNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFullNames(*args, **kwargs)
+
+    @_getter_alias(getCompactNames)
+    def compactNames(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getCompactNames(*args, **kwargs)

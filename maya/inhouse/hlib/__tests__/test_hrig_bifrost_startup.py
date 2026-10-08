@@ -1,6 +1,6 @@
 """hrig の起動処理(Bifrost 3.0.0 以降の確認とロード)を検証するMaya内テスト。
 
-確認とロードの本体は hlib.environment.PluginPackage(test_plugin_requirements.py が詳細を検証する)。
+確認とロードの本体は hlib.common.PluginPackage(test_plugin_requirements.py が詳細を検証する)。
 ここでは Bifrost 用の設定と起動のタイミングを確認する。
 """
 import importlib.util
@@ -51,7 +51,7 @@ class ConfigurationTest(unittest.TestCase):
             self.assertEqual(self.mod.package().minimumVersion.parts, (3, 0, 0))
 
     def test_run_delegates_to_the_package(self):
-        with mock.patch("hlib.environment.PluginPackage.tryLoad", return_value="missing") as ensure:
+        with mock.patch("hlib.common.PluginPackage.tryLoad", return_value="missing") as ensure:
             self.assertEqual(self.mod.run(dialog=False), "missing")
         ensure.assert_called_once_with(dialog=False)
 

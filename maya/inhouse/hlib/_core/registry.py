@@ -1,119 +1,11 @@
-"""Maya の型名とラッパークラスの対応を宣言・管理する。"""
+"""Mayaの型名と明示したラッパークラスの対応を管理する。"""
 
-from .discovery import discover_node_package
 from .typeHierarchy import inherited_node_types
 
-__all__ = [
-    "NodeRegistry",
-    "collection_export",
-    "discover_node_package",
-    "node_wrapper",
-]
+__all__ = ["NodeRegistry"]
 
-
-def node_wrapper(node_type, public=True):
-    """Maya の nodeType と Python wrapper class の対応を宣言する。
-
-    Args:
-        node_type (str): Maya の ``nodeType`` 名。
-        public (bool): 所属するnodes/plugsパッケージのAPIとして公開するか。
-
-    Returns:
-        callable: wrapper class を受け取り metadata を付与する decorator。
-
-    Raises:
-        ValueError: node_type が空文字列または文字列以外の場合。
-    """
-    if not isinstance(node_type, str) or not node_type:
-        raise ValueError("node_type must be a non-empty string")
-
-    def decorate(wrapper_class):
-        """wrapper class に nodeType と公開設定を付与する。
-
-        Args:
-            wrapper_class (type): メタデータを付与するクラス。
-
-        Returns:
-            type: メタデータを設定した入力クラスそのもの。
-
-        Raises:
-            TypeError: wrapper_class がクラスでない場合。
-        """
-        if not isinstance(wrapper_class, type):
-            raise TypeError("wrapper_class must be a class")
-        wrapper_class.__hlib_node_type__ = node_type
-        wrapper_class.__hlib_public__ = bool(public)
-        return wrapper_class
-
-    return decorate
-
-
-def collection_export(public=True):
-    """Node collection class を hlib の公開 export として宣言する。
-
-    Args:
-        public (bool): 所属するnodes/plugsパッケージのAPIとして公開するか。
-
-    Returns:
-        callable: collection class を受け取り metadata を付与する decorator。
-    """
-
-    def decorate(collection_class):
-        """collection class に公開設定を付与する。
-
-        Args:
-            collection_class (type): メタデータを付与するクラス。
-
-        Returns:
-            type: メタデータを設定した入力クラスそのもの。
-
-        Raises:
-            TypeError: collection_class がクラスでない場合。
-        """
-        if not isinstance(collection_class, type):
-            raise TypeError("collection_class must be a class")
-        collection_class.__hlib_collection__ = True
-        collection_class.__hlib_public__ = bool(public)
-        return collection_class
-
-    return decorate
-
-
-def plug_wrapper(attr_type, public=True):
-    """Maya のアトリビュートデータ型と Python wrapper class の対応を宣言する。
-
-    Args:
-        attr_type (str): ``cmds.getAttr(..., type=True)`` が返す型名。
-        public (bool): 所属するnodes/plugsパッケージのAPIとして公開するか。
-
-    Returns:
-        callable: wrapper class を受け取り metadata を付与する decorator。
-
-    Raises:
-        ValueError: attr_type が空文字列または文字列以外の場合。
-    """
-    if not isinstance(attr_type, str) or not attr_type:
-        raise ValueError("attr_type must be a non-empty string")
-
-    def decorate(wrapper_class):
-        """wrapper class にアトリビュート型と公開設定を付与する。
-
-        Args:
-            wrapper_class (type): メタデータを付与するクラス。
-
-        Returns:
-            type: メタデータを設定した入力クラスそのもの。
-
-        Raises:
-            TypeError: wrapper_class がクラスでない場合。
-        """
-        if not isinstance(wrapper_class, type):
-            raise TypeError("wrapper_class must be a class")
-        wrapper_class.__hlib_plug_type__ = attr_type
-        wrapper_class.__hlib_public__ = bool(public)
-        return wrapper_class
-
-    return decorate
+for _name in ("collection_export", "discover_node_package", "node_wrapper", "plug_wrapper"):
+    globals().pop(_name, None)
 
 
 class NodeRegistry:
@@ -166,10 +58,10 @@ class NodeRegistry:
         """
         self._classes.clear()
 
-    def register_discovered(self, wrappers):
-        """発見済み wrapper の対応表を registry へ登録する。
+    def replace(self, wrappers):
+        """明示した型対応で登録表を置き換える。
 
-        登録表を消去してから順に登録する。途中で失敗した場合は部分的に登録された状態になる。
+        全入力を検証してから置き換えるため、不正な入力で現在の登録を失わない。
 
         Args:
             wrappers (Mapping[str, type]): 型名からラッパークラスへの対応表。
@@ -181,9 +73,15 @@ class NodeRegistry:
             ValueError: キーが空文字列または文字列以外の場合。
             TypeError: 値がクラスでない場合。
         """
-        self.clear()
+        validated = {}
         for node_type, wrapper_class in wrappers.items():
-            self.register(node_type, wrapper_class)
+            if not isinstance(node_type, str) or not node_type:
+                raise ValueError("node_type must be a non-empty string")
+            if not isinstance(wrapper_class, type):
+                raise TypeError("wrapper_class must be a class")
+            validated[node_type] = wrapper_class
+        self._classes.clear()
+        self._classes.update(validated)
 
     def wrapper_class(self, node_type):
         """ノード型に対応するクラス、またはフォールバッククラスを返す。

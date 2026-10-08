@@ -3,7 +3,7 @@
 import maya.api.OpenMaya as om
 import maya.cmds as cmds
 
-from ..decorators._fast import is_fast
+from ..common._fast import is_fast
 from .fastWrite import writable
 
 

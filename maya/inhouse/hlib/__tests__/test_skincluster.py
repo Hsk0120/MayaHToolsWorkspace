@@ -11,7 +11,7 @@ import hlib
 hlib.reload()
 from hlib.nodes.joint import Joint, Joints
 from hlib.nodes.skinCluster import SkinCluster
-from hlib.decorators import undoChunk
+from hlib.decorator import undoChunk
 from hlib.maths import easing
 
 

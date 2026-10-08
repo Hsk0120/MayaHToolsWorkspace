@@ -15,6 +15,6 @@ def captureSelection():
     Returns:
         Selection: 現在の選択を保持する。Channel Boxの選択アトリビュートは含めない。
     """
-    from ..scene.selection import Selection
+    from ..common.selection import Selection
 
     return Selection.capture()

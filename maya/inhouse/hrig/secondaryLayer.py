@@ -6,9 +6,9 @@ import math
 
 import hlib
 
-from hlib.utils.dampedSpring import DampedSpring
+from hlib.common.dampedSpring import DampedSpring
 from hrig.setups.poseRbf import PoseRbf
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SecondaryLayer:
@@ -206,9 +206,9 @@ class SecondaryLayer:
             for frame in frames:
                 cmds.currentTime(frame, update=True)
                 row = [
-                    math.degrees(hlib.utils.units.angleFromUi(v))
+                    math.degrees(hlib.common.units.angleFromUi(v))
                     for source in sources
-                    for v in hlib.getAttr(source.getPlug("rotate"))
+                    for v in hlib.getAttr(source.getPlug("rotate")).getu()
                 ]
                 if rows:
                     row = [
@@ -218,7 +218,7 @@ class SecondaryLayer:
             settings = {
                 name: group.getPlug(name).get() for name in ("frequency", "damping", "angleLimit")
             }
-            interval = hlib.utils.units.secondsPerFrame()
+            interval = hlib.common.units.secondsPerFrame()
             solved = DampedSpring.solve(
                 rows, interval, settings["frequency"], settings["damping"], settings["angleLimit"]
             )
@@ -227,7 +227,7 @@ class SecondaryLayer:
                 # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
                 old_times = set(cmds.keyframe(curve.getFullName(), query=True, timeChange=True) or [])
                 for frame, row in zip(frames, solved):
-                    value = hlib.utils.units.angleToUi(math.radians(row[column]))
+                    value = hlib.common.units.angleToUi(math.radians(row[column]))
                     cmds.setKeyframe(
                         curve.getFullName(),
                         time=frame,

@@ -6,14 +6,13 @@ import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
+from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
+from ..common._fast import fast_edit
 from ..components.cv import CV, CVs
-from ..decorators._fast import fast_edit
 from .shape import Shape
 
 
-@node_wrapper("nurbsCurve")
 class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。"""
 
@@ -140,7 +139,7 @@ class NurbsCurve(Shape):
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
         ws = world_space(worldSpace)
-        from ..utils import units
+        from ..common import units
         # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
         factor = units.convertDistance(1.0, from_unit="cm", to_unit=unit)
         tolerance = float(tolerance)
@@ -212,3 +211,115 @@ class NurbsCurve(Shape):
                 assigned[i] = True
                 groups.append(group)
         return groups
+
+    @_getter_alias(getNumCVs)
+    def numCVs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNumCVs(*args, **kwargs)
+
+    @_getter_alias(getNumSpans)
+    def numSpans(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNumSpans(*args, **kwargs)
+
+    @_getter_alias(getDegree)
+    def degree(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDegree(*args, **kwargs)
+
+    @_getter_alias(getForm)
+    def form(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getForm(*args, **kwargs)
+
+    @_getter_alias(getLength)
+    def length(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getLength(*args, **kwargs)
+
+    @_getter_alias(getCvPositions)
+    def cvPositions(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getCvPositions(*args, **kwargs)
+
+    @_getter_alias(getCollocatedCVGroups)
+    def collocatedCVGroups(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getCollocatedCVGroups(*args, **kwargs)

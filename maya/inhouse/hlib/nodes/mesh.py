@@ -9,19 +9,18 @@ from maya.api.OpenMaya import MSpace
 
 from .._core.fastWrite import writable
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
+from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
+from ..common._fast import fast_edit, is_fast
 from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undoTransaction
+from ..decorator import undoTransaction
 from ..maths.vector import Vector
 from .shape import Shape
 
 
-@node_wrapper("mesh")
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
@@ -369,6 +368,166 @@ class Mesh(Shape):
             int: UV 数。
         """
         return self.meshFn().numUVs()
+
+    @_getter_alias(getVertices)
+    def vertices(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getVertices(*args, **kwargs)
+
+    @_getter_alias(getShadingEngines)
+    def shadingEngines(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getShadingEngines(*args, **kwargs)
+
+    @_getter_alias(getFaceShadingEngines)
+    def faceShadingEngines(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getFaceShadingEngines(*args, **kwargs)
+
+    @_getter_alias(getNumVertices)
+    def numVertices(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNumVertices(*args, **kwargs)
+
+    @_getter_alias(getNumPolygons)
+    def numPolygons(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNumPolygons(*args, **kwargs)
+
+    @_getter_alias(getNumEdges)
+    def numEdges(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNumEdges(*args, **kwargs)
+
+    @_getter_alias(getPoints)
+    def points(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getPoints(*args, **kwargs)
+
+    @_getter_alias(getVertexNormals)
+    def vertexNormals(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getVertexNormals(*args, **kwargs)
+
+    @_getter_alias(getVertexAdjacency)
+    def vertexAdjacency(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getVertexAdjacency(*args, **kwargs)
+
+    @_getter_alias(getNumUVs)
+    def numUVs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getNumUVs(*args, **kwargs)
 
     @staticmethod
     def _position_vertex_mapping(source, target, tolerance, world_space):

@@ -1,4 +1,4 @@
-"""hlib.utils.naming の文字列サニタイズを検証するMaya内テスト。"""
+"""hlib.common.naming の文字列サニタイズを検証するMaya内テスト。"""
 
 import sys
 import unittest
@@ -7,7 +7,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.utils.naming import legalizeName
+from hlib.common.naming import legalizeName
 
 
 class LegalizeNameTest(unittest.TestCase):

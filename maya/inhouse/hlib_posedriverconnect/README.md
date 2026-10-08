@@ -23,7 +23,8 @@ PoseDriverConnect v2のPythonモデルAPIを使い、`UERBFSolverNode`と
 ```python
 import hlib
 
-print(hlib.extensions.status())
+from hlib._core import extensions
+print(extensions.status())
 
 # 対応プラグインとシーン内のソルバーがある場合
 for solver in hlib.ls(type="UERBFSolverNode"):

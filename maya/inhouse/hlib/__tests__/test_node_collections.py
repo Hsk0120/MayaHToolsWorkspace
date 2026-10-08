@@ -55,7 +55,7 @@ class NodeCollectionsTest(unittest.TestCase):
 
     def test_colors_roundtrip_and_undo(self):
         """色の取得・個別反映・一回のUndoを検証する。"""
-        from hlib.ui import Color
+        from hlib.common import Color
         joints = self.joints
         self.assertIsInstance(joints.getOverrideColor(), list)
         self.assertEqual([color.mode for color in joints.getOverrideColor()], ['disabled'] * 2)
@@ -162,8 +162,7 @@ class NodeCollectionsTest(unittest.TestCase):
         self.assertTrue(cmds.objExists(joint))
 
     def test_bulk_inheritance_signature_and_restrictions(self):
-        """自動生成は派生signatureへ更新し、明示実装と禁止設定を保つ。"""
-        from hlib._core.collection import bulk_api
+        """明示した派生signatureと入口、継承した禁止設定を保つ。"""
         class Item(hlib.nodes.Node):
             """基底の単体API。"""
             def __new__(cls):
@@ -181,21 +180,45 @@ class NodeCollectionsTest(unittest.TestCase):
             def edit(self, value, *, extra=False):
                 """値と追加フラグを返す。"""
                 return value, extra
-        @bulk_api(Item, undo=False, reads=("edit",))
         class Base(hlib.nodes.Nodes):
             """基底コレクション。"""
-        @bulk_api(Child, undo=False)
+
+            _bulk_returns = {**hlib.nodes.Nodes._bulk_returns, "edit": "list"}
+            _bulk_methods = {**hlib.nodes.Nodes._bulk_methods, "edit": Item.edit}
+            _bulk_undo = False
+
+            def edit(self, *args, **kwargs):
+                """明示した操作を共通転送する。"""
+                return self._dispatch_shared("edit", args, kwargs)
+
+            edit.__signature__ = inspect.signature(Item.edit)
+
         class Derived(Base):
             """派生コレクション。"""
+
+            _bulk_methods = {**Base._bulk_methods, "edit": Child.edit}
+
+            def edit(self, *args, **kwargs):
+                """派生型の署名を持つ入口から共通転送する。"""
+                return self._dispatch_shared("edit", args, kwargs)
+
+            edit.__signature__ = inspect.signature(Child.edit)
+
         self.assertIn('extra', inspect.signature(Derived.edit).parameters)
-        @bulk_api(Child, undo=False, per_item_only=('edit',))
         class Restricted(Derived):
             """直接一括実行を禁止する。"""
+
+            _bulk_per_item_only = frozenset(("edit",))
+
+            @property
+            def edit(self):
+                """要素別の引数指定を必要とする入口を隠す。"""
+                raise AttributeError("edit requires callEach with per-item arguments")
+
         restricted = Restricted()
         restricted._items = [Child()]
         self.assertFalse(hasattr(restricted, 'edit'))
         self.assertEqual(restricted.callEach('edit', [(3,)]), [(3, False)])
-        @bulk_api(Child, undo=False)
         class Grandchild(Restricted):
             """禁止設定を継承する。"""
         self.assertFalse(hasattr(Grandchild(), 'edit'))

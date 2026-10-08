@@ -7,8 +7,8 @@ import maya.cmds as cmds
 import hlib
 
 hlib.reload()
-from hlib._core.collection import bulk_api
 from hlib._core.flags import flag_aliases
+from hlib._core.getterAlias import _getter_alias
 
 
 class BulkPerformanceContractsTest(unittest.TestCase):
@@ -45,12 +45,20 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 calls.append(required)
                 return self
 
-        @bulk_api(Item, undo=False, writes=("edit",))
         class Items(hlib.nodes.Nodes):
             """引数検証用のコレクション。"""
+
+            _bulk_returns = {**hlib.nodes.Nodes._bulk_returns, "edit": "self"}
+            _bulk_methods = {**hlib.nodes.Nodes._bulk_methods, "edit": Item.edit}
+            _bulk_undo = False
+
             def __init__(self, items):
                 """参照を保持する。"""
                 self._items = list(items)
+
+            def edit(self, *args, **kwargs):
+                """実引数を保持して共通処理へ委譲する。"""
+                return self._dispatch_shared("edit", args, kwargs)
 
         mixed = Items([Item(), Derived()])
         with self.assertRaises(TypeError):
@@ -93,6 +101,71 @@ class BulkPerformanceContractsTest(unittest.TestCase):
             with self.assertRaises(TypeError):
                 invoke()
         self.assertEqual(calls, [1, 2])
+
+    def test_getter_alias_preflight_uses_current_getter_signature_and_flags(self):
+        """省略名も現在のgetterで全件を検証し、変更前に引数不正を拒否する。"""
+        calls = []
+
+        class Item:
+            """呼出しを記録する単数型。"""
+
+            @flag_aliases(v="value")
+            def getValue(self, *, value=0):
+                """指定した照会値を返す。"""
+                calls.append(value)
+                return value
+
+            @_getter_alias(getValue)
+            def value(self, *args, **kwargs):
+                """呼出時のgetterへ委譲する。"""
+                return self.getValue(*args, **kwargs)
+
+        class Derived(Item):
+            """署名と短縮フラグが異なるgetterを持つ派生型。"""
+
+            @flag_aliases(r="required")
+            def getValue(self, *, required):
+                """必須の照会値を返す。"""
+                calls.append(required)
+                return required
+
+        class Items(hlib.nodes.Nodes):
+            """要素別の省略名呼出しを確認するコレクション。"""
+
+            _bulk_returns = {**hlib.nodes.Nodes._bulk_returns, "getValue": "list", "value": "list"}
+            _bulk_methods = {**hlib.nodes.Nodes._bulk_methods, "getValue": Item.getValue, "value": Item.value}
+            _bulk_undo = False
+
+            def __init__(self, items):
+                """Mayaノードに依存せず対象を保持する。"""
+                self._items = list(items)
+
+            def getValue(self, *args, **kwargs):
+                """正式getterの共有引数を渡す。"""
+                return self._dispatch_shared("getValue", args, kwargs)
+
+            @_getter_alias(getValue)
+            def value(self, *args, **kwargs):
+                """正式getterのコレクション入口へ委譲する。"""
+                return self.getValue(*args, **kwargs)
+
+        mixed = Items([Item(), Derived()])
+        with self.assertRaises(TypeError):
+            mixed.callEach("value", [(), ()], [{"v": 1}, {}])
+        self.assertEqual(calls, [])
+        self.assertEqual(mixed.callEach("value", [(), ()], [{"v": 1}, {"r": 2}]), [1, 2])
+        self.assertEqual(calls, [1, 2])
+        normal = Items([Item(), Item()])
+        self.assertEqual(normal.value(v=3), [3, 3])
+        with patch.object(Item, "getValue", Derived.getValue):
+            with self.assertRaises(TypeError):
+                normal.callEach("value", [(), ()], [{"v": 4}, {"v": 5}])
+        self.assertEqual(calls, [1, 2, 3, 3])
+        normal._items[1].getValue = lambda *, required: calls.append(required) or required
+        with self.assertRaises(TypeError):
+            normal.callEach("value", [(), ()], [{"v": 4}, {}])
+        self.assertEqual(calls, [1, 2, 3, 3])
+        self.assertEqual(normal.callEach("value", [(), ()], [{"v": 4}, {"required": 5}]), [4, 5])
 
     def test_plug_lookup_follows_alias_rename_delete_undo(self):
         """function set再利用後もノードや動的アトリビュートの変化に追従する。"""

@@ -23,7 +23,7 @@ pipe、pyramid、prism、helix、platonicSolid。対応するMayaコマンド名
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases, normalize_flags
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 _PRIMITIVES = {
     "cube": "polyCube",

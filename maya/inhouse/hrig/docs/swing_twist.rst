@@ -9,7 +9,7 @@ Swing / Twistとドリブンキー
 
    from hrig.setups import SwingTwist
 
-   from hlib.scene import DrivenKey
+   from hlib.common import DrivenKey
 
    graph = SwingTwist.create("elbow_jnt", name="elbowDriver", axis="x")
    relation = DrivenKey(graph.container.getPlug("swingZ"), "corrective_jnt.translateY")

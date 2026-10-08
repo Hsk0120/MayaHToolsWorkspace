@@ -3,7 +3,7 @@
 import hlib
 
 from hrig.setups import SpaceSwitch
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SpaceLayer:

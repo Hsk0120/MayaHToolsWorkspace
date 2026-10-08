@@ -4,7 +4,7 @@
 
 - 2026-10-06にユーザーが指定した命名規則: hlib独自の取得/設定メソッドはget/set、メソッド内のアトリビュート名はAttr/Attrs、追加アトリビュートはExtra、型変換はasに統一する。getT/setT等の短縮アクセサーは使用しない。数学型はコピー操作と自身更新を併存し、独自APIの自身更新にはItを付ける。OpenMaya標準名と演算条件は維持し、対応する数学値の戻り型はhlib型へ統一する。引数の長短別名と適用例外の詳細は `docs/hlib-api-design.md` を参照し、今回確定した仕様も下記の変更禁止対象とする。
 
-- hlibの確定済み公開APIの引数仕様は、ユーザーから対象仕様への明示的な変更指示がない限り変更禁止とする。引数名・順序・位置引数/キーワード専用の区分・短縮名/長名・既定値・単位・フラグの意味・戻り値を維持する。リファクタリング、他ライブラリへの追従、命名統一、最適化を理由に変更しない。対象には `ws/worldSpace`、`at`、`ra/r/jo`、`safe/get/fast`、接続方向と `f/l/na`、`Node.addAttr` の型指定・`getPlug` を含む。具体的な仕様は `maya/inhouse/hlib/docs/api_arguments.rst`・`maya/inhouse/hlib/docs/api_methods.rst`・`docs/hlib-api-design.md` を参照する。特に `Node.addAttr()` は既定で追加したPlugを返し、明示的な `getPlug=False` の場合のみNoneを返す。通常のsetterが自身を返す仕様も維持し、既定戻り値をNoneへ変更しない。ドキュメントやテストを先に書き換えて仕様変更を正当化することも禁止する。既存の呼び出し仕様を保つ内部修正・不具合修正は可能とする。
+- hlibの確定済み公開APIの引数仕様は、ユーザーから対象仕様への明示的な変更指示がない限り変更禁止とする。引数名・順序・位置引数/キーワード専用の区分・短縮名/長名・既定値・単位・フラグの意味・戻り値を維持する。リファクタリング、他ライブラリへの追従、命名統一、最適化を理由に変更しない。対象には `ws/worldSpace`、`at`、`ra/r/jo`、`safe/get/fast`、接続方向と `f/l/na`、`Node.addAttr` の型指定・`getPlug` を含む。具体的な仕様は `maya/inhouse/hlib/_docs/api_arguments.rst`・`maya/inhouse/hlib/_docs/api_methods.rst`・`docs/hlib-api-design.md` を参照する。特に `Node.addAttr()` は既定で追加したPlugを返し、明示的な `getPlug=False` の場合のみNoneを返す。通常のsetterが自身を返す仕様も維持し、既定戻り値をNoneへ変更しない。ドキュメントやテストを先に書き換えて仕様変更を正当化することも禁止する。既存の呼び出し仕様を保つ内部修正・不具合修正は可能とする。
 
 - hlibの公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCase（`getSettings`・`undoChunk`・`minimumVersion`）とする。クラスはPascalCase。Maya標準名・om2継承/オーバーライド・Python特殊メソッド・標準ライブラリに合わせたAPIは元の名前を維持し、通知APIの`get_logger`/`raise_with_notify`も例外として維持する。引数・内部関数・ローカル変数はsnake_caseを使用できるが、Mayaのコマンドフラグは標準表記を優先する。JSON等の保存キーはAPI改名で変更しない。詳細と例外は`docs/hlib-api-design.md`の「確定したコーディングルール」を参照する。
 
@@ -16,23 +16,23 @@
 
 - C++の内製コードは日本語のDoxygen形式（`@brief`・`@param`・`@return`、必要時`@note`）でファイル・クラス・全ての名前付き関数を説明する。初心者が追えるよう、所有権・Qtシグナル/スロット・非同期処理・Maya呼出の理由もコメントする。引数や戻り値がないタグは省略し、自明な各行の逐語説明は避ける。PythonはGoogle形式docstringを使用する。詳細は `docs/cpp-documentation.md` を参照する。外部submoduleへ一括適用しない。
 
-- hlib・hlib_*・hrigの通知/出力は `hlib.utils.logger` の `debug`・`info`・`warning`・`error`・`print` に集約する。`error` は通知のみ、例外送出は `raise_with_notify` を使用する。`hlib.cmds.warning` やルートの `hlib.warning` は追加しない。
+- hlib・hlib_*・hrigの通知/出力は `hlib.logger` の `debug`・`info`・`warning`・`error`・`print` に集約する。`error` は通知のみ、例外送出は `raise_with_notify` を使用する。`hlib.cmds.warning` やルートの `hlib.warning` は追加しない。
 
 - hlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/hlib-api-design.md` を参照する。
 
 - hlib/hlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。hlib.cmdsの追加は既存の入力解決・短縮フラグ・Undo規則に合わせ、ノード/アトリビュート/UI参照はhlibオブジェクトで返す。数値・真偽値等の照会値は値として返す。生のcmds転送クラスは追加しない。
 
-- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`scene`・`ui`・`environment`・`events`・`json`・`utils`・`decorators` を基本とする。シーン内の状態・関係は `scene`、Maya標準UIと表示色は `ui`、作業環境・導入状態は `environment`、通知・遅延実行は `events`、汎用関数は `utils` に置く。個別サービスごとにフォルダを増やさず、`hlib_*` も同じ分類に合わせる。
+- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`json` とする。シーン状態・関係、Maya標準UI・表示色、作業環境・導入状態、イベント・遅延実行、汎用処理は `common` 直下へ置き、領域別のサブフォルダは増やさない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py`、保存基盤は `json` に置く。内部基盤は `_core`、文書は `_docs` に置く。`hlib_*` もこの責務の分類に合わせる。
 
-- `hlib.Object` (`object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。
+- `Object` (`_core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from hlib._core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from hlib._core import extensions` とし、ルート属性や旧モジュールパスは残さない。
 
 - hlib.cmdsの公開関数とファイルは同名のlowerCamelCaseとし、create/add/set/get等の動詞+対象で命名する。create/add/setは照会を兼ねず、照会・既存対象の編集はオブジェクトのメソッドへ寄せる。lsは慣用名として維持し、delete/duplicate/select等の動詞も維持する。旧名の互換入口は残さず使用側を更新する。
 
-- hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `hlib.utils` へ置く。クラスのパッケージ内に関数だけのPythonファイルを追加しない。公開コマンドは上記の命名・責務ルールに従う。
+- hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `hlib.common` へ置く。nodes/plugs/componentsなど型をまとめるパッケージ内に関数だけのPythonファイルを追加しない。commonでは用途単位の関数モジュールも扱う。公開コマンドは上記の命名・責務ルールに従う。
 
 - hlibおよび `hlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotation.py`、`scriptJob.py`、`channelBox.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `hlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
 
-- hlibはMaya標準の名前・概念と汎用的な基礎APIを扱う。標準の関係型は `scene`、リグ非依存の数値計算は `utils`、骨の追従・Soft IK・補正・操作形状などの独自セットアップは `hrig.setups` に置く。`hlib/animation` は作らない。Bifrostでも演算部品は `hlib_bifrost.utils`、リグの組み方はhrigに置く。
+- hlibはMaya標準の名前・概念と汎用的な基礎APIを扱う。標準の関係型とリグ非依存の計算・汎用処理は `common`、骨の追従・Soft IK・補正・操作形状などの独自セットアップは `hrig.setups` に置く。`hlib/animation` は作らない。Bifrostの演算部品は `hlib_bifrost.common`、リグの組み方はhrigに置く。
 
 - about/currentTime/cutKey/deleteUI/keyframe/listConnections/listHistory/listRelatives/menu/menuItem/objExists/parent/playbackOptions/setKeyframe はmaya.cmdsを直接使用する。hrigにも適用し、同名hlibラッパーを再追加しない。必要なNode/Plug変換は使用側で明示する。
 
@@ -96,18 +96,20 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 - `HTools/userSetup.py` がGUI起動時にメニューを作成する。バッチモードのスキップと同一セッションでの二重初期化防止を維持する。
 - カテゴリフォルダ内のツール用 `.py` は動的にメニューへ登録され、`runpy.run_module(..., run_name="__main__")` で実行される。追加前に既存カテゴリと走査条件を確認する。
 - UIのPySide6優先・PySide2フォールバックを維持する。対象MayaのPython・Qtで使用できるAPIを選ぶ。
-- シーンを変更する処理は既存のUndo対応に合わせ、必要に応じて `hlib/decorators/undo.py` を利用する。
+- シーンを変更する処理は既存のUndo対応に合わせ、必要に応じて `hlib/decorator.py` を利用する。
 
 ### hlib
 
 - ノード・アトリビュートラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
-- 型の追加は `_core/discovery.py` / `_core/registry.py` と既存の `@node_wrapper` / `@plug_wrapper` に合わせる。自動登録を重複する手動登録を加えない。
+- 公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`json`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_hlib_exports.py` で公開漏れを検査する。
+- Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応は別の責務で、登録済み型からのラッパー選択は `_core/registry.py` の既存規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
+- 複数形クラスの公開メソッドは通常の `def` として明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数メソッドの追加だけで複数形APIを増やさず、既存の引数・戻り値・専用集約処理を維持する。
 - 静的解析(Pylance/pyright)は、リポジトリ直下の `pyrightconfig.json` に設定を集約している。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
-- `hlib.createNode` など実行時に動的公開される名前は、`hlib/__init__.py`・`hlib/cmds/__init__.py`・`hlib/nodes/__init__.py` の `if TYPE_CHECKING:` ブロックで静的解析へ宣言している。コマンドやノードラッパーを追加したら同ブロックにも追記する(`test_typing_exports.py` が不一致を検出する)。
+- 静的解析向けに公開名だけの別名一覧を増やさず、通常の明示importを公開と補完の共通入口にする。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_hlib_exports.py` で不一致を検査する。
 - `hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
-- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
+- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
 - Mayaの信頼済みプラグインの場所(`optionVar SafeModeAllowedlistPaths`)をスクリプトから変更しない。MayaのSafeModeが拒否する設定で、迂回せずユーザーがPreferences > Securityで登録する。
-- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.environment`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
+- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.common`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
 
 ### 外部ツールと連携
 

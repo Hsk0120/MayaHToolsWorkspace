@@ -5,7 +5,7 @@ import unittest
 import maya.cmds as cmds
 
 from hlib.nodes import Container, Node
-from hlib.utils.scalarGraph import ScalarGraph
+from hlib.common.scalarGraph import ScalarGraph
 
 
 class ContainerTest(unittest.TestCase):

@@ -6,9 +6,9 @@ import maya.cmds as cmds
 
 import hlib
 from hlib.nodes import Node
-from hlib.scene import Cycle
+from hlib.common import Cycle
 from hlib.plugs import Plug
-from hlib.utils import logger
+from hlib import logger
 
 
 _WINDOW = "HToolsInspectCycles"

@@ -42,8 +42,8 @@ try:
         extension = importlib.import_module(name + "_bifrost")
         assert name not in sys.modules  # 拡張の先行importではコアを読まない。
         core = importlib.import_module(name)
-        assert core.utils.logger.get_logger().name == name
-        states = core.extensions.status()
+        assert core.logger.get_logger().name == name
+        states = core._core.extensions.status()
         assert states[name + "_bifrost"]["state"] in ("loaded", "unavailable"), states
         assert states[name + "_posedriverconnect"]["state"] == "loaded", states
         assert states[name + "_fixture_bad"]["state"] == "error", states
@@ -64,7 +64,9 @@ try:
         mesh = core.createPolygon(constructionHistory=False)
         mesh.vertex(0).setPosition((2, 3, 4))
         assert tuple(mesh.vertex(0).getPosition()) == (2, 3, 4)
-        assert isinstance(core.Object(node.getFullName()), core.nodes.Node)
+        assert isinstance(core._core.object.Object(node.getFullName()), core.nodes.Node)
+        assert not hasattr(core, "Object")
+        assert not hasattr(core, "extensions")
         saved = core.json.capture(node, kind="pose")
         document = core.json.JsonDocument(saved).asData()
         assert document["format"] == "hlib.json"
@@ -75,7 +77,7 @@ try:
         assert core.nodes.Node is not old_node_type
         assert sys.modules[name + "_posedriverconnect"] is not old_extension
         assert issubclass(core.nodes.Node._registry.lookup("UERBFSolverNode"), core.nodes.Node)
-        assert core.extensions.status()[name + "_fixture_bad"]["state"] == "error"
+        assert core._core.extensions.status()[name + "_fixture_bad"]["state"] == "error"
         assert isinstance(core.getNode(node.getFullName()), core.nodes.Node)
     assert not any(key == "hlib" or key.startswith(("hlib.", "hlib_")) for key in sys.modules)
     print("RENAMED_PACKAGE_OK")
@@ -90,7 +92,7 @@ class PackageNameTest(unittest.TestCase):
     def test_documentation_names_and_stable_identifiers(self):
         """本文・リンクを変換し、保存形式・宣言・外部URLを保持する。"""
         root = Path(__file__).resolve().parents[1]
-        tree = ast.parse((root / "docs/conf.py").read_text(encoding="utf8"))
+        tree = ast.parse((root / "_docs/conf.py").read_text(encoding="utf8"))
         function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                         and node.name == "_adapt_package_name")
         isolated = ast.parse("")
@@ -124,7 +126,7 @@ class PackageNameTest(unittest.TestCase):
                  root.parent / "hlib_posedriverconnect/scripts/hlib_posedriverconnect")
         for package in roots:
             for path in package.rglob("*.py"):
-                if any(part in {"docs", "__tests__", "__pycache__"} for part in path.parts):
+                if any(part in {"_docs", "__tests__", "__pycache__"} for part in path.parts):
                     continue
                 tree = ast.parse(path.read_text(encoding="utf8"))
                 for node in ast.walk(tree):
@@ -143,7 +145,7 @@ class PackageNameTest(unittest.TestCase):
             self.skipTest("独立した mayapy で実行するテスト")
         core = Path(__file__).resolve().parents[1]
         inhouse = core.parent
-        ignore = shutil.ignore_patterns("__tests__", "docs", "__pycache__", "*.pyc")
+        ignore = shutil.ignore_patterns("__tests__", "_docs", "__pycache__", "*.pyc")
         with tempfile.TemporaryDirectory(prefix="renamed_packages_") as temporary:
             root = Path(temporary)
             for name in ("mlib", "studio_lib"):

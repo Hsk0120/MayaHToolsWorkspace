@@ -86,9 +86,9 @@ class ApiNamingTest(unittest.TestCase):
         self.assertEqual(set(matrix.decompose()), {'translate', 'euler', 'quaternion', 'scale', 'shear'})
 
     def test_module_paths(self):
-        for module, cls in (('ui.channelBox', 'ChannelBox'),
-                            ('ui.timeSlider', 'TimeSlider'),
-                            ('scene.drivenKey', 'DrivenKey'),
+        for module, cls in (('common.channelBox', 'ChannelBox'),
+                            ('common.timeSlider', 'TimeSlider'),
+                            ('common.drivenKey', 'DrivenKey'),
                             ('maths.eulerRotation', 'EulerRotation'),
                             ('maths.translation', 'Translation')):
             self.assertTrue(inspect.isclass(getattr(importlib.import_module('hlib.' + module), cls)))

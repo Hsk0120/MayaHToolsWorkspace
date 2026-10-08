@@ -5,7 +5,7 @@ from maya import cmds
 
 import hlib
 
-from hlib.decorators.undo import undoTransaction
+from hlib.decorator import undoTransaction
 
 
 class SplineIK:
@@ -79,7 +79,7 @@ class SplineIK:
                 raise ValueError("Joint rotation already has an input")
         graph = cls(hlib.nodes.Container.create(name=name))
         points = [
-            tuple(hlib.utils.units.distanceToUi(v) for v in c.getTranslation(ws=True, at=4))
+            tuple(hlib.common.units.distanceToUi(v) for v in c.getTranslation(ws=True, at=4))
             for c in controls
         ]
         curve = hlib.nodes.Node(hlib.createCurve(degree=3, point=points, name=name + "_curve"))

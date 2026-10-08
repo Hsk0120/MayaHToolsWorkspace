@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import maya.cmds as cmds
-from hlib.ui import Shelf
-from hlib.ui import ShelfButton
+from hlib.common import Shelf
+from hlib.common import ShelfButton
 
 
 class ShelfValidationTest(unittest.TestCase):

@@ -3,7 +3,7 @@ import maya.cmds as cmds
 
 from hlib.nodes import Node, Mesh
 from hlib.maths import MSpace
-from hlib.utils.units import distanceToUi
+from hlib.common.units import distanceToUi
 import maya.mel as mel
 import heapq
 

@@ -25,8 +25,8 @@ CASES = [
 ]
 ASSETS = ["_static/mermaid-init.js", "_static/custom.css", "_static/mermaid.css"]
 # Mermaid本体はリポジトリに同梱せず、版を固定したjsDelivrのURLからSRI付きで読み込む。
-# 固定した版とハッシュの正は docs/conf.py の _MERMAID_URL と _MERMAID_SRI。
-DOCS_CONF = Path(__file__).resolve().parent.parent / "maya" / "inhouse" / "hlib" / "docs" / "conf.py"
+# 固定した版とハッシュの正は _docs/conf.py の _MERMAID_URL と _MERMAID_SRI。
+DOCS_CONF = Path(__file__).resolve().parent.parent / "maya" / "inhouse" / "hlib" / "_docs" / "conf.py"
 MERMAID_CDN_SCRIPT = re.compile(
     r"^https://cdn\.jsdelivr\.net/npm/mermaid@\d+\.\d+\.\d+/dist/mermaid\.min\.js$"
 )
@@ -52,7 +52,7 @@ def _string_constant(node, known):
 
 
 def read_mermaid_pin(conf_path=DOCS_CONF):
-    """docs/conf.py で固定したMermaid本体のURLとSRIを、conf.pyを実行せずに読み取る。
+    """_docs/conf.py で固定したMermaid本体のURLとSRIを、conf.pyを実行せずに読み取る。
 
     conf.py はSphinx拡張をimportするため、ブラウザ検証だけを行う環境
     (公開後の確認ジョブ)でも使えるよう、構文木からモジュール直下の文字列定数だけを求める。
@@ -92,9 +92,9 @@ def _check_script_list(scripts, pin, source):
     engines = [index for index, script in enumerate(scripts) if _is_mermaid_engine(script.get("src") or "")]
     assert len(engines) == 1, f"{source}: expected one Mermaid script, got {[scripts[i] for i in engines]}"
     engine = scripts[engines[0]]
-    assert engine.get("src") == pin["src"], f"{source}: Mermaid URL differs from docs/conf.py: {engine.get('src')}"
+    assert engine.get("src") == pin["src"], f"{source}: Mermaid URL differs from _docs/conf.py: {engine.get('src')}"
     assert engine.get("integrity") == pin["integrity"], (
-        f"{source}: Mermaid SRI differs from docs/conf.py: {engine.get('integrity')}")
+        f"{source}: Mermaid SRI differs from _docs/conf.py: {engine.get('integrity')}")
     assert engine.get("crossorigin") == "anonymous", f"{source}: Mermaid script needs crossorigin=anonymous"
     # どちらも defer なので記述順に実行される。初期化が本体より先だと図が描かれない。
     initializers = [index for index, script in enumerate(scripts)
@@ -133,7 +133,7 @@ def check_built_html(directory, pin, package_name="hlib"):
 
     - Mermaid本体(mermaid.min.js など)がビルド出力に含まれていないこと。
       以前のビルドの残りがあると、同梱をやめた本体を配布してしまうため。
-    - Mermaidを使う各ページが、docs/conf.py で固定したURL・SRIどおりに本体を1回だけ読み込み、
+    - Mermaidを使う各ページが、_docs/conf.py で固定したURL・SRIどおりに本体を1回だけ読み込み、
       その後に初期化スクリプトを読み込んでいること。
 
     Returns:
@@ -195,7 +195,7 @@ def wait_for_release(base, sha, timeout):
 
 
 def check_mermaid_script(page, source, pin):
-    """表示中のページが、docs/conf.py で固定したURL・SRIどおりにMermaid本体を読み込んでいるか確かめる。
+    """表示中のページが、_docs/conf.py で固定したURL・SRIどおりにMermaid本体を読み込んでいるか確かめる。
 
     ブラウザはintegrityの値と取得したファイルが一致しない場合に実行を拒否するため、
     この後の図の描画確認と合わせて、固定した版・ハッシュどおりに動いていることを保証する。
@@ -290,16 +290,16 @@ def main():
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--output", type=Path, default=Path(".maya-output/docs-browser"))
     parser.add_argument("--package-name", default="hlib", help="対象のコアパッケージ名")
-    parser.add_argument("--docs-conf", type=Path, help="対象のdocs/conf.py。省略時はパッケージ名から解決")
+    parser.add_argument("--docs-conf", type=Path, help="対象のconf.py。省略時はパッケージ内の_docs/conf.pyを使用")
     args = parser.parse_args()
     if not args.check_directory and not args.sha:
         parser.error("--sha is required unless --check-directory is used")
-    conf_path = args.docs_conf or DOCS_CONF.parents[2] / args.package_name / "docs/conf.py"
+    conf_path = args.docs_conf or DOCS_CONF.parents[2] / args.package_name / "_docs/conf.py"
     pin = read_mermaid_pin(conf_path)
     if args.check_directory:
         pages = check_built_html(args.check_directory, pin, args.package_name)
         print(f"Verified {pages} HTML pages: Mermaid is loaded only from {pin['src']} "
-              "with the SRI pinned in docs/conf.py, and is not bundled.")
+              "with the SRI pinned in _docs/conf.py, and is not bundled.")
         return
     if args.stamp_directory:
         stamp(args.stamp_directory, args.sha, args.package_name)

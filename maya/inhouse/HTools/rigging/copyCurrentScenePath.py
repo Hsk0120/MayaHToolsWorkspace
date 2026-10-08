@@ -1,7 +1,7 @@
 """現在シーンのフルパスをクリップボードへコピーするユーティリティ。"""
 
 import maya.cmds as cmds
-from hlib.scene import Scene
+from hlib.common import Scene
 
 
 try:

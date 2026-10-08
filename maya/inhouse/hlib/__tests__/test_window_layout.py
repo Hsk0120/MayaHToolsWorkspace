@@ -5,11 +5,11 @@ import unittest
 from unittest.mock import patch
 from contextlib import ExitStack
 import maya.cmds as cmds
-from hlib.ui import Window
-from hlib.ui import WorkspaceControl
-from hlib.ui import WorkspaceLayout
-from hlib.ui._windowReference import _WindowReference
-from hlib.ui._uiLifetime import _UiLifetime
+from hlib.common import Window
+from hlib.common import WorkspaceControl
+from hlib.common import WorkspaceLayout
+from hlib.common._windowReference import _WindowReference
+from hlib.common._uiLifetime import _UiLifetime
 from maya.api import OpenMayaUI
 import weakref
 
@@ -35,7 +35,7 @@ class WindowApiTest(unittest.TestCase):
         self.control = self.stack.enter_context(patch.object(cmds, "workspaceControl", create=True, return_value=True))
         self.manager = self.stack.enter_context(patch.object(cmds, "workspaceLayoutManager", create=True))
         self.manager.side_effect = lambda **kw: ["Main", "Other"] if kw.get("listLayouts") else "Main"
-        self.mel = self.stack.enter_context(patch("hlib.ui.workspaceLayout.mel.eval"))
+        self.mel = self.stack.enter_context(patch("hlib.common.workspaceLayout.mel.eval"))
 
     def test_batch_rejected(self):
         """batchではUI参照を生成しない。"""

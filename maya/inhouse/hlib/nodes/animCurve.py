@@ -5,15 +5,14 @@ import math
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
+from .._core.getterAlias import _getter_alias
 from .._core.unitValue import convert
-from ..decorators._fast import fast_edit, is_fast
-from ..decorators.undo import undoChunk
-from ..utils.units import angleToUi, angleFromUi
+from ..common._fast import fast_edit, is_fast
+from ..common.units import angleToUi, angleFromUi
+from ..decorator import undoChunk
 from .node import Node
 
 
-@node_wrapper("animCurve")
 class AnimCurve(Node):
     """8種類のカーブの基底クラス。数値は内部単位(cm/rad/秒)を使う。"""
 
@@ -253,6 +252,134 @@ class AnimCurve(Node):
             list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。
         """
         return self.getOutputPlug().getDestinationsWithConversions()
+
+    @_getter_alias(getKeyCount)
+    def keyCount(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getKeyCount(*args, **kwargs)
+
+    @_getter_alias(getKeyInputs)
+    def keyInputs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getKeyInputs(*args, **kwargs)
+
+    @_getter_alias(getKeyValues)
+    def keyValues(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getKeyValues(*args, **kwargs)
+
+    @_getter_alias(getTangent)
+    def tangent(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getTangent(*args, **kwargs)
+
+    @_getter_alias(getInfinity)
+    def infinity(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getInfinity(*args, **kwargs)
+
+    @_getter_alias(getDriverPlug)
+    def driverPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDriverPlug(*args, **kwargs)
+
+    @_getter_alias(getOutputPlug)
+    def outputPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputPlug(*args, **kwargs)
+
+    @_getter_alias(getDrivenPlugs)
+    def drivenPlugs(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDrivenPlugs(*args, **kwargs)
 
     def _unit_value(self, value, output=False, to_ui=True):
         """入出力の単位型に従いコマンド境界で値を変換する。

@@ -1,14 +1,13 @@
 """二点間、またはTransformの原点間の距離を扱う。"""
 
 from .._core.flags import flag_aliases
-from .._core.registry import node_wrapper
-from ..decorators._fast import fast_edit
-from ..decorators.undo import undoChunk
+from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit
+from ..decorator import undoChunk
 from .node import Node
 from .transform import Transform
 
 
-@node_wrapper("distanceBetween")
 class DistanceBetween(Node):
     """inMatrix1/2で変換したpoint1/2間の距離を評価する。"""
 
@@ -59,7 +58,7 @@ class DistanceBetween(Node):
             RuntimeError: ロックや既存接続により変更できない場合。
                 途中の変更は自動では戻さず、一回のUndoで戻せる。
         """
-        from ..nodes.node import Node as _InputNode
+        from .node import Node as _InputNode
         nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
         if not all(isinstance(node, Transform) for node in nodes):
             raise TypeError("Both inputs must be transforms")
@@ -85,3 +84,35 @@ class DistanceBetween(Node):
             float: 評価済み距離。内部距離単位cm。
         """
         return self.getOutputPlug().get()
+
+    @_getter_alias(getOutputPlug)
+    def outputPlug(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getOutputPlug(*args, **kwargs)
+
+    @_getter_alias(getDistance)
+    def distance(self, *args, **kwargs):
+        """get付きの取得メソッドへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じ戻り値。
+
+        Note:
+            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        """
+        return self.getDistance(*args, **kwargs)

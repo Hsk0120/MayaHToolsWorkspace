@@ -69,14 +69,14 @@ instance/
 .scrapy
 
 # Sphinx documentation
-maya/inhouse/hlib/docs/_build/
+maya/inhouse/hlib/_docs/_build/
 maya/inhouse/hedit/docs/_build/
 maya/inhouse/hedit/docs/.venv/
 maya/inhouse/FramePlayer/docs/_build/
 maya/inhouse/FramePlayer/docs/.venv/
 maya/inhouse/FramePlayer/docs/tools/_media/
-maya/inhouse/hlib/docs/autoapi/
-maya/inhouse/hlib/docs/_generated/
+maya/inhouse/hlib/_docs/autoapi/
+maya/inhouse/hlib/_docs/_generated/
 
 # PyBuilder
 .pybuilder/
@@ -225,11 +225,11 @@ maya/inhouse/hlib/__tests__/.logs/
 # Local research notes and inventories (not published)
 /docs/research/
 /research/
-/maya/inhouse/hlib/docs/research/
-/maya/inhouse/hlib/docs/*_research.rst
-/maya/inhouse/hlib/docs/*_survey.rst
-/maya/inhouse/hlib/docs/*_inventory.json
-/maya/inhouse/hlib/docs/concept_classes.rst
+/maya/inhouse/hlib/_docs/research/
+/maya/inhouse/hlib/_docs/*_research.rst
+/maya/inhouse/hlib/_docs/*_survey.rst
+/maya/inhouse/hlib/_docs/*_inventory.json
+/maya/inhouse/hlib/_docs/concept_classes.rst
 
 # C++ Mayaプラグイン開発(ビルドの一時ファイルとIDE生成物)。
 # ビルドフォルダは tools/build_maya_plugin.py が .maya-output/ 配下に作る(上で除外済み)。
@@ -281,3 +281,4 @@ incrementalSave/
 
 # Sphinx が .po から自動で作るコンパイル済みの訳(ビルドのたびに作り直す)
 maya/inhouse/*/docs/locale/**/*.mo
+maya/inhouse/hlib/_docs/locale/**/*.mo

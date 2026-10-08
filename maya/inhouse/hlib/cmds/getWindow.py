@@ -10,6 +10,6 @@ def getWindow(name):
     Returns:
         Window: 対象への参照。
     """
-    from ..ui import Window
+    from ..common import Window
 
     return Window(name)

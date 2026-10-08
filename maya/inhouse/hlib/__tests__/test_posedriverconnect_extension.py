@@ -51,7 +51,7 @@ class PoseDriverConnectTest(unittest.TestCase):
             before_plugins = set(cmds.pluginInfo(query=True, listPlugins=True) or [])
             hlib.reload()
             self.assertEqual(set(cmds.pluginInfo(query=True, listPlugins=True) or []), before_plugins)
-            state = hlib.extensions.status()['hlib_posedriverconnect']
+            state = hlib._core.extensions.status()['hlib_posedriverconnect']
             self.assertEqual(state['state'], 'loaded', state['reason'])
             self.assertIsNotNone(hlib.nodes.Node._registry.lookup('UERBFSolverNode'))
             binary = EXTERNAL / 'plug-ins/windows' / str(cmds.about(version=True)).split('.')[0] / 'MayaUERBFPlugin.mll'

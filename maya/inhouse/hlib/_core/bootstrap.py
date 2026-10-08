@@ -8,7 +8,7 @@ __all__ = ["initialize_node_api", "initialize_plug_api"]
 
 
 def _initialize_registry(package_name, subpackage, base_name, inherited=False):
-    """検出済みの標準型から新しい登録表を作り、基底へ取り付ける。
+    """明示した標準型から新しい登録表を作り、基底へ取り付ける。
 
     Args:
         package_name (str): hlibの完全修飾名。
@@ -22,7 +22,7 @@ def _initialize_registry(package_name, subpackage, base_name, inherited=False):
     package = importlib.import_module(package_name + "." + subpackage)
     base = getattr(package, base_name)
     registry = NodeRegistry(base, resolve_inherited_types=inherited)
-    registry.register_discovered(dict(sorted(package._discovered_wrappers.items())))
+    registry.replace(package._WRAPPER_CLASSES)
     base._registry = registry
     return registry
 

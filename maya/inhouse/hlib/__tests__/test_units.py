@@ -8,9 +8,9 @@ import maya.api.OpenMaya as om2
 
 import hlib
 hlib.reload()
-from hlib.environment import Preferences
-from hlib.utils import units
-from hlib.decorators import nativeUnits
+from hlib.common import Preferences
+from hlib.common import units
+from hlib.decorator import nativeUnits
 
 
 class UnitsTest(unittest.TestCase):

@@ -349,8 +349,8 @@ msgstr "The upstream parent's motion is inherited from the output parent hierarc
 msgid "揺れ計算とポーズ補間"
 msgstr "Shake Calculation and Pose Interpolation"
 
-msgid "``hlib.utils.DampedSpring`` は等間隔の数値列を減衰ばねで処理します。 Mayaノードを生成せず、Python標準ライブラリだけで計算します。"
-msgstr "``hlib.utils.DampedSpring`` processes evenly spaced numeric sequences with a damped spring. It performs calculations using only the Python standard library, without generating any Maya nodes."
+msgid "``hlib.common.DampedSpring`` は等間隔の数値列を減衰ばねで処理します。 Mayaノードを生成せず、Python標準ライブラリだけで計算します。"
+msgstr "``hlib.common.DampedSpring`` processes evenly spaced numeric sequences with a damped spring. It performs calculations using only the Python standard library, without generating any Maya nodes."
 
 msgid "frequencyは固有振動数Hz、dampingは減衰比、limitは入力からの差の上限です。 初期位置は最初の入力、初速は0です。内部で時間を分割し、サンプル間の入力を 線形補間します。角度の周期処理は呼出側で行ってください。 ライブ評価、衝突、重力、布シミュレーションは提供しません。"
 msgstr "frequency is the natural frequency in Hz, damping is the damping ratio, and limit is the upper bound of the difference from the input. The initial position is the first input, and the initial velocity is 0. Internally, time is divided into segments, and inputs between samples are linearly interpolated. Periodic handling of angles must be performed by the caller. Live evaluation, collision, gravity, and cloth simulation are not provided."
@@ -427,8 +427,8 @@ msgstr "For Maya's solver specifications, see the `Autodesk ikHandle command <ht
 msgid "カーブの近似"
 msgstr "Curve Approximation"
 
-msgid "``hlib.utils.CurveFit.fit(points, count)`` は、2点以上の3次元点列から 4〜32個のCVを返します。点列の弦長を正規化し、3次clamped均等knotの 最小二乗問題を解きます。NumPy等の外部ライブラリは使用しません。 入出力は同じ空間・単位で、端点を固定し、サンプルが少ない場合は直線配置へ 弱く正則化します。``basis(count, parameter)`` は0〜1パラメータでのCV重みです。"
-msgstr "``hlib.utils.CurveFit.fit(points, count)`` returns 4 to 32 CVs from a sequence of 3D points with more than two points. It solves a least-squares problem with the chord length of the point sequence normalized, using a cubic clamped uniform knot. It does not use external libraries such as NumPy. Input and output are in the same space and unit. End points are fixed, and if the number of samples is small, it applies weak regularization toward linear arrangement. ``basis(count, parameter)`` are CV weights with parameters from 0 to 1."
+msgid "``hlib.common.CurveFit.fit(points, count)`` は、2点以上の3次元点列から 4〜32個のCVを返します。点列の弦長を正規化し、3次clamped均等knotの 最小二乗問題を解きます。NumPy等の外部ライブラリは使用しません。 入出力は同じ空間・単位で、端点を固定し、サンプルが少ない場合は直線配置へ 弱く正則化します。``basis(count, parameter)`` は0〜1パラメータでのCV重みです。"
+msgstr "``hlib.common.CurveFit.fit(points, count)`` returns 4 to 32 CVs from a sequence of 3D points with more than two points. It solves a least-squares problem with the chord length of the point sequence normalized, using a cubic clamped uniform knot. It does not use external libraries such as NumPy. Input and output are in the same space and unit. End points are fixed, and if the number of samples is small, it applies weak regularization toward linear arrangement. ``basis(count, parameter)`` are CV weights with parameters from 0 to 1."
 
 msgid "折れ線の長さ、鋭い角、骨回転を完全に復元するものではありません。 Mayaシーンを操作せず、ソルバー評価後の誤差検証と姿勢の採用判断は呼出側で行います。"
 msgstr "This does not fully restore the polyline length, sharp angles, or bone rotations. The error validation after solver evaluation and the decision on pose adoption are performed by the caller."
@@ -727,8 +727,8 @@ msgstr "Building the documentation"
 msgid "Maya不要のPython環境で、リポジトリ直下から実行します。"
 msgstr "Execute directly from the repository root in a Maya-free Python environment."
 
-msgid "出力の ``index.html`` を開きます。hlibのsphinxdocテーマとCSSを共有するため、 ワークスペース内のhlib/docsも必要です。外部ツール調査メモや生ログはサイトへ取り込みません。"
-msgstr "Opens the output ``index.html``. For sharing the sphinxdoc theme and CSS of hlib, hlib/docs within the workspace is also required. External tool investigation memos and raw logs are not imported into the site."
+msgid "出力の ``index.html`` を開きます。hlibのsphinxdocテーマとCSSを共有するため、 ワークスペース内のhlib/_docsも必要です。外部ツール調査メモや生ログはサイトへ取り込みません。"
+msgstr "Opens the output ``index.html``. For sharing the sphinxdoc theme and CSS of hlib, hlib/_docs within the workspace is also required. External tool investigation memos and raw logs are not imported into the site."
 
 msgid "ツイストの分配"
 msgstr "Twist Distribution"
@@ -744,4 +744,3 @@ msgstr "Rotation does not account for shortest path, nor does it handle continuo
 
 msgid "所有する計算ノードは ``hlib.delete(graph.container)`` で削除できます。 両端のtransformは削除対象に含めません。補間先を始点・終点やその上流へ接続して 循環を作らないようにしてください。"
 msgstr "You can delete the owned calculation nodes with ``hlib.delete(graph.container)``. Do not include the end transforms in the deletion target. Do not connect the interpolation target to the start/end points or their upstream nodes to avoid creating cycles."
-

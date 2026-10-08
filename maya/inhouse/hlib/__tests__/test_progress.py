@@ -1,4 +1,4 @@
-"""hlib.utils.progress の progressBar を検証するMaya内テスト。"""
+"""hlib.common.progress の progressBar を検証するMaya内テスト。"""
 
 import contextlib
 import io
@@ -7,8 +7,8 @@ import unittest
 
 import hlib
 hlib.reload()
-import hlib.utils
-from hlib.utils.progress import progressBar
+import hlib.common
+from hlib.common.progress import progressBar
 
 
 def _frames(output):
@@ -287,8 +287,8 @@ class ProgressBarStreamTest(unittest.TestCase):
         list(progressBar(["a"], width=2, stream=stream))
         self.assertEqual("".join(stream.parts), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
 
-    def test_exported_from_utils_package(self):
-        self.assertIs(hlib.utils.progressBar, progressBar)
+    def test_exported_from_common_package(self):
+        self.assertIs(hlib.common.progressBar, progressBar)
 
 
 class ProgressBarValidationTest(unittest.TestCase):

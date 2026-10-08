@@ -24,8 +24,9 @@ class MaterialNodesTest(unittest.TestCase):
                      "file", "place2dTexture", "place3dTexture"):
             node = hlib.createNode(kind)
             native = cmds.nodeType(kind, isTypeName=True, inherited=True)
+            declared = {cls: name for name, cls in hlib.nodes._WRAPPER_CLASSES.items()}
             for cls in type(node).__mro__:
-                key = cls.__dict__.get("__hlib_node_type__")
+                key = declared.get(cls)
                 if key and key != "dependNode":
                     self.assertIn(key, native)
         self.assertTrue(issubclass(Blinn, Reflect))

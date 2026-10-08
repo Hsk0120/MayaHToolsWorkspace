@@ -1,4 +1,4 @@
-"""hlib.utils.optionvar.OptionVar(JSON文字列で optionVar に保存するストア)のMaya内テスト。
+"""hlib.common.optionvar.OptionVar(JSON文字列で optionVar に保存するストア)のMaya内テスト。
 
 テストごとに一意な接頭辞を使い、その接頭辞で始まる optionVar を tearDown で
 ``cmds.optionVar`` から直接すべて削除する(テスト対象のクラスには頼らない)。
@@ -13,7 +13,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.utils.optionvar import OptionVar
+from hlib.common.optionvar import OptionVar
 
 
 class OptionVarTestBase(unittest.TestCase):

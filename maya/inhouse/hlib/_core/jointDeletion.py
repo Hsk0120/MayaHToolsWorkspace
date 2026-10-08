@@ -2,7 +2,7 @@
 
 import maya.cmds as cmds
 
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 class _JointDeletion:

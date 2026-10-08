@@ -160,6 +160,17 @@ git submodule update --init --recursive
 
 Maya 2022～2027の個別・一括テストは [hlibのバージョン別テスト](docs/hlib-testing.md) を参照してください。
 
-Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/hlib/docs` に用意しています。
+Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/hlib/_docs` に用意しています。
 Maya を起動せず、ソースから HTML を生成できます。
-手順は[hlib ドキュメントのビルド](maya/inhouse/hlib/docs/README.md)を参照してください。
+手順は[hlib ドキュメントのビルド](maya/inhouse/hlib/_docs/README.md)を参照してください。
+
+hlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`json` です。
+シーン状態・標準UI・環境設定・イベント・汎用処理は `common` にまとめ、
+ログは `hlib.logger`、Undo等のデコレーターは `hlib.decorator` から利用します。
+Objectと拡張登録・管理の入口は `_core` に置き、`from hlib._core.object import Object`、
+`from hlib._core import extensions` から取得します。ルートへは再公開しません。
+クラス・コマンドの公開名は各パッケージの `__init__.py`、Node/Plugの型対応は同ファイルの
+`_WRAPPER_CLASSES` で明示します。追加・削除時はリポジトリルートで
+`python tools/check_hlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。
+複数形APIも通常のメソッドとして定義し、共通処理へ委譲します。
+旧importの対応は[APIの命名と移行](maya/inhouse/hlib/_docs/api_naming.rst)を参照してください。

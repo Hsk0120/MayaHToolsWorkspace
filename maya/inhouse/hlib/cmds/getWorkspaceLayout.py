@@ -10,6 +10,6 @@ def getWorkspaceLayout(name=None):
     Returns:
         WorkspaceLayout: 対象への参照。
     """
-    from ..ui import WorkspaceLayout
+    from ..common import WorkspaceLayout
 
     return WorkspaceLayout(name)

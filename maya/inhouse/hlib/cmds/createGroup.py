@@ -83,7 +83,7 @@ Examples
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from ..decorators.undo import undoChunk
+from ..decorator import undoChunk
 
 
 @flag_aliases("group")
@@ -108,7 +108,7 @@ def createGroup(nodes=None, **kwargs):
         RuntimeError: parent の名前を解決できない場合、または Maya がグループ作成を拒否した場合。
     """
     from ..nodes.node import Node as _InputNode
-    from ..object import Object as _InputObject
+    from .._core.object import Object as _InputObject
     from ..nodes import Node
 
     if kwargs.get("parent") is not None:
