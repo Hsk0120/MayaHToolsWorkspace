@@ -34,7 +34,8 @@ bool writeJsonFile(const QString& path, const QJsonObject& object, QString* erro
  * @param key 項目の名前。
  * @param value 新しい値。QJsonValue::Undefinedなら項目を消す。
  * @param error 失敗の理由を入れる。nullptrなら入れない。
- * @return 書けたらtrue。
+ * @return 書けた(またはファイルの値が既に同じで、書く必要が無かった)らtrue。
+ * @note ファイルが読めて、その項目が既にvalueと同じ(Undefinedなら項目が無い)場合は書かない。
  */
 bool updateJsonFile(const QString& path, const QString& key, const QJsonValue& value, QString* error = nullptr);
 

@@ -49,8 +49,10 @@ QPixmap drawMenuIcon(int size) {
 
 /** @brief メニュー項目にアイコンを付ける。項目がまだ無ければ、少し後にやり直す。
  * @param remaining やり直せる残りの回数。
- * @details やり直しの予約はプラグインと同じ寿命のオブジェクト(dock::lifetime)に持たせるので、
+ * @details やり直しの予約は、プラグインと同じ寿命のオブジェクト(dock::lifetime)の子のタイマーで行うので、
  * アンロードされたら取り消される(hedit.mllの中のコードを、アンロード後に呼ばない)。
+ * ``QTimer::singleShot(時間, 文脈, ラムダ)``は、文脈が破棄されても時間が来るまでQtの中に残り、そのとき
+ * hedit.mllの中のラムダを片付けようとする(アンロード後だと落ちる。Qt5で確認)ため使わない。
  */
 void applyMenuIcon(int remaining) {
     QAction* action = MQtUtil::findMenuItem(toMString(kMenuItemName));
@@ -63,7 +65,13 @@ void applyMenuIcon(int remaining) {
         return;
     }
     if (remaining > 0 && dock::lifetime()) {
-        QTimer::singleShot(kIconRetryInterval, dock::lifetime(), [remaining] { applyMenuIcon(remaining - 1); });
+        auto timer = new QTimer(dock::lifetime());  // 所有者はdock::lifetime()。アンロード時に一緒に破棄される。
+        timer->setSingleShot(true);
+        QObject::connect(timer, &QTimer::timeout, timer, [timer, remaining] {
+            timer->deleteLater();
+            applyMenuIcon(remaining - 1);
+        });
+        timer->start(kIconRetryInterval);
     }
 }
 

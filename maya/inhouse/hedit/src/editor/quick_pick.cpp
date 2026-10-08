@@ -55,7 +55,8 @@ QuickPick::QuickPick(QWidget* parent) : QFrame(parent) {
     connect(input_, &QLineEdit::textChanged, this, [this] { refilter(); });
     connect(list_, &QListWidget::currentRowChanged, this, [this](int row) {
         QListWidgetItem* item = list_->item(row);
-        if (item && onPreview) {
+        // 選べない行(読み込み中の案内)には項目の位置が無い。
+        if (item && item->data(kIndexRole).isValid() && onPreview) {
             onPreview(items_.value(item->data(kIndexRole).toInt()).data);
         }
     });
@@ -95,6 +96,7 @@ int QuickPick::matchScore(const QString& text, const QString& filter) {
 void QuickPick::open(const QString& placeholder, const QList<QuickPickItem>& items, int current) {
     items_ = items;
     closing_ = false;
+    loadingText_.clear();
     input_->setPlaceholderText(placeholder);
     {
         const QSignalBlocker blocker(input_);
@@ -110,15 +112,48 @@ void QuickPick::open(const QString& placeholder, const QList<QuickPickItem>& ite
             }
         }
     }
+    placeInParent();
+    show();
+    raise();
+    input_->setFocus(Qt::PopupFocusReason);
+}
+
+void QuickPick::setItems(const QList<QuickPickItem>& items) {
+    QListWidgetItem* selected = list_->currentItem();
+    const QVariant selectedData = selected && selected->data(kIndexRole).isValid()
+                                      ? items_.value(selected->data(kIndexRole).toInt()).data
+                                      : QVariant();
+    items_ = items;
+    loadingText_.clear();
+    refilter();
+    if (selectedData.isValid()) {
+        for (int row = 0; row < list_->count(); ++row) {
+            if (items_.value(list_->item(row)->data(kIndexRole).toInt()).data == selectedData) {
+                list_->setCurrentRow(row);
+                break;
+            }
+        }
+    }
+    if (isVisible()) {
+        placeInParent();
+    }
+}
+
+void QuickPick::setLoadingText(const QString& text) {
+    loadingText_ = text;
+    refilter();
+    if (isVisible()) {
+        placeInParent();
+    }
+}
+
+void QuickPick::placeInParent() {
     // 親の上部の中央に、親の幅の6割(最大700px)で出す。
     QWidget* owner = parentWidget();
     const int width = qMin(scaled(700), qMax(scaled(360), owner->width() * 6 / 10));
     const int rowHeight = qMax(list_->sizeHintForRow(0), fontMetrics().height() + scaled(6));
     const int height = input_->sizeHint().height() + rowHeight * qMin(12, qMax(1, list_->count())) + scaled(20);
     setGeometry((owner->width() - width) / 2, scaled(28), width, height);
-    show();
-    raise();
-    input_->setFocus(Qt::PopupFocusReason);
 }
 
 void QuickPick::refilter() {
@@ -150,10 +185,18 @@ void QuickPick::refilter() {
     if (list_->count() > 0 && onPreview && !filter.isEmpty()) {
         onPreview(items_.value(list_->item(0)->data(kIndexRole).toInt()).data);
     }
+    if (list_->count() == 0 && !loadingText_.isEmpty()) {
+        // 選べない1行(項目の位置を持たない)。Enterやクリックでは何もしない。
+        auto row = new QListWidgetItem(loadingText_, list_);
+        row->setFlags(Qt::NoItemFlags);
+    }
 }
 
 void QuickPick::accept() {
     QListWidgetItem* item = list_->currentItem();
+    if (!item && !loadingText_.isEmpty() && list_->count() > 0) {
+        return;  // 読み込み中の案内の行だけがある。一覧が届くまで開いたままにする。
+    }
     if (!item) {
         cancel();
         return;

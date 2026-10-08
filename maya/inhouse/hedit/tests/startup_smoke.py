@@ -119,7 +119,10 @@ def _check(stage, output_dir, result):
         assert tabs.currentWidget().isVisible(), 'Active restored tab is hidden'
         assert tabs.currentWidget().toPlainText() == 'restart_probe = 91'
         assert tabs.count() == 2 and tabs.widget(1).property('language') == 'mel'
+        # 選んでいないタブの本文は、初めて選んだときに文書へ入る。
+        tabs.setCurrentIndex(1)
         assert tabs.widget(1).toPlainText() == 'int $restoreMel = 42;'
+        tabs.setCurrentIndex(0)
         # 右側に置いたドックを、同じMaya設定フォルダーから復元できたか確認する。
         main_window = host.wrapInstance(int(OpenMayaUI.MQtUtil.mainWindow()), QtWidgets.QWidget)
         center = window.mapToGlobal(window.rect().center()).x()

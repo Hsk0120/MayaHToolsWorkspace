@@ -37,9 +37,16 @@ SearchResult findMatches(const QString& document, const SearchOptions& options, 
         return result;
     }
 
-    auto iterator = regex.globalMatch(document);
+    // 選択範囲内で検索するときは、範囲の先頭から照合を始め、範囲の後ろの一致に来たらやめる(文書全体を走査しない)。
+    // 照合は文書全体に対して行うので、範囲の外の文字も先読み・後読みと行頭(^)の判定に使われる。
+    const bool limited = options.rangeStart >= 0 && options.rangeEnd >= options.rangeStart;
+    const int offset = limited ? qMin(options.rangeStart, int(document.size())) : 0;
+    auto iterator = regex.globalMatch(document, offset);
     while (iterator.hasNext()) {
         const QRegularExpressionMatch match = iterator.next();
+        if (limited && match.capturedStart() >= options.rangeEnd && match.capturedLength() > 0) {
+            break;  // これより後ろの一致は、どれも範囲に収まらない。
+        }
         if (match.capturedLength() == 0) {
             result.error = "Zero-length matches are not supported";
             return result;
@@ -48,8 +55,7 @@ SearchResult findMatches(const QString& document, const SearchOptions& options, 
             result.error = "Too many matches (limit 100,000)";
             return result;
         }
-        // 選択範囲内で検索するときは、範囲に収まる一致だけを数える。
-        const bool limited = options.rangeStart >= 0 && options.rangeEnd >= options.rangeStart;
+        // 範囲に収まる一致だけを数える(範囲の末尾をまたぐ一致は数えない)。
         if (limited && (match.capturedStart() < options.rangeStart || match.capturedEnd() > options.rangeEnd)) {
             continue;
         }

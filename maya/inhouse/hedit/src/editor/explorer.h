@@ -2,6 +2,8 @@
  * @brief スクリプト用の読み取り専用ファイルツリー(View > Explorer)。
  */
 #pragma once
+#include <QIcon>
+#include <QMultiHash>
 #include <QStringList>
 #include <QWidget>
 #include <functional>
@@ -17,6 +19,7 @@ class DirectoryLister;
 /** @brief 開いているファイル(OPEN EDITORS)と、複数のルートフォルダーを表示する。
  * @details ファイルの削除・移動は行わない。フォルダーの中身は展開したときに初めて、別スレッドで読む
  * (ネットワークドライブなどの遅いフォルダーでも画面を止めない)。読み終わるまでは「Loading…」を出す。
+ * Explorerが隠れている間は読まず(読み込みのスレッドも作らない)、初めて見えたときに展開済みのフォルダーを読む。
  * ツリーの項目はQtの親子関係で破棄される。
  */
 class Explorer : public QWidget {
@@ -49,8 +52,12 @@ public:
     /** @brief OPEN EDITORSの一覧を更新する。 @param paths 保存先を持つタブの絶対パス。 */
     void setOpenFiles(const QStringList& paths);
 
+protected:
+    /** @brief 初めて見えたとき、隠れている間に展開したルートフォルダーの中身を読む。 @param event 表示のイベント。 */
+    void showEvent(QShowEvent* event) override;
+
 private:
-    /** @brief 展開されたフォルダーの中身の読み込みを、別スレッドへ頼む。
+    /** @brief 展開されたフォルダーの中身の読み込みを、別スレッドへ頼む。隠れている間は何もしない(showEventで読む)。
      * @param item 展開されたフォルダーの項目。パスをQt::UserRoleに持つ。
      */
     void populate(QTreeWidgetItem* item);
@@ -62,6 +69,9 @@ private:
      */
     void applyListing(const QString& path, const QStringList& names, const QList<bool>& directories);
 
+    /** @brief 消す項目とその子孫を、読んでいる途中の項目の表から取り除く。 @param item 消す項目。 */
+    void forgetLoading(QTreeWidgetItem* item);
+
     /** @brief ルートフォルダーの項目を、OPEN EDITORS以外すべて取り除く。 */
     void removeRootItems();
 
@@ -71,7 +81,10 @@ private:
     QTreeWidget* tree_;                          ///< ツリー本体。
     QTreeWidgetItem* openEditors_;               ///< 先頭の「OPEN EDITORS」の項目。
     QStringList folders_;                        ///< ルートフォルダー。
-    std::unique_ptr<DirectoryLister> lister_;    ///< フォルダーを読む別スレッド。
+    QMultiHash<QString, QTreeWidgetItem*> loading_;  ///< 読んでいる途中のフォルダーのパス → 項目(同じパスが複数あり得る)。
+    QIcon folderIcon_;                           ///< フォルダーの項目のアイコン(最初に1回だけ受け取る)。
+    QIcon fileIcon_;                             ///< ファイルの項目のアイコン(最初に1回だけ受け取る)。
+    std::unique_ptr<DirectoryLister> lister_;    ///< フォルダーを読む別スレッド。初めて読むときに作る。
 };
 
 }  // namespace hedit

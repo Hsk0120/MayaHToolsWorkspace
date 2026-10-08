@@ -4,6 +4,7 @@
 モジュールの情報(sys.path・sys.modules)は実行中のPythonから取るので、テストはそれらを一時的に差し替える。
 対象のソースは実行しない(実行されると ``RuntimeError`` になる内容で確かめる)。
 """
+import importlib
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import time
 import types
 import unittest
 from unittest import mock
+import warnings
 
 import maya.standalone
 maya.standalone.initialize(name='python')
@@ -63,6 +65,65 @@ class CompletionTests(unittest.TestCase):
         self.assertIn('sys', data['names'])
         self.assertIn('maya', data['names'])
         self.assertTrue(all(os.path.isabs(path) for path in data['paths']))
+
+    def test_module_names_unchanged_protocol(self):
+        """import行の補完: sys.modules・sys.pathが変わらなければ一覧を送らず、変われば送り直す(C++は控えを使う)。"""
+        first = json.loads(bridge.module_names())
+        self.assertEqual(json.loads(bridge.module_names(first['signature'])), {'unchanged': True})
+        with mock.patch.dict(sys.modules, {'hedit_names_probe': types.ModuleType('hedit_names_probe')}):
+            changed = json.loads(bridge.module_names(first['signature']))
+            self.assertIn('hedit_names_probe', changed['names'])
+            self.assertIn('hedit_names_probe', names('import hedit_names_p'))
+        self.assertNotIn('hedit_names_probe', names('import hedit_names_p'))
+        with mock.patch.object(sys, 'path', sys.path + [str(self.root / 'extra')]):
+            self.assertIn(str(self.root / 'extra'), json.loads(bridge.module_names(first['signature']))['paths'])
+
+    def test_module_info_signature_follows_class_changes(self):
+        """公開名の印は、クラスの中身が増えたときも変わる(C++は前回の公開名を使い回さない)。"""
+        module = types.ModuleType('hedit_signature_probe')
+
+        class Widget:
+            pass
+
+        module.Widget = Widget
+        with mock.patch.dict(sys.modules, {'hedit_signature_probe': module}):
+            known = json.loads(bridge.module_info('hedit_signature_probe'))['signature']
+            self.assertTrue(json.loads(bridge.module_info('hedit_signature_probe', known))['unchanged'])
+            Widget.added = lambda self: None
+            data = json.loads(bridge.module_info('hedit_signature_probe', known))
+            self.assertNotIn('unchanged', data)
+            self.assertIn('added', data['members']['Widget']['members'])
+            self.assertIn('added', names('import hedit_signature_probe as p\np.Widget.ad'))
+
+    def test_reload_replaces_modules_from_another_build(self):
+        """同じビルドのロードし直しでは同梱のモジュールを残し、別のビルドから読んだもの(古いコード)は読み直させる。"""
+        package_names = ['hedit', 'hedit.analysis', 'hedit.bridge']
+        importlib.import_module('hedit')
+        originals = {name: sys.modules[name] for name in package_names}
+        build = originals['hedit.bridge'].__spec__.loader_state
+        self.assertTrue(build)
+        user = types.ModuleType('hedit_user_probe')
+        try:
+            with mock.patch.dict(sys.modules, {'hedit_user_probe': user}):
+                cmds.unloadPlugin('hedit')
+                cmds.loadPlugin('hedit')
+                for name in package_names:
+                    self.assertIs(sys.modules[name], originals[name])
+                # 以前の版(印を持たない)や、作り直す前のhedit.mllから読んだモジュールの代わり。
+                originals['hedit.bridge'].__spec__.loader_state = None
+                cmds.unloadPlugin('hedit')
+                cmds.loadPlugin('hedit')
+                self.assertNotIn('hedit.bridge', sys.modules)
+                self.assertIs(sys.modules['hedit'], originals['hedit'])
+                self.assertIs(sys.modules['hedit_user_probe'], user)  # hedit以外のモジュールには触れない。
+                self.assertEqual(names('import sample\nsample.cre'), ['create_node'])  # C++は新しいモジュールを使う。
+                fresh = sys.modules['hedit.bridge']
+                self.assertIsNot(fresh, originals['hedit.bridge'])
+                self.assertEqual(fresh.__spec__.loader_state, build)
+        finally:
+            originals['hedit.bridge'].__spec__.loader_state = build
+            originals['hedit'].bridge = originals['hedit.bridge']
+            sys.modules.update(originals)
 
     def test_import_alias_and_signature_without_execution(self):
         items = complete('import sample as s\ns.cre')['items']
@@ -280,6 +341,38 @@ class CompletionTests(unittest.TestCase):
                                  (8, '"undefined_top" is not defined', 20, 13)])
         for item in diagnostics:
             self.assertEqual(item['severity'], 'warning')
+
+    def test_analysis_does_not_leak_warnings(self):
+        """構文の警告は問題一覧にだけ出し、Script Editor(warnings)へは流さない。未定義の名前も同じ構文木で調べる。"""
+        with warnings.catch_warnings(record=True) as leaked:
+            warnings.simplefilter('always')
+            diagnostics = json.loads(analyze("path = '\\d'\nprint(missing_after_escape)\n"))['diagnostics']
+        self.assertEqual([str(item.message) for item in leaked], [])
+        messages = [item['message'] for item in diagnostics]
+        self.assertIn('"missing_after_escape" is not defined', messages)
+        # 不正なエスケープはPython 3.12以降がSyntaxWarning(3.11以前はDeprecationWarningで、報告しない)。
+        self.assertEqual("invalid escape sequence '\\d'" in messages, sys.version_info >= (3, 12))
+
+    def test_analysis_matches_scopes_on_the_same_line(self):
+        """同じ行・同じ名前のスコープ(ラムダ・ジェネレーター式)も、それぞれ自分のスコープで調べる。"""
+        source = ('f = (lambda: missing_a, lambda: missing_b)\n'
+                  'g = (sum(x for x in missing_c), sum(y + missing_d for y in range(2)))\n'
+                  'h = run(lambda: missing_e)\nk = lambda: missing_f\n')
+        found = [item['message'] for item in json.loads(analyze(source))['diagnostics']]
+        expected = ['missing_a', 'missing_b', 'missing_c', 'missing_d', 'run', 'missing_e', 'missing_f']
+        self.assertEqual(found, ['"%s" is not defined' % name for name in expected])
+
+    def test_analysis_long_flat_script_is_fast(self):
+        """トップレベルに内包表記の多い長いスクリプトも、短時間で終わる(以前は行数の2乗に比例し、約2万行で数十秒以上)。"""
+        block = ('nodes_{0} = [n for n in range(3)]\nlookup_{0} = {{k: k for k in nodes_{0}}}\n'
+                 'total_{0} = sum(v for v in lookup_{0})\nprint(total_{0})\n')
+        source = ''.join(block.format(index) for index in range(4900)) + 'print(missing_at_end)\n'
+        start = time.perf_counter()
+        diagnostics = json.loads(analyze(source))['diagnostics']
+        elapsed = time.perf_counter() - start
+        print('19,601-line flat script analysis: %.0f ms' % (elapsed * 1000))
+        self.assertEqual([item['message'] for item in diagnostics], ['"missing_at_end" is not defined'])
+        self.assertLess(elapsed, 5.0)
 
     def test_analysis_skips_names_from_main_and_star_import(self):
         """Mayaで前に実行して __main__ にある名前と、``from X import *`` があるときは報告しない(誤検知を避ける)。"""

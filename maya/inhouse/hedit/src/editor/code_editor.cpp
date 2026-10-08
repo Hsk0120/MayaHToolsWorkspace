@@ -131,26 +131,14 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
     // 色分けは文書の子として作る(文書と一緒に破棄される)。
     highlighter_ = new SyntaxHighlighter(document());
 
-    // 補完の一覧。QCompleterはこの欄の子なので、この欄と一緒に破棄される。
+    // 補完。QCompleterはこの欄の子なので、この欄と一緒に破棄される。
+    // 一覧の部品(popup)とその見た目は、初めて一覧を出すときにensureCompletionPopupで作る
+    // (タブを開くたびに、一覧の部品の作成とスタイルシートの解析をしない)。
     completer_ = new QCompleter(this);
     completer_->setModel(new QStandardItemModel(completer_));
     completer_->setWidget(this);
     completer_->setCaseSensitivity(Qt::CaseSensitive);
     completer_->setCompletionMode(QCompleter::PopupCompletion);
-    completer_->popup()->setFont(codeFont);
-    // %1〜%7は、後ろの.arg()で順番に置き換わる。
-    completer_->popup()->setStyleSheet(
-        QString("QAbstractItemView{background:%1;color:%2;border:%3px solid %4;"
-                "selection-background-color:%5;selection-color:%6;padding:%7px;}")
-            .arg(QString(theme::kPopupBackground))
-            .arg(QString(theme::kText))
-            .arg(scaled(1))
-            .arg(QString(theme::kPopupBorder))
-            .arg(QString(theme::kPopupSelection))
-            .arg(QString(theme::kPopupSelectedText))
-            .arg(scaled(3)));
-    completer_->popup()->setItemDelegate(new CompletionDelegate(completer_->popup()));
-    completer_->popup()->setIconSize(QSize(scaled(16), scaled(16)));
     // 一覧で候補が選ばれたら本文へ入れる。
     connect(completer_, QOverload<const QString&>::of(&QCompleter::activated), this,
             [this](const QString& value) { insertCompletion(value); });
@@ -161,6 +149,7 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
         onCursorMoved();
         updateDecorations();
     });
+    lastBlockCount_ = blockCount();
 
     // 名前の説明(ホバー): マウスの移動を受け取り、止まってから0.5秒後に出す。名前から離れたら閉じる。スクロールでも閉じる。
     viewport()->setMouseTracking(true);
@@ -238,11 +227,15 @@ void CodeEditor::hoverAt(const QPoint& position) {
     }
     const QStringList problems = onText ? problemsAt(cursor.position()) : QStringList();
     if (!problems.isEmpty()) {
-        // 名前でない位置(記号・文字列など)やMELのタブの、問題の説明。
+        // 名前でない位置(記号・文字列など)やMELのタブの、問題の説明。同じ位置の説明を出している間は出し直さない。
+        const QRect anchor(viewport()->mapToGlobal(rect.topLeft()), rect.size());
+        if (hover_ && hover_->isVisible() && hover_->anchor() == anchor) {
+            return;
+        }
         if (!hover_) {
             hover_ = new HoverPopup(this);
         }
-        hover_->showInfo(HoverInfo(), QRect(viewport()->mapToGlobal(rect.topLeft()), rect.size()), font(), problems);
+        hover_->showInfo(HoverInfo(), anchor, font(), problems);
         return;
     }
     if (hover_ && hover_->isVisible() && !hover_->anchor().contains(viewport()->mapToGlobal(position))) {
@@ -339,6 +332,9 @@ void CodeEditor::focusOutEvent(QFocusEvent* event) {
 }
 
 void CodeEditor::setLanguage(ScriptLanguage language) {
+    if (language == language_) {
+        return;  // 同じ言語なら、全体の塗り直し(行数に比例する)をしない。
+    }
     language_ = language;
     // テストやPySideから参照できるよう、保存名(python/mel)を動的プロパティにも入れる。
     setProperty("language", languageName(language_));
@@ -378,24 +374,67 @@ QString CodeEditor::completionPrefix() const {
     return trailingName.match(cursor.selectedText()).captured();
 }
 
+void CodeEditor::ensureCompletionPopup() {
+    if (completionPopupReady_) {
+        return;
+    }
+    completionPopupReady_ = true;
+    // popup()は初めて呼んだときにQCompleterが一覧の部品を作る(所有者はQCompleter)。
+    QAbstractItemView* popup = completer_->popup();
+    popup->setFont(font());
+    // %1〜%7は、後ろの.arg()で順番に置き換わる。
+    popup->setStyleSheet(
+        QString("QAbstractItemView{background:%1;color:%2;border:%3px solid %4;"
+                "selection-background-color:%5;selection-color:%6;padding:%7px;}")
+            .arg(QString(theme::kPopupBackground))
+            .arg(QString(theme::kText))
+            .arg(scaled(1))
+            .arg(QString(theme::kPopupBorder))
+            .arg(QString(theme::kPopupSelection))
+            .arg(QString(theme::kPopupSelectedText))
+            .arg(scaled(3)));
+    popup->setItemDelegate(new CompletionDelegate(popup));
+    popup->setIconSize(QSize(scaled(16), scaled(16)));
+    // 選んでいる候補が変わったら説明を出し直し、一覧が閉じたら説明も閉じる(eventFilter)。
+    popup->installEventFilter(this);
+    connect(popup->selectionModel(), &QItemSelectionModel::currentChanged, this, [this] {
+        if (onCompletionSelectionChanged && completer_->popup()->isVisible()) {
+            onCompletionSelectionChanged();
+        }
+    });
+}
+
+bool CodeEditor::isCompletionVisible() const {
+    return completionPopupReady_ && completer_->popup()->isVisible();
+}
+
 void CodeEditor::showCompletions(const QList<CompletionItem>& items) {
+    ensureCompletionPopup();
     auto model = static_cast<QStandardItemModel*>(completer_->model());
     model->clear();
+    QList<QStandardItem*> rows;
+    rows.reserve(items.size());
     for (const CompletionItem& item : items) {
-        // appendRowに渡した項目は、モデルが所有する。
         auto row = new QStandardItem(categoryIcon(item.category.isEmpty() ? item.kind : item.category), item.name);
         row->setToolTip(item.detail);
         row->setData(item.detail, kDetailRole);
-        model->appendRow(row);
+        rows.append(row);
     }
+    // まとめて追加する(1件ずつだと、開いている一覧が1件ごとに大きさを計算し直す)。追加した項目はモデルが所有する。
+    model->invisibleRootItem()->appendRows(rows);
     if (model->rowCount() == 0) {
         hideCompletions();
         return;
     }
-    completer_->setCompletionPrefix(completionPrefix());
+    const QString prefix = completionPrefix();
+    completionStart_ = textCursor().position() - prefix.size();
+    completer_->setCompletionPrefix(prefix);
     completer_->popup()->setCurrentIndex(completer_->completionModel()->index(0, 0));
-    // カーソルの位置に、幅480px(100%時)の一覧を出す(名前の右に説明を出すため、以前の380pxより広い)。
-    QRect rect = cursorRect();
+    // 補完中の名前の先頭に、幅480px(100%時)の一覧を出す(名前の右に説明を出すため、以前の380pxより広い)。
+    // 先頭に合わせるので、続けて入力しても一覧が横へ動かない(VS Codeと同じ)。
+    QTextCursor start(document());
+    start.setPosition(completionStart_);
+    QRect rect = cursorRect(start);
     rect.setWidth(scaled(480));
     completer_->complete(rect);
     if (onCompletionSelectionChanged) {
@@ -403,8 +442,41 @@ void CodeEditor::showCompletions(const QList<CompletionItem>& items) {
     }
 }
 
+bool CodeEditor::refilterCompletions(bool keepWhenEmpty) {
+    if (!isCompletionVisible()) {
+        return false;
+    }
+    const QTextCursor cursor = textCursor();
+    const QString prefix = completionPrefix();
+    if (cursor.hasSelection() || cursor.position() - prefix.size() != completionStart_) {
+        hideCompletions();  // 補完中の名前の外へ出た(``(``や空白を入力した・別の位置へ移った)。
+        return false;
+    }
+    completer_->setCompletionPrefix(prefix);
+    if (completer_->completionCount() == 0) {
+        if (keepWhenEmpty) {
+            return true;  // 呼出側が、描画の前に候補を入れ替える。
+        }
+        hideCompletions();
+        return false;
+    }
+    completer_->popup()->setCurrentIndex(completer_->completionModel()->index(0, 0));
+    // 開いたまま、件数に合わせて高さを直す(complete()は表示中の一覧を閉じずに位置と大きさだけを変える)。
+    QTextCursor start(document());
+    start.setPosition(completionStart_);
+    QRect rect = cursorRect(start);
+    rect.setWidth(scaled(480));
+    completer_->complete(rect);
+    if (onCompletionSelectionChanged) {
+        onCompletionSelectionChanged();
+    }
+    return true;
+}
+
 void CodeEditor::hideCompletions() {
-    completer_->popup()->hide();
+    if (completionPopupReady_) {
+        completer_->popup()->hide();
+    }
     hideCompletionDetail();
 }
 
@@ -427,12 +499,12 @@ void CodeEditor::checkSpelling(Spelling& spelling) {
     QTextBlock block = firstVisibleBlock();
     const int base = block.position();
     QString visibleText;
-    while (block.isValid() && visibleText.size() < 8000) {
-        const qreal top = blockBoundingGeometry(block).translated(contentOffset()).top();
-        if (top >= viewport()->height()) {
-            break;
-        }
+    qreal top = blockTop(block);
+    while (block.isValid() && visibleText.size() < 8000 && top < viewport()->height()) {
         visibleText += block.text() + '\n';
+        if (block.isVisible()) {
+            top += blockBoundingRect(block).height();
+        }
         block = block.next();
     }
 
@@ -455,12 +527,16 @@ void CodeEditor::checkSpelling(Spelling& spelling) {
 }
 
 void CodeEditor::clearSpelling() {
+    if (spellingMarks_.isEmpty()) {
+        return;  // 既に空(スペルチェックがオフのときは、入力のたびに全タブから呼ばれる)。
+    }
     spellingMarks_.clear();
     updateDecorations();
 }
 
 void CodeEditor::setSearchHighlights(const QList<TextMatch>& matches) {
     searchMarks_.clear();
+    markersDirty_ = true;
     markerTimer_.start();
     for (const TextMatch& match : matches) {
         QTextEdit::ExtraSelection mark;
@@ -478,25 +554,64 @@ void CodeEditor::clearSearchHighlights() {
         return;
     }
     searchMarks_.clear();
+    markersDirty_ = true;
     markerTimer_.start();
     updateDecorations();
 }
 
 void CodeEditor::updateDecorations() {
     // ExtraSelectionは、本文を変えずに色や波線を重ねて表示する仕組み。
+    static const QColor currentLineColor(theme::kCurrentLine);
     QTextEdit::ExtraSelection currentLine;
-    currentLine.format.setBackground(QColor(theme::kCurrentLine));
+    currentLine.format.setBackground(currentLineColor);
     currentLine.format.setProperty(QTextFormat::FullWidthSelection, true);
     currentLine.cursor = textCursor();
     currentLine.cursor.clearSelection();
-    // 後ろのものほど上に重なる: カーソル行 → 同じ名前 → 括弧 → 検索の一致 → 問題の波線 → スペルの波線。
+
+    // 表示している範囲(前後に40行の余裕)の位置。この範囲にかかる印だけを渡す。
+    // 範囲は、本文・スクロール位置・表示部分の大きさ・折りたたみが変わったときだけ求め直す(カーソルの移動では同じ)。
+    const int key[4] = {document()->revision(), verticalScrollBar()->value(), viewport()->height(), viewport()->width()};
+    if (!std::equal(key, key + 4, visibleRangeKey_)) {
+        std::copy(key, key + 4, visibleRangeKey_);
+        constexpr int kMargin = 40;
+        QTextBlock first = firstVisibleBlock();
+        for (int i = 0; i < kMargin && first.previous().isValid(); ++i) {
+            first = first.previous();
+        }
+        // 行の位置は高さを足して求める(blockTopの説明を参照)。畳んで隠した行は測らない。
+        QTextBlock last = firstVisibleBlock();
+        const int height = viewport()->height();
+        qreal top = blockTop(last);
+        for (QTextBlock block = last; block.isValid() && top <= height; block = block.next()) {
+            if (!block.isVisible()) {
+                continue;
+            }
+            last = block;
+            top += blockBoundingRect(block).height();
+        }
+        for (int i = 0; i < kMargin && last.next().isValid(); ++i) {
+            last = last.next();
+        }
+        visibleStart_ = first.isValid() ? first.position() : 0;
+        visibleEnd_ = last.isValid() ? last.position() + last.length() : document()->characterCount();
+    }
+    const int start = visibleStart_;
+    const int end = visibleEnd_;
     QList<QTextEdit::ExtraSelection> selections;
     selections.append(currentLine);
-    selections.append(wordMarks_);
-    selections.append(bracketMarks_);
-    selections.append(searchMarks_);
-    selections.append(diagnosticMarks_);
-    selections.append(spellingMarks_);
+    auto appendVisible = [&selections, start, end](const QList<QTextEdit::ExtraSelection>& marks) {
+        for (const QTextEdit::ExtraSelection& mark : marks) {
+            if (mark.cursor.selectionEnd() >= start && mark.cursor.selectionStart() <= end) {
+                selections.append(mark);
+            }
+        }
+    };
+    // 後ろのものほど上に重なる: カーソル行 → 同じ名前 → 括弧 → 検索の一致 → 問題の波線 → スペルの波線。
+    appendVisible(wordMarks_);
+    appendVisible(bracketMarks_);
+    appendVisible(searchMarks_);
+    appendVisible(diagnosticMarks_);
+    appendVisible(spellingMarks_);
     setExtraSelections(selections);
 }
 
@@ -539,7 +654,7 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
         }
     }
     // 引数のヒントはEscで閉じる(補完の一覧が開いていれば、先に一覧を閉じる)。
-    if (escape && isSignatureHelpVisible() && !completer_->popup()->isVisible()) {
+    if (escape && isSignatureHelpVisible() && !isCompletionVisible()) {
         hideSignatureHelp();
         event->accept();
         return;
@@ -567,7 +682,7 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
     //    以前はignore()して一覧に任せていたが、ignoreしたキーはQtの決まりで親へ順に回り、
     //    ドックの外のMayaのウィンドウまで届く。Mayaはそれを選択中のアウトライナなどへ渡し、
     //    フォーカスがコード欄から外れてしまっていた(確定後に改行などができなくなる)。
-    if (completer_->popup()->isVisible()) {
+    if (isCompletionVisible()) {
         switch (event->key()) {
         case Qt::Key_Enter:
         case Qt::Key_Return:

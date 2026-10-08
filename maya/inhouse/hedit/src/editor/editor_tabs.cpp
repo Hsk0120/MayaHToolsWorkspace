@@ -71,8 +71,12 @@ int EditorTabs::indexOfFile(const QString& absolutePath) const {
 }
 
 void EditorTabs::updateTitle(CodeEditor* editor) {
-    const QString marker = editor->document()->isModified() ? " ●" : "";
-    setTabText(indexOf(editor), editor->displayName() + marker);
+    const int index = indexOf(editor);
+    const QString title = editor->displayName() + (editor->document()->isModified() ? " ●" : "");
+    // 同じ見出しなら付け直さない(setTabTextはタブバーの大きさを計算し直して描き直すため)。
+    if (index >= 0 && tabText(index) != title) {
+        setTabText(index, title);
+    }
 }
 
 void EditorTabs::switchTab(int direction) {

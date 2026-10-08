@@ -67,7 +67,8 @@ QByteArray declarationsJson(const QString& source);
 AnalysisResult analyze(const QString& source);
 
 /** @brief importの行の補完に使う、sys.pathの走査を始める(別スレッド)。
- * @details 編集画面の作成時に呼び、最初のCtrl+Spaceまでに走査を終えておく。
+ * @details 編集画面を作ってから1秒後に呼び(editor_host.cppのscheduleModuleScan)、最初のCtrl+Spaceまでに走査を終えておく。
+ * それより前にimportの行で補完した場合は、補完の側で走査を始める。
  */
 void startModuleScan();
 

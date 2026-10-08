@@ -9,6 +9,7 @@
 #include "core/script_lexer.h"
 #include "editor/editor.h"
 #include "editor/editor_preferences.h"
+#include "editor/quick_pick.h"
 #include "editor/session_store.h"
 #include <QElapsedTimer>
 #include <QHash>
@@ -29,6 +30,7 @@ class CodeAssist;
 class CodeEditor;
 class EditorTabs;
 class Explorer;
+class FileLister;
 class FindBar;
 class OutlinePanel;
 class OutputPanel;
@@ -62,13 +64,36 @@ public:
     /** @brief Mayaの処理の途中でも、出力欄をすぐ描き直す(editor.hのrefreshEditorOutputから呼ぶ)。 */
     void refreshOutputNow();
 
+    /** @brief 貯まったMayaの出力を出力欄へ取り出す。続けて届いている間は25msごとにまとめる(editor.hのscheduleEditorOutputから呼ぶ)。 */
+    void scheduleOutput();
+
 protected:
     /** @brief 閉じるとき、タブの自動保存を試す。保存できなければ未保存のタブごとに確認する。
      * @param event accept()で閉じる、ignore()で閉じるのをやめる。
      */
     void closeEvent(QCloseEvent* event) override;
 
+    /** @brief 隠すとき(ドックを閉じたときなど)、待っている自動保存(カーソルの位置だけの変化も)をすぐ行う。
+     * @param event 非表示のイベント。
+     */
+    void hideEvent(QHideEvent* event) override;
+
 private:
+    /** @brief 本文の読み込みを遅らせたタブ(復元したが、まだ選んでいないタブ)の内容。
+     * @details 復元のたびに全タブの本文を文書へ入れて色分けすると、タブが多いと開くのが遅くなる。
+     * 選んでいないタブは本文を文字列のまま持ち、初めて選んだとき(ensureLoaded)に文書へ入れる。
+     * 読み込む前のタブの文書は空で、未保存の印(文書のisModified)と保存先・言語だけを設定してある。
+     */
+    struct PendingTab {
+        QString text;            ///< 本文(tabs/<id>.txtの内容)。
+        int position = 0;        ///< カーソルの位置(本文の範囲に収めた値)。
+        int anchor = 0;          ///< 選択の起点(本文の範囲に収めた値)。
+        bool modified = false;   ///< 未保存の変更があるか。
+        bool originalRead = false;  ///< 元のファイルを復元時に読んだか(読んだらoriginalを使う)。
+        bool originalReadable = false;  ///< 復元時に元のファイルを読めたか。
+        QString original;        ///< 復元時に読んだ元のファイルの内容(変更の印の比較先)。
+    };
+
     // ---- 組み立て(コンストラクターから1回だけ呼ぶ) ----
 
     /** @brief 出力欄・タブ欄・検索バー・構文チェック一覧・Explorerを配置する。 */
@@ -118,6 +143,30 @@ private:
      * @param editor 変更されたタブ。
      */
     void onTextChanged(CodeEditor* editor);
+    /** @brief 選択中のタブが変わったときの処理(本文の読み込み・言語の表示・補完・検索・アウトライン)。
+     * @details 復元の途中(restoring_)は呼ばない。復元の最後に1回だけ呼ぶ。
+     */
+    void onCurrentTabChanged();
+    /** @brief カーソルが動いたときの処理(ステータスバーの行・桁、アウトラインの選択)。
+     * @param editor カーソルが動いたタブ。
+     */
+    void onCursorMoved(CodeEditor* editor);
+    /** @brief ステータスバーにカーソルの行・桁と選択の文字数を出す。前回と同じ文字なら出し直さない。
+     * @param editor 対象のタブ。
+     */
+    void showCursorStatus(CodeEditor* editor);
+    /** @brief 読み込みを遅らせたタブなら、本文を文書へ入れる(初めて選んだときや、本文が必要なときに呼ぶ)。
+     * @param editor 対象のタブ。読み込み済みなら何もしない。
+     * @details 本文・保存した内容(変更の印の比較先)・未保存の印・カーソルを、復元したときの値にする。
+     * タブごとの処理(自動保存の印・補完の予約など)は呼ばない(本文は保存済みの内容から変わっていないため)。
+     */
+    void ensureLoaded(CodeEditor* editor);
+    /** @brief 本文を文書へ入れずに復元できるか(文書へ入れて取り出したときに、同じ文字列になるか)。
+     * @param text 本文。
+     * @return 改行が``\n``だけで、QTextDocumentが別の文字に置き換える文字(U+2028・U+2029・ノーブレークスペース等)を
+     * 含まなければtrue。falseなら、今までどおり復元時に文書へ入れる。
+     */
+    static bool canDeferText(const QString& text);
 
     // ---- ファイル ----
 
@@ -150,8 +199,25 @@ private:
     void moveCursorTo(CodeEditor* editor, int line, int column, bool focus = true);
     /** @brief 選択中のタブのクラス・関数・変数を一覧から選んで移動する(Ctrl+Shift+O)。 */
     void showSymbolPicker();
-    /** @brief 最近開いたファイルとExplorerのフォルダーのファイルを、名前で選んで開く(Ctrl+P)。 */
+    /** @brief 最近開いたファイルとExplorerのフォルダーのファイルを、名前で選んで開く(Ctrl+P)。
+     * @details ファイルの一覧は別スレッドで集める(ネットワークドライブでも画面を止めない)。集めた一覧は
+     * 覚えておき、同じフォルダー・最近開いたファイルなら次回はすぐ出す(古くなっていれば裏で集め直して差し替える)。
+     */
     void showFilePicker();
+    /** @brief ファイル名で開くの一覧の印。 @return 最近開いたファイル、空文字列、Explorerのルートフォルダーの並び。 */
+    QStringList fileListKey() const;
+    /** @brief ファイルの一覧を別スレッドで集めるよう頼む。同じ印を集めている最中なら何もしない。
+     * @param key 一覧の印(fileListKey)。
+     * @param recentFiles 最近開いたファイル。
+     * @param roots Explorerのルートフォルダー。
+     */
+    void requestFileList(const QStringList& key, const QStringList& recentFiles, const QStringList& roots);
+    /** @brief 別スレッドで集めたファイルの一覧を受け取る(画面のスレッドで呼ぶ)。
+     * @param key 集めたときの一覧の印。今の印と違えば、開いている小窓には出さずに集め直す。
+     * @param items ファイルの一覧。
+     * @param milliseconds 集めるのにかかった時間(計測用)。
+     */
+    void applyFileList(const QStringList& key, const QList<QuickPickItem>& items, qint64 milliseconds);
     /** @brief 保存した内容と今の本文の違いを表示する(File > Compare with saved)。 */
     void compareWithSaved();
     /** @brief アウトラインを、選択中のタブの構成で表示し直す。 */
@@ -163,10 +229,19 @@ private:
     void restoreSession();
     /** @brief 全タブの内容をtabs.jsonへ保存する。前回の保存から何も変わっていなければ書かない。
      * @return 保存できた(または変更が無かった)らtrue。
+     * @details 失敗したら、次の自動保存までの間隔を1.5秒・3秒・6秒…と最大60秒まで延ばす
+     * (書けない場所へ毎秒書き直したり、ステータスバーに同じ失敗を毎秒出したりしない)。
      */
     bool saveSession();
-    /** @brief 自動保存が必要な変化(本文・カーソル・タブの並びなど)があったことを記録する。 */
-    void markSessionDirty() { sessionDirty_ = true; }
+    /** @brief 本文・タブの並びなど、すぐ保存すべき変化があったことを記録する。
+     * @details 最後の変化から1.5秒後に1回だけ保存する(入力中は保存しない。落ちても失うのは約1.5秒分)。
+     */
+    void markSessionDirty();
+    /** @brief カーソル・選択の位置だけが変わったことを記録する。
+     * @details 位置だけの変化では、すぐには書かない。隠す・閉じる・終了するとき、本文の保存のついで、
+     * または30秒後にまとめて保存する(カーソルを動かすだけでtabs.jsonを書き続けない)。
+     */
+    void markCursorDirty();
 
     // ---- 実行と表示 ----
 
@@ -203,7 +278,12 @@ private:
     EditorPreferences preferences_;  ///< 設定(preferences.ini)。
     SessionStore session_;           ///< 未保存タブの復元ファイル(tabs.json)。
     std::unique_ptr<CodeAssist> assist_;  ///< 入力の補助。servicesとpreferencesより後に壊れるよう、それらの後に置く。
-    bool sessionDirty_ = true;       ///< 前回の自動保存の後に変化があったか。最初は保存が必要として始める。
+    bool sessionDirty_ = true;       ///< 前回の自動保存の後に、本文・タブの並びなどの変化があったか。最初は保存が必要として始める。
+    bool cursorDirty_ = false;       ///< 前回の自動保存の後に、カーソル・選択の位置だけが変わったか。
+    int saveRetryDelay_ = 0;         ///< 保存に失敗した後の、次の自動保存までの間隔(ミリ秒)。0なら失敗していない。
+    bool restoring_ = false;         ///< タブの復元・本文の読み込みの最中か。この間はタブごとの処理(自動保存の印など)を止める。
+    QHash<CodeEditor*, PendingTab> pendingTabs_;  ///< 本文の読み込みを遅らせたタブ。初めて選んだときに読み込んで取り除く。
+    int outlineLine_ = -1;           ///< アウトラインで最後に選んだ行(同じ行なら選び直さない)。
 
     // 部品。全てこのウィンドウの子孫なので、deleteしなくてよい。
     QSplitter* splitter_ = nullptr;          ///< 出力欄と入力欄の境界。
@@ -221,9 +301,18 @@ private:
     QLabel* completionStatus_ = nullptr;     ///< ステータスバーの補完の状態。
     QHash<QString, QAction*> optionActions_; ///< Preferencesのチェック項目(保存名 → メニュー項目)。
 
-    QTimer sessionTimer_;     ///< 1秒ごとに、入力が止まっていて変化があればタブを自動保存する。
-    QTimer outlineTimer_;     ///< 入力が止まって0.4秒後にアウトラインを作り直す。
-    QElapsedTimer lastEdit_;  ///< 最後に本文が変わってからの時間。
+    QTimer sessionTimer_;        ///< 本文などの最後の変化から1.5秒後(失敗した後は延ばした間隔の後)に1回だけ自動保存する。
+    QTimer cursorSessionTimer_;  ///< カーソルの位置だけの変化を、30秒後にまとめて保存する。
+    QTimer outlineTimer_;        ///< 入力が止まって0.4秒後にアウトラインを作り直す。
+    QTimer outlineSelectTimer_;  ///< カーソルが止まって0.1秒後に、アウトラインのカーソルの行の項目を選ぶ。
+
+    // ファイル名で開く(Ctrl+P)の一覧。集めるのは別スレッド(FileLister、main_window.cpp)。
+    std::unique_ptr<FileLister> fileLister_;  ///< 一覧を集めるスレッド。初めてCtrl+Pを押したときに作る。
+    QList<QuickPickItem> fileList_;  ///< 前回集めた一覧。
+    QStringList fileListKey_;        ///< 前回集めたときのフォルダーと最近開いたファイル(変われば集め直す)。
+    QElapsedTimer fileListAge_;      ///< 前回集めてからの時間(古くなったら裏で集め直す)。
+    QStringList fileListRequestedKey_;  ///< 集めている最中の一覧の印。集めていなければ空。
+    bool pickingFiles_ = false;      ///< 小窓(quickPick_)をファイル名で開くとして開いたか。記号へ移動で開いたらfalse。
 };
 
 }  // namespace hedit

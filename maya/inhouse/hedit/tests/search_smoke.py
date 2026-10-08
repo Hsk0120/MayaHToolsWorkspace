@@ -1,5 +1,95 @@
 """検索バー(入力中の絞り込み・検索条件・選択範囲内で検索・AB・不正な正規表現の吹き出し)、
 一括置換のUndo、文字サイズの変更をMaya GUI内で検証する。"""
+
+#: 正規表現を使わない検索と、正規表現の検索を突き合わせる本文。大文字小文字の特殊な対応(K と KELVIN SIGN、
+#: s と LONG S、トルコ語の I)・サロゲートの対(絵文字・数学用の英字)・結合文字・漢字を含む。
+PARITY_TEXT = ('Kelvin: K k K; long s: ſ s S; turkish: İ i I ı; sharp: ß ẞ ss; '
+               'sigma: Σ σ ς; emoji: \U0001F600x a\U0001F600; math: \U0001D400bc bc; '
+               'combining: éx _x x_ 9x x9 x; cjk: 漢字x x漢字; mark: àb b')
+
+#: 突き合わせる検索語。
+PARITY_NEEDLES = ('k', 'K', 's', 'S', 'i', 'I', 'x', 'ss', 'bc', 'b', 'a', '_x', 'x9', 'σ', '\U0001F600', 'e')
+
+
+def _total(count):
+    """str: 件数の表示(``2 of 5``)から全体の件数の部分(``of 5``)を取り出す。一致なしは ``No results``。"""
+    text = count.text()
+    return text[text.index('of'):] if 'of' in text else text
+
+
+def check_plain_matches_regex(window, code, field, case, word, regex, count, next_match, QtCore, QtGui):
+    """正規表現を使わない検索(速い方法)の結果が、同じ検索語を正規表現で探した結果と同じか確かめる。
+
+    大文字小文字の区別・単語単位の全ての組み合わせで、件数と最初の一致の位置を比べる。
+
+    Args:
+        window (QMainWindow): hedit の編集画面。
+        code (QPlainTextEdit): 検索するコード欄。
+        field (QLineEdit): 検索語の入力欄。
+        case, word, regex (QAbstractButton): 大文字小文字・単語単位・正規表現の切り替え。
+        count (QLabel): 件数の表示。
+        next_match (QAction): 次の一致へ(F3)。
+        QtCore, QtGui: Maya の PySide のモジュール。
+    """
+    code.setPlainText(PARITY_TEXT)
+    for match_case in (False, True):
+        for whole_word in (False, True):
+            case.setChecked(match_case)
+            word.setChecked(whole_word)
+            for needle in PARITY_NEEDLES:
+                found = []
+                for use_regex in (False, True):
+                    regex.setChecked(use_regex)
+                    field.setText(QtCore.QRegularExpression.escape(needle) if use_regex else needle)
+                    code.moveCursor(QtGui.QTextCursor.Start)
+                    next_match.trigger()
+                    cursor = code.textCursor()
+                    found.append((_total(count), cursor.selectionStart(), cursor.selectedText()))
+                assert found[0] == found[1], (needle, match_case, whole_word, found)
+    case.setChecked(False)
+    word.setChecked(False)
+    regex.setChecked(False)
+
+
+def check_large_document(window, code, field, count, next_match, QtCore, QtGui, QtTest):
+    """大きな本文(20万文字超)では、入力が止まってから検索し、Enter はその検索を済ませてから次へ移る。
+
+    Args:
+        window (QMainWindow): hedit の編集画面。
+        code (QPlainTextEdit): 検索するコード欄。
+        field (QLineEdit): 検索語の入力欄。
+        count (QLabel): 件数の表示。
+        next_match (QAction): 次の一致へ(F3)。
+        QtCore, QtGui, QtTest: Maya の PySide のモジュール。
+    """
+    line = 'value = compute(alpha, beta)  # comment\n'
+    text = line * 6000 + 'needle_unique = 1\n' + line * 10
+    code.setPlainText(text)
+    code.moveCursor(QtGui.QTextCursor.Start)
+    field.clear()
+    field.setFocus()
+    QtTest.QTest.keyClicks(field, 'needle_uniq')
+    # 入力の直後はまだ検索していない(打鍵のたびに全文を探さない)。待つと件数が出る。
+    # PySide2 の QTest には qWait が無いので、イベントループを回して待つ。
+    for _ in range(100):
+        if count.text() == '1 of 1':
+            break
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(10, loop.quit)
+        (loop.exec if hasattr(loop, 'exec') else loop.exec_)()
+    assert count.text() == '1 of 1', count.text()
+    assert code.textCursor().selectedText() == 'needle_uniq'
+    # 入力の直後に Enter を押しても、待っていた検索を済ませてから次の一致へ移る(待たない場合と同じ結果)。
+    field.clear()
+    code.moveCursor(QtGui.QTextCursor.Start)
+    QtTest.QTest.keyClicks(field, 'beta')
+    QtTest.QTest.keyClick(field, QtCore.Qt.Key_Return)
+    assert code.textCursor().selectionStart() == text.index('beta', text.index('beta') + 1), code.textCursor().selectionStart()
+    assert count.text() == '2 of 6010', count.text()
+    field.clear()
+    code.setPlainText('')  # 後の検証を大きな本文で遅くしない。
+
+
 def check(window, QtCore, QtGui, QtWidgets, QtTest):
     """``gui_smoke.py`` から呼ばれ、開いている編集画面で検証する。失敗は ``AssertionError``。
 
@@ -110,6 +200,8 @@ def check(window, QtCore, QtGui, QtWidgets, QtTest):
     next_match.trigger()
     assert not bubble.isVisible()
     regex.setChecked(False)
+    check_plain_matches_regex(window, code, field, case, word, regex, count, next_match, QtCore, QtGui)
+    check_large_document(window, code, field, count, next_match, QtCore, QtGui, QtTest)
     code.setFocus()
     QtTest.QTest.keyClick(code, QtCore.Qt.Key_0, QtCore.Qt.ControlModifier)
     QtTest.QTest.keyClick(code, QtCore.Qt.Key_Equal, QtCore.Qt.ControlModifier)

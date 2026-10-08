@@ -6,6 +6,7 @@
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QVector>
 #include <algorithm>
 #include <chrono>
 
@@ -38,9 +39,20 @@ QSet<QString> scanTopLevel(const QStringList& paths, const std::atomic_bool* can
         while (entries.hasNext()) {
             entries.next();
             const QString name = entries.fileName();
-            // os.scandirと同じく、.pyで終わるものは拡張子を除いた名前、フォルダーは識別子のものだけ。
+            // importできる名前だけを集める(どれもPythonの識別子でなければimportできない)。
+            // - name.py: 拡張子を除いた名前(my-tool.py のような識別子でない名前は除く)。
+            // - 拡張モジュール name.pyd・name.cp311-win_amd64.pyd: 最初の点より前の名前。
+            // - フォルダー: 識別子の名前のもの(パッケージ・名前空間パッケージ)。
             if (name.endsWith(QLatin1String(".py"))) {
-                result.insert(name.left(name.size() - 3));
+                const QString stem = name.left(name.size() - 3);
+                if (isIdentifier(stem)) {
+                    result.insert(stem);
+                }
+            } else if (name.endsWith(QLatin1String(".pyd")) && !entries.fileInfo().isDir()) {
+                const QString stem = name.left(name.indexOf(QLatin1Char('.')));
+                if (isIdentifier(stem)) {
+                    result.insert(stem);
+                }
             } else if (entries.fileInfo().isDir() && isIdentifier(name)) {
                 result.insert(name);
             }
@@ -72,7 +84,8 @@ bool topLevelImportPrefix(const QString& source, QString* prefix) {
 
 CompletionResult completionItems(const QSet<QString>& names, const QString& prefix, bool pending) {
     const bool wantsPrivateNames = prefix.startsWith(QLatin1Char('_'));
-    QStringList matched;
+    constexpr int kMaximumNames = 250;
+    QVector<QString> matched;
     for (const QString& name : names) {
         if (!name.startsWith(prefix)) {
             continue;
@@ -82,11 +95,14 @@ CompletionResult completionItems(const QSet<QString>& names, const QString& pref
         }
         matched.append(name);
     }
-    std::sort(matched.begin(), matched.end());
+    // 使うのは名前順の先頭250件だけなので、全体を並べ替えずに先頭だけを並べる(partial_sort)。
+    const int count = qMin(int(matched.size()), kMaximumNames);
+    std::partial_sort(matched.begin(), matched.begin() + count, matched.end());
 
     CompletionResult result;
-    for (const QString& name : matched.mid(0, 250)) {
-        result.items.append({name, QString(), QString()});
+    result.items.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        result.items.append({matched[i], QString(), QString()});
     }
     result.pending = pending;
     return result;

@@ -24,6 +24,13 @@ struct OutlineEntry {
     QString detail;     ///< 一覧に出す補足(関数の見出し``def build(self, radius=1.0)``など)。
 };
 
+}  // namespace hedit
+
+// QList・QVectorの中で、要素をmemcpyで移せる型として扱う(QStringは移動しても中身の位置を指さない)。
+Q_DECLARE_TYPEINFO(hedit::OutlineEntry, Q_MOVABLE_TYPE);
+
+namespace hedit {
+
 /** @brief 本文の構成を、上から順の一覧で返す。
  * @param text 本文。
  * @param language 言語。Pythonは``class``・``def``・``async def``とクラス直下・トップレベルの代入、
@@ -52,6 +59,13 @@ struct FoldRange {
     int end = 0;    ///< 畳む最後の行(0始まり)。
 };
 
+}  // namespace hedit
+
+// 整数2つの型。Qt5のQListでも、要素を1つずつ確保せずに配列へ直接入る(ポインター以下の大きさのため)。
+Q_DECLARE_TYPEINFO(hedit::FoldRange, Q_MOVABLE_TYPE);
+
+namespace hedit {
+
 /** @brief インデントから折りたたみの範囲を求める。
  * @param lines 本文の行。
  * @return 見出しの行の後に、より深い行が続く範囲の一覧(見出しの行の順)。空行は範囲に含めるが、
@@ -59,8 +73,18 @@ struct FoldRange {
  */
 QList<FoldRange> indentationFoldRanges(const QStringList& lines);
 
-/** @brief 行頭のインデントの幅(タブは次の4の倍数まで進める)。 @param line 行。 @return 幅。 */
+/** @brief 行頭のインデントの幅(タブは次の4の倍数まで進める)。
+ * @param line 行。
+ * @return 幅。行頭の空白とタブだけを数え、それ以外の文字で止まる。
+ * @note エディターの表示(タブ幅4)に合わせた「見た目の桁」。インデントの線・折りたたみ・見出しの固定表示・
+ * 構成の範囲に使う。Pythonの字句解析の規則(タブは次の8の倍数)はcore/python_declarations.cppの
+ * indentWidthが使う。Python 3はタブと空白の混ぜ方で字下げの意味が変わる本文を構文エラーにするため、
+ * 実行できる本文ではどちらの幅でもブロックの構造は同じになる。
+ */
 int lineIndentWidth(const QString& line);
+
+/** @brief 行頭のインデントの幅(行の一部をコピーせずに調べる版)。 @param line 行。 @return lineIndentWidth(const QString&)と同じ。 */
+int lineIndentWidth(QStringView line);
 
 /** @brief 関数の中の変数・引数・for・with・exceptの名前が定義された行を、カーソルより前から探す。
  * @param text 本文。

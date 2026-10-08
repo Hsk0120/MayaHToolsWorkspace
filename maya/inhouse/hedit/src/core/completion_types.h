@@ -18,6 +18,13 @@ struct CompletionItem {
     QString category;
 };
 
+}  // namespace hedit
+
+// QStringだけの型。QVector・QListの中で、要素をmemcpyで移せる型として扱う。
+Q_DECLARE_TYPEINFO(hedit::CompletionItem, Q_MOVABLE_TYPE);
+
+namespace hedit {
+
 /** @brief 補完の結果。 */
 struct CompletionResult {
     QList<CompletionItem> items;  ///< 候補(名前順、最大250件)。
@@ -64,6 +71,13 @@ struct Diagnostic {
     int column = 0;    ///< 1始まりの桁。0なら行全体に波線を引く。
     int length = 0;    ///< 波線を引く文字数。0なら行の終わりまで。
 };
+
+}  // namespace hedit
+
+// QStringと整数だけの型。QVector・QListの中で、要素をmemcpyで移せる型として扱う。
+Q_DECLARE_TYPEINFO(hedit::Diagnostic, Q_MOVABLE_TYPE);
+
+namespace hedit {
 
 /** @brief 構文チェックの結果。 */
 struct AnalysisResult {

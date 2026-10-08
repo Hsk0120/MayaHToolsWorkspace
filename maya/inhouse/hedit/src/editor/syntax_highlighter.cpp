@@ -8,6 +8,27 @@
 namespace hedit {
 namespace {
 
+/** @brief 字句の種類ごとの色(1回だけ作り、行ごと・字句ごとに色の文字列を読み直さない)。
+ * @note 共有するのは値の型の色(QColor)だけにし、書式(QTextCharFormat)はsetFormatの中でQtに作らせる
+ * (中身を共有するQtの型を、hedit.mllの中のstaticな値として全ての文書から参照させない)。
+ */
+struct Colors {
+    QColor string{theme::kSyntaxString};          ///< 文字列。
+    QColor comment{theme::kSyntaxComment};        ///< コメント。
+    QColor number{theme::kSyntaxNumber};          ///< 数値。
+    QColor identifier{theme::kSyntaxIdentifier};  ///< 名前・MELの変数。
+    QColor keyword{theme::kSyntaxKeyword};        ///< 予約語。
+    QColor constant{theme::kSyntaxConstant};      ///< True・None・self。
+    QColor className{theme::kSyntaxClassName};    ///< classの後のクラス名。
+    QColor function{theme::kSyntaxFunction};      ///< 関数の名前。
+};
+
+/** @brief 共有の色を返す。 @return 色の一式。 */
+const Colors& colors() {
+    static const Colors instance;
+    return instance;
+}
+
 /** @brief 名前の直後(空白を除く)が``(``か(関数呼出し・関数定義の名前か)。
  * @param text 行。
  * @param end 名前の直後の位置。
@@ -30,37 +51,38 @@ void SyntaxHighlighter::setMel(bool mel) {
 
 void SyntaxHighlighter::highlightBlock(const QString& text) {
     int endState = kLexerNormal;
-    const QList<Token> tokens = tokenizeLine(text, language_, previousBlockState(), &endState);
+    const auto tokens = tokenizeLine(text, language_, previousBlockState(), &endState);
     setCurrentBlockState(endState);
 
-    QString previousWord;  // 直前の名前(classの後のクラス名を見分けるため)。
+    const Colors& format = colors();
+    QStringView previousWord;  // 直前の名前(classの後のクラス名を見分けるため)。textの一部を指す。
     for (const Token& token : tokens) {
-        QColor color;
+        const QColor* color = nullptr;
         switch (token.type) {
         case TokenType::String:
-            color = QColor(theme::kSyntaxString);
+            color = &format.string;
             break;
         case TokenType::Comment:
-            color = QColor(theme::kSyntaxComment);
+            color = &format.comment;
             break;
         case TokenType::Number:
-            color = QColor(theme::kSyntaxNumber);
+            color = &format.number;
             break;
         case TokenType::Variable:
-            color = QColor(theme::kSyntaxIdentifier);
+            color = &format.identifier;
             break;
         case TokenType::Name: {
-            const QString word = text.mid(token.start, token.length);
+            const QStringView word = QStringView(text).mid(token.start, token.length);
             if (isKeyword(word, language_)) {
-                color = QColor(theme::kSyntaxKeyword);
+                color = &format.keyword;
             } else if (isConstant(word, language_)) {
-                color = QColor(theme::kSyntaxConstant);
-            } else if (previousWord == "class" && language_ == ScriptLanguage::Python) {
-                color = QColor(theme::kSyntaxClassName);
+                color = &format.constant;
+            } else if (previousWord == QLatin1String("class") && language_ == ScriptLanguage::Python) {
+                color = &format.className;
             } else if (followedByParenthesis(text, token.start + token.length)) {
-                color = QColor(theme::kSyntaxFunction);
+                color = &format.function;
             } else {
-                color = QColor(theme::kSyntaxIdentifier);
+                color = &format.identifier;
             }
             previousWord = word;
             break;
@@ -68,11 +90,11 @@ void SyntaxHighlighter::highlightBlock(const QString& text) {
         case TokenType::Operator:
             break;  // 記号は色を付けない(既定の文字色)。
         }
-        if (color.isValid()) {
-            setFormat(token.start, token.length, color);
+        if (color) {
+            setFormat(token.start, token.length, *color);
         }
         if (token.type != TokenType::Name) {
-            previousWord.clear();
+            previousWord = QStringView();
         }
     }
 }

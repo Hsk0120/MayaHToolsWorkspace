@@ -32,6 +32,7 @@
 #include <QTreeWidget>
 #include "editor/ui_scale.h"
 #include <QApplication>
+#include <algorithm>
 #include <functional>
 #include <QElapsedTimer>
 #include <QJsonArray>
@@ -68,10 +69,14 @@ bool moduleScanPasses() {
     const QDir root(directory.path());
     auto touch=[&](const QString& name) { QFile file(root.filePath(name)); return file.open(QIODevice::WriteOnly); };
     touch("sample.py"); touch("_private.py"); touch("note.txt");
+    // importできない名前(識別子でない)は出さない。拡張モジュール(.pyd)は、最初の点より前の名前で出す。
+    touch("my-tool.py"); touch("ext.cp311-win_amd64.pyd"); touch("plain.pyd"); touch("bad-name.pyd");
     root.mkdir("pkg"); root.mkdir("not-ident");
     const auto names=hedit::scanTopLevel({root.path(), root.filePath("missing")});
     if (!names.contains("sample") || !names.contains("pkg") || !names.contains("_private")
-        || names.contains("not-ident") || names.contains("note") || names.contains("note.txt")) {
+        || names.contains("not-ident") || names.contains("note") || names.contains("note.txt")
+        || names.contains("my-tool") || !names.contains("ext") || !names.contains("plain") || names.contains("bad-name")
+        || names.contains("ext.cp311-win_amd64") || names.size() != 5) {
         qWarning() << "scanTopLevel" << names; return false;
     }
     QString prefix;
@@ -92,6 +97,14 @@ bool moduleScanPasses() {
         || items(hedit::completionItems(candidates,"_",false))!=QStringList{"_private"}
         || !hedit::completionItems(QSet<QString>(),"",true).pending) {
         qWarning() << "completionItems" << items(hedit::completionItems(candidates,"",false)); return false;
+    }
+    // 250件を超える候補は、名前順の先頭250件だけ(先頭だけを並べ替えても、全体を並べ替えたときと同じ)。
+    QSet<QString> many;
+    for (int i = 0; i < 1000; ++i) many.insert(QString("m%1").arg((i * 7919) % 1000, 4, 10, QChar('0')));
+    QStringList sortedMany(many.begin(), many.end());
+    std::sort(sortedMany.begin(), sortedMany.end());
+    if (items(hedit::completionItems(many, "m", false)) != sortedMany.mid(0, 250)) {
+        qWarning() << "completionItems top 250"; return false;
     }
     // 走査は別スレッドで行い、呼出し元を待たせない。再走査でファイルの追加・削除に追従する。
     hedit::ModuleScanner scanner(0);
@@ -157,6 +170,22 @@ bool textSearchPasses() {
     options.rangeEnd = 9;
     result = hedit::findMatches("ab AB xab", options);
     if (result.matches.size() != 2 || !(result.matches[0] == hedit::TextMatch{3, 2})) { qWarning() << "range" << result.matches.size(); return false; }
+    // 範囲の末尾をまたぐ一致・範囲の後ろの一致は数えない。範囲の外の文字も、行頭・後読みの判定には使う。
+    options.rangeStart = 2;
+    options.rangeEnd = 8;
+    result = hedit::findMatches("ab AB xab ab", options);
+    if (result.matches.size() != 1 || !(result.matches[0] == hedit::TextMatch{3, 2})) { qWarning() << "range end" << result.matches.size(); return false; }
+    regex = hedit::SearchOptions();
+    regex.regex = true;
+    regex.text = "(?<=x)ab|^cd";
+    regex.rangeStart = 8;
+    regex.rangeEnd = 12;
+    result = hedit::findMatches("ab xab\nxab\ncd", regex);
+    if (result.matches.size() != 1 || !(result.matches[0] == hedit::TextMatch{8, 2})) { qWarning() << "range lookbehind" << result.matches.size(); return false; }
+    regex.rangeStart = 11;
+    regex.rangeEnd = 13;
+    result = hedit::findMatches("ab xab\nxab\ncd", regex);
+    if (result.matches.size() != 1 || !(result.matches[0] == hedit::TextMatch{11, 2})) { qWarning() << "range line start" << result.matches.size(); return false; }
     // 大文字小文字を保つ置換(AB): 一致した文字列の形に合わせる。
     options = hedit::SearchOptions();
     options.text = "cmds";
@@ -313,7 +342,7 @@ bool editCommandsPasses() {
  * @return すべて期待どおりならtrue。
  */
 bool lexerPasses() {
-    auto types = [](const QList<hedit::Token>& tokens) {
+    auto types = [](const QVector<hedit::Token>& tokens) {
         QList<int> result;
         for (const auto& token : tokens) result.append(int(token.type));
         return result;
@@ -344,6 +373,70 @@ bool lexerPasses() {
     tokens = hedit::tokenizeLine("end */ ls;", hedit::ScriptLanguage::Mel, state, &state);
     if (state != 0 || tokens[0].type != hedit::TokenType::Comment || tokens[1].type != hedit::TokenType::Name) {
         qWarning() << "mel close" << types(tokens); return false;
+    }
+    // 字句の位置と長さを「種類:開始:長さ」の並びにする。
+    auto spans = [](const QString& line, int start, int* end) {
+        QStringList result;
+        for (const auto& token : hedit::tokenizeLine(line, hedit::ScriptLanguage::Python, start, end))
+            result.append(QString("%1:%2:%3").arg(int(token.type)).arg(token.start).arg(token.length));
+        return result.join(' ');
+    };
+    const int S = int(hedit::TokenType::String);
+    const int N = int(hedit::TokenType::Name);
+    const int O = int(hedit::TokenType::Operator);
+    const int C = int(hedit::TokenType::Comment);
+    auto expect = [](const QStringList& parts) { return parts.join(' '); };
+    auto span = [](int type, int start, int length) { return QString("%1:%2:%3").arg(type).arg(start).arg(length); };
+    // 生文字列でも、\ の直後の引用符では閉じない(Pythonのtokenizeで確かめた位置と同じ)。\ は値に残る。
+    const QList<QPair<QString, QString>> raw{
+        {"x = r\"\\\"\"", expect({span(N, 0, 1), span(O, 2, 1), span(S, 4, 5)})},
+        {"s = r'\\'' + 'a'", expect({span(N, 0, 1), span(O, 2, 1), span(S, 4, 5), span(O, 10, 1), span(S, 12, 3)})},
+        {"p = r\"\\\\\" # c", expect({span(N, 0, 1), span(O, 2, 1), span(S, 4, 5), span(C, 10, 3)})},
+        {"q = rb'\\'x' + y", expect({span(N, 0, 1), span(O, 2, 1), span(S, 4, 7), span(O, 12, 1), span(N, 14, 1)})},
+        {"d = r\"\"\"a\\\"\"\"\" + z", expect({span(N, 0, 1), span(O, 2, 1), span(S, 4, 10), span(O, 15, 1), span(N, 17, 1)})},
+        {"u = R\"\\\"\" + Rb\"x\\\"y\"", expect({span(N, 0, 1), span(O, 2, 1), span(S, 4, 5), span(O, 10, 1), span(S, 12, 8)})},
+    };
+    for (const auto& probe : raw) {
+        int end = -1;
+        if (spans(probe.first, 0, &end) != probe.second || end != 0) {
+            qWarning() << "raw string" << probe.first << spans(probe.first, 0, &end); return false;
+        }
+    }
+    // 生文字列の三重引用符も、\' では閉じずに次の行へ続く。
+    int end = 0;
+    spans("t = r'''start\\'''", 0, &end);
+    if (end != hedit::kPythonRawTripleSingle || spans("end''' + w", end, &end) != expect({span(S, 0, 6), span(O, 7, 1), span(N, 9, 1)})
+        || end != 0) {
+        qWarning() << "raw triple" << end; return false;
+    }
+    if (hedit::stringLiteralValue("r\"\\\"\"") != "\\\"") { qWarning() << "raw value"; return false; }
+    // 2・3文字の記号は長いものを優先する(先頭の文字で分岐する実装を、以前の一覧と同じ結果か確かめる)。
+    const QList<QPair<QString, int>> operators{
+        {"**=", 3}, {"//=", 3}, {">>=", 3}, {"<<=", 3}, {"...", 3}, {"==", 2}, {"!=", 2}, {"<=", 2}, {">=", 2},
+        {"->", 2}, {":=", 2}, {"+=", 2}, {"-=", 2}, {"*=", 2}, {"/=", 2}, {"%=", 2}, {"&=", 2}, {"|=", 2},
+        {"^=", 2}, {"@=", 2}, {"**", 2}, {"//", 2}, {"<<", 2}, {">>", 2}, {"&&", 2}, {"||", 2}, {"++", 2},
+        {"--", 2}, {"..", 1}, {"<>", 1}, {"=>", 1}, {"~", 1}, {"-", 1}, {"*", 1}, {">", 1}, {"!", 1},
+    };
+    for (const auto& probe : operators) {
+        const auto found = hedit::tokenizeLine(probe.first + "x", hedit::ScriptLanguage::Python, 0, nullptr);
+        if (found.isEmpty() || found[0].type != hedit::TokenType::Operator || found[0].length != probe.second) {
+            qWarning() << "operator length" << probe.first << (found.isEmpty() ? -1 : found[0].length); return false;
+        }
+    }
+    // 予約語・定数の判定(行の一部をコピーしない版も同じ結果)。
+    const QString line = "if True: return selfish";
+    if (!hedit::isKeyword(QStringView(line).mid(0, 2), hedit::ScriptLanguage::Python)
+        || !hedit::isConstant(QStringView(line).mid(3, 4), hedit::ScriptLanguage::Python)
+        || !hedit::isConstant(QStringView(line).mid(16, 4), hedit::ScriptLanguage::Python)
+        || hedit::isConstant(QStringView(line).mid(16, 7), hedit::ScriptLanguage::Python)
+        || hedit::isKeyword(QStringView(), hedit::ScriptLanguage::Python) || hedit::isKeyword("If", hedit::ScriptLanguage::Python)
+        || !hedit::isConstant("on", hedit::ScriptLanguage::Mel) || hedit::isKeyword("def", hedit::ScriptLanguage::Mel)) {
+        qWarning() << "keywords"; return false;
+    }
+    // 文字列の接頭辞は大文字小文字を問わない。接頭辞にならない組合せ(bu)は名前として読む。
+    if (spans("Rb'x' + fR\"y\" + bu'z'", 0, &end) != expect({span(S, 0, 5), span(O, 6, 1), span(S, 8, 5), span(O, 14, 1),
+                                                            span(N, 16, 2), span(S, 18, 3)})) {
+        qWarning() << "prefixes" << spans("Rb'x' + fR\"y\" + bu'z'", 0, &end); return false;
     }
     return true;
 }
@@ -546,6 +639,62 @@ bool completionEnginePasses(const QByteArray& config) {
         || !hedit::inferredTypeExpression("x: list[A]\n", "x").isEmpty()) {
         qWarning() << "inferredTypeExpression"; return false;
     }
+    // 比較(x == y)は代入ではないので、推論を止めない。x += 1 は推論できない代入なので止める。空の本文は推論しない。
+    if (hedit::inferredTypeExpression("x = make()\nx == other\n", "x") != "make"
+        || hedit::inferredTypeExpression("x = make()\n  x  ==  other", "x") != "make"
+        || !hedit::inferredTypeExpression("x = make()\nx += 1\n", "x").isEmpty()
+        || !hedit::inferredTypeExpression("x = make()\nx = 2", "x").isEmpty()
+        || hedit::inferredTypeExpression("x = make()\nxx = 2\nself.x = 3\nfoo(x)\n", "x") != "make"
+        || hedit::inferredTypeExpression("def f(\n    a,\n    x: Node,\n):\n", "x") != "Node"
+        || hedit::inferredTypeExpression("x = A()\r\ny = 1\r\n", "x") != "A"
+        || !hedit::inferredTypeExpression(QString(), "x").isEmpty() || !hedit::inferredTypeExpression("x: A", "1x").isEmpty()) {
+        qWarning() << "inferredTypeExpression comparison" << hedit::inferredTypeExpression("x = make()\nx == other\n", "x");
+        return false;
+    }
+    if (names(classes + "o = A()\no == 1\no.") != QStringList{"run"}) {
+        qWarning() << "comparison keeps inference" << names(classes + "o = A()\no == 1\no."); return false;
+    }
+    // 名前だけの補完: 本文の宣言は、同じ名前の組み込みの名前より優先する(候補の種類が空になる)。
+    {
+        const auto shadowed = engine.complete("print = 1\nprin").items;
+        if (shadowed.isEmpty() || shadowed[0].name != "print" || !shadowed[0].kind.isEmpty()) {
+            qWarning() << "shadowed builtin" << (shadowed.isEmpty() ? QString() : shadowed[0].kind); return false;
+        }
+    }
+    // 宣言の控え: 補完(カーソルの行より前)の控えをホバーが使っても、結果は控えが無い場合と同じ。
+    {
+        hedit::CompletionEngine fresh(source);
+        fresh.setEnvironment(environment);
+        const QList<QPair<QString, QString>> flows{
+            {classes + "obj = B()\nobj.", classes + "obj = B()\nobj.walk"},
+            {"def f():\n    ", "def f():\n    'Doc.'"},  // 最後の行が文字列: 前の行の関数のdocstringになる。
+            {"x = (1,\n", "x = (1,\ny)"},
+            {"import docsample\n", "import docsample\ndocsample.make"},
+            {"value = 1 \\\n", "value = 1 \\\n+ make"},
+        };
+        for (const auto& flow : flows) {
+            engine.complete(flow.first);
+            engine.complete(flow.second);
+            for (const int end : {int(flow.second.size()), 1, 5}) {
+                const hedit::HoverInfo cached = engine.describe(flow.second, end);
+                const hedit::HoverInfo uncached = fresh.describe(flow.second, end);
+                fresh.clearCaches();
+                if (cached.signature != uncached.signature || cached.doc != uncached.doc) {
+                    qWarning() << "cached locals" << flow.second << end << cached.signature << uncached.signature;
+                    return false;
+                }
+            }
+        }
+        if (engine.describe("def f():\n    'Doc.'", 5).doc != "Doc.") { qWarning() << "docstring on the last line"; return false; }
+    }
+    // Windowsでは、以前(QFileInfoで調べていた)と同じく、モジュールのファイル名の大文字小文字を区別しない。
+#ifdef Q_OS_WIN
+    if (!names("import DocSample\nDocSample.").contains("make")) { qWarning() << "case-insensitive module"; return false; }
+#endif
+    // フォルダーの一覧は控えるが、Refresh(clearCaches)の後は新しいファイルも見つかる。
+    write("fresh_module.py", "def brand_new(): pass\n");
+    engine.clearCaches();
+    if (names("import fresh_module\nfresh_module.b") != QStringList{"brand_new"}) { qWarning() << "new module"; return false; }
     // ホバーも推論した型で説明を出す。
     const hedit::HoverInfo method = describe("import docsample\nt = docsample.Thing()\nt.run");
     if (method.signature != "def run(self)" || method.doc != "Run it.") {
@@ -577,6 +726,35 @@ bool completionEnginePasses(const QByteArray& config) {
         for (const auto& item : engine.complete("import docsample\ndocsample.").items) categories.append(item.name + ":" + item.category);
         if (categories != QStringList{"Thing:class", "make:function"}) {
             qWarning() << "categories" << categories; return false;
+        }
+    }
+    // 読み込み済みのモジュール: 公開名とファイルの宣言を重ねた結果は控えるが、どちらかが変われば作り直す。
+    {
+        write("loadedpkg/__init__.py", "def declared_one(a): pass\n");
+        hedit::LoadedModule loaded;
+        loaded.members.insert("live_one", hedit::Symbol());
+        loaded.file = root.filePath("loadedpkg/__init__.py");
+        hedit::ModuleSource live = source;
+        live.loadedModule = [&loaded](const QString& name, hedit::LoadedModule* module) {
+            if (name != "loadedpkg") return false;
+            *module = loaded;  // hedit.bridgeと同じく、変わっていなければ同じ表(暗黙の共有)を渡す。
+            return true;
+        };
+        hedit::CompletionEngine liveEngine(live);
+        auto liveNames = [&liveEngine] {
+            QStringList result;
+            for (const auto& item : liveEngine.complete("import loadedpkg\nloadedpkg.").items) result.append(item.name + ":" + item.detail);
+            return result;
+        };
+        const QStringList first{"declared_one:declared_one(a)", "live_one:"};
+        if (liveNames() != first || liveNames() != first) { qWarning() << "merged module" << liveNames(); return false; }
+        loaded.members.insert("live_two", hedit::Symbol());
+        if (liveNames() != QStringList{"declared_one:declared_one(a)", "live_one:", "live_two:"}) {
+            qWarning() << "merged module members changed" << liveNames(); return false;
+        }
+        write("loadedpkg/__init__.py", "def declared_two(b, c): pass\n# the size differs from the first version\n");
+        if (liveNames() != QStringList{"declared_two:declared_two(b, c)", "live_one:", "live_two:"}) {
+            qWarning() << "merged module file changed" << liveNames(); return false;
         }
     }
     // 末尾の名前の判定(Pythonの正規表現 [A-Za-z_][\w.]*$ と同じ)。
@@ -674,6 +852,11 @@ bool docstringsPasses() {
                    << plain.signature;
         return false;
     }
+    // 改行がCRLFの本文: 行をまたぐdocstringの行の区切りは\nにする(タブは8桁の空白として字下げを除く)。
+    const auto crlf = hedit::extractPythonDeclarations("def f():\r\n    \"\"\"A\r\n\tB\r\n    \"\"\"\r\n    return 1\r\nclass K: '''k\r\n  doc'''\r\n");
+    if (crlf.symbols.value("f").doc != "A\nB" || crlf.symbols.value("K").doc != "k\ndoc" || !crlf.complete) {
+        qWarning() << "crlf docstring" << crlf.symbols.value("f").doc << crlf.symbols.value("K").doc; return false;
+    }
     // ホバーのHTML: 見出しの色分けとGoogle形式の見出し。
     const QString html = hedit::HoverPopup::toHtml({make.signature, make.doc}, "Consolas");
     if (!html.contains("#569cd6\">def</span>") || !html.contains("#dcdcaa\">make</span>") || !html.contains("<b>Args:</b>")
@@ -699,6 +882,26 @@ bool scriptFilePasses() {
     latin.write("caf\xe9\n");
     latin.close();
     if (hedit::readScriptFile(latin.fileName(), &text, &error) || error != "Only UTF-8 files are supported") { qWarning() << "latin" << error; return false; }
+    // UTF-8の判定は、以前の方法(読んでUTF-8へ書き戻し、元と一致するか)と同じ結果になる。
+    const QList<QByteArray> samples{
+        "ascii", "\xc3\xa9", "\xe3\x81\x82", "\xf0\x9f\x98\x80", "\xef\xbf\xbe", "\xef\xbf\xbf", "\xef\xb7\x90",
+        "\xf4\x8f\xbf\xbf", QByteArray("a\0b", 3), "\xef\xbb\xbf" "after", "x\xef\xbb\xbfy", "\xef\xbb\xbf\xef\xbb\xbfz",
+        "\xc0\xaf", "\xe0\x80\xaf", "\xf0\x80\x80\xaf", "\xed\xa0\x80", "\xed\xbf\xbf", "\xf4\x90\x80\x80", "\xf8\x88\x80\x80\x80",
+        "\x80", "\xbf", "\xc3", "\xe3\x81", "\xf0\x9f\x98", "\xc3\x28", "\xe3\x28\x81", "\xfe", "\xff", "ok\xe9", "\xed\x9f\xbf",
+    };
+    for (int i = 0; i < samples.size(); ++i) {
+        QFile sample(QDir(directory.path()).filePath(QString("utf8_%1.py").arg(i)));
+        sample.open(QIODevice::WriteOnly);
+        sample.write(samples[i]);
+        sample.close();
+        QByteArray bytes = samples[i];
+        if (bytes.startsWith("\xef\xbb\xbf")) bytes.remove(0, 3);
+        const bool roundTrip = QString::fromUtf8(bytes).toUtf8() == bytes;
+        QString read;
+        if (hedit::readScriptFile(sample.fileName(), &read, &error) != roundTrip || (roundTrip && read != QString::fromUtf8(bytes))) {
+            qWarning() << "utf8 check" << samples[i].toHex() << roundTrip; return false;
+        }
+    }
     return true;
 }
 
@@ -773,6 +976,46 @@ bool codeOutlinePasses() {
     if (ranges.size() != 2 || ranges[0].start != 0 || ranges[0].end != 4 || ranges[1].start != 3 || ranges[1].end != 4) {
         qWarning() << "fold ranges" << ranges.size(); return false;
     }
+    // 以前の実装(閉じた順に集めて最後に並べ替える)と同じ結果になるか、タブ・空白だけの行・深い入れ子で確かめる。
+    auto referenceFolds = [](const QStringList& lines) {
+        QList<QPair<int, int>> result;
+        QVector<QPair<int, int>> open;  // (インデント, 行)
+        int lastNonBlank = -1;
+        auto closeTo = [&](int indent) {
+            while (!open.isEmpty() && open.last().first >= indent) {
+                if (lastNonBlank > open.last().second) result.append({open.last().second, lastNonBlank});
+                open.removeLast();
+            }
+        };
+        for (int i = 0; i < lines.size(); ++i) {
+            if (lines[i].trimmed().isEmpty()) continue;
+            closeTo(hedit::lineIndentWidth(lines[i]));
+            open.append({hedit::lineIndentWidth(lines[i]), i});
+            lastNonBlank = i;
+        }
+        closeTo(-1);
+        std::sort(result.begin(), result.end());
+        return result;
+    };
+    const QStringList pieces{"a", "    b", "\tc", "  \t d", "", "   ", "\t", "        e", "\f f", "  \r", "x:"};
+    for (int seed = 1; seed < 400; ++seed) {
+        QStringList lines;
+        unsigned value = unsigned(seed) * 2654435761u;
+        for (int i = 0; i < 2 + seed % 23; ++i) {
+            value = value * 1103515245u + 12345u;
+            lines.append(pieces[(value >> 16) % pieces.size()]);
+        }
+        QList<QPair<int, int>> actual;
+        for (const auto& range : hedit::indentationFoldRanges(lines)) actual.append({range.start, range.end});
+        if (actual != referenceFolds(lines)) { qWarning() << "fold ranges reference" << lines; return false; }
+    }
+    // 構成: コメントだけの行・行末の\r・同じ名前の変数(最初だけ)・クラスの中の関数の後の代入。
+    const auto crlf = hedit::buildOutline("X = 1  # c\r\n# only\r\nX = 2\r\nclass K:\r\n    def m(self):\r\n        pass\r\n    y = 1\r\n    y = 2\r\n", hedit::ScriptLanguage::Python);
+    QStringList crlfSummary;
+    for (const auto& entry : crlf) crlfSummary.append(QString("%1:%2:%3-%4:%5:%6").arg(entry.name, entry.kind).arg(entry.line).arg(entry.endLine).arg(entry.parent).arg(entry.detail));
+    if (crlfSummary != QStringList{"X:variable:0-0:-1:", "K:class:3-7:-1:class K", "m:method:4-5:1:def m(self)", "y:variable:6-6:1:"}) {
+        qWarning() << "outline crlf" << crlfSummary; return false;
+    }
     // 関数の中の変数・引数・for の変数の定義の位置。
     const QString body = "def f(alpha, beta=2):\n    gamma = alpha\n    for delta, eps in []:\n        print(gamma, beta, delta)\n";
     int column = -1;
@@ -780,7 +1023,9 @@ bool codeOutlinePasses() {
         || hedit::localDefinitionLine(body, "beta", 4, &column) != 0 || column != 13
         || hedit::localDefinitionLine(body, "alpha", 1, &column) != 0 || column != 6
         || hedit::localDefinitionLine(body, "delta", 4) != 2 || hedit::localDefinitionLine(body, "eps", 4) != 2
-        || hedit::localDefinitionLine(body, "pha", 4) != -1) {
+        || hedit::localDefinitionLine(body, "pha", 4) != -1 || hedit::localDefinitionLine(body, "gamma", 2, &column) != 1
+        || column != 4 || hedit::localDefinitionLine(body, "gamma", 1) != -1 || hedit::localDefinitionLine(body, "eps", 99) != 2
+        || hedit::localDefinitionLine(body, "gamma", 0) != -1) {
         qWarning() << "local definition"; return false;
     }
     return true;
@@ -802,6 +1047,91 @@ bool lineDiffPasses() {
         || kinds(base, {"a", "B", "c", "D"}) != QStringList{"modified@1+1/1", "modified@3+1/1"}
         || kinds({}, {"new"}) != QStringList{"added@0+1/0"}) {
         qWarning() << "diff" << kinds(base, {"a", "B", "c", "D"}); return false;
+    }
+    // 以前の実装(最長共通部分列の表を後ろから作り、先頭からたどる)と同じまとまりになるか。
+    // Myersのアルゴリズムでも、同じ行は対応させ、違う行では追加を先にする同じ規則で選ぶ。
+    auto reference = [](const QStringList& before, const QStringList& after) {
+        QStringList result;
+        int prefix = 0;
+        const int shorter = int(qMin(before.size(), after.size()));
+        while (prefix < shorter && before[prefix] == after[prefix]) ++prefix;
+        int suffix = 0;
+        while (suffix < shorter - prefix && before[before.size() - 1 - suffix] == after[after.size() - 1 - suffix]) ++suffix;
+        const int n = int(before.size()) - prefix - suffix;
+        const int m = int(after.size()) - prefix - suffix;
+        auto add = [&result](int bs, int bc, int as, int ac) { result.append(QString("%1+%2/%3+%4").arg(bs).arg(bc).arg(as).arg(ac)); };
+        if (n == 0 && m == 0) return result;
+        if (n == 0 || m == 0) { add(prefix, n, prefix, m); return result; }
+        QVector<int> table((n + 1) * (m + 1), 0);
+        auto at = [&table, m](int i, int j) -> int& { return table[i * (m + 1) + j]; };
+        for (int i = n - 1; i >= 0; --i)
+            for (int j = m - 1; j >= 0; --j)
+                at(i, j) = before[prefix + i] == after[prefix + j] ? at(i + 1, j + 1) + 1 : qMax(at(i + 1, j), at(i, j + 1));
+        int i = 0, j = 0, bs = -1, bc = 0, as = -1, ac = 0;
+        auto flush = [&] { if (bc > 0 || ac > 0) add(bs, bc, as, ac); bs = -1; bc = 0; as = -1; ac = 0; };
+        auto begin = [&] { if (bs < 0) { bs = prefix + i; as = prefix + j; } };
+        while (i < n || j < m) {
+            if (i < n && j < m && before[prefix + i] == after[prefix + j]) { flush(); ++i; ++j; }
+            else if (j < m && (i >= n || at(i, j + 1) >= at(i + 1, j))) { begin(); ++ac; ++j; }
+            else { begin(); ++bc; ++i; }
+        }
+        flush();
+        return result;
+    };
+    auto actual = [](const QStringList& before, const QStringList& after) {
+        QStringList result;
+        for (const auto& c : hedit::diffLines(before, after))
+            result.append(QString("%1+%2/%3+%4").arg(c.beforeStart).arg(c.beforeCount).arg(c.afterStart).arg(c.afterCount));
+        return result;
+    };
+    // 少ない種類の行で作ると、同じ行が多く、対応の選び方が何通りもある並びになる。
+    unsigned value = 12345u;
+    auto next = [&value](unsigned range) { value = value * 1103515245u + 12345u; return (value >> 16) % range; };
+    for (int round = 0; round < 3000; ++round) {
+        const unsigned alphabet = 2 + round % 5;
+        QStringList before;
+        QStringList after;
+        const int length = int(next(40));
+        for (int i = 0; i < length; ++i) before.append(QString(QChar('a' + int(next(alphabet)))));
+        after = before;
+        const int edits = 1 + int(next(round < 1500 ? 4u : 40u));
+        for (int e = 0; e < edits; ++e) {
+            const int kind = int(next(3));
+            const int position = after.isEmpty() ? 0 : int(next(unsigned(after.size())));
+            if (kind == 0 || after.isEmpty()) after.insert(position, QString(QChar('a' + int(next(alphabet)))));
+            else if (kind == 1) after.removeAt(position);
+            else after[position] = QString(QChar('a' + int(next(alphabet))));
+        }
+        if (actual(before, after) != reference(before, after)) {
+            qWarning() << "diff reference" << before << after << actual(before, after) << reference(before, after); return false;
+        }
+    }
+    // 違う行が多い1,200行どうし: Myersで求める場合(3種類の行)と、予算を超えて表で求める場合(20種類の行)。
+    for (const unsigned alphabet : {3u, 20u}) {
+        QStringList before;
+        QStringList after;
+        for (int i = 0; i < 1200; ++i) {
+            before.append(QString::number(next(alphabet)));
+            after.append(QString::number(next(alphabet)));
+        }
+        if (actual(before, after) != reference(before, after)) {
+            qWarning() << "diff reference large" << alphabet; return false;
+        }
+    }
+    // 大きな本文(行数の積が250万を超える)でも、違う行が少なければ、両端の変更を別々のまとまりとして求める。
+    QStringList large;
+    for (int i = 0; i < 6000; ++i) large.append(QString("line %1").arg(i));
+    QStringList largeEdited = large;
+    largeEdited[2] = "changed";
+    largeEdited.insert(5990, "added");
+    if (kinds(large, largeEdited) != QStringList{"modified@2+1/1", "added@5990+1/0"}) {
+        qWarning() << "large diff" << kinds(large, largeEdited); return false;
+    }
+    // 全く違う大きな本文は、以前と同じく残り全体を1つの変更にする(画面を止めない)。
+    QStringList other;
+    for (int i = 0; i < 6000; ++i) other.append(QString("other %1").arg(i));
+    if (kinds(large, other) != QStringList{"modified@0+6000/6000"}) {
+        qWarning() << "large different" << kinds(large, other); return false;
     }
     // 差分の画面の行: 削除は -、追加は +、前後の行は空白で始まる。
     const QStringList lines = hedit::DiffDialog::diffLinesText("a\nb\nc\n", "a\nB\nc\n", 1);
@@ -921,6 +1251,105 @@ bool outputPanelPasses() {
     return true;
 }
 
+/** @brief コード欄の入力・カーソル移動・描画の所要時間を測る(約4,000行のクラス中心の本文)。
+ * @return 極端に遅くなっていなければtrue(時間はログに出す。上限は回帰を見つけるための緩いもの)。
+ * @details 1回あたりのミリ秒を「editor 名前: 値 ms」の形で表示する。描画は表示部分をその場で描き直して測る。
+ */
+bool editorPerformancePasses() {
+    QString source;
+    for (int c = 0; c < 50; ++c) {
+        source += QString("class Widget%1(object):\n    \"\"\"Widget %1.\"\"\"\n\n").arg(c);
+        for (int m = 0; m < 10; ++m) {
+            source += QString("    def method_%1(self, value, scale=1.0):\n").arg(m);
+            source += "        result = []\n";
+            source += "        for index in range(value):\n";
+            source += "            item = (index * scale, {\"key\": [index, value]})\n";
+            source += "            result.append(item)\n";
+            source += "        self.cache = dict(result=result)\n";
+            source += "        return result\n";
+            source += "\n";
+        }
+    }
+    // 最後に、2,000行にわたる括弧(対応する括弧を遠くまで探す)。
+    source += "values = (\n";
+    for (int i = 0; i < 2000; ++i) source += QString("    %1,\n").arg(i);
+    source += ")\n";
+    hedit::CodeEditor editor;
+    editor.resize(900, 700);
+    editor.show();
+    editor.setPlainText(source);
+    QApplication::processEvents();
+    auto key = [&editor](int code, const QString& text) {
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier, text);
+        QApplication::sendEvent(&editor, &press);
+        QKeyEvent release(QEvent::KeyRelease, code, Qt::NoModifier, text);
+        QApplication::sendEvent(&editor, &release);
+    };
+    auto paint = [&editor] {
+        QApplication::processEvents();
+        editor.viewport()->repaint();
+    };
+    auto measure = [](const char* name, int count, const std::function<void()>& step) {
+        QElapsedTimer timer;
+        timer.start();
+        for (int i = 0; i < count; ++i) step();
+        const double milliseconds = timer.nsecsElapsed() / 1e6 / count;
+        qInfo().noquote() << QString("editor %1: %2 ms").arg(name).arg(milliseconds, 0, 'f', 3);
+        return milliseconds;
+    };
+    // 本文の中ほどのメソッドの中へ移り、見出しの固定表示が出る位置までスクロールする。
+    const int middle = editor.blockCount() / 3;
+    QTextCursor cursor(editor.document()->findBlockByNumber(middle));
+    while (!cursor.block().text().startsWith("            item")) cursor.movePosition(QTextCursor::NextBlock);
+    cursor.movePosition(QTextCursor::EndOfBlock);
+    editor.setTextCursor(cursor);
+    editor.centerCursor();
+    paint();
+    double worst = 0;
+    worst = qMax(worst, measure("keystroke", 100, [&] { key(Qt::Key_X, "x"); paint(); }));
+    worst = qMax(worst, measure("backspace", 100, [&] { key(Qt::Key_Backspace, QString()); paint(); }));
+    worst = qMax(worst, measure("caret blink paint", 200, [&] {
+        editor.viewport()->repaint(editor.cursorRect().adjusted(-2, 0, 2, 0));
+    }));
+    worst = qMax(worst, measure("cursor down/up", 100, [&] {
+        key(Qt::Key_Down, QString());
+        paint();
+        key(Qt::Key_Up, QString());
+        paint();
+    }));
+    QScrollBar* bar = editor.verticalScrollBar();
+    worst = qMax(worst, measure("scroll", 100, [&] {
+        bar->setValue(bar->value() + 3);
+        paint();
+    }));
+    // 同じ名前(result)の上で、同じ名前の強調を求め直す(入力が止まった0.15秒後と同じ処理)。
+    cursor = editor.textCursor();
+    cursor.movePosition(QTextCursor::StartOfBlock);
+    while (!cursor.block().text().contains("result.append")) cursor.movePosition(QTextCursor::NextBlock);
+    cursor.setPosition(cursor.block().position() + cursor.block().text().indexOf("result") + 2);
+    editor.setTextCursor(cursor);
+    worst = qMax(worst, measure("word highlight", 50, [&] { editor.updateWordHighlights(); }));
+    // 2,000行先の括弧の対応(開き括弧の前後を行き来する)。
+    QTextCursor bracket(editor.document()->findBlockByNumber(editor.blockCount() - 2003));
+    while (!bracket.block().text().startsWith("values = (")) bracket.movePosition(QTextCursor::NextBlock);
+    bracket.movePosition(QTextCursor::EndOfBlock);
+    editor.setTextCursor(bracket);
+    worst = qMax(worst, measure("far bracket match", 50, [&] {
+        key(Qt::Key_Left, QString());
+        key(Qt::Key_Right, QString());
+    }));
+    // 全て畳んだまま入力する。
+    editor.foldAll();
+    paint();
+    worst = qMax(worst, measure("keystroke while folded", 50, [&] { key(Qt::Key_Y, "y"); paint(); }));
+    editor.unfoldAll();
+    if (worst > 200) {
+        qWarning() << "editor operation too slow" << worst;
+        return false;
+    }
+    return true;
+}
+
 /** @brief 画面の拡大率(4K等のInterface Scaling)が、文字・アイコンの固定寸法に掛かるか。 @return 期待どおりならtrue。 */
 bool uiScalePasses() {
     hedit::setUiScale(2.0);
@@ -942,6 +1371,183 @@ bool uiScalePasses() {
 bool historyPasses() {
     return hedit::compactHistory("one\r\n\noptimization\n \non\n\n\nnext\n") == "one\noptimization on\nnext\n"
            && hedit::compactHistory("").isEmpty();
+}
+
+/** @brief 性能の計測に使う、クラスの多い約5,000行のPythonの本文を作る。
+ * @return 構文エラーの無い本文(末尾は最後のクラスの中身の途中で、改行で終わる)。
+ * @details クラスごとに、docstring・型ヒント付きの引数・``self.x = ...``・関数の中の変数・入れ子の関数・コメントを含む。
+ * 最後のクラスの後ろへ、計測用のメソッドを書き足して使う(ホバー・補完・引数のヒントの位置)。
+ */
+QString benchmarkSource() {
+    QString source =
+        "\"\"\"Benchmark module for hedit.\n\nIt contains many classes.\n\"\"\"\n"
+        "import os\nimport maya.cmds as cmds\nfrom typing import TYPE_CHECKING, List\n"
+        "if TYPE_CHECKING:\n    from package.nodes import Joint\n\nLIMIT = 10\nNAMES: List[str] = []\n\n";
+    int lines = source.count('\n');
+    for (int c = 0; lines < 4950; ++c) {
+        const QString n = QString::number(c);
+        const QString name = "Widget" + n;
+        const QString base = c == 0 ? QString("object") : "Widget" + QString::number(c - 1);
+        QString block = "class " + name + "(" + base + "):\n"
+            "    \"\"\"" + name + " docstring.\n\n    Longer description of the widget.\n\n"
+            "    Attributes:\n        name (str): The name.\n    \"\"\"\n\n"
+            "    COUNT = " + n + "\n"
+            "    def __init__(self, name: str, size: int = 1, parent: \"Widget0\" = None):\n"
+            "        \"\"\"Create the widget.\"\"\"\n"
+            "        self.name = name\n        self.size = size\n        self.parent = parent\n"
+            "        self.children = []  # child widgets\n        self.cache_" + n + " = {}\n\n";
+        for (int m = 0; m < 6; ++m) {
+            block += "    def method_" + QString::number(m) + "(self, radius: float = 1.0, *args, **kwargs) -> list:\n"
+                "        \"\"\"Method docstring.\n\n        Args:\n            radius (float): The radius.\n        \"\"\"\n"
+                "        result = []\n        count = 0\n"
+                "        for index in range(self.size):\n            value = index * radius + self.COUNT\n"
+                "            if value > LIMIT and value != count:\n                result.append(value)\n"
+                "            count += 1\n"
+                "        def helper(x, y=2):\n            return x + y\n"
+                "        total = helper(count, len(result))\n"
+                "        label = \"%s_%d\" % (self.name, total)  # format the label\n"
+                "        return result\n\n";
+        }
+        block += "    @property\n    def label(self):\n        return '%s_%d' % (self.name, self.size)\n\n";
+        source += block;
+        lines += block.count('\n');
+    }
+    return source;
+}
+
+/** @brief core/の重い処理の時間を計る(性能の退行を見つけるため)。
+ * @param config mayapyが書き出した、組み込みの名前と予約語のJSON(tests/maya_smoke.py)。
+ * @return どの処理も上限の時間に収まり、結果が期待どおりならtrue。
+ * @details 約5,000行の本文で、補完・ホバー・引数のヒント・構成・字句解析・宣言の抽出・差分などを繰り返し実行し、
+ * 1回あたりの時間をqInfoで出す。上限はかなり緩くしてあり、極端に遅くなったときだけ失敗にする(計測の揺れで失敗しないため)。
+ * 「cold」は、毎回少し違う本文(先頭の行を変えたもの)で問い合わせる。入力のたびに本文が変わる場合にあたる。
+ */
+bool corePerformancePasses(const QByteArray& config) {
+    // sys.pathの代わりのフォルダー(Mayaのsys.pathと同じくらいの数)と、読み込み済みのmaya.cmdsの代わり。
+    QTemporaryDir directory;
+    if (!directory.isValid()) return false;
+    const QDir root(directory.path());
+    QStringList paths;
+    for (int i = 0; i < 24; ++i) {
+        const QString folder = root.filePath(QString("site%1").arg(i));
+        QDir().mkpath(folder);
+        for (int f = 0; f < 20; ++f) {
+            QFile file(QDir(folder).filePath(QString("module_%1_%2.py").arg(i).arg(f)));
+            if (file.open(QIODevice::WriteOnly)) file.write("def run():\n    pass\n");
+        }
+        paths.append(folder);
+    }
+    QDir().mkpath(root.filePath("site3/maya/cmds"));
+    {
+        QFile file(root.filePath("site3/maya/cmds/__init__.py"));
+        if (file.open(QIODevice::WriteOnly)) file.write("\"\"\"Maya commands.\"\"\"\ndef ls(*args, **kwargs):\n    \"\"\"List.\"\"\"\n");
+    }
+    // Pythonから受け取る公開名の控え。hedit.bridgeと同じく、変わっていなければ同じ表(暗黙の共有)を返す。
+    hedit::LoadedModule commands;
+    for (int i = 0; i < 4000; ++i) commands.members.insert(QString("command%1").arg(i, 4, 10, QChar('0')), hedit::Symbol());
+    commands.members.insert("ls", hedit::Symbol());
+    commands.file = root.filePath("site3/maya/cmds/__init__.py");
+    hedit::ModuleSource moduleSource;
+    moduleSource.searchPaths = [paths] { return paths; };
+    moduleSource.loadedModule = [&commands](const QString& name, hedit::LoadedModule* module) {
+        if (name != "maya.cmds") return false;
+        *module = commands;
+        return true;
+    };
+    moduleSource.describe = [](const QString&, const QStringList&, QString*, QString*) { return false; };
+    hedit::CompletionEngine engine(moduleSource);
+    hedit::CompletionEnvironment environment;
+    const auto data = QJsonDocument::fromJson(config).object();
+    for (const auto& value : data.value("builtins").toArray()) environment.builtins.append(value.toString());
+    for (const auto& value : data.value("keywords").toArray()) environment.keywords.append(value.toString());
+    engine.setEnvironment(environment);
+
+    const QString source = benchmarkSource();
+    const QStringList lines = source.split('\n');
+    // 最後のクラスに書き足すメソッド。ホバー・補完・引数のヒントは、この中の位置で行う。
+    const QString tail = source
+        + "    def tail(self, item: \"Widget2\", amount: int = 3):\n"
+          "        local_value = item.size + amount\n"
+          "        print(local_value)\n";
+    const QString selfText = tail + "        self.";
+    const QString nameText = tail + "        lab";
+    const QString commandText = tail + "        cmds.l";
+    const QString hoverText = tail + "        item.size\n        return local_value\n";
+    const QString localNeedle = "print(local_value";
+    const int localEnd = hoverText.indexOf(localNeedle) + int(localNeedle.size());
+    const int itemEnd = hoverText.lastIndexOf("item.size");
+    const QString callText = tail + "        result = Widget4(local_value, ";
+    QStringList edited = lines;
+    edited[3] = "import sys";
+    edited.insert(20, "EXTRA = 1");
+    edited.removeAt(40);
+    edited[edited.size() - 10] = "        return None";
+    edited.insert(edited.size() - 30, "    # added near the end");
+
+    bool ok = true;
+    qint64 sink = 0;  // 結果を使い、最適化で処理が消えないようにする。
+    int revision = 0;
+    // 1つの処理を、300ms経つか200回になるまで繰り返し、1回あたりの時間を出す。
+    auto measure = [&ok](const char* name, double limit, const std::function<void()>& run) {
+        QElapsedTimer timer;
+        timer.start();
+        int count = 0;
+        do {
+            run();
+            ++count;
+        } while (count < 200 && timer.elapsed() < 300);
+        const double perRun = double(timer.nsecsElapsed()) / 1e6 / count;
+        qInfo().noquote() << QString("benchmark %1: %2 ms/op (%3 runs)").arg(QString::fromLatin1(name), -26).arg(perRun, 0, 'f', 3).arg(count);
+        if (perRun > limit) {
+            qWarning() << "too slow" << name << perRun << "ms, limit" << limit;
+            ok = false;
+        }
+    };
+    auto variant = [&revision](const QString& text) { return "# edit " + QString::number(++revision) + "\n" + text; };
+    measure("complete self.", 30, [&] { sink += engine.complete(selfText).items.size(); });
+    measure("complete self. cold", 60, [&] { sink += engine.complete(variant(selfText)).items.size(); });
+    measure("complete name", 20, [&] { sink += engine.complete(nameText).items.size(); });
+    measure("complete name cold", 60, [&] { sink += engine.complete(variant(nameText)).items.size(); });
+    measure("complete cmds.", 20, [&] { sink += engine.complete(commandText).items.size(); });
+    measure("describe local", 20, [&] { sink += engine.describe(hoverText, localEnd).signature.size(); });
+    measure("describe local cold", 60, [&] {
+        const QString text = variant(hoverText);
+        sink += engine.describe(text, localEnd + int(text.size() - hoverText.size())).signature.size();
+    });
+    measure("describe parameter", 20, [&] { sink += engine.describe(hoverText, itemEnd + 4).signature.size(); });
+    measure("definition local", 30, [&] { sink += engine.definition(hoverText, localEnd).line; });
+    measure("signature context", 20, [&] { sink += hedit::findCallContext(callText).argumentIndex; });
+    measure("buildOutline", 60, [&] { sink += hedit::buildOutline(source, hedit::ScriptLanguage::Python).size(); });
+    measure("tokenizeLine (all)", 60, [&] {
+        int state = 0;
+        for (const QString& line : lines) sink += hedit::tokenizeLine(line, hedit::ScriptLanguage::Python, state, &state).size();
+    });
+    measure("extractDeclarations", 80, [&] { sink += hedit::extractPythonDeclarations(source).symbols.size(); });
+    measure("indentationFoldRanges", 30, [&] { sink += hedit::indentationFoldRanges(lines).size(); });
+    measure("diffLines both ends", 30, [&] { sink += hedit::diffLines(lines, edited).size(); });
+    // 1,500行: 以前のLCSの表(行数の積が250万以下)を使う大きさで、両端を変えた場合。
+    const QStringList medium = lines.mid(0, 1500);
+    QStringList mediumEdited = medium;
+    mediumEdited[2] = "import sys";
+    mediumEdited.insert(30, "EXTRA = 1");
+    mediumEdited[mediumEdited.size() - 8] = "        return None";
+    mediumEdited.removeAt(mediumEdited.size() - 20);
+    measure("diffLines 1500 both ends", 10, [&] { sink += hedit::diffLines(medium, mediumEdited).size(); });
+    // 結果の確かめ(計測した処理が意味のある結果を返しているか)。
+    const QStringList commandNames = [&] {
+        QStringList result;
+        for (const auto& item : engine.complete(commandText).items) result.append(item.name);
+        return result;
+    }();
+    const hedit::HoverInfo parameter = engine.describe(hoverText, itemEnd + 4);
+    const hedit::CallContext call = hedit::findCallContext(callText);
+    if (!commandNames.contains("ls") || parameter.signature != "class Widget2(Widget1)" || call.argumentIndex != 1
+        || hedit::extractPythonDeclarations(source).symbols.size() < 30) {
+        qWarning() << "benchmark results" << commandNames.mid(0, 5) << parameter.signature << call.argumentIndex;
+        ok = false;
+    }
+    qInfo() << "benchmark source lines" << lines.size() << "checksum" << sink;
+    return ok;
 }
 
 int main(int argc, char** argv) {
@@ -975,6 +1581,8 @@ int main(int argc, char** argv) {
         {"signatureHelp", signatureHelpPasses},
         {"navigation", navigationPasses},
         {"outputPanel", outputPanelPasses},
+        {"editorPerformance", editorPerformancePasses},
+        {"corePerformance", [&config] { return corePerformancePasses(config); }},
     });
     if (failed > 0) {
         return 10;

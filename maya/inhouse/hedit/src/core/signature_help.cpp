@@ -47,29 +47,33 @@ CallContext findCallContext(const QString& before) {
     if (start <= 0 && base > 0) {
         start = base;
     }
+    // 行と字句はQStringViewで指し、文字列を作らない(作るのは、引数の名前を覚えるときだけ)。
+    const QStringView text(before);
     QVector<OpenBracket> stack;
+    QVector<Token> tokens;  // 行ごとに使い回す。
     int state = kLexerNormal;
     int lineStart = start;
-    while (lineStart <= before.size()) {
-        int lineEnd = before.indexOf('\n', lineStart);
+    while (lineStart <= text.size()) {
+        int lineEnd = int(text.indexOf(QLatin1Char('\n'), lineStart));
         if (lineEnd < 0) {
-            lineEnd = before.size();
+            lineEnd = int(text.size());
         }
-        const QString line = before.mid(lineStart, lineEnd - lineStart);
+        const QStringView line = text.mid(lineStart, lineEnd - lineStart);
         int endState = kLexerNormal;
-        const QList<Token> tokens = tokenizeLine(line, ScriptLanguage::Python, state, &endState);
+        tokenizeLineInto(line, ScriptLanguage::Python, state, &endState, &tokens);
         for (int t = 0; t < tokens.size(); ++t) {
             const Token& token = tokens[t];
-            const QString text = line.mid(token.start, token.length);
             const int position = lineStart + token.start;
             if (token.type == TokenType::Comment) {
                 continue;
             }
-            if (token.type == TokenType::Operator && (text == "(" || text == "[" || text == "{")) {
-                stack.append({text[0], position});
+            // 意味のある記号(括弧・``,``・``=``)はどれも1文字。それ以外の字句は空の文字にする。
+            const QChar symbol = token.type == TokenType::Operator && token.length == 1 ? line[token.start] : QChar();
+            if (symbol == '(' || symbol == '[' || symbol == '{') {
+                stack.append({symbol, position});
                 continue;
             }
-            if (token.type == TokenType::Operator && (text == ")" || text == "]" || text == "}")) {
+            if (symbol == ')' || symbol == ']' || symbol == '}') {
                 if (!stack.isEmpty()) {
                     stack.removeLast();
                 }
@@ -79,31 +83,31 @@ CallContext findCallContext(const QString& before) {
                 continue;
             }
             OpenBracket& top = stack.last();
-            if (token.type == TokenType::Operator && text == ",") {
+            if (symbol == ',') {
                 ++top.arguments;
                 top.keyword.clear();
                 top.lastName.clear();
                 top.afterComma = true;
                 continue;
             }
-            if (token.type == TokenType::Operator && text == "=" && !top.lastName.isEmpty()) {
+            if (symbol == '=' && !top.lastName.isEmpty()) {
                 top.keyword = top.lastName;
             }
             if (top.afterComma && token.type == TokenType::Name) {
-                top.lastName = text;
+                top.lastName = line.mid(token.start, token.length).toString();
             } else {
                 top.lastName.clear();
             }
             top.afterComma = false;
         }
         state = endState;
-        if (lineEnd >= before.size()) {
+        if (lineEnd >= text.size()) {
             break;
         }
         lineStart = lineEnd + 1;
     }
     // いちばん内側の ( を探す([ { の中なら、その外側の呼出し)。
-    for (int i = stack.size() - 1; i >= 0; --i) {
+    for (int i = int(stack.size()) - 1; i >= 0; --i) {
         if (stack[i].bracket != '(') {
             continue;
         }
@@ -115,7 +119,7 @@ CallContext findCallContext(const QString& before) {
         while (nameStart > 0 && isNamePart(before[nameStart - 1])) {
             --nameStart;
         }
-        const QString name = before.mid(nameStart, end - nameStart);
+        const QStringView name = text.mid(nameStart, end - nameStart);
         if (name.isEmpty() || !isNameStart(name[0]) || isKeyword(name, ScriptLanguage::Python)) {
             return context;  // if ( や (1 + 2) は呼出しではない。
         }

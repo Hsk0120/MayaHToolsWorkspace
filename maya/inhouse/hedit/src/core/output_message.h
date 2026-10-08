@@ -25,3 +25,6 @@ struct OutputMessage {
 };
 
 }  // namespace hedit
+
+// QStringと列挙だけの型。QVector・QListの中で、要素をmemcpyで移せる型として扱う。
+Q_DECLARE_TYPEINFO(hedit::OutputMessage, Q_MOVABLE_TYPE);

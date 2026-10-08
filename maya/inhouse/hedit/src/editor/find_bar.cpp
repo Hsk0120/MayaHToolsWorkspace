@@ -10,16 +10,24 @@
 #include "editor/find_icons.h"
 #include "editor/theme.h"
 #include "editor/ui_scale.h"
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QFontMetrics>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
+#include <QGraphicsEffect>
+#include <QGraphicsPathItem>
+#include <QGraphicsScene>
 #include <QGridLayout>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
+#include <QPainterPath>
 #include <QShortcut>
+#include <QStringMatcher>
 #include <QStyle>
 #include <QTabBar>
 #include <QTabWidget>
@@ -33,6 +41,20 @@ constexpr int kMaximumHighlights = 2000;
 
 /// 本文の変化から、件数と強調を更新するまでの待ち時間(ミリ秒)。
 constexpr int kRefreshDelay = 150;
+
+/// これより多い文字数の本文では、入力・条件の切り替えから少し待ってから検索する。
+constexpr int kLargeDocument = 200000;
+
+/// 大きな本文で、入力・条件の切り替えが止まってから検索するまでの時間(ミリ秒)。
+constexpr int kLargeDocumentDelay = 75;
+
+/// 一致の件数の上限(core/text_search.cppのfindMatchesと同じ)。これを超える検索は止める。
+constexpr int kMaximumMatches = 100000;
+
+// ---- 影(VS Codeの検索ウィジェットと同じく、コードの上に重なる範囲を分かりやすくする) ----
+constexpr int kShadowBlur = 12;    ///< 影のぼかしの半径(拡大率100%のときのピクセル数)。
+constexpr int kShadowOffset = 1;   ///< 影の下へのずれ。
+constexpr int kShadowAlpha = 150;  ///< 影の濃さ(0〜255)。
 
 // ---- VS Codeの検索ウィジェットの寸法(拡大率100%のときのピクセル数) ----
 constexpr int kBarWidth = 419;          ///< バーの幅。
@@ -101,19 +123,136 @@ QString errorBubbleStyleSheet() {
         .arg(scaled(6));
 }
 
+/** @brief バーの形(角の丸い四角)の影を、大きさが変わったときだけ描いて覚えておくグラフィック効果。
+ * @details QGraphicsDropShadowEffectは、バーの中の部品が描き直されるたびに(入力欄のカーソルの点滅でも)
+ * バー全体を画像に描いてぼかし直すので重い。バーは不透明で、影の形はバーの大きさだけで決まるため、
+ * 大きさが変わったときだけ影を画像にし、普段はその画像を貼ってから、バーをそのまま描く(drawSource)。
+ * 影の画像は、同じ形の四角に以前と同じQGraphicsDropShadowEffectを付けて1回だけ描いて作る(見た目は以前と同じ)。
+ * Q_OBJECTは不要(仮想関数を上書きするだけで、シグナル・スロットは使わない)。所有者はバー。
+ */
+class CachedShadowEffect : public QGraphicsEffect {
+public:
+    /** @brief 影を作る。 @param parent 所有者(バー)。 */
+    explicit CachedShadowEffect(QObject* parent) : QGraphicsEffect(parent) {}
+
+protected:
+    /** @brief 影を含めた描画範囲(QGraphicsDropShadowEffectと同じ求め方)。
+     * @param rect バーの範囲。
+     * @return 影まで含めた範囲。
+     */
+    QRectF boundingRectFor(const QRectF& rect) const override {
+        const qreal blur = scaled(kShadowBlur);
+        return rect.united(rect.translated(0, scaled(kShadowOffset)).adjusted(-blur, -blur, blur, blur));
+    }
+
+    /** @brief 覚えておいた影の画像を貼り、その上にバーを描く。 @param painter 描画先。 */
+    void draw(QPainter* painter) override {
+        const QRectF source = sourceBoundingRect(Qt::LogicalCoordinates);
+        const QSize size = source.size().toSize();
+        if (size != shadowSize_) {
+            rebuild(size);
+        }
+        const int blur = scaled(kShadowBlur);
+        painter->drawPixmap(source.topLeft() + QPointF(-blur, -blur), shadow_);
+        drawSource(painter);
+    }
+
+private:
+    /** @brief バーの大きさの影の画像を作り直す。 @param size バーの大きさ。 */
+    void rebuild(const QSize& size) {
+        shadowSize_ = size;
+        const int blur = scaled(kShadowBlur);
+        const int offset = scaled(kShadowOffset);
+        QImage shadow(size.width() + blur * 2, size.height() + blur * 2 + offset, QImage::Format_ARGB32_Premultiplied);
+        shadow.fill(Qt::transparent);
+        if (!size.isEmpty()) {
+            // バーと同じ形の黒い四角に、以前と同じQGraphicsDropShadowEffectを付けて描き(影と四角)、
+            // 四角だけも描く。影の色は黒なので、2つの不透明度の差から影だけの不透明度を求められる。
+            QGraphicsScene scene;
+            QPainterPath path;
+            path.addRoundedRect(QRectF(0, 0, size.width(), size.height()), scaled(kBarRadius), scaled(kBarRadius));
+            QGraphicsPathItem* item = scene.addPath(path, Qt::NoPen, QColor(Qt::black));
+            auto effect = new QGraphicsDropShadowEffect;  // 所有者はitem(setGraphicsEffectで渡す)。
+            effect->setBlurRadius(blur);
+            effect->setOffset(0, offset);  // 下へのずれも画像に含める(四角の下の影は、バーの下に隠れない)。
+            effect->setColor(QColor(0, 0, 0, kShadowAlpha));
+            item->setGraphicsEffect(effect);
+            const QRectF area(-blur, -blur, shadow.width(), shadow.height());
+            auto render = [&scene, &area](QImage* image) {
+                image->fill(Qt::transparent);
+                QPainter painter(image);
+                painter.setRenderHint(QPainter::Antialiasing, true);
+                scene.render(&painter, QRectF(image->rect()), area);
+            };
+            QImage withShadow(shadow.size(), QImage::Format_ARGB32_Premultiplied);
+            render(&withShadow);
+            item->setGraphicsEffect(nullptr);  // 効果を外して破棄し、四角だけを描く。
+            QImage shape(shadow.size(), QImage::Format_ARGB32_Premultiplied);
+            render(&shape);
+            for (int y = 0; y < shadow.height(); ++y) {
+                const QRgb* both = reinterpret_cast<const QRgb*>(withShadow.constScanLine(y));
+                const QRgb* only = reinterpret_cast<const QRgb*>(shape.constScanLine(y));
+                QRgb* out = reinterpret_cast<QRgb*>(shadow.scanLine(y));
+                for (int x = 0; x < shadow.width(); ++x) {
+                    // 四角の不透明度b、影と四角の不透明度aから、影の不透明度 s = (a - b) / (1 - b) を求める。
+                    // 四角で完全に隠れる所(b = 255)は、バーの下で見えないので、影の最も濃い値にする。
+                    const int b = qAlpha(only[x]);
+                    const int a = qAlpha(both[x]);
+                    const int alpha = b == 0 ? a : b == 255 ? kShadowAlpha : qBound(0, (a - b) * 255 / (255 - b), 255);
+                    out[x] = qRgba(0, 0, 0, alpha);  // 黒なので、乗算済みの色も0のまま。
+                }
+            }
+        }
+        shadow_ = QPixmap::fromImage(shadow);
+    }
+
+    QSize shadowSize_;  ///< 影を作ったときのバーの大きさ。
+    QPixmap shadow_;    ///< 影の画像(バーの大きさに、上下左右へぼかしの半径と、下へのずれを足した大きさ)。
+};
+
+/** @brief UTF-16として正しいか(上位・下位のサロゲートが対になっているか)。
+ * @param text 文字列。
+ * @return 対になっていないサロゲートが無ければtrue。
+ */
+bool isValidUtf16(const QString& text) {
+    const int size = text.size();
+    for (int i = 0; i < size; ++i) {
+        const QChar c = text.at(i);
+        if (!c.isSurrogate()) {
+            continue;
+        }
+        if (c.isHighSurrogate() && i + 1 < size && text.at(i + 1).isLowSurrogate()) {
+            ++i;
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+/** @brief 文字列がU+0000〜U+007F(英数字・記号など)だけか。 @param text 文字列。 @return そうならtrue。 */
+bool isAscii(const QString& text) {
+    for (const QChar c : text) {
+        if (c.unicode() > 0x7f) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** @brief 2つの検索条件が、置換を除いて同じ一致箇所になるか。 @param a 条件。 @param b 条件。 @return 同じならtrue。 */
+bool sameSearch(const SearchOptions& a, const SearchOptions& b) {
+    return a.text == b.text && a.matchCase == b.matchCase && a.wholeWord == b.wholeWord && a.regex == b.regex
+           && a.rangeStart == b.rangeStart && a.rangeEnd == b.rangeEnd;
+}
+
 }  // namespace
 
 FindBar::FindBar(QTabWidget* tabs) : QWidget(tabs), tabs_(tabs) {
     setObjectName("findBar");
-    // QWidgetの背景をスタイルシートで塗るために必要な設定。
+    // QWidgetの背景をスタイルシートで塗るために必要な設定。スタイルシート・アイコン・影は、
+    // 初めて開くとき(ensureDecorated)に用意する。
     setAttribute(Qt::WA_StyledBackground, true);
-    setStyleSheet(findBarStyleSheet());
-    // コードの上に重なるので、VS Codeと同じく周りに影を付けて範囲を分かりやすくする。効果はこのバーが所有する。
-    auto shadow = new QGraphicsDropShadowEffect(this);
-    shadow->setBlurRadius(scaled(12));
-    shadow->setOffset(0, scaled(1));
-    shadow->setColor(QColor(0, 0, 0, 150));
-    setGraphicsEffect(shadow);
 
     // ---- 部品 ----
     toggleReplace_ = makeButton(FindIcon::ChevronRight, "toggleReplace", "Toggle Replace", false, false);
@@ -198,7 +337,7 @@ FindBar::FindBar(QTabWidget* tabs) : QWidget(tabs), tabs_(tabs) {
     connect(replaceAll_, &QToolButton::clicked, this, [this] { replace(true); });
     // 条件を切り替えたら、今の検索語で数え直す(カーソルは動かさない)。
     for (QToolButton* toggle : {matchCase_, wholeWord_, regex_}) {
-        connect(toggle, &QToolButton::toggled, this, [this] { refreshMatches(); });
+        connect(toggle, &QToolButton::toggled, this, [this] { scheduleOptionRefresh(); });
     }
 
     // バーの中にフォーカスがあるときだけ、Escでバーを閉じる。
@@ -210,6 +349,19 @@ FindBar::FindBar(QTabWidget* tabs) : QWidget(tabs), tabs_(tabs) {
     refreshTimer_.setSingleShot(true);
     refreshTimer_.setInterval(kRefreshDelay);
     connect(&refreshTimer_, &QTimer::timeout, this, [this] { refreshMatches(); });
+    // 大きな本文では、入力・条件の切り替えが止まってから1回だけ検索する。
+    searchTimer_.setSingleShot(true);
+    searchTimer_.setInterval(kLargeDocumentDelay);
+    connect(&searchTimer_, &QTimer::timeout, this, [this] {
+        if (typingPending_) {
+            typingPending_ = false;
+            searchWhileTypingNow();
+        } else {
+            refreshMatches();
+        }
+    });
+    // 1文字が\w(Unicodeの性質を使う)に当たるかを調べる。検索の正規表現(core/text_search.cpp)と同じ設定。
+    wordPattern_ = QRegularExpression("\\A\\w\\z", QRegularExpression::UseUnicodePropertiesOption);
 
     // タブ欄の大きさの変化と、入力欄のフォーカス・キーをeventFilterで受け取る。
     tabs_->installEventFilter(this);
@@ -226,13 +378,7 @@ QToolButton* FindBar::makeButton(FindIcon icon, const QString& name, const QStri
     button->setToolTip(tooltip);
     button->setCheckable(checkable);
     button->setFocusPolicy(Qt::NoFocus);  // クリックしても入力欄のフォーカスを奪わない。
-    // オンの切り替えボタンは、アイコンを白くする(VS Codeと同じ)。QIcon::Onが、チェックされたときの絵。
-    QIcon image = findIcon(icon, QColor(theme::kFindLabel), scaled(kIconSize));
-    if (checkable) {
-        const QIcon checked = findIcon(icon, QColor(theme::kFindToggleCheckedText), scaled(kIconSize));
-        image.addPixmap(checked.pixmap(scaled(kIconSize)), QIcon::Normal, QIcon::On);
-    }
-    button->setIcon(image);
+    iconButtons_.append({button, icon});  // アイコンは初めて開くとき(ensureDecorated)に描く。
     button->setIconSize(QSize(scaled(kIconSize), scaled(kIconSize)));
     const int size = scaled(inputOption ? kOptionSize : kButtonSize);
     button->setFixedSize(size, size);
@@ -270,10 +416,36 @@ void FindBar::setReplaceVisible(bool visible) {
     replaceField_->setVisible(visible);
     replaceOne_->setVisible(visible);
     replaceAll_->setVisible(visible);
-    const bool open = visible;
-    toggleReplace_->setIcon(findIcon(open ? FindIcon::ChevronDown : FindIcon::ChevronRight,
-                                     QColor(theme::kFindLabel), scaled(kIconSize)));
+    if (decorated_) {
+        toggleReplace_->setIcon(findIcon(visible ? FindIcon::ChevronDown : FindIcon::ChevronRight,
+                                         QColor(theme::kFindLabel), scaled(kIconSize)));
+    }
     updatePosition();
+}
+
+void FindBar::ensureDecorated() {
+    if (decorated_) {
+        return;
+    }
+    decorated_ = true;
+    setStyleSheet(findBarStyleSheet());
+    for (const auto& entry : iconButtons_) {
+        QToolButton* button = entry.first;
+        // オンの切り替えボタンは、アイコンを白くする(VS Codeと同じ)。QIcon::Onが、チェックされたときの絵。
+        QIcon image = findIcon(entry.second, QColor(theme::kFindLabel), scaled(kIconSize));
+        if (button->isCheckable()) {
+            const QIcon checked = findIcon(entry.second, QColor(theme::kFindToggleCheckedText), scaled(kIconSize));
+            image.addPixmap(checked.pixmap(scaled(kIconSize)), QIcon::Normal, QIcon::On);
+        }
+        button->setIcon(image);
+    }
+    iconButtons_.clear();
+    // 開閉ボタンは、今の置換欄の開閉に合わせた絵にする。
+    toggleReplace_->setIcon(findIcon(replaceField_->isHidden() ? FindIcon::ChevronRight : FindIcon::ChevronDown,
+                                     QColor(theme::kFindLabel), scaled(kIconSize)));
+    // コードの上に重なるので、VS Codeと同じく周りに影を付けて範囲を分かりやすくする。効果はこのバーが所有する。
+    // 影は大きさが変わったときだけ描き直す(CachedShadowEffect)。
+    setGraphicsEffect(new CachedShadowEffect(this));
 }
 
 void FindBar::setState(QWidget* widget, const char* property, bool value) {
@@ -300,6 +472,10 @@ void FindBar::showError(const QString& message) {
 }
 
 void FindBar::open(bool withReplace) {
+    ensureDecorated();
+    // 下のrefreshMatches()で数え直すので、待っている検索は要らない。
+    searchTimer_.stop();
+    typingPending_ = false;
     CodeEditor* editor = currentEditor ? currentEditor() : nullptr;
     if (editor) {
         const QString selection = editor->textCursor().selectedText();
@@ -331,11 +507,153 @@ SearchOptions FindBar::options() const {
 }
 
 SearchResult FindBar::search(bool withReplacements) {
-    const QString replacement = replaceText_->text();
-    SearchResult result = findMatches(currentEditor()->toPlainText(), options(),
-                                      withReplacements ? &replacement : nullptr);
+    CodeEditor* editor = currentEditor();
+    const SearchOptions current = options();
+    const int revision = editor->document()->revision();
+    SearchResult result;
+    if (!withReplacements && resultEditor_ == editor && resultRevision_ == revision
+        && sameSearch(resultOptions_, current)) {
+        result = result_;  // 本文も条件も同じ(F3を続けて押した場合など)。前回の結果を使う。
+        currentGeneration_ = resultGeneration_;
+    } else {
+        QElapsedTimer timer;  // 計測用(動的プロパティsearchMillisecondsに入れる)。
+        timer.start();
+        const QString replacement = replaceText_->text();
+        const QString* replacementTemplate = withReplacements ? &replacement : nullptr;
+        const QString& document = documentText(editor);
+        bool handled = false;
+        if (!current.regex) {
+            result = findPlainMatches(document, current, replacementTemplate, &handled);
+        }
+        if (!handled) {
+            result = findMatches(document, current, replacementTemplate);
+        }
+        setProperty("searchMilliseconds", timer.nsecsElapsed() / 1000000.0);
+        setProperty("searchComputations", property("searchComputations").toInt() + 1);
+        if (withReplacements) {
+            currentGeneration_ = -1;  // 置換の検索は控えない(この後すぐ本文を変えるため)。
+        } else {
+            resultEditor_ = editor;
+            resultRevision_ = revision;
+            resultOptions_ = current;
+            result_ = result;
+            currentGeneration_ = ++resultGeneration_;
+        }
+    }
     if (!result.ok() && showStatus) {
         showStatus(result.error, 0);
+    }
+    return result;
+}
+
+const QString& FindBar::documentText(CodeEditor* editor) {
+    const int revision = editor->document()->revision();
+    if (textEditor_ != editor || textRevision_ != revision) {
+        text_ = editor->toPlainText();
+        textEditor_ = editor;
+        textRevision_ = revision;
+        textValidity_ = -1;
+    }
+    return text_;
+}
+
+bool FindBar::isLargeDocument(const CodeEditor* editor) {
+    return editor && editor->document()->characterCount() > kLargeDocument;
+}
+
+bool FindBar::isWordCharacter(uint code) {
+    if (code < 0x80) {
+        // 英数字・記号の範囲は、\wに当たるのは英数字と_だけ(Unicodeの性質を使っても同じ)。
+        return (code >= 'a' && code <= 'z') || (code >= 'A' && code <= 'Z') || (code >= '0' && code <= '9')
+               || code == '_';
+    }
+    // それ以外は、検索で使うのと同じ正規表現に判定させて覚えておく(QtのPCRE2の版で\wの範囲が違っても同じ結果)。
+    const auto found = wordCharacters_.constFind(code);
+    if (found != wordCharacters_.constEnd()) {
+        return found.value();
+    }
+    const char32_t character = char32_t(code);
+    const bool word = wordPattern_.match(QString::fromUcs4(&character, 1)).hasMatch();
+    wordCharacters_.insert(code, word);
+    return word;
+}
+
+SearchResult FindBar::findPlainMatches(const QString& document, const SearchOptions& options,
+                                       const QString* replacementTemplate, bool* handled) {
+    SearchResult result;
+    *handled = false;
+    // 正規表現と同じ結果を保証できる場合だけ扱う。大文字小文字を区別しない比較は、英数字・記号だけの検索語なら
+    // Qtの比較(QChar::toCaseFolded)と正規表現(PCRE2)で同じになる(K⇔U+212A、s⇔U+017Fもどちらも一致として扱う)。
+    // 不正なUTF-16を含む文字列は、正規表現の側の扱いが違うので任せる。
+    if (options.regex || options.text.isEmpty() || (!options.matchCase && !isAscii(options.text))
+        || !isValidUtf16(options.text)) {
+        return result;
+    }
+    if (&document == &text_) {
+        if (textValidity_ < 0) {
+            textValidity_ = isValidUtf16(document) ? 1 : 0;
+        }
+        if (textValidity_ == 0) {
+            return result;
+        }
+    } else if (!isValidUtf16(document)) {
+        return result;
+    }
+    *handled = true;
+    const QStringMatcher matcher(options.text, options.matchCase ? Qt::CaseSensitive : Qt::CaseInsensitive);
+    const int length = options.text.size();
+    const int size = document.size();
+    const bool limited = options.rangeStart >= 0 && options.rangeEnd >= options.rangeStart;
+    // 1文字前・後の文字(サロゲートの対は1文字にまとめる)が\wに当たるか。
+    auto wordBefore = [this, &document](int position) {
+        if (position <= 0) {
+            return false;
+        }
+        const QChar low = document.at(position - 1);
+        if (low.isLowSurrogate() && position >= 2 && document.at(position - 2).isHighSurrogate()) {
+            return isWordCharacter(QChar::surrogateToUcs4(document.at(position - 2), low));
+        }
+        return isWordCharacter(low.unicode());
+    };
+    auto wordAfter = [this, &document, size](int position) {
+        if (position >= size) {
+            return false;
+        }
+        const QChar high = document.at(position);
+        if (high.isHighSurrogate() && position + 1 < size && document.at(position + 1).isLowSurrogate()) {
+            return isWordCharacter(QChar::surrogateToUcs4(high, document.at(position + 1)));
+        }
+        return isWordCharacter(high.unicode());
+    };
+    int from = 0;
+    while (true) {
+        const int start = int(matcher.indexIn(document, from));
+        if (start < 0) {
+            break;
+        }
+        // 単語単位では、前後が単語の文字でない位置だけ。外れたら1文字先から探し直す(正規表現と同じ)。
+        if (options.wholeWord && (wordBefore(start) || wordAfter(start + length))) {
+            from = start + 1;
+            continue;
+        }
+        if (result.matches.size() >= kMaximumMatches) {
+            result.error = "Too many matches (limit 100,000)";  // findMatchesと同じ文言・同じ時点で止める。
+            return result;
+        }
+        from = start + length;
+        // 選択範囲内で検索するときは、範囲に収まる一致だけを数える。
+        if (limited && (start < options.rangeStart || start + length > options.rangeEnd)) {
+            continue;
+        }
+        result.matches.append({start, length});
+        if (replacementTemplate) {
+            // 通常の検索では置換の文字列をそのまま使う($記法は正規表現モードだけ)。
+            QString value = *replacementTemplate;
+            if (options.preserveCase) {
+                value = preserveCase(value, document.mid(start, length));
+            }
+            result.replacements.append(value);
+        }
     }
     return result;
 }
@@ -357,7 +675,12 @@ void FindBar::highlight(const SearchResult& result) {
     if (highlighted_ && highlighted_ != editor) {
         highlighted_->clearSearchHighlights();  // 前に付けた別のタブの強調を消す。
     }
+    // 同じ検索の結果(本文も条件も同じ)を同じコード欄に付けてあれば、付け直さない(2000件の強調を作り直さない)。
+    if (editor && editor == highlighted_ && currentGeneration_ >= 0 && currentGeneration_ == highlightedGeneration_) {
+        return;
+    }
     highlighted_ = editor;
+    highlightedGeneration_ = currentGeneration_;
     if (editor) {
         editor->setSearchHighlights(result.ok() ? result.matches.mid(0, kMaximumHighlights) : QList<TextMatch>());
     }
@@ -368,6 +691,7 @@ void FindBar::clearHighlights() {
         highlighted_->clearSearchHighlights();
     }
     highlighted_ = nullptr;
+    highlightedGeneration_ = -1;
 }
 
 void FindBar::setFindInSelection(bool enabled) {
@@ -400,6 +724,7 @@ void FindBar::selectMatch(const TextMatch& match) {
 }
 
 bool FindBar::findNext(bool backward) {
+    flushPendingSearch();  // 入力中の検索を待っていれば、先に済ませてから次の一致へ移る(待たない場合と同じ結果)。
     if (findText_->text().isEmpty()) {
         open(false);
         return false;
@@ -441,6 +766,17 @@ bool FindBar::findNext(bool backward) {
 }
 
 void FindBar::searchWhileTyping() {
+    CodeEditor* editor = currentEditor ? currentEditor() : nullptr;
+    if (isLargeDocument(editor)) {
+        // 大きな本文では、打鍵のたびに全文を探さず、入力が止まってから1回だけ探す。
+        typingPending_ = true;
+        searchTimer_.start();
+        return;
+    }
+    searchWhileTypingNow();
+}
+
+void FindBar::searchWhileTypingNow() {
     CodeEditor* editor = currentEditor ? currentEditor() : nullptr;
     if (!editor) {
         return;
@@ -497,7 +833,31 @@ void FindBar::scheduleRefresh() {
     }
 }
 
+void FindBar::scheduleOptionRefresh() {
+    CodeEditor* editor = currentEditor ? currentEditor() : nullptr;
+    if (isHidden() || !isLargeDocument(editor)) {
+        refreshMatches();  // 小さな本文では、今までどおりすぐ数え直す。
+        return;
+    }
+    // 入力中の検索を待っている場合は、その検索が件数も出し直すので、そのまま待つ。
+    searchTimer_.start();
+}
+
+void FindBar::flushPendingSearch() {
+    if (!searchTimer_.isActive()) {
+        return;
+    }
+    searchTimer_.stop();
+    if (typingPending_) {
+        typingPending_ = false;
+        searchWhileTypingNow();
+    } else {
+        refreshMatches();
+    }
+}
+
 void FindBar::replace(bool all) {
+    flushPendingSearch();
     if (findText_->text().isEmpty()) {
         return;
     }
@@ -566,6 +926,15 @@ bool FindBar::eventFilter(QObject* watched, QEvent* event) {
 
 void FindBar::hideEvent(QHideEvent* event) {
     refreshTimer_.stop();
+    searchTimer_.stop();
+    typingPending_ = false;
+    // 本文の写しと結果の控えを手放す(大きな本文の写しを、閉じた後まで持ち続けない)。
+    text_.clear();
+    textEditor_ = nullptr;
+    textRevision_ = -1;
+    result_ = SearchResult();
+    resultEditor_ = nullptr;
+    resultRevision_ = -1;
     clearHighlights();
     errorBubble_->hide();
     QWidget::hideEvent(event);

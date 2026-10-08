@@ -8,6 +8,7 @@
 #include "core/completion_types.h"
 #include "editor/editor.h"
 #include "editor/spelling.h"
+#include <QHash>
 #include <QObject>
 #include <QPointer>
 #include <QTimer>
@@ -48,6 +49,8 @@ public:
 
     /** @brief 本文が変わったときに呼ぶ。補完・構文チェック・スペルチェックを予約し直す。
      * @param editor 本文が変わったコード欄。
+     * @details 補完の一覧を開いていれば、閉じずに入力した名前で絞り込む。前回の候補で足りる(名前を後ろへ
+     * 伸ばしただけで、前回の候補が上限に達していない)ときは、問い合わせ直さない。
      */
     void onTextChanged(CodeEditor* editor);
 
@@ -57,8 +60,11 @@ public:
     /** @brief 補完の情報を取り直す(Command → Refresh completion)。 */
     void refreshCompletion();
 
-    /** @brief 入力が止まってから構文チェックするよう予約する。設定がオフなら一覧を隠す。 */
-    void scheduleAnalysis();
+    /** @brief 入力が止まってから構文チェックするよう予約する。設定がオフなら一覧を隠す。
+     * @param keepResults trueなら、待つ間も前回の結果を一覧に残す(入力中。入力のたびに「確認中」へ戻さない)。
+     * falseなら一覧を「確認中」にする(タブの切り替え・設定の変更)。
+     */
+    void scheduleAnalysis(bool keepResults = false);
 
     /** @brief 入力が止まってからスペルチェックするよう予約する。オフなら全タブの波線を消す。 */
     void scheduleSpelling();
@@ -101,6 +107,35 @@ private:
     QTimer detailTimer_;                    ///< 候補の選択が止まって120ms後に候補の説明を出す。
     QPointer<CodeEditor> signatureEditor_;  ///< 引数のヒントを求めたコード欄。
     QPointer<CodeEditor> detailEditor_;     ///< 候補の説明を求めたコード欄。
+
+    /** @brief 引数のヒントを探す本文(カーソルより前の末尾)を取り出す。
+     * @param editor コード欄。
+     * @param base 取り出した本文の先頭の、文書の中の位置を入れる。
+     * @return 本文。行をまたぐ文字列の途中からは始めない。
+     * @details 呼出しの括弧はカーソルの近くにあるので、文書の先頭からは読まない(長い文書で入力のたびに
+     * 全体を複製・字句解析しない)。
+     */
+    static QString callSearchText(CodeEditor* editor, int* base);
+
+    QPointer<CodeEditor> completionEditor_;  ///< 最後に補完の候補を求めたコード欄。
+    QString completionPrefix_;               ///< 最後に候補を求めたときの、補完中の名前。
+    int completionCount_ = 0;                ///< 最後に求めた候補の数(上限に近ければ、絞り込みだけでは足りない)。
+
+    /** @brief 前回の引数のヒントの元(同じ呼出しの引数を入力している間は、説明を問い合わせ直さない)。 */
+    struct SignatureCache {
+        QPointer<CodeEditor> editor;  ///< コード欄。
+        int nameEnd = -1;             ///< 呼び出す名前の終わりの位置。
+        QString callee;               ///< 名前の行の、行頭から名前の終わりまで。
+        HoverInfo info;               ///< 名前の説明。
+        HoverInfo init;               ///< クラスなら``__init__``の説明。
+    } signatureCache_;
+
+    /** @brief 補完の候補の説明(候補を上下に選び直すたびに問い合わせ直さない)。本文が変わったら捨てる。 */
+    struct DetailCache {
+        QPointer<CodeEditor> editor;          ///< コード欄。
+        int revision = -1;                    ///< 文書の版。
+        QHash<QString, HoverInfo> infos;      ///< 補完中の名前と候補の名前 → 説明。
+    } detailCache_;
 
     /** @brief 前回のホバーの結果(同じ名前の上で何度もQEvent::ToolTipが来ても問い合わせ直さない)。 */
     struct HoverCache {

@@ -69,8 +69,20 @@ protected:
     /** @brief 行番号の欄がクリックされた(折りたたみの矢印など)。既定は何もしない。 @param position 部品の中の位置。 */
     virtual void gutterPressed(const QPoint& position);
 
-    /** @brief 桁数とフォントから行番号の欄の幅を計算し、左の余白に反映する。 */
-    void updateGutter();
+    /** @brief 表示部分の中の、行の上端の位置を返す(行の縦の位置の起点)。
+     * @param block 行。通常はfirstVisibleBlock()。
+     * @return 表示部分の座標のy。
+     * @note 続く行の位置は、この値に各行の高さ(blockBoundingRect(行).height()、隠した行は0)を足して求める。
+     * Qtの blockBoundingGeometry は、表示中の最初の行からその行までの高さを毎回足し直すため、行ごとに呼ぶと
+     * 行数の2乗に比例する(畳んで隠した行が多いと特に重い)。
+     */
+    qreal blockTop(const QTextBlock& block) const;
+
+    /** @brief 桁数とフォントから行番号の欄の幅を計算し、左の余白に反映する。
+     * @param force falseなら、幅が変わらないときは何もしない(行数が変わるたびに呼ぶため)。
+     * フォントや表示の切り替えではtrue(タブ幅も設定し直す)。
+     */
+    void updateGutter(bool force = true);
 
 private:
     friend class LineNumberArea;

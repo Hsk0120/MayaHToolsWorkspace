@@ -93,27 +93,37 @@ QJsonObject symbolTableToJson(const SymbolTable& table) {
 }
 
 SymbolTable symbolTableFromJson(const QJsonObject& object) {
+    // 項目の名前はQLatin1Stringで渡す(項目ごとにconst char*からQStringを作らない)。
+    // maya.cmdsのような数千件の表を、公開名が変わるたびに読むため。
+    const QLatin1String kindKey("kind");
+    const QLatin1String targetKey("target");
+    const QLatin1String nameKey("name");
+    const QLatin1String fromKey("from");
+    const QLatin1String membersKey("members");
+    const QLatin1String detailKey("detail");
     SymbolTable table;
     for (auto it = object.begin(); it != object.end(); ++it) {
         const QJsonObject entry = it.value().toObject();
         Symbol symbol;
-        const QString kind = entry.value("kind").toString();
-        if (entry.contains("target")) {
-            symbol = Symbol::module(entry.value("target").toString());
-        } else if (entry.contains("name")) {
-            symbol = Symbol::import(entry.value("from").toString(), entry.value("name").toString());
-        } else if (entry.contains("members")) {
+        const QString kind = entry.value(kindKey).toString();
+        const QString detail = entry.value(detailKey).toString();
+        if (entry.contains(targetKey)) {
+            symbol = Symbol::module(entry.value(targetKey).toString());
+        } else if (entry.contains(nameKey)) {
+            symbol = Symbol::import(entry.value(fromKey).toString(), entry.value(nameKey).toString());
+        } else if (entry.contains(membersKey)) {
             symbol.type = SymbolType::Class;
-            symbol.members = std::make_shared<SymbolTable>(symbolTableFromJson(entry.value("members").toObject()));
-        } else if (kind == "builtin") {
+            symbol.members = std::make_shared<SymbolTable>(symbolTableFromJson(entry.value(membersKey).toObject()));
+        } else if (kind == QLatin1String("builtin")) {
             symbol.type = SymbolType::Builtin;
-        } else if (kind == "keyword") {
+        } else if (kind == QLatin1String("keyword")) {
             symbol.type = SymbolType::Keyword;
-        } else if (!entry.value("detail").toString().isEmpty()) {
+        } else if (!detail.isEmpty()) {
             symbol.type = SymbolType::Function;
         }
-        symbol.detail = entry.value("detail").toString();
-        table.insert(it.key(), symbol);
+        symbol.detail = detail;
+        // JSONの項目は名前順に並ぶので、表の最後へ足す(挿入位置を探さない)。
+        table.insert(table.constEnd(), it.key(), symbol);
     }
     return table;
 }

@@ -38,6 +38,21 @@ public:
      */
     void open(const QString& placeholder, const QList<QuickPickItem>& items, int current = -1);
 
+    /** @brief 開いたまま項目を差し替える(別スレッドで集め終えた一覧など)。
+     * @param items 新しい項目。
+     * @details 入力中の文字はそのままで絞り込み直し、選んでいた項目が新しい一覧にもあれば選び直す。
+     * 一覧の行の数に合わせて小窓の高さも直す。差し替えると、setLoadingText()の文字は消える。
+     */
+    void setItems(const QList<QuickPickItem>& items);
+
+    /** @brief 絞り込んだ結果が空のときに、一覧へ選べない1行として出す文字を設定する(``Loading…``など)。
+     * @param text 出す文字。空なら出さない。open()で空に戻る。
+     */
+    void setLoadingText(const QString& text);
+
+    /** @brief 開いているか、閉じる処理の最中でないか。 @return 開いて操作できる状態ならtrue。 */
+    bool isOpen() const { return isVisible() && !closing_; }
+
     /** @brief 閉じる(確定しない)。 */
     void cancel();
 
@@ -66,12 +81,16 @@ private:
     /** @brief 入力に合わせて一覧を絞り込む。 */
     void refilter();
 
-    /** @brief 選んでいる項目を確定して閉じる。 */
+    /** @brief 選んでいる項目を確定して閉じる。選べない行(setLoadingTextの行)では何もしない。 */
     void accept();
+
+    /** @brief 一覧の行の数に合わせて、親の上部の中央に置き直す。 */
+    void placeInParent();
 
     QLineEdit* input_;            ///< 入力欄。所有者はこの小窓。
     QListWidget* list_;           ///< 一覧。所有者はこの小窓。
     QList<QuickPickItem> items_;  ///< 全ての項目。
+    QString loadingText_;         ///< 絞り込んだ結果が空のときに出す、選べない行の文字。
     bool closing_ = false;        ///< 閉じる処理の最中か(フォーカスが外れたときの二重処理を防ぐ)。
 };
 

@@ -42,6 +42,8 @@ public:
                   const QStringList& problems = QStringList());
 
     /** @brief 作ったHTMLを表示する(引数のヒント・定義をその場で見る・補完の説明)。
+     * @details 表示中と同じ内容なら、HTMLの読み込みと大きさの計算を省いて位置だけを合わせる
+     * (引数のヒントは入力のたびに出し直すため)。
      * @param html 表示するHTML。
      * @param anchor 対象の範囲(画面全体の座標)。
      * @param codeFont エディターのフォント。docstringの文字の大きさもこれに合わせる。
@@ -103,6 +105,7 @@ protected:
 private:
     QTextBrowser* view_;  ///< 説明の本文(スクロールできる)。所有者はこの小窓。
     QRect anchor_;        ///< 説明の対象の名前の範囲(画面全体の座標)。
+    QString contentKey_;  ///< 表示中の内容(HTML・文字の大きさ・最大の大きさ)。同じなら並べ直さない。
     QTimer hideTimer_;    ///< 閉じる予約。
 };
 

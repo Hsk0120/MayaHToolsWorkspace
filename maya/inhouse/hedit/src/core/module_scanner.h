@@ -32,7 +32,9 @@ bool isIdentifier(const QString& name);
 /** @brief フォルダーの直下から、importできるトップレベルの名前を集める。
  * @param paths sys.pathの各フォルダー。存在しない・読めないものは飛ばす。
  * @param cancel trueになったら途中でやめる。nullptrなら最後まで走査する。
- * @return ``*.py``のファイル名(拡張子なし)と、識別子として使えるフォルダー名。
+ * @return importできるトップレベルの名前。``*.py``のファイル名(拡張子なし)、拡張モジュール
+ * (``name.pyd``・``name.cp311-win_amd64.pyd``)の最初の点より前の名前、フォルダー名のうち、
+ * Pythonの識別子として使えるもの(``my-tool.py``のような名前はimportできないので除く)。
  */
 QSet<QString> scanTopLevel(const QStringList& paths, const std::atomic_bool* cancel = nullptr);
 

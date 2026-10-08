@@ -8,6 +8,7 @@
 #include <QKeyEvent>
 #include <QMenu>
 #include <QScrollBar>
+#include <QShowEvent>
 #include <QTextCursor>
 #include <QVBoxLayout>
 
@@ -17,8 +18,8 @@ namespace {
 /// 保持する出力の文字数の上限(1Mi文字)。超えたら古いものから捨てる。
 constexpr int kMaximumHistoryCharacters = 1024 * 1024;
 
-/// 出力を取り出す間隔(ミリ秒)。
-constexpr int kPollInterval = 25;
+/// 出力が貯まったと知らされてから取り出すまでの時間(ミリ秒)。続けて届く出力を1回の描画にまとめる。
+constexpr int kFlushDelay = 25;
 
 /// Mayaの処理の途中(ファイルの読み込みなど、タイマーが動かない間)に、その場で描き直す最短の間隔(ミリ秒)。
 /// 描き直しは同期で重いので、出力が続くほど間を空ける(進み具合は見える程度)。
@@ -130,13 +131,34 @@ OutputPanel::OutputPanel(std::function<QList<OutputMessage>()> takeOutput, QWidg
 
     // タイマーはこの部品のメンバーなので、部品の破棄と一緒に止まる。
     // タイマーが動いた = Mayaの処理が終わってイベントループへ戻った、なので「出力が続いている」状態を終える。
-    connect(&pollTimer_, &QTimer::timeout, this, [this] {
+    flushTimer_.setSingleShot(true);
+    flushTimer_.setInterval(kFlushDelay);
+    connect(&flushTimer_, &QTimer::timeout, this, [this] {
         lastRequest_.invalidate();
         flush();
     });
-    if (takeOutput_) {
-        pollTimer_.start(kPollInterval);
+}
+
+void OutputPanel::scheduleFlush() {
+    if (!takeOutput_ || !isVisible() || flushTimer_.isActive()) {
+        return;  // 非表示ならshowEventで取り出す。予約済みなら、そのときにまとめて取り出す。
     }
+    // 前回の取り出しから25ms以上経っていれば、すぐ取り出す(ドックの切り替えなどでイベントループが
+    // 混んでいても、表示を遅らせない)。続けて届いている間は、残りの時間だけ待ってまとめる。
+    const qint64 since = lastFlush_.isValid() ? lastFlush_.elapsed() : kFlushDelay;
+    if (since >= kFlushDelay) {
+        lastRequest_.invalidate();
+        flush();
+    } else {
+        flushTimer_.start(int(kFlushDelay - since));
+    }
+}
+
+void OutputPanel::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    // 閉じている間の出力は取り込み側のキューに貯まっている(上限あり)。表示したときに1回で描く。
+    lastRequest_.invalidate();
+    flush();
 }
 
 void OutputPanel::flush() {
@@ -147,6 +169,7 @@ void OutputPanel::flush() {
     if (messages.isEmpty()) {
         return;
     }
+    lastFlush_.restart();
     // モードを戻したときに出し直せるよう保持する。ただし1Mi文字を超えて溜めない。
     for (OutputMessage message : messages) {
         message.text = message.text.right(kMaximumHistoryCharacters);
@@ -174,8 +197,11 @@ int OutputPanel::immediateRefreshInterval() {
 }
 
 void OutputPanel::refreshNow() {
+    if (!isVisible()) {
+        return;  // 出力欄を隠している間は描かない(表示したときにshowEventでまとめて取り出す)。
+    }
     // 描画中に同じ関数が呼ばれた場合と、前回の描き直しから間隔(出力が続くほど長い)が経っていない場合は描かない
-    // (その間の出力はキューに残り、次の描き直しか25msのタイマーで反映される)。
+    // (その間の出力はキューに残り、次の描き直しか、イベントループへ戻った後の取り出しで反映される)。
     const int interval = immediateRefreshInterval();
     const bool tooSoon = lastRefresh_.isValid() && lastRefresh_.elapsed() < interval;
     if (refreshing_ || tooSoon) {

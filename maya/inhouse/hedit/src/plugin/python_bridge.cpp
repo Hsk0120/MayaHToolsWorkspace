@@ -20,18 +20,20 @@ namespace hedit {
 namespace python {
 namespace {
 
-/** @brief Pythonの式を評価して、結果を文字列で受け取る。
+/** @brief Pythonの式を評価して、結果をUTF-8のまま受け取る。
  * @param expression heditが組み立てた式(利用者のコードは渡さない)。
  * @param ok 評価できたかを入れる。nullptrなら入れない。
- * @return 結果。失敗時は空(Script Editorに詳細が出る)。
+ * @return 結果(UTF-8)。失敗時は空(Script Editorに詳細が出る)。
+ * @note 結果はJSONとしてQJsonDocumentへ渡すだけなので、QStringを経由しない(UTF-8→UTF-16→UTF-8の変換を省く。
+ * maya.cmdsの公開名のJSONは約120KBある)。同梱のPythonが返すJSONはASCIIだけなので、途中に0の文字は無い。
  */
-QString evaluate(const QString& expression, bool* ok = nullptr) {
+QByteArray evaluate(const QString& expression, bool* ok = nullptr) {
     MString result;
     const MStatus status = MGlobal::executePythonCommand(toMString(expression), result);
     if (ok) {
         *ok = bool(status);
     }
-    return status ? fromMString(result) : QString();
+    return status ? QByteArray(result.asUTF8()) : QByteArray();
 }
 
 /** @brief Python側の失敗を記録する。補完の結果と一緒に画面へ知らせる(complete())。
@@ -55,7 +57,7 @@ QByteArray callFunction(const QString& module, const QString& function, const QS
     const QString arguments = argument.isEmpty() ? target : target + ", " + argument;
     const QString expression = "__import__('hedit.bridge', fromlist=['safe_call']).safe_call(" + arguments + ")";
     bool evaluated = false;
-    const QByteArray result = evaluate(expression, &evaluated).toUtf8();
+    const QByteArray result = evaluate(expression, &evaluated);
     const bool failed = !evaluated || result.startsWith("{\"error\"");
     if (failed) {
         recordError(evaluated ? QJsonDocument::fromJson(result).object().value("error").toString()
@@ -82,9 +84,18 @@ struct CachedModule {
     LoadedModule module;  ///< 受け取った情報。
 };
 
+/** @brief Pythonから受け取った、検索パスと組み込み・読み込み済みのトップレベル名の控え(hedit.bridge.module_names)。 */
+struct CachedModuleNames {
+    QString signature;    ///< 受け取ったときの印。空なら未取得。
+    QStringList paths;    ///< sys.pathの各フォルダー(絶対パス)。
+    QStringList names;    ///< トップレベル名(Pythonが並べた順)。
+    QSet<QString> lookup; ///< namesと同じ名前の集合(import補完で走査結果と合わせる)。
+};
+
 struct BridgeState;
 BridgeState& bridge();
 QHash<QString, CachedModule>& bridgeLoadedModules();
+const CachedModuleNames& moduleNames();
 
 /** @brief 補完エンジンへ渡す、Pythonへの問い合わせの関数の一式を作る。 @return ModuleSource。 */
 ModuleSource pythonModuleSource() {
@@ -122,10 +133,7 @@ ModuleSource pythonModuleSource() {
         *doc = data.value("doc").toString();
         return true;
     };
-    source.topLevelNames = [] {
-        return toStringList(QJsonDocument::fromJson(callFunction("hedit.bridge", "module_names")).object()
-                                .value("names").toArray());
-    };
+    source.topLevelNames = [] { return moduleNames().names; };
     return source;
 }
 
@@ -135,6 +143,7 @@ ModuleSource pythonModuleSource() {
 struct BridgeState {
     CompletionEngine engine{pythonModuleSource()};  ///< 補完エンジン。
     QHash<QString, CachedModule> loadedModules;     ///< モジュール名 → 前回受け取った公開名(印が同じなら使い回す)。
+    CachedModuleNames moduleNames;                  ///< 前回受け取った検索パスとトップレベル名(印が同じなら使い回す)。
     bool environmentLoaded = false;                 ///< 組み込みの名前と予約語を受け取ったか。
     QString lastError;                              ///< 最後に起きたPython側の失敗(画面へ知らせたら空に戻す)。
     ModuleScanner moduleScanner;                    ///< importの行の補完に使うsys.pathの走査(C++のスレッド)。
@@ -174,20 +183,30 @@ CompletionEngine& engine() {
     return bridge().engine;
 }
 
-/** @brief Python側の検索パスと、組み込み・読み込み済みのトップレベル名を受け取る。
- * @param names 組み込みモジュールとsys.modulesのトップレベル名を入れる。nullptrなら入れない。
- * @return sys.pathの各フォルダー(絶対パス)。
- * @details sys.pathとsys.modulesはPythonのオブジェクトなので、ここだけPythonに問い合わせる(約1ms)。
- * フォルダーの走査はしない(ModuleScannerがC++のスレッドで行う)。
+/** @brief Python側の検索パスと、組み込み・読み込み済みのトップレベル名を返す。
+ * @return 控え。Pythonを呼べなければ空。
+ * @details sys.pathとsys.modulesはPythonのオブジェクトなので、ここだけPythonに問い合わせる。
+ * importの行では1文字ごとに呼ばれるので、前回の印を渡し、変わっていなければ「unchanged」だけを受け取って
+ * 控えを使う(名前の並べ替え・JSONの作成と読み取りを毎回しない)。フォルダーの走査はしない(ModuleScannerがC++のスレッドで行う)。
  */
-QStringList modulePaths(QSet<QString>* names) {
-    const QJsonObject data = QJsonDocument::fromJson(callFunction("hedit.bridge", "module_names")).object();
-    if (names) {
-        for (const QJsonValue& value : data.value("names").toArray()) {
-            names->insert(value.toString());
-        }
+const CachedModuleNames& moduleNames() {
+    CachedModuleNames& cached = bridge().moduleNames;
+    bool ok = false;
+    const QJsonObject data =
+        QJsonDocument::fromJson(callFunction("hedit.bridge", "module_names", pythonStringLiteral(cached.signature), &ok))
+            .object();
+    if (!ok) {
+        cached = CachedModuleNames();  // 以前と同じく、失敗したら空の一覧として扱う。次は全てを受け取り直す。
+        return cached;
     }
-    return toStringList(data.value("paths").toArray());
+    if (data.value("unchanged").toBool() && !cached.signature.isEmpty()) {
+        return cached;
+    }
+    cached.signature = data.value("signature").toString();
+    cached.paths = toStringList(data.value("paths").toArray());
+    cached.names = toStringList(data.value("names").toArray());
+    cached.lookup = QSet<QString>(cached.names.cbegin(), cached.names.cend());
+    return cached;
 }
 
 }  // namespace
@@ -219,6 +238,7 @@ void refreshCompletion() {
     engine().setEnvironment(environment);
     engine().clearCaches();
     bridge().loadedModules.clear();
+    bridge().moduleNames = CachedModuleNames();
     bridge().environmentLoaded = true;
 }
 
@@ -227,10 +247,11 @@ CompletionResult complete(const QString& source) {
     if (topLevelImportPrefix(source, &prefix)) {
         // 最初の走査は編集画面の作成時に始めている。まだ終わっていなければ最大0.5秒だけ待ち、
         // 最初のCtrl+Spaceから未読込のパッケージも候補に出す。以後の再走査は5秒間隔で裏で行う。
-        QSet<QString> names;
-        bridge().moduleScanner.refresh(modulePaths(&names));
+        const CachedModuleNames& modules = moduleNames();
+        bridge().moduleScanner.refresh(modules.paths);
         bridge().moduleScanner.waitForFirst(500);
         bool pending = false;
+        QSet<QString> names = modules.lookup;
         names.unite(bridge().moduleScanner.names(&pending));
         return completionItems(names, prefix, pending);
     }
@@ -269,7 +290,7 @@ AnalysisResult analyze(const QString& source) {
 }
 
 void startModuleScan() {
-    bridge().moduleScanner.refresh(modulePaths(nullptr));
+    bridge().moduleScanner.refresh(moduleNames().paths);
 }
 
 void initialize() {

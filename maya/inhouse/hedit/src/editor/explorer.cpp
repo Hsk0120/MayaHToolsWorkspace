@@ -5,6 +5,8 @@
  * - Qt::UserRole + 1 : trueなら「まだ中身を読んでいないフォルダー」。展開時に読む。
  * - Qt::UserRole + 2 : trueなら「中身を別スレッドで読んでいる途中」。
  * 未読のフォルダーには、展開の矢印を出すための仮の子「…」を入れておく。
+ * 読んでいる途中のフォルダーの項目は、パス → 項目の表(loading_)でも引けるようにしておき、
+ * 読み終えたときにツリー全体をたどらずに反映先を探す。
  */
 #include "editor/explorer.h"
 #include "editor/ui_scale.h"
@@ -13,9 +15,9 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QShowEvent>
 #include <QStyle>
 #include <QTreeWidget>
-#include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 #include <condition_variable>
 #include <deque>
@@ -138,15 +140,9 @@ Explorer::Explorer(QWidget* parent) : QWidget(parent) {
     layout->addWidget(tree_);
     openEditors_ = new QTreeWidgetItem(tree_, {"OPEN EDITORS"});
     openEditors_->setExpanded(true);
-
-    // 別スレッドで読み終えたら、画面のスレッドへ反映を送る。QueuedConnectionの処理は、画面のスレッドの
-    // イベントループで実行される。送り先(this)が先に破棄されたら、未実行の処理は捨てられる。
-    lister_ = std::make_unique<DirectoryLister>(
-        [this](const QString& path, const QStringList& names, const QList<bool>& directories) {
-            QMetaObject::invokeMethod(
-                this, [this, path, names, directories] { applyListing(path, names, directories); },
-                Qt::QueuedConnection);
-        });
+    // 項目のアイコンは、子の項目ごとにスタイルへ問い合わせず、最初に1回だけ受け取って使い回す。
+    folderIcon_ = style()->standardIcon(QStyle::SP_DirIcon);
+    fileIcon_ = style()->standardIcon(QStyle::SP_FileIcon);
 
     connect(openButton, &QPushButton::clicked, this, [this] {
         addFolder(QFileDialog::getExistingDirectory(this, "Open folder"), true);
@@ -161,6 +157,7 @@ Explorer::Explorer(QWidget* parent) : QWidget(parent) {
             return;
         }
         folders_.removeAll(item->data(0, kPathRole).toString());
+        forgetLoading(item);
         delete item;
         notifyRootsChanged();
     });
@@ -178,25 +175,48 @@ Explorer::~Explorer() {
     lister_.reset();
 }
 
+void Explorer::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    // 隠れている間に展開した(復元したルートフォルダーなど)フォルダーの中身を、初めて見えたときに読む。
+    for (int i = 1; i < tree_->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = tree_->topLevelItem(i);
+        if (item->isExpanded()) {
+            populate(item);
+        }
+    }
+}
+
 void Explorer::populate(QTreeWidgetItem* item) {
     if (!item->data(0, kNotLoadedRole).toBool()) {
         return;  // 読み込み済み、または読んでいる途中。
+    }
+    if (!isVisible()) {
+        return;  // 隠れている間は読まない(Explorerを使わなければ、読み込みのスレッドも作らない)。showEventで読む。
     }
     item->setData(0, kNotLoadedRole, false);
     item->setData(0, kLoadingRole, true);
     qDeleteAll(item->takeChildren());  // 仮の子「…」を消す。
     new QTreeWidgetItem(item, {"Loading…"});
-    lister_->request(item->data(0, kPathRole).toString());
+    const QString path = item->data(0, kPathRole).toString();
+    loading_.insert(path, item);
+    if (!lister_) {
+        // 別スレッドで読み終えたら、画面のスレッドへ反映を送る。QueuedConnectionの処理は、画面のスレッドの
+        // イベントループで実行される。送り先(this)が先に破棄されたら、未実行の処理は捨てられる。
+        // スレッドは初めて読むときに作る(Explorerを使わなければ作らない)。
+        lister_ = std::make_unique<DirectoryLister>(
+            [this](const QString& listed, const QStringList& names, const QList<bool>& directories) {
+                QMetaObject::invokeMethod(
+                    this, [this, listed, names, directories] { applyListing(listed, names, directories); },
+                    Qt::QueuedConnection);
+            });
+    }
+    lister_->request(path);
 }
 
 void Explorer::applyListing(const QString& path, const QStringList& names, const QList<bool>& directories) {
-    // 読んでいる間に項目が消された(Removeなど)場合は、見つからないので何もしない。
-    QList<QTreeWidgetItem*> targets;
-    for (QTreeWidgetItemIterator it(tree_); *it; ++it) {
-        if ((*it)->data(0, kLoadingRole).toBool() && (*it)->data(0, kPathRole).toString() == path) {
-            targets.append(*it);
-        }
-    }
+    // 読んでいる間に項目が消された(Removeなど)場合は、表から取り除いてあるので何もしない。
+    const QList<QTreeWidgetItem*> targets = loading_.values(path);
+    loading_.remove(path);
     const QDir directory(path);
     for (QTreeWidgetItem* item : targets) {
         item->setData(0, kLoadingRole, false);
@@ -205,7 +225,7 @@ void Explorer::applyListing(const QString& path, const QStringList& names, const
             const QString childPath = directory.absoluteFilePath(names[i]);
             auto child = new QTreeWidgetItem(item, {names[i]});
             child->setData(0, kPathRole, childPath);
-            child->setIcon(0, style()->standardIcon(directories[i] ? QStyle::SP_DirIcon : QStyle::SP_FileIcon));
+            child->setIcon(0, directories[i] ? folderIcon_ : fileIcon_);
             child->setToolTip(0, childPath);
             if (directories[i]) {
                 markNotLoaded(child);
@@ -214,8 +234,26 @@ void Explorer::applyListing(const QString& path, const QStringList& names, const
     }
 }
 
+void Explorer::forgetLoading(QTreeWidgetItem* item) {
+    if (loading_.isEmpty()) {
+        return;
+    }
+    // 消す項目と、その子孫のうち読んでいる途中のものを表から取り除く(消した項目へ反映しないため)。
+    QList<QTreeWidgetItem*> stack{item};
+    while (!stack.isEmpty()) {
+        QTreeWidgetItem* current = stack.takeLast();
+        if (current->data(0, kLoadingRole).toBool()) {
+            loading_.remove(current->data(0, kPathRole).toString(), current);
+        }
+        for (int i = 0; i < current->childCount(); ++i) {
+            stack.append(current->child(i));
+        }
+    }
+}
+
 void Explorer::removeRootItems() {
     // 先頭(0番)はOPEN EDITORSなので残す。
+    loading_.clear();  // 消すのは全てのルートフォルダーなので、読んでいる途中の項目も全て消える。
     while (tree_->topLevelItemCount() > 1) {
         delete tree_->takeTopLevelItem(1);
     }
@@ -248,7 +286,7 @@ void Explorer::addFolder(const QString& path, bool replace) {
     auto item = new QTreeWidgetItem(tree_, {label});
     item->setData(0, kPathRole, canonical);
     item->setToolTip(0, canonical);
-    item->setIcon(0, style()->standardIcon(QStyle::SP_DirIcon));
+    item->setIcon(0, folderIcon_);
     markNotLoaded(item);
     item->setExpanded(true);
     notifyRootsChanged();

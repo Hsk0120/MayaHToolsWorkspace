@@ -53,9 +53,17 @@ def main(output_dir, finished):
             assert code.property('path') == str(original)
             assert code.document().isModified()
             assert (code.textCursor().anchor(), code.textCursor().position()) == (2, 7)
-            assert tabs.widget(1).toPlainText() == 'unsaved_second = 42'
-            assert tabs.widget(1).document().isModified()
+            # 選んでいないタブは、初めて選ぶまで本文を文書へ入れない。見出しの未保存の印は読み込む前から出る。
+            second = tabs.widget(1)
+            assert second.property('textPending') is True
+            assert second.document().isModified() and tabs.tabText(1).endswith('●'), tabs.tabText(1)
+            tabs.setCurrentIndex(1)
+            assert not second.property('textPending')
+            assert second.toPlainText() == 'unsaved_second = 42'
+            assert second.document().isModified()
+            tabs.setCurrentIndex(0)
             result['checks'].append('restored_tabs_text_paths_selection_active_modified')
+            result['checks'].append('inactive_tab_loaded_on_first_selection')
 
         # 自動保存は1秒間隔の確認で入力停止1.5秒後に行うため、固定時間ではなく保存を待つ。
         # 待機は壁時計ではなくイベントループが回った回数(200ms×25回)で数える。Maya 2024では

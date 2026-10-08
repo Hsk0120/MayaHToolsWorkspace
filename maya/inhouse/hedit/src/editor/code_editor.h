@@ -11,17 +11,22 @@
 #include "core/line_diff.h"
 #include "core/script_lexer.h"
 #include "core/text_search.h"
+#include "editor/code_navigation.h"
 #include "editor/numbered_text_edit.h"
 #include <QList>
 #include <QPair>
 #include <QString>
+#include <QStringList>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QTimer>
 #include <QVector>
 #include <functional>
+#include <memory>
+#include <vector>
 
 class QCompleter;
+class QTextLayout;
 
 namespace hedit {
 
@@ -89,6 +94,13 @@ public:
     void showCompletions(const QList<CompletionItem>& items);
     /** @brief 候補の一覧を閉じる。 */
     void hideCompletions();
+    /** @brief 候補の一覧を出しているか。 @return 出していればtrue。 */
+    bool isCompletionVisible() const;
+    /** @brief 一覧を出したまま、入力した名前で候補を絞り込み直す(入力のたびに閉じて開き直さない)。
+     * @param keepWhenEmpty trueなら、絞り込んで候補が無くなっても閉じない(呼出側がすぐ候補を求め直して入れ替える場合)。
+     * @return 一覧が開いたままならtrue。補完中の名前の外へ出た・候補が無くなった場合は閉じてfalse。
+     */
+    bool refilterCompletions(bool keepWhenEmpty = false);
     /** @brief 候補の確定で本文を変更している最中か。
      * @return trueの間の本文変更は、利用者の入力として扱わない(次の補完を予約しない)。
      */
@@ -112,7 +124,9 @@ public:
 
     // ---- 問題(構文チェック)の波線 ----
 
-    /** @brief 問題を波線で示す(エラーは赤、警告は黄色)。 @param diagnostics 問題。行は1始まり。 */
+    /** @brief 問題を波線で示す(エラーは赤、警告は黄色)。 @param diagnostics 問題。行は1始まり。
+     * @details 行は編集に合わせて追従する(行を挿入しても、次の構文チェックまで印が別の行を指さない)。
+     */
     void setDiagnostics(const QList<Diagnostic>& diagnostics);
     /** @brief 今の問題。 @return 問題。 */
     const QList<Diagnostic>& diagnostics() const { return diagnostics_; }
@@ -177,7 +191,7 @@ public:
     QList<int> bracketHighlights() const { return bracketPositions_; }
     /** @brief 印を描くスクロールバー。 @return スクロールバー。所有者はこの欄。 */
     MarkerScrollBar* markerScrollBar() const { return markers_; }
-    /** @brief スクロールバーの印を、すぐ描き直す。 */
+    /** @brief スクロールバーの印を、すぐ描き直す(印の元が変わっていなければ、カーソルの行だけ)。 */
     void updateScrollMarkers();
     /** @brief 上端に残している見出しの行。 @return 行(0始まり)の一覧。外側から順。 */
     const QList<int>& stickyLines() const { return stickyLines_; }
@@ -257,7 +271,9 @@ protected:
      */
     void insertFromMimeData(const QMimeData* source) override;
 
-    /** @brief 本文を描いた後に、インデントの縦線と、畳んだ見出しの「⋯」を重ねる。 @param event 描き直す範囲。 */
+    /** @brief 本文を描いた後に、インデントの縦線と、畳んだ見出しの「⋯」を重ねる。
+     * @param event 描き直す範囲。カーソルの点滅では、その行だけが来る(範囲の外の行は描かない)。
+     */
     void paintEvent(QPaintEvent* event) override;
 
     /** @brief 大きさが変わったら、見出しの固定表示の大きさも合わせる。 @param event 大きさの変化。 */
@@ -296,6 +312,53 @@ private:
     /** @brief 本文が変わったときの表示の更新(折りたたみ・差分・見出しの固定表示)。 */
     void onContentsChanged();
 
+    /** @brief 本文の一部が変わったときに、編集した範囲に合わせて印を直す(QTextDocument::contentsChangeから呼ぶ)。
+     * @param position 変わった位置。
+     * @param removed 削除した文字数。
+     * @param added 追加した文字数。
+     * @details 編集した単語のスペルの波線だけを消し、行の増減に合わせて変更の印をずらす
+     * (全体を消して数百ms後に描き直すと、入力のたびに印がちらつくため)。
+     */
+    void onContentsChange(int position, int removed, int added);
+
+    /** @brief 本文に重ねる印を、イベントループへ戻ってから渡し直す(スクロール・大きさの変化のとき)。
+     * @details 印の渡し直しはQTextCursorを作り・消すため、Qtの文書の処理の途中かもしれない通知の中では行わない。
+     */
+    void scheduleDecorations();
+
+    /** @brief 本文の変更の後でまとめて行う処理(編集した単語のスペルの波線を消す・畳んだ範囲を合わせ直す・印を渡し直す)。
+     * @details 本文の変更の通知(contentsChange・contentsChanged)の中ではQTextCursorを作らない・消さないため、
+     * イベントループへ戻ってから(0msのタイマーで)行う。
+     */
+    void applyEditFollowUps();
+
+    /** @brief 行が折りたたみの見出しか(次の空でない行の方がインデントが深いか)。
+     * @param block 行。
+     * @return 見出しならtrue。indentationFoldRangesと同じ判断を、前後の行だけで行う(本文全体を読まない)。
+     */
+    bool isFoldHeader(const QTextBlock& block) const;
+
+    /** @brief 見出しの行から畳む最後の行を求める。
+     * @param header 見出しの行。
+     * @return 最後の行(0始まり)。畳めない行なら-1。indentationFoldRangesと同じ結果を、その範囲だけ読んで求める。
+     */
+    int foldEnd(const QTextBlock& header) const;
+
+    /** @brief カーソルのあるブロック(インデントの縦線を明るくする範囲)を、必要なときだけ求め直す。
+     * @param firstLine 表示している最初の行。
+     * @param lastLine 表示している最後の行。
+     * @details 範囲は表示している行の外までは求めない(画面の外の行の縦線は描かないため)。
+     * 文書の版・カーソルの行・表示範囲が前回と同じなら、前回の結果を使う(カーソルの点滅のたびに走査しない)。
+     */
+    void updateActiveGuide(int firstLine, int lastLine);
+
+    /** @brief 問題の今の行を返す(編集に合わせて追従した行)。 @param index diagnostics_の番号。 @return 行(1始まり)。 */
+    int diagnosticLine(int index) const;
+
+    /** @brief 補完の一覧の部品(QCompleter::popup)を作って整える(初めて一覧を出すときに1回だけ)。
+     * @details 一覧の部品と、その見た目(スタイルシート)の解析は、タブを開くたびには行わない。
+     */
+    void ensureCompletionPopup();
     /** @brief 畳んだ見出しの一覧に合わせて、行の表示・非表示を設定し直す。 */
     void applyFolds();
 
@@ -353,7 +416,11 @@ private:
     /** @brief 候補の確定。補完中の名前を、選んだ名前で置き換える。 @param value 選んだ名前。 */
     void insertCompletion(const QString& value);
 
-    /** @brief カーソル行の背景・同じ名前・括弧・検索の一致・問題・スペルの波線を、まとめて本文に重ねる。 */
+    /** @brief カーソル行の背景・同じ名前・括弧・検索の一致・問題・スペルの波線を、まとめて本文に重ねる。
+     * @details 表示している範囲(と前後に少し)にかかる印だけを渡す。QPlainTextEditは描くたびに、表示中の行ごとに
+     * 全ての印を調べるため、数千件の印をそのまま渡すと、カーソルの点滅やスクロールのたびに重くなる。
+     * スクロールで表示範囲が変わったら、渡し直す。
+     */
     void updateDecorations();
 
     ScriptLanguage language_ = ScriptLanguage::Python;   ///< 言語。
@@ -373,12 +440,18 @@ private:
     bool stickyScroll_ = true;              ///< 見出しを上端に残すか。
     QList<int> wordPositions_;              ///< 同じ名前の位置。
     QList<int> bracketPositions_;           ///< 対応する括弧の位置。
+    BracketCache bracketCache_;             ///< 括弧の対応を探すときの、行ごとの括弧の控え(本文が変わるまで使う)。
+    QString wordName_;                      ///< 同じ名前の強調を求めた名前(同じ名前・同じ本文なら求め直さない)。
+    int wordRevision_ = -1;                 ///< 同じ名前の強調を求めたときの文書の版。
     QList<Diagnostic> diagnostics_;         ///< 問題。
+    QList<QTextCursor> diagnosticAnchors_;  ///< 問題ごとの行の先頭(QTextCursorは編集に合わせて位置が動く)。
     QString savedText_;                     ///< 保存した内容。
+    QStringList savedLines_;                ///< 保存した内容の行(差分を求めるたびに分け直さない)。
     bool hasSavedText_ = false;             ///< 保存した内容があるか。
     QList<LineChange> lineChanges_;         ///< 保存した内容との違い。
     QVector<char> changeKinds_;             ///< 行ごとの変更の種類(0=なし・1=追加・2=変更)。
     QVector<char> deletedAbove_;            ///< 行の上で削除された行があれば1。
+    int lastBlockCount_ = 1;                ///< 前回の編集の後の行数(行の増減の判断)。
     mutable QList<OutlineEntry> outline_;   ///< 構成のキャッシュ。
     mutable int outlineRevision_ = -1;      ///< 構成を求めたときの文書の版。
     mutable QList<FoldRange> foldRanges_;   ///< 折りたたみの範囲のキャッシュ。
@@ -386,6 +459,23 @@ private:
     QList<QTextCursor> foldedHeaders_;      ///< 畳んだ見出しの行(QTextCursorは編集に合わせて位置が動く)。
     QList<QPair<int, int>> selectionStack_; ///< 選択範囲の拡大の前の選択(アンカー, 位置)。
     QList<int> stickyLines_;                ///< 上端に残している見出しの行。
+    int stickyRevision_ = -1;               ///< 見出しの固定表示を描いたときの文書の版。
+    std::vector<std::unique_ptr<QTextLayout>> stickyLayouts_;  ///< 見出しの固定表示の行のレイアウト(描くたびに作らない)。
+    QString stickyLayoutKey_;               ///< stickyLayouts_を作ったときの行・版・フォント。
+    int activeGuideKey_[4] = {-1, -1, -1, -1};  ///< 縦線の範囲を求めたときの(版, カーソルの行, 最初の行, 最後の行)。
+    int visibleRangeKey_[4] = {-1, -1, -1, -1};  ///< 印を絞る表示範囲を求めたときの(版, スクロール位置, 高さ, 幅)。折りたたみで-1に戻す。
+    int visibleStart_ = 0;                  ///< 印を絞る表示範囲の最初の位置(文書の中)。
+    int visibleEnd_ = 0;                    ///< 印を絞る表示範囲の最後の位置(文書の中)。
+    int activeLevel_ = -1;                  ///< 明るくする縦線の段(0始まり)。無ければ-1。
+    int activeTop_ = 0;                     ///< 明るくする範囲の最初の行。
+    int activeBottom_ = 0;                  ///< 明るくする範囲の最後の行。
+    bool markersDirty_ = true;              ///< スクロールバーの印の元(差分・検索・同じ名前・問題)が変わったか。
+    bool decorationsDirty_ = false;         ///< 本文に重ねる印を、本文の変更の後で渡し直す必要があるか。
+    bool foldsDirty_ = false;               ///< 畳んだ範囲を、本文の変更の後で合わせ直す必要があるか。
+    int editedStart_ = -1;                  ///< まだ波線を消していない編集の範囲の先頭。無ければ-1。
+    int editedEnd_ = -1;                    ///< まだ波線を消していない編集の範囲の終わり。無ければ-1。
+    int completionStart_ = -1;              ///< 補完の一覧を出したときの、補完中の名前の先頭の位置。
+    bool completionPopupReady_ = false;     ///< 補完の一覧の部品を作って整えたか。
     int lastCursorBlock_ = 0;               ///< 前回のカーソルの行(畳んだ範囲を飛び越える向きの判断)。
     bool expanding_ = false;                ///< 選択範囲の拡大で選択を変えている最中か。
     QPair<int, int> lastExpanded_{-1, -1};  ///< 最後に広げた選択範囲(先頭, 終わり)。
@@ -400,6 +490,8 @@ private:
     QPoint hoverPoint_;                     ///< 最後にマウスが動いた位置(表示部分の座標)。
     QTimer diffTimer_;                      ///< 入力が止まって0.3秒後に差分を求め直す。
     QTimer markerTimer_;                    ///< スクロールバーの印をまとめて描き直す。
+    QTimer stickyTimer_;                    ///< 入力が止まって0.1秒後に見出しの固定表示を求め直す(入力のたびに構成を作らない)。
+    QTimer afterEditTimer_;                 ///< 本文の変更の後、イベントループへ戻ってからapplyEditFollowUpsを呼ぶ(0ms)。
 };
 
 }  // namespace hedit

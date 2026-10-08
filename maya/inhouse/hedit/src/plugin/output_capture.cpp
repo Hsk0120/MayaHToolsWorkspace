@@ -7,12 +7,15 @@
 #include "plugin/mel.h"
 #include <maya/MQtUtil.h>
 #include <QApplication>
+#include <QEvent>
 #include <QMutexLocker>
 #include <QStringList>
 #include <QPlainTextEdit>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QThread>
+#include <QTimer>
+#include <functional>
 #include <memory>
 
 namespace hedit {
@@ -111,6 +114,34 @@ QString readMayaHistory() {
     return compactHistory(keepTail(text, kMaximumChunkCharacters));
 }
 
+/** @brief 部品の表示・非表示を知らせるイベントフィルター。
+ * @details 親(ドック)を閉じたときも、Qtは子の部品へ非表示のイベントを送るので、編集画面に付ければ
+ * ドックの開閉・タブの切り替えが分かる。
+ */
+class VisibilityWatcher : public QObject {
+public:
+    /** @brief フィルターを作る。
+     * @param changed 表示(true)・非表示(false)になったときに呼ぶ関数。
+     * @param parent 所有者。
+     */
+    VisibilityWatcher(std::function<void(bool)> changed, QObject* parent)
+        : QObject(parent), changed_(std::move(changed)) {}
+
+protected:
+    /** @brief 表示・非表示のイベントを知らせる。イベント自体は止めない。
+     * @param watched 見張っている部品。 @param event イベント。 @return 常にfalse(通常どおり処理させる)。
+     */
+    bool eventFilter(QObject* watched, QEvent* event) override {
+        if (event->type() == QEvent::Show || event->type() == QEvent::Hide) {
+            changed_(event->type() == QEvent::Show);
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::function<void(bool)> changed_;  ///< 知らせる先。
+};
+
 }  // namespace
 
 namespace {
@@ -134,6 +165,21 @@ OutputCapture& outputCapture() {
     return *captureInstance;
 }
 
+OutputCapture::OutputCapture() : notifier_(new QObject) {
+    // 取り出しの依頼・表示の見張り・非表示の待ち時間は、どれもnotifier_の子にする
+    // (notifier_を消せば、まだ実行していない依頼も含めて一緒に片付く)。
+    watcher_ = new VisibilityWatcher([this](bool visible) { onEditorVisibilityChanged(visible); }, notifier_);
+    hideTimer_ = new QTimer(notifier_);
+    hideTimer_->setSingleShot(true);
+    hideTimer_->setInterval(1000);
+    QObject::connect(hideTimer_, &QTimer::timeout, notifier_, [this] { applyMode(); });
+}
+
+OutputCapture::~OutputCapture() {
+    // QObjectを消すと、その部品宛てにキューへ入れた呼出し(postNotification)も取り消される。
+    delete notifier_;
+}
+
 bool OutputCapture::start() {
     if (running_) {
         return true;  // 購読中。
@@ -145,37 +191,72 @@ bool OutputCapture::start() {
     // reporterより先に登録し、reporterへの追記の直前に種類が分かるようにする。
     typeCallback_ = MCommandMessage::addCommandOutputCallback(onCommandOutput, this);
     running_ = true;
-    if (mode_ == Mode::Exact && !subscribeReporter()) {
-        MGlobal::displayWarning("hedit: Maya's output reporter was not found; showing plain command output.");
-    }
+    applyMode();
     return true;
 }
 
 void OutputCapture::setMode(Mode mode) {
     mode_ = mode;
-    if (!running_ || (mode == Mode::Exact) == bool(reporterDocument_)) {
-        return;  // 購読前(startで反映する)か、既にその方式。
+    reporterWarned_ = false;  // 選び直したら、見つからない警告をもう一度出す。
+    applyMode();
+}
+
+void OutputCapture::setEditor(QMainWindow* editor) {
+    if (editor_) {
+        editor_->removeEventFilter(watcher_);
     }
-    if (mode == Mode::Exact) {
-        if (!subscribeReporter()) {
-            MGlobal::displayWarning("hedit: Maya's output reporter was not found; showing plain command output.");
-        }
+    editor_ = editor;
+    if (editor) {
+        editor->installEventFilter(watcher_);
+    }
+    editorVisible_ = editor && editor->isVisible();
+    hideTimer_->stop();
+    applyMode();
+}
+
+void OutputCapture::onEditorVisibilityChanged(bool visible) {
+    editorVisible_ = visible;
+    if (visible) {
+        hideTimer_->stop();
+        applyMode();
     } else {
+        hideTimer_->start();  // 1秒後にapplyMode()。それまでに表示し直されたら何もしない。
+    }
+}
+
+void OutputCapture::applyMode() {
+    if (!running_ || exiting_) {
+        return;  // 購読前(startで反映する)か、終了処理中(MELを呼ばない)。
+    }
+    const bool wanted = mode_ == Mode::Exact && editorVisible_;
+    if (wanted == exact_.load()) {
+        return;  // 既にその方式。
+    }
+    if (!wanted) {
         unsubscribeReporter();
+    } else if (!subscribeReporter() && !reporterWarned_) {
+        reporterWarned_ = true;
+        MGlobal::displayWarning("hedit: Maya's output reporter was not found; showing plain command output.");
     }
 }
 
 void OutputCapture::importHistory() {
     const QStringList lines = readMayaHistory().split('\n');
-    QMutexLocker lock(&mutex_);
-    for (int i = 0; i < lines.size(); ++i) {
-        const QString& line = lines.at(i);
-        const bool trailingEmpty = i == lines.size() - 1 && line.isEmpty();
-        if (trailingEmpty) {
-            break;  // 最後の改行の後ろの空文字列。
+    bool notify = false;
+    {
+        QMutexLocker lock(&mutex_);
+        for (int i = 0; i < lines.size(); ++i) {
+            const QString& line = lines.at(i);
+            const bool trailingEmpty = i == lines.size() - 1 && line.isEmpty();
+            if (trailingEmpty) {
+                break;  // 最後の改行の後ろの空文字列。
+            }
+            // 種類は行ごとに分けるが、同じ種類が続く行は1つの項目へつなげる(項目の数を増やさない)。
+            notify = appendLocked(line + '\n', classifyHistoryLine(line)) || notify;
         }
-        pending_.append({line + '\n', classifyHistoryLine(line)});
-        pendingSize_ += line.size() + 1;
+    }
+    if (notify) {
+        postNotification();
     }
 }
 
@@ -201,6 +282,7 @@ bool OutputCapture::subscribeReporter() {
     // hedit専用の文書だけ行数を制限する。取り出すのは追記された部分だけなので、多くは要らない
     // (表示用の保持は編集画面の出力欄が持つ)。
     reporterDocument_->setMaximumBlockCount(1000);
+    exact_ = true;  // 以後の通知は種類だけを覚え、本文はreporterから受け取る。
 
     // 2. 文書への追記を購読する。contentsChangeは(位置, 削除した文字数, 追加した文字数)を知らせる。
     reporterConnection_ = QObject::connect(
@@ -223,6 +305,7 @@ bool OutputCapture::subscribeReporter() {
 }
 
 void OutputCapture::unsubscribeReporter() {
+    exact_ = false;  // 先に速い方式へ戻す(以後の通知は本文を自分で整える)。
     QObject::disconnect(reporterConnection_);
     reporterDocument_ = nullptr;
     if (!reporterWindow_.isEmpty() && melBool("window -exists " + melQuote(reporterWindow_))) {
@@ -233,7 +316,7 @@ void OutputCapture::unsubscribeReporter() {
 
 void OutputCapture::onCommandOutput(const MString& message, MCommandMessage::MessageType type, void* clientData) {
     auto self = static_cast<OutputCapture*>(clientData);
-    if (!self->reporterDocument_) {
+    if (!self->exact_.load()) {
         // 速い方式: 通知の本文を自分で整える(receiveは別スレッドからでも鍵を取って安全に貯める)。
         const OutputKind kind = toOutputKind(type);
         // Maya 2022のreporterは古い書き方(最後に「 // 」を付ける)なので、それに合わせる。
@@ -255,25 +338,42 @@ void OutputCapture::receive(QString text, OutputKind kind) {
         text.replace("\r\n", "\n");
         text.replace('\r', '\n');
     }
+    bool notify = false;
     {
         QMutexLocker lock(&mutex_);
-        appendLocked(text, kind);
+        notify = appendLocked(text, kind);
     }
     // take()が同じ鍵を使うので、描画の前に鍵を手放している(上の{}を出た時点で解放)。
-    // ファイルの読み込み中などはQtのタイマーが動かないため、メインスレッドなら直接描き直す。
+    if (notify) {
+        postNotification();  // イベントループへ戻ったら、編集画面が取り出す。
+    }
+    // ファイルの読み込み中などはイベントループへ戻らないため、メインスレッドなら直接描き直す。
     if (onMainThread()) {
         refreshEditorOutput(editor_.data());
     }
 }
 
-void OutputCapture::appendLocked(const QString& input, OutputKind kind) {
+void OutputCapture::postNotification() {
+    // notifier_はメインスレッドの部品なので、キューへ入れた呼出しはメインスレッドで実行される。
+    // 実行時に終了処理中なら何もしない(画面は解体途中かもしれない)。
+    QMetaObject::invokeMethod(
+        notifier_,
+        [this] {
+            if (!exiting_) {
+                scheduleEditorOutput(editor_.data());
+            }
+        },
+        Qt::QueuedConnection);
+}
+
+bool OutputCapture::appendLocked(const QString& input, OutputKind kind) {
     QString text = input;
     if (text.size() > kMaximumChunkCharacters) {
         text = keepTail(text, kMaximumChunkCharacters);
         omitted_ = true;
     }
     if (text.isEmpty()) {
-        return;
+        return false;
     }
     pendingSize_ += text.size();
     // 同じ種類が続く場合は、1つの項目へつなげる(細切れの通知で項目が増えすぎないように)。
@@ -294,6 +394,10 @@ void OutputCapture::appendLocked(const QString& input, OutputKind kind) {
         pendingSize_ = pending_.last().text.size();
         omitted_ = true;
     }
+    // 取り出しを頼むのは、前回のtake()の後で1回だけ(出力が続いても依頼を増やさない)。
+    const bool notify = !notifyPending_;
+    notifyPending_ = true;
+    return notify;
 }
 
 QList<OutputMessage> OutputCapture::take() {
@@ -301,6 +405,7 @@ QList<OutputMessage> OutputCapture::take() {
     QList<OutputMessage> result;
     result.swap(pending_);  // 中身を入れ替えて、キューを空にする。
     pendingSize_ = 0;
+    notifyPending_ = false;  // 次の出力で、また取り出しを頼む。
     if (omitted_) {
         result.prepend({"[hedit: older buffered output omitted]\n", OutputKind::Info});
     }
@@ -310,6 +415,8 @@ QList<OutputMessage> OutputCapture::take() {
 
 void OutputCapture::stopForExit() {
     exiting_ = true;
+    exact_ = false;
+    hideTimer_->stop();
     QObject::disconnect(reporterConnection_);
     reporterDocument_ = nullptr;
 }

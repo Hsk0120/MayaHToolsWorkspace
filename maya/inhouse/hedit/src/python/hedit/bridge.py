@@ -7,6 +7,7 @@ Mayaのメインスレッドから呼ばれる。対象のモジュールをimpo
 """
 import builtins
 import inspect
+import itertools
 import json
 import keyword
 import os
@@ -86,6 +87,9 @@ def _signature(module, namespace):
 
     名前・値の同一性(id)・クラスの中身の数から作る。公開名の辞書を作ってJSONにするより軽いので、
     C++は前回と同じ印なら前回の結果を使う(maya.cmdsは約4,700個の名前がある)。
+    補完のたびに呼ぶので、名前ごとの処理は ``map`` などの組み込みの関数で行い、Python の for 文で1つずつ調べない
+    (maya.cmdsで約1msから約0.3msになる)。そのため ``_`` で始まる名前も印に含める。それらが変わったときも
+    公開名を送り直すだけで、結果は同じ。
 
     Args:
         module (module): モジュール。
@@ -94,12 +98,11 @@ def _signature(module, namespace):
     Returns:
         str: 印。
     """
-    parts = []
-    for key, value in list(namespace.items()):
-        if key.startswith('_'):
-            continue
-        parts.append((key, id(value), len(vars(value)) if isinstance(value, type) else -1))
-    return '%d:%d' % (id(module), hash(tuple(parts)))
+    keys = tuple(namespace)
+    values = tuple(namespace.values())
+    # クラスかは型で見分ける(isinstance と違い、__class__ を偽るオブジェクトの property を実行しない)。
+    classes = itertools.compress(values, map(issubclass, map(type, values), itertools.repeat(type)))
+    return '%d:%d' % (id(module), hash((keys, tuple(map(id, values)), tuple(map(len, map(vars, classes))))))
 
 
 def module_info(name, known_signature=''):
@@ -243,11 +246,35 @@ def environment():
     return json.dumps({'builtins': sorted(vars(builtins)), 'keywords': list(keyword.kwlist)}, ensure_ascii=True)
 
 
-def module_names():
-    """str: C++のimport補完へ渡す検索パスと、組み込み・読み込み済みのトップレベル名(JSON)。
+def _module_names_signature():
+    """:func:`module_names` の結果が変わったかを見分けるための印を作る。
+
+    sys.modulesの名前の集合・sys.path・作業フォルダー(sys.pathの相対パスの基準)から作る。
+    トップレベル名を集めて並べ替え、JSONにするより軽い。
+
+    Returns:
+        str: 印。
+    """
+    paths = tuple(path for path in sys.path if isinstance(path, str))
+    return '%d:%d:%d' % (len(sys.modules), hash(frozenset(sys.modules)), hash((paths, os.getcwd())))
+
+
+def module_names(known_signature=''):
+    """C++のimport補完へ渡す検索パスと、組み込み・読み込み済みのトップレベル名を返す。
 
     sys.pathのフォルダー走査はC++(src/core/module_scanner.cpp)がGILを取らないスレッドで行う。
+    import の行では1文字ごとに呼ばれるので、:func:`module_info` と同じく、変わっていなければ一覧を送らない。
+
+    Args:
+        known_signature (str): C++が前回受け取った印。今の印と同じなら一覧を送らない。
+
+    Returns:
+        str: ``{"signature": "...", "paths": [...], "names": [...]}`` の JSON。
+        印が同じなら ``{"unchanged": true}``。
     """
+    signature = _module_names_signature()
+    if signature == known_signature:
+        return json.dumps({'unchanged': True})
     names = set(sys.builtin_module_names)
     names.update(name.split('.')[0] for name in list(sys.modules))
-    return json.dumps({'paths': _search_paths(), 'names': sorted(names)}, ensure_ascii=True)
+    return json.dumps({'signature': signature, 'paths': _search_paths(), 'names': sorted(names)}, ensure_ascii=True)

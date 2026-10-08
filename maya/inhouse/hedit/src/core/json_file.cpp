@@ -50,7 +50,12 @@ bool updateJsonFile(const QString& path, const QString& key, const QJsonValue& v
     // 読み直してから1項目だけ変える(別のMayaが変えた他の項目を消さないため)。
     // 読めない(壊れた)ファイルは、空から作り直す。
     QJsonObject object;
-    readJsonFile(path, &object);
+    const bool readable = readJsonFile(path, &object);
+    // ファイルの値が既に同じなら書かない(OneDriveなどの同期フォルダーへ無駄な書き込みをしない)。
+    const bool unchanged = value.isUndefined() ? !object.contains(key) : object.value(key) == value;
+    if (readable && unchanged) {
+        return true;
+    }
     if (value.isUndefined()) {
         object.remove(key);
     } else {

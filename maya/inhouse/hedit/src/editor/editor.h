@@ -53,4 +53,10 @@ QMainWindow* createEditor(QWidget* parent, const EditorServices& services);
  */
 void refreshEditorOutput(QMainWindow* editor);
 
+/** @brief Mayaの出力が貯まったことを知らせ、イベントループで出力欄へ取り出させる。
+ * @param editor createEditorで作成した画面。nullptrや非表示の画面は何もしない(表示したときにまとめて取り出す)。
+ * @note Mayaのメインスレッドからだけ呼ぶ(出力の取り込みが、キューへ入れた呼出しで呼ぶ)。
+ */
+void scheduleEditorOutput(QMainWindow* editor);
+
 }  // namespace hedit

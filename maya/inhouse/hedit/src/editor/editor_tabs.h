@@ -49,7 +49,9 @@ public:
     /** @brief ファイルを開いているタブを探す。 @param absolutePath 絶対パス。 @return タブの番号。無ければ-1。 */
     int indexOfFile(const QString& absolutePath) const;
 
-    /** @brief タブの見出しを、ファイル名と未保存の印(●)で更新する。 @param editor 対象のタブ。 */
+    /** @brief タブの見出しを、ファイル名と未保存の印(●)で更新する。見出しが変わらなければ何もしない。
+     * @param editor 対象のタブ。
+     */
     void updateTitle(CodeEditor* editor);
 
     /** @brief 次(前)のタブへ移る。端では反対側へ折り返す。 @param direction 次は1、前は-1。 */

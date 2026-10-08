@@ -1,6 +1,8 @@
 /** @file history_text.h
- * @brief 起動前からMayaに残っている出力履歴を、出力欄へ取り込める形に整える。
- * @details 初回表示のときに一度だけ使う。以後のライブ出力(plugin/output_capture.cpp)には使わない。
+ * @brief Mayaの出力を、出力欄へ取り込める形に整える。
+ * @details compactHistory・classifyHistoryLineは、起動前からMayaに残っている出力履歴を、初回表示のときに
+ * 一度だけ取り込むために使う。formatCommandOutputは、ライブ出力(plugin/output_capture.cpp)の通知の本文を
+ * Script Editorと同じ形にするため、通知ごとに使う。
  */
 #pragma once
 #include "core/output_message.h"

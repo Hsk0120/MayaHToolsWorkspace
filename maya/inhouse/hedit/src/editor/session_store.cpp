@@ -55,6 +55,7 @@ SessionStore::OpenResult SessionStore::open(SessionData* data) {
     SessionData loaded;
     const bool readable = file.open(QIODevice::ReadOnly) && sessionFromJson(file.readAll(), &loaded);
     bool textsReadable = readable;
+    QSet<QString> textFiles;
     for (TabState& tab : loaded.tabs) {
         if (!textsReadable || tab.textLoaded) {
             continue;
@@ -63,12 +64,14 @@ SessionStore::OpenResult SessionStore::open(SessionData* data) {
         textsReadable = text.open(QIODevice::ReadOnly);
         tab.text = textsReadable ? QString::fromUtf8(text.readAll()) : QString();
         tab.textLoaded = textsReadable;
+        textFiles.insert(tab.id);
     }
     if (!textsReadable) {
         // 壊れたファイル(本文のファイルが欠けている場合を含む)を上書きしないよう、ロックを外して以後は保存しない。
         lock_->unlock();
         return OpenResult::Unreadable;
     }
+    textFiles_ = textFiles;
     *data = loaded;
     return OpenResult::Loaded;
 }
@@ -84,10 +87,14 @@ bool SessionStore::save(const SessionData& data, QString* error) {
     // 1. 本文が変わったタブの本文を書く。
     QSet<QString> ids;
     for (const TabState& tab : data.tabs) {
-        ids.insert(tab.id + ".txt");
-        if (tab.textLoaded && !writeFile(textPath(tab.id), tab.text.toUtf8(), error)) {
+        ids.insert(tab.id);
+        if (!tab.textLoaded) {
+            continue;
+        }
+        if (!writeFile(textPath(tab.id), tab.text.toUtf8(), error)) {
             return false;
         }
+        ++textWrites_;
     }
     // 2. タブの並びなどの小さな情報を書く(前回と同じなら書かない)。
     const QByteArray bytes = sessionToJson(data);
@@ -96,14 +103,32 @@ bool SessionStore::save(const SessionData& data, QString* error) {
             return false;
         }
         lastSaved_ = bytes;
+        ++jsonWrites_;
     }
     // 3. 閉じたタブの本文のファイルを消す(tabs.jsonを書いた後なので、消しても参照されない)。
     QDir texts(QFileInfo(path_).absolutePath() + "/tabs");
-    for (const QString& name : texts.entryList({"*.txt"}, QDir::Files)) {
-        if (!ids.contains(name)) {
-            texts.remove(name);
+    if (!cleaned_) {
+        // 最初の保存だけ、フォルダーを一覧して、前回のMayaが残したファイル(落ちた場合など)も消す。
+        ++listings_;
+        QSet<QString> names;
+        for (const QString& id : ids) {
+            names.insert(id + ".txt");
+        }
+        for (const QString& name : texts.entryList({"*.txt"}, QDir::Files)) {
+            if (!names.contains(name)) {
+                texts.remove(name);
+            }
+        }
+        cleaned_ = true;
+    } else {
+        // 以後は、前回の保存から無くなったタブの本文のファイルだけを消す(一覧は読まない)。
+        for (const QString& id : savedIds_) {
+            if (!ids.contains(id)) {
+                texts.remove(id + ".txt");
+            }
         }
     }
+    savedIds_ = ids;
     return true;
 }
 

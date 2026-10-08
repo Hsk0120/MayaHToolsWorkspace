@@ -11,15 +11,17 @@
 #include "version.h"
 #include <maya/MGlobal.h>
 #include <maya/MString.h>
+#include <QByteArray>
+#include <QCryptographicHash>
 #include <string>
 
 namespace hedit {
 namespace embedded {
 namespace {
 
-/// importフックを登録するPython。__hedit_bootstrap(ソースの辞書, パッケージ名の集合, 版)として呼ぶ。
+/// importフックを登録するPython。__hedit_bootstrap(ソースの辞書, パッケージ名の集合, 版, ビルドの印)として呼ぶ。
 constexpr const char* kBootstrap = R"PY(
-def __hedit_bootstrap(sources, packages, version):
+def __hedit_bootstrap(sources, packages, version, build):
     import sys, importlib.abc, importlib.util
 
     class HeditEmbeddedImporter(importlib.abc.MetaPathFinder, importlib.abc.InspectLoader):
@@ -28,8 +30,11 @@ def __hedit_bootstrap(sources, packages, version):
         def find_spec(self, fullname, path=None, target=None):
             if fullname not in sources:
                 return None
-            return importlib.util.spec_from_loader(fullname, self, origin='hedit.mll',
+            spec = importlib.util.spec_from_loader(fullname, self, origin='hedit.mll',
                                                    is_package=fullname in packages)
+            # どのビルドの同梱ソースから読んだかを残す(作り直した hedit.mll をロードしたときに見分ける)。
+            spec.loader_state = build
+            return spec
 
         def is_package(self, fullname):
             return fullname in packages
@@ -50,15 +55,37 @@ def __hedit_bootstrap(sources, packages, version):
     # 前回のロードで登録したフックを外してから、標準のPathFinder(sys.pathの.pyを探す仕組み)の直前へ入れる。
     # 組み込み・凍結モジュールの仕組みより後ろなので、hedit以外のimportの順番は変えない。
     sys.meta_path[:] = [finder for finder in sys.meta_path if type(finder).__name__ != 'HeditEmbeddedImporter']
-    # 同梱以外(ディスク上の古いフォルダーなど)から読まれた同名のモジュールを取り除く。
+    # 同梱以外(ディスク上の古いフォルダーなど)から読まれた同名のモジュールと、別のビルドの同梱ソースから
+    # 読まれたモジュール(同じ Maya のまま作り直した hedit.mll をロードし直した場合)を取り除き、次の import で読み直させる。
+    # 同じビルドのロードし直しなら残す(補完のキャッシュを保つため)。hedit 以外のモジュールには触れない。
     for name in [name for name in sys.modules if name in sources or name.startswith('hedit.')]:
-        if getattr(getattr(sys.modules[name], '__spec__', None), 'origin', None) != 'hedit.mll':
+        spec = getattr(sys.modules[name], '__spec__', None)
+        if getattr(spec, 'origin', None) != 'hedit.mll' or getattr(spec, 'loader_state', None) != build:
             del sys.modules[name]
     import importlib.machinery
     position = next((index for index, finder in enumerate(sys.meta_path)
                      if finder is importlib.machinery.PathFinder), len(sys.meta_path))
     sys.meta_path.insert(position, HeditEmbeddedImporter())
 )PY";
+
+/** @brief 同梱のPythonと版から、ビルドを見分ける印を作る。
+ * @return 版・モジュール名・ソースの本文のSHA-1(16進数)。同じ内容なら、ビルドし直しても同じ。
+ * @details 作り直したhedit.mllを同じMayaのままロードし直したとき、前のビルドのソースから読み込み済みの
+ * ``hedit.*``(sys.modulesに残っている)を見分けて読み直させるために使う。版を上げずにPythonを直した
+ * 開発中のビルドも見分けられるよう、ソースの本文から作る。ロードのたびに約50KBを読むだけなので、速さは問題にならない。
+ */
+QString buildIdentifier() {
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    hash.addData(QByteArrayLiteral(HEDIT_VERSION));
+    for (const PythonModule& module : kPythonModules) {
+        // 区切りに0を入れ、名前と本文の境目がずれた別の内容と同じ印にならないようにする。
+        hash.addData(QByteArray(1, '\0'));
+        hash.addData(QByteArray(module.name));
+        hash.addData(QByteArray(1, module.isPackage ? '\1' : '\0'));
+        hash.addData(QByteArray(module.source));
+    }
+    return QString::fromLatin1(hash.result().toHex());
+}
 
 }  // namespace
 
@@ -75,7 +102,8 @@ MStatus installModules() {
             script += pythonStringLiteral(QString::fromUtf8(module.name)) + ", ";
         }
     }
-    script += "}, " + pythonStringLiteral(QStringLiteral(HEDIT_VERSION)) + ")\n";
+    script += "}, " + pythonStringLiteral(QStringLiteral(HEDIT_VERSION)) + ", " + pythonStringLiteral(buildIdentifier())
+              + ")\n";
     // 一時関数を、Script Editorの名前空間(__main__)に残さない。
     script += "del __hedit_bootstrap\n";
     MString command;

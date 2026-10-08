@@ -84,6 +84,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-08): hedit 0.5.0。高速化・軽量化レビューの全項目を実装(core・Python・画面全体は別作業コピーで並行し3方向で統合)。1キーの入力16→3ms、self.補完114→0.3ms、構文チェック2万行9→0.7秒、30タブ復元460→66ms、閉じている間の出力の負担≒0など。開発中に見つけたMaya 2022のクラッシュ(QTextDocument::clear中の通知でQTextCursorを解放)を修正。6版ビルド・単体、GUI 9種を2022/2024/2027で合格。未コミット。
+
+- Claude Code (2026-10-08): hedit全コード(約16,400行)を高速化・軽量化の観点でレビュー。キー入力ごとの全文再構築・非表示時の出力タイマーとカーソル移動での保存・型推論の行ごとの正規表現コンパイル等を確認し、段階別の改善案と計測方法をdocs/research/hedit-refactor-perf-20261008.md(ローカル)へ記録。コード変更なし。
+
 - Codex (2026-10-07): スキニング関係照会・未使用中間Shape取得/削除・delete(safe=False)と関連テスト/資料をコミット対象に集約。origin/main同期・差分検査成功、直前のMaya2022/2027各35テストとSphinx検証結果を確認。ユーザー指示により本コミットをpushする。
 
 - Codex (2026-10-07): Node/Nodes・Joint/Jointsにdelete(*, safe=False)を追加。safe=Trueは自身とDAG子孫の入出力/message/Set接続をOMで検査し削除をスキップ、Jointのウェイト移送/再親付けも抑止。既定削除・None戻り値・Undo維持、forceはsafe=Falseと重複するため追加なし。既存削除テストのNode/文字列混在入力を確定済み入力規則に合わせ、混在拒否も検証。先行2機能を含むMaya2022/2027 standalone各35件成功、Sphinx -W・layout・差分検査成功。GUI未検証、未コミット。

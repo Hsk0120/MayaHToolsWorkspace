@@ -41,7 +41,7 @@ QString colored(const QString& text, const char* color) {
  * @return HTMLの断片。
  */
 QString signatureHtml(const QString& signature) {
-    const QList<Token> tokens = tokenizeLine(signature, ScriptLanguage::Python, kLexerNormal, nullptr);
+    const auto tokens = tokenizeLine(signature, ScriptLanguage::Python, kLexerNormal, nullptr);
     QString html;
     int position = 0;
     const char* nextNameColor = nullptr;  // def・classの直後の名前の色。
@@ -265,33 +265,40 @@ void HoverPopup::showHtml(const QString& html, const QRect& anchor, const QFont&
     anchor_ = anchor;
     // docstringは読みやすいUIのフォント、見出しとコードはエディターのフォント(VS Codeと同じ)。
     const int pixels = codeFont.pixelSize() > 0 ? codeFont.pixelSize() : scaled(14);
-    QFont textFont("Segoe UI");
-    textFont.setPixelSize(qMax(1, pixels - 1));
-    view_->document()->setDefaultFont(textFont);
-    view_->setHtml(html);
+    // 表示中と同じ内容(引数のヒントで、入力しても今の引数が変わらないときなど)なら、HTMLの読み込みと
+    // 大きさの計算を省き、下の位置合わせだけを行う。
+    const QString key = QString("%1|%2|%3|").arg(pixels).arg(maximumWidthOption).arg(maximumHeightOption) + html;
+    if (!isVisible() || key != contentKey_) {
+        contentKey_ = key;
+        QFont textFont("Segoe UI");
+        textFont.setPixelSize(qMax(1, pixels - 1));
+        view_->document()->setDefaultFont(textFont);
+        view_->setHtml(html);
 
-    // 大きさ: 最大幅で折り返したときに実際に使う幅と高さ。長いdocstringは最大の高さでスクロールさせる。
-    // 表示用の文書はQTextBrowserが自分の幅で並べ直すため、測るのは別の文書で行う。
-    QTextDocument measure;
-    measure.setDefaultFont(textFont);
-    measure.setDocumentMargin(view_->document()->documentMargin());
-    measure.setHtml(html);
-    const int maximumWidth = scaled(maximumWidthOption > 0 ? maximumWidthOption : kMaximumWidth);
-    const int maximumHeight = scaled(maximumHeightOption > 0 ? maximumHeightOption : kMaximumHeight);
-    measure.setTextWidth(maximumWidth);
-    const int width = qMin(maximumWidth, int(std::ceil(measure.idealWidth())) + scaled(8));
-    measure.setTextWidth(width);
-    const int contentHeight = int(std::ceil(measure.size().height()));
-    const int height = qMin(maximumHeight, contentHeight);
-    const int scrollBar = contentHeight > maximumHeight ? view_->verticalScrollBar()->sizeHint().width() : 0;
-    const int border = scaled(1) * 2;
-    resize(width + scrollBar + border, height + border);
-    // 実際の表示欄の幅で並べ直すと、折り返しが1行増えることがある。その高さで合わせ直す。
-    layout()->activate();
-    view_->document()->setTextWidth(view_->viewport()->width());
-    const int shownHeight = int(std::ceil(view_->document()->size().height()));
-    if (shownHeight > height && height < maximumHeight) {
-        resize(this->width(), qMin(maximumHeight, shownHeight) + border);
+        // 大きさ: 最大幅で折り返したときに実際に使う幅と高さ。長いdocstringは最大の高さでスクロールさせる。
+        // 表示用の文書はQTextBrowserが自分の幅で並べ直すため、測るのは別の文書で行う。
+        QTextDocument measure;
+        measure.setDefaultFont(textFont);
+        measure.setDocumentMargin(view_->document()->documentMargin());
+        measure.setHtml(html);
+        const int maximumWidth = scaled(maximumWidthOption > 0 ? maximumWidthOption : kMaximumWidth);
+        const int maximumHeight = scaled(maximumHeightOption > 0 ? maximumHeightOption : kMaximumHeight);
+        measure.setTextWidth(maximumWidth);
+        const int width = qMin(maximumWidth, int(std::ceil(measure.idealWidth())) + scaled(8));
+        measure.setTextWidth(width);
+        const int contentHeight = int(std::ceil(measure.size().height()));
+        const int height = qMin(maximumHeight, contentHeight);
+        const int scrollBar = contentHeight > maximumHeight ? view_->verticalScrollBar()->sizeHint().width() : 0;
+        const int border = scaled(1) * 2;
+        resize(width + scrollBar + border, height + border);
+        // 実際の表示欄の幅で並べ直すと、折り返しが1行増えることがある。その高さで合わせ直す。
+        layout()->activate();
+        view_->document()->setTextWidth(view_->viewport()->width());
+        const int shownHeight = int(std::ceil(view_->document()->size().height()));
+        if (shownHeight > height && height < maximumHeight) {
+            resize(this->width(), qMin(maximumHeight, shownHeight) + border);
+        }
+        view_->verticalScrollBar()->setValue(0);
     }
 
     // 位置: 名前の上(Belowなら下、Rightなら右)。入らなければ反対側。画面の端からはみ出さない。
@@ -318,7 +325,6 @@ void HoverPopup::showHtml(const QString& html, const QRect& anchor, const QFont&
     }
     x = qMax(area.left(), qMin(x, area.right() - this->width()));
     move(x, y);
-    view_->verticalScrollBar()->setValue(0);
     show();
     raise();
 }

@@ -155,7 +155,8 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
        終了処理中の reporter 追記を hedit 画面へ描画しない。
    * - ``import xxx`` / ``from xxx`` のトップレベル名の補完
      - ``core/module_scanner.cpp`` の ``ModuleScanner``\ 。\ ``sys.path`` の各フォルダーを C++ のスレッド(GIL 不要)で走査する。
-       編集画面の作成時に走査を始め、初回は最大 0.5 秒待つ。以後の再走査は 5 秒間隔で裏で行う。
+       編集画面を作ってから 1 秒後に走査を始める(画面が閉じていれば始めない。それより前に import の行で補完すれば、
+       補完の側で始める)。初回は最大 0.5 秒待つ。以後の再走査は 5 秒間隔で裏で行う。
        Python からは ``sys.path`` と組み込み・読み込み済みの名前(``hedit.bridge.module_names``)だけを受け取る
        (``plugin/python_bridge.cpp``)。Maya に依存しないため ``tests/ui_smoke.cpp`` で検証する。
    * - それ以外の補完
@@ -230,6 +231,8 @@ import フックを登録し、\ ``import hedit`` などは通常の ``.py`` と
   だけが残った ``scripts/hedit`` など)があっても、空の名前空間パッケージとして先に解決させないためです。
   そうした同梱以外で読まれた ``hedit`` 系のモジュールは、ロード時に取り除きます。
 * プラグインをアンロードしてロードし直しても、同梱から読み込み済みのモジュールは残します(補完のキャッシュを保つため)。
+  ただし、作り直した ``hedit.mll`` をロードした場合(同梱の Python の本文と版から作る印が違う場合)は、前のビルドの
+  ``hedit.*`` を取り除いて、新しいソースで読み直します(同じ Maya のまま古いコードが動き続けないように)。
   新しいソースを反映するには Maya を再起動してください(ディスク上の ``.py`` を読むわけではないため ``reload()`` では更新できません)。
 
 設計上の決まり
@@ -247,16 +250,16 @@ import フックを登録し、\ ``import hedit`` などは通常の ``.py`` と
 * **Python 側の例外は、hedit.bridge.safe_call で受け止める。** C++ からの呼出しは全て ``safe_call`` を通し、例外は
   ``{"error": "..."}`` として返る。補完のときはステータスバーに「Completion: Python error: …」と出す
   (Script Editor に毎回トレースバックを流さない)。
-* **出力は、既定では公式の通知(``MCommandMessage``)の本文を自分で整えて取り込む。** 非表示の reporter を使う正確な方式は、
+* **出力は、既定では公式の通知の本文を自分で整えて取り込む**\ (``MCommandMessage``)。非表示の reporter を使う正確な方式は、
   Maya が reporter への追記に Script Editor を 1 つ開いているのと同じ時間をかけるため、Preferences で選んだときだけ使う
   (0.4.1 の計測: エラー 5,000 件の 8 行のトレースバックで 8.5 秒 → 4.7 秒)。正確な方式は reporter の部品の作りに頼っていて、
   Maya の版で作りが変わって文書が見つからない場合は速い方式で動く。環境変数 ``HEDIT_OUTPUT_FALLBACK=1`` で、正確な方式を
   選んでも reporter を使わない動きを試せる(``tests/output_fallback_smoke.py``)。両方式の見た目は
   ``tests/output_format_smoke.py`` が Maya の実物の reporter と突き合わせる。
 * **名前の種類は SymbolType で表す。** 欄の組合せで種類を判断しない。作るときは ``Symbol::module`` などの関数を使う。
-* **補完・ホバーの 1 回の問い合わせの中だけ使う情報は ``CompletionEngine::Request`` に入れる。** メンバー変数に持たない。
-* **文字列を Python のコードへ埋め込むときは ``core/python_literal.h`` を使う。** MEL は ``plugin/mel.h`` の ``melQuote``\ 。
-* **状態ファイルは ``core/json_file.h`` で読み書きする。** 1 項目だけ変えるときは ``updateJsonFile``\ 。
+* **補完・ホバーの 1 回の問い合わせの中だけ使う情報は、問い合わせごとの構造体に入れる**\ (``CompletionEngine::Request``)。メンバー変数に持たない。
+* **文字列を Python のコードへ埋め込むときは、専用の関数を使う**\ (``core/python_literal.h``)。MEL は ``plugin/mel.h`` の ``melQuote``\ 。
+* **状態ファイルは、共通の読み書きの関数を使う**\ (``core/json_file.h``)。1 項目だけ変えるときは ``updateJsonFile``\ 。
 
 C++ から MEL を呼ぶときの注意
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -267,6 +270,18 @@ C++ から MEL を呼ぶときの注意
 * 遅延実行(``QTimer::singleShot`` など)やシグナルに渡す C++ のラムダは ``hedit.mll`` の中にあります。実行前に
   プラグインがアンロードされると解放済みのコードを呼んで Maya が落ちるため、\ ``dock::lifetime()`` などプラグインと
   同じ寿命のオブジェクトを文脈に渡し、解除時に取り消されるようにしてください。
+  ただし Qt5(Maya 2022〜2024)の ``QTimer::singleShot(時間, 文脈, ラムダ)`` は、時間が 1ms 以上だと、文脈の
+  オブジェクトを破棄しても予約が時間まで Qt の中に残り、そのときに ``hedit.mll`` の中のラムダを片付けようとして
+  アンロード後に落ちます。時間を指定する遅延実行は、画面やプラグインと同じ寿命のオブジェクトを親にした ``QTimer`` を
+  作って使ってください(親が破棄されればタイマーと接続も消えます)。別のスレッドからの呼出しは、
+  プラグインが所有する ``QObject`` を相手にした ``QMetaObject::invokeMethod(..., Qt::QueuedConnection)`` を使います
+  (相手を消すと、まだ実行していない呼出しも取り消されます。例: ``OutputCapture`` の ``notifier_``\ )。
+* コード欄の文書の通知(``QTextDocument::contentsChange``\ ・\ ``contentsChanged``\ )と、スクロールバーの値の変化の中では、
+  ``QTextCursor``\ (\ ``ExtraSelection``\ の中のものを含む)を作ったり消したりしないでください。
+  ``QTextDocument::clear()``\ (``setPlainText("")``\ ・\ ``clear()`` から呼ばれる)は、文書が持つカーソルの一覧を一時的に空にしている間に
+  最初の行を入れるため、その途中でこれらの通知が出ます。そこでカーソルを消すと、一覧を戻したときに解放済みのカーソルが残り、
+  後で別の場所が壊れて落ちます(0.5.0 の開発中に Maya 2022 で再現)。通知の中では印を付けるだけにし、
+  ``CodeEditor`` の ``applyEditFollowUps``\ ・\ ``scheduleDecorations`` のように、イベントループへ戻ってから処理します。
 * ``plugin/dock.cpp`` の手順の順番には、Maya の版ごとの落ちる不具合を避けるための理由があります。
   コメントの理由を確かめずに順番を入れ替えないでください(変えた場合は ``tests/run_startup.py`` で確かめます)。
 
@@ -290,7 +305,12 @@ C++ から MEL を呼ぶときの注意
 ``searchCase``\ ・\ ``searchWord``\ ・\ ``searchRegex``\ ・\ ``preserveCase``\ ・\ ``searchCount``\ ・\ ``findPrevious``\ ・\ ``findNextMatch``\ ・
 ``findInSelection``\ ・\ ``closeFind``\ ・\ ``replaceOne``\ ・\ ``replaceAll``\ ・\ ``findError``\ (不正な正規表現の吹き出し。タブ欄の子)です。
 ボタンは ``QToolButton`` なので、テストでは ``QAbstractButton`` として探します。
-コード欄の動的プロパティ ``language``\ ・\ ``path``\ ・\ ``spellCheckAvailable``\ ・\ ``spellCheckMilliseconds`` も同様です。
+コード欄の動的プロパティ ``language``\ ・\ ``path``\ ・\ ``spellCheckAvailable``\ ・\ ``spellCheckMilliseconds``\ ・
+``textPending``\ (復元したまま、まだ本文を文書へ入れていないタブなら true)も同様です。
+速さの確認用に、編集画面(``hedit``)には ``openMilliseconds``\ (画面の作成)・\ ``sessionWrites``\ ・\ ``sessionTextWrites``\ ・
+``sessionListings``\ (tabs.json・本文のファイルの書き込みと、``tabs/`` の一覧の回数)・\ ``fileListMilliseconds``\ ・
+``fileListCount``\ (Ctrl+P の一覧)を、検索バー(``findBar``)には ``searchMilliseconds``\ ・\ ``searchComputations`` を入れています
+(``tests/perf_smoke.py`` が読む)。
 
 設定項目を追加する
 ------------------
@@ -387,7 +407,9 @@ Visual Studio のプロジェクトだけを作る
      - 専用の空シーン・専用設定の Maya GUI で、``userSetup.py`` による自動ロード、表示・ドッキング・実行・出力・補完・
        検索・ショートカットなどを確認(``--suite`` で ``gui_smoke.py`` / ``completion_output_smoke.py`` /
        ``formatting_spelling_smoke.py`` / ``output_format_smoke.py`` / ``output_fallback_smoke.py`` /
-       ``vscode_features_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
+       ``vscode_features_smoke.py`` / ``perf_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
+       ``perf_smoke.py`` は、画面を開く時間(タブ 1 枚と 30 枚)・カーソル移動だけでの保存の回数・大きな本文の検索・
+       Ctrl+P の一覧・文字サイズの変更・新しいタブの時間を測って結果に残す。
        ``vscode_features_smoke.py`` は 0.4.0 で足した機能(差分の印・問題の波線と F8・折りたたみ・見出しの固定表示・
        記号へ移動・アウトライン・定義へ移動・保存前との差分・ファイル名で開く・引数のヒント・補完の説明)を操作して画面を撮る。
        ``output_fallback_smoke.py`` は、Maya の非表示 reporter が見つからない場合の代わりの出力の取り込みを確かめる)
@@ -400,6 +422,10 @@ Visual Studio のプロジェクトだけを作る
 
 * テストのランナーは環境変数 ``HEDIT_TEST_COMMANDS=1`` を設定し、テスト専用の ``heditTest`` コマンドを使えるようにします。
 * ``hedit_ui_smoke.exe`` は検査ごとに ``PASS`` / ``FAIL`` と名前を表示し、最後に合格数を出します(``run_tests.py`` の ui.log)。
+* 速さの回帰は ``hedit_ui_smoke.exe`` の ``editorPerformance``\ (約 6,000 行の本文で、1 キーの入力・カーソルの点滅・
+  カーソル移動・スクロール・同じ名前の強調・遠い括弧の対応・全て畳んだままの入力)で測り、1 回あたりのミリ秒を
+  ``editor 名前: 値 ms`` の形で ui.log に出します。上限(200ms)は極端な回帰だけを見つける緩いものです。
+  変更の前後を比べるときは、同じ PC で両方をビルドして続けて実行します(ほかのビルドと同時に測ると数値がぶれます)。
 * ``hedit`` の Python は ``hedit.mll`` に同梱されているため、テストは ``import hedit`` の前に
   ``cmds.loadPlugin('hedit')`` を行います(``.mod`` の ``MAYA_PLUG_IN_PATH`` からプラグイン名で解決)。
 * ドッキングと開閉状態は C++ にあるため、GUI テストは ``tests/hedit_host.py`` を通して、編集画面(``editor()``)・

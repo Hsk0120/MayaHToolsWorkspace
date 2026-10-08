@@ -41,6 +41,18 @@ def main(output_dir, finished):
         wait(100)
         assert '// Result: {}'.format(cmds.about(version=True)) in output.toPlainText()
         result['checks'].append('history_before_open_once_and_result_format')
+        # 編集画面を隠している間の出力は出力欄へ描かずに貯め、表示したときにまとめて出す
+        # (出力が無い間・隠している間は、出力欄の処理が動かない)。
+        window.hide()
+        wait(50)
+        print('hidden_output_probe')
+        wait(200)
+        assert 'hidden_output_probe' not in output.toPlainText(), 'Output was drawn while hidden'
+        window.show()
+        wait(200)
+        output = hedit_host.editor().findChild(QtWidgets.QPlainTextEdit, 'output')
+        assert output.toPlainText().count('hidden_output_probe') == 1, output.toPlainText()[-400:]
+        result['checks'].append('hidden_output_shown_on_show')
         # 実際のhlibソースを候補に含める。補完によるimportはしない。
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
         completer = code.findChild(QtWidgets.QCompleter)
@@ -117,8 +129,32 @@ def main(output_dir, finished):
         code.setPlainText('import maya.cmds as cmds\ncmds.')
         code.moveCursor(QtGui.QTextCursor.End)
         assert show_popup(), 'No completion popup after accepting a candidate'
-        completer.popup().hide()
         result['checks'].append('subsequent_completion_still_available')
+        # 入力を続けても一覧は閉じず(ちらつかず)、入力した名前で絞り込まれる。名前の外(``(``)へ出たら閉じる。
+
+        class HideCounter(QtCore.QObject):
+            """一覧が隠れた回数を数えるイベントフィルター。"""
+            count = 0
+
+            def eventFilter(self, watched, event):
+                if event.type() == QtCore.QEvent.Hide:
+                    HideCounter.count += 1
+                return False
+
+        counter = HideCounter()
+        completer.popup().installEventFilter(counter)
+        for character in 'ls':
+            QtTest.QTest.keyClick(code, character)
+            wait(60)
+        wait(500)  # 名前を伸ばした後の問い合わせ直し(0.25秒後)も済ませる。
+        completer.popup().removeEventFilter(counter)
+        assert completer.popup().isVisible() and HideCounter.count == 0, (HideCounter.count, code.toPlainText())
+        assert 'ls' in names() and all(name.startswith('ls') for name in names()), names()
+        QtTest.QTest.keyClick(code, '(')
+        wait(100)
+        assert not completer.popup().isVisible(), 'Popup stayed open after leaving the name'
+        result['checks'].append('popup_stays_open_and_filters_while_typing')
+        completer.popup().hide()
         window.grab().save(str(directory / 'completion-output.png'))
         code.document().setModified(False)
         window.close(); cmds.unloadPlugin('hedit')

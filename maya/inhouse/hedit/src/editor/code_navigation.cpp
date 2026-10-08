@@ -39,18 +39,34 @@ QChar partner(QChar c) {
     }
 }
 
-/** @brief 文書の中の括弧の字句。 */
-struct BracketToken {
-    int position = 0;  ///< 文書の中の位置。
-    QChar bracket;     ///< 括弧の文字。
-};
+/// 文書の中の括弧の字句(位置と括弧の文字)。
+using BracketToken = BracketCache::Bracket;
+
+/// 括弧の控えに入れる行の数の上限(上限を超えたら、それ以上は控えずに毎回読む)。
+constexpr int kBracketCacheBlocks = 20000;
 
 /** @brief 行の中の括弧の字句を返す(文字列・コメントの中は含まない)。
  * @param block 行。
  * @param language 言語。
+ * @param cache 行ごとの括弧の控え。nullptrなら控えを使わない。
  * @return 括弧の一覧(行の中の順)。
+ * @details 控えがあれば、同じ文書の版・同じ言語の間は、一度読んだ行を字句解析し直さない。
  */
-QVector<BracketToken> blockBrackets(const QTextBlock& block, ScriptLanguage language) {
+QVector<BracketToken> blockBrackets(const QTextBlock& block, ScriptLanguage language, BracketCache* cache = nullptr) {
+    int number = -1;
+    if (cache) {
+        const int revision = block.document()->revision();
+        if (cache->revision != revision || cache->language != language) {
+            cache->blocks.clear();  // 本文か言語が変わった: 控えを捨てる。
+            cache->revision = revision;
+            cache->language = language;
+        }
+        number = block.blockNumber();
+        const auto found = cache->blocks.constFind(number);
+        if (found != cache->blocks.constEnd()) {
+            return *found;
+        }
+    }
     QVector<BracketToken> brackets;
     const QString text = block.text();
     for (const Token& token : blockTokens(block, language)) {
@@ -58,19 +74,24 @@ QVector<BracketToken> blockBrackets(const QTextBlock& block, ScriptLanguage lang
             brackets.append({block.position() + token.start, text[token.start]});
         }
     }
+    if (cache && cache->blocks.size() < kBracketCacheBlocks) {
+        cache->blocks.insert(number, brackets);
+    }
     return brackets;
 }
 
 /** @brief 開き括弧に対応する閉じ括弧を、後ろへ探す。
  * @param document 文書。 @param language 言語。 @param open 開き括弧の位置。 @param bracket 開き括弧。
+ * @param cache 行ごとの括弧の控え。nullptrなら控えを使わない。
  * @return 閉じ括弧の位置。無ければ-1。
  */
-int findForward(const QTextDocument* document, ScriptLanguage language, int open, QChar bracket) {
+int findForward(const QTextDocument* document, ScriptLanguage language, int open, QChar bracket,
+                BracketCache* cache = nullptr) {
     const QChar closing = partner(bracket);
     int depth = 0;
     QTextBlock block = document->findBlock(open);
     for (int count = 0; block.isValid() && count < kBracketSearchBlocks; ++count, block = block.next()) {
-        for (const BracketToken& token : blockBrackets(block, language)) {
+        for (const BracketToken& token : blockBrackets(block, language, cache)) {
             if (token.position <= open) {
                 continue;
             }
@@ -89,14 +110,16 @@ int findForward(const QTextDocument* document, ScriptLanguage language, int open
 
 /** @brief 閉じ括弧に対応する開き括弧を、前へ探す。
  * @param document 文書。 @param language 言語。 @param close 閉じ括弧の位置。 @param bracket 閉じ括弧。
+ * @param cache 行ごとの括弧の控え。nullptrなら控えを使わない。
  * @return 開き括弧の位置。無ければ-1。
  */
-int findBackward(const QTextDocument* document, ScriptLanguage language, int close, QChar bracket) {
+int findBackward(const QTextDocument* document, ScriptLanguage language, int close, QChar bracket,
+                 BracketCache* cache = nullptr) {
     const QChar opening = partner(bracket);
     int depth = 0;
     QTextBlock block = document->findBlock(close);
     for (int count = 0; block.isValid() && count < kBracketSearchBlocks; ++count, block = block.previous()) {
-        const QVector<BracketToken> brackets = blockBrackets(block, language);
+        const QVector<BracketToken> brackets = blockBrackets(block, language, cache);
         for (int i = brackets.size() - 1; i >= 0; --i) {
             const BracketToken& token = brackets[i];
             if (token.position >= close) {
@@ -138,7 +161,7 @@ struct Range {
 
 }  // namespace
 
-QList<Token> blockTokens(const QTextBlock& block, ScriptLanguage language) {
+QVector<Token> blockTokens(const QTextBlock& block, ScriptLanguage language) {
     const QTextBlock previous = block.previous();
     const int state = qMax(0, previous.isValid() ? previous.userState() : 0);
     return tokenizeLine(block.text(), language, state, nullptr);
@@ -183,18 +206,19 @@ bool isInsideStringOrComment(const QTextDocument* document, ScriptLanguage langu
 }
 
 bool findMatchingBracket(const QTextDocument* document, ScriptLanguage language, int position, int* first,
-                         int* second) {
+                         int* second, BracketCache* cache) {
     for (const int candidate : {position, position - 1}) {
         if (candidate < 0 || candidate >= document->characterCount() - 1) {
             continue;
         }
         const QTextBlock block = document->findBlock(candidate);
-        for (const BracketToken& token : blockBrackets(block, language)) {
+        for (const BracketToken& token : blockBrackets(block, language, cache)) {
             if (token.position != candidate) {
                 continue;
             }
-            const int match = bracketKind(token.bracket) > 0 ? findForward(document, language, candidate, token.bracket)
-                                                             : findBackward(document, language, candidate, token.bracket);
+            const int match = bracketKind(token.bracket) > 0
+                                  ? findForward(document, language, candidate, token.bracket, cache)
+                                  : findBackward(document, language, candidate, token.bracket, cache);
             if (match >= 0) {
                 *first = candidate;
                 *second = match;

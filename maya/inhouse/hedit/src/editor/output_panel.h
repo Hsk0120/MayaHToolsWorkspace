@@ -11,6 +11,7 @@
 #include <functional>
 
 class QComboBox;
+class QShowEvent;
 
 namespace hedit {
 
@@ -42,8 +43,9 @@ enum class OutputFilter {
 };
 
 /** @brief 出力欄の全体(objectNameは``outputPanel``)。
- * @details Mayaの出力は、コンストラクターで受け取ったtakeOutput関数から25msごとに取り出す
- * (Mayaの処理の途中はrefreshNowで、出力が続くほど間隔を広げて取り出す)。
+ * @details Mayaの出力は、コンストラクターで受け取ったtakeOutput関数で取り出す。取り出すのは、
+ * 出力が貯まったと知らされたとき(scheduleFlushの25ms後)・表示されたとき・Mayaの処理の途中(refreshNowで、
+ * 出力が続くほど間隔を広げる)だけで、出力が無い間や非表示の間は何もしない。
  * 取り出したものは表示モードを切り替えても出し直せるよう、最大1Mi文字まで保持する。
  */
 class OutputPanel : public QWidget {
@@ -64,6 +66,12 @@ public:
 
     /** @brief 待機中のMayaの出力を取り出し、保持して表示する。 */
     void flush();
+
+    /** @brief 出力が貯まったことを受けて取り出す。非表示なら何もしない(表示したときに取り出す)。
+     * @details 前回の取り出しから25ms以上経っていればすぐ、そうでなければ残りの時間の後に取り出す
+     * (続けて届く出力を1回の描画にまとめるため)。
+     */
+    void scheduleFlush();
 
     /** @brief 長いMayaの処理の途中でも出力を描き直す。再入はしない。
      * @details 間隔は、出力が続いた時間で広げる(1秒未満は100ms、3秒未満は500ms、それ以上は1秒)。
@@ -88,6 +96,10 @@ public:
      * @param wrap trueで折り返す。
      */
     void setWrap(bool wrap);
+
+protected:
+    /** @brief 表示されたら、閉じている間に貯まった出力をまとめて取り出す。 @param event 表示のイベント。 */
+    void showEvent(QShowEvent* event) override;
 
 private:
     /** @brief 表示モードで絞り込んで、文字色を付けて末尾へ追加する。
@@ -120,8 +132,9 @@ private:
     QComboBox* filterSelector_;       ///< 表示モードの選択欄。
     QList<OutputMessage> history_;    ///< 表示モードの切り替え用に保持している出力。
     int historySize_ = 0;             ///< history_の文字数の合計。
-    QTimer pollTimer_;                ///< 25msごとにflush()を呼ぶタイマー。
+    QTimer flushTimer_;               ///< 出力が貯まったと知らされてから25ms後にflush()を呼ぶ(1回だけ)。
     QElapsedTimer lastRefresh_;       ///< refreshNow()の前回の描画からの時間。
+    QElapsedTimer lastFlush_;         ///< 前回、出力を取り出して描いてからの時間(続けて届く出力をまとめる判断)。
     QElapsedTimer lastRequest_;       ///< refreshNow()が前回呼ばれてからの時間(出力が続いているかの判断)。
     QElapsedTimer burst_;             ///< 出力が続き始めてからの時間。
     bool refreshing_ = false;         ///< refreshNow()の実行中か(再入の防止)。

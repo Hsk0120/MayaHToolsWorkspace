@@ -18,7 +18,7 @@ struct SearchOptions {
     bool wholeWord = false;     ///< 単語全体だけに一致させる(``ab``)。
     bool regex = false;         ///< 正規表現として扱う(``.*``)。
     bool preserveCase = false;  ///< 置換後の文字列の大文字小文字を、一致した文字列に合わせる(置換欄の``AB``)。
-    int rangeStart = -1;        ///< 選択範囲内で検索するときの範囲の先頭。-1なら全体(``≡``)。
+    int rangeStart = -1;        ///< 選択範囲内で検索するときの範囲の先頭。-1なら全体(``≡``)。照合はこの位置から始める。
     int rangeEnd = -1;          ///< 選択範囲内で検索するときの範囲の末尾(この位置の文字は含まない)。
 };
 
@@ -33,6 +33,13 @@ struct TextMatch {
      */
     bool operator==(const TextMatch& other) const { return start == other.start && length == other.length; }
 };
+
+}  // namespace hedit
+
+// 整数2つの型。Qt5のQListでも、要素を1つずつ確保せずに配列へ直接入る(ポインター以下の大きさのため)。
+Q_DECLARE_TYPEINFO(hedit::TextMatch, Q_MOVABLE_TYPE);
+
+namespace hedit {
 
 /** @brief 検索の結果。errorが空なら成功。 */
 struct SearchResult {
