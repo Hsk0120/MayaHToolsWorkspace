@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-10-09 | hlib・関連利用側/ドキュメント/設定のGit公開 | 未コミットのhlib変更を確認してコミット・mainへpush。他ツール作業中のheditを保持。 |
 
 
 
@@ -86,6 +85,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-09): hlibの配置/公開/型対応/複数形API整理、566 get省略入口、getAttrのPlug返却、disconnect方向指定、スキンウェイト修復とforce解除、および関連利用側・docs/CI設定をfc143dbにコミットしorigin/mainへpush完了（468ファイル）。公開checker/fixture16件・差分検査成功、直前のMaya2022/2027 standalone/日英Sphinx検証を確認。使用中でない古いGit index.lockを.maya-outputへ退避して公開を実行。hedit・外部submodule・研究/生成物を含めず保持。
 
 - Claude Code (2026-10-09): hedit 0.5.1。/Brepro・/Zi→/Z7・リンク前に前回のpdbを削除の3点でhedit.mllを再現可能にした(全6版で再ビルド・クリーンビルドとも同じハッシュ)。スマートアプリコントロールONでは.mllは止まらずテスト用の未署名exeが止まることを確認。6版の単体テスト、2022/2027のgui_smoke・session・startup合格。未コミット。
 
