@@ -78,7 +78,7 @@ pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提
 
 ```
 maya/
-├ external/     外部ツール(Git submodule、38個。一覧は下記「external ― 外部ツール一覧」参照)。
+├ external/     外部ツール(Git submodule。38個に加え、リグ手法の参考49個と研究論文の公開実装19個。一覧は下記「external ― 外部ツール一覧」参照)。
 │               直接編集せず、変更は各submodule側で行う。
 ├ inhouse/      内製ツール本体
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
@@ -97,7 +97,7 @@ tools/
 
 ### external ― 外部ツール一覧
 
-`maya/external/` 配下の Git submodule 38個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
+`maya/external/` 配下の Git submodule 38個と、末尾「リグ手法の参考」の49個・「研究論文の公開実装」の19個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
 
 **Python基盤/ラッパーライブラリ**
 - `cymel`: Maya APIとコマンドの軽量ラッパーモジュール。
@@ -148,6 +148,18 @@ tools/
 - `tabulate`: テキストでの表整形。
 - `natsort`: 自然順ソート。
 - 上記5つは対応する `.mod` を `maya/modules_disabled/` に用意済みだが、`maya/modules/` へは未登録(MAYA_MODULE_PATH対象外)のため起動時に自動ロードされない。有効化するにはそのバージョン用の `.mod` を `maya/modules/` へコピー/移動する。個別スクリプトで使うだけなら `.mod` を経由せず `sys.path` へ直接追加してもよい。
+
+**リグ手法の参考(2026-10-09追加、49個)**
+- RBF・ポーズ補正・揺れ物・衝突・変形・IK・行列リグ・リグ構築の手法を調べるための参照用。いずれも `shallow = true`(最新1コミットのみ)。`godot`(約355MB)・`spine-runtimes`(約221MB)が大きい。入れ子のsubmodule(`cmt`・`dem-bones-python`・`maya-dem-bones`・`cvwrap`・`bl_rbf_drivers`)は未取得で、`--recursive` 時に取得される。
+- Maya用: `SrtRbfNode`, `cmt`, `ypr-expression-driver`, `Simplex`, `EccentricConePSD`, `NWayBlenderMaya`, `perseus`, `TwistSpline`, `maya_bifrost`(gkRig), `boneDynamicsNode`, `bifrost_AkPBD`, `maya_expressionCollision`, `colDetectionNode`, `BlurHarmonics`, `pw_matrix_collision_rig`, `ny_collisionDeformer`, `iDeform`, `ssds`, `dem-bones`, `dem-bones-python`, `maya-dem-bones`, `MyMayaPlugin`, `direct-delta-mush`, `cvwrap`, `blurRelax`, `dm2skin`, `impulse`, `aniseed`, `rigamajig2`, `defQA`, `MayaMLDeformer`, `FDDADeformer`, `stickyTool`, `NurbBuilder_Maya2026_rigging`。
+- Maya以外(発想・アルゴリズムの参照): `bl_rbf_drivers`, `blender-jiggle-physics`, `angavrilov-rigs`(Blender)、`STAR`(論文実装)、`Motion-Matching`, `Spring-It-On`, `MathUtilities`, `JigglePhysics`(C++/Unity)、`godot`, `many_bone_ik`(Godot)、`caliko`(Java)、`Everything-Will-Be-IK`、`closed-chain-ik-js`、`spine-runtimes`、`houdini_apex_graph_from_templates`(Houdini)。
+- 読み込める27個(ビルド済みプラグイン・Pythonパッケージ・Bifrost compound)の `.mod` は `maya/modules_disabled/` に置き、起動時には読み込まない。有効化するには `maya/modules/` へ移動する。`Simplex`・`TwistSpline`・`BlurHarmonics`・`cvwrap`・`blurRelax`・`dem-bones-python`・`maya-dem-bones`・`ssds` はプラグイン/拡張モジュールのビルドが別途必要、`SrtRbfNode.mll` はMaya 2020向けで2022以降はロード不可、`impulse`・`aniseed` はMaya 2022(Python 3.7)ではimport不可、`dm2skin` はnumpy/scipyが必要、`MayaMLDeformer` はfbxmayaプラグインが必要、`perseus`・`colDetectionNode`・`ny_collisionDeformer`・`iDeform` のビルド済みは2022〜2023/2024/2025まで。`aniseed`・`iDeform`・`MayaMLDeformer`・`ypr-expression-driver` は有効化するとそれぞれのuserSetupが起動時に実行される。
+- ライセンス表記なし(コード流用不可、発想のみ): `SrtRbfNode`, `BlurHarmonics`, `FDDADeformer`, `direct-delta-mush`, `pw_matrix_collision_rig`, `angavrilov-rigs`, `rigamajig2`, `NurbBuilder_Maya2026_rigging`。GPL/LGPL/独自/非商用(`bl_rbf_drivers`・`blender-jiggle-physics`・`Simplex`・`spine-runtimes`・`STAR`)も式・考え方の参照に留める。調査内容はローカルの `docs/research/rig-setup-techniques-2026-10-09.md`。
+
+**研究論文の公開実装(2026-10-09追加、19個)**
+- hrig参考の論文調査(ローカルの `docs/research/rig-research-papers-2026-10-09.md`)で見つかった公開実装。いずれも `shallow = true`。`OpenUSD`(execIr)・`MetaHuman-DNA-Calibration`・`fast_cody` が大きい。`hrbf` のみGitLab。
+- 変形・二次動作: `OptimisedCentresOfRotationSkinning`, `velocity_skinning_cpp`, `fast_cody`, `complementary-dynamics-cpp`, `complementary-dynamics`(MATLAB), `hrbf`(Rust/C API), `libigl`(BBW等。MPL2主体で一部GPL)。補正: `splocs`, `neural-blend-shapes`(ライセンス種別未確認)。逆リグ写像: `rig-inversion`, `OpenUSD`(execIr)。リグ定義: `openriglogic`, `MetaHuman-DNA-Calibration`(ライセンス独自)。ウェイト・自動リギング: `RobustSkinWeightsTransferCode`, `UniRig`, `Puppeteer`, `Make-It-Animatable`, `RigNet`(GPL-3.0)。ポーズ生成: `protores-boris`(非商用)。
+- Mayaで読み込めるのは `MetaHuman-DNA-Calibration` のみ(Maya 2022〜2024のビルド済み `embeddedRL4`・`MayaUERBFPlugin` と `dna`/`dnacalib`/`dna_viewer`)。`.mod` は `maya/modules_disabled/MetaHuman-DNA-Calibration.mod`。有効な `metahuman_for_maya.mod` と同名プラグインを含むため、同時に有効化しない。ほかはC++・MATLAB・PyTorch等の研究コードで `.mod` なし。
 
 ### HTools ― メニュー登録の仕組み
 

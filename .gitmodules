@@ -124,3 +124,275 @@
 [submodule "maya/external/maya_exprespy"]
 	path = maya/external/maya_exprespy
 	url = https://github.com/ryusas/maya_exprespy.git
+[submodule "maya/external/SrtRbfNode"]
+	path = maya/external/SrtRbfNode
+	url = https://github.com/TomohikoMukai/SrtRbfNode.git
+	shallow = true
+[submodule "maya/external/cmt"]
+	path = maya/external/cmt
+	url = https://github.com/chadmv/cmt.git
+	shallow = true
+[submodule "maya/external/ypr-expression-driver"]
+	path = maya/external/ypr-expression-driver
+	url = https://github.com/zebraed/ypr-expression-driver.git
+	shallow = true
+[submodule "maya/external/Simplex"]
+	path = maya/external/Simplex
+	url = https://github.com/blurstudio/Simplex.git
+	shallow = true
+[submodule "maya/external/bl_rbf_drivers"]
+	path = maya/external/bl_rbf_drivers
+	url = https://github.com/gr4ym4n/bl_rbf_drivers.git
+	shallow = true
+[submodule "maya/external/EccentricConePSD"]
+	path = maya/external/EccentricConePSD
+	url = https://github.com/tbttfox/EccentricConePSD.git
+	shallow = true
+[submodule "maya/external/NWayBlenderMaya"]
+	path = maya/external/NWayBlenderMaya
+	url = https://github.com/shizuo-kaji/NWayBlenderMaya.git
+	shallow = true
+[submodule "maya/external/STAR"]
+	path = maya/external/STAR
+	url = https://github.com/ahmedosman/STAR.git
+	shallow = true
+[submodule "maya/external/perseus"]
+	path = maya/external/perseus
+	url = https://github.com/perseusrigging/perseus.git
+	shallow = true
+[submodule "maya/external/TwistSpline"]
+	path = maya/external/TwistSpline
+	url = https://github.com/blurstudio/TwistSpline.git
+	shallow = true
+[submodule "maya/external/Motion-Matching"]
+	path = maya/external/Motion-Matching
+	url = https://github.com/orangeduck/Motion-Matching.git
+	shallow = true
+[submodule "maya/external/godot"]
+	path = maya/external/godot
+	url = https://github.com/godotengine/godot.git
+	shallow = true
+[submodule "maya/external/caliko"]
+	path = maya/external/caliko
+	url = https://github.com/FedUni/caliko.git
+	shallow = true
+[submodule "maya/external/MathUtilities"]
+	path = maya/external/MathUtilities
+	url = https://github.com/zalo/MathUtilities.git
+	shallow = true
+[submodule "maya/external/spine-runtimes"]
+	path = maya/external/spine-runtimes
+	url = https://github.com/EsotericSoftware/spine-runtimes.git
+	shallow = true
+[submodule "maya/external/Spring-It-On"]
+	path = maya/external/Spring-It-On
+	url = https://github.com/orangeduck/Spring-It-On.git
+	shallow = true
+[submodule "maya/external/Everything-Will-Be-IK"]
+	path = maya/external/Everything-Will-Be-IK
+	url = https://github.com/EGjoni/Everything-Will-Be-IK.git
+	shallow = true
+[submodule "maya/external/many_bone_ik"]
+	path = maya/external/many_bone_ik
+	url = https://github.com/V-Sekai/many_bone_ik.git
+	shallow = true
+[submodule "maya/external/closed-chain-ik-js"]
+	path = maya/external/closed-chain-ik-js
+	url = https://github.com/gkjohnson/closed-chain-ik-js.git
+	shallow = true
+[submodule "maya/external/maya_bifrost"]
+	path = maya/external/maya_bifrost
+	url = https://github.com/gaki131/maya_bifrost.git
+	shallow = true
+[submodule "maya/external/JigglePhysics"]
+	path = maya/external/JigglePhysics
+	url = https://github.com/naelstrof/JigglePhysics.git
+	shallow = true
+[submodule "maya/external/blender-jiggle-physics"]
+	path = maya/external/blender-jiggle-physics
+	url = https://github.com/naelstrof/blender-jiggle-physics.git
+	shallow = true
+[submodule "maya/external/boneDynamicsNode"]
+	path = maya/external/boneDynamicsNode
+	url = https://github.com/akasaki1211/boneDynamicsNode.git
+	shallow = true
+[submodule "maya/external/bifrost_AkPBD"]
+	path = maya/external/bifrost_AkPBD
+	url = https://github.com/akasaki1211/bifrost_AkPBD.git
+	shallow = true
+[submodule "maya/external/maya_expressionCollision"]
+	path = maya/external/maya_expressionCollision
+	url = https://github.com/akasaki1211/maya_expressionCollision.git
+	shallow = true
+[submodule "maya/external/colDetectionNode"]
+	path = maya/external/colDetectionNode
+	url = https://github.com/akasaki1211/colDetectionNode.git
+	shallow = true
+[submodule "maya/external/BlurHarmonics"]
+	path = maya/external/BlurHarmonics
+	url = https://github.com/tbttfox/BlurHarmonics.git
+	shallow = true
+[submodule "maya/external/pw_matrix_collision_rig"]
+	path = maya/external/pw_matrix_collision_rig
+	url = https://github.com/paulwinex/pw_matrix_collision_rig.git
+	shallow = true
+[submodule "maya/external/ny_collisionDeformer"]
+	path = maya/external/ny_collisionDeformer
+	url = https://github.com/nazmiprinter/ny_collisionDeformer.git
+	shallow = true
+[submodule "maya/external/iDeform"]
+	path = maya/external/iDeform
+	url = https://github.com/IngoClemens/iDeform.git
+	shallow = true
+[submodule "maya/external/dem-bones"]
+	path = maya/external/dem-bones
+	url = https://github.com/electronicarts/dem-bones.git
+	shallow = true
+[submodule "maya/external/ssds"]
+	path = maya/external/ssds
+	url = https://github.com/TomohikoMukai/ssds.git
+	shallow = true
+[submodule "maya/external/dem-bones-python"]
+	path = maya/external/dem-bones-python
+	url = https://github.com/tbttfox/dem-bones-python.git
+	shallow = true
+[submodule "maya/external/maya-dem-bones"]
+	path = maya/external/maya-dem-bones
+	url = https://github.com/robertjoosten/maya-dem-bones.git
+	shallow = true
+[submodule "maya/external/MyMayaPlugin"]
+	path = maya/external/MyMayaPlugin
+	url = https://github.com/Haragos99/MyMayaPlugin.git
+	shallow = true
+[submodule "maya/external/direct-delta-mush"]
+	path = maya/external/direct-delta-mush
+	url = https://github.com/2TallTim/direct-delta-mush.git
+	shallow = true
+[submodule "maya/external/cvwrap"]
+	path = maya/external/cvwrap
+	url = https://github.com/chadmv/cvwrap.git
+	shallow = true
+[submodule "maya/external/blurRelax"]
+	path = maya/external/blurRelax
+	url = https://github.com/blurstudio/blurRelax.git
+	shallow = true
+[submodule "maya/external/dm2skin"]
+	path = maya/external/dm2skin
+	url = https://github.com/duncanskertchly/dm2skin.git
+	shallow = true
+[submodule "maya/external/impulse"]
+	path = maya/external/impulse
+	url = https://github.com/michaelharmonart/impulse.git
+	shallow = true
+[submodule "maya/external/aniseed"]
+	path = maya/external/aniseed
+	url = https://github.com/mikemalinowski/aniseed.git
+	shallow = true
+[submodule "maya/external/rigamajig2"]
+	path = maya/external/rigamajig2
+	url = https://github.com/masonSmigel/rigamajig2.git
+	shallow = true
+[submodule "maya/external/defQA"]
+	path = maya/external/defQA
+	url = https://github.com/zebraed/defQA.git
+	shallow = true
+[submodule "maya/external/MayaMLDeformer"]
+	path = maya/external/MayaMLDeformer
+	url = https://github.com/EpicGames/MayaMLDeformer.git
+	shallow = true
+[submodule "maya/external/FDDADeformer"]
+	path = maya/external/FDDADeformer
+	url = https://github.com/ThomasVallentin/FDDADeformer.git
+	shallow = true
+[submodule "maya/external/angavrilov-rigs"]
+	path = maya/external/angavrilov-rigs
+	url = https://github.com/angavrilov/angavrilov-rigs.git
+	shallow = true
+[submodule "maya/external/houdini_apex_graph_from_templates"]
+	path = maya/external/houdini_apex_graph_from_templates
+	url = https://github.com/noadanimation/houdini_apex_graph_from_templates.git
+	shallow = true
+[submodule "maya/external/stickyTool"]
+	path = maya/external/stickyTool
+	url = https://github.com/robotmitchum/stickyTool.git
+	shallow = true
+[submodule "maya/external/NurbBuilder_Maya2026_rigging"]
+	path = maya/external/NurbBuilder_Maya2026_rigging
+	url = https://github.com/UnaiPons/NurbBuilder_Maya2026_rigging.git
+	shallow = true
+[submodule "maya/external/OptimisedCentresOfRotationSkinning"]
+	path = maya/external/OptimisedCentresOfRotationSkinning
+	url = https://github.com/pmbittner/OptimisedCentresOfRotationSkinning.git
+	shallow = true
+[submodule "maya/external/velocity_skinning_cpp"]
+	path = maya/external/velocity_skinning_cpp
+	url = https://github.com/drohmer/velocity_skinning_cpp.git
+	shallow = true
+[submodule "maya/external/fast_cody"]
+	path = maya/external/fast_cody
+	url = https://github.com/otmanon/fast_cody.git
+	shallow = true
+[submodule "maya/external/complementary-dynamics-cpp"]
+	path = maya/external/complementary-dynamics-cpp
+	url = https://github.com/seungbaebang/complementary-dynamics-cpp.git
+	shallow = true
+[submodule "maya/external/complementary-dynamics"]
+	path = maya/external/complementary-dynamics
+	url = https://github.com/ErisZhang/complementary-dynamics.git
+	shallow = true
+[submodule "maya/external/splocs"]
+	path = maya/external/splocs
+	url = https://github.com/tneumann/splocs.git
+	shallow = true
+[submodule "maya/external/neural-blend-shapes"]
+	path = maya/external/neural-blend-shapes
+	url = https://github.com/PeizhuoLi/neural-blend-shapes.git
+	shallow = true
+[submodule "maya/external/rig-inversion"]
+	path = maya/external/rig-inversion
+	url = https://github.com/electronicarts/rig-inversion.git
+	shallow = true
+[submodule "maya/external/openriglogic"]
+	path = maya/external/openriglogic
+	url = https://github.com/EpicGames/openriglogic.git
+	shallow = true
+[submodule "maya/external/MetaHuman-DNA-Calibration"]
+	path = maya/external/MetaHuman-DNA-Calibration
+	url = https://github.com/EpicGames/MetaHuman-DNA-Calibration.git
+	shallow = true
+[submodule "maya/external/RobustSkinWeightsTransferCode"]
+	path = maya/external/RobustSkinWeightsTransferCode
+	url = https://github.com/rin-23/RobustSkinWeightsTransferCode.git
+	shallow = true
+[submodule "maya/external/UniRig"]
+	path = maya/external/UniRig
+	url = https://github.com/VAST-AI-Research/UniRig.git
+	shallow = true
+[submodule "maya/external/Puppeteer"]
+	path = maya/external/Puppeteer
+	url = https://github.com/Seed3D/Puppeteer.git
+	shallow = true
+[submodule "maya/external/Make-It-Animatable"]
+	path = maya/external/Make-It-Animatable
+	url = https://github.com/jasongzy/Make-It-Animatable.git
+	shallow = true
+[submodule "maya/external/RigNet"]
+	path = maya/external/RigNet
+	url = https://github.com/zhan-xu/RigNet.git
+	shallow = true
+[submodule "maya/external/protores-boris"]
+	path = maya/external/protores-boris
+	url = https://github.com/boreshkinai/protores-boris.git
+	shallow = true
+[submodule "maya/external/libigl"]
+	path = maya/external/libigl
+	url = https://github.com/libigl/libigl.git
+	shallow = true
+[submodule "maya/external/OpenUSD"]
+	path = maya/external/OpenUSD
+	url = https://github.com/PixarAnimationStudios/OpenUSD.git
+	shallow = true
+[submodule "maya/external/hrbf"]
+	path = maya/external/hrbf
+	url = https://gitlab.com/elrnv/hrbf.git
+	shallow = true
