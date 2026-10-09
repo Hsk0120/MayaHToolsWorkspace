@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-10-09 | hlib関連差分・公開docs/CI・Git | 検証済みの接続方向・get/is省略・Maya変換名・Node createと関連利用側/文書を確認し、明示的なプッシュ指示に従ってコミット・origin/mainへ公開する。 |
 | Codex | 2026-10-09 | hlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 
 
@@ -87,6 +86,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-09): 検証済みのhlib接続方向・get/is省略とSphinx表示・Translate/Rotate/Scale命名・Node create、およびhrig/HTools利用側・方針/日英文書・CI検査を4aaad14へコミットしorigin/mainへpush完了（145ファイル）。公開checker・文書fixture29件・staged差分検査成功、直前のMaya2022/2027 standalone各1162件と日英Sphinxの成功結果を確認。hlib外の関連15ファイルも独立監査し無関係差分なし。生成物・研究メモ・外部submoduleを含めず、is衝突名の確認待ちは保持。
 
 - Codex (2026-10-09): 単数Node constructorへキーワード専用create=Falseを追加。Trueは現在のexact型登録と指定名で新規作成し、既存Node.createのcmds・標準plugin・名前/親・Undo処理を共有。既定Falseの既存入力解決を維持し、未知引数・非bool・基底/抽象/未登録/複数登録型・SkinClusterを生成前に拒否。製品変更はNode/SkinCluster/registryの3ソース。新規17件を含むMaya2022/2027 standalone各123ファイル1162件成功（GUI/版等の条件付きskipあり）、新規説明3ブロックもMaya2027で成功。空meshの頂点数照会例は訂正後再検証。日英Sphinx -W成功、条件付き基底を含むNode89クラスのcreate署名/他系統105署名保持、625省略入口/13cmds二署名・各499HTML検査成功。文書fixture16+13件・公開入口・layout・差分検査成功。英訳12079件維持/39件追加。GUI/他版・CI/サイト公開は未実行、未コミット。is衝突名の確認待ちは保持。
 
