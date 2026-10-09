@@ -87,6 +87,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-09): 検証済みexprespy導入・hrig Soft IK微小倍率修正・新7テスト/登録・日英Sphinx比較結果をd1667e5へコミットしorigin/mainへpush完了（20ファイル）。公開前に独立監査、startup6件、完成JSON/日英HTML130数値セル・結果件数/導線・差分検査を再確認して成功。直前のMaya2025/2027各148件・cross-save54入力差0・日英Sphinx成功証拠を確認。Claudeの約45サブモジュール追加と.gitmodules/WORK_LOG並行差分を専用indexで切り分け、共有indexの他stageを保持。docs/vscode.md・研究資料/生成物・他ツール記録を含めず保持。GUI描画性能/正式exprespy backend等の制限は文書へ記載済み。
+
 - Codex (2026-10-09): ユーザー指定でSoft IK倍率異常を修正し日英Sphinxへ結果掲載。Maya2025/2027のmultiplyDivide微小分母のoutput100000を実測し、SoftIK専用の標準double演算へ置換、nativeUnits/変換ノード所有で版差を吸収。公開署名・クランプ・距離0・Undo・参照式・ScalarGraphを維持。新5+2をstandard/allへ登録し公開4suite両版各148件全成功/終了0/skipなし、2025 cm/m/mm保存→2027読込54入力差0。最終scalar350/通常リグ12構成/微小実Limb60（3397数値finite）を再確認し倍率正常、Maya標準RPチェーンと192条件一致で原点残差は制限として記載。修正後Limb30を4方式×3mode・240frame×7再測定し12条件84反復/終了0、cache無効/fallbackなし/max差2.3981e-6。Sphinxは初回Matrix24条件168反復と別実行Limbを区別して掲載、日英-E -a -W/各18HTML成功、130数値セルと結果件数/導線を生JSON照合。英訳242保持/146追加/未訳0、独立レビュー・署名/AST/sourceSHA/差分検査成功。旧保存DGは再構築が必要。GUI描画/他版速度/正式exprespy backend等は未検証、未コミット/未プッシュ。研究・生データはGit対象外、既存exprespy導入と並行差分を保持。
 
 - Claude Code (2026-10-09): hedit 0.6.0(0.5.2のホバー0.3秒を含む)。操作感の調査の提案11件に対応: 補完の待ち時間250ms→40ms(.の直後は0ms)、大文字小文字を区別しない単語の頭からのあいまい一致と度合いの順(core/fuzzy_match 新設、補完エンジン・import名も同じ規則)、一覧12行、コメント・文字列・数字で始まる語では自動補完しない、閉じた状態のBackspaceで開き直さない、同じ名前の候補ではEnterで改行、Home(空白の後⇔行頭)、Ctrl+↑↓で1行スクロール、選択なしCtrl+C/Xの行は行の上へ貼る、Enterの規則(return等で浅く・開き括弧で深く・括弧の間・空白だけの行・コメント内の:)、else:等の:で1段浅く、自動で入れた閉じ括弧だけ上書き・対で削除、スペルは入力中の単語に付けずスクロール後60msで検査、検索の初期値に単語・コード欄のEscで検索バーを閉じる・Alt+C/W/R/P、キャレット2px、見出しの固定表示の下に隠れない。全6版ビルド(警告0)・単体テスト(core 19・Python 35・UI)合格、GUI全スイートを2022・2024・2027で合格、日本語ドキュメントのSphinx -W合格。実測(2027): 補完の窓 291→83ms、.の後 283→50ms、ホイール後に画面が止まるまで 484→92ms。コミット・プッシュ済み。
