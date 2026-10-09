@@ -145,7 +145,7 @@ def main(output_dir, finished):
         sticky = code.findChild(QtWidgets.QWidget, 'stickyScroll')
         assert sticky is not None and sticky.isVisible(), 'sticky scroll not shown'
         problems = window.findChild(QtWidgets.QListWidget, 'analysisProblems')
-        texts = [problems.item(i).text() for i in range(problems.count())]
+        texts = [problems.model().index(i, 0).data() for i in range(problems.count())]
         assert any('undefined_name' in item for item in texts), texts
         save('1-overview.png')
         result['checks'].append('diff_markers_problems_word_highlight_sticky')
@@ -208,7 +208,7 @@ def main(output_dir, finished):
         pick = window.findChild(QtWidgets.QFrame, 'quickPick')
         assert pick is not None and pick.isVisible()
         listing = pick.findChild(QtWidgets.QListWidget, 'quickPickList')
-        labels = [listing.item(i).text() for i in range(listing.count())]
+        labels = [listing.model().index(i, 0).data() for i in range(listing.count())]
         assert any(label.startswith('ChainBuilder') for label in labels), labels
         pick.findChild(QtWidgets.QLineEdit, 'quickPickInput').setText('orient')
         wait(100)
@@ -258,7 +258,7 @@ def main(output_dir, finished):
         # 8. ファイル名で開く(Ctrl+P): 保存したファイルが最近開いたものに出る。
         action('quickOpen').trigger()
         wait(200)
-        labels = [listing.item(i).text() for i in range(listing.count())]
+        labels = [listing.model().index(i, 0).data() for i in range(listing.count())]
         assert any(label.startswith('rig_sample.py') for label in labels), labels
         save('8-quick-open.png')
         QtTest.QTest.keyClick(pick.findChild(QtWidgets.QLineEdit, 'quickPickInput'), QtCore.Qt.Key_Escape)
@@ -300,24 +300,45 @@ def main(output_dir, finished):
         cmds.help(popupMode=False)
         try:
             code.setPlainText('import json\njson.dumps({})')
-            wait(200)
+            # 本文を変えた0.8秒後の構文チェックを先に済ませる(重なるとホバーが出るのがその分遅れる)。
+            wait(1200)
             cursor = code.textCursor()
             cursor.setPosition(len('import json\njson.dum'))
             point = code.cursorRect(cursor).center()
-            window.activateWindow()
-            QtTest.QTest.mouseMove(code.viewport(), point + QtCore.QPoint(40, 0))
+            # マウスの移動は、イベントをコード欄へ直接送る。QTest.mouseMove は本物のカーソルを動かすため、
+            # 別のアプリの窓が前面にあると Maya へ届かず、テストが環境に左右される。
+            # コード欄は「マウスが上にある(WA_UnderMouse)」ときだけ説明を出す。この印は本物のマウスの出入りでしか
+            # 付かないので、テストで付けておく。
+            code.viewport().setAttribute(QtCore.Qt.WA_UnderMouse, True)
+
+            # 本物のカーソルがコード欄の上にあると、OS からのマウスの移動(窓の表示などでも届く)が送った位置を
+            # 上書きする。この手順の間だけ、OS から来たマウスのイベントを捨てる。
+            class DropRealMouse(QtCore.QObject):
+                def eventFilter(self, obj, event):
+                    kinds = (QtCore.QEvent.MouseMove, QtCore.QEvent.Enter, QtCore.QEvent.Leave)
+                    return event.type() in kinds and event.spontaneous()
+
+            drop_real_mouse = DropRealMouse()
+            code.viewport().installEventFilter(drop_real_mouse)
+
+            def move_mouse(position):
+                event = QtGui.QMouseEvent(QtCore.QEvent.MouseMove, QtCore.QPointF(position),
+                                          QtCore.QPointF(code.viewport().mapToGlobal(position)),
+                                          QtCore.Qt.NoButton, QtCore.Qt.NoButton, QtCore.Qt.NoModifier)
+                QtWidgets.QApplication.sendEvent(code.viewport(), event)
+
+            move_mouse(point + QtCore.QPoint(40, 0))
             wait(100)
-            QtTest.QTest.mouseMove(code.viewport(), point)
-            wait(1500)
+            move_mouse(point)
+            wait(700)  # マウスが止まって0.3秒後に出る(説明の問い合わせの時間を見込んでも0.7秒あれば足りる)。
             hover = code.findChild(QtWidgets.QFrame, 'hoverPopup')
-            if QtWidgets.QApplication.activeWindow() is None:
-                result['skipped'].append('hover_without_popup_help (window not active)')
-            else:
-                assert hover is not None and hover.isVisible(), 'hover not shown with Popup Help off'
-                hover.grab().save(str(directory / '10-hover.png'))
-                hover.hide()
-                result['checks'].append('hover_without_popup_help')
+            assert hover is not None and hover.isVisible(), 'hover not shown with Popup Help off'
+            hover.grab().save(str(directory / '10-hover.png'))
+            hover.hide()
+            result['checks'].append('hover_without_popup_help')
         finally:
+            if 'drop_real_mouse' in locals():
+                code.viewport().removeEventFilter(drop_real_mouse)
             cmds.help(popupMode=popup_mode)
 
         for tab in window.findChildren(QtWidgets.QPlainTextEdit, 'codeEditor'):

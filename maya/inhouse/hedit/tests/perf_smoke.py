@@ -358,7 +358,7 @@ def _measure(result, output_dir):
 
     def listed():
         """一覧にファイルが出たか(読み込み中の案内の行だけなら、まだ)。"""
-        return picker_list.count() > 0 and bool(picker_list.item(0).flags() & QtCore.Qt.ItemIsEnabled)
+        return picker_list.count() > 0 and bool(picker_list.model().flags(picker_list.model().index(0, 0)) & QtCore.Qt.ItemIsEnabled)
 
     timings['quick_open_folder'] = folder
     timings['quick_open_trigger_ms'] = milliseconds(lambda: actions['quickOpen'].trigger())
@@ -381,7 +381,7 @@ def _measure(result, output_dir):
             continue
         seen.add(info.absoluteFilePath().lower())
         expected.append(info)
-    shown = [picker_list.item(row).text() for row in range(picker_list.count())]
+    shown = [picker_list.model().index(row, 0).data() for row in range(picker_list.count())]
     wanted = [info.fileName() + '    ' + info.absolutePath() for info in expected[:len(shown)]]
     assert shown == wanted, (shown[:5], wanted[:5])
     count_property = window.property('fileListCount')
@@ -390,7 +390,7 @@ def _measure(result, output_dir):
     result['checks'].append('quick_open_same_files_and_order')
     # 名前で絞り込める(一覧は別スレッドで集めても、絞り込みと確定は今までどおり)。
     QtTest.QTest.keyClicks(picker_input, '__init__')
-    assert picker_list.count() > 0 and picker_list.item(0).text().startswith('__init__'), picker_list.item(0).text()
+    assert picker_list.count() > 0 and picker_list.model().index(0, 0).data().startswith('__init__'), picker_list.model().index(0, 0).data()
     QtTest.QTest.keyClick(picker_input, QtCore.Qt.Key_Escape)
     # 2回目(一覧を覚えていれば、集め直さずにすぐ出る)。
     timings['quick_open_again_trigger_ms'] = milliseconds(lambda: actions['quickOpen'].trigger())

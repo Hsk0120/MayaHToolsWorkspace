@@ -4,6 +4,7 @@
 #include "editor/code_assist.h"
 #include "core/signature_help.h"
 #include "editor/code_editor.h"
+#include "editor/code_navigation.h"
 #include "editor/editor_preferences.h"
 #include "editor/hover_popup.h"
 #include "editor/problems_panel.h"
@@ -24,6 +25,15 @@ constexpr int kSignatureContext = 4000;
 /// (補完の候補は最大250件。上限に近いと、伸ばした名前の候補が前回の一覧に入っていないことがある)。
 /// 上限に近かった場合は、一覧を開いたまま、その場で候補を求め直して入れ替える。
 constexpr int kRefilterLimit = 200;
+
+/// 名前の入力が止まってから自動補完するまでの時間(ms)。VS Code(10ms)に近づけ、続けて打つ間の問い合わせは省く。
+constexpr int kCompletionDelay = 40;
+
+/// 入力が止まってからスペルチェックするまでの時間(ms)。打っている間は調べない。
+constexpr int kSpellingDelay = 450;
+
+/// スクロールで新しく見えた行・入力を終えた単語のスペルチェックまでの時間(ms)。波線が遅れて出ないよう短くする。
+constexpr int kQuickSpellingDelay = 60;
 
 /// ステータスバーの補完の状態の、通常の文字。
 constexpr const char* kReady = "Completion: ready (in Maya)";
@@ -49,7 +59,7 @@ CodeAssist::CodeAssist(const EditorServices& services, const EditorPreferences& 
     // setSingleShot(true)のタイマーは、start()の後に1回だけtimeoutを出す。
     // 入力のたびにstart()し直すので、「最後の入力から○ms後」に1回だけ動く。
     completionTimer_.setSingleShot(true);
-    completionTimer_.setInterval(250);
+    completionTimer_.setInterval(kCompletionDelay);
     connect(&completionTimer_, &QTimer::timeout, this, [this] { requestCompletion(false); });
 
     analysisTimer_.setSingleShot(true);
@@ -72,7 +82,7 @@ CodeAssist::CodeAssist(const EditorServices& services, const EditorPreferences& 
     });
 
     spellingTimer_.setSingleShot(true);
-    spellingTimer_.setInterval(450);
+    spellingTimer_.setInterval(kSpellingDelay);
     connect(&spellingTimer_, &QTimer::timeout, this, [this] {
         CodeEditor* editor = context_.currentEditor();
         if (!preferences_.option(option::kSpellCheck) || !editor) {
@@ -100,6 +110,11 @@ void CodeAssist::attach(CodeEditor* editor) {
     editor->onCompletionSelectionChanged = [this, editor] {
         detailEditor_ = editor;
         detailTimer_.start();
+    };
+    editor->onSpellingRecheckRequested = [this, editor] {
+        if (editor == context_.currentEditor()) {
+            scheduleSpelling(true);  // 入力を終えた単語に、すぐ波線を付ける。
+        }
     };
 }
 
@@ -232,8 +247,12 @@ void CodeAssist::onTextChanged(CodeEditor* editor) {
         if (kept && truncated) {
             // 前回の候補は上限で切れていた: 一覧を開いたまま、すぐ求め直して入れ替える(一度閉じると、ちらつく)。
             requestCompletion(false);
-        } else if (!extended) {
-            completionTimer_.start();  // 名前を短くした・別の名前になった: 入力が止まってから求め直す。
+        } else if (!extended && (kept || editor->lastEditInsertedText())) {
+            // 名前を短くした・別の名前になった: 入力が止まってから求め直す。一覧を閉じた状態でBackspaceしただけなら
+            // 開き直さない(VS Codeと同じ)。``.``の直後は待たずに出す(イベントループへ戻ってから)。
+            QTextCursor preceding = editor->textCursor();
+            preceding.movePosition(QTextCursor::PreviousCharacter, QTextCursor::KeepAnchor);
+            completionTimer_.start(preceding.selectedText() == "." ? 0 : kCompletionDelay);
         }
         // 名前を後ろへ伸ばしただけで、前回の候補が上限に達していなければ、絞り込んだ一覧のままでよい。
     }
@@ -278,7 +297,17 @@ void CodeAssist::requestCompletion(bool force) {
         if (!enabled) {
             return;
         }
-        if (editor->completionPrefix().isEmpty() && !afterDot) {
+        const QString prefix = editor->completionPrefix();
+        if (prefix.isEmpty() && !afterDot) {
+            return;
+        }
+        // コメント・文字列の中と、数字で始まる語(``10``・``2.5``)では自動で出さない(Enterで候補が確定されないように。
+        // VS Codeと同じ)。Ctrl+Spaceで求めたときは出す。
+        if (!afterDot && prefix[0].isDigit()) {
+            return;
+        }
+        if (isInsideStringOrComment(editor->document(), editor->isMel() ? ScriptLanguage::Mel : ScriptLanguage::Python,
+                                    cursor.position())) {
             return;
         }
     }
@@ -313,6 +342,8 @@ void CodeAssist::requestCompletion(bool force) {
     // import文の候補を別スレッドで集めている途中なら、少し後に問い合わせ直す(追加の入力は不要)。
     if (items.isEmpty() && result.pending) {
         completionTimer_.start(250);
+    } else {
+        completionTimer_.setInterval(kCompletionDelay);  // start(ms)で変えた間隔を戻す。
     }
 }
 
@@ -369,7 +400,9 @@ void CodeAssist::runAnalysis() {
     editor->setDiagnostics(result.diagnostics);  // 本文にも波線を引く(説明はホバーとF8)。
 }
 
-void CodeAssist::scheduleSpelling() {
+void CodeAssist::scheduleSpelling(bool quick) {
+    // 入力の後の予約(待つ)は、待っている短い予約(スクロール)より後に来たら、長いほうに置き換える。
+    spellingTimer_.setInterval(quick ? kQuickSpellingDelay : kSpellingDelay);
     spellingTimer_.stop();
     if (!preferences_.option(option::kSpellCheck)) {
         for (CodeEditor* editor : context_.editors()) {

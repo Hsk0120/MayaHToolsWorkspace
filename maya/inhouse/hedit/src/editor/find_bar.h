@@ -63,9 +63,13 @@ public:
 
     /** @brief バーを開き、入力欄へフォーカスを移す。
      * @param withReplace trueなら置換欄も表示する。
-     * @details 1行だけの選択があれば、その文字列を検索語にする。
+     * @details 1行だけの選択があれば、その文字列を検索語にする。選択が無ければ、カーソルの位置の名前を検索語にする
+     * (VS Codeと同じ)。
      */
     void open(bool withReplace);
+
+    /** @brief バーを開いていれば閉じる(コード欄でEscを押したとき)。 @return 閉じた場合true。 */
+    bool closeIfOpen();
 
     /** @brief 次(または前)の一致箇所を選択する。末尾・先頭で折り返す。
      * @param backward trueなら前へ。

@@ -474,6 +474,7 @@ CodeEditor* MainWindow::newTab(ScriptLanguage language) {
 
     assist_->attach(editor);  // Ctrl+Spaceとホバーの問い合わせ先。
     editor->onRunRequested = [this] { runCode(false); };
+    editor->onEscapePressed = [this] { return findBar_->closeIfOpen(); };
     editor->onDefinitionRequested = [this, editor](int end, bool peek) { goToDefinition(editor, end, peek); };
     // キー入力の処理の途中でタブ(=キーを受け取った部品自身)を削除しないよう、処理の後へ予約する。
     // 予約の持ち主をeditorにしておけば、先にeditorが破棄された場合は予約も取り消される。
@@ -496,7 +497,7 @@ CodeEditor* MainWindow::newTab(ScriptLanguage language) {
     });
     connect(editor->verticalScrollBar(), &QScrollBar::valueChanged, this, [this, editor] {
         if (editor == currentEditor()) {
-            assist_->scheduleSpelling();  // スクロールで表示範囲が変わったので調べ直す。
+            assist_->scheduleSpelling(true);  // スクロールで表示範囲が変わったので、すぐ調べ直す(波線が遅れて出ないように)。
         }
     });
     connect(editor, &QPlainTextEdit::cursorPositionChanged, this, [this, editor] {

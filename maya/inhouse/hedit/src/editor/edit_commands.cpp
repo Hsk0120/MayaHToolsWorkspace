@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QKeyEvent>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QStringList>
 #include <QTextBlock>
@@ -85,7 +86,7 @@ void deleteLines(QPlainTextEdit* editor, LineRange range, bool copyToClipboard) 
     const QTextBlock startBlock = document->findBlockByNumber(range.first);
     const QTextBlock endBlock = document->findBlockByNumber(range.last);
     if (copyToClipboard) {
-        QApplication::clipboard()->setText(startBlock.text() + "\n");
+        copyWholeLine(startBlock.text() + "\n");
     }
     int start = startBlock.position();
     int end = endBlock.position() + endBlock.text().size();
@@ -305,6 +306,14 @@ EditCommand editCommandForKey(const QKeyEvent* event, bool hasSelection) {
     return EditCommand::None;
 }
 
+void copyWholeLine(const QString& line) {
+    // 所有権はクリップボードへ移る(QClipboard::setMimeDataの決まり)。
+    auto data = new QMimeData;
+    data->setText(line);
+    data->setData(kWholeLineMimeType, QByteArray("1"));
+    QApplication::clipboard()->setMimeData(data);
+}
+
 void applyLineCommand(QPlainTextEdit* editor, EditCommand command, const QString& commentMarker) {
     const LineRange range = selectedLines(editor);
     switch (command) {
@@ -312,7 +321,7 @@ void applyLineCommand(QPlainTextEdit* editor, EditCommand command, const QString
         selectLine(editor, range);
         break;
     case EditCommand::CopyLine:
-        QApplication::clipboard()->setText(editor->document()->findBlockByNumber(range.first).text() + "\n");
+        copyWholeLine(editor->document()->findBlockByNumber(range.first).text() + "\n");
         break;
     case EditCommand::CutLine:
         deleteLines(editor, range, true);

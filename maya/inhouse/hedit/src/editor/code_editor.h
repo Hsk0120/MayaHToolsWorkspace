@@ -90,7 +90,10 @@ public:
     QCompleter* completer() const { return completer_; }
     /** @brief カーソルの直前の、補完中の名前を返す。 @return 英数字と``_``だけ(ドットは含まない)。 */
     QString completionPrefix() const;
-    /** @brief 候補を一覧で表示する。 @param items 表示する候補。空なら一覧を閉じる。 */
+    /** @brief 候補を一覧で表示する。
+     * @param items 表示する候補。入力した名前に一致するもの(fuzzyScore)を、一致の度合いの順に出す。
+     *        一致するものが無ければ一覧を閉じる。
+     */
     void showCompletions(const QList<CompletionItem>& items);
     /** @brief 候補の一覧を閉じる。 */
     void hideCompletions();
@@ -105,10 +108,18 @@ public:
      * @return trueの間の本文変更は、利用者の入力として扱わない(次の補完を予約しない)。
      */
     bool isInsertingCompletion() const { return insertingCompletion_; }
+    /** @brief 最後の本文の変更で、文字が増えたか。
+     * @return 入力・貼り付けならtrue。Backspace・Deleteで消しただけならfalse(消したときは補完を開き直さない)。
+     */
+    bool lastEditInsertedText() const { return lastEditInserted_; }
 
     // ---- スペルチェック ----
 
-    /** @brief 表示中の範囲だけを調べ、知らない英単語に波線を付ける。 @param spelling Windowsの辞書。 */
+    /** @brief 表示中の範囲だけを調べ、知らない英単語に波線を付ける。
+     * @param spelling Windowsの辞書。
+     * @details 入力中の単語(カーソルがあり、直前に文字を入れた単語)には付けない(打っている途中で波線が出ない)。
+     * カーソルがその単語から離れたらonSpellingRecheckRequestedで知らせ、調べ直してもらう。
+     */
     void checkSpelling(Spelling& spelling);
     /** @brief スペルの波線を全て消す。 */
     void clearSpelling();
@@ -238,10 +249,14 @@ public:
     std::function<void(bool explicitRequest)> onSignatureHelpRequested;
     /// 補完の一覧で選んでいる候補が変わった(候補の説明を出し直す)。
     std::function<void()> onCompletionSelectionChanged;
+    /// 入力中だったため波線を付けなかった単語から、カーソルが離れた(スペルを調べ直す)。
+    std::function<void()> onSpellingRecheckRequested;
 
     std::function<void()> onCompletionRequested;  ///< Ctrl+Spaceが押された。
     std::function<void()> onRunRequested;         ///< Ctrl+EnterかテンキーのEnterが押された。
     std::function<void()> onCloseRequested;       ///< Ctrl+WかCtrl+F4が押された。
+    /// 小窓・補完の一覧が無いときにEscが押された(検索バーを閉じる)。処理したらtrueを返す。
+    std::function<bool()> onEscapePressed;
 
 protected:
     /** @brief heditのショートカットを、Mayaのショートカットより先に受け取る。
@@ -391,7 +406,7 @@ private:
     /** @brief 表示部分の位置の名前(または問題)の説明を出す。マウスが止まったときに呼ぶ。
      * @param position 表示部分(viewport)の中の位置。
      * @details QtのツールチップのイベントはMayaの「Help → Popup Help」がオフだとMayaに止められるため、
-     * マウスの移動から自前のタイマー(0.5秒)で呼ぶ。
+     * マウスの移動から自前のタイマー(0.3秒)で呼ぶ。
      */
     void hoverAt(const QPoint& position);
 
@@ -410,8 +425,41 @@ private:
     /** @brief 空白だけの行頭で、Backspaceを4文字単位で消す。 @return 処理した場合true。 */
     bool deleteToIndentStop();
 
-    /** @brief 改行し、前の行のインデントを引き継ぐ(``:``や``{``で終わる行なら1段深くする)。 */
+    /** @brief 改行し、前の行のインデントを引き継ぐ。
+     * @details Pythonでは VS Code の Python 拡張と同じ規則にする。
+     * - ``:``・開き括弧で終わる行の次は1段深くする。``return``・``pass``・``break``・``continue``・``raise``の次は1段浅くする。
+     * - 開き括弧と閉じ括弧の間なら、閉じ括弧を次の行へ送り、間の行を1段深くする。
+     * - 空白だけの行で押したら、その行の空白は消す(空行にインデントを残さない)。
+     * MELは``{``で終わる行の次を1段深くする。
+     */
     void insertNewlineWithIndent();
+
+    /** @brief ``else:``・``elif ...:``・``except ...:``・``finally:``の``:``を打った直後に、その行を1段浅くする。
+     * @details 前の行と同じ深さ(まだ前のブロックの中)にあるときだけ浅くする(自分で浅くした行はそのまま)。
+     */
+    void dedentBlockKeyword();
+
+    /** @brief Home: 行頭の空白の後へ動く。既にそこにいれば行の先頭へ(VS Codeと同じ)。 @param select Shift+Homeならtrue。 */
+    void moveToLineHome(bool select);
+
+    /** @brief カーソルの行が見出しの固定表示の下に隠れていれば、見える位置までスクロールする。 */
+    void revealUnderSticky();
+
+    /** @brief 自動で入れた閉じ括弧・閉じ引用符か(上書き・まとめて消すのは、自動で入れたものだけ)。
+     * @param position 文書の中の位置。
+     * @param character その位置の文字。
+     * @return 自動で入れたもので、まだその位置にあればtrue。
+     */
+    bool isAutoCloser(int position, QChar character) const;
+
+    /** @brief 自動で入れた閉じ括弧の控えから、消された・別の行へ移ったものを除く(キー入力の処理の中で呼ぶ)。 */
+    void pruneAutoClosers();
+
+    /** @brief 補完の候補を、入力中の名前で絞り込んで一覧に入れる。
+     * @param prefix 入力中の名前。
+     * @return 一覧に入れた件数。
+     */
+    int applyCompletionFilter(const QString& prefix);
 
     /** @brief 候補の確定。補完中の名前を、選んだ名前で置き換える。 @param value 選んだ名前。 */
     void insertCompletion(const QString& value);
@@ -427,6 +475,12 @@ private:
     bool smartIndent_ = true;                            ///< Enterでインデントを引き継ぐか。
     bool backspaceToIndentStop_ = true;                  ///< Backspaceを4文字単位で消すか。
     bool insertingCompletion_ = false;                   ///< 候補の確定中か。
+    bool lastEditInserted_ = false;                      ///< 最後の本文の変更で文字が増えたか。
+    int lastEditEnd_ = -1;                               ///< 最後に文字を入れた範囲の終わり(入力中の単語の判断)。無ければ-1。
+    QList<CompletionItem> completionItems_;              ///< 補完エンジンが返した候補(絞り込む前)。
+    QList<QTextCursor> autoClosers_;                     ///< 自動で入れた閉じ括弧・閉じ引用符(1文字を選んだカーソル。編集に合わせて動く)。
+    QTextCursor spellingSkipped_;                        ///< 入力中のため波線を付けなかった単語(選んだカーソル)。無ければnull。
+    bool spellingRecheckSent_ = false;                   ///< spellingSkipped_から離れたことを知らせたか。
     SyntaxHighlighter* highlighter_ = nullptr;           ///< 色分け。所有者は文書。
     QCompleter* completer_ = nullptr;                    ///< 補完の一覧。所有者はこの欄。
     HoverPopup* hover_ = nullptr;                        ///< 名前の説明の小窓。初めて使うときに作る。所有者はこの欄。
@@ -486,7 +540,7 @@ private:
     HoverPopup* peek_ = nullptr;            ///< 定義をその場で見る表示。所有者はこの欄。
     HoverPopup* problemPopup_ = nullptr;    ///< F8で出す問題の説明(マウスの位置では閉じない)。所有者はこの欄。
     QTimer wordTimer_;                      ///< カーソルが止まって0.15秒後に同じ名前を強調する。
-    QTimer hoverTimer_;                     ///< マウスが止まって0.5秒後に名前の説明を出す。
+    QTimer hoverTimer_;                     ///< マウスが止まって0.3秒後に名前の説明を出す。
     QPoint hoverPoint_;                     ///< 最後にマウスが動いた位置(表示部分の座標)。
     QTimer diffTimer_;                      ///< 入力が止まって0.3秒後に差分を求め直す。
     QTimer markerTimer_;                    ///< スクロールバーの印をまとめて描き直す。

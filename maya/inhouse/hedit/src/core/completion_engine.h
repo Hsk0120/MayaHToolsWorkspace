@@ -62,7 +62,7 @@ public:
 
     /** @brief カーソルまでの本文から、補完候補を求める。
      * @param source 文書の先頭からカーソルまでの本文。
-     * @return 名前順で最大250件の候補。20万文字を超える本文は空。
+     * @return 入力との一致の度合いのよい順(fuzzyScore)で最大250件の候補。20万文字を超える本文は空。
      */
     CompletionResult complete(const QString& source);
 

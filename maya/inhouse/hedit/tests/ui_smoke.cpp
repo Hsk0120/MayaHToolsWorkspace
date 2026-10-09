@@ -1,6 +1,7 @@
 // 本番と同じQtウィジェットをoffscreenで検証する。Maya GUIの検証とは区別する。
 #include "core/code_outline.h"
 #include "core/completion_engine.h"
+#include "core/fuzzy_match.h"
 #include "core/line_diff.h"
 #include "core/signature_help.h"
 #include "core/docstrings.h"
@@ -92,13 +93,26 @@ bool moduleScanPasses() {
         return names;
     };
     const QSet<QString> candidates{"sample","_private","pkg","Sample2"};
-    if (items(hedit::completionItems(candidates,"",false))!=QStringList{"Sample2","pkg","sample"}
-        || items(hedit::completionItems(candidates,"sa",false))!=QStringList{"sample"}
+    // 大文字小文字を区別しない名前の順。入力があれば、一致の度合いの順(大文字小文字まで同じ前方一致が先)。
+    if (items(hedit::completionItems(candidates,"",false))!=QStringList{"pkg","sample","Sample2"}
+        || items(hedit::completionItems(candidates,"sa",false))!=QStringList{"sample","Sample2"}
+        || items(hedit::completionItems(candidates,"spl",false))!=QStringList{"sample","Sample2"}
+        || !items(hedit::completionItems(candidates,"amp",false)).isEmpty()
         || items(hedit::completionItems(candidates,"_",false))!=QStringList{"_private"}
         || !hedit::completionItems(QSet<QString>(),"",true).pending) {
         qWarning() << "completionItems" << items(hedit::completionItems(candidates,"",false)); return false;
     }
-    // 250件を超える候補は、名前順の先頭250件だけ(先頭だけを並べ替えても、全体を並べ替えたときと同じ)。
+    // あいまい一致: 1文字目は名前の先頭か単語の頭(_の後・小文字の後の大文字)。前方一致が上に並ぶ。
+    if (hedit::fuzzyScore(u"pcube", u"polyCube") < 0 || hedit::fuzzyScore(u"ube", u"polyCube") >= 0
+        || hedit::fuzzyScore(u"gat", u"getAttr") < 0 || hedit::fuzzyScore(u"cn", u"createNode") < 0
+        || hedit::fuzzyScore(u"jn", u"joint_name") < 0 || hedit::fuzzyScore(u"", u"anything") != 0
+        || hedit::fuzzyScore(u"ls", u"ls") <= hedit::fuzzyScore(u"ls", u"listRelatives")
+        || hedit::fuzzyScore(u"Poly", u"PolyCube") <= hedit::fuzzyScore(u"Poly", u"polyCube")
+        || hedit::fuzzyScore(u"toolong", u"tool") >= 0
+        || hedit::fuzzyScore(u"ls", u"listSets") <= hedit::fuzzyScore(u"ls", u"dR_lockSelTGL")) {
+        qWarning() << "fuzzyScore"; return false;
+    }
+    // 250件を超える候補は、度合い(ここでは全て同じ)と名前の順の先頭250件だけ(先頭だけを並べ替えても同じ)。
     QSet<QString> many;
     for (int i = 0; i < 1000; ++i) many.insert(QString("m%1").arg((i * 7919) % 1000, 4, 10, QChar('0')));
     QStringList sortedMany(many.begin(), many.end());
@@ -566,7 +580,9 @@ bool completionEnginePasses(const QByteArray& config) {
         || !names("import package\npackage.nodes.").contains("Joint")
         || names("import package as p\np.nodes.Joint.get_") != QStringList{"get_matrix"}
         || !names("def function(arg):\n    pass\nfun").contains("function")
-        || names("import maya.m") != QStringList()) {
+        || names("import maya.m") != QStringList()
+        || names("import maya.cmds as cmds\ncmds.cn") != QStringList{"createNode"}
+        || names("import maya.cmds as cmds\ncmds.CREATE") != QStringList{"createNode"}) {
         qWarning() << "engine names" << names("import package\npackage.nodes.") << names("import package as p\np.nodes.Joint.get_");
         return false;
     }
@@ -724,7 +740,7 @@ bool completionEnginePasses(const QByteArray& config) {
         // 補完の一覧のアイコンの種類。
         QStringList categories;
         for (const auto& item : engine.complete("import docsample\ndocsample.").items) categories.append(item.name + ":" + item.category);
-        if (categories != QStringList{"Thing:class", "make:function"}) {
+        if (categories != QStringList{"make:function", "Thing:class"}) {
             qWarning() << "categories" << categories; return false;
         }
     }
@@ -1679,6 +1695,103 @@ int main(int argc, char** argv) {
         editor->moveCursor(QTextCursor::End);
         type(Qt::Key_QuoteDbl, "\"");
         if (editor->toPlainText() != "value\"") { qWarning() << "no pair after name" << editor->toPlainText(); return 35; }
+        // 自分で打った閉じ括弧は上書きしない(自動で入れたものだけ。VS Codeと同じ)。
+        editor->setPlainText("f(x)");
+        QTextCursor place(editor->document());
+        place.setPosition(3);
+        editor->setTextCursor(place);
+        type(Qt::Key_ParenRight, ")");
+        if (editor->toPlainText() != "f(x))") { qWarning() << "manual closer overtyped" << editor->toPlainText(); return 57; }
+        // Home: 行頭の空白の後 ⇔ 行の先頭。Shift+Homeは選択する。
+        editor->setPlainText("    value = 1");
+        editor->moveCursor(QTextCursor::End);
+        type(Qt::Key_Home, QString());
+        const int firstHome = editor->textCursor().position();
+        type(Qt::Key_Home, QString());
+        const int secondHome = editor->textCursor().position();
+        editor->moveCursor(QTextCursor::End);
+        type(Qt::Key_Home, QString(), Qt::ShiftModifier);
+        if (firstHome != 4 || secondHome != 0 || editor->textCursor().selectedText() != "value = 1") {
+            qWarning() << "smart home" << firstHome << secondHome << editor->textCursor().selectedText(); return 58;
+        }
+        // Enterの規則: 「:」の後は深く、return の後は浅く、括弧の間は閉じ括弧を次の行へ、空白だけの行は空白を消す。
+        // コメントの中の「:」では深くしない。
+        auto enterAfter = [&](const QString& text, int position) {
+            editor->setPlainText(text);
+            QTextCursor at(editor->document());
+            at.setPosition(position < 0 ? text.size() : position);
+            editor->setTextCursor(at);
+            type(Qt::Key_Return, "\r");
+            return editor->toPlainText() + "|" + QString::number(editor->textCursor().position());
+        };
+        const QList<QPair<QStringList, QString>> enters{
+            {{"def f():", "-1"}, "def f():\n    |13"},
+            {{"    return x", "-1"}, "    return x\n|13"},
+            {{"    pass", "-1"}, "    pass\n|9"},
+            {{"foo()", "4"}, "foo(\n    \n)|9"},
+            {{"    ", "-1"}, "\n    |5"},
+            {{"x = 1  # note:", "-1"}, "x = 1  # note:\n|15"},
+            {{"if x:  # c", "-1"}, "if x:  # c\n    |15"},
+            {{"items = [", "-1"}, "items = [\n    |14"},
+        };
+        for (const auto& enter : enters) {
+            const QString got = enterAfter(enter.first[0], enter.first[1].toInt());
+            if (got != enter.second) { qWarning() << "enter rule" << enter.first << got; return 59; }
+        }
+        // else: などの「:」を打ったら、前のブロックの深さから1段浅くする。自分で浅くした行はそのまま。
+        editor->setPlainText("if x:\n    a = 1\n    else");
+        editor->moveCursor(QTextCursor::End);
+        type(Qt::Key_Colon, ":");
+        if (editor->toPlainText() != "if x:\n    a = 1\nelse:") { qWarning() << "dedent else" << editor->toPlainText(); return 60; }
+        editor->setPlainText("if x:\n    a = 1\nelif y");
+        editor->moveCursor(QTextCursor::End);
+        type(Qt::Key_Colon, ":");
+        if (editor->toPlainText() != "if x:\n    a = 1\nelif y:") { qWarning() << "keep dedented" << editor->toPlainText(); return 61; }
+        // 選択なしのCtrl+Cでコピーした行は、カーソルの行の上へ行として貼る。カーソルは元の文字の上に残る。
+        editor->setPlainText("first\nsecond");
+        editor->moveCursor(QTextCursor::Start);
+        type(Qt::Key_C, QString(), Qt::ControlModifier);
+        place = QTextCursor(editor->document());
+        place.setPosition(9);  // second の "o" の前
+        editor->setTextCursor(place);
+        editor->paste();
+        if (editor->toPlainText() != "first\nfirst\nsecond" || editor->textCursor().position() != 15) {
+            qWarning() << "line paste" << editor->toPlainText() << editor->textCursor().position(); return 62;
+        }
+        // 普通のコピーはカーソルの位置へ入る。
+        QApplication::clipboard()->setText("XY");
+        editor->paste();
+        if (editor->toPlainText() != "first\nfirst\nsecXYond") { qWarning() << "normal paste" << editor->toPlainText(); return 63; }
+        // Ctrl+↓・Ctrl+↑: カーソルを動かさずに1行スクロールする。
+        QString lines;
+        for (int i = 0; i < 300; ++i) lines += QString("line_%1\n").arg(i);
+        editor->setPlainText(lines);
+        editor->moveCursor(QTextCursor::Start);
+        const int scrollBefore = editor->verticalScrollBar()->value();
+        type(Qt::Key_Down, QString(), Qt::ControlModifier);
+        if (editor->verticalScrollBar()->value() != scrollBefore + 1 || editor->textCursor().position() != 0) {
+            qWarning() << "ctrl+down" << editor->verticalScrollBar()->value(); return 64;
+        }
+        type(Qt::Key_Up, QString(), Qt::ControlModifier);
+        if (editor->verticalScrollBar()->value() != scrollBefore) { qWarning() << "ctrl+up"; return 65; }
+        // 補完の一覧: 大文字小文字を区別せず絞り込み、打った名前と同じ候補だけならEnterで改行する。
+        editor->setPlainText("pcu");
+        editor->moveCursor(QTextCursor::End);
+        editor->showCompletions({{"polyCube", "", "", "function"}, {"polySphere", "", "", "function"}, {"PCurve", "", "", "function"}});
+        if (editor->isCompletionVisible()) {
+            QStringList shown;
+            const QAbstractItemModel* model = editor->completer()->completionModel();
+            for (int row = 0; row < model->rowCount(); ++row) shown.append(model->index(row, 0).data().toString());
+            if (shown != QStringList{"PCurve", "polyCube"}) { qWarning() << "fuzzy popup" << shown; return 66; }
+            editor->hideCompletions();
+            editor->setPlainText("value");
+            editor->moveCursor(QTextCursor::End);
+            editor->showCompletions({{"value", "", "", "variable"}, {"value2", "", "", "variable"}});
+            type(Qt::Key_Return, "\r");
+            if (editor->toPlainText() != "value\n" || editor->isCompletionVisible()) {
+                qWarning() << "exact match enter" << editor->toPlainText(); return 67;
+            }
+        }
 
         // 同じ名前の強調と、対応する括弧の強調。
         editor->setPlainText("alpha = 1\nbeta = alpha + alpha\nprint(beta)\n");

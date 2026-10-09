@@ -32,6 +32,13 @@ enum class EditCommand {
     ShrinkSelection,  ///< Shift+Alt+← : 広げる前の選択範囲へ戻す(CodeEditorが扱う)。
 };
 
+/// 選択なしのCtrl+C・Ctrl+Xでコピーした「行全体」の印(クリップボードの形式)。この印のある文字列は、
+/// 貼り付けのときにカーソルの位置ではなく、カーソルの行の上へ行として入れる(VS Codeと同じ)。
+constexpr const char* kWholeLineMimeType = "application/x-hedit-whole-line";
+
+/** @brief 行全体をクリップボードへ入れる(行として貼り付ける印を付ける)。 @param line 行(末尾の改行を含む)。 */
+void copyWholeLine(const QString& line);
+
 /** @brief キー入力から編集操作を選ぶ。
  * @param event キーと修飾キー(Ctrl・Alt・Shift)の情報。
  * @param hasSelection 選択範囲があるか(Ctrl+C・Ctrl+X・Tabの意味が変わる)。

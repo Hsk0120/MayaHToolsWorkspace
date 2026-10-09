@@ -49,7 +49,7 @@ bool topLevelImportPrefix(const QString& source, QString* prefix);
  * @param names 候補の名前。
  * @param prefix 補完中の名前の途中。``_``で始まらなければ``_``で始まる名前を除く。
  * @param pending 走査が進行中ならtrue(エディタが少し後に問い合わせ直す)。
- * @return 名前順で最大250件の候補。
+ * @return 入力との一致の度合いのよい順(fuzzyScore)で最大250件の候補。
  */
 CompletionResult completionItems(const QSet<QString>& names, const QString& prefix, bool pending);
 

@@ -44,12 +44,14 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
             code.setPlainText('# 日本語\nif True\n    pass')
             wait()
             problems = window.findChild(QtWidgets.QListWidget, 'analysisProblems')
-            assert problems.isVisible() and problems.item(0).data(QtCore.Qt.UserRole) == 2
-            QtTest.QTest.mouseClick(problems.viewport(), QtCore.Qt.LeftButton, pos=problems.visualItemRect(problems.item(0)).center())
+            # 項目は item() で取り出さず、モデルから読む。PySide2 は取り出した項目の包みを一覧が消えた後も持ち続け、
+            # 同じアドレスに作られた別の部品(補完の窓など)を古い項目として返すことがある。
+            assert problems.isVisible() and problems.model().index(0, 0).data(QtCore.Qt.UserRole) == 2
+            QtTest.QTest.mouseClick(problems.viewport(), QtCore.Qt.LeftButton, pos=problems.visualRect(problems.model().index(0, 0)).center())
             assert code.textCursor().blockNumber() == 1
             code.setPlainText('value = 1')
             wait()
-            assert 'No problems found' in problems.item(0).text()
+            assert 'No problems found' in problems.model().index(0, 0).data()
             actions['staticAnalysis'].setChecked(False)
             previous_calls = len(calls)
             code.setPlainText('if ???')

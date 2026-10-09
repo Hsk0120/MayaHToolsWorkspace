@@ -87,6 +87,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-09): hedit 0.6.0(0.5.2のホバー0.3秒を含む)。操作感の調査の提案11件に対応: 補完の待ち時間250ms→40ms(.の直後は0ms)、大文字小文字を区別しない単語の頭からのあいまい一致と度合いの順(core/fuzzy_match 新設、補完エンジン・import名も同じ規則)、一覧12行、コメント・文字列・数字で始まる語では自動補完しない、閉じた状態のBackspaceで開き直さない、同じ名前の候補ではEnterで改行、Home(空白の後⇔行頭)、Ctrl+↑↓で1行スクロール、選択なしCtrl+C/Xの行は行の上へ貼る、Enterの規則(return等で浅く・開き括弧で深く・括弧の間・空白だけの行・コメント内の:)、else:等の:で1段浅く、自動で入れた閉じ括弧だけ上書き・対で削除、スペルは入力中の単語に付けずスクロール後60msで検査、検索の初期値に単語・コード欄のEscで検索バーを閉じる・Alt+C/W/R/P、キャレット2px、見出しの固定表示の下に隠れない。全6版ビルド(警告0)・単体テスト(core 19・Python 35・UI)合格、GUI全スイートを2022・2024・2027で合格、日本語ドキュメントのSphinx -W合格。実測(2027): 補完の窓 291→83ms、.の後 283→50ms、ホイール後に画面が止まるまで 484→92ms。コミット・プッシュ済み。
+
+- Claude Code (2026-10-09): hedit・VS Code・Charcoal Editor 2 の操作感の比較調査。キー/ホイール/マウスを送って画素が変わるまでを同じ条件で実測(隔離した VS Code、テスト用 Maya 2027)。入力は3つとも1コマ(Charcoalは6,000行で約0.3秒)、hedit は補完の窓が約0.25秒遅い(250msの待ち)・スペルの波線が打つたびに消えて約0.45秒後に戻る。細部の比較と改善の提案11件を docs/research/hedit-feel-20261009/README.md(ローカル)にまとめた。コードは変更なし。
+
+- Claude Code (2026-10-09): hedit のリファクタリング検討の深掘り。テスト・Python側とビルド・C++全体の書き方を読み、前回の未確認の指摘を mayapy で再現(9件確定。BOMは不具合でない)。新たに埋め込みPythonが作業コピーの改行に左右されmllのハッシュがcloneで変わる件・Qt6でQT_NO_DEBUG未定義・Pythonのエラー文が補完以外で捨てられる件など13件、テストの環境依存と作りの問題を docs/research/hedit-refactor-structure-20261009.md(ローカル)に追記。コードは変更なし。
+
+- Claude Code (2026-10-09): hedit 0.5.2。ホバーを出すまでの待ち時間を0.5秒→0.3秒(VS Codeの既定)に短縮(実測で止めてから約0.3秒)。vscode_features_smoke のホバーの手順は、本物のカーソルを動かす QTest.mouseMove をやめてイベントを直接送る方式にし、マウスが上にある印(WA_UnderMouse)を立て、手順の間はOSからのマウスのイベントを捨てる(別アプリの窓が前面でも、カーソルをどこに置いても通る。カーソルを左上へ置いた確認も2022・2027で合格)、構文チェックを先に済ませてから測るようにした。全6版ビルド(警告0)・単体テスト合格、GUI全スイート(gui_smoke・completion_output・formatting_spelling・output_format・output_fallback・vscode_features・perf・session・startup)を2022・2024・2027で合格。2024 gui_smoke の不安定な失敗(PySide2 が消えた QListWidgetItem の包みを残し、同じアドレスの補完の窓を古い項目として返す)は、テストで item() を使わずモデルから読むよう options・vscode_features・perf を修正し、3回連続合格。0.6.0 に含めてコミット・プッシュ済み。
+
+- Claude Code (2026-10-09): hedit のリファクタリング検討(構造・保守性)。src 全体を3分担で読み、段階0(不具合15件: 復元時のCRLF/BOMで未保存の印・名前空間フォルダーが同名.pyを隠す・小窓のスタイル外れ ほか)・段階1(小さな分割14件)・段階2(中規模8件)・段階3を docs/research/hedit-refactor-structure-20261009.md(ローカル)にまとめた。コードは変更なし。
+
 - Codex (2026-10-09): hlibの内部改善R01〜R09と利用者向け改善U01〜U10・追加API・日英ガイド/英訳・検証を28c486aへコミットしorigin/mainへpush完了（87ファイル）。直前のMaya2022/2027各1,258件・実GUI ScriptJob各2件・日英Sphinx成功記録を確認し、公開入口/文書fixture30件/staged差分検査を再実行して成功。関連差分を独立監査、共有ログはCodex完了記録だけを部分stage。研究資料/生成物・hedit進行中差分・docs/vscode.md・他作業ログは含めず保持、判定衝突名待ちも維持。
 
 - Codex (2026-10-09): hlib利用者向け改善U01〜U10と具体的な追加入口を実装。weight Plug/Vertex入力、正式component名/getter、デルタ単体IO・追加、skin集約、settable/valid、Snapshot.capture/適用判定、ScriptJobs.temporary、拡張診断、通知詳細と復元警告、目的別ガイドを追加。Namespace親指定は今回の全対応指示に基づき作成先/存在判定/返却を一致。既存2,307署名はgetter委譲化以外の変更0。Maya2022/2027各141files/1,258件を実行し失敗0（条件付きskip11/8）、実GUI ScriptJob各2件成功。静的fixture30件・公開入口/layout20files/日英Sphinx -Wと各501HTML/差分検査成功、英訳12,271件維持・295件追加。実施記録はdocs/research/hlib-usability-2026-10-09/implemented.md（Git対象外）。実HumanIK全身リターゲット・他Maya版・手動目視・今回の性能/IDE実測は未検証。未コミット/未プッシュ、R01〜R09・hedit差分・判定衝突名待ちは保持。

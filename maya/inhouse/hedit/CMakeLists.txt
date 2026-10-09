@@ -104,6 +104,7 @@ set(HEDIT_CORE_SOURCES
     src/core/code_outline.cpp src/core/code_outline.h
     src/core/completion_types.cpp src/core/completion_types.h
     src/core/completion_engine.cpp src/core/completion_engine.h
+    src/core/fuzzy_match.cpp src/core/fuzzy_match.h
     src/core/docstrings.cpp src/core/docstrings.h
     src/core/history_text.cpp src/core/history_text.h
     src/core/json_file.cpp src/core/json_file.h

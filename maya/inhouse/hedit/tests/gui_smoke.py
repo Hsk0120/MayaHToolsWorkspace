@@ -376,7 +376,7 @@ def main(output_dir, finished):
                             result['checks'].append('completion_enter_insertion')
                             wait_events(200)
                             assert not completer.popup().isVisible(), 'Completion reopened after accepting'
-                            # 同名の候補を確定しても、次のEnterは改行になる。
+                            # 打った名前と同じ候補を選んでいるときのEnterは、確定せずに改行する(何も変わらない確定でEnterを使わない)。
                             import sys
                             sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
                             code.setPlainText('import hlib')
@@ -389,9 +389,8 @@ def main(output_dir, finished):
                             QtTest.QTest.keyClick(completer.popup(), QtCore.Qt.Key_Return)
                             wait_events(200)
                             assert not completer.popup().isVisible()
-                            code.setFocus(); QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
                             assert code.toPlainText()=='import hlib\n', repr(code.toPlainText())
-                            result['checks'].append('completion_accept_then_enter_newline')
+                            result['checks'].append('completion_exact_match_enter_newline')
                             import hlib
                             code.setPlainText('import hlib\nhlib.nodes.')
                             code.moveCursor(QtGui.QTextCursor.End); code.setFocus()

@@ -66,8 +66,11 @@ public:
      */
     void scheduleAnalysis(bool keepResults = false);
 
-    /** @brief 入力が止まってからスペルチェックするよう予約する。オフなら全タブの波線を消す。 */
-    void scheduleSpelling();
+    /** @brief 入力が止まってからスペルチェックするよう予約する。オフなら全タブの波線を消す。
+     * @param quick trueなら少しだけ待つ(スクロールで新しく見えた行・入力を終えた単語。波線が遅れて出ないように)。
+     *        falseなら入力が止まるのを待つ(打っている間は調べない)。
+     */
+    void scheduleSpelling(bool quick = false);
 
     /** @brief 現在の位置の補完候補を求めて表示する。 @param force Ctrl+Spaceからならtrue(自動補完の設定を無視する)。 */
     void requestCompletion(bool force);
@@ -100,9 +103,9 @@ private:
     QLabel* completionStatus_;              ///< ステータスバーの補完の状態。
     Context context_;                       ///< 画面の状態を調べる関数。
     Spelling spelling_;                     ///< Windowsの英語辞書。
-    QTimer completionTimer_;                ///< 入力が止まって250ms後に自動補完する。
+    QTimer completionTimer_;                ///< 名前の入力が止まって40ms後(``.``の直後はすぐ)に自動補完する。
     QTimer analysisTimer_;                  ///< 入力が止まって800ms後に構文チェックする。
-    QTimer spellingTimer_;                  ///< 入力が止まって450ms後にスペルチェックする。
+    QTimer spellingTimer_;                  ///< 入力が止まって450ms後(スクロール後は60ms後)にスペルチェックする。
     QTimer signatureTimer_;                 ///< 入力・カーソル移動が止まって60ms後に引数のヒントを出し直す。
     QTimer detailTimer_;                    ///< 候補の選択が止まって120ms後に候補の説明を出す。
     QPointer<CodeEditor> signatureEditor_;  ///< 引数のヒントを求めたコード欄。

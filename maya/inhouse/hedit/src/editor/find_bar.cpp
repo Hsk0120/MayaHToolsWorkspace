@@ -482,6 +482,14 @@ void FindBar::open(bool withReplace) {
         // U+2029は、QTextCursorが選択文字列の中の改行を表す文字。複数行の選択は検索語にしない。
         if (!selection.isEmpty() && !selection.contains(QChar(0x2029))) {
             findText_->setText(selection);
+        } else if (selection.isEmpty()) {
+            // 選択が無ければ、カーソルの位置の名前(英数字と_)を検索語にする。空白や記号の上なら今の検索語のまま。
+            QTextCursor word = editor->textCursor();
+            word.select(QTextCursor::WordUnderCursor);
+            static const QRegularExpression name("^[A-Za-z_][A-Za-z_0-9]*$");
+            if (name.match(word.selectedText()).hasMatch()) {
+                findText_->setText(word.selectedText());
+            }
         }
     }
     show();
@@ -921,6 +929,38 @@ bool FindBar::eventFilter(QObject* watched, QEvent* event) {
             return true;
         }
     }
+    // 入力欄のAlt+C・W・R・Pで、大文字小文字・単語単位・正規表現・置換で大文字小文字を保つ、を切り替える(VS Codeと同じ)。
+    // ShortcutOverrideを受け取り、Mayaやメニューのショートカットより先にここで処理する。
+    if ((watched == findText_ || watched == replaceText_)
+        && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress)) {
+        auto key = static_cast<QKeyEvent*>(event);
+        QToolButton* toggle = nullptr;
+        if (key->modifiers() == Qt::AltModifier) {
+            switch (key->key()) {
+            case Qt::Key_C:
+                toggle = matchCase_;
+                break;
+            case Qt::Key_W:
+                toggle = wholeWord_;
+                break;
+            case Qt::Key_R:
+                toggle = regex_;
+                break;
+            case Qt::Key_P:
+                toggle = preserveCase_;
+                break;
+            default:
+                break;
+            }
+        }
+        if (toggle) {
+            event->accept();
+            if (event->type() == QEvent::KeyPress) {
+                toggle->toggle();
+            }
+            return true;
+        }
+    }
     return QWidget::eventFilter(watched, event);
 }
 
@@ -961,6 +1001,14 @@ void FindBar::updatePosition() {
         errorBubble_->move(origin);
         errorBubble_->raise();
     }
+}
+
+bool FindBar::closeIfOpen() {
+    if (!isVisible()) {
+        return false;
+    }
+    closeBar();
+    return true;
 }
 
 void FindBar::closeBar() {

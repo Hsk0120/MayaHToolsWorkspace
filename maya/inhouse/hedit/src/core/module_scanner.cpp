@@ -3,6 +3,7 @@
  * @details Pythonの旧実装(Index.complete/scan_top)と同じ候補・並び順・件数上限を返す。
  */
 #include "core/module_scanner.h"
+#include "core/fuzzy_match.h"
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -85,24 +86,31 @@ bool topLevelImportPrefix(const QString& source, QString* prefix) {
 CompletionResult completionItems(const QSet<QString>& names, const QString& prefix, bool pending) {
     const bool wantsPrivateNames = prefix.startsWith(QLatin1Char('_'));
     constexpr int kMaximumNames = 250;
-    QVector<QString> matched;
+    struct Ranked {
+        int score;
+        const QString* name;
+    };
+    QVector<Ranked> matched;
     for (const QString& name : names) {
-        if (!name.startsWith(prefix)) {
-            continue;
-        }
         if (!wantsPrivateNames && name.startsWith(QLatin1Char('_'))) {
             continue;
         }
-        matched.append(name);
+        // 大文字小文字を区別せず、単語の頭からの飛び飛びの一致も含める(補完エンジンと同じ規則)。
+        const int score = fuzzyScore(prefix, name);
+        if (score >= 0) {
+            matched.append({score, &name});
+        }
     }
-    // 使うのは名前順の先頭250件だけなので、全体を並べ替えずに先頭だけを並べる(partial_sort)。
+    // 使うのはよい順の先頭250件だけなので、全体を並べ替えずに先頭だけを並べる(partial_sort)。
     const int count = qMin(int(matched.size()), kMaximumNames);
-    std::partial_sort(matched.begin(), matched.begin() + count, matched.end());
+    std::partial_sort(matched.begin(), matched.begin() + count, matched.end(), [](const Ranked& a, const Ranked& b) {
+        return rankedBefore(a.score, *a.name, b.score, *b.name);
+    });
 
     CompletionResult result;
     result.items.reserve(count);
     for (int i = 0; i < count; ++i) {
-        result.items.append({matched[i], QString(), QString()});
+        result.items.append({*matched[i].name, QString(), QString()});
     }
     result.pending = pending;
     return result;

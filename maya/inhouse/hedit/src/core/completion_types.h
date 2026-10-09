@@ -27,7 +27,7 @@ namespace hedit {
 
 /** @brief 補完の結果。 */
 struct CompletionResult {
-    QList<CompletionItem> items;  ///< 候補(名前順、最大250件)。
+    QList<CompletionItem> items;  ///< 候補(入力との一致の度合いのよい順、最大250件)。
     bool pending = false;         ///< import文の候補を集めている途中ならtrue(少し後に問い合わせ直す)。
     QString error;                ///< 失敗の理由。成功なら空。
 };

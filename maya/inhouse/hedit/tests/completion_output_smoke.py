@@ -94,15 +94,12 @@ def main(output_dir, finished):
         model = completer.completionModel()
         row = next(i for i in range(model.rowCount()) if model.index(i, 0).data() == 'hlib')
         completer.popup().setCurrentIndex(model.index(row, 0))
+        # 打った名前と同じ候補を選んでいるときのEnterは、確定せずに改行する(一覧は閉じたまま開き直さない)。
         QtTest.QTest.keyClick(completer.popup(), QtCore.Qt.Key_Return)
         wait(250)
-        assert code.toPlainText() == 'import hlib'
-        assert not completer.popup().isVisible(), 'Popup reopened after acceptance'
-        code.setFocus(); QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
-        wait(200)
         assert code.toPlainText() == 'import hlib\n', repr(code.toPlainText())
-        assert not completer.popup().isVisible()
-        result['checks'].append('accept_hlib_then_enter_newline')
+        assert not completer.popup().isVisible(), 'Popup reopened after the newline'
+        result['checks'].append('exact_match_enter_newline')
         # 一覧が開いたまま、Enterがコード欄へ直接届いた場合(Mayaのドックの中で起きる)も、ここで確定して
         # 親(Mayaのウィンドウ)へ回さない。アウトライナでノードを選択していても、フォーカスはコード欄に残る。
         probe = cmds.createNode('transform', name='hedit_focus_probe')
@@ -146,10 +143,13 @@ def main(output_dir, finished):
         for character in 'ls':
             QtTest.QTest.keyClick(code, character)
             wait(60)
-        wait(500)  # 名前を伸ばした後の問い合わせ直し(0.25秒後)も済ませる。
+        wait(500)  # 名前を伸ばした後の問い合わせ直しも済ませる。
         completer.popup().removeEventFilter(counter)
         assert completer.popup().isVisible() and HideCounter.count == 0, (HideCounter.count, code.toPlainText())
-        assert 'ls' in names() and all(name.startswith('ls') for name in names()), names()
+        # 大文字小文字を区別しない・単語の頭からの一致(``dR_lockSelTGL`` など)も出るが、前方一致の候補が必ず先に並ぶ。
+        found = names()
+        prefixed = [name for name in found if name.startswith('ls')]
+        assert found[:1] == ['ls'] and found[:len(prefixed)] == prefixed, found[:20]
         QtTest.QTest.keyClick(code, '(')
         wait(100)
         assert not completer.popup().isVisible(), 'Popup stayed open after leaving the name'

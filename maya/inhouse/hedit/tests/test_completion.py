@@ -226,7 +226,8 @@ class CompletionTests(unittest.TestCase):
             start = time.perf_counter()
             result = names('import maya.cmds as cmds\ncmds.createNod')
             self.assertLess(time.perf_counter() - start, 1.0)
-        self.assertEqual(result, ['createNode'])
+        # 大文字小文字を区別しない・単語の頭からの一致の候補(CreateNodeWindow など)も出るが、前方一致が先頭に並ぶ。
+        self.assertEqual(result[0], 'createNode')
 
     def test_local_function_and_class(self):
         self.assertIn('function', names('def function(arg):\n    pass\nfun'))

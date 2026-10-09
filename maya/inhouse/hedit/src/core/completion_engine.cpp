@@ -7,6 +7,7 @@
  * - 読み込み済みのモジュールの公開名とファイルの宣言を重ねた結果は、どちらも変わっていなければ使い回す。
  */
 #include "core/completion_engine.h"
+#include "core/fuzzy_match.h"
 #include "core/code_outline.h"
 #include "core/module_scanner.h"
 #include "core/script_file.h"
@@ -17,6 +18,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QVector>
+#include <algorithm>
 
 namespace hedit {
 namespace {
@@ -57,66 +60,79 @@ bool isImportLine(const QString& line) {
     return pattern.match(line).hasMatch();
 }
 
-/** @brief 表の1件を候補にする。 @param it 表の位置。 @return 候補。 */
-CompletionItem itemOf(SymbolTable::const_iterator it) {
-    return {it.key(), it.value().detail, it.value().kindName(), it.value().categoryName()};
-}
+/** @brief 候補にする名前の1件と、入力との一致の度合い。 */
+struct RankedSymbol {
+    int score;              ///< fuzzyScoreの値。
+    const QString* name;    ///< 名前(表の中の文字列を指す)。
+    const Symbol* symbol;   ///< 名前の情報(表の中を指す)。
+};
 
-/** @brief 表の中の名前を、候補の一覧にする。
- * @param symbols 名前の表(名前順)。
- * @param prefix 入力途中の名前。``_``で始まらなければ、``_``で始まる名前を除く。
+/** @brief 度合いのよい順に並べ、上限までを候補にする。
+ * @param ranked 一致した名前。並べ替える。
  * @return 候補(最大250件)。
- * @details 表は名前順なので、prefixで始まる名前はlowerBound(prefix)から連続して並ぶ。そこから読み始め、
- * prefixで始まらない名前が来たら終える。
  */
-QList<CompletionItem> itemsFor(const SymbolTable& symbols, const QString& prefix) {
+QList<CompletionItem> topItems(QVector<RankedSymbol>& ranked) {
+    const int count = qMin(int(ranked.size()), kMaximumItems);
+    // 使うのは上位の250件だけなので、全体を並べ替えずに上位だけを並べる(partial_sort)。
+    std::partial_sort(ranked.begin(), ranked.begin() + count, ranked.end(),
+                      [](const RankedSymbol& a, const RankedSymbol& b) {
+                          return rankedBefore(a.score, *a.name, b.score, *b.name);
+                      });
     QList<CompletionItem> items;
-    const bool wantsPrivate = prefix.startsWith('_');
-    for (auto it = symbols.lowerBound(prefix); it != symbols.end() && items.size() < kMaximumItems; ++it) {
-        if (!it.key().startsWith(prefix)) {
-            break;
-        }
-        if (!wantsPrivate && it.key().startsWith('_')) {
-            continue;
-        }
-        items.append(itemOf(it));
+    items.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        const Symbol& symbol = *ranked[i].symbol;
+        items.append({*ranked[i].name, symbol.detail, symbol.kindName(), symbol.categoryName()});
     }
     return items;
 }
 
-/** @brief 2つの表を重ねた候補の一覧(同じ名前はlocalsを優先する)。表を実際に重ねる(コピーする)代わりに、名前順に並べて読む。
+/** @brief 表の中の名前を、入力との一致の度合いで選んで候補にする。
+ * @param symbols 名前の表。
+ * @param prefix 入力途中の名前。大文字小文字を区別せず、単語の頭からの飛び飛びの一致も含める(fuzzyScore)。
+ *        ``_``で始まらなければ、``_``で始まる名前を除く。
+ * @param skip この表にある名前は除く(nullptrなら除かない)。
+ * @param ranked 一致した名前を足す先。
+ */
+void collectRanked(const SymbolTable& symbols, const QString& prefix, const SymbolTable* skip,
+                   QVector<RankedSymbol>* ranked) {
+    const bool wantsPrivate = prefix.startsWith('_');
+    for (auto it = symbols.constBegin(); it != symbols.constEnd(); ++it) {
+        if (!wantsPrivate && it.key().startsWith('_')) {
+            continue;
+        }
+        if (skip && skip->contains(it.key())) {
+            continue;
+        }
+        const int score = fuzzyScore(prefix, it.key());
+        if (score >= 0) {
+            ranked->append({score, &it.key(), &it.value()});
+        }
+    }
+}
+
+/** @brief 表の中の名前を、候補の一覧にする。
+ * @param symbols 名前の表。
+ * @param prefix 入力途中の名前。
+ * @return 候補(一致の度合いのよい順、最大250件)。
+ */
+QList<CompletionItem> itemsFor(const SymbolTable& symbols, const QString& prefix) {
+    QVector<RankedSymbol> ranked;
+    collectRanked(symbols, prefix, nullptr, &ranked);
+    return topItems(ranked);
+}
+
+/** @brief 2つの表を重ねた候補の一覧(同じ名前はlocalsを優先する)。表を実際に重ねる(コピーする)代わりに、両方から選ぶ。
  * @param base 組み込みの名前と予約語の表。
  * @param locals 本文の宣言。
  * @param prefix 入力途中の名前。
  * @return itemsFor(baseにlocalsを上書きした表, prefix)と同じ候補。
  */
 QList<CompletionItem> mergedItemsFor(const SymbolTable& base, const SymbolTable& locals, const QString& prefix) {
-    QList<CompletionItem> items;
-    const bool wantsPrivate = prefix.startsWith('_');
-    auto b = base.lowerBound(prefix);
-    auto l = locals.lowerBound(prefix);
-    while (items.size() < kMaximumItems) {
-        const bool hasBase = b != base.end() && b.key().startsWith(prefix);
-        const bool hasLocal = l != locals.end() && l.key().startsWith(prefix);
-        if (!hasBase && !hasLocal) {
-            break;
-        }
-        SymbolTable::const_iterator current;
-        if (hasBase && hasLocal && b.key() == l.key()) {
-            current = l;  // 同じ名前は本文の宣言を優先する。
-            ++b;
-            ++l;
-        } else if (hasLocal && (!hasBase || l.key() < b.key())) {
-            current = l++;
-        } else {
-            current = b++;
-        }
-        if (!wantsPrivate && current.key().startsWith('_')) {
-            continue;
-        }
-        items.append(itemOf(current));
-    }
-    return items;
+    QVector<RankedSymbol> ranked;
+    collectRanked(locals, prefix, nullptr, &ranked);
+    collectRanked(base, prefix, &locals, &ranked);
+    return topItems(ranked);
 }
 
 /// 型の推論で、たどる深さの上限(x = A() の A がまた推論…と循環しないように)。

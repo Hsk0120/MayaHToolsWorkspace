@@ -182,6 +182,21 @@ void CodeEditor::onCursorMoved() {
     if (isSignatureHelpVisible() && onSignatureHelpRequested) {
         onSignatureHelpRequested(false);
     }
+    // 入力中のため波線を付けなかった単語から離れたら、調べ直してもらう(1回だけ知らせる)。
+    if (!spellingSkipped_.isNull() && !spellingRecheckSent_) {
+        const int position = cursor.position();
+        if (position < spellingSkipped_.selectionStart() || position > spellingSkipped_.selectionEnd()) {
+            spellingRecheckSent_ = true;
+            if (onSpellingRecheckRequested) {
+                onSpellingRecheckRequested();
+            }
+        }
+    }
+    // 上へ動いて見出しの固定表示の下に隠れたら、見える位置までスクロールする。Qtが表示範囲へ
+    // スクロールし終わってから確かめる(0msの予約。文脈のthisが消えれば予約も消える)。
+    if (!stickyLines_.isEmpty()) {
+        QTimer::singleShot(0, this, [this] { revealUnderSticky(); });
+    }
 }
 
 // ===========================================================================
@@ -739,6 +754,9 @@ void CodeEditor::applyEditFollowUps() {
 
 void CodeEditor::onContentsChange(int position, int removed, int added) {
     Q_UNUSED(removed);
+    // 0. 文字が増えたか(Backspaceで消したときは補完を開き直さない)と、入れた範囲の終わり(入力中の単語の判断)。
+    lastEditInserted_ = added > 0;
+    lastEditEnd_ = added > 0 ? position + added : -1;
     // 1. スペルの波線: 編集した範囲を覚えておき、イベントループへ戻ってから、その範囲にかかる波線を消す
     //    (この通知の中ではQTextCursorを消さない。理由はonContentsChangedのコメントを参照)。
     if (!spellingMarks_.isEmpty()) {
@@ -779,6 +797,19 @@ void CodeEditor::onContentsChange(int position, int removed, int added) {
 void CodeEditor::setStickyScroll(bool enabled) {
     stickyScroll_ = enabled;
     updateSticky();
+}
+
+void CodeEditor::revealUnderSticky() {
+    QScrollBar* bar = verticalScrollBar();
+    // 1行ずつ上へスクロールする(スクロールすると固定表示の行数も変わるため、毎回確かめ直す)。
+    for (int i = 0; i < 8 && !stickyLines_.isEmpty(); ++i) {
+        const int covered = stickyLineHeight() * stickyLines_.size();
+        if (cursorRect().top() >= covered || bar->value() <= bar->minimum()) {
+            return;
+        }
+        bar->setValue(bar->value() - 1);
+        updateSticky();
+    }
 }
 
 int CodeEditor::stickyLineHeight() const {
