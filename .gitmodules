@@ -121,3 +121,6 @@
 	path = maya/external/openrv
 	url = https://github.com/AcademySoftwareFoundation/openrv.git
 	shallow = true
+[submodule "maya/external/maya_exprespy"]
+	path = maya/external/maya_exprespy
+	url = https://github.com/ryusas/maya_exprespy.git

@@ -744,3 +744,587 @@ msgstr "Rotation does not account for shortest path, nor does it handle continuo
 
 msgid "所有する計算ノードは ``hlib.delete(graph.container)`` で削除できます。 両端のtransformは削除対象に含めません。補間先を始点・終点やその上流へ接続して 循環を作らないようにしてください。"
 msgstr "You can delete the owned calculation nodes with ``hlib.delete(graph.container)``. Do not include the end transforms in the deletion target. Do not connect the interpolation target to the start/end points or their upstream nodes to avoid creating cycles."
+
+
+msgid "2026年10月9日の標準DG・C++・Bifrost・研究用exprespyの同条件比較は :doc:`exprespy_comparison` を参照してください。以下は実装済みバックエンドの仕様と再計測方法です。"
+msgstr "See :doc:`exprespy_comparison` for the comparison of standard DG, C++, Bifrost, and the research exprespy implementation under matching conditions on October 9, 2026. The following sections describe the implemented backends and how to repeat the measurements."
+
+
+msgid "exprespy・Bifrost・C++の評価比較"
+msgstr "Evaluation comparison: exprespy, Bifrost, and C++"
+
+
+msgid "2026年10月9日、Maya 2027の同一プロセスで、標準DG・C++・Bifrost・exprespyを比較しました。 単一入力の行列追従と、実LimbRigのSoft IK部分が対象です。 exprespyは研究用の構築時差し替えで、hrigの正式なバックエンドではありません。"
+msgstr "Standard DG, C++, Bifrost, and exprespy were compared in the same Maya 2027 process on October 9, 2026. The workloads cover single-input matrix following and the Soft IK part of actual LimbRig instances. exprespy is injected during construction for research and is not an official hrig backend."
+
+
+msgid "初回計測は4実装×3負荷×3評価モードの36条件、各7反復の計252反復です。 全出力の長さ・有限値・要求した評価モードとの一致、Cached Playback無効、EM fallbackなしを確認しました。 現在このページの行列追従表は、そのうち24条件・168反復の確定値です。 LimbRigの数値はSoft IK修正後の再計測結果へ更新します。"
+msgstr "The initial run comprised 36 conditions: four implementations, three workloads, and three evaluation modes, with seven repetitions each for 252 repetitions in total. Output lengths, finite values, matching requested evaluation modes, disabled Cached Playback, and no EM fallback were verified. The matrix tables on this page currently contain confirmed results for 24 of those conditions and 168 repetitions. LimbRig values will be updated after remeasurement of the Soft IK fix."
+
+
+msgid "測定環境と方法"
+msgstr "Measurement environment and method"
+
+
+msgid "Maya 2027／API 20270000、Windows 11（10.0.26200）、Python 3.13.9、 Intel Core i7-12700KF、論理CPU20、Mayaスレッド設定20です。"
+msgstr "Maya 2027 / API 20270000, Windows 11 (10.0.26200), Python 3.13.9, Intel Core i7-12700KF, 20 logical CPUs, and 20 Maya threads."
+
+
+msgid "ロードしたプラグイン"
+msgstr "Loaded plug-ins"
+
+
+msgid "プラグイン"
+msgstr "Plug-in"
+
+
+msgid "バージョン"
+msgstr "Version"
+
+
+msgid "exprespy"
+msgstr "exprespy"
+
+
+msgid "3.0.1.20260417"
+msgstr "3.0.1.20260417"
+
+
+msgid "hrigNodes"
+msgstr "hrigNodes"
+
+
+msgid "0.1.0"
+msgstr "0.1.0"
+
+
+msgid "bifrostGraph"
+msgstr "bifrostGraph"
+
+
+msgid "3.0.0.0-202602040323-9df3db7"
+msgstr "3.0.0.0-202602040323-9df3db7"
+
+
+msgid "同じ入力アニメーションを使用し、各条件で120フレームをウォームアップした後、 240フレーム×7回を測定しました。ケースと評価モードの順番は固定seed 20261009で並べ替えています。 構築・ロード・コード設定・初回コンパイル・出力の読み取りは反復時間の外です。 構築時間は計測経路の違いを含むため、構築速度の比較には使用していません。"
+msgstr "The same input animation was used. Each condition was warmed up for 120 frames, followed by seven measurements of 240 frames. Cases and evaluation modes were shuffled using the fixed seed 20261009. Construction, loading, code setup, initial compilation, and output reads are outside the repetition timings. Construction times include differences in the construction paths and are not used to compare build speed."
+
+
+msgid "測定値は ``currentTime(update=True)`` と全出力への ``dgeval`` を含む経過時間です。 PythonからMayaへの呼び出し、入力アニメーション、Transform、IK等の評価も含みます。 描画・スキニング・UIは含まず、ビューポートFPSや計算ノード単体のcompute時間ではありません。 SerialはEM評価グラフの直列評価で、Bifrost内部を含むCPU 1スレッド固定ではありません。"
+msgstr "The measurements are elapsed times including ``currentTime(update=True)`` and ``dgeval`` requests for all outputs. They also include Python-to-Maya calls and evaluation of input animation, Transforms, IK, and other nodes. Drawing, skinning, and UI are excluded; these values are not viewport FPS or the compute time of an individual calculation node. Serial means serial execution of the EM evaluation graph; it does not force all processing, including Bifrost internals, onto one CPU thread."
+
+
+msgid "他プロセスのCPU負荷も参考値として記録しました。初回252反復の概算は中央値1.604core、 最大4.434coreです。行列追従168反復だけでは中央値1.613core、最大3.655coreでした。 Windows全体のCPU秒から当該プロセスのCPU秒を引き、経過秒で割った概算で、 取得区間やOSの粒度による誤差を含みます。評価時間から差し引いて補正していません。 過去の計測値へ今回の値を足して比較せず、同じ実行内の条件を比べています。"
+msgstr "CPU load from other processes was recorded as a reference value. Across the initial 252 repetitions, the estimated median was 1.604 cores and the maximum was 4.434 cores. For the 168 matrix-following repetitions alone, the median was 1.613 cores and the maximum was 3.655 cores. This estimate subtracts the process CPU seconds from Windows system CPU seconds and divides by elapsed seconds; it includes errors from the sampling intervals and OS granularity. It is not subtracted from the evaluation times. Conditions from the same run are compared, without adding the new measurements to older results."
+
+
+msgid "行列追従300個"
+msgstr "300 matrix followers"
+
+
+msgid "標準構成は ``multMatrix -> offsetParentMatrix`` です。C++・Bifrost・exprespyも ``offset * sourceWorld * parentInverse`` の倍精度行列を同じ専用Transformへ渡します。 各方式とも1対象につき1計算ノード、Bifrostは1対象につき1graphShapeとその親Transformです。 配列を1グラフへまとめる方式は測定していません。"
+msgstr "The standard configuration is ``multMatrix -> offsetParentMatrix``. C++, Bifrost, and exprespy also pass the double-precision matrix ``offset * sourceWorld * parentInverse`` to the same dedicated Transform buffers. Each implementation uses one calculation node per target; Bifrost uses one graphShape and its parent Transform per target. Packing the targets into arrays within one graph was not measured."
+
+
+msgid "独立した300出力と300段の階層を分けました。全300出力を6時刻で標準DGと照合し、 全24条件で最大行列要素差0でした。許容値は1e-6です。 300段は長い依存経路のストレス試験で、通常の腕・脚全体の高速化率を示しません。 入力は移動・回転のみで、parentConstraintの複数入力・軸スキップ・jointOrient等の完全互換比較ではありません。"
+msgstr "Independent outputs and a 300-level hierarchy were measured separately. All 300 outputs were compared with standard DG at six times, with a maximum matrix-element difference of zero in all 24 conditions. The tolerance is 1e-6. The 300-level hierarchy is a stress test of a long dependency path, not an indication of the speedup for an entire normal arm or leg. Inputs contain only translation and rotation; this is not a complete compatibility comparison covering parentConstraint multi-input blending, axis skips, jointOrient, and other features."
+
+
+msgid "フレーム評価の中央値（ms/frame）"
+msgstr "Median frame evaluation time (ms/frame)"
+
+
+msgid "配置"
+msgstr "Layout"
+
+
+msgid "評価"
+msgstr "Evaluation"
+
+
+msgid "標準OPM"
+msgstr "Standard OPM"
+
+
+msgid "独立300個"
+msgstr "300 independent targets"
+
+
+msgid "DG"
+msgstr "DG"
+
+
+msgid "4.822"
+msgstr "4.822"
+
+
+msgid "4.500"
+msgstr "4.500"
+
+
+msgid "34.790"
+msgstr "34.790"
+
+
+msgid "8.420"
+msgstr "8.420"
+
+
+msgid "Serial"
+msgstr "Serial"
+
+
+msgid "6.841"
+msgstr "6.841"
+
+
+msgid "7.560"
+msgstr "7.560"
+
+
+msgid "48.892"
+msgstr "48.892"
+
+
+msgid "14.523"
+msgstr "14.523"
+
+
+msgid "Parallel"
+msgstr "Parallel"
+
+
+msgid "5.483"
+msgstr "5.483"
+
+
+msgid "5.436"
+msgstr "5.436"
+
+
+msgid "46.720"
+msgstr "46.720"
+
+
+msgid "17.614"
+msgstr "17.614"
+
+
+msgid "300段"
+msgstr "300 levels"
+
+
+msgid "10.604"
+msgstr "10.604"
+
+
+msgid "10.408"
+msgstr "10.408"
+
+
+msgid "40.921"
+msgstr "40.921"
+
+
+msgid "14.170"
+msgstr "14.170"
+
+
+msgid "7.285"
+msgstr "7.285"
+
+
+msgid "8.397"
+msgstr "8.397"
+
+
+msgid "45.414"
+msgstr "45.414"
+
+
+msgid "15.348"
+msgstr "15.348"
+
+
+msgid "7.159"
+msgstr "7.159"
+
+
+msgid "6.791"
+msgstr "6.791"
+
+
+msgid "64.444"
+msgstr "64.444"
+
+
+msgid "19.431"
+msgstr "19.431"
+
+
+msgid "Parallelの7反復範囲（最小〜最大ms/frame）"
+msgstr "Range of seven Parallel repetitions (minimum–maximum ms/frame)"
+
+
+msgid "5.314〜6.982"
+msgstr "5.314–6.982"
+
+
+msgid "4.539〜6.398"
+msgstr "4.539–6.398"
+
+
+msgid "46.096〜47.285"
+msgstr "46.096–47.285"
+
+
+msgid "17.036〜18.542"
+msgstr "17.036–18.542"
+
+
+msgid "6.174〜7.571"
+msgstr "6.174–7.571"
+
+
+msgid "6.464〜7.855"
+msgstr "6.464–7.855"
+
+
+msgid "63.325〜65.856"
+msgstr "63.325–65.856"
+
+
+msgid "18.273〜20.222"
+msgstr "18.273–20.222"
+
+
+msgid "Parallelでのexprespyの時間比"
+msgstr "exprespy time ratios in Parallel mode"
+
+
+msgid "exprespy / C++"
+msgstr "exprespy / C++"
+
+
+msgid "exprespy / Bifrost"
+msgstr "exprespy / Bifrost"
+
+
+msgid "exprespy / 標準OPM"
+msgstr "exprespy / standard OPM"
+
+
+msgid "3.240倍"
+msgstr "3.240×"
+
+
+msgid "0.377倍"
+msgstr "0.377×"
+
+
+msgid "3.212倍"
+msgstr "3.212×"
+
+
+msgid "2.862倍"
+msgstr "2.862×"
+
+
+msgid "0.302倍"
+msgstr "0.302×"
+
+
+msgid "2.714倍"
+msgstr "2.714×"
+
+
+msgid "比率はexprespyの中央値を比較先の中央値で割った値です。1倍より大きい場合はexprespyの時間が長いことを表します。 この負荷ではexprespyは標準OPM・C++より長時間、1対象1グラフのBifrostより短時間でした。 標準OPMとC++は反復範囲が重なるため、この僅差から順位を断定しません。 別のマシン、実制作シーン、配列一括グラフへ一般化した結果ではありません。"
+msgstr "Ratios divide the exprespy median by the comparison median. A ratio above one means that exprespy took longer. In this workload, exprespy took longer than standard OPM and C++, and less time than Bifrost with one graph per target. Standard OPM and C++ have overlapping repetition ranges, so their small difference does not establish a ranking. These results do not generalize to other machines, production scenes, or graphs that process arrays in bulk."
+
+
+msgid "実LimbRig30個のSoft IK"
+msgstr "Soft IK in 30 actual LimbRig instances"
+
+
+msgid "Soft IKの微小距離の修正後に再計測するため、この欄の数値は更新待ちです。 修正前の速度を修正後の性能として掲載しません。"
+msgstr "This section is awaiting updated measurements after the tiny-distance Soft IK fix. Timings from before the fix will not be presented as performance after the fix."
+
+
+msgid "実際の ``LimbRig`` を30個作り、IK／全機能LOD、各4出力関節で評価します。 Soft IK部分だけを差し替え、既存IK solver・拘束・その他のリグノードは同じ構成です。 標準Soft IKは ``condition``・``multiplyDivide``・``plusMinusAverage`` 等の標準DGノードで、 C++・Bifrost・exprespyはそれぞれ同じ倍率を計算する構成です。 距離とsoftnessを同じキーで動かし、Soft IKが効く領域も通過させます。 これはhrig全機能のexprespy化や、キャラクター全体の速度比較ではありません。"
+msgstr "Thirty actual ``LimbRig`` instances are evaluated in IK mode with full-function LOD and four output joints each. Only the Soft IK part is replaced; the existing IK solver, constraints, and other rig nodes retain the same configuration. Standard Soft IK uses standard DG nodes such as ``condition``, ``multiplyDivide``, and ``plusMinusAverage``. C++, Bifrost, and exprespy each calculate the same position ratio. Distance and softness use matching keys and pass through the region where Soft IK is active. This is not an exprespy implementation of all hrig features or a speed comparison for complete characters."
+
+
+msgid "実装の制限と解釈"
+msgstr "Implementation limits and interpretation"
+
+
+msgid "exprespyは `upstreamソース <https://github.com/ryusas/maya_exprespy>`_ で ``kGloballySerial`` を指定し、Pythonコード実行ではGILを取得します。 Parallelでもexprespyノード同士の並列実行を示しません。hrigのC++ノードは ``kParallel`` です。 入力やTransform等の並列化を含む構成全体の評価時間として解釈してください。"
+msgstr "exprespy specifies ``kGloballySerial`` in its `upstream source <https://github.com/ryusas/maya_exprespy>`_ and acquires the GIL to execute Python code. Parallel mode does not imply concurrent execution of exprespy nodes. The hrig C++ nodes use ``kParallel``. Interpret these measurements as evaluation times for the entire configuration, including parallel execution of inputs, Transforms, and other nodes."
+
+
+msgid "研究用のexprespy差し替えは構築後に解除しても、生成済みノードのDG評価を維持します。 保存メタデータの ``hrigBackend`` は ``standard`` のままで、実ノード型を計測結果へ記録しています。 正式バックエンドの追加、任意リグの自動変換、Undo/Redo・保存再読み込みの比較を保証するものではありません。 Bifrostの構築制限は :doc:`constraint_performance` を参照してください。"
+msgstr "Removing the research injection after construction preserves normal DG evaluation of the generated exprespy nodes. The saved ``hrigBackend`` metadata remains ``standard``, and the actual node types are recorded in the measurements. This does not guarantee an official backend, automatic conversion of arbitrary rigs, or comparable Undo/Redo and save/reload behavior. See :doc:`constraint_performance` for Bifrost construction restrictions."
+
+
+msgid "微小距離ではSoft IK倍率の計算と、既存IK solverが目標へ到達できるかを別に確認します。 速度の比較だけで、倍率の異常やIK終端の不一致が解消したとは判断しません。 原因と修正後の機能検証は再計測結果と合わせて追記します。"
+msgstr "At tiny distances, Soft IK ratio calculation and whether the existing IK solver reaches the target are checked separately. Speed measurements alone do not establish that abnormal ratios or mismatched IK endpoints have been resolved. The cause and functional verification after the fix will be documented with the remeasurement results."
+
+
+msgid "このページには確認済みの測定条件と集計値を掲載しています。 生JSON・CSV・研究用の差し替えコードはGit対象外で、Sphinxには取り込みません。 GUI描画、他Maya版の速度、1グラフ内の配列一括処理、CPU 1スレッド固定、 計算ノード内部の時間内訳は未測定です。"
+msgstr "This page publishes verified measurement conditions and summary values. Raw JSON, CSV, and research injection code remain outside Git and are not included in Sphinx. GUI drawing, performance in other Maya versions, processing arrays within one graph, a fixed single CPU thread, and a breakdown of time inside calculation nodes were not measured."
+
+
+msgid "2026年10月9日のexprespyを含む比較結果は :doc:`exprespy_comparison` に分けています。 測定条件が異なるため、このページの数値へ新しい方式の値だけを足して比較しないでください。"
+msgstr "The comparison including exprespy on October 9, 2026 is presented separately in :doc:`exprespy_comparison`. The measurement conditions differ, so do not compare by adding only the new implementation's values to the table on this page."
+
+
+msgid "実際の ``LimbRig`` を30個作り、IK／全機能LOD、各4出力関節で評価します。 Soft IK部分だけを差し替え、既存IK solver・拘束・その他のリグノードは同じ構成です。 修正後の標準Soft IKは ``divide``・``subtract``・``sum``・``multiply``・``power`` と ``condition`` の標準DGノードで、 C++・Bifrost・exprespyはそれぞれ同じ倍率を計算する構成です。 距離とsoftnessを同じキーで動かし、Soft IKが効く領域も通過させます。 これはhrig全機能のexprespy化や、キャラクター全体の速度比較ではありません。"
+msgstr "Thirty actual ``LimbRig`` instances are evaluated in IK mode with full-function LOD and four output joints each. Only the Soft IK part is replaced; the existing IK solver, constraints, and other rig nodes retain the same configuration. The fixed standard Soft IK uses standard DG nodes ``divide``, ``subtract``, ``sum``, ``multiply``, ``power``, and ``condition``. C++, Bifrost, and exprespy each calculate the same position ratio. Distance and softness use matching keys and pass through the region where Soft IK is active. This is not an exprespy implementation of all hrig features or a speed comparison for complete characters."
+
+
+msgid "Soft IKの微小距離の修正"
+msgstr "Tiny-distance Soft IK fix"
+
+
+msgid "Maya 2025・2027で、標準 ``multiplyDivide`` は分子と分母が等しくても、 約1e-5以下の微小入力の除算で出力100000を返すことを確認しました。 標準Soft IKの距離1e-6で見られた倍率100000は、この除算の挙動によるもので、 入力の微小な丸めだけでは説明できません。"
+msgstr "In Maya 2025 and 2027, standard ``multiplyDivide`` was observed to return 100000 when dividing tiny inputs around 1e-5 or smaller, even with equal numerator and denominator. This division behavior caused the standard Soft IK ratio of 100000 at a distance of 1e-6; tiny rounding of the input alone cannot explain it."
+
+
+msgid "新規生成する標準Soft IKをdoubleの ``divide``・``subtract``・``sum``・``multiply``・``power`` と ``condition`` に変更します。既存の汎用ScalarGraphやC++・Bifrostの式は変更しません。 修正後の機能検証とLimbRigの再計測結果は、このページへ追記します。"
+msgstr "Newly generated standard Soft IK graphs are changed to double-precision ``divide``, ``subtract``, ``sum``, ``multiply``, ``power``, and ``condition`` nodes. The shared ScalarGraph utility and the C++ and Bifrost formulas are unchanged. Functional verification after the fix and remeasurement of LimbRig will be documented on this page."
+
+
+msgid "修正は新しく生成するグラフへ反映します。保存済みの旧DGグラフは自動移行しないため、 新しいhrigを読み込み、リグを再構築してください。すでに標準バックエンドの場合の ``set_backend(\"standard\")`` は何も変更せず、旧グラフの更新にはなりません。"
+msgstr "The fix applies to newly generated graphs. Saved graphs using the old DG configuration are not migrated automatically; load the new hrig code and rebuild the rig. When the rig already uses the standard backend, ``set_backend(\"standard\")`` makes no change and does not update the old graph."
+
+
+msgid "既存の境界仕様も残ります。距離0では標準のratioは0、C++・Bifrost・研究用exprespyのratioは1です。 位置には距離0が掛かるため、これだけで位置が増幅することはありません。 native側は距離とsoftnessに1e-6の下限を使います。標準はsoftness 0でhard limitを使い、 距離0では分母を置換して除算を避けます。通常距離の照合成功を、ゼロや微小領域まで 全バックエンドの仕様が同一という意味では扱いません。"
+msgstr "Existing boundary semantics remain. At zero distance, the standard ratio is 0, while C++, Bifrost, and the research exprespy implementation return 1. Position is multiplied by zero distance, so this difference alone does not amplify the position. The native implementations use a lower bound of 1e-6 for distance and softness. The standard implementation uses a hard limit at zero softness and substitutes the denominator at zero distance to avoid division by zero. Agreement at normal distances does not mean that all backends have identical zero-distance or tiny-distance semantics."
+
+
+msgid "Maya標準RP solverの原点近傍の制限"
+msgstr "Maya standard RP solver limits near the origin"
+
+
+msgid "長さ5cm＋5cmの最小3ジョイントRP chainとLimbRigのLOD 0を192条件で比較し、 両構成の出力差は最大2.33e-16でした。距離0.01cmの目標に対して終端距離がほぼ0になる挙動も一致しました。 既定のsolver toleranceでは、距離0.01cmのtipとhandleの誤差は約0.0100000184cmでした。 worldMatrix・xform・dgdirty・currentTimeで読み直しても結果は同じで、骨長も維持されています。 倍率が正常でも、このMaya標準RP solverの到達精度の制限は残ります。"
+msgstr "A minimal three-joint RP chain with lengths of 5 cm and 5 cm was compared with LimbRig at LOD 0 under 192 conditions. The maximum output difference between the two configurations was 2.33e-16. Both showed an endpoint distance close to zero for a target distance of 0.01 cm. With the default solver tolerance, the tip-to-handle error at 0.01 cm was approximately 0.0100000184 cm. Reading through worldMatrix and xform, or reevaluating with dgdirty and currentTime, gave the same result, and bone lengths were preserved. This endpoint-accuracy limit of the Maya standard RP solver remains even when the position ratio is correct."
+
+
+msgid "共有 ``ikRPsolver.tolerance`` の既定値は1e-5です。値を下げると改善する条件もありますが、 全ての微小距離を解決せず、向きが誤る反例もあるため、製品はsolver設定を変更しません。 Soft IK倍率の修正と、Maya標準RP solverの到達精度を分けて扱います。"
+msgstr "The shared ``ikRPsolver.tolerance`` defaults to 1e-5. Lower values improve some conditions but do not resolve every tiny distance and can produce an incorrect direction. The product therefore leaves the solver setting unchanged. The Soft IK ratio fix and the endpoint accuracy of the Maya standard RP solver are treated separately."
+
+
+msgid "公開範囲"
+msgstr "Publication scope"
+
+
+msgid "新規生成する標準Soft IKをdoubleの ``divide``・``subtract``・``sum``・``multiply``・``power`` と ``condition`` に変更しました。既存の汎用ScalarGraphやC++・Bifrostの式は変更しません。 Maya 2025・2027で各148件の機能検証が成功しました。新しいSoft IKの5件と原点近傍の2件も この合計に含まれます。詳細は :doc:`test_results` を参照してください。"
+msgstr "Newly generated standard Soft IK graphs now use double-precision ``divide``, ``subtract``, ``sum``, ``multiply``, ``power``, and ``condition`` nodes. The shared ScalarGraph utility and the C++ and Bifrost formulas are unchanged. Functional verification passed 148 tests each in Maya 2025 and 2027. The five new Soft IK tests and two near-origin tests are included in that total. See :doc:`test_results` for details."
+
+
+msgid "微小距離1e-8・1e-6の倍率増幅を解消し、1e-12も有限性と上限を適用した参照値に一致することを確認しました。 cm/m/mmでの入力・評価、生成変換ノードの所有、作成と値編集のUndo/Redoも検証しています。 Maya 2025で保存した新しい修正済みグラフをMaya 2027で開き、同じ54入力のratio差0と単位の維持を確認しました。 LimbRigの性能値は、修正後の再計測結果を使用します。"
+msgstr "Ratio amplification at tiny distances of 1e-8 and 1e-6 was resolved. At 1e-12, the result was also verified against a finite reference with the existing upper bound applied. Input and evaluation in cm/m/mm, ownership of generated conversion nodes, and Undo/Redo for creation and value edits were tested. New fixed graphs saved in Maya 2025 were opened in Maya 2027, with zero ratio difference for the same 54 inputs and preserved units. LimbRig performance values use measurements repeated after the fix."
+
+
+msgid "2026年9月29日の拘束バックエンドと、10月9日のSoft IK修正後の検証記録です。 各節は記載した時点の結果であり、将来の変更に対する自動更新・速度保証ではありません。"
+msgstr "This page records constraint-backend verification on September 29, 2026 and verification after the Soft IK fix on October 9. Each section describes results at its stated date; it is not automatically updated or a guarantee of future performance."
+
+
+msgid "2026年10月9日のSoft IK修正後"
+msgstr "After the Soft IK fix on October 9, 2026"
+
+
+msgid "標準Soft IKの微小距離の倍率異常を修正した後、公開ランナーの4スイートを Maya 2025・2027の専用mayapyで実行しました。各版の実行合計は148件で、 全スイートの終了コード0、失敗0、skipなしでした。"
+msgstr "After fixing the abnormal standard Soft IK ratio at tiny distances, four suites from the public runner were executed in dedicated mayapy processes in Maya 2025 and 2027. Each version ran a total of 148 tests. All suites exited with code 0, with no failures or skipped tests."
+
+
+msgid "修正後の機能検証"
+msgstr "Functional verification after the fix"
+
+
+msgid "standard"
+msgstr "standard"
+
+
+msgid "76件成功"
+msgstr "76 tests passed"
+
+
+msgid "bifrost"
+msgstr "bifrost"
+
+
+msgid "18件成功"
+msgstr "18 tests passed"
+
+
+msgid "新しいSoft IKの5件と原点近傍の2件はstandardの76件に含まれます。 148件へ7件を追加して数えません。Soft IKの1e-12〜通常距離、減衰閾値、既存クランプ、 有限性、倍率上限、cm/m/mmの表示単位、変換ノードの所有、Undo/Redoを検証しました。 RP solverとの一致・骨長・共有solver toleranceの維持・通常距離への復帰も確認しています。"
+msgstr "The five new Soft IK tests and two near-origin tests are included in the 76 standard tests. They are not added again to the total of 148. The checks cover Soft IK from 1e-12 to ordinary distances, attenuation thresholds, existing clamping, finite values, ratio upper bounds, cm/m/mm display units, ownership of conversion nodes, and Undo/Redo. Agreement with the RP solver, bone lengths, preservation of the shared solver tolerance, and recovery at ordinary distances were also verified."
+
+
+msgid "さらに、修正後のグラフをMaya 2025でcm/m/mmごとに作成・保存し、Maya 2027で開きました。 同じ54入力のratio差は全て0でした。Mayaのローダーによる標準算術ノードの型移行で単位も維持されました。 これは新しい修正済みグラフの版をまたぐ検証で、保存済みの旧Soft IKグラフを自動修正する意味ではありません。"
+msgstr "New fixed graphs were also created and saved in Maya 2025 for cm/m/mm, then opened in Maya 2027. All 54 matching inputs had zero ratio difference. Units were preserved through the Maya loader's migration of standard arithmetic node types. This verifies the new fixed graphs across versions; it does not automatically fix saved graphs using the old Soft IK configuration."
+
+
+msgid "修正内容、既存のゼロ境界差、残るMaya RP solverの到達精度は :doc:`exprespy_comparison` を参照してください。 再実行方法は :doc:`testing` に記載しています。研究用の生JSON・ログはサイトへ取り込みません。"
+msgstr "See :doc:`exprespy_comparison` for the fix, existing zero-distance boundary differences, and remaining endpoint-accuracy limits of the Maya RP solver. :doc:`testing` describes how to rerun the tests. Raw research JSON and logs are not included in the site."
+
+
+msgid "``standard``: 標準ノードのリグ・レイヤー統合テスト。Soft IKの微小距離・境界・表示単位・ 所有・Undo/Redoと、原点近傍のRP solverとの一致・骨長・通常距離への復帰も検査します。"
+msgstr "``standard``: Integration tests for rigs and layers using standard nodes. These also check Soft IK at tiny distances and boundaries, display units, ownership, Undo/Redo, agreement with the RP solver near the origin, bone lengths, and recovery at ordinary distances."
+
+
+msgid "全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。 最新のテストファイル構成は ``tools/test_rig_packages.py`` が実体です。 追加した ``test_soft_ik_tiny.py`` の5件と ``test_limb_ik_origin.py`` の2件は ``standard`` と ``all`` に登録済みです。検証結果は :doc:`test_results`、 修正内容と残るIK制限は :doc:`exprespy_comparison` を参照してください。"
+msgstr "Running all suites requires several dependencies. Select the suites relevant to the changes. ``tools/test_rig_packages.py`` defines the current test inventory. The five tests in the new ``test_soft_ik_tiny.py`` and two in ``test_limb_ik_origin.py`` are registered in ``standard`` and ``all``. See :doc:`test_results` for results and :doc:`exprespy_comparison` for the fix and remaining IK limitations."
+
+
+msgid "2026年10月9日、Maya 2027で、負荷ごとに同じプロセスで標準DG・C++・Bifrost・exprespyを比較しました。 単一入力の行列追従と、実LimbRigのSoft IK部分が対象です。 exprespyは研究用の構築時差し替えで、hrigの正式なバックエンドではありません。"
+msgstr "Standard DG, C++, Bifrost, and exprespy were compared in Maya 2027 on October 9, 2026, using the same process for the four implementations of each workload. The workloads cover single-input matrix following and the Soft IK part of actual LimbRig instances. exprespy is injected during construction for research and is not an official hrig backend."
+
+
+msgid "行列追従は初回実行の24条件・168反復、LimbRigはSoft IK修正後の別実行の12条件・84反復です。 掲載する36条件・252反復は2実行を組み合わせています。LimbRigの修正後実行は同日22:59（JST）に開始しました。 各負荷内の4実装を比較し、負荷間の時間を直接比べません。Soft IKの修正は行列追従の構成を変更しません。 全36条件で出力の長さ・有限値・実モード一致、Cached Playback無効、EM fallbackなしを確認しました。 修正前のLimbRigの速度は、このページの比較に使用していません。"
+msgstr "Matrix following uses 24 conditions and 168 repetitions from the initial run. LimbRig uses 12 conditions and 84 repetitions from a separate run after the Soft IK fix. The published 36 conditions and 252 repetitions combine these two runs. The fixed LimbRig run started at 22:59 JST on the same day. The four implementations are compared within each workload; times are not compared directly between workloads. The Soft IK fix does not change the matrix-following configuration. All 36 conditions passed output-length, finite-value, actual-mode, disabled Cached Playback, and no-EM-fallback checks. LimbRig timings from before the fix are not used in this page's comparison."
+
+
+msgid "他プロセスのCPU負荷も参考値として記録しました。行列追従168反復の概算は中央値1.613core、最大3.655core、 修正後のLimbRig84反復は中央値1.170core、最大3.400coreでした。 Windows全体のCPU秒から当該プロセスのCPU秒を引き、経過秒で割った概算で、 取得区間やOSの粒度による誤差を含みます。評価時間から差し引いて補正していません。 過去の計測値へ今回の値を足して比較せず、同じ実行内の条件を比べています。"
+msgstr "CPU load from other processes was recorded as a reference value. For the 168 matrix-following repetitions, the estimated median was 1.613 cores and the maximum was 3.655 cores. For the 84 fixed LimbRig repetitions, the median was 1.170 cores and the maximum was 3.400 cores. This estimate subtracts the process CPU seconds from Windows system CPU seconds and divides by elapsed seconds; it includes errors from the sampling intervals and OS granularity. It is not subtracted from the evaluation times. Conditions from the same run are compared, without adding the new measurements to older results."
+
+
+msgid "実際の ``LimbRig`` を30個作り、IK／全機能LOD、各4出力関節で評価しました。 Soft IK部分だけを差し替え、既存IK solver・拘束・その他のリグノードは同じ構成です。 修正後の標準Soft IKは ``divide``・``subtract``・``sum``・``multiply``・``power`` と ``condition`` の標準DGノードで、 C++・Bifrost・exprespyもSoft IKの倍率を計算する構成です。 距離とsoftnessを同じキーで動かし、Soft IKが効く領域も通過させます。 これはhrig全機能のexprespy化や、キャラクター全体の速度比較ではありません。"
+msgstr "Thirty actual ``LimbRig`` instances were evaluated in IK mode with full-function LOD and four output joints each. Only the Soft IK part is replaced; the existing IK solver, constraints, and other rig nodes retain the same configuration. The fixed standard Soft IK uses standard DG nodes ``divide``, ``subtract``, ``sum``, ``multiply``, ``power``, and ``condition``. C++, Bifrost, and exprespy also calculate the Soft IK position ratio. Distance and softness use matching keys and pass through the region where Soft IK is active. This is not an exprespy implementation of all hrig features or a speed comparison for complete characters."
+
+
+msgid "修正後の4実装を同じプロセスで測り直しました。全120出力を6時刻で修正後の標準DGと照合し、 12条件の最大行列要素差は2.3981e-6でした。許容値は0.003です。"
+msgstr "The four implementations were measured again in the same process after the fix. All 120 outputs were compared with fixed standard DG at six times. The maximum matrix-element difference across the 12 conditions was 2.3981e-6. The tolerance is 0.003."
+
+
+msgid "修正後LimbRigの中央値（ms/frame）"
+msgstr "Median fixed LimbRig time (ms/frame)"
+
+
+msgid "標準DG"
+msgstr "Standard DG"
+
+
+msgid "9.857"
+msgstr "9.857"
+
+
+msgid "5.906"
+msgstr "5.906"
+
+
+msgid "11.203"
+msgstr "11.203"
+
+
+msgid "6.810"
+msgstr "6.810"
+
+
+msgid "18.175"
+msgstr "18.175"
+
+
+msgid "13.674"
+msgstr "13.674"
+
+
+msgid "17.621"
+msgstr "17.621"
+
+
+msgid "15.984"
+msgstr "15.984"
+
+
+msgid "7.106"
+msgstr "7.106"
+
+
+msgid "5.944"
+msgstr "5.944"
+
+
+msgid "8.667"
+msgstr "8.667"
+
+
+msgid "6.451"
+msgstr "6.451"
+
+
+msgid "修正後LimbRigの7反復範囲（最小〜最大ms/frame）"
+msgstr "Range of seven fixed LimbRig repetitions (minimum–maximum ms/frame)"
+
+
+msgid "8.963〜10.632"
+msgstr "8.963–10.632"
+
+
+msgid "5.769〜6.146"
+msgstr "5.769–6.146"
+
+
+msgid "10.539〜13.126"
+msgstr "10.539–13.126"
+
+
+msgid "6.675〜7.592"
+msgstr "6.675–7.592"
+
+
+msgid "16.123〜18.664"
+msgstr "16.123–18.664"
+
+
+msgid "12.575〜16.629"
+msgstr "12.575–16.629"
+
+
+msgid "16.409〜18.497"
+msgstr "16.409–18.497"
+
+
+msgid "14.719〜17.570"
+msgstr "14.719–17.570"
+
+
+msgid "6.774〜7.344"
+msgstr "6.774–7.344"
+
+
+msgid "5.726〜6.375"
+msgstr "5.726–6.375"
+
+
+msgid "7.912〜11.527"
+msgstr "7.912–11.527"
+
+
+msgid "6.222〜6.999"
+msgstr "6.222–6.999"
+
+
+msgid "Parallelでのexprespyの時間比は、C++に対して1.085倍、Bifrostに対して0.744倍、標準DGに対して0.908倍でした。 exprespyとC++、exprespyと標準DGは反復範囲が重なるため、僅差の順位を断定しません。 この実行ではexprespyとBifrostの範囲は分離しています。構成や環境が変われば時間も変わります。"
+msgstr "In Parallel mode, the exprespy median time was 1.085 times C++, 0.744 times Bifrost, and 0.908 times standard DG. The exprespy range overlaps both C++ and standard DG, so their small differences do not establish a ranking. The exprespy and Bifrost ranges are separate in this run. Times can change with the configuration and environment."
+
+
+msgid "修正後の微小距離の実リグ追加照合では、4実装×15入力の60組合せを収集し、全3,397数値が有限でした。 標準の15入力のratioは0〜1、参照との差は最大4.9516e-8、IK handleの参照位置との差は最大2.9803e-10cmでした。 倍率増幅の修正を確認していますが、RP solverの終端残差は最大約0.0100000182cmで、下記の制限が残ります。"
+msgstr "Additional tiny-distance checks of the fixed actual rigs collected 60 combinations: four implementations and 15 inputs each. All 3,397 numeric values were finite. For the 15 standard inputs, ratios remained between 0 and 1; the maximum reference difference was 4.9516e-8 and the maximum IK-handle reference-position difference was 2.9803e-10 cm. Ratio amplification was resolved, but the maximum RP-solver endpoint residual was approximately 0.0100000182 cm, so the limitation described below remains."
+
+
+msgid "既存の境界仕様も残ります。全長10・softness 1・距離0では標準のratioは0、 C++・Bifrost・研究用exprespyのratioは1でした。 位置には距離0が掛かるため、これだけで位置が増幅することはありません。 native側は距離とsoftnessに1e-6の下限を使います。標準はsoftness 0でhard limitを使い、 距離0では分母を置換して除算を避けます。通常距離の照合成功を、ゼロや微小領域まで 全バックエンドの仕様が同一という意味では扱いません。"
+msgstr "Existing boundary semantics remain. With a total length of 10, softness of 1, and zero distance, the standard ratio was 0, while C++, Bifrost, and the research exprespy implementation returned 1. Position is multiplied by zero distance, so this difference alone does not amplify the position. The native implementations use a lower bound of 1e-6 for distance and softness. The standard implementation uses a hard limit at zero softness and substitutes the denominator at zero distance to avoid division by zero. Agreement at normal distances does not mean that all backends have identical zero-distance or tiny-distance semantics."
+
+
+msgid "算術はdoubleノードへ変更しましたが、``condition`` のfloat出力や極微小領域での ``1 - exp`` の丸めは残ります。全入力で数学的な倍精度一致や残差の解消を保証するものではありません。 有限性・倍率上限・参照値との許容誤差内の一致を検証しています。"
+msgstr "Arithmetic now uses double-precision nodes, but the float outputs of ``condition`` and rounding of ``1 - exp`` at extremely small values remain. Mathematical double-precision agreement or elimination of residuals is not guaranteed for every input. Finite values, ratio upper bounds, and agreement with the reference within tolerance were verified."
+
+
+msgid "新しいSoft IKの5件と原点近傍の2件はstandardの76件に含まれます。 Soft IKの1e-12〜通常距離、減衰閾値、既存クランプ、 有限性、倍率上限、cm/m/mmの表示単位、変換ノードの所有、Undo/Redoを検証しました。 RP solverとの一致・骨長・共有solver toleranceの維持・通常距離への復帰も確認しています。"
+msgstr "The five new Soft IK tests and two near-origin tests are included in the 76 standard tests. The checks cover Soft IK from 1e-12 to ordinary distances, attenuation thresholds, existing clamping, finite values, ratio upper bounds, cm/m/mm display units, ownership of conversion nodes, and Undo/Redo. Agreement with the RP solver, bone lengths, preservation of the shared solver tolerance, and recovery at ordinary distances were also verified."
+
+
+msgid "追加の数値照合では、標準DG・C++・Bifrostと研究用exprespyの2種類の式の計5方式×70入力を検査しました。 各方式のスカラー参照との差は標準DGが最大5.0486e-8、Bifrostが最大1.4553e-7、C++・exprespyが0でした。 4実装×3評価モードの実リグ12構成では、各120行列の最大差9.5352e-7を確認し、 FK/IK・LOD・Soft IKの停止と再開・削除も成功しました。これらの入力条件数は単体テスト148件とは別に記録しています。"
+msgstr "Additional numerical checks tested five methods with 70 inputs each: standard DG, C++, Bifrost, and two research exprespy formulas. Differences from each method's scalar reference were at most 5.0486e-8 for standard DG, 1.4553e-7 for Bifrost, and zero for C++ and exprespy. Twelve actual-rig configurations, comprising four implementations and three evaluation modes, checked 120 matrices each with a maximum difference of 9.5352e-7. FK/IK, LOD, stopping and restarting Soft IK, and deletion also succeeded. These numerical input counts are recorded separately from the 148 unit tests."

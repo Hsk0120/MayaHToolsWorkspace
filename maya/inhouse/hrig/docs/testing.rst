@@ -18,9 +18,11 @@ C++比較には対象Maya用のhrigNodes、Bifrost比較にはhlib_bifrostと対
    $env:MAYA_APP_DIR = "$testRoot/app"
    $env:TEMP = "$testRoot/temp"
    $env:TMP = $env:TEMP
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/test_rig_packages.py --suite standard
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/test_rig_packages.py --suite setups
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/test_rig_packages.py --suite matrix-plugins
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/test_rig_packages.py --suite native
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/test_rig_packages.py --suite bifrost
 
 各コマンドの終了コード0と最終のOKを確認します。2025を検証する場合はmayapyのパスと
 テスト用ディレクトリを2025用に変更します。既存GUIのプラグイン再ロードは行いません。
@@ -31,11 +33,15 @@ C++比較には対象Maya用のhrigNodes、Bifrost比較にはhlib_bifrostと対
 * ``setups``: 行列追従、空間切替、補助骨、回転分解、揺れ物、Spline、伸縮、ポーズ編集など。
 * ``matrix-plugins``: C++・Bifrost行列追従。BifrostのUndo/GUI拒否も含みます。
 * ``native``: リグ定義とC++バックエンド。
-* ``standard``: 標準ノードのリグ・レイヤー統合テスト。
+* ``standard``: 標準ノードのリグ・レイヤー統合テスト。Soft IKの微小距離・境界・表示単位・
+  所有・Undo/Redoと、原点近傍のRP solverとの一致・骨長・通常距離への復帰も検査します。
 * ``bifrost``: Bifrostグラフとリムのテスト。
 
 全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。
 最新のテストファイル構成は ``tools/test_rig_packages.py`` が実体です。
+追加した ``test_soft_ik_tiny.py`` の5件と ``test_limb_ik_origin.py`` の2件は
+``standard`` と ``all`` に登録済みです。検証結果は :doc:`test_results`、
+修正内容と残るIK制限は :doc:`exprespy_comparison` を参照してください。
 
 性能比較
 --------

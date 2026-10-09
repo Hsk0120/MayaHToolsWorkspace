@@ -30,7 +30,7 @@ class StandardTest(test_limb.LimbTest):
         members = cmds.container(graph, query=True, nodeList=True)
         self.assertTrue(members)
         self.assertLessEqual(set(cmds.nodeType(n) for n in members),
-                             {"condition", "multiplyDivide", "plusMinusAverage"})
+                             {"condition", "divide", "subtract", "sum", "multiply", "power", "unitConversion"})
         for softness in (0, 0.001, 0.1, 1, 5, 10):
             cmds.setAttr(target + ".softness", softness)
             for distance in (0, 0.001, 2, 8, 9, 9.5, 10, 12, 100):

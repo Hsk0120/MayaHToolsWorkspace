@@ -46,6 +46,7 @@ def main():
         if args.suite in ('all','native'):
             files.append('hrig/__tests__/test_native.py')
         if args.suite in ('all','standard'):
+            files += ['hrig/__tests__/test_soft_ik_tiny.py', 'hrig/__tests__/test_limb_ik_origin.py']
             files += ['hrig/__tests__/test_standard.py', 'hrig/__tests__/test_spaces.py', 'hrig/__tests__/test_twist.py', 'hrig/__tests__/test_bend.py', 'hrig/__tests__/test_driven.py', 'hrig/__tests__/test_skirt.py', 'hrig/__tests__/test_follow.py', 'hrig/__tests__/test_secondary.py', 'hrig/__tests__/test_spline.py', 'hrig/__tests__/test_stretch.py', 'hrig/__tests__/test_controls.py']
         suite=unittest.TestSuite()
         for index,file in enumerate(files):

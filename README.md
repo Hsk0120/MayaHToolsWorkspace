@@ -129,6 +129,14 @@ macOS用の起動ファイルは`maya_<version>_<language>.command`と
 - `maya/inhouse/hlib`: Mayaノード・アトリビュートラッパー、形状操作、数学型などの共通ライブラリ
 - `maya/inhouse/HTools`: Mayaメニューから起動する社内ツール
 - `maya/modules`: 各ツールをMayaへ認識させる`.mod`定義
+  - `exprespy.mod`は[exprespy](https://github.com/ryusas/maya_exprespy)をWindows版Maya 2022〜2027へ登録します。
+    バージョンに合うPython 3用プラグインとPython・MEL・ノードエディタのテンプレートを参照し、
+    このワークスペースのバッチから起動したMaya GUIで遅延ロードします。バッチモードでは自動ロードしません。
+    MayaのSecurityで起動スクリプトの実行を無効にしている場合は、自動ロードも実行されません。
+    サブモジュール取得は `git submodule update --init maya/external/maya_exprespy`、
+    動作確認は `import exprespy; exprespy.create()` で行えます。
+    初回にMayaのセキュリティ確認が出た場合は、対象プラグインのロードをMayaの画面で許可してください。
+    ユーザーのプラグイン設定・信頼済みの場所は変更しません。
   - `metahuman_for_maya.mod`・`pose_driver_connect.mod`はこのワークスペースで記述した定義で、
     Windows版だけを登録します(MetaHumanForMaya: Maya 2024〜2027、PoseDriverConnect: Maya 2022・2024・2026・2027)。
     macOS・Linuxでは両製品を読み込みません。

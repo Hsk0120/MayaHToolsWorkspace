@@ -13,6 +13,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    test_scenes
    test_results
    constraint_performance
+   exprespy_comparison
 
 .. toctree::
    :maxdepth: 1
