@@ -67,13 +67,13 @@ class ApiRefinementsTest(unittest.TestCase):
     def test_pivot_kinds_preserve_matrix_and_units(self):
         """別々のピボット、親・負scale・Joint・単位変換とUndoを確認する。"""
         parent = self.create("transform")
-        parent.setTranslation((4, 6, 8), at=4)
-        parent.setScaling((-2, 3, 1))
+        parent.setTranslate((4, 6, 8), at=4)
+        parent.setScale((-2, 3, 1))
         for type in ("transform", "joint"):
             node = self.create(type)
             node.setParent(parent)
-            node.setRotation((.3, .4, .5))
-            node.setScaling((1.2, .7, 2))
+            node.setRotate((.3, .4, .5))
+            node.setScale((1.2, .7, 2))
             if type == "joint":
                 before = node.getMatrix(ws=True)
                 for kind in ("rotate", "scale", "both"):
@@ -113,7 +113,7 @@ class ApiRefinementsTest(unittest.TestCase):
     def test_pivot_validation_and_default_target(self):
         """既定は回転のみ。不正入力は更新せず、補償なしも選べる。"""
         node = self.create("transform")
-        node.setRotation((.2, .4, .1))
+        node.setRotate((.2, .4, .1))
         before = node.getMatrix()
         scale = node.getPivot(kind="scale")
         node.setPivot((1, 2, 3))

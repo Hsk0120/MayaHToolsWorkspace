@@ -23,23 +23,65 @@ ShapeがTransformの子に置かれることと、クラスの継承関係は別
          ├─ Mesh
          └─ NurbsCurve
 
-``mpath()``・``dagFn()``・``getParentPath()``・``getParent()`` は
-``DagNode`` に共通実装があります。Shapeの ``getParent()`` は
+``mpath()``・``dagFn()``・``parentPath()``・``parent()`` は
+``DagNode`` に共通実装があります。Shapeの ``parent()`` は
 親がTransformの場合だけ返します。
-``hlib.getNode()`` は引き続きノード型に対応する具象クラスを返します。
+``hlib.node()`` は引き続きノード型に対応する具象クラスを返します。
 保持していたインスタンスのパスが無効になった場合、別インスタンスへ切り替えません。
+
+クラスからノードを作成する
+--------------------------
+
+単数の具象Nodeクラスは、コンストラクタに ``create=True`` を指定して作成できます。
+クラスに対応するMaya nodeTypeを使い、最初の引数をノード名として渡します。
+``create=False`` が既定で、省略した場合は従来どおり既存ノードを取得します。
+
+.. code-block:: python
+
+   from hlib.nodes import Joint, Transform, MultiplyDivide, Mesh, Node
+
+   joint = Joint("jointName", create=True)
+   transform = Transform("controlName", create=True)
+   multiply = MultiplyDivide("multiplyName", create=True)
+   existing_joint = Joint(joint.fullName())  # create=Falseで同じノードを取得
+
+   empty_mesh = Mesh("emptyMeshShape", create=True)
+   print(empty_mesh.type())                 # mesh。まだ形状データはありません。
+
+   # 汎用Nodeで作成する場合はMaya nodeTypeを明示します。
+   settings = Node.create("network", name="settingsNode")
+
+同名ノードがある場合はMayaの命名規則で連番化され、返すラッパーは実際に作成したノードを指します。
+Shapeの具象クラスで作る場合は空シェイプになり、必要な親TransformもMayaが生成します。
+形状データを持たない空シェイプでは、``meshFn()`` や ``numVertices()`` 等の
+形状データを必要とする照会は利用できません。ポリゴンの形状も作る場合は
+``hlib.createPolygon()`` を使ってください。
+選択状態の扱いは ``maya.cmds.createNode`` と同じです。通常のUndoで作成を戻せます。
+作成に必要なプラグインの扱いも既存の ``createNode`` と同じ規則に従います。
+
+``create`` はboolのキーワード専用引数です。``create=True`` の名前には
+空でない文字列を指定します。未知のキーワード引数はノードを生成する前に拒否します。
+``parent`` や ``skipSelect`` 等のMaya作成フラグを指定する場合は、
+``Node.create("transform", name="control", parent=parent)`` または ``hlib.createNode`` を使います。
+
+``Node``・``DagNode``・``Shape``・``Constraint`` のように作成型が確定しない基底クラスや、
+Mayaの抽象型に対応する ``AnimCurve`` は ``create=True`` で作成できません。
+``SkinCluster`` はgeometryとのバインドが必要なので、
+``hlib.bindSkin(geometry, influences)`` または ``SkinCluster.bind(mesh, influences)`` を使います。
+取得関数の ``hlib.node()`` / ``hlib.cmds.node()`` とget付きの取得関数には、
+``create`` 引数を追加していません。
 
 Transform のピボット
 ---------------------
 
 .. code-block:: python
 
-   transform = hlib.getNode("pCube1")
-   print(transform.getPivot())              # 既定は (0, 0, 0)
+   transform = hlib.node("pCube1")
+   print(transform.pivot())              # 既定は (0, 0, 0)
    transform.setPivot((1.0, 2.0, 3.0), kind="both")  # 回転・スケールピボットをまとめて設定
-   print(transform.getPivot(ws=True))       # ワールド空間での現在位置
+   print(transform.pivot(ws=True))       # ワールド空間での現在位置
 
-``getPivot`` / ``setPivot`` は ``kind="rotate"`` が既定です。
+``pivot`` / ``setPivot`` は ``kind="rotate"`` が既定です。
 ``kind="scale"`` でスケールピボットだけを扱えます。設定時の ``kind="both"`` は
 両方を同じ位置へ変更します。値・戻り値は Maya API の内部距離単位（cm）です。
 ``ws=True`` はワールド空間、既定Falseは ``cmds.xform`` のオブジェクト空間です。
@@ -54,9 +96,9 @@ Jointは独立したピボットの変更をサポートしないため、``setP
 
 .. code-block:: python
 
-   mesh_transform = hlib.getNode("pCube1")
-   print(mesh_transform.getBoundingBox())          # 自身の変換は含むが親の変換は含まない
-   print(mesh_transform.getBoundingBox(ws=True))    # 親の変換も含めたワールド空間
+   mesh_transform = hlib.node("pCube1")
+   print(mesh_transform.boundingBox())          # 自身の変換は含むが親の変換は含まない
+   print(mesh_transform.boundingBox(ws=True))    # 親の変換も含めたワールド空間
 
 ``boundingBox`` は ``MFnDagNode.boundingBox`` をそのまま使うため、
 ``ws=False``（既定）でも自身の translate/rotate/scale は反映されます。
@@ -76,31 +118,31 @@ Jointは独立したピボットの変更をサポートしないため、``setP
    parent.setParent(grandparent)
    child.setParent(parent)
 
-   print(child.isLocked())                        # False
-   print(child.isFromReferencedFile())                     # False（参照シーンなら True）
+   print(child.locked())                        # False
+   print(child.fromReferencedFile())                     # False（参照シーンなら True）
    print(child.isType("transform"))               # True
    print(child.isType("dagNode"))                 # True（継承チェーンも判定）
-   print(grandparent.isAncestorOf(child))         # True
-   print(child.getRoot() is grandparent or child.getRoot().getFullName() == grandparent.getFullName())
+   print(grandparent.ancestorOf(child))         # True
+   print(child.root() is grandparent or child.root().fullName() == grandparent.fullName())
 
-   plug = child.getPlug("translateX")
-   print(plug.isKeyable())                          # True
-   print(plug.getParent().getFullName())                    # child.translate
+   plug = child.plug("translateX")
+   print(plug.keyable())                          # True
+   print(plug.parent().fullName())                    # child.translate
 
 ``isType`` は ``cmds.nodeType(inherited=True)`` による継承チェーンで判定するため、
-mesh シェイプは ``isType("shape")`` でも True になります。``getRoot()`` は DAG 階層の
+mesh シェイプは ``isType("shape")`` でも True になります。``root()`` は DAG 階層の
 最上位祖先を返し、自身がワールド直下ならそのまま自身を返します。
-``Shape`` には同様に ``isIntermediateObject`` があります。
+``Shape`` には同様に ``intermediateObject`` があります。
 
 ノードの名前と取得
 ------------------
 
-``str(node)`` と ``node.getName()`` は maya.cmds で一意に解決できる最短名、
-``node.getFullName()`` は完全な DAG パスを返します。どちらも呼び出すたびに求め直すため、
+``str(node)`` と ``node.name()`` は maya.cmds で一意に解決できる最短名、
+``node.fullName()`` は完全な DAG パスを返します。どちらも呼び出すたびに求め直すため、
 名前変更・親子付け替えの後も同じ Node を ``cmds.select(node)`` のように
 maya.cmds へそのまま渡せます。削除済みのノードは空文字列です。
 
-``hlib.getNode(value)`` (``Node(value)`` と同じ)は、名前・MObject・MDagPath のほか、
+``hlib.node(value)`` (``Node(value)`` と同じ)は、名前・MObject・MDagPath のほか、
 既存の Node、Plug・MPlug(所有ノード)、Vertex・Vertices などのコンポーネント
 (所有シェイプ)も受け付け、実際のノード型に対応するラッパーを返します。
 ``"dup.tx"`` のように同じ短い名前のノードがあって複数の対象に一致する名前は、
@@ -114,9 +156,9 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 .. code-block:: python
 
    joint = hlib.createNode("joint", name="nameExampleJoint")
-   print(hlib.getNode(joint.getPlug("tx")))        # nameExampleJoint（Joint）
-   print(hlib.getNode(joint.getName() + ".tx"))    # アトリビュート名の文字列も所有ノードになる
-   copy = hlib.getNode(joint)                   # 同じノードを指す新しいラッパー
+   print(hlib.node(joint.plug("tx")))        # nameExampleJoint（Joint）
+   print(hlib.node(joint.name() + ".tx"))    # アトリビュート名の文字列も所有ノードになる
+   copy = hlib.node(joint)                   # 同じノードを指す新しいラッパー
 
 詳しくは :doc:`cmds_interop` を参照してください。
 
@@ -126,8 +168,8 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
 .. code-block:: python
 
    node = hlib.createNode("transform", name="classifyExample")
-   print(node.getTypeId())                 # int（セッション内でのみ有効な内部ID）
-   print(node.getClassification())        # ["drawdb/geometry/transform"]
+   print(node.typeId())                 # int（セッション内でのみ有効な内部ID）
+   print(node.classification())        # ["drawdb/geometry/transform"]
 
    root = hlib.createNode("transform", name="root")
    branch = hlib.createNode("transform", name="branch")
@@ -135,15 +177,15 @@ maya.cmds へそのまま渡せます。削除済みのノードは空文字列�
    branch.setParent(root)
    leaf.setParent(branch)
 
-   print(root.getChildren())   # [Transform('branch')]（Shape子は含まない）
-   print(root.getLeaves())             # [Transform('leaf')]（子を持たない末端）
-   print(branch.getSiblings())         # 親が同じ他の Transform（自身は含まない）
+   print(root.children())   # [Transform('branch')]（Shape子は含まない）
+   print(root.leaves())             # [Transform('leaf')]（子を持たない末端）
+   print(branch.siblings())         # 親が同じ他の Transform（自身は含まない）
 
 ``typeId`` はプラグインの版数や環境によって値が変わりうるため永続化には
 向きません。同一セッション内での高速な型比較にのみ使ってください。
-``getSiblings()`` は親が無い（ワールド直下の）場合、他のワールド直下 Transform
+``siblings()`` は親が無い（ワールド直下の）場合、他のワールド直下 Transform
 （``persp`` / ``top`` などの既定カメラを含む）を対象にします。
-``node.getPluginName()`` はプラグイン由来のノード型でプラグイン名を返し、
+``node.pluginName()`` はプラグイン由来のノード型でプラグイン名を返し、
 Maya 組み込みのノード型では空文字列になります。
 
 直接の親子関係とアトリビュート削除
@@ -157,31 +199,31 @@ Maya 組み込みのノード型では空文字列になります。
    parent.setParent(grandparent)
    child.setParent(parent)
 
-   print(grandparent.isParentOf(parent))   # True（直接の親子のみ）
-   print(grandparent.isParentOf(child))    # False（孫は対象外）
-   print(grandparent.isAncestorOf(child))  # True（子孫はすべて対象）
-   print(parent.isChildOf(grandparent))    # True
-   print(child.getAttrCount())            # int（全アトリビュート数）
+   print(grandparent.parentOf(parent))   # True（直接の親子のみ）
+   print(grandparent.parentOf(child))    # False（孫は対象外）
+   print(grandparent.ancestorOf(child))  # True（子孫はすべて対象）
+   print(parent.childOf(grandparent))    # True
+   print(child.attrCount())            # int（全アトリビュート数）
 
    import maya.cmds as cmds
-   cmds.addAttr(child.getName(), longName="temp", attributeType="double")
-   child.getPlug("temp").delete()          # 動的アトリビュートを削除
+   cmds.addAttr(child.name(), longName="temp", attributeType="double")
+   child.plug("temp").delete()          # 動的アトリビュートを削除
 
-   cmds.addAttr(child.getName(), longName="lockedTemp", attributeType="double")
-   locked_plug = child.getPlug("lockedTemp")
+   cmds.addAttr(child.name(), longName="lockedTemp", attributeType="double")
+   locked_plug = child.plug("lockedTemp")
    locked_plug.setFlags(locked=True)
    # locked_plug.delete()             # ロック中は RuntimeError
    locked_plug.delete(force=True)     # 一時的に解除してから削除
 
-``isParentOf``/``isChildOf`` は直接の親子関係のみを判定します。
-祖先・子孫すべてを対象にする場合は ``isAncestorOf`` を使ってください。
+``parentOf``/``childOf`` は直接の親子関係のみを判定します。
+祖先・子孫すべてを対象にする場合は ``ancestorOf`` を使ってください。
 ``delete`` は addAttr で追加した動的アトリビュートにのみ使用でき、
 ``translateX`` のような静的アトリビュートを削除しようとすると Maya が拒否します。
 ロックされているアトリビュートは既定では削除できず ``RuntimeError`` になりますが、
 ``force=True`` を指定すると一時的にロックを解除してから削除します。
 接続があるアトリビュートは force に関わらず Maya が自動的に切断してから削除します。
-削除したアトリビュートの Plug は無効になり(``plug.isValid()`` が ``False``、``str(plug)`` は空文字列)、
-``get()``/``set()`` は ``RuntimeError`` です。同じ名前で追加し直したアトリビュートは ``node.getPlug()`` で
+削除したアトリビュートの Plug は無効になり(``plug.valid()`` が ``False``、``str(plug)`` は空文字列)、
+``get()``/``set()`` は ``RuntimeError`` です。同じ名前で追加し直したアトリビュートは ``node.plug()`` で
 取得し直してください。
 
 表示・SRT解放・軸判定・オフセットグループ
@@ -192,26 +234,26 @@ Maya 組み込みのノード型では空文字列になります。
    transform = hlib.createNode("transform", name="rigControl")
 
    transform.setVisibility(False)
-   print(transform.getPlug("visibility").get())   # False
+   print(transform.plug("visibility").get())   # False
    transform.setVisibility(True)
 
-   transform.setTranslation((1.0, 2.0, 3.0))
+   transform.setTranslate((1.0, 2.0, 3.0))
    transform.makeIdentity(apply=True, translate=True)
-   print(transform.getTranslation())             # Translation(0.0, 0.0, 0.0)
+   print(transform.translate())             # Translate(0.0, 0.0, 0.0)
 
    driver = hlib.createNode("transform", name="rigDriver")
-   driver.getPlug("translateX").connectTo(transform.getPlug("translateX"))
-   transform.getPlug("translate").setFlags(locked=True)
+   driver.plug("translateX").connectTo(transform.plug("translateX"))
+   transform.plug("translate").setFlags(locked=True)
    transform.unlockAndDisconnectTransformChannels()
-   print(transform.getPlug("translate").isLocked())      # False
-   print(transform.getPlug("translateX").getSourceWithConversion())       # None（接続も解除される）
+   print(transform.plug("translate").locked())      # False
+   print(transform.plug("translateX").sourceWithConversion())       # None（接続も解除される）
 
    from hlib.maths import Vector
-   print(transform.getClosestAxisToVector(Vector(0, -1, 0)))   # "-y"
+   print(transform.closestAxisToVector(Vector(0, -1, 0)))   # "-y"
 
    zero, offset = transform.createOffsetGroups("rigControl_zero", "rigControl_offset")
-   print(transform.getParent().getName())   # rigControl_offset
-   print(offset.getParent().getName())      # rigControl_zero
+   print(transform.parent().name())   # rigControl_offset
+   print(offset.parent().name())      # rigControl_zero
 
 ``show``/``hide`` は ``visibility`` の単純なオン・オフです。``makeIdentity`` は
 ``cmds.makeIdentity`` のラッパーで、キーワード引数をそのまま渡します。
@@ -234,7 +276,7 @@ Maya 組み込みのノード型では空文字列になります。
 
    import hlib
 
-   driven = hlib.getNode("rigControl")
+   driven = hlib.node("rigControl")
    deleted_names = driven.deleteConstraints()
    print(deleted_names)  # 削除前のノード名。該当がなければ []
 
@@ -272,7 +314,7 @@ unitConversion自体は削除対象に含めません。
 単数形も ``Node → DagNode → Transform`` に沿い、ConstraintはTransformを継承します。
 ConstraintもTransformsへ格納でき、DAG階層・表示操作を共有します。
 
-Jointの親スケール補正は ``getSegmentScaleCompensate()`` で照会し、
+Jointの親スケール補正は ``segmentScaleCompensate()`` で照会し、
 ``setSegmentScaleCompensate(True)`` / ``setSegmentScaleCompensate(False)``
 で切り替えます。Jointsでも同じメソッドで一括操作でき、照会は保持順のboolリストを返します。
 通常の一括変更は1回のUndoで戻せます。``fast=True`` はUndo対象外です。
@@ -284,9 +326,9 @@ inverseScaleの接続やバインド情報は変更しないため、切り替�
    from hlib.nodes import Nodes, Transforms, Joints
 
    targets = Transforms(hlib.ls(type="transform"))
-   targets.setTranslation((1, 2, 3))     # 全対象に同じ値
-   values = targets.getTranslation()   # 保持順の値リスト
-   targets.callEach("setTranslation", [((i, 0, 0),) for i in range(len(targets))])
+   targets.setTranslate((1, 2, 3))     # 全対象に同じ値
+   values = targets.translate()   # 保持順の値リスト
+   targets.callEach("setTranslate", [((i, 0, 0),) for i in range(len(targets))])
 
    joints = Joints(hlib.ls(type="joint"))
    print(isinstance(joints, Transforms))  # True
@@ -299,7 +341,7 @@ inverseScaleの接続やバインド情報は変更しないため、切り替�
 ``Transforms`` はJointなど派生ラッパーも保持します。
 ``Joints`` に通常のTransformを渡す等、型が合わない場合は ``TypeError`` です。
 対象を黙って除外しません。構築後に削除された参照も保持するため、
-``isValid()`` で要素ごとの有効性を確認できます。
+``valid()`` で要素ごとの有効性を確認できます。
 
 同じノード・同じDAGパスの重複を除き、最初の入力順を維持します。
 同じノードでも異なるインスタンスパスは保持するため、パス別のワールド行列を取得できます。
@@ -348,7 +390,7 @@ Jointのスケール接続と表示半径
    joints.connectInverseScale()                # 各Joint自身の親へ一括接続
    joints.disconnectInverseScale()
    joint.setRadius(2.0)                         # 個別の表示半径
-   print(joint.getRadius())
+   print(joint.radius())
    joints.setRadius(0.5)                        # 一括変更
 
 親がないJointでは引数なしの接続は何もしません。同じ接続が既にある場合も変更しません。
@@ -374,7 +416,7 @@ Maya標準のフリーズ
 ``freeze()`` はMaya標準の ``makeIdentity`` をapply=Trueで呼びます。
 成分や法線オプションはMayaの長名・短名で指定できます。apply=Falseは拒否します。
 子階層への作用、Jointの移動保持、ロック・接続・スキニング済み形状の制約もMayaに従います。
-姿勢移送を行うJoint.freezeRotationとは異なります。
+姿勢移送を行うJoint.freezeRotateとは異なります。
 
 スキンバインドとジョイントのミラー複製
 ------------------------------------------------------
@@ -408,7 +450,7 @@ bindMethod=3のジオデシックボクセルバインドは、標準コマン�
 
    node.setOutlinerVisibility(False)  # 非表示
    node.setOutlinerVisibility(True)   # 表示
-   visible = node.getOutlinerVisibility()
+   visible = node.outlinerVisibility()
    joints.setOutlinerVisibility(False)  # DagNodes/Transforms/Jointsでも一括操作可能
 
 通常のビューポート表示は別のメソッドで操作します。
@@ -417,7 +459,7 @@ bindMethod=3のジオデシックボクセルバインドは、標準コマン�
 
    node.setVisibility(False)
    node.setVisibility(True)
-   visible = node.getVisibility()
+   visible = node.visibility()
 
 表示・Outliner色・Drawing OverridesはDagNode・DagNodesで扱います。
 Transform・Joint・Shape・Constraintでも使用でき、汎用Node・Nodesでは公開しません。取得値は自身の設定であり、
@@ -440,9 +482,9 @@ hiddenInOutlinerを操作します。ビューポートのvisibilityは変更し
    text.set("コントローラ")
    vector = node.addAttr("offset", attributeType="double3")
    vector.set((1, 2, 3))
-   extras = node.getExtraAttrs()  # トップレベルのPlug一覧
-   all_extras = node.getExtraAttrs(include_children=True)
-   same_plug = node.getPlug("weight")       # 個別に取得
+   extras = node.extraAttrs()  # トップレベルのPlug一覧
+   all_extras = node.extraAttrs(include_children=True)
+   same_plug = node.plug("weight")       # 個別に取得
 
 既存のaddAttrで追加できます。Mayaの長名・短名フラグを受け付け、重複指定は拒否します。
 数値のdefaultValueはMayaの定義上の既定値です。文字列にもdefaultValueで初期値を指定できます。
@@ -453,9 +495,9 @@ compoundも ``childNames`` と ``subType`` で共通型の子を自動作成で�
 列挙結果は非表示・非keyableのユーザー定義アトリビュートも含みます。
 Mayaの標準アトリビュートは含みません。multiはArrayPlug、複合型はCompoundPlugまたは専用型です。
 列挙はOpenMayaの定義情報から追加順に取得し、空配列や疎な配列の要素を作成しません。
-``getExtraAttrNames()`` と既定の ``getExtraAttrs()`` は複合配列もトップレベルのみ返します。
+``extraAttrNames()`` と既定の ``extraAttrs()`` は複合配列もトップレベルのみ返します。
 ``include_children=True`` で複合配列の子が含まれる場合は、番号なしのPlugを作れないため
-RuntimeErrorになります。子の操作には ``node.getPlug("items")[7]["amount"]`` のように番号を指定します。
+RuntimeErrorになります。子の操作には ``node.plug("items")[7]["amount"]`` のように番号を指定します。
 追加・通常の値変更はUndo対応です。
 
 .. list-table:: 主な型と返却Plug
@@ -496,15 +538,15 @@ LambertとStandardSurfaceの中間型PaintableShadingDependNodeは、起動中�
    import hlib
 
    material = hlib.createShader("lambert", name="bodyMaterial")
-   material.getPlug("color").set((0.2, 0.4, 0.8))
+   material.plug("color").set((0.2, 0.4, 0.8))
    group = hlib.createShadingGroup(material, name="bodySG")
-   body = hlib.getNode("body")  # 既存のTransform
+   body = hlib.node("body")  # 既存のTransform
    group.assign(body)
-   mesh = body.getShape()
+   mesh = body.shape()
    group.assign(mesh.faces([0, 1, 2]))  # フェース単位にも割り当て可能
-   materials = mesh.getMaterials()
-   face_material = mesh.face(0).getMaterial()
-   targets = group.getMembers()  # NodeまたはFaceのリスト
+   materials = mesh.materials()
+   face_material = mesh.face(0).material()
+   targets = group.members()  # NodeまたはFaceのリスト
 
 createShader/createShadingGroupのnameはnでも指定できます。
 シェーダーの作成とシェーディンググループの作成は分けて扱います。
@@ -520,16 +562,16 @@ TransformのshadingEnginesは直下の非中間シェイプを対象とします
    texture.setFilePath("C:/textures/body.<UDIM>.exr")
    placement = hlib.createNode("place2dTexture")
    placement.connectTexture(texture)
-   texture.getPlug("outColor").connectTo(material.getPlug("color"))
-   current_placement = texture.getPlacement()
-   current_space = texture.getColorSpace()
+   texture.plug("outColor").connectTo(material.plug("color"))
+   current_placement = texture.placement()
+   current_space = texture.colorSpace()
 
 connectTextureはUV・フィルター・繰り返しなどの標準接続をまとめて行います。
 既存の異なる接続を置き換える場合はforce=Trueを明示します。
 FileのsetColorSpaceは現在の色管理設定で有効な色空間を指定します。
 ファイルパスはそのまま保持し、UDIMの展開やファイルコピーは行いません。
 
-ShadingEngineのgetShader/setShaderはkindにsurface、volume、displacementを指定できます。
+ShadingEngineのshader/setShaderはkindにsurface、volume、displacementを指定できます。
 任意の出力はPlugで渡すかoutputで出力名を指定します。
 マテリアル固有の値はplugで扱い、表示色用のColorクラスへは変換しません。
 作成・割り当て・接続・値変更は通常のUndoに対応します。
@@ -537,7 +579,7 @@ ShadingEngineのgetShader/setShaderはkindにsurface、volume、displacementを�
 一括APIの戻り値
 ------------------------------------
 
-通常の更新（setTranslation・freeze・setVisibilityなど）はコレクション自身を返します。
+通常の更新（setTranslate・freeze・setVisibilityなど）はコレクション自身を返します。
 照会は保持順の結果リスト、addAttr等の生成結果が必要な操作も結果リストです。
 callEachも同じ戻り値規則に従います。空のコレクションでもこの規則は変わりません。
 色の照会はlist[Color]、Joints.skinClustersはSkinClustersという専用の集約結果を返します。

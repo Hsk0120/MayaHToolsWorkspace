@@ -15,15 +15,15 @@
    import hlib
    from hlib.common import WorkspaceLayout
 
-   layout = hlib.getWorkspaceLayout()  # 現在の配置への参照
-   print([item.getName() for item in WorkspaceLayout.list()])
+   layout = hlib.workspaceLayout()  # 現在の配置への参照
+   print([item.name() for item in WorkspaceLayout.list()])
    layout.lock()                       # Maya右上の鍵と同じ
    layout.unlock()
-   print(layout.getLocked())
+   print(layout.locked())
 
    saved = layout.saveAs("MyRiggingLayout")  # 保存し、その配置へ切り替える
    saved.save()                        # 使用中の配置を上書き保存
-   hlib.getWorkspaceLayout("MyRiggingLayout").activate()
+   hlib.workspaceLayout("MyRiggingLayout").activate()
    # saved.reset()                     # 未保存変更を捨てて保存済み配置へ戻す
 
 ロックは全体のドッキング操作に作用し、個別ウィンドウの位置固定ではありません。
@@ -43,12 +43,12 @@
 
    from hlib.common import MainWindow, Window
 
-   window = hlib.getWindow(MainWindow.getName())
-   print(window.getSize())             # (width, height)
-   print(window.getPosition())         # (x, y)、Mayaのtop/left順を変換
+   window = hlib.window(MainWindow.name())
+   print(window.size())             # (width, height)
+   print(window.position())         # (x, y)、Mayaのtop/left順を変換
    window.setResizable(False)          # サイズ変更のみ禁止
    window.setResizable(True)
-   print([item.getName() for item in Window.list()])
+   print([item.name() for item in Window.list()])
 
 ``setPosition(x, y)``、``setSize(width, height)``、``show()``、``hide()`` も使用できます。
 ``hide`` は削除ではありません。メインウィンドウを非表示にする必要は通常ありません。
@@ -64,8 +64,8 @@ UIの所有者はMayaであり、このAPIはメインウィンドウの削除�
    controls = WorkspaceControl.list()
    # 実在する名前を選んで取得する
    if controls:
-       control = hlib.getWorkspaceControl(controls[0].getName())
-       print(control.getFloating(), control.getSize())
+       control = hlib.workspaceControl(controls[0].name())
+       print(control.floating(), control.size())
        control.show()
        # WorkspaceLayout.unlock()後に明示的に配置を変更する
        # control.dock("right")

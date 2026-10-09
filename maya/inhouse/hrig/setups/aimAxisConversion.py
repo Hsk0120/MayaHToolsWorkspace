@@ -111,7 +111,7 @@ class AimAxisConversion:
         values = [target.getPlug("rotate" + a.upper()).get() for a in "xyz"]
         rest_values = (original_state.get("restValues") if original_state else None)
         if rest_values is None:
-            rest_values = source.getRestRotation()
+            rest_values = source.getRestRotate()
         constraint_settings = cls._captureSettings(source)
         name = source.getName().split("|")[-1] + "_axisConversion"
         owner = (Container.create(name=name) if use_container else
@@ -265,7 +265,7 @@ class AimAxisConversion:
             axes: 処理対象の回転軸。
         """
         targets = {}
-        for _, dest in source.getRotationConnections():
+        for _, dest in source.getRotateConnections():
             if isinstance(dest.getNode(), Transform) and dest.getLongName() in (
                     "rotate", "rotateX", "rotateY", "rotateZ"):
                 targets[dest.getNode().getUuid()] = dest.getNode()

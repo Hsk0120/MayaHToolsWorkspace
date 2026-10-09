@@ -4,14 +4,14 @@ import math
 
 from .._core.getterAlias import _getter_alias
 from ..decorator import undoTransaction
-from ..maths import EulerRotation
+from ..maths import EulerRotate
 from .constraint import Constraint
 
 
 class AimConstraint(Constraint):
     """指定ターゲットへ向ける aimConstraint ラッパー。"""
 
-    def getRotationConnections(self):
+    def getRotateConnections(self):
         """回転出力の直接接続を取得する。下流の探索や対象の選別は行わない。
 
         Returns:
@@ -43,7 +43,7 @@ class AimConstraint(Constraint):
         attrs.extend(("worldUpType", "enableRestPosition", "useOldOffsetCalculation"))
         return [self.getPlug(attr) for attr in attrs]
 
-    def getRestRotation(self):
+    def getRestRotate(self):
         """Rest RotateのXYZ設定値をラジアン3値で返す。
 
         Returns:
@@ -51,7 +51,7 @@ class AimConstraint(Constraint):
         """
         return tuple(self.getPlug("restRotate" + axis).get() for axis in "XYZ")
 
-    def setRestRotation(self, value):
+    def setRestRotate(self, value):
         """Rest Rotateだけを設定する。追従状態や対象の回転は直接変更しない。
 
         Args:
@@ -81,17 +81,17 @@ class AimConstraint(Constraint):
         """
         return self._setAngles("offset", value)
 
-    def getOutputRotation(self):
+    def getOutputRotate(self):
         """constraintRotateをその回転順序で取得する。
 
         Returns:
-            EulerRotation: ラジアンの評価出力。自身のTransform回転やワールド回転ではない。
+            EulerRotate: ラジアンの評価出力。自身のTransform回転やワールド回転ではない。
         """
         values = [self.getPlug("constraintRotate" + axis).get() for axis in "XYZ"]
-        return EulerRotation(*values, order=int(self.getPlug("constraintRotateOrder").get()))
+        return EulerRotate(*values, order=int(self.getPlug("constraintRotateOrder").get()))
 
-    @_getter_alias(getRotationConnections)
-    def rotationConnections(self, *args, **kwargs):
+    @_getter_alias(getRotateConnections)
+    def rotateConnections(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -104,10 +104,10 @@ class AimConstraint(Constraint):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRotationConnections(*args, **kwargs)
+        return self.getRotateConnections(*args, **kwargs)
 
-    @_getter_alias(getRestRotation)
-    def restRotation(self, *args, **kwargs):
+    @_getter_alias(getRestRotate)
+    def restRotate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -120,7 +120,7 @@ class AimConstraint(Constraint):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRestRotation(*args, **kwargs)
+        return self.getRestRotate(*args, **kwargs)
 
     @_getter_alias(getOffset)
     def offset(self, *args, **kwargs):
@@ -138,8 +138,8 @@ class AimConstraint(Constraint):
         """
         return self.getOffset(*args, **kwargs)
 
-    @_getter_alias(getOutputRotation)
-    def outputRotation(self, *args, **kwargs):
+    @_getter_alias(getOutputRotate)
+    def outputRotate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -152,7 +152,7 @@ class AimConstraint(Constraint):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getOutputRotation(*args, **kwargs)
+        return self.getOutputRotate(*args, **kwargs)
 
     @undoTransaction("hlib.AimConstraint.setAngles")
     def _setAngles(self, attribute, value):

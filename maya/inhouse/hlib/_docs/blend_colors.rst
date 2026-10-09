@@ -12,9 +12,9 @@ Mayaの ``blendColors`` ノードは ``BlendColors`` ラッパーとして取得
    blend.setColor(1, (1, 0, 0))
    blend.setColor(2, (0, 0, 1))
    blend.setBlender(0.25)
-   print(blend.getResult())           # (0.25, 0.0, 0.75)
-   print(blend.getColor(1))      # 入力1のRGB値
-   print(blend.getBlenderPlug().get())    # 補間係数
+   print(blend.result())           # (0.25, 0.0, 0.75)
+   print(blend.color(1))      # 入力1のRGB値
+   print(blend.blenderPlug().get())    # 補間係数
 
 番号はMayaのアトリビュート名に合わせて1と2です。``blender=0`` はcolor2、
 ``blender=1`` はcolor1、``blender=0.5`` は均等な混合になります。
@@ -26,16 +26,16 @@ Plugの接続
 
 .. code-block:: python
 
-   source = hlib.getNode("sourceBlend")   # 既存のblendColors
-   control = hlib.getNode("ctrl")
-   material = hlib.getNode("lambert1")
+   source = hlib.node("sourceBlend")   # 既存のblendColors
+   control = hlib.node("ctrl")
+   material = hlib.node("lambert1")
 
-   blend.connectColor(1, source.getOutputPlug())
-   blend.connectBlender(control.getPlug("blendWeight"))
-   blend.getOutputPlug().connectTo(material.getPlug("color"))
+   blend.connectColor(1, source.outputPlug())
+   blend.connectBlender(control.plug("blendWeight"))
+   blend.outputPlug().connectTo(material.plug("color"))
 
-``getColorPlug()``・``getBlenderPlug()``・``getOutputPlug()`` はPlugを返します。
-``getResult()`` は評価済みのRGBタプルを返します。
+``colorPlug()``・``blenderPlug()``・``outputPlug()`` はPlugを返します。
+``result()`` は評価済みのRGBタプルを返します。
 接続元はPlugを指定し、``force=True`` の場合だけ既存接続を置き換えます。
 接続した補間係数の値はラッパーで制限せず、Mayaの評価に従います。
 

@@ -55,6 +55,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-09 | hlib関連差分・公開docs/CI・Git | 検証済みの接続方向・get/is省略・Maya変換名・Node createと関連利用側/文書を確認し、明示的なプッシュ指示に従ってコミット・origin/mainへ公開する。 |
+| Codex | 2026-10-09 | hlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 
 
 
@@ -85,6 +87,18 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-09): 単数Node constructorへキーワード専用create=Falseを追加。Trueは現在のexact型登録と指定名で新規作成し、既存Node.createのcmds・標準plugin・名前/親・Undo処理を共有。既定Falseの既存入力解決を維持し、未知引数・非bool・基底/抽象/未登録/複数登録型・SkinClusterを生成前に拒否。製品変更はNode/SkinCluster/registryの3ソース。新規17件を含むMaya2022/2027 standalone各123ファイル1162件成功（GUI/版等の条件付きskipあり）、新規説明3ブロックもMaya2027で成功。空meshの頂点数照会例は訂正後再検証。日英Sphinx -W成功、条件付き基底を含むNode89クラスのcreate署名/他系統105署名保持、625省略入口/13cmds二署名・各499HTML検査成功。文書fixture16+13件・公開入口・layout・差分検査成功。英訳12079件維持/39件追加。GUI/他版・CI/サイト公開は未実行、未コミット。is衝突名の確認待ちは保持。
+
+- Codex (2026-10-09): hlib.cmds公開get13種の省略関数・同名ファイル・呼出時委譲・cmds/root両公開を確認（実装追加漏れなし）。Sphinxの取得13ページにhlib.x/hlib.cmds.xの二署名を共通説明で掲載し、cmds.getX旧xref/アンカーを短名へ対応。一覧と使用例2ページ・設計説明を更新し、HTML署名/既定値/kwonly境界・両公開名/旧参照の検査追加。文書fixture13件、日英Sphinx -W・625入口と13cmds二署名・各499HTML・公開入口/差分検査成功。既存説明204コードブロックとcmds製品ソースを維持、英訳12058件保持/21件追加。初回gettextの見出し線不足は修正後再検証成功。今回はMaya/GUI再実行・CI/公開未実行、未コミット。is衝突確認待ちは保持。
+
+- Codex (2026-10-09): hlibのTranslation→Translate・EulerRotation→EulerRotate、独自Translation/Rotation/Scaling→Translate/Rotate/Scaleを、正式getter/setter・省略入口・複数形管理表・ファイル名・内製利用側まで統一。Quaternion.asEulerRotateを標準変換への委譲で追加。Maya標準名/useEulerRotation・引数/単位/Undo/JSON保存タグを維持し、旧名/旧importは廃止（改名前pickleは非対応）。本番337ソースの既存3210関数は改名/docstring以外AST差分0、既存説明203コードブロックも改名以外差分0。Maya2022/2027 standalone各122ファイル1145件、hrig/Aim関連70件、文書fixture12件、日英Sphinx -W・625入口/新クラス参照/各499ページ検査、公開入口・hlib変更18files layout・差分検査成功。英訳11816件維持/242件追加。GUI/他版・CI/サイト公開未実行、未コミット。is衝突名の確認待ちは保持。
+
+- Codex (2026-10-09): is判定68定義を棚卸しし、衝突9定義を除く59省略入口（mathsの実定義4件含む）を通常defの遅延委譲で追加。既存get/is本体・引数/返値/接続方向/フラグ維持、bulk短名9件の事前検査登録追加。Sphinxの署名/本文/戻り型/旧isリンク・アンカーを省略名へ集約し、Plugin/ReferenceのisLoaded・WorkspaceLayout/SceneのisCurrentを文脈で区別。手書き説明15ページと形式案内更新、旧200ブロックは判定名以外のAST差分0・新規例1ブロック。Maya2022/2027で新8件＋既存156件が各成功（初回の新規接続テストの向き誤りを訂正後8件再実行）、文書fixture12件・日英Sphinx -W・625入口の文書検査・各499ページのMermaid検査・公開入口/差分検査成功。既存英訳11663件維持/153件追加、既存2546関数AST維持（_call_targetの説明更新を除く）、layout25files違反0/定義参照によるクラス順スキップ25。GUI/他版・CI/サイト公開は未実行、未コミット。衝突7名の上書きは別途確認待ち。
+
+- Codex (2026-10-09): hlibの説明・使用例・Sphinx API一覧をget省略名へ統一。566入口へ本体の署名・説明・戻り型を掲載し、get付きxref/既存アンカー・コマンドURLを維持。13取得コマンドの同名再公開関数とモジュールを区別し、概要と引数表示を修正。Maya標準名・引数・JSONキーを維持し、使用例200ブロックのASTを確認。文書fixture7件、日英Sphinx -W、566入口の署名/参照/HTML検査、各499ページのMermaid検査、公開入口/差分/新規補助layout検査成功。英訳965件追加・既存10698件保持、CI検査追加。今回API本体は変更せず、Maya実行/サイト公開/CI実行は対象外、未コミット。
+
+- Codex (2026-10-09): Plug.getConnections/connectionsにsrc/source・dst/destination別名を追加し、isConnected/isConnectedTo/disconnectAllにキーワード専用の方向boolを統一。既存getConnectionsの位置引数・s/sourceとd/destinationのAND、disconnectの既定/戻り値、直接接続の範囲とUndoを維持。方向固定APIは変更せず、isConnectedToの削除済み相手Plug検査漏れを修正。新規14件と関連172件がMaya2022/2027 standalone各186件成功。日英Sphinx -W警告0、英訳49件追加/既存10649件保持、公開入口不一致0・差分/レイアウト違反0（Plug内の並びは既存L023でスキップ）。GUI/他版未検証、未コミット。
 
 - Codex (2026-10-09): hlibの配置/公開/型対応/複数形API整理、566 get省略入口、getAttrのPlug返却、disconnect方向指定、スキンウェイト修復とforce解除、および関連利用側・docs/CI設定をfc143dbにコミットしorigin/mainへpush完了（468ファイル）。公開checker/fixture16件・差分検査成功、直前のMaya2022/2027 standalone/日英Sphinx検証を確認。使用中でない古いGit index.lockを.maya-outputへ退避して公開を実行。hedit・外部submodule・研究/生成物を含めず保持。
 

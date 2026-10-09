@@ -13,13 +13,13 @@
 
    import hlib
 
-   joint = hlib.getNode("neck_IK_jnt")
-   saved = joint.getTransformation()
+   joint = hlib.node("neck_IK_jnt")
+   saved = joint.transformation()
 
    # 必要な編集の後、補助回転・回転順序も含めて復元する。
    joint.setTransformation(saved)    # 戻り値はjoint自身。
 
-``getTransformation()`` はチャンネル値を直接取得します。Euler回転の375度などの周期や
+``transformation()`` はチャンネル値を直接取得します。Euler回転の375度などの周期や
 スケールの符号も、行列への分解を挟まずに保持します。
 ``rotateAxis`` と ``jointOrient`` はQuaternionで保持するため、それらのEuler表現の
 周期は保持しません。適用時は現在のチャンネル値に近いEuler解を使います。
@@ -36,10 +36,10 @@
      - 型
    * - translate
      - t
-     - Translation
+     - Translate
    * - rotate
      - r
-     - EulerRotation
+     - EulerRotate
    * - quaternion
      - q
      - Quaternion（rotateと同期）
@@ -54,10 +54,10 @@
      - Quaternion
    * - rotatePivot / rotatePivotTranslate
      - rp / rpt
-     - Translation
+     - Translate
    * - scalePivot / scalePivotTranslate
      - sp / spt
-     - Translation
+     - Translate
    * - inverseScale
      - ``is_``
      - Scale
@@ -74,12 +74,12 @@ Transformノードから取得する場合、SSCはFalseになります。
 
 .. code-block:: python
 
-   from hlib.maths import Transformation, EulerRotation, Matrix
+   from hlib.maths import Transformation, EulerRotate, Matrix
 
    value = Transformation(t=(1, 2, 3), ro=0, r=(0, 0.5, 0), s=(1, 1, 1))
    edited = value.copy()           # 各成分も独立したコピー
    edited.t.y += 2                # 値の編集だけ。シーンは変化しない。
-   edited.ra = EulerRotation(0.1, 0, 0)
+   edited.ra = EulerRotate(0.1, 0, 0)
    matrix = edited.m
    restored = Transformation(matrix)
 
@@ -92,14 +92,14 @@ Transformノードから取得する場合、SSCはFalseになります。
 回転順序と可能なスケール符号を保持し、Euler解は現在値に近づけます。
 ``ro`` の変更は姿勢を保ってEuler表現を並べ替えます。
 各成分は可変で、直接編集できます。値全体はハッシュ不可です。
-``isEquivalent`` は全成分を比較し、姿勢だけの比較には ``a.m.isEquivalent(b.m)`` を使います。
+``equivalent`` は全成分を比較し、姿勢だけの比較には ``a.m.equivalent(b.m)`` を使います。
 
 ワールド空間と対象ノードへの適合
 ----------------------------------
 
 .. code-block:: python
 
-   world = source.getTransformation(ws=True)
+   world = source.transformation(ws=True)
    planned = target.setTransformation(world, ws=True, get=True)  # シーンを更新せず設定予定値を返す
    target.setTransformation(world, ws=True)
 
@@ -132,5 +132,5 @@ TRS自体にもロックや入力接続がある場合、目的の行列との�
 - ``setMatrix(get=True)`` の辞書返却は変わりません。
   ``Matrix(value)``、``Matrix.fromTransformation(value)``、``MatrixPlug.set(value)`` は
   Transformationを受け取り、合成行列を使います。ピボット等の成分情報は行列には保存されません。
-- ``Transforms`` / ``Joints`` でもgetTransformation/setTransformationを利用できます。get=Trueの一括適用は
+- ``Transforms`` / ``Joints`` でもtransformation/setTransformationを利用できます。get=Trueの一括適用は
   対象ごとの設定予定Transformationのリストを返します。

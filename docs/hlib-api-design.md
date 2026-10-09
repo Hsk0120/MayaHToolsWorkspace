@@ -11,17 +11,22 @@
 
 | 対象 | 規則 | 例 |
 | --- | --- | --- |
-| クラス | PascalCase | `SkinCluster`、`EulerRotation` |
-| 公開関数・メソッド | lowerCamelCase | `getMatrix()`、`getSettings()`、`undoChunk()` |
+| クラス | PascalCase | `SkinCluster`、`EulerRotate` |
+| 公開関数・メソッド | lowerCamelCase | `matrix()`、`settings()`、`undoChunk()` |
 | プロパティ | lowerCamelCase | `orderName`、`minimumVersion`、`paletteSource` |
 | Mayaコマンド・アトリビュート・nodeType | Maya標準の原名 | `createNode`、`offsetParentMatrix`、`skinCluster` |
-| 一般Pythonファイル | lowerCamelCase | `channelBox.py`、`eulerRotation.py` |
+| 一般Pythonファイル | lowerCamelCase | `channelBox.py`、`eulerRotate.py` |
 | 内部関数・引数・ローカル変数 | snake_case可 | `_resolve_input`、`namespace_map` |
 | 定数 | UPPER_SNAKE_CASE | `LOAD_FAILED` |
 
 - `get`/`set`は値の取得・設定、`is`/`has`は判定、`create`/`add`/`remove`は作成・追加・除外に使う。
   独自の取得メソッドは `getName()`、`getSource()`、`getChildren()` のようにgetを付ける。
   数学演算・判定・保持値のプロパティ・OpenMaya標準名は一律get化しない。
+- 2026-10-09のユーザー指定により、単数Nodeクラスのconstructorはキーワード専用の `create=False` を持つ。
+  既定Falseは既存参照の取得、Trueは指定した空でない文字列名でクラスに対応するノードを新規作成する。
+  現在の型登録から一意に逆引きし、型未確定の基底・抽象型・名前だけでは初期化できないSkinClusterは作成前に拒否する。
+  未知引数も作成前に検証し、Maya標準の名前補正・連番・選択・シェイプ親作成と既存Undo/プラグイン規則を使う。
+  getNode等の取得関数・複数形・Object入口は作成を兼ねない。既存Node.createとbindSkinの仕様は維持する。
 - 2026-10-08のユーザー指定により、独自の `getX` に `x()` の省略入口を一律追加する。
   本体と内部利用の基準はget付きに残し、通常defから呼出時のget付きメソッドへ委譲する。
   引数・別名・戻り値・単位・例外・Undoは正式getterと同じ。実行時にメソッドを生成しない。
@@ -29,6 +34,21 @@
   `getPlug("radius")` 等、複合Plugの同名子は `["node"]` 等で明示する。
   静的getterの省略入口はclassmethodとしてクラス/インスタンス両方から利用できる。
   公開コマンドも同名ファイルの省略入口を併用し、動詞+対象の正式名は維持する。
+- 2026-10-09のユーザー指定により、利用者向けの説明・使用例・Sphinx API一覧は取得のget省略名を標準にする。
+  取得コマンドは `hlib.cmds.x()` とルートの `hlib.x()` を同じ関数の入口として記載し、Sphinxの構文・参照も双方を提供する。
+  `plug()`・`translate()`等へ表記を揃え、Sphinxでは引数と説明をget付き本体から表示する。
+  実装本体のget/set命名、Maya標準名、`getPlug=False`等の引数名は変更しない。
+  正式名との対応を説明するページと、廃止した旧名の移行表ではget付き表記を必要に応じて残す。
+- 2026-10-09のユーザー指定により、hlibで本体を定義する `isX` にも `x()` の省略入口を追加し、説明・使用例・Sphinxは省略名を使う。
+  判定本体のis名と引数・戻り値・フラグを維持し、通常defから現在の判定メソッドへ委譲する。
+  同名の取得・編集APIと重なる箇所は既存APIを維持し、is付き判定を使う。
+  数学型に定義した `isEquivalent` にも省略入口を追加する。OpenMayaからそのまま継承するAPIの標準名は維持する。
+- 2026-10-09のユーザー指定により、hlibの変換APIはMayaの `translate/rotate/scale` 表記へ統一する。
+  クラスは `Translate/EulerRotate/Scale`、取得・設定は `getTranslate/setTranslate`・`getRotate/setRotate`・`getScale/setScale`、
+  取得の省略入口は `translate()/rotate()/scale()`。対応する独自複合名・内部メソッド・ファイル・内製利用側も揃える。
+  移動・回転・スケールのPlugは `getPlug("translate")` 等で明示取得する。旧独自名・旧importの互換入口は残さない。
+  OpenMaya標準名、Maya標準のフラグ・アトリビュート名に忠実な `useEulerRotation` 系、既存引数・単位・Undo・戻り値の意味は維持する。
+  `Quaternion.asEulerRotate()` は標準の `asEulerRotation()` へ委譲する。JSONの保存タグは `math:Translation/math:EulerRotation` のまま、新クラスへ復元する。
 - メソッド内のアトリビュート表記は `Attr/Attrs`、追加分は `Extra` に統一する。
   `getT/setT`・`getQ/setQ`・`getX/setX`等の短縮アクセサーは設けず、正式な長名を使う。
 - 型変換は `as` 接頭辞。コピーを返す数学操作は `inverse/normal/mirror`、自身の更新は
@@ -112,6 +132,30 @@ bool方向指定は未接続でも空リストを返す。入力元Plugの明示
 子・配列要素の独立接続は展開せず、変換ノードを削除しない。
 出力のforceは各接続先のロックを一時解除して復元し、複数切断も1回のUndoで戻す。
 
+### Plug接続APIの方向指定（2026-10-09）
+
+ユーザーの指示により、方向を選択するPlugの接続照会・判定・解除には
+`src/source`（自身への入力）と `dst/destination`（自身からの出力）を揃える。
+`getConnections` とget省略入口の `connections` は、既存の `source/destination` へ
+`src/dst` の別名を追加する。位置引数・既定値・返却形式を維持し、
+既存の入力 `s and source`、出力 `d and destination` の評価を変更しない。
+同名と別名の重複指定は同値でもTypeErrorとする。
+
+`isConnected(*, src=True, dst=True)`、`isConnectedTo(other, *, src=True, dst=True)`、
+`disconnectAll(*, src=True, dst=True)` はboolのキーワード専用引数と
+`source/destination` の別名を受け付ける。bool以外はTypeErrorとする。
+両Falseでは判定はFalse、通常の接続取得は空リスト、`disconnectAll` は何もせず自身を返す。
+`getConnections` の子・配列要素の列挙は従来の `checkChildren/checkElements` に従う。
+`isConnected` はMPlugの既存の接続状態判定を維持し、子・配列要素を列挙しない。
+`isConnectedTo`・`disconnectAll` は対象Plugの直結だけを扱う。
+`disconnectAll` は自身返却・未接続時no-op・両方向既定Trueを維持し、
+複数切断を1回のUndo/Redoにまとめる。forceは追加しない。
+
+`disconnect` は上記の既存のsrc兼用・入力だけの既定・戻り値を維持する。
+固定方向の `getSource/getInputs/getOutputs/getDestinations` と変換ノードを含む派生、
+`isSource/isDestination/disconnectInput/getSourceNodes` には方向boolを追加しない。
+`connect(src)` と `connectTo(dst)` は接続相手を受け取り、方向boolには置き換えない。
+
 ### 単位・フラグ・戻り値
 
 `SkinCluster.removeInfluence`・`Joint.removeInfluence`・`SkinClusters.removeInfluences` と
@@ -132,14 +176,14 @@ bool方向指定は未接続でも空リストを返す。入力元Plugの明示
   シーン照会にはgetを付ける（`getNumVertices`・`getNumCVs`・`getCvPositions`等）。
   hlib独自の複合操作は独自名と仕様を明記し、MFnと同一の処理だと扱わない。
 - オブジェクトの数値は距離cm・角度rad・時間秒。`Plug.get/set`と数学型で同じ値を渡せる。
-  `getTranslation/setTranslation`等は行列・姿勢の操作、`getPlug("translate").get/set`は
+  `getTranslate/setTranslate`等は行列・姿勢の操作、`getPlug("translate").get/set`は
   アトリビュートの操作として区別する。前者をMFnTransform.translationの単なる別名にはしない。
 - 空間指定は`worldSpace=True/False`、短縮名は`ws`。使用例は原則`ws=True`とする。
   Trueはワールド、Falseはローカル。bool以外・長短名の同時指定・旧`space=`は拒否する。
   既定値は各メソッドの仕様を維持する（resetPivot/restoreBindPose等はTrue）。
   OpenMaya標準APIのMSpace引数は変更しない。
 - 数学型はOpenMaya API 2.0の継承を維持する。独自の正規化・分解補助は`asUnitMatrix`・
-  `asCanonicalAxisAngle`・`asDecomposedEulerRotation`で、標準の`asMatrix`等と区別する。
+  `asCanonicalAxisAngle`・`asDecomposedEulerRotate`で、標準の`asMatrix`等と区別する。
   ゼロ値を拒否する正規化は`unit/unitIt`、標準のコピー正規化は`normal`。行列式は`det4x4`。
 - 型付きデータ配列の対応getterは常にlist。空は`[]`、未初期化は`None`。
   点・ベクトルはtupleのlistとし、1要素でも外側のlistを省かない。
@@ -227,7 +271,7 @@ hlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 | パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`common` |
 | Mayaコマンドとそのファイル | Mayaと同じcamelCase | `createNode.py` / `createNode()` |
 | Mayaノードのファイル | nodeTypeと同じ表記 | `skinCluster.py`、`animCurveTL.py` |
-| その他の実装ファイル | lowerCamelCase | `channelBox.py`、`timeSlider.py`、`eulerRotation.py` |
+| その他の実装ファイル | lowerCamelCase | `channelBox.py`、`timeSlider.py`、`eulerRotate.py` |
 | クラス | PascalCase | `SkinCluster`、`ChannelBox` |
 | オブジェクト層の公開メソッド | lowerCamelCase | `getMatrix()`、`setWeights()` |
 

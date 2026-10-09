@@ -5,7 +5,7 @@ from pathlib import Path
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 
 
 class Scene:
@@ -62,6 +62,19 @@ class Scene:
         """保持パスが現在のシーンと一致するか返す。未保存同士は一致とする。"""
         return self.path == self._current_path()
 
+    @_is_alias(isCurrent)
+    def current(self, *args, **kwargs):
+        """isCurrentへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isCurrent(*args, **kwargs)
+
     def isNew(self):
         """保持パスが未保存シーンを表すか判定する。
 
@@ -81,6 +94,19 @@ class Scene:
         """
         self._require_current()
         return bool(cmds.file(query=True, modified=True))
+
+    @_is_alias(isModified)
+    def modified(self, *args, **kwargs):
+        """isModifiedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isModified(*args, **kwargs)
 
     def getFileType(self):
         """現在のシーンは Maya に照会し、それ以外は保持パスの拡張子から形式を返す。

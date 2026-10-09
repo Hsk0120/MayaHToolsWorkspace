@@ -13,7 +13,7 @@
 
    start = hlib.createNode("transform", name="twistStart")
    end = hlib.createNode("transform", name="twistEnd", parent=start)
-   end.setTranslation((8, 0, 0))
+   end.setTranslate((8, 0, 0))
    end.getPlug("rotateX").set(120)
    graph = TwistDistribution.create(start, end, name="twistGraph", axis="x")
    output = graph.sample(0.25, "quarter")

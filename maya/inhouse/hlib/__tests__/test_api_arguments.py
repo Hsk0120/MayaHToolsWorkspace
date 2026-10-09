@@ -53,13 +53,13 @@ class ApiArgumentsTest(unittest.TestCase):
             for ws in (False, True):
                 for at in range(5):
                     with self.subTest(joint=joint, ws=ws, at=at):
-                        self.assertValues(tuple(node.getTranslation(ws=ws, at=at)), tuple(ref.getTranslation(ws=ws, at=at)))
+                        self.assertValues(tuple(node.getTranslate(ws=ws, at=at)), tuple(ref.getTranslation(ws=ws, at=at)))
                         values = (6, -2, 8)
                         before = cmds.getAttr(node.getFullName() + ".translate")[0]
                         expected = ref.setTranslation(values, ws=ws, at=at, get=True)[:3]  # 参照値のMPoint由来w成分は座標比較から除外。
-                        self.assertValues(node.setTranslation(values, ws=ws, at=at, get=True), expected)
+                        self.assertValues(node.setTranslate(values, ws=ws, at=at, get=True), expected)
                         self.assertEqual(cmds.getAttr(node.getFullName() + ".translate")[0], before)
-                        node.setTranslation(values, ws=ws, at=at)
+                        node.setTranslate(values, ws=ws, at=at)
                         self.assertValues(tuple(node.getPlug("translate").get()), expected)
                         cmds.undo()
 
@@ -95,8 +95,9 @@ class ApiArgumentsTest(unittest.TestCase):
             node, ref = self.pair(joint)
             for ws in (False, True):
                 for suffix, values in (("Scaling", (2, 3, 4)), ("Shearing", (.1, .2, .3))):
-                    self.assertValues(tuple(getattr(node, "get" + suffix)(ws=ws)), tuple(getattr(ref, "get" + suffix)(ws=ws)))
-                    self.assertValues(getattr(node, "set" + suffix)(values, ws=ws, get=True), getattr(ref, "set" + suffix)(values, ws=ws, get=True))
+                    hlib_suffix = "Scale" if suffix == "Scaling" else suffix
+                    self.assertValues(tuple(getattr(node, "get" + hlib_suffix)(ws=ws)), tuple(getattr(ref, "get" + suffix)(ws=ws)))
+                    self.assertValues(getattr(node, "set" + hlib_suffix)(values, ws=ws, get=True), getattr(ref, "set" + suffix)(values, ws=ws, get=True))
                 for p in (False, True):
                     for inv in (False, True):
                         self.assertValues(tuple(node.getMatrix(ws=ws, p=p, inv=inv)), tuple(ref.getMatrix(ws=ws, p=p, inv=inv)))
@@ -182,7 +183,7 @@ class ApiArgumentsTest(unittest.TestCase):
         self.assertEqual(node.getPlug("translate").set((1, 2, 3), safe=True), 1)
         cmds.undo()
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
-        values = Transforms([node]).setTranslation((4, 5, 6), False, 1, False, True)
+        values = Transforms([node]).setTranslate((4, 5, 6), False, 1, False, True)
         self.assertEqual(values, [[4, 5, 6]])
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
 

@@ -104,14 +104,14 @@ class GetterAliasesTest(unittest.TestCase):
     def test_instance_and_subclass_getter_replacements_are_resolved_at_call_time(self):
         """継承した入口が派生overrideとインスタンス差替えへ追従し、rawフラグを保持する。"""
         marker = object()
-        with patch.object(self.node, "getTranslation", return_value=marker) as getter:
-            self.assertIs(self.node.translation(ws=True, at=4), marker)
+        with patch.object(self.node, "getTranslate", return_value=marker) as getter:
+            self.assertIs(self.node.translate(ws=True, at=4), marker)
             getter.assert_called_once_with(ws=True, at=4)
 
         class DerivedTransform(hlib.nodes.Transform):
             """継承入口が正式getterを固定していないことを確認する派生型。"""
 
-            def getTranslation(self, *args, **kwargs):
+            def getTranslate(self, *args, **kwargs):
                 """受け取った引数を変更せず返す。
 
                 Args:
@@ -126,9 +126,9 @@ class GetterAliasesTest(unittest.TestCase):
         derived = object.__new__(DerivedTransform)
         derived.__dict__.update(self.node.__dict__)
         raw = {"ws": True, "worldSpace": False, "at": 4}
-        self.assertEqual(derived.translation(7, **raw), ((7,), raw))
-        with patch.object(DerivedTransform, "getTranslation", return_value=marker) as getter:
-            self.assertIs(derived.translation(ws=False), marker)
+        self.assertEqual(derived.translate(7, **raw), ((7,), raw))
+        with patch.object(DerivedTransform, "getTranslate", return_value=marker) as getter:
+            self.assertIs(derived.translate(ws=False), marker)
             getter.assert_called_once_with(ws=False)
 
     def test_static_and_class_getters_bind_classes_and_instances_consistently(self):
@@ -232,17 +232,17 @@ class GetterAliasesTest(unittest.TestCase):
         """標準matrix/radiusと任意の同名アトリビュートより省略メソッドを優先する。"""
         extra = self.node.addAttr("plug", attributeType="double", defaultValue=3)
         translation = self.node.addAttr("translation", attributeType="double", defaultValue=7)
-        self.node.setTranslation((4, 5, 6), at=4)
+        self.node.setTranslate((4, 5, 6), at=4)
         self.assertTrue(callable(self.node.plug))
         self.assertEqual(self.node.plug("translateX"), self.node.getPlug("translateX"))
         self.assertEqual(self.node.getPlug("plug"), extra)
         self.assertEqual(self.node.getPlug("plug").get(), 3)
         self.assertTrue(self.node.matrix().isEquivalent(self.node.getMatrix()))
         self.assertIsInstance(self.node.getPlug("matrix"), hlib.plugs.MatrixPlug)
-        self.assertEqual(tuple(self.node.translation(at=4)), (4, 5, 6))
+        self.assertEqual(tuple(self.node.translate(at=4)), (4, 5, 6))
         self.assertEqual(self.node.getPlug("translation"), translation)
         self.assertEqual(translation.get(), 7)
-        self.assertIsInstance(self.node.translate, hlib.plugs.Double3Plug)
+        self.assertIsInstance(self.node.getPlug("translate"), hlib.plugs.Double3Plug)
         joint = hlib.createNode("joint", name="getterAliasJoint")
         joint.setRadius(2.5)
         self.assertTrue(callable(joint.radius))
@@ -282,7 +282,7 @@ class GetterAliasesTest(unittest.TestCase):
             self.assertEqual(scene.path, Path("stored.ma").resolve())
             self.assertEqual(scene.name, "stored.ma")
         matrix = hlib.maths.Matrix(translate=(4, 5, 6))
-        self.assertIsInstance(matrix.translate, hlib.maths.Translation)
+        self.assertIsInstance(matrix.translate, hlib.maths.Translate)
         self.assertIsInstance(matrix.quaternion, hlib.maths.Quaternion)
         self.assertIs(inspect.getattr_static(hlib.maths.Matrix, "getElement"),
                       inspect.getattr_static(om2.MMatrix, "getElement"))

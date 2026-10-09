@@ -195,7 +195,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 target = hlib.maths.Matrix(translate=(2, 3, 4))
                 node.setMatrix(target)
                 expected = list(node.getMatrix())
-                node.setTranslation((0, 0, 0), at=4)
+                node.setTranslate((0, 0, 0), at=4)
                 node.setMatrix(target, fast=True)
                 for a, b in zip(node.getMatrix(), expected):
                     self.assertAlmostEqual(a, b, places=7)

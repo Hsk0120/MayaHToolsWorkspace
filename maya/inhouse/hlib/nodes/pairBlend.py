@@ -59,7 +59,7 @@ class PairBlend(Node):
         _Calculation.connect(source, self.getWeightPlug, force=force)
         return self
 
-    def getRotationInterpolation(self):
+    def getRotateInterpolation(self):
         """現在のモード名を取得する。
         Returns:
             str: euler, quaternion。
@@ -68,7 +68,7 @@ class PairBlend(Node):
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
-    def setRotationInterpolation(self, mode, *, fast=False):
+    def setRotateInterpolation(self, mode, *, fast=False):
         """モードを設定する。
 
         Args:
@@ -121,7 +121,7 @@ class PairBlend(Node):
         return self.getPlug(f"inTranslate{_Calculation.index(index, (1, 2))}")
 
     @flag_aliases(idx="index")
-    def getTranslation(self, index):
+    def getTranslate(self, index):
         """translate入力（cm）の評価値を取得する。
 
         Args:
@@ -134,7 +134,7 @@ class PairBlend(Node):
     @flag_aliases(idx="index")
     @fast_edit
     @undoChunk("hlibCalculationEdit")
-    def setTranslation(self, index, value, *, fast=False):
+    def setTranslate(self, index, value, *, fast=False):
         """translate入力（cm）へ定数値を設定する。
 
         Args:
@@ -180,7 +180,7 @@ class PairBlend(Node):
         return self.getPlug(f"inRotate{_Calculation.index(index, (1, 2))}")
 
     @flag_aliases(idx="index")
-    def getRotation(self, index):
+    def getRotate(self, index):
         """rotate入力（rad）の評価値を取得する。
 
         Args:
@@ -193,7 +193,7 @@ class PairBlend(Node):
     @flag_aliases(idx="index")
     @fast_edit
     @undoChunk("hlibCalculationEdit")
-    def setRotation(self, index, value, *, fast=False):
+    def setRotate(self, index, value, *, fast=False):
         """rotate入力（rad）へ定数値を設定する。
 
         Args:
@@ -281,8 +281,8 @@ class PairBlend(Node):
         """
         return self.getWeight(*args, **kwargs)
 
-    @_getter_alias(getRotationInterpolation)
-    def rotationInterpolation(self, *args, **kwargs):
+    @_getter_alias(getRotateInterpolation)
+    def rotateInterpolation(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -295,7 +295,7 @@ class PairBlend(Node):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRotationInterpolation(*args, **kwargs)
+        return self.getRotateInterpolation(*args, **kwargs)
 
     @_getter_alias(getRotateOrder)
     def rotateOrder(self, *args, **kwargs):
@@ -329,8 +329,8 @@ class PairBlend(Node):
         """
         return self.getTranslatePlug(*args, **kwargs)
 
-    @_getter_alias(getTranslation)
-    def translation(self, *args, **kwargs):
+    @_getter_alias(getTranslate)
+    def translate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -343,7 +343,7 @@ class PairBlend(Node):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getTranslation(*args, **kwargs)
+        return self.getTranslate(*args, **kwargs)
 
     @_getter_alias(getRotatePlug)
     def rotatePlug(self, *args, **kwargs):
@@ -361,8 +361,8 @@ class PairBlend(Node):
         """
         return self.getRotatePlug(*args, **kwargs)
 
-    @_getter_alias(getRotation)
-    def rotation(self, *args, **kwargs):
+    @_getter_alias(getRotate)
+    def rotate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -375,7 +375,7 @@ class PairBlend(Node):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRotation(*args, **kwargs)
+        return self.getRotate(*args, **kwargs)
 
     @_getter_alias(getOutputPlug)
     def outputPlug(self, *args, **kwargs):

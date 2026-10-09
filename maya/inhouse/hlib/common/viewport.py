@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from ._editor import _Editor
 
 
@@ -52,6 +52,20 @@ class Viewport(_Editor):
             bool: メインペインのmanage状態。描画エンジンの状態ではない。
         """
         return bool(cmds.paneLayout(Viewport._main_pane(), query=True, manage=True))
+
+    @classmethod
+    @_is_alias(isEnabled, static=True)
+    def enabled(cls, *args, **kwargs):
+        """isEnabledへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return cls.isEnabled(*args, **kwargs)
 
     @staticmethod
     def setEnabled(enabled):

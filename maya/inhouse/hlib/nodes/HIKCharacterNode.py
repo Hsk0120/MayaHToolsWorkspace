@@ -6,7 +6,7 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from ..common.plugin import Plugin
 from ..decorator import undoChunk
 from .node import Node
@@ -58,6 +58,19 @@ class HIKCharacterNode(Node):
             bool: キャラクタライズがロック済みか照会する。
         """
         return bool(cmds.getAttr(self.getFullName() + '.InputCharacterizationLock'))
+
+    @_is_alias(isDefinitionLocked)
+    def definitionLocked(self, *args, **kwargs):
+        """isDefinitionLockedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isDefinitionLocked(*args, **kwargs)
 
     def joint(self, role):
         """Node | None: 指定役割に割り当てられた骨を取得する。

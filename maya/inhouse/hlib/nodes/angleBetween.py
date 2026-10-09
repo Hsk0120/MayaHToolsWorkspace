@@ -92,7 +92,7 @@ class AngleBetween(Node):
         """
         return Vector(self.getPlug("axis").get())
 
-    def getRotation(self):
+    def getRotate(self):
         """Euler回転を取得する。
         Returns:
             tuple[float, float, float]: XYZ順、rad。
@@ -179,8 +179,8 @@ class AngleBetween(Node):
         """
         return self.getAxis(*args, **kwargs)
 
-    @_getter_alias(getRotation)
-    def rotation(self, *args, **kwargs):
+    @_getter_alias(getRotate)
+    def rotate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -193,4 +193,4 @@ class AngleBetween(Node):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRotation(*args, **kwargs)
+        return self.getRotate(*args, **kwargs)

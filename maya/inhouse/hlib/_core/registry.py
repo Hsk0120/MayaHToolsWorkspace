@@ -132,3 +132,22 @@ class NodeRegistry:
             type: 登録済みまたはフォールバックのラッパークラス。
         """
         return self.wrapper_class(node_type)
+
+    def _node_type_for_class(self, wrapper_class):
+        """現在の登録表で具体クラスに一意に対応するnodeTypeを取得する。
+
+        Args:
+            wrapper_class (type): 新規作成に使用するノードラッパークラス。
+
+        Returns:
+            str: クラスそのものへ登録されたMaya nodeType。
+
+        Raises:
+            TypeError: 対応する登録がない、または複数のnodeTypeに登録されている場合。
+        """
+        node_types = [name for name, registered in self._classes.items()
+                      if registered is wrapper_class]
+        if len(node_types) != 1:
+            raise TypeError("create=True requires a class registered for exactly one Maya nodeType: "
+                            + wrapper_class.__name__)
+        return node_types[0]

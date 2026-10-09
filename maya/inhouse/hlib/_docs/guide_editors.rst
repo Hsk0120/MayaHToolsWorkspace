@@ -14,21 +14,21 @@
     import hlib
     hlib.reload()
 
-    slider = hlib.getTimeSlider()  # hlib.common.TimeSlider
-    print(slider.getCurrentTime(), slider.getPlaybackRange())
+    slider = hlib.timeSlider()  # hlib.common.TimeSlider
+    print(slider.currentTime(), slider.playbackRange())
     slider.setPlaybackRange(1, 120)
     with slider.preserveTime():
         slider.setCurrentTime(24)
-    print(slider.getSelectedRange())  # 未選択はNone。選択範囲の終端は含まない
+    print(slider.selectedRange())  # 未選択はNone。選択範囲の終端は含まない
 
-    view = hlib.getViewport()  # hlib.common.Viewport
-    print(view.panel, view.getCamera())
+    view = hlib.viewport()  # hlib.common.Viewport
+    print(view.panel, view.camera())
     with view.temporarySettings(grid=False, joints=False):
         pass  # 終了時に指定した表示設定を復元
     with view.suspend():
         pass  # 重い処理。例外時もメインペインの表示状態を復元
 
-    outliner = hlib.getOutliner()  # hlib.common.Outliner
+    outliner = hlib.outliner()  # hlib.common.Outliner
     outliner.setSettings(showShapes=True, showNamespace=True)
     outliner.expandAll()       # 展開
     outliner.expandAll(False)  # 折りたたむ
@@ -37,12 +37,12 @@
 ``manage`` を一時的に無効化します。計算・再生を停止する機能ではありません。
 メインペイン内のアウトライナー等も対象となり、切り離したウィンドウは対象外です。
 元から非表示の場合は非表示へ戻り、ネストと例外にも対応します。
-手動切替には ``Viewport.setEnabled(False/True)``、照会には ``isEnabled()`` を使います。
+手動切替には ``Viewport.setEnabled(False/True)``、照会には ``enabled()`` を使います。
 
-表示設定はMayaの長いフラグ名で指定します。``getSettings()`` は対応する表示設定のみを
+表示設定はMayaの長いフラグ名で指定します。``settings()`` は対応する表示設定のみを
 返し、UI全体やカメラ・階層展開状態は保存しません。
-対象を明示する場合は ``hlib.getViewport("modelPanel4")``、
-``hlib.getOutliner("outlinerPanel1")`` のように指定します。UIの自動作成は行いません。
+対象を明示する場合は ``hlib.viewport("modelPanel4")``、
+``hlib.outliner("outlinerPanel1")`` のように指定します。UIの自動作成は行いません。
 ビューポート・アウトライナー・スライダー選択範囲にはMaya GUIが必要です。
 時刻・再生範囲の操作はバッチでも利用できます。
 

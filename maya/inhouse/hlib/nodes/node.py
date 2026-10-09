@@ -10,7 +10,7 @@ import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
 from .._core.flags import normalize_flags
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from .._core.object import Object
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
@@ -278,6 +278,12 @@ class Node(Object):
     そのインスタンスだけが削除された場合は、パスを使う操作がRuntimeErrorになる。
     別インスタンスへ暗黙に切り替えない。ノード自体の有効性はis_validで照会する。
 
+    ``Joint("newJoint", create=True)`` 等、具体的なノードクラスでは指定名で新規作成できる。
+    createはキーワード専用のboolで、既定Falseは既存対象の取得のまま。
+    作成はMaya標準のcreateNodeとUndoを使用し、同名の連番・シェイプの親作成・選択は
+    Mayaに従う。型を特定できない基底クラス、抽象ノード型、出力geometryが必要な
+    SkinClusterは作成前に拒否する。汎用の作成はNode.create(type, name=...)を使用する。
+
     ``str(node)`` は maya.cmds で一意に解決できる最短名(:meth:`name`)を返すため、
     Node はそのまま ``cmds.select(node)`` のように maya.cmds へ渡せる。名前は
     呼び出すたびに再計算するため、名前変更・親子付け替えに追従する。
@@ -285,8 +291,9 @@ class Node(Object):
 
     _registry = None  #: hlib.__init__ が構築後に注入する NodeRegistry。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
+    _constructor_create = True  #: geometry等の追加入力を必要としないクラスは名前だけで作成できる。
 
-    def __new__(cls, node, *args, **kwargs):
+    def __new__(cls, node, *args, create=False, **kwargs):
         """ノード型の登録情報に従ってラッパーを割り当てる。
 
         入力を一度だけ解決する。Nodeは登録済みの型を自動選択する。
@@ -297,18 +304,39 @@ class Node(Object):
                 対象ノードの名前、hlib のラッパー、または Maya API 2.0 オブジェクト。
                 Plug・MPlug は所有ノード、Component は所有シェイプを指す。
             *args (object): 選んだクラスの ``__init__`` へ渡す位置引数。
+            create (bool): Trueなら指定名でこのクラスのMayaノードを新規作成する。
+                キーワード専用。既定Falseは既存対象の取得。同名の連番はMayaに従う。
             **kwargs (object): 選んだクラスの ``__init__`` へ渡すキーワード引数。
 
         Returns:
             Node: 登録済みの適合クラスのインスタンス。
 
         Raises:
-            TypeError: ノード入力が対応しない型の場合。
-            ValueError: アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug の場合
+            TypeError: ノード入力が対応しない型、createがbool以外、または作成対象の
+                型が一意でない・抽象型・名前だけでは初期化できない場合。
+            ValueError: create=Trueの名前が空文字列、またはアトリビュートが
+                ``deleteAttr`` で削除済みの Plug・MPlug の場合
                 (``DeletedAttributeError``。RuntimeError の派生でもある)。
-            RuntimeError: ノードを解決できない場合。
+            RuntimeError: ノードを解決できない、またはMayaが作成を拒否した場合。
         """
+        if type(create) is not bool:
+            raise TypeError("create must be a bool")
         registry = cls._registry
+        if create:
+            if not isinstance(node, str):
+                raise TypeError("create=True requires a node name string")
+            if not node:
+                raise ValueError("create=True requires a non-empty node name")
+            if registry is None:
+                raise TypeError("Node type registration is not initialized")
+            node_type = registry._node_type_for_class(cls)
+            if not cls._constructor_create:
+                raise TypeError("{} cannot be initialized from an empty node; use its bind API"
+                                .format(cls.__name__))
+            # __init__で拒否される引数によって、ノードだけがシーンに残ることを防ぐ。
+            inspect.signature(cls.__init__).bind(None, node, *args, create=create, **kwargs)
+            with undoChunk("hlib.nodes.node.create"):
+                node = Node._create_node_name(node_type, {"name": node}, require_creatable=True)
         if registry is None:
             return super().__new__(cls)
         # 入力の解決(名前の検索など)は1回だけ行い、結果を __init__ へ引き継ぐ。
@@ -320,7 +348,7 @@ class Node(Object):
         instance._pending_resolution = resolved
         return instance
 
-    def __init__(self, node):
+    def __init__(self, node, *, create=False):
         """ノード入力を解決し、MObject と必要に応じた MDagPath を保持する。
 
         既存の Node を渡した場合は、同じ MObject と DAG パス(インスタンス)を
@@ -330,6 +358,8 @@ class Node(Object):
             node (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
                 対象ノードの名前、hlib のラッパー、または Maya API 2.0 オブジェクト。
                 Plug・MPlug は所有ノード、Component は所有シェイプを指す。
+            create (bool): Trueなら__new__で新規作成したノードを初期化する。
+                キーワード専用。既定Falseは既存対象の取得。
 
         Returns:
             None: 値を返さない。
@@ -446,15 +476,7 @@ class Node(Object):
         ``maya.cmds.createNode`` と同じ)。
         """
 
-        if not isinstance(type, str) or not type:
-            raise ValueError("type must be a non-empty string")
-        from ..common import Plugin
-        Plugin.ensureNodePlugin(type)
-        for key in ("parent", "p"):
-            if kwargs.get(key) is not None:
-                kwargs[key] = Node._input_name(kwargs[key])
-        created_name = cmds.createNode(type, **kwargs)
-        return cls(created_name)
+        return cls(Node._create_node_name(type, kwargs))
 
     def getShadingEngines(self):
         """自身から直接接続されているShadingEngineを重複なしで返す。
@@ -526,6 +548,19 @@ class Node(Object):
         handle = self._handle
         return handle is not None and handle.isValid()
 
+    @_is_alias(isValid)
+    def valid(self, *args, **kwargs):
+        """isValidへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isValid(*args, **kwargs)
+
     def isAlive(self):
         """ノードの Maya オブジェクトがメモリ上に生存しているか判定する。
 
@@ -534,6 +569,19 @@ class Node(Object):
         """
         handle = self._handle
         return handle is not None and handle.isAlive()
+
+    @_is_alias(isAlive)
+    def alive(self, *args, **kwargs):
+        """isAliveへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isAlive(*args, **kwargs)
 
     def mnode(self):
         """保持している Maya API 2.0 MObject を返す。
@@ -610,6 +658,19 @@ class Node(Object):
         """
         return om2.MFnDependencyNode(self._mobject).isLocked
 
+    @_is_alias(isLocked)
+    def locked(self, *args, **kwargs):
+        """isLockedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isLocked(*args, **kwargs)
+
     def isFromReferencedFile(self):
         """ノードが参照ファイルから読み込まれたものか判定する。
 
@@ -617,6 +678,19 @@ class Node(Object):
             bool: 参照由来の場合は True。
         """
         return om2.MFnDependencyNode(self._mobject).isFromReferencedFile
+
+    @_is_alias(isFromReferencedFile)
+    def fromReferencedFile(self, *args, **kwargs):
+        """isFromReferencedFileへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isFromReferencedFile(*args, **kwargs)
 
     def isAncestorOf(self, other):
         """other が自身の DAG 階層上の子孫か判定する。
@@ -640,6 +714,19 @@ class Node(Object):
             return False
         other_full = other_node.getFullName()
         return other_full != self_full and other_full.startswith(self_full + "|")
+
+    @_is_alias(isAncestorOf)
+    def ancestorOf(self, *args, **kwargs):
+        """isAncestorOfへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isAncestorOf(*args, **kwargs)
 
     def isParentOf(self, other):
         """other が自身の直接の子か判定する（孫以下は対象外）。
@@ -665,6 +752,19 @@ class Node(Object):
         parent_prefix, separator, _ = other_full.rpartition("|")
         return bool(separator) and parent_prefix == self_full
 
+    @_is_alias(isParentOf)
+    def parentOf(self, *args, **kwargs):
+        """isParentOfへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isParentOf(*args, **kwargs)
+
     def isChildOf(self, other):
         """other が自身の直接の親か判定する（祖父母以上は対象外）。
 
@@ -685,6 +785,19 @@ class Node(Object):
         if other_node is None:
             return False
         return other_node.isParentOf(self)
+
+    @_is_alias(isChildOf)
+    def childOf(self, *args, **kwargs):
+        """isChildOfへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isChildOf(*args, **kwargs)
 
     def getAttrCount(self):
         """ノードが持つアトリビュートの総数を取得する。
@@ -1705,6 +1818,38 @@ class Node(Object):
         """
         return self.getFullName(*args, **kwargs)
 
+    @staticmethod
+    def _create_node_name(node_type, flags, *, require_creatable=False):
+        """既存の作成規則でMayaノードを作り、Mayaが返した実名を取得する。
+
+        Args:
+            node_type (str): Maya nodeType名。
+            flags (dict): createNodeへ渡すフラグ。parent/pを所有ノード名へ変換する。
+            require_creatable (bool): Trueなら抽象型・未導入型を作成前に拒否する。
+
+        Returns:
+            str: Mayaの名前補正・連番を反映したノード名。
+
+        Raises:
+            ValueError: nodeType名が空文字列または文字列以外の場合。
+            TypeError: 作成可能な具体型でない場合、またはparentが未対応型の場合。
+            RuntimeError: Mayaがプラグインのロードやノード作成を拒否した場合。
+
+        Note:
+            Undoチャンクは呼出し側で管理する。既存Node.createとconstructorの
+            create=Trueが同じ標準プラグイン・名前・親の処理を使う。
+        """
+        if not isinstance(node_type, str) or not node_type:
+            raise ValueError("type must be a non-empty string")
+        from ..common import Plugin
+        Plugin.ensureNodePlugin(node_type)
+        if require_creatable and node_type not in (cmds.allNodeTypes() or []):
+            raise TypeError("create=True requires a creatable Maya nodeType: " + node_type)
+        for key in ("parent", "p"):
+            if flags.get(key) is not None:
+                flags[key] = Node._input_name(flags[key])
+        return cmds.createNode(node_type, **flags)
+
     def _has_delete_connections(self):
         """自身とDAG子孫のDG接続をOMで検査する。
 
@@ -2063,7 +2208,9 @@ class Nodes:
         "sameNode": "list",
         "sameInstance": "list",
         "isValid": "list",
+        "valid": "list",
         "isAlive": "list",
+        "alive": "list",
         "mnode": "list",
         "getType": "list",
         "type": "list",
@@ -2075,10 +2222,15 @@ class Nodes:
         "classification": "list",
         "isType": "list",
         "isLocked": "list",
+        "locked": "list",
         "isFromReferencedFile": "list",
+        "fromReferencedFile": "list",
         "isAncestorOf": "list",
+        "ancestorOf": "list",
         "isParentOf": "list",
+        "parentOf": "list",
         "isChildOf": "list",
+        "childOf": "list",
         "getAttrCount": "list",
         "attrCount": "list",
         "getPath": "list",
@@ -2131,7 +2283,9 @@ class Nodes:
         "sameNode": Node.sameNode,
         "sameInstance": Node.sameInstance,
         "isValid": Node.isValid,
+        "valid": Node.valid,
         "isAlive": Node.isAlive,
+        "alive": Node.alive,
         "mnode": Node.mnode,
         "getType": Node.getType,
         "type": Node.type,
@@ -2143,10 +2297,15 @@ class Nodes:
         "classification": Node.classification,
         "isType": Node.isType,
         "isLocked": Node.isLocked,
+        "locked": Node.locked,
         "isFromReferencedFile": Node.isFromReferencedFile,
+        "fromReferencedFile": Node.fromReferencedFile,
         "isAncestorOf": Node.isAncestorOf,
+        "ancestorOf": Node.ancestorOf,
         "isParentOf": Node.isParentOf,
+        "parentOf": Node.parentOf,
         "isChildOf": Node.isChildOf,
+        "childOf": Node.childOf,
         "getAttrCount": Node.getAttrCount,
         "attrCount": Node.attrCount,
         "getPath": Node.getPath,
@@ -2347,6 +2506,19 @@ class Nodes:
 
     isValid.__signature__ = inspect.signature(Node.isValid)
 
+    @_is_alias(isValid)
+    def valid(self, *args, **kwargs):
+        """isValidへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isValid(*args, **kwargs)
+
     def isAlive(self, *args, **kwargs):
         """各要素のisAliveを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2360,6 +2532,19 @@ class Nodes:
         return self._dispatch_shared("isAlive", args, kwargs)
 
     isAlive.__signature__ = inspect.signature(Node.isAlive)
+
+    @_is_alias(isAlive)
+    def alive(self, *args, **kwargs):
+        """isAliveへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isAlive(*args, **kwargs)
 
     def mnode(self, *args, **kwargs):
         """各要素のmnodeを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2459,6 +2644,19 @@ class Nodes:
 
     isLocked.__signature__ = inspect.signature(Node.isLocked)
 
+    @_is_alias(isLocked)
+    def locked(self, *args, **kwargs):
+        """isLockedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isLocked(*args, **kwargs)
+
     def isFromReferencedFile(self, *args, **kwargs):
         """各要素のisFromReferencedFileを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2472,6 +2670,19 @@ class Nodes:
         return self._dispatch_shared("isFromReferencedFile", args, kwargs)
 
     isFromReferencedFile.__signature__ = inspect.signature(Node.isFromReferencedFile)
+
+    @_is_alias(isFromReferencedFile)
+    def fromReferencedFile(self, *args, **kwargs):
+        """isFromReferencedFileへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isFromReferencedFile(*args, **kwargs)
 
     def isAncestorOf(self, *args, **kwargs):
         """各要素のisAncestorOfを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2487,6 +2698,19 @@ class Nodes:
 
     isAncestorOf.__signature__ = inspect.signature(Node.isAncestorOf)
 
+    @_is_alias(isAncestorOf)
+    def ancestorOf(self, *args, **kwargs):
+        """isAncestorOfへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isAncestorOf(*args, **kwargs)
+
     def isParentOf(self, *args, **kwargs):
         """各要素のisParentOfを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2501,6 +2725,19 @@ class Nodes:
 
     isParentOf.__signature__ = inspect.signature(Node.isParentOf)
 
+    @_is_alias(isParentOf)
+    def parentOf(self, *args, **kwargs):
+        """isParentOfへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isParentOf(*args, **kwargs)
+
     def isChildOf(self, *args, **kwargs):
         """各要素のisChildOfを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2514,6 +2751,19 @@ class Nodes:
         return self._dispatch_shared("isChildOf", args, kwargs)
 
     isChildOf.__signature__ = inspect.signature(Node.isChildOf)
+
+    @_is_alias(isChildOf)
+    def childOf(self, *args, **kwargs):
+        """isChildOfへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isChildOf(*args, **kwargs)
 
     def getAttrCount(self, *args, **kwargs):
         """各要素のgetAttrCountを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2855,7 +3105,7 @@ class Nodes:
         """各要素へ異なる引数を渡す。メソッド名は単体の公開インスタンスメソッドのみ。
 
         Args:
-            method (str): setTranslation等。create・特殊メソッドは不可。
+            method (str): setTranslate等。create・特殊メソッドは不可。
             arguments (Iterable[tuple]): 要素数と同じ数の位置引数タプル。
             keyword_arguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空。
         Returns:
@@ -3343,7 +3593,7 @@ class Nodes:
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
         context = undoChunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
         calculating = False
-        if method in {"setTranslation", "setRotation", "setQuaternion", "setScaling", "setShearing", "setMatrix", "setTransformation"}:
+        if method in {"setTranslate", "setRotate", "setQuaternion", "setScale", "setShearing", "setMatrix", "setTransformation"}:
             calculating = any(inspect.signature(fn).bind(*row, **flags).arguments.get("get", False)
                               for fn, row, flags in zip(functions, args, kwargs))
         result = [] if calculating or self._bulk_returns[method] != "self" else None
@@ -3427,7 +3677,7 @@ class Nodes:
 
     @staticmethod
     def _call_target(item, method):
-        """省略名は呼出時の正式getterへ解決し、実際の署名とフラグを検査する。
+        """取得・判定の省略名は呼出時の本体へ解決し、実際の署名とフラグを検査する。
 
         Args:
             item (Node): 呼出し先の単数参照。

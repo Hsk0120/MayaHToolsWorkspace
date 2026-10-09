@@ -4,39 +4,36 @@
 取得・設定・変換
 ------------------
 
-hlib独自の取得メソッドは ``get``、設定メソッドは ``set`` を付けます。
+hlib独自の取得は ``position()``、設定は ``setPosition()`` のように表記します。
+取得本体のget付きメソッドも維持し、説明・使用例・API一覧では省略名を標準にします。
 判定の ``is/has``、数学演算、保持値のプロパティ、OpenMaya標準名は維持します。
 メソッド内のアトリビュート表記は ``Attr/Attrs``、ユーザー追加分は ``Extra`` です。
-旧名の互換別名はありません。更新後はMayaを再起動するか ``hlib.reload()`` を実行し、
+廃止した旧名の互換別名はありません。更新後はMayaを再起動するか ``hlib.reload()`` を実行し、
 保持していたラッパーと数学値を取得し直してください。
 
 .. list-table:: 主な移行先
    :header-rows: 1
 
    * - 旧名
-     - 正式名
-   * - ``name()`` / ``fullName()`` / ``plug()``
-     - ``getName()`` / ``getFullName()`` / ``getPlug()``
-   * - ``children()`` / ``inputs()`` / ``outputPlug()``
-     - ``getChildren()`` / ``getInputs()`` / ``getOutputPlug()``
+     - 現在の呼び出し
    * - ``resetAttributes()`` / ``setAttributeFlags()``
      - ``resetAttrs()`` / ``setAttrFlags()``
    * - ``getExtraAttributes()`` / ``userAttributeNames()``
-     - ``getExtraAttrs()`` / ``getExtraAttrNames()``
+     - ``extraAttrs()`` / ``extraAttrNames()``
    * - ``moveAttributeOrder()`` / ``attributeCount()``
-     - ``moveAttrOrder()`` / ``getAttrCount()``
+     - ``moveAttrOrder()`` / ``attrCount()``
    * - ``getT()/setT()``、``getQ()/setQ()``、Transformの ``getX()/setX()``
-     - ``getTranslation()/setTranslation()``、``getQuaternion()/setQuaternion()``、``getTransformation()/setTransformation()``
+     - ``translate()/setTranslate()``、``quaternion()/setQuaternion()``、``transformation()/setTransformation()``
    * - PointComponentの ``getX()/setX()``
-     - ``getPositionX()/setPositionX()``。Y/Zも同じ形式。
+     - ``positionX()/setPositionX()``。Y/Zも同じ形式。
    * - ``Mesh.getNormals()``
-     - ``Mesh.getVertexNormals()``。頂点ごとの平均法線を ``list[Vector]`` で返す。
+     - ``Mesh.vertexNormals()``。頂点ごとの平均法線を ``list[Vector]`` で返す。
    * - ``Matrix.determinant()`` / ``Matrix.toTransformation()``
      - ``Matrix.det4x4()`` / ``Matrix.asTransformation()``
 
 ``getS/setS``、``getSh/setSh``、``getM/setM`` も廃止しました。
-``getJointOrientQuaternion()`` は旧 ``getJOQ()`` の正式名です。
-Plugの ``get()/set()``、成分名そのものを指すUVの ``getU()/setU()`` 等は維持します。
+``jointOrientQuaternion()`` は旧 ``getJOQ()`` の正式名です。
+Plugの ``get()/set()``、成分名そのものを指すUVの ``u()/setU()`` 等は維持します。
 
 引数の長短名
 ----------------
@@ -50,8 +47,8 @@ Plugの ``get()/set()``、成分名そのものを指すUVの ``getU()/setU()`` 
 
    node.resetAttrs(attrs=["tx", "ry"])
    node.resetAttrs(attributes=["tx", "ry"])
-   array.getElement(idx=3, create=True)
-   array.getElement(index=3, create=True)
+   array.element(idx=3, create=True)
+   array.element(index=3, create=True)
    calc.connectInput(idx=0, src=source_plug, f=True)
 
 接続方向を表す ``source/destination`` は参照先を渡す引数とは別です。
@@ -88,7 +85,7 @@ OpenMaya標準の例外として ``Vector.normalize()`` は自身を更新しま
 型変換は ``as`` に統一します。数学値を返す継承メソッドも対応するhlib型を返します。
 数値・真偽値・文字列、生API取得入口の ``mplug()/mpath()/mnode()`` と関数セット、
 対応するhlib型のないMPoint・単位値・クラス定数は維持します。
-``getPoints()/getCvPositions()`` のMPointArrayは、点の第4成分を失わないため維持します。
+``points()/cvPositions()`` のMPointArrayは、点の第4成分を失わないため維持します。
 
 .. list-table:: 演算条件を区別する変換名
    :header-rows: 1
@@ -101,11 +98,11 @@ OpenMaya標準の例外として ``Vector.normalize()`` は自身を更新しま
      - 旧 ``toMatrix()``。正規化した回転行列。ゼロ四元数は拒否する。
    * - ``Quaternion.asCanonicalAxisAngle()``
      - 旧 ``toAxisAngle()``。正規化し、角度を0〜piへ整える。
-   * - ``Quaternion.asDecomposedEulerRotation(order="xyz")``
+   * - ``Quaternion.asDecomposedEulerRotate(order="xyz")``
      - 旧 ``toEuler()``。正規化した行列を指定順序で分解する。
    * - ``Quaternion.asSwingTwist()``
      - 旧 ``toSwingTwist()``。swingとtwistをhlibのQuaternionで返す。
 
-EulerRotationの ``toMatrix()/toQuaternion()`` は ``asMatrix()/asQuaternion()`` です。
+EulerRotateの ``toMatrix()/toQuaternion()`` は ``asMatrix()/asQuaternion()`` です。
 JSON用の ``toData()``、OptionVarの ``toDict()`` は ``asData()``、``asDict()`` へ移行します。
 保存するキーやデータ形式は変更していません。

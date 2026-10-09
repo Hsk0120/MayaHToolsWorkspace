@@ -5,6 +5,7 @@ import operator
 
 import maya.api.OpenMaya as om2
 
+from .._core.getterAlias import _is_alias
 from .quaternion import Quaternion
 from .vector import _checked_index, _copy_state, _foreign_comparison, _reduce_value
 
@@ -52,7 +53,7 @@ def orderIndex(order):
 
 
 def _euler_keywords(x=0.0, y=0.0, z=0.0, order=None):
-    """キーワード引数付きの EulerRotation の生成引数を (x, y, z, order) へまとめる。
+    """キーワード引数付きの EulerRotate の生成引数を (x, y, z, order) へまとめる。
 
     Args:
         x (float): X 回転(ラジアン)。
@@ -66,7 +67,7 @@ def _euler_keywords(x=0.0, y=0.0, z=0.0, order=None):
     return x, y, z, order
 
 
-class EulerRotation(om2.MEulerRotation):
+class EulerRotate(om2.MEulerRotation):
     """om2.MEulerRotation を継承した、ラジアンの3成分と回転順序を持つ可変な回転値。
 
     ``om2.MEulerRotation`` の派生クラスなので、そのまま OpenMaya API 2.0 の関数へ
@@ -74,12 +75,12 @@ class EulerRotation(om2.MEulerRotation):
 
     受け付ける引数は次のとおり。
 
-    * ``EulerRotation()``: (0, 0, 0)、順序 xyz。
-    * ``EulerRotation(x, y, z[, order])``、または ``order=`` キーワード。
-    * ``EulerRotation(x=..., y=..., z=..., order=...)``: キーワード引数(省略した成分は 0)。
-    * ``EulerRotation(values[, order])``: values は3要素の列や MVector。
+    * ``EulerRotate()``: (0, 0, 0)、順序 xyz。
+    * ``EulerRotate(x, y, z[, order])``、または ``order=`` キーワード。
+    * ``EulerRotate(x=..., y=..., z=..., order=...)``: キーワード引数(省略した成分は 0)。
+    * ``EulerRotate(values[, order])``: values は3要素の列や MVector。
       order を指定しても成分の並べ替えはしない(並べ替えは om2 の ``reorder()``)。
-    * ``EulerRotation(MEulerRotation)``: 順序を含めて複製する。
+    * ``EulerRotate(MEulerRotation)``: 順序を含めて複製する。
 
     成分は数値だけで、文字列などは om2 と同じく ValueError になる。
     ``order`` は om2 と同じ int(``kXYZ`` = 0、``kYZX`` = 1、``kZXY`` = 2、``kXZY`` = 3、
@@ -87,9 +88,9 @@ class EulerRotation(om2.MEulerRotation):
     名前は :attr:`orderName` で取得・設定する。コンストラクタの order には
     名前(``"zyx"`` など。大文字小文字を問わない)と番号のどちらも使える。
 
-    演算子は om2 の意味論に従い、結果を hlib の :class:`EulerRotation` で返す。
+    演算子は om2 の意味論に従い、結果を hlib の :class:`EulerRotate` で返す。
     ``+`` / ``-`` は順序が同じなら成分ごと、違えば右辺を左辺の順序へ変換して計算する。
-    ``*`` は数値なら成分のスケール、EulerRotation / Quaternion なら回転の合成。
+    ``*`` は数値なら成分のスケール、EulerRotate / Quaternion なら回転の合成。
     om2 に無い ``数値 * e`` と ``e / 数値`` (成分ごとの除算)は hlib の拡張として使える。
     ``+=`` / ``-=`` / ``*=`` / ``/=`` は自身を書き換える。
 
@@ -117,7 +118,7 @@ class EulerRotation(om2.MEulerRotation):
             **kwargs: コンストラクタのキーワード引数。ここでは使わない。
 
         Returns:
-            EulerRotation: cls の 0 回転。
+            EulerRotate: cls の 0 回転。
         """
         self = _NEW(cls)
         _INIT(self)
@@ -166,7 +167,7 @@ class EulerRotation(om2.MEulerRotation):
         else:
             order = kwargs.pop("order", None)
             if kwargs:
-                raise TypeError("EulerRotation got unexpected keyword arguments: " + ", ".join(sorted(kwargs)))
+                raise TypeError("EulerRotate got unexpected keyword arguments: " + ", ".join(sorted(kwargs)))
             count = len(args)
             if count == 1 and order is None and isinstance(args[0], _MEuler):
                 self.setValue(args[0])
@@ -174,19 +175,19 @@ class EulerRotation(om2.MEulerRotation):
             if count in (1, 2) and not isinstance(args[0], _NUMBER):
                 if count == 2:
                     if order is not None:
-                        raise TypeError("EulerRotation got multiple values for 'order'")
+                        raise TypeError("EulerRotate got multiple values for 'order'")
                     order = args[1]
                 x, y, z = args[0]
             elif count in (3, 4):
                 x, y, z = args[0], args[1], args[2]
                 if count == 4:
                     if order is not None:
-                        raise TypeError("EulerRotation got multiple values for 'order'")
+                        raise TypeError("EulerRotate got multiple values for 'order'")
                     order = args[3]
             elif count == 0:
                 x = y = z = 0.0
             else:
-                raise TypeError("EulerRotation expects (), (x, y, z[, order]), (values[, order]) or (EulerRotation)")
+                raise TypeError("EulerRotate expects (), (x, y, z[, order]), (values[, order]) or (EulerRotate)")
         index = 0 if order is None else orderIndex(order)
         if not (isinstance(x, _NUMBER) and isinstance(y, _NUMBER) and isinstance(z, _NUMBER)):
             # 数値以外は om2 の変換規則に任せる(文字列などは om2 と同じ ValueError)。
@@ -214,7 +215,7 @@ class EulerRotation(om2.MEulerRotation):
             return _GET(self, index)
         if isinstance(index, slice):
             return (self.x, self.y, self.z)[index]
-        return _GET(self, _checked_index(index, 3, "EulerRotation"))
+        return _GET(self, _checked_index(index, 3, "EulerRotate"))
 
     def __setitem__(self, index, value):
         """回転成分を設定する。
@@ -231,7 +232,7 @@ class EulerRotation(om2.MEulerRotation):
             TypeError: 添字が整数以外の場合。
         """
         if index.__class__ is not int or not -3 <= index < 3:
-            index = _checked_index(index, 3, "EulerRotation")
+            index = _checked_index(index, 3, "EulerRotate")
         _SET(self, index, value)
 
     def __iter__(self):
@@ -269,7 +270,7 @@ class EulerRotation(om2.MEulerRotation):
         利用者の派生クラスが ``__dict__`` / ``__slots__`` に持つアトリビュートも浅く写す。
 
         Returns:
-            EulerRotation: 自身と同じクラスの新しいインスタンス。
+            EulerRotate: 自身と同じクラスの新しいインスタンス。
         """
         return _copy_state(self, type(self)._wrap(self))
 
@@ -282,7 +283,7 @@ class EulerRotation(om2.MEulerRotation):
             memo (dict): copy.deepcopy の memo。
 
         Returns:
-            EulerRotation: 自身と同じクラスの新しいインスタンス。
+            EulerRotate: 自身と同じクラスの新しいインスタンス。
         """
         return _copy_state(self, type(self)._wrap(self), memo)
 
@@ -290,7 +291,7 @@ class EulerRotation(om2.MEulerRotation):
         """度数法の回転成分と回転順序名を含むデバッグ表現を返す。
 
         Returns:
-            str: ``EulerRotation(degrees=(90, 0, -45), order='xyz')`` の形式の文字列。
+            str: ``EulerRotate(degrees=(90, 0, -45), order='xyz')`` の形式の文字列。
             内部値はラジアンのまま。
         """
         values = ", ".join("{:.15g}".format(value) for value in self.asDegrees())
@@ -328,17 +329,17 @@ class EulerRotation(om2.MEulerRotation):
         return _foreign_comparison(other, True)
 
     def __add__(self, other):
-        """om2 の ``+`` の結果を EulerRotation で返す。
+        """om2 の ``+`` の結果を EulerRotate で返す。
 
         Args:
             other (object): MEulerRotation 系。順序が違えば自身の順序へ変換して加算する。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 和。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 和。対応しない型は NotImplemented。
         """
         if not isinstance(other, _MEuler):
             return NotImplemented
-        return EulerRotation._wrap(_MEuler.__add__(self, other))
+        return EulerRotate._wrap(_MEuler.__add__(self, other))
 
     def __radd__(self, other):
         """左辺の MEulerRotation 系との和を返す。
@@ -347,11 +348,11 @@ class EulerRotation(om2.MEulerRotation):
             other (object): MEulerRotation 系。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 和。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 和。対応しない型は NotImplemented。
         """
         if not isinstance(other, _MEuler):
             return NotImplemented
-        return EulerRotation._wrap(_MEuler.__add__(other, self))
+        return EulerRotate._wrap(_MEuler.__add__(other, self))
 
     def __iadd__(self, other):
         """MEulerRotation 系を自身へ加算する。
@@ -360,24 +361,24 @@ class EulerRotation(om2.MEulerRotation):
             other (object): MEulerRotation 系。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 自身。対応しない型は NotImplemented。
         """
         if not isinstance(other, _MEuler):
             return NotImplemented
         return _MEuler.__iadd__(self, other)
 
     def __sub__(self, other):
-        """om2 の ``-`` の結果を EulerRotation で返す。
+        """om2 の ``-`` の結果を EulerRotate で返す。
 
         Args:
             other (object): MEulerRotation 系。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 差。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 差。対応しない型は NotImplemented。
         """
         if not isinstance(other, _MEuler):
             return NotImplemented
-        return EulerRotation._wrap(_MEuler.__sub__(self, other))
+        return EulerRotate._wrap(_MEuler.__sub__(self, other))
 
     def __rsub__(self, other):
         """左辺の MEulerRotation 系から自身を引いた値を返す。
@@ -386,11 +387,11 @@ class EulerRotation(om2.MEulerRotation):
             other (object): MEulerRotation 系。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 差。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 差。対応しない型は NotImplemented。
         """
         if not isinstance(other, _MEuler):
             return NotImplemented
-        return EulerRotation._wrap(_MEuler.__sub__(other, self))
+        return EulerRotate._wrap(_MEuler.__sub__(other, self))
 
     def __isub__(self, other):
         """MEulerRotation 系を自身から減算する。
@@ -399,25 +400,25 @@ class EulerRotation(om2.MEulerRotation):
             other (object): MEulerRotation 系。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 自身。対応しない型は NotImplemented。
         """
         if not isinstance(other, _MEuler):
             return NotImplemented
         return _MEuler.__isub__(self, other)
 
     def __mul__(self, other):
-        """om2 の ``*`` の結果を EulerRotation で返す。
+        """om2 の ``*`` の結果を EulerRotate で返す。
 
         Args:
             other (object): 数値(成分のスケール)、または MEulerRotation 系 /
                 MQuaternion 系(自身を先に適用する回転の合成)。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 結果。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 結果。対応しない型は NotImplemented。
         """
         if not isinstance(other, (int, float, _MEuler, _MQuaternion)):
             return NotImplemented
-        return EulerRotation._wrap(_MEuler.__mul__(self, other))
+        return EulerRotate._wrap(_MEuler.__mul__(self, other))
 
     def __rmul__(self, other):
         """左辺からの乗算を om2 の意味論で行う。
@@ -426,12 +427,12 @@ class EulerRotation(om2.MEulerRotation):
             other (object): 数値、または左辺の MEulerRotation 系。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 結果。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 結果。対応しない型は NotImplemented。
         """
         if isinstance(other, _NUMBER):
-            return EulerRotation._wrap(_MEuler.__mul__(self, other))
+            return EulerRotate._wrap(_MEuler.__mul__(self, other))
         if isinstance(other, _MEuler):
-            return EulerRotation._wrap(_MEuler.__mul__(other, self))
+            return EulerRotate._wrap(_MEuler.__mul__(other, self))
         return NotImplemented
 
     def __imul__(self, other):
@@ -441,7 +442,7 @@ class EulerRotation(om2.MEulerRotation):
             other (object): 数値、MEulerRotation 系、または MQuaternion 系。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 自身。対応しない型は NotImplemented。
         """
         if not isinstance(other, (int, float, _MEuler, _MQuaternion)):
             return NotImplemented
@@ -456,7 +457,7 @@ class EulerRotation(om2.MEulerRotation):
             other (object): 除数の int または float。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 新しい回転値。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 新しい回転値。対応しない型は NotImplemented。
 
         Raises:
             ZeroDivisionError: other が 0 の場合。
@@ -464,8 +465,8 @@ class EulerRotation(om2.MEulerRotation):
         if not isinstance(other, _NUMBER):
             return NotImplemented
         if other == 0:
-            raise ZeroDivisionError("EulerRotation division by zero")
-        result = EulerRotation._wrap(self)
+            raise ZeroDivisionError("EulerRotate division by zero")
+        result = EulerRotate._wrap(self)
         result.x = self.x / other
         result.y = self.y / other
         result.z = self.z / other
@@ -478,7 +479,7 @@ class EulerRotation(om2.MEulerRotation):
             other (object): 除数の int または float。
 
         Returns:
-            EulerRotation | types.NotImplementedType: 自身。対応しない型は NotImplemented。
+            EulerRotate | types.NotImplementedType: 自身。対応しない型は NotImplemented。
 
         Raises:
             ZeroDivisionError: other が 0 の場合。
@@ -486,19 +487,19 @@ class EulerRotation(om2.MEulerRotation):
         if not isinstance(other, _NUMBER):
             return NotImplemented
         if other == 0:
-            raise ZeroDivisionError("EulerRotation division by zero")
+            raise ZeroDivisionError("EulerRotate division by zero")
         self.x = self.x / other
         self.y = self.y / other
         self.z = self.z / other
         return self
 
     def __neg__(self):
-        """om2 の単項 ``-`` (逆回転の成分)を EulerRotation で返す。
+        """om2 の単項 ``-`` (逆回転の成分)を EulerRotate で返す。
 
         Returns:
-            EulerRotation: 新しい回転値。
+            EulerRotate: 新しい回転値。
         """
-        return EulerRotation._wrap(_MEuler.__neg__(self))
+        return EulerRotate._wrap(_MEuler.__neg__(self))
 
     @classmethod
     def fromIterable(cls, values, order="xyz"):
@@ -509,7 +510,7 @@ class EulerRotation(om2.MEulerRotation):
             order (str | int): 回転順序。既定は ``"xyz"``。
 
         Returns:
-            EulerRotation: 呼び出したクラスの新しいインスタンス。
+            EulerRotate: 呼び出したクラスの新しいインスタンス。
 
         Raises:
             ValueError: 要素数が3でない場合、または未対応の回転順序の場合。
@@ -530,7 +531,7 @@ class EulerRotation(om2.MEulerRotation):
             order (str | int): 回転順序。既定は ``"xyz"``。
 
         Returns:
-            EulerRotation: ラジアンに変換した回転値。
+            EulerRotate: ラジアンに変換した回転値。
 
         Raises:
             ValueError: 未対応の回転順序の場合。
@@ -539,7 +540,7 @@ class EulerRotation(om2.MEulerRotation):
 
     @staticmethod
     def computeAlternateSolution(*args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -547,13 +548,13 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.computeAlternateSolution(*args))
+        return EulerRotate._wrap(_MEuler.computeAlternateSolution(*args))
 
     @staticmethod
     def computeBound(*args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -561,13 +562,13 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.computeBound(*args))
+        return EulerRotate._wrap(_MEuler.computeBound(*args))
 
     @staticmethod
     def computeClosestCut(*args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -575,13 +576,13 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.computeClosestCut(*args))
+        return EulerRotate._wrap(_MEuler.computeClosestCut(*args))
 
     @staticmethod
     def computeClosestSolution(*args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -589,13 +590,13 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.computeClosestSolution(*args))
+        return EulerRotate._wrap(_MEuler.computeClosestSolution(*args))
 
     @staticmethod
     def decompose(*args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -603,9 +604,9 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.decompose(*args))
+        return EulerRotate._wrap(_MEuler.decompose(*args))
 
     @property
     def orderName(self):
@@ -657,10 +658,10 @@ class EulerRotation(om2.MEulerRotation):
             axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
 
         Returns:
-            EulerRotation: 同型の新しい回転。Eulerの回転順序は維持する。
+            EulerRotate: 同型の新しい回転。Eulerの回転順序は維持する。
         """
         matrix = self.asMatrix().mirror(axis)
-        rotation = matrix.quaternion.asEulerRotation()
+        rotation = matrix.quaternion.asEulerRotate()
         rotation.reorderIt(self.order)
         result = type(self)._wrap(rotation)
         return result
@@ -672,7 +673,7 @@ class EulerRotation(om2.MEulerRotation):
             axis (str | int): mirrorと同じ反転軸。
 
         Returns:
-            EulerRotation: 更新した自身。
+            EulerRotate: 更新した自身。
         """
         self.setValue(self.mirror(axis))
         return self
@@ -702,11 +703,24 @@ class EulerRotation(om2.MEulerRotation):
             bool: ほぼ等しければ True。
         """
         if not isinstance(other, _MEuler):
-            other = EulerRotation(other)
+            other = EulerRotate(other)
         return _MEuler.isEquivalent(self, other, tolerance)
 
+    @_is_alias(isEquivalent)
+    def equivalent(self, *args, **kwargs):
+        """isEquivalentへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isEquivalent(*args, **kwargs)
+
     def alternateSolution(self, *args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -714,12 +728,12 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.alternateSolution(self, *args))
+        return EulerRotate._wrap(_MEuler.alternateSolution(self, *args))
 
     def bound(self, *args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -727,12 +741,12 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.bound(self, *args))
+        return EulerRotate._wrap(_MEuler.bound(self, *args))
 
     def closestCut(self, *args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -740,12 +754,12 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.closestCut(self, *args))
+        return EulerRotate._wrap(_MEuler.closestCut(self, *args))
 
     def closestSolution(self, *args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -753,12 +767,12 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.closestSolution(self, *args))
+        return EulerRotate._wrap(_MEuler.closestSolution(self, *args))
 
     def inverse(self, *args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -766,12 +780,12 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.inverse(self, *args))
+        return EulerRotate._wrap(_MEuler.inverse(self, *args))
 
     def reorder(self, *args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -779,9 +793,9 @@ class EulerRotation(om2.MEulerRotation):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        return EulerRotation._wrap(_MEuler.reorder(self, *args))
+        return EulerRotate._wrap(_MEuler.reorder(self, *args))
 
     def asVector(self, *args):
         """OpenMayaと同じ演算でVectorの新しい値を返す。
@@ -810,7 +824,7 @@ class EulerRotation(om2.MEulerRotation):
                 ``setValue`` が受け付ける値。MEulerRotation なら順序も写す。
 
         Returns:
-            EulerRotation: cls の新しいインスタンス。
+            EulerRotate: cls の新しいインスタンス。
         """
         result = _NEW(cls)
         _INIT(result)

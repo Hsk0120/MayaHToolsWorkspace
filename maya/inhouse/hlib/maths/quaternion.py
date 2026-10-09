@@ -78,7 +78,7 @@ class Quaternion(om2.MQuaternion):
     ``数値 * q`` は om2 と同じく4成分のスカラー倍(``q * 数値`` と ``/`` は om2 と
     同じく未対応)。演算結果は hlib の :class:`Quaternion` で返す(``om2.MQuaternion`` が
     左辺でも同じ)。ただし ``om2.MEulerRotation * q`` は om2 側が先に処理するため
-    ``om2.MEulerRotation`` になる(``EulerRotation * q`` は EulerRotation)。``*=`` / ``+=`` /
+    ``om2.MEulerRotation`` になる(``EulerRotate * q`` は EulerRotate)。``*=`` / ``+=`` /
     ``-=`` は自身を書き換える(om2 の MQuaternion に無い ``+=`` / ``-=`` も hlib で
     in-place にしている)。
 
@@ -687,8 +687,8 @@ class Quaternion(om2.MQuaternion):
         swing = twist.conjugate() * rotation
         return swing, twist
 
-    def asDecomposedEulerRotation(self, order="xyz"):
-        """EulerRotation へ変換する。
+    def asDecomposedEulerRotate(self, order="xyz"):
+        """EulerRotate へ変換する。
 
         正規化した回転行列を ``om2.MEulerRotation.decompose`` で分解するため、
         ``Matrix.euler`` と同じ規約の角度になる。中間軸が 90 度を超える等価な角度を
@@ -699,15 +699,15 @@ class Quaternion(om2.MQuaternion):
                 ``"yxz"``/``"zyx"``、または om2 の番号 0〜5。
 
         Returns:
-            EulerRotation: ラジアンの Euler 回転値。
+            EulerRotate: ラジアンの Euler 回転値。
 
         Raises:
             ValueError: order が未対応の場合、またはゼロ四元数の場合。
         """
-        from .eulerRotation import EulerRotation, orderIndex
+        from .eulerRotate import EulerRotate, orderIndex
 
         index = orderIndex(order)
-        return EulerRotation._wrap(om2.MEulerRotation.decompose(_unit_copy(self).asMatrix(), index))
+        return EulerRotate._wrap(om2.MEulerRotation.decompose(_unit_copy(self).asMatrix(), index))
 
     def mirror(self, axis="x"):
         """Matrixと同じ規約で向きをビヘイビアミラーした複製を返す。
@@ -802,7 +802,7 @@ class Quaternion(om2.MQuaternion):
         return Matrix._wrap(_MQuaternion.asMatrix(self, *args))
 
     def asEulerRotation(self, *args):
-        """OpenMayaと同じ演算でEulerRotationの新しい値を返す。
+        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -810,11 +810,26 @@ class Quaternion(om2.MQuaternion):
             *args: OpenMayaの同名メソッドへ渡す位置引数。
 
         Returns:
-            EulerRotation: 演算結果を保持する新しいhlib値。
+            EulerRotate: 演算結果を保持する新しいhlib値。
         """
-        from .eulerRotation import EulerRotation
+        from .eulerRotate import EulerRotate
 
-        return EulerRotation._wrap(_MQuaternion.asEulerRotation(self, *args))
+        return EulerRotate._wrap(_MQuaternion.asEulerRotation(self, *args))
+
+    def asEulerRotate(self, *args):
+        """標準のasEulerRotationへ委譲し、EulerRotateの新しい値を返す。
+
+        Args:
+            *args: OpenMayaの標準メソッドへ渡す位置引数。
+
+        Returns:
+            EulerRotate: ラジアンのEuler回転値。元の標準メソッドと同じ演算結果。
+
+        Note:
+            OpenMaya標準のasEulerRotationも引き続き使用できる。
+            引数・例外・自身を変更しない動作は標準メソッドと同じ。
+        """
+        return self.asEulerRotation(*args)
 
     def asAxisAngle(self):
         """OpenMayaの軸角表現をhlibの軸ベクトルで返す。

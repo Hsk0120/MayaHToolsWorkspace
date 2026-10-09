@@ -27,9 +27,9 @@ class SpaceFlagsTest(unittest.TestCase):
 
     def test_long_short_and_local(self):
         """長短名の同値性と既定ローカルを検証する。"""
-        self.assertEqual(self.child.getTranslation(at=4).x, 2)
-        self.assertEqual(self.child.getTranslation(ws=True, at=4).x, 12)
-        self.assertEqual(self.child.getTranslation(worldSpace=True, at=4).x, 12)
+        self.assertEqual(self.child.getTranslate(at=4).x, 2)
+        self.assertEqual(self.child.getTranslate(ws=True, at=4).x, 12)
+        self.assertEqual(self.child.getTranslate(worldSpace=True, at=4).x, 12)
         self.assertTrue(self.child.getMatrix(ws=True).isEquivalent(self.child.getMatrix(worldSpace=True)))
         self.assertEqual(list(self.mesh.getPoints(ws=True)), list(self.mesh.getPoints(worldSpace=True)))
         self.assertEqual(self.mesh.getVertices([0, 1]).getPosition(ws=True),
@@ -37,13 +37,13 @@ class SpaceFlagsTest(unittest.TestCase):
 
     def test_setter_and_collection(self):
         """更新・Undo・複数ノードのフラグ委譲を検証する。"""
-        self.child.setTranslation((20, 0, 0), ws=True, at=4)
+        self.child.setTranslate((20, 0, 0), ws=True, at=4)
         self.assertEqual(self.child.getPlug("translateX").get(), 10)
         cmds.undo()
         self.assertEqual(self.child.getPlug("translateX").get(), 2)
         items = Joints([self.child])
-        self.assertEqual(items.getTranslation(ws=True, at=4)[0].x, 12)
-        items.setTranslation((15, 0, 0), worldSpace=True, at=4)
+        self.assertEqual(items.getTranslate(ws=True, at=4)[0].x, 12)
+        items.setTranslate((15, 0, 0), worldSpace=True, at=4)
         self.assertEqual(self.child.getPlug("translateX").get(), 5)
 
     def test_rejected_flags_do_not_edit(self):
@@ -52,10 +52,10 @@ class SpaceFlagsTest(unittest.TestCase):
                              ({"ws": True, "worldSpace": True}, TypeError),
                              ({"ws": 1}, ValueError), ({"worldSpace": "world"}, ValueError)]:
             with self.assertRaises(error):
-                self.child.setTranslation((99, 0, 0), **flags, at=4)
+                self.child.setTranslate((99, 0, 0), **flags, at=4)
             self.assertEqual(self.child.getPlug("translateX").get(), 2)
         with self.assertRaises(TypeError):
-            self.child.getTranslation(True, ws=True, at=4)
+            self.child.getTranslate(True, ws=True, at=4)
 
     def test_curve_connection_flags(self):
         """形状情報ノードの長短名と既定ワールドを検証する。"""

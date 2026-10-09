@@ -12,17 +12,17 @@ Selection
    import hlib
 
    saved = hlib.captureSelection()
-   nodes = saved.getNodes()
-   joints = saved.getNodes(type="joint")
-   components = saved.getComponents()
-   owners = saved.getOwners()
+   nodes = saved.nodes()
+   joints = saved.nodes(type="joint")
+   components = saved.components()
+   owners = saved.owners()
 
    # 別の処理で選択を変更したあと、元の対象を再選択
    saved.select()
 
-``items()`` は保持した全対象、``getPlugs()`` はアトリビュート参照を返します。
-``getComponents()`` はshapeと種類ごとにVertices・Edges・Faces・UVs・CVsにまとめます。
-``getNodes()`` にコンポーネントの所有ノードは含みません。所有者は ``getOwners()`` で取得します。
+``items()`` は保持した全対象、``plugs()`` はアトリビュート参照を返します。
+``components()`` はshapeと種類ごとにVertices・Edges・Faces・UVs・CVsにまとめます。
+``nodes()`` にコンポーネントの所有ノードは含みません。所有者は ``owners()`` で取得します。
 
 .. code-block:: python
 
@@ -67,26 +67,26 @@ RuntimeErrorになります。新しいUIは生成しません。
 
    import hlib
 
-   channel = hlib.getChannelBox()
-   plugs = channel.getSelectedPlugs()
-   nodes = channel.getDisplayedNodes()
-   attributes = channel.getSelectedAttrs()
+   channel = hlib.channelBox()
+   plugs = channel.selectedPlugs()
+   nodes = channel.displayedNodes()
+   attributes = channel.selectedAttrs()
 
-``getSelectedPlugs()`` は選択アトリビュートをPlugとして返します。短縮名やaliasを解決し、
+``selectedPlugs()`` は選択アトリビュートをPlugとして返します。短縮名やaliasを解決し、
 各ノードに存在しないアトリビュートと重複を除外します。未選択なら空リストです。
 アトリビュート値の取得・変更には返されたPlugのメソッドを使います。
 
 ``section`` には ``main``、``shape``、``history``、``output``、``all`` を指定できます。
-``getSelectedPlugs()`` の既定値は ``all``、
-``getDisplayedNodes()`` と ``getSelectedAttrs()`` の既定値は ``main`` です。
+``selectedPlugs()`` の既定値は ``all``、
+``displayedNodes()`` と ``selectedAttrs()`` の既定値は ``main`` です。
 表示ノードはMayaがその欄のobjectListとして返す対象です。
 
 .. code-block:: python
 
-   shape_plugs = channel.getSelectedPlugs(section="shape")
+   shape_plugs = channel.selectedPlugs(section="shape")
    channel.clearSelection()
 
 ``clearSelection()`` はアトリビュートのUI選択を解除します。
-``hlib.getChannelBox("既存コントロール名")`` で独自UIも参照できます。
+``hlib.channelBox("既存コントロール名")`` で独自UIも参照できます。
 Channel Boxのアトリビュート選択とシーンのアクティブ選択は別です。
 ``captureSelection()`` はChannel Boxの選択アトリビュートを取得しません。

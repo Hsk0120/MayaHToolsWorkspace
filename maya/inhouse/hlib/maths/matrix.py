@@ -4,11 +4,12 @@ from operator import index as _as_index
 
 import maya.api.OpenMaya as om2
 
-from .eulerRotation import EulerRotation
+from .._core.getterAlias import _is_alias
+from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
-from .translation import Translation
+from .translate import Translate
 from .vector import (
     Vector,
     _checked_index,
@@ -191,7 +192,7 @@ def _flat_values(values):
     raise ValueError(_MATRIX_ERROR)
 
 
-def _rotation_matrix(rotate):
+def _rotate_matrix(rotate):
     """回転の指定を回転だけの om2.MMatrix へ変換する。
 
     Args:
@@ -269,7 +270,7 @@ def _components(translate, rotate, scale, shear):
     """
     return (
         None if translate is None else _xyz(translate),
-        None if rotate is None else _rotation_matrix(rotate),
+        None if rotate is None else _rotate_matrix(rotate),
         None if scale is None else _xyz(scale),
         None if shear is None else _xyz(shear),
     )
@@ -340,8 +341,8 @@ class Matrix(om2.MMatrix):
             values (Transformation | om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None):
                 変換情報、16要素または4行4列の行列。指定時は他の変換引数をすべて無視する。
             translate (Iterable[float] | None): XYZ の平行移動成分。None は 0。
-            rotate (Iterable[float] | EulerRotation | Quaternion | None): XYZ 順の
-                ラジアン3成分、回転順序を反映する EulerRotation(om2.MEulerRotation)、
+            rotate (Iterable[float] | EulerRotate | Quaternion | None): XYZ 順の
+                ラジアン3成分、回転順序を反映する EulerRotate(om2.MEulerRotation)、
                 または四元数(正規化して使う)。None は回転なし。
             scale (Iterable[float] | None): XYZ のスケール成分。None は 1。0 や
                 微小値もそのまま書き込む。
@@ -742,8 +743,8 @@ class Matrix(om2.MMatrix):
 
         Args:
             translate (Iterable[float]): XYZ の平行移動成分。
-            rotate (Iterable[float] | EulerRotation | Quaternion): XYZ 順のラジアン
-                3成分、回転順序を反映する EulerRotation、または四元数。
+            rotate (Iterable[float] | EulerRotate | Quaternion): XYZ 順のラジアン
+                3成分、回転順序を反映する EulerRotate、または四元数。
             scale (Iterable[float]): XYZ のスケール成分。
             shear (Iterable[float]): XY、XZ、YZ のシアー成分。
 
@@ -806,15 +807,15 @@ class Matrix(om2.MMatrix):
 
     @property
     def translate(self):
-        """Translation 成分(添字12〜14)を取得または設定する。
+        """Translate 成分(添字12〜14)を取得または設定する。
 
         取得値は複製。設定時は3成分を受け取り、行列を分解せずに添字12〜14へ直接
         書き込むため、ゼロスケールなど分解できない行列にも使える。
 
         Returns:
-            Translation: 行列の平行移動成分。
+            Translate: 行列の平行移動成分。
         """
-        return self._translation()
+        return self._translate()
 
     @translate.setter
     def translate(self, value):
@@ -894,38 +895,38 @@ class Matrix(om2.MMatrix):
 
     @property
     def euler(self):
-        """回転成分を XYZ 順序の EulerRotation として取得する。
+        """回転成分を XYZ 順序の EulerRotate として取得する。
 
         om2.MTransformationMatrix.rotation() と同じ角度(中間軸が 90 度を超える
         等価な解になることがある)。
 
         Returns:
-            EulerRotation: 分解した回転値(ラジアン)。
+            EulerRotate: 分解した回転値(ラジアン)。
 
         Raises:
             ValueError: 分解できない場合(いずれかのスケール軸がゼロなど)。
         """
-        return EulerRotation._wrap(self._checked_transformation().rotation())
+        return EulerRotate._wrap(self._checked_transformation().rotation())
 
     @property
     def rotate(self):
-        """回転成分を XYZ 順序の EulerRotation として取得または設定する。
+        """回転成分を XYZ 順序の EulerRotate として取得または設定する。
 
         設定時は XYZ 順のラジアン3成分、回転順序を
-        反映する EulerRotation、または Quaternion を受け取り、スケール・シアー・
+        反映する EulerRotate、または Quaternion を受け取り、スケール・シアー・
         平行移動を保って再合成する。取得・設定とも、分解できない場合は ValueError。
 
         Returns:
-            EulerRotation: 分解した回転値(ラジアン)。
+            EulerRotate: 分解した回転値(ラジアン)。
         """
-        return EulerRotation._wrap(self._checked_transformation().rotation())
+        return EulerRotate._wrap(self._checked_transformation().rotation())
 
     @rotate.setter
     def rotate(self, value):
         """回転成分を置き換えて再合成する。
 
         Args:
-            value (Iterable[float] | EulerRotation | Quaternion): 新しい回転。
+            value (Iterable[float] | EulerRotate | Quaternion): 新しい回転。
 
         Returns:
             None: 値を返さない。
@@ -947,8 +948,8 @@ class Matrix(om2.MMatrix):
         om2.MTransformationMatrix を1回だけ作って分解する。
 
         Returns:
-            dict[str, object]: translate(Translation)、euler
-            (EulerRotation、XYZ 順序)、quaternion(Quaternion)、scale(Scale)、
+            dict[str, object]: translate(Translate)、euler
+            (EulerRotate、XYZ 順序)、quaternion(Quaternion)、scale(Scale)、
             shear(Shear)を含む辞書。
 
         Raises:
@@ -957,9 +958,9 @@ class Matrix(om2.MMatrix):
         tm = self._checked_transformation()
         euler = tm.rotation()
         return {
-            "translate": self._translation(),
+            "translate": self._translate(),
             "quaternion": Quaternion._wrap(tm.rotation(asQuaternion=True)),
-            "euler": EulerRotation._wrap(euler),
+            "euler": EulerRotate._wrap(euler),
             "scale": _vector_of(Scale, tm.scale(_K_TRANSFORM)),
             "shear": _vector_of(Shear, tm.shear(_K_TRANSFORM)),
         }
@@ -979,6 +980,19 @@ class Matrix(om2.MMatrix):
         if not isinstance(other, _MMatrix):
             other = Matrix(other)
         return _MMatrix.isEquivalent(self, other, tolerance)
+
+    @_is_alias(isEquivalent)
+    def equivalent(self, *args, **kwargs):
+        """isEquivalentへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isEquivalent(*args, **kwargs)
 
     def inverse(self):
         """逆行列を新しいインスタンスとして返す。
@@ -1015,9 +1029,9 @@ class Matrix(om2.MMatrix):
                 MPoint の w は無視する。
 
         Returns:
-            Translation: 平行移動を含む変換結果。
+            Translate: 平行移動を含む変換結果。
         """
-        result = _zero(Translation)
+        result = _zero(Translate)
         if isinstance(value, _MVector):
             _MVector.__iadd__(result, value)
         else:
@@ -1165,13 +1179,13 @@ class Matrix(om2.MMatrix):
             raise ValueError("Cannot decompose a matrix with a zero scale axis")
         return _MTransformationMatrix(self)
 
-    def _translation(self):
-        """添字12〜14を Translation として返す。
+    def _translate(self):
+        """添字12〜14を Translate として返す。
 
         Returns:
-            Translation: 平行移動成分の新しいインスタンス。
+            Translate: 平行移動成分の新しいインスタンス。
         """
-        result = _zero(Translation)
+        result = _zero(Translate)
         result.x = _GET(self, 12)
         result.y = _GET(self, 13)
         result.z = _GET(self, 14)
@@ -1183,7 +1197,7 @@ class Matrix(om2.MMatrix):
         入力をすべて検証してから書き込むため、例外時に自身は変わらない。
 
         Args:
-            rotate (Iterable[float] | EulerRotation | Quaternion | None): 新しい回転。None は現在の値。
+            rotate (Iterable[float] | EulerRotate | Quaternion | None): 新しい回転。None は現在の値。
             scale (Iterable[float] | None): 新しいスケール。None は現在の値。
             shear (Iterable[float] | None): 新しいシアー。None は現在の値。
 

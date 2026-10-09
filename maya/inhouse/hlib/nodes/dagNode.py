@@ -7,7 +7,7 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from .node import Node, Nodes
@@ -252,6 +252,19 @@ class DagNode(Node):
             bool: 親階層を含むDAGの表示状態。
         """
         return self.mpath().isVisible()
+
+    @_is_alias(isVisible)
+    def visible(self, *args, **kwargs):
+        """isVisibleへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isVisible(*args, **kwargs)
 
     def show(self):
         """visibilityを有効にして自身を返す。
@@ -735,6 +748,7 @@ class DagNodes(Nodes):
         "getPartialPath": "list",
         "partialPath": "list",
         "isVisible": "list",
+        "visible": "list",
         "getVisibility": "list",
         "visibility": "list",
         "getOutlinerVisibility": "list",
@@ -777,6 +791,7 @@ class DagNodes(Nodes):
         "getPartialPath": DagNode.getPartialPath,
         "partialPath": DagNode.partialPath,
         "isVisible": DagNode.isVisible,
+        "visible": DagNode.visible,
         "getVisibility": DagNode.getVisibility,
         "visibility": DagNode.visibility,
         "getOutlinerVisibility": DagNode.getOutlinerVisibility,
@@ -979,6 +994,19 @@ class DagNodes(Nodes):
         return self._dispatch_shared("isVisible", args, kwargs)
 
     isVisible.__signature__ = inspect.signature(DagNode.isVisible)
+
+    @_is_alias(isVisible)
+    def visible(self, *args, **kwargs):
+        """isVisibleへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isVisible(*args, **kwargs)
 
     def getVisibility(self, *args, **kwargs):
         """各要素のgetVisibilityを同じ引数で呼び、保持順の戻り値リストを返す。

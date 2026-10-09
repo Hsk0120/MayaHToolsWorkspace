@@ -19,7 +19,7 @@
    control = hlib.createNode("transform", name="control", parent=buffer, skipSelect=True)
    graph = MatrixFollow.create(driver, buffer, maintain_offset=True)
    # アニメーション用のローカル操作はbufferの子で行う。
-   driver.setTranslation((2, 0, 0))
+   driver.setTranslate((2, 0, 0))
 
 戻り値は所有・削除管理用のmultMatrixラッパーです。構築は1回のUndoにまとまります。
 生成後の評価は標準ノードだけで動作し、保存・再読込にPythonコールバックを必要としません。

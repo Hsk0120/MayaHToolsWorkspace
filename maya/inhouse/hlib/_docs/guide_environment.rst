@@ -14,7 +14,7 @@ UI単位と内部単位への一時切り替え
    from hlib.common import Preferences
    from hlib.decorator import nativeUnits
 
-   print(Preferences.getLinearUnit(), Preferences.getAngleUnit(), Preferences.getTimeUnit())  # 例: "cm" "deg" "film"
+   print(Preferences.linearUnit(), Preferences.angleUnit(), Preferences.timeUnit())  # 例: "cm" "deg" "film"
    Preferences.setLinearUnit("m")
 
    with nativeUnits():
@@ -35,16 +35,16 @@ Preferencesの設定操作
 
 .. code-block:: python
 
-   Preferences.getUpAxis()  # "y" / "z"
+   Preferences.upAxis()  # "y" / "z"
    Preferences.setUpAxis("y")
    Preferences.setTrackSelectionOrder(True)
 
-   Preferences.getAutosaveEnabled()
+   Preferences.autosaveEnabled()
    Preferences.setAutosaveInterval(600)  # 秒。保存は実行しない
    Preferences.setAutosaveDirectory("D:/maya_autosave")
-   Preferences.getAutosaveDirectory()  # 実際の保存先をPathで取得
+   Preferences.autosaveDirectory()  # 実際の保存先をPathで取得
 
-   Preferences.getUndoEnabled()
+   Preferences.undoEnabled()
    Preferences.setUndoLimit(100)  # 無限を無効にし、上限100へ
    Preferences.setUndoInfinite(True)
 
@@ -74,21 +74,21 @@ Undoの有効・無効、無限、上限の変更はUndoチャンクへまとめ
    from hlib.common import Plugin
 
    plugin = Plugin("matrixNodes")
-   print(plugin.isLoaded(), plugin.getPath(), plugin.getVersion())
+   print(plugin.isLoaded(), plugin.path(), plugin.version())
    plugin.unload()
    plugin.ensureLoaded()   # 未ロードなら冪等にロードする
 
    for loaded in Plugin.loaded():
-       print(loaded.getName())
+       print(loaded.name())
 
-``isLoaded``/``isRegistered`` は未知のプラグイン名でも例外にならず ``False``
+``isLoaded``/``registered`` は未知のプラグイン名でも例外にならず ``False``
 を返します。``path``/``version`` も未登録なら ``None`` です。
 ``load()`` は呼出し後のロード状態も確認します。Mayaが初期化失敗をPython例外にせず
 戻った場合も、未ロードなら ``RuntimeError`` になります。``PluginPackage.tryLoad()`` は
 この失敗を ``"load-failed"`` として報告します。
-``getVersion()`` は ``Version`` オブジェクトを返します。数値として解釈できない版も ``None``
-になります。Mayaが返す文字列が必要なら ``getVersionText()``、数値のタプルが必要なら
-``getVersion()`` がNoneでないことを確認して ``version.parts`` を使います。``isVersionAtLeast("3.0.0")`` でも比較できます。
+``version()`` は ``Version`` オブジェクトを返します。数値として解釈できない版も ``None``
+になります。Mayaが返す文字列が必要なら ``versionText()``、数値のタプルが必要なら
+``version()`` がNoneでないことを確認して ``version.parts`` を使います。``versionAtLeast("3.0.0")`` でも比較できます。
 
 モジュールと、製品の導入確認
 ------------------------------
@@ -101,8 +101,8 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 
    from hlib.common import Module, PluginPackage
 
-   print(Module("Bifrost").getVersion())            # Versionの文字列表現(未登録なら None)
-   print(Module("Bifrost").isVersionAtLeast("3.0.0"))
+   print(Module("Bifrost").version())            # Versionの文字列表現(未登録なら None)
+   print(Module("Bifrost").versionAtLeast("3.0.0"))
 
    bifrost = PluginPackage(
        "Bifrost", plugins=("mayaVnnPlugin", "bifrostGraph", "flowWedging"),
@@ -148,11 +148,11 @@ Mayaに依存しない不変の値クラスで、``hlib.common`` からも取得
    from hlib.common import Version
    from hlib.common import Plugin
 
-   version = Plugin("bifrostGraph").getVersion()
+   version = Plugin("bifrostGraph").version()
    if version is not None:
        print(version.major, version.minor, version.patch, version.build)
        print(version.parts, version.suffix)
-       print(version.isAtLeast("3.0.0"))
+       print(version.atLeast("3.0.0"))
        print(version >= Version("3.0.0"))
        changed = version.replace(minor=1)  # 新しい値。プラグイン自体は更新しない
        print(str(changed))
@@ -164,17 +164,17 @@ Mayaに依存しない不変の値クラスで、``hlib.common`` からも取得
 比較とハッシュでは末尾のゼロと接尾辞を無視します。
 ``Version("3.0") == Version("3.0.0-build")`` はTrueです。
 SemVerのプレリリース順序(例えばrc版が正式版より小さいという扱い)は実装しません。
-演算子ではVersion同士を比較し、文字列との比較には ``isAtLeast()`` を使います。
+演算子ではVersion同士を比較し、文字列との比較には ``atLeast()`` を使います。
 
 コンストラクターは不正な入力に例外を出します。取得値の検査には
 ``Version.parse(value)`` を使うと、空値・不正値がNoneになります。
-``PluginPackage.minimumVersion()`` / ``getInstalledVersion()`` / ``getLoadedVersion()``
+``PluginPackage.minimumVersion()`` / ``installedVersion()`` / ``loadedVersion()``
 も ``Version | None`` を返します。取得済みの値はスナップショットで、現在の版を得るには
 再びプラグインやモジュールへ問い合わせます。
 
 旧 ``parse_version`` / ``isAtLeast`` / ``format_version`` 関数は廃止しました。
-``Version.parse(value)`` / ``version.isAtLeast(minimum)`` / ``str(version)`` に移行してください。
-従来の ``getVersion()`` の生文字列が必要なコードは ``getVersionText()`` に変更してください。
+``Version.parse(value)`` / ``version.atLeast(minimum)`` / ``str(version)`` に移行してください。
+従来の ``version()`` の生文字列が必要なコードは ``versionText()`` に変更してください。
 
 ワークスペース(プロジェクト)
 --------------------------------
@@ -183,9 +183,9 @@ SemVerのプレリリース順序(例えばrc版が正式版より小さいと�
 
    from hlib.common.workspace import Workspace
 
-   print(Workspace.getRoot())               # 現在のワークスペースのルート
-   print(Workspace.getRule("scene"))        # 例: "scenes"
-   print(Workspace.getPathFor("scene", "myScene.ma"))  # root/scenes/myScene.ma
+   print(Workspace.root())               # 現在のワークスペースのルート
+   print(Workspace.rule("scene"))        # 例: "scenes"
+   print(Workspace.pathFor("scene", "myScene.ma"))  # root/scenes/myScene.ma
 
 ``Workspace`` はインスタンスを持たず、常に現在のワークスペース(Mayaのセッションに
 1つだけ存在するグローバルな状態)を対象にします。``expand`` はファイルルール名を

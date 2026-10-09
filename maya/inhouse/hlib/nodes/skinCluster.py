@@ -27,14 +27,17 @@ class SkinCluster(Node):
     """Maya の skinCluster と先頭 geometry を保持するラッパー。"""
 
     _LAYER_TOKENS = ("ngskin", "ngst", "ngskintools", "skinlayer", "skinninglayer", "layerdata")
+    _constructor_create = False  #: 出力geometryが必要なため、空ノードは作らずbind()を使用する。
 
-    def __init__(self, skin_cluster):
+    def __init__(self, skin_cluster, *, create=False):
         """skinCluster 名または Maya オブジェクトからラッパーを初期化する。
 
         先頭 geometry のみを保持する。頂点ウェイト操作ではその geometry が mesh であることを前提とする。
 
         Args:
             skin_cluster (str | om2.MObject | om2.MDagPath): skinCluster の名前または API オブジェクト。
+            create (bool): キーワード専用。既定False。Trueはノード作成前に拒否する。
+                新規バインドはbind()またはhlib.cmds.bindSkin()を使用する。
 
         Returns:
             None: 値を返さない。
@@ -43,7 +46,7 @@ class SkinCluster(Node):
             IndexError: 対象 geometry がない場合。
             RuntimeError: geometry を解決できない場合。
         """
-        super().__init__(skin_cluster)
+        super().__init__(skin_cluster, create=create)
         self.mesh = self._mesh()
         self.mesh_path = self._get_dag_path(self.mesh)
         self.fn = oma2.MFnSkinCluster(self.mnode())

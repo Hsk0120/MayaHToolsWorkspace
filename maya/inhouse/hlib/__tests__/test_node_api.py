@@ -12,7 +12,7 @@ import hlib
 hlib.reload()
 from hlib.common import Namespace
 from hlib.nodes import Node
-from hlib.maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector
+from hlib.maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 
 
 class NodeApiTest(unittest.TestCase):
@@ -104,15 +104,15 @@ class NodeApiTest(unittest.TestCase):
     def test_transform_matrix_round_trip_uses_om2_maths_values(self):
         transform = self.create_transform("hlibNodeApiMatrix")
 
-        transform.setTranslation((1.0, 2.0, 3.0), at=4)
-        transform.setRotation((0.0, math.radians(90.0), 0.0))
-        transform.setScaling((2.0, 1.0, 1.0))
+        transform.setTranslate((1.0, 2.0, 3.0), at=4)
+        transform.setRotate((0.0, math.radians(90.0), 0.0))
+        transform.setScale((2.0, 1.0, 1.0))
 
-        translate = transform.getTranslation(at=4)
-        self.assertIsInstance(translate, Translation)
-        self.assertEqual(translate, Translation(1.0, 2.0, 3.0))
+        translate = transform.getTranslate(at=4)
+        self.assertIsInstance(translate, Translate)
+        self.assertEqual(translate, Translate(1.0, 2.0, 3.0))
 
-        scale = transform.getScaling()
+        scale = transform.getScale()
         self.assertIsInstance(scale, Scale)
         self.assertAlmostEqual(scale.x, 2.0, places=6)
 
@@ -121,7 +121,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(matrix.translate, translate)
 
         # om2.MVector を継承するため、等価比較は om2 と同じ値の比較になり、
-        # 派生型(Translation/Scale)が違っても成分が同じなら等しい。型は保持される。
+        # 派生型(Translate/Scale)が違っても成分が同じなら等しい。型は保持される。
         self.assertEqual(translate, Scale(1.0, 2.0, 3.0))
         self.assertIsNot(type(translate), Scale)
 
@@ -129,29 +129,29 @@ class NodeApiTest(unittest.TestCase):
         transform = self.create_transform("hlibNodeApiPivot")
 
         default_pivot = transform.getPivot()
-        self.assertIsInstance(default_pivot, Translation)
-        self.assertEqual(default_pivot, Translation(0.0, 0.0, 0.0))
+        self.assertIsInstance(default_pivot, Translate)
+        self.assertEqual(default_pivot, Translate(0.0, 0.0, 0.0))
 
         result = transform.setPivot((1.0, 2.0, 3.0), kind="both", preserve=False)
         self.assertIs(result, transform)
-        self.assertEqual(transform.getPivot(), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(transform.getPivot(), Translate(1.0, 2.0, 3.0))
         cmds.undo()
         self.assertEqual(transform.getPivot(), default_pivot)
         cmds.redo()
-        self.assertEqual(transform.getPivot(), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(transform.getPivot(), Translate(1.0, 2.0, 3.0))
 
-        transform.setTranslation((10.0, 0.0, 0.0), at=4)
-        self.assertEqual(transform.getPivot(ws=True), Translation(11.0, 2.0, 3.0))
+        transform.setTranslate((10.0, 0.0, 0.0), at=4)
+        self.assertEqual(transform.getPivot(ws=True), Translate(11.0, 2.0, 3.0))
 
         previous_unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
             transform.setPivot((25.0, 50.0, 75.0), ws=True, kind="both", preserve=False)
-            self.assertEqual(transform.getPivot(ws=True), Translation(25.0, 50.0, 75.0))
+            self.assertEqual(transform.getPivot(ws=True), Translate(25.0, 50.0, 75.0))
             cmds.undo()
-            self.assertEqual(transform.getPivot(ws=True), Translation(11.0, 2.0, 3.0))
+            self.assertEqual(transform.getPivot(ws=True), Translate(11.0, 2.0, 3.0))
             cmds.redo()
-            self.assertEqual(transform.getPivot(ws=True), Translation(25.0, 50.0, 75.0))
+            self.assertEqual(transform.getPivot(ws=True), Translate(25.0, 50.0, 75.0))
         finally:
             cmds.currentUnit(linear=previous_unit)
 
@@ -165,12 +165,12 @@ class NodeApiTest(unittest.TestCase):
         self.assertAlmostEqual(box.max.x, 0.5, places=5)
 
         # boundingBox() は自身の translate は含むが、親の変換はまだ無いので world と一致する。
-        transform.setTranslation((10.0, 0.0, 0.0), at=4)
+        transform.setTranslate((10.0, 0.0, 0.0), at=4)
         self.assertAlmostEqual(transform.getBoundingBox().min.x, 9.5, places=5)
         self.assertAlmostEqual(transform.getBoundingBox(ws=True).min.x, 9.5, places=5)
 
         parent = self.create_transform("hlibNodeApiBoundingBoxParent")
-        parent.setTranslation((100.0, 0.0, 0.0), at=4)
+        parent.setTranslate((100.0, 0.0, 0.0), at=4)
         # relative=True で子のローカル translate を変えずに親子付けする
         # （既定はワールド位置維持のためローカル値が自動調整されてしまう）。
         cmds.parent(mesh_transform_name, parent.getName(), relative=True)
@@ -556,11 +556,11 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_make_identity_freezes_transform(self):
         transform = self.create_transform("hlibNodeApiFreeze")
-        transform.setTranslation((1.0, 2.0, 3.0), at=4)
+        transform.setTranslate((1.0, 2.0, 3.0), at=4)
 
         result = transform.makeIdentity(apply=True, translate=True)
         self.assertIs(result, transform)
-        self.assertEqual(transform.getTranslation(at=4), Translation(0.0, 0.0, 0.0))
+        self.assertEqual(transform.getTranslate(at=4), Translate(0.0, 0.0, 0.0))
 
     def test_transform_unlock_and_disconnect_transform_channels_unlocks_and_disconnects(self):
         driver = self.create_transform("hlibNodeApiReleaseDriver")
@@ -583,16 +583,16 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, -1.0, 0.0)), "-y")
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, 1.0, 0.0), include_negative=False), "y")
 
-        transform.setRotation((0.0, math.radians(90.0), 0.0))
+        transform.setRotate((0.0, math.radians(90.0), 0.0))
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, 0.0, -1.0)), "x")
 
     def test_transform_create_offset_groups_preserves_world_position(self):
         parent = self.create_transform("hlibNodeApiOffsetParent")
-        parent.setTranslation((5.0, 0.0, 0.0), at=4)
+        parent.setTranslate((5.0, 0.0, 0.0), at=4)
         transform = self.create_transform("hlibNodeApiOffsetChild")
         transform.setParent(parent)
-        transform.setTranslation((1.0, 2.0, 3.0), at=4)
-        world_translate = transform.getTranslation(ws=True, at=4)
+        transform.setTranslate((1.0, 2.0, 3.0), at=4)
+        world_translate = transform.getTranslate(ws=True, at=4)
 
         zero, offset = transform.createOffsetGroups("hlibNodeApiZero", "hlibNodeApiOffset")
         self.created.extend([zero.getName(), offset.getName()])
@@ -600,10 +600,10 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(zero.getParent().getName(), parent.getName())
         self.assertEqual(offset.getParent().getName(), zero.getName())
         self.assertEqual(transform.getParent().getName(), offset.getName())
-        self.assertEqual(zero.getTranslation(ws=True, at=4), world_translate)
-        self.assertEqual(offset.getTranslation(ws=True, at=4), world_translate)
-        self.assertEqual(transform.getTranslation(ws=True, at=4), world_translate)
-        self.assertEqual(transform.getTranslation(at=4), Translation(0.0, 0.0, 0.0))
+        self.assertEqual(zero.getTranslate(ws=True, at=4), world_translate)
+        self.assertEqual(offset.getTranslate(ws=True, at=4), world_translate)
+        self.assertEqual(transform.getTranslate(ws=True, at=4), world_translate)
+        self.assertEqual(transform.getTranslate(at=4), Translate(0.0, 0.0, 0.0))
 
     def test_node_is_valid_is_alive_and_has_attr(self):
         transform = self.create_transform("hlibNodeApiValidity")
@@ -626,11 +626,11 @@ class NodeApiTest(unittest.TestCase):
         self.assertAlmostEqual(shear.y, 0.2, places=6)
         self.assertAlmostEqual(shear.z, 0.3, places=6)
 
-        transform.setRotation((0.0, math.radians(90.0), 0.0))
+        transform.setRotate((0.0, math.radians(90.0), 0.0))
         quaternion = transform.getQuaternion()
         self.assertIsInstance(quaternion, Quaternion)
         euler = transform.getEuler()
-        self.assertIsInstance(euler, EulerRotation)
+        self.assertIsInstance(euler, EulerRotate)
         self.assertAlmostEqual(euler.y, math.radians(90.0), places=6)
 
         matrix = transform.getMatrix(ws=True)
@@ -639,8 +639,8 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_set_matrix_round_trips_matrix_and_rejects_non_matrix(self):
         source = self.create_transform("hlibNodeApiComposeSource")
-        source.setTranslation((1.0, 2.0, 3.0), at=4)
-        source.setRotation((0.0, math.radians(45.0), 0.0))
+        source.setTranslate((1.0, 2.0, 3.0), at=4)
+        source.setRotate((0.0, math.radians(45.0), 0.0))
         matrix = source.getMatrix(ws=True)
 
         target = self.create_transform("hlibNodeApiComposeTarget")
@@ -656,7 +656,7 @@ class NodeApiTest(unittest.TestCase):
         matrix = Matrix(translate=(1.0, 2.0, 3.0))
         result = transform.setMatrix(matrix)
         self.assertIs(result, transform)
-        self.assertEqual(transform.getTranslation(at=4), Translation(1.0, 2.0, 3.0))
+        self.assertEqual(transform.getTranslate(at=4), Translate(1.0, 2.0, 3.0))
 
         # Matrix以外の16要素入力も内部でMatrixへ変換して受け付ける。
         transform.setMatrix((
@@ -665,7 +665,7 @@ class NodeApiTest(unittest.TestCase):
             0.0, 0.0, 1.0, 0.0,
             5.0, 6.0, 7.0, 1.0,
         ))
-        self.assertEqual(transform.getTranslation(at=4), Translation(5.0, 6.0, 7.0))
+        self.assertEqual(transform.getTranslate(at=4), Translate(5.0, 6.0, 7.0))
 
         cmds.delete(transform.getName())
         with self.assertRaises(RuntimeError):
@@ -673,7 +673,7 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_set_matrix_round_trip_preserves_world_for_every_rotate_order(self):
         # XYZ で分解した回転をノードの rotateOrder へ並べ替えて書き込むため、
-        # xyz 以外の順序でも setMatrix / setTranslation / rotate プラグの往復で姿勢が変わらない。
+        # xyz 以外の順序でも setMatrix / setTranslate / rotate プラグの往復で姿勢が変わらない。
         parent = self.create_transform("hlibNodeApiOrderParent")
         cmds.setAttr(parent.getFullName() + ".rotate", 10.0, 20.0, 30.0)
         for order in range(6):
@@ -690,19 +690,19 @@ class NodeApiTest(unittest.TestCase):
             self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
             node.setMatrix(world, ws=True)
             self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
-            node.setTranslation((4.0, 5.0, 6.0), at=4)
+            node.setTranslate((4.0, 5.0, 6.0), at=4)
             self.assertTrue(node.getQuaternion(ws=True).isEquivalent(world.quaternion, 1e-9), order)
 
             before = node.getMatrix()
             rotate = node.getPlug("rotate").get()
-            self.assertIsInstance(rotate, EulerRotation)
+            self.assertIsInstance(rotate, EulerRotate)
             self.assertEqual(rotate.order, order)
             node.getPlug("rotate").set(rotate)
             self.assertTrue(node.getMatrix().isEquivalent(before, 1e-9), order)
-            node.setRotation(EulerRotation.fromDegrees(40.0, -50.0, 60.0, order))
+            node.setRotate(EulerRotate.fromDegrees(40.0, -50.0, 60.0, order))
             self.assertTrue(node.getMatrix().isEquivalent(before, 1e-9), order)
         with self.assertRaises(ValueError):
-            node.setRotation(EulerRotation(0.1, 0.2, 0.3), unit="deg")
+            node.setRotate(EulerRotate(0.1, 0.2, 0.3), unit="deg")
 
     def assert_channels(self, name, rotate, scale, places=9):
         for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], rotate):
@@ -722,21 +722,21 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(matrix.scale.isEquivalent(Vector(*transformation.scale(om2.MSpace.kTransform)), 1e-12))
         self.assertLess(matrix.scale.z, 0.0)
 
-        scale = node.getScaling()
+        scale = node.getScale()
         self.assertIsInstance(scale, Scale)
         self.assertTrue(scale.isEquivalent(Scale(-1.0, 2.0, 3.0), 1e-12))
-        rotate = node.getRotation()
-        self.assertTrue(rotate.isEquivalent(EulerRotation.fromDegrees(10.0, 20.0, 30.0), 1e-12))
+        rotate = node.getRotate()
+        self.assertTrue(rotate.isEquivalent(EulerRotate.fromDegrees(10.0, 20.0, 30.0), 1e-12))
         self.assertTrue(Matrix(rotate=node.getQuaternion(), scale=scale).isEquivalent(matrix, 1e-12))
 
         world = node.getMatrix(ws=True)
         for operation in (
             lambda: node.setMatrix(matrix),
             lambda: node.setMatrix(world, ws=True),
-            lambda: node.setTranslation((0.0, 0.0, 0.0), at=4),
-            lambda: node.setScaling(node.getScaling()),
+            lambda: node.setTranslate((0.0, 0.0, 0.0), at=4),
+            lambda: node.setScale(node.getScale()),
             lambda: node.setShearing(node.getShearing()),
-            lambda: node.setRotation((10.0, 20.0, 30.0), unit="deg"),
+            lambda: node.setRotate((10.0, 20.0, 30.0), unit="deg"),
             lambda: node.getPlug("rotate").set(tuple(node.getPlug("rotate").get())),
         ):
             operation()
@@ -744,7 +744,7 @@ class NodeApiTest(unittest.TestCase):
             self.assert_channels(name, (10.0, 20.0, 30.0), (-1.0, 2.0, 3.0))
 
         # スケールだけを変えても rotate は変わらない(ミラーを解除しても姿勢が 180 度回らない)。
-        node.setScaling((1.0, 2.0, 3.0))
+        node.setScale((1.0, 2.0, 3.0))
         self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 2.0, 3.0))
 
     def test_set_scale_writes_the_requested_signs(self):
@@ -771,13 +771,13 @@ class NodeApiTest(unittest.TestCase):
                         if use_plug:
                             node.getPlug("scale").set(requested)
                         else:
-                            node.setScaling(requested)
+                            node.setScale(requested)
                         label = (kind, use_plug, order, start, requested)
                         for actual, expected in zip(cmds.getAttr(name + ".scale")[0], requested):
                             self.assertAlmostEqual(actual, expected, places=9, msg=label)
                         for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], (10.0, 20.0, 30.0)):
                             self.assertAlmostEqual(actual, expected, places=9, msg=label)
-                        self.assertTrue(node.getScaling().isEquivalent(Scale(*requested), 1e-9), label)
+                        self.assertTrue(node.getScale().isEquivalent(Scale(*requested), 1e-9), label)
                         cmds.delete(name)
 
         # ワールド空間でも、親の行列式が正なら要求した符号の組み合わせになる。
@@ -787,9 +787,9 @@ class NodeApiTest(unittest.TestCase):
         child = self.create_transform("hlibNodeApiScaleSignChild")
         child.setParent(parent)
         cmds.setAttr(child.getFullName() + ".rotate", 10.0, 20.0, 30.0)
-        child.setScaling((-1.0, 1.0, 1.0), ws=True)
+        child.setScale((-1.0, 1.0, 1.0), ws=True)
         self.assert_channels(child.getFullName(), (10.0, 20.0, 30.0), (0.5, 0.5, -0.5))
-        self.assertTrue(child.getScaling(ws=True).isEquivalent(Scale(1.0, 1.0, -1.0), 1e-9))
+        self.assertTrue(child.getScale(ws=True).isEquivalent(Scale(1.0, 1.0, -1.0), 1e-9))
 
         # setMatrix は現在のチャンネルの符号に揃え、合わなければ om2 の規約(Z が負)で書く。
         target = self.create_transform("hlibNodeApiScaleSignMatrix")
@@ -802,15 +802,15 @@ class NodeApiTest(unittest.TestCase):
         name = node.getFullName()
         cmds.setAttr(name + ".rotate", 370.0, -20.0, 190.0)
         node.setMatrix(node.getMatrix())
-        node.setTranslation((1.0, 2.0, 3.0), at=4)
+        node.setTranslate((1.0, 2.0, 3.0), at=4)
         self.assert_channels(name, (370.0, -20.0, 190.0), (1.0, 1.0, 1.0))
         # 等価な別解 (180+10, 180-(-20), 180+190) を渡しても、現在値に近い解で書く。
-        node.setRotation(EulerRotation.fromDegrees(190.0, 200.0, 370.0))
+        node.setRotate(EulerRotate.fromDegrees(190.0, 200.0, 370.0))
         self.assert_channels(name, (370.0, -20.0, 190.0), (1.0, 1.0, 1.0))
 
     def test_transform_flat_rotate_values_use_the_node_rotate_order(self):
         # 3成分の値は cmds.xform と同じくノードの rotateOrder の値として扱うため、
-        # plug("rotate") の get と set、getRotation と setRotation が対称になる。
+        # plug("rotate") の get と set、getRotate と setRotate が対称になる。
         parent = self.create_transform("hlibNodeApiFlatOrderParent")
         cmds.setAttr(parent.getFullName() + ".rotate", 15.0, -25.0, 40.0)
         for order in range(6):
@@ -822,21 +822,21 @@ class NodeApiTest(unittest.TestCase):
             local = node.getMatrix()
             world = node.getMatrix(ws=True)
 
-            rotate = node.getRotation()
+            rotate = node.getRotate()
             self.assertEqual(rotate.order, order)
-            self.assertTrue(rotate.isEquivalent(EulerRotation.fromDegrees(10.0, 20.0, 30.0, order), 1e-12))
+            self.assertTrue(rotate.isEquivalent(EulerRotate.fromDegrees(10.0, 20.0, 30.0, order), 1e-12))
 
             plug = node.getPlug("rotate")
             plug.set(tuple(plug.get()))
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
-            node.setRotation(tuple(node.getRotation()))
-            node.setRotation(tuple(node.getRotation(ws=True)), ws=True)
+            node.setRotate(tuple(node.getRotate()))
+            node.setRotate(tuple(node.getRotate(ws=True)), ws=True)
             self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
-            node.setRotation(tuple(node.getRotation(ws=True)), ws=True)
+            node.setRotate(tuple(node.getRotate(ws=True)), ws=True)
             self.assertTrue(node.getMatrix().isEquivalent(local, 1e-9), order)
 
             cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
-            node.setRotation((10.0, 20.0, 30.0), unit="deg")
+            node.setRotate((10.0, 20.0, 30.0), unit="deg")
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
             cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
             plug.set(tuple(math.radians(value) for value in (10.0, 20.0, 30.0)))
@@ -845,19 +845,19 @@ class NodeApiTest(unittest.TestCase):
     def test_om2_function_sets_accept_hlib_maths_values(self):
         node = self.create_transform("hlibNodeApiOm2Values")
         transformFn = om2.MFnTransform(node.mpath())
-        transformFn.setTranslation(Translation(1.0, 2.0, 3.0), om2.MSpace.kTransform)
-        self.assertEqual(node.getTranslation(at=4), Translation(1.0, 2.0, 3.0))
+        transformFn.setTranslation(Translate(1.0, 2.0, 3.0), om2.MSpace.kTransform)
+        self.assertEqual(node.getTranslate(at=4), Translate(1.0, 2.0, 3.0))
 
-        euler = EulerRotation(0.3, -0.2, 0.1, "zyx")
+        euler = EulerRotate(0.3, -0.2, 0.1, "zyx")
         transformFn.setRotation(euler, om2.MSpace.kTransform)
         self.assertTrue(node.getQuaternion().isEquivalent(euler.asQuaternion(), 1e-9))
         quaternion = Quaternion.fromAxisAngle((0.0, 1.0, 0.0), 0.5)
         transformFn.setRotation(quaternion, om2.MSpace.kTransform)
         self.assertTrue(node.getQuaternion().isEquivalent(quaternion, 1e-9))
         transformFn.setScale(Scale(2.0, 3.0, 4.0))
-        self.assertTrue(node.getScaling().isEquivalent(Scale(2.0, 3.0, 4.0), 1e-9))
+        self.assertTrue(node.getScale().isEquivalent(Scale(2.0, 3.0, 4.0), 1e-9))
 
-        matrix = Matrix(translate=(5.0, 6.0, 7.0), rotate=EulerRotation(0.1, 0.2, 0.3, "yzx"))
+        matrix = Matrix(translate=(5.0, 6.0, 7.0), rotate=EulerRotate(0.1, 0.2, 0.3, "yzx"))
         transformFn.setTransformation(om2.MTransformationMatrix(matrix))
         self.assertTrue(node.getMatrix().isEquivalent(matrix, 1e-9))
 

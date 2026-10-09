@@ -26,6 +26,7 @@ Mermaid 本体を出力に含んでいないことは、ブラウザなしで次
 
 ```powershell
 & ./maya/inhouse/hlib/_docs/.venv/Scripts/python.exe tools/check_hlib_docs.py --check-directory maya/inhouse/hlib/_docs/_build/html
+& ./maya/inhouse/hlib/_docs/.venv/Scripts/python.exe tools/check_hlib_doc_getter_names.py maya/inhouse/hlib/_docs/_build/html
 ```
 
 ## 公開版と自動更新
@@ -96,5 +97,10 @@ PowerShell やタスクから一時停止なしで実行する場合:
 - `requirements.txt`: ドキュメント専用の依存パッケージ
 
 API ページはビルドごとに hlib のソースから生成します。
+独自の取得・判定APIはget/is省略名を標準表示とし、署名・引数・説明は本体から取得します。
+手書きの説明と使用例も省略名に揃えます。get/is付きAPI自体、Maya標準名、引数名は維持します。
+既存APIと衝突して省略入口のない判定は、is付きのまま掲載します。
+`tools/test_hlib_doc_getter_names.py` はMaya不要で変換規則を検証し、
+`tools/check_hlib_doc_getter_names.py <HTML出力先>` は生成した署名・説明・参照リンクを照合します。
 `autoapi/` は一時生成物です。直接編集せず、元の docstring を更新してください。
 ビルド成功は Maya 内での API 動作確認を意味しません。

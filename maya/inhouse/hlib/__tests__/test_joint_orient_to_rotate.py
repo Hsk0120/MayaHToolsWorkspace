@@ -54,7 +54,7 @@ class JointOrientToRotateTest(unittest.TestCase):
                         before, child_before = self.matrix(node), self.matrix(child)
                         cmds.currentUnit(angle=unit)
                         wrapper = hlib.getNode(node)
-                        self.assertIs(wrapper.freezeRotation(), wrapper)
+                        self.assertIs(wrapper.freezeRotate(), wrapper)
                         self.assertEqual(cmds.getAttr(node + ".rotate")[0], (0, 0, 0))
                         self.assertMatrix(node, before)
                         self.assertMatrix(child, child_before)
@@ -91,7 +91,7 @@ class JointOrientToRotateTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     hlib.nodes.Joints([a, b]).jointOrientToRotate()
                 with self.assertRaises(RuntimeError):
-                    hlib.nodes.Joints([a, b]).freezeRotation()
+                    hlib.nodes.Joints([a, b]).freezeRotate()
                 self.assertEqual(cmds.getAttr(a + ".jointOrient"), before)
             finally:
                 cmds.setAttr(b + "." + attribute, lock=False)
@@ -100,13 +100,13 @@ class JointOrientToRotateTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             hlib.getNode(b).jointOrientToRotate()
         with self.assertRaises(RuntimeError):
-            hlib.getNode(b).freezeRotation()
+            hlib.getNode(b).freezeRotate()
         cmds.disconnectAttr(a + ".rotateX", b + ".rotateX")
         cmds.setKeyframe(b, attribute="rotateY", time=1)
         with self.assertRaises(RuntimeError):
             hlib.getNode(b).jointOrientToRotate()
         with self.assertRaises(RuntimeError):
-            hlib.getNode(b).freezeRotation()
+            hlib.getNode(b).freezeRotate()
 
     def test_zero_is_noop_and_invalid_raises(self):
         node = self.joint()
@@ -119,10 +119,10 @@ class JointOrientToRotateTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             wrapper.jointOrientToRotate()
         with self.assertRaises(RuntimeError):
-            wrapper.freezeRotation()
+            wrapper.freezeRotate()
         empty = hlib.nodes.Joints()
         self.assertIs(empty.jointOrientToRotate(), empty)
-        self.assertIs(empty.freezeRotation(), empty)
+        self.assertIs(empty.freezeRotate(), empty)
 
     def test_freeze_skinned_joint_and_collection_undo_redo(self):
         for skinning_method in (0, 1, 2):
@@ -149,7 +149,7 @@ class JointOrientToRotateTest(unittest.TestCase):
                     binds = cmds.getAttr(skin + ".bindPreMatrix[*]")
                     weights = [cmds.skinPercent(skin, mesh + ".vtx[{}]".format(i), query=True, value=True) for i in range(8)]
                     target = hlib.nodes.Joints(nodes) if bulk else hlib.getNode(child)
-                    self.assertIs(target.freezeRotation(), target)
+                    self.assertIs(target.freezeRotate(), target)
 
                     def assert_skin_unchanged():
                         self.assertMatrix(root, matrices[0])

@@ -122,7 +122,7 @@ class CalculationNodesTest(unittest.TestCase):
     def test_matrix_nodes(self):
         """行列の合成・逆行列・成分選択・16要素設定を検証する。"""
         compose = hlib.createNode("composeMatrix")
-        compose.setTranslation((3, 4, 5)).setScale((2, 2, 2))
+        compose.setTranslate((3, 4, 5)).setScale((2, 2, 2))
         matrix = compose.getResult()
         inverse = hlib.createNode("inverseMatrix")
         inverse.connectInput(compose.getOutputPlug())
@@ -136,7 +136,7 @@ class CalculationNodesTest(unittest.TestCase):
         self.assertVector(tuple(four.getResult()), tuple(matrix))
         cmds.undo()
         self.assertVector(tuple(four.getMatrix()), tuple(Matrix()))
-        compose.setRotation((0, 0, math.pi / 2))
+        compose.setRotate((0, 0, math.pi / 2))
         self.assertAlmostEqual(compose.getResult()[1], 2)
         compose.setQuaternion((0, 0, 0, 1)).setUseEulerRotation(False)
         self.assertAlmostEqual(compose.getResult()[0], 2)
@@ -144,7 +144,7 @@ class CalculationNodesTest(unittest.TestCase):
     def test_blend_and_aim(self):
         """行列ブレンドの重みとAimの向きを検証する。"""
         compose = hlib.createNode("composeMatrix")
-        compose.setTranslation((10, 0, 0))
+        compose.setTranslate((10, 0, 0))
         blend = hlib.createNode("blendMatrix")
         blend.setTarget(3, compose.getResult(), .25)
         self.assertAlmostEqual(blend.getResult()[12], 2.5)
@@ -154,7 +154,7 @@ class CalculationNodesTest(unittest.TestCase):
         cmds.undo()
         self.assertAlmostEqual(blend.getResult()[12], 2.5)
         aim = hlib.createNode("aimMatrix")
-        compose.setTranslation((0, 10, 0))
+        compose.setTranslate((0, 10, 0))
         aim.connectPrimaryMatrix(compose.getOutputPlug())
         aim.setPrimaryAxis((1, 0, 0)).setPrimaryMode("aim").setSecondaryMode("none")
         self.assertAlmostEqual(aim.getResult()[1], 1)
@@ -179,9 +179,9 @@ class CalculationNodesTest(unittest.TestCase):
     def test_pair_blend(self):
         """移動とQuaternion補間の回転結果を検証する。"""
         node = hlib.createNode("pairBlend")
-        node.setTranslation(1, (0, 0, 0)).setTranslation(2, (10, 0, 0))
-        node.setRotation(1, (0, 0, 0)).setRotation(2, (0, 0, math.pi / 2))
-        node.setRotationInterpolation("quaternion").setWeight(.5)
+        node.setTranslate(1, (0, 0, 0)).setTranslate(2, (10, 0, 0))
+        node.setRotate(1, (0, 0, 0)).setRotate(2, (0, 0, math.pi / 2))
+        node.setRotateInterpolation("quaternion").setWeight(.5)
         self.assertVector(node.getResult(), (5, 0, 0))
         self.assertVector(node.getResult("rotate"), (0, 0, math.pi / 4))
 

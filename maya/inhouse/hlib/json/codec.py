@@ -8,16 +8,16 @@ import maya.api.OpenMaya as om2
 # 数学型は定義元のモジュールから直接 import する。hlib.reload() は module の globals にある
 # クラスの定義元から依存順を推定するため、定義元の再読み込み後にこの module も読み直され、
 # 下の対応表が新しいクラスで作り直される。
-from ..maths.eulerRotation import ORDER_NAMES, EulerRotation
+from ..maths.eulerRotate import ORDER_NAMES, EulerRotate
 from ..maths.matrix import Matrix
 from ..maths.quaternion import Quaternion
 from ..maths.scale import Scale
 from ..maths.shear import Shear
-from ..maths.translation import Translation
+from ..maths.translate import Translate
 from ..maths.vector import Vector
 from .references import NodeRef, PlugRef, ComponentRef
 
-#: 数学型の記録の要素数。EulerRotation はラジアンの3成分(順序は別の "order" キー)。
+#: 数学型の記録の要素数。EulerRotate はラジアンの3成分(順序は別の "order" キー)。
 _MATH_SIZES = {
     "Vector": 3,
     "Translation": 3,
@@ -31,10 +31,10 @@ _MATH_SIZES = {
 #: 記録の型名から復元に使う hlib.maths のクラス。
 _MATH_CLASSES = {
     "Vector": Vector,
-    "Translation": Translation,
+    "Translation": Translate,
     "Scale": Scale,
     "Shear": Shear,
-    "EulerRotation": EulerRotation,
+    "EulerRotation": EulerRotate,
     "Quaternion": Quaternion,
     "Matrix": Matrix,
 }
@@ -73,7 +73,7 @@ def _decode_math(name, args):
 
     Args:
         name (str): ``"Vector"`` などの型名。
-        args (object): 記録の中身を decode した値。``{"values": [...]}``、EulerRotation は
+        args (object): 記録の中身を decode した値。``{"values": [...]}``、EulerRotate は
             ``"order"`` (名前または om2 の番号)も持てる。
 
     Returns:

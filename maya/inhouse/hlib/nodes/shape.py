@@ -10,7 +10,7 @@ from maya.api.OpenMaya import MSpace
 
 from .._core import geometryEdit
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from .._core.space import world_space
 from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
@@ -161,6 +161,19 @@ class Shape(DagNode):
             bool: 中間オブジェクトの場合は True。
         """
         return self.dagFn().isIntermediateObject
+
+    @_is_alias(isIntermediateObject)
+    def intermediateObject(self, *args, **kwargs):
+        """isIntermediateObjectへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isIntermediateObject(*args, **kwargs)
 
     @_getter_alias(getParent)
     def parent(self, *args, **kwargs):

@@ -2,7 +2,7 @@
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from .version import Version
 
 # Versionへ集約した旧関数参照をreload時に残さない。
@@ -84,6 +84,19 @@ class Module:
         """
         return self._name in (cmds.moduleInfo(listModules=True) or [])
 
+    @_is_alias(isRegistered)
+    def registered(self, *args, **kwargs):
+        """isRegisteredへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isRegistered(*args, **kwargs)
+
     def getVersionText(self):
         """Mayaが返すモジュールの版文字列をそのまま取得する。
 
@@ -120,6 +133,19 @@ class Module:
             raise ValueError("Invalid minimum version: {!r}".format(minimum))
         version = self.getVersion()
         return version is not None and version >= required
+
+    @_is_alias(isVersionAtLeast)
+    def versionAtLeast(self, *args, **kwargs):
+        """isVersionAtLeastへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isVersionAtLeast(*args, **kwargs)
 
     def getPath(self):
         """モジュールのフォルダーを取得する。

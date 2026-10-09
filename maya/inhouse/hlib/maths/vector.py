@@ -7,6 +7,8 @@ from operator import index as _as_index
 
 import maya.api.OpenMaya as om2
 
+from .._core.getterAlias import _is_alias
+
 _MVector = om2.MVector
 _MPoint = om2.MPoint
 _MMatrix = om2.MMatrix
@@ -344,7 +346,7 @@ class Vector(om2.MVector):
     成分は数値だけで、文字列などの不正な引数は om2 と同じく ValueError になる。
 
     演算子は om2 の意味論に従い、ベクトルの結果を基底の :class:`Vector` として返す
-    (Translation などの派生型は保持しない)。``om2.MVector`` が左辺の ``+`` / ``-`` /
+    (Translate などの派生型は保持しない)。``om2.MVector`` が左辺の ``+`` / ``-`` /
     ``^`` も、右辺の Vector の反射演算子が先に呼ばれるため Vector を返す。
 
     * ``+`` / ``-``: MVector 系同士の成分ごとの加減算。
@@ -537,7 +539,7 @@ class Vector(om2.MVector):
         """クラス名と3成分を含むデバッグ表現を返す。
 
         Returns:
-            str: ``Translation(1.0, 2.0, 3.0)`` の形式の文字列。
+            str: ``Translate(1.0, 2.0, 3.0)`` の形式の文字列。
         """
         return "{}({!r}, {!r}, {!r})".format(type(self).__name__, self.x, self.y, self.z)
 
@@ -864,7 +866,7 @@ class Vector(om2.MVector):
     def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
         """指定中心から成分を反転した同型の複製を返す。
 
-        Translation・Scale・Shearでも数値反転として使用できる。
+        Translate・Scale・Shearでも数値反転として使用できる。
         Scale・Shearの行列としての鏡映にはMatrix.mirrorを使う。
 
         Args:
@@ -1062,6 +1064,19 @@ class Vector(om2.MVector):
             bool: ほぼ等しければ True。
         """
         return _MVector.isEquivalent(self, _as_mvector(other), tolerance)
+
+    @_is_alias(isEquivalent)
+    def equivalent(self, *args, **kwargs):
+        """isEquivalentへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isEquivalent(*args, **kwargs)
 
     def lerp(self, other, t):
         """別のベクトルとの線形補間 ``self + (other - self) * t`` を返す。

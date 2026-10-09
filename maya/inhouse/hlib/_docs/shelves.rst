@@ -9,9 +9,9 @@ UIの作成・変更・削除はシーンのUndo対象外で、保存済みフ�
    import hlib
    from hlib.common import Shelf
 
-   shelf = hlib.getShelf()  # 現在のタブ。新規作成しない
-   print([item.getName() for item in Shelf.list()])
-   print([button.getLabel() for button in shelf.getButtons()])
+   shelf = hlib.shelf()  # 現在のタブ。新規作成しない
+   print([item.name() for item in Shelf.list()])
+   print([button.label() for button in shelf.buttons()])
 
    shelf = hlib.createShelf("MyTools")  # 同名がある場合は例外
    button = shelf.addButton(
@@ -22,7 +22,7 @@ UIの作成・変更・削除はシーンのUndo対象外で、保存済みフ�
    button.setCommand('print "Hello";', language="mel")
    shelf.select()
 
-``getButtons()`` はボタンオブジェクトを表示順で返し、区切り線は除外します。
+``buttons()`` はボタンオブジェクトを表示順で返し、区切り線は除外します。
 ``button.delete()`` はボタンだけを削除し、``shelf.clear()`` はタブ内の全項目を削除します。
 標準タブの内容が未ロードの場合は、取得・変更・保存前にMayaの遅延ロードを完了させます。
 

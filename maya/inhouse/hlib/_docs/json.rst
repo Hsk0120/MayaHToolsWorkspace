@@ -30,13 +30,13 @@ JSON変換や置換に失敗した場合、既存ファイルを成功したも�
 
 .. code-block:: python
 
-    from hlib.maths import Vector, EulerRotation
+    from hlib.maths import Vector, EulerRotate
 
     path = hlib.json.dump({
         "description": "調整前",
         "position": Vector(1, 2, 3),
-        "rotation": EulerRotation(0.1, 0.2, 0.3, "zyx"),
-        "target": hlib.getNode("control"),
+        "rotation": EulerRotate(0.1, 0.2, 0.3, "zyx"),
+        "target": hlib.node("control"),
     }, metadata={"label": "backup"})
 
     data = hlib.json.load(path)
@@ -87,12 +87,12 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
 .. code-block:: python
 
     attrs = hlib.json.capture(
-        hlib.getNode("control"), kind="attributes",
+        hlib.node("control"), kind="attributes",
         attributes=["translate", "visibility", "customValue"],
     )
     selection = hlib.json.capture(kind="selection")
-    curves = hlib.json.capture(hlib.getNode("control"), kind="curve")
-    timeline = hlib.json.capture(hlib.getTimeSlider(), kind="editor")
+    curves = hlib.json.capture(hlib.node("control"), kind="curve")
+    timeline = hlib.json.capture(hlib.timeSlider(), kind="editor")
 
 アトリビュートは数値・enum・文字列・行列・数値2/3要素compoundに対応します。
 配列は要素を明示してください。任意のtyped arrayやカスタムデータ型は対象外です。
@@ -103,7 +103,7 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
 
 .. code-block:: python
 
-    saved = hlib.json.capture(hlib.getNode("characterA:control"), kind="pose")
+    saved = hlib.json.capture(hlib.node("characterA:control"), kind="pose")
     plan = saved.plan(namespace_map={"characterA": "characterB"})
     if not plan.errors:
         plan.apply()
@@ -150,13 +150,15 @@ Undoを補うための独自Mayaプラグインは同梱・ロードしません
 * エディターは画面配置、カメラ、Channel Box選択、再生状態、タイムスライダーのドラッグ選択範囲を含みません。
 
 JSON全体は ``format="hlib.json"``、``version=1`` を持ち、Snapshotにも版を持たせています。
-数学型は型名を保持し、EulerRotationはラジアンと回転順序、Matrixは行優先16要素です。
-EulerRotationの回転順序は、``order`` がom2の番号(int)になった後も従来どおり
+数学型は型名を保持し、EulerRotateはラジアンと回転順序、Matrixは行優先16要素です。
+公開クラス名を ``Translate``・``EulerRotate`` に揃えた後も、保存タグは
+``math:Translation``・``math:EulerRotation`` を維持します。従来のJSONから新クラスへ復元できます。
+EulerRotateの回転順序は、``order`` がom2の番号(int)になった後も従来どおり
 ``"zyx"`` などの名前(``orderName``)で保存し、読み込み時は名前と番号のどちらも受け付けます。
 om2名のメソッド(``normal()``、``asMatrix()`` など)が返すom2の基底型(``MVector``、
 ``MQuaternion``、``MEulerRotation``、``MMatrix``)も、対応するhlibの型として保存します
 (読み込み結果はhlibの型)。利用者が定義した派生クラスや ``MPoint`` などは未対応型です。
-数学型の読み込みでは要素数(Vector系とEulerRotationは3、Quaternionは4、Matrixは16)、
+数学型の読み込みでは要素数(Vector系とEulerRotateは3、Quaternionは4、Matrixは16)、
 要素が数値(boolを除くint/float)であること、キーの過不足を検査し、合わない記録は拒否します。
 dict自体も型タグで包むため、利用者の ``type`` キーなどと衝突しません。
 非有限値、未対応型、文字列以外のdictキー、重複JSONキー、未対応形式は拒否します。

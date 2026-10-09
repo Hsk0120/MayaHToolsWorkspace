@@ -35,8 +35,8 @@ class ConvenienceTests(unittest.TestCase):
         array[3].set(30)
         self.assertEqual([p.get() for p in array], [30, 80])
         self.assertEqual(array.get(), {3:30, 8:80})
-        self.assertEqual(node.translate[0], node.tx)
-        self.assertEqual(cmds.getAttr(str(node.translate)), [(0.0, 0.0, 0.0)])
+        self.assertEqual(node.getPlug("translate")[0], node.tx)
+        self.assertEqual(cmds.getAttr(str(node.getPlug("translate"))), [(0.0, 0.0, 0.0)])
         message = node.addAttr('links', at='message', multi=True)
         other = hlib.createNode('transform')
         cmds.connectAttr(str(other.message), str(message[4]))
@@ -55,7 +55,7 @@ class ConvenienceTests(unittest.TestCase):
 
     def test_compound_brackets_and_cmds_boundary(self):
         node = hlib.createNode('transform')
-        compound = node.translate
+        compound = node.getPlug("translate")
         self.assertEqual(compound[0], node.tx)
         self.assertEqual(compound['translateX'], node.tx)
         self.assertEqual(compound['tx'], node.tx)
@@ -90,7 +90,7 @@ class ConvenienceTests(unittest.TestCase):
         self.assertEqual([str(n) for n in root.iterBreadthFirst()], ['root','a','b','c'])
         self.assertEqual([str(n) for n in root.iterDepthFirst()], ['root','a','c','b'])
         self.assertEqual(len(list(root.iterBreadthFirst(shapes=True))), 5)
-        shape.intermediateObject.set(True)
+        shape.getPlug("intermediateObject").set(True)
         self.assertEqual(len(list(root.iterBreadthFirst(shapes=True))), 4)
         cmds.parent(str(c), str(b), add=True)
         self.assertEqual(len(c.getInstances()), 2)

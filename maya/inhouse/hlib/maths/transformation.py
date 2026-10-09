@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
 
-from .eulerRotation import EulerRotation
+from .._core.getterAlias import _is_alias
+from .eulerRotate import EulerRotate
 from .matrix import Matrix
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
-from .translation import Translation
+from .translate import Translate
 
 
 class Transformation:
@@ -28,39 +29,39 @@ class Transformation:
                 "rp": "rotatePivot", "rpt": "rotatePivotTranslate", "sp": "scalePivot",
                 "spt": "scalePivotTranslate", "ssc": "segmentScaleCompensate",
                 "is": "inverseScale", "is_": "inverseScale", "m": "matrix"}
-    _types = {"translate": Translation, "rotate": EulerRotation, "scale": Scale,
+    _types = {"translate": Translate, "rotate": EulerRotate, "scale": Scale,
               "shear": Shear, "rotateAxis": Quaternion, "jointOrient": Quaternion,
-              "rotatePivot": Translation, "rotatePivotTranslate": Translation,
-              "scalePivot": Translation, "scalePivotTranslate": Translation, "inverseScale": Scale}
+              "rotatePivot": Translate, "rotatePivotTranslate": Translate,
+              "scalePivot": Translate, "scalePivotTranslate": Translate, "inverseScale": Scale}
 
     if TYPE_CHECKING:
-        translate: Translation
-        rotate: EulerRotation
+        translate: Translate
+        rotate: EulerRotate
         quaternion: Quaternion
         scale: Scale
         shear: Shear
         rotateOrder: int
         rotateAxis: Quaternion
         jointOrient: Quaternion
-        rotatePivot: Translation
-        rotatePivotTranslate: Translation
-        scalePivot: Translation
-        scalePivotTranslate: Translation
+        rotatePivot: Translate
+        rotatePivotTranslate: Translate
+        scalePivot: Translate
+        scalePivotTranslate: Translate
         inverseScale: Scale
         segmentScaleCompensate: bool
         matrix: Matrix
-        t: Translation
-        r: EulerRotation
+        t: Translate
+        r: EulerRotate
         q: Quaternion
         s: Scale
         sh: Shear
         ro: int
         ra: Quaternion
         jo: Quaternion
-        rp: Translation
-        rpt: Translation
-        sp: Translation
-        spt: Translation
+        rp: Translate
+        rpt: Translate
+        sp: Translate
+        spt: Translate
         is_: Scale
         ssc: bool
         m: Matrix
@@ -150,16 +151,16 @@ class Transformation:
             self._values[name] = value
             return
         if name == "quaternion":
-            rotation = self._quaternion(value).asEulerRotation()
+            rotation = self._quaternion(value).asEulerRotate()
             rotation.reorderIt(self.rotateOrder)
-            self._values["rotate"] = EulerRotation(rotation.closestSolution(self.rotate))
+            self._values["rotate"] = EulerRotate(rotation.closestSolution(self.rotate))
             return
         if name not in self._types:
             raise AttributeError(name)
         if name in ("rotateAxis", "jointOrient"):
             converted = self._quaternion(value)
         elif name == "rotate":
-            converted = EulerRotation(value) if isinstance(value, om2.MEulerRotation) else EulerRotation(value, order=self.rotateOrder)
+            converted = EulerRotate(value) if isinstance(value, om2.MEulerRotation) else EulerRotate(value, order=self.rotateOrder)
         else:
             converted = self._types[name](value)
         if not all(math.isfinite(v) for v in converted):
@@ -171,7 +172,7 @@ class Transformation:
         """EulerまたはQuaternionを有限な単位Quaternionへコピーする。
 
         Args:
-            value: EulerRotationまたはQuaternionとして解釈できる回転値。
+            value: EulerRotateまたはQuaternionとして解釈できる回転値。
         """
         q = Quaternion(value.asQuaternion() if isinstance(value, om2.MEulerRotation) else value)
         length = sum(v * v for v in q)
@@ -244,7 +245,7 @@ class Transformation:
             scale = tuple(v * sign for v, sign in zip(scale, signs))
             shear = (shear[0] * signs[0] * signs[1], shear[1] * signs[0] * signs[2], shear[2] * signs[1] * signs[2])
         q = self.rotateAxis.inverse() * q * self.jointOrient.inverse()
-        rotation = q.asEulerRotation()
+        rotation = q.asEulerRotate()
         rotation.reorderIt(self.rotateOrder)
         rotation = rotation.closestSolution(self.rotate)
         trial = self.copy()
@@ -297,6 +298,19 @@ class Transformation:
         if not isinstance(other, Transformation) or self.rotateOrder != other.rotateOrder or self.ssc != other.ssc:
             return False
         return all(all(abs(a - b) <= tolerance for a, b in zip(self._values[n], other._values[n])) for n in self._types)
+
+    @_is_alias(isEquivalent)
+    def equivalent(self, *args, **kwargs):
+        """isEquivalentへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isEquivalent(*args, **kwargs)
 
     def __eq__(self, other):
         """保持した全成分の完全一致を比較する。

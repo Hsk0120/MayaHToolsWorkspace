@@ -8,16 +8,16 @@ Undo不要の値更新
 
    import hlib
 
-   node = hlib.getNode("pCube1")
-   node.getPlug("translateX").set(10, fast=True)
-   node.setTranslation((1, 2, 3), fast=True)
+   node = hlib.node("pCube1")
+   node.plug("translateX").set(10, fast=True)
+   node.setTranslate((1, 2, 3), fast=True)
 
-   shape = hlib.getNode("pCubeShape1")
-   shape.getVertices().setPosition((0, 1, 0), fast=True)
-   shape.getVertices().mirror(axis="x", fast=True)
+   shape = hlib.node("pCubeShape1")
+   shape.vertices().setPosition((0, 1, 0), fast=True)
+   shape.vertices().mirror(axis="x", fast=True)
 
    joints = hlib.ls(type="joint")
-   joints.freezeRotation(fast=True)
+   joints.freezeRotate(fast=True)
 
 対応範囲
 --------
@@ -25,7 +25,7 @@ Undo不要の値更新
 * Plugの ``set`` / ``reset`` とロック・keyable・channelBoxの設定。
   配列は要素Plugを取得して設定します。
 * Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー。
-* Joint / Jointsの ``freezeRotation`` と ``jointOrientToRotate``。
+* Joint / Jointsの ``freezeRotate`` と ``jointOrientToRotate``。
 * NodeのOutliner色・override色・アトリビュート表示フラグ。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
 * Shape / Transformの ``scaleGeometry``。履歴なしメッシュ・非周期カーブに対応。

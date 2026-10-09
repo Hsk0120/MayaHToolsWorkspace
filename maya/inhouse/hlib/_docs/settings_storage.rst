@@ -100,7 +100,7 @@ Windowsの標準位置は ``Documents/maya/<version>/prefs`` ですが、環境�
    from hlib.common import Preferences
 
    prefs = Preferences()
-   print(prefs.getLinearUnit())  # 現在値の照会のみ
+   print(prefs.linearUnit())  # 現在値の照会のみ
    print(cmds.internalVar(userPrefDir=True))
    print(cmds.internalVar(userShelfDir=True))
 

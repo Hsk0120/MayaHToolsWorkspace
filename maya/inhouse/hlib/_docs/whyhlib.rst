@@ -16,10 +16,10 @@ hlibはPyMELに依存せず、独自のAPIを提供します。
 
    import hlib
 
-   control = hlib.getNode("control")
-   control.setTranslation((1, 2, 3))
-   control.getPlug("visibility").set(True)
-   matrix = control.getMatrix(ws=True)
+   control = hlib.node("control")
+   control.setTranslate((1, 2, 3))
+   control.plug("visibility").set(True)
+   matrix = control.matrix(ws=True)
 
 この例の ``control`` は既存のTransform名です。以下の作成例はMaya内で実行できます。
 hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリです。
@@ -47,14 +47,14 @@ hlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
      - Vertex・CV・Edge・Face・UV
      - コンポーネント（頂点・エッジ・フェース・CV・UV）を参照し、座標や接続情報を扱う
    * - ``maths``
-     - Matrix・Quaternion・Vector・EulerRotation
+     - Matrix・Quaternion・Vector・EulerRotate
      - シーンから取得した値の計算。計算だけではシーンを変更しない
    * - ``common``
      - Scene・Selection・Color・Viewport・Preferences・ScriptJob
      - シーン、表示、作業環境、イベント、汎用処理を浅い共通入口から扱う
    * - ``cmds``
-     - getNode・createNode・lsなどの関数
-     - 対象の取得・作成の入口。通常は ``hlib.getNode()`` のように呼ぶ
+     - node・createNode・lsなどの関数
+     - 対象の取得・作成の入口。通常は ``hlib.node()`` のように呼ぶ
 
 ここでいうコンポーネントは、Mayaの形状を構成する要素です。
 例えばメッシュの頂点・エッジ・フェースや、カーブのCVを指します。
@@ -162,7 +162,7 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
           direction TB
           class Matrix
           class Quaternion
-          class EulerRotation
+          class EulerRotate
           class Vector
           class MMatrix["OpenMaya.MMatrix"]
           class MQuaternion["OpenMaya.MQuaternion"]
@@ -175,13 +175,13 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
           object <|-- MVector
           MMatrix <|-- Matrix
           MQuaternion <|-- Quaternion
-          MEulerRotation <|-- EulerRotation
+          MEulerRotation <|-- EulerRotate
           MVector <|-- Vector
           click MMatrix href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_matrix.html" "Autodesk Python API 2.0: MMatrix" _self
           click MQuaternion href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_quaternion.html" "Autodesk Python API 2.0: MQuaternion" _self
           click MEulerRotation href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_euler_rotation.html" "Autodesk Python API 2.0: MEulerRotation" _self
           click MVector href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_vector.html" "Autodesk Python API 2.0: MVector" _self
-          click EulerRotation href "autoapi/hlib/maths/eulerRotation/EulerRotation.html#hlib.maths.eulerRotation.EulerRotation" "hlib.maths.eulerRotation.EulerRotation" _self
+          click EulerRotate href "autoapi/hlib/maths/eulerRotate/EulerRotate.html#hlib.maths.eulerRotate.EulerRotate" "hlib.maths.eulerRotate.EulerRotate" _self
           click Matrix href "autoapi/hlib/maths/matrix/Matrix.html#hlib.maths.matrix.Matrix" "hlib.maths.matrix.Matrix" _self
           click Quaternion href "autoapi/hlib/maths/quaternion/Quaternion.html#hlib.maths.quaternion.Quaternion" "hlib.maths.quaternion.Quaternion" _self
           click Vector href "autoapi/hlib/maths/vector/Vector.html#hlib.maths.vector.Vector" "hlib.maths.vector.Vector" _self
@@ -195,14 +195,14 @@ hlibのクラス名はこのドキュメントのAPIリファレンスへリン�
 単数クラスは1対象、複数形クラスは複数対象を扱います。
 
 **Mayaへの問い合わせはメソッド、保持する値はプロパティを基本とします。**
-例えば ``node.getName()`` は現在の名前を問い合わせ、``plug.getNode()`` は保持する所有ノード参照です。
+例えば ``node.name()`` は現在の名前を問い合わせ、``plug.node()`` は保持する所有ノード参照です。
 ``matrix`` や ``quaternion`` の成分を変更しても、取得元ノードへ自動反映されません。
-反映には ``setMatrix()`` や ``setRotation()`` を明示的に呼びます。
+反映には ``setMatrix()`` や ``setRotate()`` を明示的に呼びます。
 
 ノード単位で操作する
 ----------------------------------------------------------------------
 
-``hlib.getNode()`` は実際のノード型に対応したクラスを返します。
+``hlib.node()`` は実際のノード型に対応したクラスを返します。
 JointならJointの操作、SkinClusterならウェイト関連の操作を、その対象から呼べます。
 
 .. code-block:: python
@@ -212,10 +212,10 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    source = hlib.createNode("transform", name="hlibDemo_source")
    target = hlib.createNode("transform", name="hlibDemo_target")
 
-   source.setTranslation((1, 2, 3))
-   source.setScaling((2, 2, 2))
+   source.setTranslate((1, 2, 3))
+   source.setScale((2, 2, 2))
    source.setOutlinerColor((0.3, 0.7, 1.0))
-   target.setMatrix(source.getMatrix(ws=True), ws=True)
+   target.setMatrix(source.matrix(ws=True), ws=True)
 
 .. list-table:: 便利な操作の例
    :header-rows: 1
@@ -224,16 +224,16 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
      - メソッド
      - 用途
    * - Transform
-     - ``getMatrix()`` / ``setMatrix()``
+     - ``matrix()`` / ``setMatrix()``
      - 変換行列を取得・反映する
    * - Transform
      - ``addConstraint()`` / ``deleteConstraints()``
      - 拘束を作成・削除する
    * - Joint
-     - ``freezeRotation()`` / ``jointOrientToRotate()``
+     - ``freezeRotate()`` / ``jointOrientToRotate()``
      - rotateとjointOrientの間で姿勢を移す
    * - SkinCluster
-     - ``getWeights()`` / ``setWeights()``
+     - ``weights()`` / ``setWeights()``
      - スキンウェイトを取得・反映する
    * - Mesh・NurbsCurve
      - ``mirror()``
@@ -244,8 +244,8 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 .. code-block:: python
 
    transforms = hlib.nodes.Transforms([source, target])
-   transforms.setTranslation((0, 5, 0))
-   matrices = transforms.getMatrix(ws=True)
+   transforms.setTranslate((0, 5, 0))
+   matrices = transforms.matrix(ws=True)
 
 一括操作の戻り値と事前検証の範囲は各メソッドの仕様に従います。
 詳しくは :doc:`guide_nodes` と :doc:`modules` を参照してください。
@@ -254,26 +254,26 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 ----------------------------------------------------------------------
 
 アトリビュートは ``Plug`` オブジェクトとして扱います。ノード名とアトリビュート名を毎回連結する代わりに、
-取得したアトリビュートから読み書きや接続を行えます。説明と使用例は ``getPlug()`` に統一しています。
+取得したアトリビュートから読み書きや接続を行えます。説明と使用例は ``plug()`` に統一しています。
 
 .. code-block:: python
 
    # 上の作成例で用意したsourceとtargetを使用
-   translate_x = source.getPlug("tx")
+   translate_x = source.plug("tx")
    translate_x.set(10)
    value = translate_x.get()
 
-   source.getPlug("tx").connectTo(target.getPlug("tx"))
-   target.getPlug("tx").disconnect(source.getPlug("tx"))
+   source.plug("tx").connectTo(target.plug("tx"))
+   target.plug("tx").disconnect(source.plug("tx"))
 
-   target.getPlug("visibility").set(False)
-   target.getPlug("visibility").setFlags(locked=True)
+   target.plug("visibility").set(False)
+   target.plug("visibility").setFlags(locked=True)
 
 ``tx`` と ``translateX`` は同じアトリビュートを指します。
 ``translate`` のような3成分アトリビュートは ``Double3Plug``、配列アトリビュートは ``ArrayPlug`` など、
 アトリビュートの構造に合ったラッパーが選ばれます。
 
-ノードの ``setRotation()`` は姿勢を扱い、``getPlug("rotate").set()`` はrotateアトリビュートの値を扱います。
+ノードの ``setRotate()`` は姿勢を扱い、``plug("rotate").set()`` はrotateアトリビュートの値を扱います。
 JointのjointOrientなどがある場合、この2つは同じ操作とは限りません。
 詳しい受付対象は :doc:`cmds_interop` を参照してください。
 
@@ -296,11 +296,11 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 
    reference = hlib.createNode("transform", name="hlibDemo_reference")
    driven = hlib.createNode("transform", name="hlibDemo_driven")
-   reference.setTranslation((10, 0, 0))
-   driven.setTranslation((12, 3, 0))
+   reference.setTranslate((10, 0, 0))
+   driven.setTranslate((12, 3, 0))
 
-   reference_world = reference.getMatrix(ws=True)
-   driven_world = driven.getMatrix(ws=True)
+   reference_world = reference.matrix(ws=True)
+   driven_world = driven.matrix(ws=True)
    relative = driven_world * reference_world.inverse()
 
    restored_world = relative * reference_world
@@ -313,7 +313,7 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 クォータニオンの補間
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-回転も ``getQuaternion()`` で取得し、``slerp()`` で補間した結果をそのまま反映できます。
+回転も ``quaternion()`` で取得し、``slerp()`` で補間した結果をそのまま反映できます。
 
 .. code-block:: python
 
@@ -322,12 +322,12 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
    start = hlib.createNode("transform", name="hlibDemo_start")
    end = hlib.createNode("transform", name="hlibDemo_end")
    result = hlib.createNode("transform", name="hlibDemo_result")
-   end.setRotation((0, 90, 0), unit="deg")
+   end.setRotate((0, 90, 0), unit="deg")
 
-   q_start = start.getQuaternion(ws=True)
-   q_end = end.getQuaternion(ws=True)
+   q_start = start.quaternion(ws=True)
+   q_end = end.quaternion(ws=True)
    q_middle = q_start.slerp(q_end, 0.5)
-   result.setRotation(q_middle, ws=True)
+   result.setRotate(q_middle, ws=True)
 
    rotation_matrix = q_middle.asMatrix()
 
@@ -339,7 +339,7 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 ツール開発での使い分け
 ----------------------------------------------------------------------
 
-* 対象の取得・作成は ``hlib.getNode()`` や ``hlib.createNode()``。
+* 対象の取得・作成は ``hlib.node()`` や ``hlib.createNode()``。
 * ノード全体の操作はNode派生、アトリビュートの操作はPlug、形状の一部はComponent。
 * 計算はMatrix・Quaternionなどの値で行い、結果の反映は明示的なsetter。
 * 通常の編集は各メソッドのUndo対応を利用。複数操作を一つのツールとしてまとめる場合に外側でUndoをまとめる。

@@ -31,7 +31,7 @@ class DagContainerTest(unittest.TestCase):
         self.assertIsInstance(self.owner, Transform)
         self.assertIsInstance(self.owner, Container)
         self.owner.getPlug("translateX").set(4)
-        self.assertAlmostEqual(self.owner.getTranslation(at=4)[0], 4)
+        self.assertAlmostEqual(self.owner.getTranslate(at=4)[0], 4)
         node = self.owner.createNode("multiplyDivide")
         self.owner.publishAndBind("Gain", node.getPlug("input2X"))
         self.assertEqual(self.owner.getPublishedAttrs()["Gain"], node.getPlug("input2X"))

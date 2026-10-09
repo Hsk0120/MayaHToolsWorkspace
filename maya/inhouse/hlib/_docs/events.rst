@@ -10,15 +10,15 @@ importだけでは監視を開始しません。バッチでは登録を拒否�
 
     import hlib
 
-    control = hlib.getNode("settings_ctrl")
+    control = hlib.node("settings_ctrl")
     jobs = hlib.common.ScriptJobs()
 
     def changed():
-        print(control.getPlug("enabled").get())
+        print(control.plug("enabled").get())
 
     job = jobs.add(
         "enabled",
-        attribute=control.getPlug("enabled"),
+        attribute=control.plug("enabled"),
         callback=changed,
         kill_with_scene=True,
         compress_undo=True,
@@ -43,7 +43,7 @@ importだけでは監視を開始しません。バッチでは登録を拒否�
 アトリビュートの取得と変更通知の抑制
 ------------------------------------------------------------
 
-``hlib.getPlug("settings_ctrl.enabled")`` は既存アトリビュートを型に対応するPlugへ解決します。
+``hlib.plug("settings_ctrl.enabled")`` は既存アトリビュートを型に対応するPlugへ解決します。
 Plug自身やOpenMaya API 2.0のMPlugも受け付けます。
 
 ``Plug.setIfChanged(value, unlock=False)`` はbool/int/float/strのスカラー値を

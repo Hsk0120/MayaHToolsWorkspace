@@ -3,7 +3,7 @@
 from .vector import Vector
 
 
-class Translation(Vector):
+class Translate(Vector):
     """位置・平行移動を表す意味付きの3成分ベクトル(om2.MVector の派生)。
 
     値・演算・比較はすべて :class:`~hlib.maths.vector.Vector` と同じ。

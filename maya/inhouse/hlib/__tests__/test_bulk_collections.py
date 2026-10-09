@@ -21,31 +21,31 @@ class BulkCollectionsTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_common_and_per_item_transform_undo(self):
-        self.joints.setTranslation((1, 2, 3), at=4)
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(1, 2, 3)] * 2)
+        self.joints.setTranslate((1, 2, 3), at=4)
+        self.assertEqual([tuple(p) for p in self.joints.getTranslate(at=4)], [(1, 2, 3)] * 2)
         cmds.undo()
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(0, 0, 0)] * 2)
+        self.assertEqual([tuple(p) for p in self.joints.getTranslate(at=4)], [(0, 0, 0)] * 2)
         cmds.redo()
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(1, 2, 3)] * 2)
-        self.joints.callEach("setTranslation", [((4, 5, 6),), ((7, 8, 9),)])
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(4, 5, 6), (7, 8, 9)])
+        self.assertEqual([tuple(p) for p in self.joints.getTranslate(at=4)], [(1, 2, 3)] * 2)
+        self.joints.callEach("setTranslate", [((4, 5, 6),), ((7, 8, 9),)])
+        self.assertEqual([tuple(p) for p in self.joints.getTranslate(at=4)], [(4, 5, 6), (7, 8, 9)])
         self.assertEqual(self.joints.isJoint(), [True, True])
         self.assertEqual(self.joints.getFullName(), [item.getFullName() for item in self.joints])
         self.assertEqual(self.joints[:1].getNames(), self.names[:1])
         self.assertEqual(len(self.joints), 2)
         self.assertFalse(hasattr(self.joints, "create"))
-        self.assertEqual(hlib.nodes.Joints().getTranslation(at=4), [])
+        self.assertEqual(hlib.nodes.Joints().getTranslate(at=4), [])
 
     def test_argument_validation_and_failure_context(self):
         with self.assertRaises(ValueError):
-            self.joints.callEach("setTranslation", [((1, 2, 3),)])
+            self.joints.callEach("setTranslate", [((1, 2, 3),)])
         with self.assertRaises(TypeError):
-            self.joints.callEach("setTranslation", [((1, 2, 3),), ()])
-        self.assertEqual([tuple(p) for p in self.joints.getTranslation(at=4)], [(0, 0, 0)] * 2)
+            self.joints.callEach("setTranslate", [((1, 2, 3),), ()])
+        self.assertEqual([tuple(p) for p in self.joints.getTranslate(at=4)], [(0, 0, 0)] * 2)
         cmds.setAttr(self.names[1] + ".translateX", lock=True)
         try:
-            with self.assertRaisesRegex(RuntimeError, "setTranslation failed at item 1"):
-                self.joints.setTranslation((5, 0, 0), at=4)
+            with self.assertRaisesRegex(RuntimeError, "setTranslate failed at item 1"):
+                self.joints.setTranslate((5, 0, 0), at=4)
             self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 5)
             cmds.undo()
             self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 0)
@@ -65,17 +65,17 @@ class BulkCollectionsTest(unittest.TestCase):
                 return self
 
         joints = CustomJoints(self.names)
-        self.assertIs(joints.setTranslation((1, 2, 3), ws=True), joints)
-        self.assertEqual(captured, [("setTranslation", [((1, 2, 3),)] * 2,
+        self.assertIs(joints.setTranslate((1, 2, 3), ws=True), joints)
+        self.assertEqual(captured, [("setTranslate", [((1, 2, 3),)] * 2,
                                      [{"ws": True}] * 2)])
-        self.assertIs(joints.translation(ws=True), joints)
-        self.assertEqual(captured[-1], ("getTranslation", [()] * 2, [{"ws": True}] * 2))
-        self.assertEqual(inspect.signature(hlib.nodes.Transforms.setTranslation),
-                         inspect.signature(hlib.nodes.Transform.setTranslation))
+        self.assertIs(joints.translate(ws=True), joints)
+        self.assertEqual(captured[-1], ("getTranslate", [()] * 2, [{"ws": True}] * 2))
+        self.assertEqual(inspect.signature(hlib.nodes.Transforms.setTranslate),
+                         inspect.signature(hlib.nodes.Transform.setTranslate))
         empty = hlib.nodes.Transforms()
-        self.assertIs(empty.setTranslation(), empty)
-        self.assertEqual(empty.getTranslation(unknown=True), [])
-        self.assertEqual(empty.translation(unknown=True), [])
+        self.assertIs(empty.setTranslate(), empty)
+        self.assertEqual(empty.getTranslate(unknown=True), [])
+        self.assertEqual(empty.translate(unknown=True), [])
 
     def test_skin_methods_and_file_operations_are_explicit(self):
         meshes = [cmds.polyCube(name=self.ns + ":mesh")[0] for _ in range(2)]

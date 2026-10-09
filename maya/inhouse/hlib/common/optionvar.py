@@ -23,7 +23,7 @@ import re
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 
 # 接頭辞とキーをつなぐ文字。キー側には含められない(接頭辞の直下だけを列挙するため)。
 _SEPARATOR = "."
@@ -289,6 +289,19 @@ class OptionVar:
             ValueError: key が空、または ASCII の英数字と ``_`` 以外の文字を含む場合。
         """
         return self._read_stored(key) is not _MISSING
+
+    @_is_alias(isStored)
+    def stored(self, *args, **kwargs):
+        """isStoredへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isStored(*args, **kwargs)
 
     def getStoredKeys(self):
         """読み出せる値が保存されているキーを列挙する。

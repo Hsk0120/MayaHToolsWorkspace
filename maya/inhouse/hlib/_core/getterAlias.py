@@ -1,4 +1,4 @@
-"""明示したget省略入口へ正式getterの署名とフラグ情報を付与する。"""
+"""明示したget/is省略入口へ正式メソッドの署名とフラグ情報を付与する。"""
 
 import inspect
 
@@ -41,3 +41,20 @@ def _getter_alias(getter, *, static=False):
         return alias
 
     return decorate
+
+
+def _is_alias(predicate, *, static=False):
+    """is省略入口へ、判定本体の署名とフラグ情報を付与する。
+
+    Args:
+        predicate (callable | classmethod | staticmethod): 委譲先の判定メソッド。
+        static (bool): staticmethodをclassmethodから呼ぶ入口ならTrue。
+
+    Returns:
+        callable: 明示したdefを補完するデコレーター。
+
+    Note:
+        呼出しは入口のdefが現在の判定メソッドへ委譲する。
+        get省略入口と同じ補助を使い、評価・Undo・キャッシュは追加しない。
+    """
+    return _getter_alias(predicate, static=static)

@@ -9,7 +9,7 @@ import maya.cmds as cmds
 
 import hlib
 hlib.reload()
-from hlib.maths import EulerRotation, Scale
+from hlib.maths import EulerRotate, Scale
 from hlib.nodes import Node
 from hlib.nodes.joint import Joint
 
@@ -108,7 +108,7 @@ class JointTest(unittest.TestCase):
         cmds.setAttr(joint.getFullName() + ".jointOrientY", -45.0)
 
         orient = joint.getJointOrient()
-        self.assertIsInstance(orient, EulerRotation)
+        self.assertIsInstance(orient, EulerRotate)
         self.assertAlmostEqual(orient.x, math.radians(90.0), places=9)
         self.assertAlmostEqual(orient.y, math.radians(-45.0), places=9)
         self.assertAlmostEqual(orient.z, 0.0, places=9)
@@ -128,19 +128,19 @@ class JointTest(unittest.TestCase):
 
     def test_set_rotate_preserves_joint_orient_and_rotate_axis(self):
         # jointOrient/rotateAxis は度数法のアトリビュートなので、内部で角度単位を取り違えると
-        # ここで大きくズレる（asDouble() はラジアンを返すため）。setRotation は
+        # ここで大きくズレる（asDouble() はラジアンを返すため）。setRotate は
         # rotateAxis/jointOrient を補正した上で .rotate チャンネルへ書き込むため、
-        # .rotate の生値ではなく getRotation() による round-trip で検証する。
+        # .rotate の生値ではなく getRotate() による round-trip で検証する。
         joint = self.create_joint("hlibJointOrientPreserve")
         cmds.setAttr(joint.getFullName() + ".jointOrientX", 90.0)
         cmds.setAttr(joint.getFullName() + ".rotateAxisY", 30.0)
 
-        joint.setRotation((0.0, math.radians(45.0), 0.0))
+        joint.setRotate((0.0, math.radians(45.0), 0.0))
 
         self.assertAlmostEqual(cmds.getAttr(joint.getFullName() + ".jointOrientX"), 90.0, places=6)
         self.assertAlmostEqual(cmds.getAttr(joint.getFullName() + ".rotateAxisY"), 30.0, places=6)
 
-        rotate = joint.getRotation()
+        rotate = joint.getRotate()
         self.assertAlmostEqual(rotate.x, 0.0, places=6)
         self.assertAlmostEqual(rotate.y, math.radians(45.0), places=6)
         self.assertAlmostEqual(rotate.z, 0.0, places=6)
@@ -181,8 +181,8 @@ class JointTest(unittest.TestCase):
         for operation in (
             lambda: joint.setMatrix(joint.getMatrix()),
             lambda: joint.setMatrix(world, ws=True),
-            lambda: joint.setTranslation(joint.getTranslation(at=4), at=4),
-            lambda: joint.setScaling(joint.getScaling()),
+            lambda: joint.setTranslate(joint.getTranslate(at=4), at=4),
+            lambda: joint.setScale(joint.getScale()),
         ):
             operation()
             self.assertTrue(joint.getMatrix(ws=True).isEquivalent(world, 1e-9))

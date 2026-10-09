@@ -7,7 +7,7 @@ import maya.api.OpenMaya as om2
 from ..common._fast import fast_edit
 from ..common._safe import safe_edit
 from ..decorator import undoChunk
-from ..maths import EulerRotation, Scale, Shear, Translation, Vector
+from ..maths import EulerRotate, Scale, Shear, Translate, Vector
 from .compoundPlug import CompoundPlug
 
 
@@ -15,8 +15,8 @@ class Double3Plug(CompoundPlug):
     """アトリビュートの子成分だけを扱う。ノードの行列変換には委譲しない。"""
 
     _value_types = {
-        "translate": Translation, "t": Translation,
-        "rotate": EulerRotation, "r": EulerRotation,
+        "translate": Translate, "t": Translate,
+        "rotate": EulerRotate, "r": EulerRotate,
         "scale": Scale, "s": Scale,
         "shear": Shear, "sh": Shear,
     }
@@ -25,7 +25,7 @@ class Double3Plug(CompoundPlug):
         """アトリビュートの3成分を取得する。jointOrientなどを合成しない。
 
         Returns:
-            Vector | Translation | EulerRotation | Scale | Shear: アトリビュートの値。
+            Vector | Translate | EulerRotate | Scale | Shear: アトリビュートの値。
                 rotateはラジアン・ノードのrotateOrder、距離はcm。
 
         Raises:
@@ -33,11 +33,11 @@ class Double3Plug(CompoundPlug):
         """
         self._require_valid()
         value_type = self._value_types.get(self.getLongName(), Vector)
-        if value_type is EulerRotation:
+        if value_type is EulerRotate:
             order = int(self.getNode().getPlug("ro").get())
             # UIの角度単位に依存せず、値型はラジアンで構築する。
             values = [self._child_at(index).mplug().asMAngle().asRadians() for index in range(3)]
-            return EulerRotation(*values, order=order)
+            return EulerRotate(*values, order=order)
         return value_type(*(self._child_at(index).get() for index in range(3)))
 
     @fast_edit
@@ -48,7 +48,7 @@ class Double3Plug(CompoundPlug):
 
         Args:
             safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
-            value (Iterable[float] | EulerRotation | Quaternion): 3成分の値。
+            value (Iterable[float] | EulerRotate | Quaternion): 3成分の値。
                 rotateではEuler/Quaternionも受け入れ、ノードのrotateOrderへ変換する。
                 数値3成分は現在のrotateOrderのチャンネル値として解釈する。
             unit (str): rotateの数値3成分の角度単位rad/deg。それ以外のアトリビュートでは未使用。
@@ -61,7 +61,7 @@ class Double3Plug(CompoundPlug):
             ValueError: 要素数・有限値・角度単位が不正、または型付き回転にdegを指定した場合。
             RuntimeError: アトリビュートが無効、ロック・接続済み、またはMayaが更新を拒否した場合。
 
-        ワールド空間やjointOrientを含む姿勢の変更はTransform.setRotation等を使う。
+        ワールド空間やjointOrientを含む姿勢の変更はTransform.setRotate等を使う。
         通常モードは1回のUndoで戻せる。Mayaの実行時エラーを自動ロールバックはしない。
         """
         self._require_valid()
@@ -76,7 +76,7 @@ class Double3Plug(CompoundPlug):
             value: 変換・設定する入力値。
             unit: 値の単位を指定する識別子。
         """
-        if self._value_types.get(self.getLongName()) is EulerRotation:
+        if self._value_types.get(self.getLongName()) is EulerRotate:
             if unit not in ("rad", "deg"):
                 raise ValueError("unit must be 'rad' or 'deg'")
             order = int(self.getNode().getPlug("ro").get())

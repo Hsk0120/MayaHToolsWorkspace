@@ -10,10 +10,10 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
    import hlib
 
    joints = hlib.nodes.Joints(["joint1", "joint2"])
-   positions = joints.getTranslation(ws=True)
-   joints.setTranslation((1, 2, 3), ws=True)
-   matrices = joints.getMatrix(ws=True)
-   joint_orients = joints.getJointOrient()
+   positions = joints.translate(ws=True)
+   joints.setTranslate((1, 2, 3), ws=True)
+   matrices = joints.matrix(ws=True)
+   joint_orients = joints.jointOrient()
    joints.setAttrFlags(["visibility"], keyable=False)
 
 引数は単体メソッドと同じで、全要素へ同じ引数を渡します。
@@ -24,7 +24,7 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
 通常の更新ではコレクション自身を返します。callEachも同じ規則です。
 照会結果がリストなら二重リストを保持し、Noneも除外しません。
 空コレクションでも照会は空リスト、更新は自身です。
-アトリビュート名の暗黙アクセスは転送しません。アトリビュート取得には ``joints.getPlug("translateX")`` を使います。
+アトリビュート名の暗黙アクセスは転送しません。アトリビュート取得には ``joints.plug("translateX")`` を使います。
 
 要素別の引数
 ------------------------------------------------------------
@@ -32,7 +32,7 @@ Joints・SkinClustersに、単体の公開インスタンスメソッドを
 .. code-block:: python
 
    joints.callEach(
-       "setTranslation",
+       "setTranslate",
        [((1, 2, 3),), ((4, 5, 6),)],
        [{"ws": True}, {"ws": True}],
    )
@@ -48,8 +48,8 @@ callEachのargumentsは、各要素への位置引数タプルを並べた列で
 
 * Joints.delete: ウェイト移送と子の退避を行う既存の削除処理。
 * Joints.skinClusters: 重複を除いたSkinClustersを返す。
-* Joints.getNames()、sortedByDepth(): 名前の一覧・階層順のコレクションを返す。
-* Joints.jointOrientToRotate、freezeRotation: 全対象を事前検証し、Joints自身を返す。
+* Joints.names()、sortedByDepth(): 名前の一覧・階層順のコレクションを返す。
+* Joints.jointOrientToRotate、freezeRotate: 全対象を事前検証し、Joints自身を返す。
 * SkinClusters.removeInfluences: 保持するskinClusterのinfluence解除。戻り値は自身です。joint削除はJoints.deleteを使います。
 
 コレクション固有の処理は専用メソッドで定義します。同名で意味が異なる場合は、
@@ -62,8 +62,8 @@ SkinClusters
 
 .. code-block:: python
 
-   skins = joints.getSkinClusters()
-   influences_by_skin = skins.getInfluences()
+   skins = joints.skinClusters()
+   influences_by_skin = skins.influences()
    flags = skins.hasInfluence("joint1")
    skins.callEach("dumpWeights", [("C:/data/skinA.json",), ("C:/data/skinB.json",)])
 
@@ -98,13 +98,13 @@ Selectionは異種対象の取得時点の集合で、単一の単体型に対�
 .. code-block:: python
 
    transforms = hlib.nodes.Transforms(["meshA", "meshB"])
-   skins_by_transform = transforms.getSkinClusters()
-   poses_by_transform = transforms.getBindPoses()
-   unused_shapes_by_transform = transforms.getUnusedIntermediateShapes()
+   skins_by_transform = transforms.skinClusters()
+   poses_by_transform = transforms.bindPoses()
+   unused_shapes_by_transform = transforms.unusedIntermediateShapes()
    transforms.deleteUnusedIntermediateShapes()  # 戻り値はtransforms自身、全体で1回のUndo
 
 これらの照会は対象ごとのリストを保持した二重リストを返します。
-Joints.getBindPosesもjointごとの結果を返し、既存のJoints.getSkinClustersは
+Joints.bindPosesもjointごとの結果を返し、既存のJoints.skinClustersは
 重複を除いたSkinClustersを返す専用実装を維持します。
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
@@ -117,7 +117,7 @@ Joints.getBindPosesもjointごとの結果を返し、既存のJoints.getSkinClu
 .. code-block:: python
 
    joints = hlib.ls(selection=True, type="joint")
-   skins = joints.getSkinClusters()
+   skins = joints.skinClusters()
    skins.removeInfluences(joints)  # jointノード・親子関係は残す
 
 ``removeInfluences(joints)`` と同じ処理です。保持するskinClusterだけを対象にし、

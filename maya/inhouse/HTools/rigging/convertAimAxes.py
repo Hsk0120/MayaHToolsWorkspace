@@ -156,7 +156,7 @@ class AimAxisConversionWindow:
         try:
             self._requireSource()
             graph = AimAxisConversion.find(self.constraint)
-            angles = [math.degrees(value) for value in self.constraint.getOutputRotation()]
+            angles = [math.degrees(value) for value in self.constraint.getOutputRotate()]
             lines = ["Aim XYZ (deg): {:.3f}, {:.3f}, {:.3f}".format(*angles)]
             if graph is None:
                 lines.append("Original Aim connections.")

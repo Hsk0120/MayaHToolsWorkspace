@@ -33,8 +33,8 @@ class JsonTest(unittest.TestCase):
 
     def test_math_and_dict_tags(self):
         from hlib import maths
-        values = [maths.Vector(1, 2, 3), maths.Translation(1, 2, 3), maths.EulerRotation(.1, .2, .3),
-                  maths.Scale(1, 2, 3), maths.Shear(1, 2, 3), maths.EulerRotation(.1, .2, .3, "zyx"),
+        values = [maths.Vector(1, 2, 3), maths.Translate(1, 2, 3), maths.EulerRotate(.1, .2, .3),
+                  maths.Scale(1, 2, 3), maths.Shear(1, 2, 3), maths.EulerRotate(.1, .2, .3, "zyx"),
                   maths.Quaternion(0, 0, 0, 1), maths.Matrix()]
         for value in values:
             restored = self.roundtrip(value)
@@ -56,7 +56,7 @@ class JsonTest(unittest.TestCase):
         pairs = [
             (maths.Vector(1, 0, 0).normal(), maths.Vector),
             (maths.Quaternion(0.1, 0.2, 0.3, 0.9).normal(), maths.Quaternion),
-            (maths.Quaternion(0.1, 0.2, 0.3, 0.9).asEulerRotation().reorder(5), maths.EulerRotation),
+            (maths.Quaternion(0.1, 0.2, 0.3, 0.9).asEulerRotation().reorder(5), maths.EulerRotate),
             (maths.Matrix(translate=(1, 2, 3)).adjoint(), maths.Matrix),
         ]
         for value, expected_type in pairs:
@@ -75,19 +75,21 @@ class JsonTest(unittest.TestCase):
         from hlib import maths
         codec = sys.modules["hlib.json.codec"]
         # 数学型の対応表はモジュールの読み込み時に1回だけ作り、公開クラスそのものを指す。
-        names = ("Vector", "Translation", "Scale", "Shear", "EulerRotation", "Quaternion", "Matrix")
-        for name in names:
-            cls = getattr(maths, name)
-            self.assertIs(codec._MATH_CLASSES[name], cls)
-            self.assertEqual(codec._math_type_name(cls()), name)
+        names = (("Vector", "Vector"), ("Translation", "Translate"), ("Scale", "Scale"),
+                 ("Shear", "Shear"), ("EulerRotation", "EulerRotate"),
+                 ("Quaternion", "Quaternion"), ("Matrix", "Matrix"))
+        for saved_name, class_name in names:
+            cls = getattr(maths, class_name)
+            self.assertIs(codec._MATH_CLASSES[saved_name], cls)
+            self.assertEqual(codec._math_type_name(cls()), saved_name)
         self.assertIsNone(codec._math_type_name({"values": [1.0, 2.0, 3.0]}))
         self.assertIsNone(codec._math_type_name([1.0, 2.0, 3.0]))
         # hlib.reload() 後は再読み込みした新しいクラスで作り直される。
         hlib.reload()
         from hlib import maths as reloaded
         codec = sys.modules["hlib.json.codec"]
-        for name in names:
-            self.assertIs(codec._MATH_CLASSES[name], getattr(reloaded, name))
+        for saved_name, class_name in names:
+            self.assertIs(codec._MATH_CLASSES[saved_name], getattr(reloaded, class_name))
         value = reloaded.Matrix(translate=(1, 2, 3))
         self.assertEqual(codec._math_type_name(value), "Matrix")
         restored = self.roundtrip(value)
@@ -141,7 +143,7 @@ class JsonTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             hlib.json.loads(edited(hlib.maths.Matrix(), set_values([1.0] * 15)))
 
-        euler = hlib.maths.EulerRotation(0.1, 0.2, 0.3, "zyx")
+        euler = hlib.maths.EulerRotate(0.1, 0.2, 0.3, "zyx")
         self.assertEqual(hlib.json.loads(edited(euler, lambda fields: fields.update(order=5))).orderName, "zyx")
         for order in ("abc", 6, True, None):
             with self.assertRaises(ValueError, msg=repr(order)):

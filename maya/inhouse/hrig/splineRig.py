@@ -8,7 +8,7 @@ import math
 import re
 
 import hlib
-from hlib.maths import Matrix, EulerRotation
+from hlib.maths import Matrix, EulerRotate
 
 from hrig.setups import SplineIK
 from hlib.decorator import undoTransaction
@@ -318,7 +318,7 @@ class SplineRig:
         controls = self.controls()
         cvs = CurveFit.fit(points, len(controls))
         axis = hlib.json.JsonText.loads(self.root.getPlug("hrigSplineDefinition").get())["axis"]
-        rest = EulerRotation(
+        rest = EulerRotate(
             0, -math.pi / 2 if axis == "z" else 0, math.pi / 2 if axis == "y" else 0
         ).asMatrix()
         for i, (control, point) in enumerate(zip(controls, cvs)):

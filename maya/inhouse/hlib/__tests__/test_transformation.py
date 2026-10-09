@@ -6,7 +6,7 @@ import sys
 import unittest
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
-from hlib.maths import Transformation, Matrix, EulerRotation, Quaternion
+from hlib.maths import Transformation, Matrix, EulerRotate, Quaternion
 from hlib.nodes import Node, Transforms
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "external" / "cymel" / "python"))
 from cymel import core as cy
@@ -49,7 +49,7 @@ class TransformationTest(unittest.TestCase):
     def test_value_and_copy(self):
         """値の所有・短縮名・コピー・Euler周期を保持する。"""
         x = Transformation(t=(1, 2, 3), r=(math.tau + .2, .3, .4), ro=3,
-                           ra=EulerRotation(.1, .2, .3), jo=EulerRotation(.3, .1, .2),
+                           ra=EulerRotate(.1, .2, .3), jo=EulerRotate(.3, .1, .2),
                            rp=(2, 3, 4), sp=(1, -2, 3), is_=(2, 3, 4), s=(-1, 2, 3))
         y = copy.deepcopy(x)
         self.assertTrue(x.isEquivalent(y))
@@ -104,7 +104,7 @@ class TransformationTest(unittest.TestCase):
         """非一様スケールの親とOPMを含むワールド姿勢を別階層へ適用する。"""
         for joint in (False, True):
             source = self.getNode(joint)
-            source.getPlug("offsetParentMatrix").set(Matrix(translate=(2, 1, -3), rotate=EulerRotation(.1, .2, .3)))
+            source.getPlug("offsetParentMatrix").set(Matrix(translate=(2, 1, -3), rotate=EulerRotate(.1, .2, .3)))
             x = source.getTransformation(ws=True)
             self.assertMatrix(x.m, source.getMatrix(ws=True))
             cx = cy.Transform(source.getName()).getX(ws=True)
@@ -177,7 +177,7 @@ class TransformationTest(unittest.TestCase):
         matrix = x.m
         x.ro = 5
         self.assertMatrix(x.m, matrix)
-        x.q = Quaternion(EulerRotation(.1, .2, .3).asQuaternion())
+        x.q = Quaternion(EulerRotate(.1, .2, .3).asQuaternion())
         self.assertEqual(x.ro, 5)
         node = self.getNode()
         node.getParent().getPlug("scale").set((0, 1, 1))
@@ -193,7 +193,7 @@ class TransformationTest(unittest.TestCase):
         value = Transformation(tm)
         self.assertMatrix(value.m, tm.asMatrix())
         self.assertEqual(tuple(value.rp), tuple(tm.rotatePivot(om2.MSpace.kTransform))[:3])
-        euler = EulerRotation(.2, .4, .1, order=2)
+        euler = EulerRotate(.2, .4, .1, order=2)
         x = Transformation(r=euler, ro=5)
         self.assertEqual(x.ro, 5)
         self.assertMatrix(x.q.asMatrix(), euler.asMatrix())

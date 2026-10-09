@@ -118,8 +118,8 @@ class Om2BackendsTest(unittest.TestCase):
         from hlib.json.references import NodeRef
         from hlib.json.snapshots import _attribute
         node = hlib.createNode('transform')
-        node.setTranslation((3, 4, 5), at=4)
-        node.setRotation((10, 20, 30), unit='deg')
+        node.setTranslate((3, 4, 5), at=4)
+        node.setRotate((10, 20, 30), unit='deg')
         node.addAttr('text', dataType='string')
         for angular, linear in [('deg', 'cm'), ('rad', 'm')]:
             cmds.currentUnit(angle=angular, linear=linear)
@@ -235,8 +235,8 @@ class Om2BackendsTest(unittest.TestCase):
     def test_rational_cv_world_position_roundtrip(self):
         """重み付きCVはAPIワールドXYZの取得と通常・fast設定で往復する。"""
         node = hlib.getNode(cmds.curve(d=1, pw=[(1, 2, 3, 2), (3, 4, 5, .5)]))
-        node.setTranslation((10, 20, 30), at=4)
-        node.setScaling((-2, 3, .5))
+        node.setTranslate((10, 20, 30), at=4)
+        node.setScale((-2, 3, .5))
         cvs = node.getShape().cvs()
         cmds.currentUnit(linear='m')
         try:

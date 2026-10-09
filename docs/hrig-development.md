@@ -66,7 +66,7 @@ def set_layer_enabled(self, layer, enabled):
   `.name()` / `.fullName()` で明示変換する。
 
 - hrigからOpenMaya/OpenMayaUIを直接importしない。数学型は `hlib.maths` の
-  Matrix/Vector/EulerRotation等、位置変換は `Matrix.transformPoint`、回転分解は
+  Matrix/Vector/EulerRotate等、位置変換は `Matrix.transformPoint`、回転分解は
   `Matrix.quaternion`・`Matrix.euler` を使う。位置と方向の変換を混同しない。
   Qt親ウィンドウの取得・変換は利用側UIパッケージの責務とする。hlibはQtをimportせず、標準UIの名前・Mayaの通知APIを扱う。
 

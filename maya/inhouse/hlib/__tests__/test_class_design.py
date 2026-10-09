@@ -57,16 +57,16 @@ class ClassDesignTest(unittest.TestCase):
         from hlib.nodes import Transforms
         names = [cmds.createNode("transform", name=self.ns + ":t" + str(i)) for i in range(2)]
         nodes = Transforms(names)
-        self.assertIs(nodes.setTranslation((1, 2, 3), at=4), nodes)
-        self.assertEqual([tuple(v) for v in nodes.getTranslation(at=4)], [(1, 2, 3)] * 2)
+        self.assertIs(nodes.setTranslate((1, 2, 3), at=4), nodes)
+        self.assertEqual([tuple(v) for v in nodes.getTranslate(at=4)], [(1, 2, 3)] * 2)
         cmds.undo()
-        self.assertEqual([tuple(v) for v in nodes.getTranslation(at=4)], [(0, 0, 0)] * 2)
-        self.assertIs(nodes.callEach("setTranslation", [((4, 0, 0),), ((5, 0, 0),)]), nodes)
-        self.assertEqual([tuple(v) for v in nodes.getTranslation(at=4)], [(4, 0, 0), (5, 0, 0)])
+        self.assertEqual([tuple(v) for v in nodes.getTranslate(at=4)], [(0, 0, 0)] * 2)
+        self.assertIs(nodes.callEach("setTranslate", [((4, 0, 0),), ((5, 0, 0),)]), nodes)
+        self.assertEqual([tuple(v) for v in nodes.getTranslate(at=4)], [(4, 0, 0), (5, 0, 0)])
         self.assertEqual(len(nodes.addAttr("custom", attributeType="double")), 2)
         empty = Transforms()
-        self.assertIs(empty.setTranslation((0, 0, 0), at=4), empty)
-        self.assertEqual(empty.getTranslation(at=4), [])
+        self.assertIs(empty.setTranslate((0, 0, 0), at=4), empty)
+        self.assertEqual(empty.getTranslate(at=4), [])
         self.assertIs(nodes.freeze(), nodes)
 
     def test_bulk_requires_declaration(self):

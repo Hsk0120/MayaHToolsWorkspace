@@ -1,6 +1,38 @@
 引数仕様
 ====================
 
+単数Nodeのコンストラクタ
+--------------------------------
+
+単数の具象Nodeクラスに、キーワード専用の ``create=False`` を追加しました。
+既定Falseは既存ノードの取得で、名前・Node・Plug・Component・Maya API参照の
+既存の入力解決を維持します。Trueはクラスに対応するMaya nodeTypeを作成し、
+最初の引数をノード名として使います。
+
+.. code-block:: python
+
+   from hlib.nodes import Joint, Transform, MultiplyDivide, Node
+
+   joint = Joint("jointName", create=True)
+   transform = Transform("transformName", create=True)
+   multiply = MultiplyDivide("multiplyName", create=True)
+   same_joint = Joint(joint.fullName(), create=False)
+   generic = Node.create("network", name="settingsNode")
+
+``create`` はboolのみを受け付け、位置引数では指定できません。
+``create=True`` は空でない文字列の名前だけを受け付けます。
+未知のキーワード引数は生成前に拒否します。Mayaの ``parent`` / ``skipSelect`` 等の
+作成フラグが必要な場合は、既存の ``Node.create(type, **kwargs)`` / ``hlib.createNode`` を使います。
+名前の連番化、空シェイプと必要な親Transformの生成、選択状態はMaya標準の作成に従い、
+通常のUndoに対応します。プラグインの扱いは既存の ``createNode`` と同じです。
+
+``Node``・``DagNode``・``Shape``・``Constraint`` 等の作成型が確定しない基底クラス、
+抽象Maya型に対応する ``AnimCurve``、geometryが必要な ``SkinCluster`` は
+``create=True`` を受け付けません。SkinClusterは ``hlib.bindSkin(geometry, influences)`` /
+``SkinCluster.bind(mesh, influences)`` でバインドします。
+``hlib.node()`` / ``hlib.cmds.node()`` 等の取得関数とget付きの本体には、
+``create`` を追加していません。詳しくは :doc:`guide_nodes` を参照してください。
+
 lsのコンポーネント取得
 ----------------------------------------
 
@@ -21,7 +53,7 @@ BlendShapeの追加編集API
 作成フラグの長短名と通常Undoに対応し、照会・編集・fastは受け付けません。
 
 従来の ``addTarget(target, base=None, weight_index=None, full_weight=1.0)`` と
-``getTargetAliases/getWeightPlugs/getWeights/getGeometry`` は引数・戻り値とも維持します。
+``targetAliases/weightPlugs/weights/geometry`` は引数・戻り値とも維持します。
 以下の ``target`` は既存ターゲットの整数番号またはweightのエイリアスです。
 
 .. list-table:: 追加した引数と戻り値
@@ -30,9 +62,9 @@ BlendShapeの追加編集API
 
    * - 呼び出し
      - 戻り値
-   * - ``getTargetIndices(base=None)``
+   * - ``targetIndices(base=None)``
      - 昇順の番号リスト
-   * - ``getTargetPlug(target)``
+   * - ``targetPlug(target)``
      - weightのPlug
    * - ``removeTarget(target)``
      - 自身
@@ -50,15 +82,15 @@ BlendShapeの追加編集API
      - 自身
    * - ``targetEdit(target=None, state=True, full_weight=1.0)``
      - 自身。Trueで開始、Falseで終了
-   * - ``getInBetweenWeights(target, base=None)``
+   * - ``inBetweenWeights(target, base=None)``
      - ウェイトのリスト
-   * - ``getTargetWeights(target, base=None)``
+   * - ``targetWeights(target, base=None)``
      - 全頂点ウェイトのリスト
    * - ``setTargetWeights(target, weights, base=None, *, fast=False)``
      - 自身
-   * - ``getTargetDeltas(target, base=None, full_weight=1.0)``
+   * - ``targetDeltas(target, base=None, full_weight=1.0)``
      - 頂点番号とVectorの辞書
-   * - ``getTargetVertices(target, base=None, full_weight=1.0, *, tolerance=0.0)``
+   * - ``targetVertices(target, base=None, full_weight=1.0, *, tolerance=0.0)``
      - 非ゼロデルタのベース頂点群(Vertices)
    * - ``setTargetDeltas(target, deltas, base=None, full_weight=1.0, disconnect=False, *, fast=False)``
      - 自身
@@ -84,13 +116,45 @@ TrueはUndoなしのOpenMaya更新です。入力と戻り値・単位は同じ�
 ``connect`` は接続先から呼びます。接続元からは ``connectTo`` を使います。
 ``force/f``、``lock/l``、``nextAvailable/na`` の長短名はORで評価します。
 
+方向を選ぶ接続APIでは ``src/source`` が自身への入力、
+``dst/destination`` が自身からの出力です。下表のAPIではどちらも既定で有効です。
+同じ方向の名前と別名を同時に渡すと、同値でも ``TypeError`` になります。
+
+.. list-table:: Plugの接続方向
+   :header-rows: 1
+   :widths: 45 55
+
+   * - 呼び出し
+     - 戻り値と方向指定
+   * - ``connections(src=True, dst=True)``
+     - 通常は相手Plugのリスト。``src/dst`` は既存の ``source/destination`` の別名
+   * - ``connected(*, src=True, dst=True)``
+     - 指定方向に接続があればTrue
+   * - ``connectedTo(other, *, src=True, dst=True)``
+     - 指定方向でotherと直結していればTrue
+   * - ``disconnectAll(*, src=True, dst=True)``
+     - 指定方向を全て切断し、自身を返す
+
+``connected``・``connectedTo``・``disconnectAll`` の方向指定は
+boolのキーワード専用引数です。bool以外は ``TypeError`` になります。
+両Falseでは判定はFalse、通常の接続取得は空リスト、``disconnectAll`` は何もせず自身を返します。
+``connections`` の従来の位置引数・``s/d`` は維持し、入力は ``s and source``、
+出力は ``d and destination`` で評価します。``s=False, src=True`` でも入力は含めません。
+子・配列要素の列挙は ``connections`` の ``checkChildren/checkElements`` で指定します。
+``connected`` はMPlugの従来の接続状態判定を維持し、子・配列要素を列挙する検索は行いません。
+``connectedTo`` と ``disconnectAll`` は対象Plugの直結だけを扱います。
+
 .. code-block:: python
 
    dst.connect(src, f=True)
    src.connectTo(dst, f=True)  # 同じ接続方向
    dst.disconnect()           # 入力だけを切断し、入力元Plugを返す
    dst.disconnectInput()      # 未接続でもエラーにせず、自身を返す
-   dst.disconnectAll()        # 入力と全出力を明示的に切断
+   dst.disconnectAll()        # 入力と全出力を明示的に切断し、自身を返す
+   plug.connections(src=False, dst=True)  # 出力先Plugのリスト
+   plug.connected(src=True, dst=False)     # 入力の有無
+   plug.connectedTo(other, src=False, dst=True)  # 自身からotherへの接続の有無
+   plug.disconnectAll(src=False, dst=True)   # 出力のみ切断し、自身を返す
    plug.disconnect(src=True, dst=False)  # 入力のみ。相手Plugのリストを返す
    plug.disconnect(src=False, dst=True)  # 出力のみ。全接続先Plugのリストを返す
    plug.disconnect(src=True, dst=True)   # 入力と出力。入力元、接続先の順に返す
@@ -112,6 +176,13 @@ TrueはUndoなしのOpenMaya更新です。入力と戻り値・単位は同じ�
 出力の切断でも ``force/f`` により接続先のロックを一時解除し、切断後に復元します。
 複数の接続の切断も通常のUndo/Redoで一度に戻せます。
 
+``disconnectAll`` も未接続では何もせず、子・配列要素の独立接続と
+unitConversionノードを保持します。通常のUndo/Redoに対応し、force指定はありません。
+``disconnect`` は既存仕様を維持するため、既定が入力のみで戻り値も上記のとおり異なります。
+方向が名前で決まる ``source/inputs/outputs/destinations`` と変換ノードを含む派生、
+``isSource/destination/disconnectInput/sourceNodes`` には方向引数を追加しません。
+``connect(src)`` と ``connectTo(dst)`` の引数は接続相手の指定です。方向のboolには置き換えません。
+
 ``force=True`` は一時的にロックを解除して接続します。
 hlib拡張の ``unlock=False`` を併用するとロック解除を禁止できます。
 
@@ -121,28 +192,28 @@ hlib拡張の ``unlock=False`` を併用するとロック解除を禁止でき�
 空間は ``ws=True`` を基本表記とし、``worldSpace=True`` も使えます。
 長短名の同時指定は拒否します。
 
-``getTranslation`` / ``setTranslation`` の ``at`` は
+``translate`` / ``setTranslate`` の ``at`` は
 0=親原点、1=translate、2=回転ピボット、3=スケールピボット、4以上=行列原点です。
 既定値は2です。以前のhlibの行列原点指定は ``at=4`` へ移行してください。
-``setTranslation`` はtranslateだけを書き込み、ピボット自体は動かしません。
+``setTranslate`` はtranslateだけを書き込み、ピボット自体は動かしません。
 
 .. code-block:: python
 
-   position = node.getTranslation(ws=True)
-   origin = node.getTranslation(ws=True, at=4)
-   channels = node.setTranslation((10, 2, 3), ws=True, get=True)
-   node.setTranslation((10, 2, 3), ws=True, safe=True)
-   parent_inverse = node.getMatrix(ws=True, p=True, inv=True)
+   position = node.translate(ws=True)
+   origin = node.translate(ws=True, at=4)
+   channels = node.setTranslate((10, 2, 3), ws=True, get=True)
+   node.setTranslate((10, 2, 3), ws=True, safe=True)
+   parent_inverse = node.matrix(ws=True, p=True, inv=True)
 
-``getQuaternion`` / ``setQuaternion`` は ``ra`` (rotateAxis)、``r`` (rotate)、
+``quaternion`` / ``setQuaternion`` は ``ra`` (rotateAxis)、``r`` (rotate)、
 ``jo`` (jointOrient)で合成対象を選びます。既定は ``ra=False, r=True, jo=True`` です。
 ワールド指定などで未対応の組合せはValueErrorになります。
 
-``getScaling`` / ``setScaling``、``getShearing`` / ``setShearing`` は
+``scale`` / ``setScale``、``shearing`` / ``setShearing`` は
 ローカル指定でscale/shearチャンネルそのものを扱い、jointのinverseScaleを含めません。
 ワールド指定はOpenMayaの分解規約を使います。負スケールの符号は行列から一意に
 決まらないため、ワールドの指定値と取得値の符号が一致しない場合があります。
-以前の ``getScale/setScale/getShear/setShear`` は廃止しました。
+以前の ``scale/setScale/shear/setShear`` は廃止しました。
 
 ``get=True`` は書き込まず設定すべき値を返します。
 位置・回転・スケール・シアーは数値リスト、``setMatrix`` は
@@ -160,30 +231,30 @@ Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身�
 
 .. code-block:: python
 
-   node.getPlug("ry").setu(90)  # UIがdegの場合90度
-   failed = node.getPlug("translate").set((1, 2, 3), safe=True)
-   node.setRotation((0, 90, 0), ws=True, unit="deg")
+   node.plug("ry").setu(90)  # UIがdegの場合90度
+   failed = node.plug("translate").set((1, 2, 3), safe=True)
+   node.setRotate((0, 90, 0), ws=True, unit="deg")
 
-``setRotation`` の第2位置引数は空間になりました。``unit`` は名前付きで指定します。
+``setRotate`` の第2位置引数は空間になりました。``unit`` は名前付きで指定します。
 回転double3の ``set`` も第2位置引数はsafe、unitは名前付きです。
 通常のsetterが自身を返すhlibの規則と、om2派生の数学型は維持します。
 引数・戻り値の対応範囲は、このページに記載した仕様に従います。
 
-getAttrのPlug取得とMaya照会
+attrのPlug取得とMaya照会
 ----------------------------
 
-署名は ``getAttr(target, **kwargs)`` です。照会フラグなしでは ``getPlug`` へ委譲し、
+署名は ``attr(target, **kwargs)`` です。照会フラグなしでは ``plug`` へ委譲し、
 アトリビュート型に対応するPlugを返します。既存Plugはそのまま返します。
 ``target=`` で対象だけを指定した場合もPlug取得です。
 空の名前・空のMPlugは ``ValueError``、解決できないアトリビュートは ``RuntimeError`` です。
-値は ``hlib.getAttr("pCube1.tx").get()`` で内部単位(cm/rad/秒)、
+値は ``hlib.attr("pCube1.tx").get()`` で内部単位(cm/rad/秒)、
 ``getu()`` で現在のUI単位として読みます。
 
 ``**kwargs`` に照会フラグを一つでも指定した場合は、従来のMaya照会値・状態を返します。
 ``type=True``・``lock=True`` 等だけでなく、``time``・``silent``・Falseの明示指定も
 照会経路です。Mayaの長名・短名フラグと重複指定の拒否、値のUI単位、
 行列のMatrix・3成分のVectorへの変換を維持します。
-ノードからは ``node.getPlug(name)`` を使います。
+ノードからは ``node.plug(name)`` を使います。
 
 アトリビュートの追加
 --------------------

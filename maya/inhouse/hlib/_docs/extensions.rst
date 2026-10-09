@@ -145,6 +145,6 @@ PoseDriverConnect本体のPythonパス・対応Mayaプラグインは別途必�
        solver.setRadius(45.0)
 
 ``UEPoseBlenderNode`` は ``driven_transform()`` と ``envelope()`` を提供します。
-専用クラスは ``hlib.getNode()`` / ``hlib.ls()`` から自動で選ばれます。
+専用クラスは ``hlib.node()`` / ``hlib.ls()`` から自動で選ばれます。
 ``setRadius()`` はUndo可能です。``native_api()`` から外部APIを直接操作する場合は
 そのAPI自身のUndoと副作用の仕様に従います。

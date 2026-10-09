@@ -23,7 +23,7 @@ import hlib
 hlib.reload()
 from hlib._core.attributeType import attributeType, is_internal_data_type
 from hlib.components import Faces, Vertex, Vertices
-from hlib.maths import EulerRotation, Translation
+from hlib.maths import EulerRotate, Translate
 from hlib.nodes import Joint, Joints, Mesh, Node
 from hlib.plugs import ArrayPlug, CompoundPlug, Plug
 from hlib.common.selection import Selection
@@ -98,7 +98,7 @@ class DuplicateShortNameTest(_InteropCase):
         # 一意な名前のため、単一の値が返る(複数一致のリストやエラーにならない)。
         self.assertEqual(cmds.getAttr(dup1.getPlug("tx")), 3.0)
         self.assertEqual(cmds.getAttr(dup2.getPlug("tx")), 0.0)
-        cmds.setAttr(str(dup2.getPlug("t")), *Translation(1.0, 2.0, 3.0))
+        cmds.setAttr(str(dup2.getPlug("t")), *Translate(1.0, 2.0, 3.0))
         self.assertEqual(cmds.getAttr(str(dup2.getPlug("t"))), [(1.0, 2.0, 3.0)])
         self.assertEqual(dup1.getPlug("tx").get(), 3.0)
         dup2.getPlug("v").set(False)
@@ -363,13 +363,13 @@ class PassToMayaCmdsTest(_InteropCase):
 
     def test_maths_values(self):
         node = self.create("transform", "node")
-        rotation = EulerRotation.fromDegrees(10.0, 20.0, 30.0)
+        rotation = EulerRotate.fromDegrees(10.0, 20.0, 30.0)
         # 回転成分はラジアン。度を受け取る maya.cmds のフラグには asDegrees() を使う。
         cmds.xform(node, rotation=rotation.asDegrees())
         self.assertAlmostEqual(cmds.getAttr(node.getPlug("rx")), 10.0)
         self.assertAlmostEqual(cmds.getAttr(node.getPlug("rz")), 30.0)
         # double3 の setAttr は成分を * で展開する。
-        cmds.setAttr(str(node.getPlug("t")), *Translation(1.0, 2.0, 3.0))
+        cmds.setAttr(str(node.getPlug("t")), *Translate(1.0, 2.0, 3.0))
         self.assertEqual(cmds.getAttr(str(node.getPlug("t"))), [(1.0, 2.0, 3.0)])
 
 
@@ -812,8 +812,8 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertEqual(world[1].getFullName(), world.getFullName() + "[1]")
         # getMatrix(ws=True) はラッパーが保持するインスタンスの worldMatrix を使う。
         self.assertEqual(list(second.getMatrix(ws=True)), cmds.getAttr(world.getFullName() + "[1]"))
-        self.assertAlmostEqual(list(second.getTranslation(ws=True, at=4))[0], 10.0)
-        self.assertAlmostEqual(list(first.getTranslation(ws=True, at=4))[0], 0.0)
+        self.assertAlmostEqual(list(second.getTranslate(ws=True, at=4))[0], 10.0)
+        self.assertAlmostEqual(list(first.getTranslate(ws=True, at=4))[0], 0.0)
         self.assertEqual(
             list(first.getMatrix(ws=True)), cmds.getAttr(first.getFullName() + ".worldMatrix[0]")
         )

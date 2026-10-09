@@ -5,7 +5,7 @@ from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from ..maths import Matrix
-from ..maths.eulerRotation import orderIndex
+from ..maths.eulerRotate import orderIndex
 from .node import Node
 
 
@@ -65,7 +65,7 @@ class DecomposeMatrix(Node):
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             order (str | int): xyz、yzx、zxy、xzy、yxz、zyxのいずれかの名前(大文字小文字を
-                問わない)、または番号0〜5(``EulerRotation.order`` やrotateOrderアトリビュートと同じ
+                問わない)、または番号0〜5(``EulerRotate.order`` やrotateOrderアトリビュートと同じ
                 並び。``om2.MEulerRotation.kXYZ``〜``kZYX``)。
 
         Returns:

@@ -18,13 +18,15 @@
     ("メソッド", ["method"], true),
     ("プロパティ・アトリビュート", ["property", "attribute"], true),
 ] %}
+{{ prepare_getter_docs(obj) }}
 {% if obj.display %}
 {% set visible = obj.children|selectattr("display")|list %}
 {% set grouped_kinds = member_groups|map(attribute=1)|sum(start=[]) %}
 {% set others = visible|rejectattr("type", "in", grouped_kinds)|list %}
 {% set target = obj.id if is_own_page else obj.short_name %}
 {% set generics = "[" ~ obj.type_params ~ "]" if obj.type_params else "" %}
-{% set call_args = "(" ~ obj.args ~ ")" if obj.args else "" %}
+{% set constructor_args = node_constructor_args(obj) %}
+{% set call_args = "(" ~ constructor_args ~ ")" if constructor_args else "" %}
 {% if is_own_page %}
 {% set heading = "class " ~ obj.id %}
 {{ heading }}
@@ -69,6 +71,12 @@
 
 {% endif %}
 {% for entry in group %}
+{% if entry.hlib_getter_id is defined %}
+   .. raw:: html
+
+      <span id="{{ entry.hlib_getter_id }}"></span>
+
+{% endif %}
    {{ entry.render()|indent(3) }}
 
 {% endfor %}

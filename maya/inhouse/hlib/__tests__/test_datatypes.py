@@ -1,4 +1,4 @@
-"""hlib.maths の値型(om2 を継承した Vector 系・Quaternion・EulerRotation・Matrix)を検証する。
+"""hlib.maths の値型(om2 を継承した Vector 系・Quaternion・EulerRotate・Matrix)を検証する。
 
 hlib.maths は maya.api.OpenMaya の MVector / MQuaternion / MEulerRotation / MMatrix を
 継承するため mayapy で実行する(maya.cmds を使うテストは standalone 初期化済みの
@@ -26,17 +26,17 @@ module = importlib.import_module(f"{PACKAGE_NAME}.maths")
 
 
 Vector = module.Vector
-Translation = module.Translation
-EulerRotation = module.EulerRotation
+Translate = module.Translate
+EulerRotate = module.EulerRotate
 Quaternion = module.Quaternion
 Scale = module.Scale
 Shear = module.Shear
 Matrix = module.Matrix
-ORDER_NAMES = module.eulerRotation.ORDER_NAMES
+ORDER_NAMES = module.eulerRotate.ORDER_NAMES
 
 
 def test_translation_is_vector_like():
-    t = Translation(1.0, 2.0, 3.0)
+    t = Translate(1.0, 2.0, 3.0)
     assert isinstance(t, Vector)
     assert tuple(t) == (1.0, 2.0, 3.0)
 
@@ -64,8 +64,8 @@ def test_vector_neg_truediv_and_length_squared():
 
 
 def test_vector_distance_to_and_angle_to():
-    a = Translation(0.0, 0.0, 0.0)
-    b = Translation(3.0, 4.0, 0.0)
+    a = Translate(0.0, 0.0, 0.0)
+    b = Translate(3.0, 4.0, 0.0)
     assert a.distanceTo(b) == 5.0
     assert b.distanceTo(a) == 5.0
 
@@ -109,10 +109,10 @@ def test_vector_normalized_rejects_zero_vector():
 
 
 def test_scale_and_shear_are_distinct():
-    rotation = EulerRotation(0.0, 90.0, 0.0)
+    rotation = EulerRotate(0.0, 90.0, 0.0)
     scale = Scale(2.0, 3.0, 4.0)
     shear = Shear(0.1, 0.2, 0.3)
-    # EulerRotation は om2.MEulerRotation の派生で、Vector(om2.MVector)の派生ではない。
+    # EulerRotate は om2.MEulerRotation の派生で、Vector(om2.MVector)の派生ではない。
     assert isinstance(rotation, om2.MEulerRotation)
     assert not isinstance(rotation, Vector)
     assert isinstance(scale, Vector)
@@ -123,22 +123,22 @@ def test_scale_and_shear_are_distinct():
 
 
 def test_euler_rotation_converts_to_a_unit_quaternion():
-    rotation = EulerRotation(0.0, 0.0, 0.0)
+    rotation = EulerRotate(0.0, 0.0, 0.0)
     quaternion = rotation.asQuaternion()
     assert isinstance(quaternion, Quaternion)
     assert tuple(quaternion) == (0.0, 0.0, 0.0, 1.0)
 
 
 def test_euler_rotation_displays_degrees_but_stores_radians():
-    rotation = EulerRotation(math.pi / 2.0, 0.0, -math.pi / 4.0)
+    rotation = EulerRotate(math.pi / 2.0, 0.0, -math.pi / 4.0)
     assert tuple(rotation) == (math.pi / 2.0, 0.0, -math.pi / 4.0)
     assert rotation.asDegrees() == (90.0, 0.0, -45.0)
     assert "degrees=(90, 0, -45)" in repr(rotation)
 
 
 def test_xyz_euler_quaternion_round_trip_preserves_angles():
-    rotation = EulerRotation(0.2, -0.4, 0.6)
-    round_trip = rotation.asQuaternion().asDecomposedEulerRotation()
+    rotation = EulerRotate(0.2, -0.4, 0.6)
+    round_trip = rotation.asQuaternion().asDecomposedEulerRotate()
     assert all(math.isclose(actual, expected, abs_tol=1e-12) for actual, expected in zip(round_trip, rotation))
 
 
@@ -157,9 +157,9 @@ def test_euler_quaternion_round_trip_all_rotation_orders():
     )
     for order in orders:
         for angles in angle_sets:
-            rotation = EulerRotation(*angles, order)
+            rotation = EulerRotate(*angles, order)
             quaternion = rotation.asQuaternion()
-            round_trip = quaternion.asDecomposedEulerRotation(order)
+            round_trip = quaternion.asDecomposedEulerRotate(order)
             # order は om2 の番号(int)。名前は orderName で取得する。
             assert round_trip.orderName == order
             assert round_trip.order == ORDER_NAMES.index(order)
@@ -173,15 +173,15 @@ def test_euler_quaternion_round_trip_at_gimbal_lock():
         for sign in (1.0, -1.0):
             angles = [0.7, -1.2, 2.1]
             angles[middle_axis] = sign * math.pi / 2.0
-            rotation = EulerRotation(*angles, order)
+            rotation = EulerRotate(*angles, order)
             quaternion = rotation.asQuaternion()
-            round_trip = quaternion.asDecomposedEulerRotation(order)
+            round_trip = quaternion.asDecomposedEulerRotate(order)
             assert _quaternions_represent_the_same_rotation(quaternion, round_trip.asQuaternion())
 
 
 def test_quaternion_to_euler_rejects_unsupported_order():
     try:
-        Quaternion().asDecomposedEulerRotation("abc")
+        Quaternion().asDecomposedEulerRotate("abc")
     except ValueError:
         pass
     else:
@@ -196,20 +196,20 @@ def test_euler_rotation_to_quaternion_matches_maya_rotate_order():
     angles = (0.3, -0.5, 0.9)
     for order, om2_order in orders.items():
         # 名前と om2 の番号は同じ回転順序を表す。
-        assert EulerRotation(*angles, order) == EulerRotation(*angles, om2_order)
-        rotation = EulerRotation(*angles, order)
+        assert EulerRotate(*angles, order) == EulerRotate(*angles, om2_order)
+        rotation = EulerRotate(*angles, order)
         quaternion = rotation.asQuaternion()
         expected = om2.MEulerRotation(*angles, om2_order).asQuaternion()
         assert quaternion.isEquivalent(expected, 1e-12)
         # toEuler は om2 の分解を使うため、角度の枝ではなく回転そのもので比較する。
-        round_trip = quaternion.asDecomposedEulerRotation(order)
+        round_trip = quaternion.asDecomposedEulerRotate(order)
         assert round_trip.order == om2_order
         assert round_trip.asMatrix().isEquivalent(expected.asMatrix(), 1e-12)
 
 
 def test_euler_rotation_from_degrees():
-    rotation = EulerRotation.fromDegrees(90.0, 0.0, -45.0)
-    assert isinstance(rotation, EulerRotation)
+    rotation = EulerRotate.fromDegrees(90.0, 0.0, -45.0)
+    assert isinstance(rotation, EulerRotate)
     assert rotation.asDegrees() == (90.0, 0.0, -45.0)
     assert math.isclose(rotation.x, math.pi / 2.0)
 
@@ -230,7 +230,7 @@ def test_quaternion_dot_length_conjugate_and_inverse():
 
 
 def test_quaternion_rotate_vector_matches_euler_rotation():
-    rotation = EulerRotation.fromDegrees(0.0, 90.0, 0.0)
+    rotation = EulerRotate.fromDegrees(0.0, 90.0, 0.0)
     quaternion = rotation.asQuaternion()
     rotated = quaternion.rotateVector(Vector(1.0, 0.0, 0.0))
     assert math.isclose(rotated.x, 0.0, abs_tol=1e-12)
@@ -240,12 +240,12 @@ def test_quaternion_rotate_vector_matches_euler_rotation():
 
 def test_quaternion_angle_to_and_slerp():
     identity = Quaternion()
-    ninety = EulerRotation.fromDegrees(0.0, 90.0, 0.0).asQuaternion()
+    ninety = EulerRotate.fromDegrees(0.0, 90.0, 0.0).asQuaternion()
     assert math.isclose(identity.angleTo(ninety), math.pi / 2.0, abs_tol=1e-9)
     assert math.isclose(identity.angleTo(identity), 0.0, abs_tol=1e-12)
 
     halfway = identity.slerp(ninety, 0.5)
-    forty_five = EulerRotation.fromDegrees(0.0, 45.0, 0.0).asQuaternion()
+    forty_five = EulerRotate.fromDegrees(0.0, 45.0, 0.0).asQuaternion()
     assert math.isclose(halfway.angleTo(forty_five), 0.0, abs_tol=1e-9)
     assert tuple(identity.slerp(ninety, 0.0)) == tuple(identity)
 
@@ -290,10 +290,10 @@ def test_matrix_exposes_translation_scale_and_shear_values():
         scale=(2.0, 3.0, 4.0),
         shear=(0.1, 0.2, 0.3),
     )
-    assert isinstance(m.translate, Translation)
-    assert isinstance(m.rotate, EulerRotation)
-    assert isinstance(m.rotate, EulerRotation)
-    assert isinstance(m.euler, EulerRotation)
+    assert isinstance(m.translate, Translate)
+    assert isinstance(m.rotate, EulerRotate)
+    assert isinstance(m.rotate, EulerRotate)
+    assert isinstance(m.euler, EulerRotate)
     assert isinstance(m.quaternion, Quaternion)
     assert isinstance(m.scale, Scale)
     assert isinstance(m.shear, Shear)
@@ -385,14 +385,14 @@ def test_matrix_vector_products_follow_om2():
     assert column.isEquivalent(x_axis * rotate_z.transpose(), tolerance=1e-12)
     # 位置は transformPoint か MPoint との積で変換する。
     point = rotate_z.transformPoint(x_axis)
-    assert type(point) is Translation
+    assert type(point) is Translate
     assert point.isEquivalent(Vector(10.0, 1.0, 0.0), tolerance=1e-12)
     assert (om2.MPoint(x_axis) * rotate_z).isEquivalent(om2.MPoint(point), 1e-12)
     # in-place の *= は自身を行ベクトル規約で変換し、型を保つ。
-    moved = Translation(1.0, 0.0, 0.0)
+    moved = Translate(1.0, 0.0, 0.0)
     alias = moved
     moved *= rotate_z
-    assert moved is alias and type(moved) is Translation
+    assert moved is alias and type(moved) is Translate
     assert moved.isEquivalent(Vector(0.0, 1.0, 0.0), tolerance=1e-12)
 
 
@@ -484,23 +484,23 @@ def _samples():
     """om2 を継承した各型の代表値を返す。"""
     return [
         Vector(1.0, 2.0, 3.0),
-        Translation(1.0, -2.0, 3.5),
+        Translate(1.0, -2.0, 3.5),
         Scale(2.0, 3.0, 4.0),
         Shear(0.1, 0.2, 0.3),
         Quaternion(0.1, 0.2, 0.3, 0.9),
-        EulerRotation(0.1, 0.2, 0.3, "zyx"),
+        EulerRotate(0.1, 0.2, 0.3, "zyx"),
         Matrix(translate=(1.0, 2.0, 3.0), rotate=(0.1, 0.2, 0.3), scale=(1.0, 2.0, 3.0)),
     ]
 
 
 def test_types_inherit_om2_and_are_accepted_by_om2_functions():
     assert isinstance(Vector(), om2.MVector)
-    assert isinstance(Translation(), om2.MVector)
+    assert isinstance(Translate(), om2.MVector)
     assert isinstance(Quaternion(), om2.MQuaternion)
-    assert isinstance(EulerRotation(), om2.MEulerRotation)
+    assert isinstance(EulerRotate(), om2.MEulerRotation)
     assert isinstance(Matrix(), om2.MMatrix)
 
-    matrix = Matrix(translate=(1.0, 2.0, 3.0), rotate=EulerRotation(0.3, -0.5, 0.9, "zyx"), scale=(2.0, 3.0, 4.0))
+    matrix = Matrix(translate=(1.0, 2.0, 3.0), rotate=EulerRotate(0.3, -0.5, 0.9, "zyx"), scale=(2.0, 3.0, 4.0))
     transformation = om2.MTransformationMatrix(matrix)
     assert transformation.asMatrix().isEquivalent(matrix, 1e-12)
     assert transformation.translation(om2.MSpace.kTransform) == om2.MVector(1.0, 2.0, 3.0)
@@ -508,7 +508,7 @@ def test_types_inherit_om2_and_are_accepted_by_om2_functions():
     assert om2.MFnMatrixData(data).matrix() == matrix
     assert om2.MMatrix(matrix) == matrix
 
-    euler = EulerRotation(0.3, -0.5, 0.9, "zyx")
+    euler = EulerRotate(0.3, -0.5, 0.9, "zyx")
     assert om2.MEulerRotation(euler).order == om2.MEulerRotation.kZYX
     assert om2.MEulerRotation.decompose(Matrix(rotate=euler), euler.order).asMatrix().isEquivalent(
         euler.asMatrix(), 1e-12)
@@ -516,7 +516,7 @@ def test_types_inherit_om2_and_are_accepted_by_om2_functions():
     assert om2.MQuaternion(quaternion) == quaternion
     assert Vector(1.0, 0.0, 0.0).rotateBy(quaternion).isEquivalent(
         Vector(1.0, 0.0, 0.0).rotateBy(euler), 1e-12)
-    assert om2.MPoint(Translation(1.0, 2.0, 3.0)) == om2.MPoint(1.0, 2.0, 3.0)
+    assert om2.MPoint(Translate(1.0, 2.0, 3.0)) == om2.MPoint(1.0, 2.0, 3.0)
     # om2 の型からの生成(コピーコンストラクタ)も受け付ける。
     assert Vector(om2.MPoint(1.0, 2.0, 3.0)) == Vector(1.0, 2.0, 3.0)
     assert Matrix(om2.MMatrix()) == Matrix()
@@ -535,16 +535,16 @@ def test_equality_with_foreign_types_never_raises():
         assert value == copy.copy(value)
     # 別系統の om2 型とも例外にせず False。
     assert (Vector(1.0, 2.0, 3.0) == om2.MPoint(1.0, 2.0, 3.0)) is False
-    assert (Vector(0.1, 0.2, 0.3) == EulerRotation(0.1, 0.2, 0.3)) is False
+    assert (Vector(0.1, 0.2, 0.3) == EulerRotate(0.1, 0.2, 0.3)) is False
     assert (Matrix() == Quaternion()) is False
     # om2 と同じ値の比較で、同じ om2 系統なら派生型が違っても等しくなり得る。
-    assert Translation(1.0, 2.0, 3.0) == Scale(1.0, 2.0, 3.0)
+    assert Translate(1.0, 2.0, 3.0) == Scale(1.0, 2.0, 3.0)
     assert Vector(1.0, 2.0, 3.0) == om2.MVector(1.0, 2.0, 3.0)
-    assert om2.MVector(1.0, 2.0, 3.0) == Translation(1.0, 2.0, 3.0)
+    assert om2.MVector(1.0, 2.0, 3.0) == Translate(1.0, 2.0, 3.0)
     assert Matrix() == om2.MMatrix() and om2.MMatrix() == Matrix()
     assert Quaternion() == om2.MQuaternion()
-    # EulerRotation は回転順序も比較する。
-    assert EulerRotation(0.1, 0.2, 0.3, "xyz") != EulerRotation(0.1, 0.2, 0.3, "zyx")
+    # EulerRotate は回転順序も比較する。
+    assert EulerRotate(0.1, 0.2, 0.3, "xyz") != EulerRotate(0.1, 0.2, 0.3, "zyx")
 
 
 def test_values_are_mutable_and_unhashable():
@@ -561,7 +561,7 @@ def test_values_are_mutable_and_unhashable():
     quaternion.w = 2.0
     assert quaternion.length() == 2.0
 
-    euler = EulerRotation(0.1, 0.2, 0.3)
+    euler = EulerRotate(0.1, 0.2, 0.3)
     euler.orderName = "YXZ"
     assert euler.order == om2.MEulerRotation.kYXZ
     euler.order = 5
@@ -595,7 +595,7 @@ def test_copy_deepcopy_and_pickle_rebuild_through_constructor():
             assert result == value
             # om2 の C++ 実体が確保されていること(未初期化なら値の読み取りで落ちる)。
             assert list(result) == list(value)
-    rotation = pickle.loads(pickle.dumps(EulerRotation(0.1, 0.2, 0.3, "zyx")))
+    rotation = pickle.loads(pickle.dumps(EulerRotate(0.1, 0.2, 0.3, "zyx")))
     assert rotation.orderName == "zyx"
     nested = copy.deepcopy({"matrix": Matrix(translate=(1.0, 2.0, 3.0)), "values": [Vector(1.0, 2.0, 3.0)]})
     assert tuple(nested["matrix"].translate) == (1.0, 2.0, 3.0)
@@ -619,20 +619,20 @@ def test_in_place_operators_guard_types_and_keep_subclass():
         return value
 
     def add_list_to_euler():
-        value = EulerRotation()
+        value = EulerRotate()
         value += [0.1, 0.2, 0.3]
         return value
 
     for function in (add_list, multiply_matrix_by_string, multiply_quaternion_by_list, add_list_to_euler):
         _assert_raises(TypeError, function)
 
-    translation = Translation(1.0, 2.0, 3.0)
+    translation = Translate(1.0, 2.0, 3.0)
     original = translation
     translation += Vector(1.0, 1.0, 1.0)
     translation -= om2.MVector(0.5, 0.5, 0.5)
     translation *= 2
     translation /= 4.0
-    assert translation is original and type(translation) is Translation
+    assert translation is original and type(translation) is Translate
     assert tuple(translation) == (0.75, 1.25, 1.75)
 
     matrix = Matrix(translate=(1.0, 0.0, 0.0))
@@ -646,10 +646,10 @@ def test_in_place_operators_guard_types_and_keep_subclass():
     quaternion *= Quaternion.fromAxisAngle((0.0, 0.0, 1.0), 0.5)
     assert quaternion is original_quaternion and type(quaternion) is Quaternion
 
-    euler = EulerRotation(0.1, 0.2, 0.3, "zyx")
+    euler = EulerRotate(0.1, 0.2, 0.3, "zyx")
     original_euler = euler
-    euler += EulerRotation(0.1, 0.1, 0.1, "zyx")
-    assert euler is original_euler and type(euler) is EulerRotation and euler.orderName == "zyx"
+    euler += EulerRotate(0.1, 0.1, 0.1, "zyx")
+    assert euler is original_euler and type(euler) is EulerRotate and euler.orderName == "zyx"
 
 
 def test_division_by_zero_raises_zero_division_error():
@@ -670,8 +670,8 @@ def test_mixed_arithmetic_with_om2_types_returns_hlib_types():
     b = Vector(-4.0, 5.5, 0.25)
     raw = om2.MVector(1.0, 1.0, 1.0)
     # ベクトル: hlib が片方にあれば結果は基底の Vector。
-    for result in (a + raw, raw + a, a - raw, raw - a, Translation(1.0, 2.0, 3.0) + Translation(1.0, 1.0, 1.0),
-                   2 * a, a * 2.0, a / 2.0, -Translation(1.0, 2.0, 3.0), a ^ b, a.cross(b), a.lerp(b, 0.5)):
+    for result in (a + raw, raw + a, a - raw, raw - a, Translate(1.0, 2.0, 3.0) + Translate(1.0, 1.0, 1.0),
+                   2 * a, a * 2.0, a / 2.0, -Translate(1.0, 2.0, 3.0), a ^ b, a.cross(b), a.lerp(b, 0.5)):
         assert type(result) is Vector
     assert tuple(raw - a) == (0.0, -1.0, -2.0)
     assert a * b == a.dot(b) == 1.0 * -4.0 + 2.0 * 5.5 + 3.0 * 0.25
@@ -700,25 +700,25 @@ def test_mixed_arithmetic_with_om2_types_returns_hlib_types():
     for result in (q * raw_q, raw_q * q, q + raw_q, raw_q + q, q - raw_q, -q, q.conjugate(), q.inverse(),
                    q.unit(), q.slerp(raw_q, 0.5), Quaternion.slerp(raw_q, q, 0.5)):
         assert type(result) is Quaternion
-    e = EulerRotation(0.1, 0.2, 0.3, "zyx")
+    e = EulerRotate(0.1, 0.2, 0.3, "zyx")
     raw_e = om2.MEulerRotation(0.1, 0.1, 0.1, om2.MEulerRotation.kZYX)
     for result in (e + raw_e, raw_e + e, e - raw_e, raw_e - e, e * 2.0, 2.0 * e, e * raw_e, raw_e * e, e * q, -e):
-        assert type(result) is EulerRotation
+        assert type(result) is EulerRotate
     assert (e + raw_e).orderName == "zyx"
 
     # om2継承メソッドも対応するhlib型を返す。
     assert type(a.normal()) is Vector
     assert type(q.asMatrix()) is Matrix
     assert type(q.normal()) is Quaternion
-    assert type(e.reorder(om2.MEulerRotation.kXYZ)) is EulerRotation
+    assert type(e.reorder(om2.MEulerRotation.kXYZ)) is EulerRotate
     assert type(e.asQuaternion()) is Quaternion
     assert type(m.adjoint()) is Matrix
     assert type(om2.MMatrix(m)) is om2.MMatrix
 
 
 def test_quaternion_product_follows_om2_order():
-    first = EulerRotation(0.3, 0.0, 0.0).asQuaternion()
-    second = EulerRotation(0.0, 0.7, 0.0).asQuaternion()
+    first = EulerRotate(0.3, 0.0, 0.0).asQuaternion()
+    second = EulerRotate(0.0, 0.7, 0.0).asQuaternion()
     product = first * second
     # q1 * q2 は q1 を先に適用する回転(行列の積と同じ順序)。
     assert product.asMatrix().isEquivalent(first.asMatrix() * second.asMatrix(), 1e-12)
@@ -734,9 +734,9 @@ def test_quaternion_product_follows_om2_order():
     assert product.isEquivalent(hamilton, 1e-12)
     # XYZ 順序の Euler は X、Y、Z の順に適用した四元数の積。
     x, y, z = 0.2, -0.4, 0.6
-    composed = (EulerRotation(x, 0.0, 0.0).asQuaternion() * EulerRotation(0.0, y, 0.0).asQuaternion()
-                * EulerRotation(0.0, 0.0, z).asQuaternion())
-    assert composed.isEquivalent(EulerRotation(x, y, z).asQuaternion(), 1e-12)
+    composed = (EulerRotate(x, 0.0, 0.0).asQuaternion() * EulerRotate(0.0, y, 0.0).asQuaternion()
+                * EulerRotate(0.0, 0.0, z).asQuaternion())
+    assert composed.isEquivalent(EulerRotate(x, y, z).asQuaternion(), 1e-12)
 
 
 def test_quaternion_constructor_forms_and_precise_angles():
@@ -759,33 +759,33 @@ def test_quaternion_constructor_forms_and_precise_angles():
 
 
 def test_euler_rotation_constructor_forms_and_order():
-    assert tuple(EulerRotation()) == (0.0, 0.0, 0.0) and EulerRotation().orderName == "xyz"
-    assert EulerRotation(0.1, 0.2, 0.3, "ZYX").order == om2.MEulerRotation.kZYX
-    assert EulerRotation(0.1, 0.2, 0.3, order="zxy").orderName == "zxy"
-    assert EulerRotation(0.1, 0.2, 0.3, 4).orderName == "yxz"
-    assert tuple(EulerRotation([0.1, 0.2, 0.3])) == (0.1, 0.2, 0.3)
-    assert EulerRotation((0.1, 0.2, 0.3), "yzx").orderName == "yzx"
-    assert EulerRotation(Vector(0.1, 0.2, 0.3), order="xzy").orderName == "xzy"
-    source = EulerRotation(0.1, 0.2, 0.3, "zyx")
-    duplicate = EulerRotation(source)
+    assert tuple(EulerRotate()) == (0.0, 0.0, 0.0) and EulerRotate().orderName == "xyz"
+    assert EulerRotate(0.1, 0.2, 0.3, "ZYX").order == om2.MEulerRotation.kZYX
+    assert EulerRotate(0.1, 0.2, 0.3, order="zxy").orderName == "zxy"
+    assert EulerRotate(0.1, 0.2, 0.3, 4).orderName == "yxz"
+    assert tuple(EulerRotate([0.1, 0.2, 0.3])) == (0.1, 0.2, 0.3)
+    assert EulerRotate((0.1, 0.2, 0.3), "yzx").orderName == "yzx"
+    assert EulerRotate(Vector(0.1, 0.2, 0.3), order="xzy").orderName == "xzy"
+    source = EulerRotate(0.1, 0.2, 0.3, "zyx")
+    duplicate = EulerRotate(source)
     assert duplicate == source and duplicate is not source and duplicate.orderName == "zyx"
-    assert EulerRotation(om2.MEulerRotation(0.1, 0.2, 0.3, 5)).orderName == "zyx"
-    assert EulerRotation.fromIterable((0.1, 0.2, 0.3), "zyx") == source
-    _assert_raises(ValueError, lambda: EulerRotation(0.0, 0.0, 0.0, "abc"))
-    _assert_raises(ValueError, lambda: EulerRotation(0.0, 0.0, 0.0, 6))
-    _assert_raises(ValueError, lambda: EulerRotation(0.0, 0.0, 0.0, True))
-    _assert_raises(TypeError, lambda: EulerRotation(0.0, 0.0, 0.0, "xyz", order="zyx"))
-    _assert_raises(TypeError, lambda: EulerRotation(0.0, 0.0))
-    _assert_raises(TypeError, lambda: EulerRotation(0.0, 0.0, 0.0, unknown=1))
-    assert repr(EulerRotation.fromDegrees(90.0, 0.0, -45.0, "zyx")) == "EulerRotation(degrees=(90, 0, -45), order='zyx')"
+    assert EulerRotate(om2.MEulerRotation(0.1, 0.2, 0.3, 5)).orderName == "zyx"
+    assert EulerRotate.fromIterable((0.1, 0.2, 0.3), "zyx") == source
+    _assert_raises(ValueError, lambda: EulerRotate(0.0, 0.0, 0.0, "abc"))
+    _assert_raises(ValueError, lambda: EulerRotate(0.0, 0.0, 0.0, 6))
+    _assert_raises(ValueError, lambda: EulerRotate(0.0, 0.0, 0.0, True))
+    _assert_raises(TypeError, lambda: EulerRotate(0.0, 0.0, 0.0, "xyz", order="zyx"))
+    _assert_raises(TypeError, lambda: EulerRotate(0.0, 0.0))
+    _assert_raises(TypeError, lambda: EulerRotate(0.0, 0.0, 0.0, unknown=1))
+    assert repr(EulerRotate.fromDegrees(90.0, 0.0, -45.0, "zyx")) == "EulerRotate(degrees=(90, 0, -45), order='zyx')"
     assert len(list(source)) == 3
-    assert source.isEquivalent(EulerRotation(0.1, 0.2, 0.3 + 1e-12, "zyx"))
-    assert not source.isEquivalent(EulerRotation(0.1, 0.2, 0.3, "xyz"))
+    assert source.isEquivalent(EulerRotate(0.1, 0.2, 0.3 + 1e-12, "zyx"))
+    assert not source.isEquivalent(EulerRotate(0.1, 0.2, 0.3, "xyz"))
     assert source.asMatrix().isEquivalent(Matrix(rotate=source), 1e-15)
 
 
 def test_matrix_compose_honours_euler_order_and_keeps_zero_scale():
-    euler = EulerRotation(0.3, -0.5, 0.9, "zyx")
+    euler = EulerRotate(0.3, -0.5, 0.9, "zyx")
     expected = om2.MEulerRotation(0.3, -0.5, 0.9, om2.MEulerRotation.kZYX).asMatrix()
     assert Matrix(rotate=euler).isEquivalent(expected, 1e-12)
     # 3成分は従来どおり XYZ 順序。
@@ -796,7 +796,7 @@ def test_matrix_compose_honours_euler_order_and_keeps_zero_scale():
     assert matrix.scale.isEquivalent(Vector(2.0, 2.0, 2.0), 1e-12)
     assert matrix.quaternion.isEquivalent(euler.asQuaternion(), 1e-12)
     matrix.rotate = Quaternion()
-    assert matrix.rotate.isEquivalent(EulerRotation(), 1e-12)
+    assert matrix.rotate.isEquivalent(EulerRotate(), 1e-12)
     # ゼロや微小なスケールは MTransformationMatrix のように 1e-12 へ丸めない。
     assert Matrix(scale=(0.0, 1.0, 1.0))[0, 0] == 0.0
     assert Matrix(scale=(1e-13, 1.0, 1.0))[0, 0] == 1e-13
@@ -915,23 +915,23 @@ def test_quaternion_scalar_multiplication_follows_om2():
 
 
 def test_euler_rotation_division_by_number_keeps_order():
-    rotation = EulerRotation(0.2, 0.4, 0.6, "zxy")
+    rotation = EulerRotate(0.2, 0.4, 0.6, "zxy")
     half = rotation / 2
-    assert type(half) is EulerRotation and half.orderName == "zxy"
+    assert type(half) is EulerRotate and half.orderName == "zxy"
     assert tuple(half) == (0.1, 0.2, 0.3)
     original = rotation
     rotation /= 4.0
     assert rotation is original and rotation.orderName == "zxy"
     assert tuple(rotation) == (0.05, 0.1, 0.15)
     _assert_raises(ZeroDivisionError, lambda: rotation / 0)
-    _assert_raises(TypeError, lambda: rotation / EulerRotation())
+    _assert_raises(TypeError, lambda: rotation / EulerRotate())
 
 
 def test_user_subclass_attributes_survive_copy_and_pickle():
     # __slots__ を持たない利用者の派生クラスのアトリビュート(__dict__)も複製・pickle で保たれる。
     classes = []
-    for base, args in ((Translation, (1.0, 2.0, 3.0)), (Quaternion, (0.0, 0.0, 0.0, 1.0)),
-                       (EulerRotation, (0.1, 0.2, 0.3, "yxz")), (Matrix, (list(range(16)),))):
+    for base, args in ((Translate, (1.0, 2.0, 3.0)), (Quaternion, (0.0, 0.0, 0.0, 1.0)),
+                       (EulerRotate, (0.1, 0.2, 0.3, "yxz")), (Matrix, (list(range(16)),))):
         name = "UserSubclass" + base.__name__
         cls = type(name, (base,), {"__module__": PACKAGE_NAME})
         cls.__qualname__ = name
@@ -950,7 +950,7 @@ def test_user_subclass_attributes_survive_copy_and_pickle():
         shared = copy.deepcopy([value, value])
         assert shared[0] is shared[1]
     # hlib 自身の型は __dict__ を持たず、state を付けない。
-    assert len(Translation(1.0, 2.0, 3.0).__reduce_ex__(2)) == 2
+    assert len(Translate(1.0, 2.0, 3.0).__reduce_ex__(2)) == 2
 
 
 def _register_user_class(name, bases, namespace):
@@ -964,8 +964,8 @@ def _register_user_class(name, bases, namespace):
 
 def test_component_indices_are_range_checked_and_accept_slices():
     # om2 の型は負の範囲外の添字(v[-4] など)でも最後の成分を読み書きする。hlib は検査する。
-    for value, size in ((Vector(1.0, 2.0, 3.0), 3), (Translation(1.0, 2.0, 3.0), 3),
-                        (Quaternion(0.1, 0.2, 0.3, 0.9), 4), (EulerRotation(0.1, 0.2, 0.3, "zyx"), 3)):
+    for value, size in ((Vector(1.0, 2.0, 3.0), 3), (Translate(1.0, 2.0, 3.0), 3),
+                        (Quaternion(0.1, 0.2, 0.3, 0.9), 4), (EulerRotate(0.1, 0.2, 0.3, "zyx"), 3)):
         components = tuple(value)
         for index in range(-size, size):
             assert value[index] == components[index]
@@ -986,16 +986,16 @@ def test_component_indices_are_range_checked_and_accept_slices():
 
 def test_constructors_accept_keywords_and_reject_non_numbers():
     assert tuple(Vector(x=1.0, z=3.0)) == (1.0, 0.0, 3.0)
-    assert tuple(Translation(1.0, y=2.0)) == (1.0, 2.0, 0.0)
+    assert tuple(Translate(1.0, y=2.0)) == (1.0, 2.0, 0.0)
     assert tuple(Quaternion(w=0.5)) == (0.0, 0.0, 0.0, 0.5)
-    rotation = EulerRotation(x=0.1, z=0.3, order="zyx")
+    rotation = EulerRotate(x=0.1, z=0.3, order="zyx")
     assert tuple(rotation) == (0.1, 0.0, 0.3) and rotation.orderName == "zyx"
     _assert_raises(TypeError, lambda: Vector(1.0, x=2.0))
     _assert_raises(TypeError, lambda: Vector(w=1.0))
     _assert_raises(TypeError, lambda: Quaternion(v=1.0))
     # om2 と同じく成分は数値だけ(以前の dataclass 版は float() で文字列も受け付けた)。
     for function in (lambda: Vector("1", "2", "3"), lambda: Vector(["1", "2", "3"]),
-                     lambda: Quaternion("0", "0", "0", "1"), lambda: EulerRotation("1", 2.0, 3.0),
+                     lambda: Quaternion("0", "0", "0", "1"), lambda: EulerRotate("1", 2.0, 3.0),
                      lambda: Vector(1.0, 2.0, 3.0, 4.0)):
         _assert_raises(ValueError, function)
     # om2 の他の形はそのまま使える。
@@ -1016,12 +1016,12 @@ def test_instances_created_without_init_are_usable():
     # om2 は C++ の実体を __init__ で確保するため、__new__ だけの om2 の型はアクセス時に
     # Maya ごと落ちる。hlib の型は __new__ で確保するので落ちない(落ちればこのテストごと失敗する)。
     assert tuple(Vector.__new__(Vector)) == (0.0, 0.0, 0.0)
-    assert repr(Translation.__new__(Translation)) == "Translation(0.0, 0.0, 0.0)"
+    assert repr(Translate.__new__(Translate)) == "Translate(0.0, 0.0, 0.0)"
     assert tuple(Quaternion.__new__(Quaternion)) == (0.0, 0.0, 0.0, 1.0)
-    assert EulerRotation.__new__(EulerRotation).order == 0
+    assert EulerRotate.__new__(EulerRotate).order == 0
     assert Matrix.__new__(Matrix) == Matrix()
 
-    class SwallowingEuler(EulerRotation):
+    class SwallowingEuler(EulerRotate):
         def __init__(self, *args):
             try:
                 super().__init__(*args)
@@ -1056,10 +1056,10 @@ def test_in_place_operators_missing_from_om2_keep_the_object():
     assert list(quaternion) == list(om2.MQuaternion(0.1, 0.2, 0.3, 0.9) + om2.MQuaternion(1.0, 0.0, 0.0, 0.0)
                                     - om2.MQuaternion(0.0, 1.0, 0.0, 0.0))
 
-    translation = Translation(1.0, 0.0, 0.0)
+    translation = Translate(1.0, 0.0, 0.0)
     alias = translation
     translation ^= Vector(0.0, 1.0, 0.0)
-    assert translation is alias and type(translation) is Translation
+    assert translation is alias and type(translation) is Translate
     assert tuple(translation) == (0.0, 0.0, 1.0)
 
     matrix = Matrix(translate=(1.0, 0.0, 0.0))
@@ -1114,7 +1114,7 @@ def test_copy_and_pickle_do_not_call_user_init_and_keep_slots():
 
     samples = []
     for base, args in ((Vector, (1.0, 2.0, 3.0)), (Quaternion, (0.1, 0.2, 0.3, 0.9)),
-                       (EulerRotation, (0.1, 0.2, 0.3, "zyx")),
+                       (EulerRotate, (0.1, 0.2, 0.3, "zyx")),
                        (Matrix, (Matrix(translate=(1.0, 2.0, 3.0), scale=(1.0, -2.0, 3.0)),))):
         tagged = _register_user_class("Tagged" + base.__name__, (base,), {"__init__": tagged_init})
         samples.append(tagged("tag", *args))
@@ -1170,8 +1170,8 @@ _DOCUMENTED_OM2_RESULTS = {
     ("MPoint", "*", "Matrix"),
     ("MPoint", "+", "Vector"),
     ("MPoint", "-", "Vector"),
-    ("MPoint", "+", "Translation"),
-    ("MPoint", "-", "Translation"),
+    ("MPoint", "+", "Translate"),
+    ("MPoint", "-", "Translate"),
     ("MEulerRotation", "*", "Quaternion"),
 }
 
@@ -1179,15 +1179,15 @@ _DOCUMENTED_OM2_RESULTS = {
 def test_operator_result_types_follow_the_documented_rule():
     import operator
 
-    hlib_values = [Vector(1.0, 2.0, 3.0), Translation(1.0, 2.0, 3.0), Quaternion(0.1, 0.2, 0.3, 0.9),
-                   EulerRotation(0.1, 0.2, 0.3, "zyx"), Matrix(translate=(1.0, 2.0, 3.0), rotate=(0.1, 0.2, 0.3))]
+    hlib_values = [Vector(1.0, 2.0, 3.0), Translate(1.0, 2.0, 3.0), Quaternion(0.1, 0.2, 0.3, 0.9),
+                   EulerRotate(0.1, 0.2, 0.3, "zyx"), Matrix(translate=(1.0, 2.0, 3.0), rotate=(0.1, 0.2, 0.3))]
     om2_values = [om2.MVector(4.0, 5.0, 6.0), om2.MPoint(4.0, 5.0, 6.0), om2.MFloatVector(4.0, 5.0, 6.0),
                   om2.MFloatPoint(4.0, 5.0, 6.0), om2.MQuaternion(0.1, 0.1, 0.1, 0.9),
                   om2.MEulerRotation(0.1, 0.1, 0.1), om2.MMatrix(hlib_values[-1]),
                   om2.MFloatMatrix(om2.MMatrix(hlib_values[-1])), 2, 2.0]
     operators = [("+", operator.add), ("-", operator.sub), ("*", operator.mul), ("/", operator.truediv),
                  ("^", operator.xor), ("@", operator.matmul)]
-    hlib_types = (Vector, Quaternion, EulerRotation, Matrix)
+    hlib_types = (Vector, Quaternion, EulerRotate, Matrix)
     om2_results = set()
     for value in hlib_values:
         for other in om2_values:
@@ -1212,7 +1212,7 @@ def test_reflected_and_mixed_vector_matrix_products_return_hlib_types():
     crossed = raw ^ a
     assert type(crossed) is Vector
     assert crossed == om2.MVector.__xor__(raw, a) == -(a ^ raw)
-    assert type(raw ^ Translation(1.0, 2.0, 3.0)) is Vector
+    assert type(raw ^ Translate(1.0, 2.0, 3.0)) is Vector
 
     # Matrix が左辺なら om2.MVector / om2.MPoint との積も Vector(om2 の列ベクトルとしての積)。
     m = Matrix(translate=(1.0, 2.0, 3.0), rotate=(0.1, 0.2, 0.3), scale=(1.0, 2.0, 3.0))
@@ -1362,7 +1362,7 @@ def test_class_statements_use_the_om2_bases():
     import ast
 
     expected = {"vector.py": ("Vector", "MVector"), "quaternion.py": ("Quaternion", "MQuaternion"),
-                "eulerRotation.py": ("EulerRotation", "MEulerRotation"), "matrix.py": ("Matrix", "MMatrix")}
+                "eulerRotate.py": ("EulerRotate", "MEulerRotation"), "matrix.py": ("Matrix", "MMatrix")}
     for file_name, (class_name, base_name) in expected.items():
         tree = ast.parse((ROOT / "maths" / file_name).read_text(encoding="utf-8"))
         classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name]
@@ -1372,11 +1372,11 @@ def test_class_statements_use_the_om2_bases():
         assert isinstance(bases[0].value, ast.Name) and bases[0].value.id == "om2", file_name
         assert bases[0].attr == base_name, file_name
     assert Vector.__bases__ == (om2.MVector,) and Quaternion.__bases__ == (om2.MQuaternion,)
-    assert EulerRotation.__bases__ == (om2.MEulerRotation,) and Matrix.__bases__ == (om2.MMatrix,)
+    assert EulerRotate.__bases__ == (om2.MEulerRotation,) and Matrix.__bases__ == (om2.MMatrix,)
 
 
 def test_mirror_value_types():
-    for cls in (Vector, Translation, Scale, Shear):
+    for cls in (Vector, Translate, Scale, Shear):
         value = cls(1, 2, 3)
         result = value.mirror("xz", pivot=(4, 5, 6))
         assert type(result) is cls
@@ -1385,7 +1385,7 @@ def test_mirror_value_types():
         assert result.mirrorIt("xz", pivot=(4, 5, 6)) is result
         assert tuple(result) == tuple(value)
     for axis in ("x", "y", "z", "xy", "xz", "yz", "xyz"):
-        rotation = EulerRotation(.3, -.4, .7)
+        rotation = EulerRotate(.3, -.4, .7)
         rotation.order = 4
         matrix = rotation.asUnitMatrix() if isinstance(rotation, Quaternion) else rotation.asMatrix()
         expected = matrix.mirror(axis)
@@ -1419,11 +1419,11 @@ if __name__ == "__main__":
     importlib.invalidate_caches()
     module = importlib.import_module(f"{PACKAGE_NAME}.maths")
     for _type_name in (
-        "Vector", "Translation", "Quaternion", "EulerRotation",
+        "Vector", "Translate", "Quaternion", "EulerRotate",
         "Scale", "Shear", "Matrix",
     ):
         globals()[_type_name] = getattr(module, _type_name)
-    ORDER_NAMES = module.eulerRotation.ORDER_NAMES
+    ORDER_NAMES = module.eulerRotate.ORDER_NAMES
 
     _tests = [
         unittest.FunctionTestCase(value, description=name)

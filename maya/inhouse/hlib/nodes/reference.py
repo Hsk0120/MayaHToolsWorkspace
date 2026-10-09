@@ -3,7 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from ..decorator import undoChunk
 from .node import Node
 
@@ -52,6 +52,19 @@ class Reference(Node):
             bool: ロード済みなら True。
         """
         return self.referenceFn().isLoaded()
+
+    @_is_alias(isLoaded)
+    def loaded(self, *args, **kwargs):
+        """isLoadedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isLoaded(*args, **kwargs)
 
     def getNodes(self):
         """この参照が持ち込んだノードを取得する。
@@ -113,6 +126,19 @@ class Reference(Node):
             bool: 親参照が無ければ True。
         """
         return self.getParentReference() is None
+
+    @_is_alias(isTopLevel)
+    def topLevel(self, *args, **kwargs):
+        """isTopLevelへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isTopLevel(*args, **kwargs)
 
     def getEditStrings(self, successful=True, failed=False):
         """このReferenceに対するEdit(MELコマンド文字列)一覧を取得する。

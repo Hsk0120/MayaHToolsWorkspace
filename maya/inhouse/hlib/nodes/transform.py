@@ -14,7 +14,7 @@ from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
 from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk, undoTransaction
-from ..maths import EulerRotation, Matrix, Quaternion, Scale, Shear, Translation, Vector, Transformation
+from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector, Transformation
 from ..maths.vector import _vector_of
 from ..plugs.plug import Plug
 from .dagNode import DagNode, DagNodes
@@ -63,7 +63,7 @@ def _match_scale_signs(quaternion, scale, shear, references):
         scale (Iterable[float]): 分解したスケール。
         shear (Iterable[float]): 分解したシアー(XY、XZ、YZ)。
         references (Iterable[Iterable[float]]): 符号を合わせる基準のスケールの候補。
-            優先する順に並べる(setScaling で要求した値、現在の scale チャンネル値など)。
+            優先する順に並べる(setScale で要求した値、現在の scale チャンネル値など)。
 
     Returns:
         tuple: (quaternion, scale, shear)。scale と shear は3要素の tuple。
@@ -387,7 +387,7 @@ class Transform(DagNode):
             kind (str): rotateは回転、scaleはスケールピボット。
 
         Returns:
-            Translation: ピボット位置。Maya API の内部距離単位。
+            Translate: ピボット位置。Maya API の内部距離単位。
 
         Raises:
             ValueError: kindがrotate/scaleでない場合。
@@ -400,7 +400,7 @@ class Transform(DagNode):
         flag = "rotatePivot" if kind == "rotate" else "scalePivot"
         values = cmds.xform(self.getFullName(), query=True, worldSpace=ws,
                             objectSpace=not ws, **{flag: True})
-        return Translation(*(om2.MDistance(v, om2.MDistance.uiUnit()).asCentimeters() for v in values))
+        return Translate(*(om2.MDistance(v, om2.MDistance.uiUnit()).asCentimeters() for v in values))
 
     @flag_aliases(ws="worldSpace")
     @undoChunk("hlibTransformSetPivot")
@@ -914,10 +914,10 @@ class Transform(DagNode):
         values = {name: self.getPlug(name).get() for name in (
             "translate", "rotate", "scale", "shear", "rotateOrder", "rotateAxis",
             "rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate")}
-        values["rotate"] = EulerRotation(values["rotate"], order=values["rotateOrder"])
-        values["rotateAxis"] = EulerRotation(values["rotateAxis"])
+        values["rotate"] = EulerRotate(values["rotate"], order=values["rotateOrder"])
+        values["rotateAxis"] = EulerRotate(values["rotateAxis"])
         if self.mnode().hasFn(om2.MFn.kJoint):
-            values.update(jointOrient=EulerRotation(self.getPlug("jointOrient").get()),
+            values.update(jointOrient=EulerRotate(self.getPlug("jointOrient").get()),
                           inverseScale=self.getPlug("inverseScale").get(),
                           segmentScaleCompensate=bool(self.getPlug("segmentScaleCompensate").get()))
             # Mayaのjoint行列はピボットを使わない。
@@ -986,7 +986,7 @@ class Transform(DagNode):
             current = getattr(fitted, name)
             if name in ("rotateAxis", "jointOrient"):
                 # 等価なクォータニオンでもチャンネルの数値を不用意に反転しない。
-                reference = EulerRotation(self.getPlug(name).get())
+                reference = EulerRotate(self.getPlug(name).get())
                 current = current.asEulerRotation().closestSolution(reference)
             if name in ("rotateOrder", "segmentScaleCompensate"):
                 self.getPlug(name).set(current, safe=safe)
@@ -995,7 +995,7 @@ class Transform(DagNode):
         if safe:
             # 書込みできなかった補助成分を実際の状態へ戻してからTRSを計算する。
             actual = self.getTransformation()
-            reference = EulerRotation(fitted.rotate)
+            reference = EulerRotate(fitted.rotate)
             reference.reorderIt(actual.rotateOrder)
             actual.rotate = reference
             actual.scale = fitted.scale
@@ -1086,14 +1086,14 @@ class Transform(DagNode):
         return self._set_matrix(matrix, ws)
 
     @flag_aliases(ws="worldSpace")
-    def getTranslation(self, worldSpace=False, at=2):
+    def getTranslate(self, worldSpace=False, at=2):
         """基準位置を取得する。既定は回転ピボット位置。
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。
             at (int): 0=親原点、1=translate、2=回転ピボット、3=スケールピボット、4以上=行列原点。
         Returns:
-            Translation: cm単位の位置。
+            Translate: cm単位の位置。
         """
         ws = world_space(worldSpace)
         if at >= 3:
@@ -1115,18 +1115,18 @@ class Transform(DagNode):
             point = om2.MPoint(value)
             if ws:
                 point *= self.mpath().exclusiveMatrix()
-        return Translation(point.x, point.y, point.z)
+        return Translate(point.x, point.y, point.z)
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformSetTranslate")
-    def setTranslation(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
+    def setTranslate(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
         """指定基準の位置へ移動する。ピボットや回転は変更しない。
 
         Args:
             value (Iterable[float]): cm単位の位置。
             worldSpace (bool): ワールド指定。短縮名ws。
-            at (int): getTranslationと同じ基準。既定2。
+            at (int): getTranslateと同じ基準。既定2。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずtranslateの計算値だけを返す。
             fast (bool): Undoなしの直接更新。
@@ -1141,14 +1141,14 @@ class Transform(DagNode):
         if at < 1:
             result = om2.MVector(point) - current
         else:
-            result = current + (om2.MVector(point) - om2.MVector(tuple(self.getTranslation(at=at))))
+            result = current + (om2.MVector(point) - om2.MVector(tuple(self.getTranslate(at=at))))
         if get:
             return list(result)
         self._set_channel_value("translate", result, safe=safe)
         return self
 
     @flag_aliases(ws="worldSpace")
-    def getRotation(self, worldSpace=False):
+    def getRotate(self, worldSpace=False):
         """Euler 回転値を、ノードの rotateOrder で取得する。
 
         ``cmds.xform(query=True, rotation=True)`` と同じく、値はノードの rotateOrder で
@@ -1162,23 +1162,23 @@ class Transform(DagNode):
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
-            EulerRotation: 評価済みの回転値（radian、ノードの回転順序）。
+            EulerRotate: 評価済みの回転値（radian、ノードの回転順序）。
 
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
         ws = world_space(worldSpace)
         _, quaternion, _, _, reference = self._decompose_like_channels(self.getMatrix(ws=ws))
-        return EulerRotation._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
+        return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
     @undoChunk("hlibTransformSetRotate")
-    def setRotation(self, value, worldSpace=False, safe=False, get=False, *, unit="rad", fast=False):
+    def setRotate(self, value, worldSpace=False, safe=False, get=False, *, unit="rad", fast=False):
         """Euler回転を設定する。
 
         3成分の値は ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値として
-        解釈する(:meth:`getRotation` や ``getPlug("rotate").get()`` の値をそのまま渡せる)。
+        解釈する(:meth:`getRotate` や ``getPlug("rotate").get()`` の値をそのまま渡せる)。
         書き込む rotate は、同じ回転を表す解のうち現在のチャンネル値に最も近いもの。
         ローカル空間の transform では通常は渡した値がそのまま入る(浮動小数点の誤差を
         除く。現在値が 0 のノードへ 370 度を渡すと 10 度になるなど、等価な解に
@@ -1186,8 +1186,8 @@ class Transform(DagNode):
 
         Args:
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-            value (Iterable[float] | EulerRotation | Quaternion): 回転値。3成分はノードの
-                rotateOrder の値として解釈する。EulerRotation(om2.MEulerRotation)は
+            value (Iterable[float] | EulerRotate | Quaternion): 回転値。3成分はノードの
+                rotateOrder の値として解釈する。EulerRotate(om2.MEulerRotation)は
                 その回転順序を反映する。unit が rad の場合は Quaternion も受け入れる。
                 ノードへは rotateOrder に並べ替えて書き込む。
             unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
@@ -1201,7 +1201,7 @@ class Transform(DagNode):
             Transform | list[float]: 通常は自身、get=Trueはrad単位の計算値。
 
         Raises:
-            ValueError: unit が rad/deg 以外、deg を EulerRotation / Quaternion と指定、
+            ValueError: unit が rad/deg 以外、deg を EulerRotate / Quaternion と指定、
                 値が3成分でない、行列が分解不能、または必要な親行列が反転不能の場合。
             RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
 
@@ -1221,13 +1221,13 @@ class Transform(DagNode):
             if unit == "deg":
                 x, y, z = math.radians(x), math.radians(y), math.radians(z)
             # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
-            value = EulerRotation(x, y, z, self._rotate_order())
+            value = EulerRotate(x, y, z, self._rotate_order())
         matrix = self._replace_components(self.getMatrix(ws=ws), rotate=value)
         result = self.setMatrix(matrix, ws=ws, safe=safe, get=get)
         return list(result["rotate"]) if get else self
 
     @flag_aliases(ws="worldSpace")
-    def getScaling(self, worldSpace=False):
+    def getScale(self, worldSpace=False):
         """指定空間のスケール値を取得する。
 
         Args:
@@ -1241,7 +1241,7 @@ class Transform(DagNode):
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
-    def setScaling(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
+    def setScale(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
         """scaleチャンネルだけを設定する。
 
         Args:
@@ -1253,7 +1253,7 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueは計算値。
         """
-        values = self._scaling_channel_value(value, world_space(worldSpace))
+        values = self._scale_channel_value(value, world_space(worldSpace))
         if get:
             return values
         self._set_channel_value("scale", values, safe=safe)
@@ -1286,7 +1286,7 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueは計算値。
         """
-        values = self._scaling_channel_value(value, world_space(worldSpace), shear=True)
+        values = self._scale_channel_value(value, world_space(worldSpace), shear=True)
         if get:
             return values
         self._set_channel_value("shear", values, safe=safe)
@@ -1392,23 +1392,23 @@ class Transform(DagNode):
 
     @flag_aliases(ws="worldSpace")
     def getEuler(self, worldSpace=False):
-        """回転を XYZ 順序の EulerRotation として取得する。
+        """回転を XYZ 順序の EulerRotate として取得する。
 
         行列から分解した回転をXYZ順序で返す。getQuaternionのra/r/joによる
-        合成対象の選択は行わない。ノードのrotateOrderで表す場合はgetRotationを使う。
+        合成対象の選択は行わない。ノードのrotateOrderで表す場合はgetRotateを使う。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
         Returns:
-            EulerRotation: 評価済みの回転値（radian、XYZ 順序）。
+            EulerRotate: 評価済みの回転値（radian、XYZ 順序）。
 
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
         ws = world_space(worldSpace)
         _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(ws=ws))
-        return EulerRotation._wrap(quaternion.asEulerRotation())
+        return EulerRotate._wrap(quaternion.asEulerRotation())
 
     @flag_aliases("makeIdentity")
     @undoChunk("hlibTransformFreeze")
@@ -1429,7 +1429,7 @@ class Transform(DagNode):
             RuntimeError: Mayaがフリーズを拒否した場合。
 
         子階層への適用、Jointの移動保持、スキニング済み対象や接続への制約も
-        Maya標準に従う。resetやJoint.freezeRotationの姿勢移送とは異なる。
+        Maya標準に従う。resetやJoint.freezeRotateの姿勢移送とは異なる。
         """
         if kwargs.pop("apply", True) is not True:
             raise ValueError("freeze requires apply=True")
@@ -1804,8 +1804,8 @@ class Transform(DagNode):
         """
         return self.getMatrix(*args, **kwargs)
 
-    @_getter_alias(getTranslation)
-    def translation(self, *args, **kwargs):
+    @_getter_alias(getTranslate)
+    def translate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -1818,10 +1818,10 @@ class Transform(DagNode):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getTranslation(*args, **kwargs)
+        return self.getTranslate(*args, **kwargs)
 
-    @_getter_alias(getRotation)
-    def rotation(self, *args, **kwargs):
+    @_getter_alias(getRotate)
+    def rotate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -1834,10 +1834,10 @@ class Transform(DagNode):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRotation(*args, **kwargs)
+        return self.getRotate(*args, **kwargs)
 
-    @_getter_alias(getScaling)
-    def scaling(self, *args, **kwargs):
+    @_getter_alias(getScale)
+    def scale(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -1850,7 +1850,7 @@ class Transform(DagNode):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getScaling(*args, **kwargs)
+        return self.getScale(*args, **kwargs)
 
     @_getter_alias(getShearing)
     def shearing(self, *args, **kwargs):
@@ -1938,7 +1938,7 @@ class Transform(DagNode):
             return tuple(self.getPlug("inverseScale").get())
         return (1.0, 1.0, 1.0)
 
-    def _scaling_channel_value(self, value, ws, shear=False):
+    def _scale_channel_value(self, value, ws, shear=False):
         """ワールドのscale/shear要求を、SSCを除いたチャンネル値へ変換する。
 
         Args:
@@ -2030,15 +2030,15 @@ class Transform(DagNode):
         :func:`_match_scale_signs` で符号を揃える。基準は scale_reference (指定時)、
         次に現在の scale チャンネル値の順に、行列式の符号と合う最初のもの。これにより
         scale が (-1, 1, 1) のようなミラーのノードでも、取得・設定の往復でチャンネル値の
-        符号と回転が保たれ、``setScaling`` では要求した符号がそのまま入る。
+        符号と回転が保たれ、``setScale`` では要求した符号がそのまま入る。
 
         Args:
             matrix (Matrix): 分解する行列。
             scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
-                (``setScaling`` で要求した値)。None なら現在の scale チャンネル値だけ。
+                (``setScale`` で要求した値)。None なら現在の scale チャンネル値だけ。
 
         Returns:
-            tuple: (translate(Translation), quaternion(om2.MQuaternion),
+            tuple: (translate(Translate), quaternion(om2.MQuaternion),
             scale(tuple), shear(tuple), reference(om2.MEulerRotation))。reference は
             現在の rotate チャンネル値で、Euler の解を選ぶ基準に使う。
 
@@ -2068,7 +2068,7 @@ class Transform(DagNode):
 
         Args:
             matrix (Matrix): 元の行列。
-            rotate (Iterable[float] | EulerRotation | Quaternion | None): 新しい回転。
+            rotate (Iterable[float] | EulerRotate | Quaternion | None): 新しい回転。
                 3成分は XYZ 順序のラジアン。None は現在の値。
             scale (Iterable[float] | None): 新しいスケール。None は現在の値。
             shear (Iterable[float] | None): 新しいシアー。None は現在の値。
@@ -2088,7 +2088,7 @@ class Transform(DagNode):
         )
 
     def _rotate_reference(self, reference):
-        """:meth:`getRotation` が Euler の解を選ぶ基準を返す。
+        """:meth:`getRotate` が Euler の解を選ぶ基準を返す。
 
         transform では行列の回転と rotate チャンネルが同じ回転(rotateAxis が 0 の場合)
         なので、現在の rotate チャンネル値をそのまま基準にする。
@@ -2101,7 +2101,7 @@ class Transform(DagNode):
         """
         return reference
 
-    def _channel_rotation(self, quaternion, reference):
+    def _channel_rotate(self, quaternion, reference):
         """ローカル行列の回転を、rotate チャンネルへ書き込む値へ変換する。
 
         transformではrotateAxisを除いてrotateチャンネルの回転を求める。
@@ -2122,12 +2122,12 @@ class Transform(DagNode):
         分解は om2.MTransformationMatrix の規約に、次の2点の選択を加えたもの。
 
         * スケールの符号の組み合わせは、行列式の符号が許す限り scale_reference
-          (``setScaling`` で要求した値)、次に現在の scale チャンネルに揃える
+          (``setScale`` で要求した値)、次に現在の scale チャンネルに揃える
           (:meth:`_decompose_like_channels`)。
         * 回転はノードの rotateOrder で表し、等価な解のうち現在の rotate チャンネル値に
           最も近いものを選ぶ(``om2.MEulerRotation.closestSolution``)。
 
-        このため ``setMatrix(getMatrix())`` や ``setTranslation`` はチャンネル値を
+        このため ``setMatrix(getMatrix())`` や ``setTranslate`` はチャンネル値を
         (浮動小数点の誤差を除いて)変えない。回転は現在のMaya角度単位へ変換して書き込む。
         ピボット・rotateAxis・jointOrient・SSCの補正を含める。
 
@@ -2172,7 +2172,7 @@ class Transform(DagNode):
         corrected = source * Matrix(scale=inv_scale)
         corrected.translate = source.translate
         _, q, scale, shear, reference = self._decompose_like_channels(corrected, scale_reference)
-        rotation = self._channel_rotation(q, reference)
+        rotation = self._channel_rotate(q, reference)
         sp = tuple(self.getPlug("scalePivot").get())
         rp = tuple(self.getPlug("rotatePivot").get())
         spt = tuple(self.getPlug("scalePivotTranslate").get())
@@ -2186,7 +2186,7 @@ class Transform(DagNode):
                 * Matrix(translate=rp) * Matrix(translate=rpt)
                 * Matrix(scale=tuple(1.0 / v for v in inv_scale)))
         translate = source.translate - base.translate
-        return {"translate": Translation(*translate), "rotate": EulerRotation._wrap(rotation),
+        return {"translate": Translate(*translate), "rotate": EulerRotate._wrap(rotation),
                 "scale": Scale(*scale), "shear": Shear(*shear)}
 
     def _set_matrix(self, matrix, ws=False, scale_reference=None):
@@ -2196,7 +2196,7 @@ class Transform(DagNode):
             matrix (Matrix | sequence): 適用する変換行列。
             ws (bool): ``True`` でワールド空間、``False`` でローカル空間に設定する。
             scale_reference (Iterable[float] | None): 分解したスケールの符号を最優先で
-                合わせる値(:meth:`setScaling` で要求した値)。None なら現在の scale
+                合わせる値(:meth:`setScale` で要求した値)。None なら現在の scale
                 チャンネル値に合わせる。
 
         Returns:
@@ -2256,12 +2256,12 @@ class Transforms(DagNodes):
         "jointOrientQuaternion": "list",
         "getTransformation": "list",
         "transformation": "list",
-        "getTranslation": "list",
-        "translation": "list",
-        "getRotation": "list",
-        "rotation": "list",
-        "getScaling": "list",
-        "scaling": "list",
+        "getTranslate": "list",
+        "translate": "list",
+        "getRotate": "list",
+        "rotate": "list",
+        "getScale": "list",
+        "scale": "list",
         "getShearing": "list",
         "shearing": "list",
         "getQuaternion": "list",
@@ -2288,9 +2288,9 @@ class Transforms(DagNodes):
         "setOffsetParentMatrix": "self",
         "setMatrix": "self",
         "setTransformation": "self",
-        "setTranslation": "self",
-        "setRotation": "self",
-        "setScaling": "self",
+        "setTranslate": "self",
+        "setRotate": "self",
+        "setScale": "self",
         "setShearing": "self",
         "setQuaternion": "self",
         "makeIdentity": "self",
@@ -2330,12 +2330,12 @@ class Transforms(DagNodes):
         "jointOrientQuaternion": Transform.jointOrientQuaternion,
         "getTransformation": Transform.getTransformation,
         "transformation": Transform.transformation,
-        "getTranslation": Transform.getTranslation,
-        "translation": Transform.translation,
-        "getRotation": Transform.getRotation,
-        "rotation": Transform.rotation,
-        "getScaling": Transform.getScaling,
-        "scaling": Transform.scaling,
+        "getTranslate": Transform.getTranslate,
+        "translate": Transform.translate,
+        "getRotate": Transform.getRotate,
+        "rotate": Transform.rotate,
+        "getScale": Transform.getScale,
+        "scale": Transform.scale,
         "getShearing": Transform.getShearing,
         "shearing": Transform.shearing,
         "getQuaternion": Transform.getQuaternion,
@@ -2362,9 +2362,9 @@ class Transforms(DagNodes):
         "setOffsetParentMatrix": Transform.setOffsetParentMatrix,
         "setMatrix": Transform.setMatrix,
         "setTransformation": Transform.setTransformation,
-        "setTranslation": Transform.setTranslation,
-        "setRotation": Transform.setRotation,
-        "setScaling": Transform.setScaling,
+        "setTranslate": Transform.setTranslate,
+        "setRotate": Transform.setRotate,
+        "setScale": Transform.setScale,
         "setShearing": Transform.setShearing,
         "setQuaternion": Transform.setQuaternion,
         "makeIdentity": Transform.makeIdentity,
@@ -2667,8 +2667,8 @@ class Transforms(DagNodes):
 
     setTransformation.__signature__ = inspect.signature(Transform.setTransformation)
 
-    def getTranslation(self, *args, **kwargs):
-        """各要素のgetTranslationを同じ引数で呼び、保持順の戻り値リストを返す。
+    def getTranslate(self, *args, **kwargs):
+        """各要素のgetTranslateを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -2677,12 +2677,12 @@ class Transforms(DagNodes):
         Returns:
             list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("getTranslation", args, kwargs)
+        return self._dispatch_shared("getTranslate", args, kwargs)
 
-    getTranslation.__signature__ = inspect.signature(Transform.getTranslation)
+    getTranslate.__signature__ = inspect.signature(Transform.getTranslate)
 
-    def setTranslation(self, *args, **kwargs):
-        """各要素のsetTranslationを同じ引数で呼び、コレクション自身を返す。
+    def setTranslate(self, *args, **kwargs):
+        """各要素のsetTranslateを同じ引数で呼び、コレクション自身を返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -2691,12 +2691,12 @@ class Transforms(DagNodes):
         Returns:
             Transforms | list: コレクション自身。
         """
-        return self._dispatch_shared("setTranslation", args, kwargs)
+        return self._dispatch_shared("setTranslate", args, kwargs)
 
-    setTranslation.__signature__ = inspect.signature(Transform.setTranslation)
+    setTranslate.__signature__ = inspect.signature(Transform.setTranslate)
 
-    def getRotation(self, *args, **kwargs):
-        """各要素のgetRotationを同じ引数で呼び、保持順の戻り値リストを返す。
+    def getRotate(self, *args, **kwargs):
+        """各要素のgetRotateを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -2705,12 +2705,12 @@ class Transforms(DagNodes):
         Returns:
             list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("getRotation", args, kwargs)
+        return self._dispatch_shared("getRotate", args, kwargs)
 
-    getRotation.__signature__ = inspect.signature(Transform.getRotation)
+    getRotate.__signature__ = inspect.signature(Transform.getRotate)
 
-    def setRotation(self, *args, **kwargs):
-        """各要素のsetRotationを同じ引数で呼び、コレクション自身を返す。
+    def setRotate(self, *args, **kwargs):
+        """各要素のsetRotateを同じ引数で呼び、コレクション自身を返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -2719,12 +2719,12 @@ class Transforms(DagNodes):
         Returns:
             Transforms | list: コレクション自身。
         """
-        return self._dispatch_shared("setRotation", args, kwargs)
+        return self._dispatch_shared("setRotate", args, kwargs)
 
-    setRotation.__signature__ = inspect.signature(Transform.setRotation)
+    setRotate.__signature__ = inspect.signature(Transform.setRotate)
 
-    def getScaling(self, *args, **kwargs):
-        """各要素のgetScalingを同じ引数で呼び、保持順の戻り値リストを返す。
+    def getScale(self, *args, **kwargs):
+        """各要素のgetScaleを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -2733,12 +2733,12 @@ class Transforms(DagNodes):
         Returns:
             list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("getScaling", args, kwargs)
+        return self._dispatch_shared("getScale", args, kwargs)
 
-    getScaling.__signature__ = inspect.signature(Transform.getScaling)
+    getScale.__signature__ = inspect.signature(Transform.getScale)
 
-    def setScaling(self, *args, **kwargs):
-        """各要素のsetScalingを同じ引数で呼び、コレクション自身を返す。
+    def setScale(self, *args, **kwargs):
+        """各要素のsetScaleを同じ引数で呼び、コレクション自身を返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -2747,9 +2747,9 @@ class Transforms(DagNodes):
         Returns:
             Transforms | list: コレクション自身。
         """
-        return self._dispatch_shared("setScaling", args, kwargs)
+        return self._dispatch_shared("setScale", args, kwargs)
 
-    setScaling.__signature__ = inspect.signature(Transform.setScaling)
+    setScale.__signature__ = inspect.signature(Transform.setScale)
 
     def getShearing(self, *args, **kwargs):
         """各要素のgetShearingを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -3269,8 +3269,8 @@ class Transforms(DagNodes):
         """
         return self.getTransformation(*args, **kwargs)
 
-    @_getter_alias(getTranslation)
-    def translation(self, *args, **kwargs):
+    @_getter_alias(getTranslate)
+    def translate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -3283,10 +3283,10 @@ class Transforms(DagNodes):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getTranslation(*args, **kwargs)
+        return self.getTranslate(*args, **kwargs)
 
-    @_getter_alias(getRotation)
-    def rotation(self, *args, **kwargs):
+    @_getter_alias(getRotate)
+    def rotate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -3299,10 +3299,10 @@ class Transforms(DagNodes):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRotation(*args, **kwargs)
+        return self.getRotate(*args, **kwargs)
 
-    @_getter_alias(getScaling)
-    def scaling(self, *args, **kwargs):
+    @_getter_alias(getScale)
+    def scale(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -3315,7 +3315,7 @@ class Transforms(DagNodes):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getScaling(*args, **kwargs)
+        return self.getScale(*args, **kwargs)
 
     @_getter_alias(getShearing)
     def shearing(self, *args, **kwargs):

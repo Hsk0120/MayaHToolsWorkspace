@@ -2,7 +2,7 @@
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from ..decorator import undoChunk
 from .node import Node
 
@@ -65,6 +65,19 @@ class ObjectSet(Node):
         """
         from .._core.object import Object as _InputObject
         return bool(cmds.sets(_InputObject._input_name(member), isMember=self.getName()))
+
+    @_is_alias(isMember)
+    def member(self, *args, **kwargs):
+        """isMemberへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isMember(*args, **kwargs)
 
     @_getter_alias(getMembers)
     def members(self, *args, **kwargs):

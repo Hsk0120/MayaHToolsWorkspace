@@ -49,8 +49,8 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 - ``Transform.getMatrix`` (ローカルはMPlug、ワールドは対象インスタンスのDAGパスから取得)
   と ``cmds.getAttr``/``cmds.xform(query=True, matrix=True)``、
   ``hlib.maths.Matrix`` の分解(行列式が負の場合を含む)と ``cmds.xform(matrix=...)`` で
-  書き込まれるチャンネル値・decomposeMatrix ノードの出力、``Transform.getRotation``/
-  ``setRotation`` の3成分と ``cmds.xform(rotation=...)`` (全回転順序)
+  書き込まれるチャンネル値・decomposeMatrix ノードの出力、``Transform.getRotate``/
+  ``setRotate`` の3成分と ``cmds.xform(rotation=...)`` (全回転順序)
 """
 from maya.api.OpenMaya import MSpace
 
@@ -236,7 +236,7 @@ class TransformMatrixParityTest(unittest.TestCase):
     ``hlib.maths.Matrix`` は om2.MMatrix を継承し、om2.MTransformationMatrix と同じ規約
     (行列式が負なら Z スケールを負にして 180 度を補う)で分解する。その規約が
     ``cmds.xform(matrix=...)`` によるチャンネル値と decomposeMatrix ノードの出力に
-    一致することを突き合わせる。``Transform.getRotation`` / ``setRotation`` の3成分が
+    一致することを突き合わせる。``Transform.getRotate`` / ``setRotate`` の3成分が
     ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値であることも突き合わせる。
     """
 
@@ -274,7 +274,7 @@ class TransformMatrixParityTest(unittest.TestCase):
         self.assert_sequence_almost_equal(
             list(node.getMatrix(ws=True)), cmds.xform(self.child, query=True, worldSpace=True, matrix=True))
         self.assert_sequence_almost_equal(
-            tuple(node.getTranslation(ws=True, at=4)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
+            tuple(node.getTranslate(ws=True, at=4)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
 
     def test_world_matrix_follows_the_dag_instance(self):
         # getMatrix(ws=True) はラッパーの DAG パスのインスタンス番号の worldMatrix 要素を読む。
@@ -335,17 +335,17 @@ class TransformMatrixParityTest(unittest.TestCase):
         for order in range(6):
             cmds.setAttr(self.child + ".rotateOrder", order)
             cmds.setAttr(self.child + ".rotate", 40.0, -50.0, 60.0)
-            local = node.getRotation()
+            local = node.getRotate()
             self.assertEqual(local.order, order)
             self.assert_sequence_almost_equal(local.asDegrees(), cmds.xform(self.child, query=True, rotation=True))
 
-            world = node.getRotation(ws=True)
+            world = node.getRotate(ws=True)
             self.assertEqual(world.order, order)
             queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
             expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
             self.assertTrue(world.asMatrix().isEquivalent(expected.asMatrix(), 1e-9), order)
 
-            node.setRotation((10.0, -20.0, 30.0), unit="deg", ws=True)
+            node.setRotate((10.0, -20.0, 30.0), unit="deg", ws=True)
             queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
             expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
             wanted = om2.MEulerRotation(math.radians(10.0), math.radians(-20.0), math.radians(30.0), order)

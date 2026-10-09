@@ -18,11 +18,11 @@ displayLayer の基本操作
    layer = Node(cmds.createDisplayLayer(name="myLayer", empty=True))
 
    layer.addMembers(a)
-   print(layer.getMembers())        # [Transform('layerMemberA')]
+   print(layer.members())        # [Transform('layerMemberA')]
 
    layer.setCurrent()           # 以降の新規ノードの追加先レイヤーになる
    layer.removeMembers(a)       # defaultLayer へ戻す（除外に相当）
-   print(layer.getMembers())        # []
+   print(layer.members())        # []
 
 ``displayLayer`` ノードは自動的に ``DisplayLayer`` ラッパーへ解決されます。
 Maya の displayLayer メンバーシップは常に単一のレイヤーに限られ、
@@ -43,14 +43,14 @@ objectSet の基本操作
    object_set = Node(cmds.sets(name="controlSet", empty=True))
 
    object_set.addMembers(a, b)
-   print(object_set.getMembers())          # [Transform('setMemberA'), Transform('setMemberB')]
-   print(object_set.isMember(a))       # True
+   print(object_set.members())          # [Transform('setMemberA'), Transform('setMemberB')]
+   print(object_set.member(a))       # True
 
-   object_set.addMembers(a.getFullName() + ".tx")  # コンポーネント/プラグ文字列も追加可能
+   object_set.addMembers(a.fullName() + ".tx")  # コンポーネント/プラグ文字列も追加可能
    object_set.removeMembers(b)
-   print(object_set.getMembers())          # [Transform('setMemberA'), 'setMemberA.translateX']
+   print(object_set.members())          # [Transform('setMemberA'), 'setMemberA.translateX']
 
-``objectSet`` ノードは自動的に ``ObjectSet`` ラッパーへ解決されます。``getMembers()``
+``objectSet`` ノードは自動的に ``ObjectSet`` ラッパーへ解決されます。``members()``
 はコンポーネント文字列（例: ``"mesh1.vtx[0:2]"``）をそのまま文字列として返し、
 それ以外はノードのラッパーとして返します。``addMembers``/``removeMembers`` はNode列または文字列列を
 受け取り、両者の混在は拒否します。和集合・積集合・差集合の演算は現時点では未対応です

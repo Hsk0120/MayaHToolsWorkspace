@@ -27,10 +27,10 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
    import hlib
 
    node = hlib.createNode("transform", name="hlibExample")
-   node.getPlug("visibility").set(False)
+   node.plug("visibility").set(False)
 
-   print(node.getName())
-   print(node.getPlug("visibility").get())
+   print(node.name())
+   print(node.plug("visibility").get())
    print(hlib.ls(type="transform"))
 
 この例では、アトリビュート変更とノード作成は別々のUndoになります。
@@ -38,15 +38,15 @@ hlibの読み込みからノード・アトリビュート操作までの基本�
 :ref:`tool-undo-chunk` の方法でまとめます。
 
 ``createNode`` は ``maya.cmds.createNode`` にキーワード引数を渡し、
-対応するラッパーを返します。既存ノードは ``hlib.getNode("ノード名")`` で取得できます。
+対応するラッパーを返します。既存ノードは ``hlib.node("ノード名")`` で取得できます。
 ``ls`` は ``maya.cmds.ls`` の引数を受け取り、通常はラッパーのリストを返します。
 ``type="joint"`` と ``type="skinCluster"`` は、それぞれ ``Joints`` と
 ``SkinClusters`` コレクションを返します。
 
-ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.getPlug` で取得した
+ノードのアトリビュートは、:meth:`~hlib.nodes.node.Node.plug` で取得した
 :class:`~hlib.plugs.plug.Plug` オブジェクトを通して操作します。
-このページの使用例は正式本体の ``getPlug()`` を使います。
-get省略入口の ``plug()`` も同じPlugを返します（:doc:`getter_aliases`）。
+説明と使用例では、取得メソッドを ``plug()`` のようにgetを省いた名前で記載します。
+get付きの本体も同じ引数・戻り値で利用できます（:doc:`getter_aliases`）。
 
 対象の種類を判別して取得する
 ----------------------------
@@ -70,13 +70,13 @@ get省略入口の ``plug()`` も同じPlugを返します（:doc:`getter_aliase
 数学型、複数形コレクション、UI、保存データは継承しません。
 要素範囲は ``Object`` ではなく ``hlib.common.Selection("pCube1.vtx[0:3]")`` で取得します。
 アトリビュートとコンポーネントの名前が重なる場合はMayaの選択解決に従います。
-アトリビュートとして明示する場合は ``node.getPlug()`` または ``hlib.getPlug()`` を使います。
-対象の種類が決まっている既存コードでは ``hlib.getNode()``・``hlib.getPlug()`` をそのまま使えます。
+アトリビュートとして明示する場合は ``node.plug()`` または ``hlib.plug()`` を使います。
+対象の種類が決まっている既存コードでは ``hlib.node()``・``hlib.plug()`` をそのまま使えます。
 
 クラスを直接importして使う
 ---------------------------
 
-``hlib.createNode``/``hlib.ls``/``hlib.getNode`` などのコマンドは ``hlib`` 直下で
+``hlib.createNode``/``hlib.ls``/``hlib.node`` などのコマンドは ``hlib`` 直下で
 使える一方、``Node``/``Joint``/``Matrix`` のようなクラス自体は ``hlib`` 直下には
 公開されません。所属するサブパッケージから import します。
 
@@ -90,12 +90,26 @@ get省略入口の ``plug()`` も同じPlugを返します（:doc:`getter_aliase
    joint = Joint("joint1")       # 既存ノードを直接ラップ
    matrix = Matrix()             # 単位行列(om2.MMatrix の派生)
 
-``Joint("joint1")`` のように具象クラスを直接呼び出しても、内部は ``Node`` と
-同じファクトリパターンで動作します。指定した名前の実際の Maya nodeType が
-``joint`` と一致しない場合は、呼び出したクラスではなく実際の型に対応する
-ラッパー(例: ``Transform``)が返ります。型を確定させたい場合は
-``isinstance()`` で確認するか、素直に ``hlib.getNode("ノード名")`` /
-``Node("ノード名")`` を使ってください。
+``create=False``（既定）で具象クラスを呼び出すと、そのクラスまたは派生型に対応する
+既存ノードを取得します。``Joint("transform1")`` のような非互換の型はTypeErrorです。
+``Transform("joint1")`` は、Transformの派生型であるJointを返します。
+種類を指定せず実際のMaya nodeTypeから自動選択する場合は、
+``hlib.node("ノード名")`` / ``Node("ノード名")`` を使ってください。
+
+新規作成は、具象クラスに ``create=True`` をキーワードで指定します。
+
+.. code-block:: python
+
+   from hlib.nodes import Joint, Transform, MultiplyDivide
+
+   joint = Joint("newJoint", create=True)
+   control = Transform("newControl", create=True)
+   multiply = MultiplyDivide("newMultiply", create=True)
+
+指定名が既にある場合はMayaの規則で連番化され、通常のUndoで作成を戻せます。
+``create`` はbool限定で、Trueの場合は空でない文字列の名前が必要です。
+作成可能なクラスと制約は :doc:`guide_nodes` の「クラスからノードを作成する」を参照してください。
+既存取得の ``hlib.node()`` やget付きの取得関数に ``create`` を渡す形式は追加していません。
 
 再読み込み
 ----------

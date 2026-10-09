@@ -8,29 +8,29 @@ Vertices・CVs・UVsでも単体と同じ名前で座標を取得・設定でき
 
    import hlib
 
-   mesh = hlib.getNode("pCubeShape1")
-   vertices = mesh.getVertices([2, 0, 5])
-   points = vertices.getPosition(ws=True)
+   mesh = hlib.node("pCubeShape1")
+   vertices = mesh.vertices([2, 0, 5])
+   points = vertices.position(ws=True)
    vertices.setPositions([(1, 2, 3), (4, 5, 6), (7, 8, 9)], ws=True)
 
    vertices.setPositionX(0)                 # 全頂点のXだけを0にする
    vertices.setPositionY([1, 2, 3])         # 保持順の頂点ごとに設定
    vertices.setPosition((0, 0, 0))  # 全頂点が原点に集まる
 
-``getPosition()`` は保持順の座標列を返します。単体と同じ名前で呼べる
-``getPosition()`` も複数形では座標列を返します。
+``position()`` は保持順の座標列を返します。単体と同じ名前で呼べる
+``position()`` も複数形では座標列を返します。
 ``setPosition(value)`` は全要素への同じ値の適用、
 ``setPositions(values)`` は要素ごとの設定です。引数の形による暗黙の切り替えはしません。
 
-* Vertex / Vertices、CV / CVs: XYZ（cm）、space指定、getPositionX()/setPositionX()等。
-* UV / UVs: UV座標、getU()/setU()等。現在のUVセットを参照し、space指定はありません。
-* Edge / Edges、Face / Faces: getVertices()で接続頂点を取得できます。
+* Vertex / Vertices、CV / CVs: XYZ（cm）、space指定、positionX()/setPositionX()等。
+* UV / UVs: UV座標、u()/setU()等。現在のUVセットを参照し、space指定はありません。
+* Edge / Edges、Face / Faces: vertices()で接続頂点を取得できます。
   Edges/Facesの結果は共有頂点の重複を除いたVerticesです。
-  位置を変える場合は ``faces.getVertices().setPositions(...)`` などを使います。
+  位置を変える場合は ``faces.vertices().setPositions(...)`` などを使います。
 
 軸の設定メソッドはスカラーまたは要素数と同じ数値列を受け取ります。
-getPositionX()/setPositionX()等の軸メソッドはオブジェクト空間、位置メソッドの距離はcmです。
-単体の ``getFullName()`` に対応する複数形は ``getFullNames()``、番号は ``indices`` です。
+positionX()/setPositionX()等の軸メソッドはオブジェクト空間、位置メソッドの距離はcmです。
+単体の ``fullName()`` に対応する複数形は ``fullNames()``、番号は ``indices`` です。
 単体に存在しない操作を任意転送する仕組みは使わず、意味が定まる操作を明示的に公開します。
 
 一括編集は1回のUndoにまとまります。件数・非有限座標・コンポーネント番号を

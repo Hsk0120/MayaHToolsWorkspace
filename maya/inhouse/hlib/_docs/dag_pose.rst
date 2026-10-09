@@ -2,7 +2,7 @@
 ============================
 
 ``dagPose`` ノードは :class:`~hlib.nodes.dagPose.DagPose` として取得できます。
-通常の保存姿勢とバインドポーズは同じクラスで扱い、``isBindPose()`` で区別します。
+通常の保存姿勢とバインドポーズは同じクラスで扱い、``bindPose()`` で区別します。
 
 既存のバインドポーズを取得する
 --------------------------------
@@ -13,45 +13,45 @@ Mesh・NURBSカーブ/サーフェス等のShape、またはそのTransformか�
 
    import hlib
 
-   geometry = hlib.getNode("pCube1")
-   skins = geometry.getSkinClusters()  # list[SkinCluster]
-   poses = geometry.getBindPoses()     # list[DagPose]
+   geometry = hlib.node("pCube1")
+   skins = geometry.skinClusters()  # list[SkinCluster]
+   poses = geometry.bindPoses()     # list[DagPose]
 
    # 複数形状のポーズをまとめる場合
-   other = hlib.getNode("nurbsSurface1")
+   other = hlib.node("nurbsSurface1")
    if poses:
-       sources = other.getBindPoses()
+       sources = other.bindPoses()
        if sources:
            poses[0].merge(sources)
 
-``getSkinClusters()`` は対象Shapeが出力先であるSkinClusterを返します。
+``skinClusters()`` は対象Shapeが出力先であるSkinClusterを返します。
 Transformでは直下の非中間Shapeだけを検索し、子Transform以下は検索しません。
 Shape順・各Shapeの上流幅優先順で返し、重複を除きます。
 単なる履歴検索と異なり、BlendShapeターゲット等の別形状側のSkinClusterは除外します。
 Shapeを直接指定した場合は中間ShapeでもそのShape自身を対象にします。
-``getBindPoses()`` は取得したSkinClusterの順にポーズを返し、共有ポーズの重複と未接続を
+``bindPoses()`` は取得したSkinClusterの順にポーズを返し、共有ポーズの重複と未接続を
 除きます。どちらも対象なしは ``[]`` で、選択やUndo履歴を変更しません。
-Jointの既存 ``getSkinClusters()`` はinfluence接続照会のままで、Jointの
-``getBindPoses()`` もその結果を使用します。
+Jointの既存 ``skinClusters()`` はinfluence接続照会のままで、Jointの
+``bindPoses()`` もその結果を使用します。
 
 .. code-block:: python
 
    import hlib
 
-   pose = hlib.getNode("bindPose1")
-   print(pose.isBindPose())
-   print(pose.getMembers())          # 保存されているTransform・Joint
-   print(pose.getSkinClusters())    # bindPoseとして参照するSkinCluster
-   print(pose.isAtPose())
-   print(pose.getNotAtPose())      # 保存姿勢と異なるメンバー
+   pose = hlib.node("bindPose1")
+   print(pose.bindPose())
+   print(pose.members())          # 保存されているTransform・Joint
+   print(pose.skinClusters())    # bindPoseとして参照するSkinCluster
+   print(pose.atPose())
+   print(pose.notAtPose())      # 保存姿勢と異なるメンバー
 
 skinClusterから接続先を取得する場合は、次のように指定します。
 未接続なら ``None`` を返します。
 
 .. code-block:: python
 
-   skin = hlib.getNode("skinCluster1")
-   pose = skin.getBindPose()
+   skin = hlib.node("skinCluster1")
+   pose = skin.bindPose()
    if pose is not None:
        skin.restoreBindPose()   # 既定ではワールド姿勢を復元
 
@@ -86,19 +86,19 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
 .. code-block:: python
 
-   local_matrix = pose.getMatrix("root_joint")
-   world_matrix = pose.getMatrix("root_joint", ws=True)
-   indices = pose.getMemberIndices()
-   index = pose.getMemberIndex("root_joint")
+   local_matrix = pose.matrix("root_joint")
+   world_matrix = pose.matrix("root_joint", ws=True)
+   indices = pose.memberIndices()
+   index = pose.memberIndex("root_joint")
 
    pose.addMembers("extra_joint")        # 現在の姿勢で追加
    pose.reset("extra_joint")      # このメンバーの保存姿勢を現在の姿勢に更新
    pose.reset()                   # 全メンバーの保存姿勢を更新
    pose.removeMembers("extra_joint")     # ポーズから除外。Joint自体は削除しない
 
-``getMatrix()`` が返すのは保存時の :class:`~hlib.maths.matrix.Matrix` の複製です
+``matrix()`` が返すのは保存時の :class:`~hlib.maths.matrix.Matrix` の複製です
 (om2.MMatrix の派生で、変更してもポーズには反映されません)。
-配列の論理番号は欠番を含むため、``getMembers()`` のリスト位置とは区別してください。
+配列の論理番号は欠番を含むため、``members()`` のリスト位置とは区別してください。
 ``remove()`` で指定したノードが残るメンバーの親として必要な場合は、Mayaが保持することがあります。
 
 ``restore()`` はノードを保存姿勢へ戻し、``reset()`` は保存内容を更新します。
@@ -120,7 +120,7 @@ skinClusterから接続先を取得する場合は、次のように指定しま
 
    import hlib
 
-   target = hlib.getNode("bindPose1")
+   target = hlib.node("bindPose1")
    target.merge(["bindPose2", "bindPose3"])
 
    # 現在姿勢で統合し、元のポーズを削除する場合

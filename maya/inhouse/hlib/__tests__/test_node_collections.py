@@ -222,7 +222,7 @@ class NodeCollectionsTest(unittest.TestCase):
         class Grandchild(Restricted):
             """禁止設定を継承する。"""
         self.assertFalse(hasattr(Grandchild(), 'edit'))
-        self.assertEqual(hlib.nodes.Joints.freezeRotation.__module__, 'hlib.nodes.joint')
+        self.assertEqual(hlib.nodes.Joints.freezeRotate.__module__, 'hlib.nodes.joint')
 
 
 if __name__ == '__main__':

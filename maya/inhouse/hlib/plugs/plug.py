@@ -9,7 +9,7 @@ from .._core.attributeType import attributeType, is_internal_data_type, value_re
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import set_plug
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from .._core.object import Object
 from .._core.unitValue import convert
 from ..common._fast import fast_edit, is_fast
@@ -359,6 +359,19 @@ class Plug(Object):
         handle = self._node._handle
         return handle is not None and handle.isValid() and self._attribute_exists()
 
+    @_is_alias(isValid)
+    def valid(self, *args, **kwargs):
+        """isValidへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isValid(*args, **kwargs)
+
     def mplug(self):
         """内部で保持する Maya API 2.0 MPlug を返す。
 
@@ -518,6 +531,19 @@ class Plug(Object):
         """
         return self._mplug.isArray
 
+    @_is_alias(isArray)
+    def array(self, *args, **kwargs):
+        """isArrayへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isArray(*args, **kwargs)
+
     def isCompound(self):
         """compound アトリビュートか判定する。
 
@@ -525,6 +551,19 @@ class Plug(Object):
             bool: 子プラグを持つ場合は ``True``。
         """
         return self._mplug.isCompound
+
+    @_is_alias(isCompound)
+    def compound(self, *args, **kwargs):
+        """isCompoundへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isCompound(*args, **kwargs)
 
     def isElement(self):
         """multi アトリビュートの要素プラグか判定する。
@@ -541,6 +580,19 @@ class Plug(Object):
             bool: 子プラグの場合は ``True``。
         """
         return self._mplug.isChild
+
+    @_is_alias(isChild)
+    def child(self, *args, **kwargs):
+        """isChildへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isChild(*args, **kwargs)
 
     def getParent(self):
         """compound アトリビュートの子プラグであれば、その親プラグを取得する。
@@ -571,6 +623,19 @@ class Plug(Object):
         """
         self._require_valid()
         return self._mplug.isKeyable
+
+    @_is_alias(isKeyable)
+    def keyable(self, *args, **kwargs):
+        """isKeyableへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isKeyable(*args, **kwargs)
 
     @undoChunk("hlibPlugSetKeyable")
     def setKeyable(self, val=True, leaf=False):
@@ -616,6 +681,19 @@ class Plug(Object):
         """
         self._require_valid()
         return self.mplug().isChannelBox
+
+    @_is_alias(isChannelBox)
+    def channelBox(self, *args, **kwargs):
+        """isChannelBoxへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isChannelBox(*args, **kwargs)
 
     @undoChunk("hlibPlugSetChannelBox")
     def setChannelBox(self, val=True, leaf=False):
@@ -762,17 +840,39 @@ class Plug(Object):
                 raise RuntimeError("Maya did not materialize the array element: " + plug.getFullName())
         return queue
 
-    def isConnected(self):
-        """入出力接続を持つか判定する。
+    @flag_aliases(source="src", destination="dst")
+    def isConnected(self, *, src=True, dst=True):
+        """指定方向の直接の接続を持つか判定する。
+
+        Args:
+            src (bool): 入力元からの接続を調べる。別名 ``source`` も使用可能。
+            dst (bool): 出力先への接続を調べる。別名 ``destination`` も使用可能。
 
         Returns:
-            bool: 何らかの接続を持つ場合は ``True``。
+            bool: 指定方向に接続を持つ場合は ``True``。両Falseなら ``False``。
 
         Raises:
+            TypeError: 方向指定がboolでない場合、または別名と重複指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return self._mplug.isConnected
+        self._validate_connection_directions(src, dst)
+        if src and dst:
+            return self._mplug.isConnected
+        return (src and self._mplug.isDestination) or (dst and self._mplug.isSource)
+
+    @_is_alias(isConnected)
+    def connected(self, *args, **kwargs):
+        """isConnectedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isConnected(*args, **kwargs)
 
     def isSource(self):
         """出力接続元か判定する。
@@ -798,6 +898,19 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isDestination
 
+    @_is_alias(isDestination)
+    def destination(self, *args, **kwargs):
+        """isDestinationへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isDestination(*args, **kwargs)
+
     def isHidden(self):
         """UI から隠されたアトリビュートか判定する。
 
@@ -810,6 +923,19 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).hidden
 
+    @_is_alias(isHidden)
+    def hidden(self, *args, **kwargs):
+        """isHiddenへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isHidden(*args, **kwargs)
+
     def isDynamic(self):
         """動的に追加されたアトリビュート（addAttr によるカスタムアトリビュート等）か判定する。
 
@@ -821,6 +947,19 @@ class Plug(Object):
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).dynamic
+
+    @_is_alias(isDynamic)
+    def dynamic(self, *args, **kwargs):
+        """isDynamicへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isDynamic(*args, **kwargs)
 
     def isReadable(self):
         """アトリビュート定義の readable フラグを取得する。
@@ -836,6 +975,19 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).readable
 
+    @_is_alias(isReadable)
+    def readable(self, *args, **kwargs):
+        """isReadableへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isReadable(*args, **kwargs)
+
     def isWritable(self):
         """アトリビュート定義の writable フラグを取得する。
 
@@ -850,6 +1002,19 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).writable
 
+    @_is_alias(isWritable)
+    def writable(self, *args, **kwargs):
+        """isWritableへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isWritable(*args, **kwargs)
+
     def isStorable(self):
         """シーンファイルへ値が保存されるアトリビュートか判定する。
 
@@ -861,6 +1026,19 @@ class Plug(Object):
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).storable
+
+    @_is_alias(isStorable)
+    def storable(self, *args, **kwargs):
+        """isStorableへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isStorable(*args, **kwargs)
 
     def hasMin(self):
         """最小値制限を持つアトリビュートか判定する。
@@ -1218,6 +1396,19 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isLocked
 
+    @_is_alias(isLocked)
+    def locked(self, *args, **kwargs):
+        """isLockedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isLocked(*args, **kwargs)
+
     @undoChunk("hlibPlugSetLocked")
     def setLocked(self, val=True, leaf=False):
         """ロックを設定する。
@@ -1243,6 +1434,19 @@ class Plug(Object):
         """
         self._require_valid()
         return bool(cmds.mute(self.getFullName(), query=True))
+
+    @_is_alias(isMuted)
+    def muted(self, *args, **kwargs):
+        """isMutedへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isMuted(*args, **kwargs)
 
     @undoChunk("hlibPlugSetMuted")
     def setMuted(self, state):
@@ -1531,7 +1735,7 @@ class Plug(Object):
         """
         return self.getConnections(False, True, **kwargs)
 
-    @flag_aliases(idx="index")
+    @flag_aliases(idx="index", src="source", dst="destination")
     def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
                     source=True, destination=True, connections=False,
                     type=None, exactType=False, skipConversionNodes=False,
@@ -1546,8 +1750,8 @@ class Plug(Object):
             t (str | None): typeの短縮指定。
             et (bool): exactTypeの短縮指定。
             scn (bool): skipConversionNodesの短縮指定。
-            source (bool): 入力を含める。
-            destination (bool): 出力を含める。
+            source (bool): 入力を含める。別名 ``src`` も使用可能。sとANDする。
+            destination (bool): 出力を含める。別名 ``dst`` も使用可能。dとANDする。
             connections (bool): ペアを返す。
             type (str | None): 相手のノード型。
             exactType (bool): 派生型を含めない。
@@ -1560,6 +1764,8 @@ class Plug(Object):
             pcls (type | None): 結果のPlugクラス。
         Returns:
             list | Plug | Node | tuple | None: 条件に合う結果。
+        Raises:
+            TypeError: source/srcまたはdestination/dstを重複指定した場合。
         """
         self._require_valid()
         pairs = []
@@ -1652,32 +1858,51 @@ class Plug(Object):
             return self.getConnections(False, True, **kwargs)
         return [Plug(self._node_from_mplug(plug), plug) for plug in self._mplug.connectedTo(False, True)]
 
-    def isConnectedTo(self, other):
+    @flag_aliases(source="src", destination="dst")
+    def isConnectedTo(self, other, *, src=True, dst=True):
         """指定したプラグと接続されているか判定する。
 
-        入力・出力いずれの向きでも一致すれば True を返す。
+        既定では入力・出力いずれの向きでも一致すれば True を返す。
+        子・配列要素の独立した接続や変換ノードの先の接続は展開しない。
 
         Args:
             other (Plug | om2.MPlug | str): 判定対象のプラグ。文字列は
                 ``"node.attribute"`` 形式のアトリビュート名。
+            src (bool): otherから自身への入力接続を調べる。別名 ``source`` も使用可能。
+            dst (bool): 自身からotherへの出力接続を調べる。別名 ``destination`` も使用可能。
 
         Returns:
-            bool: 接続されている場合は True。
+            bool: 指定方向で接続されている場合は True。両Falseなら False。
 
         Raises:
             TypeError: other が Plug・MPlug・アトリビュート名のいずれでもない場合、または文字列が
-                アトリビュートを指していない場合。
+                アトリビュートを指していない場合。方向指定がboolでない、または別名と重複した場合。
             ValueError: other が空文字列、または空の MPlug の場合。
             RuntimeError: 自身の所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
                 other の文字列を解決できない(存在しない、または複数のアトリビュートに一致する)場合、
-                other の MPlug の所有ノードまたはアトリビュートが削除済みの場合。
+                other のPlugまたはMPlugの所有ノード・アトリビュートが削除済みの場合。
         """
         self._require_valid()
+        self._validate_connection_directions(src, dst)
         other = Plug._resolve_input(other)
+        other._require_valid()
         return any(
             connected == other.mplug()
-            for connected in self._mplug.connectedTo(True, True)
+            for connected in self._mplug.connectedTo(src, dst)
         )
+
+    @_is_alias(isConnectedTo)
+    def connectedTo(self, *args, **kwargs):
+        """isConnectedToへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isConnectedTo(*args, **kwargs)
 
     @flag_aliases(source="src")
     @undoChunk("hlibPlugConnect")
@@ -1818,12 +2043,32 @@ class Plug(Object):
                 plug.setFlags(locked=True)
         return Plug._resolve_input(source_name)
 
+    @flag_aliases(source="src", destination="dst")
     @undoChunk("hlibPlugDisconnectAll")
-    def disconnectAll(self):
-        """入力と全出力を明示的に切断し、自身を返す。"""
-        self.disconnectInput()
-        for destination in self.getDestinationsWithConversions():
-            destination.disconnect(self)
+    def disconnectAll(self, *, src=True, dst=True):
+        """指定方向の直接接続を全て切断し、自身を返す。
+
+        子・配列要素の独立した接続は展開せず、変換ノードも削除しない。
+        複数切断は1回のUndo/Redoで戻す。
+
+        Args:
+            src (bool): 入力接続を切断する。別名 ``source`` も使用可能。
+            dst (bool): 全出力を切断する。別名 ``destination`` も使用可能。
+
+        Returns:
+            Plug: 自身。未接続または両Falseなら何も変更しない。
+
+        Raises:
+            TypeError: 方向指定がboolでない場合、または別名と重複指定した場合。
+            RuntimeError: 無効なPlug、またはロック等により切断できない場合。
+        """
+        self._require_valid()
+        self._validate_connection_directions(src, dst)
+        if src:
+            self.disconnectInput()
+        if dst:
+            for destination in self.getDestinationsWithConversions():
+                destination.disconnect(self)
         return self
 
     @flag_aliases(destination="dst")
@@ -2320,6 +2565,22 @@ class Plug(Object):
                 flags["keyable"] = False
             self.setFlags(**flags)
         return self
+
+    @staticmethod
+    def _validate_connection_directions(src, dst):
+        """接続方向のbool指定をシーンの編集前に検証する。
+
+        Args:
+            src (bool): 入力方向の指定。
+            dst (bool): 出力方向の指定。
+
+        Raises:
+            TypeError: どちらかがboolでない場合。
+        """
+        if not isinstance(src, bool):
+            raise TypeError("src must be bool")
+        if not isinstance(dst, bool):
+            raise TypeError("dst must be bool")
 
     @staticmethod
     def _connection_results(pairs, node_type, exact, as_pair, as_node, index, pcls):

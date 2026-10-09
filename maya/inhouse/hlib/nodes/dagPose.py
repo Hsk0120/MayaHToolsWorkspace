@@ -8,7 +8,7 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from .._core.space import world_space
 from ..decorator import undoChunk, undoTransaction
 from ..maths import Matrix
@@ -89,6 +89,19 @@ class DagPose(Node):
         self._pose_name()
         return bool(self.getPlug("bindPose").get())
 
+    @_is_alias(isBindPose)
+    def bindPose(self, *args, **kwargs):
+        """isBindPoseへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isBindPose(*args, **kwargs)
+
     def getMemberIndices(self):
         """現在もメンバーが接続されている論理番号。欠番は保持する。
 
@@ -159,6 +172,19 @@ class DagPose(Node):
             bool: MayaのatPose照会で差異がない場合はTrue。
         """
         return not self.getNotAtPose()
+
+    @_is_alias(isAtPose)
+    def atPose(self, *args, **kwargs):
+        """isAtPoseへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isAtPose(*args, **kwargs)
 
     def getSkinClusters(self):
         """このポーズをbindPoseとして参照するskinCluster。

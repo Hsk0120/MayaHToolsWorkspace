@@ -19,7 +19,7 @@ class ComposeMatrix(Node):
         """
         return self.getPlug('inputTranslate')
 
-    def getTranslation(self):
+    def getTranslate(self):
         """translate入力（移動はcm）の評価値を取得する。
         Returns:
             Iterable[float]: 現在の値。
@@ -28,7 +28,7 @@ class ComposeMatrix(Node):
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
-    def setTranslation(self, value, *, fast=False):
+    def setTranslate(self, value, *, fast=False):
         """translate入力（移動はcm）へ定数値を設定する。
 
         Args:
@@ -67,7 +67,7 @@ class ComposeMatrix(Node):
         """
         return self.getPlug('inputRotate')
 
-    def getRotation(self):
+    def getRotate(self):
         """rotate入力（回転はrad）の評価値を取得する。
         Returns:
             Iterable[float]: 現在の値。
@@ -76,7 +76,7 @@ class ComposeMatrix(Node):
 
     @fast_edit
     @undoChunk("hlibCalculationEdit")
-    def setRotation(self, value, *, fast=False):
+    def setRotate(self, value, *, fast=False):
         """rotate入力（回転はrad）へ定数値を設定する。
 
         Args:
@@ -356,8 +356,8 @@ class ComposeMatrix(Node):
         """
         return self.getTranslatePlug(*args, **kwargs)
 
-    @_getter_alias(getTranslation)
-    def translation(self, *args, **kwargs):
+    @_getter_alias(getTranslate)
+    def translate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -370,7 +370,7 @@ class ComposeMatrix(Node):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getTranslation(*args, **kwargs)
+        return self.getTranslate(*args, **kwargs)
 
     @_getter_alias(getRotatePlug)
     def rotatePlug(self, *args, **kwargs):
@@ -388,8 +388,8 @@ class ComposeMatrix(Node):
         """
         return self.getRotatePlug(*args, **kwargs)
 
-    @_getter_alias(getRotation)
-    def rotation(self, *args, **kwargs):
+    @_getter_alias(getRotate)
+    def rotate(self, *args, **kwargs):
         """get付きの取得メソッドへ委譲する省略入口。
 
         Args:
@@ -402,7 +402,7 @@ class ComposeMatrix(Node):
         Note:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
-        return self.getRotation(*args, **kwargs)
+        return self.getRotate(*args, **kwargs)
 
     @_getter_alias(getScalePlug)
     def scalePlug(self, *args, **kwargs):

@@ -1,7 +1,7 @@
 ベクトルと回転・数学型
 ============================================================
 
-Vector・Quaternion・EulerRotationなどの値を使った計算を説明します。
+Vector・Quaternion・EulerRotateなどの値を使った計算を説明します。
 ピボットやjointOrientを含む保存・復元には :doc:`transformation` を使います。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
@@ -19,11 +19,11 @@ C++ 実装で行われます。
 
    * - hlib の型
      - 継承元
-   * - ``Vector`` / ``Translation`` / ``Scale`` / ``Shear``
+   * - ``Vector`` / ``Translate`` / ``Scale`` / ``Shear``
      - ``om2.MVector``
    * - ``Quaternion``
      - ``om2.MQuaternion``
-   * - ``EulerRotation``
+   * - ``EulerRotate``
      - ``om2.MEulerRotation`` (``Vector`` の派生ではありません)
    * - ``Matrix``
      - ``om2.MMatrix``
@@ -31,12 +31,12 @@ C++ 実装で行われます。
 .. code-block:: python
 
    import maya.api.OpenMaya as om2
-   from hlib.maths import Matrix, Translation
+   from hlib.maths import Matrix, Translate
 
    matrix = Matrix(translate=(1, 2, 3))
    transformation = om2.MTransformationMatrix(matrix)   # 変換せずに渡せる
    data = om2.MFnMatrixData().create(matrix)
-   point = om2.MPoint(Translation(1, 2, 3))
+   point = om2.MPoint(Translate(1, 2, 3))
 
 演算子と継承メソッドが返す数学値は、対応するhlib型へ統一しています。
 ``normal()``、``asMatrix()``、``rotateBy()``、``adjoint()`` もhlib型を返します。
@@ -45,9 +45,11 @@ C++ 実装で行われます。
 OpenMaya標準の例外として、``Vector.normalize()`` はItなしでも自身を更新します。
 厳密な正規化は ``unit()`` / ``unitIt()`` を使用し、ゼロ値は拒否します。
 Quaternionの正規化付き行列変換は ``asUnitMatrix()``、角度を0〜piへ整える変換は
-``asCanonicalAxisAngle()``、順序を指定する行列分解は ``asDecomposedEulerRotation()`` です。
+``asCanonicalAxisAngle()``、順序を指定する行列分解は ``asDecomposedEulerRotate()`` です。
 これらはOpenMaya標準の ``asMatrix()`` / ``asAxisAngle()`` / ``asEulerRotation()`` と
 計算条件が異なるため、別の名前で提供します。
+通常のEulerRotateへの変換は ``Quaternion.asEulerRotate()`` を使えます。
+OpenMaya標準の ``asEulerRotation()`` も同じ変換を行う入口として維持しています。
 ``hlib.maths`` の import には Maya(mayapy または Maya 本体)が必要です。
 ``hlib.maths.easing`` だけは標準ライブラリの ``math`` のみを使う関数群です。
 
@@ -68,7 +70,7 @@ Quaternionの正規化付き行列変換は ``asUnitMatrix()``、角度を0〜pi
    Vector(3, 4, 0).length()  # 5.0
    tuple(Vector(0, 0, 5).unit())  # (0.0, 0.0, 1.0)
 
-``dot``/``cross``/``length``/``unit`` は ``Translation``/``Scale``/``Shear``
+``dot``/``cross``/``length``/``unit`` は ``Translate``/``Scale``/``Shear``
 など ``Vector`` を継承する型で使用できます。``cross``/``unit`` や演算子の戻り値は
 派生クラスの型を保持せず常に ``Vector`` になります。
 ``unit()`` はゼロベクトルに対して ``ValueError`` を送出します
@@ -86,13 +88,13 @@ Quaternionの正規化付き行列変換は ``asUnitMatrix()``、角度を0〜pi
    a.lengthSq()        # 1.0（sqrt を省ける length() の2乗版）
    a.distanceTo(b)          # 1.4142...（2点間のユークリッド距離）
    a.angleTo(b)             # 1.5707...（ラジアン。0〜piの範囲）
-   a.isEquivalent(Vector(1 + 1e-12, 0, 0))  # True（距離が許容誤差以内か）
+   a.equivalent(Vector(1 + 1e-12, 0, 0))  # True（距離が許容誤差以内か）
    a.lerp(b, 0.5)             # Vector(0.5, 0.5, 0.0)（線形補間。t<0/t>1は外挿）
 
 ``Vector()`` はゼロベクトル、``Vector(x, y)`` は z=0、``Vector([x, y, z])`` や
 ``Vector(om2.MPoint(...))`` も使えます(om2 のコンストラクタと同じ)。
 ``Vector(x=1, z=3)`` のようなキーワード引数も使え、省略した成分は 0 です
-(``Quaternion`` は ``x``/``y``/``z``/``w``、省略時は単位四元数の値。``EulerRotation`` は
+(``Quaternion`` は ``x``/``y``/``z``/``w``、省略時は単位四元数の値。``EulerRotate`` は
 ``x``/``y``/``z``/``order``)。成分は数値だけで、``Vector("1", "2", "3")`` のような文字列は
 om2 と同じく ``ValueError`` です。
 
@@ -122,14 +124,14 @@ om2 と同じく ``ValueError`` です。
    copied = Vector(v)         # 別の値として持つ場合は複製する(copy.copy も可)
 
 ``==`` は om2 と同じく成分の完全一致です。同じ om2 の型の系統であれば、派生型が
-違っても等しくなり得ます(``Translation(1, 2, 3) == Scale(1, 2, 3)`` は ``True``)。
+違っても等しくなり得ます(``Translate(1, 2, 3) == Scale(1, 2, 3)`` は ``True``)。
 系統の違う値との比較は例外になりません。``om2.MPoint`` など系統の違う om2 の型とは
 ``False`` です。それ以外(``None``、文字列、tuple など)は相手側の比較に判断を委ね
 (Python の ``NotImplemented``)、相手も判断しなければ ``False`` になります。
 ただし **系統の違う om2 の型が左辺** の比較(``om2.MPoint() == Vector()``、
 ``om2.MVector() == Quaternion()`` など)は om2 側が ``TypeError`` を送出し、hlib では
 防げません(om2 の型は ``None`` や文字列との比較でも ``TypeError`` を送出します)。
-浮動小数点誤差を許容する場合は ``isEquivalent`` を使ってください。
+浮動小数点誤差を許容する場合は ``equivalent`` を使ってください。
 
 ``in`` / ``list.index`` / ``list.count`` / ``list.remove`` / リスト同士の ``==`` も内部で
 ``==`` を使うため、素の om2 の値(``om2.MPoint`` など。hlib の値ではないもの)と系統の違う
@@ -155,7 +157,7 @@ Python のバージョンで異なります。
 例えば ``om2.MPoint() in [Vector()]`` は Maya 2022 では ``TypeError``、Maya 2023 以降では
 ``False`` で、``Vector() in [om2.MPoint()]`` はその逆です。``[om2.MPoint()].count(Vector())`` は
 どのバージョンでも ``TypeError`` です。om2 の値を含むリストを検索するときは、hlib の型へ
-変換してから比べる(``Vector(point)`` など)か、``is`` や ``isEquivalent`` で明示的に比べてください。
+変換してから比べる(``Vector(point)`` など)か、``is`` や ``equivalent`` で明示的に比べてください。
 
 ``copy.copy`` / ``copy.deepcopy`` / ``pickle`` は型と値を保ったまま複製できます。
 利用者が定義した派生クラスでは、``__dict__`` や ``__slots__`` に追加したアトリビュートも複製され、
@@ -180,12 +182,12 @@ hlib のメソッドが処理し、**hlib の型** を返します。
 * 左辺が hlib の値(右辺が om2 の型でも同じ。例: ``Vector ^ om2.MVector``、
   ``Matrix * om2.MVector``、``Matrix * om2.MPoint``)。
 * 左辺が同じ系統の om2 の値(``om2.MVector`` と Vector 系、``om2.MQuaternion`` と Quaternion、
-  ``om2.MEulerRotation`` と EulerRotation、``om2.MMatrix`` と Matrix)。例: ``om2.MVector + Vector``、
+  ``om2.MEulerRotation`` と EulerRotate、``om2.MMatrix`` と Matrix)。例: ``om2.MVector + Vector``、
   ``om2.MVector ^ Vector``、``om2.MMatrix * Matrix``、``om2.MQuaternion * Quaternion``。
 * 左辺の om2 の値がその組み合わせに対応していない(例: ``om2.MMatrix * Vector``)。
 
-返る hlib の型は、Vector 系の演算なら常に基底の ``Vector`` (``Translation`` などは保たない)、
-Quaternion・EulerRotation の演算なら ``Quaternion`` / ``EulerRotation``、行列同士・行列と数値の
+返る hlib の型は、Vector 系の演算なら常に基底の ``Vector`` (``Translate`` などは保たない)、
+Quaternion・EulerRotate の演算なら ``Quaternion`` / ``EulerRotate``、行列同士・行列と数値の
 演算なら処理した側の ``Matrix`` の型(利用者の派生クラスも保つ。両方が hlib の Matrix なら左辺)です。
 ``Vector * Vector`` だけは om2 と同じ内積の ``float`` です。
 ``Matrix * om2.MPoint`` は om2 の列ベクトルとしての積(同次座標の4成分)の x、y、z を持つ
@@ -207,13 +209,13 @@ hlib が対応しない組み合わせは om2 も対応しておらず、``TypeE
      - ``Vector(v) * m`` または ``m.transformVector(v)``
    * - ``om2.MPoint * Matrix``
      - ``om2.MPoint`` (位置の変換)
-     - ``m.transformPoint(p)`` (``Translation``)
+     - ``m.transformPoint(p)`` (``Translate``)
    * - ``om2.MPoint + Vector`` / ``om2.MPoint - Vector``
      - ``om2.MPoint``
      - ``Vector(p) + v`` / ``Vector(p) - v``
    * - ``om2.MEulerRotation * Quaternion``
      - ``om2.MEulerRotation``
-     - ``EulerRotation(e) * q``
+     - ``EulerRotate(e) * q``
 
 ``+=`` などの in-place 演算子は左辺のオブジェクトを書き換えるため、左辺が om2 の値なら
 om2 の型のままです(``raw = om2.MVector(); raw += Vector(1, 2, 3)`` の ``raw`` は
@@ -226,9 +228,9 @@ om2 名のメソッドの戻り値は冒頭の説明を参照してください�
 
 .. code-block:: python
 
-   from hlib.maths import Quaternion, EulerRotation
+   from hlib.maths import Quaternion, EulerRotate
 
-   rotation = EulerRotation.fromDegrees(0, 90, 0)   # asDegrees() の逆
+   rotation = EulerRotate.fromDegrees(0, 90, 0)   # asDegrees() の逆
    q = rotation.asQuaternion()
 
    q.conjugate()              # XYZ の符号を反転
@@ -255,23 +257,23 @@ om2 名のメソッドの戻り値は冒頭の説明を参照してください�
 戻ります。``2 * q`` は om2 と同じく4成分のスカラー倍(正規化しない)で、om2 と同じく
 ``q * 2`` と ``q / 2`` には対応しません。
 
-``asDecomposedEulerRotation(order)`` と ``Matrix`` の ``euler`` / ``rotation`` / ``decompose()`` は om2
+``asDecomposedEulerRotate(order)`` と ``Matrix`` の ``euler`` / ``rotate`` / ``decompose()`` は om2
 (``MEulerRotation.decompose`` / ``MTransformationMatrix``)の解を返します。等価な解のうち
 中間軸が 90 度を超える側になることがあります(``cmds.xform(matrix=...)`` で書き込まれる
-チャンネル値と同じ解)。値そのものではなく回転を比べる場合は、``asQuaternion()`` や
-``asMatrix()`` の ``isEquivalent`` を使ってください。
+チャンネル値と同じ解)。値そのものではなく回転を比べる場合は、``asQuaternion().isEquivalent()`` や
+``asMatrix().equivalent()`` を使ってください。
 
 オイラー回転
 ------------
 
-``EulerRotation`` は内部値がラジアンで、表示(``repr``)は度です。回転順序 ``order`` は
+``EulerRotate`` は内部値がラジアンで、表示(``repr``)は度です。回転順序 ``order`` は
 om2 と同じ整数(``kXYZ``\ =0、``kYZX``\ =1、``kZXY``\ =2、``kXZY``\ =3、``kYXZ``\ =4、
 ``kZYX``\ =5。Maya の rotateOrder アトリビュートと同じ番号)で、名前は ``orderName`` で
 取得・設定します。コンストラクタの order には名前と番号のどちらも使えます。
 
 .. code-block:: python
 
-   euler = EulerRotation(0.1, 0.2, 0.3, "zyx")
+   euler = EulerRotate(0.1, 0.2, 0.3, "zyx")
    euler.order          # 5
    euler.orderName     # 'zyx'
    euler.orderName = "xyz"   # 成分は並べ替えない(並べ替えは om2 の reorder())
@@ -298,7 +300,7 @@ om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は
    Matrix.identity()          # Matrix() と同じ単位行列
    m = Matrix(translate=(1, 2, 3), scale=(2, 3, 4))
    m.det4x4()            # 24.0（スケールの体積比。平行移動は影響しない）
-   m.isEquivalent(m)         # True（許容誤差付き等価判定。__eq__ は完全一致のみ）
+   m.equivalent(m)         # True（許容誤差付き等価判定。__eq__ は完全一致のみ）
    m @ Matrix(scale=(2, 2, 2))  # m * Matrix(...) と同じ行列積(@ は行列同士だけ)
 
    v = Vector(1, 0, 0)
@@ -320,20 +322,20 @@ om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は
 
 .. code-block:: python
 
-   point = Translation(1, 2, 3)
+   point = Translate(1, 2, 3)
    mirrored_point = point.mirror(axis="x", pivot=(10, 0, 0))
-   matrix = Matrix(translate=(1, 2, 3), rotate=EulerRotation(.1, .2, .3))
+   matrix = Matrix(translate=(1, 2, 3), rotate=EulerRotate(.1, .2, .3))
    mirrored_matrix = matrix.mirror(axis="z")
    rotation = matrix.quaternion.mirror(axis="z")
    matrix.mirrorIt(axis="xy")
 
-Vector・Translationは指定軸の数値を中心から反転します。
+Vector・Translateは指定軸の数値を中心から反転します。
 Scale・Shearにも継承されますが、同じ3成分の数値反転です。
 行列としてのスケール・シアーを保ったミラーにはMatrixを使ってください。
 中心は値と同じ単位・空間で指定します。Mayaから取得したMatrixの平行移動はcmです。
 
-Matrix・Quaternion・EulerRotationはビヘイビアミラーです。
+Matrix・Quaternion・EulerRotateはビヘイビアミラーです。
 単一軸では指定軸以外の方向2成分を反転し、Matrixの平行移動は指定軸を反転します。
 複数軸は各平面での操作を合成します。負スケールによる幾何学的な鏡像ではありません。
-Quaternion・EulerRotationには位置がないためpivot引数はありません。
-EulerRotationは回転順序を維持します。
+Quaternion・EulerRotateには位置がないためpivot引数はありません。
+EulerRotateは回転順序を維持します。

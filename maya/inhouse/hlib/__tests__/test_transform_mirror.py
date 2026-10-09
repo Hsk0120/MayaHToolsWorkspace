@@ -75,7 +75,7 @@ class TransformMirrorTest(unittest.TestCase):
     def test_invalid_inputs_and_inherits_transform(self):
         node = Node(cmds.createNode("transform", parent=self.parent))
         node.getPlug("inheritsTransform").set(False)
-        node.setTranslation((1, 2, 3), at=4)
+        node.setTranslate((1, 2, 3), at=4)
         original = node.getMatrix(ws=True)
         node.mirrorTransform("x")
         self.assertTrue(node.getMatrix(ws=True).isEquivalent(original.mirror("x"), 1e-7))

@@ -8,10 +8,10 @@ import maya.cmds as cmds
 
 from .._core.fastWrite import set_attr
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
-from ..maths import EulerRotation, Matrix, Scale
+from ..maths import EulerRotate, Matrix, Scale
 from .transform import Transform, Transforms, _closest_euler
 
 
@@ -54,13 +54,13 @@ class Joint(Transform):
         return self
 
     def getJointOrient(self):
-        """jointOrient アトリビュートを EulerRotation として取得する。
+        """jointOrient アトリビュートを EulerRotate として取得する。
 
         Returns:
-            EulerRotation: radian に変換した jointOrient 値。
+            EulerRotate: radian に変換した jointOrient 値。
         """
         values = self._compound_values("jointOrient", angle=True)
-        return EulerRotation(*(math.radians(value) for value in values))
+        return EulerRotate(*(math.radians(value) for value in values))
 
     @fast_edit
     @undoChunk("hlibJointsJointOrientToRotate")
@@ -85,12 +85,12 @@ class Joint(Transform):
         """
         if not self.isJoint():
             raise RuntimeError("Cannot change orientation of an invalid joint")
-        self._apply_rotation_transfer(self._joint_rotation_transfer_values())
+        self._apply_rotate_transfer(self._joint_rotate_transfer_values())
         return self
 
     @fast_edit
     @undoChunk("hlibJointsFreezeRotation")
-    def freezeRotation(self, *, fast=False):
+    def freezeRotate(self, *, fast=False):
         """姿勢を保ち、rotateをjointOrientへ合成してrotateを0にする。
 
         スキニング済みjointにも使用できる。jointの行列を保持するため、
@@ -112,7 +112,7 @@ class Joint(Transform):
         """
         if not self.isJoint():
             raise RuntimeError("Cannot freeze rotation of an invalid joint")
-        self._apply_rotation_transfer(self._joint_rotation_transfer_values(to_orient=True), to_orient=True)
+        self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True)
         return self
 
     @flag_aliases(src="source", f="force")
@@ -266,6 +266,19 @@ class Joint(Transform):
             bool: 有効な joint の場合は ``True``。
         """
         return self.isValid() and self.mnode().hasFn(om2.MFn.kJoint)
+
+    @_is_alias(isJoint)
+    def joint(self, *args, **kwargs):
+        """isJointへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isJoint(*args, **kwargs)
 
     def delete(self, *, safe=False):
         """祖先influenceへウェイトを移送し、このjointを削除する。
@@ -624,7 +637,7 @@ class Joint(Transform):
         """
         return self.getIkHandles(*args, **kwargs)
 
-    def _rotation_order(self):
+    def _joint_rotate_order(self):
         """Maya の rotateOrder を API の回転順序へ変換する。
 
         rotateOrder の番号(0=xyz〜5=zyx)は MEulerRotation.kXYZ〜kZYX と同じ並び。
@@ -634,7 +647,7 @@ class Joint(Transform):
         """
         return self._rotate_order()
 
-    def _joint_rotation_transfer_values(self, to_orient=False):
+    def _joint_rotate_transfer_values(self, to_orient=False):
         """書込み可否を検証し、合成後の回転を現在の角度単位で返す。
 
         Args:
@@ -659,15 +672,15 @@ class Joint(Transform):
                     raise RuntimeError("Attribute must be unlocked and have no input connection: " + plug)
         rotation = om2.MEulerRotation(
             *(math.radians(v) for v in rotate),
-            self._rotation_order())
+            self._joint_rotate_order())
         # jointOrientはrotateOrderに関係なくXYZ。MayaのR * JOを合成する。
         orientation = om2.MEulerRotation(*(math.radians(v) for v in orient))
         combined = om2.MTransformationMatrix(rotation.asMatrix() * orientation.asMatrix())
         result = combined.rotation(asQuaternion=True).asEulerRotation()
-        result.reorderIt(om2.MEulerRotation.kXYZ if to_orient else self._rotation_order())
+        result.reorderIt(om2.MEulerRotation.kXYZ if to_orient else self._joint_rotate_order())
         return tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in result)
 
-    def _apply_rotation_transfer(self, values, to_orient=False):
+    def _apply_rotate_transfer(self, values, to_orient=False):
         """検証済みの回転移送値を適用する。Undo/fastは呼出元の範囲に従う。
 
         Args:
@@ -679,7 +692,7 @@ class Joint(Transform):
         set_attr(self.getFullName() + ".jointOrient", *(values if to_orient else (0, 0, 0)))
         set_attr(self.getFullName() + ".rotate", *((0, 0, 0) if to_orient else values))
 
-    def _rotation_quaternion(self, attribute):
+    def _rotate_quaternion(self, attribute):
         """jointOrient / rotateAxis を API quaternion へ変換する。
 
         MAngle から明示的に度数法で取得し、ラジアンへ変換する。現在の UI 角度単位に依存しない。
@@ -723,9 +736,9 @@ class Joint(Transform):
         return result
 
     def _rotate_reference(self, reference):
-        """:meth:`getRotation` が Euler の解を選ぶ基準を返す。
+        """:meth:`getRotate` が Euler の解を選ぶ基準を返す。
 
-        joint の getRotation は jointOrient と rotateAxis を含む回転で rotate チャンネルとは
+        joint の getRotate は jointOrient と rotateAxis を含む回転で rotate チャンネルとは
         別の回転なので、チャンネル値ではなく 0 回転(ノードの rotateOrder)を基準にする。
 
         Args:
@@ -736,7 +749,7 @@ class Joint(Transform):
         """
         return om2.MEulerRotation(0.0, 0.0, 0.0, reference.order)
 
-    def _channel_rotation(self, quaternion, reference):
+    def _channel_rotate(self, quaternion, reference):
         """ローカル行列の回転から jointOrient と rotateAxis を除き、rotate の値へ変換する。
 
         Maya の joint の回転は rotateAxis、rotate、jointOrient の順に適用されるため、
@@ -749,8 +762,8 @@ class Joint(Transform):
         Returns:
             om2.MEulerRotation: ノードの rotateOrder で表した、reference に最も近い解。
         """
-        rotate_axis = self._rotation_quaternion("rotateAxis")
-        joint_orient = self._rotation_quaternion("jointOrient")
+        rotate_axis = self._rotate_quaternion("rotateAxis")
+        joint_orient = self._rotate_quaternion("jointOrient")
         return _closest_euler(rotate_axis.conjugate() * quaternion * joint_orient.conjugate(), reference)
 
     def _apply_local_matrix(self, matrix, scale_reference=None):
@@ -837,6 +850,7 @@ class Joints(Transforms):
         "getDepth": "list",
         "depth": "list",
         "isJoint": "list",
+        "joint": "list",
         "getSkinClusters": "list",
         "skinClusters": "list",
         "getTransferTarget": "list",
@@ -848,7 +862,7 @@ class Joints(Transforms):
         "ikHandles": "list",
         "setSegmentScaleCompensate": "self",
         "jointOrientToRotate": "self",
-        "freezeRotation": "self",
+        "freezeRotate": "self",
         "connectInverseScale": "self",
         "disconnectInverseScale": "self",
         "setRadius": "self",
@@ -872,6 +886,7 @@ class Joints(Transforms):
         "getDepth": Joint.getDepth,
         "depth": Joint.depth,
         "isJoint": Joint.isJoint,
+        "joint": Joint.joint,
         "getSkinClusters": Joint.getSkinClusters,
         "skinClusters": Joint.skinClusters,
         "getTransferTarget": Joint.getTransferTarget,
@@ -883,7 +898,7 @@ class Joints(Transforms):
         "ikHandles": Joint.ikHandles,
         "setSegmentScaleCompensate": Joint.setSegmentScaleCompensate,
         "jointOrientToRotate": Joint.jointOrientToRotate,
-        "freezeRotation": Joint.freezeRotation,
+        "freezeRotate": Joint.freezeRotate,
         "connectInverseScale": Joint.connectInverseScale,
         "disconnectInverseScale": Joint.disconnectInverseScale,
         "setRadius": Joint.setRadius,
@@ -1032,6 +1047,19 @@ class Joints(Transforms):
 
     isJoint.__signature__ = inspect.signature(Joint.isJoint)
 
+    @_is_alias(isJoint)
+    def joint(self, *args, **kwargs):
+        """isJointへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isJoint(*args, **kwargs)
+
     def getTransferTarget(self, *args, **kwargs):
         """各要素のgetTransferTargetを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -1158,11 +1186,11 @@ class Joints(Transforms):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        return self._transfer_rotation()
+        return self._transfer_rotate()
 
     @fast_edit
     @undoChunk("hlibJointsFreezeRotation")
-    def freezeRotation(self, *, fast=False):
+    def freezeRotate(self, *, fast=False):
         """全jointのrotateをjointOrientへ移し、姿勢を保ってrotateを0にする。
 
         スキニング済みでも実行でき、ウェイト・bindPreMatrix・バインドポーズを
@@ -1181,7 +1209,7 @@ class Joints(Transforms):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        return self._transfer_rotation(to_orient=True)
+        return self._transfer_rotate(to_orient=True)
 
     def getSkinClusters(self):
         """全 joint に関連する skinCluster を取得する。
@@ -1411,7 +1439,7 @@ class Joints(Transforms):
         """
         return self.getSkinClusters(*args, **kwargs)
 
-    def _transfer_rotation(self, to_orient=False):
+    def _transfer_rotate(self, to_orient=False):
         """全対象の準備成功後に回転移送を適用する。
 
         Args:
@@ -1420,7 +1448,7 @@ class Joints(Transforms):
         Returns:
             Joints: 自身。途中の失敗で完了済み更新は自動で戻さない。
         """
-        plans = [(joint, joint._joint_rotation_transfer_values(to_orient=to_orient)) for joint in self]
+        plans = [(joint, joint._joint_rotate_transfer_values(to_orient=to_orient)) for joint in self]
         for joint, values in plans:
-            joint._apply_rotation_transfer(values, to_orient=to_orient)
+            joint._apply_rotate_transfer(values, to_orient=to_orient)
         return self

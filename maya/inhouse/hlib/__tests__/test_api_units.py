@@ -68,8 +68,8 @@ class ApiUnitsTest(unittest.TestCase):
             item = shape.vertex(0) if shape.getType() == "mesh" else shape.cv(0)
             cmds.currentUnit(linear="m")
             for fast in (False, True):
-                node.setTranslation((25, 50, 75), fast=fast, at=4)
-                self.assertEqual(tuple(node.getTranslation(at=4)), (25, 50, 75))
+                node.setTranslate((25, 50, 75), fast=fast, at=4)
+                self.assertEqual(tuple(node.getTranslate(at=4)), (25, 50, 75))
                 self.assertEqual(tuple(node.getPlug("translate").get()), (25, 50, 75))
                 item.setPosition((1, 2, 3), fast=fast)
                 self.assertEqual(item.getPosition(), (1, 2, 3))

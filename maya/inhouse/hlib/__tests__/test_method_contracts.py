@@ -25,7 +25,7 @@ class MethodContractTest(unittest.TestCase):
 
     def test_matrix_attribute_never_redirects_to_transform(self):
         """Transform上の行列アトリビュートでもTRSを変えず、Undoでアトリビュート値を戻す。"""
-        self.node.setTranslation((2, 3, 4), at=4)
+        self.node.setTranslate((2, 3, 4), at=4)
         plug = self.node.addAttr(longName='storedMatrix', dataType='matrix')
         identity = hlib.maths.Matrix()
         plug.set(identity)
@@ -118,11 +118,11 @@ class MethodContractTest(unittest.TestCase):
 
     def test_rotation_order_conversion_and_undo(self):
         """型付き回転の順序を変換し、通常更新を一回のUndoで戻す。"""
-        from hlib.maths import EulerRotation
+        from hlib.maths import EulerRotate
         cmds.setAttr(str(self.node) + '.rotateOrder', 4)
         plug = self.node.getPlug('rotate')
         original = plug.get()
-        value = EulerRotation(.2, .4, .6, 'zyx')
+        value = EulerRotate(.2, .4, .6, 'zyx')
         plug.set(value)
         self.assertTrue(plug.get().asMatrix().isEquivalent(value.asMatrix(), 1e-9))
         cmds.undo()

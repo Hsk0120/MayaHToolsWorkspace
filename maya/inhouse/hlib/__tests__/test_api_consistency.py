@@ -5,7 +5,7 @@ import unittest
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 import hlib
-from hlib.maths import EulerRotation, Matrix, Quaternion, Vector
+from hlib.maths import EulerRotate, Matrix, Quaternion, Vector
 
 
 class ValueReturnTest(unittest.TestCase):
@@ -15,7 +15,7 @@ class ValueReturnTest(unittest.TestCase):
         """継承した数学演算もhlib型を返し、入力を変更しない。"""
         v = Vector(1, 2, 3)
         q = Quaternion.fromAxisAngle((1, 0, 0), .4)
-        e = EulerRotation(.2, -.3, .4)
+        e = EulerRotate(.2, -.3, .4)
         m = Matrix(rotate=e, translate=(1, 2, 3), scale=(2, 3, 4))
         cases = [
             (v, 'normal', (), Vector, om2.MVector),
@@ -26,16 +26,16 @@ class ValueReturnTest(unittest.TestCase):
             (q, 'log', (), Quaternion, om2.MQuaternion),
             (q, 'exp', (), Quaternion, om2.MQuaternion),
             (q, 'asMatrix', (), Matrix, om2.MQuaternion),
-            (q, 'asEulerRotation', (), EulerRotation, om2.MQuaternion),
+            (q, 'asEulerRotation', (), EulerRotate, om2.MQuaternion),
             (e, 'asMatrix', (), Matrix, om2.MEulerRotation),
             (e, 'asQuaternion', (), Quaternion, om2.MEulerRotation),
             (e, 'asVector', (), Vector, om2.MEulerRotation),
-            (e, 'inverse', (), EulerRotation, om2.MEulerRotation),
-            (e, 'reorder', (om2.MEulerRotation.kZYX,), EulerRotation, om2.MEulerRotation),
-            (e, 'bound', (), EulerRotation, om2.MEulerRotation),
-            (e, 'alternateSolution', (), EulerRotation, om2.MEulerRotation),
-            (e, 'closestCut', (EulerRotation(),), EulerRotation, om2.MEulerRotation),
-            (e, 'closestSolution', (EulerRotation(),), EulerRotation, om2.MEulerRotation),
+            (e, 'inverse', (), EulerRotate, om2.MEulerRotation),
+            (e, 'reorder', (om2.MEulerRotation.kZYX,), EulerRotate, om2.MEulerRotation),
+            (e, 'bound', (), EulerRotate, om2.MEulerRotation),
+            (e, 'alternateSolution', (), EulerRotate, om2.MEulerRotation),
+            (e, 'closestCut', (EulerRotate(),), EulerRotate, om2.MEulerRotation),
+            (e, 'closestSolution', (EulerRotate(),), EulerRotate, om2.MEulerRotation),
             (m, 'adjoint', (), Matrix, om2.MMatrix),
             (m, 'homogenize', (), Matrix, om2.MMatrix),
         ]
@@ -49,18 +49,18 @@ class ValueReturnTest(unittest.TestCase):
                 for a, b in zip(actual, expected):
                     self.assertAlmostEqual(a, b, places=11)
                 self.assertEqual(tuple(value), before)
-                if isinstance(actual, EulerRotation):
+                if isinstance(actual, EulerRotate):
                     self.assertEqual(actual.order, expected.order)
 
     def test_native_static_and_compound_results(self):
         """静的APIと複合戻り値の数学成分もhlib型になる。"""
-        e = EulerRotation(.2, .3, .4)
+        e = EulerRotate(.2, .3, .4)
         q = Quaternion.fromAxisAngle((1, 0, 0), .2)
         for name, args in [('computeAlternateSolution', (e,)), ('computeBound', (e,)),
-                           ('computeClosestCut', (e, EulerRotation())),
-                           ('computeClosestSolution', (e, EulerRotation())),
+                           ('computeClosestCut', (e, EulerRotate())),
+                           ('computeClosestSolution', (e, EulerRotate())),
                            ('decompose', (e.asMatrix(), e.order))]:
-            self.assertIs(type(getattr(EulerRotation, name)(*args)), EulerRotation)
+            self.assertIs(type(getattr(EulerRotate, name)(*args)), EulerRotate)
         self.assertIs(type(Quaternion.squad(q, q, q, q, .5)), Quaternion)
         self.assertIs(type(Quaternion.squadPt(q, q, q)), Quaternion)
         axis, angle = q.asAxisAngle()
@@ -73,7 +73,7 @@ class ValueReturnTest(unittest.TestCase):
         """自身更新は同一オブジェクトを返し、厳密版はゼロを拒否する。"""
         for value, method in [(Vector(1, 2, 3), 'normalize'),
                               (Quaternion.fromAxisAngle((1, 0, 0), .4), 'invertIt'),
-                              (EulerRotation(.2, .3, .4), 'invertIt')]:
+                              (EulerRotate(.2, .3, .4), 'invertIt')]:
             self.assertIs(getattr(value, method)(), value)
         for cls in (Vector, Quaternion):
             value = cls(1, 2, 3) if cls is Vector else cls(1, 2, 3, 4)
@@ -92,7 +92,7 @@ class ValueReturnTest(unittest.TestCase):
         for cls, names in [(hlib.nodes.Transform, ('getT','setT','getQ','setQ','getS','setS','getSh','setSh','getM','setM','getX','setX')),
                            (Vector, ('normalized','mirrored')),
                            (Quaternion, ('toMatrix','toEuler','toAxisAngle','toSwingTwist','normalized','mirrored')),
-                           (EulerRotation, ('toMatrix','toQuaternion','mirrored')),
+                           (EulerRotate, ('toMatrix','toQuaternion','mirrored')),
                            (Matrix, ('determinant','toTransformation','mirrored'))]:
             for name in names:
                 with self.subTest(cls=cls, name=name):

@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from ..decorator import undoChunk
 
 
@@ -128,6 +128,19 @@ class TimeSlider:
             bool: 再生中か返す。
         """
         return bool(cmds.play(query=True, state=True))
+
+    @_is_alias(isPlaying)
+    def playing(self, *args, **kwargs):
+        """isPlayingへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isPlaying(*args, **kwargs)
 
     def play(self, forward=True):
         """再生を開始する。

@@ -30,7 +30,7 @@
 
 - hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `hlib.common` へ置く。nodes/plugs/componentsなど型をまとめるパッケージ内に関数だけのPythonファイルを追加しない。commonでは用途単位の関数モジュールも扱う。公開コマンドは上記の命名・責務ルールに従う。
 
-- hlibおよび `hlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotation.py`、`scriptJob.py`、`channelBox.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `hlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
+- hlibおよび `hlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotate.py`、`scriptJob.py`、`channelBox.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `hlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
 
 - hlibはMaya標準の名前・概念と汎用的な基礎APIを扱う。標準の関係型とリグ非依存の計算・汎用処理は `common`、骨の追従・Soft IK・補正・操作形状などの独自セットアップは `hrig.setups` に置く。`hlib/animation` は作らない。Bifrostの演算部品は `hlib_bifrost.common`、リグの組み方はhrigに置く。
 
@@ -107,7 +107,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 - 静的解析(Pylance/pyright)は、リポジトリ直下の `pyrightconfig.json` に設定を集約している。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
 - 静的解析向けに公開名だけの別名一覧を増やさず、通常の明示importを公開と補完の共通入口にする。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_hlib_exports.py` で不一致を検査する。
 - `hlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
-- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
+- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translate/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotate は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
 - Mayaの信頼済みプラグインの場所(`optionVar SafeModeAllowedlistPaths`)をスクリプトから変更しない。MayaのSafeModeが拒否する設定で、迂回せずユーザーがPreferences > Securityで登録する。
 - hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.common`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
 

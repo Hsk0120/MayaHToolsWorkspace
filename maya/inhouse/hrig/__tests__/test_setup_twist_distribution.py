@@ -31,9 +31,9 @@ class TwistDistributionTest(unittest.TestCase):
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
         node.getPlug("offsetParentMatrix").set(value)
         self.assertEqual(cmds.getAttr("joint.tx"), 2)
-        self.assertAlmostEqual(node.getTranslation(ws=True, at=4)[0], 5)
+        self.assertAlmostEqual(node.getTranslate(ws=True, at=4)[0], 5)
         cmds.undo()
-        self.assertAlmostEqual(node.getTranslation(ws=True, at=4)[0], 2)
+        self.assertAlmostEqual(node.getTranslate(ws=True, at=4)[0], 2)
 
     def test_fraction_and_ownership(self):
         """親子でない二つの姿勢も始点空間で補間し、外部参照を削除しない。"""
@@ -41,8 +41,8 @@ class TwistDistributionTest(unittest.TestCase):
 
         start = hlib.createNode("transform", name="start", skipSelect=True)
         end = hlib.createNode("transform", name="end", skipSelect=True)
-        start.setTranslation((1, 0, 0), at=4)
-        end.setTranslation((9, 0, 0), at=4)
+        start.setTranslate((1, 0, 0), at=4)
+        end.setTranslate((9, 0, 0), at=4)
         end.getPlug("rotateX").set(math.radians(120))
         graph = TwistDistribution.create(start, end)
         output = graph.sample(0.25, "quarter")

@@ -35,10 +35,10 @@ class BindMirrorFreezeTest(unittest.TestCase):
             b = cmds.pointPosition(names[1] + ".vtx[%d]" % i, world=True)
             for x, y in zip(a, b): self.assertAlmostEqual(x, y)
         nodes = Transforms([Node(name) for name in names])
-        nodes.setTranslation((3, 2, 1), at=4)
+        nodes.setTranslate((3, 2, 1), at=4)
         nodes.freeze()
         cmds.undo()
-        self.assertEqual(tuple(nodes[0].getTranslation(at=4)), (3, 2, 1))
+        self.assertEqual(tuple(nodes[0].getTranslate(at=4)), (3, 2, 1))
 
     def test_bind_single_multiple_and_undo(self):
         joint = Joint(cmds.createNode("joint"))
@@ -66,7 +66,7 @@ class BindMirrorFreezeTest(unittest.TestCase):
         cmds.setAttr(root.getFullName() + ".translate", 2, 1, 0)
         mirrored = hlib.mirrorJoint(root, myz=True, mb=True, sr=("left", "right"))
         self.assertIsInstance(mirrored, Joint)
-        self.assertAlmostEqual(mirrored.getTranslation(ws=True, at=4).x, -2)
+        self.assertAlmostEqual(mirrored.getTranslate(ws=True, at=4).x, -2)
         cmds.createNode("joint", name="left_tip", parent=root.getFullName())
         result = hlib.mirrorJoint(root, mirrorYZ=True, searchReplace=("left", "other"))
         self.assertIsInstance(result, Joints)

@@ -66,13 +66,19 @@ class ApiNamingTest(unittest.TestCase):
 
     def test_math_types_and_old_json_records(self):
         from hlib.json.codec import encode, decode
-        from hlib.maths import Translation, EulerRotation
-        self.assertFalse(hasattr(hlib.maths, 'Translate'))
+        from hlib.maths import Translate, EulerRotate
+        self.assertIs(hlib.maths.Translate, Translate)
+        self.assertIs(hlib.maths.EulerRotate, EulerRotate)
+        self.assertFalse(hasattr(hlib.maths, 'Translation'))
+        self.assertFalse(hasattr(hlib.maths, 'EulerRotation'))
         self.assertFalse(hasattr(hlib.maths, 'Rotate'))
-        for old, cls in (('Translate', Translation), ('Rotate', EulerRotation)):
+        for unknown in ('Translate', 'Rotate', 'EulerRotate'):
             with self.assertRaises(ValueError):
-                decode({'type': 'math:' + old, 'value': encode({'values': [1, 2, 3]})})
-            value = decode(encode(cls(1, 2, 3)))
+                decode({'type': 'math:' + unknown, 'value': encode({'values': [1, 2, 3]})})
+        for saved, cls in (('Translation', Translate), ('EulerRotation', EulerRotate)):
+            record = encode(cls(1, 2, 3))
+            self.assertEqual(record['type'], 'math:' + saved)
+            value = decode(record)
             self.assertIsInstance(value, cls)
             self.assertEqual(tuple(value), (1, 2, 3))
 
@@ -89,8 +95,8 @@ class ApiNamingTest(unittest.TestCase):
         for module, cls in (('common.channelBox', 'ChannelBox'),
                             ('common.timeSlider', 'TimeSlider'),
                             ('common.drivenKey', 'DrivenKey'),
-                            ('maths.eulerRotation', 'EulerRotation'),
-                            ('maths.translation', 'Translation')):
+                            ('maths.eulerRotate', 'EulerRotate'),
+                            ('maths.translate', 'Translate')):
             self.assertTrue(inspect.isclass(getattr(importlib.import_module('hlib.' + module), cls)))
         self.assertTrue(callable(hlib.getChannelBox))
         self.assertTrue(callable(hlib.getTimeSlider))
@@ -98,22 +104,25 @@ class ApiNamingTest(unittest.TestCase):
         self.assertTrue(inspect.isclass(hlib.json.NurbsCurveSnapshot))
 
     def test_reload_removes_old_module_and_class_exports(self):
-        old_module = types.ModuleType('hlib.maths.rotate')
+        old_module = types.ModuleType('hlib.maths.eulerRotation')
         sys.modules[old_module.__name__] = old_module
-        hlib.maths.rotate = old_module
+        hlib.maths.eulerRotation = old_module
         hlib.maths.Rotate = object
-        hlib.maths.Translate = object
+        hlib.maths.Translation = object
+        hlib.maths.EulerRotation = object
         hlib.json.CurveSnapshot = object
         snapshots = importlib.import_module('hlib.json.snapshots')
         snapshots.CurveSnapshot = object
         hlib.reload()
         self.assertNotIn(old_module.__name__, sys.modules)
-        self.assertFalse(hasattr(hlib.maths, 'rotate'))
+        self.assertFalse(hasattr(hlib.maths, 'eulerRotation'))
         self.assertFalse(hasattr(hlib.maths, 'Rotate'))
-        self.assertFalse(hasattr(hlib.maths, 'Translate'))
+        self.assertFalse(hasattr(hlib.maths, 'Translation'))
+        self.assertFalse(hasattr(hlib.maths, 'EulerRotation'))
         self.assertFalse(hasattr(hlib.json, 'CurveSnapshot'))
         self.assertFalse(hasattr(snapshots, 'CurveSnapshot'))
-        self.assertEqual(tuple(hlib.maths.Translation(1, 2, 3)), (1, 2, 3))
+        self.assertEqual(tuple(hlib.maths.Translate(1, 2, 3)), (1, 2, 3))
+        self.assertEqual(tuple(hlib.maths.EulerRotate(1, 2, 3)), (1, 2, 3))
 
 
 if __name__ == '__main__':
