@@ -87,6 +87,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-09): hlibの内部改善R01〜R09と利用者向け改善U01〜U10・追加API・日英ガイド/英訳・検証を28c486aへコミットしorigin/mainへpush完了（87ファイル）。直前のMaya2022/2027各1,258件・実GUI ScriptJob各2件・日英Sphinx成功記録を確認し、公開入口/文書fixture30件/staged差分検査を再実行して成功。関連差分を独立監査、共有ログはCodex完了記録だけを部分stage。研究資料/生成物・hedit進行中差分・docs/vscode.md・他作業ログは含めず保持、判定衝突名待ちも維持。
+
 - Codex (2026-10-09): hlib利用者向け改善U01〜U10と具体的な追加入口を実装。weight Plug/Vertex入力、正式component名/getter、デルタ単体IO・追加、skin集約、settable/valid、Snapshot.capture/適用判定、ScriptJobs.temporary、拡張診断、通知詳細と復元警告、目的別ガイドを追加。Namespace親指定は今回の全対応指示に基づき作成先/存在判定/返却を一致。既存2,307署名はgetter委譲化以外の変更0。Maya2022/2027各141files/1,258件を実行し失敗0（条件付きskip11/8）、実GUI ScriptJob各2件成功。静的fixture30件・公開入口/layout20files/日英Sphinx -Wと各501HTML/差分検査成功、英訳12,271件維持・295件追加。実施記録はdocs/research/hlib-usability-2026-10-09/implemented.md（Git対象外）。実HumanIK全身リターゲット・他Maya版・手動目視・今回の性能/IDE実測は未検証。未コミット/未プッシュ、R01〜R09・hedit差分・判定衝突名待ちは保持。
 
 - Codex (2026-10-09): hlib/hlib_*の利用者視点のリファクタリング検討。全製品Python272files/51,138行の実装本文・公開説明を4分担で読了し、読了漏れ/重複/SHA差分0を確認。返却weight Plugとターゲット操作、選択Vertexとスキン操作、Selection正式名、component正式getter、デルタ単体IO、目的別の連続例を優先案としてdocs/research/hlib-usability-2026-10-09/report.mdへ保存（Git対象外）。HumanIK成功後の欠落メソッド呼出と古い回復案内を確認、Namespace親指定は文書化済みの意味変更として区別。隔離Maya2027で代表利用例・単位・保存・状態を実証、通知/モード切替は障害注入。GUI/他版/性能/実HumanIK成功は今回未検証。製品・正式文書の変更/コミット/プッシュなし。既存R01〜R09未コミット変更・他ツールのhedit変更・判定衝突名待ちは保持。
