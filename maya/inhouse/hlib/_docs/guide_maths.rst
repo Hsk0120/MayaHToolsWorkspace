@@ -103,6 +103,30 @@ om2 と同じく ``ValueError`` です。
 返しますが、hlib は検査します)。スライス ``v[0:2]`` は成分の ``tuple`` を返します
 (スライスへの代入はできません)。
 
+成分を編集して値へ反映する
+--------------------------
+
+``Matrix.translate`` 等はコピーを返します。取得した成分を編集しただけでは
+元のMatrixは変わらず、setterへ代入すると反映されます。
+``Transformation.translate`` 等は保持している成分なので、その場の編集で
+Transformation自身が変わります。いずれも、シーンを更新するにはNodeの明示setterが必要です。
+
+.. code-block:: python
+
+   from hlib.maths import Matrix, Transformation
+
+   matrix = Matrix(translate=(1, 2, 3))
+   translate = matrix.translate
+   translate.x = 7
+   matrix.translate = translate
+
+   state = Transformation(translate=(1, 2, 3))
+   state.translate.x = 7
+
+位置の変換には ``matrix.transformPoint(position)``、方向の変換には
+``matrix.transformVector(direction)`` を使います。``Translate * Matrix`` は
+OpenMayaのMVectorと同じ方向変換で、平行移動を含みません。
+
 .. _maths-comparison:
 
 値の比較・変更・複製

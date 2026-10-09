@@ -70,6 +70,22 @@ class GetterDocumentationTest(unittest.TestCase):
         self.assertNotIn("get", self.docs.short_names)
         self.assertNotIn("getu", self.docs.short_names)
 
+    def test_component_acronyms_keep_existing_lowercase_aliases(self):
+        """UV/CVの正式getterを、既存のuv/cv入口のまま文書化する。"""
+        aliases = collect_getter_aliases(_PACKAGE_ROOT)
+        expected = {
+            "hlib.nodes.mesh.Mesh.uv": "hlib.nodes.mesh.Mesh.getUV",
+            "hlib.nodes.mesh.Mesh.uvs": "hlib.nodes.mesh.Mesh.getUVs",
+            "hlib.nodes.nurbsCurve.NurbsCurve.cv": "hlib.nodes.nurbsCurve.NurbsCurve.getCV",
+            "hlib.nodes.nurbsCurve.NurbsCurve.cvs": "hlib.nodes.nurbsCurve.NurbsCurve.getCVs",
+        }
+        for alias, getter in expected.items():
+            with self.subTest(alias=alias):
+                self.assertEqual(aliases[alias].getter, getter)
+                self.assertEqual(self.docs.getters[getter], alias)
+        self.assertNotIn("hlib.nodes.mesh.Mesh.uV", aliases)
+        self.assertNotIn("hlib.nodes.nurbsCurve.NurbsCurve.cV", aliases)
+
     def test_predicate_catalog_uses_explicit_definitions_and_imported_functions(self):
         """isの名前だけで推測せず、通常defの明示委譲とimport先を照合する。"""
         with TemporaryDirectory() as directory:

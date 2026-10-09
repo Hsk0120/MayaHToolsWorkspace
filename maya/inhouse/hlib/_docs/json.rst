@@ -4,6 +4,8 @@ JSONで状態を一時保存する
 ``hlib.json`` はhlibの数学型、Mayaの参照、取得時点の状態をJSONへ保存します。
 ``load()`` はデータを読むだけで、シーンや選択を変更しません。
 状態を反映するときだけ ``Snapshot.apply()`` を呼び出します。
+用途別クラスの ``capture()`` から取得でき、``supportsApply`` でその保存用途が
+適用に対応しているか確認できます。対象の現在状態は ``plan().valid`` で検証します。
 
 基本的な使い方
 ----------------
@@ -12,7 +14,8 @@ JSONで状態を一時保存する
 
     import hlib
 
-    saved = hlib.json.capture(hlib.ls(sl=True), kind="pose")
+    # ポーズを保存するTransformまたはJointを選択して実行する。
+    saved = hlib.json.PoseSnapshot.capture(hlib.ls(sl=True))
     path = hlib.json.dump(saved)
     print(path)  # OSの一時フォルダー内の一意な.json
 
@@ -20,7 +23,8 @@ JSONで状態を一時保存する
     plan = restored.plan()
     print(plan.changes)
     print(plan.errors)
-    plan.apply()  # 最新の状態で再検証してから適用
+    if plan.valid:
+        plan.apply()  # 最新の状態で再検証してから適用
 
 パスを省略すると一時ファイルを作ります。自動削除しないため、不要になったら
 返された ``Path`` の ``unlink()`` を呼び出してください。
@@ -47,11 +51,42 @@ JSON変換や置換に失敗した場合、既存ファイルを成功したも�
 通常のdictはdict、Snapshotは用途別Snapshotとして戻ります。
 Node・Plug・Componentは生きたラッパーではなく、未解決の参照データに戻ります。
 ``resolve()`` するまでは対象がシーンに存在する必要はありません。
+参照の読み込みはノードの新規作成やシーン更新を行いません。
 SelectionとComponentsを通常の値として保存した場合は、参照の順序付きリストへ戻ります。
 選択自体を復元する用途には ``kind="selection"`` を使用してください。
 
 対応する状態
 ----------------
+
+各型の ``capture`` は共通の ``hlib.json.capture`` へ委譲します。
+対象・保存内容・例外・単位の規則は同じです。共通入口も引き続き利用できます。
+
+.. list-table:: 型から取得する入口と能力
+   :header-rows: 1
+
+   * - 取得入口
+     - supportsApply
+   * - ``SelectionSnapshot.capture(targets=None)``
+     - True
+   * - ``AttributesSnapshot.capture(targets, attributes)``
+     - True
+   * - ``PoseSnapshot.capture(targets)``
+     - True
+   * - ``NurbsCurveSnapshot.capture(targets)``
+     - True
+   * - ``SkinWeightsSnapshot.capture(targets)``
+     - True
+   * - ``AnimationSnapshot.capture(targets)``
+     - True
+   * - ``DrivenKeysSnapshot.capture(targets)``
+     - True
+   * - ``EditorSnapshot.capture(targets)``
+     - False。取得・読み込み・比較のみ
+
+``Snapshot.capture(targets=None, kind="pose", attributes=None)`` はkindで用途を選ぶ入口です。
+``supportsApply`` は保持する保存用途の能力で、ロック・接続・単位・対象の存在を
+毎回照会するものではありません。Trueでも実対象の検証が失敗すれば適用できません。
+このpropertyとcaptureメソッドは保存キーへ追加されず、従来ファイル形式を維持します。
 
 .. list-table::
    :header-rows: 1
@@ -86,13 +121,13 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
 
 .. code-block:: python
 
-    attrs = hlib.json.capture(
-        hlib.node("control"), kind="attributes",
+    attrs = hlib.json.AttributesSnapshot.capture(
+        hlib.node("control"),
         attributes=["translate", "visibility", "customValue"],
     )
-    selection = hlib.json.capture(kind="selection")
-    curves = hlib.json.capture(hlib.node("control"), kind="curve")
-    timeline = hlib.json.capture(hlib.timeSlider(), kind="editor")
+    selection = hlib.json.SelectionSnapshot.capture()
+    curves = hlib.json.NurbsCurveSnapshot.capture(hlib.node("control"))
+    timeline = hlib.json.EditorSnapshot.capture(hlib.timeSlider())
 
 アトリビュートは数値・enum・文字列・行列・数値2/3要素compoundに対応します。
 配列は要素を明示してください。任意のtyped arrayやカスタムデータ型は対象外です。
@@ -105,7 +140,7 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
 
     saved = hlib.json.capture(hlib.node("characterA:control"), kind="pose")
     plan = saved.plan(namespace_map={"characterA": "characterB"})
-    if not plan.errors:
+    if plan.valid:
         plan.apply()
 
     # 保存時の絶対名をキーに、対象を個別指定することも可能
@@ -122,7 +157,10 @@ SelectionとComponentsを通常の値として保存した場合は、参照の�
 ----------------
 
 ``validate().valid`` と ``validate().errors`` で適用可能性を確認できます。
-``plan()`` では対象と変更前後を取得できます。``apply()`` は毎回再検証します。
+``plan()`` では対象と変更前後を取得できます。``plan.valid`` は保持するerrorsが
+空かを判定し、``not plan.errors`` と同じです。``apply()`` は毎回再検証します。
+ValidationReportやApplyPlan自身を ``if report:`` のように判定しないでください。
+通常のオブジェクトの真偽は、検証エラーがあってもTrueになります。
 取得時の距離・角度・時間単位と現在の単位が違う場合は適用を拒否し、
 自動で単位を変更・変換しません。選択Snapshotにはこの制限はありません。
 

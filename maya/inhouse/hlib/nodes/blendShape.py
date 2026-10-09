@@ -29,6 +29,9 @@ class BlendShape(Node):
     fast対応メソッドは直接更新に切り替え、Undoへ記録しない。
     API 2.0にはMFnBlendShapeDeformerがなく、追加・削除・ミラーの
     Maya標準処理はcmds/MELを維持する。
+
+    登録済みターゲットの指定には番号・weightエイリアス・自身のweight要素Plugを使う。
+    addTarget等が返したPlugを、取得・設定・頂点編集へそのまま渡せる。
     """
 
     def getTargetAliases(self):
@@ -113,6 +116,82 @@ class BlendShape(Node):
         )
         return self.getPlug("weight")[weight_index]
 
+    def addTargetDeltas(self, deltas, base=None, weight_index=None, alias=None):
+        """疎なデルタだけから、新しい通常ターゲットを登録する。
+
+        BlendShapeへ入る変形前のgeometryを一時メッシュへ複製し、通常1.0の項目を
+        登録してからデルタを設定する。一時メッシュとその接続は終了時に残さない。
+        現在のweight・envelope・表示上の変形から中立位置を推測しない。
+
+        Args:
+            deltas (dict[int, Sequence[float]]): 頂点番号とxyz変位。通常のobject-space cm。
+            base (Node | str | None): ベース。省略時は最小のベース論理番号。
+            weight_index (int | None): 未使用のweight番号。省略時は最小の空き番号。
+            alias (str | None): 新しい別名。省略時はweight表記。
+
+        Returns:
+            Plug: 作成したweight要素。初期値0で、ターゲット操作へそのまま渡せる。
+
+        Raises:
+            ValueError: デルタ・番号・別名・入力geometryが不正な場合。
+            TypeError: ポリゴンメッシュ以外のベース、またはデルタが辞書でない場合。
+            RuntimeError: Undoが無効、入力geometryを取得できない、またはMayaの編集失敗。
+            NotImplementedError: post-deformation・user-defined origin、またはfast呼出内の場合。
+
+        全入力を登録前に検証する。通常Undoで一回にまとめ、例外時は巻き戻す。
+        一時ノード登録が必要なためfastフラグは提供しない。頂点順・変形前座標・
+        頂点マスク等を含む全体復元にはloadTargetsを使用する。
+        """
+        if is_fast():
+            raise NotImplementedError("addTargetDeltas requires normal Undoable target creation")
+        bi = self._base_index(base)
+        shape = self._base_shape(bi)
+        index = self._new_index(weight_index)
+        self._check_alias(alias)
+        values = self._delta_values(deltas, om2.MFnMesh(shape.mnode()).numVertices)
+        if self.getPlug("origin").get() not in (0, 1) or self.getPlug("deformationOrder").get():
+            raise NotImplementedError("addTargetDeltas supports ordinary local/world-origin targets")
+        geometry = typed_data(self.getPlug("input[{}].inputGeometry".format(bi)).mplug())
+        if geometry.isNull() or not geometry.hasFn(om2.MFn.kMesh):
+            raise RuntimeError("Cannot read the blendShape's undeformed input mesh")
+        input_fn = om2.MFnMesh(geometry)
+        topology = self._topology(shape)
+        counts, connects = input_fn.getVertices()
+        if (input_fn.numVertices != topology["vertices"] or list(counts) != topology["counts"]
+                or list(connects) != topology["connects"]):
+            raise ValueError("Input and output mesh topology differ")
+        if not cmds.undoInfo(query=True, state=True):
+            raise RuntimeError("addTargetDeltas requires Undo enabled")
+        normalized = {vertex: point[:3] for vertex, point in values}
+        with undoTransaction("hlibBlendShapeAddTargetDeltas"):
+            temporary = cmds.createNode("mesh", skipSelect=True)
+            neutral = Node(temporary)
+            parent = neutral.getParent().getFullName()
+            original_error = None
+            try:
+                # APIへ書くのは一時形状だけ。登録・切断・永続デルタはcmdsでUndoに記録する。
+                data = om2.MFnMeshData().create()
+                om2.MFnMesh().copy(geometry, data)
+                neutral.getPlug("cachedInMesh").mplug().setMObject(data)
+                weight = self.addTarget(neutral, base=shape, weight_index=index)
+                self.setTargetDeltas(weight, normalized, base=shape, disconnect=True)
+                weight.set(0.0)
+                weight.setAlias(alias)
+            except BaseException as error:
+                original_error = error
+                raise
+            finally:
+                try:
+                    if cmds.objExists(parent):
+                        cmds.delete(parent)
+                except Exception as cleanup_error:
+                    if original_error is None:
+                        raise
+                    from .. import logger
+
+                    logger.warning("Temporary delta target cleanup failed for %s: %s", parent, cleanup_error)
+        return weight
+
     @undoChunk("hlibBlendShapeRemoveTarget")
     def removeTarget(self, target):
         """全ベースからターゲットと全in-betweenを削除する。
@@ -122,7 +201,7 @@ class BlendShape(Node):
         combinationShapeの場合はMaya標準処理によりそのノードも削除される。
 
         Args:
-            target (int | str): ターゲット番号またはエイリアス。
+            target (int | str | Plug): ターゲット番号またはエイリアス。
 
         Returns:
             BlendShape: 自身。
@@ -154,7 +233,7 @@ class BlendShape(Node):
         """ターゲット番号またはweightのエイリアスからPlugを取得する。
 
         Args:
-            target (int | str): 実在するターゲット番号またはエイリアス。
+            target (int | str | Plug): 実在するターゲット番号またはエイリアス。
 
         Returns:
             Plug: 対応するweight要素。
@@ -167,7 +246,7 @@ class BlendShape(Node):
         """既存ターゲット項目を別メッシュへ差し替える。
 
         Args:
-            target (int | str): 番号またはエイリアス。
+            target (int | str | Plug): 番号またはエイリアス。
             geometry (Node | str): 新しいターゲットメッシュ。
             base (Node | str | None): ベース。省略時は先頭。
             full_weight (float): 差し替える既存項目のウェイト。
@@ -194,7 +273,7 @@ class BlendShape(Node):
         """既存ターゲットにin-betweenを追加する。
 
         Args:
-            target (int | str): 親ターゲット番号またはエイリアス。
+            target (int | str | Plug): 親ターゲット番号またはエイリアス。
             geometry (Node | str): 同一トポロジーのメッシュ。
             weight (float): 0と1以外、-5以上、0.001刻みのウェイト。
             base (Node | str | None): ベース。省略時は先頭。
@@ -222,7 +301,7 @@ class BlendShape(Node):
         """指定ウェイトのin-betweenを全ベースから削除する。
 
         Args:
-            target (int | str): 親ターゲット番号またはエイリアス。
+            target (int | str | Plug): 親ターゲット番号またはエイリアス。
             weight (float): 削除する既存項目のウェイト。1は指定不可。
 
         Returns:
@@ -243,7 +322,8 @@ class BlendShape(Node):
         """ターゲットの編集モードを開始または終了する。
 
         Args:
-            target (int | str | None): 開始する番号またはエイリアス。開始時は必須。
+            target (int | str | Plug | None): 開始する番号・エイリアス・自身のweight要素。
+                開始時は必須。
                 終了時は省略可能で、指定しても使用しない。
             state (bool): Trueは開始、FalseはこのblendShapeの編集を終了する。
             full_weight (float): 編集項目のウェイト。通常1、in-betweenならその値。
@@ -275,7 +355,7 @@ class BlendShape(Node):
         """hero(1.0)以外の項目ウェイトを昇順で取得する。
 
         Args:
-            target (int | str): 親ターゲット番号またはエイリアス。
+            target (int | str | Plug): 親ターゲット番号またはエイリアス。
             base (Node | str | None): ベース。省略時は先頭。
 
         Returns:
@@ -289,7 +369,7 @@ class BlendShape(Node):
         """ターゲットの頂点別ウェイトを取得する。
 
         Args:
-            target (int | str): 番号またはエイリアス。
+            target (int | str | Plug): 番号またはエイリアス。
             base (Node | str | None): ベース。省略時は先頭。
 
         Returns:
@@ -309,7 +389,7 @@ class BlendShape(Node):
         """頂点別ウェイトを設定する。全頂点列または部分更新の辞書を受け付ける。
 
         Args:
-            target (int | str): 番号またはエイリアス。
+            target (int | str | Plug): 番号またはエイリアス。
             weights (Sequence[float] | dict[int, float]): 全頂点列または頂点番号と値。
             base (Node | str | None): ベース。省略時は先頭。
             fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
@@ -334,7 +414,7 @@ class BlendShape(Node):
         post-deformationではMayaに保存された空間の値。
 
         Args:
-            target (int | str): 番号またはエイリアス。
+            target (int | str | Plug): 番号またはエイリアス。
             base (Node | str | None): ベース。省略時は先頭。
             full_weight (float): 取得する項目のウェイト。
 
@@ -354,7 +434,7 @@ class BlendShape(Node):
         他のin-between項目のデルタは変更しない。
 
         Args:
-            target (int | str): 番号またはエイリアス。
+            target (int | str | Plug): 番号またはエイリアス。
             deltas (dict[int, Sequence[float]]): 頂点番号とxyz変位(cm)。
             base (Node | str | None): ベース。省略時は先頭。
             full_weight (float): 更新する既存項目のウェイト。
@@ -389,7 +469,7 @@ class BlendShape(Node):
         空入力とデルタを持たない頂点だけの指定は何も変更せず、入力接続も保持する。
 
         Args:
-            target (int | str): ターゲット番号またはweightのエイリアス。
+            target (int | str | Plug): ターゲット番号またはweightのエイリアス。
             vertices (int | Vertex | Vertices | Iterable[int | Vertex]): 除外する
                 ベース頂点番号またはベースメッシュの頂点。重複はまとめる。
             base (Node | str | None): ベース。省略時は最小のベース論理番号。
@@ -447,7 +527,7 @@ class BlendShape(Node):
         Shape Editorのフォルダ配置と外部ドライバは複製しない。
 
         Args:
-            target (int | str): 元の番号またはエイリアス。
+            target (int | str | Plug): 元の番号またはエイリアス。
             weight_index (int | None): 未使用の番号。省略時は最小の空き番号。
             alias (str | None): 新しい別名。省略時はMayaのweight表記。
             fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
@@ -469,7 +549,7 @@ class BlendShape(Node):
         getTargetDeltasが返す絶対デルタの長さで判定する。照会はOpenMayaを使う。
 
         Args:
-            target (int | str): ターゲット番号またはweightのエイリアス。
+            target (int | str | Plug): ターゲット番号またはweightのエイリアス。
             base (Node | str | None): ベース。省略時は最小のベース論理番号。
             full_weight (float): 取得する項目のウェイト。in-betweenも指定可能。
             tolerance (float): 除外する変位長の上限。有限の非負数。
@@ -498,7 +578,7 @@ class BlendShape(Node):
         weight・envelope・頂点マスクは判定に使用しない。対象がなければ変更しない。
 
         Args:
-            target (int | str): ターゲット番号またはweightのエイリアス。
+            target (int | str | Plug): ターゲット番号またはweightのエイリアス。
             tolerance (float): 除外する変位長の上限。有限の非負数。
                 通常ターゲットではcm。既定0はゼロデルタのみ除外する。
             base (Node | str | None): ベース。省略時は最小のベース論理番号。
@@ -523,7 +603,7 @@ class BlendShape(Node):
         """ターゲットの片側を反対側へミラーする(Maya標準のmirrorTarget)。
 
         Args:
-            target (int | str): 番号またはエイリアス。
+            target (int | str | Plug): 番号またはエイリアス。
             axis (str): オブジェクト空間のX、Y、Z。
             direction (int): Maya標準方向。0=負方向、1=正方向。
             base (Node | str | None): ベース。省略時は先頭。
@@ -544,7 +624,7 @@ class BlendShape(Node):
         """左右を交換する。左右別ターゲット作成にはduplicateTarget後に使う。
 
         Args:
-            target (int | str): 番号またはエイリアス。
+            target (int | str | Plug): 番号またはエイリアス。
             axis (str): オブジェクト空間のX、Y、Z。
             base (Node | str | None): ベース。省略時は先頭。
 
@@ -556,6 +636,70 @@ class BlendShape(Node):
         cmds.blendShape(self.getName(), edit=True, flipTarget=(bi, index),
                         symmetryAxis=axis, symmetrySpace=1)
         return self
+
+    def dumpTargetDeltas(self, target, path, base=None, full_weight=1.0):
+        """既存項目のデルタだけをhlib.json形式で保存する。
+
+        Args:
+            target (int | str | Plug): ターゲット番号・エイリアス・自身のweight要素。
+            path (str | pathlib.Path): 保存先。親フォルダーは事前に用意する。
+            base (Node | str | None): ベース。省略時は最小のベース論理番号。
+            full_weight (float): 保存する項目のウェイト。in-betweenも指定可能。
+
+        Returns:
+            pathlib.Path: 保存されたファイルの絶対パス。
+
+        Raises:
+            ValueError: ターゲット・項目・デルタが不正な場合。
+            OSError: ファイルを保存できない場合。
+
+        頂点番号を文字列キー、デルタをVector値として保存し、シーンは変更しない。
+        通常のデルタはobject-space cm。トポロジー・マスク・weight・envelopeや
+        相対補助デルタは含めない。dumpTargetsの既存形式は変更しない。
+        """
+        from ..json import dump
+
+        deltas = self.getTargetDeltas(target, base=base, full_weight=full_weight)
+        bi = self._base_index(base)
+        self._delta_values(deltas, om2.MFnMesh(self._base_shape(bi).mnode()).numVertices)
+        return dump({str(vertex): delta for vertex, delta in deltas.items()}, path)
+
+    @fast_edit
+    def loadTargetDeltas(self, target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False):
+        """単体デルタファイルを検証し、既存ターゲット項目へ適用する。
+
+        Args:
+            target (int | str | Plug): ターゲット番号・エイリアス・自身のweight要素。
+            path (str | pathlib.Path): dumpTargetDeltasのhlib.jsonファイル。
+            base (Node | str | None): ベース。省略時は最小のベース論理番号。
+            full_weight (float): 更新する既存項目。取得時と同じ値を使う。
+            disconnect (bool): Trueはlive入力を切断してデルタを置換する。既定Falseは拒否。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。
+
+        Returns:
+            BlendShape: 自身。省略頂点はゼロになり、相対補助デルタはクリアされる。
+
+        Raises:
+            TypeError: ファイルのデータが辞書でない、またはfastがbool以外の場合。
+            ValueError: キー・デルタ・ターゲット・項目が不正、またはlive入力のガード。
+            OSError: ファイルを読み込めない場合。
+            RuntimeError: ロック等でMayaが編集を拒否した場合。
+
+        全データを編集前に検証してsetTargetDeltasへ委譲する。通常は一回のUndoで戻す。
+        実行途中のMayaエラーで完了済み更新を自動では戻さない。ファイルにない
+        トポロジー・変形前座標・マスク等の一致は呼出側で確認する。
+        """
+        from ..json import load
+
+        payload = load(path)
+        if not isinstance(payload, dict):
+            raise TypeError("Expected a vertex-index dictionary in the delta file")
+        deltas = {}
+        for vertex, delta in payload.items():
+            self._file_index(vertex)
+            deltas[int(vertex)] = delta
+        return self.setTargetDeltas(target, deltas, base=base, full_weight=full_weight,
+                                    disconnect=disconnect, fast=fast)
 
     def dumpTargets(self, path):
         """全ターゲットをJSONへ保存する。外部接続は現在値としてベイクする。
@@ -888,9 +1032,18 @@ class BlendShape(Node):
         return node
 
     def _target_index(self, target):
-        """番号またはweightのエイリアスを解決し存在を確認する。"""
+        """番号・エイリアス・自身のweight要素を解決し、実ターゲットの存在を確認する。"""
+        from ..plugs.plug import Plug
+
         if type(target) is int:
             index = target
+        elif isinstance(target, Plug):
+            target._require_valid()
+            mplug = target.mplug()
+            if (target.getNode().mnode() != self.mnode() or not mplug.isElement or mplug.isChild
+                    or mplug.array() != self.getPlug("weight").mplug()):
+                raise ValueError("Target Plug must be this blendShape's weight element")
+            index = mplug.logicalIndex()
         elif isinstance(target, str):
             matches = [plug.mplug().logicalIndex() for alias, plug in self.getAliases()
                        if alias == target and plug.mplug().isElement
@@ -899,7 +1052,7 @@ class BlendShape(Node):
                 raise ValueError("Unknown target alias: " + target)
             index = matches[0]
         else:
-            raise TypeError("Target must be an integer index or alias string")
+            raise TypeError("Target must be an integer index, alias string, or weight Plug")
         if index not in self.getTargetIndices():
             raise ValueError("Unknown target index: {}".format(index))
         return index

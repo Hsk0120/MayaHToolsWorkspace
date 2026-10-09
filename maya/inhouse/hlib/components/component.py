@@ -3,7 +3,7 @@
 import math
 import operator
 
-from .._core.getterAlias import _getter_alias
+from .._core.getterAlias import _getter_alias, _is_alias
 from .._core.object import Object
 
 
@@ -104,6 +104,35 @@ class Component(Object):
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
         return self.getFullName(*args, **kwargs)
+
+    def isValid(self):
+        """シェイプの生存・種類と、保持番号の現在の範囲を照会する。
+
+        Returns:
+            bool: 現在のシェイプで保持番号を参照できればTrue。
+
+        Note:
+            トポロジー変更前後で同じ要素を指す保証はない。
+            UVは現在のUVセットの番号範囲を使う。
+        """
+        try:
+            self._validate()
+        except (RuntimeError, TypeError, ValueError, IndexError):
+            return False
+        return True
+
+    @_is_alias(isValid)
+    def valid(self, *args, **kwargs):
+        """isValidへ委譲する省略入口。
+
+        Args:
+            *args: 正式判定メソッドへ渡す位置引数。
+            **kwargs: 正式判定メソッドへ渡すキーワード引数。
+
+        Returns:
+            bool: 正式判定メソッドと同じ結果。
+        """
+        return self.isValid(*args, **kwargs)
 
     @staticmethod
     def _from_api(path, component):
@@ -210,14 +239,43 @@ class Component(Object):
             IndexError: 番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
         """
-        if not callable(getattr(self._shape, "isValid", None)):
+        self._validate_shape(self._shape, self.shape_type)
+        if self._index < 0:
+            self._validate_index(self._index, 0)
+        self._validate_index(self._index, getattr(self._shape, self.count_attribute)())
+
+    @staticmethod
+    def _validate_shape(shape, shape_type):
+        """生存と型を検査する。要素数は呼出し側で必要な時に照会する。
+
+        Args:
+            shape (Shape): 検査する参照。
+            shape_type (str): 必要なMayaシェイプ型。
+
+        Raises:
+            TypeError: シェイプ参照または型が不正な場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        if not callable(getattr(shape, "isValid", None)):
             raise TypeError("shape must be an hlib shape wrapper")
-        if not self._shape.isValid():
+        if not shape.isValid():
             raise RuntimeError("Component shape is invalid")
-        if self._shape.getType() != self.shape_type:
-            raise TypeError(f"Expected a {self.shape_type} shape")
-        if not 0 <= self._index < getattr(self._shape, self.count_attribute)():
-            raise IndexError(f"Component index out of range: {self._index}")
+        if shape.getType() != shape_type:
+            raise TypeError(f"Expected a {shape_type} shape")
+
+    @staticmethod
+    def _validate_index(index, count):
+        """正規化済みの実番号を、呼出し内で照会した要素数と比較する。
+
+        Args:
+            index (int): コンポーネントの実番号。
+            count (int): 現在の要素数。
+
+        Raises:
+            IndexError: 番号が範囲外の場合。
+        """
+        if not 0 <= index < count:
+            raise IndexError(f"Component index out of range: {index}")
 
     @staticmethod
     def _finite_coordinates(value, size):
@@ -240,6 +298,15 @@ class Component(Object):
         if len(result) != size or not all(math.isfinite(item) for item in result):
             raise ValueError(f"Expected {size} finite coordinates")
         return result
+
+
+# 利用側が標準単数処理を置換した場合は、その処理を一括経路から省略しない。
+_COMPONENT_INIT = Component.__init__
+_COMPONENT_VALIDATE = Component._validate
+_COMPONENT_INDEX = Component.index
+_COMPONENT_SHAPE = Component.shape
+_COMPONENT_VALIDATE_SHAPE = Component._validate_shape
+_COMPONENT_VALIDATE_INDEX = Component._validate_index
 
 
 class Components:
@@ -266,14 +333,94 @@ class Components:
             RuntimeError: シェイプが無効な場合。
         """
         self._shape = shape
-        if not callable(getattr(shape, "isValid", None)):
-            raise TypeError("shape must be an hlib shape wrapper")
-        if not shape.isValid():
-            raise RuntimeError("Component shape is invalid")
-        if shape.getType() != self.component_class.shape_type:
-            raise TypeError(f"Expected a {self.component_class.shape_type} shape")
+        Component._validate_shape(shape, self.component_class.shape_type)
         selected = range(getattr(shape, self.component_class.count_attribute)()) if indices is None else indices
-        self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
+        # 一般の反復入力や独自__index__は従来どおり一件ずつ構築する。
+        # これにより入力の副作用・途中例外・利用側constructor/_validateを維持する。
+        if (self._has_standard_component() and self._has_standard_shape()
+                and (type(selected) is range or (type(selected) in (list, tuple)
+                     and all(type(index) is int for index in selected)))):
+            count = len(selected) if indices is None else None
+            for index in selected:
+                if index < 0:
+                    Component._validate_index(index, 0)
+                if count is None:
+                    count = getattr(shape, self.component_class.count_attribute)()
+                Component._validate_index(index, count)
+            self._indices = tuple(dict.fromkeys(selected))
+        else:
+            self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
+
+    def _has_standard_component(self, component_class=None):
+        """単数の構築・検査・番号取得が標準の具体型か判定する。
+
+        Args:
+            component_class (type | None): 明示した単数型。Noneなら自身の単数型。
+
+        Returns:
+            bool: 利用側の派生型や置換された単数処理でなければTrue。
+        """
+        from .cv import CV
+        from .edge import Edge
+        from .face import Face
+        from .uv import UV
+        from .vertex import Vertex
+        component_class = self.component_class if component_class is None else component_class
+        return (component_class in (Vertex, Edge, Face, UV, CV)
+                and component_class.__init__ is _COMPONENT_INIT
+                and component_class._validate is _COMPONENT_VALIDATE
+                and component_class.index is _COMPONENT_INDEX
+                and component_class.shape is _COMPONENT_SHAPE
+                and component_class._validate_shape is _COMPONENT_VALIDATE_SHAPE
+                and component_class._validate_index is _COMPONENT_VALIDATE_INDEX)
+
+    def _has_standard_shape(self, component_class=None):
+        """標準のシェイプ型か判定し、利用側の形状派生の照会処理を維持する。
+
+        Args:
+            component_class (type | None): 要素数を照会する単数型。Noneなら自身の型。
+
+        Returns:
+            bool: MeshまたはNurbsCurveそのものならTrue。
+        """
+        from ..nodes.mesh import Mesh
+        from ..nodes.nurbsCurve import NurbsCurve
+        shape_class = type(self._shape)
+        if shape_class not in (Mesh, NurbsCurve):
+            return False
+        component_class = self.component_class if component_class is None else component_class
+        name = component_class.count_attribute
+        reader = getattr(self._shape, name, None)
+        function = getattr(reader, "__func__", None)
+        return (function is not None and function is getattr(shape_class, name, None)
+                and function.__module__ == shape_class.__module__
+                and function.__qualname__ == f"{shape_class.__name__}.{name}"
+                and not hasattr(function, "__wrapped__"))
+
+    def _uses_standard_iteration(self, component_class):
+        """単数または反復が拡張されていない場合だけ一括照会を許可する。
+
+        Args:
+            component_class (type): 操作の標準単数型。
+
+        Returns:
+            bool: 単数・反復・シェイプが標準の実装ならTrue。
+        """
+        return (self.component_class is component_class
+                and type(self).__iter__ is _COMPONENTS_ITER
+                and self._has_standard_component() and self._has_standard_shape())
+
+    def _uses_standard_vertices(self):
+        """頂点の中間参照で呼ばれる構築・反復も標準処理か判定する。
+
+        Returns:
+            bool: Vertices/Vertexへの利用側の差替えを省略しなければTrue。
+        """
+        from .vertex import Vertex, Vertices
+        return (Vertices.component_class is Vertex and self._has_standard_component(Vertex)
+                and self._has_standard_shape(Vertex)
+                and Vertices.__init__ is _COMPONENTS_INIT
+                and Vertices.__iter__ is _COMPONENTS_ITER)
 
     def __len__(self):
         """保持要素数を取得する。
@@ -403,6 +550,35 @@ class Components:
         """
         return self.getCompactNames(*args, **kwargs)
 
+    def isValid(self):
+        """シェイプの生存・種類と、全保持番号の現在の範囲を照会する。
+
+        Returns:
+            bool: 全番号を参照できればTrue。空集合も生存する対応シェイプならTrue。
+
+        Note:
+            トポロジー変更前後で同じ要素を指す保証はない。
+            UVは現在のUVセットの番号範囲を使う。
+        """
+        try:
+            self._validate()
+        except (RuntimeError, TypeError, ValueError, IndexError):
+            return False
+        return all(index >= 0 for index in self._indices)
+
+    @_is_alias(isValid)
+    def valid(self, *args, **kwargs):
+        """isValidへ委譲する省略入口。
+
+        Args:
+            *args: 正式判定メソッドへ渡す位置引数。
+            **kwargs: 正式判定メソッドへ渡すキーワード引数。
+
+        Returns:
+            bool: 正式判定メソッドと同じ結果。
+        """
+        return self.isValid(*args, **kwargs)
+
     def _name_prefix(self):
         """全番号をまとめて再検証し、``<シェイプの完全パス>.<種類>`` を返す。
 
@@ -508,3 +684,7 @@ class Components:
         for row, item in zip(rows, values):
             row[axis] = item
         return rows
+
+
+_COMPONENTS_INIT = Components.__init__
+_COMPONENTS_ITER = Components.__iter__

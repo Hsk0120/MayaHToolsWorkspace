@@ -54,7 +54,9 @@ BlendShapeの追加編集API
 
 従来の ``addTarget(target, base=None, weight_index=None, full_weight=1.0)`` と
 ``targetAliases/weightPlugs/weights/geometry`` は引数・戻り値とも維持します。
-以下の ``target`` は既存ターゲットの整数番号またはweightのエイリアスです。
+以下の ``target`` は既存ターゲットの整数番号、weightのエイリアス、または同じ
+BlendShapeに属する登録済みweight要素のPlugです。別ノードのPlug・配列親・
+weight以外・実ターゲットのない要素は受け付けません。
 
 .. list-table:: 追加した引数と戻り値
    :header-rows: 1
@@ -82,6 +84,12 @@ BlendShapeの追加編集API
      - 自身
    * - ``targetEdit(target=None, state=True, full_weight=1.0)``
      - 自身。Trueで開始、Falseで終了
+   * - ``dumpTargetDeltas(target, path, base=None, full_weight=1.0)``
+     - 保存したPath。シーン変更なし
+   * - ``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)``
+     - 自身。既存項目のデルタ全体を置換
+   * - ``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)``
+     - 新規通常ターゲットのweight Plug
    * - ``inBetweenWeights(target, base=None)``
      - ウェイトのリスト
    * - ``targetWeights(target, base=None)``

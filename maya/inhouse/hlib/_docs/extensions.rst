@@ -64,6 +64,8 @@ hlibの既存規則に従います。
 専用ラッパーも先にimportしないでください。候補の宣言を確認するため、
 ``hlib_*`` に一致したパッケージの ``__init__.py`` は実行されます。
 信頼するパッケージだけをPython探索パスへ追加してください。
+``is_available()`` もロード・登録・UI/シーン変更を行わない照会として実装します。
+Python依存の遅延importは可能ですが、その依存のimport時にもMayaを編集しないでください。
 
 依存の方向は「拡張 → hlib公開API」に限定します。拡張同士のimport・継承は
 行わず、組合せ処理はhrigなど利用側のツールへ置きます。宣言と利用可否を確認し、
@@ -86,12 +88,31 @@ import文とラッパーの基底クラスを検査し、他の拡張への依�
    from hlib._core import extensions
 
    print(extensions.status())
+   print(extensions.diagnostics())
    hlib.reload()
 
 状態は ``loaded``（登録済み）、``unavailable``（依存未導入）、
 ``skipped``（宣言が未対応）、``error``（読み込み・検証失敗）です。
 失敗理由は ``reason`` に入り、エラーはログにも出力します。
 外部依存がなくてもhlib標準機能は利用できます。
+``status()`` は最後の初期化結果のコピーです。後から依存プラグインを明示ロードしても
+自動では更新されません。現在の可用性は ``diagnostics()`` で分けて照会します。
+
+.. code-block:: python
+
+   result = extensions.diagnostics()  # getDiagnostics()の省略入口。
+   bifrost = result.get("hlib_bifrost")
+   if bifrost is not None:
+       print(bifrost["initialization"])  # statusと同じ初期化結果、未初期化ならNone。
+       print(bifrost["available"])       # 現在の依存可用性。True/False/None。
+       print(bifrost["reason"])
+
+診断は既にimport済みの宣言の ``is_available`` だけを呼びます。
+新しい拡張のimport、型登録、プラグインロード、reloadは行いません。
+未import・初期化中・照会の再入・例外・非boolの戻り値ではavailableがNoneとなり、
+reasonに理由を返します。Falseは依存が現在利用不可と照会できた場合です。
+初期化状態と型登録は更新されないため、状態表示だけの目的でreloadする必要はありません。
+
 ``is_available()`` がFalseの拡張は実装のソース解析を行いません。
 対象Maya/Pythonで読み込めない実装を含む場合は、この関数で利用不可を返してください。
 宣言用の ``__init__.py`` 自体は対象Pythonで読み込める必要があります。

@@ -125,6 +125,23 @@ force/fの重複やbool以外は変更前に ``TypeError``、途中失敗は自�
 ``maintain=False`` で無効にできます。設定だけでは既存の非ゼロ数は制限されません。
 これらの変更は一回のUndoで戻せます。実行途中の例外は通知し、自動ロールバックはしません。
 
+選択した頂点のウェイト配分を調整する
+-----------------------------------------
+
+``redistributeWeights`` は番号列のほか、先頭geometryのmeshに属する
+Vertex・Vertices・Vertexと整数の混在列を受け取ります。
+
+.. code-block:: python
+
+   skin = hlib.node("skinCluster1")
+   skin.redistributeWeights(hlib.ls(sl=True, type="vertex"), method="cubic")
+   skin.redistributeWeights(hlib.node(skin.mesh).vertices([0, 1]), method="linear")
+
+``method`` はeasingの曲線名です。配分を合計1として読み、曲線を適用してから再正規化します。
+別meshのVertexは全対象を検証してから拒否します。選択を変更せず、空入力は何もしません。
+戻り値は従来どおりNone。通常のUndoで戻せますが、実行途中のゼロ合計やMayaエラーで
+先に完了した頂点の更新は自動では戻しません。
+
 cluster と locator
 --------------------
 
@@ -200,6 +217,19 @@ weight配列の論理インデックスで並べ替えません。weight以外�
 設定されるため、戻り値のプラグの ``fullName`` は ``weight[N]`` ではなく
 ターゲット名を含む表記になります（``longName()`` では実際のアトリビュート名を取得できます）。
 
+ターゲット番号・エイリアスを受け取る編集・照会には、同じBlendShapeのweight要素Plugも
+渡せます。addTarget・duplicateTarget等の返却を次の操作へ使えます。
+
+.. code-block:: python
+
+   weight = bs.addTarget(new_target)
+   weight.set(0.5)
+   bs.resetTargetVertices(weight, hlib.ls(sl=True, type="vertex"))
+   bs.reduceTargetDeltas(weight, 0.001)
+
+別BlendShapeのPlug、weight以外、配列親、空weight要素、削除済み参照は拒否します。
+エイリアス変更後も同じweight要素を参照できます。
+
 ターゲット編集モード
 --------------------------
 
@@ -215,6 +245,7 @@ weight配列の論理インデックスで並べ替えません。weight以外�
    bs.targetEdit(state=False)  # 対象を指定せず終了
 
 ``state`` はbool限定です。開始時のターゲットと項目は存在を検証します。
+開始時は自身のweight要素Plugも指定できます。
 終了時はtargetとfull_weightを使用しません。複数ベースではノード全体に適用します。
 
 blendShape の編集・保存
@@ -292,6 +323,23 @@ in-between
 デルタ単体の保存と対象頂点
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+``dumpTargetDeltas(target, path, base=None, full_weight=1.0)`` と
+``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)`` で
+辞書キーの変換をメソッド内にまとめて保存・復元できます。
+
+.. code-block:: python
+
+   bs.dumpTargetDeltas("smile", "C:/tmp/smile_delta.hlib.json")
+   restored = hlib.node("restoredBlendShape")  # 同じ頂点順のベースと既存smileターゲット
+   restored.loadTargetDeltas("smile", "C:/tmp/smile_delta.hlib.json", disconnect=True)
+   restored.targetPlug("smile").set(1.0)
+
+単体IOはhlib.json形式で、文字列の頂点番号キーとVector値を保存します。
+dumpは絶対パスのPath、loadはBlendShape自身を返します。
+全データを検証してからsetTargetDeltasへ委譲し、通常は一回のUndoにまとまります。
+loadのfast=TrueはUndoなしです。接続中の入力を切断する場合はdisconnect=Trueを明示します。
+既存のdumpTargets/loadTargetsの形式と、標準jsonでの次の保存方法は変更しません。
+
 ``targetDeltas`` の辞書だけをJSONへ書けば、名前やウェイトを含まない
 「頂点番号とxyz変位」だけのファイルになります。JSONの辞書キーは文字列に
 なるので、読み込み時に整数へ戻します。
@@ -316,6 +364,29 @@ in-between
 
 まだ復元先のターゲットがない場合は、変形前のベースと同じ形状を一時ターゲットとして
 登録してからデルタを書き込みます。
+
+``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)`` はこの一時メッシュの
+準備と後始末をまとめ、新しい通常1.0のターゲットのweight Plugを返します。
+
+.. code-block:: python
+
+   restored = hlib.createBlendShape("newFace")
+   weight = restored.addTargetDeltas({0: (0.0, 2.0, 0.0)}, alias="smile")
+   weight.set(1.0)
+
+   # hlib.json単体ファイルから未作成のターゲットへ復元する場合。
+   weight = restored.addTargetDeltas({}, alias="blink")
+   restored.loadTargetDeltas(weight, "C:/tmp/blink_delta.hlib.json")
+   weight.set(1.0)
+
+別名・未使用番号・全デルタを登録前に検証し、現在の表示形状ではなくBlendShapeへ入る
+変形前geometryを中立基準として使います。weightの初期値は0です。一時メッシュは残さず、
+登録全体は一回のUndo/Redoに対応し、例外時はUndoトランザクションで巻き戻します。
+Undo有効時に使用します。通常local/world originのポリゴン用で、post-deformationと
+user-defined originは未対応です。fastフラグは提供しません。
+
+標準jsonファイルを扱うときは、上で読み込んだ整数キーのdeltasをaddTargetDeltasへ渡すか、
+次のMaya標準コマンドの手順を使います。
 
 .. code-block:: python
 

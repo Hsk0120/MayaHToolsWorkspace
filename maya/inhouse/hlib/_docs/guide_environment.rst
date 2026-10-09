@@ -51,9 +51,9 @@ Preferencesの設定操作
 保存区分と永続化の注意点は :doc:`settings_storage` を参照してください。
 
 Preferencesは現在のMaya設定を扱います。距離・角度・時間単位は現在のシーンに作用し、
-新規シーンの既定単位は変更しません。set_time_unitはMaya標準の挙動に従い、
+新規シーンの既定単位は変更しません。setTimeUnitはMaya標準の挙動に従い、
 キーの実時間を維持してフレーム番号を調整します。
-set_up_axisは既定ではカメラを回転せず、rotate_view=Trueで表示の回転も指定できます。
+setUpAxisは既定ではカメラを回転せず、rotate_view=Trueで表示の回転も指定できます。
 自動保存先の指定は指定フォルダー方式へ切り替えます。フォルダー作成・保存実行は行いません。
 
 setUndoEnabled(enabled, flush=True)はMaya標準のstateフラグで切り替えます。
@@ -63,7 +63,7 @@ Undoの有効・無効、無限、上限の変更はUndoチャンクへまとめ
 上限を減らすと古い履歴が削除され得ます。
 
 旧Unitsクラスは廃止しました。単位設定はPreferencesへ、値の変換は
-``from hlib.common import units`` のconvert_distance/distance_to_ui等へ移しました。
+``from hlib.common import units`` のconvertDistance/distanceToUi等へ移しました。
 一時的な単位切り替えは ``hlib.decorator`` を使用します。
 
 プラグインのロード状態
@@ -110,8 +110,16 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
        minimumVersion="3.0.0", minimumMaya=2025)
    status = bifrost.tryLoad()   # "loaded" / "missing" / "outdated" / "load-failed" / "skipped"
 
+   from hlib.common import LOADED
+   if status == LOADED:
+       print("必要なプラグインをロードできました")
+
+``tryLoad`` と ``requirePlugins`` の戻り値は状態文字列です。
+``"missing"`` などもPythonの真偽評価ではTrueになるため、``if status:`` では
+成功判定できません。``status == LOADED`` で確認してください。
+
 ``tryLoad()`` は、必要な版が導入されていれば全プラグインをロードします。導入されていない・
-版が古い場合はプラグインをロードせず、``cmds.warning`` と警告ダイアログ(バッチ・スタンドアロン
+版が古い場合はプラグインをロードせず、``hlib.logger.warning`` と警告ダイアログ(バッチ・スタンドアロン
 では表示しない)で導入が必要なことを知らせます。``minimumMaya`` 未満の Maya では何もしません
 (``"skipped"``)。``dialog=False`` で表示を止め、関数を渡すと警告文を受け取れます。
 1 回の呼び出しにした ``hlib.requirePlugins(...)`` もあります。
@@ -132,7 +140,7 @@ Autodesk 製品(Bifrost・MayaUSD・Arnold など)や ``maya/modules/*.mod`` は
 
 ``hlib.common`` は原則1クラス1ファイルで構成します。単数クラスと対応する複数クラスは同じファイルにまとめられます。
 ``plugin.py`` は ``Plugin``、
-``module.py`` は ``Module``、``package.py`` は ``PluginPackage`` を定義します。
+``module.py`` は ``Module``、``pluginPackage.py`` は ``PluginPackage`` を定義します。
 利用側は引き続き ``from hlib.common import Plugin, Module, PluginPackage``
 で取得できます。
 

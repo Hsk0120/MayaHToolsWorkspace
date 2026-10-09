@@ -955,52 +955,12 @@ class Transform(DagNode):
         if not isinstance(value, Transformation):
             raise TypeError("value must be a Transformation")
         ws = world_space(worldSpace)
-        if ws:
-            parent = Matrix(self.mpath().exclusiveMatrix())
-            magnitude = max(1.0, *(sum(abs(parent[row, col]) for col in range(3)) for row in range(3)))
-            if abs(parent.det4x4()) <= 1e-12 * magnitude ** 3:
-                raise ValueError("Cannot apply a world transformation with a singular parent matrix")
-            fitted = value * parent.inverse()
-        else:
-            fitted = value.copy()
-        matrix = fitted.matrix
-        is_joint = self.mnode().hasFn(om2.MFn.kJoint)
-        if is_joint:
-            for name in ("rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"):
-                setattr(fitted, name, (0, 0, 0))
-            fitted.inverseScale = self.getPlug("inverseScale").get()
-        else:
-            fitted.jointOrient = Quaternion()
-            fitted.segmentScaleCompensate = False
-            fitted.inverseScale = (1, 1, 1)
-        if not fitted.matrix.isEquivalent(matrix):
-            fitted.matrix = matrix
+        fitted, matrix, is_joint = self._fit_transformation(value, ws)
         if get:
             return fitted
-        modifiers = ["rotateOrder", "rotateAxis"]
-        if is_joint:
-            modifiers += ["jointOrient", "segmentScaleCompensate"]
-        else:
-            modifiers += ["rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"]
-        for name in modifiers:
-            current = getattr(fitted, name)
-            if name in ("rotateAxis", "jointOrient"):
-                # 等価なクォータニオンでもチャンネルの数値を不用意に反転しない。
-                reference = EulerRotate(self.getPlug(name).get())
-                current = current.asEulerRotation().closestSolution(reference)
-            if name in ("rotateOrder", "segmentScaleCompensate"):
-                self.getPlug(name).set(current, safe=safe)
-            else:
-                self._set_channel_value(name, current, safe=safe)
+        self._apply_transformation_modifiers(fitted, is_joint, safe)
         if safe:
-            # 書込みできなかった補助成分を実際の状態へ戻してからTRSを計算する。
-            actual = self.getTransformation()
-            reference = EulerRotate(fitted.rotate)
-            reference.reorderIt(actual.rotateOrder)
-            actual.rotate = reference
-            actual.scale = fitted.scale
-            actual.matrix = matrix
-            fitted = actual
+            fitted = self._refit_safe_transformation(fitted, matrix)
         for name in ("translate", "rotate", "scale", "shear"):
             self._set_channel_value(name, getattr(fitted, name), safe=safe)
         return self
@@ -1931,6 +1891,79 @@ class Transform(DagNode):
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
         return self.getJointOrientQuaternion(*args, **kwargs)
+
+    def _fit_transformation(self, value, ws):
+        """入力を複製し、親行列とjoint固有成分へ適合させる。
+
+        Args:
+            value (Transformation): 元の値。自身を変更しない。
+            ws (bool): 検証済みのワールド空間指定。
+        Returns:
+            tuple: 適合した値・維持する行列・joint判定。
+        """
+        if ws:
+            parent = Matrix(self.mpath().exclusiveMatrix())
+            magnitude = max(1.0, *(sum(abs(parent[row, col]) for col in range(3)) for row in range(3)))
+            if abs(parent.det4x4()) <= 1e-12 * magnitude ** 3:
+                raise ValueError("Cannot apply a world transformation with a singular parent matrix")
+            fitted = value * parent.inverse()
+        else:
+            fitted = value.copy()
+        matrix = fitted.matrix
+        is_joint = self.mnode().hasFn(om2.MFn.kJoint)
+        if is_joint:
+            for name in ("rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"):
+                setattr(fitted, name, (0, 0, 0))
+            fitted.inverseScale = self.getPlug("inverseScale").get()
+        else:
+            fitted.jointOrient = Quaternion()
+            fitted.segmentScaleCompensate = False
+            fitted.inverseScale = (1, 1, 1)
+        if not fitted.matrix.isEquivalent(matrix):
+            fitted.matrix = matrix
+        return fitted, matrix, is_joint
+
+    def _apply_transformation_modifiers(self, fitted, is_joint, safe):
+        """TRSより先に補助成分を従来の順序で設定する。
+
+        Args:
+            fitted (Transformation): 対象へ適合した値。
+            is_joint (bool): 対象がjointか。
+            safe (bool): 書込みできない成分を維持するか。
+        """
+        modifiers = ["rotateOrder", "rotateAxis"]
+        if is_joint:
+            modifiers += ["jointOrient", "segmentScaleCompensate"]
+        else:
+            modifiers += ["rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"]
+        for name in modifiers:
+            current = getattr(fitted, name)
+            if name in ("rotateAxis", "jointOrient"):
+                # 等価なクォータニオンでもチャンネルの数値を不用意に反転しない。
+                reference = EulerRotate(self.getPlug(name).get())
+                current = current.asEulerRotation().closestSolution(reference)
+            if name in ("rotateOrder", "segmentScaleCompensate"):
+                self.getPlug(name).set(current, safe=safe)
+            else:
+                self._set_channel_value(name, current, safe=safe)
+
+    def _refit_safe_transformation(self, fitted, matrix):
+        """補助成分の実際の状態を読み、safe適用後のTRSを再計算する。
+
+        Args:
+            fitted (Transformation): 設定予定の値。
+            matrix (Matrix): 維持するローカル行列。
+        Returns:
+            Transformation: 実際に設定できた補助成分で再計算した値。
+        """
+        # 書込みできなかった補助成分を実際の状態へ戻してからTRSを計算する。
+        actual = self.getTransformation()
+        reference = EulerRotate(fitted.rotate)
+        reference.reorderIt(actual.rotateOrder)
+        actual.rotate = reference
+        actual.scale = fitted.scale
+        actual.matrix = matrix
+        return actual
 
     def _inverse_scale_values(self):
         """jointの有効なinverseScaleを返す。それ以外は単位スケール。"""

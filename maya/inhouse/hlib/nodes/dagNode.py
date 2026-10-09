@@ -60,6 +60,22 @@ class DagNode(Node):
                 iterator.next()
         return result
 
+    def collectSkinClusters(self):
+        """自身に関連するSkinClusterを操作可能なコレクションで取得する。
+
+        Shape/Transformは変形対象、Jointはinfluence接続の既存getSkinClustersを使う。
+        getSkinClustersのlist返却や検索範囲は変更しない。
+
+        Returns:
+            SkinClusters: 重複を除き、既存照会の順を保った参照コレクション。
+
+        Raises:
+            RuntimeError: 対象が無効、または既存照会に失敗した場合。
+        """
+        from .skinCluster import SkinClusters
+
+        return SkinClusters(self.getSkinClusters())
+
     def getBindPoses(self):
         """getSkinClusters()で得たSkinClusterのバインドポーズを取得する。
 
@@ -759,6 +775,7 @@ class DagNodes(Nodes):
         "overrideColor": "list",
         "getSkinClusters": "list",
         "skinClusters": "list",
+        "collectSkinClusters": "list",
         "getBindPoses": "list",
         "bindPoses": "list",
         "show": "self",
@@ -802,6 +819,7 @@ class DagNodes(Nodes):
         "overrideColor": DagNode.overrideColor,
         "getSkinClusters": DagNode.getSkinClusters,
         "skinClusters": DagNode.skinClusters,
+        "collectSkinClusters": DagNode.collectSkinClusters,
         "getBindPoses": DagNode.getBindPoses,
         "bindPoses": DagNode.bindPoses,
         "show": DagNode.show,
@@ -1077,6 +1095,22 @@ class DagNodes(Nodes):
         return self._dispatch_shared("getSkinClusters", args, kwargs)
 
     getSkinClusters.__signature__ = inspect.signature(DagNode.getSkinClusters)
+
+    def collectSkinClusters(self):
+        """各DAGノードのSkinClusterを保持順で集約し、重複を除く。
+
+        既存getSkinClustersの要素ごとのlist返却や、Jointsの既存集約は変更しない。
+        この明示集約は、複数geometryで共有されるSkinClusterを一回だけ操作する用途。
+
+        Returns:
+            SkinClusters: 各要素のgetSkinClusters順で初出を保つコレクション。
+
+        Raises:
+            RuntimeError: 無効な対象、または既存照会の失敗。
+        """
+        from .skinCluster import SkinClusters
+
+        return SkinClusters(skin for node in self for skin in node.getSkinClusters())
 
     def getBindPoses(self, *args, **kwargs):
         """各要素のgetBindPosesを同じ引数で呼び、保持順の戻り値リストを返す。

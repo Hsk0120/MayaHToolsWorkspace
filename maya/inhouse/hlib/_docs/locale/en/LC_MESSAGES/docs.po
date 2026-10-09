@@ -36377,3 +36377,1347 @@ msgstr "``create`` is a keyword-only bool argument. For ``create=True``, specify
 
 msgid "``Node``・``DagNode``・``Shape``・``Constraint`` のように作成型が確定しない基底クラスや、 Mayaの抽象型に対応する ``AnimCurve`` は ``create=True`` で作成できません。 ``SkinCluster`` はgeometryとのバインドが必要なので、 ``hlib.bindSkin(geometry, influences)`` または ``SkinCluster.bind(mesh, influences)`` を使います。 取得関数の ``hlib.node()`` / ``hlib.cmds.node()`` とget付きの取得関数には、 ``create`` 引数を追加していません。"
 msgstr "Base classes without a definite creation type, such as ``Node``, ``DagNode``, ``Shape``, and ``Constraint``, and ``AnimCurve`` corresponding to an abstract Maya type cannot be created with ``create=True``. ``SkinCluster`` requires binding to geometry, so use ``hlib.bindSkin(geometry, influences)`` or ``SkinCluster.bind(mesh, influences)``. The retrieval functions ``hlib.node()`` / ``hlib.cmds.node()`` and get-prefixed retrieval functions have no ``create`` argument."
+
+msgid "hlib._core.bulkExecution"
+msgstr "hlib._core.bulkExecution"
+
+msgid "複数形の結果収集方針を決める内部処理。"
+msgstr "Internal rules for collecting results from collection methods."
+
+msgid ":py:obj:`_CALCULATING_SETTERS <hlib._core.bulkExecution._CALCULATING_SETTERS>`\\"
+msgstr ":py:obj:`_CALCULATING_SETTERS <hlib._core.bulkExecution._CALCULATING_SETTERS>`\\"
+
+msgid ":py:obj:`calculation_results <hlib._core.bulkExecution.calculation_results>`\\ \\(method\\, functions\\, args\\, kwargs\\)"
+msgstr ":py:obj:`calculation_results <hlib._core.bulkExecution.calculation_results>`\\ \\(method\\, functions\\, args\\, kwargs\\)"
+
+msgid "get指定で計算値を返すsetterについて結果列が必要か判定する。"
+msgstr "Determine whether a setter with get enabled requires a list of calculated results."
+
+msgid "実際の呼出し先。"
+msgstr "The actual call targets."
+
+msgid "要素別の正規化済みキーワード引数。"
+msgstr "Normalized keyword arguments for each item."
+
+msgid "少なくとも一つの対象がget指定で計算値を返す場合True。"
+msgstr "True if at least one item returns calculated values with get enabled."
+
+msgid "hlib._core.mathValue"
+msgstr "hlib._core.mathValue"
+
+msgid "数学値の添字・比較・派生インスタンス状態を扱う内部共通処理。"
+msgstr "Shared internal helpers for indexing, comparison, and state of derived math values."
+
+msgid ":py:obj:`_OM2_TYPES <hlib._core.mathValue._OM2_TYPES>`\\"
+msgstr ":py:obj:`_OM2_TYPES <hlib._core.mathValue._OM2_TYPES>`\\"
+
+msgid ":py:obj:`_STATEFUL_TYPES <hlib._core.mathValue._STATEFUL_TYPES>`\\"
+msgstr ":py:obj:`_STATEFUL_TYPES <hlib._core.mathValue._STATEFUL_TYPES>`\\"
+
+msgid ":py:obj:`_TYPE_CACHE_LIMIT <hlib._core.mathValue._TYPE_CACHE_LIMIT>`\\"
+msgstr ":py:obj:`_TYPE_CACHE_LIMIT <hlib._core.mathValue._TYPE_CACHE_LIMIT>`\\"
+
+msgid ":py:obj:`_checked_index <hlib._core.mathValue._checked_index>`\\ \\(index\\, size\\, name\\)"
+msgstr ":py:obj:`_checked_index <hlib._core.mathValue._checked_index>`\\ \\(index\\, size\\, name\\)"
+
+msgid ":py:obj:`_copy_state <hlib._core.mathValue._copy_state>`\\ \\(source\\, target\\[\\, memo\\]\\)"
+msgstr ":py:obj:`_copy_state <hlib._core.mathValue._copy_state>`\\ \\(source\\, target\\[\\, memo\\]\\)"
+
+msgid ":py:obj:`_foreign_comparison <hlib._core.mathValue._foreign_comparison>`\\ \\(other\\, result\\)"
+msgstr ":py:obj:`_foreign_comparison <hlib._core.mathValue._foreign_comparison>`\\ \\(other\\, result\\)"
+
+msgid ":py:obj:`_instance_state <hlib._core.mathValue._instance_state>`\\ \\(value\\)"
+msgstr ":py:obj:`_instance_state <hlib._core.mathValue._instance_state>`\\ \\(value\\)"
+
+msgid ":py:obj:`_is_om2_type <hlib._core.mathValue._is_om2_type>`\\ \\(cls\\)"
+msgstr ":py:obj:`_is_om2_type <hlib._core.mathValue._is_om2_type>`\\ \\(cls\\)"
+
+msgid ":py:obj:`_restore_state <hlib._core.mathValue._restore_state>`\\ \\(target\\, state\\, slots\\)"
+msgstr ":py:obj:`_restore_state <hlib._core.mathValue._restore_state>`\\ \\(target\\, state\\, slots\\)"
+
+msgid ":py:obj:`_restore <hlib._core.registry.NodeRegistry._restore>`\\ \\(snapshot\\)"
+msgstr ":py:obj:`_restore <hlib._core.registry.NodeRegistry._restore>`\\ \\(snapshot\\)"
+
+msgid "登録中の障害で、検証済みの保存状態を再登録せずに復元する。"
+msgstr "Restore a validated snapshot after registration fails, without registering entries again."
+
+msgid ":py:obj:`_snapshot <hlib._core.registry.NodeRegistry._snapshot>`\\ \\(\\)"
+msgstr ":py:obj:`_snapshot <hlib._core.registry.NodeRegistry._snapshot>`\\ \\(\\)"
+
+msgid "拡張の登録開始前に、現在の型対応を独立したコピーで保持する。"
+msgstr "Copy the current type mappings before an extension begins registration."
+
+msgid ":py:obj:`_validate_entry <hlib._core.registry.NodeRegistry._validate_entry>`\\ \\(node\\_type\\, wrapper\\_class\\)"
+msgstr ":py:obj:`_validate_entry <hlib._core.registry.NodeRegistry._validate_entry>`\\ \\(node\\_type\\, wrapper\\_class\\)"
+
+msgid "汎用登録の型名とクラスを検証する。既存キーの上書きは拒否しない。"
+msgstr "Validate a type name and class for general registration, allowing existing keys to be replaced."
+
+msgid "_snapshotで取得した内部状態。"
+msgstr "Internal state captured by _snapshot."
+
+msgid "この登録表だけが復元に使う内部状態。"
+msgstr "Internal state used only to restore this registry."
+
+msgid "登録する型名。"
+msgstr "The type name to register."
+
+msgid "対応するクラス。"
+msgstr "The corresponding class."
+
+msgid "型名が空文字列または文字列以外の場合。"
+msgstr "If the type name is empty or is not a string."
+
+msgid "wrapper_classがクラスではない場合。"
+msgstr "If wrapper_class is not a class."
+
+msgid "``cmds.nodeType(node_type, isTypeName=True, inherited=True)`` は ノードの実体を必要とせず型名だけで継承関係を照会できる一方、都度 Maya に問い合わせるとやや低速なため、認識済みの型名だけ結果をキャッシュする。 未知型は後からプラグインが導入される可能性があるため、負結果を保存しない。 Maya API 2.0 に同等の照会手段が無いため cmds を使用する。"
+msgstr "``cmds.nodeType(node_type, isTypeName=True, inherited=True)`` queries inheritance by type name without a node instance. Since repeated queries take time, only recognized types are cached. Failed queries are not cached because a plug-in may introduce the type later. cmds is used because API 2.0 has no equivalent query."
+
+msgid ":py:obj:`_query_settings <hlib.common._editor._query_settings>`\\ \\(command\\, name\\, flags\\)"
+msgstr ":py:obj:`_query_settings <hlib.common._editor._query_settings>`\\ \\(command\\, name\\, flags\\)"
+
+msgid "検証済みのエディター設定を指定順に読む。UIの生成・検査は行わない。"
+msgstr "Read validated editor settings in the requested order without creating or validating the UI."
+
+msgid "Maya標準のエディターコマンド。"
+msgstr "A standard Maya editor command."
+
+msgid "呼出し側で検査済みのUI名。"
+msgstr "The UI name validated by the caller."
+
+msgid "呼出し側で検査済みの照会フラグ。"
+msgstr "Query flags validated by the caller."
+
+msgid "指定したフラグ名とMayaの照会値。"
+msgstr "The requested flag names and their Maya query values."
+
+msgid "正常完了後はhlibのノード型継承キャッシュを消去し、次の型選択で再照会する。 cmds.loadPluginを直接使う操作の状態変更は、この入口では監視しない。"
+msgstr "After successful completion, clear hlib's node type inheritance cache so the next type selection queries it again. This entry does not monitor changes made directly through cmds.loadPlugin."
+
+msgid "正常完了後はhlibのノード型継承キャッシュを消去する。"
+msgstr "Clear hlib's node type inheritance cache after successful completion."
+
+msgid ":py:obj:`_query_value <hlib.common.timeSlider.TimeSlider._query_value>`\\ \\(flag\\)"
+msgstr ":py:obj:`_query_value <hlib.common.timeSlider.TimeSlider._query_value>`\\ \\(flag\\)"
+
+msgid "現在単位の時刻・範囲を照会する。保存側でも生の値を使う。"
+msgstr "Query time and ranges in the current unit. Snapshot code uses the raw values too."
+
+msgid "検証済みのcurrentTimeまたはplaybackOptionsフラグ。"
+msgstr "A validated currentTime or playbackOptions flag."
+
+msgid "Mayaの照会値。floatへの変換は呼出し側で行う。"
+msgstr "The Maya query value. The caller converts it to float when needed."
+
+msgid ":py:obj:`_validate_index <hlib.components.component.Component._validate_index>`\\ \\(index\\, count\\)"
+msgstr ":py:obj:`_validate_index <hlib.components.component.Component._validate_index>`\\ \\(index\\, count\\)"
+
+msgid "正規化済みの実番号を、呼出し内で照会した要素数と比較する。"
+msgstr "Compare a normalized index with the element count queried during this call."
+
+msgid ":py:obj:`_validate_shape <hlib.components.component.Component._validate_shape>`\\ \\(shape\\, shape\\_type\\)"
+msgstr ":py:obj:`_validate_shape <hlib.components.component.Component._validate_shape>`\\ \\(shape\\, shape\\_type\\)"
+
+msgid "生存と型を検査する。要素数は呼出し側で必要な時に照会する。"
+msgstr "Validate existence and type. The caller queries the element count when needed."
+
+msgid "コンポーネントの実番号。"
+msgstr "The actual component index."
+
+msgid "現在の要素数。"
+msgstr "The current element count."
+
+msgid "検査する参照。"
+msgstr "The reference to validate."
+
+msgid "必要なMayaシェイプ型。"
+msgstr "The required Maya shape type."
+
+msgid "シェイプ参照または型が不正な場合。"
+msgstr "If the shape reference or type is invalid."
+
+msgid ":py:obj:`_has_standard_component <hlib.components.component.Components._has_standard_component>`\\ \\(\\[component\\_class\\]\\)"
+msgstr ":py:obj:`_has_standard_component <hlib.components.component.Components._has_standard_component>`\\ \\(\\[component\\_class\\]\\)"
+
+msgid "単数の構築・検査・番号取得が標準の具体型か判定する。"
+msgstr "Check whether construction, validation, and index access use the standard concrete component implementation."
+
+msgid ":py:obj:`_has_standard_shape <hlib.components.component.Components._has_standard_shape>`\\ \\(\\[component\\_class\\]\\)"
+msgstr ":py:obj:`_has_standard_shape <hlib.components.component.Components._has_standard_shape>`\\ \\(\\[component\\_class\\]\\)"
+
+msgid "標準のシェイプ型か判定し、利用側の形状派生の照会処理を維持する。"
+msgstr "Check for a standard shape type so queries on user subclasses are preserved."
+
+msgid ":py:obj:`_uses_standard_iteration <hlib.components.component.Components._uses_standard_iteration>`\\ \\(component\\_class\\)"
+msgstr ":py:obj:`_uses_standard_iteration <hlib.components.component.Components._uses_standard_iteration>`\\ \\(component\\_class\\)"
+
+msgid "単数または反復が拡張されていない場合だけ一括照会を許可する。"
+msgstr "Allow batch queries only when neither single components nor iteration have been extended."
+
+msgid ":py:obj:`_uses_standard_vertices <hlib.components.component.Components._uses_standard_vertices>`\\ \\(\\)"
+msgstr ":py:obj:`_uses_standard_vertices <hlib.components.component.Components._uses_standard_vertices>`\\ \\(\\)"
+
+msgid "頂点の中間参照で呼ばれる構築・反復も標準処理か判定する。"
+msgstr "Check that construction and iteration of intermediate vertex references use standard implementations too."
+
+msgid "明示した単数型。Noneなら自身の単数型。"
+msgstr "The explicit single-component class, or this collection's class if None."
+
+msgid "利用側の派生型や置換された単数処理でなければTrue。"
+msgstr "True if the type is neither a user subclass nor a replacement single-component implementation."
+
+msgid "要素数を照会する単数型。Noneなら自身の型。"
+msgstr "The single-component class whose count is queried, or this collection's class if None."
+
+msgid "MeshまたはNurbsCurveそのものならTrue。"
+msgstr "True for the exact Mesh or NurbsCurve class."
+
+msgid "操作の標準単数型。"
+msgstr "The standard single-component class for this operation."
+
+msgid "単数・反復・シェイプが標準の実装ならTrue。"
+msgstr "True if single components, iteration, and the shape use standard implementations."
+
+msgid "Vertices/Vertexへの利用側の差替えを省略しなければTrue。"
+msgstr "True if no user replacement on Vertices or Vertex would be bypassed."
+
+msgid ":py:obj:`_COMPONENTS_INIT <hlib.components.component._COMPONENTS_INIT>`\\"
+msgstr ":py:obj:`_COMPONENTS_INIT <hlib.components.component._COMPONENTS_INIT>`\\"
+
+msgid ":py:obj:`_COMPONENTS_ITER <hlib.components.component._COMPONENTS_ITER>`\\"
+msgstr ":py:obj:`_COMPONENTS_ITER <hlib.components.component._COMPONENTS_ITER>`\\"
+
+msgid ":py:obj:`_COMPONENT_INDEX <hlib.components.component._COMPONENT_INDEX>`\\"
+msgstr ":py:obj:`_COMPONENT_INDEX <hlib.components.component._COMPONENT_INDEX>`\\"
+
+msgid ":py:obj:`_COMPONENT_INIT <hlib.components.component._COMPONENT_INIT>`\\"
+msgstr ":py:obj:`_COMPONENT_INIT <hlib.components.component._COMPONENT_INIT>`\\"
+
+msgid ":py:obj:`_COMPONENT_SHAPE <hlib.components.component._COMPONENT_SHAPE>`\\"
+msgstr ":py:obj:`_COMPONENT_SHAPE <hlib.components.component._COMPONENT_SHAPE>`\\"
+
+msgid ":py:obj:`_COMPONENT_VALIDATE <hlib.components.component._COMPONENT_VALIDATE>`\\"
+msgstr ":py:obj:`_COMPONENT_VALIDATE <hlib.components.component._COMPONENT_VALIDATE>`\\"
+
+msgid ":py:obj:`_COMPONENT_VALIDATE_INDEX <hlib.components.component._COMPONENT_VALIDATE_INDEX>`\\"
+msgstr ":py:obj:`_COMPONENT_VALIDATE_INDEX <hlib.components.component._COMPONENT_VALIDATE_INDEX>`\\"
+
+msgid ":py:obj:`_COMPONENT_VALIDATE_SHAPE <hlib.components.component._COMPONENT_VALIDATE_SHAPE>`\\"
+msgstr ":py:obj:`_COMPONENT_VALIDATE_SHAPE <hlib.components.component._COMPONENT_VALIDATE_SHAPE>`\\"
+
+msgid ":py:obj:`_EDGE_GET_VERTICES <hlib.components.edge._EDGE_GET_VERTICES>`\\"
+msgstr ":py:obj:`_EDGE_GET_VERTICES <hlib.components.edge._EDGE_GET_VERTICES>`\\"
+
+msgid ":py:obj:`_FACE_GET_VERTICES <hlib.components.face._FACE_GET_VERTICES>`\\"
+msgstr ":py:obj:`_FACE_GET_VERTICES <hlib.components.face._FACE_GET_VERTICES>`\\"
+
+msgid ":py:obj:`_UV_GET_POSITION <hlib.components.uv._UV_GET_POSITION>`\\"
+msgstr ":py:obj:`_UV_GET_POSITION <hlib.components.uv._UV_GET_POSITION>`\\"
+
+msgid ":py:obj:`_MATH_RECORDS <hlib.json.codec._MATH_RECORDS>`\\"
+msgstr ":py:obj:`_MATH_RECORDS <hlib.json.codec._MATH_RECORDS>`\\"
+
+msgid ":py:obj:`_merge_allocate_indices <hlib.nodes.dagPose.DagPose._merge_allocate_indices>`\\ \\(rows\\, target\\_rows\\)"
+msgstr ":py:obj:`_merge_allocate_indices <hlib.nodes.dagPose.DagPose._merge_allocate_indices>`\\ \\(rows\\, target\\_rows\\)"
+
+msgid "既存の疎な保存番号を保ち、未登録メンバーへ後続の番号を割り当てる。"
+msgstr "Keep existing sparse pose indices and assign subsequent indices to new members."
+
+msgid ":py:obj:`_merge_check_targets <hlib.nodes.dagPose.DagPose._merge_check_targets>`\\ \\(skins\\)"
+msgstr ":py:obj:`_merge_check_targets <hlib.nodes.dagPose.DagPose._merge_check_targets>`\\ \\(skins\\)"
+
+msgid "対象の保存先とskinClusterの再接続先が編集できることを検査する。"
+msgstr "Check that target pose storage and skinCluster reconnection destinations are editable."
+
+msgid ":py:obj:`_merge_collect_poses <hlib.nodes.dagPose.DagPose._merge_collect_poses>`\\ \\(sources\\)"
+msgstr ":py:obj:`_merge_collect_poses <hlib.nodes.dagPose.DagPose._merge_collect_poses>`\\ \\(sources\\)"
+
+msgid "対象自身と統合元を入力順に解決し、同じポーズを一度だけ扱う。"
+msgstr "Resolve the target and source poses in input order, handling each pose once."
+
+msgid ":py:obj:`_merge_collect_rows <hlib.nodes.dagPose.DagPose._merge_collect_rows>`\\ \\(poses\\, current\\_pose\\, delete\\_sources\\)"
+msgstr ":py:obj:`_merge_collect_rows <hlib.nodes.dagPose.DagPose._merge_collect_rows>`\\ \\(poses\\, current\\_pose\\, delete\\_sources\\)"
+
+msgid "保存行とskinClusterを集め、姿勢の競合と統合元の削除可否を検査する。"
+msgstr "Collect saved rows and skinClusters, checking pose conflicts and whether sources can be deleted."
+
+msgid ":py:obj:`_merge_write_rows <hlib.nodes.dagPose.DagPose._merge_write_rows>`\\ \\(name\\, rows\\, target\\_rows\\, indices\\, ...\\)"
+msgstr ":py:obj:`_merge_write_rows <hlib.nodes.dagPose.DagPose._merge_write_rows>`\\ \\(name\\, rows\\, target\\_rows\\, indices\\, ...\\)"
+
+msgid "メンバー・行列・親情報を既存の順序でMayaの保存先へ書き込む。"
+msgstr "Write members, matrices, and parent data to Maya pose storage in the existing order."
+
+msgid "統合する保存行。"
+msgstr "Saved rows to merge."
+
+msgid "対象の既存保存行。"
+msgstr "The target's existing saved rows."
+
+msgid "メンバー名から保存先の論理番号への対応。"
+msgstr "A mapping from member names to logical storage indices."
+
+msgid "再接続するskinCluster辞書。"
+msgstr "A dictionary of skinClusters to reconnect."
+
+msgid "統合元のポーズ入力。"
+msgstr "Source pose inputs."
+
+msgid "対象名、対象を先頭とするポーズ辞書、対象自身を除いた統合元。"
+msgstr "The target name, a dictionary with the target first, and source poses excluding the target."
+
+msgid "対象を先頭とするポーズ辞書。"
+msgstr "A pose dictionary with the target first."
+
+msgid "保存姿勢の競合を許容し、現在の姿勢を後で保存するか。"
+msgstr "Whether to allow saved pose conflicts and capture the current pose later."
+
+msgid "統合元の削除可否を検査するか。"
+msgstr "Whether to check that source poses can be deleted."
+
+msgid "統合する保存行、対象の既存保存行、再接続するskinCluster辞書。"
+msgstr "Rows to merge, the target's existing rows, and skinClusters to reconnect."
+
+msgid "対象ポーズの名前。"
+msgstr "The target pose name."
+
+msgid "既存メンバーも現在姿勢の行で更新するか。"
+msgstr "Whether to update existing members with current pose rows too."
+
+msgid ":py:obj:`_create_extra_attr_definition <hlib.nodes.node.Node._create_extra_attr_definition>`\\ \\(name\\, flags\\, numeric\\, ...\\)"
+msgstr ":py:obj:`_create_extra_attr_definition <hlib.nodes.node.Node._create_extra_attr_definition>`\\ \\(name\\, flags\\, numeric\\, ...\\)"
+
+msgid "親と子の定義を従来の順序で追加する。"
+msgstr "Add parent and child definitions in the existing order."
+
+msgid ":py:obj:`_prepare_extra_attr_definition <hlib.nodes.node.Node._prepare_extra_attr_definition>`\\ \\(flags\\, attribute\\_type\\, ...\\)"
+msgstr ":py:obj:`_prepare_extra_attr_definition <hlib.nodes.node.Node._prepare_extra_attr_definition>`\\ \\(flags\\, attribute\\_type\\, ...\\)"
+
+msgid "追加する型・子数・既定値と単位を、Mayaへの書込み前に解決する。"
+msgstr "Resolve type, child count, defaults, and units before writing to Maya."
+
+msgid "子の追加は公開addAttrへ委譲し、利用側のoverrideと途中失敗時の更新を保つ。"
+msgstr "Child creation delegates to public addAttr, preserving user overrides and updates made before a failure."
+
+msgid "親アトリビュート名。"
+msgstr "The parent attribute name."
+
+msgid "親へ渡すフラグ。子用の範囲値を取り出す。"
+msgstr "Parent flags, from which child limits are extracted."
+
+msgid "数値複合型の一致情報。"
+msgstr "Match information for a numeric compound type."
+
+msgid "子数。"
+msgstr "The child count."
+
+msgid "子に渡す既定値。"
+msgstr "Defaults passed to child attributes."
+
+msgid "子名の接尾辞。"
+msgstr "Suffixes for child names."
+
+msgid "子の型。"
+msgstr "The child type."
+
+msgid "正規化済みフラグ。型と単位をこの辞書へ反映する。"
+msgstr "Normalized flags. Type and unit values are updated in this dictionary."
+
+msgid "明示された型。"
+msgstr "The explicitly requested type."
+
+msgid "数値複合型の一致情報・子数・作成後に設定する既定値。"
+msgstr "Numeric compound match information, child count, and the default to set after creation."
+
+msgid ":py:obj:`_prepare_weight_values <hlib.nodes.skinCluster.SkinCluster._prepare_weight_values>`\\ \\(joints\\, weights\\)"
+msgstr ":py:obj:`_prepare_weight_values <hlib.nodes.skinCluster.SkinCluster._prepare_weight_values>`\\ \\(joints\\, weights\\)"
+
+msgid "入力順を保ってウェイトと物理/論理influence番号を検証する。"
+msgstr "Validate weights and physical/logical influence indices while preserving input order."
+
+msgid ":py:obj:`_set_weight_values_cmds <hlib.nodes.skinCluster.SkinCluster._set_weight_values_cmds>`\\ \\(values\\, width\\, num\\_vertices\\, ...\\)"
+msgstr ":py:obj:`_set_weight_values_cmds <hlib.nodes.skinCluster.SkinCluster._set_weight_values_cmds>`\\ \\(values\\, width\\, num\\_vertices\\, ...\\)"
+
+msgid "頂点・influence順にUndo可能な書込みを行う。"
+msgstr "Write undoable weights in vertex and influence order."
+
+msgid ":py:obj:`_set_weight_values_fast <hlib.nodes.skinCluster.SkinCluster._set_weight_values_fast>`\\ \\(values\\, width\\, num\\_vertices\\, ...\\)"
+msgstr ":py:obj:`_set_weight_values_fast <hlib.nodes.skinCluster.SkinCluster._set_weight_values_fast>`\\ \\(values\\, width\\, num\\_vertices\\, ...\\)"
+
+msgid "全対象Plugを検査した後、未指定値を維持して直接更新する。"
+msgstr "Validate all target Plugs, then update directly while preserving unspecified values."
+
+msgid "設定対象のinfluence参照。"
+msgstr "Influence references to update."
+
+msgid "頂点順の値、または全頂点共通の値。"
+msgstr "Values in vertex order, or values shared by all vertices."
+
+msgid "有限な値・列数・頂点数・論理番号列。"
+msgstr "Finite values, column count, vertex count, and logical indices."
+
+msgid "途中で拒否された場合も、それ以前の更新を自動では戻さない。"
+msgstr "If a later write is rejected, earlier updates are not automatically reverted."
+
+msgid "検証済みウェイト。"
+msgstr "Validated weights."
+
+msgid "指定influence数。"
+msgstr "The number of specified influences."
+
+msgid "頂点数。"
+msgstr "The vertex count."
+
+msgid "指定順の論理番号。"
+msgstr "Logical indices in the specified order."
+
+msgid ":py:obj:`_apply_transformation_modifiers <hlib.nodes.transform.Transform._apply_transformation_modifiers>`\\ \\(fitted\\, is\\_joint\\, safe\\)"
+msgstr ":py:obj:`_apply_transformation_modifiers <hlib.nodes.transform.Transform._apply_transformation_modifiers>`\\ \\(fitted\\, is\\_joint\\, safe\\)"
+
+msgid "TRSより先に補助成分を従来の順序で設定する。"
+msgstr "Set auxiliary components in the existing order before TRS."
+
+msgid ":py:obj:`_fit_transformation <hlib.nodes.transform.Transform._fit_transformation>`\\ \\(value\\, ws\\)"
+msgstr ":py:obj:`_fit_transformation <hlib.nodes.transform.Transform._fit_transformation>`\\ \\(value\\, ws\\)"
+
+msgid "入力を複製し、親行列とjoint固有成分へ適合させる。"
+msgstr "Copy the input and fit it to the parent matrix and joint-specific components."
+
+msgid ":py:obj:`_refit_safe_transformation <hlib.nodes.transform.Transform._refit_safe_transformation>`\\ \\(fitted\\, matrix\\)"
+msgstr ":py:obj:`_refit_safe_transformation <hlib.nodes.transform.Transform._refit_safe_transformation>`\\ \\(fitted\\, matrix\\)"
+
+msgid "補助成分の実際の状態を読み、safe適用後のTRSを再計算する。"
+msgstr "Read actual auxiliary components and recalculate TRS after applying safe edits."
+
+msgid "対象へ適合した値。"
+msgstr "Values fitted to the target."
+
+msgid "対象がjointか。"
+msgstr "Whether the target is a joint."
+
+msgid "書込みできない成分を維持するか。"
+msgstr "Whether to preserve components that cannot be written."
+
+msgid "元の値。自身を変更しない。"
+msgstr "The original value, which is not modified."
+
+msgid "検証済みのワールド空間指定。"
+msgstr "The validated world-space flag."
+
+msgid "適合した値・維持する行列・joint判定。"
+msgstr "The fitted value, matrix to preserve, and joint status."
+
+msgid "設定予定の値。"
+msgstr "Values planned for application."
+
+msgid "維持するローカル行列。"
+msgstr "The local matrix to preserve."
+
+msgid "実際に設定できた補助成分で再計算した値。"
+msgstr "Values recalculated using the auxiliary components that were actually applied."
+
+msgid ":py:obj:`_temporarily_unlocked_connection_path <hlib.plugs.plug.Plug._temporarily_unlocked_connection_path>`\\ \\(enabled\\)"
+msgstr ":py:obj:`_temporarily_unlocked_connection_path <hlib.plugs.plug.Plug._temporarily_unlocked_connection_path>`\\ \\(enabled\\)"
+
+msgid "接続編集に必要なロックを一時解除し、逆順で復元する。"
+msgstr "Temporarily unlock the connection path and restore locks in reverse order."
+
+msgid "Trueなら自身と上位のロックを一時解除する。"
+msgstr "True to temporarily unlock this Plug and its ancestors."
+
+msgid "*None* -- 接続の編集を行う区間。"
+msgstr "*None* -- The connection editing scope."
+
+msgid "解除途中の復元は既存の解除処理に任せる。編集後の復元が失敗した 場合も例外を送出し、編集時の例外がある場合はそのcontextを保つ。"
+msgstr "The existing unlock operation handles restoration if unlocking fails. Restoration errors after editing are raised too, with any editing error retained as their context."
+
+msgid "入力列の展開は ``Object._flatten_inputs()``、名前とNodeの混在検査は ``Nodes._validate_inputs()`` が担当します。検査から展開へ戻る参照は作りません。 ``addAttr`` と ``executeDeferred`` はクラス側の共通処理へ委譲し、 クラスから公開コマンドを呼び戻しません。 コレクションの転送入口は各クラスへ通常のdefとして明示し、実行方針と独自overrideの判定は ``Nodes._dispatch_shared()`` に集めています。計算用setterのget指定による結果収集は ``_core.bulkExecution`` が判定し、基底Nodes経由でも同じ返却を維持します。 公開APIとUndoの単位は変わりません。"
+msgstr "``Object._flatten_inputs()`` expands input collections, and ``Nodes._validate_inputs()`` checks for mixed names and Nodes. Validation does not call expansion again. ``addAttr`` and ``executeDeferred`` delegate to shared class implementations; classes do not call back into public commands. Collection forwarding entries are explicit regular def methods on each class. ``Nodes._dispatch_shared()`` owns execution policy and user override checks. ``_core.bulkExecution`` determines whether setters with get enabled collect results, preserving the same return behavior through base Nodes. Public APIs and Undo grouping are unchanged."
+
+msgid "複雑な編集操作は、各クラス内で入力整理・計算・検査・書込みを担当する privateメソッドへ分けています。通常モードのcmds書込み順とfastの事前検査・直接更新、 既存のUndo範囲を維持します。Undoを一回にまとめることと、失敗時に更新を戻すことは 別の契約です。内部処理の分割だけで、途中失敗までに行われた更新を自動で戻す仕様へ変更しません。"
+msgstr "Complex edits are divided into private methods within each class for input preparation, calculation, validation, and writing. The normal cmds write order, fast preflight and direct updates, and existing Undo scopes are preserved. Grouping an operation into one Undo step is a separate contract from reverting updates on failure. Splitting internal code does not automatically revert updates made before a failure."
+
+msgid "従来の ``addTarget(target, base=None, weight_index=None, full_weight=1.0)`` と ``targetAliases/weightPlugs/weights/geometry`` は引数・戻り値とも維持します。 以下の ``target`` は既存ターゲットの整数番号、weightのエイリアス、または同じ BlendShapeに属する登録済みweight要素のPlugです。別ノードのPlug・配列親・ weight以外・実ターゲットのない要素は受け付けません。"
+msgstr "The existing ``addTarget(target, base=None, weight_index=None, full_weight=1.0)`` and ``targetAliases/weightPlugs/weights/geometry`` retain their arguments and return values. ``target`` accepts an existing target index, a weight alias, or a Plug for a registered weight element on the same BlendShape. Plugs on other nodes, array parents, non-weight attributes, and elements without an actual target are rejected."
+
+msgid "``dumpTargetDeltas(target, path, base=None, full_weight=1.0)``"
+msgstr "``dumpTargetDeltas(target, path, base=None, full_weight=1.0)``"
+
+msgid "保存したPath。シーン変更なし"
+msgstr "Saved Path. No scene changes"
+
+msgid "``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)``"
+msgstr "``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)``"
+
+msgid "自身。既存項目のデルタ全体を置換"
+msgstr "Self. Replaces the complete delta data of the existing item."
+
+msgid "``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)``"
+msgstr "``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)``"
+
+msgid "新規通常ターゲットのweight Plug"
+msgstr "The weight Plug for a new regular target"
+
+msgid "``collectSkinClusters()`` は単数DAGノード・DagNodesで、重複を除いた ``SkinClusters`` コレクションを返します。そのまま ``removeUnusedInfluences()`` などの一括操作へ渡せます。従来の単数 ``skinClusters()`` のリスト、 DagNodesの形状ごとのリスト、Jointsの専用集約の返却は変更しません。"
+msgstr "``collectSkinClusters()`` returns a ``SkinClusters`` collection with duplicates removed for a single DAG node or DagNodes. You can pass it directly to bulk operations such as ``removeUnusedInfluences()``. The existing list returned by a single node's ``skinClusters()``, the per-shape lists returned by DagNodes, and the specialized aggregation in Joints remain unchanged."
+
+msgid "コンポーネントの参照と現在の有効性"
+msgstr "Component references and current validity"
+
+msgid "Meshの ``vertex/vertices/edge/edges/face/faces/uv/uvs`` とカーブの ``cv/cvs`` は、 get付きの正式getterへ委譲する入口です。引数・idx別名・返却は同じです。 ``components[0]`` の0はコレクション内の位置で、実頂点番号は ``component.index`` です。"
+msgstr "Mesh ``vertex/vertices/edge/edges/face/faces/uv/uvs`` and curve ``cv/cvs`` delegate to their formal get-prefixed getters. Arguments, idx aliases, and return values are identical. The 0 in ``components[0]`` is a position in the collection; the actual vertex index is ``component.index``."
+
+msgid "``valid()`` は保持するshapeの生存・種類と、現在の番号範囲を照会します。 削除やトポロジー縮小で参照が無効になった場合はFalseです。空のコレクションも 適合するshapeが生存していればTrueです。番号が有効でも、トポロジー変更前の 同じ頂点・UVであることまで保証しません。 具体例は :doc:`guide_geometry` を参照してください。"
+msgstr "``valid()`` checks whether the retained shape is alive, has the expected type, and contains the retained indices within its current range. It returns False if deletion or a reduction in topology invalidates the reference. An empty collection also returns True if its compatible shape is alive. Even when an index is valid, this does not guarantee that it refers to the same vertex or UV as before a topology change. See :doc:`guide_geometry` for examples."
+
+msgid "Plugの ``settable()`` はMaya標準のsettable照会で、現在のロック・入力接続等から 値を設定できる状態かを返します。``writable()`` はアトリビュート定義の書込可否であり、 現在の編集可否とは異なります。値の型・範囲などによる設定成功まで保証する判定ではありません。"
+msgstr "Plug's ``settable()`` uses Maya's standard settable query to check whether a value can currently be set, considering locks and incoming connections. ``writable()`` describes whether the attribute definition allows writing; it differs from current editability. This query does not guarantee that setting a value will succeed for its type or range."
+
+msgid ":py:obj:`diagnostics <hlib._core.extensions.diagnostics>`\\ \\(\\)"
+msgstr ":py:obj:`diagnostics <hlib._core.extensions.diagnostics>`\\ \\(\\)"
+
+msgid "初期化結果と現在の依存可用性を分けて照会する。"
+msgstr "Query initialization results and current dependency availability separately."
+
+msgid "最後の初期化で得た拡張名ごとの状態と理由をコピーして返す。"
+msgstr "Return a copy of each extension's state and reason from the last initialization."
+
+msgid "既に読み込まれた宣言のis_availableだけを呼ぶ。拡張の新規import、 型登録、reload、Mayaプラグインのロードは行わない。可用性の照会自体は Python依存を遅延importする場合があるが、シーン・UIを変更してはならない。"
+msgstr "Only call is_available on declarations that are already imported. Do not import extensions, register types, reload modules, or load Maya plug-ins. Availability queries may lazily import Python dependencies, but must not change the scene or UI."
+
+msgid "拡張名ごとのinitialization、available、reason。     initializationはstatusと同じ状態のコピーで、未初期化ならNone。     availableは現在の可用性を示すbool。未読込・初期化中・照会失敗はNoneで、     reasonに理由を保持する。初期化結果と登録表は変更しない。"
+msgstr "initialization, available, and reason for each extension name. initialization is a copy of the same state as status, or None if initialization has not occurred. available is a bool indicating current availability. It is None if the extension is not loaded, is initializing, or the query fails; reason retains the explanation. Initialization results and registration tables remain unchanged."
+
+msgid "拡張名ごとのinitialization、available、reason。"
+msgstr "initialization, available, and reason for each extension."
+
+msgid "initializationはstatusと同じ状態のコピーで、未初期化ならNone。 availableは現在の可用性を示すbool。未読込・初期化中・照会失敗はNoneで、 reasonに理由を保持する。初期化結果と登録表は変更しない。"
+msgstr "initialization copies the status entry, or is None if initialization has not occurred. available is a bool for current availability; it is None for declarations not imported, initialization in progress, or query failures, with an explanation in reason. Initialization results and registries are unchanged."
+
+msgid "現在の依存可用性は再照会しない。診断だけを更新する場合はdiagnosticsを使う。"
+msgstr "Does not query current dependency availability again. Use diagnostics to update diagnostics alone."
+
+msgid "Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya.cmds.delete`` へ アトリビュート名を渡してもエラーを表示するだけで何も削除しないためです。動的アトリビュートの削除は ``plug.delete()``、配列要素の削除は ``array_plug.removeElement(i)``、接続の解除は ``plug.disconnect()``、アトリビュートの所有ノードの削除は ``hlib.delete(plug.node())`` を使ってください。 文字列は解決せずにそのまま渡すため、``\"node.attribute\"`` 形式の文字列は ``maya.cmds.delete`` と 同じ扱いです。"
+msgstr "Plug (including ``ArrayPlug``) and ``om2.MPlug`` raise ``TypeError``. Passing an attribute name to ``maya.cmds.delete`` only displays an error and deletes nothing. Use ``plug.delete()`` to delete a dynamic attribute, ``array_plug.removeElement(i)`` to remove an array element, ``plug.disconnect()`` to disconnect, and ``hlib.delete(plug.node())`` to delete the attribute's owning node. Strings are passed through without resolution, so strings in the ``\"node.attribute\"`` form behave as they do with ``maya.cmds.delete``."
+
+msgid "相対名はparent配下、先頭が : の絶対名はルートから解決する。 作成前の既存確認と返却には同じ完全名を使う。カレントNamespaceは変更しない。"
+msgstr "Resolve relative names under parent and absolute names beginning with : from the root. Use the same full name for existence checks and the return value. Do not change the current Namespace."
+
+msgid "作成する単一または多段の名前。絶対名とNamespace参照は parentを無視する。/ は : と同じ区切りとして扱う。"
+msgstr "The single-level or multi-level name to create. Absolute names and Namespace references ignore parent. / is treated as the same separator as :."
+
+msgid "相対nameを作成する親。文字列の相対親は現在の Namespaceから解決する。既定の : はルート。存在しなければ再帰的に作成する。"
+msgstr "Parent under which to create a relative name. A relative parent string is resolved from the current Namespace. The default : is the root. Missing parents are created recursively."
+
+msgid "作成先の完全名を保持するラッパー。既存の場合も同じ参照を返す。"
+msgstr "A wrapper holding the full destination name. Return the same reference if it already exists."
+
+msgid ":py:obj:`temporary <hlib.common.scriptJobs.ScriptJobs.temporary>`\\ \\(\\)"
+msgstr ":py:obj:`temporary <hlib.common.scriptJobs.ScriptJobs.temporary>`\\ \\(\\)"
+
+msgid "ブロック終了時に、このグループが持つ監視だけを解除する。"
+msgstr "Stop only the jobs held by this group when the block exits."
+
+msgid "対象UI・シーンの寿命は所有しない。同じインスタンスの入れ子は拒否する。 解除失敗はstopが通知し、失敗した監視は後からstopで再試行できる。 本体が例外を送出した場合は、解除失敗でその例外を置き換えない。"
+msgstr "The target UI and scene lifetime are not owned. Nesting on the same instance is rejected. stop reports cleanup failures and retains failed jobs for a later stop retry. Cleanup failures do not replace an exception raised by the body."
+
+msgid "*ScriptJobs* -- 自身。ブロック開始前から保持している監視も解除対象。"
+msgstr "*ScriptJobs* -- Self. Also releases subscriptions retained before entering the block."
+
+msgid "同じインスタンスの入れ子、または正常終了時の解除失敗。"
+msgstr "Nesting on the same instance, or cleanup failure after a normal block exit."
+
+msgid ":py:obj:`_temporary_active <hlib.common.scriptJobs.ScriptJobs._temporary_active>`\\"
+msgstr ":py:obj:`_temporary_active <hlib.common.scriptJobs.ScriptJobs._temporary_active>`\\"
+
+msgid "反復可能なため、``cmds.select(selection)`` のように maya.cmds へそのまま渡すと 各要素(Node・Plug・Component)の一意な名前へ展開される。削除済みの要素を 含むと maya.cmds の呼び出しが失敗するため、選択の復元には :meth:`select` を使う。"
+msgstr "Because it is iterable, passing it directly to maya.cmds, as in ``cmds.select(selection)``, expands each item (Node, Plug, or Component) into its unique name. A maya.cmds call fails if any item has been deleted, so use :meth:`select` to restore the selection."
+
+msgid "ノード型、またはコンポーネント種類で絞った新しい集合を返す。"
+msgstr "Return a new collection filtered by node type or component kind."
+
+msgid "joint等のノード型、vertex/edge/face/uv/controlVertex、またはplug。 コンポーネント記号vtx/e/f/map/cvも使用できる。"
+msgstr "A node type such as joint, vertex/edge/face/uv/controlVertex, or plug. Component symbols vtx/e/f/map/cv are also accepted."
+
+msgid "stateStringはMayaとUI実装が管理する状態。周辺の分割・タブ配置をメモリに 退避するAPIは提供しない。配置全体はWorkspaceLayout.current().saveAs(name) でMaya標準の保存先へ永続保存できるが、保存後にその配置へ切り替わる。 切り替え時の自動保存・uiScript実行にも従う。任意のエディタ内部データは含まない。"
+msgstr "stateString is state managed by Maya and the UI implementation. No API is provided to retain the surrounding split or tab layout in memory. The full layout can be saved persistently to Maya's standard location with WorkspaceLayout.current().saveAs(name), but saving also switches to that layout. Maya's automatic saving and uiScript execution on switching still apply. Arbitrary internal editor data is not included."
+
+msgid ":py:obj:`valid <hlib.components.component.Component.valid>`\\ \\(\\)"
+msgstr ":py:obj:`valid <hlib.components.component.Component.valid>`\\ \\(\\)"
+
+msgid "シェイプの生存・種類と、保持番号の現在の範囲を照会する。"
+msgstr "Query whether the shape is alive, has the expected type, and still contains the stored indices."
+
+msgid "現在のシェイプで保持番号を参照できればTrue。"
+msgstr "True if the retained index can be referenced on the current shape."
+
+msgid "トポロジー変更前後で同じ要素を指す保証はない。 UVは現在のUVセットの番号範囲を使う。"
+msgstr "The reference is not guaranteed to identify the same element after a topology change. UV indices are checked against the current UV set's range."
+
+msgid ":py:obj:`valid <hlib.components.component.Components.valid>`\\ \\(\\)"
+msgstr ":py:obj:`valid <hlib.components.component.Components.valid>`\\ \\(\\)"
+
+msgid "シェイプの生存・種類と、全保持番号の現在の範囲を照会する。"
+msgstr "Query whether the shape is alive, has the expected type, and contains all retained indices within its current range."
+
+msgid "全番号を参照できればTrue。空集合も生存する対応シェイプならTrue。"
+msgstr "True if all indices can be referenced. An empty collection is also True when its compatible shape is alive."
+
+msgid "モード照会・切り替え・再キャッシュ・復元で発生したRuntimeErrorは抑制し、 対象と失敗した処理をloggerへ警告する。ブロック内の例外は伝播する。 警告が出た場合は保護・復元が完了したとは限らないため、対象の状態を確認する。 通常のUndo対象操作を一回のチャンクにまとめるが、fast=Trueの直接更新は戻せない。"
+msgstr "Suppress RuntimeError from mode queries, switching, recaching, and restoration, and log a warning identifying the target and failed operation. Exceptions from the body propagate. A warning means protection or restoration may not have completed; check the target state. Group normal Undo operations in one chunk; fast=True direct updates cannot be undone."
+
+msgid ":py:obj:`capture <hlib.json.editors.EditorSnapshot.capture>`\\ \\(targets\\)"
+msgstr ":py:obj:`capture <hlib.json.editors.EditorSnapshot.capture>`\\ \\(targets\\)"
+
+msgid "既存エディターまたはタイムラインの公開設定を取得する。"
+msgstr "Capture the public settings of an existing editor or timeline."
+
+msgid "対象またはその列。"
+msgstr "A target or a sequence of targets."
+
+msgid "保存・読み込み・比較用の設定値。applyは未対応。"
+msgstr "Settings for saving, loading, and comparison. apply is not supported."
+
+msgid ":py:obj:`supportsApply <hlib.json.editors.EditorSnapshot.supportsApply>`\\"
+msgstr ":py:obj:`supportsApply <hlib.json.editors.EditorSnapshot.supportsApply>`\\"
+
+msgid "False。標準コマンドだけで全設定のUndoを保証できないため。"
+msgstr "False, because standard commands cannot guarantee Undo for every setting."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.AnimationSnapshot.capture>`\\ \\(targets\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.AnimationSnapshot.capture>`\\ \\(targets\\)"
+
+msgid "AnimCurveの全キーと接線・Infinityを取得する。"
+msgstr "Capture all AnimCurve keys, tangents, and Infinity settings."
+
+msgid "対象カーブまたはその列。"
+msgstr "A target curve or a sequence of curves."
+
+msgid "アニメーションカーブのキーと設定。"
+msgstr "Animation curve keys and settings."
+
+msgid ":py:obj:`valid <hlib.json.snapshots.ApplyPlan.valid>`\\"
+msgstr ":py:obj:`valid <hlib.json.snapshots.ApplyPlan.valid>`\\"
+
+msgid "保持する検証エラーがないか。Mayaへの再照会は行わない。"
+msgstr "Whether the stored validation errors are empty. Do not query Maya again."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.AttributesSnapshot.capture>`\\ \\(targets\\, attributes\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.AttributesSnapshot.capture>`\\ \\(targets\\, attributes\\)"
+
+msgid "明示したアトリビュートの型と値を取得する。"
+msgstr "Capture the types and values of explicitly specified attributes."
+
+msgid "対象ノードまたはその列。"
+msgstr "A target node or a sequence of nodes."
+
+msgid "空でないアトリビュート名の列。配列は要素を明示する。"
+msgstr "A non-empty sequence of attribute names. Specify array elements explicitly."
+
+msgid "対象参照とアトリビュート値。"
+msgstr "Target references and attribute values."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.DrivenKeysSnapshot.capture>`\\ \\(targets\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.DrivenKeysSnapshot.capture>`\\ \\(targets\\)"
+
+msgid "駆動先から上流のSDKグラフを取得する。"
+msgstr "Retrieve the upstream SDK graph from the driven destination."
+
+msgid "駆動先ノードまたはその列。"
+msgstr "Driven node or an iterable of driven nodes."
+
+msgid "SDKカーブと既存グラフの設定。"
+msgstr "SDK curves and settings of the existing graph."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.NurbsCurveSnapshot.capture>`\\ \\(targets\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.NurbsCurveSnapshot.capture>`\\ \\(targets\\)"
+
+msgid "カーブのCV位置と表示設定を取得する。"
+msgstr "Capture curve CV positions and display settings."
+
+msgid "カーブまたはその親、その列。"
+msgstr "A curve, its parent, or a sequence of these."
+
+msgid "対象参照とカーブ形状・表示設定。"
+msgstr "Target references, curve geometry, and display settings."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.PoseSnapshot.capture>`\\ \\(targets\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.PoseSnapshot.capture>`\\ \\(targets\\)"
+
+msgid "TransformまたはJointのローカルポーズを取得する。"
+msgstr "Capture the local pose of a Transform or Joint."
+
+msgid "対象参照とポーズ値。"
+msgstr "Target references and pose values."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.SelectionSnapshot.capture>`\\ \\(\\[targets\\]\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.SelectionSnapshot.capture>`\\ \\(\\[targets\\]\\)"
+
+msgid "選択を取得する。targetsを省略すると現在選択を保存する。"
+msgstr "Capture a selection, using the current selection when targets is omitted."
+
+msgid "保存する対象列。Noneでは現在選択。"
+msgstr "The targets to save. None uses the current selection."
+
+msgid "取得時点の順序付き選択。"
+msgstr "Ordered selection at capture time."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.SkinWeightsSnapshot.capture>`\\ \\(targets\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.SkinWeightsSnapshot.capture>`\\ \\(targets\\)"
+
+msgid "meshを変形するskinClusterのウェイトと設定を取得する。"
+msgstr "Retrieve weights and settings from the skinCluster that deforms the mesh."
+
+msgid "対象skinClusterまたはその列。"
+msgstr "Target skinCluster or an iterable of skinClusters."
+
+msgid "先頭meshのウェイトとスキニング設定。"
+msgstr "Weights and skinning settings for the first mesh."
+
+msgid ":py:obj:`capture <hlib.json.snapshots.Snapshot.capture>`\\ \\(\\[targets\\, kind\\, attributes\\]\\)"
+msgstr ":py:obj:`capture <hlib.json.snapshots.Snapshot.capture>`\\ \\(\\[targets\\, kind\\, attributes\\]\\)"
+
+msgid "用途に対応するSnapshotを取得する。シーンを変更しない。"
+msgstr "Capture a Snapshot for the specified purpose without changing the scene."
+
+msgid "対象またはその列。selectionのみ省略で現在選択。"
+msgstr "A target or a sequence of targets. Only selection permits omission to use the current selection."
+
+msgid "既存captureと同じ保存用途。"
+msgstr "The same saving use cases as the existing capture method."
+
+msgid "attributes用途で取得するアトリビュート名。"
+msgstr "Attribute names to capture for the attributes purpose."
+
+msgid "kindに対応する用途別Snapshot。"
+msgstr "The snapshot type corresponding to kind."
+
+msgid ":py:obj:`supportsApply <hlib.json.snapshots.Snapshot.supportsApply>`\\"
+msgstr ":py:obj:`supportsApply <hlib.json.snapshots.Snapshot.supportsApply>`\\"
+
+msgid "保持する用途がapplyに対応するか。対象の現在状態は検証しない。"
+msgstr "Whether the held purpose supports apply. Does not validate the targets' current state."
+
+msgid "実際の適用可否はplan().validで確認する。保存データへこの情報は追加しない。"
+msgstr "Check plan().valid for actual applicability. Do not add this information to saved data."
+
+msgid "詳細ログをScript Editor、警告以上の本文をビューポートへ出力する。"
+msgstr "Write detailed logs to the Script Editor and message text at warning level or higher to the viewport."
+
+msgid "Script Editorには標準loggingのFormatter・exc_info・stack_infoを適用する。 WARNING以上では、例外トレースを含まないメッセージ本文をビューポートにも表示する。 Formatterが失敗した場合は標準書式へ戻し、書式の失敗理由も詳細欄へ表示する。 Maya APIをimportできなければ出力しない。Maya表示時のRuntimeErrorは抑制する。"
+msgstr "Apply standard logging Formatter, exc_info, and stack_info to the Script Editor output. At WARNING or above, also display the message body in the viewport without exception traces. If the Formatter fails, use standard formatting and include the formatting failure reason in the detailed output. Produce no output if the Maya API cannot be imported. Suppress RuntimeError from Maya display calls."
+
+msgid "登録済みターゲットの指定には番号・weightエイリアス・自身のweight要素Plugを使う。 addTarget等が返したPlugを、取得・設定・頂点編集へそのまま渡せる。"
+msgstr "Specify an existing target by index, weight alias, or this BlendShape's weight-element Plug. A Plug returned by addTarget or similar methods can be passed directly to queries, setters, and vertex editing."
+
+msgid "番号・エイリアス・自身のweight要素を解決し、実ターゲットの存在を確認する。"
+msgstr "Resolve an index, alias, or this node's weight element and verify that an actual target exists."
+
+msgid ":py:obj:`addTargetDeltas <hlib.nodes.blendShape.BlendShape.addTargetDeltas>`\\ \\(deltas\\[\\, base\\, weight\\_index\\, alias\\]\\)"
+msgstr ":py:obj:`addTargetDeltas <hlib.nodes.blendShape.BlendShape.addTargetDeltas>`\\ \\(deltas\\[\\, base\\, weight\\_index\\, alias\\]\\)"
+
+msgid "疎なデルタだけから、新しい通常ターゲットを登録する。"
+msgstr "Register a new regular target from sparse deltas alone."
+
+msgid ":py:obj:`dumpTargetDeltas <hlib.nodes.blendShape.BlendShape.dumpTargetDeltas>`\\ \\(target\\, path\\[\\, base\\, full\\_weight\\]\\)"
+msgstr ":py:obj:`dumpTargetDeltas <hlib.nodes.blendShape.BlendShape.dumpTargetDeltas>`\\ \\(target\\, path\\[\\, base\\, full\\_weight\\]\\)"
+
+msgid "既存項目のデルタだけをhlib.json形式で保存する。"
+msgstr "Save only the deltas of an existing item in hlib.json format."
+
+msgid ":py:obj:`loadTargetDeltas <hlib.nodes.blendShape.BlendShape.loadTargetDeltas>`\\ \\(target\\, path\\[\\, base\\, full\\_weight\\, ...\\]\\)"
+msgstr ":py:obj:`loadTargetDeltas <hlib.nodes.blendShape.BlendShape.loadTargetDeltas>`\\ \\(target\\, path\\[\\, base\\, full\\_weight\\, ...\\]\\)"
+
+msgid "単体デルタファイルを検証し、既存ターゲット項目へ適用する。"
+msgstr "Validate a single delta file and apply it to an existing target item."
+
+msgid "BlendShapeへ入る変形前のgeometryを一時メッシュへ複製し、通常1.0の項目を 登録してからデルタを設定する。一時メッシュとその接続は終了時に残さない。 現在のweight・envelope・表示上の変形から中立位置を推測しない。"
+msgstr "Duplicate the geometry entering the BlendShape, before its deformation, into a temporary mesh. Register an item, normally at 1.0, and then set the deltas. The temporary mesh and its connections are removed when the operation ends. Neutral positions are not inferred from the current weight, envelope, or visible deformation."
+
+msgid "頂点番号とxyz変位。通常のobject-space cm。"
+msgstr "Vertex indices and xyz displacements. Normally object-space cm."
+
+msgid "未使用のweight番号。省略時は最小の空き番号。"
+msgstr "An unused weight index. Use the smallest free index when omitted."
+
+msgid "新しい別名。省略時はweight表記。"
+msgstr "The new alias. Uses the weight notation when omitted."
+
+msgid "作成したweight要素。初期値0で、ターゲット操作へそのまま渡せる。"
+msgstr "Created weight element. Its initial value is 0, and it can be passed directly to target operations."
+
+msgid "デルタ・番号・別名・入力geometryが不正な場合。"
+msgstr "If the deltas, index, alias, or input geometry are invalid."
+
+msgid "ポリゴンメッシュ以外のベース、またはデルタが辞書でない場合。"
+msgstr "If the base is not a polygon mesh or the deltas are not a dictionary."
+
+msgid "Undoが無効、入力geometryを取得できない、またはMayaの編集失敗。"
+msgstr "Undo is disabled, input geometry cannot be obtained, or Maya editing fails."
+
+msgid "post-deformation・user-defined origin、またはfast呼出内の場合。"
+msgstr "For post-deformation, user-defined origin, or calls inside fast mode."
+
+msgid "全入力を登録前に検証する。通常Undoで一回にまとめ、例外時は巻き戻す。 一時ノード登録が必要なためfastフラグは提供しない。頂点順・変形前座標・ 頂点マスク等を含む全体復元にはloadTargetsを使用する。"
+msgstr "Validate all inputs before registration. Group the operation into one normal Undo step and roll back on exceptions. No fast flag is provided because temporary node registration is required. Use loadTargets to restore the complete data, including vertex order, coordinates before deformation, and vertex masks."
+
+msgid "ターゲット番号・エイリアス・自身のweight要素。"
+msgstr "Target index, alias, or this BlendShape's weight element."
+
+msgid "保存先。親フォルダーは事前に用意する。"
+msgstr "The destination path. Create its parent directory beforehand."
+
+msgid "保存する項目のウェイト。in-betweenも指定可能。"
+msgstr "The weight of the item to save. An in-between weight can also be specified."
+
+msgid "保存されたファイルの絶対パス。"
+msgstr "Absolute path of the saved file."
+
+msgid "ターゲット・項目・デルタが不正な場合。"
+msgstr "If the target, item, or deltas are invalid."
+
+msgid "ファイルを保存できない場合。"
+msgstr "If the file cannot be saved."
+
+msgid "頂点番号を文字列キー、デルタをVector値として保存し、シーンは変更しない。 通常のデルタはobject-space cm。トポロジー・マスク・weight・envelopeや 相対補助デルタは含めない。dumpTargetsの既存形式は変更しない。"
+msgstr "Save vertex indices as string keys and deltas as Vector values without changing the scene. Regular deltas use object-space cm. Topology, masks, weight, envelope, and relative auxiliary deltas are not included. The existing dumpTargets format is unchanged."
+
+msgid "dumpTargetDeltasのhlib.jsonファイル。"
+msgstr "An hlib.json file written by dumpTargetDeltas."
+
+msgid "更新する既存項目。取得時と同じ値を使う。"
+msgstr "The existing item to update. Use the same value as when retrieving the data."
+
+msgid "Trueはlive入力を切断してデルタを置換する。既定Falseは拒否。"
+msgstr "True disconnects live input and replaces deltas. The default False rejects live input."
+
+msgid "TrueはUndoなしのOpenMaya直接更新。"
+msgstr "True uses direct OpenMaya updates without Undo."
+
+msgid "自身。省略頂点はゼロになり、相対補助デルタはクリアされる。"
+msgstr "Self. Omitted vertices become zero, and the auxiliary relative deltas are cleared."
+
+msgid "ファイルのデータが辞書でない、またはfastがbool以外の場合。"
+msgstr "The file data is not a dictionary, or fast is not a bool."
+
+msgid "キー・デルタ・ターゲット・項目が不正、またはlive入力のガード。"
+msgstr "If a key, delta, target, or item is invalid, or a live-input guard rejects the update."
+
+msgid "ロック等でMayaが編集を拒否した場合。"
+msgstr "If Maya rejects editing because of locks or other restrictions."
+
+msgid "全データを編集前に検証してsetTargetDeltasへ委譲する。通常は一回のUndoで戻す。 実行途中のMayaエラーで完了済み更新を自動では戻さない。ファイルにない トポロジー・変形前座標・マスク等の一致は呼出側で確認する。"
+msgstr "Validate all data before editing, then delegate to setTargetDeltas. Normally undoable in one Undo. Completed changes are not automatically rolled back if Maya fails during execution. The caller must verify topology, pre-deformation positions, masks, and other information not included in the file."
+
+msgid "開始する番号・エイリアス・自身のweight要素。 開始時は必須。 終了時は省略可能で、指定しても使用しない。"
+msgstr "Index, alias, or this BlendShape's weight element to start editing. Required when starting. Optional when ending, and ignored even if supplied."
+
+msgid ":py:obj:`collectSkinClusters <hlib.nodes.dagNode.DagNode.collectSkinClusters>`\\ \\(\\)"
+msgstr ":py:obj:`collectSkinClusters <hlib.nodes.dagNode.DagNode.collectSkinClusters>`\\ \\(\\)"
+
+msgid "自身に関連するSkinClusterを操作可能なコレクションで取得する。"
+msgstr "Retrieve related SkinClusters as a collection that supports operations."
+
+msgid "Shape/Transformは変形対象、Jointはinfluence接続の既存skinClustersを使う。 skinClustersのlist返却や検索範囲は変更しない。"
+msgstr "Shape/Transform use skinClusters deforming the geometry; Joint uses existing skinClusters connected as an influence. The skinClusters list return and search scope are unchanged."
+
+msgid "重複を除き、既存照会の順を保った参照コレクション。"
+msgstr "A reference collection without duplicates, retaining the existing query order."
+
+msgid "対象が無効、または既存照会に失敗した場合。"
+msgstr "If a target is invalid or an existing query fails."
+
+msgid ":py:obj:`collectSkinClusters <hlib.nodes.dagNode.DagNodes.collectSkinClusters>`\\ \\(\\)"
+msgstr ":py:obj:`collectSkinClusters <hlib.nodes.dagNode.DagNodes.collectSkinClusters>`\\ \\(\\)"
+
+msgid "各DAGノードのSkinClusterを保持順で集約し、重複を除く。"
+msgstr "Collect SkinClusters from each DAG node in stored order, removing duplicates."
+
+msgid "既存skinClustersの要素ごとのlist返却や、Jointsの既存集約は変更しない。 この明示集約は、複数geometryで共有されるSkinClusterを一回だけ操作する用途。"
+msgstr "The existing per-item list results of skinClusters and the existing aggregation in Joints remain unchanged. This explicit aggregation is intended to operate on a SkinCluster shared by multiple geometries only once."
+
+msgid "各要素のskinClusters順で初出を保つコレクション。"
+msgstr "Collection preserving the first occurrence in each element's skinClusters order."
+
+msgid "無効な対象、または既存照会の失敗。"
+msgstr "For an invalid target or a failure in the existing query."
+
+msgid "対象頂点または番号列。 Vertexは先頭geometryのmeshに属すること。重複は1回として扱う。"
+msgstr "The target vertices or sequence of indices. Each Vertex must belong to the mesh of the first geometry. Duplicates are processed only once."
+
+msgid ":py:obj:`settable <hlib.plugs.plug.Plug.settable>`\\ \\(\\)"
+msgstr ":py:obj:`settable <hlib.plugs.plug.Plug.settable>`\\ \\(\\)"
+
+msgid "Maya標準のsettable照会で、現在値を設定可能か取得する。"
+msgstr "Query whether the current value can be set using Maya's standard settable query."
+
+msgid "定義上のwritableとは異なり、ロックや入力接続の現在状態を反映する。 値の型・範囲や実行時エラーまで含めたset()の成功保証ではない。"
+msgstr "Unlike the writable flag in the definition, this reflects the current lock and input connection state. It does not guarantee that set() succeeds for a particular value type or range, or that no runtime error occurs."
+
+msgid "maya.cmds.getAttr(settable=True)の結果。"
+msgstr "Result of maya.cmds.getAttr(settable=True)."
+
+msgid "所有ノード・アトリビュートが無効、または照会に失敗した場合。"
+msgstr "If the owning node or attribute is invalid, or the query fails."
+
+msgid "``EulerRotate`` の成分はラジアンです。回転アトリビュートの ``cmds.setAttr`` や ``cmds.xform(rotation=...)`` へ渡す場合は現在の角度UI単位へ変換します。 ``from hlib.common import units`` を使い、 ``cmds.xform(node, rotation=tuple(units.angleToUi(value) for value in rotation))`` とします。 角度UI単位が度の場合は ``rotation.asDegrees()`` も使えます。"
+msgstr "The components of ``EulerRotate`` are in radians. Convert them to the current angle UI unit before passing them to ``cmds.setAttr`` on rotation attributes or to ``cmds.xform(rotation=...)``. Use ``from hlib.common import units`` and call ``cmds.xform(node, rotation=tuple(units.angleToUi(value) for value in rotation))``. If the angle UI unit is degrees, ``rotation.asDegrees()`` can also be used."
+
+msgid "hlibの値から作成コマンドへ渡す"
+msgstr "Passing hlib values to creation commands"
+
+msgid "``Translate`` やコンポーネントの ``position()`` の距離は内部単位cmです。 ``hlib.createCurve(point=...)`` 等の作成フラグはMayaコマンドのUI単位を使います。 値の型を渡すだけで単位の自動変換は起こらないため、境界で明示的に変換します。"
+msgstr "Distances in ``Translate`` and component ``position()`` are in internal centimeters. Creation flags such as ``hlib.createCurve(point=...)`` use Maya command UI units. Passing a value type does not automatically convert units; convert explicitly at this boundary."
+
+msgid "この例はシーンの単位設定を変更せず、現在のUI単位がcmでもmでも同じ形状を作ります。 例えばm設定では ``end_ui`` のXは1.0です。cm値100をそのままpointへ渡すと 100mとして作成されます。時間フラグも同様にMayaの現在の時間単位で指定します。 Plugの ``get()`` はcm/rad/秒、``getu()`` と照会フラグ付き ``hlib.attr`` は UI単位です。値を渡す側と受け取る側の単位を合わせてください（:doc:`guide_plugs`）。"
+msgstr "This example creates the same geometry whether the current UI unit is cm or m, without changing the scene unit settings. For example, in m, the X component of ``end_ui`` is 1.0. Passing the cm value 100 directly to point creates a length of 100m. Time flags likewise use Maya's current time unit. Plug ``get()`` uses cm/rad/seconds; ``getu()`` and ``hlib.attr`` with query flags use UI units. Match the units of the value provider and receiver (:doc:`guide_plugs`)."
+
+msgid "一時的に監視する"
+msgstr "Temporary monitoring"
+
+msgid "``ScriptJobs.temporary()`` はブロック終了時にそのグループの監視を解除します。 対象ノード・UI・シーンの寿命は所有せず、削除しません。 ブロック開始前からグループに保持していた監視も解除対象になります。"
+msgstr "``ScriptJobs.temporary()`` stops the jobs held by the group when the block exits. It does not own or delete target nodes, UI, or scenes. Jobs held by the group before the block begins are also stopped."
+
+msgid "同じグループのtemporaryを入れ子にすると、内側の開始時にRuntimeErrorを送出します。 内側が外側の監視を解除することはありません。異なるグループなら入れ子にできます。 GCによる解除や新規監視の自動登録は行いません。"
+msgstr "Nesting temporary on the same group raises RuntimeError when entering the inner block. The inner block does not stop the outer block's jobs. Different groups can be nested. GC does not stop jobs, and new jobs are not registered automatically."
+
+msgid "解除は全件試み、失敗した監視は通知して保持します。後から ``jobs.stop()`` で再試行できます。 本体が正常終了した場合、解除失敗はRuntimeErrorになります。 本体が既に例外を送出していた場合、その例外を解除失敗で置き換えません。"
+msgstr "Cleanup attempts to stop every job, reports failures, and retains failed jobs. Retry later with ``jobs.stop()``. Cleanup failure raises RuntimeError after a normal body exit. If the body has already raised an exception, cleanup failure does not replace that exception."
+
+msgid "このファイルのimport時にUI・シーン編集・外部プラグインのロードは行わず、 専用ラッパーも先にimportしないでください。候補の宣言を確認するため、 ``hlib_*`` に一致したパッケージの ``__init__.py`` は実行されます。 信頼するパッケージだけをPython探索パスへ追加してください。 ``is_available()`` もロード・登録・UI/シーン変更を行わない照会として実装します。 Python依存の遅延importは可能ですが、その依存のimport時にもMayaを編集しないでください。"
+msgstr "Do not edit UI or scenes, load external plugins, or import dedicated wrappers while importing this file. Packages matching ``hlib_*`` execute their ``__init__.py`` to inspect candidate declarations. Add only trusted packages to the Python search path. Implement ``is_available()`` as a query that does not load, register, or change UI or scenes. Python dependencies may be imported lazily, but their import must not edit Maya either."
+
+msgid "状態は ``loaded``（登録済み）、``unavailable``（依存未導入）、 ``skipped``（宣言が未対応）、``error``（読み込み・検証失敗）です。 失敗理由は ``reason`` に入り、エラーはログにも出力します。 外部依存がなくてもhlib標準機能は利用できます。 ``status()`` は最後の初期化結果のコピーです。後から依存プラグインを明示ロードしても 自動では更新されません。現在の可用性は ``diagnostics()`` で分けて照会します。"
+msgstr "The states are ``loaded`` (registered), ``unavailable`` (dependency unavailable), ``skipped`` (unsupported declaration), and ``error`` (loading or validation failed). Failure details are stored in ``reason``, and errors are also logged. Standard hlib features remain available without external dependencies. ``status()`` returns a copy of the last initialization results. Explicitly loading a dependency plugin later does not update it automatically. Query current availability separately with ``diagnostics()``."
+
+msgid "診断は既にimport済みの宣言の ``is_available`` だけを呼びます。 新しい拡張のimport、型登録、プラグインロード、reloadは行いません。 未import・初期化中・照会の再入・例外・非boolの戻り値ではavailableがNoneとなり、 reasonに理由を返します。Falseは依存が現在利用不可と照会できた場合です。 初期化状態と型登録は更新されないため、状態表示だけの目的でreloadする必要はありません。"
+msgstr "Diagnostics call only ``is_available`` on declarations already imported. They do not import new extensions, register types, load plugins, or reload. available is None when a declaration is not imported, is initializing, the query is reentrant, raises an exception, or returns a non-bool; reason contains the explanation. False means the query confirmed that the dependency is currently unavailable. Initialization state and type registrations are unchanged, so reload is unnecessary merely to refresh a status display."
+
+msgid "``is_available()`` がFalseの拡張は実装のソース解析を行いません。 対象Maya/Pythonで読み込めない実装を含む場合は、この関数で利用不可を返してください。 宣言用の ``__init__.py`` 自体は対象Pythonで読み込める必要があります。"
+msgstr "Extensions whose ``is_available()`` returns False are not parsed for implementation source. Return unavailable from this function if the implementation cannot be imported by the target Maya/Python. The declaration's ``__init__.py`` itself must be readable by the target Python."
+
+msgid "BlendShapeの ``setTargetWeights`` / ``setTargetDeltas`` / ``resetTargetVertices`` / ``replaceTarget`` / ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets`` / ``loadTargetDeltas``。照会は通常時もOpenMayaを使います。 追加・削除・ミラーはMaya標準cmds/MEL処理を維持するためfast非対応です。 詳細と保存形式の制限は :doc:`guide_deformers` を参照してください。"
+msgstr "BlendShape's ``setTargetWeights`` / ``setTargetDeltas`` / ``resetTargetVertices`` / ``replaceTarget`` / ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets`` / ``loadTargetDeltas``. Queries use OpenMaya in normal mode as well. Adding, deleting, and mirroring retain Maya's standard cmds/MEL operations and do not support fast. See :doc:`guide_deformers` for details and file-format limitations."
+
+msgid "骨割当は標準MELを使うため、HumanIK用アトリビュート・ラベルなども更新されます。 定義の妥当性確認とロックはHumanIK UIで行ってください。 ロック済みの既存キャラクター間では ``target.setSource(source)`` が標準MELへ リターゲット接続を依頼します。未ロックや自己接続は拒否します。 ``target.getSource()`` または省略入口の ``target.source()`` で現在の入力を取得できます。 返却はHIKCharacterNode、未接続はNoneです。setSourceは設定後もこの正式getterで 要求した入力へ接続されたことを確認し、異なる入力ならRuntimeErrorになります。"
+msgstr "Bone assignment uses standard MEL, which also updates HumanIK attributes and labels. Validate and lock the definition in the HumanIK UI. Between existing locked characters, ``target.setSource(source)`` asks standard MEL to create a retargeting connection. Unlocked characters and self-connections are rejected. Query the current input with ``target.getSource()`` or its shorthand ``target.source()``. The return is HIKCharacterNode, or None when disconnected. After setting, setSource uses this formal getter to verify that the requested input is connected; a different input raises RuntimeError."
+
+msgid "引数の名前・順序・既定値・位置/キーワード区分・長短フラグ・戻り値・例外・単位は 正式getterと同じです。省略入口は評価・Undo・キャッシュを追加しません。 UVとCVの取得も既存の小文字表記を使います。Meshの ``getUV/getUVs`` の省略名は ``uv/uvs``、NurbsCurveの ``getCV/getCVs`` の省略名は ``cv/cvs`` です。 省略入口から正式getterを呼ぶため、getterのoverrideも反映します。 ``Plug.get()`` / ``getu()`` は値取得のままです。数学型のOpenMaya標準名やJSONの標準API、 get付き照会を持たない保持プロパティは変更しません。 ノードからのPlug取得は ``plug()`` を使います。 省略名のAPIページには本体の引数と説明を掲載し、get付きの参照リンクも省略名へ解決します。"
+msgstr "Argument names, order, defaults, positional/keyword distinctions, long/short flags, return values, exceptions, and units match the formal getter. Shorthand entry points add no evaluation, Undo, or caching. UV and CV access retains the existing lowercase spelling: Mesh's ``getUV/getUVs`` use ``uv/uvs``, and NurbsCurve's ``getCV/getCVs`` use ``cv/cvs``. Calling the formal getter through the shorthand also respects getter overrides. ``Plug.get()`` / ``getu()`` continue to retrieve values. OpenMaya standard names on mathematical types, standard JSON APIs, and stored properties without get-prefixed queries are unchanged. Use ``plug()`` to retrieve a Plug from a node. Shorthand API pages display the implementation's arguments and documentation, and get-prefixed reference links also resolve to the shorthand."
+
+msgid "目的から使い方を探す"
+msgstr "Find an example by task"
+
+msgid "取得した参照を次の操作へ渡す例と、値・単位・復元範囲の説明をまとめています。"
+msgstr "Examples of passing retrieved references to the next operation, with explanations of values, units, and the scope of restoration."
+
+msgid "目的"
+msgstr "Purpose"
+
+msgid "基本の書き方"
+msgstr "Basic usage"
+
+msgid "詳細"
+msgstr "Details"
+
+msgid "選択した頂点をまとめて編集"
+msgstr "Edit selected vertices together"
+
+msgid "``captureSelection().filter(\"vertex\").components()``"
+msgstr "``captureSelection().filter(\"vertex\").components()``"
+
+msgid ":doc:`guide_geometry`"
+msgstr ":doc:`guide_geometry`"
+
+msgid "アトリビュートの値を取得"
+msgstr "Get attribute values"
+
+msgid "``node.plug(\"translateX\").get()``、UI単位は ``getu()``"
+msgstr "``node.plug(\"translateX\").get()``; use ``getu()`` for UI units"
+
+msgid ":doc:`cmds_interop`"
+msgstr ":doc:`cmds_interop`"
+
+msgid "作成した形状を編集"
+msgstr "Edit created geometry"
+
+msgid "戻り値の型を確認し、Transformは ``shape()`` を取得"
+msgstr "Check the return type and retrieve ``shape()`` from a Transform"
+
+msgid ":doc:`guide_commands`"
+msgstr ":doc:`guide_commands`"
+
+msgid "ターゲットの頂点を除外・デルタを保存"
+msgstr "Exclude target vertices and save deltas"
+
+msgid "``resetTargetVertices``、``dumpTargetDeltas``、``loadTargetDeltas``"
+msgstr "``resetTargetVertices``, ``dumpTargetDeltas``, ``loadTargetDeltas``"
+
+msgid ":doc:`guide_deformers`"
+msgstr ":doc:`guide_deformers`"
+
+msgid "選択頂点のスキンウェイトを再配分"
+msgstr "Redistribute skin weights on selected vertices"
+
+msgid "``skin.redistributeWeights(hlib.ls(sl=True, type=\"vertex\"))``"
+msgstr "``skin.redistributeWeights(hlib.ls(sl=True, type=\"vertex\"))``"
+
+msgid "保存データを読み込んで適用"
+msgstr "Load and apply saved data"
+
+msgid "参照は ``resolve()``、Snapshotは ``plan()`` → ``apply()``"
+msgstr "Use ``resolve()`` for references and ``plan()`` → ``apply()`` for Snapshots"
+
+msgid ":doc:`json`"
+msgstr ":doc:`json`"
+
+msgid "一時的な設定・選択を復元"
+msgstr "Restore temporary settings and selection"
+
+msgid "``temporarySettings``、``preserveTime``、``asCurrent``、``select``"
+msgstr "``temporarySettings``, ``preserveTime``, ``asCurrent``, ``select``"
+
+msgid ":doc:`guide_editors`、:doc:`selection_and_channelbox`"
+msgstr ":doc:`guide_editors`, :doc:`selection_and_channelbox`"
+
+msgid "更新を高速化"
+msgstr "Speed up updates"
+
+msgid "操作の対応条件を確認して ``fast=True``"
+msgstr "Check the operation's supported conditions, then use ``fast=True``"
+
+msgid ":doc:`fast_edit`"
+msgstr ":doc:`fast_edit`"
+
+msgid "プラグインと拡張の状態を確認"
+msgstr "Check plugin and extension status"
+
+msgid "``tryLoad() == LOADED``、``extensions.diagnostics()``"
+msgstr "``tryLoad() == LOADED``, ``extensions.diagnostics()``"
+
+msgid ":doc:`guide_environment`、:doc:`extensions`"
+msgstr ":doc:`guide_environment`, :doc:`extensions`"
+
+msgid "メソッドの通常更新はUndoに対応します。``fast=True`` はUndoなしの対応操作に 限られます。作成コマンドの数値フラグはMayaのUI単位、オブジェクトの値操作は cm・radian・秒を基本にするため、両者をつなぐときは :doc:`cmds_interop` を参照してください。"
+msgstr "Normal updates through methods support Undo. ``fast=True`` is limited to supported operations without Undo. Numeric flags of creation commands use Maya's UI units, whereas object value operations generally use cm, radians, and seconds. See :doc:`cmds_interop` when connecting these operations."
+
+msgid "``duplicate``/``createGroup`` はいずれも作成したノードのラッパーを返します。 ``createNode``/``createGroup`` の ``parent`` は所有ノードへ解決します(Plug を渡すとその ノードが親になります)。``createGroup`` に空のリストを渡すと、現在の選択をグループ化せずに ``ValueError`` になります。 ``createGroup`` は ``nodes`` を省略すると ``maya.cmds.group`` と同じく現在の選択を グループ化します。空のグループを作る場合は ``empty=True`` を指定してください （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。 ``delete`` は複数ノードもまとめて受け付けます。Plug(アトリビュート)を渡すと ``TypeError`` です (``maya.cmds.delete`` はアトリビュートを削除せず何もしないため)。動的アトリビュートの削除は ``plug.delete()``、所有ノードの削除は ``hlib.delete(plug.node())`` を使ってください。"
+msgstr "Both ``duplicate`` and ``createGroup`` return wrappers for the created nodes. In ``createNode``/``createGroup``, ``parent`` resolves to the owning node (passing a Plug makes its node the parent). Passing an empty list to ``createGroup`` raises ``ValueError`` without grouping the current selection. ``createGroup`` groups the current selection when ``nodes`` is omitted, as with ``maya.cmds.group``. Specify ``empty=True`` to create an empty group (Maya raises an error if there is no selection and ``empty`` is not specified). ``delete`` accepts multiple nodes together. Passing a Plug (attribute) raises ``TypeError`` because ``maya.cmds.delete`` does not delete attributes and does nothing. Use ``plug.delete()`` to delete a dynamic attribute and ``hlib.delete(plug.node())`` to delete its owning node."
+
+msgid "作成結果から次の操作を選ぶ"
+msgstr "Continue editing from a creation result"
+
+msgid "作成"
+msgstr "Creation"
+
+msgid "頂点・CVへ進む入口"
+msgstr "Entry point for vertices and CVs"
+
+msgid "``createPolygon(...)``"
+msgstr "``createPolygon(...)``"
+
+msgid "Mesh"
+msgstr "Mesh"
+
+msgid "``mesh.vertices()``"
+msgstr "``mesh.vertices()``"
+
+msgid "``createCurve(...)``"
+msgstr "``createCurve(...)``"
+
+msgid "``curve_transform.shape().cvs()``"
+msgstr "``curve_transform.shape().cvs()``"
+
+msgid "``createNurbs(type=\"circle\", ...)``"
+msgstr "``createNurbs(type=\"circle\", ...)``"
+
+msgid "NurbsCurve"
+msgstr "NurbsCurve"
+
+msgid "``circle.cvs()``"
+msgstr "``circle.cvs()``"
+
+msgid "``createNurbs(type=\"square\", ...)``"
+msgstr "``createNurbs(type=\"square\", ...)``"
+
+msgid "list[NurbsCurve]"
+msgstr "list[NurbsCurve]"
+
+msgid "各シェイプの ``cvs()``"
+msgstr "``cvs()`` on each shape"
+
+msgid "``createNurbs(type=\"cube\", ...)``"
+msgstr "``createNurbs(type=\"cube\", ...)``"
+
+msgid "list[NurbsSurface]"
+msgstr "list[NurbsSurface]"
+
+msgid "各シェイプの ``scaleGeometry(...)`` 等"
+msgstr "``scaleGeometry(...)`` and other operations on each shape"
+
+msgid "作成した型からの連続例と単数・複数コンポーネントは :doc:`guide_geometry`、 値を作成フラグへ渡す際のUI単位との境界は :doc:`cmds_interop` を参照してください。"
+msgstr "See :doc:`guide_geometry` for consecutive operations from created types and for individual components and collections. See :doc:`cmds_interop` for the UI-unit boundary when passing values to creation flags."
+
+msgid "選択を取得して分類する"
+msgstr "Capture and classify a selection"
+
+msgid "``ls`` はMayaの検索結果の順に参照を返します。単一のノード型 ``type=\"joint\"`` / ``type=\"skinCluster\"`` はJoints / SkinClusters、 その他のノード型やコンポーネント型はリストです。 ``type=[\"joint\"]`` のようなMayaの複数型指定はリストを返します。 コンポーネントの型指定は ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex`` です。 選択済みの該当要素を絞る処理で、メッシュ選択から全頂点への変換は行いません。 全頂点を取得するときは対象Meshの ``vertices()`` を使います。"
+msgstr "``ls`` returns references in the order of Maya's search results. A single node type ``type=\"joint\"`` / ``type=\"skinCluster\"`` returns Joints / SkinClusters; other node types and component types return lists. A Maya multiple-type query such as ``type=[\"joint\"]`` returns a list. Component types are ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex``. This filters the selected elements of the requested type; it does not convert a mesh selection into all its vertices. Use ``vertices()`` on the target Mesh to retrieve all vertices."
+
+msgid "``captureSelection()`` は取得時点の参照を保持し、現在の選択へ自動追従しません。 ``filter(\"vertex\").components()`` で複数シェイプを分けて一括編集する例は :doc:`guide_geometry`、選び直しは :doc:`selection_and_channelbox` を参照してください。"
+msgstr "``captureSelection()`` holds references at capture time and does not automatically follow the current selection. For editing multiple shapes separately with ``filter(\"vertex\").components()``, see :doc:`guide_geometry`; for selecting again, see :doc:`selection_and_channelbox`."
+
+msgid "選択した頂点のウェイト配分を調整する"
+msgstr "Adjusting weight distribution on selected vertices"
+
+msgid "``redistributeWeights`` は番号列のほか、先頭geometryのmeshに属する Vertex・Vertices・Vertexと整数の混在列を受け取ります。"
+msgstr "In addition to index sequences, ``redistributeWeights`` accepts Vertex, Vertices, and mixed sequences of Vertex and integers belonging to the first geometry's mesh."
+
+msgid "``method`` はeasingの曲線名です。配分を合計1として読み、曲線を適用してから再正規化します。 別meshのVertexは全対象を検証してから拒否します。選択を変更せず、空入力は何もしません。 戻り値は従来どおりNone。通常のUndoで戻せますが、実行途中のゼロ合計やMayaエラーで 先に完了した頂点の更新は自動では戻しません。"
+msgstr "``method`` is an easing curve name. The distribution is read with a total of 1, transformed by the curve, and normalized again. Vertices from another mesh are rejected after validating all targets. Selection is unchanged, and empty input does nothing. The return remains None. Normal Undo is supported, but a zero total or Maya error during execution does not automatically roll back vertices already updated."
+
+msgid "ターゲット番号・エイリアスを受け取る編集・照会には、同じBlendShapeのweight要素Plugも 渡せます。addTarget・duplicateTarget等の返却を次の操作へ使えます。"
+msgstr "Queries and edits that accept a target index or alias also accept a weight-element Plug belonging to the same BlendShape. Returns from addTarget, duplicateTarget, and similar methods can be passed to the next operation."
+
+msgid "別BlendShapeのPlug、weight以外、配列親、空weight要素、削除済み参照は拒否します。 エイリアス変更後も同じweight要素を参照できます。"
+msgstr "Plugs from another BlendShape, attributes other than weight, array parents, empty weight elements, and deleted references are rejected. The same weight element remains usable after its alias changes."
+
+msgid "``state`` はbool限定です。開始時のターゲットと項目は存在を検証します。 開始時は自身のweight要素Plugも指定できます。 終了時はtargetとfull_weightを使用しません。複数ベースではノード全体に適用します。"
+msgstr "``state`` must be a bool. Starting validates the target and item. This BlendShape's weight-element Plug can also be specified when starting. Ending ignores target and full_weight. With multiple bases, the operation applies to the entire node."
+
+msgid "``dumpTargetDeltas(target, path, base=None, full_weight=1.0)`` と ``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)`` で 辞書キーの変換をメソッド内にまとめて保存・復元できます。"
+msgstr "``dumpTargetDeltas(target, path, base=None, full_weight=1.0)`` and ``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)`` handle dictionary-key conversion inside the methods for saving and restoring."
+
+msgid "単体IOはhlib.json形式で、文字列の頂点番号キーとVector値を保存します。 dumpは絶対パスのPath、loadはBlendShape自身を返します。 全データを検証してからsetTargetDeltasへ委譲し、通常は一回のUndoにまとまります。 loadのfast=TrueはUndoなしです。接続中の入力を切断する場合はdisconnect=Trueを明示します。 既存のdumpTargets/loadTargetsの形式と、標準jsonでの次の保存方法は変更しません。"
+msgstr "Standalone delta IO uses the hlib.json format and stores string vertex-index keys with Vector values. dump returns an absolute Path; load returns the BlendShape itself. All data is validated before delegating to setTargetDeltas, and normal editing is grouped into one Undo. load with fast=True has no Undo. Specify disconnect=True to disconnect live input. The existing dumpTargets/loadTargets formats and the following standard-json procedure are unchanged."
+
+msgid "``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)`` はこの一時メッシュの 準備と後始末をまとめ、新しい通常1.0のターゲットのweight Plugを返します。"
+msgstr "``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)`` handles temporary-mesh preparation and cleanup, returning the weight Plug for a new regular 1.0 target."
+
+msgid "別名・未使用番号・全デルタを登録前に検証し、現在の表示形状ではなくBlendShapeへ入る 変形前geometryを中立基準として使います。weightの初期値は0です。一時メッシュは残さず、 登録全体は一回のUndo/Redoに対応し、例外時はUndoトランザクションで巻き戻します。 Undo有効時に使用します。通常local/world originのポリゴン用で、post-deformationと user-defined originは未対応です。fastフラグは提供しません。"
+msgstr "The alias, unused index, and all deltas are validated before registration. Pre-deformation geometry entering the BlendShape serves as the neutral reference, rather than the currently displayed shape. The initial weight is 0. No temporary mesh remains. Registration supports one Undo/Redo and rolls back through an Undo transaction on exceptions. Undo must be enabled. This operation supports polygons with normal local/world origin; post-deformation and user-defined origin are unsupported. No fast flag is provided."
+
+msgid "標準jsonファイルを扱うときは、上で読み込んだ整数キーのdeltasをaddTargetDeltasへ渡すか、 次のMaya標準コマンドの手順を使います。"
+msgstr "For standard-json files, pass the integer-keyed deltas loaded above to addTargetDeltas, or use the following Maya standard-command procedure."
+
+msgid "Preferencesは現在のMaya設定を扱います。距離・角度・時間単位は現在のシーンに作用し、 新規シーンの既定単位は変更しません。setTimeUnitはMaya標準の挙動に従い、 キーの実時間を維持してフレーム番号を調整します。 setUpAxisは既定ではカメラを回転せず、rotate_view=Trueで表示の回転も指定できます。 自動保存先の指定は指定フォルダー方式へ切り替えます。フォルダー作成・保存実行は行いません。"
+msgstr "Preferences operates on the current Maya settings. Distance, angle, and time units affect the current scene, without changing defaults for new scenes. setTimeUnit follows Maya's standard behavior, preserving key times while adjusting frame numbers. setUpAxis does not rotate cameras by default; rotate_view=True also requests view rotation. Choosing an autosave directory switches to the specified-directory mode. It does not create directories or save files."
+
+msgid "旧Unitsクラスは廃止しました。単位設定はPreferencesへ、値の変換は ``from hlib.common import units`` のconvertDistance/distanceToUi等へ移しました。 一時的な単位切り替えは ``hlib.decorator`` を使用します。"
+msgstr "The old Units class has been removed. Unit settings have moved to Preferences, and value conversions have moved to convertDistance/distanceToUi and other functions in ``from hlib.common import units``. Use ``hlib.decorator`` for temporary unit changes."
+
+msgid "``tryLoad`` と ``requirePlugins`` の戻り値は状態文字列です。 ``\"missing\"`` などもPythonの真偽評価ではTrueになるため、``if status:`` では 成功判定できません。``status == LOADED`` で確認してください。"
+msgstr "``tryLoad`` and ``requirePlugins`` return status strings. Strings such as ``\"missing\"`` are also True in Python truth-value testing, so ``if status:`` cannot determine success. Check ``status == LOADED``."
+
+msgid "``tryLoad()`` は、必要な版が導入されていれば全プラグインをロードします。導入されていない・ 版が古い場合はプラグインをロードせず、``hlib.logger.warning`` と警告ダイアログ(バッチ・スタンドアロン では表示しない)で導入が必要なことを知らせます。``minimumMaya`` 未満の Maya では何もしません (``\"skipped\"``)。``dialog=False`` で表示を止め、関数を渡すと警告文を受け取れます。 1 回の呼び出しにした ``hlib.requirePlugins(...)`` もあります。"
+msgstr "``tryLoad()`` loads all plug-ins when the required version is installed. For missing or outdated installations, it loads no plug-ins and reports the requirement through ``hlib.logger.warning`` and a warning dialog (not shown in batch or standalone). It does nothing below ``minimumMaya`` (``\"skipped\"``). Use ``dialog=False`` to disable the dialog, or pass a function to receive the warning text. ``hlib.requirePlugins(...)`` provides the same operation in one call."
+
+msgid "``hlib.common`` は原則1クラス1ファイルで構成します。単数クラスと対応する複数クラスは同じファイルにまとめられます。 ``plugin.py`` は ``Plugin``、 ``module.py`` は ``Module``、``pluginPackage.py`` は ``PluginPackage`` を定義します。 利用側は引き続き ``from hlib.common import Plugin, Module, PluginPackage`` で取得できます。"
+msgstr "``hlib.common`` generally uses one class per file. A singular class and its corresponding plural class can share a file. ``plugin.py`` defines ``Plugin``, ``module.py`` defines ``Module``, and ``pluginPackage.py`` defines ``PluginPackage``. Clients can continue to import them with ``from hlib.common import Plugin, Module, PluginPackage``."
+
+msgid "名前空間を作成して続けて使う"
+msgstr "Creating a namespace and continuing to use it"
+
+msgid "``Namespace.create(name, parent=\":\")`` は作成先の完全名を返します。 既存の場合の判定も同じ完全名なので、ルートの同名を子名前空間と取り違えません。"
+msgstr "``Namespace.create(name, parent=\":\")`` returns the destination's fully qualified name. Existing namespaces are checked by the same full name, so a root namespace with the same name is not mistaken for the child namespace."
+
+msgid "文字列の相対nameはparent配下に作成します。多段名 ``\"rig:controls\"`` も同じ規則です。 先頭が ``:`` の絶対nameはparentを無視してルートから解決します。 Namespaceオブジェクトも保持済みの絶対名として扱います。 parentが相対文字列の場合は現在の名前空間から解決し、既定の ``\":\"`` は常にルートです。 作成だけでは現在の名前空間を変更しません。存在しない親は同じUndo内で再帰作成します。 ``asCurrent`` はブロック終了時に元へ戻します。"
+msgstr "A relative name string is created under parent. Multilevel names such as ``\"rig:controls\"`` follow the same rule. Absolute names beginning with ``:`` ignore parent and resolve from the root. Namespace objects also use their stored absolute names. Relative parent strings resolve from the current namespace; the default ``\":\"`` always means the root. Creation alone does not change the current namespace. Missing parents are created recursively within the same Undo. ``asCurrent`` restores the previous namespace when the block exits."
+
+msgid "以前は単一nameの返却へparentが反映されず、相対多段name・相対parentも ルートから解決していました。作成先と返却の一致、およびMaya標準の絶対/相対名の 解決へ変更しています。完全名を明示していた呼び出しはそのまま利用できます。"
+msgstr "Previously, parent was omitted from the return for a single-level name, while relative multilevel names and relative parents were also resolved from the root. Creation destinations and returned names now match, and absolute/relative names use Maya's standard resolution rules. Calls that explicitly specify fully qualified names remain usable."
+
+msgid "作成した形状から頂点・CVへ進む"
+msgstr "From created geometry to vertices and CVs"
+
+msgid "作成コマンドの戻り値はコマンドごとに決まっています。 ``createCurve`` はTransformなので ``shape()`` を経由し、 ``createPolygon`` と単一形状の ``createNurbs`` は返されたシェイプを使います。"
+msgstr "Each creation command has a defined return type. ``createCurve`` returns a Transform, so access ``shape()`` first. ``createPolygon`` and single-shape ``createNurbs`` return the shape directly."
+
+msgid "``vertices()`` と ``cvs()`` の入力は、そのシェイプの実番号です。 省略・``None`` は取得時の全要素、``[]`` は空集合、重複は最初の出現だけを保持します。 直接 ``Vertices(shape, indices)`` 等を構築する場合もシェイプラッパーが必要です。 Transformや名前文字列は ``hlib.node(name).shape()`` でシェイプへ解決してください。 複数シェイプを持つTransformでは ``shapes()`` で対象を選びます。"
+msgstr "The inputs to ``vertices()`` and ``cvs()`` are actual indices on that shape. Omission or ``None`` selects all elements at retrieval time; ``[]`` selects an empty collection. Only the first occurrence of each duplicate is retained. Direct construction with ``Vertices(shape, indices)`` and similar classes also requires a shape wrapper. Resolve a Transform or name string into a shape with ``hlib.node(name).shape()``. For a Transform with multiple shapes, use ``shapes()`` to choose a target."
+
+msgid "シェイプからの単数・複数取得"
+msgstr "Getting individual components and collections from shapes"
+
+msgid "シェイプ"
+msgstr "Shape"
+
+msgid "単数"
+msgstr "Singular"
+
+msgid "複数"
+msgstr "Collection"
+
+msgid "``vertex(index)`` / ``edge(index)`` / ``face(index)`` / ``uv(index)``"
+msgstr "``vertex(index)`` / ``edge(index)`` / ``face(index)`` / ``uv(index)``"
+
+msgid "``vertices(indices=None)`` / ``edges(indices=None)`` / ``faces(indices=None)`` / ``uvs(indices=None)``"
+msgstr "``vertices(indices=None)`` / ``edges(indices=None)`` / ``faces(indices=None)`` / ``uvs(indices=None)``"
+
+msgid "``cv(index)``"
+msgstr "``cv(index)``"
+
+msgid "``cvs(indices=None)``"
+msgstr "``cvs(indices=None)``"
+
+msgid "単数取得は ``idx`` も使えます。省略名は対応する正式getterへ委譲し、 引数・返却型は共通です（:doc:`getter_aliases`）。 CV/CVsはNURBSカーブ用です。NURBSサーフェスの2次元CVには この単一番号の入口を使えません。"
+msgstr "Singular getters also accept ``idx``. Short names delegate to the corresponding formal getters and share their arguments and return types (:doc:`getter_aliases`). CV/CVs are for NURBS curves. These single-index entry points cannot be used for the two-dimensional CVs of NURBS surfaces."
+
+msgid "位置配列は Maya API 2.0 の ``MPointArray``、``vertexNormals()`` は ``list[Vector]`` です。 距離は Maya API の内部単位を使い、``ws=False`` はオブジェクト空間です。 ``vertexNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を 頂点ごとに平均して、頂点番号順に返します。``angle_weighted=True`` は角度で重み付けし、 Falseは角度による重み付けをしません。面ごとの法線配列や最初の面法線ではありません。 ``collocatedCVGroups`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの 重複 CV など）を検出し、2個以上重なっているグループのみを CV 番号のリストとして 返します（単独の CV は含みません）。``tolerance`` で同一位置とみなす距離の 許容誤差を調整できます。"
+msgstr "Position arrays are Maya API 2.0 ``MPointArray`` values, and ``vertexNormals()`` returns ``list[Vector]``. Distances use Maya API internal units; ``ws=False`` means object space. ``vertexNormals()`` uses ``MFnMesh.getVertexNormals()`` to average adjacent face-vertex normals for each vertex and return them in vertex-index order. ``angle_weighted=True`` weights by angle; False does not. These are not per-face normals or the first face's normals. ``collocatedCVGroups`` detects CVs at nearly identical positions, such as duplicate CVs in a curve before cleanup. It returns lists of CV indices only for groups with at least two coincident CVs; isolated CVs are excluded. Adjust ``tolerance`` to control the distance threshold for considering positions identical."
+
+msgid "選択した頂点をシェイプごとに編集する"
+msgstr "Edit selected vertices by shape"
+
+msgid "``hlib.ls(sl=True, type=\"vertex\")`` は単体Vertexのリストです。 ``captureSelection().filter(\"vertex\").components()`` は、同一シェイプ・種類ごとの Verticesコレクションのリストを返します。複数メッシュの選択も各シェイプへ分けられ、 各グループ内は取得時の順序を維持します。通常編集はグループごとに1回のUndoです。 正式な種類名は ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex`` です。 Selectionの ``filter`` には従来の記号 ``vtx`` / ``e`` / ``f`` / ``map`` / ``cv`` も使えます。 どちらの取得も種類を絞る処理なので、オブジェクト選択やフェース選択を頂点へ変換しません。 ターゲットのデルタから頂点を外す操作は :doc:`guide_deformers` を参照してください。"
+msgstr "``hlib.ls(sl=True, type=\"vertex\")`` returns a list of individual Vertex references. ``captureSelection().filter(\"vertex\").components()`` returns a list of Vertices collections grouped by shape and type. Selections across multiple meshes are also separated by shape, and each group preserves the order at capture time. Each group's normal edit is one Undo step. The formal type names are ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex``. Selection ``filter`` also accepts the existing symbols ``vtx`` / ``e`` / ``f`` / ``map`` / ``cv``. Both retrieval methods filter types; they do not convert object or face selections to vertices. See :doc:`guide_deformers` for removing vertices from a target's deltas."
+
+msgid "参照の現在有効性を確認する"
+msgstr "Checking a reference's current validity"
+
+msgid "単数と複数の ``valid()`` は、シェイプの生存・種類と現在の番号範囲を確認します。 削除やトポロジー縮小で参照できなくなればFalseです。空コレクションも、 対応するシェイプが生存していればTrueです。UVは現在のUVセットで判定します。 判定はシーンやUndoキューを変更しません。"
+msgstr "Single components and collections provide ``valid()`` to check shape lifetime, type, and the current index range. It returns False after deletion or a topology reduction makes the reference invalid. An empty collection is also True while its expected shape is alive. UVs are checked against the current UV set. This query does not modify the scene or Undo queue."
+
+msgid "番号が範囲内でも、トポロジー変更前と同じ要素を指す保証はありません。 変更後は必要な参照を取得し直してください。``valid()`` を追加しても、 無効な参照での名前・座標照会が例外になる既存の動作は変わりません。"
+msgstr "An index being within range does not guarantee that it refers to the same element as before a topology change. Retrieve the required references again after a change. Adding ``valid()`` does not change the existing exceptions raised by name or coordinate queries on invalid references."
+
+msgid "例えば ``mesh.vertices([0, 1]).setPositionZ(2.0, fast=True)`` は 入力履歴のないメッシュで使えます。履歴付きメッシュ、周期カーブ、 NURBSサーフェス等の未対応対象をfastへ渡すと ``NotImplementedError`` です。 履歴を残す編集やUndoが必要な場合は、既定の通常モードを使います。 座標値はcmです。作成コマンドへ数値を渡す境界ではUI単位へ明示変換してください （:doc:`cmds_interop`）。"
+msgstr "For example, ``mesh.vertices([0, 1]).setPositionZ(2.0, fast=True)`` works on meshes without input history. Passing unsupported targets such as meshes with history, periodic curves, or NURBS surfaces to fast raises ``NotImplementedError``. Use the default normal mode when preserving history or requiring Undo. Coordinates are in cm. Explicitly convert numbers to UI units when passing them to creation commands (:doc:`cmds_interop`)."
+
+msgid "成分を編集して値へ反映する"
+msgstr "Edit a component value and assign it back"
+
+msgid "``Matrix.translate`` 等はコピーを返します。取得した成分を編集しただけでは 元のMatrixは変わらず、setterへ代入すると反映されます。 ``Transformation.translate`` 等は保持している成分なので、その場の編集で Transformation自身が変わります。いずれも、シーンを更新するにはNodeの明示setterが必要です。"
+msgstr "``Matrix.translate`` and similar properties return copies. Editing a retrieved component does not change the original Matrix; assigning it to the setter applies the change. ``Transformation.translate`` and similar properties are retained components, so in-place edits change the Transformation itself. In both cases, updating the scene requires an explicit Node setter."
+
+msgid "位置の変換には ``matrix.transformPoint(position)``、方向の変換には ``matrix.transformVector(direction)`` を使います。``Translate * Matrix`` は OpenMayaのMVectorと同じ方向変換で、平行移動を含みません。"
+msgstr "Use ``matrix.transformPoint(position)`` to transform a position and ``matrix.transformVector(direction)`` to transform a direction. ``Translate * Matrix`` transforms a direction like OpenMaya's MVector and does not include translation."
+
+msgid "関連するSkinClusterをまとめて操作する"
+msgstr "Operating on related SkinClusters together"
+
+msgid "``collectSkinClusters()`` は、Shape・Transform・Jointに関連するSkinClusterを 重複のない ``SkinClusters`` として取得します。DagNodes/Transforms/Jointsからも使え、 保持順の各照会から初出の順で集約します。"
+msgstr "``collectSkinClusters()`` retrieves SkinClusters related to Shape, Transform, or Joint as a ``SkinClusters`` collection without duplicates. It is also available on DagNodes/Transforms/Joints and aggregates each query in held order, preserving first occurrences."
+
+msgid "Shapeは自身、Transformは直下の非中間Shape、Jointはinfluence接続を検索します。 子Transform以下へは降りません。従来の ``getSkinClusters/skinClusters`` はそのままで、 DagNodes/Transformsの要素ごとの ``list[list[SkinCluster]]`` と、 Jointsの専用 ``SkinClusters`` 返却も変更しません。明示的に集約したい場合に collectSkinClustersを使用します。照会はシーンを変更しません。"
+msgstr "Shape searches itself, Transform searches its direct non-intermediate shapes, and Joint searches influence connections. Child transforms are not traversed. Existing ``getSkinClusters/skinClusters`` behavior is unchanged, including per-element ``list[list[SkinCluster]]`` returns on DagNodes/Transforms and the dedicated ``SkinClusters`` return on Joints. Use collectSkinClusters when explicitly requesting aggregation. Queries do not change the scene."
+
+msgid "``min``/``max``/``default`` は数値アトリビュートでは ``float`` をそのまま返しますが、 ``rotateX`` のような角度・距離・時間アトリビュートでは Maya API 2.0 の単位付きオブジェクト （``MAngle``/``MDistance``/``MTime``）をそのまま返します。誤った単位換算を 避けるため、hlib 内部では変換を行いません。必要な単位は呼び出し側で ``.value`` や ``.asUnits(...)`` を使って変換してください。 ``enumName`` は enum アトリビュート以外に使うと ``TypeError`` になります。 ``valid()`` は所有ノードとアトリビュートの参照が有効かを判定します。 値の読み書きが成功することまでは保証しません。 ``readable``/``writable``/``storable`` はアトリビュート定義の各フラグを返し、 ロックや入力接続を含む現在の編集可否を判定するものではありません。 現在の値の編集可否は ``settable()`` で照会します。"
+msgstr "``min``/``max``/``default`` return ``float`` directly for numeric attributes. For angle, distance, or time attributes such as ``rotateX``, they return Maya API 2.0 unit objects (``MAngle``/``MDistance``/``MTime``). hlib performs no internal conversion to avoid incorrect units. Convert to the required unit with ``.value`` or ``.asUnits(...)``. ``enumName`` raises ``TypeError`` for non-enum attributes. ``valid()`` checks the owning node and attribute reference, without guaranteeing successful reads or writes. ``readable``/``writable``/``storable`` query attribute definition flags; they do not check current editability including locks and input connections. Use ``settable()`` for current value editability."
+
+msgid "``settable()`` は値の型・範囲や、その後の状態変化による成功までは保証しません。 設定自体のエラーは ``set()`` の契約に従います。 ``hasSoftMin``/``softMin``/``hasSoftMax``/``softMax`` で UI スライダーの ソフトレンジ（値の入力自体は制限しない）を取得できます。 ``enumValue(name)`` は ``enumFieldName(val)`` の逆引きで、フィールド名から enum 値を 取得します（一致しなければ ``ValueError``）。``niceName()`` は Attribute Editor などで使われる表示名を返します（``translateX`` → ``\"Translate X\"``）。"
+msgstr "``settable()`` does not guarantee that a value has an accepted type or range, or that the operation succeeds after subsequent state changes. Errors during assignment follow the ``set()`` contract. ``hasSoftMin``/``softMin``/``hasSoftMax``/``softMax`` retrieve the soft range for UI sliders (which does not restrict value input itself). ``enumValue(name)`` is the inverse of ``enumFieldName(val)`` and retrieves an enum value from its field name (raising ``ValueError`` if no match exists). ``niceName()`` returns the display name used by the Attribute Editor and other UI elements (``translateX`` to ``\"Translate X\"``)."
+
+msgid "``array_plug[0]`` は未作成番号でも要素参照だけを返します。 ``element(0)`` は既存要素がなければ ``IndexError`` です。 ``element(0, create=True)`` は必要に応じて評価によって実体化します。"
+msgstr "``array_plug[0]`` returns an element reference even for an index that does not yet exist. ``element(0)`` raises ``IndexError`` if the element does not exist. ``element(0, create=True)`` materializes it through evaluation as needed."
+
+msgid "この ``[]`` があるため、 ArrayPlug オブジェクト自体を ``maya.cmds`` へ渡すとシーケンスとして展開されて失敗します。 配列アトリビュート全体を渡す場合は ``str(array_plug)`` か ``array_plug.fullName()`` を渡してください。 要素の Plug と hlib のコマンド(``hlib.select`` など)は、そのまま渡せます。"
+msgstr "Because ``[]`` is available, passing an ArrayPlug itself to ``maya.cmds`` expands it as a sequence and fails. Pass ``str(array_plug)`` or ``array_plug.fullName()`` for the entire array attribute. Element Plugs and hlib commands such as ``hlib.select`` can be passed directly."
+
+msgid "参照と値を使い分ける"
+msgstr "Choose between references and values"
+
+msgid "値・接続を繰り返し操作する"
+msgstr "Repeated value and connection operations"
+
+msgid "``node.plug(\"tx\")`` / ``hlib.plug(\"node.tx\")`` / ``hlib.attr(\"node.tx\")``"
+msgstr "``node.plug(\"tx\")`` / ``hlib.plug(\"node.tx\")`` / ``hlib.attr(\"node.tx\")``"
+
+msgid "型付きPlug"
+msgstr "Typed Plug"
+
+msgid "内部単位の値を読む"
+msgstr "Read values in internal units"
+
+msgid "``plug.get()``"
+msgstr "``plug.get()``"
+
+msgid "値（距離cm・角度rad・時間秒）"
+msgstr "Value (distance in cm, angle in rad, time in seconds)"
+
+msgid "UI単位の値を読む"
+msgstr "Read values in UI units"
+
+msgid "``plug.getu()``"
+msgstr "``plug.getu()``"
+
+msgid "現在のMaya単位による値"
+msgstr "Value in the current Maya units"
+
+msgid "Mayaの状態を照会する"
+msgstr "Query Maya state"
+
+msgid "``hlib.attr(plug, lock=True)``"
+msgstr "``hlib.attr(plug, lock=True)``"
+
+msgid "ロック状態のbool"
+msgstr "bool indicating the lock state"
+
+msgid "``hlib.attr(plug, lock=False)`` も、フラグを明示した照会です。 通常の値をUI単位で返し、Plug取得にはなりません。"
+msgstr "``hlib.attr(plug, lock=False)`` is also an explicit flag-based query. It returns the ordinary value in UI units rather than retrieving a Plug."
+
+msgid "``hlib.json`` はhlibの数学型、Mayaの参照、取得時点の状態をJSONへ保存します。 ``load()`` はデータを読むだけで、シーンや選択を変更しません。 状態を反映するときだけ ``Snapshot.apply()`` を呼び出します。 用途別クラスの ``capture()`` から取得でき、``supportsApply`` でその保存用途が 適用に対応しているか確認できます。対象の現在状態は ``plan().valid`` で検証します。"
+msgstr "``hlib.json`` saves hlib mathematical types, Maya references, and captured state to JSON. ``load()`` reads data without changing the scene or selection. Call ``Snapshot.apply()`` only when applying the saved state. Capture through each purpose-specific class's ``capture()``, and use ``supportsApply`` to check whether that saved purpose supports application. Validate the targets' current state with ``plan().valid``."
+
+msgid "通常のdictはdict、Snapshotは用途別Snapshotとして戻ります。 Node・Plug・Componentは生きたラッパーではなく、未解決の参照データに戻ります。 ``resolve()`` するまでは対象がシーンに存在する必要はありません。 参照の読み込みはノードの新規作成やシーン更新を行いません。 SelectionとComponentsを通常の値として保存した場合は、参照の順序付きリストへ戻ります。 選択自体を復元する用途には ``kind=\"selection\"`` を使用してください。"
+msgstr "Ordinary dicts return as dicts, and Snapshots return as purpose-specific Snapshots. Node, Plug, and Component values return as unresolved reference data rather than live wrappers. Targets need not exist in the scene until ``resolve()`` is called. Loading references neither creates nodes nor updates the scene. Saving Selection or Components as ordinary values restores an ordered list of references. Use ``kind=\"selection\"`` to restore the selection itself."
+
+msgid "各型の ``capture`` は共通の ``hlib.json.capture`` へ委譲します。 対象・保存内容・例外・単位の規則は同じです。共通入口も引き続き利用できます。"
+msgstr "Each type's ``capture`` delegates to the shared ``hlib.json.capture``. Targets, saved contents, exceptions, and unit rules are identical. The shared entry point remains available."
+
+msgid "型から取得する入口と能力"
+msgstr "Typed capture entry points and capabilities"
+
+msgid "取得入口"
+msgstr "Capture entry point"
+
+msgid "supportsApply"
+msgstr "supportsApply"
+
+msgid "``SelectionSnapshot.capture(targets=None)``"
+msgstr "``SelectionSnapshot.capture(targets=None)``"
+
+msgid "``AttributesSnapshot.capture(targets, attributes)``"
+msgstr "``AttributesSnapshot.capture(targets, attributes)``"
+
+msgid "``PoseSnapshot.capture(targets)``"
+msgstr "``PoseSnapshot.capture(targets)``"
+
+msgid "``NurbsCurveSnapshot.capture(targets)``"
+msgstr "``NurbsCurveSnapshot.capture(targets)``"
+
+msgid "``SkinWeightsSnapshot.capture(targets)``"
+msgstr "``SkinWeightsSnapshot.capture(targets)``"
+
+msgid "``AnimationSnapshot.capture(targets)``"
+msgstr "``AnimationSnapshot.capture(targets)``"
+
+msgid "``DrivenKeysSnapshot.capture(targets)``"
+msgstr "``DrivenKeysSnapshot.capture(targets)``"
+
+msgid "``EditorSnapshot.capture(targets)``"
+msgstr "``EditorSnapshot.capture(targets)``"
+
+msgid "False。取得・読み込み・比較のみ"
+msgstr "False. Capture, loading, and comparison only"
+
+msgid "``Snapshot.capture(targets=None, kind=\"pose\", attributes=None)`` はkindで用途を選ぶ入口です。 ``supportsApply`` は保持する保存用途の能力で、ロック・接続・単位・対象の存在を 毎回照会するものではありません。Trueでも実対象の検証が失敗すれば適用できません。 このpropertyとcaptureメソッドは保存キーへ追加されず、従来ファイル形式を維持します。"
+msgstr "``Snapshot.capture(targets=None, kind=\"pose\", attributes=None)`` selects a purpose by kind. ``supportsApply`` describes the held saved purpose's capability; it does not repeatedly query locks, connections, units, or target existence. Even when True, application is rejected if target validation fails. This property and capture methods add no saved keys, preserving the existing file format."
+
+msgid "``validate().valid`` と ``validate().errors`` で適用可能性を確認できます。 ``plan()`` では対象と変更前後を取得できます。``plan.valid`` は保持するerrorsが 空かを判定し、``not plan.errors`` と同じです。``apply()`` は毎回再検証します。 ValidationReportやApplyPlan自身を ``if report:`` のように判定しないでください。 通常のオブジェクトの真偽は、検証エラーがあってもTrueになります。 取得時の距離・角度・時間単位と現在の単位が違う場合は適用を拒否し、 自動で単位を変更・変換しません。選択Snapshotにはこの制限はありません。"
+msgstr "Check applicability with ``validate().valid`` and ``validate().errors``. ``plan()`` provides targets and before/after changes. ``plan.valid`` checks whether the held errors are empty, equivalent to ``not plan.errors``. ``apply()`` revalidates every time. Do not test ValidationReport or ApplyPlan objects themselves with expressions such as ``if report:``; ordinary object truthiness is True even when validation errors exist. Application is rejected if current distance, angle, or time units differ from captured units. Units are not changed or converted automatically. SelectionSnapshot is exempt from this restriction."
+
+msgid "失敗理由を確認する"
+msgstr "Inspect the reason for a failure"
+
+msgid "``exc_info=True`` を渡すと、Script Editorに例外の型・メッセージ・トレースを 表示します。ビューポートにはログ本文だけを表示するため、詳細が画面を覆いません。 ``stack_info=True`` と標準loggingのFormatterもScript Editor側へ適用します。"
+msgstr "Pass ``exc_info=True`` to display the exception type, message, and traceback in the Script Editor. The viewport displays only the log message text, so detailed information does not cover the screen. ``stack_info=True`` and standard logging Formatters are also applied on the Script Editor side."
+
+msgid "表示書式は標準loggingのハンドラで設定できます。MayaハンドラのFormatterは Script Editorへ適用し、ビューポートのメッセージ本文は変更しません。 Formatterの必須項目がログにないなどの書式エラーは、標準書式と失敗理由を Script Editorへ表示します。書式設定の失敗で呼出元の例外や後続の復元処理を止めません。"
+msgstr "Configure display formatting through standard logging handlers. The Maya handler applies its Formatter to Script Editor output, without changing the viewport message body. Formatting errors, such as required fields missing from the record, fall back to standard formatting and display the failure reason in the Script Editor. Formatting failures do not interrupt the caller's exception handling or subsequent restoration."
+
+msgid "``preservedSkinShape`` はスキン保護のモード照会・切替・再キャッシュ・復元に 失敗した場合、対象skinClusterと処理段階を警告します。従来どおりRuntimeErrorは 抑制し、with本体の例外は維持します。警告があれば保護・復元が完了したとは限りません。"
+msgstr "``preservedSkinShape`` warns with the target skinCluster and operation stage when protection mode queries, switching, recaching, or restoration fail. RuntimeError remains suppressed, and exceptions from the with body are preserved. A warning means protection or restoration may not have completed."
+
+msgid "コンポーネントの指定は ``vertex/edge/face/uv/controlVertex`` を使用できます。 Mayaの記号 ``vtx/e/f/map/cv`` も同じ意味で使えます。 座標の一括編集はshapeごとのコレクションへまとめて行います。"
+msgstr "Component types can be specified as ``vertex/edge/face/uv/controlVertex``. The Maya symbols ``vtx/e/f/map/cv`` have the same meaning. For bulk coordinate edits, group the components into a collection for each shape."

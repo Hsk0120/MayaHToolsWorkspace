@@ -161,7 +161,7 @@ class Mesh(Shape):
         return self
 
     @flag_aliases(idx="index")
-    def vertex(self, index):
+    def getVertex(self, index):
         """頂点番号から単体ラッパーを取得する。
 
         Args:
@@ -174,6 +174,19 @@ class Mesh(Shape):
             IndexError: 頂点番号が範囲外の場合。
         """
         return Vertex(self, index)
+
+    @_getter_alias(getVertex)
+    def vertex(self, *args, **kwargs):
+        """getVertexへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getVertex(*args, **kwargs)
 
     def getVertices(self, indices=None):
         """指定した頂点群を取得する。
@@ -293,7 +306,7 @@ class Mesh(Shape):
         return adjacency
 
     @flag_aliases(idx="index")
-    def edge(self, index):
+    def getEdge(self, index):
         """番号から Edge を取得する。
 
         Args:
@@ -304,7 +317,20 @@ class Mesh(Shape):
         """
         return Edge(self, index)
 
-    def edges(self, indices=None):
+    @_getter_alias(getEdge)
+    def edge(self, *args, **kwargs):
+        """getEdgeへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getEdge(*args, **kwargs)
+
+    def getEdges(self, indices=None):
         """指定した Edge 群を取得する。
 
         Args:
@@ -315,8 +341,21 @@ class Mesh(Shape):
         """
         return Edges(self, indices)
 
+    @_getter_alias(getEdges)
+    def edges(self, *args, **kwargs):
+        """getEdgesへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getEdges(*args, **kwargs)
+
     @flag_aliases(idx="index")
-    def face(self, index):
+    def getFace(self, index):
         """番号から Face を取得する。
 
         Args:
@@ -327,7 +366,20 @@ class Mesh(Shape):
         """
         return Face(self, index)
 
-    def faces(self, indices=None):
+    @_getter_alias(getFace)
+    def face(self, *args, **kwargs):
+        """getFaceへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getFace(*args, **kwargs)
+
+    def getFaces(self, indices=None):
         """指定した Face 群を取得する。
 
         Args:
@@ -338,8 +390,21 @@ class Mesh(Shape):
         """
         return Faces(self, indices)
 
+    @_getter_alias(getFaces)
+    def faces(self, *args, **kwargs):
+        """getFacesへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getFaces(*args, **kwargs)
+
     @flag_aliases(idx="index")
-    def uv(self, index):
+    def getUV(self, index):
         """番号から UV を取得する。
 
         Args:
@@ -350,7 +415,20 @@ class Mesh(Shape):
         """
         return UV(self, index)
 
-    def uvs(self, indices=None):
+    @_getter_alias(getUV)
+    def uv(self, *args, **kwargs):
+        """getUVへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getUV(*args, **kwargs)
+
+    def getUVs(self, indices=None):
         """指定した UV 群を取得する。
 
         Args:
@@ -360,6 +438,19 @@ class Mesh(Shape):
             UVs: 重複を除いたコレクション。
         """
         return UVs(self, indices)
+
+    @_getter_alias(getUVs)
+    def uvs(self, *args, **kwargs):
+        """getUVsへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getUVs(*args, **kwargs)
 
     def getNumUVs(self):
         """現在の UV セットの要素数。

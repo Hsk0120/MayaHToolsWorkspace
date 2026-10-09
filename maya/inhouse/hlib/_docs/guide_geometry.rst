@@ -83,6 +83,50 @@ Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）は
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
 最初に ``import hlib`` と ``from maya import cmds`` を実行してください。
 
+作成した形状から頂点・CVへ進む
+------------------------------
+
+作成コマンドの戻り値はコマンドごとに決まっています。
+``createCurve`` はTransformなので ``shape()`` を経由し、
+``createPolygon`` と単一形状の ``createNurbs`` は返されたシェイプを使います。
+
+.. code-block:: python
+
+   mesh = hlib.createPolygon(type="cube", name="componentBody", constructionHistory=False)
+   mesh.vertices([0, 1]).setPositionZ(2.0)
+
+   curve_transform = hlib.createCurve(name="componentCurve", degree=1,
+                                      point=[(0, 0, 0), (1, 1, 0), (2, 0, 0)])
+   curve = curve_transform.shape()
+   curve.cvs([0, 1]).setPositionZ(1.0)
+
+   circle = hlib.createNurbs(type="circle", name="componentCircle")
+   circle.cvs().mirror(axis="x")
+
+``vertices()`` と ``cvs()`` の入力は、そのシェイプの実番号です。
+省略・``None`` は取得時の全要素、``[]`` は空集合、重複は最初の出現だけを保持します。
+直接 ``Vertices(shape, indices)`` 等を構築する場合もシェイプラッパーが必要です。
+Transformや名前文字列は ``hlib.node(name).shape()`` でシェイプへ解決してください。
+複数シェイプを持つTransformでは ``shapes()`` で対象を選びます。
+
+.. list-table:: シェイプからの単数・複数取得
+   :header-rows: 1
+
+   * - シェイプ
+     - 単数
+     - 複数
+   * - Mesh
+     - ``vertex(index)`` / ``edge(index)`` / ``face(index)`` / ``uv(index)``
+     - ``vertices(indices=None)`` / ``edges(indices=None)`` / ``faces(indices=None)`` / ``uvs(indices=None)``
+   * - NurbsCurve
+     - ``cv(index)``
+     - ``cvs(indices=None)``
+
+単数取得は ``idx`` も使えます。省略名は対応する正式getterへ委譲し、
+引数・返却型は共通です（:doc:`getter_aliases`）。
+CV/CVsはNURBSカーブ用です。NURBSサーフェスの2次元CVには
+この単一番号の入口を使えません。
+
 プリミティブの生成
 ------------------
 
@@ -162,7 +206,7 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
    print(Preferences.linearUnit())  # 現在のシーン単位（例: "cm"）
    print(units.convertDistance(100, from_unit="cm", to_unit="m"))  # 1.0
 
-位置配列は Maya API 2.0 の ``MPointArray``、法線配列は ``MFloatVectorArray`` です。
+位置配列は Maya API 2.0 の ``MPointArray``、``vertexNormals()`` は ``list[Vector]`` です。
 距離は Maya API の内部単位を使い、``ws=False`` はオブジェクト空間です。
 ``vertexNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を
 頂点ごとに平均して、頂点番号順に返します。``angle_weighted=True`` は角度で重み付けし、
@@ -271,8 +315,54 @@ UV は現在の UV セットを参照し、セットを切り替えると切替�
 
 詳しい一括操作は :doc:`component_collections` を参照してください。
 
+選択した頂点をシェイプごとに編集する
+------------------------------------
+
+.. code-block:: python
+
+   captured = hlib.captureSelection()
+   for vertices in captured.filter("vertex").components():
+       if vertices.valid():
+           vertices.setPositionZ(2.0)
+   captured.select(missing="skip")  # 残っている対象を選び直す
+
+``hlib.ls(sl=True, type="vertex")`` は単体Vertexのリストです。
+``captureSelection().filter("vertex").components()`` は、同一シェイプ・種類ごとの
+Verticesコレクションのリストを返します。複数メッシュの選択も各シェイプへ分けられ、
+各グループ内は取得時の順序を維持します。通常編集はグループごとに1回のUndoです。
+正式な種類名は ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex`` です。
+Selectionの ``filter`` には従来の記号 ``vtx`` / ``e`` / ``f`` / ``map`` / ``cv`` も使えます。
+どちらの取得も種類を絞る処理なので、オブジェクト選択やフェース選択を頂点へ変換しません。
+ターゲットのデルタから頂点を外す操作は :doc:`guide_deformers` を参照してください。
+
+参照の現在有効性を確認する
+--------------------------
+
+単数と複数の ``valid()`` は、シェイプの生存・種類と現在の番号範囲を確認します。
+削除やトポロジー縮小で参照できなくなればFalseです。空コレクションも、
+対応するシェイプが生存していればTrueです。UVは現在のUVセットで判定します。
+判定はシーンやUndoキューを変更しません。
+
+.. code-block:: python
+
+   held_vertex = mesh.vertex(0)
+   held_vertices = mesh.vertices([0, 1])
+   if held_vertex.valid() and held_vertices.valid():
+       print(held_vertex.position(), held_vertices.position())
+
+番号が範囲内でも、トポロジー変更前と同じ要素を指す保証はありません。
+変更後は必要な参照を取得し直してください。``valid()`` を追加しても、
+無効な参照での名前・座標照会が例外になる既存の動作は変わりません。
+
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
+
+例えば ``mesh.vertices([0, 1]).setPositionZ(2.0, fast=True)`` は
+入力履歴のないメッシュで使えます。履歴付きメッシュ、周期カーブ、
+NURBSサーフェス等の未対応対象をfastへ渡すと ``NotImplementedError`` です。
+履歴を残す編集やUndoが必要な場合は、既定の通常モードを使います。
+座標値はcmです。作成コマンドへ数値を渡す境界ではUI単位へ明示変換してください
+（:doc:`cmds_interop`）。
 
 
 Shapeのスケール

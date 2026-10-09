@@ -27,10 +27,19 @@ Selection
 .. code-block:: python
 
    joints = saved.filter(type="joint")
-   vertices = saved.filter(type="vtx")
+   vertices = saved.filter(type="vertex")
    joints.select(mode="add")
    joints.select(mode="remove")
    saved.select(missing="error")
+
+コンポーネントの指定は ``vertex/edge/face/uv/controlVertex`` を使用できます。
+Mayaの記号 ``vtx/e/f/map/cv`` も同じ意味で使えます。
+座標の一括編集はshapeごとのコレクションへまとめて行います。
+
+.. code-block:: python
+
+   for vertices in saved.filter("vertex").components():
+       vertices.setPositionX(10)
 
 選択変更は各メソッド内でUndoチャンクにまとめます。
 ``missing="skip"`` が既定値で、削除済みの対象を除外します。

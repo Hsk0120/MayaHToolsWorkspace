@@ -38,6 +38,9 @@ class Edge(Component):
         return self.getVertices(*args, **kwargs)
 
 
+_EDGE_GET_VERTICES = Edge.getVertices
+
+
 class Edges(Components):
     """同一 Mesh の Edge 群。"""
 
@@ -49,7 +52,18 @@ class Edges(Components):
         Returns:
             Vertices: 保持順に集め、重複を除いた頂点群。
         """
-        return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
+        if not (self._uses_standard_iteration(Edge) and self._uses_standard_vertices()
+                and Edge.getVertices is _EDGE_GET_VERTICES):
+            return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
+        Component._validate_shape(self.shape, Edge.shape_type)
+        indices = []
+        if self._indices:
+            mesh_fn = self.shape.meshFn()
+            count = mesh_fn.numEdges
+            for index in self._indices:
+                Component._validate_index(index, count)
+                indices.extend(mesh_fn.getEdgeVertices(index))
+        return Vertices(self.shape, indices)
 
     @_getter_alias(getVertices)
     def vertices(self, *args, **kwargs):

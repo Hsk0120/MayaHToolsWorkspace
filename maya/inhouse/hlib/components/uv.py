@@ -153,6 +153,9 @@ class UV(Component):
         return self.getV(*args, **kwargs)
 
 
+_UV_GET_POSITION = UV.getPosition
+
+
 class UVs(Components):
     """同一 Mesh の現在の UV セットの UV 群。"""
 
@@ -177,6 +180,14 @@ class UVs(Components):
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         rows = self._coordinate_rows(values, 2)
+        if is_fast() and self._uses_standard_iteration(UV):
+            if self._indices:
+                Component._validate_shape(self._shape, UV.shape_type)
+                count = self._shape.getNumUVs()
+                for index in self._indices:
+                    Component._validate_index(index, count)
+            geometry_edit.set_uvs(self._shape, self._indices, rows)
+            return self
         components = list(self)
         if is_fast():
             geometry_edit.set_uvs(self._shape, [c.index for c in components], rows)
@@ -241,7 +252,19 @@ class UVs(Components):
         Returns:
             list[tuple[float, float]]: U、V 座標列。
         """
-        return [item.getPosition() for item in self]
+        if not (self._uses_standard_iteration(UV) and UV.getPosition is _UV_GET_POSITION):
+            return [item.getPosition() for item in self]
+        if not self._indices:
+            return []
+        Component._validate_shape(self._shape, UV.shape_type)
+        mesh_fn = self._shape.meshFn()
+        count = mesh_fn.numUVs()
+        uv_set = mesh_fn.currentUVSetName()
+        result = []
+        for index in self._indices:
+            Component._validate_index(index, count)
+            result.append(tuple(mesh_fn.getUV(index, uvSet=uv_set)))
+        return result
 
     @fast_edit
     def setPosition(self, value, *, fast=False):

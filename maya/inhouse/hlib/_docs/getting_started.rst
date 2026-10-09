@@ -73,6 +73,57 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
 アトリビュートとして明示する場合は ``node.plug()`` または ``hlib.plug()`` を使います。
 対象の種類が決まっている既存コードでは ``hlib.node()``・``hlib.plug()`` をそのまま使えます。
 
+目的から使い方を探す
+--------------------
+
+取得した参照を次の操作へ渡す例と、値・単位・復元範囲の説明をまとめています。
+
+.. list-table::
+   :header-rows: 1
+
+   * - 目的
+     - 基本の書き方
+     - 詳細
+   * - 選択した頂点をまとめて編集
+     - ``captureSelection().filter("vertex").components()``
+     - :doc:`guide_geometry`
+   * - アトリビュートの値を取得
+     - ``node.plug("translateX").get()``、UI単位は ``getu()``
+     - :doc:`cmds_interop`
+   * - 作成した形状を編集
+     - 戻り値の型を確認し、Transformは ``shape()`` を取得
+     - :doc:`guide_commands`
+   * - ターゲットの頂点を除外・デルタを保存
+     - ``resetTargetVertices``、``dumpTargetDeltas``、``loadTargetDeltas``
+     - :doc:`guide_deformers`
+   * - 選択頂点のスキンウェイトを再配分
+     - ``skin.redistributeWeights(hlib.ls(sl=True, type="vertex"))``
+     - :doc:`guide_deformers`
+   * - 保存データを読み込んで適用
+     - 参照は ``resolve()``、Snapshotは ``plan()`` → ``apply()``
+     - :doc:`json`
+   * - 一時的な設定・選択を復元
+     - ``temporarySettings``、``preserveTime``、``asCurrent``、``select``
+     - :doc:`guide_editors`、:doc:`selection_and_channelbox`
+   * - 更新を高速化
+     - 操作の対応条件を確認して ``fast=True``
+     - :doc:`fast_edit`
+   * - プラグインと拡張の状態を確認
+     - ``tryLoad() == LOADED``、``extensions.diagnostics()``
+     - :doc:`guide_environment`、:doc:`extensions`
+
+.. code-block:: python
+
+   # baseの頂点を選択している状態。返却されたweight Plugを続けて使用する。
+   bs = hlib.node("faceBlendShape")
+   weight = bs.addTarget(hlib.node("smileMesh"))
+   weight.set(0.5)
+   bs.resetTargetVertices(weight, hlib.ls(sl=True, type="vertex"))
+
+メソッドの通常更新はUndoに対応します。``fast=True`` はUndoなしの対応操作に
+限られます。作成コマンドの数値フラグはMayaのUI単位、オブジェクトの値操作は
+cm・radian・秒を基本にするため、両者をつなぐときは :doc:`cmds_interop` を参照してください。
+
 クラスを直接importして使う
 ---------------------------
 

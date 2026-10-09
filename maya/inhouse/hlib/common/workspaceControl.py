@@ -114,8 +114,10 @@ class WorkspaceControl(_WindowReference):
     def capture(self):
         """UiSnapshot: stateString・表示・折り畳み状態をメモリに退避する。
 
-        stateStringはMayaとUI実装が管理する状態。周辺のタブ配置全体は
-        WorkspaceLayoutで退避する。任意のエディタ内部データは含まない。
+        stateStringはMayaとUI実装が管理する状態。周辺の分割・タブ配置をメモリに
+        退避するAPIは提供しない。配置全体はWorkspaceLayout.getCurrent().saveAs(name)
+        でMaya標準の保存先へ永続保存できるが、保存後にその配置へ切り替わる。
+        切り替え時の自動保存・uiScript実行にも従う。任意のエディタ内部データは含まない。
         """
         return self._capture({
                 "state": cmds.workspaceControl(self.getName(), query=True, stateString=True),

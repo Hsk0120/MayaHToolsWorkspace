@@ -1,6 +1,7 @@
 """Maya API 2.0 の MPlug をアトリビュートラッパーとして扱う。"""
 
 import re
+from contextlib import contextmanager
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -1002,6 +1003,34 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).writable
 
+    def isSettable(self):
+        """Maya標準のsettable照会で、現在値を設定可能か取得する。
+
+        定義上のwritableとは異なり、ロックや入力接続の現在状態を反映する。
+        値の型・範囲や実行時エラーまで含めたset()の成功保証ではない。
+
+        Returns:
+            bool: maya.cmds.getAttr(settable=True)の結果。
+
+        Raises:
+            RuntimeError: 所有ノード・アトリビュートが無効、または照会に失敗した場合。
+        """
+        self._require_valid()
+        return bool(cmds.getAttr(self.getFullName(), settable=True))
+
+    @_is_alias(isSettable)
+    def settable(self, *args, **kwargs):
+        """isSettableへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            bool: isSettableと同じ結果。
+        """
+        return self.isSettable(*args, **kwargs)
+
     @_is_alias(isWritable)
     def writable(self, *args, **kwargs):
         """isWritableへ委譲するis省略の判定入口。
@@ -1929,9 +1958,8 @@ class Plug(Object):
             raise RuntimeError("Attribute is locked: " + self.getFullName())
         # 配列親を先に解除する。親がロックされたまま空き番号を探すと
         # 全要素がロック扱いになり、探索が終わらなくなる。
-        unlocked = self._unlock_connection_path() if force and unlock else []
-        target = self
-        try:
+        with self._temporarily_unlocked_connection_path(force and unlock):
+            target = self
             if self.isArray() and (nextAvailable or na):
                 def occupied(plug):
                     """自身または子に入力接続・ロックがある要素を避ける。"""
@@ -1953,9 +1981,6 @@ class Plug(Object):
             cmds.connectAttr(src.getFullName(), target_name, force=force)
             if lock:
                 cmds.setAttr(target_name, lock=True)
-        finally:
-            for plug in reversed(unlocked):
-                plug.setFlags(locked=True)
         return self if keep_self else Plug._resolve_input(target_name)
 
     @undoChunk("hlibPlugDisconnectInput")
@@ -2035,12 +2060,8 @@ class Plug(Object):
         if src is None:
             raise RuntimeError("Input connection not found: " + self.getFullName())
         source_name = src.getFullName()
-        unlocked = self._unlock_connection_path() if force or f else []
-        try:
+        with self._temporarily_unlocked_connection_path(force or f):
             cmds.disconnectAttr(src.getFullName(), self.getFullName())
-        finally:
-            for plug in reversed(unlocked):
-                plug.setFlags(locked=True)
         return Plug._resolve_input(source_name)
 
     @flag_aliases(source="src", destination="dst")
@@ -2613,6 +2634,27 @@ class Plug(Object):
             except IndexError:
                 return None
         return result
+
+    @contextmanager
+    def _temporarily_unlocked_connection_path(self, enabled):
+        """接続編集に必要なロックを一時解除し、逆順で復元する。
+
+        Args:
+            enabled (bool): Trueなら自身と上位のロックを一時解除する。
+
+        Yields:
+            None: 接続の編集を行う区間。
+
+        Note:
+            解除途中の復元は既存の解除処理に任せる。編集後の復元が失敗した
+            場合も例外を送出し、編集時の例外がある場合はそのcontextを保つ。
+        """
+        unlocked = self._unlock_connection_path() if enabled else []
+        try:
+            yield
+        finally:
+            for plug in reversed(unlocked):
+                plug.setFlags(locked=True)
 
     def _unlock_connection_path(self):
         """自身と上位のロックを一時解除し、復元対象を返す。"""

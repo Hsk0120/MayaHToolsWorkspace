@@ -581,12 +581,22 @@ def test_values_are_mutable_and_unhashable():
     assert alias is vector and tuple(alias) == (6.0, 3.0, 7.0)
 
 
-def test_copy_deepcopy_and_pickle_rebuild_through_constructor():
-    duplicators = [copy.copy, copy.deepcopy]
-    duplicators.extend(
+def _duplicators():
+    """浅い複製・深い複製・全pickle protocolの複製関数を順序付きで返す。
+
+    Returns:
+        list[Callable]: 浅い複製、深い複製、protocol番号順のpickle往復。
+    """
+    result = [copy.copy, copy.deepcopy]
+    result.extend(
         (lambda value, protocol=protocol: pickle.loads(pickle.dumps(value, protocol)))
         for protocol in range(pickle.HIGHEST_PROTOCOL + 1)
     )
+    return result
+
+
+def test_copy_deepcopy_and_pickle_rebuild_through_constructor():
+    duplicators = _duplicators()
     for value in _samples():
         for duplicate in duplicators:
             result = duplicate(value)
@@ -940,9 +950,7 @@ def test_user_subclass_attributes_survive_copy_and_pickle():
     for cls, args in classes:
         value = cls(*args)
         value.tag = ["tag"]
-        duplicates = [copy.copy(value), copy.deepcopy(value)]
-        duplicates.extend(pickle.loads(pickle.dumps(value, protocol))
-                          for protocol in range(pickle.HIGHEST_PROTOCOL + 1))
+        duplicates = [duplicate(value) for duplicate in _duplicators()]
         for duplicate in duplicates:
             assert type(duplicate) is cls and duplicate == value and duplicate.tag == ["tag"]
         assert duplicates[0].tag is value.tag
@@ -1122,11 +1130,7 @@ def test_copy_and_pickle_do_not_call_user_init_and_keep_slots():
         value = slotted(*args)
         value.tag = ["slot"]
         samples.append(value)
-    duplicators = [copy.copy, copy.deepcopy]
-    duplicators.extend(
-        (lambda value, protocol=protocol: pickle.loads(pickle.dumps(value, protocol)))
-        for protocol in range(pickle.HIGHEST_PROTOCOL + 1)
-    )
+    duplicators = _duplicators()
     for value in samples:
         for duplicate in duplicators:
             result = duplicate(value)

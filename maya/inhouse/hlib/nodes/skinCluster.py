@@ -331,45 +331,11 @@ class SkinCluster(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        from .._core.object import Object as _InputObject
-        joints = _InputObject._input_names(joints)
-        influences = self.fn.influenceObjects()
-        physical_indices = self._influence_indices(joints, influences)
-        if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
-            raise ValueError("Influences must be non-empty, registered and unique")
-        values = [float(value) for value in weights]
-        numVertices = om2.MFnMesh(self.mesh_path).numVertices
-        width = len(joints)
-        if len(values) not in (width, numVertices * width):
-            raise ValueError("Weight count must match influence count or vertex count times influence count")
-        if not all(math.isfinite(value) for value in values):
-            raise ValueError("Weights must be finite")
-        # 削除済み influence による配列の穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
-        logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
+        values, width, num_vertices, logical_indices = self._prepare_weight_values(joints, weights)
         if is_fast():
-            weights_plug = om2.MFnDependencyNode(self.mnode()).findPlug("weightList", False)
-            edits = []
-            for vertex in range(numVertices):
-                row = weights_plug.elementByLogicalIndex(vertex).child(0)
-                offset = 0 if len(values) == width else vertex * width
-                for column, index in enumerate(logical_indices):
-                    plug = row.elementByLogicalIndex(index)
-                    writable(plug)
-                    check_range(plug, values[offset + column])
-                    edits.append((plug, values[offset + column]))
-            # MFnSkinCluster.setWeightsはliw等の設定によって未指定値を再配分する。
-            # 通常モードと同じ生値を維持するため、MPlugに直接書き込む。
-            for plug, value in edits:
-                plug.setDouble(value)
-            return
-        name = self.getFullName()
-        for vertex in range(numVertices):
-            offset = 0 if len(values) == width else vertex * width
-            for column, logical_index in enumerate(logical_indices):
-                set_attr(
-                    f"{name}.weightList[{vertex}].weights[{logical_index}]",
-                    values[offset + column],
-                )
+            self._set_weight_values_fast(values, width, num_vertices, logical_indices)
+        else:
+            self._set_weight_values_cmds(values, width, num_vertices, logical_indices)
 
     def dumpWeights(self, path):
         """全 influence の頂点ウェイトを JSON ファイルへ書き出す。
@@ -442,7 +408,8 @@ class SkinCluster(Node):
         変わらず、ウェイト0の influence は0のまま。
 
         Args:
-            vertices (Iterable[int]): 対象頂点インデックス。重複は1回として扱う。
+            vertices (Vertex | Vertices | Iterable[int | Vertex]): 対象頂点または番号列。
+                Vertexは先頭geometryのmeshに属すること。重複は1回として扱う。
             method (str): 曲線名。``hlib.maths.easing.CURVES`` のいずれか
                 (例: ``"cubic"``、``"sine"``、``"exponential"``)。
                 ``"linear"`` は配分を変えない。
@@ -461,7 +428,23 @@ class SkinCluster(Node):
         if curve not in easing.CURVES:
             raise ValueError(f"Unsupported easing method: {method}")
         numVertices = om2.MFnMesh(self.mesh_path).numVertices
-        vertex_indices = sorted({int(index) for index in vertices})
+        from ..components.vertex import Vertex, Vertices
+
+        if isinstance(vertices, Vertices):
+            if vertices.shape.mnode() != self.mesh_path.node():
+                raise ValueError("Vertices must belong to this skinCluster's first mesh")
+            vertices = vertices.indices
+        elif isinstance(vertices, Vertex):
+            vertices = [vertices]
+        vertex_indices = set()
+        for vertex in vertices:
+            if isinstance(vertex, Vertex):
+                if vertex.shape.mnode() != self.mesh_path.node():
+                    raise ValueError("Vertex must belong to this skinCluster's first mesh")
+                vertex = vertex.index
+            # 既存番号入力のint変換を維持し、新しい頂点参照だけを所有者検証する。
+            vertex_indices.add(int(vertex))
+        vertex_indices = sorted(vertex_indices)
         for vertex in vertex_indices:
             if not (0 <= vertex < numVertices):
                 raise IndexError(f"Vertex index out of range: {vertex}")
@@ -795,6 +778,76 @@ class SkinCluster(Node):
         """
         from .._core.object import Object as _InputObject
         return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self.fn.influenceObjects()))
+
+    def _prepare_weight_values(self, joints, weights):
+        """入力順を保ってウェイトと物理/論理influence番号を検証する。
+
+        Args:
+            joints (Iterable): 設定対象のinfluence参照。
+            weights (Iterable): 頂点順の値、または全頂点共通の値。
+        Returns:
+            tuple: 有限な値・列数・頂点数・論理番号列。
+        """
+        from .._core.object import Object as _InputObject
+        joints = _InputObject._input_names(joints)
+        influences = self.fn.influenceObjects()
+        physical_indices = self._influence_indices(joints, influences)
+        if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
+            raise ValueError("Influences must be non-empty, registered and unique")
+        values = [float(value) for value in weights]
+        num_vertices = om2.MFnMesh(self.mesh_path).numVertices
+        width = len(joints)
+        if len(values) not in (width, num_vertices * width):
+            raise ValueError("Weight count must match influence count or vertex count times influence count")
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("Weights must be finite")
+        # 削除済み influence による配列の穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
+        logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
+        return values, width, num_vertices, logical_indices
+
+    def _set_weight_values_fast(self, values, width, num_vertices, logical_indices):
+        """全対象Plugを検査した後、未指定値を維持して直接更新する。
+
+        Args:
+            values (list[float]): 検証済みウェイト。
+            width (int): 指定influence数。
+            num_vertices (int): 頂点数。
+            logical_indices (list[int]): 指定順の論理番号。
+        """
+        weights_plug = om2.MFnDependencyNode(self.mnode()).findPlug("weightList", False)
+        edits = []
+        for vertex in range(num_vertices):
+            row = weights_plug.elementByLogicalIndex(vertex).child(0)
+            offset = 0 if len(values) == width else vertex * width
+            for column, index in enumerate(logical_indices):
+                plug = row.elementByLogicalIndex(index)
+                writable(plug)
+                check_range(plug, values[offset + column])
+                edits.append((plug, values[offset + column]))
+        # MFnSkinCluster.setWeightsはliw等の設定によって未指定値を再配分する。
+        # 通常モードと同じ生値を維持するため、MPlugに直接書き込む。
+        for plug, value in edits:
+            plug.setDouble(value)
+
+    def _set_weight_values_cmds(self, values, width, num_vertices, logical_indices):
+        """頂点・influence順にUndo可能な書込みを行う。
+
+        途中で拒否された場合も、それ以前の更新を自動では戻さない。
+
+        Args:
+            values (list[float]): 検証済みウェイト。
+            width (int): 指定influence数。
+            num_vertices (int): 頂点数。
+            logical_indices (list[int]): 指定順の論理番号。
+        """
+        name = self.getFullName()
+        for vertex in range(num_vertices):
+            offset = 0 if len(values) == width else vertex * width
+            for column, logical_index in enumerate(logical_indices):
+                set_attr(
+                    f"{name}.weightList[{vertex}].weights[{logical_index}]",
+                    values[offset + column],
+                )
 
     def _influence_indices(self, joints, influences):
         """一回の操作内でUUIDと名前の検索表を共有する。

@@ -54,7 +54,7 @@ class NurbsCurve(Shape):
         return self
 
     @flag_aliases(idx="index")
-    def cv(self, index):
+    def getCV(self, index):
         """CV 番号から単体ラッパーを取得する。
 
         Args:
@@ -68,7 +68,20 @@ class NurbsCurve(Shape):
         """
         return CV(self, index)
 
-    def cvs(self, indices=None):
+    @_getter_alias(getCV)
+    def cv(self, *args, **kwargs):
+        """getCVへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getCV(*args, **kwargs)
+
+    def getCVs(self, indices=None):
         """指定した CV 群を取得する。
 
         Args:
@@ -78,6 +91,19 @@ class NurbsCurve(Shape):
             CVs: 番号順を維持し、重複を除いたコレクション。
         """
         return CVs(self, indices)
+
+    @_getter_alias(getCVs)
+    def cvs(self, *args, **kwargs):
+        """getCVsへ委譲する省略入口。
+
+        Args:
+            *args: 正式getterへ渡す位置引数。
+            **kwargs: 正式getterへ渡すキーワード引数。
+
+        Returns:
+            object: 正式getterと同じコンポーネント参照。
+        """
+        return self.getCVs(*args, **kwargs)
 
     def curveFn(self):
         """カーブの関数セットを取得する。

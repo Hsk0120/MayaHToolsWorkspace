@@ -5,6 +5,7 @@ from operator import index as _as_index
 import maya.api.OpenMaya as om2
 
 from .._core.getterAlias import _is_alias
+from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison
 from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
 from .scale import Scale
@@ -12,9 +13,6 @@ from .shear import Shear
 from .translate import Translate
 from .vector import (
     Vector,
-    _checked_index,
-    _copy_state,
-    _foreign_comparison,
     _reduce_value,
     _vector_of,
     _zero,

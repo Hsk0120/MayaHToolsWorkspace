@@ -192,8 +192,9 @@ def preservedSkinShape(joints):
     現在の姿勢をスキニング基準へ反映するため、保存済みバインド行列を変更する。
     任意の階層変更・influence削除や全フレームの変形保持を保証するものではない。
 
-    モード照会・切り替え・再キャッシュ・復元で発生したRuntimeErrorは抑制する。
-    そのため復元に失敗した場合も通知されない。ブロック内の例外は伝播する。
+    モード照会・切り替え・再キャッシュ・復元で発生したRuntimeErrorは抑制し、
+    対象と失敗した処理をloggerへ警告する。ブロック内の例外は伝播する。
+    警告が出た場合は保護・復元が完了したとは限らないため、対象の状態を確認する。
     通常のUndo対象操作を一回のチャンクにまとめるが、fast=Trueの直接更新は戻せない。
 
     Args:
@@ -203,6 +204,7 @@ def preservedSkinShape(joints):
     Yields:
         SkinClusters: 保護対象になった skinCluster のコレクション。
     """
+    from . import logger
     from .nodes.joint import Joints
 
     skins = Joints(joints).getSkinClusters()
@@ -213,8 +215,13 @@ def preservedSkinShape(joints):
         for name in skin_names:
             try:
                 previous_modes[name] = bool(cmds.skinCluster(name, query=True, moveJointsMode=True))
+            except RuntimeError as exc:
+                logger.warning("スキン保護のモード照会に失敗しました: %s (%s)", name, exc)
+                continue
+            try:
                 cmds.skinCluster(name, edit=True, moveJointsMode=True)
-            except RuntimeError:
+            except RuntimeError as exc:
+                logger.warning("スキン保護のモード切替に失敗しました: %s (%s)", name, exc)
                 continue
         try:
             yield skins
@@ -222,13 +229,13 @@ def preservedSkinShape(joints):
             for name in skin_names:
                 try:
                     cmds.skinCluster(name, edit=True, recacheBindMatrices=True)
-                except RuntimeError:
-                    pass
+                except RuntimeError as exc:
+                    logger.warning("スキン保護のバインド行列再キャッシュに失敗しました: %s (%s)", name, exc)
             for name, state in previous_modes.items():
                 try:
                     cmds.skinCluster(name, edit=True, moveJointsMode=state)
-                except RuntimeError:
-                    pass
+                except RuntimeError as exc:
+                    logger.warning("スキン保護のモード復元に失敗しました: %s (%s)", name, exc)
 
 
 @contextmanager

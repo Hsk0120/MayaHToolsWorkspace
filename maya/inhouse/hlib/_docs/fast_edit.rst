@@ -34,7 +34,7 @@ Undo不要の値更新
 * SkinClusterの ``setWeights`` / ``loadWeights`` / ``normalizeWeights`` /
   ``setMaxInfluences``。
 * BlendShapeの ``setTargetWeights`` / ``setTargetDeltas`` / ``resetTargetVertices`` / ``replaceTarget`` /
-  ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets``。照会は通常時もOpenMayaを使います。
+  ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets`` / ``loadTargetDeltas``。照会は通常時もOpenMayaを使います。
   追加・削除・ミラーはMaya標準cmds/MEL処理を維持するためfast非対応です。
   詳細と保存形式の制限は :doc:`guide_deformers` を参照してください。
 * Locator、BlendColors、BlendWeighted、MultMatrix、DecomposeMatrix、

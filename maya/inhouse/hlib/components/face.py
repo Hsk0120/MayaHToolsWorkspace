@@ -88,6 +88,9 @@ class Face(Component):
         return self.getVertices(*args, **kwargs)
 
 
+_FACE_GET_VERTICES = Face.getVertices
+
+
 class Faces(Components):
     """同一 Mesh の Face 群。"""
 
@@ -127,7 +130,18 @@ class Faces(Components):
         Returns:
             Vertices: 保持順に集め、重複を除いた頂点群。
         """
-        return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
+        if not (self._uses_standard_iteration(Face) and self._uses_standard_vertices()
+                and Face.getVertices is _FACE_GET_VERTICES):
+            return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
+        Component._validate_shape(self.shape, Face.shape_type)
+        indices = []
+        if self._indices:
+            mesh_fn = self.shape.meshFn()
+            count = mesh_fn.numPolygons
+            for index in self._indices:
+                Component._validate_index(index, count)
+                indices.extend(mesh_fn.getPolygonVertices(index))
+        return Vertices(self.shape, indices)
 
     @_getter_alias(getShadingEngines)
     def shadingEngines(self, *args, **kwargs):

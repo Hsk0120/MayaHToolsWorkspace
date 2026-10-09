@@ -176,6 +176,11 @@ class ApplyPlan:
     changes: list = field(default_factory=list)
     errors: list = field(default_factory=list)
 
+    @property
+    def valid(self):
+        """bool: 保持する検証エラーがないか。Mayaへの再照会は行わない。"""
+        return not self.errors
+
     def apply(self):
         """再検証後に適用する。失敗は例外で通知し、部分適用を成功扱いにしない。"""
         return self.snapshot.apply(mapping=self.mapping, namespace_map=self.namespace_map)
@@ -189,6 +194,20 @@ class Snapshot:
     records: list
     units: dict
     version: int = 1
+
+    @classmethod
+    def capture(cls, targets=None, kind="pose", attributes=None):
+        """用途に対応するSnapshotを取得する。シーンを変更しない。
+
+        Args:
+            targets (object): 対象またはその列。selectionのみ省略で現在選択。
+            kind (str): 既存captureと同じ保存用途。
+            attributes (Iterable[str] | None): attributes用途で取得するアトリビュート名。
+
+        Returns:
+            Snapshot: kindに対応する用途別Snapshot。
+        """
+        return capture(targets, kind=kind, attributes=attributes)
 
     @classmethod
     def fromData(cls, data):
@@ -208,6 +227,14 @@ class Snapshot:
             from .editors import EditorSnapshot
             return EditorSnapshot(**data)
         return _KINDS[data["kind"]](**data)
+
+    @property
+    def supportsApply(self):
+        """bool: 保持する用途がapplyに対応するか。対象の現在状態は検証しない。
+
+        実際の適用可否はplan().validで確認する。保存データへこの情報は追加しない。
+        """
+        return self.kind in _KINDS
 
     def asData(self):
         """保存用データを返す。"""
@@ -370,9 +397,34 @@ class Snapshot:
 class SelectionSnapshot(Snapshot):
     """ノード・Plug・コンポーネントの順序付き選択。"""
 
+    @classmethod
+    def capture(cls, targets=None):
+        """選択を取得する。targetsを省略すると現在選択を保存する。
+
+        Args:
+            targets (object): 保存する対象列。Noneでは現在選択。
+
+        Returns:
+            SelectionSnapshot: 取得時点の順序付き選択。
+        """
+        return capture(targets, kind="selection")
+
 
 class AttributesSnapshot(Snapshot):
     """明示指定したアトリビュートの型と値。入力接続・ロックは変更しない。"""
+
+    @classmethod
+    def capture(cls, targets, attributes):
+        """明示したアトリビュートの型と値を取得する。
+
+        Args:
+            targets (Node | str | Iterable): 対象ノードまたはその列。
+            attributes (Iterable[str]): 空でないアトリビュート名の列。配列は要素を明示する。
+
+        Returns:
+            AttributesSnapshot: 対象参照とアトリビュート値。
+        """
+        return capture(targets, kind="attributes", attributes=attributes)
 
     @staticmethod
     def _capture_record(node, attributes=None):
@@ -395,6 +447,18 @@ class AttributesSnapshot(Snapshot):
 
 class PoseSnapshot(Snapshot):
     """ローカルTRS・shear・回転順序・pivot・jointOrient等のポーズ。"""
+
+    @classmethod
+    def capture(cls, targets):
+        """TransformまたはJointのローカルポーズを取得する。
+
+        Args:
+            targets (Transform | Joint | str | Iterable): 対象またはその列。
+
+        Returns:
+            PoseSnapshot: 対象参照とポーズ値。
+        """
+        return capture(targets, kind="pose")
 
     @staticmethod
     def _capture_record(node, attributes=None):
@@ -425,6 +489,18 @@ globals().pop("CurveSnapshot", None)
 
 class NurbsCurveSnapshot(Snapshot):
     """既存カーブのCV位置と表示色。同じ次数・ノット・ウェイトのみ適用可能。"""
+
+    @classmethod
+    def capture(cls, targets):
+        """カーブのCV位置と表示設定を取得する。
+
+        Args:
+            targets (NurbsCurve | Transform | str | Iterable): カーブまたはその親、その列。
+
+        Returns:
+            NurbsCurveSnapshot: 対象参照とカーブ形状・表示設定。
+        """
+        return capture(targets, kind="curve")
 
     @staticmethod
     def _capture_record(node, attributes=None):
@@ -488,6 +564,18 @@ class NurbsCurveSnapshot(Snapshot):
 
 class SkinWeightsSnapshot(Snapshot):
     """既存mesh skinClusterの疎ウェイト・blendWeights・方式。"""
+
+    @classmethod
+    def capture(cls, targets):
+        """meshを変形するskinClusterのウェイトと設定を取得する。
+
+        Args:
+            targets (SkinCluster | str | Iterable): 対象skinClusterまたはその列。
+
+        Returns:
+            SkinWeightsSnapshot: 先頭meshのウェイトとスキニング設定。
+        """
+        return capture(targets, kind="skin_weights")
 
     @staticmethod
     def _capture_record(node, attributes=None):
@@ -584,6 +672,18 @@ class SkinWeightsSnapshot(Snapshot):
 class AnimationSnapshot(Snapshot):
     """既存AnimCurveの全キー・接線・Infinity。キーは全置換する。"""
 
+    @classmethod
+    def capture(cls, targets):
+        """AnimCurveの全キーと接線・Infinityを取得する。
+
+        Args:
+            targets (AnimCurve | str | Iterable): 対象カーブまたはその列。
+
+        Returns:
+            AnimationSnapshot: アニメーションカーブのキーと設定。
+        """
+        return capture(targets, kind="animation")
+
     @staticmethod
     def _capture_record(node, attributes=None):
         """既存AnimCurveのキー・接線・Infinityを保存する。
@@ -673,6 +773,18 @@ class AnimationSnapshot(Snapshot):
 
 class DrivenKeysSnapshot(Snapshot):
     """既存SDKグラフのカーブ・blendWeighted値。接続構成は照合し、再作成しない。"""
+
+    @classmethod
+    def capture(cls, targets):
+        """駆動先から上流のSDKグラフを取得する。
+
+        Args:
+            targets (Node | str | Iterable): 駆動先ノードまたはその列。
+
+        Returns:
+            DrivenKeysSnapshot: SDKカーブと既存グラフの設定。
+        """
+        return capture(targets, kind="driven_keys")
 
     @staticmethod
     def _capture_record(node, attributes=None):

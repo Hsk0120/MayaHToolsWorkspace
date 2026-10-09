@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+_COMPONENT_SHORT_NAMES = {"getUV": "uv", "getUVs": "uvs", "getCV": "cv", "getCVs": "cvs"}
+
 
 @dataclass(frozen=True)
 class GetterAlias:
@@ -71,7 +73,8 @@ def collect_getter_aliases(package_root):
     for alias, getter, prefix in pending:
         name = getter.rsplit(".", 1)[-1]
         offset = len(prefix)
-        short = name[offset:offset + 1].lower() + name[offset + 1:]
+        short = (_COMPONENT_SHORT_NAMES.get(name) if prefix == "get" else None)
+        short = short or name[offset:offset + 1].lower() + name[offset + 1:]
         if not re.fullmatch(prefix + r"[A-Z]\w*", name) or alias.rsplit(".", 1)[-1] != short:
             raise ValueError(f"{prefix}省略入口の対応が不正です: {alias} -> {getter}")
         if getter not in functions:

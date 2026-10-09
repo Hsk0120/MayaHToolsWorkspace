@@ -87,6 +87,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-09): hlib利用者向け改善U01〜U10と具体的な追加入口を実装。weight Plug/Vertex入力、正式component名/getter、デルタ単体IO・追加、skin集約、settable/valid、Snapshot.capture/適用判定、ScriptJobs.temporary、拡張診断、通知詳細と復元警告、目的別ガイドを追加。Namespace親指定は今回の全対応指示に基づき作成先/存在判定/返却を一致。既存2,307署名はgetter委譲化以外の変更0。Maya2022/2027各141files/1,258件を実行し失敗0（条件付きskip11/8）、実GUI ScriptJob各2件成功。静的fixture30件・公開入口/layout20files/日英Sphinx -Wと各501HTML/差分検査成功、英訳12,271件維持・295件追加。実施記録はdocs/research/hlib-usability-2026-10-09/implemented.md（Git対象外）。実HumanIK全身リターゲット・他Maya版・手動目視・今回の性能/IDE実測は未検証。未コミット/未プッシュ、R01〜R09・hedit差分・判定衝突名待ちは保持。
+
+- Codex (2026-10-09): hlib/hlib_*の利用者視点のリファクタリング検討。全製品Python272files/51,138行の実装本文・公開説明を4分担で読了し、読了漏れ/重複/SHA差分0を確認。返却weight Plugとターゲット操作、選択Vertexとスキン操作、Selection正式名、component正式getter、デルタ単体IO、目的別の連続例を優先案としてdocs/research/hlib-usability-2026-10-09/report.mdへ保存（Git対象外）。HumanIK成功後の欠落メソッド呼出と古い回復案内を確認、Namespace親指定は文書化済みの意味変更として区別。隔離Maya2027で代表利用例・単位・保存・状態を実証、通知/モード切替は障害注入。GUI/他版/性能/実HumanIK成功は今回未検証。製品・正式文書の変更/コミット/プッシュなし。既存R01〜R09未コミット変更・他ツールのhedit変更・判定衝突名待ちは保持。
+
+- Codex (2026-10-09): hlib全体検討R01〜R09を実装。未使用接続helper除去、Plugロック復元共有、Components/UV/Edges/Faces一括照会、addAttr/Transformation/Weights/DagPoseの内部段階分割、bulk結果方針分離、extension/registry責務整理、UI/JSON照会と保存対応表共有、math共通補助移動、Bifrost port検証共有、未知型cacheとPlugin正常更新境界を整理。公開構成・2307署名・戻り値・保存形式・Undo/fast/途中更新を維持。追加テストを含むMaya2022/2027 standalone各131files/1198件成功（条件付きskip）、使い捨てGUI各15件成功、2027/Bifrost native8件成功、移動前pickle35/42件成功。静的fixture45件・公開入口/日英Sphinx -W/各501HTML・layout25files/差分検査成功。既存英訳12118件維持/153件追加。性能をHEADと隔離比較し、実施記録をdocs/research/hlib-refactoring-2026-10-09/implemented.mdへ保存（Git対象外）。手動GUI・他Maya版・CI/公開未実施、未コミット。他ツールのhedit変更・判定衝突名待ちは保持。
+
+- Codex (2026-10-09): hlib/hlib_*全体のリファクタリング検討。製品Python270ファイルをASTで棚卸しし、分野別の実装・既存テストを確認。公開構成・署名・戻り値・Undoを維持する9候補と実施順を docs/research/hlib-refactoring-2026-10-09/report.md に整理した。設計資料の古い説明、未使用Node接続helper、Plugロック復元、コンポーネント一括照会、複雑な編集処理の分解を優先候補とした。公開入口検査の不一致0・Maya不要fixture45件成功、製品270ファイルのSHA-256不変。Maya/GUIの新規実行・速度測定なし。研究資料はGit対象外、製品変更・コミット・プッシュなし。他ツールのhedit変更と判定衝突名の回答待ちは保持。
+
 - Codex (2026-10-09): 検証済みのhlib接続方向・get/is省略とSphinx表示・Translate/Rotate/Scale命名・Node create、およびhrig/HTools利用側・方針/日英文書・CI検査を4aaad14へコミットしorigin/mainへpush完了（145ファイル）。公開checker・文書fixture29件・staged差分検査成功、直前のMaya2022/2027 standalone各1162件と日英Sphinxの成功結果を確認。hlib外の関連15ファイルも独立監査し無関係差分なし。生成物・研究メモ・外部submoduleを含めず、is衝突名の確認待ちは保持。
 
 - Codex (2026-10-09): 単数Node constructorへキーワード専用create=Falseを追加。Trueは現在のexact型登録と指定名で新規作成し、既存Node.createのcmds・標準plugin・名前/親・Undo処理を共有。既定Falseの既存入力解決を維持し、未知引数・非bool・基底/抽象/未登録/複数登録型・SkinClusterを生成前に拒否。製品変更はNode/SkinCluster/registryの3ソース。新規17件を含むMaya2022/2027 standalone各123ファイル1162件成功（GUI/版等の条件付きskipあり）、新規説明3ブロックもMaya2027で成功。空meshの頂点数照会例は訂正後再検証。日英Sphinx -W成功、条件付き基底を含むNode89クラスのcreate署名/他系統105署名保持、625省略入口/13cmds二署名・各499HTML検査成功。文書fixture16+13件・公開入口・layout・差分検査成功。英訳12079件維持/39件追加。GUI/他版・CI/サイト公開は未実行、未コミット。is衝突名の確認待ちは保持。

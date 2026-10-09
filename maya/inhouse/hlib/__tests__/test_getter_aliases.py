@@ -24,7 +24,8 @@ def _short_name(getter_name):
     Returns:
         str: getを省略した名前。
     """
-    return getter_name[3].lower() + getter_name[4:]
+    component_names = {"getUV": "uv", "getUVs": "uvs", "getCV": "cv", "getCVs": "cvs"}
+    return component_names.get(getter_name, getter_name[3].lower() + getter_name[4:])
 
 
 def _getter_definitions():

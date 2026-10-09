@@ -4,6 +4,7 @@ import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
 from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.typeHierarchy import clear_cache
 from .version import Version
 
 # 旧構成からreloadした場合も、移動したコレクションクラスを残さない。
@@ -200,6 +201,9 @@ class Plugin:
     def load(self, **kwargs):
         """プラグインをロードする。
 
+        正常完了後はhlibのノード型継承キャッシュを消去し、次の型選択で再照会する。
+        cmds.loadPluginを直接使う操作の状態変更は、この入口では監視しない。
+
         Args:
             **kwargs (object): ``cmds.loadPlugin`` に渡す追加のキーワード引数
                 (``quiet=True`` など)。
@@ -215,11 +219,14 @@ class Plugin:
         # 戻り値だけでは既にロード済みのquiet呼出しと区別できないため状態を照会する。
         if not self.isLoaded():
             raise RuntimeError("Plugin initialization did not complete: " + self._name)
+        clear_cache()
         return self
 
     @flag_aliases(f="force")
     def unload(self, force=False):
         """プラグインをアンロードする。
+
+        正常完了後はhlibのノード型継承キャッシュを消去する。
 
         Args:
             force (bool): True の場合、使用中でも強制的にアンロードする。 別名 ``f`` も使用可能。
@@ -231,6 +238,7 @@ class Plugin:
             RuntimeError: Maya がアンロードを拒否した場合。
         """
         cmds.unloadPlugin(self._name, force=force)
+        clear_cache()
         return self
 
     def ensureLoaded(self):

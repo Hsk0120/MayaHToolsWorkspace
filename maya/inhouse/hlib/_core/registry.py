@@ -44,10 +44,7 @@ class NodeRegistry:
             ValueError: node_type が空文字列または文字列以外の場合。
             TypeError: wrapper_class がクラスでない場合。
         """
-        if not isinstance(node_type, str) or not node_type:
-            raise ValueError("node_type must be a non-empty string")
-        if not isinstance(wrapper_class, type):
-            raise TypeError("wrapper_class must be a class")
+        self._validate_entry(node_type, wrapper_class)
         self._classes[node_type] = wrapper_class
 
     def clear(self):
@@ -75,10 +72,7 @@ class NodeRegistry:
         """
         validated = {}
         for node_type, wrapper_class in wrappers.items():
-            if not isinstance(node_type, str) or not node_type:
-                raise ValueError("node_type must be a non-empty string")
-            if not isinstance(wrapper_class, type):
-                raise TypeError("wrapper_class must be a class")
+            self._validate_entry(node_type, wrapper_class)
             validated[node_type] = wrapper_class
         self._classes.clear()
         self._classes.update(validated)
@@ -151,3 +145,37 @@ class NodeRegistry:
             raise TypeError("create=True requires a class registered for exactly one Maya nodeType: "
                             + wrapper_class.__name__)
         return node_types[0]
+
+    @staticmethod
+    def _validate_entry(node_type, wrapper_class):
+        """汎用登録の型名とクラスを検証する。既存キーの上書きは拒否しない。
+
+        Args:
+            node_type (str): 登録する型名。
+            wrapper_class (type): 対応するクラス。
+
+        Raises:
+            ValueError: 型名が空文字列または文字列以外の場合。
+            TypeError: wrapper_classがクラスではない場合。
+        """
+        if not isinstance(node_type, str) or not node_type:
+            raise ValueError("node_type must be a non-empty string")
+        if not isinstance(wrapper_class, type):
+            raise TypeError("wrapper_class must be a class")
+
+    def _snapshot(self):
+        """拡張の登録開始前に、現在の型対応を独立したコピーで保持する。
+
+        Returns:
+            dict[str, type]: この登録表だけが復元に使う内部状態。
+        """
+        return dict(self._classes)
+
+    def _restore(self, snapshot):
+        """登録中の障害で、検証済みの保存状態を再登録せずに復元する。
+
+        Args:
+            snapshot (dict[str, type]): _snapshotで取得した内部状態。
+        """
+        self._classes.clear()
+        self._classes.update(snapshot)

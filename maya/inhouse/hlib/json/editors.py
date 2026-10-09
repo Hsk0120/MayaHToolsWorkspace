@@ -15,12 +15,13 @@ def _state(kind, name, flags=None):
         dict: editor、target、values。時間は現在の Maya 時間単位。
     """
     from maya import cmds
+    from ..common._editor import _query_settings
     from ..common.viewport import Viewport
     from ..common.outliner import Outliner
     if kind == "timeline":
-        values = {key: cmds.playbackOptions(query=True, **{key: True}) for key in
-                  ("animationStartTime", "animationEndTime", "minTime", "maxTime")}
-        values["currentTime"] = cmds.currentTime(query=True)
+        from ..common.timeSlider import TimeSlider
+        values = {flag: TimeSlider._query_value(flag) for flag in
+                  ("animationStartTime", "animationEndTime", "minTime", "maxTime", "currentTime")}
     else:
         classes = {"viewport": Viewport, "outliner": Outliner}
         cls = classes[kind]
@@ -30,7 +31,7 @@ def _state(kind, name, flags=None):
         command = cmds.modelEditor if kind == "viewport" else cmds.outlinerEditor
         if cmds.about(batch=True) or not command(name, exists=True):
             raise ValueError("GUI editor does not exist: " + name)
-        values = {flag: command(name, query=True, **{flag: True}) for flag in flags}
+        values = _query_settings(command, name, flags)
     return {"editor": kind, "target": name, "values": values}
 
 
@@ -40,6 +41,24 @@ class EditorSnapshot(Snapshot):
     標準コマンドだけでは全設定のUndoを保証できないため、applyは未対応。
     独自プラグインは使用しない。選択範囲と再生状態は含めない。
     """
+
+    @classmethod
+    def capture(cls, targets):
+        """既存エディターまたはタイムラインの公開設定を取得する。
+
+        Args:
+            targets (Viewport | Outliner | TimeSlider | Iterable): 対象またはその列。
+
+        Returns:
+            EditorSnapshot: 保存・読み込み・比較用の設定値。applyは未対応。
+        """
+        from .snapshots import capture
+        return capture(targets, kind="editor")
+
+    @property
+    def supportsApply(self):
+        """bool: False。標準コマンドだけで全設定のUndoを保証できないため。"""
+        return False
 
     def plan(self, mapping=None, namespace_map=None):
         """UI 名の対応を適用し、変更候補と検証エラーを収集する。

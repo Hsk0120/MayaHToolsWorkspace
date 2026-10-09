@@ -36,6 +36,24 @@ Shape/Transform共通の ``skinClusters()`` は、対象Shapeを変形するSkin
 Jointの既存 ``skinClusters()`` はinfluence接続照会を維持します。
 具体例・探索範囲は :doc:`dag_pose` を参照してください。
 
+``collectSkinClusters()`` は単数DAGノード・DagNodesで、重複を除いた
+``SkinClusters`` コレクションを返します。そのまま ``removeUnusedInfluences()``
+などの一括操作へ渡せます。従来の単数 ``skinClusters()`` のリスト、
+DagNodesの形状ごとのリスト、Jointsの専用集約の返却は変更しません。
+
+コンポーネントの参照と現在の有効性
+----------------------------------
+
+Meshの ``vertex/vertices/edge/edges/face/faces/uv/uvs`` とカーブの ``cv/cvs`` は、
+get付きの正式getterへ委譲する入口です。引数・idx別名・返却は同じです。
+``components[0]`` の0はコレクション内の位置で、実頂点番号は ``component.index`` です。
+
+``valid()`` は保持するshapeの生存・種類と、現在の番号範囲を照会します。
+削除やトポロジー縮小で参照が無効になった場合はFalseです。空のコレクションも
+適合するshapeが生存していればTrueです。番号が有効でも、トポロジー変更前の
+同じ頂点・UVであることまで保証しません。
+具体例は :doc:`guide_geometry` を参照してください。
+
 所有ノード・名前・階層
 ------------------------
 
@@ -77,6 +95,10 @@ Plugの ``connections`` は ``src/source`` で入力、``dst/destination`` で�
 判定はbool、``disconnectAll`` は自身を返し、両Falseでは検索・切断を行いません。
 方向が決まっている ``inputs/outputs`` 等は従来のままです。
 解除時の戻り値と既定の違いは :doc:`api_arguments` の「接続と切断」を参照してください。
+
+Plugの ``settable()`` はMaya標準のsettable照会で、現在のロック・入力接続等から
+値を設定できる状態かを返します。``writable()`` はアトリビュート定義の書込可否であり、
+現在の編集可否とは異なります。値の型・範囲などによる設定成功まで保証する判定ではありません。
 
 .. code-block:: python
 

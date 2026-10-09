@@ -76,10 +76,7 @@ class Compound(Node):
         Raises:
             ValueError: 名前が不正、または同名ポートが存在する場合。
         """
-        name = self.identifier(name)
-        if name in [p.rsplit(".", 1)[-1] for p in self.ports()]:
-            raise ValueError("Port already exists: " + name)
-        flag = "createOutputPort" if output else "createInputPort"
+        name, flag = self._port_creation(name, output)
         cmds.vnnCompound(self.graph.getName(), self.path, **{flag: (name, dataType)})
         return self.port(name)
 

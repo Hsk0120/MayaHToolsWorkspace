@@ -61,16 +61,67 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 それらのリストを指定できます。変換の規則と、hlib のオブジェクトを ``maya.cmds`` へ
 そのまま渡す場合の仕様は :doc:`cmds_interop` を参照してください。
 
-``duplicate``/``group`` はいずれも作成したノードのラッパーを返します。
-``createNode``/``group`` の ``parent`` は所有ノードへ解決します(Plug を渡すとその
-ノードが親になります)。``group`` に空のリストを渡すと、現在の選択をグループ化せずに
+``duplicate``/``createGroup`` はいずれも作成したノードのラッパーを返します。
+``createNode``/``createGroup`` の ``parent`` は所有ノードへ解決します(Plug を渡すとその
+ノードが親になります)。``createGroup`` に空のリストを渡すと、現在の選択をグループ化せずに
 ``ValueError`` になります。
-``group`` は ``nodes`` を省略すると ``maya.cmds.group`` と同じく現在の選択を
+``createGroup`` は ``nodes`` を省略すると ``maya.cmds.group`` と同じく現在の選択を
 グループ化します。空のグループを作る場合は ``empty=True`` を指定してください
 （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。
 ``delete`` は複数ノードもまとめて受け付けます。Plug(アトリビュート)を渡すと ``TypeError`` です
 (``maya.cmds.delete`` はアトリビュートを削除せず何もしないため)。動的アトリビュートの削除は
 ``plug.delete()``、所有ノードの削除は ``hlib.delete(plug.node())`` を使ってください。
+
+作成結果から次の操作を選ぶ
+--------------------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - 作成
+     - 戻り値
+     - 頂点・CVへ進む入口
+   * - ``createPolygon(...)``
+     - Mesh
+     - ``mesh.vertices()``
+   * - ``createCurve(...)``
+     - Transform
+     - ``curve_transform.shape().cvs()``
+   * - ``createNurbs(type="circle", ...)``
+     - NurbsCurve
+     - ``circle.cvs()``
+   * - ``createNurbs(type="square", ...)``
+     - list[NurbsCurve]
+     - 各シェイプの ``cvs()``
+   * - ``createNurbs(type="cube", ...)``
+     - list[NurbsSurface]
+     - 各シェイプの ``scaleGeometry(...)`` 等
+
+作成した型からの連続例と単数・複数コンポーネントは :doc:`guide_geometry`、
+値を作成フラグへ渡す際のUI単位との境界は :doc:`cmds_interop` を参照してください。
+
+選択を取得して分類する
+----------------------
+
+.. code-block:: python
+
+   selected_vertices = hlib.ls(sl=True, type="vertex")  # list[Vertex]
+   captured = hlib.captureSelection()
+   vertex_groups = captured.filter("vertex").components()  # list[Vertices]
+   for vertices in vertex_groups:
+       print(vertices.shape, vertices.indices)
+
+``ls`` はMayaの検索結果の順に参照を返します。単一のノード型
+``type="joint"`` / ``type="skinCluster"`` はJoints / SkinClusters、
+その他のノード型やコンポーネント型はリストです。
+``type=["joint"]`` のようなMayaの複数型指定はリストを返します。
+コンポーネントの型指定は ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex`` です。
+選択済みの該当要素を絞る処理で、メッシュ選択から全頂点への変換は行いません。
+全頂点を取得するときは対象Meshの ``vertices()`` を使います。
+
+``captureSelection()`` は取得時点の参照を保持し、現在の選択へ自動追従しません。
+``filter("vertex").components()`` で複数シェイプを分けて一括編集する例は
+:doc:`guide_geometry`、選び直しは :doc:`selection_and_channelbox` を参照してください。
 
 選択とアニメーション
 --------------------

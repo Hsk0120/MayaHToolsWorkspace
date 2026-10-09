@@ -23,7 +23,7 @@ class Selection:
 
     反復可能なため、``cmds.select(selection)`` のように maya.cmds へそのまま渡すと
     各要素(Node・Plug・Component)の一意な名前へ展開される。削除済みの要素を
-    含むと maya.cmds の呼び出しが失敗するため、選択の復元には :meth:`restore` を使う。
+    含むと maya.cmds の呼び出しが失敗するため、選択の復元には :meth:`select` を使う。
     """
 
     def __init__(self, items=()):
@@ -171,21 +171,25 @@ class Selection:
         return list(result.values())
 
     def filter(self, type):
-        """ノード型、またはコンポーネント記号で絞った新しい集合を返す。
+        """ノード型、またはコンポーネント種類で絞った新しい集合を返す。
 
         Args:
-            type (str): joint等のノード型、vtx/e/f/map/cv、またはplug。
+            type (str): joint等のノード型、vertex/edge/face/uv/controlVertex、またはplug。
+                コンポーネント記号vtx/e/f/map/cvも使用できる。
 
         Returns:
             Selection: 有効な該当要素。元の集合は変更しない。
         """
+        component_type = {
+            "vertex": "vtx", "edge": "e", "face": "f", "uv": "map", "controlVertex": "cv",
+        }.get(type, type) if isinstance(type, str) else type
         result = []
         for item in self._items:
             if not self._valid(item):
                 continue
             if isinstance(item, Node) and item.isType(type):
                 result.append(item)
-            elif isinstance(item, Component) and item.component_type == type:
+            elif isinstance(item, Component) and item.component_type == component_type:
                 result.append(item)
             elif isinstance(item, Plug) and type == "plug":
                 result.append(item)

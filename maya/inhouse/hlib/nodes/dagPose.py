@@ -222,51 +222,11 @@ class DagPose(Node):
         """
         if type(currentPose) is not bool or type(deleteSources) is not bool:
             raise ValueError("currentPose and deleteSources must be bool")
-        name = self._pose_name()
-        nodes = Nodes._resolve_inputs(sources)
-        if not nodes:
-            raise ValueError("At least one source pose is required")
-        poses = {name: self}
-        for value in nodes:
-            node = Node._resolve_input(value)
-            if not node.isType("dagPose"):
-                raise ValueError("Expected a dagPose: " + node.getFullName())
-            poses.setdefault(node.getFullName(), node)
-        sources = [pose for key, pose in poses.items() if key != name]
+        name, poses, sources = self._merge_collect_poses(sources)
         if not sources:
             return self
-        rows = {}
-        target_rows = None
-        skins = {}
-        for pose in poses.values():
-            if pose.isBindPose() != self.isBindPose():
-                raise ValueError("Cannot mix bind poses and ordinary poses")
-            snapshot = pose._merge_snapshot()
-            if pose is self:
-                target_rows = snapshot
-            for member, row in snapshot.items():
-                if not currentPose and member in rows:
-                    if not self._merge_rows_equal(rows[member], row):
-                        raise ValueError("Conflicting saved pose: " + member)
-                else:
-                    rows[member] = row
-            if pose is not self:
-                for skin in pose.getSkinClusters():
-                    skins[skin.getFullName()] = skin
-                if deleteSources:
-                    pose._merge_check_delete()
-        if not rows:
-            raise ValueError("Cannot merge empty poses")
-        self._merge_check_editable(self)
-        for attr in ("members", "parents", "worldMatrix", "xformMatrix", "global"):
-            plug = self.getPlug(attr).mplug()
-            if plug.isLocked or any(plug.elementByLogicalIndex(i).isLocked
-                                    for i in plug.getExistingArrayAttributeIndices()):
-                raise RuntimeError("Locked pose attribute: " + plug.name())
-        for skin in skins.values():
-            self._merge_check_editable(skin)
-            if skin.getPlug("bindPose").mplug().isLocked:
-                raise RuntimeError("Locked bindPose: " + skin.getFullName())
+        rows, target_rows, skins = self._merge_collect_rows(poses, currentPose, deleteSources)
+        self._merge_check_targets(skins)
 
         with undoTransaction("hlibDagPoseMerge"):
             if currentPose:
@@ -274,37 +234,8 @@ class DagPose(Node):
                 # xform内部情報（jointOrient等）もMaya自身が正しく保存する。
                 temp = Node(cmds.dagPose(list(rows), save=True, selection=True))
                 rows = temp._merge_snapshot()
-            used = set()
-            for attr in ("members", "parents", "worldMatrix", "xformMatrix", "global"):
-                used.update(self.getPlug(attr).mplug().getExistingArrayAttributeIndices())
-            next_index = max(used, default=-1) + 1
-            indices = {member: row["index"] for member, row in target_rows.items()}
-            for member in rows:
-                if member not in indices:
-                    indices[member] = next_index
-                    next_index += 1
-            for member, row in rows.items():
-                index = indices[member]
-                if member not in target_rows:
-                    cmds.connectAttr(member + ".message", f"{name}.members[{index}]")
-                if currentPose or member not in target_rows:
-                    for attr in ("worldMatrix", "xformMatrix"):
-                        plug = self.getPlug(attr)[index].mplug()
-                        if plug.isDestination:
-                            cmds.disconnectAttr(plug.source().name(), plug.name())
-                        self._merge_set_matrix(f"{name}.{attr}[{index}]", row[attr])
-                    cmds.setAttr(f"{name}.global[{index}]", row["global"])
-                    dest = self.getPlug("parents")[index].mplug()
-                    if dest.isDestination:
-                        cmds.disconnectAttr(dest.source().name(), dest.name())
-                    parent = row["parent"]
-                    if parent is None:
-                        src = name + ".world"
-                    elif row["externalParent"]:
-                        src = parent + ".message"
-                    else:
-                        src = f"{name}.members[{indices[parent]}]"
-                    cmds.connectAttr(src, dest.name())
+            indices = self._merge_allocate_indices(rows, target_rows)
+            self._merge_write_rows(name, rows, target_rows, indices, currentPose)
             if currentPose:
                 cmds.delete(temp.getFullName())
             for skin in skins.values():
@@ -479,6 +410,134 @@ class DagPose(Node):
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
         return self.getSkinClusters(*args, **kwargs)
+
+    def _merge_collect_poses(self, sources):
+        """対象自身と統合元を入力順に解決し、同じポーズを一度だけ扱う。
+
+        Args:
+            sources (Iterable[DagPose]): 統合元のポーズ入力。
+
+        Returns:
+            tuple: 対象名、対象を先頭とするポーズ辞書、対象自身を除いた統合元。
+        """
+        name = self._pose_name()
+        nodes = Nodes._resolve_inputs(sources)
+        if not nodes:
+            raise ValueError("At least one source pose is required")
+        poses = {name: self}
+        for value in nodes:
+            node = Node._resolve_input(value)
+            if not node.isType("dagPose"):
+                raise ValueError("Expected a dagPose: " + node.getFullName())
+            poses.setdefault(node.getFullName(), node)
+        sources = [pose for key, pose in poses.items() if key != name]
+        return name, poses, sources
+
+    def _merge_collect_rows(self, poses, current_pose, delete_sources):
+        """保存行とskinClusterを集め、姿勢の競合と統合元の削除可否を検査する。
+
+        Args:
+            poses (dict): 対象を先頭とするポーズ辞書。
+            current_pose (bool): 保存姿勢の競合を許容し、現在の姿勢を後で保存するか。
+            delete_sources (bool): 統合元の削除可否を検査するか。
+
+        Returns:
+            tuple: 統合する保存行、対象の既存保存行、再接続するskinCluster辞書。
+        """
+        rows = {}
+        target_rows = None
+        skins = {}
+        for pose in poses.values():
+            if pose.isBindPose() != self.isBindPose():
+                raise ValueError("Cannot mix bind poses and ordinary poses")
+            snapshot = pose._merge_snapshot()
+            if pose is self:
+                target_rows = snapshot
+            for member, row in snapshot.items():
+                if not current_pose and member in rows:
+                    if not self._merge_rows_equal(rows[member], row):
+                        raise ValueError("Conflicting saved pose: " + member)
+                else:
+                    rows[member] = row
+            if pose is not self:
+                for skin in pose.getSkinClusters():
+                    skins[skin.getFullName()] = skin
+                if delete_sources:
+                    pose._merge_check_delete()
+        if not rows:
+            raise ValueError("Cannot merge empty poses")
+        return rows, target_rows, skins
+
+    def _merge_check_targets(self, skins):
+        """対象の保存先とskinClusterの再接続先が編集できることを検査する。
+
+        Args:
+            skins (dict): 再接続するskinCluster辞書。
+        """
+        self._merge_check_editable(self)
+        for attr in ("members", "parents", "worldMatrix", "xformMatrix", "global"):
+            plug = self.getPlug(attr).mplug()
+            if plug.isLocked or any(plug.elementByLogicalIndex(i).isLocked
+                                    for i in plug.getExistingArrayAttributeIndices()):
+                raise RuntimeError("Locked pose attribute: " + plug.name())
+        for skin in skins.values():
+            self._merge_check_editable(skin)
+            if skin.getPlug("bindPose").mplug().isLocked:
+                raise RuntimeError("Locked bindPose: " + skin.getFullName())
+
+    def _merge_allocate_indices(self, rows, target_rows):
+        """既存の疎な保存番号を保ち、未登録メンバーへ後続の番号を割り当てる。
+
+        Args:
+            rows (dict): 統合する保存行。
+            target_rows (dict): 対象の既存保存行。
+
+        Returns:
+            dict: メンバー名から保存先の論理番号への対応。
+        """
+        used = set()
+        for attr in ("members", "parents", "worldMatrix", "xformMatrix", "global"):
+            used.update(self.getPlug(attr).mplug().getExistingArrayAttributeIndices())
+        next_index = max(used, default=-1) + 1
+        indices = {member: row["index"] for member, row in target_rows.items()}
+        for member in rows:
+            if member not in indices:
+                indices[member] = next_index
+                next_index += 1
+        return indices
+
+    def _merge_write_rows(self, name, rows, target_rows, indices, current_pose):
+        """メンバー・行列・親情報を既存の順序でMayaの保存先へ書き込む。
+
+        Args:
+            name (str): 対象ポーズの名前。
+            rows (dict): 統合する保存行。
+            target_rows (dict): 対象の既存保存行。
+            indices (dict): メンバー名から保存先の論理番号への対応。
+            current_pose (bool): 既存メンバーも現在姿勢の行で更新するか。
+        """
+        for member, row in rows.items():
+            index = indices[member]
+            if member not in target_rows:
+                cmds.connectAttr(member + ".message", f"{name}.members[{index}]")
+            if current_pose or member not in target_rows:
+                for attr in ("worldMatrix", "xformMatrix"):
+                    plug = self.getPlug(attr)[index].mplug()
+                    if plug.isDestination:
+                        cmds.disconnectAttr(plug.source().name(), plug.name())
+                    self._merge_set_matrix(f"{name}.{attr}[{index}]", row[attr])
+                cmds.setAttr(f"{name}.global[{index}]", row["global"])
+                dest = self.getPlug("parents")[index].mplug()
+                if dest.isDestination:
+                    cmds.disconnectAttr(dest.source().name(), dest.name())
+                parent = row["parent"]
+                if parent is None:
+                    src = name + ".world"
+                elif row["externalParent"]:
+                    src = parent + ".message"
+                else:
+                    src = f"{name}.members[{indices[parent]}]"
+                cmds.connectAttr(src, dest.name())
 
     @staticmethod
     def _merge_set_matrix(destination, values):

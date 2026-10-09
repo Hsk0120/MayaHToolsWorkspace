@@ -442,6 +442,27 @@ bindMethod=3のジオデシックボクセルバインドは、標準コマン�
 両コマンドともUndo対応です。複数形状のバインドが途中で失敗した場合は例外になり、
 完了済みの変更は自動では戻しません。
 
+関連するSkinClusterをまとめて操作する
+-----------------------------------------
+
+``collectSkinClusters()`` は、Shape・Transform・Jointに関連するSkinClusterを
+重複のない ``SkinClusters`` として取得します。DagNodes/Transforms/Jointsからも使え、
+保持順の各照会から初出の順で集約します。
+
+.. code-block:: python
+
+   mesh = hlib.node("bodyMesh")
+   mesh.collectSkinClusters().removeUnusedInfluences()
+   geometries = hlib.nodes.DagNodes(hlib.ls(sl=True, type="transform"))
+   skins = geometries.collectSkinClusters()
+   skins.removeInvalidWeights()
+
+Shapeは自身、Transformは直下の非中間Shape、Jointはinfluence接続を検索します。
+子Transform以下へは降りません。従来の ``getSkinClusters/skinClusters`` はそのままで、
+DagNodes/Transformsの要素ごとの ``list[list[SkinCluster]]`` と、
+Jointsの専用 ``SkinClusters`` 返却も変更しません。明示的に集約したい場合に
+collectSkinClustersを使用します。照会はシーンを変更しません。
+
 
 アウトライナーの表示設定
 ------------------------------------

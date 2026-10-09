@@ -65,9 +65,24 @@ class Node:
         Returns:
             Port: 追加したポート。
         """
+        name, flag = self._port_creation(name, output)
+        cmds.vnnNode(self.graph.getName(), self.path, **{flag: (name, dataType)})
+        return self.port(name)
+
+    def _port_creation(self, name, output):
+        """追加ポートの名前と方向を検証する。VNNへの書込みは行わない。
+
+        Args:
+            name (str): 未使用のポート名。
+            output (bool): 出力ポートならTrue。
+
+        Returns:
+            tuple[str, str]: 検証した名前とnative VNNの作成フラグ。
+
+        Raises:
+            ValueError: 名前が不正、または同名ポートが存在する場合。
+        """
         name = self.identifier(name)
         if name in [p.rsplit(".", 1)[-1] for p in self.ports()]:
             raise ValueError("Port already exists: " + name)
-        flag = "createOutputPort" if output else "createInputPort"
-        cmds.vnnNode(self.graph.getName(), self.path, **{flag: (name, dataType)})
-        return self.port(name)
+        return name, "createOutputPort" if output else "createInputPort"

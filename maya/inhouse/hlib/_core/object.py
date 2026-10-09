@@ -235,7 +235,7 @@ class Object(metaclass=_ObjectType):
             if not allow_plugs and isinstance(value, (plug_class, om2.MPlug)):
                 raise TypeError(
                     f"アトリビュート(Plug・MPlug)は指定できません: {type(value).__name__}"
-                    "(所有ノードを対象にする場合は plug.node を指定してください)"
+                    "(所有ノードを対象にする場合は plug.node() を指定してください)"
                 )
             if isinstance(value, singles):
                 names.append(Object._name(value, node_class, plug_class, component_class))

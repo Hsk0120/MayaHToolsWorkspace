@@ -44,7 +44,7 @@ class TimeSlider:
         Returns:
             float: 現在の時刻を返す。
         """
-        return float(cmds.currentTime(query=True))
+        return float(self._query_value("currentTime"))
 
     def setCurrentTime(self, value, update=True):
         """現在時刻を変更する。
@@ -64,8 +64,7 @@ class TimeSlider:
         Returns:
             tuple[float, float]: 再生の開始・終了時刻。両端を含む。
         """
-        return (float(cmds.playbackOptions(query=True, minTime=True)),
-                float(cmds.playbackOptions(query=True, maxTime=True)))
+        return (float(self._query_value("minTime")), float(self._query_value("maxTime")))
 
     @undoChunk("hlibTimeSliderPlaybackRange")
     def setPlaybackRange(self, start, end):
@@ -89,8 +88,8 @@ class TimeSlider:
         Returns:
             tuple[float, float]: アニメーション全体の開始・終了時刻。両端を含む。
         """
-        return (float(cmds.playbackOptions(query=True, animationStartTime=True)),
-                float(cmds.playbackOptions(query=True, animationEndTime=True)))
+        return (float(self._query_value("animationStartTime")),
+                float(self._query_value("animationEndTime")))
 
     @undoChunk("hlibTimeSliderAnimationRange")
     def setAnimationRange(self, start, end):
@@ -249,6 +248,20 @@ class TimeSlider:
             引数・例外・単位・Undoの仕様は正式getterと同じ。
         """
         return self.getSelectedRange(*args, **kwargs)
+
+    @staticmethod
+    def _query_value(flag):
+        """現在単位の時刻・範囲を照会する。保存側でも生の値を使う。
+
+        Args:
+            flag (str): 検証済みのcurrentTimeまたはplaybackOptionsフラグ。
+
+        Returns:
+            object: Mayaの照会値。floatへの変換は呼出し側で行う。
+        """
+        if flag == "currentTime":
+            return cmds.currentTime(query=True)
+        return cmds.playbackOptions(query=True, **{flag: True})
 
     @staticmethod
     def _time(value):

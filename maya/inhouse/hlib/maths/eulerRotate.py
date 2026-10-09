@@ -6,8 +6,9 @@ import operator
 import maya.api.OpenMaya as om2
 
 from .._core.getterAlias import _is_alias
+from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison
 from .quaternion import Quaternion
-from .vector import _checked_index, _copy_state, _foreign_comparison, _reduce_value
+from .vector import _reduce_value
 
 _MEuler = om2.MEulerRotation
 _MQuaternion = om2.MQuaternion

@@ -1,5 +1,7 @@
 """複数のscriptJobを所有者単位で管理する。"""
 
+from contextlib import contextmanager
+
 from .scriptJob import ScriptJob
 
 
@@ -9,6 +11,7 @@ class ScriptJobs:
     def __init__(self):
         """登録を伴わない空の監視グループを作る。"""
         self._jobs = {}
+        self._temporary_active = False
 
     def add(self, key, **options):
         """キーに対応する監視を追加する。生存中の同じキーは再登録しない。
@@ -57,3 +60,36 @@ class ScriptJobs:
                 del self._jobs[key]
         if failures:
             raise RuntimeError("Failed to stop scriptJobs: " + ", ".join(repr(key) for key, _ in failures)) from failures[0][1]
+
+    @contextmanager
+    def temporary(self):
+        """ブロック終了時に、このグループが持つ監視だけを解除する。
+
+        対象UI・シーンの寿命は所有しない。同じインスタンスの入れ子は拒否する。
+        解除失敗はstopが通知し、失敗した監視は後からstopで再試行できる。
+        本体が例外を送出した場合は、解除失敗でその例外を置き換えない。
+
+        Yields:
+            ScriptJobs: 自身。ブロック開始前から保持している監視も解除対象。
+
+        Raises:
+            RuntimeError: 同じインスタンスの入れ子、または正常終了時の解除失敗。
+        """
+        if self._temporary_active:
+            raise RuntimeError("ScriptJobs.temporary cannot be nested on the same instance")
+        self._temporary_active = True
+        body_failed = False
+        try:
+            try:
+                yield self
+            except BaseException:
+                body_failed = True
+                raise
+        finally:
+            try:
+                self.stop()
+            except Exception:
+                if not body_failed:
+                    raise
+            finally:
+                self._temporary_active = False

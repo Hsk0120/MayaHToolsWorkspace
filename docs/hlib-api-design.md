@@ -70,6 +70,23 @@
 - 日本語Google形式docstringで引数・戻り値・副作用を説明する。Mayaのattributeは「アトリビュート」と表記する。
 - hlibにQt依存・独自Mayaプラグインを追加せず、ノード・Plug・Componentの共通処理は各基底へ集約する。
 
+### 2026-10-09の利用者向け追加仕様
+
+- 利用者視点の全体検討に対する「全て対応」の指示に基づき、既存型を次の操作へ渡す入力を追加する。
+  BlendShapeターゲット指定は同じノードの実ターゲットに対応するweight Plugも受理する。
+  SkinCluster.redistributeWeightsは先頭geometryのmeshに属するVertex/Verticesも受理する。
+  既存の整数・エイリアス・返却・単位・Undo・fast・途中更新は維持する。
+- Selection.filterはcomponent正式名を追加し、既存記号・保持順・未知の型名の空結果を維持する。
+  Mesh・NurbsCurveの単数/複数取得は正式getメソッドと省略defの規則へ揃え、既存の呼出し方を維持する。
+- デルタ単体IOは専用メソッドでJSONキー変換を扱う。既存の全ターゲット保存・汎用JSON規則・保存タグは変えない。
+  型別Snapshot.captureは既存captureへ委譲し、保存・参照解決・plan・applyを別操作にする。
+- Namespace.createのparent指定は、Maya標準に従って作成先を完全名へ解決し、既存確認と返却も同じ名前にする。
+  これは今回承認された意味変更であり、従来の「parentを返却へ反映しない」という制限を廃止する。
+- ログのFormatter・例外詳細・stack情報はScript Editorへ、ビューポートはメッセージ本文を表示する。
+  preservedSkinShapeのRuntimeError抑制は維持し、対象と失敗段階を通知する。
+- 有効性・編集可否・保存データの適用能力・拡張の現在状態は専用の照会で区別する。
+  既存getterの返却を平坦化したり、状態文字列やValidationReportの真偽評価を変更したりしない。
+
 ### ファイル・クラスのレイアウト規則
 
 hlib・`hlib_*` のPythonファイルはPEP8の並びを基準にする。並びは挙動に影響しないため、
@@ -388,7 +405,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 - 入力の汎用展開は `Object._flatten_inputs()`、展開済み列の名前/Node混在検査は `Nodes._validate_inputs()`。検査からObjectの展開へ戻らない。`Nodes._resolve_inputs()` は両者を順に呼ぶノード側入口。
 - 公開コマンドはクラス側の共通処理に委譲する。`addAttr` は `Node._add_attribute()`、`executeDeferred` は `Deferred.call()` を呼ぶ。クラス側から公開コマンドへ戻らない。Undoと短縮フラグは各公開入口の契約を維持する。
-- `_core.collection` は転送メソッドを生成し、実行は `Nodes._dispatch_shared()` に任せる。独自 `callEach()` のoverride判定と共通引数の実行方針はNodesが所有する。
+- 複数形の転送入口は各クラスへ通常の`def`として明示し、実行は`Nodes._dispatch_shared()`に任せる。独自`callEach()`のoverride判定と共通引数の実行方針はNodesが所有する。計算用setterの`get`指定による結果収集は`_core.bulkExecution`が判定し、基底Nodes経由でも同じ返却を維持する。
 
 ### 任意拡張の参照方向と再読み込み
 

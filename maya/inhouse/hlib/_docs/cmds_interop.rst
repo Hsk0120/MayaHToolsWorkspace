@@ -204,14 +204,40 @@ maya.cmds のフラグへ渡す場合は、次の点に注意してください�
 
 - ``double3`` などの複合アトリビュートの ``cmds.setAttr`` は成分を ``*`` で展開します:
   ``cmds.setAttr(node.plug("t"), *Translate(1, 2, 3))``。
-- ``EulerRotate`` の成分はラジアンです。度を受け取るフラグ(``cmds.xform(rotation=...)``、
-  回転アトリビュートの ``cmds.setAttr``)には ``asDegrees()`` を渡します:
-  ``cmds.xform(node, rotation=rotation.asDegrees())``。
+- ``EulerRotate`` の成分はラジアンです。回転アトリビュートの ``cmds.setAttr`` や
+  ``cmds.xform(rotation=...)`` へ渡す場合は現在の角度UI単位へ変換します。
+  ``from hlib.common import units`` を使い、
+  ``cmds.xform(node, rotation=tuple(units.angleToUi(value) for value in rotation))`` とします。
+  角度UI単位が度の場合は ``rotation.asDegrees()`` も使えます。
 - ``Matrix`` は行優先の16要素として展開できます:
   ``cmds.setAttr(plug, *matrix, type="matrix")``。
 
 Plug の値は ``plug.get()``/``plug.set()`` でも扱えます。単位の扱いは :doc:`guide_plugs`、
 数学型は :doc:`guide_maths` を参照してください。
+
+hlibの値から作成コマンドへ渡す
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``Translate`` やコンポーネントの ``position()`` の距離は内部単位cmです。
+``hlib.createCurve(point=...)`` 等の作成フラグはMayaコマンドのUI単位を使います。
+値の型を渡すだけで単位の自動変換は起こらないため、境界で明示的に変換します。
+
+.. code-block:: python
+
+   from hlib.common import units
+   from hlib.maths import Translate
+
+   end_cm = Translate(100, 0, 0)
+   end_ui = tuple(units.distanceToUi(value) for value in end_cm)
+   curve_transform = hlib.createCurve(name="unitBoundaryCurve", degree=1,
+                                      point=[(0, 0, 0), end_ui])
+   print(curve_transform.shape().cv(1).position())  # (100.0, 0.0, 0.0) cm
+
+この例はシーンの単位設定を変更せず、現在のUI単位がcmでもmでも同じ形状を作ります。
+例えばm設定では ``end_ui`` のXは1.0です。cm値100をそのままpointへ渡すと
+100mとして作成されます。時間フラグも同様にMayaの現在の時間単位で指定します。
+Plugの ``get()`` はcm/rad/秒、``getu()`` と照会フラグ付き ``hlib.attr`` は
+UI単位です。値を渡す側と受け取る側の単位を合わせてください（:doc:`guide_plugs`）。
 
 hlib のコマンドが受け付ける入力
 ------------------------------------------------------------

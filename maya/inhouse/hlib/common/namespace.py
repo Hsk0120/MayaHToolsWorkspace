@@ -84,14 +84,17 @@ class Namespace:
     def create(cls, name, parent=":"):
         """Namespaceを作成し、作成したNamespaceを返す。
 
-        単一階層の name とルート以外の parent を組み合わせると、作成先は parent 配下だが戻り値の保持名には parent が反映されない。現在の実装では、完全な入れ子名を name に指定すると作成先と戻り値が一致する。
+        相対名はparent配下、先頭が : の絶対名はルートから解決する。
+        作成前の既存確認と返却には同じ完全名を使う。カレントNamespaceは変更しない。
 
         Args:
-            name (str | Namespace): 作成する名前。入れ子の名前なら、その名前に含まれる親を優先する。
-            parent (str | Namespace): 単一階層名を作成する親。存在しなければ再帰的に作成する。
+            name (str | Namespace): 作成する単一または多段の名前。絶対名とNamespace参照は
+                parentを無視する。/ は : と同じ区切りとして扱う。
+            parent (str | Namespace): 相対nameを作成する親。文字列の相対親は現在の
+                Namespaceから解決する。既定の : はルート。存在しなければ再帰的に作成する。
 
         Returns:
-            Namespace: name を正規化したラッパー。存在する場合もそのラッパーを返す。
+            Namespace: 作成先の完全名を保持するラッパー。既存の場合も同じ参照を返す。
 
         Raises:
             ValueError: name または parent が不正な場合。
@@ -99,8 +102,13 @@ class Namespace:
         """
         namespace = cls(name)
         parent_namespace = cls(parent)
-        if ":" in namespace.name.strip(":"):
-            parent_namespace = namespace.getParent()
+        raw_name = name.name if isinstance(name, Namespace) else name.replace("/", ":")
+        if namespace.name != ":" and not raw_name.startswith(":"):
+            raw_parent = parent.name if isinstance(parent, Namespace) else parent.replace("/", ":")
+            if not raw_parent.startswith(":"):
+                parent_namespace = cls(cls.getCurrent().name.rstrip(":") + parent_namespace.name)
+            namespace = cls(parent_namespace.name.rstrip(":") + namespace.name)
+        parent_namespace = namespace.getParent()
         if namespace.exists():
             return namespace
         if parent_namespace is None:
@@ -108,8 +116,10 @@ class Namespace:
         if not parent_namespace.exists():
             cls.create(parent_namespace)
         leaf_name = namespace.name.rsplit(":", 1)[-1]
-        cmds.namespace(add=leaf_name, parent=parent_namespace.name)
-        return namespace
+        created_name = cmds.namespace(add=leaf_name, parent=parent_namespace.name)
+        if not created_name.startswith(":") and cmds.namespace(query=True, relativeNames=True):
+            created_name = cls.getCurrent().name.rstrip(":") + ":" + created_name
+        return cls(created_name)
 
     @classmethod
     @_getter_alias(getCurrent)

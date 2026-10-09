@@ -7,6 +7,20 @@ import maya.cmds as cmds
 from .._core.getterAlias import _getter_alias
 
 
+def _query_settings(command, name, flags):
+    """検証済みのエディター設定を指定順に読む。UIの生成・検査は行わない。
+
+    Args:
+        command (Callable): Maya標準のエディターコマンド。
+        name (str): 呼出し側で検査済みのUI名。
+        flags (Iterable[str]): 呼出し側で検査済みの照会フラグ。
+
+    Returns:
+        dict[str, object]: 指定したフラグ名とMayaの照会値。
+    """
+    return {flag: command(name, query=True, **{flag: True}) for flag in flags}
+
+
 class _Editor:
     """UIを作成せず、指定したエディターを参照する。"""
 
@@ -42,8 +56,7 @@ class _Editor:
         self._validate_flags(flags)
         self._require_exists()
         command = getattr(cmds, self._command)
-        return {flag: command(self._name, query=True, **{flag: True})
-                for flag in (flags or self._flags)}
+        return _query_settings(command, self._name, flags or self._flags)
 
     def setSettings(self, **flags):
         """表示設定を変更する。フラグ値の検証はMayaへ委譲する。

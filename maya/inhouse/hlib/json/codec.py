@@ -17,27 +17,23 @@ from ..maths.translate import Translate
 from ..maths.vector import Vector
 from .references import NodeRef, PlugRef, ComponentRef
 
-#: 数学型の記録の要素数。EulerRotate はラジアンの3成分(順序は別の "order" キー)。
-_MATH_SIZES = {
-    "Vector": 3,
-    "Translation": 3,
-    "Scale": 3,
-    "Shear": 3,
-    "EulerRotation": 3,
-    "Quaternion": 4,
-    "Matrix": 16,
-}
+#: 保存タグ・復元クラス・要素数。保存タグは公開クラス名の変更と独立して維持する。
+#: EulerRotateはラジアンの3成分(順序は別の "order" キー)。
+_MATH_RECORDS = (
+    ("Vector", Vector, 3),
+    ("Translation", Translate, 3),
+    ("Scale", Scale, 3),
+    ("Shear", Shear, 3),
+    ("EulerRotation", EulerRotate, 3),
+    ("Quaternion", Quaternion, 4),
+    ("Matrix", Matrix, 16),
+)
+
+#: 数学型の記録の要素数。
+_MATH_SIZES = {name: size for name, _, size in _MATH_RECORDS}
 
 #: 記録の型名から復元に使う hlib.maths のクラス。
-_MATH_CLASSES = {
-    "Vector": Vector,
-    "Translation": Translate,
-    "Scale": Scale,
-    "Shear": Shear,
-    "EulerRotation": EulerRotate,
-    "Quaternion": Quaternion,
-    "Matrix": Matrix,
-}
+_MATH_CLASSES = {name: cls for name, cls, _ in _MATH_RECORDS}
 
 #: 保存できる数学型(型そのもので照合し、派生クラスは含めない)から記録の型名への対応。
 #: om2 名のメソッド(``normal()``、``asMatrix()`` など)が返す om2 の基底型も、対応する

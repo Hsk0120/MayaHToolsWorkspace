@@ -25,24 +25,27 @@ _UNSET = object()
 
 
 def _message_from(record):
-    """ログレコードのメッセージと引数を文字列へ整形する。
+    """ビューポート向けにログ本文と引数を文字列へ整形する。
 
     Args:
         record (logging.LogRecord): 整形するレコード。
 
     Returns:
-        str: getMessage() の結果。例外トレースや Formatter は適用しない。
+        str: getMessage()の結果。詳細トレースとFormatterはScript Editor側だけへ適用する。
     """
     return record.getMessage()
 
 
 class MayaHandler(logging.Handler):
-    """ログレコードを Maya の Script Editor とビューポートへ出力するハンドラ。"""
+    """詳細ログをScript Editor、警告以上の本文をビューポートへ出力する。"""
 
     def emit(self, record):
         """ログを Script Editor と必要に応じてビューポートへ出力する。
 
-        WARNING 以上ではビューポートにも表示する。Maya API を import できなければ出力しない。Maya 表示時の RuntimeError は抑制する。
+        Script Editorには標準loggingのFormatter・exc_info・stack_infoを適用する。
+        WARNING以上では、例外トレースを含まないメッセージ本文をビューポートにも表示する。
+        Formatterが失敗した場合は標準書式へ戻し、書式の失敗理由も詳細欄へ表示する。
+        Maya APIをimportできなければ出力しない。Maya表示時のRuntimeErrorは抑制する。
 
         Args:
             record (logging.LogRecord): 出力するレコード。
@@ -51,6 +54,12 @@ class MayaHandler(logging.Handler):
             None: 値を返さない。
         """
         message = _message_from(record)
+        try:
+            details = self.format(record)
+        except Exception as exc:
+            # 通知の書式設定で、呼出元の例外やfinallyの残りの復元を妨げない。
+            details = logging.Formatter().format(record)
+            details += "\nログ書式の適用に失敗しました: {}".format(exc)
         try:
             import maya.cmds as cmds
             # mayapy初期化前はMGlobalの表示APIを呼ばない。
@@ -62,11 +71,11 @@ class MayaHandler(logging.Handler):
 
         try:
             if record.levelno >= logging.ERROR:
-                om2.MGlobal.displayError(message)
+                om2.MGlobal.displayError(details)
             elif record.levelno >= logging.WARNING:
-                om2.MGlobal.displayWarning(message)
+                om2.MGlobal.displayWarning(details)
             else:
-                om2.MGlobal.displayInfo(message)
+                om2.MGlobal.displayInfo(details)
         except RuntimeError:
             pass
 

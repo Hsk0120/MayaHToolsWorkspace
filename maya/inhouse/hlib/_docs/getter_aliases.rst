@@ -19,6 +19,9 @@ nodes・plugs・components・commonと公開取得コマンドの全getterが対
 
 引数の名前・順序・既定値・位置/キーワード区分・長短フラグ・戻り値・例外・単位は
 正式getterと同じです。省略入口は評価・Undo・キャッシュを追加しません。
+UVとCVの取得も既存の小文字表記を使います。Meshの ``getUV/getUVs`` の省略名は
+``uv/uvs``、NurbsCurveの ``getCV/getCVs`` の省略名は ``cv/cvs`` です。
+省略入口から正式getterを呼ぶため、getterのoverrideも反映します。
 ``Plug.get()`` / ``getu()`` は値取得のままです。数学型のOpenMaya標準名やJSONの標準API、
 get付き照会を持たない保持プロパティは変更しません。
 ノードからのPlug取得は ``plug()`` を使います。

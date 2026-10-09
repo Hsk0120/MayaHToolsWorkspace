@@ -111,6 +111,18 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 値の読み書きが成功することまでは保証しません。
 ``readable``/``writable``/``storable`` はアトリビュート定義の各フラグを返し、
 ロックや入力接続を含む現在の編集可否を判定するものではありません。
+現在の値の編集可否は ``settable()`` で照会します。
+
+.. code-block:: python
+
+   control = hlib.createNode("transform", name="settableExample")
+   translate_x = control.plug("translateX")
+   print(translate_x.writable())  # アトリビュート定義の書込み可否
+   if translate_x.settable():     # 現在のロック・入力接続を含むMayaの判定
+       translate_x.set(10.0)      # 内部距離単位cm
+
+``settable()`` は値の型・範囲や、その後の状態変化による成功までは保証しません。
+設定自体のエラーは ``set()`` の契約に従います。
 ``hasSoftMin``/``softMin``/``hasSoftMax``/``softMax`` で UI スライダーの
 ソフトレンジ（値の入力自体は制限しない）を取得できます。
 ``enumValue(name)`` は ``enumFieldName(val)`` の逆引きで、フィールド名から enum 値を
@@ -208,7 +220,20 @@ Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.inpu
 インスタンス番号には、インスタンス化された祖先による間接インスタンスも含みます。
 削除済みノード・削除済みの動的アトリビュートの配列 Plug の要素は取得できません(``RuntimeError``)。
 
-``array_plug[0]`` は ``element(0)`` と同じです。この ``[]`` があるため、
+``array_plug[0]`` は未作成番号でも要素参照だけを返します。
+``element(0)`` は既存要素がなければ ``IndexError`` です。
+``element(0, create=True)`` は必要に応じて評価によって実体化します。
+
+.. code-block:: python
+
+   node = hlib.createNode("network", name="arrayReferenceExample")
+   values = node.addAttr("values", attributeType="double", multi=True)
+   element = values[3]               # 参照の取得だけ。番号3は未作成
+   print(values.elements())          # []
+   element.set(2.0)                  # 値を書くと実体化。通常モードはUndo対応
+   print(values.element(3).get())     # 2.0（既存要素なので取得できる）
+
+この ``[]`` があるため、
 ArrayPlug オブジェクト自体を ``maya.cmds`` へ渡すとシーケンスとして展開されて失敗します。
 配列アトリビュート全体を渡す場合は ``str(array_plug)`` か ``array_plug.fullName()`` を渡してください。
 要素の Plug と hlib のコマンド(``hlib.select`` など)は、そのまま渡せます。
@@ -224,6 +249,28 @@ attrから値を取得する
 ``hlib.attr(target, **kwargs)`` は、照会フラグなしならアトリビュート型に対応する
 Plugを返します。内部では ``plug`` へ委譲し、既存Plugはそのまま返します。
 値を読むときは返されたPlugの ``get()`` または ``getu()`` を呼びます。
+
+.. list-table:: 参照と値を使い分ける
+   :header-rows: 1
+
+   * - 目的
+     - 入口
+     - 戻り値
+   * - 値・接続を繰り返し操作する
+     - ``node.plug("tx")`` / ``hlib.plug("node.tx")`` / ``hlib.attr("node.tx")``
+     - 型付きPlug
+   * - 内部単位の値を読む
+     - ``plug.get()``
+     - 値（距離cm・角度rad・時間秒）
+   * - UI単位の値を読む
+     - ``plug.getu()``
+     - 現在のMaya単位による値
+   * - Mayaの状態を照会する
+     - ``hlib.attr(plug, lock=True)``
+     - ロック状態のbool
+
+``hlib.attr(plug, lock=False)`` も、フラグを明示した照会です。
+通常の値をUI単位で返し、Plug取得にはなりません。
 
 .. code-block:: python
 

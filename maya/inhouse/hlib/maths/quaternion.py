@@ -4,12 +4,10 @@ import math
 
 import maya.api.OpenMaya as om2
 
+from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison
 from .vector import (
     Vector,
     _as_mvector,
-    _checked_index,
-    _copy_state,
-    _foreign_comparison,
     _reduce_value,
     _zero,
 )

@@ -13,7 +13,8 @@ def inherited_node_types(node_type):
 
     ``cmds.nodeType(node_type, isTypeName=True, inherited=True)`` は
     ノードの実体を必要とせず型名だけで継承関係を照会できる一方、都度
-    Maya に問い合わせるとやや低速なため、型名ごとに結果をキャッシュする。
+    Maya に問い合わせるとやや低速なため、認識済みの型名だけ結果をキャッシュする。
+    未知型は後からプラグインが導入される可能性があるため、負結果を保存しない。
     Maya API 2.0 に同等の照会手段が無いため cmds を使用する。
 
     Args:
@@ -28,9 +29,11 @@ def inherited_node_types(node_type):
     if cached is not None:
         return cached
     try:
-        chain = cmds.nodeType(node_type, isTypeName=True, inherited=True) or [node_type]
+        chain = cmds.nodeType(node_type, isTypeName=True, inherited=True)
     except RuntimeError:
-        chain = [node_type]
+        return (node_type,)
+    if not chain:
+        return (node_type,)
     chain = tuple(reversed(chain))
     _INHERITED_TYPES_CACHE[node_type] = chain
     return chain

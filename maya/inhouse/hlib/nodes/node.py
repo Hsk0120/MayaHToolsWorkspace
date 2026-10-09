@@ -8,6 +8,7 @@ from typing import Any
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from .._core.bulkExecution import calculation_results
 from .._core.flags import flag_aliases
 from .._core.flags import normalize_flags
 from .._core.getterAlias import _getter_alias, _is_alias
@@ -1177,71 +1178,10 @@ class Node(Object):
             proxy = Plug._resolve_input(proxy)
             type = proxy.getDataType()
             flags["usedAsProxy"] = True
-        if type is not None:
-            flags.pop("attributeType", None)
-            flags.pop("dataType", None)
-            prefix, separator, kind = type.partition(":")
-            if separator:
-                if prefix not in ("at", "dt"):
-                    raise ValueError("Expected at: or dt: type prefix")
-                key = "attributeType" if prefix == "at" else "dataType"
-            else:
-                kind = type
-                key = "dataType" if kind in {
-                    "string", "matrix", "stringArray", "doubleArray", "floatArray", "Int32Array",
-                    "Int64Array", "vectorArray", "floatVectorArray", "pointArray", "matrixArray",
-                    "mesh", "nurbsCurve", "nurbsSurface", "lattice", "componentList", "polyFaces",
-                    "reflectanceRGB", "spectrumRGB",
-                } else "attributeType"
-            flags[key] = kind
-        elif not (flags.get("attributeType") or flags.get("dataType")):
-            flags["attributeType"] = "double"
-        if flags.get("attributeType") and flags.get("dataType"):
-            raise ValueError("Cannot specify both attributeType and dataType")
-        kind = flags.get("attributeType")
-        numeric = re.fullmatch(r"(double|float|long|short)([234])", kind or "")
-        count = int(numeric.group(2)) if numeric else 0
-        if kind == "compound" and (childNames or childShortNames or childSuffixes):
-            count = flags.get("numberOfChildren") or len(childNames or childShortNames or childSuffixes)
-            flags["numberOfChildren"] = count
-        if numeric:
-            # 固定子数型へncを渡すMayaエラーを事前検出する。
-            if "numberOfChildren" in flags and flags.pop("numberOfChildren") != count:
-                raise ValueError("Vector child count does not match its type")
-        deferred = None
-        if count or flags.get("dataType"):
-            deferred = flags.pop("defaultValue", None)
-        unit = {"doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
-                "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
-                "time": (om2.MTime, om2.MTime.kSeconds)}.get(kind)
-        if unit:
-            cls, internal = unit
-            for flag in ("defaultValue", "minValue", "maxValue", "softMinValue", "softMaxValue"):
-                if flag in flags:
-                    value = flags[flag]
-                    quantity = value if isinstance(value, cls) else cls(value, internal)
-                    flags[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
-        if count:
-            suffixes = childSuffixes or ("RGBA" if flags.get("usedAsColor") else "XYZW")[:count]
-            names = list(childNames or [name + suffix for suffix in suffixes])
-            short_names = list(childShortNames or [])
-            if len(names) != count or (short_names and len(short_names) != count):
-                raise ValueError("Child name count does not match its type")
-            # 子の範囲・既定値は子へ指定し、親には渡さない。
-            limits = {k: flags.pop(k) for k in ("minValue", "maxValue", "softMinValue", "softMaxValue") if k in flags}
-            cmds.addAttr(self.getFullName(), **flags)
-            for index, child_name in enumerate(names):
-                child_flags = dict(parent=name, keyable=bool(flags.get("keyable", False)))
-                if short_names:
-                    child_flags["shortName"] = short_names[index]
-                for key, value in limits.items():
-                    child_flags[key] = value[index] if isinstance(value, (tuple, list)) else value
-                if deferred is not None:
-                    child_flags["defaultValue"] = deferred[index] if isinstance(deferred, (tuple, list)) else deferred
-                self.addAttr(child_name, subType or (numeric.group(1) if numeric else "double"),
-                             getPlug=False, **child_flags)
-        else:
-            cmds.addAttr(self.getFullName(), **flags)
+        numeric, count, deferred = self._prepare_extra_attr_definition(
+            flags, type, childNames, childShortNames, childSuffixes)
+        self._create_extra_attr_definition(
+            name, flags, numeric, count, deferred, childNames, childShortNames, childSuffixes, subType)
         if not getPlug and (deferred is None or count) and not show and proxy is None:
             return None
         plug = self.getPlug(name)
@@ -2081,39 +2021,103 @@ class Node(Object):
             raise RuntimeError("The referenced DAG instance no longer exists")
         return dagPath
 
-    def _connected_plugs(self, as_source, as_destination, type=None):
-        """ノードの指定方向に接続された外部Plugを収集する。
+    @staticmethod
+    def _prepare_extra_attr_definition(flags, attribute_type, child_names, child_short_names, child_suffixes):
+        """追加する型・子数・既定値と単位を、Mayaへの書込み前に解決する。
 
         Args:
-            as_source (bool): 接続元Plugを検索対象に含めるかどうか。
-            as_destination (bool): 接続先Plugを検索対象に含めるかどうか。
-            type (str | None): 指定した場合、接続先ノードの nodeType が
-                ``isType`` で一致するものだけに絞り込む(継承チェーンも判定)。
-
+            flags (dict): 正規化済みフラグ。型と単位をこの辞書へ反映する。
+            attribute_type (str | None): 明示された型。
+            child_names (Sequence[str] | None): 子のロング名。
+            child_short_names (Sequence[str] | None): 子のショート名。
+            child_suffixes (Sequence[str] | None): 子名の接尾辞。
         Returns:
-            list[Plug]: 接続先の外部Plugを重複なしで格納したリスト。
+            tuple: 数値複合型の一致情報・子数・作成後に設定する既定値。
         """
-        from ..plugs.plug import Plug as _InputPlug
-        # plugs.plug が ..nodes.node を逆方向 import するため、
-        # 循環回避のためここで遅延 import する（hlib で意図的な相互依存の一つ）。
-        from ..plugs.plug import Plug
+        if attribute_type is not None:
+            flags.pop("attributeType", None)
+            flags.pop("dataType", None)
+            prefix, separator, kind = attribute_type.partition(":")
+            if separator:
+                if prefix not in ("at", "dt"):
+                    raise ValueError("Expected at: or dt: type prefix")
+                key = "attributeType" if prefix == "at" else "dataType"
+            else:
+                kind = attribute_type
+                key = "dataType" if kind in {
+                    "string", "matrix", "stringArray", "doubleArray", "floatArray", "Int32Array",
+                    "Int64Array", "vectorArray", "floatVectorArray", "pointArray", "matrixArray",
+                    "mesh", "nurbsCurve", "nurbsSurface", "lattice", "componentList", "polyFaces",
+                    "reflectanceRGB", "spectrumRGB",
+                } else "attributeType"
+            flags[key] = kind
+        elif not (flags.get("attributeType") or flags.get("dataType")):
+            flags["attributeType"] = "double"
+        if flags.get("attributeType") and flags.get("dataType"):
+            raise ValueError("Cannot specify both attributeType and dataType")
+        kind = flags.get("attributeType")
+        numeric = re.fullmatch(r"(double|float|long|short)([234])", kind or "")
+        count = int(numeric.group(2)) if numeric else 0
+        if kind == "compound" and (child_names or child_short_names or child_suffixes):
+            count = flags.get("numberOfChildren") or len(child_names or child_short_names or child_suffixes)
+            flags["numberOfChildren"] = count
+        if numeric:
+            # 固定子数型へncを渡すMayaエラーを事前検出する。
+            if "numberOfChildren" in flags and flags.pop("numberOfChildren") != count:
+                raise ValueError("Vector child count does not match its type")
+        deferred = None
+        if count or flags.get("dataType"):
+            deferred = flags.pop("defaultValue", None)
+        unit = {"doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
+                "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
+                "time": (om2.MTime, om2.MTime.kSeconds)}.get(kind)
+        if unit:
+            cls, internal = unit
+            for flag in ("defaultValue", "minValue", "maxValue", "softMinValue", "softMaxValue"):
+                if flag in flags:
+                    value = flags[flag]
+                    quantity = value if isinstance(value, cls) else cls(value, internal)
+                    flags[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
+        return numeric, count, deferred
 
-        plugs = []
-        seen = set()
-        for mplug in om2.MFnDependencyNode(self._mobject).getConnections():
-            for connected in mplug.connectedTo(as_source, as_destination):
-                # MPlug.name() は短いノード名しか含まず、同名ノード(grp1|dup と grp2|dup)の
-                # プラグを同一視してしまうため、所有ノードの一意な名前とアトリビュートパスで重複を判定する
-                # (MObjectHandle.hashCode() は別ノードで衝突しうるため使わない)。
-                key = (Node._unique_node_name(connected.getNode()), _InputPlug._plug_path(connected))
-                if key in seen:
-                    continue
-                node = Node(connected.getNode())
-                if type is not None and not node.isType(type):
-                    continue
-                seen.add(key)
-                plugs.append(Plug(node, connected))
-        return plugs
+    def _create_extra_attr_definition(self, name, flags, numeric, count, deferred,
+                                      child_names, child_short_names, child_suffixes, sub_type):
+        """親と子の定義を従来の順序で追加する。
+
+        子の追加は公開addAttrへ委譲し、利用側のoverrideと途中失敗時の更新を保つ。
+
+        Args:
+            name (str): 親アトリビュート名。
+            flags (dict): 親へ渡すフラグ。子用の範囲値を取り出す。
+            numeric (object): 数値複合型の一致情報。
+            count (int): 子数。
+            deferred (object): 子に渡す既定値。
+            child_names (Sequence[str] | None): 子のロング名。
+            child_short_names (Sequence[str] | None): 子のショート名。
+            child_suffixes (Sequence[str] | None): 子名の接尾辞。
+            sub_type (str | None): 子の型。
+        """
+        if count:
+            suffixes = child_suffixes or ("RGBA" if flags.get("usedAsColor") else "XYZW")[:count]
+            names = list(child_names or [name + suffix for suffix in suffixes])
+            short_names = list(child_short_names or [])
+            if len(names) != count or (short_names and len(short_names) != count):
+                raise ValueError("Child name count does not match its type")
+            # 子の範囲・既定値は子へ指定し、親には渡さない。
+            limits = {k: flags.pop(k) for k in ("minValue", "maxValue", "softMinValue", "softMaxValue") if k in flags}
+            cmds.addAttr(self.getFullName(), **flags)
+            for index, child_name in enumerate(names):
+                child_flags = dict(parent=name, keyable=bool(flags.get("keyable", False)))
+                if short_names:
+                    child_flags["shortName"] = short_names[index]
+                for key, value in limits.items():
+                    child_flags[key] = value[index] if isinstance(value, (tuple, list)) else value
+                if deferred is not None:
+                    child_flags["defaultValue"] = deferred[index] if isinstance(deferred, (tuple, list)) else deferred
+                self.addAttr(child_name, sub_type or (numeric.group(1) if numeric else "double"),
+                             getPlug=False, **child_flags)
+        else:
+            cmds.addAttr(self.getFullName(), **flags)
 
     @staticmethod
     def _add_attribute(target, **kwargs):
@@ -3592,10 +3596,7 @@ class Nodes:
         """
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
         context = undoChunk("hlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
-        calculating = False
-        if method in {"setTranslate", "setRotate", "setQuaternion", "setScale", "setShearing", "setMatrix", "setTransformation"}:
-            calculating = any(inspect.signature(fn).bind(*row, **flags).arguments.get("get", False)
-                              for fn, row, flags in zip(functions, args, kwargs))
+        calculating = calculation_results(method, functions, args, kwargs)
         result = [] if calculating or self._bulk_returns[method] != "self" else None
         with context:
             for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):
