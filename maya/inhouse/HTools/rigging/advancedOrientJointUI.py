@@ -14,6 +14,9 @@ import math
 
 _WIN = "OrientJointLikeWin"
 _AXES = ("x", "y", "z")
+# Axis Source の表示名(Primary / Secondary / Third で共通)。
+# Next/Children の First / Second はアウトライナー上の子ジョイントの並び順。
+_SOURCE_LABELS = ("World", "Local", "Next/Children First", "Next/Children Second")
 _AXIS_VECTORS = {
     "x": om2.MVector.kXaxisVector,
     "y": om2.MVector.kYaxisVector,
@@ -286,15 +289,19 @@ def _compute_world_position(node_name):
     x, y, z = cmds.xform(node_name, q=True, ws=True, t=True)
     return om2.MVector(x, y, z)
 
-def _compute_primary_world_vector(joint_name, return_debug=False):
+def _compute_primary_world_vector(joint_name, return_debug=False, child_index=0):
     """ジョイントチェーンから主軸方向ベクトルを推定します。
 
-    まず最初の子ジョイント方向を優先し、子がない場合は親方向を
-    フォールバックとして使用します。
+    ``child_index=0``(Next/Children First)は最初の子ジョイント方向を優先し、
+    子がない場合は親方向をフォールバックとして使用します。
+    ``child_index=1``(Next/Children Second)は2本目の子ジョイント方向だけを使い、
+    2本目が無い場合は ``None`` を返します(呼び出し側でスキップする)。
 
     Args:
         joint_name (str): 対象ジョイント名。
         return_debug (bool): ``True`` の場合、デバッグ情報も返却します。
+        child_index (int): 使う子ジョイントの番号(0=1本目、1=2本目)。
+            並びはアウトライナー上の子の順序。
 
     Returns:
         maya.api.OpenMaya.MVector | None |
@@ -304,7 +311,7 @@ def _compute_primary_world_vector(joint_name, return_debug=False):
         ``(ベクトルまたはNone, デバッグ辞書)``。
 
     PrimaryWorldVectorDebugInfo:
-        source (str): ``none`` / ``child`` / ``parentFallback``。
+        source (str): ``none`` / ``child`` / ``secondChild`` / ``parentFallback``。
         driver_joint (str | None): 方向算出に使ったジョイント名。
         raw_vector (maya.api.OpenMaya.MVector | None): 正規化前ベクトル。
         normalized_vector (maya.api.OpenMaya.MVector | None): 正規化済みベクトル。
@@ -317,6 +324,19 @@ def _compute_primary_world_vector(joint_name, return_debug=False):
         "raw_vector": None,
         "normalized_vector": None,
     }
+
+    # Next/Children Second: 2本目の子だけを使い、無ければ解決できない扱いにする。
+    if child_index >= 1:
+        if len(child_joints) <= child_index:
+            return (None, debug_info) if return_debug else None
+        driver = child_joints[child_index]
+        vec = _compute_world_position(driver) - joint_pos
+        debug_info["source"] = "secondChild"
+        debug_info["driver_joint"] = driver
+        debug_info["raw_vector"] = vec
+        nvec = _compute_normalized_vector(vec)
+        debug_info["normalized_vector"] = nvec
+        return (nvec, debug_info) if return_debug else nvec
 
     # 優先: 子ジョイント方向を主軸とみなす（チェーン方向に合わせるため）。
     if child_joints:
@@ -350,14 +370,30 @@ def _compute_primary_space_mode(primary_space_value):
         primary_space_value (str): UI で選択された表示文字列。
 
     Returns:
-        str: ``world`` / ``local`` / ``chain`` のいずれか。
+        str: ``world`` / ``local`` / ``chain``(Next/Children First)/
+        ``chain2``(Next/Children Second)のいずれか。
     """
     value = (primary_space_value or "").strip().lower()
     if value in ("world", "world axis"):
         return "world"
     if value == "local":
         return "local"
+    if value == "next/children second":
+        return "chain2"
+    # "next/children first" と、以前の表示名 "next/children" は1本目の子を使う。
     return "chain"
+
+
+def _compute_chain_child_index(space_mode):
+    """チェーン系の参照モードから、使う子ジョイントの番号を返却します。
+
+    Args:
+        space_mode (str): :func:`_compute_primary_space_mode` の戻り値。
+
+    Returns:
+        int | None: ``chain`` は 0、``chain2`` は 1、それ以外は ``None``。
+    """
+    return {"chain": 0, "chain2": 1}.get(space_mode)
 
 def _compute_primary_vector_from_mode(joint_name, primary_axis, primary_space, primary_ref_axis):
     """主軸参照モードに応じて主軸ベクトル（ワールド）を返却します。
@@ -365,7 +401,7 @@ def _compute_primary_vector_from_mode(joint_name, primary_axis, primary_space, p
     Args:
         joint_name (str): 対象ジョイント名。
         primary_axis (str): UI 上の主軸キー（互換維持のため受け取りのみ）。
-        primary_space (str): 主軸参照モード（``world`` / ``local`` / ``chain``）。
+        primary_space (str): 主軸参照モード（``world`` / ``local`` / ``chain`` / ``chain2``）。
         primary_ref_axis (str): ``world`` / ``local`` 時の参照軸。
 
     Returns:
@@ -378,8 +414,8 @@ def _compute_primary_vector_from_mode(joint_name, primary_axis, primary_space, p
     # world: ワールド固定軸をそのまま使用。
     if primary_space == "world":
         return _compute_axis_vector(primary_ref_axis)
-    # chain: 子(または親フォールバック)方向から自動推定。
-    return _compute_primary_world_vector(joint_name)
+    # chain / chain2: 1本目(または親フォールバック)/2本目の子方向から自動推定。
+    return _compute_primary_world_vector(joint_name, child_index=_compute_chain_child_index(primary_space) or 0)
 
 def _compute_vector_to_first_child(joint_name):
     """最初の子ジョイントへの方向ベクトルを返却します。
@@ -418,7 +454,8 @@ def _compute_up_world_vector(joint_name, up_axis, up_direction, up_space, return
         joint_name (str): 対象ジョイント名。
         up_axis (str): 参照軸（``x`` / ``y`` / ``z``）。
         up_direction (str): 符号（``+`` または ``-``）。
-        up_space (str): 参照空間（``world`` / ``local`` / ``next/children``）。
+        up_space (str): 参照空間(Axis Source の表示名を小文字にしたもの。
+            ``world`` / ``local`` / ``next/children first`` / ``next/children second``)。
         return_debug (bool): ``True`` の場合はデバッグ情報も返却します。
 
     Returns:
@@ -445,9 +482,10 @@ def _compute_up_world_vector(joint_name, up_axis, up_direction, up_space, return
         "vector": None,
         "base_info": None,
     }
-    # next/children: チェーン方向を Up の基準として再利用する。
-    if up_space == "next/children":
-        up_vec, base_info = _compute_primary_world_vector(joint_name, return_debug=True)
+    # next/children first / second: 1本目/2本目の子への方向を Up の基準として使う。
+    child_index = _compute_chain_child_index(_compute_primary_space_mode(up_space))
+    if child_index is not None:
+        up_vec, base_info = _compute_primary_world_vector(joint_name, return_debug=True, child_index=child_index)
         debug_info["source"] = "next/children"
         debug_info["base_info"] = base_info
         if up_vec is None:
@@ -551,7 +589,7 @@ def _compute_is_next_children_debug_enabled(primary_space, up_space):
     """
     if not _DEBUG_ORIENT or not _DEBUG_ORIENT_VERBOSE_NEXT_CHILDREN:
         return False
-    return primary_space == "chain" or up_space == "next/children"
+    return primary_space in ("chain", "chain2") or up_space.startswith("next/children")
 
 def _compute_debug_log_matrix_axes(joint_name, label, matrix_obj):
     """回転行列の XYZ 軸ベクトルをログ出力します。
@@ -800,8 +838,10 @@ def _compute_debug_log_next_children_inputs(
     up_vec_for_secondary = None
 
     # チェーン由来ベクトルの出どころと符号反転結果を可視化する。
-    if primary_space == "chain":
-        primary_vec_raw, primary_info = _compute_primary_world_vector(joint_name, return_debug=True)
+    if primary_space in ("chain", "chain2"):
+        primary_vec_raw, primary_info = _compute_primary_world_vector(
+            joint_name, return_debug=True, child_index=_compute_chain_child_index(primary_space)
+        )
         primary_vec_for_secondary = primary_vec_raw
         if primary_vec_for_secondary is not None and primary_direction == "-":
             primary_vec_for_secondary *= -1.0
@@ -818,7 +858,7 @@ def _compute_debug_log_next_children_inputs(
         )
 
     # Up 側も同様に、基準ベクトルと最終ベクトルを分けてログする。
-    if up_space == "next/children":
+    if up_space.startswith("next/children"):
         up_vec, up_info = _compute_up_world_vector(
             joint_name,
             up_axis="y",
@@ -1059,6 +1099,42 @@ def _compute_debug_log_secondary_up_alignment(
         )
     )
 
+def _compute_third_axis(primary_axis, secondary_axis):
+    """Primary / Secondary で使っていない残りの軸を返却します。
+
+    Args:
+        primary_axis (str): 主軸キー。
+        secondary_axis (str): 副軸キー。
+
+    Returns:
+        str | None: 残りの軸(``x`` / ``y`` / ``z``)。軸指定が不正なら ``None``。
+    """
+    if primary_axis not in _AXES or secondary_axis not in _AXES or primary_axis == secondary_axis:
+        return None
+    return next(a for a in _AXES if a not in (primary_axis, secondary_axis))
+
+
+def _compute_third_reference_vector(joint_name, third_space, third_ref_axis, third_direction):
+    """Third Settings の参照方向(ワールド)を計算します。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+        third_space (str): Axis Source の表示名を小文字にしたもの。
+        third_ref_axis (str): ``world`` / ``local`` 時の参照軸。
+        third_direction (str): 符号(``+`` または ``-``)。
+
+    Returns:
+        maya.api.OpenMaya.MVector | None: 符号適用後の正規化ベクトル。
+            Next/Children Second で2本目の子が無いなど、決まらない場合は ``None``。
+    """
+    mode = _compute_primary_space_mode(third_space)
+    vec = _compute_primary_vector_from_mode(joint_name, None, mode, third_ref_axis)
+    vec = _compute_normalized_vector(vec) if vec is not None else None
+    if vec is None:
+        return None
+    return vec * (-1.0 if third_direction == "-" else 1.0)
+
+
 def _compute_joint_orient_degrees(
     joint_name,
     primary_axis,
@@ -1071,6 +1147,7 @@ def _compute_joint_orient_degrees(
     up_space,
     debug_verbose=False,
     return_debug_data=False,
+    third_settings=None,
 ):
     """UI 設定から jointOrient の XYZ 角度（度）を計算します。
 
@@ -1086,6 +1163,10 @@ def _compute_joint_orient_degrees(
         up_space (str): Up 参照空間。
         debug_verbose (bool): 詳細デバッグログを出力するかどうか。
         return_debug_data (bool): 追加デバッグデータを返却するかどうか。
+        third_settings (dict | None): Third Settings。``None`` なら使わない。
+            ``space``(Axis Source の小文字表示名)、``ref_axis``、``direction`` を持つ。
+            残りの1軸(外積で決まる軸)がこの方向と逆側を向く場合は、
+            Secondary を反転して指定方向の側へそろえる。
 
     Returns:
         list[float] | None | tuple[list[float] | None, OrientJointDebugData | None]:
@@ -1130,6 +1211,24 @@ def _compute_joint_orient_degrees(
     axes = _compute_axis_basis_from_ui(primary_axis, secondary_axis, primary_vec, secondary_vec)
     if any(v is None for v in axes.values()):
         return (None, None) if return_debug_data else None
+
+    # Third Settings: 外積で決まる残りの軸が指定方向と逆側なら、副軸を反転してそろえる。
+    # 主軸は動かさず、副軸と残りの軸の符号だけが入れ替わる(右手系は保たれる)。
+    if third_settings is not None:
+        third_axis = _compute_third_axis(primary_axis, secondary_axis)
+        third_ref = _compute_third_reference_vector(
+            joint_name,
+            third_settings["space"],
+            third_settings["ref_axis"],
+            third_settings["direction"],
+        )
+        if third_axis is None or third_ref is None:
+            return (None, None) if return_debug_data else None
+        if axes[third_axis] * third_ref < 0.0:
+            secondary_vec = secondary_vec * -1.0
+            axes = _compute_axis_basis_from_ui(primary_axis, secondary_axis, primary_vec, secondary_vec)
+            if any(v is None for v in axes.values()):
+                return (None, None) if return_debug_data else None
 
     # UI で決まった主軸/副軸から、最終的に狙うワールド回転行列を構築する。
     target_world_rot = _compute_rotation_matrix_from_axes(axes)
@@ -1231,6 +1330,19 @@ def _apply_orient_from_ui(*_):
     up_axis = cmds.optionMenuGrp("oj_up_axis", q=True, v=True).lower()
     up_direction = cmds.optionMenuGrp("oj_up_dir", q=True, v=True)
     up_space = cmds.optionMenuGrp("oj_up_space", q=True, v=True).lower()
+    third_settings = None
+    if cmds.checkBoxGrp("oj_third_enable", q=True, v1=True):
+        third_settings = {
+            "space": cmds.optionMenuGrp("oj_third_space", q=True, v=True).lower(),
+            "ref_axis": cmds.optionMenuGrp("oj_third_ref_axis", q=True, v=True).lower(),
+            "direction": cmds.optionMenuGrp("oj_third_dir", q=True, v=True),
+        }
+    # Next/Children Second を使う設定か(2本目の子が無いジョイントはスキップする)。
+    uses_second_child = "chain2" in (
+        primary_space,
+        _compute_primary_space_mode(up_space),
+        _compute_primary_space_mode(third_settings["space"]) if third_settings else None,
+    )
 
     joints = cmds.ls(sl=True, type="joint")
     if not joints:
@@ -1273,6 +1385,7 @@ def _apply_orient_from_ui(*_):
                     up_space=up_space,
                     debug_verbose=True,
                     return_debug_data=True,
+                    third_settings=third_settings,
                 )
             else:
                 orient_degrees = _compute_joint_orient_degrees(
@@ -1285,11 +1398,15 @@ def _apply_orient_from_ui(*_):
                     up_axis=up_axis,
                     up_direction=up_direction,
                     up_space=up_space,
+                    third_settings=third_settings,
                 )
                 orient_debug_data = None
 
             if orient_degrees is None:
-                cmds.warning("Skip {}: could not resolve orient direction.".format(j))
+                if uses_second_child and len(cmds.listRelatives(j, c=True, type="joint") or []) < 2:
+                    cmds.warning("Skip {}: it has no second child joint for Next/Children Second.".format(j))
+                else:
+                    cmds.warning("Skip {}: could not resolve orient direction.".format(j))
                 continue
 
             # 親の向き変更前に子孫のワールド姿勢を退避しておく。
@@ -1389,6 +1506,18 @@ def _ui_update_state(*_):
     cmds.optionMenuGrp("oj_primary_ref_axis", e=True, en=(primary_space in ("world", "local")))
     cmds.optionMenuGrp("oj_up_axis", e=True, en=(secondary_space in ("world", "local")))
 
+    # Third Settings: チェックが ON のときだけ編集でき、軸は Primary / Secondary の残りを表示する。
+    third_enabled = cmds.checkBoxGrp("oj_third_enable", q=True, v1=True)
+    third_axis = _compute_third_axis(
+        cmds.optionMenuGrp("oj_primary", q=True, v=True).lower(),
+        cmds.optionMenuGrp("oj_secondary", q=True, v=True).lower(),
+    )
+    cmds.textFieldGrp("oj_third_axis", e=True, text=third_axis.upper() if third_axis else "-", en=third_enabled)
+    third_space = _compute_primary_space_mode(cmds.optionMenuGrp("oj_third_space", q=True, v=True))
+    cmds.optionMenuGrp("oj_third_dir", e=True, en=third_enabled)
+    cmds.optionMenuGrp("oj_third_space", e=True, en=third_enabled)
+    cmds.optionMenuGrp("oj_third_ref_axis", e=True, en=(third_enabled and third_space in ("world", "local")))
+
 def show_orient_joint_like_window():
     """カスタム Orient Joint オプションウィンドウを作成して表示します。
 
@@ -1414,7 +1543,7 @@ def show_orient_joint_like_window():
     cmds.optionMenuGrp("oj_primary", label="Primary Axis", cw2=(label_width, field_width))
     for a in ("X", "Y", "Z"):
         cmds.menuItem(label=a)
-    cmds.optionMenuGrp("oj_primary", e=True, v="X")
+    cmds.optionMenuGrp("oj_primary", e=True, v="X", cc=_ui_update_state)
 
     cmds.optionMenuGrp("oj_primary_dir", label="Primary Direction", cw2=(label_width, field_width))
     for a in ("+", "-"):
@@ -1422,9 +1551,9 @@ def show_orient_joint_like_window():
     cmds.optionMenuGrp("oj_primary_dir", e=True, v="+")
 
     cmds.optionMenuGrp("oj_primary_space", label="Primary Axis Source", cw2=(label_width, field_width))
-    for a in ("World", "Local", "Next/Children"):
+    for a in _SOURCE_LABELS:
         cmds.menuItem(label=a)
-    cmds.optionMenuGrp("oj_primary_space", e=True, v="Next/Children", cc=_ui_update_state)
+    cmds.optionMenuGrp("oj_primary_space", e=True, v="Next/Children First", cc=_ui_update_state)
 
     cmds.optionMenuGrp("oj_primary_ref_axis", label="Primary Reference Axis", cw2=(label_width, field_width))
     for a in ("X", "Y", "Z"):
@@ -1441,7 +1570,7 @@ def show_orient_joint_like_window():
     cmds.optionMenuGrp("oj_secondary", label="Secondary Axis", cw2=(label_width, field_width))
     for a in ("X", "Y", "Z", "None"):
         cmds.menuItem(label=a)
-    cmds.optionMenuGrp("oj_secondary", e=True, v="Y")
+    cmds.optionMenuGrp("oj_secondary", e=True, v="Y", cc=_ui_update_state)
 
     cmds.optionMenuGrp("oj_up_dir", label="Secondary Direction", cw2=(label_width, field_width))
     for a in ("+", "-"):
@@ -1449,7 +1578,7 @@ def show_orient_joint_like_window():
     cmds.optionMenuGrp("oj_up_dir", e=True, v="+")
 
     cmds.optionMenuGrp("oj_up_space", label="Secondary Axis Source", cw2=(label_width, field_width))
-    for a in ("World", "Local", "Next/Children"):
+    for a in _SOURCE_LABELS:
         cmds.menuItem(label=a)
     cmds.optionMenuGrp("oj_up_space", e=True, v="World", cc=_ui_update_state)
 
@@ -1459,6 +1588,39 @@ def show_orient_joint_like_window():
     cmds.optionMenuGrp("oj_up_axis", e=True, v="Y")
 
     cmds.separator(h=4, style="in")
+
+    cmds.setParent("..")
+    cmds.setParent("..")
+
+    # Third 設定セクション(既定は OFF。ON のとき、残りの軸が指定方向の側を向くよう副軸の符号をそろえる)
+    cmds.frameLayout(label="Third Settings", collapsable=True, collapse=False, mw=10, mh=10)
+    cmds.columnLayout(adj=True, rs=6)
+
+    cmds.checkBoxGrp(
+        "oj_third_enable",
+        label="Use Third Settings",
+        numberOfCheckBoxes=1,
+        v1=False,
+        cw2=(label_width, field_width),
+        cc=_ui_update_state,
+    )
+
+    cmds.textFieldGrp("oj_third_axis", label="Third Axis", text="Z", editable=False, cw2=(label_width, field_width))
+
+    cmds.optionMenuGrp("oj_third_dir", label="Third Direction", cw2=(label_width, field_width))
+    for a in ("+", "-"):
+        cmds.menuItem(label=a)
+    cmds.optionMenuGrp("oj_third_dir", e=True, v="+")
+
+    cmds.optionMenuGrp("oj_third_space", label="Third Axis Source", cw2=(label_width, field_width))
+    for a in _SOURCE_LABELS:
+        cmds.menuItem(label=a)
+    cmds.optionMenuGrp("oj_third_space", e=True, v="World", cc=_ui_update_state)
+
+    cmds.optionMenuGrp("oj_third_ref_axis", label="Third Reference Axis", cw2=(label_width, field_width))
+    for a in ("X", "Y", "Z"):
+        cmds.menuItem(label=a)
+    cmds.optionMenuGrp("oj_third_ref_axis", e=True, v="Z")
 
     cmds.setParent("..")
     cmds.setParent("..")
