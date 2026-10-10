@@ -282,3 +282,6 @@ incrementalSave/
 # Sphinx が .po から自動で作るコンパイル済みの訳(ビルドのたびに作り直す)
 maya/inhouse/*/docs/locale/**/*.mo
 maya/inhouse/hlib/_docs/locale/**/*.mo
+
+# pip packages installed by maya/install_packages.bat (per Maya version)
+/maya/site-packages/

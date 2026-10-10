@@ -87,6 +87,20 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-10): 起動バッチ(maya_core.bat/.command)でPYTHONPATHを組む前に、requirements.txtと取得時の写しが異なる(未取得含む)ときだけそのバージョンのinstall_packagesを呼んで自動取得するよう変更(従来の[WARN]表示を置換)。失敗時は[WARN]で前回の取得結果のまま起動。mayapyへ差し替えた一時コピーで、変更なし(取得なし・0.8秒)、未取得(自動取得し同じ起動でimport可)、requirements変更(再取得)、取得失敗(WARNで継続・旧パッケージでimport可)を確認。site-packages/2026を消してMaya 2026 GUIを起動バッチで起動し、自動取得とGUI上のslack_sdk読み込みを確認。macOSの.commandは未実行。README・CLAUDE.md更新。未コミット。
+
+- Codex 2026-10-10: reproduceFlip=True追加。固定側の逆安全境界をA入力44/40度・B距離4.3/4.7cm・C肘位置角±2度・D腕傾斜0/25度で往復し、中心方向往復を対照にした上面動画をMaya2027で実録画。865フレームの式/1軸/非交差検証成功、補正交差0、30度超の跳び11回、4ケース全部再現、対照は跳び0。HUDにFLIP角と境界を表示、完成MP4全デコード確認。Drive 1JAN7RlB30f1M84nf0EeOa77p9JNlb9kPをanyone/reader共有。再現用ma/最新ポインタ分離、既存サンプル保持。未コミット・未プッシュ。
+
+- Codex 2026-10-10: fixedElbowSide=True追加。初期肘ガイドの接線方向内積でsideを固定し、危険範囲だけoutward+side*limitへ補正。緑固定/橙最近接/黄色肘ガイドの上面比較をMaya2027で505フレーム検証、補正交差0。最大フレーム回転差は固定3.33度/最近接84.65度、保存ma再読込後逆順DG/Serial/Parallel全出力一致。完成MP4デコード確認、Drive 1sJTZS0lHUmEfHX8VKuqHjMJDWnRL6--nをanyone/reader共有。逆側安全境界の不連続・初期側固定の制限を文書化。既存モード保持、未コミット・未プッシュ。
+
+- Codex 2026-10-10: ジョイントX軸回避にmain(topView=True)追加。同一DG・入力505フレームを上面固定正投影でMaya2027実録画、全判定成功・補正中心線の球交差0。既定斜め版・既存動画保持。MP4/HUD表示確認、Drive 1DibRGyggJB-X2uSh39pYTmk7WRypqbUXをanyone/reader共有。最新上面ポインタを分離。構文/diff確認、未コミット・未プッシュ。
+
+- Codex 2026-10-10: ユーザー指定の腕ローカルX軸1軸に対応するdemo_joint_twist_tangent.py追加。腕/尻尾/末端をjoint化し、補正はtailCorrected_JNT.rxだけ、ry/rzロック・移動0保持。腕姿勢を含むローカルYZ平面と球の断面から標準DGで接線停止、断面なしは入力通過。Maya2027実録画505フレーム成功(未補正364交差/補正0、最大角誤差2.24e-5度)。保存ma再読込DG/Serial/Parallel全フレーム一致。HUD・斜め固定カメラ・MP4確認、Drive 1WRCWDaarsJEai1cyaZb3G8UDW8FgkVLVをanyone/reader共有。球近似・無スケール・腕軸に垂直な直線尾・根元球外など制約を文書化。既存サンプル保持、未コミット・未プッシュ。
+
+- Claude Code (2026-10-10): pipパッケージ取得を追加。maya/requirements.txt(初期はslack_sdk)、maya/install_packages.bat/.command、tools/install_maya_packages.py(各mayapyで--target取得、Maya同梱パッケージはpip list --pathの版に固定して取得先から除外、新フォルダーへ取得後に入れ替え)。maya_core.bat/.commandはsite-packages/<年>があればPYTHONPATHへ追加し、未取得・requirements変更時に[WARN]。PYTHONNOUSERSITEは設定せずユーザー領域と共存。Maya2022〜2027で取得成功、numpy指定時に2025〜2027は同梱版へ固定して除外・2022は取得、同梱と矛盾する指定は失敗して前の取得結果を保持、起動バッチ(mayapyへ差し替えた一時コピー)でslack_sdkの読み込み・ユーザー領域の共存・WARN表示を確認。macOSの.commandは未実行。追加で起動バッチからMaya 2022/2027 GUIを起動し(一時userSetup.melで確認スクリプトを遅延実行して自動終了)、site-packages/<年>がsys.pathに入りslack_sdkを読み込めること、2022でユーザー領域が共存すること、2027のnumpyがMaya同梱版のままであること、HToolsメニューが作られることを確認。
+
+- Codex 2026-10-10: 固定サンプルを変更せずdemo_top_view_moving_tangent.py追加。標準DGで距離・外向き・接線角・相対角wrapを更新。Maya2027実録画541フレーム成功、未補正249交差/補正0。保存ma再読込後のDG/Serial/Parallel全541フレーム出力一致。HUD・完成MP4確認、Drive 1Cf19faH7HnCcoUKUJMHU-2SDfx9Vl4dMをanyone/reader共有。angleBetween既定Y成分による初回不一致を修正。根元が円外・2D・±180側切替の制限を文書化。未コミット・未プッシュ。
+
 - Codex 2026-10-10: 共通ワークフロー指示4ファイル・詳細手順・録画共通ツール/4件テストを7af777aでmainへpush。独立indexを使用し、他ツールのstage済みsubmodule/CLAUDE一覧更新と既存リグ変更を保持。リモートmainの一致確認。
 
 - Codex 2026-10-10: AGENTS.md・CLAUDE.md・Copilot全体/VS Code用指示の4ファイルへ同一のリグ検証共通ワークフローを追記。docs/verification-videos.mdへ標準工程・HUD表示要件を記載。参照先・差分を確認しdiff --check成功。文書のみ、Maya再実行なし。既存変更保持、未コミット・未プッシュ。

@@ -64,7 +64,23 @@ SET MAYA_SCRIPT_PATH=%MAYA_MEL_1%%MAYA_MEL_2%;%MAYA_SCRIPT_PATH%
 ::----------------------------------------------------------------
 SET PATH_INHOUSE=%PATH_BAT%inhouse;
 SET PATH_USERSETUP=%PATH_BAT%inhouse\HTools;
-SET PYTHONPATH=%PATH_INHOUSE%;%PATH_USERSETUP%;%PYTHONPATH%
+
+::pip packages in site-packages\<version> (only these launchers use them).
+::Installed here, before PYTHONPATH is built, when they are missing or
+::requirements.txt has changed since the last install.
+SET "PATH_SITE=%PATH_BAT%site-packages\%MAYA_VERSION%"
+SET "PIP_NEEDED="
+FINDSTR /R /V /C:"^[ ]*#" /C:"^[ ]*$" "%PATH_BAT%requirements.txt" >NUL 2>&1 && (
+    FC /B "%PATH_BAT%requirements.txt" "%PATH_SITE%\.installed-requirements.txt" >NUL 2>&1 || SET "PIP_NEEDED=1"
+)
+IF DEFINED PIP_NEEDED (
+    ECHO Installing pip packages for Maya %MAYA_VERSION%: requirements.txt is new or changed.
+    CALL "%PATH_BAT%install_packages.bat" %MAYA_VERSION%
+    IF ERRORLEVEL 1 ECHO [WARN] Could not install pip packages. Maya starts with the previous packages; tools that need new ones may fail.
+)
+SET "PATH_SITE_ENTRY="
+IF EXIST "%PATH_SITE%\" SET "PATH_SITE_ENTRY=%PATH_SITE%;"
+SET PYTHONPATH=%PATH_INHOUSE%;%PATH_USERSETUP%;%PATH_SITE_ENTRY%%PYTHONPATH%
 
 ::----------------------------------------------------------------
 ::Plugin Tools
@@ -83,11 +99,6 @@ SET MAYA_MODULE_PATH=%PATH_BAT%modules;%MAYA_MODULE_PATH%
 IF "%SLACK_API_BOT_TOKEN%" == "" (
     ECHO [WARN] SLACK_API_BOT_TOKEN is not set. Slack notifications will be disabled.
 )
-
-::----------------------------------------------------------------
-::Install PIP and Packages
-::----------------------------------------------------------------
-::CALL %PATH_BAT%site-packages\install_pip.bat
 
 ::----------------------------------------------------------------
 ::Run MayaBatch

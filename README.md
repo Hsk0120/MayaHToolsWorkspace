@@ -149,6 +149,27 @@ cd MayaHToolsWorkspace
 git submodule update --init --recursive
 ```
 
+### pipのパッケージ
+
+外部ツールは基本的にGit submoduleで取得します。submoduleにしていないPyPIのパッケージは、
+`maya/requirements.txt`に書きます。起動バッチ(`maya_<version>_<language>.bat`)が、
+そのバージョンで未取得のときと`requirements.txt`が前回の取得から変わったときに自動で取得してから
+Mayaを起動します(取得済みで変更がなければ何もしないので、通常の起動は遅くなりません)。
+取得に失敗したとき(ネットワークに繋がらないなど)は`[WARN]`を表示し、前回の取得結果のまま起動します。
+
+まとめて取得し直したいときは取得バッチを直接実行します。
+
+```bat
+cd maya
+install_packages.bat
+```
+
+- 引数なしでインストール済みの全バージョン、`install_packages.bat 2026 2027`のように年を渡すとそのバージョンだけを取得します(macOSは`install_packages.command`)。
+- 各バージョンの`mayapy`で`maya/site-packages/<年>`へ入れます(Git対象外)。Maya本体やユーザー領域(`%APPDATA%\Python`)には書き込みません。
+- このフォルダーを`PYTHONPATH`に追加するのは起動バッチだけなので、通常起動のMayaには影響しません。ユーザー領域など既存のパッケージもそのまま使え、同じパッケージがあれば`site-packages/<年>`の方が優先されます。
+- Maya同梱のパッケージ(2025以降のnumpyなど)は同梱の版に固定して解決し、取得先からは外します。同梱品と合わない版を指定した場合は取得に失敗し、前の取得結果を残します。
+- 起動中のMayaが使っているファイルは入れ替えられないので、同じバージョンのMayaが起動中だと取得に失敗することがあります(閉じてから起動し直します)。
+
 ## ▼メモ
 
 - `maya_core.bat`は、上記バージョン別バッチから呼ばれる共通処理です。
