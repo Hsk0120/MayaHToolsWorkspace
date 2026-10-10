@@ -1,0 +1,3 @@
+# Dem Bones / SSDR skinning decomposition bindings
+# The Python 3.7 build (0.4.0) fails to load its DLL, so Maya 2022 is left out
+py-dem-bones; python_version >= "3.8"

@@ -152,22 +152,44 @@ git submodule update --init --recursive
 ### pipのパッケージ
 
 外部ツールは基本的にGit submoduleで取得します。submoduleにしていないPyPIのパッケージは、
-`maya/requirements.txt`に書きます。起動バッチ(`maya_<version>_<language>.bat`)が、
-そのバージョンで未取得のときと`requirements.txt`が前回の取得から変わったときに自動で取得してから
-Mayaを起動します(取得済みで変更がなければ何もしないので、通常の起動は遅くなりません)。
-取得に失敗したとき(ネットワークに繋がらないなど)は`[WARN]`を表示し、前回の取得結果のまま起動します。
+`maya/requirements/<名前>.txt`(1ファイル=1グループ)に書きます。
 
-まとめて取得し直したいときは取得バッチを直接実行します。
+- 取得先は`maya/site-packages/<年>/<名前>`で、Gitには登録しません(ライセンスの都合で、取得したものはコミットしない)。
+  Maya本体やユーザー領域(`%APPDATA%\Python`)には書き込みません。
+- `PYTHONPATH`に通すのは`pip_<名前>.mod`です。submoduleの`.mod`と同じく、`maya/modules/`に置いたグループだけが使われ、
+  `maya/modules_disabled/`に置いたものは使われません。初期状態で有効なのは`slack_sdk`だけです。
+- 起動バッチ(`maya_<version>_<language>.bat`)は、有効なグループのうち未取得のものと`.txt`が前回の取得から変わったものを
+  自動で取得してからMayaを起動します(取得済みで変更がなければ何もしないので、通常の起動は遅くなりません)。
+- そのMayaのPythonに対応する配布が無いなどで取得に失敗したグループは記録し、起動のたびにやり直さず`[WARN]`だけを表示します。
+  取得し直すときは取得バッチを直接実行します。
 
 ```bat
 cd maya
-install_packages.bat
+install_packages.bat                    :: 全グループを、インストール済みの全バージョンへ
+install_packages.bat 2026 scipy libigl  :: 数字はMayaの年、それ以外はグループ名
 ```
 
-- 引数なしでインストール済みの全バージョン、`install_packages.bat 2026 2027`のように年を渡すとそのバージョンだけを取得します(macOSは`install_packages.command`)。
-- 各バージョンの`mayapy`で`maya/site-packages/<年>`へ入れます(Git対象外)。Maya本体やユーザー領域(`%APPDATA%\Python`)には書き込みません。
-- このフォルダーを`PYTHONPATH`に追加するのは起動バッチだけなので、通常起動のMayaには影響しません。ユーザー領域など既存のパッケージもそのまま使え、同じパッケージがあれば`site-packages/<年>`の方が優先されます。
-- Maya同梱のパッケージ(2025以降のnumpyなど)は同梱の版に固定して解決し、取得先からは外します。同梱品と合わない版を指定した場合は取得に失敗し、前の取得結果を残します。
+- グループは依存パッケージも含めて自己完結します。同じバージョン内で複数のグループに入った同じファイル(scipyなど)は、取得後にハードリンクでまとめて容量を減らします(NTFS)。
+
+用意しているグループ(○=取得・importを確認、—=そのPythonに対応する配布が無いため入らない):
+
+| グループ | 内容 | 2022 | 2023 | 2024 | 2025 | 2026 | 2027 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `slack_sdk`(有効) | Slack連携 | ○ | ○ | ○ | ○ | ○ | ○ |
+| `numpy` | 2025以降はMaya同梱を使う | ○ | ○ | ○ | 同梱 | 同梱 | 同梱 |
+| `scipy` | 疎行列・最適化 | ○ | ○ | ○ | ○ | ○ | ○ |
+| `robust_laplacian` | 非多様体ラプラシアン | ○ | ○ | ○ | ○ | ○ | ○ |
+| `potpourri3d` | heat method・vector heat | ○ | ○ | ○ | ○ | ○ | ○ |
+| `libigl` | libigl(BBWなど) | ○ | ○ | ○ | ○ | ○ | ○ |
+| `py_dem_bones` | Dem Bones(SSDR) | — | ○ | ○ | ○ | ○ | — |
+| `ipctk` | IPC Toolkit | — | — | ○ | ○ | ○ | ○ |
+| `simkit` | SimKit | ○ | ○ | ○ | ○ | ○ | ○ |
+| `fast_cody` | Fast Complementary Dynamics(依存が重い) | — | — | ○ | ○ | ○ | — |
+| `geometric_kernels` | 多様体上のカーネル | — | ○ | ○ | ○ | ○ | ○ |
+
+ライセンスはパッケージごとに異なります(取得物はコミットしません)。2025・2026の`geometric_kernels`はMaya同梱のnumpy 1系に合わせた旧版です。
+- Maya同梱のパッケージ(2025以降のnumpyなど)は同梱の版に固定して解決し、取得先からは外します。
+- 新しいグループは`maya/requirements/<名前>.txt`を作って取得バッチを実行すると、無効の`pip_<名前>.mod`が`modules_disabled/`に作られます。
 - 起動中のMayaが使っているファイルは入れ替えられないので、同じバージョンのMayaが起動中だと取得に失敗することがあります(閉じてから起動し直します)。
 
 ## ▼メモ

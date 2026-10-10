@@ -1,0 +1,2 @@
+# libigl Python bindings (BBW, harmonic weights, etc.)
+libigl

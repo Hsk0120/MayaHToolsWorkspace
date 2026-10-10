@@ -1,0 +1,2 @@
+# SciPy (sparse solvers for weight transfer, SPLOCS, etc.)
+scipy

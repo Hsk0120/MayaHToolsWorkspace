@@ -1,0 +1,2 @@
+# integrations/slack (Slack notifications)
+slack_sdk

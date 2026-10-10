@@ -1,0 +1,2 @@
+# Kernels on manifolds (Matern / heat on SO(3), spheres). Needs numpy 2
+geometric-kernels

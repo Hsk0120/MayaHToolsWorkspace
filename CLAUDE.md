@@ -46,11 +46,11 @@ cd maya
 maya_2026_en.bat
 ```
 
-各バッチは共通処理 `maya_core.bat` を呼び、`PYTHONPATH`(`inhouse`, `inhouse/HTools`, 取得済みなら `site-packages/<年>`)、`MAYA_SCRIPT_PATH`、`MAYA_PLUG_IN_PATH`、`MAYA_MODULE_PATH`(`modules/`)を設定してからMayaを起動する。`%USERPROFILE%\Documents\maya\<version>\Maya.env` が存在すればあわせて読み込まれる。
+各バッチは共通処理 `maya_core.bat` を呼び、`PYTHONPATH`(`inhouse`, `inhouse/HTools`)、`MAYA_SCRIPT_PATH`、`MAYA_PLUG_IN_PATH`、`MAYA_MODULE_PATH`(`modules/`)を設定してからMayaを起動する。`%USERPROFILE%\Documents\maya\<version>\Maya.env` が存在すればあわせて読み込まれる。
 
 ### pipのパッケージ
 
-外部ツールはGit submoduleが基本で、submoduleにしていないPyPIパッケージだけを `maya/requirements.txt` に書く。`maya/install_packages.bat [年...]`(macOSは `.command`)が各バージョンの `mayapy` で `tools/install_maya_packages.py` を実行し、`maya/site-packages/<年>`(Git対象外)へ `pip install --target` する。Maya本体・ユーザー領域には書き込まず、`PYTHONPATH` へ追加するのは起動バッチだけ(通常起動のMayaとmayapyのテストツールは参照しない)。`PYTHONNOUSERSITE` は設定せず、ユーザー領域のパッケージとも共存する(同名なら `site-packages/<年>` が優先)。Maya同梱パッケージは `pip list --path` で調べた版に固定して解決し、取得後に取得先から外す。新しいフォルダーへ取得してから入れ替えるので、起動中のMayaが使うファイルがあると失敗する(閉じてやり直す)。起動バッチは `PYTHONPATH` を組む前に、`requirements.txt` と取得時の写し(`.installed-requirements.txt`)が違う(未取得を含む)ときだけ、そのバージョンについて `install_packages.bat <年>` を呼んで自動取得する。一致していれば取得しない(ネット接続も無し)。取得に失敗したら `[WARN]` を出して前回の取得結果のまま起動する。
+外部ツールはGit submoduleが基本で、submoduleにしていないPyPIパッケージだけを `maya/requirements/<名前>.txt`(1ファイル=1グループ)に書く。`maya/install_packages.bat [年...] [グループ...]`(macOSは `.command`)が各バージョンの `mayapy` で `tools/install_maya_packages.py` を実行し、`maya/site-packages/<年>/<名前>`(Git対象外。取得物はライセンスの都合でコミットしない)へ `pip install --target` する。グループは依存も含めて自己完結し、同じバージョン内の同一ファイルは取得後にハードリンクでまとめる。`PYTHONPATH` へ通すのは `pip_<名前>.mod` だけで、submoduleと同じく `maya/modules/` に置いたものが有効、`maya/modules_disabled/` は無効(初期の有効は `slack_sdk` のみ)。`.mod` が無いグループには取得時に無効の `.mod` を作る。Maya本体・ユーザー領域には書き込まず、`PYTHONNOUSERSITE` も設定しない(ユーザー領域と共存)。Maya同梱パッケージは `pip list --path` で調べた版に固定して解決し、取得後に取得先から外す。新しいフォルダーへ取得してから入れ替えるので、起動中のMayaが使うファイルがあると失敗する。起動バッチは有効な `pip_*.mod` のグループについて、`.txt` と取得時の写し(`<名前>/.installed-requirements.txt`)が違えば自動取得してからMayaを起動する。取得に失敗したグループは `<名前>.failed` に写しを残し、同じ内容では起動のたびに再試行せず `[WARN]` だけ出す。
 
 ### VS CodeからMayaへコードを送信・実行する
 
@@ -217,7 +217,7 @@ C++のMayaプラグインは別リポジトリで管理し、submoduleとして�
 
 ## 開発上の注意
 
-- Pythonの単体実行環境(venv)は用意されていない(pipはMaya起動用の `maya/site-packages/<年>` への取得だけ)。全てMaya本体(GUIまたはmayapy)を介して動作する前提で、純粋ロジックのテストであってもMaya経由で実行するのがこのリポジトリの標準的な方法。
+- Pythonの単体実行環境(venv)は用意されていない(pipはMaya起動用の `maya/site-packages/<年>/<グループ>` への取得だけ)。全てMaya本体(GUIまたはmayapy)を介して動作する前提で、純粋ロジックのテストであってもMaya経由で実行するのがこのリポジトリの標準的な方法。
 - `maya/external/*` はGit submodule。変更が必要な場合は各submoduleのリポジトリ側で行う(親リポジトリからの直接コミット対象ではない)。
 - 新規clone後は `git submodule update --init --recursive` が必要。
 - hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.environment`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。

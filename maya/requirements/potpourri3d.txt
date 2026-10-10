@@ -1,0 +1,2 @@
+# Heat method geodesics, vector heat, log maps (geometry-central bindings)
+potpourri3d

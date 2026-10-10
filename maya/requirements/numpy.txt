@@ -1,0 +1,2 @@
+# NumPy. Maya 2025+ bundle it, so it is only installed for 2022-2024
+numpy

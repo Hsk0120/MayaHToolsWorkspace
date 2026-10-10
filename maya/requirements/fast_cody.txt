@@ -1,0 +1,3 @@
+# Fast Complementary Dynamics. Heavy dependencies (mediapipe, opencv, scikit-learn)
+# Uses Python 3.10 syntax without declaring it, so Maya 2022/2023 are left out
+fast-cody; python_version >= "3.10"

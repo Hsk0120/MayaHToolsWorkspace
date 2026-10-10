@@ -1,0 +1,2 @@
+# SimKit (subspace / mixed FEM simulation toolkit)
+simkit

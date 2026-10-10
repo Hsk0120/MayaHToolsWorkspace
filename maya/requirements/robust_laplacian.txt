@@ -1,0 +1,4 @@
+# Nonmanifold / point cloud Laplacian (Sharp & Crane, SGP 2020)
+robust-laplacian
+# Used at runtime but not declared by robust-laplacian
+scipy

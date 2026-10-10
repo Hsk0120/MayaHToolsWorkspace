@@ -87,6 +87,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-10): pipパッケージをグループ化。maya/requirements/<名前>.txt(slack_sdk・numpy・scipy・robust_laplacian・potpourri3d・libigl・py_dem_bones・ipctk・simkit・fast_cody・geometric_kernels)→site-packages/<年>/<名前>(Git対象外)、PYTHONPATHはpip_<名前>.modだけ(modules=有効、modules_disabled=無効、初期有効はslack_sdkのみ)。起動バッチは有効グループの未取得・変更時のみ自動取得、失敗は<名前>.failedで再試行せずWARN。取得処理はグループ単位・同梱パッケージ除外・旧配置の削除・.mod自動作成・同一ファイルのハードリンク化(11.4GB→約6GB)・空.whl削除。全グループを2022〜2027へ取得し、各版mayapyでimport(一部は計算)を確認。robust_laplacianはscipy未宣言のため追加、py_dem_bones(3.7のDLL不良)・fast_cody(3.10構文)はpython_versionで限定。起動チェック0.1秒、失敗記録グループのWARN、GUI Maya 2026で有効グループの自動取得・.modによる2グループのみのパス追加・無効グループ非表示を確認。macOS未実行。未コミット。
+
+- Codex 2026-10-10: ユーザーの「よくなる方で」を受けcontinuousElbowSide/maximumAngle追加。危険/安全切替を廃し、接線の無符号角から負側の連続可動域[-60,bound]へclamp。Maya2027実録画973フレームで前4フリップ条件の大きな跳びなし(最大step1.279度)、末尾で-60度保持/意図した貫通57フレームを確認。保存ma再読込・逆順DG/Serial/Parallel全一致、ry/rz0・片側範囲保持。緑新方式/橙旧固定方式のMP4確認・全デコード成功、Drive 1CxApBRLKBQa_wPevt8gc_iOfU5rLCC6eをanyone/reader共有。安全入力も制限/断面なしも可動域維持など代替方針の制限を文書化。既存モード保持、未コミット・未プッシュ。
+
 - Claude Code (2026-10-10): 起動バッチ(maya_core.bat/.command)でPYTHONPATHを組む前に、requirements.txtと取得時の写しが異なる(未取得含む)ときだけそのバージョンのinstall_packagesを呼んで自動取得するよう変更(従来の[WARN]表示を置換)。失敗時は[WARN]で前回の取得結果のまま起動。mayapyへ差し替えた一時コピーで、変更なし(取得なし・0.8秒)、未取得(自動取得し同じ起動でimport可)、requirements変更(再取得)、取得失敗(WARNで継続・旧パッケージでimport可)を確認。site-packages/2026を消してMaya 2026 GUIを起動バッチで起動し、自動取得とGUI上のslack_sdk読み込みを確認。macOSの.commandは未実行。README・CLAUDE.md更新。未コミット。
 
 - Codex 2026-10-10: reproduceFlip=True追加。固定側の逆安全境界をA入力44/40度・B距離4.3/4.7cm・C肘位置角±2度・D腕傾斜0/25度で往復し、中心方向往復を対照にした上面動画をMaya2027で実録画。865フレームの式/1軸/非交差検証成功、補正交差0、30度超の跳び11回、4ケース全部再現、対照は跳び0。HUDにFLIP角と境界を表示、完成MP4全デコード確認。Drive 1JAN7RlB30f1M84nf0EeOa77p9JNlb9kPをanyone/reader共有。再現用ma/最新ポインタ分離、既存サンプル保持。未コミット・未プッシュ。
