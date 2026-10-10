@@ -10,6 +10,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    :caption: テストと計測
 
    testing
+   verification_video
    test_scenes
    test_results
    constraint_performance
@@ -24,6 +25,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    bend_correction
    swing_twist
    rotation_follow
+   root_direction_limit
    aim_axis_conversion
    radial_weights
    secondary_motion

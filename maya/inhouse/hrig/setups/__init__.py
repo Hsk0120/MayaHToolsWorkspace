@@ -8,6 +8,7 @@ from .matrixFollow import MatrixFollow
 from .poseRbf import PoseRbf
 from .radialWeights import RadialWeights
 from .rotationFollow import RotationFollow
+from .rootDirectionLimit import RootDirectionLimit
 from .softIK import SoftIK
 from .spaceSwitch import SpaceSwitch
 from .splineIK import SplineIK
@@ -23,6 +24,7 @@ __all__ = [
     "PoseRbf",
     "RadialWeights",
     "RotationFollow",
+    "RootDirectionLimit",
     "SoftIK",
     "SpaceSwitch",
     "SplineIK",

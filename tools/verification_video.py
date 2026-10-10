@@ -89,6 +89,19 @@ def encodeVideo(folder, record, encoder, width=1280, height=720):
                 "BODY HIT" if status[0] else "CLEAR", "BODY HIT" if status[1] else "CLEAR"), encoding="utf-8")
             condition = "+".join("between(n,{},{})".format(a, b) for a, b in runs)
             filters.append(style + ":y=60:textfile={}:enable='{}'".format(filename, condition))
+        # 説明用動画の段階名を大きく表示する。実フレーム側のHUDにも同じ段階名を残す。
+        start = 0
+        stages = [frame.get("presentation_stage") for frame in record["frames"]]
+        while start<len(stages):
+            end = start
+            while end+1<len(stages) and stages[end+1]==stages[start]:
+                end += 1
+            if stages[start]:
+                filename = "stage-{}.txt".format(start)
+                (folder/filename).write_text(stages[start], encoding="utf-8")
+                filters.append("drawtext=fontfile=caption-font.ttf:fontsize=28:fontcolor=white:x=20:y=110:"
+                               "box=1:boxcolor=black@0.8:textfile={}:enable='between(n,{},{})'".format(filename, start, end))
+            start = end+1
     arguments = [str(encoder), "-hide_banner", "-nostdin", "-y", "-framerate", str(record["fps"]), "-start_number", "0",
                  "-i", str(folder / "frames/frame_%05d.png"), "-frames:v", str(record["frame_count"]), "-vf", ",".join(filters),
                  "-c:v", "libx264", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(folder / "verification.mp4")]

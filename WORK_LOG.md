@@ -55,6 +55,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-11 | 配布方式の相談（README・起動バッチ・submoduleの参照のみ） | SourceTreeとGit不要の配布・更新方式を比較。 |
 | Codex | 2026-10-09 | hlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 
 
@@ -87,9 +88,41 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex 2026-10-11: ユーザー指示による残存変更の登録準備。RootDirectionLimit・検証デモ/録画スクリプト・公開説明用静止画3枚・関連文書・作業ログを確認。Maya2027 standaloneの方向制限10テスト、動画ツール4テスト、hlib公開検査、差分チェック成功。動画/画像連番は含めず、GUI録画は今回再実行していない。
+
 - Claude Code (2026-10-11): advancedOrientJointUIにThird Settings(Use Third Settings既定OFF。ON時は外積で決まる残りの軸がThird Direction/Source/Reference Axisの方向と逆ならSecondaryを反転、Primaryは不変)と、Axis SourceのNext/Children First/Second(Primary/Secondary/Third共通、2本目が無いジョイントは警告してスキップ)を追加。Third OFF・First選択時はHEAD版のNext/Childrenと全ケース一致。mayapy 2022/2027で48項目、GUI 2022/2027でUIの既定・有効切替・Third Axis表示・Apply・Undo・スキップを確認。未コミット。
 
+- Codex 2026-10-11: ユーザー指示でeditSkinJoints.pyと専用テスト2件を14b39efとしてコミットしorigin/mainへpush成功。staged差分チェック成功、既存のMaya2027 standalone/専用GUI検証結果を確認。他作業の変更と共有WORK_LOGはローカル保持。
+
+- Codex 2026-10-11: editSkinJoints.py内のUI所有scriptJobで選択jointのjointOrient直接編集時に子のワールド行列を保持。compressUndoと同値書込回避により単一Undo/Redo対応。選択・時刻・Undo/Redoで監視更新、UI終了で解放。専用Maya2027 GUIの自動アトリビュート編集で子/孫保持、単一Undo、Redo、連続編集、無効化、選択変更、再表示、終了後解放の8項目成功。既存standalone回帰成功。Channel Boxの実マウス入力とロック/接続付きの子は未検証（後者は補正前に拒否）。プラグイン追加なし、ユーザーGUI不変更。
+
+- Codex 2026-10-11: Preserve ChildrenボタンのON/OFF/Mixed接尾表示を削除し、Begin/Endの固定ラベルと赤/グレー表示を維持。構文確認成功。
+
+- Codex 2026-10-11: Preserve ChildrenをBegin/Endの2ボタンへ変更。開始は3標準ツールをON、終了はOFFへ揃え、有効中の開始ボタン赤表示を維持。構文確認成功、GUI操作は未検証。
+
+- Codex 2026-10-11: editSkinJointsのExtraにPreserve Childrenトグル追加。標準Move/Rotate/ScaleのpreserveChildPositionを一括切替し、ON赤/OFFグレー・混在表示・ToolChanged時の再照会に対応。チャンネル直接編集には適用されない旨をUIに明記。構文確認成功、Maya GUI操作は未検証。
+
+- Codex 2026-10-11: editSkinJointsにExtra/Freeze Selected Joint Rotationsを追加。選択jointのrotateをjointOrientへ合成し位置/scaleと未選択子を保持。対象インフルエンスのbindPreMatrixとbindPoseの該当メンバーを更新、1回Undo対応。Maya2027 standaloneで6回転順序・rotateAxis併用・子ワールド/チャンネル保持・bind行列/poseのUndo/Redoと既存回帰を検証成功。GUI表示は未検証。
+
 - Claude Code (2026-10-11): HToolsのhlib直接importを全廃(21ファイル、各ツールで完結。convertAimAxes・controllerShapeManagerのhrig経由とhrigLayerEditorは維持)。OBB計算・循環検出・ジョイント削除とウェイト移送・preservedSkinShape・頂点隣接などをcmds/OpenMayaで各ファイルへ移植。既存バグ修正: createCurveFromSelectedClustersの単位ズレ、duplicateAnimCurveの切り離し、duplicateInputsのprint/引数、simpleCollisionのmm時の寸法とピボット、removeSelectedJointsのウェイトが加算されず他インフルエンスが増える不具合(5万頂点で155秒→1.75秒)、import時に実行される6ファイル(advancedOrientJointUI・transferUvchannelToMap含む)に__main__ガード、複数操作をUndo1回に。hlibをブロックしたmayapy 2022/2027でHEAD版(hlibあり)と同じ入力の結果を比較し一致(意図した修正点を除く)。全モジュールのimport・Python3.7コンパイル、GUI Maya 2022/2027で主要6ツールのrun_name="__main__"実行とウィンドウ表示を確認。未追跡のrigging/editSkinJoints.pyは別作業のため未変更。未コミット。
+
+- Codex 2026-10-11: 環境共有についてREADME・起動バッチ・submodule構成と公式のGitクライアント/権限資料を確認。SourceTreeでの取得更新と、Git不要の版別ZIP・起動時更新方式を比較提案。実装変更・配布実行なし。
+
+- Codex 2026-10-11: editSkinJointsの待機時Begin/Finishを同じ明示グレーに統一し黒表示を回避。formLayoutでスクロール領域を四辺追従、resizeToFitChildren=False、サイズ設定削除を停止しMayaのwindowPrefを保持。構文確認成功、GUI実操作は未検証。
+
+- Codex 2026-10-11: editSkinJointsの初期サイズ拡張・当該UIの旧windowPref解除・スクロール領域・説明文の折り返し・左右余白を追加。Maya標準cmds UIにDPIスケーリングを委ね独自倍率は適用しない。構文確認成功。Maya GUI/4K高DPI実機での表示は未検証。
+
+- Codex 2026-10-11: editSkinJointsのBegin Editボタンを編集中は赤、完了後は作成時の標準色へ復元。既存refresh経由でUndo/Redo・再表示にも追従。構文確認成功、Maya GUIの色表示は未検証。
+
+- Codex 2026-10-11: editSkinJointsの共有bindPoseエラーを解消し、共有するskinClusterを自動収集。複数選択・複数bindPoseに対応し、対象一覧を追加。UI・独自警告/例外・Undo表示を英語化。Maya2027 standaloneで既存3方式に加え、別階層の共有先・複数選択・無関係対象の除外・ロックされた共有先の事前拒否・Undo/Redoを検証成功。GUI実操作は未検証。
+
+- Codex 2026-10-11: HTools/rigging/editSkinJoints.pyを追加。選択階層のskinClusterを一時停止し、全インフルエンスの逆行列・bindPose更新後にenvelope復元。開始/完了のUndo・Redoとシーン内セッション保持に対応。tools/test_edit_skin_joints.pyをMaya2027 standaloneで実行し、Linear/DQ/Blended・複数メッシュ・形状/ウェイト保持・編集後変形・Undo/Redo・不正フレーム/ゼロスケール拒否・envelope復元が成功。GUI操作は未検証。既存HTools改修対象は変更せず、コミット・pushなし。
+
+- Codex 2026-10-10: ユーザー指示で両方向最近接接線の上面ジョイント版(20261010-184255-9c129c72)を専用Maya GUIで再読込。twistOnlyLimitあり/片側固定・連続制限ノードなし、3姿勢の実出力を元の記録と照合しフレーム1へ戻した。片側版と連続制限版のコード/動画/シーン保持。コミット・pushなし。
+
+- Codex 2026-10-10: ユーザー指示で片側固定・フリップ再現シーン(20261010-185730-c9eb532f)へ検証状態を復元。Maya終了済みのため隔離GUI PID42256を起動して保存maを開き、continuousElbowOutputなし/固定接線ノードあり/最初の30度超フリップ再現を確認しフレーム1へ戻した。連続制限版のコード・動画・シーンは比較用に保持。既存変更を破棄せず、コミット・pushなし。
+
+- Codex 2026-10-10: largeMotion=Trueの説明入力を追加。初期姿勢・安全な距離8cm/位置角±25度/腕傾斜30度・尻尾入力±100度往復・距離3.2cmで-60度上限貫通保持・初期復帰を32秒/769フレームでMaya2027実録画。灰色初期姿勢を保持、橙旧方式は比較段階のみ表示。共通録画にpresentation_stage大文字字幕追加。安全/往復段階の補正交差0、大きな跳びなし(緑max5.921度/フレーム、橙58.58度)、上限貫通113フレーム、最終初期姿勢一致を検証。3段階MP4画像/全デコード確認、録画ツール4テスト成功、Drive 1gKWRVBMOS7NDF26dsrsD5B6QkSVfCmD3をanyone/reader共有。既存動画保持、未コミット・未プッシュ。
 
 - Claude Code (2026-10-10): pipパッケージをグループ化。maya/requirements/<名前>.txt(slack_sdk・numpy・scipy・robust_laplacian・potpourri3d・libigl・py_dem_bones・ipctk・simkit・fast_cody・geometric_kernels)→site-packages/<年>/<名前>(Git対象外)、PYTHONPATHはpip_<名前>.modだけ(modules=有効、modules_disabled=無効、初期有効はslack_sdkのみ)。起動バッチは有効グループの未取得・変更時のみ自動取得、失敗は<名前>.failedで再試行せずWARN。取得処理はグループ単位・同梱パッケージ除外・旧配置の削除・.mod自動作成・同一ファイルのハードリンク化(11.4GB→約6GB)・空.whl削除。全グループを2022〜2027へ取得し、各版mayapyでimport(一部は計算)を確認。robust_laplacianはscipy未宣言のため追加、py_dem_bones(3.7のDLL不良)・fast_cody(3.10構文)はpython_versionで限定。起動チェック0.1秒、失敗記録グループのWARN、GUI Maya 2026で有効グループの自動取得・.modによる2グループのみのパス追加・無効グループ非表示を確認。macOS未実行。未コミット。
 
@@ -706,6 +739,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-11 | 配布方式の相談（README・起動バッチ・submoduleの参照のみ） | SourceTreeとGit不要の配布・更新方式を比較。 |
 | Claude Code | 2026-10-08 | maya/inhouse/hedit(src/editor/code_editor.*・tests/vscode_features_smoke.py・docs・release/*.mll)・maya/modules/hedit.mod | hedit 0.4.2: MayaのHelp→Popup Helpがオフだとホバーが出ない問題を修正(Mayaが QEvent::ToolTip を止めるため、マウス移動から0.5秒の自前タイマーで出す)。2022〜2027でビルド・単体テスト合格、Popup Helpオフでのホバーを含むGUIテストを2022/2024/2027で合格。未コミット。 |
 | Claude Code | 2026-10-07 | maya/inhouse/hedit(src/editor/output_panel.*・src/plugin/output_capture.cpp・src/core/history_text.cpp・tests/ui_smoke.cpp・docs・release/*.mll) | 出力欄のさらなる高速化(0.4.1に追加): 出力が続くほど描き直しの間隔を広げる、5,000行を超える分は最初から入れない、取り込みの軽量化。2027でエラー5,000件(8行)4.7秒→3.9秒(基準3.4秒)。2022〜2027でビルド・単体テスト合格、出力のGUIテストは2022/2024/2027合格。未コミット。 |
 | Claude Code | 2026-10-07 | maya/inhouse/hedit(src/plugin/output_capture.*・editor_host.cpp・src/core/history_text.*・src/editor/output_panel.cpp・editor_preferences.*・main_window*.cpp・editor.h・tests・docs・release/*.mll)・maya/modules/hedit.mod | hedit 0.4.1: 出力欄の高速化。既定の取り込みを非表示reporterからMCommandMessageの整形に変更(Exact Script Editor output formatで旧方式)、その場の描き直しを100msごとに、Maya 2022の書き方に対応。2027でエラー5,000件(8行)8.5秒→4.7秒(標準SE 7.1秒)。2022〜2027でビルド・単体テスト合格、出力のGUIテストは2022/2024/2027(output_formatは2023/2025/2026も)合格。未コミット。 |

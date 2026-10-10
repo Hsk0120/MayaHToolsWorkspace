@@ -89,6 +89,58 @@ python tools/verification_video.py .maya-output/verification/<実行ID> .maya-ou
 
 コネクターの接続認証をローカルスクリプトへ流用したり、トークンをGitへ保存したりしません。通常のPythonのみで自動アップロードする運用は、別途Drive OAuthの初期設定が必要です。
 
+## 肘の位置が動く接線停止サンプル
+
+固定位置の`tools/demo_top_view_tangent_limit.py`と保存済み動画・シーンは残し、別の`tools/demo_top_view_moving_tangent.py`で肘移動を検証します。専用GUIへ送信すると新規検証シーンを作り、入力をキー化して動画と`moving-tangent-stop.ma`を保存します。録画には同じFFmpeg環境変数を使用します。
+
+円の中心を原点として`d=sqrt(x*x+z*z)`、外向きの角度を肘の位置から求め、`limit=180-degrees(asin((r+gap)/d))`を更新します。入力角度から外向き角度を引いて-180〜180度へ折り返し、`output=outward+clamp(relative,-limit,limit)`を計算します。実DGでは平方根・angleBetween・condition・clamp・単位変換等の標準ノードを使用し、保存シーンの補正にPythonやコリジョン検索は不要です。Maya HUDには距離・基準方向・相対入力角度・制限角度・実出力を表示します。
+
+対象はXZ平面、固定円半径3cm、余裕0.03cm、無スケール、根元が半径と余裕の和より外側にある状態です。距離3.4〜7cm、円周上の移動、左右の接線停止と安全方向への復帰を検証します。根元自体が円の内側に入る場合は回転だけでは回避できません。相対入力が±180度を越えると最近接の接線側が切り替わるため、その境界での連続回転を保証する仕様ではありません。短い尻尾でも長い棒としての制限を使用します。
+
+## 腕のローカルX軸だけで回すジョイントサンプル
+
+`tools/demo_joint_twist_tangent.py`は既存の固定位置・移動位置サンプルを残した別検証です。腕軸は`armTwistAxis_JNT`のローカルX、尻尾はその子の`tailRequested_JNT`と`tailCorrected_JNT`からローカルYへ伸ばします。補正は`tailCorrected_JNT.rotateX`だけへ接続し、rotateY/Zは0でロック、根元位置・jointOrientは変更しません。腕自体の移動・傾きは入力です。保存シーンは`joint-twist-tangent.ma`です。
+
+体を半径3cmの球で近似します。球中心を腕ローカル空間へ変換した座標を`c=(cx,cy,cz)`、余裕込み半径を`R=3.03`として、尻尾が回るYZ平面との断面半径は`rho=sqrt(max(0,R*R-cx*cx))`、断面中心までの距離は`dYZ=sqrt(cy*cy+cz*cz)`です。`limit=180-degrees(asin(rho/dYZ))`と、断面中心から離れる方向の角度で、前の接線停止と同様に相対入力を制限します。`R*R-cx*cx<=0`なら回転平面と球内部は交わらないため、入力をそのまま出力します。実DGでは標準angleBetween・pointMatrixMult・演算・condition・clamp・単位変換を使用します。球近似の幾何計算であり、メッシュのコリジョン検索は補正へ接続しません。
+
+前提は根元が球の余裕込み半径より外側、無スケール、尻尾が腕Xに垂直な直線、補正ジョイントのjointOrientが0であることです。腕のjointOrientZ=90度を含む親姿勢に追従し、腕傾斜0・±25・60度を検証します。実体の形状や曲がった尻尾の全頂点を保証する汎用APIではありません。相対角度±180度の接線側切替には連続性の保証がありません。HUDは録画用Pythonで更新するため、保存シーンを単独で開いた際のHUD再作成は別途必要です。保存した補正DGと入力アニメーションはPythonなしで再生できます。
+
+`demo_joint_twist_tangent.main(topView=True)`は同じ入力・補正を上面の固定正投影で録画します。既定の斜め版と別の実行フォルダへ保存し、上面版の最新フォルダは`.maya-output/verification/latest-joint-twist-top.json`に記録します。腕の傾斜を含む3D動作なので、上面で円と重なって見えても高さ方向で離れている場合があります。
+
+## 肘側へ固定する接線
+
+`demo_joint_twist_tangent.main(topView=True, fixedElbowSide=True)`は、黄色の`elbowDirection_JNT`が示す曲がり側を初期姿勢で選び、その接線側を維持します。緑が固定側、橙が従来の最近接側、赤が入力です。既存モードと保存済み動画は保持し、`joint-twist-fixed-elbow.ma`と`latest-joint-fixed-elbow.json`を別の実行フォルダへ保存します。
+
+腕ローカルYZ平面での外向きを`n=(ny,nz)`、肘ガイド方向を`h=(hy,hz)`とすると、正回転側の接線方向は`(-nz,ny)`です。初期の内積`(-nz)*hy+ny*hz`の符号を`side`として記録します。このサンプルではガイドを腕ローカル-Zへ置き、side=+1となります。肘のガイドが側を判定できない方向なら作成を拒否します。球の断面・制限角度は従来と同じです。
+
+相対入力を`relative=wrap(input-outward)`として、断面があり`abs(relative)>limit`なら`output=outward+side*limit`、それ以外は`output=input`です。中心方向±180度をまたいでもsideを変更しないため、最近接側の切替は起きません。過去フレームの状態は使わず、任意の時刻へ移動しても同じ結果です。回避先を毎フレーム肘ガイドから選び直す実装ではありません。
+
+安全な入力を維持するため、優先側とは反対の安全方向から危険範囲に入る・抜ける境界では不連続になり得ます。中心方向の切替を解消する方式であり、全360度での連続性を保証しません。実際の肘の曲がり方向に合わせるには、初期ガイドの配置を調整します。腕ローカルXだけの補正・球近似・根元球外等の前提はジョイント版と同じです。
+
+## 固定側のフリップ再現
+
+`demo_joint_twist_tangent.main(topView=True, fixedElbowSide=True, reproduceFlip=True)`は、固定側とは逆の安全境界を横切る条件を別の動画へ保存します。A:入力44〜40度、B:距離4.3〜4.7cmで入力43度固定、C:円周上の肘位置角-2〜+2度で入力43度固定、D:腕傾斜0〜25度で入力40度固定を往復します。最後に中心方向の入力-10〜+10度を往復し、固定側が切り替わらない比較も入れます。保存シーンは`joint-fixed-side-flip-repro.ma`、最新ポインタは`latest-joint-flip-repro.json`です。
+
+side=+1の場合、不連続となる境界は`relative=-limit`です。安全側の出力`outward-limit`から危険側の出力`outward+limit`へ切り替わります。円上で見た最短の跳び角は`360-2*limit=2*asin(rho/dYZ)`度です。距離4.5cm・断面半径3.03cmなら約84.65度で、入力を少しだけ変えても大きく跳びます。入力だけでなく、肘移動や腕傾斜でoutward/limitが変化しても同じ条件を満たします。
+
+HUDにケース名・逆側境界・制限角・出力角と1フレームの回転差を表示します。回転差は360度の表示折り返しを除いた値で、30度を超えるとFLIPを1秒表示します。録画の`ok`は非交差・式との一致・1軸保持を意味し、滑らかさの成功判定ではありません。フリップを意図的に含む再現動画です。
+
+## フリップより貫通を許容する連続制限
+
+`demo_joint_twist_tangent.main(topView=True, fixedElbowSide=True, reproduceFlip=True, continuousElbowSide=True, maximumAngle=60)`は、旧固定側の再現入力を使い、緑の出力を肘側の負回転可動域だけへ制限します。橙は旧固定側の出力です。このジョイント配置では肘側が負回転なので、プラス方向へは切り替えません。最大角は度で0より大きく180未満です。既存の非貫通モードは維持します。
+
+初期尾の+Y方向と選択接線方向の無符号角を`a`として、`bound=-min(maximumAngle,a)`、`output=clamp(input,-maximumAngle,bound)`を標準DGで計算します。無符号角はangleBetweenで0〜180度として求め、±180度の数値折り返しを使いません。安全/危険で接線と入力を切り替える分岐はなく、角度の境界で出力が連続につながります。球の断面がなくなっても可動域制限を維持し、入力への突然のbypass復帰を作りません。
+
+これは片側可動域と連続性を優先する代替方針です。すでに安全な入力も範囲外なら制限し、任意の肘位置で元の接線と同じ方向を保証する方式ではありません。回避に60度を超える回転が必要なら-60度で止め、貫通を許容します。動画末尾に距離3.2cmの上限到達とBODY HITを表示します。`ok`は計算式・1軸保持の検証であり、非貫通の成功を意味しません。球近似・腕軸に垂直な直線尾・無スケール・根元球外等の前提は維持します。保存は`joint-continuous-elbow-cap.ma`、最新フォルダは`latest-joint-continuous-cap.json`です。
+
+## 初期姿勢から大きく動かす説明動画
+
+`demo_joint_twist_tangent.main(topView=True, fixedElbowSide=True, continuousElbowSide=True, maximumAngle=60, largeMotion=True)`は、同じ連続制限の補正を説明用の大きな動作で示します。初期姿勢2秒、安全な肘移動・腕傾斜2〜10秒、入力-100〜+100度の往復10〜18秒、体へ近づいて回転上限に達する18〜28秒、初期姿勢への復帰28〜32秒の順です。肘距離は最大8cmから3.2cmまで動かします。
+
+灰色の初期方向を残し、緑が出力、赤が入力です。橙の旧方式は大回転を比較する段階だけ表示します。Maya HUDとMP4に段階名を表示し、距離・入出力・1フレームの変化・BODY HITを確認できます。`verification_video.encodeVideo()`はフレーム診断の`presentation_stage`がある場合に、段階名を大きくMP4へ表示します。
+
+補正ロジックは連続制限版と同じで、貫通を許容します。保存は`joint-continuous-cap-large-motion.ma`、最新ポインタは`latest-joint-large-motion.json`です。既存の短い再現動画は残します。
+
 ## iPadとSphinx
 
 Claude Codeの完了報告にはDriveが返した閲覧URLを載せます。iPadではSafariまたはDriveアプリで開きます。アップロード直後はDriveの動画処理が終わるまで再生できない場合があります。
