@@ -1,8 +1,6 @@
 """選択ノードの直結 animCurve を複製して再配線するツール。"""
 
 import maya.cmds as cmds
-import hlib
-from hlib.nodes import Node
 
 
 def _safe_name(base):
@@ -17,6 +15,25 @@ def _safe_name(base):
     while cmds.objExists(f"{base}{i}"):
         i += 1
     return f"{base}{i}"
+
+def _connect_attr(src_attr, dst_attr):
+    """接続先のロックを解除せずに src_attr から dst_attr へ強制接続する。
+
+    ``cmds.connectAttr`` は同じ接続が既にある場合に警告だけで終わるため、
+    接続済み・ロック済みを事前に判定して例外にし、呼び出し側の例外処理で扱えるようにする。
+
+    Args:
+        src_attr (str): 接続元アトリビュート。
+        dst_attr (str): 接続先アトリビュート。
+
+    Raises:
+        RuntimeError: 接続先がロックされている、または既に同じ接続がある場合。
+    """
+    if cmds.getAttr(dst_attr, lock=True):
+        raise RuntimeError(f"Attribute is locked: {dst_attr}")
+    if cmds.isConnected(src_attr, dst_attr):
+        raise RuntimeError(f"Already connected: {src_attr} -> {dst_attr}")
+    cmds.connectAttr(src_attr, dst_attr, force=True)
 
 def _incoming_plugs(dest_plug):
     """指定プラグへの入力接続プラグ一覧を取得します。
@@ -36,7 +53,7 @@ def _is_animcurve(node):
         node: 処理対象のノード参照。
     """
     try:
-        nt = Node(node).getType()
+        nt = cmds.nodeType(node)
     except Exception:
         return False
     return bool(nt and nt.startswith("animCurve"))
@@ -85,7 +102,7 @@ def _list_keyable_scalar_plugs(node):
 
         # lock / multi は安全のため除外。
         try:
-            if hlib.getPlug(p).isLocked():
+            if cmds.getAttr(p, lock=True):
                 continue
         except Exception:
             continue
@@ -115,9 +132,9 @@ def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
         return None
 
     try:
-        src_type = Node(src_anim).getType()  # 例: animCurveTL / animCurveTA / animCurveTU ...
-        dst_anim = hlib.createNode(src_type).getName()
-        dst_anim = Node(dst_anim).rename(_safe_name(f"{src_anim}{suffix}"))
+        src_type = cmds.nodeType(src_anim)  # 例: animCurveTL / animCurveTA / animCurveTU ...
+        dst_anim = cmds.createNode(src_type)
+        dst_anim = cmds.rename(dst_anim, _safe_name(f"{src_anim}{suffix}"))
     except Exception:
         return None
 
@@ -125,7 +142,7 @@ def _clone_animcurve_via_keys(src_anim, suffix="_bak"):
     for attr in ("preInfinity", "postInfinity", "useWeightedTangents"):
         try:
             if cmds.attributeQuery(attr, node=src_anim, exists=True) and cmds.attributeQuery(attr, node=dst_anim, exists=True):
-                Node(dst_anim).getPlug(attr).set(Node(src_anim).getPlug(attr).get())
+                cmds.setAttr(f"{dst_anim}.{attr}", cmds.getAttr(f"{src_anim}.{attr}"))
         except Exception:
             pass
 
@@ -169,71 +186,77 @@ def duplicate_anim_only_and_rewire_selected_v2(
         cmds.warning("Nothing is selected.")
         return []
 
-    results = []
-    for n in sels:
-        # shape 選択時は親 Transform を実処理対象にする。
-        try:
-            if Node(n).getType() != "transform":
-                parents = cmds.listRelatives(n, parent=True, fullPath=True) or []
-                if parents:
-                    n = parents[0]
-        except Exception:
-            if verbose:
-                cmds.warning(f"Skip: could not resolve node -> {n}")
-            continue
-
-        rewired = 0
-        skipped = 0
-        old_deleted = 0
-
-        for dest_plug in _list_keyable_scalar_plugs(n):
-            src_anim = _find_direct_animcurve(dest_plug)
-            if not src_anim:
-                skipped += 1
-                continue
-
-            dst_anim = _clone_animcurve_via_keys(src_anim, suffix=suffix)
-            if not dst_anim:
-                skipped += 1
-                if verbose:
-                    cmds.warning(f"Duplicate failed (also with the key copy method): {src_anim} -> {dest_plug}")
-                continue
-
-            # 旧カーブの切断（想定: src_anim.output -> dest_plug）。
-            if disconnect_old:
-                try:
-                    dest_plug.disconnect(Node(src_anim).getPlug('output'))
-                except Exception:
-                    pass
-
-            # 新カーブを同じ属性へ接続して差し替える。
+    # 全ノードの差し替えを1回のUndoで戻せるようにまとめる。
+    cmds.undoInfo(openChunk=True, chunkName="duplicateAnimCurve")
+    try:
+        results = []
+        for n in sels:
+            # shape 選択時は親 Transform を実処理対象にする。
             try:
-                Node(dst_anim).getPlug('output').connectTo(dest_plug, force=True, unlock=False)
-                rewired += 1
+                if cmds.nodeType(n) != "transform":
+                    parents = cmds.listRelatives(n, parent=True, fullPath=True) or []
+                    if parents:
+                        n = parents[0]
             except Exception:
-                skipped += 1
                 if verbose:
-                    cmds.warning(f"Connection failed: {dst_anim}.output -> {dest_plug} (new curve deleted)")
-                try:
-                    cmds.delete(dst_anim)
-                except Exception:
-                    pass
+                    cmds.warning(f"Skip: could not resolve node -> {n}")
                 continue
 
-            # 旧カーブ削除オプション
-            if disconnect_old and (not keep_old_curve):
-                try:
-                    cmds.delete(src_anim)
-                    old_deleted += 1
-                except Exception:
-                    pass
+            rewired = 0
+            skipped = 0
+            old_deleted = 0
 
-        results.append({
-            "node": n,
-            "rewired": rewired,
-            "skipped": skipped,
-            "old_deleted": old_deleted
-        })
+            for dest_plug in _list_keyable_scalar_plugs(n):
+                src_anim = _find_direct_animcurve(dest_plug)
+                if not src_anim:
+                    skipped += 1
+                    continue
+
+                dst_anim = _clone_animcurve_via_keys(src_anim, suffix=suffix)
+                if not dst_anim:
+                    skipped += 1
+                    if verbose:
+                        cmds.warning(f"Duplicate failed (also with the key copy method): {src_anim} -> {dest_plug}")
+                    continue
+
+                # 旧カーブの切断（想定: src_anim.output -> dest_plug）。
+                # ロックされた接続先は下の接続で失敗扱いにし、旧カーブの接続を残す。
+                if disconnect_old and not cmds.getAttr(dest_plug, lock=True):
+                    try:
+                        cmds.disconnectAttr(f"{src_anim}.output", dest_plug)
+                    except Exception:
+                        pass
+
+                # 新カーブを同じ属性へ接続して差し替える。
+                try:
+                    _connect_attr(f"{dst_anim}.output", dest_plug)
+                    rewired += 1
+                except Exception:
+                    skipped += 1
+                    if verbose:
+                        cmds.warning(f"Connection failed: {dst_anim}.output -> {dest_plug} (new curve deleted)")
+                    try:
+                        cmds.delete(dst_anim)
+                    except Exception:
+                        pass
+                    continue
+
+                # 旧カーブ削除オプション
+                if disconnect_old and (not keep_old_curve):
+                    try:
+                        cmds.delete(src_anim)
+                        old_deleted += 1
+                    except Exception:
+                        pass
+
+            results.append({
+                "node": n,
+                "rewired": rewired,
+                "skipped": skipped,
+                "old_deleted": old_deleted
+            })
+    finally:
+        cmds.undoInfo(closeChunk=True)
 
     return results
 

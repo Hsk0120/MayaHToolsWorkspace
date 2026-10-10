@@ -1,7 +1,6 @@
 """現在シーンのフルパスをクリップボードへコピーするユーティリティ。"""
 
 import maya.cmds as cmds
-from hlib.common import Scene
 
 
 try:
@@ -12,8 +11,8 @@ except ImportError:
 
 def copy_current_scene_path():
     """現在シーンパスを取得してクリップボードへコピーします。"""
-    scene = Scene()
-    scene_path = scene.path.as_posix() if scene.path is not None else ''
+    # 未保存のシーンでは空文字が返る。保存済みならスラッシュ区切りの絶対パス。
+    scene_path = cmds.file(query=True, sceneName=True) or ''
     if not scene_path:
         cmds.warning("The scene has not been saved, so it has no path.")
         return

@@ -1,8 +1,29 @@
 """選択シェーダーからプレビュー用 blinn を生成するツール。"""
 
 import maya.cmds as cmds
-import hlib
-from hlib.nodes import Node
+
+
+def _connect_attr(source_plug, target_plug, force=False):
+	"""接続先のロックを解除せずにアトリビュートを接続する。
+
+	cmds.connectAttr は同じ接続が既にあると warning だけで終わるため、
+	ロック中・接続済みの場合は RuntimeError にして呼び出し側へ伝える。
+
+	Args:
+		source_plug (str): 接続元のプラグ名。
+		target_plug (str): 接続先のプラグ名。
+		force (bool): 接続先の既存入力を置き換えるか。
+
+	Raises:
+		RuntimeError: 接続先がロックされている、または同じ接続が既にある場合。
+	"""
+	if cmds.getAttr(target_plug, lock=True):
+		raise RuntimeError("Attribute is locked: {0}".format(target_plug))
+	if cmds.isConnected(source_plug, target_plug):
+		raise RuntimeError(
+			"Already connected: {0} -> {1}".format(source_plug, target_plug)
+		)
+	cmds.connectAttr(source_plug, target_plug, force=force)
 
 
 def main():
@@ -30,7 +51,7 @@ def main():
 
 		shader = selection[0]
 		shader_types = set(cmds.listNodeTypes("shader") or [])
-		if Node(shader).getType() not in shader_types:
+		if cmds.nodeType(shader) not in shader_types:
 			cmds.error("The selected node is not a shader.")
 
 		return shader
@@ -40,8 +61,8 @@ def main():
 		preview_name = "prv_{0}".format(shader)
 		if cmds.objExists(preview_name):
 			cmds.error("A node with the same name already exists: {0}".format(preview_name))
-		preview_shader = hlib.createShader("blinn", name=preview_name).getName()
-		Node(preview_shader).getPlug("eccentricity").set(0)
+		preview_shader = cmds.shadingNode("blinn", asShader=True, name=preview_name)
+		cmds.setAttr("{0}.eccentricity".format(preview_shader), 0)
 		return preview_shader
 
 	def transfer_input_connections(source_shader, target_shader):
@@ -65,7 +86,7 @@ def main():
 				continue
 
 			input_plug = source_inputs[0]
-			hlib.getPlug(input_plug).connectTo(target_plug, force=True, unlock=False)
+			_connect_attr(input_plug, target_plug, force=True)
 			transferred_count += 1
 
 			if len(source_inputs) > 1:
@@ -109,7 +130,7 @@ def main():
 			)
 			return transferred_count
 
-		if not Node(color_input_node).hasAttr("outTransparency"):
+		if not cmds.attributeQuery("outTransparency", node=color_input_node, exists=True):
 			cmds.warning(
 				"transparency was not connected because {0}.outTransparency does not exist.".format(
 					color_input_node
@@ -117,18 +138,24 @@ def main():
 			)
 			return transferred_count
 
-		Node(color_input_node).getPlug("outTransparency").connectTo(
+		_connect_attr(
+			"{0}.outTransparency".format(color_input_node),
 			"{0}.transparency".format(target_shader),
-			force=True, unlock=False,
+			force=True,
 		)
 		transferred_count += 1
 
 		return transferred_count
 
 	source_shader = get_selected_shader()
-	preview_shader = create_preview_blinn(source_shader)
 
-	transferred_count = transfer_input_connections(source_shader, preview_shader)
+	# blinn の作成と接続の移植を1回の Undo で戻せるようにまとめる。
+	cmds.undoInfo(openChunk=True, chunkName="createPreviewShader")
+	try:
+		preview_shader = create_preview_blinn(source_shader)
+		transferred_count = transfer_input_connections(source_shader, preview_shader)
+	finally:
+		cmds.undoInfo(closeChunk=True)
 
 	print(
 		"Created: {0} / connections transferred: {1}".format(
@@ -138,4 +165,5 @@ def main():
 	)
 
 
-main()
+if __name__ == "__main__":
+	main()

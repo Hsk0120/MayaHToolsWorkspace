@@ -1,11 +1,33 @@
 # -*- coding: utf-8 -*-
 import maya.cmds as cmds
+import maya.api.OpenMaya as om
+import maya.api.OpenMayaAnim as oma
 
-from hlib.nodes import Node, Mesh
-from hlib.maths import MSpace
-from hlib.common.units import distanceToUi
 import maya.mel as mel
 import heapq
+
+
+def _get_dag_path(name):
+    """名前から DAG パスを取得します。
+
+    Args:
+        name: DAG ノード名。
+    """
+    selection = om.MSelectionList()
+    selection.add(name)
+    return selection.getDagPath(0)
+
+
+def _get_influence_names(skin_cluster):
+    """skinCluster の influence を Maya の influence 順で最短一意名として返します。
+
+    Args:
+        skin_cluster: ウェイトを照会・編集するskinCluster。
+    """
+    selection = om.MSelectionList()
+    selection.add(skin_cluster)
+    skin_fn = oma.MFnSkinCluster(selection.getDependNode(0))
+    return [path.partialPathName() for path in skin_fn.influenceObjects()]
 
 
 def _to_shape(mesh):
@@ -17,12 +39,12 @@ def _to_shape(mesh):
     if not cmds.objExists(mesh):
         raise RuntimeError(u'Object does not exist: {}'.format(mesh))
 
-    if Node(mesh).getType() == 'mesh':
+    if cmds.nodeType(mesh) == 'mesh':
         return mesh
 
     shapes = cmds.listRelatives(mesh, shapes=True, fullPath=True, noIntermediate=True) or []
     for s in shapes:
-        if Node(s).getType() == 'mesh':
+        if cmds.nodeType(s) == 'mesh':
             return s
 
     raise RuntimeError(u'Mesh shape not found under: {}'.format(mesh))
@@ -119,7 +141,7 @@ def _pick_top_bottom_influences(skin_cluster, axis='y'):
         axis: 基準軸。x・y・zのいずれか。
     """
     axis_index = _get_axis_index(axis)
-    influences = [node.getName() for node in Node(skin_cluster).getInfluences()]
+    influences = _get_influence_names(skin_cluster)
 
     if len(influences) < 2:
         raise RuntimeError(u'Not enough influences in {}.'.format(skin_cluster))
@@ -129,7 +151,7 @@ def _pick_top_bottom_influences(skin_cluster, axis='y'):
         for inf in nodes:
             if not cmds.objExists(inf):
                 continue
-            if joints_only and Node(inf).getType() != 'joint':
+            if joints_only and cmds.nodeType(inf) != 'joint':
                 continue
             try:
                 pos = cmds.xform(inf, q=True, ws=True, t=True)
@@ -182,12 +204,12 @@ def _collect_influence_positions(skin_cluster, joints_only=True):
         skin_cluster: ウェイトを照会・編集するskinCluster。
         joints_only: Trueはジョイントのインフルエンスだけを対象にする。
     """
-    influences = [node.getName() for node in Node(skin_cluster).getInfluences()]
+    influences = _get_influence_names(skin_cluster)
     pairs = []
     for inf in influences:
         if not cmds.objExists(inf):
             continue
-        if joints_only and Node(inf).getType() != 'joint':
+        if joints_only and cmds.nodeType(inf) != 'joint':
             continue
         try:
             pos = cmds.xform(inf, q=True, ws=True, t=True)
@@ -497,10 +519,20 @@ def _build_vertex_graph(mesh):
     if not vertices:
         raise RuntimeError(u'No vertices found: {}'.format(mesh))
 
-    shape = Mesh(_to_shape(mesh))
-    positions = [[distanceToUi(value) for value in (point.x, point.y, point.z)] for point in shape.getPoints(ws=True)]
-    adjacency = [[(index, distanceToUi(length)) for index, length in neighbors]
-                 for neighbors in shape.getVertexAdjacency(ws=True)]
+    # OpenMaya は内部単位(cm)を返すため、cmds と揃えて UI 単位へ変換する。
+    mesh_fn = om.MFnMesh(_get_dag_path(_to_shape(mesh)))
+    to_ui = om.MDistance(1.0).asUnits(om.MDistance.uiUnit())
+    points = mesh_fn.getPoints(om.MSpace.kWorld)
+    positions = [[point.x * to_ui, point.y * to_ui, point.z * to_ui] for point in points]
+
+    # 頂点ID順の隣接リスト。各要素は(隣接頂点ID, UI 単位のエッジ長)で、
+    # エッジID順に格納する。孤立頂点は空リスト、重複エッジは別々に保持する。
+    adjacency = [[] for _ in range(len(points))]
+    for edge_index in range(mesh_fn.numEdges):
+        first, second = mesh_fn.getEdgeVertices(edge_index)
+        length = points[first].distanceTo(points[second]) * to_ui
+        adjacency[first].append((second, length))
+        adjacency[second].append((first, length))
 
     return vertices, positions, adjacency
 
@@ -847,9 +879,9 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
         preserve_maintain_max_influences (bool): maintainMaxInfluencesの値を保存・復元するか。
     """
     mmi = None
-    has_mmi = Node(skin_cluster).hasAttr('maintainMaxInfluences')
+    has_mmi = cmds.attributeQuery('maintainMaxInfluences', node=skin_cluster, exists=True)
     if preserve_maintain_max_influences and has_mmi:
-        mmi = Node(skin_cluster).getPlug('maintainMaxInfluences').get()
+        mmi = cmds.getAttr('{}.maintainMaxInfluences'.format(skin_cluster))
 
     try:
         cmds.skinCluster(
@@ -863,7 +895,7 @@ def smooth_skincluster_weights(skin_cluster, smooth_weights=0.0, max_iterations=
             cmds.skinCluster(skin_cluster, edit=True, fnw=True)
     finally:
         if preserve_maintain_max_influences and has_mmi and mmi is not None:
-            Node(skin_cluster).getPlug('maintainMaxInfluences').set(mmi)
+            cmds.setAttr('{}.maintainMaxInfluences'.format(skin_cluster), mmi)
 
 
 def open_paint_skin_weights_tool():
@@ -919,6 +951,68 @@ def auto_two_influence_band_smooth(
 
     Raises:
         RuntimeError: 複数メッシュにskin_clusterを指定した場合や端部を解決できない場合。
+    """
+    # 平滑化のために選択を変えるため、中間頂点を選び直さない場合は元の選択へ戻す。
+    original_selection = cmds.ls(selection=True, long=True) or []
+    reselected = False
+    # 全メッシュ分のウェイト編集を1回の Undo で戻せるようにまとめる。
+    cmds.undoInfo(openChunk=True, chunkName='autoTwoInfluenceBandSmooth')
+    try:
+        result, reselected = _auto_two_influence_band_smooth(
+            mesh=mesh,
+            bottom_influence=bottom_influence,
+            top_influence=top_influence,
+            skin_cluster=skin_cluster,
+            axis=axis,
+            bottom_range=bottom_range,
+            top_range=top_range,
+            smooth_weights=smooth_weights,
+            smooth_iterations=smooth_iterations,
+            smooth_passes=smooth_passes,
+            reselect_middle=reselect_middle,
+            verbose=verbose,
+        )
+    finally:
+        if not reselected:
+            if original_selection:
+                cmds.select(original_selection, r=True)
+            else:
+                cmds.select(clear=True)
+        cmds.undoInfo(closeChunk=True)
+    return result
+
+
+def _auto_two_influence_band_smooth(
+        mesh,
+        bottom_influence,
+        top_influence,
+        skin_cluster,
+        axis,
+        bottom_range,
+        top_range,
+        smooth_weights,
+        smooth_iterations,
+        smooth_passes,
+        reselect_middle,
+        verbose):
+    """auto_two_influence_band_smooth の本体です。
+
+    Args:
+        mesh: auto_two_influence_band_smooth と同じ。
+        bottom_influence: auto_two_influence_band_smooth と同じ。
+        top_influence: auto_two_influence_band_smooth と同じ。
+        skin_cluster: auto_two_influence_band_smooth と同じ。
+        axis: auto_two_influence_band_smooth と同じ。
+        bottom_range: auto_two_influence_band_smooth と同じ。
+        top_range: auto_two_influence_band_smooth と同じ。
+        smooth_weights: auto_two_influence_band_smooth と同じ。
+        smooth_iterations: auto_two_influence_band_smooth と同じ。
+        smooth_passes: auto_two_influence_band_smooth と同じ。
+        reselect_middle: auto_two_influence_band_smooth と同じ。
+        verbose: auto_two_influence_band_smooth と同じ。
+
+    Returns:
+        tuple[dict | list[dict], bool]: 処理結果と、中間頂点を選択し直したかどうか。
     """
     if mesh is None:
         mesh_list = _get_selected_meshes()
@@ -1021,7 +1115,7 @@ def auto_two_influence_band_smooth(
         if not cmds.objExists(target_top_influence):
             raise RuntimeError(u'Top influence does not exist: {}'.format(target_top_influence))
 
-        influences = [node.getName() for node in Node(target_skin_cluster).getInfluences()]
+        influences = _get_influence_names(target_skin_cluster)
         if target_bottom_influence not in influences:
             raise RuntimeError(u'{} is not connected to {}'.format(target_bottom_influence, target_skin_cluster))
         if target_top_influence not in influences:
@@ -1107,12 +1201,14 @@ def auto_two_influence_band_smooth(
             print(u'top count      : {}'.format(len(top_vertices)))
             print(u'middle count   : {}'.format(len(middle_vertices)))
 
+    reselected = False
     if reselect_middle and all_middle_vertices:
         cmds.select(all_middle_vertices, r=True)
+        reselected = True
 
     if len(results) == 1:
-        return results[0]
-    return results
+        return results[0], reselected
+    return results, reselected
 
 if __name__ == '__main__':
     auto_two_influence_band_smooth(

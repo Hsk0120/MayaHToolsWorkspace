@@ -53,4 +53,5 @@ def transfer_uvchannel_to_map():
         except Exception as e:
             cmds.warning(u'{}: an error occurred - {}'.format(mesh, e))
 
-transfer_uvchannel_to_map()
+if __name__ == "__main__":
+    transfer_uvchannel_to_map()

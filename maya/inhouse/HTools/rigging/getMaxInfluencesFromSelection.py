@@ -1,7 +1,6 @@
 """選択メッシュの skinCluster.maxInfluences を収集するユーティリティ。"""
 
 import maya.cmds as cmds
-from hlib.nodes import Node
 
 
 def _to_dag_object(node):
@@ -26,17 +25,17 @@ def _get_renderable_mesh_shapes(dag):
         return []
 
     # すでに shape の場合
-    if Node(dag).getType() == "mesh":
+    if cmds.nodeType(dag) == "mesh":
         shapes = [dag]
     else:
         shapes = cmds.listRelatives(dag, shapes=True, fullPath=True) or []
 
     out = []
     for s in shapes:
-        if Node(s).getType() != "mesh":
+        if cmds.nodeType(s) != "mesh":
             continue
         # intermediateObject を除外
-        if Node(s).getPlug('intermediateObject').get():
+        if cmds.getAttr(s + '.intermediateObject'):
             continue
         out.append(s)
     return out
@@ -90,7 +89,7 @@ def get_max_influences_from_selection(verbose=True):
             # 1 shape に複数 skinCluster があるケースも全件収集する。
             for skin in skins:
                 try:
-                    max_inf = Node(skin).getPlug('maxInfluences').get()
+                    max_inf = cmds.getAttr(skin + '.maxInfluences')
                 except Exception as e:
                     if verbose:
                         cmds.warning(f"Failed to get {skin}.maxInfluences ({e})")
@@ -98,7 +97,7 @@ def get_max_influences_from_selection(verbose=True):
 
                 results.setdefault(shape, {})[skin] = max_inf
                 if verbose:
-                    ref = Node(shape).isFromReferencedFile()
+                    ref = cmds.referenceQuery(shape, isNodeReferenced=True)
                     print(f"[{ 'REF' if ref else 'LOCAL' }] {shape}  |  {skin}.maxInfluences = {max_inf}")
 
     return results

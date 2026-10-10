@@ -1,8 +1,6 @@
 """選択メッシュから OBB ベースのジョイントを作成して再バインドするツール。"""
 
 import maya.cmds as cmds
-
-from hlib.nodes import Node
 import maya.api.OpenMaya as om
 
 import HTools.rigging.simpleCollisionFromSelection as simple_collision
@@ -142,6 +140,8 @@ def create_obb_joint_and_bind_from_selection(
 	deleted_collisions = 0
 	total_count = len(source_meshes)
 
+	# 全メッシュ分の作成・バインドを1回の Undo で戻せるようにまとめる。
+	cmds.undoInfo(openChunk=True, chunkName="createObbJointAndBindFromSelection")
 	try:
 		for index, mesh_transform in enumerate(source_meshes):
 			cmds.select(mesh_transform, replace=True)
@@ -163,10 +163,11 @@ def create_obb_joint_and_bind_from_selection(
 			center = obb_data["center"]
 			axis_x, axis_y, axis_z = obb_data["axes"]
 
-			joint = Node.create("joint", name=joint_name_i, skipSelect=False).getName()
-			selection = om.MSelectionList()
-			selection.add(joint)
-			joint_dag = selection.getDagPath(0)
+			# skipSelect=False で作成直後のジョイントだけが選択されるため、
+			# 選択から DAG パスを取り、最短一意名を得る。
+			cmds.createNode("joint", name=joint_name_i, skipSelect=False)
+			joint_dag = om.MGlobal.getActiveSelectionList().getDagPath(0)
+			joint = joint_dag.partialPathName()
 			joint_fn = om.MFnTransform(joint_dag)
 
 			# OBB の回転軸 + 中心位置でジョイント行列を直接組み立てる。
@@ -194,6 +195,7 @@ def create_obb_joint_and_bind_from_selection(
 			cmds.select(original_selection, replace=True)
 		else:
 			cmds.select(clear=True)
+		cmds.undoInfo(closeChunk=True)
 
 	if not created_joints:
 		om.MGlobal.displayError("No joints were created. Check selected meshes.")

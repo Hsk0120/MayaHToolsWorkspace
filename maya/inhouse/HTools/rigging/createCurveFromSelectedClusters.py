@@ -1,9 +1,6 @@
 """選択した clusterHandle 位置からカーブを生成するツール。"""
 
 import maya.cmds as cmds
-import hlib
-from hlib.nodes import Node
-from hlib.maths import MSpace
 
 def _resolve_cluster_handle_transform(node):
     """cluster 関連ノードを clusterHandle の Transform へ解決します。
@@ -14,7 +11,7 @@ def _resolve_cluster_handle_transform(node):
     Returns:
         str | None: clusterHandle Transform。解決できない場合は None。
     """
-    node_type = Node(node).getType()
+    node_type = cmds.nodeType(node)
 
     if node_type == "clusterHandle":
         # clusterHandle は shape なので、位置取得に使う親 Transform へ変換する。
@@ -31,7 +28,7 @@ def _resolve_cluster_handle_transform(node):
     if node_type == "transform":
         shapes = cmds.listRelatives(node, shapes=True, fullPath=True) or []
         for shape in shapes:
-            if Node(shape).getType() == "clusterHandle":
+            if cmds.nodeType(shape) == "clusterHandle":
                 return node
 
     return None
@@ -72,18 +69,19 @@ def create_curve_from_selected_clusters(degree=3, use_handle=True):
 
     points = []
     for handle in cluster_handles:
-        sel = Node(handle)
         # 従来の処理と同じく、ワールド空間の回転ピボット位置を使う。
-        pos = sel.getPivot(ws=True, kind="rotate")
+        # xform も curve も UI の距離単位で扱うため、単位変換は不要。
+        pos = cmds.xform(handle, query=True, worldSpace=True, rotatePivot=True)
         points.append((pos[0], pos[1], pos[2]))
 
     # degree が point数以上だと作れないので調整
     degree = min(degree, len(points) - 1)
 
     print("points:", points)
-    curve = hlib.createCurve(p=points, d=degree, name="clusterPath_crv").getName()
+    curve = cmds.curve(p=points, d=degree, name="clusterPath_crv")
     cmds.select(curve)
     return curve
 
 
-create_curve_from_selected_clusters()
+if __name__ == "__main__":
+    create_curve_from_selected_clusters()

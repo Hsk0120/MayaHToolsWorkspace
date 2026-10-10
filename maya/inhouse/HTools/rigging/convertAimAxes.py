@@ -1,12 +1,11 @@
 """選択したaimConstraintの1〜2軸変換を比較するMaya標準UI。"""
 
+import json
 import math
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-import hlib
-from hlib.json import JsonText
-from hlib import logger
 from hrig.setups.aimAxisConversion import AimAxisConversion
 
 
@@ -31,11 +30,42 @@ _HELP = (
 #: 入力欄の左のラベルの列の幅(英語のラベルが切れない幅)。
 _LABEL_WIDTH = 240
 
+
+def _warn(message):
+    """警告をScript Editorとビューポートへ表示する。
+
+    Args:
+        message (str): 表示する英語のメッセージ。
+    """
+    cmds.warning(message)
+    text = message.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    try:
+        cmds.inViewMessage(amg='<font color="#ffcc00">{}</font>'.format(text), pos="midCenter", fade=True)
+    except RuntimeError:
+        pass
+
+
+def _value(node, attr):
+    """数値アトリビュートを内部単位で取得する。角度はUI単位に関係なくラジアンになる。
+
+    Args:
+        node (str): ノード名。
+        attr (str): アトリビュート名。
+
+    Returns:
+        float: アトリビュートの値。
+    """
+    selection = om2.MSelectionList()
+    selection.add("{}.{}".format(node, attr))
+    return selection.getPlug(0).asDouble()
+
+
 class AimAxisConversionWindow:
     """1つのAimを登録し、設定変更・変換・復元・結果確認を行う画面。"""
 
     def __init__(self):
         """既存ウィンドウを置き換え、選択したAimを読み込む。"""
+        #: 読み込んだAim(om2.MObjectHandle)。改名・親子付け替えに追従する。
         self.constraint = None
         if cmds.window(_WINDOW, exists=True):
             cmds.deleteUI(_WINDOW)
@@ -79,20 +109,25 @@ class AimAxisConversionWindow:
             *_: Maya UIコールバックから渡される未使用の引数。
         """
         try:
-            selected = hlib.ls(selection=True)
+            selected = cmds.ls(selection=True, long=True)
             if len(selected) != 1:
                 raise ValueError("Select one aimConstraint node and load it.")
             node = selected[0]
-            if node.getType() in ("container", "network") and node.hasAttr("hrigAimAxisConversion"):
-                link = node.getPlug("sourceConstraint").getSourceWithConversion()
-                node = link.getNode() if link is not None else node
-            if node.getType() != "aimConstraint":
+            if (cmds.nodeType(node) in ("container", "network")
+                    and cmds.attributeQuery("hrigAimAxisConversion", node=node, exists=True)):
+                links = cmds.listConnections(node + ".sourceConstraint", source=True, destination=False,
+                                             plugs=False, skipConversionNodes=False) or []
+                node = cmds.ls(links[0], long=True)[0] if links else node
+            if cmds.nodeType(node) != "aimConstraint":
                 raise ValueError("Select the aimConstraint node, not the joint.")
-            self.constraint = node
-            cmds.text(self.source, edit=True, label=node.getFullName())
-            graph = AimAxisConversion.find(node)
+            selection = om2.MSelectionList()
+            selection.add(node)
+            self.constraint = om2.MObjectHandle(selection.getDependNode(0))
+            cmds.text(self.source, edit=True, label=self._sourceName())
+            graph = AimAxisConversion.find(self._sourceName())
             if graph is not None:
-                data = JsonText.loads(graph.container.getPlug("settings").get())
+                # hrigが返す管理ノードはstr()でmaya.cmdsへ渡せる一意な名前になる。
+                data = json.loads(cmds.getAttr(str(graph.container) + ".settings"))
                 cmds.optionMenuGrp(self.mode, edit=True, select=(
                     _MODES.index(data["mode"]) + 1 if data["mode"] in _MODES else 1))
                 if data["axes"] in ("x", "y", "z", "xy", "xz", "yz"):
@@ -119,7 +154,7 @@ class AimAxisConversionWindow:
             self._requireSource()
             values = cmds.floatFieldGrp(self.reference, query=True, value=True)
             AimAxisConversion.create(
-                self.constraint,
+                self._sourceName(),
                 axes=cmds.optionMenuGrp(self.axes, query=True, value=True).lower(),
                 mode=_MODES[cmds.optionMenuGrp(self.mode, query=True, select=True) - 1],
                 direction=cmds.optionMenuGrp(self.direction, query=True, value=True).lower(),
@@ -139,7 +174,7 @@ class AimAxisConversionWindow:
         """
         try:
             self._requireSource()
-            graph = AimAxisConversion.find(self.constraint)
+            graph = AimAxisConversion.find(self._sourceName())
             if graph is None:
                 raise ValueError("This Aim has not been converted.")
             graph.restore()
@@ -155,21 +190,23 @@ class AimAxisConversionWindow:
         """
         try:
             self._requireSource()
-            graph = AimAxisConversion.find(self.constraint)
-            angles = [math.degrees(value) for value in self.constraint.getOutputRotate()]
+            source = self._sourceName()
+            graph = AimAxisConversion.find(source)
+            # constraintRotateの評価出力(自身のTransform回転ではない)。内部単位のラジアンで読む。
+            angles = [math.degrees(_value(source, "constraintRotate" + a)) for a in "XYZ"]
             lines = ["Aim XYZ (deg): {:.3f}, {:.3f}, {:.3f}".format(*angles)]
             if graph is None:
                 lines.append("Original Aim connections.")
             else:
-                owner = graph.container
-                data = JsonText.loads(owner.getPlug("settings").get())
+                owner = str(graph.container)
+                data = json.loads(cmds.getAttr(owner + ".settings"))
                 if data["mode"] == "rest":
                     lines.append("This is a corrected restore from an older version. Remove it with 'Restore Original Aim and Settings'.")
-                converted = [math.degrees(owner.getPlug("output" + a).get()) for a in "XYZ"]
+                converted = [math.degrees(_value(owner, "output" + a)) for a in "XYZ"]
                 lines.append("Output XYZ (deg): {:.3f}, {:.3f}, {:.3f}".format(*converted))
-                lines.append("Owner node: " + owner.getFullName())
-                lines.append("Layout: " + ("container" if owner.getType() == "container" else "direct connections (restore data on a network node)"))
-                valid = owner.getPlug("valid").get() > 0.5
+                lines.append("Owner node: " + cmds.ls(owner, long=True)[0])
+                lines.append("Layout: " + ("container" if cmds.nodeType(owner) == "container" else "direct connections (restore data on a network node)"))
+                valid = _value(owner, "valid") > 0.5
                 lines.append("Diagnosis: " + ("valid" if valid else "check needed (ambiguous range, singularity or Rotate Order change)"))
             lines.append("Press 'Refresh Result' after moving the timeline or the targets.")
             cmds.scrollField(self.status, edit=True, text="\n".join(lines))
@@ -180,6 +217,14 @@ class AimAxisConversionWindow:
         """保持しているAimの生存を確認する。"""
         if self.constraint is None or not self.constraint.isValid():
             raise ValueError("Load the selected aimConstraint first.")
+
+    def _sourceName(self):
+        """保持しているAimの現在の完全パスを返す。
+
+        Returns:
+            str: aimConstraintの完全DAGパス。
+        """
+        return om2.MFnDagNode(self.constraint.object()).fullPathName()
 
     def _syncDirection(self, *_):
         """軸選択を変えた際、方式2で使える未選択軸を初期設定にする。
@@ -200,7 +245,7 @@ class AimAxisConversionWindow:
             error: 表示・通知する例外またはエラー内容。
         """
         cmds.scrollField(self.status, edit=True, text=str(error))
-        logger.warning(str(error))
+        _warn(str(error))
 
 
 def run():

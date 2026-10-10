@@ -1,7 +1,8 @@
 """選択メッシュのスキニング influence ジョイントを選択するツール。"""
 
 import maya.cmds as cmds
-from hlib.nodes import Node
+import maya.api.OpenMaya as om2
+import maya.api.OpenMayaAnim as oma2
 
 
 def select_skinning_joints_from_selection():
@@ -28,7 +29,11 @@ def select_skinning_joints_from_selection():
     skin = skin_clusters[0]
 
     # influence joint を取得して選択
-    joints = [node.getFullName() for node in Node(skin).getInfluences()]
+    # 名前が重複しても一意になるよう、OpenMaya の DAG パスから完全パスを取得する。
+    skin_sel = om2.MSelectionList()
+    skin_sel.add(skin)
+    skin_fn = oma2.MFnSkinCluster(skin_sel.getDependNode(0))
+    joints = [path.fullPathName() for path in skin_fn.influenceObjects()]
     cmds.select(joints, replace=True)
 
 

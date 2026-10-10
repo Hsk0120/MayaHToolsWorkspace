@@ -1,9 +1,46 @@
 """選択メッシュを複製し、スキンウェイトと関連設定を引き継ぐツール。"""
 
 import maya.cmds as cmds
+import maya.api.OpenMaya as om2
+import maya.api.OpenMayaAnim as oma2
 
-from hlib.nodes import Node
-from hlib.cmds import getPlug
+
+def _connect_attr(src_attr, dst_attr):
+    """接続先のロックを解除せずに src_attr から dst_attr へ強制接続する。
+
+    ``cmds.connectAttr`` は同じ接続が既にある場合に警告だけで終わるため、
+    接続済み・ロック済みを事前に判定して例外にし、呼び出し側の例外処理で扱えるようにする。
+
+    Args:
+        src_attr (str): 接続元アトリビュート。
+        dst_attr (str): 接続先アトリビュート。
+
+    Raises:
+        RuntimeError: 接続先がロックされている、または既に同じ接続がある場合。
+    """
+    if cmds.getAttr(dst_attr, lock=True):
+        raise RuntimeError('Attribute is locked: {}'.format(dst_attr))
+    if cmds.isConnected(src_attr, dst_attr):
+        raise RuntimeError('Already connected: {} -> {}'.format(src_attr, dst_attr))
+    cmds.connectAttr(src_attr, dst_attr, force=True)
+
+
+def _get_influence_names(skin_cluster):
+    """skinCluster のインフルエンスを Maya のインフルエンス順に最短一意名で返す。
+
+    ``cmds.skinCluster(q=True, influence=True)`` は名前が重複すると曖昧な短い名前を
+    返す場合があるため、OpenMaya の DAG パスから最短一意名を取得する。
+
+    Args:
+        skin_cluster (str): 対象の skinCluster 名。
+
+    Returns:
+        list[str]: インフルエンスの最短一意名。
+    """
+    sel = om2.MSelectionList()
+    sel.add(skin_cluster)
+    fn = oma2.MFnSkinCluster(sel.getDependNode(0))
+    return [path.partialPathName() for path in fn.influenceObjects()]
 
 
 def get_skin_cluster(mesh_transform):
@@ -64,10 +101,10 @@ def get_or_create_shading_engine(material):
         sg = cmds.sets(renderable=True, noSurfaceShader=True, empty=True)
 
     try:
-        if Node(mat_node).hasAttr('outColor'):
-            getPlug(mat_node + '.outColor').connectTo(getPlug(sg + '.surfaceShader'), force=True, unlock=False)
-        elif Node(mat_node).hasAttr('outValue'):
-            getPlug(mat_node + '.outValue').connectTo(getPlug(sg + '.surfaceShader'), force=True, unlock=False)
+        if cmds.attributeQuery('outColor', node=mat_node, exists=True):
+            _connect_attr(mat_node + '.outColor', sg + '.surfaceShader')
+        elif cmds.attributeQuery('outValue', node=mat_node, exists=True):
+            _connect_attr(mat_node + '.outValue', sg + '.surfaceShader')
         else:
             cmds.warning(u'Info: no connectable output attribute found on {}.'.format(mat_short))
             return None
@@ -243,7 +280,7 @@ def connect_visibility_attr(src_mesh, dup_mesh):
             pass
 
     try:
-        getPlug(src_attr).connectTo(getPlug(dup_attr), force=True, unlock=False)
+        _connect_attr(src_attr, dup_attr)
     except Exception:
         cmds.warning(u'Info: failed to connect visibility. {} -> {}'.format(src_mesh, dup_mesh))
 
@@ -255,7 +292,7 @@ def get_selected_mesh_transforms():
     seen = set()
 
     for sel in sels:
-        if Node(sel).getType() == 'mesh':
+        if cmds.nodeType(sel) == 'mesh':
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
             if not parents:
                 continue
@@ -264,7 +301,7 @@ def get_selected_mesh_transforms():
             mesh = sel
 
         shapes = cmds.listRelatives(mesh, shapes=True, noIntermediate=True, fullPath=True) or []
-        if not shapes or Node(shapes[0]).getType() != 'mesh':
+        if not shapes or cmds.nodeType(shapes[0]) != 'mesh':
             cmds.warning(u'Skip: {} is not a mesh.'.format(mesh))
             continue
 
@@ -280,6 +317,8 @@ def get_selected_mesh_transforms():
 def duplicate_and_copy_skin_weights(prefix='prv_'):
     """選択メッシュを複製して同一インフルエンスで再バインドし、ウェイトをコピーします。
 
+    全メッシュの処理を1回のUndoで戻せるように、Undoチャンクにまとめて実行する。
+
     Args:
         prefix (str): 複製メッシュ名・ターゲット材質探索に使う接頭辞。
     """
@@ -287,6 +326,20 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
     if not meshes:
         cmds.error(u'Select skinned meshes.')
 
+    cmds.undoInfo(openChunk=True, chunkName='duplicateAndCopySkinWeights')
+    try:
+        _duplicate_and_copy_skin_weights(meshes, prefix)
+    finally:
+        cmds.undoInfo(closeChunk=True)
+
+
+def _duplicate_and_copy_skin_weights(meshes, prefix):
+    """メッシュごとに複製・再バインド・ウェイトコピーを行う。
+
+    Args:
+        meshes (list[str]): 処理対象のメッシュTransform。
+        prefix (str): 複製メッシュ名・ターゲット材質探索に使う接頭辞。
+    """
     results = []
 
     for mesh in meshes:
@@ -297,7 +350,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
             continue
 
         # 元 skinCluster から influence を取得
-        influences = [node.getName() for node in Node(src_skin).getInfluences()]
+        influences = _get_influence_names(src_skin)
         if not influences:
             cmds.warning(u'Skip: could not get the influences of {}.'.format(mesh))
             continue
@@ -313,7 +366,7 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         if dup_short_name.endswith('1') and len(dup_short_name) > 1:
             target_name = dup_short_name[:-1]
             try:
-                dup = Node(dup).rename(target_name)
+                dup = cmds.rename(dup, target_name)
             except Exception:
                 cmds.warning(u'Info: could not remove the trailing 1 from {}.'.format(dup_short_name))
 
@@ -333,8 +386,8 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
 
         # 元 skinCluster の主要パラメータを複製側にも反映する。
         max_influences = cmds.skinCluster(src_skin, q=True, maximumInfluences=True)
-        maintain_max_influences = Node(src_skin).getPlug('maintainMaxInfluences').get()
-        normalize_weights = Node(src_skin).getPlug('normalizeWeights').get()
+        maintain_max_influences = cmds.getAttr(src_skin + '.maintainMaxInfluences')
+        normalize_weights = cmds.getAttr(src_skin + '.normalizeWeights')
 
         # 複製メッシュを同じ joint で bind
         dup_skin = cmds.skinCluster(
@@ -348,8 +401,8 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         )[0]
 
         # ノード属性も明示的に合わせておく
-        Node(dup_skin).getPlug('maxInfluences').set(max_influences)
-        Node(dup_skin).getPlug('maintainMaxInfluences').set(maintain_max_influences)
+        cmds.setAttr(dup_skin + '.maxInfluences', max_influences)
+        cmds.setAttr(dup_skin + '.maintainMaxInfluences', maintain_max_influences)
 
         # コピー時は名前一致を優先し、補助として closestJoint/oneToOne を使う。
         cmds.copySkinWeights(
@@ -370,5 +423,6 @@ def duplicate_and_copy_skin_weights(prefix='prv_'):
         cmds.warning(u'Nothing to process.')
 
 
-# 実行
-duplicate_and_copy_skin_weights()
+if __name__ == "__main__":
+    # 実行
+    duplicate_and_copy_skin_weights()

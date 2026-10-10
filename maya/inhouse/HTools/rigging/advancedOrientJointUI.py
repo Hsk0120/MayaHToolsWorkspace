@@ -5,17 +5,12 @@ skinCluster 状態の退避/復元、および UI から Orient Joint を適用�
 ウィンドウ作成のためのヘルパー関数を提供します。
 """
 
+import contextlib
+
 import maya.cmds as cmds
 
-from hlib.nodes import Node
-from hlib.common import units
 import maya.api.OpenMaya as om2
 import math
-
-import hlib
-from hlib.decorator import preservedSkinShape
-
-hlib.reload()
 
 _WIN = "OrientJointLikeWin"
 _AXES = ("x", "y", "z")
@@ -203,6 +198,70 @@ def _compute_target_joints(joints, include_children):
         seen.add(name)
         unique.append(name)
     return unique
+
+@contextlib.contextmanager
+def _preserved_skin_shape(joints):
+    """指定ジョイントに影響する skinCluster の変形を保ったまま姿勢を編集します。
+
+    対象に接続する skinCluster を moveJointsMode へ切り替え、終了時に
+    recacheBindMatrices を実行してから、取得できた以前のモードへ戻します。
+    現在の姿勢をスキニング基準へ反映するため、保存済みバインド行列を変更します。
+    モード照会・切り替え・再キャッシュ・復元で発生した RuntimeError は警告に留め、
+    ブロック内の例外はそのまま伝播します。全体を一回の Undo にまとめます。
+
+    Args:
+        joints (Iterable[str]): 姿勢を編集する対象のジョイント名。joint 以外は除外します。
+
+    Yields:
+        list[str]: 保護対象になった skinCluster 名。
+
+    Raises:
+        ValueError: 存在しないノード名を指定した場合。
+    """
+    skin_names = []
+    seen = set()
+    for joint in joints:
+        if not cmds.objExists(joint):
+            raise ValueError("Object not found: {}".format(joint))
+        if not cmds.objectType(joint, isAType="joint"):
+            continue
+        for skin in cmds.listConnections(joint, type="skinCluster") or []:
+            # 同じ skinCluster へ複数アトリビュートで接続するため UUID で重複を除く。
+            uuid = (cmds.ls(skin, uuid=True) or [skin])[0]
+            if uuid in seen:
+                continue
+            seen.add(uuid)
+            skin_names.append(skin)
+    previous_modes = {}
+
+    cmds.undoInfo(openChunk=True, chunkName="preservedSkinShape")
+    try:
+        for name in skin_names:
+            try:
+                previous_modes[name] = bool(cmds.skinCluster(name, query=True, moveJointsMode=True))
+            except RuntimeError as exc:
+                om2.MGlobal.displayWarning("Failed to query moveJointsMode: {} ({})".format(name, exc))
+                continue
+            try:
+                cmds.skinCluster(name, edit=True, moveJointsMode=True)
+            except RuntimeError as exc:
+                om2.MGlobal.displayWarning("Failed to enable moveJointsMode: {} ({})".format(name, exc))
+                continue
+        try:
+            yield skin_names
+        finally:
+            for name in skin_names:
+                try:
+                    cmds.skinCluster(name, edit=True, recacheBindMatrices=True)
+                except RuntimeError as exc:
+                    om2.MGlobal.displayWarning("Failed to recache bind matrices: {} ({})".format(name, exc))
+            for name, state in previous_modes.items():
+                try:
+                    cmds.skinCluster(name, edit=True, moveJointsMode=state)
+                except RuntimeError as exc:
+                    om2.MGlobal.displayWarning("Failed to restore moveJointsMode: {} ({})".format(name, exc))
+    finally:
+        cmds.undoInfo(closeChunk=True)
 
 def _compute_world_matrix(node_name):
     """ノードのワールド行列を取得します。
@@ -558,7 +617,7 @@ def _compute_debug_log_euler_rebuild(joint_name, euler_rotation, target_matrix):
     Returns:
         dict[str, maya.api.OpenMaya.MMatrix | str]: 再構築行列情報。
     """
-    rotate_order_index = int(Node(joint_name).getPlug("rotateOrder").get())
+    rotate_order_index = int(cmds.getAttr("{}.rotateOrder".format(joint_name)))
     rotate_order_enum = _ROTATE_ORDER_ENUMS.get(rotate_order_index, om2.MEulerRotation.kXYZ)
     rotate_order_label = _ROTATE_ORDER_LABELS.get(rotate_order_index, "xyz")
 
@@ -618,8 +677,8 @@ def _compute_debug_log_joint_orient_order_hypothesis(joint_name, orient_degrees,
 
     best = None
     xyz = None
-    for orderIndex, order_enum in _ROTATE_ORDER_ENUMS.items():
-        order_label = _ROTATE_ORDER_LABELS[orderIndex]
+    for order_index, order_enum in _ROTATE_ORDER_ENUMS.items():
+        order_label = _ROTATE_ORDER_LABELS[order_index]
         mat = om2.MEulerRotation(rx, ry, rz, order_enum).asMatrix()
 
         x_a = _compute_axis_world_vector_from_matrix(mat, "x")
@@ -677,9 +736,9 @@ def _compute_debug_log_post_apply_attr_state(joint_name, expected_orient_degrees
         joint_name (str): 対象ジョイント名。
         expected_orient_degrees (list[float]): 期待する orient 角度（度）。
     """
-    actual_orient = tuple(units.angleToUi(v) for v in Node(joint_name).getPlug("jointOrient").get())
-    actual_rotate = tuple(units.angleToUi(v) for v in Node(joint_name).getPlug("rotate").get())
-    rotate_order_index = int(Node(joint_name).getPlug("rotateOrder").get())
+    actual_orient = tuple(cmds.getAttr("{}.jointOrient".format(joint_name))[0])
+    actual_rotate = tuple(cmds.getAttr("{}.rotate".format(joint_name))[0])
+    rotate_order_index = int(cmds.getAttr("{}.rotateOrder".format(joint_name)))
     rotate_order_label = _ROTATE_ORDER_LABELS.get(rotate_order_index, "xyz")
 
     delta_orient = [
@@ -860,9 +919,10 @@ def _compute_rotate_axis_matrix(joint_name):
     Returns:
         maya.api.OpenMaya.MMatrix: rotateAxis 由来の回転行列。
     """
-    rx = math.radians(units.angleToUi(Node(joint_name).getPlug("rotateAxisX").get()))
-    ry = math.radians(units.angleToUi(Node(joint_name).getPlug("rotateAxisY").get()))
-    rz = math.radians(units.angleToUi(Node(joint_name).getPlug("rotateAxisZ").get()))
+    # getAttr は UI 単位の値を返す。元の実装と同じく UI 単位が度である前提で rad へ変換する。
+    rx = math.radians(cmds.getAttr("{}.rotateAxisX".format(joint_name)))
+    ry = math.radians(cmds.getAttr("{}.rotateAxisY".format(joint_name)))
+    rz = math.radians(cmds.getAttr("{}.rotateAxisZ".format(joint_name)))
     return om2.MEulerRotation(rx, ry, rz).asMatrix()
 
 def _compute_has_non_zero_rotate_axis(joint_name):
@@ -875,9 +935,9 @@ def _compute_has_non_zero_rotate_axis(joint_name):
         bool: いずれかの軸が閾値より大きい場合は ``True``。
     """
     vals = [
-        units.angleToUi(Node(joint_name).getPlug("rotateAxisX").get()),
-        units.angleToUi(Node(joint_name).getPlug("rotateAxisY").get()),
-        units.angleToUi(Node(joint_name).getPlug("rotateAxisZ").get()),
+        cmds.getAttr("{}.rotateAxisX".format(joint_name)),
+        cmds.getAttr("{}.rotateAxisY".format(joint_name)),
+        cmds.getAttr("{}.rotateAxisZ".format(joint_name)),
     ]
     return any(abs(v) > 1e-6 for v in vals)
 
@@ -1184,12 +1244,12 @@ def _apply_orient_from_ui(*_):
         cmds.warning(str(e))
         return
 
-    # 変形破綻を避けるため、影響する skinCluster を hlib.decorator.preservedSkinShape
+    # 変形破綻を避けるため、影響する skinCluster を _preserved_skin_shape
     # (skinCluster -moveJointsMode / -recacheBindMatrices) で保護する。
     target_joints = _compute_target_joints(joints, include_children=True)
     next_children_debug = _compute_is_next_children_debug_enabled(primary_space, up_space)
 
-    with preservedSkinShape(target_joints):
+    with _preserved_skin_shape(target_joints):
         for j in joints:
             if next_children_debug:
                 _compute_debug_log_next_children_inputs(
@@ -1236,9 +1296,9 @@ def _apply_orient_from_ui(*_):
             child_world_matrices = _compute_descendant_world_matrices(j)
 
             # orient 値を書き込み、rotate をゼロに戻して回転を jointOrient 側へ集約する。
-            joint = Node(j)
-            joint.getPlug("jointOrient").set(tuple(units.angleFromUi(v) for v in orient_degrees))
-            joint.getPlug("rotate").set((0.0, 0.0, 0.0))
+            # setAttr は UI 単位で解釈する（元の実装の angleFromUi と同じ意味）。
+            cmds.setAttr("{}.jointOrient".format(j), *orient_degrees)
+            cmds.setAttr("{}.rotate".format(j), 0.0, 0.0, 0.0)
 
             # 親の向き更新で子のワールド姿勢が変わらないよう、退避行列を復元する。
             if child_world_matrices:
@@ -1298,9 +1358,9 @@ def _apply_orient_from_ui(*_):
                     om2.MGlobal.displayInfo(
                         "[OrientDebug] {}: rotateAxis=({:.6f}, {:.6f}, {:.6f})deg".format(
                             j,
-                            units.angleToUi(Node(j).getPlug("rotateAxisX").get()),
-                            units.angleToUi(Node(j).getPlug("rotateAxisY").get()),
-                            units.angleToUi(Node(j).getPlug("rotateAxisZ").get()),
+                            cmds.getAttr("{}.rotateAxisX".format(j)),
+                            cmds.getAttr("{}.rotateAxisY".format(j)),
+                            cmds.getAttr("{}.rotateAxisZ".format(j)),
                         )
                     )
                 _compute_debug_log_joint_axis_alignment(j)
@@ -1414,5 +1474,6 @@ def show_orient_joint_like_window():
     cmds.showWindow(_WIN)
     cmds.window(_WIN, e=True, resizeToFitChildren=True)
 
-# 起動
-show_orient_joint_like_window()
+# 起動(HToolsのメニューは run_name="__main__" で実行する)
+if __name__ == "__main__":
+    show_orient_joint_like_window()

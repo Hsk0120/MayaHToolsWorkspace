@@ -25,21 +25,16 @@ UI(``HTools/rigging/controllerShapeManagerUI.py``)は :func:`get_shape_classes` 
 だけは ``cmds.circle`` の戻り値(transform 名を先頭に含むリスト)をそのまま返す。
 """
 
+import functools
 import inspect
 import itertools
 import math
 import sys
 from collections import deque
-from importlib import reload
 
 import maya.cmds as cmds
 
-import hlib
-from hlib.nodes import Node
 from hrig.setups import ControlShape
-
-import hlib.decorator as undo
-reload(undo)
 
 
 DEFAULT_SHAPE_NAME = "ctrlCurve"
@@ -134,7 +129,7 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
 
     shapes = cmds.listRelatives(curve_transform, shapes=True, fullPath=True) or []
     for shape in shapes:
-        if Node(shape).getType() != "nurbsCurve":
+        if cmds.nodeType(shape) != "nurbsCurve":
             continue
         cvs = cmds.ls(f"{shape}.cv[*]", flatten=True) or []
         for cv in cvs:
@@ -146,7 +141,29 @@ def _apply_trs_to_curve_cvs(curve_transform, tx=0.0, ty=0.0, tz=0.0, rx=0.0, ry=
 # ---------------------------------------------------------------------------
 # カーブ作成
 # ---------------------------------------------------------------------------
-@undo.undoChunk()
+def _undo_chunk(func):
+    """関数内の Maya 操作を1回の Undo にまとめるデコレータ。
+
+    例外が起きてもチャンクは閉じる。自動のロールバックはしない。
+
+    Args:
+        func (Callable): 対象の関数。
+
+    Returns:
+        Callable: 戻り値とメタデータを保持したラッパー。
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        """チャンクを開いて func を実行し、必ず閉じる。"""
+        cmds.undoInfo(openChunk=True)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            cmds.undoInfo(closeChunk=True)
+    return wrapper
+
+
+@_undo_chunk
 def _curve(
     points,
     name=DEFAULT_SHAPE_NAME,
@@ -185,19 +202,19 @@ def _curve(
     selected = cmds.ls(selection=True, long=True)
     if selected:
         sel = selected[0]
-        sel_type = Node(sel).getType()
+        sel_type = cmds.nodeType(sel)
         if sel_type == "transform":
             target_transform = sel
         elif sel_type == "nurbsCurve":
             parents = cmds.listRelatives(sel, parent=True, fullPath=True) or []
-            if parents and Node(parents[0]).getType() == "transform":
+            if parents and cmds.nodeType(parents[0]) == "transform":
                 target_transform = parents[0]
 
     if target_transform and cmds.objExists(target_transform):
         existing_curve_shapes = [
             shape
             for shape in (cmds.listRelatives(target_transform, shapes=True, fullPath=True) or [])
-            if Node(shape).getType() == "nurbsCurve"
+            if cmds.nodeType(shape) == "nurbsCurve"
         ]
 
         if existing_curve_shapes:
@@ -205,7 +222,8 @@ def _curve(
 
             return target_transform
 
-    return hlib.createCurve(degree=degree, point=points, knot=knots, name=name).getName()
+    created = cmds.curve(degree=degree, point=points, knot=knots, name=name)
+    return cmds.ls(created)[0]
 
 
 # ---------------------------------------------------------------------------

@@ -1,17 +1,17 @@
 """Mayaのサイクル候補と実接続を読み取り、原因調査用の画面を表示する。"""
 
+import math
+import re
 import time
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-
-import hlib
-from hlib.nodes import Node
-from hlib.common import Cycle
-from hlib.plugs import Plug
-from hlib import logger
 
 
 _WINDOW = "HToolsInspectCycles"
+_SEPARATOR = "__HTOOLS_CYCLE_SEPARATOR__"
+#: アトリビュートパスの1区切り(``name`` または ``name[i]``)。
+_PATH_TOKEN = re.compile(r"^([^\[\]]+)(?:\[(\d+)\])?$")
 _LIMITATION = (
     "The detection order includes dependencies inside nodes, not only real connections, and may be a partial path.\n"
     "Direct connections are only hints for where to cut. They do not identify the cause or a safe place to cut.\n"
@@ -21,47 +21,237 @@ _LIMITATION = (
 
 
 
-def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False):
-    """Cycleの照会結果を画面・保存用の文字列スナップショットへ変換する。
+def _warn(message):
+    """警告をScript Editorとビューポートへ表示する。
 
     Args:
-        targets (Iterable[str | Node | Plug] | None): 調査対象。Noneで全体。
+        message (str): 表示する英語のメッセージ。
+    """
+    cmds.warning(message)
+    text = message.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    try:
+        cmds.inViewMessage(amg='<font color="#ffcc00">{}</font>'.format(text), pos="midCenter", fade=True)
+    except RuntimeError:
+        pass
+
+
+def _ownerPath(mobject, text=None):
+    """プラグを所有するノードのDAGパスを求める。
+
+    Args:
+        mobject (om2.MObject): 所有ノード。
+        text (str | None): 名前で指定した場合の文字列。インスタンスの判別に使う。
+
+    Returns:
+        om2.MDagPath | None: 名前が指すインスタンス(無ければ最初のパス)。DGノードはNone。
+    """
+    if not mobject.hasFn(om2.MFn.kDagNode):
+        return None
+    fn = om2.MFnDagNode(mobject)
+    if text and fn.isInstanced():
+        selection = om2.MSelectionList()
+        try:
+            selection.add(text.split(".", 1)[0])
+            path = selection.getDagPath(0)
+        except (RuntimeError, TypeError):
+            path = None
+        if path is not None and path.node() == mobject:
+            return path
+        # transformの名前でシェイプのアトリビュートを指す場合は、そのインスタンスの下へ伸ばす。
+        for index in range(path.childCount() if path is not None else 0):
+            if path.child(index) == mobject:
+                path.push(mobject)
+                return path
+    return fn.getPath()
+
+
+def _pathPlug(text):
+    """``pnts[i]`` のようにコンポーネントとしても解釈される名前を、アトリビュートとして辿る。
+
+    Args:
+        text (str): ``"node.attr[i].child"`` 形式の名前。
+
+    Returns:
+        om2.MPlug: 解決したプラグ。
+
+    Raises:
+        TypeError: アトリビュートとして解決できない場合。
+    """
+    node, _, path = text.partition(".")
+    selection = om2.MSelectionList()
+    selection.add(node)
+    fn = om2.MFnDependencyNode(selection.getDependNode(0))
+    if fn.object().hasFn(om2.MFn.kTransform) and not fn.hasAttribute(path.split("[", 1)[0]):
+        # transformの名前でシェイプのアトリビュートを指す場合は、唯一のシェイプで探す。
+        shape = selection.getDagPath(0)
+        try:
+            shape.extendToShape()
+        except RuntimeError:
+            raise TypeError("Not an attribute name: {}".format(text))
+        fn = om2.MFnDependencyNode(shape.node())
+    mplug = None
+    for token in path.split("."):
+        match = _PATH_TOKEN.match(token)
+        if match is None or not fn.hasAttribute(match.group(1)):
+            raise TypeError("Not an attribute name: {}".format(text))
+        attribute = fn.attribute(match.group(1))
+        mplug = om2.MPlug(fn.object(), attribute) if mplug is None else mplug.child(attribute)
+        if match.group(2) is not None:
+            mplug = mplug.elementByLogicalIndex(int(match.group(2)))
+    return mplug
+
+
+def _findPlug(text):
+    """アトリビュート名をプラグと所有ノードのDAGパスへ解決する。
+
+    Args:
+        text (str): ``"node.attribute"`` 形式の名前。
+
+    Returns:
+        tuple[om2.MPlug, om2.MDagPath | None]: プラグと所有ノードのパス。
+
+    Raises:
+        RuntimeError: 見つからない、または複数に一致する場合。
+        TypeError: アトリビュートを指す名前ではない場合。
+    """
+    selection = om2.MSelectionList()
+    try:
+        selection.add(text)
+    except RuntimeError:
+        raise RuntimeError("Attribute not found: {}".format(text))
+    if selection.length() != 1:
+        raise RuntimeError("Matches multiple objects. Specify a unique attribute name: {}".format(text))
+    try:
+        mplug = selection.getPlug(0)
+    except TypeError:
+        mplug = _pathPlug(text)
+    return mplug, _ownerPath(mplug.node(), text)
+
+
+def _plugName(mplug, path):
+    """最短一意のノード名とロング名のアトリビュートパスでプラグ名を作る。
+
+    Args:
+        mplug (om2.MPlug): 対象のプラグ。
+        path (om2.MDagPath | None): 所有ノードのDAGパス。DGノードはNone。
+
+    Returns:
+        str: maya.cmdsで一意に解決できるプラグ名。
+    """
+    if path is None or (not path.isInstanced() and path.pathCount() == 1
+                        and om2.MFnDependencyNode(mplug.node()).hasUniqueName()):
+        return mplug.name()
+    return path.partialPathName() + "." + mplug.partialName(False, True, True, True, False, True)
+
+
+def _targetName(target):
+    """調査対象の名前を、ノードは最短一意名、アトリビュートは :func:`_plugName` の形式へ揃える。
+
+    Args:
+        target (str): ノード名またはアトリビュート名。
+
+    Returns:
+        str: cycleCheckへ渡す名前。
+
+    Raises:
+        TypeError: 文字列以外、またはアトリビュートを指さない名前の場合。
+        RuntimeError: 見つからない、または複数に一致する場合。
+    """
+    if not isinstance(target, str):
+        raise TypeError("Specify node or attribute names.")
+    if "." in target:
+        return _plugName(*_findPlug(target))
+    selection = om2.MSelectionList()
+    try:
+        selection.add(target)
+    except RuntimeError:
+        raise RuntimeError("Node not found or not unique: {}".format(target))
+    mobject = selection.getDependNode(0)
+    if mobject.hasFn(om2.MFn.kDagNode):
+        return selection.getDagPath(0).partialPathName()
+    return om2.MFnDependencyNode(mobject).name()
+
+
+def _findCycles(names, include_dag, seconds, first_only):
+    """シーンを変更せず循環候補を検出する。
+
+    Args:
+        names (list[str] | None): 調査対象の名前。Noneでシーン全体。
+        include_dag (bool): DAGの親子関係を検出に含める。
+        seconds (float): 検索時間の上限(秒)。
+        first_only (bool): 最初の完全なサイクルだけを要求する。
+
+    Returns:
+        list[list[tuple[om2.MPlug, om2.MDagPath | None]]]: 検出順のプラグの経路。
+            完全な循環とは限らず部分経路も含む。
+    """
+    options = dict(list=True, dag=include_dag, secondary=True,
+                   timeLimit="{}sec".format(seconds), listSeparator=_SEPARATOR,
+                   firstCycleOnly=first_only)
+    if names is None:
+        options["all"] = True
+    paths, current = [], []
+    for name in (cmds.cycleCheck(*(names or []), **options) or []) + [_SEPARATOR]:
+        if name != _SEPARATOR:
+            current.append(name)
+        elif current:
+            paths.append(current)
+            current = []
+    return [[_findPlug(name) for name in path] for path in paths]
+
+
+def inspectCycles(targets=None, include_dag=True, seconds=10.0, first_only=False):
+    """循環の照会結果を画面・保存用の文字列スナップショットへ変換する。
+
+    Args:
+        targets (Iterable[str] | str | None): 調査対象のノード名・アトリビュート名。Noneで全体。
         include_dag (bool): DAGを含める。
         seconds (float): 検索上限秒数。
         first_only (bool): 最初の完全なサイクルだけを要求する。
 
     Returns:
         dict: 検索条件・経過時間・経路・読み取り失敗。
+
+    Raises:
+        ValueError: 空の対象または不正な時間上限。
+        TypeError: 対象の型が不正。
+        RuntimeError: 検索または検出アトリビュートの解決に失敗。
     """
+    seconds = float(seconds)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError("Specify a finite search limit greater than 0 seconds.")
+    names = None
     if targets is not None:
-        targets = [targets] if isinstance(targets, (str, Node, Plug)) else list(targets)
+        targets = [targets] if isinstance(targets, str) else list(targets)
+        names = [_targetName(target) for target in targets]
+        if not names:
+            raise ValueError("Select the nodes to inspect.")
     started = time.monotonic()
-    cycles = Cycle.find(targets, include_dag, seconds, first_only)
+    cycles = _findCycles(names, include_dag, seconds, first_only)
     elapsed = time.monotonic() - started
     groups = []
     for cycle in cycles:
         nodes, connections, parents, errors = {}, set(), set(), []
-        names = []
-        for plug in cycle.plugs:
+        plugs = []
+        for mplug, path in cycle:
             try:
-                names.append(plug.getFullName())
-                node = plug.getNode()
-                nodes[node.getName()] = node.getType()
-                part = Cycle([plug])
-                connections.update((a.getFullName(), b.getFullName()) for a, b in part.getConnections())
-                parents.update((a.getFullName(), b.getName()) for a, b in part.getParents())
+                plugs.append(_plugName(mplug, path))
+                fn = om2.MFnDependencyNode(mplug.node())
+                nodes[path.partialPathName() if path is not None else fn.name()] = fn.typeName
+                # 変換ノードを省略しない直接の入力元と出力先(経路外の接続も含む)。
+                here = (mplug, path)
+                edges = [((source, _ownerPath(source.node())), here) for source in mplug.connectedTo(True, False)[:1]]
+                edges.extend((here, (dest, _ownerPath(dest.node()))) for dest in mplug.connectedTo(False, True))
+                connections.update((_plugName(*a), _plugName(*b)) for a, b in edges)
+                if path is not None:
+                    child = path.partialPathName()
+                    parents.update((parent, child) for parent in cmds.listRelatives(
+                        path.fullPathName(), allParents=True, fullPath=True) or [])
             except (RuntimeError, ValueError, TypeError) as error:
                 errors.append(str(error))
-        groups.append(dict(plugs=names, nodes=nodes, connections=sorted(connections),
+        groups.append(dict(plugs=plugs, nodes=nodes, connections=sorted(connections),
                            parents=sorted(parents), errors=errors))
-    names = None
-    if targets is not None:
-        names = []
-        for target in targets:
-            if isinstance(target, str):
-                target = hlib.getPlug(target) if "." in target else Node(target)
-            names.append(target.getFullName() if isinstance(target, Plug) else target.getName())
-    return dict(targets=names, includeDag=include_dag, seconds=float(seconds),
+    return dict(targets=names, includeDag=include_dag, seconds=seconds,
                 elapsed=elapsed, firstOnly=first_only, groups=groups)
 
 
@@ -141,7 +331,7 @@ class CycleInspector:
             scope = cmds.radioButtonGrp(self.scope, query=True, select=True)
             targets = None
             if scope == 2:
-                targets = hlib.ls(selection=True)
+                targets = cmds.ls(selection=True)
             elif scope == 3:
                 targets = cmds.textFieldGrp(self.target, query=True, text=True).split()
             self.result = inspectCycles(
@@ -157,7 +347,7 @@ class CycleInspector:
         except (RuntimeError, ValueError, TypeError) as error:
             cmds.text(self.status, edit=True, label="Inspection failed")
             cmds.scrollField(self.details, edit=True, text=str(error))
-            logger.warning(str(error))
+            _warn(str(error))
         finally:
             cmds.button(self.scan_button, edit=True, enable=True)
 
@@ -181,24 +371,25 @@ class CycleInspector:
             cmds.scrollField(self.details, edit=True, text=formatReport(self.result))
 
     def selectNodes(self, *_):
-        """選択経路の現存ノードをhlibで解決して選択する。
+        """選択経路の現存ノードを選択する。
 
         Args:
             *_: Maya UIコールバックから渡される未使用の引数。
         """
         indices = cmds.textScrollList(self.paths, query=True, selectIndexedItem=True) or []
         if self.result is None or not indices:
-            logger.warning("Select a path in the list.")
+            _warn("Select a path in the list.")
             return
         names = dict.fromkeys(name for i in indices for name in self.result["groups"][i - 1]["nodes"])
         nodes = []
         for name in names:
-            try:
-                nodes.append(Node(name))
-            except (RuntimeError, ValueError):
-                logger.warning("Node not found. Inspect again: {}".format(name))
+            found = cmds.ls(name, long=True) or []
+            if len(found) == 1:
+                nodes.append(found[0])
+            else:
+                _warn("Node not found. Inspect again: {}".format(name))
         if nodes:
-            hlib.select(nodes, replace=True)
+            cmds.select(nodes, replace=True)
 
     def saveReport(self, *_):
         """保存先を選び、全結果をUTF-8のテキストとして保存する。
@@ -207,16 +398,16 @@ class CycleInspector:
             *_: Maya UIコールバックから渡される未使用の引数。
         """
         if self.result is None:
-            logger.warning("Run the inspection first.")
+            _warn("Run the inspection first.")
             return
         paths = cmds.fileDialog2(fileMode=0, caption="Save Cycle Inspection Report", fileFilter="Text (*.txt)")
         if paths:
             try:
                 with open(paths[0], "w", encoding="utf-8") as stream:
                     stream.write(formatReport(self.result))
-                logger.info("Saved the report: {}".format(paths[0]))
+                om2.MGlobal.displayInfo("Saved the report: {}".format(paths[0]))
             except OSError as error:
-                logger.warning("Could not save: {}".format(error))
+                _warn("Could not save: {}".format(error))
 
 
 def run():

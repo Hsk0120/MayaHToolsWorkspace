@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """選択ジョイントのウェイトを親へ統合する LOD 補助ツール。"""
 
+import maya.api.OpenMaya as om2
+import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
-
-from hlib.nodes import Node
-from hlib.cmds import getPlug
 
 def _is_joint(node):
     """ノードが joint かどうかを判定します。
@@ -12,7 +11,7 @@ def _is_joint(node):
     Args:
         node: 処理対象のノード参照。
     """
-    return cmds.objExists(node) and Node(node).getType() == 'joint'
+    return cmds.objExists(node) and cmds.nodeType(node) == 'joint'
 
 def _get_parent_joint(jnt):
     """親ジョイントを取得します。
@@ -45,7 +44,12 @@ def _get_influences(sc):
     Args:
         sc: ウェイトを照会・編集するskinCluster。
     """
-    return [node.getName() for node in Node(sc).getInfluences()]
+    # cmds.skinCluster(q=True, inf=True) は同名ノードがあると名前が曖昧になり得るため、
+    # MFnSkinCluster から DAG パスを取得して最短一意名にする。
+    selection = om2.MSelectionList()
+    selection.add(sc)
+    fn = oma2.MFnSkinCluster(selection.getDependNode(0))
+    return [path.partialPathName() for path in fn.influenceObjects()]
 
 def _get_uuid(node):
     """ノード UUID を1件だけ返します。
@@ -95,7 +99,7 @@ def _get_joint_liw(jnt):
     if not cmds.objExists(attr):
         return None
     try:
-        return bool(getPlug(attr).get())
+        return bool(cmds.getAttr(attr))
     except RuntimeError:
         return None
 
@@ -110,7 +114,7 @@ def _set_joint_liw_safe(jnt, value):
     if not cmds.objExists(attr):
         return False
     try:
-        getPlug(attr).set(int(bool(value)))
+        cmds.setAttr(attr, int(bool(value)))
         return True
     except RuntimeError:
         return False
@@ -274,55 +278,61 @@ def lod_like_collapse_selected_joints(
         return d
     sel_sorted = sorted(sel, key=depth, reverse=True)
 
-    for child in sel_sorted:
-        if not _is_joint(child):
-            continue
+    # 複数ジョイントの移管・削除をまとめて1回の Undo で戻せるようにする。
+    cmds.undoInfo(openChunk=True, chunkName="collapseJointWeightsToParent")
+    try:
+        for child in sel_sorted:
+            if not _is_joint(child):
+                continue
 
-        parent = _get_parent_joint(child)
-        if not parent:
-            cmds.warning("Skipped because the parent joint was not found: %s" % child)
-            continue
+            parent = _get_parent_joint(child)
+            if not parent:
+                cmds.warning("Skipped because the parent joint was not found: %s" % child)
+                continue
 
-        # child が入っている skinCluster を列挙
-        skinclusters = _find_skinclusters_using_influence(child)
-        if not skinclusters:
-            # スキンに使われていないジョイントは、指定要件的には “削除だけ” でも良いはずだが
-            # 事故防止で警告してから削除
-            cmds.warning("skinCluster not found (the joint may not be used for skinning): %s" % child)
+            # child が入っている skinCluster を列挙
+            skinclusters = _find_skinclusters_using_influence(child)
+            if not skinclusters:
+                # スキンに使われていないジョイントは、指定要件的には “削除だけ” でも良いはずだが
+                # 事故防止で警告してから削除
+                cmds.warning("skinCluster not found (the joint may not be used for skinning): %s" % child)
+                if reparent_children_to_parent:
+                    _reparent_children(child, parent)
+                if delete_joint:
+                    try:
+                        cmds.delete(child)
+                    except RuntimeError:
+                        pass
+                continue
+
+            # 子が使われている全 skinCluster に対して転送処理を行う。
+            for sc in skinclusters:
+                # 親が未登録なら addInfluence
+                _ensure_influence(sc, parent, weight=0.0)
+
+                # 対象ジオメトリごとに移管
+                geos = _get_geometries(sc)
+                for geo in geos:
+                    _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=eps)
+
+                # influence から child を外す
+                _remove_influence_safe(sc, child)
+
+            # 階層維持：子ジョイントを親へ付け替え
             if reparent_children_to_parent:
                 _reparent_children(child, parent)
+
+            # 最後に child 自体を削除
             if delete_joint:
                 try:
                     cmds.delete(child)
                 except RuntimeError:
-                    pass
-            continue
-
-        # 子が使われている全 skinCluster に対して転送処理を行う。
-        for sc in skinclusters:
-            # 親が未登録なら addInfluence
-            _ensure_influence(sc, parent, weight=0.0)
-
-            # 対象ジオメトリごとに移管
-            geos = _get_geometries(sc)
-            for geo in geos:
-                _transfer_weights_child_to_parent_for_geo(sc, geo, child, parent, eps=eps)
-
-            # influence から child を外す
-            _remove_influence_safe(sc, child)
-
-        # 階層維持：子ジョイントを親へ付け替え
-        if reparent_children_to_parent:
-            _reparent_children(child, parent)
-
-        # 最後に child 自体を削除
-        if delete_joint:
-            try:
-                cmds.delete(child)
-            except RuntimeError:
-                cmds.warning("Failed to delete: %s" % child)
+                    cmds.warning("Failed to delete: %s" % child)
+    finally:
+        cmds.undoInfo(closeChunk=True)
 
 
 # 実行例：
 # 選択ジョイントを親へウェイト移管して削除（子階層は親へ付け替え）
-lod_like_collapse_selected_joints()
+if __name__ == "__main__":
+    lod_like_collapse_selected_joints()
