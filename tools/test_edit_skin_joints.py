@@ -175,6 +175,45 @@ def main():
             assert cmds.getAttr(parent + ".rotate") == [(0.0, 0.0, 0.0)]
             tool.finishEdit()
         print("PASS freeze selected only / six rotation orders / child world and channels / bind matrix / Undo / Redo")
+        cmds.select(parent)
+        cmds.setAttr(skin + ".envelope", 0.4)
+        tool.beginEdit()
+        renamed_skin = cmds.rename(skin, "renamedRecoverySkin")
+        tool.pauseEdit()
+        assert abs(cmds.getAttr(renamed_skin + ".envelope") - 0.4) < 1e-7
+        assert tool._readSession()["paused"]
+        tool.beginEdit()
+        assert cmds.getAttr(renamed_skin + ".envelope") == 0
+        tool.discardEdit()
+        assert abs(cmds.getAttr(renamed_skin + ".envelope") - 0.4) < 1e-7
+        assert not cmds.objExists(tool._SESSION)
+        cmds.undo()
+        assert cmds.objExists(tool._SESSION)
+        cmds.redo()
+        assert not cmds.objExists(tool._SESSION)
+        print("PASS UUID recovery after rename / pause / resume / discard / Undo / Redo")
+        cmds.select(parent)
+        tool.beginEdit()
+        owner = tool._WindowOwner()
+        callback = om.MSceneMessage.addCheckCallback(om.MSceneMessage.kBeforeSaveCheck, owner.suspend)
+        try:
+            output = Path(__file__).resolve().parents[1] / ".maya-output/skin-edit-safe-save.ma"
+            cmds.file(rename=str(output))
+            cmds.setAttr(renamed_skin + ".envelope", lock=True)
+            try:
+                cmds.file(save=True, type="mayaAscii", force=True)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("Save should be blocked if envelopes cannot be restored")
+            assert not tool._readSession().get("paused", False)
+            cmds.setAttr(renamed_skin + ".envelope", lock=False)
+            cmds.file(save=True, type="mayaAscii", force=True)
+            assert tool._readSession()["paused"]
+            assert abs(cmds.getAttr(renamed_skin + ".envelope") - 0.4) < 1e-7
+        finally:
+            om.MMessage.removeCallback(callback)
+        print("PASS save-time recovery / failed recovery blocks save")
         print("ALL PASSED")
     finally:
         maya.standalone.uninitialize()

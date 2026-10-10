@@ -1,14 +1,18 @@
 """スキニング前の形状を維持してジョイントを編集するMaya標準UI。
 
 開始・完了はそれぞれ1回のUndoで戻る。ユーザーの骨操作は通常のUndoを使う。
-編集中の状態はnetworkノードに保存し、画面を閉じても再開できる。
+編集中の状態はnetworkノードに保存し、終了・保存時は一時停止して再開できる。
 階層・接続・名前・時間の変更は編集対象外。ウェイトは変更しない。
 """
 
 import json
 import math
-from contextlib import contextmanager
+import os
+import time
+from pathlib import Path
+from contextlib import contextmanager, nullcontext
 
+import maya
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
 
@@ -16,6 +20,55 @@ import maya.api.OpenMaya as om
 _WINDOW = "HToolsEditSkinJoints"
 _SESSION = "HToolsSkinJointEditSession"
 _DATA = "skinJointEditData"
+_OWNER = "_htoolsSkinJointEditOwner"
+
+
+def _owner():
+    """import/reload/runpyをまたいで共有する現在のUI所有者を取得する。"""
+    return getattr(maya, _OWNER, None)
+
+
+def _sessionSkins(data):
+    """記録したUUIDで復旧対象を解決し、同名の別ノードを変更しない。"""
+    result = []
+    for record in data["skins"]:
+        found = cmds.ls(record["uuid"], long=True) or []
+        if not found:
+            continue
+        if len(found) != 1 or cmds.nodeType(found[0]) != "skinCluster":
+            raise RuntimeError("Cannot resolve the recorded skinCluster: " + record["name"])
+        _writable(found[0] + ".envelope")
+        result.append((found[0], record))
+    return result
+
+
+def pauseEdit(*, undoable=True):
+    """編集を確定せず、envelopeだけ復元して再開可能な状態を残す。
+
+    Args:
+        undoable (bool): 通常操作はTrue。MayaがUndoを停止するファイル処理ではFalse。
+    """
+    if not cmds.objExists(_SESSION + "." + _DATA):
+        return
+    data = _readSession()
+    if data.get("paused", False):
+        return
+    targets = _sessionSkins(data)
+    with _transaction("HTools: Pause Skin Joint Edit") if undoable else nullcontext():
+        for skin, record in targets:
+            cmds.setAttr(skin + ".envelope", record["envelope"])
+        data["paused"] = True
+        cmds.setAttr(_SESSION + "." + _DATA, json.dumps(data), type="string")
+
+
+def discardEdit():
+    """骨の編集とbind情報は触らず、envelopeを復元して記録を終了する。"""
+    data = _readSession()
+    targets = _sessionSkins(data)
+    with _transaction("HTools: Discard Skin Edit Session"):
+        for skin, record in targets:
+            cmds.setAttr(skin + ".envelope", record["envelope"])
+        cmds.delete(_SESSION)
 
 
 @contextmanager
@@ -100,7 +153,24 @@ def beginEdit():
         list[str]: 編集対象のskinCluster名。
     """
     if cmds.objExists(_SESSION):
-        raise RuntimeError("An edit session already exists. Finish it before starting another.")
+        data = _readSession()
+        if not data.get("paused", False):
+            raise RuntimeError("An edit session already exists. Finish it before starting another.")
+        if cmds.currentTime(query=True) != data["time"]:
+            raise RuntimeError("Return to the frame where editing started.")
+        targets = _sessionSkins(data)
+        if len(targets) != len(data["skins"]):
+            raise RuntimeError("Some recorded skinClusters are missing. Resolve the recovery session first.")
+        for skin, record in targets:
+            if _signature(skin) != record["signature"]:
+                raise RuntimeError("Influence connections changed: " + skin)
+            record["name"] = skin
+        with _transaction("HTools: Resume Skin Joint Edit"):
+            for skin, _ in targets:
+                cmds.setAttr(skin + ".envelope", 0)
+            data["paused"] = False
+            cmds.setAttr(_SESSION + "." + _DATA, json.dumps(data), type="string")
+        return [skin for skin, _ in targets]
     joints = set(cmds.ls(selection=True, long=True, type="joint") or [])
     if not joints:
         raise RuntimeError("Select one or more joints.")
@@ -280,16 +350,149 @@ def setPreserveChildren(enabled):
     Returns:
         bool: 切り替え後の有効状態。
     """
-    previous = getPreserveChildren()
-    enabled = bool(enabled)
+    owner = _owner()
+    if owner is None or owner.closed:
+        raise RuntimeError("Open Edit Skin Joints before enabling Preserve Children.")
+    owner.preserve(bool(enabled))
+    return bool(enabled)
+
+
+def _restoreContexts(values):
+    """保存した3標準ツールの設定を復元する。"""
+    for (command, name), value in zip(_preserveChildContexts(), values):
+        command(name, edit=True, preserveChildPosition=value)
+
+
+def _processAlive(pid):
+    """別のMayaプロセスが所有する復旧情報を回収しないため生存確認する。"""
+    if type(pid) is not int or pid <= 0:
+        raise ValueError("Invalid process ID in recovery data")
+    if os.name == "nt":
+        import ctypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.restype = ctypes.c_void_p
+        kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+        handle = kernel.OpenProcess(0x100000, False, pid)
+        if not handle:
+            return ctypes.get_last_error() == 5
+        try:
+            return kernel.WaitForSingleObject(handle, 0) == 258
+        finally:
+            kernel.CloseHandle(handle)
     try:
-        for command, name in _preserveChildContexts():
-            command(name, edit=True, preserveChildPosition=enabled)
-    except Exception:
-        for (command, name), value in zip(_preserveChildContexts(), previous):
-            command(name, edit=True, preserveChildPosition=value)
-        raise
-    return enabled
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _recoveryFolder():
+    """このツール専用の設定復旧ファイル保存先を返す。"""
+    return Path(cmds.internalVar(userPrefDir=True)) / "HToolsEditSkinJointsRecovery"
+
+
+def _recoverContexts():
+    """終了済みプロセスの設定を回収する。起動中の別Mayaには触れない。"""
+    folder = _recoveryFolder()
+    for path in sorted(folder.glob("*.json"), key=lambda item: item.stat().st_mtime):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data["pid"] != os.getpid() and _processAlive(data["pid"]):
+                continue
+            values = data["contexts"]
+            if len(values) != 3 or any(type(value) is not bool for value in values):
+                raise ValueError("Invalid context recovery data")
+            _restoreContexts(values)
+            path.unlink()
+        except Exception as exc:
+            cmds.warning("Could not restore previous Edit Skin Joints settings: " + str(exc))
+
+
+class _WindowOwner:
+    """単一UI・一時設定・コールバック・復旧情報の所有者。"""
+
+    def __init__(self):
+        """外部設定を変更する前に、寿命管理の状態を初期化する。"""
+        self.closed = False
+        self.enabled = False
+        self.original = None
+        self.preserver = None
+        self.callbacks = []
+        self.refresh = None
+        self.journal = _recoveryFolder() / (str(os.getpid()) + ".json")
+
+    def preserve(self, enabled):
+        """開始前の設定をディスクへ記録し、終了時には元の値を復元する。"""
+        if self.closed:
+            return
+        if enabled and not self.enabled:
+            if self.journal.exists():
+                raise RuntimeError("Unresolved recovery settings exist. Reopen this tool to recover them first.")
+            self.original = getPreserveChildren()
+            self.journal.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self.journal.with_suffix(".tmp")
+            temporary.write_text(json.dumps(dict(pid=os.getpid(), contexts=self.original,
+                                                  created=time.time())), encoding="utf-8")
+            temporary.replace(self.journal)
+            try:
+                _restoreContexts([True, True, True])
+            except Exception:
+                _restoreContexts(self.original)
+                raise
+            self.enabled = True
+        elif not enabled:
+            self.enabled = False
+            if self.original is not None:
+                _restoreContexts(self.original)
+                self.original = None
+                if self.journal.exists():
+                    self.journal.unlink()
+        if self.preserver:
+            self.preserver.rebuild()
+
+    def suspend(self, *_):
+        """保存・シーン切替前に一時設定とenvelopeを復元する。"""
+        if self.closed:
+            return True
+        try:
+            self.preserve(False)
+            # Mayaは保存/読込の通知中にUndoを無効にする。設定を強制的に有効化しない。
+            pauseEdit(undoable=bool(cmds.undoInfo(query=True, state=True)))
+        except Exception as exc:
+            cmds.warning("Could not pause skin editing. Recovery data was kept: " + str(exc))
+            return False
+        if self.refresh and cmds.window(_WINDOW, exists=True):
+            self.refresh()
+        return True
+
+    def close(self, *_):
+        """閉じる・deleteUI・終了処理の重複呼出でも一度だけ解放する。"""
+        if self.closed:
+            return
+        try:
+            self.suspend()
+        finally:
+            self.closed = True
+            if self.preserver:
+                self.preserver.stop()
+            for callback in self.callbacks:
+                om.MMessage.removeCallback(callback)
+            self.callbacks = []
+            if _owner() is self:
+                delattr(maya, _OWNER)
+
+    def install(self):
+        """UI削除と保存/シーン切替/終了に対する後始末を登録する。"""
+        cmds.scriptJob(uiDeleted=[_WINDOW, self.close], runOnce=True)
+        self.callbacks.append(om.MSceneMessage.addCheckCallback(
+            om.MSceneMessage.kBeforeSaveCheck, self.suspend))
+        for message in (om.MSceneMessage.kBeforeNew,
+                        om.MSceneMessage.kBeforeOpen, om.MSceneMessage.kAfterOpen):
+            self.callbacks.append(om.MSceneMessage.addCallback(message, self.suspend))
+        self.callbacks.append(om.MSceneMessage.addCallback(om.MSceneMessage.kMayaExiting, self.close))
 
 
 class _JointOrientPreserver:
@@ -305,21 +508,33 @@ class _JointOrientPreserver:
         self.jobs = []
         self.cache = {}
         self.busy = False
+        self.stopped = False
+        self.events = []
         for event in ("SelectionChanged", "Undo", "Redo", "timeChanged",
                       "SceneOpened", "NewSceneOpened"):
-            cmds.scriptJob(event=[event, self.rebuild], parent=window)
+            self.events.append(cmds.scriptJob(event=[event, self.rebuild], parent=window))
         self.rebuild()
+
+    def stop(self):
+        """自分が作成した監視だけを解放し、遅れて届く通知も無効にする。"""
+        self.stopped = True
+        for job in self.jobs + self.events:
+            if cmds.scriptJob(exists=job):
+                cmds.scriptJob(kill=job, force=True)
+        self.jobs = []
+        self.events = []
+        self.cache = {}
 
     def rebuild(self, *_):
         """選択対象を取り直し、削除やUndoで失われた監視も再構築する。"""
-        if self.busy:
+        if self.busy or self.stopped:
             return
         for job in self.jobs:
             if cmds.scriptJob(exists=job):
                 cmds.scriptJob(kill=job, force=True)
         self.jobs = []
         self.cache = {}
-        if not all(getPreserveChildren()):
+        if not _owner() or not _owner().enabled:
             return
         for joint in cmds.ls(selection=True, type="joint", long=True) or []:
             self.cache[joint] = None
@@ -348,9 +563,9 @@ class _JointOrientPreserver:
 
     def changed(self, *_):
         """jointOrient変更をまとめて補正し、他の編集では基準だけ更新する。"""
-        if self.busy:
+        if self.busy or self.stopped:
             return
-        if not all(getPreserveChildren()):
+        if not _owner() or not _owner().enabled:
             self.snapshot()
             return
         changed = [joint for joint, data in self.cache.items()
@@ -387,13 +602,36 @@ class _JointOrientPreserver:
 
 
 def run():
-    """編集開始・完了の画面を開く。再実行しても編集状態を保持する。"""
+    """単一の画面を開き、中断された設定を回収する。"""
+    previous = _owner()
+    if previous and not previous.closed and cmds.window(_WINDOW, exists=True):
+        cmds.showWindow(_WINDOW)
+        return
+    if previous:
+        previous.close()
     if cmds.window(_WINDOW, exists=True):
         cmds.deleteUI(_WINDOW)
+    _recoverContexts()
+    # クラッシュ/旧版で無効化されたまま保存されたシーンも、自動確定せず復旧する。
+    pauseEdit()
+    owner = _WindowOwner()
+    setattr(maya, _OWNER, owner)
+    try:
+        _buildWindow(owner)
+    except Exception:
+        owner.close()
+        if cmds.window(_WINDOW, exists=True):
+            cmds.deleteUI(_WINDOW)
+        raise
+
+
+def _buildWindow(owner):
+    """所有者の監視下でUIを構築し、初期化失敗時に解放できるようにする。"""
     # cmds標準UIにMayaのスケーリングを任せ、独自のDPI倍率や固定フォントを重ねない。
     # windowPrefは削除せず、ユーザーが変更したサイズをMayaに保持させる。
     cmds.window(_WINDOW, title="Edit Skin Joints", widthHeight=(620, 360),
-                sizeable=True, resizeToFitChildren=False)
+                sizeable=True, resizeToFitChildren=False, closeCommand=owner.close)
+    owner.install()
     frame = cmds.formLayout()
     # 小さい画面や拡大表示でも下部の操作へ必ず到達できるようにする。
     scroll = cmds.scrollLayout(childResizable=True, minChildWidth=300)
@@ -408,37 +646,46 @@ def run():
     status = cmds.text(label="", align="left")
     targets = cmds.scrollField(editable=False, wordWrap=True, height=75, text="")
     orient_preserver = _JointOrientPreserver(_WINDOW)
+    owner.preserver = orient_preserver
 
     def preserve(enabled):
         """標準マニピュレーターとChannel Box監視を同時に切り替える。"""
         setPreserveChildren(enabled)
-        orient_preserver.rebuild()
 
     def refreshPreserve(*_):
         """ツール切替時にもMaya側の実設定を色へ反映する。"""
-        states = getPreserveChildren()
-        enabled = all(states)
+        if owner.closed:
+            return
+        enabled = owner.enabled
         cmds.button(preserve_button, edit=True, label="Begin Preserve Children",
                     backgroundColor=(0.65, 0.18, 0.18) if enabled else default_color,
                     enableBackground=True)
 
     def refresh(*_):
         """Undo/Redoや再表示後の状態をシーンから取得する。"""
-        active = cmds.objExists(_SESSION + "." + _DATA)
+        if owner.closed:
+            return
+        exists = cmds.objExists(_SESSION + "." + _DATA)
+        data = _readSession() if exists else None
+        paused = bool(data and data.get("paused", False))
+        active = exists and not paused
         if active:
             cmds.button(begin_button, edit=True, backgroundColor=(0.65, 0.18, 0.18),
                         enableBackground=True)
         else:
             cmds.button(begin_button, edit=True, backgroundColor=default_color,
                         enableBackground=True)
-        cmds.text(status, edit=True, label="Editing (envelopes disabled)" if active else "Ready")
-        names = [record["name"] for record in _readSession()["skins"]] if active else []
+        cmds.text(status, edit=True, label=("Editing (envelopes disabled)" if active else
+                                           "Paused / recovered: Begin Edit to resume, or Finish Edit to commit." if paused else "Ready"))
+        names = [record["name"] for record in data["skins"]] if data else []
         cmds.scrollField(targets, edit=True,
                          text="Affected skinClusters ({}):\n{}".format(len(names), "\n".join(names)))
         refreshPreserve()
 
     def invoke(action):
         """処理結果またはエラーを通知して状態表示を更新する。"""
+        if owner.closed:
+            return
         try:
             action()
         except Exception as exc:
@@ -454,6 +701,8 @@ def run():
                 backgroundColor=default_color, enableBackground=True)
     cmds.text(label="Begin and Finish each use one Undo. Joint edits use normal Undo.",
               align="left", wordWrap=True)
+    cmds.text(label="Closing or saving pauses editing without committing the bind pose.\n"
+                    "Joint edits remain; Begin Edit resumes the recorded session.", align="left", wordWrap=True)
     cmds.separator(style="in", height=12)
     cmds.text(label="Extra", align="left")
     preserve_button = cmds.button(label="Begin Preserve Children",
@@ -474,6 +723,7 @@ def run():
     for event in ("Undo", "Redo", "SceneOpened", "NewSceneOpened"):
         cmds.scriptJob(event=[event, refresh], parent=_WINDOW)
     cmds.scriptJob(event=["ToolChanged", refreshPreserve], parent=_WINDOW)
+    owner.refresh = refresh
     refresh()
     cmds.showWindow(_WINDOW)
 
