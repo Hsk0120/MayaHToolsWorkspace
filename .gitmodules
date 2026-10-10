@@ -396,3 +396,127 @@
 	path = maya/external/hrbf
 	url = https://gitlab.com/elrnv/hrbf.git
 	shallow = true
+[submodule "maya/external/zombie"]
+	path = maya/external/zombie
+	url = https://github.com/rohan-sawhney/zombie.git
+	shallow = true
+[submodule "maya/external/repulsive-curves"]
+	path = maya/external/repulsive-curves
+	url = https://github.com/ythea/repulsive-curves.git
+	shallow = true
+[submodule "maya/external/repulsive-surfaces"]
+	path = maya/external/repulsive-surfaces
+	url = https://github.com/ythea/repulsive-surfaces.git
+	shallow = true
+[submodule "maya/external/nonmanifold-laplacian"]
+	path = maya/external/nonmanifold-laplacian
+	url = https://github.com/nmwsharp/nonmanifold-laplacian.git
+	shallow = true
+[submodule "maya/external/robust-laplacians-py"]
+	path = maya/external/robust-laplacians-py
+	url = https://github.com/nmwsharp/robust-laplacians-py.git
+	shallow = true
+[submodule "maya/external/geometry-central"]
+	path = maya/external/geometry-central
+	url = https://github.com/nmwsharp/geometry-central.git
+	shallow = true
+[submodule "maya/external/vector-heat-demo"]
+	path = maya/external/vector-heat-demo
+	url = https://github.com/nmwsharp/vector-heat-demo.git
+	shallow = true
+[submodule "maya/external/SWN"]
+	path = maya/external/SWN
+	url = https://github.com/nzfeng/SWN.git
+	shallow = true
+[submodule "maya/external/lifting_simplices_to_find_injectivity"]
+	path = maya/external/lifting_simplices_to_find_injectivity
+	url = https://github.com/duxingyi-charles/lifting_simplices_to_find_injectivity.git
+	shallow = true
+[submodule "maya/external/invertible-maps"]
+	path = maya/external/invertible-maps
+	url = https://github.com/ssloy/invertible-maps.git
+	shallow = true
+[submodule "maya/external/NeuralJacobianFields"]
+	path = maya/external/NeuralJacobianFields
+	url = https://github.com/ThibaultGROUEIX/NeuralJacobianFields.git
+	shallow = true
+[submodule "maya/external/UnityC2InterpolatingSplines"]
+	path = maya/external/UnityC2InterpolatingSplines
+	url = https://github.com/Santarh/UnityC2InterpolatingSplines.git
+	shallow = true
+[submodule "maya/external/basalt-headers"]
+	path = maya/external/basalt-headers
+	url = https://github.com/VladyslavUsenko/basalt-headers.git
+	shallow = true
+[submodule "maya/external/smoothdists"]
+	path = maya/external/smoothdists
+	url = https://github.com/abhimadan/smoothdists.git
+	shallow = true
+[submodule "maya/external/1-Lipschitz-Neural-Distance-Fields"]
+	path = maya/external/1-Lipschitz-Neural-Distance-Fields
+	url = https://github.com/GCoiffier/1-Lipschitz-Neural-Distance-Fields.git
+	shallow = true
+[submodule "maya/external/neural-implicit-queries"]
+	path = maya/external/neural-implicit-queries
+	url = https://github.com/nmwsharp/neural-implicit-queries.git
+	shallow = true
+[submodule "maya/external/jaxgptoolbox"]
+	path = maya/external/jaxgptoolbox
+	url = https://github.com/ml-for-gp/jaxgptoolbox.git
+	shallow = true
+[submodule "maya/external/2d-gaussian-splatting"]
+	path = maya/external/2d-gaussian-splatting
+	url = https://github.com/hbb1/2d-gaussian-splatting.git
+	shallow = true
+[submodule "maya/external/beta-splatting"]
+	path = maya/external/beta-splatting
+	url = https://github.com/RongLiu-Leo/beta-splatting.git
+	shallow = true
+[submodule "maya/external/3D-student-splatting-and-scooping"]
+	path = maya/external/3D-student-splatting-and-scooping
+	url = https://github.com/realcrane/3D-student-splatting-and-scooping.git
+	shallow = true
+[submodule "maya/external/SC-GS"]
+	path = maya/external/SC-GS
+	url = https://github.com/CVMI-Lab/SC-GS.git
+	shallow = true
+[submodule "maya/external/DevelopableApproximationViaGaussImageThinning"]
+	path = maya/external/DevelopableApproximationViaGaussImageThinning
+	url = https://github.com/FloorVerhoeven/DevelopableApproximationViaGaussImageThinning.git
+	shallow = true
+[submodule "maya/external/IPC"]
+	path = maya/external/IPC
+	url = https://github.com/ipc-sim/IPC.git
+	shallow = true
+[submodule "maya/external/ipc-toolkit"]
+	path = maya/external/ipc-toolkit
+	url = https://github.com/ipc-sim/ipc-toolkit.git
+	shallow = true
+[submodule "maya/external/avbd-demo3d"]
+	path = maya/external/avbd-demo3d
+	url = https://github.com/savant117/avbd-demo3d.git
+	shallow = true
+[submodule "maya/external/Houdini-VBD"]
+	path = maya/external/Houdini-VBD
+	url = https://github.com/MysteryPancake/Houdini-VBD.git
+	shallow = true
+[submodule "maya/external/YarnBall"]
+	path = maya/external/YarnBall
+	url = https://github.com/jerry060599/YarnBall.git
+	shallow = true
+[submodule "maya/external/mfem"]
+	path = maya/external/mfem
+	url = https://github.com/tytrusty/mfem.git
+	shallow = true
+[submodule "maya/external/simkit"]
+	path = maya/external/simkit
+	url = https://github.com/otmanon/simkit.git
+	shallow = true
+[submodule "maya/external/kaolin"]
+	path = maya/external/kaolin
+	url = https://github.com/NVIDIAGameWorks/kaolin.git
+	shallow = true
+[submodule "maya/external/ppf-contact-solver"]
+	path = maya/external/ppf-contact-solver
+	url = https://github.com/st-tech/ppf-contact-solver.git
+	shallow = true

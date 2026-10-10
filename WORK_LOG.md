@@ -55,7 +55,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-10-09 | docs/research/elbow-tail-avoidance-2026-10-09/（専用調査メモのみ） | 肘の尻尾根元をコリジョンなしで体から逃がすセットアップ案。hrig/導入済みsubmoduleの読取とネット調査。製品・submoduleは変更なし。 |
 | Codex | 2026-10-09 | hlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 
 
@@ -87,6 +86,38 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。hlib_bifrostを先にimportするとHLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex 2026-10-10: 共通ワークフロー指示4ファイル・詳細手順・録画共通ツール/4件テストを7af777aでmainへpush。独立indexを使用し、他ツールのstage済みsubmodule/CLAUDE一覧更新と既存リグ変更を保持。リモートmainの一致確認。
+
+- Codex 2026-10-10: AGENTS.md・CLAUDE.md・Copilot全体/VS Code用指示の4ファイルへ同一のリグ検証共通ワークフローを追記。docs/verification-videos.mdへ標準工程・HUD表示要件を記載。参照先・差分を確認しdiff --check成功。文書のみ、Maya再実行なし。既存変更保持、未コミット・未プッシュ。
+
+- Claude Code (2026-10-10): 3DCG数学論文調査の公開実装31個をmaya/external/へshallow submoduleで追加(index登録のみ・未コミット)。Mayaで直接読めるものは無く.modは作成せず。AI4Animation(約5.5GB・非商用)はユーザー判断で除外。CLAUDE.mdの外部ツール一覧へ追記。
+
+- Codex 2026-10-10: 接線停止デモにMaya HUDで基準方向・半径/距離・asin式・制限角・入力/実DG出力を表示。Maya2027 GUI実録画469フレーム全検証成功、完成MP4の表示を確認。Drive 1T1IbrsLOEWaXhCZJpGPR4ugfK7Be0dGBへ保存しanyone/reader確認。未コミット・未プッシュ。
+
+- Codex (2026-10-10): 意図修正に合わせ外向きconeを使わない接線停止の上面デモを新規作成。円r3/根元r4.5固定、表示余裕0.03cm、±137.675度で標準clamp＋unitConversion2個が停止。左右の接触前/停止保持/復帰と腕の平面移動を469frame検証。Maya2027全成功、非接触方向誤差最大6.3e-6度、赤201frame交差/緑0frame。動画デコード成功、top-tangent-stop.ma保存。Drive fileId=1XPOKipzavZN8xxb-div6eUVQE6N9V1mUに保存しanyone/reader/discovery=false確認、結果HTML登録。固定半径/固定距離の検証用で一般リグAPIは未実装、未コミット・未プッシュ。
+
+- Codex (2026-10-10): 既存3Dデモを使用せず新規シーンからXZ上面のみの検証を作成。円r3/肘r4.5/曲げた青い腕/12cm赤緑線/固定正投影、回転はYのみ。既存RootDirectionLimitを新規構築。Maya2027で325frame数値成功（平面性/根元位置/cone/円交差）、赤199frame交差/緑0frame。900x900/13.54秒H.264とtop-view.ma保存、動画デコード成功。Drive fileId=1bhqTQcgGCUNEJHPKvtBLjJZDcWXhmANW、anyone/reader/discovery=false確認、結果HTML登録。未コミット・未プッシュ。
+
+- Claude Code (2026-10-10): 3DCG表現の数学的に新しい論文(2020〜2026中心)を形状処理・PDE・変形15、曲線曲面・陰関数・新表現12、シミュレーション・動き14の項目に整理しdocs/research/cg-math-papers-2026-10-10.md(ローカル)へ保存。hrigでの使い方区分・公開実装・ライセンス付き。コード変更なし。
+
+- Codex (2026-10-10): 尻尾方向表示を6→18cmへ延長し、肘90度/腕捻り165度で体を横断する未補正赤と補正緑を比較する停止付き14秒動画を作成。カメラ幅50、表示長/カメラ/姿勢を復元。337frame数値成功、赤の中心線155frame交差/緑0frame交差（検証時のみのoracle）。凡例/交差状態をFFmpegで映像へ焼込、デコード/登録4テスト/構文確認成功。Drive fileId=1J9KCCbKOMQ-bnMRvPNS3dtPd4Ox4fRwT、anyone/reader/discovery=false確認、結果HTMLへ登録。未コミット・未プッシュ。
+
+- Codex (2026-10-10): 肘90度の腕移動動画を生成。録画ツールにelbowBendを追加して角度を復元、HUDを赤=未補正/緑=補正後/青=腕へ明確化。Maya2027で337frame数値成功、H.264デコード成功、14.04秒/272173bytes。Drive fileId=16ZFFXGa0Wnk38BQ-gJUI01vONzWc0feKに保存、anyone/reader/allowFileDiscovery=false確認、結果HTMLへ登録。未コミット・未プッシュ。
+
+- Codex (2026-10-10): 腕移動動画を追加。record_root_direction_limit.main(armMotion=True)で胴体固定の腕持上げ/前後スイング/150度捻りを連続記録。Maya2027で337frame全成功、最大cone角44.9943度、14.04秒/272258bytes H.264。デコード成功。Drive fileId=1GF472iWDDFJ696xu2IaNv9KKvHLl0w1pに保存しanyone/reader/allowFileDiscovery=falseを読み戻し、結果HTMLへ登録。Drive再生用処理待ち、未コミット・未プッシュ。
+
+- Codex (2026-10-10): 検証動画の記録・結果HTML・Driveメタデータ登録を実装。Maya2027の193frameで数値成功、8.04秒/171073bytesのMP4を専用Driveフォルダへ保存。動画デコード・登録4テスト・Sphinxビルド成功。共有UIでリンクを知っている全員/閲覧者へ設定し、Driveメタデータでanyone/reader/allowFileDiscovery=falseを確認。fileId=1Vy7v8o6YXd8BxaFHDiOti5BIVnNkrc41。録画とクラウド送信は別処理、iPad実機再生未確認、未コミット・未プッシュ。
+
+- Codex (2026-10-10): Maya検証動画の記録とiPad閲覧を調査。playblast連番→MP4＋結果HTML、非公開Tailscale Serve／公開サンプルは既存Sphinx Pagesの構成を提案。Claude Remote Control・Maya・Tailscale・Pagesの公式資料確認。調査メモはGit対象外docs/researchへ保存。録画実装・アップロード・iPad再生は未実施。
+
+- Codex (2026-10-10): hrig.setups.RootDirectionLimitを標準DGで実装。胴体guideの連続重み/局所径方向/cone制約で根元姿勢を生成、位置/一様scale維持、180度付近の軸反射・退化fallback・messageからの再取得・単一Undo対応。RBF/実行時Python/衝突ノードなし。Maya2025/2027各10テスト成功、2027セットアップ統合57成功、DG/Serial/Parallel・単位・保存/Undo確認。2027 GUIの4姿勢で根元位置誤差0cm、末端ローカル維持、腕捻り/前屈/側屈の未補正中心線は腹部交差・補正後交差なし（交差oracleは検証時のみ）。実viewport3画像と使用法/制限をSphinxへ追加し-E -a -Wビルド成功。専用.ma/4画像/実Mayaウィンドウ画像/数値証跡は.maya-outputへ保存。実キャラクター/全頂点の非貫通/性能/他版GUIは未検証。未コミット・未プッシュ、他ツールの差分保持。
+
+- Claude Code (2026-10-10): RBF補間に関連する数学的手法の論文32件(散布データ補間16・回転多様体上の補間/重み付け16)を調査しdocs/research/rbf-interpolation-math-2026-10-10.md(ローカル)へ保存。Maya2027でmultiplyDivide・plusMinusAverage・remapValue・clampの入出力がfloat(単精度)、multiply・sum・power・blendWeighted出力がdoubleであることを確認し、poseRbfの悪条件時の桁落ちリスクとして記載。コード変更なし。
+
+- Codex (2026-10-10): 尻尾根元の回転のみ・RBF/登録ポーズなしの案へ更新。胸/腹/骨盤の局所軸と肘への径方向から動的外向きベクトルを計算し、根元方向をcone内へ直接制限する構成を検討。ConePSD重みとの役割差、guide連続補間/side参照/退化時fallback/非貫通の限界を一次資料とsourceで確認。式のみJS doubleの20002方向でfinite/cone条件確認、専用researchのanalytic-*へローカル保存。製品/Maya設定/index未変更、Maya実行・速度計測なし。
+
+- Codex (2026-10-09): 肘から生える尻尾の根元をコリジョンなしで体から逃がす方法を調査。hrigと既存mGear/cmt/EccentricConePSD等のsource・一次資料を確認し、付け根固定、捻り継承調整、胴体相対の姿勢補正、根元の最終方向制限を提案。専用docs/research/elbow-tail-avoidance-2026-10-09/へローカル保存。製品/submodule/Maya設定/indexは未変更、Maya実行・性能計測なし。
 
 - Claude Code (2026-10-09): 研究論文調査の公開実装19個(GitHub18・GitLab1)をmaya/external/へshallow submoduleで追加(index登録のみ・未コミット)。Mayaで読めるMetaHuman-DNA-Calibrationのみmaya/modules_disabled/へ.modを作成し、一時MAYA_MODULE_PATHでMaya2022〜2024のmayapyでembeddedRL4・MayaUERBFPluginのロードとdna/dnacalib/dna_viewerのimportを確認。CLAUDE.mdの外部ツール一覧へ追記。
 

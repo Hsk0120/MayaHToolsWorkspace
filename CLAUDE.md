@@ -78,7 +78,7 @@ pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提
 
 ```
 maya/
-├ external/     外部ツール(Git submodule。38個に加え、リグ手法の参考49個と研究論文の公開実装19個。一覧は下記「external ― 外部ツール一覧」参照)。
+├ external/     外部ツール(Git submodule。38個に加え、リグ手法の参考49個・研究論文の公開実装19個・3DCG数学論文の公開実装31個。一覧は下記「external ― 外部ツール一覧」参照)。
 │               直接編集せず、変更は各submodule側で行う。
 ├ inhouse/      内製ツール本体
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
@@ -97,7 +97,7 @@ tools/
 
 ### external ― 外部ツール一覧
 
-`maya/external/` 配下の Git submodule 38個と、末尾「リグ手法の参考」の49個・「研究論文の公開実装」の19個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
+`maya/external/` 配下の Git submodule 38個と、末尾「リグ手法の参考」の49個・「研究論文の公開実装」の19個・「3DCG数学論文の公開実装」の31個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
 
 **Python基盤/ラッパーライブラリ**
 - `cymel`: Maya APIとコマンドの軽量ラッパーモジュール。
@@ -160,6 +160,13 @@ tools/
 - hrig参考の論文調査(ローカルの `docs/research/rig-research-papers-2026-10-09.md`)で見つかった公開実装。いずれも `shallow = true`。`OpenUSD`(execIr)・`MetaHuman-DNA-Calibration`・`fast_cody` が大きい。`hrbf` のみGitLab。
 - 変形・二次動作: `OptimisedCentresOfRotationSkinning`, `velocity_skinning_cpp`, `fast_cody`, `complementary-dynamics-cpp`, `complementary-dynamics`(MATLAB), `hrbf`(Rust/C API), `libigl`(BBW等。MPL2主体で一部GPL)。補正: `splocs`, `neural-blend-shapes`(ライセンス種別未確認)。逆リグ写像: `rig-inversion`, `OpenUSD`(execIr)。リグ定義: `openriglogic`, `MetaHuman-DNA-Calibration`(ライセンス独自)。ウェイト・自動リギング: `RobustSkinWeightsTransferCode`, `UniRig`, `Puppeteer`, `Make-It-Animatable`, `RigNet`(GPL-3.0)。ポーズ生成: `protores-boris`(非商用)。
 - Mayaで読み込めるのは `MetaHuman-DNA-Calibration` のみ(Maya 2022〜2024のビルド済み `embeddedRL4`・`MayaUERBFPlugin` と `dna`/`dnacalib`/`dna_viewer`)。`.mod` は `maya/modules_disabled/MetaHuman-DNA-Calibration.mod`。有効な `metahuman_for_maya.mod` と同名プラグインを含むため、同時に有効化しない。ほかはC++・MATLAB・PyTorch等の研究コードで `.mod` なし。
+
+**3DCG数学論文の公開実装(2026-10-10追加、31個)**
+- 3DCG表現の数学論文調査(ローカルの `docs/research/cg-math-papers-2026-10-10.md`)で見つかった公開実装。いずれも `shallow = true`。入れ子のsubmoduleを持つもの(`zombie`・`geometry-central`・`mfem` など17個)は未取得で、`--recursive` 時に取得される。`ipc-toolkit`・`beta-splatting`・`IPC`・`kaolin` が比較的大きい。DeepPhase公式実装のAI4Animation(約5.5GB・非商用)はユーザー判断で追加していない。
+- 形状処理・PDE: `zombie`(Walk on Spheres/Stars), `geometry-central`, `nonmanifold-laplacian`, `robust-laplacians-py`, `vector-heat-demo`, `SWN`, `repulsive-curves`, `repulsive-surfaces`, `lifting_simplices_to_find_injectivity`, `invertible-maps`(AGPL-3.0), `NeuralJacobianFields`(Adobe、商用不可)。
+- 曲線・陰関数・新表現: `UnityC2InterpolatingSplines`(Yuksel C2スプラインの非公式実装), `basalt-headers`(Lie群B-spline), `smoothdists`, `1-Lipschitz-Neural-Distance-Fields`, `neural-implicit-queries`, `jaxgptoolbox`, `2d-gaussian-splatting`(非商用), `beta-splatting`, `3D-student-splatting-and-scooping`(GPL-2.0), `SC-GS`, `DevelopableApproximationViaGaussImageThinning`(ライセンス表記なし)。
+- シミュレーション: `IPC`, `ipc-toolkit`, `avbd-demo3d`, `Houdini-VBD`, `YarnBall`(Stable Cosserat Rods、GPL-3.0), `mfem`(ライセンス表記なし), `simkit`, `kaolin`(Simplicits), `ppf-contact-solver`(Cubic Barrier)。
+- Mayaで直接読み込めるもの(Mayaプラグイン・Maya用Pythonパッケージ)は無いため `.mod` は用意していない。ライセンス表記なし・GPL/AGPL・非商用のものはコードを流用せず、論文の式・考え方の参照に留める。
 
 ### HTools ― メニュー登録の仕組み
 
