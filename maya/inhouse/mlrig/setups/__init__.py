@@ -2,6 +2,7 @@
 
 from .aimAxisConversion import AimAxisConversion
 from .bendCorrection import BendCorrection
+from .coneReader import ConeReader
 from .controlShape import ControlShape
 from .lengthCompensation import LengthCompensation
 from .matrixFollow import MatrixFollow
@@ -18,6 +19,7 @@ from .twistDistribution import TwistDistribution
 __all__ = [
     "AimAxisConversion",
     "BendCorrection",
+    "ConeReader",
     "ControlShape",
     "LengthCompensation",
     "MatrixFollow",

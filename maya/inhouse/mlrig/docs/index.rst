@@ -24,6 +24,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    twist_distribution
    bend_correction
    swing_twist
+   cone_reader
    rotation_follow
    root_direction_limit
    aim_axis_conversion
