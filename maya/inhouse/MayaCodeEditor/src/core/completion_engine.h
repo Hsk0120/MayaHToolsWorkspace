@@ -1,5 +1,5 @@
 /** @file completion_engine.h
- * @brief Pythonの補完候補を求める。以前Python(旧 hedit.completion)で行っていた処理をC++にしたもの。
+ * @brief Pythonの補完候補を求める。以前Pythonで行っていた処理をC++にしたもの。
  * @details 補完の流れ:
  * 1. カーソルの行から、何を補完するかを決める(``cmds.l``なら``cmds``の中の``l``で始まる名前)。
  * 2. 編集中の本文の宣言は、core/python_declarations.cppで取り出す(Pythonを呼ばない)。

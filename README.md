@@ -204,7 +204,7 @@ install_packages.bat 2026 scipy libigl  :: 数字はMayaの年、それ以外は
 
 ## Maya Code Editor ドキュメント
 
-エディター Maya Code Editor(0.7.0 で hedit から改名)の使い方と Preferences 各項目の説明を Sphinx で `maya/inhouse/MayaCodeEditor/docs` に用意しています(スクリーンショット付き)。
+エディター Maya Code Editor の使い方と Preferences 各項目の説明を Sphinx で `maya/inhouse/MayaCodeEditor/docs` に用意しています(スクリーンショット付き)。
 ビルド手順は[Maya Code Editor ドキュメントのビルド](maya/inhouse/MayaCodeEditor/docs/README.md)を参照してください。
 
 ## hlib ドキュメント

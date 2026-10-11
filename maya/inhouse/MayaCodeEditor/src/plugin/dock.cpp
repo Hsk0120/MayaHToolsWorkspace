@@ -210,9 +210,6 @@ void initialize() {
     if (!state.lifetime) {
         state.lifetime = new QObject;
     }
-    // 旧名(hedit)のドックが、保存済みのMayaのレイアウトから作られて残っていれば消す(0.7.0で改名)。
-    // 旧名のコマンドはもう無いので、残すと空のドックになる。
-    mel("if (`workspaceControl -exists heditDockWorkspaceControl`) deleteUI heditDockWorkspaceControl;");
 }
 
 QObject* lifetime() {

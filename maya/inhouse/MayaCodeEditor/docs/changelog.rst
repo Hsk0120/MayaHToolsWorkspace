@@ -10,14 +10,11 @@
    * - 版
      - 内容
    * - 0.7.0
-     - 名前を hedit から **Maya Code Editor** に変えた。
+     - 名前を **Maya Code Editor** にした。
 
-       * フォルダーを ``maya/inhouse/MayaCodeEditor``\ 、プラグインとコマンドを ``mayaCodeEditor``\ 、Python のパッケージを
-         ``maya_code_editor``\ 、モジュールの定義を ``maya/modules/MayaCodeEditor.mod`` にした。旧名の ``hedit`` コマンドと
-         ``import hedit`` は使えない(互換の入口は置かない)。
-       * Window メニューのアイコンを、緑の地に ``H`` から ``< >`` に変えた。
-       * 未保存のタブ・設定・開閉状態は、初回のロードで旧名の保存先(``<userPrefDir>/hedit``)から写す。保存済みのレイアウトに
-         残った旧名のドックは、ロード時に取り除く。
+       * フォルダーは ``maya/inhouse/MayaCodeEditor``\ 、プラグインとコマンドは ``mayaCodeEditor``\ 、Python のパッケージは
+         ``maya_code_editor``\ 、モジュールの定義は ``maya/modules/MayaCodeEditor.mod``\ 。
+       * Window メニューのアイコンを、緑の地に ``< >`` にした。
        * ドキュメントの配色を Maya Code Editor 専用の ``maya-code-editor.css`` に分けた(エディターの画面と同じ地の色、
          アイコンと同じ緑の強調色)。公開先は ``.../maya-code-editor/``\ 。
    * - 0.6.0
@@ -42,7 +39,7 @@
          入力欄の Alt+C / Alt+W / Alt+R / Alt+P で、大文字小文字・単語単位・正規表現・大文字小文字を保つ置換を切り替える。
        * キャレットを 2px にした。上へ動いて見出しの固定表示の下に隠れたら、見える位置までスクロールする。
    * - 0.5.1
-     - 同じソースからは同じ ``hedit.mll`` ができるようにした(再現可能なビルド。動作は変わらない)。
+     - 同じソースからは同じ ``mayaCodeEditor.mll`` ができるようにした(再現可能なビルド。動作は変わらない)。
        以前は中身を変えずにビルドし直してもファイルのハッシュが変わり、ウイルス対策ソフトや Windows の評判の判定で
        「初めて見るファイル」として扱われやすかった。
    * - 0.5.0
@@ -62,8 +59,8 @@
        * **構文チェック**\ : 長いスクリプトで 2 乗に比例していた処理をなくした(2 万行のフラットなスクリプトで、Maya 2022 は
          約 34 秒 → 約 0.6 秒、2027 は約 9 秒 → 約 0.7 秒。結果は同じ)。入力中は前回の結果を一覧に残し、
          入力のたびに「Checking after typing stops…」へ戻さない。
-       * **出力**\ : 出力が届いたときだけ出力欄へ反映するようにした(以前は 25ms ごとに見に行っていた)。hedit を閉じている間は
-         出力欄へ描かず、表示したときにまとめて描く(閉じている間の負担は、hedit を開かないときとほぼ同じ)。
+       * **出力**\ : 出力が届いたときだけ出力欄へ反映するようにした(以前は 25ms ごとに見に行っていた)。Maya Code Editor を閉じている間は
+         出力欄へ描かず、表示したときにまとめて描く(閉じている間の負担は、Maya Code Editor を開かないときとほぼ同じ)。
          Exact Script Editor output format は、閉じている間だけ速い方式で受け取る。
        * **開く処理**\ : 選んでいないタブは、初めて選んだときに本文を文書へ入れる。2,000 行のタブ 30 枚を復元して開くのが
          約 460ms → 約 66ms になった。検索バーのアイコンと影は初めて開いたときに作り、import の候補のための ``sys.path`` の
@@ -86,13 +83,13 @@
          * import の候補に ``my-tool.py`` のような import できない名前を出し、拡張モジュール(``.pyd``)を出していなかった。
          * 選択範囲内の検索で、範囲の前から続く一致に隠れて、範囲の中の一致を見落とすことがあった。
          * Maya 2025〜2027 で、構文チェックが ``SyntaxWarning`` を Script Editor に出し続けていた。
-         * 作り直した ``hedit.mll`` を同じ Maya でロードし直しても、古い同梱の Python が動き続けていた。
+         * 作り直した ``mayaCodeEditor.mll`` を同じ Maya でロードし直しても、古い同梱の Python が動き続けていた。
          * 行を挿入した直後、変更の印と問題の印が別の行を指していた(次の差分・構文チェックまで)。入力のたびにスペルの
            波線が消えていた(編集した単語の分だけ消すようにした)。
          * 出力の種類の判断を、メインスレッド以外からも鍵なしで読んでいた。
    * - 0.4.2
      - Maya の **Help → Popup Help** をオフにしていると、名前にマウスを重ねても説明(ホバー)が出なかった問題を修正した。
-       Maya が Qt のツールチップの合図を止めていたため、hedit がマウスの動きを見て、止まってから 0.5 秒後に出すようにした。
+       Maya が Qt のツールチップの合図を止めていたため、Maya Code Editor がマウスの動きを見て、止まってから 0.5 秒後に出すようにした。
    * - 0.4.1
      - 大量のエラーが出るときの出力欄を速くした。
 
@@ -100,7 +97,7 @@
          取り込むようにした。Maya は reporter への追記に Script Editor を 1 つ開いているのと同じ時間をかけるため、
          エラー 5,000 件(8 行のトレースバック)で Maya 2027 は 8.5 秒 → 3.9 秒になった(標準の Script Editor は 7.1 秒、
          どちらも開かないときは 3.4 秒)。
-         hedit を閉じている間の負担もほぼ無くなった。
+         Maya Code Editor を閉じている間の負担もほぼ無くなった。
        * 通知の本文を Script Editor と同じ形(各行の ``//``\ ・Python の例外の ``#``\ )に整える。違うのは、Python から呼んだ
          ``cmds.warning``\ ・\ ``cmds.error`` の先頭が ``#`` ではなく ``//`` になることだけ。以前の取り込み方は
          Preferences の **Exact Script Editor output format (slower)** で選べる。
@@ -135,60 +132,60 @@
        * 補完の候補を Enter で確定したとき、キーが Maya へ回ってアウトライナなどへフォーカスが移ってしまう問題を修正した。
        * 変数の型を、クラスの呼出しの代入(``jnt = hlib.nodes.Joints(...)``)と型ヒント(変数・引数)から推論し、
          ``jnt.`` でそのクラスと親クラスのメソッドを補完・ホバーするようにした。
-       * Maya 2023 に対応した(``release/plug-ins/windows/2023/hedit.mll``)。
+       * Maya 2023 に対応した(``release/plug-ins/windows/2023/mayaCodeEditor.mll``)。
        * 出力欄は、新しいログが表示されたら途中を見ていても必ず最下部へスクロールするようにした(選択範囲は保つ)。
 
-       * プラグインの出力先を ``release/plug-ins/windows/<Mayaの年>/hedit.mll`` に固定(版のフォルダーをやめた)。
+       * プラグインの出力先を ``release/plug-ins/windows/<Mayaの年>/mayaCodeEditor.mll`` に固定(版のフォルダーをやめた)。
          版を上げても、Maya の信頼済みの場所とオートロードの設定が外れない。
-       * Maya のワークスペースの復元だけでは hedit をロードしないようにした(uiScript の ``loadPlugin`` と
+       * Maya のワークスペースの復元だけでは Maya Code Editor をロードしないようにした(uiScript の ``loadPlugin`` と
          ``-requiredPlugin`` をやめた。未ロードなら空のドックを隠す)。Maya 終了時の ``workspaceLayoutManager -save`` もやめた。
-       * Window メニューのアイコンを、ファイル(``hedit.svg``)へ書き出さずにメモリ上で描いて付けるようにした。
+       * Window メニューのアイコンを、ファイル(``mayaCodeEditor.svg``)へ書き出さずにメモリ上で描いて付けるようにした。
        * 同梱 Python の読み込みの仕組みを、\ ``sys.meta_path`` の先頭ではなく標準の PathFinder の直前へ入れるようにした。
-       * ``hedit.mll`` に版・製品名のファイル情報を付け、制御フローガードを有効にし、pdb の絶対パスを埋め込まないようにした。
-       * テスト用のフラグ(補完・宣言・ホバーの JSON、画面のアドレス)を ``hedit`` から外し、テスト専用の ``heditTest``
-         (環境変数 ``HEDIT_TEST_COMMANDS=1`` のときだけ登録)へ移した。フラグなしの ``hedit`` は ``hedit -show`` と同じ。
+       * ``mayaCodeEditor.mll`` に版・製品名のファイル情報を付け、制御フローガードを有効にし、pdb の絶対パスを埋め込まないようにした。
+       * テスト用のフラグ(補完・宣言・ホバーの JSON、画面のアドレス)を ``mayaCodeEditor`` から外し、テスト専用の ``mayaCodeEditorTest``
+         (環境変数 ``MCE_TEST_COMMANDS=1`` のときだけ登録)へ移した。フラグなしの ``mayaCodeEditor`` は ``mayaCodeEditor -show`` と同じ。
        * 自動保存を、タブの並びなど(``tabs.json``)とタブごとの本文(``tabs/<id>.txt``)に分け、本文が変わったタブだけ
          書き直すようにした。設定は ``preferences.json`` へ移し(0.2.x の ``preferences.ini`` から自動で移行)、変えた項目だけを
          書き換える。\ ``ui.json`` は Maya へ毎秒問い合わせず、ドックが変化したときに保存する。
-       * Python 側の例外を ``hedit.bridge.safe_call`` で受け止め、補完のステータスに表示するようにした。
+       * Python 側の例外を ``maya_code_editor.bridge.safe_call`` で受け止め、補完のステータスに表示するようにした。
        * Maya の非表示 reporter が見つからない Maya でも、公式の通知から出力を表示して編集画面を開けるようにした。
        * 保存済みのタブを実行すると、実行中だけ ``__file__`` がそのファイルのパスになるようにした。
        * 内部の整理: 入力の補助を ``CodeAssist`` に分離、名前の種類を ``SymbolType`` で表す、補完の 1 回の問い合わせの情報を
          ``Request`` に分離、言語を列挙型に、Python の文字列のエスケープを ``core/python_literal`` に統一、
-         プラグイン全体の状態を明示的に作って壊す、\ ``hedit_ui_smoke.exe`` が検査ごとに PASS / FAIL を表示。
+         プラグイン全体の状態を明示的に作って壊す、\ ``mayaCodeEditor_ui_smoke.exe`` が検査ごとに PASS / FAIL を表示。
    * - 0.2.10
      - 専用の非表示 Maya reporter が整形した表示文書の追記だけを取得。標準スクリプトエディターと同じ記号・改行にそろえた。
        ドックのタイトルに版を表示。
-       hedit 本体の Python(``scripts/hedit/*.py``)を ``hedit.mll`` に同梱し、プラグインのロードだけで
+       本体の Python(``scripts/maya_code_editor/*.py``)を ``mayaCodeEditor.mll`` に同梱し、プラグインのロードだけで
        Window メニュー登録(C++/MEL、アイコンの SVG も同梱)と前回画面の復元まで完了するようにした。
        ``scripts/userSetup.py`` は起動時に ``loadPlugin`` を呼ぶだけ。Maya 終了時に閉じた画面へ出力を描画して
        クラッシュする問題を修正。
        さらにドッキング・開閉状態の保存と復元・起動時の出力履歴・出力用 reporter・タブ復元先の決定を Python から C++ へ移し、
        ``MayaQWidgetDockableMixin`` を使わない構成にした。Python は補完と構文チェックだけ。
-       Window メニューと uiScript は MEL の ``hedit -show`` / ``hedit -restore``\ 。\ ``hedit`` コマンドに
+       Window メニューと uiScript は MEL の ``mayaCodeEditor -show`` / ``mayaCodeEditor -restore``\ 。\ ``mayaCodeEditor`` コマンドに
        ``-show`` / ``-floating`` / ``-restore`` / ``-saveState`` / ``-sessionPath`` を追加。
        ``import xxx`` のトップレベル名の補完を C++ へ移し、\ ``sys.path`` の走査を GIL を取らない C++ のスレッドで
        編集画面の作成時から行うようにした。最初の Ctrl+Space から未読込のパッケージが候補に出る
        (以前は候補が空で約 0.5 秒後に出直し、走査中は Python のスレッドが画面を引っかからせていた)
        文字・アイコン・余白・幅を Maya のインターフェースの拡大率(\ ``MQtUtil::dpiScale``\ )に合わせ、
        4K 画面などで標準スクリプトエディターと同じ大きさで表示するようにした(アイコンは ``MQtUtil::createIcon``\ )。
-       前回ドックが保存された直後の ``hedit -show`` でのクラッシュと、プラグイン未ロードのまま Maya がフロートの
-       ドックを閉じたときの ``Cannot find procedure "hedit"`` を修正。
+       前回ドックが保存された直後の ``mayaCodeEditor -show`` でのクラッシュと、プラグイン未ロードのまま Maya がフロートの
+       ドックを閉じたときの ``Cannot find procedure "mayaCodeEditor"`` を修正。
        C++ を読みやすい構成に整理(``src/core``\ ・\ ``src/editor``\ ・\ ``src/plugin`` に分け、部品ごとのファイルに分割)。
-       同梱の Python を ``src/python`` の ``.py`` として編集し、ビルド時に ``hedit.mll`` へ入れるようにした。
+       同梱の Python を ``src/python`` の ``.py`` として編集し、ビルド時に ``mayaCodeEditor.mll`` へ入れるようにした。
        版の定義を ``src/version.h`` の 1 か所にまとめた。操作や保存形式は変えていない。
        Edit → Preferences → Reset to defaults… を追加し、設定と文字サイズを確認のうえ初期値へ戻せるようにした。
        補完を C++ に移した(字句解析・宣言の抽出・補完エンジン)。5,000 行の本文を編集しながらの補完が約 100 ms から数 ms に。
-       Python の ``hedit.completion`` は廃止し、同梱の Python は ``hedit.bridge``\ (Python でしか分からない情報の窓口)と
-       ``hedit.analysis``\ (構文チェック)だけにした。色分けも同じ字句解析で行い、三重引用符の複数行の文字列・
+       Python の ``maya_code_editor.completion`` は廃止し、同梱の Python は ``maya_code_editor.bridge``\ (Python でしか分からない情報の窓口)と
+       ``maya_code_editor.analysis``\ (構文チェック)だけにした。色分けも同じ字句解析で行い、三重引用符の複数行の文字列・
        MEL の予約語・\ ``$`` 変数・ブロックコメントを正しく塗るようにした。自動保存は変化があるときだけ行い、
        行番号は変わった範囲だけ描き直し、Explorer のフォルダーは別スレッドで読むようにした。
-       旧名 ``heditor`` の互換処理(保存先のコピー・旧ドック名・\ ``heditor.restore()``\ )と調査用の ``startup-debug.log`` を削除。
+       調査用の ``startup-debug.log`` を削除。
        検索バーの見た目を整理: 置換欄を検索欄の真下に同じ幅で配置、文字の大きさを統一、切り替えボタン(\ ``Aa``\ ・\ ``ab``\ ・\ ``.*``\ )を
        検索欄の中の四角いボタンに、件数を固定幅に、枠線と影を追加、一致なし・不正な正規表現で枠と件数を赤く。
        本文の中の全ての一致箇所に背景を付け、Shift+Enter で前の一致へ移動できるようにした。
        検索バーの配置・大きさ・アイコン・動きを VS Code に合わせた(幅 419 px・入力欄 25 px・ボタン 22 px・
-       アイコン 16 px・角の丸み)。アイコンは ``hedit.mll`` の中で描く(画像ファイルなし)。色は hedit の配色、
+       アイコン 16 px・角の丸み)。アイコンは ``mayaCodeEditor.mll`` の中で描く(画像ファイルなし)。色は Maya Code Editor の配色、
        入力欄と件数の文字はエディターと同じフォント・大きさ。選択範囲内で検索(三本線)と、大文字小文字を保つ置換
        (\ ``AB``\ )を追加。不正な正規表現は理由を検索欄の下の吹き出しに出し、一致なしは件数だけを赤くする。
        VS Code の検索ウィジェットを撮影して見比べる開発用ツール(\ ``docs/tools/vscode_capture``\ ・
@@ -238,9 +235,3 @@
    * - 0.1.2
      - Maya 標準の Python 実行経路で実行し、標準スクリプトエディターと変数・出力を共有
 
-名称
-----
-
-フォルダー・Python パッケージ・プラグイン・メニューと画面の名称は、小文字の ``hedit`` です(旧名 ``HEditor`` / ``heditor``)。
-旧名の保存先にあるタブ・UI 状態・設定は、新しい保存先に同名のファイルがまだない場合だけコピーします(旧データは削除しません)。
-保存済みワークスペースの旧 ``uiScript`` に限り、互換用の ``heditor.restore()`` を残しています。

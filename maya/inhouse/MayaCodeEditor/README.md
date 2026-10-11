@@ -289,16 +289,11 @@ CMakeを正本にしてIDEプロジェクトを生成する構成は一般的で
 
 C++の説明は[内製C++コメント規約](../../../docs/cpp-documentation.md)に従う日本語Doxygen形式です。ヘッダーの引数・戻り値、実装の所有権やイベント順序を合わせて読めます。PythonはGoogle形式docstringを維持します。
 
-## 名称変更
+## 名称
 
-0.7.0で名前をheditからMaya Code Editorに変えました。フォルダは`maya/inhouse/MayaCodeEditor`、プラグインとコマンドは
-`mayaCodeEditor`、Pythonのパッケージは`maya_code_editor`、C++の名前空間は`mce`です。旧名の`hedit`コマンド・`import hedit`は
-使えません(互換の入口は置いていません)。
+フォルダは`maya/inhouse/MayaCodeEditor`、プラグインとコマンドは`mayaCodeEditor`、Pythonのパッケージは`maya_code_editor`、C++の名前空間は`mce`です。
 起動は`import maya_code_editor; maya_code_editor.show()`、またはMELの`mayaCodeEditor -show`です(`mayaCodeEditor`プラグインが
 一度でもロードされていれば、`.py`ファイルなしで`sys.modules['maya_code_editor']`から解決されます)。
-heditから更新したときは、プラグインの信頼済みの場所を新しいフォルダで登録し直してください。未保存のタブ・設定は初回のロードで
-`<userPrefDir>/hedit`から`<userPrefDir>/MayaCodeEditor`へ写します(旧フォルダは消しません)。保存済みのレイアウトに残った
-旧名のドックは、ロード時に取り除きます。
 
 ## プラグインロードだけで復元・メニュー登録が完結する仕組み
 

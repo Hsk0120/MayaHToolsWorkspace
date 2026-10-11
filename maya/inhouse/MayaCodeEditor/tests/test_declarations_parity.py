@@ -1,6 +1,6 @@
 """C++の宣言の抽出(mayaCodeEditorTest -declarations)が、以前のPython(ast)と同じ結果になるかを突き合わせる。
 
-以前のMaya Code Editorは、Pythonの ``ast.parse`` で宣言を読んでいた(旧 hedit.completion.Index.symbols)。
+以前のMaya Code Editorは、Pythonの ``ast.parse`` で宣言を読んでいた(Index.symbols)。
 C++(src/core/python_declarations.cpp)へ移したので、実在の多数の.pyファイルで両方の結果を比べる。
 下の ``reference_symbols`` は、以前のPythonの実装をそのまま残した比較用の基準。
 構文エラーのファイル(astで読めないもの)は比べない(C++は読める部分を取り出すため)。
@@ -20,7 +20,7 @@ WORKSPACE = Path(__file__).resolve().parents[4]
 
 
 def reference_symbols(tree, module=''):
-    """以前の hedit.completion.Index.symbolsと同じ処理(比較の基準)。"""
+    """以前のPythonの Index.symbols と同じ処理(比較の基準)。"""
     result = {}
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):

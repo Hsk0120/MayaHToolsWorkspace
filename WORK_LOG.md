@@ -88,6 +88,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-11): Maya Code Editor から旧名 hedit の互換処理と記載を削除(ユーザー指示)。<prefs>/hedit からの設定の写し・旧ドックの削除とそのテストを外し、C++・CMake・テストのコメント、変更履歴(過去の版の記載は Maya Code Editor・mayaCodeEditor 等へ置き換え、旧名の節と互換の説明を削除)、インストールの注意、README(パッケージ・直下)、英訳(MayaCodeEditor・FramePlayer・mlib の誤訳3件)から旧名を除いた(WORK_LOG の過去の記録と docs/research のローカルメモは残す)。Codex の未コミットの mlib 改名と混ざらないよう、HEAD+自分の変更だけの worktree で全6版ビルド(警告0)・単体テスト・GUI 全スイート(2022/2024/2027)・日英 Sphinx -W(MayaCodeEditor・FramePlayer)を確認。コミット・プッシュ済み。
+
 - Claude Code (2026-10-11): hedit を Maya Code Editor へ改名(0.7.0)。フォルダー maya/inhouse/MayaCodeEditor・プラグイン/コマンド mayaCodeEditor(テスト用 mayaCodeEditorTest)・Python maya_code_editor・C++ 名前空間 mce・MCE_* マクロ/環境変数・maya/modules/MayaCodeEditor.mod・保存先 <prefs>/MayaCodeEditor(初回に <prefs>/hedit から写す)・旧 heditDockWorkspaceControl はロード時に削除。旧名の互換入口は置かない。Windowメニューのアイコンを緑の地に < > (案A)に変更。ドキュメントの配色を maya-code-editor.css に分離(エディターと同じ地・緑の強調色)、favicon 追加、公開先を .../maya-code-editor/ に(workflow・README)。変更履歴の過去の記録は旧名のまま。全6版ビルド(警告0)・単体テスト(core 19・Python 35・保存先 3・UI)合格、GUI全スイートを2022・2024・2027で合格(旧名のドック削除・設定の写しのテストを追加)、日英 Sphinx -W 合格。コミット・プッシュ済み。
 
 - Codex 2026-10-11: ユーザー指示による残存変更の登録準備。RootDirectionLimit・検証デモ/録画スクリプト・公開説明用静止画3枚・関連文書・作業ログを確認。Maya2027 standaloneの方向制限10テスト、動画ツール4テスト、hlib公開検査、差分チェック成功。動画/画像連番は含めず、GUI録画は今回再実行していない。

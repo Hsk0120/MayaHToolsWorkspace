@@ -10,7 +10,6 @@
 # モジュール名はフォルダー構成から決める:
 #   maya_code_editor/__init__.py   → maya_code_editor(パッケージ)
 #   maya_code_editor/bridge.py     → maya_code_editor.bridge
-#   heditor/__init__.py → heditor(パッケージ)
 
 if(NOT SOURCE_DIR OR NOT OUTPUT)
     message(FATAL_ERROR "embed_python.cmake: SOURCE_DIR and OUTPUT are required")

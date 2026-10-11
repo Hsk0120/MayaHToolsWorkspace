@@ -542,7 +542,7 @@ msgid "FramePlayer は、セットアップ(``FramePlayerSetup.exe``)で入れ�
 msgstr "FramePlayer can be installed via the setup(``FramePlayerSetup.exe``), or you can use the main ``FramePlayer.exe`` directly. Neither requires administrator privileges."
 
 msgid "セットアップで入れる"
-msgstr "``hlib``, ``hedit``, ``hrig``, and ``FramePlayer`` are Autodesk Maya tools that can be installed through the setup process. The ``hlib`` library provides core API functionalities, while ``hedit`` offers a Python/MEL script editor with features like syntax checking, auto-completion, and debugging support. The ``hrig`` module contains rigging tools for creating and managing character rigs. ``FramePlayer`` is a Windows video player designed for frame-by-frame review, synchronizing with Maya's timeline. These tools can be installed via the standard setup procedure."
+msgstr "``hlib``, ``mayaCodeEditor``, ``hrig``, and ``FramePlayer`` are Autodesk Maya tools that can be installed through the setup process. The ``hlib`` library provides core API functionalities, while ``mayaCodeEditor`` offers a Python/MEL script editor with features like syntax checking, auto-completion, and debugging support. The ``hrig`` module contains rigging tools for creating and managing character rigs. ``FramePlayer`` is a Windows video player designed for frame-by-frame review, synchronizing with Maya's timeline. These tools can be installed via the standard setup procedure."
 
 msgid "``FramePlayerSetup.exe`` を実行し、「Install」を押します。"
 msgstr "Execute ``FramePlayerSetup.exe`` and click \"Install\"."

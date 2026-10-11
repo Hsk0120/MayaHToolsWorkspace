@@ -29,14 +29,10 @@ def main(output_dir, finished):
         om.MGlobal.displayInfo('mce_before_open_history_probe')
         # GUIランナーは全userSetupを抑止するので、.mod内の実ファイルを明示実行する。
         # userSetup.pyのloadPluginを契機に、mayaCodeEditor.mllがmaya_code_editor.*のimportとWindowメニューを用意する。
-        # 保存済みのレイアウトから作られた旧名(hedit)のドックは、ロード時に取り除く(0.7.0 で改名)。
-        cmds.workspaceControl('heditDockWorkspaceControl', label='hedit', floating=True)
         import runpy
         runpy.run_path(str(Path(__file__).resolve().parents[1] / 'scripts' / 'userSetup.py'))
         wait_events(200)
         assert cmds.pluginInfo('mayaCodeEditor', query=True, loaded=True)
-        assert not cmds.workspaceControl('heditDockWorkspaceControl', exists=True), 'Legacy hedit dock was not removed'
-        result['checks'].append('legacy_hedit_dock_removed')
         import maya_code_editor
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parent))

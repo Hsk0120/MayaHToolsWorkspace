@@ -113,18 +113,6 @@ Preferences → Security → Plug-ins の「My trusted plugin locations」に追
 
 * C++ プラグイン(``.mll``)は Python の ``reload()`` では更新されません。Maya Code Editor の Python 部分も ``.mll`` に
   同梱されているため同様です。更新後は Maya を再起動してください。
-* 0.7.0 で名前を hedit から Maya Code Editor に変えました。フォルダーは ``maya/inhouse/MayaCodeEditor``\ 、
-  プラグインとコマンドは ``mayaCodeEditor``\ 、Python のパッケージは ``maya_code_editor``\ 、モジュールの定義は
-  ``maya/modules/MayaCodeEditor.mod`` です。旧名の ``hedit`` コマンドと ``import hedit`` は使えません。
-* hedit から更新したときは、次のことを行ってください。
-
-  * プラグインのフォルダーが変わるので、Preferences → Security → Plug-ins の「My trusted plugin locations」に
-    ``maya/inhouse/MayaCodeEditor/release/plug-ins/windows/<Mayaの年>`` を登録し直します(使う版ごと)。
-  * Plug-in Manager で自動ロードを使っていた場合は、\ ``mayaCodeEditor`` の Auto load をオンにし直します。
-
-* 未保存のタブ・設定・開閉状態は、初めてロードしたときに旧名の保存先(``<userPrefDir>/hedit``)から新しい保存先
-  (``<userPrefDir>/MayaCodeEditor``)へ写します。新しい保存先が既にあれば写しません。旧名の保存先は消しません。
-* 保存済みの Maya のレイアウトに旧名のドックが残っていれば、ロードしたときに取り除きます。
 
 配置していないバージョンでは
 ----------------------------

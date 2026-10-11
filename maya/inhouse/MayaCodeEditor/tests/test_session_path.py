@@ -15,11 +15,6 @@ os.environ.pop('MCE_SESSION_FILE', None)
 import maya.standalone
 maya.standalone.initialize(name='python')
 from maya import cmds
-# 旧名(hedit、0.6.x まで)の保存先。初めてロードしたときに新しい保存先へ写すことを確かめる。
-LEGACY = Path(cmds.internalVar(userPrefDir=True)) / 'hedit'
-(LEGACY / 'tabs').mkdir(parents=True)
-(LEGACY / 'tabs.json').write_text('{"tabs": []}', encoding='utf-8')
-(LEGACY / 'tabs' / 'legacy.txt').write_text('print("legacy")', encoding='utf-8')
 cmds.loadPlugin('mayaCodeEditor')
 
 
@@ -29,13 +24,6 @@ class SessionPathTests(unittest.TestCase):
         """Mayaのユーザー設定フォルダー(バージョン別)の下のMayaCodeEditor/tabs.json。"""
         base = Path(cmds.internalVar(userPrefDir=True))
         self.assertEqual(Path(cmds.mayaCodeEditor(sessionPath=True)), base / 'MayaCodeEditor' / 'tabs.json')
-
-    def test_legacy_folder_is_copied(self):
-        """旧名の保存先(hedit)の中身を、新しい保存先へ写す。旧名の保存先は残す。"""
-        folder = Path(cmds.mayaCodeEditor(sessionPath=True)).parent
-        self.assertEqual((folder / 'tabs.json').read_text(encoding='utf-8'), '{"tabs": []}')
-        self.assertEqual((folder / 'tabs' / 'legacy.txt').read_text(encoding='utf-8'), 'print("legacy")')
-        self.assertTrue((LEGACY / 'tabs.json').exists())
 
     def test_environment_override(self):
         """隔離テスト用の環境変数があればその場所を使う。"""
