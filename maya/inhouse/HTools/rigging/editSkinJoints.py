@@ -502,6 +502,10 @@ class _JointOrientPreserver:
     選択変更・Undo/Redo・時刻変更で基準を更新し、古い姿勢への補正を防ぐ。
     """
 
+    _attrs = ("jointOrient", "translate", "rotate", "scale", "shear",
+              "rotateAxis", "rotatePivot", "rotatePivotTranslate",
+              "scalePivot", "scalePivotTranslate", "rotateOrder", "offsetParentMatrix")
+
     def __init__(self, window):
         """UIに所有させた監視を準備する。"""
         self.window = window
@@ -510,14 +514,31 @@ class _JointOrientPreserver:
         self.busy = False
         self.stopped = False
         self.events = []
-        for event in ("SelectionChanged", "Undo", "Redo", "timeChanged",
-                      "SceneOpened", "NewSceneOpened"):
-            self.events.append(cmds.scriptJob(event=[event, self.rebuild], parent=window))
-        self.rebuild()
+        self.history_pending = False
+        self.callbacks = []
+        # APIイベントで先に履歴・時刻変更を識別する。scriptJob同士の実行順に
+        # 依存すると、履歴復元やアニメーション評価を直接編集と誤認する。
+        try:
+            for event in ("Undo", "Redo", "timeChanged"):
+                self.callbacks.append(om.MEventMessage.addEventCallback(event, self.historyChanged))
+            for event in ("SelectionChanged", "Undo", "Redo", "timeChanged",
+                          "SceneOpened", "NewSceneOpened"):
+                self.events.append(cmds.scriptJob(event=[event, self.rebuild], parent=window))
+            self.rebuild()
+        except Exception:
+            self.stop()
+            raise
+
+    def historyChanged(self, *_):
+        """履歴・時刻変更に伴う遅延通知を、基準の再構築まで補正対象から除外する。"""
+        self.history_pending = True
 
     def stop(self):
         """自分が作成した監視だけを解放し、遅れて届く通知も無効にする。"""
         self.stopped = True
+        for callback in self.callbacks:
+            om.MMessage.removeCallback(callback)
+        self.callbacks = []
         for job in self.jobs + self.events:
             if cmds.scriptJob(exists=job):
                 cmds.scriptJob(kill=job, force=True)
@@ -534,11 +555,12 @@ class _JointOrientPreserver:
                 cmds.scriptJob(kill=job, force=True)
         self.jobs = []
         self.cache = {}
+        self.history_pending = False
         if not _owner() or not _owner().enabled:
             return
         for joint in cmds.ls(selection=True, type="joint", long=True) or []:
             self.cache[joint] = None
-            for attr in ("jointOrient", "translate", "rotate", "scale"):
+            for attr in self._attrs:
                 self.jobs.append(cmds.scriptJob(
                     attributeChange=[joint + "." + attr, self.changed],
                     allChildren=True, compressUndo=True, parent=self.window))
@@ -550,52 +572,116 @@ class _JointOrientPreserver:
         self.snapshot()
 
     def snapshot(self):
-        """現在のjointOrientと直下の子の行列を次の編集の基準にする。"""
+        """ローカルの編集値と直下の子の行列を次の編集の基準にする。"""
         for joint in list(self.cache):
             if not cmds.objExists(joint):
                 del self.cache[joint]
                 continue
             children = cmds.listRelatives(joint, children=True, type="transform", fullPath=True) or []
             self.cache[joint] = (
-                cmds.getAttr(joint + ".jointOrient")[0],
-                {child: cmds.xform(child, query=True, worldSpace=True, matrix=True)
+                self.signature(joint),
+                {child: cmds.getAttr(child + ".worldMatrix[0]")
                  for child in children})
 
+    def signature(self, joint):
+        """親からの伝播を直接編集と誤認しないようローカル値を取得する。"""
+        return tuple(cmds.getAttr(joint + "." + attr) for attr in self._attrs)
+
+    def restore(self, child, matrix):
+        """SSC・回転補助成分を除いて分解し、Undo可能なローカル値で復元する。
+
+        非均一スケールと回転を併用したjointにxformのワールド行列を
+        直接設定するとSSCの補正が一致しないため、成分を明示的に解く。
+        行列はMaya内部単位で扱い、チャンネルへ書く際だけUI単位に戻す。
+        """
+        local = om.MMatrix(matrix) * om.MMatrix(cmds.getAttr(child + ".parentInverseMatrix[0]"))
+        if local.isSingular():
+            raise RuntimeError("Cannot preserve a child with a singular matrix: " + child)
+        joint = cmds.nodeType(child) == "joint"
+        corrected = local
+        if joint and cmds.getAttr(child + ".segmentScaleCompensate"):
+            inverse_scale = cmds.getAttr(child + ".inverseScale")[0]
+            if any(abs(value) < 1e-12 for value in inverse_scale):
+                raise RuntimeError("Cannot preserve a child with zero inverseScale: " + child)
+            compensation = om.MTransformationMatrix()
+            compensation.setScale(inverse_scale, om.MSpace.kTransform)
+            corrected = local * compensation.asMatrix()
+        parts = om.MTransformationMatrix(corrected)
+        unit = om.MAngle.uiUnit()
+
+        def euler(attr, order=0):
+            """角度チャンネルを内部ラジアンのEulerへ変換する。"""
+            return om.MEulerRotation(*[om.MAngle(v, unit).asRadians()
+                                       for v in cmds.getAttr(child + "." + attr)[0]], order)
+
+        orientation = euler("jointOrient").asMatrix() if joint else om.MMatrix()
+        rotation = om.MTransformationMatrix(
+            euler("rotateAxis").asMatrix().inverse()
+            * parts.rotation().asMatrix() * orientation.inverse()).rotation()
+        order = cmds.getAttr(child + ".rotateOrder")
+        rotation.reorderIt(order)
+        rotation = rotation.closestSolution(euler("rotate", order))
+        cmds.setAttr(child + ".scale", *parts.scale(om.MSpace.kTransform))
+        cmds.setAttr(child + ".shear", *parts.shear(om.MSpace.kTransform))
+        cmds.setAttr(child + ".rotate", *[om.MAngle(v).asUnits(unit) for v in rotation])
+        # ピボット補償を含む実際のローカル行列との差でtranslateを求める。
+        actual = cmds.getAttr(child + ".matrix")
+        translation = cmds.getAttr(child + ".translate")[0]
+        distance_unit = om.MDistance.uiUnit()
+        cmds.setAttr(child + ".translate", *[
+            translation[i] + om.MDistance(local[12 + i] - actual[12 + i]).asUnits(distance_unit)
+            for i in range(3)])
+
     def changed(self, *_):
-        """jointOrient変更をまとめて補正し、他の編集では基準だけ更新する。"""
-        if self.busy or self.stopped:
+        """Matchや直接編集をまとめて補正し、選択された子は編集対象として優先する。"""
+        if self.busy or self.stopped or self.history_pending:
             return
         if not _owner() or not _owner().enabled:
             self.snapshot()
             return
         changed = [joint for joint, data in self.cache.items()
                    if data and cmds.objExists(joint)
-                   and tuple(cmds.getAttr(joint + ".jointOrient")[0]) != tuple(data[0])]
+                   and self.signature(joint) != data[0]]
         if not changed:
             self.snapshot()
             return
         targets = {}
-        for joint in changed:
-            targets.update(self.cache[joint][1])
-        # Undo/Redoや回転フリーズでは、子が既に正しい位置に戻っている。
-        # 同値のxformもUndoキューを変更するため、不要な書き込みを避ける。
-        targets = {child: matrix for child, matrix in targets.items()
-                   if not cmds.objExists(child) or
-                   max(abs(a - b) for a, b in zip(
-                       cmds.xform(child, query=True, worldSpace=True, matrix=True), matrix)) > 1e-8}
+        for joint in self.cache:
+            if joint in changed or any(joint.startswith(parent + "|") for parent in changed):
+                targets.update(self.cache[joint][1])
+        # 選択された子は編集対象として優先する。Match後のローカル値が
+        # 偶然同じでも、親の編集に伴うワールド変化を打ち消さない。
+        # 選択された子の未選択の子孫は、その子の保存行列で保持する。
+        for joint in self.cache:
+            targets.pop(joint, None)
+        # 未選択の中間ジョイントを保持すると、その下の選択ジョイントも
+        # 動く。選択ジョイントのMatch結果を復元点として途中へ挟む。
+        for joint in self.cache:
+            if any(joint.startswith(parent + "|") for parent in targets):
+                targets[joint] = cmds.getAttr(joint + ".worldMatrix[0]")
         self.busy = True
         try:
+            affected = []
+            for child in sorted(targets, key=lambda name: name.count("|")):
+                if (not cmds.objExists(child)
+                        or any(child.startswith(parent + "|") for parent in affected)
+                        or max(abs(a - b) for a, b in zip(
+                            cmds.getAttr(child + ".worldMatrix[0]"), targets[child])) > 1e-8):
+                    affected.append(child)
             # 全対象を事前確認する。ロックや入力接続を強制解除しない。
-            for child in targets:
+            for child in affected:
                 if not cmds.objExists(child):
                     raise RuntimeError("A child was removed or reparented: " + child)
                 for attr in ("translate", "rotate", "scale", "shear"):
                     for axis in ("XY", "XZ", "YZ") if attr == "shear" else "XYZ":
                         _writable(child + "." + attr + axis)
-            for child in sorted(targets, key=lambda name: name.count("|")):
-                cmds.xform(child, worldSpace=True, matrix=targets[child])
+            for child in affected:
+                # 親の補正後に判定する。同値書込はRedo履歴を壊し得る。
+                if max(abs(a - b) for a, b in zip(
+                        cmds.getAttr(child + ".worldMatrix[0]"), targets[child])) > 1e-8:
+                    self.restore(child, targets[child])
         except Exception as exc:
-            cmds.warning("Joint Orient child preservation failed. Undo the edit. " + str(exc))
+            cmds.warning("Child preservation failed. Undo the edit. " + str(exc))
         finally:
             self.snapshot()
             self.busy = False
@@ -712,7 +798,8 @@ def _buildWindow(owner):
                 command=lambda *_: invoke(lambda: preserve(False)),
                 backgroundColor=default_color, enableBackground=True)
     cmds.text(label="Preserves children with Maya's Move, Rotate, and Scale tools.\n"
-                    "Also preserves children when editing selected joints' jointOrient in the Channel Box.\n"
+                    "Also supports Match Transformations and direct transform / jointOrient edits.\n"
+                    "Selected joints remain editable; unselected children keep their world transforms.\n"
                     "Keep this window open. Child transform channels must be unlocked and unconnected.",
               align="left", wordWrap=True)
     cmds.button(label="Freeze Selected Joint Rotations",

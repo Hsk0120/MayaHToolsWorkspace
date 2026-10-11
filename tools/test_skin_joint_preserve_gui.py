@@ -7,9 +7,11 @@ import traceback
 from pathlib import Path
 
 import maya.cmds as cmds
+import maya.mel as mel
 
 ROOT = Path(__file__).resolve().parents[1]
-RESULT = ROOT / ".maya-output/preserve-children-gui/result.json"
+RESULT = Path(os.environ.get("HTOOLS_PRESERVE_GUI_RESULT",
+                             str(ROOT / ".maya-output/preserve-children-gui/result.json")))
 
 
 def run():
@@ -137,6 +139,7 @@ def run():
         assert first_owner.closed and not first_owner.callbacks
         assert first_owner.preserver.stopped
         assert not first_owner.preserver.jobs and not first_owner.preserver.events
+        assert not first_owner.preserver.callbacks
         checks.append("context restoration and callback cleanup")
 
     skin_state = {}
@@ -175,8 +178,174 @@ def run():
         assert not cmds.objExists(tool._SESSION)
         checks.append("close pauses envelopes / save pauses / reopen and resume")
 
-    steps = iter((edit, checkEdit, checkUndo, checkRedo, repeated, disabled,
-                  newSelection, selectionResult, reopenResult, closedResult, skinLifecycle))
+    def matchSteps(command, hierarchy):
+        """標準メニューの実コマンドを、選択構成ごとにidleを挟んで検証する。"""
+        state = {}
+
+        def matrices(nodes):
+            """対象のワールド行列を読み取る。"""
+            return {node: cmds.xform(node, query=True, worldSpace=True, matrix=True)
+                    for node in nodes}
+
+        def check(expected):
+            """誤差を含めて行列を比較する。"""
+            for node, matrix in expected.items():
+                actual = matrices([node])[node]
+                error = max(abs(a - b) for a, b in zip(actual, matrix))
+                assert error < 1e-6, (command, hierarchy, node, error)
+
+        def checkAttrs(actual, expected):
+            """Undo時の浮動小数点丸めを許容し、ピボットを含む編集値を比較する。"""
+            if isinstance(expected, (list, tuple)):
+                assert len(actual) == len(expected)
+                for a, b in zip(actual, expected):
+                    checkAttrs(a, b)
+            else:
+                assert abs(actual - expected) < 1e-6, (command, hierarchy, actual, expected)
+
+        def setup():
+            """編集対象・未編集の子孫・Matchの参照を独立したシーンに作る。"""
+            cmds.file(new=True, force=True)
+            cmds.select(clear=True)
+            a = cmds.joint(name="matchRoot", position=(0, 0, 0))
+            b = cmds.joint(name="matchChild", position=(0, 3, 0))
+            c = cmds.joint(name="matchTip", position=(2, 5, 0))
+            f = cmds.joint(name="matchLeaf", position=(3, 7, 1))
+            cmds.select(clear=True)
+            d = cmds.joint(name="otherRoot", position=(-4, 0, 0))
+            e = cmds.joint(name="otherChild", position=(-4, 3, 0))
+            target = cmds.createNode("transform", name="matchReference")
+            cmds.setAttr(target + ".translate", 5, 2, -3)
+            cmds.setAttr(target + ".rotate", 20, -35, 17)
+            cmds.setAttr(target + ".scale", 1.3, 0.8, 1.1)
+            cmds.xform(target, pivots=(1, 2, -1))
+            sources = {"single": [a], "multiple": [a, d],
+                       "parent-child": [a, b], "ancestor-descendant": [a, c]}[hierarchy]
+            preserved = [node for node in (b, c, e, f) if node not in sources]
+            state.update(sources=sources, preserved=matrices(preserved),
+                         before=matrices(sources), reference=matrices([target]))
+            tool.run()
+            tool.setPreserveChildren(True)
+            state["beforeAttrs"] = [tool._owner().preserver.signature(node) for node in sources]
+            cmds.select(sources + [target])
+
+        def apply():
+            """選択通知後に標準Matchを実行し、補正前の直接編集結果を保存する。"""
+            mel.eval(command + ";")
+            state["matched"] = matrices(state["sources"])
+            state["matchedAttrs"] = [tool._owner().preserver.signature(node) for node in state["sources"]]
+            if command != "MatchPivots":
+                assert state["beforeAttrs"] != state["matchedAttrs"], (command, "No attributes changed")
+                assert any(max(abs(a - b) for a, b in zip(state["before"][node], matrix)) > 0.01
+                           for node, matrix in state["matched"].items())
+
+        def applied():
+            """子保持・Match結果・参照不変を確認して1回Undoする。"""
+            check(state["preserved"])
+            check(state["matched"])
+            check(state["reference"])
+            state["preservedAttrs"] = [tool._owner().preserver.signature(node) for node in state["sources"]]
+            state["undoName"] = cmds.undoInfo(query=True, undoName=True)
+            cmds.undo()
+            state["immediateUndo"] = matrices(list(state["before"]) + list(state["preserved"]))
+
+        def undone():
+            """単一Undoで編集前へ戻ることを確認してRedoする。"""
+            (RESULT.parent / "match-diagnostic.json").write_text(
+                json.dumps(dict(command=command, hierarchy=hierarchy, state=state,
+                                afterIdle=matrices(list(state["before"]) + list(state["preserved"])))),
+                encoding="utf-8")
+            check(state["preserved"])
+            check(state["before"])
+            checkAttrs([tool._owner().preserver.signature(node) for node in state["sources"]], state["beforeAttrs"])
+            cmds.redo()
+
+        def redone():
+            """Redoでも子保持とMatch結果が両立することを確認する。"""
+            check(state["preserved"])
+            check(state["matched"])
+            checkAttrs([tool._owner().preserver.signature(node) for node in state["sources"]], state["preservedAttrs"])
+            node = state["sources"][0]
+            cmds.setAttr(node + ".translateX", cmds.getAttr(node + ".translateX") + 1)
+            state["second"] = matrices(state["sources"])
+
+        def secondApplied():
+            """次の直接編集も子を保持することを確認し、Undoを開始する。"""
+            check(state["preserved"])
+            check(state["second"])
+            cmds.undo()
+
+        def backFirst():
+            """2操作目を戻して、さらにMatchをUndoする。"""
+            check(state["preserved"])
+            check(state["matched"])
+            cmds.undo()
+
+        def backOriginal():
+            """連続Undoの到達点を確認し、MatchをRedoする。"""
+            check(state["preserved"])
+            check(state["before"])
+            cmds.redo()
+
+        def redoFirst():
+            """補正で残りのRedo履歴が消失しないことを確認する。"""
+            check(state["preserved"])
+            check(state["matched"])
+            assert not cmds.undoInfo(query=True, redoQueueEmpty=True), (command, hierarchy, "Redo queue lost")
+            cmds.redo()
+
+        def redoSecond():
+            """連続Redoでも直接編集と子保持が再現することを確認する。"""
+            check(state["preserved"])
+            check(state["second"])
+            checks.append(command + " / " + hierarchy + " / two Undo / two Redo")
+
+        return setup, apply, applied, undone, redone, secondApplied, backFirst, backOriginal, redoFirst, redoSecond
+
+    actions = [edit, checkEdit, checkUndo, checkRedo, repeated, disabled,
+               newSelection, selectionResult, reopenResult, closedResult, skinLifecycle]
+    for command in ("MatchTranslation", "MatchRotation", "MatchScaling", "MatchTransform", "MatchPivots"):
+        for hierarchy in ("single", "multiple", "parent-child", "ancestor-descendant"):
+            actions.extend(matchSteps(command, hierarchy))
+
+    animation = {}
+
+    def animationSetup():
+        """時間変更による親のアニメーションを直接編集と区別するシーンを作る。"""
+        cmds.file(new=True, force=True)
+        cmds.select(clear=True)
+        root = cmds.joint()
+        leaf = cmds.joint(position=(2, 3, 0))
+        cmds.setKeyframe(root, attribute="rotateY", time=0, value=0)
+        cmds.setKeyframe(root, attribute="rotateY", time=10, value=45)
+        cmds.currentTime(0)
+        animation.update(root=root, leaf=leaf, local=cmds.getAttr(leaf + ".matrix"),
+                         world=cmds.getAttr(leaf + ".worldMatrix[0]"))
+        cmds.select(root)
+        tool.run()
+        tool.setPreserveChildren(True)
+
+    def changeTime():
+        """通常のフレーム変更を行う。"""
+        cmds.currentTime(10)
+
+    def afterTime():
+        """子がアニメーションには追従し、ローカル値を補正されないことを確認する。"""
+        leaf = animation["leaf"]
+        assert max(abs(a - b) for a, b in zip(animation["local"], cmds.getAttr(leaf + ".matrix"))) < 1e-7
+        current = cmds.getAttr(leaf + ".worldMatrix[0]")
+        assert max(abs(a - b) for a, b in zip(animation["world"], current)) > 0.1
+        animation["world"] = current
+        cmds.setAttr(animation["root"] + ".jointOrientZ", 15)
+
+    def afterTimeEdit():
+        """フレーム変更後の直接編集には、新しい姿勢を基準に補正が働く。"""
+        current = cmds.getAttr(animation["leaf"] + ".worldMatrix[0]")
+        assert max(abs(a - b) for a, b in zip(animation["world"], current)) < 1e-7
+        checks.append("animation follows time / direct edit preserves new pose")
+
+    actions.extend((animationSetup, changeTime, afterTime, afterTimeEdit))
+    steps = iter(actions)
 
     def step():
         """次の検証をidleに実行し、結果をファイルへ保存する。"""

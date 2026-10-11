@@ -214,6 +214,38 @@ def main():
         finally:
             om.MMessage.removeCallback(callback)
         print("PASS save-time recovery / failed recovery blocks save")
+        preserver = tool._JointOrientPreserver.__new__(tool._JointOrientPreserver)
+        for unit in ("cm", "mm"):
+            cmds.currentUnit(linear=unit)
+            for order in range(6):
+                for ssc in (False, True):
+                    cmds.file(new=True, force=True)
+                    cmds.select(clear=True)
+                    root = cmds.joint()
+                    child = cmds.joint(position=(2, 3, 4))
+                    cmds.setAttr(child + ".rotateOrder", order)
+                    cmds.setAttr(child + ".segmentScaleCompensate", ssc)
+                    cmds.setAttr(child + ".jointOrient", 13, -17, 8)
+                    cmds.setAttr(child + ".rotateAxis", -5, 11, 7)
+                    cmds.setAttr(child + ".rotate", 24, -12, 33)
+                    cmds.setAttr(child + ".scale", -1.1, 0.8, 1.2)
+                    opm = om.MTransformationMatrix()
+                    opm.setTranslation(om.MVector(1, 2, -1), om.MSpace.kTransform)
+                    cmds.setAttr(child + ".offsetParentMatrix", *opm.asMatrix(), type="matrix")
+                    prop = cmds.createNode("transform", parent=child)
+                    cmds.xform(prop, pivots=(1, -2, 3))
+                    cmds.setAttr(prop + ".rotateAxis", 17, -8, 4)
+                    cmds.setAttr(prop + ".rotate", 21, -18, 14)
+                    nodes = (child, prop)
+                    before = {node: cmds.getAttr(node + ".worldMatrix[0]") for node in nodes}
+                    cmds.setAttr(root + ".rotate", 20, -35, 17)
+                    cmds.setAttr(root + ".scale", 1.3, 0.8, 1.1)
+                    cmds.setAttr(root + ".translate", 4, -3, 2)
+                    for node in nodes:
+                        preserver.restore(node, before[node])
+                        actual = cmds.getAttr(node + ".worldMatrix[0]")
+                        assert max(abs(a - b) for a, b in zip(actual, before[node])) < 1e-7, (unit, order, ssc, node)
+        print("PASS child matrix restoration / six rotate orders / SSC / pivots / negative scale / offsetParentMatrix / cm and mm")
         print("ALL PASSED")
     finally:
         maya.standalone.uninitialize()
