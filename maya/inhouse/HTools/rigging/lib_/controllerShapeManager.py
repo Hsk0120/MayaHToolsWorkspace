@@ -34,7 +34,7 @@ from collections import deque
 
 import maya.cmds as cmds
 
-from hrig.setups import ControlShape
+from mlrig.setups import ControlShape
 
 
 DEFAULT_SHAPE_NAME = "ctrlCurve"

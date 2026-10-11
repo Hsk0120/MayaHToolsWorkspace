@@ -33,24 +33,24 @@
 * ``import maya.cmds as cmds`` の別名
 * ``from package import Class``
 * モジュールの公開名、ソース上のクラスの直接定義メソッド、トップレベルのローカル関数
-* ``hlib.ls`` のように、読み込み済みの動的な公開名
+* ``mlib.ls`` のように、読み込み済みの動的な公開名
 * 変数の型を、次の書き方から推論したときのメンバー(カーソルに近い宣言を使う):
 
   .. code-block:: python
 
-     jnt = hlib.nodes.Joints("spine_IK_jnt")   # クラスの呼出しの結果を代入
-     jnt: hlib.nodes.Joint = something()        # 変数の型ヒント("hlib.nodes.Joint" のような文字列も可)
-     def build(jnt: hlib.nodes.Joint): ...      # 引数の型ヒント
+     jnt = mlib.nodes.Joints("spine_IK_jnt")   # クラスの呼出しの結果を代入
+     jnt: mlib.nodes.Joint = something()        # 変数の型ヒント("mlib.nodes.Joint" のような文字列も可)
+     def build(jnt: mlib.nodes.Joint): ...      # 引数の型ヒント
 
   ``jnt.`` で、そのクラスのメソッドと、親クラスから受け継いだメソッドを出します(関数の中の変数も対象)。
-  推論できない代入(``jnt = 1``\ ・\ ``jnt = hlib.ls(...)[0]`` など)の方がカーソルに近い場合は推論しません。
+  推論できない代入(``jnt = 1``\ ・\ ``jnt = mlib.ls(...)[0]`` など)の方がカーソルに近い場合は推論しません。
 * 関数の引数名(候補のツールチップに表示)
 
 更新への追従
 ~~~~~~~~~~~~
 
 * 次の補完要求のたびに、対象モジュールの現在の公開名と ``sys.path`` を取り直します。
-  ``hlib.reload()`` の後や、実行後に増えた import も、Refresh completion なしで反映します。
+  ``mlib.reload()`` の後や、実行後に増えた import も、Refresh completion なしで反映します。
 * 読み込み済みのモジュールは、既知の ``.py`` ファイルだけを更新日時とサイズで確認し、関数・クラスの直接の定義も候補へ反映します。
 * ``import xxx`` / ``from xxx`` のトップレベルのパッケージ名は、\ ``sys.path`` の各フォルダーを
   **C++ のスレッド** で走査して集めます(Python の GIL を取らないため、走査中も Maya の画面は止まりません)。
@@ -105,7 +105,7 @@ Python タブで関数・クラス・モジュールの名前にマウスを重�
 
 制限:
 
-* 変数の型は、補完と同じく、クラスの呼出しの代入と型ヒントからだけ推論します。\ ``node = hlib.ls()[0]`` の
+* 変数の型は、補完と同じく、クラスの呼出しの代入と型ヒントからだけ推論します。\ ``node = mlib.ls()[0]`` の
   ``node.parent`` のように、関数の戻り値を経由した名前には出ません。
 * ``maya.cmds`` のコマンドは Python 側に説明がほとんど無いため、見出し(``def ls(...)``\ )だけになることがあります。
 

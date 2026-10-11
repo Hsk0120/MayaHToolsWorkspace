@@ -1,7 +1,7 @@
 """ユーザー設定を変更せず、GUI起動時にexprespyを遅延ロードする。
 
 バイナリの選択は ``maya/modules/exprespy.mod`` のバージョン別パスに任せる。
-HTools・hlib・Qtには依存せず、ロード失敗は警告して他の起動処理を続行する。
+HTools・mlib・Qtには依存せず、ロード失敗は警告して他の起動処理を続行する。
 """
 
 from maya import cmds, utils

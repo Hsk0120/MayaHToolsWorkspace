@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 
 from maya import cmds
-from hlib import logger
-from hrig.setups import RootDirectionLimit
+from mlib import logger
+from mlrig.setups import RootDirectionLimit
 from verification_video import recordVideo
 
 

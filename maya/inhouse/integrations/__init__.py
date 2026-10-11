@@ -1,1 +1,1 @@
-"""Optional inhouse integrations built on top of hlib."""
+"""Optional inhouse integrations built on top of mlib."""

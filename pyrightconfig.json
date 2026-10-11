@@ -1,7 +1,7 @@
 {
   "include": [
-    "maya/inhouse/hlib",
-    "maya/inhouse/hlib_posedriverconnect",
+    "maya/inhouse/mlib",
+    "maya/inhouse/mlib_posedriverconnect",
     "maya/inhouse/HTools",
     "maya/inhouse/MayaCommandPorts",
     "maya/inhouse/integrations",
@@ -11,14 +11,14 @@
     "**/__pycache__",
     "**/.venv",
     "**/docs/_build",
-    "maya/inhouse/hlib/_docs",
+    "maya/inhouse/mlib/_docs",
     "maya/external",
     ".maya-output",
     "typings"
   ],
   "extraPaths": [
     "maya/inhouse",
-    "maya/inhouse/hlib_posedriverconnect/scripts",
+    "maya/inhouse/mlib_posedriverconnect/scripts",
     "maya/external/PoseDriverConnect/python",
     "maya/external/cymel/python",
     "maya/external/mgear5/release/scripts"

@@ -1,6 +1,6 @@
 # FramePlayer ドキュメントのビルド
 
-FramePlayer の利用ガイドを Sphinx で生成します。このフォルダーだけで完結します(親リポジトリの hlib・Maya Code Editor のドキュメントには
+FramePlayer の利用ガイドを Sphinx で生成します。このフォルダーだけで完結します(親リポジトリの mlib・Maya Code Editor のドキュメントには
 依存しません)。見た目は Maya Code Editor と同じ作りで、色だけを FramePlayer に合わせています(`_static/frameplayer.css`)。
 
 ## 準備

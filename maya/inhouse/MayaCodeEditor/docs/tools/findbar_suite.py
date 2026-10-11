@@ -128,7 +128,7 @@ def main(output_dir, finished):
         cursor.setPosition(block.position() + 12, QtGui.QTextCursor.KeepAnchor)
         code.setTextCursor(cursor)
         replace_action.trigger()
-        replace.setText("hlib")
+        replace.setText("mlib")
         find.setFocus()
         find.selectAll()
         shoot("1_find_focused")

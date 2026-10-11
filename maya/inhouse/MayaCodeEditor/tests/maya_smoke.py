@@ -32,8 +32,8 @@ try:
         return [row['name'] for row in json.loads(cmds.mayaCodeEditorTest(complete=source))['items']]
 
     # 実際のMayaで動的に公開された名前も補完対象になる。
-    import hlib
-    for source, expected in [('import maya.cmds as cmds\ncmds.cre', 'createNode'), ('import hlib\nhlib.l', 'ls')]:
+    import mlib
+    for source, expected in [('import maya.cmds as cmds\ncmds.cre', 'createNode'), ('import mlib\nmlib.l', 'ls')]:
         assert expected in complete(source), (source, complete(source))
     duration = []
     for _ in range(100):

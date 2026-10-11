@@ -1,7 +1,7 @@
 """Maya Code Editor ドキュメントの Sphinx 設定。
 
 Maya Code Editor は将来、別リポジトリへ切り出す想定のため、この docs フォルダーだけで完結する
-(親リポジトリの hlib ドキュメントや共有設定に依存しない)。
+(親リポジトリの mlib ドキュメントや共有設定に依存しない)。
 """
 import re
 from pathlib import Path

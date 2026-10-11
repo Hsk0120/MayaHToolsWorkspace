@@ -106,11 +106,11 @@ def check(window, QtCore, QtGui, QtWidgets, QtTest):
     action_type = getattr(QtWidgets, 'QAction', None) or QtGui.QAction
     actions = window.findChildren(action_type)
     # Enterを押さず、最初のhから検索し、入力を伸ばしても次の一致へ飛ばない。
-    code.setPlainText('hlib first\nhlib second')
+    code.setPlainText('mlib first\nmlib second')
     code.moveCursor(QtGui.QTextCursor.Start)
     next(a for a in actions if a.text() == 'Find…').trigger()
     field.clear(); field.setFocus()
-    for prefix, letter in zip(('h','hl','hli','hlib'), 'hlib'):
+    for prefix, letter in zip(('h','hl','hli','mlib'), 'mlib'):
         QtTest.QTest.keyClicks(field,letter)
         assert code.textCursor().selectedText() == prefix
         assert code.textCursor().selectionStart() == 0

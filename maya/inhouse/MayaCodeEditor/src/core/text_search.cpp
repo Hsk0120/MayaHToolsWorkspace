@@ -128,13 +128,13 @@ QString preserveCase(const QString& replacement, const QString& matched) {
         return replacement;
     }
     if (allUpper) {
-        return replacement.toUpper();  // CMDS → HLIB
+        return replacement.toUpper();  // CMDS → MLIB
     }
     if (allLower) {
-        return replacement.toLower();  // cmds → hlib
+        return replacement.toLower();  // cmds → mlib
     }
     if (matched.at(0).isUpper()) {
-        return replacement.at(0).toUpper() + replacement.mid(1);  // Cmds → Hlib
+        return replacement.at(0).toUpper() + replacement.mid(1);  // Cmds → Mlib
     }
     return replacement.at(0).toLower() + replacement.mid(1);  // 先頭が小文字なら、先頭だけ小文字にする
 }

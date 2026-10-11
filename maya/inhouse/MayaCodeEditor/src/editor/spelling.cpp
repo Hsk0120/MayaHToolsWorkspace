@@ -24,7 +24,7 @@ constexpr int kMaximumCachedWords = 8192;
  */
 const QSet<QString>& allowedWords() {
     static const QStringList words = QString(
-        "maya hlib cmds pymel mel nurbs dag depsgraph attr attrs getattr setattr hasattr isinstance "
+        "maya mlib cmds pymel mel nurbs dag depsgraph attr attrs getattr setattr hasattr isinstance "
         "classmethod staticmethod dict kwargs args bool str repr init self none true false elif def import "
         "return yield lambda pass async await print super len range tuple list set type float enum viewport "
         "outliner keyframe quaternion blendshape skincluster multmatrix decompose uv fbx usd json utf api qt "

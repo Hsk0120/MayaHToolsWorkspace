@@ -1,7 +1,7 @@
 開発
 ====
 
-ソースは ``maya/inhouse/FramePlayer`` にあります。このフォルダーだけで完結し、MayaHTools の共通ライブラリ(hlib など)には依存しません。
+ソースは ``maya/inhouse/FramePlayer`` にあります。このフォルダーだけで完結し、MayaHTools の共通ライブラリ(mlib など)には依存しません。
 
 ビルド
 ------

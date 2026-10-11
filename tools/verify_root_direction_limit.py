@@ -15,7 +15,7 @@ def main():
     from maya import cmds
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root / "maya/inhouse"))
-    namespace = runpy.run_path(str(root / "maya/inhouse/hrig/__tests__/test_setup_root_direction_limit.py"))
+    namespace = runpy.run_path(str(root / "maya/inhouse/mlrig/__tests__/test_setup_root_direction_limit.py"))
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(namespace["RootDirectionLimitTest"])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     target = Path(os.environ.get("ROOT_LIMIT_RESULT", str(root / ".maya-output/root-limit-tests.json")))

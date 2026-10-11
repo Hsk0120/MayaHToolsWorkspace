@@ -6,7 +6,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from test_htools_hlib_migration import equivalent
+from test_htools_mlib_migration import equivalent
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "maya/inhouse"))
@@ -164,10 +164,10 @@ def shapeScenario(section, name, replace, baseline=None):
 def verifySharedApis():
     """汎用化した処理の退化点群・インスタンス・Undoを検証する。"""
     import maya.cmds as cmds
-    from hlib.maths import MSpace
-    from hlib.nodes import Mesh
-    from hlib.common.orientedBounds import computeOrientedBounds
-    from hrig.setups import ControlShape
+    from mlib.maths import MSpace
+    from mlib.nodes import Mesh
+    from mlib.common.orientedBounds import computeOrientedBounds
+    from mlrig.setups import ControlShape
     reset()
     for points in ([], [(0, 0, 0)] * 2, [(float("nan"), 0, 0)] * 3):
         try:

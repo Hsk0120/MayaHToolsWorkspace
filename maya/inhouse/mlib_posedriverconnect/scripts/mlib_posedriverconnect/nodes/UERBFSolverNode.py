@@ -1,0 +1,55 @@
+"""PoseDriverConnectのRBFソルバーをmlibノードとして扱う。"""
+
+from epic_pose_wrangler.v2.model.api import RBFNode
+
+from .._binding import coreModule
+
+Node = coreModule('nodes').Node
+undoChunk = coreModule('decorator').undoChunk
+
+
+class UERBFSolverNode(Node):
+    """PoseDriverConnect v2のRBFソルバー。"""
+
+    def native_api(self):
+        """現在名から外部APIラッパーを取得する。直接編集のUndoは外部仕様。
+
+        Returns:
+            RBFNode: 現在名から外部APIラッパーを取得する。直接編集のUndoは外部仕様。
+        """
+        return RBFNode(self.getFullName())
+
+    def drivers(self):
+        """接続されたドライバーを外部APIの順序で取得する。
+
+        Returns:
+            list[Node]: 接続されたドライバーを外部APIの順序で取得する。
+        """
+        return [Node(name) for name in self.native_api().drivers()]
+
+    def num_poses(self):
+        """登録されているポーズ数を取得する。
+
+        Returns:
+            int: 登録されているポーズ数を取得する。
+        """
+        return self.native_api().num_poses()
+
+    def radius(self):
+        """外部APIの半径設定値を取得する。
+
+        Returns:
+            float: 外部APIの半径設定値を取得する。
+        """
+        return self.native_api().radius()
+
+    @undoChunk("mlibPoseDriverConnectSetRadius")
+    def setRadius(self, value):
+        """ソルバー半径を変更する。Maya cmds経由でUndo可能。
+
+        Args:
+            value (float): 外部APIへ渡す半径。
+        Returns:
+            None: 値を返さない。
+        """
+        self.native_api().set_radius(value)

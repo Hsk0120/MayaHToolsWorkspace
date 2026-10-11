@@ -1,7 +1,7 @@
 /*
  * Maya Code Editor 固有の見た目。
  *
- * 段組みと部品の形は hlib・FramePlayer と共通の custom.css をそのまま使い、色(先頭の変数)だけを
+ * 段組みと部品の形は mlib・FramePlayer と共通の custom.css をそのまま使い、色(先頭の変数)だけを
  * Maya Code Editor の画面に合わせる(地は VS Code の Dark+ と同じ #1e1e1e・#252526、強調色はアイコンの緑 #69b66c)。
  * 色は src/editor/theme.h の値に揃えている。
  */

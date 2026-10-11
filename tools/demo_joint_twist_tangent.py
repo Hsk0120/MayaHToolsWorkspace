@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from maya import cmds
-from hlib import logger
+from mlib import logger
 from demo_top_view_moving_tangent import _line, _node, _connect
 from verification_video import recordVideo
 

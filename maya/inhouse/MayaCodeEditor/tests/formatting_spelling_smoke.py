@@ -7,7 +7,7 @@ import time
 
 
 def main(output_dir, finished):
-    """GUIランナー(``tools/run_hlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
+    """GUIランナー(``tools/run_mlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
 
     Args:
         output_dir (str): 結果の ``result.json`` と画像の出力先。
@@ -62,13 +62,13 @@ def main(output_dir, finished):
         result['checks'].append('crlf_fragments_intentional_blank_lines_font_title_nowrap')
         toggle = next(a for a in actions if a.objectName() == 'option_spellCheck')
         assert toggle.isChecked(), 'Spell check should default to ON'
-        code.setPlainText('# This commment contains misspelled wrds.\ncorrectVariable = "hello world"\nhlib.node("maya")\nmispelledValue = 1\n')
+        code.setPlainText('# This commment contains misspelled wrds.\ncorrectVariable = "hello world"\nmlib.node("maya")\nmispelledValue = 1\n')
         code.setFocus(); wait()
         assert code.property('spellCheckAvailable'), 'English Windows dictionary unavailable'
         words = [s.cursor.selectedText() for s in code.extraSelections()
                  if s.format.underlineStyle() == QtGui.QTextCharFormat.WaveUnderline]
         assert 'commment' in words and 'mispelled' in words, words
-        assert 'hlib' not in words and 'hello' not in words and 'correct' not in words, words
+        assert 'mlib' not in words and 'hello' not in words and 'correct' not in words, words
         result['spell_ms'] = code.property('spellCheckMilliseconds')
         toggle.setChecked(False)
         assert not any(s.format.underlineStyle() == QtGui.QTextCharFormat.WaveUnderline for s in code.extraSelections())

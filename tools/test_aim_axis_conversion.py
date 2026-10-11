@@ -17,7 +17,7 @@ class AimAxisConversionTest(unittest.TestCase):
         """隔離プロセスの空シーンへ実Aimを作る。"""
         import maya.cmds as cmds
         import maya.api.OpenMaya as om
-        from hrig.setups.aimAxisConversion import AimAxisConversion
+        from mlrig.setups.aimAxisConversion import AimAxisConversion
         self.cmds, self.om, self.cls = cmds, om, AimAxisConversion
         cmds.file(new=True, force=True)
         cmds.currentUnit(angle="deg")
@@ -300,7 +300,7 @@ class AimAxisConversionTest(unittest.TestCase):
 
     def test_restore_legacy_correction_removes_all_nodes(self):
         """旧版の補正付き復元の保存情報からも元Aimだけへ戻せる。"""
-        from hlib.json import JsonText
+        from mlib.json import JsonText
         baseline = set(self.cmds.ls())
         graph = self.cls.create(self.source, axes="xy")
         state = JsonText.loads(graph.container.getPlug("settings").get())

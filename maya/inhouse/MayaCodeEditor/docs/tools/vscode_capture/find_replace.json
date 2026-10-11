@@ -8,7 +8,7 @@
     {"command": "workbench.action.closeSidebar"},
     {"command": "workbench.action.closeAuxiliaryBar"},
     {"select": [2, 8, 2, 12]},
-    {"command": "editor.actions.findWithArgs", "args": {"searchString": "cmds", "replaceString": "hlib"}},
+    {"command": "editor.actions.findWithArgs", "args": {"searchString": "cmds", "replaceString": "mlib"}},
     {"command": "editor.action.startFindReplaceAction"},
     {"command": "actions.find"},
     {"capture": "1_find_focused"},
@@ -20,10 +20,10 @@
     {"capture": "3_toggles_on"},
     {"command": "toggleFindCaseSensitive"},
     {"command": "toggleFindWholeWord"},
-    {"command": "editor.actions.findWithArgs", "args": {"searchString": "zzz", "replaceString": "hlib"}},
+    {"command": "editor.actions.findWithArgs", "args": {"searchString": "zzz", "replaceString": "mlib"}},
     {"command": "actions.find"},
     {"capture": "4_no_results"},
-    {"command": "editor.actions.findWithArgs", "args": {"searchString": "(", "replaceString": "hlib", "isRegex": true}},
+    {"command": "editor.actions.findWithArgs", "args": {"searchString": "(", "replaceString": "mlib", "isRegex": true}},
     {"command": "actions.find"},
     {"capture": "5_invalid_regex"}
   ]

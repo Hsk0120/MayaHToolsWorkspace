@@ -10,8 +10,8 @@ from maya.api import OpenMaya as om
 import maya.OpenMaya as om1
 import maya.OpenMayaUI as omui
 
-from hlib import logger
-from hrig.setups import RootDirectionLimit
+from mlib import logger
+from mlrig.setups import RootDirectionLimit
 
 
 ROOT = Path(__file__).resolve().parents[1]

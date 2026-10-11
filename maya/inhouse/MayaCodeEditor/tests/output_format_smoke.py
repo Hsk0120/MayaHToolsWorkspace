@@ -5,7 +5,7 @@ import traceback
 
 
 def main(output_dir, finished):
-    """GUIランナー(``tools/run_hlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
+    """GUIランナー(``tools/run_mlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
 
     Args:
         output_dir (str): 結果の ``result.json`` と画像の出力先。

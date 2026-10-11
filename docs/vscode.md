@@ -56,7 +56,7 @@ Mayaの`maya.cmds`や`maya.api.OpenMaya`はPythonソースの無い`.pyd`/`.pyc`
 設定はリポジトリ直下の`pyrightconfig.json`に集約しています（Pylanceが読み込みます）。解析対象、`extraPaths`（`maya/inhouse`・cymel・mgear等）、スタブの場所（`typings`）、ルールの重大度を定義しています。ユーザー設定の`python.analysis.extraPaths`は、この設定ファイルの`extraPaths`が優先されます。
 
 - スタブは完全ではないため、Mayaの実挙動と食い違う指摘は**警告**にしています。エラー（赤）として残るのは、未定義変数などの実際の誤りです。
-- `hlib.createNode`などの公開名は、各`__init__.py`の明示importと`__all__`で定義しています。コマンドやノードラッパーを追加したら、使用する公開入口へ追記してください。型選択用の登録対象は各パッケージの`_WRAPPER_CLASSES`へ明示します。`common`は循環参照を避ける遅延公開を使うため、公開表と`if TYPE_CHECKING:`の宣言も揃えます。`tools/check_hlib_exports.py`と関連テストが不一致を検出します。
+- `mlib.createNode`などの公開名は、各`__init__.py`の明示importと`__all__`で定義しています。コマンドやノードラッパーを追加したら、使用する公開入口へ追記してください。型選択用の登録対象は各パッケージの`_WRAPPER_CLASSES`へ明示します。`common`は循環参照を避ける遅延公開を使うため、公開表と`if TYPE_CHECKING:`の宣言も揃えます。`tools/check_mlib_exports.py`と関連テストが不一致を検出します。
 - コマンドラインでも同じ設定で確認できます: `pip install pyright`のあと、リポジトリ直下で`pyright --pythonpath "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe"`。
 
 ## GitHub共有
@@ -66,9 +66,9 @@ Mayaの`maya.cmds`や`maya.api.OpenMaya`はPythonソースの無い`.pyd`/`.pyc`
 Mayaのインストールパスだけ各環境に合わせてください。
 認証トークン、追加サーバー、自動インストール設定はありません。
 
-## hlib datatypesテスト
+## mlib datatypesテスト
 
-`maya/inhouse/hlib/__tests__/test_datatypes.py`を開いてCtrl+Shift+Bで送信すると、全9件のテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
+`maya/inhouse/mlib/__tests__/test_datatypes.py`を開いてCtrl+Shift+Bで送信すると、全9件のテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
 
 ## 出力の取得範囲
 

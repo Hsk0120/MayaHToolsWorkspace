@@ -6,7 +6,7 @@ from unittest import mock
 import maya.cmds as cmds
 
 from HTools.rigging import inspectCycles
-from hlib import logger
+from mlib import logger
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
         assert ui.result is None
         assert cmds.button(ui.scan_button, query=True, enable=True)
         assert cmds.text(ui.status, query=True, label=True) == "Inspection failed"
-    # QtはHTools側の検証でだけ使用し、hlibには持ち込まない。
+    # QtはHTools側の検証でだけ使用し、mlibには持ち込まない。
     import maya.OpenMayaUI as omui
     try:
         from PySide6 import QtWidgets

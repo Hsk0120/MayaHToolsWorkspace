@@ -1,6 +1,6 @@
 """ドキュメント用のスクリーンショットを撮る GUI スイート(専用の Maya GUI 内で実行される)。
 
-``run_capture.py`` から ``run_hlib_gui_versions.run_version`` 経由で起動する。単体では実行しない。
+``run_capture.py`` から ``run_mlib_gui_versions.run_version`` 経由で起動する。単体では実行しない。
 """
 import json
 from pathlib import Path

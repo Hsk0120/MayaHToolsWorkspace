@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from maya import cmds
-from hlib import logger
+from mlib import logger
 from demo_top_view_root_limit import _line, _circle_hit
 from verification_video import recordVideo
 

@@ -6,18 +6,18 @@
 
 ## ▼ドキュメント
 
-[hlib Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/)
+[mlib Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/)
 
-hlibの導入方法・使用例・APIリファレンスを閲覧できます。スマートフォンからもアクセスできます。
+mlibの導入方法・使用例・APIリファレンスを閲覧できます。スマートフォンからもアクセスできます。
 
 [Maya Code Editor Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/maya-code-editor/)
 
 Maya Code Editor の使い方と Preferences 各項目の説明を閲覧できます。
 
-[hrig Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/hrig/)
+[mlrig Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/mlrig/)
 
-hrigの機能仕様・テスト方法・テストシーン・計測結果を掲載します（本変更の公開後に利用可能）。
-[ソースと目次](maya/inhouse/hrig/docs/index.rst)／[ビルド手順](maya/inhouse/hrig/docs/testing.rst)
+mlrigの機能仕様・テスト方法・テストシーン・計測結果を掲載します（本変更の公開後に利用可能）。
+[ソースと目次](maya/inhouse/mlrig/docs/index.rst)／[ビルド手順](maya/inhouse/mlrig/docs/testing.rst)
 
 [FramePlayer Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/frameplayer/)
 
@@ -47,7 +47,7 @@ inspectCycles.run()
 Node Editor等の調査につなげられます。全結果はUTF-8テキストへ保存できます。
 調査は接続・値・評価時のサイクルチェック設定を変更しません。
 
-検出にはMayaの`cycleCheck`、対象解決・接続照会・ノード選択にはhlibを使用します。
+検出にはMayaの`cycleCheck`、対象解決・接続照会・ノード選択にはmlibを使用します。
 DAGを含む検索は既定で有効、検索上限は10秒です。大きいシーンは対象を絞るか
 **First complete cycle only** を使ってください。検出順は内部依存や部分経路も含み、
 表示した直接接続には経路外の接続も含まれます。結果は原因候補であり、自動修復はしません。
@@ -63,7 +63,7 @@ Equivalent Euler solution・Hinge / 2-axis direction・Per-axis twist の3方式
 復元時は変換・補正ノードを全て削除し、元Aimの設定値と直接接続へ戻します。
 未選択軸のAim接続は変換時の値へ固定します。元の接続サイクルを解消する機能ではありません。
 方式2の狙う方向は回転軸以外を指定してください（例：XY回転ならZ方向）。
-詳しい挙動・制約・起動コードは[利用説明](maya/inhouse/hrig/docs/aim_axis_conversion.rst)を参照してください。
+詳しい挙動・制約・起動コードは[利用説明](maya/inhouse/mlrig/docs/aim_axis_conversion.rst)を参照してください。
 
 ## ▼起動方法
 
@@ -126,7 +126,7 @@ macOS用の起動ファイルは`maya_<version>_<language>.command`と
 ## ▼ディレクトリ補足
 
 - `maya/external`: 外部サブモジュール群(mGear, cymel, AnimationAid ほか)
-- `maya/inhouse/hlib`: Mayaノード・アトリビュートラッパー、形状操作、数学型などの共通ライブラリ
+- `maya/inhouse/mlib`: Mayaノード・アトリビュートラッパー、形状操作、数学型などの共通ライブラリ
 - `maya/inhouse/HTools`: Mayaメニューから起動する社内ツール
 - `maya/modules`: 各ツールをMayaへ認識させる`.mod`定義
   - `exprespy.mod`は[exprespy](https://github.com/ryusas/maya_exprespy)をWindows版Maya 2022〜2027へ登録します。
@@ -207,21 +207,21 @@ install_packages.bat 2026 scipy libigl  :: 数字はMayaの年、それ以外は
 エディター Maya Code Editor の使い方と Preferences 各項目の説明を Sphinx で `maya/inhouse/MayaCodeEditor/docs` に用意しています(スクリーンショット付き)。
 ビルド手順は[Maya Code Editor ドキュメントのビルド](maya/inhouse/MayaCodeEditor/docs/README.md)を参照してください。
 
-## hlib ドキュメント
+## mlib ドキュメント
 
-Maya 2022～2027の個別・一括テストは [hlibのバージョン別テスト](docs/hlib-testing.md) を参照してください。
+Maya 2022～2027の個別・一括テストは [mlibのバージョン別テスト](docs/mlib-testing.md) を参照してください。
 
-Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/hlib/_docs` に用意しています。
+Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/mlib/_docs` に用意しています。
 Maya を起動せず、ソースから HTML を生成できます。
-手順は[hlib ドキュメントのビルド](maya/inhouse/hlib/_docs/README.md)を参照してください。
+手順は[mlib ドキュメントのビルド](maya/inhouse/mlib/_docs/README.md)を参照してください。
 
-hlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`json` です。
+mlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`json` です。
 シーン状態・標準UI・環境設定・イベント・汎用処理は `common` にまとめ、
-ログは `hlib.logger`、Undo等のデコレーターは `hlib.decorator` から利用します。
-Objectと拡張登録・管理の入口は `_core` に置き、`from hlib._core.object import Object`、
-`from hlib._core import extensions` から取得します。ルートへは再公開しません。
+ログは `mlib.logger`、Undo等のデコレーターは `mlib.decorator` から利用します。
+Objectと拡張登録・管理の入口は `_core` に置き、`from mlib._core.object import Object`、
+`from mlib._core import extensions` から取得します。ルートへは再公開しません。
 クラス・コマンドの公開名は各パッケージの `__init__.py`、Node/Plugの型対応は同ファイルの
 `_WRAPPER_CLASSES` で明示します。追加・削除時はリポジトリルートで
-`python tools/check_hlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。
+`python tools/check_mlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。
 複数形APIも通常のメソッドとして定義し、共通処理へ委譲します。
-旧importの対応は[APIの命名と移行](maya/inhouse/hlib/_docs/api_naming.rst)を参照してください。
+旧importの対応は[APIの命名と移行](maya/inhouse/mlib/_docs/api_naming.rst)を参照してください。

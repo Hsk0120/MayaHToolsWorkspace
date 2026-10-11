@@ -9,7 +9,7 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-from run_hlib_tests import isolated_environment
+from run_mlib_tests import isolated_environment
 from _maya_test_process import stop_owned_process
 
 

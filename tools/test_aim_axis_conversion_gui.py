@@ -18,12 +18,12 @@ def main(output_dir=None, finished=None):
         output_dir (str | Path): ランナーの証跡保存先。
         finished (Callable): ランナーへ渡す終了通知。
     """
-    if os.environ.get("HLIB_DISPOSABLE_GUI") != "1":
+    if os.environ.get("MLIB_DISPOSABLE_GUI") != "1":
         raise RuntimeError("このテストは専用の使い捨てGUIでだけ実行できます。")
     import maya.cmds as cmds
     import maya.OpenMayaUI as omui
     from HTools.rigging.convertAimAxes import run
-    from hrig.setups.aimAxisConversion import AimAxisConversion
+    from mlrig.setups.aimAxisConversion import AimAxisConversion
     try:
         from PySide6 import QtWidgets
         from shiboken6 import wrapInstance
@@ -92,9 +92,9 @@ def main(output_dir=None, finished=None):
 
 
 if __name__ == "__main__":
-    from run_hlib_gui_versions import run_version
+    from run_mlib_gui_versions import run_version
     output = ROOT / ".maya-output/aim-axis-gui" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     result = run_version("2027", output, Path("C:/Program Files/Autodesk"), 180,
-                         suite_path=Path(__file__).resolve(), environment={"HLIB_DISPOSABLE_GUI": "1"})
+                         suite_path=Path(__file__).resolve(), environment={"MLIB_DISPOSABLE_GUI": "1"})
     print(json.dumps(result, ensure_ascii=False, indent=2))
     sys.exit(0 if result["status"] == "passed" else 1)

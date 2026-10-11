@@ -1,0 +1,217 @@
+"""補助成分を含むTransformationの値・取得・復元を検証する。"""
+import copy
+import math
+from pathlib import Path
+import sys
+import unittest
+import maya.cmds as cmds
+import maya.api.OpenMaya as om2
+from mlib.maths import Transformation, Matrix, EulerRotate, Quaternion
+from mlib.nodes import Node, Transforms
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "external" / "cymel" / "python"))
+from cymel import core as cy
+
+
+class TransformationTest(unittest.TestCase):
+    """独立したシーンでチャンネルと行列を比較する。"""
+
+    def setUp(self):
+        """専用Mayaのシーンを初期化する。"""
+        cmds.file(new=True, force=True)
+        cmds.undoInfo(state=True)
+        cmds.currentUnit(linear="cm", angle="deg")
+
+    def getNode(self, joint=False):
+        """親・負スケール・補助回転・ピボットを持つノードを作る。"""
+        parent = cmds.createNode("transform")
+        cmds.setAttr(parent + ".translate", 7, -3, 5)
+        cmds.setAttr(parent + ".rotate", 12, 31, -9)
+        cmds.setAttr(parent + ".scale", 1.2, 2, .8)
+        name = cmds.createNode("joint" if joint else "transform", parent=parent)
+        cmds.setAttr(name + ".rotateOrder", 3)
+        for attr, values in (("translate", (2, -4, 3)), ("rotate", (375, -21, 33)),
+                             ("scale", (-1.1, 1.3, .9)), ("shear", (.1, .2, -.15)),
+                             ("rotateAxis", (5, 13, -8))):
+            cmds.setAttr(name + "." + attr, *values)
+        if joint:
+            cmds.setAttr(name + ".jointOrient", 21, -7, 32)
+            cmds.connectAttr(parent + ".scale", name + ".inverseScale")
+        else:
+            for attr, values in (("rotatePivot", (1, 2, -1)), ("scalePivot", (-2, 1, 3)),
+                                 ("rotatePivotTranslate", (.2, -.3, .1)), ("scalePivotTranslate", (.4, .2, -.1))):
+                cmds.setAttr(name + "." + attr, *values)
+        return Node(name)
+
+    def assertMatrix(self, actual, expected):
+        """行列の全成分を比較する。"""
+        self.assertTrue(Matrix(actual).isEquivalent(Matrix(expected), tolerance=1e-7), (list(actual), list(expected)))
+
+    def test_value_and_copy(self):
+        """値の所有・短縮名・コピー・Euler周期を保持する。"""
+        x = Transformation(t=(1, 2, 3), r=(math.tau + .2, .3, .4), ro=3,
+                           ra=EulerRotate(.1, .2, .3), jo=EulerRotate(.3, .1, .2),
+                           rp=(2, 3, 4), sp=(1, -2, 3), is_=(2, 3, 4), s=(-1, 2, 3))
+        y = copy.deepcopy(x)
+        self.assertTrue(x.isEquivalent(y))
+        y.t.x = 10
+        self.assertEqual(x.t.x, 1)
+        self.assertEqual(x.ro, 3)
+        self.assertAlmostEqual(x.r.x, math.tau + .2)
+        x.m = x.m
+        self.assertAlmostEqual(x.r.x, math.tau + .2)
+        for actual, expected in zip(x.s, (-1, 2, 3)):
+            self.assertAlmostEqual(actual, expected)
+        with self.assertRaises(TypeError):
+            Transformation(t=(0, 0, 0), translate=(0, 0, 0))
+        with self.assertRaises(TypeError):
+            hash(x)
+
+    def test_local_matrix_against_reference(self):
+        """全回転順序・SSCの有無で合成行列をMayaと比較する。"""
+        for joint in (False, True):
+            node = self.getNode(joint)
+            for order in range(6):
+                node.getPlug("rotateOrder").set(order)
+                for ssc in (False, True):
+                    if joint:
+                        node.getPlug("segmentScaleCompensate").set(ssc)
+                    x = node.getTransformation()
+                    self.assertMatrix(x.m, node.getMatrix())
+                    cx = cy.Transform(node.getName()).getX()
+                    self.assertMatrix(x.m, list(cx.m))
+                    self.assertEqual(x.ro, cx.ro)
+                    self.assertAlmostEqual(x.r.x, node.getPlug("rotate").get().x)
+
+    def test_restore_and_undo(self):
+        """補助成分とEuler周期を復元し、一回のUndoで変更前へ戻す。"""
+        for joint in (False, True):
+            node = self.getNode(joint)
+            saved = node.getTransformation()
+            node.getPlug("rotate").set((0, 0, 0))
+            node.getPlug("rotateAxis").set((0, 0, 0))
+            if joint:
+                node.getPlug("jointOrient").set((0, 0, 0))
+            before = node.getTransformation()
+            self.assertIs(node.setTransformation(saved), node)
+            self.assertMatrix(node.getMatrix(), saved.m)
+            self.assertEqual(tuple(node.getTransformation().r), tuple(saved.r))
+            cmds.undo()
+            self.assertMatrix(node.getMatrix(), before.m)
+            cmds.redo()
+            self.assertMatrix(node.getMatrix(), saved.m)
+
+    def test_world_and_parent_conversion(self):
+        """非一様スケールの親とOPMを含むワールド姿勢を別階層へ適用する。"""
+        for joint in (False, True):
+            source = self.getNode(joint)
+            source.getPlug("offsetParentMatrix").set(Matrix(translate=(2, 1, -3), rotate=EulerRotate(.1, .2, .3)))
+            x = source.getTransformation(ws=True)
+            self.assertMatrix(x.m, source.getMatrix(ws=True))
+            cx = cy.Transform(source.getName()).getX(ws=True)
+            self.assertMatrix(x.m, list(cx.m))
+            # 負スケールとピボットを含む場合も元のtranslate位置をワールドへ変換する。
+            expected_translation = Matrix(source.mpath().exclusiveMatrix()).transformPoint(source.getTransformation().t)
+            for actual, expected in zip(x.t, expected_translation):
+                self.assertAlmostEqual(actual, expected, places=7)
+            destination = self.getNode(joint)
+            destination.getParent().getPlug("translate").set((8, 2, 4))
+            calculated = destination.setTransformation(x, ws=True, get=True)
+            self.assertIsInstance(calculated, Transformation)
+            before = destination.getTransformation()
+            self.assertMatrix(before.m, destination.getMatrix())
+            destination.setTransformation(x, ws=True)
+            self.assertMatrix(destination.getMatrix(ws=True), x.m)
+            self.assertTrue(source.getTransformation(ws=True).isEquivalent(x))
+
+    def test_cross_type(self):
+        """jointとtransformの間で姿勢を保ち、接続inverseScaleを維持する。"""
+        for source_joint in (False, True):
+            source = self.getNode(source_joint)
+            target = self.getNode(not source_joint)
+            x = source.getTransformation()
+            connection = cmds.listConnections(target.getName() + ".inverseScale", s=True, d=False, p=True) if not source_joint else None
+            target.setTransformation(x)
+            self.assertMatrix(target.getMatrix(), x.m)
+            if not source_joint:
+                self.assertEqual(cmds.listConnections(target.getName() + ".inverseScale", s=True, d=False, p=True), connection)
+
+    def test_safe_and_collection(self):
+        """getで更新せず、safeはロック成分を維持する。"""
+        node = self.getNode()
+        before = node.getTransformation()
+        x = Transformation(t=(8, 9, 10))
+        self.assertIsInstance(node.setTransformation(x, get=True), Transformation)
+        self.assertTrue(node.getTransformation().isEquivalent(before))
+        node.getPlug("rotateAxis").setLocked(True)
+        node.getPlug("rotateOrder").setLocked(True)
+        x.r = (.2, -.3, .4)
+        node.setTransformation(x, safe=True)
+        self.assertMatrix(node.getMatrix(), x.m)
+        self.assertTrue(node.getPlug("rotateAxis").isLocked())
+        values = Transforms([node]).setTransformation(x, get=True)
+        self.assertIsInstance(values[0], Transformation)
+
+    def test_invalid_matrix_is_atomic(self):
+        """分解できない行列を拒否し、値を途中変更しない。"""
+        x = Transformation(t=(2, 3, 4))
+        before = x.copy()
+        with self.assertRaises(ValueError):
+            x.m = Matrix(scale=(0, 1, 1))
+        self.assertTrue(x.isEquivalent(before))
+
+    def test_units_and_negative_parent(self):
+        """UI単位によらず内部単位で保存し、負スケール親へも適用する。"""
+        node = self.getNode(True)
+        node.getParent().getPlug("scale").set((-2, 3, .8))
+        before = node.getTransformation()
+        cmds.currentUnit(linear="m", angle="rad")
+        self.assertTrue(node.getTransformation().isEquivalent(before))
+        world = node.getTransformation(ws=True)
+        target = self.getNode(True)
+        target.setTransformation(world, ws=True)
+        self.assertMatrix(target.getMatrix(ws=True), world.m)
+
+    def test_rotation_order_and_singular_parent(self):
+        """順序変更は姿勢を保持し、特異な親へのワールド適用は更新前に拒否する。"""
+        x = Transformation(r=(.2, .5, -.3))
+        matrix = x.m
+        x.ro = 5
+        self.assertMatrix(x.m, matrix)
+        x.q = Quaternion(EulerRotate(.1, .2, .3).asQuaternion())
+        self.assertEqual(x.ro, 5)
+        node = self.getNode()
+        node.getParent().getPlug("scale").set((0, 1, 1))
+        before = node.getTransformation()
+        with self.assertRaises(ValueError):
+            node.setTransformation(x, ws=True)
+        self.assertTrue(node.getTransformation().isEquivalent(before))
+
+    def test_openmaya_value_and_pivots(self):
+        """MTransformationMatrixから取得可能なピボットと回転軸を保持する。"""
+        node = self.getNode()
+        tm = node.transformFn().transformation()
+        value = Transformation(tm)
+        self.assertMatrix(value.m, tm.asMatrix())
+        self.assertEqual(tuple(value.rp), tuple(tm.rotatePivot(om2.MSpace.kTransform))[:3])
+        euler = EulerRotate(.2, .4, .1, order=2)
+        x = Transformation(r=euler, ro=5)
+        self.assertEqual(x.ro, 5)
+        self.assertMatrix(x.q.asMatrix(), euler.asMatrix())
+
+    def test_no_inheritance_and_instance(self):
+        """継承無効とインスタンスのパスごとの親行列を扱う。"""
+        node = self.getNode()
+        node.getPlug("inheritsTransform").set(False)
+        self.assertMatrix(node.getTransformation(ws=True).m, node.getMatrix(ws=True))
+        node.setTransformation(Transformation(t=(3, 4, 5)), ws=True)
+        self.assertMatrix(node.getMatrix(ws=True), Matrix(translate=(3, 4, 5)))
+        first = cmds.createNode("transform")
+        second = cmds.createNode("transform")
+        cmds.setAttr(first + ".tx", 2)
+        cmds.setAttr(second + ".tx", 7)
+        name = cmds.createNode("transform", parent=first)
+        cmds.parent(name, second, add=True)
+        a = Node("|" + first + "|" + name.split("|")[-1])
+        b = Node("|" + second + "|" + name.split("|")[-1])
+        self.assertAlmostEqual(a.getTransformation(ws=True).t.x, 2)
+        self.assertAlmostEqual(b.getTransformation(ws=True).t.x, 7)

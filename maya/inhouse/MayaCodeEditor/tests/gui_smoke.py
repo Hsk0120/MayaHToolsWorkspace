@@ -1,4 +1,4 @@
-"""run_hlib_gui_versionsの専用Mayaに渡すGUIスイート。"""
+"""run_mlib_gui_versionsの専用Mayaに渡すGUIスイート。"""
 import json
 from pathlib import Path
 import traceback
@@ -6,7 +6,7 @@ import time
 
 
 def main(output_dir, finished):
-    """GUIランナー(``tools/run_hlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
+    """GUIランナー(``tools/run_mlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
 
     Args:
         output_dir (str): 結果の ``result.json`` と画像の出力先。
@@ -379,28 +379,28 @@ def main(output_dir, finished):
                             # 打った名前と同じ候補を選んでいるときのEnterは、確定せずに改行する(何も変わらない確定でEnterを使わない)。
                             import sys
                             sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-                            code.setPlainText('import hlib')
+                            code.setPlainText('import mlib')
                             code.moveCursor(QtGui.QTextCursor.End); code.setFocus()
                             QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier)
                             wait_events(700)
                             model=completer.completionModel()
-                            row=next(i for i in range(model.rowCount()) if model.index(i,0).data()=='hlib')
+                            row=next(i for i in range(model.rowCount()) if model.index(i,0).data()=='mlib')
                             completer.popup().setCurrentIndex(model.index(row,0))
                             QtTest.QTest.keyClick(completer.popup(), QtCore.Qt.Key_Return)
                             wait_events(200)
                             assert not completer.popup().isVisible()
-                            assert code.toPlainText()=='import hlib\n', repr(code.toPlainText())
+                            assert code.toPlainText()=='import mlib\n', repr(code.toPlainText())
                             result['checks'].append('completion_exact_match_enter_newline')
-                            import hlib
-                            code.setPlainText('import hlib\nhlib.nodes.')
+                            import mlib
+                            code.setPlainText('import mlib\nmlib.nodes.')
                             code.moveCursor(QtGui.QTextCursor.End); code.setFocus()
                             wait_events(700)
                             model = completer.completionModel()
                             names = [model.index(i,0).data() for i in range(model.rowCount())]
-                            assert completer.popup().isVisible(), 'hlib.nodes popup not visible'
+                            assert completer.popup().isVisible(), 'mlib.nodes popup not visible'
                             assert {'Node','Joint','SkinCluster','Transform'}.issubset(names), names
-                            result['checks'].append('hlib_nodes_subpackage_classes_visible')
-                            window.grab().save(str(directory / 'hlib-nodes-completion.png'))
+                            result['checks'].append('mlib_nodes_subpackage_classes_visible')
+                            window.grab().save(str(directory / 'mlib-nodes-completion.png'))
                             completer.popup().hide()
                             # 選択実行では未選択の例外を実行しないことも確認。
                             code.setPlainText('print("selection_passed")\nraise RuntimeError("must not run")')

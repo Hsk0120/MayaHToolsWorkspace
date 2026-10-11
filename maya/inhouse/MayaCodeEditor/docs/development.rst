@@ -397,7 +397,7 @@ Visual Studio のプロジェクトだけを作る
    * - ``run_tests.py``
      - 版ごとに、補完・静的解析の単体テスト(``test_completion.py``)、Maya standalone での ``.mod`` の解決・
        プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、保存先の決定(``test_session_path.py``)、
-       C++ の宣言の抽出と Python の ``ast`` の突き合わせ(``test_declarations_parity.py``\ 。hlib・hrig・HTools・標準ライブラリの約 400 ファイル)、
+       C++ の宣言の抽出と Python の ``ast`` の突き合わせ(``test_declarations_parity.py``\ 。mlib・mlrig・HTools・標準ライブラリの約 400 ファイル)、
        同じ C++ ウィジェットの offscreen 描画と、Maya 非依存の C++ 部分(履歴の整形・import の行の補完・
        ``sys.path`` の走査・字句解析・宣言の抽出・補完エンジン・定義の場所・構成と折りたたみの範囲・行の差分・
        引数のヒントの解析・括弧と選択範囲の拡大・検索置換・tabs.json・行編集・ファイルの読み書き)と、コード欄の
@@ -523,7 +523,7 @@ Visual Studio のプロジェクトだけを作る
 別リポジトリへ切り出すときに必要なこと
 --------------------------------------
 
-Maya Code Editor は hlib とは独立していますが、現在は親リポジトリ(MayaHToolsWorkspace)の次の資産を利用しています。
+Maya Code Editor は mlib とは独立していますが、現在は親リポジトリ(MayaHToolsWorkspace)の次の資産を利用しています。
 
 .. list-table::
    :header-rows: 1
@@ -533,13 +533,13 @@ Maya Code Editor は hlib とは独立していますが、現在は親リポジ
      - 切り出し時の対応
    * - ``tools/build_maya_plugin.py``\ ・\ ``tools/maya_devkit.py``
      - Visual Studio / CMake / devkit の自動検出とローカル devkit の生成。リポジトリへコピーするか、共通のビルド用リポジトリとして分ける
-   * - ``tools/run_hlib_gui_versions.py``\ (GUI テストの起動・監視)
+   * - ``tools/run_mlib_gui_versions.py``\ (GUI テストの起動・監視)
      - ``tests/run_gui.py`` などが利用している。専用設定・タイムアウト監視・終了処理ごとコピーが必要
    * - ``maya/modules/MayaCodeEditor.mod``
      - ``../inhouse/MayaCodeEditor`` という相対パスを、リポジトリ構成に合わせて書き換える
    * - ``docs/cpp-documentation.md``\ (C++ コメント規約)
      - 規約のファイルを一緒に移す
-   * - 配色の元(hlib の ``code-dark-plus.css``)
+   * - 配色の元(mlib の ``code-dark-plus.css``)
      - 色の値は ``src/editor/theme.h`` に書かれているため、移動は不要
    * - ``WORK_LOG.md`` などの運用ファイル
      - 移さない(親リポジトリ側の運用)

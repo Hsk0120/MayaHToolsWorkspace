@@ -1,0 +1,105 @@
+"""scriptJob所有管理とmlrigが再利用するアトリビュート操作を検証する。"""
+from maya.api.OpenMaya import MSpace
+
+import unittest
+from unittest.mock import patch
+
+from maya import cmds
+import mlib
+
+
+class CommonRigApiTest(unittest.TestCase):
+    """新規シーンを作らず、テストが所有するノードだけを使用する。"""
+
+    def setUp(self):
+        """テスト専用ノードと比較用のドライバーを作る。"""
+        self.node = mlib.createNode("transform", skipSelect=True)
+        self.driver = mlib.createNode("transform", skipSelect=True)
+
+    def tearDown(self):
+        """所有ノードだけを削除する。"""
+        mlib.delete([self.node, self.driver])
+
+    def test_plug_lookup(self):
+        """名前・ラッパー・MPlugが同じアトリビュートを解決する。"""
+        plug = self.node.getPlug("tx")
+        for value in (plug.getFullName(), plug, plug.mplug()):
+            self.assertEqual(mlib.getPlug(value).getFullName(), plug.getFullName())
+
+    def test_changed_value_and_lock(self):
+        """無変更は更新せず、ロック付き更新を一度のUndoで戻せる。"""
+        plug = self.node.addAttr("setting", attributeType="long", defaultValue=0)
+        plug.setFlags(locked=True)
+        self.assertFalse(plug.setIfChanged(0, unlock=True))
+        self.assertTrue(plug.setIfChanged(2, unlock=True))
+        self.assertTrue(plug.isLocked())
+        cmds.undo()
+        self.assertEqual(plug.get(), 0)
+        self.assertTrue(plug.isLocked())
+        cmds.redo()
+        self.assertEqual(plug.get(), 2)
+        self.assertTrue(plug.isLocked())
+
+    def test_failed_write_restores_lock(self):
+        """接続先への書込みを拒否した場合もロックを復元する。"""
+        plug = self.node.getPlug("tx")
+        self.driver.getPlug("tx").connectTo(plug)
+        plug.setFlags(locked=True)
+        with self.assertRaises(RuntimeError):
+            plug.setIfChanged(5.0, unlock=True)
+        self.assertTrue(plug.isLocked())
+
+    def test_matrix_radian_units(self):
+        """mlibの行列設定がラジアン設定でも姿勢を再現する。"""
+        previous = cmds.currentUnit(query=True, angle=True)
+        try:
+            cmds.currentUnit(angle="rad")
+            cmds.setAttr(self.driver.getFullName() + ".rotate", 0.2, 0.4, -0.3)
+            matrix = self.driver.getMatrix(ws=True)
+            self.node.setMatrix(matrix, ws=True)
+            self.assertTrue(matrix.isEquivalent(self.node.getMatrix(ws=True), 1e-8))
+        finally:
+            cmds.currentUnit(angle=previous)
+
+    def test_batch_rejected(self):
+        """バッチでは無効な監視を作成したように振る舞わない。"""
+        if not cmds.about(batch=True):
+            self.skipTest("Batch-only guard")
+        with self.assertRaises(RuntimeError):
+            mlib.common.ScriptJob(event="SelectionChanged", callback=lambda: None)
+
+    def test_owner_lifecycle(self):
+        """Maya呼出を模倣し、重複防止・外部解除後の再登録・所有解除を検証する。"""
+        live = {99}
+        next_id = iter(range(100, 110))
+
+        def script_job(**options):
+            """イベント発火以外のMaya登録・解除を模倣する。"""
+            if "exists" in options:
+                return options["exists"] in live
+            if "kill" in options:
+                live.remove(options["kill"])
+                return
+            identifier = next(next_id)
+            live.add(identifier)
+            return identifier
+
+        with patch.object(cmds, "about", return_value=False), patch.object(
+            cmds, "scriptJob", side_effect=script_job
+        ):
+            jobs = mlib.common.ScriptJobs()
+            first = jobs.add("selection", event="SelectionChanged", callback=lambda: None)
+            self.assertIs(
+                first, jobs.add("selection", event="SelectionChanged", callback=lambda: None)
+            )
+            live.remove(first.id)
+            self.assertFalse(jobs.exists())
+            second = jobs.add("selection", event="SelectionChanged", callback=lambda: None)
+            self.assertNotEqual(first.id, second.id)
+            jobs.stop()
+            jobs.stop()
+            self.assertEqual(live, {99})
+
+
+if __name__ == "__main__":
+    unittest.main()

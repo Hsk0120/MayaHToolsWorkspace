@@ -8,7 +8,7 @@ import traceback
 
 def main(output_dir, finished):
     """方向調整UIの適用とコントローラUIの生成を検証する。"""
-    if os.environ.get("HLIB_DISPOSABLE_GUI") != "1":
+    if os.environ.get("MLIB_DISPOSABLE_GUI") != "1":
         raise RuntimeError("検証用GUIだけで実行してください。")
     import maya.cmds as cmds
     from test_htools_large_migration import ROOT, loadTool, reset, snapshot, equivalent

@@ -91,8 +91,8 @@ msgstr "Fixed a bug where U+2028 (line separator) characters would be inserted v
 msgid "補完の候補を Enter で確定したとき、キーが Maya へ回ってアウトライナなどへフォーカスが移ってしまう問題を修正した。"
 msgstr "Fixed an issue where pressing Enter to confirm completion candidates would cause keys to be sent to Maya, shifting focus to the Outliner or other areas."
 
-msgid "変数の型を、クラスの呼出しの代入(``jnt = hlib.nodes.Joints(...)``)と型ヒント(変数・引数)から推論し、 ``jnt.`` でそのクラスと親クラスのメソッドを補完・ホバーするようにした。"
-msgstr "The variable's type is now inferred from class constructor assignments (``jnt = hlib.nodes.Joints(...)``) and type hints (variables and arguments), and method completion and hover functionality for the class and its parent classes are available in ``jnt.``."
+msgid "変数の型を、クラスの呼出しの代入(``jnt = mlib.nodes.Joints(...)``)と型ヒント(変数・引数)から推論し、 ``jnt.`` でそのクラスと親クラスのメソッドを補完・ホバーするようにした。"
+msgstr "The variable's type is now inferred from class constructor assignments (``jnt = mlib.nodes.Joints(...)``) and type hints (variables and arguments), and method completion and hover functionality for the class and its parent classes are available in ``jnt.``."
 
 msgid "Maya 2023 に対応した(``release/plug-ins/windows/2023/mayaCodeEditor.mll``)。"
 msgstr "Compatible with Maya 2023 (``release/plug-ins/windows/2023/mayaCodeEditor.mll``)."
@@ -301,14 +301,14 @@ msgstr ""
 msgid "モジュールの公開名、ソース上のクラスの直接定義メソッド、トップレベルのローカル関数"
 msgstr "Module's public name, directly defined methods of classes in the source code, top-level local functions"
 
-msgid "``hlib.ls`` のように、読み込み済みの動的な公開名"
-msgstr "As shown in ``hlib.ls``, loaded dynamic public names"
+msgid "``mlib.ls`` のように、読み込み済みの動的な公開名"
+msgstr "As shown in ``mlib.ls``, loaded dynamic public names"
 
 msgid "変数の型を、次の書き方から推論したときのメンバー(カーソルに近い宣言を使う):"
 msgstr "When inferring the type of a variable, use the member from the following declaration that is closest to the cursor:"
 
-msgid "``jnt.`` で、そのクラスのメソッドと、親クラスから受け継いだメソッドを出します(関数の中の変数も対象)。 推論できない代入(``jnt = 1``\\ ・\\ ``jnt = hlib.ls(...)[0]`` など)の方がカーソルに近い場合は推論しません。"
-msgstr "``jnt.`` displays the methods of the class and the methods inherited from the parent class (including variables in functions). It will not attempt to infer assignments that cannot be inferred (such as ``jnt = 1`` or ``jnt = hlib.ls(...)[0]``) if they are closer to the cursor."
+msgid "``jnt.`` で、そのクラスのメソッドと、親クラスから受け継いだメソッドを出します(関数の中の変数も対象)。 推論できない代入(``jnt = 1``\\ ・\\ ``jnt = mlib.ls(...)[0]`` など)の方がカーソルに近い場合は推論しません。"
+msgstr "``jnt.`` displays the methods of the class and the methods inherited from the parent class (including variables in functions). It will not attempt to infer assignments that cannot be inferred (such as ``jnt = 1`` or ``jnt = mlib.ls(...)[0]``) if they are closer to the cursor."
 
 msgid "関数の引数名(候補のツールチップに表示)"
 msgstr "Function argument names (displayed in candidate tooltips)"
@@ -316,8 +316,8 @@ msgstr "Function argument names (displayed in candidate tooltips)"
 msgid "更新への追従"
 msgstr "Following updates"
 
-msgid "次の補完要求のたびに、対象モジュールの現在の公開名と ``sys.path`` を取り直します。 ``hlib.reload()`` の後や、実行後に増えた import も、Refresh completion なしで反映します。"
-msgstr "Every time a completion request is made, the current public name of the target module and ``sys.path`` are refreshed. Any new imports added after ``hlib.reload()`` or after execution are reflected without requiring a Refresh completion."
+msgid "次の補完要求のたびに、対象モジュールの現在の公開名と ``sys.path`` を取り直します。 ``mlib.reload()`` の後や、実行後に増えた import も、Refresh completion なしで反映します。"
+msgstr "Every time a completion request is made, the current public name of the target module and ``sys.path`` are refreshed. Any new imports added after ``mlib.reload()`` or after execution are reflected without requiring a Refresh completion."
 
 msgid "読み込み済みのモジュールは、既知の ``.py`` ファイルだけを更新日時とサイズで確認し、関数・クラスの直接の定義も候補へ反映します。"
 msgstr "Loaded modules are updated by checking only known ``.py`` files for modification time and size, and directly defined functions and classes are also reflected in the completion candidates."
@@ -379,8 +379,8 @@ msgstr "On MEL tabs, strings, comments, and reserved words are not highlighted."
 msgid "制限:"
 msgstr "Limitations:"
 
-msgid "変数の型は、補完と同じく、クラスの呼出しの代入と型ヒントからだけ推論します。\\ ``node = hlib.ls()[0]`` の ``node.parent`` のように、関数の戻り値を経由した名前には出ません。"
-msgstr "Variable types are inferred only from class calls, assignments, and type hints, just like completion. They do not appear for names passed through function return values, such as in ``node = hlib.ls()[0]`` ``node.parent``."
+msgid "変数の型は、補完と同じく、クラスの呼出しの代入と型ヒントからだけ推論します。\\ ``node = mlib.ls()[0]`` の ``node.parent`` のように、関数の戻り値を経由した名前には出ません。"
+msgstr "Variable types are inferred only from class calls, assignments, and type hints, just like completion. They do not appear for names passed through function return values, such as in ``node = mlib.ls()[0]`` ``node.parent``."
 
 msgid "``maya.cmds`` のコマンドは Python 側に説明がほとんど無いため、見出し(``def ls(...)``\\ )だけになることがあります。"
 msgstr "The ``maya.cmds`` command may have almost no explanation on the Python side, so it can become just a heading (``def ls(...)``)."
@@ -823,8 +823,8 @@ msgstr "Script"
 msgid "``run_tests.py``"
 msgstr ""
 
-msgid "版ごとに、補完・静的解析の単体テスト(``test_completion.py``)、Maya standalone での ``.mod`` の解決・ プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、保存先の決定(``test_session_path.py``)、 C++ の宣言の抽出と Python の ``ast`` の突き合わせ(``test_declarations_parity.py``\\ 。hlib・hrig・HTools・標準ライブラリの約 400 ファイル)、 同じ C++ ウィジェットの offscreen 描画と、Maya 非依存の C++ 部分(履歴の整形・import の行の補完・ ``sys.path`` の走査・字句解析・宣言の抽出・補完エンジン・定義の場所・構成と折りたたみの範囲・行の差分・ 引数のヒントの解析・括弧と選択範囲の拡大・検索置換・tabs.json・行編集・ファイルの読み書き)と、コード欄の 括弧の自動で閉じる・同じ名前の強調・折りたたみ・見出しの固定表示・記号へ移動などの テスト(``Maya Code Editor_ui_smoke.exe``)を実行する"
-msgstr "For each version, run unit tests for completion and static analysis (``test_completion.py``), resolution of ``.mod`` in Maya standalone, loading/unloading of plug-ins, and existence of completion candidates (``maya_smoke.py``), determination of save location (``test_session_path.py``), extraction of C++ declarations and matching with Python's ``ast`` (``test_declarations_parity.py``). This includes approximately 400 files in hlib, hrig, HTools, and the standard library. Also, offscreen drawing of the same C++ widgets, and testing of the Maya-independent C++ parts (formatting history, completion of import lines, ``sys.path`` scanning, lexical analysis, extraction of declarations, completion engine, location of definitions, structure and range of folding, line differences, parsing of parameter hints, expansion of brackets and selection ranges, search and replace, tabs.json, line editing, file reading and writing). Additionally, run tests for the code editor, including automatic closing of brackets, highlighting of the same name, folding, sticky scroll, and navigation to symbols (``Maya Code Editor_ui_smoke.exe``)."
+msgid "版ごとに、補完・静的解析の単体テスト(``test_completion.py``)、Maya standalone での ``.mod`` の解決・ プラグインのロード/アンロード・実在する補完候補(``maya_smoke.py``)、保存先の決定(``test_session_path.py``)、 C++ の宣言の抽出と Python の ``ast`` の突き合わせ(``test_declarations_parity.py``\\ 。mlib・mlrig・HTools・標準ライブラリの約 400 ファイル)、 同じ C++ ウィジェットの offscreen 描画と、Maya 非依存の C++ 部分(履歴の整形・import の行の補完・ ``sys.path`` の走査・字句解析・宣言の抽出・補完エンジン・定義の場所・構成と折りたたみの範囲・行の差分・ 引数のヒントの解析・括弧と選択範囲の拡大・検索置換・tabs.json・行編集・ファイルの読み書き)と、コード欄の 括弧の自動で閉じる・同じ名前の強調・折りたたみ・見出しの固定表示・記号へ移動などの テスト(``Maya Code Editor_ui_smoke.exe``)を実行する"
+msgstr "For each version, run unit tests for completion and static analysis (``test_completion.py``), resolution of ``.mod`` in Maya standalone, loading/unloading of plug-ins, and existence of completion candidates (``maya_smoke.py``), determination of save location (``test_session_path.py``), extraction of C++ declarations and matching with Python's ``ast`` (``test_declarations_parity.py``). This includes approximately 400 files in mlib, mlrig, HTools, and the standard library. Also, offscreen drawing of the same C++ widgets, and testing of the Maya-independent C++ parts (formatting history, completion of import lines, ``sys.path`` scanning, lexical analysis, extraction of declarations, completion engine, location of definitions, structure and range of folding, line differences, parsing of parameter hints, expansion of brackets and selection ranges, search and replace, tabs.json, line editing, file reading and writing). Additionally, run tests for the code editor, including automatic closing of brackets, highlighting of the same name, folding, sticky scroll, and navigation to symbols (``Maya Code Editor_ui_smoke.exe``)."
 
 msgid "``run_startup.py``"
 msgstr ""
@@ -961,8 +961,8 @@ msgstr "To build only the English version, append ``-D language=en``."
 msgid "別リポジトリへ切り出すときに必要なこと"
 msgstr "What is needed when extracting to a separate repository"
 
-msgid "Maya Code Editor は hlib とは独立していますが、現在は親リポジトリ(MayaHToolsWorkspace)の次の資産を利用しています。"
-msgstr "Maya Code Editor is independent of hlib, but currently uses the following assets from the parent repository (MayaHToolsWorkspace)."
+msgid "Maya Code Editor は mlib とは独立していますが、現在は親リポジトリ(MayaHToolsWorkspace)の次の資産を利用しています。"
+msgstr "Maya Code Editor is independent of mlib, but currently uses the following assets from the parent repository (MayaHToolsWorkspace)."
 
 msgid "依存しているもの"
 msgstr "Dependencies"
@@ -976,8 +976,8 @@ msgstr "``tools/build_maya_plugin.py``\\ -\\ ``tools/maya_devkit.py``"
 msgid "Visual Studio / CMake / devkit の自動検出とローカル devkit の生成。リポジトリへコピーするか、共通のビルド用リポジトリとして分ける"
 msgstr "Automatic detection of Visual Studio / CMake / devkit and generation of local devkit. Copy to repository or separate into a common build repository."
 
-msgid "``tools/run_hlib_gui_versions.py``\\ (GUI テストの起動・監視)"
-msgstr "``tools/run_hlib_gui_versions.py``\\ (Launching and monitoring GUI tests)"
+msgid "``tools/run_mlib_gui_versions.py``\\ (GUI テストの起動・監視)"
+msgstr "``tools/run_mlib_gui_versions.py``\\ (Launching and monitoring GUI tests)"
 
 msgid "``tests/run_gui.py`` などが利用している。専用設定・タイムアウト監視・終了処理ごとコピーが必要"
 msgstr "The tools such as ``tests/run_gui.py`` require dedicated settings, timeout monitoring, and copying of shutdown procedures."
@@ -994,8 +994,8 @@ msgstr "``docs/cpp-documentation.md``\\ (C++ comment convention)"
 msgid "規約のファイルを一緒に移す"
 msgstr "Copy the convention file together."
 
-msgid "配色の元(hlib の ``code-dark-plus.css``)"
-msgstr "Color scheme source (hlib's ``code-dark-plus.css``)"
+msgid "配色の元(mlib の ``code-dark-plus.css``)"
+msgstr "Color scheme source (mlib's ``code-dark-plus.css``)"
 
 msgid "色の値は ``src/editor/theme.h`` に書かれているため、移動は不要"
 msgstr "The color value is written in ``src/editor/theme.h``, so movement is not necessary."
@@ -1204,8 +1204,8 @@ msgstr "Features"
 msgid "Python と MEL の実行に対応しています。 **MEL の補完・MEL の静的解析、デバッガー、LSP、VS Code 拡張機能は未対応** です。"
 msgstr "Supports both Python and MEL execution. **MEL completion, static analysis, debugger, LSP, and VS Code extension are not supported.**"
 
-msgid "型の推論は、クラスの呼出しの代入(``x = pkg.Class(...)``)と型ヒント(変数・引数)だけです。関数の戻り値(``hlib.ls()`` など)・添え字・条件で変わる変数は推論しません。"
-msgstr "Type inference is limited to class instantiation assignments (``x = pkg.Class(...)``) and type hints (variables and arguments only). It does not infer from function return values (``hlib.ls()``, etc.), indexing, or variables that change through conditions."
+msgid "型の推論は、クラスの呼出しの代入(``x = pkg.Class(...)``)と型ヒント(変数・引数)だけです。関数の戻り値(``mlib.ls()`` など)・添え字・条件で変わる変数は推論しません。"
+msgstr "Type inference is limited to class instantiation assignments (``x = pkg.Class(...)``) and type hints (variables and arguments only). It does not infer from function return values (``mlib.ls()``, etc.), indexing, or variables that change through conditions."
 
 msgid "zip 内のソース、まだ読み込んでいないバイナリ拡張、\\ ``__getattr__`` で生成される未知の属性は、完全には補完できません。"
 msgstr "The source in the zip file, unopened binary extensions, and unknown attributes generated by ``__getattr__`` cannot be fully completed."
@@ -1376,7 +1376,7 @@ msgid "実行したコードの履歴"
 msgstr "Execution History of Code"
 
 msgid "Display・通常の print"
-msgstr "Maya Code Editor is a code editor that supports Python and MEL script editing, with features like syntax highlighting, static analysis, code completion, parameter hints, and more. It provides a tabbed interface for managing multiple files, and includes tools such as folding, sticky scroll, word highlight, and scroll bar markers. The editor also supports Go to definition, Peek definition, Go to symbol, compare with saved, and autosave functionality. It can be docked or undocked, and supports loading and unloading plug-ins. Maya Code Editor is a part of the hrig library for rigging in Autodesk Maya."
+msgstr "Maya Code Editor is a code editor that supports Python and MEL script editing, with features like syntax highlighting, static analysis, code completion, parameter hints, and more. It provides a tabbed interface for managing multiple files, and includes tools such as folding, sticky scroll, word highlight, and scroll bar markers. The editor also supports Go to definition, Peek definition, Go to symbol, compare with saved, and autosave functionality. It can be docked or undocked, and supports loading and unloading plug-ins. Maya Code Editor is a part of the mlrig library for rigging in Autodesk Maya."
 
 msgid "明るいグレー ``#d4d4d4``"
 msgstr "Light gray ``#d4d4d4``"
@@ -1957,8 +1957,8 @@ msgstr "The target is the **4- to 40-character English words** in the code, comm
 msgid "語ごとに結果をキャッシュします(上限 8,192 語。超えると作り直します)。"
 msgstr "Caches results per word (limit 8,192 words. Resets if exceeded)."
 
-msgid "``maya`` ``cmds`` ``pymel`` ``hlib`` ``kwargs`` ``getattr`` ``dag`` ``nurbs`` ``blendshape`` など、 Maya / Python の代表的な語はあらかじめ除外しています。"
-msgstr "``maya`` ``cmds`` ``pymel`` ``hlib`` ``kwargs`` ``getattr`` ``dag`` ``nurbs`` ``blendshape`` and other typical Maya/Python terms are excluded in advance."
+msgid "``maya`` ``cmds`` ``pymel`` ``mlib`` ``kwargs`` ``getattr`` ``dag`` ``nurbs`` ``blendshape`` など、 Maya / Python の代表的な語はあらかじめ除外しています。"
+msgstr "``maya`` ``cmds`` ``pymel`` ``mlib`` ``kwargs`` ``getattr`` ``dag`` ``nurbs`` ``blendshape`` and other typical Maya/Python terms are excluded in advance."
 
 msgid "オフにすると、波線と検査待ちの処理を消します。"
 msgstr "When turned off, it removes the wavy lines and pending inspection tasks."
@@ -3010,8 +3010,8 @@ msgstr "The three-line button to the right of ``↓`` is **Find in Selection**. 
 msgid "置換欄は、左端の ``›``\\ (開くと ``⌄``\\ )または Ctrl+H で開きます。検索欄の真下に同じ幅で表示します。 置換欄の右の **置換** ボタン(置換欄で Enter でも同じ)は選択中の一致、\\ **すべて置換** ボタンは現在のタブ全体 (選択範囲内で検索がオンならその範囲)を置換します。一括置換は **1 回の Undo** で元に戻せます。"
 msgstr "The Replace panel can be opened at the leftmost ``›``\\ (which opens ``⌄``\\ ) or by Ctrl+H. It is displayed below the search field with the same width. The **Replace** button on the right side of the Replace panel (or Enter in the Replace panel) replaces the currently selected match. The **Replace All** button replaces the entire current tab (or the selected range if search is enabled within that range). Batch replacement can be undone with **one Undo**."
 
-msgid "置換欄の中の ``AB`` をオンにすると、一致した文字列の大文字小文字の形を保って置換します (``cmds`` → ``hlib``\\ 、\\ ``CMDS`` → ``HLIB``\\ 、\\ ``Cmds`` → ``Hlib``\\ )。"
-msgstr "When the ``AB`` in the replacement panel is enabled, the case of the matched string is preserved during replacement (``cmds`` → ``hlib``\\ ,\\ ``CMDS`` → ``HLIB``\\ ,\\ ``Cmds`` → ``Hlib``\\ )."
+msgid "置換欄の中の ``AB`` をオンにすると、一致した文字列の大文字小文字の形を保って置換します (``cmds`` → ``mlib``\\ 、\\ ``CMDS`` → ``MLIB``\\ 、\\ ``Cmds`` → ``Mlib``\\ )。"
+msgstr "When the ``AB`` in the replacement panel is enabled, the case of the matched string is preserved during replacement (``cmds`` → ``mlib``\\ ,\\ ``CMDS`` → ``MLIB``\\ ,\\ ``Cmds`` → ``Mlib``\\ )."
 
 msgid "正規表現モードの置換では ``$1``\\ 〜\\ ``$99`` がキャプチャー、\\ ``$&`` が一致全体、\\ ``$$`` がドル記号です。 通常モードは入力した文字をそのまま使います。名前付きの参照や ```` の書き方には対応していません。"
 msgstr "In regular expression replace mode, ``$1`` through ``$99`` are captures, ``$&`` is the full match, and ``$$`` is the dollar sign. Normal mode uses the input characters as-is. It does not support named references or the ```` syntax."

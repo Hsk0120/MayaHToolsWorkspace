@@ -59,9 +59,9 @@ def reference_symbols(tree, module=''):
 
 
 def corpus():
-    """list[Path]: 比べる.pyファイル(内製のhlib・hrig・Maya Code Editor、Maya同梱Pythonの標準ライブラリの一部)。"""
+    """list[Path]: 比べる.pyファイル(内製のmlib・mlrig・Maya Code Editor、Maya同梱Pythonの標準ライブラリの一部)。"""
     files = []
-    for folder in ('maya/inhouse/hlib', 'maya/inhouse/hrig', 'maya/inhouse/HTools', 'maya/inhouse/MayaCodeEditor'):
+    for folder in ('maya/inhouse/mlib', 'maya/inhouse/mlrig', 'maya/inhouse/HTools', 'maya/inhouse/MayaCodeEditor'):
         files.extend(sorted((WORKSPACE / folder).rglob('*.py')))
     stdlib = Path(ast.__file__).parent
     for name in ('os.py', 'ast.py', 'typing.py', 'dataclasses.py', 'functools.py', 'pathlib.py', 'argparse.py',

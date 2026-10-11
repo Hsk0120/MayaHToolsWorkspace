@@ -1,0 +1,98 @@
+"""double3アトリビュートを意味付きの3成分値として読み書きする。"""
+
+import math
+
+import maya.api.OpenMaya as om2
+
+from ..common._fast import fast_edit
+from ..common._safe import safe_edit
+from ..decorator import undoChunk
+from ..maths import EulerRotate, Scale, Shear, Translate, Vector
+from .compoundPlug import CompoundPlug
+
+
+class Double3Plug(CompoundPlug):
+    """アトリビュートの子成分だけを扱う。ノードの行列変換には委譲しない。"""
+
+    _value_types = {
+        "translate": Translate, "t": Translate,
+        "rotate": EulerRotate, "r": EulerRotate,
+        "scale": Scale, "s": Scale,
+        "shear": Shear, "sh": Shear,
+    }
+
+    def get(self):
+        """アトリビュートの3成分を取得する。jointOrientなどを合成しない。
+
+        Returns:
+            Vector | Translate | EulerRotate | Scale | Shear: アトリビュートの値。
+                rotateはラジアン・ノードのrotateOrder、距離はcm。
+
+        Raises:
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+        """
+        self._require_valid()
+        value_type = self._value_types.get(self.getLongName(), Vector)
+        if value_type is EulerRotate:
+            order = int(self.getNode().getPlug("ro").get())
+            # UIの角度単位に依存せず、値型はラジアンで構築する。
+            values = [self._child_at(index).mplug().asMAngle().asRadians() for index in range(3)]
+            return EulerRotate(*values, order=order)
+        return value_type(*(self._child_at(index).get() for index in range(3)))
+
+    @fast_edit
+    @undoChunk("mlibDouble3PlugSet")
+    @safe_edit
+    def set(self, value, safe=False, *, unit="rad", fast=False):
+        """対象アトリビュートの3成分を書き込む。ほかの変換チャンネルは変更しない。
+
+        Args:
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
+            value (Iterable[float] | EulerRotate | Quaternion): 3成分の値。
+                rotateではEuler/Quaternionも受け入れ、ノードのrotateOrderへ変換する。
+                数値3成分は現在のrotateOrderのチャンネル値として解釈する。
+            unit (str): rotateの数値3成分の角度単位rad/deg。それ以外のアトリビュートでは未使用。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
+
+        Returns:
+            Double3Plug | int: 自身。safe=Trueでは失敗した成分数。
+
+        Raises:
+            ValueError: 要素数・有限値・角度単位が不正、または型付き回転にdegを指定した場合。
+            RuntimeError: アトリビュートが無効、ロック・接続済み、またはMayaが更新を拒否した場合。
+
+        ワールド空間やjointOrientを含む姿勢の変更はTransform.setRotate等を使う。
+        通常モードは1回のUndoで戻せる。Mayaの実行時エラーを自動ロールバックはしない。
+        """
+        self._require_valid()
+        values = self._set_components(value, unit)
+        self._require_writable()
+        return super().set(values)
+
+    def _set_components(self, value, unit="rad"):
+        """入力の角度単位と回転順序を子へ設定する内部単位へ揃える。
+
+        Args:
+            value: 変換・設定する入力値。
+            unit: 値の単位を指定する識別子。
+        """
+        if self._value_types.get(self.getLongName()) is EulerRotate:
+            if unit not in ("rad", "deg"):
+                raise ValueError("unit must be 'rad' or 'deg'")
+            order = int(self.getNode().getPlug("ro").get())
+            if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
+                if unit != "rad":
+                    raise ValueError("unit='deg' requires three plain components")
+                rotation = value.asEulerRotation() if isinstance(value, om2.MQuaternion) else om2.MEulerRotation(value)
+                values = tuple(rotation.reorder(order))
+            else:
+                values = tuple(value)
+                if unit == "deg":
+                    values = tuple(math.radians(v) for v in values)
+            if len(values) != 3 or not all(math.isfinite(v) for v in values):
+                raise ValueError("Expected three finite rotation components")
+        else:
+            values = tuple(value)
+            if len(values) != 3 or not all(math.isfinite(v) for v in values):
+                raise ValueError("Expected three finite components")
+        return values

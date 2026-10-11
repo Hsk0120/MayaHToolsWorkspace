@@ -19,7 +19,7 @@ def main(output_dir, finished):
         output_dir (str | Path): 結果保存先。
         finished (Callable): 終了通知。
     """
-    if os.environ.get("HLIB_DISPOSABLE_GUI") != "1":
+    if os.environ.get("MLIB_DISPOSABLE_GUI") != "1":
         raise RuntimeError("専用の使い捨てGUIで実行してください。")
     import maya.cmds as cmds
     import test_htools_cycles_gui
@@ -47,9 +47,9 @@ def main(output_dir, finished):
 
 
 if __name__ == "__main__":
-    from run_hlib_gui_versions import run_version
+    from run_mlib_gui_versions import run_version
     output = ROOT / ".maya-output/htools-migration-gui" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     result = run_version("2027", output, Path("C:/Program Files/Autodesk"), 180,
-                         suite_path=Path(__file__).resolve(), environment={"HLIB_DISPOSABLE_GUI": "1"})
+                         suite_path=Path(__file__).resolve(), environment={"MLIB_DISPOSABLE_GUI": "1"})
     print(json.dumps(result, ensure_ascii=False, indent=2))
     sys.exit(0 if result["status"] == "passed" else 1)

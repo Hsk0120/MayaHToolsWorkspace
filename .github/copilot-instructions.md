@@ -2,21 +2,21 @@
 
 ## 基本方針
 
-- hlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`json` とする。シーン状態・関係、Maya標準UI・表示色、作業環境・導入状態、イベント・遅延実行、汎用処理は `common` 直下へ置き、領域別のサブフォルダは増やさない。通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py` に置く。内部基盤は `_core`、文書は `_docs` とし、`hlib_*` もこの責務の分類に合わせる。
+- mlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`json` とする。シーン状態・関係、Maya標準UI・表示色、作業環境・導入状態、イベント・遅延実行、汎用処理は `common` 直下へ置き、領域別のサブフォルダは増やさない。通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py` に置く。内部基盤は `_core`、文書は `_docs` とし、`mlib_*` もこの責務の分類に合わせる。
 
-- `Object` (`_core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from hlib._core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from hlib._core import extensions` とし、ルート属性や旧モジュールパスは残さない。
+- `Object` (`_core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from mlib._core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from mlib._core import extensions` とし、ルート属性や旧モジュールパスは残さない。
 
-- hlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
+- mlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
 
-- hlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
+- mlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
 
-- hlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。
+- mlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。
 
 - Aiderへの実装委譲は行わない。Maya開発時のGPU・メモリ競合を避けるため、ローカルOllamaも作業のために自動起動・モデルロードしない。実装・レビュー・検証は担当エージェントが直接行う。ユーザーが明示的に再開を指示するまで、この方針を維持する。
 
 - C++の内製コードは日本語のDoxygen形式（`@brief`・`@param`・`@return`、必要時`@note`）でファイル・クラス・全ての名前付き関数を説明する。初心者が追えるよう、所有権・Qtシグナル/スロット・非同期処理・Maya呼出の理由もコメントする。引数や戻り値がないタグは省略し、自明な各行の逐語説明は避ける。PythonはGoogle形式docstringを使用する。詳細は `docs/cpp-documentation.md` を参照する。外部submoduleへ一括適用しない。
 
-- hlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/hlib-api-design.md` を参照する。
+- mlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/mlib-api-design.md` を参照する。
 
 - 外部ツールの調査メモ・比較表・候補一覧・調査インベントリは `docs/research/` にローカル保存し、Gitへ登録・プッシュしたりSphinxへ掲載したりしない。公開ドキュメントには実装済み機能の仕様・使い方を記載する。
 
@@ -32,8 +32,8 @@
 ## プロジェクト構成
 
 - `maya/inhouse/HTools/`: Mayaメニューから起動する内製ツール。
-- `maya/inhouse/hlib/`: Maya API 2.0 のノード・アトリビュートラッパー、数学型、共通ユーティリティ。
-- `maya/inhouse/MayaCommandPorts/`: GUI起動時のcommandPort初期化。HTools/hlibとは独立。
+- `maya/inhouse/mlib/`: Maya API 2.0 のノード・アトリビュートラッパー、数学型、共通ユーティリティ。
+- `maya/inhouse/MayaCommandPorts/`: GUI起動時のcommandPort初期化。HTools/mlibとは独立。
 - `maya/inhouse/MayaCinematicCameraHUD/`: C++プラグイン(別リポジトリのsubmodule)。ビルドは `tools/build_maya_plugin.py`、ロードは `maya/modules/*.mod`。
 - `maya/inhouse/integrations/`: Slack、mGearなどとの連携。
 - `maya/external/`: 外部ツールのGit submodule。原則として直接編集しない。
@@ -44,33 +44,33 @@
 ## 実装ルール
 
 - Maya依存コードでは既存の `maya.api.OpenMaya`、ラッパー、共通ヘルパーを優先して再利用する。
-- `hlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`json`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_hlib_exports.py` で公開漏れを検査する。
+- `mlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`json`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応を分け、登録済み型からのラッパー選択は既存の `_core/registry.py` の規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
 - 複数形クラスの公開メソッドは通常の `def` で明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数APIの自動全公開は行わず、既存の引数・戻り値・専用集約処理を維持する。
-- `hlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `hlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
-- シーンを変更する処理は既存のUndo対応に従い、必要なら `hlib.decorator` を使う。
+- `mlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `mlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
+- シーンを変更する処理は既存のUndo対応に従い、必要なら `mlib.decorator` を使う。
 - HToolsの新規ツールはカテゴリ内の既存パターンと動的メニュー登録の条件に合わせる。
 - UIはPySide6優先、PySide2フォールバックを維持し、対象MayaのQtで利用できるAPIだけを使う。
 - 相対リソースパスは `__file__` を基準にする。ユーザー環境の `Maya.env`、認証情報、トークンを無断で変更・記録しない。
 - Slackなど外部サービスへ実際に送信する処理は、明示的な依頼なしに実行しない。
-- hlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`hlib.common`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
+- mlib内では独自のMayaプラグインを実装・同梱・自動ロードしない。`MPxCommand` / `MPxNode` / `MFnPlugin` による登録は、Undo対応やバージョン差の回避目的でも追加しない。既存の内部プラグインもこの方針の解消対象とし、残存している場合は未対応箇所を明記する。Maya標準コマンドと既存のUndo可能な処理を優先し、実現できない機能は制限・未対応として明示する。`mlib.common`による既存プラグインの状態照会・明示的なロード管理は、この禁止の対象に含めない。
 
 ## MayaとVS Codeの実行
 
 - Mayaは `maya/maya_<version>_en.bat` から起動する。対象バージョンのインストールを確認する。
 - VS Codeでは `MayaHToolsWorkspace.code-workspace` を開き、Maya GUIを起動してから保存済みPythonファイルを `Ctrl+Shift+B` で送信する。
 - `mayapy.exe` は送信スクリプトを実行するだけで、対象コードは `localhost:7002` 経由で起動中のMaya GUI内に実行される。
-- import済みモジュールは自動リロードされない。必要な場合は `hlib.reload()` を使用する。
+- import済みモジュールは自動リロードされない。必要な場合は `mlib.reload()` を使用する。
 - 送信の終了コードは、正常終了0、対象コードの例外1、接続・ファイル等の失敗2。タイムアウトしてもMaya側の処理がキャンセルされたとは限らない。
 
 ## 検証
 
 - リポジトリに通常のpytest/CI工程があるとは仮定しない。対象ファイルの既存テストと実行方法を確認する。
-- 数学型の変更は `maya/inhouse/hlib/__tests__/test_datatypes.py` をMaya経由で実行する。
+- 数学型の変更は `maya/inhouse/mlib/__tests__/test_datatypes.py` をMaya経由で実行する。
 - Maya依存コードは通常のPython環境でimportできると仮定せず、必要なら構文チェックとMaya内実行を分けて報告する。
 - UI・起動処理の変更では、対象Mayaでの起動、メニュー表示、操作結果を確認する。
 - 静的解析(Pylance/pyright)の設定はリポジトリ直下の `pyrightconfig.json`。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
-- 静的解析には通常の明示importを公開と補完の共通入口として使う。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_hlib_exports.py` で不一致を検査する。
+- 静的解析には通常の明示importを公開と補完の共通入口として使う。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_mlib_exports.py` で不一致を検査する。
 - 変更後は可能な限り対象を絞った検証を先に行い、実行できなかった検証項目と理由を明記する。
 
 ## Gitと外部依存

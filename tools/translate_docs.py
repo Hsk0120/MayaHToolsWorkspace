@@ -2,20 +2,20 @@
 
 使い方(リポジトリ直下から。Sphinx が入った Python で実行する)::
 
-    python tools/translate_docs.py MayaCodeEditor hrig            # 未訳の文だけ英訳する
+    python tools/translate_docs.py MayaCodeEditor mlrig            # 未訳の文だけ英訳する
     python tools/translate_docs.py MayaCodeEditor --limit 20      # 試しに20件だけ
     python tools/translate_docs.py MayaCodeEditor --check         # 英訳せず、未訳の件数と英語版のビルドだけ確かめる
 
 流れ:
 
-1. ``sphinx-build -b gettext`` で本文の文を取り出す(hlibは ``maya/inhouse/hlib/_docs``、他は ``maya/inhouse/<名前>/docs``)。
+1. ``sphinx-build -b gettext`` で本文の文を取り出す(mlibは ``maya/inhouse/mlib/_docs``、他は ``maya/inhouse/<名前>/docs``)。
 2. ``docs/locale/en/LC_MESSAGES/docs.po`` を、取り出した文に合わせて更新する(消えた文は削除、新しい文は未訳で追加)。
 3. 未訳の文を Ollama の ``qwen3-coder:30b`` で英訳する。reStructuredText の記法(````code````・``:ref:`` など)が
    崩れた訳は使わず、未訳のまま残す(英語版では日本語のまま出る)。10件ごとに保存するので、途中で止めても続きから再開できる。
 4. 英語版を ``-W`` でビルドして、警告が無いことを確かめる。
 5. 最後にモデルを GPU から下ろす(Maya と GPU を取り合わないように)。
 
-CI(``.github/workflows/hlib-docs.yml``)は保存した .po を使って英語版をビルドするだけで、LLM は使わない。
+CI(``.github/workflows/mlib-docs.yml``)は保存した .po を使って英語版をビルドするだけで、LLM は使わない。
 GPU のメモリを約18GB使うため、Maya を使っていないときに実行する(CLAUDE.md の例外の決まり)。
 """
 import argparse
@@ -59,7 +59,7 @@ GLOSSARY = {
 SYSTEM_PROMPT = (
     'You translate Japanese technical documentation into natural, concise English. '
     'The text is a fragment of a Sphinx reStructuredText document about Autodesk Maya tools '
-    '(the "hlib" Maya API library, the "Maya Code Editor" Python/MEL script editor, the "hrig" rigging library, '
+    '(the "mlib" Maya API library, the "Maya Code Editor" Python/MEL script editor, the "mlrig" rigging library, '
     'and "FramePlayer", a Windows video player for frame-by-frame review that syncs with Maya).\n'
     'Rules:\n'
     '1. Output only the English translation of the given fragment. No explanations, no quotes, no code fences.\n'
@@ -351,7 +351,7 @@ def build_english(docs, directory):
 def main():
     """コマンドラインの入口。"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('names', nargs='+', help='maya/inhouse の下のドキュメント名(MayaCodeEditor・hrig・FramePlayer など)')
+    parser.add_argument('names', nargs='+', help='maya/inhouse の下のドキュメント名(MayaCodeEditor・mlrig・FramePlayer など)')
     parser.add_argument('--model', default=DEFAULT_MODEL)
     parser.add_argument('--limit', type=int, default=0, help='英訳する最大の件数(0なら全部)')
     parser.add_argument('--check', action='store_true', help='英訳せず、未訳の件数とビルドだけ確かめる')
@@ -360,7 +360,7 @@ def main():
     used_model = False
     try:
         for name in args.names:
-            docs = ROOT / 'maya/inhouse' / name / ('_docs' if name == 'hlib' else 'docs')
+            docs = ROOT / 'maya/inhouse' / name / ('_docs' if name == 'mlib' else 'docs')
             po_path = docs / 'locale/en/LC_MESSAGES/docs.po'
             with tempfile.TemporaryDirectory() as temporary:
                 catalog = load_catalog(po_path, extract(docs, Path(temporary) / 'gettext'))

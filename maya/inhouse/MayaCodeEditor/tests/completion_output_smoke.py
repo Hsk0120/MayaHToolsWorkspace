@@ -7,7 +7,7 @@ import traceback
 
 
 def main(output_dir, finished):
-    """GUIランナー(``tools/run_hlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
+    """GUIランナー(``tools/run_mlib_gui_versions.py``)が、専用の Maya GUI の中で呼ぶ入口。
 
     Args:
         output_dir (str): 結果の ``result.json`` と画像の出力先。
@@ -53,7 +53,7 @@ def main(output_dir, finished):
         output = gui_host.editor().findChild(QtWidgets.QPlainTextEdit, 'output')
         assert output.toPlainText().count('hidden_output_probe') == 1, output.toPlainText()[-400:]
         result['checks'].append('hidden_output_shown_on_show')
-        # 実際のhlibソースを候補に含める。補完によるimportはしない。
+        # 実際のmlibソースを候補に含める。補完によるimportはしない。
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
         completer = code.findChild(QtWidgets.QCompleter)
 
@@ -77,7 +77,7 @@ def main(output_dir, finished):
                     return True
             return False
 
-        code.setPlainText('import hlib'); code.moveCursor(QtGui.QTextCursor.End)
+        code.setPlainText('import mlib'); code.moveCursor(QtGui.QTextCursor.End)
         # テスト用のMayaはすぐには前面に出られないことがある(Windowsの前面化の制限)。フォーカスが来るまで待つ。
         for attempt in range(100):
             window.activateWindow(); window.raise_(); code.setFocus()
@@ -86,18 +86,18 @@ def main(output_dir, finished):
                 break
         QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier)
         wait(250)
-        # 最初のCtrl+Spaceだけで、未読込のパッケージ(hlib)が候補に入る。sys.pathの走査は
+        # 最初のCtrl+Spaceだけで、未読込のパッケージ(mlib)が候補に入る。sys.pathの走査は
         # C++のスレッドで編集画面の作成時に始めている(ポップアップの表示有無とは別に確かめる)。
-        assert 'hlib' in names(), (names(), 'code_has_focus=%s' % code.hasFocus())
+        assert 'mlib' in names(), (names(), 'code_has_focus=%s' % code.hasFocus())
         result['checks'].append('first_ctrl_space_lists_unloaded_package')
         assert show_popup(), 'No completion popup'
         model = completer.completionModel()
-        row = next(i for i in range(model.rowCount()) if model.index(i, 0).data() == 'hlib')
+        row = next(i for i in range(model.rowCount()) if model.index(i, 0).data() == 'mlib')
         completer.popup().setCurrentIndex(model.index(row, 0))
         # 打った名前と同じ候補を選んでいるときのEnterは、確定せずに改行する(一覧は閉じたまま開き直さない)。
         QtTest.QTest.keyClick(completer.popup(), QtCore.Qt.Key_Return)
         wait(250)
-        assert code.toPlainText() == 'import hlib\n', repr(code.toPlainText())
+        assert code.toPlainText() == 'import mlib\n', repr(code.toPlainText())
         assert not completer.popup().isVisible(), 'Popup reopened after the newline'
         result['checks'].append('exact_match_enter_newline')
         # 一覧が開いたまま、Enterがコード欄へ直接届いた場合(Mayaのドックの中で起きる)も、ここで確定して
@@ -109,16 +109,16 @@ def main(output_dir, finished):
         cmds.showWindow(outliner_window)
         cmds.select(probe)
         wait(200)
-        code.setPlainText('import hlib\nhlib.'); code.moveCursor(QtGui.QTextCursor.End)
-        assert show_popup(), 'No completion popup for hlib.'
+        code.setPlainText('import mlib\nmlib.'); code.moveCursor(QtGui.QTextCursor.End)
+        assert show_popup(), 'No completion popup for mlib.'
         first = completer.popup().currentIndex().data()
         QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
         wait(250)
-        assert code.toPlainText() == 'import hlib\nhlib.' + first, repr(code.toPlainText())
+        assert code.toPlainText() == 'import mlib\nmlib.' + first, repr(code.toPlainText())
         assert code.hasFocus(), 'Focus left the code editor after accepting a completion'
         QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
         wait(200)
-        assert code.toPlainText() == 'import hlib\nhlib.' + first + '\n', repr(code.toPlainText())
+        assert code.toPlainText() == 'import mlib\nmlib.' + first + '\n', repr(code.toPlainText())
         cmds.deleteUI(outliner_window)
         cmds.delete(probe)
         result['checks'].append('enter_on_code_accepts_without_leaving_editor')

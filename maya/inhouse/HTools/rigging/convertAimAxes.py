@@ -6,7 +6,7 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from hrig.setups.aimAxisConversion import AimAxisConversion
+from mlrig.setups.aimAxisConversion import AimAxisConversion
 
 
 _WINDOW = "HToolsConvertAimAxes"
@@ -114,7 +114,7 @@ class AimAxisConversionWindow:
                 raise ValueError("Select one aimConstraint node and load it.")
             node = selected[0]
             if (cmds.nodeType(node) in ("container", "network")
-                    and cmds.attributeQuery("hrigAimAxisConversion", node=node, exists=True)):
+                    and cmds.attributeQuery("mlrigAimAxisConversion", node=node, exists=True)):
                 links = cmds.listConnections(node + ".sourceConstraint", source=True, destination=False,
                                              plugs=False, skipConversionNodes=False) or []
                 node = cmds.ls(links[0], long=True)[0] if links else node
@@ -126,7 +126,7 @@ class AimAxisConversionWindow:
             cmds.text(self.source, edit=True, label=self._sourceName())
             graph = AimAxisConversion.find(self._sourceName())
             if graph is not None:
-                # hrigが返す管理ノードはstr()でmaya.cmdsへ渡せる一意な名前になる。
+                # mlrigが返す管理ノードはstr()でmaya.cmdsへ渡せる一意な名前になる。
                 data = json.loads(cmds.getAttr(str(graph.container) + ".settings"))
                 cmds.optionMenuGrp(self.mode, edit=True, select=(
                     _MODES.index(data["mode"]) + 1 if data["mode"] in _MODES else 1))

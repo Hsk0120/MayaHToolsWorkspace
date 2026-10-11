@@ -7,7 +7,7 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-from run_hlib_gui_versions import run_version
+from run_mlib_gui_versions import run_version
 
 directory = ROOT / '.maya-output/mce-session' / datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 modules = directory / 'modules'

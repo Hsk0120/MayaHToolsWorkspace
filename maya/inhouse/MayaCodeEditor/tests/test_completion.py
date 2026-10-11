@@ -201,13 +201,13 @@ class CompletionTests(unittest.TestCase):
             info = describe('import inherit_probe\nc: inherit_probe.Child\nc.base_method')
             self.assertEqual(info['doc'], 'From the base class.')
 
-    def test_hlib_collection_variable(self):
-        """hlib.nodes.Joints(...) を代入した変数で、Joints と親クラス(DagNodes など)のメソッドが出る。"""
-        source = 'import hlib\njnt = hlib.nodes.Joints("spine_IK_jnt")\njnt.'
+    def test_mlib_collection_variable(self):
+        """mlib.nodes.Joints(...) を代入した変数で、Joints と親クラス(DagNodes など)のメソッドが出る。"""
+        source = 'import mlib\njnt = mlib.nodes.Joints("spine_IK_jnt")\njnt.'
         found = names(source)
         self.assertIn('jointOrientToRotate', found)
         self.assertIn('getOverrideColor', found)
-        typed = names('import hlib\ndef f(jnt: hlib.nodes.Joint):\n    jnt.')
+        typed = names('import mlib\ndef f(jnt: mlib.nodes.Joint):\n    jnt.')
         self.assertIn('getJointOrient', typed)
 
     def test_python_errors_are_reported_not_raised(self):
@@ -394,10 +394,10 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual((local['path'], local['line'], local['column']), ('', 0, 9))
         self.assertNotIn('sample', sys.modules)
 
-    def test_definition_of_hlib_class(self):
-        """hlib.nodes.Joints の定義は hlib/nodes/joint.py の class Joints。"""
-        location = json.loads(cmds.mayaCodeEditorTest(definition='import hlib\nhlib.nodes.Joints'))
-        self.assertTrue(location['path'].replace('\\', '/').endswith('hlib/nodes/joint.py'), location)
+    def test_definition_of_mlib_class(self):
+        """mlib.nodes.Joints の定義は mlib/nodes/joint.py の class Joints。"""
+        location = json.loads(cmds.mayaCodeEditorTest(definition='import mlib\nmlib.nodes.Joints'))
+        self.assertTrue(location['path'].replace('\\', '/').endswith('mlib/nodes/joint.py'), location)
         line = Path(location['path']).read_text(encoding='utf-8').split('\n')[location['line']]
         self.assertTrue(line.startswith('class Joints'), line)
 

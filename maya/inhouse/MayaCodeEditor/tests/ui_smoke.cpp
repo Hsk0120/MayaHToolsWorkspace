@@ -204,9 +204,9 @@ bool textSearchPasses() {
     options = mce::SearchOptions();
     options.text = "cmds";
     options.preserveCase = true;
-    const QString lower = "hlib";
+    const QString lower = "mlib";
     result = mce::findMatches("cmds CMDS Cmds", options, &lower);
-    if (result.replacements != QStringList{"hlib", "HLIB", "Hlib"}) { qWarning() << "preserve case" << result.replacements; return false; }
+    if (result.replacements != QStringList{"mlib", "MLIB", "Mlib"}) { qWarning() << "preserve case" << result.replacements; return false; }
     if (mce::preserveCase("x", "123") != "x") { qWarning() << "preserve case without letters"; return false; }
     return true;
 }
@@ -466,7 +466,7 @@ bool declarationsPasses() {
         "    Mesh)\n"
         "from typing import TYPE_CHECKING\n"
         "if TYPE_CHECKING:\n"
-        "    from hlib.nodes import Node\n"
+        "    from mlib.nodes import Node\n"
         "value = other = 1; flag: bool = True\n"
         "annotated: int\n"
         "a.b = 2\n"
@@ -497,7 +497,7 @@ bool declarationsPasses() {
         qWarning() << "detail" << symbols["create"].detail << symbols["fetch"].detail; return false;
     }
     if (symbols["cmds"].target != "maya.cmds" || symbols["os"].target != "os" || symbols["nodes"].target != "package.nodes"
-        || symbols["J"].fromModule != "package.api" || symbols["J"].fromName != "Joint" || symbols["Node"].fromModule != "hlib.nodes") {
+        || symbols["J"].fromModule != "package.api" || symbols["J"].fromName != "Joint" || symbols["Node"].fromModule != "mlib.nodes") {
         qWarning() << "imports" << symbols["cmds"].target << symbols["nodes"].target << symbols["J"].fromModule; return false;
     }
     const auto members = symbols["Example"].members;

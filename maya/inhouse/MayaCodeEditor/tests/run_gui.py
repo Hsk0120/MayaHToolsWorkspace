@@ -8,7 +8,7 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-from run_hlib_gui_versions import run_version
+from run_mlib_gui_versions import run_version
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)

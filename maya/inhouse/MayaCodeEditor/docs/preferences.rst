@@ -324,7 +324,7 @@ Spell check (English)(``spellCheck``)
      ``camelCase`` と ``snake_case`` は語に分けて検査します(``getMatrixValue`` → ``get`` / ``Matrix`` / ``Value``)。
      3 文字以下の語は検査しません。
    * 語ごとに結果をキャッシュします(上限 8,192 語。超えると作り直します)。
-   * ``maya`` ``cmds`` ``pymel`` ``hlib`` ``kwargs`` ``getattr`` ``dag`` ``nurbs`` ``blendshape`` など、
+   * ``maya`` ``cmds`` ``pymel`` ``mlib`` ``kwargs`` ``getattr`` ``dag`` ``nurbs`` ``blendshape`` など、
      Maya / Python の代表的な語はあらかじめ除外しています。
    * オフにすると、波線と検査待ちの処理を消します。
 

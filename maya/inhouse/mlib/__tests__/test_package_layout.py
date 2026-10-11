@@ -1,0 +1,130 @@
+"""公開パッケージと再読み込み後のコマンド入口を検証する。"""
+
+import importlib
+import inspect
+import sys
+import types
+import unittest
+from pathlib import Path
+
+import mlib
+
+
+class PackageLayoutTest(unittest.TestCase):
+    def test_common_exports_use_current_definitions_after_reload(self):
+        """遅延公開名を列挙・importでき、reload後に古いクラスを返さない。"""
+        common = mlib.common
+        self.assertTrue(set(common.__all__).issubset(dir(common)))
+        previous = {name: getattr(common, name) for name in common.__all__}
+        namespace = {}
+        exec("from mlib.common import *", namespace)
+        for name, value in previous.items():
+            self.assertIs(namespace[name], value, name)
+        mlib.reload()
+        for name, value in previous.items():
+            with self.subTest(export=name):
+                current = getattr(mlib.common, name)
+                if inspect.isclass(value) or inspect.isfunction(value):
+                    self.assertIsNot(current, value)
+                    owner = importlib.import_module(current.__module__)
+                    self.assertIs(current, getattr(owner, name))
+
+    def test_exports_and_command_identity_after_reload(self):
+        importlib.reload(mlib)
+        mlib.reload()
+        for package, names in {
+            "common": ("Scene", "Namespace", "Selection", "DrivenKey",
+                       "Plugin", "Preferences", "Workspace", "ScriptJob",
+                       "ScriptJobs", "Deferred", "TimeSlider", "Viewport", "Outliner"),
+            "decorator": ("undoChunk", "undoTransaction", "preservedSelection",
+                          "preservedSkinShape", "viewportOff", "nativeUnits"),
+            "logger": ("get_logger", "debug", "info", "warning", "error", "print",
+                       "raise_with_notify"),
+        }.items():
+            module = importlib.import_module("mlib." + package)
+            self.assertIs(getattr(mlib, package), module)
+            for name in names:
+                self.assertTrue(hasattr(module, name), (package, name))
+        self.assertIsInstance(mlib.getScene(), mlib.common.Scene)
+        self.assertIsInstance(mlib.getTimeSlider(), mlib.common.TimeSlider)
+        for name in ("getScene", "getTimeSlider", "getViewport", "getOutliner"):
+            self.assertIs(getattr(mlib, name), getattr(mlib.cmds, name))
+        self.assertIs(mlib._core.object.Object, importlib.import_module("mlib._core.object").Object)
+        self.assertIs(mlib._core.extensions, importlib.import_module("mlib._core.extensions"))
+        for name in ("Object", "extensions"):
+            self.assertFalse(hasattr(mlib, name))
+            self.assertNotIn(name, mlib.__all__)
+        for cls in (mlib.nodes.Node, mlib.plugs.Plug, mlib.components.Component):
+            self.assertTrue(issubclass(cls, mlib._core.object.Object))
+        for cls in (mlib.common.Selection, mlib.common.Viewport, mlib.maths.Vector,
+                    mlib.json.Snapshot):
+            self.assertFalse(issubclass(cls, mlib._core.object.Object))
+
+    def test_reload_removes_obsolete_package_names(self):
+        # 旧版を読み込んでいたセッションの残存モジュール参照を再現する。
+        obsolete = ("scenes", "session", "context", "files", "editors", "general",
+                    "namespaces", "plugins", "animation", "scene", "environment",
+                    "ui", "events", "utils", "decorators", "object", "extensions")
+        obsolete_modules = ["mlib." + name for name in obsolete]
+        obsolete_modules += ["mlib.scene.selection", "mlib.environment.plugin",
+                             "mlib.ui.viewport", "mlib.events.scriptJob",
+                             "mlib.utils.logger", "mlib.decorators.undo"]
+        for name in obsolete:
+            module = types.ModuleType("mlib." + name)
+            sys.modules[module.__name__] = module
+            setattr(mlib, name, module)
+        for fullname in obsolete_modules:
+            sys.modules[fullname] = types.ModuleType(fullname)
+        mlib.Object = object
+        mlib.reload()
+        for name in obsolete:
+            if name == "scene":
+                self.assertTrue(callable(mlib.scene))
+                self.assertIs(mlib.scene, mlib.cmds.scene)
+            else:
+                self.assertFalse(hasattr(mlib, name))
+        for fullname in obsolete_modules:
+            self.assertNotIn(fullname, sys.modules)
+        self.assertFalse(hasattr(mlib, "Object"))
+        self.assertNotIn("Object", mlib.__all__)
+        self.assertIs(mlib._core.extensions, importlib.import_module("mlib._core.extensions"))
+
+    def test_obsolete_import_paths_are_removed(self):
+        """内部配置へ移したObject/extensionsも、旧ファイルのimportは復活させない。"""
+        for name in ("scene", "environment", "ui", "events", "utils", "decorators",
+                     "object", "extensions"):
+            with self.subTest(module=name), self.assertRaises(ModuleNotFoundError):
+                importlib.import_module("mlib." + name)
+
+    def test_library_does_not_import_rig_setups(self):
+        """ライブラリ本体からmlrigへの逆依存を作らない。"""
+        import ast
+        root = Path(mlib.__file__).parent
+        for path in root.rglob("*.py"):
+            if "__tests__" in path.parts or "_docs" in path.parts:
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8-sig"))):
+                if isinstance(node, ast.Import):
+                    names = [item.name for item in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [node.module or ""]
+                else:
+                    continue
+                self.assertFalse(any(name == "mlrig" or name.startswith("mlrig.") for name in names), str(path))
+
+    def test_public_directory_roles(self):
+        """新しい機能は既存の役割へ置き、旧互換パッケージを復活させない。"""
+        root = Path(mlib.__file__).parent
+        packages = {path.name for path in root.iterdir()
+                    if path.is_dir() and (path / "__init__.py").exists()
+                    and not path.name.startswith("_")}
+        self.assertEqual(packages, {"cmds", "nodes", "plugs", "maths", "json",
+                                   "common", "components"})
+        for name in ("decorator.py", "logger.py", "_core/object.py", "_core/extensions.py"):
+            self.assertTrue((root / name).is_file(), name)
+        self.assertTrue((root / "_docs").is_dir())
+        self.assertFalse((root / "docs").exists())
+
+
+if __name__ == "__main__":
+    unittest.main(argv=[sys.argv[0]])

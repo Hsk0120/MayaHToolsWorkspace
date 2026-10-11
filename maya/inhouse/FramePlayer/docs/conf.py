@@ -1,7 +1,7 @@
 """FramePlayer ドキュメントの Sphinx 設定。
 
 FramePlayer は将来、別リポジトリへ切り出す想定のため、この docs フォルダーだけで完結する
-(親リポジトリの hlib・Maya Code Editor ドキュメントや共有設定に依存しない)。見た目は Maya Code Editor と同じ作りで、色だけを
+(親リポジトリの mlib・Maya Code Editor ドキュメントや共有設定に依存しない)。見た目は Maya Code Editor と同じ作りで、色だけを
 FramePlayer の画面に合わせる(``_static/frameplayer.css``)。
 """
 import re

@@ -1,0 +1,88 @@
+長名・短名の使い分け
+==============================
+
+ドキュメントの例では読みやすい長名を基本とします。
+Mayaの短名も使えますが、短名はコマンドごとに異なります。
+
+コマンドのフラグ
+------------------------------
+
+``ls``、``createNode``、``duplicate``、``group``、``select``、
+``currentTime``、``setKeyframe``、``bakeResults`` は、実行中のMayaの
+フラグ定義に従って短名を長名へ変換します。mlib直下と ``mlib.cmds`` で同じ動作です。
+各コマンドが扱える対象・モード・戻り値の制限は変わりません。
+たとえば ``currentTime()`` は時間を省略すると照会のみです。
+
+.. list-table:: よく使う対応
+   :header-rows: 1
+
+   * - コマンド
+     - 長名
+     - 短名
+   * - ls
+     - selection / type / long
+     - sl / typ / l
+   * - createNode
+     - name / parent
+     - n / p
+   * - select
+     - replace / clear
+     - r / cl
+   * - bakeResults
+     - time / attribute / simulation
+     - t / at / sm
+
+.. code-block:: python
+
+   import mlib
+   from maya import cmds
+
+   selected = mlib.ls(selection=True, type="joint")
+   selected_short = mlib.ls(sl=True, typ="joint")  # どちらもJoints
+   node = mlib.createNode("transform", n="example")
+   cmds.setKeyframe(node, t=1, at="tx", v=0)
+
+``ls`` の ``type`` の短名は **typ** です。``t`` へ一律に省略はしません。
+同じフラグの長名と短名を同時に渡すと、値が同じでも処理前に ``TypeError`` になります。
+
+.. code-block:: python
+
+   # TypeError: 長名と短名はどちらか一方にする
+   mlib.ls(selection=True, sl=True)
+
+独自メソッドの引数
+------------------------------
+
+``mlib.addConstraint`` と ``Transform.addConstraint`` （Jointにも継承）は
+``type`` / ``typ`` と ``maintainOffset`` / ``mo`` を受け付けます。
+これはmlibが明示した別名です。``Joints.addConstraint`` や
+``callEach`` にも同じ指定を渡せます。位置引数と短名による二重指定もエラーです。
+
+.. code-block:: python
+
+   source = mlib.createNode("transform", name="source")
+   target = mlib.createNode("transform", name="target")
+   target.addConstraint(source, typ="point", mo=True)
+
+他の独自引数に短名を自動生成することはありません。
+座標メソッドは ``ws`` / ``worldSpace`` に対応します。高速編集の ``fast`` は、
+それぞれのAPIに記載された名前を使います。
+
+アトリビュートの長名・短名
+------------------------------
+
+アトリビュートはMayaが持つ長名・短名のどちらでも同じ ``Plug`` を取得できます。
+ユーザー定義アトリビュートの ``longName`` / ``shortName`` にも対応します。
+
+.. code-block:: python
+
+   node = mlib.createNode("transform")
+   node.plug("translateX").set(10)
+   print(node.plug("tx").get())  # 10
+   print(node.translateX.get())  # 10
+   print(node.tx.get())          # 10
+
+``node.tx`` は数値ではなく ``Plug`` です。値の編集は ``node.tx.set(10)`` とします。
+``node.tx = 10`` はMayaアトリビュートを編集しないため使用しません。
+Python側の既存メソッドやプロパティと名前が重なるアトリビュートは ``node.plug("アトリビュート名")``
+で明示して取得してください。
