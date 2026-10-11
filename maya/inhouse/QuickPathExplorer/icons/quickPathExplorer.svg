@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64">
+  <title>QuickPathExplorer</title>
+  <rect x="2" y="2" width="60" height="60" rx="13" fill="#42bdc7"/>
+  <path d="M12 17h16l5 6h19v28H12z" fill="#13363f"/>
+  <path d="M12 23h40" stroke="#13363f" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M20 30v13m9-13v13m9-13v13" stroke="#b9f4ee" stroke-width="4" stroke-linecap="round"/>
+  <path d="M38 43h13m-5-5 5 5-5 5" fill="none" stroke="#fff1bf" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
