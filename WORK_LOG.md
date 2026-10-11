@@ -55,7 +55,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
-| Codex | 2026-10-11 | maya/inhouse/QuickPathExplorer、maya/modules/QuickPathExplorer.mod、tools/qpe_ui_* | Python版の2段UI・お気に入り・Maya操作・Windowメニュー・アイコンを実装し専用GUIで検証。 |
+
+
+
 | Codex | 2026-10-11 | 配布方式の相談（README・起動バッチ・submoduleの参照のみ） | SourceTreeとGit不要の配布・更新方式を比較。 |
 | Codex | 2026-10-09 | mlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 
@@ -88,15 +90,31 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- 2026-10-11 Codex: QPE本体・登録・アイコン・検証48ファイルを1bc166bにコミットしorigin/mainへプッシュ完了。構文・差分チェックとQt6 UI9項目合格。共有WORK_LOGと無関係なリグ変更・ローカル調査資料は送信対象外。
+
+- 2026-10-11 Codex: QPEのType列を非同期更新後も表示・内容幅へ復元。MA/MB/MELをMayaシアン、他のアプリ形式を共通配色へ整理。FBXはユーザー確認後、FBX Reviewの参照アイコンに合わせ青緑系へ変更。Qt5ライト環境の一覧文字も明色に修正。Qt5/6単体で列表示と名前幅を確認、画像を非公開Driveへ保存。Maya内は今回未実行。
+
+- 2026-10-11 Codex: QuickPathExplorerの未選択ダブルクリックを対象固定で実行。右全高サイドバーを初期非表示・ボタン切替にし交互背景色を復元。非同期読込後の列幅リセットを修正、名前列を可変幅に。非表示中Quick Look・テキストプレビューも改善。Qt5/6各9項目、専用Maya2022/2027各11項目、階層回帰14項目合格。画像2枚と動画を非公開Driveへ保存。docs/research/qpe-inspector-20261011.txt参照。
+
+- 2026-10-11 Codex: QuickPathExplorerのカラムに常設1px区切り線を追加。Segoe UI通常ウェイト・共通文字サイズ・22px基準行高・入力部余白を統一。動的列には列所有のdelegateを用い階層矢印を維持。Qt5/6と専用Maya2022/2027でフォント・行高一致、区切り線ピクセル、100/150/100倍率を確認。階層14項目回帰合格。通常/150%の画像を非公開Driveへ保存。docs/research/qpe-typography-20261011.txt参照。
+
 - Claude Code (2026-10-11): tools/demo_cone_rbf.py を追加。ConeReader×3（尻尾の入力が矢印、コーンはspine2追従、1フレーム目で体の中心(半角H+20)と左右の接線(半角80)へ向ける）の0〜1だけをUE RBF（72ポーズ、Additive半径0.1）のドライバーにし、幾何ドライバー(rel,H)のRBFとチェーンの動きで比較録画（541フレーム、ok=True=Aの非交差・重み合計）。Dは195フレーム・最大2.43cm食い込み、中心付近で120中118フレーム食い込み、最大変化70.2度（フリップ）、学習姿勢から遠く重みがほぼ0の3フレーム（補正なしのガードを追加）。左右コーン30度では中心で補正が平均され最大70度ずれた。HToolsのtailAvoidanceSamplesに追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261011-222833-aa6f0658 とDrive RootDirectionLimit。未コミット。
+
+- 2026-10-11 Codex: QuickPathExplorerの上段・サイドバーのフォルダーアイコンを省略し、拡張子別文字／色アイコンを追加。スクロールバーを7px基準・必要時表示へ変更。空末尾列を省略し直近4列の名前幅を保持。サイズはQLocale.systemの単位・桁区切りでQt標準モデルと一致、数値ソート維持。単体Qt5/6の階層14項目ずつ、Qt6のP0自動範囲、専用Maya2022/2027の表示・サイズ比較8項目ずつ合格。スクリーンショットを既存の非公開Driveへ保存。詳細docs/research/qpe-appearance-20261011.txt。
 
 - Claude Code (2026-10-11): mlrig.setups.ConeReader を追加（coneReader.py）。矢印（<name>_driver_GRP→_driver）とコーン（<name>_cone_GRP→_cone、coneAngleに連動して開く表示）のtransformを作り、GRPを指定ジョイントへparentConstraint。containerのweightは clamp(1-angle/coneAngle)（falloff=smoothでt²(3-2t)）、angleはなす角（度）。標準ノードのみ。単体テスト test_setup_cone_reader.py（7件OK、setupsスイートに登録）、docs/cone_reader.rst、HTools rigging/coneReaderUI.py（選択から作成）を追加。検証動画 tools/demo_cone_reader.py（456フレーム、ok=True、独立計算との差最大1e-7）。動画は .maya-output/verification/20261011-221743-4e9dc035 とDrive Maya検証動画/ConeReader。未コミット。
 
 - Claude Code (2026-10-11): demo_joint_chain_rbf.py に case="cone_c" を追加。前半を肘からのコーン（A球=asin(R/d)、C固定角γ0、C距離補正γ0·d0/d）で求め、同じUE RBFへ渡す4列を録画検証（541フレーム、ok=True、全列で食い込み0）。距離補正コーンは球との半幅の差−0.6〜+7.7度・出力の差最大2.0度、固定角は最大21.4度大きく出力の差18.9度。一次近似γ0+k(d0-d)は下に凸のため最大19度小さくなり不採用。一般的なコーンドライバーの0〜1出力はHUDに参考表示のみ。HToolsのtailAvoidanceSamplesに追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261011-220447-a792a93a とDrive RootDirectionLimit。未コミット。
 
+- 2026-10-11 Codex: QuickPathExplorer残P0のディレクトリ世代管理を実装。両一覧の旧成功・旧失敗・A→B→A・100回切替・終了失効を実データとログで検証。録画レビューで検出した子列非表示・残留列・祖先選択表示も修正。Windows単体Qt5/6、Maya2022/2027×floating/dockで各17ケース＋3ケースの自動部分が合格。実入力4ケースは確認待ち。最終回帰53項目合格、Mayaシーン操作10項目は列補正前に合格。P0_MANUAL_TESTS.txt、専用データ生成tools/qpe_manual_p0.py、44.3秒の動画と証跡を用意。詳細はdocs/research/finder-p0-generation-report-20261011.txt。
+
 - Claude Code (2026-10-11): demo_joint_chain_rbf.py のUE RBF列にも球の交わり始めをなだらかに効かせる対策（soft）を入れ、soft_entry を4列（入力・直す前・直した後の接線止め・直した後のUE RBF）にした。3ケースを撮り直し（soft_entry 511・activation 511・mixed 541フレーム、すべてok）。RBFの交わり始めの最大変化 23.1度→10.4度、食い込み2フレーム・最大0.07cm。mixedではRBFの食い込み0、中心付近の最大変化0.47度。docs/verification-videos.md を更新。動画は .maya-output/verification/20261011-213546-a7e6ae57・20261011-213639-4204fd9d・20261011-213728-53bb6db3 とDrive RootDirectionLimit。未コミット。
 
 - Claude Code (2026-10-11): demo_joint_chain_rbf.py に跳びの対策 soft（回転面の入り込み深さ q=(R+gap-|cx|)/(R+gap) から w=smoothstep(q/0.25) を求め、球を範囲へ足す前後を w で混ぜる）と case="soft_entry"（直す前と後の比較）を追加。録画検証（511フレーム、ok=True、両列とも独立計算と一致）。太ももの球が交わる場面で1フレームの最大変化が24.6度→11.5度（約3〜4フレームに分散）、代わりに26フレーム・最大0.18cmの食い込み。q/0.5では8.4度・121フレーム・0.42cm。ρを重みに使うと掛かり始めに急増して効果が小さい（15.6度）ことも確認。HToolsのtailAvoidanceSamplesに追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261011-213226-15dd29b8 とDrive RootDirectionLimit。未コミット。
+
+- 2026-10-11 Codex: QuickPathExplorerのFinder P0を部分実装。メニュー対象／外側押下、斜め両軸、横基準列保持、プレビュー世代・終了失効、IME改名ガード。単体Qt5/6・専用Maya2022 floating/2027 dockで自動検証。最終14ケース合格、7ケースは未実施部分あり。ディレクトリ列挙の世代管理と実入力確認は未完了。詳細はGit対象外 docs/research/finder-p0-implementation-20261011.txt。
+
 
 - Claude Code (2026-10-11): demo_joint_chain_rbf.py に case="activation" を追加（背骨前屈20度・腕の前振り0〜70度・太ももの球を追加し、尻尾を接線に当てて待たせる）。録画検証（511フレーム、ok=True、交差0）。3つの体の球だけなら交わり始めの範囲の変化は2.9度で実質跳ばない。方向の離れた太ももの球では広がった側の接線にいると1フレーム24.6度（RBF 23.1度）跳び、外れるときも同量、反対側では0度。HUDに BALL ENTERED/LEFT を追加し、JUMP表示を15度以上に変更。HToolsのtailAvoidanceSamplesに追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261011-211503-3cf17b98 とDrive RootDirectionLimit。未コミット。
 
@@ -106,12 +124,29 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 - Claude Code (2026-10-11): tools/demo_joint_rbf_pose.py を追加。MetaHuman同梱のUE RBFソルバー（UERBFSolverNode、Additive・ガウス・半径0.7、ドライバー=(rel/20, h/10)、245ポーズ）で尻尾1軸回避をポーズ補間し、入力・球の接線止めと3列で録画検証（631フレーム、ok=True、交差0、安全clamp作動0、式との差最大3.5度）。Interpolativeは重み0・階段状になり不採用。docs/verification-videos.md に節を追加。動画は .maya-output/verification/20261011-194505-d4ba4c2c とDrive RootDirectionLimit。リンク共有設定はユーザー操作待ち。未コミット。
 
+- Codex 2026-10-11: QuickPathExplorerをFinder寄りに改善。右クリック対象と選択を分離・輪郭表示・空白メニュー・複数選択/Import/Reference・Return改名/Space拡大プレビュー・列ごとの縦/階層の横スクロール・名前幅モード/境界ドラッグを追加。録画レビューで祖先色と探索起点復帰時の古い子列残留を修正。単体Qt5/6・Maya2022/2027を検証、最終Maya2027の9項目と保存読込回帰10項目成功。13.3秒動画とPNG3枚をDrive保存・サイズ/権限読戻し済み。証跡: .maya-output/verification/qpe-finder-final2-20261011/self-review.json。物理トラックパッド・4K・iPad実機未確認。
+
+- Codex 2026-10-11: Finder参考動画3本の該当場面・文字起こしとApple公式資料をQPE実装と比較。右クリック対象と選択の分離、列幅モード、スクロール/フォーカスなど15項目と比較シナリオをGit対象外docs/research/finder-interaction-review-20261011.txtへ保存。Mac実機・慣性数値は未確認。製品コード変更なし。
+
+- Codex 2026-10-11: QuickPathExplorerのUX改善全項目を反映。近い階層の列幅優先・探索起点・件数/空状態・インライン改名・テキスト新規作成・読込/保存タブ分離・表示プリセット・クイック移動・全名tooltipを追加。3回の録画レビューで起点解除/子列非表示/余白を修正。単体Qt5/6・Maya2022/2027のUXと既存ナビ/保存読込回帰成功。最終21.2秒MP4とPNG3枚をDriveへ保存、サイズ/URL読戻し済み。証跡: .maya-output/verification/qpe-ux-final-20261011/self-review.json。4K実機・iPad実機未確認。
+
 - Claude Code (2026-10-11): tools/demo_joint_cone_soft.py を追加。身体固定コーン（軸=身体-X、半角40度）への入り具合で rotateX をなだらかに避ける方式（h=acos(cosγ/s)、start+m*depth/(depth+m)、入った側を保持）を、入力・球の接線止め・コーン版の3列で録画検証（631フレーム、ok=True、コーン侵入0、肘が近く斜めの位置で球と25フレーム交差）。docs/verification-videos.md に節を追加。動画は .maya-output/verification/20261011-180548-722f0b83 とDrive RootDirectionLimit。リンク共有設定はユーザー操作待ち。未コミット。
 
 - Claude Code (2026-10-11): tools/demo_joint_side_keep.py を追加。尻尾1軸回避で入った側の接線を保持する方式（連続な外向き角＋折り返さない相対角のclamp）を、入力・従来・新方式の3列で録画検証（631フレーム、ok=True、新方式は交差0・中心通過時の最大変化7.0度、従来は最大100度のフリップ）。docs/verification-videos.md に節を追加。動画は .maya-output/verification/20261011-172805-7dcbb96e とDrive RootDirectionLimit。リンク共有設定はユーザー操作待ち。未コミット。
 
+- Codex 2026-10-11: QuickPathExplorerに右クリック/F2リネーム・空ファイル/フォルダー作成・Import/Reference・Aa表示設定を追加。MayaCodeEditor同様MQtUtil.dpiScaleで文字/寸法を拡大。Windows監視ハンドルによる改名失敗を修正し、履歴/お気に入りも更新。単体Qt5/6・Maya2022/2027で新機能と保存/読込回帰成功。200%倍率模擬確認、4K実機未検証。約49秒の動画とメニュー/設定画面PNGをDriveへ保存・サイズ読戻し確認。証跡: .maya-output/qpe-ui/context-final-maya2027、context-final2022、context-regression2027、.maya-output/verification/qpe-context-popup-20261011/review。
+
+- Codex 2026-10-11: QuickPathExplorerのカラム幅を階層数・画面幅で210〜100pxへ自動調整。Qtの列配置・スクロール残留も修正。単体Qt5/6・Maya2022/2027の14項目成功。操作動画と画像をDriveのQuickPathExplorerへ保存、iPad実機再生は未確認。
+
+- 2026-10-11 Codex: QuickPathExplorerの子カラム表示と履歴復元の競合・即時移動後の列更新・訪問済みフォルダー混入を修正。実クリック／キー操作13シナリオをMaya 2022/2027で確認、保存・読込回帰も合格。字幕付き操作動画約37秒とPNG2枚をDriveのMaya検証動画/QuickPathExplorerへ保存（所有者アカウント限定）。証跡: .maya-output/qpe-ui/thorough-parent2022、thorough-parent2027、final-file-operations2027、.maya-output/verification/qpe-review-20261011/review。
+
 - Claude Code (2026-10-11): tools/demo_joint_sweep_compare.py を追加。尻尾1軸回避を方式ごとの5列（入力・従来・外側を回す・先回り・コーン押し出し）に横並びで比較し、同一入力で上面から録画。Maya2027 GUIで541フレーム、標準DG出力と独立計算が全列一致、緑・水色の体との交差0件、コーンは155フレームで貫通（+側から接近時、仕様どおり）。入力回転と肘移動の段階で最大1フレーム変化は従来98.5°（フリップ）、外側36.5°、先回り22.1°、コーン16.5°。腕傾斜で体が回転平面から外れる瞬間は外側45.7°・先回り63.5°（原理的制約、docs/verification-videos.mdに記載）。動画2本をGoogleドライブ同期フォルダ経由でMaya検証動画/RootDirectionLimitへ保存。リンク共有はブラウザ未ログインのためユーザー操作待ち。未コミット。
 
+- 2026-10-11 Codex: QuickPathExplorer最上段にパス欄・移動／サイドバーアイコンを追加。列幅グリップを非表示化、同一ウィンドウ内のフォルダー別スクロール・列幅を復元。Qtの自動移動アニメーション競合を解消。単体Qt5/6とMaya 2022/2027で検証。証跡 .maya-output/qpe-ui/pathbar-instant2027、pathbar-maya2022。
+
+- 2026-10-11 Codex: QuickPathExplorerをカラム主体へ整理。サイドバー切替SVG・初期非表示、上部バー／パス説明削除、操作と詳細統合。単体Qt5とMaya 2027で切替・読込・保存を確認。証跡 .maya-output/qpe-ui/compact-final2027。
+
+- 2026-10-11 Codex: QuickPathExplorerのPython/Qt版2段UI・お気に入り・プレビュー・Maya操作・Windowメニュー・SVG/PNG/ICOを実装。単体Qt5/6と専用Maya 2022/2027で主要操作を検証。Qt5のQProxyStyle寿命問題を修正。証跡: .maya-output/qpe-ui/。
 - Claude Code (2026-10-11): hrigをmlrig（Modular Layered Rig）へ改名。フォルダ・startup・.mod・HTools/rigging/mlrigLayerEditor.py・tools/test_mlrig_*・docs/mlrig-development.md・mlib/mlib_bifrostの言及まで137ファイル695か所を置換し、保存アトリビュート（mlrigOwned等）・環境変数（MLRIG_*）・C++ノード（mlrigSoftIK/mlrigMatrixFollow、型IDは不変）・プラグイン（mlrigNodes.mll、2025/2027再ビルド）もそろえ、旧hrig互換は置かない（旧シーンは非対応）。test_standardのstartupテストを2025のshibokenで動くようModuleType差し替えに修正。mayapy 2025/2027でtest_rig_packages全201件・test_mlrig_bifrost_startup 8件成功、日英Sphinx -W成功。GUI専用テスト未実行、Pages公開URLは/mlrig/、docs/research・.maya-outputは未変更、未コミット。
 
 - Codex 2026-10-11: QuickPathExplorerの画面参考としてOneCommander/Finder/Windows Explorer/Maya File Browser/Adobe Bridge/Directory OpusをWeb画像と公式資料で調査。OneCommander標準配置が上段カラム・下段一覧案に近い。docs/research/qpe-ui-references.txtへ出典URLと設計観点をローカル保存。画像ダウンロード・実装変更・公開なし。

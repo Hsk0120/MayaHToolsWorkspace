@@ -38,7 +38,8 @@ _ROTATE_ORDER_ENUMS = {
     4: om2.MEulerRotation.kYXZ,
     5: om2.MEulerRotation.kZYX,
 }
-_DEBUG_ORIENT = True
+# 開発用の詳細ログ(Apply のたびに Script Editor へ大量に出る)。通常は False。
+_DEBUG_ORIENT = False
 _DEBUG_ORIENT_VERBOSE_NEXT_CHILDREN = True
 
 def _compute_axis_vector(axis_name):
@@ -959,11 +960,53 @@ def _compute_rotate_axis_matrix(joint_name):
     Returns:
         maya.api.OpenMaya.MMatrix: rotateAxis 由来の回転行列。
     """
-    # getAttr は UI 単位の値を返す。元の実装と同じく UI 単位が度である前提で rad へ変換する。
-    rx = math.radians(cmds.getAttr("{}.rotateAxisX".format(joint_name)))
-    ry = math.radians(cmds.getAttr("{}.rotateAxisY".format(joint_name)))
-    rz = math.radians(cmds.getAttr("{}.rotateAxisZ".format(joint_name)))
+    # getAttr は UI の角度単位の値を返すので、単位設定(度/ラジアン)に合わせてラジアンへ変換する。
+    ui_unit = om2.MAngle.uiUnit()
+    rx, ry, rz = [
+        om2.MAngle(cmds.getAttr("{}.rotateAxis{}".format(joint_name, a)), ui_unit).asRadians()
+        for a in ("X", "Y", "Z")
+    ]
     return om2.MEulerRotation(rx, ry, rz).asMatrix()
+
+
+def _compute_parent_frame_rotation(joint_name):
+    """ジョイントの回転が乗る親空間の回転行列を返却します。
+
+    ``parentMatrix`` を使うので、親がジョイント以外(グループ等)でも親の回転を含む。
+    segmentScaleCompensate が有効なら、Maya と同じく親のスケール(``inverseScale``)を打ち消す。
+    親空間に打ち消されない非一様スケールがある場合は軸がゆがむため、回転成分で近似する。
+
+    Args:
+        joint_name (str): 対象ジョイント名。
+
+    Returns:
+        maya.api.OpenMaya.MMatrix: 親空間の回転行列。
+    """
+    parent_matrix = om2.MMatrix(cmds.getAttr("{}.parentMatrix[0]".format(joint_name)))
+    if cmds.getAttr("{}.segmentScaleCompensate".format(joint_name)):
+        sx, sy, sz = cmds.getAttr("{}.inverseScale".format(joint_name))[0]
+        if abs(sx) > 1e-12 and abs(sy) > 1e-12 and abs(sz) > 1e-12:
+            inverse_scale = om2.MMatrix([
+                1.0 / sx, 0.0, 0.0, 0.0,
+                0.0, 1.0 / sy, 0.0, 0.0,
+                0.0, 0.0, 1.0 / sz, 0.0,
+                0.0, 0.0, 0.0, 1.0,
+            ])
+            parent_matrix = inverse_scale * parent_matrix
+    return om2.MTransformationMatrix(parent_matrix).asRotateMatrix()
+
+
+def _compute_degrees_to_ui(degrees):
+    """度の角度リストを、setAttr に渡す UI の角度単位の値へ変換します。
+
+    Args:
+        degrees (list[float]): 度の角度。
+
+    Returns:
+        list[float]: UI の角度単位(度またはラジアン)の値。
+    """
+    ui_unit = om2.MAngle.uiUnit()
+    return [om2.MAngle(math.radians(d)).asUnits(ui_unit) for d in degrees]
 
 def _compute_has_non_zero_rotate_axis(joint_name):
     """rotateAxis が実質ゼロかどうかを判定します。
@@ -1224,7 +1267,9 @@ def _compute_joint_orient_degrees(
         )
         if third_axis is None or third_ref is None:
             return (None, None) if return_debug_data else None
-        if axes[third_axis] * third_ref < 0.0:
+        # 参照方向が残りの軸とほぼ直交する(Primary/Secondary の平面上にある)場合は
+        # 向きを決められないので反転しない(誤差で結果が揺れないようにする)。
+        if axes[third_axis] * third_ref < -1e-6:
             secondary_vec = secondary_vec * -1.0
             axes = _compute_axis_basis_from_ui(primary_axis, secondary_axis, primary_vec, secondary_vec)
             if any(v is None for v in axes.values()):
@@ -1234,17 +1279,14 @@ def _compute_joint_orient_degrees(
     target_world_rot = _compute_rotation_matrix_from_axes(axes)
 
     parent = cmds.listRelatives(joint_name, p=True, type="joint", f=True)
-    if parent:
-        # 目標ワールド回転を親空間へ変換し、ローカル回転として解く。
-        parent_world_matrix = _compute_world_matrix(parent[0])
-        parent_world_rot = om2.MTransformationMatrix(parent_world_matrix).asRotateMatrix()
-        local_rot = target_world_rot * parent_world_rot.inverse()
-    else:
-        local_rot = target_world_rot
+    # 目標ワールド回転を親空間へ変換し、ローカル回転として解く。
+    # 親空間はジョイント以外の親(グループ等)と segmentScaleCompensate も含めて求める。
+    local_rot = target_world_rot * _compute_parent_frame_rotation(joint_name).inverse()
 
-    # Maya の最終回転は rotateAxis を含むため、jointOrient 側へ移項して解く。
+    # ジョイントの回転は rotateAxis * rotate * jointOrient の順(行ベクトル)で、rotate=0 にするため
+    # local = rotateAxis * jointOrient となる。よって jointOrient = rotateAxis^-1 * local。
     rotate_axis_matrix = _compute_rotate_axis_matrix(joint_name)
-    joint_orient_rot = local_rot * rotate_axis_matrix.inverse()
+    joint_orient_rot = rotate_axis_matrix.inverse() * local_rot
 
     if debug_verbose:
         om2.MGlobal.displayInfo(
@@ -1306,14 +1348,60 @@ def _compute_restore_world_matrices(node_to_world_matrix):
         node_to_world_matrix (dict[str, list[float]]): 復元対象の行列辞書。
     """
     # 親から順に復元し、下位ノードのローカル評価崩れを避ける。
+    # xform -ws -m は rotateAxis / jointOrient / segmentScaleCompensate を持つジョイントで
+    # 姿勢がずれるため、translate と rotate を行列から解いて書き戻す(jointOrient は変えない)。
     restore_nodes = sorted(node_to_world_matrix.keys(), key=lambda n: n.count("|"))
     for node in restore_nodes:
         if not cmds.objExists(node):
             continue
         try:
-            cmds.xform(node, ws=True, m=node_to_world_matrix[node])
-        except Exception:
-            pass
+            _compute_restore_joint_world_matrix(node, om2.MMatrix(node_to_world_matrix[node]))
+        except RuntimeError as error:
+            cmds.warning("Could not keep the pose of {}: {}".format(node, error))
+
+
+def _compute_restore_joint_world_matrix(joint_name, world_matrix):
+    """ジョイントの translate / rotate を解き、指定のワールド行列に戻します。
+
+    ジョイントの行列は(行ベクトルで)``S * RA * R * JO * IS * T * parentMatrix`` なので、
+    ``N = world * parentMatrix^-1`` の平行移動が translate、回転部分から
+    ``R = RA^-1 * (S^-1 * N * IS^-1) * JO^-1`` を求める。scale / jointOrient / rotateAxis は変えない。
+
+    Args:
+        joint_name (str): 対象ジョイント。
+        world_matrix (maya.api.OpenMaya.MMatrix): 戻したいワールド行列。
+    """
+    parent_matrix = om2.MMatrix(cmds.getAttr("{}.parentMatrix[0]".format(joint_name)))
+    local = world_matrix * parent_matrix.inverse()
+    translate = om2.MVector(local[12], local[13], local[14])
+
+    def _scale_matrix(values):
+        x, y, z = values
+        return om2.MMatrix([x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1])
+
+    upper = om2.MMatrix(local)
+    upper[12] = upper[13] = upper[14] = 0.0
+    scale = cmds.getAttr("{}.scale".format(joint_name))[0]
+    if any(abs(v) < 1e-12 for v in scale):
+        raise RuntimeError("zero scale")
+    upper = _scale_matrix([1.0 / v for v in scale]) * upper
+    if cmds.getAttr("{}.segmentScaleCompensate".format(joint_name)):
+        inverse_scale = cmds.getAttr("{}.inverseScale".format(joint_name))[0]
+        if all(abs(v) > 1e-12 for v in inverse_scale):
+            upper = upper * _scale_matrix(inverse_scale)
+
+    ui_unit = om2.MAngle.uiUnit()
+    joint_orient = om2.MEulerRotation(
+        *[om2.MAngle(v, ui_unit).asRadians() for v in cmds.getAttr("{}.jointOrient".format(joint_name))[0]]
+    ).asMatrix()
+    rotate_matrix = _compute_rotate_axis_matrix(joint_name).inverse() * upper * joint_orient.inverse()
+    rotate_matrix = om2.MTransformationMatrix(rotate_matrix).asRotateMatrix()
+    order = cmds.getAttr("{}.rotateOrder".format(joint_name))
+    euler = om2.MEulerRotation.decompose(rotate_matrix, _ROTATE_ORDER_ENUMS[order])
+
+    distance_unit = om2.MDistance.uiUnit()
+    cmds.setAttr("{}.translate".format(joint_name), *[om2.MDistance(v).asUnits(distance_unit) for v in translate])
+    cmds.setAttr("{}.rotate".format(joint_name), *[om2.MAngle(v).asUnits(ui_unit) for v in (euler.x, euler.y, euler.z)])
 
 def _apply_orient_from_ui(*_):
     """現在の UI 設定に基づいて Orient Joint を適用します。
@@ -1344,10 +1432,13 @@ def _apply_orient_from_ui(*_):
         _compute_primary_space_mode(third_settings["space"]) if third_settings else None,
     )
 
-    joints = cmds.ls(sl=True, type="joint")
+    joints = cmds.ls(sl=True, type="joint", long=True)
     if not joints:
         cmds.warning("Select joint(s) first.")
         return
+    # 親から先に処理する。子を先に処理すると、後で親を処理したときの姿勢保持で
+    # 子の rotate が書き換わり、子の向きが崩れるため(選択順には依存しない)。
+    joints = sorted(joints, key=lambda n: n.count("|"))
 
     try:
         # 無効な軸組み合わせはここで弾いて以降の処理を中断する。
@@ -1413,8 +1504,8 @@ def _apply_orient_from_ui(*_):
             child_world_matrices = _compute_descendant_world_matrices(j)
 
             # orient 値を書き込み、rotate をゼロに戻して回転を jointOrient 側へ集約する。
-            # setAttr は UI 単位で解釈する（元の実装の angleFromUi と同じ意味）。
-            cmds.setAttr("{}.jointOrient".format(j), *orient_degrees)
+            # setAttr は UI の角度単位で解釈するので、度から UI 単位へ変換して書き込む。
+            cmds.setAttr("{}.jointOrient".format(j), *_compute_degrees_to_ui(orient_degrees))
             cmds.setAttr("{}.rotate".format(j), 0.0, 0.0, 0.0)
 
             # 親の向き更新で子のワールド姿勢が変わらないよう、退避行列を復元する。
