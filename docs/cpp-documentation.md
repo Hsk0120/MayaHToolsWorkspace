@@ -1,6 +1,6 @@
 # 内製C++のコメント規約
 
-heditを含む内製C++には日本語のDoxygen形式を使います。PythonのGoogle形式docstringと同様に、目的・引数・戻り値を説明します。外部submoduleへ一括適用しません。
+Maya Code Editorを含む内製C++には日本語のDoxygen形式を使います。PythonのGoogle形式docstringと同様に、目的・引数・戻り値を説明します。外部submoduleへ一括適用しません。
 
 ```cpp
 /**
@@ -20,6 +20,6 @@ bool goToLine(int line);
 - ラムダは接続箇所のまとまりで説明する。単純な代入の逐語説明で本文を埋めない。
 - 動作変更時はコメントも更新する。未検証の挙動を保証として書かない。
 
-heditでは`src/core/`がMayaにも画面にも依存しない処理、`src/editor/`がQt編集画面(入口は`editor/editor.h`の`EditorServices`と`createEditor`)、`src/plugin/`がMaya APIを使う部分です(詳細は`maya/inhouse/hedit/docs/development.rst`)。Qt部品は原則として親が所有し、`std::function`には呼び出す処理を渡します。補完も実行もMayaと同一プロセスです。
+Maya Code Editorでは`src/core/`がMayaにも画面にも依存しない処理、`src/editor/`がQt編集画面(入口は`editor/editor.h`の`EditorServices`と`createEditor`)、`src/plugin/`がMaya APIを使う部分です(詳細は`maya/inhouse/MayaCodeEditor/docs/development.rst`)。Qt部品は原則として親が所有し、`std::function`には呼び出す処理を渡します。補完も実行もMayaと同一プロセスです。
 
 仕様: [Doxygenのコメント形式](https://www.doxygen.nl/manual/docblocks.html)。Doxygen自体はMaya実行やビルドの必須依存にしません。

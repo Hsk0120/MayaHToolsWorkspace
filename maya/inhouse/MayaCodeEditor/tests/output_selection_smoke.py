@@ -1,0 +1,71 @@
+"""ログ追記中の範囲保持、コピー、スクロール、読み取り専用を検証する。"""
+def check(output, QtCore, QtGui, QtWidgets, QtTest):
+    """出力欄の選択・コピー・追記中の保持・読み取り専用・スクロール追従を確かめる。
+
+    Returns:
+        bool: クリップボードを使ったコピーまで確かめた場合True。Windowsのクリップボードが
+            ほかのアプリに占有されて読み書きできない場合は、コピーの確認だけ飛ばしてFalse。
+    """
+    from maya.api import OpenMaya as om
+    clipboard = QtWidgets.QApplication.clipboard()
+    saved = QtCore.QMimeData()
+    for fmt in clipboard.mimeData().formats():
+        saved.setData(fmt, clipboard.mimeData().data(fmt))
+    # Windowsのクリップボードは全体で共有。ほかのアプリが開いたままだと読み書きできない(Maya Code Editorとは無関係)。
+    clipboard.setText('mce_clipboard_probe')
+    state = {'usable': clipboard.text() == 'mce_clipboard_probe'}
+
+    def assert_clipboard(expected):
+        if not state['usable']:
+            return
+        actual = clipboard.text()
+        # 上の確認はQtが手元に覚えている値でも成功するので、OSへの書き込みの失敗を見分けられない。
+        # 空でない選択をコピーしたのに空が返ったら、OSのクリップボードが使えないとみなして以後の確認を飛ばす。
+        if actual == '' and expected:
+            state['usable'] = False
+            return
+        assert actual == expected, (actual, expected)
+    def wait():
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(80, loop.quit)
+        (loop.exec if hasattr(loop, 'exec') else loop.exec_)()
+    try:
+        output.setPlainText('コピー対象 日本語\nsecond line')
+        output.setFocus()
+        output.moveCursor(QtGui.QTextCursor.Start)
+        output.moveCursor(QtGui.QTextCursor.Down)
+        QtTest.QTest.mouseDClick(output.viewport(), QtCore.Qt.LeftButton, pos=output.cursorRect().center())
+        assert output.textCursor().selectedText() == 'second'
+        output.moveCursor(QtGui.QTextCursor.Start)
+        QtTest.QTest.keyClick(output, QtCore.Qt.Key_End, QtCore.Qt.ShiftModifier)
+        assert output.textCursor().selectedText() == 'コピー対象 日本語'
+        QtTest.QTest.keyClick(output, QtCore.Qt.Key_C, QtCore.Qt.ControlModifier)
+        assert_clipboard('コピー対象 日本語')
+        QtTest.QTest.keyClick(output, QtCore.Qt.Key_A, QtCore.Qt.ControlModifier)
+        before = output.textCursor().selectedText()
+        om.MGlobal.displayInfo('selection_new_log')
+        wait()
+        assert output.textCursor().selectedText() == before
+        QtTest.QTest.keyClick(output, QtCore.Qt.Key_C, QtCore.Qt.ControlModifier)
+        assert_clipboard(before.replace('\u2029', '\n'))
+        text = output.toPlainText()
+        QtTest.QTest.keyClicks(output, 'cannot_edit')
+        assert output.toPlainText() == text
+        output.setPlainText('\n'.join('line %s' % i for i in range(150)))
+        # 途中までスクロールしていても、新しいログが来たら最下部へ移る(選択範囲は保つ)。
+        output.verticalScrollBar().setValue(0)
+        om.MGlobal.displayInfo('scroll_to_newest')
+        wait()
+        assert output.verticalScrollBar().value() == output.verticalScrollBar().maximum()
+        # Maya 2022 は行末に「 // 」を付け(Script Editor と同じ)、後ろに Maya 自身の履歴(updateRendererUI; など)が
+        # 続くことがあるので、末尾の近くに含まれるかで確かめる。
+        assert 'scroll_to_newest' in output.toPlainText()[-200:], repr(output.toPlainText()[-300:])
+        output.moveCursor(QtGui.QTextCursor.End)
+        output.verticalScrollBar().setValue(output.verticalScrollBar().maximum())
+        om.MGlobal.displayInfo('follow_tail')
+        wait()
+        assert output.verticalScrollBar().value() == output.verticalScrollBar().maximum()
+    finally:
+        clipboard.setMimeData(saved)
+        output.clear()
+    return state['usable']

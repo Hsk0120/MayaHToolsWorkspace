@@ -1,0 +1,51 @@
+/*
+ * Maya Code Editor 固有の見た目。
+ *
+ * 段組みと部品の形は hlib・FramePlayer と共通の custom.css をそのまま使い、色(先頭の変数)だけを
+ * Maya Code Editor の画面に合わせる(地は VS Code の Dark+ と同じ #1e1e1e・#252526、強調色はアイコンの緑 #69b66c)。
+ * 色は src/editor/theme.h の値に揃えている。
+ */
+
+:root {
+    /* 面: 外側ほど暗い(本文の背景 #1e1e1e と、小窓・検索バーの #252526) */
+    --hd-canvas: #181818;
+    --hd-surface: #1e1e1e;
+    --hd-code: #1e1e1e;
+    --hd-raised: #252526;
+    --hd-band: #2d2d30;
+
+    /* 文字(本文 #d4d4d4・行番号 #858585) */
+    --hd-text: #d4d4d4;
+    --hd-text-soft: #858585;
+    --hd-text-bright: #ffffff;
+    --hd-heading: #cccccc;
+    --hd-accent: #69b66c;
+    --hd-accent-dim: #3f6e41;
+    --hd-literal: #ce9178;
+    --hd-type: #4ec9b0;
+    --hd-permalink: #69b66c;
+
+    /* リンク(強調色の緑を明るくしたもの) */
+    --hd-link: #8fd18f;
+    --hd-link-hover: #b7e4b7;
+    --hd-link-visited: #a0c69a;
+
+    /* 罫線(小窓の枠 #454545・入力欄の枠 #4b4b4b) */
+    --hd-rule: #3c3c3c;
+    --hd-rule-strong: #454545;
+
+    /* 注意・強調の状態(エラーの #f14c4c・検索の一致 #623315・選択 #264f78) */
+    --hd-alert-rule: #7a3a3a;
+    --hd-alert-band: #8a3a3a;
+    --hd-target: #623315;
+    --hd-selection: #264f78;
+}
+
+/* 表は上揃え(Preferences の説明が複数行になる表が多いため)。 */
+table.docutils td, table.docutils th { vertical-align: top; }
+.preference-key { font-family: Consolas, monospace; }
+
+/* 画面の画像は、地との境が分かるよう細い枠を付ける。 */
+div.body figure img, div.body img.framed {
+    border: 1px solid var(--hd-rule);
+}

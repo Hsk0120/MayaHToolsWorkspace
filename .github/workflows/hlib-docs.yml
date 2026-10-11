@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'maya/inhouse/hlib/**'
-      - 'maya/inhouse/hedit/docs/**'
+      - 'maya/inhouse/MayaCodeEditor/docs/**'
       - 'maya/inhouse/hrig/docs/**'
       - 'maya/inhouse/FramePlayer/docs/**'
       - 'maya/inhouse/FramePlayer/src/app/FramePlayer.rc'
@@ -69,12 +69,12 @@ jobs:
           name: docs-browser-before-deploy
           path: .maya-output/docs-browser/
           if-no-files-found: ignore
-      - name: Build hedit documentation into the published site
+      - name: Build Maya Code Editor documentation into the published site
         run: |
-          python -m pip install -r maya/inhouse/hedit/docs/requirements.txt
-          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/hedit/docs maya/inhouse/hlib/_docs/_build/html/hedit
+          python -m pip install -r maya/inhouse/MayaCodeEditor/docs/requirements.txt
+          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/MayaCodeEditor/docs maya/inhouse/hlib/_docs/_build/html/maya-code-editor
           # 英語版(locale/en の .po の英訳。英訳は手元で tools/translate_docs.py が作る)。
-          python -m sphinx -E -a -b html -W --keep-going -D language=en maya/inhouse/hedit/docs maya/inhouse/hlib/_docs/_build/html/hedit/en
+          python -m sphinx -E -a -b html -W --keep-going -D language=en maya/inhouse/MayaCodeEditor/docs maya/inhouse/hlib/_docs/_build/html/maya-code-editor/en
       - name: Build hrig documentation into the published site
         run: |
           python -m pip install -r maya/inhouse/hrig/docs/requirements.txt

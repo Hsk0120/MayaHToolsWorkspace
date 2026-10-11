@@ -1,7 +1,7 @@
 /*
  * FramePlayer 固有の見た目。
  *
- * 段組みと部品の形は hedit・hlib と共通の custom.css をそのまま使い、色(先頭の変数)だけを
+ * 段組みと部品の形は Maya Code Editor・hlib と共通の custom.css をそのまま使い、色(先頭の変数)だけを
  * FramePlayer の画面に合わせる(地は黒と #141414、強調色はキャッシュの帯・比較中のボタンと同じオレンジ #FF8232)。
  */
 

@@ -2,9 +2,9 @@
 
 使い方(リポジトリ直下から。Sphinx が入った Python で実行する)::
 
-    python tools/translate_docs.py hedit hrig            # 未訳の文だけ英訳する
-    python tools/translate_docs.py hedit --limit 20      # 試しに20件だけ
-    python tools/translate_docs.py hedit --check         # 英訳せず、未訳の件数と英語版のビルドだけ確かめる
+    python tools/translate_docs.py MayaCodeEditor hrig            # 未訳の文だけ英訳する
+    python tools/translate_docs.py MayaCodeEditor --limit 20      # 試しに20件だけ
+    python tools/translate_docs.py MayaCodeEditor --check         # 英訳せず、未訳の件数と英語版のビルドだけ確かめる
 
 流れ:
 
@@ -59,7 +59,7 @@ GLOSSARY = {
 SYSTEM_PROMPT = (
     'You translate Japanese technical documentation into natural, concise English. '
     'The text is a fragment of a Sphinx reStructuredText document about Autodesk Maya tools '
-    '(the "hlib" Maya API library, the "hedit" Python/MEL script editor, the "hrig" rigging library, '
+    '(the "hlib" Maya API library, the "Maya Code Editor" Python/MEL script editor, the "hrig" rigging library, '
     'and "FramePlayer", a Windows video player for frame-by-frame review that syncs with Maya).\n'
     'Rules:\n'
     '1. Output only the English translation of the given fragment. No explanations, no quotes, no code fences.\n'
@@ -351,7 +351,7 @@ def build_english(docs, directory):
 def main():
     """コマンドラインの入口。"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('names', nargs='+', help='maya/inhouse の下のドキュメント名(hedit・hrig・FramePlayer など)')
+    parser.add_argument('names', nargs='+', help='maya/inhouse の下のドキュメント名(MayaCodeEditor・hrig・FramePlayer など)')
     parser.add_argument('--model', default=DEFAULT_MODEL)
     parser.add_argument('--limit', type=int, default=0, help='英訳する最大の件数(0なら全部)')
     parser.add_argument('--check', action='store_true', help='英訳せず、未訳の件数とビルドだけ確かめる')

@@ -88,6 +88,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-11): hedit を Maya Code Editor へ改名(0.7.0)。フォルダー maya/inhouse/MayaCodeEditor・プラグイン/コマンド mayaCodeEditor(テスト用 mayaCodeEditorTest)・Python maya_code_editor・C++ 名前空間 mce・MCE_* マクロ/環境変数・maya/modules/MayaCodeEditor.mod・保存先 <prefs>/MayaCodeEditor(初回に <prefs>/hedit から写す)・旧 heditDockWorkspaceControl はロード時に削除。旧名の互換入口は置かない。Windowメニューのアイコンを緑の地に < > (案A)に変更。ドキュメントの配色を maya-code-editor.css に分離(エディターと同じ地・緑の強調色)、favicon 追加、公開先を .../maya-code-editor/ に(workflow・README)。変更履歴の過去の記録は旧名のまま。全6版ビルド(警告0)・単体テスト(core 19・Python 35・保存先 3・UI)合格、GUI全スイートを2022・2024・2027で合格(旧名のドック削除・設定の写しのテストを追加)、日英 Sphinx -W 合格。コミット・プッシュ済み。
+
 - Codex 2026-10-11: ユーザー指示による残存変更の登録準備。RootDirectionLimit・検証デモ/録画スクリプト・公開説明用静止画3枚・関連文書・作業ログを確認。Maya2027 standaloneの方向制限10テスト、動画ツール4テスト、hlib公開検査、差分チェック成功。動画/画像連番は含めず、GUI録画は今回再実行していない。
 
 - Claude Code (2026-10-11): advancedOrientJointUIにThird Settings(Use Third Settings既定OFF。ON時は外積で決まる残りの軸がThird Direction/Source/Reference Axisの方向と逆ならSecondaryを反転、Primaryは不変)と、Axis SourceのNext/Children First/Second(Primary/Secondary/Third共通、2本目が無いジョイントは警告してスキップ)を追加。Third OFF・First選択時はHEAD版のNext/Childrenと全ケース一致。mayapy 2022/2027で48項目、GUI 2022/2027でUIの既定・有効切替・Third Axis表示・Apply・Undo・スキップを確認。未コミット。

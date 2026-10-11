@@ -1,0 +1,33 @@
+// mayaCodeEditor.mll のファイル情報(エクスプローラーの「プロパティ → 詳細」に出る版・製品名)。
+// CMakeLists.txt が configure_file で @MCE_VERSION@ などを置き換えて使う。直接ビルドしない。
+// ファイル情報の無いDLLは、ウイルス対策ソフトに出どころ不明のファイルとして扱われやすいので付けておく。
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION @MCE_VERSION_MAJOR@,@MCE_VERSION_MINOR@,@MCE_VERSION_PATCH@,0
+ PRODUCTVERSION @MCE_VERSION_MAJOR@,@MCE_VERSION_MINOR@,@MCE_VERSION_PATCH@,0
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_DLL
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Hsk0120"
+            VALUE "FileDescription", "Maya Code Editor - Python / MEL script editor plug-in for Autodesk Maya @MAYA_VERSION@"
+            VALUE "FileVersion", "@MCE_VERSION@"
+            VALUE "InternalName", "mayaCodeEditor"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Hsk0120"
+            VALUE "OriginalFilename", "mayaCodeEditor.mll"
+            VALUE "ProductName", "Maya Code Editor"
+            VALUE "ProductVersion", "@MCE_VERSION@"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

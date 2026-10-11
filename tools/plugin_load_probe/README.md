@@ -16,7 +16,7 @@ python tools/build_maya_plugin.py tools/plugin_load_probe --versions 2026
 
 ## 使い方
 
-1. 止められた `hedit.mll` と**同じフォルダー**に `pluginLoadProbe.mll` をコピーします。
+1. 止められた `mayaCodeEditor.mll` と**同じフォルダー**に `pluginLoadProbe.mll` をコピーします。
 2. Maya の Script Editor(Python)でロードします。
 
    ```python
@@ -31,8 +31,8 @@ python tools/build_maya_plugin.py tools/plugin_load_probe --versions 2026
 
 | 結果 | 考えられる原因 |
 | --- | --- |
-| hedit と同じく止められる | プラグインの中身ではなく、**置き場所**(ドキュメントなど、ユーザーが書き込める場所の制限)か、**署名がない・実績のないファイル**であること |
-| これはロードでき、hedit だけ止められる | hedit の中身(ファイルの評判やウイルス対策ソフトの判定など)が原因 |
+| Maya Code Editor と同じく止められる | プラグインの中身ではなく、**置き場所**(ドキュメントなど、ユーザーが書き込める場所の制限)か、**署名がない・実績のないファイル**であること |
+| これはロードでき、Maya Code Editor だけ止められる | Maya Code Editor の中身(ファイルの評判やウイルス対策ソフトの判定など)が原因 |
 
 どちらの場合も、止められた時刻のイベントログ(イベントビューアー → アプリケーションとサービス ログ → Microsoft → Windows)で、どの仕組みが止めたかを確認できます。
 

@@ -10,9 +10,9 @@
 
 hlibの導入方法・使用例・APIリファレンスを閲覧できます。スマートフォンからもアクセスできます。
 
-[hedit Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/hedit/)
+[Maya Code Editor Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/maya-code-editor/)
 
-heditの使い方と Preferences 各項目の説明を閲覧できます。
+Maya Code Editor の使い方と Preferences 各項目の説明を閲覧できます。
 
 [hrig Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/hrig/)
 
@@ -202,10 +202,10 @@ install_packages.bat 2026 scipy libigl  :: 数字はMayaの年、それ以外は
 送信はMaya 2027のmayapyを使用し、追加拡張機能は不要です。
 設定・バージョン変更は[VS Codeの使い方](docs/vscode.md)を参照してください。
 
-## hedit ドキュメント
+## Maya Code Editor ドキュメント
 
-エディター hedit の使い方と Preferences 各項目の説明を Sphinx で `maya/inhouse/hedit/docs` に用意しています(スクリーンショット付き)。
-ビルド手順は[hedit ドキュメントのビルド](maya/inhouse/hedit/docs/README.md)を参照してください。
+エディター Maya Code Editor(0.7.0 で hedit から改名)の使い方と Preferences 各項目の説明を Sphinx で `maya/inhouse/MayaCodeEditor/docs` に用意しています(スクリーンショット付き)。
+ビルド手順は[Maya Code Editor ドキュメントのビルド](maya/inhouse/MayaCodeEditor/docs/README.md)を参照してください。
 
 ## hlib ドキュメント
 

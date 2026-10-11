@@ -1,0 +1,163 @@
+"""別プロセス間で、プラグインのロードだけによるWindowメニュー登録・起動復元・右ドック・
+閉じた場合の非復元を確認する。"""
+import json
+import os
+from pathlib import Path
+import sys
+import traceback
+
+MENU_COMMAND = 'mayaCodeEditor -show'
+# 復元は次のイベントループ、メニュー登録は同期またはidleで行うため、検証まで待つ。
+SETTLE_MS = 2000
+
+
+def main(output_dir, finished):
+    """GUIランナーから実行する起動フェーズ別テスト。"""
+    from maya import cmds
+    try:
+        from PySide6 import QtCore
+    except ImportError:
+        from PySide2 import QtCore
+    result = {'status': 'error', 'checks': []}
+    stage = os.environ['MCE_SESSION_STAGE']
+
+    def done():
+        Path(output_dir, 'result.json').write_text(json.dumps(result), encoding='utf-8')
+        finished(result)
+
+    def check():
+        try:
+            _check(stage, output_dir, result)
+            result['status'] = 'passed'
+        except Exception:
+            result['error'] = traceback.format_exc()
+        done()
+
+    try:
+        result['loaded_before_entry'] = bool(cmds.pluginInfo('mayaCodeEditor', query=True, loaded=True))
+        # テストランナーは全userSetupを無効化するため、scripts/userSetup.pyと同じ入口を明示実行する。
+        cmds.loadPlugin('mayaCodeEditor')
+    except Exception:
+        result['error'] = traceback.format_exc()
+        done()
+        return
+    QtCore.QTimer.singleShot(SETTLE_MS, check)
+
+
+def _check(stage, output_dir, result):
+    """``MCE_SESSION_STAGE`` の段階ごとの検証を行い、確かめた項目を ``result["checks"]`` に足す。
+
+    Args:
+        stage (str): 段階(``write``・``read``・``closed``・``float_write``・``float_read``)。
+        output_dir (str): 出力先。
+        result (dict): 結果の辞書。
+    """
+    from maya import cmds, mel, OpenMayaUI
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import gui_host as host
+    assert cmds.menuItem(host.MENU, exists=True), 'Window menu item was not added by plugin load'
+    assert cmds.menuItem(host.MENU, query=True, command=True) == MENU_COMMAND
+    assert cmds.menuItem(host.MENU, query=True, sourceType=True) == 'mel'
+    QtWidgets = host.QtWidgets
+    # アイコンはファイルへ書き出さず、メニュー項目のQActionへ直接付ける(起動の初期は少し後に付く)。
+    try:
+        from PySide6 import QtCore, QtGui
+        action_type = QtGui.QAction
+    except ImportError:
+        from PySide2 import QtCore
+        action_type = QtWidgets.QAction
+    menu_action = host.wrapInstance(int(OpenMayaUI.MQtUtil.findMenuItem(host.MENU)), action_type)
+    for attempt in range(100):
+        if not menu_action.icon().isNull():
+            break
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(100, loop.quit)
+        (loop.exec if hasattr(loop, 'exec') else loop.exec_)()
+    assert not menu_action.icon().isNull(), 'Window menu icon is missing'
+    assert not cmds.menuItem(host.MENU, query=True, image=True), 'Window menu icon must not be a file'
+    result['checks'].append('window_menu_added_by_plugin_load')
+    if stage == 'write':
+        # Windowメニューのクリックと同じコマンド(MEL)で開く。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        window = host.docked_editor()
+        assert window is not None and window.isVisible(), 'Window menu command did not show Maya Code Editor'
+        result['checks'].append('window_menu_command_opened_editor')
+        cmds.workspaceControl(host.CONTROL, edit=True, dockToMainWindow=('right', False))
+        window = host.editor()
+        tabs = window.findChild(QtWidgets.QTabWidget)
+        tabs.currentWidget().setPlainText('restart_probe = 91')
+        tabs.currentWidget().document().setModified(True)
+        action_type = getattr(QtWidgets, 'QAction', None)
+        if action_type is None:
+            from PySide6.QtGui import QAction
+            action_type = QAction
+        next(a for a in window.findChildren(action_type) if a.text() == 'New MEL tab').trigger()
+        tabs.currentWidget().setPlainText('int $restoreMel = 42;')
+        tabs.currentWidget().document().setModified(True)
+        tabs.setCurrentIndex(0)
+        host.save_state()
+        # 子画面を閉じるとC++側のタブ保存が完了する。ドック自体は保持する。
+        window.close()
+        cmds.workspaceLayoutManager(save=True)
+        assert json.loads(host.state_path().read_text(encoding='utf-8'))['open']
+        result['checks'].append('saved_open_right_dock_and_unsaved_code')
+    elif stage == 'read':
+        # 保存済みのドックがあっても、Mayaのワークスペースの復元だけではMaya Code Editorをロードしない
+        # (uiScriptのloadPluginと-requiredPluginをやめた)。ロードはuserSetupと同じ入口から行う。
+        assert not result['loaded_before_entry'], 'Workspace restore loaded Maya Code Editor by itself'
+        result['checks'].append('workspace_restore_did_not_load_plugin')
+        window = host.docked_editor()
+        assert window is not None, 'Plugin load did not restore Maya Code Editor'
+        assert cmds.workspaceControl(host.CONTROL, exists=True)
+        assert not cmds.workspaceControl(host.CONTROL, query=True, floating=True)
+        # 本文が存在するだけでは非表示reporterへの誤挿入を検出できない。
+        control = host.control()
+        assert control.isAncestorOf(window), 'Editor was attached outside workspaceControl'
+        assert window.isVisible(), 'Restored editor is hidden'
+        assert len(host.visible_editors()) == 1
+        tabs = window.findChild(QtWidgets.QTabWidget)
+        assert tabs.currentWidget().isVisible(), 'Active restored tab is hidden'
+        assert tabs.currentWidget().toPlainText() == 'restart_probe = 91'
+        assert tabs.count() == 2 and tabs.widget(1).property('language') == 'mel'
+        # 選んでいないタブの本文は、初めて選んだときに文書へ入る。
+        tabs.setCurrentIndex(1)
+        assert tabs.widget(1).toPlainText() == 'int $restoreMel = 42;'
+        tabs.setCurrentIndex(0)
+        # 右側に置いたドックを、同じMaya設定フォルダーから復元できたか確認する。
+        main_window = host.wrapInstance(int(OpenMayaUI.MQtUtil.mainWindow()), QtWidgets.QWidget)
+        center = window.mapToGlobal(window.rect().center()).x()
+        assert center > main_window.mapToGlobal(main_window.rect().center()).x(), 'Right dock placement was lost'
+        window.grab().save(str(Path(output_dir, 'restored.png')))
+        result['checks'].append('plugin_load_restored_right_dock_state_and_code')
+        cmds.workspaceControl(host.CONTROL, edit=True, close=True)
+        assert not json.loads(host.state_path().read_text(encoding='utf-8'))['open']
+        cmds.workspaceLayoutManager(save=True)
+    elif stage == 'float_write':
+        # フローティングのまま開いて終了する(ドックの配置はMayaのワークスペースへ保存される)。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        assert cmds.workspaceControl(host.CONTROL, query=True, floating=True)
+        host.save_state()
+        cmds.workspaceLayoutManager(save=True)
+        result['checks'].append('saved_floating_dock')
+    elif stage == 'float_read':
+        # 必要なプラグインが未ロードのまま起動すると、Mayaは保存済みのフローティングのドックを閉じ、
+        # closeCommandを実行する。以前はそこでmayaCodeEditorコマンドが無く「Cannot find procedure "mayaCodeEditor"」になった。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        window = host.docked_editor()
+        assert window is not None and window.isVisible(), 'Window menu did not reopen the floating dock'
+        text = host.output_text()
+        assert 'Cannot find procedure "mayaCodeEditor"' not in text, [line for line in text.splitlines() if 'Error' in line]
+        result['checks'].append('floating_dock_restart_without_missing_command_error')
+    else:
+        assert not cmds.workspaceControl(host.CONTROL, exists=True) or not cmds.workspaceControl(host.CONTROL, query=True, visible=True)
+        result['checks'].append('closed_editor_not_reopened')
+        # 保存済みの空のドックが残った状態でWindowメニューから開く。表示の瞬間にMayaがuiScriptで
+        # 中身を作り直すため、先に画面を入れると破棄されて落ちていた(表示してから入れる)。
+        mel.eval(cmds.menuItem(host.MENU, query=True, command=True))
+        window = host.docked_editor()
+        assert window is not None and window.isVisible(), 'Window menu did not reopen Maya Code Editor into the saved dock'
+        assert len(host.visible_editors()) == 1
+        result['checks'].append('window_menu_reopens_into_saved_dock')
+        cmds.unloadPlugin('mayaCodeEditor')
+        assert not cmds.menuItem(host.MENU, exists=True), 'Window menu item remained after unload'
+        result['checks'].append('window_menu_removed_by_unload')

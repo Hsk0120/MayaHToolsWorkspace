@@ -1,0 +1,24 @@
+/** @file user_paths.h
+ * @brief Maya Code Editorがファイルを置く場所(Mayaのユーザー設定フォルダーの下のMayaCodeEditor/)。
+ * @details 置くファイル: tabs.json(タブの並び)・tabs/<id>.txt(タブの本文)・ui.json(開閉状態)・preferences.json(設定)。
+ * Mayaのバージョンごとに別のフォルダーになる(internalVar -userPrefDirがバージョン別のため)。
+ */
+#pragma once
+#include <QString>
+
+namespace mce {
+
+/** @brief Maya Code Editorのフォルダー。 @return ``<userPrefDir>/MayaCodeEditor``。Mayaから取れなければ空。
+ * @note Mayaへの問い合わせは最初の1回だけ行う。
+ */
+QString userFolder();
+
+/** @brief 未保存タブの復元先(tabs.json)を決める。
+ * @return tabs.jsonの絶対パス(Windowsの区切り文字)。
+ * @details 環境変数MCE_SESSION_FILEがあればそれを使う(テストで専用の場所にするため)。
+ * 無ければ``<userPrefDir>/MayaCodeEditor/tabs.json``。Mayaへの問い合わせは最初の1回だけ行い、以後は覚えた値を使う
+ * (ドックの状態を保存するたびに呼ばれるため)。
+ */
+QString sessionFilePath();
+
+}  // namespace mce
