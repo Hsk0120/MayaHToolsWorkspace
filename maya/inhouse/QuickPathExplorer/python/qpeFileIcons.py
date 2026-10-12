@@ -2,16 +2,22 @@
 import os
 import ctypes
 from ctypes import wintypes
+from collections import OrderedDict
 from qpeQt import QtCore, QtGui, QtWidgets
 
 
 class FileIcons:
-    """Qtのネイティブアイコン取得をキャッシュする。"""
+    """同じウィンドウの一覧・Recent・サムネイルで共有するGUI専用LRU。
+
+    拡張子だけへ集約せず、ショートカットや実行ファイル固有のアイコンを保持する。
+    上限到達時は最も古く参照した項目だけを捨て、全消去による再取得を避ける。
+    """
 
     def __init__(self):
         """GUIスレッドで使用するプロバイダーを保持する。"""
         self._provider = QtWidgets.QFileIconProvider()
-        self._cache = {}
+        self._cache = OrderedDict()
+        self.capacity = 2048
 
     def icon(self, path):
         """ファイルごとの関連付け・ショートカット等を反映する。
@@ -23,12 +29,13 @@ class FileIcons:
             QIcon: WindowsではShellのアイコン。サムネイルは含まない。
         """
         info = QtCore.QFileInfo(path)
-        key = (info.absoluteFilePath(), info.lastModified().toMSecsSinceEpoch())
+        key = (os.path.normcase(info.absoluteFilePath()), info.lastModified().toMSecsSinceEpoch(), info.size())
         if key not in self._cache:
-            if len(self._cache) >= 512:
-                self._cache.clear()
             native = windowsIcon(info.absoluteFilePath()) if os.name == 'nt' else QtGui.QIcon()
             self._cache[key] = native if not native.isNull() else self._provider.icon(info)
+            while len(self._cache) > self.capacity:
+                self._cache.popitem(last=False)
+        self._cache.move_to_end(key)
         return self._cache[key]
 
 

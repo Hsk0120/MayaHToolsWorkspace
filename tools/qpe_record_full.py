@@ -108,11 +108,12 @@ class Recorder:
         for operation in self.operations:
             operation['seconds'] = max(0, operation['seconds'] - offset)
         video = self.out/('Maya-QPE-'+os.environ['QPE_REVIEW_CHAPTER']+'.mp4')
+        # Mayaの標準入力を継承せず、変換が停止してもGUI検証を無期限に待たせない。
         with (self.out/'encode.log').open('w') as log:
-            subprocess.run([os.environ['QPE_FFMPEG'], '-y', '-f', 'concat', '-safe', '0', '-i', str(self.out/'frames.txt'),
+            subprocess.run([os.environ['QPE_FFMPEG'], '-nostdin', '-y', '-f', 'concat', '-safe', '0', '-i', str(self.out/'frames.txt'),
                 '-vf', 'scale=1360:920:force_original_aspect_ratio=decrease,pad=1360:920:(ow-iw)/2:(oh-ih)/2,setsar=1',
                 '-r', '24', '-c:v', 'libx264', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(video)],
-                stdout=log, stderr=subprocess.STDOUT, check=True)
+                stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=60)
         (self.out/'operations.json').write_text(json.dumps(self.operations, ensure_ascii=False, indent=2), encoding='utf8')
         return str(video)
 

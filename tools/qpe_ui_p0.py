@@ -502,11 +502,12 @@ def main(output_dir, finished=None):
     record_timer.stop()
     if recording and frames:
         video = folder / 'QuickPathExplorer-P0.mp4'
+        # Mayaの標準入力を継承せず、変換が停止してもGUI検証を無期限に待たせない。
         with (folder / 'encode.log').open('w') as log:
-            subprocess.run([os.environ['QPE_FFMPEG'], '-y', '-framerate', '10', '-i', str(frames_dir / '%05d.png'),
+            subprocess.run([os.environ['QPE_FFMPEG'], '-nostdin', '-y', '-framerate', '10', '-i', str(frames_dir / '%05d.png'),
                 '-vf', 'scale=1280:940:force_original_aspect_ratio=decrease,pad=1280:940:(ow-iw)/2:(oh-ih)/2,setsar=1',
                 '-c:v', 'libx264', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(video)],
-                stdout=log, stderr=subprocess.STDOUT, check=True)
+                stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=60)
         result['video'] = str(video)
         (folder / 'frames.json').write_text(json.dumps(frames, ensure_ascii=False), encoding='utf-8')
     (folder / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')

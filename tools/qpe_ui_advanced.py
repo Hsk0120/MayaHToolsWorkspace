@@ -139,11 +139,11 @@ def main(output_dir, finished=None):
         original = w.commands
         w.commands = lambda: {'palette': ('Test', lambda: calls.append(True))}
         e.search.setFocus()
-        pause(50)
+        waitFor(lambda: QtWidgets.QApplication.focusWidget() is e.search)
         w.shortcut('palette')
         assert not calls
         w.tree.setFocus()
-        pause(50)
+        waitFor(lambda: QtWidgets.QApplication.focusWidget() is w.tree)
         w.shortcut('palette')
         assert calls
         w.commands = original

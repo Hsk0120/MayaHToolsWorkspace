@@ -111,6 +111,9 @@ class FolderColumns(QtWidgets.QColumnView):
         self._hintTimer = QtCore.QTimer(self)
         self._hintTimer.setSingleShot(True)
         self._hintTimer.timeout.connect(self.finishColumns)
+        self._refreshTimer = QtCore.QTimer(self)
+        self._refreshTimer.setSingleShot(True)
+        self._refreshTimer.timeout.connect(self.refreshHints)
 
     def finishColumns(self):
         """Qtの選択接続後に、空一覧更新で隠れた現在列を復元する。"""
@@ -303,6 +306,14 @@ class FolderColumns(QtWidgets.QColumnView):
         """
         self._manualWidths.pop(self.model().filePath(root), None)
         self.setWidthMode('names')
+
+    def scheduleHints(self, *unused):
+        """行の連続挿入・削除を一度の表示更新にまとめる。
+
+        Args:
+            unused (tuple): モデルの変更通知。
+        """
+        self._refreshTimer.start(0)
 
     def refreshHints(self, *unused):
         """子フォルダーが無い列にも意味が分かる表示を出す。
@@ -569,8 +580,8 @@ class Explorer(QtWidgets.QWidget):
         self.columns.setMinimumHeight(110)
         self.columns.setModel(self.folderModel)
         self.folderModel.directoryLoaded.connect(self.columns.folderLoaded)
-        self.folderModel.rowsInserted.connect(self.columns.refreshHints)
-        self.folderModel.rowsRemoved.connect(self.columns.refreshHints)
+        self.folderModel.rowsInserted.connect(self.columns.scheduleHints)
+        self.folderModel.rowsRemoved.connect(self.columns.scheduleHints)
         self.columns.setColumnWidths([210] * 16)
         self.columns.selectionModel().currentChanged.connect(self._folderChanged)
         upper_layout.addWidget(self.columns)
@@ -605,7 +616,7 @@ class Explorer(QtWidgets.QWidget):
         filters.addWidget(self.search, 1)
         filters.addWidget(self.fileFilter)
         file_layout.addLayout(filters)
-        self.fileModel = DirectoryModel(self)
+        self.fileModel = DirectoryModel(self, icons=self._placeIcons)
         self.fileModel.setObjectName('fileModel')
         self.fileModel.setReadOnly(True)
         self.fileModel.setFilter(QtCore.QDir.Files | QtCore.QDir.NoDotAndDotDot)
@@ -651,8 +662,11 @@ class Explorer(QtWidgets.QWidget):
         self._fileHeaderTimer = QtCore.QTimer(self)
         self._fileHeaderTimer.setSingleShot(True)
         self._fileHeaderTimer.timeout.connect(self._configureFileHeader)
+        self._fileSummaryTimer = QtCore.QTimer(self)
+        self._fileSummaryTimer.setSingleShot(True)
+        self._fileSummaryTimer.timeout.connect(self._updateFileSummary)
         for signal in (self.fileProxy.rowsInserted, self.fileProxy.rowsRemoved, self.fileProxy.modelReset, self.fileProxy.layoutChanged):
-            signal.connect(self._updateFileSummary)
+            signal.connect(lambda *unused: self._fileSummaryTimer.start(0))
             signal.connect(lambda *unused: self._fileHeaderTimer.start(0))
         self.search.textChanged.connect(self.fileProxy.setFilterFixedString)
         self.fileFilter.currentIndexChanged.connect(self._filterChanged)
@@ -1877,9 +1891,9 @@ class Explorer(QtWidgets.QWidget):
             self.columns.selectionModel().currentChanged.connect(self._folderChanged)
             self.columns._loadedFolders = set()
             self.folderModel.directoryLoaded.connect(self.columns.folderLoaded)
-            self.folderModel.rowsInserted.connect(self.columns.refreshHints)
-            self.folderModel.rowsRemoved.connect(self.columns.refreshHints)
-            self.fileModel = DirectoryModel(self)
+            self.folderModel.rowsInserted.connect(self.columns.scheduleHints)
+            self.folderModel.rowsRemoved.connect(self.columns.scheduleHints)
+            self.fileModel = DirectoryModel(self, icons=self._placeIcons)
             self.fileModel.showHidden = old_file.showHidden
             self.fileModel.setObjectName('fileModel')
             self.fileModel.setReadOnly(True)

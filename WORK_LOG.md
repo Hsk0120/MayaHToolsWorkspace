@@ -103,6 +103,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-13 Codex: ユーザー依頼に基づきQPE高速化・共有LRU・表示更新集約・性能回帰テスト・録画補助修正をコミット／プッシュ対象として整理。既存Windows16、Maya2022/2027各7、exeの成功記録を確認。無関係なリグ変更と他担当の作業記録は保持して対象外とする。
+- 2026-10-13 Codex: QPEを計測して高速化。アイコンをウィンドウ内共有・上限2048件のLRUへ整理し、カラム装飾と件数の連続通知を集約。ローカルPNG1000枚を各3回計測し、一覧中央値4.109→2.969秒、サムネイル切替2.188→0.703秒。性能回帰を標準スイートへ追加。Windows16、Maya2022/2027各7スイート合格、exe再ビルド・起動合格。初回Maya2027のショートカット検証はフォーカス確定を待つ形へ修正し再検証合格。録画ヘルパーに入力継承防止と60秒タイムアウトを追加したがMaya2027子FFmpegの停止原因は未特定。保存フレームをMaya外で変換・確認、UIは録画なし再検証。動画は既存非公開Driveへ保存。2027動画 https://drive.google.com/file/d/1NTIC0ZfVQCMRPIODdeRUWrmfQc0CXSO9/view?usp=drivesdk 。証跡.maya-output/verification/qpe-performance/verified-results.json。実IME/物理ホイール/混在DPI/ネットワーク共有は未検証。無関係なリグツール変更は保持。未コミット・未プッシュ。
+
 - 2026-10-13 Codex: 承認済みQPEモダンUIの実装・アイコン・説明書・回帰テストをコミット対象として確認。既存の24 UIスイートとexe起動の検証記録、差分チェックを確認し、origin/mainへの反映作業。動画・調査資料・配布生成物はGit対象外。
 - 2026-10-13 Codex: QPEモダンUIを実装。共通の余白/枠/フォーカス/矢印、13px既定文字と行間切替、Viewへの表示設定集約、個別解除フィルター、右ペイン情報→操作/読込設定の折畳み/縦スクロールに対応。Windows14、Maya2022/2027各5 UIスイート合格、配布exe再ビルド・起動合格。Maya2022の管理外テスト画面の終了クラッシュは検証側の明示破棄で修正し再検証済み。動画2本と画像を確認し既存非公開Driveへ保存。Maya動画 https://drive.google.com/file/d/1y-P8dhhq-4I0vHVGhIl_1GqKEdT0HHno/view 。証跡.maya-output/verification/qpe-modern。物理4K/混在DPI/実IME/iPadは未確認。未コミット・未プッシュ。
 - 2026-10-13 Codex: QPEの保存済み実操作画像・テーマ実装とFluent公式の余白/文字/色指針を比較。Apple/Materialも参照し取得制限を記録。高密度を維持した部品・状態・操作行整理を提案。調査はdocs/research/qpe-modern-ui-20261013.txtにGit対象外で保存。製品変更・新規実機検証/録画なし。

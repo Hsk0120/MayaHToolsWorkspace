@@ -72,11 +72,12 @@ class DirectoryModel(QtGui.QStandardItemModel):
     snapshotAboutToApply = QtCore.Signal()
     snapshotApplied = QtCore.Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, icons=None):
         """要求、監視、GUI所有の行を初期化する。
 
         Args:
             parent (QObject | None): 所有者。
+            icons (FileIcons | None): 同一ウィンドウの表示領域で共有するGUI専用キャッシュ。
         """
         super().__init__(parent)
         self.setHorizontalHeaderLabels(['Name', 'Size', 'Type', 'Date Modified'])
@@ -95,7 +96,7 @@ class DirectoryModel(QtGui.QStandardItemModel):
         self.showHidden = False
         self._watcher = QtCore.QFileSystemWatcher(self)
         self._watcher.directoryChanged.connect(self.request)
-        self._icons = FileIcons()
+        self._icons = icons if icons is not None else FileIcons()
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
         """サイズの表示だけをQt標準形式へ変換し、編集値は数値で保持する。
