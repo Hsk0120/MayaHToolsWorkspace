@@ -101,6 +101,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-12 Claude Code: 尻尾のレイヤー構造(効果ごとの関節を重ね、tailLayers_CTRL で ON/OFF)と段階の並列表示のデモ `tools/demo_tail_layers.py` を追加。HToolsのサンプル一覧・docs/verification-videos.md に追記。
+- 2026-10-12 Claude Code: 案D＋前腕のコーンに3本共通の体の回避 Δ を追加(`tools/tail_shared_avoid.py`、`motion="*_avoid"`)。撮影を上面・正面・パースの3視点に。食い込みは付け根から8cmより先と近くを分けて数える。HToolsのサンプル一覧・docs/verification-videos.md に追記。
+- 2026-10-12 Claude Code: 案Dに前腕のConeReaderを足す検証(`motion="align_cone"`・`"cross_cone"`・`"problem_cone"`)を `tools/demo_tail_twist_cancel.py` に追加。Dの向きが前腕の軸に入ったらコーンの縁(ローカル値の側)へ押し出す。HToolsのサンプル一覧・docs/verification-videos.md に追記。
+- 2026-10-12 Claude Code: 尻尾の交差対策に案D(rx = ローカル値、ry = -肘の曲げ)を追加し、比較の4列目を C(半分)から D に入れ替え。DはA(平行)と同じ向きでロールの反転なし。
+- 2026-10-12 Claude Code: 肘を曲げて腕をひねると尻尾どうしが交差する再現(`motion="cross"`)と、交差を防ぐ3案(平行・スイングのみ・半分、`motion="cross_fix"`・`"problem_fix"`)を `tools/demo_tail_twist_cancel.py` に追加し、HToolsのサンプル一覧・docs/verification-videos.md に追記。
+- 2026-10-12 Claude Code: 尻尾6本のツイスト打ち消しにローカル値方式(rx = -120 - 合算した rotateX)と食い込む姿勢の上面3列比較(`demo_tail_twist_cancel.main(motion="problem", view="top")`)を追加し、HToolsのサンプル一覧に登録。
+- 2026-10-12 Claude Code: mlrig.examples.humanoid で胸(spine_03)のプロキシが作られていなかった不具合を修正(LENGTH_CHILD で首までの円柱)。test_example_humanoid に確認を追加。尻尾6本のツイスト打ち消しだけでの食い込みを調査(.maya-output/survey_twist_cancel.py、結果はローカルのみ)。
+- 2026-10-12 Claude Code: 全身骨格(Aポーズ)の左右6本の尻尾(初期 rx=-120)と腕ツイストの打ち消し(スイング・ツイスト分解)のデモ `tools/demo_tail_twist_cancel.py` を追加。HToolsのサンプル一覧・docs/verification-videos.md・demo_interactive のウィンドウ/HUD一覧に追記。
 - 2026-10-12 Claude Code: 尻尾の案1に球ごとの ConeReader による切り替え(体が回転面に掛からなければ元の向き)を追加。`demo_humanoid_tail_avoid.main(case="raise")`、HToolsのサンプル一覧・docs/verification-videos.md に追記。
 - 2026-10-12 Codex: QPE関連18ファイルを8e27cd5としてorigin/mainへpush。テーマ/タブ/アイコン、Maya読込設定/配置復元、サイドバー描画修正と検証スクリプトを含む。構文39ファイル・差分チェック成功、既存実機検証結果を確認。無関係な変更と共有WORK_LOGの未コミット内容は保持。
 

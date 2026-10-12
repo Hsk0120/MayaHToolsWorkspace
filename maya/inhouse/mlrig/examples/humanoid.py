@@ -57,6 +57,8 @@ PROXY = {
     "ball": ("box", (8, 3.5, 8)),
     "finger": ("cylinder", 0.85),
 }
+# 子が複数あっても、骨の長さをこの子までとする関節(胸は首まで)。
+LENGTH_CHILD = {"spine_03": "neck_01"}
 # Aポーズで腕を下ろす角度(度)。upperarm の位置を中心に、腕と指を前から見て時計回りに回す。
 A_POSE_ANGLE = 45.0
 # 2番目の軸。体幹と脚は前(Z)、腕・指・足先は上(Y)。
@@ -250,6 +252,9 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
         for name in names:
             children = [child for child in names if parent_of.get(child) == name]
             # 骨の長さは子が1つのときだけ子までとする(骨盤・手は子が複数なので箱を置く)。
+            # 胸(spine_03)は首・左右の鎖骨が子なので、LENGTH_CHILD で首までの長さにする。
+            if name in LENGTH_CHILD:
+                children = [LENGTH_CHILD[name]]
             child = joints[children[0]] if len(children) == 1 else None
             mesh = _addProxy(joints[name], name, child, material_group)
             if mesh:

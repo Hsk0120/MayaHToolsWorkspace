@@ -80,6 +80,8 @@ class HumanoidTest(unittest.TestCase):
         cmds.setAttr(result["joints"]["upperarm_l"]+".rz", -60)
         self.assertGreater((_position(mesh)-before).length(), 5)
         self.assertEqual(humanoid.build(prefix="b_", proxy=False)["meshes"], [])
+        # 胸(spine_03)は子が複数あっても、首までの円柱を置く。
+        self.assertTrue(cmds.objExists("spine_03_proxy"))
 
     def test_a_pose(self):
         """Aポーズは腕が肩から45度下がり、回転0のまま。左右対称で、骨の X 軸が子を向く。"""

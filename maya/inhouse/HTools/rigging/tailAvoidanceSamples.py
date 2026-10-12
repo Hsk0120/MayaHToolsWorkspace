@@ -54,6 +54,42 @@ SAMPLES = [
     ("demo_humanoid_tail_avoid", "Humanoid A-pose: raised arm, plan 1 with a ConeReader switch",
      "One ConeReader per body ball tells whether the body cuts the tail's twist plane. "
      "If not, the tail keeps its rest angle. Keep-side and near-side variants.", {"case": "raise"}),
+    ("demo_tail_twist_cancel", "Humanoid A-pose: 6 tails cancel the arm twist",
+     "Tails at upperarm root, elbow and hand root on both sides (rest rx = -120). Each tail removes its bone's "
+     "twist (swing-twist from the clavicle), so twisting the arm does not spin the tails.", {}),
+    ("demo_tail_twist_cancel", "Humanoid A-pose: 6 tails, local rotateX cancel (top view)",
+     "Poses where tails tend to hit the body, seen from the top. No cancel / swing-twist cancel / local value cancel "
+     "(tail rx = -120 - sum of the bones' local rotateX). The local one does not spin when the elbow bends deeply.",
+     {"motion": "problem", "view": "top"}),
+    ("demo_tail_twist_cancel", "Humanoid A-pose: 6 tails, local rotateX cancel (front view)",
+     "Same three columns and motion as the top view, seen from the front.", {"motion": "problem", "view": "front"}),
+    ("demo_tail_twist_cancel", "Humanoid A-pose: elbow bent over 90 deg + upper arm twist (tails cross)",
+     "With the twist cancelled, the upper arm root tail and the hand root tail cross when the upper arm is "
+     "twisted with the elbow bent. HUD shows the closest distance between the tails.", {"motion": "cross", "view": "front"}),
+    ("demo_tail_twist_cancel", "Tail crossing fixes: parallel / swing only / cancel elbow bend (cross motion)",
+     "Elbow and hand tails get a swing so they do not cross the upper arm tail. A: aim along the upper arm tail, "
+     "B: keep the local twist and add only the along-bone swing (+-60), D: rx = local, ry = -elbow bend "
+     "(same result as A with local values only). Front view.",
+     {"motion": "cross_fix", "view": "front"}),
+    ("demo_tail_twist_cancel", "Tail crossing fixes: same four columns on the body-hit motion",
+     "Same fixes on the motion that often hits the body. Front view.", {"motion": "problem_fix", "view": "front"}),
+    ("demo_tail_twist_cancel", "D + forearm ConeReader: elbow 90 deg, twist through the forearm axis",
+     "D keeps the elbow/hand tails parallel to the upper arm tail. When D points along the forearm (inside the arm), "
+     "a ConeReader on the forearm axis pushes the tail to the cone edge toward the local-cancel side. Front view.",
+     {"motion": "align_cone", "view": "front"}),
+    ("demo_tail_twist_cancel", "D + forearm ConeReader: cross motion",
+     "Same three columns on the elbow-bent twist motion: the cone stays almost off, so tails still do not cross.",
+     {"motion": "cross_cone", "view": "front"}),
+    ("demo_tail_twist_cancel", "D + cone + shared body avoidance (body-hit motion, perspective)",
+     "The three parallel tails share one avoid angle: blocked ranges of each body ball in the twist plane are "
+     "computed with standard nodes and the tails are clamped like plan 1. Perspective view.",
+     {"motion": "problem_avoid", "view": "back"}),
+    ("demo_tail_twist_cancel", "D + cone + shared body avoidance (cross motion, perspective)",
+     "Same three columns on the elbow-bent twist motion.", {"motion": "cross_avoid", "view": "back"}),
+    ("demo_tail_layers", "Layered tails: toggle twist / elbow / cone / body avoid on tailLayers_CTRL",
+     "One humanoid. Each tail is a stack of layer joints (elbowLayer > twistLayer > avoidLayer > restLayer > tail). "
+     "Switch each effect on tailLayers_CTRL (0-1). Thin lines show the stages side by side (showStages).",
+     {"view": "back"}),
     ("demo_joint_chain_rbf", "Spine/arm chain: cone driver approximation",
      "Spheres vs cones from the elbow (fixed angle / angle scaled by distance), all feeding the same UE RBF.",
      {"case": "cone_c"}),

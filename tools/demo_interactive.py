@@ -8,9 +8,10 @@ from maya import cmds
 
 # 尻尾回避デモのウィンドウと、デモが作るHUD名の接頭辞。
 DEMO_WINDOWS = ("sweepCompareWindow", "sideKeepWindow", "coneSoftWindow", "rbfPoseWindow", "chainRbfWindow",
-               "coneReaderDemoWindow", "coneRbfWindow")
+               "coneReaderDemoWindow", "coneRbfWindow", "humanoidTailWindow", "tailTwistCancelWindow")
 DEMO_HUD_PREFIXES = ("sweepTop", "sweepBottom", "keepTop", "keepBottom", "coneTop", "coneBottom",
-                     "rbfTop", "rbfBottom", "chainTop", "chainBottom", "coneRbfTop", "coneRbfBottom")
+                     "rbfTop", "rbfBottom", "chainTop", "chainBottom", "coneRbfTop", "coneRbfBottom",
+                     "humanTop", "humanBottom", "twistTop", "twistBottom")
 
 
 # ウィンドウ名 → HUDを元に戻す関数。uiDeleted の scriptJob は遅れて動くことがあるので、
