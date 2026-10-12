@@ -116,6 +116,12 @@ def main(output_dir, finished=None):
         result = dict(status='error', checks=checks, error=traceback.format_exc())
     (output_dir / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(result), flush=True)
+    if widget is not None:
+        # このテストのExplorerはqpeHost.showの管理対象ではない。
+        # MayaのPython終了まで残さず、所有している検証画面をQtが生存中に破棄する。
+        widget.close()
+        widget.deleteLater()
+        QtCore.QCoreApplication.sendPostedEvents(widget, QtCore.QEvent.DeferredDelete)
     if finished:
         finished(result)
     return result

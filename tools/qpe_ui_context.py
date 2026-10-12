@@ -202,10 +202,10 @@ def main(output_dir, finished=None):
         appearance.scaleSpin.setValue(100)
         appearance.scaleSpin.setValue(150)
         assert widget.actionButtons['open'].font().pixelSize() == first
-        assert readSettings()[appearance.key] == {'fontSize': 16, 'uiPercent': 150}
+        assert readSettings()[appearance.key] == {'fontSize': 16, 'uiPercent': 150, 'density': 'compact'}
         widget.grab().save(str(output_dir / 'display-large.png'))
         appearance._reset()
-        assert widget.font().pixelSize() == round(12 * appearance.dpiScale)
+        assert widget.font().pixelSize() == round(13 * appearance.dpiScale)
         appearance.dialog.hide()
         checks.append(stage)
 
@@ -216,8 +216,8 @@ def main(output_dir, finished=None):
         scaled.show()
         scaled.navigate(str(root))
         pause(150)
-        assert scaled.font().pixelSize() == 24
-        assert scaled.sidebarButton.iconSize().width() == 40
+        assert scaled.font().pixelSize() == 26
+        assert scaled.sidebarButton.iconSize().width() == 32
         assert scaled.places.minimumWidth() == 2 * widget.places.minimumWidth()
         assert min(width for width in scaled.columns.columnWidths() if width) >= 160
         assert scaled.columns.columnWidths()[-1] == scaled.columns.contentWidth(scaled.columns.currentIndex())

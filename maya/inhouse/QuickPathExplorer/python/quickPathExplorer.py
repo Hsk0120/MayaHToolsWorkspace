@@ -451,6 +451,8 @@ class Explorer(QtWidgets.QWidget):
         self._connectDirectoryModels()
         from qpeTools import Organizer
         self.organizer = Organizer(self)
+        from qpeModern import ModernLayout
+        self.modern = ModernLayout(self)
 
     def _connectDirectoryModels(self):
         """世代管理モデルの通知と表示位置保持を接続する。"""
@@ -481,6 +483,7 @@ class Explorer(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 8)
         bar = QtWidgets.QHBoxLayout()
+        bar.setSpacing(4)
         layout.addLayout(bar)
         self.sidebarButton = QtWidgets.QToolButton(self)
         self.sidebarButton.setObjectName('sidebarToggle')
@@ -579,10 +582,16 @@ class Explorer(QtWidgets.QWidget):
         file_panel.setMinimumHeight(210)
         file_layout = QtWidgets.QVBoxLayout(file_panel)
         file_layout.setContentsMargins(0, 0, 0, 0)
-        self.folderLabel = QtWidgets.QLabel('FILES', file_panel)
+        from qpeModern import SummaryLabel
+        self.folderLabel = SummaryLabel('FILES', file_panel)
         self.folderLabel.setTextFormat(QtCore.Qt.PlainText)
-        file_layout.addWidget(self.folderLabel)
+        self.folderLabel.setObjectName('folderSummary')
+        self.folderLabel.setMinimumWidth(0)
+        self.folderLabel.setMaximumWidth(230)
+        self.folderLabel.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         filters = QtWidgets.QHBoxLayout()
+        self.fileToolbar = filters
+        filters.addWidget(self.folderLabel, 1)
         self.search = QtWidgets.QLineEdit(file_panel)
         self.search.setObjectName('fileSearch')
         self.search.setPlaceholderText('Filter file names…')
@@ -660,7 +669,16 @@ class Explorer(QtWidgets.QWidget):
         bar.addWidget(self.inspectorButton)
         self._inspectorWidth = 340
         self.actionsPanel.hide()
-        actions = QtWidgets.QVBoxLayout(self.actionsPanel)
+        inspector_layout = QtWidgets.QVBoxLayout(self.actionsPanel)
+        inspector_layout.setContentsMargins(0, 0, 0, 0)
+        self.inspectorScroll = QtWidgets.QScrollArea(self.actionsPanel)
+        self.inspectorScroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.inspectorScroll.setWidgetResizable(True)
+        self.inspectorScroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        inspector_body = QtWidgets.QWidget()
+        self.inspectorScroll.setWidget(inspector_body)
+        inspector_layout.addWidget(self.inspectorScroll)
+        actions = QtWidgets.QVBoxLayout(inspector_body)
         actions.setAlignment(QtCore.Qt.AlignTop)
         actions.setContentsMargins(6, 0, 6, 0)
         self.operationTabs = QtWidgets.QTabWidget(self.actionsPanel)
@@ -674,8 +692,10 @@ class Explorer(QtWidgets.QWidget):
         else:
             self.savePanel.hide()
         self.readLayout = QtWidgets.QVBoxLayout(self.readPanel)
+        self.readLayout.setSpacing(8)
         self.saveLayoutUi = QtWidgets.QVBoxLayout(self.savePanel)
         self.readTarget = QtWidgets.QLabel('Select a file below', self.readPanel)
+        self.readTarget.setObjectName('readTarget')
         self.readTarget.setTextFormat(QtCore.Qt.PlainText)
         self.readTarget.setWordWrap(True)
         self.readLayout.addWidget(self.readTarget)
@@ -700,16 +720,28 @@ class Explorer(QtWidgets.QWidget):
             if key != 'open' and not self._maya:
                 button.setEnabled(False)
                 button.setToolTip('Available when running inside Maya')
-        self._button('Maya Options…', lambda: self.actionRequested.emit('options'), actions).setVisible(self._maya)
+        maya_options = self._button('Maya Options…', lambda: self.actionRequested.emit('options'), actions)
+        maya_options.setVisible(self._maya)
         if self._maya:
             from qpeReadOptions import ReadOptions
             self.readOptions = ReadOptions(self.readPanel)
+            self.readOptionsToggle = QtWidgets.QToolButton(self.readPanel)
+            self.readOptionsToggle.setText('Import / Reference settings')
+            self.readOptionsToggle.setCheckable(True)
+            self.readOptionsToggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+            self.readOptionsToggle.setArrowType(QtCore.Qt.RightArrow)
+            self.readOptionsToggle.toggled.connect(self._toggleReadOptions)
+            self.readLayout.addWidget(self.readOptionsToggle)
             self.readLayout.addWidget(self.readOptions)
+            self.readOptions.hide()
         self.details = QtWidgets.QWidget(self.actionsPanel)
         actions.addWidget(self.details, 1)
         self.details.setObjectName('detailsPanel')
         self.details.setMinimumWidth(180)
         detail_layout = QtWidgets.QVBoxLayout(self.details)
+        self.readLayout.removeWidget(self.readTarget)
+        detail_layout.addWidget(self.readTarget)
+        self.readTarget.setObjectName('fileTitle')
         detail_layout.setAlignment(QtCore.Qt.AlignTop)
         detail_layout.setContentsMargins(6, 0, 0, 0)
 
@@ -737,8 +769,13 @@ class Explorer(QtWidgets.QWidget):
         actions.removeWidget(self.operationTabs)
         actions.addWidget(self.operationTabs)
         self.detailsHeading = QtWidgets.QLabel('Details', self.details)
+        self.detailsHeading.setObjectName('sectionHeading')
         actions.addWidget(self.detailsHeading)
         actions.addWidget(self.metadata)
+        actions.removeWidget(self.operationTabs)
+        actions.addWidget(self.operationTabs)
+        actions.removeWidget(maya_options)
+        actions.addWidget(maya_options)
         actions.addStretch(1)
 
         save_line = QtWidgets.QVBoxLayout()
@@ -780,6 +817,12 @@ class Explorer(QtWidgets.QWidget):
         self.operationTabs.currentChanged.connect(self._operationTabChanged)
         self._operationTabChanged(0)
         self._updateActions()
+
+    def _toggleReadOptions(self, visible):
+        """読込設定を明示的に展開し、操作タブの高さを更新する。"""
+        self.readOptions.setVisible(visible)
+        self.readOptionsToggle.setArrowType(QtCore.Qt.DownArrow if visible else QtCore.Qt.RightArrow)
+        self._operationTabChanged(self.operationTabs.currentIndex())
 
     def _configureFileHeader(self, *unused):
         """非同期モデルの再構築後もファイル名へ余白を配分する。
@@ -1541,10 +1584,11 @@ class Explorer(QtWidgets.QWidget):
         info = QtCore.QFileInfo(path)
         import html
         from qpeProductivityIO import availability
-        rows = [('Availability', availability(path)[0]), ('Type', fileType(path)),
+        rows = [('Type', fileType(path)),
                 ('Size', QtCore.QLocale.system().formattedDataSize(info.size())),
                 ('Location', self.fontMetrics().elidedText(info.absolutePath(), QtCore.Qt.ElideMiddle, 180)),
-                ('Modified', info.lastModified().toString('yyyy-MM-dd HH:mm'))]
+                ('Modified', info.lastModified().toString('yyyy-MM-dd HH:mm')),
+                ('Availability', availability(path)[0])]
         self.metadata.setText('<table cellspacing="0" cellpadding="6">' + ''.join(
             '<tr><td valign="top">{}</td><td>{}</td></tr>'.format(html.escape(label), html.escape(value))
             for label, value in rows) + '</table>')

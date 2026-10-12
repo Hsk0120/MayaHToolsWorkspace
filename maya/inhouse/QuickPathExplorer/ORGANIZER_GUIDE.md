@@ -4,6 +4,8 @@
 
 Toolsは **Search / organize、View、Transfers / history、Tabs / workspaces、Maya、Settings / diagnostics** に分類しています。以下でToolsから直接選ぶと記載した操作も、現在は該当する分類内にあります。**Find command…（Ctrl+Shift+P）** なら操作名で検索できます。選択数や保存状態に合わない操作は無効表示になります。
 
+下段の表示条件（Details / Thumbnails / Metadata、Include subfolders、グループ化、タグ、Columns）は一覧右上の **View** から変更します。適用中の絞り込みは一覧上のラベルの×で個別解除できます。右ペインのImport／Reference設定は **Import / Reference settings** で展開します。折り畳んでも設定値は変更しません。
+
 ## コピー・移動・取り消し
 
 ファイル／フォルダーの右クリックにCopy、Cut、Duplicate、Move to Recycle Bin、Paste hereを追加しています。一覧にフォーカスがある場合はCtrl+C／X／V、Deleteが使えます。入力欄の編集中は通常の文字編集が優先されます。

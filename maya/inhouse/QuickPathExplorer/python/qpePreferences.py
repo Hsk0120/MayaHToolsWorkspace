@@ -173,6 +173,7 @@ class PreferencesDialog(QtWidgets.QDialog):
             appearance = self.workspace.e.appearance
             values = readSettings()
             display = values.get(appearance.key, {})
+            appearance.density = display.get('density', 'compact') if display.get('density', 'compact') in ('compact', 'comfortable') else 'compact'
             if not self.workspace.e._maya:
                 appearance.theme.setMode(values.get('standaloneTheme', appearance.theme.mode))
             appearance.apply(display.get('fontSize', appearance.fontSize), display.get('uiPercent', appearance.uiPercent), save=False)

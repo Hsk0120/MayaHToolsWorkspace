@@ -103,6 +103,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-13 Codex: 承認済みQPEモダンUIの実装・アイコン・説明書・回帰テストをコミット対象として確認。既存の24 UIスイートとexe起動の検証記録、差分チェックを確認し、origin/mainへの反映作業。動画・調査資料・配布生成物はGit対象外。
+- 2026-10-13 Codex: QPEモダンUIを実装。共通の余白/枠/フォーカス/矢印、13px既定文字と行間切替、Viewへの表示設定集約、個別解除フィルター、右ペイン情報→操作/読込設定の折畳み/縦スクロールに対応。Windows14、Maya2022/2027各5 UIスイート合格、配布exe再ビルド・起動合格。Maya2022の管理外テスト画面の終了クラッシュは検証側の明示破棄で修正し再検証済み。動画2本と画像を確認し既存非公開Driveへ保存。Maya動画 https://drive.google.com/file/d/1y-P8dhhq-4I0vHVGhIl_1GqKEdT0HHno/view 。証跡.maya-output/verification/qpe-modern。物理4K/混在DPI/実IME/iPadは未確認。未コミット・未プッシュ。
+- 2026-10-13 Codex: QPEの保存済み実操作画像・テーマ実装とFluent公式の余白/文字/色指針を比較。Apple/Materialも参照し取得制限を記録。高密度を維持した部品・状態・操作行整理を提案。調査はdocs/research/qpe-modern-ui-20261013.txtにGit対象外で保存。製品変更・新規実機検証/録画なし。
 - 2026-10-13 Codex: ユーザーのプッシュ依頼に合わせ、QPEの機能追加・関連付けアプリで開く動作・UX修正・検証コード・説明書をコミット対象として整理。既存検証記録と差分チェックを確認し、動画・ローカル成果物・調査資料を除外。origin/mainへの反映作業。
 
 - 2026-10-12 Codex: QPE全操作レビューと不具合修正。階層往復、欠損タブ復元、固定タブ、転送行選択、設定検証、空フィルター後の列幅、終了時shibokenクラッシュを修正。Open/ダブルクリック/Spaceは.ma/.mbのみ現在Maya、他形式と単体版はOS関連付け。独自ビューアーを撤去。バックエンド60、単体14スイート、隔離Maya2022/2027各16スイート合格。両Mayaのドック再起動・停止中転送からの終了も確認。exe再ビルド・起動合格。実UI8章約6分、関連付け実機確認画像動画、索引、未実施手順を非公開Driveへ保存。実IME/物理ホイール/混在DPI/ネットワーク断等は未実施。証跡qpe-full-audit・qpe-associated・qpe-full-review-r3/r4。全編 https://drive.google.com/file/d/1Cvhls4fMV9bS2cBvdd0dxU5Xk49T0mQr/view 。今後のQPEレビュー報告には毎回動画リンクを添付。未コミット・未プッシュ。

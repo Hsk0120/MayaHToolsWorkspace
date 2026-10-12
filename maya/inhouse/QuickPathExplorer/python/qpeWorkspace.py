@@ -84,7 +84,7 @@ class WorkspaceFeatures(QtCore.QObject):
         self.mode.currentIndexChanged.connect(self.viewChanged)
         self.flat.toggled.connect(self.viewChanged)
         self.group.currentIndexChanged.connect(self.viewChanged)
-        self.labelFilter.currentIndexChanged.connect(self.refresh)
+        self.labelFilter.currentIndexChanged.connect(self.viewChanged)
         self.tree.header().sortIndicatorChanged.connect(self.saveView)
         self.tree.header().sectionResized.connect(self.saveView)
         self.e.fileModel.directoryLoaded.connect(self.loaded)

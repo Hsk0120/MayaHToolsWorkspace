@@ -84,8 +84,11 @@ class Appearance:
         self.baseFont.setWeight(QtGui.QFont.Normal)
         value = readSettings().get(self.key, {})
         value = value if isinstance(value, dict) else {}
-        self.fontSize = self._number(value.get('fontSize'), 12, 10, 24)
+        self.fontSize = self._number(value.get('fontSize'), 13, 10, 24)
         self.uiPercent = self._number(value.get('uiPercent'), 100, 75, 200)
+        self.density = value.get('density', 'compact')
+        if self.density not in ('compact', 'comfortable'):
+            self.density = 'compact'
         self.apply(self.fontSize, self.uiPercent, save=False)
 
     @staticmethod
@@ -136,10 +139,10 @@ class Appearance:
             if spacing >= 0:
                 layout.setSpacing(px(spacing))
         for button in self.widget.findChildren(QtWidgets.QToolButton):
-            button.setIconSize(QtCore.QSize(px(20), px(20)))
+            button.setIconSize(QtCore.QSize(px(16), px(16)))
         for view in (self.widget.columns, self.widget.files, self.widget.places):
             view.setIconSize(QtCore.QSize(px(16), px(16)))
-            view.setProperty('qpeRowHeight', max(px(22), QtGui.QFontMetrics(font).height() + px(6)))
+            view.setProperty('qpeRowHeight', max(px(28 if self.density == 'comfortable' else 24), QtGui.QFontMetrics(font).height() + px(6)))
             if view is not self.widget.columns and not isinstance(view.itemDelegate(), BrowserItemDelegate):
                 view.setItemDelegate(BrowserItemDelegate(view))
         self.widget.places.setIndentation(px(16))
@@ -150,7 +153,7 @@ class Appearance:
             control.setMinimumHeight(max(px(28), QtGui.QFontMetrics(font).height() + px(8)))
 
         for splitter in (self.widget.outer, self.widget.vertical, self.widget.lower):
-            splitter.setHandleWidth(px(4))
+            splitter.setHandleWidth(px(3))
         # 最小カラム幅は大きな文字にも追従させる。
         self.widget.columns.columnScale = scale * max(1.0, self.fontSize / 12.0)
         self.widget.columns.fitColumns()
@@ -158,6 +161,7 @@ class Appearance:
             self.widget.columns.scrollTo(self.widget.columns.currentIndex())
         for view in self.widget.columns.findChildren(QtWidgets.QListView):
             view.setFont(font)
+            view.setProperty('qpeRowHeight', self.widget.columns.property('qpeRowHeight'))
             view.setIconSize(QtCore.QSize(px(16), px(16)))
             view.doItemsLayout()
         self.widget.files.doItemsLayout()
@@ -165,18 +169,24 @@ class Appearance:
         # フォント変更後も余白をファイル名へ配分する。固定幅へ戻すと右側が空く。
         self.widget._configureFileHeader()
         self.widget.files.header().resizeSections()
-        self.widget.preview.setMaximumHeight(px(260))
+        self.widget.preview.setMaximumHeight(px(180))
         self.widget.previewText.setMaximumHeight(px(230))
         self.widget._operationTabChanged(self.widget.operationTabs.currentIndex())
+        if hasattr(self.widget, 'modern'):
+            self.widget.modern.refresh()
+            self.widget.modern.applyMetrics()
         if self.dialog is not None:
             self.dialog.setFont(font)
-            presets = {(12, 100): 0, (12, 125): 1, (12, 150): 2}
+            presets = {(13, 100): 0, (13, 125): 1, (13, 150): 2}
             self.presetCombo.blockSignals(True)
             self.presetCombo.setCurrentIndex(presets.get((self.fontSize, self.uiPercent), 3))
             self.presetCombo.blockSignals(False)
+            self.densityCombo.blockSignals(True)
+            self.densityCombo.setCurrentIndex(int(self.density == 'comfortable'))
+            self.densityCombo.blockSignals(False)
             self.effectiveSize.setText('Displayed text: {} px · UI: {:.0f}% of host'.format(font.pixelSize(), self.uiPercent))
             self.dialog.adjustSize()
-        if save and not writeSettings({self.key: {'fontSize': self.fontSize, 'uiPercent': self.uiPercent}}):
+        if save and not writeSettings({self.key: {'fontSize': self.fontSize, 'uiPercent': self.uiPercent, 'density': self.density}}):
             self.widget.status.setText('Display settings could not be saved.')
             self.widget.status.show()
 
@@ -186,6 +196,7 @@ class Appearance:
         px = lambda value: max(1, round(value * scale)) if value else 0
         font_pixels = max(1, round(self.fontSize * scale))
         # ホスト全体に影響させず、QPE内だけ細いトラックとホバー強調を使う。
+        from qpeModern import style
         self.widget.setStyleSheet(self.theme.style() + '''
             QWidget { font-family: "Segoe UI"; font-size: %dpx; font-weight: normal; }
             QLineEdit, QComboBox, QPushButton { padding: %dpx %dpx; }
@@ -201,11 +212,11 @@ class Appearance:
             QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: none; }
             QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
         ''' % (font_pixels, px(3), px(6), px(4), px(6), px(5), px(8),
-               px(7), px(7), px(3), px(28), px(28)))
+               px(7), px(7), px(3), px(28), px(28)) + style(self.theme.colors, px, font_pixels))
         colors = self.theme.colors
         self.widget.folderLabel.setStyleSheet(
-            'background: %s; color: %s; padding: %dpx %dpx;' %
-            (colors['bar'], colors['text'], px(5), px(6)))
+            'background: transparent; color: %s; padding: %dpx %dpx; font-weight: 600;' %
+            (colors['text'], px(4), px(8)))
 
     def show(self):
         """即時反映する表示設定ダイアログを開く。"""
@@ -231,6 +242,12 @@ class Appearance:
         self.presetCombo.setObjectName('displayPreset')
         self.presetCombo.addItems(['Standard', 'Larger', 'Largest', 'Custom'])
         layout.addRow('Size', self.presetCombo)
+        density = QtWidgets.QComboBox(dialog)
+        self.densityCombo = density
+        density.addItems(['Compact', 'Comfortable'])
+        density.setCurrentIndex(int(self.density == 'comfortable'))
+        density.currentIndexChanged.connect(self.setDensity)
+        layout.addRow('Row spacing', density)
         self.effectiveSize = QtWidgets.QLabel(dialog)
         layout.addRow(self.effectiveSize)
         self.widthCombo = QtWidgets.QComboBox(dialog)
@@ -272,6 +289,11 @@ class Appearance:
         self.apply(self.fontSize, self.uiPercent, save=False)
         dialog.show()
 
+    def setDensity(self, index):
+        """文字倍率を変えずに一覧の行間だけを切り替える。"""
+        self.density = 'comfortable' if index else 'compact'
+        self.apply(self.fontSize, self.uiPercent)
+
     def setPreset(self, index):
         """用途が分かる三段階の表示サイズを設定する。
 
@@ -282,11 +304,11 @@ class Appearance:
             return
         self.fontSpin.blockSignals(True)
         self.scaleSpin.blockSignals(True)
-        self.fontSpin.setValue(12)
+        self.fontSpin.setValue(13)
         self.scaleSpin.setValue((100, 125, 150)[index])
         self.fontSpin.blockSignals(False)
         self.scaleSpin.blockSignals(False)
-        self.apply(12, (100, 125, 150)[index])
+        self.apply(13, (100, 125, 150)[index])
 
     def _changed(self, value):
         """操作した値を直ちに反映する。
@@ -298,4 +320,5 @@ class Appearance:
 
     def _reset(self):
         """Maya標準倍率を保った既定表示へ戻す。"""
+        self.density = 'compact'
         self.setPreset(0)
