@@ -1,67 +1,144 @@
-"""拡張子を文字と色で区別する、DPIに対応したファイルアイコン。"""
-import hashlib
-from pathlib import Path
-from qpeQt import QtCore, QtGui
-
-# アプリケーションが明確な形式は同じ配色に揃える。
-# FBXはAutodesk FBX Reviewの青緑系。関連付け先の変更や実行ファイルの読込は行わない。
-APPLICATION_COLORS = {
-    'ma': '#36a6c8', 'mb': '#36a6c8', 'mel': '#36a6c8',
-    'fbx': '#159b9d',
-    'blend': '#e87d0d',
-    'psd': '#155a9e', 'psb': '#155a9e',
-    'ai': '#c87508',
-    'aep': '#6554c0', 'aepx': '#6554c0',
-    'prproj': '#6554c0',
-    'hip': '#df692a', 'hiplc': '#df692a', 'hipnc': '#df692a',
-    'py': '#3776ab', 'pyw': '#3776ab',
-}
+"""OSの関連付けを使うファイルアイコン。"""
+import os
+import ctypes
+from ctypes import wintypes
+from qpeQt import QtCore, QtGui, QtWidgets
 
 
 class FileIcons:
-    """拡張子ごとの描画をキャッシュし、ファイル数に比例する描画を避ける。"""
+    """Qtのネイティブアイコン取得をキャッシュする。"""
 
     def __init__(self):
-        """GUIスレッドで使うアイコンキャッシュを初期化する。"""
+        """GUIスレッドで使用するプロバイダーを保持する。"""
+        self._provider = QtWidgets.QFileIconProvider()
         self._cache = {}
 
     def icon(self, path):
-        """拡張子付きの書類アイコンを複数解像度で返す。
+        """ファイルごとの関連付け・ショートカット等を反映する。
 
         Args:
-            path (str): ファイルパス。ファイル自体は読み込まない。
+            path (str): 対象ファイル。
 
         Returns:
-            QIcon: 大小文字を区別せず共有するアイコン。
+            QIcon: WindowsではShellのアイコン。サムネイルは含まない。
         """
-        extension = Path(path).suffix.lstrip('.').lower()
-        if extension in self._cache:
-            return self._cache[extension]
-        label = extension.upper() if extension else '—'
-        if len(label) > 4:
-            label = label[:3] + '…'
-        hue = int(hashlib.sha256(extension.encode('utf-8')).hexdigest()[:4], 16) % 360
-        color = (QtGui.QColor(APPLICATION_COLORS[extension]) if extension in APPLICATION_COLORS
-                 else QtGui.QColor.fromHsv(hue, 145, 155))
-        icon = QtGui.QIcon()
-        for size in (16, 20, 24, 32, 40, 48, 64, 96):
-            pixmap = QtGui.QPixmap(size, size)
-            pixmap.fill(QtCore.Qt.transparent)
-            painter = QtGui.QPainter(pixmap)
-            painter.setRenderHint(QtGui.QPainter.Antialiasing)
-            painter.scale(size / 32.0, size / 32.0)
-            painter.setPen(QtCore.Qt.NoPen)
-            painter.setBrush(QtGui.QColor('#dce3ec'))
-            painter.drawRoundedRect(QtCore.QRectF(5, 1, 22, 30), 3, 3)
-            painter.setBrush(color)
-            painter.drawRoundedRect(QtCore.QRectF(0, 12, 32, 16), 3, 3)
-            font = QtGui.QFont('Segoe UI')
-            font.setPixelSize(12 if len(label) <= 3 else 10)
-            font.setBold(True)
-            painter.setFont(font)
-            painter.setPen(QtGui.QColor('white'))
-            painter.drawText(QtCore.QRectF(0, 11, 32, 17), QtCore.Qt.AlignCenter, label)
-            painter.end()
-            icon.addPixmap(pixmap)
-        self._cache[extension] = icon
-        return icon
+        info = QtCore.QFileInfo(path)
+        key = (info.absoluteFilePath(), info.lastModified().toMSecsSinceEpoch())
+        if key not in self._cache:
+            if len(self._cache) >= 512:
+                self._cache.clear()
+            native = windowsIcon(info.absoluteFilePath()) if os.name == 'nt' else QtGui.QIcon()
+            self._cache[key] = native if not native.isNull() else self._provider.icon(info)
+        return self._cache[key]
+
+
+class _ShellInfo(ctypes.Structure):
+    """Shell APIのアイコン・表示名・種類の出力領域。"""
+    _fields_ = [('hIcon', wintypes.HANDLE), ('iIcon', ctypes.c_int),
+                ('attributes', wintypes.DWORD), ('name', wintypes.WCHAR * 260),
+                ('typeName', wintypes.WCHAR * 80)]
+
+
+def windowsIcon(path, directory=False):
+    """Windowsの関連付けアイコンを取得し、所有するHICONを必ず解放する。
+
+    Args:
+        path (str): ファイルの絶対パス。
+        directory (bool): 実ファイルに問い合わせず標準フォルダーを取得する。
+
+    Returns:
+        QIcon: Shellが返す大小のアイコン。取得失敗時は空。
+    """
+    shell = ctypes.windll.shell32.SHGetFileInfoW
+    shell.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(_ShellInfo), wintypes.UINT, wintypes.UINT]
+    shell.restype = ctypes.c_size_t
+    destroy = ctypes.windll.user32.DestroyIcon
+    destroy.argtypes = [wintypes.HANDLE]
+    icon = QtGui.QIcon()
+    for flag, size in ((1, 16), (0, 32)):
+        info = _ShellInfo()
+        if not shell(os.path.normpath(path), 0x10 if directory else 0, ctypes.byref(info),
+                     ctypes.sizeof(info), 0x100 | flag | (0x10 if directory else 0)):
+            continue
+        try:
+            if hasattr(QtGui.QImage, 'fromHICON'):
+                image = QtGui.QImage.fromHICON(int(info.hIcon))
+            else:
+                image = _iconImage(info.hIcon, size)
+            icon.addPixmap(QtGui.QPixmap.fromImage(image))
+        finally:
+            destroy(info.hIcon)
+    return icon
+
+
+_folderIcon = None
+
+
+def folderIcon():
+    """OS標準のフォルダーアイコンをGUIスレッドで一度だけ取得する。"""
+    global _folderIcon
+    if _folderIcon is None:
+        _folderIcon = windowsIcon('folder', directory=True) if os.name == 'nt' else QtGui.QIcon()
+        if _folderIcon.isNull():
+            _folderIcon = QtWidgets.QFileIconProvider().icon(QtWidgets.QFileIconProvider.Folder)
+    return _folderIcon
+
+
+def _iconImage(handle, size):
+    """Qt5用にHICONを32bit DIBへ描画してコピーする。
+
+    Args:
+        handle (int): 借用するHICON。
+        size (int): 描画するピクセル寸法。
+
+    Returns:
+        QImage: GDI資源から独立した画像。
+    """
+    import struct
+    gdi = ctypes.windll.gdi32
+    gdi.CreateCompatibleDC.argtypes = [wintypes.HDC]
+    gdi.CreateCompatibleDC.restype = wintypes.HDC
+    gdi.CreateDIBSection.argtypes = [wintypes.HDC, ctypes.c_void_p, wintypes.UINT, ctypes.POINTER(ctypes.c_void_p), wintypes.HANDLE, wintypes.DWORD]
+    gdi.CreateDIBSection.restype = wintypes.HANDLE
+    gdi.SelectObject.argtypes = [wintypes.HDC, wintypes.HANDLE]
+    gdi.SelectObject.restype = wintypes.HANDLE
+    gdi.DeleteObject.argtypes = [wintypes.HANDLE]
+    gdi.DeleteDC.argtypes = [wintypes.HDC]
+    draw = ctypes.windll.user32.DrawIconEx
+    draw.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, wintypes.HANDLE, ctypes.c_int, ctypes.c_int, wintypes.UINT, wintypes.HANDLE, wintypes.UINT]
+    header = ctypes.create_string_buffer(struct.pack('<IiiHHIIiiII', 40, size, -size, 1, 32, 0, size * size * 4, 0, 0, 0, 0))
+    bits = ctypes.c_void_p()
+    dc = gdi.CreateCompatibleDC(None)
+    bitmap = gdi.CreateDIBSection(dc, header, 0, ctypes.byref(bits), None, 0)
+    if not bitmap:
+        gdi.DeleteDC(dc)
+        return QtGui.QImage()
+    previous = gdi.SelectObject(dc, bitmap)
+    try:
+        ctypes.memset(bits, 0, size * size * 4)
+        draw(dc, 0, 0, handle, size, size, 0, None, 3)
+        data = ctypes.string_at(bits, size * size * 4)
+        return QtGui.QImage(data, size, size, size * 4, QtGui.QImage.Format_ARGB32_Premultiplied).copy()
+    finally:
+        gdi.SelectObject(dc, previous)
+        gdi.DeleteObject(bitmap)
+        gdi.DeleteDC(dc)
+
+
+def fileType(path):
+    """WindowsではShellの種類名、それ以外はQtの種類名を返す。
+
+    Args:
+        path (str): 対象ファイル。
+
+    Returns:
+        str: OSが表示するファイルの種類。
+    """
+    if os.name == 'nt':
+        info = _ShellInfo()
+        shell = ctypes.windll.shell32.SHGetFileInfoW
+        shell.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(_ShellInfo), wintypes.UINT, wintypes.UINT]
+        shell.restype = ctypes.c_size_t
+        if shell(os.path.normpath(path), 0, ctypes.byref(info), ctypes.sizeof(info), 0x400):
+            return info.typeName
+    return QtWidgets.QFileIconProvider().type(QtCore.QFileInfo(path))

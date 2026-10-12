@@ -81,6 +81,17 @@ def main(output_dir, finished=None):
         assert widget._quickLook.findChild(QtWidgets.QPlainTextEdit, 'quickLookText').toPlainText() == 'Review notes'
         widget.toggleQuickLook()
         checks.append('quick look works while sidebar hidden')
+        widget.addFavoritePath(str(paths[2]))
+        favorite = widget.places.topLevelItem(0).child(0)
+        assert not favorite.icon(0).isNull()
+        widget._placeClicked(favorite, 0)
+        waitFor(lambda: Path(widget.selectedPath()) == paths[2])
+        groups = [widget.places.topLevelItem(i) for i in range(widget.places.topLevelItemCount())]
+        assert [g.text(0) for g in groups] == ['Favorites', 'Recent']
+        recent_paths = [Path(groups[1].child(i).data(0, QtCore.Qt.UserRole)) for i in range(groups[1].childCount())]
+        assert folder in recent_paths and paths[0] in recent_paths
+        assert all(not groups[1].child(i).icon(0).isNull() for i in range(groups[1].childCount()))
+        checks.append('Favorites/Recent only, folder/file icons and file favorite selection')
         if finished:
             import maya.cmds as cmds
             import qpeHost
@@ -94,6 +105,7 @@ def main(output_dir, finished=None):
             checks.append('Maya opens clicked scene from different selection')
             widget.prepareSave(str(folder))
             assert widget.actionsPanel.isVisible() and widget.inspectorButton.isChecked()
+            assert widget.details.isHidden() and widget.fileName.width() > 200
             checks.append('save here reveals sidebar')
         result = dict(status='passed', checks=checks)
     except Exception:

@@ -1,6 +1,7 @@
 """ホストのDPIとユーザー指定を分けて扱う表示設定。"""
 from qpeQt import QtCore, QtGui, QtWidgets, shiboken
 from qpeSettings import readSettings, writeSettings
+from qpeTheme import Theme
 
 
 class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
@@ -20,15 +21,27 @@ class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
             self.initStyleOption(item_option, index)
             arrow_space = max(12, option.fontMetrics.height())
             item_option.text = option.fontMetrics.elidedText(item_option.text, QtCore.Qt.ElideRight,
-                                                           max(0, option.rect.width() - arrow_space - 6))
+                                                           max(0, option.rect.width() - arrow_space - view.iconSize().width() - 12))
             view.style().drawControl(QtWidgets.QStyle.CE_ItemViewItem, item_option, painter, view)
-            arrow = QtWidgets.QStyleOption()
-            arrow_size = max(6, round(option.fontMetrics.height() * .5))
-            arrow.rect = QtCore.QRect(option.rect.right() - arrow_space,
-                                     option.rect.center().y() - arrow_size // 2, arrow_size, arrow_size)
-            arrow.palette = option.palette
-            arrow.state = QtWidgets.QStyle.State_Enabled
-            view.style().drawPrimitive(QtWidgets.QStyle.PE_IndicatorArrowRight, arrow, painter, view)
+            model = index.model()
+            path = model.filePath(index)
+            ready = model.states.get(path, ('loading', ''))[0] == 'ready'
+            has_children = not ready or model.rowCount(index) > 0
+            color = option.palette.color(QtGui.QPalette.Text)
+            if option.state & QtWidgets.QStyle.State_Selected:
+                color = QtGui.QColor(view.property('qpeSelectionText') or option.palette.color(QtGui.QPalette.HighlightedText).name())
+            if has_children:
+                painter.save()
+                painter.setRenderHint(QtGui.QPainter.Antialiasing)
+                painter.setPen(QtGui.QPen(QtGui.QColor(color), max(1.0, arrow_space / 12.0)))
+                x = option.rect.right() - arrow_space / 2 - 2
+                y = option.rect.center().y()
+                radius = arrow_space / 4.0
+                painter.drawPolyline(QtGui.QPolygonF([
+                    QtCore.QPointF(x - radius / 2, y - radius),
+                    QtCore.QPointF(x + radius / 2, y),
+                    QtCore.QPointF(x - radius / 2, y + radius)]))
+                painter.restore()
         else:
             super().paint(painter, option, index)
 
@@ -59,6 +72,7 @@ class Appearance:
             dpi_scale (float): MayaのDPI倍率。単体Qtでは1。
         """
         self.widget = widget
+        self.theme = Theme(widget)
         self.dpiScale = dpi_scale
         self.key = 'mayaAppearance' if widget._maya else 'standaloneAppearance'
         self.dialog = None
@@ -102,28 +116,12 @@ class Appearance:
         scale = self.dpiScale * self.uiPercent / 100.0
         px = lambda value: max(1, round(value * scale)) if value else 0
         font_pixels = max(1, round(self.fontSize * scale))
-        # ホスト全体に影響させず、QPE内だけ細いトラックとホバー強調を使う。
-        self.widget.setStyleSheet('''
-            QWidget { font-family: "Segoe UI"; font-size: %dpx; font-weight: normal; }
-            QTreeView, QListView { color: #e4e7eb; background-color: #2b2b2b; alternate-background-color: #333638; }
-            QColumnView QListView { border: none; border-right: 1px solid #484848; }
-            QLineEdit, QComboBox, QPushButton { padding: %dpx %dpx; }
-            QHeaderView::section { padding: %dpx %dpx; font-weight: normal; }
-            QTabBar::tab { padding: %dpx %dpx; }
-            QScrollBar:vertical { background: transparent; width: %dpx; margin: 0; }
-            QScrollBar:horizontal { background: transparent; height: %dpx; margin: 0; }
-            QScrollBar::handle { background: rgba(145,145,145,100); border-radius: %dpx; }
-            QScrollBar::handle:hover { background: rgba(165,165,165,190); }
-            QScrollBar::handle:pressed { background: rgba(185,185,185,220); }
-            QScrollBar::handle:vertical { min-height: %dpx; }
-            QScrollBar::handle:horizontal { min-width: %dpx; }
-            QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: none; }
-            QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
-        ''' % (font_pixels, px(3), px(6), px(4), px(6), px(5), px(8),
-               px(7), px(7), px(3), px(28), px(28)))
+        self.applyStyle()
         font = QtGui.QFont(self.baseFont)
         font.setPixelSize(max(1, round(self.fontSize * scale)))
         self.widget.setFont(font)
+        if hasattr(self.widget, 'folderTabs'):
+            self.widget.folderTabs.strip.refresh()
         for w, minimum, maximum in self.dimensions:
             if not shiboken.isValid(w):
                 continue
@@ -150,7 +148,7 @@ class Appearance:
                         self.widget.locationsButton, self.widget.displayButton, self.widget.rootButton,
                         self.widget.inspectorButton):
             control.setMinimumHeight(max(px(28), QtGui.QFontMetrics(font).height() + px(8)))
-        self.widget.folderLabel.setStyleSheet('background: #30363a; color: #e4e7eb; padding: %dpx %dpx;' % (px(5), px(6)))
+
         for splitter in (self.widget.outer, self.widget.vertical, self.widget.lower):
             splitter.setHandleWidth(px(4))
         # 最小カラム幅は大きな文字にも追従させる。
@@ -181,6 +179,33 @@ class Appearance:
             self.widget.status.setText('Display settings could not be saved.')
             self.widget.status.show()
 
+    def applyStyle(self):
+        """配色変更だけでは列幅・スクロール・フォーカスを変更しない。"""
+        scale = self.dpiScale * self.uiPercent / 100.0
+        px = lambda value: max(1, round(value * scale)) if value else 0
+        font_pixels = max(1, round(self.fontSize * scale))
+        # ホスト全体に影響させず、QPE内だけ細いトラックとホバー強調を使う。
+        self.widget.setStyleSheet(self.theme.style() + '''
+            QWidget { font-family: "Segoe UI"; font-size: %dpx; font-weight: normal; }
+            QLineEdit, QComboBox, QPushButton { padding: %dpx %dpx; }
+            QHeaderView::section { padding: %dpx %dpx; font-weight: normal; }
+            QTabBar::tab { padding: %dpx %dpx; }
+            QScrollBar:vertical { background: transparent; width: %dpx; margin: 0; }
+            QScrollBar:horizontal { background: transparent; height: %dpx; margin: 0; }
+            QScrollBar::handle { background: rgba(145,145,145,100); border-radius: %dpx; }
+            QScrollBar::handle:hover { background: rgba(165,165,165,190); }
+            QScrollBar::handle:pressed { background: rgba(185,185,185,220); }
+            QScrollBar::handle:vertical { min-height: %dpx; }
+            QScrollBar::handle:horizontal { min-width: %dpx; }
+            QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: none; }
+            QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+        ''' % (font_pixels, px(3), px(6), px(4), px(6), px(5), px(8),
+               px(7), px(7), px(3), px(28), px(28)))
+        colors = self.theme.colors
+        self.widget.folderLabel.setStyleSheet(
+            'background: %s; color: %s; padding: %dpx %dpx;' %
+            (colors['bar'], colors['text'], px(5), px(6)))
+
     def show(self):
         """即時反映する表示設定ダイアログを開く。"""
         if self.dialog is not None:
@@ -192,6 +217,13 @@ class Appearance:
         dialog.setWindowTitle('Display Settings')
         dialog.setFont(self.widget.font())
         layout = QtWidgets.QFormLayout(dialog)
+        if not self.widget._maya:
+            theme_combo = QtWidgets.QComboBox(dialog)
+            for label, mode in [('Finder Light', 'finder'), ('Windows theme', 'system'), ('Windows Light', 'light'), ('Windows Dark', 'dark')]:
+                theme_combo.addItem(label, mode)
+            theme_combo.setCurrentIndex(theme_combo.findData(self.theme.mode))
+            theme_combo.currentIndexChanged.connect(lambda index: self.theme.setMode(theme_combo.itemData(index)))
+            layout.addRow('Color', theme_combo)
         layout.addRow(QtWidgets.QLabel('Maya DPI: {:.0f}%'.format(self.dpiScale * 100)
                                       if self.widget._maya else 'DPI: Windows / Qt automatic', dialog))
         self.presetCombo = QtWidgets.QComboBox(dialog)

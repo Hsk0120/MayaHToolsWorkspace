@@ -11,6 +11,7 @@ from qpeInlineRename import InlineRename
 from qpeInteraction import Interaction
 from qpeContextMenu import ContextMenu
 from qpeDirectoryModel import DirectoryModel
+from qpeFileIcons import FileIcons, fileType
 
 ICON = Path(__file__).resolve().parents[1] / 'icons/quickPathExplorer.png'
 
@@ -259,12 +260,12 @@ class FolderColumns(QtWidgets.QColumnView):
         if path in self._manualWidths:
             return round(self._manualWidths[path] * scale)
         metrics = self.fontMetrics()
-        width = 100
+        width = 0
         for row in range(self.model().rowCount(root)):
             width = max(width, metrics.horizontalAdvance(str(self.model().index(row, 0, root).data() or '')))
             if width >= round(1000 * scale):
                 break
-        return max(round(120 * scale), min(round(1040 * scale), width + round(24 * scale)))
+        return max(round(80 * scale), min(round(1040 * scale), width + round(48 * scale)))
 
     def setWidthMode(self, mode):
         """列幅方針を変更し保存する。
@@ -439,6 +440,8 @@ class Explorer(QtWidgets.QWidget):
         self._loadPlaces()
         self._restoreLayout()
         self.appearance = Appearance(self, dpi_scale)
+        from qpeTabs import FolderTabs
+        self.folderTabs = FolderTabs(self)
         self.interaction = Interaction(self)
         self.columns.interaction = self.interaction
         self.columns.refreshHints()
@@ -511,8 +514,8 @@ class Explorer(QtWidgets.QWidget):
         bar.addWidget(self.displayButton)
         self.rootButton = QtWidgets.QToolButton(self)
         self.rootButton.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
-        self.rootButton.clicked.connect(lambda: self.setBrowseRoot(''))
-        self.rootButton.setToolTip('Clear exploration root and show drive hierarchy')
+        self.rootButton.clicked.connect(lambda: self.setBrowseRoot('' if self.browseRoot else self.currentDirectory))
+        self.rootButton.setToolTip('Focus on this folder / show full drive hierarchy')
         self.rootButton.hide()
         bar.addWidget(self.rootButton)
         self.outer = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
@@ -522,8 +525,15 @@ class Explorer(QtWidgets.QWidget):
         self.places = QtWidgets.QTreeWidget(self.outer)
         self.places.setObjectName('places')
         self.places.setHeaderHidden(True)
-        self.places.setMinimumWidth(135)
+        self.places.setMinimumWidth(180)
+        self.places.setTextElideMode(QtCore.Qt.ElideMiddle)
         self.places.itemClicked.connect(self._placeClicked)
+        self.places.itemDoubleClicked.connect(self._placeActivated)
+        self._placeIcons = FileIcons()
+        self._placeFolderIcon = QtWidgets.QFileIconProvider().icon(QtWidgets.QFileIconProvider.Folder)
+        self._placeRefreshTimer = QtCore.QTimer(self)
+        self._placeRefreshTimer.setSingleShot(True)
+        self._placeRefreshTimer.timeout.connect(self._loadPlaces)
         self.places.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.places.customContextMenuRequested.connect(self._placeMenu)
         self.vertical = QtWidgets.QSplitter(QtCore.Qt.Vertical, self.outer)
@@ -532,7 +542,8 @@ class Explorer(QtWidgets.QWidget):
         upper = QtWidgets.QWidget(self.vertical)
         upper_layout = QtWidgets.QHBoxLayout(upper)
         upper_layout.setContentsMargins(0, 0, 0, 0)
-        self.sidebarButton.toggled.connect(self.places.setVisible)
+        self._sidebarWidth = 185
+        self.sidebarButton.toggled.connect(self.setSidebarVisible)
         self.places.hide()
         self.folderModel = FolderModel(self)
         self.folderModel.setObjectName('folderModel')
@@ -552,7 +563,6 @@ class Explorer(QtWidgets.QWidget):
         self.folderModel.directoryLoaded.connect(self.columns.folderLoaded)
         self.folderModel.rowsInserted.connect(self.columns.refreshHints)
         self.folderModel.rowsRemoved.connect(self.columns.refreshHints)
-        self.columns.setStyleSheet('QListView::item:selected { background: #326c7b; color: white; }')
         self.columns.setColumnWidths([210] * 16)
         self.columns.selectionModel().currentChanged.connect(self._folderChanged)
         upper_layout.addWidget(self.columns)
@@ -561,11 +571,11 @@ class Explorer(QtWidgets.QWidget):
         self.lower.setChildrenCollapsible(False)
         file_panel = QtWidgets.QWidget(self.lower)
         file_panel.setMinimumWidth(230)
+        file_panel.setMinimumHeight(210)
         file_layout = QtWidgets.QVBoxLayout(file_panel)
         file_layout.setContentsMargins(0, 0, 0, 0)
         self.folderLabel = QtWidgets.QLabel('FILES', file_panel)
         self.folderLabel.setTextFormat(QtCore.Qt.PlainText)
-        self.folderLabel.setStyleSheet('background: #23444b; color: #e4f5f7; padding: 5px;')
         file_layout.addWidget(self.folderLabel)
         filters = QtWidgets.QHBoxLayout()
         self.search = QtWidgets.QLineEdit(file_panel)
@@ -628,7 +638,7 @@ class Explorer(QtWidgets.QWidget):
         self.fileFilter.currentIndexChanged.connect(self._filterChanged)
         self.actionsPanel = QtWidgets.QWidget(self.outer)
         self.actionsPanel.setObjectName('inspectorPanel')
-        self.actionsPanel.setMinimumWidth(300)
+        self.actionsPanel.setMinimumWidth(240)
         self.inspectorButton = QtWidgets.QToolButton(self)
         self.inspectorButton.setObjectName('inspectorToggle')
         self.inspectorButton.setIcon(QtGui.QIcon(str(ICON.parent / 'inspector.svg')))
@@ -640,6 +650,7 @@ class Explorer(QtWidgets.QWidget):
         self._inspectorWidth = 340
         self.actionsPanel.hide()
         actions = QtWidgets.QVBoxLayout(self.actionsPanel)
+        actions.setAlignment(QtCore.Qt.AlignTop)
         actions.setContentsMargins(6, 0, 6, 0)
         self.operationTabs = QtWidgets.QTabWidget(self.actionsPanel)
         self.operationTabs.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Maximum)
@@ -669,7 +680,9 @@ class Explorer(QtWidgets.QWidget):
         for label, key in [('Open', 'open'), ('Import', 'import'), ('Reference', 'reference'),
                            ('Save current scene', 'save'), ('Save scene here…', 'saveAs'), ('Export selection here…', 'export')]:
             button = QtWidgets.QPushButton(label, self.actionsPanel)
-            button.clicked.connect(lambda checked=False, action=key: self.actionRequested.emit(action))
+            button.clicked.connect(lambda checked=False, action=key:
+                                   self.requestFiles(action, self.selectedPaths()) if action in ('open', 'import', 'reference')
+                                   else self.actionRequested.emit(action))
             (read_buttons if key in ('open', 'import', 'reference') else save_buttons).addWidget(button)
             button.setObjectName('action_' + key)
             self.actionButtons[key] = button
@@ -677,11 +690,16 @@ class Explorer(QtWidgets.QWidget):
                 button.setEnabled(False)
                 button.setToolTip('Available when running inside Maya')
         self._button('Maya Options…', lambda: self.actionRequested.emit('options'), actions).setVisible(self._maya)
+        if self._maya:
+            from qpeReadOptions import ReadOptions
+            self.readOptions = ReadOptions(self.readPanel)
+            self.readLayout.addWidget(self.readOptions)
         self.details = QtWidgets.QWidget(self.actionsPanel)
         actions.addWidget(self.details, 1)
         self.details.setObjectName('detailsPanel')
         self.details.setMinimumWidth(180)
         detail_layout = QtWidgets.QVBoxLayout(self.details)
+        detail_layout.setAlignment(QtCore.Qt.AlignTop)
         detail_layout.setContentsMargins(6, 0, 0, 0)
 
         self.preview = QtWidgets.QLabel('Select a file', self.details)
@@ -701,12 +719,18 @@ class Explorer(QtWidgets.QWidget):
         detail_layout.addWidget(self.previewText, 1)
         self.metadata = QtWidgets.QLabel('Name / type / size / modified / path', self.details)
         self.metadata.setObjectName('metadata')
-        self.metadata.setTextFormat(QtCore.Qt.PlainText)
+        self.metadata.setTextFormat(QtCore.Qt.RichText)
         self.metadata.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
         self.metadata.setWordWrap(True)
-        detail_layout.addWidget(self.metadata)
+        self.metadata.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+        actions.removeWidget(self.operationTabs)
+        actions.addWidget(self.operationTabs)
+        self.detailsHeading = QtWidgets.QLabel('Details', self.details)
+        actions.addWidget(self.detailsHeading)
+        actions.addWidget(self.metadata)
+        actions.addStretch(1)
 
-        save_line = QtWidgets.QHBoxLayout()
+        save_line = QtWidgets.QVBoxLayout()
         save_line.addWidget(QtWidgets.QLabel('File name', self))
         self.fileName = QtWidgets.QLineEdit(self)
         self.fileName.setObjectName('fileName')
@@ -730,6 +754,9 @@ class Explorer(QtWidgets.QWidget):
         self.saveLayoutUi.addLayout(save_buttons)
         self.fileName.textChanged.connect(self._updateSaveTarget)
         self.saveType.currentIndexChanged.connect(self._updateSaveTarget)
+        self.footer = QtWidgets.QLabel('0 items', self)
+        self.footer.setObjectName('fileFooter')
+        layout.addWidget(self.footer)
         self.status = QtWidgets.QLabel('', self)
         self.status.setObjectName('status')
         self.status.setTextFormat(QtCore.Qt.PlainText)
@@ -737,7 +764,7 @@ class Explorer(QtWidgets.QWidget):
         self.status.hide()
         layout.addWidget(self.status)
         self.outer.setSizes([185, 1055, 0])
-        self.vertical.setSizes([470, 270])
+        self.vertical.setSizes([296, 444])
         self.lower.setSizes([1055])
         self.operationTabs.currentChanged.connect(self._operationTabChanged)
         self._operationTabChanged(0)
@@ -765,15 +792,65 @@ class Explorer(QtWidgets.QWidget):
         Args:
             visible (bool): 表示するか。
         """
-        sizes = self.outer.sizes()
-        if not visible and sizes[-1] > 0:
-            self._inspectorWidth = sizes[-1]
-        self.actionsPanel.setVisible(visible)
+        self._setSidePanelVisible(self.actionsPanel, visible)
         if visible:
-            total = sum(sizes)
-            width = max(self.actionsPanel.minimumWidth(), min(self._inspectorWidth, total // 2))
-            self.outer.setSizes([sizes[0], max(230, total - sizes[0] - width), width])
             self._operationTabChanged(self.operationTabs.currentIndex())
+
+    def setSidebarVisible(self, visible):
+        """左サイドバーの開閉では右ペインの幅を維持する。"""
+        self._setSidePanelVisible(self.places, visible)
+
+    def _setSidePanelVisible(self, panel, visible):
+        """左右の実幅を保持し、開閉で増減した幅は中央だけへ配分する。
+
+        Args:
+            panel (QWidget): 開閉するサイドバー。
+            visible (bool): 表示するか。
+        """
+        if panel.isHidden() == (not visible):
+            return
+        sizes = self.outer.sizes()
+        if not self.places.isHidden() and sizes[0] > 0:
+            self._sidebarWidth = sizes[0]
+        if not self.actionsPanel.isHidden() and sizes[2] > 0:
+            self._inspectorWidth = sizes[2]
+        if not hasattr(self, '_sideLayoutTimer'):
+            self._sideLayoutTimer = QtCore.QTimer(self)
+            self._sideLayoutTimer.setSingleShot(True)
+            self._sideLayoutTimer.timeout.connect(self._finishSideLayout)
+        if not self._sideLayoutTimer.isActive():
+            self._sideUpdatesEnabled = self.outer.updatesEnabled()
+        self._sideRevealChild = visible
+        self.outer.setUpdatesEnabled(False)
+        try:
+            panel.setVisible(visible)
+            left = 0 if self.places.isHidden() else self._sidebarWidth
+            right = 0 if self.actionsPanel.isHidden() else self._inspectorWidth
+            handles = int(not self.places.isHidden()) + int(not self.actionsPanel.isHidden())
+            total = self.outer.contentsRect().width() - handles * self.outer.handleWidth()
+            self.outer.setSizes([left, max(1, total - left - right), right])
+            self.columns.parentWidget().layout().activate()
+        finally:
+            self._sideLayoutTimer.start(0)
+
+    def _finishSideLayout(self):
+        """Qtの配置確定後に横位置を決め、途中状態を描画せず一度に表示する。"""
+        try:
+            self.columns.fitColumns()
+            if self._sideRevealChild:
+                # 階層移動用scrollToは選択とアニメーションにも作用する。
+                # 開閉では列を作り直さず、最後の可視列へ必要な距離だけ移動する。
+                views = [view for view in self.columns.findChildren(QtWidgets.QListView)
+                         if view.isVisible() and view.rootIndex().isValid()]
+                if views:
+                    view = max(views, key=lambda v: v.mapTo(self.columns.viewport(), QtCore.QPoint()).x())
+                    x = view.mapTo(self.columns.viewport(), QtCore.QPoint()).x()
+                    width = self.columns.viewport().width()
+                    delta = x if view.width() > width or x < 0 else max(0, x + view.width() - width)
+                    bar = self.columns.horizontalScrollBar()
+                    bar.setValue(bar.value() + delta)
+        finally:
+            self.outer.setUpdatesEnabled(self._sideUpdatesEnabled)
 
     def openFileIndex(self, index):
         """ダブルクリックした行だけを開く。以前の選択集合には依存しない。
@@ -796,6 +873,10 @@ class Explorer(QtWidgets.QWidget):
         Args:
             index (int): 表示するタブ。
         """
+        reading = self.operationTabs.currentWidget() is self.readPanel
+        self.details.setVisible(reading)
+        self.metadata.setVisible(reading)
+        self.detailsHeading.setVisible(reading)
         for i in range(self.operationTabs.count()):
             panel = self.operationTabs.widget(i)
             panel.setSizePolicy(QtWidgets.QSizePolicy.Preferred,
@@ -1000,7 +1081,7 @@ class Explorer(QtWidgets.QWidget):
             menu.addAction('No favorites yet').setEnabled(False)
         for path in paths:
             action = menu.addAction(Path(path).name or path,
-                                    lambda checked=False, p=path: self.navigate(p))
+                                    lambda checked=False, p=path: self._visitPlace(p))
             action.setToolTip(path)
         menu.addAction('Add current folder to favorites', self.addFavorite)
         menu.addSeparator()
@@ -1096,14 +1177,17 @@ class Explorer(QtWidgets.QWidget):
                 self.status.setText('Settings could not be saved. ' + path)
                 self.status.show()
             self._loadPlaces()
-            self.rootButton.setText('Root: ' + self.fontMetrics().elidedText(Path(self.browseRoot).name, QtCore.Qt.ElideMiddle, 130) + ' ×')
-            self.rootButton.setVisible(bool(self.browseRoot))
+            self.rootButton.setText(('Root: ' + self.fontMetrics().elidedText(Path(self.browseRoot).name, QtCore.Qt.ElideMiddle, 130) + ' ×')
+                                    if self.browseRoot else 'Focus folder')
+            self.rootButton.show()
             self._updateFileSummary()
         finally:
             self._syncing = False
         if state and not self._fromColumn:
             self._restoreColumns(state, serial)
             QtCore.QTimer.singleShot(0, lambda: self._restoreColumns(state, serial))
+        if hasattr(self, 'folderTabs'):
+            self.folderTabs.updateTitle()
         self.trace('navigate', serial=serial)
         return True
 
@@ -1138,7 +1222,20 @@ class Explorer(QtWidgets.QWidget):
             self.emptyFiles.setText(error)
         self.emptyFiles.setVisible(count == 0)
         self.emptyFiles.setGeometry(self.files.viewport().rect().adjusted(16, 8, -16, -8))
+        self._updateFooter()
         self.columns.refreshHints()
+
+    def _updateFooter(self):
+        """一覧件数・選択件数・選択サイズをフッターへ表示する。"""
+        if not hasattr(self, 'footer'):
+            return
+        count = self.fileProxy.rowCount(self.files.rootIndex())
+        paths = self.selectedPaths()
+        text = '{} items'.format(count)
+        if paths:
+            size = sum(QtCore.QFileInfo(path).size() for path in paths)
+            text += '  |  {} selected  ·  {}'.format(len(paths), QtCore.QLocale.system().formattedDataSize(size))
+        self.footer.setText(text)
 
     def eventFilter(self, watched, event):
         """空状態の説明を一覧の中央に追従させる。
@@ -1186,23 +1283,28 @@ class Explorer(QtWidgets.QWidget):
             self.navigate(str(Path(self.currentDirectory).parent))
 
     def _loadPlaces(self):
-        """お気に入り・プロジェクト・最近の場所・ドライブを更新する。"""
+        """ファイルとフォルダーのお気に入り・最近の場所を更新する。"""
+        # 単クリックで移動しても、二回目のクリックまで対象行を動かさない。
+        if self._placeRefreshTimer.isActive():
+            return
+        expanded = {self.places.topLevelItem(i).text(0): self.places.topLevelItem(i).isExpanded()
+                    for i in range(self.places.topLevelItemCount())}
+        scroll = self.places.verticalScrollBar().value()
         self.places.clear()
         settings = readSettings()
         groups = [('Favorites', settings.get('favorites', [])),
-                  ('Project', ([self._project] if self._project else []) + self._projectFolders),
-                  ('Recent', settings.get('recents', [])),
-                  ('Locations', [str(Path.home())] + [d.absoluteFilePath() for d in QtCore.QDir.drives()])]
+                  ('Recent', settings.get('recents', []))]
         for title, paths in groups:
-            if title == 'Project' and not self._maya:
-                continue
             group = QtWidgets.QTreeWidgetItem(self.places, [title])
             group.setFlags(group.flags() & ~QtCore.Qt.ItemIsSelectable)
             for path in dict.fromkeys(paths):
                 item = QtWidgets.QTreeWidgetItem(group, [Path(path).name or path])
                 item.setData(0, QtCore.Qt.UserRole, path)
                 item.setToolTip(0, path)
-            group.setExpanded(True)
+                item.setIcon(0, self._placeFolderIcon if os.path.isdir(path)
+                             else self._placeIcons.icon(path))
+            group.setExpanded(expanded.get(title, True))
+        self.places.verticalScrollBar().setValue(scroll)
 
     def _placeClicked(self, item, column):
         """左ペインの場所へ移動する。
@@ -1212,8 +1314,32 @@ class Explorer(QtWidgets.QWidget):
             column (int): 列番号。
         """
         path = item.data(0, QtCore.Qt.UserRole)
-        if path:
+        self._placeRefreshTimer.start(QtWidgets.QApplication.doubleClickInterval() + 50)
+        self._visitPlace(path)
+
+    def _visitPlace(self, path):
+        """共通の場所リンクでフォルダー移動またはファイル選択を行う。
+
+        Args:
+            path (str | None): 対象パス。
+        """
+        if path and os.path.isfile(path):
+            if os.path.normcase(str(Path(path).parent)) != os.path.normcase(self.currentDirectory):
+                self.navigate(str(Path(path).parent))
+            self._selectWhenReady(path)
+        elif path:
             self.navigate(path)
+
+    def _placeActivated(self, item, column):
+        """左一覧のファイルはダブルクリックで固定対象を開く。
+
+        Args:
+            item (QTreeWidgetItem): 対象項目。
+            column (int): 列番号。
+        """
+        path = item.data(0, QtCore.Qt.UserRole)
+        if path and os.path.isfile(path):
+            self.requestFiles('open', [path])
 
     def _placeMenu(self, position):
         """お気に入り削除のメニューを表示する。
@@ -1312,6 +1438,9 @@ class Explorer(QtWidgets.QWidget):
             self.actionRequested.emit(action)
         finally:
             self._actionPaths = previous
+        recents = list(dict.fromkeys(list(paths) + readSettings().get('recents', [])))[:10]
+        writeSettings({'recents': recents})
+        QtCore.QTimer.singleShot(0, self._loadPlaces)
 
     def toggleQuickLook(self):
         """Spaceで選択ファイルのプレビューを拡大表示する。"""
@@ -1357,7 +1486,7 @@ class Explorer(QtWidgets.QWidget):
         if has_image:
             label.setPixmap(QtGui.QPixmap.fromImage(self._image).scaled(680, 450, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
         else:
-            text.setPlainText(self.previewText.toPlainText() if not self.previewText.isHidden() else self.preview.text())
+            text.setPlainText(self.previewText.toPlainText() or self.preview.text())
 
     def _filterChanged(self, index):
         """形式フィルターを適用する。
@@ -1383,9 +1512,14 @@ class Explorer(QtWidgets.QWidget):
             self._updateActions()
             return
         info = QtCore.QFileInfo(path)
-        self.metadata.setText('{}\n{}  ·  {:,} bytes  ·  {}'.format(
-            info.fileName(), info.suffix().upper() or 'File', info.size(),
-            info.lastModified().toString('yyyy-MM-dd HH:mm')))
+        import html
+        rows = [('Type', fileType(path)),
+                ('Size', QtCore.QLocale.system().formattedDataSize(info.size())),
+                ('Location', self.fontMetrics().elidedText(info.absolutePath(), QtCore.Qt.ElideMiddle, 180)),
+                ('Modified', info.lastModified().toString('yyyy-MM-dd HH:mm'))]
+        self.metadata.setText('<table cellspacing="0" cellpadding="6">' + ''.join(
+            '<tr><td valign="top">{}</td><td>{}</td></tr>'.format(html.escape(label), html.escape(value))
+            for label, value in rows) + '</table>')
         self.metadata.setToolTip(path)
         self.preview.setText('Loading preview…')
         serial = self._previewSerial
@@ -1416,6 +1550,7 @@ class Explorer(QtWidgets.QWidget):
         self.preview.setText('Select a file')
         self.preview.show()
         self.previewText.hide()
+        self.previewText.clear()
         self.metadata.clear()
         self._refreshQuickLook()
 
@@ -1442,6 +1577,10 @@ class Explorer(QtWidgets.QWidget):
             self.preview.hide()
             self.previewText.setPlainText(text[5:])
             self.previewText.show()
+            if Path(self._previewPath).suffix.lower() in ('.ma', '.mb', '.fbx'):
+                self.previewText.hide()
+                self.preview.setPixmap(self._placeIcons.icon(self._previewPath).pixmap(96, 96))
+                self.preview.show()
         else:
             self.preview.setText(text)
         self._refreshQuickLook()
@@ -1465,6 +1604,7 @@ class Explorer(QtWidgets.QWidget):
 
     def _updateActions(self):
         """選択に応じて読込系ボタンを有効化する。"""
+        self._updateFooter()
         paths = self.selectedPaths()
         selected = bool(paths)
         if hasattr(self, 'readTarget'):
@@ -1729,6 +1869,7 @@ class Explorer(QtWidgets.QWidget):
         menu.addAction('Information' if paths else 'This Folder Information',
                        lambda: self.showTargetInfo(paths or [directory]))
         if paths:
+            menu.addAction('Add to Favorites', lambda: [self.addFavoritePath(path) for path in paths])
             for title, key in [('Open', 'open'), ('Import', 'import'), ('Reference', 'reference')]:
                 if key == 'open' or self._maya:
                     menu.addAction(title, lambda checked=False, action=key: self.requestFiles(action, paths)).setEnabled(key != 'open' or len(paths) == 1)
@@ -1747,15 +1888,17 @@ class Explorer(QtWidgets.QWidget):
     def saveLayout(self):
         """分割幅をホスト別に保存する。"""
         writeSettings({self._settingsKey: {'outer': self.outer.sizes(), 'vertical': self.vertical.sizes(),
-            'lower': self.lower.sizes(), 'version': 3, 'size': [self.width(), self.height()]}})
+            'lower': self.lower.sizes(), 'version': 4, 'size': [self.width(), self.height()]}})
 
     def _restoreLayout(self):
         """保存した分割幅を復元する。"""
         value = readSettings().get(self._settingsKey, {})
-        if value.get('version') not in (2, 3):
+        if value.get('version') not in (2, 3, 4):
             return
         for key, splitter in [('outer', self.outer), ('vertical', self.vertical), ('lower', self.lower)]:
             sizes = value.get(key)
+            if key == 'vertical' and value.get('version') != 4:
+                continue
             if key == 'outer' and value.get('version') == 2:
                 continue
             if isinstance(sizes, list) and len(sizes) == splitter.count() and all(isinstance(v, int) and v >= 0 for v in sizes):

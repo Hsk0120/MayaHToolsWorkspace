@@ -70,7 +70,7 @@ def inspectFolder(widget, folder, require_visible=True):
             names = sorted(model.fileName(model.index(i, 0, view.rootIndex())) for i in range(model.rowCount(view.rootIndex())))
         proxy = widget.fileProxy
         files = sorted(proxy.index(i, 0, widget.files.rootIndex()).data() for i in range(proxy.rowCount(widget.files.rootIndex())))
-        return names == expected_dirs and files == expected_files and (empty_child or not require_visible or visibleWidth(widget, view) >= 100)
+        return names == expected_dirs and files == expected_files and (empty_child or not require_visible or visibleWidth(widget, view) >= round(80 * getattr(widget.columns, 'columnScale', 1.0)))
     waitFor(contentsMatch)
     assert Path(widget.address.text()) == folder
     active = widget.folderModel.index(str(folder))

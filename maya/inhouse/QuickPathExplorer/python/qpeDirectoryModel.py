@@ -4,7 +4,7 @@ import os
 import threading
 from pathlib import Path
 from qpeQt import QtCore, QtGui, QtWidgets
-from qpeFileIcons import FileIcons
+from qpeFileIcons import FileIcons, folderIcon
 
 PATH = QtCore.Qt.UserRole + 1
 DIRECTORY = QtCore.Qt.UserRole + 2
@@ -250,8 +250,7 @@ class DirectoryModel(QtGui.QStandardItemModel):
         item.setData(path, PATH)
         item.setData(directory, DIRECTORY)
         item.setEditable(False)
-        if not directory:
-            item.setIcon(self._icons.icon(path))
+        item.setIcon(folderIcon() if directory else self._icons.icon(path))
         row, end = 0, parent.rowCount()
         while row < end:
             middle = (row + end) // 2

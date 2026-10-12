@@ -61,10 +61,14 @@ class Interaction(QtCore.QObject):
         focus = QtWidgets.QApplication.focusWidget()
         for view in owner.columns.findChildren(QtWidgets.QListView):
             active = (focus is view or view.isAncestorOf(focus)) if focus is not None else False
-            color = '#326c7b' if active and owner.window().isActiveWindow() else '#50565b'
-            if view.property('qpeSelectionColor') != color:
+            colors = owner.appearance.theme.colors
+            active = active and owner.window().isActiveWindow()
+            color = colors['selection'] if active else colors['inactive']
+            text = colors['selectedText'] if active else colors['text']
+            if view.property('qpeSelectionColor') != color or view.property('qpeSelectionText') != text:
                 view.setProperty('qpeSelectionColor', color)
-                view.setStyleSheet('QListView::item:selected { background: %s; color: white; }' % color)
+                view.setProperty('qpeSelectionText', text)
+                view.setStyleSheet('QListView::item:selected { background: %s; color: %s; }' % (color, text))
 
     def eventFilter(self, watched, event):
         """右クリック・ホイール・境界操作を一覧内で処理する。

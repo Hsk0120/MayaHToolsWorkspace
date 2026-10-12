@@ -9,12 +9,15 @@ from qpeSettings import readSettings
 CONTROL = 'QuickPathExplorerWorkspaceControl'
 MENU = 'quickPathExplorerWindowMenuItem'
 _window = None
+_building = False
 
 
 def installMenu():
     """標準Windowメニューへ重複なしで登録する。"""
     if cmds.about(batch=True):
         return
+    from qpeDock import startup
+    startup()
     if cmds.menuItem(MENU, exists=True):
         return
     parent = 'MayaWindow|mainWindowMenu'
@@ -26,30 +29,41 @@ def installMenu():
                       command=lambda *args: show())
 
 
-def show(path=None):
+def show(path=None, _restoring=False):
     """Maya所有のドックを表示する。
 
     Args:
         path (str | None): 初期フォルダー。
+        _restoring (bool): MayaのuiScriptからの内部復元か。
 
     Returns:
         Explorer: 表示した画面。
     """
-    global _window
+    global _window, _building
+    if _building:
+        return _window
+    from qpeDock import opened, restoreState
     if _window is not None and shiboken.isValid(_window) and cmds.workspaceControl(CONTROL, exists=True):
-        cmds.workspaceControl(CONTROL, edit=True, restore=True)
+        if not _restoring:
+            cmds.workspaceControl(CONTROL, edit=True, restore=True)
+            opened(_window)
         if path:
             _window.navigate(path)
         refresh(_window)
         return _window
-    if cmds.workspaceControl(CONTROL, exists=True):
-        cmds.deleteUI(CONTROL)
     # MayaCodeEditorと同じMQtUtilの倍率を使う。Qt全体のDPI設定は変更しない。
     dpi_scale = float(OpenMayaUI.MQtUtil.dpiScale(1.0))
     screen = QtWidgets.QApplication.primaryScreen().availableGeometry()
-    cmds.workspaceControl(CONTROL, label='QuickPathExplorer', floating=True,
-                          initialWidth=min(round(1240 * dpi_scale), round(screen.width() * .9)),
-                          initialHeight=min(round(790 * dpi_scale), round(screen.height() * .9)), retain=False)
+    created = not cmds.workspaceControl(CONTROL, exists=True)
+    if created:
+        _building = True
+        try:
+            cmds.workspaceControl(CONTROL, label='QuickPathExplorer', floating=True,
+                                  initialWidth=min(round(1240 * dpi_scale), round(screen.width() * .9)),
+                                  initialHeight=min(round(790 * dpi_scale), round(screen.height() * .9)),
+                                  retain=True, uiScript='import qpeHost; qpeHost.restore()')
+        finally:
+            _building = False
     widget = Explorer(maya=True, dpi_scale=dpi_scale)
     _window = widget
     # workspaceControlがQtウィジェットを所有する。シーン操作はGUIスレッドで実行する。
@@ -64,7 +78,15 @@ def show(path=None):
     widget.show()
     location = path or readSettings().get('lastPath') or cmds.workspace(query=True, rootDirectory=True)
     widget.navigate(location if os.path.isdir(location) else str(Path.home()))
+    if created:
+        restoreState(widget)
+    opened(widget, restoring=_restoring)
     return widget
+
+
+def restore():
+    """Mayaが復元したworkspaceControlへ内容だけを取り付ける。"""
+    return show(_restoring=True)
 
 
 def refresh(widget):
@@ -125,6 +147,25 @@ def _allowOpen(widget):
     return answer == QtWidgets.QMessageBox.Discard
 
 
+def readFile(path, action, options):
+    """親ネームスペースを用意して明示したファイルを読み込む。
+
+    Args:
+        path (str): 読込元。
+        action (str): importまたはreference。
+        options (dict): 検証済みfile引数。
+    """
+    # fileは存在しない親を含むnamespaceを末尾名へ縮めるため親だけ作る。
+    # 葉はfileに作らせ、衝突時の自動採番を維持する。現在namespaceは変えない。
+    parent = ':'
+    for part in options['namespace'].strip(':').split(':')[:-1]:
+        child = parent.rstrip(':') + ':' + part
+        if not cmds.namespace(exists=child):
+            cmds.namespace(addNamespace=part, parent=parent)
+        parent = child
+    cmds.file(path, **dict(options, **{'i' if action == 'import' else 'reference': True}))
+
+
 def perform(widget, action):
     """明示された操作だけをMayaに適用する。
 
@@ -168,11 +209,13 @@ def perform(widget, action):
                     return
                 cmds.file(path, open=True, force=True)
             elif action == 'import':
-                for path in paths:
-                    cmds.file(path, i=True)
+                arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
+                for path, options in zip(paths, arguments):
+                    readFile(path, action, options)
             else:
-                for path in paths:
-                    cmds.file(path, reference=True)
+                arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
+                for path, options in zip(paths, arguments):
+                    readFile(path, action, options)
         elif action == 'save':
             if not cmds.file(query=True, sceneName=True):
                 perform(widget, 'saveAs')
