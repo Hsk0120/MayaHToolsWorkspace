@@ -237,7 +237,7 @@ def main(output_dir, finished=None):
         checks.append('content widths, boundary drag and double click reset')
         widget.files.setFocus()
         widget.interaction.updateFocus()
-        assert all(v.property('qpeSelectionColor') == '#50565b' for v in columns(widget))
+        assert all(v.property('qpeSelectionColor') == widget.appearance.theme.colors['inactive'] for v in columns(widget))
         checks.append('ancestor highlights are muted when the file pane has focus')
 
         step('05  横に戻した位置を読込完了で引き戻さない')
@@ -255,27 +255,31 @@ def main(output_dir, finished=None):
         assert bar.value() == position
         checks.append('horizontal wheel and async completion preserve manual position')
 
-        step('06  Returnで改名・Spaceでプレビュー・Escで戻る')
+        step('06  Returnで改名・Escで取消・SpaceはOpen要求')
         widget.navigate(str(root))
         pause(100)
         assert len(columns(widget)) == 1, [widget.folderModel.filePath(v.rootIndex()) for v in columns(widget)]
         checks.append('return to scope root removes stale descendant columns')
         selectFile(widget, root / 'note_000.txt')
+        widget.window().raise_()
+        widget.window().activateWindow()
         widget.files.setFocus()
-        pause(80)
+        pause(250)
         QtTest.QTest.keyClick(widget.files, QtCore.Qt.Key_Return)
         assert widget._inlineRename.isVisible()
         assert widget._inlineRename.selectedText() == 'note_000'
         QtTest.QTest.keyClick(widget._inlineRename, QtCore.Qt.Key_Escape)
         widget.files.setFocus()
         waitFor(lambda: widget.previewText.toPlainText() == 'Preview file 000')
-        QtTest.QTest.keyClick(widget.files, QtCore.Qt.Key_Space)
-        assert widget._quickLook.isVisible()
-        screenshot('03-quick-look.png')
-        QtTest.QTest.keyClick(widget._quickLook, QtCore.Qt.Key_Escape)
-        assert not widget._quickLook.isVisible()
+        from unittest.mock import patch
+        with patch.object(widget, 'requestFiles') as request:
+            QtTest.QTest.keyClick(widget.files, QtCore.Qt.Key_Space)
+            assert request.call_count == 1
+            assert request.call_args[0][0] == 'open'
+            assert [Path(v) for v in request.call_args[0][1]] == [root / 'note_000.txt']
+        screenshot('03-open-dispatch.png')
         assert (root / 'note_000.txt').exists()
-        checks.append('Return rename, Escape cancel and Space Quick Look')
+        checks.append('Return rename, Escape cancel and Space Open dispatch (application launch tested separately)')
         if finished:
             step('07  複数Import／Reference — 対象確認とキャンセル')
             sources = []
@@ -307,7 +311,7 @@ def main(output_dir, finished=None):
             assert not cmds.objExists('finder_A')
             answer(QtWidgets.QMessageBox.Ok)
             widget.requestFiles('import', sources)
-            assert cmds.objExists('finder_A') and cmds.objExists('finder_B')
+            assert cmds.objExists('source_A:finder_A') and cmds.objExists('source_B:finder_B')
             cmds.file(new=True, force=True)
             answer(QtWidgets.QMessageBox.Ok)
             widget.requestFiles('reference', sources)

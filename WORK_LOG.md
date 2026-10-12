@@ -68,6 +68,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
 | Codex | 2026-10-11 | 配布方式の相談（README・起動バッチ・submoduleの参照のみ） | SourceTreeとGit不要の配布・更新方式を比較。 |
 | Codex | 2026-10-09 | mlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 
@@ -101,14 +103,34 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-13 Codex: ユーザーのプッシュ依頼に合わせ、QPEの機能追加・関連付けアプリで開く動作・UX修正・検証コード・説明書をコミット対象として整理。既存検証記録と差分チェックを確認し、動画・ローカル成果物・調査資料を除外。origin/mainへの反映作業。
+
+- 2026-10-12 Codex: QPE全操作レビューと不具合修正。階層往復、欠損タブ復元、固定タブ、転送行選択、設定検証、空フィルター後の列幅、終了時shibokenクラッシュを修正。Open/ダブルクリック/Spaceは.ma/.mbのみ現在Maya、他形式と単体版はOS関連付け。独自ビューアーを撤去。バックエンド60、単体14スイート、隔離Maya2022/2027各16スイート合格。両Mayaのドック再起動・停止中転送からの終了も確認。exe再ビルド・起動合格。実UI8章約6分、関連付け実機確認画像動画、索引、未実施手順を非公開Driveへ保存。実IME/物理ホイール/混在DPI/ネットワーク断等は未実施。証跡qpe-full-audit・qpe-associated・qpe-full-review-r3/r4。全編 https://drive.google.com/file/d/1Cvhls4fMV9bS2cBvdd0dxU5Xk49T0mQr/view 。今後のQPEレビュー報告には毎回動画リンクを添付。未コミット・未プッシュ。
+
 - 2026-10-12 Claude Code: 尻尾のレイヤー構造(効果ごとの関節を重ね、tailLayers_CTRL で ON/OFF)と段階の並列表示のデモ `tools/demo_tail_layers.py` を追加。HToolsのサンプル一覧・docs/verification-videos.md に追記。
 - 2026-10-12 Claude Code: 案D＋前腕のコーンに3本共通の体の回避 Δ を追加(`tools/tail_shared_avoid.py`、`motion="*_avoid"`)。撮影を上面・正面・パースの3視点に。食い込みは付け根から8cmより先と近くを分けて数える。HToolsのサンプル一覧・docs/verification-videos.md に追記。
+- 2026-10-12 Codex: QPE第3回8項目に対応。共通プレビュー/キー統一、非同期パス補完/履歴、既存tabSetsの固定・ロック拡張、転送停止/順序/永続復元、本文検索、ZIP選択抽出、任意File Locksmith診断、Windows属性/Cloud Files API状態表示と自動取得抑止。転送再開は項目単位、曖昧な確定は停止。撮影で発見したQWidget.move名衝突と設定9列の移植検証、短時間の記録書込み拒否を修正。新規コア16、独立Qt10、隔離Maya2022/2027各10、既存コア30+14/UI14+11/ナビ14/タブ8合格。単体exe再ビルド・PDFsmoke合格。54秒実UI動画とPNGを既存非公開Driveへ保存。実クラウド/PowerToys接続/ネットワーク断/IME/混在DPI/iPad再生未確認。証跡qpe-productivity-*、操作手順ORGANIZER_GUIDE.md。未コミット・未プッシュ。
+
 - 2026-10-12 Claude Code: 案Dに前腕のConeReaderを足す検証(`motion="align_cone"`・`"cross_cone"`・`"problem_cone"`)を `tools/demo_tail_twist_cancel.py` に追加。Dの向きが前腕の軸に入ったらコーンの縁(ローカル値の側)へ押し出す。HToolsのサンプル一覧・docs/verification-videos.md に追記。
+- 2026-10-12 Codex: QPE追加実装後を再調査。操作/プレビュー統一、パス補完、作業セット、転送回復、本文検索、ZIP内部閲覧、失敗原因診断、クラウド状態の8候補を公式資料とコードで照合。docs/research/qpe-third-gap-20261012.txtへローカル保存。製品変更・実機再検証なし。
+
 - 2026-10-12 Claude Code: 尻尾の交差対策に案D(rx = ローカル値、ry = -肘の曲げ)を追加し、比較の4列目を C(半分)から D に入れ替え。DはA(平行)と同じ向きでロールの反転なし。
+- 2026-10-12 Codex: 隔離Maya2027でQPE追加機能の75秒字幕付き操作動画を撮影。サムネイル/タグ/階層横断/検索/画像比較/PDF/Markdown/設定/コマンド検索を実UIで記録し、MP4抽出フレーム確認。Drive既存非公開QPEフォルダへMP4・スクショ保存。証跡qpe-advanced-video-20261012、iPad再生は未確認。
+
+- 2026-10-12 Codex: QPE追加調査12項目を実装。下段サムネイル/Metadata/タグ/画像寸法/場所別表示/フラット表示、拡張検索、コピー結合/個別競合、ジョブ予約/失敗再試行、履歴/Redo/期限容量整理、容量集計、PDF/Markdown/画像比較、コマンド検索/キー設定、設定移植。同期の部分失敗表示を修正。既存30+追加14のバックエンド、Maya2022/2027各14の追加UI、既存整理11/ナビ14/タブ8が合格。単体exe起動と同梱PDF描画合格。1000小PNGの切替2.2秒・イベント間隔最大0.19秒。Maya用PDF依存はQPE専用ユーザーディレクトリへ配置。実IME/複数DPI/ネットワーク切断は未検証。証跡.maya-output/verification/qpe-advanced-*、使い方QPE/ORGANIZER_GUIDE.md。バージョン整理は除外、未プッシュ。
+
 - 2026-10-12 Claude Code: 肘を曲げて腕をひねると尻尾どうしが交差する再現(`motion="cross"`)と、交差を防ぐ3案(平行・スイングのみ・半分、`motion="cross_fix"`・`"problem_fix"`)を `tools/demo_tail_twist_cancel.py` に追加し、HToolsのサンプル一覧・docs/verification-videos.md に追記。
 - 2026-10-12 Claude Code: 尻尾6本のツイスト打ち消しにローカル値方式(rx = -120 - 合算した rotateX)と食い込む姿勢の上面3列比較(`demo_tail_twist_cancel.main(motion="problem", view="top")`)を追加し、HToolsのサンプル一覧に登録。
+- 2026-10-12 Codex: QPE追加実装後の不足を公式資料と現行コードで再調査。表示切替/タグ可視化/結合/キュー/フラット表示等12項目と品質課題をdocs/research/qpe-followup-gap-20261012.txtへローカル保存。バージョン整理は除外。製品変更・今回の実機比較なし。
+
+- 2026-10-12 Codex: QPEにファイル操作/永続Undo、再帰・保存検索/任意Everything、タブ復元、DnD、2ペイン、タグ/評価、一括改名、ZIP/重複/一方向同期、動画/EXR/連番プレビュー、Maya読込プリセット/シーン付随情報、単体exe配布を実装。バージョン整理は対象外。コア30件、隔離Maya2022/2027各13項目、独立Qt UI11項目、メディア3項目、配布exe起動合格。既存UXの幅180px判定は変更前にも失敗、実入力/ネットワーク/Everything実接続は未検証。使い方と制限はQPE/ORGANIZER_GUIDE.md、証跡は.maya-output/verification/qpe-organizer-*。未コミット・未プッシュ。
+
 - 2026-10-12 Claude Code: mlrig.examples.humanoid で胸(spine_03)のプロキシが作られていなかった不具合を修正(LENGTH_CHILD で首までの円柱)。test_example_humanoid に確認を追加。尻尾6本のツイスト打ち消しだけでの食い込みを調査(.maya-output/survey_twist_cancel.py、結果はローカルのみ)。
 - 2026-10-12 Claude Code: 全身骨格(Aポーズ)の左右6本の尻尾(初期 rx=-120)と腕ツイストの打ち消し(スイング・ツイスト分解)のデモ `tools/demo_tail_twist_cancel.py` を追加。HToolsのサンプル一覧・docs/verification-videos.md・demo_interactive のウィンドウ/HUD一覧に追記。
+- 2026-10-12 Codex: QPE実装とExplorer/Finder/Files/Opus/PowerToys/Everythingの公式資料を比較。不足機能・優先度・Maya向け提案をdocs/research/qpe-feature-gap-20261012.mdへローカル保存。製品変更・実機検証なし。
+
+- 2026-10-12 Codex: Maya2027 QPEの現状操作を字幕付き約43秒に収録。フォルダー移動/戻る、Import/Reference設定、左右開閉、タブ、プレビュー、絞込、保存設定。実読込/保存なし。MP4デコードとフレーム確認済み、動画とPNGを既存非公開Driveへ保存。証跡.maya-output/verification/qpe-overview-20261012。録画時に名前列が狭い表示も観察、製品修正は未実施。
+
 - 2026-10-12 Claude Code: 尻尾の案1に球ごとの ConeReader による切り替え(体が回転面に掛からなければ元の向き)を追加。`demo_humanoid_tail_avoid.main(case="raise")`、HToolsのサンプル一覧・docs/verification-videos.md に追記。
 - 2026-10-12 Codex: QPE関連18ファイルを8e27cd5としてorigin/mainへpush。テーマ/タブ/アイコン、Maya読込設定/配置復元、サイドバー描画修正と検証スクリプトを含む。構文39ファイル・差分チェック成功、既存実機検証結果を確認。無関係な変更と共有WORK_LOGの未コミット内容は保持。
 
@@ -923,6 +945,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+| Codex | 2026-10-12 | QuickPathExplorer・関連テスト | バージョン整理を除く不足機能の実装と検証。 |
+
 
 
 

@@ -28,8 +28,20 @@ class PreviewJob(QtCore.QRunnable):
         image = QtGui.QImage()
         text = 'No preview for this file type'
         try:
+            from qpeProductivityIO import requireLocal
+            requireLocal(self.path)
             suffix = Path(self.path).suffix.lower()
-            if suffix in ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tif', '.tiff', '.webp'):
+            thumbnail = Path(self.path).with_suffix(suffix + '.qpe.png')
+            if suffix in ('.ma', '.mb') and thumbnail.is_file():
+                requireLocal(str(thumbnail))
+                reader = QtGui.QImageReader(str(thumbnail))
+                reader.setScaledSize(reader.size().scaled(720, 480, QtCore.Qt.KeepAspectRatio))
+                image = reader.read()
+                text = '' if not image.isNull() else reader.errorString()
+            elif suffix in ('.mp4', '.mov', '.avi', '.mkv', '.webm', '.exr', '.hdr'):
+                from qpeMedia import mediaImage
+                image, text = mediaImage(self.path)
+            elif suffix in ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tif', '.tiff', '.webp'):
                 reader = QtGui.QImageReader(self.path)
                 size = reader.size()
                 if size.isValid() and size.width() * size.height() <= 64000000:

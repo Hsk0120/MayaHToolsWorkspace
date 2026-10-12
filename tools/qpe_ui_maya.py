@@ -123,7 +123,7 @@ def main(output_dir, finished=None):
         assert not widget.places.isHidden()
         widget.sidebarButton.click()
         assert widget.places.isHidden()
-        assert widget.lower.count() == 2
+        assert widget.outer.count() == 3 and widget.lower.count() == 1
         checks.append('sidebar hidden by default, icon toggles both ways, combined action/details pane')
         pause(1000)
         waitFor(lambda: widget.fileProxy.rowCount(widget.files.rootIndex()) == 3)

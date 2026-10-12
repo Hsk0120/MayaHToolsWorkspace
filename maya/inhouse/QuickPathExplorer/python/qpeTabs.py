@@ -46,7 +46,10 @@ class TabGlyphButton(QtWidgets.QAbstractButton):
             painter.setBrush(color)
             rect = QtCore.QRectF(self.rect()).adjusted(2 * scale, 2 * scale, -2 * scale, -2 * scale)
             painter.drawRoundedRect(rect, 4 * scale, 4 * scale)
-        painter.setPen(QtGui.QPen(QtGui.QColor(colors['text']), max(1.0, scale)))
+        glyph_color = QtGui.QColor(colors['text'])
+        if not self.isEnabled():
+            glyph_color.setAlpha(75)
+        painter.setPen(QtGui.QPen(glyph_color, max(1.0, scale)))
         center = QtCore.QRectF(self.rect()).center()
         radius = 4 * scale
         if self.glyph == 'close':
@@ -218,6 +221,7 @@ class FolderTabs(QtCore.QObject):
         super().__init__(explorer)
         self.explorer = explorer
         self.states = [None]
+        self.closed = []
         self.active = 0
         self.pendingSerial = None
         self.strip = FolderTabStrip(explorer)
@@ -235,7 +239,8 @@ class FolderTabs(QtCore.QObject):
         """現在の履歴・選択・表示位置を独立した値として保存する。"""
         e = self.explorer
         e._rememberColumns()
-        return dict(path=e.currentDirectory, root=e.browseRoot,
+        flags = self.states[self.active] or {} if self.active >= 0 else {}
+        return dict(path=e.currentDirectory, root=e.browseRoot, pinned=bool(flags.get('pinned')), locked=bool(flags.get('locked')),
                     history=list(e._history), index=e._historyIndex,
                     columns=copy.deepcopy(e._columnStates), search=e.search.text(),
                     filter=e.fileFilter.currentIndex(), selected=e.selectedPaths(),
@@ -245,11 +250,25 @@ class FolderTabs(QtCore.QObject):
         """現在のフォルダー名とフルパスをタブへ表示する。"""
         path = self.explorer.currentDirectory
         self.bar.setTabText(self.active, Path(path).name or path or 'Folder')
-        self.bar.setTabToolTip(self.active, path)
+        self.updateTabPresentation(self.active)
+
+    def updateTabPresentation(self, index):
+        """固定状態を再表示後も示し、閉じられないボタンを無効にする。"""
+        state = self.states[index] or {}
+        path = self.explorer.currentDirectory if index == self.active else state.get('path', '')
+        pinned = bool(state.get('pinned'))
+        self.bar.setTabToolTip(index, path + ('\nPinned — unpin to close' if pinned else '')
+                              + ('\nLocation locked — navigation opens a new tab' if state.get('locked') else ''))
+        button = self.bar.tabButton(index, QtWidgets.QTabBar.RightSide)
+        if button:
+            button.setEnabled(not pinned)
+            button.setToolTip('Pinned — unpin to close' if pinned else 'Close tab')
+            button.setAccessibleName(button.toolTip())
 
     def add(self):
         """現在の場所を起点とする独立したタブを追加する。"""
         state = self.snapshot()
+        state.update(pinned=False, locked=False)
         self.states.append(state)
         index = self.bar.addTab('Folder')
         self.strip.refresh()
@@ -259,7 +278,7 @@ class FolderTabs(QtCore.QObject):
         """モデル要求を更新し、保存済みのタブ状態を復元する。"""
         if index < 0 or index == self.active:
             return
-        if self.pendingSerial != self.explorer._navigationSerial:
+        if self.active >= 0 and self.pendingSerial != self.explorer._navigationSerial:
             self.states[self.active] = self.snapshot()
         self.active = index
         state = self.states[index]
@@ -303,8 +322,10 @@ class FolderTabs(QtCore.QObject):
 
     def close(self, index):
         """最後の一枚を残し、閉じたタブの状態だけを破棄する。"""
-        if len(self.states) == 1:
+        if len(self.states) == 1 or (self.states[index] or {}).get('pinned'):
             return
+        self.closed.append(self.snapshot() if index == self.active else copy.deepcopy(self.states[index]))
+        self.closed = self.closed[-20:]
         if index == self.active:
             self.bar.setCurrentIndex(index - 1 if index else 1)
         self.bar.blockSignals(True)
@@ -315,3 +336,66 @@ class FolderTabs(QtCore.QObject):
         self.bar.setCurrentIndex(self.active)
         self.bar.blockSignals(False)
         self.strip.refresh()
+
+    def reopen(self):
+        """最後に閉じたタブを元の表示状態で戻す。"""
+        if not self.closed:
+            return
+        self.states.append(self.closed.pop())
+        self.bar.addTab('Folder')
+        self.strip.refresh()
+        self.bar.setCurrentIndex(len(self.states) - 1)
+
+    def session(self):
+        """JSONへ保存できるタブ全体の値を返す。"""
+        states = copy.deepcopy(self.states)
+        if self.pendingSerial != self.explorer._navigationSerial:
+            states[self.active] = self.snapshot()
+        return dict(version=1, active=self.active, states=states, closed=self.closed)
+
+    def saveSession(self):
+        """MayaとWindows単体を別のキーへ保存する。"""
+        from qpeSettings import writeSettings
+        if self.explorer.currentDirectory:
+            writeSettings({self.explorer._settingsKey + 'Tabs': self.session()})
+
+    def restoreSession(self, value=None):
+        """保存済みタブを復元し、消失した場所は一覧として報告する。"""
+        from qpeSettings import readSettings
+        value = value or readSettings().get(self.explorer._settingsKey + 'Tabs', {})
+        if not isinstance(value, dict) or value.get('version') != 1:
+            return False
+        states, missing, original_indices = [], [], []
+        for original_index, state in enumerate(value.get('states', [])[:100]):
+            if not isinstance(state, dict) or not isinstance(state.get('path'), str):
+                continue
+            if not os.path.isdir(state['path']):
+                missing.append(state['path'])
+                continue
+            if not all(key in state for key in ('root', 'history', 'index', 'columns', 'search', 'filter', 'selected', 'vertical')):
+                continue
+            states.append(copy.deepcopy(state))
+            original_indices.append(original_index)
+        if not states:
+            return False
+        self.bar.blockSignals(True)
+        while self.bar.count():
+            self.bar.removeTab(0)
+        self.states = states
+        for state in states:
+            self.bar.addTab(Path(state['path']).name or state['path'])
+        self.active = -1
+        self.pendingSerial = None
+        requested = int(value.get('active', 0))
+        selected = original_indices.index(requested) if requested in original_indices else min(max(0, requested), len(states) - 1)
+        self.bar.setCurrentIndex(selected)
+        self.bar.blockSignals(False)
+        self.strip.refresh()
+        self.switch(selected)
+        for index in range(len(states)):
+            self.updateTabPresentation(index)
+        self.closed = [s for s in value.get('closed', []) if isinstance(s, dict) and os.path.isdir(s.get('path', ''))][-20:]
+        if missing:
+            self.explorer.status.setText('Unavailable saved tabs: ' + '\n'.join(missing))
+            self.explorer.status.show()
+        return True

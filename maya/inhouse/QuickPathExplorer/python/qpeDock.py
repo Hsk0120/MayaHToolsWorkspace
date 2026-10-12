@@ -97,6 +97,33 @@ def quitting():
     _quitting = True
     if _watcher is not None and shiboken.isValid(_watcher):
         _watcher.timer.stop()
+    from qpeHost import _window
+    if _window is not None and shiboken.isValid(_window):
+        # MayaがQtを破棄し始めてからのHide通知では遅い場合がある。
+        # 開いていた状態を保存した後、まだQtが有効な終了通知で監視・読込を止める。
+        for timer in _window.findChildren(QtCore.QTimer):
+            timer.stop()
+        organizer = _window.organizer
+        if organizer.task:
+            organizer.task.cancel.set()
+        for job in organizer.queue:
+            job[-1]['state'] = 'Saved for recovery'
+        organizer.queue.clear()
+        workspace = organizer.workspace
+        workspace.serial += 1
+        workspace.thumbnailSerial += 1
+        workspace.productivity.serial += 1
+        for task in (workspace.task, workspace.productivity.task):
+            if task:
+                task.cancel.set()
+        for dialog in organizer.dialogs:
+            if shiboken.isValid(dialog):
+                dialog.close()
+        _window.hide()
+        # Python終了時までQt子ウィジェットを残すとshibokenの破棄順で落ちる場合がある。
+        # workspaceControl自体は残してMayaのドック保存を保ち、QPE内容だけ先に破棄する。
+        _window.deleteLater()
+        QtCore.QCoreApplication.sendPostedEvents(_window, QtCore.QEvent.DeferredDelete)
 
 
 def opened(widget, restoring=False):

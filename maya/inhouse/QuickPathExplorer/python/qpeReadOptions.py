@@ -63,6 +63,29 @@ class ReadOptions(QtWidgets.QTabWidget):
         self.setMinimumHeight(225)
         self.setMaximumHeight(310)
         self.setToolTip('Settings apply to the matching Import / Reference button and context menu.')
+        from qpeSettings import readSettings
+        self.restore(readSettings().get('readOptions', {}))
+
+    def snapshot(self):
+        """両操作の設定をJSONへ保存できる値にする。"""
+        return {action: {key: (control.isChecked() if isinstance(control, QtWidgets.QCheckBox)
+                         else control.currentIndex() if isinstance(control, QtWidgets.QComboBox)
+                         else control.text()) for key, control in values.items()}
+                for action, values in self.controls.items()}
+
+    def restore(self, state):
+        """既知の設定だけを型を確認して復元する。"""
+        if not isinstance(state, dict):
+            return
+        for action, values in self.controls.items():
+            for key, control in values.items():
+                value = state.get(action, {}).get(key)
+                if isinstance(control, QtWidgets.QCheckBox) and isinstance(value, bool):
+                    control.setChecked(value)
+                elif isinstance(control, QtWidgets.QComboBox) and isinstance(value, int) and 0 <= value < control.count():
+                    control.setCurrentIndex(value)
+                elif isinstance(control, QtWidgets.QLineEdit) and isinstance(value, str):
+                    control.setText(value)
 
     def fileArguments(self, action, path):
         """対象ファイル用のfile引数を検証して返す。

@@ -77,10 +77,13 @@ def main(output_dir, finished=None):
         checks.append('alternating folder and file rows')
         widget.files.setCurrentIndex(indices[2])
         waitFor(lambda: widget.previewText.toPlainText() == 'Review notes')
-        widget.toggleQuickLook()
-        assert widget._quickLook.findChild(QtWidgets.QPlainTextEdit, 'quickLookText').toPlainText() == 'Review notes'
-        widget.toggleQuickLook()
-        checks.append('quick look works while sidebar hidden')
+        from unittest.mock import patch
+        with patch.object(widget, 'requestFiles') as request:
+            widget.openSelectedFile()
+            assert request.call_count == 1
+            assert request.call_args[0][0] == 'open'
+            assert [Path(v) for v in request.call_args[0][1]] == [paths[2]]
+        checks.append('Open dispatch works while sidebar is hidden')
         widget.addFavoritePath(str(paths[2]))
         favorite = widget.places.topLevelItem(0).child(0)
         assert not favorite.icon(0).isNull()
@@ -89,7 +92,8 @@ def main(output_dir, finished=None):
         groups = [widget.places.topLevelItem(i) for i in range(widget.places.topLevelItemCount())]
         assert [g.text(0) for g in groups] == ['Favorites', 'Recent']
         recent_paths = [Path(groups[1].child(i).data(0, QtCore.Qt.UserRole)) for i in range(groups[1].childCount())]
-        assert folder in recent_paths and paths[0] in recent_paths
+        assert folder in recent_paths and paths[0] not in recent_paths
+        # このテストはOpen要求だけを捕捉しており、ホストでの読込成功前にRecentへ加えてはいけない。
         assert all(not groups[1].child(i).icon(0).isNull() for i in range(groups[1].childCount()))
         checks.append('Favorites/Recent only, folder/file icons and file favorite selection')
         if finished:

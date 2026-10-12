@@ -71,7 +71,15 @@ def inspectFolder(widget, folder, require_visible=True):
         proxy = widget.fileProxy
         files = sorted(proxy.index(i, 0, widget.files.rootIndex()).data() for i in range(proxy.rowCount(widget.files.rootIndex())))
         return names == expected_dirs and files == expected_files and (empty_child or not require_visible or visibleWidth(widget, view) >= round(80 * getattr(widget.columns, 'columnScale', 1.0)))
-    waitFor(contentsMatch)
+    try:
+        waitFor(contentsMatch)
+    except AssertionError:
+        print('COLUMN_CURRENT', widget.folderModel.filePath(widget.columns.currentIndex()),
+              widget.folderModel.filePath(widget.columns.rootIndex()), widget.columns._hintTimer.isActive(), flush=True)
+        print('COLUMN_DIAGNOSTICS', [(v.isVisible(), v.isHidden(), v.width(), v.x(),
+              widget.folderModel.filePath(v.rootIndex()), v.model().rowCount(v.rootIndex()))
+              for v in widget.columns.findChildren(QtWidgets.QListView)], flush=True)
+        raise
     assert Path(widget.address.text()) == folder
     active = widget.folderModel.index(str(folder))
     assert widget.columns.currentIndex() == active

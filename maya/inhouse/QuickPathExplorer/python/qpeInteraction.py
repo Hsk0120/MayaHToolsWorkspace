@@ -28,6 +28,8 @@ class Interaction(QtCore.QObject):
         view.viewport().installEventFilter(self)
         view.viewport().setMouseTracking(True)
         view.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        if hasattr(self.explorer, 'organizer'):
+            self.explorer.organizer.attachView(view)
 
     def viewFor(self, watched):
         """対象のviewportから一覧を取得する。
@@ -126,7 +128,7 @@ class Interaction(QtCore.QObject):
                 owner.renamePath(path)
                 return True
             if key == QtCore.Qt.Key_Space and view is owner.files and event.modifiers() == QtCore.Qt.NoModifier:
-                owner.toggleQuickLook()
+                owner.openSelectedFile()
                 return True
         if view is not owner.files and kind in (QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseMove,
                                                  QtCore.QEvent.MouseButtonRelease, QtCore.QEvent.MouseButtonDblClick):

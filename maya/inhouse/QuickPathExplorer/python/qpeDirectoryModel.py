@@ -41,6 +41,7 @@ class ScanJob(QtCore.QRunnable):
         self.path, self.generation = path, generation
         self.signals = ScanSignals()
         self.cancelled = threading.Event()
+        self.showHidden = False
 
     def run(self):
         """途中失敗も含め、一つの要求に一つのスナップショットを返す。"""
@@ -54,7 +55,7 @@ class ScanJob(QtCore.QRunnable):
                         break
                     try:
                         info = entry.stat()
-                        if entry.name.startswith('.') or getattr(info, 'st_file_attributes', 0) & 2:
+                        if not self.showHidden and (entry.name.startswith('.') or getattr(info, 'st_file_attributes', 0) & 2):
                             continue
                         entries.append((entry.name, entry.is_dir(), info.st_size, info.st_mtime))
                     except FileNotFoundError:
@@ -91,6 +92,7 @@ class DirectoryModel(QtGui.QStandardItemModel):
         self.suspended = False
         self.traceSink = None
         self.jobFactory = ScanJob
+        self.showHidden = False
         self._watcher = QtCore.QFileSystemWatcher(self)
         self._watcher.directoryChanged.connect(self.request)
         self._icons = FileIcons()
@@ -317,6 +319,7 @@ class DirectoryModel(QtGui.QStandardItemModel):
         self._generations[path] = generation
         self.states[path] = ('loading', '')
         job = self.jobFactory(path, generation)
+        job.showHidden = self.showHidden
         self._jobs[generation] = job
         job.signals.ready.connect(self.receive)
         self._trace('start', path, generation, True)

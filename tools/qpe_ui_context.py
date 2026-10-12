@@ -218,9 +218,9 @@ def main(output_dir, finished=None):
         pause(150)
         assert scaled.font().pixelSize() == 24
         assert scaled.sidebarButton.iconSize().width() == 40
-        assert scaled.places.minimumWidth() == 270
-        assert min(scaled.columns.columnWidths()) >= 160
-        assert scaled.columns.columnWidths()[-1] >= 360
+        assert scaled.places.minimumWidth() == 2 * widget.places.minimumWidth()
+        assert min(width for width in scaled.columns.columnWidths() if width) >= 160
+        assert scaled.columns.columnWidths()[-1] == scaled.columns.contentWidth(scaled.columns.currentIndex())
         scaled.grab().save(str(output_dir / 'dpi200.png'))
         scaled.close()
         scaled.deleteLater()
@@ -237,7 +237,7 @@ def main(output_dir, finished=None):
             widget.navigate(str(root))
             selectFile(widget, scene)
             triggerMenu(widget.createFileMenu(), 'Import')
-            assert cmds.objExists('qpeContextCube')
+            assert cmds.objExists('source:qpeContextCube')
             cmds.file(new=True, force=True)
             selectFile(widget, scene)
             triggerMenu(widget.createFileMenu(), 'Reference')

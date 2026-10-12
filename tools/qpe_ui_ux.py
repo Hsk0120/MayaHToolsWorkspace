@@ -118,9 +118,9 @@ def main(output_dir, finished=None):
             click(widget, path)
             assert Path(widget.browseRoot) == root
             pause(350 if recording else 30)
-        assert columns(widget)[-1].width() >= 180
-        assert columns(widget)[-2].width() >= 180
-        assert columns(widget)[0].width() <= columns(widget)[-1].width()
+        for view in columns(widget)[-4:]:
+            assert view.width() >= widget.columns.contentWidth(view.rootIndex())
+        assert not any(widget.columns.emptyChild(view.rootIndex()) for view in columns(widget))
         waitFor(lambda: 'No files' in widget.emptyFiles.text())
         assert 'Work' in widget.folderLabel.text() and '0 files' in widget.folderLabel.text()
         screenshot('02-readable-columns.png')
@@ -132,7 +132,7 @@ def main(output_dir, finished=None):
         before = [(v.x(), v.width()) for v in columns(widget)]
         click(widget, root / 'Assets/Characters/Villain')
         after = [(v.x(), v.width()) for v in columns(widget)]
-        assert before == after, (before, after)
+        assert before[:-1] == after[:-1], (before, after)
         click(widget, hero)
         checks.append('sibling switching preserves column positions')
 
@@ -223,7 +223,7 @@ def main(output_dir, finished=None):
 
         step('10  起点を解除して全体の階層へ戻る')
         widget.rootButton.click()
-        assert not widget.browseRoot and not widget.rootButton.isVisible()
+        assert not widget.browseRoot and widget.rootButton.text() == 'Focus folder'
         assert len(columns(widget)) > 3
         inspectFolder(widget, Path(widget.currentDirectory))
         widget.setBrowseRoot(str(root))

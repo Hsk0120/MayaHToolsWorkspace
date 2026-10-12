@@ -162,8 +162,9 @@ class Appearance:
             view.doItemsLayout()
         self.widget.files.doItemsLayout()
         self.widget.places.doItemsLayout()
-        self.widget.files.setColumnWidth(0, px(235))
-        self.widget.files.setColumnWidth(1, px(85))
+        # フォント変更後も余白をファイル名へ配分する。固定幅へ戻すと右側が空く。
+        self.widget._configureFileHeader()
+        self.widget.files.header().resizeSections()
         self.widget.preview.setMaximumHeight(px(260))
         self.widget.previewText.setMaximumHeight(px(230))
         self.widget._operationTabChanged(self.widget.operationTabs.currentIndex())

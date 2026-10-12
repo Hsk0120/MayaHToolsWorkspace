@@ -13,7 +13,7 @@ from qpeContextMenu import ContextMenu
 from qpeDirectoryModel import DirectoryModel
 from qpeFileIcons import FileIcons, fileType
 
-ICON = Path(__file__).resolve().parents[1] / 'icons/quickPathExplorer.png'
+ICON = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]) / 'icons/quickPathExplorer.png'
 
 
 class FolderModel(DirectoryModel):
@@ -114,6 +114,10 @@ class FolderColumns(QtWidgets.QColumnView):
 
     def finishColumns(self):
         """Qtの選択接続後に、空一覧更新で隠れた現在列を復元する。"""
+        # 起点へ戻した直後、Qtの旧子列の遅延接続でcurrentが無効になることがある。
+        # 起点には選択行がないが、その一覧自体は表示対象なので空白にしない。
+        if not self.currentIndex().isValid() and self.rootIndex().isValid():
+            self.setCurrentIndex(self.rootIndex())
         ancestors = []
         index = self.currentIndex()
         while index.isValid():
@@ -418,7 +422,6 @@ class Explorer(QtWidgets.QWidget):
         self.browseRoot = ''
         self._inlineRename = None
         self._actionPaths = None
-        self._quickLook = None
         self._loadedFileFolders = set()
         self._columnStates = {}
         self._fromColumn = False
@@ -446,6 +449,8 @@ class Explorer(QtWidgets.QWidget):
         self.columns.interaction = self.interaction
         self.columns.refreshHints()
         self._connectDirectoryModels()
+        from qpeTools import Organizer
+        self.organizer = Organizer(self)
 
     def _connectDirectoryModels(self):
         """世代管理モデルの通知と表示位置保持を接続する。"""
@@ -632,8 +637,14 @@ class Explorer(QtWidgets.QWidget):
         self.fileModel.directoryLoaded.connect(self._filesLoaded)
         self.fileProxy.modelReset.connect(self._configureFileHeader)
         self.fileProxy.columnsInserted.connect(self._configureFileHeader)
+        # フィルターで列が一時的に消えるとQtが列の伸縮設定を失う。
+        # モデル通知の処理完了後に一度だけ設定し直す。親所有で終了時にも停止できる。
+        self._fileHeaderTimer = QtCore.QTimer(self)
+        self._fileHeaderTimer.setSingleShot(True)
+        self._fileHeaderTimer.timeout.connect(self._configureFileHeader)
         for signal in (self.fileProxy.rowsInserted, self.fileProxy.rowsRemoved, self.fileProxy.modelReset, self.fileProxy.layoutChanged):
             signal.connect(self._updateFileSummary)
+            signal.connect(lambda *unused: self._fileHeaderTimer.start(0))
         self.search.textChanged.connect(self.fileProxy.setFilterFixedString)
         self.fileFilter.currentIndexChanged.connect(self._filterChanged)
         self.actionsPanel = QtWidgets.QWidget(self.outer)
@@ -780,6 +791,7 @@ class Explorer(QtWidgets.QWidget):
         if header.count() < 4:
             return
         header.setStretchLastSection(False)
+        header.setMinimumSectionSize(70)
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
@@ -1009,6 +1021,8 @@ class Explorer(QtWidgets.QWidget):
             menu.addAction('Current Scene Folder', lambda: self.actionRequested.emit('sceneFolder'))
         menu.addSeparator()
         menu.addAction('Display Settings…', lambda: self.appearance.show())
+        if hasattr(self, 'organizer'):
+            self.organizer.addMenu(menu, [] if background else [target], target)
         return menu
 
     def _execContext(self, menu, position, view=None, index=QtCore.QModelIndex()):
@@ -1111,11 +1125,14 @@ class Explorer(QtWidgets.QWidget):
         Returns:
             bool: 移動できたか。
         """
-        path = QtCore.QDir.fromNativeSeparators(os.path.abspath(os.path.expanduser(path)))
+        path = QtCore.QDir.fromNativeSeparators(os.path.abspath(os.path.expandvars(os.path.expanduser(path))))
         if not os.path.isdir(path):
             self.status.setText('Folder not found or unavailable: ' + path)
             self.status.show()
             return False
+        tabs = getattr(self, 'folderTabs', None)
+        if record and tabs and tabs.active >= 0 and path != self.currentDirectory and (tabs.states[tabs.active] or {}).get('locked'):
+            tabs.add()
         editor = self._inlineRename
         if editor is not None and shiboken.isValid(editor):
             editor.finish(False)
@@ -1189,6 +1206,8 @@ class Explorer(QtWidgets.QWidget):
         if hasattr(self, 'folderTabs'):
             self.folderTabs.updateTitle()
         self.trace('navigate', serial=serial)
+        if hasattr(self, 'organizer'):
+            self.organizer.workspace.navigate()
         return True
 
     def _filesLoaded(self, path):
@@ -1231,6 +1250,8 @@ class Explorer(QtWidgets.QWidget):
             return
         count = self.fileProxy.rowCount(self.files.rootIndex())
         paths = self.selectedPaths()
+        if hasattr(self, 'organizer') and self.organizer.workspace.active():
+            count = len(self.organizer.workspace.items)
         text = '{} items'.format(count)
         if paths:
             size = sum(QtCore.QFileInfo(path).size() for path in paths)
@@ -1304,6 +1325,11 @@ class Explorer(QtWidgets.QWidget):
                 item.setIcon(0, self._placeFolderIcon if os.path.isdir(path)
                              else self._placeIcons.icon(path))
             group.setExpanded(expanded.get(title, True))
+            if title == 'Favorites':
+                for name in settings.get('savedSearches', {}):
+                    item = QtWidgets.QTreeWidgetItem(group, ['Search: ' + name])
+                    item.setData(0, QtCore.Qt.UserRole, 'qpe-search:' + name)
+                    item.setIcon(0, self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogContentsView))
         self.places.verticalScrollBar().setValue(scroll)
 
     def _placeClicked(self, item, column):
@@ -1323,6 +1349,9 @@ class Explorer(QtWidgets.QWidget):
         Args:
             path (str | None): 対象パス。
         """
+        if isinstance(path, str) and path.startswith('qpe-search:'):
+            self.organizer.search(readSettings().get('savedSearches', {}).get(path[11:], {}))
+            return
         if path and os.path.isfile(path):
             if os.path.normcase(str(Path(path).parent)) != os.path.normcase(self.currentDirectory):
                 self.navigate(str(Path(path).parent))
@@ -1351,7 +1380,17 @@ class Explorer(QtWidgets.QWidget):
         if item and item.parent() and item.parent().text(0) == 'Favorites':
             path = item.data(0, QtCore.Qt.UserRole)
             menu = QtWidgets.QMenu(self)
-            menu.addAction('Remove Favorite', lambda: self.removeFavorite(path))
+            if path.startswith('qpe-search:'):
+                def removeSearch():
+                    """仮想のお気に入りは保存検索から取り除く。"""
+                    values = readSettings().get('savedSearches', {})
+                    values.pop(path[11:], None)
+                    writeSettings({'savedSearches': values})
+                    self._placeRefreshTimer.stop()
+                    self._loadPlaces()
+                menu.addAction('Remove saved search', removeSearch)
+            else:
+                menu.addAction('Remove Favorite', lambda: self.removeFavorite(path))
             menu.exec_(self.places.viewport().mapToGlobal(position))
 
     def addFavorite(self):
@@ -1397,6 +1436,8 @@ class Explorer(QtWidgets.QWidget):
         Returns:
             str: 未選択なら空文字。
         """
+        if hasattr(self, 'organizer') and self.organizer.workspace.active():
+            return self.organizer.workspace.current()
         current = self.files.currentIndex()
         if not self.files.selectionModel().isSelected(current):
             selected = self.files.selectionModel().selectedRows(0)
@@ -1410,6 +1451,8 @@ class Explorer(QtWidgets.QWidget):
         Returns:
             list[str]: 選択パス。
         """
+        if hasattr(self, 'organizer') and self.organizer.workspace.active():
+            return self.organizer.workspace.selected()
         indexes = sorted(self.files.selectionModel().selectedRows(0), key=lambda index: index.row())
         return [self.fileModel.filePath(self.fileProxy.mapToSource(index)) for index in indexes]
 
@@ -1438,55 +1481,39 @@ class Explorer(QtWidgets.QWidget):
             self.actionRequested.emit(action)
         finally:
             self._actionPaths = previous
+    def recordSuccessfulFiles(self, paths):
+        """ホストが成功を確認したファイルだけを最近の項目へ記録する。"""
         recents = list(dict.fromkeys(list(paths) + readSettings().get('recents', [])))[:10]
         writeSettings({'recents': recents})
         QtCore.QTimer.singleShot(0, self._loadPlaces)
 
-    def toggleQuickLook(self):
-        """Spaceで選択ファイルのプレビューを拡大表示する。"""
-        if self._quickLook is not None and self._quickLook.isVisible():
-            self._quickLook.close()
-            return
-        if not self.selectedPath():
-            return
-        dialog = QtWidgets.QDialog(self)
-        dialog.setWindowTitle(Path(self.selectedPath()).name)
-        dialog.setFont(self.font())
-        dialog.resize(720, 520)
-        layout = QtWidgets.QVBoxLayout(dialog)
-        label = QtWidgets.QLabel(dialog)
-        label.setObjectName('quickLookImage')
-        label.setAlignment(QtCore.Qt.AlignCenter)
-        layout.addWidget(label)
-        text = QtWidgets.QPlainTextEdit(dialog)
-        text.setObjectName('quickLookText')
-        text.setReadOnly(True)
-        layout.addWidget(text)
-        action = QAction(dialog)
-        action.setShortcut(QtGui.QKeySequence('Space'))
-        action.triggered.connect(dialog.close)
-        dialog.addAction(action)
-        if self._quickLook is not None:
-            self._quickLook.deleteLater()
-        self._quickLook = dialog
-        self._refreshQuickLook()
-        dialog.show()
+    def openSelectedFile(self):
+        """選択した一件をOpenと同じホスト規則で開く。"""
+        self.requestFiles('open', self.selectedPaths())
 
-    def _refreshQuickLook(self):
-        """非同期プレビューの完了を拡大画面にも反映する。"""
-        dialog = self._quickLook
-        if dialog is None:
-            return
-        dialog.setWindowTitle(Path(self.selectedPath()).name or 'Quick Look')
-        label = dialog.findChild(QtWidgets.QLabel, 'quickLookImage')
-        text = dialog.findChild(QtWidgets.QPlainTextEdit, 'quickLookText')
-        has_image = not self._image.isNull()
-        label.setVisible(has_image)
-        text.setVisible(not has_image)
-        if has_image:
-            label.setPixmap(QtGui.QPixmap.fromImage(self._image).scaled(680, 450, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
+    def openAssociatedFile(self, path):
+        """OSの関連付けへ渡し、受付に成功した場合だけ最近の項目へ残す。
+
+        Args:
+            path (str): 開くファイルのパス。
+
+        Returns:
+            bool: OSが起動要求を受け付けたか。アプリ内の読込み成功は判定しない。
+        """
+        if not self.validateTargets([path]):
+            return False
+        try:
+            accepted = QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(os.path.abspath(path)))
+        except (OSError, RuntimeError) as error:
+            self.organizer.report(str(error))
+            return False
+        if accepted:
+            self.recordSuccessfulFiles([path])
+            self.organizer.report('Requested associated application: ' + Path(path).name)
         else:
-            text.setPlainText(self.previewText.toPlainText() or self.preview.text())
+            self.organizer.report('Could not launch an associated application. Use Open with… or Windows default-app settings.')
+        return accepted
+
 
     def _filterChanged(self, index):
         """形式フィルターを適用する。
@@ -1513,7 +1540,8 @@ class Explorer(QtWidgets.QWidget):
             return
         info = QtCore.QFileInfo(path)
         import html
-        rows = [('Type', fileType(path)),
+        from qpeProductivityIO import availability
+        rows = [('Availability', availability(path)[0]), ('Type', fileType(path)),
                 ('Size', QtCore.QLocale.system().formattedDataSize(info.size())),
                 ('Location', self.fontMetrics().elidedText(info.absolutePath(), QtCore.Qt.ElideMiddle, 180)),
                 ('Modified', info.lastModified().toString('yyyy-MM-dd HH:mm'))]
@@ -1552,7 +1580,6 @@ class Explorer(QtWidgets.QWidget):
         self.previewText.hide()
         self.previewText.clear()
         self.metadata.clear()
-        self._refreshQuickLook()
 
     def _previewReady(self, serial, image, text):
         """最新の要求だけを表示する。
@@ -1583,7 +1610,6 @@ class Explorer(QtWidgets.QWidget):
                 self.preview.show()
         else:
             self.preview.setText(text)
-        self._refreshQuickLook()
 
     def _resizePreview(self):
         """読込済み画像を詳細欄のサイズに合わせる。"""
@@ -1679,6 +1705,8 @@ class Explorer(QtWidgets.QWidget):
                 elif Path(name).suffix.lower() != '.txt':
                     raise ValueError('Use .txt for a text file. Use Save scene here to create a Maya scene.')
             path = createEntry(directory, name, folder)
+            if hasattr(self, 'organizer'):
+                self.organizer.engine.recordCreation(path)
             self.navigate(directory)
             if not folder:
                 self._selectWhenReady(path)
@@ -1710,7 +1738,14 @@ class Explorer(QtWidgets.QWidget):
                 self.folderModel.setOption(QtWidgets.QFileSystemModel.DontWatchForChanges, True)
                 self.fileModel.setOption(QtWidgets.QFileSystemModel.DontWatchForChanges, True)
             try:
-                target = renameEntry(path, name)
+                if hasattr(self, 'organizer'):
+                    if self.organizer.task:
+                        raise ValueError('Wait for the active file operation to finish.')
+                    self.organizer.engine.rename([(path, name)])
+                    target = Path(path).with_name(name).as_posix()
+                    self.organizer.remapRecords([(path, target)])
+                else:
+                    target = renameEntry(path, name)
             finally:
                 if was_folder:
                     self._resetFileModels()
@@ -1789,6 +1824,7 @@ class Explorer(QtWidgets.QWidget):
         try:
             old_folder, old_file = self.folderModel, self.fileModel
             self.folderModel = FolderModel(self)
+            self.folderModel.showHidden = old_folder.showHidden
             self.folderModel.setObjectName('folderModel')
             self.folderModel.setReadOnly(True)
             self.folderModel.setOption(QtWidgets.QFileSystemModel.DontUseCustomDirectoryIcons, True)
@@ -1800,6 +1836,7 @@ class Explorer(QtWidgets.QWidget):
             self.folderModel.rowsInserted.connect(self.columns.refreshHints)
             self.folderModel.rowsRemoved.connect(self.columns.refreshHints)
             self.fileModel = DirectoryModel(self)
+            self.fileModel.showHidden = old_file.showHidden
             self.fileModel.setObjectName('fileModel')
             self.fileModel.setReadOnly(True)
             self.fileModel.setFilter(old_file.filter())
@@ -1883,10 +1920,16 @@ class Explorer(QtWidgets.QWidget):
         menu.addAction('Show Folder in Explorer', lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(directory)))
         menu.addSeparator()
         menu.addAction('Display Settings…', lambda: self.appearance.show())
+        if hasattr(self, 'organizer'):
+            self.organizer.addMenu(menu, paths, directory)
         return menu
 
     def saveLayout(self):
         """分割幅をホスト別に保存する。"""
+        if hasattr(self, 'folderTabs'):
+            self.folderTabs.saveSession()
+        if hasattr(self, 'readOptions'):
+            writeSettings({'readOptions': self.readOptions.snapshot()})
         writeSettings({self._settingsKey: {'outer': self.outer.sizes(), 'vertical': self.vertical.sizes(),
             'lower': self.lower.sizes(), 'version': 4, 'size': [self.width(), self.height()]}})
 
@@ -1921,6 +1964,21 @@ class Explorer(QtWidgets.QWidget):
         self._previewPath = ''
         self._navigationSerial += 1
         super().hideEvent(event)
+
+    def closeEvent(self, event):
+        """処理途中に単体アプリが終了してファイル操作を切断しない。"""
+        if hasattr(self, 'organizer') and (self.organizer.task or any(not job[-1].get('jobPath') for job in self.organizer.queue)):
+            self.organizer.report('A file operation is running. Cancel it or wait before closing.')
+            event.ignore()
+            return
+        if hasattr(self, 'organizer'):
+            for job in self.organizer.queue:
+                job[-1]['state'] = 'Saved for recovery'
+            self.organizer.queue.clear()
+            for dialog in self.organizer.dialogs:
+                if shiboken.isValid(dialog):
+                    dialog.close()
+        super().closeEvent(event)
 
     def showEvent(self, event):
         """再表示時は古い要求を再利用せず選択から読み直す。
@@ -1979,16 +2037,46 @@ class Explorer(QtWidgets.QWidget):
 
 def main():
     """Windows単体ブラウザーを起動する。"""
+    import argparse
+    parser = argparse.ArgumentParser(description='QuickPathExplorer')
+    parser.add_argument('path', nargs='?')
+    parser.add_argument('--smoke-test', metavar='OUTPUT', help='Isolated startup test: save image/report, then exit')
+    arguments = parser.parse_args()
+    if arguments.smoke_test:
+        output = Path(arguments.smoke_test).resolve()
+        output.mkdir(parents=True, exist_ok=True)
+        os.environ['QPE_SETTINGS_FILE'] = str(output / 'settings.json')
     if hasattr(QtCore.Qt, 'AA_EnableHighDpiScaling'):
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
     app = QtWidgets.QApplication(sys.argv)
     window = Explorer()
-    window.actionRequested.connect(lambda action: QtGui.QDesktopServices.openUrl(
-        QtCore.QUrl.fromLocalFile(window.operationPaths()[0])) if action == 'open' and len(window.operationPaths()) == 1 else None)
+    def openFile(action):
+        """OSへ正常に引き渡せた項目だけを履歴へ登録する。"""
+        paths = window.operationPaths()
+        if action == 'open' and len(paths) == 1:
+            window.openAssociatedFile(paths[0])
+    window.actionRequested.connect(openFile)
     window.show()
-    path = sys.argv[1] if len(sys.argv) > 1 else readSettings().get('lastPath', str(Path.home()))
+    path = arguments.path or readSettings().get('lastPath', str(Path.home()))
     window.navigate(path if os.path.isdir(path) else str(Path.home()))
+    if not arguments.path:
+        window.folderTabs.restoreSession()
+    if arguments.smoke_test:
+        def finishSmoke():
+            """配布exeそのものの画面・アイコン・設定保存を検査する。"""
+            import json
+            window.organizer.populateTools()
+            image_ok = window.grab().save(str(output / 'standalone.png'))
+            window.saveLayout()
+            passed = bool(image_ok and ICON.is_file() and not window.windowIcon().isNull()
+                          and window.currentDirectory and len(window.organizer.toolsMenu.actions()) > 5)
+            (output / 'result.json').write_text(json.dumps(dict(status='passed' if passed else 'error',
+                qt=QtCore.qVersion(), frozen=bool(getattr(sys, 'frozen', False)), directory=window.currentDirectory,
+                fileOpening='OS associations')), encoding='utf8')
+            window.close()
+            app.exit(0 if passed else 1)
+        QtCore.QTimer.singleShot(2500, finishSmoke)
     return app.exec_()
 
 

@@ -115,7 +115,8 @@ class Theme(QtCore.QObject):
 
     def updateIcons(self):
         """操作アイコンだけを文字色へ着色し、拡張子のブランド色は維持する。"""
-        folder = Path(__file__).resolve().parents[1] / 'icons'
+        import sys
+        folder = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]) / 'icons'
         for name in ('sidebar', 'back', 'forward', 'inspector'):
             source = QtGui.QIcon(str(folder / (name + '.svg')))
             icon = QtGui.QIcon()

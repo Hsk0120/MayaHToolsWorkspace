@@ -78,6 +78,8 @@ def show(path=None, _restoring=False):
     widget.show()
     location = path or readSettings().get('lastPath') or cmds.workspace(query=True, rootDirectory=True)
     widget.navigate(location if os.path.isdir(location) else str(Path.home()))
+    if not path:
+        widget.folderTabs.restoreSession()
     if created:
         restoreState(widget)
     opened(widget, restoring=_restoring)
@@ -203,19 +205,22 @@ def perform(widget, action):
                     return
             if action == 'open':
                 if Path(path).suffix.lower() not in ('.ma', '.mb'):
-                    QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path))
+                    widget.openAssociatedFile(path)
                     return
                 if not _allowOpen(widget):
                     return
                 cmds.file(path, open=True, force=True)
+                widget.recordSuccessfulFiles([path])
             elif action == 'import':
                 arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
                 for path, options in zip(paths, arguments):
                     readFile(path, action, options)
+                    widget.recordSuccessfulFiles([path])
             else:
                 arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
                 for path, options in zip(paths, arguments):
                     readFile(path, action, options)
+                    widget.recordSuccessfulFiles([path])
         elif action == 'save':
             if not cmds.file(query=True, sceneName=True):
                 perform(widget, 'saveAs')
