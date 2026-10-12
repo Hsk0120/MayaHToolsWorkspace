@@ -17,6 +17,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <cwchar>
@@ -51,12 +52,59 @@ enum MenuCommand : UINT {
     kMenuTogglePlayback,  ///< 右クリックのメニュー: 再生/停止。
     kMenuFullscreen,      ///< 右クリックのメニュー: フルスクリーンの切り替え。
     kMenuColorInfo,       ///< 右クリックのメニュー: 色の情報の表示の切り替え。
+    kMenuCopyPath,        ///< 右クリックのメニュー: 1本目のパスをクリップボードへ写す。
+    kMenuCopyComparePath, ///< 右クリックのメニュー: 2本目(比較)のパスをクリップボードへ写す。
     /// 右クリックのメニュー: 色の解釈の手動の指定。番号 = kMenuColorFirst + 動画(0/1)×100 + 項目×10 + (値+1)。
     /// 項目は0=行列、1=範囲、2=色域、3=伝達関数、4=手動の指定をすべて解除。値が-1(0番)なら自動。
     kMenuColorFirst = 1000,
     kMenuColorLast = 1199,
     kMenuRecentFirst = 100,  ///< 最近使ったファイルの1つ目(以降、順に番号を振る)。
 };
+
+/**
+ * @brief 動画・連番画像のパスを返す(連番画像なら、そのコマの画像のパス)。
+ * @param clip 対象。
+ * @param index コマ番号(範囲外は端のコマにする)。
+ * @return パス。連番のコマが欠けているときは、開いたときのファイルのパス。
+ */
+std::wstring clipPathAt(const Clip& clip, int index) {
+    const int count = clip.frameCount();
+    if (count > 0) {
+        const std::wstring frame = clip.framePath(std::clamp(index, 0, count - 1));
+        if (!frame.empty()) {
+            return frame;
+        }
+    }
+    return clip.path();
+}
+
+/**
+ * @brief 文字列をクリップボードへ写す(Unicodeの文字列として)。
+ * @param owner クリップボードを開くウィンドウ。
+ * @param text 写す文字列。
+ * @return 写せたらtrue。
+ * @note クリップボードに渡したメモリはWindowsのものになるので、渡せたときは解放しない。
+ */
+bool copyTextToClipboard(HWND owner, const std::wstring& text) {
+    if (text.empty() || !OpenClipboard(owner)) {
+        return false;
+    }
+    bool ok = false;
+    EmptyClipboard();
+    const std::size_t bytes = (text.size() + 1) * sizeof(wchar_t);
+    if (HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes)) {
+        if (void* data = GlobalLock(memory)) {
+            std::memcpy(data, text.c_str(), bytes);
+            GlobalUnlock(memory);
+            ok = SetClipboardData(CF_UNICODETEXT, memory) != nullptr;
+        }
+        if (!ok) {
+            GlobalFree(memory);
+        }
+    }
+    CloseClipboard();
+    return ok;
+}
 
 }  // namespace
 
@@ -624,6 +672,17 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING | (fullscreen_ ? MF_CHECKED : 0), kMenuFullscreen, L"Full Screen\tCtrl+F");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    // ファイルのパスを写す(連番画像なら、表示中のコマの画像のパス)。比較中は動画ごとに分ける。
+    if (clip_ && compareClip_) {
+        const std::wstring first = L"Copy Path: 1st (" + fileNameOf(clipPathAt(*clip_, current_)) + L")";
+        const std::wstring second =
+            L"Copy Path: 2nd (" + fileNameOf(clipPathAt(*compareClip_, current_ + view_.compareOffset())) + L")";
+        AppendMenuW(menu, MF_STRING, kMenuCopyPath, first.c_str());
+        AppendMenuW(menu, MF_STRING, kMenuCopyComparePath, second.c_str());
+    } else {
+        AppendMenuW(menu, MF_STRING | (clip_ ? 0 : MF_GRAYED), kMenuCopyPath, L"Copy Path");
+    }
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING | (settings_.showColorInfo ? MF_CHECKED : 0), kMenuColorInfo, L"Show Color Info");
     // 色の解釈の手動の指定(動画の指定が誤っているときに直す)。比較中は動画ごとに分ける。
     if (clip_ && compareClip_) {
@@ -649,6 +708,16 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
         break;
     case kMenuFullscreen:
         toggleFullscreen();
+        break;
+    case kMenuCopyPath:
+        if (clip_) {
+            copyTextToClipboard(hwnd_, clipPathAt(*clip_, current_));
+        }
+        break;
+    case kMenuCopyComparePath:
+        if (compareClip_) {
+            copyTextToClipboard(hwnd_, clipPathAt(*compareClip_, current_ + view_.compareOffset()));
+        }
         break;
     case kMenuColorInfo:
         settings_.showColorInfo = !settings_.showColorInfo;

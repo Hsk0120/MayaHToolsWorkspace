@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FramePlayer VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-06 08:29+0900\n"
+"POT-Creation-Date: 2026-10-12 12:32+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -57,6 +57,9 @@ msgstr "Setup (user-level installation, with file association confirmed after ex
 
 msgid "画面の文字は英語。"
 msgstr "The text in the screen is in English."
+
+msgid "右クリックのメニューの「Copy Path」(ファイルのパスをクリップボードへ写す)。"
+msgstr "\"Copy Path\" in the right-click menu (copies the file path to the clipboard)."
 
 msgid "色の扱い"
 msgstr "Color Handling"
@@ -1438,8 +1441,8 @@ msgstr "For image sequences, the frame number of the first file becomes the auto
 msgid "右クリックのメニュー"
 msgstr "Right-click menu"
 
-msgid "映像の上で右クリックすると、再生/停止・フルスクリーン・色の情報の表示・色の解釈の指定のメニューが出ます。"
-msgstr "Right-clicking on the video displays a menu with options for play/pause, full-screen, showing color information, and specifying color interpretation."
+msgid "映像の上で右クリックすると、再生/停止・フルスクリーン・パスのコピー・色の情報の表示・色の解釈の指定のメニューが出ます。"
+msgstr "Right-click the video to open a menu with play/stop, full screen, copy path, color info, and color interpretation."
 
 msgid "映像の上の右クリックのメニュー"
 msgstr "Right-click menu on the video"
@@ -1449,6 +1452,9 @@ msgstr "Right-click menu on the video."
 
 msgid "**Full Screen**\\ (Ctrl+F・映像のダブルクリック): モニター全体に広げます。Esc で戻ります。"
 msgstr "**Full Screen**\\ (Ctrl+F, double-click video): Expands to fill the entire monitor. Press Esc to return."
+
+msgid "**Copy Path**: 開いているファイルのパスをクリップボードへ写します。連番画像では、表示中のコマの画像のパスを写します (欠けたコマでは、開いたときのファイルのパス)。比較中は「Copy Path: 1st」「Copy Path: 2nd」で、どちらのパスかを選びます。"
+msgstr "**Copy Path**: Copies the path of the open file to the clipboard. For an image sequence, it copies the path of the image of the frame being shown (on a missing frame, the path of the file that was opened). While comparing, choose \"Copy Path: 1st\" or \"Copy Path: 2nd\"."
 
 msgid "**Show Color Info**: 映像の左上に、使っている色の解釈を表示します(:doc:`color`)。"
 msgstr "**Show Color Info**: Displays the color interpretation being used in the upper-left corner of the video (:doc:`color`)."

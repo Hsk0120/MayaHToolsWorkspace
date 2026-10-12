@@ -73,6 +73,10 @@ public:
     std::wstring description() const override;
     /** @copydoc FrameSource::firstFrameNumber */
     std::optional<int> firstFrameNumber() const override { return numbered_ ? std::optional<int>(first_) : std::nullopt; }
+    /** @copydoc FrameSource::framePath */
+    std::wstring framePath(int index) const override {
+        return index >= 0 && index < frameCount() ? files_[static_cast<std::size_t>(index)] : std::wstring();
+    }
     /** @copydoc FrameSource::isMissing */
     bool isMissing(int index) const override;
 

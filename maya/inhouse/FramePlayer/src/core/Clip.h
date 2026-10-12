@@ -222,6 +222,13 @@ public:
     bool isMissing(int index) const { return source_ && source_->isMissing(index); }
 
     /**
+     * @brief 連番画像なら、そのコマのファイルのパスを返す(連番のファイルの一覧は開いた後は変わらない)。
+     * @param index コマ番号。
+     * @return パス。動画・欠け・範囲外なら空。
+     */
+    std::wstring framePath(int index) const { return source_ ? source_->framePath(index) : std::wstring(); }
+
+    /**
      * @brief 動画の色の解釈(動画の指定・推定。手動の指定は含まない)を返す。
      * @return 最後にデコードしたコマの色の解釈。
      */

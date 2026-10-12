@@ -91,6 +91,16 @@ public:
     virtual std::optional<int> firstFrameNumber() const { return std::nullopt; }
 
     /**
+     * @brief 連番画像なら、そのコマのファイルのパスを返す。
+     * @param index 0始まりのコマ番号。
+     * @return パス。動画・欠け・範囲外なら空。
+     */
+    virtual std::wstring framePath(int index) const {
+        (void)index;
+        return std::wstring();
+    }
+
+    /**
      * @brief コマのファイルが無い(連番の欠け)かを返す。
      * @param index 0始まりのコマ番号。
      * @return 欠けていればtrue。動画では常にfalse。
