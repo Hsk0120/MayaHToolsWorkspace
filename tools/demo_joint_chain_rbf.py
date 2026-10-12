@@ -15,6 +15,13 @@ hip・spine1(お腹)・spine2(胸)に付けた3つの球で近似し、尻尾は
 
 - 球の接線止め: 出力 = 外向き + clamp(rel, -L, L)。
 - UE RBF: ドライバー (rel/20, H/10) のポーズ補間(なだらかに避ける値)。最後に clamp。
+  ドライバーは専用ジョイント <列>RbfDriver_JNT で、translateX/Y に rel/20・H/10 をつなぎ、
+  その matrix を RBF へ渡す(MetaHuman の Pose Editor と同じつなぎ方)。スケルトンの回転を
+  直接使うと、クォータニオンの比較で 190度と-170度が同じになり入った側が消えるため使わない。
+  出力は MetaHuman の Pose Editor と同じ構成にする。ポーズに rel/H の名前を付け、前腕の下の
+  外向きで回るグループにあるドリブンジョイントを UEPoseBlenderNode で回す(ポーズの値は
+  X軸まわりの回転行列)。Pose Editor で Edit Selected → ポーズを選ぶ → ドリブンを回す → Update
+  で避け方を直せる。尻尾の出力は 外向き + clamp(ドリブンの rotateX, -L, L)。
   範囲は下の soft で求める(球の交わり始めでドライバーが跳ばないようにする)。
 
 交わる球が一つもなければ入力を通す。球が回転面と交わり始めた瞬間、その球の
@@ -118,9 +125,22 @@ SOFT_METHODS = [
     ("rbf", "AFTER: UE RBF (soft entry)", "clamp(sum(w_i*pose_i),-L,L)", (0.2, 0.9, 1), "rbf"),
 ]
 # 範囲をなだらかに合わせる(soft)列の種類。
-SOFT_KINDS = ("soft", "rbf", "rbf_cone_fixed", "rbf_cone")
+SOFT_KINDS = ("soft", "rbf", "rbf_cone_fixed", "rbf_cone", "rbf_rot")
 # UE RBF で後半を作る列の種類。
-RBF_KINDS = ("rbf", "rbf_cone_fixed", "rbf_cone")
+RBF_KINDS = ("rbf", "rbf_cone_fixed", "rbf_cone", "rbf_rot")
+# 回転ベースのドライバー。rel を 1/3 に縮めて rotateX へ(-340〜340 を -113〜113 に収め、
+# 190度と-170度のような一周違いを区別できるようにする)、H を rotateZ へ入れる。格子の間隔は
+# 回転で約6.7度になり、クォータニオン距離・半径4.7で位置ベースとほぼ同じ精度になる。
+# rel をそのまま回転に入れると、ソルバーは行列を比べるので一周違いを同じとみなしフリップする。
+ROTATION_REL_SCALE = 1/3.0
+ROTATION_H_SCALE = 0.667
+ROTATION_RADIUS = 4.7
+ROTATION_METHODS = [
+    ("input", "INPUT (red)", "hip/spine0-2/shoulder/upperArm/lowerArm", None, "input"),
+    ("rbf", "UE RBF: position driver", "driver translate = (rel/20, H/10)", (1, 0.5, 0.1), "rbf"),
+    ("rot", "UE RBF: rotation driver", "driver rotate = (rel/3, 0, H*0.667), quaternion", (0.1, 1, 0.1),
+     "rbf_rot"),
+]
 # ケース名 → (動き, 尻尾の入力, 体の球, 列, 録画の題名, 保存名)
 CASES = {
     "mixed": (MOTION, INPUT, BODY, METHODS,
@@ -136,6 +156,8 @@ CONE_METHODS = [
     ("fixed", "C: fixed cone angle", "gamma = gamma0 (rest pose)", (0.1, 1, 0.1), "rbf_cone_fixed"),
     ("cone", "C: distance-corrected cone", "gamma = gamma0 * d0 / d", (0.2, 0.9, 1), "rbf_cone"),
 ]
+CASES["rotation"] = (MOTION, INPUT, BODY, ROTATION_METHODS,
+                     "尻尾1軸回避: UE RBFのドライバーを位置ベースと回転ベースで比較", "joint-chain-rotation")
 CASES["cone_c"] = (MOTION, INPUT, BODY, CONE_METHODS,
                    "尻尾1軸回避: 前半を肘からのコーンで近似（球・固定角・距離補正）", "joint-chain-cone-c")
 # 列数ごとのHUDの区画。区画0〜4は画面の左から右。
@@ -376,34 +398,146 @@ def _finish(prefix, rig, geometry, relative_out, color):
     return output
 
 
-def _buildRbf(prefix, geometry):
-    """ドライバー (rel/20, H/10) のUE RBFでなだらかに避ける相対角を作る。
+def _buildDriverJoint(prefix, rig, geometry):
+    """RBF のドライバーにする専用ジョイントと、ポーズ格子の表示を作る。
+
+    ジョイントはドライバー空間のグループの中に置き、translateX=rel/20、translateY=H/10 を
+    つなぐ。グループの中では格子の間隔が1なので、ポーズ(rel 20度刻み × H 10度刻み)の位置に
+    格子の交点が重なる。表示のため、グループは列の左下に縮小して置く。
+
+    Returns:
+        str: ドライバージョイント。
+    """
+    space = cmds.createNode("transform", name=prefix+"RbfDriverSpace_GRP", parent=rig["group"])
+    cmds.setAttr(space+".translate", -1, 0.5, 0)
+    cmds.setAttr(space+".scale", 0.3, 0.3, 0.3)
+    grid = cmds.createNode("transform", name=prefix+"RbfPoseGrid", parent=space)
+    lines = [[(i, 0, 0), (i, H_RANGE, 0)] for i in range(-REL_RANGE, REL_RANGE+1)]
+    lines += [[(-REL_RANGE, j, 0), (REL_RANGE, j, 0)] for j in range(H_RANGE+1)]
+    for k, points in enumerate(lines):
+        line = _line(prefix+"RbfGridLine{}".format(k), points, (0.4, 0.4, 0.45), grid)
+        cmds.setAttr(cmds.listRelatives(line, shapes=True, fullPath=True)[0]+".lineWidth", 1)
+    # rel=0 の縦線(外向き)と、H=0 の横線を強調する。
+    _line(prefix+"RbfGridRelZero", [(0, 0, 0), (0, H_RANGE, 0)], (0.9, 0.9, 0.9), grid)
+    joint = cmds.createNode("joint", name=prefix+"RbfDriver_JNT", parent=space)
+    cmds.setAttr(joint+".radius", 3)
+    cmds.setAttr(joint+".overrideEnabled", True)
+    cmds.setAttr(joint+".overrideRGBColors", True)
+    cmds.setAttr(joint+".overrideColorRGB", 1, 0.9, 0.1)
+    _connect(_multiply(prefix+"DriverX", geometry["relative"], constant=1/REL_STEP), joint+".translateX")
+    _connect(_multiply(prefix+"DriverY", _clampRange(prefix+"HClamp", geometry["half"], 0, H_RANGE*H_STEP),
+                       constant=1/H_STEP), joint+".translateY")
+    return joint
+
+
+def _buildRotationDriverJoint(prefix, rig, geometry):
+    """回転ベースの RBF のドライバーにする専用ジョイントを作る。
+
+    rotateX=rel/3、rotateZ=H*0.667。表示のため、列の左下に置き、+Y 向きの線で回転を見せる。
+
+    Returns:
+        str: ドライバージョイント。
+    """
+    space = cmds.createNode("transform", name=prefix+"RbfDriverSpace_GRP", parent=rig["group"])
+    cmds.setAttr(space+".translate", 4, 2, 0)
+    joint = cmds.createNode("joint", name=prefix+"RbfDriver_JNT", parent=space)
+    cmds.setAttr(joint+".radius", 0.5)
+    _line(prefix+"RbfDriverPointer", [(0, 0, 0), (0, 2.5, 0)], (1, 0.9, 0.1), joint)
+    for attr, source, scale in (("rotateX", geometry["relative"], ROTATION_REL_SCALE),
+                                ("rotateZ", _clampRange(prefix+"HClamp", geometry["half"], 0, H_RANGE*H_STEP),
+                                 ROTATION_H_SCALE)):
+        radians = _node("unitConversion", prefix+"Driver"+attr, conversionFactor=scale*math.pi/180)
+        _connect(source, radians+".input")
+        _connect(radians+".output", joint+"."+attr)
+    return joint
+
+
+def _rotationDriverMatrix(rel, half):
+    """回転ベースのドライバージョイントが (rel, H) のときのローカル行列(16要素)。"""
+    rotation = om.MEulerRotation(math.radians(rel*ROTATION_REL_SCALE), 0, math.radians(half*ROTATION_H_SCALE))
+    return list(rotation.asMatrix())
+
+
+def _buildRbf(prefix, geometry, rig, rotation=False):
+    """専用ジョイントをドライバーにしたUE RBFで、なだらかに避ける相対角を作る。
+
+    Args:
+        rotation (bool): False なら位置ベース(translate=(rel/20, H/10)、Euclidean)、
+            True なら回転ベース(rotate=(rel/3, 0, H*0.667)、クォータニオン距離)。
 
     Returns:
         tuple: (正規化した出力プラグ, ソルバー, ポーズ一覧)。
     """
-    driver = _node("composeMatrix", prefix+"Driver")
-    _connect(_multiply(prefix+"DriverX", geometry["relative"], constant=1/REL_STEP), driver+".inputTranslateX")
-    _connect(_multiply(prefix+"DriverY", _clampRange(prefix+"HClamp", geometry["half"], 0, H_RANGE*H_STEP),
-                       constant=1/H_STEP), driver+".inputTranslateY")
-    solver = _node("UERBFSolverNode", prefix+"PoseSolver", mode=0, inputMode=0, distanceMethod=0, functionType=0,
-                   normalizeMethod=1, automaticRadius=False, radius=RBF_RADIUS)
-    _connect(driver+".outputMatrix", solver+".inputs[0]")
+    if rotation:
+        joint = _buildRotationDriverJoint(prefix, rig, geometry)
+        solver = _node("UERBFSolverNode", prefix+"PoseSolver", mode=0, inputMode=1, distanceMethod=1, functionType=0,
+                       normalizeMethod=1, automaticRadius=False, radius=ROTATION_RADIUS)
+    else:
+        joint = _buildDriverJoint(prefix, rig, geometry)
+        solver = _node("UERBFSolverNode", prefix+"PoseSolver", mode=0, inputMode=0, distanceMethod=0, functionType=0,
+                       normalizeMethod=1, automaticRadius=False, radius=RBF_RADIUS)
+    # ドライバー空間の中のローカル行列を渡す。Pose Editor と同じく joint.matrix を使う。
+    _connect(joint+".matrix", solver+".inputs[0]")
     identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
     cmds.setAttr(solver+".inputsRest[0]", identity, type="matrix")
-    blend = _node("plusMinusAverage", prefix+"PoseBlendSum")
-    total = _node("plusMinusAverage", prefix+"WeightSum")
     grid = [(i, j, poseValue(i*REL_STEP, j*H_STEP))
             for i in range(-REL_RANGE, REL_RANGE+1) for j in range(H_RANGE+1)]
     for i, (x, y, value) in enumerate(grid):
-        cmds.setAttr(solver+".targets[{}].targetValues[0]".format(i), identity[:12]+[x, y, 0, 1], type="matrix")
-        weighted = _node("multDoubleLinear", prefix+"Pose{}".format(i), input2=value)
-        _connect(solver+".outputs[{}]".format(i), weighted+".input1")
-        _connect(weighted+".output", blend+".input1D[{}]".format(i))
-        _connect(solver+".outputs[{}]".format(i), total+".input1D[{}]".format(i))
-    normalized = _divide(prefix+"PoseBlend", blend+".output1D",
-                         _clampRange(prefix+"WeightSumSafe", total+".output1D", 1e-6, 1e9))
-    return normalized, solver, grid
+        matrix = (_rotationDriverMatrix(x*REL_STEP, y*H_STEP) if rotation else identity[:12]+[x, y, 0, 1])
+        cmds.setAttr(solver+".targets[{}].targetValues[0]".format(i), matrix, type="matrix")
+        # Pose Editor はポーズを名前で一覧・選択する。名前から相対角と半幅が分かるようにする。
+        cmds.setAttr(solver+".targets[{}].targetName".format(i),
+                     "rel{:+04d}_H{:03d}".format(int(x*REL_STEP), int(y*H_STEP)), type="string")
+    driven = _buildPoseBlender(prefix, rig, geometry, solver, [value for _, _, value in grid])
+    degrees = _degrees(prefix+"DrivenDegrees", driven+".rotateX")
+    return degrees, solver, grid
+
+
+def _poseMatrix(degrees):
+    """X軸まわりに degrees 回したローカル行列(16要素)。"""
+    c, s = math.cos(math.radians(degrees)), math.sin(math.radians(degrees))
+    return [1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1]
+
+
+def _buildPoseBlender(prefix, rig, geometry, solver, values, angle=None):
+    """MetaHuman の Pose Editor で編集できる形で、ポーズの値をドリブンジョイントへ混ぜる。
+
+    前腕の下に外向きの角度で回るグループを作り、その中のドリブンジョイントの rotateX を
+    ポーズの値(外向きからの相対角)にする。UEPoseBlenderNode のつなぎ方は Pose Editor
+    (mh_pose_editor の RBFNode.add_driven_joints)と同じにし、Pose Editor の
+    「Edit Selected → ポーズを選ぶ → ドリブンを回す → Update」で値を直せるようにする。
+
+    Args:
+        values (list[float]): ポーズごとの相対角。度。ソルバーのポーズと同じ順。
+        angle (str | None): グループを回す角度(度)のプラグ。省略時は外向き。
+
+    Returns:
+        str: ドリブンジョイント。
+    """
+    group = cmds.createNode("transform", name=prefix+"TailOutward_GRP", parent=rig["joints"]["l_lowerArm"])
+    radians = _node("unitConversion", prefix+"OutwardRadians", conversionFactor=math.pi/180)
+    _connect(angle or geometry["outward"], radians+".input")
+    _connect(radians+".output", group+".rotateX")
+    driven = cmds.createNode("joint", name=prefix+"TailDriven_JNT", parent=group)
+    cmds.setAttr(driven+".radius", 0.2)
+    blender = cmds.createNode("UEPoseBlenderNode", name=driven+"_UEPoseBlenderNode")
+    # 所属を表すメッセージ接続。Pose Editor はこれでソルバーのドリブンを見つける。
+    for node, attr in ((blender, "drivenTransform"), (driven, "poseBlender"), (blender, "rbfSolver"),
+                       (solver, "poseBlenders")):
+        cmds.addAttr(node, longName=attr, attributeType="message")
+    _connect(blender+".drivenTransform", driven+".poseBlender")
+    _connect(solver+".poseBlenders", blender+".rbfSolver")
+    rest = _poseMatrix(0)
+    cmds.setAttr(blender+".basePose", rest, type="matrix")
+    cmds.setAttr(blender+".inMatrix", rest, type="matrix")
+    for i, value in enumerate(values):
+        cmds.setAttr(blender+".poses[{}]".format(i), _poseMatrix(value), type="matrix")
+        _connect(solver+".outputs[{}]".format(i), blender+".weights[{}]".format(i))
+    decompose = cmds.createNode("decomposeMatrix", name=blender+"_dmt")
+    _connect(blender+".outMatrix", decompose+".inputMatrix")
+    for attr in ("translate", "rotate", "scale"):
+        _connect(decompose+".output"+attr.capitalize(), driven+"."+attr)
+    return driven
 
 
 def referenceGeometry(rig, soft=False, cone=None):
@@ -467,7 +601,8 @@ def main(record=True, case="mixed"):
             再生・スクラブでHUDと数値が更新されるシーンを作る。
         case (str): "mixed" は複雑な動きの総合確認、"activation" は球が回転面と
             交わり始める瞬間の跳びの確認、"soft_entry" は跳びの対策の前後比較、
-            "cone_c" は前半を肘からのコーンで近似した版との比較。
+            "cone_c" は前半を肘からのコーンで近似した版との比較、"rotation" は RBF の
+            ドライバーを位置ベースと回転ベースで比べる。
     """
     if cmds.about(batch=True):
         raise RuntimeError("専用Maya GUIで実行してください。")
@@ -501,7 +636,7 @@ def main(record=True, case="mixed"):
         if kind in ("keep", "soft"):
             outputs[key] = _finish(key, rigs[key], geometries[key], geometries[key]["relative"], color)
         elif kind in RBF_KINDS:
-            rbf_plug, solver, grid = _buildRbf(key, geometries[key])
+            rbf_plug, solver, grid = _buildRbf(key, geometries[key], rigs[key], rotation=kind == "rbf_rot")
             solvers[key] = (solver, len(grid))
             outputs[key] = _finish(key, rigs[key], geometries[key], rbf_plug, color)
 

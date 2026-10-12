@@ -79,7 +79,7 @@ def main(record=True):
             for i, (key, _, _, _) in enumerate(METHODS)}
     input_geometry = chain._buildGeometry("input", rigs["input"])
     geometry = chain._buildGeometry("geo", rigs["geo"], soft=True)
-    geo_plug, geo_solver, geo_grid = chain._buildRbf("geo", geometry)
+    geo_plug, geo_solver, geo_grid = chain._buildRbf("geo", geometry, rigs["geo"])
     outputs = {"geo": chain._finish("geo", rigs["geo"], geometry, geo_plug, METHODS[1][3])}
 
     # 体と腕の動き、尻尾の入力(チェーンのデモと同じ)。

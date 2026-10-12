@@ -38,6 +38,7 @@ def main():
                 'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events')]
         if args.suite in ('all','setups'):
             files.append('mlrig/__tests__/test_setup_matrix_follow.py')
+            files.append('mlrig/__tests__/test_example_humanoid.py')
             files += ['mlrig/__tests__/test_setup_'+name+'.py' for name in ('space_switch', 'twist_distribution', 'bend_correction', 'swing_twist', 'cone_reader', 'radial_weights', 'rotation_follow', 'root_direction_limit', 'secondary', 'spline_ik', 'length_compensation', 'pose_edit', 'rig_foundations')]
         if args.suite in ('all','bifrost','native','standard'):
             files.append('mlrig/__tests__/test_definition.py')

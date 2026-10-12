@@ -53,8 +53,18 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+
+
+
+
+
+
+
+
+
 
 
 
@@ -91,7 +101,76 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-12 Claude Code: 尻尾の案1に球ごとの ConeReader による切り替え(体が回転面に掛からなければ元の向き)を追加。`demo_humanoid_tail_avoid.main(case="raise")`、HToolsのサンプル一覧・docs/verification-videos.md に追記。
+- 2026-10-12 Codex: QPE関連18ファイルを8e27cd5としてorigin/mainへpush。テーマ/タブ/アイコン、Maya読込設定/配置復元、サイドバー描画修正と検証スクリプトを含む。構文39ファイル・差分チェック成功、既存実機検証結果を確認。無関係な変更と共有WORK_LOGの未コミット内容は保持。
+
 - Claude Code (2026-10-12): FramePlayerの右クリックのメニューに「Copy Path」を追加(クリップボードへパスを写す。連番画像は表示中のコマの画像、比較中は1st・2ndを選ぶ)。動画・連番・比較の2本目で、写った文字をクリップボードから読み戻して確認。ドキュメント(使い方・画像・英訳2文は手で追加)・README・配布用exeとセットアップを更新。未コミット。
+
+- 2026-10-12 Codex: QPE左右サイドバー開閉時の中間描画を抑止し、配置確定後に必要な横スクロールだけ適用。階層移動用scrollToの二重実行/アニメーションを開閉経路から除去。Qt5/6・Maya2022/2027で20回開閉・末端可視性・Paintイベント時の列位置が一定・手動スクロール維持を検証成功。Qt6階層14件も成功。証跡.maya-output/verification/qpe-smooth-paint-*。未コミット。
+
+- 2026-10-12 Codex: QPE左サイドバー表示時も末端子カラムを可視化。右表示/非表示の両条件、左右各20回の幅維持、後続の手動スクロール維持をQt5/6単体・専用Maya2022/2027で検証成功。証跡.maya-output/verification/qpe-left-sidebar-*。未コミット。
+
+- 2026-10-12 Codex: QPE左右サイドバー開閉を共通化し反対側の幅を維持、ハンドル幅を除いた中央領域だけ再配分。右表示時のみ末端の子カラムを可視化。Qt5/6単体・専用Maya2022/2027で各20回の左右開閉、末端可視化、以後の手動スクロール維持を確認。Qt6既存階層14件・インスペクター10件も成功。証跡.maya-output/verification/qpe-sidebars-*。README/回帰テストtools/qpe_ui_sidebars.py追加。未コミット。
+- Claude Code (2026-10-12): demo_humanoid_tail_avoid.py に view="top"（既定、真上からの平行投影）を追加し、Aポーズのケースを撮り直し（541フレーム、ok、避けない尻尾103フレーム食い込み・案1は0）。尻尾の線をalwaysDrawOnTop、プロキシの透明度0.72、上面ではグリッドなし、並びを上面用に。動画は .maya-output/verification/20261012-121606-dfd134eb とDrive Maya検証動画/Humanoid。未コミット。
+
+- Claude Code (2026-10-12): mlrig.examples.humanoid.build に pose="A"（腕を肩から45度下ろしたAポーズを回転0の基準に）を追加し、テストを1件追加（6件OK）・docsを更新。demo_humanoid_tail_avoid.py をケース化し、既定の case="apose" はAポーズでupperarm_lだけを動かし（rx±60・ry±50・rz±25）、肘はIK想定の1軸（lowerarm_lのrx・rzをロック、伸ばしたまま）。録画（541フレーム、ok）で避けない尻尾は103フレーム最大12.8cm食い込み、案1は食い込み0・最大変化1.8度。前回の動きは case="tpose_twist" として残した。HToolsのtailAvoidanceSamplesを2件に分けた。docs/verification-videos.md に追記。動画は .maya-output/verification/20261012-121028-a59146cf とDrive Maya検証動画/Humanoid。未コミット。
+
+
+- 2026-10-12 Codex: QPEのworkspaceControlをretain/uiScriptで保持・再構築。qpeDockで版別の浮動位置/サイズ/開閉状態を保存し、quitApplication後の破棄で上書きしない。ドック/タブ配置はMaya標準ワークスペースで復元。専用Maya2022/2027各4回の再起動で位置・サイズ、閉じて再表示、右ドック復元、閉じた状態維持を確認。証跡.maya-output/verification/qpe-dock-2022、qpe-dock-2027-final。複雑な入れ子/複数画面は未検証。テスト再実行: python tools/qpe_dock_restore_test.py --version 2027。未コミット。
+- Claude Code (2026-10-12): HTools rigging/tailAvoidanceSamples のウィンドウを高さ720pxのスクロール表示にした（scrollLayout、前回の大きさを使わない）。折り返す説明文をMayaが1行分の高さで数えて最下部のChecksが見えなかったため、説明文の高さを36pxに固定。Maya 2027で最下部までスクロールしてChecksの2項目が見えることを確認。未コミット。
+
+- Claude Code (2026-10-12): tools/demo_humanoid_tail_avoid.py を追加。mlrig.examples.humanoid の左肘から斜め後ろ下（前腕空間rx=−135）へ45cmの尻尾を出し、骨盤・spine・太ももの球で当たり判定、腕を下ろして振り・肘・前腕ひねり・背骨を重ねる動きで、案1の実行時版（胴の中心へaimConstraint、狙う軸は胴の平均方向156度、左右別ドリブンキー）を録画（541フレーム、ok）。避けない尻尾は129フレーム最大15.5cm食い込み、案1は食い込み0・最大変化5.7度。+Y固定の狙いではTポーズで±180度の境目に来るため平均方向に変更、尻尾の元の向きも同じ周に合わせた。斜め後ろから撮るので並びを左右反転して配置。HToolsのtailAvoidanceSamplesに追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261012-115433-da7319da とDrive Maya検証動画/Humanoid。未コミット。
+
+
+- 2026-10-12 Codex: QPEカラムの固定文字幅下限を廃止し内容に応じ80pxまで縮小。右サイドバーにImport/Reference設定（namespace・衝突・グループ・読込等）を追加しボタン/右クリック共通適用。親namespace欠落のMaya挙動を補正。Qt5/6階層テスト各14項目、専用Maya2022/2027実読込テスト各7項目合格。Maya2027画像/操作動画を非公開Driveへ保存。証跡は.maya-output/verification/qpe-read-*。mayapy standaloneは起動時無出力終了のためGUIへ切替。形式固有設定の埋込・標準設定同期は未対応、READMEに記載。未コミット。
+- Claude Code (2026-10-12): mlrig.examples.humanoid.build を追加（UEマネキン/MetaHuman風の名前の全身骨格53関節（指なし23）、身長約170cmのTポーズ、子の方向をX、右は左のmirrorBehavior鏡像、骨ごとの簡易プロキシメッシュを関節の子にリファレンス表示）。mirrorJointの名前置換が"_l"をすべて置き換える問題を、一時名で作って最後に付け直すことで回避。単体テスト test_example_humanoid.py（5件OK、setupsスイート登録）、mlrig/docs/humanoid_example.rst、HTools rigging/buildHumanoidSkeleton.py を追加。Maya 2027 GUIで2体作成・ポーズ付けを撮影しDrive Maya検証動画/Humanoidへ保存。未コミット。
+
+
+- 2026-10-12 Codex: QPE上段カラムを左フォルダーアイコン・名前・右矢印に変更。列幅計算も調整。Qt5/Qt6の階層操作テスト各14件合格、Maya2027実機表示・操作録画を確認。証跡: .maya-output/verification/qpe-left-folder-maya2027。PNG/MP4を既存の非公開Drive調査フォルダーへ保存。
+- Claude Code (2026-10-12): tools/demo_runtime_avoid.py を追加。尻尾を前腕に固定（rx0=90）したまま、腕と前腕のひねりで体が尻尾を越える動きで、案1の実行時版（お腹へaimConstraintしたグループのrotateX=θ、rel=rx0−(θ+180)、clamp(rel,−L−,L+)、L±は肘とお腹の距離から左右別のドリブンキー）を録画検証（541フレーム、ok）。何もしないと185フレーム食い込む動きで、案1は食い込み0・最大変化4.2度（今の仕組みは0・22.0度）。左右同じLでは21フレーム最大0.61cm食い込んだため左右別にした。全体ロジックの図をDriveに保存。HToolsのtailAvoidanceSamplesに追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261012-112431-f4008765 とDrive RootDirectionLimit。未コミット。
+
+
+- 2026-10-12 Codex: 専用Maya 2027のqpeHost.showで全体スクショと約25秒の字幕付き操作動画を撮影。タブ追加/切替/閉じる、サイドバー、テキストプレビュー、絞り込み、保存パネルを記録。MP4デコードと実フレームを確認し非公開Driveへ保存。既存ユーザーシーンは未操作。
+
+- 2026-10-12 Codex: QPEタブをWindows風の角丸・左寄せ・OSフォルダーアイコンへ変更。四角い閉じるボタンを28px操作領域の線画×と控えめなホバーへ変更。カラム右端もOSフォルダーアイコンへ統一。Qt5/Qt6で実クリックを含む8項目、専用Maya 2022/2027で既存7項目合格。明暗と変更前後の比較画像を非公開Driveへ保存。
+- Claude Code (2026-10-12): tools/demo_space_target.py を追加。案1（お腹へaimConstraintしたrotateXだけのグループの下のコントローラーをclamp(±L)、Lは肘とお腹の距離からドリブンキー6点）と案2（同じグループから見たターゲットの角度をclamp）を今の仕組みと4列で録画（541フレーム、ok）。案1は食い込み0・最大変化19.0度・中心付近0.3度・今の仕組みとの差平均2.8度最大11.7度。案2は真裏を越えるたびに反対側へ切り替わり最大155度、左右非対称の体で19フレーム最大0.21cm食い込み。HToolsのtailAvoidanceSamplesに追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261012-110259-18e89d3c とDrive RootDirectionLimit。未コミット。
+
+
+- 2026-10-12 Codex: Windows標準とQPEのタブ比較画像（3/6/9枚）・比較動画（約51秒、1→9→1枚）を撮影。Windowsはデスクトップ領域録画、QPEは実ウィジェット連続撮影。個別撮影の編集比較で速度比較ではない旨を明記。デコード・実フレームを確認して非公開Driveへ保存。
+- Claude Code (2026-10-12): tools/demo_simple_cone_rbf.py を追加。簡易版（お腹の球へaimConstraintしたグループにConeReader×2（±35度・半角65度）、2つのweightをドライバージョイントのtranslateに入れてUE RBF（半径0.2・23ポーズ、目標は接線の少し手前）、出力はPose Editor互換のドリブン）を今の仕組みと比較録画。中心を越える入力（541フレーム）で簡易版は144フレーム・最大2.39cm食い込み・最大変化75度、越えない入力（inputs="no_cross"、511フレーム）でも138フレーム・最大1.06cm食い込み（体の動きでHが32〜74度と変わるのに追従できない）。今の仕組みはどちらも食い込み0。chain._buildPoseBlenderに角度プラグの引数を追加。HToolsのtailAvoidanceSamplesに2件追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261012-103921-855a9c74・20261012-104041-0abaf75d とDrive RootDirectionLimit。未コミット。
+
+
+- 2026-10-12 Codex: Windows Explorerを実機観察しQPEタブを標準240px→最小100pxの均等縮小へ変更。末尾の+、下限時の横送り、枚数/ウィンドウ幅/UI倍率追従を実装。Qt5/Qt6・専用Maya 2022/2027で各7項目合格。3/6/14枚の比較画像を非公開Driveへ保存。
+
+- 2026-10-12 Codex: QPEの詳細欄をプレビュー→操作→種類/サイズ/場所/更新日時へ整理。Windows Shellアイコン、独立履歴のフォルダータブ、件数/選択サイズのフッターを追加。Qt5/Qt6・専用Maya 2022/2027でタブ5項目、既存階層14項目・詳細10項目を検証。比較画像は非公開Driveへ保存。
+
+- 2026-10-12 Codex: Windows標準Explorerで同じma選択＋詳細ペインの白黒を撮影。QPE Windows Light/Darkの一覧/選択/詳細/preview色を実画像基準で調整、新規単体既定をWindows Lightへ。Maya配色維持。Qt5/6各3項目（ペイン/選択色・状態保持）、専用Maya2022/2027各2項目成功。比較PNGを非公開Driveへ保存/読戻し。OS明暗は元のDarkへ復元（Apps/Systemとも0確認）。証拠: .maya-output/verification/qpe-windows-details-*、docs/research/qpe-windows-details-colors-20261012.txt。
+- Claude Code (2026-10-12): demo_joint_chain_rbf.py に回転ベースのRBFドライバー（rotate=(rel/3, 0, H×0.667)、inputMode=Rotation・Quaternion距離・半径4.7）と case="rotation"（入力・位置ベース・回転ベース）を追加。1軸twistでもrotateX=190と−170が同じ重みになることをmayapyで確認し、relを1/3に縮めて回避。2本×各1軸twistは重みがほぼ均等で不成立。録画検証（541フレーム、ok、両列とも交差0、回転ベースの中心付近0.57度・式との差2.34度、位置ベースとの差最大0.32度）。verify_pose_editor_rbf.py をcase/prefix指定に対応させ、回転ベース・位置ベースとも11項目合格。HToolsのtailAvoidanceSamplesにサンプルとChecksを追加。docs/verification-videos.md に追記。動画は .maya-output/verification/20261012-095626-eca4625f とDrive RootDirectionLimit。未コミット。
+
+
+- 2026-10-12 Codex: Finder Light配色を追加（白一覧・グレー周辺/祖先選択・青選択・行縞）。新規単体設定はFinder、既存設定を保持してAa→Colorで選択。Mayaダーク分岐維持。Qt5/6各3項目成功、選択/フォーカス/スクロール維持。動画約16.5秒・PNGを確認し非公開Drive保存/読戻し。証拠: .maya-output/verification/qpe-finder-*。今回Maya再実行なし、macOS半透明や色実測の再現ではなく近似。
+
+- 2026-10-12 Codex: QPEにWindowsテーマ追従（アプリ明暗・アクセント）とLight/Dark固定、Mayaダーク固定を実装。操作アイコン・一覧・選択・メニュー・余白をホスト内だけ着色。AaのColorで選択、OS設定変更なし。Qt5/6各3項目、専用Maya2022/2027各2項目、単体階層14項目成功。配色変更で選択/スクロール/フォーカス/ホストパレット維持を検証。白テーマMP4とPNGを非公開Drive保存・読戻し。証拠: .maya-output/verification/qpe-theme-*、qpe-windows-light-final-20261012。OS設定変更通知は読取関数差替えで検証、iPad/4K実機未検証。
+
+- 2026-10-12 Codex: QPE Windows単体Qt6画面の9状態・110フレーム（約16.5秒）を撮影。Maya GUI外、mayapyランタイム利用。完成MP4のフレームを確認し、動画とPNGを非公開Driveへ保存・メタデータ読戻し。証跡: .maya-output/verification/qpe-windows-video-20261012/。iPad再生未確認。製品コード変更なし。
+- Claude Code (2026-10-12): MetaHuman Pose Editorとの互換性確認を tools/verify_pose_editor_rbf.py として残した（.modのPYTHONPATH/PATH追加、Pose Editor APIで認識・全ポーズ名・編集→Update→出力変化・接続復帰・画面の11項目、結果JSONとInputs/Poses画像、失敗時は例外、Pose Editorを開き直す前に前のウィンドウを閉じてUtilitiesの重複表示を回避）。HToolsのtailAvoidanceSamplesに「Checks > Run check」を追加。検証用Maya 2027で直接実行・HToolsボタンともに11項目すべて合格（.maya-output/verification/20261012-091939-a0c4d121、20261012-092013-b11660f3）。docs/verification-videos.md に追記。未コミット。
+
+- Claude Code (2026-10-12): demo_joint_chain_rbf.py のUE RBF列をMetaHuman Pose Editorで編集できる構成に変更。ポーズ名rel±NNN_HNNN、外向きで回る<列>TailOutward_GRP下の<列>TailDriven_JNTをUEPoseBlenderNode（Pose Editorと同じメッセージ接続・weights・outMatrix→_dmt）で回し、尻尾は外向き+clamp(ドリブンrx)。ポーズごとの乗算ノード約770個を削除。Pose Editorで385ポーズ・ドライバー・ドリブンが表示され、Edit→ポーズ選択→ドリブン回転→Update→編集終了でf200の出力が137.5→128.1度に変わることを確認。mixed再録画（541フレーム、ok、交差0、従来との差最大0.48度）、activation/soft_entry/cone_c/cone_rbfも再録画しすべてok（数値はほぼ不変、docsを更新）。動画は .maya-output/verification/20261012-090400-e343aa31 ほか、Drive RootDirectionLimit。未コミット。
+
+
+- 2026-10-12 Codex: 見出し撤去後のQPEを専用Maya2027で撮影。9状態・107フレーム（約16秒）、終了0。完成MP4の9秒フレームで見出しなし・右端記号・サイドバーを確認。動画とPNGを既存非公開Drive調査フォルダーへ保存。証拠: .maya-output/verification/qpe-no-headers-video-20261012/。iPad実機は未確認。
+
+- 2026-10-12 Codex: ユーザー指定でQPEのカラム上部固定見出しを撤去し、一覧の高さを回復。右端フォルダー＋矢印と列境界は維持。単体Qt6の階層テスト14項目合格・navigation.pngで表示確認。今回Maya GUIは未実施。証拠: .maya-output/verification/qpe-no-column-headers/。
+
+- 2026-10-12 Codex: QPEカラム右端を既存予約幅内のフォルダー＋矢印へ変更し、各列に親名＋アイコンの固定見出しを追加。列幅・行テキスト幅を維持。Qt5/6階層各14、専用Maya2022/2027各18項目合格。100/150%画像と操作動画をレビューし非公開Driveへ保存。docs/research/qpe-column-headers-20261012.txt参照。
+- Claude Code (2026-10-12): MetaHuman Pose Editor 1.12.2 と demo_joint_chain_rbf のUE RBFの互換性を確認（検証用Maya 2027、.modのPYTHONPATH/PATHをスクリプトで追加）。現状はソルバー・ドライバージョイント・ソルバー設定は認識されるが、ポーズ名が空のため385ポーズが一覧に出ず、ドリブンもない（独自ノードでrotateXを作るため）ので編集不可。試作として、ポーズ名を付け、外向きで回るグループ下のドリブンジョイントをPose EditorのAPI（add_driven_joints）でUEPoseBlenderNodeに登録し、ポーズ値を回転行列で入れると、385ポーズとドライバー/ドリブンが表示され、編集モード→ポーズへ移動→ドリブン回転→Update→編集終了で出力が変わる（f200で137.5→128.1度）ことを確認。行列で混ぜる版と従来の差は最大0.36度。ポーズへ移動してもドライバージョイントは接続のため動かない。試作はデモへ未反映（.maya-output/test_pose_editor_native.py）。
+
+
+- 2026-10-12 Codex: QPEを上下40:60・保存名全幅・情報上寄せへ改善。左側はユーザー追記によりFavorites/Recentのみ、フォルダー/ファイルのアイコンとファイルお気に入り対応。Qt5スタイル寿命エラー修正。単体Qt5/6各10・専用Maya2022/2027各12・階層14項目合格。最後の連続クリック安定化はQt5/6再確認。最終画像・動画を非公開Driveへ保存。docs/research/qpe-ux-improvements-20261012.txt参照。
+- Claude Code (2026-10-12): demo_joint_chain_rbf.py のUE RBFのドライバーを専用ジョイント <列>RbfDriver_JNT（translate=(rel/20, H/10)、joint.matrix→inputs[0]）に置き換え、列の左下にポーズ格子とともに表示。mixedを撮り直し（541フレーム、ok=True）、前回（composeMatrix版）とRBF出力の差0.0度。activation・soft_entry・cone_c・demo_cone_rbf もBuildで確認。docs/verification-videos.md に追記。動画は .maya-output/verification/20261012-074804-894cbec0 とDrive RootDirectionLimit。未コミット。
+
+
+- 2026-10-11 Codex: QPE現状UXを専用Maya2027で9場面撮影。約16秒MP4と初期/保存/150%画像を非公開Driveへ保存・権限確認。上下配分、狭幅/拡大時の中央圧迫、保存名入力幅を最優先課題に整理。製品コード変更なし。docs/research/qpe-current-ux-review-20261011.txt参照。
 
 - 2026-10-11 Codex: QPE本体・登録・アイコン・検証48ファイルを1bc166bにコミットしorigin/mainへプッシュ完了。構文・差分チェックとQt6 UI9項目合格。共有WORK_LOGと無関係なリグ変更・ローカル調査資料は送信対象外。
 
@@ -836,6 +915,11 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 | ツール | 完了日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
+
+
+
+
+
 | Codex | 2026-10-11 | 配布方式の相談（README・起動バッチ・submoduleの参照のみ） | SourceTreeとGit不要の配布・更新方式を比較。 |
 | Claude Code | 2026-10-08 | maya/inhouse/hedit(src/editor/code_editor.*・tests/vscode_features_smoke.py・docs・release/*.mll)・maya/modules/hedit.mod | hedit 0.4.2: MayaのHelp→Popup Helpがオフだとホバーが出ない問題を修正(Mayaが QEvent::ToolTip を止めるため、マウス移動から0.5秒の自前タイマーで出す)。2022〜2027でビルド・単体テスト合格、Popup Helpオフでのホバーを含むGUIテストを2022/2024/2027で合格。未コミット。 |
 | Claude Code | 2026-10-07 | maya/inhouse/hedit(src/editor/output_panel.*・src/plugin/output_capture.cpp・src/core/history_text.cpp・tests/ui_smoke.cpp・docs・release/*.mll) | 出力欄のさらなる高速化(0.4.1に追加): 出力が続くほど描き直しの間隔を広げる、5,000行を超える分は最初から入れない、取り込みの軽量化。2027でエラー5,000件(8行)4.7秒→3.9秒(基準3.4秒)。2022〜2027でビルド・単体テスト合格、出力のGUIテストは2022/2024/2027合格。未コミット。 |
