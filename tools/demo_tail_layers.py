@@ -147,8 +147,8 @@ def layeredTail(name, joints, kind, parent, root, side, enables, twist, delta, c
 def _coneLayer(name, joints, root, side, bone, lowerarm, rest_layer, tail, orient, enables, twist, delta):
     """前腕のコーン: restLayer の向き d が前腕の軸に近づいたら、ConeReader の重みの分だけ押し出す。
 
-    押し出した向き (1 - w) d + w (cos α a + sin α L) へ aimConstraint した補助の関節の回転を、
-    restLayer から見た回転にして、pairBlend で forearmCone の分だけ尻尾へ入れる。L は肘のスイング打ち消しを
+    コーンの縁の向き d' = cos α a + sin α L へ aimConstraint した補助の関節の回転を、restLayer から見た回転に
+    して、pairBlend で w × forearmCone の分だけ尻尾へ入れる(w は ConeReader の重み)。L は肘のスイング打ち消しを
     入れない向き(前腕と常に直角)。
     """
     position = cmds.xform(rest_layer, query=True, worldSpace=True, translation=True)
@@ -163,12 +163,13 @@ def _coneLayer(name, joints, root, side, bone, lowerarm, rest_layer, tail, orien
     cone_name = name+"_forearmCone"
     reader = ConeReader.create(driverJoint=rest_layer, coneJoint=lowerarm, name=cone_name,
                                coneAngle=base.FOREARM_CONE, driverAxis="y", size=8.0, falloff="smooth")
-    cmds.setAttr(reader.cone+".rotate", 0, 180 if root == "hand" else 0, 0)
+    # 骨の中を通る向き: 左は手首の尻尾が -X(肘の方)、肘の尻尾が +X。右は mirrorBehavior で X 軸が逆なので反対。
+    inward = (-1 if root == "hand" else 1)*(-1 if side == "_r" else 1)
+    cmds.setAttr(reader.cone+".rotate", 0, 180 if inward < 0 else 0, 0)
     for group in (cone_name+"_driver_GRP", cone_name+"_cone_GRP"):
         cmds.setAttr(group+".visibility", False)
-    d = base._direction(name+"_dDirection", rest_layer, (0, 1, 0))
     local = base._direction(name+"_localDirection", helper, (0, 1, 0))
-    axis = base._direction(name+"_coneAxis", lowerarm, (-1 if root == "hand" else 1, 0, 0))
+    axis = base._direction(name+"_coneAxis", lowerarm, (inward, 0, 0))
     edge = _node("plusMinusAverage", name+"_coneEdge")
     angle = math.radians(base.FOREARM_CONE)
     for i, (vector, factor) in enumerate(((axis, math.cos(angle)), (local, math.sin(angle)))):
@@ -176,11 +177,7 @@ def _coneLayer(name, joints, root, side, bone, lowerarm, rest_layer, tail, orien
         cmds.connectAttr(vector, scaled+".input1")
         cmds.setAttr(scaled+".input2", factor, factor, factor)
         cmds.connectAttr(scaled+".output", edge+".input3D[{}]".format(i))
-    blend = _node("blendColors", name+"_conePush")
-    cmds.connectAttr(cone_name+".weight", blend+".blender")
-    cmds.connectAttr(edge+".output3D", blend+".color1")
-    cmds.connectAttr(d, blend+".color2")
-    target = base._aimTarget(name+"_aimTarget", joints[root+side], [blend+".output"])
+    target = base._aimTarget(name+"_aimTarget", joints[root+side], [edge+".output3D"])
     aimed = _joint(name+"_coneAim", bone, position, orient)
     cmds.aimConstraint(target, aimed, aimVector=(0, 1, 0), upVector=(1, 0, 0), worldUpType="objectrotation",
                        worldUpObject=lowerarm, worldUpVector=(1, 0, 0))
@@ -191,11 +188,16 @@ def _coneLayer(name, joints, root, side, bone, lowerarm, rest_layer, tail, orien
     cmds.connectAttr(relative+".matrixSum", decompose+".inputMatrix")
     pair = _node("pairBlend", name+"_coneBlend", rotInterpolation=1)
     cmds.connectAttr(decompose+".outputRotate", pair+".inRotate2")
+    # コーンの外(w = 0)では押し出しを混ぜない。aimConstraint は狙う向きが前腕の軸と平行になると向きが
+    # 決まらないので、コーンの外では使わない。
+    weight = _node("multDoubleLinear", name+"_coneWeight")
+    cmds.connectAttr(cone_name+".weight", weight+".input1")
     enable = enables["forearmCone"]
     if isinstance(enable, str):
-        cmds.connectAttr(enable, pair+".weight")
+        cmds.connectAttr(enable, weight+".input2")
     else:
-        cmds.setAttr(pair+".weight", enable)
+        cmds.setAttr(weight+".input2", enable)
+    cmds.connectAttr(weight+".output", pair+".weight")
     cmds.connectAttr(pair+".outRotate", tail+".rotate")
 
 

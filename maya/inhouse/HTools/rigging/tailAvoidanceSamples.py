@@ -90,6 +90,12 @@ SAMPLES = [
      "One humanoid. Each tail is a stack of layer joints (elbowLayer > twistLayer > avoidLayer > restLayer > tail). "
      "Switch each effect on tailLayers_CTRL (0-1). Thin lines show the stages side by side (showStages).",
      {"view": "back"}),
+    ("demo_tail_twist_cancel", "Body avoidance: interval clamp vs ConeReader push (perspective)",
+     "Same tails (D + forearm cone). Interval clamp keeps the entry side; the ConeReader push uses the cone depth "
+     "per ball and flips sides when the body crosses the tail.", {"motion": "align_compare", "view": "back"}),
+    ("demo_tail_twist_cancel", "Body avoidance: interval clamp vs ConeReader vs RBF (perspective)",
+     "UE RBF trained from the interval clamp. Inputs: upper arm and forearm directions in clavicle space. "
+     "Loads MayaUERBFPlugin (MetaHuman for Maya).", {"motion": "cross_rbf", "view": "back"}),
     ("demo_joint_chain_rbf", "Spine/arm chain: cone driver approximation",
      "Spheres vs cones from the elbow (fixed angle / angle scaled by distance), all feeding the same UE RBF.",
      {"case": "cone_c"}),

@@ -103,6 +103,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-13 Claude Code: 体の回避をUE RBFで学習する版(`tail_shared_avoid.buildRbfDelta`、`motion="*_rbf"`)を追加し4方式を比較。前腕のコーンの右側の向きと、コーンの外での aimConstraint の跳びを修正(demo_tail_twist_cancel・demo_tail_layers)。
+- 2026-10-13 Claude Code: 体の回避をConeReaderで簡易化した版(`tail_shared_avoid.buildConeDelta`、`motion="*_compare"`)を区間のclampと比較。跳びと食い込みが残り、ノードは約25%減に留まるため区間の方式を基準に残す。
 - 2026-10-13 Codex: ユーザー依頼に基づきQPE高速化・共有LRU・表示更新集約・性能回帰テスト・録画補助修正をコミット／プッシュ対象として整理。既存Windows16、Maya2022/2027各7、exeの成功記録を確認。無関係なリグ変更と他担当の作業記録は保持して対象外とする。
 - 2026-10-13 Codex: QPEを計測して高速化。アイコンをウィンドウ内共有・上限2048件のLRUへ整理し、カラム装飾と件数の連続通知を集約。ローカルPNG1000枚を各3回計測し、一覧中央値4.109→2.969秒、サムネイル切替2.188→0.703秒。性能回帰を標準スイートへ追加。Windows16、Maya2022/2027各7スイート合格、exe再ビルド・起動合格。初回Maya2027のショートカット検証はフォーカス確定を待つ形へ修正し再検証合格。録画ヘルパーに入力継承防止と60秒タイムアウトを追加したがMaya2027子FFmpegの停止原因は未特定。保存フレームをMaya外で変換・確認、UIは録画なし再検証。動画は既存非公開Driveへ保存。2027動画 https://drive.google.com/file/d/1NTIC0ZfVQCMRPIODdeRUWrmfQc0CXSO9/view?usp=drivesdk 。証跡.maya-output/verification/qpe-performance/verified-results.json。実IME/物理ホイール/混在DPI/ネットワーク共有は未検証。無関係なリグツール変更は保持。未コミット・未プッシュ。
 

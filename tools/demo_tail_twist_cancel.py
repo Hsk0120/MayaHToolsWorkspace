@@ -98,6 +98,15 @@ AVOID_BODY = [
     ("spine_03", (0, 139, -1), 15), ("thigh_l", (9, 75, 0.5), 9), ("thigh_r", (-9, 75, 0.5), 9),
     ("neck_01", (0, 152, -1.5), 6), ("head", (0, 165, 0), 11),
 ]
+# 体の回避の2方式を比べる列(motion="*_compare" で使う)。
+COMPARE_METHODS = [("elbowcone", "D + FOREARM CONE", "no body avoidance"),
+                   ("avoid", "INTERVAL CLAMP", "blocked range per ball + clamp"),
+                   ("conavoid", "CONEREADER PUSH", "push out by cone depth (max)")]
+# 体の回避の4方式を比べる列(motion="*_rbf" で使う)。
+RBF_METHODS = [("elbowcone", "D + FOREARM CONE", "no body avoidance"),
+               ("avoid", "INTERVAL CLAMP", "blocked range + clamp"),
+               ("conavoid", "CONEREADER PUSH", "cone depth (max)"),
+               ("rbfavoid", "RBF (UE RBF)", "trained from the clamp")]
 # 胴の中心(ワールド、オフセット前)。spine_02 に付ける。
 TORSO_CENTER = (0, 120, 0)
 # 前腕のコーンの半角(度)。D の向きが前腕の軸からこの角度以内に入ると、肘の曲げの打ち消しを弱める。
@@ -286,8 +295,9 @@ def _forearmConeTail(joints, tail, root, side, twist):
     - a: 尻尾が骨の中を通る前腕の軸の向き(手首の尻尾は -X、肘の尻尾は +X)。
     - w: ConeReader(矢印 = d、コーン = a、半角 FOREARM_CONE、なめらか)の重み。軸上で1、半角で0。
     - d' = cos(半角) a + sin(半角) L: コーンの縁のうち L 側の向き。
-    - 尻尾は (1 - w) d + w d' の向きへ aimConstraint(上方向は前腕の X 軸なので、前腕の軸まわりのひねりと
-      骨に沿う傾きの2軸)。w = 0 では案D と同じ。
+    - 補助の関節を d' の向きへ aimConstraint(上方向は前腕の X 軸なので、前腕の軸まわりのひねりと骨に沿う
+      傾きの2軸)し、尻尾の回転は案D の回転とその回転を w で混ぜる(pairBlend、クォータニオン)。
+      w = 0 では案D と同じ、w = 1 ではコーンの縁 d'。
     """
     lowerarm = joints["lowerarm"+side]
     bend = _node("unitConversion", tail+"_elbowCancel", conversionFactor=-1 if side == "_l" else 1)
@@ -298,12 +308,13 @@ def _forearmConeTail(joints, tail, root, side, twist):
     reader = ConeReader.create(driverJoint=d_joint, coneJoint=lowerarm, name=name, coneAngle=FOREARM_CONE,
                                driverAxis="y", size=8.0, falloff="smooth")
     # コーンを前腕の軸へ向ける(GRP は lowerarm に重ねてあるので、ローカルの回転だけで決まる)。
-    cmds.setAttr(reader.cone+".rotate", 0, 180 if root == "hand" else 0, 0)
+    # 骨の中を通る向き: 左は手首の尻尾が -X(肘の方)、肘の尻尾が +X。右は mirrorBehavior で X 軸が逆なので反対。
+    inward = (-1 if root == "hand" else 1)*(-1 if side == "_r" else 1)
+    cmds.setAttr(reader.cone+".rotate", 0, 180 if inward < 0 else 0, 0)
     for group in (name+"_driver_GRP", name+"_cone_GRP"):
         cmds.setAttr(group+".visibility", False)
-    d = _direction(tail+"_dDirection", d_joint, (0, 1, 0))
     local = _direction(tail+"_localDirection", l_joint, (0, 1, 0))
-    axis = _direction(tail+"_coneAxis", lowerarm, (-1 if root == "hand" else 1, 0, 0))
+    axis = _direction(tail+"_coneAxis", lowerarm, (inward, 0, 0))
     edge = _node("plusMinusAverage", tail+"_coneEdge")
     for i, (vector, factor) in enumerate(((axis, math.cos(math.radians(FOREARM_CONE))),
                                           (local, math.sin(math.radians(FOREARM_CONE))))):
@@ -311,13 +322,21 @@ def _forearmConeTail(joints, tail, root, side, twist):
         cmds.connectAttr(vector, scaled+".input1")
         cmds.setAttr(scaled+".input2", factor, factor, factor)
         cmds.connectAttr(scaled+".output", edge+".input3D[{}]".format(i))
-    blend = _node("blendColors", tail+"_conePush")
-    cmds.connectAttr(name+".weight", blend+".blender")
-    cmds.connectAttr(edge+".output3D", blend+".color1")
-    cmds.connectAttr(d, blend+".color2")
-    target = _aimTarget(tail+"_aimTarget", joints[root+side], [blend+".output"])
-    cmds.aimConstraint(target, tail, aimVector=(0, 1, 0), upVector=(1, 0, 0), worldUpType="objectrotation",
+    target = _aimTarget(tail+"_aimTarget", joints[root+side], [edge+".output3D"])
+    # 押し出した向きへ向ける補助の関節。尻尾と同じ親・位置・jointOrient なので、rotate は同じ空間になる。
+    aimed = cmds.createNode("joint", name=tail+"_coneAim", parent=cmds.listRelatives(tail, parent=True)[0])
+    cmds.xform(aimed, worldSpace=True, translation=cmds.xform(tail, query=True, worldSpace=True, translation=True))
+    cmds.setAttr(aimed+".jointOrient", *cmds.getAttr(tail+".jointOrient")[0])
+    cmds.setAttr(aimed+".drawStyle", 2)
+    cmds.aimConstraint(target, aimed, aimVector=(0, 1, 0), upVector=(1, 0, 0), worldUpType="objectrotation",
                        worldUpObject=lowerarm, worldUpVector=(1, 0, 0))
+    # コーンの外(w = 0)では案D の回転のまま、入った分だけ押し出した向きへ混ぜる。aimConstraint は狙う向きが
+    # 前腕の軸と平行になると向きが決まらないので、コーンの外では使わない。
+    pair = _node("pairBlend", tail+"_coneBlend", rotInterpolation=1)
+    cmds.connectAttr(d_joint+".rotate", pair+".inRotate1")
+    cmds.connectAttr(aimed+".rotate", pair+".inRotate2")
+    cmds.connectAttr(name+".weight", pair+".weight")
+    cmds.connectAttr(pair+".outRotate", tail+".rotate")
 
 
 def _localTail(tail, twist):
@@ -350,14 +369,16 @@ def build(prefix, offset, cancel):
         for attr in ("rx", "rz"):
             cmds.setAttr(joints["lowerarm"+side]+"."+attr, lock=True)
     tails, twists, rest = {}, {}, {}
-    avoid = cancel == "avoid"
+    avoid = cancel if cancel in ("avoid", "conavoid", "rbfavoid") else None
     if avoid:
         cancel = "elbowcone"
     local = cancel in ("local", "parallel", "swing", "half", "elbow", "elbowcone")
     fix = cancel if cancel in ("parallel", "swing", "half", "elbow", "elbowcone") else None
     deltas = {}
     if avoid:
-        deltas = _bodyAvoid(prefix, joints, offset)
+        deltas = _bodyAvoid(prefix, joints, offset, "cone" if avoid == "conavoid" else "interval")
+        if avoid == "rbfavoid":
+            deltas = _rbfAvoid(prefix, joints, deltas)
     for side in SIDES:
         clavicle = joints["clavicle"+side]
         if local:
@@ -397,14 +418,18 @@ def _node_sum(name, plug, minus):
     return node+".output1D"
 
 
-def _bodyAvoid(prefix, joints, offset):
+def _bodyAvoid(prefix, joints, offset, method="interval"):
     """当たり判定の球と胴の中心を作り、左右それぞれの共通の回避角 Δ を tail_shared_avoid で作る。
 
     胴がいる方向の平均 m は、upperarm の rotateY・rotateZ を振って、ひねりを打ち消した空間 F の中の胴の方向
     から求める(F は rotateX = 0 の upperarm の空間と同じ)。
 
+    Args:
+        method (str): "interval"(区間を計算して clamp、buildDelta)か "cone"(ConeReader の深さで押し返す、
+            buildConeDelta)。
+
     Returns:
-        dict: 側(_l/_r) → buildDelta の戻り値。
+        dict: 側(_l/_r) → buildDelta・buildConeDelta の戻り値。
     """
     import demo_humanoid_tail_avoid
     original = demo_humanoid_tail_avoid.BODY
@@ -418,6 +443,14 @@ def _bodyAvoid(prefix, joints, offset):
     center = cmds.parent(center, joints["spine_02"])[0]
     cmds.setAttr(center+".visibility", False)
     result = {}
+    if method == "cone":
+        named = {joint: ball for (joint, _, _), ball in zip(AVOID_BODY, balls)}
+        for side in SIDES:
+            roots = {"upperarm": joints["upperarm"+side], "lowerarm": joints["lowerarm"+side],
+                     "hand": joints["hand"+side]}
+            result[side] = tail_shared_avoid.buildConeDelta(prefix+"avoid"+side+"_", joints["upperarm"+side], roots,
+                                                            named, REST_RX+(180 if side == "_r" else 0), TAIL_LENGTH)
+        return result
     for side in SIDES:
         upperarm = joints["upperarm"+side]
         sines, cosines = 0.0, 0.0
@@ -434,6 +467,36 @@ def _bodyAvoid(prefix, joints, offset):
         result[side] = tail_shared_avoid.buildDelta(prefix+"avoid"+side+"_", upperarm, roots, balls, center, mean,
                                                     rest, TAIL_LENGTH)
         result[side]["mean"] = mean
+    return result
+
+
+def _rbfAvoid(prefix, joints, deltas):
+    """区間の clamp の Δ を正解として UE RBF に学習させ、Δ を RBF の出力に置き換える。
+
+    区間の clamp のノードは学習と誤差の確認のために残す(本番では学習後に消してよい)。
+
+    Returns:
+        dict: 側 → delta(RBF の Δ)、target(区間の clamp の Δ)、poses。
+    """
+    balls = [(node, radius) for node, radius in
+             ((prefix+joint+"_collision", radius) for joint, _, radius in AVOID_BODY)]
+    result = {}
+    for side in SIDES:
+        upperarm, lowerarm, hand = (joints[name+side] for name in ("upperarm", "lowerarm", "hand"))
+
+        def inside():
+            """肘・手首の位置が当たり判定の球に入っているか(腕が体に入る姿勢)。"""
+            for point in (lowerarm, hand):
+                p = om.MVector(*cmds.xform(point, query=True, worldSpace=True, translation=True))
+                for ball, radius in balls:
+                    c = om.MVector(*cmds.xform(ball, query=True, worldSpace=True, translation=True))
+                    if (p-c).length() < radius:
+                        return True
+            return False
+
+        rbf = tail_shared_avoid.buildRbfDelta(prefix+"avoid"+side+"_", joints["clavicle"+side], upperarm, lowerarm,
+                                              deltas[side]["delta"], inside)
+        result[side] = {"delta": rbf["delta"], "target": deltas[side]["delta"], "poses": rbf["poses"]}
     return result
 
 
@@ -526,9 +589,11 @@ def main(record=True, motion="wave", view="back"):
             cmds.loadPlugin(plugin, quiet=True)
 
     methods = (FIX_METHODS if motion.endswith("_fix") else CONE_METHODS if motion.endswith("_cone") else
-               AVOID_METHODS if motion.endswith("_avoid") else
+               AVOID_METHODS if motion.endswith("_avoid") else COMPARE_METHODS if motion.endswith("_compare") else
+               RBF_METHODS if motion.endswith("_rbf") else
                LOCAL_METHODS if motion in ("problem", "cross") else METHODS)
-    base = motion.replace("_fix", "").replace("_cone", "").replace("_avoid", "")
+    base = (motion.replace("_fix", "").replace("_cone", "").replace("_avoid", "").replace("_compare", "")
+            .replace("_rbf", ""))
     keys = {"problem": PROBLEM_KEYS, "cross": CROSS_KEYS, "align": ALIGN_KEYS}.get(base, ())
     rigs = {}
     for i, (key, _, _) in enumerate(methods):
@@ -633,7 +698,7 @@ def main(record=True, motion="wave", view="back"):
                 abs(result["local"]["tail_rx"][kind+side]-(REST_RX-sum(cmds.getAttr(j[b+side]+".rx") for b in bones)))
                 for kind, bones in expected.items() for side in SIDES)
             result["ok"] = result["ok"] and result["local"]["rx_error"] < 1e-3
-        for key in ("parallel", "swing", "half", "elbow", "elbowcone", "avoid"):
+        for key in ("parallel", "swing", "half", "elbow", "elbowcone", "avoid", "conavoid", "rbfavoid"):
             if key not in rigs:
                 continue
             # 案ごとの形の検査(リグと独立)。尻尾と upperarm の尻尾のなす角、尻尾と自分の骨のなす角。
@@ -649,13 +714,13 @@ def main(record=True, motion="wave", view="back"):
                         "angle_to_upper_tail": math.degrees(direction.angle(om.MVector(u[4], u[5], u[6]))),
                         "angle_to_bone": math.degrees(direction.angle(om.MVector(b[0], b[1], b[2])))}
             result[key]["shape"] = info
-            if key in ("elbowcone", "avoid"):
+            if key in ("elbowcone", "avoid", "conavoid", "rbfavoid"):
                 result[key]["cone_weight"] = {kind+side: cmds.getAttr(
                     "{}_tail_{}{}_forearmCone.weight".format(key, kind, side)) for kind in ("elbow", "hand")
                     for side in SIDES}
-            if key == "avoid":
-                result[key]["delta"] = {side: {name: cmds.getAttr(plug) for name, plug in values.items()
-                                               if isinstance(plug, str)}
+            if key in ("avoid", "conavoid", "rbfavoid"):
+                result[key]["delta"] = {side: {name: cmds.getAttr(plug) if isinstance(plug, str) else plug
+                                               for name, plug in values.items() if isinstance(plug, (str, int))}
                                         for side, values in rigs[key]["avoid"].items()}
             if key in ("parallel", "elbow"):
                 result["ok"] = result["ok"] and max(v["angle_to_upper_tail"] for v in info.values()) < 0.5
@@ -686,8 +751,11 @@ def main(record=True, motion="wave", view="back"):
                 r["tail_rx"]["upperarm_l"], r["tail_rx"]["elbow_l"], r["tail_rx"]["hand_l"])
             if "delta" in r:
                 v = r["delta"]["_l"]
-                texts["twistBottom{}_0".format(column)] = "delta {:+.0f}  blocked {:.0f}..{:.0f}  w {:.2f}".format(
-                    v["delta"], v["low"], v["high"], v["weight"])
+                texts["twistBottom{}_0".format(column)] = (
+                    "delta {:+.0f}  blocked {:.0f}..{:.0f}  w {:.2f}".format(v["delta"], v["low"], v["high"], v["weight"])
+                    if "low" in v else "delta {:+.0f}  deepest cone depth {:.0f} deg".format(v["delta"], v["depth"])
+                    if "depth" in v else "delta {:+.0f}  clamp target {:+.0f}  ({:.0f} poses)".format(
+                        v["delta"], v["target"], v["poses"]))
             elif motion.endswith(("_fix", "_cone", "_avoid")):
                 shape = r.get("shape", {}).get("hand_l")
                 cone = r.get("cone_weight", {}).get("hand_l")
@@ -719,6 +787,10 @@ def main(record=True, motion="wave", view="back"):
         title += "・尻尾どうしの交差を防ぐ案(食い込みが多い姿勢)"
     elif motion.endswith("_cone"):
         title += "・案Dと前腕のConeReader({})".format(base)
+    elif motion.endswith("_rbf"):
+        title += "・体の回避の4方式(区間のclamp・ConeReader・RBF)の比較({})".format(base)
+    elif motion.endswith("_compare"):
+        title += "・体の回避の2方式(区間のclampとConeReader)の比較({})".format(base)
     elif motion.endswith("_avoid"):
         title += "・案D＋前腕のコーン＋3本共通の体の回避({})".format(base)
     folder = recordVideo(title+{"top": "・上面", "front": "・正面"}.get(view, ""), COUNT, 24, panel, evaluate,

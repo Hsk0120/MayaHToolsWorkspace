@@ -213,3 +213,185 @@ def buildDelta(prefix, upperarm, roots, balls, center, mean_angle, rest_angle, l
     correction = _sum(prefix+"correction", (clamp+".outputR", relative), subtract=True)
     delta = _mul(prefix+"delta", correction, weight)
     return {"delta": delta, "low": low, "high": high, "weight": weight, "torso": torso, "relative": relative}
+
+
+# ConeReader 版で、付け根ごとに見る当たり判定の球(関節名)。肩は胸・首・頭。肘・手首は肘を曲げると胸や顔の
+# 前まで来るので、全部の球を見る(手首から胸の球を外すと、肘を深く曲げたときに胸へ食い込んだ)。
+ALL_BALLS = ("pelvis", "spine_01", "spine_02", "spine_03", "thigh_l", "thigh_r", "neck_01", "head")
+CONE_PAIRS = {
+    "upperarm": ("spine_02", "spine_03", "neck_01", "head"),
+    "lowerarm": ALL_BALLS,
+    "hand": ALL_BALLS,
+}
+# ConeReader 版で、球の半径に足す余裕(cm)と、届かなくなる手前で効きを弱める幅(cm)。
+CONE_PAD = 1.0
+CONE_REACH_SOFT = 5.0
+# 入った深さに掛ける倍率。深さは3次元の角度なので、面の中で同じだけ回してもコーンの外へ出きらないことがある。
+CONE_GAIN = 1.6
+
+
+def buildConeDelta(prefix, upperarm, roots, balls, rest_angle, length):
+    """ConeReader で、共通の回避角 Δ(度、尻尾の rotateX に足す)のプラグを作る。
+
+    付け根と球の組ごとに ConeReader を置く。矢印は打ち消し後の尻尾の向き(3本共通、ひねりを打ち消した
+    空間 F で rotateX = 初期の角度の補助の関節の Y 軸)、コーンは付け根から球の中心へ向け、半角は球の
+    見かけの大きさ asin((r + 余裕) / 距離)。尻尾の先が届かない距離では半角を0へ弱める。
+    入った深さ = 半角 - なす角(0未満は0)を、尻尾の回る面で球と反対側へ回す量にする。回す向きは
+    (尻尾 × 球の方向)・upperarm の X 軸 の符号。全部の組のうち深さが最大のものを Δ にする。
+
+    Args:
+        prefix (str): ノード名の接頭辞。
+        upperarm (str): upperarm の関節。
+        roots (dict): 付け根の種類("upperarm"・"lowerarm"・"hand")→ 関節。
+        balls (dict): 球の関節名 → (transform, 半径)。
+        rest_angle (float): F の中での尻尾の初期の角度(度)。
+        length (float): 尻尾の長さ(cm)。
+
+    Returns:
+        dict: delta(Δ)、depth(最大の深さ)のプラグ。
+    """
+    from mlrig.setups.coneReader import ConeReader
+    frame = cmds.createNode("transform", name=prefix+"twistFree_GRP", parent=upperarm)
+    untwist = _node("unitConversion", prefix+"untwist", conversionFactor=-1)
+    cmds.connectAttr(upperarm+".rotateX", untwist+".input")
+    cmds.connectAttr(untwist+".output", frame+".rotateX")
+    direction = cmds.createNode("joint", name=prefix+"tailDirection", parent=frame)
+    cmds.setAttr(direction+".rx", rest_angle)
+    cmds.setAttr(direction+".drawStyle", 2)
+    tail_vector = _node("vectorProduct", prefix+"tailVector", operation=3, normalizeOutput=True, input1Y=1)
+    cmds.connectAttr(direction+".worldMatrix[0]", tail_vector+".matrix")
+    axis_vector = _node("vectorProduct", prefix+"twistAxis", operation=3, normalizeOutput=True, input1X=1)
+    cmds.connectAttr(upperarm+".worldMatrix[0]", axis_vector+".matrix")
+    best_depth, best_delta = None, None
+    for kind, root in roots.items():
+        for ball_name in CONE_PAIRS[kind]:
+            ball, radius = balls[ball_name]
+            name = "{}{}_{}".format(prefix, kind, ball_name)
+            reader = ConeReader.create(driverJoint=direction, coneJoint=root, name=name+"_cone", coneAngle=10.0,
+                                       driverAxis="y", size=6.0)
+            # コーンの GRP を付け根に置き(向きは aim で決めるので位置だけ)、コーンを球の中心へ向ける。
+            cone_group = name+"_cone_cone_GRP"
+            cmds.delete(cmds.listRelatives(cone_group, type="parentConstraint"))
+            cmds.pointConstraint(root, cone_group)
+            cmds.aimConstraint(ball, reader.cone, aimVector=(1, 0, 0), worldUpType="none")
+            for group in (name+"_cone_driver_GRP", cone_group):
+                cmds.setAttr(group+".visibility", False)
+            distance = _node("distanceBetween", name+"_distance")
+            cmds.connectAttr(root+".worldMatrix[0]", distance+".inMatrix1")
+            cmds.connectAttr(ball+".worldMatrix[0]", distance+".inMatrix2")
+            ratio = _node("multiplyDivide", name+"_ratio", operation=2, input1X=radius+CONE_PAD)
+            cmds.connectAttr(distance+".distance", ratio+".input2X")
+            half = _curve(name+"_asin", _clamp(name+"_ratioSafe", ratio+".outputX", 0, 1),
+                          lambda x: math.degrees(math.asin(x)), 0.0, 1.0, 90.0)
+            # 尻尾の先が球に届かない距離(距離 - 半径 > 長さ)では半角を0へ。
+            reach = _clamp(name+"_reach", _mul(name+"_reachScale", _sum(name+"_reachRaw", (
+                _mul(name+"_negDistance", distance+".distance", constant=-1),), (length+radius,)),
+                constant=1.0/CONE_REACH_SOFT), 0, 1)
+            cone_angle = _mul(name+"_coneAngle", half, reach)
+            cmds.connectAttr(cone_angle, name+"_cone.coneAngle")
+            depth = _clamp(name+"_depth", _sum(name+"_depthRaw", (cone_angle, _mul(
+                name+"_negAngle", name+"_cone.angle", constant=-1))), 0, 180)
+            # 回す向き: (尻尾 × 球の方向)・X が正なら、rotateX を増やすと球へ近づくので、負の向きへ回す。
+            ball_direction = _node("plusMinusAverage", name+"_ballOffset", operation=2)
+            for i, node in enumerate((ball, root)):
+                position = _node("decomposeMatrix", "{}_position{}".format(name, i))
+                cmds.connectAttr(node+".worldMatrix[0]", position+".inputMatrix")
+                cmds.connectAttr(position+".outputTranslate", "{}.input3D[{}]".format(ball_direction, i))
+            cross = _node("vectorProduct", name+"_cross", operation=2)
+            cmds.connectAttr(tail_vector+".output", cross+".input1")
+            cmds.connectAttr(ball_direction+".output3D", cross+".input2")
+            side = _node("vectorProduct", name+"_side", operation=1)
+            cmds.connectAttr(cross+".output", side+".input1")
+            cmds.connectAttr(axis_vector+".output", side+".input2")
+            push = _mul(name+"_push", depth, constant=CONE_GAIN)
+            delta = _pick(name+"_delta", side+".outputX", 0, _mul(name+"_negDepth", push, constant=-1), push, 2)
+            if best_depth is None:
+                best_depth, best_delta = depth, delta
+                continue
+            pick = _node("condition", name+"_best", operation=2)
+            cmds.connectAttr(depth, pick+".firstTerm")
+            cmds.connectAttr(best_depth, pick+".secondTerm")
+            cmds.connectAttr(depth, pick+".colorIfTrueR")
+            cmds.connectAttr(delta, pick+".colorIfTrueG")
+            cmds.connectAttr(best_depth, pick+".colorIfFalseR")
+            cmds.connectAttr(best_delta, pick+".colorIfFalseG")
+            best_depth, best_delta = pick+".outColorR", pick+".outColorG"
+    return {"delta": best_delta, "depth": best_depth}
+
+
+# RBF 版の学習ポーズ。upperarm の (rotateX, rotateY, rotateZ) と肘の曲げ(lowerarm の rotateY)の格子。
+# 入力(腕の向きと前腕の向き)がほぼ同じになる組(UNIQUE_DEGREES 以内)は1つだけ使う。
+RBF_TWIST = range(-180, 180, 45)
+RBF_SWING = range(-120, 121, 30)
+RBF_BENDS = (0, -45, -90, -130)
+UNIQUE_DEGREES = 8.0
+# UE RBF のガウス関数の半径(入力は単位ベクトル2つ)。
+RBF_RADIUS = 0.25
+RBF_PLUGIN = ("maya/external/MetaHumanForMaya/lib/MayaUERBFPlugin/2.0.5/platform-windows/maya-{}/lib/"
+              "MayaUERBFPlugin.mll")
+
+
+def _angle(a, b):
+    """単位ベクトルどうしのなす角(度)。"""
+    return math.degrees(math.acos(max(-1.0, min(1.0, sum(x*y for x, y in zip(a, b))))))
+
+
+def buildRbfDelta(prefix, clavicle, upperarm, lowerarm, target, inside):
+    """UE RBF(MetaHuman for Maya の UERBFSolverNode)で、共通の回避角 Δ を学習して出すプラグを作る。
+
+    入力は2つ。inputs[0] は upperarm の X 軸、inputs[1] は lowerarm の X 軸を、どちらも鎖骨の空間で見た単位
+    ベクトル(補助の transform の translate にし、その matrix を渡す。位置のドライバー、ユークリッド距離、
+    ガウス関数、重みの正規化)。肘を曲げて upperarm をひねると前腕ごと手首の付け根が回るので、肘の曲げの
+    角度ではなく前腕の向きを入力にする。
+    学習ポーズは RBF_TWIST × RBF_SWING × RBF_SWING × RBF_BENDS のうち、入力が重ならないもの。各ポーズで
+    target(区間の clamp の Δ)を読み、ポーズの重み × Δ を blendWeighted で足す。inside(引数なし → bool)が
+    True の姿勢(腕が体に入る)は使わない。
+
+    Returns:
+        dict: delta(Δ)、poses(ポーズ数)、solver。
+    """
+    from pathlib import Path
+    if not cmds.pluginInfo("MayaUERBFPlugin", query=True, loaded=True):
+        root = Path(__file__).resolve().parents[1]
+        cmds.loadPlugin(str(root/RBF_PLUGIN.format(cmds.about(majorVersion=True))))
+    vectors = []
+    for name, bone in (("Arm", upperarm), ("Forearm", lowerarm)):
+        relative = _node("multMatrix", prefix+"rbf"+name+"Relative")
+        cmds.connectAttr(bone+".worldMatrix[0]", relative+".matrixIn[0]")
+        cmds.connectAttr(clavicle+".worldInverseMatrix[0]", relative+".matrixIn[1]")
+        vector = _node("vectorProduct", prefix+"rbf"+name+"Vector", operation=3, normalizeOutput=True, input1X=1)
+        cmds.connectAttr(relative+".matrixSum", vector+".matrix")
+        holder = cmds.createNode("transform", name=prefix+"rbf"+name+"Direction")
+        cmds.connectAttr(vector+".output", holder+".translate")
+        cmds.setAttr(holder+".visibility", False)
+        vectors.append((vector+".output", holder))
+    solver = _node("UERBFSolverNode", prefix+"rbfSolver", mode=0, inputMode=0, distanceMethod=0, functionType=0,
+                   normalizeMethod=1, automaticRadius=False, radius=RBF_RADIUS)
+    identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+    for i, (_, holder) in enumerate(vectors):
+        cmds.connectAttr(holder+".matrix", "{}.inputs[{}]".format(solver, i))
+        cmds.setAttr("{}.inputsRest[{}]".format(solver, i), identity, type="matrix")
+    blend = _node("blendWeighted", prefix+"rbfDelta")
+    poses = [(0, 0, 0, 0)]+[(rx, ry, rz, b) for b in RBF_BENDS for rx in RBF_TWIST for ry in RBF_SWING
+                            for rz in RBF_SWING if (rx, ry, rz, b) != (0, 0, 0, 0)]
+    used, count = [], 0
+    for rx, ry, rz, b in poses:
+        cmds.setAttr(upperarm+".rotate", rx, ry, rz)
+        cmds.setAttr(lowerarm+".ry", b)
+        arm, forearm = (cmds.getAttr(plug)[0] for plug, _ in vectors)
+        if any(_angle(arm, ua) < UNIQUE_DEGREES and _angle(forearm, uf) < UNIQUE_DEGREES for ua, uf in used):
+            continue
+        if count and inside():
+            continue
+        used.append((arm, forearm))
+        for i, vector in enumerate((arm, forearm)):
+            cmds.setAttr("{}.targets[{}].targetValues[{}]".format(solver, count, i), identity[:12]+list(vector)+[1],
+                         type="matrix")
+        cmds.setAttr("{}.targets[{}].targetName".format(solver, count), "rx{:+04d}_ry{:+04d}_rz{:+04d}_bend{:+04d}".format(
+            rx, ry, rz, b), type="string")
+        cmds.connectAttr("{}.outputs[{}]".format(solver, count), "{}.input[{}]".format(blend, count))
+        cmds.setAttr("{}.weight[{}]".format(blend, count), cmds.getAttr(target))
+        count += 1
+    cmds.setAttr(upperarm+".rotate", 0, 0, 0)
+    cmds.setAttr(lowerarm+".ry", 0)
+    return {"delta": blend+".output", "poses": count, "solver": solver}
