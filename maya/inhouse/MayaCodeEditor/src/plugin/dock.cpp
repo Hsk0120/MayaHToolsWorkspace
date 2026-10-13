@@ -19,6 +19,7 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QEvent>
+#include <QSplitter>
 #include <QTimer>
 
 namespace mce {
@@ -118,6 +119,96 @@ bool attach(QMainWindow* editor, QWidget* parent) {
     return parent->isAncestorOf(editor);
 }
 
+/** @brief Mayaのドックの部品(UI名)がQtの部品として表示されているか。
+ * @param control workspaceControlのUI名。
+ * @return 見つかって表示されていればtrue。
+ */
+bool controlVisible(const char* control) {
+    QWidget* widget = MQtUtil::findControl(control);
+    return widget && widget->isVisible();
+}
+
+/** @brief 編集画面のドックを、Mayaの画面の下側の、高さを変えられる位置へ入れる。
+ * @details ``workspaceControl -dockToMainWindow bottom``は、ドックをコマンドライン・ヘルプラインのさらに下へ置く。
+ * そこは高さが固定の行(タイムスライダー・レンジスライダー・コマンドライン)としか隣り合わないので、
+ * Mayaは境界のドラッグで高さを変えられない(Maya標準の部品を入れても同じ。Maya 2027で確認)。
+ * タイムスライダーの上(ビューポートとの間)なら変えられるので、そこへ入れる。タイムスライダーを隠している
+ * ときはビューポート(MainPane)の下、どちらも無いときだけ従来どおり画面の一番下にする。
+ */
+void dockAtBottom() {
+    if (controlVisible("TimeSlider")) {
+        mel("workspaceControl -e -dockToControl \"TimeSlider\" \"top\" " + quotedControl());
+    } else if (controlVisible("MainPane")) {
+        mel("workspaceControl -e -dockToControl \"MainPane\" \"bottom\" " + quotedControl());
+    } else {
+        mel("workspaceControl -e -dockToMainWindow \"bottom\" false " + quotedControl());
+    }
+}
+
+/** @brief ドックが、高さを変えられない画面の一番下(固定の行の下)に入っているか。
+ * @return 入っていればtrue。浮動・別の位置・判定できない場合はfalse。
+ * @details ドックを入れた縦の分割(QSplitter)の中で、タイムスライダーの行より下にあり、上下の隣が固定の行
+ * (タイムスライダー・レンジスライダー・コマンドライン・ヘルプライン)だけのときに限る。
+ * 下側に高さを変えられる別のドックが並んでいれば、それとの境界で変えられるので対象にしない。
+ * 画面の右・左へのドックは、タイムスライダーを含む大きな領域の隣(横の分割)に入るので対象外。
+ */
+bool dockedBelowFixedRows() {
+    QWidget* item = controlWidget();
+    while (item && !qobject_cast<QSplitter*>(item->parentWidget())) {
+        item = item->parentWidget();
+    }
+    QWidget* timeSlider = MQtUtil::findControl("TimeSlider");
+    QWidget* mainPane = MQtUtil::findControl("MainPane");
+    if (!item || !timeSlider) {
+        return false;
+    }
+    auto splitter = static_cast<QSplitter*>(item->parentWidget());
+    if (splitter->orientation() != Qt::Vertical) {
+        return false;
+    }
+    const int index = splitter->indexOf(item);
+    int timeSliderIndex = -1;
+    for (int i = 0; i < splitter->count(); ++i) {
+        QWidget* row = splitter->widget(i);
+        // タイムスライダーだけの行に限る(ビューポートも含む大きな領域は、行ではない)。
+        if (row->isAncestorOf(timeSlider) && !(mainPane && row->isAncestorOf(mainPane))) {
+            timeSliderIndex = i;
+        }
+    }
+    if (timeSliderIndex < 0 || index <= timeSliderIndex) {
+        return false;
+    }
+    const char* fixedRows[] = {"TimeSlider", "RangeSlider", "CommandLine", "HelpLine"};
+    for (int i = timeSliderIndex + 1; i < splitter->count(); ++i) {
+        QWidget* other = splitter->widget(i);
+        if (i == index || !other->isVisible()) {
+            continue;
+        }
+        bool fixed = false;
+        for (const char* row : fixedRows) {
+            QWidget* widget = MQtUtil::findControl(row);
+            fixed = fixed || (widget && other->isAncestorOf(widget));
+        }
+        if (!fixed) {
+            return false;  // 高さを変えられる別のドックが隣にある。
+        }
+    }
+    return true;
+}
+
+/** @brief 画面の一番下で高さを変えられなくなったドックを、タイムスライダーの上へ移す。
+ * @details 0.7.0までは、保存済みのドックが見つからないときに``-dockToMainWindow bottom``で入れていたため、
+ * 名前を変えた後の初回などに、この位置へ入ったドックが残っている。ドックの付け替えはuiScriptの実行中に
+ * 行わないよう、呼び出し側で遅らせて呼ぶ。
+ */
+void moveOutOfFixedRows() {
+    if (!controlExists() || melBool("workspaceControl -q -floating " + quotedControl()) || !dockedBelowFixedRows()) {
+        return;
+    }
+    dockAtBottom();
+    MGlobal::displayInfo("Maya Code Editor: moved the dock above the time slider so that its height can be changed.");
+}
+
 /** @brief ui.jsonを読む。 @param saved 読み取った内容を入れる。 @return 読めた場合true。 */
 bool readState(QJsonObject& saved) {
     return readJsonFile(statePath(), &saved);
@@ -198,6 +289,9 @@ void afterOpened() {
             }
         }
     }
+    // 画面の一番下で高さを変えられなくなったドックを移す。uiScript(restore)の途中でドックを付け替えないよう、
+    // イベントループへ戻ってから行う。文脈をlifetimeにするので、アンロードで未実行の分は取り消される。
+    QTimer::singleShot(0, state.lifetime.data(), [] { moveOutOfFixedRows(); });
     if (state.quitJob < 0) {
         state.quitJob = melInt("scriptJob -runOnce true -event \"quitApplication\" \"mayaCodeEditor -quitting\"");
     }
@@ -261,7 +355,7 @@ bool show(std::optional<bool> floating) {
             " -initialWidth 1050 -initialHeight 740"
             " -uiScript " + melQuote(kUiScript) + " " + quotedControl());
         if (!floatingValue) {
-            mel("workspaceControl -e -dockToMainWindow \"bottom\" false " + quotedControl());
+            dockAtBottom();
         }
     }
     // 旧版で別のレイアウトへ入った画面も、明示的に開き直したときに入れ直す。

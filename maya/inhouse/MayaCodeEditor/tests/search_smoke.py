@@ -110,7 +110,7 @@ def check(window, QtCore, QtGui, QtWidgets, QtTest):
     code.moveCursor(QtGui.QTextCursor.Start)
     next(a for a in actions if a.text() == 'Find…').trigger()
     field.clear(); field.setFocus()
-    for prefix, letter in zip(('h','hl','hli','mlib'), 'mlib'):
+    for prefix, letter in zip(('m','ml','mli','mlib'), 'mlib'):
         QtTest.QTest.keyClicks(field,letter)
         assert code.textCursor().selectedText() == prefix
         assert code.textCursor().selectionStart() == 0

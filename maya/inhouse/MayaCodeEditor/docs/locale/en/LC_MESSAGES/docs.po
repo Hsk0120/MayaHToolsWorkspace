@@ -28,6 +28,15 @@ msgstr "Here are the main changes in each version (newest first). For detailed v
 msgid "版"
 msgstr "Version"
 
+msgid "画面の下へドックしたとき、境界をドラッグしても高さを変えられなかった不具合を直した。"
+msgstr "Fixed a bug where the height of the dock could not be changed by dragging its border when docked at the bottom of the screen."
+
+msgid "初めてドッキングして開くとき(\\ ``mayaCodeEditor -show -floating false``\\ )と、保存済みのドックが見つからないときは、 画面の一番下(コマンドラインの下)ではなく、タイムスライダーの上に入れる。一番下は高さが固定の行 (タイムスライダー・レンジスライダー・コマンドライン)としか隣り合わないため、Maya では高さを変えられない (Maya 標準の部品を入れても同じ)。タイムスライダーを隠しているときは、ビューポートの下に入れる。"
+msgstr "When docking for the first time (\\ ``mayaCodeEditor -show -floating false``\\ ) or when the saved dock is not found, the dock is placed above the time slider instead of at the very bottom of the screen (below the command line). At the very bottom it is next to fixed-height rows only (time slider, range slider and command line), so Maya cannot change its height (the same happens with Maya's own panels). When the time slider is hidden, the dock is placed below the viewport."
+
+msgid "0.7.0 までに一番下へ入ったドックは、開いたときにタイムスライダーの上へ移す。浮動のときと、一番下に高さを変えられる 別のドックが並んでいるときは移さない。"
+msgstr "A dock placed at the very bottom by 0.7.0 or earlier is moved above the time slider when it opens. It is not moved when floating, or when another resizable dock is next to it at the bottom."
+
 msgid "内容"
 msgstr "Contents"
 
@@ -527,8 +536,8 @@ msgstr "Adding and Removing Menu Items in the Window Menu"
 msgid "``plugin/window_menu.cpp`` の ``installWindowMenu`` / ``uninstallWindowMenu``\\ 。\\ ``MGlobal::executeCommand`` で MEL を実行する。 メインメニューがあれば同期的に登録し、起動初期でまだ無い場合だけ ``evalDeferred -lowestPriority`` に回す。 項目のコマンドは MEL の ``mayaCodeEditor -show``\\ 。"
 msgstr "Execute MEL in ``plugin/window_menu.cpp`` / ``installWindowMenu`` / ``uninstallWindowMenu``\\ . Execute MEL in ``MGlobal::executeCommand``\\ . If the main menu exists, register it synchronously; otherwise, defer to ``evalDeferred -lowestPriority`` if not yet registered at startup. The command for each menu item is a MEL ``mayaCodeEditor -show``\\ ."
 
-msgid "メニューの緑の H アイコン"
-msgstr "The green H icon in the menu"
+msgid "メニューのアイコン(緑の地に ``< >``\\ )"
+msgstr "Menu icon (``< >`` on green)"
 
 msgid "``plugin/window_menu.cpp`` の ``drawMenuIcon`` が QPainter で描き、\\ ``MQtUtil::findMenuItem`` で取り出した メニュー項目の QAction へ直接付ける(``menuItem -image`` はファイルしか受け付けないため使わない。 DLL が埋め込みのデータをディスクへ書き出す形は、ウイルス対策ソフトに怪しまれやすい)。 メニュー項目がまだ無い(起動の初期)ときは、プラグインと同じ寿命のタイマーで少し後に付け直す。"
 msgstr "The ``drawMenuIcon`` of ``plugin/window_menu.cpp`` is drawn with QPainter, and the menu item's QAction is obtained and attached directly from ``MQtUtil::findMenuItem`` (since ``menuItem -image`` only accepts files, it is not used). The form of writing embedded DLL data to disk is likely to raise suspicion with antivirus software. If the menu items do not yet exist (at initial startup), they are re-attached later using a timer with the same lifetime as the plug-in."
@@ -1123,8 +1132,8 @@ msgstr "``mayaCodeEditor.mll`` contains file information such as the version (fr
 msgid "画面を開く"
 msgstr "Open the window"
 
-msgid "``mayaCodeEditor`` をロードすると(起動時の自動ロード・Plug-in Manager のどちらでも)、 Window メニューの末尾に区切り線と **Maya Code Editor**\\ (緑の H アイコン)が追加されます。 これをクリックして開くのが基本の起動方法です。プラグインをアンロードすると、この項目も取り除かれます。"
-msgstr "When ``Maya Code Editor`` is loaded (either through automatic loading at startup or via the Plug-in Manager), a separator line and **Maya Code Editor** (with a green H icon) are added to the end of the Window menu. This is the basic method for launching the tool. If you unload the plug-in, this menu item will be removed."
+msgid "``mayaCodeEditor`` をロードすると(起動時の自動ロード・Plug-in Manager のどちらでも)、 Window メニューの末尾に区切り線と **Maya Code Editor**\\ (緑の地に ``< >`` のアイコン)が追加されます。 これをクリックして開くのが基本の起動方法です。プラグインをアンロードすると、この項目も取り除かれます。"
+msgstr "When ``mayaCodeEditor`` is loaded (either through automatic loading at startup or via the Plug-in Manager), a separator line and **Maya Code Editor** (with a ``< >`` icon on green) are added to the end of the Window menu. This is the basic method for launching the tool. If you unload the plug-in, this menu item will be removed."
 
 msgid "メニュー項目のコマンドは MEL の ``mayaCodeEditor -show`` です。MEL タブ・シェルフ・ホットキーから同じように開けます。"
 msgstr "The command for the menu item is the MEL ``mayaCodeEditor -show``. It can be opened from the MEL tab, shelf, or hotkey."
@@ -1159,8 +1168,8 @@ msgstr ""
 msgid "``maya_code_editor.show(floating=False)``"
 msgstr ""
 
-msgid "ドッキングして開く(初回は下側)。"
-msgstr "Open as a dock (on first opening, it will be at the bottom)."
+msgid "ドッキングして開く(初回はタイムスライダーの上)。"
+msgstr "Open docked (above the time slider the first time)."
 
 msgid "``mayaCodeEditor -show -floating true``"
 msgstr ""

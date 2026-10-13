@@ -117,7 +117,7 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
      - ``plugin/window_menu.cpp`` の ``installWindowMenu`` / ``uninstallWindowMenu``\ 。\ ``MGlobal::executeCommand`` で MEL を実行する。
        メインメニューがあれば同期的に登録し、起動初期でまだ無い場合だけ ``evalDeferred -lowestPriority`` に回す。
        項目のコマンドは MEL の ``mayaCodeEditor -show``\ 。
-   * - メニューの緑の H アイコン
+   * - メニューのアイコン(緑の地に ``< >``\ )
      - ``plugin/window_menu.cpp`` の ``drawMenuIcon`` が QPainter で描き、\ ``MQtUtil::findMenuItem`` で取り出した
        メニュー項目の QAction へ直接付ける(``menuItem -image`` はファイルしか受け付けないため使わない。
        DLL が埋め込みのデータをディスクへ書き出す形は、ウイルス対策ソフトに怪しまれやすい)。
@@ -413,12 +413,14 @@ Visual Studio のプロジェクトだけを作る
      - 専用の空シーン・専用設定の Maya GUI で、``userSetup.py`` による自動ロード、表示・ドッキング・実行・出力・補完・
        検索・ショートカットなどを確認(``--suite`` で ``gui_smoke.py`` / ``completion_output_smoke.py`` /
        ``formatting_spelling_smoke.py`` / ``output_format_smoke.py`` / ``output_fallback_smoke.py`` /
-       ``vscode_features_smoke.py`` / ``perf_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
+       ``vscode_features_smoke.py`` / ``perf_smoke.py`` / ``dock_resize_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
        ``perf_smoke.py`` は、画面を開く時間(タブ 1 枚と 30 枚)・カーソル移動だけでの保存の回数・大きな本文の検索・
        Ctrl+P の一覧・文字サイズの変更・新しいタブの時間を測って結果に残す。
        ``vscode_features_smoke.py`` は 0.4.0 で足した機能(差分の印・問題の波線と F8・折りたたみ・見出しの固定表示・
        記号へ移動・アウトライン・定義へ移動・保存前との差分・ファイル名で開く・引数のヒント・補完の説明)を操作して画面を撮る。
-       ``output_fallback_smoke.py`` は、Maya の非表示 reporter が見つからない場合の代わりの出力の取り込みを確かめる)
+       ``output_fallback_smoke.py`` は、Maya の非表示 reporter が見つからない場合の代わりの出力の取り込みを確かめる。
+       ``dock_resize_smoke.py`` は、画面の下へドックしたときに境界のドラッグで高さを変えられることと、
+       画面の一番下に残ったドックをタイムスライダーの上へ移すことを確かめる)
    * - ``run_session.py``
      - 2 回起動し、未保存タブの自動保存と、次の起動での本文・パス・選択位置・未保存状態の復元を確認(``session_smoke.py``)
    * - ``test_session_path.py``

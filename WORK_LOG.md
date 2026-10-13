@@ -103,6 +103,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-13 Claude Code: Maya Code Editor 0.7.1。画面の一番下(コマンドラインの下)へドックすると高さを変えられない(Maya標準の部品でも同じ)ため、自分でドックするときはタイムスライダーの上に入れ、一番下に残ったドックは開いたときに移すようにした(src/plugin/dock.cpp)。回帰テスト tests/dock_resize_smoke.py を追加。mlib改名で壊れていた search_smoke の期待値と、gui_smoke の出力待ちのタイミングも修正。
 - 2026-10-13 Claude Code: 体の回避をUE RBFで学習する版(`tail_shared_avoid.buildRbfDelta`、`motion="*_rbf"`)を追加し4方式を比較。前腕のコーンの右側の向きと、コーンの外での aimConstraint の跳びを修正(demo_tail_twist_cancel・demo_tail_layers)。
 - 2026-10-13 Claude Code: 体の回避をConeReaderで簡易化した版(`tail_shared_avoid.buildConeDelta`、`motion="*_compare"`)を区間のclampと比較。跳びと食い込みが残り、ノードは約25%減に留まるため区間の方式を基準に残す。
 - 2026-10-13 Codex: ユーザー依頼に基づきQPE高速化・共有LRU・表示更新集約・性能回帰テスト・録画補助修正をコミット／プッシュ対象として整理。既存Windows16、Maya2022/2027各7、exeの成功記録を確認。無関係なリグ変更と他担当の作業記録は保持して対象外とする。

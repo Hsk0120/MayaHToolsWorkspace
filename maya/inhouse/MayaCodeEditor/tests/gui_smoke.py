@@ -121,7 +121,12 @@ def main(output_dir, finished):
         om.MGlobal.displayWarning('color_warning_first\ncolor_warning_second')
         om.MGlobal.displayError('color_error_first\ncolor_error_second')
         print('color_plain_after_error')
-        wait_events(80)
+        # 出力欄への追加はイベントループで行う。前の操作が多いと80msでは届かないことがある(2024で確認)ので、
+        # 最後の出力が届くまで待つ(最大3秒)。
+        for attempt in range(30):
+            wait_events(100)
+            if 'color_plain_after_error' in visual_output.toPlainText():
+                break
         for marker, expected in (('color_info', '#9cdcfe'), ('color_warning_first', '#ffff00'),
                                  ('color_warning_second', '#ffff00'), ('color_error_first', '#ff0000'),
                                  ('color_error_second', '#ff0000'), ('color_plain_after_error', '#d4d4d4')):

@@ -51,7 +51,7 @@ mayaCodeEditor.mll 単体で使う場合
 ----------
 
 ``mayaCodeEditor`` をロードすると(起動時の自動ロード・Plug-in Manager のどちらでも)、
-Window メニューの末尾に区切り線と **Maya Code Editor**\ (緑の H アイコン)が追加されます。
+Window メニューの末尾に区切り線と **Maya Code Editor**\ (緑の地に ``< >`` のアイコン)が追加されます。
 これをクリックして開くのが基本の起動方法です。プラグインをアンロードすると、この項目も取り除かれます。
 
 メニュー項目のコマンドは MEL の ``mayaCodeEditor -show`` です。MEL タブ・シェルフ・ホットキーから同じように開けます。
@@ -91,7 +91,7 @@ mayapy(standalone)から補完などの Python API を使う場合も同様で�
      - 既存の配置を保ったまま開く。初回はフローティング表示。
    * - ``mayaCodeEditor -show -floating false``
      - ``maya_code_editor.show(floating=False)``
-     - ドッキングして開く(初回は下側)。
+     - ドッキングして開く(初回はタイムスライダーの上)。
    * - ``mayaCodeEditor -show -floating true``
      - ``maya_code_editor.show(floating=True)``
      - フローティング表示に戻す。
